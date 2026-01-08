@@ -1,0 +1,37 @@
+/* cc1101.overlay */
+&spi2 {
+    compatible = "nordic,nrf-spim";
+    status = "okay";
+    sck-pin = <1>;      // P2.01 (SPI 时钟)
+    mosi-pin = <2>;     // P2.02 (SPI 主输出)
+    miso-pin = <4>;     // P2.04 (SPI 主输入)
+    cs-gpios = <&gpio2 5 GPIO_ACTIVE_LOW>,  // P2.05 (CSN，模块 A)
+              <&gpio2 10 GPIO_ACTIVE_LOW>; // P2.10 (CSN，模块 B)
+};
+
+&gpio2 {
+    gdo0_a: gdo0_a {
+        gpios = <&gpio2 0 GPIO_ACTIVE_HIGH>; // P2.00 (GDO0，模块 A)
+    };
+    gdo0_b: gdo0_b {
+        gpios = <&gpio2 3 GPIO_ACTIVE_HIGH>; // P2.03 (GDO0，模块 B)
+    };
+    gdo2_a: gdo2_a {
+        gpios = <&gpio2 7 GPIO_ACTIVE_HIGH>; // P2.07 (GDO2，模块 A)
+    };
+    gdo2_b: gdo2_b {
+        gpios = <&gpio2 8 GPIO_ACTIVE_HIGH>; // P2.08 (GDO2，模块 B)
+    };
+};
+
+&gpio2 {
+    led0: led_0 {
+        gpios = <&gpio2 9 GPIO_ACTIVE_HIGH>; // P2.09 (LED0，模块 A)
+    };
+};
+
+&gpio1 {
+    led1: led_1 {
+        gpios = <&gpio1 10 GPIO_ACTIVE_HIGH>; // P1.10 (LED1，模块 B)
+    };
+};

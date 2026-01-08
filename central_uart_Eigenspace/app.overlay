@@ -1,0 +1,40 @@
+/*
+ * Copyright (c) 2023 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+/ {
+	 chosen {
+		 nordic,nus-uart = &uart0;
+		 zephyr,display = &tft;
+	 };
+};
+
+
+/* ---------- SPI0 ---------- */
+&spi0 {
+    status = "okay";
+
+    /* 使用 SoC 默认 pinctrl（P0.00 / 0.01 为 SCK / MOSI） */
+    pinctrl-0 = <&spi0_default>;
+    pinctrl-1 = <&spi0_sleep>;
+    pinctrl-names = "default", "sleep";
+
+    /* 片选线改到 P1.03 */
+    cs-gpios = <&gpio1 3 GPIO_ACTIVE_LOW>;
+
+    /* TFT 设备节点 */
+    tft: st7735r@0 {                 /* 如实际芯片是 ST7789V，可改 compatible */
+        compatible = "sitronix,st7735r";
+        reg = <0>;
+        spi-max-frequency = <8000000>;   /* 8 MHz */
+
+        reset-gpios = <&gpio1 1 GPIO_ACTIVE_LOW>; /* RES=P1.01 */
+        dc-gpios    = <&gpio1 2 GPIO_ACTIVE_LOW>; /* RS (DC)=P1.02 */
+
+        width  = <128>;
+        height = <160>;
+        rgb-order = "rgb565";
+    };
+};

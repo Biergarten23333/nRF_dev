@@ -1,0 +1,22 @@
+/* 把 I²C0 (TWIM0) 映射到 P0.26 / P0.27 */
+&pinctrl {
+    i2c0_default: i2c0_default {
+        group1 { psels = <NRF_PSEL(TWIM_SCL, 0, 27)>,
+                          <NRF_PSEL(TWIM_SDA, 0, 26)>; };
+    };
+    i2c0_sleep: i2c0_sleep {
+        group1 { psels = <NRF_PSEL(TWIM_SCL, 0, 27)>,
+                          <NRF_PSEL(TWIM_SDA, 0, 26)>;
+                 low-power-enable; };
+    };
+};
+
+/* 开启 TWIM0 并设为 400 kHz */
+&i2c0 {
+    compatible = "nordic,nrf-twim";
+    status      = "okay";
+    clock-frequency = <I2C_BITRATE_FAST>;   /* 400 k */
+    pinctrl-0   = <&i2c0_default>;
+    pinctrl-1   = <&i2c0_sleep>;
+    pinctrl-names = "default", "sleep";
+};

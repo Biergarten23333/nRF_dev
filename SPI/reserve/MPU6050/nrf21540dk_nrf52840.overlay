@@ -1,0 +1,13 @@
+&i2c0 {
+    status = "okay";
+    pinctrl-names = "default", "sleep";
+    pinctrl-0 = <&i2c0_default>;
+    pinctrl-1 = <&i2c0_sleep>;
+
+    mpu6050@68 {
+        compatible = "invensense,mpu6050";
+        reg        = <0x68>;
+        status     = "okay";
+        int-gpios = <&gpio1 6 GPIO_ACTIVE_LOW>;
+    };
+};

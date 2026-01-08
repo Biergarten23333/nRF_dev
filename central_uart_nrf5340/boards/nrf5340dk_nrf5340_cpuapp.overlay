@@ -1,0 +1,15 @@
+&zephyr_udc0 {
+    status = "okay";
+
+    /* 定义 CDC-ACM 节点 (供 chosen 引用) */
+    cdc_acm0: cdc_acm_uart0 {
+        compatible = "zephyr,cdc-acm-uart";
+        label = "CDC_ACM_0";
+        status = "okay";
+    };
+};
+
+/* 禁用板载 UART0，避免冲突 */
+&uart0 {
+    status = "disabled";
+}; 

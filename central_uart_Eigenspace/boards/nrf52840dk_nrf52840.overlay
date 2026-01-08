@@ -1,0 +1,25 @@
+&zephyr_udc0 {
+    status = "okay";
+
+    /* 定义 CDC-ACM 节点 (供 chosen 引用) */
+    cdc_acm0: cdc_acm_uart0 {
+        compatible = "zephyr,cdc-acm-uart";
+        label = "CDC_ACM_0";
+        status = "okay";
+    };
+};
+
+/* 禁用板载 UART0，避免冲突（不接 P0.06 / P0.08） */
+&uart0 {
+    status = "disabled";
+};
+/* 禁用 QSPI 控制器（如果板子 dts 里有） */
+&qspi {
+    status = "disabled";
+};
+
+/* 禁用外部 SPI NOR flash（名字一般是 mx25r64、jedec_spi_nor 之类） */
+&mx25r64 {
+    status = "disabled";
+};
+/* 如果你板子的 node 叫别的名字，就把 &mx25r64 改成实际的 label */

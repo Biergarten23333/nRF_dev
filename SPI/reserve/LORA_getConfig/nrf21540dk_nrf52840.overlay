@@ -1,0 +1,63 @@
+/* nrf21540dk_nrf52840.overlay */
+ / {
+     zephyr,user {
+         /* 仅保留 ADC 通道 0 (P0.03, NRF_SAADC_AIN1) */
+         io-channels = <&adc 0>;
+     };
+     aliases {
+         uart0 = &uart0;
+     };
+
+ };
+
+ &adc {
+     #address-cells = <1>;
+     #size-cells = <0>;
+
+     channel@0 {
+         reg = <0>;
+         zephyr,gain = "ADC_GAIN_1_6";
+         zephyr,reference = "ADC_REF_INTERNAL";
+         zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+         zephyr,input-positive = <NRF_SAADC_AIN1>; /* P0.03 */
+         zephyr,resolution = <12>;
+     };
+ };
+
+&gpio1 {
+    label = "gpio1";
+    status = "okay";
+};
+
+&i2c0 {
+    status = "okay";
+    pinctrl-names = "default", "sleep";
+    pinctrl-0 = <&i2c0_default>;
+    pinctrl-1 = <&i2c0_sleep>;
+
+    mpu6050@68 {
+        compatible = "invensense,mpu6050";
+        reg        = <0x68>;
+        status     = "okay";
+        int-gpios = <&gpio1 6 GPIO_ACTIVE_LOW>;
+    };
+};
+
+&uart0 {
+    label         = "uart0";
+    status        = "okay";
+    current-speed = <9600>;
+    parity        = "none";
+    pinctrl-0     = <&uart0_default>;
+    pinctrl-1     = <&uart0_sleep>;
+    pinctrl-names = "default", "sleep";
+};
+
+&uart1 {
+    status        = "okay";
+    current-speed = <115200>;
+    pinctrl-0     = <&uart1_default>;
+    pinctrl-1     = <&uart1_sleep>;
+    pinctrl-names = "default", "sleep";
+};
+
