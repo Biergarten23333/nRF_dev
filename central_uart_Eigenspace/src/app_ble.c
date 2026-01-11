@@ -53,7 +53,7 @@
 /* 只允许连接这些 eFxxxx，其他 eFxxxx 直接忽略 */
 
 static const char *whitelist_names[] = {
-    "ES1D4F",// left hand
+    "ES64EE",// left hand
     "ES744C",//right hand
 };
 
