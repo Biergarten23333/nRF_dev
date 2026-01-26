@@ -1,0 +1,15 @@
+nrf5_mbr:
+  address: 0x0
+  size: 0x1000
+  region: flash_primary
+
+app:
+  address: 0x1000
+  size: 0xDF000     # ends at 0xE0000
+  region: flash_primary
+
+# 预留出厂 DFU bootloader + settings 区（最后 128KB）
+bootloader_reserved:
+  address: 0xE0000
+  size: 0x20000     # 0xE0000 ~ 0x100000
+  region: flash_primary
