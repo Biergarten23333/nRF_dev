@@ -31,7 +31,7 @@
 		led1-red = &led1_red;
 		led1-green = &led1_green;
 		led1-blue = &led1_blue;
-		pwm-led0 = &red_pwm_led;
+		pwm-led0 = &ld1_pwm;
 		pwm-led1 = &green_pwm_led;
 		pwm-led2 = &blue_pwm_led;
 		red-pwm-led = &red_pwm_led;
@@ -609,14 +609,14 @@
 		pwm0_default: pwm0_default {
 			phandle = < 0xd >;
 			group1 {
-				psels = < 0x16000008 >, < 0x17000029 >, < 0x1800000c >;
+				psels = < 0x16000006 >;
 				nordic,invert;
 			};
 		};
 		pwm0_sleep: pwm0_sleep {
 			phandle = < 0xe >;
 			group1 {
-				psels = < 0x16000008 >, < 0x17000029 >, < 0x1800000c >;
+				psels = < 0x16000006 >;
 				low-power-enable;
 			};
 		};
@@ -703,6 +703,9 @@
 		};
 		blue_pwm_led: pwm_led_2 {
 			pwms = < &pwm0 0x2 0x1312d00 0x1 >;
+		};
+		ld1_pwm: ld1_pwm {
+			pwms = < &pwm0 0x0 0x989680 0x1 >;
 		};
 	};
 	buttons {

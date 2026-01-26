@@ -1081,12 +1081,7 @@ zephyr_udc0: &usbd {
 };
 # 0 "<command-line>" 2
 # 1 "/home/zekaixiao/Documents/nRF_dev/central_uart_try_dongle/app.overlay" 1
-
-
-
-
-
-
+# 10 "/home/zekaixiao/Documents/nRF_dev/central_uart_try_dongle/app.overlay"
 / {
   chosen {
    nordic,nus-uart = &uart0;
@@ -1119,6 +1114,43 @@ zephyr_udc0: &usbd {
         width = <128>;
         height = <160>;
         rgb-order = "rgb565";
+    };
+};
+
+
+
+&pinctrl {
+    pwm0_default: pwm0_default {
+        group1 {
+            psels = <((((((0) * 32U) + (6)) & 0x1FFU) << 0U) | ((22U & 0xFFU) << 24U))>;
+        };
+    };
+
+    pwm0_sleep: pwm0_sleep {
+        group1 {
+            psels = <((((((0) * 32U) + (6)) & 0x1FFU) << 0U) | ((22U & 0xFFU) << 24U))>;
+            low-power-enable;
+        };
+    };
+};
+
+&pwm0 {
+    status = "okay";
+    pinctrl-0 = <&pwm0_default>;
+    pinctrl-1 = <&pwm0_sleep>;
+    pinctrl-names = "default", "sleep";
+};
+
+/ {
+    pwmleds {
+        compatible = "pwm-leds";
+        ld1_pwm: ld1_pwm {
+            pwms = <&pwm0 0 (((10) * 1000UL) * 1000UL) (1 << 0)>;
+        };
+    };
+
+    aliases {
+        pwm-led0 = &ld1_pwm;
     };
 };
 # 0 "<command-line>" 2

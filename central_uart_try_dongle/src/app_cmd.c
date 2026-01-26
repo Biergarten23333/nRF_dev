@@ -8,6 +8,12 @@
 #include "app_ble.h"
 #include "app_cmd.h"
 
+
+static void ui_set_state(app_ui_state_t state)
+{
+    app_ui_set_state(state);
+}
+
 K_THREAD_STACK_DEFINE(app_cmd_stack, 1024);
 static struct k_thread app_cmd_thread;
 
@@ -86,6 +92,7 @@ static void handle_cmd(const char *cmd_in)
     if (cmd_starts_with_word(cmd, "scan")) {
         cdc_printf("CMD: scan\r\n");
         app_ble_start_scan();
+        ui_set_state(APP_UI_STATE_SCAN);
         return;
     }
 
@@ -93,6 +100,7 @@ static void handle_cmd(const char *cmd_in)
     if (cmd_starts_with_word(cmd, "conn")) {
         cdc_printf("CMD: conn\r\n");
         app_ble_connect_whitelist();
+        ui_set_state(APP_UI_STATE_CONN);
         return;
     }
 
@@ -107,12 +115,14 @@ static void handle_cmd(const char *cmd_in)
     if (cmd_starts_with_word(cmd, "stream_on")) {
         cdc_printf("CMD: stream_on\r\n");
         cdc_async_enable(true);
+        ui_set_state(APP_UI_STATE_START);
         return;
     }
 
     if (cmd_starts_with_word(cmd, "stream_off")) {
         cdc_printf("CMD: stream_off\r\n");
         cdc_async_enable(false);
+        ui_set_state(app_ble_get_conn_count() > 0 ? APP_UI_STATE_CONN : APP_UI_STATE_SCAN);
         return;
     }
 
@@ -121,6 +131,7 @@ static void handle_cmd(const char *cmd_in)
         cmd_starts_with_word(cmd, "disconnect")) {
         cdc_printf("CMD: disconnect all\r\n");
         app_ble_disconnect_all();
+        ui_set_state(APP_UI_STATE_SCAN);
         return;
     }
 

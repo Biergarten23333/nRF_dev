@@ -142,3 +142,8 @@ if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   include("/home/zekaixiao/Documents/nRF_dev/central_uart_try_dongle/build/central_uart_try_dongle/zephyr/subsys/bluetooth/cmake_install.cmake")
 endif()
 
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for the subdirectory.
+  include("/home/zekaixiao/Documents/nRF_dev/central_uart_try_dongle/build/central_uart_try_dongle/zephyr/subsys/settings/cmake_install.cmake")
+endif()
+

@@ -3,26 +3,38 @@ app:
   end_address: 0xda000
   region: flash_primary
   size: 0xd9000
-bootloader_reserved:
+bootloader:
   address: 0xe0000
+  end_address: 0xfe000
+  region: flash_primary
+  size: 0x1e000
+bootloader_settings:
+  address: 0xfe000
   end_address: 0x100000
   region: flash_primary
-  size: 0x20000
+  size: 0x2000
 nrf5_mbr:
   address: 0x0
   end_address: 0x1000
   region: flash_primary
   size: 0x1000
-nvs_storage:
+settings_storage:
   address: 0xda000
-  end_address: 0xe0000
+  end_address: 0xdc000
   placement:
+    align:
+      start: 0x1000
     before:
     - end
   region: flash_primary
-  size: 0x6000
+  size: 0x2000
 sram_primary:
   address: 0x20000000
   end_address: 0x20040000
   region: sram_primary
   size: 0x40000
+storage:
+  address: 0xdc000
+  end_address: 0xe0000
+  region: flash_primary
+  size: 0x4000

@@ -109,6 +109,11 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
+  include("/home/zekaixiao/Documents/nRF_dev/central_uart_try_dongle/build/central_uart_try_dongle/zephyr/drivers/pwm/cmake_install.cmake")
+endif()
+
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for the subdirectory.
   include("/home/zekaixiao/Documents/nRF_dev/central_uart_try_dongle/build/central_uart_try_dongle/zephyr/drivers/serial/cmake_install.cmake")
 endif()
 

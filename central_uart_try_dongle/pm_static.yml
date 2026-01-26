@@ -5,11 +5,23 @@ nrf5_mbr:
 
 app:
   address: 0x1000
-  size: 0xDF000     # ends at 0xE0000
+  size: 0xDB000     # ends at 0xDC000
   region: flash_primary
 
-# 预留出厂 DFU bootloader + settings 区（最后 128KB）
-bootloader_reserved:
+# Settings storage (NVS) - 16KB
+storage:
+  address: 0xDC000
+  size: 0x4000      # 0xDC000 ~ 0xE0000
+  region: flash_primary
+
+# Legacy USB DFU bootloader region (aligned to actual layout)
+bootloader:
   address: 0xE0000
-  size: 0x20000     # 0xE0000 ~ 0x100000
+  size: 0x1E000     # 0xE0000 ~ 0xFE000
+  region: flash_primary
+
+# Bootloader settings region (last 8KB)
+bootloader_settings:
+  address: 0xFE000
+  size: 0x2000      # 0xFE000 ~ 0x100000
   region: flash_primary
