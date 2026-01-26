@@ -22,6 +22,7 @@
 
 #include <string.h>
 #include <stdint.h>
+#include <limits.h>
 
 LOG_MODULE_REGISTER(app, LOG_LEVEL_INF);
 
@@ -35,6 +36,11 @@ LOG_MODULE_REGISTER(app, LOG_LEVEL_INF);
 /* [RTT debug] 打印频率控制：每 N 帧打印一次 */
 #define RTT_DEBUG_ENABLE         1
 #define RTT_DEBUG_EVERY_N_FRAMES 50
+
+/* ADS1298 自检（内部测试信号） */
+#define ADS_SELF_TEST_ENABLE 1
+#define ADS_SELF_TEST_FRAMES 64
+#define ADS_SELF_TEST_SKIP   4
 
 /* CONFIG1（HR=1，正确的 DR→SPS 映射）
  * 使用 app_config.h 里定义的 EMG_SAMPLE_RATE_SPS
@@ -87,13 +93,16 @@ LOG_MODULE_REGISTER(app, LOG_LEVEL_INF);
 static const struct device *const spi_dev  = DEVICE_DT_GET(SPI_NODE);
 static const struct device *const gpio1    = DEVICE_DT_GET(GPIO1_NODE);
 
-/* SPI: MODE1 (CPOL=0, CPHA=1)，手动 CS */
+/* SPI: 默认 MODE1（CPOL=0, CPHA=1），手动 CS */
+#define ADS_SPI_DEFAULT_MODE 1
+static const spi_operation_t spi_base_op =
+    SPI_OP_MODE_MASTER | SPI_WORD_SET(8) | SPI_TRANSFER_MSB;
 static struct spi_config spi_cfg = {
     .frequency = SPI_HZ,
     .operation = SPI_OP_MODE_MASTER | SPI_WORD_SET(8) |
                  SPI_TRANSFER_MSB | SPI_MODE_CPHA,
     .slave = 0,
-    .cs = NULL,
+    .cs = { .gpio = {0}, .delay = 0 },
 };
 
 /* ====== ADS1298 指令 ====== */
@@ -126,6 +135,7 @@ enum {
 #define CH_GAIN_12    (0x03 << 4)        /* 这里只是占位，按你原来的配置 */
 #define CH_MUX_NORMAL  0x00              /* Normal electrode input */
 #define CH_MUX_SHORT   0x01              /* 内部短接（用于噪声测试） */
+#define CH_MUX_TEST    0x05              /* 内部测试信号 */
 
 /* ========================= 工具函数 ========================= */
 
@@ -181,7 +191,7 @@ static int ads_cmd(uint8_t cmd)
 }
 
 /* 快速 WREG（寄存器写） */
-static int ads_wreg(uint8_t addr, const uint8_t *in, size_t n)
+static __unused int ads_wreg(uint8_t addr, const uint8_t *in, size_t n)
 {
     if (n == 0 || n > 32) return -EINVAL;
 
@@ -307,6 +317,56 @@ static int ads_reset_and_idle(void)
     return 0;
 }
 
+static void ads_read_id_debug(void)
+{
+    uint32_t old_hz = spi_cfg.frequency;
+    spi_operation_t old_op = spi_cfg.operation;
+    const uint32_t speeds[] = { 100000U, 500000U, 1000000U };
+    const spi_operation_t modes[] = {
+        0,
+        SPI_MODE_CPHA,
+        SPI_MODE_CPOL,
+        SPI_MODE_CPOL | SPI_MODE_CPHA,
+    };
+    bool found = false;
+
+    k_msleep(2);
+    for (int m = 0; m < 4; m++) {
+        spi_cfg.operation = spi_base_op | modes[m];
+        for (size_t s = 0; s < ARRAY_SIZE(speeds); s++) {
+            spi_cfg.frequency = speeds[s];
+            k_msleep(2);
+
+            for (int i = 0; i < 2; i++) {
+                uint8_t tx[3] = { (uint8_t)(CMD_RREG | (REG_ID & 0x1F)), 0x00, 0x00 };
+                uint8_t rx[3] = { 0 };
+                if (spi_trx(tx, rx, sizeof(tx)) == 0) {
+                    uint8_t id = rx[2];
+                    LOG_INF("ID scan m=%d hz=%u: tx=%02X %02X %02X rx=%02X %02X %02X",
+                            m, (unsigned int)spi_cfg.frequency,
+                            tx[0], tx[1], tx[2], rx[0], rx[1], rx[2]);
+                    if (id != 0x00 && id != 0xFF) {
+                        LOG_INF("ADS1298 ID detected: 0x%02X (mode=%d, hz=%u)",
+                                id, m, (unsigned int)spi_cfg.frequency);
+                        found = true;
+                    }
+                } else {
+                    LOG_ERR("ADS1298 ID read failed (mode=%d hz=%u)",
+                            m, (unsigned int)spi_cfg.frequency);
+                }
+                k_msleep(2);
+            }
+        }
+    }
+
+    if (!found) {
+        LOG_WRN("ADS1298 ID scan: no valid response");
+    }
+
+    spi_cfg.frequency = old_hz;
+    spi_cfg.operation = old_op;
+}
+
 static int ads_config_all8_true_diff(void)
 {
     int ret = 0;
@@ -325,20 +385,8 @@ static int ads_config_all8_true_diff(void)
     ret |= ads_wreg_slow(REG_CONFIG3, &c3, 1);
     if (ret) return -EIO;
 
-    /* CH1..CH7 块写 */
-    ret |= ads_wreg_slow(REG_CH1SET, chs, 7);
-    if (ret) return -EIO;
-
-    /* CH8 单独写 + 失败时 SHORT 再回写 */
-    uint8_t v8 = chs[7];
-    ret |= ads_wreg_slow(REG_CH8SET, &v8, 1);
-
-    if (ret) {
-        uint8_t short8 = (uint8_t)(CH_MUX_SHORT | CH_GAIN_12);
-        ads_wreg_slow(REG_CH8SET, &short8, 1);
-        k_msleep(2);
-        ads_wreg_slow(REG_CH8SET, &v8, 1);
-    }
+    /* CH1..CH8 块写，保持一致 */
+    ret |= ads_wreg_slow(REG_CH1SET, chs, 8);
     if (ret) return -EIO;
 
     /* RLD */
@@ -356,11 +404,107 @@ static int ads_config_all8_true_diff(void)
     LOG_INF("CH1..8: %02X %02X %02X %02X %02X %02X %02X %02X",
             rd[0], rd[1], rd[2], rd[3], rd[4], rd[5], rd[6], rd[7]);
 
-    if (rd[7] != v8) {
+    if (rd[7] != chs[7]) {
         LOG_WRN("CH8 still not set (read=0x%02X expect=0x%02X).",
-                rd[7], v8);
+                rd[7], chs[7]);
     }
     return 0;
+}
+
+/* DRDY 信号量前置声明，供自检使用 */
+static struct k_sem drdy_sem;
+static int ads_read_frame_27B(int32_t out_ch[8], uint8_t status[3]);
+
+static int ads_set_all_channels(uint8_t ch_val)
+{
+    int ret = 0;
+    uint8_t chs[7];
+    for (int i = 0; i < 7; i++) {
+        chs[i] = ch_val;
+    }
+
+    ret |= ads_wreg_slow(REG_CH1SET, chs, 8);
+    if (ret) return -EIO;
+
+    return 0;
+}
+
+static int ads_self_test(void)
+{
+    int ret;
+    int32_t minv[8];
+    int32_t maxv[8];
+    int32_t ch_code[8];
+    uint8_t status[3];
+
+    for (int i = 0; i < 8; i++) {
+        minv[i] = INT32_MAX;
+        maxv[i] = INT32_MIN;
+    }
+
+    LOG_INF("ADS1298 self-test: enable internal test signal");
+
+    ads_cmd(CMD_SDATAC);
+    k_sleep(K_USEC(10));
+    gpio_pin_set(gpio1, PIN_START, 0);
+    k_msleep(1);
+
+    /* 开启内部测试信号 */
+    uint8_t c2_test = (uint8_t)(CONFIG2_VALUE | 0x80);
+    ret = ads_wreg_slow(REG_CONFIG2, &c2_test, 1);
+    if (ret) {
+        LOG_ERR("self-test: CONFIG2 write failed");
+        goto restore;
+    }
+
+    ret = ads_set_all_channels((uint8_t)(CH_MUX_TEST | CH_GAIN_12));
+    if (ret) {
+        LOG_ERR("self-test: CHnSET write failed");
+        goto restore;
+    }
+
+    /* 开始转换并抓取若干帧 */
+    gpio_pin_set(gpio1, PIN_START, 1);
+    k_sleep(K_USEC(10));
+    ads_cmd(CMD_RDATAC);
+    k_sleep(K_USEC(10));
+
+    for (int i = 0; i < ADS_SELF_TEST_SKIP + ADS_SELF_TEST_FRAMES; ) {
+        if (k_sem_take(&drdy_sem, K_MSEC(DRDY_TIMEOUT_MS)) != 0) {
+            LOG_WRN("self-test: missed frame");
+            continue;
+        }
+        if (ads_read_frame_27B(ch_code, status) != 0) {
+            continue;
+        }
+
+        if (i >= ADS_SELF_TEST_SKIP) {
+            for (int ch = 0; ch < 8; ch++) {
+                if (ch_code[ch] < minv[ch]) minv[ch] = ch_code[ch];
+                if (ch_code[ch] > maxv[ch]) maxv[ch] = ch_code[ch];
+            }
+        }
+        i++;
+    }
+
+    LOG_INF("ADS1298 self-test result (min..max, LSB):");
+    LOG_INF("CH1=%d..%d CH2=%d..%d CH3=%d..%d CH4=%d..%d",
+            minv[0], maxv[0], minv[1], maxv[1],
+            minv[2], maxv[2], minv[3], maxv[3]);
+    LOG_INF("CH5=%d..%d CH6=%d..%d CH7=%d..%d CH8=%d..%d",
+            minv[4], maxv[4], minv[5], maxv[5],
+            minv[6], maxv[6], minv[7], maxv[7]);
+
+restore:
+    /* 恢复正常配置 */
+    ads_cmd(CMD_SDATAC);
+    k_sleep(K_USEC(10));
+    gpio_pin_set(gpio1, PIN_START, 0);
+    k_msleep(1);
+    uint8_t c2_norm = CONFIG2_VALUE;
+    ads_wreg_slow(REG_CONFIG2, &c2_norm, 1);
+    ads_set_all_channels((uint8_t)(CH_MUX_NORMAL | CH_GAIN_12));
+    return ret;
 }
 
 static int ads_start_rdatac(void)
@@ -461,7 +605,6 @@ static int usb_cdc_init(void)
 
 /* ========================= DRDY & 读帧 ========================= */
 
-static struct k_sem          drdy_sem;
 static struct gpio_callback  drdy_cb;
 static atomic_t              g_drdy_cnt = ATOMIC_INIT(0);
 
@@ -569,12 +712,17 @@ static void ads_sampling_thread(void *a, void *b, void *c)
 
 #if RTT_DEBUG_ENABLE
         if ((dbg_cnt++ % RTT_DEBUG_EVERY_N_FRAMES) == 0) {
-            LOG_INF("STS:%02X %02X %02X  CH1=%08X CH2=%08X CH3=%08X CH4=%08X",
+            LOG_INF("STS:%02X %02X %02X  CH1=%08X CH2=%08X CH3=%08X CH4=%08X "
+                    "CH5=%08X CH6=%08X CH7=%08X CH8=%08X",
                     status[0], status[1], status[2],
                     (unsigned int)ch_code[0],
                     (unsigned int)ch_code[1],
                     (unsigned int)ch_code[2],
-                    (unsigned int)ch_code[3]);
+                    (unsigned int)ch_code[3],
+                    (unsigned int)ch_code[4],
+                    (unsigned int)ch_code[5],
+                    (unsigned int)ch_code[6],
+                    (unsigned int)ch_code[7]);
         }
 #endif
 
@@ -635,11 +783,19 @@ int ads1298_init(void)
 
     /* ADS1298 初始化 */
     ads_reset_and_idle();
+
+    /* Debug: try a slow ID read to validate SPI link */
+    ads_read_id_debug();
+
     if (ads_config_all8_true_diff() != 0) {
         LOG_ERR("WREG failed");
         return -EIO;
     }
     ads_dump_and_verify();
+
+#if ADS_SELF_TEST_ENABLE
+    ads_self_test();
+#endif
     ads_start_rdatac();
 
     /* 清空残留 DRDY 信号量 */

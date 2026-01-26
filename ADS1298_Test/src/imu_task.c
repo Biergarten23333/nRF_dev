@@ -121,6 +121,8 @@ static volatile uint16_t g_phase_ms    = 0;               /* 多 TX 分时隙用
 
 /* IMU 'I' 帧的 seq 计数器 */
 static uint16_t seq_imu;
+static struct imu_sample_raw last_sample;
+static bool last_sample_valid;
 
 /* ========================= FIFO 辅助函数 ========================= */
 
@@ -437,6 +439,8 @@ static void imu_sending_thread(void *a, void *b, void *c)
             if (got > 0) {
                 /* sample_count = got */
                 imu_send_frame(now_host, fps, samples, got);
+                last_sample = samples[got - 1];
+                last_sample_valid = true;
             } else {
                 /* 没数据就退出这轮，避免空转 */
                 break;
@@ -446,8 +450,16 @@ static void imu_sending_thread(void *a, void *b, void *c)
         /* 每秒打印一次调试信息（原来那段可以保留/删除） */
         if ((now_host - last_log_ms) >= 1000U) {
             last_log_ms = now_host;
-            LOGF("IMU send: fps=%u, phase_acc=%u\n",
-                 (unsigned int)fps, (unsigned int)phase_acc);
+            if (last_sample_valid) {
+                LOGF("IMU send: fps=%u, phase_acc=%u, "
+                     "ax=%d ay=%d az=%d gx=%d gy=%d gz=%d\n",
+                     (unsigned int)fps, (unsigned int)phase_acc,
+                     last_sample.ax, last_sample.ay, last_sample.az,
+                     last_sample.gx, last_sample.gy, last_sample.gz);
+            } else {
+                LOGF("IMU send: fps=%u, phase_acc=%u\n",
+                     (unsigned int)fps, (unsigned int)phase_acc);
+            }
         }
 
         /* 发包线程不需要太细，1ms 轮询足够 */

@@ -55,7 +55,7 @@
 /* EMG: 每个 BLE 帧里包含多少个时间点的 8 路样本
  * 可选：1 / 2 / 3 / 4
  */
-#define EMG_SAMPLES_PER_FRAME   2 //compressed to 2 samples per frame for better throughput
+#define EMG_SAMPLES_PER_FRAME   4 //compress to 4 samples per frame to reduce BLE packet rate
 #define EMG_SAMPLE_RATE_SPS     500
 
 #if (EMG_SAMPLE_RATE_SPS != 250)  && \

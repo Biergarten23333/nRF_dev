@@ -211,8 +211,8 @@ static void connected_cb(struct bt_conn *conn, uint8_t err)
     exch_mtu_params.func = exchange_mtu_cb;
     bt_gatt_exchange_mtu(conn, &exch_mtu_params);
 
-    /* conn interval = 50 ms, latency = 19, timeout = 10 s */
-    const struct bt_le_conn_param *param = BT_LE_CONN_PARAM(40, 40, 19, 1000);
+    /* Prefer low-latency params for 1 kSPS streaming */
+    const struct bt_le_conn_param *param = BT_LE_CONN_PARAM(6, 12, 0, 400);
     bt_conn_le_param_update(conn, param);
 
     printk("[TX] Connected\n");

@@ -97,7 +97,7 @@ static void emg_frame_cb(const int32_t ch_code[8], const uint8_t status[3])
 
 /* ============ 主入口 ============ */
 
-void main(void)
+int main(void)
 {
     int ret;
     int ble_ok = 0;
@@ -150,4 +150,6 @@ void main(void)
     while (1) {
         k_sleep(K_FOREVER);
     }
+
+    return 0;
 }

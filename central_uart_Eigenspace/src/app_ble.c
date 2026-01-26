@@ -49,12 +49,16 @@
 #define EF_PREFIX_0        'E'
 #define EF_PREFIX_1        'S'
 
+/* NUS RX -> CDC queue to avoid blocking BLE callback */
+#define CDC_RX_ITEM_SIZE 256
+#define CDC_RX_POOL_ITEMS 64
+
 /* ========================= 名字白名单 ========================= */
 /* 只允许连接这些 eFxxxx，其他 eFxxxx 直接忽略 */
 
 static const char *whitelist_names[] = {
     "ES64EE",// left hand
-    "ES744C",//right hand
+    "ESAE2E",//right hand
 };
 
 #define WHITELIST_COUNT (sizeof(whitelist_names) / sizeof(whitelist_names[0]))
@@ -99,6 +103,38 @@ static int                  gatt_active_slot = -1;
 
 static bool                 scanning;
 static bool                 connecting;
+
+struct cdc_rx_item {
+    void    *fifo_reserved;
+    uint16_t len;
+    uint8_t  data[CDC_RX_ITEM_SIZE];
+};
+
+/* CDC async queue */
+K_FIFO_DEFINE(cdc_rx_fifo);
+K_MEM_SLAB_DEFINE(cdc_rx_slab,
+                  sizeof(struct cdc_rx_item),
+                  CDC_RX_POOL_ITEMS,
+                  4);
+
+static struct k_thread cdc_rx_thread_data;
+K_THREAD_STACK_DEFINE(cdc_rx_stack, 1024);
+
+static void cdc_rx_thread(void *a, void *b, void *c)
+{
+    ARG_UNUSED(a);
+    ARG_UNUSED(b);
+    ARG_UNUSED(c);
+
+    while (1) {
+        struct cdc_rx_item *item =
+            (struct cdc_rx_item *)k_fifo_get(&cdc_rx_fifo, K_FOREVER);
+        if (item) {
+            (void)cdc_async_write(item->data, item->len);
+            k_mem_slab_free(&cdc_rx_slab, (void *)item);
+        }
+    }
+}
 
 /* ========================= 内部声明 ========================= */
 
@@ -150,8 +186,16 @@ static uint8_t nus_recv_cb(struct bt_nus_client *nus,
         return BT_GATT_ITER_CONTINUE;
     }
 
-    /* ========== 通过验证 → 正常透传到 USB ========== */
-    (void)cdc_async_write(data, len);
+    /* ========== 通过验证 → 入队后由后台线程转发到 USB ========== */
+    if (len <= CDC_RX_ITEM_SIZE) {
+        void *block = NULL;
+        if (k_mem_slab_alloc(&cdc_rx_slab, &block, K_NO_WAIT) == 0) {
+            struct cdc_rx_item *item = (struct cdc_rx_item *)block;
+            item->len = len;
+            memcpy(item->data, data, len);
+            k_fifo_put(&cdc_rx_fifo, item);
+        }
+    }
 
     return BT_GATT_ITER_CONTINUE;
 }
@@ -433,6 +477,11 @@ static void connected_cb(struct bt_conn *conn, uint8_t err)
 
     /* 这里现在不强制提 L2 安全级别 */
 
+    /* Request low-latency params for streaming */
+    const struct bt_le_conn_param *param = BT_LE_CONN_PARAM(6, 12, 0, 400);
+    int perr = bt_conn_le_param_update(conn, param);
+    cdc_printf("conn param update -> %d\r\n", perr);
+
     /* 请求 2M PHY（失败也没关系） */
     struct bt_conn_le_phy_param phy = {
         .options     = BT_CONN_LE_PHY_OPT_NONE,
@@ -696,6 +745,12 @@ int app_ble_init(void)
         slot_authed[i]  = false;
         conns[i]        = NULL;
     }
+
+    k_thread_create(&cdc_rx_thread_data, cdc_rx_stack,
+                    K_THREAD_STACK_SIZEOF(cdc_rx_stack),
+                    cdc_rx_thread, NULL, NULL, NULL,
+                    7, 0, K_NO_WAIT);
+    k_thread_name_set(&cdc_rx_thread_data, "cdc_rx");
 
     cdc_printf("BT initialized.\n");
     return 0;
