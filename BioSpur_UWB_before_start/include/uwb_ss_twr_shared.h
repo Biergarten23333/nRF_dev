@@ -1,0 +1,47 @@
+#ifndef UWB_SS_TWR_SHARED_H
+#define UWB_SS_TWR_SHARED_H
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#define UWB_MAX_ANCHORS 8U
+#define UWB_MAX_TAGS 10U
+
+#define UWB_PAN_ID 0xDECAU
+
+#define UWB_FRAME_CTRL_LOW 0x41U
+#define UWB_FRAME_CTRL_HIGH 0x88U
+
+#define UWB_MSG_COMMON_LEN 10U
+#define UWB_MSG_SN_IDX 2U
+#define UWB_MSG_PAN_IDX 3U
+#define UWB_MSG_DST_IDX 5U
+#define UWB_MSG_SRC_IDX 7U
+#define UWB_MSG_CODE_IDX 9U
+
+#define UWB_MSG_POLL_CODE 0xE0U
+#define UWB_MSG_RESP_CODE 0xE1U
+
+#define UWB_ANCHOR_BASE_ADDR 0xA100U
+#define UWB_TAG_BASE_ADDR 0xB100U
+
+uint16_t uwb_anchor_short_addr(uint8_t anchor_id);
+uint16_t uwb_tag_short_addr(uint8_t tag_id);
+uint8_t uwb_anchor_id_from_addr(uint16_t short_addr);
+uint8_t uwb_tag_id_from_addr(uint16_t short_addr);
+bool uwb_short_addr_is_anchor(uint16_t short_addr);
+bool uwb_short_addr_is_tag(uint16_t short_addr);
+bool uwb_short_addr_is_ranging_initiator(uint16_t short_addr);
+
+void uwb_ss_twr_build_poll_frame(uint8_t *frame, uint8_t seq, uint16_t dst_addr,
+                                 uint16_t src_addr);
+void uwb_ss_twr_build_resp_frame(uint8_t *frame, uint8_t seq, uint16_t dst_addr,
+                                 uint16_t src_addr);
+
+uint16_t uwb_frame_get_dst_addr(const uint8_t *frame);
+uint16_t uwb_frame_get_src_addr(const uint8_t *frame);
+bool uwb_ss_twr_poll_matches(const uint8_t *frame, uint16_t local_addr);
+bool uwb_ss_twr_resp_matches(const uint8_t *frame, uint16_t local_addr,
+                             uint16_t expected_peer_addr);
+
+#endif /* UWB_SS_TWR_SHARED_H */

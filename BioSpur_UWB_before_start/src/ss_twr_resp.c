@@ -1,1 +1,195 @@
-/* Single-sided TWR responder scaffold */
+#include "ss_twr_resp.h"
+#include "uwb_ss_twr_shared.h"
+
+#include <string.h>
+
+#include <deca_device_api.h>
+#include <deca_regs.h>
+#include <zephyr/sys/printk.h>
+
+#define SS_TWR_RESP_TX_ANT_DLY 16436U
+#define SS_TWR_RESP_RX_ANT_DLY 16436U
+
+#define SS_TWR_RESP_RX_BUF_LEN 20U
+#define SS_TWR_RESP_ALL_MSG_COMMON_LEN 10U
+#define SS_TWR_RESP_MSG_SN_IDX 2U
+#define SS_TWR_RESP_POLL_RX_TS_IDX 10U
+#define SS_TWR_RESP_RESP_TX_TS_IDX 14U
+#define SS_TWR_RESP_MSG_TS_LEN 4U
+
+#define SS_TWR_RESP_UUS_TO_DWT_TIME 65536ULL
+#define SS_TWR_RESP_POLL_RX_TO_RESP_TX_DLY_UUS 900U
+
+typedef unsigned long long dwtime_u64_t;
+
+static dwt_config_t ss_twr_resp_config = {
+    5,
+    DWT_PRF_64M,
+    DWT_PLEN_128,
+    DWT_PAC8,
+    9,
+    9,
+    1,
+    DWT_BR_6M8,
+    DWT_PHRMODE_STD,
+    129,
+};
+
+static uint8_t ss_twr_resp_frame_seq_nb;
+static uint8_t ss_twr_resp_rx_buffer[SS_TWR_RESP_RX_BUF_LEN];
+static uint8_t ss_twr_resp_tx_resp_msg[20];
+static uint16_t ss_twr_resp_local_addr;
+static uint8_t ss_twr_resp_anchor_id;
+static int ss_twr_resp_allow_tag_polls;
+
+static dwtime_u64_t ss_twr_resp_get_rx_timestamp_u64(void)
+{
+    uint8 ts_tab[5];
+    dwtime_u64_t ts = 0;
+
+    dwt_readrxtimestamp(ts_tab);
+
+    for (int i = 4; i >= 0; --i) {
+        ts <<= 8;
+        ts |= ts_tab[i];
+    }
+
+    return ts;
+}
+
+static void ss_twr_resp_write_ts(uint8_t *ts_field, dwtime_u64_t ts)
+{
+    for (int i = 0; i < SS_TWR_RESP_MSG_TS_LEN; ++i) {
+        ts_field[i] = (uint8_t)(ts >> (i * 8));
+    }
+}
+
+static void ss_twr_resp_configure_radio(void)
+{
+    dwt_configure(&ss_twr_resp_config);
+    dwt_setrxantennadelay(SS_TWR_RESP_RX_ANT_DLY);
+    dwt_settxantennadelay(SS_TWR_RESP_TX_ANT_DLY);
+    dwt_setleds(DWT_LEDS_ENABLE);
+    dwt_setrxtimeout(0);
+    dwt_setpreambledetecttimeout(0);
+    dwt_write32bitreg(SYS_STATUS_ID,
+                      SYS_STATUS_ALL_TX | SYS_STATUS_ALL_RX_GOOD |
+                          SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_RX_TO);
+}
+
+int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
+{
+    uint32 status_reg;
+    uint32 rx_error_count = 0U;
+
+    if (anchor_id >= UWB_MAX_ANCHORS) {
+        printk("Invalid SS-TWR responder anchor_id=%u\n", anchor_id);
+        return -1;
+    }
+
+    ss_twr_resp_anchor_id = (uint8_t)anchor_id;
+    ss_twr_resp_local_addr = uwb_anchor_short_addr(ss_twr_resp_anchor_id);
+    ss_twr_resp_allow_tag_polls = allow_tag_polls;
+
+    ss_twr_resp_configure_radio();
+    printk("SS-TWR responder ready anchor=%u addr=0x%04x allow_tag_polls=%u\n",
+           (unsigned int)ss_twr_resp_anchor_id,
+           (unsigned int)ss_twr_resp_local_addr,
+           (unsigned int)(ss_twr_resp_allow_tag_polls != 0));
+
+    while (1) {
+        uint32 frame_len;
+        uint16_t poll_src_addr;
+
+        dwt_rxenable(DWT_START_RX_IMMEDIATE);
+
+        do {
+            status_reg = dwt_read32bitreg(SYS_STATUS_ID);
+        } while ((status_reg & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_ERR)) == 0U);
+
+        if ((status_reg & SYS_STATUS_RXFCG) == 0U) {
+            rx_error_count++;
+            if (rx_error_count <= 5U || (rx_error_count % 50U) == 0U) {
+                printk("Responder RX error/status: 0x%08lx\n",
+                       (unsigned long)status_reg);
+            }
+            dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_ERR);
+            dwt_rxreset();
+            continue;
+        }
+
+        dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
+
+        frame_len = dwt_read32bitreg(RX_FINFO_ID) & RX_FINFO_RXFL_MASK_1023;
+        if (frame_len > sizeof(ss_twr_resp_rx_buffer)) {
+            dwt_forcetrxoff();
+            dwt_rxreset();
+            continue;
+        }
+
+        memset(ss_twr_resp_rx_buffer, 0, sizeof(ss_twr_resp_rx_buffer));
+        dwt_readrxdata(ss_twr_resp_rx_buffer, (uint16)frame_len, 0);
+
+        if (!uwb_ss_twr_poll_matches(ss_twr_resp_rx_buffer,
+                                     ss_twr_resp_local_addr)) {
+            continue;
+        }
+
+        poll_src_addr = uwb_frame_get_src_addr(ss_twr_resp_rx_buffer);
+        if (!ss_twr_resp_allow_tag_polls && uwb_short_addr_is_tag(poll_src_addr)) {
+            continue;
+        }
+
+        dwtime_u64_t poll_rx_ts = ss_twr_resp_get_rx_timestamp_u64();
+        uint32 resp_tx_time =
+            (uint32)((poll_rx_ts +
+                      (SS_TWR_RESP_POLL_RX_TO_RESP_TX_DLY_UUS *
+                       SS_TWR_RESP_UUS_TO_DWT_TIME)) >>
+                     8);
+        dwtime_u64_t resp_tx_ts =
+            (((dwtime_u64_t)(resp_tx_time & 0xFFFFFFFEUL)) << 8) +
+            SS_TWR_RESP_TX_ANT_DLY;
+
+        dwt_setdelayedtrxtime(resp_tx_time);
+
+        uwb_ss_twr_build_resp_frame(ss_twr_resp_tx_resp_msg,
+                                    ss_twr_resp_frame_seq_nb, poll_src_addr,
+                                    ss_twr_resp_local_addr);
+        ss_twr_resp_write_ts(
+            &ss_twr_resp_tx_resp_msg[SS_TWR_RESP_POLL_RX_TS_IDX], poll_rx_ts);
+        ss_twr_resp_write_ts(
+            &ss_twr_resp_tx_resp_msg[SS_TWR_RESP_RESP_TX_TS_IDX], resp_tx_ts);
+
+        if (dwt_writetxdata(sizeof(ss_twr_resp_tx_resp_msg),
+                            ss_twr_resp_tx_resp_msg, 0) != DWT_SUCCESS) {
+            printk("Responder TX buffer write failed\n");
+            continue;
+        }
+
+        dwt_writetxfctrl(sizeof(ss_twr_resp_tx_resp_msg), 0, 1);
+
+        if (dwt_starttx(DWT_START_TX_DELAYED) != DWT_SUCCESS) {
+            printk("Responder delayed TX missed slot\n");
+            dwt_forcetrxoff();
+            dwt_rxreset();
+            continue;
+        }
+
+        while ((dwt_read32bitreg(SYS_STATUS_ID) & SYS_STATUS_TXFRS) == 0U) {
+        }
+
+        dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_TXFRS);
+        if (uwb_short_addr_is_anchor(poll_src_addr)) {
+            printk("Responder replied to anchor poll %u anchor=%u src=0x%04x\n",
+                   (unsigned int)ss_twr_resp_frame_seq_nb,
+                   (unsigned int)uwb_anchor_id_from_addr(poll_src_addr),
+                   (unsigned int)poll_src_addr);
+        } else {
+            printk("Responder replied to tag poll %u tag=%u src=0x%04x\n",
+                   (unsigned int)ss_twr_resp_frame_seq_nb,
+                   (unsigned int)uwb_tag_id_from_addr(poll_src_addr),
+                   (unsigned int)poll_src_addr);
+        }
+        ss_twr_resp_frame_seq_nb++;
+    }
+}
