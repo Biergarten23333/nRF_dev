@@ -27,6 +27,9 @@ set(APP_ANCHOR_PEER_2_ID "7" CACHE STRING "Peer slot 2")
 set(APP_ANCHOR_USE_AUTO_SCHEDULE "1" CACHE STRING "Use built-in upper-triangle peer schedule")
 set(APP_ANCHOR_SCHEDULE_MODE "1" CACHE STRING "1=upper triangle, 2=all except self")
 set(APP_ANCHOR_ALLOW_TAG_POLLS "1" CACHE STRING "Worker accepts tag polls")
+set(APP_ANCHOR_RESP_DELAY_UUS "900" CACHE STRING "Responder poll-to-response delay in UWB usec")
+set(APP_ANCHOR_VERBOSE_RESPONDER "0" CACHE STRING "Print responder success logs")
+set(APP_ANCHOR_VERBOSE_RESPONDER_ERRORS "0" CACHE STRING "Print responder RX/TX error logs")
 
 target_include_directories(app PRIVATE ${APP_ROOT}/include)
 target_include_directories(app PRIVATE ${APP_ROOT}/drivers/dw1000/include)
@@ -41,6 +44,9 @@ target_compile_definitions(app PRIVATE
     APP_ANCHOR_USE_AUTO_SCHEDULE=${APP_ANCHOR_USE_AUTO_SCHEDULE}
     APP_ANCHOR_SCHEDULE_MODE=${APP_ANCHOR_SCHEDULE_MODE}
     APP_ANCHOR_ALLOW_TAG_POLLS=${APP_ANCHOR_ALLOW_TAG_POLLS}
+    APP_ANCHOR_RESP_DELAY_UUS=${APP_ANCHOR_RESP_DELAY_UUS}
+    APP_ANCHOR_VERBOSE_RESPONDER=${APP_ANCHOR_VERBOSE_RESPONDER}
+    APP_ANCHOR_VERBOSE_RESPONDER_ERRORS=${APP_ANCHOR_VERBOSE_RESPONDER_ERRORS}
 )
 
 target_sources(app PRIVATE

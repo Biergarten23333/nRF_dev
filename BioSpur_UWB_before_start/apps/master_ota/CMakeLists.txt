@@ -1,0 +1,18 @@
+cmake_minimum_required(VERSION 3.20.0)
+
+set(WEST /home/zekaixiao/.local/bin/west CACHE FILEPATH "West command path" FORCE)
+
+find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
+
+project(BioSpur_UWB_master_ota)
+
+target_include_directories(app PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/../..
+    ${CMAKE_CURRENT_LIST_DIR}/src
+    ${CMAKE_CURRENT_LIST_DIR}/generated
+)
+
+target_sources(app PRIVATE
+    src/main.c
+    src/bt_rand.c
+)

@@ -18,16 +18,10 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(BioSpur_UWB_master)
 
 set(APP_ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
-set(APP_MASTER_TARGET_ANCHOR "4" CACHE STRING "Target master anchor ID")
-
 target_include_directories(app PRIVATE ${APP_ROOT}/include)
 target_include_directories(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src)
-target_compile_definitions(app PRIVATE
-    APP_MASTER_TARGET_ANCHOR=${APP_MASTER_TARGET_ANCHOR}
-)
 
 target_sources(app PRIVATE
     src/main.c
     src/master_app.c
-    ${APP_ROOT}/src/uwb_control_proto.c
 )

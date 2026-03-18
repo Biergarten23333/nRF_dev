@@ -1,46 +1,38 @@
 # External Master Plan
 
-This project now includes a dedicated external-master app intended for the
-`nrf54l15dk/nrf54l15/cpuapp` board.
+This project now uses the `nrf54l15dk/nrf54l15/cpuapp` board as the BLE control
+host.
 
 ## Current role split
 
-- `apps/master/`: external control-plane entry point running on the nRF54L15 DK.
-- `apps/anchor/`: UWB execution nodes running on DWM1001 anchors.
-- `apps/tag/`: UWB ranging tag.
+- `apps/master/`: BLE central and control host on the nRF54L15 DK.
+- `apps/tag/`: BLE peripheral plus UWB ranging tag on DWM1001C.
+- `apps/anchor/`: UWB execution nodes on the DWM1001 anchors.
 
-## Intended first wiring
+## Current control link
 
-- `nRF54L15 DK` to PC: USB / serial console.
-- `nRF54L15 DK` to `Anchor E`: UART link.
-- `Anchor E`: first UWB master anchor.
+- `nRF54L15 DK` scans for the `Tag_rot` BLE peripheral.
+- `Tag_rot` advertises a NUS service.
+- The master sends control commands over BLE instead of USB/UART.
 
-The current master app already builds command frames, but it does not yet send
-them over UART. That transport link is the next integration step.
+## Current command set
 
-## Current shell commands
+The master currently cycles through:
 
-After flashing the master app to the nRF54L15 DK:
+- `PING`
+- `STATUS`
+- `OTA_STATUS`
+- `OTA_PREPARE`
 
-- `uwb ping`
-- `uwb stop`
-- `uwb single_range 4`
-- `uwb sweep 4 5 6 7`
-- `uwb autopos 4 5 6 7`
+The tag replies with health, UWB status, and OTA handshake state.
 
-Each command prints the exact control frame that should later be transmitted to
-Anchor E.
+## What is still missing for full OTA
 
-## Next step
+The BLE control link is in place, but full image transfer still needs:
 
-Add a UART transport between:
+- a bootloader-ready tag image
+- reserved upgrade partitions
+- an image transport and commit path
 
-- `apps/master/` on the nRF54L15 DK
-- `apps/anchor/` on Anchor E
-
-Then Anchor E can translate those control commands into UWB actions such as:
-
-- start anchor sweep
-- stop sweep
-- request single-anchor measurement
-- start auto-positioning matrix collection
+See [ble_ota_plan.md](ble_ota_plan.md) for the split between control-plane
+handshake and actual firmware update transport.

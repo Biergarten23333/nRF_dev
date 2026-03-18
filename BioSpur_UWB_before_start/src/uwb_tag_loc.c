@@ -10,12 +10,14 @@
 #define UWB_TAG_LOC_MIN_QUALITY_PERCENT 50U
 #define UWB_TAG_LOC_MAX_ITERATIONS 8U
 #define UWB_TAG_LOC_MAX_CANDIDATES UWB_MAX_ANCHORS
+#define UWB_TAG_LOC_MAX_SOLVER_CANDIDATES 6U
 #define UWB_TAG_LOC_SIZE_PENALTY_MM 40.0
 #define UWB_TAG_LOC_MAX_RES_WEIGHT 0.35
 #define UWB_TAG_LOC_ONE_PLANE_PENALTY_MM 400.0
 #define UWB_TAG_LOC_XY_MARGIN_M 0.75
 #define UWB_TAG_LOC_Z_MARGIN_M 0.30
 #define UWB_TAG_LOC_VOLUME_PENALTY_WEIGHT 3.0
+#define UWB_TAG_LOC_MIN_TETRA_VOLUME_M3 0.005
 
 struct uwb_tag_loc_vector {
     double x;
@@ -40,6 +42,152 @@ struct uwb_tag_loc_bounds {
     double min_z;
     double max_z;
 };
+
+static double uwb_tag_loc_tetra_volume_m3(const struct uwb_tag_loc_vector *a,
+                                          const struct uwb_tag_loc_vector *b,
+                                          const struct uwb_tag_loc_vector *c,
+                                          const struct uwb_tag_loc_vector *d)
+{
+    double abx = b->x - a->x;
+    double aby = b->y - a->y;
+    double abz = b->z - a->z;
+    double acx = c->x - a->x;
+    double acy = c->y - a->y;
+    double acz = c->z - a->z;
+    double adx = d->x - a->x;
+    double ady = d->y - a->y;
+    double adz = d->z - a->z;
+    double cx = acy * adz - acz * ady;
+    double cy = acz * adx - acx * adz;
+    double cz = acx * ady - acy * adx;
+    double det = abx * cx + aby * cy + abz * cz;
+
+    return fabs(det) / 6.0;
+}
+
+static double uwb_tag_loc_subset_max_tetra_volume_m3(
+    const struct uwb_tag_loc_candidate *candidates,
+    size_t candidate_count,
+    uint32_t subset_mask)
+{
+    double best_volume = 0.0;
+
+    for (size_t i = 0; i < candidate_count; ++i) {
+        if ((subset_mask & (1UL << i)) == 0U) {
+            continue;
+        }
+        for (size_t j = i + 1; j < candidate_count; ++j) {
+            if ((subset_mask & (1UL << j)) == 0U) {
+                continue;
+            }
+            for (size_t k = j + 1; k < candidate_count; ++k) {
+                if ((subset_mask & (1UL << k)) == 0U) {
+                    continue;
+                }
+                for (size_t l = k + 1; l < candidate_count; ++l) {
+                    double volume;
+
+                    if ((subset_mask & (1UL << l)) == 0U) {
+                        continue;
+                    }
+
+                    volume = uwb_tag_loc_tetra_volume_m3(
+                        &candidates[i].pos_m, &candidates[j].pos_m,
+                        &candidates[k].pos_m, &candidates[l].pos_m);
+                    if (volume > best_volume) {
+                        best_volume = volume;
+                    }
+                }
+            }
+        }
+    }
+
+    return best_volume;
+}
+
+static void uwb_tag_loc_prune_candidates(
+    struct uwb_tag_loc_candidate *candidates,
+    size_t *candidate_count)
+{
+    struct uwb_tag_loc_candidate selected[UWB_TAG_LOC_MAX_SOLVER_CANDIDATES];
+    bool picked[UWB_TAG_LOC_MAX_CANDIDATES] = {false};
+    size_t lower_target = UWB_TAG_LOC_MAX_SOLVER_CANDIDATES / 2U;
+    size_t upper_target = UWB_TAG_LOC_MAX_SOLVER_CANDIDATES / 2U;
+    size_t selected_count = 0U;
+
+    if (*candidate_count <= UWB_TAG_LOC_MAX_SOLVER_CANDIDATES) {
+        return;
+    }
+
+    while (selected_count < lower_target) {
+        size_t best_idx = SIZE_MAX;
+
+        for (size_t i = 0; i < *candidate_count; ++i) {
+            if (picked[i] || !candidates[i].lower_plane) {
+                continue;
+            }
+            if (best_idx == SIZE_MAX ||
+                candidates[i].quality_percent >
+                    candidates[best_idx].quality_percent) {
+                best_idx = i;
+            }
+        }
+
+        if (best_idx == SIZE_MAX) {
+            break;
+        }
+
+        selected[selected_count++] = candidates[best_idx];
+        picked[best_idx] = true;
+    }
+
+    while (selected_count < (lower_target + upper_target)) {
+        size_t best_idx = SIZE_MAX;
+
+        for (size_t i = 0; i < *candidate_count; ++i) {
+            if (picked[i] || !candidates[i].upper_plane) {
+                continue;
+            }
+            if (best_idx == SIZE_MAX ||
+                candidates[i].quality_percent >
+                    candidates[best_idx].quality_percent) {
+                best_idx = i;
+            }
+        }
+
+        if (best_idx == SIZE_MAX) {
+            break;
+        }
+
+        selected[selected_count++] = candidates[best_idx];
+        picked[best_idx] = true;
+    }
+
+    while (selected_count < UWB_TAG_LOC_MAX_SOLVER_CANDIDATES) {
+        size_t best_idx = SIZE_MAX;
+
+        for (size_t i = 0; i < *candidate_count; ++i) {
+            if (picked[i]) {
+                continue;
+            }
+            if (best_idx == SIZE_MAX ||
+                candidates[i].quality_percent >
+                    candidates[best_idx].quality_percent) {
+                best_idx = i;
+            }
+        }
+
+        if (best_idx == SIZE_MAX) {
+            break;
+        }
+
+        selected[selected_count++] = candidates[best_idx];
+        picked[best_idx] = true;
+    }
+
+    memcpy(candidates, selected, selected_count * sizeof(selected[0]));
+    *candidate_count = selected_count;
+}
 
 static bool uwb_tag_loc_solve_3x3(double a[3][3], double b[3], double out[3])
 {
@@ -387,6 +535,7 @@ int uwb_tag_loc_solve(const struct uwb_tag_measurement *measurements,
         return -1;
     }
 
+    uwb_tag_loc_prune_candidates(candidates, &candidate_count);
     uwb_tag_loc_compute_bounds(candidates, candidate_count, &bounds);
 
     for (uint32_t mask = 0U; mask < (1UL << candidate_count); ++mask) {
@@ -419,6 +568,12 @@ int uwb_tag_loc_solve(const struct uwb_tag_measurement *measurements,
                                       &lower_count, &upper_count);
 
         if (lower_count == 0U || upper_count == 0U) {
+            continue;
+        }
+
+        if (uwb_tag_loc_subset_max_tetra_volume_m3(candidates, candidate_count,
+                                                   mask) <
+            UWB_TAG_LOC_MIN_TETRA_VOLUME_M3) {
             continue;
         }
 

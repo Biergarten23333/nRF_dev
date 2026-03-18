@@ -6,12 +6,12 @@
 
 struct uwb_imu_sample {
     bool valid;
-    int32_t ax_milli_mps2;
-    int32_t ay_milli_mps2;
-    int32_t az_milli_mps2;
-    int32_t norm_milli_mps2;
-    int32_t gravity_error_milli_mps2;
-    uint32_t delta_magnitude_milli_mps2;
+    int32_t ax_mg;
+    int32_t ay_mg;
+    int32_t az_mg;
+    int32_t norm_mg;
+    int32_t gravity_error_mg;
+    uint32_t delta_magnitude_mg;
     uint32_t timestamp_ms;
 };
 

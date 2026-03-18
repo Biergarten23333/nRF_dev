@@ -10,6 +10,18 @@
 #define SS_TWR_RESP_TX_ANT_DLY 16436U
 #define SS_TWR_RESP_RX_ANT_DLY 16436U
 
+#ifndef APP_ANCHOR_RESP_DELAY_UUS
+#define APP_ANCHOR_RESP_DELAY_UUS 900U
+#endif
+
+#ifndef APP_ANCHOR_VERBOSE_RESPONDER
+#define APP_ANCHOR_VERBOSE_RESPONDER 1U
+#endif
+
+#ifndef APP_ANCHOR_VERBOSE_RESPONDER_ERRORS
+#define APP_ANCHOR_VERBOSE_RESPONDER_ERRORS 1U
+#endif
+
 #define SS_TWR_RESP_RX_BUF_LEN 20U
 #define SS_TWR_RESP_ALL_MSG_COMMON_LEN 10U
 #define SS_TWR_RESP_MSG_SN_IDX 2U
@@ -18,7 +30,7 @@
 #define SS_TWR_RESP_MSG_TS_LEN 4U
 
 #define SS_TWR_RESP_UUS_TO_DWT_TIME 65536ULL
-#define SS_TWR_RESP_POLL_RX_TO_RESP_TX_DLY_UUS 900U
+#define SS_TWR_RESP_POLL_RX_TO_RESP_TX_DLY_UUS APP_ANCHOR_RESP_DELAY_UUS
 
 typedef unsigned long long dwtime_u64_t;
 
@@ -109,7 +121,8 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
 
         if ((status_reg & SYS_STATUS_RXFCG) == 0U) {
             rx_error_count++;
-            if (rx_error_count <= 5U || (rx_error_count % 50U) == 0U) {
+            if (APP_ANCHOR_VERBOSE_RESPONDER_ERRORS != 0U &&
+                (rx_error_count <= 5U || (rx_error_count % 50U) == 0U)) {
                 printk("Responder RX error/status: 0x%08lx\n",
                        (unsigned long)status_reg);
             }
@@ -162,14 +175,18 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
 
         if (dwt_writetxdata(sizeof(ss_twr_resp_tx_resp_msg),
                             ss_twr_resp_tx_resp_msg, 0) != DWT_SUCCESS) {
-            printk("Responder TX buffer write failed\n");
+            if (APP_ANCHOR_VERBOSE_RESPONDER_ERRORS != 0U) {
+                printk("Responder TX buffer write failed\n");
+            }
             continue;
         }
 
         dwt_writetxfctrl(sizeof(ss_twr_resp_tx_resp_msg), 0, 1);
 
         if (dwt_starttx(DWT_START_TX_DELAYED) != DWT_SUCCESS) {
-            printk("Responder delayed TX missed slot\n");
+            if (APP_ANCHOR_VERBOSE_RESPONDER_ERRORS != 0U) {
+                printk("Responder delayed TX missed slot\n");
+            }
             dwt_forcetrxoff();
             dwt_rxreset();
             continue;
@@ -179,16 +196,18 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         }
 
         dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_TXFRS);
-        if (uwb_short_addr_is_anchor(poll_src_addr)) {
-            printk("Responder replied to anchor poll %u anchor=%u src=0x%04x\n",
-                   (unsigned int)ss_twr_resp_frame_seq_nb,
-                   (unsigned int)uwb_anchor_id_from_addr(poll_src_addr),
-                   (unsigned int)poll_src_addr);
-        } else {
-            printk("Responder replied to tag poll %u tag=%u src=0x%04x\n",
-                   (unsigned int)ss_twr_resp_frame_seq_nb,
-                   (unsigned int)uwb_tag_id_from_addr(poll_src_addr),
-                   (unsigned int)poll_src_addr);
+        if (APP_ANCHOR_VERBOSE_RESPONDER != 0U) {
+            if (uwb_short_addr_is_anchor(poll_src_addr)) {
+                printk("Responder replied to anchor poll %u anchor=%u src=0x%04x\n",
+                       (unsigned int)ss_twr_resp_frame_seq_nb,
+                       (unsigned int)uwb_anchor_id_from_addr(poll_src_addr),
+                       (unsigned int)poll_src_addr);
+            } else {
+                printk("Responder replied to tag poll %u tag=%u src=0x%04x\n",
+                       (unsigned int)ss_twr_resp_frame_seq_nb,
+                       (unsigned int)uwb_tag_id_from_addr(poll_src_addr),
+                       (unsigned int)poll_src_addr);
+            }
         }
         ss_twr_resp_frame_seq_nb++;
     }
