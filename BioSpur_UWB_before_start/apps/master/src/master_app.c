@@ -388,8 +388,8 @@ int master_app_run(void)
 		return err;
 	}
 
-	printk("BioSpur BLE master ready on nRF54L15 DK\n");
-	printk("Scanning for Tag_rot NUS service\n");
+	printk("BioSpur BLE master ready on nRF52840 DK\n");
+	printk("Scanning for NUS service\n");
 
 	err = bt_scan_start(BT_SCAN_TYPE_SCAN_ACTIVE);
 	if (err) {

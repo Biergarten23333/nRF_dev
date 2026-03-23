@@ -21,6 +21,13 @@ TAG_POS_RE = re.compile(
     r"anchors=\[(?P<anchors>[A-Z,]*)\]"
 )
 
+TAG_MOTION_SUMMARY_RE = re.compile(
+    r"Tag motion summary sweep=(?P<sweep>\d+) plan=(?P<plan>\w+) sweep_ms=(?P<sweep_ms>\d+) "
+    r"active=(?P<active>\d+) used=(?P<used>\d+) lower=(?P<lower>\d+) upper=(?P<upper>\d+) "
+    r"xyz=\((?P<x>-?\d+),(?P<y>-?\d+),(?P<z>-?\d+)\) mm rms=(?P<rms>\d+) mm max=(?P<max>\d+) mm "
+    r"anchors=\[(?P<anchors>[A-Z,]*)\]"
+)
+
 RANGE_RE = re.compile(
     r"Range anchor=(?P<anchor>\d+) addr=0x(?P<addr>[0-9a-fA-F]+) raw=(?P<raw>\d+) mm "
     r"filt=(?P<filt>\d+) mm ok=(?P<ok>\d+) fail=(?P<fail>\d+) q=(?P<q>\d+)%"
@@ -45,6 +52,27 @@ def handle_text_line(text, raw_log, positions, ranges, subset_counter, range_val
     raw_log.flush()
 
     match = TAG_POS_RE.search(text)
+    if match:
+        anchors = match.group("anchors").split(",") if match.group("anchors") else []
+        subset_label = ",".join(anchors)
+        subset_counter[subset_label] += 1
+        positions.append(
+            {
+                "sweep": int(match.group("sweep")),
+                "used": int(match.group("used")),
+                "lower": int(match.group("lower")),
+                "upper": int(match.group("upper")),
+                "x_mm": int(match.group("x")),
+                "y_mm": int(match.group("y")),
+                "z_mm": int(match.group("z")),
+                "rms_mm": int(match.group("rms")),
+                "max_mm": int(match.group("max")),
+                "anchors": anchors,
+            }
+        )
+        return
+
+    match = TAG_MOTION_SUMMARY_RE.search(text)
     if match:
         anchors = match.group("anchors").split(",") if match.group("anchors") else []
         subset_label = ",".join(anchors)

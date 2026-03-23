@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TAG_BUILD_DIR="${1:-build-tag-ota-uwb}"
+MASTER_BUILD_DIR="${2:-build-master-ota}"
+TAG_BOARD="${TAG_BOARD:-decawave_dwm1001_dev}"
+MASTER_BOARD="${MASTER_BOARD:-nrf52840dk/nrf52840}"
+NCS_ROOT="${NCS_ROOT:-/home/zekaixiao/ncs/v2.8.0}"
+TAG_SUMMARY_PERIOD="${TAG_SUMMARY_PERIOD:-1}"
+
+export ZEPHYR_NRF_MODULE_DIR="${ZEPHYR_NRF_MODULE_DIR:-$NCS_ROOT/nrf}"
+export ZEPHYR_MODULES="${ZEPHYR_MODULES:-$(west list --format={abspath} | tr '\n' ';' | sed 's/;$//')}"
+export PYTHONPATH="${PYTHONPATH:-}:/usr/lib/python3/dist-packages:/usr/lib/python3.12/dist-packages"
+
+west build \
+  -b "$TAG_BOARD" \
+  -s apps/tag \
+  -d "$TAG_BUILD_DIR" \
+  --sysbuild \
+  --pristine=always \
+  -- \
+  -DAPP_TAG_SUMMARY_PERIOD="$TAG_SUMMARY_PERIOD"
+
+SIGNED_BIN="$(find "$TAG_BUILD_DIR" -name zephyr.signed.bin | head -n 1)"
+if [ -z "${SIGNED_BIN:-}" ]; then
+  echo "Could not find zephyr.signed.bin under $TAG_BUILD_DIR" >&2
+  exit 1
+fi
+
+python3 scripts/gen_ota_image_inc.py \
+  "$SIGNED_BIN" \
+  apps/master_ota/generated/ota_image.inc
+
+west build \
+  -b "$MASTER_BOARD" \
+  -s apps/master_ota \
+  -d "$MASTER_BUILD_DIR" \
+  --no-sysbuild \
+  --pristine=always
+
+echo
+echo "UWB tag OTA build:  $TAG_BUILD_DIR"
+echo "Master OTA build:   $MASTER_BUILD_DIR"
+echo "Signed image:       $SIGNED_BIN"
+echo "Summary period:     $TAG_SUMMARY_PERIOD"

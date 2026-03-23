@@ -34,7 +34,7 @@ set(APP_TAG_RESP_RX_TIMEOUT_UUS "1500" CACHE STRING "Initiator response RX timeo
 set(APP_TAG_FAST_TRACKING "1" CACHE STRING "Use reduced anchor subset between periodic full sweeps")
 set(APP_TAG_FULL_SWEEP_INTERVAL "4" CACHE STRING "Run one full 8-anchor sweep every N sweeps")
 set(APP_TAG_TRACK_ANCHOR_COUNT "6" CACHE STRING "Anchor count used in fast tracking sweeps")
-set(APP_TAG_SUMMARY_PERIOD "20" CACHE STRING "Print one motion summary every N completed sweeps")
+set(APP_TAG_SUMMARY_PERIOD "1" CACHE STRING "Print one motion summary every N completed sweeps")
 set(APP_TAG_PENDING_PRINT_PERIOD "20" CACHE STRING "Print one solve-pending line every N failed sweeps")
 set(APP_TAG_IMU_SAMPLE_PERIOD "8" CACHE STRING "Read the IMU once every N completed sweeps")
 set(APP_TAG_VERBOSE_RANGING "0" CACHE STRING "Print per-anchor ranging logs")
@@ -62,6 +62,13 @@ set(APP_TAG_TDMA_SLOT_INDEX "0" CACHE STRING "Zero-based TDMA slot index for thi
 set(APP_TAG_TDMA_SLOT_COUNT "1" CACHE STRING "Total TDMA slot count in the cycle")
 set(APP_TAG_TDMA_SLOT_PERIOD_MS "25" CACHE STRING "TDMA slot period in milliseconds")
 set(APP_TAG_TDMA_SLOT_ACTIVE_MS "20" CACHE STRING "Usable active time within each slot in milliseconds")
+set(APP_TAG_EKF_ENABLE "0" CACHE STRING "Enable the post-solve tag EKF")
+set(APP_TAG_EKF_MEAS_STD_MM "25" CACHE STRING "Base measurement standard deviation for the tag EKF")
+set(APP_TAG_EKF_RESIDUAL_GAIN_PCT "0" CACHE STRING "Additional EKF measurement std as a percent of residual hint")
+set(APP_TAG_EKF_PROC_ACCEL_MM_S2 "250" CACHE STRING "Process acceleration standard deviation for the tag EKF")
+set(APP_TAG_EKF_INIT_POS_STD_MM "200" CACHE STRING "Initial position standard deviation for the tag EKF")
+set(APP_TAG_EKF_INIT_VEL_STD_MM_S "1000" CACHE STRING "Initial velocity standard deviation for the tag EKF")
+set(APP_TAG_EKF_OUTLIER_GATE_MM "0" CACHE STRING "Reject position updates larger than this gate in millimeters (0 disables)")
 
 target_include_directories(app PRIVATE ${APP_ROOT}/include)
 target_include_directories(app PRIVATE ${APP_ROOT}/drivers/dw1000/include)
@@ -111,6 +118,13 @@ target_compile_definitions(app PRIVATE
     APP_TAG_TDMA_SLOT_COUNT=${APP_TAG_TDMA_SLOT_COUNT}
     APP_TAG_TDMA_SLOT_PERIOD_MS=${APP_TAG_TDMA_SLOT_PERIOD_MS}
     APP_TAG_TDMA_SLOT_ACTIVE_MS=${APP_TAG_TDMA_SLOT_ACTIVE_MS}
+    APP_TAG_EKF_ENABLE=${APP_TAG_EKF_ENABLE}
+    APP_TAG_EKF_MEAS_STD_MM=${APP_TAG_EKF_MEAS_STD_MM}
+    APP_TAG_EKF_RESIDUAL_GAIN_PCT=${APP_TAG_EKF_RESIDUAL_GAIN_PCT}
+    APP_TAG_EKF_PROC_ACCEL_MM_S2=${APP_TAG_EKF_PROC_ACCEL_MM_S2}
+    APP_TAG_EKF_INIT_POS_STD_MM=${APP_TAG_EKF_INIT_POS_STD_MM}
+    APP_TAG_EKF_INIT_VEL_STD_MM_S=${APP_TAG_EKF_INIT_VEL_STD_MM_S}
+    APP_TAG_EKF_OUTLIER_GATE_MM=${APP_TAG_EKF_OUTLIER_GATE_MM}
 )
 
 target_sources(app PRIVATE
@@ -120,6 +134,7 @@ target_sources(app PRIVATE
     ${APP_ROOT}/src/uwb_port.c
     ${APP_ROOT}/src/uwb_anchor_layout.c
     ${APP_ROOT}/src/uwb_imu.c
+    ${APP_ROOT}/src/uwb_ekf.c
     ${APP_ROOT}/src/uwb_motion.c
     ${APP_ROOT}/src/uwb_ss_twr_shared.c
     ${APP_ROOT}/src/uwb_tdma.c

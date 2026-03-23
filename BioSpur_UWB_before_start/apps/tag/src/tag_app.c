@@ -1,3 +1,5 @@
+#include <zephyr/kernel.h>
+#include <zephyr/dfu/mcuboot.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
 
@@ -195,7 +197,17 @@ int tag_app_run(void)
                 .slot_active_ms = APP_TAG_TDMA_SLOT_ACTIVE_MS,
             },
     };
-    int ret = uwb_hw_bringup_and_init();
+    int ret;
+
+    if (!boot_is_img_confirmed()) {
+        ret = boot_write_img_confirmed();
+        printk("MCUboot confirm rc=%d\n", ret);
+        if (ret) {
+            printk("MCUboot confirm failed, continuing: %d\n", ret);
+        }
+    }
+
+    ret = uwb_hw_bringup_and_init();
     if (ret) {
         return ret;
     }
@@ -203,6 +215,11 @@ int tag_app_run(void)
     ret = uwb_tag_ble_init();
     if (ret) {
         printk("Tag BLE init failed, continuing with UWB only: %d\n", ret);
+    } else {
+        /* Give the Bluetooth host/controller a short window to settle before
+         * entering the long-running SS-TWR loop.
+         */
+        k_msleep(100);
     }
 
     printk("Tag app ready tag_id=%u anchor_count=%u anchors=[%u,%u,%u,%u,%u,%u,%u,%u] fixed=%u fixed_anchors=[%u,%u,%u,%u] multitag=%u active=[%u,%u,%u,%u] standby=[%u,%u] reserve=[%u,%u] refresh=%u/%u full=%u tdma=%u slot=%u/%u period=%u active=%u\n",

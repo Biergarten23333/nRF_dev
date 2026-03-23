@@ -4,7 +4,7 @@ set -euo pipefail
 TAG_BUILD_DIR="${1:-build-tag-ota}"
 MASTER_BUILD_DIR="${2:-build-master-ota}"
 TAG_BOARD="${TAG_BOARD:-decawave_dwm1001_dev}"
-MASTER_BOARD="${MASTER_BOARD:-nrf54l15dk/nrf54l15/cpuapp}"
+MASTER_BOARD="${MASTER_BOARD:-nrf52840dk/nrf52840}"
 NCS_ROOT="${NCS_ROOT:-/home/zekaixiao/ncs/v2.8.0}"
 
 export ZEPHYR_NRF_MODULE_DIR="${ZEPHYR_NRF_MODULE_DIR:-$NCS_ROOT/nrf}"

@@ -3,16 +3,14 @@
  */
 
 #include <zephyr/bluetooth/bluetooth.h>
-#include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/bluetooth/hci.h>
 #include <zephyr/kernel.h>
 #include <zephyr/mgmt/mcumgr/transport/smp_bt.h>
+#include <zephyr/sys/printk.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(tag_ota_ble, LOG_LEVEL_INF);
-
-static struct k_work advertise_work;
 
 static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
@@ -26,66 +24,34 @@ static const struct bt_data sd[] = {
 		sizeof(CONFIG_BT_DEVICE_NAME) - 1U),
 };
 
-static void advertise(struct k_work *work)
-{
-	int rc;
-
-	rc = bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
-	if (rc) {
-		LOG_ERR("Advertising failed to start (rc %d)", rc);
-		return;
-	}
-
-	LOG_INF("Advertising started as %s", CONFIG_BT_DEVICE_NAME);
-}
-
-static void connected(struct bt_conn *conn, uint8_t err)
-{
-	ARG_UNUSED(conn);
-
-	if (err) {
-		LOG_ERR("Connection failed, err 0x%02x %s", err, bt_hci_err_to_str(err));
-	} else {
-		LOG_INF("Connected");
-	}
-
-	k_work_submit(&advertise_work);
-}
-
-static void disconnected(struct bt_conn *conn, uint8_t reason)
-{
-	ARG_UNUSED(conn);
-	LOG_INF("Disconnected, reason 0x%02x %s", reason, bt_hci_err_to_str(reason));
-}
-
-static void on_conn_recycled(void)
-{
-	k_work_submit(&advertise_work);
-}
-
-BT_CONN_CB_DEFINE(conn_callbacks) = {
-	.connected = connected,
-	.disconnected = disconnected,
-	.recycled = on_conn_recycled,
-};
-
-static void bt_ready(int err)
-{
-	if (err != 0) {
-		LOG_ERR("Bluetooth failed to initialise: %d", err);
-	} else {
-		k_work_submit(&advertise_work);
-	}
-}
-
 void start_smp_bluetooth_adverts(void)
 {
 	int rc;
 
-	k_work_init(&advertise_work, advertise);
-	rc = bt_enable(bt_ready);
+	printk("Tag OTA BLE init start\n");
+	rc = bt_enable(NULL);
+	printk("Tag OTA bt_enable rc=%d\n", rc);
 
 	if (rc != 0) {
+		printk("Bluetooth enable failed: %d\n", rc);
 		LOG_ERR("Bluetooth enable failed: %d", rc);
+		return;
 	}
+
+	printk("Tag OTA bt_enable ok\n");
+
+	printk("Tag OTA advertise start\n");
+	rc = bt_le_adv_start(BT_LE_ADV_CONN_NAME, ad, ARRAY_SIZE(ad), NULL, 0);
+	if (rc == -EALREADY) {
+		printk("Tag OTA advertise already active\n");
+		return;
+	}
+	if (rc) {
+		printk("Tag OTA advertise failed: %d\n", rc);
+		LOG_ERR("Advertising failed to start (rc %d)", rc);
+		return;
+	}
+
+	printk("Tag OTA advertise success\n");
+	LOG_INF("Advertising started as %s", CONFIG_BT_DEVICE_NAME);
 }

@@ -10,6 +10,7 @@
 #include <zephyr/sys/util.h>
 
 #include <bluetooth/services/nus.h>
+#include <bluetooth/services/dfu_smp.h>
 
 #ifndef CONFIG_BT_DEVICE_NAME
 #define CONFIG_BT_DEVICE_NAME "Tag_rot"
@@ -20,12 +21,13 @@
 
 static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
-	BT_DATA(BT_DATA_NAME_COMPLETE, CONFIG_BT_DEVICE_NAME,
-		sizeof(CONFIG_BT_DEVICE_NAME) - 1U),
+	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_DFU_SMP_SERVICE_VAL),
 };
 
 static const struct bt_data sd[] = {
 	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_NUS_VAL),
+	BT_DATA(BT_DATA_NAME_COMPLETE, CONFIG_BT_DEVICE_NAME,
+		sizeof(CONFIG_BT_DEVICE_NAME) - 1),
 };
 
 static struct k_mutex ble_mutex;
@@ -33,6 +35,52 @@ static bool ble_ready;
 static bool ota_ready;
 static bool ota_active;
 static char last_status[UWB_TAG_BLE_MAX_STATUS_LEN];
+
+static int uwb_tag_ble_start_advertising(void)
+{
+	int err;
+
+	err = bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad), sd,
+			      ARRAY_SIZE(sd));
+	if (err == -EALREADY) {
+		return 0;
+	}
+
+	return err;
+}
+
+static void ble_connected(struct bt_conn *conn, uint8_t conn_err)
+{
+	char addr[BT_ADDR_LE_STR_LEN];
+
+	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
+
+	if (conn_err) {
+		printk("Tag BLE connect failed: %s err=0x%02x\n", addr, conn_err);
+		return;
+	}
+
+	printk("Tag BLE connected: %s\n", addr);
+}
+
+static void ble_disconnected(struct bt_conn *conn, uint8_t reason)
+{
+	char addr[BT_ADDR_LE_STR_LEN];
+	int err;
+
+	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
+	printk("Tag BLE disconnected: %s reason=0x%02x\n", addr, reason);
+	ota_active = false;
+	ota_ready = false;
+
+	err = uwb_tag_ble_start_advertising();
+	printk("Tag BLE adv resume rc=%d\n", err);
+}
+
+BT_CONN_CB_DEFINE(uwb_tag_ble_conn_cb) = {
+	.connected = ble_connected,
+	.disconnected = ble_disconnected,
+};
 
 static void uwb_tag_ble_send_text(const char *text)
 {
@@ -161,13 +209,20 @@ static struct bt_nus_cb nus_cb = {
 	.received = ble_received,
 };
 
+bool uwb_tag_ble_ota_active(void)
+{
+	return ota_active;
+}
+
 int uwb_tag_ble_init(void)
 {
 	int err;
 
 	k_mutex_init(&ble_mutex);
 
+	printk("Tag BLE init start\n");
 	err = bt_enable(NULL);
+	printk("Tag BLE bt_enable rc=%d\n", err);
 	if (err) {
 		printk("Tag BLE init failed: %d\n", err);
 		return err;
@@ -177,14 +232,21 @@ int uwb_tag_ble_init(void)
 		settings_load();
 	}
 
+	err = bt_set_name(CONFIG_BT_DEVICE_NAME);
+	printk("Tag BLE set name rc=%d\n", err);
+	if (err) {
+		printk("Tag BLE set name failed, continuing: %d\n", err);
+	}
+
 	err = bt_nus_init(&nus_cb);
+	printk("Tag BLE NUS init rc=%d\n", err);
 	if (err) {
 		printk("Tag BLE NUS register failed: %d\n", err);
 		return err;
 	}
 
-	err = bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad), sd,
-			      ARRAY_SIZE(sd));
+	err = uwb_tag_ble_start_advertising();
+	printk("Tag BLE adv start rc=%d\n", err);
 	if (err) {
 		printk("Tag BLE advertising failed: %d\n", err);
 		return err;
