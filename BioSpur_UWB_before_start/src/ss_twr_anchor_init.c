@@ -25,6 +25,7 @@
 #define SS_TWR_ANCHOR_INIT_RESP_MSG_TS_LEN 4U
 
 #define SS_TWR_ANCHOR_INIT_SPEED_OF_LIGHT 299702547.0
+#define SS_TWR_ANCHOR_INIT_RANGE_FILTER_OUTLIER_MM 450U
 
 static dwt_config_t ss_twr_anchor_init_config = {
     5,
@@ -72,6 +73,30 @@ static void ss_twr_anchor_init_configure_radio(void)
     dwt_write32bitreg(SYS_STATUS_ID,
                       SYS_STATUS_ALL_TX | SYS_STATUS_ALL_RX_GOOD |
                           SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_RX_TO);
+}
+
+static bool ss_twr_anchor_init_raw_range_plausible(
+    const struct uwb_range_tracker *tracker, uint32_t raw_mm)
+{
+    uint32_t delta_mm;
+
+    if (tracker == NULL) {
+        return false;
+    }
+
+    if (raw_mm == 0U) {
+        return false;
+    }
+
+    if (!tracker->filtered_valid ||
+        tracker->raw_count < UWB_RANGE_TRACKER_WINDOW_SIZE) {
+        return true;
+    }
+
+    delta_mm = (raw_mm > tracker->filtered_mm)
+                   ? (raw_mm - tracker->filtered_mm)
+                   : (tracker->filtered_mm - raw_mm);
+    return delta_mm <= SS_TWR_ANCHOR_INIT_RANGE_FILTER_OUTLIER_MM;
 }
 
 int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
@@ -183,12 +208,14 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
             if (!uwb_ss_twr_resp_matches(ss_twr_anchor_init_rx_buffer,
                                          ss_twr_anchor_init_local_addr,
                                          current_peer_addr)) {
+#if APP_TAG_VERBOSE_MEASUREMENTS
                 printk("Anchor master unexpected frame src=0x%04x dst=0x%04x code=0x%02x\n",
                        (unsigned int)uwb_frame_get_src_addr(
                            ss_twr_anchor_init_rx_buffer),
                        (unsigned int)uwb_frame_get_dst_addr(
                            ss_twr_anchor_init_rx_buffer),
                        (unsigned int)ss_twr_anchor_init_rx_buffer[UWB_MSG_CODE_IDX]);
+#endif
                 k_msleep(SS_TWR_ANCHOR_INIT_RNG_DELAY_MS);
                 continue;
             }
@@ -217,6 +244,21 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
             raw_distance_mm = (long)(distance_m * 1000.0);
             if (raw_distance_mm < 0L) {
                 raw_distance_mm = 0L;
+            }
+
+            if (!ss_twr_anchor_init_raw_range_plausible(
+                    tracker, (uint32_t)raw_distance_mm)) {
+                uwb_range_tracker_record_failure(tracker);
+                printk("Anchor master reject peer=%u addr=0x%04x raw=%ld mm last_filt=%lu mm ok=%lu fail=%lu q=%u%%\n",
+                       (unsigned int)current_peer_id,
+                       (unsigned int)current_peer_addr,
+                       raw_distance_mm,
+                       (unsigned long)tracker->filtered_mm,
+                       (unsigned long)tracker->success_count,
+                       (unsigned long)tracker->failure_count,
+                       (unsigned int)uwb_range_tracker_quality_percent(tracker));
+                k_msleep(SS_TWR_ANCHOR_INIT_RNG_DELAY_MS);
+                continue;
             }
 
             filtered_mm = uwb_range_tracker_record_success(

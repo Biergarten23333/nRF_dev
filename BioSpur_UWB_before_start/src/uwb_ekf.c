@@ -3,6 +3,11 @@
 #include <math.h>
 #include <string.h>
 
+/* This module is a post-solve linear constant-velocity position filter.
+ * It intentionally runs on solved XYZ measurements, not directly on the
+ * nonlinear UWB range observations.
+ */
+
 #ifndef APP_TAG_EKF_ENABLE
 #define APP_TAG_EKF_ENABLE 0U
 #endif
@@ -50,6 +55,18 @@ struct uwb_ekf_state {
 
 static struct uwb_ekf_state uwb_ekf_state_data;
 
+static struct uwb_ekf_runtime_params uwb_ekf_default_params(void)
+{
+    struct uwb_ekf_runtime_params params = {
+        .meas_std_mm = APP_TAG_EKF_MEAS_STD_MM,
+        .residual_gain_pct = APP_TAG_EKF_RESIDUAL_GAIN_PCT,
+        .proc_accel_mm_s2 = APP_TAG_EKF_PROC_ACCEL_MM_S2,
+        .outlier_gate_mm = APP_TAG_EKF_OUTLIER_GATE_MM,
+    };
+
+    return params;
+}
+
 static void uwb_ekf_axis_init(struct uwb_ekf_axis *axis, int32_t measurement_mm)
 {
     const double init_pos_var =
@@ -66,14 +83,15 @@ static void uwb_ekf_axis_init(struct uwb_ekf_axis *axis, int32_t measurement_mm)
 }
 
 static double uwb_ekf_measurement_std_mm(uint32_t residual_rms_mm,
-                                         uint32_t residual_max_mm)
+                                         uint32_t residual_max_mm,
+                                         const struct uwb_ekf_runtime_params *params)
 {
-    double std_mm = (double)APP_TAG_EKF_MEAS_STD_MM;
+    double std_mm = (double)params->meas_std_mm;
 
-    if (APP_TAG_EKF_RESIDUAL_GAIN_PCT != 0U) {
+    if (params->residual_gain_pct != 0U) {
         const double residual_hint =
             fmax((double)residual_rms_mm, (double)residual_max_mm * 0.5);
-        std_mm += residual_hint * ((double)APP_TAG_EKF_RESIDUAL_GAIN_PCT / 100.0);
+        std_mm += residual_hint * ((double)params->residual_gain_pct / 100.0);
     }
 
     if (std_mm < 1.0) {
@@ -83,10 +101,11 @@ static double uwb_ekf_measurement_std_mm(uint32_t residual_rms_mm,
     return std_mm;
 }
 
-static void uwb_ekf_axis_predict(struct uwb_ekf_axis *axis, double dt_s)
+static void uwb_ekf_axis_predict(struct uwb_ekf_axis *axis, double dt_s,
+                                 const struct uwb_ekf_runtime_params *params)
 {
     const double accel_var =
-        (double)APP_TAG_EKF_PROC_ACCEL_MM_S2 * (double)APP_TAG_EKF_PROC_ACCEL_MM_S2;
+        (double)params->proc_accel_mm_s2 * (double)params->proc_accel_mm_s2;
     const double dt2 = dt_s * dt_s;
     const double dt3 = dt2 * dt_s;
     const double dt4 = dt2 * dt2;
@@ -108,7 +127,8 @@ static void uwb_ekf_axis_predict(struct uwb_ekf_axis *axis, double dt_s)
 }
 
 static void uwb_ekf_axis_update(struct uwb_ekf_axis *axis, int32_t measurement_mm,
-                                double meas_std_mm)
+                                double meas_std_mm,
+                                const struct uwb_ekf_runtime_params *params)
 {
     const double measurement = (double)measurement_mm;
     const double innovation = measurement - axis->pos_mm;
@@ -121,8 +141,8 @@ static void uwb_ekf_axis_update(struct uwb_ekf_axis *axis, int32_t measurement_m
     double p10;
     double p11;
 
-    if (APP_TAG_EKF_OUTLIER_GATE_MM != 0U &&
-        fabs(innovation) > (double)APP_TAG_EKF_OUTLIER_GATE_MM) {
+    if (params->outlier_gate_mm != 0U &&
+        fabs(innovation) > (double)params->outlier_gate_mm) {
         return;
     }
 
@@ -152,14 +172,16 @@ void uwb_ekf_reset(void)
     memset(&uwb_ekf_state_data, 0, sizeof(uwb_ekf_state_data));
 }
 
-void uwb_ekf_filter(int32_t x_mm, int32_t y_mm, int32_t z_mm,
-                    uint64_t timestamp_ms,
-                    uint32_t residual_rms_mm,
-                    uint32_t residual_max_mm,
-                    struct uwb_ekf_sample *sample)
+void uwb_ekf_filter_with_params(int32_t x_mm, int32_t y_mm, int32_t z_mm,
+                                uint64_t timestamp_ms,
+                                uint32_t residual_rms_mm,
+                                uint32_t residual_max_mm,
+                                const struct uwb_ekf_runtime_params *params,
+                                struct uwb_ekf_sample *sample)
 {
     double dt_s = 0.0;
     double meas_std_mm;
+    struct uwb_ekf_runtime_params runtime_params;
 
     memset(sample, 0, sizeof(*sample));
 
@@ -173,6 +195,14 @@ void uwb_ekf_filter(int32_t x_mm, int32_t y_mm, int32_t z_mm,
     }
 
     sample->enabled = true;
+    runtime_params = (params != NULL) ? *params : uwb_ekf_default_params();
+
+    if (runtime_params.meas_std_mm == 0U) {
+        runtime_params.meas_std_mm = APP_TAG_EKF_MEAS_STD_MM;
+    }
+    if (runtime_params.proc_accel_mm_s2 == 0U) {
+        runtime_params.proc_accel_mm_s2 = APP_TAG_EKF_PROC_ACCEL_MM_S2;
+    }
 
     if (!uwb_ekf_state_data.initialized) {
         uwb_ekf_axis_init(&uwb_ekf_state_data.x, x_mm);
@@ -185,20 +215,37 @@ void uwb_ekf_filter(int32_t x_mm, int32_t y_mm, int32_t z_mm,
         if (dt_s > 1.0) {
             dt_s = 1.0;
         }
-        uwb_ekf_axis_predict(&uwb_ekf_state_data.x, dt_s);
-        uwb_ekf_axis_predict(&uwb_ekf_state_data.y, dt_s);
-        uwb_ekf_axis_predict(&uwb_ekf_state_data.z, dt_s);
+        uwb_ekf_axis_predict(&uwb_ekf_state_data.x, dt_s, &runtime_params);
+        uwb_ekf_axis_predict(&uwb_ekf_state_data.y, dt_s, &runtime_params);
+        uwb_ekf_axis_predict(&uwb_ekf_state_data.z, dt_s, &runtime_params);
         uwb_ekf_state_data.last_timestamp_ms = timestamp_ms;
     }
 
-    meas_std_mm = uwb_ekf_measurement_std_mm(residual_rms_mm, residual_max_mm);
+    meas_std_mm = uwb_ekf_measurement_std_mm(residual_rms_mm, residual_max_mm,
+                                             &runtime_params);
 
-    uwb_ekf_axis_update(&uwb_ekf_state_data.x, x_mm, meas_std_mm);
-    uwb_ekf_axis_update(&uwb_ekf_state_data.y, y_mm, meas_std_mm);
-    uwb_ekf_axis_update(&uwb_ekf_state_data.z, z_mm, meas_std_mm);
+    uwb_ekf_axis_update(&uwb_ekf_state_data.x, x_mm, meas_std_mm,
+                        &runtime_params);
+    uwb_ekf_axis_update(&uwb_ekf_state_data.y, y_mm, meas_std_mm,
+                        &runtime_params);
+    uwb_ekf_axis_update(&uwb_ekf_state_data.z, z_mm, meas_std_mm,
+                        &runtime_params);
 
     sample->valid = true;
     sample->x_mm = (int32_t)lround(uwb_ekf_state_data.x.pos_mm);
     sample->y_mm = (int32_t)lround(uwb_ekf_state_data.y.pos_mm);
     sample->z_mm = (int32_t)lround(uwb_ekf_state_data.z.pos_mm);
+}
+
+void uwb_ekf_filter(int32_t x_mm, int32_t y_mm, int32_t z_mm,
+                    uint64_t timestamp_ms,
+                    uint32_t residual_rms_mm,
+                    uint32_t residual_max_mm,
+                    struct uwb_ekf_sample *sample)
+{
+    struct uwb_ekf_runtime_params params = uwb_ekf_default_params();
+
+    uwb_ekf_filter_with_params(x_mm, y_mm, z_mm, timestamp_ms,
+                               residual_rms_mm, residual_max_mm, &params,
+                               sample);
 }

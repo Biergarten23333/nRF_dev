@@ -14,14 +14,63 @@ from pathlib import Path
 import serial
 
 
-TAG_SUMMARY_RE = re.compile(
-    r"(?:BLE|NUS) notify: TagSummary sweep=(?P<sweep>\d+) plan=(?P<plan>\w+) "
+TAG_NOTIFY_PREFIX_RE = r"(?:BLE(?:\[(?P<conn>\d+)(?::[^\]]*)?\])?|NUS)"
+
+
+TAG_SUMMARY_RE_FULL = re.compile(
+    rf"{TAG_NOTIFY_PREFIX_RE} notify: TagSummary sweep=(?P<sweep>\d+) plan=(?P<plan>\w+) "
     r"xyz=\((?P<x>-?\d+),(?P<y>-?\d+),(?P<z>-?\d+)\) "
     r"rms=(?P<rms>\d+) max=(?P<max>\d+)"
     r"(?: anchors=\[(?P<anchors>[A-Z,]*)\])?"
     r"(?: motion_dt=(?P<motion_dt>\d+))?"
     r"(?: disp=(?P<disp>\d+) speed=(?P<speed>\d+))?"
 )
+
+TAG_SUMMARY_RE_COMPACT = re.compile(
+    rf"{TAG_NOTIFY_PREFIX_RE} notify: TagSummary s=(?P<sweep>\d+) p=(?P<plan>\w+) "
+    r"xyz=\((?P<x>-?\d+),(?P<y>-?\d+),(?P<z>-?\d+)\) "
+    r"r=(?P<rms>\d+) m=(?P<max>\d+)"
+    r"(?: a=\[(?P<anchors>[A-Z,]*)\])?"
+    r"(?: dt=(?P<motion_dt>\d+)| motion=na)?"
+)
+
+TAG_SUMMARY_RE_BUNDLE = re.compile(
+    rf"{TAG_NOTIFY_PREFIX_RE} notify: (?:TS|TagSummary) s=(?P<sweep>\d+) p=(?P<plan>\w+) "
+    r"xyz=(?:(?P<x>-?\d+),(?P<y>-?\d+),(?P<z>-?\d+)|\((?P<x2>-?\d+),(?P<y2>-?\d+),(?P<z2>-?\d+)\)) "
+    r"r=(?P<rms>\d+) m=(?P<max>\d+)"
+    r"(?: a=(?P<anchors>[A-Z0-9,\[\]]*))?"
+    r"(?: (?:d|dt)=(?P<motion_dt>\d+)| motion=na)?"
+)
+
+CONNECTED_RE = re.compile(
+    r"Connected\[(?P<conn>\d+)\]:.*?(?:name=(?P<name>[^\s]+))?.*?tag_id=(?P<tag_id>-?\d+)"
+)
+
+
+def parse_tag_summary(text):
+    for regex in (TAG_SUMMARY_RE_FULL, TAG_SUMMARY_RE_COMPACT, TAG_SUMMARY_RE_BUNDLE):
+        match = regex.search(text)
+        if match:
+            return match
+    return None
+
+
+def iter_tag_summary_matches(text):
+    prefix = None
+    if "notify:" in text:
+        prefix = text.split("notify:", 1)[0] + "notify: "
+
+    for idx, fragment in enumerate(text.split("|")):
+        fragment = fragment.strip()
+        if not fragment:
+            continue
+
+        if idx > 0 and "notify:" not in fragment and fragment.startswith(("TagSummary", "TS")):
+            fragment = (prefix or "BLE notify: ") + fragment
+
+        match = parse_tag_summary(fragment)
+        if match:
+            yield match
 
 
 def mean_or_none(values):
@@ -57,6 +106,11 @@ def main() -> int:
         help="Seconds to wait for the serial device to reappear after reset",
     )
     parser.add_argument(
+        "--no-reset",
+        action="store_true",
+        help="Do not reset the board before capturing serial output",
+    )
+    parser.add_argument(
         "--out-dir",
         default="logs/master_ble_sessions",
         help="Base directory for capture artifacts",
@@ -85,10 +139,11 @@ def main() -> int:
     positions_csv_path = session_dir / "positions.csv"
     summary_json_path = session_dir / "summary.json"
 
-    subprocess.run(
-        ["nrfjprog", "--reset", "-f", "NRF52", "--snr", args.snr],
-        check=False,
-    )
+    if not args.no_reset:
+        subprocess.run(
+            ["nrfjprog", "--reset", "-f", "NRF52", "--snr", args.snr],
+            check=False,
+        )
 
     deadline = time.time() + args.settle
     while time.time() < deadline:
@@ -96,7 +151,8 @@ def main() -> int:
             break
         time.sleep(0.1)
 
-    position_by_sweep = {}
+    position_by_stream = {}
+    conn_meta = {}
     connected_count = 0
     disconnected_count = 0
     pending = ""
@@ -121,26 +177,38 @@ def main() -> int:
                             raw_log.write(text + "\n")
                             raw_log.flush()
 
-                            if "Connected:" in text:
+                            if "Connected:" in text or re.search(r"Connected\[\d+\]:", text):
                                 connected_count += 1
-                            if "Disconnected:" in text:
+                                connected_match = CONNECTED_RE.search(text)
+                                if connected_match:
+                                    conn_meta[connected_match.group("conn")] = {
+                                        "tag_id": int(connected_match.group("tag_id")),
+                                        "name": connected_match.group("name") or "",
+                                    }
+                            if "Disconnected:" in text or re.search(r"Disconnected\[\d+\]:", text):
                                 disconnected_count += 1
 
-                            match = TAG_SUMMARY_RE.search(text)
-                            if match:
+                            for match in iter_tag_summary_matches(text):
+                                conn_id = match.groupdict().get("conn") or "0"
                                 sweep = int(match.group("sweep"))
-                                position_by_sweep[sweep] = {
+                                x = match.group("x") or match.group("x2")
+                                y = match.group("y") or match.group("y2")
+                                z = match.group("z") or match.group("z2")
+                                position_by_stream[(conn_id, sweep)] = {
+                                    "conn_id": conn_id,
+                                    "tag_id": conn_meta.get(conn_id, {}).get("tag_id", ""),
+                                    "peer_name": conn_meta.get(conn_id, {}).get("name", ""),
                                     "sweep": sweep,
                                     "plan": match.group("plan"),
-                                    "x_mm": int(match.group("x")),
-                                    "y_mm": int(match.group("y")),
-                                    "z_mm": int(match.group("z")),
+                                    "x_mm": int(x),
+                                    "y_mm": int(y),
+                                    "z_mm": int(z),
                                     "rms_mm": int(match.group("rms")),
                                     "max_mm": int(match.group("max")),
                                     "anchors": match.group("anchors") or "",
                                     "motion_dt_ms": int(match.group("motion_dt") or 0),
-                                    "disp_mm": int(match.group("disp") or 0),
-                                    "speed_mm_s": int(match.group("speed") or 0),
+                                    "disp_mm": int(match.groupdict().get("disp") or 0),
+                                    "speed_mm_s": int(match.groupdict().get("speed") or 0),
                                 }
                     break
             except (serial.SerialException, OSError):
@@ -149,13 +217,19 @@ def main() -> int:
         if pending.strip():
             raw_log.write(pending.rstrip("\r") + "\n")
 
-    positions = [position_by_sweep[sweep] for sweep in sorted(position_by_sweep)]
+    positions = [
+        position_by_stream[key]
+        for key in sorted(position_by_stream, key=lambda item: (int(item[0]), item[1]))
+    ]
 
     with positions_csv_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
             f,
             fieldnames=[
                 "sweep",
+                "conn_id",
+                "tag_id",
+                "peer_name",
                 "plan",
                 "x_mm",
                 "y_mm",
@@ -193,6 +267,8 @@ def main() -> int:
         "session_dir": str(session_dir),
         "unique_position_samples": len(positions),
         "summary_samples_used": len(summary_positions),
+        "unique_streams": len({row["conn_id"] for row in positions}),
+        "stream_tag_ids": {key: value["tag_id"] for key, value in conn_meta.items()},
         "connected_count": connected_count,
         "disconnected_count": disconnected_count,
         "position_mean_mm": {

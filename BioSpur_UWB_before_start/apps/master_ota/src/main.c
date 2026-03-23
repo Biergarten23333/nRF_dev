@@ -7,6 +7,7 @@
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/gatt.h>
+#include <zephyr/bluetooth/hci.h>
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/kernel.h>
 #include <zephyr/settings/settings.h>
@@ -40,6 +41,15 @@
 #define OTA_SMP_CMD_IMG_ERASE 0x05U
 #define OTA_SMP_CMD_OS_RESET 0x05U
 #define OTA_CBOR_DECODER_STATE_NUM 4U
+#define OTA_NAME_BUF_LEN 32U
+
+#ifndef APP_MASTER_OTA_TARGET_NAME
+#define APP_MASTER_OTA_TARGET_NAME ""
+#endif
+
+#ifndef APP_MASTER_OTA_TARGET_TOKEN_ID
+#define APP_MASTER_OTA_TARGET_TOKEN_ID -1
+#endif
 
 #define OTA_DEBUG_VERBOSE 0
 #if OTA_DEBUG_VERBOSE
@@ -99,6 +109,98 @@ static struct k_thread ota_thread;
 static void gatt_discover_nus(struct bt_conn *conn);
 static void gatt_discover_dfu(struct bt_conn *conn);
 
+static bool scan_name_cb(struct bt_data *data, void *user_data)
+{
+	char *name_buf = user_data;
+	size_t name_len;
+
+	switch (data->type) {
+	case BT_DATA_NAME_SHORTENED:
+	case BT_DATA_NAME_COMPLETE:
+		name_len = MIN(data->data_len, OTA_NAME_BUF_LEN - 1U);
+		memcpy(name_buf, data->data, name_len);
+		name_buf[name_len] = '\0';
+		return false;
+	default:
+		return true;
+	}
+}
+
+static void ad_extract_name(struct net_buf_simple *ad, char *name_buf, size_t len)
+{
+	struct net_buf_simple copy = *ad;
+
+	if (len == 0U) {
+		return;
+	}
+
+	memset(name_buf, 0, len);
+	bt_data_parse(&copy, scan_name_cb, name_buf);
+}
+
+static bool ad_name_matches_target(struct net_buf_simple *ad)
+{
+	char name[OTA_NAME_BUF_LEN];
+
+	if (APP_MASTER_OTA_TARGET_NAME[0] == '\0') {
+		return true;
+	}
+
+	ad_extract_name(ad, name, sizeof(name));
+	if (name[0] == '\0') {
+		return false;
+	}
+
+	return strcmp(name, APP_MASTER_OTA_TARGET_NAME) == 0;
+}
+
+static bool scan_mfg_token_cb(struct bt_data *data, void *user_data)
+{
+	uint8_t *token_id = user_data;
+
+	if (*token_id != 0xffU) {
+		return false;
+	}
+
+	if (data->type != BT_DATA_MANUFACTURER_DATA || data->data_len < 4U) {
+		return true;
+	}
+
+	if (data->data[0] == 0xff &&
+	    data->data[1] == 0xff &&
+	    data->data[2] == 'B') {
+		*token_id = data->data[3];
+		return false;
+	}
+
+	return true;
+}
+
+static uint8_t ad_extract_token_id(struct net_buf_simple *ad)
+{
+	struct net_buf_simple copy = *ad;
+	uint8_t token_id = 0xffU;
+
+	bt_data_parse(&copy, scan_mfg_token_cb, &token_id);
+	return token_id;
+}
+
+static bool ad_token_matches_target(struct net_buf_simple *ad)
+{
+	uint8_t token_id;
+
+	if (APP_MASTER_OTA_TARGET_TOKEN_ID < 0) {
+		return true;
+	}
+
+	token_id = ad_extract_token_id(ad);
+	if (token_id == 0xffU) {
+		return false;
+	}
+
+	return token_id == (uint8_t)APP_MASTER_OTA_TARGET_TOKEN_ID;
+}
+
 static void smp_write_cb(struct bt_conn *conn, uint8_t err,
 			 struct bt_gatt_write_params *params)
 {
@@ -148,14 +250,16 @@ static uint8_t nus_data_received(struct bt_nus_client *nus,
 				 const uint8_t *data, uint16_t len)
 {
 	ARG_UNUSED(nus);
+	char payload[256];
+	size_t copy_len = MIN((size_t)len, sizeof(payload) - 1U);
 
-	printk("NUS notify: ");
-	for (uint16_t i = 0; i < len; ++i) {
+	for (size_t i = 0; i < copy_len; ++i) {
 		char c = (char)data[i];
-
-		printk("%c", (c >= 32 && c <= 126) ? c : '.');
+		payload[i] = (c >= 32 && c <= 126) ? c : '.';
 	}
-	printk("\n");
+	payload[copy_len] = '\0';
+
+	printk("NUS notify: %s\n", payload);
 
 	return BT_GATT_ITER_CONTINUE;
 }
@@ -1166,10 +1270,64 @@ static void scan_filter_match(struct bt_scan_device_info *device_info,
 			      bool connectable)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
+	char name[OTA_NAME_BUF_LEN];
+	bool name_target_ok;
+	bool token_ok;
+	bool accept;
+	int err;
+	struct bt_conn *conn = NULL;
+	uint8_t token_id;
 
 	ARG_UNUSED(filter_match);
 	bt_addr_le_to_str(device_info->recv_info->addr, addr, sizeof(addr));
-	printk("Scan match: %s connectable=%d\n", addr, connectable);
+	ad_extract_name(device_info->adv_data, name, sizeof(name));
+	token_id = ad_extract_token_id(device_info->adv_data);
+	name_target_ok = ad_name_matches_target(device_info->adv_data);
+	token_ok = ad_token_matches_target(device_info->adv_data);
+	printk("Scan match: %s connectable=%d name=%s token=%d name_target=%u token_target=%u\n",
+	       addr,
+	       connectable,
+	       name[0] != '\0' ? name : "-",
+	       token_id == 0xffU ? -1 : (int)token_id,
+	       name_target_ok ? 1U : 0U,
+	       token_ok ? 1U : 0U);
+	accept = connectable && (default_conn == NULL);
+	if (APP_MASTER_OTA_TARGET_TOKEN_ID >= 0) {
+		accept = accept && token_ok;
+	}
+	if (APP_MASTER_OTA_TARGET_NAME[0] != '\0' && name[0] != '\0') {
+		accept = accept && name_target_ok;
+	}
+	printk("Scan decision: %s accept=%u default_conn=%p target_name=%s target_token=%d\n",
+	       addr,
+	       accept ? 1U : 0U,
+	       default_conn,
+	       APP_MASTER_OTA_TARGET_NAME[0] != '\0' ? APP_MASTER_OTA_TARGET_NAME : "-",
+	       APP_MASTER_OTA_TARGET_TOKEN_ID);
+	if (!accept) {
+		return;
+	}
+
+	err = bt_scan_stop();
+	if (err && err != -EALREADY) {
+		printk("Scan stop failed before connect %s err %d\n", addr, err);
+	}
+	printk("Connect start: %s token=%d name=%s\n",
+	       addr,
+	       token_id == 0xffU ? -1 : (int)token_id,
+	       name[0] != '\0' ? name : "-");
+	err = bt_conn_le_create(device_info->recv_info->addr,
+				BT_CONN_LE_CREATE_CONN,
+				device_info->conn_param != NULL ?
+					device_info->conn_param : BT_LE_CONN_PARAM_DEFAULT,
+				&conn);
+	if (err) {
+		printk("Connect start failed %s err %d\n", addr, err);
+		(void)bt_scan_start(BT_SCAN_TYPE_SCAN_PASSIVE);
+		return;
+	}
+
+	default_conn = conn;
 }
 
 static void scan_connecting_error(struct bt_scan_device_info *device_info)
@@ -1192,7 +1350,7 @@ static int scan_init(void)
 {
 	int err;
 	struct bt_scan_init_param scan_init = {
-		.connect_if_match = 1,
+		.connect_if_match = 0,
 	};
 
 	bt_scan_init(&scan_init);
@@ -1265,7 +1423,7 @@ static int ota_bootstrap(void)
 	}
 
 	printk("BioSpur BLE OTA master ready on nRF52840 DK\n");
-	printk("Scanning for Tag_rot_ota DFU SMP service\n");
+	printk("Scanning for OTA-capable tag DFU SMP service\n");
 
 	err = bt_scan_start(BT_SCAN_TYPE_SCAN_PASSIVE);
 	if (err) {

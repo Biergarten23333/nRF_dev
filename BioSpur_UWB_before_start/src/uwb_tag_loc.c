@@ -13,7 +13,6 @@
 #define UWB_TAG_LOC_MAX_SOLVER_CANDIDATES 6U
 #define UWB_TAG_LOC_SIZE_PENALTY_MM 40.0
 #define UWB_TAG_LOC_MAX_RES_WEIGHT 0.35
-#define UWB_TAG_LOC_ONE_PLANE_PENALTY_MM 400.0
 #define UWB_TAG_LOC_XY_MARGIN_M 0.75
 #define UWB_TAG_LOC_Z_MARGIN_M 0.30
 #define UWB_TAG_LOC_VOLUME_PENALTY_WEIGHT 3.0
@@ -42,6 +41,57 @@ struct uwb_tag_loc_bounds {
     double min_z;
     double max_z;
 };
+
+static bool uwb_tag_loc_build_candidates(
+    const struct uwb_tag_measurement *measurements,
+    size_t measurement_count,
+    struct uwb_tag_loc_candidate *candidates,
+    size_t *candidate_count)
+{
+    size_t out = 0U;
+
+    for (size_t i = 0; i < measurement_count && out < UWB_MAX_ANCHORS; ++i) {
+        const struct uwb_anchor_pose_mm *pose;
+
+        if (!measurements[i].valid ||
+            measurements[i].quality_percent < UWB_TAG_LOC_MIN_QUALITY_PERCENT) {
+            continue;
+        }
+
+        pose = uwb_anchor_layout_get(measurements[i].anchor_id);
+        if (pose == NULL) {
+            continue;
+        }
+
+        candidates[out].anchor_id = measurements[i].anchor_id;
+        candidates[out].quality_percent = measurements[i].quality_percent;
+        candidates[out].lower_plane =
+            uwb_anchor_layout_is_lower_plane(measurements[i].anchor_id);
+        candidates[out].upper_plane =
+            uwb_anchor_layout_is_upper_plane(measurements[i].anchor_id);
+        candidates[out].pos_m.x = (double)pose->x_mm / 1000.0;
+        candidates[out].pos_m.y = (double)pose->y_mm / 1000.0;
+        candidates[out].pos_m.z = (double)pose->z_mm / 1000.0;
+        candidates[out].range_m = (double)measurements[i].range_mm / 1000.0;
+        out++;
+    }
+
+    *candidate_count = out;
+    return out >= UWB_TAG_LOC_MIN_ANCHORS;
+}
+
+static bool uwb_tag_loc_anchor_in_subset(const uint8_t *anchor_ids,
+                                         size_t anchor_id_count,
+                                         uint8_t anchor_id)
+{
+    for (size_t i = 0; i < anchor_id_count; ++i) {
+        if (anchor_ids[i] == anchor_id) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 static double uwb_tag_loc_tetra_volume_m3(const struct uwb_tag_loc_vector *a,
                                           const struct uwb_tag_loc_vector *b,
@@ -502,36 +552,8 @@ int uwb_tag_loc_solve(const struct uwb_tag_measurement *measurements,
 
     memset(result, 0, sizeof(*result));
 
-    for (size_t i = 0; i < measurement_count && candidate_count < UWB_MAX_ANCHORS;
-         ++i) {
-        const struct uwb_anchor_pose_mm *pose;
-
-        if (!measurements[i].valid ||
-            measurements[i].quality_percent < UWB_TAG_LOC_MIN_QUALITY_PERCENT) {
-            continue;
-        }
-
-        pose = uwb_anchor_layout_get(measurements[i].anchor_id);
-        if (pose == NULL) {
-            continue;
-        }
-
-        candidates[candidate_count].anchor_id = measurements[i].anchor_id;
-        candidates[candidate_count].quality_percent =
-            measurements[i].quality_percent;
-        candidates[candidate_count].lower_plane =
-            uwb_anchor_layout_is_lower_plane(measurements[i].anchor_id);
-        candidates[candidate_count].upper_plane =
-            uwb_anchor_layout_is_upper_plane(measurements[i].anchor_id);
-        candidates[candidate_count].pos_m.x = (double)pose->x_mm / 1000.0;
-        candidates[candidate_count].pos_m.y = (double)pose->y_mm / 1000.0;
-        candidates[candidate_count].pos_m.z = (double)pose->z_mm / 1000.0;
-        candidates[candidate_count].range_m =
-            (double)measurements[i].range_mm / 1000.0;
-        candidate_count++;
-    }
-
-    if (candidate_count < UWB_TAG_LOC_MIN_ANCHORS) {
+    if (!uwb_tag_loc_build_candidates(measurements, measurement_count, candidates,
+                                      &candidate_count)) {
         return -1;
     }
 
@@ -567,7 +589,7 @@ int uwb_tag_loc_solve(const struct uwb_tag_measurement *measurements,
                                       &estimate, &rms_m, &max_residual_m,
                                       &lower_count, &upper_count);
 
-        if (lower_count == 0U || upper_count == 0U) {
+        if (lower_count < 2U || upper_count < 2U) {
             continue;
         }
 
@@ -590,13 +612,6 @@ int uwb_tag_loc_solve(const struct uwb_tag_measurement *measurements,
             uwb_tag_loc_axis_overshoot(estimate.z, bounds.min_z, bounds.max_z,
                                        UWB_TAG_LOC_Z_MARGIN_M);
         score += volume_penalty_m * 1000.0 * UWB_TAG_LOC_VOLUME_PENALTY_WEIGHT;
-
-        if (lower_count < 2U) {
-            score += UWB_TAG_LOC_ONE_PLANE_PENALTY_MM;
-        }
-        if (upper_count < 2U) {
-            score += UWB_TAG_LOC_ONE_PLANE_PENALTY_MM;
-        }
 
         if (!best_valid || score < best_score) {
             best_valid = true;
@@ -630,6 +645,67 @@ int uwb_tag_loc_solve(const struct uwb_tag_measurement *measurements,
             continue;
         }
         result->anchor_ids[out++] = candidates[i].anchor_id;
+    }
+
+    return 0;
+}
+
+int uwb_tag_loc_evaluate_solution(const struct uwb_tag_measurement *measurements,
+                                  size_t measurement_count,
+                                  const uint8_t *anchor_ids,
+                                  size_t anchor_id_count,
+                                  int32_t x_mm,
+                                  int32_t y_mm,
+                                  int32_t z_mm,
+                                  uint32_t *residual_rms_mm,
+                                  uint32_t *residual_max_mm,
+                                  uint8_t *lower_count,
+                                  uint8_t *upper_count)
+{
+    struct uwb_tag_loc_candidate candidates[UWB_TAG_LOC_MAX_CANDIDATES];
+    struct uwb_tag_loc_vector estimate = {
+        .x = (double)x_mm / 1000.0,
+        .y = (double)y_mm / 1000.0,
+        .z = (double)z_mm / 1000.0,
+    };
+    uint32_t subset_mask = 0U;
+    size_t candidate_count = 0U;
+    double rms_m = 0.0;
+    double max_abs_m = 0.0;
+    uint8_t lower = 0U;
+    uint8_t upper = 0U;
+
+    if (!uwb_tag_loc_build_candidates(measurements, measurement_count, candidates,
+                                      &candidate_count)) {
+        return -1;
+    }
+
+    for (size_t i = 0; i < candidate_count; ++i) {
+        if (!uwb_tag_loc_anchor_in_subset(anchor_ids, anchor_id_count,
+                                          candidates[i].anchor_id)) {
+            continue;
+        }
+        subset_mask |= (1UL << i);
+    }
+
+    if (uwb_tag_loc_popcount_u32(subset_mask) < UWB_TAG_LOC_MIN_ANCHORS) {
+        return -1;
+    }
+
+    uwb_tag_loc_compute_residuals(candidates, candidate_count, subset_mask,
+                                  &estimate, &rms_m, &max_abs_m, &lower, &upper);
+
+    if (residual_rms_mm != NULL) {
+        *residual_rms_mm = (uint32_t)lround(rms_m * 1000.0);
+    }
+    if (residual_max_mm != NULL) {
+        *residual_max_mm = (uint32_t)lround(max_abs_m * 1000.0);
+    }
+    if (lower_count != NULL) {
+        *lower_count = lower;
+    }
+    if (upper_count != NULL) {
+        *upper_count = upper;
     }
 
     return 0;

@@ -12,15 +12,28 @@ Helper scripts:
 - `scripts/reset_then_flash.sh <snr> <hex_path>`
 - `scripts/reset_then_read_serial.py <snr> <serial_port> --duration 8`
 - `scripts/capture_tag_session.py <snr> <serial_port> --duration 120`
+- `scripts/build_tag_usb.sh <tag_id> [build_dir]`
+- `scripts/build_tag_ble_motion.sh <tag_id> <slot_index> <slot_count> [build_dir]`
+- `scripts/recalibrate_anchor_layout_with_ref115.py`
 - `scripts/run_ground_truth_point.py <snr> <serial_port> --label ... --truth-x ... --truth-y ... --truth-z ...`
 - `scripts/analyze_ground_truth_session.py <session_dir> --label ... --truth-x ... --truth-y ... --truth-z ...`
 - `scripts/analyze_ground_truth_batch.py --root logs/ground_truth`
 - `scripts/generate_ground_truth_points.py`
 
+Latest high-level summary:
+
+- `docs/session_summary_20260322.md`
+
+UI shell:
+
+- `flutter_ui/`
+
 Build note:
 
 - For per-anchor images that depend on `APP_ANCHOR_*` CMake cache variables, use `west build ... --no-sysbuild`.
 - If `sysbuild` is used, the outer cache may show the requested values while the inner anchor app still uses its defaults. That produces a board that boots with the wrong `anchor_id/master` role.
+- Pure USB serial tag builds live in `apps/tag_usb/` and are built with `scripts/build_tag_usb.sh`; that variant disables BLE, OTA, and MCUboot while keeping the UWB path and UART console.
+- Motion BLE tag builds live in `apps/tag_ble_lite/` and are built with `scripts/build_tag_ble_motion.sh`; that variant keeps BLE/NUS, uses a compact `TagSummary`, bundles about 3 records per packet with headroom, and is intended for the rotating BLE motion tag such as `760186127`.
 
 Examples:
 
@@ -144,3 +157,35 @@ If single-tag runs are stable but three-tag runs degrade:
    - track-anchor count
    - full-sweep interval
    - TDMA timing
+
+## Ref115 Autopositioning
+
+Current one-command host-side workflow:
+
+```bash
+python3 scripts/recalibrate_anchor_layout_with_ref115.py
+```
+
+What it does:
+
+1. capture a static `115 -> Anchor` range session
+2. solve the updated anchor layout using:
+   - `A-H` inter-anchor matrix
+   - `Ref115 -> Anchor` ranges
+   - `Ref115 Z ~= 700 mm` soft prior
+3. update:
+   - `data/anchor_layout_ah_calibrated.json`
+   - `data/anchor_layout_ah_runtime.json`
+   - `src/uwb_anchor_layout.c`
+4. rebuild and reflash `115` so the new anchor layout is used immediately
+
+Useful variants:
+
+```bash
+python3 scripts/recalibrate_anchor_layout_with_ref115.py --session-dir logs/tag_sessions/ref115_range_smoke
+python3 scripts/recalibrate_anchor_layout_with_ref115.py --session-dir logs/tag_sessions/ref115_range_smoke --skip-build --skip-flash
+```
+
+Dedicated notes:
+
+- `docs/ref115_autopositioning_workflow.md`

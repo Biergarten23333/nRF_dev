@@ -29,4 +29,16 @@ int uwb_tag_loc_solve(const struct uwb_tag_measurement *measurements,
                       size_t measurement_count,
                       struct uwb_tag_location_result *result);
 
+int uwb_tag_loc_evaluate_solution(const struct uwb_tag_measurement *measurements,
+                                  size_t measurement_count,
+                                  const uint8_t *anchor_ids,
+                                  size_t anchor_id_count,
+                                  int32_t x_mm,
+                                  int32_t y_mm,
+                                  int32_t z_mm,
+                                  uint32_t *residual_rms_mm,
+                                  uint32_t *residual_max_mm,
+                                  uint8_t *lower_count,
+                                  uint8_t *upper_count);
+
 #endif /* UWB_TAG_LOC_H */

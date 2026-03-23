@@ -39,13 +39,29 @@ USB_TAG_POS_RE = re.compile(
     r"rms=(?P<rms>\d+) mm max=(?P<max>\d+) mm"
 )
 
-BLE_TAG_RE = re.compile(
-    r"(?:BLE|NUS) notify: TagSummary sweep=(?P<sweep>\d+) plan=(?P<plan>\w+) "
+BLE_TAG_RE_FULL = re.compile(
+    r"(?:BLE(?:\[\d+\])?|NUS) notify: TagSummary sweep=(?P<sweep>\d+) plan=(?P<plan>\w+) "
     r"xyz=\((?P<x>-?\d+),(?P<y>-?\d+),(?P<z>-?\d+)\) "
     r"rms=(?P<rms>\d+) max=(?P<max>\d+)"
     r"(?: anchors=\[[^\]]*\])?"
     r"(?: motion_dt=(?P<motion_dt>\d+))?"
     r"(?: disp=(?P<disp>\d+) speed=(?P<speed>\d+))?"
+)
+
+BLE_TAG_RE_COMPACT = re.compile(
+    r"(?:BLE(?:\[\d+\])?|NUS) notify: TagSummary s=(?P<sweep>\d+) p=(?P<plan>\w+) "
+    r"xyz=\((?P<x>-?\d+),(?P<y>-?\d+),(?P<z>-?\d+)\) "
+    r"r=(?P<rms>\d+) m=(?P<max>\d+)"
+    r"(?: a=\[[^\]]*\])?"
+    r"(?: dt=(?P<motion_dt>\d+)| motion=na)?"
+)
+
+BLE_TAG_RE_BUNDLE = re.compile(
+    r"(?:BLE(?:\[\d+\])?|NUS) notify: (?:TS|TagSummary) s=(?P<sweep>\d+) p=(?P<plan>\w+) "
+    r"xyz=(?:(?P<x>-?\d+),(?P<y>-?\d+),(?P<z>-?\d+)|\((?P<x2>-?\d+),(?P<y2>-?\d+),(?P<z2>-?\d+)\)) "
+    r"r=(?P<rms>\d+) m=(?P<max>\d+)"
+    r"(?: a=(?P<anchors>[A-Z0-9,\[\]]*))?"
+    r"(?: (?:d|dt)=(?P<motion_dt>\d+)| motion=na)?"
 )
 
 
@@ -111,7 +127,11 @@ class SerialReader(threading.Thread):
                             self.out_queue.put(("raw", self.name, text))
                             point = self.parser(text, self.name)
                             if point is not None:
-                                self.out_queue.put(("point", self.name, point))
+                                if isinstance(point, list):
+                                    for item in point:
+                                        self.out_queue.put(("point", self.name, item))
+                                else:
+                                    self.out_queue.put(("point", self.name, point))
             except (serial.SerialException, OSError) as exc:
                 self.out_queue.put(("status", self.name, f"waiting for {port}: {exc}"))
                 time.sleep(0.5)
@@ -134,19 +154,44 @@ def parse_usb_line(text, source_name):
 
 
 def parse_ble_line(text, source_name):
-    match = BLE_TAG_RE.search(text)
-    if not match:
-        return None
-    return DataPoint(
-        timestamp=time.time(),
-        sweep=int(match.group("sweep")),
-        x_mm=int(match.group("x")),
-        y_mm=int(match.group("y")),
-        z_mm=int(match.group("z")),
-        rms_mm=int(match.group("rms")),
-        max_mm=int(match.group("max")),
-        source=source_name,
-    )
+    points = []
+    prefix = None
+    if "notify:" in text:
+        prefix = text.split("notify:", 1)[0] + "notify: "
+
+    for idx, fragment in enumerate(text.split("|")):
+        fragment = fragment.strip()
+        if not fragment:
+            continue
+
+        if idx > 0 and "notify:" not in fragment and fragment.startswith(("TagSummary", "TS")):
+            fragment = (prefix or "BLE notify: ") + fragment
+
+        match = (
+            BLE_TAG_RE_FULL.search(fragment)
+            or BLE_TAG_RE_COMPACT.search(fragment)
+            or BLE_TAG_RE_BUNDLE.search(fragment)
+        )
+        if not match:
+            continue
+
+        x = match.group("x") or match.group("x2")
+        y = match.group("y") or match.group("y2")
+        z = match.group("z") or match.group("z2")
+        points.append(
+            DataPoint(
+                timestamp=time.time(),
+                sweep=int(match.group("sweep")),
+                x_mm=int(x),
+                y_mm=int(y),
+                z_mm=int(z),
+                rms_mm=int(match.group("rms")),
+                max_mm=int(match.group("max")),
+                source=source_name,
+            )
+        )
+
+    return points or None
 
 
 class PlotPane(ttk.Frame):

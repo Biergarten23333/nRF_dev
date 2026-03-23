@@ -92,3 +92,99 @@ Runtime artifacts:
 - Human-readable summary: this file
 - Full machine-readable result: `data/anchor_layout_ah_calibrated.json`
 - Runtime-friendly mm config: `data/anchor_layout_ah_runtime.json`
+
+## Calibrated v3 Soft Planes
+
+This is the new runtime baseline.
+
+How it differs from v2:
+- `ABCD` are no longer treated as perfectly coplanar in the solver.
+- The runtime frame still uses `A` as origin, `B` as x-axis, and `D` to define the `xy` plane.
+- `C` is allowed to deviate slightly from the lower reference plane.
+- `EFGH` are no longer forced to share one exact `z`; they are only encouraged to stay close to a common best-fit plane.
+- The upper cluster still has a soft average-height prior near `1.4 m`.
+
+Chosen solver settings:
+- `distance_sigma_mm = 90`
+- `height_prior_m = 1.4`
+- `height_sigma_mm = 300`
+- `vertical_sigma_mm = 900`
+- `lower_plane_sigma_mm = 80`
+- `upper_plane_sigma_mm = 160`
+
+Result summary:
+- Soft-plane constrained least-squares solve completed.
+- RMS residual error: `160.35 mm`
+- Upper-plane mean height: `1.563 m`
+- Upper-plane z spread: `1.444 .. 1.773 m`
+- Lower-plane `C` offset: `-0.035 m`
+
+Recommended calibrated coordinates:
+
+| Anchor | x (m) | y (m) | z (m) |
+| --- | ---: | ---: | ---: |
+| A | 0.000 | 0.000 | 0.000 |
+| B | 3.765 | 0.000 | 0.000 |
+| C | 3.846 | 3.714 | -0.035 |
+| D | -0.036 | 4.033 | 0.000 |
+| E | 0.100 | 0.391 | 1.773 |
+| F | 3.777 | -0.060 | 1.478 |
+| G | 4.008 | 3.829 | 1.444 |
+| H | 0.078 | 3.986 | 1.558 |
+
+Interpretation:
+- This keeps the same global geometry and vertical pairing as before.
+- It removes the unrealistic assumption that the upper layer is perfectly level.
+- It also avoids forcing the lower layer to be mathematically perfect while preserving a stable runtime coordinate frame.
+- For your physical installation, where anchors are approximately but not perfectly coplanar, this is the more realistic runtime model.
+
+## Calibrated v4 Near-Level + Ref115
+
+This is the current recommended runtime baseline.
+
+How it differs from v3:
+- The upper cluster is still not treated as mathematically exact, but it is now softly constrained to stay near one shared height in the runtime frame.
+- The four vertical pairs `A-E`, `B-F`, `C-G`, `D-H` are softly encouraged to have similar height separation.
+- A static floating reference session from Tag `115` is incorporated using only:
+  - its measured `Tag -> Anchor` ranges
+  - a soft prior that the tag height is near `700 mm`
+- A bug in the floating-reference parameter unpacking was fixed before generating this result.
+
+Chosen solver settings:
+- `distance_sigma_mm = 90`
+- `height_prior_m = 1.4`
+- `height_sigma_mm = 300`
+- `vertical_sigma_mm = 180`
+- `lower_plane_sigma_mm = 40`
+- `upper_plane_sigma_mm = 0`
+- `upper_level_sigma_mm = 20`
+- `pair_height_sigma_mm = 25`
+- `reference_sigma_mm = 60`
+- `floating_reference_z_prior_mm = 700`
+- `floating_reference_z_sigma_mm = 80`
+
+Result summary:
+- Constrained least-squares solve completed.
+- RMS residual error: `172.27 mm`
+- Upper-plane mean height: `1.559 m`
+- Upper-plane z spread: `1.558 .. 1.562 m`
+- Solved floating reference: `(5.260, 0.322, 0.683) m`
+
+Recommended calibrated coordinates:
+
+| Anchor | x (m) | y (m) | z (m) |
+| --- | ---: | ---: | ---: |
+| A | 0.000 | 0.000 | 0.000 |
+| B | 3.786 | 0.000 | 0.000 |
+| C | 3.828 | 3.744 | 0.002 |
+| D | -0.027 | 4.042 | 0.000 |
+| E | 0.036 | 0.335 | 1.562 |
+| F | 3.685 | -0.090 | 1.558 |
+| G | 3.976 | 3.754 | 1.558 |
+| H | 0.034 | 3.971 | 1.559 |
+
+Interpretation:
+- This matches the physical expectation much better than v3: the upper anchors are no longer split by hundreds of millimetres in `z`.
+- The lower cluster remains effectively coplanar, but not by hard force.
+- The result is still a model-driven estimate, not survey-grade truth, because only one static floating reference session is available.
+- For the current fixed installation, this is the most realistic baseline in the repo.

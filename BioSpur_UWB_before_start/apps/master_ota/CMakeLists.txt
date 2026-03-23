@@ -17,6 +17,11 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
 project(BioSpur_UWB_master_ota)
 
+set(APP_MASTER_OTA_TARGET_NAME "" CACHE STRING
+    "Exact BLE device name to OTA; empty accepts any DFU SMP advertiser")
+set(APP_MASTER_OTA_TARGET_TOKEN_ID "-1" CACHE STRING
+    "BioSpur manufacturer token tag ID to OTA; -1 accepts any token")
+
 get_filename_component(NCS_BASE ${ZEPHYR_BASE} DIRECTORY)
 
 target_include_directories(app PRIVATE
@@ -28,6 +33,8 @@ target_include_directories(app PRIVATE
 
 target_compile_definitions(app PRIVATE
     ZCBOR_CANONICAL
+    APP_MASTER_OTA_TARGET_NAME=\"${APP_MASTER_OTA_TARGET_NAME}\"
+    APP_MASTER_OTA_TARGET_TOKEN_ID=${APP_MASTER_OTA_TARGET_TOKEN_ID}
 )
 
 target_sources(app PRIVATE

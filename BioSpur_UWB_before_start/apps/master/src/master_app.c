@@ -20,6 +20,13 @@
 
 #define MASTER_CMD_PERIOD K_SECONDS(2)
 
+#ifndef APP_MASTER_ONE_SHOT_CMD
+#define APP_MASTER_ONE_SHOT_CMD ""
+#endif
+
+static const struct bt_conn_le_phy_param *const fast_phy_params = BT_CONN_LE_PHY_PARAM_2M;
+static const struct bt_le_conn_param *const fast_conn_params = BT_LE_CONN_PARAM(6, 6, 0, 400);
+
 enum master_led_id {
 	MASTER_LED_SCAN = DK_LED1,
 	MASTER_LED_LINK = DK_LED2,
@@ -32,6 +39,7 @@ static struct bt_nus_client nus_client;
 static struct k_work_delayable send_work;
 static struct k_sem nus_write_sem;
 static uint8_t command_phase;
+static bool one_shot_sent;
 static bool nus_ready;
 static bool leds_ready;
 static bool led_scan_state;
@@ -60,6 +68,30 @@ static bool ble_payload_contains(const uint8_t *data, uint16_t len, const char *
 		}
 	}
 
+	return false;
+}
+
+struct adv_name_ctx {
+	char *name;
+	size_t name_len;
+};
+
+static bool adv_name_parse_cb(struct bt_data *data, void *user_data)
+{
+	struct adv_name_ctx *ctx = user_data;
+
+	if (ctx == NULL || ctx->name == NULL || ctx->name_len == 0U) {
+		return false;
+	}
+
+	if (data->type != BT_DATA_NAME_COMPLETE &&
+	    data->type != BT_DATA_NAME_SHORTENED) {
+		return true;
+	}
+
+	size_t copy_len = MIN((size_t)data->data_len, ctx->name_len - 1U);
+	memcpy(ctx->name, data->data, copy_len);
+	ctx->name[copy_len] = '\0';
 	return false;
 }
 
@@ -222,6 +254,7 @@ static void exchange_func(struct bt_conn *conn, uint8_t err,
 static void connected(struct bt_conn *conn, uint8_t conn_err)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
+	int err;
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
@@ -238,6 +271,10 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 	static struct bt_gatt_exchange_params exchange_params;
 	exchange_params.func = exchange_func;
 	(void)bt_gatt_exchange_mtu(conn, &exchange_params);
+	err = bt_conn_le_phy_update(conn, fast_phy_params);
+	printk("PHY update request rc=%d\n", err);
+	err = bt_conn_le_param_update(conn, fast_conn_params);
+	printk("Conn param update request rc=%d\n", err);
 	gatt_discover(conn);
 	(void)bt_scan_stop();
 }
@@ -270,10 +307,26 @@ static void scan_filter_match(struct bt_scan_device_info *device_info,
 			      bool connectable)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
+	char adv_name[BT_GAP_MAX_NAME_LEN + 1U];
+	struct adv_name_ctx adv_ctx = {
+		.name = adv_name,
+		.name_len = sizeof(adv_name),
+	};
 
 	ARG_UNUSED(filter_match);
 	bt_addr_le_to_str(device_info->recv_info->addr, addr, sizeof(addr));
-	printk("Scan match: %s connectable=%d\n", addr, connectable);
+	adv_name[0] = '\0';
+	if (device_info->adv_data != NULL) {
+		(void)bt_data_parse(device_info->adv_data, adv_name_parse_cb,
+				    &adv_ctx);
+	}
+
+	if (adv_name[0] != '\0') {
+		printk("Scan match: %s connectable=%d name=%s\n", addr, connectable,
+		       adv_name);
+	} else {
+		printk("Scan match: %s connectable=%d\n", addr, connectable);
+	}
 }
 
 static void scan_connecting_error(struct bt_scan_device_info *device_info)
@@ -325,6 +378,25 @@ static void send_work_handler(struct k_work *work)
 
 	if (!nus_ready || default_conn == NULL) {
 		k_work_reschedule(&send_work, K_SECONDS(1));
+		return;
+	}
+
+	if (strlen(APP_MASTER_ONE_SHOT_CMD) != 0U) {
+		if (one_shot_sent) {
+			return;
+		}
+
+		int err = bt_nus_client_send(&nus_client,
+					       (const uint8_t *)APP_MASTER_ONE_SHOT_CMD,
+					       strlen(APP_MASTER_ONE_SHOT_CMD));
+		if (err) {
+			printk("BLE one-shot send failed: %d\n", err);
+			master_leds_set(led_scan_state, led_link_state, led_ota_state, true);
+		} else {
+			one_shot_sent = true;
+			(void)k_sem_take(&nus_write_sem, K_MSEC(500));
+			printk("BLE one-shot command sent: %s\n", APP_MASTER_ONE_SHOT_CMD);
+		}
 		return;
 	}
 
@@ -389,6 +461,9 @@ int master_app_run(void)
 	}
 
 	printk("BioSpur BLE master ready on nRF52840 DK\n");
+	if (strlen(APP_MASTER_ONE_SHOT_CMD) != 0U) {
+		printk("One-shot NUS command armed: %s\n", APP_MASTER_ONE_SHOT_CMD);
+	}
 	printk("Scanning for NUS service\n");
 
 	err = bt_scan_start(BT_SCAN_TYPE_SCAN_ACTIVE);

@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #define UWB_RANGE_TRACKER_WINDOW_SIZE 3U
+#define UWB_RANGE_TRACKER_QUALITY_WINDOW 32U
 
 struct uwb_range_tracker {
     uint16_t peer_short_addr;
@@ -13,6 +14,8 @@ struct uwb_range_tracker {
     uint32_t filtered_mm;
     uint32_t success_count;
     uint32_t failure_count;
+    uint16_t recent_success_count;
+    uint16_t recent_failure_count;
     uint8_t raw_count;
     uint8_t raw_head;
     bool filtered_valid;

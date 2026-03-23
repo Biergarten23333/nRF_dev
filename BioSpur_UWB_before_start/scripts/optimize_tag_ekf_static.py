@@ -230,7 +230,7 @@ def main() -> int:
         summary_path = REPO_ROOT / "logs" / "tag_sessions" / session_name / "summary.json"
         if not summary_path.exists():
             build_tag(build_dir, config)
-            flash_tag(args.snr, build_dir / "zephyr" / "zephyr.hex")
+            flash_tag(args.snr, build_dir / "zephyr" / "merged.hex")
             summary_path = capture_tag(args.snr, args.port, args.duration, session_name)
         summary = load_summary(summary_path)
         score = score_summary(summary, args.z_weight)
@@ -251,7 +251,7 @@ def main() -> int:
             summary_path = REPO_ROOT / "logs" / "tag_sessions" / session_name / "summary.json"
             if not summary_path.exists():
                 build_tag(build_dir, config)
-                flash_tag(args.snr, build_dir / "zephyr" / "zephyr.hex")
+                flash_tag(args.snr, build_dir / "zephyr" / "merged.hex")
                 summary_path = capture_tag(args.snr, args.port, args.duration, session_name)
             summary = load_summary(summary_path)
             score = score_summary(summary, args.z_weight)
@@ -271,7 +271,7 @@ def main() -> int:
         summary_path = REPO_ROOT / "logs" / "tag_sessions" / session_name / "summary.json"
         if not summary_path.exists():
             build_tag(build_dir, config)
-            flash_tag(args.snr, build_dir / "zephyr" / "zephyr.hex")
+            flash_tag(args.snr, build_dir / "zephyr" / "merged.hex")
             summary_path = capture_tag(args.snr, args.port, args.duration, session_name)
         summary = load_summary(summary_path)
         score = score_summary(summary, args.z_weight)
@@ -287,7 +287,7 @@ def main() -> int:
         raise RuntimeError("No EKF results were produced.")
 
     best_build_dir = REPO_ROOT / f"build-ekf-115-{best_result['config']['name']}"
-    best_hex = best_build_dir / "zephyr" / "zephyr.hex"
+    best_hex = best_build_dir / "zephyr" / "merged.hex"
     confirm_session_name = f"ekf115_{run_stamp}_confirm_best"
     confirm_summary_path = (
         REPO_ROOT / "logs" / "tag_sessions" / confirm_session_name / "summary.json"

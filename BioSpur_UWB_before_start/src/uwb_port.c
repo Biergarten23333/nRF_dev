@@ -10,10 +10,15 @@
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/spi.h>
+#include <zephyr/drivers/uart.h>
 #include <zephyr/irq.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/printk.h>
+
+#ifndef APP_TAG_USB_DIAG_TRACE
+#define APP_TAG_USB_DIAG_TRACE 0U
+#endif
 
 #define DW1000_NODE DT_NODELABEL(ieee802154)
 #define UWB_SPI_BUF_SIZE 1024U
@@ -51,6 +56,21 @@ static const struct spi_config *uwb_spi_cfg = &uwb_spi_slow_cfg;
 
 static uint8_t uwb_spi_tx_buf[UWB_SPI_BUF_SIZE];
 static uint8_t uwb_spi_rx_buf[UWB_SPI_BUF_SIZE];
+
+#if APP_TAG_USB_DIAG_TRACE
+static void direct_console_write(const char *msg)
+{
+    const struct device *console = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
+
+    if (!device_is_ready(console) || msg == NULL) {
+        return;
+    }
+
+    while (*msg != '\0') {
+        uart_poll_out(console, *msg++);
+    }
+}
+#endif
 
 static int uwb_port_set_spi_frequency(uint32_t frequency)
 {
@@ -115,11 +135,24 @@ static int uwb_spi_read_reg(uint8_t reg, uint8_t *buf, size_t len)
 
 int uwb_port_init(void)
 {
+#if APP_TAG_USB_DIAG_TRACE
+    direct_console_write("UWB_PORT: enter\n");
+#endif
+    printk("uwb_port_init: start\n");
+
     if (!device_is_ready(uwb_spi_bus)) {
+#if APP_TAG_USB_DIAG_TRACE
+        direct_console_write("UWB_PORT: spi bus not ready\n");
+#endif
+        printk("uwb_port_init: spi bus not ready\n");
         return -ENODEV;
     }
 
     if (!gpio_is_ready_dt(&uwb_reset) || !gpio_is_ready_dt(&uwb_irq)) {
+#if APP_TAG_USB_DIAG_TRACE
+        direct_console_write("UWB_PORT: gpio not ready\n");
+#endif
+        printk("uwb_port_init: gpio not ready\n");
         return -ENODEV;
     }
 
@@ -129,21 +162,50 @@ int uwb_port_init(void)
 
     int ret = gpio_pin_configure_dt(&uwb_irq, GPIO_INPUT);
     if (ret) {
+#if APP_TAG_USB_DIAG_TRACE
+        direct_console_write("UWB_PORT: irq configure failed\n");
+#endif
+        printk("uwb_port_init: irq configure failed %d\n", ret);
         return ret;
     }
+#if APP_TAG_USB_DIAG_TRACE
+    direct_console_write("UWB_PORT: irq configured\n");
+#endif
+    printk("uwb_port_init: irq configured\n");
 
     ret = gpio_pin_configure_dt(&uwb_reset, GPIO_OUTPUT_INACTIVE);
     if (ret) {
+#if APP_TAG_USB_DIAG_TRACE
+        direct_console_write("UWB_PORT: reset configure failed\n");
+#endif
+        printk("uwb_port_init: reset configure failed %d\n", ret);
         return ret;
     }
+#if APP_TAG_USB_DIAG_TRACE
+    direct_console_write("UWB_PORT: reset configured\n");
+#endif
+    printk("uwb_port_init: reset configured\n");
 
+#if APP_TAG_USB_DIAG_TRACE
+    direct_console_write("UWB_PORT: done\n");
+#endif
+    printk("uwb_port_init: done\n");
     return 0;
 }
 
 int uwb_port_hw_reset(void)
 {
+#if APP_TAG_USB_DIAG_TRACE
+    direct_console_write("UWB_PORT: hw_reset enter\n");
+#endif
+    printk("uwb_port_hw_reset: start\n");
+
     int ret = gpio_pin_configure_dt(&uwb_reset, GPIO_OUTPUT_ACTIVE);
     if (ret) {
+#if APP_TAG_USB_DIAG_TRACE
+        direct_console_write("UWB_PORT: hw_reset active failed\n");
+#endif
+        printk("uwb_port_hw_reset: active failed %d\n", ret);
         return ret;
     }
 
@@ -151,10 +213,18 @@ int uwb_port_hw_reset(void)
 
     ret = gpio_pin_configure_dt(&uwb_reset, GPIO_OUTPUT_INACTIVE);
     if (ret) {
+#if APP_TAG_USB_DIAG_TRACE
+        direct_console_write("UWB_PORT: hw_reset inactive failed\n");
+#endif
+        printk("uwb_port_hw_reset: inactive failed %d\n", ret);
         return ret;
     }
 
     k_msleep(5);
+#if APP_TAG_USB_DIAG_TRACE
+    direct_console_write("UWB_PORT: hw_reset done\n");
+#endif
+    printk("uwb_port_hw_reset: done\n");
     return 0;
 }
 

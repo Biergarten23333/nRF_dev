@@ -4,11 +4,14 @@
 #include "uwb_anchor_layout.h"
 #include "uwb_ekf.h"
 #include "uwb_motion.h"
+#if APP_TAG_BLE_ENABLE
 #include "uwb_tag_ble.h"
+#endif
 #include "uwb_range_tracker.h"
 #include "uwb_ss_twr_shared.h"
 #include "uwb_tag_loc.h"
 
+#include <math.h>
 #include <string.h>
 
 #include <deca_device_api.h>
@@ -83,12 +86,80 @@
 #define APP_TAG_EKF_OUTLIER_GATE_MM 0U
 #endif
 
+#ifndef APP_TAG_RANGE_SOFT_RESIDUAL_MM
+#define APP_TAG_RANGE_SOFT_RESIDUAL_MM 180U
+#endif
+
+#ifndef APP_TAG_RANGE_HARD_RESIDUAL_MM
+#define APP_TAG_RANGE_HARD_RESIDUAL_MM 350U
+#endif
+
+#ifndef APP_TAG_RANGE_FILTER_OUTLIER_MM
+#define APP_TAG_RANGE_FILTER_OUTLIER_MM 450U
+#endif
+
+#ifndef APP_TAG_RANGE_CONTINUITY_WARMUP_SWEEPS
+#define APP_TAG_RANGE_CONTINUITY_WARMUP_SWEEPS 3U
+#endif
+
+#ifndef APP_TAG_RANGE_CONTINUITY_ENABLE
+#define APP_TAG_RANGE_CONTINUITY_ENABLE 1U
+#endif
+
+#ifndef APP_TAG_MOTION_FULL_SWEEP_INTERVAL
+#define APP_TAG_MOTION_FULL_SWEEP_INTERVAL 0U
+#endif
+
+#ifndef APP_TAG_MOTION_SPEED_THRESHOLD_MM_S
+#define APP_TAG_MOTION_SPEED_THRESHOLD_MM_S 250U
+#endif
+
+#ifndef APP_TAG_MOTION_RANGE_SOFT_BONUS_MM
+#define APP_TAG_MOTION_RANGE_SOFT_BONUS_MM 0U
+#endif
+
+#ifndef APP_TAG_MOTION_RANGE_HARD_BONUS_MM
+#define APP_TAG_MOTION_RANGE_HARD_BONUS_MM 0U
+#endif
+
+#ifndef APP_TAG_MOTION_EKF_MEAS_STD_MM
+#define APP_TAG_MOTION_EKF_MEAS_STD_MM 0U
+#endif
+
+#ifndef APP_TAG_MOTION_EKF_PROC_ACCEL_MM_S2
+#define APP_TAG_MOTION_EKF_PROC_ACCEL_MM_S2 0U
+#endif
+
+#ifndef APP_TAG_MOTION_EKF_OUTLIER_GATE_MM
+#define APP_TAG_MOTION_EKF_OUTLIER_GATE_MM 0U
+#endif
+
+#ifndef APP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG
+#define APP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG 750U
+#endif
+
+#ifndef APP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG
+#define APP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG 400U
+#endif
+
+#ifndef APP_TAG_BLE_COMPACT_STATUS
+#define APP_TAG_BLE_COMPACT_STATUS 0U
+#endif
+
+#ifndef APP_TAG_USB_MIRROR_BLE_STATUS
+#define APP_TAG_USB_MIRROR_BLE_STATUS 0U
+#endif
+
 #ifndef APP_TAG_VERBOSE_RANGING
 #define APP_TAG_VERBOSE_RANGING 1U
 #endif
 
 #ifndef APP_TAG_VERBOSE_MEASUREMENTS
 #define APP_TAG_VERBOSE_MEASUREMENTS 1U
+#endif
+
+#ifndef APP_TAG_VERBOSE_PERF
+#define APP_TAG_VERBOSE_PERF 1U
 #endif
 
 #define SS_TWR_INIT_RNG_DELAY_MS APP_TAG_RNG_DELAY_MS
@@ -149,6 +220,11 @@ static bool ss_twr_init_have_last_imu_sample;
 static bool ss_twr_init_have_last_solution;
 static uint8_t ss_twr_init_last_solution_anchor_ids[UWB_MAX_ANCHORS];
 static uint8_t ss_twr_init_last_solution_anchor_count;
+static bool ss_twr_init_have_last_location;
+static uint32_t ss_twr_init_location_output_count;
+static int32_t ss_twr_init_last_location_x_mm;
+static int32_t ss_twr_init_last_location_y_mm;
+static int32_t ss_twr_init_last_location_z_mm;
 static volatile int32_t ss_twr_init_debug_last_x_mm;
 static volatile int32_t ss_twr_init_debug_last_y_mm;
 static volatile int32_t ss_twr_init_debug_last_z_mm;
@@ -168,6 +244,8 @@ static uint32_t ss_twr_init_perf_full_sweep_sum_ms;
 static uint16_t ss_twr_init_perf_motion_dt_count;
 static uint16_t ss_twr_init_perf_track_sweep_count;
 static uint16_t ss_twr_init_perf_full_sweep_count;
+static uint32_t ss_twr_init_last_motion_speed_mm_s;
+static bool ss_twr_init_last_imu_indicates_motion;
 
 static bool ss_twr_init_anchor_id_in_list(const uint8_t *anchor_ids, size_t count,
                                           uint8_t anchor_id)
@@ -179,6 +257,161 @@ static bool ss_twr_init_anchor_id_in_list(const uint8_t *anchor_ids, size_t coun
     }
 
     return false;
+}
+
+static bool ss_twr_init_predicted_range_mm(uint8_t anchor_id, int32_t x_mm,
+                                           int32_t y_mm, int32_t z_mm,
+                                           uint32_t *predicted_mm)
+{
+    const struct uwb_anchor_pose_mm *pose = uwb_anchor_layout_get(anchor_id);
+    double dx;
+    double dy;
+    double dz;
+
+    if (pose == NULL || predicted_mm == NULL) {
+        return false;
+    }
+
+    dx = (double)x_mm - (double)pose->x_mm;
+    dy = (double)y_mm - (double)pose->y_mm;
+    dz = (double)z_mm - (double)pose->z_mm;
+    *predicted_mm = (uint32_t)lround(sqrt(dx * dx + dy * dy + dz * dz));
+    return true;
+}
+
+static bool ss_twr_init_imu_sample_indicates_motion(
+    const struct uwb_imu_sample *sample)
+{
+    uint32_t gravity_error_abs;
+
+    if (sample == NULL) {
+        return false;
+    }
+
+    gravity_error_abs =
+        (sample->gravity_error_mg < 0)
+            ? (uint32_t)(-sample->gravity_error_mg)
+            : (uint32_t)sample->gravity_error_mg;
+
+    return sample->delta_magnitude_mg > APP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG ||
+           gravity_error_abs > APP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG;
+}
+
+static bool ss_twr_init_dynamic_context_active(void)
+{
+    return ss_twr_init_last_imu_indicates_motion ||
+           ss_twr_init_last_motion_speed_mm_s >=
+               APP_TAG_MOTION_SPEED_THRESHOLD_MM_S;
+}
+
+static uint32_t ss_twr_init_effective_range_soft_gate_mm(void)
+{
+    return APP_TAG_RANGE_SOFT_RESIDUAL_MM +
+           (ss_twr_init_dynamic_context_active()
+                ? APP_TAG_MOTION_RANGE_SOFT_BONUS_MM
+                : 0U);
+}
+
+static uint32_t ss_twr_init_effective_range_hard_gate_mm(void)
+{
+    uint32_t soft_gate = ss_twr_init_effective_range_soft_gate_mm();
+    uint32_t hard_gate = APP_TAG_RANGE_HARD_RESIDUAL_MM +
+                         (ss_twr_init_dynamic_context_active()
+                              ? APP_TAG_MOTION_RANGE_HARD_BONUS_MM
+                              : 0U);
+
+    if (hard_gate <= soft_gate) {
+        hard_gate = soft_gate + 1U;
+    }
+
+    return hard_gate;
+}
+
+static uint16_t ss_twr_init_effective_full_sweep_interval(void)
+{
+    uint16_t interval = APP_TAG_FULL_SWEEP_INTERVAL;
+
+    if (ss_twr_init_dynamic_context_active() &&
+        APP_TAG_MOTION_FULL_SWEEP_INTERVAL > 1U &&
+        (interval <= 1U || APP_TAG_MOTION_FULL_SWEEP_INTERVAL < interval)) {
+        interval = APP_TAG_MOTION_FULL_SWEEP_INTERVAL;
+    }
+
+    return interval;
+}
+
+static bool ss_twr_init_apply_range_continuity_gate(uint8_t anchor_id,
+                                                    uint32_t range_mm,
+                                                    uint8_t *quality_percent)
+{
+    uint32_t predicted_mm = 0U;
+    uint32_t residual_mm;
+    uint32_t soft_gate_mm;
+    uint32_t hard_gate_mm;
+
+    if (!APP_TAG_RANGE_CONTINUITY_ENABLE || quality_percent == NULL ||
+        !ss_twr_init_have_last_location) {
+        return true;
+    }
+
+    if (ss_twr_init_location_output_count < APP_TAG_RANGE_CONTINUITY_WARMUP_SWEEPS) {
+        return true;
+    }
+
+    if (!ss_twr_init_predicted_range_mm(anchor_id, ss_twr_init_last_location_x_mm,
+                                        ss_twr_init_last_location_y_mm,
+                                        ss_twr_init_last_location_z_mm,
+                                        &predicted_mm)) {
+        return true;
+    }
+
+    residual_mm = (range_mm > predicted_mm) ? (range_mm - predicted_mm) :
+                                              (predicted_mm - range_mm);
+
+    soft_gate_mm = ss_twr_init_effective_range_soft_gate_mm();
+    hard_gate_mm = ss_twr_init_effective_range_hard_gate_mm();
+
+    if (residual_mm >= hard_gate_mm) {
+        return false;
+    }
+
+    if (residual_mm > soft_gate_mm) {
+        uint32_t overshoot = residual_mm - soft_gate_mm;
+        uint32_t penalty = 20U + ((overshoot * 40U) /
+                                  (hard_gate_mm - soft_gate_mm));
+
+        if (penalty >= *quality_percent) {
+            *quality_percent = 0U;
+        } else {
+            *quality_percent = (uint8_t)(*quality_percent - penalty);
+        }
+    }
+
+    return true;
+}
+
+static bool ss_twr_init_raw_range_plausible(
+    const struct uwb_range_tracker *tracker, uint32_t raw_mm)
+{
+    uint32_t delta_mm;
+
+    if (tracker == NULL) {
+        return false;
+    }
+
+    if (raw_mm == 0U) {
+        return false;
+    }
+
+    if (!tracker->filtered_valid ||
+        tracker->raw_count < UWB_RANGE_TRACKER_WINDOW_SIZE) {
+        return true;
+    }
+
+    delta_mm = (raw_mm > tracker->filtered_mm)
+                   ? (raw_mm - tracker->filtered_mm)
+                   : (tracker->filtered_mm - raw_mm);
+    return delta_mm <= APP_TAG_RANGE_FILTER_OUTLIER_MM;
 }
 
 static void ss_twr_init_sleep_between_ranges(void)
@@ -304,10 +537,15 @@ static void ss_twr_init_prepare_sweep_plan(void)
         return;
     }
 
-    if (APP_TAG_FAST_TRACKING != 0U && ss_twr_init_have_last_solution &&
-        APP_TAG_FULL_SWEEP_INTERVAL > 1U &&
-        (ss_twr_init_sweep_count % APP_TAG_FULL_SWEEP_INTERVAL) != 0U) {
-        full_sweep = false;
+    {
+        uint16_t effective_full_interval =
+            ss_twr_init_effective_full_sweep_interval();
+
+        if (APP_TAG_FAST_TRACKING != 0U && ss_twr_init_have_last_solution &&
+            effective_full_interval > 1U &&
+            (ss_twr_init_sweep_count % effective_full_interval) != 0U) {
+            full_sweep = false;
+        }
     }
 
     if (full_sweep) {
@@ -402,6 +640,11 @@ static int ss_twr_init_load_runtime_config(
     ss_twr_init_active_anchor_index = 0U;
     ss_twr_init_have_last_solution = false;
     ss_twr_init_last_solution_anchor_count = 0U;
+    ss_twr_init_have_last_location = false;
+    ss_twr_init_location_output_count = 0U;
+    ss_twr_init_last_location_x_mm = 0;
+    ss_twr_init_last_location_y_mm = 0;
+    ss_twr_init_last_location_z_mm = 0;
     ss_twr_init_refresh_anchor_cursor = 0U;
     ss_twr_init_current_sweep_full = true;
     ss_twr_init_current_sweep_start_ms = 0U;
@@ -592,6 +835,13 @@ static void ss_twr_init_print_location_if_ready(void)
         measurements[i].valid = measured_this_sweep && tracker->filtered_valid;
         measurements[i].range_mm = tracker->filtered_mm;
 
+        if (measurements[i].valid &&
+            !ss_twr_init_apply_range_continuity_gate(
+                anchor_id, measurements[i].range_mm,
+                &measurements[i].quality_percent)) {
+            measurements[i].valid = false;
+        }
+
         if (APP_TAG_VERBOSE_MEASUREMENTS != 0U && pose != NULL &&
             tracker->filtered_valid) {
             printk("Tag meas anchor=%c(%u) range=%lu mm q=%u%%\n", pose->label,
@@ -603,7 +853,7 @@ static void ss_twr_init_print_location_if_ready(void)
 
     if (uwb_tag_loc_solve(measurements, ss_twr_init_anchor_count, &location) !=
         0) {
-        if (APP_TAG_PENDING_PRINT_PERIOD == 0U ||
+        if (APP_TAG_PENDING_PRINT_PERIOD != 0U &&
             (ss_twr_init_sweep_count % APP_TAG_PENDING_PRINT_PERIOD) == 0U) {
             printk("Tag solve pending: need >=4 valid anchors across both planes "
                    "plan=%s active=%u sweep_ms=%lu\n",
@@ -614,16 +864,44 @@ static void ss_twr_init_print_location_if_ready(void)
         return;
     }
 
-    uwb_ekf_filter(location.x_mm, location.y_mm, location.z_mm,
-                   k_uptime_get(),
-                   location.residual_rms_mm,
-                   location.residual_max_mm,
-                   &filtered_location);
+    {
+        struct uwb_ekf_runtime_params ekf_params = {
+            .meas_std_mm = APP_TAG_EKF_MEAS_STD_MM,
+            .residual_gain_pct = APP_TAG_EKF_RESIDUAL_GAIN_PCT,
+            .proc_accel_mm_s2 = APP_TAG_EKF_PROC_ACCEL_MM_S2,
+            .outlier_gate_mm = APP_TAG_EKF_OUTLIER_GATE_MM,
+        };
+
+        if (ss_twr_init_dynamic_context_active()) {
+            if (APP_TAG_MOTION_EKF_MEAS_STD_MM != 0U) {
+                ekf_params.meas_std_mm = APP_TAG_MOTION_EKF_MEAS_STD_MM;
+            }
+            if (APP_TAG_MOTION_EKF_PROC_ACCEL_MM_S2 != 0U) {
+                ekf_params.proc_accel_mm_s2 =
+                    APP_TAG_MOTION_EKF_PROC_ACCEL_MM_S2;
+            }
+            if (APP_TAG_MOTION_EKF_OUTLIER_GATE_MM != 0U) {
+                ekf_params.outlier_gate_mm =
+                    APP_TAG_MOTION_EKF_OUTLIER_GATE_MM;
+            }
+        }
+
+        uwb_ekf_filter_with_params(location.x_mm, location.y_mm, location.z_mm,
+                                   k_uptime_get(), location.residual_rms_mm,
+                                   location.residual_max_mm, &ekf_params,
+                                   &filtered_location);
+    }
 
     if (filtered_location.valid) {
         location.x_mm = filtered_location.x_mm;
         location.y_mm = filtered_location.y_mm;
         location.z_mm = filtered_location.z_mm;
+        (void)uwb_tag_loc_evaluate_solution(
+            measurements, ss_twr_init_anchor_count, location.anchor_ids,
+            location.used_anchor_count, location.x_mm, location.y_mm,
+            location.z_mm, &location.residual_rms_mm,
+            &location.residual_max_mm, &location.lower_anchor_count,
+            &location.upper_anchor_count);
     }
 
     have_motion = uwb_motion_update(location.x_mm, location.y_mm, location.z_mm,
@@ -655,6 +933,7 @@ static void ss_twr_init_print_location_if_ready(void)
     if (have_motion) {
         ss_twr_init_perf_motion_dt_sum_ms += motion.dt_ms;
         ss_twr_init_perf_motion_dt_count++;
+        ss_twr_init_last_motion_speed_mm_s = motion.speed_mm_s;
     }
 
     ss_twr_init_debug_last_x_mm = location.x_mm;
@@ -665,6 +944,10 @@ static void ss_twr_init_print_location_if_ready(void)
     ss_twr_init_debug_last_used_anchor_count = location.used_anchor_count;
     ss_twr_init_debug_last_lower_anchor_count = location.lower_anchor_count;
     ss_twr_init_debug_last_upper_anchor_count = location.upper_anchor_count;
+    ss_twr_init_have_last_location = true;
+    ss_twr_init_last_location_x_mm = location.x_mm;
+    ss_twr_init_last_location_y_mm = location.y_mm;
+    ss_twr_init_last_location_z_mm = location.z_mm;
 
     if ((ss_twr_init_sweep_count % APP_TAG_SUMMARY_PERIOD) != 0U) {
         for (size_t i = 0; i < location.used_anchor_count; ++i) {
@@ -675,70 +958,100 @@ static void ss_twr_init_print_location_if_ready(void)
         return;
     }
 
-    printk("Tag motion summary sweep=%lu plan=%s sweep_ms=%lu active=%u used=%u lower=%u upper=%u xyz=(%ld,%ld,%ld) mm rms=%lu mm max=%lu mm",
-           (unsigned long)ss_twr_init_sweep_count,
-           ss_twr_init_plan_label(),
-           (unsigned long)sweep_elapsed_ms,
-           (unsigned int)ss_twr_init_active_anchor_count,
-           (unsigned int)location.used_anchor_count,
-           (unsigned int)location.lower_anchor_count,
-           (unsigned int)location.upper_anchor_count,
-           (long)location.x_mm, (long)location.y_mm, (long)location.z_mm,
-           (unsigned long)location.residual_rms_mm,
-           (unsigned long)location.residual_max_mm);
+    {
+        char summary[320];
+        size_t summary_len = 0U;
+        bool imu_is_moving = false;
 
-    printk(" anchors=[");
-    for (size_t i = 0; i < location.used_anchor_count; ++i) {
-        const struct uwb_anchor_pose_mm *pose =
-            uwb_anchor_layout_get(location.anchor_ids[i]);
-        if (pose != NULL) {
-            printk("%c", pose->label);
+        summary[0] = '\0';
+        summary_len += (size_t)snprintk(
+            summary + summary_len, sizeof(summary) - summary_len,
+            "Tag motion summary sweep=%lu plan=%s sweep_ms=%lu active=%u "
+            "used=%u lower=%u upper=%u xyz=(%ld,%ld,%ld) mm rms=%lu mm "
+            "max=%lu mm",
+            (unsigned long)ss_twr_init_sweep_count,
+            ss_twr_init_plan_label(),
+            (unsigned long)sweep_elapsed_ms,
+            (unsigned int)ss_twr_init_active_anchor_count,
+            (unsigned int)location.used_anchor_count,
+            (unsigned int)location.lower_anchor_count,
+            (unsigned int)location.upper_anchor_count,
+            (long)location.x_mm, (long)location.y_mm, (long)location.z_mm,
+            (unsigned long)location.residual_rms_mm,
+            (unsigned long)location.residual_max_mm);
+
+        summary_len += (size_t)snprintk(summary + summary_len,
+                                        sizeof(summary) - summary_len,
+                                        " anchors=[");
+        for (size_t i = 0; i < location.used_anchor_count &&
+                           summary_len + 4U < sizeof(summary);
+             ++i) {
+            const struct uwb_anchor_pose_mm *pose =
+                uwb_anchor_layout_get(location.anchor_ids[i]);
+            if (pose != NULL) {
+                summary_len += (size_t)snprintk(summary + summary_len,
+                                                sizeof(summary) - summary_len,
+                                                "%c", pose->label);
+            } else {
+                summary_len += (size_t)snprintk(summary + summary_len,
+                                                sizeof(summary) - summary_len,
+                                                "%u",
+                                                (unsigned int)
+                                                    location.anchor_ids[i]);
+            }
+            if (i + 1U < location.used_anchor_count) {
+                summary_len += (size_t)snprintk(summary + summary_len,
+                                                sizeof(summary) - summary_len,
+                                                ",");
+            }
+        }
+        summary_len += (size_t)snprintk(summary + summary_len,
+                                        sizeof(summary) - summary_len, "]");
+
+        if (have_motion) {
+            summary_len += (size_t)snprintk(
+                summary + summary_len, sizeof(summary) - summary_len,
+                " motion_dt=%lu ms disp=%lu mm vel=(%ld,%ld,%ld) mm/s "
+                "speed=%lu mm/s",
+                (unsigned long)motion.dt_ms,
+                (unsigned long)motion.displacement_mm,
+                (long)motion.vx_mm_s,
+                (long)motion.vy_mm_s,
+                (long)motion.vz_mm_s,
+                (unsigned long)motion.speed_mm_s);
         } else {
-            printk("%u", (unsigned int)location.anchor_ids[i]);
-        }
-        if (i + 1U < location.used_anchor_count) {
-            printk(",");
-        }
-    }
-    printk("]");
-
-    if (have_motion) {
-        printk(" motion_dt=%lu ms disp=%lu mm vel=(%ld,%ld,%ld) mm/s speed=%lu mm/s",
-               (unsigned long)motion.dt_ms,
-               (unsigned long)motion.displacement_mm,
-               (long)motion.vx_mm_s,
-               (long)motion.vy_mm_s,
-               (long)motion.vz_mm_s,
-               (unsigned long)motion.speed_mm_s);
-    } else {
-        printk(" motion=na");
-    }
-
-    bool imu_is_moving = false;
-
-    if (have_imu) {
-        uint32_t gravity_error_abs =
-            (imu.gravity_error_mg < 0) ? (uint32_t)(-imu.gravity_error_mg) :
-                                         (uint32_t)imu.gravity_error_mg;
-
-        if (imu.delta_magnitude_mg > 750U || gravity_error_abs > 400U) {
-            imu_is_moving = true;
+            summary_len += (size_t)snprintk(summary + summary_len,
+                                            sizeof(summary) - summary_len,
+                                            " motion=na");
         }
 
-        printk(" accel=(%ld,%ld,%ld) mg norm=%ld err=%ld delta=%lu state=%s",
-               (long)imu.ax_mg, (long)imu.ay_mg, (long)imu.az_mg,
-               (long)imu.norm_mg, (long)imu.gravity_error_mg,
-               (unsigned long)imu.delta_magnitude_mg,
-               imu_is_moving ? "moving" : "stable");
-    } else {
-        printk(" accel=na");
+        if (have_imu) {
+            imu_is_moving = ss_twr_init_imu_sample_indicates_motion(&imu);
+            ss_twr_init_last_imu_indicates_motion = imu_is_moving;
+
+            summary_len += (size_t)snprintk(
+                summary + summary_len, sizeof(summary) - summary_len,
+                " accel=(%ld,%ld,%ld) mg norm=%ld err=%ld delta=%lu "
+                "state=%s",
+                (long)imu.ax_mg, (long)imu.ay_mg, (long)imu.az_mg,
+                (long)imu.norm_mg, (long)imu.gravity_error_mg,
+                (unsigned long)imu.delta_magnitude_mg,
+                imu_is_moving ? "moving" : "stable");
+        } else {
+            summary_len += (size_t)snprintk(summary + summary_len,
+                                            sizeof(summary) - summary_len,
+                                            " accel=na");
+        }
+
+        printk("%s\n", summary);
     }
 
-    printk("\n");
+    ss_twr_init_location_output_count++;
 
     if (ss_twr_init_perf_motion_dt_count != 0U ||
         ss_twr_init_perf_track_sweep_count != 0U ||
         ss_twr_init_perf_full_sweep_count != 0U) {
+#if APP_TAG_VERBOSE_PERF
         uint32_t avg_motion_dt_ms =
             (ss_twr_init_perf_motion_dt_count == 0U)
                 ? 0U
@@ -762,16 +1075,22 @@ static void ss_twr_init_print_location_if_ready(void)
                (unsigned long)avg_full_sweep_ms,
                (unsigned int)ss_twr_init_perf_track_sweep_count,
                (unsigned int)ss_twr_init_perf_full_sweep_count);
+#endif
     }
 
     {
         char ble_summary[192];
         char ble_anchors[32];
+        char ble_anchor_labels[32];
         size_t ble_anchors_len = 0U;
+        size_t ble_anchor_labels_len = 0U;
 
         ble_anchors[ble_anchors_len++] = '[';
+        ble_anchor_labels[0] = '\0';
         for (size_t i = 0; i < location.used_anchor_count &&
-                           ble_anchors_len + 3U < sizeof(ble_anchors);
+                           ble_anchors_len + 3U < sizeof(ble_anchors) &&
+                           ble_anchor_labels_len + 2U <
+                               sizeof(ble_anchor_labels);
              ++i) {
             const struct uwb_anchor_pose_mm *pose =
                 uwb_anchor_layout_get(location.anchor_ids[i]);
@@ -782,40 +1101,76 @@ static void ss_twr_init_print_location_if_ready(void)
 
             if (pose != NULL) {
                 ble_anchors[ble_anchors_len++] = pose->label;
+                ble_anchor_labels[ble_anchor_labels_len++] = pose->label;
             } else {
                 ble_anchors_len += snprintk(&ble_anchors[ble_anchors_len],
                                             sizeof(ble_anchors) - ble_anchors_len,
                                             "%u",
                                             (unsigned int)location.anchor_ids[i]);
+                ble_anchor_labels_len += snprintk(
+                    &ble_anchor_labels[ble_anchor_labels_len],
+                    sizeof(ble_anchor_labels) - ble_anchor_labels_len, "%u",
+                    (unsigned int)location.anchor_ids[i]);
             }
         }
         ble_anchors[ble_anchors_len++] = ']';
         ble_anchors[ble_anchors_len] = '\0';
+        ble_anchor_labels[ble_anchor_labels_len] = '\0';
 
-        if (have_motion) {
-            snprintk(ble_summary, sizeof(ble_summary),
-                     "TagSummary sweep=%lu plan=%s xyz=(%ld,%ld,%ld) rms=%lu max=%lu anchors=%s motion_dt=%lu",
-                     (unsigned long)ss_twr_init_sweep_count,
-                     ss_twr_init_plan_label(),
-                     (long)location.x_mm, (long)location.y_mm,
-                     (long)location.z_mm,
-                     (unsigned long)location.residual_rms_mm,
-                     (unsigned long)location.residual_max_mm,
-                     ble_anchors,
-                     (unsigned long)motion.dt_ms);
+        if (APP_TAG_BLE_COMPACT_STATUS != 0U) {
+            if (have_motion) {
+                snprintk(ble_summary, sizeof(ble_summary),
+                         "TS s=%lu p=%s xyz=%ld,%ld,%ld r=%lu m=%lu a=%s d=%lu",
+                         (unsigned long)ss_twr_init_sweep_count,
+                         ss_twr_init_plan_label(),
+                         (long)location.x_mm, (long)location.y_mm,
+                         (long)location.z_mm,
+                         (unsigned long)location.residual_rms_mm,
+                         (unsigned long)location.residual_max_mm,
+                         ble_anchor_labels,
+                         (unsigned long)motion.dt_ms);
+            } else {
+                snprintk(ble_summary, sizeof(ble_summary),
+                         "TS s=%lu p=%s xyz=%ld,%ld,%ld r=%lu m=%lu a=%s motion=na",
+                         (unsigned long)ss_twr_init_sweep_count,
+                         ss_twr_init_plan_label(),
+                         (long)location.x_mm, (long)location.y_mm,
+                         (long)location.z_mm,
+                         (unsigned long)location.residual_rms_mm,
+                         (unsigned long)location.residual_max_mm,
+                         ble_anchor_labels);
+            }
         } else {
-            snprintk(ble_summary, sizeof(ble_summary),
-                     "TagSummary sweep=%lu plan=%s xyz=(%ld,%ld,%ld) rms=%lu max=%lu anchors=%s motion=na",
-                     (unsigned long)ss_twr_init_sweep_count,
-                     ss_twr_init_plan_label(),
-                     (long)location.x_mm, (long)location.y_mm,
-                     (long)location.z_mm,
-                     (unsigned long)location.residual_rms_mm,
-                     (unsigned long)location.residual_max_mm,
-                     ble_anchors);
+            if (have_motion) {
+                snprintk(ble_summary, sizeof(ble_summary),
+                         "TagSummary sweep=%lu plan=%s xyz=(%ld,%ld,%ld) rms=%lu max=%lu anchors=%s motion_dt=%lu",
+                         (unsigned long)ss_twr_init_sweep_count,
+                         ss_twr_init_plan_label(),
+                         (long)location.x_mm, (long)location.y_mm,
+                         (long)location.z_mm,
+                         (unsigned long)location.residual_rms_mm,
+                         (unsigned long)location.residual_max_mm,
+                         ble_anchors,
+                         (unsigned long)motion.dt_ms);
+            } else {
+                snprintk(ble_summary, sizeof(ble_summary),
+                         "TagSummary sweep=%lu plan=%s xyz=(%ld,%ld,%ld) rms=%lu max=%lu anchors=%s motion=na",
+                         (unsigned long)ss_twr_init_sweep_count,
+                         ss_twr_init_plan_label(),
+                         (long)location.x_mm, (long)location.y_mm,
+                         (long)location.z_mm,
+                         (unsigned long)location.residual_rms_mm,
+                         (unsigned long)location.residual_max_mm,
+                         ble_anchors);
+            }
         }
 
+#if APP_TAG_BLE_ENABLE
+#if APP_TAG_USB_MIRROR_BLE_STATUS
+        printk("%s\n", ble_summary);
+#endif
         (void)uwb_tag_ble_publish_status(ble_summary);
+#endif
     }
 
     ss_twr_init_perf_motion_dt_sum_ms = 0U;
@@ -868,25 +1223,38 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
     printk("Tag perf config summary_period=%u imu_sample_period=%u\n",
            (unsigned int)APP_TAG_SUMMARY_PERIOD,
            (unsigned int)APP_TAG_IMU_SAMPLE_PERIOD);
-    printk("Tag ekf config enable=%u meas_std=%u residual_gain=%u proc_accel=%u init_pos=%u init_vel=%u gate=%u\n",
+    printk("Tag ekf config enable=%u meas_std=%u residual_gain=%u proc_accel=%u init_pos=%u init_vel=%u gate=%u motion_meas=%u motion_proc=%u motion_gate=%u motion_full=%u speed_thr=%u imu_delta=%u imu_gerr=%u range_soft=%u range_hard=%u motion_soft=%u motion_hard=%u\n",
            (unsigned int)APP_TAG_EKF_ENABLE,
            (unsigned int)APP_TAG_EKF_MEAS_STD_MM,
            (unsigned int)APP_TAG_EKF_RESIDUAL_GAIN_PCT,
            (unsigned int)APP_TAG_EKF_PROC_ACCEL_MM_S2,
            (unsigned int)APP_TAG_EKF_INIT_POS_STD_MM,
            (unsigned int)APP_TAG_EKF_INIT_VEL_STD_MM_S,
-           (unsigned int)APP_TAG_EKF_OUTLIER_GATE_MM);
+           (unsigned int)APP_TAG_EKF_OUTLIER_GATE_MM,
+           (unsigned int)APP_TAG_MOTION_EKF_MEAS_STD_MM,
+           (unsigned int)APP_TAG_MOTION_EKF_PROC_ACCEL_MM_S2,
+           (unsigned int)APP_TAG_MOTION_EKF_OUTLIER_GATE_MM,
+           (unsigned int)APP_TAG_MOTION_FULL_SWEEP_INTERVAL,
+           (unsigned int)APP_TAG_MOTION_SPEED_THRESHOLD_MM_S,
+           (unsigned int)APP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG,
+           (unsigned int)APP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG,
+           (unsigned int)APP_TAG_RANGE_SOFT_RESIDUAL_MM,
+           (unsigned int)APP_TAG_RANGE_HARD_RESIDUAL_MM,
+           (unsigned int)APP_TAG_MOTION_RANGE_SOFT_BONUS_MM,
+           (unsigned int)APP_TAG_MOTION_RANGE_HARD_BONUS_MM);
     ss_twr_init_imu_ready = (uwb_imu_init() == 0);
     ss_twr_init_configure_radio();
     (void)uwb_tdma_wait_until_slot(&ss_twr_init_tdma_schedule);
     ss_twr_init_prepare_sweep_plan();
 
     while (1) {
+#if APP_TAG_BLE_ENABLE
         if (uwb_tag_ble_ota_active()) {
             dwt_forcetrxoff();
             k_msleep(20);
             continue;
         }
+#endif
 
         uint8_t current_anchor_id =
             ss_twr_init_active_anchor_ids[ss_twr_init_active_anchor_index];
@@ -960,10 +1328,12 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
 
             if (!uwb_ss_twr_resp_matches(ss_twr_init_rx_buffer,
                                          ss_twr_init_local_addr, current_anchor_addr)) {
+#if APP_TAG_VERBOSE_MEASUREMENTS
                 printk("Initiator got unexpected frame src=0x%04x dst=0x%04x code=0x%02x\n",
                        (unsigned int)uwb_frame_get_src_addr(ss_twr_init_rx_buffer),
                        (unsigned int)uwb_frame_get_dst_addr(ss_twr_init_rx_buffer),
                        (unsigned int)ss_twr_init_rx_buffer[UWB_MSG_CODE_IDX]);
+#endif
                 ss_twr_init_sleep_between_ranges();
                 continue;
             }
@@ -993,6 +1363,24 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
             }
 
             if (tracker == NULL) {
+                ss_twr_init_sleep_between_ranges();
+                continue;
+            }
+
+            if (!ss_twr_init_raw_range_plausible(
+                    tracker, (uint32_t)raw_distance_mm)) {
+                uwb_range_tracker_record_failure(tracker);
+                if (APP_TAG_VERBOSE_RANGING != 0U) {
+                    printk("Initiator range reject anchor=%u addr=0x%04x raw=%ld mm last_filt=%lu mm ok=%lu fail=%lu q=%u%%\n",
+                           (unsigned int)current_anchor_id,
+                           (unsigned int)current_anchor_addr,
+                           raw_distance_mm,
+                           (unsigned long)tracker->filtered_mm,
+                           (unsigned long)tracker->success_count,
+                           (unsigned long)tracker->failure_count,
+                           (unsigned int)uwb_range_tracker_quality_percent(
+                               tracker));
+                }
                 ss_twr_init_sleep_between_ranges();
                 continue;
             }

@@ -17,6 +17,10 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
 project(BioSpur_UWB_tag)
 
+if(DEFINED ENV{APP_TAG_PRELOAD_FILE} AND EXISTS $ENV{APP_TAG_PRELOAD_FILE})
+    include($ENV{APP_TAG_PRELOAD_FILE})
+endif()
+
 set(APP_ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
 set(APP_TAG_ID "0" CACHE STRING "Tag node ID")
 set(APP_TAG_ANCHOR_COUNT "8" CACHE STRING "Number of anchors to range against")
@@ -62,13 +66,32 @@ set(APP_TAG_TDMA_SLOT_INDEX "0" CACHE STRING "Zero-based TDMA slot index for thi
 set(APP_TAG_TDMA_SLOT_COUNT "1" CACHE STRING "Total TDMA slot count in the cycle")
 set(APP_TAG_TDMA_SLOT_PERIOD_MS "25" CACHE STRING "TDMA slot period in milliseconds")
 set(APP_TAG_TDMA_SLOT_ACTIVE_MS "20" CACHE STRING "Usable active time within each slot in milliseconds")
-set(APP_TAG_EKF_ENABLE "0" CACHE STRING "Enable the post-solve tag EKF")
-set(APP_TAG_EKF_MEAS_STD_MM "25" CACHE STRING "Base measurement standard deviation for the tag EKF")
-set(APP_TAG_EKF_RESIDUAL_GAIN_PCT "0" CACHE STRING "Additional EKF measurement std as a percent of residual hint")
-set(APP_TAG_EKF_PROC_ACCEL_MM_S2 "250" CACHE STRING "Process acceleration standard deviation for the tag EKF")
-set(APP_TAG_EKF_INIT_POS_STD_MM "200" CACHE STRING "Initial position standard deviation for the tag EKF")
-set(APP_TAG_EKF_INIT_VEL_STD_MM_S "1000" CACHE STRING "Initial velocity standard deviation for the tag EKF")
+set(APP_TAG_EKF_ENABLE "0" CACHE STRING "Enable the post-solve linear position filter (legacy EKF name)")
+set(APP_TAG_EKF_MEAS_STD_MM "25" CACHE STRING "Base measurement standard deviation for the post-solve position filter")
+set(APP_TAG_EKF_RESIDUAL_GAIN_PCT "0" CACHE STRING "Additional measurement std as a percent of residual hint")
+set(APP_TAG_EKF_PROC_ACCEL_MM_S2 "250" CACHE STRING "Process acceleration standard deviation for the post-solve position filter")
+set(APP_TAG_EKF_INIT_POS_STD_MM "200" CACHE STRING "Initial position standard deviation for the post-solve position filter")
+set(APP_TAG_EKF_INIT_VEL_STD_MM_S "1000" CACHE STRING "Initial velocity standard deviation for the post-solve position filter")
 set(APP_TAG_EKF_OUTLIER_GATE_MM "0" CACHE STRING "Reject position updates larger than this gate in millimeters (0 disables)")
+set(APP_TAG_RANGE_SOFT_RESIDUAL_MM "180" CACHE STRING "Soft residual gate for per-anchor range continuity weighting")
+set(APP_TAG_RANGE_HARD_RESIDUAL_MM "350" CACHE STRING "Hard residual gate for per-anchor range continuity rejection")
+set(APP_TAG_MOTION_FULL_SWEEP_INTERVAL "0" CACHE STRING "Use a shorter full-sweep interval while in dynamic context (0 disables)")
+set(APP_TAG_MOTION_SPEED_THRESHOLD_MM_S "250" CACHE STRING "Recent speed threshold used to classify dynamic context")
+set(APP_TAG_MOTION_RANGE_SOFT_BONUS_MM "0" CACHE STRING "Additional continuity soft gate while in dynamic context")
+set(APP_TAG_MOTION_RANGE_HARD_BONUS_MM "0" CACHE STRING "Additional continuity hard gate while in dynamic context")
+set(APP_TAG_MOTION_EKF_MEAS_STD_MM "0" CACHE STRING "Override measurement std while in dynamic context (0 keeps base)")
+set(APP_TAG_MOTION_EKF_PROC_ACCEL_MM_S2 "0" CACHE STRING "Override process acceleration std while in dynamic context (0 keeps base)")
+set(APP_TAG_MOTION_EKF_OUTLIER_GATE_MM "0" CACHE STRING "Override outlier gate while in dynamic context (0 keeps base)")
+set(APP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG "750" CACHE STRING "IMU delta threshold used to classify dynamic context")
+set(APP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG "400" CACHE STRING "IMU gravity-error threshold used to classify dynamic context")
+set(APP_TAG_BLE_ENABLE "1" CACHE STRING "Enable BLE/NUS and OTA transport on the tag")
+set(APP_TAG_BLE_OTA_ENABLE "1" CACHE STRING "Enable OTA command and bootloader-advertising BLE payloads on the tag")
+set(APP_TAG_BLE_SETTINGS_ENABLE "1" CACHE STRING "Enable Bluetooth settings persistence on the tag")
+set(APP_TAG_MCUBOOT_ENABLE "1" CACHE STRING "Enable MCUboot confirm/OTA plumbing on the tag")
+set(APP_TAG_BLE_COMPACT_STATUS "0" CACHE STRING "Enable compact BLE TagSummary payloads on the tag")
+set(APP_TAG_BLE_PACKET_BUNDLE_RECORDS "1" CACHE STRING "Bundle this many TagSummary records into one BLE NUS payload")
+set(APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS "0" CACHE STRING "Flush a partial BLE bundle after this many milliseconds (0 disables)")
+set(APP_TAG_BLE_TOKEN_ID "${APP_TAG_ID}" CACHE STRING "BLE identity token advertised in manufacturer data")
 
 target_include_directories(app PRIVATE ${APP_ROOT}/include)
 target_include_directories(app PRIVATE ${APP_ROOT}/drivers/dw1000/include)
@@ -125,6 +148,25 @@ target_compile_definitions(app PRIVATE
     APP_TAG_EKF_INIT_POS_STD_MM=${APP_TAG_EKF_INIT_POS_STD_MM}
     APP_TAG_EKF_INIT_VEL_STD_MM_S=${APP_TAG_EKF_INIT_VEL_STD_MM_S}
     APP_TAG_EKF_OUTLIER_GATE_MM=${APP_TAG_EKF_OUTLIER_GATE_MM}
+    APP_TAG_RANGE_SOFT_RESIDUAL_MM=${APP_TAG_RANGE_SOFT_RESIDUAL_MM}
+    APP_TAG_RANGE_HARD_RESIDUAL_MM=${APP_TAG_RANGE_HARD_RESIDUAL_MM}
+    APP_TAG_MOTION_FULL_SWEEP_INTERVAL=${APP_TAG_MOTION_FULL_SWEEP_INTERVAL}
+    APP_TAG_MOTION_SPEED_THRESHOLD_MM_S=${APP_TAG_MOTION_SPEED_THRESHOLD_MM_S}
+    APP_TAG_MOTION_RANGE_SOFT_BONUS_MM=${APP_TAG_MOTION_RANGE_SOFT_BONUS_MM}
+    APP_TAG_MOTION_RANGE_HARD_BONUS_MM=${APP_TAG_MOTION_RANGE_HARD_BONUS_MM}
+    APP_TAG_MOTION_EKF_MEAS_STD_MM=${APP_TAG_MOTION_EKF_MEAS_STD_MM}
+    APP_TAG_MOTION_EKF_PROC_ACCEL_MM_S2=${APP_TAG_MOTION_EKF_PROC_ACCEL_MM_S2}
+    APP_TAG_MOTION_EKF_OUTLIER_GATE_MM=${APP_TAG_MOTION_EKF_OUTLIER_GATE_MM}
+    APP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG=${APP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG}
+    APP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG=${APP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG}
+    APP_TAG_BLE_ENABLE=${APP_TAG_BLE_ENABLE}
+    APP_TAG_BLE_OTA_ENABLE=${APP_TAG_BLE_OTA_ENABLE}
+    APP_TAG_BLE_SETTINGS_ENABLE=${APP_TAG_BLE_SETTINGS_ENABLE}
+    APP_TAG_BLE_COMPACT_STATUS=${APP_TAG_BLE_COMPACT_STATUS}
+    APP_TAG_BLE_PACKET_BUNDLE_RECORDS=${APP_TAG_BLE_PACKET_BUNDLE_RECORDS}
+    APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS=${APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS}
+    APP_TAG_BLE_TOKEN_ID=${APP_TAG_BLE_TOKEN_ID}
+    APP_TAG_MCUBOOT_ENABLE=${APP_TAG_MCUBOOT_ENABLE}
 )
 
 target_sources(app PRIVATE
@@ -140,9 +182,14 @@ target_sources(app PRIVATE
     ${APP_ROOT}/src/uwb_tdma.c
     ${APP_ROOT}/src/uwb_range_tracker.c
     ${APP_ROOT}/src/uwb_tag_loc.c
-    ${APP_ROOT}/apps/tag/src/uwb_tag_ble.c
     ${APP_ROOT}/src/ss_twr_init.c
     ${APP_ROOT}/drivers/dw1000/src/deca_device.c
     ${APP_ROOT}/drivers/dw1000/src/deca_params_init.c
     ${APP_ROOT}/drivers/dw1000/src/deca_range_tables.c
 )
+
+if(APP_TAG_BLE_ENABLE)
+    target_sources(app PRIVATE
+        ${APP_ROOT}/apps/tag/src/uwb_tag_ble.c
+    )
+endif()

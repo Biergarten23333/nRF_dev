@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+import argparse
+import json
+import math
+import subprocess
+from pathlib import Path
+
+
+ANCHORS = ("A", "B", "C", "D", "E", "F", "G", "H")
+
+
+def load_anchor_map(path: Path) -> dict[str, list[float]]:
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    anchors_raw = raw["anchors"]
+    if isinstance(anchors_raw, dict):
+        return anchors_raw
+    return {
+        entry["label"]: [
+            float(entry["x_mm"]) / 1000.0,
+            float(entry["y_mm"]) / 1000.0,
+            float(entry["z_mm"]) / 1000.0,
+        ]
+        for entry in anchors_raw
+    }
+
+
+def max_anchor_delta_mm(old: dict[str, list[float]], new: dict[str, list[float]]) -> float:
+    max_delta = 0.0
+    for anchor in ANCHORS:
+        dx = new[anchor][0] - old[anchor][0]
+        dy = new[anchor][1] - old[anchor][1]
+        dz = new[anchor][2] - old[anchor][2]
+        delta_mm = math.sqrt(dx * dx + dy * dy + dz * dz) * 1000.0
+        max_delta = max(max_delta, delta_mm)
+    return max_delta
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Iteratively solve anchor layout until the solution converges."
+    )
+    parser.add_argument("--input", default="data/inter_anchor_matrix_ah.json")
+    parser.add_argument("--output", default="data/anchor_layout_ah_calibrated.json")
+    parser.add_argument("--initial-layout", default="data/anchor_layout_ah_calibrated.json")
+    parser.add_argument("--max-iters", type=int, default=5)
+    parser.add_argument("--converge-mm", type=float, default=2.0)
+    parser.add_argument("--distance-sigma-mm", type=float, default=90.0)
+    parser.add_argument("--height-prior-m", type=float, default=1.4)
+    parser.add_argument("--height-sigma-mm", type=float, default=300.0)
+    parser.add_argument("--vertical-sigma-mm", type=float, default=900.0)
+    parser.add_argument("--lower-plane-sigma-mm", type=float, default=80.0)
+    parser.add_argument("--upper-plane-sigma-mm", type=float, default=160.0)
+    parser.add_argument("--upper-level-sigma-mm", type=float, default=35.0)
+    parser.add_argument("--pair-height-sigma-mm", type=float, default=45.0)
+    parser.add_argument("--reference-sigma-mm", type=float, default=60.0)
+    parser.add_argument("--floating-reference-z-prior-mm", type=float, default=None)
+    parser.add_argument("--floating-reference-z-sigma-mm", type=float, default=80.0)
+    parser.add_argument(
+        "--reference-session",
+        action="append",
+        default=[],
+        help="Ground-truth session directory; may be passed multiple times.",
+    )
+    parser.add_argument(
+        "--floating-reference-session",
+        action="append",
+        default=[],
+        help="Static reference-tag session directory with ranges.csv only; may be passed multiple times.",
+    )
+    args = parser.parse_args()
+
+    output = Path(args.output)
+    previous_layout = Path(args.initial_layout)
+    if not previous_layout.exists():
+        previous_layout = None
+
+    history = []
+    for iteration in range(1, args.max_iters + 1):
+        cmd = [
+            "python3",
+            "scripts/solve_anchor_layout.py",
+            "--input",
+            args.input,
+            "--output",
+            str(output),
+            "--distance-sigma-mm",
+            str(args.distance_sigma_mm),
+            "--height-prior-m",
+            str(args.height_prior_m),
+            "--height-sigma-mm",
+            str(args.height_sigma_mm),
+            "--vertical-sigma-mm",
+            str(args.vertical_sigma_mm),
+            "--lower-plane-sigma-mm",
+            str(args.lower_plane_sigma_mm),
+            "--upper-plane-sigma-mm",
+            str(args.upper_plane_sigma_mm),
+            "--upper-level-sigma-mm",
+            str(args.upper_level_sigma_mm),
+            "--pair-height-sigma-mm",
+            str(args.pair_height_sigma_mm),
+            "--reference-sigma-mm",
+            str(args.reference_sigma_mm),
+            "--floating-reference-z-sigma-mm",
+            str(args.floating_reference_z_sigma_mm),
+        ]
+        if args.floating_reference_z_prior_mm is not None:
+            cmd.extend(
+                ["--floating-reference-z-prior-mm", str(args.floating_reference_z_prior_mm)]
+            )
+        if previous_layout is not None:
+            cmd.extend(["--initial-layout", str(previous_layout)])
+        for session_dir in args.reference_session:
+            cmd.extend(["--reference-session", session_dir])
+        for session_dir in args.floating_reference_session:
+            cmd.extend(["--floating-reference-session", session_dir])
+
+        subprocess.run(cmd, check=True)
+        current = load_anchor_map(output)
+
+        if previous_layout is not None:
+            old = load_anchor_map(previous_layout)
+            delta_mm = max_anchor_delta_mm(old, current)
+        else:
+            delta_mm = float("inf")
+
+        history.append({"iteration": iteration, "max_anchor_delta_mm": delta_mm})
+        print(
+            f"iter={iteration} max_anchor_delta_mm="
+            f"{delta_mm if math.isfinite(delta_mm) else -1:.3f}"
+        )
+
+        if math.isfinite(delta_mm) and delta_mm <= args.converge_mm:
+            break
+
+        previous_layout = output
+
+    history_path = output.with_name(output.stem + "_iter_history.json")
+    history_path.write_text(json.dumps(history, indent=2) + "\n", encoding="utf-8")
+    print(f"history: {history_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
