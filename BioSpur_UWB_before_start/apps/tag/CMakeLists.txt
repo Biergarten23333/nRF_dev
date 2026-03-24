@@ -41,8 +41,13 @@ set(APP_TAG_TRACK_ANCHOR_COUNT "6" CACHE STRING "Anchor count used in fast track
 set(APP_TAG_SUMMARY_PERIOD "1" CACHE STRING "Print one motion summary every N completed sweeps")
 set(APP_TAG_PENDING_PRINT_PERIOD "20" CACHE STRING "Print one solve-pending line every N failed sweeps")
 set(APP_TAG_IMU_SAMPLE_PERIOD "8" CACHE STRING "Read the IMU once every N completed sweeps")
+set(APP_TAG_CONSOLE_SUMMARY_ENABLE "1" CACHE STRING "Print motion summaries to the console")
 set(APP_TAG_VERBOSE_RANGING "0" CACHE STRING "Print per-anchor ranging logs")
 set(APP_TAG_VERBOSE_MEASUREMENTS "0" CACHE STRING "Print per-anchor measurement logs")
+set(APP_TAG_VERBOSE_PERF "1" CACHE STRING "Print per-window performance summaries")
+set(APP_TAG_RANGE_CONTINUITY_ENABLE "1" CACHE STRING "Enable per-anchor range continuity gating")
+set(APP_TAG_USB_MIRROR_BLE_STATUS "0" CACHE STRING "Mirror BLE status summaries to USB serial for debug")
+set(APP_TAG_LOC_MIN_QUALITY_PERCENT "50" CACHE STRING "Minimum per-anchor quality percentage accepted by the solver")
 set(APP_TAG_FIXED_MODE "0" CACHE STRING "Use a fixed anchor subset instead of adaptive reselection")
 set(APP_TAG_FIXED_ANCHOR_COUNT "4" CACHE STRING "Number of anchors in fixed-anchor mode")
 set(APP_TAG_FIXED_ANCHOR_0_ID "1" CACHE STRING "Fixed-anchor slot 0 ID")
@@ -75,6 +80,9 @@ set(APP_TAG_EKF_INIT_VEL_STD_MM_S "1000" CACHE STRING "Initial velocity standard
 set(APP_TAG_EKF_OUTLIER_GATE_MM "0" CACHE STRING "Reject position updates larger than this gate in millimeters (0 disables)")
 set(APP_TAG_RANGE_SOFT_RESIDUAL_MM "180" CACHE STRING "Soft residual gate for per-anchor range continuity weighting")
 set(APP_TAG_RANGE_HARD_RESIDUAL_MM "350" CACHE STRING "Hard residual gate for per-anchor range continuity rejection")
+set(APP_TAG_OUTPUT_MAX_RMS_MM "0" CACHE STRING "Reject solved positions above this RMS residual in millimeters (0 disables)")
+set(APP_TAG_OUTPUT_MAX_MAX_MM "0" CACHE STRING "Reject solved positions above this max residual in millimeters (0 disables)")
+set(APP_TAG_OUTPUT_MAX_STEP_MM "0" CACHE STRING "Reject solved positions that jump more than this distance from the last accepted position in millimeters (0 disables)")
 set(APP_TAG_MOTION_FULL_SWEEP_INTERVAL "0" CACHE STRING "Use a shorter full-sweep interval while in dynamic context (0 disables)")
 set(APP_TAG_MOTION_SPEED_THRESHOLD_MM_S "250" CACHE STRING "Recent speed threshold used to classify dynamic context")
 set(APP_TAG_MOTION_RANGE_SOFT_BONUS_MM "0" CACHE STRING "Additional continuity soft gate while in dynamic context")
@@ -116,8 +124,13 @@ target_compile_definitions(app PRIVATE
     APP_TAG_SUMMARY_PERIOD=${APP_TAG_SUMMARY_PERIOD}
     APP_TAG_PENDING_PRINT_PERIOD=${APP_TAG_PENDING_PRINT_PERIOD}
     APP_TAG_IMU_SAMPLE_PERIOD=${APP_TAG_IMU_SAMPLE_PERIOD}
+    APP_TAG_CONSOLE_SUMMARY_ENABLE=${APP_TAG_CONSOLE_SUMMARY_ENABLE}
     APP_TAG_VERBOSE_RANGING=${APP_TAG_VERBOSE_RANGING}
     APP_TAG_VERBOSE_MEASUREMENTS=${APP_TAG_VERBOSE_MEASUREMENTS}
+    APP_TAG_VERBOSE_PERF=${APP_TAG_VERBOSE_PERF}
+    APP_TAG_RANGE_CONTINUITY_ENABLE=${APP_TAG_RANGE_CONTINUITY_ENABLE}
+    APP_TAG_USB_MIRROR_BLE_STATUS=${APP_TAG_USB_MIRROR_BLE_STATUS}
+    APP_TAG_LOC_MIN_QUALITY_PERCENT=${APP_TAG_LOC_MIN_QUALITY_PERCENT}
     APP_TAG_FIXED_MODE=${APP_TAG_FIXED_MODE}
     APP_TAG_FIXED_ANCHOR_COUNT=${APP_TAG_FIXED_ANCHOR_COUNT}
     APP_TAG_FIXED_ANCHOR_0_ID=${APP_TAG_FIXED_ANCHOR_0_ID}
@@ -150,6 +163,9 @@ target_compile_definitions(app PRIVATE
     APP_TAG_EKF_OUTLIER_GATE_MM=${APP_TAG_EKF_OUTLIER_GATE_MM}
     APP_TAG_RANGE_SOFT_RESIDUAL_MM=${APP_TAG_RANGE_SOFT_RESIDUAL_MM}
     APP_TAG_RANGE_HARD_RESIDUAL_MM=${APP_TAG_RANGE_HARD_RESIDUAL_MM}
+    APP_TAG_OUTPUT_MAX_RMS_MM=${APP_TAG_OUTPUT_MAX_RMS_MM}
+    APP_TAG_OUTPUT_MAX_MAX_MM=${APP_TAG_OUTPUT_MAX_MAX_MM}
+    APP_TAG_OUTPUT_MAX_STEP_MM=${APP_TAG_OUTPUT_MAX_STEP_MM}
     APP_TAG_MOTION_FULL_SWEEP_INTERVAL=${APP_TAG_MOTION_FULL_SWEEP_INTERVAL}
     APP_TAG_MOTION_SPEED_THRESHOLD_MM_S=${APP_TAG_MOTION_SPEED_THRESHOLD_MM_S}
     APP_TAG_MOTION_RANGE_SOFT_BONUS_MM=${APP_TAG_MOTION_RANGE_SOFT_BONUS_MM}

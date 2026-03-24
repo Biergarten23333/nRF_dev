@@ -7,7 +7,9 @@
 #include <string.h>
 
 #define UWB_TAG_LOC_MIN_ANCHORS 4U
-#define UWB_TAG_LOC_MIN_QUALITY_PERCENT 50U
+#ifndef APP_TAG_LOC_MIN_QUALITY_PERCENT
+#define APP_TAG_LOC_MIN_QUALITY_PERCENT 50U
+#endif
 #define UWB_TAG_LOC_MAX_ITERATIONS 8U
 #define UWB_TAG_LOC_MAX_CANDIDATES UWB_MAX_ANCHORS
 #define UWB_TAG_LOC_MAX_SOLVER_CANDIDATES 6U
@@ -54,7 +56,7 @@ static bool uwb_tag_loc_build_candidates(
         const struct uwb_anchor_pose_mm *pose;
 
         if (!measurements[i].valid ||
-            measurements[i].quality_percent < UWB_TAG_LOC_MIN_QUALITY_PERCENT) {
+            measurements[i].quality_percent < APP_TAG_LOC_MIN_QUALITY_PERCENT) {
             continue;
         }
 

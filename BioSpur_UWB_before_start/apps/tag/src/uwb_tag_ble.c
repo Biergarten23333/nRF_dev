@@ -7,6 +7,7 @@
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/kernel.h>
 #include <zephyr/settings/settings.h>
+#include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/reboot.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
@@ -42,10 +43,25 @@
 #define APP_TAG_BLE_TOKEN_ID APP_TAG_ID
 #endif
 
-#define UWB_TAG_BLE_MAX_STATUS_LEN 1024U
+#define UWB_TAG_BLE_MAX_STATUS_LEN 256U
 /* Keep ~20% headroom so bundled NUS payloads do not sit on the limit. */
 #define UWB_TAG_BLE_BUNDLE_PAYLOAD_CAP 180U
 #define UWB_TAG_BLE_MAX_CMD_LEN 32U
+#define UWB_TAG_BLE_TX_THREAD_STACK 1536
+#define UWB_TAG_BLE_TX_THREAD_PRIO 7
+#define UWB_TAG_BLE_TX_ITEM_COUNT 12U
+#define UWB_TAG_BLE_BINARY_MAGIC0 0x42U
+#define UWB_TAG_BLE_BINARY_MAGIC1 0x50U
+#define UWB_TAG_BLE_BINARY_VERSION 1U
+#define UWB_TAG_BLE_BINARY_HEADER_LEN 5U
+#define UWB_TAG_BLE_BINARY_RECORD_LEN 24U
+#define UWB_TAG_BLE_MAX_BINARY_RECORDS 4U
+
+struct uwb_tag_ble_tx_item {
+	void *fifo_reserved;
+	size_t len;
+	uint8_t payload[UWB_TAG_BLE_MAX_STATUS_LEN];
+};
 
 static const uint8_t adv_mfg_token[] = {
 	0xff, 0xff, 'B', (uint8_t)APP_TAG_BLE_TOKEN_ID,
@@ -71,6 +87,13 @@ static const struct bt_data sd[] = {
 };
 
 static struct k_mutex ble_mutex;
+static K_FIFO_DEFINE(ble_tx_fifo);
+K_MEM_SLAB_DEFINE_STATIC(ble_tx_slab,
+			 sizeof(struct uwb_tag_ble_tx_item),
+			 UWB_TAG_BLE_TX_ITEM_COUNT,
+			 4);
+static K_THREAD_STACK_DEFINE(ble_tx_thread_stack, UWB_TAG_BLE_TX_THREAD_STACK);
+static struct k_thread ble_tx_thread;
 static struct k_work_delayable reboot_work;
 static struct k_work_delayable bundle_flush_work;
 static struct k_work_delayable adv_retry_work;
@@ -82,6 +105,8 @@ static char last_status[UWB_TAG_BLE_MAX_STATUS_LEN];
 static char pending_bundle[UWB_TAG_BLE_MAX_STATUS_LEN];
 static size_t pending_bundle_len;
 static uint8_t pending_bundle_records;
+static struct uwb_tag_ble_sample pending_samples[UWB_TAG_BLE_MAX_BINARY_RECORDS];
+static uint8_t pending_sample_count;
 static struct bt_nus_cb nus_cb;
 
 static int uwb_tag_ble_start_advertising(void);
@@ -94,8 +119,16 @@ static bool uwb_tag_ble_append_pending_line_locked(const char *line);
 static void uwb_tag_ble_schedule_bundle_flush_locked(void);
 static void uwb_tag_ble_cancel_bundle_flush(void);
 static void uwb_tag_ble_flush_work_handler(struct k_work *work);
+static void uwb_tag_ble_send_payload(const uint8_t *payload, size_t len);
 static void uwb_tag_ble_send_text(const char *text);
+static void uwb_tag_ble_tx_thread_entry(void *arg1, void *arg2, void *arg3);
 static void ble_adv_retry_work_handler(struct k_work *work);
+static size_t uwb_tag_ble_encode_binary_packet(uint8_t *out, size_t out_len,
+					       const struct uwb_tag_ble_sample *samples,
+					       size_t sample_count);
+static void uwb_tag_ble_clear_pending_samples_locked(void);
+static bool uwb_tag_ble_snapshot_pending_samples_locked(
+	uint8_t *out, size_t out_len, size_t *encoded_len);
 
 static void ble_reboot_work_handler(struct k_work *work)
 {
@@ -210,7 +243,7 @@ static bool uwb_tag_ble_line_is_bundle_candidate(const char *line)
 static void uwb_tag_ble_schedule_bundle_flush_locked(void)
 {
 	if (APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS == 0U ||
-	    pending_bundle_records == 0U) {
+	    (pending_bundle_records == 0U && pending_sample_count == 0U)) {
 		return;
 	}
 
@@ -260,6 +293,11 @@ static void uwb_tag_ble_clear_pending_bundle_locked(void)
 	pending_bundle_records = 0U;
 }
 
+static void uwb_tag_ble_clear_pending_samples_locked(void)
+{
+	pending_sample_count = 0U;
+}
+
 static bool uwb_tag_ble_snapshot_pending_bundle_locked(char *snapshot,
 						       size_t snapshot_len)
 {
@@ -276,13 +314,90 @@ static bool uwb_tag_ble_snapshot_pending_bundle_locked(char *snapshot,
 	return true;
 }
 
+static size_t uwb_tag_ble_encode_binary_packet(uint8_t *out, size_t out_len,
+					       const struct uwb_tag_ble_sample *samples,
+					       size_t sample_count)
+{
+	size_t offset = 0U;
+
+	if (out == NULL || samples == NULL || sample_count == 0U ||
+	    sample_count > UWB_TAG_BLE_MAX_BINARY_RECORDS) {
+		return 0U;
+	}
+
+	if (out_len < UWB_TAG_BLE_BINARY_HEADER_LEN +
+			  sample_count * UWB_TAG_BLE_BINARY_RECORD_LEN) {
+		return 0U;
+	}
+
+	out[offset++] = UWB_TAG_BLE_BINARY_MAGIC0;
+	out[offset++] = UWB_TAG_BLE_BINARY_MAGIC1;
+	out[offset++] = UWB_TAG_BLE_BINARY_VERSION;
+	out[offset++] = (uint8_t)sample_count;
+	out[offset++] = (uint8_t)APP_TAG_BLE_TOKEN_ID;
+
+	for (size_t i = 0U; i < sample_count; ++i) {
+		const struct uwb_tag_ble_sample *sample = &samples[i];
+
+		sys_put_le32(sample->sweep, &out[offset]);
+		offset += 4U;
+		out[offset++] = sample->plan_code;
+		out[offset++] = sample->anchor_mask;
+		sys_put_le16(sample->motion_valid ? sample->motion_dt_ms : 0U,
+			     &out[offset]);
+		offset += 2U;
+		sys_put_le32((uint32_t)sample->x_mm, &out[offset]);
+		offset += 4U;
+		sys_put_le32((uint32_t)sample->y_mm, &out[offset]);
+		offset += 4U;
+		sys_put_le32((uint32_t)sample->z_mm, &out[offset]);
+		offset += 4U;
+		sys_put_le16(sample->rms_mm, &out[offset]);
+		offset += 2U;
+		sys_put_le16(sample->max_mm, &out[offset]);
+		offset += 2U;
+	}
+
+	return offset;
+}
+
+static bool uwb_tag_ble_snapshot_pending_samples_locked(
+	uint8_t *out, size_t out_len, size_t *encoded_len)
+{
+	size_t len;
+
+	if (pending_sample_count == 0U || out == NULL || encoded_len == NULL) {
+		return false;
+	}
+
+	len = uwb_tag_ble_encode_binary_packet(out, out_len, pending_samples,
+						 pending_sample_count);
+	if (len == 0U) {
+		return false;
+	}
+
+	*encoded_len = len;
+	return true;
+}
+
 static void uwb_tag_ble_flush_work_handler(struct k_work *work)
 {
 	char snapshot[UWB_TAG_BLE_MAX_STATUS_LEN];
+	uint8_t binary_snapshot[UWB_TAG_BLE_MAX_STATUS_LEN];
+	size_t binary_len = 0U;
 
 	ARG_UNUSED(work);
 
 	k_mutex_lock(&ble_mutex, K_FOREVER);
+	if (uwb_tag_ble_snapshot_pending_samples_locked(binary_snapshot,
+							sizeof(binary_snapshot),
+							&binary_len)) {
+		uwb_tag_ble_clear_pending_samples_locked();
+		k_mutex_unlock(&ble_mutex);
+		uwb_tag_ble_send_payload(binary_snapshot, binary_len);
+		return;
+	}
+
 	if (!uwb_tag_ble_snapshot_pending_bundle_locked(snapshot,
 						       sizeof(snapshot))) {
 		k_mutex_unlock(&ble_mutex);
@@ -334,6 +449,7 @@ static void ble_disconnected(struct bt_conn *conn, uint8_t reason)
 	}
 	active_conns = ble_conn_count;
 	uwb_tag_ble_clear_pending_bundle_locked();
+	uwb_tag_ble_clear_pending_samples_locked();
 	k_mutex_unlock(&ble_mutex);
 	uwb_tag_ble_cancel_bundle_flush();
 
@@ -354,26 +470,65 @@ BT_CONN_CB_DEFINE(uwb_tag_ble_conn_cb) = {
 	.disconnected = ble_disconnected,
 };
 
+static void uwb_tag_ble_send_payload(const uint8_t *payload, size_t len)
+{
+	struct uwb_tag_ble_tx_item *item;
+	int alloc_err;
+
+	if (!ble_ready || payload == NULL || len == 0U ||
+	    len > UWB_TAG_BLE_MAX_STATUS_LEN) {
+		return;
+	}
+
+	alloc_err = k_mem_slab_alloc(&ble_tx_slab, (void **)&item, K_NO_WAIT);
+	if (alloc_err != 0) {
+		printk("Tag BLE tx pool exhausted\n");
+		return;
+	}
+
+	memcpy(item->payload, payload, len);
+	item->len = len;
+	k_fifo_put(&ble_tx_fifo, item);
+}
+
 static void uwb_tag_ble_send_text(const char *text)
 {
-	int err;
-	uint8_t active_conns;
-
-	if (!ble_ready || text == NULL || text[0] == '\0') {
+	if (text == NULL || text[0] == '\0') {
 		return;
 	}
 
-	k_mutex_lock(&ble_mutex, K_FOREVER);
-	active_conns = ble_conn_count;
-	k_mutex_unlock(&ble_mutex);
+	uwb_tag_ble_send_payload((const uint8_t *)text, strlen(text));
+}
 
-	if (active_conns == 0U) {
-		return;
-	}
+static void uwb_tag_ble_tx_thread_entry(void *arg1, void *arg2, void *arg3)
+{
+	ARG_UNUSED(arg1);
+	ARG_UNUSED(arg2);
+	ARG_UNUSED(arg3);
 
-	err = bt_nus_send(NULL, text, strlen(text));
-	if (err && err != -ENOTCONN) {
-		printk("Tag BLE notify failed: %d\n", err);
+	while (true) {
+		struct uwb_tag_ble_tx_item *item =
+			k_fifo_get(&ble_tx_fifo, K_FOREVER);
+		uint8_t active_conns;
+		int err;
+
+		if (item == NULL) {
+			continue;
+		}
+
+		k_mutex_lock(&ble_mutex, K_FOREVER);
+		active_conns = ble_conn_count;
+		k_mutex_unlock(&ble_mutex);
+
+		if (active_conns > 0U) {
+			err = bt_nus_send(NULL, item->payload, item->len);
+			if (err && err != -ENOTCONN) {
+				printk("Tag BLE notify failed: %d\n", err);
+			}
+		}
+
+		k_mem_slab_free(&ble_tx_slab, (void *)item);
+		k_yield();
 	}
 }
 
@@ -384,10 +539,21 @@ static void ble_notif_enabled(enum bt_nus_send_status status)
 
 	if (status == BT_NUS_SEND_STATUS_ENABLED) {
 		char snapshot[UWB_TAG_BLE_MAX_STATUS_LEN];
+		uint8_t binary_snapshot[UWB_TAG_BLE_MAX_STATUS_LEN];
+		size_t binary_len = 0U;
 		bool have_snapshot = false;
 
 		k_mutex_lock(&ble_mutex, K_FOREVER);
-		if (pending_bundle_records > 0U &&
+		if (pending_sample_count > 0U &&
+		    uwb_tag_ble_snapshot_pending_samples_locked(binary_snapshot,
+							       sizeof(binary_snapshot),
+							       &binary_len)) {
+			uwb_tag_ble_clear_pending_samples_locked();
+			k_mutex_unlock(&ble_mutex);
+			uwb_tag_ble_cancel_bundle_flush();
+			uwb_tag_ble_send_payload(binary_snapshot, binary_len);
+			return;
+		} else if (pending_bundle_records > 0U &&
 		    uwb_tag_ble_snapshot_pending_bundle_locked(snapshot,
 							       sizeof(snapshot))) {
 			uwb_tag_ble_clear_pending_bundle_locked();
@@ -532,6 +698,15 @@ bool uwb_tag_ble_ota_active(void)
 int uwb_tag_ble_init(void)
 {
 	k_mutex_init(&ble_mutex);
+	k_thread_create(&ble_tx_thread,
+		       ble_tx_thread_stack,
+		       K_THREAD_STACK_SIZEOF(ble_tx_thread_stack),
+		       uwb_tag_ble_tx_thread_entry,
+		       NULL, NULL, NULL,
+		       UWB_TAG_BLE_TX_THREAD_PRIO,
+		       0,
+		       K_NO_WAIT);
+	k_thread_name_set(&ble_tx_thread, "uwb_tag_ble_tx");
 	k_work_init_delayable(&reboot_work, ble_reboot_work_handler);
 	k_work_init_delayable(&bundle_flush_work, uwb_tag_ble_flush_work_handler);
 	k_work_init_delayable(&adv_retry_work, ble_adv_retry_work_handler);
@@ -626,6 +801,61 @@ int uwb_tag_ble_publish_status(const char *line)
 
 	if (send_direct) {
 		uwb_tag_ble_send_text(direct_text);
+	}
+
+	return 0;
+}
+
+int uwb_tag_ble_publish_sample(const struct uwb_tag_ble_sample *sample)
+{
+	uint8_t packet[UWB_TAG_BLE_MAX_STATUS_LEN];
+	size_t packet_len = 0U;
+	bool send_now = false;
+	const uint8_t target_records =
+		(APP_TAG_BLE_PACKET_BUNDLE_RECORDS >= 2U) ?
+		 APP_TAG_BLE_PACKET_BUNDLE_RECORDS :
+		 2U;
+
+	if (sample == NULL) {
+		return -EINVAL;
+	}
+
+	k_mutex_lock(&ble_mutex, K_FOREVER);
+	if (!ble_ready) {
+		k_mutex_unlock(&ble_mutex);
+		return -ENODEV;
+	}
+
+	if (pending_sample_count >= UWB_TAG_BLE_MAX_BINARY_RECORDS) {
+		if (uwb_tag_ble_snapshot_pending_samples_locked(packet,
+							 sizeof(packet),
+							 &packet_len)) {
+			uwb_tag_ble_clear_pending_samples_locked();
+			send_now = true;
+		}
+	}
+
+	if (pending_sample_count < UWB_TAG_BLE_MAX_BINARY_RECORDS) {
+		pending_samples[pending_sample_count++] = *sample;
+	}
+
+	if (!send_now && pending_sample_count >= target_records) {
+		if (uwb_tag_ble_snapshot_pending_samples_locked(packet,
+							 sizeof(packet),
+							 &packet_len)) {
+			uwb_tag_ble_clear_pending_samples_locked();
+			send_now = true;
+		}
+	} else if (!send_now && APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS > 0U &&
+		   pending_sample_count == 1U) {
+		uwb_tag_ble_schedule_bundle_flush_locked();
+	}
+
+	k_mutex_unlock(&ble_mutex);
+
+	if (send_now) {
+		uwb_tag_ble_cancel_bundle_flush();
+		uwb_tag_ble_send_payload(packet, packet_len);
 	}
 
 	return 0;

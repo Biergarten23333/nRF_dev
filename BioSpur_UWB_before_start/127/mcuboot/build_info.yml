@@ -1,0 +1,51 @@
+cmake:
+  application:
+    configuration-dir: /home/zekaixiao/ncs/v2.8.0/bootloader/mcuboot/boot/zephyr
+    source-dir: /home/zekaixiao/ncs/v2.8.0/bootloader/mcuboot/boot/zephyr
+  board:
+    name: decawave_dwm1001_dev
+    qualifiers: nrf52832
+    revision: 
+  devicetree:
+    bindings-dirs:
+     - /home/zekaixiao/ncs/v2.8.0/nrf/dts/bindings
+     - /home/zekaixiao/ncs/v2.8.0/zephyr/dts/bindings
+    files:
+     - /home/zekaixiao/ncs/v2.8.0/zephyr/boards/qorvo/decawave_dwm1001_dev/decawave_dwm1001_dev.dts
+     - /home/zekaixiao/ncs/v2.8.0/bootloader/mcuboot/boot/zephyr/app.overlay
+    include-dirs:
+     - /home/zekaixiao/ncs/v2.8.0/nrf/include
+     - /home/zekaixiao/ncs/v2.8.0/nrf/dts
+     - /home/zekaixiao/ncs/v2.8.0/bootloader/mcuboot/boot/zephyr/include
+     - /home/zekaixiao/ncs/v2.8.0/zephyr/include
+     - /home/zekaixiao/ncs/v2.8.0/zephyr/include/zephyr
+     - /home/zekaixiao/ncs/v2.8.0/zephyr/dts/common
+     - /home/zekaixiao/ncs/v2.8.0/zephyr/dts/x86
+     - /home/zekaixiao/ncs/v2.8.0/zephyr/dts/xtensa
+     - /home/zekaixiao/ncs/v2.8.0/zephyr/dts/sparc
+     - /home/zekaixiao/ncs/v2.8.0/zephyr/dts/riscv
+     - /home/zekaixiao/ncs/v2.8.0/zephyr/dts/posix
+     - /home/zekaixiao/ncs/v2.8.0/zephyr/dts/nios2
+     - /home/zekaixiao/ncs/v2.8.0/zephyr/dts/arm64
+     - /home/zekaixiao/ncs/v2.8.0/zephyr/dts/arm
+     - /home/zekaixiao/ncs/v2.8.0/zephyr/dts/arc
+     - /home/zekaixiao/ncs/v2.8.0/zephyr/dts
+    user-files:
+     - /home/zekaixiao/ncs/v2.8.0/bootloader/mcuboot/boot/zephyr/app.overlay
+  kconfig:
+    files:
+     - /home/zekaixiao/ncs/v2.8.0/zephyr/boards/qorvo/decawave_dwm1001_dev/decawave_dwm1001_dev_defconfig
+     - /home/zekaixiao/ncs/v2.8.0/bootloader/mcuboot/boot/zephyr/prj.conf
+     - /home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/127/mcuboot/zephyr/.config.sysbuild
+    user-files:
+     - /home/zekaixiao/ncs/v2.8.0/bootloader/mcuboot/boot/zephyr/prj.conf
+  toolchain:
+    name: zephyr
+    path: /home/zekaixiao/ncs/toolchains/b81a7cd864/opt/zephyr-sdk
+  vendor-specific:
+    nordic:
+      svdfile: /home/zekaixiao/ncs/v2.8.0/modules/hal/nordic/nrfx/mdk/nrf52.svd
+  zephyr:
+    version: 3.7.99
+    zephyr-base: /home/zekaixiao/ncs/v2.8.0/zephyr
+version: 0.1.0

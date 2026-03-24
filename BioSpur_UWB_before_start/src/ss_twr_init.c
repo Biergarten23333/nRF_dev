@@ -58,6 +58,10 @@
 #define APP_TAG_IMU_SAMPLE_PERIOD 4U
 #endif
 
+#ifndef APP_TAG_CONSOLE_SUMMARY_ENABLE
+#define APP_TAG_CONSOLE_SUMMARY_ENABLE 1U
+#endif
+
 #ifndef APP_TAG_EKF_ENABLE
 #define APP_TAG_EKF_ENABLE 0U
 #endif
@@ -92,6 +96,18 @@
 
 #ifndef APP_TAG_RANGE_HARD_RESIDUAL_MM
 #define APP_TAG_RANGE_HARD_RESIDUAL_MM 350U
+#endif
+
+#ifndef APP_TAG_OUTPUT_MAX_RMS_MM
+#define APP_TAG_OUTPUT_MAX_RMS_MM 0U
+#endif
+
+#ifndef APP_TAG_OUTPUT_MAX_MAX_MM
+#define APP_TAG_OUTPUT_MAX_MAX_MM 0U
+#endif
+
+#ifndef APP_TAG_OUTPUT_MAX_STEP_MM
+#define APP_TAG_OUTPUT_MAX_STEP_MM 0U
 #endif
 
 #ifndef APP_TAG_RANGE_FILTER_OUTLIER_MM
@@ -412,6 +428,61 @@ static bool ss_twr_init_raw_range_plausible(
                    ? (raw_mm - tracker->filtered_mm)
                    : (tracker->filtered_mm - raw_mm);
     return delta_mm <= APP_TAG_RANGE_FILTER_OUTLIER_MM;
+}
+
+static uint32_t ss_twr_init_location_step_mm(int32_t x_mm, int32_t y_mm,
+                                             int32_t z_mm)
+{
+    int64_t dx;
+    int64_t dy;
+    int64_t dz;
+    double dist_sq;
+
+    if (!ss_twr_init_have_last_location) {
+        return 0U;
+    }
+
+    dx = (int64_t)x_mm - (int64_t)ss_twr_init_last_location_x_mm;
+    dy = (int64_t)y_mm - (int64_t)ss_twr_init_last_location_y_mm;
+    dz = (int64_t)z_mm - (int64_t)ss_twr_init_last_location_z_mm;
+    dist_sq = (double)(dx * dx + dy * dy + dz * dz);
+
+    return (uint32_t)lround(sqrt(dist_sq));
+}
+
+static bool ss_twr_init_location_plausible(
+    const struct uwb_tag_location_result *location,
+    uint32_t *step_mm_out)
+{
+    uint32_t step_mm = 0U;
+
+    if (location == NULL) {
+        return false;
+    }
+
+    if (APP_TAG_OUTPUT_MAX_RMS_MM != 0U &&
+        location->residual_rms_mm > APP_TAG_OUTPUT_MAX_RMS_MM) {
+        return false;
+    }
+
+    if (APP_TAG_OUTPUT_MAX_MAX_MM != 0U &&
+        location->residual_max_mm > APP_TAG_OUTPUT_MAX_MAX_MM) {
+        return false;
+    }
+
+    if (ss_twr_init_have_last_location && APP_TAG_OUTPUT_MAX_STEP_MM != 0U) {
+        step_mm = ss_twr_init_location_step_mm(location->x_mm, location->y_mm,
+                                               location->z_mm);
+        if (step_mm > APP_TAG_OUTPUT_MAX_STEP_MM) {
+            return false;
+        }
+    }
+
+    if (step_mm_out != NULL) {
+        *step_mm_out = step_mm;
+    }
+
+    return true;
 }
 
 static void ss_twr_init_sleep_between_ranges(void)
@@ -815,6 +886,7 @@ static void ss_twr_init_print_location_if_ready(void)
     struct uwb_imu_sample imu;
     bool have_motion = false;
     bool have_imu = false;
+    uint32_t candidate_step_mm = 0U;
     uint32_t sweep_elapsed_ms =
         (uint32_t)k_uptime_get() - ss_twr_init_current_sweep_start_ms;
 
@@ -904,6 +976,21 @@ static void ss_twr_init_print_location_if_ready(void)
             &location.upper_anchor_count);
     }
 
+    if (!ss_twr_init_location_plausible(&location, &candidate_step_mm)) {
+        if (APP_TAG_PENDING_PRINT_PERIOD != 0U &&
+            (ss_twr_init_sweep_count % APP_TAG_PENDING_PRINT_PERIOD) == 0U) {
+            printk("Tag solve rejected plan=%s active=%u xyz=(%ld,%ld,%ld) rms=%lu max=%lu step=%lu\n",
+                   ss_twr_init_plan_label(),
+                   (unsigned int)ss_twr_init_active_anchor_count,
+                   (long)location.x_mm, (long)location.y_mm,
+                   (long)location.z_mm,
+                   (unsigned long)location.residual_rms_mm,
+                   (unsigned long)location.residual_max_mm,
+                   (unsigned long)candidate_step_mm);
+        }
+        return;
+    }
+
     have_motion = uwb_motion_update(location.x_mm, location.y_mm, location.z_mm,
                                     k_uptime_get(), &motion);
 
@@ -963,6 +1050,12 @@ static void ss_twr_init_print_location_if_ready(void)
         size_t summary_len = 0U;
         bool imu_is_moving = false;
 
+        if (have_imu) {
+            imu_is_moving = ss_twr_init_imu_sample_indicates_motion(&imu);
+            ss_twr_init_last_imu_indicates_motion = imu_is_moving;
+        }
+
+#if APP_TAG_CONSOLE_SUMMARY_ENABLE
         summary[0] = '\0';
         summary_len += (size_t)snprintk(
             summary + summary_len, sizeof(summary) - summary_len,
@@ -1026,9 +1119,6 @@ static void ss_twr_init_print_location_if_ready(void)
         }
 
         if (have_imu) {
-            imu_is_moving = ss_twr_init_imu_sample_indicates_motion(&imu);
-            ss_twr_init_last_imu_indicates_motion = imu_is_moving;
-
             summary_len += (size_t)snprintk(
                 summary + summary_len, sizeof(summary) - summary_len,
                 " accel=(%ld,%ld,%ld) mg norm=%ld err=%ld delta=%lu "
@@ -1044,6 +1134,7 @@ static void ss_twr_init_print_location_if_ready(void)
         }
 
         printk("%s\n", summary);
+#endif
     }
 
     ss_twr_init_location_output_count++;
@@ -1084,6 +1175,8 @@ static void ss_twr_init_print_location_if_ready(void)
         char ble_anchor_labels[32];
         size_t ble_anchors_len = 0U;
         size_t ble_anchor_labels_len = 0U;
+        uint8_t ble_anchor_mask = 0U;
+        const char *plan_label = ss_twr_init_plan_label();
 
         ble_anchors[ble_anchors_len++] = '[';
         ble_anchor_labels[0] = '\0';
@@ -1102,6 +1195,9 @@ static void ss_twr_init_print_location_if_ready(void)
             if (pose != NULL) {
                 ble_anchors[ble_anchors_len++] = pose->label;
                 ble_anchor_labels[ble_anchor_labels_len++] = pose->label;
+                if (pose->label >= 'A' && pose->label <= 'H') {
+                    ble_anchor_mask |= BIT((uint8_t)(pose->label - 'A'));
+                }
             } else {
                 ble_anchors_len += snprintk(&ble_anchors[ble_anchors_len],
                                             sizeof(ble_anchors) - ble_anchors_len,
@@ -1122,7 +1218,7 @@ static void ss_twr_init_print_location_if_ready(void)
                 snprintk(ble_summary, sizeof(ble_summary),
                          "TS s=%lu p=%s xyz=%ld,%ld,%ld r=%lu m=%lu a=%s d=%lu",
                          (unsigned long)ss_twr_init_sweep_count,
-                         ss_twr_init_plan_label(),
+                         plan_label,
                          (long)location.x_mm, (long)location.y_mm,
                          (long)location.z_mm,
                          (unsigned long)location.residual_rms_mm,
@@ -1133,7 +1229,7 @@ static void ss_twr_init_print_location_if_ready(void)
                 snprintk(ble_summary, sizeof(ble_summary),
                          "TS s=%lu p=%s xyz=%ld,%ld,%ld r=%lu m=%lu a=%s motion=na",
                          (unsigned long)ss_twr_init_sweep_count,
-                         ss_twr_init_plan_label(),
+                         plan_label,
                          (long)location.x_mm, (long)location.y_mm,
                          (long)location.z_mm,
                          (unsigned long)location.residual_rms_mm,
@@ -1145,7 +1241,7 @@ static void ss_twr_init_print_location_if_ready(void)
                 snprintk(ble_summary, sizeof(ble_summary),
                          "TagSummary sweep=%lu plan=%s xyz=(%ld,%ld,%ld) rms=%lu max=%lu anchors=%s motion_dt=%lu",
                          (unsigned long)ss_twr_init_sweep_count,
-                         ss_twr_init_plan_label(),
+                         plan_label,
                          (long)location.x_mm, (long)location.y_mm,
                          (long)location.z_mm,
                          (unsigned long)location.residual_rms_mm,
@@ -1156,7 +1252,7 @@ static void ss_twr_init_print_location_if_ready(void)
                 snprintk(ble_summary, sizeof(ble_summary),
                          "TagSummary sweep=%lu plan=%s xyz=(%ld,%ld,%ld) rms=%lu max=%lu anchors=%s motion=na",
                          (unsigned long)ss_twr_init_sweep_count,
-                         ss_twr_init_plan_label(),
+                         plan_label,
                          (long)location.x_mm, (long)location.y_mm,
                          (long)location.z_mm,
                          (unsigned long)location.residual_rms_mm,
@@ -1169,7 +1265,32 @@ static void ss_twr_init_print_location_if_ready(void)
 #if APP_TAG_USB_MIRROR_BLE_STATUS
         printk("%s\n", ble_summary);
 #endif
-        (void)uwb_tag_ble_publish_status(ble_summary);
+        if (APP_TAG_BLE_COMPACT_STATUS != 0U) {
+            struct uwb_tag_ble_sample ble_sample = {
+                .sweep = ss_twr_init_sweep_count,
+                .x_mm = location.x_mm,
+                .y_mm = location.y_mm,
+                .z_mm = location.z_mm,
+                .rms_mm = (uint16_t)MIN(location.residual_rms_mm, 0xffffU),
+                .max_mm = (uint16_t)MIN(location.residual_max_mm, 0xffffU),
+                .motion_dt_ms = have_motion ? (uint16_t)MIN(motion.dt_ms, 0xffffU) : 0U,
+                .anchor_mask = ble_anchor_mask,
+                .motion_valid = have_motion,
+                .plan_code = UWB_TAG_BLE_PLAN_UNKNOWN,
+            };
+
+            if (strcmp(plan_label, "track") == 0) {
+                ble_sample.plan_code = UWB_TAG_BLE_PLAN_TRACK;
+            } else if (strcmp(plan_label, "full") == 0) {
+                ble_sample.plan_code = UWB_TAG_BLE_PLAN_FULL;
+            } else if (strcmp(plan_label, "fixed") == 0) {
+                ble_sample.plan_code = UWB_TAG_BLE_PLAN_FIXED;
+            }
+
+            (void)uwb_tag_ble_publish_sample(&ble_sample);
+        } else {
+            (void)uwb_tag_ble_publish_status(ble_summary);
+        }
 #endif
     }
 

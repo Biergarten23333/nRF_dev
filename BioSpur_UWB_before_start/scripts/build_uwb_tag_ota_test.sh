@@ -6,6 +6,7 @@ MASTER_BUILD_DIR="${2:-build-master-ota}"
 TAG_BOARD="${TAG_BOARD:-decawave_dwm1001_dev}"
 MASTER_BOARD="${MASTER_BOARD:-nrf52840dk/nrf52840}"
 NCS_ROOT="${NCS_ROOT:-/home/zekaixiao/ncs/v2.8.0}"
+NCS_TOOLCHAIN_ROOT="${NCS_TOOLCHAIN_ROOT:-/home/zekaixiao/ncs/toolchains/b81a7cd864}"
 TAG_SUMMARY_PERIOD="${TAG_SUMMARY_PERIOD:-1}"
 TAG_CMAKE_ARGS="${TAG_CMAKE_ARGS:-}"
 TAG_SIGN_VERSION="${TAG_SIGN_VERSION:-}"
@@ -13,7 +14,7 @@ MASTER_CMAKE_ARGS="${MASTER_CMAKE_ARGS:-}"
 
 export ZEPHYR_NRF_MODULE_DIR="${ZEPHYR_NRF_MODULE_DIR:-$NCS_ROOT/nrf}"
 export ZEPHYR_MODULES="${ZEPHYR_MODULES:-$(west list --format={abspath} | tr '\n' ';' | sed 's/;$//')}"
-export PYTHONPATH="${PYTHONPATH:-}:/usr/lib/python3/dist-packages:/usr/lib/python3.12/dist-packages"
+export PYTHONPATH="${PYTHONPATH:-}:/usr/lib/python3/dist-packages:/usr/lib/python3.12/dist-packages:$NCS_TOOLCHAIN_ROOT/usr/local/lib/python3.12/site-packages"
 
 EXTRA_TAG_ARGS=()
 if [ -n "$TAG_CMAKE_ARGS" ]; then
