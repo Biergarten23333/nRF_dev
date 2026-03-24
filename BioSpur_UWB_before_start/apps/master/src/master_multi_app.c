@@ -414,6 +414,7 @@ static bool ble_decode_sample_packet(const uint8_t *data, uint16_t len,
 					    char *payload, size_t payload_len)
 {
 	uint8_t count;
+	uint8_t version;
 	size_t offset;
 	size_t used = 0U;
 
@@ -422,12 +423,22 @@ static bool ble_decode_sample_packet(const uint8_t *data, uint16_t len,
 		return false;
 	}
 
-	if (data[0] != BLE_SAMPLE_MAGIC0 || data[1] != BLE_SAMPLE_MAGIC1 ||
-	    data[2] != BLE_SAMPLE_VERSION) {
+	if (data[0] != BLE_SAMPLE_MAGIC0 || data[1] != BLE_SAMPLE_MAGIC1) {
 		return false;
 	}
 
+	version = data[2];
 	count = data[3];
+	if (version != BLE_SAMPLE_VERSION) {
+		/* Accept legacy packets that stored count/version swapped. */
+		if (data[3] == BLE_SAMPLE_VERSION && data[2] > 0U) {
+			version = data[3];
+			count = data[2];
+		} else {
+			return false;
+		}
+	}
+
 	offset = BLE_SAMPLE_HEADER_LEN;
 	if (count == 0U || len < offset + (size_t)count * BLE_SAMPLE_RECORD_LEN) {
 		return false;

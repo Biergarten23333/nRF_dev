@@ -101,6 +101,7 @@ static bool ble_ready;
 static uint8_t ble_conn_count;
 static bool ota_ready;
 static bool ota_active;
+static uint32_t ble_tx_drop_count;
 static char last_status[UWB_TAG_BLE_MAX_STATUS_LEN];
 static char pending_bundle[UWB_TAG_BLE_MAX_STATUS_LEN];
 static size_t pending_bundle_len;
@@ -482,7 +483,11 @@ static void uwb_tag_ble_send_payload(const uint8_t *payload, size_t len)
 
 	alloc_err = k_mem_slab_alloc(&ble_tx_slab, (void **)&item, K_NO_WAIT);
 	if (alloc_err != 0) {
-		printk("Tag BLE tx pool exhausted\n");
+		ble_tx_drop_count++;
+		if ((ble_tx_drop_count % 50U) == 1U) {
+			printk("Tag BLE tx pool exhausted drops=%u\n",
+			       (unsigned int)ble_tx_drop_count);
+		}
 		return;
 	}
 
