@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ "$#" -lt 1 ] || [ "$#" -gt 4 ]; then
-  echo "Usage: $0 <tag_id_label> [tdma_slot_index=0] [tdma_slot_count=10] [build_dir]" >&2
+if [ "$#" -gt 3 ]; then
+  echo "Usage: $0 [tdma_slot_index=0] [tdma_slot_count=10] [build_dir]" >&2
   exit 1
 fi
 
-tag_id="$1"
-slot_index="${2:-0}"
-slot_count="${3:-10}"
-build_dir="${4:-build-tag-ble-motion-tag${tag_id}-${slot_index}}"
+slot_index="${1:-0}"
+slot_count="${2:-10}"
+build_dir="${3:-build-tag-ble-motion-unified}"
 device_name="${TAG_DEVICE_NAME:-BS_AUTO}"
+fw_marker="${APP_TAG_FW_MARKER:-unified-default}"
 uwb_channel="${APP_UWB_CHANNEL:-5}"
 uwb_pan_id="${APP_UWB_PAN_ID:-0xDECA}"
 if [ -z "${ZEPHYR_NRF_MODULE_DIR:-}" ]; then
@@ -32,7 +32,7 @@ fi
   printf 'set(APP_TAG_TDMA_SLOT_COUNT %s CACHE STRING "Motion tag preload" FORCE)\n' "${slot_count}"
   printf 'set(APP_TAG_TDMA_SLOT_PERIOD_MS %s CACHE STRING "Motion tag preload" FORCE)\n' "25"
   printf 'set(APP_TAG_TDMA_SLOT_ACTIVE_MS %s CACHE STRING "Motion tag preload" FORCE)\n' "20"
-  printf 'set(APP_TAG_MULTITAG_PLAN_MODE %s CACHE STRING "Motion tag preload" FORCE)\n' "1"
+  printf 'set(APP_TAG_MULTITAG_PLAN_MODE %s CACHE STRING "Motion tag preload" FORCE)\n' "0"
   printf 'set(APP_TAG_ACTIVE_ANCHOR_0_ID %s CACHE STRING "Motion tag preload" FORCE)\n' "0"
   printf 'set(APP_TAG_ACTIVE_ANCHOR_1_ID %s CACHE STRING "Motion tag preload" FORCE)\n' "1"
   printf 'set(APP_TAG_ACTIVE_ANCHOR_2_ID %s CACHE STRING "Motion tag preload" FORCE)\n' "4"
@@ -43,6 +43,7 @@ fi
   printf 'set(APP_TAG_RESERVE_ANCHOR_1_ID %s CACHE STRING "Motion tag preload" FORCE)\n' "7"
   printf 'set(APP_UWB_CHANNEL %s CACHE STRING "Motion tag preload" FORCE)\n' "${uwb_channel}"
   printf 'set(APP_UWB_PAN_ID %s CACHE STRING "Motion tag preload" FORCE)\n' "${uwb_pan_id}"
+  printf 'set(APP_TAG_FW_MARKER %s CACHE STRING "Motion tag preload" FORCE)\n' "${fw_marker}"
 } > "${app_tag_preload_file}"
 
 export APP_TAG_PRELOAD_FILE="${app_tag_preload_file}"
@@ -59,11 +60,12 @@ west build \
   -DSB_CONFIG_COMPILER_WARNINGS_AS_ERRORS=n \
   -DAPP_UWB_CHANNEL="${uwb_channel}" \
   -DAPP_UWB_PAN_ID="${uwb_pan_id}" \
+  -DAPP_TAG_FW_MARKER="${fw_marker}" \
   -DAPP_TAG_USB_DIAG_TRACE=1 \
   -DAPP_TAG_BLE_ENABLE=1 \
   -DCONFIG_BT_DEVICE_NAME=\"${device_name}\" \
   -DAPP_TAG_BLE_OTA_ENABLE=1 \
-  -DAPP_TAG_BLE_SETTINGS_ENABLE=0 \
+  -DAPP_TAG_BLE_SETTINGS_ENABLE=1 \
   -DAPP_TAG_BLE_COMPACT_STATUS=1 \
   -DAPP_TAG_BLE_PACKET_BUNDLE_RECORDS=3 \
   -DAPP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS=250 \
@@ -73,7 +75,7 @@ west build \
   -DAPP_TAG_TDMA_SLOT_COUNT="${slot_count}" \
   -DAPP_TAG_TDMA_SLOT_PERIOD_MS=25 \
   -DAPP_TAG_TDMA_SLOT_ACTIVE_MS=20 \
-  -DAPP_TAG_MULTITAG_PLAN_MODE=1 \
+  -DAPP_TAG_MULTITAG_PLAN_MODE=0 \
   -DAPP_TAG_ACTIVE_ANCHOR_0_ID=0 \
   -DAPP_TAG_ACTIVE_ANCHOR_1_ID=1 \
   -DAPP_TAG_ACTIVE_ANCHOR_2_ID=4 \
@@ -84,7 +86,7 @@ west build \
   -DAPP_TAG_RESERVE_ANCHOR_1_ID=7 \
   -DAPP_TAG_FAST_TRACKING=1 \
   -DAPP_TAG_FULL_SWEEP_INTERVAL=8 \
-  -DAPP_TAG_TRACK_ANCHOR_COUNT=4 \
+  -DAPP_TAG_TRACK_ANCHOR_COUNT=6 \
   -DAPP_TAG_SUMMARY_PERIOD=1 \
   -DAPP_TAG_PENDING_PRINT_PERIOD=1 \
   -DAPP_TAG_IMU_SAMPLE_PERIOD=2 \
@@ -99,6 +101,7 @@ west build \
   -DAPP_TAG_EKF_OUTLIER_GATE_MM=120 \
   -DAPP_TAG_RANGE_SOFT_RESIDUAL_MM=180 \
   -DAPP_TAG_RANGE_HARD_RESIDUAL_MM=350 \
+  -DAPP_TAG_LOC_MIN_QUALITY_PERCENT=20 \
   -DAPP_TAG_MOTION_FULL_SWEEP_INTERVAL=0 \
   -DAPP_TAG_MOTION_SPEED_THRESHOLD_MM_S=100 \
   -DAPP_TAG_MOTION_RANGE_SOFT_BONUS_MM=140 \

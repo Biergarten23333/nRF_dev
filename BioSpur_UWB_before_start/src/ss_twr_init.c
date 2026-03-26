@@ -211,6 +211,18 @@ static void ss_twr_diag_write(const char *msg)
 #define SS_TWR_INIT_RESP_MSG_TS_LEN 4U
 
 #define SS_TWR_INIT_SPEED_OF_LIGHT 299702547.0
+#define SS_TWR_INIT_SLOT_EXCHANGE_BUDGET_MS \
+	(((SS_TWR_INIT_TX_TO_RX_DLY_UUS + SS_TWR_INIT_RESP_RX_TIMEOUT_UUS + 999U) / \
+	  1000U) + 1U)
+#define SS_TWR_INIT_SLOT_GUARD_MARGIN_MS 1U
+
+enum ss_twr_init_solve_reason {
+	SS_TWR_INIT_SOLVE_NONE = 0,
+	SS_TWR_INIT_SOLVE_SUCCESS,
+	SS_TWR_INIT_SOLVE_PENDING,
+	SS_TWR_INIT_SOLVE_REJECTED,
+	SS_TWR_INIT_SOLVE_SLOT_CUT_SHORT,
+};
 
 static dwt_config_t ss_twr_init_config = {
     APP_UWB_CHANNEL,
@@ -230,6 +242,7 @@ static uint8_t ss_twr_init_rx_buffer[SS_TWR_INIT_RX_BUF_LEN];
 static uint8_t ss_twr_init_tx_poll_msg[12];
 static uint16_t ss_twr_init_local_addr;
 static uint8_t ss_twr_init_local_tag_id;
+static uint16_t ss_twr_init_identity_code;
 static struct uwb_range_tracker ss_twr_init_trackers[UWB_MAX_ANCHORS];
 static uint8_t ss_twr_init_anchor_ids[UWB_MAX_ANCHORS];
 static size_t ss_twr_init_anchor_count;
@@ -284,6 +297,42 @@ static uint16_t ss_twr_init_perf_track_sweep_count;
 static uint16_t ss_twr_init_perf_full_sweep_count;
 static uint32_t ss_twr_init_last_motion_speed_mm_s;
 static bool ss_twr_init_last_imu_indicates_motion;
+static struct uwb_tag_runtime_params ss_twr_init_runtime_params;
+static struct uwb_tag_runtime_params ss_twr_init_pending_runtime_params;
+static bool ss_twr_init_runtime_update_pending;
+static bool ss_twr_init_last_sweep_cut_short;
+static uint32_t ss_twr_init_last_tdma_wait_ms;
+static enum ss_twr_init_solve_reason ss_twr_init_last_solve_reason;
+
+static void ss_twr_init_prepare_sweep_plan(void);
+
+static const char *ss_twr_init_slot_source_label(uint8_t slot_source)
+{
+	switch (slot_source) {
+	case UWB_TAG_SLOT_SOURCE_MASTER:
+		return "MASTER";
+	case UWB_TAG_SLOT_SOURCE_SETTINGS:
+		return "SETTINGS";
+	default:
+		return "BUILD";
+	}
+}
+
+static const char *ss_twr_init_solve_reason_label(void)
+{
+	switch (ss_twr_init_last_solve_reason) {
+	case SS_TWR_INIT_SOLVE_SUCCESS:
+		return "success";
+	case SS_TWR_INIT_SOLVE_PENDING:
+		return "pending";
+	case SS_TWR_INIT_SOLVE_REJECTED:
+		return "rejected";
+	case SS_TWR_INIT_SOLVE_SLOT_CUT_SHORT:
+		return "slot_cut_short";
+	default:
+		return "none";
+	}
+}
 
 static bool ss_twr_init_anchor_id_in_list(const uint8_t *anchor_ids, size_t count,
                                           uint8_t anchor_id)
@@ -295,6 +344,47 @@ static bool ss_twr_init_anchor_id_in_list(const uint8_t *anchor_ids, size_t coun
     }
 
     return false;
+}
+
+static size_t ss_twr_init_append_interleaved_plane_anchors(
+	const uint8_t *source_ids, size_t source_count, uint8_t *dest_ids,
+	size_t dest_count, size_t dest_capacity)
+{
+	uint8_t lower_ids[UWB_MAX_ANCHORS];
+	uint8_t upper_ids[UWB_MAX_ANCHORS];
+	size_t lower_count = 0U;
+	size_t upper_count = 0U;
+	size_t max_count;
+
+	if (source_ids == NULL || dest_ids == NULL) {
+		return dest_count;
+	}
+
+	for (size_t i = 0; i < source_count; ++i) {
+		uint8_t anchor_id = source_ids[i];
+
+		if (ss_twr_init_anchor_id_in_list(dest_ids, dest_count, anchor_id)) {
+			continue;
+		}
+
+		if (uwb_anchor_layout_is_lower_plane(anchor_id)) {
+			lower_ids[lower_count++] = anchor_id;
+		} else if (uwb_anchor_layout_is_upper_plane(anchor_id)) {
+			upper_ids[upper_count++] = anchor_id;
+		}
+	}
+
+	max_count = MAX(lower_count, upper_count);
+	for (size_t i = 0; i < max_count && dest_count < dest_capacity; ++i) {
+		if (i < lower_count && dest_count < dest_capacity) {
+			dest_ids[dest_count++] = lower_ids[i];
+		}
+		if (i < upper_count && dest_count < dest_capacity) {
+			dest_ids[dest_count++] = upper_ids[i];
+		}
+	}
+
+	return dest_count;
 }
 
 static bool ss_twr_init_predicted_range_mm(uint8_t anchor_id, int32_t x_mm,
@@ -376,6 +466,53 @@ static uint16_t ss_twr_init_effective_full_sweep_interval(void)
     }
 
     return interval;
+}
+
+static uint16_t ss_twr_init_effective_multitag_full_interval(void)
+{
+	uint16_t interval = ss_twr_init_full_sweep_interval_sweeps;
+
+	if (interval == 0U) {
+		return 0U;
+	}
+
+	/*
+	 * In 4+ tag TDMA, overly frequent maintenance full sweeps can dominate a
+	 * tag's slot budget and create severe per-tag cadence imbalance. Enforce
+	 * a minimum interval so track sweeps remain the steady-state path.
+	 */
+	if (ss_twr_init_tdma_schedule.enabled &&
+	    ss_twr_init_tdma_schedule.slot_count >= 4U &&
+	    interval < 4U) {
+		interval = 4U;
+	}
+
+	return interval;
+}
+
+static size_t ss_twr_init_effective_track_anchor_budget(void)
+{
+	size_t desired_count = APP_TAG_TRACK_ANCHOR_COUNT;
+
+	if (desired_count < 4U) {
+		desired_count = 4U;
+	}
+	if (desired_count > ss_twr_init_anchor_count) {
+		desired_count = ss_twr_init_anchor_count;
+	}
+
+	/*
+	 * In multi-tag TDMA operation, prioritize deterministic cadence over
+	 * larger per-sweep anchor fanout. Keep track sweeps to 4 anchors so
+	 * each sweep can complete inside one active slot more consistently.
+	 */
+	if (ss_twr_init_tdma_schedule.enabled &&
+	    ss_twr_init_tdma_schedule.slot_count >= 4U &&
+	    desired_count > 4U) {
+		desired_count = 4U;
+	}
+
+	return desired_count;
 }
 
 static bool ss_twr_init_apply_range_continuity_gate(uint8_t anchor_id,
@@ -527,6 +664,61 @@ static const char *ss_twr_init_plan_label(void)
     return ss_twr_init_current_sweep_full ? "full" : "track";
 }
 
+static bool ss_twr_init_tdma_exchange_can_start(void)
+{
+	return uwb_tdma_schedule_exchange_fits(&ss_twr_init_tdma_schedule,
+					       SS_TWR_INIT_SLOT_EXCHANGE_BUDGET_MS,
+					       SS_TWR_INIT_SLOT_GUARD_MARGIN_MS);
+}
+
+static void ss_twr_init_apply_runtime_params(
+	const struct uwb_tag_runtime_params *params)
+{
+	if (params == NULL) {
+		return;
+	}
+
+	ss_twr_init_runtime_params = *params;
+	ss_twr_init_local_tag_id = params->logical_tag_id;
+	ss_twr_init_local_addr = uwb_tag_short_addr(ss_twr_init_local_tag_id);
+	ss_twr_init_tdma_schedule = params->tdma;
+
+	if (params->anchor_selection_mode == UWB_TAG_ANCHOR_SELECTION_FIXED_SUBSET &&
+	    params->fixed_anchor_count >= 4U) {
+		ss_twr_init_fixed_anchor_mode = true;
+		ss_twr_init_fixed_anchor_count =
+			MIN((size_t)params->fixed_anchor_count,
+			    (size_t)UWB_TAG_FIXED_ANCHOR_MAX);
+		memcpy(ss_twr_init_fixed_anchor_ids, params->fixed_anchor_ids,
+		       sizeof(ss_twr_init_fixed_anchor_ids));
+	} else if (params->anchor_selection_mode ==
+		   UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2) {
+		ss_twr_init_fixed_anchor_mode = false;
+		ss_twr_init_fixed_anchor_count = 0U;
+	}
+}
+
+static void ss_twr_init_apply_pending_runtime_config_if_any(void)
+{
+	if (!ss_twr_init_runtime_update_pending) {
+		return;
+	}
+
+	ss_twr_init_apply_runtime_params(&ss_twr_init_pending_runtime_params);
+	ss_twr_init_runtime_update_pending = false;
+	ss_twr_init_active_anchor_index = 0U;
+	ss_twr_init_prepare_sweep_plan();
+	printk("Tag runtime config applied tag=%u slot=%u/%u period=%u active=%u source=%s gen=%u amode=%u\n",
+	       (unsigned int)ss_twr_init_runtime_params.logical_tag_id,
+	       (unsigned int)ss_twr_init_tdma_schedule.slot_index,
+	       (unsigned int)ss_twr_init_tdma_schedule.slot_count,
+	       (unsigned int)ss_twr_init_tdma_schedule.slot_period_ms,
+	       (unsigned int)ss_twr_init_tdma_schedule.slot_active_ms,
+	       ss_twr_init_slot_source_label(ss_twr_init_runtime_params.slot_source),
+	       (unsigned int)ss_twr_init_tdma_schedule.generation,
+	       (unsigned int)ss_twr_init_runtime_params.anchor_selection_mode);
+}
+
 static void ss_twr_init_format_anchor_labels(const uint8_t *anchor_ids,
                                              size_t anchor_count, char *out,
                                              size_t out_len)
@@ -640,11 +832,13 @@ static void ss_twr_init_prepare_sweep_plan(void)
     }
 
     if (ss_twr_init_multitag_anchor_plan_mode) {
+        uint16_t effective_full_interval =
+            ss_twr_init_effective_multitag_full_interval();
         bool do_full =
-            (ss_twr_init_full_sweep_interval_sweeps != 0U) &&
+            (effective_full_interval != 0U) &&
             (ss_twr_init_sweep_count != 0U) &&
             ((ss_twr_init_sweep_count %
-              ss_twr_init_full_sweep_interval_sweeps) == 0U);
+              effective_full_interval) == 0U);
         bool do_refresh =
             (ss_twr_init_refresh_interval_sweeps != 0U) &&
             (ss_twr_init_sweep_count != 0U) &&
@@ -659,7 +853,12 @@ static void ss_twr_init_prepare_sweep_plan(void)
             full_sweep = true;
             refresh_sweep = false;
         } else {
-            for (size_t i = 0; i < ss_twr_init_active_plan_count; ++i) {
+            size_t desired_count =
+                ss_twr_init_effective_track_anchor_budget();
+
+            for (size_t i = 0; i < ss_twr_init_active_plan_count &&
+                               active_count < desired_count;
+                 ++i) {
                 ss_twr_init_active_anchor_ids[active_count++] =
                     ss_twr_init_active_plan_ids[i];
             }
@@ -680,6 +879,7 @@ static void ss_twr_init_prepare_sweep_plan(void)
 
                 for (size_t i = 0;
                      i < ss_twr_init_refresh_anchor_budget &&
+                     active_count < desired_count &&
                      refresh_pool_count > 0U;
                      ++i) {
                     size_t idx =
@@ -721,19 +921,13 @@ static void ss_twr_init_prepare_sweep_plan(void)
     }
 
     if (full_sweep) {
-        for (size_t i = 0; i < ss_twr_init_anchor_count; ++i) {
-            ss_twr_init_active_anchor_ids[active_count++] =
-                ss_twr_init_anchor_ids[i];
-        }
+        active_count = ss_twr_init_append_interleaved_plane_anchors(
+            ss_twr_init_anchor_ids, ss_twr_init_anchor_count,
+            ss_twr_init_active_anchor_ids, active_count,
+            ARRAY_SIZE(ss_twr_init_active_anchor_ids));
     } else {
-        size_t desired_count = APP_TAG_TRACK_ANCHOR_COUNT;
-
-        if (desired_count < 4U) {
-            desired_count = 4U;
-        }
-        if (desired_count > ss_twr_init_anchor_count) {
-            desired_count = ss_twr_init_anchor_count;
-        }
+        size_t desired_count = ss_twr_init_effective_track_anchor_budget();
+        uint8_t rotated_anchor_ids[UWB_MAX_ANCHORS];
 
         for (size_t i = 0; i < ss_twr_init_last_solution_anchor_count &&
                            active_count < desired_count;
@@ -746,19 +940,16 @@ static void ss_twr_init_prepare_sweep_plan(void)
             }
         }
 
-        for (size_t offset = 0; offset < ss_twr_init_anchor_count &&
-                                active_count < desired_count;
-             ++offset) {
+        for (size_t offset = 0; offset < ss_twr_init_anchor_count; ++offset) {
             size_t idx =
                 (ss_twr_init_refresh_anchor_cursor + offset) %
                 ss_twr_init_anchor_count;
-            uint8_t anchor_id = ss_twr_init_anchor_ids[idx];
-
-            if (!ss_twr_init_anchor_id_in_list(ss_twr_init_active_anchor_ids,
-                                               active_count, anchor_id)) {
-                ss_twr_init_active_anchor_ids[active_count++] = anchor_id;
-            }
+            rotated_anchor_ids[offset] = ss_twr_init_anchor_ids[idx];
         }
+
+        active_count = ss_twr_init_append_interleaved_plane_anchors(
+            rotated_anchor_ids, ss_twr_init_anchor_count,
+            ss_twr_init_active_anchor_ids, active_count, desired_count);
 
         ss_twr_init_refresh_anchor_cursor =
             (uint8_t)((ss_twr_init_refresh_anchor_cursor + 1U) %
@@ -770,6 +961,7 @@ static void ss_twr_init_prepare_sweep_plan(void)
     ss_twr_init_active_anchor_count = active_count;
     ss_twr_init_active_anchor_index = 0U;
     ss_twr_init_current_sweep_start_ms = (uint32_t)k_uptime_get();
+    ss_twr_init_last_sweep_cut_short = false;
 }
 
 static void ss_twr_init_read_ts(const uint8_t *ts_field, uint32 *ts)
@@ -804,6 +996,7 @@ static int ss_twr_init_load_runtime_config(
         return -1;
     }
 
+    ss_twr_init_identity_code = config->identity_code;
     ss_twr_init_local_tag_id = config->tag_id;
     ss_twr_init_local_addr = uwb_tag_short_addr(ss_twr_init_local_tag_id);
     ss_twr_init_anchor_count = config->anchor_count;
@@ -838,7 +1031,17 @@ static int ss_twr_init_load_runtime_config(
     ss_twr_init_full_sweep_interval_sweeps = 0U;
     ss_twr_init_plan_refresh_cursor = 0U;
     ss_twr_init_tdma_schedule = config->tdma;
+    if (ss_twr_init_tdma_schedule.enabled &&
+        !ss_twr_init_tdma_schedule.epoch_valid) {
+        ss_twr_init_tdma_schedule.epoch_ms = 0U;
+        ss_twr_init_tdma_schedule.sync_local_ms = 0U;
+        ss_twr_init_tdma_schedule.generation = 0U;
+    }
     ss_twr_init_have_last_imu_sample = false;
+    ss_twr_init_runtime_update_pending = false;
+    ss_twr_init_last_sweep_cut_short = false;
+    ss_twr_init_last_tdma_wait_ms = 0U;
+    ss_twr_init_last_solve_reason = SS_TWR_INIT_SOLVE_NONE;
     memset(&ss_twr_init_last_imu_sample, 0, sizeof(ss_twr_init_last_imu_sample));
     ss_twr_init_perf_motion_dt_sum_ms = 0U;
     ss_twr_init_perf_track_sweep_sum_ms = 0U;
@@ -862,7 +1065,8 @@ static int ss_twr_init_load_runtime_config(
                                uwb_anchor_short_addr(config->anchor_ids[i]));
     }
 
-    if (config->fixed_anchor_mode) {
+    if (config->anchor_selection_mode == UWB_TAG_ANCHOR_SELECTION_FIXED_SUBSET ||
+        config->fixed_anchor_mode) {
         if (config->fixed_anchor_ids == NULL || config->fixed_anchor_count < 4U ||
             config->fixed_anchor_count > UWB_TAG_FIXED_ANCHOR_MAX) {
             printk("Invalid fixed-anchor config count=%u\n",
@@ -982,6 +1186,23 @@ static int ss_twr_init_load_runtime_config(
         }
     }
 
+    ss_twr_init_runtime_params.identity_code = config->identity_code;
+    ss_twr_init_runtime_params.logical_tag_id = config->tag_id;
+    ss_twr_init_runtime_params.slot_source = config->slot_source;
+    ss_twr_init_runtime_params.positioning_mode = config->positioning_mode;
+    ss_twr_init_runtime_params.anchor_selection_mode =
+        config->anchor_selection_mode;
+    ss_twr_init_runtime_params.fixed_anchor_count =
+        (uint8_t)MIN(config->fixed_anchor_count, (size_t)UWB_TAG_FIXED_ANCHOR_MAX);
+    memset(ss_twr_init_runtime_params.fixed_anchor_ids, 0,
+           sizeof(ss_twr_init_runtime_params.fixed_anchor_ids));
+    if (config->fixed_anchor_ids != NULL) {
+        memcpy(ss_twr_init_runtime_params.fixed_anchor_ids,
+               config->fixed_anchor_ids,
+               sizeof(uint8_t) * ss_twr_init_runtime_params.fixed_anchor_count);
+    }
+    ss_twr_init_runtime_params.tdma = ss_twr_init_tdma_schedule;
+
     return 0;
 }
 
@@ -1042,6 +1263,7 @@ static void ss_twr_init_print_location_if_ready(void)
 
     if (uwb_tag_loc_solve(measurements, ss_twr_init_anchor_count, &location) !=
         0) {
+        ss_twr_init_last_solve_reason = SS_TWR_INIT_SOLVE_PENDING;
         ss_twr_init_format_anchor_labels(valid_anchor_ids,
                                          valid_anchor_count,
                                          received_anchors,
@@ -1104,6 +1326,7 @@ static void ss_twr_init_print_location_if_ready(void)
     }
 
     if (!ss_twr_init_location_plausible(&location, &candidate_step_mm)) {
+        ss_twr_init_last_solve_reason = SS_TWR_INIT_SOLVE_REJECTED;
         if (APP_TAG_PENDING_PRINT_PERIOD != 0U &&
             (ss_twr_init_sweep_count % APP_TAG_PENDING_PRINT_PERIOD) == 0U) {
             printk("Tag solve rejected plan=%s active=%u xyz=(%ld,%ld,%ld) rms=%lu max=%lu step=%lu received=[%s]\n",
@@ -1118,6 +1341,8 @@ static void ss_twr_init_print_location_if_ready(void)
         }
         return;
     }
+
+    ss_twr_init_last_solve_reason = SS_TWR_INIT_SOLVE_SUCCESS;
 
     have_motion = uwb_motion_update(location.x_mm, location.y_mm, location.z_mm,
                                     k_uptime_get(), &motion);
@@ -1356,7 +1581,7 @@ static void ss_twr_init_print_location_if_ready(void)
         if (APP_TAG_BLE_COMPACT_STATUS != 0U) {
             if (have_motion) {
                 snprintk(ble_summary, sizeof(ble_summary),
-                         "TS s=%lu p=%s xyz=%ld,%ld,%ld r=%lu m=%lu a=%s d=%lu",
+                         "TS s=%lu p=%s xyz=%ld,%ld,%ld r=%lu m=%lu a=%s d=%lu sl=%u/%u cut=%u",
                          (unsigned long)ss_twr_init_sweep_count,
                          plan_label,
                          (long)location.x_mm, (long)location.y_mm,
@@ -1364,22 +1589,28 @@ static void ss_twr_init_print_location_if_ready(void)
                          (unsigned long)location.residual_rms_mm,
                          (unsigned long)location.residual_max_mm,
                          ble_anchor_labels,
-                         (unsigned long)motion.dt_ms);
+                         (unsigned long)motion.dt_ms,
+                         (unsigned int)ss_twr_init_tdma_schedule.slot_index,
+                         (unsigned int)ss_twr_init_tdma_schedule.slot_count,
+                         (unsigned int)ss_twr_init_last_sweep_cut_short);
             } else {
                 snprintk(ble_summary, sizeof(ble_summary),
-                         "TS s=%lu p=%s xyz=%ld,%ld,%ld r=%lu m=%lu a=%s motion=na",
+                         "TS s=%lu p=%s xyz=%ld,%ld,%ld r=%lu m=%lu a=%s sl=%u/%u cut=%u motion=na",
                          (unsigned long)ss_twr_init_sweep_count,
                          plan_label,
                          (long)location.x_mm, (long)location.y_mm,
                          (long)location.z_mm,
                          (unsigned long)location.residual_rms_mm,
                          (unsigned long)location.residual_max_mm,
-                         ble_anchor_labels);
+                         ble_anchor_labels,
+                         (unsigned int)ss_twr_init_tdma_schedule.slot_index,
+                         (unsigned int)ss_twr_init_tdma_schedule.slot_count,
+                         (unsigned int)ss_twr_init_last_sweep_cut_short);
             }
         } else {
             if (have_motion) {
                 snprintk(ble_summary, sizeof(ble_summary),
-                         "TagSummary sweep=%lu plan=%s xyz=(%ld,%ld,%ld) rms=%lu max=%lu anchors=%s motion_dt=%lu",
+                         "TagSummary sweep=%lu plan=%s xyz=(%ld,%ld,%ld) rms=%lu max=%lu anchors=%s slot=%u/%u src=%s cut=%u reason=%s motion_dt=%lu",
                          (unsigned long)ss_twr_init_sweep_count,
                          plan_label,
                          (long)location.x_mm, (long)location.y_mm,
@@ -1387,17 +1618,29 @@ static void ss_twr_init_print_location_if_ready(void)
                          (unsigned long)location.residual_rms_mm,
                          (unsigned long)location.residual_max_mm,
                          ble_anchors,
+                         (unsigned int)ss_twr_init_tdma_schedule.slot_index,
+                         (unsigned int)ss_twr_init_tdma_schedule.slot_count,
+                         ss_twr_init_slot_source_label(
+                             ss_twr_init_runtime_params.slot_source),
+                         (unsigned int)ss_twr_init_last_sweep_cut_short,
+                         ss_twr_init_solve_reason_label(),
                          (unsigned long)motion.dt_ms);
             } else {
                 snprintk(ble_summary, sizeof(ble_summary),
-                         "TagSummary sweep=%lu plan=%s xyz=(%ld,%ld,%ld) rms=%lu max=%lu anchors=%s motion=na",
+                         "TagSummary sweep=%lu plan=%s xyz=(%ld,%ld,%ld) rms=%lu max=%lu anchors=%s slot=%u/%u src=%s cut=%u reason=%s motion=na",
                          (unsigned long)ss_twr_init_sweep_count,
                          plan_label,
                          (long)location.x_mm, (long)location.y_mm,
                          (long)location.z_mm,
                          (unsigned long)location.residual_rms_mm,
                          (unsigned long)location.residual_max_mm,
-                         ble_anchors);
+                         ble_anchors,
+                         (unsigned int)ss_twr_init_tdma_schedule.slot_index,
+                         (unsigned int)ss_twr_init_tdma_schedule.slot_count,
+                         ss_twr_init_slot_source_label(
+                             ss_twr_init_runtime_params.slot_source),
+                         (unsigned int)ss_twr_init_last_sweep_cut_short,
+                         ss_twr_init_solve_reason_label());
             }
         }
 
@@ -1459,7 +1702,7 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
            (unsigned int)ss_twr_init_local_tag_id,
            (unsigned int)ss_twr_init_local_addr,
            (unsigned int)ss_twr_init_anchor_count);
-    printk("Tag motion mode rng_delay_ms=%u tx_to_rx_uus=%u resp_timeout_uus=%u fast_tracking=%u full_interval=%u track_count=%u fixed=%u fixed_count=%u tdma=%u slot=%u/%u period=%u active=%u\n",
+    printk("Tag motion mode rng_delay_ms=%u tx_to_rx_uus=%u resp_timeout_uus=%u fast_tracking=%u full_interval=%u track_count=%u fixed=%u fixed_count=%u tdma=%u slot=%u/%u period=%u active=%u source=%s epoch_valid=%u gen=%u\n",
            (unsigned int)SS_TWR_INIT_RNG_DELAY_MS,
            (unsigned int)SS_TWR_INIT_TX_TO_RX_DLY_UUS,
            (unsigned int)SS_TWR_INIT_RESP_RX_TIMEOUT_UUS,
@@ -1472,7 +1715,10 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
            (unsigned int)ss_twr_init_tdma_schedule.slot_index,
            (unsigned int)ss_twr_init_tdma_schedule.slot_count,
            (unsigned int)ss_twr_init_tdma_schedule.slot_period_ms,
-           (unsigned int)ss_twr_init_tdma_schedule.slot_active_ms);
+           (unsigned int)ss_twr_init_tdma_schedule.slot_active_ms,
+           ss_twr_init_slot_source_label(ss_twr_init_runtime_params.slot_source),
+           (unsigned int)ss_twr_init_tdma_schedule.epoch_valid,
+           (unsigned int)ss_twr_init_tdma_schedule.generation);
     printk("Tag multitag plan enabled=%u active=%u standby=%u reserve=%u refresh_budget=%u refresh_interval=%u maintenance_full=%u\n",
            (unsigned int)ss_twr_init_multitag_anchor_plan_mode,
            (unsigned int)ss_twr_init_active_plan_count,
@@ -1520,6 +1766,7 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
     {
         uint32_t tdma_wait_ms =
             uwb_tdma_wait_until_slot(&ss_twr_init_tdma_schedule);
+        ss_twr_init_last_tdma_wait_ms = tdma_wait_ms;
 #if APP_TAG_USB_DIAG_TRACE
         ss_twr_diag_write("SS-TWR: wait_tdma done\n");
 #endif
@@ -1553,6 +1800,30 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
             continue;
         }
 #endif
+        ss_twr_init_apply_pending_runtime_config_if_any();
+
+        if (!ss_twr_init_tdma_exchange_can_start()) {
+            uint32_t remain_ms =
+                uwb_tdma_schedule_time_remaining_ms(&ss_twr_init_tdma_schedule);
+
+            ss_twr_init_last_sweep_cut_short = true;
+            ss_twr_init_last_solve_reason = SS_TWR_INIT_SOLVE_SLOT_CUT_SHORT;
+            printk("Tag slot guard: cut short plan=%s next_anchor=%u active=%u remain=%lu ms slot=%u/%u gen=%u\n",
+                   ss_twr_init_plan_label(),
+                   (unsigned int)ss_twr_init_active_anchor_index,
+                   (unsigned int)ss_twr_init_active_anchor_count,
+                   (unsigned long)remain_ms,
+                   (unsigned int)ss_twr_init_tdma_schedule.slot_index,
+                   (unsigned int)ss_twr_init_tdma_schedule.slot_count,
+                   (unsigned int)ss_twr_init_tdma_schedule.generation);
+            ss_twr_init_sweep_count++;
+            ss_twr_init_print_location_if_ready();
+            ss_twr_init_apply_pending_runtime_config_if_any();
+            ss_twr_init_last_tdma_wait_ms =
+                uwb_tdma_wait_until_slot(&ss_twr_init_tdma_schedule);
+            ss_twr_init_prepare_sweep_plan();
+            continue;
+        }
 
         uint8_t current_anchor_id =
             ss_twr_init_active_anchor_ids[ss_twr_init_active_anchor_index];
@@ -1778,7 +2049,9 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
         if (ss_twr_init_active_anchor_index == 0U) {
             ss_twr_init_sweep_count++;
             ss_twr_init_print_location_if_ready();
-            (void)uwb_tdma_wait_until_slot(&ss_twr_init_tdma_schedule);
+            ss_twr_init_apply_pending_runtime_config_if_any();
+            ss_twr_init_last_tdma_wait_ms =
+                uwb_tdma_wait_until_slot(&ss_twr_init_tdma_schedule);
             ss_twr_init_prepare_sweep_plan();
         }
         ss_twr_init_sleep_between_ranges();
@@ -1820,6 +2093,8 @@ int ss_twr_init_start(unsigned int tag_id, const uint8_t *anchor_ids,
 
 int ss_twr_init_tdma_set_slot(uint8_t slot_index)
 {
+    struct uwb_tag_runtime_params params = ss_twr_init_runtime_params;
+
     if (!ss_twr_init_tdma_schedule.enabled ||
         ss_twr_init_tdma_schedule.slot_count == 0U) {
         return -EINVAL;
@@ -1829,11 +2104,48 @@ int ss_twr_init_tdma_set_slot(uint8_t slot_index)
         return -ERANGE;
     }
 
-    ss_twr_init_tdma_schedule.slot_index = slot_index;
-    printk("Tag TDMA live slot update slot=%u/%u period=%u active=%u\n",
-           (unsigned int)ss_twr_init_tdma_schedule.slot_index,
-           (unsigned int)ss_twr_init_tdma_schedule.slot_count,
-           (unsigned int)ss_twr_init_tdma_schedule.slot_period_ms,
-           (unsigned int)ss_twr_init_tdma_schedule.slot_active_ms);
-    return 0;
+    params.slot_source = UWB_TAG_SLOT_SOURCE_SETTINGS;
+    params.tdma.slot_index = slot_index;
+    return ss_twr_init_runtime_configure(&params);
+}
+
+int ss_twr_init_runtime_configure(const struct uwb_tag_runtime_params *params)
+{
+	if (params == NULL) {
+		return -EINVAL;
+	}
+
+	if (params->logical_tag_id >= UWB_MAX_TAGS) {
+		return -ERANGE;
+	}
+
+	if (params->tdma.enabled &&
+	    !uwb_tdma_schedule_is_valid(&params->tdma)) {
+		return -EINVAL;
+	}
+
+	if (params->anchor_selection_mode ==
+	    UWB_TAG_ANCHOR_SELECTION_FIXED_SUBSET &&
+	    params->fixed_anchor_count < 4U) {
+		return -EINVAL;
+	}
+
+	ss_twr_init_pending_runtime_params = *params;
+	if (ss_twr_init_pending_runtime_params.tdma.epoch_valid) {
+		uwb_tdma_sync_schedule_epoch(&ss_twr_init_pending_runtime_params.tdma,
+					     ss_twr_init_pending_runtime_params.tdma.epoch_ms,
+					     ss_twr_init_pending_runtime_params.tdma.generation);
+	}
+	ss_twr_init_runtime_update_pending = true;
+	return 0;
+}
+
+bool ss_twr_init_runtime_config_snapshot(struct uwb_tag_runtime_params *params)
+{
+	if (params == NULL) {
+		return false;
+	}
+
+	*params = ss_twr_init_runtime_params;
+	return true;
 }

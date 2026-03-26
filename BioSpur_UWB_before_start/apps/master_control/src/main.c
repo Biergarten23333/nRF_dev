@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -14,10 +15,12 @@
 #include <zephyr/sys/reboot.h>
 
 #include "master_multi_app.h"
+#include "master_ota.h"
 
 #define CONTROL_SETTINGS_SUBTREE "master_ctrl"
 #define CONTROL_SETTINGS_MODE_KEY "mode"
 #define CONTROL_BOOT_COOKIE_MAGIC 0x42534d44U
+#define OTA_TARGET_BOOT_COOKIE_MAGIC 0x4f544147U
 
 enum control_mode {
 	CONTROL_MODE_RECV = 0,
@@ -27,6 +30,13 @@ enum control_mode {
 static uint8_t control_mode = CONTROL_MODE_RECV;
 static uint32_t control_boot_cookie __noinit;
 static uint8_t control_boot_mode __noinit;
+static uint32_t ota_target_boot_cookie __noinit;
+static int16_t ota_target_boot_token __noinit;
+static char ota_target_boot_name[32] __noinit;
+static char ota_target_boot_prefix[32] __noinit;
+static int ota_target_token_cfg = -1;
+static char ota_target_name_cfg[32];
+static char ota_target_prefix_cfg[32] = "BS";
 static bool leds_ready;
 static struct k_work mode_switch_work;
 static struct k_work uart_cmd_work;
@@ -47,7 +57,6 @@ enum request_source {
 };
 
 int master_app_run(void);
-int master_ota_run(void);
 
 static const char *control_mode_name(uint8_t mode)
 {
@@ -83,6 +92,7 @@ static void control_print_status(void)
 static void control_print_help(void)
 {
 	printk("Commands: status | mode recv | mode ota | scan | conn\n");
+	printk("OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|->\n");
 }
 
 static int control_settings_set(const char *key, size_t len,
@@ -117,6 +127,16 @@ static void control_save_mode(void)
 	printk("Control mode staged: %s\n", control_mode_name(control_mode));
 }
 
+static void control_stage_ota_target(void)
+{
+	ota_target_boot_token = (int16_t)ota_target_token_cfg;
+	(void)snprintf(ota_target_boot_name, sizeof(ota_target_boot_name), "%s",
+		       ota_target_name_cfg);
+	(void)snprintf(ota_target_boot_prefix, sizeof(ota_target_boot_prefix), "%s",
+		       ota_target_prefix_cfg);
+	ota_target_boot_cookie = OTA_TARGET_BOOT_COOKIE_MAGIC;
+}
+
 static void mode_switch_work_handler(struct k_work *work)
 {
 	ARG_UNUSED(work);
@@ -143,6 +163,7 @@ static void mode_switch_work_handler(struct k_work *work)
 	control_blink_ack();
 	control_mode = requested_mode;
 	control_save_mode();
+	control_stage_ota_target();
 	printk("Control mode now %s, rebooting\n", control_mode_name(control_mode));
 	k_sleep(K_MSEC(100));
 	sys_reboot(SYS_REBOOT_WARM);
@@ -204,17 +225,21 @@ static void control_handle_uart_command(const char *line)
 {
 	char cmd[16];
 	char arg[16];
+	char arg2[32] = { 0 };
 	int parsed;
 
 	if (line == NULL || line[0] == '\0') {
 		return;
 	}
 
-	parsed = sscanf(line, "%15s %15s", cmd, arg);
+	parsed = sscanf(line, "%15s %15s %31s", cmd, arg, arg2);
 	for (char *p = cmd; *p != '\0'; ++p) {
 		*p = (char)tolower((unsigned char)*p);
 	}
 	for (char *p = arg; *p != '\0'; ++p) {
+		*p = (char)tolower((unsigned char)*p);
+	}
+	for (char *p = arg2; *p != '\0'; ++p) {
 		*p = (char)tolower((unsigned char)*p);
 	}
 
@@ -260,6 +285,72 @@ static void control_handle_uart_command(const char *line)
 			request_mode_switch(CONTROL_MODE_RECV, REQ_SRC_UART);
 			return;
 		}
+	}
+
+	if (strcmp(cmd, "ota_target") == 0 && parsed >= 2) {
+		if (strcmp(arg, "show") == 0) {
+			master_ota_target_print();
+			return;
+		}
+
+		if (strcmp(arg, "token") == 0 && parsed >= 3) {
+			int token = -1;
+			int rc;
+
+			if (sscanf(arg2, "%d", &token) != 1) {
+				printk("ota_target token parse failed\n");
+				return;
+			}
+			rc = master_ota_target_set_token(token);
+			printk("ota_target token rc=%d value=%d\n", rc, token);
+			if (rc == 0) {
+				ota_target_token_cfg = token;
+			}
+			master_ota_target_print();
+			return;
+		}
+
+		if (strcmp(arg, "name") == 0 && parsed >= 3) {
+			char value[32];
+			int rc;
+
+			(void)snprintf(value, sizeof(value), "%s", arg2);
+			if (strcmp(value, "-") == 0) {
+				value[0] = '\0';
+			}
+			rc = master_ota_target_set_name(value);
+			printk("ota_target name rc=%d value=%s\n", rc,
+			       value[0] != '\0' ? value : "-");
+			if (rc == 0) {
+				(void)snprintf(ota_target_name_cfg, sizeof(ota_target_name_cfg), "%s",
+					       value);
+			}
+			master_ota_target_print();
+			return;
+		}
+
+		if (strcmp(arg, "prefix") == 0 && parsed >= 3) {
+			char value[32];
+			int rc;
+
+			(void)snprintf(value, sizeof(value), "%s", arg2);
+			if (strcmp(value, "-") == 0) {
+				value[0] = '\0';
+			}
+			rc = master_ota_target_set_prefix(value);
+			printk("ota_target prefix rc=%d value=%s\n", rc,
+			       value[0] != '\0' ? value : "-");
+			if (rc == 0) {
+				(void)snprintf(ota_target_prefix_cfg, sizeof(ota_target_prefix_cfg), "%s",
+					       value);
+			}
+			master_ota_target_print();
+			return;
+		}
+
+		printk("Unknown ota_target command: %s\n", line);
+		control_print_help();
+		return;
 	}
 
 	printk("Unknown command: %s\n", line);
@@ -393,6 +484,22 @@ int main(void)
 
 	uart_irq_rx_enable(console_uart);
 	printk("UART control ready: type 'status' or 'mode recv'/'mode ota'\n");
+	master_ota_target_reset();
+	ota_target_token_cfg = -1;
+	ota_target_name_cfg[0] = '\0';
+	(void)snprintf(ota_target_prefix_cfg, sizeof(ota_target_prefix_cfg), "BS");
+	if (ota_target_boot_cookie == OTA_TARGET_BOOT_COOKIE_MAGIC) {
+		ota_target_token_cfg = ota_target_boot_token;
+		(void)snprintf(ota_target_name_cfg, sizeof(ota_target_name_cfg), "%s",
+			       ota_target_boot_name);
+		(void)snprintf(ota_target_prefix_cfg, sizeof(ota_target_prefix_cfg), "%s",
+			       ota_target_boot_prefix);
+		ota_target_boot_cookie = 0U;
+	}
+	(void)master_ota_target_set_token(ota_target_token_cfg);
+	(void)master_ota_target_set_name(ota_target_name_cfg);
+	(void)master_ota_target_set_prefix(ota_target_prefix_cfg);
+	master_ota_target_print();
 
 	control_leds_set(DK_NO_LEDS_MSK);
 	printk("BioSpur BLE master control ready on nRF52840 DK\n");

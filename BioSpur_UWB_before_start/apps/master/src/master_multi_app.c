@@ -20,10 +20,13 @@
 #include <bluetooth/services/nus.h>
 #include <bluetooth/services/nus_client.h>
 
-#define MASTER_MAX_CONNECTIONS 5U
+#define MASTER_MAX_CONNECTIONS 10U
 #define MASTER_DISCOVERY_RETRY_DELAY_MS 1000U
 #define MASTER_DISCOVERY_RETRY_LIMIT 5U
 #define MASTER_TDMA_SLOT_COUNT_MAX 10U
+#define MASTER_TDMA_SLOT_PERIOD_MS 24U
+#define MASTER_TDMA_SLOT_ACTIVE_MS 20U
+#define MASTER_TDMA_EPOCH_LEAD_MS 3000U
 #ifndef APP_MASTER_TAG_NAME_PREFIX
 #define APP_MASTER_TAG_NAME_PREFIX "BS"
 #endif
@@ -72,8 +75,11 @@ struct master_peer {
 	bool tag_id_valid;
 	uint16_t bs_code;
 	bool bs_code_valid;
+	uint8_t logical_tag_id;
+	bool logical_tag_id_valid;
 	uint8_t tdma_slot;
 	bool tdma_slot_valid;
+	uint8_t tdma_generation;
 };
 
 static struct master_peer peers[MASTER_MAX_CONNECTIONS];
@@ -86,6 +92,7 @@ static bool led_scan_state;
 static bool led_link_state;
 static bool led_ota_state;
 static bool led_error_state;
+static uint8_t tdma_generation;
 static struct bt_gatt_dm_cb discovery_cb;
 static void start_scan(void);
 static void stop_scan(void);
@@ -180,8 +187,11 @@ static void peer_clear(unsigned int idx, bool unref_conn)
 	peers[idx].tag_id_valid = false;
 	peers[idx].bs_code = 0U;
 	peers[idx].bs_code_valid = false;
+	peers[idx].logical_tag_id = 0U;
+	peers[idx].logical_tag_id_valid = false;
 	peers[idx].tdma_slot = 0U;
 	peers[idx].tdma_slot_valid = false;
+	peers[idx].tdma_generation = 0U;
 }
 
 static bool ble_payload_contains(const uint8_t *data, uint16_t len, const char *needle)
@@ -372,85 +382,136 @@ static bool ad_get_biospur_bs_code(struct net_buf_simple *ad, uint16_t *bs_code)
 	return true;
 }
 
-static bool master_fixed_tdma_slot_for_bs_code(uint16_t bs_code,
-					       uint8_t *slot_index)
+static bool master_peer_sort_before(const struct master_peer *lhs,
+				    const struct master_peer *rhs)
 {
-	if (slot_index == NULL) {
+	if (lhs == NULL || rhs == NULL) {
 		return false;
 	}
 
-	switch (bs_code) {
-	case 0x2DCEU:
-		*slot_index = 0U;
-		return true;
-	case 0xDC91U:
-		*slot_index = 1U;
-		return true;
-	case 0xF66FU:
-		*slot_index = 2U;
-		return true;
-	case 0x3121U:
-		*slot_index = 3U;
-		return true;
-	default:
-		return false;
+	if (lhs->bs_code_valid && rhs->bs_code_valid && lhs->bs_code != rhs->bs_code) {
+		return lhs->bs_code < rhs->bs_code;
 	}
+
+	if (lhs->adv_name[0] != '\0' && rhs->adv_name[0] != '\0') {
+		int cmp = strcmp(lhs->adv_name, rhs->adv_name);
+		if (cmp != 0) {
+			return cmp < 0;
+		}
+	}
+
+	if (lhs->addr_valid && rhs->addr_valid) {
+		return bt_addr_le_cmp(&lhs->addr, &rhs->addr) < 0;
+	}
+
+	return false;
 }
 
-static int master_send_tdma_slot(struct master_peer *peer, uint8_t slot_index)
+static size_t master_collect_ready_peers(struct master_peer **ordered,
+					 size_t ordered_len)
 {
-	char cmd[24];
+	size_t count = 0U;
+
+	for (size_t i = 0U; i < ARRAY_SIZE(peers) && count < ordered_len; ++i) {
+		if (!(peers[i].connected && peers[i].ready && peers[i].bs_code_valid)) {
+			continue;
+		}
+
+		ordered[count++] = &peers[i];
+	}
+
+	for (size_t i = 1U; i < count; ++i) {
+		struct master_peer *peer = ordered[i];
+		size_t j = i;
+
+		while (j > 0U && master_peer_sort_before(peer, ordered[j - 1U])) {
+			ordered[j] = ordered[j - 1U];
+			j--;
+		}
+		ordered[j] = peer;
+	}
+
+	return count;
+}
+
+static int master_send_runtime_config(struct master_peer *peer,
+				      uint8_t logical_tag_id,
+				      uint8_t slot_index,
+				      uint8_t slot_count,
+				      uint16_t slot_period_ms,
+				      uint16_t slot_active_ms,
+				      uint32_t epoch_ms,
+				      uint8_t generation)
+{
+	char cmd[160];
 	int err;
 
 	if (peer == NULL || !peer->ready || !peer->connected) {
 		return -EINVAL;
 	}
 
-	snprintk(cmd, sizeof(cmd), "TDMA_SET %u", (unsigned int)slot_index);
+	snprintk(cmd, sizeof(cmd),
+		 "CFG TAG=%u SLOT=%u COUNT=%u PERIOD=%u ACTIVE=%u EPOCH=%lu GEN=%u PMODE=%u AMODE=%u",
+		 (unsigned int)logical_tag_id,
+		 (unsigned int)slot_index,
+		 (unsigned int)slot_count,
+		 (unsigned int)slot_period_ms,
+		 (unsigned int)slot_active_ms,
+		 (unsigned long)epoch_ms,
+		 (unsigned int)generation,
+		 0U,
+		 0U);
 	err = bt_nus_client_send(&peer->nus_client, (const uint8_t *)cmd, strlen(cmd));
 	if (err) {
-		printk("TDMA slot send failed[%d]: slot=%u err=%d\n",
+		printk("CFG send failed[%d]: tag=%u slot=%u err=%d\n",
 		       peer_index_from_nus(&peer->nus_client),
-		       (unsigned int)slot_index, err);
+		       (unsigned int)logical_tag_id,
+		       (unsigned int)slot_index,
+		       err);
 		return err;
 	}
 
+	peer->logical_tag_id = logical_tag_id;
+	peer->logical_tag_id_valid = true;
 	peer->tdma_slot = slot_index;
 	peer->tdma_slot_valid = true;
-	printk("TDMA slot assigned[%d]: bs=BS%04X slot=%u/%u\n",
+	peer->tdma_generation = generation;
+	printk("CFG assigned[%d]: bs=BS%04X tag=%u slot=%u/%u period=%u active=%u gen=%u\n",
 	       peer_index_from_nus(&peer->nus_client),
 	       (unsigned int)peer->bs_code,
+	       (unsigned int)logical_tag_id,
 	       (unsigned int)slot_index,
-	       (unsigned int)MASTER_TDMA_SLOT_COUNT_MAX);
+	       (unsigned int)slot_count,
+	       (unsigned int)slot_period_ms,
+	       (unsigned int)slot_active_ms,
+	       (unsigned int)generation);
 	return 0;
 }
 
 static void master_rebalance_tdma_slots(void)
 {
-	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
-		uint8_t desired_slot = 0U;
+	struct master_peer *ordered[MASTER_MAX_CONNECTIONS];
+	size_t ready_count;
+	uint8_t slot_count;
+	uint32_t epoch_ms;
 
-		if (!(peers[i].connected && peers[i].ready && peers[i].bs_code_valid)) {
-			continue;
-		}
+	ready_count = master_collect_ready_peers(ordered, ARRAY_SIZE(ordered));
+	if (ready_count == 0U) {
+		return;
+	}
 
-		if (!master_fixed_tdma_slot_for_bs_code(peers[i].bs_code,
-							&desired_slot)) {
-			continue;
-		}
-
-		if (desired_slot >= MASTER_TDMA_SLOT_COUNT_MAX) {
-			printk("TDMA slot allocation exhausted for bs=BS%04X\n",
-			       (unsigned int)peers[i].bs_code);
-			led_error_state = true;
-			continue;
-		}
-
-		if (peers[i].tdma_slot_valid && peers[i].tdma_slot == desired_slot) {
-			continue;
-		}
-
-		(void)master_send_tdma_slot(&peers[i], desired_slot);
+	slot_count = (uint8_t)MIN(ready_count, (size_t)MASTER_TDMA_SLOT_COUNT_MAX);
+	tdma_generation++;
+	epoch_ms = k_uptime_get_32() + MASTER_TDMA_EPOCH_LEAD_MS;
+	for (size_t i = 0U; i < slot_count; ++i) {
+		(void)master_send_runtime_config(ordered[i],
+						 (uint8_t)(i + 1U),
+						 (uint8_t)i,
+						 slot_count,
+						 MASTER_TDMA_SLOT_PERIOD_MS,
+						 MASTER_TDMA_SLOT_ACTIVE_MS,
+						 epoch_ms,
+						 tdma_generation);
 	}
 }
 
@@ -704,6 +765,29 @@ static uint8_t ble_data_received(struct bt_nus_client *nus,
 	    ble_payload_contains(data, len, "OTA_READY") ||
 	    ble_payload_contains(data, len, "OTA_BEGIN_OK")) {
 		peers[idx].ota_ready = true;
+	}
+	if (ble_payload_contains(data, len, "CFG_OK")) {
+		unsigned int tag = 0U;
+		unsigned int slot = 0U;
+		unsigned int slot_count = 0U;
+		unsigned int period = 0U;
+		unsigned int active = 0U;
+		unsigned int generation = 0U;
+		unsigned int live = 0U;
+
+		if (sscanf(payload,
+			   "CFG_OK TAG=%u SLOT=%u/%u PERIOD=%u ACTIVE=%u GEN=%u LIVE=%u",
+			   &tag, &slot, &slot_count, &period, &active,
+			   &generation, &live) >= 3) {
+			peers[idx].logical_tag_id = (uint8_t)tag;
+			peers[idx].logical_tag_id_valid = true;
+			peers[idx].tdma_slot = (uint8_t)slot;
+			peers[idx].tdma_slot_valid = true;
+			peers[idx].tdma_generation = (uint8_t)generation;
+			printk("CFG confirmed[%d]: tag=%u slot=%u/%u period=%u active=%u gen=%u live=%u\n",
+			       idx, tag, slot, slot_count, period, active,
+			       generation, live);
+		}
 	}
 	if (ble_payload_contains(data, len, "TDMA_SET_OK")) {
 		uint8_t slot = 0U;

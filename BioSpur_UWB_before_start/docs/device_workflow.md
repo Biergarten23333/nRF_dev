@@ -10,6 +10,7 @@ Default workflow for attached DWM1001 boards:
 Helper scripts:
 
 - `scripts/reset_then_flash.sh <snr> <hex_path>`
+- `scripts/flash_anchor_auto.sh <build_dir_or_hex_path> [snr]`
 - `scripts/reset_then_read_serial.py <snr> <serial_port> --duration 8`
 - `scripts/capture_tag_session.py <snr> <serial_port> --duration 120`
 - `scripts/build_tag_usb.sh <tag_id> [build_dir]`
@@ -53,6 +54,7 @@ Examples:
 
 ```bash
 scripts/reset_then_flash.sh 760186071 build-anchor-A-master/zephyr/zephyr.hex
+scripts/flash_anchor_auto.sh build-anchor-A-master
 scripts/reset_then_read_serial.py 760186071 /dev/serial/by-id/usb-SEGGER_J-Link_000760186071-if00
 scripts/capture_tag_session.py 760186127 /dev/serial/by-id/usb-SEGGER_J-Link_000760186127-if00 --duration 300 --skip-sweeps 2
 ```

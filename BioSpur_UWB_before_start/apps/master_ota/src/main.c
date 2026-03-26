@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -26,6 +27,7 @@
 #include <mgmt/mcumgr/util/zcbor_bulk.h>
 
 #include "ota_image.inc"
+#include "master_ota.h"
 
 #define OTA_LED_SCAN DK_LED1
 #define OTA_LED_LINK DK_LED2
@@ -107,11 +109,61 @@ static int smp_write_err;
 static uint8_t smp_rsp_buf[512];
 static size_t smp_rsp_len;
 static size_t smp_rsp_total;
+static int runtime_target_token = APP_MASTER_OTA_TARGET_TOKEN_ID;
+static char runtime_target_name[OTA_NAME_BUF_LEN] = APP_MASTER_OTA_TARGET_NAME;
+static char runtime_target_prefix[OTA_NAME_BUF_LEN] = APP_MASTER_OTA_TARGET_NAME_PREFIX;
 K_THREAD_STACK_DEFINE(ota_thread_stack, 3072);
 static struct k_thread ota_thread;
 
 static void gatt_discover_nus(struct bt_conn *conn);
 static void gatt_discover_dfu(struct bt_conn *conn);
+
+void master_ota_target_reset(void)
+{
+	runtime_target_token = APP_MASTER_OTA_TARGET_TOKEN_ID;
+	(void)snprintf(runtime_target_name, sizeof(runtime_target_name), "%s",
+		       APP_MASTER_OTA_TARGET_NAME);
+	(void)snprintf(runtime_target_prefix, sizeof(runtime_target_prefix), "%s",
+		       APP_MASTER_OTA_TARGET_NAME_PREFIX);
+}
+
+int master_ota_target_set_token(int token_id)
+{
+	if (token_id < -1 || token_id > 255) {
+		return -EINVAL;
+	}
+
+	runtime_target_token = token_id;
+	return 0;
+}
+
+int master_ota_target_set_name(const char *name)
+{
+	if (name == NULL) {
+		return -EINVAL;
+	}
+
+	(void)snprintf(runtime_target_name, sizeof(runtime_target_name), "%s", name);
+	return 0;
+}
+
+int master_ota_target_set_prefix(const char *prefix)
+{
+	if (prefix == NULL) {
+		return -EINVAL;
+	}
+
+	(void)snprintf(runtime_target_prefix, sizeof(runtime_target_prefix), "%s", prefix);
+	return 0;
+}
+
+void master_ota_target_print(void)
+{
+	printk("OTA target filter: token=%d name=%s prefix=%s\n",
+	       runtime_target_token,
+	       runtime_target_name[0] != '\0' ? runtime_target_name : "-",
+	       runtime_target_prefix[0] != '\0' ? runtime_target_prefix : "-");
+}
 
 static bool scan_name_cb(struct bt_data *data, void *user_data)
 {
@@ -145,10 +197,10 @@ static void ad_extract_name(struct net_buf_simple *ad, char *name_buf, size_t le
 static bool ad_name_matches_target(struct net_buf_simple *ad)
 {
 	char name[OTA_NAME_BUF_LEN];
-	size_t prefix_len = strlen(APP_MASTER_OTA_TARGET_NAME_PREFIX);
+	size_t prefix_len = strlen(runtime_target_prefix);
 
-	if (APP_MASTER_OTA_TARGET_NAME[0] == '\0' &&
-	    APP_MASTER_OTA_TARGET_NAME_PREFIX[0] == '\0') {
+	if (runtime_target_name[0] == '\0' &&
+	    runtime_target_prefix[0] == '\0') {
 		return true;
 	}
 
@@ -157,17 +209,17 @@ static bool ad_name_matches_target(struct net_buf_simple *ad)
 		return false;
 	}
 
-	if (APP_MASTER_OTA_TARGET_NAME[0] != '\0' &&
-	    strcmp(name, APP_MASTER_OTA_TARGET_NAME) == 0) {
+	if (runtime_target_name[0] != '\0' &&
+	    strcmp(name, runtime_target_name) == 0) {
 		return true;
 	}
 
-	if (APP_MASTER_OTA_TARGET_NAME_PREFIX[0] != '\0' &&
-	    strncmp(name, APP_MASTER_OTA_TARGET_NAME_PREFIX, prefix_len) == 0) {
+	if (runtime_target_prefix[0] != '\0' &&
+	    strncmp(name, runtime_target_prefix, prefix_len) == 0) {
 		return true;
 	}
 
-	return strcmp(name, APP_MASTER_OTA_TARGET_NAME) == 0;
+	return strcmp(name, runtime_target_name) == 0;
 }
 
 static bool scan_mfg_token_cb(struct bt_data *data, void *user_data)
@@ -205,7 +257,7 @@ static bool ad_token_matches_target(struct net_buf_simple *ad)
 {
 	uint8_t token_id;
 
-	if (APP_MASTER_OTA_TARGET_TOKEN_ID < 0) {
+	if (runtime_target_token < 0) {
 		return true;
 	}
 
@@ -214,7 +266,7 @@ static bool ad_token_matches_target(struct net_buf_simple *ad)
 		return false;
 	}
 
-	return token_id == (uint8_t)APP_MASTER_OTA_TARGET_TOKEN_ID;
+	return token_id == (uint8_t)runtime_target_token;
 }
 
 static void smp_write_cb(struct bt_conn *conn, uint8_t err,
@@ -1312,18 +1364,18 @@ static void scan_filter_match(struct bt_scan_device_info *device_info,
 	       name_target_ok ? 1U : 0U,
 	       token_ok ? 1U : 0U);
 	accept = connectable && (default_conn == NULL);
-	if (APP_MASTER_OTA_TARGET_TOKEN_ID >= 0) {
+	if (runtime_target_token >= 0) {
 		accept = accept && token_ok;
 	}
-	if (APP_MASTER_OTA_TARGET_NAME[0] != '\0' && name[0] != '\0') {
+	if (runtime_target_name[0] != '\0' && name[0] != '\0') {
 		accept = accept && name_target_ok;
 	}
 	printk("Scan decision: %s accept=%u default_conn=%p target_name=%s target_token=%d\n",
 	       addr,
 	       accept ? 1U : 0U,
 	       default_conn,
-	       APP_MASTER_OTA_TARGET_NAME[0] != '\0' ? APP_MASTER_OTA_TARGET_NAME : "-",
-	       APP_MASTER_OTA_TARGET_TOKEN_ID);
+	       runtime_target_name[0] != '\0' ? runtime_target_name : "-",
+	       runtime_target_token);
 	if (!accept) {
 		return;
 	}

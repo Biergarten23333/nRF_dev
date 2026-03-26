@@ -55,10 +55,12 @@
 #define UWB_TAG_BLE_MAX_STATUS_LEN 256U
 /* Keep ~20% headroom so bundled NUS payloads do not sit on the limit. */
 #define UWB_TAG_BLE_BUNDLE_PAYLOAD_CAP 180U
-#define UWB_TAG_BLE_MAX_CMD_LEN 32U
+#define UWB_TAG_BLE_MAX_CMD_LEN 192U
 #define UWB_TAG_BLE_TX_THREAD_STACK 1536
 #define UWB_TAG_BLE_TX_THREAD_PRIO 7
-#define UWB_TAG_BLE_TX_ITEM_COUNT 12U
+#define UWB_TAG_BLE_TX_ITEM_COUNT 10U
+#define UWB_TAG_BLE_TX_RETRY_MAX 4U
+#define UWB_TAG_BLE_TX_RETRY_DELAY_MS 2U
 #define UWB_TAG_BLE_BINARY_MAGIC0 0x42U
 #define UWB_TAG_BLE_BINARY_MAGIC1 0x50U
 #define UWB_TAG_BLE_BINARY_VERSION 1U
@@ -67,11 +69,20 @@
 #define UWB_TAG_BLE_MAX_BINARY_RECORDS 4U
 
 #define UWB_TAG_BLE_SETTINGS_SUBTREE "tag_ble"
-#define UWB_TAG_BLE_SETTINGS_TDMA_SLOT_KEY "tdma_slot"
+#define UWB_TAG_BLE_SETTINGS_CONFIG_KEY "runtime_cfg"
 
-struct uwb_tag_ble_tdma_slot_record {
+struct uwb_tag_ble_settings_record {
 	uint8_t valid;
+	uint8_t logical_tag_id;
+	uint8_t positioning_mode;
+	uint8_t anchor_selection_mode;
+	uint8_t fixed_anchor_count;
+	uint8_t fixed_anchor_ids[UWB_TAG_FIXED_ANCHOR_MAX];
 	uint8_t slot_index;
+	uint8_t slot_count;
+	uint16_t slot_period_ms;
+	uint16_t slot_active_ms;
+	uint16_t identity_code;
 };
 
 struct uwb_tag_ble_tx_item {
@@ -89,8 +100,9 @@ static const struct bt_le_conn_param *const fast_conn_params = BT_LE_CONN_PARAM(
 static char ble_device_name[UWB_TAG_BLE_DEVICE_NAME_LEN];
 static uint16_t ble_identity_code;
 static uint8_t ble_tag_id;
-static struct uwb_tag_ble_tdma_slot_record tdma_slot_record;
-static bool tdma_slot_record_loaded;
+static struct uwb_tag_ble_settings_record runtime_settings_record;
+static bool runtime_settings_record_loaded;
+static struct uwb_tag_runtime_params active_runtime_params;
 
 static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
@@ -136,6 +148,17 @@ static struct bt_nus_cb nus_cb;
 
 static int uwb_tag_ble_start_advertising(void);
 static void uwb_tag_ble_init_identity(void);
+static void uwb_tag_ble_runtime_params_reset_locked(void);
+static void uwb_tag_ble_runtime_params_apply_settings_locked(void);
+static const char *uwb_tag_ble_slot_source_label(uint8_t slot_source);
+static bool uwb_tag_ble_parse_u32_field(const char *cmd, const char *key,
+					uint32_t *value_out);
+static size_t uwb_tag_ble_parse_fixed_anchor_list(const char *cmd,
+						  uint8_t *anchors,
+						  size_t max_count);
+static int uwb_tag_ble_parse_cfg_command(
+	const char *cmd,
+	struct uwb_tag_runtime_params *params);
 static bool uwb_tag_ble_bundle_enabled(void);
 static bool uwb_tag_ble_line_is_bundle_candidate(const char *line);
 static void uwb_tag_ble_clear_pending_bundle_locked(void);
@@ -164,14 +187,14 @@ static void ble_reboot_work_handler(struct k_work *work)
 	sys_reboot(SYS_REBOOT_COLD);
 }
 
-static int uwb_tag_ble_tdma_slot_settings_set(const char *key, size_t len,
-					     settings_read_cb read_cb, void *cb_arg)
+static int uwb_tag_ble_runtime_settings_set(const char *key, size_t len,
+					    settings_read_cb read_cb, void *cb_arg)
 {
 	const char *next;
-	struct uwb_tag_ble_tdma_slot_record record = { 0U, 0U };
+	struct uwb_tag_ble_settings_record record = { 0 };
 	int err;
 
-	if (!settings_name_steq(key, UWB_TAG_BLE_SETTINGS_TDMA_SLOT_KEY, &next) ||
+	if (!settings_name_steq(key, UWB_TAG_BLE_SETTINGS_CONFIG_KEY, &next) ||
 	    next != NULL) {
 		return -ENOENT;
 	}
@@ -186,35 +209,36 @@ static int uwb_tag_ble_tdma_slot_settings_set(const char *key, size_t len,
 	}
 
 	k_mutex_lock(&ble_mutex, K_FOREVER);
-	tdma_slot_record = record;
-	tdma_slot_record_loaded = true;
+	runtime_settings_record = record;
+	runtime_settings_record_loaded = true;
+	uwb_tag_ble_runtime_params_apply_settings_locked();
 	k_mutex_unlock(&ble_mutex);
 
 	return 0;
 }
 
-static int uwb_tag_ble_tdma_slot_settings_export(
+static int uwb_tag_ble_runtime_settings_export(
 	int (*cb)(const char *name, const void *value, size_t val_len))
 {
-	struct uwb_tag_ble_tdma_slot_record record;
+	struct uwb_tag_ble_settings_record record;
 
 	k_mutex_lock(&ble_mutex, K_FOREVER);
-	record = tdma_slot_record;
+	record = runtime_settings_record;
 	k_mutex_unlock(&ble_mutex);
 
 	if (!record.valid) {
 		return 0;
 	}
 
-	return cb(UWB_TAG_BLE_SETTINGS_TDMA_SLOT_KEY, &record, sizeof(record));
+	return cb(UWB_TAG_BLE_SETTINGS_CONFIG_KEY, &record, sizeof(record));
 }
 
-SETTINGS_STATIC_HANDLER_DEFINE(uwb_tag_ble_tdma_slot_settings,
+SETTINGS_STATIC_HANDLER_DEFINE(uwb_tag_ble_runtime_settings,
 			       UWB_TAG_BLE_SETTINGS_SUBTREE,
 			       NULL,
-			       uwb_tag_ble_tdma_slot_settings_set,
+			       uwb_tag_ble_runtime_settings_set,
 			       NULL,
-			       uwb_tag_ble_tdma_slot_settings_export);
+			       uwb_tag_ble_runtime_settings_export);
 
 static void ble_adv_retry_work_handler(struct k_work *work)
 {
@@ -249,6 +273,7 @@ static void ble_init_sequence(void)
 		printk("Tag BLE settings_load start\n");
 		settings_load();
 		printk("Tag BLE settings_load done\n");
+		uwb_tag_ble_init_identity();
 	} else {
 		bt_id_get(NULL, &id_count);
 		if (id_count == 0U) {
@@ -292,11 +317,23 @@ static void uwb_tag_ble_init_identity(void)
 	uint16_t code = (uint16_t)(((folded >> 16) ^ folded) & 0xFFFFU);
 	int len;
 
+	k_mutex_lock(&ble_mutex, K_FOREVER);
+	if (runtime_settings_record_loaded && runtime_settings_record.valid &&
+	    runtime_settings_record.identity_code != 0U) {
+		code = runtime_settings_record.identity_code;
+	}
 	ble_identity_code = code;
 	ble_tag_id = (uint8_t)(code & 0xFFU);
 	adv_mfg_token[3] = ble_tag_id;
 	adv_mfg_token[4] = (uint8_t)(code & 0xFFU);
 	adv_mfg_token[5] = (uint8_t)((code >> 8) & 0xFFU);
+	if (active_runtime_params.identity_code == 0U) {
+		active_runtime_params.identity_code = code;
+	}
+	if (active_runtime_params.logical_tag_id == 0U) {
+		active_runtime_params.logical_tag_id = ble_tag_id;
+	}
+	k_mutex_unlock(&ble_mutex);
 	len = snprintk(ble_device_name, sizeof(ble_device_name), "BS%04X", code);
 	if (len < 0) {
 		memcpy(ble_device_name, "BS0000", sizeof("BS0000"));
@@ -318,14 +355,139 @@ uint8_t uwb_tag_ble_tag_id(void)
 	return ble_tag_id;
 }
 
+const char *uwb_tag_ble_device_name(void)
+{
+	return ble_device_name;
+}
+
+static void uwb_tag_ble_runtime_params_reset_locked(void)
+{
+	memset(&active_runtime_params, 0, sizeof(active_runtime_params));
+	active_runtime_params.identity_code = ble_identity_code;
+	active_runtime_params.logical_tag_id =
+		(ble_identity_code != 0U) ? (uint8_t)(ble_identity_code & 0xFFU) :
+					    ble_tag_id;
+	active_runtime_params.slot_source = UWB_TAG_SLOT_SOURCE_BUILD;
+	active_runtime_params.positioning_mode =
+		UWB_TAG_POSITIONING_MODE_DYNAMIC;
+	active_runtime_params.anchor_selection_mode =
+		UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
+	active_runtime_params.tdma.enabled = (APP_TAG_TDMA_ENABLE != 0U);
+	active_runtime_params.tdma.slot_index = APP_TAG_TDMA_SLOT_INDEX;
+	active_runtime_params.tdma.slot_count = APP_TAG_TDMA_SLOT_COUNT;
+	active_runtime_params.tdma.slot_period_ms = APP_TAG_TDMA_SLOT_PERIOD_MS;
+	active_runtime_params.tdma.slot_active_ms = APP_TAG_TDMA_SLOT_ACTIVE_MS;
+	active_runtime_params.tdma.epoch_ms = 0U;
+	active_runtime_params.tdma.sync_local_ms = 0U;
+	active_runtime_params.tdma.epoch_valid = false;
+	active_runtime_params.tdma.generation = 0U;
+}
+
+static void uwb_tag_ble_runtime_params_apply_settings_locked(void)
+{
+	uwb_tag_ble_runtime_params_reset_locked();
+	if (!runtime_settings_record_loaded || !runtime_settings_record.valid) {
+		return;
+	}
+
+	if (runtime_settings_record.identity_code != 0U) {
+		active_runtime_params.identity_code =
+			runtime_settings_record.identity_code;
+	}
+	if (runtime_settings_record.logical_tag_id != 0U) {
+		active_runtime_params.logical_tag_id =
+			runtime_settings_record.logical_tag_id;
+	}
+
+	active_runtime_params.positioning_mode =
+		runtime_settings_record.positioning_mode;
+	active_runtime_params.anchor_selection_mode =
+		runtime_settings_record.anchor_selection_mode;
+	active_runtime_params.fixed_anchor_count =
+		MIN(runtime_settings_record.fixed_anchor_count,
+		    UWB_TAG_FIXED_ANCHOR_MAX);
+	memcpy(active_runtime_params.fixed_anchor_ids,
+	       runtime_settings_record.fixed_anchor_ids,
+	       sizeof(active_runtime_params.fixed_anchor_ids));
+
+	if (runtime_settings_record.slot_count != 0U &&
+	    runtime_settings_record.slot_period_ms != 0U &&
+	    runtime_settings_record.slot_active_ms != 0U) {
+		active_runtime_params.slot_source = UWB_TAG_SLOT_SOURCE_SETTINGS;
+		active_runtime_params.tdma.enabled = true;
+		active_runtime_params.tdma.slot_index =
+			runtime_settings_record.slot_index;
+		active_runtime_params.tdma.slot_count =
+			runtime_settings_record.slot_count;
+		active_runtime_params.tdma.slot_period_ms =
+			runtime_settings_record.slot_period_ms;
+		active_runtime_params.tdma.slot_active_ms =
+			runtime_settings_record.slot_active_ms;
+	}
+}
+
+bool uwb_tag_ble_runtime_config_get(struct uwb_tag_runtime_params *params)
+{
+	if (params == NULL) {
+		return false;
+	}
+
+	k_mutex_lock(&ble_mutex, K_FOREVER);
+	*params = active_runtime_params;
+	k_mutex_unlock(&ble_mutex);
+	return true;
+}
+
+int uwb_tag_ble_runtime_config_store(const struct uwb_tag_runtime_params *params)
+{
+	struct uwb_tag_ble_settings_record record = { 0 };
+	int err = 0;
+
+	if (params == NULL) {
+		return -EINVAL;
+	}
+
+	record.valid = 1U;
+	record.logical_tag_id = params->logical_tag_id;
+	record.positioning_mode = params->positioning_mode;
+	record.anchor_selection_mode = params->anchor_selection_mode;
+	record.fixed_anchor_count =
+		MIN(params->fixed_anchor_count, UWB_TAG_FIXED_ANCHOR_MAX);
+	memcpy(record.fixed_anchor_ids, params->fixed_anchor_ids,
+	       sizeof(record.fixed_anchor_ids));
+	record.slot_index = params->tdma.slot_index;
+	record.slot_count = params->tdma.slot_count;
+	record.slot_period_ms = params->tdma.slot_period_ms;
+	record.slot_active_ms = params->tdma.slot_active_ms;
+	record.identity_code = params->identity_code;
+
+	k_mutex_lock(&ble_mutex, K_FOREVER);
+	runtime_settings_record = record;
+	runtime_settings_record_loaded = true;
+	active_runtime_params = *params;
+	k_mutex_unlock(&ble_mutex);
+
+	if (IS_ENABLED(CONFIG_SETTINGS)) {
+		err = settings_save_one(UWB_TAG_BLE_SETTINGS_SUBTREE "/"
+					UWB_TAG_BLE_SETTINGS_CONFIG_KEY,
+					&record, sizeof(record));
+		if (err) {
+			printk("Tag BLE runtime config save skipped/failed: %d\n", err);
+		}
+	}
+
+	return 0;
+}
+
 bool uwb_tag_ble_tdma_slot_override_get(uint8_t *slot_index)
 {
 	bool valid;
 
 	k_mutex_lock(&ble_mutex, K_FOREVER);
-	valid = tdma_slot_record_loaded && tdma_slot_record.valid;
+	valid = active_runtime_params.tdma.enabled &&
+		active_runtime_params.tdma.slot_count != 0U;
 	if (valid && slot_index != NULL) {
-		*slot_index = tdma_slot_record.slot_index;
+		*slot_index = active_runtime_params.tdma.slot_index;
 	}
 	k_mutex_unlock(&ble_mutex);
 
@@ -334,24 +496,156 @@ bool uwb_tag_ble_tdma_slot_override_get(uint8_t *slot_index)
 
 int uwb_tag_ble_tdma_slot_override_store(uint8_t slot_index)
 {
-	struct uwb_tag_ble_tdma_slot_record record;
-	int err = 0;
+	struct uwb_tag_runtime_params params;
 
-	k_mutex_lock(&ble_mutex, K_FOREVER);
-	tdma_slot_record.valid = 1U;
-	tdma_slot_record.slot_index = slot_index;
-	tdma_slot_record_loaded = true;
-	record = tdma_slot_record;
-	k_mutex_unlock(&ble_mutex);
-
-	if (IS_ENABLED(CONFIG_SETTINGS)) {
-		err = settings_save_one(UWB_TAG_BLE_SETTINGS_SUBTREE "/"
-					UWB_TAG_BLE_SETTINGS_TDMA_SLOT_KEY,
-					&record, sizeof(record));
-		if (err) {
-			printk("Tag BLE TDMA slot save skipped/failed: %d\n", err);
-		}
+	(void)uwb_tag_ble_runtime_config_get(&params);
+	params.slot_source = UWB_TAG_SLOT_SOURCE_SETTINGS;
+	params.tdma.enabled = true;
+	params.tdma.slot_index = slot_index;
+	if (params.tdma.slot_count == 0U) {
+		params.tdma.slot_count = APP_TAG_TDMA_SLOT_COUNT;
 	}
+	if (params.tdma.slot_period_ms == 0U) {
+		params.tdma.slot_period_ms = APP_TAG_TDMA_SLOT_PERIOD_MS;
+	}
+	if (params.tdma.slot_active_ms == 0U) {
+		params.tdma.slot_active_ms = APP_TAG_TDMA_SLOT_ACTIVE_MS;
+	}
+
+	return uwb_tag_ble_runtime_config_store(&params);
+}
+
+static const char *uwb_tag_ble_slot_source_label(uint8_t slot_source)
+{
+	switch (slot_source) {
+	case UWB_TAG_SLOT_SOURCE_MASTER:
+		return "MASTER";
+	case UWB_TAG_SLOT_SOURCE_SETTINGS:
+		return "SETTINGS";
+	default:
+		return "BUILD";
+	}
+}
+
+static bool uwb_tag_ble_parse_u32_field(const char *cmd, const char *key,
+					uint32_t *value_out)
+{
+	const char *pos;
+	char *end = NULL;
+	unsigned long value;
+
+	if (cmd == NULL || key == NULL || value_out == NULL) {
+		return false;
+	}
+
+	pos = strstr(cmd, key);
+	if (pos == NULL) {
+		return false;
+	}
+
+	pos += strlen(key);
+	value = strtoul(pos, &end, 10);
+	if (end == pos) {
+		return false;
+	}
+
+	*value_out = (uint32_t)value;
+	return true;
+}
+
+static size_t uwb_tag_ble_parse_fixed_anchor_list(const char *cmd,
+						  uint8_t *anchors,
+						  size_t max_count)
+{
+	const char *pos;
+	size_t count = 0U;
+
+	if (cmd == NULL || anchors == NULL || max_count == 0U) {
+		return 0U;
+	}
+
+	pos = strstr(cmd, "FIXED=");
+	if (pos == NULL) {
+		return 0U;
+	}
+
+	pos += strlen("FIXED=");
+	while (*pos != '\0' && count < max_count) {
+		char *end = NULL;
+		unsigned long value = strtoul(pos, &end, 10);
+
+		if (end == pos || value > UINT8_MAX) {
+			break;
+		}
+
+		anchors[count++] = (uint8_t)value;
+		if (*end != ',') {
+			break;
+		}
+		pos = end + 1;
+	}
+
+	return count;
+}
+
+static int uwb_tag_ble_parse_cfg_command(
+	const char *cmd,
+	struct uwb_tag_runtime_params *params)
+{
+	uint32_t tag_id = 0U;
+	uint32_t slot = 0U;
+	uint32_t count = 0U;
+	uint32_t period = 0U;
+	uint32_t active = 0U;
+	uint32_t epoch = 0U;
+	uint32_t generation = 0U;
+	uint32_t positioning_mode = UWB_TAG_POSITIONING_MODE_DYNAMIC;
+	uint32_t anchor_mode = UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
+	uint8_t fixed_anchor_ids[UWB_TAG_FIXED_ANCHOR_MAX] = { 0U };
+	size_t fixed_count;
+
+	if (cmd == NULL || params == NULL) {
+		return -EINVAL;
+	}
+
+	if (!uwb_tag_ble_parse_u32_field(cmd, "TAG=", &tag_id) ||
+	    !uwb_tag_ble_parse_u32_field(cmd, "SLOT=", &slot) ||
+	    !uwb_tag_ble_parse_u32_field(cmd, "COUNT=", &count) ||
+	    !uwb_tag_ble_parse_u32_field(cmd, "PERIOD=", &period) ||
+	    !uwb_tag_ble_parse_u32_field(cmd, "ACTIVE=", &active) ||
+	    !uwb_tag_ble_parse_u32_field(cmd, "EPOCH=", &epoch)) {
+		return -EINVAL;
+	}
+
+	(void)uwb_tag_ble_parse_u32_field(cmd, "GEN=", &generation);
+	(void)uwb_tag_ble_parse_u32_field(cmd, "PMODE=", &positioning_mode);
+	(void)uwb_tag_ble_parse_u32_field(cmd, "AMODE=", &anchor_mode);
+	fixed_count = uwb_tag_ble_parse_fixed_anchor_list(cmd, fixed_anchor_ids,
+							  ARRAY_SIZE(fixed_anchor_ids));
+
+	if (tag_id >= UWB_MAX_TAGS || slot >= UINT8_MAX || count == 0U ||
+	    count > UINT8_MAX || period == 0U || period > UINT16_MAX ||
+	    active == 0U || active > UINT16_MAX || active > period) {
+		return -ERANGE;
+	}
+
+	(void)uwb_tag_ble_runtime_config_get(params);
+	params->logical_tag_id = (uint8_t)tag_id;
+	params->slot_source = UWB_TAG_SLOT_SOURCE_MASTER;
+	params->positioning_mode = (uint8_t)positioning_mode;
+	params->anchor_selection_mode = (uint8_t)anchor_mode;
+	params->fixed_anchor_count = MIN(fixed_count, UWB_TAG_FIXED_ANCHOR_MAX);
+	memset(params->fixed_anchor_ids, 0, sizeof(params->fixed_anchor_ids));
+	memcpy(params->fixed_anchor_ids, fixed_anchor_ids,
+	       sizeof(fixed_anchor_ids));
+	params->tdma.enabled = true;
+	params->tdma.slot_index = (uint8_t)slot;
+	params->tdma.slot_count = (uint8_t)count;
+	params->tdma.slot_period_ms = (uint16_t)period;
+	params->tdma.slot_active_ms = (uint16_t)active;
+	params->tdma.epoch_ms = epoch;
+	params->tdma.epoch_valid = true;
+	params->tdma.generation = (uint8_t)generation;
 
 	return 0;
 }
@@ -676,9 +970,25 @@ static void uwb_tag_ble_tx_thread_entry(void *arg1, void *arg2, void *arg3)
 		k_mutex_unlock(&ble_mutex);
 
 		if (active_conns > 0U) {
-			err = bt_nus_send(NULL, item->payload, item->len);
+			err = -EAGAIN;
+			for (uint8_t attempt = 0U; attempt < UWB_TAG_BLE_TX_RETRY_MAX; ++attempt) {
+				err = bt_nus_send(NULL, item->payload, item->len);
+				if (err == 0 || err == -ENOTCONN) {
+					break;
+				}
+				if (err == -ENOMEM || err == -EAGAIN || err == -EBUSY) {
+					k_msleep(UWB_TAG_BLE_TX_RETRY_DELAY_MS);
+					continue;
+				}
+				break;
+			}
 			if (err && err != -ENOTCONN) {
-				printk("Tag BLE notify failed: %d\n", err);
+				ble_tx_drop_count++;
+				if ((ble_tx_drop_count % 50U) == 1U) {
+					printk("Tag BLE notify failed err=%d drops=%u\n",
+					       err,
+					       (unsigned int)ble_tx_drop_count);
+				}
 			}
 		}
 
@@ -773,14 +1083,53 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 	}
 
 	if (strcmp(cmd, "TDMA_STATUS") == 0) {
-		char resp[64];
-		uint8_t slot = 0U;
-		bool override_valid = uwb_tag_ble_tdma_slot_override_get(&slot);
+		char resp[128];
+		struct uwb_tag_runtime_params params;
 
-		snprintk(resp, sizeof(resp), "TDMA_SLOT=%u/%u SOURCE=%s",
-			 (unsigned int)slot,
-			 (unsigned int)APP_TAG_TDMA_SLOT_COUNT,
-			 override_valid ? "OVERRIDE" : "AUTO");
+		(void)uwb_tag_ble_runtime_config_get(&params);
+		snprintk(resp, sizeof(resp),
+			 "TDMA_SLOT=%u/%u SOURCE=%s PERIOD=%u ACTIVE=%u GEN=%u",
+			 (unsigned int)params.tdma.slot_index,
+			 (unsigned int)params.tdma.slot_count,
+			 uwb_tag_ble_slot_source_label(params.slot_source),
+			 (unsigned int)params.tdma.slot_period_ms,
+			 (unsigned int)params.tdma.slot_active_ms,
+			 (unsigned int)params.tdma.generation);
+		uwb_tag_ble_send_text(resp);
+		return;
+	}
+
+	if (strcmp(cmd, "CFG_STATUS") == 0) {
+		char resp[192];
+		struct uwb_tag_runtime_params params;
+		char fixed_buf[32];
+		size_t pos = 0U;
+
+		(void)uwb_tag_ble_runtime_config_get(&params);
+		fixed_buf[0] = '\0';
+		for (size_t i = 0U; i < params.fixed_anchor_count &&
+				   pos + 4U < sizeof(fixed_buf);
+		     ++i) {
+			pos += (size_t)snprintk(fixed_buf + pos,
+						sizeof(fixed_buf) - pos,
+						"%s%u",
+						(i == 0U) ? "" : ",",
+						(unsigned int)params.fixed_anchor_ids[i]);
+		}
+		snprintk(resp, sizeof(resp),
+			 "CFG tag=%u bs=BS%04X slot=%u/%u src=%s period=%u active=%u epoch=%lu gen=%u pmode=%u amode=%u fixed=%s",
+			 (unsigned int)params.logical_tag_id,
+			 (unsigned int)params.identity_code,
+			 (unsigned int)params.tdma.slot_index,
+			 (unsigned int)params.tdma.slot_count,
+			 uwb_tag_ble_slot_source_label(params.slot_source),
+			 (unsigned int)params.tdma.slot_period_ms,
+			 (unsigned int)params.tdma.slot_active_ms,
+			 (unsigned long)params.tdma.epoch_ms,
+			 (unsigned int)params.tdma.generation,
+			 (unsigned int)params.positioning_mode,
+			 (unsigned int)params.anchor_selection_mode,
+			 fixed_buf[0] != '\0' ? fixed_buf : "-");
 		uwb_tag_ble_send_text(resp);
 		return;
 	}
@@ -826,11 +1175,44 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		return;
 	}
 
+	if (strncmp(cmd, "CFG ", 4) == 0) {
+		struct uwb_tag_runtime_params params;
+		char resp[192];
+		int parse_err;
+		int live_err;
+		int store_err;
+
+		parse_err = uwb_tag_ble_parse_cfg_command(cmd, &params);
+		if (parse_err) {
+			uwb_tag_ble_send_text("CFG_BAD");
+			return;
+		}
+
+		store_err = uwb_tag_ble_runtime_config_store(&params);
+		live_err = ss_twr_init_runtime_configure(&params);
+		if (store_err) {
+			uwb_tag_ble_send_text("CFG_SAVE_FAIL");
+			return;
+		}
+
+		snprintk(resp, sizeof(resp),
+			 "CFG_OK TAG=%u SLOT=%u/%u PERIOD=%u ACTIVE=%u GEN=%u LIVE=%u",
+			 (unsigned int)params.logical_tag_id,
+			 (unsigned int)params.tdma.slot_index,
+			 (unsigned int)params.tdma.slot_count,
+			 (unsigned int)params.tdma.slot_period_ms,
+			 (unsigned int)params.tdma.slot_active_ms,
+			 (unsigned int)params.tdma.generation,
+			 (unsigned int)((live_err == 0) ? 1U : 0U));
+		uwb_tag_ble_send_text(resp);
+		return;
+	}
+
 	if (strcmp(cmd, "HELP") == 0) {
 #if APP_TAG_BLE_OTA_ENABLE
-		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|TDMA_SET <slot>|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|CFG_STATUS|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<n> AMODE=<n> FIXED=a,b,c,d|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
 #else
-		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|TDMA_SET <slot>|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|CFG_STATUS|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<n> AMODE=<n> FIXED=a,b,c,d|REBOOT|HELP");
 #endif
 		return;
 	}
@@ -907,6 +1289,9 @@ bool uwb_tag_ble_ota_active(void)
 int uwb_tag_ble_init(void)
 {
 	k_mutex_init(&ble_mutex);
+	k_mutex_lock(&ble_mutex, K_FOREVER);
+	uwb_tag_ble_runtime_params_reset_locked();
+	k_mutex_unlock(&ble_mutex);
 	k_thread_create(&ble_tx_thread,
 		       ble_tx_thread_stack,
 		       K_THREAD_STACK_SIZEOF(ble_tx_thread_stack),
