@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'features/autopositioning_page.dart';
+import 'features/connection_page.dart';
 import 'features/dashboard_page.dart';
 import 'features/live_view_page.dart';
 import 'features/sessions_page.dart';
@@ -32,7 +33,7 @@ class BioSpurHomeShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('BioSpur UWB'),
@@ -40,6 +41,7 @@ class BioSpurHomeShell extends StatelessWidget {
             isScrollable: true,
             tabs: [
               Tab(text: 'Dashboard'),
+              Tab(text: 'Connection'),
               Tab(text: 'Live View'),
               Tab(text: 'Sessions'),
               Tab(text: '3D View'),
@@ -50,6 +52,7 @@ class BioSpurHomeShell extends StatelessWidget {
         body: const TabBarView(
           children: [
             DashboardPage(),
+            ConnectionPage(),
             LiveViewPage(),
             SessionsPage(),
             ThreeDViewPage(),

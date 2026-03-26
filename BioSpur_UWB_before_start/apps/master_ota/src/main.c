@@ -47,6 +47,10 @@
 #define APP_MASTER_OTA_TARGET_NAME ""
 #endif
 
+#ifndef APP_MASTER_OTA_TARGET_NAME_PREFIX
+#define APP_MASTER_OTA_TARGET_NAME_PREFIX "BS"
+#endif
+
 #ifndef APP_MASTER_OTA_TARGET_TOKEN_ID
 #define APP_MASTER_OTA_TARGET_TOKEN_ID -1
 #endif
@@ -141,14 +145,26 @@ static void ad_extract_name(struct net_buf_simple *ad, char *name_buf, size_t le
 static bool ad_name_matches_target(struct net_buf_simple *ad)
 {
 	char name[OTA_NAME_BUF_LEN];
+	size_t prefix_len = strlen(APP_MASTER_OTA_TARGET_NAME_PREFIX);
 
-	if (APP_MASTER_OTA_TARGET_NAME[0] == '\0') {
+	if (APP_MASTER_OTA_TARGET_NAME[0] == '\0' &&
+	    APP_MASTER_OTA_TARGET_NAME_PREFIX[0] == '\0') {
 		return true;
 	}
 
 	ad_extract_name(ad, name, sizeof(name));
 	if (name[0] == '\0') {
 		return false;
+	}
+
+	if (APP_MASTER_OTA_TARGET_NAME[0] != '\0' &&
+	    strcmp(name, APP_MASTER_OTA_TARGET_NAME) == 0) {
+		return true;
+	}
+
+	if (APP_MASTER_OTA_TARGET_NAME_PREFIX[0] != '\0' &&
+	    strncmp(name, APP_MASTER_OTA_TARGET_NAME_PREFIX, prefix_len) == 0) {
+		return true;
 	}
 
 	return strcmp(name, APP_MASTER_OTA_TARGET_NAME) == 0;
@@ -770,19 +786,23 @@ static int ota_upload_image(struct bt_dfu_smp *smp)
 	size_t remaining = tag_ota_image_len;
 	size_t stall_count = 0U;
 	bool first_chunk = true;
+	unsigned int last_reported_percent = 0U;
 	struct smp_packet pkt;
 	struct ota_cmd_result result;
 	int rc;
 
 	printk("OTA upload starting: image_len=%u bytes\n", (unsigned int)tag_ota_image_len);
+	printk("OTA upload progress: 0%% (0/%u bytes)\n", (unsigned int)tag_ota_image_len);
 	master_leds_set(false, true, true, false);
 
 	while (remaining > 0U) {
 		size_t chunk_len = MIN(remaining, OTA_CHUNK_SIZE);
 		size_t payload_len;
-		unsigned int chunk_index = (unsigned int)(offset / OTA_CHUNK_SIZE);
+		size_t progress_bytes = offset + chunk_len;
+		unsigned int percent = (unsigned int)((progress_bytes * 100U) /
+						      tag_ota_image_len);
 		size_t expected_next;
-		bool log_chunk;
+		bool log_progress;
 
 		memset(&pkt, 0, sizeof(pkt));
 		payload_len = ota_build_upload_packet(tag_ota_image, tag_ota_image_len,
@@ -794,11 +814,13 @@ static int ota_upload_image(struct bt_dfu_smp *smp)
 			return -EIO;
 		}
 
-		log_chunk = first_chunk || (chunk_index % 64U == 0U) || (remaining <= OTA_CHUNK_SIZE);
-		if (log_chunk) {
-			printk("OTA upload chunk %u: off=%u len=%u first=%d\n",
-			       chunk_index, (unsigned int)offset, (unsigned int)chunk_len,
-			       first_chunk);
+		log_progress = first_chunk || (percent != last_reported_percent) ||
+			       (remaining <= OTA_CHUNK_SIZE);
+		if (log_progress) {
+			printk("OTA upload progress: %u%% (%u/%u bytes)\n",
+			       percent, (unsigned int)progress_bytes,
+			       (unsigned int)tag_ota_image_len);
+			last_reported_percent = percent;
 		}
 		if (first_chunk) {
 #if OTA_DEBUG_VERBOSE
@@ -818,7 +840,7 @@ static int ota_upload_image(struct bt_dfu_smp *smp)
 		}
 
 		expected_next = offset + chunk_len;
-		if (result.off_found && result.off != expected_next && log_chunk) {
+		if (result.off_found && result.off != expected_next && log_progress) {
 			printk("OTA upload offset mismatch: expected %u got %u\n",
 			       (unsigned int)expected_next, (unsigned int)result.off);
 		}
@@ -1049,10 +1071,8 @@ static void ota_thread_fn(void *a, void *b, void *c)
 
 		ota_status = ota_schedule_pending(&dfu_smp);
 		if (ota_status) {
-			printk("OTA schedule failed: %d\n", ota_status);
-			master_leds_set(false, true, false, true);
-			ota_done = true;
-			continue;
+			printk("OTA schedule warning: %d\n", ota_status);
+			printk("OTA continuing to remote reset despite schedule warning\n");
 		}
 
 		ota_status = ota_remote_reset(&dfu_smp);

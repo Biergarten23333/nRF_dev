@@ -13,7 +13,12 @@ Helper scripts:
 - `scripts/reset_then_read_serial.py <snr> <serial_port> --duration 8`
 - `scripts/capture_tag_session.py <snr> <serial_port> --duration 120`
 - `scripts/build_tag_usb.sh <tag_id> [build_dir]`
-- `scripts/build_tag_ble_motion.sh <tag_id> <slot_index> <slot_count> [build_dir]`
+- `scripts/build_tag_ble_motion.sh <tag_id> [slot_index=auto] [slot_count=10] [build_dir]`
+- `scripts/build_tag115_ble_motion.sh [slot_count=10] [build_dir]`
+- `scripts/build_tag113_ble_motion.sh [slot_count=10] [build_dir]`
+- `scripts/build_tag127_ble_motion.sh [slot_count=10] [build_dir]`
+- `scripts/build_tag886_ble_motion.sh [slot_count=10] [build_dir]`
+- `scripts/build_master_control.sh [build_dir]`
 - `scripts/recalibrate_anchor_layout_with_ref115.py`
 - `scripts/run_ground_truth_point.py <snr> <serial_port> --label ... --truth-x ... --truth-y ... --truth-z ...`
 - `scripts/analyze_ground_truth_session.py <session_dir> --label ... --truth-x ... --truth-y ... --truth-z ...`
@@ -33,7 +38,16 @@ Build note:
 - For per-anchor images that depend on `APP_ANCHOR_*` CMake cache variables, use `west build ... --no-sysbuild`.
 - If `sysbuild` is used, the outer cache may show the requested values while the inner anchor app still uses its defaults. That produces a board that boots with the wrong `anchor_id/master` role.
 - Pure USB serial tag builds live in `apps/tag_usb/` and are built with `scripts/build_tag_usb.sh`; that variant disables BLE, OTA, and MCUboot while keeping the UWB path and UART console.
-- Motion BLE tag builds live in `apps/tag_ble_lite/` and are built with `scripts/build_tag_ble_motion.sh`; that variant keeps BLE/NUS, uses a compact `TagSummary`, bundles about 3 records per packet with headroom, and is intended for the rotating BLE motion tag such as `760186127`.
+- Motion BLE tag builds live in `apps/tag_ble_lite/` and are built with `scripts/build_tag_ble_motion.sh`; that variant keeps BLE/NUS, keeps OTA enabled, uses a compact `TagSummary`, bundles about 3 records per packet with headroom, and auto-generates a `BSxxxx` BLE identity at runtime instead of relying on manual `Tag_rot_*` names. The TDMA slot is now derived automatically from the tag identity at boot, so you do not need to hand-pick a slot index.
+- For the motion BLE family, prefer the explicit wrappers:
+  - `scripts/build_tag115_ble_motion.sh` for the Ref115 motion/OTA test board
+  - `scripts/build_tag113_ble_motion.sh` for the first motion tag board
+  - `scripts/build_tag127_ble_motion.sh` for the second motion tag board
+  - `scripts/build_tag886_ble_motion.sh` for the new motion tag board
+  - all wrappers advertise as `BS*` at runtime, so the nRF52840 central can auto-discover them
+  - the wrappers keep OTA enabled and let the tag pick its own slot from the runtime `BSxxxx` identity
+- The unified nRF52840 control image lives in `apps/master_control/` and is built with `scripts/build_master_control.sh`; it starts in receiver mode by default and uses `BTN1` / `BTN2` to switch into OTA mode.
+- `760186115` is the Ref115 board; for the BLE/OTA test family use `build-tag115_ble_motion.sh`, while the static reference workflow remains available separately through `build-ref115-monitor-4`
 
 Examples:
 
@@ -66,6 +80,22 @@ Suggested flash commands:
 ```bash
 scripts/reset_then_flash.sh 760185886 build-tag-slot0/zephyr/zephyr.hex
 scripts/reset_then_flash.sh 760186115 build-tag-slot1/zephyr/zephyr.hex
+```
+
+For the motion BLE pair:
+
+```bash
+scripts/build_tag113_ble_motion.sh
+scripts/build_tag127_ble_motion.sh
+scripts/reset_then_flash.sh 760186113 build-tag-ble-motion-tag113-auto/zephyr/zephyr.hex
+scripts/reset_then_flash.sh 760186127 build-tag-ble-motion-tag127-auto/zephyr/zephyr.hex
+```
+
+For the unified 52840 master:
+
+```bash
+bash scripts/build_master_control.sh
+scripts/reset_then_flash.sh 683234364 build-master-control/zephyr/zephyr.hex
 ```
 
 Suggested serial read commands:

@@ -5,9 +5,15 @@
 #include <stdint.h>
 
 #define UWB_MAX_ANCHORS 8U
-#define UWB_MAX_TAGS 10U
+#define UWB_MAX_TAGS 256U
 
-#define UWB_PAN_ID 0xDECAU
+#ifndef APP_UWB_CHANNEL
+#define APP_UWB_CHANNEL 5U
+#endif
+
+#ifndef APP_UWB_PAN_ID
+#define APP_UWB_PAN_ID 0xDECAU
+#endif
 
 #define UWB_FRAME_CTRL_LOW 0x41U
 #define UWB_FRAME_CTRL_HIGH 0x88U

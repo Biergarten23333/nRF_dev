@@ -33,6 +33,11 @@ west build \
   -- \
   -DAPP_TAG_ID="$tag_logical_id"
 
+python3 scripts/write_build_source.py \
+  --build-dir "$build_dir" \
+  --source "scripts/build_tag_usb.sh" \
+  --command "$0 $*"
+
 echo
 echo "Built: $build_dir"
 echo "Hex:   $build_dir/zephyr/zephyr.hex"

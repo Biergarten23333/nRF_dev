@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <zephyr/bluetooth/bluetooth.h>
@@ -20,7 +21,12 @@
 #include <bluetooth/services/nus_client.h>
 
 #define MASTER_MAX_CONNECTIONS 5U
-#define TARGET_TAG_NAME_PREFIX "Tag_rot"
+#define MASTER_DISCOVERY_RETRY_DELAY_MS 1000U
+#define MASTER_DISCOVERY_RETRY_LIMIT 5U
+#define MASTER_TDMA_SLOT_COUNT_MAX 10U
+#ifndef APP_MASTER_TAG_NAME_PREFIX
+#define APP_MASTER_TAG_NAME_PREFIX "BS"
+#endif
 #define MASTER_NAME_BUF_LEN 32U
 #define BLE_SAMPLE_MAGIC0 0x42U
 #define BLE_SAMPLE_MAGIC1 0x50U
@@ -53,25 +59,36 @@ struct master_peer {
 	struct bt_gatt_exchange_params mtu_exchange_params;
 	bool connected;
 	bool ready;
+	bool connect_pending;
 	bool one_shot_sent;
 	bool ota_ready;
 	bool ota_active;
+	struct k_work_delayable discovery_retry_work;
+	uint8_t discovery_retry_attempts;
 	bt_addr_le_t addr;
 	bool addr_valid;
 	char adv_name[MASTER_NAME_BUF_LEN];
 	uint8_t tag_id;
 	bool tag_id_valid;
+	uint16_t bs_code;
+	bool bs_code_valid;
+	uint8_t tdma_slot;
+	bool tdma_slot_valid;
 };
 
 static struct master_peer peers[MASTER_MAX_CONNECTIONS];
 static int connecting_slot = -1;
 static uint8_t conn_count;
 static bool scan_running;
+static bool auto_connect_enabled = true;
 static bool leds_ready;
 static bool led_scan_state;
 static bool led_link_state;
 static bool led_ota_state;
 static bool led_error_state;
+static struct bt_gatt_dm_cb discovery_cb;
+static void start_scan(void);
+static void stop_scan(void);
 
 static void master_leds_apply(void)
 {
@@ -137,21 +154,6 @@ static int peer_index_from_nus(struct bt_nus_client *nus)
 	return -1;
 }
 
-static int peer_index_from_tag_id(uint8_t tag_id)
-{
-	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
-		if (!peers[i].tag_id_valid) {
-			continue;
-		}
-
-		if (peers[i].tag_id == tag_id) {
-			return (int)i;
-		}
-	}
-
-	return -1;
-}
-
 static void peer_clear(unsigned int idx, bool unref_conn)
 {
 	if (idx >= ARRAY_SIZE(peers)) {
@@ -162,16 +164,24 @@ static void peer_clear(unsigned int idx, bool unref_conn)
 		bt_conn_unref(peers[idx].conn);
 	}
 
+	(void)k_work_cancel_delayable(&peers[idx].discovery_retry_work);
+
 	peers[idx].conn = NULL;
 	peers[idx].connected = false;
 	peers[idx].ready = false;
+	peers[idx].connect_pending = false;
 	peers[idx].one_shot_sent = false;
 	peers[idx].ota_ready = false;
 	peers[idx].ota_active = false;
+	peers[idx].discovery_retry_attempts = 0U;
 	peers[idx].addr_valid = false;
 	peers[idx].adv_name[0] = '\0';
 	peers[idx].tag_id = 0U;
 	peers[idx].tag_id_valid = false;
+	peers[idx].bs_code = 0U;
+	peers[idx].bs_code_valid = false;
+	peers[idx].tdma_slot = 0U;
+	peers[idx].tdma_slot_valid = false;
 }
 
 static bool ble_payload_contains(const uint8_t *data, uint16_t len, const char *needle)
@@ -217,7 +227,7 @@ static bool ad_name_matches_target(struct net_buf_simple *ad)
 {
 	struct net_buf_simple copy = *ad;
 	char name[MASTER_NAME_BUF_LEN];
-	size_t prefix_len = strlen(TARGET_TAG_NAME_PREFIX);
+	size_t prefix_len = strlen(APP_MASTER_TAG_NAME_PREFIX);
 
 	memset(name, 0, sizeof(name));
 	bt_data_parse(&copy, scan_name_cb, name);
@@ -226,7 +236,7 @@ static bool ad_name_matches_target(struct net_buf_simple *ad)
 		return false;
 	}
 
-	return strncmp(name, TARGET_TAG_NAME_PREFIX, prefix_len) == 0;
+	return strncmp(name, APP_MASTER_TAG_NAME_PREFIX, prefix_len) == 0;
 }
 
 static bool scan_uuid128_cb(struct bt_data *data, void *user_data)
@@ -307,6 +317,24 @@ static bool scan_mfg_tag_id_cb(struct bt_data *data, void *user_data)
 	return true;
 }
 
+static bool scan_mfg_bs_code_cb(struct bt_data *data, void *user_data)
+{
+	uint16_t *bs_code = user_data;
+
+	if (data->type != BT_DATA_MANUFACTURER_DATA || data->data_len < 6U) {
+		return true;
+	}
+
+	if (data->data[0] == 0xff &&
+	    data->data[1] == 0xff &&
+	    data->data[2] == 'B') {
+		*bs_code = sys_get_le16(&data->data[4]);
+		return false;
+	}
+
+	return true;
+}
+
 static bool ad_has_biospur_token(struct net_buf_simple *ad)
 {
 	struct net_buf_simple copy = *ad;
@@ -330,31 +358,167 @@ static bool ad_get_biospur_tag_id(struct net_buf_simple *ad, uint8_t *tag_id)
 	return true;
 }
 
+static bool ad_get_biospur_bs_code(struct net_buf_simple *ad, uint16_t *bs_code)
+{
+	struct net_buf_simple copy = *ad;
+	uint16_t parsed = 0xFFFFU;
+
+	bt_data_parse(&copy, scan_mfg_bs_code_cb, &parsed);
+	if (parsed == 0xFFFFU) {
+		return false;
+	}
+
+	*bs_code = parsed;
+	return true;
+}
+
+static bool master_fixed_tdma_slot_for_bs_code(uint16_t bs_code,
+					       uint8_t *slot_index)
+{
+	if (slot_index == NULL) {
+		return false;
+	}
+
+	switch (bs_code) {
+	case 0x2DCEU:
+		*slot_index = 0U;
+		return true;
+	case 0xDC91U:
+		*slot_index = 1U;
+		return true;
+	case 0xF66FU:
+		*slot_index = 2U;
+		return true;
+	case 0x3121U:
+		*slot_index = 3U;
+		return true;
+	default:
+		return false;
+	}
+}
+
+static int master_send_tdma_slot(struct master_peer *peer, uint8_t slot_index)
+{
+	char cmd[24];
+	int err;
+
+	if (peer == NULL || !peer->ready || !peer->connected) {
+		return -EINVAL;
+	}
+
+	snprintk(cmd, sizeof(cmd), "TDMA_SET %u", (unsigned int)slot_index);
+	err = bt_nus_client_send(&peer->nus_client, (const uint8_t *)cmd, strlen(cmd));
+	if (err) {
+		printk("TDMA slot send failed[%d]: slot=%u err=%d\n",
+		       peer_index_from_nus(&peer->nus_client),
+		       (unsigned int)slot_index, err);
+		return err;
+	}
+
+	peer->tdma_slot = slot_index;
+	peer->tdma_slot_valid = true;
+	printk("TDMA slot assigned[%d]: bs=BS%04X slot=%u/%u\n",
+	       peer_index_from_nus(&peer->nus_client),
+	       (unsigned int)peer->bs_code,
+	       (unsigned int)slot_index,
+	       (unsigned int)MASTER_TDMA_SLOT_COUNT_MAX);
+	return 0;
+}
+
+static void master_rebalance_tdma_slots(void)
+{
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		uint8_t desired_slot = 0U;
+
+		if (!(peers[i].connected && peers[i].ready && peers[i].bs_code_valid)) {
+			continue;
+		}
+
+		if (!master_fixed_tdma_slot_for_bs_code(peers[i].bs_code,
+							&desired_slot)) {
+			continue;
+		}
+
+		if (desired_slot >= MASTER_TDMA_SLOT_COUNT_MAX) {
+			printk("TDMA slot allocation exhausted for bs=BS%04X\n",
+			       (unsigned int)peers[i].bs_code);
+			led_error_state = true;
+			continue;
+		}
+
+		if (peers[i].tdma_slot_valid && peers[i].tdma_slot == desired_slot) {
+			continue;
+		}
+
+		(void)master_send_tdma_slot(&peers[i], desired_slot);
+	}
+}
+
+static void master_try_connect_pending(void)
+{
+	int slot = -1;
+	int err;
+
+	if (!auto_connect_enabled || connecting_slot >= 0 ||
+	    conn_count >= MASTER_MAX_CONNECTIONS) {
+		return;
+	}
+
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		if (peers[i].connect_pending && peers[i].addr_valid &&
+		    peers[i].conn == NULL && !peers[i].connected) {
+			slot = (int)i;
+			break;
+		}
+	}
+
+	if (slot < 0) {
+		return;
+	}
+
+	connecting_slot = slot;
+	stop_scan();
+	err = bt_conn_le_create(&peers[slot].addr, BT_CONN_LE_CREATE_CONN,
+				&fast_conn_params, &peers[slot].conn);
+	if (err) {
+		printk("Create conn failed[%d]: %d\n", slot, err);
+		peer_clear((unsigned int)slot, false);
+		connecting_slot = -1;
+		start_scan();
+	}
+}
+
 static void scan_log_candidate(const struct bt_le_scan_recv_info *info,
 			       struct net_buf_simple *buf,
 			       bool name_match,
 			       bool dfu_match,
 			       bool token_match,
-			       uint8_t tag_id,
-			       bool tag_id_valid)
+			       uint16_t bs_code,
+			       bool bs_code_valid)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
 	char name[MASTER_NAME_BUF_LEN];
+	char bs_name[8];
 	struct net_buf_simple copy = *buf;
 
 	bt_addr_le_to_str(info->addr, addr, sizeof(addr));
 	memset(name, 0, sizeof(name));
 	bt_data_parse(&copy, scan_name_cb, name);
+	if (bs_code_valid) {
+		snprintk(bs_name, sizeof(bs_name), "BS%04X", bs_code);
+	} else {
+		strncpy(bs_name, "-", sizeof(bs_name) - 1U);
+		bs_name[sizeof(bs_name) - 1U] = '\0';
+	}
 
-	printk("SCAN hit: %s rssi=%d name=%s name=%u dfu=%u token=%u tag_id=%s%u props=0x%02x\n",
+	printk("SCAN hit: %s rssi=%d name=%s bs=%s name=%u dfu=%u token=%u props=0x%02x\n",
 	       addr,
 	       info->rssi,
 	       name[0] != '\0' ? name : "-",
+	       bs_name,
 	       name_match ? 1U : 0U,
 	       dfu_match ? 1U : 0U,
 	       token_match ? 1U : 0U,
-	       tag_id_valid ? "" : "-",
-	       tag_id_valid ? tag_id : 0U,
 	       info->adv_props);
 }
 
@@ -374,7 +538,7 @@ static void start_scan(void)
 
 	scan_running = true;
 	master_leds_refresh();
-	printk("Scanning for %s*\n", TARGET_TAG_NAME_PREFIX);
+	printk("Scanning for %s*\n", APP_MASTER_TAG_NAME_PREFIX);
 }
 
 static const char *sample_plan_label(uint8_t code)
@@ -514,6 +678,7 @@ static uint8_t ble_data_received(struct bt_nus_client *nus,
 				 const uint8_t *data, uint16_t len)
 {
 	int idx = peer_index_from_nus(nus);
+	char bs_name[8];
 	char payload[256];
 	size_t copy_len;
 
@@ -526,17 +691,42 @@ static uint8_t ble_data_received(struct bt_nus_client *nus,
 		payload[copy_len] = '\0';
 	}
 
-	printk("BLE[%d:%s:%s%u] notify: %s\n",
-	       idx,
-	       (idx >= 0 && peers[idx].adv_name[0] != '\0') ? peers[idx].adv_name : "-",
-	       (idx >= 0 && peers[idx].tag_id_valid) ? "" : "-",
-	       (idx >= 0 && peers[idx].tag_id_valid) ? peers[idx].tag_id : 0U,
-	       payload);
+	if (idx >= 0 && peers[idx].bs_code_valid) {
+		snprintk(bs_name, sizeof(bs_name), "BS%04X", peers[idx].bs_code);
+	} else {
+		strncpy(bs_name, "BS????", sizeof(bs_name) - 1U);
+		bs_name[sizeof(bs_name) - 1U] = '\0';
+	}
+
+	printk("%s notify: %s\n", bs_name, payload);
 
 	if (ble_payload_contains(data, len, "OTA_STATE=READY") ||
 	    ble_payload_contains(data, len, "OTA_READY") ||
 	    ble_payload_contains(data, len, "OTA_BEGIN_OK")) {
 		peers[idx].ota_ready = true;
+	}
+	if (ble_payload_contains(data, len, "TDMA_SET_OK")) {
+		uint8_t slot = 0U;
+		uint8_t live = 0U;
+
+		if (sscanf(payload, "TDMA_SET_OK SLOT=%hhu LIVE=%hhu", &slot, &live) >= 1) {
+			peers[idx].tdma_slot = slot;
+			peers[idx].tdma_slot_valid = true;
+			printk("TDMA slot confirmed[%d]: slot=%u live=%u\n",
+			       idx, (unsigned int)slot, (unsigned int)live);
+		}
+	}
+	if (ble_payload_contains(data, len, "TDMA_SLOT=")) {
+		uint8_t slot = 0U;
+		unsigned int slot_count = 0U;
+		char source[16] = {0};
+
+		if (sscanf(payload, "TDMA_SLOT=%hhu/%u SOURCE=%15s", &slot, &slot_count, source) >= 2) {
+			peers[idx].tdma_slot = slot;
+			peers[idx].tdma_slot_valid = true;
+			printk("TDMA status[%d]: slot=%u/%u source=%s\n",
+			       idx, (unsigned int)slot, slot_count, source);
+		}
 	}
 	if (ble_payload_contains(data, len, "OTA_STATE=ACTIVE")) {
 		peers[idx].ota_active = true;
@@ -612,6 +802,7 @@ static void discovery_complete(struct bt_gatt_dm *dm, void *context)
 	}
 
 	peer->ready = true;
+	peer->discovery_retry_attempts = 0U;
 	printk("BLE[%d] link ready\n", idx);
 	master_leds_refresh();
 
@@ -629,19 +820,69 @@ static void discovery_complete(struct bt_gatt_dm *dm, void *context)
 		}
 	}
 
+	master_rebalance_tdma_slots();
+	master_try_connect_pending();
+	if (conn_count < MASTER_MAX_CONNECTIONS) {
+		start_scan();
+	}
+
 	bt_gatt_dm_data_release(dm);
+}
+
+static void discovery_retry_work_fn(struct k_work *work)
+{
+	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
+	struct master_peer *peer = CONTAINER_OF(dwork, struct master_peer,
+						discovery_retry_work);
+	int idx = (int)(peer - peers);
+	int err;
+
+	if (peer->conn == NULL || !peer->connected || peer->ready) {
+		return;
+	}
+
+	if (peer->discovery_retry_attempts >= MASTER_DISCOVERY_RETRY_LIMIT) {
+		printk("NUS discovery retry exhausted[%d]\n", idx);
+		return;
+	}
+
+	peer->discovery_retry_attempts++;
+	err = bt_gatt_dm_start(peer->conn, BT_UUID_NUS_SERVICE, &discovery_cb, peer);
+	if (err) {
+		printk("Could not start GATT discovery[%d] retry %u: %d\n",
+		       idx, peer->discovery_retry_attempts, err);
+		(void)k_work_schedule(&peer->discovery_retry_work,
+				      K_MSEC(MASTER_DISCOVERY_RETRY_DELAY_MS));
+	} else {
+		printk("NUS discovery retry armed[%d] attempt=%u\n",
+		       idx, peer->discovery_retry_attempts);
+	}
 }
 
 static void discovery_service_not_found(struct bt_conn *conn, void *context)
 {
-	ARG_UNUSED(context);
-	printk("NUS service not found[%d]\n", peer_index_from_conn(conn));
+	struct master_peer *peer = context;
+	int idx = peer_index_from_conn(conn);
+
+	printk("NUS service not found[%d]\n", idx);
+
+	if (peer != NULL && peer->connected && !peer->ready) {
+		(void)k_work_schedule(&peer->discovery_retry_work,
+				      K_MSEC(MASTER_DISCOVERY_RETRY_DELAY_MS));
+	}
 }
 
 static void discovery_error(struct bt_conn *conn, int err, void *context)
 {
-	ARG_UNUSED(context);
-	printk("GATT discovery error[%d]: %d\n", peer_index_from_conn(conn), err);
+	struct master_peer *peer = context;
+	int idx = peer_index_from_conn(conn);
+
+	printk("GATT discovery error[%d]: %d\n", idx, err);
+
+	if (peer != NULL && peer->connected && !peer->ready) {
+		(void)k_work_schedule(&peer->discovery_retry_work,
+				      K_MSEC(MASTER_DISCOVERY_RETRY_DELAY_MS));
+	}
 }
 
 static struct bt_gatt_dm_cb discovery_cb = {
@@ -656,6 +897,10 @@ static void gatt_discover(struct bt_conn *conn, struct master_peer *peer)
 
 	if (err) {
 		printk("Could not start GATT discovery[%d]: %d\n", peer_index_from_conn(conn), err);
+		if (peer->connected && !peer->ready) {
+			(void)k_work_schedule(&peer->discovery_retry_work,
+					      K_MSEC(MASTER_DISCOVERY_RETRY_DELAY_MS));
+		}
 	}
 }
 
@@ -668,6 +913,8 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	bool token_match;
 	uint8_t tag_id = 0U;
 	bool tag_id_valid;
+	uint16_t bs_code = 0U;
+	bool bs_code_valid;
 	struct net_buf_simple name_copy = *buf;
 	char adv_name[MASTER_NAME_BUF_LEN];
 
@@ -679,21 +926,18 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	dfu_match = ad_has_dfu_smp_uuid(buf);
 	token_match = ad_has_biospur_token(buf);
 	tag_id_valid = ad_get_biospur_tag_id(buf, &tag_id);
+	bs_code_valid = ad_get_biospur_bs_code(buf, &bs_code);
 	memset(adv_name, 0, sizeof(adv_name));
 	bt_data_parse(&name_copy, scan_name_cb, adv_name);
 
-	if (!name_match && !dfu_match && !token_match) {
+	if (!bs_code_valid) {
 		return;
 	}
 
 	scan_log_candidate(info, buf, name_match, dfu_match, token_match,
-			  tag_id, tag_id_valid);
+			  bs_code, bs_code_valid);
 
 	if (peer_index_from_addr(info->addr) >= 0) {
-		return;
-	}
-
-	if (tag_id_valid && peer_index_from_tag_id(tag_id) >= 0) {
 		return;
 	}
 
@@ -719,19 +963,24 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 		strncpy(peers[slot].adv_name, adv_name, sizeof(peers[slot].adv_name) - 1U);
 		peers[slot].adv_name[sizeof(peers[slot].adv_name) - 1U] = '\0';
 	}
-	peers[slot].tag_id = tag_id;
-	peers[slot].tag_id_valid = tag_id_valid;
-	connecting_slot = slot;
+	peers[slot].tag_id = 0U;
+	peers[slot].tag_id_valid = false;
+	peers[slot].bs_code = bs_code;
+	peers[slot].bs_code_valid = bs_code_valid;
+	peers[slot].connect_pending = true;
 
-	stop_scan();
+	if (auto_connect_enabled) {
+		connecting_slot = slot;
+		stop_scan();
 
-	err = bt_conn_le_create(info->addr, BT_CONN_LE_CREATE_CONN,
-				&fast_conn_params, &peers[slot].conn);
-	if (err) {
-		printk("Create conn failed[%d]: %d\n", slot, err);
-		peer_clear((unsigned int)slot, false);
-		connecting_slot = -1;
-		start_scan();
+		err = bt_conn_le_create(info->addr, BT_CONN_LE_CREATE_CONN,
+					&fast_conn_params, &peers[slot].conn);
+		if (err) {
+			printk("Create conn failed[%d]: %d\n", slot, err);
+			peer_clear((unsigned int)slot, false);
+			connecting_slot = -1;
+			start_scan();
+		}
 	}
 }
 
@@ -742,6 +991,7 @@ static struct bt_le_scan_cb scan_callbacks = {
 static void connected(struct bt_conn *conn, uint8_t conn_err)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
+	char bs_name[8];
 	int idx = connecting_slot;
 	int err;
 
@@ -762,15 +1012,22 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 		return;
 	}
 
-	printk("Connected[%d]: %s name=%s tag_id=%s%u\n",
+	if (peers[idx].bs_code_valid) {
+		snprintk(bs_name, sizeof(bs_name), "BS%04X", peers[idx].bs_code);
+	} else {
+		strncpy(bs_name, "-", sizeof(bs_name) - 1U);
+		bs_name[sizeof(bs_name) - 1U] = '\0';
+	}
+
+	printk("Connected[%d]: %s name=%s bs=%s\n",
 	       idx,
 	       addr,
 	       peers[idx].adv_name[0] != '\0' ? peers[idx].adv_name : "-",
-	       peers[idx].tag_id_valid ? "" : "-",
-	       peers[idx].tag_id_valid ? peers[idx].tag_id : 0U);
+	       bs_name);
 	conn_count++;
 	connecting_slot = -1;
 	peers[idx].connected = true;
+	peers[idx].connect_pending = false;
 	master_leds_refresh();
 
 	peers[idx].mtu_exchange_params.func = exchange_func;
@@ -785,10 +1042,6 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 	printk("Conn param update request[%d] rc=%d\n", idx, err);
 
 	gatt_discover(conn, &peers[idx]);
-
-	if (conn_count < MASTER_MAX_CONNECTIONS) {
-		start_scan();
-	}
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
@@ -808,7 +1061,9 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	}
 
 	master_leds_refresh();
+	master_rebalance_tdma_slots();
 	start_scan();
+	master_try_connect_pending();
 }
 
 static void conn_param_updated(struct bt_conn *conn, uint16_t interval,
@@ -874,6 +1129,10 @@ int master_app_run(void)
 	bt_conn_cb_register(&conn_callbacks);
 	bt_le_scan_cb_register(&scan_callbacks);
 
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		k_work_init_delayable(&peers[i].discovery_retry_work, discovery_retry_work_fn);
+	}
+
 	printk("BioSpur BLE master ready on nRF52840 DK\n");
 	printk("Max connections: %u\n", MASTER_MAX_CONNECTIONS);
 	if (strlen(APP_MASTER_ONE_SHOT_CMD) != 0U) {
@@ -881,10 +1140,44 @@ int master_app_run(void)
 	}
 
 	start_scan();
+	master_try_connect_pending();
 
 	while (1) {
 		k_sleep(K_SECONDS(5));
 	}
 
 	return 0;
+}
+
+void master_set_scan_only_mode(void)
+{
+	auto_connect_enabled = false;
+	printk("Master discovery mode: SCAN only\n");
+}
+
+void master_set_connect_and_start_mode(void)
+{
+	auto_connect_enabled = true;
+	printk("Master discovery mode: CONN & START\n");
+	master_try_connect_pending();
+}
+
+void master_disconnect_all_peers(void)
+{
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		if (!peers[i].connected || peers[i].conn == NULL) {
+			continue;
+		}
+
+		printk("Master disconnecting peer[%zu]: bs=BS%04X\n",
+		       i, (unsigned int)peers[i].bs_code);
+		(void)bt_conn_disconnect(peers[i].conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+	}
+}
+
+void master_restart_discovery(void)
+{
+	stop_scan();
+	start_scan();
+	master_try_connect_pending();
 }

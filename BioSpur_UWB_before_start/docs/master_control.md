@@ -1,38 +1,44 @@
 # External Master Plan
 
-This project now uses the `nrf54l15dk/nrf54l15/cpuapp` board as the BLE control
-host.
+This project now uses the `nrf52840dk/nrf52840` board as the BLE control host.
 
 ## Current role split
 
-- `apps/master/`: BLE central and control host on the nRF54L15 DK.
+- `apps/master_control/`: unified BLE control host on the nRF52840 DK.
 - `apps/tag/`: BLE peripheral plus UWB ranging tag on DWM1001C.
 - `apps/anchor/`: UWB execution nodes on the DWM1001 anchors.
 
 ## Current control link
 
-- `nRF54L15 DK` scans for the `Tag_rot` BLE peripheral.
-- `Tag_rot` advertises a NUS service.
+- `nRF52840 DK` scans for `BS*` BLE peripherals in receiver mode.
+- Motion tags advertise a NUS service, auto-generate a `BSxxxx` runtime identity, and keep OTA enabled.
 - The master sends control commands over BLE instead of USB/UART.
+
+## Current TDMA policy
+
+- Motion tags derive their TDMA slot automatically from the runtime `BSxxxx` identity.
+- No manual slot index needs to be assigned for the standard motion tag flow.
+- The master can still use the token identity to decide which tag should be treated as which peer.
 
 ## Current command set
 
-The master currently cycles through:
+The master control app now boots into one of two runtime modes:
 
-- `PING`
-- `STATUS`
-- `OTA_STATUS`
-- `OTA_PREPARE`
+- `RECV`
+  - scans for `BS*` peripherals
+  - receives `UWB TAG POSITION` / `TagSummary`
+- `OTA`
+  - scans for OTA-capable `BS*` peripherals
+  - uploads the signed image payload over BLE
 
-The tag replies with health, UWB status, and OTA handshake state.
+Runtime switching:
 
-## What is still missing for full OTA
+- `BTN1` toggles `RECV` and `OTA`
+- `BTN2` forces `OTA`
+- A successful switch blinks LEDs 1 through 4 three times and prints the new mode on serial before rebooting into the selected mode
 
-The BLE control link is in place, but full image transfer still needs:
+UART commands:
 
-- a bootloader-ready tag image
-- reserved upgrade partitions
-- an image transport and commit path
-
-See [ble_ota_plan.md](ble_ota_plan.md) for the split between control-plane
-handshake and actual firmware update transport.
+- `status`
+- `mode recv`
+- `mode ota`

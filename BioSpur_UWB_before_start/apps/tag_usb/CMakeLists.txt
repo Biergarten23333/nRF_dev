@@ -26,7 +26,11 @@ set(APP_TAG_BLE_ENABLE "0" CACHE STRING "Disable BLE/NUS and OTA transport on th
 set(APP_TAG_MCUBOOT_ENABLE "0" CACHE STRING "Disable MCUboot confirm/OTA plumbing on the tag")
 set(APP_TAG_USB_DIAG_TRACE "0" CACHE STRING "Enable low-level console trace for pure USB bringup debugging")
 
+if(NOT DEFINED APP_TAG_ID OR APP_TAG_ID STREQUAL "")
 set(APP_TAG_ID "0" CACHE STRING "Tag node ID")
+endif()
+set(APP_UWB_CHANNEL "5" CACHE STRING "DW1000 UWB channel number")
+set(APP_UWB_PAN_ID "0xDECA" CACHE STRING "DW1000 PAN ID")
 set(APP_TAG_ANCHOR_COUNT "8" CACHE STRING "Number of anchors to range against")
 set(APP_TAG_ANCHOR_0_ID "0" CACHE STRING "Anchor slot 0 ID")
 set(APP_TAG_ANCHOR_1_ID "1" CACHE STRING "Anchor slot 1 ID")
@@ -43,12 +47,14 @@ set(APP_TAG_FAST_TRACKING "1" CACHE STRING "Use reduced anchor subset between pe
 set(APP_TAG_FULL_SWEEP_INTERVAL "8" CACHE STRING "Run one full 8-anchor sweep every N sweeps")
 set(APP_TAG_TRACK_ANCHOR_COUNT "4" CACHE STRING "Anchor count used in fast tracking sweeps")
 set(APP_TAG_SUMMARY_PERIOD "1" CACHE STRING "Print one motion summary every N completed sweeps")
+set(APP_TAG_STATUS_PERIOD_MS "0" CACHE STRING "Print one cached position status every N milliseconds (0 disables)")
 set(APP_TAG_PENDING_PRINT_PERIOD "0" CACHE STRING "Print one solve-pending line every N failed sweeps (0 disables)")
 set(APP_TAG_IMU_SAMPLE_PERIOD "8" CACHE STRING "Read the IMU once every N completed sweeps")
 set(APP_TAG_VERBOSE_RANGING "0" CACHE STRING "Print per-anchor ranging logs")
 set(APP_TAG_VERBOSE_MEASUREMENTS "0" CACHE STRING "Print per-anchor measurement logs")
 set(APP_TAG_VERBOSE_PERF "0" CACHE STRING "Print perf summary lines")
 set(APP_TAG_FIXED_MODE "0" CACHE STRING "Use a fixed anchor subset instead of adaptive reselection")
+set(APP_TAG_LOC_MIN_QUALITY_PERCENT "50" CACHE STRING "Minimum per-anchor quality percentage accepted by the solver")
 set(APP_TAG_FIXED_ANCHOR_COUNT "4" CACHE STRING "Number of anchors in fixed-anchor mode")
 set(APP_TAG_FIXED_ANCHOR_0_ID "1" CACHE STRING "Fixed-anchor slot 0 ID")
 set(APP_TAG_FIXED_ANCHOR_1_ID "3" CACHE STRING "Fixed-anchor slot 1 ID")
@@ -114,11 +120,15 @@ target_compile_definitions(app PRIVATE
     APP_TAG_FULL_SWEEP_INTERVAL=${APP_TAG_FULL_SWEEP_INTERVAL}
     APP_TAG_TRACK_ANCHOR_COUNT=${APP_TAG_TRACK_ANCHOR_COUNT}
     APP_TAG_SUMMARY_PERIOD=${APP_TAG_SUMMARY_PERIOD}
+    APP_TAG_STATUS_PERIOD_MS=${APP_TAG_STATUS_PERIOD_MS}
     APP_TAG_PENDING_PRINT_PERIOD=${APP_TAG_PENDING_PRINT_PERIOD}
     APP_TAG_IMU_SAMPLE_PERIOD=${APP_TAG_IMU_SAMPLE_PERIOD}
     APP_TAG_VERBOSE_RANGING=${APP_TAG_VERBOSE_RANGING}
     APP_TAG_VERBOSE_MEASUREMENTS=${APP_TAG_VERBOSE_MEASUREMENTS}
     APP_TAG_VERBOSE_PERF=${APP_TAG_VERBOSE_PERF}
+    APP_TAG_LOC_MIN_QUALITY_PERCENT=${APP_TAG_LOC_MIN_QUALITY_PERCENT}
+    APP_UWB_CHANNEL=${APP_UWB_CHANNEL}
+    APP_UWB_PAN_ID=${APP_UWB_PAN_ID}
     APP_TAG_FIXED_MODE=${APP_TAG_FIXED_MODE}
     APP_TAG_FIXED_ANCHOR_COUNT=${APP_TAG_FIXED_ANCHOR_COUNT}
     APP_TAG_FIXED_ANCHOR_0_ID=${APP_TAG_FIXED_ANCHOR_0_ID}

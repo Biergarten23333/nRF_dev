@@ -19,7 +19,7 @@ static bool uwb_frame_has_common_header(const uint8_t *frame, uint8_t code)
     return uwb_frame_get_dst_addr(frame) != 0U &&
            uwb_frame_get_src_addr(frame) != 0U &&
            ((uint16_t)frame[UWB_MSG_PAN_IDX] |
-            ((uint16_t)frame[UWB_MSG_PAN_IDX + 1U] << 8)) == UWB_PAN_ID;
+            ((uint16_t)frame[UWB_MSG_PAN_IDX + 1U] << 8)) == APP_UWB_PAN_ID;
 }
 
 uint16_t uwb_anchor_short_addr(uint8_t anchor_id)
@@ -65,7 +65,7 @@ void uwb_ss_twr_build_poll_frame(uint8_t *frame, uint8_t seq, uint16_t dst_addr,
     frame[0] = UWB_FRAME_CTRL_LOW;
     frame[1] = UWB_FRAME_CTRL_HIGH;
     frame[UWB_MSG_SN_IDX] = seq;
-    uwb_frame_write_u16(frame, UWB_MSG_PAN_IDX, UWB_PAN_ID);
+    uwb_frame_write_u16(frame, UWB_MSG_PAN_IDX, APP_UWB_PAN_ID);
     uwb_frame_write_u16(frame, UWB_MSG_DST_IDX, dst_addr);
     uwb_frame_write_u16(frame, UWB_MSG_SRC_IDX, src_addr);
     frame[UWB_MSG_CODE_IDX] = UWB_MSG_POLL_CODE;
@@ -79,7 +79,7 @@ void uwb_ss_twr_build_resp_frame(uint8_t *frame, uint8_t seq, uint16_t dst_addr,
     frame[0] = UWB_FRAME_CTRL_LOW;
     frame[1] = UWB_FRAME_CTRL_HIGH;
     frame[UWB_MSG_SN_IDX] = seq;
-    uwb_frame_write_u16(frame, UWB_MSG_PAN_IDX, UWB_PAN_ID);
+    uwb_frame_write_u16(frame, UWB_MSG_PAN_IDX, APP_UWB_PAN_ID);
     uwb_frame_write_u16(frame, UWB_MSG_DST_IDX, dst_addr);
     uwb_frame_write_u16(frame, UWB_MSG_SRC_IDX, src_addr);
     frame[UWB_MSG_CODE_IDX] = UWB_MSG_RESP_CODE;

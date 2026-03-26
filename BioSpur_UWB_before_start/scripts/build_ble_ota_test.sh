@@ -24,6 +24,11 @@ if [ -z "${SIGNED_BIN:-}" ]; then
   exit 1
 fi
 
+python3 scripts/write_build_source.py \
+  --build-dir "$TAG_BUILD_DIR" \
+  --source "scripts/build_ble_ota_test.sh" \
+  --command "$0 $* (tag build)"
+
 python3 scripts/gen_ota_image_inc.py \
   "$SIGNED_BIN" \
   apps/master_ota/generated/ota_image.inc
@@ -34,6 +39,11 @@ west build \
   -d "$MASTER_BUILD_DIR" \
   --no-sysbuild \
   --pristine=always
+
+python3 scripts/write_build_source.py \
+  --build-dir "$MASTER_BUILD_DIR" \
+  --source "scripts/build_ble_ota_test.sh" \
+  --command "$0 $* (master build)"
 
 echo
 echo "Tag OTA build:   $TAG_BUILD_DIR"

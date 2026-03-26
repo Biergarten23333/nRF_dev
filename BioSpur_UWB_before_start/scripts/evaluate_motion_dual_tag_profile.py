@@ -81,10 +81,14 @@ def load_json(path: Path) -> dict:
 
 
 def logical_tag_id(tag_id: int) -> int:
+    if tag_id == 115:
+        return 1
     if tag_id == 113:
         return 3
     if tag_id == 127:
         return 2
+    if tag_id == 886:
+        return 4
     if 0 <= tag_id < 10:
         return tag_id
     raise ValueError(f"unsupported motion tag id for logical mapping: {tag_id}")
@@ -219,8 +223,8 @@ def main() -> int:
     eval_root = REPO_ROOT / "logs" / "motion_profile_eval" / profile_name
     eval_root.mkdir(parents=True, exist_ok=True)
 
-    tag_a_name = f"Tag_rot_{args.tag_a_id}"
-    tag_b_name = f"Tag_rot_{args.tag_b_id}"
+    tag_a_name = "BS_AUTO"
+    tag_b_name = "BS_AUTO"
     tag_a_build_dir = f"build-tag-ota-{profile_name}-tag{args.tag_a_id}"
     tag_b_build_dir = f"build-tag-ota-{profile_name}-tag{args.tag_b_id}"
     tag_a_master_ota_build_dir = f"build-master-ota-{profile_name}-tag{args.tag_a_id}"

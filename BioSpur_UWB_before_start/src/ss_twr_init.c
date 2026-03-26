@@ -12,10 +12,12 @@
 #include "uwb_tag_loc.h"
 
 #include <math.h>
+#include <errno.h>
 #include <string.h>
 
 #include <deca_device_api.h>
 #include <deca_regs.h>
+#include <zephyr/drivers/uart.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
 
@@ -50,6 +52,10 @@
 #define APP_TAG_SUMMARY_PERIOD 1U
 #endif
 
+#ifndef APP_TAG_STATUS_PERIOD_MS
+#define APP_TAG_STATUS_PERIOD_MS 0U
+#endif
+
 #ifndef APP_TAG_PENDING_PRINT_PERIOD
 #define APP_TAG_PENDING_PRINT_PERIOD 20U
 #endif
@@ -64,6 +70,21 @@
 
 #ifndef APP_TAG_EKF_ENABLE
 #define APP_TAG_EKF_ENABLE 0U
+#endif
+
+#if APP_TAG_USB_DIAG_TRACE
+static void ss_twr_diag_write(const char *msg)
+{
+    const struct device *console = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
+
+    if (!device_is_ready(console) || msg == NULL) {
+        return;
+    }
+
+    while (*msg != '\0') {
+        uart_poll_out(console, *msg++);
+    }
+}
 #endif
 
 #ifndef APP_TAG_EKF_MEAS_STD_MM
@@ -182,7 +203,7 @@
 #define SS_TWR_INIT_TX_TO_RX_DLY_UUS APP_TAG_TX_TO_RX_DLY_UUS
 #define SS_TWR_INIT_RESP_RX_TIMEOUT_UUS APP_TAG_RESP_RX_TIMEOUT_UUS
 
-#define SS_TWR_INIT_RX_BUF_LEN 20U
+#define SS_TWR_INIT_RX_BUF_LEN 127U
 #define SS_TWR_INIT_ALL_MSG_COMMON_LEN 10U
 #define SS_TWR_INIT_MSG_SN_IDX 2U
 #define SS_TWR_INIT_RESP_MSG_POLL_RX_TS_IDX 10U
@@ -192,7 +213,7 @@
 #define SS_TWR_INIT_SPEED_OF_LIGHT 299702547.0
 
 static dwt_config_t ss_twr_init_config = {
-    5,
+    APP_UWB_CHANNEL,
     DWT_PRF_64M,
     DWT_PLEN_128,
     DWT_PAC8,
@@ -238,21 +259,22 @@ static uint8_t ss_twr_init_last_solution_anchor_ids[UWB_MAX_ANCHORS];
 static uint8_t ss_twr_init_last_solution_anchor_count;
 static bool ss_twr_init_have_last_location;
 static uint32_t ss_twr_init_location_output_count;
+#if APP_TAG_STATUS_PERIOD_MS > 0U
+static bool ss_twr_init_have_last_raw_location;
+static struct uwb_tag_location_result ss_twr_init_last_raw_location;
+static struct uwb_tag_location_result ss_twr_init_last_filtered_location;
+static uint32_t ss_twr_init_last_location_update_ms;
+#endif
 static int32_t ss_twr_init_last_location_x_mm;
 static int32_t ss_twr_init_last_location_y_mm;
 static int32_t ss_twr_init_last_location_z_mm;
-static volatile int32_t ss_twr_init_debug_last_x_mm;
-static volatile int32_t ss_twr_init_debug_last_y_mm;
-static volatile int32_t ss_twr_init_debug_last_z_mm;
-static volatile uint32_t ss_twr_init_debug_last_rms_mm;
-static volatile uint32_t ss_twr_init_debug_last_max_mm;
-static volatile uint8_t ss_twr_init_debug_last_used_anchor_count;
-static volatile uint8_t ss_twr_init_debug_last_lower_anchor_count;
-static volatile uint8_t ss_twr_init_debug_last_upper_anchor_count;
 static uint8_t ss_twr_init_refresh_anchor_cursor;
 static bool ss_twr_init_current_sweep_full;
 static bool ss_twr_init_current_sweep_refresh;
 static uint32_t ss_twr_init_current_sweep_start_ms;
+#if APP_TAG_STATUS_PERIOD_MS > 0U
+static struct k_work_delayable ss_twr_init_status_work;
+#endif
 static struct uwb_imu_sample ss_twr_init_last_imu_sample;
 static uint32_t ss_twr_init_perf_motion_dt_sum_ms;
 static uint32_t ss_twr_init_perf_track_sweep_sum_ms;
@@ -505,6 +527,85 @@ static const char *ss_twr_init_plan_label(void)
     return ss_twr_init_current_sweep_full ? "full" : "track";
 }
 
+static void ss_twr_init_format_anchor_labels(const uint8_t *anchor_ids,
+                                             size_t anchor_count, char *out,
+                                             size_t out_len)
+{
+    size_t pos = 0U;
+
+    if (out == NULL || out_len == 0U) {
+        return;
+    }
+
+    out[0] = '\0';
+    if (anchor_ids == NULL || anchor_count == 0U) {
+        return;
+    }
+
+    for (size_t i = 0; i < anchor_count && pos + 2U < out_len; ++i) {
+        const struct uwb_anchor_pose_mm *pose =
+            uwb_anchor_layout_get(anchor_ids[i]);
+
+        if (i != 0U && pos + 1U < out_len) {
+            out[pos++] = ',';
+        }
+
+        if (pose != NULL) {
+            out[pos++] = pose->label;
+        } else {
+            pos += (size_t)snprintk(out + pos, out_len - pos, "%u",
+                                    (unsigned int)anchor_ids[i]);
+        }
+    }
+
+    out[pos < out_len ? pos : out_len - 1U] = '\0';
+}
+
+#if APP_TAG_STATUS_PERIOD_MS > 0U
+static void ss_twr_init_status_work_handler(struct k_work *work)
+{
+    char anchors[32];
+    uint32_t now_ms = (uint32_t)k_uptime_get();
+    uint32_t age_ms = 0U;
+
+    ARG_UNUSED(work);
+
+    if (APP_TAG_STATUS_PERIOD_MS == 0U) {
+        return;
+    }
+
+    if (!ss_twr_init_have_last_raw_location ||
+        !ss_twr_init_have_last_location) {
+        printk("UWB TAG STATUS pending plan=%s\n", ss_twr_init_plan_label());
+    } else {
+        age_ms = now_ms - ss_twr_init_last_location_update_ms;
+        ss_twr_init_format_anchor_labels(
+            ss_twr_init_last_filtered_location.anchor_ids,
+            ss_twr_init_last_filtered_location.used_anchor_count, anchors,
+            sizeof(anchors));
+        printk("UWB TAG STATUS age=%lu ms plan=%s raw_xyz=(%ld,%ld,%ld) mm "
+               "xyz=(%ld,%ld,%ld) mm used=%u lower=%u upper=%u rms=%lu mm "
+               "max=%lu mm anchors=[%s]\n",
+               (unsigned long)age_ms, ss_twr_init_plan_label(),
+               (long)ss_twr_init_last_raw_location.x_mm,
+               (long)ss_twr_init_last_raw_location.y_mm,
+               (long)ss_twr_init_last_raw_location.z_mm,
+               (long)ss_twr_init_last_filtered_location.x_mm,
+               (long)ss_twr_init_last_filtered_location.y_mm,
+               (long)ss_twr_init_last_filtered_location.z_mm,
+               (unsigned int)ss_twr_init_last_filtered_location.used_anchor_count,
+               (unsigned int)ss_twr_init_last_filtered_location.lower_anchor_count,
+               (unsigned int)ss_twr_init_last_filtered_location.upper_anchor_count,
+               (unsigned long)ss_twr_init_last_filtered_location.residual_rms_mm,
+               (unsigned long)ss_twr_init_last_filtered_location.residual_max_mm,
+               anchors);
+    }
+
+    (void)k_work_reschedule(&ss_twr_init_status_work,
+                            K_MSEC(APP_TAG_STATUS_PERIOD_MS));
+}
+#endif
+
 static void ss_twr_init_add_refresh_plan_anchor(uint8_t anchor_id,
                                                 size_t *active_count)
 {
@@ -712,10 +813,17 @@ static int ss_twr_init_load_runtime_config(
     ss_twr_init_have_last_solution = false;
     ss_twr_init_last_solution_anchor_count = 0U;
     ss_twr_init_have_last_location = false;
+#if APP_TAG_STATUS_PERIOD_MS > 0U
+    ss_twr_init_have_last_raw_location = false;
     ss_twr_init_location_output_count = 0U;
+    ss_twr_init_last_location_update_ms = 0U;
+    memset(&ss_twr_init_last_raw_location, 0, sizeof(ss_twr_init_last_raw_location));
+    memset(&ss_twr_init_last_filtered_location, 0,
+           sizeof(ss_twr_init_last_filtered_location));
     ss_twr_init_last_location_x_mm = 0;
     ss_twr_init_last_location_y_mm = 0;
     ss_twr_init_last_location_z_mm = 0;
+#endif
     ss_twr_init_refresh_anchor_cursor = 0U;
     ss_twr_init_current_sweep_full = true;
     ss_twr_init_current_sweep_start_ms = 0U;
@@ -881,6 +989,7 @@ static void ss_twr_init_print_location_if_ready(void)
 {
     struct uwb_tag_measurement measurements[UWB_MAX_ANCHORS];
     struct uwb_tag_location_result location;
+    struct uwb_tag_location_result raw_location;
     struct uwb_ekf_sample filtered_location;
     struct uwb_motion_sample motion;
     struct uwb_imu_sample imu;
@@ -889,6 +998,9 @@ static void ss_twr_init_print_location_if_ready(void)
     uint32_t candidate_step_mm = 0U;
     uint32_t sweep_elapsed_ms =
         (uint32_t)k_uptime_get() - ss_twr_init_current_sweep_start_ms;
+    uint8_t valid_anchor_ids[UWB_MAX_ANCHORS];
+    size_t valid_anchor_count = 0U;
+    char received_anchors[32];
 
     memset(measurements, 0, sizeof(measurements));
 
@@ -921,22 +1033,37 @@ static void ss_twr_init_print_location_if_ready(void)
                    (unsigned long)measurements[i].range_mm,
                    (unsigned int)measurements[i].quality_percent);
         }
+
+        if (measurements[i].valid &&
+            valid_anchor_count < UWB_MAX_ANCHORS) {
+            valid_anchor_ids[valid_anchor_count++] = anchor_id;
+        }
     }
 
     if (uwb_tag_loc_solve(measurements, ss_twr_init_anchor_count, &location) !=
         0) {
+        ss_twr_init_format_anchor_labels(valid_anchor_ids,
+                                         valid_anchor_count,
+                                         received_anchors,
+                                         sizeof(received_anchors));
         if (APP_TAG_PENDING_PRINT_PERIOD != 0U &&
             (ss_twr_init_sweep_count % APP_TAG_PENDING_PRINT_PERIOD) == 0U) {
             printk("Tag solve pending: need >=4 valid anchors across both planes "
-                   "plan=%s active=%u sweep_ms=%lu\n",
+                   "plan=%s active=%u sweep_ms=%lu valid=[%s]\n",
                    ss_twr_init_plan_label(),
                    (unsigned int)ss_twr_init_active_anchor_count,
-                   (unsigned long)sweep_elapsed_ms);
+                   (unsigned long)sweep_elapsed_ms,
+                    received_anchors);
         }
         return;
     }
 
+    raw_location = location;
     {
+        ss_twr_init_format_anchor_labels(location.anchor_ids,
+                                         location.used_anchor_count,
+                                         received_anchors,
+                                         sizeof(received_anchors));
         struct uwb_ekf_runtime_params ekf_params = {
             .meas_std_mm = APP_TAG_EKF_MEAS_STD_MM,
             .residual_gain_pct = APP_TAG_EKF_RESIDUAL_GAIN_PCT,
@@ -979,14 +1106,15 @@ static void ss_twr_init_print_location_if_ready(void)
     if (!ss_twr_init_location_plausible(&location, &candidate_step_mm)) {
         if (APP_TAG_PENDING_PRINT_PERIOD != 0U &&
             (ss_twr_init_sweep_count % APP_TAG_PENDING_PRINT_PERIOD) == 0U) {
-            printk("Tag solve rejected plan=%s active=%u xyz=(%ld,%ld,%ld) rms=%lu max=%lu step=%lu\n",
+            printk("Tag solve rejected plan=%s active=%u xyz=(%ld,%ld,%ld) rms=%lu max=%lu step=%lu received=[%s]\n",
                    ss_twr_init_plan_label(),
                    (unsigned int)ss_twr_init_active_anchor_count,
                    (long)location.x_mm, (long)location.y_mm,
                    (long)location.z_mm,
                    (unsigned long)location.residual_rms_mm,
                    (unsigned long)location.residual_max_mm,
-                   (unsigned long)candidate_step_mm);
+                   (unsigned long)candidate_step_mm,
+                   received_anchors);
         }
         return;
     }
@@ -1023,18 +1151,16 @@ static void ss_twr_init_print_location_if_ready(void)
         ss_twr_init_last_motion_speed_mm_s = motion.speed_mm_s;
     }
 
-    ss_twr_init_debug_last_x_mm = location.x_mm;
-    ss_twr_init_debug_last_y_mm = location.y_mm;
-    ss_twr_init_debug_last_z_mm = location.z_mm;
-    ss_twr_init_debug_last_rms_mm = location.residual_rms_mm;
-    ss_twr_init_debug_last_max_mm = location.residual_max_mm;
-    ss_twr_init_debug_last_used_anchor_count = location.used_anchor_count;
-    ss_twr_init_debug_last_lower_anchor_count = location.lower_anchor_count;
-    ss_twr_init_debug_last_upper_anchor_count = location.upper_anchor_count;
     ss_twr_init_have_last_location = true;
     ss_twr_init_last_location_x_mm = location.x_mm;
     ss_twr_init_last_location_y_mm = location.y_mm;
     ss_twr_init_last_location_z_mm = location.z_mm;
+#if APP_TAG_STATUS_PERIOD_MS > 0U
+    ss_twr_init_last_location_update_ms = (uint32_t)k_uptime_get();
+    ss_twr_init_have_last_raw_location = true;
+    ss_twr_init_last_raw_location = raw_location;
+    ss_twr_init_last_filtered_location = location;
+#endif
 
     if ((ss_twr_init_sweep_count % APP_TAG_SUMMARY_PERIOD) != 0U) {
         for (size_t i = 0; i < location.used_anchor_count; ++i) {
@@ -1060,7 +1186,7 @@ static void ss_twr_init_print_location_if_ready(void)
         summary_len += (size_t)snprintk(
             summary + summary_len, sizeof(summary) - summary_len,
             "Tag motion summary sweep=%lu plan=%s sweep_ms=%lu active=%u "
-            "used=%u lower=%u upper=%u xyz=(%ld,%ld,%ld) mm rms=%lu mm "
+            "used=%u lower=%u upper=%u raw_xyz=(%ld,%ld,%ld) mm xyz=(%ld,%ld,%ld) mm rms=%lu mm "
             "max=%lu mm",
             (unsigned long)ss_twr_init_sweep_count,
             ss_twr_init_plan_label(),
@@ -1069,6 +1195,8 @@ static void ss_twr_init_print_location_if_ready(void)
             (unsigned int)location.used_anchor_count,
             (unsigned int)location.lower_anchor_count,
             (unsigned int)location.upper_anchor_count,
+            (long)raw_location.x_mm, (long)raw_location.y_mm,
+            (long)raw_location.z_mm,
             (long)location.x_mm, (long)location.y_mm, (long)location.z_mm,
             (unsigned long)location.residual_rms_mm,
             (unsigned long)location.residual_max_mm);
@@ -1134,6 +1262,18 @@ static void ss_twr_init_print_location_if_ready(void)
         }
 
         printk("%s\n", summary);
+        printk("UWB TAG POSITION raw_xyz=(%ld,%ld,%ld) mm xyz=(%ld,%ld,%ld) mm used=%u lower=%u upper=%u sweep=%lu plan=%s rms=%lu mm max=%lu mm received=[%s]\n",
+               (long)raw_location.x_mm, (long)raw_location.y_mm,
+               (long)raw_location.z_mm, (long)location.x_mm,
+               (long)location.y_mm, (long)location.z_mm,
+               (unsigned int)location.used_anchor_count,
+               (unsigned int)location.lower_anchor_count,
+               (unsigned int)location.upper_anchor_count,
+               (unsigned long)ss_twr_init_sweep_count,
+               ss_twr_init_plan_label(),
+               (unsigned long)location.residual_rms_mm,
+               (unsigned long)location.residual_max_mm,
+               received_anchors);
 #endif
     }
 
@@ -1344,6 +1484,8 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
     printk("Tag perf config summary_period=%u imu_sample_period=%u\n",
            (unsigned int)APP_TAG_SUMMARY_PERIOD,
            (unsigned int)APP_TAG_IMU_SAMPLE_PERIOD);
+    printk("Tag status config output_period_ms=%u\n",
+           (unsigned int)APP_TAG_STATUS_PERIOD_MS);
     printk("Tag ekf config enable=%u meas_std=%u residual_gain=%u proc_accel=%u init_pos=%u init_vel=%u gate=%u motion_meas=%u motion_proc=%u motion_gate=%u motion_full=%u speed_thr=%u imu_delta=%u imu_gerr=%u range_soft=%u range_hard=%u motion_soft=%u motion_hard=%u\n",
            (unsigned int)APP_TAG_EKF_ENABLE,
            (unsigned int)APP_TAG_EKF_MEAS_STD_MM,
@@ -1363,10 +1505,45 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
            (unsigned int)APP_TAG_RANGE_HARD_RESIDUAL_MM,
            (unsigned int)APP_TAG_MOTION_RANGE_SOFT_BONUS_MM,
            (unsigned int)APP_TAG_MOTION_RANGE_HARD_BONUS_MM);
+    printk("SS-TWR init trace: waiting for TDMA slot\n");
+#if APP_TAG_USB_DIAG_TRACE
+    ss_twr_diag_write("SS-TWR: wait_tdma enter\n");
+#endif
+#if APP_TAG_STATUS_PERIOD_MS > 0U
+        k_work_init_delayable(&ss_twr_init_status_work,
+                              ss_twr_init_status_work_handler);
+        (void)k_work_reschedule(&ss_twr_init_status_work,
+                                K_MSEC(APP_TAG_STATUS_PERIOD_MS));
+#endif
     ss_twr_init_imu_ready = (uwb_imu_init() == 0);
     ss_twr_init_configure_radio();
-    (void)uwb_tdma_wait_until_slot(&ss_twr_init_tdma_schedule);
+    {
+        uint32_t tdma_wait_ms =
+            uwb_tdma_wait_until_slot(&ss_twr_init_tdma_schedule);
+#if APP_TAG_USB_DIAG_TRACE
+        ss_twr_diag_write("SS-TWR: wait_tdma done\n");
+#endif
+        printk("SS-TWR init trace: TDMA wait complete wait_ms=%lu slot=%u/%u period=%u active=%u\n",
+               (unsigned long)tdma_wait_ms,
+               (unsigned int)ss_twr_init_tdma_schedule.slot_index,
+               (unsigned int)ss_twr_init_tdma_schedule.slot_count,
+               (unsigned int)ss_twr_init_tdma_schedule.slot_period_ms,
+               (unsigned int)ss_twr_init_tdma_schedule.slot_active_ms);
+    }
     ss_twr_init_prepare_sweep_plan();
+    printk("SS-TWR init trace: sweep plan prepared active=%u sweep=%lu full=%u refresh=%u plan=%s\n",
+           (unsigned int)ss_twr_init_active_anchor_count,
+           (unsigned long)ss_twr_init_sweep_count,
+           (unsigned int)ss_twr_init_current_sweep_full,
+           (unsigned int)ss_twr_init_current_sweep_refresh,
+           ss_twr_init_plan_label());
+#if APP_TAG_USB_DIAG_TRACE
+    ss_twr_diag_write("SS-TWR: sweep plan ready\n");
+#endif
+    printk("SS-TWR init trace: main loop enter\n");
+#if APP_TAG_USB_DIAG_TRACE
+    ss_twr_diag_write("SS-TWR: main loop enter\n");
+#endif
 
     while (1) {
 #if APP_TAG_BLE_ENABLE
@@ -1390,6 +1567,12 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
 
         dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_TXFRS);
 
+        if (ss_twr_init_sweep_count == 0U &&
+            ss_twr_init_active_anchor_index == 0U) {
+#if APP_TAG_USB_DIAG_TRACE
+            ss_twr_diag_write("SS-TWR: first poll tx prepare\n");
+#endif
+        }
         if (dwt_writetxdata(sizeof(ss_twr_init_tx_poll_msg),
                             ss_twr_init_tx_poll_msg, 0) != DWT_SUCCESS) {
             printk("Initiator TX buffer write failed\n");
@@ -1407,10 +1590,26 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
             continue;
         }
 
+        if (ss_twr_init_sweep_count == 0U &&
+            ss_twr_init_active_anchor_index == 0U) {
+#if APP_TAG_USB_DIAG_TRACE
+            ss_twr_diag_write("SS-TWR: first poll tx started\n");
+#endif
+        }
+
         do {
             status_reg = dwt_read32bitreg(SYS_STATUS_ID);
         } while ((status_reg & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO |
                                 SYS_STATUS_ALL_RX_ERR)) == 0U);
+
+        if (ss_twr_init_sweep_count == 0U &&
+            ss_twr_init_active_anchor_index == 0U) {
+#if APP_TAG_USB_DIAG_TRACE
+            ss_twr_diag_write("SS-TWR: first poll rx status\n");
+#endif
+            printk("SS-TWR init trace: first poll status=0x%08lx\n",
+                   (unsigned long)status_reg);
+        }
 
         ss_twr_init_frame_seq_nb++;
 
@@ -1455,6 +1654,30 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
                        (unsigned int)uwb_frame_get_dst_addr(ss_twr_init_rx_buffer),
                        (unsigned int)ss_twr_init_rx_buffer[UWB_MSG_CODE_IDX]);
 #endif
+                if (ss_twr_init_sweep_count == 0U &&
+                    ss_twr_init_active_anchor_index == 0U) {
+#if APP_TAG_USB_DIAG_TRACE
+                    ss_twr_diag_write("SS-TWR: first poll unexpected frame\n");
+#endif
+                    printk("SS-TWR init trace: first poll unexpected frame src=0x%04x dst=0x%04x code=0x%02x\n",
+                           (unsigned int)uwb_frame_get_src_addr(ss_twr_init_rx_buffer),
+                           (unsigned int)uwb_frame_get_dst_addr(ss_twr_init_rx_buffer),
+                           (unsigned int)ss_twr_init_rx_buffer[UWB_MSG_CODE_IDX]);
+#if APP_TAG_USB_DIAG_TRACE
+                    {
+                        char buf[96];
+                        snprintk(buf, sizeof(buf),
+                                 "SS-TWR: first poll frame src=0x%04x dst=0x%04x code=0x%02x\n",
+                                 (unsigned int)uwb_frame_get_src_addr(
+                                     ss_twr_init_rx_buffer),
+                                 (unsigned int)uwb_frame_get_dst_addr(
+                                     ss_twr_init_rx_buffer),
+                                 (unsigned int)ss_twr_init_rx_buffer
+                                     [UWB_MSG_CODE_IDX]);
+                        ss_twr_diag_write(buf);
+                    }
+#endif
+                }
                 ss_twr_init_sleep_between_ranges();
                 continue;
             }
@@ -1533,6 +1756,16 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
                            (unsigned int)uwb_range_tracker_quality_percent(
                                tracker));
                 }
+                if (ss_twr_init_sweep_count == 0U &&
+                    ss_twr_init_active_anchor_index == 0U) {
+#if APP_TAG_USB_DIAG_TRACE
+                    ss_twr_diag_write("SS-TWR: first poll timeout/error\n");
+#endif
+                    printk("SS-TWR init trace: first poll timeout/error anchor=%u addr=0x%04x status=0x%08lx\n",
+                           (unsigned int)current_anchor_id,
+                           (unsigned int)current_anchor_addr,
+                           (unsigned long)status_reg);
+                }
             }
             dwt_write32bitreg(SYS_STATUS_ID,
                               SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR);
@@ -1583,4 +1816,24 @@ int ss_twr_init_start(unsigned int tag_id, const uint8_t *anchor_ids,
     };
 
     return ss_twr_init_start_with_config(&config);
+}
+
+int ss_twr_init_tdma_set_slot(uint8_t slot_index)
+{
+    if (!ss_twr_init_tdma_schedule.enabled ||
+        ss_twr_init_tdma_schedule.slot_count == 0U) {
+        return -EINVAL;
+    }
+
+    if (slot_index >= ss_twr_init_tdma_schedule.slot_count) {
+        return -ERANGE;
+    }
+
+    ss_twr_init_tdma_schedule.slot_index = slot_index;
+    printk("Tag TDMA live slot update slot=%u/%u period=%u active=%u\n",
+           (unsigned int)ss_twr_init_tdma_schedule.slot_index,
+           (unsigned int)ss_twr_init_tdma_schedule.slot_count,
+           (unsigned int)ss_twr_init_tdma_schedule.slot_period_ms,
+           (unsigned int)ss_twr_init_tdma_schedule.slot_active_ms);
+    return 0;
 }

@@ -25,13 +25,21 @@ set(APP_ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
 set(APP_TAG_BLE_ENABLE "1" CACHE STRING "Enable BLE/NUS transport on the tag")
 set(APP_TAG_BLE_OTA_ENABLE "0" CACHE STRING "Disable OTA-specific BLE payloads on the tag")
 set(APP_TAG_MCUBOOT_ENABLE "0" CACHE STRING "Disable MCUboot confirm/OTA plumbing on the tag")
+set(APP_TAG_USB_DIAG_TRACE "1" CACHE STRING "Enable low-level console trace for bringup debugging")
 set(APP_TAG_BLE_SETTINGS_ENABLE "0" CACHE STRING "Disable Bluetooth settings persistence on the BLE-lite tag")
 set(APP_TAG_BLE_COMPACT_STATUS "1" CACHE STRING "Enable compact BLE TagSummary payloads on the BLE-lite tag")
 set(APP_TAG_BLE_PACKET_BUNDLE_RECORDS "3" CACHE STRING "Bundle this many TagSummary records into one BLE NUS payload")
 set(APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS "250" CACHE STRING "Flush a partial BLE bundle after this many milliseconds")
-set(APP_TAG_BLE_TOKEN_ID "${APP_TAG_ID}" CACHE STRING "BLE identity token advertised in manufacturer data")
 
-set(APP_TAG_ID "0" CACHE STRING "Tag node ID")
+if(NOT DEFINED APP_TAG_ID OR APP_TAG_ID STREQUAL "")
+    set(APP_TAG_ID "0" CACHE STRING "Tag node ID")
+endif()
+if(NOT DEFINED APP_TAG_BLE_TOKEN_ID OR APP_TAG_BLE_TOKEN_ID STREQUAL "")
+    set(APP_TAG_BLE_TOKEN_ID "${APP_TAG_ID}" CACHE STRING
+        "BLE identity token advertised in manufacturer data")
+endif()
+set(APP_UWB_CHANNEL "5" CACHE STRING "DW1000 UWB channel number")
+set(APP_UWB_PAN_ID "0xDECA" CACHE STRING "DW1000 PAN ID")
 set(APP_TAG_ANCHOR_COUNT "8" CACHE STRING "Number of anchors to range against")
 set(APP_TAG_ANCHOR_0_ID "0" CACHE STRING "Anchor slot 0 ID")
 set(APP_TAG_ANCHOR_1_ID "1" CACHE STRING "Anchor slot 1 ID")
@@ -100,6 +108,7 @@ target_include_directories(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../tag/src)
 target_compile_definitions(app PRIVATE
     APP_TAG_BLE_ENABLE=${APP_TAG_BLE_ENABLE}
     APP_TAG_BLE_OTA_ENABLE=${APP_TAG_BLE_OTA_ENABLE}
+    APP_TAG_USB_DIAG_TRACE=${APP_TAG_USB_DIAG_TRACE}
     APP_TAG_BLE_SETTINGS_ENABLE=${APP_TAG_BLE_SETTINGS_ENABLE}
     APP_TAG_BLE_COMPACT_STATUS=${APP_TAG_BLE_COMPACT_STATUS}
     APP_TAG_BLE_PACKET_BUNDLE_RECORDS=${APP_TAG_BLE_PACKET_BUNDLE_RECORDS}
@@ -168,6 +177,8 @@ target_compile_definitions(app PRIVATE
     APP_TAG_MOTION_EKF_OUTLIER_GATE_MM=${APP_TAG_MOTION_EKF_OUTLIER_GATE_MM}
     APP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG=${APP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG}
     APP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG=${APP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG}
+    APP_UWB_CHANNEL=${APP_UWB_CHANNEL}
+    APP_UWB_PAN_ID=${APP_UWB_PAN_ID}
 )
 
 target_sources(app PRIVATE

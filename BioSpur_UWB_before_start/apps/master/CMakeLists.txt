@@ -23,6 +23,7 @@ target_include_directories(app PRIVATE ${APP_ROOT}/include)
 target_include_directories(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src)
 
 target_compile_definitions(app PRIVATE
+    APP_MASTER_TAG_NAME_PREFIX="BS"
     APP_MASTER_ONE_SHOT_CMD="${APP_MASTER_ONE_SHOT_CMD}"
 )
 

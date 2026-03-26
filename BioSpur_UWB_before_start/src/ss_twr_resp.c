@@ -22,7 +22,7 @@
 #define APP_ANCHOR_VERBOSE_RESPONDER_ERRORS 1U
 #endif
 
-#define SS_TWR_RESP_RX_BUF_LEN 20U
+#define SS_TWR_RESP_RX_BUF_LEN 127U
 #define SS_TWR_RESP_ALL_MSG_COMMON_LEN 10U
 #define SS_TWR_RESP_MSG_SN_IDX 2U
 #define SS_TWR_RESP_POLL_RX_TS_IDX 10U
@@ -35,7 +35,7 @@
 typedef unsigned long long dwtime_u64_t;
 
 static dwt_config_t ss_twr_resp_config = {
-    5,
+    APP_UWB_CHANNEL,
     DWT_PRF_64M,
     DWT_PLEN_128,
     DWT_PAC8,

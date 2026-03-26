@@ -2,6 +2,7 @@
 #if APP_TAG_MCUBOOT_ENABLE
 #include <zephyr/dfu/mcuboot.h>
 #endif
+#include <zephyr/drivers/uart.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
 
@@ -117,6 +118,21 @@
 
 #ifndef APP_TAG_RESERVE_ANCHOR_1_ID
 #define APP_TAG_RESERVE_ANCHOR_1_ID 7U
+#endif
+
+#if APP_TAG_USB_DIAG_TRACE
+static void tag_diag_write(const char *msg)
+{
+    const struct device *console = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
+
+    if (!device_is_ready(console) || msg == NULL) {
+        return;
+    }
+
+    while (*msg != '\0') {
+        uart_poll_out(console, *msg++);
+    }
+}
 #endif
 
 #ifndef APP_TAG_REFRESH_ANCHOR_BUDGET
@@ -255,8 +271,8 @@ int tag_app_run(void)
         APP_TAG_RESERVE_ANCHOR_0_ID,
         APP_TAG_RESERVE_ANCHOR_1_ID,
     };
-    static const struct uwb_tag_runtime_config runtime_config = {
-        .tag_id = APP_TAG_ID,
+    struct uwb_tag_runtime_config runtime_config = {
+        .tag_id = 0U,
         .anchor_ids = target_anchor_ids,
         .anchor_count = APP_TAG_ANCHOR_COUNT,
         .fixed_anchor_mode = (APP_TAG_FIXED_MODE != 0U),
@@ -300,6 +316,31 @@ int tag_app_run(void)
     if (ret) {
         printk("Tag BLE init failed, continuing with UWB only: %d\n", ret);
     }
+    runtime_config.tag_id = uwb_tag_ble_tag_id();
+#if APP_TAG_TDMA_ENABLE
+    if (runtime_config.tdma.enabled && runtime_config.tdma.slot_count != 0U) {
+        uint8_t override_slot;
+
+        if (uwb_tag_ble_tdma_slot_override_get(&override_slot)) {
+            if (override_slot < runtime_config.tdma.slot_count) {
+                runtime_config.tdma.slot_index = override_slot;
+                printk("Tag TDMA slot override from settings: slot=%u/%u\n",
+                       (unsigned int)runtime_config.tdma.slot_index,
+                       (unsigned int)runtime_config.tdma.slot_count);
+            } else {
+                printk("Tag TDMA slot override invalid slot=%u/%u; keeping build slot=%u/%u\n",
+                       (unsigned int)override_slot,
+                       (unsigned int)runtime_config.tdma.slot_count,
+                       (unsigned int)runtime_config.tdma.slot_index,
+                       (unsigned int)runtime_config.tdma.slot_count);
+            }
+        } else {
+            printk("Tag TDMA slot from build config: slot=%u/%u\n",
+                   (unsigned int)runtime_config.tdma.slot_index,
+                   (unsigned int)runtime_config.tdma.slot_count);
+        }
+    }
+#endif
 #else
     printk("Tag BLE disabled, running pure UWB/USB serial mode\n");
 #endif
@@ -313,8 +354,11 @@ int tag_app_run(void)
     }
     printk("Tag UWB bringup done\n");
 
+#if APP_TAG_USB_DIAG_TRACE
+    tag_diag_write("TAG_APP: handoff enter\n");
+#endif
     printk("Tag app ready tag_id=%u ble_token=%u anchor_count=%u anchors=[%u,%u,%u,%u,%u,%u,%u,%u] fixed=%u fixed_anchors=[%u,%u,%u,%u] multitag=%u active=[%u,%u,%u,%u] standby=[%u,%u] reserve=[%u,%u] refresh=%u/%u full=%u motion_full=%u tdma=%u slot=%u/%u period=%u active=%u filter=%s meas_std=%u residual_gain=%u proc_accel=%u init_pos=%u init_vel=%u gate=%u motion_meas=%u motion_proc=%u motion_gate=%u speed_thr=%u imu_delta=%u imu_gerr=%u range_soft=%u range_hard=%u motion_soft=%u motion_hard=%u\n",
-           APP_TAG_ID, APP_TAG_BLE_TOKEN_ID, APP_TAG_ANCHOR_COUNT, APP_TAG_ANCHOR_0_ID,
+           runtime_config.tag_id, uwb_tag_ble_identity_code(), APP_TAG_ANCHOR_COUNT, APP_TAG_ANCHOR_0_ID,
            APP_TAG_ANCHOR_1_ID, APP_TAG_ANCHOR_2_ID, APP_TAG_ANCHOR_3_ID,
            APP_TAG_ANCHOR_4_ID, APP_TAG_ANCHOR_5_ID, APP_TAG_ANCHOR_6_ID,
            APP_TAG_ANCHOR_7_ID, APP_TAG_FIXED_MODE,
@@ -343,6 +387,7 @@ int tag_app_run(void)
            APP_TAG_RANGE_SOFT_RESIDUAL_MM, APP_TAG_RANGE_HARD_RESIDUAL_MM,
            APP_TAG_MOTION_RANGE_SOFT_BONUS_MM,
            APP_TAG_MOTION_RANGE_HARD_BONUS_MM);
+    printk("Tag app handoff: entering SS-TWR\n");
 
     ret = ss_twr_init_start_with_config(&runtime_config);
     if (ret) {

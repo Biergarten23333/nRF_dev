@@ -14,7 +14,7 @@ from pathlib import Path
 import serial
 
 
-TAG_NOTIFY_PREFIX_RE = r"(?:BLE(?:\[(?P<conn>\d+)(?::[^\]]*)?\])?|NUS)"
+TAG_NOTIFY_PREFIX_RE = r"(?:BLE(?:\[(?P<conn>\d+)(?::[^\]]*)?\])?|BS[0-9A-F]{4}|NUS)"
 
 
 TAG_SUMMARY_RE_FULL = re.compile(

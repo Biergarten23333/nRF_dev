@@ -3,6 +3,9 @@
 This is the current one-command host-side workflow for recalibrating the fixed
 `A-H` anchor layout with static reference Tag `115`.
 
+If `115` is currently flashed as a motion/OTA test tag, reflash it with the
+static monitor image before running this workflow.
+
 What it does:
 
 1. Capture a static `115 -> Anchor` ranging session.
@@ -25,11 +28,12 @@ The workflow now separates two `115` modes:
     logging so `ranges.csv` contains direct `Tag115 -> Anchor` observations.
 - `monitor` mode:
   - Used after calibration for day-to-day static health monitoring.
-  - Can run as:
-    - `4-anchor` fixed `B,D,F,G`
-    - `5/6/7/8-anchor` adaptive tracking
-  - This is the mode that should prioritize low jitter and stable static
-    output, not maximum anchor coverage.
+  - The main static build is the fixed `4-anchor` profile:
+    - `B,C,F,G`
+  - The current stable monitor build uses a `6-slot TDMA` cycle to keep the
+    output cadence in the `15-20 Hz` range.
+  - The dedicated build entrypoint is:
+    - `scripts/build_ref115_monitor_4.sh`
 
 ## One Command
 
@@ -44,8 +48,8 @@ The default behavior is:
 1. Build/flash `115` in `capture_mode=calibration`
 2. Capture the reference session
 3. Solve the updated anchor layout
-4. Rebuild/reflash `115` in `post_mode=monitor` with the stable
-   `4-anchor fixed B/D/F/G` monitor profile
+4. Rebuild/reflash `115` in `post_mode=monitor` with the main fixed
+   `B,C,F,G` monitor profile
 
 ## Reuse An Existing Session
 
@@ -69,13 +73,13 @@ python3 scripts/recalibrate_anchor_layout_with_ref115.py \
 
 ## Explicit Mode Control
 
-Collect using calibration mode, then leave `115` in 8-anchor adaptive monitor mode:
+Collect using calibration mode, then leave `115` in the fixed 4-anchor static monitor mode:
 
 ```bash
 python3 scripts/recalibrate_anchor_layout_with_ref115.py \
   --capture-mode calibration \
   --post-mode monitor \
-  --monitor-anchor-count 8
+  --monitor-anchor-count 4
 ```
 
 Collect using calibration mode, but do not rebuild/reflash after solving:
@@ -99,16 +103,24 @@ python3 scripts/recalibrate_anchor_layout_with_ref115.py \
   - `upper_level_sigma_mm = 20`
   - `pair_height_sigma_mm = 25`
 - Current recommended live Ref115 localization config:
-  - `APP_TAG_EKF_ENABLE = 1`
-  - `APP_TAG_EKF_MEAS_STD_MM = 200`
-  - `APP_TAG_EKF_PROC_ACCEL_MM_S2 = 1`
-  - `APP_TAG_EKF_OUTLIER_GATE_MM = 35`
   - `APP_TAG_RANGE_SOFT_RESIDUAL_MM = 140`
   - `APP_TAG_RANGE_HARD_RESIDUAL_MM = 260`
+  - `APP_TAG_LOC_MIN_QUALITY_PERCENT = 20`
+  - `APP_TAG_RANGE_CONTINUITY_ENABLE = 0`
+  - `APP_TAG_TDMA_ENABLE = 1`
+  - `APP_TAG_TDMA_SLOT_INDEX = 1`
+  - `APP_TAG_TDMA_SLOT_COUNT = 6`
+  - `APP_TAG_TDMA_SLOT_PERIOD_MS = 10`
+  - `APP_TAG_TDMA_SLOT_ACTIVE_MS = 9`
+  - `APP_TAG_EKF_ENABLE = 0`
 - Current mode defaults:
   - `capture_mode = calibration`
   - `post_mode = monitor`
   - `monitor_anchor_count = 4`
+
+For the current single source of truth on Tag `115`, see:
+
+- [`docs/ref115_current_config.md`](/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/docs/ref115_current_config.md)
 
 ## Current Best Static Result For Ref115
 
@@ -120,6 +132,9 @@ The current best configuration is:
 
 - `range_soft = 140 mm`
 - `range_hard = 260 mm`
+- `build = build-ref115-monitor-4`
+- `monitor cycle = 6 TDMA slots at 10 ms each`
+- `EKF disabled in monitor mode`
 
 Its 150 s confirmation window produced:
 
@@ -139,41 +154,11 @@ The script always updates:
 
 If build is enabled, it also creates:
 
-- `build-tag-ref115-autopos/zephyr/merged.hex`
+- `build-ref115-monitor-4/zephyr/merged.hex`
 
 The script now clears and rebuilds its target `build-dir` before each compile.
 This avoids stale `mcuboot` child-image state when the same workflow is rerun
 multiple times.
-
-## Ref115 Monitor-Mode Anchor Sweep
-
-The monitor-mode sweep across `8 -> 7 -> 6 -> 5 -> 4` anchors is recorded in:
-
-- `logs/tag_sessions/ref115_monitor_opt/result_20260321_monitor_opt1.json`
-
-Result:
-
-- Best monitor anchor count: `4`
-- Best subset: fixed `B,D,F,G`
-
-Latest long-window confirm (`120 s`):
-
-- `x std = 1.84 mm`
-- `y std = 1.68 mm`
-- `z std = 4.81 mm`
-- `rms mean = 25.61 mm`
-- `max mean = 36.56 mm`
-
-- Session:
-  - `logs/tag_sessions/ref115_fixed_BDFG_confirm2_20260321/summary.json`
-
-Observed conclusion:
-
-- `8/7/6/5-anchor` monitor mode is materially worse for `Ref115` as a static
-  health reference.
-- `Ref115` should stay in:
-  - `calibration mode`: all 8 anchors, verbose range capture
-  - `monitor mode`: fixed `B,D,F,G`
 
 ## Important Note
 

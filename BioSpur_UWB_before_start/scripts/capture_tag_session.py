@@ -17,6 +17,7 @@ import serial
 
 TAG_POS_RE = re.compile(
     r"Tag pos sweep=(?P<sweep>\d+) used=(?P<used>\d+) lower=(?P<lower>\d+) upper=(?P<upper>\d+) "
+    r"(?:raw_xyz=\((?P<raw_x>-?\d+),(?P<raw_y>-?\d+),(?P<raw_z>-?\d+)\) mm )?"
     r"xyz=\((?P<x>-?\d+),(?P<y>-?\d+),(?P<z>-?\d+)\) mm rms=(?P<rms>\d+) mm max=(?P<max>\d+) mm "
     r"anchors=\[(?P<anchors>[A-Z,]*)\]"
 )
@@ -24,6 +25,7 @@ TAG_POS_RE = re.compile(
 TAG_MOTION_SUMMARY_RE = re.compile(
     r"Tag motion summary sweep=(?P<sweep>\d+) plan=(?P<plan>\w+) sweep_ms=(?P<sweep_ms>\d+) "
     r"active=(?P<active>\d+) used=(?P<used>\d+) lower=(?P<lower>\d+) upper=(?P<upper>\d+) "
+    r"(?:raw_xyz=\((?P<raw_x>-?\d+),(?P<raw_y>-?\d+),(?P<raw_z>-?\d+)\) mm )?"
     r"xyz=\((?P<x>-?\d+),(?P<y>-?\d+),(?P<z>-?\d+)\) mm rms=(?P<rms>\d+) mm max=(?P<max>\d+) mm "
     r"anchors=\[(?P<anchors>[A-Z,]*)\]"
 )
@@ -32,7 +34,8 @@ TAG_MOTION_STREAM_RE = re.compile(
     r"(?:Tag motion summary\s+)?sweep=(?P<sweep>\d+)\s+plan=(?P<plan>\w+)\s+"
     r"(?:sweep_ms=(?P<sweep_ms>\d+)\s+)?(?:active=(?P<active>\d+)\s+)?"
     r"(?:used=(?P<used>\d+)\s+)?(?:lower=(?P<lower>\d+)\s+)?"
-    r"(?:upper=(?P<upper>\d+)\s+)?xyz=\((?P<x>-?\d+),(?P<y>-?\d+),(?P<z>-?\d+)\)"
+    r"(?:upper=(?P<upper>\d+)\s+)?(?:raw_xyz=\((?P<raw_x>-?\d+),(?P<raw_y>-?\d+),(?P<raw_z>-?\d+)\)\s+)?"
+    r"xyz=\((?P<x>-?\d+),(?P<y>-?\d+),(?P<z>-?\d+)\)"
     r".*?rms=(?P<rms>\d+)\s*mm.*?max=(?P<max>\d+)\s*mm.*?"
     r"anchors=\[(?P<anchors>[A-Z,]*)\]",
     re.DOTALL,

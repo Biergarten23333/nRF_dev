@@ -68,6 +68,20 @@ def build_subset(build_dir: Path, subset_labels: list[str]):
             *cmake_args,
         ]
     )
+    run(
+        [
+            "python3",
+            "scripts/write_build_source.py",
+            "--build-dir",
+            str(build_dir),
+            "--source",
+            "scripts/evaluate_ref115_fixed_subset_live.py",
+            "--command",
+            f"python3 scripts/evaluate_ref115_fixed_subset_live.py --subset {','.join(subset_labels)}",
+            "--note",
+            f"subset={','.join(subset_labels)}",
+        ]
+    )
 
 
 def main():

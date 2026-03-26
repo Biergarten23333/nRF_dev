@@ -23,6 +23,11 @@ west build \
   -DAPP_TAG_FULL_SWEEP_INTERVAL=4 \
   -DAPP_TAG_TRACK_ANCHOR_COUNT=6
 
+python3 scripts/write_build_source.py \
+  --build-dir "$build_dir" \
+  --source "scripts/build_tag_adaptive.sh" \
+  --command "$0 $*"
+
 echo
 echo "Built: $build_dir"
 echo "Hex:   $build_dir/zephyr/zephyr.hex"

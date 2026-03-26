@@ -25,6 +25,10 @@ struct uwb_tag_ble_sample {
 };
 
 int uwb_tag_ble_init(void);
+uint16_t uwb_tag_ble_identity_code(void);
+uint8_t uwb_tag_ble_tag_id(void);
+bool uwb_tag_ble_tdma_slot_override_get(uint8_t *slot_index);
+int uwb_tag_ble_tdma_slot_override_store(uint8_t slot_index);
 int uwb_tag_ble_publish_status(const char *line);
 int uwb_tag_ble_publish_sample(const struct uwb_tag_ble_sample *sample);
 bool uwb_tag_ble_ota_active(void);

@@ -36,61 +36,64 @@ def run(cmd, *, cwd=REPO_ROOT):
     subprocess.run([str(part) for part in cmd], cwd=cwd, env=env, check=True)
 
 
-def build_common_args() -> list[str]:
+def build_shared_args() -> list[str]:
     return [
         "-DAPP_TAG_ID=1",
-        "-DAPP_TAG_TDMA_ENABLE=1",
-        "-DAPP_TAG_TDMA_SLOT_INDEX=1",
-        "-DAPP_TAG_TDMA_SLOT_COUNT=10",
-        "-DAPP_TAG_TDMA_SLOT_PERIOD_MS=10",
-        "-DAPP_TAG_TDMA_SLOT_ACTIVE_MS=9",
-        "-DAPP_TAG_EKF_ENABLE=1",
-        "-DAPP_TAG_EKF_MEAS_STD_MM=200",
-        "-DAPP_TAG_EKF_RESIDUAL_GAIN_PCT=0",
-        "-DAPP_TAG_EKF_PROC_ACCEL_MM_S2=1",
-        "-DAPP_TAG_EKF_INIT_POS_STD_MM=200",
-        "-DAPP_TAG_EKF_INIT_VEL_STD_MM_S=1000",
-        "-DAPP_TAG_EKF_OUTLIER_GATE_MM=35",
         "-DAPP_TAG_RANGE_SOFT_RESIDUAL_MM=140",
         "-DAPP_TAG_RANGE_HARD_RESIDUAL_MM=260",
     ]
 
 
-def build_mode_args(mode: str, monitor_anchor_count: int) -> list[str]:
-    if mode == "calibration":
+def build_capture_args() -> list[str]:
+    return [
+        "-DAPP_TAG_BLE_ENABLE=0",
+        "-DAPP_TAG_MCUBOOT_ENABLE=0",
+        "-DAPP_TAG_USB_DIAG_TRACE=0",
+        "-DAPP_TAG_TDMA_ENABLE=0",
+        "-DAPP_TAG_FIXED_MODE=0",
+        "-DAPP_TAG_FULL_SWEEP_INTERVAL=1",
+        "-DAPP_TAG_TRACK_ANCHOR_COUNT=8",
+        "-DAPP_TAG_VERBOSE_RANGING=1",
+        "-DAPP_TAG_VERBOSE_MEASUREMENTS=0",
+        "-DAPP_TAG_LOC_MIN_QUALITY_PERCENT=20",
+        "-DAPP_TAG_RANGE_CONTINUITY_ENABLE=0",
+    ]
+
+
+def build_monitor_args(monitor_anchor_count: int) -> list[str]:
+    if monitor_anchor_count < 4 or monitor_anchor_count > 8:
+        raise ValueError(f"monitor_anchor_count must be in [4,8], got {monitor_anchor_count}")
+
+    base = [
+        "-DAPP_TAG_TDMA_ENABLE=1",
+        "-DAPP_TAG_TDMA_SLOT_INDEX=1",
+        "-DAPP_TAG_TDMA_SLOT_COUNT=6",
+        "-DAPP_TAG_TDMA_SLOT_PERIOD_MS=10",
+        "-DAPP_TAG_TDMA_SLOT_ACTIVE_MS=9",
+        "-DAPP_TAG_EKF_ENABLE=0",
+        "-DAPP_TAG_LOC_MIN_QUALITY_PERCENT=20",
+        "-DAPP_TAG_RANGE_CONTINUITY_ENABLE=0",
+        "-DAPP_TAG_VERBOSE_RANGING=0",
+        "-DAPP_TAG_VERBOSE_MEASUREMENTS=0",
+    ]
+
+    if monitor_anchor_count == 4:
         return [
-            "-DAPP_TAG_FIXED_MODE=0",
-            "-DAPP_TAG_FULL_SWEEP_INTERVAL=1",
-            "-DAPP_TAG_TRACK_ANCHOR_COUNT=8",
-            "-DAPP_TAG_VERBOSE_RANGING=1",
-            "-DAPP_TAG_VERBOSE_MEASUREMENTS=0",
+            *base,
+            "-DAPP_TAG_FIXED_MODE=1",
+            "-DAPP_TAG_FIXED_ANCHOR_COUNT=4",
+            "-DAPP_TAG_FIXED_ANCHOR_0_ID=1",
+            "-DAPP_TAG_FIXED_ANCHOR_1_ID=2",
+            "-DAPP_TAG_FIXED_ANCHOR_2_ID=5",
+            "-DAPP_TAG_FIXED_ANCHOR_3_ID=6",
         ]
 
-    if mode == "monitor":
-        if monitor_anchor_count < 4 or monitor_anchor_count > 8:
-            raise ValueError(f"monitor_anchor_count must be in [4,8], got {monitor_anchor_count}")
-
-        if monitor_anchor_count == 4:
-            return [
-                "-DAPP_TAG_FIXED_MODE=1",
-                "-DAPP_TAG_FIXED_ANCHOR_COUNT=4",
-                "-DAPP_TAG_FIXED_ANCHOR_0_ID=1",
-                "-DAPP_TAG_FIXED_ANCHOR_1_ID=3",
-                "-DAPP_TAG_FIXED_ANCHOR_2_ID=5",
-                "-DAPP_TAG_FIXED_ANCHOR_3_ID=6",
-                "-DAPP_TAG_VERBOSE_RANGING=0",
-                "-DAPP_TAG_VERBOSE_MEASUREMENTS=0",
-            ]
-
-        return [
-            "-DAPP_TAG_FIXED_MODE=0",
-            "-DAPP_TAG_FULL_SWEEP_INTERVAL=8",
-            f"-DAPP_TAG_TRACK_ANCHOR_COUNT={monitor_anchor_count}",
-            "-DAPP_TAG_VERBOSE_RANGING=0",
-            "-DAPP_TAG_VERBOSE_MEASUREMENTS=0",
-        ]
-
-    raise ValueError(f"Unsupported build mode: {mode}")
+    return [
+        *base,
+        "-DAPP_TAG_FIXED_MODE=0",
+        "-DAPP_TAG_FULL_SWEEP_INTERVAL=8",
+        f"-DAPP_TAG_TRACK_ANCHOR_COUNT={monitor_anchor_count}",
+    ]
 
 
 def ensure_session(args) -> Path:
@@ -104,7 +107,7 @@ def ensure_session(args) -> Path:
         build_dir = REPO_ROOT / args.build_dir
         build_tag(build_dir, args.capture_mode, args.monitor_anchor_count)
         if not args.skip_flash:
-            flash_tag(args.snr, build_dir / "zephyr" / "merged.hex")
+            flash_tag(args.snr, build_dir / "zephyr" / "zephyr.hex")
 
     session_name = args.session_name or f"ref115_autopos_{datetime.now():%Y%m%d_%H%M%S}"
     run(
@@ -239,6 +242,15 @@ def build_tag(build_dir: Path, mode: str, monitor_anchor_count: int):
     if build_dir.exists():
         shutil.rmtree(build_dir)
 
+    if mode == "calibration":
+        source_dir = "apps/tag_usb"
+        mode_args = build_capture_args()
+    elif mode == "monitor":
+        source_dir = "apps/tag"
+        mode_args = build_monitor_args(monitor_anchor_count)
+    else:
+        raise ValueError(f"Unsupported build mode: {mode}")
+
     run(
         [
             "west",
@@ -246,15 +258,31 @@ def build_tag(build_dir: Path, mode: str, monitor_anchor_count: int):
             "-b",
             "decawave_dwm1001_dev/nrf52832",
             "-s",
-            "apps/tag",
+            source_dir,
             "-d",
             str(build_dir),
             "--no-sysbuild",
             "--pristine=always",
             "--",
-            *build_common_args(),
-            *build_mode_args(mode, monitor_anchor_count),
+            *build_shared_args(),
+            *mode_args,
         ],
+    )
+    run(
+        [
+            "python3",
+            "scripts/write_build_source.py",
+            "--build-dir",
+            str(build_dir),
+            "--source",
+            "scripts/recalibrate_anchor_layout_with_ref115.py",
+            "--command",
+            f"python3 scripts/recalibrate_anchor_layout_with_ref115.py --capture-mode {mode} --monitor-anchor-count {monitor_anchor_count}",
+            "--note",
+            f"mode={mode}",
+            "--note",
+            f"build_source={source_dir}",
+        ]
     )
 
 
@@ -295,7 +323,7 @@ def main() -> int:
     parser.add_argument("--reference-sigma-mm", type=float, default=60.0)
     parser.add_argument("--max-iters", type=int, default=5)
     parser.add_argument("--converge-mm", type=float, default=1.0)
-    parser.add_argument("--build-dir", default="build-tag-ref115-autopos")
+    parser.add_argument("--build-dir", default="build-ref115-monitor-4")
     parser.add_argument(
         "--capture-mode",
         choices=("calibration", "monitor"),
@@ -312,7 +340,7 @@ def main() -> int:
         "--monitor-anchor-count",
         type=int,
         default=4,
-        help="Monitor-mode anchor count. 4 keeps the stable fixed B/C/F/G subset; 5-8 use adaptive full-sweep monitoring.",
+        help="Monitor-mode anchor count. 4 uses the fixed B,C,F,G static build; 5-8 use adaptive monitoring.",
     )
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument("--skip-flash", action="store_true")
@@ -336,7 +364,7 @@ def main() -> int:
         build_dir = REPO_ROOT / args.build_dir
         build_tag(build_dir, args.post_mode, args.monitor_anchor_count)
         if not args.skip_flash:
-            flash_tag(args.snr, build_dir / "zephyr" / "merged.hex")
+            flash_tag(args.snr, build_dir / "zephyr" / "zephyr.hex")
 
     print("")
     print(f"session_dir: {session_dir}")

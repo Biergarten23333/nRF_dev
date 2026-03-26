@@ -19,6 +19,8 @@ project(BioSpur_UWB_master_ota)
 
 set(APP_MASTER_OTA_TARGET_NAME "" CACHE STRING
     "Exact BLE device name to OTA; empty accepts any DFU SMP advertiser")
+set(APP_MASTER_OTA_TARGET_NAME_PREFIX "BS" CACHE STRING
+    "BLE device-name prefix to OTA when no exact name is provided")
 set(APP_MASTER_OTA_TARGET_TOKEN_ID "-1" CACHE STRING
     "BioSpur manufacturer token tag ID to OTA; -1 accepts any token")
 
@@ -34,6 +36,7 @@ target_include_directories(app PRIVATE
 target_compile_definitions(app PRIVATE
     ZCBOR_CANONICAL
     APP_MASTER_OTA_TARGET_NAME=\"${APP_MASTER_OTA_TARGET_NAME}\"
+    APP_MASTER_OTA_TARGET_NAME_PREFIX=\"${APP_MASTER_OTA_TARGET_NAME_PREFIX}\"
     APP_MASTER_OTA_TARGET_TOKEN_ID=${APP_MASTER_OTA_TARGET_TOKEN_ID}
 )
 

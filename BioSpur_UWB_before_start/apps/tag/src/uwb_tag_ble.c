@@ -1,5 +1,7 @@
 #include "uwb_tag_ble.h"
 
+#include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <zephyr/bluetooth/bluetooth.h>
@@ -15,8 +17,12 @@
 #include <bluetooth/services/nus.h>
 #include <bluetooth/services/dfu_smp.h>
 
+#include "ss_twr_init.h"
+
+#include <hal/nrf_ficr.h>
+
 #ifndef CONFIG_BT_DEVICE_NAME
-#define CONFIG_BT_DEVICE_NAME "Tag_rot"
+#define CONFIG_BT_DEVICE_NAME "BS_AUTO"
 #endif
 
 #ifndef APP_TAG_BLE_OTA_ENABLE
@@ -43,6 +49,9 @@
 #define APP_TAG_BLE_TOKEN_ID APP_TAG_ID
 #endif
 
+#define UWB_TAG_BLE_DEVICE_NAME_LEN 8U
+#define UWB_TAG_BLE_ADV_MFG_LEN 6U
+
 #define UWB_TAG_BLE_MAX_STATUS_LEN 256U
 /* Keep ~20% headroom so bundled NUS payloads do not sit on the limit. */
 #define UWB_TAG_BLE_BUNDLE_PAYLOAD_CAP 180U
@@ -57,18 +66,31 @@
 #define UWB_TAG_BLE_BINARY_RECORD_LEN 24U
 #define UWB_TAG_BLE_MAX_BINARY_RECORDS 4U
 
+#define UWB_TAG_BLE_SETTINGS_SUBTREE "tag_ble"
+#define UWB_TAG_BLE_SETTINGS_TDMA_SLOT_KEY "tdma_slot"
+
+struct uwb_tag_ble_tdma_slot_record {
+	uint8_t valid;
+	uint8_t slot_index;
+};
+
 struct uwb_tag_ble_tx_item {
 	void *fifo_reserved;
 	size_t len;
 	uint8_t payload[UWB_TAG_BLE_MAX_STATUS_LEN];
 };
 
-static const uint8_t adv_mfg_token[] = {
-	0xff, 0xff, 'B', (uint8_t)APP_TAG_BLE_TOKEN_ID,
+static uint8_t adv_mfg_token[UWB_TAG_BLE_ADV_MFG_LEN] = {
+	0xff, 0xff, 'B', 0x00U, 0x00U, 0x00U,
 };
 
 static const struct bt_conn_le_phy_param *const fast_phy_params = BT_CONN_LE_PHY_PARAM_2M;
 static const struct bt_le_conn_param *const fast_conn_params = BT_LE_CONN_PARAM(6, 6, 0, 400);
+static char ble_device_name[UWB_TAG_BLE_DEVICE_NAME_LEN];
+static uint16_t ble_identity_code;
+static uint8_t ble_tag_id;
+static struct uwb_tag_ble_tdma_slot_record tdma_slot_record;
+static bool tdma_slot_record_loaded;
 
 static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
@@ -80,10 +102,12 @@ static const struct bt_data ad[] = {
 	BT_DATA(BT_DATA_MANUFACTURER_DATA, adv_mfg_token, sizeof(adv_mfg_token)),
 };
 
-static const struct bt_data sd[] = {
-	BT_DATA(BT_DATA_NAME_COMPLETE,
-		CONFIG_BT_DEVICE_NAME,
-		sizeof(CONFIG_BT_DEVICE_NAME) - 1U),
+static struct bt_data sd[] = {
+	{
+		.type = BT_DATA_NAME_COMPLETE,
+		.data_len = 0U,
+		.data = ble_device_name,
+	},
 };
 
 static struct k_mutex ble_mutex;
@@ -111,6 +135,7 @@ static uint8_t pending_sample_count;
 static struct bt_nus_cb nus_cb;
 
 static int uwb_tag_ble_start_advertising(void);
+static void uwb_tag_ble_init_identity(void);
 static bool uwb_tag_ble_bundle_enabled(void);
 static bool uwb_tag_ble_line_is_bundle_candidate(const char *line);
 static void uwb_tag_ble_clear_pending_bundle_locked(void);
@@ -139,6 +164,58 @@ static void ble_reboot_work_handler(struct k_work *work)
 	sys_reboot(SYS_REBOOT_COLD);
 }
 
+static int uwb_tag_ble_tdma_slot_settings_set(const char *key, size_t len,
+					     settings_read_cb read_cb, void *cb_arg)
+{
+	const char *next;
+	struct uwb_tag_ble_tdma_slot_record record = { 0U, 0U };
+	int err;
+
+	if (!settings_name_steq(key, UWB_TAG_BLE_SETTINGS_TDMA_SLOT_KEY, &next) ||
+	    next != NULL) {
+		return -ENOENT;
+	}
+
+	if (len != sizeof(record)) {
+		return -EINVAL;
+	}
+
+	err = read_cb(cb_arg, &record, sizeof(record));
+	if (err < 0) {
+		return err;
+	}
+
+	k_mutex_lock(&ble_mutex, K_FOREVER);
+	tdma_slot_record = record;
+	tdma_slot_record_loaded = true;
+	k_mutex_unlock(&ble_mutex);
+
+	return 0;
+}
+
+static int uwb_tag_ble_tdma_slot_settings_export(
+	int (*cb)(const char *name, const void *value, size_t val_len))
+{
+	struct uwb_tag_ble_tdma_slot_record record;
+
+	k_mutex_lock(&ble_mutex, K_FOREVER);
+	record = tdma_slot_record;
+	k_mutex_unlock(&ble_mutex);
+
+	if (!record.valid) {
+		return 0;
+	}
+
+	return cb(UWB_TAG_BLE_SETTINGS_TDMA_SLOT_KEY, &record, sizeof(record));
+}
+
+SETTINGS_STATIC_HANDLER_DEFINE(uwb_tag_ble_tdma_slot_settings,
+			       UWB_TAG_BLE_SETTINGS_SUBTREE,
+			       NULL,
+			       uwb_tag_ble_tdma_slot_settings_set,
+			       NULL,
+			       uwb_tag_ble_tdma_slot_settings_export);
+
 static void ble_adv_retry_work_handler(struct k_work *work)
 {
 	int err;
@@ -160,6 +237,7 @@ static void ble_init_sequence(void)
 	size_t id_count = 0U;
 
 	printk("Tag BLE init work start\n");
+	uwb_tag_ble_init_identity();
 	err = bt_enable(NULL);
 	printk("Tag BLE bt_enable rc=%d\n", err);
 	if (err) {
@@ -183,8 +261,8 @@ static void ble_init_sequence(void)
 		}
 	}
 
-	printk("Tag BLE set name skipped; using Kconfig name=%s\n",
-	       CONFIG_BT_DEVICE_NAME);
+	printk("Tag BLE set name skipped; using auto name=%s\n",
+	       ble_device_name);
 
 	printk("Tag BLE NUS init start\n");
 	err = bt_nus_init(&nus_cb);
@@ -203,7 +281,79 @@ static void ble_init_sequence(void)
 	}
 
 	ble_ready = true;
-	printk("Tag BLE advertising as %s\n", CONFIG_BT_DEVICE_NAME);
+	printk("Tag BLE advertising as %s\n", ble_device_name);
+}
+
+static void uwb_tag_ble_init_identity(void)
+{
+	uint32_t seed0 = NRF_FICR->DEVICEID[0];
+	uint32_t seed1 = NRF_FICR->DEVICEID[1];
+	uint32_t folded = seed0 ^ seed1 ^ (seed0 >> 16) ^ (seed1 << 1);
+	uint16_t code = (uint16_t)(((folded >> 16) ^ folded) & 0xFFFFU);
+	int len;
+
+	ble_identity_code = code;
+	ble_tag_id = (uint8_t)(code & 0xFFU);
+	adv_mfg_token[3] = ble_tag_id;
+	adv_mfg_token[4] = (uint8_t)(code & 0xFFU);
+	adv_mfg_token[5] = (uint8_t)((code >> 8) & 0xFFU);
+	len = snprintk(ble_device_name, sizeof(ble_device_name), "BS%04X", code);
+	if (len < 0) {
+		memcpy(ble_device_name, "BS0000", sizeof("BS0000"));
+		len = (int)(sizeof("BS0000") - 1);
+	}
+
+	sd[0].data_len = (uint8_t)len;
+	printk("Tag BLE auto identity seed=%08x%08x name=%s\n",
+	       (unsigned int)seed1, (unsigned int)seed0, ble_device_name);
+}
+
+uint16_t uwb_tag_ble_identity_code(void)
+{
+	return ble_identity_code;
+}
+
+uint8_t uwb_tag_ble_tag_id(void)
+{
+	return ble_tag_id;
+}
+
+bool uwb_tag_ble_tdma_slot_override_get(uint8_t *slot_index)
+{
+	bool valid;
+
+	k_mutex_lock(&ble_mutex, K_FOREVER);
+	valid = tdma_slot_record_loaded && tdma_slot_record.valid;
+	if (valid && slot_index != NULL) {
+		*slot_index = tdma_slot_record.slot_index;
+	}
+	k_mutex_unlock(&ble_mutex);
+
+	return valid;
+}
+
+int uwb_tag_ble_tdma_slot_override_store(uint8_t slot_index)
+{
+	struct uwb_tag_ble_tdma_slot_record record;
+	int err = 0;
+
+	k_mutex_lock(&ble_mutex, K_FOREVER);
+	tdma_slot_record.valid = 1U;
+	tdma_slot_record.slot_index = slot_index;
+	tdma_slot_record_loaded = true;
+	record = tdma_slot_record;
+	k_mutex_unlock(&ble_mutex);
+
+	if (IS_ENABLED(CONFIG_SETTINGS)) {
+		err = settings_save_one(UWB_TAG_BLE_SETTINGS_SUBTREE "/"
+					UWB_TAG_BLE_SETTINGS_TDMA_SLOT_KEY,
+					&record, sizeof(record));
+		if (err) {
+			printk("Tag BLE TDMA slot save skipped/failed: %d\n", err);
+		}
+	}
+
+	return 0;
 }
 
 static int uwb_tag_ble_start_advertising(void)
@@ -335,7 +485,7 @@ static size_t uwb_tag_ble_encode_binary_packet(uint8_t *out, size_t out_len,
 	out[offset++] = UWB_TAG_BLE_BINARY_MAGIC1;
 	out[offset++] = UWB_TAG_BLE_BINARY_VERSION;
 	out[offset++] = (uint8_t)sample_count;
-	out[offset++] = (uint8_t)APP_TAG_BLE_TOKEN_ID;
+	out[offset++] = uwb_tag_ble_tag_id();
 
 	for (size_t i = 0U; i < sample_count; ++i) {
 		const struct uwb_tag_ble_sample *sample = &samples[i];
@@ -622,11 +772,65 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		return;
 	}
 
+	if (strcmp(cmd, "TDMA_STATUS") == 0) {
+		char resp[64];
+		uint8_t slot = 0U;
+		bool override_valid = uwb_tag_ble_tdma_slot_override_get(&slot);
+
+		snprintk(resp, sizeof(resp), "TDMA_SLOT=%u/%u SOURCE=%s",
+			 (unsigned int)slot,
+			 (unsigned int)APP_TAG_TDMA_SLOT_COUNT,
+			 override_valid ? "OVERRIDE" : "AUTO");
+		uwb_tag_ble_send_text(resp);
+		return;
+	}
+
+	if (strncmp(cmd, "TDMA_SET", 8) == 0) {
+		const char *arg = cmd + 8;
+		char *end = NULL;
+		unsigned long slot_ul;
+		uint8_t slot;
+		int live_err;
+		int store_err;
+		char resp[64];
+
+		while (*arg == ' ' || *arg == '\t') {
+			arg++;
+		}
+		if (*arg == '\0') {
+			uwb_tag_ble_send_text("TDMA_SET_BAD");
+			return;
+		}
+
+		slot_ul = strtoul(arg, &end, 10);
+		while (end != NULL && (*end == ' ' || *end == '\t')) {
+			end++;
+		}
+		if (end == NULL || end == arg || *end != '\0' || slot_ul > UINT8_MAX) {
+			uwb_tag_ble_send_text("TDMA_SET_BAD");
+			return;
+		}
+
+		slot = (uint8_t)slot_ul;
+		store_err = uwb_tag_ble_tdma_slot_override_store(slot);
+		live_err = ss_twr_init_tdma_set_slot(slot);
+		if (store_err) {
+			uwb_tag_ble_send_text("TDMA_SET_SAVE_FAIL");
+			return;
+		}
+
+		snprintk(resp, sizeof(resp), "TDMA_SET_OK SLOT=%u LIVE=%u",
+			 (unsigned int)slot,
+			 (unsigned int)((live_err == 0) ? 1U : 0U));
+		uwb_tag_ble_send_text(resp);
+		return;
+	}
+
 	if (strcmp(cmd, "HELP") == 0) {
 #if APP_TAG_BLE_OTA_ENABLE
-		uwb_tag_ble_send_text("PING|STATUS|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|TDMA_SET <slot>|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
 #else
-		uwb_tag_ble_send_text("PING|STATUS|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|TDMA_SET <slot>|REBOOT|HELP");
 #endif
 		return;
 	}

@@ -29,12 +29,14 @@ from tkinter import ttk
 
 USB_TAG_RE = re.compile(
     r"Tag motion summary sweep=(?P<sweep>\d+).*?"
+    r"(?:raw_xyz=\((?P<raw_x>-?\d+),(?P<raw_y>-?\d+),(?P<raw_z>-?\d+)\) mm )?"
     r"xyz=\((?P<x>-?\d+),(?P<y>-?\d+),(?P<z>-?\d+)\) mm "
     r"rms=(?P<rms>\d+) mm max=(?P<max>\d+) mm"
 )
 
 USB_TAG_POS_RE = re.compile(
     r"Tag pos sweep=(?P<sweep>\d+).*?"
+    r"(?:raw_xyz=\((?P<raw_x>-?\d+),(?P<raw_y>-?\d+),(?P<raw_z>-?\d+)\) mm )?"
     r"xyz=\((?P<x>-?\d+),(?P<y>-?\d+),(?P<z>-?\d+)\) mm "
     r"rms=(?P<rms>\d+) mm max=(?P<max>\d+) mm"
 )
