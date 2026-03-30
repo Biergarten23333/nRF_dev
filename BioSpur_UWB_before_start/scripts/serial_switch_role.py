@@ -23,7 +23,7 @@ def read_line(ser: serial.Serial, timeout_s: float) -> str | None:
     return None
 
 
-def wait_for_ready(ser: serial.Serial, timeout_s: float) -> None:
+def wait_for_ready(ser: serial.Serial, timeout_s: float) -> bool:
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         line = read_line(ser, min(0.6, max(0.1, deadline - time.time())))
@@ -31,8 +31,8 @@ def wait_for_ready(ser: serial.Serial, timeout_s: float) -> None:
             continue
         print(f"<< {line}")
         if "UART ROLE SWITCH READY" in line.upper():
-            return
-    raise TimeoutError("UART role switch ready banner not observed")
+            return True
+    return False
 
 
 def send_cmd_expect(ser: serial.Serial, cmd: str, timeout_s: float,
@@ -51,6 +51,30 @@ def send_cmd_expect(ser: serial.Serial, cmd: str, timeout_s: float,
     raise TimeoutError(f"timeout waiting response for '{cmd}', expected {expect_prefixes}")
 
 
+def query_status_or_role(ser: serial.Serial, timeout_s: float) -> str:
+    for _ in range(3):
+        print(">> STATUS")
+        try:
+            line = send_cmd_expect(ser, "STATUS", timeout_s, ("ANCHOR: UNIFIED;", "ERR:"))
+            if line.upper().startswith("ERR:BAD_CMD"):
+                continue
+            return line
+        except TimeoutError:
+            pass
+
+    print("[warn] STATUS unavailable, fallback to ROLE?")
+    for _ in range(5):
+        print(">> ROLE?")
+        try:
+            line = send_cmd_expect(ser, "ROLE?", timeout_s, ("ROLE:", "ERR:"))
+            if line.upper().startswith("ERR:BAD_CMD"):
+                continue
+            return line
+        except TimeoutError:
+            continue
+    raise TimeoutError("status probe failed after STATUS/ROLE? retries")
+
+
 def expect_ok(resp: str, step: str) -> None:
     up = resp.upper()
     if up.startswith("OK"):
@@ -58,6 +82,16 @@ def expect_ok(resp: str, step: str) -> None:
     if up.startswith("ERR:"):
         raise RuntimeError(f"{step} failed: {resp}")
     raise RuntimeError(f"{step} unexpected response: {resp}")
+
+
+def run_mutation_cmd(ser: serial.Serial, cmd: str, timeout_s: float, step: str) -> None:
+    for _ in range(4):
+        resp = send_cmd_expect(ser, cmd, timeout_s, ("OK", "ERR:"))
+        if resp.upper().startswith("ERR:BAD_CMD"):
+            continue
+        expect_ok(resp, step)
+        return
+    raise RuntimeError(f"{step} failed after retries (BAD_CMD flood)")
 
 
 def parse_args() -> argparse.Namespace:
@@ -93,38 +127,31 @@ def main() -> int:
         with serial.Serial(args.port, args.baud, timeout=0.25) as ser:
             time.sleep(0.15)
             ser.reset_input_buffer()
-            wait_for_ready(ser, max(args.timeout, 10.0))
+            if not wait_for_ready(ser, max(args.timeout, 10.0)):
+                print("[warn] ready banner not observed; continue with command probe")
 
-            print(">> STATUS")
-            status = send_cmd_expect(ser, "STATUS", args.timeout,
-                                     ("ANCHOR: UNIFIED;", "ERR:"))
+            status = query_status_or_role(ser, args.timeout)
             if status.upper().startswith("ERR:"):
                 raise RuntimeError(f"STATUS failed: {status}")
 
             if args.role:
                 print(f">> ROLE SET {args.role}")
-                resp = send_cmd_expect(ser, f"ROLE SET {args.role}", args.timeout, ("OK", "ERR:"))
-                expect_ok(resp, "ROLE SET")
+                run_mutation_cmd(ser, f"ROLE SET {args.role}", args.timeout, "ROLE SET")
 
             if anchor_id:
                 print(f">> ANCHOR SET {anchor_id}")
-                resp = send_cmd_expect(ser, f"ANCHOR SET {anchor_id}", args.timeout, ("OK", "ERR:"))
-                expect_ok(resp, "ANCHOR SET")
+                run_mutation_cmd(ser, f"ANCHOR SET {anchor_id}", args.timeout, "ANCHOR SET")
 
             if args.save:
                 print(">> CONFIG SAVE")
-                resp = send_cmd_expect(ser, "CONFIG SAVE", max(args.timeout, 8.0), ("OK", "ERR:"))
-                expect_ok(resp, "CONFIG SAVE")
+                run_mutation_cmd(ser, "CONFIG SAVE", max(args.timeout, 8.0), "CONFIG SAVE")
 
             if args.reboot:
                 print(">> REBOOT")
-                resp = send_cmd_expect(ser, "REBOOT", args.timeout, ("OK", "ERR:"))
-                expect_ok(resp, "REBOOT")
+                run_mutation_cmd(ser, "REBOOT", args.timeout, "REBOOT")
                 time.sleep(0.7)
 
-            print(">> STATUS")
-            status2 = send_cmd_expect(ser, "STATUS", max(args.timeout, 8.0),
-                                      ("ANCHOR: UNIFIED;", "ERR:"))
+            status2 = query_status_or_role(ser, max(args.timeout, 8.0))
             if status2.upper().startswith("ERR:"):
                 raise RuntimeError(f"final STATUS failed: {status2}")
 
