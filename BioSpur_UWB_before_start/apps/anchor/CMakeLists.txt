@@ -18,7 +18,13 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(BioSpur_UWB_anchor)
 
 set(APP_ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
-set(APP_ANCHOR_ID "4" CACHE STRING "Anchor node ID")
+set(APP_ANCHOR_ID "4" CACHE STRING "Anchor node ID (0..7 legacy fallback only)")
+set(APP_ANCHOR_ROLE "0" CACHE STRING "Anchor role: 0=legacy,1=master,2=matrix,3=responder")
+set(APP_ANCHOR_CONFIG_ADDR "0x0007E000" CACHE STRING "Flash address of anchor_config_t provisioning block")
+set(APP_ANCHOR_CONFIG_PAGE_SIZE "4096" CACHE STRING "Flash erase page size for anchor config")
+set(APP_ANCHOR_BLE_ID_ENABLE "1" CACHE STRING "Enable BLE identification advertising")
+set(APP_ANCHOR_SERIAL_CMD_ENABLE "1" CACHE STRING "Enable UART role/config command handler")
+set(APP_ANCHOR_SERIAL_CMD_BOOT_WINDOW_MS "5000" CACHE STRING "Boot window for serial config before ranging starts")
 set(APP_ANCHOR_MASTER "0" CACHE STRING "Whether this anchor actively ranges peers")
 set(APP_ANCHOR_PEER_COUNT "3" CACHE STRING "Number of peer anchors for master mode")
 set(APP_ANCHOR_PEER_0_ID "5" CACHE STRING "Peer slot 0")
@@ -36,8 +42,15 @@ set(APP_UWB_PAN_ID "0xDECA" CACHE STRING "DW1000 PAN ID")
 target_include_directories(app PRIVATE ${APP_ROOT}/include)
 target_include_directories(app PRIVATE ${APP_ROOT}/drivers/dw1000/include)
 target_include_directories(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src)
+target_include_directories(app PRIVATE ${APP_ROOT}/src/anchors/unified)
 target_compile_definitions(app PRIVATE
     APP_ANCHOR_ID=${APP_ANCHOR_ID}
+    APP_ANCHOR_ROLE=${APP_ANCHOR_ROLE}
+    APP_ANCHOR_CONFIG_ADDR=${APP_ANCHOR_CONFIG_ADDR}
+    APP_ANCHOR_CONFIG_PAGE_SIZE=${APP_ANCHOR_CONFIG_PAGE_SIZE}
+    APP_ANCHOR_BLE_ID_ENABLE=${APP_ANCHOR_BLE_ID_ENABLE}
+    APP_ANCHOR_SERIAL_CMD_ENABLE=${APP_ANCHOR_SERIAL_CMD_ENABLE}
+    APP_ANCHOR_SERIAL_CMD_BOOT_WINDOW_MS=${APP_ANCHOR_SERIAL_CMD_BOOT_WINDOW_MS}
     APP_ANCHOR_MASTER=${APP_ANCHOR_MASTER}
     APP_ANCHOR_PEER_COUNT=${APP_ANCHOR_PEER_COUNT}
     APP_ANCHOR_PEER_0_ID=${APP_ANCHOR_PEER_0_ID}
@@ -56,6 +69,9 @@ target_compile_definitions(app PRIVATE
 target_sources(app PRIVATE
     src/main.c
     src/anchor_app.c
+    ${APP_ROOT}/src/anchors/unified/anchor_config.c
+    ${APP_ROOT}/src/anchors/unified/anchor_ble_id.c
+    ${APP_ROOT}/src/anchors/unified/uart_role_switch.c
     ${APP_ROOT}/src/uwb_bringup.c
     ${APP_ROOT}/src/uwb_port.c
     ${APP_ROOT}/src/uwb_anchor_topology.c
