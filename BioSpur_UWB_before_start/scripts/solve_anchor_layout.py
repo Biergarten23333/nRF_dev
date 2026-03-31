@@ -4,6 +4,7 @@ import csv
 import json
 import math
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 from scipy.optimize import least_squares
@@ -13,6 +14,7 @@ ANCHORS = ("A", "B", "C", "D", "E", "F", "G", "H")
 LOWER_PLANE = ("A", "B", "C", "D")
 UPPER_PLANE = ("E", "F", "G", "H")
 VERTICAL_PAIRS = (("A", "E"), ("B", "F"), ("C", "G"), ("D", "H"))
+VERTICAL_PAIR_SET = {(a, b) for a, b in VERTICAL_PAIRS} | {(b, a) for a, b in VERTICAL_PAIRS}
 
 
 def load_input(path: Path) -> dict:
@@ -26,6 +28,26 @@ def load_distances(raw: dict) -> dict[tuple[str, str], float]:
         distances[(a, b)] = value / 1000.0
         distances[(b, a)] = value / 1000.0
     return distances
+
+
+def load_anchor_map_from_layout(path: Path) -> dict[str, np.ndarray]:
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    anchors_raw = raw["anchors"]
+    if isinstance(anchors_raw, dict):
+        units = raw.get("units", "m")
+        scale = 0.001 if units == "mm" else 1.0
+        return {name: np.array(values, dtype=float) * scale for name, values in anchors_raw.items()}
+
+    units = raw.get("units", "m")
+    scale = 0.001 if units == "mm" else 1.0
+    return {
+        entry["label"]: np.array(
+            [entry["x_mm"], entry["y_mm"], entry["z_mm"]],
+            dtype=float,
+        )
+        * scale
+        for entry in anchors_raw
+    }
 
 
 def load_reference_constraints(session_dirs: list[str]) -> list[dict]:
@@ -274,6 +296,14 @@ def residuals(
     reference_sigma_m: float,
     floating_reference_z_prior_m: float | None,
     floating_reference_z_sigma_m: float,
+    distance_sigma_same_plane_m: float,
+    distance_sigma_cross_plane_m: float,
+    distance_sigma_vertical_pair_m: float,
+    initial_layout_prior: dict[str, np.ndarray] | None,
+    prior_lower_xy_sigma_m: float,
+    prior_lower_z_sigma_m: float,
+    prior_upper_xy_sigma_m: float,
+    prior_upper_z_sigma_m: float,
 ) -> np.ndarray:
     coords, floating_reference_points = unpack_params(params, floating_reference_constraints)
     res = []
@@ -283,7 +313,14 @@ def residuals(
         for b in ANCHORS[i + 1 :]:
             target = distances[(a, b)]
             actual = np.linalg.norm(coords[a] - coords[b])
-            res.append((actual - target) / distance_sigma_m)
+            sigma = distance_sigma_m
+            if (a, b) in VERTICAL_PAIR_SET:
+                sigma = distance_sigma_vertical_pair_m
+            elif (a in LOWER_PLANE and b in LOWER_PLANE) or (a in UPPER_PLANE and b in UPPER_PLANE):
+                sigma = distance_sigma_same_plane_m
+            else:
+                sigma = distance_sigma_cross_plane_m
+            res.append((actual - target) / sigma)
 
     # Soft lower-plane prior: A/B/D define the reference plane, C is allowed to
     # deviate from it slightly instead of being forced exactly coplanar.
@@ -339,7 +376,213 @@ def residuals(
         if floating_reference_z_prior_m is not None and floating_reference_z_sigma_m > 0.0:
             res.append((ref_point[2] - floating_reference_z_prior_m) / floating_reference_z_sigma_m)
 
+    # Strong prior to keep topology close to the current validated layout.
+    # This is especially important when only lower anchors move slightly.
+    if initial_layout_prior:
+        for name in ANCHORS:
+            prior = initial_layout_prior[name]
+            current = coords[name]
+            if name in LOWER_PLANE:
+                if prior_lower_xy_sigma_m > 0.0:
+                    res.append((current[0] - prior[0]) / prior_lower_xy_sigma_m)
+                    res.append((current[1] - prior[1]) / prior_lower_xy_sigma_m)
+                if prior_lower_z_sigma_m > 0.0:
+                    res.append((current[2] - prior[2]) / prior_lower_z_sigma_m)
+            else:
+                if prior_upper_xy_sigma_m > 0.0:
+                    res.append((current[0] - prior[0]) / prior_upper_xy_sigma_m)
+                    res.append((current[1] - prior[1]) / prior_upper_xy_sigma_m)
+                if prior_upper_z_sigma_m > 0.0:
+                    res.append((current[2] - prior[2]) / prior_upper_z_sigma_m)
+
     return np.array(res)
+
+
+def edge_class(a: str, b: str) -> str:
+    if (a, b) in VERTICAL_PAIR_SET:
+        return "vertical_pair"
+    same_lower = a in LOWER_PLANE and b in LOWER_PLANE
+    same_upper = a in UPPER_PLANE and b in UPPER_PLANE
+    if same_lower or same_upper:
+        return "same_plane"
+    return "cross_plane"
+
+
+def distance_residual_stats_by_class(
+    coords: dict[str, np.ndarray],
+    distances: dict[tuple[str, str], float],
+) -> dict[str, dict[str, float]]:
+    by_class: dict[str, list[float]] = {"same_plane": [], "cross_plane": [], "vertical_pair": []}
+    for i, a in enumerate(ANCHORS):
+        for b in ANCHORS[i + 1 :]:
+            target = distances[(a, b)]
+            actual = float(np.linalg.norm(coords[a] - coords[b]))
+            by_class[edge_class(a, b)].append(actual - target)
+
+    out: dict[str, dict[str, float]] = {}
+    for k, vals in by_class.items():
+        arr = np.asarray(vals, dtype=float)
+        rms_m = float(np.sqrt(np.mean(arr * arr))) if len(arr) else 0.0
+        mad_m = float(np.median(np.abs(arr - np.median(arr)))) if len(arr) else 0.0
+        out[k] = {
+            "count": len(vals),
+            "rms_m": rms_m,
+            "mad_m": mad_m,
+        }
+    return out
+
+
+def solve_once(
+    x0: np.ndarray,
+    *,
+    distances: dict[tuple[str, str], float],
+    reference_constraints: list[dict],
+    floating_reference_constraints: list[dict],
+    height_prior_m: float,
+    distance_sigma_mm: float,
+    height_sigma_mm: float,
+    vertical_sigma_mm: float,
+    lower_plane_sigma_mm: float,
+    upper_plane_sigma_mm: float,
+    upper_level_sigma_mm: float,
+    pair_height_sigma_mm: float,
+    reference_sigma_mm: float,
+    floating_reference_z_prior_mm: Optional[float],
+    floating_reference_z_sigma_mm: float,
+    distance_sigma_same_plane_mm: float,
+    distance_sigma_cross_plane_mm: float,
+    distance_sigma_vertical_pair_mm: float,
+    initial_layout_prior: dict[str, np.ndarray] | None,
+    prior_lower_xy_sigma_mm: float,
+    prior_lower_z_sigma_mm: float,
+    prior_upper_xy_sigma_mm: float,
+    prior_upper_z_sigma_mm: float,
+    loss: str,
+    max_nfev: int,
+):
+    return least_squares(
+        residuals,
+        x0,
+        args=(
+            distances,
+            reference_constraints,
+            floating_reference_constraints,
+            height_prior_m,
+            distance_sigma_mm / 1000.0,
+            height_sigma_mm / 1000.0,
+            vertical_sigma_mm / 1000.0,
+            lower_plane_sigma_mm / 1000.0,
+            upper_plane_sigma_mm / 1000.0,
+            upper_level_sigma_mm / 1000.0,
+            pair_height_sigma_mm / 1000.0,
+            reference_sigma_mm / 1000.0,
+            (
+                None
+                if floating_reference_z_prior_mm is None
+                else floating_reference_z_prior_mm / 1000.0
+            ),
+            floating_reference_z_sigma_mm / 1000.0,
+            distance_sigma_same_plane_mm / 1000.0,
+            distance_sigma_cross_plane_mm / 1000.0,
+            distance_sigma_vertical_pair_mm / 1000.0,
+            initial_layout_prior,
+            prior_lower_xy_sigma_mm / 1000.0,
+            prior_lower_z_sigma_mm / 1000.0,
+            prior_upper_xy_sigma_mm / 1000.0,
+            prior_upper_z_sigma_mm / 1000.0,
+        ),
+        max_nfev=max_nfev,
+        loss=loss,
+        f_scale=1.0,
+        verbose=0,
+    )
+
+
+def anchor_shift_report_mm(
+    coords: dict[str, np.ndarray],
+    initial_layout_prior: dict[str, np.ndarray] | None,
+) -> dict[str, float]:
+    if not initial_layout_prior:
+        return {}
+    out = {}
+    for name in ANCHORS:
+        delta = coords[name] - initial_layout_prior[name]
+        out[name] = float(np.linalg.norm(delta) * 1000.0)
+    return out
+
+
+def solution_score(
+    coords: dict[str, np.ndarray],
+    distances: dict[tuple[str, str], float],
+    initial_layout_prior: dict[str, np.ndarray] | None,
+) -> dict[str, float]:
+    data_rms = rms_mm(coords, distances)
+    upper_z = np.array([coords[name][2] for name in UPPER_PLANE], dtype=float)
+    lower_z = np.array([coords[name][2] for name in LOWER_PLANE], dtype=float)
+    upper_spread_mm = float((np.max(upper_z) - np.min(upper_z)) * 1000.0)
+    separation_mm = float((np.mean(upper_z) - np.mean(lower_z)) * 1000.0)
+
+    shifts = anchor_shift_report_mm(coords, initial_layout_prior)
+    mean_shift_mm = float(np.mean(list(shifts.values()))) if shifts else 0.0
+
+    sep_penalty = max(0.0, 1200.0 - separation_mm) * 1.5
+    spread_penalty = max(0.0, upper_spread_mm - 350.0) * 0.5
+    shift_penalty = max(0.0, mean_shift_mm - 1200.0) * 0.05
+    score = data_rms + sep_penalty + spread_penalty + shift_penalty
+    return {
+        "score": float(score),
+        "data_rms_mm": float(data_rms),
+        "upper_spread_mm": float(upper_spread_mm),
+        "upper_lower_separation_mm": float(separation_mm),
+        "mean_anchor_shift_mm_vs_initial": float(mean_shift_mm),
+    }
+
+
+def estimate_anchor_uncertainty_mm(
+    result,
+) -> dict[str, dict[str, float]]:
+    jac = getattr(result, "jac", None)
+    if jac is None:
+        return {}
+    jt_j = jac.T @ jac
+    try:
+        cov = np.linalg.inv(jt_j)
+    except np.linalg.LinAlgError:
+        cov = np.linalg.pinv(jt_j)
+
+    dof = max(1, jac.shape[0] - jac.shape[1])
+    sigma2 = float(2.0 * result.cost / dof)
+    cov_scaled = cov * sigma2
+
+    # Parameter layout:
+    # Bx (1), CxCyCz (3), DxDy (2), EFGH xyz (12), then floating refs xyz...
+    pstd = np.sqrt(np.maximum(np.diag(cov_scaled), 0.0))
+    anchor_std = {
+        "A": {"sx_mm": 0.0, "sy_mm": 0.0, "sz_mm": 0.0},
+        "B": {"sx_mm": float(pstd[0] * 1000.0), "sy_mm": 0.0, "sz_mm": 0.0},
+        "C": {
+            "sx_mm": float(pstd[1] * 1000.0),
+            "sy_mm": float(pstd[2] * 1000.0),
+            "sz_mm": float(pstd[3] * 1000.0),
+        },
+        "D": {
+            "sx_mm": float(pstd[4] * 1000.0),
+            "sy_mm": float(pstd[5] * 1000.0),
+            "sz_mm": 0.0,
+        },
+    }
+    names = ["E", "F", "G", "H"]
+    base = 6
+    for i, name in enumerate(names):
+        off = base + i * 3
+        anchor_std[name] = {
+            "sx_mm": float(pstd[off + 0] * 1000.0),
+            "sy_mm": float(pstd[off + 1] * 1000.0),
+            "sz_mm": float(pstd[off + 2] * 1000.0),
+        }
+    cond = float(np.linalg.cond(jt_j))
+    anchor_std["_meta"] = {"normal_matrix_cond": cond}
+    return anchor_std
 
 
 def rms_mm(coords: dict[str, np.ndarray], distances: dict[tuple[str, str], float]) -> float:
@@ -390,6 +633,24 @@ def main() -> int:
         type=float,
         default=70.0,
         help="Assumed 1-sigma range error used to scale ranging residuals.",
+    )
+    parser.add_argument(
+        "--distance-sigma-same-plane-mm",
+        type=float,
+        default=120.0,
+        help="1-sigma ranging error for lower-lower and upper-upper edges.",
+    )
+    parser.add_argument(
+        "--distance-sigma-cross-plane-mm",
+        type=float,
+        default=180.0,
+        help="1-sigma ranging error for cross-plane edges.",
+    )
+    parser.add_argument(
+        "--distance-sigma-vertical-pair-mm",
+        type=float,
+        default=120.0,
+        help="1-sigma ranging error for paired vertical edges (A-E/B-F/C-G/D-H).",
     )
     parser.add_argument(
         "--height-sigma-mm",
@@ -464,6 +725,48 @@ def main() -> int:
         default=None,
         help="Optional JSON layout file used as the initial guess.",
     )
+    parser.add_argument(
+        "--prior-lower-xy-sigma-mm",
+        type=float,
+        default=1200.0,
+        help="Layout-prior 1-sigma for lower anchor XY drift from initial layout.",
+    )
+    parser.add_argument(
+        "--prior-lower-z-sigma-mm",
+        type=float,
+        default=500.0,
+        help="Layout-prior 1-sigma for lower anchor Z drift from initial layout.",
+    )
+    parser.add_argument(
+        "--prior-upper-xy-sigma-mm",
+        type=float,
+        default=800.0,
+        help="Layout-prior 1-sigma for upper anchor XY drift from initial layout.",
+    )
+    parser.add_argument(
+        "--prior-upper-z-sigma-mm",
+        type=float,
+        default=350.0,
+        help="Layout-prior 1-sigma for upper anchor Z drift from initial layout.",
+    )
+    parser.add_argument(
+        "--multi-start",
+        type=int,
+        default=8,
+        help="Number of randomized starts; best-scoring solution is selected.",
+    )
+    parser.add_argument(
+        "--start-jitter-mm",
+        type=float,
+        default=450.0,
+        help="Gaussian jitter (mm) applied to each random start around x0.",
+    )
+    parser.add_argument(
+        "--adaptive-edge-reweight-rounds",
+        type=int,
+        default=2,
+        help="Adaptive reweight rounds for edge classes based on residual statistics.",
+    )
     args = parser.parse_args()
 
     raw = load_input(Path(args.input))
@@ -472,41 +775,120 @@ def main() -> int:
     floating_reference_constraints = load_floating_reference_constraints(
         args.floating_reference_session
     )
+    initial_layout_prior = (
+        load_anchor_map_from_layout(Path(args.initial_layout))
+        if args.initial_layout
+        else None
+    )
     x0 = (
         build_initial_guess_from_layout(Path(args.initial_layout), floating_reference_constraints)
         if args.initial_layout
         else build_initial_guess(distances, floating_reference_constraints)
     )
 
-    result = least_squares(
-        residuals,
-        x0,
-        args=(
-            distances,
-            reference_constraints,
-            floating_reference_constraints,
-            args.height_prior_m,
-            args.distance_sigma_mm / 1000.0,
-            args.height_sigma_mm / 1000.0,
-            args.vertical_sigma_mm / 1000.0,
-            args.lower_plane_sigma_mm / 1000.0,
-            args.upper_plane_sigma_mm / 1000.0,
-            args.upper_level_sigma_mm / 1000.0,
-            args.pair_height_sigma_mm / 1000.0,
-            args.reference_sigma_mm / 1000.0,
-            (
-                None
-                if args.floating_reference_z_prior_mm is None
-                else args.floating_reference_z_prior_mm / 1000.0
-            ),
-            args.floating_reference_z_sigma_mm / 1000.0,
-        ),
-        max_nfev=8000,
-        loss="soft_l1",
-        f_scale=1.0,
-        verbose=0,
-    )
-    coords, floating_reference_points = unpack_params(result.x, floating_reference_constraints)
+    rng = np.random.default_rng(42)
+    best = None
+    best_meta = None
+    best_result = None
+    best_ref_points = None
+
+    n_starts = max(1, int(args.multi_start))
+    for start_idx in range(n_starts):
+        if start_idx == 0:
+            start_x = x0.copy()
+        else:
+            jitter_m = args.start_jitter_mm / 1000.0
+            start_x = x0 + rng.normal(0.0, jitter_m, size=x0.shape)
+
+        # Stage 1: coarse fit with weak priors and linear loss.
+        coarse = solve_once(
+            start_x,
+            distances=distances,
+            reference_constraints=reference_constraints,
+            floating_reference_constraints=floating_reference_constraints,
+            height_prior_m=args.height_prior_m,
+            distance_sigma_mm=args.distance_sigma_mm * 1.8,
+            height_sigma_mm=args.height_sigma_mm * 1.8,
+            vertical_sigma_mm=args.vertical_sigma_mm * 1.8,
+            lower_plane_sigma_mm=args.lower_plane_sigma_mm * 1.6,
+            upper_plane_sigma_mm=args.upper_plane_sigma_mm * 1.6,
+            upper_level_sigma_mm=args.upper_level_sigma_mm * 1.6,
+            pair_height_sigma_mm=args.pair_height_sigma_mm * 1.6,
+            reference_sigma_mm=args.reference_sigma_mm * 1.5,
+            floating_reference_z_prior_mm=args.floating_reference_z_prior_mm,
+            floating_reference_z_sigma_mm=args.floating_reference_z_sigma_mm * 1.6,
+            distance_sigma_same_plane_mm=args.distance_sigma_same_plane_mm * 1.6,
+            distance_sigma_cross_plane_mm=args.distance_sigma_cross_plane_mm * 1.6,
+            distance_sigma_vertical_pair_mm=args.distance_sigma_vertical_pair_mm * 1.6,
+            initial_layout_prior=initial_layout_prior,
+            prior_lower_xy_sigma_mm=args.prior_lower_xy_sigma_mm * 2.5,
+            prior_lower_z_sigma_mm=args.prior_lower_z_sigma_mm * 2.5,
+            prior_upper_xy_sigma_mm=args.prior_upper_xy_sigma_mm * 2.5,
+            prior_upper_z_sigma_mm=args.prior_upper_z_sigma_mm * 2.5,
+            loss="linear",
+            max_nfev=2500,
+        )
+
+        # Stage 2+: robust refinement with adaptive edge class reweighting.
+        class_sigma_same = args.distance_sigma_same_plane_mm
+        class_sigma_cross = args.distance_sigma_cross_plane_mm
+        class_sigma_pair = args.distance_sigma_vertical_pair_mm
+        current = coarse
+        for _ in range(max(0, int(args.adaptive_edge_reweight_rounds)) + 1):
+            current = solve_once(
+                current.x,
+                distances=distances,
+                reference_constraints=reference_constraints,
+                floating_reference_constraints=floating_reference_constraints,
+                height_prior_m=args.height_prior_m,
+                distance_sigma_mm=args.distance_sigma_mm,
+                height_sigma_mm=args.height_sigma_mm,
+                vertical_sigma_mm=args.vertical_sigma_mm,
+                lower_plane_sigma_mm=args.lower_plane_sigma_mm,
+                upper_plane_sigma_mm=args.upper_plane_sigma_mm,
+                upper_level_sigma_mm=args.upper_level_sigma_mm,
+                pair_height_sigma_mm=args.pair_height_sigma_mm,
+                reference_sigma_mm=args.reference_sigma_mm,
+                floating_reference_z_prior_mm=args.floating_reference_z_prior_mm,
+                floating_reference_z_sigma_mm=args.floating_reference_z_sigma_mm,
+                distance_sigma_same_plane_mm=class_sigma_same,
+                distance_sigma_cross_plane_mm=class_sigma_cross,
+                distance_sigma_vertical_pair_mm=class_sigma_pair,
+                initial_layout_prior=initial_layout_prior,
+                prior_lower_xy_sigma_mm=args.prior_lower_xy_sigma_mm,
+                prior_lower_z_sigma_mm=args.prior_lower_z_sigma_mm,
+                prior_upper_xy_sigma_mm=args.prior_upper_xy_sigma_mm,
+                prior_upper_z_sigma_mm=args.prior_upper_z_sigma_mm,
+                loss="soft_l1",
+                max_nfev=5000,
+            )
+            coords_tmp, _ = unpack_params(current.x, floating_reference_constraints)
+            class_stats = distance_residual_stats_by_class(coords_tmp, distances)
+            # Adaptive update: noisy class gets looser sigma; stable class remains tighter.
+            class_sigma_same = max(
+                args.distance_sigma_same_plane_mm,
+                0.7 * class_sigma_same + 0.3 * max(args.distance_sigma_same_plane_mm, class_stats["same_plane"]["rms_m"] * 2000.0),
+            )
+            class_sigma_cross = max(
+                args.distance_sigma_cross_plane_mm,
+                0.7 * class_sigma_cross + 0.3 * max(args.distance_sigma_cross_plane_mm, class_stats["cross_plane"]["rms_m"] * 2000.0),
+            )
+            class_sigma_pair = max(
+                args.distance_sigma_vertical_pair_mm,
+                0.7 * class_sigma_pair + 0.3 * max(args.distance_sigma_vertical_pair_mm, class_stats["vertical_pair"]["rms_m"] * 2000.0),
+            )
+
+        coords_tmp, refs_tmp = unpack_params(current.x, floating_reference_constraints)
+        meta = solution_score(coords_tmp, distances, initial_layout_prior)
+        if best is None or meta["score"] < best_meta["score"]:
+            best = coords_tmp
+            best_meta = meta
+            best_result = current
+            best_ref_points = refs_tmp
+
+    coords = best
+    floating_reference_points = best_ref_points
+    result = best_result
 
     # Keep the upper plane positive in Z for readability.
     if coords["E"][2] < 0:
@@ -515,12 +897,18 @@ def main() -> int:
 
     rms = rms_mm(coords, distances)
     pair_report = vertical_pair_report(coords)
+    shift_mm = anchor_shift_report_mm(coords, initial_layout_prior)
+    class_stats = distance_residual_stats_by_class(coords, distances)
+    uncertainty = estimate_anchor_uncertainty_mm(result)
 
     serializable = {
         "units": "m",
         "solver": {
             "type": "constrained_least_squares_v4_soft_planes_levelled",
             "distance_sigma_mm": args.distance_sigma_mm,
+            "distance_sigma_same_plane_mm": args.distance_sigma_same_plane_mm,
+            "distance_sigma_cross_plane_mm": args.distance_sigma_cross_plane_mm,
+            "distance_sigma_vertical_pair_mm": args.distance_sigma_vertical_pair_mm,
             "height_prior_m": args.height_prior_m,
             "height_sigma_mm": args.height_sigma_mm,
             "vertical_sigma_mm": args.vertical_sigma_mm,
@@ -533,11 +921,22 @@ def main() -> int:
             "floating_reference_session_count": len(floating_reference_constraints),
             "floating_reference_z_prior_mm": args.floating_reference_z_prior_mm,
             "floating_reference_z_sigma_mm": args.floating_reference_z_sigma_mm,
+            "prior_lower_xy_sigma_mm": args.prior_lower_xy_sigma_mm,
+            "prior_lower_z_sigma_mm": args.prior_lower_z_sigma_mm,
+            "prior_upper_xy_sigma_mm": args.prior_upper_xy_sigma_mm,
+            "prior_upper_z_sigma_mm": args.prior_upper_z_sigma_mm,
+            "multi_start": args.multi_start,
+            "start_jitter_mm": args.start_jitter_mm,
+            "adaptive_edge_reweight_rounds": args.adaptive_edge_reweight_rounds,
             "termination_status": int(result.status),
             "message": result.message,
         },
         "rms_error_mm": rms,
+        "score": best_meta,
         "anchors": {name: coords[name].round(6).tolist() for name in ANCHORS},
+        "anchor_shift_mm_vs_initial": shift_mm,
+        "distance_residual_by_class": class_stats,
+        "uncertainty_mm": uncertainty,
         "vertical_pairs": pair_report,
         "reference_constraints": [
             {

@@ -23,7 +23,8 @@
 
 #define UART_ROLE_STACK_SIZE 2048
 #define UART_ROLE_THREAD_PRIO 12
-#define UART_RX_MAX 96
+#define UART_RX_MAX 192
+#define UART_RX_IDLE_FLUSH_MS 300
 
 static const struct device *g_uart_dev;
 static struct k_thread g_uart_thread;
@@ -55,15 +56,15 @@ static int role_parse(const char *s, uint8_t *out_role)
     if (s == NULL || out_role == NULL) {
         return -EINVAL;
     }
-    if (strcmp(s, "MASTER") == 0) {
+    if (strncmp(s, "MASTER", 6) == 0) {
         *out_role = ANCHOR_ROLE_MASTER;
         return 0;
     }
-    if (strcmp(s, "MATRIX") == 0) {
+    if (strncmp(s, "MATRIX", 6) == 0) {
         *out_role = ANCHOR_ROLE_MATRIX;
         return 0;
     }
-    if (strcmp(s, "RESPONDER") == 0) {
+    if (strncmp(s, "RESPONDER", 9) == 0) {
         *out_role = ANCHOR_ROLE_RESPONDER;
         return 0;
     }
@@ -176,9 +177,10 @@ static void cmd_status(void)
     bytes_to_hex(g_runtime_info.mcu_uid, sizeof(g_runtime_info.mcu_uid),
                  uid_hex, sizeof(uid_hex));
 
-    uart_txf("ANCHOR: unified; ANCHOR_ID: %c; ROLE: %s; DEVICE_UUID: %s; MCU_UID: 0x%s; CONFIG_VALID:%u\r\n",
+    uart_txf("ANCHOR: unified; ANCHOR_ID: %c; ROLE: %s; BS_CODE: %s; DEVICE_UUID: %s; MCU_UID: 0x%s; CONFIG_VALID:%u\r\n",
              (char)('A' + g_runtime_info.active_anchor_id_runtime),
              role_name(g_runtime_info.active_role),
+             g_runtime_info.bs_code,
              uuid_hex,
              uid_hex,
              g_runtime_info.cfg_valid_on_boot ? 1U : 0U);
@@ -253,9 +255,8 @@ static void cmd_reboot(void)
 
 static void process_line(char *line)
 {
-    char *argv[4] = {0};
-    size_t argc = 0;
-    char *tok;
+    char role_buf[16];
+    char anchor_buf[4];
     size_t i;
     size_t w = 0U;
 
@@ -271,36 +272,67 @@ static void process_line(char *line)
         line[i] = (char)toupper((unsigned char)line[i]);
     }
 
-    tok = strtok(line, " \t");
-    while (tok != NULL && argc < ARRAY_SIZE(argv)) {
-        argv[argc++] = tok;
-        tok = strtok(NULL, " \t");
-    }
-
-    if (argc == 0U) {
+    if (line[0] == '\0') {
         return;
     }
-    if ((strncmp(argv[0], "ROLE", 4) == 0) && argc == 1U) {
+
+    if (strcmp(line, "ROLE?") == 0 || strcmp(line, "ROLE") == 0) {
         cmd_role_query();
         return;
     }
-    if (strcmp(argv[0], "STATUS") == 0) {
+    if (strncmp(line, "STATUS", 6) == 0) {
         cmd_status();
         return;
     }
-    if (argc == 3U && strcmp(argv[0], "ROLE") == 0 && strcmp(argv[1], "SET") == 0) {
-        cmd_role_set(argv[2]);
+    if (strcmp(line, "M") == 0 || strcmp(line, "MASTER") == 0) {
+        cmd_role_set("MASTER");
         return;
     }
-    if (argc == 3U && strcmp(argv[0], "ANCHOR") == 0 && strcmp(argv[1], "SET") == 0) {
-        cmd_anchor_set(argv[2]);
+    if (strcmp(line, "X") == 0 || strcmp(line, "MATRIX") == 0) {
+        cmd_role_set("MATRIX");
         return;
     }
-    if (argc == 2U && strcmp(argv[0], "CONFIG") == 0 && strcmp(argv[1], "SAVE") == 0) {
+    if (strcmp(line, "P") == 0 || strcmp(line, "RESPONDER") == 0) {
+        cmd_role_set("RESPONDER");
+        return;
+    }
+    if (strncmp(line, "ID ", 3) == 0) {
+        if (sscanf(line + 3, "%3s", anchor_buf) == 1) {
+            cmd_anchor_set(anchor_buf);
+        } else {
+            uart_reply_err("BAD_ANCHOR");
+        }
+        return;
+    }
+    if (strcmp(line, "S") == 0 || strcmp(line, "SAVE") == 0) {
         cmd_config_save();
         return;
     }
-    if (argc == 1U && strcmp(argv[0], "REBOOT") == 0) {
+    if (strcmp(line, "RB") == 0) {
+        cmd_reboot();
+        return;
+    }
+    if (strncmp(line, "ROLE SET ", 9) == 0) {
+        if (sscanf(line + 9, "%15s", role_buf) == 1) {
+            cmd_role_set(role_buf);
+        } else {
+            uart_reply_err("BAD_ROLE");
+        }
+        return;
+    }
+    if (strncmp(line, "ANCHOR SET ", 11) == 0) {
+        if (sscanf(line + 11, "%3s", anchor_buf) == 1) {
+            cmd_anchor_set(anchor_buf);
+        } else {
+            uart_reply_err("BAD_ANCHOR");
+        }
+        return;
+    }
+    if (strncmp(line, "CONFIG SAVE", 11) == 0) {
+        cmd_config_save();
+        return;
+    }
+    if (strncmp(line, "REBOOT", 6) == 0) {
         cmd_reboot();
         return;
     }
@@ -312,6 +344,7 @@ static void uart_role_thread(void *p1, void *p2, void *p3)
     char line[UART_RX_MAX];
     size_t pos = 0U;
     unsigned char ch;
+    int64_t last_rx_ms = 0;
     bool rx_unsupported_logged = false;
     ARG_UNUSED(p1);
     ARG_UNUSED(p2);
@@ -320,6 +353,13 @@ static void uart_role_thread(void *p1, void *p2, void *p3)
     while (g_running) {
         int rc = uart_poll_in(g_uart_dev, &ch);
         if (rc != 0) {
+            if (pos > 0U && last_rx_ms > 0 &&
+                (k_uptime_get() - last_rx_ms) >= UART_RX_IDLE_FLUSH_MS) {
+                line[pos] = '\0';
+                process_line(line);
+                pos = 0U;
+                last_rx_ms = 0;
+            }
             if (!rx_unsupported_logged && (rc == -ENOTSUP || rc == -ENOSYS)) {
                 printk("uart role switch: UART RX not supported (rc=%d)\n", rc);
                 rx_unsupported_logged = true;
@@ -334,13 +374,16 @@ static void uart_role_thread(void *p1, void *p2, void *p3)
                 process_line(line);
                 pos = 0U;
             }
+            last_rx_ms = 0;
             continue;
         }
 
         if (pos < (sizeof(line) - 1U)) {
             line[pos++] = (char)ch;
+            last_rx_ms = k_uptime_get();
         } else {
             pos = 0U;
+            last_rx_ms = 0;
             uart_reply_err("LINE_TOO_LONG");
         }
     }

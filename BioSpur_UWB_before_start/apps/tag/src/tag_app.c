@@ -243,6 +243,14 @@ static void tag_diag_write(const char *msg)
 #define APP_TAG_FW_MARKER "unified-default"
 #endif
 
+#ifndef APP_TAG_CALIBRATION_MODE
+#define APP_TAG_CALIBRATION_MODE 0U
+#endif
+
+#ifndef APP_TAG_UWB_ENABLE
+#define APP_TAG_UWB_ENABLE 1U
+#endif
+
 int tag_app_run(void)
 {
     static const uint8_t target_anchor_ids[] = {
@@ -331,7 +339,7 @@ int tag_app_run(void)
     {
         struct uwb_tag_runtime_params ble_params;
 
-        if (uwb_tag_ble_runtime_config_get(&ble_params)) {
+		if (uwb_tag_ble_runtime_config_get(&ble_params)) {
             if (ble_params.identity_code != 0U) {
                 runtime_config.identity_code = ble_params.identity_code;
             }
@@ -365,6 +373,20 @@ int tag_app_run(void)
         }
     }
 
+	if (APP_TAG_CALIBRATION_MODE) {
+		runtime_config.positioning_mode = UWB_TAG_POSITIONING_MODE_CALIBRATION;
+		runtime_config.slot_source = UWB_TAG_SLOT_SOURCE_BUILD;
+		runtime_config.tdma.enabled = false;
+		runtime_config.tdma.slot_index = 0U;
+        runtime_config.tdma.slot_count = 1U;
+        runtime_config.tdma.slot_period_ms = 25U;
+        runtime_config.tdma.slot_active_ms = 25U;
+        runtime_config.tdma.epoch_valid = false;
+		runtime_config.tdma.epoch_ms = 0U;
+		runtime_config.tdma.generation = 0U;
+		printk("Tag calibration default mode enabled (runtime switch still allowed)\n");
+	}
+
     if (runtime_config.tdma.enabled && runtime_config.tdma.slot_count != 0U) {
         printk("Tag TDMA runtime config: slot=%u/%u period=%u active=%u source=%u epoch_valid=%u gen=%u\n",
                (unsigned int)runtime_config.tdma.slot_index,
@@ -381,14 +403,18 @@ int tag_app_run(void)
     printk("Tag BLE disabled, running pure UWB/USB serial mode\n");
 #endif
 
-    printk("Tag UWB bringup starting\n");
-    k_msleep(100);
-    ret = uwb_hw_bringup_and_init();
-    if (ret) {
-        printk("Tag UWB bringup failed: %d\n", ret);
-        return ret;
+    if (APP_TAG_UWB_ENABLE) {
+        printk("Tag UWB bringup starting\n");
+        k_msleep(100);
+        ret = uwb_hw_bringup_and_init();
+        if (ret) {
+            printk("Tag UWB bringup failed: %d\n", ret);
+            return ret;
+        }
+        printk("Tag UWB bringup done\n");
+    } else {
+        printk("Tag UWB disabled by build profile (BLE/OTA only)\n");
     }
-    printk("Tag UWB bringup done\n");
 
 #if APP_TAG_USB_DIAG_TRACE
     tag_diag_write("TAG_APP: handoff enter\n");
@@ -434,12 +460,18 @@ int tag_app_run(void)
            APP_TAG_RESERVE_ANCHOR_1_ID, APP_TAG_REFRESH_ANCHOR_BUDGET,
            APP_TAG_REFRESH_INTERVAL, APP_TAG_MAINTENANCE_FULL_INTERVAL,
            APP_TAG_MOTION_FULL_SWEEP_INTERVAL);
-    printk("Tag app handoff: entering SS-TWR\n");
-
-    ret = ss_twr_init_start_with_config(&runtime_config);
-    if (ret) {
-        printk("ss_twr_init_start_with_config failed: %d\n", ret);
-        return ret;
+    if (APP_TAG_UWB_ENABLE) {
+        printk("Tag app handoff: entering SS-TWR\n");
+        ret = ss_twr_init_start_with_config(&runtime_config);
+        if (ret) {
+            printk("ss_twr_init_start_with_config failed: %d\n", ret);
+            return ret;
+        }
+    } else {
+        printk("Tag app handoff: UWB scheduler skipped (UWB disabled)\n");
+        while (1) {
+            k_sleep(K_SECONDS(1));
+        }
     }
 
     return 0;

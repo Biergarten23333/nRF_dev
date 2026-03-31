@@ -116,6 +116,7 @@ int anchor_app_run(void)
     struct uart_role_switch_runtime_info serial_info;
     char uuid_hex[33];
     char mcu_uid_hex[17];
+    char bs_code[7];
     int ret = uwb_hw_bringup_and_init();
     if (ret) {
         return ret;
@@ -123,6 +124,7 @@ int anchor_app_run(void)
 
     anchor_config_get_mcu_uid(mcu_uid);
     anchor_config_get_device_uuid(device_uuid, &cfg, cfg_valid);
+    anchor_config_get_bs_code(device_uuid, bs_code);
     bytes_to_hex(device_uuid, sizeof(device_uuid), uuid_hex, sizeof(uuid_hex));
     bytes_to_hex(mcu_uid, sizeof(mcu_uid), mcu_uid_hex, sizeof(mcu_uid_hex));
 
@@ -153,15 +155,16 @@ int anchor_app_run(void)
         return -1;
     }
 
-    printk("ANCHOR: unified; ANCHOR_ID: %c; ROLE: %s; DEVICE_UUID: %s; MCU_UID: %s\n",
-           uwb_anchor_label(anchor_id_runtime), anchor_role_name(effective_role), uuid_hex, mcu_uid_hex);
+    printk("ANCHOR: unified; ANCHOR_ID: %c; ROLE: %s; BS_CODE: %s; DEVICE_UUID: %s; MCU_UID: %s\n",
+           uwb_anchor_label(anchor_id_runtime), anchor_role_name(effective_role),
+           bs_code, uuid_hex, mcu_uid_hex);
     printk("Anchor app ready anchor_id=%u role=%s master=%u allow_tag_polls=%u cfg_valid=%u\n",
            (unsigned int)anchor_id_runtime, anchor_role_name(effective_role),
            (unsigned int)effective_master, (unsigned int)effective_allow_tag_polls,
            (unsigned int)(cfg_valid ? 1U : 0U));
 
     if (APP_ANCHOR_BLE_ID_ENABLE != 0U) {
-        ret = anchor_ble_id_start(anchor_id_runtime, effective_role, device_uuid);
+        ret = anchor_ble_id_start(anchor_id_runtime, effective_role, device_uuid, bs_code);
         if (ret) {
             printk("anchor_ble_id_start failed: %d\n", ret);
         }
@@ -171,6 +174,7 @@ int anchor_app_run(void)
     serial_info.active_role = effective_role;
     memcpy(serial_info.device_uuid, device_uuid, sizeof(device_uuid));
     memcpy(serial_info.mcu_uid, mcu_uid, sizeof(mcu_uid));
+    memcpy(serial_info.bs_code, bs_code, sizeof(serial_info.bs_code));
     serial_info.cfg_valid_on_boot = cfg_valid;
 
     if (APP_ANCHOR_SERIAL_CMD_ENABLE != 0U) {

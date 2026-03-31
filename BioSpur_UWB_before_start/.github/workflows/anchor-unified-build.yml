@@ -1,0 +1,31 @@
+name: anchor-unified-build
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  build_unified:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup west (placeholder)
+        run: |
+          echo "Install NCS/west toolchain in your CI image before enabling real build."
+          west --version || true
+
+      - name: Build unified anchor artifact
+        run: |
+          chmod +x scripts/build_anchor_unified.sh
+          ./scripts/build_anchor_unified.sh build-anchor-unified-ci
+
+      - name: Upload unified artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unified-anchor-${{ github.sha }}
+          path: |
+            build-anchor-unified-ci/zephyr/zephyr.elf
+            build-anchor-unified-ci/zephyr/zephyr.hex

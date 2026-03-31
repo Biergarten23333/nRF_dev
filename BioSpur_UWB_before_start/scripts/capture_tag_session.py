@@ -204,6 +204,17 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    # Guard against accidental cross-device capture in multi-probe setups.
+    # Example bad case we hit: snr=760186115 but port pointed to 683234364.
+    if "/dev/serial/by-id/" in args.port and "SEGGER_J-Link_" in args.port:
+        port_name = os.path.basename(args.port)
+        m = re.search(r"SEGGER_J-Link_(\d+)-if\d+", port_name)
+        if m and int(m.group(1), 10) != int(args.snr, 10):
+            raise SystemExit(
+                f"Port/SNR mismatch: snr={args.snr} but port encodes {m.group(1)} "
+                f"({args.port}). Aborting capture."
+            )
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if args.session_name:
         session_dir = Path(args.out_dir) / args.session_name

@@ -4,13 +4,13 @@
 
 static const struct uwb_anchor_pose_mm uwb_anchor_layout[UWB_MAX_ANCHORS] = {
     {0U, 'A', 0, 0, 0},
-    {1U, 'B', 3774, 0, 0},
-    {2U, 'C', 3905, 3766, 2},
-    {3U, 'D', 13, 4037, 0},
-    {4U, 'E', 58, 344, 1560},
-    {5U, 'F', 3828, -48, 1555},
-    {6U, 'G', 3980, 3768, 1556},
-    {7U, 'H', 73, 3978, 1556},
+    {1U, 'B', 3785, 0, 0},
+    {2U, 'C', 4187, 3695, 1},
+    {3U, 'D', 248, 3771, 0},
+    {4U, 'E', 214, 71, 1525},
+    {5U, 'F', 3635, -70, 1521},
+    {6U, 'G', 3966, 3749, 1524},
+    {7U, 'H', 145, 3749, 1526},
 };
 
 const struct uwb_anchor_pose_mm *uwb_anchor_layout_get(uint8_t anchor_id)

@@ -99,10 +99,12 @@ set(APP_TAG_BLE_ENABLE "1" CACHE STRING "Enable BLE/NUS and OTA transport on the
 set(APP_TAG_BLE_OTA_ENABLE "1" CACHE STRING "Enable OTA command and bootloader-advertising BLE payloads on the tag")
 set(APP_TAG_BLE_SETTINGS_ENABLE "1" CACHE STRING "Enable Bluetooth settings persistence on the tag")
 set(APP_TAG_MCUBOOT_ENABLE "1" CACHE STRING "Enable MCUboot confirm/OTA plumbing on the tag")
-set(APP_TAG_BLE_COMPACT_STATUS "0" CACHE STRING "Enable compact BLE TagSummary payloads on the tag")
-set(APP_TAG_BLE_PACKET_BUNDLE_RECORDS "1" CACHE STRING "Bundle this many TagSummary records into one BLE NUS payload")
-set(APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS "0" CACHE STRING "Flush a partial BLE bundle after this many milliseconds (0 disables)")
+set(APP_TAG_UWB_ENABLE "1" CACHE STRING "Enable UWB ranging runtime on the tag (0 keeps BLE/OTA online only)")
+set(APP_TAG_BLE_COMPACT_STATUS "1" CACHE STRING "Enable compact BLE TagSummary payloads on the tag")
+set(APP_TAG_BLE_PACKET_BUNDLE_RECORDS "3" CACHE STRING "Bundle this many TagSummary records into one BLE NUS payload")
+set(APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS "250" CACHE STRING "Flush a partial BLE bundle after this many milliseconds (0 disables)")
 set(APP_TAG_FW_MARKER "unified-default" CACHE STRING "Runtime firmware marker printed at boot for OTA validation")
+set(APP_TAG_CALIBRATION_MODE "0" CACHE STRING "Calibration-role mode: ignore runtime TDMA settings/master slot commands")
 if(NOT DEFINED APP_TAG_BLE_TOKEN_ID OR APP_TAG_BLE_TOKEN_ID STREQUAL "")
 set(APP_TAG_BLE_TOKEN_ID "${APP_TAG_ID}" CACHE STRING "BLE identity token advertised in manufacturer data")
 endif()
@@ -187,10 +189,12 @@ target_compile_definitions(app PRIVATE
     APP_TAG_BLE_OTA_ENABLE=${APP_TAG_BLE_OTA_ENABLE}
     APP_TAG_USB_DIAG_TRACE=${APP_TAG_USB_DIAG_TRACE}
     APP_TAG_BLE_SETTINGS_ENABLE=${APP_TAG_BLE_SETTINGS_ENABLE}
+    APP_TAG_UWB_ENABLE=${APP_TAG_UWB_ENABLE}
     APP_TAG_BLE_COMPACT_STATUS=${APP_TAG_BLE_COMPACT_STATUS}
     APP_TAG_BLE_PACKET_BUNDLE_RECORDS=${APP_TAG_BLE_PACKET_BUNDLE_RECORDS}
     APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS=${APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS}
     APP_TAG_FW_MARKER=\"${APP_TAG_FW_MARKER}\"
+    APP_TAG_CALIBRATION_MODE=${APP_TAG_CALIBRATION_MODE}
     APP_TAG_BLE_TOKEN_ID=${APP_TAG_BLE_TOKEN_ID}
     APP_TAG_MCUBOOT_ENABLE=${APP_TAG_MCUBOOT_ENABLE}
     APP_UWB_CHANNEL=${APP_UWB_CHANNEL}

@@ -45,6 +45,9 @@ def main() -> int:
     parser.add_argument("--max-iters", type=int, default=5)
     parser.add_argument("--converge-mm", type=float, default=2.0)
     parser.add_argument("--distance-sigma-mm", type=float, default=90.0)
+    parser.add_argument("--distance-sigma-same-plane-mm", type=float, default=120.0)
+    parser.add_argument("--distance-sigma-cross-plane-mm", type=float, default=180.0)
+    parser.add_argument("--distance-sigma-vertical-pair-mm", type=float, default=120.0)
     parser.add_argument("--height-prior-m", type=float, default=1.4)
     parser.add_argument("--height-sigma-mm", type=float, default=300.0)
     parser.add_argument("--vertical-sigma-mm", type=float, default=900.0)
@@ -55,6 +58,13 @@ def main() -> int:
     parser.add_argument("--reference-sigma-mm", type=float, default=60.0)
     parser.add_argument("--floating-reference-z-prior-mm", type=float, default=None)
     parser.add_argument("--floating-reference-z-sigma-mm", type=float, default=80.0)
+    parser.add_argument("--prior-lower-xy-sigma-mm", type=float, default=1200.0)
+    parser.add_argument("--prior-lower-z-sigma-mm", type=float, default=500.0)
+    parser.add_argument("--prior-upper-xy-sigma-mm", type=float, default=800.0)
+    parser.add_argument("--prior-upper-z-sigma-mm", type=float, default=350.0)
+    parser.add_argument("--multi-start", type=int, default=8)
+    parser.add_argument("--start-jitter-mm", type=float, default=450.0)
+    parser.add_argument("--adaptive-edge-reweight-rounds", type=int, default=2)
     parser.add_argument(
         "--reference-session",
         action="append",
@@ -85,6 +95,12 @@ def main() -> int:
             str(output),
             "--distance-sigma-mm",
             str(args.distance_sigma_mm),
+            "--distance-sigma-same-plane-mm",
+            str(args.distance_sigma_same_plane_mm),
+            "--distance-sigma-cross-plane-mm",
+            str(args.distance_sigma_cross_plane_mm),
+            "--distance-sigma-vertical-pair-mm",
+            str(args.distance_sigma_vertical_pair_mm),
             "--height-prior-m",
             str(args.height_prior_m),
             "--height-sigma-mm",
@@ -103,6 +119,20 @@ def main() -> int:
             str(args.reference_sigma_mm),
             "--floating-reference-z-sigma-mm",
             str(args.floating_reference_z_sigma_mm),
+            "--prior-lower-xy-sigma-mm",
+            str(args.prior_lower_xy_sigma_mm),
+            "--prior-lower-z-sigma-mm",
+            str(args.prior_lower_z_sigma_mm),
+            "--prior-upper-xy-sigma-mm",
+            str(args.prior_upper_xy_sigma_mm),
+            "--prior-upper-z-sigma-mm",
+            str(args.prior_upper_z_sigma_mm),
+            "--multi-start",
+            str(args.multi_start),
+            "--start-jitter-mm",
+            str(args.start_jitter_mm),
+            "--adaptive-edge-reweight-rounds",
+            str(args.adaptive_edge_reweight_rounds),
         ]
         if args.floating_reference_z_prior_mm is not None:
             cmd.extend(

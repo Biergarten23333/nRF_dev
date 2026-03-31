@@ -8,6 +8,12 @@ fi
 
 SN="683234364"
 IMAGE="$1"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+
+# Prevent VSCode Nordic background hotplug scanner from racing J-Link access
+# and triggering interactive probe-selection dialogs.
+pkill -f "nrfutil-device --json list --hotplug" >/dev/null 2>&1 || true
+sleep 0.2
 
 if [ ! -f "$IMAGE" ]; then
   echo "Image not found: $IMAGE" >&2
@@ -22,14 +28,6 @@ if ! printf '%s\n' "$IDS" | rg -q "^${SN}$"; then
   exit 3
 fi
 
-echo "tool=nrfjprog snr=${SN} image=${IMAGE} action=eraseall result=begin"
-nrfjprog -f NRF52 --snr "${SN}" --eraseall
-echo "tool=nrfjprog snr=${SN} image=${IMAGE} action=eraseall result=ok"
-
-echo "tool=nrfjprog snr=${SN} image=${IMAGE} action=program_verify result=begin"
-nrfjprog -f NRF52 --snr "${SN}" --program "${IMAGE}" --verify
-echo "tool=nrfjprog snr=${SN} image=${IMAGE} action=program_verify result=ok"
-
-echo "tool=nrfjprog snr=${SN} image=${IMAGE} action=reset result=begin"
-nrfjprog -f NRF52 --snr "${SN}" --reset
-echo "tool=nrfjprog snr=${SN} image=${IMAGE} action=reset result=ok"
+echo "tool=reset_then_flash snr=${SN} image=${IMAGE} action=begin"
+"${script_dir}/reset_then_flash.sh" "${SN}" "${IMAGE}"
+echo "tool=reset_then_flash snr=${SN} image=${IMAGE} action=ok"

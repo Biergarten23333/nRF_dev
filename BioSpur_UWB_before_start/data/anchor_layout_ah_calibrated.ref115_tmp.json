@@ -3,22 +3,39 @@
   "solver": {
     "type": "constrained_least_squares_v4_soft_planes_levelled",
     "distance_sigma_mm": 90.0,
+    "distance_sigma_same_plane_mm": 120.0,
+    "distance_sigma_cross_plane_mm": 180.0,
+    "distance_sigma_vertical_pair_mm": 120.0,
     "height_prior_m": 1.4,
     "height_sigma_mm": 300.0,
-    "vertical_sigma_mm": 180.0,
-    "lower_plane_sigma_mm": 40.0,
-    "upper_plane_sigma_mm": 0.0,
-    "upper_level_sigma_mm": 20.0,
-    "pair_height_sigma_mm": 25.0,
+    "vertical_sigma_mm": 320.0,
+    "lower_plane_sigma_mm": 120.0,
+    "upper_plane_sigma_mm": 180.0,
+    "upper_level_sigma_mm": 120.0,
+    "pair_height_sigma_mm": 120.0,
     "reference_sigma_mm": 60.0,
     "reference_session_count": 0,
     "floating_reference_session_count": 1,
-    "floating_reference_z_prior_mm": 700.0,
+    "floating_reference_z_prior_mm": 820.0,
     "floating_reference_z_sigma_mm": 80.0,
+    "prior_lower_xy_sigma_mm": 1200.0,
+    "prior_lower_z_sigma_mm": 500.0,
+    "prior_upper_xy_sigma_mm": 800.0,
+    "prior_upper_z_sigma_mm": 350.0,
+    "multi_start": 12,
+    "start_jitter_mm": 600.0,
+    "adaptive_edge_reweight_rounds": 3,
     "termination_status": 2,
     "message": "`ftol` termination condition is satisfied."
   },
-  "rms_error_mm": 181.5930863266931,
+  "rms_error_mm": 179.85368033062292,
+  "score": {
+    "score": 179.85368033062292,
+    "data_rms_mm": 179.85368033062292,
+    "upper_spread_mm": 45.0383779893957,
+    "upper_lower_separation_mm": 1553.870776537826,
+    "mean_anchor_shift_mm_vs_initial": 32.54768947524045
+  },
   "anchors": {
     "A": [
       0.0,
@@ -26,77 +43,149 @@
       0.0
     ],
     "B": [
-      3.773748,
+      3.703282,
       0.0,
       0.0
     ],
     "C": [
-      3.904652,
-      3.766445,
-      0.002172
+      3.565704,
+      3.802517,
+      0.002705
     ],
     "D": [
-      0.012879,
-      4.037165,
+      -0.394004,
+      3.679511,
       0.0
     ],
     "E": [
-      0.057768,
-      0.343564,
-      1.559715
+      0.067055,
+      0.040553,
+      1.582337
     ],
     "F": [
-      3.828029,
-      -0.048235,
-      1.555274
+      3.614607,
+      -0.067876,
+      1.537299
     ],
     "G": [
-      3.98022,
-      3.767568,
-      1.555899
+      3.599598,
+      3.833191,
+      1.544917
     ],
     "H": [
-      0.072705,
-      3.977578,
-      1.556101
+      -0.352135,
+      3.681219,
+      1.553635
     ]
+  },
+  "anchor_shift_mm_vs_initial": {
+    "A": 0.0,
+    "B": 9.07746119864905,
+    "C": 35.5397197183866,
+    "D": 40.184569923349464,
+    "E": 33.706659206714946,
+    "F": 16.209695810488665,
+    "G": 57.95690754538411,
+    "H": 67.70650239895079
+  },
+  "distance_residual_by_class": {
+    "same_plane": {
+      "count": 12,
+      "rms_m": 0.03321519718298227,
+      "mad_m": 0.016195316320813502
+    },
+    "cross_plane": {
+      "count": 12,
+      "rms_m": 0.2623846750558301,
+      "mad_m": 0.05280078760245166
+    },
+    "vertical_pair": {
+      "count": 4,
+      "rms_m": 0.1287809116877012,
+      "mad_m": 0.06507474189530682
+    }
+  },
+  "uncertainty_mm": {
+    "A": {
+      "sx_mm": 0.0,
+      "sy_mm": 0.0,
+      "sz_mm": 0.0
+    },
+    "B": {
+      "sx_mm": 36.42986176747781,
+      "sy_mm": 0.0,
+      "sz_mm": 0.0
+    },
+    "C": {
+      "sx_mm": 52.312395938584345,
+      "sy_mm": 34.77037634124717,
+      "sz_mm": 31.729507557173388
+    },
+    "D": {
+      "sx_mm": 53.37193864291039,
+      "sy_mm": 38.329445367727764,
+      "sz_mm": 0.0
+    },
+    "E": {
+      "sx_mm": 59.67194962946092,
+      "sy_mm": 53.936260496005424,
+      "sz_mm": 39.778665406705485
+    },
+    "F": {
+      "sx_mm": 59.62631713604471,
+      "sy_mm": 55.98473979082409,
+      "sz_mm": 38.14557928122554
+    },
+    "G": {
+      "sx_mm": 66.18955093654077,
+      "sy_mm": 55.660002925138365,
+      "sz_mm": 40.772058404661436
+    },
+    "H": {
+      "sx_mm": 64.98850465744528,
+      "sy_mm": 58.39112736988898,
+      "sz_mm": 36.41331796886079
+    },
+    "_meta": {
+      "normal_matrix_cond": 2.7095577561135276e+16
+    }
   },
   "vertical_pairs": {
     "A-E": {
-      "dx_m": 0.057768153016135554,
-      "dy_m": 0.3435635413836421,
-      "dz_m": 1.5597146316060273,
-      "xy_offset_m": 0.34838637526597566
+      "dx_m": 0.06705507729042774,
+      "dy_m": 0.04055315270714605,
+      "dz_m": 1.5823373257027264,
+      "xy_offset_m": 0.0783641600791736
     },
     "B-F": {
-      "dx_m": 0.0542810905446105,
-      "dy_m": -0.048234787306621896,
-      "dz_m": 1.5552744851561071,
-      "xy_offset_m": 0.07261564223517723
+      "dx_m": -0.08867405408618279,
+      "dy_m": -0.0678759634798767,
+      "dz_m": 1.5372989477133308,
+      "xy_offset_m": 0.1116702032164392
     },
     "C-G": {
-      "dx_m": 0.07556801887419207,
-      "dy_m": 0.0011226380848325945,
-      "dz_m": 1.5537270601499815,
-      "xy_offset_m": 0.07557635736683639
+      "dx_m": 0.03389400106515961,
+      "dy_m": 0.030674367882669085,
+      "dz_m": 1.54221179954429,
+      "xy_offset_m": 0.04571345702532638
     },
     "D-H": {
-      "dx_m": 0.059825882138571596,
-      "dy_m": -0.05958707379765693,
-      "dz_m": 1.556101161009674,
-      "xy_offset_m": 0.08443787975444239
+      "dx_m": 0.04186844201077833,
+      "dy_m": 0.0017074636405598476,
+      "dz_m": 1.5536350331909563,
+      "xy_offset_m": 0.04190324412851279
     }
   },
   "reference_constraints": [],
   "floating_reference_constraints": [
     {
-      "label": "ref115_autopos_20260324_234553",
-      "session_dir": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/logs/tag_sessions/ref115_autopos_20260324_234553",
-      "anchor_count": 8,
+      "label": "ref115_fresh_20260327_rerun1",
+      "session_dir": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/logs/tag_sessions/ref115_fresh_20260327_rerun1",
+      "anchor_count": 1,
       "solved_reference_m": [
-        2.224917,
-        0.473942,
-        0.692084
+        2.16898,
+        0.779418,
+        0.82
       ]
     }
   ]

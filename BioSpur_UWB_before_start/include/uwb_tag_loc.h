@@ -25,8 +25,14 @@ struct uwb_tag_location_result {
     uint32_t residual_max_mm;
 };
 
+enum uwb_tag_loc_subset_policy {
+    UWB_TAG_LOC_SUBSET_POLICY_MIN4 = 0,
+    UWB_TAG_LOC_SUBSET_POLICY_EXACT4 = 1,
+};
+
 int uwb_tag_loc_solve(const struct uwb_tag_measurement *measurements,
                       size_t measurement_count,
+                      enum uwb_tag_loc_subset_policy subset_policy,
                       struct uwb_tag_location_result *result);
 
 int uwb_tag_loc_evaluate_solution(const struct uwb_tag_measurement *measurements,

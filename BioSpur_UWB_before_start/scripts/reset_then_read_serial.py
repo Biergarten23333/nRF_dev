@@ -4,8 +4,58 @@ import os
 import subprocess
 import sys
 import time
+import tempfile
 
 import serial
+
+
+def _reset_with_jlink(snr: str) -> bool:
+    jlink = subprocess.run(
+        ["bash", "-lc", "command -v JLinkExe"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    jlink_path = (jlink.stdout or "").strip()
+    if not jlink_path:
+        return False
+
+    with tempfile.NamedTemporaryFile("w", suffix=".jlink", delete=False) as f:
+        cmd_file = f.name
+        f.write("Device nRF52832_XXAA\n")
+        f.write("SelectInterface SWD\n")
+        f.write("Speed 4000\n")
+        f.write("Connect\n")
+        f.write("Reset\n")
+        f.write("Go\n")
+        f.write("Exit\n")
+
+    try:
+        proc = subprocess.run(
+            [
+                jlink_path,
+                "-NoGui",
+                "1",
+                "-SelectEmuBySN",
+                snr,
+                "-CommanderScript",
+                cmd_file,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode == 0:
+            return True
+        combined = (proc.stdout or "") + ("\n" + proc.stderr if proc.stderr else "")
+        if combined.strip():
+            print(combined, file=sys.stderr)
+        return False
+    finally:
+        try:
+            os.unlink(cmd_file)
+        except OSError:
+            pass
 
 
 def main() -> int:
@@ -34,10 +84,23 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    # Prevent VSCode Nordic background hotplug scanner from racing J-Link access
+    # and triggering interactive probe-selection dialogs.
     subprocess.run(
-        ["nrfjprog", "--reset", "-f", "NRF52", "--snr", args.snr],
+        ["pkill", "-f", "nrfutil-device --json list --hotplug"],
         check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
+    time.sleep(0.2)
+
+    # Use SN-pinned JLink reset to avoid interactive probe-selection popup.
+    if not _reset_with_jlink(args.snr):
+        print(
+            f"[error] failed to issue SN-pinned reset via JLinkExe for {args.snr}",
+            file=sys.stderr,
+        )
+        return 3
 
     deadline = time.time() + args.settle
     while time.time() < deadline:

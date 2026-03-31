@@ -12,6 +12,7 @@
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/kernel.h>
 #include <zephyr/settings/settings.h>
+#include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
 
@@ -44,6 +45,16 @@
 #define OTA_SMP_CMD_OS_RESET 0x05U
 #define OTA_CBOR_DECODER_STATE_NUM 4U
 #define OTA_NAME_BUF_LEN 32U
+#define BLE_TS_MAGIC0 0x42U
+#define BLE_TS_MAGIC1 0x50U
+#define BLE_TS_VERSION 1U
+#define BLE_TS_HEADER_LEN 5U
+#define BLE_TS_RECORD_LEN 24U
+#define BLE_CM_MAGIC0 0x43U
+#define BLE_CM_MAGIC1 0x4dU
+#define BLE_CM_VERSION 1U
+#define BLE_CM_HEADER_LEN 5U
+#define BLE_CM_RECORD_LEN 24U
 
 #ifndef APP_MASTER_OTA_TARGET_NAME
 #define APP_MASTER_OTA_TARGET_NAME ""
@@ -55,6 +66,10 @@
 
 #ifndef APP_MASTER_OTA_TARGET_TOKEN_ID
 #define APP_MASTER_OTA_TARGET_TOKEN_ID -1
+#endif
+
+#ifndef APP_MASTER_OTA_UPLOAD_ENABLE
+#define APP_MASTER_OTA_UPLOAD_ENABLE 1
 #endif
 
 #define OTA_DEBUG_VERBOSE 0
@@ -114,6 +129,195 @@ static char runtime_target_name[OTA_NAME_BUF_LEN] = APP_MASTER_OTA_TARGET_NAME;
 static char runtime_target_prefix[OTA_NAME_BUF_LEN] = APP_MASTER_OTA_TARGET_NAME_PREFIX;
 K_THREAD_STACK_DEFINE(ota_thread_stack, 3072);
 static struct k_thread ota_thread;
+
+static const char *sample_plan_label(uint8_t code)
+{
+	switch (code) {
+	case 0:
+		return "track";
+	case 1:
+		return "full";
+	case 2:
+		return "fixed";
+	default:
+		return "unknown";
+	}
+}
+
+static const char *cm_status_label(uint8_t code)
+{
+	switch (code) {
+	case 0:
+		return "ok";
+	case 1:
+		return "reject";
+	case 2:
+		return "timeout";
+	case 3:
+		return "error";
+	default:
+		return "unknown";
+	}
+}
+
+static void sample_anchor_mask_to_text(uint8_t mask, char *out, size_t out_len)
+{
+	size_t len = 0U;
+
+	if (out == NULL || out_len == 0U) {
+		return;
+	}
+
+	for (uint8_t i = 0U; i < 8U && len + 1U < out_len; ++i) {
+		if ((mask & BIT(i)) == 0U) {
+			continue;
+		}
+		out[len++] = (char)('A' + i);
+	}
+
+	out[len] = '\0';
+}
+
+static bool ble_decode_ts_packet(const uint8_t *data, uint16_t len,
+				 char *payload, size_t payload_len)
+{
+	uint8_t count;
+	uint8_t version;
+	size_t offset;
+	size_t used = 0U;
+
+	if (data == NULL || payload == NULL || payload_len == 0U ||
+	    len < BLE_TS_HEADER_LEN) {
+		return false;
+	}
+
+	if (data[0] != BLE_TS_MAGIC0 || data[1] != BLE_TS_MAGIC1) {
+		return false;
+	}
+
+	version = data[2];
+	count = data[3];
+	if (version != BLE_TS_VERSION) {
+		if (data[3] == BLE_TS_VERSION && data[2] > 0U) {
+			version = data[3];
+			count = data[2];
+		} else {
+			return false;
+		}
+	}
+
+	offset = BLE_TS_HEADER_LEN;
+	if (count == 0U || len < offset + (size_t)count * BLE_TS_RECORD_LEN) {
+		return false;
+	}
+
+	payload[0] = '\0';
+	for (uint8_t i = 0U; i < count; ++i) {
+		uint32_t sweep = sys_get_le32(&data[offset]);
+		uint8_t plan_code = data[offset + 4U];
+		uint8_t anchor_mask = data[offset + 5U];
+		uint16_t motion_dt = sys_get_le16(&data[offset + 6U]);
+		int32_t x = (int32_t)sys_get_le32(&data[offset + 8U]);
+		int32_t y = (int32_t)sys_get_le32(&data[offset + 12U]);
+		int32_t z = (int32_t)sys_get_le32(&data[offset + 16U]);
+		uint16_t rms = sys_get_le16(&data[offset + 20U]);
+		uint16_t max = sys_get_le16(&data[offset + 22U]);
+		char anchors[16];
+		int written;
+
+		sample_anchor_mask_to_text(anchor_mask, anchors, sizeof(anchors));
+		written = snprintk(
+			&payload[used], payload_len - used,
+			"%sTS s=%u p=%s xyz=%d,%d,%d r=%u m=%u a=%s",
+			(i == 0U) ? "" : "|",
+			(unsigned int)sweep,
+			sample_plan_label(plan_code),
+			(int)x, (int)y, (int)z,
+			(unsigned int)rms,
+			(unsigned int)max,
+			anchors);
+		if (written < 0 || (size_t)written >= payload_len - used) {
+			return false;
+		}
+		used += (size_t)written;
+		if (motion_dt != 0U) {
+			written = snprintk(&payload[used], payload_len - used,
+					   " d=%u", (unsigned int)motion_dt);
+		} else {
+			written = snprintk(&payload[used], payload_len - used,
+					   " motion=na");
+		}
+		if (written < 0 || (size_t)written >= payload_len - used) {
+			return false;
+		}
+		used += (size_t)written;
+		offset += BLE_TS_RECORD_LEN;
+	}
+
+	return true;
+}
+
+static bool ble_decode_cm_packet(const uint8_t *data, uint16_t len,
+				 char *payload, size_t payload_len)
+{
+	uint8_t version;
+	uint8_t count;
+	size_t offset;
+	size_t used = 0U;
+
+	if (data == NULL || payload == NULL || payload_len == 0U ||
+	    len < BLE_CM_HEADER_LEN) {
+		return false;
+	}
+
+	if (data[0] != BLE_CM_MAGIC0 || data[1] != BLE_CM_MAGIC1) {
+		return false;
+	}
+
+	version = data[2];
+	count = data[3];
+	if (version != BLE_CM_VERSION) {
+		return false;
+	}
+
+	offset = BLE_CM_HEADER_LEN;
+	if (count == 0U || len < offset + (size_t)count * BLE_CM_RECORD_LEN) {
+		return false;
+	}
+
+	payload[0] = '\0';
+	for (uint8_t i = 0U; i < count; ++i) {
+		uint32_t sweep = sys_get_le32(&data[offset]);
+		uint8_t anchor_id = data[offset + 4U];
+		uint8_t status = data[offset + 5U];
+		uint8_t quality = data[offset + 6U];
+		int32_t raw_mm = (int32_t)sys_get_le32(&data[offset + 8U]);
+		uint32_t filt_mm = sys_get_le32(&data[offset + 12U]);
+		uint32_t ok_count = sys_get_le32(&data[offset + 16U]);
+		uint32_t fail_count = sys_get_le32(&data[offset + 20U]);
+		int written;
+
+		written = snprintk(
+			&payload[used], payload_len - used,
+			"%sCM;1;%u;%u;%s;%d;%u;%u;%u;%u",
+			(i == 0U) ? "" : "|",
+			(unsigned int)sweep,
+			(unsigned int)anchor_id,
+			cm_status_label(status),
+			(int)raw_mm,
+			(unsigned int)filt_mm,
+			(unsigned int)quality,
+			(unsigned int)ok_count,
+			(unsigned int)fail_count);
+		if (written < 0 || (size_t)written >= payload_len - used) {
+			return false;
+		}
+		used += (size_t)written;
+		offset += BLE_CM_RECORD_LEN;
+	}
+
+	return true;
+}
 
 static void gatt_discover_nus(struct bt_conn *conn);
 static void gatt_discover_dfu(struct bt_conn *conn);
@@ -318,14 +522,18 @@ static uint8_t nus_data_received(struct bt_nus_client *nus,
 				 const uint8_t *data, uint16_t len)
 {
 	ARG_UNUSED(nus);
-	char payload[256];
-	size_t copy_len = MIN((size_t)len, sizeof(payload) - 1U);
+	char payload[1024];
+	size_t copy_len;
 
-	for (size_t i = 0; i < copy_len; ++i) {
-		char c = (char)data[i];
-		payload[i] = (c >= 32 && c <= 126) ? c : '.';
+	if (!ble_decode_cm_packet(data, len, payload, sizeof(payload)) &&
+	    !ble_decode_ts_packet(data, len, payload, sizeof(payload))) {
+		copy_len = MIN((size_t)len, sizeof(payload) - 1U);
+		for (size_t i = 0; i < copy_len; ++i) {
+			char c = (char)data[i];
+			payload[i] = (c >= 32 && c <= 126) ? c : '.';
+		}
+		payload[copy_len] = '\0';
 	}
-	payload[copy_len] = '\0';
 
 	printk("NUS notify: %s\n", payload);
 
@@ -1064,6 +1272,10 @@ static int ota_prime_link(struct bt_dfu_smp *smp)
 
 static void ota_try_schedule_start(void)
 {
+	if (!APP_MASTER_OTA_UPLOAD_ENABLE) {
+		return;
+	}
+
 	if (!ota_ready || !mtu_ready || ota_started || ota_done || default_conn == NULL) {
 		return;
 	}
@@ -1083,6 +1295,11 @@ static void ota_thread_fn(void *a, void *b, void *c)
 	while (1) {
 		k_sem_take(&ota_start_sem, K_FOREVER);
 		ota_start_queued = false;
+
+		if (!APP_MASTER_OTA_UPLOAD_ENABLE) {
+			printk("OTA upload disabled (monitor-only mode)\n");
+			continue;
+		}
 
 		if (!ota_ready || !mtu_ready || ota_started || ota_done || default_conn == NULL) {
 			continue;
@@ -1184,9 +1401,13 @@ static void discovery_complete(struct bt_gatt_dm *dm, void *context)
 			} else {
 				nus_ready = true;
 				printk("NUS service ready\n");
-				err = ota_arm_target_via_nus();
-				if (err) {
-					printk("OTA arm via NUS failed: %d\n", err);
+				if (APP_MASTER_OTA_UPLOAD_ENABLE) {
+					err = ota_arm_target_via_nus();
+					if (err) {
+						printk("OTA arm via NUS failed: %d\n", err);
+					}
+				} else {
+					printk("OTA arm skipped (monitor-only mode)\n");
 				}
 			}
 		}

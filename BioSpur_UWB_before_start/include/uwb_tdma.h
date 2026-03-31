@@ -15,6 +15,7 @@
 enum uwb_tag_positioning_mode {
 	UWB_TAG_POSITIONING_MODE_DYNAMIC = 0U,
 	UWB_TAG_POSITIONING_MODE_FIXED = 1U,
+	UWB_TAG_POSITIONING_MODE_CALIBRATION = 2U,
 };
 
 enum uwb_tag_anchor_selection_mode {

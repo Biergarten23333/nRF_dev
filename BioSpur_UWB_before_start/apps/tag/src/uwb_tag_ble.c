@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
@@ -31,6 +32,10 @@
 
 #ifndef APP_TAG_BLE_SETTINGS_ENABLE
 #define APP_TAG_BLE_SETTINGS_ENABLE 1U
+#endif
+
+#ifndef APP_TAG_CALIBRATION_MODE
+#define APP_TAG_CALIBRATION_MODE 0U
 #endif
 
 #ifndef APP_TAG_BLE_PACKET_BUNDLE_RECORDS
@@ -67,6 +72,12 @@
 #define UWB_TAG_BLE_BINARY_HEADER_LEN 5U
 #define UWB_TAG_BLE_BINARY_RECORD_LEN 24U
 #define UWB_TAG_BLE_MAX_BINARY_RECORDS 4U
+#define UWB_TAG_BLE_CAL_MAGIC0 0x43U
+#define UWB_TAG_BLE_CAL_MAGIC1 0x4dU
+#define UWB_TAG_BLE_CAL_VERSION 1U
+#define UWB_TAG_BLE_CAL_HEADER_LEN 5U
+#define UWB_TAG_BLE_CAL_RECORD_LEN 24U
+#define UWB_TAG_BLE_MAX_CAL_RECORDS 8U
 
 #define UWB_TAG_BLE_SETTINGS_SUBTREE "tag_ble"
 #define UWB_TAG_BLE_SETTINGS_CONFIG_KEY "runtime_cfg"
@@ -144,6 +155,8 @@ static size_t pending_bundle_len;
 static uint8_t pending_bundle_records;
 static struct uwb_tag_ble_sample pending_samples[UWB_TAG_BLE_MAX_BINARY_RECORDS];
 static uint8_t pending_sample_count;
+static struct uwb_tag_ble_cal_range pending_cal_ranges[UWB_TAG_BLE_MAX_CAL_RECORDS];
+static uint8_t pending_cal_count;
 static struct bt_nus_cb nus_cb;
 
 static int uwb_tag_ble_start_advertising(void);
@@ -159,6 +172,13 @@ static size_t uwb_tag_ble_parse_fixed_anchor_list(const char *cmd,
 static int uwb_tag_ble_parse_cfg_command(
 	const char *cmd,
 	struct uwb_tag_runtime_params *params);
+static const char *uwb_tag_ble_mode_label(uint8_t positioning_mode);
+static bool uwb_tag_ble_mode_is_calibration(uint8_t positioning_mode);
+static bool uwb_tag_ble_parse_mode_value(const char *mode_text,
+					 uint8_t *positioning_mode_out);
+static void uwb_tag_ble_apply_mode_defaults(struct uwb_tag_runtime_params *params);
+static int uwb_tag_ble_apply_mode_policy(struct uwb_tag_runtime_params *params,
+					 bool require_fixed_list);
 static bool uwb_tag_ble_bundle_enabled(void);
 static bool uwb_tag_ble_line_is_bundle_candidate(const char *line);
 static void uwb_tag_ble_clear_pending_bundle_locked(void);
@@ -177,6 +197,12 @@ static size_t uwb_tag_ble_encode_binary_packet(uint8_t *out, size_t out_len,
 					       size_t sample_count);
 static void uwb_tag_ble_clear_pending_samples_locked(void);
 static bool uwb_tag_ble_snapshot_pending_samples_locked(
+	uint8_t *out, size_t out_len, size_t *encoded_len);
+static size_t uwb_tag_ble_encode_cal_packet(uint8_t *out, size_t out_len,
+					    const struct uwb_tag_ble_cal_range *samples,
+					    size_t sample_count);
+static void uwb_tag_ble_clear_pending_cal_locked(void);
+static bool uwb_tag_ble_snapshot_pending_cal_locked(
 	uint8_t *out, size_t out_len, size_t *encoded_len);
 
 static void ble_reboot_work_handler(struct k_work *work)
@@ -368,7 +394,8 @@ static void uwb_tag_ble_runtime_params_reset_locked(void)
 		(ble_identity_code != 0U) ? (uint8_t)(ble_identity_code & 0xFFU) :
 					    ble_tag_id;
 	active_runtime_params.slot_source = UWB_TAG_SLOT_SOURCE_BUILD;
-	active_runtime_params.positioning_mode =
+	active_runtime_params.positioning_mode = APP_TAG_CALIBRATION_MODE ?
+		UWB_TAG_POSITIONING_MODE_CALIBRATION :
 		UWB_TAG_POSITIONING_MODE_DYNAMIC;
 	active_runtime_params.anchor_selection_mode =
 		UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
@@ -476,6 +503,120 @@ int uwb_tag_ble_runtime_config_store(const struct uwb_tag_runtime_params *params
 		}
 	}
 
+	return 0;
+}
+
+static const char *uwb_tag_ble_mode_label(uint8_t positioning_mode)
+{
+	switch (positioning_mode) {
+	case UWB_TAG_POSITIONING_MODE_CALIBRATION:
+		return "CAL";
+	case UWB_TAG_POSITIONING_MODE_FIXED:
+		return "FIXED";
+	default:
+		return "MOTION";
+	}
+}
+
+static bool uwb_tag_ble_mode_is_calibration(uint8_t positioning_mode)
+{
+	return positioning_mode == UWB_TAG_POSITIONING_MODE_CALIBRATION;
+}
+
+static bool uwb_tag_ble_parse_mode_value(const char *mode_text,
+					 uint8_t *positioning_mode_out)
+{
+	if (mode_text == NULL || positioning_mode_out == NULL) {
+		return false;
+	}
+
+	if (strcasecmp(mode_text, "CAL") == 0 ||
+	    strcasecmp(mode_text, "CALI") == 0 ||
+	    strcasecmp(mode_text, "CALIBRATION") == 0) {
+		*positioning_mode_out = UWB_TAG_POSITIONING_MODE_CALIBRATION;
+		return true;
+	}
+
+	if (strcasecmp(mode_text, "MOTION") == 0 ||
+	    strcasecmp(mode_text, "DYN") == 0 ||
+	    strcasecmp(mode_text, "DYNAMIC") == 0 ||
+	    strcasecmp(mode_text, "RUN") == 0) {
+		*positioning_mode_out = UWB_TAG_POSITIONING_MODE_DYNAMIC;
+		return true;
+	}
+
+	if (strcasecmp(mode_text, "FIXED") == 0) {
+		*positioning_mode_out = UWB_TAG_POSITIONING_MODE_FIXED;
+		return true;
+	}
+
+	return false;
+}
+
+static void uwb_tag_ble_apply_mode_defaults(struct uwb_tag_runtime_params *params)
+{
+	if (params == NULL) {
+		return;
+	}
+
+	if (uwb_tag_ble_mode_is_calibration(params->positioning_mode)) {
+		params->slot_source = UWB_TAG_SLOT_SOURCE_BUILD;
+		params->tdma.enabled = false;
+		params->tdma.slot_index = 0U;
+		params->tdma.slot_count = 1U;
+		params->tdma.slot_period_ms = 25U;
+		params->tdma.slot_active_ms = 25U;
+		params->tdma.epoch_valid = false;
+		params->tdma.epoch_ms = 0U;
+		params->tdma.generation = 0U;
+		return;
+	}
+
+	if (params->tdma.slot_count == 0U || params->tdma.slot_period_ms == 0U ||
+	    params->tdma.slot_active_ms == 0U) {
+		params->tdma.enabled = (APP_TAG_TDMA_ENABLE != 0U);
+		params->tdma.slot_index = APP_TAG_TDMA_SLOT_INDEX;
+		params->tdma.slot_count = APP_TAG_TDMA_SLOT_COUNT;
+		params->tdma.slot_period_ms = APP_TAG_TDMA_SLOT_PERIOD_MS;
+		params->tdma.slot_active_ms = APP_TAG_TDMA_SLOT_ACTIVE_MS;
+		params->tdma.epoch_valid = false;
+		params->tdma.epoch_ms = 0U;
+		params->tdma.generation = 0U;
+	}
+}
+
+static int uwb_tag_ble_apply_mode_policy(struct uwb_tag_runtime_params *params,
+					 bool require_fixed_list)
+{
+	if (params == NULL) {
+		return -EINVAL;
+	}
+
+	switch (params->positioning_mode) {
+	case UWB_TAG_POSITIONING_MODE_CALIBRATION:
+		/* Calibration: always full-anchor sampling path (AMODE not user-tuned). */
+		params->anchor_selection_mode = UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
+		params->fixed_anchor_count = 0U;
+		memset(params->fixed_anchor_ids, 0, sizeof(params->fixed_anchor_ids));
+		break;
+	case UWB_TAG_POSITIONING_MODE_FIXED:
+		/* Fixed mode: always 4-anchor subset policy. */
+		params->anchor_selection_mode = UWB_TAG_ANCHOR_SELECTION_FIXED_SUBSET;
+		if (params->fixed_anchor_count < 4U) {
+			if (require_fixed_list) {
+				return -EINVAL;
+			}
+			return -EAGAIN;
+		}
+		break;
+	case UWB_TAG_POSITIONING_MODE_DYNAMIC:
+	default:
+		/* Motion dynamic: anchor plan comes from dynamic strategy (6->4 style runtime). */
+		params->anchor_selection_mode = UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
+		break;
+	}
+
+	uwb_tag_ble_apply_mode_defaults(params);
 	return 0;
 }
 
@@ -625,7 +766,9 @@ static int uwb_tag_ble_parse_cfg_command(
 
 	if (tag_id >= UWB_MAX_TAGS || slot >= UINT8_MAX || count == 0U ||
 	    count > UINT8_MAX || period == 0U || period > UINT16_MAX ||
-	    active == 0U || active > UINT16_MAX || active > period) {
+	    active == 0U || active > UINT16_MAX || active > period ||
+	    positioning_mode > UWB_TAG_POSITIONING_MODE_CALIBRATION ||
+	    anchor_mode > UWB_TAG_ANCHOR_SELECTION_FIXED_SUBSET) {
 		return -ERANGE;
 	}
 
@@ -646,6 +789,10 @@ static int uwb_tag_ble_parse_cfg_command(
 	params->tdma.epoch_ms = epoch;
 	params->tdma.epoch_valid = true;
 	params->tdma.generation = (uint8_t)generation;
+	if (uwb_tag_ble_apply_mode_policy(
+		params, params->positioning_mode == UWB_TAG_POSITIONING_MODE_FIXED) != 0) {
+		return -EINVAL;
+	}
 
 	return 0;
 }
@@ -682,7 +829,8 @@ static bool uwb_tag_ble_bundle_enabled(void)
 static bool uwb_tag_ble_line_is_bundle_candidate(const char *line)
 {
 	return (line != NULL) && (strstr(line, "TagSummary") != NULL ||
-				  strstr(line, "TS ") != NULL);
+				  strstr(line, "TS ") != NULL ||
+				  strstr(line, "TS;") != NULL);
 }
 
 static void uwb_tag_ble_schedule_bundle_flush_locked(void)
@@ -741,6 +889,11 @@ static void uwb_tag_ble_clear_pending_bundle_locked(void)
 static void uwb_tag_ble_clear_pending_samples_locked(void)
 {
 	pending_sample_count = 0U;
+}
+
+static void uwb_tag_ble_clear_pending_cal_locked(void)
+{
+	pending_cal_count = 0U;
 }
 
 static bool uwb_tag_ble_snapshot_pending_bundle_locked(char *snapshot,
@@ -825,6 +978,69 @@ static bool uwb_tag_ble_snapshot_pending_samples_locked(
 	return true;
 }
 
+static size_t uwb_tag_ble_encode_cal_packet(
+	uint8_t *out, size_t out_len,
+	const struct uwb_tag_ble_cal_range *samples, size_t sample_count)
+{
+	size_t offset = 0U;
+
+	if (out == NULL || samples == NULL || sample_count == 0U ||
+	    sample_count > UWB_TAG_BLE_MAX_CAL_RECORDS) {
+		return 0U;
+	}
+
+	if (out_len < UWB_TAG_BLE_CAL_HEADER_LEN +
+			  sample_count * UWB_TAG_BLE_CAL_RECORD_LEN) {
+		return 0U;
+	}
+
+	out[offset++] = UWB_TAG_BLE_CAL_MAGIC0;
+	out[offset++] = UWB_TAG_BLE_CAL_MAGIC1;
+	out[offset++] = UWB_TAG_BLE_CAL_VERSION;
+	out[offset++] = (uint8_t)sample_count;
+	out[offset++] = uwb_tag_ble_tag_id();
+
+	for (size_t i = 0U; i < sample_count; ++i) {
+		const struct uwb_tag_ble_cal_range *sample = &samples[i];
+
+		sys_put_le32(sample->sweep, &out[offset]);
+		offset += 4U;
+		out[offset++] = sample->anchor_id;
+		out[offset++] = sample->status;
+		out[offset++] = sample->quality_percent;
+		out[offset++] = 0U;
+		sys_put_le32((uint32_t)sample->raw_mm, &out[offset]);
+		offset += 4U;
+		sys_put_le32(sample->filt_mm, &out[offset]);
+		offset += 4U;
+		sys_put_le32(sample->ok_count, &out[offset]);
+		offset += 4U;
+		sys_put_le32(sample->fail_count, &out[offset]);
+		offset += 4U;
+	}
+
+	return offset;
+}
+
+static bool uwb_tag_ble_snapshot_pending_cal_locked(
+	uint8_t *out, size_t out_len, size_t *encoded_len)
+{
+	size_t len;
+
+	if (pending_cal_count == 0U || out == NULL || encoded_len == NULL) {
+		return false;
+	}
+
+	len = uwb_tag_ble_encode_cal_packet(out, out_len, pending_cal_ranges,
+					    pending_cal_count);
+	if (len == 0U) {
+		return false;
+	}
+
+	*encoded_len = len;
+	return true;
+}
+
 static void uwb_tag_ble_flush_work_handler(struct k_work *work)
 {
 	char snapshot[UWB_TAG_BLE_MAX_STATUS_LEN];
@@ -834,6 +1050,15 @@ static void uwb_tag_ble_flush_work_handler(struct k_work *work)
 	ARG_UNUSED(work);
 
 	k_mutex_lock(&ble_mutex, K_FOREVER);
+	if (uwb_tag_ble_snapshot_pending_cal_locked(binary_snapshot,
+						    sizeof(binary_snapshot),
+						    &binary_len)) {
+		uwb_tag_ble_clear_pending_cal_locked();
+		k_mutex_unlock(&ble_mutex);
+		uwb_tag_ble_send_payload(binary_snapshot, binary_len);
+		return;
+	}
+
 	if (uwb_tag_ble_snapshot_pending_samples_locked(binary_snapshot,
 							sizeof(binary_snapshot),
 							&binary_len)) {
@@ -895,6 +1120,7 @@ static void ble_disconnected(struct bt_conn *conn, uint8_t reason)
 	active_conns = ble_conn_count;
 	uwb_tag_ble_clear_pending_bundle_locked();
 	uwb_tag_ble_clear_pending_samples_locked();
+	uwb_tag_ble_clear_pending_cal_locked();
 	k_mutex_unlock(&ble_mutex);
 	uwb_tag_ble_cancel_bundle_flush();
 
@@ -1009,7 +1235,16 @@ static void ble_notif_enabled(enum bt_nus_send_status status)
 		bool have_snapshot = false;
 
 		k_mutex_lock(&ble_mutex, K_FOREVER);
-		if (pending_sample_count > 0U &&
+		if (pending_cal_count > 0U &&
+		    uwb_tag_ble_snapshot_pending_cal_locked(binary_snapshot,
+							    sizeof(binary_snapshot),
+							    &binary_len)) {
+			uwb_tag_ble_clear_pending_cal_locked();
+			k_mutex_unlock(&ble_mutex);
+			uwb_tag_ble_cancel_bundle_flush();
+			uwb_tag_ble_send_payload(binary_snapshot, binary_len);
+			return;
+		} else if (pending_sample_count > 0U &&
 		    uwb_tag_ble_snapshot_pending_samples_locked(binary_snapshot,
 							       sizeof(binary_snapshot),
 							       &binary_len)) {
@@ -1134,6 +1369,76 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		return;
 	}
 
+	if (strcmp(cmd, "MODE?") == 0) {
+		char resp[128];
+		struct uwb_tag_runtime_params params;
+
+		(void)uwb_tag_ble_runtime_config_get(&params);
+		snprintk(resp, sizeof(resp),
+			 "MODE=%s PMODE=%u AMODE=%u FIXED_N=%u TDMA=%u SLOT=%u/%u SRC=%s",
+			 uwb_tag_ble_mode_label(params.positioning_mode),
+			 (unsigned int)params.positioning_mode,
+			 (unsigned int)params.anchor_selection_mode,
+			 (unsigned int)params.fixed_anchor_count,
+			 (unsigned int)params.tdma.enabled,
+			 (unsigned int)params.tdma.slot_index,
+			 (unsigned int)params.tdma.slot_count,
+			 uwb_tag_ble_slot_source_label(params.slot_source));
+		uwb_tag_ble_send_text(resp);
+		return;
+	}
+
+	if (strncmp(cmd, "MODE ", 5) == 0 || strncmp(cmd, "MCAL", 4) == 0 ||
+	    strncmp(cmd, "MMOT", 4) == 0) {
+		struct uwb_tag_runtime_params params;
+		uint8_t requested_mode = UWB_TAG_POSITIONING_MODE_DYNAMIC;
+		const char *arg = cmd + 5;
+		int live_err;
+		int store_err;
+		int policy_err;
+		char resp[96];
+
+		if (strcmp(cmd, "MCAL") == 0) {
+			requested_mode = UWB_TAG_POSITIONING_MODE_CALIBRATION;
+		} else if (strcmp(cmd, "MMOT") == 0) {
+			requested_mode = UWB_TAG_POSITIONING_MODE_DYNAMIC;
+		} else {
+			while (*arg == ' ' || *arg == '\t') {
+				arg++;
+			}
+			if (*arg == '\0' || !uwb_tag_ble_parse_mode_value(arg, &requested_mode)) {
+				uwb_tag_ble_send_text("MODE_BAD");
+				return;
+			}
+		}
+
+		if (uwb_tag_ble_ota_active()) {
+			uwb_tag_ble_send_text("ERR:BUSY_OTA");
+			return;
+		}
+
+		(void)uwb_tag_ble_runtime_config_get(&params);
+		params.positioning_mode = requested_mode;
+		policy_err = uwb_tag_ble_apply_mode_policy(
+			&params, requested_mode == UWB_TAG_POSITIONING_MODE_FIXED);
+		if (policy_err == -EINVAL) {
+			uwb_tag_ble_send_text("ERR:FIXED_NEEDS_4");
+			return;
+		}
+		store_err = uwb_tag_ble_runtime_config_store(&params);
+		live_err = ss_twr_init_runtime_configure(&params);
+		if (store_err) {
+			uwb_tag_ble_send_text("MODE_SAVE_FAIL");
+			return;
+		}
+
+		snprintk(resp, sizeof(resp), "MODE_OK MODE=%s LIVE=%u",
+			 uwb_tag_ble_mode_label(requested_mode),
+			 (unsigned int)((live_err == 0) ? 1U : 0U));
+		uwb_tag_ble_send_text(resp);
+		return;
+	}
+
 	if (strncmp(cmd, "TDMA_SET", 8) == 0) {
 		const char *arg = cmd + 8;
 		char *end = NULL;
@@ -1187,6 +1492,7 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 			uwb_tag_ble_send_text("CFG_BAD");
 			return;
 		}
+		uwb_tag_ble_apply_mode_defaults(&params);
 
 		store_err = uwb_tag_ble_runtime_config_store(&params);
 		live_err = ss_twr_init_runtime_configure(&params);
@@ -1210,9 +1516,9 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 
 	if (strcmp(cmd, "HELP") == 0) {
 #if APP_TAG_BLE_OTA_ENABLE
-		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|CFG_STATUS|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<n> AMODE=<n> FIXED=a,b,c,d|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|CFG_STATUS|MODE?|MODE <CAL|MOTION|FIXED>|MCAL|MMOT|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2> FIXED=a,b,c,d|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
 #else
-		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|CFG_STATUS|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<n> AMODE=<n> FIXED=a,b,c,d|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|CFG_STATUS|MODE?|MODE <CAL|MOTION|FIXED>|MCAL|MMOT|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2> FIXED=a,b,c,d|REBOOT|HELP");
 #endif
 		return;
 	}
@@ -1442,6 +1748,70 @@ int uwb_tag_ble_publish_sample(const struct uwb_tag_ble_sample *sample)
 		}
 	} else if (!send_now && APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS > 0U &&
 		   pending_sample_count == 1U) {
+		uwb_tag_ble_schedule_bundle_flush_locked();
+	}
+
+	k_mutex_unlock(&ble_mutex);
+
+	if (send_now) {
+		uwb_tag_ble_cancel_bundle_flush();
+		uwb_tag_ble_send_payload(packet, packet_len);
+	}
+
+	return 0;
+}
+
+int uwb_tag_ble_publish_calibration_range(
+	const struct uwb_tag_ble_cal_range *sample)
+{
+	uint8_t packet[UWB_TAG_BLE_MAX_STATUS_LEN];
+	size_t packet_len = 0U;
+	bool send_now = false;
+	uint8_t target_records =
+		(APP_TAG_BLE_PACKET_BUNDLE_RECORDS >= 2U) ?
+		 APP_TAG_BLE_PACKET_BUNDLE_RECORDS :
+		 2U;
+
+#if APP_TAG_CALIBRATION_MODE
+	/*
+	 * Calibration CM stream should preserve per-sweep anchor coverage.
+	 * Prefer batching a full 8-anchor sweep per BLE notify when possible.
+	 */
+	target_records = UWB_TAG_BLE_MAX_CAL_RECORDS;
+#endif
+
+	if (sample == NULL) {
+		return -EINVAL;
+	}
+
+	k_mutex_lock(&ble_mutex, K_FOREVER);
+	if (!ble_ready) {
+		k_mutex_unlock(&ble_mutex);
+		return -ENODEV;
+	}
+
+	if (pending_cal_count >= UWB_TAG_BLE_MAX_CAL_RECORDS) {
+		if (uwb_tag_ble_snapshot_pending_cal_locked(packet,
+							    sizeof(packet),
+							    &packet_len)) {
+			uwb_tag_ble_clear_pending_cal_locked();
+			send_now = true;
+		}
+	}
+
+	if (pending_cal_count < UWB_TAG_BLE_MAX_CAL_RECORDS) {
+		pending_cal_ranges[pending_cal_count++] = *sample;
+	}
+
+	if (!send_now && pending_cal_count >= target_records) {
+		if (uwb_tag_ble_snapshot_pending_cal_locked(packet,
+							    sizeof(packet),
+							    &packet_len)) {
+			uwb_tag_ble_clear_pending_cal_locked();
+			send_now = true;
+		}
+	} else if (!send_now && APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS > 0U &&
+		   pending_cal_count == 1U) {
 		uwb_tag_ble_schedule_bundle_flush_locked();
 	}
 

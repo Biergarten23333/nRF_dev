@@ -7,6 +7,7 @@
 #include <zephyr/drivers/flash.h>
 #include <zephyr/sys/util.h>
 #include <string.h>
+#include <zephyr/sys/printk.h>
 
 #ifndef APP_ANCHOR_CONFIG_ADDR
 #define APP_ANCHOR_CONFIG_ADDR 0x0007E000U
@@ -79,6 +80,26 @@ void anchor_config_get_device_uuid(uint8_t out_uuid[16], const anchor_config_t *
         out_uuid[i] = uid[i];
         out_uuid[i + 8] = (uint8_t)(uid[i] ^ (uint8_t)(0xA5U + (uint8_t)i));
     }
+}
+
+void anchor_config_get_bs_code(const uint8_t device_uuid[16], char out_bs_code[7])
+{
+    uint16_t crc = 0xFFFFU;
+    size_t i;
+    int bit;
+
+    for (i = 0; i < 16U; i++) {
+        crc ^= (uint16_t)device_uuid[i] << 8;
+        for (bit = 0; bit < 8; bit++) {
+            if ((crc & 0x8000U) != 0U) {
+                crc = (uint16_t)((crc << 1) ^ 0x1021U);
+            } else {
+                crc <<= 1;
+            }
+        }
+    }
+
+    snprintk(out_bs_code, 7, "BS%04X", (unsigned int)crc);
 }
 
 bool anchor_config_load(anchor_config_t *out_cfg)

@@ -26,6 +26,24 @@ struct uwb_tag_ble_sample {
 	bool motion_valid;
 };
 
+enum uwb_tag_ble_cal_status {
+	UWB_TAG_BLE_CAL_STATUS_OK = 0,
+	UWB_TAG_BLE_CAL_STATUS_REJECT = 1,
+	UWB_TAG_BLE_CAL_STATUS_TIMEOUT = 2,
+	UWB_TAG_BLE_CAL_STATUS_ERROR = 3,
+};
+
+struct uwb_tag_ble_cal_range {
+	uint32_t sweep;
+	int32_t raw_mm;
+	uint32_t filt_mm;
+	uint32_t ok_count;
+	uint32_t fail_count;
+	uint8_t anchor_id;
+	uint8_t status;
+	uint8_t quality_percent;
+};
+
 int uwb_tag_ble_init(void);
 uint16_t uwb_tag_ble_identity_code(void);
 uint8_t uwb_tag_ble_tag_id(void);
@@ -36,6 +54,7 @@ bool uwb_tag_ble_runtime_config_get(struct uwb_tag_runtime_params *params);
 int uwb_tag_ble_runtime_config_store(const struct uwb_tag_runtime_params *params);
 int uwb_tag_ble_publish_status(const char *line);
 int uwb_tag_ble_publish_sample(const struct uwb_tag_ble_sample *sample);
+int uwb_tag_ble_publish_calibration_range(const struct uwb_tag_ble_cal_range *sample);
 bool uwb_tag_ble_ota_active(void);
 
 #endif /* UWB_TAG_BLE_H */

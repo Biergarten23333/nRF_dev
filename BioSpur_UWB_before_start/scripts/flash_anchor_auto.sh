@@ -43,22 +43,41 @@ infer_role() {
   path="$1"
   base="$(basename "$path")"
 
-  if [[ "$path" =~ build-anchor-([A-H]) ]]; then
-    echo "${BASH_REMATCH[1]}"
+  if [[ "$path" =~ build-anchor-([A-Ha-h]) ]]; then
+    echo "${BASH_REMATCH[1]^^}"
     return 0
   fi
 
-  if [[ "$base" =~ ^build-anchor-([A-H])$ ]]; then
-    echo "${BASH_REMATCH[1]}"
+  if [[ "$base" =~ ^build-anchor-([A-Ha-h])$ ]]; then
+    echo "${BASH_REMATCH[1]^^}"
     return 0
   fi
 
-  if [[ "$base" =~ ^build-anchor-([A-H])-(master|worker|tag|matrix|master-full|safe|fast)$ ]]; then
-    echo "${BASH_REMATCH[1]}"
+  if [[ "$base" =~ ^build-anchor-([A-Ha-h])-(master|worker|tag|matrix|master-full|safe|fast)$ ]]; then
+    echo "${BASH_REMATCH[1]^^}"
     return 0
   fi
 
   return 1
+}
+
+infer_family() {
+  local path base
+  path="$1"
+  base="$(basename "$path")"
+
+  if [[ "$base" =~ ^build-anchor-[A-Ha-h]-(master|worker|tag|matrix|master-full|safe|fast)$ ]]; then
+    echo "${BASH_REMATCH[1]}"
+    return 0
+  fi
+
+  if [[ "$path" =~ build-anchor-[A-Ha-h]-(master|worker|tag|matrix|master-full|safe|fast) ]]; then
+    echo "${BASH_REMATCH[1]}"
+    return 0
+  fi
+
+  echo "unknown"
+  return 0
 }
 
 if [ -n "$override_snr" ]; then
@@ -82,5 +101,49 @@ else
   esac
 fi
 
-echo "[flash-anchor-auto] role=${role:-override} snr=$snr hex=$hex_path"
-exec "$(dirname "$0")/reset_then_flash.sh" "$snr" "$hex_path"
+family="$(infer_family "$build_root")"
+
+echo "[flash-anchor-auto] role=${role:-override} family=$family snr=$snr hex=$hex_path"
+"$(dirname "$0")/reset_then_flash.sh" "$snr" "$hex_path"
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+state_path="${repo_root}/data/anchor_flash_state.json"
+python3 - "$state_path" "${role:-}" "$family" "$snr" "$hex_path" "$build_root" <<'PY'
+import json
+import os
+import sys
+from datetime import datetime
+from pathlib import Path
+
+state_path = Path(sys.argv[1])
+role = sys.argv[2]
+family = sys.argv[3]
+snr = sys.argv[4]
+hex_path = sys.argv[5]
+build_root = sys.argv[6]
+
+state_path.parent.mkdir(parents=True, exist_ok=True)
+state = {"anchors": {}, "history": []}
+if state_path.exists():
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+    except Exception:
+        state = {"anchors": {}, "history": []}
+
+entry = {
+    "ts": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+    "role": role if role else None,
+    "family": family,
+    "snr": snr,
+    "hex": os.path.realpath(hex_path),
+    "build_root": os.path.realpath(build_root),
+}
+if role:
+    state.setdefault("anchors", {})[role] = entry
+state.setdefault("history", []).append(entry)
+if len(state["history"]) > 200:
+    state["history"] = state["history"][-200:]
+
+state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+print(f"[flash-anchor-auto] state-updated {state_path}")
+PY

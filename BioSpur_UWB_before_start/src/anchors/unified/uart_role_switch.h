@@ -11,6 +11,7 @@ struct uart_role_switch_runtime_info {
     uint8_t active_role;              /* enum anchor_runtime_role */
     uint8_t device_uuid[16];
     uint8_t mcu_uid[8];
+    char bs_code[7];
     bool cfg_valid_on_boot;
 };
 

@@ -538,6 +538,7 @@ static double uwb_tag_loc_axis_overshoot(double value, double min_bound,
 
 int uwb_tag_loc_solve(const struct uwb_tag_measurement *measurements,
                       size_t measurement_count,
+                      enum uwb_tag_loc_subset_policy subset_policy,
                       struct uwb_tag_location_result *result)
 {
     struct uwb_tag_loc_candidate candidates[UWB_TAG_LOC_MAX_CANDIDATES];
@@ -573,6 +574,11 @@ int uwb_tag_loc_solve(const struct uwb_tag_measurement *measurements,
         uint8_t upper_count;
 
         subset_size = uwb_tag_loc_popcount_u32(mask);
+        if (subset_policy == UWB_TAG_LOC_SUBSET_POLICY_EXACT4 &&
+            subset_size != UWB_TAG_LOC_MIN_ANCHORS) {
+            continue;
+        }
+
         if (subset_size < UWB_TAG_LOC_MIN_ANCHORS) {
             continue;
         }

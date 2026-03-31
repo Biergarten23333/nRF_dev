@@ -30,6 +30,7 @@ int anchor_config_write(const anchor_config_t *cfg);
 void anchor_config_get_mcu_uid(uint8_t out_uid[8]);
 void anchor_config_get_device_uuid(uint8_t out_uuid[16], const anchor_config_t *cfg,
                                    bool cfg_valid);
+void anchor_config_get_bs_code(const uint8_t device_uuid[16], char out_bs_code[7]);
 uint32_t anchor_config_crc32(const uint8_t *data, size_t len);
 
 #endif
