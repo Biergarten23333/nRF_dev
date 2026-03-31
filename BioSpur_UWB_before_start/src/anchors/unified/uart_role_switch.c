@@ -178,7 +178,7 @@ static void cmd_status(void)
                  uid_hex, sizeof(uid_hex));
 
     uart_txf("ANCHOR: unified; ANCHOR_ID: %c; ROLE: %s; BS_CODE: %s; DEVICE_UUID: %s; MCU_UID: 0x%s; CONFIG_VALID:%u\r\n",
-             (char)('A' + g_runtime_info.active_anchor_id_runtime),
+             anchor_config_label_char(g_runtime_info.active_anchor_id_cfg),
              role_name(g_runtime_info.active_role),
              g_runtime_info.bs_code,
              uuid_hex,

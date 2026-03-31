@@ -204,6 +204,7 @@ static size_t uwb_tag_ble_encode_cal_packet(uint8_t *out, size_t out_len,
 static void uwb_tag_ble_clear_pending_cal_locked(void);
 static bool uwb_tag_ble_snapshot_pending_cal_locked(
 	uint8_t *out, size_t out_len, size_t *encoded_len);
+static bool uwb_tag_ble_runtime_stream_blocked_locked(void);
 
 static void ble_reboot_work_handler(struct k_work *work)
 {
@@ -1041,6 +1042,15 @@ static bool uwb_tag_ble_snapshot_pending_cal_locked(
 	return true;
 }
 
+static bool uwb_tag_ble_runtime_stream_blocked_locked(void)
+{
+#if APP_TAG_BLE_OTA_ENABLE
+	return ota_active;
+#else
+	return false;
+#endif
+}
+
 static void uwb_tag_ble_flush_work_handler(struct k_work *work)
 {
 	char snapshot[UWB_TAG_BLE_MAX_STATUS_LEN];
@@ -1050,6 +1060,14 @@ static void uwb_tag_ble_flush_work_handler(struct k_work *work)
 	ARG_UNUSED(work);
 
 	k_mutex_lock(&ble_mutex, K_FOREVER);
+	if (uwb_tag_ble_runtime_stream_blocked_locked()) {
+		uwb_tag_ble_clear_pending_cal_locked();
+		uwb_tag_ble_clear_pending_samples_locked();
+		uwb_tag_ble_clear_pending_bundle_locked();
+		k_mutex_unlock(&ble_mutex);
+		return;
+	}
+
 	if (uwb_tag_ble_snapshot_pending_cal_locked(binary_snapshot,
 						    sizeof(binary_snapshot),
 						    &binary_len)) {
@@ -1548,7 +1566,13 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 			return;
 		}
 
+		k_mutex_lock(&ble_mutex, K_FOREVER);
 		ota_active = true;
+		uwb_tag_ble_clear_pending_cal_locked();
+		uwb_tag_ble_clear_pending_samples_locked();
+		uwb_tag_ble_clear_pending_bundle_locked();
+		k_mutex_unlock(&ble_mutex);
+		uwb_tag_ble_cancel_bundle_flush();
 		uwb_tag_ble_send_text("OTA_BEGIN_OK");
 		return;
 	}
@@ -1636,6 +1660,10 @@ int uwb_tag_ble_publish_status(const char *line)
 	if (!ble_ready) {
 		k_mutex_unlock(&ble_mutex);
 		return -ENODEV;
+	}
+	if (uwb_tag_ble_runtime_stream_blocked_locked()) {
+		k_mutex_unlock(&ble_mutex);
+		return -EBUSY;
 	}
 
 	bundle_line = uwb_tag_ble_bundle_enabled() &&
@@ -1725,6 +1753,10 @@ int uwb_tag_ble_publish_sample(const struct uwb_tag_ble_sample *sample)
 		k_mutex_unlock(&ble_mutex);
 		return -ENODEV;
 	}
+	if (uwb_tag_ble_runtime_stream_blocked_locked()) {
+		k_mutex_unlock(&ble_mutex);
+		return -EBUSY;
+	}
 
 	if (pending_sample_count >= UWB_TAG_BLE_MAX_BINARY_RECORDS) {
 		if (uwb_tag_ble_snapshot_pending_samples_locked(packet,
@@ -1788,6 +1820,10 @@ int uwb_tag_ble_publish_calibration_range(
 	if (!ble_ready) {
 		k_mutex_unlock(&ble_mutex);
 		return -ENODEV;
+	}
+	if (uwb_tag_ble_runtime_stream_blocked_locked()) {
+		k_mutex_unlock(&ble_mutex);
+		return -EBUSY;
 	}
 
 	if (pending_cal_count >= UWB_TAG_BLE_MAX_CAL_RECORDS) {

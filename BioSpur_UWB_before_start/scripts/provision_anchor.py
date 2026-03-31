@@ -10,10 +10,12 @@ import tempfile
 from pathlib import Path
 
 CONFIG_MAGIC = 0xB105F00D
+SCHEMA_VERSION = 2
 CONFIG_ADDR_DEFAULT = 0x0007E000
 CONFIG_PAGE_SIZE = 4096
 
 ROLE_MAP = {
+    "unset": 0,
     "master": 1,
     "matrix": 2,
     "responder": 3,
@@ -37,8 +39,10 @@ def run(cmd: list[str], check: bool = True) -> str:
 
 def parse_anchor_id(val: str) -> int:
     v = val.strip().upper()
+    if v in {"U", "UNASSIGNED", "0"}:
+        return 0
     if len(v) != 1 or v < "A" or v > "H":
-        raise argparse.ArgumentTypeError("anchor-id must be A..H")
+        raise argparse.ArgumentTypeError("anchor-id must be A..H or U")
     return ord(v) - ord("A") + 1  # 1..8
 
 
@@ -89,8 +93,17 @@ def derive_uuid_from_uid(uid0: int, uid1: int) -> bytes:
     return uid + tail
 
 
-def pack_config(anchor_id: int, role: int, device_uuid: bytes) -> bytes:
-    head = struct.pack("<IBB2s16s", CONFIG_MAGIC, anchor_id, role, b"\x00\x00", device_uuid)
+def pack_config(anchor_id: int, role: int, generation: int, device_uuid: bytes) -> bytes:
+    head = struct.pack(
+        "<IBBBBI16s",
+        CONFIG_MAGIC,
+        SCHEMA_VERSION,
+        anchor_id,
+        role,
+        0,  # flags
+        generation,
+        device_uuid,
+    )
     crc = crc32_le(head)
     return head + struct.pack("<I", crc)
 
@@ -121,6 +134,7 @@ def main() -> int:
     parser.add_argument("--probe-serial", required=True, help="J-Link serial number")
     parser.add_argument("--anchor-id", required=True, type=parse_anchor_id, help="A..H")
     parser.add_argument("--role", required=True, choices=sorted(ROLE_MAP.keys()))
+    parser.add_argument("--generation", type=int, default=0, help="Config generation number")
     parser.add_argument("--config-addr", default=hex(CONFIG_ADDR_DEFAULT), help="Flash address, e.g. 0x0007E000")
     parser.add_argument("--device-uuid", type=parse_uuid_hex, help="Optional 16-byte UUID (32 hex chars)")
     parser.add_argument("--use-ble-scan", action="store_true",
@@ -165,14 +179,16 @@ def main() -> int:
                 "target device_uuid not observed in BLE scan before provisioning. "
                 f"device_uuid={device_uuid_hex}"
             )
-    blob = pack_config(args.anchor_id, role, device_uuid)
+    blob = pack_config(args.anchor_id, role, args.generation, device_uuid)
 
     payload = {
         "probe_serial": snr,
         "anchor_id": args.anchor_id,
-        "anchor_label": chr(ord("A") + args.anchor_id - 1),
+        "anchor_label": ("U" if args.anchor_id == 0 else chr(ord("A") + args.anchor_id - 1)),
         "role": args.role,
         "role_code": role,
+        "schema_version": SCHEMA_VERSION,
+        "generation": args.generation,
         "config_addr": hex(config_addr),
         "config_magic": hex(CONFIG_MAGIC),
         "mcu_uid": f"{uid0:08X}{uid1:08X}",

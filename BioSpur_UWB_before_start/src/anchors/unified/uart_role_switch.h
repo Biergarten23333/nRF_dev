@@ -7,7 +7,7 @@
 #include "anchor_config.h"
 
 struct uart_role_switch_runtime_info {
-    uint8_t active_anchor_id_runtime; /* 0..7 */
+    uint8_t active_anchor_id_cfg; /* 0=unassigned, 1..8=A..H */
     uint8_t active_role;              /* enum anchor_runtime_role */
     uint8_t device_uuid[16];
     uint8_t mcu_uid[8];

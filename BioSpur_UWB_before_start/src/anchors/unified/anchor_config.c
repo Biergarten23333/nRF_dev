@@ -17,6 +17,15 @@
 #define APP_ANCHOR_CONFIG_PAGE_SIZE 4096U
 #endif
 
+typedef struct {
+    uint32_t magic;
+    uint8_t anchor_id;       /* 1..8 only */
+    uint8_t role;            /* 0..3 */
+    uint8_t reserved[2];
+    uint8_t device_uuid[16];
+    uint32_t crc32;
+} __attribute__((packed)) anchor_config_v1_legacy_t;
+
 static const struct device *anchor_flash_dev(void)
 {
     return DEVICE_DT_GET(DT_CHOSEN(zephyr_flash_controller));
@@ -47,6 +56,22 @@ uint32_t anchor_config_crc32(const uint8_t *data, size_t len)
         }
     }
     return ~crc;
+}
+
+bool anchor_config_label_is_valid(uint8_t anchor_id)
+{
+    return anchor_id <= 8U;
+}
+
+char anchor_config_label_char(uint8_t anchor_id)
+{
+    if (anchor_id == 0U) {
+        return 'U';
+    }
+    if (anchor_id <= 8U) {
+        return (char)('A' + (anchor_id - 1U));
+    }
+    return '?';
 }
 
 void anchor_config_get_mcu_uid(uint8_t out_uid[8])
@@ -133,7 +158,10 @@ bool anchor_config_is_valid(const anchor_config_t *cfg)
     if (cfg->magic != CONFIG_MAGIC) {
         return false;
     }
-    if (cfg->anchor_id < 1U || cfg->anchor_id > 8U) {
+    if (cfg->schema_version == 0U || cfg->schema_version > ANCHOR_CONFIG_SCHEMA_VERSION) {
+        return false;
+    }
+    if (!anchor_config_label_is_valid(cfg->anchor_id)) {
         return false;
     }
     if (cfg->role > ANCHOR_ROLE_RESPONDER) {
@@ -151,6 +179,12 @@ bool anchor_config_is_valid(const anchor_config_t *cfg)
 int anchor_config_read(anchor_config_t *out_cfg)
 {
     const struct device *flash_dev = anchor_flash_dev();
+    uint8_t raw[sizeof(anchor_config_t)] = {0};
+    anchor_config_t v2 = {0};
+    anchor_config_v1_legacy_t v1 = {0};
+    uint32_t crc_v1;
+    uint32_t crc_v2;
+    int rc;
 
     if (out_cfg == NULL) {
         return -EINVAL;
@@ -158,7 +192,39 @@ int anchor_config_read(anchor_config_t *out_cfg)
     if (!device_is_ready(flash_dev)) {
         return -ENODEV;
     }
-    return flash_read(flash_dev, APP_ANCHOR_CONFIG_ADDR, out_cfg, sizeof(*out_cfg));
+    rc = flash_read(flash_dev, APP_ANCHOR_CONFIG_ADDR, raw, sizeof(raw));
+    if (rc != 0) {
+        return rc;
+    }
+
+    memcpy(&v2, raw, sizeof(v2));
+    crc_v2 = anchor_config_crc32((const uint8_t *)&v2, offsetof(anchor_config_t, crc32));
+    if (v2.magic == CONFIG_MAGIC && crc_v2 == v2.crc32 &&
+        anchor_config_label_is_valid(v2.anchor_id) && v2.role <= ANCHOR_ROLE_RESPONDER &&
+        v2.schema_version >= 1U && v2.schema_version <= ANCHOR_CONFIG_SCHEMA_VERSION) {
+        *out_cfg = v2;
+        return 0;
+    }
+
+    memcpy(&v1, raw, sizeof(v1));
+    crc_v1 = anchor_config_crc32((const uint8_t *)&v1, offsetof(anchor_config_v1_legacy_t, crc32));
+    if (v1.magic == CONFIG_MAGIC && crc_v1 == v1.crc32 &&
+        v1.anchor_id >= 1U && v1.anchor_id <= 8U && v1.role <= ANCHOR_ROLE_RESPONDER) {
+        memset(out_cfg, 0, sizeof(*out_cfg));
+        out_cfg->magic = CONFIG_MAGIC;
+        out_cfg->schema_version = 1U;
+        out_cfg->anchor_id = v1.anchor_id;
+        out_cfg->role = v1.role;
+        out_cfg->flags = 0U;
+        out_cfg->generation = 0U;
+        memcpy(out_cfg->device_uuid, v1.device_uuid, sizeof(out_cfg->device_uuid));
+        out_cfg->crc32 = anchor_config_crc32((const uint8_t *)out_cfg,
+                                             offsetof(anchor_config_t, crc32));
+        return 0;
+    }
+
+    memset(out_cfg, 0, sizeof(*out_cfg));
+    return -EILSEQ;
 }
 
 int anchor_config_write(const anchor_config_t *cfg)
@@ -174,6 +240,9 @@ int anchor_config_write(const anchor_config_t *cfg)
     }
     if (!device_is_ready(flash_dev)) {
         return -ENODEV;
+    }
+    if (!anchor_config_is_valid(cfg)) {
+        return -EINVAL;
     }
 
     memset(wr_buf, 0xFF, sizeof(wr_buf));

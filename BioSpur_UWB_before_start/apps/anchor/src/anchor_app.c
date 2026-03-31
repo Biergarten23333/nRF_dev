@@ -4,6 +4,7 @@
 
 #include "anchor_config.h"
 #include "anchor_ble_id.h"
+#include "anchor_ble_ctrl.h"
 #include "uart_role_switch.h"
 #include "ss_twr_anchor_init.h"
 #include "ss_twr_resp.h"
@@ -106,7 +107,9 @@ int anchor_app_run(void)
     const uint8_t *anchor_peer_ids_ptr = anchor_peer_ids_static;
     size_t peer_count = APP_ANCHOR_PEER_COUNT;
     uint8_t effective_role = ANCHOR_ROLE_UNSET;
+    bool unassigned_mode = false;
     uint8_t anchor_id_runtime = APP_ANCHOR_ID;
+    uint8_t anchor_id_cfg = (uint8_t)(APP_ANCHOR_ID + 1U);
     uint8_t effective_master = APP_ANCHOR_MASTER;
     uint8_t effective_allow_tag_polls = APP_ANCHOR_ALLOW_TAG_POLLS;
     uint8_t mcu_uid[8];
@@ -129,10 +132,16 @@ int anchor_app_run(void)
     bytes_to_hex(mcu_uid, sizeof(mcu_uid), mcu_uid_hex, sizeof(mcu_uid_hex));
 
     if (cfg_valid) {
-        anchor_id_runtime = (uint8_t)(cfg.anchor_id - 1U); /* config uses 1..8 => runtime 0..7 */
+        anchor_id_cfg = cfg.anchor_id;
+        if (anchor_id_cfg >= 1U && anchor_id_cfg <= 8U) {
+            anchor_id_runtime = (uint8_t)(anchor_id_cfg - 1U); /* config uses 1..8 => runtime 0..7 */
+        } else {
+            unassigned_mode = true;
+        }
         effective_role = cfg.role;
     } else {
         effective_role = APP_ANCHOR_ROLE;
+        anchor_id_cfg = (uint8_t)(APP_ANCHOR_ID + 1U);
         printk("anchor_config invalid/absent at 0x%08x, using build-time fallback\n",
                (unsigned int)APP_ANCHOR_CONFIG_ADDR);
     }
@@ -155,8 +164,14 @@ int anchor_app_run(void)
         return -1;
     }
 
+    if (effective_role == ANCHOR_ROLE_UNSET || anchor_id_cfg == 0U) {
+        unassigned_mode = true;
+        effective_master = 0U;
+        effective_allow_tag_polls = 0U;
+    }
+
     printk("ANCHOR: unified; ANCHOR_ID: %c; ROLE: %s; BS_CODE: %s; DEVICE_UUID: %s; MCU_UID: %s\n",
-           uwb_anchor_label(anchor_id_runtime), anchor_role_name(effective_role),
+           anchor_config_label_char(anchor_id_cfg), anchor_role_name(effective_role),
            bs_code, uuid_hex, mcu_uid_hex);
     printk("Anchor app ready anchor_id=%u role=%s master=%u allow_tag_polls=%u cfg_valid=%u\n",
            (unsigned int)anchor_id_runtime, anchor_role_name(effective_role),
@@ -164,13 +179,28 @@ int anchor_app_run(void)
            (unsigned int)(cfg_valid ? 1U : 0U));
 
     if (APP_ANCHOR_BLE_ID_ENABLE != 0U) {
-        ret = anchor_ble_id_start(anchor_id_runtime, effective_role, device_uuid, bs_code);
+        ret = anchor_ble_id_start(anchor_id_cfg, effective_role, device_uuid, bs_code);
         if (ret) {
             printk("anchor_ble_id_start failed: %d\n", ret);
         }
     }
 
-    serial_info.active_anchor_id_runtime = anchor_id_runtime;
+    ble_ctrl_info.active_cfg = cfg;
+    if (ble_ctrl_info.active_cfg.schema_version == 0U) {
+        ble_ctrl_info.active_cfg.schema_version = ANCHOR_CONFIG_SCHEMA_VERSION;
+    }
+    ble_ctrl_info.active_cfg_valid = cfg_valid;
+    ble_ctrl_info.runtime_anchor_id_cfg = anchor_id_cfg;
+    ble_ctrl_info.runtime_role = effective_role;
+    memcpy(ble_ctrl_info.device_uuid, device_uuid, sizeof(device_uuid));
+    memcpy(ble_ctrl_info.mcu_uid, mcu_uid, sizeof(mcu_uid));
+    memcpy(ble_ctrl_info.bs_code, bs_code, sizeof(ble_ctrl_info.bs_code));
+    ret = anchor_ble_ctrl_init(&ble_ctrl_info);
+    if (ret != 0) {
+        printk("anchor_ble_ctrl_init failed: %d\n", ret);
+    }
+
+    serial_info.active_anchor_id_cfg = anchor_id_cfg;
     serial_info.active_role = effective_role;
     memcpy(serial_info.device_uuid, device_uuid, sizeof(device_uuid));
     memcpy(serial_info.mcu_uid, mcu_uid, sizeof(mcu_uid));
@@ -188,7 +218,14 @@ int anchor_app_run(void)
         }
     }
 
-    uart_role_switch_set_ranging_active(true);
+    uart_role_switch_set_ranging_active(!unassigned_mode);
+    anchor_ble_ctrl_set_busy(!unassigned_mode);
+    anchor_ble_ctrl_set_runtime(anchor_id_cfg, effective_role, cfg_valid);
+
+    if (unassigned_mode) {
+        printk("Anchor in unassigned/unset mode: control plane active, ranging not started\n");
+        return 0;
+    }
 
     if (effective_master != 0U) {
         if (APP_ANCHOR_USE_AUTO_SCHEDULE != 0U) {
@@ -212,6 +249,7 @@ int anchor_app_run(void)
         if (ret) {
             printk("ss_twr_anchor_init_start failed: %d\n", ret);
             uart_role_switch_set_ranging_active(false);
+            anchor_ble_ctrl_set_busy(false);
             return ret;
         }
         return 0;
@@ -221,8 +259,10 @@ int anchor_app_run(void)
     if (ret) {
         printk("ss_twr_resp_start failed: %d\n", ret);
         uart_role_switch_set_ranging_active(false);
+        anchor_ble_ctrl_set_busy(false);
         return ret;
     }
 
     return 0;
 }
+    struct anchor_ble_ctrl_boot_info ble_ctrl_info;

@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 
 CONFIG_MAGIC = 0xB105F00D
+SCHEMA_VERSION_MAX = 2
 CONFIG_ADDR_DEFAULT = 0x0007E000
 
 ROLE_NAME = {
@@ -72,25 +73,62 @@ def main() -> int:
     if not snr.startswith("7"):
         raise RuntimeError(f"anchor config read only allows 7xxxxxx probes, got: {snr}")
     addr = int(args.config_addr, 0)
-    blob = jlink_savebin(snr, addr, 28)
-    magic, anchor_id, role, _reserved, device_uuid, crc_stored = struct.unpack("<IBB2s16sI", blob)
-    crc_calc = crc32_le(blob[:-4])
+    blob = jlink_savebin(snr, addr, 32)
 
-    valid = (
-        magic == CONFIG_MAGIC
-        and 1 <= anchor_id <= 8
-        and 0 <= role <= 3
-        and crc_calc == crc_stored
+    schema_version = None
+    flags = None
+    generation = None
+
+    # Try v2 first.
+    magic, schema_v2, anchor_id_v2, role_v2, flags_v2, generation_v2, device_uuid_v2, crc_v2 = struct.unpack(
+        "<IBBBBI16sI", blob
     )
+    crc_calc_v2 = crc32_le(blob[:-4])
+    valid_v2 = (
+        magic == CONFIG_MAGIC
+        and 0 <= anchor_id_v2 <= 8
+        and 0 <= role_v2 <= 3
+        and 1 <= schema_v2 <= SCHEMA_VERSION_MAX
+        and crc_calc_v2 == crc_v2
+    )
+
+    if valid_v2:
+        anchor_id = anchor_id_v2
+        role = role_v2
+        device_uuid = device_uuid_v2
+        crc_stored = crc_v2
+        crc_calc = crc_calc_v2
+        schema_version = schema_v2
+        flags = flags_v2
+        generation = generation_v2
+        valid = True
+    else:
+        # Fallback to legacy v1 layout.
+        blob28 = blob[:28]
+        magic, anchor_id, role, _reserved, device_uuid, crc_stored = struct.unpack("<IBB2s16sI", blob28)
+        crc_calc = crc32_le(blob28[:-4])
+        valid = (
+            magic == CONFIG_MAGIC
+            and 1 <= anchor_id <= 8
+            and 0 <= role <= 3
+            and crc_calc == crc_stored
+        )
+        if valid:
+            schema_version = 1
+            flags = 0
+            generation = 0
 
     out = {
         "probe_serial": snr,
         "config_addr": hex(addr),
         "magic": hex(magic),
+        "schema_version": schema_version,
         "anchor_id": anchor_id,
-        "anchor_label": chr(ord("A") + anchor_id - 1) if 1 <= anchor_id <= 8 else None,
+        "anchor_label": ("U" if anchor_id == 0 else chr(ord("A") + anchor_id - 1)) if 0 <= anchor_id <= 8 else None,
         "role_code": role,
         "role": ROLE_NAME.get(role, "unknown"),
+        "flags": flags,
+        "generation": generation,
         "device_uuid": device_uuid.hex().upper(),
         "crc_stored": f"{crc_stored:08X}",
         "crc_calc": f"{crc_calc:08X}",

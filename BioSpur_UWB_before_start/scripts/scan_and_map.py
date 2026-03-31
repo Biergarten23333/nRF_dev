@@ -13,7 +13,8 @@ class AnchorBleRecord:
     rssi: int | None
     company_id: int
     device_uuid_hex: str
-    anchor_id_runtime: int
+    anchor_id_cfg: int
+    anchor_label: str
     role_code: int
     role: str
     raw_mfg_hex: str
@@ -41,14 +42,21 @@ def parse_anchor_mfg(company_id: int, payload: bytes, addr: str, rssi: int | Non
     uuid = payload[4:20]
     if len(payload) < 22:
         return None
-    anchor_id_runtime = payload[20]
+    anchor_id_cfg = payload[20]
+    if anchor_id_cfg == 0:
+        anchor_label = "U"
+    elif 1 <= anchor_id_cfg <= 8:
+        anchor_label = chr(ord("A") + anchor_id_cfg - 1)
+    else:
+        anchor_label = "?"
     role_code = payload[21]
     return AnchorBleRecord(
         ble_addr=addr,
         rssi=rssi,
         company_id=company_id,
         device_uuid_hex=uuid.hex().upper(),
-        anchor_id_runtime=anchor_id_runtime,
+        anchor_id_cfg=anchor_id_cfg,
+        anchor_label=anchor_label,
         role_code=role_code,
         role=ROLE_NAME.get(role_code, "unknown"),
         raw_mfg_hex=payload.hex().upper(),
@@ -83,11 +91,11 @@ def main() -> int:
         print(json.dumps([asdict(r) for r in records], indent=2))
         return 0
 
-    print("BLE_ADDR,RSSI,COMPANY_ID,DEVICE_UUID,ANCHOR_ID_RUNTIME,ROLE_CODE,ROLE")
+    print("BLE_ADDR,RSSI,COMPANY_ID,DEVICE_UUID,ANCHOR_ID_CFG,ANCHOR_LABEL,ROLE_CODE,ROLE")
     for r in records:
         print(
             f"{r.ble_addr},{'' if r.rssi is None else r.rssi},0x{r.company_id:04X},"
-            f"{r.device_uuid_hex},{r.anchor_id_runtime},{r.role_code},{r.role}"
+            f"{r.device_uuid_hex},{r.anchor_id_cfg},{r.anchor_label},{r.role_code},{r.role}"
         )
     return 0
 
