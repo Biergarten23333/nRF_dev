@@ -140,8 +140,9 @@ static void uart_reply_err(const char *reason)
 static void cfg_fill_crc(anchor_config_t *cfg)
 {
     cfg->magic = CONFIG_MAGIC;
-    cfg->reserved[0] = 0U;
-    cfg->reserved[1] = 0U;
+    if (cfg->schema_version == 0U || cfg->schema_version > ANCHOR_CONFIG_SCHEMA_VERSION) {
+        cfg->schema_version = ANCHOR_CONFIG_SCHEMA_VERSION;
+    }
     cfg->crc32 = anchor_config_crc32((const uint8_t *)cfg,
                                      offsetof(anchor_config_t, crc32));
 }
@@ -150,16 +151,14 @@ static void cmd_role_query(void)
 {
     anchor_config_t local;
     bool valid;
-    char anchor_label = '?';
+    char anchor_label = 'U';
 
     k_mutex_lock(&g_cfg_lock, K_FOREVER);
     local = g_working_cfg;
     valid = g_working_cfg_valid;
     k_mutex_unlock(&g_cfg_lock);
 
-    if (local.anchor_id >= 1U && local.anchor_id <= 8U) {
-        anchor_label = (char)('A' + (local.anchor_id - 1U));
-    }
+    anchor_label = anchor_config_label_char(local.anchor_id);
 
     uart_txf("ROLE:%s ANCHOR:%c VALID:%u\r\n",
              role_name(local.role),

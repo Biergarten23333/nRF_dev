@@ -24,6 +24,10 @@ set(APP_MASTER_TAG_NAME_PREFIX "BS" CACHE STRING
     "BLE device-name prefix for receiver mode")
 set(APP_MASTER_ONE_SHOT_CMD "" CACHE STRING
     "Optional single NUS command sent once after link ready in receiver mode")
+if(DEFINED ENV{APP_MASTER_ONE_SHOT_CMD})
+  set(APP_MASTER_ONE_SHOT_CMD "$ENV{APP_MASTER_ONE_SHOT_CMD}" CACHE STRING
+      "Optional single NUS command sent once after link ready in receiver mode" FORCE)
+endif()
 set(APP_MASTER_OTA_TARGET_NAME "" CACHE STRING
     "Exact BLE device name to OTA; empty accepts any DFU SMP advertiser")
 set(APP_MASTER_OTA_TARGET_NAME_PREFIX "BS" CACHE STRING

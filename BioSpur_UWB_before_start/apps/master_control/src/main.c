@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <strings.h>
 
 #include <dk_buttons_and_leds.h>
 
@@ -13,6 +14,10 @@
 #include <zephyr/settings/settings.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/reboot.h>
+#include <zephyr/sys/util.h>
+#if defined(CONFIG_USB_DEVICE_STACK)
+#include <zephyr/usb/usb_device.h>
+#endif
 
 #include "master_multi_app.h"
 #include "master_ota.h"
@@ -27,6 +32,24 @@ enum control_mode {
 	CONTROL_MODE_OTA = 1,
 };
 
+enum system_device_kind {
+	SYS_DEV_UNKNOWN = 0,
+	SYS_DEV_ANCHOR = 1,
+	SYS_DEV_TAG = 2,
+};
+
+enum system_device_caps {
+	SYS_CAP_CONFIG = BIT(0),
+	SYS_CAP_OTA = BIT(1),
+	SYS_CAP_STREAM = BIT(2),
+	SYS_CAP_STATUS = BIT(3),
+};
+
+struct system_target_profile {
+	uint8_t kind;
+	uint8_t caps;
+};
+
 static uint8_t control_mode = CONTROL_MODE_RECV;
 static uint32_t control_boot_cookie __noinit;
 static uint8_t control_boot_mode __noinit;
@@ -34,9 +57,11 @@ static uint32_t ota_target_boot_cookie __noinit;
 static int16_t ota_target_boot_token __noinit;
 static char ota_target_boot_name[32] __noinit;
 static char ota_target_boot_prefix[32] __noinit;
+static char ota_target_boot_uuid[33] __noinit;
 static int ota_target_token_cfg = -1;
 static char ota_target_name_cfg[32];
 static char ota_target_prefix_cfg[32] = "BS";
+static char ota_target_uuid_cfg[33];
 static bool leds_ready;
 static struct k_work mode_switch_work;
 static struct k_work uart_cmd_work;
@@ -47,6 +72,7 @@ static const struct device *const console_uart = DEVICE_DT_GET(DT_CHOSEN(zephyr_
 static char uart_pending_line[64];
 static size_t uart_pending_len;
 static atomic_t uart_line_ready;
+static struct system_target_profile system_target;
 
 enum request_source {
 	REQ_SRC_BTN1 = 1,
@@ -92,7 +118,51 @@ static void control_print_status(void)
 static void control_print_help(void)
 {
 	printk("Commands: status | mode recv | mode ota | scan | conn\n");
-	printk("OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|->\n");
+	printk("Runtime NUS cmds: cmd <raw> | oneshot <raw> | oneshot show | oneshot clear\n");
+	printk("Device model cmds: device show | device kind <anchor|tag>\n");
+	printk("OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->\n");
+}
+
+static const char *system_kind_name(uint8_t kind)
+{
+	switch (kind) {
+	case SYS_DEV_ANCHOR:
+		return "anchor";
+	case SYS_DEV_TAG:
+		return "tag";
+	default:
+		return "unknown";
+	}
+}
+
+static uint8_t system_caps_for_kind(uint8_t kind)
+{
+	switch (kind) {
+	case SYS_DEV_ANCHOR:
+		return SYS_CAP_CONFIG | SYS_CAP_OTA | SYS_CAP_STATUS;
+	case SYS_DEV_TAG:
+		return SYS_CAP_CONFIG | SYS_CAP_OTA | SYS_CAP_STREAM | SYS_CAP_STATUS;
+	default:
+		return SYS_CAP_STATUS;
+	}
+}
+
+static void system_target_set_kind(uint8_t kind)
+{
+	system_target.kind = kind;
+	system_target.caps = system_caps_for_kind(kind);
+}
+
+static void system_target_print(void)
+{
+	printk("System target: kind=%s caps=0x%02x (config=%u ota=%u stream=%u status=%u)\n",
+	       system_kind_name(system_target.kind),
+	       system_target.caps,
+	       (system_target.caps & SYS_CAP_CONFIG) ? 1U : 0U,
+	       (system_target.caps & SYS_CAP_OTA) ? 1U : 0U,
+	       (system_target.caps & SYS_CAP_STREAM) ? 1U : 0U,
+	       (system_target.caps & SYS_CAP_STATUS) ? 1U : 0U);
+	master_ota_target_print();
 }
 
 static int control_settings_set(const char *key, size_t len,
@@ -134,6 +204,8 @@ static void control_stage_ota_target(void)
 		       ota_target_name_cfg);
 	(void)snprintf(ota_target_boot_prefix, sizeof(ota_target_boot_prefix), "%s",
 		       ota_target_prefix_cfg);
+	(void)snprintf(ota_target_boot_uuid, sizeof(ota_target_boot_uuid), "%s",
+		       ota_target_uuid_cfg);
 	ota_target_boot_cookie = OTA_TARGET_BOOT_COOKIE_MAGIC;
 }
 
@@ -225,14 +297,38 @@ static void control_handle_uart_command(const char *line)
 {
 	char cmd[16];
 	char arg[16];
-	char arg2[32] = { 0 };
+	char arg2[64] = { 0 };
 	int parsed;
+	int rc;
+	const char *payload;
 
 	if (line == NULL || line[0] == '\0') {
 		return;
 	}
 
-	parsed = sscanf(line, "%15s %15s %31s", cmd, arg, arg2);
+	if (strncasecmp(line, "cmd ", 4) == 0) {
+		payload = line + 4;
+		rc = master_send_command_now(payload);
+		printk("cmd rc=%d payload=%s\n", rc, payload);
+		return;
+	}
+
+	if (strncasecmp(line, "oneshot ", 8) == 0) {
+		payload = line + 8;
+		if (strcasecmp(payload, "show") == 0) {
+			master_print_one_shot_command();
+			return;
+		}
+		if (strcasecmp(payload, "clear") == 0) {
+			master_clear_one_shot_command();
+			return;
+		}
+		rc = master_set_one_shot_command(payload, true);
+		printk("oneshot rc=%d payload=%s\n", rc, payload);
+		return;
+	}
+
+	parsed = sscanf(line, "%15s %15s %63s", cmd, arg, arg2);
 	for (char *p = cmd; *p != '\0'; ++p) {
 		*p = (char)tolower((unsigned char)*p);
 	}
@@ -348,7 +444,64 @@ static void control_handle_uart_command(const char *line)
 			return;
 		}
 
+		if (strcmp(arg, "uuid") == 0 && parsed >= 3) {
+			char value[33];
+			int rc;
+
+			(void)snprintf(value, sizeof(value), "%s", arg2);
+			if (strcmp(value, "-") == 0) {
+				value[0] = '\0';
+			}
+			rc = master_ota_target_set_uuid(value);
+			printk("ota_target uuid rc=%d value=%s\n", rc,
+			       value[0] != '\0' ? value : "-");
+			if (rc == 0) {
+				(void)snprintf(ota_target_uuid_cfg, sizeof(ota_target_uuid_cfg), "%s",
+					       value);
+			}
+			master_ota_target_print();
+			return;
+		}
+
 		printk("Unknown ota_target command: %s\n", line);
+		control_print_help();
+		return;
+	}
+
+	if (strcmp(cmd, "device") == 0 && parsed >= 2) {
+		if (strcmp(arg, "show") == 0) {
+			system_target_print();
+			return;
+		}
+
+		if (strcmp(arg, "kind") == 0 && parsed >= 3) {
+			if (strcmp(arg2, "anchor") == 0) {
+				system_target_set_kind(SYS_DEV_ANCHOR);
+				(void)master_ota_target_set_token(-1);
+				(void)master_ota_target_set_name("");
+				(void)master_ota_target_set_prefix("BS");
+				(void)master_ota_target_set_uuid("");
+				ota_target_token_cfg = -1;
+				ota_target_name_cfg[0] = '\0';
+				(void)snprintf(ota_target_prefix_cfg, sizeof(ota_target_prefix_cfg), "BS");
+				ota_target_uuid_cfg[0] = '\0';
+				printk("device kind set: anchor (OTA target defaults reset)\n");
+				system_target_print();
+				return;
+			}
+			if (strcmp(arg2, "tag") == 0) {
+				system_target_set_kind(SYS_DEV_TAG);
+				(void)master_ota_target_set_prefix("BS");
+				(void)snprintf(ota_target_prefix_cfg, sizeof(ota_target_prefix_cfg), "BS");
+				printk("device kind set: tag\n");
+				system_target_print();
+				return;
+			}
+			printk("device kind invalid: %s\n", arg2);
+			return;
+		}
+
+		printk("Unknown device command: %s\n", line);
 		control_print_help();
 		return;
 	}
@@ -471,6 +624,13 @@ int main(void)
 		return err;
 	}
 
+#if defined(CONFIG_USB_DEVICE_STACK)
+	err = usb_enable(NULL);
+	if (err) {
+		printk("USB CDC enable failed: %d\n", err);
+	}
+#endif
+
 	if (!device_is_ready(console_uart)) {
 		printk("Console UART not ready\n");
 		return -ENODEV;
@@ -488,17 +648,22 @@ int main(void)
 	ota_target_token_cfg = -1;
 	ota_target_name_cfg[0] = '\0';
 	(void)snprintf(ota_target_prefix_cfg, sizeof(ota_target_prefix_cfg), "BS");
+	ota_target_uuid_cfg[0] = '\0';
 	if (ota_target_boot_cookie == OTA_TARGET_BOOT_COOKIE_MAGIC) {
 		ota_target_token_cfg = ota_target_boot_token;
 		(void)snprintf(ota_target_name_cfg, sizeof(ota_target_name_cfg), "%s",
 			       ota_target_boot_name);
 		(void)snprintf(ota_target_prefix_cfg, sizeof(ota_target_prefix_cfg), "%s",
 			       ota_target_boot_prefix);
+		(void)snprintf(ota_target_uuid_cfg, sizeof(ota_target_uuid_cfg), "%s",
+			       ota_target_boot_uuid);
 		ota_target_boot_cookie = 0U;
 	}
 	(void)master_ota_target_set_token(ota_target_token_cfg);
 	(void)master_ota_target_set_name(ota_target_name_cfg);
 	(void)master_ota_target_set_prefix(ota_target_prefix_cfg);
+	(void)master_ota_target_set_uuid(ota_target_uuid_cfg);
+	system_target_set_kind(SYS_DEV_UNKNOWN);
 	master_ota_target_print();
 
 	control_leds_set(DK_NO_LEDS_MSK);

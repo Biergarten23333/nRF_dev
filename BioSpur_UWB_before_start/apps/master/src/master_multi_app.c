@@ -40,6 +40,7 @@
 #ifndef APP_MASTER_ONE_SHOT_CMD
 #define APP_MASTER_ONE_SHOT_CMD ""
 #endif
+#define MASTER_RUNTIME_ONE_SHOT_CMD_LEN 160U
 
 static const struct bt_conn_le_phy_param *const fast_phy_params = BT_CONN_LE_PHY_PARAM_2M;
 static const struct bt_le_conn_param fast_conn_params = {
@@ -93,9 +94,24 @@ static bool led_link_state;
 static bool led_ota_state;
 static bool led_error_state;
 static uint8_t tdma_generation;
+static char runtime_one_shot_cmd[MASTER_RUNTIME_ONE_SHOT_CMD_LEN];
+static bool runtime_one_shot_cmd_set;
 static struct bt_gatt_dm_cb discovery_cb;
 static void start_scan(void);
 static void stop_scan(void);
+
+static const char *active_one_shot_command(void)
+{
+	if (runtime_one_shot_cmd_set && runtime_one_shot_cmd[0] != '\0') {
+		return runtime_one_shot_cmd;
+	}
+
+	if (strlen(APP_MASTER_ONE_SHOT_CMD) != 0U) {
+		return APP_MASTER_ONE_SHOT_CMD;
+	}
+
+	return NULL;
+}
 
 static void master_leds_apply(void)
 {
@@ -287,6 +303,43 @@ static bool ad_has_dfu_smp_uuid(struct net_buf_simple *ad)
 	return match;
 }
 
+static bool scan_nus_uuid_cb(struct bt_data *data, void *user_data)
+{
+	bool *match = user_data;
+	static const uint8_t nus_uuid_le[16] = {
+		0x9e, 0xca, 0xdc, 0x24, 0x0e, 0xe5, 0xa9, 0xe0,
+		0x93, 0xf3, 0xa3, 0xb5, 0x01, 0x00, 0x40, 0x6e,
+	};
+
+	if (*match) {
+		return false;
+	}
+
+	if (data->type != BT_DATA_UUID128_ALL &&
+	    data->type != BT_DATA_UUID128_SOME) {
+		return true;
+	}
+
+	for (size_t offset = 0U; offset + sizeof(nus_uuid_le) <= data->data_len;
+	     offset += sizeof(nus_uuid_le)) {
+		if (memcmp(&data->data[offset], nus_uuid_le, sizeof(nus_uuid_le)) == 0) {
+			*match = true;
+			return false;
+		}
+	}
+
+	return true;
+}
+
+static bool ad_has_nus_uuid(struct net_buf_simple *ad)
+{
+	struct net_buf_simple copy = *ad;
+	bool match = false;
+
+	bt_data_parse(&copy, scan_nus_uuid_cb, &match);
+	return match;
+}
+
 static bool scan_mfg_token_cb(struct bt_data *data, void *user_data)
 {
 	bool *match = user_data;
@@ -299,9 +352,11 @@ static bool scan_mfg_token_cb(struct bt_data *data, void *user_data)
 		return true;
 	}
 
+	/* Legacy tag MFG payload only: FF FF 'B' <token> <bs_lo> <bs_hi> */
 	if (data->data[0] == 0xff &&
 	    data->data[1] == 0xff &&
-	    data->data[2] == 'B') {
+	    data->data[2] == 'B' &&
+	    (data->data_len < 5U || data->data[3] != 'S')) {
 		*match = true;
 		return false;
 	}
@@ -319,7 +374,8 @@ static bool scan_mfg_tag_id_cb(struct bt_data *data, void *user_data)
 
 	if (data->data[0] == 0xff &&
 	    data->data[1] == 0xff &&
-	    data->data[2] == 'B') {
+	    data->data[2] == 'B' &&
+	    (data->data_len < 5U || data->data[3] != 'S')) {
 		*tag_id = data->data[3];
 		return false;
 	}
@@ -337,7 +393,8 @@ static bool scan_mfg_bs_code_cb(struct bt_data *data, void *user_data)
 
 	if (data->data[0] == 0xff &&
 	    data->data[1] == 0xff &&
-	    data->data[2] == 'B') {
+	    data->data[2] == 'B' &&
+	    (data->data_len < 5U || data->data[3] != 'S')) {
 		*bs_code = sys_get_le16(&data->data[4]);
 		return false;
 	}
@@ -552,6 +609,7 @@ static void master_try_connect_pending(void)
 static void scan_log_candidate(const struct bt_le_scan_recv_info *info,
 			       struct net_buf_simple *buf,
 			       bool name_match,
+			       bool nus_match,
 			       bool dfu_match,
 			       bool token_match,
 			       uint16_t bs_code,
@@ -572,12 +630,13 @@ static void scan_log_candidate(const struct bt_le_scan_recv_info *info,
 		bs_name[sizeof(bs_name) - 1U] = '\0';
 	}
 
-	printk("SCAN hit: %s rssi=%d name=%s bs=%s name=%u dfu=%u token=%u props=0x%02x\n",
+	printk("SCAN hit: %s rssi=%d name=%s bs=%s name=%u nus=%u dfu=%u token=%u props=0x%02x\n",
 	       addr,
 	       info->rssi,
 	       name[0] != '\0' ? name : "-",
 	       bs_name,
 	       name_match ? 1U : 0U,
+	       nus_match ? 1U : 0U,
 	       dfu_match ? 1U : 0U,
 	       token_match ? 1U : 0U,
 	       info->adv_props);
@@ -870,6 +929,7 @@ static void discovery_complete(struct bt_gatt_dm *dm, void *context)
 	struct master_peer *peer = context;
 	int idx = (int)(peer - peers);
 	int err;
+	const char *one_shot = active_one_shot_command();
 
 	err = bt_nus_handles_assign(dm, &peer->nus_client);
 	if (err) {
@@ -890,17 +950,17 @@ static void discovery_complete(struct bt_gatt_dm *dm, void *context)
 	printk("BLE[%d] link ready\n", idx);
 	master_leds_refresh();
 
-	if (strlen(APP_MASTER_ONE_SHOT_CMD) != 0U && !peer->one_shot_sent) {
+	if (one_shot != NULL && !peer->one_shot_sent) {
 		err = bt_nus_client_send(&peer->nus_client,
-					 (const uint8_t *)APP_MASTER_ONE_SHOT_CMD,
-					 strlen(APP_MASTER_ONE_SHOT_CMD));
+					 (const uint8_t *)one_shot,
+					 strlen(one_shot));
 		if (err) {
 			printk("BLE one-shot send failed[%d]: %d\n", idx, err);
 			led_error_state = true;
 			master_leds_refresh();
 		} else {
 			peer->one_shot_sent = true;
-			printk("BLE one-shot command sent[%d]: %s\n", idx, APP_MASTER_ONE_SHOT_CMD);
+			printk("BLE one-shot command sent[%d]: %s\n", idx, one_shot);
 		}
 	}
 
@@ -993,6 +1053,7 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	int err;
 	int slot;
 	bool name_match;
+	bool nus_match;
 	bool dfu_match;
 	bool token_match;
 	uint8_t tag_id = 0U;
@@ -1007,6 +1068,7 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	}
 
 	name_match = ad_name_matches_target(buf);
+	nus_match = ad_has_nus_uuid(buf);
 	dfu_match = ad_has_dfu_smp_uuid(buf);
 	token_match = ad_has_biospur_token(buf);
 	tag_id_valid = ad_get_biospur_tag_id(buf, &tag_id);
@@ -1018,8 +1080,13 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 		return;
 	}
 
-	scan_log_candidate(info, buf, name_match, dfu_match, token_match,
+	scan_log_candidate(info, buf, name_match, nus_match, dfu_match, token_match,
 			  bs_code, bs_code_valid);
+
+	/* Only consider tag-capable peers for receiver auto-connect. */
+	if (!(name_match || nus_match || dfu_match)) {
+		return;
+	}
 
 	if (peer_index_from_addr(info->addr) >= 0) {
 		return;
@@ -1220,7 +1287,7 @@ int master_app_run(void)
 	printk("BioSpur BLE master ready on nRF52840 DK\n");
 	printk("Max connections: %u\n", MASTER_MAX_CONNECTIONS);
 	if (strlen(APP_MASTER_ONE_SHOT_CMD) != 0U) {
-		printk("One-shot NUS command armed: %s\n", APP_MASTER_ONE_SHOT_CMD);
+		printk("One-shot NUS command armed (build): %s\n", APP_MASTER_ONE_SHOT_CMD);
 	}
 
 	start_scan();
@@ -1264,4 +1331,101 @@ void master_restart_discovery(void)
 	stop_scan();
 	start_scan();
 	master_try_connect_pending();
+}
+
+int master_send_command_now(const char *cmd)
+{
+	size_t cmd_len;
+	int sent = 0;
+
+	if (cmd == NULL) {
+		return -EINVAL;
+	}
+
+	while (*cmd == ' ' || *cmd == '\t') {
+		cmd++;
+	}
+	if (*cmd == '\0') {
+		return -EINVAL;
+	}
+
+	cmd_len = strlen(cmd);
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		int err;
+
+		if (!peers[i].connected || !peers[i].ready || peers[i].conn == NULL) {
+			continue;
+		}
+
+		err = bt_nus_client_send(&peers[i].nus_client, (const uint8_t *)cmd, cmd_len);
+		if (err) {
+			printk("BLE cmd send failed[%zu]: %d cmd=%s\n", i, err, cmd);
+			continue;
+		}
+
+		sent++;
+		printk("BLE cmd sent[%zu]: %s\n", i, cmd);
+	}
+
+	return (sent > 0) ? sent : -ENOTCONN;
+}
+
+int master_set_one_shot_command(const char *cmd, bool send_now)
+{
+	size_t cmd_len;
+	int send_rc = 0;
+
+	if (cmd == NULL) {
+		return -EINVAL;
+	}
+
+	while (*cmd == ' ' || *cmd == '\t') {
+		cmd++;
+	}
+	if (*cmd == '\0') {
+		return -EINVAL;
+	}
+
+	cmd_len = strlen(cmd);
+	if (cmd_len >= sizeof(runtime_one_shot_cmd)) {
+		return -EINVAL;
+	}
+
+	memcpy(runtime_one_shot_cmd, cmd, cmd_len + 1U);
+	runtime_one_shot_cmd_set = true;
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		peers[i].one_shot_sent = false;
+	}
+	printk("One-shot NUS command armed (runtime): %s\n", runtime_one_shot_cmd);
+
+	if (send_now) {
+		send_rc = master_send_command_now(runtime_one_shot_cmd);
+	}
+
+	return send_rc;
+}
+
+void master_clear_one_shot_command(void)
+{
+	runtime_one_shot_cmd[0] = '\0';
+	runtime_one_shot_cmd_set = false;
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		peers[i].one_shot_sent = false;
+	}
+	printk("One-shot NUS command cleared (runtime)\n");
+}
+
+void master_print_one_shot_command(void)
+{
+	if (runtime_one_shot_cmd_set && runtime_one_shot_cmd[0] != '\0') {
+		printk("One-shot runtime cmd: %s\n", runtime_one_shot_cmd);
+		return;
+	}
+
+	if (strlen(APP_MASTER_ONE_SHOT_CMD) != 0U) {
+		printk("One-shot build cmd: %s\n", APP_MASTER_ONE_SHOT_CMD);
+		return;
+	}
+
+	printk("One-shot cmd: <none>\n");
 }

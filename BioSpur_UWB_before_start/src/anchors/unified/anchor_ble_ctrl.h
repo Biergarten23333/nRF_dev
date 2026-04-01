@@ -14,6 +14,7 @@ struct anchor_ble_ctrl_boot_info {
     uint8_t device_uuid[16];
     uint8_t mcu_uid[8];
     char bs_code[7];
+    char fw_marker[32];
 };
 
 int anchor_ble_ctrl_init(const struct anchor_ble_ctrl_boot_info *info);

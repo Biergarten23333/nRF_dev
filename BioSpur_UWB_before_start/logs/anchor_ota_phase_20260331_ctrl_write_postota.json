@@ -1,0 +1,43 @@
+{
+  "target": {
+    "addr": "FC:9A:15:34:AB:20",
+    "rssi": -43,
+    "device_uuid_hex": "D8757CA15A1837997DD3DB09F3B29C35",
+    "anchor_id_cfg": 5,
+    "role_code": 0
+  },
+  "commands": [
+    {
+      "cmd": "SYNC",
+      "resp": "OK SYNC"
+    },
+    {
+      "cmd": "R RESPONDER",
+      "resp": "OK PENDING_ROLE"
+    },
+    {
+      "cmd": "L E",
+      "resp": "OK PENDING_LABEL"
+    },
+    {
+      "cmd": "G 42",
+      "resp": "OK PENDING_GEN"
+    },
+    {
+      "cmd": "VALIDATE",
+      "resp": "OK VALID"
+    },
+    {
+      "cmd": "COMMIT",
+      "resp": "OK COMMIT REBOOT_REQUIRED"
+    }
+  ],
+  "state_before": "STATE fw=anchor-unified bs=BS2B67 uuid=D8757CA15A1837997DD3DB09F3B29C35 label=E role=unset cfg_valid=0 busy=0 pending_valid=1 schema=2 gen=0 reboot_required=0",
+  "active_before": "CFG schema=2 gen=0 label=U role=unset valid=0 flags=0 uuid=00000000000000000000000000000000",
+  "pending_before": "CFG schema=2 gen=0 label=U role=unset valid=1 flags=0 uuid=00000000000000000000000000000000",
+  "result_before": "OK READY",
+  "state_after": "STATE fw=anchor-unified bs=BS2B67 uuid=D8757CA15A1837997DD3DB09F3B29C35 label=E role=unset cfg_valid=1 busy=0 pending_valid=1 schema=2 gen=1 reboot_required=1",
+  "active_after": "CFG schema=2 gen=1 label=E role=responder valid=1 flags=0 uuid=00000000000000000000000000000000",
+  "pending_after": "CFG schema=2 gen=1 label=E role=responder valid=1 flags=0 uuid=00000000000000000000000000000000",
+  "result_after": "OK COMMIT REBOOT_REQUIRED"
+}

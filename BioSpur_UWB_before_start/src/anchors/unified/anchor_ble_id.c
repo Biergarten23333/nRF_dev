@@ -65,7 +65,7 @@ int anchor_ble_id_start(uint8_t anchor_id_cfg, uint8_t role,
         return err;
     }
 
-    err = bt_le_adv_start(BT_LE_ADV_CONN_FAST_1, g_ad, ARRAY_SIZE(g_ad),
+    err = bt_le_adv_start(BT_LE_ADV_CONN, g_ad, ARRAY_SIZE(g_ad),
                           g_sd, ARRAY_SIZE(g_sd));
     if (err) {
         printk("anchor BLE id adv start failed: %d\n", err);

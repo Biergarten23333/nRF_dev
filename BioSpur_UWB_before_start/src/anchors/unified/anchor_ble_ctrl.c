@@ -181,7 +181,8 @@ static void refresh_text_locked(void)
     format_cfg_text(g_active_text, sizeof(g_active_text), &g_info.active_cfg, g_info.active_cfg_valid);
     format_cfg_text(g_pending_text, sizeof(g_pending_text), &g_pending_cfg, g_pending_valid);
     snprintk(g_state_text, sizeof(g_state_text),
-             "STATE bs=%s uuid=%s label=%c role=%s cfg_valid=%u busy=%u pending_valid=%u schema=%u gen=%lu reboot_required=%u",
+             "STATE fw=%s bs=%s uuid=%s label=%c role=%s cfg_valid=%u busy=%u pending_valid=%u schema=%u gen=%lu reboot_required=%u",
+             g_info.fw_marker,
              g_info.bs_code,
              uuid_hex,
              anchor_config_label_char(g_info.runtime_anchor_id_cfg),
@@ -210,9 +211,10 @@ static ssize_t read_text_cb(struct bt_conn *conn, const struct bt_gatt_attr *att
 
 static void notify_result_if_possible(void)
 {
-    if (g_last_conn != NULL) {
-        bt_gatt_notify(g_last_conn, NULL, g_result_text, strlen(g_result_text));
-    }
+    ARG_UNUSED(g_last_conn);
+    /* Result characteristic is readable after each command.
+     * Keep notifications optional to minimize compatibility risk across SDK variants.
+     */
 }
 
 static void handle_validate_locked(void)
@@ -367,6 +369,50 @@ static void process_control_cmd_locked(char *line)
         return;
     }
 
+    if (strcmp(tok, "R") == 0 || strcmp(tok, "ROLE") == 0) {
+        tok = strtok_r(NULL, " ", &savep);
+        if (role_parse(tok, &parsed) != 0) {
+            set_result_locked("ERR:INVALID_ROLE");
+            return;
+        }
+        g_pending_cfg.role = parsed;
+        cfg_prepare(&g_pending_cfg);
+        g_pending_valid = anchor_config_is_valid(&g_pending_cfg);
+        set_result_locked("OK PENDING_ROLE");
+        return;
+    }
+
+    if (strcmp(tok, "L") == 0 || strcmp(tok, "LABEL") == 0) {
+        tok = strtok_r(NULL, " ", &savep);
+        if (label_parse(tok, &parsed) != 0) {
+            set_result_locked("ERR:INVALID_LABEL");
+            return;
+        }
+        g_pending_cfg.anchor_id = parsed;
+        cfg_prepare(&g_pending_cfg);
+        g_pending_valid = anchor_config_is_valid(&g_pending_cfg);
+        set_result_locked("OK PENDING_LABEL");
+        return;
+    }
+
+    if (strcmp(tok, "G") == 0 || strcmp(tok, "GEN") == 0) {
+        tok = strtok_r(NULL, " ", &savep);
+        if (tok == NULL) {
+            set_result_locked("ERR:BAD_CMD");
+            return;
+        }
+        gen_val = strtoul(tok, &endp, 10);
+        if (endp == tok || *endp != '\0') {
+            set_result_locked("ERR:INVALID_GEN");
+            return;
+        }
+        g_pending_cfg.generation = (uint32_t)gen_val;
+        cfg_prepare(&g_pending_cfg);
+        g_pending_valid = anchor_config_is_valid(&g_pending_cfg);
+        set_result_locked("OK PENDING_GEN");
+        return;
+    }
+
     set_result_locked("ERR:BAD_CMD");
 }
 
@@ -410,7 +456,8 @@ BT_GATT_SERVICE_DEFINE(anchor_ble_ctrl_svc,
                            BT_GATT_PERM_READ, read_text_cb, NULL, g_active_text),
     BT_GATT_CHARACTERISTIC(&g_pending_uuid.uuid, BT_GATT_CHRC_READ,
                            BT_GATT_PERM_READ, read_text_cb, NULL, g_pending_text),
-    BT_GATT_CHARACTERISTIC(&g_control_uuid.uuid, BT_GATT_CHRC_WRITE,
+    BT_GATT_CHARACTERISTIC(&g_control_uuid.uuid,
+                           BT_GATT_CHRC_WRITE | BT_GATT_CHRC_WRITE_WITHOUT_RESP,
                            BT_GATT_PERM_WRITE, NULL, write_control_cb, NULL),
     BT_GATT_CHARACTERISTIC(&g_result_uuid.uuid, BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
                            BT_GATT_PERM_READ, read_text_cb, NULL, g_result_text),

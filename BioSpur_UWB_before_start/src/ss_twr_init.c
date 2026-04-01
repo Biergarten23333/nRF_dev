@@ -760,6 +760,12 @@ static bool ss_twr_init_runtime_calibration_mode(void)
 	       UWB_TAG_POSITIONING_MODE_CALIBRATION;
 }
 
+static bool ss_twr_init_runtime_anchor_ota_mode(void)
+{
+	return ss_twr_init_runtime_params.positioning_mode ==
+	       UWB_TAG_POSITIONING_MODE_ANCHOR_OTA;
+}
+
 static bool ss_twr_init_tdma_exchange_can_start_if_needed(void)
 {
 	if (ss_twr_init_runtime_calibration_mode()) {
@@ -1875,6 +1881,12 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
 #endif
         ss_twr_init_apply_pending_runtime_config_if_any();
 
+        if (ss_twr_init_runtime_anchor_ota_mode()) {
+            dwt_forcetrxoff();
+            k_msleep(20);
+            continue;
+        }
+
 	    if (!ss_twr_init_tdma_exchange_can_start_if_needed()) {
             uint32_t remain_ms =
                 uwb_tdma_schedule_time_remaining_ms(&ss_twr_init_tdma_schedule);
@@ -2225,6 +2237,13 @@ int ss_twr_init_runtime_configure(const struct uwb_tag_runtime_params *params)
 	}
 
 	if (params->logical_tag_id >= UWB_MAX_TAGS) {
+		return -ERANGE;
+	}
+
+	if (params->positioning_mode != UWB_TAG_POSITIONING_MODE_DYNAMIC &&
+	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_FIXED &&
+	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_CALIBRATION &&
+	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_ANCHOR_OTA) {
 		return -ERANGE;
 	}
 

@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -36,7 +37,7 @@
 #define OTA_LED_ERROR DK_LED4
 
 #define OTA_CHUNK_SIZE 64U
-#define OTA_CMD_TIMEOUT_SEC 120
+#define OTA_CMD_TIMEOUT_SEC 30
 #define OTA_SMP_GROUP_IMG 0x0001U
 #define OTA_SMP_GROUP_OS 0x0000U
 #define OTA_SMP_CMD_IMG_STATE 0x00U
@@ -45,6 +46,7 @@
 #define OTA_SMP_CMD_OS_RESET 0x05U
 #define OTA_CBOR_DECODER_STATE_NUM 4U
 #define OTA_NAME_BUF_LEN 32U
+#define OTA_UUID_HEX_LEN 32U
 #define BLE_TS_MAGIC0 0x42U
 #define BLE_TS_MAGIC1 0x50U
 #define BLE_TS_VERSION 1U
@@ -55,6 +57,15 @@
 #define BLE_CM_VERSION 1U
 #define BLE_CM_HEADER_LEN 5U
 #define BLE_CM_RECORD_LEN 24U
+#define BIOSPUR_MFG_ID_LSB 0xffU
+#define BIOSPUR_MFG_ID_MSB 0xffU
+#define BIOSPUR_MFG_MAGIC0 'B'
+#define BIOSPUR_MFG_MAGIC1 'S'
+#define BIOSPUR_MFG_MAGIC2 'A'
+#define BIOSPUR_MFG_VERSION 0x01U
+#define BIOSPUR_MFG_UUID_OFS 6U
+#define BIOSPUR_MFG_UUID_LEN 16U
+#define BIOSPUR_MFG_TOKEN_OFS 3U
 
 #ifndef APP_MASTER_OTA_TARGET_NAME
 #define APP_MASTER_OTA_TARGET_NAME ""
@@ -95,6 +106,21 @@ enum discovery_phase {
 	DISCOVERY_PHASE_DFU,
 };
 
+enum ota_op_state {
+	OTA_OP_IDLE = 0,
+	OTA_OP_TARGET_CONFIGURED,
+	OTA_OP_TARGET_REJECTED,
+	OTA_OP_CONNECT_PENDING,
+	OTA_OP_CONNECT_FAILED,
+	OTA_OP_CONNECTED_VERIFIED,
+	OTA_OP_BLOCKED,
+	OTA_OP_UPLOADING,
+	OTA_OP_UPLOAD_COMPLETE,
+	OTA_OP_REBOOT_PENDING,
+	OTA_OP_VERIFY_PASSED,
+	OTA_OP_VERIFY_FAILED,
+};
+
 static struct bt_conn *default_conn;
 static struct bt_dfu_smp dfu_smp;
 static struct bt_nus_client nus_client;
@@ -116,19 +142,59 @@ static int ota_status;
 static uint8_t ota_seq;
 static enum discovery_phase discovery_phase;
 static struct bt_gatt_exchange_params exchange_params;
-static struct bt_gatt_subscribe_params smp_sub_params;
-static bool smp_subscribed;
-static struct bt_gatt_write_params smp_write_params;
-static struct k_sem smp_write_sem;
-static int smp_write_err;
 static uint8_t smp_rsp_buf[512];
 static size_t smp_rsp_len;
 static size_t smp_rsp_total;
 static int runtime_target_token = APP_MASTER_OTA_TARGET_TOKEN_ID;
 static char runtime_target_name[OTA_NAME_BUF_LEN] = APP_MASTER_OTA_TARGET_NAME;
 static char runtime_target_prefix[OTA_NAME_BUF_LEN] = APP_MASTER_OTA_TARGET_NAME_PREFIX;
+static char runtime_target_uuid[OTA_UUID_HEX_LEN + 1U];
+static enum ota_op_state ota_op_state_now = OTA_OP_IDLE;
+static bool selected_identity_verified;
+static char selected_addr[BT_ADDR_LE_STR_LEN];
+static char selected_uuid[OTA_UUID_HEX_LEN + 1U];
+static char selected_name[OTA_NAME_BUF_LEN];
+static int selected_token = -1;
 K_THREAD_STACK_DEFINE(ota_thread_stack, 3072);
 static struct k_thread ota_thread;
+
+struct scan_target_eval {
+	bool has_name;
+	bool has_token;
+	bool has_uuid;
+	bool name_match;
+	bool token_match;
+	bool uuid_match;
+	bool strict_identity_ok;
+};
+
+static const char *ota_op_state_name(enum ota_op_state s)
+{
+	switch (s) {
+	case OTA_OP_IDLE: return "idle";
+	case OTA_OP_TARGET_CONFIGURED: return "target_configured";
+	case OTA_OP_TARGET_REJECTED: return "target_rejected";
+	case OTA_OP_CONNECT_PENDING: return "connect_pending";
+	case OTA_OP_CONNECT_FAILED: return "connect_failed";
+	case OTA_OP_CONNECTED_VERIFIED: return "connected_verified";
+	case OTA_OP_BLOCKED: return "ota_blocked";
+	case OTA_OP_UPLOADING: return "ota_uploading";
+	case OTA_OP_UPLOAD_COMPLETE: return "ota_upload_complete";
+	case OTA_OP_REBOOT_PENDING: return "reboot_pending";
+	case OTA_OP_VERIFY_PASSED: return "post_verify_passed";
+	case OTA_OP_VERIFY_FAILED: return "post_verify_failed";
+	default: return "unknown";
+	}
+}
+
+static void ota_set_state(enum ota_op_state s, const char *detail)
+{
+	if (ota_op_state_now == s) {
+		return;
+	}
+	ota_op_state_now = s;
+	printk("OTA_STATE:%s detail=%s\n", ota_op_state_name(s), detail != NULL ? detail : "-");
+}
 
 static const char *sample_plan_label(uint8_t code)
 {
@@ -329,6 +395,13 @@ void master_ota_target_reset(void)
 		       APP_MASTER_OTA_TARGET_NAME);
 	(void)snprintf(runtime_target_prefix, sizeof(runtime_target_prefix), "%s",
 		       APP_MASTER_OTA_TARGET_NAME_PREFIX);
+	runtime_target_uuid[0] = '\0';
+	selected_identity_verified = false;
+	selected_addr[0] = '\0';
+	selected_uuid[0] = '\0';
+	selected_name[0] = '\0';
+	selected_token = -1;
+	ota_set_state(OTA_OP_IDLE, "target_reset");
 }
 
 int master_ota_target_set_token(int token_id)
@@ -338,6 +411,7 @@ int master_ota_target_set_token(int token_id)
 	}
 
 	runtime_target_token = token_id;
+	ota_set_state(OTA_OP_TARGET_CONFIGURED, "token");
 	return 0;
 }
 
@@ -348,6 +422,7 @@ int master_ota_target_set_name(const char *name)
 	}
 
 	(void)snprintf(runtime_target_name, sizeof(runtime_target_name), "%s", name);
+	ota_set_state(OTA_OP_TARGET_CONFIGURED, "name");
 	return 0;
 }
 
@@ -358,15 +433,47 @@ int master_ota_target_set_prefix(const char *prefix)
 	}
 
 	(void)snprintf(runtime_target_prefix, sizeof(runtime_target_prefix), "%s", prefix);
+	ota_set_state(OTA_OP_TARGET_CONFIGURED, "prefix");
+	return 0;
+}
+
+int master_ota_target_set_uuid(const char *uuid_hex)
+{
+	size_t n;
+
+	if (uuid_hex == NULL) {
+		return -EINVAL;
+	}
+
+	n = strlen(uuid_hex);
+	if (n == 0U) {
+		runtime_target_uuid[0] = '\0';
+		ota_set_state(OTA_OP_TARGET_CONFIGURED, "uuid_clear");
+		return 0;
+	}
+
+	if (n != OTA_UUID_HEX_LEN) {
+		return -EINVAL;
+	}
+
+	for (size_t i = 0; i < OTA_UUID_HEX_LEN; ++i) {
+		if (!isxdigit((unsigned char)uuid_hex[i])) {
+			return -EINVAL;
+		}
+		runtime_target_uuid[i] = (char)toupper((unsigned char)uuid_hex[i]);
+	}
+	runtime_target_uuid[OTA_UUID_HEX_LEN] = '\0';
+	ota_set_state(OTA_OP_TARGET_CONFIGURED, "uuid_set");
 	return 0;
 }
 
 void master_ota_target_print(void)
 {
-	printk("OTA target filter: token=%d name=%s prefix=%s\n",
+	printk("OTA target filter: token=%d name=%s prefix=%s uuid=%s\n",
 	       runtime_target_token,
 	       runtime_target_name[0] != '\0' ? runtime_target_name : "-",
-	       runtime_target_prefix[0] != '\0' ? runtime_target_prefix : "-");
+	       runtime_target_prefix[0] != '\0' ? runtime_target_prefix : "-",
+	       runtime_target_uuid[0] != '\0' ? runtime_target_uuid : "-");
 }
 
 static bool scan_name_cb(struct bt_data *data, void *user_data)
@@ -398,32 +505,39 @@ static void ad_extract_name(struct net_buf_simple *ad, char *name_buf, size_t le
 	bt_data_parse(&copy, scan_name_cb, name_buf);
 }
 
-static bool ad_name_matches_target(struct net_buf_simple *ad)
+static bool str_case_eq(const char *a, const char *b)
 {
-	char name[OTA_NAME_BUF_LEN];
-	size_t prefix_len = strlen(runtime_target_prefix);
+	size_t i = 0U;
 
-	if (runtime_target_name[0] == '\0' &&
-	    runtime_target_prefix[0] == '\0') {
-		return true;
-	}
-
-	ad_extract_name(ad, name, sizeof(name));
-	if (name[0] == '\0') {
+	if (a == NULL || b == NULL) {
 		return false;
 	}
 
-	if (runtime_target_name[0] != '\0' &&
-	    strcmp(name, runtime_target_name) == 0) {
-		return true;
+	for (; a[i] != '\0' && b[i] != '\0'; ++i) {
+		if (tolower((unsigned char)a[i]) != tolower((unsigned char)b[i])) {
+			return false;
+		}
+	}
+	return a[i] == '\0' && b[i] == '\0';
+}
+
+static bool str_case_startswith(const char *s, const char *prefix)
+{
+	size_t i = 0U;
+
+	if (s == NULL || prefix == NULL) {
+		return false;
 	}
 
-	if (runtime_target_prefix[0] != '\0' &&
-	    strncmp(name, runtime_target_prefix, prefix_len) == 0) {
-		return true;
+	for (; prefix[i] != '\0'; ++i) {
+		if (s[i] == '\0') {
+			return false;
+		}
+		if (tolower((unsigned char)s[i]) != tolower((unsigned char)prefix[i])) {
+			return false;
+		}
 	}
-
-	return strcmp(name, runtime_target_name) == 0;
+	return true;
 }
 
 static bool scan_mfg_token_cb(struct bt_data *data, void *user_data)
@@ -438,14 +552,44 @@ static bool scan_mfg_token_cb(struct bt_data *data, void *user_data)
 		return true;
 	}
 
-	if (data->data[0] == 0xff &&
-	    data->data[1] == 0xff &&
-	    data->data[2] == 'B') {
-		*token_id = data->data[3];
+	if (data->data[0] == BIOSPUR_MFG_ID_LSB &&
+	    data->data[1] == BIOSPUR_MFG_ID_MSB &&
+	    data->data[2] == BIOSPUR_MFG_MAGIC0) {
+		*token_id = data->data[BIOSPUR_MFG_TOKEN_OFS];
 		return false;
 	}
 
 	return true;
+}
+
+static bool scan_mfg_uuid_cb(struct bt_data *data, void *user_data)
+{
+	char *uuid_hex = user_data;
+
+	if (uuid_hex[0] != '\0') {
+		return false;
+	}
+
+	if (data->type != BT_DATA_MANUFACTURER_DATA ||
+	    data->data_len < BIOSPUR_MFG_UUID_OFS + BIOSPUR_MFG_UUID_LEN) {
+		return true;
+	}
+
+	if (data->data[0] != BIOSPUR_MFG_ID_LSB ||
+	    data->data[1] != BIOSPUR_MFG_ID_MSB ||
+	    data->data[2] != BIOSPUR_MFG_MAGIC0 ||
+	    data->data[3] != BIOSPUR_MFG_MAGIC1 ||
+	    data->data[4] != BIOSPUR_MFG_MAGIC2 ||
+	    data->data[5] != BIOSPUR_MFG_VERSION) {
+		return true;
+	}
+
+	for (size_t i = 0U; i < BIOSPUR_MFG_UUID_LEN; ++i) {
+		(void)snprintk(&uuid_hex[i * 2U], 3, "%02X",
+			       data->data[BIOSPUR_MFG_UUID_OFS + i]);
+	}
+	uuid_hex[OTA_UUID_HEX_LEN] = '\0';
+	return false;
 }
 
 static uint8_t ad_extract_token_id(struct net_buf_simple *ad)
@@ -457,30 +601,70 @@ static uint8_t ad_extract_token_id(struct net_buf_simple *ad)
 	return token_id;
 }
 
-static bool ad_token_matches_target(struct net_buf_simple *ad)
+static bool ad_extract_uuid_hex(struct net_buf_simple *ad, char *uuid_hex, size_t uuid_hex_len)
 {
-	uint8_t token_id;
+	struct net_buf_simple copy = *ad;
 
-	if (runtime_target_token < 0) {
-		return true;
-	}
-
-	token_id = ad_extract_token_id(ad);
-	if (token_id == 0xffU) {
+	if (uuid_hex == NULL || uuid_hex_len < OTA_UUID_HEX_LEN + 1U) {
 		return false;
 	}
 
-	return token_id == (uint8_t)runtime_target_token;
+	uuid_hex[0] = '\0';
+	bt_data_parse(&copy, scan_mfg_uuid_cb, uuid_hex);
+	return uuid_hex[0] != '\0';
 }
 
-static void smp_write_cb(struct bt_conn *conn, uint8_t err,
-			 struct bt_gatt_write_params *params)
+static bool ad_eval_target(struct net_buf_simple *ad, const char *name, uint8_t token_id,
+			   const char *uuid_hex, struct scan_target_eval *eval)
 {
-	ARG_UNUSED(conn);
-	ARG_UNUSED(params);
-	smp_write_err = (int)err;
-	OTA_VLOG("[%u] OTA write cb err=0x%02x\n", k_uptime_get_32(), err);
-	k_sem_give(&smp_write_sem);
+	bool uuid_mode;
+
+	memset(eval, 0, sizeof(*eval));
+	eval->has_name = (name != NULL && name[0] != '\0');
+	eval->has_token = (token_id != 0xffU);
+	eval->has_uuid = (uuid_hex != NULL && uuid_hex[0] != '\0');
+	uuid_mode = runtime_target_uuid[0] != '\0';
+
+	if (runtime_target_token >= 0) {
+		eval->token_match = eval->has_token &&
+				    token_id == (uint8_t)runtime_target_token;
+	} else {
+		eval->token_match = true;
+	}
+
+	if (uuid_mode) {
+		/*
+		 * UUID-authoritative mode:
+		 * - UUID match is mandatory.
+		 * - Name is optional unless explicit exact name is configured.
+		 * - Prefix is advisory only and not used as a hard gate.
+		 */
+		if (runtime_target_name[0] != '\0') {
+			eval->name_match = eval->has_name && str_case_eq(name, runtime_target_name);
+		} else {
+			eval->name_match = true;
+		}
+		eval->uuid_match = eval->has_uuid &&
+				   str_case_eq(uuid_hex, runtime_target_uuid);
+	} else {
+		if (runtime_target_name[0] != '\0') {
+			eval->name_match = eval->has_name && str_case_eq(name, runtime_target_name);
+		} else if (runtime_target_prefix[0] != '\0') {
+			eval->name_match = eval->has_name &&
+					   str_case_startswith(name, runtime_target_prefix);
+		} else {
+			eval->name_match = true;
+		}
+		eval->uuid_match = false;
+	}
+
+	/*
+	 * Hard safety rule for destructive OTA: stable identity is mandatory.
+	 * If UUID target is not configured and matched, OTA must not proceed.
+	 */
+	eval->strict_identity_ok = eval->uuid_match;
+	ARG_UNUSED(ad);
+	return eval->strict_identity_ok && eval->name_match && eval->token_match;
 }
 
 static void master_leds_apply(void)
@@ -595,84 +779,34 @@ static int ota_arm_target_via_nus(void)
 	return 0;
 }
 
-static uint8_t smp_notify_cb(struct bt_conn *conn,
-			     struct bt_gatt_subscribe_params *params,
-			     const void *data, uint16_t length)
+static void smp_rsp_part_cb(struct bt_dfu_smp *smp)
 {
-	ARG_UNUSED(conn);
-	OTA_VLOG("OTA SMP notify thread=%p\n", k_current_get());
+	const struct bt_dfu_smp_rsp_state *st = bt_dfu_smp_rsp_state(smp);
+	size_t copy_len;
 
-	if (!data) {
-		params->notify = NULL;
-		smp_subscribed = false;
-		return BT_GATT_ITER_STOP;
+	if (st == NULL || st->data == NULL || st->chunk_size == 0U) {
+		return;
 	}
 
-	if (smp_rsp_len == 0U && length >= sizeof(struct bt_dfu_smp_header)) {
-		const struct bt_dfu_smp_header *header = data;
-
-		smp_rsp_total = (((uint16_t)header->len_h8) << 8) | header->len_l8;
-		smp_rsp_total += sizeof(struct bt_dfu_smp_header);
-		if (smp_rsp_total > sizeof(smp_rsp_buf)) {
-			smp_rsp_total = sizeof(smp_rsp_buf);
-		}
+	if (st->offset == 0U) {
+		smp_rsp_len = 0U;
+		smp_rsp_total = MIN(st->total_size, sizeof(smp_rsp_buf));
 	}
 
 	if (smp_rsp_len < sizeof(smp_rsp_buf)) {
-		size_t copy_len = MIN((size_t)length, sizeof(smp_rsp_buf) - smp_rsp_len);
-
-		memcpy(&smp_rsp_buf[smp_rsp_len], data, copy_len);
+		copy_len = MIN(st->chunk_size, sizeof(smp_rsp_buf) - smp_rsp_len);
+		memcpy(&smp_rsp_buf[smp_rsp_len], st->data, copy_len);
 		smp_rsp_len += copy_len;
 	}
-	OTA_VLOG("[%u] OTA SMP notify: len=%u acc=%u total=%u\n",
-		 k_uptime_get_32(), (unsigned int)length, (unsigned int)smp_rsp_len,
-		 (unsigned int)smp_rsp_total);
 
-	if (smp_rsp_total > 0U && smp_rsp_len >= smp_rsp_total) {
+	OTA_VLOG("[%u] OTA SMP rsp part: off=%u chunk=%u acc=%u total=%u\n",
+		 k_uptime_get_32(), (unsigned int)st->offset, (unsigned int)st->chunk_size,
+		 (unsigned int)smp_rsp_len, (unsigned int)smp_rsp_total);
+
+	if (bt_dfu_smp_rsp_total_check(smp) ||
+	    (smp_rsp_total > 0U && smp_rsp_len >= smp_rsp_total)) {
 		k_sem_give(&ota_sem);
 	}
-
-	return BT_GATT_ITER_CONTINUE;
-}
-
-static int smp_subscribe_if_needed(void)
-{
-	int rc;
-
-	if (smp_subscribed) {
-		return 0;
-	}
-
-	memset(&smp_sub_params, 0, sizeof(smp_sub_params));
-	smp_sub_params.value_handle = dfu_smp.handles.smp;
-	smp_sub_params.ccc_handle = dfu_smp.handles.smp_ccc;
-	smp_sub_params.notify = smp_notify_cb;
-	smp_sub_params.value = BT_GATT_CCC_NOTIFY;
-	atomic_set_bit(smp_sub_params.flags, BT_GATT_SUBSCRIBE_FLAG_VOLATILE);
-
-	rc = bt_gatt_resubscribe(BT_ID_DEFAULT, bt_conn_get_dst(dfu_smp.conn),
-				 &smp_sub_params);
-	if (rc == -EALREADY) {
-		smp_subscribed = true;
-		printk("OTA SMP subscribe already active\n");
-		return 0;
-	}
-	if (rc) {
-		return rc;
-	}
-
-	/* Fast-path enable CCC using write command to avoid waiting for write-req response. */
-	{
-		static const uint8_t ccc_enable[2] = { 0x01, 0x00 };
-		int ccc_rc = bt_gatt_write_without_response(dfu_smp.conn, smp_sub_params.ccc_handle,
-							    ccc_enable, sizeof(ccc_enable), false);
-		(void)ccc_rc;
-		OTA_VLOG("OTA SMP CCC fast-write rc=%d\n", ccc_rc);
-	}
-	OTA_VLOG("OTA SMP subscribed (val=0x%04x ccc=0x%04x)\n",
-		 smp_sub_params.value_handle, smp_sub_params.ccc_handle);
-	smp_subscribed = true;
-	return 0;
 }
 
 static int cbor_decode_uint_any(const uint8_t *buf, size_t len, uint64_t *value, size_t *used)
@@ -879,6 +1013,7 @@ static int ota_send_packet(struct bt_dfu_smp *smp, struct smp_packet *pkt,
 			   uint16_t group_id, uint8_t command_id)
 {
 	int rc;
+	size_t tx_len;
 	uint32_t t0_ms;
 	static bool first_upload_dumped;
 
@@ -905,27 +1040,15 @@ static int ota_send_packet(struct bt_dfu_smp *smp, struct smp_packet *pkt,
 		first_upload_dumped = true;
 	}
 
-	rc = smp_subscribe_if_needed();
-	if (rc) {
-		printk("OTA subscribe failed: %d\n", rc);
-		return rc;
-	}
-
 	k_sem_reset(&ota_sem);
 	smp_rsp_len = 0U;
 	smp_rsp_total = 0U;
 	result->status = -ETIMEDOUT;
 	result->off = 0U;
 	result->off_found = false;
-	k_sem_reset(&smp_write_sem);
-	smp_write_err = 0;
-	memset(&smp_write_params, 0, sizeof(smp_write_params));
-	smp_write_params.handle = smp->handles.smp;
-	smp_write_params.offset = 0U;
-	smp_write_params.data = pkt;
-	smp_write_params.length = sizeof(pkt->header) + payload_len;
-	smp_write_params.func = smp_write_cb;
-	rc = bt_gatt_write(smp->conn, &smp_write_params);
+	tx_len = sizeof(pkt->header) + payload_len;
+
+	rc = bt_dfu_smp_command(smp, smp_rsp_part_cb, tx_len, pkt);
 	if (rc) {
 		printk("OTA command send failed: group=0x%04x cmd=0x%02x rc=%d\n",
 		       group_id, command_id, rc);
@@ -934,24 +1057,11 @@ static int ota_send_packet(struct bt_dfu_smp *smp, struct smp_packet *pkt,
 
 	t0_ms = k_uptime_get_32();
 	OTA_VLOG("OTA wait thread=%p\n", k_current_get());
-	{
-		int64_t deadline = k_uptime_get() + (int64_t)OTA_CMD_TIMEOUT_SEC * MSEC_PER_SEC;
-		bool done = false;
-
-		while (k_uptime_get() < deadline) {
-			if (smp_rsp_total > 0U && smp_rsp_len >= smp_rsp_total) {
-				done = true;
-				break;
-			}
-			k_sleep(K_MSEC(10));
-		}
-
-		if (!done) {
-			uint32_t t1_ms = k_uptime_get_32();
-			printk("[%u->%u] OTA command wait failed: group=0x%04x cmd=0x%02x rc=%d\n",
-			       t0_ms, t1_ms, group_id, command_id, -ETIMEDOUT);
-			return -ETIMEDOUT;
-		}
+	if (k_sem_take(&ota_sem, K_SECONDS(OTA_CMD_TIMEOUT_SEC)) != 0) {
+		uint32_t t1_ms = k_uptime_get_32();
+		printk("[%u->%u] OTA command wait failed: group=0x%04x cmd=0x%02x rc=%d\n",
+		       t0_ms, t1_ms, group_id, command_id, -ETIMEDOUT);
+		return -ETIMEDOUT;
 	}
 
 	if (group_id == OTA_SMP_GROUP_OS && command_id == 0U) {
@@ -1279,6 +1389,17 @@ static void ota_try_schedule_start(void)
 	if (!ota_ready || !mtu_ready || ota_started || ota_done || default_conn == NULL) {
 		return;
 	}
+	if (!selected_identity_verified) {
+		printk("OTA start blocked: identity not verified (addr=%s uuid=%s name=%s token=%d)\n",
+		       selected_addr[0] != '\0' ? selected_addr : "-",
+		       selected_uuid[0] != '\0' ? selected_uuid : "-",
+		       selected_name[0] != '\0' ? selected_name : "-",
+		       selected_token);
+		ota_status = -EACCES;
+		ota_done = true;
+		ota_set_state(OTA_OP_BLOCKED, "identity_not_verified");
+		return;
+	}
 
 	if (!ota_start_queued) {
 		ota_start_queued = true;
@@ -1307,14 +1428,22 @@ static void ota_thread_fn(void *a, void *b, void *c)
 
 		printk("OTA start gate: mtu=%u conn=%p\n",
 		       (unsigned int)bt_gatt_get_mtu(default_conn), default_conn);
+		ota_set_state(OTA_OP_UPLOADING, "start");
 		ota_started = true;
-		ota_status = ota_prime_link(&dfu_smp);
-		if (ota_status) {
-			printk("OTA prime failed: %d\n", ota_status);
-			master_leds_set(false, true, false, true);
-			ota_done = true;
-			continue;
-		}
+			ota_status = ota_prime_link(&dfu_smp);
+			if (ota_status) {
+				/* Some targets may drop OS-echo while IMG mgmt is still functional.
+				 * Keep strict target safety, but allow upload path to proceed.
+				 */
+				if (ota_status == -ETIMEDOUT) {
+					printk("OTA prime timeout; continuing with erase/upload path\n");
+				} else {
+					printk("OTA prime failed: %d\n", ota_status);
+					master_leds_set(false, true, false, true);
+					ota_done = true;
+					continue;
+				}
+			}
 
 		ota_status = ota_erase_secondary_slot(&dfu_smp);
 		if (ota_status) {
@@ -1331,6 +1460,7 @@ static void ota_thread_fn(void *a, void *b, void *c)
 			ota_done = true;
 			continue;
 		}
+		ota_set_state(OTA_OP_UPLOAD_COMPLETE, "upload_done");
 
 		ota_status = ota_read_image_state(&dfu_smp);
 		if (ota_status) {
@@ -1353,7 +1483,9 @@ static void ota_thread_fn(void *a, void *b, void *c)
 		}
 
 		printk("OTA command sequence sent\n");
+		ota_set_state(OTA_OP_REBOOT_PENDING, "remote_reset_sent");
 		ota_done = true;
+		ota_set_state(OTA_OP_VERIFY_PASSED, "sequence_done");
 		master_leds_set(false, true, false, false);
 	}
 }
@@ -1508,6 +1640,7 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 
 	if (conn_err) {
 		printk("Connect failed %s err 0x%02x\n", addr, conn_err);
+		ota_set_state(OTA_OP_CONNECT_FAILED, "conn_cb");
 		if (default_conn == conn) {
 			bt_conn_unref(default_conn);
 			default_conn = NULL;
@@ -1517,6 +1650,14 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 	}
 
 	printk("Connected: %s\n", addr);
+	printk("Connected target evidence: verified=%u uuid=%s name=%s token=%d\n",
+	       selected_identity_verified ? 1U : 0U,
+	       selected_uuid[0] != '\0' ? selected_uuid : "-",
+	       selected_name[0] != '\0' ? selected_name : "-",
+	       selected_token);
+	if (selected_identity_verified) {
+		ota_set_state(OTA_OP_CONNECTED_VERIFIED, "connected");
+	}
 	printk("Connected MTU: %u\n", (unsigned int)bt_gatt_get_mtu(conn));
 	if (bt_conn_get_info(conn, &info) == 0 && info.type == BT_CONN_TYPE_LE) {
 		printk("Conn LE params: int=%u lat=%u timeout=%u\n",
@@ -1547,8 +1688,14 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	mtu_ready = false;
 	ota_start_queued = false;
 	nus_ready = false;
-	smp_subscribed = false;
-	memset(&smp_sub_params, 0, sizeof(smp_sub_params));
+	selected_identity_verified = false;
+	selected_addr[0] = '\0';
+	selected_name[0] = '\0';
+	selected_uuid[0] = '\0';
+	selected_token = -1;
+	if (ota_status < 0 && ota_done) {
+		ota_set_state(OTA_OP_VERIFY_FAILED, "disconnect_after_error");
+	}
 	master_leds_set(true, false, false, false);
 	(void)bt_scan_start(BT_SCAN_TYPE_SCAN_ACTIVE);
 }
@@ -1564,40 +1711,42 @@ static void scan_filter_match(struct bt_scan_device_info *device_info,
 {
 	char addr[BT_ADDR_LE_STR_LEN];
 	char name[OTA_NAME_BUF_LEN];
-	bool name_target_ok;
-	bool token_ok;
 	bool accept;
 	int err;
 	struct bt_conn *conn = NULL;
 	uint8_t token_id;
+	char uuid_hex[OTA_UUID_HEX_LEN + 1U];
+	struct scan_target_eval eval;
 
 	ARG_UNUSED(filter_match);
 	bt_addr_le_to_str(device_info->recv_info->addr, addr, sizeof(addr));
 	ad_extract_name(device_info->adv_data, name, sizeof(name));
 	token_id = ad_extract_token_id(device_info->adv_data);
-	name_target_ok = ad_name_matches_target(device_info->adv_data);
-	token_ok = ad_token_matches_target(device_info->adv_data);
-	printk("Scan match: %s connectable=%d name=%s token=%d name_target=%u token_target=%u\n",
+	if (!ad_extract_uuid_hex(device_info->adv_data, uuid_hex, sizeof(uuid_hex))) {
+		uuid_hex[0] = '\0';
+	}
+	accept = ad_eval_target(device_info->adv_data, name, token_id, uuid_hex, &eval);
+	printk("Scan match: %s connectable=%d name=%s token=%d uuid=%s name_ok=%u token_ok=%u uuid_ok=%u strict_id=%u\n",
 	       addr,
 	       connectable,
 	       name[0] != '\0' ? name : "-",
 	       token_id == 0xffU ? -1 : (int)token_id,
-	       name_target_ok ? 1U : 0U,
-	       token_ok ? 1U : 0U);
-	accept = connectable && (default_conn == NULL);
-	if (runtime_target_token >= 0) {
-		accept = accept && token_ok;
-	}
-	if (runtime_target_name[0] != '\0' && name[0] != '\0') {
-		accept = accept && name_target_ok;
-	}
-	printk("Scan decision: %s accept=%u default_conn=%p target_name=%s target_token=%d\n",
+	       uuid_hex[0] != '\0' ? uuid_hex : "-",
+	       eval.name_match ? 1U : 0U,
+	       eval.token_match ? 1U : 0U,
+	       eval.uuid_match ? 1U : 0U,
+	       eval.strict_identity_ok ? 1U : 0U);
+
+	accept = accept && connectable && (default_conn == NULL);
+	printk("Scan decision: %s accept=%u default_conn=%p target_name=%s target_token=%d target_uuid=%s\n",
 	       addr,
 	       accept ? 1U : 0U,
 	       default_conn,
 	       runtime_target_name[0] != '\0' ? runtime_target_name : "-",
-	       runtime_target_token);
+	       runtime_target_token,
+	       runtime_target_uuid[0] != '\0' ? runtime_target_uuid : "-");
 	if (!accept) {
+		ota_set_state(OTA_OP_TARGET_REJECTED, "scan_filter");
 		return;
 	}
 
@@ -1609,6 +1758,7 @@ static void scan_filter_match(struct bt_scan_device_info *device_info,
 	       addr,
 	       token_id == 0xffU ? -1 : (int)token_id,
 	       name[0] != '\0' ? name : "-");
+	ota_set_state(OTA_OP_CONNECT_PENDING, "bt_conn_le_create");
 	err = bt_conn_le_create(device_info->recv_info->addr,
 				BT_CONN_LE_CREATE_CONN,
 				device_info->conn_param != NULL ?
@@ -1616,17 +1766,35 @@ static void scan_filter_match(struct bt_scan_device_info *device_info,
 				&conn);
 	if (err) {
 		printk("Connect start failed %s err %d\n", addr, err);
+		ota_set_state(OTA_OP_CONNECT_FAILED, "bt_conn_le_create");
 		(void)bt_scan_start(BT_SCAN_TYPE_SCAN_PASSIVE);
 		return;
 	}
 
 	default_conn = conn;
+	selected_identity_verified = eval.strict_identity_ok;
+	(void)snprintf(selected_addr, sizeof(selected_addr), "%s", addr);
+	(void)snprintf(selected_name, sizeof(selected_name), "%s",
+		       name[0] != '\0' ? name : "");
+	(void)snprintf(selected_uuid, sizeof(selected_uuid), "%s",
+		       uuid_hex[0] != '\0' ? uuid_hex : "");
+	selected_token = token_id == 0xffU ? -1 : (int)token_id;
+}
+
+static void scan_filter_no_match(struct bt_scan_device_info *device_info,
+				 bool connectable)
+{
+	static struct bt_scan_filter_match dummy;
+
+	memset(&dummy, 0, sizeof(dummy));
+	scan_filter_match(device_info, &dummy, connectable);
 }
 
 static void scan_connecting_error(struct bt_scan_device_info *device_info)
 {
 	ARG_UNUSED(device_info);
 	printk("Connecting failed\n");
+	ota_set_state(OTA_OP_CONNECT_FAILED, "scan_connecting_error");
 }
 
 static void scan_connecting(struct bt_scan_device_info *device_info,
@@ -1636,30 +1804,18 @@ static void scan_connecting(struct bt_scan_device_info *device_info,
 	default_conn = bt_conn_ref(conn);
 }
 
-BT_SCAN_CB_INIT(scan_cb, scan_filter_match, NULL, scan_connecting_error,
+BT_SCAN_CB_INIT(scan_cb, scan_filter_match, scan_filter_no_match, scan_connecting_error,
 		scan_connecting);
 
 static int scan_init(void)
 {
-	int err;
 	struct bt_scan_init_param scan_init = {
 		.connect_if_match = 0,
 	};
 
 	bt_scan_init(&scan_init);
 	bt_scan_cb_register(&scan_cb);
-
-	err = bt_scan_filter_add(BT_SCAN_FILTER_TYPE_UUID, BT_UUID_DFU_SMP_SERVICE);
-	if (err) {
-		printk("Scan filter add failed: %d\n", err);
-		return err;
-	}
-
-	err = bt_scan_filter_enable(BT_SCAN_UUID_FILTER, false);
-	if (err) {
-		printk("Scan filter enable failed: %d\n", err);
-		return err;
-	}
+	printk("OTA scan mode: identity-first (no prefilter)\n");
 
 	master_leds_set(true, false, false, false);
 	return 0;
@@ -1671,7 +1827,6 @@ static int ota_bootstrap(void)
 
 	k_sem_init(&ota_sem, 0, 1);
 	k_sem_init(&ota_start_sem, 0, 1);
-	k_sem_init(&smp_write_sem, 0, 1);
 	k_sem_init(&nus_write_sem, 0, 1);
 	k_thread_create(&ota_thread, ota_thread_stack, K_THREAD_STACK_SIZEOF(ota_thread_stack),
 			ota_thread_fn, NULL, NULL, NULL, 5, 0, K_NO_WAIT);

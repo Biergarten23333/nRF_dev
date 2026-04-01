@@ -10,6 +10,7 @@ void master_ota_target_reset(void);
 int master_ota_target_set_token(int token_id);
 int master_ota_target_set_name(const char *name);
 int master_ota_target_set_prefix(const char *prefix);
+int master_ota_target_set_uuid(const char *uuid_hex);
 void master_ota_target_print(void);
 
 #ifdef __cplusplus

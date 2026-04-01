@@ -25,6 +25,7 @@ set(APP_ANCHOR_CONFIG_PAGE_SIZE "4096" CACHE STRING "Flash erase page size for a
 set(APP_ANCHOR_BLE_ID_ENABLE "1" CACHE STRING "Enable BLE identification advertising")
 set(APP_ANCHOR_SERIAL_CMD_ENABLE "1" CACHE STRING "Enable UART role/config command handler")
 set(APP_ANCHOR_SERIAL_CMD_BOOT_WINDOW_MS "5000" CACHE STRING "Boot window for serial config before ranging starts")
+set(APP_ANCHOR_FW_MARKER "anchor-unified" CACHE STRING "Firmware marker/version string for startup/control readback")
 set(APP_ANCHOR_MASTER "0" CACHE STRING "Whether this anchor actively ranges peers")
 set(APP_ANCHOR_PEER_COUNT "3" CACHE STRING "Number of peer anchors for master mode")
 set(APP_ANCHOR_PEER_0_ID "5" CACHE STRING "Peer slot 0")
@@ -51,6 +52,7 @@ target_compile_definitions(app PRIVATE
     APP_ANCHOR_BLE_ID_ENABLE=${APP_ANCHOR_BLE_ID_ENABLE}
     APP_ANCHOR_SERIAL_CMD_ENABLE=${APP_ANCHOR_SERIAL_CMD_ENABLE}
     APP_ANCHOR_SERIAL_CMD_BOOT_WINDOW_MS=${APP_ANCHOR_SERIAL_CMD_BOOT_WINDOW_MS}
+    APP_ANCHOR_FW_MARKER=\"${APP_ANCHOR_FW_MARKER}\"
     APP_ANCHOR_MASTER=${APP_ANCHOR_MASTER}
     APP_ANCHOR_PEER_COUNT=${APP_ANCHOR_PEER_COUNT}
     APP_ANCHOR_PEER_0_ID=${APP_ANCHOR_PEER_0_ID}

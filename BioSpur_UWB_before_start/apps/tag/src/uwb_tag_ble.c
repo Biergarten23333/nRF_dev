@@ -514,6 +514,8 @@ static const char *uwb_tag_ble_mode_label(uint8_t positioning_mode)
 		return "CAL";
 	case UWB_TAG_POSITIONING_MODE_FIXED:
 		return "FIXED";
+	case UWB_TAG_POSITIONING_MODE_ANCHOR_OTA:
+		return "AOTA";
 	default:
 		return "MOTION";
 	}
@@ -522,6 +524,11 @@ static const char *uwb_tag_ble_mode_label(uint8_t positioning_mode)
 static bool uwb_tag_ble_mode_is_calibration(uint8_t positioning_mode)
 {
 	return positioning_mode == UWB_TAG_POSITIONING_MODE_CALIBRATION;
+}
+
+static bool uwb_tag_ble_mode_is_anchor_ota(uint8_t positioning_mode)
+{
+	return positioning_mode == UWB_TAG_POSITIONING_MODE_ANCHOR_OTA;
 }
 
 static bool uwb_tag_ble_parse_mode_value(const char *mode_text,
@@ -551,6 +558,13 @@ static bool uwb_tag_ble_parse_mode_value(const char *mode_text,
 		return true;
 	}
 
+	if (strcasecmp(mode_text, "AOTA") == 0 ||
+	    strcasecmp(mode_text, "ANCHOR_OTA") == 0 ||
+	    strcasecmp(mode_text, "OTA_IDLE") == 0) {
+		*positioning_mode_out = UWB_TAG_POSITIONING_MODE_ANCHOR_OTA;
+		return true;
+	}
+
 	return false;
 }
 
@@ -560,7 +574,8 @@ static void uwb_tag_ble_apply_mode_defaults(struct uwb_tag_runtime_params *param
 		return;
 	}
 
-	if (uwb_tag_ble_mode_is_calibration(params->positioning_mode)) {
+	if (uwb_tag_ble_mode_is_calibration(params->positioning_mode) ||
+	    uwb_tag_ble_mode_is_anchor_ota(params->positioning_mode)) {
 		params->slot_source = UWB_TAG_SLOT_SOURCE_BUILD;
 		params->tdma.enabled = false;
 		params->tdma.slot_index = 0U;
@@ -596,6 +611,16 @@ static int uwb_tag_ble_apply_mode_policy(struct uwb_tag_runtime_params *params,
 	switch (params->positioning_mode) {
 	case UWB_TAG_POSITIONING_MODE_CALIBRATION:
 		/* Calibration: always full-anchor sampling path (AMODE not user-tuned). */
+		params->anchor_selection_mode = UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
+		params->fixed_anchor_count = 0U;
+		memset(params->fixed_anchor_ids, 0, sizeof(params->fixed_anchor_ids));
+		break;
+	case UWB_TAG_POSITIONING_MODE_ANCHOR_OTA:
+		/*
+		 * Anchor-OTA coordination mode:
+		 * - keep BLE control path alive
+		 * - force runtime into no-poll behavior on the UWB loop
+		 */
 		params->anchor_selection_mode = UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
 		params->fixed_anchor_count = 0U;
 		memset(params->fixed_anchor_ids, 0, sizeof(params->fixed_anchor_ids));
@@ -768,7 +793,10 @@ static int uwb_tag_ble_parse_cfg_command(
 	if (tag_id >= UWB_MAX_TAGS || slot >= UINT8_MAX || count == 0U ||
 	    count > UINT8_MAX || period == 0U || period > UINT16_MAX ||
 	    active == 0U || active > UINT16_MAX || active > period ||
-	    positioning_mode > UWB_TAG_POSITIONING_MODE_CALIBRATION ||
+	    (positioning_mode != UWB_TAG_POSITIONING_MODE_DYNAMIC &&
+	     positioning_mode != UWB_TAG_POSITIONING_MODE_FIXED &&
+	     positioning_mode != UWB_TAG_POSITIONING_MODE_CALIBRATION &&
+	     positioning_mode != UWB_TAG_POSITIONING_MODE_ANCHOR_OTA) ||
 	    anchor_mode > UWB_TAG_ANCHOR_SELECTION_FIXED_SUBSET) {
 		return -ERANGE;
 	}
@@ -1534,9 +1562,9 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 
 	if (strcmp(cmd, "HELP") == 0) {
 #if APP_TAG_BLE_OTA_ENABLE
-		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|CFG_STATUS|MODE?|MODE <CAL|MOTION|FIXED>|MCAL|MMOT|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2> FIXED=a,b,c,d|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|CFG_STATUS|MODE?|MODE <CAL|MOTION|FIXED|AOTA>|MCAL|MMOT|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2|3> FIXED=a,b,c,d|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
 #else
-		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|CFG_STATUS|MODE?|MODE <CAL|MOTION|FIXED>|MCAL|MMOT|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2> FIXED=a,b,c,d|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|CFG_STATUS|MODE?|MODE <CAL|MOTION|FIXED|AOTA>|MCAL|MMOT|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2|3> FIXED=a,b,c,d|REBOOT|HELP");
 #endif
 		return;
 	}

@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import json
 from dataclasses import asdict, dataclass
+from typing import Any
 
 from bleak import BleakClient, BleakScanner
 
@@ -23,6 +24,7 @@ class Target:
     device_uuid_hex: str
     anchor_id_cfg: int
     role_code: int
+    ble_device: Any | None = None
 
 
 def parse_args() -> argparse.Namespace:
@@ -53,7 +55,15 @@ def parse_anchor_mfg(company_id: int, payload: bytes) -> tuple[str, int, int] | 
 
 async def resolve_target(args: argparse.Namespace) -> Target:
     if args.ble_addr:
-        return Target(addr=args.ble_addr, rssi=None, device_uuid_hex="", anchor_id_cfg=-1, role_code=-1)
+        dev = await BleakScanner.find_device_by_address(args.ble_addr, timeout=args.scan_timeout)
+        return Target(
+            addr=args.ble_addr,
+            rssi=None,
+            device_uuid_hex="",
+            anchor_id_cfg=-1,
+            role_code=-1,
+            ble_device=dev,
+        )
 
     if not args.device_uuid:
         raise RuntimeError("either --ble-addr or --device-uuid is required")
@@ -73,6 +83,7 @@ async def resolve_target(args: argparse.Namespace) -> Target:
                     device_uuid_hex=device_uuid_hex,
                     anchor_id_cfg=anchor_id_cfg,
                     role_code=role_code,
+                    ble_device=dev,
                 )
     raise RuntimeError(f"device_uuid not found in scan: {want}")
 
@@ -83,7 +94,8 @@ async def read_text(client: BleakClient, uuid: str) -> str:
 
 
 async def write_cmd(client: BleakClient, cmd: str) -> str:
-    await client.write_gatt_char(CONTROL_UUID, cmd.encode("ascii"), response=True)
+    payload = cmd.encode("ascii")
+    await client.write_gatt_char(CONTROL_UUID, payload, response=False)
     await asyncio.sleep(0.12)
     return await read_text(client, RESULT_UUID)
 
@@ -91,11 +103,18 @@ async def write_cmd(client: BleakClient, cmd: str) -> str:
 async def run(args: argparse.Namespace) -> dict:
     target = await resolve_target(args)
     out: dict = {
-        "target": asdict(target),
+        "target": {
+            "addr": target.addr,
+            "rssi": target.rssi,
+            "device_uuid_hex": target.device_uuid_hex,
+            "anchor_id_cfg": target.anchor_id_cfg,
+            "role_code": target.role_code,
+        },
         "commands": [],
     }
 
-    async with BleakClient(target.addr, timeout=12.0) as client:
+    client_target = target.ble_device if target.ble_device is not None else target.addr
+    async with BleakClient(client_target, timeout=12.0) as client:
         services = await client.get_services()
         if SVC_UUID.lower() not in {s.uuid.lower() for s in services}:
             raise RuntimeError(f"control service not found on {target.addr}: {SVC_UUID}")
@@ -109,14 +128,17 @@ async def run(args: argparse.Namespace) -> dict:
             resp = await write_cmd(client, "SYNC")
             out["commands"].append({"cmd": "SYNC", "resp": resp})
         if args.set_role:
-            resp = await write_cmd(client, f"PENDING ROLE {args.set_role.upper()}")
-            out["commands"].append({"cmd": f"PENDING ROLE {args.set_role.upper()}", "resp": resp})
+            cmd = f"R {args.set_role.upper()}"
+            resp = await write_cmd(client, cmd)
+            out["commands"].append({"cmd": cmd, "resp": resp})
         if args.set_label:
-            resp = await write_cmd(client, f"PENDING LABEL {args.set_label.strip().upper()}")
-            out["commands"].append({"cmd": f"PENDING LABEL {args.set_label.strip().upper()}", "resp": resp})
+            cmd = f"L {args.set_label.strip().upper()}"
+            resp = await write_cmd(client, cmd)
+            out["commands"].append({"cmd": cmd, "resp": resp})
         if args.set_generation is not None:
-            resp = await write_cmd(client, f"PENDING GEN {args.set_generation}")
-            out["commands"].append({"cmd": f"PENDING GEN {args.set_generation}", "resp": resp})
+            cmd = f"G {args.set_generation}"
+            resp = await write_cmd(client, cmd)
+            out["commands"].append({"cmd": cmd, "resp": resp})
         if args.validate:
             resp = await write_cmd(client, "VALIDATE")
             out["commands"].append({"cmd": "VALIDATE", "resp": resp})

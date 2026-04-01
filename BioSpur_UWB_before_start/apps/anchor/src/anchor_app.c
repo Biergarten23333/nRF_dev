@@ -63,6 +63,10 @@
 #define APP_ANCHOR_SERIAL_CMD_BOOT_WINDOW_MS 5000U
 #endif
 
+#ifndef APP_ANCHOR_FW_MARKER
+#define APP_ANCHOR_FW_MARKER "anchor-unified"
+#endif
+
 static const char *anchor_role_name(uint8_t role)
 {
     switch (role) {
@@ -116,6 +120,7 @@ int anchor_app_run(void)
     uint8_t device_uuid[16];
     anchor_config_t cfg = {0};
     bool cfg_valid = anchor_config_load(&cfg);
+    struct anchor_ble_ctrl_boot_info ble_ctrl_info;
     struct uart_role_switch_runtime_info serial_info;
     char uuid_hex[33];
     char mcu_uid_hex[17];
@@ -170,7 +175,8 @@ int anchor_app_run(void)
         effective_allow_tag_polls = 0U;
     }
 
-    printk("ANCHOR: unified; ANCHOR_ID: %c; ROLE: %s; BS_CODE: %s; DEVICE_UUID: %s; MCU_UID: %s\n",
+    printk("ANCHOR: unified; FW: %s; ANCHOR_ID: %c; ROLE: %s; BS_CODE: %s; DEVICE_UUID: %s; MCU_UID: %s\n",
+           APP_ANCHOR_FW_MARKER,
            anchor_config_label_char(anchor_id_cfg), anchor_role_name(effective_role),
            bs_code, uuid_hex, mcu_uid_hex);
     printk("Anchor app ready anchor_id=%u role=%s master=%u allow_tag_polls=%u cfg_valid=%u\n",
@@ -185,6 +191,7 @@ int anchor_app_run(void)
         }
     }
 
+    memset(&ble_ctrl_info, 0, sizeof(ble_ctrl_info));
     ble_ctrl_info.active_cfg = cfg;
     if (ble_ctrl_info.active_cfg.schema_version == 0U) {
         ble_ctrl_info.active_cfg.schema_version = ANCHOR_CONFIG_SCHEMA_VERSION;
@@ -195,6 +202,8 @@ int anchor_app_run(void)
     memcpy(ble_ctrl_info.device_uuid, device_uuid, sizeof(device_uuid));
     memcpy(ble_ctrl_info.mcu_uid, mcu_uid, sizeof(mcu_uid));
     memcpy(ble_ctrl_info.bs_code, bs_code, sizeof(ble_ctrl_info.bs_code));
+    (void)snprintk(ble_ctrl_info.fw_marker, sizeof(ble_ctrl_info.fw_marker), "%s",
+                   APP_ANCHOR_FW_MARKER);
     ret = anchor_ble_ctrl_init(&ble_ctrl_info);
     if (ret != 0) {
         printk("anchor_ble_ctrl_init failed: %d\n", ret);
@@ -265,4 +274,3 @@ int anchor_app_run(void)
 
     return 0;
 }
-    struct anchor_ble_ctrl_boot_info ble_ctrl_info;
