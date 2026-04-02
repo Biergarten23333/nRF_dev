@@ -8,6 +8,8 @@
 
 #include <dk_buttons_and_leds.h>
 
+#include <zephyr/bluetooth/conn.h>
+#include <zephyr/bluetooth/hci_types.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/kernel.h>
@@ -26,6 +28,7 @@
 #define CONTROL_SETTINGS_MODE_KEY "mode"
 #define CONTROL_BOOT_COOKIE_MAGIC 0x42534d44U
 #define OTA_TARGET_BOOT_COOKIE_MAGIC 0x4f544147U
+#define OTA_NUS_BOOT_COOKIE_MAGIC 0x4f54414eU
 
 enum control_mode {
 	CONTROL_MODE_RECV = 0,
@@ -58,6 +61,8 @@ static int16_t ota_target_boot_token __noinit;
 static char ota_target_boot_name[32] __noinit;
 static char ota_target_boot_prefix[32] __noinit;
 static char ota_target_boot_uuid[33] __noinit;
+static uint32_t ota_nus_boot_cookie __noinit;
+static uint8_t ota_expect_nus_boot __noinit;
 static int ota_target_token_cfg = -1;
 static char ota_target_name_cfg[32];
 static char ota_target_prefix_cfg[32] = "BS";
@@ -73,6 +78,11 @@ static char uart_pending_line[64];
 static size_t uart_pending_len;
 static atomic_t uart_line_ready;
 static struct system_target_profile system_target;
+static bool ota_expect_nus_cfg = true;
+
+struct disconnect_ctx {
+	int requested;
+};
 
 enum request_source {
 	REQ_SRC_BTN1 = 1,
@@ -117,7 +127,7 @@ static void control_print_status(void)
 
 static void control_print_help(void)
 {
-	printk("Commands: status | mode recv | mode ota | scan | conn\n");
+	printk("Commands: status | mode recv | mode ota | scan | conn | initiate\n");
 	printk("Runtime NUS cmds: cmd <raw> | oneshot <raw> | oneshot show | oneshot clear\n");
 	printk("Device model cmds: device show | device kind <anchor|tag>\n");
 	printk("OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->\n");
@@ -151,6 +161,9 @@ static void system_target_set_kind(uint8_t kind)
 {
 	system_target.kind = kind;
 	system_target.caps = system_caps_for_kind(kind);
+	/* Anchor OTA path should skip NUS arm stage and go directly DFU/SMP. */
+	ota_expect_nus_cfg = (kind != SYS_DEV_ANCHOR);
+	master_ota_set_expect_nus(ota_expect_nus_cfg);
 }
 
 static void system_target_print(void)
@@ -207,6 +220,33 @@ static void control_stage_ota_target(void)
 	(void)snprintf(ota_target_boot_uuid, sizeof(ota_target_boot_uuid), "%s",
 		       ota_target_uuid_cfg);
 	ota_target_boot_cookie = OTA_TARGET_BOOT_COOKIE_MAGIC;
+	ota_expect_nus_boot = ota_expect_nus_cfg ? 1U : 0U;
+	ota_nus_boot_cookie = OTA_NUS_BOOT_COOKIE_MAGIC;
+}
+
+static void disconnect_each_cb(struct bt_conn *conn, void *user_data)
+{
+	struct disconnect_ctx *ctx = user_data;
+	int err;
+
+	if (!conn || !ctx) {
+		return;
+	}
+
+	err = bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+	if (err == 0 || err == -EALREADY || err == -ENOTCONN) {
+		ctx->requested++;
+	}
+}
+
+static void control_disconnect_all_links(void)
+{
+	struct disconnect_ctx ctx = {0};
+
+	bt_conn_foreach(BT_CONN_TYPE_ALL, disconnect_each_cb, &ctx);
+	printk("Mode switch preflight: disconnect requests=%d\n", ctx.requested);
+	/* Give BLE stack a short settle window before rebooting to next mode. */
+	k_sleep(K_MSEC(250));
 }
 
 static void mode_switch_work_handler(struct k_work *work)
@@ -233,6 +273,7 @@ static void mode_switch_work_handler(struct k_work *work)
 	}
 
 	control_blink_ack();
+	control_disconnect_all_links();
 	control_mode = requested_mode;
 	control_save_mode();
 	control_stage_ota_target();
@@ -371,8 +412,24 @@ static void control_handle_uart_command(const char *line)
 		return;
 	}
 
+	if (strcmp(cmd, "initiate") == 0) {
+		if (control_mode != CONTROL_MODE_OTA) {
+			printk("INITIATE ignored: control mode must be OTA\n");
+			control_print_help();
+			return;
+		}
+		rc = master_ota_initiate();
+		printk("initiate rc=%d\n", rc);
+		return;
+	}
+
 	if (strcmp(cmd, "mode") == 0 && parsed >= 2) {
 		if (strcmp(arg, "ota") == 0) {
+			if (control_mode == CONTROL_MODE_OTA) {
+				rc = master_ota_initiate();
+				printk("mode ota (already ota) -> initiate rc=%d\n", rc);
+				return;
+			}
 			request_mode_switch(CONTROL_MODE_OTA, REQ_SRC_UART);
 			return;
 		}
@@ -659,11 +716,17 @@ int main(void)
 			       ota_target_boot_uuid);
 		ota_target_boot_cookie = 0U;
 	}
+	if (ota_nus_boot_cookie == OTA_NUS_BOOT_COOKIE_MAGIC) {
+		ota_expect_nus_cfg = (ota_expect_nus_boot != 0U);
+		ota_nus_boot_cookie = 0U;
+	}
 	(void)master_ota_target_set_token(ota_target_token_cfg);
 	(void)master_ota_target_set_name(ota_target_name_cfg);
 	(void)master_ota_target_set_prefix(ota_target_prefix_cfg);
 	(void)master_ota_target_set_uuid(ota_target_uuid_cfg);
-	system_target_set_kind(SYS_DEV_UNKNOWN);
+	master_ota_set_expect_nus(ota_expect_nus_cfg);
+	system_target.kind = SYS_DEV_UNKNOWN;
+	system_target.caps = system_caps_for_kind(SYS_DEV_UNKNOWN);
 	master_ota_target_print();
 
 	control_leds_set(DK_NO_LEDS_MSK);

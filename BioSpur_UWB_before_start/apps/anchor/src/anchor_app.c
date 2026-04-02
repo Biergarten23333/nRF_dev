@@ -1,10 +1,12 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
+#include <errno.h>
 #include <string.h>
 
 #include "anchor_config.h"
 #include "anchor_ble_id.h"
 #include "anchor_ble_ctrl.h"
+#include "anchor_mcumgr_diag.h"
 #include "uart_role_switch.h"
 #include "ss_twr_anchor_init.h"
 #include "ss_twr_resp.h"
@@ -207,6 +209,11 @@ int anchor_app_run(void)
     ret = anchor_ble_ctrl_init(&ble_ctrl_info);
     if (ret != 0) {
         printk("anchor_ble_ctrl_init failed: %d\n", ret);
+    }
+
+    ret = anchor_mcumgr_diag_init();
+    if (ret != 0 && ret != -ENOTSUP) {
+        printk("anchor_mcumgr_diag_init failed: %d\n", ret);
     }
 
     serial_info.active_anchor_id_cfg = anchor_id_cfg;

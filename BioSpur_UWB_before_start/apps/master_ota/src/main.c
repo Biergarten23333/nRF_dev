@@ -127,6 +127,7 @@ static struct bt_nus_client nus_client;
 static struct k_sem ota_sem;
 static struct k_sem ota_start_sem;
 static struct k_sem nus_write_sem;
+static struct k_sem sec_ready_sem;
 static bool leds_ready;
 static bool led_scan_state;
 static bool led_link_state;
@@ -135,8 +136,10 @@ static bool led_error_state;
 static bool ota_ready;
 static bool ota_started;
 static bool ota_done;
+static bool ota_armed;
 static bool ota_start_queued;
 static bool mtu_ready;
+static bool sec_ready;
 static bool nus_ready;
 static int ota_status;
 static uint8_t ota_seq;
@@ -155,6 +158,7 @@ static char selected_addr[BT_ADDR_LE_STR_LEN];
 static char selected_uuid[OTA_UUID_HEX_LEN + 1U];
 static char selected_name[OTA_NAME_BUF_LEN];
 static int selected_token = -1;
+static bool runtime_expect_nus = true;
 K_THREAD_STACK_DEFINE(ota_thread_stack, 3072);
 static struct k_thread ota_thread;
 
@@ -779,6 +783,12 @@ static int ota_arm_target_via_nus(void)
 	return 0;
 }
 
+void master_ota_set_expect_nus(bool expect_nus)
+{
+	runtime_expect_nus = expect_nus;
+	printk("OTA NUS stage: %s\n", runtime_expect_nus ? "enabled" : "disabled");
+}
+
 static void smp_rsp_part_cb(struct bt_dfu_smp *smp)
 {
 	const struct bt_dfu_smp_rsp_state *st = bt_dfu_smp_rsp_state(smp);
@@ -1025,6 +1035,12 @@ static int ota_send_packet(struct bt_dfu_smp *smp, struct smp_packet *pkt,
 	pkt->header.group_l8 = (uint8_t)(group_id & 0xffU);
 	pkt->header.seq = ota_seq++;
 	pkt->header.id = command_id;
+	printk("OTA send: op=%u len=%u group=0x%04x cmd=0x%02x seq=%u\n",
+	       (unsigned int)pkt->header.op,
+	       (unsigned int)payload_len,
+	       (unsigned int)group_id,
+	       (unsigned int)command_id,
+	       (unsigned int)pkt->header.seq);
 	if (!first_upload_dumped &&
 	    group_id == OTA_SMP_GROUP_IMG &&
 	    command_id == OTA_SMP_CMD_IMG_UPLOAD) {
@@ -1049,6 +1065,11 @@ static int ota_send_packet(struct bt_dfu_smp *smp, struct smp_packet *pkt,
 	tx_len = sizeof(pkt->header) + payload_len;
 
 	rc = bt_dfu_smp_command(smp, smp_rsp_part_cb, tx_len, pkt);
+	printk("OTA command issued: rc=%d tx_len=%u smp=0x%04x ccc=0x%04x\n",
+	       rc,
+	       (unsigned int)tx_len,
+	       (unsigned int)smp->handles.smp,
+	       (unsigned int)smp->handles.smp_ccc);
 	if (rc) {
 		printk("OTA command send failed: group=0x%04x cmd=0x%02x rc=%d\n",
 		       group_id, command_id, rc);
@@ -1061,6 +1082,16 @@ static int ota_send_packet(struct bt_dfu_smp *smp, struct smp_packet *pkt,
 		uint32_t t1_ms = k_uptime_get_32();
 		printk("[%u->%u] OTA command wait failed: group=0x%04x cmd=0x%02x rc=%d\n",
 		       t0_ms, t1_ms, group_id, command_id, -ETIMEDOUT);
+		printk("OTA wait debug: rsp_len=%u rsp_total=%u chunk=%u off=%u\n",
+		       (unsigned int)smp_rsp_len,
+		       (unsigned int)smp_rsp_total,
+		       (unsigned int)smp->rsp_state.chunk_size,
+		       (unsigned int)smp->rsp_state.offset);
+		/* Timeout leaves DFU SMP rsp callback armed; clear local state so
+		 * next command does not fail with -EBUSY.
+		 */
+		smp->cbs.rsp_part = NULL;
+		memset(&smp->rsp_state, 0, sizeof(smp->rsp_state));
 		return -ETIMEDOUT;
 	}
 
@@ -1373,9 +1404,8 @@ static int ota_prime_link(struct bt_dfu_smp *smp)
 	printk("\n");
 	rc = ota_send_packet(smp, &pkt, payload_len, &result, OTA_SMP_GROUP_OS, 0U);
 	if (rc == -ETIMEDOUT) {
-		printk("OTA prime retry once after timeout\n");
-		k_sleep(K_MSEC(150));
-		rc = ota_send_packet(smp, &pkt, payload_len, &result, OTA_SMP_GROUP_OS, 0U);
+		printk("OTA prime timeout (non-fatal), continue with IMG erase/upload\n");
+		return 0;
 	}
 	return rc;
 }
@@ -1383,6 +1413,9 @@ static int ota_prime_link(struct bt_dfu_smp *smp)
 static void ota_try_schedule_start(void)
 {
 	if (!APP_MASTER_OTA_UPLOAD_ENABLE) {
+		return;
+	}
+	if (!ota_armed) {
 		return;
 	}
 
@@ -1562,6 +1595,10 @@ static void discovery_complete(struct bt_gatt_dm *dm, void *context)
 	printk("DFU handles: smp=0x%04x ccc=0x%04x\n",
 	       dfu_smp.handles.smp, dfu_smp.handles.smp_ccc);
 	master_leds_set(false, true, false, false);
+	/* Give peer and ATT subscription path a short settle window before
+	 * issuing first SMP command to reduce first-command timeouts.
+	 */
+	k_sleep(K_MSEC(300));
 	ota_try_schedule_start();
 
 	bt_gatt_dm_data_release(dm);
@@ -1635,6 +1672,8 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
 	struct bt_conn_info info;
+	int sec_err;
+	int scan_err;
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
@@ -1663,24 +1702,71 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 		printk("Conn LE params: int=%u lat=%u timeout=%u\n",
 		       info.le.interval, info.le.latency, info.le.timeout);
 	}
+	sec_ready = false;
+	k_sem_reset(&sec_ready_sem);
+	sec_err = bt_conn_set_security(conn, BT_SECURITY_L2);
+	if (sec_err && sec_err != -EALREADY) {
+		printk("Security request failed: %d\n", sec_err);
+	} else {
+		printk("Security request: L2 (rc=%d)\n", sec_err);
+		/* Some targets gate MCUmgr writes by ATT perms; wait briefly for
+		 * encrypted link before DFU discovery/commands.
+		 */
+		(void)k_sem_take(&sec_ready_sem, K_SECONDS(3));
+	}
+	/* Stop scan before OTA service discovery to avoid scan callbacks from
+	 * unrelated peers racing with OTA state on busy benches.
+	 */
+	scan_err = bt_scan_stop();
+	if (scan_err && scan_err != -EALREADY) {
+		printk("Scan stop after connect failed: %d\n", scan_err);
+	}
+
 	exchange_params.func = exchange_func;
 	(void)bt_gatt_exchange_mtu(conn, &exchange_params);
-	discovery_phase = DISCOVERY_PHASE_NUS;
-	gatt_discover_nus(conn);
-	(void)bt_scan_stop();
+	if (runtime_expect_nus) {
+		discovery_phase = DISCOVERY_PHASE_NUS;
+		gatt_discover_nus(conn);
+	} else {
+		discovery_phase = DISCOVERY_PHASE_DFU;
+		gatt_discover_dfu(conn);
+	}
 	master_leds_set(false, true, false, false);
+}
+
+static void security_changed(struct bt_conn *conn, bt_security_t level,
+			     enum bt_security_err err)
+{
+	char addr[BT_ADDR_LE_STR_LEN];
+
+	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
+	printk("Security changed: %s level=%u err=%u\n", addr,
+	       (unsigned int)level, (unsigned int)err);
+
+	if (conn == default_conn && err == BT_SECURITY_ERR_SUCCESS &&
+	    level >= BT_SECURITY_L2) {
+		sec_ready = true;
+		k_sem_give(&sec_ready_sem);
+	}
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
+	bool was_default = (default_conn == conn);
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 	printk("Disconnected: %s reason 0x%02x\n", addr, reason);
 
-	if (default_conn == conn) {
+	if (was_default) {
 		bt_conn_unref(default_conn);
 		default_conn = NULL;
+	} else {
+		/* Ignore stale/non-target disconnects; they must not reset the
+		 * active OTA attempt or restart scanning while OTA is running.
+		 */
+		printk("Disconnected ignored (not default_conn)\n");
+		return;
 	}
 
 	ota_ready = false;
@@ -1703,6 +1789,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 BT_CONN_CB_DEFINE(conn_callbacks) = {
 	.connected = connected,
 	.disconnected = disconnected,
+	.security_changed = security_changed,
 };
 
 static void scan_filter_match(struct bt_scan_device_info *device_info,
@@ -1725,11 +1812,23 @@ static void scan_filter_match(struct bt_scan_device_info *device_info,
 	if (!ad_extract_uuid_hex(device_info->adv_data, uuid_hex, sizeof(uuid_hex))) {
 		uuid_hex[0] = '\0';
 	}
+	/* Defensive strict gate before any connect attempt:
+	 * when UUID target is configured, only an exact UUID match is allowed.
+	 */
+	if (runtime_target_uuid[0] != '\0') {
+		if (uuid_hex[0] == '\0' || !str_case_eq(uuid_hex, runtime_target_uuid)) {
+			printk("Scan reject: %s reason=uuid_mismatch got=%s want=%s\n",
+			       addr,
+			       uuid_hex[0] != '\0' ? uuid_hex : "-",
+			       runtime_target_uuid);
+			ota_set_state(OTA_OP_TARGET_REJECTED, "uuid_mismatch");
+			return;
+		}
+	}
 	accept = ad_eval_target(device_info->adv_data, name, token_id, uuid_hex, &eval);
-	printk("Scan match: %s connectable=%d name=%s token=%d uuid=%s name_ok=%u token_ok=%u uuid_ok=%u strict_id=%u\n",
+	printk("Scan eval: %s conn=%d token=%d uuid=%s name_ok=%u token_ok=%u uuid_ok=%u strict_id=%u\n",
 	       addr,
 	       connectable,
-	       name[0] != '\0' ? name : "-",
 	       token_id == 0xffU ? -1 : (int)token_id,
 	       uuid_hex[0] != '\0' ? uuid_hex : "-",
 	       eval.name_match ? 1U : 0U,
@@ -1821,6 +1920,71 @@ static int scan_init(void)
 	return 0;
 }
 
+struct ota_disconnect_ctx {
+	int requested;
+};
+
+static void ota_disconnect_each_cb(struct bt_conn *conn, void *user_data)
+{
+	struct ota_disconnect_ctx *ctx = user_data;
+	int err;
+
+	if (!conn || !ctx) {
+		return;
+	}
+
+	err = bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+	if (err == 0 || err == -EALREADY || err == -ENOTCONN) {
+		ctx->requested++;
+	}
+}
+
+int master_ota_initiate(void)
+{
+	int err;
+	struct ota_disconnect_ctx dctx = {0};
+
+	/* Reset runtime state for a fresh strict-target attempt. */
+	ota_ready = false;
+	ota_started = false;
+	ota_done = false;
+	ota_armed = true;
+	ota_start_queued = false;
+	mtu_ready = false;
+	nus_ready = false;
+	ota_status = 0;
+	selected_identity_verified = false;
+	selected_addr[0] = '\0';
+	selected_name[0] = '\0';
+	selected_uuid[0] = '\0';
+	selected_token = -1;
+	if (default_conn != NULL) {
+		bt_conn_unref(default_conn);
+		default_conn = NULL;
+	}
+
+	bt_conn_foreach(BT_CONN_TYPE_ALL, ota_disconnect_each_cb, &dctx);
+	printk("OTA initiate: disconnect requests=%d\n", dctx.requested);
+	k_sleep(K_MSEC(250));
+
+	err = bt_scan_stop();
+	if (err && err != -EALREADY) {
+		printk("OTA initiate: scan stop failed: %d\n", err);
+	}
+	k_sleep(K_MSEC(120));
+
+	err = bt_scan_start(BT_SCAN_TYPE_SCAN_PASSIVE);
+	if (err && err != -EALREADY) {
+		printk("OTA initiate: scan start failed: %d\n", err);
+		ota_set_state(OTA_OP_CONNECT_FAILED, "initiate_scan_start_failed");
+		return err;
+	}
+
+	ota_set_state(OTA_OP_CONNECT_PENDING, "initiate");
+	printk("OTA initiate: scan restarted (passive), armed=1\n");
+	return 0;
+}
+
 static int ota_bootstrap(void)
 {
 	int err;
@@ -1828,6 +1992,7 @@ static int ota_bootstrap(void)
 	k_sem_init(&ota_sem, 0, 1);
 	k_sem_init(&ota_start_sem, 0, 1);
 	k_sem_init(&nus_write_sem, 0, 1);
+	k_sem_init(&sec_ready_sem, 0, 1);
 	k_thread_create(&ota_thread, ota_thread_stack, K_THREAD_STACK_SIZEOF(ota_thread_stack),
 			ota_thread_fn, NULL, NULL, NULL, 5, 0, K_NO_WAIT);
 
@@ -1844,6 +2009,7 @@ static int ota_bootstrap(void)
 	ota_ready = false;
 	ota_started = false;
 	ota_done = false;
+	ota_armed = false;
 	ota_start_queued = false;
 	mtu_ready = false;
 	ota_status = 0;

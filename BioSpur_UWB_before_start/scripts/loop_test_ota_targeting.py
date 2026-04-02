@@ -15,6 +15,7 @@ from serial import SerialException
 
 
 CONNECT_RE = re.compile(r"Connect start:\s+(.+?)\s+token=([-\d]+)\s+name=(.+)$")
+CONNECTED_LINE_RE = re.compile(r"^Connected:\s+(.+)$")
 EVIDENCE_RE = re.compile(r"Connected target evidence:\s+verified=(\d+)\s+uuid=([0-9A-F\-]+)\s+name=(.+?)\s+token=([-\d]+)")
 SCAN_DECISION_RE = re.compile(r"Scan decision:\s+(.+?)\s+accept=(\d+).+target_uuid=([0-9A-F\-]+)")
 STATE_RE = re.compile(r"OTA_STATE:([a-z_]+)\s+detail=(.+)$")
@@ -91,9 +92,6 @@ def run_trial(args: argparse.Namespace, out_dir: Path, trial: int) -> TrialResul
         f"ota_target uuid {target_uuid}\n",
         f"ota_target name {args.target_name}\n" if args.target_name else "ota_target name -\n",
         "ota_target token -1\n",
-        # Force a mode cycle so each trial starts from a clean OTA state-machine path.
-        "mode recv\n",
-        "mode ota\n",
     ]
 
     selected_addr = ""
@@ -102,6 +100,7 @@ def run_trial(args: argparse.Namespace, out_dir: Path, trial: int) -> TrialResul
     ota_started = False
     ota_completed = False
     blocked_identity = False
+    ota_failed = False
     op_states: list[str] = []
     notes = ""
     log_path = trial_dir / "ota_trial.log"
@@ -109,7 +108,13 @@ def run_trial(args: argparse.Namespace, out_dir: Path, trial: int) -> TrialResul
     with log_path.open("w", encoding="utf-8") as log:
         t0 = time.time()
         cmd_index = 0
-        next_cmd_at = [1.5, 2.0, 2.5, 3.0, 3.5, 4.3, 9.0]
+        next_cmd_at = [1.5, 2.0, 2.5, 3.0, 3.5]
+        current_mode = ""
+        mode_ota_sent = False
+        initiate_sent = False
+        saw_conn_ignored = False
+        mode_ota_at = 4.3
+        initiate_at = 7.0
         s = None
 
         while time.time() - t0 < args.trial_timeout_s:
@@ -136,6 +141,18 @@ def run_trial(args: argparse.Namespace, out_dir: Path, trial: int) -> TrialResul
                     log.flush()
                     cmd_index += 1
 
+                if cmd_index >= len(commands):
+                    if (not mode_ota_sent) and rel >= mode_ota_at:
+                        s.write(b"mode ota\n")
+                        log.write(f"[HOST_CMD {rel:7.2f}s] mode ota\n")
+                        log.flush()
+                        mode_ota_sent = True
+                    if mode_ota_sent and (not initiate_sent) and rel >= initiate_at:
+                        s.write(b"initiate\n")
+                        log.write(f"[HOST_CMD {rel:7.2f}s] initiate\n")
+                        log.flush()
+                        initiate_sent = True
+
                 line = s.readline().decode("utf-8", errors="replace").rstrip("\r\n")
             except SerialException as e:
                 log.write(f"[HOST_EVT {time.time()-t0:7.2f}s] serial_lost err={e}\n")
@@ -156,6 +173,9 @@ def run_trial(args: argparse.Namespace, out_dir: Path, trial: int) -> TrialResul
             m = CONNECT_RE.search(line)
             if m:
                 selected_addr = m.group(1).strip()
+            m_conn = CONNECTED_LINE_RE.search(line)
+            if m_conn and not selected_addr:
+                selected_addr = m_conn.group(1).strip()
             m2 = EVIDENCE_RE.search(line)
             if m2:
                 verified = m2.group(1) == "1"
@@ -165,12 +185,25 @@ def run_trial(args: argparse.Namespace, out_dir: Path, trial: int) -> TrialResul
                 st = m3.group(1).strip()
                 if not op_states or op_states[-1] != st:
                     op_states.append(st)
+            if "Control status: mode=" in line:
+                try:
+                    current_mode = line.split("mode=", 1)[1].split()[0].strip()
+                except Exception:
+                    pass
+            if "CONN ignored: control mode must be RECV" in line:
+                saw_conn_ignored = True
             if "OTA upload starting" in line:
                 ota_started = True
             if "OTA upload complete" in line:
                 ota_completed = True
             if "OTA start blocked: identity not verified" in line:
                 blocked_identity = True
+            if ("OTA erase failed:" in line or
+                "OTA upload failed:" in line or
+                "OTA reset failed:" in line or
+                "OTA state read failed:" in line):
+                ota_failed = True
+                break
             if "Disconnected:" in line and (ota_completed or blocked_identity):
                 break
 
@@ -186,7 +219,7 @@ def run_trial(args: argparse.Namespace, out_dir: Path, trial: int) -> TrialResul
     post_ota_rediscovered = post_ota_target_present
     wrong_target_started = ota_started and selected_uuid not in ("", target_uuid)
 
-    if selected_addr == "":
+    if selected_addr == "" and not ota_started and "ota_uploading" not in op_states:
         notes = "no_connect_event"
     elif blocked_identity:
         notes = "blocked_identity"
@@ -194,6 +227,8 @@ def run_trial(args: argparse.Namespace, out_dir: Path, trial: int) -> TrialResul
         notes = "ota_completed_target_verified"
     elif ota_completed and not target_match:
         notes = "ota_completed_but_target_mismatch"
+    elif ota_failed:
+        notes = "ota_failed"
     else:
         notes = "incomplete"
 
