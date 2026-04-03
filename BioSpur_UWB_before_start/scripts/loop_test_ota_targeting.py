@@ -34,6 +34,10 @@ class TrialResult:
     post_ota_target_present: bool
     target_match: bool
     wrong_target_started: bool
+    recv_bg_interference: bool
+    first_upload_tx_seen: bool
+    first_upload_rsp_seen: bool
+    upload_progressed: bool
     op_states: list[str]
     notes: str
     log_path: str
@@ -49,6 +53,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--flash-image", default="build-master-control-anchor-ota-20260331f/master_control/zephyr/zephyr.hex")
     p.add_argument("--skip-flash", action="store_true")
     p.add_argument("--out-dir", default="")
+    p.add_argument("--direct-ota-mode", action="store_true",
+                   help="Skip preflip through RECV mode; switch/use OTA mode directly.")
     return p.parse_args()
 
 
@@ -81,19 +87,30 @@ def run_trial(args: argparse.Namespace, out_dir: Path, trial: int) -> TrialResul
         flash_log = trial_dir / "flash_52840.log"
         rc = run_cmd(["scripts/flash_master_noninteractive.sh", args.flash_image], flash_log)
         if rc != 0:
-            return TrialResult(trial, "", "", False, False, False, False, False, f"flash_failed rc={rc}", str(flash_log))
+            return TrialResult(
+                trial=trial,
+                selected_addr="",
+                selected_uuid="",
+                verified=False,
+                ota_started=False,
+                ota_completed=False,
+                blocked_identity=False,
+                post_ota_rediscovered=False,
+                post_ota_target_present=False,
+                target_match=False,
+                wrong_target_started=False,
+                recv_bg_interference=False,
+                first_upload_tx_seen=False,
+                first_upload_rsp_seen=False,
+                upload_progressed=False,
+                op_states=[],
+                notes=f"flash_failed rc={rc}",
+                log_path=str(flash_log),
+            )
 
     pre_scan = scan_snapshot(trial_dir / "scan_pre.csv")
 
     target_uuid = args.target_uuid.upper().strip()
-    commands = [
-        "status\n",
-        "device kind anchor\n",
-        f"ota_target uuid {target_uuid}\n",
-        f"ota_target name {args.target_name}\n" if args.target_name else "ota_target name -\n",
-        "ota_target token -1\n",
-    ]
-
     selected_addr = ""
     selected_uuid = ""
     verified = False
@@ -101,20 +118,37 @@ def run_trial(args: argparse.Namespace, out_dir: Path, trial: int) -> TrialResul
     ota_completed = False
     blocked_identity = False
     ota_failed = False
+    recv_bg_interference = False
+    first_upload_tx_seen = False
+    first_upload_rsp_seen = False
+    upload_progressed = False
     op_states: list[str] = []
     notes = ""
     log_path = trial_dir / "ota_trial.log"
 
     with log_path.open("w", encoding="utf-8") as log:
         t0 = time.time()
-        cmd_index = 0
-        next_cmd_at = [1.5, 2.0, 2.5, 3.0, 3.5]
         current_mode = ""
-        mode_ota_sent = False
         initiate_sent = False
-        saw_conn_ignored = False
-        mode_ota_at = 4.3
-        initiate_at = 7.0
+        initiate_ack_seen = False
+        device_anchor_sent = False
+        device_anchor_ack = False
+        device_anchor_last_tx = 0.0
+        device_anchor_retry = 0
+        mode_recv_sent = False
+        mode_ota_sent = False
+        mode_ota_ack = False
+        mode_ota_last_tx = 0.0
+        mode_ota_retry = 0
+        recv_loaded = False
+        ota_loaded = False
+        target_cfg_sent = False
+        cfg_phase = 0
+        cfg_phase_started_at = 0.0
+        cfg_last_tx_at = 0.0
+        cfg_retry_count = 0
+        direct_status_last_tx = 0.0
+        ota_session_active = False
         s = None
 
         while time.time() - t0 < args.trial_timeout_s:
@@ -134,24 +168,26 @@ def run_trial(args: argparse.Namespace, out_dir: Path, trial: int) -> TrialResul
 
             rel = time.time() - t0
             try:
-                while cmd_index < len(commands) and rel >= next_cmd_at[cmd_index]:
-                    cmd = commands[cmd_index]
-                    s.write(cmd.encode("utf-8"))
-                    log.write(f"[HOST_CMD {rel:7.2f}s] {cmd}")
-                    log.flush()
-                    cmd_index += 1
+                if (not device_anchor_ack) and rel >= 0.2:
+                    now = time.time()
+                    if (not device_anchor_sent) or (
+                        now - device_anchor_last_tx >= 1.5 and device_anchor_retry < 8
+                    ):
+                        s.write(b"device kind anchor\n")
+                        log.write(f"[HOST_CMD {rel:7.2f}s] device kind anchor\n")
+                        log.flush()
+                        device_anchor_sent = True
+                        device_anchor_last_tx = now
+                        device_anchor_retry += 1
 
-                if cmd_index >= len(commands):
-                    if (not mode_ota_sent) and rel >= mode_ota_at:
-                        s.write(b"mode ota\n")
-                        log.write(f"[HOST_CMD {rel:7.2f}s] mode ota\n")
+                if (not mode_recv_sent) and rel >= 0.8:
+                    if args.direct_ota_mode:
+                        mode_recv_sent = True
+                    else:
+                        s.write(b"mode recv\n")
+                        log.write(f"[HOST_CMD {rel:7.2f}s] mode recv\n")
                         log.flush()
-                        mode_ota_sent = True
-                    if mode_ota_sent and (not initiate_sent) and rel >= initiate_at:
-                        s.write(b"initiate\n")
-                        log.write(f"[HOST_CMD {rel:7.2f}s] initiate\n")
-                        log.flush()
-                        initiate_sent = True
+                        mode_recv_sent = True
 
                 line = s.readline().decode("utf-8", errors="replace").rstrip("\r\n")
             except SerialException as e:
@@ -185,13 +221,148 @@ def run_trial(args: argparse.Namespace, out_dir: Path, trial: int) -> TrialResul
                 st = m3.group(1).strip()
                 if not op_states or op_states[-1] != st:
                     op_states.append(st)
+                if st == "ota_uploading":
+                    ota_started = True
+            if "OTA session acquired" in line:
+                ota_session_active = True
+            if "OTA session released" in line:
+                ota_session_active = False
+            if "OTA first IMG_UPLOAD tx prep" in line:
+                first_upload_tx_seen = True
+            if "OTA rsp part:" in line and "cmd=0x01" in line:
+                first_upload_rsp_seen = True
+            if "OTA upload progress:" in line:
+                try:
+                    pct = int(line.split("OTA upload progress:", 1)[1].split("%", 1)[0].strip())
+                    if pct >= 2:
+                        upload_progressed = True
+                except Exception:
+                    pass
+            if "OTA upload ack:" in line:
+                m_off = re.search(r"off=(\d+)", line)
+                if m_off and int(m_off.group(1)) > 64:
+                    upload_progressed = True
+
+            if ota_session_active:
+                if "Connected[0]:" in line or "Scanning for BS*" in line:
+                    recv_bg_interference = True
+                if "SCAN hit:" in line and "bs=BSF66F" in line:
+                    recv_bg_interference = True
+            if "device kind set: anchor" in line or "OTA NUS stage: disabled" in line:
+                device_anchor_ack = True
             if "Control status: mode=" in line:
                 try:
                     current_mode = line.split("mode=", 1)[1].split()[0].strip()
+                    if current_mode.upper() == "RECV":
+                        recv_loaded = True
+                    elif current_mode.upper() == "OTA":
+                        ota_loaded = True
+                        mode_ota_ack = True
                 except Exception:
                     pass
-            if "CONN ignored: control mode must be RECV" in line:
-                saw_conn_ignored = True
+            elif "Control mode loaded: OTA" in line:
+                current_mode = "OTA"
+                ota_loaded = True
+                mode_ota_ack = True
+            elif "Control mode loaded: RECV" in line:
+                current_mode = "RECV"
+                recv_loaded = True
+
+            if ((recv_loaded and not args.direct_ota_mode) or (args.direct_ota_mode and mode_recv_sent)) and (not mode_ota_ack):
+                now = time.time()
+                if (not mode_ota_sent) or (now - mode_ota_last_tx >= 1.5 and mode_ota_retry < 8):
+                    s.write(b"mode ota\n")
+                    log.write(f"[HOST_CMD {time.time()-t0:7.2f}s] mode ota\n")
+                    log.flush()
+                    mode_ota_sent = True
+                    mode_ota_last_tx = now
+                    mode_ota_retry += 1
+                    if args.direct_ota_mode:
+                        s.write(b"status\n")
+                        log.write(f"[HOST_CMD {time.time()-t0:7.2f}s] status\n")
+                        log.flush()
+                        direct_status_last_tx = time.time()
+
+            if args.direct_ota_mode and mode_ota_sent and (not mode_ota_ack):
+                now = time.time()
+                if now - direct_status_last_tx >= 2.0:
+                    s.write(b"status\n")
+                    log.write(f"[HOST_CMD {time.time()-t0:7.2f}s] status\n")
+                    log.flush()
+                    direct_status_last_tx = now
+
+            if mode_ota_ack and (not target_cfg_sent):
+                cfg_phase = 1
+                cfg_phase_started_at = time.time()
+                cfg_last_tx_at = 0.0
+                cfg_retry_count = 0
+                target_cfg_sent = True
+                s.write(b"status\n")
+                log.write(f"[HOST_CMD {time.time()-t0:7.2f}s] status\n")
+                log.flush()
+
+            # In direct-OTA mode, CDC re-enumeration + noisy log streams can
+            # delay/garble status parsing. Avoid blocking forever on ota_loaded.
+            if args.direct_ota_mode and mode_ota_ack and (not target_cfg_sent) and rel >= 4.0:
+                cfg_phase = 1
+                cfg_phase_started_at = time.time()
+                cfg_last_tx_at = 0.0
+                cfg_retry_count = 0
+                target_cfg_sent = True
+                s.write(b"status\n")
+                log.write(f"[HOST_CMD {time.time()-t0:7.2f}s] status\n")
+                log.flush()
+
+            if target_cfg_sent and not initiate_sent:
+                now = time.time()
+                need_tx = (cfg_last_tx_at == 0.0) or (now - cfg_last_tx_at >= 2.0 and cfg_retry_count < 3)
+                if need_tx:
+                    if cfg_phase == 1:
+                        cmd = f"ota_target uuid {target_uuid}\n"
+                    elif cfg_phase == 2:
+                        cmd = f"ota_target name {args.target_name}\n" if args.target_name else "ota_target name -\n"
+                    elif cfg_phase == 3:
+                        cmd = "ota_target token -1\n"
+                    elif cfg_phase == 4:
+                        cmd = "initiate\n"
+                    else:
+                        cmd = ""
+                    if cmd:
+                        s.write(cmd.encode("utf-8"))
+                        log.write(f"[HOST_CMD {time.time()-t0:7.2f}s] {cmd}")
+                        log.flush()
+                        cfg_last_tx_at = now
+                        cfg_retry_count += 1
+
+                if cfg_phase in (1, 2, 3) and (time.time() - cfg_phase_started_at > 20.0):
+                    ota_failed = True
+                    notes = f"cfg_phase_timeout_{cfg_phase}"
+                    break
+                if cfg_phase == 4 and (time.time() - cfg_phase_started_at > 25.0):
+                    ota_failed = True
+                    notes = "initiate_timeout"
+                    break
+
+            if "initiate rc=" in line:
+                initiate_ack_seen = True
+                initiate_sent = True
+            if "ota_target uuid rc=0" in line and cfg_phase == 1:
+                cfg_phase = 2
+                cfg_phase_started_at = time.time()
+                cfg_last_tx_at = 0.0
+                cfg_retry_count = 0
+            if "ota_target name rc=0" in line and cfg_phase == 2:
+                cfg_phase = 3
+                cfg_phase_started_at = time.time()
+                cfg_last_tx_at = 0.0
+                cfg_retry_count = 0
+            if "ota_target token rc=0" in line and cfg_phase == 3:
+                cfg_phase = 4
+                cfg_phase_started_at = time.time()
+                cfg_last_tx_at = 0.0
+                cfg_retry_count = 0
+            if "initiate rc=" in line and cfg_phase == 4:
+                cfg_phase = 5
             if "OTA upload starting" in line:
                 ota_started = True
             if "OTA upload complete" in line:
@@ -245,6 +416,12 @@ def run_trial(args: argparse.Namespace, out_dir: Path, trial: int) -> TrialResul
             drift.append(uuid)
     if drift:
         notes += f";non_target_drift={','.join(drift)}"
+    if recv_bg_interference:
+        notes += ";recv_bg_interference=1"
+    if first_upload_tx_seen and not first_upload_rsp_seen:
+        notes += ";first_upload_rsp_missing=1"
+    if first_upload_rsp_seen and not upload_progressed:
+        notes += ";upload_not_progressed=1"
 
     return TrialResult(
         trial=trial,
@@ -258,6 +435,10 @@ def run_trial(args: argparse.Namespace, out_dir: Path, trial: int) -> TrialResul
         post_ota_target_present=post_ota_target_present,
         target_match=target_match,
         wrong_target_started=wrong_target_started,
+        recv_bg_interference=recv_bg_interference,
+        first_upload_tx_seen=first_upload_tx_seen,
+        first_upload_rsp_seen=first_upload_rsp_seen,
+        upload_progressed=upload_progressed,
         op_states=op_states,
         notes=notes,
         log_path=str(log_path),
@@ -290,6 +471,9 @@ def main() -> int:
         "ota_completed_count": sum(1 for r in results if r.ota_completed),
         "blocked_identity_count": sum(1 for r in results if r.blocked_identity),
         "wrong_target_trials": sum(1 for r in results if r.wrong_target_started),
+        "recv_bg_interference_trials": sum(1 for r in results if r.recv_bg_interference),
+        "first_upload_rsp_missing_trials": sum(1 for r in results if r.first_upload_tx_seen and not r.first_upload_rsp_seen),
+        "upload_not_progressed_trials": sum(1 for r in results if r.first_upload_rsp_seen and not r.upload_progressed),
         "post_ota_readback_success_count": sum(1 for r in results if r.post_ota_rediscovered),
         "non_target_drift_trials": sum(1 for r in results if "non_target_drift=" in r.notes),
         "safety_converged": all(not r.wrong_target_started for r in results),

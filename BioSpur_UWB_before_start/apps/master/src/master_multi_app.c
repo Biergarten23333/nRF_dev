@@ -88,6 +88,8 @@ static int connecting_slot = -1;
 static uint8_t conn_count;
 static bool scan_running;
 static bool auto_connect_enabled = true;
+static bool recv_background_gate_open = true;
+static uint32_t recv_bg_suppressed_count;
 static bool leds_ready;
 static bool led_scan_state;
 static bool led_link_state;
@@ -99,6 +101,12 @@ static bool runtime_one_shot_cmd_set;
 static struct bt_gatt_dm_cb discovery_cb;
 static void start_scan(void);
 static void stop_scan(void);
+static void master_try_connect_pending(void);
+
+static bool recv_background_allowed(void)
+{
+	return recv_background_gate_open;
+}
 
 static const char *active_one_shot_command(void)
 {
@@ -577,6 +585,10 @@ static void master_try_connect_pending(void)
 	int slot = -1;
 	int err;
 
+	if (!recv_background_allowed()) {
+		return;
+	}
+
 	if (!auto_connect_enabled || connecting_slot >= 0 ||
 	    conn_count >= MASTER_MAX_CONNECTIONS) {
 		return;
@@ -645,6 +657,11 @@ static void scan_log_candidate(const struct bt_le_scan_recv_info *info,
 static void start_scan(void)
 {
 	int err;
+
+	if (!recv_background_allowed()) {
+		printk("RECV_BG suppressed: scan start skipped\n");
+		return;
+	}
 
 	if (scan_running || connecting_slot >= 0 || conn_count >= MASTER_MAX_CONNECTIONS) {
 		return;
@@ -1063,6 +1080,15 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	struct net_buf_simple name_copy = *buf;
 	char adv_name[MASTER_NAME_BUF_LEN];
 
+	if (!recv_background_allowed()) {
+		recv_bg_suppressed_count++;
+		if ((recv_bg_suppressed_count % 32U) == 1U) {
+			printk("RECV_BG suppressed: drop scan candidate while gate closed (count=%lu)\n",
+			       (unsigned long)recv_bg_suppressed_count);
+		}
+		return;
+	}
+
 	if (!(info->adv_props & BT_GAP_ADV_PROP_CONNECTABLE)) {
 		return;
 	}
@@ -1163,6 +1189,17 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 		return;
 	}
 
+	if (!recv_background_allowed()) {
+		printk("RECV_BG suppressed: disconnect unsolicited post-gate peer[%d]: %s\n",
+		       idx, addr);
+		(void)bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+		if (idx >= 0 && idx < (int)ARRAY_SIZE(peers)) {
+			peer_clear((unsigned int)idx, true);
+		}
+		connecting_slot = -1;
+		return;
+	}
+
 	if (peers[idx].bs_code_valid) {
 		snprintk(bs_name, sizeof(bs_name), "BS%04X", peers[idx].bs_code);
 	} else {
@@ -1213,8 +1250,12 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 
 	master_leds_refresh();
 	master_rebalance_tdma_slots();
-	start_scan();
-	master_try_connect_pending();
+	if (recv_background_allowed()) {
+		start_scan();
+		master_try_connect_pending();
+	} else {
+		printk("RECV_BG suppressed: disconnect handler restart blocked\n");
+	}
 }
 
 static void conn_param_updated(struct bt_conn *conn, uint16_t interval,
@@ -1310,7 +1351,11 @@ void master_set_connect_and_start_mode(void)
 {
 	auto_connect_enabled = true;
 	printk("Master discovery mode: CONN & START\n");
-	master_try_connect_pending();
+	if (recv_background_allowed()) {
+		master_try_connect_pending();
+	} else {
+		printk("RECV_BG suppressed: connect/start deferred by gate\n");
+	}
 }
 
 void master_disconnect_all_peers(void)
@@ -1328,7 +1373,32 @@ void master_disconnect_all_peers(void)
 
 void master_restart_discovery(void)
 {
+	if (!recv_background_allowed()) {
+		printk("RECV_BG suppressed: restart discovery ignored by gate\n");
+		return;
+	}
+
 	stop_scan();
+	start_scan();
+	master_try_connect_pending();
+}
+
+void master_set_background_gate(bool allow, const char *reason)
+{
+	if (recv_background_gate_open == allow) {
+		return;
+	}
+
+	recv_background_gate_open = allow;
+	printk("RECV_BG gate: %s reason=%s\n",
+	       allow ? "ALLOW" : "SUPPRESS",
+	       (reason != NULL && reason[0] != '\0') ? reason : "-");
+
+	if (!allow) {
+		stop_scan();
+		return;
+	}
+
 	start_scan();
 	master_try_connect_pending();
 }

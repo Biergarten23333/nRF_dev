@@ -10,6 +10,8 @@
 #endif
 
 #if defined(CONFIG_MCUMGR_MGMT_NOTIFICATION_HOOKS)
+static volatile bool g_anchor_ota_active;
+
 static const char *smp_event_name(uint32_t event)
 {
     switch (event) {
@@ -29,6 +31,8 @@ static enum mgmt_cb_return smp_cb(uint32_t event, enum mgmt_cb_return prev_statu
                                   size_t data_size)
 {
     const struct mgmt_evt_op_cmd_arg *arg = data;
+    int32_t rc_val = (rc != NULL) ? *rc : 0;
+    uint16_t grp_val = (group != NULL) ? *group : 0U;
 
     ARG_UNUSED(prev_status);
     ARG_UNUSED(rc);
@@ -37,11 +41,12 @@ static enum mgmt_cb_return smp_cb(uint32_t event, enum mgmt_cb_return prev_statu
     ARG_UNUSED(data_size);
 
     if (arg != NULL) {
-        printk("MCUMGR_SMP_EVT %s grp=0x%04x id=%u val=%d\n",
+        printk("MCUMGR_SMP_EVT %s grp=0x%04x id=%u val=%d rc=%d evt_grp=0x%04x\n",
                smp_event_name(event), (unsigned int)arg->group, (unsigned int)arg->id,
-               (int)arg->op);
+               (int)arg->op, (int)rc_val, (unsigned int)grp_val);
     } else {
-        printk("MCUMGR_SMP_EVT %s (no-arg)\n", smp_event_name(event));
+        printk("MCUMGR_SMP_EVT %s (no-arg) rc=%d evt_grp=0x%04x\n",
+               smp_event_name(event), (int)rc_val, (unsigned int)grp_val);
     }
 
     return MGMT_CB_OK;
@@ -81,6 +86,16 @@ static enum mgmt_cb_return img_cb(uint32_t event, enum mgmt_cb_return prev_statu
     ARG_UNUSED(data);
     ARG_UNUSED(data_size);
 
+    if (event == MGMT_EVT_OP_IMG_MGMT_DFU_STARTED ||
+        event == MGMT_EVT_OP_IMG_MGMT_DFU_CHUNK ||
+        event == MGMT_EVT_OP_IMG_MGMT_DFU_CHUNK_WRITE_COMPLETE) {
+        g_anchor_ota_active = true;
+    } else if (event == MGMT_EVT_OP_IMG_MGMT_DFU_STOPPED ||
+               event == MGMT_EVT_OP_IMG_MGMT_DFU_PENDING ||
+               event == MGMT_EVT_OP_IMG_MGMT_DFU_CONFIRMED) {
+        g_anchor_ota_active = false;
+    }
+
     printk("MCUMGR_IMG_EVT %s\n", img_event_name(event));
     return MGMT_CB_OK;
 }
@@ -104,11 +119,22 @@ int anchor_mcumgr_diag_init(void)
 #if !defined(CONFIG_MCUMGR_MGMT_NOTIFICATION_HOOKS)
     return -ENOTSUP;
 #else
+    g_anchor_ota_active = false;
     mgmt_callback_register(&smp_evt_cb);
 #if defined(CONFIG_MCUMGR_GRP_IMG_STATUS_HOOKS)
     mgmt_callback_register(&img_evt_cb);
 #endif
     printk("anchor mcumgr diag callbacks registered\n");
     return 0;
+#endif
+}
+
+bool anchor_mcumgr_diag_ota_active(void)
+{
+#if !defined(CONFIG_MCUMGR_MGMT_NOTIFICATION_HOOKS) || \
+    !defined(CONFIG_MCUMGR_GRP_IMG_STATUS_HOOKS)
+    return false;
+#else
+    return g_anchor_ota_active;
 #endif
 }

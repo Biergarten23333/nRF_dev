@@ -1,10 +1,12 @@
 #include "ss_twr_resp.h"
 #include "uwb_ss_twr_shared.h"
+#include "anchor_mcumgr_diag.h"
 
 #include <string.h>
 
 #include <deca_device_api.h>
 #include <deca_regs.h>
+#include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
 
 #define SS_TWR_RESP_TX_ANT_DLY 16436U
@@ -20,6 +22,10 @@
 
 #ifndef APP_ANCHOR_VERBOSE_RESPONDER_ERRORS
 #define APP_ANCHOR_VERBOSE_RESPONDER_ERRORS 1U
+#endif
+
+#ifndef APP_ANCHOR_RESPONDER_COOP_SLEEP_MS
+#define APP_ANCHOR_RESPONDER_COOP_SLEEP_MS 0U
 #endif
 
 #define SS_TWR_RESP_RX_BUF_LEN 127U
@@ -89,10 +95,18 @@ static void ss_twr_resp_configure_radio(void)
                           SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_RX_TO);
 }
 
+static inline void ss_twr_resp_coop_sleep(void)
+{
+#if APP_ANCHOR_RESPONDER_COOP_SLEEP_MS > 0
+    k_msleep(APP_ANCHOR_RESPONDER_COOP_SLEEP_MS);
+#endif
+}
+
 int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
 {
     uint32 status_reg;
     uint32 rx_error_count = 0U;
+    uint32 wait_cycles = 0U;
 
     if (anchor_id >= UWB_MAX_ANCHORS) {
         printk("Invalid SS-TWR responder anchor_id=%u\n", anchor_id);
@@ -113,11 +127,28 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         uint32 frame_len;
         uint16_t poll_src_addr;
 
+        if (anchor_mcumgr_diag_ota_active()) {
+            /* During OTA, prioritize BLE/MCUmgr responsiveness over UWB
+             * ranging workload so first SMP upload chunks are not starved.
+             */
+            k_msleep(2);
+            continue;
+        }
+
         dwt_rxenable(DWT_START_RX_IMMEDIATE);
 
         do {
             status_reg = dwt_read32bitreg(SYS_STATUS_ID);
+            wait_cycles++;
+            if ((wait_cycles & 0x3FFU) == 0U) {
+                /* Responder runs forever on main thread; periodically yield so
+                 * BLE/mcumgr workqueues can make progress under heavy UWB load.
+                 */
+                k_yield();
+                ss_twr_resp_coop_sleep();
+            }
         } while ((status_reg & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_ERR)) == 0U);
+        wait_cycles = 0U;
 
         if ((status_reg & SYS_STATUS_RXFCG) == 0U) {
             rx_error_count++;
@@ -128,6 +159,7 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             }
             dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_ERR);
             dwt_rxreset();
+            ss_twr_resp_coop_sleep();
             continue;
         }
 
@@ -137,6 +169,7 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         if (frame_len > sizeof(ss_twr_resp_rx_buffer)) {
             dwt_forcetrxoff();
             dwt_rxreset();
+            ss_twr_resp_coop_sleep();
             continue;
         }
 
@@ -145,11 +178,13 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
 
         if (!uwb_ss_twr_poll_matches(ss_twr_resp_rx_buffer,
                                      ss_twr_resp_local_addr)) {
+            ss_twr_resp_coop_sleep();
             continue;
         }
 
         poll_src_addr = uwb_frame_get_src_addr(ss_twr_resp_rx_buffer);
         if (!ss_twr_resp_allow_tag_polls && uwb_short_addr_is_tag(poll_src_addr)) {
+            ss_twr_resp_coop_sleep();
             continue;
         }
 
@@ -178,6 +213,7 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             if (APP_ANCHOR_VERBOSE_RESPONDER_ERRORS != 0U) {
                 printk("Responder TX buffer write failed\n");
             }
+            ss_twr_resp_coop_sleep();
             continue;
         }
 
@@ -189,11 +225,18 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             }
             dwt_forcetrxoff();
             dwt_rxreset();
+            ss_twr_resp_coop_sleep();
             continue;
         }
 
         while ((dwt_read32bitreg(SYS_STATUS_ID) & SYS_STATUS_TXFRS) == 0U) {
+            wait_cycles++;
+            if ((wait_cycles & 0x3FFU) == 0U) {
+                k_yield();
+                ss_twr_resp_coop_sleep();
+            }
         }
+        wait_cycles = 0U;
 
         dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_TXFRS);
         if (APP_ANCHOR_VERBOSE_RESPONDER != 0U) {
@@ -210,5 +253,6 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             }
         }
         ss_twr_resp_frame_seq_nb++;
+        ss_twr_resp_coop_sleep();
     }
 }

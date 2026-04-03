@@ -79,6 +79,7 @@ static size_t uart_pending_len;
 static atomic_t uart_line_ready;
 static struct system_target_profile system_target;
 static bool ota_expect_nus_cfg = true;
+static bool ota_transition_active;
 
 struct disconnect_ctx {
 	int requested;
@@ -273,6 +274,11 @@ static void mode_switch_work_handler(struct k_work *work)
 	}
 
 	control_blink_ack();
+	if (requested_mode == CONTROL_MODE_OTA) {
+		ota_transition_active = true;
+		printk("MODE_TRANSITION: RECV->OTA transition_active=1\n");
+		master_set_background_gate(false, "mode_switch_to_ota");
+	}
 	control_disconnect_all_links();
 	control_mode = requested_mode;
 	control_save_mode();
@@ -293,6 +299,15 @@ static void request_mode_switch(uint8_t new_mode, uint8_t button_no)
 		printk("Control mode already %s\n", control_mode_name(control_mode));
 		atomic_set(&mode_switch_pending, 0);
 		return;
+	}
+
+	if (new_mode == CONTROL_MODE_OTA && control_mode == CONTROL_MODE_RECV) {
+		/* Close RECV background gate immediately to minimize transition
+		 * window before mode-switch worker runs.
+		 */
+		ota_transition_active = true;
+		printk("MODE_TRANSITION: request RECV->OTA (pre-gate)\n");
+		master_set_background_gate(false, "request_to_ota");
 	}
 
 	requested_mode = new_mode;
@@ -393,6 +408,10 @@ static void control_handle_uart_command(const char *line)
 		}
 
 		requested_source = REQ_SRC_BTN3;
+		if (ota_transition_active) {
+			printk("SCAN ignored: OTA transition active\n");
+			return;
+		}
 		master_set_scan_only_mode();
 		master_disconnect_all_peers();
 		master_restart_discovery();
@@ -407,6 +426,10 @@ static void control_handle_uart_command(const char *line)
 		}
 
 		requested_source = REQ_SRC_BTN4;
+		if (ota_transition_active) {
+			printk("CONN ignored: OTA transition active\n");
+			return;
+		}
 		master_set_connect_and_start_mode();
 		master_restart_discovery();
 		return;
@@ -418,6 +441,7 @@ static void control_handle_uart_command(const char *line)
 			control_print_help();
 			return;
 		}
+		ota_transition_active = false;
 		rc = master_ota_initiate();
 		printk("initiate rc=%d\n", rc);
 		return;
@@ -426,6 +450,7 @@ static void control_handle_uart_command(const char *line)
 	if (strcmp(cmd, "mode") == 0 && parsed >= 2) {
 		if (strcmp(arg, "ota") == 0) {
 			if (control_mode == CONTROL_MODE_OTA) {
+				ota_transition_active = false;
 				rc = master_ota_initiate();
 				printk("mode ota (already ota) -> initiate rc=%d\n", rc);
 				return;
@@ -735,10 +760,13 @@ int main(void)
 	control_print_help();
 
 	if (control_mode == CONTROL_MODE_OTA) {
+		ota_transition_active = false;
+		master_set_background_gate(false, "boot_ota_mode");
 		printk("Launching OTA mode\n");
 		return master_ota_run();
 	}
 
+	ota_transition_active = false;
 	printk("Launching receiver mode\n");
 	return master_app_run();
 }
