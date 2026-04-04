@@ -278,6 +278,12 @@ static void mode_switch_work_handler(struct k_work *work)
 		ota_transition_active = true;
 		printk("MODE_TRANSITION: RECV->OTA transition_active=1\n");
 		master_set_background_gate(false, "mode_switch_to_ota");
+		master_disconnect_all_peers();
+	} else if (requested_mode == CONTROL_MODE_RECV) {
+		/* Ensure OTA side releases scan/conn ownership before rebooting back
+		 * to RECV mode. This keeps mode handoff deterministic in unified image.
+		 */
+		master_ota_prepare_mode_switch();
 	}
 	control_disconnect_all_links();
 	control_mode = requested_mode;

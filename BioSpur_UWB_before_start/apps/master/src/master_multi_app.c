@@ -1109,8 +1109,16 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	scan_log_candidate(info, buf, name_match, nus_match, dfu_match, token_match,
 			  bs_code, bs_code_valid);
 
-	/* Only consider tag-capable peers for receiver auto-connect. */
-	if (!(name_match || nus_match || dfu_match)) {
+	/* RECV path must connect only to peers that can carry runtime data over NUS.
+	 * DFU-only advertisers (typical anchors in OTA-capable builds) cause
+	 * connect/disconnect churn and zero CM/TS samples.
+	 */
+	if (!(name_match || nus_match)) {
+		if (dfu_match) {
+			char addr[BT_ADDR_LE_STR_LEN];
+			bt_addr_le_to_str(info->addr, addr, sizeof(addr));
+			printk("RECV candidate rejected: DFU-only peer %s (no NUS/name match)\n", addr);
+		}
 		return;
 	}
 
