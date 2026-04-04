@@ -221,6 +221,11 @@ static void control_stage_ota_target(void)
 	(void)snprintf(ota_target_boot_uuid, sizeof(ota_target_boot_uuid), "%s",
 		       ota_target_uuid_cfg);
 	ota_target_boot_cookie = OTA_TARGET_BOOT_COOKIE_MAGIC;
+	printk("OTA target staged: token=%d name=%s prefix=%s uuid=%s\n",
+	       ota_target_token_cfg,
+	       ota_target_name_cfg[0] != '\0' ? ota_target_name_cfg : "-",
+	       ota_target_prefix_cfg[0] != '\0' ? ota_target_prefix_cfg : "-",
+	       ota_target_uuid_cfg[0] != '\0' ? ota_target_uuid_cfg : "-");
 	ota_expect_nus_boot = ota_expect_nus_cfg ? 1U : 0U;
 	ota_nus_boot_cookie = OTA_NUS_BOOT_COOKIE_MAGIC;
 }
@@ -745,6 +750,11 @@ int main(void)
 			       ota_target_boot_prefix);
 		(void)snprintf(ota_target_uuid_cfg, sizeof(ota_target_uuid_cfg), "%s",
 			       ota_target_boot_uuid);
+		printk("OTA target restored: token=%d name=%s prefix=%s uuid=%s\n",
+		       ota_target_token_cfg,
+		       ota_target_name_cfg[0] != '\0' ? ota_target_name_cfg : "-",
+		       ota_target_prefix_cfg[0] != '\0' ? ota_target_prefix_cfg : "-",
+		       ota_target_uuid_cfg[0] != '\0' ? ota_target_uuid_cfg : "-");
 		ota_target_boot_cookie = 0U;
 	}
 	if (ota_nus_boot_cookie == OTA_NUS_BOOT_COOKIE_MAGIC) {

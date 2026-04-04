@@ -10,6 +10,7 @@ snr="$1"
 hex_path="$(realpath "$2")"
 lock_file="${BIOSPUR_FLASH_LOCK_FILE:-/tmp/biospur_flash.lock}"
 lock_wait_s="${BIOSPUR_FLASH_LOCK_WAIT_S:-120}"
+allow_jlink_fallback="${BIOSPUR_FLASH_ALLOW_JLINK_FALLBACK:-0}"
 
 # Prevent VSCode Nordic background hotplug scanner from racing J-Link access
 # and triggering interactive probe-selection dialogs.
@@ -49,6 +50,11 @@ run_nrf_cmd() {
 }
 
 fallback_with_jlink() {
+  if [ "$allow_jlink_fallback" != "1" ]; then
+    echo "[error] JLink fallback disabled (BIOSPUR_FLASH_ALLOW_JLINK_FALLBACK=${allow_jlink_fallback})." >&2
+    echo "[error] refusing fallback to avoid interactive probe selection popup." >&2
+    return 55
+  fi
   local jlink_cmd
   echo "[info] falling back to JLinkExe -SelectEmuBySN ${snr}" >&2
   if ! command -v JLinkExe >/dev/null 2>&1; then
@@ -128,11 +134,11 @@ if [ "${BIOSPUR_FLASH_FORCE_JLINK:-1}" != "1" ] && command -v nrfjprog >/dev/nul
   fi
 else
   if [ "${BIOSPUR_FLASH_FORCE_JLINK:-1}" = "1" ]; then
-    echo "[info] BIOSPUR_FLASH_FORCE_JLINK=1, using JLink SN-pinned path" >&2
-  else
-    echo "[warn] nrfjprog not found, using JLink fallback path directly" >&2
+    echo "[error] BIOSPUR_FLASH_FORCE_JLINK=1 is forbidden in non-interactive flow." >&2
+    exit 56
   fi
-  fallback_with_jlink
+  echo "[error] nrfjprog missing; refusing JLink fallback in strict non-interactive mode." >&2
+  exit 57
 fi
 
 echo "[reset-after-flash] $snr"

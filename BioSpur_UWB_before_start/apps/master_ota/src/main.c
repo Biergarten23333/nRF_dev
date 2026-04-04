@@ -86,7 +86,7 @@
 #endif
 
 #ifndef APP_MASTER_OTA_DIAG_FIRST_GATE_WRITE_REQ
-#define APP_MASTER_OTA_DIAG_FIRST_GATE_WRITE_REQ 0
+#define APP_MASTER_OTA_DIAG_FIRST_GATE_WRITE_REQ 1
 #endif
 
 #define OTA_DEBUG_VERBOSE 0
@@ -1269,6 +1269,26 @@ static int ota_send_packet(struct bt_dfu_smp *smp, struct smp_packet *pkt,
 	       (unsigned int)group_id,
 	       (unsigned int)command_id,
 	       (unsigned int)pkt->header.seq);
+	if (group_id == OTA_SMP_GROUP_IMG && command_id == OTA_SMP_CMD_IMG_STATE) {
+		size_t total_len = sizeof(pkt->header) + payload_len;
+		const uint8_t *raw = (const uint8_t *)pkt;
+		size_t dump_len = MIN(total_len, 16U);
+
+		printk("OTA first-frame raw: transport=%s handle=0x%04x total=%u hdr_op=%u hdr_flags=0x%02x hdr_len=%u hdr_group=0x%04x hdr_id=0x%02x hdr_seq=%u raw=",
+		       confirmed_write ? "write_req" : "write_cmd",
+		       smp != NULL ? smp->handles.smp : 0U,
+		       (unsigned int)total_len,
+		       (unsigned int)pkt->header.op,
+		       (unsigned int)pkt->header.flags,
+		       (unsigned int)payload_len,
+		       (unsigned int)group_id,
+		       (unsigned int)command_id,
+		       (unsigned int)pkt->header.seq);
+		for (size_t i = 0; i < dump_len; ++i) {
+			printk("%02x", raw[i]);
+		}
+		printk("\n");
+	}
 	if (!first_upload_dumped &&
 	    group_id == OTA_SMP_GROUP_IMG &&
 	    command_id == OTA_SMP_CMD_IMG_UPLOAD) {
@@ -2138,20 +2158,12 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 			(void)k_sem_take(&sec_ready_sem, K_SECONDS(3));
 		}
 	} else {
-		/* Anchor OTA profile: request L2 when available so ATT permissions
-		 * cannot silently drop first SMP notify. Failure is logged but non-fatal.
+		/* Anchor OTA profile: keep link security at L1 by default.
+		 * Some bench targets reject pairing/security upgrade (err=9),
+		 * which disconnects before DFU discovery and blocks OTA start.
 		 */
-		sec_err = bt_conn_set_security(conn, BT_SECURITY_L2);
-		if (sec_err == 0 || sec_err == -EALREADY) {
-			printk("Security request(anchor OTA): L2 (rc=%d)\n", sec_err);
-			(void)k_sem_take(&sec_ready_sem, K_SECONDS(2));
-		} else {
-			printk("Security request(anchor OTA) failed: %d (continue L1)\n", sec_err);
-		}
-		if (!sec_ready) {
-			printk("Security(anchor OTA): proceeding without confirmed L2\n");
-			sec_ready = true;
-		}
+		printk("Security(anchor OTA): skip L2 upgrade, use current link level\n");
+		sec_ready = true;
 	}
 	/* Stop scan before OTA service discovery to avoid scan callbacks from
 	 * unrelated peers racing with OTA state on busy benches.

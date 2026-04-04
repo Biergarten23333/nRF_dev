@@ -1,0 +1,117 @@
+[HOST_EVT    0.00s] phase=A serial_opened port=/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_8D3AC42D4D90FAE8-if00
+[HOST_CMD    0.00s] status
+*** Booting nRF Connect SDK v2.8.0-a2386bfc8401 ***
+*** Using Zephyr OS v3.7.99-0bc3393fb112 ***
+LED map: 0=scan 1=link 2=ota 3=error
+Control mode loaded: RECV
+UART control ready: type 'status' or 'mode recv'/'mode ota'
+[HOST_CMD    0.10s] ota_target uuid 4DC6B8187E33803AE8601FB0D7992B96
+[HOST_CMD    0.10s] ota_target show
+[HOST_CMD    0.10s] status
+OTA_STATE:target_configured detail=token
+OTA NUS stage: enabled
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+BioSpur BLE master control ready on nRF52840 DK
+BTN1 toggles RECV/OTA, BTN2 forces OTA mode, BTN3=SCAN, BTN4=CONN&START
+Commands: status | mode recv | mode ota | scan | conn | initiate
+Runtime NUS cmds: cmd <raw> | oneshot <raw> | oneshot show | oneshot clear
+Device model cmds: device show | device kind <anchor|tag>
+OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->
+Launching receiver mode
+LED map: 0=scan 1=link 2=ota 3=error
+BioSpur BLE master ready on nRF52840 DK
+Max connections: 10
+Scanning for BS*
+SCAN hit: FC:9A:15:34:AB:20 (random) rssi=-49 name=- bs=BSF66F name=0ota_target uuid rc=0 value=4dc6b8187e33803ae8601fb0d7992b96
+OTA target filter: token=-1 name=- prefix=BS uuid=4DC6B8187E33803AE8601FB0D7992B96
+[HOST_CMD    0.11s] mode ota
+Control status: mode=RECV pending=0
+MODE_TRANSITION: request RECV->OTA (pre-gate)
+RECV_BG gate: SUPPRESS reason=request_to_ota
+UART requested: switching to OTA
+MODE_TRANSITION: RECV->OTA transition_active=1
+Mode switch preflight: disconnect requests=0
+Control mode staged: OTA
+OTA target staged: token=-1 name=- prefix=BS uuid=4dc6b8187e33803ae8601fb0d7992b96
+Control mode now OTA, rebooting
+[HOST_EVT    1.31s] phase=A serial_disconnect_expected err=device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+[HOST_EVT    2.71s] phase=B serial_reconnected port=/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_8D3AC42D4D90FAE8-if00
+[HOST_CMD    2.71s] status
+[HOST_CMD    2.71s] ota_target show
+*** Booting nRF Connect SDK v2.8.0-a2386bfc8401 ***
+*** Using Zephyr OS v3.7.99-0bc3393fb112 ***
+LED map: 0=scan 1=link 2=ota 3=error
+Control mode loaded: OTA
+UART control ready: type 'status' or 'mode recv'/'mode ota'
+OTA target restored: token=-1 name=- prefix=BS uuid=4dc6b8187e33803ae8601fb0d7992b96
+OTA_STATE:target_configured detail=token
+OTA NUS stage: enabled
+OTA target filter: token=-1 name=- prefix=BS uuid=4DC6B8187E33803AE8601FB0D7992B96
+[HOST_CMD    2.81s] initiate
+BioSpur BLE master control ready on nRF52840 DK
+BTN1 toggles RECV/OTA, BTN2 forces OTA mode, BTN3=SCAN, BTN4=CONN&START
+Commands: status | mode recv | mode ota | scan | conn | initiate
+Runtime NUS cmds: cmd <raw> | oneshot <raw> | oneshot show | oneshot clear
+Device model cmds: device show | device kind <anchor|tag>
+OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->
+RECV_BG gate: SUPPRESS reason=boot_ota_mode
+Launching OTA mode
+LED map: 0=scan 1=link 2=ota 3=OTA initiate: disconnect requests=0
+OTA_STATE:connect_pending detail=initiate
+OTA session acquired: reason=initiate
+OTA initiate: scan restarted (passive), armed=1
+initiate rc=0
+Scan reject: 7E:4D:8F:23:FD:FC (public) reason=uuid_mismatch got=- want=4DC6B8187E33803AE8601FB0D7992B96
+OTA_STATE:target_rejected detail=uuid_mismatch
+Scan reject: 7E:4D:8F:23:FD:FC (public) reason=uuid_mismatch got=- want=4DC6B8187E33803AE8601FB0D7992B96
+Scan reject: EC:9F:55:9D:7E:A1 (random) reason=uuid_mismatch got=B3087BC3D87CCCD316AEDC6B71D6677F want=4DC6B8187E33803AE8601FB0D7992B96
+Scan reject: 0D:BA:A4:DF:F7:37 (random) reason=uuid_mismatch got=- want=4DC6B8187E33803AE8601FB0D7992B96
+Scan reject: C0:1D:D1:D0:CE:B0 (random) reason=uuid_mismatch got=B9179575C776C98F1CB132DD6EDC6223 want=4DC6B8187E33803AE8601FB0D7992B96
+Scan reject: C0:00:00:00:58:8D (public) reason=uuid_mismatch got=- want=4DC6B8187E33803AE8601FB0D7992B96
+Scan reject: FC:9A:15:34:AB:20 (random) reason=uuid_mismatch got=- want=4DC6B8187E33803AE8601FB0D7992B96
+Scan reject: D9:C7:9C:16:71:C9 (random) reason=uuid_mismatch got=A892AF05DD59CF0D0D3408AD74F364A1 want=4DC6B8187E33803AE8601FB0D7992B96
+Scan reject: FD:64:2E:93:37:86 (random) reason=uuid_mismatch got=CEE5A7EFCB35F8A56B430047629F5309 want=4DC6B8187E33803AE8601FB0D7992B96
+Scan reject: C0:00:00:00:58:8D (public) reason=uuid_mismatch got=- want=4DC6B8187E33803AE8601FB0D7992B96
+Scan reject: C0:1D:D1:D0:CE:B0 (random) reason=uuid_mismatch got=B9179575C776C98F1CB132DD6EDC6223 want=4DC6B8187E33803AE8601FB0D7992B96
+Scan reject: EC:9F:55:9D:7E:A1 (random) reason=uuid_mismatch got=B3087BC3D87CCCD316AEDC6B71D6677F want=4DC6B8187E33803AE8601FB0D7992B96
+Scan reject: C0:00:00:00:58:8D (public) reason=uuid_mismatch got=- want=4DC6B8187E33803AE8601FB0D7992B96
+Scan reject: 2E:6A:08:FF:10:A1 (random) reason=uuid_mismatch got=- want=4DC6B8187E33803AE8601FB0D7992B96
+Scan reject: C0:00:00:00:58:8D (public) reason=uuid_mismatch got=- want=4DC6B8187E33803AE8601FB0D7992B96
+Scan eval: F2:B7:4E:8A:79:01 (random) conn=1 token=83 uuid=4DC6B8187E33803AE8601FB0D7992B96 name_ok=1 token_ok=1 uuid_ok=1 strict_id=1
+Scan decision: F2:B7:4E:8A:79:01 (random) accept=1 default_conn=0 target_name=- target_token=-1 target_uuid=4DC6B8187E33803AE8601FB0D7992B96
+Connect start: F2:B7:4E:8A:79:01 (random) token=83 name=-
+OTA_STATE:connect_pending detail=bt_conn_le_create
+Connected: F2:B7:4E:8A:79:01 (random)
+Connected target evidence: verified=1 uuid=4DC6B8187E33803AE8601FB0D7992B96 name=- token=83
+OTA_STATE:connected_verified detail=connected
+OTA watchdog armed: wait_dfu_ready timeout=2500 ms uuid=4DC6B8187E33803AE8601FB0D7992B96 conn=0x20002a08
+Connected MTU: 23
+Conn LE params: int=40 lat=0 timeout=400
+Security request: L2 (rc=0)
+OTA watchdog trigger: dfu_ready timeout, re-drive #1 uuid=4DC6B8187E33803AE8601FB0D7992B96 conn=0x20002a08
+OTA_STATE:connect_pending detail=watchdog_redrive
+Could not start NUS discovery: -128
+Could not start discovery: -128
+Security changed: F2:B7:4E:8A:79:01 (random) level=1 err=5
+Disconnected: F2:B7:4E:8A:79:01 (random) reason 0x16
+Scan reject: E9:CB:F3:C4:51:43 (random) reason=uuid_mismatch got=840C68591E90019821AACFF1B73AAA34 want=4DC6B8187E33803AE8601FB0D7992B96
+OTA_STATE:target_rejected detail=uuid_mismatch
+Scan reject: E9:CB:F3:C4:51:43 (random) reason=uuid_mismatch got=- want=4DC6B8187E33803AE8601FB0D7992B96
+Scan reject: C0:00:00:00:58:8D (public) reason=uuid_mismatch got=- want=4DC6B8187E33803AE8601FB0D7992B96
+Scan reject: C0:00:00:00:58:8D (public) reason=uuid_mismatch got=- want=4DC6B8187E33803AE8601FB0D7992B96
+Scan eval: F2:B7:4E:8A:79:01 (random) conn=1 token=83 uuid=4DC6B8187E33803AE8601FB0D7992B96 name_ok=1 token_ok=1 uuid_ok=1 strict_id=1
+Scan decision: F2:B7:4E:8A:79:01 (random) accept=1 default_conn=0 target_name=- target_token=-1 target_uuid=4DC6B8187E33803AE8601FB0D7992B96
+Connect start: F2:B7:4E:8A:79:01 (random) token=83 name=-
+OTA_STATE:connect_pending detail=bt_conn_le_create
+Connected: F2:B7:4E:8A:79:01 (random)
+Connected target evidence: verified=1 uuid=4DC6B8187E33803AE8601FB0D7992B96 name=- token=83
+OTA_STATE:connected_verified detail=connected
+OTA watchdog armed: wait_dfu_ready timeout=2500 ms uuid=4DC6B8187E33803AE8601FB0D7992B96 conn=0x20002a08
+Connected MTU: 23
+Conn LE params: int=40 lat=0 timeout=400
+Security request: L2 (rc=0)
+OTA watchdog exhausted: no more re-drive attempts
+Security changed: F2:B7:4E:8A:79:01 (random) level=1 err=5
+MTU exchange done, mtu=247
+NUS service not found, continuing with DFU
+DFU SMP service ready
