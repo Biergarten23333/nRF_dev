@@ -2,60 +2,108 @@
 
 ## Purpose
 
-Validate externally (black-box) that strict-target OTA is not disturbed by RECV background behavior.
+Document the real strict-UUID OTA flow as observed in runtime logs, using the current single-shot launcher. This is the canonical blackbox sequence for the unified `master_control` image.
 
-## Preconditions
+## Canonical Flow
 
-- 52840 controller is flashed with current `master_control` build.
-- Target UUID is known (32 hex).
-- USB CDC port is available, example:
+Observed successful runs start from a RECV baseline on the controller, then follow this sequence:
+
+1. `status`
+2. `device kind anchor`
+3. `device show`
+4. `status`
+5. `ota_target uuid <32hex>`
+6. `ota_target show`
+7. `mode ota`
+8. reboot / serial reconnect
+9. `status`
+10. `ota_target show`
+11. `initiate`
+12. controller scan/connect
+13. `DFU SMP service ready`
+14. `OTA upload gate open`
+15. `OTA upload starting`
+16. `OTA upload progress`
+17. `OTA upload complete`
+18. `OTA pending/test request`
+19. `OTA reset request`
+20. `OTA command sequence sent`
+
+Role switching is separate from OTA. It is validated after OTA completes, using the dedicated role-switch helper.
+
+## Required Preconditions
+
+- 52840 controller is flashed with the current `master_control` build.
+- The launcher starts from an already-RECV controller state. The OTA launcher does not issue `mode recv` itself.
+- The target UUID is known and authoritative for selection.
+- The controller USB CDC port is available, for example:
   - `/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_XXXXXXXX-if00`
 
-## Run
+## Deterministic Launcher
+
+Use the strict-UUID single-shot launcher:
 
 ```bash
-python3 scripts/loop_test_ota_targeting.py \
+python3 scripts/ota_single_shot_stable.py \
   --port /dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_XXXXXXXX-if00 \
   --target-uuid <TARGET_UUID_32HEX> \
-  --trials 3 \
-  --trial-timeout-s 260 \
-  --skip-flash \
-  --direct-ota-mode \
-  --out-dir logs/ota_blackbox_$(date +%Y%m%d_%H%M%S)
+  --anchor-port /dev/serial/by-id/usb-SEGGER_J-Link_XXXXXXXXXXXX-if00 \
+  --anchor-reset-preflight \
+  --out-dir logs/live_ota_<anchor>_<timestamp>/stage1
 ```
 
-Then run checker:
+The launcher behavior is:
 
-```bash
-python3 scripts/check_ota_blackbox.py --run-dir logs/ota_blackbox_<timestamp>
-```
+- verify the controller UART is ready
+- send `device kind anchor`
+- verify `System target: kind=anchor`
+- verify `OTA NUS stage: disabled`
+- write `ota_target uuid <UUID>`
+- confirm `ota_target show` matches the UUID
+- send `mode ota`
+- wait for reboot and reconnect
+- confirm restored UUID state
+- send `initiate`
+- wait for connection, DFU readiness, upload gate, and upload completion
 
-For full completion requirement:
+## Behavioral Answers
 
-```bash
-python3 scripts/check_ota_blackbox.py --run-dir logs/ota_blackbox_<timestamp> --require-complete
-```
+- `mode recv` required before OTA?
+  - The controller must already be in RECV at launcher start, but the launcher does not send `mode recv` as part of the OTA sequence.
+- `device kind anchor` required every time?
+  - Yes. Observed successful OTA runs depend on issuing `device kind anchor` before writing the UUID.
+- Does OTA always reboot?
+  - Yes. `mode ota` triggers a reboot and the serial session drops.
+- After reboot, does OTA rely on restored state or re-sent commands?
+  - Restored state. The launcher verifies the UUID and OTA filter after reconnect before sending `initiate`.
+- What is the first point where OTA can fail?
+  - Before `mode ota`, if the launcher cannot prove `device kind anchor`, `OTA NUS stage: disabled`, and a matching UUID readback.
+- What is the last point before upload begins?
+  - `OTA upload gate open`.
+- Is role switching part of OTA flow?
+  - No. It is a separate post-OTA validation step.
 
-## PASS Criteria
+## Hidden Dependencies Proven by Logs
 
-- `wrong_target_trials == 0`
-- `recv_bg_interference_trials == 0`
-- strict UUID match for all trials (`target_match_count == trial_count`)
-- if a trial logs first upload TX (`first_upload_tx_seen=1`), then first upload response must be seen (`first_upload_rsp_seen=1`)
-- if first upload response is seen, upload must progress beyond early chunks (`upload_progressed=1`)
+- `device kind anchor` clears or resets OTA target defaults, so UUID must be written after the kind switch.
+- After `mode ota`, reconnect is mandatory because the UART drops during reboot.
+- `initiate` must only be sent after the rebooted runtime proves `Control mode loaded: OTA`, `UART control ready`, and restored UUID/filter state.
+- The OTA launcher starts from RECV, but the successful path is not a typed `mode recv` transition.
 
-## FAIL Classes
+## Evidence
 
-- `wrong_target_trials != 0`
-- `recv_bg_interference_trials != 0`
-- strict UUID mismatch
-- first upload response missing
-- upload not progressed beyond early chunks
-- (with `--require-complete`) not all trials OTA-complete end-to-end
+Successful runtime evidence is captured in the per-anchor OTA logs, for example:
 
-## Key External Evidence
+- `logs/live_ota_anchorA_full_retry4_20260404_175847/stage1/single_shot.log`
+- `logs/live_ota_anchorB_full_fixkind_20260404_184740/stage1/single_shot.log`
+- `logs/live_ota_anchorC_full_20260404_191703/stage1/single_shot.log`
+- `logs/live_ota_anchorD_full_20260404_192645/stage1/single_shot.log`
+- `logs/live_ota_anchorE_full_20260404_193527/stage1/single_shot.log`
+- `logs/live_ota_anchorF_full_20260404_194515/stage1/single_shot.log`
+- `logs/live_ota_anchorG_full_20260404_195456/stage1/single_shot.log`
+- `logs/live_ota_anchorH_full_20260404_200239/stage1/single_shot.log`
 
-- `logs/.../trial_XX/ota_trial.log`
-- `logs/.../summary.json`
-- checker stdout PASS/FAIL with reason list
+The role-switch validation is captured separately with:
+
+- `scripts/serial_switch_role.py`
 

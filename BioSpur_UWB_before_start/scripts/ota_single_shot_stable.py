@@ -21,6 +21,8 @@ FILTER_RE = re.compile(
 UUID_ACK_RE = re.compile(r"ota_target uuid rc=([-\d]+)\s+value=([0-9A-F\-]+|-)", re.IGNORECASE)
 MODE_RE = re.compile(r"Control status:\s*mode=([A-Z]+)")
 INIT_RE = re.compile(r"initiate rc=([-\d]+)")
+SYSTEM_TARGET_RE = re.compile(r"System target:\s*kind=([a-zA-Z]+)")
+NUS_STAGE_RE = re.compile(r"OTA NUS stage:\s*(enabled|disabled)", re.IGNORECASE)
 
 
 def classify_phase_a_reason(
@@ -69,6 +71,10 @@ class RunResult:
     ota_gate_fail_seen: bool
     ota_upload_started_seen: bool
     ota_upload_progress_seen: bool
+    ota_upload_complete_seen: bool
+    ota_pending_test_seen: bool
+    ota_reset_request_seen: bool
+    ota_command_sequence_seen: bool
     ota_later_fail_seen: bool
     ota_success_seen: bool
     target_observability_available: bool
@@ -137,7 +143,7 @@ def open_serial(port: str, baud: int) -> serial.Serial:
 
 def send_cmd(ser: serial.Serial, cmd: str, logf, t0: float) -> None:
     ser.write((cmd + "\n").encode("utf-8"))
-    logf.write(f"[HOST_CMD {time.time()-t0:7.2f}s] {cmd}\n")
+    logf.write(f"[HOST_CMD {time.monotonic()-t0:7.2f}s] {cmd}\n")
     logf.flush()
 
 
@@ -270,8 +276,8 @@ class AnchorCapture:
             self._fh.close()
 
     def wait_for_lines(self, timeout_s: float) -> bool:
-        deadline = time.time() + timeout_s
-        while time.time() < deadline:
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
             if self.lines > 0:
                 return True
             time.sleep(0.1)
@@ -311,6 +317,9 @@ def main() -> int:
     filter_uuid_pre = "-"
     filter_uuid_post = "-"
     filter_seen_pre = False
+    system_target_anchor_seen = False
+    ota_nus_disabled_seen = False
+    anchor_ready_uuid_sent = False
     initiate_sent = False
     initiate_rc: int | None = None
     ota_started = False
@@ -320,6 +329,10 @@ def main() -> int:
     ota_gate_fail_seen = False
     ota_upload_started_seen = False
     ota_upload_progress_seen = False
+    ota_upload_complete_seen = False
+    ota_pending_test_seen = False
+    ota_reset_request_seen = False
+    ota_command_sequence_seen = False
     ota_later_fail_seen = False
     ota_success_seen = False
     target_observability_available = False
@@ -334,7 +347,7 @@ def main() -> int:
     serial_lost = False
     reason = ""
 
-    t0 = time.time()
+    t0 = time.monotonic()
     run_deadline = t0 + args.timeout_s
     ser: serial.Serial | None = None
     anchor_cap: AnchorCapture | None = None
@@ -344,7 +357,7 @@ def main() -> int:
             # Observability preflight
             if args.phase_a_only:
                 target_observability_available = True
-                logf.write(f"[HOST_EVT {time.time()-t0:7.2f}s] phase=A only; anchor preflight skipped\n")
+                logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A only; anchor preflight skipped\n")
                 logf.flush()
             else:
                 port_users = lsof_port_users(anchor_port)
@@ -352,17 +365,17 @@ def main() -> int:
                     reason = "target_observability_unavailable:anchor_port_busy"
                     blocker = reason
                     logf.write(
-                        f"[HOST_EVT {time.time()-t0:7.2f}s] anchor_port_busy port={anchor_port} users={len(port_users)}\n"
+                        f"[HOST_EVT {time.monotonic()-t0:7.2f}s] anchor_port_busy port={anchor_port} users={len(port_users)}\n"
                     )
                     for ln in port_users[:6]:
-                        logf.write(f"[HOST_EVT {time.time()-t0:7.2f}s] lsof {ln}\n")
+                        logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] lsof {ln}\n")
                     logf.flush()
                     raise RuntimeError(reason)
 
                 anchor_cap = AnchorCapture(anchor_port, args.anchor_baud, anchor_log_path)
                 anchor_cap.start()
                 logf.write(
-                    f"[HOST_EVT {time.time()-t0:7.2f}s] anchor_capture_started port={anchor_port} log={anchor_log_path}\n"
+                    f"[HOST_EVT {time.monotonic()-t0:7.2f}s] anchor_capture_started port={anchor_port} log={anchor_log_path}\n"
                 )
                 logf.flush()
 
@@ -371,14 +384,14 @@ def main() -> int:
                     if anchor_snr:
                         reset_via_jlink(anchor_snr)
                         logf.write(
-                            f"[HOST_EVT {time.time()-t0:7.2f}s] anchor_reset_preflight method=jlink snr={anchor_snr}\n"
+                            f"[HOST_EVT {time.monotonic()-t0:7.2f}s] anchor_reset_preflight method=jlink snr={anchor_snr}\n"
                         )
                         logf.flush()
 
                 if not anchor_cap.wait_for_lines(args.anchor_preflight_timeout_s):
                     reason = "target_observability_unavailable:anchor_lines_zero"
                     blocker = "target observability unavailable"
-                    logf.write(f"[HOST_EVT {time.time()-t0:7.2f}s] {reason}\n")
+                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] {reason}\n")
                     logf.flush()
                     raise RuntimeError(reason)
 
@@ -388,16 +401,16 @@ def main() -> int:
             ser = open_serial(args.port, args.baud)
             ser.reset_input_buffer()
             ser.reset_output_buffer()
-            logf.write(f"[HOST_EVT {time.time()-t0:7.2f}s] phase=A serial_opened port={args.port}\n")
+            logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A serial_opened port={args.port}\n")
             logf.flush()
 
             # Wait until control UART is actually ready; commands sent before
             # this line can be silently dropped during boot/scan startup.
             boot_ready = False
-            boot_ready_deadline = time.time() + 25.0
+            boot_ready_deadline = time.monotonic() + 25.0
             last_probe = 0.0
-            while time.time() < boot_ready_deadline:
-                now = time.time()
+            while time.monotonic() < boot_ready_deadline:
+                now = time.monotonic()
                 if now - last_probe > 2.0:
                     send_cmd(ser, "status", logf, t0)
                     last_probe = now
@@ -417,23 +430,33 @@ def main() -> int:
                 reason = "phase_a_uart_not_ready"
                 raise RuntimeError(reason)
 
-            send_cmd(ser, f"ota_target uuid {target_uuid}", logf, t0)
-            send_cmd(ser, "ota_target show", logf, t0)
+            send_cmd(ser, "status", logf, t0)
+            send_cmd(ser, "device kind anchor", logf, t0)
+            send_cmd(ser, "device show", logf, t0)
             send_cmd(ser, "status", logf, t0)
 
-            phase_a_deadline = time.time() + 25.0
-            next_uuid_retry = time.time() + 2.5
-            next_show_retry = time.time() + 1.5
-            while time.time() < phase_a_deadline:
-                now = time.time()
-                if not uuid_ack_seen and now >= next_uuid_retry:
+            phase_a_deadline = time.monotonic() + 25.0
+            next_anchor_retry = time.monotonic() + 2.0
+            next_uuid_retry = time.monotonic() + 2.5
+            next_show_retry = time.monotonic() + 1.5
+            while time.monotonic() < phase_a_deadline:
+                now = time.monotonic()
+                if (not system_target_anchor_seen or not ota_nus_disabled_seen) and now >= next_anchor_retry:
+                    send_cmd(ser, "device kind anchor", logf, t0)
+                    send_cmd(ser, "device show", logf, t0)
+                    send_cmd(ser, "status", logf, t0)
+                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A retry_anchor_kind\n")
+                    logf.flush()
+                    next_anchor_retry = now + 2.0
+                if system_target_anchor_seen and ota_nus_disabled_seen and not uuid_ack_seen and now >= next_uuid_retry:
                     send_cmd(ser, f"ota_target uuid {target_uuid}", logf, t0)
-                    logf.write(f"[HOST_EVT {time.time()-t0:7.2f}s] phase=A retry_uuid_write\n")
+                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A retry_uuid_write\n")
                     logf.flush()
                     next_uuid_retry = now + 2.5
-                if (not filter_seen_pre or filter_uuid_pre != target_uuid) and now >= next_show_retry:
+                if system_target_anchor_seen and ota_nus_disabled_seen and ((not filter_seen_pre) or filter_uuid_pre != target_uuid) and now >= next_show_retry:
                     send_cmd(ser, "ota_target show", logf, t0)
-                    logf.write(f"[HOST_EVT {time.time()-t0:7.2f}s] phase=A retry_filter_readback\n")
+                    send_cmd(ser, "status", logf, t0)
+                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A retry_filter_readback\n")
                     logf.flush()
                     next_show_retry = now + 1.5
 
@@ -442,7 +465,7 @@ def main() -> int:
                 except SerialException as e:
                     serial_lost = True
                     reason = f"phase_a_serial_lost:{e}"
-                    logf.write(f"[HOST_EVT {time.time()-t0:7.2f}s] {reason}\n")
+                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] {reason}\n")
                     logf.flush()
                     raise RuntimeError(reason)
 
@@ -451,26 +474,53 @@ def main() -> int:
                 logf.write(line + "\n")
                 logf.flush()
 
+                m_sys = SYSTEM_TARGET_RE.search(line)
+                if m_sys and m_sys.group(1).strip().lower() == "anchor":
+                    system_target_anchor_seen = True
+                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A system_target_anchor\n")
+                    logf.flush()
+
+                m_nus = NUS_STAGE_RE.search(line)
+                if m_nus and m_nus.group(1).strip().lower() == "disabled":
+                    ota_nus_disabled_seen = True
+                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A ota_nus_disabled\n")
+                    logf.flush()
+
+                if system_target_anchor_seen and ota_nus_disabled_seen and not anchor_ready_uuid_sent:
+                    send_cmd(ser, f"ota_target uuid {target_uuid}", logf, t0)
+                    send_cmd(ser, "ota_target show", logf, t0)
+                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A anchor_ready_uuid_write\n")
+                    logf.flush()
+                    anchor_ready_uuid_sent = True
+                    next_uuid_retry = time.monotonic() + 2.5
+                    next_show_retry = time.monotonic() + 1.5
+
                 m_ack = UUID_ACK_RE.search(line)
                 if m_ack and int(m_ack.group(1)) == 0 and m_ack.group(2).upper() == target_uuid:
                     uuid_ack_seen = True
-                    logf.write(f"[HOST_EVT {time.time()-t0:7.2f}s] phase=A uuid_ack_ok\n")
+                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A uuid_ack_ok\n")
                     logf.flush()
 
                 m_filter = FILTER_RE.search(line)
                 if m_filter:
                     filter_seen_pre = True
                     filter_uuid_pre = m_filter.group(4).strip().upper()
-                    logf.write(f"[HOST_EVT {time.time()-t0:7.2f}s] phase=A filter_readback uuid={filter_uuid_pre}\n")
+                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A filter_readback uuid={filter_uuid_pre}\n")
                     logf.flush()
                     if filter_uuid_pre == target_uuid:
                         uuid_pre_reboot_latched = uuid_ack_seen
 
-                if uuid_pre_reboot_latched:
+                if uuid_pre_reboot_latched and system_target_anchor_seen and ota_nus_disabled_seen:
                     phase_a_ok = True
                     break
 
             if not phase_a_ok:
+                if not system_target_anchor_seen:
+                    reason = "phase_a_system_target_not_anchor"
+                    raise RuntimeError(reason)
+                if not ota_nus_disabled_seen:
+                    reason = "phase_a_ota_nus_not_disabled"
+                    raise RuntimeError(reason)
                 base_reason = classify_phase_a_reason(
                     uuid_ack_seen=uuid_ack_seen,
                     filter_seen=filter_seen_pre,
@@ -490,13 +540,13 @@ def main() -> int:
             send_cmd(ser, "mode ota", logf, t0)
 
             # Expect disconnect due to warm reboot
-            phase_reboot_deadline = time.time() + 12.0
-            while time.time() < phase_reboot_deadline:
+            phase_reboot_deadline = time.monotonic() + 12.0
+            while time.monotonic() < phase_reboot_deadline:
                 try:
                     line = read_line(ser)
                 except SerialException as e:
                     reboot_seen = True
-                    logf.write(f"[HOST_EVT {time.time()-t0:7.2f}s] phase=A serial_disconnect_expected err={e}\n")
+                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A serial_disconnect_expected err={e}\n")
                     logf.flush()
                     break
                 if line is None:
@@ -513,12 +563,12 @@ def main() -> int:
             ser = None
 
             # Phase B: reconnect after reboot and prove restore
-            reconnect_deadline = time.time() + args.reconnect_timeout_s
-            while time.time() < reconnect_deadline:
+            reconnect_deadline = time.monotonic() + args.reconnect_timeout_s
+            while time.monotonic() < reconnect_deadline:
                 try:
                     ser = open_serial(args.port, args.baud)
                     reconnect_ok = True
-                    logf.write(f"[HOST_EVT {time.time()-t0:7.2f}s] phase=B serial_reconnected port={args.port}\n")
+                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=B serial_reconnected port={args.port}\n")
                     logf.flush()
                     ser.reset_input_buffer()
                     break
@@ -529,10 +579,10 @@ def main() -> int:
                 reason = "phase_b_reconnect_timeout"
                 raise RuntimeError(reason)
 
-            phase_b_deadline = min(time.time() + 60.0, run_deadline)
+            phase_b_deadline = min(time.monotonic() + 60.0, run_deadline)
             last_status_tx = 0.0
-            while time.time() < phase_b_deadline:
-                now = time.time()
+            while time.monotonic() < phase_b_deadline:
+                now = time.monotonic()
                 if now - last_status_tx > 2.0:
                     send_cmd(ser, "status", logf, t0)
                     send_cmd(ser, "ota_target show", logf, t0)
@@ -543,7 +593,7 @@ def main() -> int:
                 except SerialException as e:
                     serial_lost = True
                     reason = f"phase_b_serial_lost:{e}"
-                    logf.write(f"[HOST_EVT {time.time()-t0:7.2f}s] {reason}\n")
+                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] {reason}\n")
                     logf.flush()
                     raise RuntimeError(reason)
 
@@ -593,14 +643,14 @@ def main() -> int:
             send_cmd(ser, "initiate", logf, t0)
             initiate_sent = True
 
-            phase_c_deadline = min(time.time() + 140.0, run_deadline)
-            while time.time() < phase_c_deadline:
+            phase_c_deadline = run_deadline
+            while time.monotonic() < phase_c_deadline:
                 try:
                     line = read_line(ser)
                 except SerialException as e:
                     serial_lost = True
                     reason = f"phase_c_serial_lost:{e}"
-                    logf.write(f"[HOST_EVT {time.time()-t0:7.2f}s] {reason}\n")
+                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] {reason}\n")
                     logf.flush()
                     break
 
@@ -634,7 +684,20 @@ def main() -> int:
                 if "OTA upload progress:" in line:
                     ota_upload_progress_seen = True
                     ota_started = True
-                    reason = "ota_upload_progress_observed"
+                if "OTA upload complete" in line:
+                    ota_upload_complete_seen = True
+                    ota_started = True
+                if "OTA pending/test request" in line:
+                    ota_pending_test_seen = True
+                    ota_started = True
+                if "OTA reset request" in line:
+                    ota_reset_request_seen = True
+                    ota_started = True
+                if "OTA command sequence sent" in line:
+                    ota_command_sequence_seen = True
+                    ota_success_seen = True
+                    ota_started = True
+                    reason = "ota_success_observed"
                     break
                 if "OTA succeeded" in line or "OTA complete" in line:
                     ota_success_seen = True
@@ -719,6 +782,10 @@ def main() -> int:
         ota_gate_fail_seen=ota_gate_fail_seen,
         ota_upload_started_seen=ota_upload_started_seen,
         ota_upload_progress_seen=ota_upload_progress_seen,
+        ota_upload_complete_seen=ota_upload_complete_seen,
+        ota_pending_test_seen=ota_pending_test_seen,
+        ota_reset_request_seen=ota_reset_request_seen,
+        ota_command_sequence_seen=ota_command_sequence_seen,
         ota_later_fail_seen=ota_later_fail_seen,
         ota_success_seen=ota_success_seen,
         target_observability_available=target_observability_available,

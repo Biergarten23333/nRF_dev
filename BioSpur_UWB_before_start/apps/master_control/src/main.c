@@ -494,6 +494,7 @@ static void control_handle_uart_command(const char *line)
 			printk("ota_target token rc=%d value=%d\n", rc, token);
 			if (rc == 0) {
 				ota_target_token_cfg = token;
+				master_set_runtime_target_token(token);
 			}
 			master_ota_target_print();
 			return;
@@ -551,6 +552,7 @@ static void control_handle_uart_command(const char *line)
 			if (rc == 0) {
 				(void)snprintf(ota_target_uuid_cfg, sizeof(ota_target_uuid_cfg), "%s",
 					       value);
+				master_set_runtime_target_uuid(value);
 			}
 			master_ota_target_print();
 			return;
@@ -578,6 +580,9 @@ static void control_handle_uart_command(const char *line)
 				ota_target_name_cfg[0] = '\0';
 				(void)snprintf(ota_target_prefix_cfg, sizeof(ota_target_prefix_cfg), "BS");
 				ota_target_uuid_cfg[0] = '\0';
+				master_set_runtime_target_kind(MASTER_TARGET_ANCHOR);
+				master_set_runtime_target_token(-1);
+				master_set_runtime_target_uuid("");
 				printk("device kind set: anchor (OTA target defaults reset)\n");
 				system_target_print();
 				return;
@@ -586,6 +591,7 @@ static void control_handle_uart_command(const char *line)
 				system_target_set_kind(SYS_DEV_TAG);
 				(void)master_ota_target_set_prefix("BS");
 				(void)snprintf(ota_target_prefix_cfg, sizeof(ota_target_prefix_cfg), "BS");
+				master_set_runtime_target_kind(MASTER_TARGET_TAG);
 				printk("device kind set: tag\n");
 				system_target_print();
 				return;
@@ -765,9 +771,12 @@ int main(void)
 	(void)master_ota_target_set_name(ota_target_name_cfg);
 	(void)master_ota_target_set_prefix(ota_target_prefix_cfg);
 	(void)master_ota_target_set_uuid(ota_target_uuid_cfg);
+	master_set_runtime_target_token(ota_target_token_cfg);
+	master_set_runtime_target_uuid(ota_target_uuid_cfg);
 	master_ota_set_expect_nus(ota_expect_nus_cfg);
 	system_target.kind = SYS_DEV_UNKNOWN;
 	system_target.caps = system_caps_for_kind(SYS_DEV_UNKNOWN);
+	master_set_runtime_target_kind(MASTER_TARGET_UNKNOWN);
 	master_ota_target_print();
 
 	control_leds_set(DK_NO_LEDS_MSK);

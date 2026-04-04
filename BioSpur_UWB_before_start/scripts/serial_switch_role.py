@@ -4,8 +4,11 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+import subprocess
+import re
 
 import serial
+from serial import SerialException
 
 
 VALID_ROLES = {"master", "matrix", "responder"}
@@ -33,6 +36,58 @@ def wait_for_ready(ser: serial.Serial, timeout_s: float) -> bool:
         if "UART ROLE SWITCH READY" in line.upper():
             return True
     return False
+
+
+def reopen_serial_until_ready(port: str, baud: int, timeout_s: float) -> serial.Serial:
+    deadline = time.time() + timeout_s
+    last_err = ""
+    while time.time() < deadline:
+        try:
+            ser = serial.Serial(port, baud, timeout=0.25)
+            time.sleep(0.15)
+            ser.reset_input_buffer()
+            return ser
+        except SerialException as exc:
+            last_err = str(exc)
+            time.sleep(0.25)
+    raise TimeoutError(f"serial reconnect timeout on {port}: {last_err or 'device not ready'}")
+
+
+def parse_probe_snr_from_port(port: str) -> str:
+    m = re.search(r"usb-SEGGER_J-Link_0*([0-9]{9})-if", port)
+    if not m:
+        raise RuntimeError(f"cannot derive probe SNR from port: {port}")
+    return m.group(1)
+
+
+def reset_via_jlink_snr(snr: str) -> None:
+    cmd = (
+        "Device nRF52832_XXAA\n"
+        "SelectInterface SWD\n"
+        "Speed 4000\n"
+        "Connect\n"
+        "Reset\n"
+        "Go\n"
+        "Exit\n"
+    )
+    script_path = f"/tmp/jlink_reset_roleswitch_{snr}.cmd"
+    with open(script_path, "w", encoding="ascii") as fh:
+        fh.write(cmd)
+    try:
+        cp = subprocess.run(
+            ["JLinkExe", "-NoGui", "1", "-SelectEmuBySN", snr, "-CommanderScript", script_path],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if cp.returncode != 0:
+            raise RuntimeError(f"JLink reset failed snr={snr}: rc={cp.returncode}")
+    finally:
+        try:
+            import os
+            os.unlink(script_path)
+        except FileNotFoundError:
+            pass
 
 
 def send_cmd_expect(ser: serial.Serial, cmd: str, timeout_s: float,
@@ -93,6 +148,18 @@ def query_status_or_role(ser: serial.Serial, timeout_s: float) -> str:
         except TimeoutError:
             continue
     raise TimeoutError("status probe failed after STATUS/ROLE? retries")
+
+
+def drain_lines(ser: serial.Serial, timeout_s: float) -> list[str]:
+    lines: list[str] = []
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        line = read_line(ser, min(0.25, max(0.05, deadline - time.time())))
+        if line is None:
+            continue
+        print(f"<< {line}")
+        lines.append(line)
+    return lines
 
 
 def expect_ok(resp: str, step: str) -> None:
@@ -163,10 +230,21 @@ def main() -> int:
             boot_window_mode = bool(args.boot_window_reboot)
             if args.boot_window_reboot:
                 print(">> REBOOT (boot-window mode)")
-                if not send_reboot_best_effort(ser, max(args.timeout, 8.0)):
-                    print("[warn] reboot ACK not observed; continuing")
-                time.sleep(0.5)
-            if not wait_for_ready(ser, max(args.timeout, 10.0)):
+                reboot_ok = send_reboot_best_effort(ser, max(args.timeout, 8.0))
+                if not reboot_ok:
+                    print("[warn] reboot ACK not observed; fallback to JLink reset")
+                    reset_via_jlink_snr(parse_probe_snr_from_port(args.port))
+                try:
+                    ser.close()
+                except Exception:
+                    pass
+                ser = reopen_serial_until_ready(args.port, args.baud, max(args.timeout, 10.0))
+            if boot_window_mode:
+                # Boot-window commands are only accepted during the first few
+                # seconds after reboot; waiting for a ready banner can consume
+                # that window entirely on CDC re-enumeration.
+                time.sleep(0.15)
+            elif not wait_for_ready(ser, max(args.timeout, 10.0)):
                 print("[warn] ready banner not observed; continue with command probe")
 
             if not boot_window_mode:
@@ -222,6 +300,7 @@ def main() -> int:
                 status2 = query_status_or_role(ser, max(args.timeout, 8.0))
                 if status2.upper().startswith("ERR:"):
                     raise RuntimeError(f"final STATUS failed: {status2}")
+                drain_lines(ser, 2.0 if boot_window_mode else 0.8)
             except TimeoutError:
                 if boot_window_mode:
                     print("[warn] final STATUS timeout in boot-window mode; "

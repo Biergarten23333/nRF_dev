@@ -154,12 +154,16 @@ Behavior:
 - non-target peers must not be selected for upload.
 - in UUID-authoritative mode, prefix is advisory; exact name is enforced only when explicitly set.
 
+Canonical blackbox runbook for the observed single-shot flow:
+
+- [docs/20260403_OTA_BlackBox_Runbook.md](docs/20260403_OTA_BlackBox_Runbook.md)
+
 Note (current Tag115 path):
 - Current Tag115 advertisements may expose `uuid=-` in OTA scan logs.
 - With strict UUID-authoritative gate enabled, OTA to Tag115 is blocked until UUID is present in advertising/manufacturer payload.
 - For immediate bench validation, use direct J-Link flash to Tag115 and then BLE control via unified `master_control` RECV path.
 
-Loop-test helper:
+Legacy loop-test helper:
 
 ```bash
 python3 scripts/loop_test_ota_targeting.py \

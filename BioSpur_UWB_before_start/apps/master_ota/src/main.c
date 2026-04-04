@@ -1474,7 +1474,7 @@ static size_t ota_build_upload_packet(const uint8_t *image, size_t image_len,
 
 	zcbor_new_encode_state(zse, ARRAY_SIZE(zse), pkt->payload, sizeof(pkt->payload), 0);
 
-	map_count = first_chunk ? 12U : 6U;
+	map_count = first_chunk ? 4U : 3U;
 
 	ok = zcbor_map_start_encode(zse, map_count) &&
 	     zcbor_tstr_put_lit(zse, "image") &&

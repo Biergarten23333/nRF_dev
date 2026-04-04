@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
@@ -20,6 +21,8 @@
 #include <bluetooth/services/nus.h>
 #include <bluetooth/services/nus_client.h>
 
+#include "master_multi_app.h"
+
 #define MASTER_MAX_CONNECTIONS 10U
 #define MASTER_DISCOVERY_RETRY_DELAY_MS 1000U
 #define MASTER_DISCOVERY_RETRY_LIMIT 5U
@@ -36,11 +39,20 @@
 #define BLE_SAMPLE_VERSION 1U
 #define BLE_SAMPLE_HEADER_LEN 5U
 #define BLE_SAMPLE_RECORD_LEN 24U
+#define MASTER_UUID_HEX_LEN 32U
+#define BIOSPUR_MFG_UUID_OFS 6U
+#define BIOSPUR_MFG_UUID_LEN 16U
 
 #ifndef APP_MASTER_ONE_SHOT_CMD
 #define APP_MASTER_ONE_SHOT_CMD ""
 #endif
 #define MASTER_RUNTIME_ONE_SHOT_CMD_LEN 160U
+
+enum master_peer_link_type {
+	MASTER_LINK_NONE = 0,
+	MASTER_LINK_NUS = 1,
+	MASTER_LINK_ANCHOR_CTRL = 2,
+};
 
 static const struct bt_conn_le_phy_param *const fast_phy_params = BT_CONN_LE_PHY_PARAM_2M;
 static const struct bt_le_conn_param fast_conn_params = {
@@ -61,21 +73,30 @@ struct master_peer {
 	struct bt_conn *conn;
 	struct bt_nus_client nus_client;
 	struct bt_gatt_exchange_params mtu_exchange_params;
+	struct bt_gatt_subscribe_params anchor_state_sub_params;
+	struct bt_gatt_subscribe_params anchor_result_sub_params;
 	bool connected;
 	bool ready;
 	bool connect_pending;
 	bool one_shot_sent;
 	bool ota_ready;
 	bool ota_active;
+	enum master_peer_link_type link_type;
 	struct k_work_delayable discovery_retry_work;
 	uint8_t discovery_retry_attempts;
 	bt_addr_le_t addr;
 	bool addr_valid;
 	char adv_name[MASTER_NAME_BUF_LEN];
+	char adv_uuid[MASTER_UUID_HEX_LEN + 1U];
 	uint8_t tag_id;
 	bool tag_id_valid;
 	uint16_t bs_code;
 	bool bs_code_valid;
+	uint16_t anchor_ctrl_handle;
+	uint16_t anchor_state_handle;
+	uint16_t anchor_state_ccc_handle;
+	uint16_t anchor_result_handle;
+	uint16_t anchor_result_ccc_handle;
 	uint8_t logical_tag_id;
 	bool logical_tag_id_valid;
 	uint8_t tdma_slot;
@@ -98,6 +119,9 @@ static bool led_error_state;
 static uint8_t tdma_generation;
 static char runtime_one_shot_cmd[MASTER_RUNTIME_ONE_SHOT_CMD_LEN];
 static bool runtime_one_shot_cmd_set;
+static enum master_runtime_target_kind runtime_target_kind = MASTER_TARGET_UNKNOWN;
+static int runtime_target_token = -1;
+static char runtime_target_uuid[MASTER_UUID_HEX_LEN + 1U];
 static struct bt_gatt_dm_cb discovery_cb;
 static void start_scan(void);
 static void stop_scan(void);
@@ -185,6 +209,18 @@ static int peer_index_from_nus(struct bt_nus_client *nus)
 	return -1;
 }
 
+static int peer_index_from_subscribe_params(struct bt_gatt_subscribe_params *params)
+{
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		if (&peers[i].anchor_state_sub_params == params ||
+		    &peers[i].anchor_result_sub_params == params) {
+			return (int)i;
+		}
+	}
+
+	return -1;
+}
+
 static void peer_clear(unsigned int idx, bool unref_conn)
 {
 	if (idx >= ARRAY_SIZE(peers)) {
@@ -196,6 +232,14 @@ static void peer_clear(unsigned int idx, bool unref_conn)
 	}
 
 	(void)k_work_cancel_delayable(&peers[idx].discovery_retry_work);
+	if (peers[idx].conn != NULL) {
+		if (peers[idx].anchor_state_sub_params.value_handle != 0U) {
+			(void)bt_gatt_unsubscribe(peers[idx].conn, &peers[idx].anchor_state_sub_params);
+		}
+		if (peers[idx].anchor_result_sub_params.value_handle != 0U) {
+			(void)bt_gatt_unsubscribe(peers[idx].conn, &peers[idx].anchor_result_sub_params);
+		}
+	}
 
 	peers[idx].conn = NULL;
 	peers[idx].connected = false;
@@ -204,13 +248,22 @@ static void peer_clear(unsigned int idx, bool unref_conn)
 	peers[idx].one_shot_sent = false;
 	peers[idx].ota_ready = false;
 	peers[idx].ota_active = false;
+	peers[idx].link_type = MASTER_LINK_NONE;
 	peers[idx].discovery_retry_attempts = 0U;
 	peers[idx].addr_valid = false;
 	peers[idx].adv_name[0] = '\0';
+	peers[idx].adv_uuid[0] = '\0';
 	peers[idx].tag_id = 0U;
 	peers[idx].tag_id_valid = false;
 	peers[idx].bs_code = 0U;
 	peers[idx].bs_code_valid = false;
+	peers[idx].anchor_ctrl_handle = 0U;
+	peers[idx].anchor_state_handle = 0U;
+	peers[idx].anchor_state_ccc_handle = 0U;
+	peers[idx].anchor_result_handle = 0U;
+	peers[idx].anchor_result_ccc_handle = 0U;
+	memset(&peers[idx].anchor_state_sub_params, 0, sizeof(peers[idx].anchor_state_sub_params));
+	memset(&peers[idx].anchor_result_sub_params, 0, sizeof(peers[idx].anchor_result_sub_params));
 	peers[idx].logical_tag_id = 0U;
 	peers[idx].logical_tag_id_valid = false;
 	peers[idx].tdma_slot = 0U;
@@ -410,6 +463,32 @@ static bool scan_mfg_bs_code_cb(struct bt_data *data, void *user_data)
 	return true;
 }
 
+static bool scan_mfg_uuid_cb(struct bt_data *data, void *user_data)
+{
+	char *uuid_hex = user_data;
+
+	if (uuid_hex[0] != '\0') {
+		return false;
+	}
+
+	if (data->type != BT_DATA_MANUFACTURER_DATA ||
+	    data->data_len < BIOSPUR_MFG_UUID_OFS + BIOSPUR_MFG_UUID_LEN) {
+		return true;
+	}
+
+	if (data->data[0] != 0xff || data->data[1] != 0xff ||
+	    data->data[2] != 'B' || data->data[3] != 'S') {
+		return true;
+	}
+
+	for (size_t i = 0U; i < BIOSPUR_MFG_UUID_LEN; ++i) {
+		(void)snprintk(&uuid_hex[i * 2U], 3, "%02X",
+			       data->data[BIOSPUR_MFG_UUID_OFS + i]);
+	}
+	uuid_hex[MASTER_UUID_HEX_LEN] = '\0';
+	return false;
+}
+
 static bool ad_has_biospur_token(struct net_buf_simple *ad)
 {
 	struct net_buf_simple copy = *ad;
@@ -445,6 +524,19 @@ static bool ad_get_biospur_bs_code(struct net_buf_simple *ad, uint16_t *bs_code)
 
 	*bs_code = parsed;
 	return true;
+}
+
+static bool ad_extract_uuid_hex(struct net_buf_simple *ad, char *uuid_hex, size_t uuid_hex_len)
+{
+	struct net_buf_simple copy = *ad;
+
+	if (uuid_hex == NULL || uuid_hex_len < MASTER_UUID_HEX_LEN + 1U) {
+		return false;
+	}
+
+	uuid_hex[0] = '\0';
+	bt_data_parse(&copy, scan_mfg_uuid_cb, uuid_hex);
+	return uuid_hex[0] != '\0';
 }
 
 static bool master_peer_sort_before(const struct master_peer *lhs,
@@ -920,6 +1012,27 @@ static void ble_data_sent(struct bt_nus_client *nus, uint8_t err,
 	}
 }
 
+static uint8_t anchor_ctrl_notify_cb(struct bt_conn *conn,
+				      struct bt_gatt_subscribe_params *params,
+				      const void *data, uint16_t length)
+{
+	int idx = peer_index_from_subscribe_params(params);
+	char payload[BLE_SAMPLE_HEADER_LEN + BLE_SAMPLE_RECORD_LEN * 4];
+	size_t copy_len;
+
+	ARG_UNUSED(conn);
+
+	if (data == NULL || length == 0U) {
+		return BT_GATT_ITER_CONTINUE;
+	}
+
+	copy_len = MIN((size_t)length, sizeof(payload) - 1U);
+	memcpy(payload, data, copy_len);
+	payload[copy_len] = '\0';
+	printk("ANCHOR_CTRL[%d] notify: %s\n", idx, payload);
+	return BT_GATT_ITER_CONTINUE;
+}
+
 static int nus_client_init(void)
 {
 	struct bt_nus_client_init_param init = {
@@ -947,6 +1060,109 @@ static void discovery_complete(struct bt_gatt_dm *dm, void *context)
 	int idx = (int)(peer - peers);
 	int err;
 	const char *one_shot = active_one_shot_command();
+	static struct bt_uuid_128 anchor_svc_uuid =
+		BT_UUID_INIT_128(0xf0, 0xd3, 0x39, 0x5f, 0xd9, 0x2f, 0xbf, 0xb6,
+				 0xe6, 0x4b, 0xe0, 0x84, 0x40, 0x8f, 0x2b, 0x2f);
+	static struct bt_uuid_128 anchor_state_uuid =
+		BT_UUID_INIT_128(0xf1, 0xd3, 0x39, 0x5f, 0xd9, 0x2f, 0xbf, 0xb6,
+				 0xe6, 0x4b, 0xe0, 0x84, 0x40, 0x8f, 0x2b, 0x2f);
+	static struct bt_uuid_128 anchor_control_uuid =
+		BT_UUID_INIT_128(0xf4, 0xd3, 0x39, 0x5f, 0xd9, 0x2f, 0xbf, 0xb6,
+				 0xe6, 0x4b, 0xe0, 0x84, 0x40, 0x8f, 0x2b, 0x2f);
+	static struct bt_uuid_128 anchor_result_uuid =
+		BT_UUID_INIT_128(0xf5, 0xd3, 0x39, 0x5f, 0xd9, 0x2f, 0xbf, 0xb6,
+				 0xe6, 0x4b, 0xe0, 0x84, 0x40, 0x8f, 0x2b, 0x2f);
+	const struct bt_gatt_dm_attr *gatt_service = bt_gatt_dm_service_get(dm);
+	const struct bt_gatt_dm_attr *gatt_chrc;
+	const struct bt_gatt_dm_attr *gatt_desc;
+
+	if (!bt_uuid_cmp(gatt_service->uuid, &anchor_svc_uuid.uuid)) {
+		peer->link_type = MASTER_LINK_ANCHOR_CTRL;
+
+		gatt_chrc = bt_gatt_dm_char_by_uuid(dm, &anchor_state_uuid.uuid);
+		if (gatt_chrc == NULL) {
+			printk("Anchor ctrl state characteristic missing[%d]\n", idx);
+			bt_gatt_dm_data_release(dm);
+			return;
+		}
+		gatt_desc = bt_gatt_dm_desc_by_uuid(dm, gatt_chrc, &anchor_state_uuid.uuid);
+		if (gatt_desc == NULL) {
+			printk("Anchor ctrl state value missing[%d]\n", idx);
+			bt_gatt_dm_data_release(dm);
+			return;
+		}
+		peer->anchor_state_handle = gatt_desc->handle;
+		gatt_desc = bt_gatt_dm_desc_by_uuid(dm, gatt_chrc, BT_UUID_GATT_CCC);
+		if (gatt_desc != NULL) {
+			peer->anchor_state_ccc_handle = gatt_desc->handle;
+		}
+
+		gatt_chrc = bt_gatt_dm_char_by_uuid(dm, &anchor_control_uuid.uuid);
+		if (gatt_chrc == NULL) {
+			printk("Anchor ctrl write characteristic missing[%d]\n", idx);
+			bt_gatt_dm_data_release(dm);
+			return;
+		}
+		gatt_desc = bt_gatt_dm_desc_by_uuid(dm, gatt_chrc, &anchor_control_uuid.uuid);
+		if (gatt_desc == NULL) {
+			printk("Anchor ctrl write value missing[%d]\n", idx);
+			bt_gatt_dm_data_release(dm);
+			return;
+		}
+		peer->anchor_ctrl_handle = gatt_desc->handle;
+
+		gatt_chrc = bt_gatt_dm_char_by_uuid(dm, &anchor_result_uuid.uuid);
+		if (gatt_chrc == NULL) {
+			printk("Anchor ctrl result characteristic missing[%d]\n", idx);
+			bt_gatt_dm_data_release(dm);
+			return;
+		}
+		gatt_desc = bt_gatt_dm_desc_by_uuid(dm, gatt_chrc, &anchor_result_uuid.uuid);
+		if (gatt_desc == NULL) {
+			printk("Anchor ctrl result value missing[%d]\n", idx);
+			bt_gatt_dm_data_release(dm);
+			return;
+		}
+		peer->anchor_result_handle = gatt_desc->handle;
+		gatt_desc = bt_gatt_dm_desc_by_uuid(dm, gatt_chrc, BT_UUID_GATT_CCC);
+		if (gatt_desc != NULL) {
+			peer->anchor_result_ccc_handle = gatt_desc->handle;
+		}
+
+		if (peer->anchor_state_ccc_handle != 0U) {
+			peer->anchor_state_sub_params.notify = anchor_ctrl_notify_cb;
+			peer->anchor_state_sub_params.value = BT_GATT_CCC_NOTIFY;
+			peer->anchor_state_sub_params.value_handle = peer->anchor_state_handle;
+			peer->anchor_state_sub_params.ccc_handle = peer->anchor_state_ccc_handle;
+			atomic_set_bit(peer->anchor_state_sub_params.flags,
+				       BT_GATT_SUBSCRIBE_FLAG_VOLATILE);
+			err = bt_gatt_subscribe(peer->conn, &peer->anchor_state_sub_params);
+			printk("Anchor ctrl state subscribe[%d] rc=%d\n", idx, err);
+		}
+		if (peer->anchor_result_ccc_handle != 0U) {
+			peer->anchor_result_sub_params.notify = anchor_ctrl_notify_cb;
+			peer->anchor_result_sub_params.value = BT_GATT_CCC_NOTIFY;
+			peer->anchor_result_sub_params.value_handle = peer->anchor_result_handle;
+			peer->anchor_result_sub_params.ccc_handle = peer->anchor_result_ccc_handle;
+			atomic_set_bit(peer->anchor_result_sub_params.flags,
+				       BT_GATT_SUBSCRIBE_FLAG_VOLATILE);
+			err = bt_gatt_subscribe(peer->conn, &peer->anchor_result_sub_params);
+			printk("Anchor ctrl result subscribe[%d] rc=%d\n", idx, err);
+		}
+
+		peer->ready = true;
+		peer->discovery_retry_attempts = 0U;
+		printk("ANCHOR_CTRL[%d] link ready handle=0x%04x result=0x%04x uuid=%s\n",
+		       idx, peer->anchor_ctrl_handle, peer->anchor_result_handle,
+		       peer->adv_uuid[0] != '\0' ? peer->adv_uuid : "-");
+		master_leds_refresh();
+		master_try_connect_pending();
+		if (conn_count < MASTER_MAX_CONNECTIONS) {
+			start_scan();
+		}
+		bt_gatt_dm_data_release(dm);
+		return;
+	}
 
 	err = bt_nus_handles_assign(dm, &peer->nus_client);
 	if (err) {
@@ -1003,19 +1219,30 @@ static void discovery_retry_work_fn(struct k_work *work)
 	}
 
 	if (peer->discovery_retry_attempts >= MASTER_DISCOVERY_RETRY_LIMIT) {
-		printk("NUS discovery retry exhausted[%d]\n", idx);
+		printk("%s discovery retry exhausted[%d]\n",
+		       (peer->link_type == MASTER_LINK_ANCHOR_CTRL) ? "Anchor ctrl" : "NUS",
+		       idx);
 		return;
 	}
 
 	peer->discovery_retry_attempts++;
-	err = bt_gatt_dm_start(peer->conn, BT_UUID_NUS_SERVICE, &discovery_cb, peer);
+	if (peer->link_type == MASTER_LINK_ANCHOR_CTRL) {
+		static struct bt_uuid_128 anchor_svc_uuid =
+			BT_UUID_INIT_128(0xf0, 0xd3, 0x39, 0x5f, 0xd9, 0x2f, 0xbf, 0xb6,
+					 0xe6, 0x4b, 0xe0, 0x84, 0x40, 0x8f, 0x2b, 0x2f);
+		err = bt_gatt_dm_start(peer->conn, &anchor_svc_uuid.uuid, &discovery_cb, peer);
+	} else {
+		err = bt_gatt_dm_start(peer->conn, BT_UUID_NUS_SERVICE, &discovery_cb, peer);
+	}
 	if (err) {
-		printk("Could not start GATT discovery[%d] retry %u: %d\n",
+		printk("Could not start %s discovery[%d] retry %u: %d\n",
+		       (peer->link_type == MASTER_LINK_ANCHOR_CTRL) ? "anchor-ctrl" : "NUS",
 		       idx, peer->discovery_retry_attempts, err);
 		(void)k_work_schedule(&peer->discovery_retry_work,
 				      K_MSEC(MASTER_DISCOVERY_RETRY_DELAY_MS));
 	} else {
-		printk("NUS discovery retry armed[%d] attempt=%u\n",
+		printk("%s discovery retry armed[%d] attempt=%u\n",
+		       (peer->link_type == MASTER_LINK_ANCHOR_CTRL) ? "Anchor ctrl" : "NUS",
 		       idx, peer->discovery_retry_attempts);
 	}
 }
@@ -1025,7 +1252,10 @@ static void discovery_service_not_found(struct bt_conn *conn, void *context)
 	struct master_peer *peer = context;
 	int idx = peer_index_from_conn(conn);
 
-	printk("NUS service not found[%d]\n", idx);
+	printk("%s service not found[%d]\n",
+	       (peer != NULL && peer->link_type == MASTER_LINK_ANCHOR_CTRL) ?
+		       "Anchor ctrl" : "NUS",
+	       idx);
 
 	if (peer != NULL && peer->connected && !peer->ready) {
 		(void)k_work_schedule(&peer->discovery_retry_work,
@@ -1054,10 +1284,22 @@ static struct bt_gatt_dm_cb discovery_cb = {
 
 static void gatt_discover(struct bt_conn *conn, struct master_peer *peer)
 {
-	int err = bt_gatt_dm_start(conn, BT_UUID_NUS_SERVICE, &discovery_cb, peer);
+	static struct bt_uuid_128 anchor_svc_uuid =
+		BT_UUID_INIT_128(0xf0, 0xd3, 0x39, 0x5f, 0xd9, 0x2f, 0xbf, 0xb6,
+				 0xe6, 0x4b, 0xe0, 0x84, 0x40, 0x8f, 0x2b, 0x2f);
+	const struct bt_uuid *svc_uuid = BT_UUID_NUS_SERVICE;
+	int err;
+
+	if (peer->link_type == MASTER_LINK_ANCHOR_CTRL) {
+		svc_uuid = &anchor_svc_uuid.uuid;
+	}
+
+	err = bt_gatt_dm_start(conn, svc_uuid, &discovery_cb, peer);
 
 	if (err) {
-		printk("Could not start GATT discovery[%d]: %d\n", peer_index_from_conn(conn), err);
+		printk("Could not start %s discovery[%d]: %d\n",
+		       (peer->link_type == MASTER_LINK_ANCHOR_CTRL) ? "anchor-ctrl" : "NUS",
+		       peer_index_from_conn(conn), err);
 		if (peer->connected && !peer->ready) {
 			(void)k_work_schedule(&peer->discovery_retry_work,
 					      K_MSEC(MASTER_DISCOVERY_RETRY_DELAY_MS));
@@ -1077,6 +1319,8 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	bool tag_id_valid;
 	uint16_t bs_code = 0U;
 	bool bs_code_valid;
+	char uuid_hex[MASTER_UUID_HEX_LEN + 1U];
+	bool uuid_match = false;
 	struct net_buf_simple name_copy = *buf;
 	char adv_name[MASTER_NAME_BUF_LEN];
 
@@ -1099,6 +1343,11 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	token_match = ad_has_biospur_token(buf);
 	tag_id_valid = ad_get_biospur_tag_id(buf, &tag_id);
 	bs_code_valid = ad_get_biospur_bs_code(buf, &bs_code);
+	if (!ad_extract_uuid_hex(buf, uuid_hex, sizeof(uuid_hex))) {
+		uuid_hex[0] = '\0';
+	}
+	uuid_match = (runtime_target_uuid[0] == '\0') ||
+		     (uuid_hex[0] != '\0' && !strcasecmp(uuid_hex, runtime_target_uuid));
 	memset(adv_name, 0, sizeof(adv_name));
 	bt_data_parse(&name_copy, scan_name_cb, adv_name);
 
@@ -1108,6 +1357,16 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 
 	scan_log_candidate(info, buf, name_match, nus_match, dfu_match, token_match,
 			  bs_code, bs_code_valid);
+
+	if (runtime_target_kind == MASTER_TARGET_ANCHOR) {
+		if (runtime_target_uuid[0] == '\0') {
+			return;
+		}
+		if (!uuid_match) {
+			return;
+		}
+		goto candidate_accept;
+	}
 
 	/* RECV path must connect only to peers that can carry runtime data over NUS.
 	 * DFU-only advertisers (typical anchors in OTA-capable builds) cause
@@ -1122,6 +1381,7 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 		return;
 	}
 
+candidate_accept:
 	if (peer_index_from_addr(info->addr) >= 0) {
 		return;
 	}
@@ -1148,11 +1408,17 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 		strncpy(peers[slot].adv_name, adv_name, sizeof(peers[slot].adv_name) - 1U);
 		peers[slot].adv_name[sizeof(peers[slot].adv_name) - 1U] = '\0';
 	}
+	if (uuid_hex[0] != '\0') {
+		strncpy(peers[slot].adv_uuid, uuid_hex, sizeof(peers[slot].adv_uuid) - 1U);
+		peers[slot].adv_uuid[sizeof(peers[slot].adv_uuid) - 1U] = '\0';
+	}
 	peers[slot].tag_id = 0U;
 	peers[slot].tag_id_valid = false;
 	peers[slot].bs_code = bs_code;
 	peers[slot].bs_code_valid = bs_code_valid;
 	peers[slot].connect_pending = true;
+	peers[slot].link_type = (runtime_target_kind == MASTER_TARGET_ANCHOR) ?
+				MASTER_LINK_ANCHOR_CTRL : MASTER_LINK_NUS;
 
 	if (auto_connect_enabled) {
 		connecting_slot = slot;
@@ -1391,6 +1657,28 @@ void master_restart_discovery(void)
 	master_try_connect_pending();
 }
 
+void master_set_runtime_target_kind(enum master_runtime_target_kind kind)
+{
+	runtime_target_kind = kind;
+}
+
+void master_set_runtime_target_token(int token)
+{
+	runtime_target_token = token;
+	ARG_UNUSED(runtime_target_token);
+}
+
+void master_set_runtime_target_uuid(const char *uuid_hex)
+{
+	if (uuid_hex == NULL || uuid_hex[0] == '\0') {
+		runtime_target_uuid[0] = '\0';
+		return;
+	}
+
+	strncpy(runtime_target_uuid, uuid_hex, sizeof(runtime_target_uuid) - 1U);
+	runtime_target_uuid[sizeof(runtime_target_uuid) - 1U] = '\0';
+}
+
 void master_set_background_gate(bool allow, const char *reason)
 {
 	if (recv_background_gate_open == allow) {
@@ -1432,6 +1720,20 @@ int master_send_command_now(const char *cmd)
 		int err;
 
 		if (!peers[i].connected || !peers[i].ready || peers[i].conn == NULL) {
+			continue;
+		}
+
+		if (peers[i].link_type == MASTER_LINK_ANCHOR_CTRL) {
+			err = bt_gatt_write_without_response(peers[i].conn,
+							     peers[i].anchor_ctrl_handle,
+							     cmd, cmd_len, false);
+			if (err) {
+				printk("Anchor ctrl send failed[%zu]: %d cmd=%s\n", i, err, cmd);
+				continue;
+			}
+			sent++;
+			printk("Anchor ctrl sent[%zu]: %s uuid=%s\n", i, cmd,
+			       peers[i].adv_uuid[0] != '\0' ? peers[i].adv_uuid : "-");
 			continue;
 		}
 
