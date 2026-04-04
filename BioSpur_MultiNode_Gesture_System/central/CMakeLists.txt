@@ -7,6 +7,7 @@ target_sources(app PRIVATE
 	src/main.c
 	src/app_ble.c
 	src/cdc_async.c
+	src/ota_bridge.c
 	src/tsync_master.c
 	src/wdt_monitor.c
 )
