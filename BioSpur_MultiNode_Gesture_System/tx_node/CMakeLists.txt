@@ -10,6 +10,8 @@ target_sources(app PRIVATE
 	src/tsync.c
 	src/dfu_auth.c
 	src/wdt_monitor.c
+	src/imu_uart_driver.c
+	src/uwb_driver.c
 )
 
 target_include_directories(app PRIVATE

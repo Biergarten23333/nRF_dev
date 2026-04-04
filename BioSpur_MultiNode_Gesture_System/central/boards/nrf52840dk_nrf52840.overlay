@@ -2,6 +2,7 @@
 	chosen {
 		zephyr,console = &rtt0;
 		zephyr,shell-uart = &rtt0;
+		/* Logical USB CDC interface 0 is reserved for MCUmgr/SMP. */
 		zephyr,uart-mcumgr = &cdc_acm_uart0;
 	};
 };
@@ -9,13 +10,15 @@
 &zephyr_udc0 {
 	cdc_acm_uart0: cdc_acm_uart0 {
 		compatible = "zephyr,cdc-acm-uart";
-		label = "CDC_ACM_0";
+		/* Interface 0: MCUmgr/SMP control plane. */
+		interface-string = "BioSpur-SMP";
 		status = "okay";
 	};
 
 	cdc_acm_uart1: cdc_acm_uart1 {
 		compatible = "zephyr,cdc-acm-uart";
-		label = "CDC_ACM_1";
+		/* Interface 1: sensor/runtime data plane. */
+		interface-string = "BioSpur-Data";
 		status = "okay";
 	};
 

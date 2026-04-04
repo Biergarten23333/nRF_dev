@@ -15,14 +15,14 @@ static const struct device *cdc_devices[BSGR_CDC_CHANNEL_COUNT] = {
 };
 
 static struct k_mutex cdc_lock;
-static bool cdc_ready;
+static bool cdc_is_ready;
 
 int cdc_async_init(void)
 {
 	int err;
 	size_t i;
 
-	if (cdc_ready) {
+	if (cdc_is_ready) {
 		return 0;
 	}
 
@@ -38,15 +38,20 @@ int cdc_async_init(void)
 	}
 
 	k_mutex_init(&cdc_lock);
-	cdc_ready = true;
+	cdc_is_ready = true;
 	return 0;
+}
+
+bool cdc_async_ready(void)
+{
+	return cdc_is_ready;
 }
 
 int cdc_async_write(enum bsgr_cdc_channel channel, const uint8_t *data, size_t len)
 {
 	size_t i;
 
-	if ((!cdc_ready) || (channel >= BSGR_CDC_CHANNEL_COUNT) || (data == NULL)) {
+	if ((!cdc_is_ready) || (channel >= BSGR_CDC_CHANNEL_COUNT) || (data == NULL)) {
 		return -EINVAL;
 	}
 
@@ -59,9 +64,14 @@ int cdc_async_write(enum bsgr_cdc_channel channel, const uint8_t *data, size_t l
 	return (int)len;
 }
 
+int cdc_async_write_data(const uint8_t *data, size_t len)
+{
+	return cdc_async_write(BSGR_CDC_CHANNEL_DATA, data, len);
+}
+
 int cdc_async_poll_in(enum bsgr_cdc_channel channel, uint8_t *ch)
 {
-	if ((!cdc_ready) || (channel >= BSGR_CDC_CHANNEL_COUNT) || (ch == NULL)) {
+	if ((!cdc_is_ready) || (channel >= BSGR_CDC_CHANNEL_COUNT) || (ch == NULL)) {
 		return -EINVAL;
 	}
 
