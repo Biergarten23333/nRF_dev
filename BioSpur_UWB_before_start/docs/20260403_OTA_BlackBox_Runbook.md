@@ -36,6 +36,7 @@ Role switching is separate from OTA. It is validated after OTA completes, using 
 - 52840 controller is flashed with the current `master_control` build.
 - The launcher starts from an already-RECV controller state. The OTA launcher does not issue `mode recv` itself.
 - The target UUID is known and authoritative for selection.
+- Anchor USB is power-only for strict mode. The launcher does not depend on Anchor serial, RTT, or direct debug access.
 - The controller USB CDC port is available, for example:
   - `/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_XXXXXXXX-if00`
 
@@ -47,13 +48,12 @@ Use the strict-UUID single-shot launcher:
 python3 scripts/ota_single_shot_stable.py \
   --port /dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_XXXXXXXX-if00 \
   --target-uuid <TARGET_UUID_32HEX> \
-  --anchor-port /dev/serial/by-id/usb-SEGGER_J-Link_XXXXXXXXXXXX-if00 \
-  --anchor-reset-preflight \
   --out-dir logs/live_ota_<anchor>_<timestamp>/stage1
 ```
 
 The launcher behavior is:
 
+- treat Anchor USB as power-only and skip Anchor USB / RTT observability gating
 - verify the controller UART is ready
 - send `device kind anchor`
 - verify `System target: kind=anchor`
@@ -89,6 +89,18 @@ The launcher behavior is:
 - After `mode ota`, reconnect is mandatory because the UART drops during reboot.
 - `initiate` must only be sent after the rebooted runtime proves `Control mode loaded: OTA`, `UART control ready`, and restored UUID/filter state.
 - The OTA launcher starts from RECV, but the successful path is not a typed `mode recv` transition.
+- Missing Anchor-side USB logs are not a strict failure condition. Strict preflight uses controller-side UUID/restore/DFU evidence only.
+
+## Field Semantics
+
+- `target_observability_available` is a legacy field name kept for launcher summary compatibility.
+- In strict mode it no longer means `anchor_lines > 0`.
+- In strict mode it no longer means Anchor-side serial / RTT / USB logs were visible.
+- In strict mode it now only means the launcher was allowed to proceed without forbidden-channel observability gating.
+- The actual strict proof should be read from the explicit fields and log evidence:
+  - controller-side UUID selection proof
+  - restore proof after `mode ota`
+  - `DFU SMP service ready`
 
 ## Evidence
 
@@ -106,4 +118,3 @@ Successful runtime evidence is captured in the per-anchor OTA logs, for example:
 The role-switch validation is captured separately with:
 
 - `scripts/serial_switch_role.py`
-

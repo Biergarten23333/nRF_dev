@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -26,6 +27,7 @@
 
 #define CONTROL_SETTINGS_SUBTREE "master_ctrl"
 #define CONTROL_SETTINGS_MODE_KEY "mode"
+#define CONTROL_SETTINGS_AUTOPOS_TARGET_KEY "autopos_target"
 #define CONTROL_BOOT_COOKIE_MAGIC 0x42534d44U
 #define OTA_TARGET_BOOT_COOKIE_MAGIC 0x4f544147U
 #define OTA_NUS_BOOT_COOKIE_MAGIC 0x4f54414eU
@@ -33,6 +35,7 @@
 enum control_mode {
 	CONTROL_MODE_RECV = 0,
 	CONTROL_MODE_OTA = 1,
+	CONTROL_MODE_AUTOPOS = 2,
 };
 
 enum system_device_kind {
@@ -76,10 +79,46 @@ static uint8_t requested_source;
 static const struct device *const console_uart = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
 static char uart_pending_line[64];
 static size_t uart_pending_len;
+
+static const char *control_log_prefix(void)
+{
+	switch (control_mode) {
+	case CONTROL_MODE_AUTOPOS:
+		return "AUTOPOS";
+	case CONTROL_MODE_OTA:
+		return "OTA";
+	case CONTROL_MODE_RECV:
+	default:
+		return "RECV";
+	}
+}
+
+static void control_mode_printk(const char *fmt, ...)
+{
+	va_list ap;
+
+	printk("[%s] ", control_log_prefix());
+	va_start(ap, fmt);
+	vprintk(fmt, ap);
+	va_end(ap);
+}
+
+#define printk control_mode_printk
 static atomic_t uart_line_ready;
 static struct system_target_profile system_target;
 static bool ota_expect_nus_cfg = true;
 static bool ota_transition_active;
+static struct k_work autopos_apply_work;
+static atomic_t autopos_apply_pending;
+
+#define AUTOPOS_ANCHOR_COUNT 8
+#define AUTOPOS_UUID_LEN 33
+static const char autopos_labels[AUTOPOS_ANCHOR_COUNT] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
+static char autopos_uuid_map[AUTOPOS_ANCHOR_COUNT][AUTOPOS_UUID_LEN];
+static int8_t autopos_target_idx = -1;
+static int8_t autopos_last_success_idx = -1;
+static char autopos_state[16] = "idle";
+static char autopos_last_error[96];
 
 struct disconnect_ctx {
 	int requested;
@@ -97,7 +136,30 @@ int master_app_run(void);
 
 static const char *control_mode_name(uint8_t mode)
 {
-	return (mode == CONTROL_MODE_OTA) ? "OTA" : "RECV";
+	switch (mode) {
+	case CONTROL_MODE_OTA:
+		return "OTA";
+	case CONTROL_MODE_AUTOPOS:
+		return "AUTOPOS";
+	default:
+		return "RECV";
+	}
+}
+
+static void sync_master_log_mode(uint8_t mode)
+{
+	switch (mode) {
+	case CONTROL_MODE_AUTOPOS:
+		master_set_log_mode(MASTER_LOG_MODE_AUTOPOS);
+		break;
+	case CONTROL_MODE_OTA:
+		master_set_log_mode(MASTER_LOG_MODE_OTA);
+		break;
+	case CONTROL_MODE_RECV:
+	default:
+		master_set_log_mode(MASTER_LOG_MODE_RECV);
+		break;
+	}
 }
 
 static void control_leds_set(uint32_t leds)
@@ -128,10 +190,11 @@ static void control_print_status(void)
 
 static void control_print_help(void)
 {
-	printk("Commands: status | mode recv | mode ota | scan | conn | initiate\n");
+	printk("Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate\n");
 	printk("Runtime NUS cmds: cmd <raw> | oneshot <raw> | oneshot show | oneshot clear\n");
 	printk("Device model cmds: device show | device kind <anchor|tag>\n");
 	printk("OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->\n");
+	printk("AUTOPOS cmds: autopos status | autopos map <A..H> <UUID32> | autopos map show | autopos round <A..H> | autopos apply\n");
 }
 
 static const char *system_kind_name(uint8_t kind)
@@ -179,13 +242,61 @@ static void system_target_print(void)
 	master_ota_target_print();
 }
 
+static int autopos_label_to_index(char label)
+{
+	char up = (char)toupper((unsigned char)label);
+
+	for (int i = 0; i < AUTOPOS_ANCHOR_COUNT; ++i) {
+		if (autopos_labels[i] == up) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+static void autopos_set_error(const char *text)
+{
+	(void)snprintf(autopos_last_error, sizeof(autopos_last_error), "%s",
+		       (text != NULL) ? text : "-");
+	(void)snprintf(autopos_state, sizeof(autopos_state), "failed");
+}
+
+static void autopos_print_status(void)
+{
+	printk("AUTOPOS: mode=%s state=%s staged=%c last_success=%c error=%s\n",
+	       control_mode_name(control_mode),
+	       autopos_state,
+	       (autopos_target_idx >= 0) ? autopos_labels[autopos_target_idx] : '-',
+	       (autopos_last_success_idx >= 0) ? autopos_labels[autopos_last_success_idx] : '-',
+	       autopos_last_error[0] != '\0' ? autopos_last_error : "-");
+}
+
+static void autopos_print_map(void)
+{
+	for (int i = 0; i < AUTOPOS_ANCHOR_COUNT; ++i) {
+		printk("AUTOPOS map %c=%s\n", autopos_labels[i],
+		       autopos_uuid_map[i][0] != '\0' ? autopos_uuid_map[i] : "-");
+	}
+}
+
+static bool autopos_map_complete(void)
+{
+	for (int i = 0; i < AUTOPOS_ANCHOR_COUNT; ++i) {
+		if (autopos_uuid_map[i][0] == '\0') {
+			return false;
+		}
+	}
+	return true;
+}
+
 static int control_settings_set(const char *key, size_t len,
 				settings_read_cb read_cb, void *cb_arg)
 {
 	const char *next;
+	char map_key[16];
 
 	if (!settings_name_steq(key, CONTROL_SETTINGS_MODE_KEY, &next) || next != NULL) {
-		return -ENOENT;
+		goto maybe_autopos;
 	}
 
 	if (len != sizeof(control_mode)) {
@@ -193,16 +304,93 @@ static int control_settings_set(const char *key, size_t len,
 	}
 
 	return read_cb(cb_arg, &control_mode, sizeof(control_mode));
+
+maybe_autopos:
+	if (settings_name_steq(key, CONTROL_SETTINGS_AUTOPOS_TARGET_KEY, &next) && next == NULL) {
+		int8_t staged = -1;
+
+		if (len != sizeof(staged)) {
+			return -EINVAL;
+		}
+		if (read_cb(cb_arg, &staged, sizeof(staged)) >= 0) {
+			autopos_target_idx = staged;
+		}
+		return 0;
+	}
+
+	for (int i = 0; i < AUTOPOS_ANCHOR_COUNT; ++i) {
+		(void)snprintf(map_key, sizeof(map_key), "autopos_map_%c",
+			       (char)tolower((unsigned char)autopos_labels[i]));
+		if (settings_name_steq(key, map_key, &next) && next == NULL) {
+			if (len == 0U) {
+				autopos_uuid_map[i][0] = '\0';
+				return 0;
+			}
+			if (len >= AUTOPOS_UUID_LEN) {
+				return -EINVAL;
+			}
+			memset(autopos_uuid_map[i], 0, sizeof(autopos_uuid_map[i]));
+			(void)read_cb(cb_arg, autopos_uuid_map[i], len);
+			autopos_uuid_map[i][len] = '\0';
+			return 0;
+		}
+	}
+
+	return -ENOENT;
 }
 
 static int control_settings_export(int (*cb)(const char *name, const void *value,
 					     size_t val_len))
 {
-	return cb(CONTROL_SETTINGS_MODE_KEY, &control_mode, sizeof(control_mode));
+	int rc;
+	char map_key[16];
+
+	rc = cb(CONTROL_SETTINGS_MODE_KEY, &control_mode, sizeof(control_mode));
+	if (rc != 0) {
+		return rc;
+	}
+	rc = cb(CONTROL_SETTINGS_AUTOPOS_TARGET_KEY, &autopos_target_idx, sizeof(autopos_target_idx));
+	if (rc != 0) {
+		return rc;
+	}
+	for (int i = 0; i < AUTOPOS_ANCHOR_COUNT; ++i) {
+		if (autopos_uuid_map[i][0] == '\0') {
+			continue;
+		}
+		(void)snprintf(map_key, sizeof(map_key), "autopos_map_%c",
+			       (char)tolower((unsigned char)autopos_labels[i]));
+		rc = cb(map_key, autopos_uuid_map[i], strlen(autopos_uuid_map[i]) + 1U);
+		if (rc != 0) {
+			return rc;
+		}
+	}
+	return 0;
 }
 
 SETTINGS_STATIC_HANDLER_DEFINE(master_ctrl, CONTROL_SETTINGS_SUBTREE, NULL,
 			       control_settings_set, NULL, control_settings_export);
+
+static void autopos_save_target(void)
+{
+	if (!IS_ENABLED(CONFIG_SETTINGS)) {
+		return;
+	}
+	(void)settings_save_one(CONTROL_SETTINGS_SUBTREE "/" CONTROL_SETTINGS_AUTOPOS_TARGET_KEY,
+				&autopos_target_idx, sizeof(autopos_target_idx));
+}
+
+static void autopos_save_map_entry(int idx)
+{
+	char key[48];
+
+	if (!IS_ENABLED(CONFIG_SETTINGS) || idx < 0 || idx >= AUTOPOS_ANCHOR_COUNT) {
+		return;
+	}
+	(void)snprintf(key, sizeof(key), CONTROL_SETTINGS_SUBTREE "/autopos_map_%c",
+		       (char)tolower((unsigned char)autopos_labels[idx]));
+	(void)settings_save_one(key, autopos_uuid_map[idx],
+				strlen(autopos_uuid_map[idx]) + 1U);
+}
 
 static void control_save_mode(void)
 {
@@ -255,6 +443,139 @@ static void control_disconnect_all_links(void)
 	k_sleep(K_MSEC(250));
 }
 
+static int autopos_wait_anchor_ready(const char *uuid, int timeout_ms)
+{
+	int waited = 0;
+
+	master_set_runtime_target_kind(MASTER_TARGET_ANCHOR);
+	master_set_runtime_target_uuid(uuid);
+	master_set_connect_and_start_mode();
+	master_disconnect_all_peers();
+	master_restart_discovery();
+
+	while (waited < timeout_ms) {
+		if (master_anchor_ctrl_ready_count() > 0) {
+			return 0;
+		}
+		k_sleep(K_MSEC(200));
+		waited += 200;
+	}
+	return -ETIMEDOUT;
+}
+
+static int autopos_wait_role_state(const char *expect_role, int timeout_ms)
+{
+	char state[256];
+	int waited = 0;
+	int rc;
+	char needle[32];
+
+	(void)snprintf(needle, sizeof(needle), "role=%s", expect_role);
+	while (waited < timeout_ms) {
+		rc = master_anchor_ctrl_read_state(state, sizeof(state));
+		if (rc == 0) {
+			printk("AUTOPOS state: %s\n", state);
+			if (strstr(state, needle) != NULL) {
+				return 0;
+			}
+		}
+		k_sleep(K_MSEC(200));
+		waited += 200;
+	}
+	return -ETIMEDOUT;
+}
+
+static int autopos_apply_one_anchor(int idx, bool is_master)
+{
+	int rc;
+	char result[256];
+	const char *role_cmd = is_master ? "R MASTER" : "R MATRIX";
+	const char *expect_role = is_master ? "master" : "matrix";
+
+	rc = autopos_wait_anchor_ready(autopos_uuid_map[idx], 12000);
+	if (rc != 0) {
+		return rc;
+	}
+
+	rc = master_send_command_now(role_cmd);
+	if (rc < 0) {
+		return rc;
+	}
+	k_sleep(K_MSEC(120));
+	rc = master_send_command_now("VALIDATE");
+	if (rc < 0) {
+		return rc;
+	}
+	k_sleep(K_MSEC(120));
+	rc = master_send_command_now("COMMIT");
+	if (rc < 0) {
+		return rc;
+	}
+	k_sleep(K_MSEC(120));
+	rc = master_anchor_ctrl_read_result(result, sizeof(result));
+	if (rc == 0) {
+		printk("AUTOPOS result[%c]: %s\n", autopos_labels[idx], result);
+	}
+	rc = master_send_command_now("REBOOT");
+	if (rc < 0) {
+		return rc;
+	}
+
+	master_disconnect_all_peers();
+	k_sleep(K_MSEC(1400));
+
+	rc = autopos_wait_anchor_ready(autopos_uuid_map[idx], 15000);
+	if (rc != 0) {
+		return rc;
+	}
+	return autopos_wait_role_state(expect_role, 5000);
+}
+
+static void autopos_apply_work_handler(struct k_work *work)
+{
+	int rc = 0;
+
+	ARG_UNUSED(work);
+
+	if (control_mode != CONTROL_MODE_AUTOPOS) {
+		autopos_set_error("not in AUTOPOS mode");
+		goto done;
+	}
+	if (autopos_target_idx < 0 || autopos_target_idx >= AUTOPOS_ANCHOR_COUNT) {
+		autopos_set_error("round target not set");
+		goto done;
+	}
+	if (!autopos_map_complete()) {
+		autopos_set_error("incomplete AUTOPOS map");
+		goto done;
+	}
+
+	(void)snprintf(autopos_state, sizeof(autopos_state), "applying");
+	autopos_last_error[0] = '\0';
+	for (int i = 0; i < AUTOPOS_ANCHOR_COUNT; ++i) {
+		rc = autopos_apply_one_anchor(i, i == autopos_target_idx);
+		if (rc != 0) {
+			(void)snprintf(autopos_last_error, sizeof(autopos_last_error),
+				       "anchor %c step failed rc=%d", autopos_labels[i], rc);
+			(void)snprintf(autopos_state, sizeof(autopos_state), "failed");
+			printk("AUTOPOS apply failed: %s\n", autopos_last_error);
+			goto done;
+		}
+		printk("AUTOPOS anchor %c role verified\n", autopos_labels[i]);
+	}
+
+	autopos_last_success_idx = autopos_target_idx;
+	(void)snprintf(autopos_state, sizeof(autopos_state), "ready");
+	printk("AUTOPOS apply success: master=%c\n", autopos_labels[autopos_target_idx]);
+	master_set_runtime_target_kind(MASTER_TARGET_TAG);
+	master_set_runtime_target_uuid("");
+	master_set_connect_and_start_mode();
+	master_restart_discovery();
+
+done:
+	atomic_set(&autopos_apply_pending, 0);
+}
+
 static void mode_switch_work_handler(struct k_work *work)
 {
 	ARG_UNUSED(work);
@@ -292,6 +613,7 @@ static void mode_switch_work_handler(struct k_work *work)
 	}
 	control_disconnect_all_links();
 	control_mode = requested_mode;
+	sync_master_log_mode(control_mode);
 	control_save_mode();
 	control_stage_ota_target();
 	printk("Control mode now %s, rebooting\n", control_mode_name(control_mode));
@@ -412,8 +734,8 @@ static void control_handle_uart_command(const char *line)
 	}
 
 	if (strcmp(cmd, "scan") == 0) {
-		if (control_mode != CONTROL_MODE_RECV) {
-			printk("SCAN ignored: control mode must be RECV\n");
+		if (control_mode != CONTROL_MODE_RECV && control_mode != CONTROL_MODE_AUTOPOS) {
+			printk("SCAN ignored: control mode must be RECV/AUTOPOS\n");
 			control_print_help();
 			return;
 		}
@@ -430,8 +752,8 @@ static void control_handle_uart_command(const char *line)
 	}
 
 	if (strcmp(cmd, "conn") == 0) {
-		if (control_mode != CONTROL_MODE_RECV) {
-			printk("CONN ignored: control mode must be RECV\n");
+		if (control_mode != CONTROL_MODE_RECV && control_mode != CONTROL_MODE_AUTOPOS) {
+			printk("CONN ignored: control mode must be RECV/AUTOPOS\n");
 			control_print_help();
 			return;
 		}
@@ -472,6 +794,95 @@ static void control_handle_uart_command(const char *line)
 
 		if (strcmp(arg, "recv") == 0 || strcmp(arg, "rx") == 0) {
 			request_mode_switch(CONTROL_MODE_RECV, REQ_SRC_UART);
+			return;
+		}
+
+		if (strcmp(arg, "autopos") == 0) {
+			if (control_mode == CONTROL_MODE_OTA) {
+				printk("mode autopos ignored: switch to RECV first\n");
+				return;
+			}
+			control_mode = CONTROL_MODE_AUTOPOS;
+			sync_master_log_mode(control_mode);
+			control_save_mode();
+			(void)snprintf(autopos_state, sizeof(autopos_state), "idle");
+			autopos_last_error[0] = '\0';
+			master_set_runtime_target_kind(MASTER_TARGET_TAG);
+			master_set_runtime_target_uuid("");
+			master_set_connect_and_start_mode();
+			master_restart_discovery();
+			autopos_print_status();
+			return;
+		}
+	}
+
+	if (strcmp(cmd, "autopos") == 0 && parsed >= 2) {
+		if (strcmp(arg, "status") == 0) {
+			autopos_print_status();
+			return;
+		}
+		if (strcmp(arg, "map") == 0) {
+			if (parsed >= 3 && strcmp(arg2, "show") == 0) {
+				autopos_print_map();
+				return;
+			}
+			if (parsed < 3) {
+				printk("autopos map usage: autopos map <A..H> <UUID32>\n");
+				return;
+			}
+			if (strlen(arg2) != 1U) {
+				printk("autopos map invalid label: %s\n", arg2);
+				return;
+			}
+			int idx = autopos_label_to_index(arg2[0]);
+			char uuid_raw[33];
+			if (idx < 0) {
+				printk("autopos map invalid label: %s\n", arg2);
+				return;
+			}
+			if (sscanf(line, "%*s %*s %*s %32s", uuid_raw) != 1) {
+				printk("autopos map parse failed\n");
+				return;
+			}
+			for (char *p = uuid_raw; *p != '\0'; ++p) {
+				*p = (char)toupper((unsigned char)*p);
+			}
+			if (strlen(uuid_raw) != 32U) {
+				printk("autopos map invalid uuid len=%u\n", (unsigned int)strlen(uuid_raw));
+				return;
+			}
+			(void)snprintf(autopos_uuid_map[idx], sizeof(autopos_uuid_map[idx]), "%s", uuid_raw);
+			autopos_save_map_entry(idx);
+			printk("AUTOPOS map set: %c=%s\n", autopos_labels[idx], autopos_uuid_map[idx]);
+			return;
+		}
+		if (strcmp(arg, "round") == 0 && parsed >= 3) {
+			if (strlen(arg2) != 1U) {
+				printk("autopos round invalid label: %s\n", arg2);
+				return;
+			}
+			autopos_target_idx = autopos_label_to_index(arg2[0]);
+			if (autopos_target_idx < 0) {
+				printk("autopos round invalid label: %s\n", arg2);
+				return;
+			}
+			autopos_save_target();
+			(void)snprintf(autopos_state, sizeof(autopos_state), "staged");
+			autopos_last_error[0] = '\0';
+			printk("AUTOPOS round staged: master=%c\n", autopos_labels[autopos_target_idx]);
+			return;
+		}
+		if (strcmp(arg, "apply") == 0) {
+			if (control_mode != CONTROL_MODE_AUTOPOS) {
+				printk("autopos apply ignored: mode must be AUTOPOS\n");
+				return;
+			}
+			if (!atomic_cas(&autopos_apply_pending, 0, 1)) {
+				printk("autopos apply already running\n");
+				return;
+			}
+			k_work_submit(&autopos_apply_work);
+			printk("AUTOPOS apply started\n");
 			return;
 		}
 	}
@@ -691,9 +1102,11 @@ static int control_load_mode(void)
 		control_mode = control_boot_mode;
 		control_boot_cookie = 0U;
 	} else if (control_mode != CONTROL_MODE_RECV &&
-		   control_mode != CONTROL_MODE_OTA) {
+		   control_mode != CONTROL_MODE_OTA &&
+		   control_mode != CONTROL_MODE_AUTOPOS) {
 		control_mode = CONTROL_MODE_RECV;
 	}
+	sync_master_log_mode(control_mode);
 
 	printk("Control mode loaded: %s\n", control_mode_name(control_mode));
 	return 0;
@@ -705,6 +1118,7 @@ int main(void)
 
 	k_work_init(&mode_switch_work, mode_switch_work_handler);
 	k_work_init(&uart_cmd_work, control_uart_cmd_work_handler);
+	k_work_init(&autopos_apply_work, autopos_apply_work_handler);
 
 	err = control_init_ui();
 	if (err) {
@@ -742,7 +1156,7 @@ int main(void)
 	}
 
 	uart_irq_rx_enable(console_uart);
-	printk("UART control ready: type 'status' or 'mode recv'/'mode ota'\n");
+	printk("UART control ready: type 'status' or 'mode recv'/'mode ota'/'mode autopos'\n");
 	master_ota_target_reset();
 	ota_target_token_cfg = -1;
 	ota_target_name_cfg[0] = '\0';
@@ -778,6 +1192,9 @@ int main(void)
 	system_target.caps = system_caps_for_kind(SYS_DEV_UNKNOWN);
 	master_set_runtime_target_kind(MASTER_TARGET_UNKNOWN);
 	master_ota_target_print();
+	if (autopos_state[0] == '\0') {
+		(void)snprintf(autopos_state, sizeof(autopos_state), "idle");
+	}
 
 	control_leds_set(DK_NO_LEDS_MSK);
 	printk("BioSpur BLE master control ready on nRF52840 DK\n");
@@ -792,6 +1209,10 @@ int main(void)
 	}
 
 	ota_transition_active = false;
-	printk("Launching receiver mode\n");
+	if (control_mode == CONTROL_MODE_AUTOPOS) {
+		printk("Launching AUTOPOS mode (internal receive active)\n");
+	} else {
+		printk("Launching receiver mode\n");
+	}
 	return master_app_run();
 }

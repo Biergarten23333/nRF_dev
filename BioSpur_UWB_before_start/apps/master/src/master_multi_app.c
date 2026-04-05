@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <stdbool.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -32,6 +33,10 @@
 #define MASTER_TDMA_EPOCH_LEAD_MS 3000U
 #ifndef APP_MASTER_TAG_NAME_PREFIX
 #define APP_MASTER_TAG_NAME_PREFIX "BS"
+#endif
+
+#ifndef APP_MASTER_ANCHOR_NAME_PREFIX
+#define APP_MASTER_ANCHOR_NAME_PREFIX "ANCHOR-"
 #endif
 #define MASTER_NAME_BUF_LEN 32U
 #define BLE_SAMPLE_MAGIC0 0x42U
@@ -120,12 +125,62 @@ static uint8_t tdma_generation;
 static char runtime_one_shot_cmd[MASTER_RUNTIME_ONE_SHOT_CMD_LEN];
 static bool runtime_one_shot_cmd_set;
 static enum master_runtime_target_kind runtime_target_kind = MASTER_TARGET_UNKNOWN;
+static enum master_log_mode runtime_log_mode = MASTER_LOG_MODE_RECV;
 static int runtime_target_token = -1;
 static char runtime_target_uuid[MASTER_UUID_HEX_LEN + 1U];
+static struct k_sem anchor_read_sem;
+static struct bt_gatt_read_params anchor_read_params;
+static char anchor_read_buffer[256];
+static size_t anchor_read_length;
+static int anchor_read_status = -EAGAIN;
+static bool anchor_read_inflight;
 static struct bt_gatt_dm_cb discovery_cb;
 static void start_scan(void);
 static void stop_scan(void);
 static void master_try_connect_pending(void);
+
+static const char *master_runtime_mode_label(void)
+{
+	switch (runtime_log_mode) {
+	case MASTER_LOG_MODE_AUTOPOS:
+		return "AUTOPOS";
+	case MASTER_LOG_MODE_OTA:
+		return "OTA";
+	case MASTER_LOG_MODE_RECV:
+	default:
+		return "RECV";
+	}
+}
+
+static void master_mode_printk(const char *fmt, ...)
+{
+	va_list ap;
+
+	printk("[%s] ", master_runtime_mode_label());
+	va_start(ap, fmt);
+	vprintk(fmt, ap);
+	va_end(ap);
+}
+
+#define printk master_mode_printk
+
+static int find_ready_anchor_peer_index(void)
+{
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		if (!peers[i].connected || !peers[i].ready || peers[i].conn == NULL) {
+			continue;
+		}
+		if (peers[i].link_type != MASTER_LINK_ANCHOR_CTRL) {
+			continue;
+		}
+		if (runtime_target_uuid[0] != '\0' && peers[i].adv_uuid[0] != '\0' &&
+		    strcasecmp(peers[i].adv_uuid, runtime_target_uuid) != 0) {
+			continue;
+		}
+		return (int)i;
+	}
+	return -1;
+}
 
 static bool recv_background_allowed(void)
 {
@@ -310,11 +365,17 @@ static bool scan_name_cb(struct bt_data *data, void *user_data)
 	}
 }
 
-static bool ad_name_matches_target(struct net_buf_simple *ad)
+static bool ad_name_matches_prefix(struct net_buf_simple *ad, const char *prefix)
 {
 	struct net_buf_simple copy = *ad;
 	char name[MASTER_NAME_BUF_LEN];
-	size_t prefix_len = strlen(APP_MASTER_TAG_NAME_PREFIX);
+	size_t prefix_len;
+
+	if (prefix == NULL || prefix[0] == '\0') {
+		return false;
+	}
+
+	prefix_len = strlen(prefix);
 
 	memset(name, 0, sizeof(name));
 	bt_data_parse(&copy, scan_name_cb, name);
@@ -323,7 +384,17 @@ static bool ad_name_matches_target(struct net_buf_simple *ad)
 		return false;
 	}
 
-	return strncmp(name, APP_MASTER_TAG_NAME_PREFIX, prefix_len) == 0;
+	return strncmp(name, prefix, prefix_len) == 0;
+}
+
+static bool ad_name_matches_tag_target(struct net_buf_simple *ad)
+{
+	return ad_name_matches_prefix(ad, APP_MASTER_TAG_NAME_PREFIX);
+}
+
+static bool ad_name_matches_anchor_target(struct net_buf_simple *ad)
+{
+	return ad_name_matches_prefix(ad, APP_MASTER_ANCHOR_NAME_PREFIX);
 }
 
 static bool scan_uuid128_cb(struct bt_data *data, void *user_data)
@@ -749,6 +820,8 @@ static void scan_log_candidate(const struct bt_le_scan_recv_info *info,
 static void start_scan(void)
 {
 	int err;
+	const char *prefix = (runtime_target_kind == MASTER_TARGET_ANCHOR) ?
+		APP_MASTER_ANCHOR_NAME_PREFIX : APP_MASTER_TAG_NAME_PREFIX;
 
 	if (!recv_background_allowed()) {
 		printk("RECV_BG suppressed: scan start skipped\n");
@@ -767,7 +840,7 @@ static void start_scan(void)
 
 	scan_running = true;
 	master_leds_refresh();
-	printk("Scanning for %s*\n", APP_MASTER_TAG_NAME_PREFIX);
+	printk("Scanning for %s*\n", prefix);
 }
 
 static const char *sample_plan_label(uint8_t code)
@@ -1031,6 +1104,39 @@ static uint8_t anchor_ctrl_notify_cb(struct bt_conn *conn,
 	payload[copy_len] = '\0';
 	printk("ANCHOR_CTRL[%d] notify: %s\n", idx, payload);
 	return BT_GATT_ITER_CONTINUE;
+}
+
+static uint8_t anchor_read_cb(struct bt_conn *conn, uint8_t err,
+			      struct bt_gatt_read_params *params,
+			      const void *data, uint16_t length)
+{
+	ARG_UNUSED(conn);
+
+	if (params != &anchor_read_params) {
+		return BT_GATT_ITER_STOP;
+	}
+
+	if (err != 0U) {
+		anchor_read_status = -EIO;
+		anchor_read_inflight = false;
+		k_sem_give(&anchor_read_sem);
+		return BT_GATT_ITER_STOP;
+	}
+
+	if (data == NULL || length == 0U) {
+		anchor_read_status = (anchor_read_length > 0U) ? 0 : -ENODATA;
+		anchor_read_inflight = false;
+		k_sem_give(&anchor_read_sem);
+		return BT_GATT_ITER_STOP;
+	}
+
+	anchor_read_length = MIN((size_t)length, sizeof(anchor_read_buffer) - 1U);
+	memcpy(anchor_read_buffer, data, anchor_read_length);
+	anchor_read_buffer[anchor_read_length] = '\0';
+	anchor_read_status = 0;
+	anchor_read_inflight = false;
+	k_sem_give(&anchor_read_sem);
+	return BT_GATT_ITER_STOP;
 }
 
 static int nus_client_init(void)
@@ -1312,6 +1418,7 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	int err;
 	int slot;
 	bool name_match;
+	bool anchor_name_match;
 	bool nus_match;
 	bool dfu_match;
 	bool token_match;
@@ -1337,7 +1444,8 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 		return;
 	}
 
-	name_match = ad_name_matches_target(buf);
+	name_match = ad_name_matches_tag_target(buf);
+	anchor_name_match = ad_name_matches_anchor_target(buf);
 	nus_match = ad_has_nus_uuid(buf);
 	dfu_match = ad_has_dfu_smp_uuid(buf);
 	token_match = ad_has_biospur_token(buf);
@@ -1351,13 +1459,6 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	memset(adv_name, 0, sizeof(adv_name));
 	bt_data_parse(&name_copy, scan_name_cb, adv_name);
 
-	if (!bs_code_valid) {
-		return;
-	}
-
-	scan_log_candidate(info, buf, name_match, nus_match, dfu_match, token_match,
-			  bs_code, bs_code_valid);
-
 	if (runtime_target_kind == MASTER_TARGET_ANCHOR) {
 		if (runtime_target_uuid[0] == '\0') {
 			return;
@@ -1366,6 +1467,10 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 			return;
 		}
 		goto candidate_accept;
+	}
+
+	if (!bs_code_valid) {
+		return;
 	}
 
 	/* RECV path must connect only to peers that can carry runtime data over NUS.
@@ -1382,6 +1487,9 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	}
 
 candidate_accept:
+	scan_log_candidate(info, buf, name_match, nus_match, dfu_match, token_match,
+			  bs_code, bs_code_valid);
+
 	if (peer_index_from_addr(info->addr) >= 0) {
 		return;
 	}
@@ -1594,6 +1702,7 @@ int master_app_run(void)
 
 	bt_conn_cb_register(&conn_callbacks);
 	bt_le_scan_cb_register(&scan_callbacks);
+	k_sem_init(&anchor_read_sem, 0, 1);
 
 	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
 		k_work_init_delayable(&peers[i].discovery_retry_work, discovery_retry_work_fn);
@@ -1657,6 +1766,11 @@ void master_restart_discovery(void)
 	master_try_connect_pending();
 }
 
+void master_set_log_mode(enum master_log_mode mode)
+{
+	runtime_log_mode = mode;
+}
+
 void master_set_runtime_target_kind(enum master_runtime_target_kind kind)
 {
 	runtime_target_kind = kind;
@@ -1677,6 +1791,100 @@ void master_set_runtime_target_uuid(const char *uuid_hex)
 
 	strncpy(runtime_target_uuid, uuid_hex, sizeof(runtime_target_uuid) - 1U);
 	runtime_target_uuid[sizeof(runtime_target_uuid) - 1U] = '\0';
+}
+
+int master_anchor_ctrl_ready_count(void)
+{
+	int count = 0;
+
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		if (!peers[i].connected || !peers[i].ready || peers[i].conn == NULL) {
+			continue;
+		}
+		if (peers[i].link_type != MASTER_LINK_ANCHOR_CTRL) {
+			continue;
+		}
+		if (runtime_target_uuid[0] != '\0' && peers[i].adv_uuid[0] != '\0' &&
+		    strcasecmp(peers[i].adv_uuid, runtime_target_uuid) != 0) {
+			continue;
+		}
+		count++;
+	}
+
+	return count;
+}
+
+static int master_anchor_ctrl_read_text(uint16_t handle, char *out, size_t out_len)
+{
+	int idx;
+	int err;
+
+	if (out == NULL || out_len == 0U) {
+		return -EINVAL;
+	}
+
+	idx = find_ready_anchor_peer_index();
+	if (idx < 0) {
+		return -ENOTCONN;
+	}
+	if (handle == 0U) {
+		return -EINVAL;
+	}
+	if (anchor_read_inflight) {
+		return -EBUSY;
+	}
+
+	while (k_sem_take(&anchor_read_sem, K_NO_WAIT) == 0) {
+		/* drain */
+	}
+
+	memset(&anchor_read_params, 0, sizeof(anchor_read_params));
+	anchor_read_params.func = anchor_read_cb;
+	anchor_read_params.handle_count = 1U;
+	anchor_read_params.single.handle = handle;
+	anchor_read_params.single.offset = 0U;
+	anchor_read_length = 0U;
+	anchor_read_buffer[0] = '\0';
+	anchor_read_status = -EAGAIN;
+	anchor_read_inflight = true;
+
+	err = bt_gatt_read(peers[idx].conn, &anchor_read_params);
+	if (err) {
+		anchor_read_inflight = false;
+		return err;
+	}
+
+	if (k_sem_take(&anchor_read_sem, K_MSEC(1500)) != 0) {
+		anchor_read_inflight = false;
+		return -ETIMEDOUT;
+	}
+	if (anchor_read_status != 0) {
+		return anchor_read_status;
+	}
+
+	strncpy(out, anchor_read_buffer, out_len - 1U);
+	out[out_len - 1U] = '\0';
+	return 0;
+}
+
+int master_anchor_ctrl_read_state(char *out, size_t out_len)
+{
+	int idx = find_ready_anchor_peer_index();
+
+	if (idx < 0) {
+		return -ENOTCONN;
+	}
+	return master_anchor_ctrl_read_text(peers[idx].anchor_state_handle, out, out_len);
+}
+
+int master_anchor_ctrl_read_result(char *out, size_t out_len)
+{
+	int idx = find_ready_anchor_peer_index();
+
+	if (idx < 0) {
+		return -ENOTCONN;
+	}
+	return master_anchor_ctrl_read_text(peers[idx].anchor_result_handle, out, out_len);
 }
 
 void master_set_background_gate(bool allow, const char *reason)

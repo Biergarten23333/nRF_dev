@@ -50,6 +50,9 @@ def classify_phase_a_reason(
 class RunResult:
     port: str
     target_uuid: str
+    target_selection_ready: bool
+    target_restore_ready: bool
+    target_transport_ready: bool
     phase_a_ok: bool
     phase_b_ok: bool
     reboot_seen: bool
@@ -77,6 +80,10 @@ class RunResult:
     ota_command_sequence_seen: bool
     ota_later_fail_seen: bool
     ota_success_seen: bool
+    # Legacy field name kept for summary/backward compatibility.
+    # In strict mode this no longer means "anchor-side logs were visible".
+    # It now only means strict mode was allowed to proceed without forbidden
+    # Anchor USB/RTT observability gating.
     target_observability_available: bool
     anchor_lines: int
     anchor_bt_rx_seen: bool
@@ -103,24 +110,34 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--anchor-port",
         default="/dev/serial/by-id/usb-SEGGER_J-Link_000760186071-if00",
-        help="Anchor A diagnostic serial port (required for observability preflight/classification).",
+        help="Deprecated debug-only anchor observability port. Strict mode ignores Anchor USB data paths.",
     )
     p.add_argument(
         "--anchor-map-json",
         default="logs/anchor_diag_map.json",
-        help="Resolved anchor diag map JSON (from resolve_anchor_diag_port.py).",
+        help="Deprecated debug-only anchor observability map. Strict mode does not use it for hard gating.",
+    )
+    p.add_argument(
+        "--anchor-observability-backend",
+        choices=["auto", "serial", "rtt"],
+        default="auto",
+        help="Deprecated debug-only anchor observability backend. Strict mode ignores Anchor USB/RTT backends.",
     )
     p.add_argument("--anchor-baud", type=int, default=115200)
+    p.add_argument("--anchor-rtt-device", default="nRF52832_XXAA")
+    p.add_argument("--anchor-rtt-if", default="SWD")
+    p.add_argument("--anchor-rtt-speed", default="4000")
+    p.add_argument("--anchor-rtt-channel", default="0")
     p.add_argument(
         "--anchor-preflight-timeout-s",
         type=float,
         default=10.0,
-        help="Seconds to wait for non-empty Anchor diagnostic output before OTA starts.",
+        help="Deprecated debug-only timeout. Strict mode does not wait on Anchor USB/RTT output.",
     )
     p.add_argument(
         "--anchor-reset-preflight",
         action="store_true",
-        help="Reset anchor by explicit SN during preflight to trigger deterministic boot logs.",
+        help="Deprecated debug-only option. Strict mode never resets anchors via direct debug access.",
     )
     p.add_argument(
         "--phase-a-only",
@@ -164,6 +181,35 @@ def parse_anchor_snr_from_port(port: str) -> str | None:
     return None
 
 
+def resolve_anchor_port_from_mapping(mapping: object, target_uuid: str) -> str | None:
+    entry = resolve_anchor_mapping_entry(mapping, target_uuid)
+    if isinstance(entry, dict):
+        port = entry.get("port")
+        if isinstance(port, str) and port:
+            return port
+    return None
+
+
+def resolve_anchor_mapping_entry(mapping: object, target_uuid: str) -> dict | None:
+    if not isinstance(mapping, dict):
+        return None
+
+    by_uuid = mapping.get("by_uuid")
+    if isinstance(by_uuid, dict):
+        entry = by_uuid.get(target_uuid.upper())
+        if isinstance(entry, dict):
+            return entry
+
+    entry = mapping.get(target_uuid.upper())
+    if isinstance(entry, dict):
+        return entry
+
+    if mapping.get("resolved") and mapping.get("port"):
+        return mapping
+
+    return None
+
+
 def lsof_port_users(port: str) -> list[str]:
     try:
         cp = subprocess.run(
@@ -180,30 +226,18 @@ def lsof_port_users(port: str) -> list[str]:
     return lines[1:] if len(lines) > 1 else []
 
 
-def reset_via_jlink(snr: str) -> None:
-    cmd_file = Path(f"/tmp/jlink_reset_{snr}.cmd")
-    cmd_file.write_text(
-        "Device nRF52832_XXAA\n"
-        "SelectInterface SWD\n"
-        "Speed 4000\n"
-        "Connect\n"
-        "Reset\n"
-        "Go\n"
-        "Exit\n",
-        encoding="utf-8",
-    )
+def reset_via_nrfjprog(snr: str) -> tuple[bool, str]:
     try:
-        subprocess.run(
-            ["JLinkExe", "-NoGui", "1", "-SelectEmuBySN", snr, "-CommanderScript", str(cmd_file)],
+        cp = subprocess.run(
+            ["nrfjprog", "--snr", snr, "--reset", "-f", "NRF52"],
             check=False,
             capture_output=True,
             text=True,
         )
-    finally:
-        try:
-            cmd_file.unlink()
-        except FileNotFoundError:
-            pass
+    except FileNotFoundError:
+        return False, "nrfjprog_not_found"
+    details = (cp.stdout or "") + (cp.stderr or "")
+    return cp.returncode == 0, details.strip()
 
 
 class AnchorCapture:
@@ -284,6 +318,106 @@ class AnchorCapture:
         return False
 
 
+class RTTCapture:
+    def __init__(self, snr: str, log_path: Path, *, device: str, interface: str, speed: str, channel: str):
+        self.snr = snr
+        self.log_path = log_path
+        self.device = device
+        self.interface = interface
+        self.speed = speed
+        self.channel = channel
+        self.lines = 0
+        self.bt_rx_seen = False
+        self.bt_drop_seen = False
+        self.ingress_seen = False
+        self.done_seen = False
+        self.notify_seen = False
+        self.start_error = ""
+        self._proc: subprocess.Popen | None = None
+        self._thread: threading.Thread | None = None
+        self._stop = threading.Event()
+        self._offset = 0
+
+    def start(self) -> None:
+        self.log_path.parent.mkdir(parents=True, exist_ok=True)
+        self.log_path.write_text("", encoding="utf-8")
+        stderr_path = self.log_path.with_suffix(self.log_path.suffix + ".rtt.stderr")
+        err_fh = stderr_path.open("w", encoding="utf-8")
+        self._proc = subprocess.Popen(
+            [
+                "JLinkRTTLogger",
+                "-Device", self.device,
+                "-If", self.interface,
+                "-Speed", self.speed,
+                "-USB", self.snr,
+                "-RTTChannel", self.channel,
+                str(self.log_path),
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=err_fh,
+            text=True,
+        )
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def _mark_line(self, line: str) -> None:
+        self.lines += 1
+        if "ANCHOR_SMP_BT_RX" in line:
+            self.bt_rx_seen = True
+        if "ANCHOR_SMP_BT_DROP" in line:
+            self.bt_drop_seen = True
+        if "ANCHOR_SMP_INGRESS" in line:
+            self.ingress_seen = True
+        if "ANCHOR_SMP_DONE" in line:
+            self.done_seen = True
+            if "rsp_generated=1" in line or "notify_send_rc=0" in line or "notify_send_rc=unknown" in line:
+                self.notify_seen = True
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            if self._proc is not None and self._proc.poll() is not None and not self.log_path.exists():
+                self.start_error = f"JLinkRTTLogger exited rc={self._proc.returncode}"
+                break
+            try:
+                if self.log_path.exists():
+                    with self.log_path.open("r", encoding="utf-8", errors="replace") as fh:
+                        fh.seek(self._offset)
+                        chunk = fh.read()
+                        self._offset = fh.tell()
+                else:
+                    chunk = ""
+            except Exception as e:
+                self.start_error = str(e)
+                break
+            if chunk:
+                for line in chunk.splitlines():
+                    if line:
+                        self._mark_line(line)
+            time.sleep(0.1)
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=1.0)
+        if self._proc is not None and self._proc.poll() is None:
+            self._proc.terminate()
+            try:
+                self._proc.wait(timeout=3.0)
+            except subprocess.TimeoutExpired:
+                self._proc.kill()
+                self._proc.wait(timeout=1.0)
+
+    def wait_for_lines(self, timeout_s: float) -> bool:
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            if self.lines > 0:
+                return True
+            if self.start_error:
+                return False
+            time.sleep(0.1)
+        return False
+
+
 def main() -> int:
     args = parse_args()
     target_uuid = args.target_uuid.strip().upper()
@@ -295,17 +429,32 @@ def main() -> int:
     run_summary_path = out_dir.parent / "run_summary.json"
     anchor_log_path = out_dir.parent / "anchorA_diag.log"
     anchor_port = args.anchor_port
+    anchor_snr = parse_anchor_snr_from_port(anchor_port)
+    anchor_backend = args.anchor_observability_backend
     map_path = Path(args.anchor_map_json)
+    mapping_entry = None
     if map_path.exists():
         try:
             mapping = json.loads(map_path.read_text(encoding="utf-8"))
-            if mapping.get("resolved") and mapping.get("port"):
-                anchor_port = str(mapping["port"])
+            mapping_entry = resolve_anchor_mapping_entry(mapping, target_uuid)
+            mapped_port = resolve_anchor_port_from_mapping(mapping, target_uuid)
+            if mapped_port:
+                anchor_port = mapped_port
+                anchor_snr = parse_anchor_snr_from_port(anchor_port)
+            if isinstance(mapping_entry, dict):
+                snr_from_map = mapping_entry.get("snr")
+                if isinstance(snr_from_map, str) and snr_from_map:
+                    anchor_snr = snr_from_map
         except Exception:
             pass
+    if anchor_backend == "auto":
+        anchor_backend = "rtt" if anchor_snr else "serial"
 
     phase_a_ok = False
     phase_b_ok = False
+    target_selection_ready = False
+    target_restore_ready = False
+    target_transport_ready = False
     reboot_seen = False
     reconnect_ok = False
     mode_ota_loaded_after_reboot = False
@@ -335,7 +484,7 @@ def main() -> int:
     ota_command_sequence_seen = False
     ota_later_fail_seen = False
     ota_success_seen = False
-    target_observability_available = False
+    target_observability_available = True
     anchor_lines = 0
     anchor_bt_rx_seen = False
     anchor_bt_drop_seen = False
@@ -350,52 +499,27 @@ def main() -> int:
     t0 = time.monotonic()
     run_deadline = t0 + args.timeout_s
     ser: serial.Serial | None = None
-    anchor_cap: AnchorCapture | None = None
+    anchor_cap: AnchorCapture | RTTCapture | None = None
 
     with log_path.open("w", encoding="utf-8") as logf:
         try:
-            # Observability preflight
-            if args.phase_a_only:
-                target_observability_available = True
-                logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A only; anchor preflight skipped\n")
-                logf.flush()
-            else:
-                port_users = lsof_port_users(anchor_port)
-                if port_users:
-                    reason = "target_observability_unavailable:anchor_port_busy"
-                    blocker = reason
-                    logf.write(
-                        f"[HOST_EVT {time.monotonic()-t0:7.2f}s] anchor_port_busy port={anchor_port} users={len(port_users)}\n"
-                    )
-                    for ln in port_users[:6]:
-                        logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] lsof {ln}\n")
-                    logf.flush()
-                    raise RuntimeError(reason)
-
-                anchor_cap = AnchorCapture(anchor_port, args.anchor_baud, anchor_log_path)
-                anchor_cap.start()
+            # Strict mode never uses Anchor USB data paths for health gating.
+            logf.write(
+                f"[HOST_EVT {time.monotonic()-t0:7.2f}s] strict_preflight anchor_usb_policy=power_only "
+                "anchor_observability_gate=disabled evidence=controller_uuid_restore_dfu\n"
+            )
+            if args.anchor_observability_backend != "auto":
                 logf.write(
-                    f"[HOST_EVT {time.monotonic()-t0:7.2f}s] anchor_capture_started port={anchor_port} log={anchor_log_path}\n"
+                    f"[HOST_EVT {time.monotonic()-t0:7.2f}s] strict_preflight ignoring_anchor_backend={args.anchor_observability_backend}\n"
                 )
+            if args.anchor_reset_preflight:
+                logf.write(
+                    f"[HOST_EVT {time.monotonic()-t0:7.2f}s] strict_preflight ignoring_anchor_reset_preflight=1\n"
+                )
+            logf.flush()
+            if args.phase_a_only:
+                logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A only; stop after UUID latch proof\n")
                 logf.flush()
-
-                if args.anchor_reset_preflight:
-                    anchor_snr = parse_anchor_snr_from_port(anchor_port)
-                    if anchor_snr:
-                        reset_via_jlink(anchor_snr)
-                        logf.write(
-                            f"[HOST_EVT {time.monotonic()-t0:7.2f}s] anchor_reset_preflight method=jlink snr={anchor_snr}\n"
-                        )
-                        logf.flush()
-
-                if not anchor_cap.wait_for_lines(args.anchor_preflight_timeout_s):
-                    reason = "target_observability_unavailable:anchor_lines_zero"
-                    blocker = "target observability unavailable"
-                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] {reason}\n")
-                    logf.flush()
-                    raise RuntimeError(reason)
-
-                target_observability_available = True
 
             # Phase A: pre-reboot control session
             ser = open_serial(args.port, args.baud)
@@ -512,6 +636,7 @@ def main() -> int:
 
                 if uuid_pre_reboot_latched and system_target_anchor_seen and ota_nus_disabled_seen:
                     phase_a_ok = True
+                    target_selection_ready = True
                     break
 
             if not phase_a_ok:
@@ -627,6 +752,7 @@ def main() -> int:
                     uuid_restored_after_reboot
                 )
                 if phase_b_ok:
+                    target_restore_ready = True
                     break
 
             if not phase_b_ok:
@@ -668,6 +794,7 @@ def main() -> int:
 
                 if "DFU SMP service ready" in line:
                     dfu_ready_seen = True
+                    target_transport_ready = True
 
                 if "OTA command issued" in line:
                     ota_cmd_issued_seen = True
@@ -715,26 +842,21 @@ def main() -> int:
         except RuntimeError:
             pass
         finally:
-            if anchor_cap is not None:
-                anchor_cap.stop()
-                anchor_lines = anchor_cap.lines
-                anchor_bt_rx_seen = anchor_cap.bt_rx_seen
-                anchor_bt_drop_seen = anchor_cap.bt_drop_seen
-                anchor_ingress_seen = anchor_cap.ingress_seen
-                anchor_done_seen = anchor_cap.done_seen
-                anchor_notify_seen = anchor_cap.notify_seen
             if ser is not None:
                 try:
                     ser.close()
                 except Exception:
                     pass
 
-    if not target_observability_available:
-        classification = "OBS_UNAVAILABLE"
-        blocker = blocker or "target observability unavailable"
-    elif args.phase_a_only and phase_a_ok:
+    if args.phase_a_only and phase_a_ok:
         classification = "PHASE_A_PASS"
         blocker = ""
+    elif not phase_a_ok:
+        classification = "A0"
+        blocker = reason or "phase_a_target_selection_not_proven"
+    elif not phase_b_ok:
+        classification = "B0"
+        blocker = reason or "phase_b_restore_not_proven"
     elif ota_started and not ota_later_fail_seen:
         classification = "D"
         blocker = ""
@@ -761,6 +883,9 @@ def main() -> int:
     result = RunResult(
         port=args.port,
         target_uuid=target_uuid,
+        target_selection_ready=target_selection_ready,
+        target_restore_ready=target_restore_ready,
+        target_transport_ready=target_transport_ready,
         phase_a_ok=phase_a_ok,
         phase_b_ok=phase_b_ok,
         reboot_seen=reboot_seen,
@@ -808,8 +933,6 @@ def main() -> int:
 
     if classification == "PHASE_A_PASS":
         return 0
-    if classification == "OBS_UNAVAILABLE":
-        return 20
     if not uuid_pre_reboot_latched:
         return 10
     if not uuid_restored_after_reboot:
