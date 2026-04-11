@@ -184,6 +184,7 @@ Important:
 Script:
 
 - [run_autopos_sweep_loop.py](/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/scripts/run_autopos_sweep_loop.py)
+- [autopos_sweep_loop_reference_20260412.md](/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/docs/autopos_sweep_loop_reference_20260412.md)
 
 Known good result artifact from this day:
 
