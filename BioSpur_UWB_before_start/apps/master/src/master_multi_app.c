@@ -54,7 +54,6 @@
 #define MASTER_UUID_HEX_LEN 32U
 #define BIOSPUR_MFG_UUID_OFS 6U
 #define BIOSPUR_MFG_UUID_LEN 16U
-
 #ifndef APP_MASTER_ONE_SHOT_CMD
 #define APP_MASTER_ONE_SHOT_CMD ""
 #endif
@@ -1916,17 +1915,12 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	bt_data_parse(&name_copy, scan_name_cb, adv_name);
 
 	if (runtime_target_kind == MASTER_TARGET_ANCHOR) {
-		if (runtime_target_uuid[0] == '\0') {
-			printk("ANCHOR candidate ignored: runtime_target_uuid empty\n");
-			return;
-		}
-		if (!uuid_match) {
-			if (uuid_hex[0] != '\0') {
-				printk("ANCHOR candidate ignored: uuid mismatch adv=%s target=%s anchor_name=%u\n",
-				       uuid_hex, runtime_target_uuid, anchor_name_match ? 1U : 0U);
+			if (runtime_target_uuid[0] == '\0') {
+				return;
 			}
-			return;
-		}
+			if (!uuid_match) {
+				return;
+			}
 		goto candidate_accept;
 	}
 

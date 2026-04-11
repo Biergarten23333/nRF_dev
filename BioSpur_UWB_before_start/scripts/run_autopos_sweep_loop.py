@@ -70,40 +70,116 @@ def collect_for(
     return ser, saw_reopen
 
 
-def wait_for_boot_ready(
+def send_cmd_collect(
+    ser: serial.Serial,
+    logf,
+    port: str,
+    cmd: str,
+    pause_s: float,
+    live_output: bool,
+    resend_after_reopen: bool = True,
+) -> serial.Serial:
+    emit(logf, f">>> {cmd}\n", live_output)
+    try:
+        write_cmd(ser, cmd)
+    except Exception:
+        try:
+            ser.close()
+        except Exception:
+            pass
+        ser = reopen_port(port)
+        write_cmd(ser, cmd)
+    ser, saw_reopen = collect_for(ser, logf, pause_s, port, live_output)
+    if saw_reopen and resend_after_reopen:
+        emit(logf, f">>> RESEND {cmd}\n", live_output)
+        write_cmd(ser, cmd)
+        ser, _ = collect_for(ser, logf, max(0.6, pause_s), port, live_output)
+    return ser
+
+
+def wait_for_autopos_idle(
     ser: serial.Serial,
     logf,
     port: str,
     timeout_s: float,
     live_output: bool,
-) -> serial.Serial:
+) -> tuple[serial.Serial, bool]:
     deadline = time.time() + timeout_s
-    saw_mode = False
-    saw_uart = False
     while time.time() < deadline:
+        emit(logf, ">>> autopos status\n", live_output)
         try:
-            data = ser.read(4096)
-        except (SerialException, OSError):
-            emit(logf, "--- SERIAL DISCONNECTED, REOPEN ---\n", live_output)
+            write_cmd(ser, "autopos status")
+        except Exception:
             try:
                 ser.close()
             except Exception:
                 pass
             ser = reopen_port(port)
-            emit(logf, "--- SERIAL REOPENED ---\n", live_output)
-            continue
-        if data:
-            text = data.decode("utf-8", "ignore")
-            emit(logf, text, live_output)
-            if "Control mode loaded: RECV" in text:
-                saw_mode = True
-            if "UART control ready:" in text:
-                saw_uart = True
-            if saw_mode and saw_uart:
-                return ser
-        else:
-            time.sleep(0.05)
-    return ser
+            write_cmd(ser, "autopos status")
+
+        pause_end = time.time() + 1.4
+        while time.time() < pause_end:
+            try:
+                data = ser.read(4096)
+            except (SerialException, OSError):
+                emit(logf, "--- SERIAL DISCONNECTED, REOPEN ---\n", live_output)
+                try:
+                    ser.close()
+                except Exception:
+                    pass
+                ser = reopen_port(port)
+                emit(logf, "--- SERIAL REOPENED ---\n", live_output)
+                break
+            if data:
+                text = data.decode("utf-8", "ignore")
+                emit(logf, text, live_output)
+                if "AUTOPOS: mode=AUTOPOS state=idle" in text:
+                    return ser, True
+            else:
+                time.sleep(0.05)
+    return ser, False
+
+
+def preflight_clean_autopos_start(
+    ser: serial.Serial,
+    logf,
+    port: str,
+    live_output: bool,
+) -> tuple[serial.Serial, bool]:
+    # Reset AUTOPOS state in-place without a RECV reboot boundary.
+    ser = send_cmd_collect(
+        ser,
+        logf,
+        port,
+        "status",
+        0.8,
+        live_output,
+        resend_after_reopen=False,
+    )
+    ser = send_cmd_collect(
+        ser,
+        logf,
+        port,
+        "mode autopos",
+        1.6,
+        live_output,
+        resend_after_reopen=False,
+    )
+    ser, _ = collect_for(ser, logf, 0.8, port, live_output)
+    ser, idle_ok = wait_for_autopos_idle(ser, logf, port, 8.0, live_output)
+    if not idle_ok:
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
+            "mode autopos",
+            1.6,
+            live_output,
+            resend_after_reopen=False,
+        )
+        ser, _ = collect_for(ser, logf, 0.8, port, live_output)
+        ser, idle_ok = wait_for_autopos_idle(ser, logf, port, 5.0, live_output)
+    return ser, idle_ok
 
 
 def round_capture(
@@ -140,7 +216,19 @@ def round_capture(
                 if data:
                     emit(logf, data.decode("utf-8", "ignore"), live_output)
 
-            cmds = [("status", 1.0), ("mode recv", 2.5), ("mode autopos", 2.0)]
+            ser, preflight_ok = preflight_clean_autopos_start(
+                ser,
+                logf,
+                port,
+                live_output,
+            )
+            if not preflight_ok:
+                result["error"] = "autopos_idle_not_reached"
+                emit(logf, "PRECHECK FAIL: AUTOPOS idle not reached\n", live_output)
+                emit(logf, f"END={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output)
+                return result
+
+            cmds = []
             cmds.append(("device kind anchor", 0.35))
             for label, uuid in UUIDS.items():
                 cmds.append((f"autopos map {label} {uuid}", 0.35))
@@ -153,25 +241,14 @@ def round_capture(
             )
 
             for cmd, pause_s in cmds:
-                emit(logf, f">>> {cmd}\n", live_output)
-                resend_after_reopen = cmd != "mode recv"
-                try:
-                    write_cmd(ser, cmd)
-                except Exception:
-                    try:
-                        ser.close()
-                    except Exception:
-                        pass
-                    ser = reopen_port(port)
-                    write_cmd(ser, cmd)
-                ser, saw_reopen = collect_for(ser, logf, pause_s, port, live_output)
-                if cmd == "mode recv":
-                    ser = wait_for_boot_ready(ser, logf, port, 8.0, live_output)
-                    ser, _ = collect_for(ser, logf, 0.8, port, live_output)
-                elif saw_reopen and resend_after_reopen:
-                    emit(logf, f">>> RESEND {cmd}\n", live_output)
-                    write_cmd(ser, cmd)
-                    ser, _ = collect_for(ser, logf, max(0.6, pause_s), port, live_output)
+                ser = send_cmd_collect(
+                    ser,
+                    logf,
+                    port,
+                    cmd,
+                    pause_s,
+                    live_output,
+                )
 
             deadline = time.time() + timeout_s
             status_marks = {30, 60, 120, 180, 240, 300, 360, 420}
