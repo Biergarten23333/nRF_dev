@@ -11,6 +11,8 @@ from serial import SerialException
 
 from run_autopos_round import UUIDS
 
+_LIVE_LINE_BUFFERS: dict[int, str] = {}
+
 
 def auto_timeout_for_sw_sets(sw_sets: int) -> int:
     # Empirical default:
@@ -19,10 +21,44 @@ def auto_timeout_for_sw_sets(sw_sets: int) -> int:
     return max(480, 360 + (15 * sw_sets))
 
 
-def emit(logf, text: str, live_output: bool) -> None:
+def should_print_live_line(line: str, verbose: int) -> bool:
+    if verbose >= 2:
+        return True
+
+    if verbose == 1:
+        return "ANCHOR candidate ignored:" not in line
+
+    return (
+        "SW-" in line or
+        "AUTOPOS apply success:" in line or
+        "AUTOPOS apply failed:" in line or
+        "AUTOPOS anchor " in line and " role verified" in line or
+        "PRECHECK FAIL:" in line or
+        "END=" in line
+    )
+
+
+def flush_live_buffer(logf, verbose: int) -> None:
+    key = id(logf)
+    tail = _LIVE_LINE_BUFFERS.pop(key, "")
+    if tail and should_print_live_line(tail, verbose):
+        sys.stdout.write(tail)
+        sys.stdout.flush()
+
+
+def emit(logf, text: str, live_output: bool, verbose: int = 2) -> None:
     logf.write(text)
     if live_output:
-        sys.stdout.write(text)
+        key = id(logf)
+        buffer = _LIVE_LINE_BUFFERS.get(key, "") + text
+        lines = buffer.splitlines(keepends=True)
+        tail = ""
+        if lines and not lines[-1].endswith("\n"):
+            tail = lines.pop()
+        _LIVE_LINE_BUFFERS[key] = tail
+        for line in lines:
+            if should_print_live_line(line, verbose):
+                sys.stdout.write(line)
         sys.stdout.flush()
 
 
@@ -53,6 +89,7 @@ def collect_for(
     duration_s: float,
     port: str,
     live_output: bool,
+    verbose: int,
 ) -> tuple[serial.Serial, bool]:
     end = time.time() + duration_s
     saw_reopen = False
@@ -60,18 +97,18 @@ def collect_for(
         try:
             data = ser.read(4096)
         except (SerialException, OSError):
-            emit(logf, "--- SERIAL DISCONNECTED, REOPEN ---\n", live_output)
+            emit(logf, "--- SERIAL DISCONNECTED, REOPEN ---\n", live_output, verbose)
             try:
                 ser.close()
             except Exception:
                 pass
             ser = reopen_port(port)
-            emit(logf, "--- SERIAL REOPENED ---\n", live_output)
+            emit(logf, "--- SERIAL REOPENED ---\n", live_output, verbose)
             saw_reopen = True
             continue
         if data:
             text = data.decode("utf-8", "ignore")
-            emit(logf, text, live_output)
+            emit(logf, text, live_output, verbose)
         else:
             time.sleep(0.05)
     return ser, saw_reopen
@@ -84,9 +121,10 @@ def send_cmd_collect(
     cmd: str,
     pause_s: float,
     live_output: bool,
+    verbose: int,
     resend_after_reopen: bool = True,
 ) -> serial.Serial:
-    emit(logf, f">>> {cmd}\n", live_output)
+    emit(logf, f">>> {cmd}\n", live_output, verbose)
     try:
         write_cmd(ser, cmd)
     except Exception:
@@ -96,11 +134,11 @@ def send_cmd_collect(
             pass
         ser = reopen_port(port)
         write_cmd(ser, cmd)
-    ser, saw_reopen = collect_for(ser, logf, pause_s, port, live_output)
+    ser, saw_reopen = collect_for(ser, logf, pause_s, port, live_output, verbose)
     if saw_reopen and resend_after_reopen:
-        emit(logf, f">>> RESEND {cmd}\n", live_output)
+        emit(logf, f">>> RESEND {cmd}\n", live_output, verbose)
         write_cmd(ser, cmd)
-        ser, _ = collect_for(ser, logf, max(0.6, pause_s), port, live_output)
+        ser, _ = collect_for(ser, logf, max(0.6, pause_s), port, live_output, verbose)
     return ser
 
 
@@ -110,10 +148,11 @@ def wait_for_autopos_idle(
     port: str,
     timeout_s: float,
     live_output: bool,
+    verbose: int,
 ) -> tuple[serial.Serial, bool]:
     deadline = time.time() + timeout_s
     while time.time() < deadline:
-        emit(logf, ">>> autopos status\n", live_output)
+        emit(logf, ">>> autopos status\n", live_output, verbose)
         try:
             write_cmd(ser, "autopos status")
         except Exception:
@@ -129,17 +168,17 @@ def wait_for_autopos_idle(
             try:
                 data = ser.read(4096)
             except (SerialException, OSError):
-                emit(logf, "--- SERIAL DISCONNECTED, REOPEN ---\n", live_output)
+                emit(logf, "--- SERIAL DISCONNECTED, REOPEN ---\n", live_output, verbose)
                 try:
                     ser.close()
                 except Exception:
                     pass
                 ser = reopen_port(port)
-                emit(logf, "--- SERIAL REOPENED ---\n", live_output)
+                emit(logf, "--- SERIAL REOPENED ---\n", live_output, verbose)
                 break
             if data:
                 text = data.decode("utf-8", "ignore")
-                emit(logf, text, live_output)
+                emit(logf, text, live_output, verbose)
                 if "AUTOPOS: mode=AUTOPOS state=idle" in text:
                     return ser, True
             else:
@@ -152,6 +191,7 @@ def preflight_clean_autopos_start(
     logf,
     port: str,
     live_output: bool,
+    verbose: int,
 ) -> tuple[serial.Serial, bool]:
     # Reset AUTOPOS state in-place without a RECV reboot boundary.
     ser = send_cmd_collect(
@@ -161,6 +201,7 @@ def preflight_clean_autopos_start(
         "status",
         0.8,
         live_output,
+        verbose,
         resend_after_reopen=False,
     )
     ser = send_cmd_collect(
@@ -170,10 +211,11 @@ def preflight_clean_autopos_start(
         "mode autopos",
         1.6,
         live_output,
+        verbose,
         resend_after_reopen=False,
     )
-    ser, _ = collect_for(ser, logf, 0.8, port, live_output)
-    ser, idle_ok = wait_for_autopos_idle(ser, logf, port, 8.0, live_output)
+    ser, _ = collect_for(ser, logf, 0.8, port, live_output, verbose)
+    ser, idle_ok = wait_for_autopos_idle(ser, logf, port, 8.0, live_output, verbose)
     if not idle_ok:
         ser = send_cmd_collect(
             ser,
@@ -182,10 +224,11 @@ def preflight_clean_autopos_start(
             "mode autopos",
             1.6,
             live_output,
+            verbose,
             resend_after_reopen=False,
         )
-        ser, _ = collect_for(ser, logf, 0.8, port, live_output)
-        ser, idle_ok = wait_for_autopos_idle(ser, logf, port, 5.0, live_output)
+        ser, _ = collect_for(ser, logf, 0.8, port, live_output, verbose)
+        ser, idle_ok = wait_for_autopos_idle(ser, logf, port, 5.0, live_output, verbose)
     return ser, idle_ok
 
 
@@ -195,6 +238,7 @@ def round_capture(
     out_dir: Path,
     timeout_s: int,
     live_output: bool = True,
+    verbose: int = 2,
 ) -> dict:
     log_path = out_dir / "master.log"
     result = {
@@ -214,25 +258,27 @@ def round_capture(
     try:
         ser = open_port(port, 20.0)
         with open(log_path, "w", buffering=1) as logf:
-            emit(logf, f"PORT={port}\n", live_output)
-            emit(logf, f"START={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output)
-            emit(logf, f"MASTER={master}\n", live_output)
+            emit(logf, f"PORT={port}\n", live_output, verbose)
+            emit(logf, f"START={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
+            emit(logf, f"MASTER={master}\n", live_output, verbose)
             time.sleep(1.0)
             while ser.in_waiting:
                 data = ser.read(ser.in_waiting)
                 if data:
-                    emit(logf, data.decode("utf-8", "ignore"), live_output)
+                    emit(logf, data.decode("utf-8", "ignore"), live_output, verbose)
 
             ser, preflight_ok = preflight_clean_autopos_start(
                 ser,
                 logf,
                 port,
                 live_output,
+                verbose,
             )
             if not preflight_ok:
                 result["error"] = "autopos_idle_not_reached"
-                emit(logf, "PRECHECK FAIL: AUTOPOS idle not reached\n", live_output)
-                emit(logf, f"END={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output)
+                emit(logf, "PRECHECK FAIL: AUTOPOS idle not reached\n", live_output, verbose)
+                emit(logf, f"END={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
+                flush_live_buffer(logf, verbose)
                 return result
 
             cmds = []
@@ -255,6 +301,7 @@ def round_capture(
                     cmd,
                     pause_s,
                     live_output,
+                    verbose,
                 )
 
             deadline = time.time() + timeout_s
@@ -265,7 +312,7 @@ def round_capture(
                 if (not result["apply_success_seen"] and
                         elapsed in status_marks and elapsed not in sent_marks):
                     cmd = "autopos status"
-                    emit(logf, f">>> {cmd} @t={elapsed}\n", live_output)
+                    emit(logf, f">>> {cmd} @t={elapsed}\n", live_output, verbose)
                     try:
                         write_cmd(ser, cmd)
                     except Exception:
@@ -280,18 +327,18 @@ def round_capture(
                 try:
                     data = ser.read(4096)
                 except (SerialException, OSError):
-                    emit(logf, "--- SERIAL DISCONNECTED, REOPEN ---\n", live_output)
+                    emit(logf, "--- SERIAL DISCONNECTED, REOPEN ---\n", live_output, verbose)
                     try:
                         ser.close()
                     except Exception:
                         pass
                     ser = reopen_port(port)
-                    emit(logf, "--- SERIAL REOPENED ---\n", live_output)
+                    emit(logf, "--- SERIAL REOPENED ---\n", live_output, verbose)
                     continue
 
                 if data:
                     text = data.decode("utf-8", "ignore")
-                    emit(logf, text, live_output)
+                    emit(logf, text, live_output, verbose)
                     for line in text.splitlines():
                         if "AUTOPOS anchor " in line and " role verified" in line:
                             parts = line.split("AUTOPOS anchor ", 1)[1]
@@ -318,7 +365,8 @@ def round_capture(
                     result["error"] = "sw_not_seen"
                 else:
                     result["error"] = f"insufficient_sw_sets:{result['sw_count']}/{round_capture.target_sw_sets}"
-            emit(logf, f"END={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output)
+            emit(logf, f"END={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
+            flush_live_buffer(logf, verbose)
     finally:
         if ser is not None:
             try:
@@ -335,6 +383,8 @@ def main() -> int:
     parser.add_argument("--order", default="ABCDEFGH", help="Master order to run, e.g. ABCDEFGH or BCD")
     parser.add_argument("--timeout-s", type=int, default=None, help="Per-round timeout; defaults scale with --sw-sets")
     parser.add_argument("--sw-sets", type=int, default=1, help="Required SW lines per round before finishing")
+    parser.add_argument("--verbose", type=int, choices=[0, 1, 2], default=1,
+                        help="Live stdout verbosity: 0=SW-X/failures only, 1=normal without ignored scan noise, 2=full flow")
     parser.add_argument("--out-dir", required=True, help="Output directory")
     parser.add_argument(
         "--no-live-output",
@@ -358,6 +408,7 @@ def main() -> int:
         "order": list(args.order),
         "sw_sets": args.sw_sets,
         "timeout_s": args.timeout_s,
+        "verbose": args.verbose,
         "rounds": {},
         "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
@@ -372,6 +423,7 @@ def main() -> int:
             round_dir,
             args.timeout_s,
             live_output=not args.no_live_output,
+            verbose=args.verbose,
         )
         summary["rounds"][master] = result
         with open(out_dir / "summary.json", "w", encoding="utf-8") as f:
