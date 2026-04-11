@@ -131,6 +131,7 @@ MODE CALI
 MODE CALIBRATION
 MODE MOTION
 MODE FIXED
+MODE AOTA
 MCAL
 MMOT
 ```
@@ -138,6 +139,7 @@ MMOT
 Behavior:
 - `MCAL` switches the Tag into calibration mode.
 - `MMOT` switches the Tag into dynamic/motion mode.
+- `MODE AOTA` switches the Tag into Anchor-OTA quiet state.
 - `MODE CAL`, `MODE CALI`, and `MODE CALIBRATION` all map to calibration mode.
 
 Example response:
@@ -151,7 +153,17 @@ MODE_OK MODE=CAL LIVE=1
 ```text
 TDMA_SET <slot>
 CFG TAG=<id> SLOT=<slot> COUNT=<count> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2|3> FIXED=a,b,c,d
+STREAM?
+STREAM ON
+STREAM OFF
 ```
+
+Behavior:
+- `STREAM OFF` disables BLE runtime stream emission from the Tag.
+- While `STREAM OFF` is active, runtime `TS` / `TagSummary` / `CM` payloads are suppressed.
+- Command responses are still allowed, so `STREAM?`, `MODE?`, `CFG_STATUS`, and `STREAM ON` still work.
+- `STREAM ON` re-enables BLE runtime stream emission.
+- `STREAM OFF/ON` is persisted in Tag BLE settings and survives reconnect/reboot.
 
 ### 2.4 OTA commands
 
@@ -173,6 +185,8 @@ REBOOT
 ```text
 MODE_OK MODE=CAL LIVE=1
 CFG_OK ...
+STREAM_OK OFF
+STREAM_OK ON
 ERR:BUSY_OTA
 MODE_BAD
 UNKNOWN_CMD
@@ -361,6 +375,24 @@ MODE_OK MODE=CAL LIVE=1
 ```
 
 Then look for `CM;...` lines in the CDC stream.
+
+## 6.1 Sweep Quiet Helper For BSF66F
+
+If Tag115 / `BSF66F` is nearby during Anchor Sweep and you want to guarantee that it does not pollute the controller CDC log with runtime `TS` / `CM`, send:
+
+```text
+device kind tag
+mode recv
+ota_target name BSF66F
+conn
+cmd STREAM OFF
+```
+
+To restore normal Tag runtime streaming later:
+
+```text
+cmd STREAM ON
+```
 
 ## 7. Example Timestamped Command Log Format
 

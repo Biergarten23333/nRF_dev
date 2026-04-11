@@ -94,6 +94,21 @@ struct uwb_tag_ble_settings_record {
 	uint16_t slot_period_ms;
 	uint16_t slot_active_ms;
 	uint16_t identity_code;
+	uint8_t stream_enabled;
+};
+
+struct uwb_tag_ble_settings_record_v1 {
+	uint8_t valid;
+	uint8_t logical_tag_id;
+	uint8_t positioning_mode;
+	uint8_t anchor_selection_mode;
+	uint8_t fixed_anchor_count;
+	uint8_t fixed_anchor_ids[UWB_TAG_FIXED_ANCHOR_MAX];
+	uint8_t slot_index;
+	uint8_t slot_count;
+	uint16_t slot_period_ms;
+	uint16_t slot_active_ms;
+	uint16_t identity_code;
 };
 
 struct uwb_tag_ble_tx_item {
@@ -114,6 +129,7 @@ static uint8_t ble_tag_id;
 static struct uwb_tag_ble_settings_record runtime_settings_record;
 static bool runtime_settings_record_loaded;
 static struct uwb_tag_runtime_params active_runtime_params;
+static bool runtime_stream_enabled = true;
 
 static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
@@ -219,6 +235,7 @@ static int uwb_tag_ble_runtime_settings_set(const char *key, size_t len,
 {
 	const char *next;
 	struct uwb_tag_ble_settings_record record = { 0 };
+	struct uwb_tag_ble_settings_record_v1 record_v1 = { 0 };
 	int err;
 
 	if (!settings_name_steq(key, UWB_TAG_BLE_SETTINGS_CONFIG_KEY, &next) ||
@@ -226,11 +243,31 @@ static int uwb_tag_ble_runtime_settings_set(const char *key, size_t len,
 		return -ENOENT;
 	}
 
-	if (len != sizeof(record)) {
+	if (len != sizeof(record) && len != sizeof(record_v1)) {
 		return -EINVAL;
 	}
 
-	err = read_cb(cb_arg, &record, sizeof(record));
+	if (len == sizeof(record_v1)) {
+		err = read_cb(cb_arg, &record_v1, sizeof(record_v1));
+		if (err < 0) {
+			return err;
+		}
+		record.valid = record_v1.valid;
+		record.logical_tag_id = record_v1.logical_tag_id;
+		record.positioning_mode = record_v1.positioning_mode;
+		record.anchor_selection_mode = record_v1.anchor_selection_mode;
+		record.fixed_anchor_count = record_v1.fixed_anchor_count;
+		memcpy(record.fixed_anchor_ids, record_v1.fixed_anchor_ids,
+		       sizeof(record.fixed_anchor_ids));
+		record.slot_index = record_v1.slot_index;
+		record.slot_count = record_v1.slot_count;
+		record.slot_period_ms = record_v1.slot_period_ms;
+		record.slot_active_ms = record_v1.slot_active_ms;
+		record.identity_code = record_v1.identity_code;
+		record.stream_enabled = 1U;
+	} else {
+		err = read_cb(cb_arg, &record, sizeof(record));
+	}
 	if (err < 0) {
 		return err;
 	}
@@ -414,9 +451,12 @@ static void uwb_tag_ble_runtime_params_reset_locked(void)
 static void uwb_tag_ble_runtime_params_apply_settings_locked(void)
 {
 	uwb_tag_ble_runtime_params_reset_locked();
+	runtime_stream_enabled = true;
 	if (!runtime_settings_record_loaded || !runtime_settings_record.valid) {
 		return;
 	}
+
+	runtime_stream_enabled = (runtime_settings_record.stream_enabled != 0U);
 
 	if (runtime_settings_record.identity_code != 0U) {
 		active_runtime_params.identity_code =
@@ -488,6 +528,7 @@ int uwb_tag_ble_runtime_config_store(const struct uwb_tag_runtime_params *params
 	record.slot_period_ms = params->tdma.slot_period_ms;
 	record.slot_active_ms = params->tdma.slot_active_ms;
 	record.identity_code = params->identity_code;
+	record.stream_enabled = runtime_stream_enabled ? 1U : 0U;
 
 	k_mutex_lock(&ble_mutex, K_FOREVER);
 	runtime_settings_record = record;
@@ -1072,6 +1113,10 @@ static bool uwb_tag_ble_snapshot_pending_cal_locked(
 
 static bool uwb_tag_ble_runtime_stream_blocked_locked(void)
 {
+	if (!runtime_stream_enabled) {
+		return true;
+	}
+
 #if APP_TAG_BLE_OTA_ENABLE
 	return ota_active;
 #else
@@ -1398,7 +1443,7 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 						(unsigned int)params.fixed_anchor_ids[i]);
 		}
 		snprintk(resp, sizeof(resp),
-			 "CFG tag=%u bs=BS%04X slot=%u/%u src=%s period=%u active=%u epoch=%lu gen=%u pmode=%u amode=%u fixed=%s",
+			 "CFG tag=%u bs=BS%04X slot=%u/%u src=%s period=%u active=%u epoch=%lu gen=%u pmode=%u amode=%u fixed=%s stream=%s",
 			 (unsigned int)params.logical_tag_id,
 			 (unsigned int)params.identity_code,
 			 (unsigned int)params.tdma.slot_index,
@@ -1410,7 +1455,8 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 			 (unsigned int)params.tdma.generation,
 			 (unsigned int)params.positioning_mode,
 			 (unsigned int)params.anchor_selection_mode,
-			 fixed_buf[0] != '\0' ? fixed_buf : "-");
+			 fixed_buf[0] != '\0' ? fixed_buf : "-",
+			 runtime_stream_enabled ? "on" : "off");
 		uwb_tag_ble_send_text(resp);
 		return;
 	}
@@ -1421,7 +1467,7 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 
 		(void)uwb_tag_ble_runtime_config_get(&params);
 		snprintk(resp, sizeof(resp),
-			 "MODE=%s PMODE=%u AMODE=%u FIXED_N=%u TDMA=%u SLOT=%u/%u SRC=%s",
+			 "MODE=%s PMODE=%u AMODE=%u FIXED_N=%u TDMA=%u SLOT=%u/%u SRC=%s STREAM=%s",
 			 uwb_tag_ble_mode_label(params.positioning_mode),
 			 (unsigned int)params.positioning_mode,
 			 (unsigned int)params.anchor_selection_mode,
@@ -1429,8 +1475,52 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 			 (unsigned int)params.tdma.enabled,
 			 (unsigned int)params.tdma.slot_index,
 			 (unsigned int)params.tdma.slot_count,
-			 uwb_tag_ble_slot_source_label(params.slot_source));
+			 uwb_tag_ble_slot_source_label(params.slot_source),
+			 runtime_stream_enabled ? "ON" : "OFF");
 		uwb_tag_ble_send_text(resp);
+		return;
+	}
+
+	if (strcmp(cmd, "STREAM?") == 0) {
+		uwb_tag_ble_send_text(runtime_stream_enabled ? "STREAM=ON" : "STREAM=OFF");
+		return;
+	}
+
+	if (strcmp(cmd, "STREAM OFF") == 0 || strcmp(cmd, "STREAMON 0") == 0) {
+		struct uwb_tag_runtime_params params;
+		int store_err;
+
+		(void)uwb_tag_ble_runtime_config_get(&params);
+		k_mutex_lock(&ble_mutex, K_FOREVER);
+		runtime_stream_enabled = false;
+		uwb_tag_ble_clear_pending_cal_locked();
+		uwb_tag_ble_clear_pending_samples_locked();
+		uwb_tag_ble_clear_pending_bundle_locked();
+		k_mutex_unlock(&ble_mutex);
+		uwb_tag_ble_cancel_bundle_flush();
+		store_err = uwb_tag_ble_runtime_config_store(&params);
+		if (store_err) {
+			uwb_tag_ble_send_text("STREAM_SAVE_FAIL");
+			return;
+		}
+		uwb_tag_ble_send_text("STREAM_OK OFF");
+		return;
+	}
+
+	if (strcmp(cmd, "STREAM ON") == 0 || strcmp(cmd, "STREAMON 1") == 0) {
+		struct uwb_tag_runtime_params params;
+		int store_err;
+
+		(void)uwb_tag_ble_runtime_config_get(&params);
+		k_mutex_lock(&ble_mutex, K_FOREVER);
+		runtime_stream_enabled = true;
+		k_mutex_unlock(&ble_mutex);
+		store_err = uwb_tag_ble_runtime_config_store(&params);
+		if (store_err) {
+			uwb_tag_ble_send_text("STREAM_SAVE_FAIL");
+			return;
+		}
+		uwb_tag_ble_send_text("STREAM_OK ON");
 		return;
 	}
 
@@ -1569,9 +1659,9 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 
 	if (strcmp(cmd, "HELP") == 0) {
 #if APP_TAG_BLE_OTA_ENABLE
-		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|CFG_STATUS|MODE?|MODE <CAL|MOTION|FIXED|AOTA>|MCAL|MMOT|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2|3> FIXED=a,b,c,d|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|CFG_STATUS|MODE?|STREAM?|STREAM <ON|OFF>|MODE <CAL|MOTION|FIXED|AOTA>|MCAL|MMOT|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2|3> FIXED=a,b,c,d|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
 #else
-		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|CFG_STATUS|MODE?|MODE <CAL|MOTION|FIXED|AOTA>|MCAL|MMOT|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2|3> FIXED=a,b,c,d|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|CFG_STATUS|MODE?|STREAM?|STREAM <ON|OFF>|MODE <CAL|MOTION|FIXED|AOTA>|MCAL|MMOT|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2|3> FIXED=a,b,c,d|REBOOT|HELP");
 #endif
 		return;
 	}

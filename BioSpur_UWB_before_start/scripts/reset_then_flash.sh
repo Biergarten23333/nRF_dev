@@ -12,6 +12,7 @@ lock_file="${BIOSPUR_FLASH_LOCK_FILE:-/tmp/biospur_flash.lock}"
 lock_wait_s="${BIOSPUR_FLASH_LOCK_WAIT_S:-120}"
 allow_jlink_fallback="${BIOSPUR_FLASH_ALLOW_JLINK_FALLBACK:-0}"
 jlink_device="${BIOSPUR_FLASH_JLINK_DEVICE:-}"
+force_jlink="${BIOSPUR_FLASH_FORCE_JLINK:-0}"
 
 if [ -z "$jlink_device" ]; then
   if [ "$snr" = "683234364" ]; then
@@ -38,7 +39,7 @@ if ! flock -w "$lock_wait_s" 9; then
 fi
 
 run_nrf_cmd() {
-  if [ "${BIOSPUR_FLASH_FORCE_JLINK:-1}" = "1" ]; then
+  if [ "$force_jlink" = "1" ]; then
     return 43
   fi
   local rc tmp
@@ -85,7 +86,7 @@ EOF
   JLinkExe -NoGui 1 -SelectEmuBySN "$snr" -CommanderScript "$jlink_cmd"
 }
 
-if [ "${BIOSPUR_FLASH_FORCE_JLINK:-1}" != "1" ] && command -v nrfjprog >/dev/null 2>&1; then
+if [ "$force_jlink" != "1" ] && command -v nrfjprog >/dev/null 2>&1; then
   ids="$(run_nrf_cmd nrfjprog --ids || true)"
   if ! printf '%s\n' "$ids" | grep -qx "$snr"; then
     echo "[error] target snr ${snr} not present in nrfjprog --ids list" >&2
@@ -100,7 +101,7 @@ echo "[flash] $snr $hex_path"
 echo "[device] $jlink_device"
 # Use nrfjprog as the primary path to guarantee non-interactive SN-pinned flashing.
 # This avoids SEGGER probe-selection popups in multi-probe environments.
-if [ "${BIOSPUR_FLASH_FORCE_JLINK:-1}" != "1" ] && command -v nrfjprog >/dev/null 2>&1; then
+if [ "$force_jlink" != "1" ] && command -v nrfjprog >/dev/null 2>&1; then
   nrf_transport_error=0
   set +e
   run_nrf_cmd nrfjprog --reset -f NRF52 --snr "$snr"
@@ -143,7 +144,7 @@ if [ "${BIOSPUR_FLASH_FORCE_JLINK:-1}" != "1" ] && command -v nrfjprog >/dev/nul
     fallback_with_jlink
   fi
 else
-  if [ "${BIOSPUR_FLASH_FORCE_JLINK:-1}" = "1" ]; then
+  if [ "$force_jlink" = "1" ]; then
     echo "[error] BIOSPUR_FLASH_FORCE_JLINK=1 is forbidden in non-interactive flow." >&2
     exit 56
   fi

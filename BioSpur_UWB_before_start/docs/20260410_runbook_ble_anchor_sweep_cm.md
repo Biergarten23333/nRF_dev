@@ -49,6 +49,8 @@ ota_target name BSF66F
 oneshot MCAL
 conn
 cmd MCAL
+cmd STREAM OFF
+cmd STREAM ON
 autopos status
 autopos map <A..H> <UUID32>
 autopos round <A..H>
@@ -104,6 +106,33 @@ Known good session reference:
 
 ## 4. A-H Anchor Sweep, 10 Sets (Master/Matrix)
 
+Important:
+
+- `A-H` Anchor Sweep does **not** require all anchors to be pre-switched to `responder`.
+- During sweep, the AUTOPOS flow itself rotates the active master and derives the matrix.
+- The `responder` setup in section 3 is only for the later Tag/MCAL capture stage.
+- If `BSF66F` is nearby and you want to keep Tag runtime `CM/TS` out of the BLE Master CDC log during sweep, disable the Tag runtime stream first using the quiet helper below.
+
+### Optional Quiet Helper For Nearby BSF66F
+
+Use this only if Tag115 / `BSF66F` is powered nearby during Anchor Sweep and you want to suppress BLE runtime `CM` / `TS` spam:
+
+```text
+device kind tag
+mode recv
+ota_target name BSF66F
+conn
+cmd STREAM OFF
+```
+
+Expected success marker:
+
+```text
+BSF66F notify: STREAM_OK OFF
+```
+
+After that, start the normal AUTOPOS sweep flow below.
+
 ### Full Loop Command
 
 ```bash
@@ -147,14 +176,16 @@ Use this exact sequence on 52840 UART:
 device kind tag
 ota_target name BSF66F
 mode recv
-oneshot MCAL
 conn
+cmd STREAM ON
+oneshot MCAL
 ```
 
 Expected success markers:
 
 ```text
 Connected[0]: ... bs=BSF66F
+BSF66F notify: STREAM_OK ON
 BSF66F notify: MODE_OK MODE=CAL LIVE=1
 ```
 
