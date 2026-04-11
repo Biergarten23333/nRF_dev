@@ -12,6 +12,13 @@ from serial import SerialException
 from run_autopos_round import UUIDS
 
 
+def auto_timeout_for_sw_sets(sw_sets: int) -> int:
+    # Empirical default:
+    # - 10 sets stays around the historical 480s budget
+    # - 100 sets expands to about 30 minutes
+    return max(480, 360 + (15 * sw_sets))
+
+
 def emit(logf, text: str, live_output: bool) -> None:
     logf.write(text)
     if live_output:
@@ -326,7 +333,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run AUTOPOS sweep loop A-H and capture SW-master lines")
     parser.add_argument("--port", required=True, help="52840 CDC serial port")
     parser.add_argument("--order", default="ABCDEFGH", help="Master order to run, e.g. ABCDEFGH or BCD")
-    parser.add_argument("--timeout-s", type=int, default=480, help="Per-round timeout")
+    parser.add_argument("--timeout-s", type=int, default=None, help="Per-round timeout; defaults scale with --sw-sets")
     parser.add_argument("--sw-sets", type=int, default=1, help="Required SW lines per round before finishing")
     parser.add_argument("--out-dir", required=True, help="Output directory")
     parser.add_argument(
@@ -339,6 +346,9 @@ def main() -> int:
     if args.sw_sets < 1:
         raise SystemExit("--sw-sets must be >= 1")
 
+    if args.timeout_s is None:
+        args.timeout_s = auto_timeout_for_sw_sets(args.sw_sets)
+
     round_capture.target_sw_sets = args.sw_sets
 
     out_dir = Path(args.out_dir)
@@ -347,6 +357,7 @@ def main() -> int:
         "port": args.port,
         "order": list(args.order),
         "sw_sets": args.sw_sets,
+        "timeout_s": args.timeout_s,
         "rounds": {},
         "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
