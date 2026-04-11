@@ -141,22 +141,45 @@ cd /home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start
 python3 scripts/run_autopos_sweep_loop.py \
   --port /dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_8D3AC42D4D90FAE8-if00 \
   --order ABCDEFGH \
-  --timeout-s 480 \
   --sw-sets 10 \
+  --verbose 1 \
   --out-dir logs/live_autopos_sweep_loop_A_to_H_10sets_retry_$(date +%Y%m%d_%H%M%S)
 ```
+
+Notes:
+
+- `--timeout-s` is now optional.
+- If omitted, the script auto-scales per-round timeout from `--sw-sets`.
+- Current default formula is:
+
+```text
+timeout_s = max(480, 360 + 15 * sw_sets)
+```
+
+- `--verbose` controls only live stdout. Raw `master.log` still keeps the full stream.
+- `--verbose 0` = `SW-X` / success / failure only
+- `--verbose 1` = normal operator mode, without ignored anchor scan noise
+- `--verbose 2` = full flow
 
 What this script does:
 
 1. `status`
-2. `mode recv`
-3. `mode autopos`
+2. keeps the controller in `AUTOPOS` and reasserts `mode autopos`
+3. waits until `autopos status` returns `AUTOPOS: mode=AUTOPOS state=idle`
 4. `device kind anchor`
 5. loads all `autopos map`
 6. runs `autopos round <master>`
 7. runs `autopos apply`
 8. waits until `AUTOPOS apply success`
 9. waits until `SW-<master>` count reaches `--sw-sets`
+
+Important:
+
+- The script no longer forces a per-round `AUTOPOS -> RECV -> AUTOPOS` reboot boundary.
+- Role rotation remains inside `AUTOPOS`.
+- The old noisy live line
+  - `ANCHOR candidate ignored: ...`
+  is intentionally suppressed in current master firmware / default operator flow.
 
 Script:
 
@@ -247,10 +270,23 @@ cd /home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start
 python3 scripts/run_autopos_sweep_loop.py \
   --port /dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_8D3AC42D4D90FAE8-if00 \
   --order ABCDEFGH \
-  --timeout-s 480 \
   --sw-sets 10 \
+  --verbose 1 \
   --out-dir logs/live_autopos_sweep_loop_A_to_H_10sets_replay_$(date +%Y%m%d_%H%M%S)
 ```
+
+For larger runs, for example `100` sets:
+
+```bash
+python3 scripts/run_autopos_sweep_loop.py \
+  --port /dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_8D3AC42D4D90FAE8-if00 \
+  --order ABCDEFGH \
+  --sw-sets 100 \
+  --verbose 1 \
+  --out-dir logs/live_autopos_sweep_loop_A_to_H_100sets_replay_$(date +%Y%m%d_%H%M%S)
+```
+
+This will auto-pick a larger timeout. If you want to override it manually, pass `--timeout-s <value>`.
 
 ### Replay BSF66F MCAL Session
 
