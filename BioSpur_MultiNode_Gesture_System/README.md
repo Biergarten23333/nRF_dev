@@ -84,3 +84,13 @@ Important artifacts to verify after a successful sysbuild:
 - `partitions.yml`
 - `pm.config`
 - `domains.yaml`
+
+## Direct TX BLE OTA
+
+For direct PC -> TX BLE OTA (without Central bridge), use:
+
+- Runbook: `docs/TX_BLE_OTA_Runbook.md`
+- OTA scripts: `tools/ota/`
+- Host env check: `tools/host/check_ble_host_env.sh`
+
+The current host `mcumgr` syntax in this environment is `--hci 0 --name BSGR_TX01`.

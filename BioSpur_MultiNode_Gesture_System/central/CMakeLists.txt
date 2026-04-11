@@ -12,6 +12,10 @@ target_sources(app PRIVATE
 	src/wdt_monitor.c
 )
 
+target_compile_definitions(app PRIVATE
+	BSGR_CENTRAL_SAFE_BOOT=1
+)
+
 target_include_directories(app PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR}/include
 	${CMAKE_CURRENT_SOURCE_DIR}/../shared/include

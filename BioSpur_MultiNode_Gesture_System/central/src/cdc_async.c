@@ -17,6 +17,26 @@ static const struct device *cdc_devices[BSGR_CDC_CHANNEL_COUNT] = {
 static struct k_mutex cdc_lock;
 static bool cdc_is_ready;
 
+static bool cdc_channel_host_ready(enum bsgr_cdc_channel channel)
+{
+	uint32_t dtr = 0U;
+	int err;
+
+	if (channel >= BSGR_CDC_CHANNEL_COUNT) {
+		return false;
+	}
+
+	err = uart_line_ctrl_get(cdc_devices[channel], UART_LINE_CTRL_DTR, &dtr);
+	if (err == -ENOSYS) {
+		return true;
+	}
+	if (err != 0) {
+		return false;
+	}
+
+	return dtr != 0U;
+}
+
 int cdc_async_init(void)
 {
 	int err;
@@ -53,6 +73,9 @@ int cdc_async_write(enum bsgr_cdc_channel channel, const uint8_t *data, size_t l
 
 	if ((!cdc_is_ready) || (channel >= BSGR_CDC_CHANNEL_COUNT) || (data == NULL)) {
 		return -EINVAL;
+	}
+	if ((len > 0U) && !cdc_channel_host_ready(channel)) {
+		return -EAGAIN;
 	}
 
 	k_mutex_lock(&cdc_lock, K_FOREVER);

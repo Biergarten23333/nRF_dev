@@ -11,6 +11,10 @@ static int wdt_channel = -1;
 
 int wdt_monitor_init(void)
 {
+#if defined(BSGR_CENTRAL_SAFE_BOOT) && (BSGR_CENTRAL_SAFE_BOOT == 1)
+	LOG_WRN("Safe-boot mode: watchdog arming deferred");
+	return 0;
+#else
 #if DT_NODE_EXISTS(DT_NODELABEL(wdt0))
 	static const struct wdt_timeout_cfg timeout_cfg = {
 		.window = {
@@ -44,6 +48,7 @@ int wdt_monitor_init(void)
 	LOG_INF("Watchdog node not present, stub mode");
 #endif
 	return 0;
+#endif
 }
 
 void wdt_monitor_feed(void)

@@ -1,6 +1,19 @@
+cmake:
+  application:
+    source-dir: /home/zekaixiao/ncs/v2.8.0/zephyr/share/sysbuild
+  board:
+    name: nrf52840dk
+    qualifiers: nrf52840
+    revision: 
+  kconfig:
+    files:
+     - /home/zekaixiao/Documents/nRF_dev/BioSpur_MultiNode_Gesture_System/tx_node/build/_sysbuild/empty.conf
+     - /home/zekaixiao/Documents/nRF_dev/BioSpur_MultiNode_Gesture_System/tx_node/sysbuild.conf
+    user-files:
+     - /home/zekaixiao/Documents/nRF_dev/BioSpur_MultiNode_Gesture_System/tx_node/sysbuild.conf
+  sysbuild: true
+version: 0.1.0
 west:
-  command: /home/zekaixiao/.local/bin/west build -p always -s /home/zekaixiao/Documents/nRF_dev/BioSpur_MultiNode_Gesture_System/tx_node
-    -b nrf52840dk/nrf52840 --sysbuild -d /home/zekaixiao/Documents/nRF_dev/BioSpur_MultiNode_Gesture_System/tx_node/build
-    -- -DCMAKE_MAKE_PROGRAM=/home/zekaixiao/ncs/toolchains/b81a7cd864/usr/local/lib/python3.12/site-packages/ninja/data/bin/ninja
+  command: /home/zekaixiao/ncs/toolchains/b81a7cd864/usr/local/bin/west build -p always -s /home/zekaixiao/Documents/nRF_dev/BioSpur_MultiNode_Gesture_System/tx_node -b nrf52840dk/nrf52840 --sysbuild -d /home/zekaixiao/Documents/nRF_dev/BioSpur_MultiNode_Gesture_System/tx_node/build -- -DCMAKE_MAKE_PROGRAM=/home/zekaixiao/ncs/toolchains/b81a7cd864/usr/local/lib/python3.12/site-packages/ninja/data/bin/ninja
   topdir: /home/zekaixiao/ncs/v2.8.0
   version: 1.2.0
