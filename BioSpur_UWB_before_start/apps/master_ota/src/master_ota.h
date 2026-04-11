@@ -15,6 +15,7 @@ int master_ota_target_set_prefix(const char *prefix);
 int master_ota_target_set_uuid(const char *uuid_hex);
 void master_ota_target_print(void);
 int master_ota_initiate(void);
+int master_ota_reset_target(void);
 void master_ota_set_expect_nus(bool expect_nus);
 void master_ota_prepare_mode_switch(void);
 

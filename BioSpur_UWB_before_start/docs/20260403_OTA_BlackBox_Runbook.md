@@ -118,3 +118,97 @@ Successful runtime evidence is captured in the per-anchor OTA logs, for example:
 The role-switch validation is captured separately with:
 
 - `scripts/serial_switch_role.py`
+
+## AUTOPOS Validation
+
+AUTOPOS is validated separately from OTA and does not use Anchor USB as a data path.
+The validated path is:
+
+1. candidate accept by UUID
+2. `bt_conn_le_create(...)`
+3. `connected(...)`
+4. `DISC start[...]`
+5. `DISC complete[...]`
+6. `ANCHOR_CTRL[...] link ready`
+7. state read proves current role / `busy=...`
+8. `R MASTER` or `R MATRIX`
+9. `VALIDATE`
+10. `COMMIT`
+11. `REBOOT`
+12. clear old link
+13. fresh reconnect
+14. final role verification
+15. `AUTOPOS apply success: master=<X>`
+
+### Build / Flash / Run
+
+Build:
+
+```bash
+cmake --build build-master-control-ota-fix-20260403 -j4
+```
+
+Flash 52840 DK non-interactively:
+
+```bash
+nrfjprog --snr 683234364 --program build-master-control-ota-fix-20260403/master_control/zephyr/zephyr.hex --sectorerase --verify -f NRF52
+nrfjprog --snr 683234364 --reset -f NRF52
+```
+
+If `flash_master_noninteractive.sh` / `reset_then_flash.sh` ever needs J-Link fallback, the repository now resolves the master probe to:
+
+- SN `683234364` -> `nRF52840_xxAA`
+
+and keeps anchors on the `nRF52832_XXAA` default. This avoids a stale generic 52832 device assumption in the master flashing path.
+
+Run AUTOPOS round A validation:
+
+```bash
+python3 scripts/run_autopos_round.py \
+  --port /dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_XXXXXXXX-if00 \
+  --master A \
+  --duration-s 200 \
+  --out-dir logs/live_autopos_roundA_<timestamp>
+```
+
+### Minimal Success Proof
+
+These log lines prove the full AUTOPOS flow:
+
+- `CONNECT queue[...]`
+- `Connected[...]`
+- `DISC complete[...]`
+- `ANCHOR_CTRL[...] link ready`
+- `AUTOPOS anchor A role verified`
+- `AUTOPOS anchor B role verified`
+- `AUTOPOS anchor C role verified`
+- `AUTOPOS anchor D role verified`
+- `AUTOPOS anchor E role verified`
+- `AUTOPOS anchor F role verified`
+- `AUTOPOS anchor G role verified`
+- `AUTOPOS anchor H role verified`
+- `AUTOPOS apply success: master=A`
+- `AUTOPOS: mode=AUTOPOS state=ready staged=A last_success=A error=-`
+
+### Failure Taxonomy
+
+- `ACCEPT failure`
+  - no `SCAN hit:` for the target UUID
+- `CONNECT failure`
+  - `CONNECT pending[...] rc=<err>` or `Failed to connect[...]`
+- `DISCOVERY_START failure`
+  - `Could not start anchor-ctrl discovery[...]`
+  - now logged with `connected_for`, retry count, and start-failure count
+- `DISCOVERY_COMPLETE failure`
+  - no `DISC complete[...]` before timeout
+- `READY failure`
+  - no `ANCHOR_CTRL[...] link ready`
+  - `AUTOPOS wait anchor ready timeout`
+- `APPLY failure`
+  - missing `OK PENDING_ROLE`, `OK VALID`, or `OK COMMIT REBOOT_REQUIRED`
+- `REBOOT/CLEAR failure`
+  - `AUTOPOS wait anchor cleared timeout`
+- `RECONNECT failure`
+  - disconnect observed but no fresh `Connected[...]` for the target UUID
+- `VERIFY failure`
+  - post-reboot state never reaches `role=master` or `role=matrix`

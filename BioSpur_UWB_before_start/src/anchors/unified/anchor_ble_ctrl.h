@@ -21,5 +21,6 @@ int anchor_ble_ctrl_init(const struct anchor_ble_ctrl_boot_info *info);
 void anchor_ble_ctrl_set_busy(bool busy);
 void anchor_ble_ctrl_set_runtime(uint8_t runtime_anchor_id_cfg, uint8_t runtime_role,
                                  bool active_cfg_valid);
+int anchor_ble_ctrl_publish_result_line(const char *text);
 
 #endif

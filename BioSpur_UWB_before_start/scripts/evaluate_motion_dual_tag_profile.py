@@ -8,6 +8,11 @@ from pathlib import Path
 
 import serial
 
+from master_control_port import (
+    assert_not_jlink_when_biospur_available,
+    preferred_master_control_port,
+)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -200,7 +205,9 @@ def main() -> int:
     parser.add_argument("--master-snr", default="683234364")
     parser.add_argument(
         "--master-port",
-        default="/dev/serial/by-id/usb-SEGGER_J-Link_000683234364-if00",
+        default=preferred_master_control_port(
+            "/dev/serial/by-id/usb-SEGGER_J-Link_000683234364-if00"
+        ),
     )
     parser.add_argument("--ref-snr", default="760186115")
     parser.add_argument(
@@ -218,6 +225,7 @@ def main() -> int:
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument("--skip-ota", action="store_true")
     args = parser.parse_args()
+    assert_not_jlink_when_biospur_available(args.master_port)
 
     profile_name = args.profile_name
     eval_root = REPO_ROOT / "logs" / "motion_profile_eval" / profile_name

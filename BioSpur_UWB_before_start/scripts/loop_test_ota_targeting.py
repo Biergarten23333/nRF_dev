@@ -13,6 +13,11 @@ from pathlib import Path
 import serial
 from serial import SerialException
 
+from master_control_port import (
+    assert_not_jlink_when_biospur_available,
+    preferred_master_control_port,
+)
+
 
 CONNECT_RE = re.compile(r"Connect start:\s+(.+?)\s+token=([-\d]+)\s+name=(.+)$")
 CONNECTED_LINE_RE = re.compile(r"^Connected:\s+(.+)$")
@@ -45,7 +50,12 @@ class TrialResult:
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Repeat OTA targeting runs and verify identity-safe convergence.")
-    p.add_argument("--port", default="/dev/serial/by-id/usb-SEGGER_J-Link_000683234364-if00")
+    p.add_argument(
+        "--port",
+        default=preferred_master_control_port(
+            "/dev/serial/by-id/usb-SEGGER_J-Link_000683234364-if00"
+        ),
+    )
     p.add_argument("--target-uuid", required=True, help="32-hex stable UUID of intended target")
     p.add_argument("--target-name", default="", help="Optional exact name constraint")
     p.add_argument("--trials", type=int, default=3)
@@ -55,7 +65,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--out-dir", default="")
     p.add_argument("--direct-ota-mode", action="store_true",
                    help="Skip preflip through RECV mode; switch/use OTA mode directly.")
-    return p.parse_args()
+    args = p.parse_args()
+    assert_not_jlink_when_biospur_available(args.port)
+    return args
 
 
 def run_cmd(cmd: list[str], log_path: Path) -> int:

@@ -1,5 +1,6 @@
 #include "ss_twr_anchor_init.h"
 
+#include "anchor_ble_ctrl.h"
 #include "uwb_anchor_matrix.h"
 #include "uwb_anchor_topology.h"
 #include "uwb_range_tracker.h"
@@ -26,6 +27,7 @@
 
 #define SS_TWR_ANCHOR_INIT_SPEED_OF_LIGHT 299702547.0
 #define SS_TWR_ANCHOR_INIT_RANGE_FILTER_OUTLIER_MM 450U
+#define SS_TWR_ANCHOR_INIT_SW_LINE_MAX 256U
 
 static dwt_config_t ss_twr_anchor_init_config = {
     APP_UWB_CHANNEL,
@@ -51,6 +53,40 @@ static size_t ss_twr_anchor_init_peer_count;
 static size_t ss_twr_anchor_init_peer_index;
 static size_t ss_twr_anchor_init_sweep_count;
 static struct uwb_anchor_matrix ss_twr_anchor_init_matrix;
+
+static void ss_twr_anchor_init_publish_sweep_summary(void)
+{
+    char line[SS_TWR_ANCHOR_INIT_SW_LINE_MAX];
+    size_t used;
+
+    used = (size_t)snprintk(line, sizeof(line), "SW-%c",
+                            uwb_anchor_label(ss_twr_anchor_init_local_id));
+    if (used >= sizeof(line)) {
+        return;
+    }
+
+    for (uint8_t peer_id = 0U; peer_id < UWB_MAX_ANCHORS; ++peer_id) {
+        const struct uwb_anchor_matrix_cell *cell;
+
+        if (peer_id == ss_twr_anchor_init_local_id) {
+            continue;
+        }
+
+        cell = &ss_twr_anchor_init_matrix.cells[ss_twr_anchor_init_local_id][peer_id];
+        used += (size_t)snprintk(
+            &line[used], sizeof(line) - used, ",%c,%lu,%u",
+            uwb_anchor_label(peer_id),
+            (unsigned long)(cell->valid ? cell->last_raw_mm : 0U),
+            (unsigned int)(cell->valid ? cell->quality_percent : 0U));
+        if (used >= sizeof(line)) {
+            line[sizeof(line) - 1U] = '\0';
+            break;
+        }
+    }
+
+    printk("Anchor sweep summary prepared: %s\n", line);
+    (void)anchor_ble_ctrl_publish_result_line(line);
+}
 
 static void ss_twr_anchor_init_read_ts(const uint8_t *ts_field, uint32_t *ts)
 {
@@ -78,25 +114,8 @@ static void ss_twr_anchor_init_configure_radio(void)
 static bool ss_twr_anchor_init_raw_range_plausible(
     const struct uwb_range_tracker *tracker, uint32_t raw_mm)
 {
-    uint32_t delta_mm;
-
-    if (tracker == NULL) {
-        return false;
-    }
-
-    if (raw_mm == 0U) {
-        return false;
-    }
-
-    if (!tracker->filtered_valid ||
-        tracker->raw_count < UWB_RANGE_TRACKER_WINDOW_SIZE) {
-        return true;
-    }
-
-    delta_mm = (raw_mm > tracker->filtered_mm)
-                   ? (raw_mm - tracker->filtered_mm)
-                   : (tracker->filtered_mm - raw_mm);
-    return delta_mm <= SS_TWR_ANCHOR_INIT_RANGE_FILTER_OUTLIER_MM;
+    ARG_UNUSED(tracker);
+    return raw_mm != 0U;
 }
 
 int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
@@ -249,11 +268,11 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
             if (!ss_twr_anchor_init_raw_range_plausible(
                     tracker, (uint32_t)raw_distance_mm)) {
                 uwb_range_tracker_record_failure(tracker);
-                printk("Anchor master reject peer=%u addr=0x%04x raw=%ld mm last_filt=%lu mm ok=%lu fail=%lu q=%u%%\n",
+                printk("Anchor master reject peer=%u addr=0x%04x raw=%ld mm last=%lu mm ok=%lu fail=%lu q=%u%%\n",
                        (unsigned int)current_peer_id,
                        (unsigned int)current_peer_addr,
                        raw_distance_mm,
-                       (unsigned long)tracker->filtered_mm,
+                       (unsigned long)tracker->last_raw_mm,
                        (unsigned long)tracker->success_count,
                        (unsigned long)tracker->failure_count,
                        (unsigned int)uwb_range_tracker_quality_percent(tracker));
@@ -269,7 +288,7 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
                 &ss_twr_anchor_init_matrix, ss_twr_anchor_init_local_id,
                 uwb_anchor_id_from_addr(resp_src_addr), tracker);
 
-            printk("Matrix %c-%c addr=0x%04x raw=%ld mm filt=%lu mm ok=%lu fail=%lu q=%u%%\n",
+            printk("Matrix %c-%c addr=0x%04x raw=%ld mm last=%lu mm ok=%lu fail=%lu q=%u%%\n",
                    uwb_anchor_label(ss_twr_anchor_init_local_id),
                    uwb_anchor_label(uwb_anchor_id_from_addr(resp_src_addr)),
                    (unsigned int)resp_src_addr, raw_distance_mm,
@@ -300,6 +319,7 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
             uwb_anchor_matrix_print_row(&ss_twr_anchor_init_matrix,
                                         ss_twr_anchor_init_local_id);
             uwb_anchor_matrix_print_valid_edges(&ss_twr_anchor_init_matrix);
+            ss_twr_anchor_init_publish_sweep_summary();
         }
         k_msleep(SS_TWR_ANCHOR_INIT_RNG_DELAY_MS);
     }

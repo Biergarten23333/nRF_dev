@@ -11,6 +11,15 @@ hex_path="$(realpath "$2")"
 lock_file="${BIOSPUR_FLASH_LOCK_FILE:-/tmp/biospur_flash.lock}"
 lock_wait_s="${BIOSPUR_FLASH_LOCK_WAIT_S:-120}"
 allow_jlink_fallback="${BIOSPUR_FLASH_ALLOW_JLINK_FALLBACK:-0}"
+jlink_device="${BIOSPUR_FLASH_JLINK_DEVICE:-}"
+
+if [ -z "$jlink_device" ]; then
+  if [ "$snr" = "683234364" ]; then
+    jlink_device="nRF52840_xxAA"
+  else
+    jlink_device="nRF52832_XXAA"
+  fi
+fi
 
 # Prevent VSCode Nordic background hotplug scanner from racing J-Link access
 # and triggering interactive probe-selection dialogs.
@@ -64,7 +73,7 @@ fallback_with_jlink() {
   jlink_cmd="$(mktemp)"
   trap "rm -f '$jlink_cmd'" EXIT
   cat >"$jlink_cmd" <<EOF
-Device nRF52832_XXAA
+Device $jlink_device
 SelectInterface SWD
 Speed 4000
 Connect
@@ -88,6 +97,7 @@ fi
 
 echo "[reset-before-flash] $snr"
 echo "[flash] $snr $hex_path"
+echo "[device] $jlink_device"
 # Use nrfjprog as the primary path to guarantee non-interactive SN-pinned flashing.
 # This avoids SEGGER probe-selection popups in multi-probe environments.
 if [ "${BIOSPUR_FLASH_FORCE_JLINK:-1}" != "1" ] && command -v nrfjprog >/dev/null 2>&1; then

@@ -44,6 +44,7 @@
 #define OTA_SMP_CMD_IMG_UPLOAD 0x01U
 #define OTA_SMP_CMD_IMG_ERASE 0x05U
 #define OTA_SMP_CMD_OS_RESET 0x05U
+#define OTA_MGMT_ERR_EBADSTATE 6
 #define OTA_CBOR_DECODER_STATE_NUM 4U
 #define OTA_NAME_BUF_LEN 32U
 #define OTA_UUID_HEX_LEN 32U
@@ -766,9 +767,10 @@ static bool ad_eval_target(struct net_buf_simple *ad, const char *name, uint8_t 
 				   str_case_eq(uuid_hex, runtime_target_uuid);
 	} else {
 		if (runtime_target_name[0] != '\0') {
-			eval->name_match = eval->has_name && str_case_eq(name, runtime_target_name);
+			eval->name_match = !eval->has_name ||
+					   str_case_eq(name, runtime_target_name);
 		} else if (runtime_target_prefix[0] != '\0') {
-			eval->name_match = eval->has_name &&
+			eval->name_match = !eval->has_name ||
 					   str_case_startswith(name, runtime_target_prefix);
 		} else {
 			eval->name_match = true;
@@ -778,11 +780,18 @@ static bool ad_eval_target(struct net_buf_simple *ad, const char *name, uint8_t 
 
 	/*
 	 * Hard safety rule for destructive OTA: stable identity is mandatory.
-	 * If UUID target is not configured and matched, OTA must not proceed.
+	 * UUID is authoritative when configured. For tag OTA over NUS, token is
+	 * the stable identity when UUID is absent from advertisements.
 	 */
-	eval->strict_identity_ok = eval->uuid_match;
+	if (uuid_mode) {
+		eval->strict_identity_ok = eval->uuid_match;
+	} else if (runtime_expect_nus && runtime_target_token >= 0) {
+		eval->strict_identity_ok = eval->token_match;
+	} else {
+		eval->strict_identity_ok = eval->name_match && eval->token_match;
+	}
 	ARG_UNUSED(ad);
-	return eval->strict_identity_ok && eval->name_match && eval->token_match;
+	return eval->strict_identity_ok && eval->name_match;
 }
 
 static void master_leds_apply(void)
@@ -1862,6 +1871,23 @@ static void ota_thread_fn(void *a, void *b, void *c)
 		ota_status = ota_wait_upload_ready(&dfu_smp);
 		if (ota_status) {
 			printk("OTA upload gate failed: %d\n", ota_status);
+			if (ota_status == -ETIMEDOUT) {
+				printk("OTA upload gate stalled after DFU ready; issuing recovery reset\n");
+				ota_status = ota_remote_reset(&dfu_smp);
+				if (ota_status) {
+					printk("OTA gate recovery reset failed: %d\n", ota_status);
+					master_leds_set(false, true, false, true);
+					ota_done = true;
+					ota_session_set(false, "upload_gate_recovery_reset_failed");
+					continue;
+				}
+				printk("OTA upload-gate recovery reset request\n");
+				ota_done = true;
+				ota_set_state(OTA_OP_REBOOT_PENDING, "upload_gate_recovery_reset");
+				master_leds_set(false, true, false, false);
+				ota_session_set(false, "upload_gate_recovery_reset");
+				continue;
+			}
 			master_leds_set(false, true, false, true);
 			ota_done = true;
 			ota_session_set(false, "upload_gate_failed");
@@ -1893,6 +1919,22 @@ static void ota_thread_fn(void *a, void *b, void *c)
 				if (ota_status == -ETIMEDOUT) {
 					printk("OTA erase timeout; continuing with upload path\n");
 					k_msleep(120);
+				} else if (ota_status == OTA_MGMT_ERR_EBADSTATE) {
+					printk("OTA erase blocked by pending image state; issuing recovery reset\n");
+					ota_status = ota_remote_reset(&dfu_smp);
+					if (ota_status) {
+						printk("OTA recovery reset failed: %d\n", ota_status);
+						master_leds_set(false, true, false, true);
+						ota_done = true;
+						ota_session_set(false, "erase_pending_recovery_reset_failed");
+						continue;
+					}
+					printk("OTA pending-state recovery reset request\n");
+					ota_done = true;
+					ota_set_state(OTA_OP_REBOOT_PENDING, "erase_pending_recovery_reset");
+					master_leds_set(false, true, false, false);
+					ota_session_set(false, "erase_pending_recovery_reset");
+					continue;
 				} else {
 					printk("OTA erase failed: %d\n", ota_status);
 					master_leds_set(false, true, false, true);
@@ -2150,12 +2192,17 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 		sec_err = bt_conn_set_security(conn, BT_SECURITY_L2);
 		if (sec_err && sec_err != -EALREADY) {
 			printk("Security request failed: %d\n", sec_err);
+			printk("Security fallback: proceeding with current link level\n");
+			sec_ready = true;
 		} else {
 			printk("Security request: L2 (rc=%d)\n", sec_err);
 			/* Some targets gate MCUmgr writes by ATT perms; wait briefly for
 			 * encrypted link before DFU discovery/commands.
 			 */
-			(void)k_sem_take(&sec_ready_sem, K_SECONDS(3));
+			if (k_sem_take(&sec_ready_sem, K_SECONDS(3)) != 0) {
+				printk("Security fallback: L2 wait timeout, proceeding with current link level\n");
+				sec_ready = true;
+			}
 		}
 	} else {
 		/* Anchor OTA profile: keep link security at L1 by default.
@@ -2200,6 +2247,11 @@ static void security_changed(struct bt_conn *conn, bt_security_t level,
 
 	if (conn == default_conn && err == BT_SECURITY_ERR_SUCCESS &&
 	    level >= BT_SECURITY_L2) {
+		sec_ready = true;
+		k_sem_give(&sec_ready_sem);
+	} else if (conn == default_conn && err != BT_SECURITY_ERR_SUCCESS) {
+		printk("Security fallback: err=%u level=%u, continuing without L2\n",
+		       (unsigned int)err, (unsigned int)level);
 		sec_ready = true;
 		k_sem_give(&sec_ready_sem);
 	}
@@ -2465,6 +2517,31 @@ int master_ota_initiate(void)
 	ota_set_state(OTA_OP_CONNECT_PENDING, "initiate");
 	ota_session_set(true, "initiate");
 	printk("OTA initiate: scan restarted (passive), armed=1\n");
+	return 0;
+}
+
+int master_ota_reset_target(void)
+{
+	int rc;
+
+	if (!ota_runtime_active) {
+		return -ENOTSUP;
+	}
+	if (default_conn == NULL) {
+		return -ENOTCONN;
+	}
+	if (!ota_ready) {
+		return -EAGAIN;
+	}
+
+	rc = ota_remote_reset(&dfu_smp);
+	if (rc) {
+		return rc;
+	}
+
+	ota_done = true;
+	ota_set_state(OTA_OP_REBOOT_PENDING, "manual_reset_request");
+	ota_session_set(false, "manual_reset_request");
 	return 0;
 }
 

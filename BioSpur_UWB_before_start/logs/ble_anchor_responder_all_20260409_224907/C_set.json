@@ -1,0 +1,39 @@
+{
+  "target": {
+    "addr": "FD:64:2E:93:37:86",
+    "rssi": -65,
+    "device_uuid_hex": "CEE5A7EFCB35F8A56B430047629F5309",
+    "anchor_id_cfg": 3,
+    "role_code": 2
+  },
+  "commands": [
+    {
+      "cmd": "REBOOT(prep)",
+      "resp": "OK DISCONNECT_EXPECTED"
+    },
+    {
+      "cmd": "R RESPONDER",
+      "resp": "OK PENDING_ROLE"
+    },
+    {
+      "cmd": "VALIDATE",
+      "resp": "OK VALID"
+    },
+    {
+      "cmd": "COMMIT",
+      "resp": "OK COMMIT REBOOT_REQUIRED"
+    },
+    {
+      "cmd": "REBOOT",
+      "resp": "OK DISCONNECT_EXPECTED"
+    }
+  ],
+  "state_before": "STATE fw=anchor-unified bs=BS5380 uuid=CEE5A7EFCB35F8A56B430047629F5309 label=C role=matrix cfg_valid=1 busy=1 pending_valid=1 schema=2 gen=48 reboot_required=0",
+  "active_before": "CFG schema=2 gen=48 label=C role=matrix valid=1 flags=0 uuid=CEE5A7EFCB35F8A56B430047629F5309",
+  "pending_before": "CFG schema=2 gen=48 label=C role=matrix valid=1 flags=0 uuid=CEE5A7EFCB35F8A56B430047629F5309",
+  "result_before": "OK READY",
+  "state_config": "STATE fw=anchor-unified bs=BS5380 uuid=CEE5A7EFCB35F8A56B430047629F5309 label=C role=matrix cfg_valid=1 busy=0 pending_valid=1 schema=2 gen=48 reboot_required=0",
+  "active_config": "CFG schema=2 gen=48 label=C role=matrix valid=1 flags=0 uuid=CEE5A7EFCB35F8A56B430047629F5309",
+  "pending_config": "CFG schema=2 gen=48 label=C role=matrix valid=1 flags=0 uuid=CEE5A7EFCB35F8A56B430047629F5309",
+  "result_config": "OK READY"
+}

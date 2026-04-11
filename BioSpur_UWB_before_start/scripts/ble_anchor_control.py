@@ -93,11 +93,40 @@ async def read_text(client: BleakClient, uuid: str) -> str:
     return data.decode("utf-8", errors="replace").strip()
 
 
-async def write_cmd(client: BleakClient, cmd: str) -> str:
+async def write_cmd(client: BleakClient, cmd: str, *, allow_disconnect: bool = False) -> str:
     payload = cmd.encode("ascii")
     await client.write_gatt_char(CONTROL_UUID, payload, response=False)
     await asyncio.sleep(0.12)
-    return await read_text(client, RESULT_UUID)
+    try:
+        return await read_text(client, RESULT_UUID)
+    except Exception:
+        if allow_disconnect:
+            return "OK DISCONNECT_EXPECTED"
+        raise
+
+
+def state_field_equals(state: str, key: str, value: str) -> bool:
+    for token in state.split():
+        if token == f"{key}={value}":
+            return True
+    return False
+
+
+async def open_anchor_session(client_target: Any) -> tuple[BleakClient, dict]:
+    client = BleakClient(client_target, timeout=12.0)
+    await client.connect()
+    services = await client.get_services()
+    if SVC_UUID.lower() not in {s.uuid.lower() for s in services}:
+        await client.disconnect()
+        raise RuntimeError(f"control service not found on {client_target}: {SVC_UUID}")
+
+    snapshot = {
+        "state": await read_text(client, STATE_UUID),
+        "active": await read_text(client, ACTIVE_UUID),
+        "pending": await read_text(client, PENDING_UUID),
+        "result": await read_text(client, RESULT_UUID),
+    }
+    return client, snapshot
 
 
 async def run(args: argparse.Namespace) -> dict:
@@ -114,15 +143,31 @@ async def run(args: argparse.Namespace) -> dict:
     }
 
     client_target = target.ble_device if target.ble_device is not None else target.addr
-    async with BleakClient(client_target, timeout=12.0) as client:
-        services = await client.get_services()
-        if SVC_UUID.lower() not in {s.uuid.lower() for s in services}:
-            raise RuntimeError(f"control service not found on {target.addr}: {SVC_UUID}")
+    wants_config_change = any([
+        args.set_role is not None,
+        args.set_label is not None,
+        args.set_generation is not None,
+        args.validate,
+        args.commit,
+        args.reboot,
+    ])
+    client, snapshot = await open_anchor_session(client_target)
+    try:
+        out["state_before"] = snapshot["state"]
+        out["active_before"] = snapshot["active"]
+        out["pending_before"] = snapshot["pending"]
+        out["result_before"] = snapshot["result"]
 
-        out["state_before"] = await read_text(client, STATE_UUID)
-        out["active_before"] = await read_text(client, ACTIVE_UUID)
-        out["pending_before"] = await read_text(client, PENDING_UUID)
-        out["result_before"] = await read_text(client, RESULT_UUID)
+        if wants_config_change and state_field_equals(snapshot["state"], "busy", "1"):
+            resp = await write_cmd(client, "REBOOT", allow_disconnect=True)
+            out["commands"].append({"cmd": "REBOOT(prep)", "resp": resp})
+            await client.disconnect()
+            await asyncio.sleep(2.0)
+            client, snapshot = await open_anchor_session(client_target)
+            out["state_config"] = snapshot["state"]
+            out["active_config"] = snapshot["active"]
+            out["pending_config"] = snapshot["pending"]
+            out["result_config"] = snapshot["result"]
 
         if args.sync:
             resp = await write_cmd(client, "SYNC")
@@ -146,7 +191,7 @@ async def run(args: argparse.Namespace) -> dict:
             resp = await write_cmd(client, "COMMIT")
             out["commands"].append({"cmd": "COMMIT", "resp": resp})
         if args.reboot:
-            resp = await write_cmd(client, "REBOOT")
+            resp = await write_cmd(client, "REBOOT", allow_disconnect=True)
             out["commands"].append({"cmd": "REBOOT", "resp": resp})
 
         if not args.reboot:
@@ -154,6 +199,9 @@ async def run(args: argparse.Namespace) -> dict:
             out["active_after"] = await read_text(client, ACTIVE_UUID)
             out["pending_after"] = await read_text(client, PENDING_UUID)
             out["result_after"] = await read_text(client, RESULT_UUID)
+    finally:
+        if client.is_connected:
+            await client.disconnect()
 
     return out
 

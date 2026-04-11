@@ -2,6 +2,7 @@
 #include <zephyr/sys/printk.h>
 #include <errno.h>
 #include <string.h>
+#include <zephyr/dfu/mcuboot.h>
 
 #include "anchor_config.h"
 #include "anchor_ble_id.h"
@@ -46,7 +47,7 @@
 #endif
 
 #ifndef APP_ANCHOR_SCHEDULE_MODE
-#define APP_ANCHOR_SCHEDULE_MODE 1U
+#define APP_ANCHOR_SCHEDULE_MODE 2U
 #endif
 
 #ifndef APP_ANCHOR_ALLOW_TAG_POLLS
@@ -130,6 +131,14 @@ int anchor_app_run(void)
     int ret = uwb_hw_bringup_and_init();
     if (ret) {
         return ret;
+    }
+
+    if (!boot_is_img_confirmed()) {
+        ret = boot_write_img_confirmed();
+        printk("MCUboot confirm rc=%d\n", ret);
+        if (ret) {
+            printk("MCUboot confirm failed, continuing: %d\n", ret);
+        }
     }
 
     anchor_config_get_mcu_uid(mcu_uid);

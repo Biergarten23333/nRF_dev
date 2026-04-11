@@ -1,0 +1,39 @@
+{
+  "target": {
+    "addr": "EC:9F:55:9D:7E:A1",
+    "rssi": -60,
+    "device_uuid_hex": "B3087BC3D87CCCD316AEDC6B71D6677F",
+    "anchor_id_cfg": 7,
+    "role_code": 2
+  },
+  "commands": [
+    {
+      "cmd": "REBOOT(prep)",
+      "resp": "OK DISCONNECT_EXPECTED"
+    },
+    {
+      "cmd": "R RESPONDER",
+      "resp": "OK PENDING_ROLE"
+    },
+    {
+      "cmd": "VALIDATE",
+      "resp": "OK VALID"
+    },
+    {
+      "cmd": "COMMIT",
+      "resp": "OK COMMIT REBOOT_REQUIRED"
+    },
+    {
+      "cmd": "REBOOT",
+      "resp": "OK DISCONNECT_EXPECTED"
+    }
+  ],
+  "state_before": "STATE fw=anchor-unified bs=BSEC88 uuid=B3087BC3D87CCCD316AEDC6B71D6677F label=G role=matrix cfg_valid=1 busy=1 pending_valid=1 schema=2 gen=45 reboot_required=0",
+  "active_before": "CFG schema=2 gen=45 label=G role=matrix valid=1 flags=0 uuid=B3087BC3D87CCCD316AEDC6B71D6677F",
+  "pending_before": "CFG schema=2 gen=45 label=G role=matrix valid=1 flags=0 uuid=B3087BC3D87CCCD316AEDC6B71D6677F",
+  "result_before": "OK READY",
+  "state_config": "STATE fw=anchor-unified bs=BSEC88 uuid=B3087BC3D87CCCD316AEDC6B71D6677F label=G role=matrix cfg_valid=1 busy=0 pending_valid=1 schema=2 gen=45 reboot_required=0",
+  "active_config": "CFG schema=2 gen=45 label=G role=matrix valid=1 flags=0 uuid=B3087BC3D87CCCD316AEDC6B71D6677F",
+  "pending_config": "CFG schema=2 gen=45 label=G role=matrix valid=1 flags=0 uuid=B3087BC3D87CCCD316AEDC6B71D6677F",
+  "result_config": "OK READY"
+}

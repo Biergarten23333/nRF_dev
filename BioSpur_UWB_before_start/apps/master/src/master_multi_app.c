@@ -27,6 +27,7 @@
 #define MASTER_MAX_CONNECTIONS 10U
 #define MASTER_DISCOVERY_RETRY_DELAY_MS 1000U
 #define MASTER_DISCOVERY_RETRY_LIMIT 5U
+#define MASTER_DISCOVERY_START_SETTLE_MS 250U
 #define MASTER_TDMA_SLOT_COUNT_MAX 10U
 #define MASTER_TDMA_SLOT_PERIOD_MS 24U
 #define MASTER_TDMA_SLOT_ACTIVE_MS 20U
@@ -44,6 +45,12 @@
 #define BLE_SAMPLE_VERSION 1U
 #define BLE_SAMPLE_HEADER_LEN 5U
 #define BLE_SAMPLE_RECORD_LEN 24U
+#define BLE_CAL_MAGIC0 0x43U
+#define BLE_CAL_MAGIC1 0x4dU
+#define BLE_CAL_VERSION 1U
+#define BLE_CAL_HEADER_LEN 5U
+#define BLE_CAL_RECORD_LEN 24U
+#define BLE_CAL_ANCHOR_COUNT 8U
 #define MASTER_UUID_HEX_LEN 32U
 #define BIOSPUR_MFG_UUID_OFS 6U
 #define BIOSPUR_MFG_UUID_LEN 16U
@@ -83,12 +90,16 @@ struct master_peer {
 	bool connected;
 	bool ready;
 	bool connect_pending;
+	bool setup_pending;
 	bool one_shot_sent;
+	bool discovery_inflight;
 	bool ota_ready;
 	bool ota_active;
 	enum master_peer_link_type link_type;
 	struct k_work_delayable discovery_retry_work;
 	uint8_t discovery_retry_attempts;
+	uint8_t discovery_start_failures;
+	int64_t connected_at_ms;
 	bt_addr_le_t addr;
 	bool addr_valid;
 	char adv_name[MASTER_NAME_BUF_LEN];
@@ -109,7 +120,29 @@ struct master_peer {
 	uint8_t tdma_generation;
 };
 
+static bool peer_matches_runtime_target(const struct master_peer *peer);
+
+struct master_cal_record {
+	bool present;
+	uint8_t status;
+	uint8_t quality_percent;
+	int32_t raw_mm;
+	uint32_t filt_mm;
+	uint32_t ok_count;
+	uint32_t fail_count;
+};
+
+struct master_cal_sweep_state {
+	bool active;
+	uint8_t version;
+	uint8_t tag_id;
+	uint32_t sweep;
+	uint8_t present_count;
+	struct master_cal_record records[BLE_CAL_ANCHOR_COUNT];
+};
+
 static struct master_peer peers[MASTER_MAX_CONNECTIONS];
+static struct master_cal_sweep_state cal_sweep_states[MASTER_MAX_CONNECTIONS];
 static int connecting_slot = -1;
 static uint8_t conn_count;
 static bool scan_running;
@@ -127,6 +160,8 @@ static bool runtime_one_shot_cmd_set;
 static enum master_runtime_target_kind runtime_target_kind = MASTER_TARGET_UNKNOWN;
 static enum master_log_mode runtime_log_mode = MASTER_LOG_MODE_RECV;
 static int runtime_target_token = -1;
+static char runtime_target_name[MASTER_NAME_BUF_LEN];
+static char runtime_target_prefix[MASTER_NAME_BUF_LEN];
 static char runtime_target_uuid[MASTER_UUID_HEX_LEN + 1U];
 static struct k_sem anchor_read_sem;
 static struct bt_gatt_read_params anchor_read_params;
@@ -134,10 +169,99 @@ static char anchor_read_buffer[256];
 static size_t anchor_read_length;
 static int anchor_read_status = -EAGAIN;
 static bool anchor_read_inflight;
+static struct k_work connect_pending_work;
 static struct bt_gatt_dm_cb discovery_cb;
 static void start_scan(void);
 static void stop_scan(void);
 static void master_try_connect_pending(void);
+static const char *link_type_label(enum master_peer_link_type type);
+static void gatt_discover(struct bt_conn *conn, struct master_peer *peer);
+static void exchange_func(struct bt_conn *conn, uint8_t err,
+			  struct bt_gatt_exchange_params *params);
+
+static void master_cal_reset_state(int idx)
+{
+	if (idx < 0 || idx >= (int)ARRAY_SIZE(cal_sweep_states)) {
+		return;
+	}
+
+	memset(&cal_sweep_states[idx], 0, sizeof(cal_sweep_states[idx]));
+}
+
+static void connect_pending_work_fn(struct k_work *work)
+{
+	ARG_UNUSED(work);
+	printk("CONNECT work: process pending peer queue\n");
+	master_try_connect_pending();
+}
+
+static void peer_run_setup(struct master_peer *peer)
+{
+	int idx = (int)(peer - peers);
+	int err;
+	int64_t now;
+	int64_t wait_ms;
+
+	if (idx < 0 || idx >= (int)ARRAY_SIZE(peers)) {
+		return;
+	}
+	if (peer->conn == NULL || !peer->connected) {
+		printk("SETUP[%d] skipped: conn missing or disconnected\n", idx);
+		return;
+	}
+	if (peer->discovery_inflight) {
+		printk("SETUP[%d] skipped: discovery already inflight\n", idx);
+		peer->setup_pending = false;
+		return;
+	}
+
+	now = k_uptime_get();
+	wait_ms = peer->connected_at_ms + MASTER_DISCOVERY_START_SETTLE_MS - now;
+	if (wait_ms > 0) {
+		printk("SETUP[%d] defer: waiting %lld ms before discovery start\n",
+		       idx, wait_ms);
+		return;
+	}
+
+	printk("SETUP[%d] begin: link=%s uuid=%s conn=%p\n",
+	       idx,
+	       link_type_label(peer->link_type),
+	       peer->adv_uuid[0] != '\0' ? peer->adv_uuid : "-",
+	       peer->conn);
+	peer->setup_pending = false;
+	peer->mtu_exchange_params.func = exchange_func;
+	err = bt_gatt_exchange_mtu(peer->conn, &peer->mtu_exchange_params);
+	printk("SETUP[%d] mtu_exchange rc=%d\n", idx, err);
+	err = bt_conn_le_phy_update(peer->conn, fast_phy_params);
+	printk("SETUP[%d] phy_update rc=%d\n", idx, err);
+	err = bt_conn_le_param_update(peer->conn, &fast_conn_params);
+	printk("SETUP[%d] conn_param_update rc=%d\n", idx, err);
+	gatt_discover(peer->conn, peer);
+}
+
+static const char *runtime_target_kind_label(enum master_runtime_target_kind kind)
+{
+	switch (kind) {
+	case MASTER_TARGET_ANCHOR:
+		return "anchor";
+	case MASTER_TARGET_TAG:
+		return "tag";
+	default:
+		return "unknown";
+	}
+}
+
+static const char *link_type_label(enum master_peer_link_type type)
+{
+	switch (type) {
+	case MASTER_LINK_NUS:
+		return "nus";
+	case MASTER_LINK_ANCHOR_CTRL:
+		return "anchor-ctrl";
+	default:
+		return "none";
+	}
+}
 
 static const char *master_runtime_mode_label(void)
 {
@@ -173,8 +297,7 @@ static int find_ready_anchor_peer_index(void)
 		if (peers[i].link_type != MASTER_LINK_ANCHOR_CTRL) {
 			continue;
 		}
-		if (runtime_target_uuid[0] != '\0' && peers[i].adv_uuid[0] != '\0' &&
-		    strcasecmp(peers[i].adv_uuid, runtime_target_uuid) != 0) {
+		if (!peer_matches_runtime_target(&peers[i])) {
 			continue;
 		}
 		return (int)i;
@@ -198,6 +321,46 @@ static const char *active_one_shot_command(void)
 	}
 
 	return NULL;
+}
+
+static bool peer_matches_runtime_target(const struct master_peer *peer)
+{
+	bool any_filter = false;
+
+	if (peer == NULL) {
+		return false;
+	}
+
+	if (runtime_target_uuid[0] != '\0') {
+		any_filter = true;
+		if (peer->adv_uuid[0] == '\0' ||
+		    strcasecmp(peer->adv_uuid, runtime_target_uuid) != 0) {
+			return false;
+		}
+	}
+
+	if (runtime_target_name[0] != '\0') {
+		any_filter = true;
+		if (peer->adv_name[0] == '\0' ||
+		    strcasecmp(peer->adv_name, runtime_target_name) != 0) {
+			return false;
+		}
+	}
+
+	if (runtime_target_prefix[0] != '\0' && runtime_target_name[0] == '\0') {
+		any_filter = true;
+		if (peer->adv_name[0] == '\0' ||
+		    strncasecmp(peer->adv_name, runtime_target_prefix,
+				strlen(runtime_target_prefix)) != 0) {
+			return false;
+		}
+	}
+
+	if (!any_filter) {
+		return true;
+	}
+
+	return true;
 }
 
 static void master_leds_apply(void)
@@ -300,11 +463,15 @@ static void peer_clear(unsigned int idx, bool unref_conn)
 	peers[idx].connected = false;
 	peers[idx].ready = false;
 	peers[idx].connect_pending = false;
+	peers[idx].setup_pending = false;
 	peers[idx].one_shot_sent = false;
+	peers[idx].discovery_inflight = false;
 	peers[idx].ota_ready = false;
 	peers[idx].ota_active = false;
 	peers[idx].link_type = MASTER_LINK_NONE;
 	peers[idx].discovery_retry_attempts = 0U;
+	peers[idx].discovery_start_failures = 0U;
+	peers[idx].connected_at_ms = 0;
 	peers[idx].addr_valid = false;
 	peers[idx].adv_name[0] = '\0';
 	peers[idx].adv_uuid[0] = '\0';
@@ -324,6 +491,7 @@ static void peer_clear(unsigned int idx, bool unref_conn)
 	peers[idx].tdma_slot = 0U;
 	peers[idx].tdma_slot_valid = false;
 	peers[idx].tdma_generation = 0U;
+	master_cal_reset_state((int)idx);
 }
 
 static bool ble_payload_contains(const uint8_t *data, uint16_t len, const char *needle)
@@ -770,9 +938,29 @@ static void master_try_connect_pending(void)
 	}
 
 	connecting_slot = slot;
-	stop_scan();
+	printk("CONNECT pending[%d]: addr_valid=%u link=%s uuid=%s scan_running=%u conn_count=%u\n",
+	       slot,
+	       peers[slot].addr_valid ? 1U : 0U,
+	       link_type_label(peers[slot].link_type),
+	       peers[slot].adv_uuid[0] != '\0' ? peers[slot].adv_uuid : "-",
+	       scan_running ? 1U : 0U,
+	       (unsigned int)conn_count);
+	if (scan_running) {
+		int stop_err = bt_le_scan_stop();
+
+		printk("CONNECT pending[%d]: bt_le_scan_stop rc=%d scan_running=%u\n",
+		       slot, stop_err, scan_running ? 1U : 0U);
+		if (stop_err != 0) {
+			connecting_slot = -1;
+			return;
+		}
+
+		scan_running = false;
+		master_leds_refresh();
+	}
 	err = bt_conn_le_create(&peers[slot].addr, BT_CONN_LE_CREATE_CONN,
 				&fast_conn_params, &peers[slot].conn);
+	printk("CONNECT pending[%d] rc=%d conn=%p\n", slot, err, peers[slot].conn);
 	if (err) {
 		printk("Create conn failed[%d]: %d\n", slot, err);
 		peer_clear((unsigned int)slot, false);
@@ -781,12 +969,33 @@ static void master_try_connect_pending(void)
 	}
 }
 
+void master_process_connect_pending(void)
+{
+	master_try_connect_pending();
+}
+
+void master_process_setup_pending(void)
+{
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		if (!peers[i].setup_pending || peers[i].ready) {
+			continue;
+		}
+		if (!peers[i].connected || peers[i].conn == NULL) {
+			continue;
+		}
+		peer_run_setup(&peers[i]);
+	}
+}
+
 static void scan_log_candidate(const struct bt_le_scan_recv_info *info,
 			       struct net_buf_simple *buf,
 			       bool name_match,
+			       bool anchor_name_match,
 			       bool nus_match,
 			       bool dfu_match,
 			       bool token_match,
+			       const char *uuid_hex,
+			       bool uuid_match,
 			       uint16_t bs_code,
 			       bool bs_code_valid)
 {
@@ -805,12 +1014,16 @@ static void scan_log_candidate(const struct bt_le_scan_recv_info *info,
 		bs_name[sizeof(bs_name) - 1U] = '\0';
 	}
 
-	printk("SCAN hit: %s rssi=%d name=%s bs=%s name=%u nus=%u dfu=%u token=%u props=0x%02x\n",
+	printk("SCAN hit: %s rssi=%d name=%s bs=%s uuid=%s target=%s uuid_ok=%u tag_name=%u anchor_name=%u nus=%u dfu=%u token=%u props=0x%02x\n",
 	       addr,
 	       info->rssi,
 	       name[0] != '\0' ? name : "-",
 	       bs_name,
+	       (uuid_hex != NULL && uuid_hex[0] != '\0') ? uuid_hex : "-",
+	       runtime_target_kind_label(runtime_target_kind),
+	       uuid_match ? 1U : 0U,
 	       name_match ? 1U : 0U,
+	       anchor_name_match ? 1U : 0U,
 	       nus_match ? 1U : 0U,
 	       dfu_match ? 1U : 0U,
 	       token_match ? 1U : 0U,
@@ -852,6 +1065,22 @@ static const char *sample_plan_label(uint8_t code)
 		return "full";
 	case 2:
 		return "fixed";
+	default:
+		return "unknown";
+	}
+}
+
+static const char *sample_cal_status_label(uint8_t status)
+{
+	switch (status) {
+	case 0U:
+		return "ok";
+	case 1U:
+		return "reject";
+	case 2U:
+		return "timeout";
+	case 3U:
+		return "error";
 	default:
 		return "unknown";
 	}
@@ -955,6 +1184,177 @@ static bool ble_decode_sample_packet(const uint8_t *data, uint16_t len,
 	return true;
 }
 
+static bool ble_decode_cal_packet(const uint8_t *data, uint16_t len,
+				  char *payload, size_t payload_len)
+{
+	uint8_t count;
+	uint8_t version;
+	size_t offset;
+	size_t used = 0U;
+
+	if (data == NULL || payload == NULL || payload_len == 0U ||
+	    len < BLE_CAL_HEADER_LEN) {
+		return false;
+	}
+
+	if (data[0] != BLE_CAL_MAGIC0 || data[1] != BLE_CAL_MAGIC1) {
+		return false;
+	}
+
+	version = data[2];
+	count = data[3];
+	if (version != BLE_CAL_VERSION) {
+		return false;
+	}
+
+	offset = BLE_CAL_HEADER_LEN;
+	if (count == 0U || len < offset + (size_t)count * BLE_CAL_RECORD_LEN) {
+		return false;
+	}
+
+	payload[0] = '\0';
+	for (uint8_t i = 0U; i < count; ++i) {
+		uint32_t sweep = sys_get_le32(&data[offset]);
+		uint8_t anchor_id = data[offset + 4U];
+		uint8_t status = data[offset + 5U];
+		uint8_t quality_percent = data[offset + 6U];
+		int32_t raw_mm = (int32_t)sys_get_le32(&data[offset + 8U]);
+		uint32_t filt_mm = sys_get_le32(&data[offset + 12U]);
+		uint32_t ok_count = sys_get_le32(&data[offset + 16U]);
+		uint32_t fail_count = sys_get_le32(&data[offset + 20U]);
+		int written;
+
+		written = snprintk(
+			&payload[used], payload_len - used,
+			"%sCM;%u;%u;%u;%s;%d;%u;%u;%u;%u",
+			(i == 0U) ? "" : "|",
+			(unsigned int)version,
+			(unsigned int)sweep,
+			(unsigned int)anchor_id,
+			sample_cal_status_label(status),
+			(int)raw_mm,
+			(unsigned int)filt_mm,
+			(unsigned int)quality_percent,
+			(unsigned int)ok_count,
+			(unsigned int)fail_count);
+		if (written < 0 || (size_t)written >= payload_len - used) {
+			return false;
+		}
+		used += (size_t)written;
+
+		offset += BLE_CAL_RECORD_LEN;
+	}
+
+	return true;
+}
+
+static bool ble_collect_cal_packet(const uint8_t *data, uint16_t len, int idx,
+				   char *payload, size_t payload_len)
+{
+	struct master_cal_sweep_state *state;
+	uint8_t version;
+	uint8_t count;
+	uint8_t tag_id;
+	size_t offset;
+	size_t used = 0U;
+
+	if (idx < 0 || idx >= (int)ARRAY_SIZE(cal_sweep_states) || payload == NULL ||
+	    payload_len == 0U || data == NULL || len < BLE_CAL_HEADER_LEN) {
+		return false;
+	}
+
+	if (data[0] != BLE_CAL_MAGIC0 || data[1] != BLE_CAL_MAGIC1) {
+		return false;
+	}
+
+	version = data[2];
+	count = data[3];
+	tag_id = data[4];
+	if (version != BLE_CAL_VERSION) {
+		return true;
+	}
+
+	offset = BLE_CAL_HEADER_LEN;
+	if (count == 0U || len < offset + (size_t)count * BLE_CAL_RECORD_LEN) {
+		return true;
+	}
+
+	state = &cal_sweep_states[idx];
+	payload[0] = '\0';
+
+	for (uint8_t i = 0U; i < count; ++i) {
+		uint32_t sweep = sys_get_le32(&data[offset]);
+		uint8_t anchor_id = data[offset + 4U];
+		uint8_t status = data[offset + 5U];
+		uint8_t quality_percent = data[offset + 6U];
+		int32_t raw_mm = (int32_t)sys_get_le32(&data[offset + 8U]);
+		uint32_t filt_mm = sys_get_le32(&data[offset + 12U]);
+		uint32_t ok_count = sys_get_le32(&data[offset + 16U]);
+		uint32_t fail_count = sys_get_le32(&data[offset + 20U]);
+
+		if (!state->active || state->sweep != sweep) {
+			memset(state, 0, sizeof(*state));
+			state->active = true;
+			state->version = version;
+			state->tag_id = tag_id;
+			state->sweep = sweep;
+		}
+
+		if (anchor_id < BLE_CAL_ANCHOR_COUNT) {
+			struct master_cal_record *record = &state->records[anchor_id];
+
+			if (!record->present) {
+				state->present_count++;
+			}
+
+			record->present = true;
+			record->status = status;
+			record->quality_percent = quality_percent;
+			record->raw_mm = raw_mm;
+			record->filt_mm = filt_mm;
+			record->ok_count = ok_count;
+			record->fail_count = fail_count;
+		}
+
+		offset += BLE_CAL_RECORD_LEN;
+	}
+
+	if (state->present_count < BLE_CAL_ANCHOR_COUNT) {
+		return true;
+	}
+
+	for (uint8_t anchor_id = 0U; anchor_id < BLE_CAL_ANCHOR_COUNT; ++anchor_id) {
+		const struct master_cal_record *record = &state->records[anchor_id];
+		int written;
+
+		if (!record->present) {
+			return true;
+		}
+
+		written = snprintk(
+			&payload[used], payload_len - used,
+			"%sCM;%u;%u;%u;%s;%d;%u;%u;%u;%u",
+			(anchor_id == 0U) ? "" : "|",
+			(unsigned int)state->version,
+			(unsigned int)state->sweep,
+			(unsigned int)anchor_id,
+			sample_cal_status_label(record->status),
+			(int)record->raw_mm,
+			(unsigned int)record->filt_mm,
+			(unsigned int)record->quality_percent,
+			(unsigned int)record->ok_count,
+			(unsigned int)record->fail_count);
+		if (written < 0 || (size_t)written >= payload_len - used) {
+			return true;
+		}
+
+		used += (size_t)written;
+	}
+
+	memset(state, 0, sizeof(*state));
+	return true;
+}
+
 static void stop_scan(void)
 {
 	if (!scan_running) {
@@ -981,10 +1381,15 @@ static uint8_t ble_data_received(struct bt_nus_client *nus,
 {
 	int idx = peer_index_from_nus(nus);
 	char bs_name[8];
-	char payload[256];
+	char payload[1024];
 	size_t copy_len;
+	bool decoded_sample = false;
+	bool consumed_cal = false;
 
-	if (!ble_decode_sample_packet(data, len, payload, sizeof(payload))) {
+	payload[0] = '\0';
+	decoded_sample = ble_decode_sample_packet(data, len, payload, sizeof(payload));
+	consumed_cal = ble_collect_cal_packet(data, len, idx, payload, sizeof(payload));
+	if (!decoded_sample && !consumed_cal) {
 		copy_len = MIN((size_t)len, sizeof(payload) - 1U);
 		for (size_t i = 0; i < copy_len; ++i) {
 			char c = (char)data[i];
@@ -1000,7 +1405,9 @@ static uint8_t ble_data_received(struct bt_nus_client *nus,
 		bs_name[sizeof(bs_name) - 1U] = '\0';
 	}
 
-	printk("%s notify: %s\n", bs_name, payload);
+	if (payload[0] != '\0') {
+		printk("%s notify: %s\n", bs_name, payload);
+	}
 
 	if (ble_payload_contains(data, len, "OTA_STATE=READY") ||
 	    ble_payload_contains(data, len, "OTA_READY") ||
@@ -1102,6 +1509,10 @@ static uint8_t anchor_ctrl_notify_cb(struct bt_conn *conn,
 	copy_len = MIN((size_t)length, sizeof(payload) - 1U);
 	memcpy(payload, data, copy_len);
 	payload[copy_len] = '\0';
+	if (strncmp(payload, "SW-", 3) == 0) {
+		printk("%s\n", payload);
+		return BT_GATT_ITER_CONTINUE;
+	}
 	printk("ANCHOR_CTRL[%d] notify: %s\n", idx, payload);
 	return BT_GATT_ITER_CONTINUE;
 }
@@ -1166,9 +1577,6 @@ static void discovery_complete(struct bt_gatt_dm *dm, void *context)
 	int idx = (int)(peer - peers);
 	int err;
 	const char *one_shot = active_one_shot_command();
-	static struct bt_uuid_128 anchor_svc_uuid =
-		BT_UUID_INIT_128(0xf0, 0xd3, 0x39, 0x5f, 0xd9, 0x2f, 0xbf, 0xb6,
-				 0xe6, 0x4b, 0xe0, 0x84, 0x40, 0x8f, 0x2b, 0x2f);
 	static struct bt_uuid_128 anchor_state_uuid =
 		BT_UUID_INIT_128(0xf1, 0xd3, 0x39, 0x5f, 0xd9, 0x2f, 0xbf, 0xb6,
 				 0xe6, 0x4b, 0xe0, 0x84, 0x40, 0x8f, 0x2b, 0x2f);
@@ -1181,9 +1589,20 @@ static void discovery_complete(struct bt_gatt_dm *dm, void *context)
 	const struct bt_gatt_dm_attr *gatt_service = bt_gatt_dm_service_get(dm);
 	const struct bt_gatt_dm_attr *gatt_chrc;
 	const struct bt_gatt_dm_attr *gatt_desc;
+	char svc_uuid_str[BT_UUID_STR_LEN];
 
-	if (!bt_uuid_cmp(gatt_service->uuid, &anchor_svc_uuid.uuid)) {
-		peer->link_type = MASTER_LINK_ANCHOR_CTRL;
+	bt_uuid_to_str(gatt_service->uuid, svc_uuid_str, sizeof(svc_uuid_str));
+	printk("DISC complete[%d]: link=%s discovered_service=%s uuid=%s\n",
+	       idx,
+	       link_type_label(peer->link_type),
+	       svc_uuid_str,
+	       peer->adv_uuid[0] != '\0' ? peer->adv_uuid : "-");
+	peer->discovery_inflight = false;
+
+	if (peer->link_type == MASTER_LINK_ANCHOR_CTRL) {
+		printk("DISC anchor service found[%d]: uuid=%s\n",
+		       idx,
+		       peer->adv_uuid[0] != '\0' ? peer->adv_uuid : "-");
 
 		gatt_chrc = bt_gatt_dm_char_by_uuid(dm, &anchor_state_uuid.uuid);
 		if (gatt_chrc == NULL) {
@@ -1285,21 +1704,29 @@ static void discovery_complete(struct bt_gatt_dm *dm, void *context)
 	}
 
 	peer->ready = true;
+	peer->discovery_inflight = false;
 	peer->discovery_retry_attempts = 0U;
 	printk("BLE[%d] link ready\n", idx);
 	master_leds_refresh();
 
 	if (one_shot != NULL && !peer->one_shot_sent) {
-		err = bt_nus_client_send(&peer->nus_client,
-					 (const uint8_t *)one_shot,
-					 strlen(one_shot));
-		if (err) {
-			printk("BLE one-shot send failed[%d]: %d\n", idx, err);
-			led_error_state = true;
-			master_leds_refresh();
+		if (!peer_matches_runtime_target(peer)) {
+			printk("BLE one-shot skipped[%d]: target mismatch uuid=%s name=%s\n",
+			       idx,
+			       peer->adv_uuid[0] != '\0' ? peer->adv_uuid : "-",
+			       peer->adv_name[0] != '\0' ? peer->adv_name : "-");
 		} else {
-			peer->one_shot_sent = true;
-			printk("BLE one-shot command sent[%d]: %s\n", idx, one_shot);
+			err = bt_nus_client_send(&peer->nus_client,
+						 (const uint8_t *)one_shot,
+						 strlen(one_shot));
+			if (err) {
+				printk("BLE one-shot send failed[%d]: %d\n", idx, err);
+				led_error_state = true;
+				master_leds_refresh();
+			} else {
+				peer->one_shot_sent = true;
+				printk("BLE one-shot command sent[%d]: %s\n", idx, one_shot);
+			}
 		}
 	}
 
@@ -1321,6 +1748,7 @@ static void discovery_retry_work_fn(struct k_work *work)
 	int err;
 
 	if (peer->conn == NULL || !peer->connected || peer->ready) {
+		peer->discovery_inflight = false;
 		return;
 	}
 
@@ -1332,6 +1760,7 @@ static void discovery_retry_work_fn(struct k_work *work)
 	}
 
 	peer->discovery_retry_attempts++;
+	peer->discovery_inflight = true;
 	if (peer->link_type == MASTER_LINK_ANCHOR_CTRL) {
 		static struct bt_uuid_128 anchor_svc_uuid =
 			BT_UUID_INIT_128(0xf0, 0xd3, 0x39, 0x5f, 0xd9, 0x2f, 0xbf, 0xb6,
@@ -1341,9 +1770,17 @@ static void discovery_retry_work_fn(struct k_work *work)
 		err = bt_gatt_dm_start(peer->conn, BT_UUID_NUS_SERVICE, &discovery_cb, peer);
 	}
 	if (err) {
+		peer->discovery_inflight = false;
+		peer->discovery_start_failures++;
 		printk("Could not start %s discovery[%d] retry %u: %d\n",
 		       (peer->link_type == MASTER_LINK_ANCHOR_CTRL) ? "anchor-ctrl" : "NUS",
 		       idx, peer->discovery_retry_attempts, err);
+		printk("DISC retry failed[%d]: connected_for=%lldms ready=%u retries=%u start_failures=%u\n",
+		       idx,
+		       k_uptime_get() - peer->connected_at_ms,
+		       peer->ready ? 1U : 0U,
+		       peer->discovery_retry_attempts,
+		       peer->discovery_start_failures);
 		(void)k_work_schedule(&peer->discovery_retry_work,
 				      K_MSEC(MASTER_DISCOVERY_RETRY_DELAY_MS));
 	} else {
@@ -1362,6 +1799,9 @@ static void discovery_service_not_found(struct bt_conn *conn, void *context)
 	       (peer != NULL && peer->link_type == MASTER_LINK_ANCHOR_CTRL) ?
 		       "Anchor ctrl" : "NUS",
 	       idx);
+	if (peer != NULL) {
+		peer->discovery_inflight = false;
+	}
 
 	if (peer != NULL && peer->connected && !peer->ready) {
 		(void)k_work_schedule(&peer->discovery_retry_work,
@@ -1375,6 +1815,9 @@ static void discovery_error(struct bt_conn *conn, int err, void *context)
 	int idx = peer_index_from_conn(conn);
 
 	printk("GATT discovery error[%d]: %d\n", idx, err);
+	if (peer != NULL) {
+		peer->discovery_inflight = false;
+	}
 
 	if (peer != NULL && peer->connected && !peer->ready) {
 		(void)k_work_schedule(&peer->discovery_retry_work,
@@ -1399,13 +1842,27 @@ static void gatt_discover(struct bt_conn *conn, struct master_peer *peer)
 	if (peer->link_type == MASTER_LINK_ANCHOR_CTRL) {
 		svc_uuid = &anchor_svc_uuid.uuid;
 	}
+	printk("DISC start[%d]: link=%s uuid=%s conn=%p\n",
+	       peer_index_from_conn(conn),
+	       link_type_label(peer->link_type),
+	       peer->adv_uuid[0] != '\0' ? peer->adv_uuid : "-",
+	       peer->conn);
+	peer->discovery_inflight = true;
 
 	err = bt_gatt_dm_start(conn, svc_uuid, &discovery_cb, peer);
 
 	if (err) {
+		peer->discovery_inflight = false;
+		peer->discovery_start_failures++;
 		printk("Could not start %s discovery[%d]: %d\n",
 		       (peer->link_type == MASTER_LINK_ANCHOR_CTRL) ? "anchor-ctrl" : "NUS",
 		       peer_index_from_conn(conn), err);
+		printk("DISC start failed[%d]: connected_for=%lldms ready=%u retries=%u start_failures=%u\n",
+		       peer_index_from_conn(conn),
+		       k_uptime_get() - peer->connected_at_ms,
+		       peer->ready ? 1U : 0U,
+		       peer->discovery_retry_attempts,
+		       peer->discovery_start_failures);
 		if (peer->connected && !peer->ready) {
 			(void)k_work_schedule(&peer->discovery_retry_work,
 					      K_MSEC(MASTER_DISCOVERY_RETRY_DELAY_MS));
@@ -1415,7 +1872,6 @@ static void gatt_discover(struct bt_conn *conn, struct master_peer *peer)
 
 static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_simple *buf)
 {
-	int err;
 	int slot;
 	bool name_match;
 	bool anchor_name_match;
@@ -1461,9 +1917,14 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 
 	if (runtime_target_kind == MASTER_TARGET_ANCHOR) {
 		if (runtime_target_uuid[0] == '\0') {
+			printk("ANCHOR candidate ignored: runtime_target_uuid empty\n");
 			return;
 		}
 		if (!uuid_match) {
+			if (uuid_hex[0] != '\0') {
+				printk("ANCHOR candidate ignored: uuid mismatch adv=%s target=%s anchor_name=%u\n",
+				       uuid_hex, runtime_target_uuid, anchor_name_match ? 1U : 0U);
+			}
 			return;
 		}
 		goto candidate_accept;
@@ -1474,23 +1935,35 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	}
 
 	/* RECV path must connect only to peers that can carry runtime data over NUS.
-	 * DFU-only advertisers (typical anchors in OTA-capable builds) cause
-	 * connect/disconnect churn and zero CM/TS samples.
+	 * Tag builds sometimes advertise identity only via legacy manufacturer data
+	 * without exposing NUS UUID or a local-name field in the same packet.
+	 * Accept those peers when the BioSpur tag/token markers are present.
+	 * DFU-only advertisers (typical anchors in OTA-capable builds) still stay
+	 * filtered out because they provide neither tag_id nor token markers.
 	 */
-	if (!(name_match || nus_match)) {
+	if (!(name_match || nus_match || token_match || tag_id_valid)) {
 		if (dfu_match) {
 			char addr[BT_ADDR_LE_STR_LEN];
 			bt_addr_le_to_str(info->addr, addr, sizeof(addr));
-			printk("RECV candidate rejected: DFU-only peer %s (no NUS/name match)\n", addr);
+			printk("%s candidate rejected: DFU-only peer %s (no NUS/name match)\n",
+			       runtime_target_kind == MASTER_TARGET_ANCHOR ? "ANCHOR" : "RECV",
+			       addr);
 		}
 		return;
 	}
 
 candidate_accept:
-	scan_log_candidate(info, buf, name_match, nus_match, dfu_match, token_match,
-			  bs_code, bs_code_valid);
+	scan_log_candidate(info, buf, name_match, anchor_name_match, nus_match, dfu_match,
+			  token_match, uuid_hex, uuid_match, bs_code, bs_code_valid);
 
 	if (peer_index_from_addr(info->addr) >= 0) {
+		char addr[BT_ADDR_LE_STR_LEN];
+
+		bt_addr_le_to_str(info->addr, addr, sizeof(addr));
+		printk("SCAN accept skipped: peer already known addr=%s uuid=%s target=%s\n",
+		       addr,
+		       uuid_hex[0] != '\0' ? uuid_hex : "-",
+		       runtime_target_kind_label(runtime_target_kind));
 		return;
 	}
 
@@ -1529,17 +2002,19 @@ candidate_accept:
 				MASTER_LINK_ANCHOR_CTRL : MASTER_LINK_NUS;
 
 	if (auto_connect_enabled) {
-		connecting_slot = slot;
-		stop_scan();
+		char addr[BT_ADDR_LE_STR_LEN];
 
-		err = bt_conn_le_create(info->addr, BT_CONN_LE_CREATE_CONN,
-					&fast_conn_params, &peers[slot].conn);
-		if (err) {
-			printk("Create conn failed[%d]: %d\n", slot, err);
-			peer_clear((unsigned int)slot, false);
-			connecting_slot = -1;
-			start_scan();
-		}
+		bt_addr_le_to_str(info->addr, addr, sizeof(addr));
+		printk("CONNECT queue[%d]: addr=%s link=%s uuid=%s target=%s\n",
+		       slot,
+		       addr,
+		       link_type_label(peers[slot].link_type),
+		       peers[slot].adv_uuid[0] != '\0' ? peers[slot].adv_uuid : "-",
+		       runtime_target_kind_label(runtime_target_kind));
+		/* Let the main loop drive connect pending. Calling into scan-stop/
+		 * create-conn from the async work path has proven fragile and can
+		 * leave the pending slot stuck without ever issuing bt_conn_le_create().
+		 */
 	}
 }
 
@@ -1552,7 +2027,6 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 	char addr[BT_ADDR_LE_STR_LEN];
 	char bs_name[8];
 	int idx = connecting_slot;
-	int err;
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
@@ -1594,24 +2068,20 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 	       addr,
 	       peers[idx].adv_name[0] != '\0' ? peers[idx].adv_name : "-",
 	       bs_name);
+	printk("CONNECT state[%d]: link=%s uuid=%s ready=%u conn=%p\n",
+	       idx,
+	       link_type_label(peers[idx].link_type),
+	       peers[idx].adv_uuid[0] != '\0' ? peers[idx].adv_uuid : "-",
+	       peers[idx].ready ? 1U : 0U,
+	       peers[idx].conn);
 	conn_count++;
 	connecting_slot = -1;
 	peers[idx].connected = true;
 	peers[idx].connect_pending = false;
+	peers[idx].setup_pending = true;
+	peers[idx].discovery_inflight = false;
+	peers[idx].connected_at_ms = k_uptime_get();
 	master_leds_refresh();
-
-	peers[idx].mtu_exchange_params.func = exchange_func;
-	err = bt_gatt_exchange_mtu(conn, &peers[idx].mtu_exchange_params);
-	if (err) {
-		printk("MTU exchange request[%d] failed: %d\n", idx, err);
-	}
-
-	err = bt_conn_le_phy_update(conn, fast_phy_params);
-	printk("PHY update request[%d] rc=%d\n", idx, err);
-	err = bt_conn_le_param_update(conn, &fast_conn_params);
-	printk("Conn param update request[%d] rc=%d\n", idx, err);
-
-	gatt_discover(conn, &peers[idx]);
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
@@ -1620,7 +2090,12 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	int idx = peer_index_from_conn(conn);
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-	printk("Disconnected[%d]: %s reason=0x%02x\n", idx, addr, reason);
+	printk("Disconnected[%d]: %s reason=0x%02x link=%s ready=%u\n",
+	       idx,
+	       addr,
+	       reason,
+	       (idx >= 0) ? link_type_label(peers[idx].link_type) : "none",
+	       (idx >= 0 && peers[idx].ready) ? 1U : 0U);
 
 	if (idx >= 0) {
 		peer_clear((unsigned int)idx, true);
@@ -1703,6 +2178,7 @@ int master_app_run(void)
 	bt_conn_cb_register(&conn_callbacks);
 	bt_le_scan_cb_register(&scan_callbacks);
 	k_sem_init(&anchor_read_sem, 0, 1);
+	k_work_init(&connect_pending_work, connect_pending_work_fn);
 
 	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
 		k_work_init_delayable(&peers[i].discovery_retry_work, discovery_retry_work_fn);
@@ -1718,7 +2194,9 @@ int master_app_run(void)
 	master_try_connect_pending();
 
 	while (1) {
-		k_sleep(K_SECONDS(5));
+		master_try_connect_pending();
+		master_process_setup_pending();
+		k_sleep(K_MSEC(50));
 	}
 
 	return 0;
@@ -1782,6 +2260,28 @@ void master_set_runtime_target_token(int token)
 	ARG_UNUSED(runtime_target_token);
 }
 
+void master_set_runtime_target_name(const char *name)
+{
+	if (name == NULL || name[0] == '\0') {
+		runtime_target_name[0] = '\0';
+		return;
+	}
+
+	strncpy(runtime_target_name, name, sizeof(runtime_target_name) - 1U);
+	runtime_target_name[sizeof(runtime_target_name) - 1U] = '\0';
+}
+
+void master_set_runtime_target_prefix(const char *prefix)
+{
+	if (prefix == NULL || prefix[0] == '\0') {
+		runtime_target_prefix[0] = '\0';
+		return;
+	}
+
+	strncpy(runtime_target_prefix, prefix, sizeof(runtime_target_prefix) - 1U);
+	runtime_target_prefix[sizeof(runtime_target_prefix) - 1U] = '\0';
+}
+
 void master_set_runtime_target_uuid(const char *uuid_hex)
 {
 	if (uuid_hex == NULL || uuid_hex[0] == '\0') {
@@ -1804,14 +2304,51 @@ int master_anchor_ctrl_ready_count(void)
 		if (peers[i].link_type != MASTER_LINK_ANCHOR_CTRL) {
 			continue;
 		}
-		if (runtime_target_uuid[0] != '\0' && peers[i].adv_uuid[0] != '\0' &&
-		    strcasecmp(peers[i].adv_uuid, runtime_target_uuid) != 0) {
+		if (!peer_matches_runtime_target(&peers[i])) {
 			continue;
 		}
 		count++;
 	}
 
 	return count;
+}
+
+int master_connection_count(void)
+{
+	return (int)conn_count;
+}
+
+void master_dump_ready_state(void)
+{
+	printk("READY count=%d target=%s target_uuid=%s conn_count=%u connecting_slot=%d scan=%u auto=%u\n",
+	       master_anchor_ctrl_ready_count(),
+	       runtime_target_kind_label(runtime_target_kind),
+	       runtime_target_uuid[0] != '\0' ? runtime_target_uuid : "-",
+	       (unsigned int)conn_count,
+	       connecting_slot,
+	       scan_running ? 1U : 0U,
+	       auto_connect_enabled ? 1U : 0U);
+
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		if (!peers[i].addr_valid && peers[i].conn == NULL && !peers[i].connected &&
+		    !peers[i].connect_pending && peers[i].adv_uuid[0] == '\0') {
+			continue;
+		}
+		printk("READY peer[%zu]: link=%s connected=%u ready=%u pending=%u inflight=%u retries=%u start_failures=%u uuid=%s name=%s state_h=0x%04x ctrl_h=0x%04x result_h=0x%04x\n",
+		       i,
+		       link_type_label(peers[i].link_type),
+		       peers[i].connected ? 1U : 0U,
+		       peers[i].ready ? 1U : 0U,
+		       peers[i].connect_pending ? 1U : 0U,
+		       peers[i].discovery_inflight ? 1U : 0U,
+		       peers[i].discovery_retry_attempts,
+		       peers[i].discovery_start_failures,
+		       peers[i].adv_uuid[0] != '\0' ? peers[i].adv_uuid : "-",
+		       peers[i].adv_name[0] != '\0' ? peers[i].adv_name : "-",
+		       peers[i].anchor_state_handle,
+		       peers[i].anchor_ctrl_handle,
+		       peers[i].anchor_result_handle);
+	}
 }
 
 static int master_anchor_ctrl_read_text(uint16_t handle, char *out, size_t out_len)
@@ -1928,6 +2465,9 @@ int master_send_command_now(const char *cmd)
 		int err;
 
 		if (!peers[i].connected || !peers[i].ready || peers[i].conn == NULL) {
+			continue;
+		}
+		if (!peer_matches_runtime_target(&peers[i])) {
 			continue;
 		}
 

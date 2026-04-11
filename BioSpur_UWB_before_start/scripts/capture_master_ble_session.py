@@ -13,6 +13,8 @@ from pathlib import Path
 
 import serial
 
+from master_control_port import assert_not_jlink_when_biospur_available
+
 
 TAG_NOTIFY_PREFIX_RE = r"(?:BLE(?:\[(?P<conn>\d+)(?::[^\]]*)?\])?|BS[0-9A-F]{4}|NUS)"
 
@@ -213,6 +215,7 @@ def main() -> int:
         help="Ignore the first N summarized sweeps in statistics",
     )
     args = parser.parse_args()
+    assert_not_jlink_when_biospur_available(args.port)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if args.session_name:

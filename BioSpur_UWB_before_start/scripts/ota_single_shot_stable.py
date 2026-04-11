@@ -77,6 +77,7 @@ class RunResult:
     ota_upload_complete_seen: bool
     ota_pending_test_seen: bool
     ota_reset_request_seen: bool
+    ota_pending_recovery_reset_seen: bool
     ota_command_sequence_seen: bool
     ota_later_fail_seen: bool
     ota_success_seen: bool
@@ -144,6 +145,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Stop after proving pre-reboot UUID latch; do not send mode ota/initiate.",
     )
+    p.add_argument(
+        "--pre-reset",
+        action="store_true",
+        help="After entering OTA mode and reaching DFU-ready, issue ota_reset once, then stop so a second run can perform the real upload.",
+    )
     return p.parse_args()
 
 
@@ -172,6 +178,97 @@ def read_line(ser: serial.Serial) -> str | None:
     if not raw:
         return None
     return raw.decode("utf-8", errors="replace").rstrip("\r\n")
+
+
+def wait_uart_ready(
+    ser: serial.Serial,
+    logf,
+    t0: float,
+    *,
+    probe_status: bool = True,
+    timeout_s: float = 25.0,
+) -> tuple[bool, str]:
+    boot_ready = False
+    boot_mode = ""
+    boot_ready_deadline = time.monotonic() + timeout_s
+    last_probe = 0.0
+    while time.monotonic() < boot_ready_deadline:
+        now = time.monotonic()
+        if probe_status and now - last_probe > 2.0:
+            send_cmd(ser, "status", logf, t0)
+            last_probe = now
+        line = read_line(ser)
+        if line is None:
+            continue
+        logf.write(line + "\n")
+        logf.flush()
+        m_mode = MODE_RE.search(line)
+        if m_mode:
+            boot_mode = m_mode.group(1).upper()
+        if (
+            "UART control ready" in line or
+            "Control status:" in line or
+            "OTA target filter:" in line
+        ):
+            boot_ready = True
+            break
+    return boot_ready, boot_mode
+
+
+def reconnect_after_mode_switch(port: str, baud: int, timeout_s: float) -> serial.Serial | None:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            ser = open_serial(port, baud)
+            ser.reset_input_buffer()
+            return ser
+        except SerialException:
+            time.sleep(0.35)
+    return None
+
+
+def wait_uart_ready_with_reconnect(
+    port: str,
+    baud: int,
+    logf,
+    t0: float,
+    *,
+    timeout_s: float,
+    probe_status: bool = True,
+) -> tuple[serial.Serial | None, bool, str]:
+    deadline = time.monotonic() + timeout_s
+    ser: serial.Serial | None = None
+    while time.monotonic() < deadline:
+        if ser is None:
+            ser = reconnect_after_mode_switch(port, baud, min(2.0, max(0.1, deadline - time.monotonic())))
+            if ser is None:
+                continue
+            logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A cleanup serial_reconnected port={port}\n")
+            logf.flush()
+        try:
+            boot_ready, boot_mode = wait_uart_ready(
+                ser,
+                logf,
+                t0,
+                probe_status=probe_status,
+                timeout_s=min(6.0, max(0.5, deadline - time.monotonic())),
+            )
+            if boot_ready:
+                return ser, True, boot_mode
+        except SerialException:
+            try:
+                ser.close()
+            except Exception:
+                pass
+            ser = None
+            time.sleep(0.25)
+            continue
+    if ser is not None:
+        try:
+            ser.close()
+        except Exception:
+            pass
+    return None, False, ""
 
 
 def parse_anchor_snr_from_port(port: str) -> str | None:
@@ -452,6 +549,7 @@ def main() -> int:
 
     phase_a_ok = False
     phase_b_ok = False
+    phase_b_skipped_already_ota = False
     target_selection_ready = False
     target_restore_ready = False
     target_transport_ready = False
@@ -481,6 +579,7 @@ def main() -> int:
     ota_upload_complete_seen = False
     ota_pending_test_seen = False
     ota_reset_request_seen = False
+    ota_pending_recovery_reset_seen = False
     ota_command_sequence_seen = False
     ota_later_fail_seen = False
     ota_success_seen = False
@@ -530,29 +629,43 @@ def main() -> int:
 
             # Wait until control UART is actually ready; commands sent before
             # this line can be silently dropped during boot/scan startup.
-            boot_ready = False
-            boot_ready_deadline = time.monotonic() + 25.0
-            last_probe = 0.0
-            while time.monotonic() < boot_ready_deadline:
-                now = time.monotonic()
-                if now - last_probe > 2.0:
-                    send_cmd(ser, "status", logf, t0)
-                    last_probe = now
-                line = read_line(ser)
-                if line is None:
-                    continue
-                logf.write(line + "\n")
-                logf.flush()
-                if (
-                    "UART control ready" in line or
-                    "Control status:" in line or
-                    "OTA target filter:" in line
-                ):
-                    boot_ready = True
-                    break
+            boot_ready, boot_mode = wait_uart_ready(ser, logf, t0)
             if not boot_ready:
                 reason = "phase_a_uart_not_ready"
                 raise RuntimeError(reason)
+
+            if boot_mode == "OTA":
+                logf.write(
+                    f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A cleanup existing host OTA mode before new target session\n"
+                )
+                logf.flush()
+                send_cmd(ser, "mode recv", logf, t0)
+                mode_switch_deadline = time.monotonic() + 12.0
+                while time.monotonic() < mode_switch_deadline:
+                    try:
+                        line = read_line(ser)
+                    except SerialException:
+                        break
+                    if line is None:
+                        continue
+                    logf.write(line + "\n")
+                    logf.flush()
+                    if "rebooting" in line.lower():
+                        break
+                try:
+                    ser.close()
+                except Exception:
+                    pass
+                ser, boot_ready, boot_mode = wait_uart_ready_with_reconnect(
+                    args.port,
+                    args.baud,
+                    logf,
+                    t0,
+                    timeout_s=args.reconnect_timeout_s,
+                )
+                if not boot_ready:
+                    reason = "phase_a_cleanup_reconnect_timeout"
+                    raise RuntimeError(reason)
 
             send_cmd(ser, "status", logf, t0)
             send_cmd(ser, "device kind anchor", logf, t0)
@@ -680,94 +793,127 @@ def main() -> int:
                 logf.flush()
                 if "rebooting" in line.lower():
                     reboot_seen = True
+                if "mode ota (already ota) -> initiate rc=" in line.lower():
+                    m_init_inline = INIT_RE.search(line)
+                    phase_b_skipped_already_ota = True
+                    phase_b_ok = True
+                    target_restore_ready = True
+                    mode_ota_loaded_after_reboot = True
+                    uuid_restored_after_reboot = True
+                    filter_uuid_post = target_uuid
+                    if m_init_inline:
+                        initiate_sent = True
+                        initiate_rc = int(m_init_inline.group(1))
+                    logf.write(
+                        f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=B skipped restore wait because device already in OTA mode\n"
+                    )
+                    logf.flush()
+                    break
+                if "DFU SMP service ready" in line:
+                    phase_b_skipped_already_ota = True
+                    phase_b_ok = True
+                    target_restore_ready = True
+                    target_transport_ready = True
+                    mode_ota_loaded_after_reboot = True
+                    uuid_restored_after_reboot = True
+                    filter_uuid_post = target_uuid
+                    dfu_ready_seen = True
+                    logf.write(
+                        f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=B skipped restore wait because transport is already ready in OTA mode\n"
+                    )
+                    logf.flush()
+                    break
 
-            try:
-                ser.close()
-            except Exception:
-                pass
-            ser = None
+            if not phase_b_skipped_already_ota:
+                try:
+                    ser.close()
+                except Exception:
+                    pass
+                ser = None
 
             # Phase B: reconnect after reboot and prove restore
-            reconnect_deadline = time.monotonic() + args.reconnect_timeout_s
-            while time.monotonic() < reconnect_deadline:
-                try:
-                    ser = open_serial(args.port, args.baud)
-                    reconnect_ok = True
-                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=B serial_reconnected port={args.port}\n")
-                    logf.flush()
-                    ser.reset_input_buffer()
-                    break
-                except SerialException:
-                    time.sleep(0.35)
+            if not phase_b_skipped_already_ota:
+                reconnect_deadline = time.monotonic() + args.reconnect_timeout_s
+                while time.monotonic() < reconnect_deadline:
+                    try:
+                        ser = open_serial(args.port, args.baud)
+                        reconnect_ok = True
+                        logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=B serial_reconnected port={args.port}\n")
+                        logf.flush()
+                        ser.reset_input_buffer()
+                        break
+                    except SerialException:
+                        time.sleep(0.35)
 
-            if not reconnect_ok or ser is None:
-                reason = "phase_b_reconnect_timeout"
-                raise RuntimeError(reason)
-
-            phase_b_deadline = min(time.monotonic() + 60.0, run_deadline)
-            last_status_tx = 0.0
-            while time.monotonic() < phase_b_deadline:
-                now = time.monotonic()
-                if now - last_status_tx > 2.0:
-                    send_cmd(ser, "status", logf, t0)
-                    send_cmd(ser, "ota_target show", logf, t0)
-                    last_status_tx = now
-
-                try:
-                    line = read_line(ser)
-                except SerialException as e:
-                    serial_lost = True
-                    reason = f"phase_b_serial_lost:{e}"
-                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] {reason}\n")
-                    logf.flush()
+                if not reconnect_ok or ser is None:
+                    reason = "phase_b_reconnect_timeout"
                     raise RuntimeError(reason)
 
-                if line is None:
-                    continue
+                phase_b_deadline = min(time.monotonic() + 60.0, run_deadline)
+                last_status_tx = 0.0
+                while time.monotonic() < phase_b_deadline:
+                    now = time.monotonic()
+                    if now - last_status_tx > 2.0:
+                        send_cmd(ser, "status", logf, t0)
+                        send_cmd(ser, "ota_target show", logf, t0)
+                        last_status_tx = now
 
-                logf.write(line + "\n")
-                logf.flush()
+                    try:
+                        line = read_line(ser)
+                    except SerialException as e:
+                        serial_lost = True
+                        reason = f"phase_b_serial_lost:{e}"
+                        logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] {reason}\n")
+                        logf.flush()
+                        raise RuntimeError(reason)
 
-                if "Control mode loaded: OTA" in line:
-                    mode_ota_loaded_after_reboot = True
-                if "UART control ready" in line:
-                    uart_ready_after_reboot = True
-                if "OTA target restored:" in line:
-                    restored_line_seen = (f"UUID={target_uuid}" in line.upper())
+                    if line is None:
+                        continue
 
-                m_mode = MODE_RE.search(line)
-                if m_mode and m_mode.group(1).upper() == "OTA":
-                    mode_ota_loaded_after_reboot = True
+                    logf.write(line + "\n")
+                    logf.flush()
 
-                m_filter = FILTER_RE.search(line)
-                if m_filter:
-                    filter_uuid_post = m_filter.group(4).strip().upper()
-                    if filter_uuid_post == target_uuid:
-                        uuid_restored_after_reboot = True
+                    if "Control mode loaded: OTA" in line:
+                        mode_ota_loaded_after_reboot = True
+                    if "UART control ready" in line:
+                        uart_ready_after_reboot = True
+                    if "OTA target restored:" in line:
+                        restored_line_seen = (f"UUID={target_uuid}" in line.upper())
 
-                phase_b_ok = (
-                    mode_ota_loaded_after_reboot and
-                    uart_ready_after_reboot and
-                    restored_line_seen and
-                    uuid_restored_after_reboot
-                )
-                if phase_b_ok:
-                    target_restore_ready = True
-                    break
+                    m_mode = MODE_RE.search(line)
+                    if m_mode and m_mode.group(1).upper() == "OTA":
+                        mode_ota_loaded_after_reboot = True
 
-            if not phase_b_ok:
-                reason = (
-                    "phase_b_restore_not_proven "
-                    f"mode={int(mode_ota_loaded_after_reboot)} "
-                    f"uart={int(uart_ready_after_reboot)} "
-                    f"restored={int(restored_line_seen)} "
-                    f"filter={filter_uuid_post}"
-                )
-                raise RuntimeError(reason)
+                    m_filter = FILTER_RE.search(line)
+                    if m_filter:
+                        filter_uuid_post = m_filter.group(4).strip().upper()
+                        if filter_uuid_post == target_uuid:
+                            uuid_restored_after_reboot = True
+
+                    phase_b_ok = (
+                        mode_ota_loaded_after_reboot and
+                        uart_ready_after_reboot and
+                        restored_line_seen and
+                        uuid_restored_after_reboot
+                    )
+                    if phase_b_ok:
+                        target_restore_ready = True
+                        break
+
+                if not phase_b_ok:
+                    reason = (
+                        "phase_b_restore_not_proven "
+                        f"mode={int(mode_ota_loaded_after_reboot)} "
+                        f"uart={int(uart_ready_after_reboot)} "
+                        f"restored={int(restored_line_seen)} "
+                        f"filter={filter_uuid_post}"
+                    )
+                    raise RuntimeError(reason)
 
             # Phase C: initiate only after restore proof
-            send_cmd(ser, "initiate", logf, t0)
-            initiate_sent = True
+            if not phase_b_skipped_already_ota:
+                send_cmd(ser, "initiate", logf, t0)
+                initiate_sent = True
 
             phase_c_deadline = run_deadline
             while time.monotonic() < phase_c_deadline:
@@ -795,6 +941,10 @@ def main() -> int:
                 if "DFU SMP service ready" in line:
                     dfu_ready_seen = True
                     target_transport_ready = True
+                    if args.pre_reset:
+                        send_cmd(ser, "ota_reset", logf, t0)
+                        reason = "ota_manual_pre_reset_requested"
+                        break
 
                 if "OTA command issued" in line:
                     ota_cmd_issued_seen = True
@@ -820,6 +970,14 @@ def main() -> int:
                 if "OTA reset request" in line:
                     ota_reset_request_seen = True
                     ota_started = True
+                if "OTA pending-state recovery reset request" in line:
+                    ota_pending_recovery_reset_seen = True
+                    reason = "ota_pending_state_recovery_reset"
+                    break
+                if "OTA upload-gate recovery reset request" in line:
+                    ota_pending_recovery_reset_seen = True
+                    reason = "ota_upload_gate_recovery_reset"
+                    break
                 if "OTA command sequence sent" in line:
                     ota_command_sequence_seen = True
                     ota_success_seen = True
@@ -910,6 +1068,7 @@ def main() -> int:
         ota_upload_complete_seen=ota_upload_complete_seen,
         ota_pending_test_seen=ota_pending_test_seen,
         ota_reset_request_seen=ota_reset_request_seen,
+        ota_pending_recovery_reset_seen=ota_pending_recovery_reset_seen,
         ota_command_sequence_seen=ota_command_sequence_seen,
         ota_later_fail_seen=ota_later_fail_seen,
         ota_success_seen=ota_success_seen,
@@ -932,6 +1091,8 @@ def main() -> int:
     print(json.dumps(asdict(result), indent=2))
 
     if classification == "PHASE_A_PASS":
+        return 0
+    if ota_success_seen:
         return 0
     if not uuid_pre_reboot_latched:
         return 10

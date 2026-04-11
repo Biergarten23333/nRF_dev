@@ -1478,6 +1478,13 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 			return;
 		}
 
+		k_mutex_lock(&ble_mutex, K_FOREVER);
+		uwb_tag_ble_clear_pending_cal_locked();
+		uwb_tag_ble_clear_pending_samples_locked();
+		uwb_tag_ble_clear_pending_bundle_locked();
+		k_mutex_unlock(&ble_mutex);
+		uwb_tag_ble_cancel_bundle_flush();
+
 		snprintk(resp, sizeof(resp), "MODE_OK MODE=%s LIVE=%u",
 			 uwb_tag_ble_mode_label(requested_mode),
 			 (unsigned int)((live_err == 0) ? 1U : 0U));
@@ -1694,6 +1701,12 @@ int uwb_tag_ble_publish_status(const char *line)
 		return -EBUSY;
 	}
 
+	if (uwb_tag_ble_mode_is_calibration(active_runtime_params.positioning_mode) &&
+	    uwb_tag_ble_line_is_bundle_candidate(last_status)) {
+		k_mutex_unlock(&ble_mutex);
+		return 0;
+	}
+
 	bundle_line = uwb_tag_ble_bundle_enabled() &&
 		      uwb_tag_ble_line_is_bundle_candidate(last_status);
 	line_len = strlen(last_status);
@@ -1784,6 +1797,11 @@ int uwb_tag_ble_publish_sample(const struct uwb_tag_ble_sample *sample)
 	if (uwb_tag_ble_runtime_stream_blocked_locked()) {
 		k_mutex_unlock(&ble_mutex);
 		return -EBUSY;
+	}
+
+	if (uwb_tag_ble_mode_is_calibration(active_runtime_params.positioning_mode)) {
+		k_mutex_unlock(&ble_mutex);
+		return 0;
 	}
 
 	if (pending_sample_count >= UWB_TAG_BLE_MAX_BINARY_RECORDS) {

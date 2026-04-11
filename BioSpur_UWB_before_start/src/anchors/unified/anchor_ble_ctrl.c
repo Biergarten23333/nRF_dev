@@ -29,6 +29,11 @@ static char g_pending_text[BLE_CTRL_MAX_TEXT];
 static char g_result_text[BLE_CTRL_MAX_TEXT];
 
 static struct bt_conn *g_last_conn;
+static bool g_result_notify_enabled;
+static bool g_state_notify_enabled;
+
+#define ANCHOR_BLE_CTRL_STATE_ATTR_INDEX 2U
+#define ANCHOR_BLE_CTRL_RESULT_ATTR_INDEX 11U
 
 /* 2f2b8f40-84e0-4be6-b6bf-2fd95f39d3f0 */
 static struct bt_uuid_128 g_svc_uuid =
@@ -209,12 +214,18 @@ static ssize_t read_text_cb(struct bt_conn *conn, const struct bt_gatt_attr *att
     return bt_gatt_attr_read(conn, attr, buf, len, offset, src, src_len);
 }
 
-static void notify_result_if_possible(void)
+static void notify_result_if_possible(void);
+
+static void state_ccc_cfg_changed(const struct bt_gatt_attr *attr, uint16_t value)
 {
-    ARG_UNUSED(g_last_conn);
-    /* Result characteristic is readable after each command.
-     * Keep notifications optional to minimize compatibility risk across SDK variants.
-     */
+    ARG_UNUSED(attr);
+    g_state_notify_enabled = (value == BT_GATT_CCC_NOTIFY);
+}
+
+static void result_ccc_cfg_changed(const struct bt_gatt_attr *attr, uint16_t value)
+{
+    ARG_UNUSED(attr);
+    g_result_notify_enabled = (value == BT_GATT_CCC_NOTIFY);
 }
 
 static void handle_validate_locked(void)
@@ -451,7 +462,7 @@ BT_GATT_SERVICE_DEFINE(anchor_ble_ctrl_svc,
     BT_GATT_PRIMARY_SERVICE(&g_svc_uuid),
     BT_GATT_CHARACTERISTIC(&g_state_uuid.uuid, BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
                            BT_GATT_PERM_READ, read_text_cb, NULL, g_state_text),
-    BT_GATT_CCC(NULL, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
+    BT_GATT_CCC(state_ccc_cfg_changed, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
     BT_GATT_CHARACTERISTIC(&g_active_uuid.uuid, BT_GATT_CHRC_READ,
                            BT_GATT_PERM_READ, read_text_cb, NULL, g_active_text),
     BT_GATT_CHARACTERISTIC(&g_pending_uuid.uuid, BT_GATT_CHRC_READ,
@@ -461,8 +472,25 @@ BT_GATT_SERVICE_DEFINE(anchor_ble_ctrl_svc,
                            BT_GATT_PERM_WRITE, NULL, write_control_cb, NULL),
     BT_GATT_CHARACTERISTIC(&g_result_uuid.uuid, BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
                            BT_GATT_PERM_READ, read_text_cb, NULL, g_result_text),
-    BT_GATT_CCC(NULL, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE)
+    BT_GATT_CCC(result_ccc_cfg_changed, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE)
 );
+
+static void notify_result_if_possible(void)
+{
+    int rc;
+
+    if (g_last_conn == NULL || !g_result_notify_enabled) {
+        return;
+    }
+
+    rc = bt_gatt_notify(g_last_conn,
+                        &anchor_ble_ctrl_svc.attrs[ANCHOR_BLE_CTRL_RESULT_ATTR_INDEX],
+                        g_result_text,
+                        strlen(g_result_text));
+    if (rc != 0) {
+        printk("anchor BLE ctrl result notify failed: %d\n", rc);
+    }
+}
 
 static void connected_cb(struct bt_conn *conn, uint8_t err)
 {
@@ -506,6 +534,8 @@ int anchor_ble_ctrl_init(const struct anchor_ble_ctrl_boot_info *info)
     g_pending_valid = anchor_config_is_valid(&g_pending_cfg);
     g_busy = false;
     g_reboot_required = false;
+    g_result_notify_enabled = false;
+    g_state_notify_enabled = false;
     set_result_locked("OK READY");
     refresh_text_locked();
     k_mutex_unlock(&g_lock);
@@ -532,4 +562,18 @@ void anchor_ble_ctrl_set_runtime(uint8_t runtime_anchor_id_cfg, uint8_t runtime_
     g_info.active_cfg_valid = active_cfg_valid;
     refresh_text_locked();
     k_mutex_unlock(&g_lock);
+}
+
+int anchor_ble_ctrl_publish_result_line(const char *text)
+{
+    if (text == NULL || text[0] == '\0') {
+        return -EINVAL;
+    }
+
+    k_mutex_lock(&g_lock, K_FOREVER);
+    set_result_locked(text);
+    k_mutex_unlock(&g_lock);
+
+    notify_result_if_possible();
+    return 0;
 }
