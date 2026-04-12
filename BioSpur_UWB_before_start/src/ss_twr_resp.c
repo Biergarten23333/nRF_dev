@@ -1,6 +1,7 @@
 #include "ss_twr_resp.h"
 #include "uwb_ss_twr_shared.h"
 #include "anchor_mcumgr_diag.h"
+#include "anchor_runtime_control.h"
 
 #include <string.h>
 
@@ -127,6 +128,14 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         uint32 frame_len;
         uint16_t poll_src_addr;
 
+        if (anchor_runtime_stop_requested()) {
+            dwt_forcetrxoff();
+            dwt_rxreset();
+            printk("Responder stop requested anchor=%u\n",
+                   (unsigned int)ss_twr_resp_anchor_id);
+            return 0;
+        }
+
         if (anchor_mcumgr_diag_ota_active()) {
             /* During OTA, prioritize BLE/MCUmgr responsiveness over UWB
              * ranging workload so first SMP upload chunks are not starved.
@@ -144,6 +153,13 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
                 /* Responder runs forever on main thread; periodically yield so
                  * BLE/mcumgr workqueues can make progress under heavy UWB load.
                  */
+                if (anchor_runtime_stop_requested()) {
+                    dwt_forcetrxoff();
+                    dwt_rxreset();
+                    printk("Responder stop requested during RX wait anchor=%u\n",
+                           (unsigned int)ss_twr_resp_anchor_id);
+                    return 0;
+                }
                 k_yield();
                 ss_twr_resp_coop_sleep();
             }
@@ -232,6 +248,13 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         while ((dwt_read32bitreg(SYS_STATUS_ID) & SYS_STATUS_TXFRS) == 0U) {
             wait_cycles++;
             if ((wait_cycles & 0x3FFU) == 0U) {
+                if (anchor_runtime_stop_requested()) {
+                    dwt_forcetrxoff();
+                    dwt_rxreset();
+                    printk("Responder stop requested during TX wait anchor=%u\n",
+                           (unsigned int)ss_twr_resp_anchor_id);
+                    return 0;
+                }
                 k_yield();
                 ss_twr_resp_coop_sleep();
             }

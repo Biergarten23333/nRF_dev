@@ -25,9 +25,10 @@
 #include "master_multi_app.h"
 
 #define MASTER_MAX_CONNECTIONS 10U
-#define MASTER_DISCOVERY_RETRY_DELAY_MS 1000U
+#define MASTER_DISCOVERY_RETRY_DELAY_MS 1500U
 #define MASTER_DISCOVERY_RETRY_LIMIT 5U
-#define MASTER_DISCOVERY_START_SETTLE_MS 250U
+#define MASTER_DISCOVERY_START_SETTLE_MS 350U
+#define MASTER_ANCHOR_DISCOVERY_START_SETTLE_MS 900U
 #define MASTER_TDMA_SLOT_COUNT_MAX 10U
 #define MASTER_TDMA_SLOT_PERIOD_MS 24U
 #define MASTER_TDMA_SLOT_ACTIVE_MS 20U
@@ -147,6 +148,7 @@ static uint8_t conn_count;
 static bool scan_running;
 static bool auto_connect_enabled = true;
 static bool recv_background_gate_open = true;
+static uint8_t disconnect_restart_suppress_count;
 static uint32_t recv_bg_suppressed_count;
 static bool leds_ready;
 static bool led_scan_state;
@@ -200,6 +202,8 @@ static void peer_run_setup(struct master_peer *peer)
 	int err;
 	int64_t now;
 	int64_t wait_ms;
+	uint32_t settle_ms;
+	unsigned int key;
 
 	if (idx < 0 || idx >= (int)ARRAY_SIZE(peers)) {
 		return;
@@ -215,19 +219,32 @@ static void peer_run_setup(struct master_peer *peer)
 	}
 
 	now = k_uptime_get();
-	wait_ms = peer->connected_at_ms + MASTER_DISCOVERY_START_SETTLE_MS - now;
+	settle_ms = (peer->link_type == MASTER_LINK_ANCHOR_CTRL) ?
+		MASTER_ANCHOR_DISCOVERY_START_SETTLE_MS :
+		MASTER_DISCOVERY_START_SETTLE_MS;
+	wait_ms = peer->connected_at_ms + settle_ms - now;
 	if (wait_ms > 0) {
 		printk("SETUP[%d] defer: waiting %lld ms before discovery start\n",
 		       idx, wait_ms);
 		return;
 	}
 
+	key = irq_lock();
+	if (peer->discovery_inflight) {
+		peer->setup_pending = false;
+		irq_unlock(key);
+		printk("SETUP[%d] skipped: discovery claimed by another context\n", idx);
+		return;
+	}
+	peer->setup_pending = false;
+	peer->discovery_inflight = true;
+	irq_unlock(key);
+
 	printk("SETUP[%d] begin: link=%s uuid=%s conn=%p\n",
 	       idx,
 	       link_type_label(peer->link_type),
 	       peer->adv_uuid[0] != '\0' ? peer->adv_uuid : "-",
 	       peer->conn);
-	peer->setup_pending = false;
 	peer->mtu_exchange_params.func = exchange_func;
 	err = bt_gatt_exchange_mtu(peer->conn, &peer->mtu_exchange_params);
 	printk("SETUP[%d] mtu_exchange rc=%d\n", idx, err);
@@ -444,10 +461,6 @@ static void peer_clear(unsigned int idx, bool unref_conn)
 		return;
 	}
 
-	if (unref_conn && peers[idx].conn != NULL) {
-		bt_conn_unref(peers[idx].conn);
-	}
-
 	(void)k_work_cancel_delayable(&peers[idx].discovery_retry_work);
 	if (peers[idx].conn != NULL) {
 		if (peers[idx].anchor_state_sub_params.value_handle != 0U) {
@@ -456,6 +469,10 @@ static void peer_clear(unsigned int idx, bool unref_conn)
 		if (peers[idx].anchor_result_sub_params.value_handle != 0U) {
 			(void)bt_gatt_unsubscribe(peers[idx].conn, &peers[idx].anchor_result_sub_params);
 		}
+	}
+
+	if (unref_conn && peers[idx].conn != NULL) {
+		bt_conn_unref(peers[idx].conn);
 	}
 
 	peers[idx].conn = NULL;
@@ -2101,7 +2118,11 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 
 	master_leds_refresh();
 	master_rebalance_tdma_slots();
-	if (recv_background_allowed()) {
+	if (disconnect_restart_suppress_count > 0U) {
+		disconnect_restart_suppress_count--;
+		printk("RECV_BG suppressed: quiesce disconnect restart blocked remaining=%u\n",
+		       (unsigned int)disconnect_restart_suppress_count);
+	} else if (recv_background_allowed()) {
 		start_scan();
 		master_try_connect_pending();
 	} else {
@@ -2224,6 +2245,53 @@ void master_disconnect_all_peers(void)
 		       i, (unsigned int)peers[i].bs_code);
 		(void)bt_conn_disconnect(peers[i].conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
 	}
+}
+
+void master_quiesce_peers(void)
+{
+	uint8_t suppress_count = 0U;
+
+	stop_scan();
+	auto_connect_enabled = false;
+	connecting_slot = -1;
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		if (peers[i].conn != NULL) {
+			printk("Master quiesce peer[%zu]: connected=%u ready=%u link=%s uuid=%s\n",
+			       i,
+			       peers[i].connected ? 1U : 0U,
+			       peers[i].ready ? 1U : 0U,
+			       link_type_label(peers[i].link_type),
+			       peers[i].adv_uuid[0] != '\0' ? peers[i].adv_uuid : "-");
+			if (peers[i].connected) {
+				(void)bt_conn_disconnect(peers[i].conn,
+							 BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+				if (suppress_count < UINT8_MAX) {
+					suppress_count++;
+				}
+				peers[i].ready = false;
+				peers[i].setup_pending = false;
+				peers[i].discovery_inflight = false;
+				peers[i].connect_pending = false;
+				peers[i].one_shot_sent = false;
+				continue;
+			}
+			peer_clear((unsigned int)i, true);
+			continue;
+		}
+
+		if (peers[i].connect_pending || peers[i].setup_pending ||
+		    peers[i].discovery_inflight || peers[i].addr_valid) {
+			printk("Master quiesce pending peer[%zu]: pending=%u setup=%u inflight=%u uuid=%s\n",
+			       i,
+			       peers[i].connect_pending ? 1U : 0U,
+			       peers[i].setup_pending ? 1U : 0U,
+			       peers[i].discovery_inflight ? 1U : 0U,
+			       peers[i].adv_uuid[0] != '\0' ? peers[i].adv_uuid : "-");
+			peer_clear((unsigned int)i, false);
+		}
+	}
+	disconnect_restart_suppress_count = suppress_count;
+	master_leds_refresh();
 }
 
 void master_restart_discovery(void)

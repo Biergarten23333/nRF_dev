@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 #include <strings.h>
@@ -117,6 +118,12 @@ K_THREAD_STACK_DEFINE(autopos_work_q_stack, 4096);
 
 #define AUTOPOS_ANCHOR_COUNT 8
 #define AUTOPOS_UUID_LEN 33
+#define AUTOPOS_ANCHOR_REBOOT_SETTLE_MS 5000
+#define AUTOPOS_SWEEP_CONVERGE_TIMEOUT_MS 20000
+#define AUTOPOS_SWEEP_CONVERGE_MIN_QUALITY 90
+#define AUTOPOS_SWEEP_CONVERGE_CONSECUTIVE 2
+#define AUTOPOS_SWEEP_ATTACH_HANDOFF_MS 500
+#define AUTOPOS_DEMOTED_MASTER_SETTLE_MS 18000
 static const char autopos_labels[AUTOPOS_ANCHOR_COUNT] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
 static char autopos_uuid_map[AUTOPOS_ANCHOR_COUNT][AUTOPOS_UUID_LEN];
 static int8_t autopos_target_idx = -1;
@@ -211,7 +218,7 @@ static void control_print_help(void)
 	printk("Device model cmds: device show | device kind <anchor|tag>\n");
 	printk("OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->\n");
 	printk("Anchor cmds: anchor version <A..H|UUID32|all> | anchor role <A..H|UUID32|all> <master|matrix|responder>\n");
-	printk("AUTOPOS cmds: autopos status | autopos map <A..H> <UUID32> | autopos map show | autopos round <A..H> | autopos apply\n");
+	printk("AUTOPOS cmds: autopos status | autopos detach | autopos map <A..H> <UUID32> | autopos map show | autopos round <A..H> | autopos apply\n");
 }
 
 static const char *system_kind_name(uint8_t kind)
@@ -513,8 +520,9 @@ static int autopos_wait_anchor_ready(const char *uuid, int timeout_ms)
 	master_set_runtime_target_kind(MASTER_TARGET_ANCHOR);
 	master_set_runtime_target_uuid(uuid);
 	master_set_connect_and_start_mode();
-	master_disconnect_all_peers();
-	control_wait_for_peer_clear(3000);
+	master_quiesce_peers();
+	k_sleep(K_MSEC(250));
+	master_set_connect_and_start_mode();
 	master_restart_discovery();
 	printk("AUTOPOS wait anchor ready: uuid=%s timeout_ms=%d\n", uuid, timeout_ms);
 
@@ -593,6 +601,29 @@ static int autopos_wait_role_state(const char *expect_role, int timeout_ms)
 	return -ETIMEDOUT;
 }
 
+static int autopos_wait_active_role_state(const char *expect_role, int timeout_ms)
+{
+	char state[256];
+	int waited = 0;
+	int rc;
+	char role_needle[32];
+
+	(void)snprintf(role_needle, sizeof(role_needle), "role=%s", expect_role);
+	while (waited < timeout_ms) {
+		rc = master_anchor_ctrl_read_state(state, sizeof(state));
+		if (rc == 0) {
+			printk("AUTOPOS state: %s\n", state);
+			if (strstr(state, role_needle) != NULL &&
+			    strstr(state, "busy=1") != NULL) {
+				return 0;
+			}
+		}
+		k_sleep(K_MSEC(200));
+		waited += 200;
+	}
+	return -ETIMEDOUT;
+}
+
 static int autopos_wait_state_field(const char *needle, int timeout_ms)
 {
 	char state[256];
@@ -633,6 +664,128 @@ static int autopos_wait_result_contains(const char *needle, int timeout_ms)
 	return -ETIMEDOUT;
 }
 
+static bool autopos_sweep_line_converged(const char *line, char master_label,
+					 uint8_t min_quality,
+					 uint8_t *peer_count_out,
+					 uint8_t *min_quality_out)
+{
+	const char *pos;
+	bool saw_peer = false;
+	uint8_t peer_count = 0U;
+	uint8_t min_seen = 100U;
+
+	if (peer_count_out != NULL) {
+		*peer_count_out = 0U;
+	}
+	if (min_quality_out != NULL) {
+		*min_quality_out = 0U;
+	}
+
+	if (line == NULL || strncmp(line, "SW-", 3) != 0 || line[3] != master_label ||
+	    line[4] != ',') {
+		return false;
+	}
+
+	pos = line + 5;
+	while (*pos != '\0') {
+		unsigned long distance_mm;
+		unsigned long quality;
+		char *end = NULL;
+
+		if (!isalpha((unsigned char)pos[0]) || pos[1] != ',') {
+			return false;
+		}
+		pos += 2;
+
+		distance_mm = strtoul(pos, &end, 10);
+		if (end == pos || *end != ',') {
+			return false;
+		}
+		pos = end + 1;
+
+		quality = strtoul(pos, &end, 10);
+		if (end == pos) {
+			return false;
+		}
+
+		if (distance_mm == 0U || quality < min_quality) {
+			return false;
+		}
+
+		if (quality < min_seen) {
+			min_seen = (uint8_t)quality;
+		}
+
+		saw_peer = true;
+		peer_count++;
+
+		if (*end == '\0') {
+			pos = end;
+			break;
+		}
+		if (*end != ',') {
+			return false;
+		}
+		pos = end + 1;
+	}
+
+	if (!saw_peer) {
+		return false;
+	}
+
+	if (peer_count_out != NULL) {
+		*peer_count_out = peer_count;
+	}
+	if (min_quality_out != NULL) {
+		*min_quality_out = min_seen;
+	}
+	return true;
+}
+
+static int autopos_wait_sweep_converged(int idx, int timeout_ms)
+{
+	char result[256];
+	char previous_result[256] = { 0 };
+	int waited = 0;
+	int stable_count = 0;
+	int rc;
+
+	while (waited < timeout_ms) {
+		rc = master_anchor_ctrl_read_result(result, sizeof(result));
+		if (rc == 0) {
+			if (strcmp(result, previous_result) != 0) {
+				uint8_t peer_count = 0U;
+				uint8_t min_quality = 0U;
+
+				printk("AUTOPOS result: %s\n", result);
+				(void)snprintf(previous_result, sizeof(previous_result), "%s", result);
+
+				if (autopos_sweep_line_converged(result, autopos_labels[idx],
+							       AUTOPOS_SWEEP_CONVERGE_MIN_QUALITY,
+							       &peer_count, &min_quality)) {
+					stable_count++;
+					printk("AUTOPOS sweep converge: master=%c stable=%d/%d peers=%u min_q=%u\n",
+					       autopos_labels[idx],
+					       stable_count,
+					       AUTOPOS_SWEEP_CONVERGE_CONSECUTIVE,
+					       (unsigned int)peer_count,
+					       (unsigned int)min_quality);
+					if (stable_count >= AUTOPOS_SWEEP_CONVERGE_CONSECUTIVE) {
+						return 0;
+					}
+				} else if (strncmp(result, "SW-", 3) == 0 &&
+					   result[3] == autopos_labels[idx]) {
+					stable_count = 0;
+				}
+			}
+		}
+		k_sleep(K_MSEC(200));
+		waited += 200;
+	}
+
+	return -ETIMEDOUT;
+}
+
 static const char *anchor_state_field_value(const char *state, const char *key,
 					    char *out, size_t out_len)
 {
@@ -661,6 +814,38 @@ static const char *anchor_state_field_value(const char *state, const char *key,
 	memcpy(out, pos, copy_len);
 	out[copy_len] = '\0';
 	return out;
+}
+
+static int autopos_current_role_matches(const char *expect_role)
+{
+	char state[256];
+	char role[24] = { 0 };
+	char cfg_valid[8] = { 0 };
+	char busy[8] = { 0 };
+	int rc;
+
+	rc = master_anchor_ctrl_read_state(state, sizeof(state));
+	if (rc != 0) {
+		return rc;
+	}
+
+	printk("AUTOPOS state: %s\n", state);
+	if (anchor_state_field_value(state, "role=", role, sizeof(role)) == NULL ||
+	    strcmp(role, expect_role) != 0) {
+		return 0;
+	}
+
+	if (anchor_state_field_value(state, "cfg_valid=", cfg_valid, sizeof(cfg_valid)) != NULL &&
+	    strcmp(cfg_valid, "1") != 0) {
+		return 0;
+	}
+
+	if (anchor_state_field_value(state, "busy=", busy, sizeof(busy)) == NULL ||
+	    strcmp(busy, "1") != 0) {
+		return 0;
+	}
+
+	return 1;
 }
 
 static int anchor_resolve_query_uuid(const char *query, char *uuid_out, size_t uuid_out_len,
@@ -926,9 +1111,9 @@ static int autopos_reconnect_anchor_ready(int idx, int timeout_ms)
 {
 	int rc;
 
-	master_disconnect_all_peers();
-	(void)autopos_wait_anchor_cleared(2500);
-	k_sleep(K_MSEC(1400));
+	master_quiesce_peers();
+	(void)autopos_wait_anchor_cleared(500);
+	k_sleep(K_MSEC(AUTOPOS_ANCHOR_REBOOT_SETTLE_MS));
 
 	rc = autopos_wait_anchor_ready(autopos_uuid_map[idx], timeout_ms);
 	if (rc != 0) {
@@ -936,6 +1121,24 @@ static int autopos_reconnect_anchor_ready(int idx, int timeout_ms)
 	}
 
 	return 0;
+}
+
+static void autopos_detach_sweep_listen(void)
+{
+	int rc;
+
+	/* Drop the previous round's BLE result stream before reconfiguring roles. */
+	master_set_background_gate(false, "autopos_detach");
+	if (master_anchor_ctrl_ready_count() > 0) {
+		rc = master_send_command_now("STOP");
+		printk("AUTOPOS detach stop current stream rc=%d\n", rc);
+		k_sleep(K_MSEC(700));
+	}
+	master_set_runtime_target_uuid("");
+	master_quiesce_peers();
+	k_sleep(K_MSEC(500));
+	master_set_background_gate(true, "autopos_detach_done");
+	master_quiesce_peers();
 }
 
 static int autopos_enter_config_window(int idx)
@@ -946,6 +1149,23 @@ static int autopos_enter_config_window(int idx)
 		rc = autopos_wait_state_field("busy=0", attempt == 0 ? 1000 : 2000);
 		if (rc == 0) {
 			return 0;
+		}
+
+		printk("AUTOPOS anchor %c busy; requesting runtime stop attempt=%d/3\n",
+		       autopos_labels[idx], attempt + 1);
+		rc = autopos_send_anchor_cmd_checked("STOP", "OK STOP", 1200);
+		if (rc == 0) {
+			rc = autopos_wait_state_field("busy=0", 3000);
+			if (rc == 0) {
+				printk("AUTOPOS anchor %c stopped for config window\n",
+				       autopos_labels[idx]);
+				return 0;
+			}
+			printk("AUTOPOS anchor %c stop did not clear busy rc=%d; falling back to reboot\n",
+			       autopos_labels[idx], rc);
+		} else {
+			printk("AUTOPOS anchor %c stop unsupported/failed rc=%d; falling back to reboot\n",
+			       autopos_labels[idx], rc);
 		}
 
 		printk("AUTOPOS anchor %c busy; rebooting into config window attempt=%d/3\n",
@@ -969,10 +1189,23 @@ static int autopos_apply_one_anchor(int idx, bool is_master)
 	int rc;
 	const char *role_cmd = is_master ? "R MASTER" : "R MATRIX";
 	const char *expect_role = is_master ? "master" : "matrix";
+	bool demoting_active_master = false;
 
 	rc = autopos_wait_anchor_ready(autopos_uuid_map[idx], 12000);
 	if (rc != 0) {
 		return rc;
+	}
+
+	rc = autopos_current_role_matches("master");
+	if (rc < 0) {
+		return rc;
+	}
+	demoting_active_master = !is_master && rc > 0;
+
+	rc = autopos_current_role_matches(expect_role);
+	if (rc > 0) {
+		printk("AUTOPOS anchor %c already role=%s cfg_valid=1; refreshing role commit\n",
+		       autopos_labels[idx], expect_role);
 	}
 
 	rc = autopos_enter_config_window(idx);
@@ -1001,7 +1234,20 @@ static int autopos_apply_one_anchor(int idx, bool is_master)
 	if (rc != 0) {
 		return rc;
 	}
-	return autopos_wait_role_state(expect_role, 5000);
+	rc = autopos_wait_active_role_state(expect_role, 7000);
+	if (rc != 0) {
+		return rc;
+	}
+
+	if (demoting_active_master) {
+		printk("AUTOPOS demoted master %c settle: wait_ms=%d\n",
+		       autopos_labels[idx], AUTOPOS_DEMOTED_MASTER_SETTLE_MS);
+		master_quiesce_peers();
+		(void)autopos_wait_anchor_cleared(1000);
+		k_sleep(K_MSEC(AUTOPOS_DEMOTED_MASTER_SETTLE_MS));
+	}
+
+	return 0;
 }
 
 static void autopos_apply_work_handler(struct k_work *work)
@@ -1025,11 +1271,22 @@ static void autopos_apply_work_handler(struct k_work *work)
 
 	(void)snprintf(autopos_state, sizeof(autopos_state), "applying");
 	autopos_last_error[0] = '\0';
+	autopos_detach_sweep_listen();
+
+	/*
+	 * Bring every non-target anchor to matrix before starting the new
+	 * master. If the master starts first, it records failures against
+	 * anchors that are still rebooting/reconfiguring and the published SW
+	 * quality ramps for the first several summaries.
+	 */
 	for (int i = 0; i < AUTOPOS_ANCHOR_COUNT; ++i) {
-		rc = autopos_apply_one_anchor(i, i == autopos_target_idx);
+		if (i == autopos_target_idx) {
+			continue;
+		}
+		rc = autopos_apply_one_anchor(i, false);
 		if (rc != 0) {
 			(void)snprintf(autopos_last_error, sizeof(autopos_last_error),
-				       "anchor %c step failed rc=%d", autopos_labels[i], rc);
+			       "anchor %c step failed rc=%d", autopos_labels[i], rc);
 			(void)snprintf(autopos_state, sizeof(autopos_state), "failed");
 			printk("AUTOPOS apply failed: %s\n", autopos_last_error);
 			goto done;
@@ -1037,17 +1294,34 @@ static void autopos_apply_work_handler(struct k_work *work)
 		printk("AUTOPOS anchor %c role verified\n", autopos_labels[i]);
 	}
 
+	rc = autopos_apply_one_anchor(autopos_target_idx, true);
+	if (rc != 0) {
+		(void)snprintf(autopos_last_error, sizeof(autopos_last_error),
+			       "anchor %c step failed rc=%d", autopos_labels[autopos_target_idx], rc);
+		(void)snprintf(autopos_state, sizeof(autopos_state), "failed");
+		printk("AUTOPOS apply failed: %s\n", autopos_last_error);
+		goto done;
+	}
+	printk("AUTOPOS anchor %c role verified\n", autopos_labels[autopos_target_idx]);
+
 	autopos_last_success_idx = autopos_target_idx;
 	(void)snprintf(autopos_state, sizeof(autopos_state), "ready");
 	printk("AUTOPOS apply success: master=%c\n", autopos_labels[autopos_target_idx]);
+	rc = autopos_wait_sweep_converged(autopos_target_idx,
+					 AUTOPOS_SWEEP_CONVERGE_TIMEOUT_MS);
+	printk("AUTOPOS sweep converge rc=%d master=%c timeout_ms=%d min_q=%d consecutive=%d\n",
+	       rc,
+	       autopos_labels[autopos_target_idx],
+	       AUTOPOS_SWEEP_CONVERGE_TIMEOUT_MS,
+	       AUTOPOS_SWEEP_CONVERGE_MIN_QUALITY,
+	       AUTOPOS_SWEEP_CONVERGE_CONSECUTIVE);
+	k_sleep(K_MSEC(AUTOPOS_SWEEP_ATTACH_HANDOFF_MS));
 	printk("AUTOPOS sweep listen attach: master=%c uuid=%s\n",
 	       autopos_labels[autopos_target_idx],
 	       autopos_uuid_map[autopos_target_idx]);
 	master_set_runtime_target_kind(MASTER_TARGET_ANCHOR);
 	master_set_runtime_target_uuid(autopos_uuid_map[autopos_target_idx]);
 	master_set_connect_and_start_mode();
-	master_disconnect_all_peers();
-	master_restart_discovery();
 
 done:
 	atomic_set(&autopos_apply_pending, 0);
@@ -1391,6 +1665,14 @@ static void control_handle_uart_command(const char *line)
 
 	if (strcmp(cmd, "autopos") == 0 && parsed >= 2) {
 		if (strcmp(arg, "status") == 0) {
+			autopos_print_status();
+			return;
+		}
+		if (strcmp(arg, "detach") == 0) {
+			autopos_detach_sweep_listen();
+			(void)snprintf(autopos_state, sizeof(autopos_state), "idle");
+			autopos_last_error[0] = '\0';
+			printk("AUTOPOS detach complete\n");
 			autopos_print_status();
 			return;
 		}

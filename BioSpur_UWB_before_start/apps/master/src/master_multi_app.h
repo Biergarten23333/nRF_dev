@@ -20,6 +20,7 @@ void master_set_scan_only_mode(void);
 void master_set_connect_and_start_mode(void);
 void master_set_background_gate(bool allow, const char *reason);
 void master_disconnect_all_peers(void);
+void master_quiesce_peers(void);
 void master_restart_discovery(void);
 void master_process_connect_pending(void);
 void master_process_setup_pending(void);

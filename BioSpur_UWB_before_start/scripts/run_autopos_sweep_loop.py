@@ -21,6 +21,25 @@ def auto_timeout_for_sw_sets(sw_sets: int) -> int:
     return max(480, 360 + (15 * sw_sets))
 
 
+def sw_line_min_quality(master: str, line: str) -> int | None:
+    try:
+        fields = line.split(f"SW-{master},", 1)[1].split(",")
+    except IndexError:
+        return None
+
+    qualities = []
+    for idx in range(0, len(fields), 3):
+        if idx + 2 >= len(fields):
+            break
+        try:
+            qualities.append(int(fields[idx + 2]))
+        except ValueError:
+            continue
+    if not qualities:
+        return None
+    return min(qualities)
+
+
 def should_print_live_line(line: str, verbose: int) -> bool:
     if verbose >= 2:
         return True
@@ -31,6 +50,7 @@ def should_print_live_line(line: str, verbose: int) -> bool:
     return (
         "SW-" in line or
         "AUTOPOS apply success:" in line or
+        "AUTOPOS sweep listen attach:" in line or
         "AUTOPOS apply failed:" in line or
         "AUTOPOS anchor " in line and " role verified" in line or
         "PRECHECK FAIL:" in line or
@@ -114,6 +134,68 @@ def collect_for(
     return ser, saw_reopen
 
 
+def collect_for_text(
+    ser: serial.Serial,
+    logf,
+    duration_s: float,
+    port: str,
+    live_output: bool,
+    verbose: int,
+) -> tuple[serial.Serial, bool, str]:
+    end = time.time() + duration_s
+    saw_reopen = False
+    chunks = []
+    while time.time() < end:
+        try:
+            data = ser.read(4096)
+        except (SerialException, OSError):
+            emit(logf, "--- SERIAL DISCONNECTED, REOPEN ---\n", live_output, verbose)
+            try:
+                ser.close()
+            except Exception:
+                pass
+            ser = reopen_port(port)
+            emit(logf, "--- SERIAL REOPENED ---\n", live_output, verbose)
+            saw_reopen = True
+            continue
+        if data:
+            text = data.decode("utf-8", "ignore")
+            chunks.append(text)
+            emit(logf, text, live_output, verbose)
+        else:
+            time.sleep(0.05)
+    return ser, saw_reopen, "".join(chunks)
+
+
+def send_cmd_collect_text(
+    ser: serial.Serial,
+    logf,
+    port: str,
+    cmd: str,
+    pause_s: float,
+    live_output: bool,
+    verbose: int,
+    resend_after_reopen: bool = True,
+) -> tuple[serial.Serial, str]:
+    emit(logf, f">>> {cmd}\n", live_output, verbose)
+    try:
+        write_cmd(ser, cmd)
+    except Exception:
+        try:
+            ser.close()
+        except Exception:
+            pass
+        ser = reopen_port(port)
+        write_cmd(ser, cmd)
+    ser, saw_reopen, text = collect_for_text(ser, logf, pause_s, port, live_output, verbose)
+    if saw_reopen and resend_after_reopen:
+        emit(logf, f">>> RESEND {cmd}\n", live_output, verbose)
+        write_cmd(ser, cmd)
+        ser, _, more = collect_for_text(ser, logf, max(0.6, pause_s), port, live_output, verbose)
+        text += more
+    return ser, text
+
+
 def send_cmd_collect(
     ser: serial.Serial,
     logf,
@@ -194,7 +276,7 @@ def preflight_clean_autopos_start(
     verbose: int,
 ) -> tuple[serial.Serial, bool]:
     # Reset AUTOPOS state in-place without a RECV reboot boundary.
-    ser = send_cmd_collect(
+    ser, status_text = send_cmd_collect_text(
         ser,
         logf,
         port,
@@ -204,16 +286,51 @@ def preflight_clean_autopos_start(
         verbose,
         resend_after_reopen=False,
     )
-    ser = send_cmd_collect(
-        ser,
-        logf,
-        port,
-        "mode autopos",
-        1.6,
-        live_output,
-        verbose,
-        resend_after_reopen=False,
-    )
+    if "Control status: mode=OTA" in status_text:
+        emit(logf, "PRECHECK: OTA mode detected; switching through RECV before AUTOPOS\n", live_output, verbose)
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
+            "mode recv",
+            3.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+        )
+        ser, _ = collect_for(ser, logf, 2.0, port, live_output, verbose)
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
+            "mode autopos",
+            1.6,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+        )
+    elif "Control status: mode=AUTOPOS" in status_text:
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
+            "autopos detach",
+            9.5,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+        )
+    else:
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
+            "mode autopos",
+            1.6,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+        )
     ser, _ = collect_for(ser, logf, 0.8, port, live_output, verbose)
     ser, idle_ok = wait_for_autopos_idle(ser, logf, port, 8.0, live_output, verbose)
     if not idle_ok:
@@ -237,6 +354,7 @@ def round_capture(
     master: str,
     out_dir: Path,
     timeout_s: int,
+    warmup_min_quality: int,
     live_output: bool = True,
     verbose: int = 2,
 ) -> dict:
@@ -246,10 +364,14 @@ def round_capture(
         "success": False,
         "sw_seen": False,
         "apply_success_seen": False,
+        "sweep_ready_seen": False,
         "verified_count": 0,
         "sw_line": "",
         "sw_lines": [],
         "sw_count": 0,
+        "warmup_min_quality": warmup_min_quality,
+        "warmup_sw_lines": [],
+        "warmup_sw_count": 0,
         "log_path": str(log_path),
         "error": "",
     }
@@ -345,13 +467,23 @@ def round_capture(
                             verified.add(parts.split(" ", 1)[0])
                         if f"AUTOPOS apply success: master={master}" in line:
                             result["apply_success_seen"] = True
-                        if f"SW-{master}," in line:
+                        if f"AUTOPOS sweep listen attach: master={master}" in line:
+                            result["sweep_ready_seen"] = True
+                        if (result["apply_success_seen"] and result["sweep_ready_seen"] and
+                                f"SW-{master}," in line):
                             line = line.strip()
+                            min_quality = sw_line_min_quality(master, line)
+                            if (min_quality is not None and warmup_min_quality > 0 and
+                                    min_quality < warmup_min_quality):
+                                result["warmup_sw_lines"].append(line)
+                                result["warmup_sw_count"] = len(result["warmup_sw_lines"])
+                                continue
                             result["sw_seen"] = True
                             result["sw_line"] = line
                             result["sw_lines"].append(line)
                             result["sw_count"] = len(result["sw_lines"])
-                    if result["apply_success_seen"] and result["sw_count"] >= round_capture.target_sw_sets:
+                    if (result["apply_success_seen"] and result["sweep_ready_seen"] and
+                            result["sw_count"] >= round_capture.target_sw_sets):
                         result["success"] = True
                         break
                 else:
@@ -361,6 +493,8 @@ def round_capture(
             if not result["success"]:
                 if not result["apply_success_seen"]:
                     result["error"] = "apply_success_not_seen"
+                elif not result["sweep_ready_seen"]:
+                    result["error"] = "sweep_ready_not_seen"
                 elif not result["sw_seen"]:
                     result["error"] = "sw_not_seen"
                 else:
@@ -383,6 +517,12 @@ def main() -> int:
     parser.add_argument("--order", default="ABCDEFGH", help="Master order to run, e.g. ABCDEFGH or BCD")
     parser.add_argument("--timeout-s", type=int, default=None, help="Per-round timeout; defaults scale with --sw-sets")
     parser.add_argument("--sw-sets", type=int, default=1, help="Required SW lines per round before finishing")
+    parser.add_argument(
+        "--warmup-min-quality",
+        type=int,
+        default=90,
+        help="Discard and record post-ready SW lines until every reported peer quality is at least this value; use 0 to disable.",
+    )
     parser.add_argument("--verbose", type=int, choices=[0, 1, 2], default=1,
                         help="Live stdout verbosity: 0=SW-X/failures only, 1=normal without ignored scan noise, 2=full flow")
     parser.add_argument("--out-dir", required=True, help="Output directory")
@@ -395,6 +535,8 @@ def main() -> int:
 
     if args.sw_sets < 1:
         raise SystemExit("--sw-sets must be >= 1")
+    if args.warmup_min_quality < 0 or args.warmup_min_quality > 100:
+        raise SystemExit("--warmup-min-quality must be between 0 and 100")
 
     if args.timeout_s is None:
         args.timeout_s = auto_timeout_for_sw_sets(args.sw_sets)
@@ -407,6 +549,7 @@ def main() -> int:
         "port": args.port,
         "order": list(args.order),
         "sw_sets": args.sw_sets,
+        "warmup_min_quality": args.warmup_min_quality,
         "timeout_s": args.timeout_s,
         "verbose": args.verbose,
         "rounds": {},
@@ -422,6 +565,7 @@ def main() -> int:
             master,
             round_dir,
             args.timeout_s,
+            args.warmup_min_quality,
             live_output=not args.no_live_output,
             verbose=args.verbose,
         )

@@ -1,6 +1,7 @@
 #include "ss_twr_anchor_init.h"
 
 #include "anchor_ble_ctrl.h"
+#include "anchor_runtime_control.h"
 #include "uwb_anchor_matrix.h"
 #include "uwb_anchor_topology.h"
 #include "uwb_range_tracker.h"
@@ -162,6 +163,14 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
             &ss_twr_anchor_init_trackers[ss_twr_anchor_init_peer_index];
         uint32_t status_reg;
 
+        if (anchor_runtime_stop_requested()) {
+            dwt_forcetrxoff();
+            dwt_rxreset();
+            printk("Anchor master stop requested for %c\n",
+                   uwb_anchor_label(ss_twr_anchor_init_local_id));
+            return 0;
+        }
+
         uwb_ss_twr_build_poll_frame(ss_twr_anchor_init_tx_poll_msg,
                                     ss_twr_anchor_init_frame_seq_nb,
                                     current_peer_addr,
@@ -189,6 +198,13 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
 
         do {
             status_reg = dwt_read32bitreg(SYS_STATUS_ID);
+            if (anchor_runtime_stop_requested()) {
+                dwt_forcetrxoff();
+                dwt_rxreset();
+                printk("Anchor master stop requested during RX wait for %c\n",
+                       uwb_anchor_label(ss_twr_anchor_init_local_id));
+                return 0;
+            }
         } while ((status_reg & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO |
                                 SYS_STATUS_ALL_RX_ERR)) == 0U);
 
@@ -267,7 +283,9 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
 
             if (!ss_twr_anchor_init_raw_range_plausible(
                     tracker, (uint32_t)raw_distance_mm)) {
-                uwb_range_tracker_record_failure(tracker);
+                if (tracker->filtered_valid) {
+                    uwb_range_tracker_record_failure(tracker);
+                }
                 printk("Anchor master reject peer=%u addr=0x%04x raw=%ld mm last=%lu mm ok=%lu fail=%lu q=%u%%\n",
                        (unsigned int)current_peer_id,
                        (unsigned int)current_peer_addr,
@@ -297,7 +315,9 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
                    (unsigned long)tracker->failure_count,
                    (unsigned int)uwb_range_tracker_quality_percent(tracker));
         } else {
-            uwb_range_tracker_record_failure(tracker);
+            if (tracker->filtered_valid) {
+                uwb_range_tracker_record_failure(tracker);
+            }
             printk("Anchor master timeout peer=%u addr=0x%04x status=0x%08lx ok=%lu fail=%lu q=%u%%\n",
                    (unsigned int)current_peer_id, (unsigned int)current_peer_addr,
                    (unsigned long)status_reg,

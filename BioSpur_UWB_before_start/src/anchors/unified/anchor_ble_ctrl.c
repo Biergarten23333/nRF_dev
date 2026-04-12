@@ -1,4 +1,5 @@
 #include "anchor_ble_ctrl.h"
+#include "anchor_runtime_control.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -303,7 +304,7 @@ static void process_control_cmd_locked(char *line)
     }
 
     if (strcmp(tok, "HELP") == 0) {
-        set_result_locked("OK CMDS=PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|SYNC");
+        set_result_locked("OK CMDS=PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|STOP|SYNC");
         return;
     }
 
@@ -326,6 +327,12 @@ static void process_control_cmd_locked(char *line)
 
     if (strcmp(tok, "REBOOT") == 0) {
         handle_reboot_locked();
+        return;
+    }
+
+    if (strcmp(tok, "STOP") == 0) {
+        anchor_runtime_request_stop();
+        set_result_locked(g_busy ? "OK STOP_REQUESTED" : "OK STOP_IDLE");
         return;
     }
 

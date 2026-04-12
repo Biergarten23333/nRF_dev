@@ -14,17 +14,33 @@ flash_mode="${BIOSPUR_FLASH_MODE:-usb_msd}"
 echo "tool=flash_master_noninteractive snr=${SN} image=${IMAGE} mode=${flash_mode} policy=no_popup_default"
 
 find_msd_mount() {
-  local mnt
+	local mnt
+	local source
 
-  # Prefer automounted user paths.
-  for mnt in /media/"$USER"/* /run/media/"$USER"/*; do
-    if [ -d "$mnt" ] && [ -w "$mnt" ]; then
-      # Common indicators for UF2/J-Link MSD style volumes.
-      if [ -f "$mnt/INFO_UF2.TXT" ] || [ -f "$mnt/DETAILS.TXT" ] || [ -f "$mnt/MBED.HTM" ]; then
-        printf '%s\n' "$mnt"
-        return 0
-      fi
-    fi
+	# Prefer automounted user paths.
+	for mnt in /media/"$USER"/* /run/media/"$USER"/*; do
+		if [ -d "$mnt" ]; then
+			# Common indicators for UF2/J-Link MSD style volumes.
+			if [ -f "$mnt/INFO_UF2.TXT" ] || [ -f "$mnt/DETAILS.TXT" ] || \
+			   [ -f "$mnt/MBED.HTM" ] || [ -f "$mnt/README.TXT" ] || \
+			   [ -f "$mnt/Segger.html" ]; then
+				if [ ! -w "$mnt" ] && command -v udisksctl >/dev/null 2>&1; then
+					source="$(findmnt -no SOURCE --target "$mnt" 2>/dev/null || true)"
+					if [ -n "$source" ]; then
+						echo "tool=flash_master_noninteractive action=remount_rw source=${source} mount=${mnt}" >&2
+						udisksctl unmount -b "$source" >/dev/null 2>&1 || true
+						sleep 1
+						udisksctl mount -b "$source" >/dev/null 2>&1 || true
+						sleep 1
+					fi
+				fi
+				if [ ! -w "$mnt" ]; then
+					continue
+				fi
+				printf '%s\n' "$mnt"
+				return 0
+			fi
+		fi
   done
 
   # Fallback: label-based detection.

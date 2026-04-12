@@ -76,6 +76,7 @@ target_sources(app PRIVATE
     ${APP_ROOT}/src/anchors/unified/anchor_config.c
     ${APP_ROOT}/src/anchors/unified/anchor_ble_id.c
     ${APP_ROOT}/src/anchors/unified/anchor_ble_ctrl.c
+    ${APP_ROOT}/src/anchors/unified/anchor_runtime_control.c
     ${APP_ROOT}/src/anchors/unified/anchor_mcumgr_diag.c
     ${APP_ROOT}/src/anchors/unified/uart_role_switch.c
     ${APP_ROOT}/src/uwb_bringup.c

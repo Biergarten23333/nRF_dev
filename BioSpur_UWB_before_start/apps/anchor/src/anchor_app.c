@@ -8,6 +8,7 @@
 #include "anchor_ble_id.h"
 #include "anchor_ble_ctrl.h"
 #include "anchor_mcumgr_diag.h"
+#include "anchor_runtime_control.h"
 #include "uart_role_switch.h"
 #include "ss_twr_anchor_init.h"
 #include "ss_twr_resp.h"
@@ -252,6 +253,7 @@ int anchor_app_run(void)
         return 0;
     }
 
+    anchor_runtime_clear_stop();
     if (effective_master != 0U) {
         if (APP_ANCHOR_USE_AUTO_SCHEDULE != 0U) {
             if (APP_ANCHOR_SCHEDULE_MODE == 2U) {
@@ -277,6 +279,9 @@ int anchor_app_run(void)
             anchor_ble_ctrl_set_busy(false);
             return ret;
         }
+        printk("Anchor master ranging stopped; control plane remains active\n");
+        uart_role_switch_set_ranging_active(false);
+        anchor_ble_ctrl_set_busy(false);
         return 0;
     }
 
@@ -287,6 +292,9 @@ int anchor_app_run(void)
         anchor_ble_ctrl_set_busy(false);
         return ret;
     }
+    printk("Anchor responder ranging stopped; control plane remains active\n");
+    uart_role_switch_set_ranging_active(false);
+    anchor_ble_ctrl_set_busy(false);
 
     return 0;
 }
