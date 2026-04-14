@@ -510,6 +510,7 @@ static int autopos_wait_anchor_ready(const char *uuid, int timeout_ms)
 {
 	int waited = 0;
 	int last_count = -1;
+	int warm_reuse_window_ms = MIN(timeout_ms, 3000);
 
 	/* For anchor sweep, match readiness by UUID only.
 	 * A stale runtime name/prefix filter (e.g. BSF66F from tag session)
@@ -520,6 +521,44 @@ static int autopos_wait_anchor_ready(const char *uuid, int timeout_ms)
 	master_set_runtime_target_kind(MASTER_TARGET_ANCHOR);
 	master_set_runtime_target_uuid(uuid);
 	master_set_connect_and_start_mode();
+
+	/* Reuse an in-flight or ready control link when it already targets the
+	 * requested anchor. Tearing it down here is what creates the
+	 * connect->setup->disconnect churn that later shows up as -12/-116.
+	 */
+	if (master_anchor_ctrl_ready_count() > 0) {
+		master_stop_discovery();
+		printk("AUTOPOS wait anchor ready: uuid=%s reuse existing ready control link\n",
+		       uuid);
+		return 0;
+	}
+	if (master_anchor_ctrl_target_peer_count() > 0) {
+		printk("AUTOPOS wait anchor ready: uuid=%s target peer already present; waiting for setup/discovery\n",
+		       uuid);
+		while (waited < warm_reuse_window_ms) {
+			master_process_connect_pending();
+			master_process_setup_pending();
+			int ready_count = master_anchor_ctrl_ready_count();
+			if (ready_count != last_count || (waited % 1000) == 0) {
+				printk("AUTOPOS wait anchor ready(reuse): waited=%d ready_count=%d target_peers=%d\n",
+				       waited, ready_count, master_anchor_ctrl_target_peer_count());
+				master_dump_ready_state();
+				last_count = ready_count;
+			}
+			if (ready_count > 0) {
+				master_stop_discovery();
+				printk("AUTOPOS wait anchor ready: uuid=%s reused target control link after setup\n",
+				       uuid);
+				return 0;
+			}
+			if (master_anchor_ctrl_target_peer_count() == 0) {
+				break;
+			}
+			k_sleep(K_MSEC(200));
+			waited += 200;
+		}
+	}
+
 	master_quiesce_peers();
 	k_sleep(K_MSEC(250));
 	master_set_connect_and_start_mode();
@@ -537,6 +576,9 @@ static int autopos_wait_anchor_ready(const char *uuid, int timeout_ms)
 			last_count = ready_count;
 		}
 		if (ready_count > 0) {
+			master_stop_discovery();
+			printk("AUTOPOS wait anchor ready: uuid=%s scan paused for stable control link\n",
+			       uuid);
 			return 0;
 		}
 		k_sleep(K_MSEC(200));
@@ -708,7 +750,11 @@ static bool autopos_sweep_line_converged(const char *line, char master_label,
 			return false;
 		}
 
-		if (distance_mm == 0U || quality < min_quality) {
+		/* Sweep attach should wait for a structurally complete SW line,
+		 * not for a quality threshold. Quality is reported for analysis
+		 * and should not block the control-plane flow.
+		 */
+		if (distance_mm == 0U) {
 			return false;
 		}
 
@@ -1204,8 +1250,9 @@ static int autopos_apply_one_anchor(int idx, bool is_master)
 
 	rc = autopos_current_role_matches(expect_role);
 	if (rc > 0) {
-		printk("AUTOPOS anchor %c already role=%s cfg_valid=1; refreshing role commit\n",
+		printk("AUTOPOS anchor %c already active role=%s cfg_valid=1; keeping current config\n",
 		       autopos_labels[idx], expect_role);
+		return 0;
 	}
 
 	rc = autopos_enter_config_window(idx);
@@ -1307,9 +1354,12 @@ static void autopos_apply_work_handler(struct k_work *work)
 	autopos_last_success_idx = autopos_target_idx;
 	(void)snprintf(autopos_state, sizeof(autopos_state), "ready");
 	printk("AUTOPOS apply success: master=%c\n", autopos_labels[autopos_target_idx]);
+	master_stop_discovery();
+	printk("AUTOPOS sweep converge: master=%c discovery paused during settle\n",
+	       autopos_labels[autopos_target_idx]);
 	rc = autopos_wait_sweep_converged(autopos_target_idx,
 					 AUTOPOS_SWEEP_CONVERGE_TIMEOUT_MS);
-	printk("AUTOPOS sweep converge rc=%d master=%c timeout_ms=%d min_q=%d consecutive=%d\n",
+	printk("AUTOPOS sweep converge rc=%d master=%c timeout_ms=%d min_q_observe=%d consecutive=%d\n",
 	       rc,
 	       autopos_labels[autopos_target_idx],
 	       AUTOPOS_SWEEP_CONVERGE_TIMEOUT_MS,
@@ -2089,7 +2139,7 @@ int main(void)
 	}
 
 	control_leds_set(DK_NO_LEDS_MSK);
-	printk("BioSpur BLE master control ready on nRF52840 DK\n");
+	printk("BioSpur BLE master control ready on %s\n", CONFIG_BOARD_TARGET);
 	printk("BTN1 toggles RECV/OTA, BTN2 forces OTA mode, BTN3=SCAN, BTN4=CONN&START\n");
 	control_print_help();
 

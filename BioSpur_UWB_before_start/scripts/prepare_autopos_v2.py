@@ -101,6 +101,15 @@ def main() -> int:
     p.add_argument("--ref115-cm-baseline", default=None)
     p.add_argument("--reference-session", action="append", default=[])
     p.add_argument("--floating-reference-session", action="append", default=[])
+    p.add_argument(
+        "--floating-reference-z-prior-mm",
+        type=float,
+        default=None,
+        help=(
+            "Optional soft prior for floating reference Tag Z (mm). If omitted but a floating reference session is "
+            "provided, defaults to 820mm (historical Ref115 floor-height prior)."
+        ),
+    )
     p.add_argument("--skip-solve", action="store_true")
     args = p.parse_args()
 
@@ -148,6 +157,12 @@ def main() -> int:
             "--converge-mm",
             "1.5",
         ]
+        # Enable floating-ref Z prior by default when floating reference data is available.
+        z_prior_mm = args.floating_reference_z_prior_mm
+        if z_prior_mm is None and args.floating_reference_session:
+            z_prior_mm = 820.0
+        if z_prior_mm is not None and args.floating_reference_session:
+            solve_cmd.extend(["--floating-reference-z-prior-mm", str(z_prior_mm)])
         for ref in args.reference_session:
             solve_cmd.extend(["--reference-session", ref])
         for ref in args.floating_reference_session:
@@ -172,6 +187,11 @@ def main() -> int:
         "ref115_cm_baseline": str(Path(args.ref115_cm_baseline).resolve()) if args.ref115_cm_baseline else None,
         "reference_sessions": args.reference_session,
         "floating_reference_sessions": args.floating_reference_session,
+        "floating_reference_z_prior_mm": (
+            float(args.floating_reference_z_prior_mm)
+            if args.floating_reference_z_prior_mm is not None
+            else (820.0 if args.floating_reference_session else None)
+        ),
         "pair_count": len(matrix_payload.get("distances", {})),
         "next_live_loop": [
             "Run fresh bidirectional sweep=50 capture.",

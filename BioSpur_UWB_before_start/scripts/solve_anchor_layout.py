@@ -342,12 +342,17 @@ def residuals(
     upper_mean_height = float(np.mean([coords[name][2] for name in UPPER_PLANE]))
     res.append((upper_mean_height - plane_height_prior_m) / height_sigma_m)
 
-    # Encourage paired anchors to stay roughly vertically aligned in XY.
-    for lower, upper in VERTICAL_PAIRS:
-        dx = coords[upper][0] - coords[lower][0]
-        dy = coords[upper][1] - coords[lower][1]
-        res.append(dx / vertical_sigma_m)
-        res.append(dy / vertical_sigma_m)
+    # Optional: Encourage paired anchors to stay roughly vertically aligned in XY.
+    #
+    # Real installations often have non-zero XY projection offsets between the
+    # lower/upper anchors, so this should default to *disabled* unless the user
+    # explicitly enables it. Use --vertical-sigma-mm > 0 to enable.
+    if vertical_sigma_m > 0.0:
+        for lower, upper in VERTICAL_PAIRS:
+            dx = coords[upper][0] - coords[lower][0]
+            dy = coords[upper][1] - coords[lower][1]
+            res.append(dx / vertical_sigma_m)
+            res.append(dy / vertical_sigma_m)
 
     # The four vertical pairs should have similar height separation even when
     # they are not mathematically identical.
@@ -661,8 +666,9 @@ def main() -> int:
     parser.add_argument(
         "--vertical-sigma-mm",
         type=float,
-        default=500.0,
-        help="Assumed 1-sigma XY offset allowed for vertical anchor pairs.",
+        default=0.0,
+        help="Optional 1-sigma XY offset (mm) used to *softly* encourage vertical-pair XY alignment. "
+        "Set to 0 to disable (recommended when upper/lower XY projections do not overlap).",
     )
     parser.add_argument(
         "--lower-plane-sigma-mm",

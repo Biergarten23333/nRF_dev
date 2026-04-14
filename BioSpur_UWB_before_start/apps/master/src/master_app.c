@@ -460,7 +460,7 @@ int master_app_run(void)
 		return err;
 	}
 
-	printk("BioSpur BLE master ready on nRF52840 DK\n");
+	printk("BioSpur BLE master ready on %s\n", CONFIG_BOARD_TARGET);
 	if (strlen(APP_MASTER_ONE_SHOT_CMD) != 0U) {
 		printk("One-shot NUS command armed: %s\n", APP_MASTER_ONE_SHOT_CMD);
 	}

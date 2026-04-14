@@ -342,6 +342,7 @@ static const char *active_one_shot_command(void)
 static bool peer_matches_runtime_target(const struct master_peer *peer)
 {
 	bool any_filter = false;
+	char bs_name[MASTER_NAME_BUF_LEN];
 
 	if (peer == NULL) {
 		return false;
@@ -357,8 +358,17 @@ static bool peer_matches_runtime_target(const struct master_peer *peer)
 
 	if (runtime_target_name[0] != '\0') {
 		any_filter = true;
-		if (peer->adv_name[0] == '\0' ||
-		    strcasecmp(peer->adv_name, runtime_target_name) != 0) {
+		if (peer->adv_name[0] != '\0') {
+			if (strcasecmp(peer->adv_name, runtime_target_name) != 0) {
+				return false;
+			}
+		} else if (peer->bs_code_valid) {
+			snprintk(bs_name, sizeof(bs_name), "BS%04X",
+				 (unsigned int)peer->bs_code);
+			if (strcasecmp(bs_name, runtime_target_name) != 0) {
+				return false;
+			}
+		} else {
 			return false;
 		}
 	}
@@ -1061,8 +1071,22 @@ static void start_scan(void)
 		return;
 	}
 
+	printk("SCAN start req: bt_ready=%u scan_running=%u connecting_slot=%d conn_count=%u target=%s prefix=%s\n",
+	       bt_is_ready() ? 1U : 0U,
+	       scan_running ? 1U : 0U,
+	       connecting_slot,
+	       conn_count,
+	       runtime_target_kind_label(runtime_target_kind),
+	       prefix);
+
 	err = bt_le_scan_start(BT_LE_SCAN_ACTIVE, NULL);
 	if (err) {
+		if (err == -EALREADY) {
+			scan_running = true;
+			master_leds_refresh();
+			printk("Scanning for %s* (already active)\n", prefix);
+			return;
+		}
 		printk("Failed to start scan: %d\n", err);
 		return;
 	}
@@ -2179,9 +2203,11 @@ int master_app_run(void)
 		printk("Bluetooth init failed: %d\n", err);
 		return err;
 	}
+	printk("Bluetooth init ok: bt_ready=%u\n", bt_is_ready() ? 1U : 0U);
 
 	if (IS_ENABLED(CONFIG_SETTINGS)) {
-		settings_load();
+		err = settings_load();
+		printk("Settings load rc=%d bt_ready=%u\n", err, bt_is_ready() ? 1U : 0U);
 	}
 
 	err = nus_client_init();
@@ -2189,6 +2215,7 @@ int master_app_run(void)
 		printk("NUS client init failed: %d\n", err);
 		return err;
 	}
+	printk("NUS client init ok: bt_ready=%u\n", bt_is_ready() ? 1U : 0U);
 
 	bt_conn_cb_register(&conn_callbacks);
 	bt_le_scan_cb_register(&scan_callbacks);
@@ -2199,7 +2226,7 @@ int master_app_run(void)
 		k_work_init_delayable(&peers[i].discovery_retry_work, discovery_retry_work_fn);
 	}
 
-	printk("BioSpur BLE master ready on nRF52840 DK\n");
+	printk("BioSpur BLE master ready on %s\n", CONFIG_BOARD_TARGET);
 	printk("Max connections: %u\n", MASTER_MAX_CONNECTIONS);
 	if (strlen(APP_MASTER_ONE_SHOT_CMD) != 0U) {
 		printk("One-shot NUS command armed (build): %s\n", APP_MASTER_ONE_SHOT_CMD);
@@ -2294,6 +2321,11 @@ void master_quiesce_peers(void)
 	master_leds_refresh();
 }
 
+void master_stop_discovery(void)
+{
+	stop_scan();
+}
+
 void master_restart_discovery(void)
 {
 	if (!recv_background_allowed()) {
@@ -2367,6 +2399,27 @@ int master_anchor_ctrl_ready_count(void)
 			continue;
 		}
 		if (!peer_matches_runtime_target(&peers[i])) {
+			continue;
+		}
+		count++;
+	}
+
+	return count;
+}
+
+int master_anchor_ctrl_target_peer_count(void)
+{
+	int count = 0;
+
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		if (peers[i].link_type != MASTER_LINK_ANCHOR_CTRL) {
+			continue;
+		}
+		if (!peer_matches_runtime_target(&peers[i])) {
+			continue;
+		}
+		if (!peers[i].connected && !peers[i].connect_pending &&
+		    !peers[i].setup_pending && !peers[i].discovery_inflight) {
 			continue;
 		}
 		count++;
@@ -2510,6 +2563,7 @@ int master_send_command_now(const char *cmd)
 {
 	size_t cmd_len;
 	int sent = 0;
+	int considered = 0;
 
 	if (cmd == NULL) {
 		return -EINVAL;
@@ -2525,11 +2579,31 @@ int master_send_command_now(const char *cmd)
 	cmd_len = strlen(cmd);
 	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
 		int err;
+		bool target_match;
 
 		if (!peers[i].connected || !peers[i].ready || peers[i].conn == NULL) {
 			continue;
 		}
-		if (!peer_matches_runtime_target(&peers[i])) {
+		considered++;
+		target_match = peer_matches_runtime_target(&peers[i]);
+		if (!target_match) {
+			char bs_name[MASTER_NAME_BUF_LEN];
+
+			bs_name[0] = '\0';
+			if (peers[i].bs_code_valid) {
+				snprintk(bs_name, sizeof(bs_name), "BS%04X",
+					 (unsigned int)peers[i].bs_code);
+			}
+			printk("BLE cmd skip[%zu]: target mismatch kind=%s target_name=%s target_uuid=%s peer_name=%s peer_bs=%s peer_uuid=%s link=%s ready=%u\n",
+			       i,
+			       runtime_target_kind_label(runtime_target_kind),
+			       runtime_target_name[0] != '\0' ? runtime_target_name : "-",
+			       runtime_target_uuid[0] != '\0' ? runtime_target_uuid : "-",
+			       peers[i].adv_name[0] != '\0' ? peers[i].adv_name : "-",
+			       bs_name[0] != '\0' ? bs_name : "-",
+			       peers[i].adv_uuid[0] != '\0' ? peers[i].adv_uuid : "-",
+			       link_type_label(peers[i].link_type),
+			       peers[i].ready ? 1U : 0U);
 			continue;
 		}
 
@@ -2555,6 +2629,15 @@ int master_send_command_now(const char *cmd)
 
 		sent++;
 		printk("BLE cmd sent[%zu]: %s\n", i, cmd);
+	}
+
+	if (sent == 0) {
+		printk("BLE cmd not sent: considered=%d target_kind=%s target_name=%s target_uuid=%s target_prefix=%s\n",
+		       considered,
+		       runtime_target_kind_label(runtime_target_kind),
+		       runtime_target_name[0] != '\0' ? runtime_target_name : "-",
+		       runtime_target_uuid[0] != '\0' ? runtime_target_uuid : "-",
+		       runtime_target_prefix[0] != '\0' ? runtime_target_prefix : "-");
 	}
 
 	return (sent > 0) ? sent : -ENOTCONN;

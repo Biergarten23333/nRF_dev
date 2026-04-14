@@ -597,7 +597,9 @@ def main() -> int:
     parser.add_argument("--distance-sigma-vertical-pair-mm", type=float, default=120.0)
     parser.add_argument("--height-prior-m", type=float, default=1.4)
     parser.add_argument("--height-sigma-mm", type=float, default=300.0)
-    parser.add_argument("--vertical-sigma-mm", type=float, default=320.0)
+    # Keep vertical-pair XY alignment disabled by default; upper/lower XY
+    # projections are not guaranteed to overlap in real installations.
+    parser.add_argument("--vertical-sigma-mm", type=float, default=0.0)
     parser.add_argument("--lower-plane-sigma-mm", type=float, default=120.0)
     parser.add_argument("--upper-plane-sigma-mm", type=float, default=180.0)
     parser.add_argument("--upper-level-sigma-mm", type=float, default=120.0)

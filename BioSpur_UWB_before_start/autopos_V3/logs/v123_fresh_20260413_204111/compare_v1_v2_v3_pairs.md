@@ -1,0 +1,52 @@
+# AutoPos V1 / V2 / V3-lite Pair Distance Compare
+
+- V1: `/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_V3/logs/v123_fresh_20260413_204111/solve_20260413_204111/v1/final_pair_distances.csv`
+- V2: `/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_V3/logs/v123_fresh_20260413_204111/solve_20260413_204111/v2/v2_fused/final_pair_distances_v2.csv`
+- V3-lite: `/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_V3/logs/v123_fresh_20260413_204111/solve_20260413_204111/v3_lite/v3_fused/final_pair_distances_v2.csv`
+
+## Per-Pair Table (mm)
+
+- Note: `distance_mm==0` treated as missing for all versions (`--zero-as-missing`).
+
+| Pair | V1 | V2 | V3 | abs(V2-V1) | abs(V3-V1) | abs(V3-V2) |
+|---|---:|---:|---:|---:|---:|---:|
+| A-B | 3556.68 | 3556.68 | 3556.68 | 0.00 | 0.00 | 0.00 |
+| A-C | 5707.83 | 5707.83 | 5707.83 | 0.00 | 0.00 | 0.00 |
+| A-D | 4041.79 | 4041.79 | 4041.79 | 0.00 | 0.00 | 0.00 |
+| A-E | 1872.97 | 1872.97 | 1872.97 | 0.00 | 0.00 | 0.00 |
+| A-F | 4058.29 | 4058.29 | 4058.29 | 0.00 | 0.00 | 0.00 |
+| A-G | 5643.45 | 5643.45 | 5643.45 | 0.00 | 0.00 | 0.00 |
+| A-H | 4254.08 | 4254.08 | 4254.08 | 0.00 | 0.00 | 0.00 |
+| B-C | 4234.15 | 4234.15 | 4234.15 | 0.00 | 0.00 | 0.00 |
+| B-D | 5172.13 | 5172.13 | 5172.13 | 0.00 | 0.00 | 0.00 |
+| B-E | 3857.11 | 3857.11 | 3857.11 | 0.00 | 0.00 | 0.00 |
+| B-F | 1457.52 | 1457.52 | 1457.52 | 0.00 | 0.00 | 0.00 |
+| B-G | 4115.72 | 4115.72 | 4115.72 | 0.00 | 0.00 | 0.00 |
+| B-H | 5511.02 | 5511.02 | 5511.02 | 0.00 | 0.00 | 0.00 |
+| C-D | 4878.09 | 4878.09 | 4878.09 | 0.00 | 0.00 | 0.00 |
+| C-E | 5469.06 | 5469.06 | 5469.06 | 0.00 | 0.00 | 0.00 |
+| C-F | 4116.45 | 4116.45 | 4116.45 | 0.00 | 0.00 | 0.00 |
+| C-G | 1609.69 | 1609.69 | 1609.69 | 0.00 | 0.00 | 0.00 |
+| C-H | 4226.67 | 4226.67 | 4226.67 | 0.00 | 0.00 | 0.00 |
+| D-E | 4174.92 | 4174.92 | 4174.92 | 0.00 | 0.00 | 0.00 |
+| D-F | 5499.49 | 5499.49 | 5499.49 | 0.00 | 0.00 | 0.00 |
+| D-G | 4124.44 | 4124.44 | 4124.44 | 0.00 | 0.00 | 0.00 |
+| D-H | 1791.27 | 1791.27 | 1791.27 | 0.00 | 0.00 | 0.00 |
+| E-F | 3422.77 | 3422.77 | 3422.77 | 0.00 | 0.00 | 0.00 |
+| E-G | 5343.02 | 5343.02 | 5343.02 | 0.00 | 0.00 | 0.00 |
+| E-H | 3710.88 | 3710.88 | 3710.88 | 0.00 | 0.00 | 0.00 |
+| F-G | 3851.58 | 3851.58 | 3851.58 | 0.00 | 0.00 | 0.00 |
+| F-H | 5934.60 | 5934.60 | 5934.60 | 0.00 | 0.00 | 0.00 |
+| G-H | 3815.43 | 3815.43 | 3815.43 | 0.00 | 0.00 | 0.00 |
+
+## Summary (absolute delta, mm)
+
+| Compare | n | mean | rms | max |
+|---|---:|---:|---:|---:|
+| V2 vs V1 | 28 | 0.00 | 0.00 | 0.00 |
+| V3 vs V1 | 28 | 0.00 | 0.00 | 0.00 |
+| V3 vs V2 | 28 | 0.00 | 0.00 | 0.00 |
+
+Notes:
+- Differences here are *algorithmic output deltas* given the captured data; if the runs used different sweep set counts or different hardware state, deltas can be dominated by data differences rather than solver differences.
+

@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import time
+import traceback
 from pathlib import Path
 
 import serial
@@ -38,6 +39,28 @@ def sw_line_min_quality(master: str, line: str) -> int | None:
     if not qualities:
         return None
     return min(qualities)
+
+
+def sw_line_pairs_below_quality(master: str, line: str, threshold: int) -> list[str]:
+    if threshold <= 0:
+        return []
+    try:
+        fields = line.split(f"SW-{master},", 1)[1].split(",")
+    except IndexError:
+        return []
+
+    bad = []
+    for idx in range(0, len(fields), 3):
+        if idx + 2 >= len(fields):
+            break
+        peer = fields[idx]
+        try:
+            quality = int(fields[idx + 2])
+        except ValueError:
+            continue
+        if quality < threshold:
+            bad.append(peer)
+    return bad
 
 
 def should_print_live_line(line: str, verbose: int) -> bool:
@@ -349,12 +372,244 @@ def preflight_clean_autopos_start(
     return ser, idle_ok
 
 
+def wait_for_patterns(
+    ser: serial.Serial,
+    logf,
+    port: str,
+    patterns: list[str],
+    timeout_s: float,
+    live_output: bool,
+    verbose: int,
+) -> tuple[serial.Serial, bool, str]:
+    deadline = time.time() + timeout_s
+    chunks = []
+    while time.time() < deadline:
+        try:
+            data = ser.read(4096)
+        except (SerialException, OSError):
+            emit(logf, "--- SERIAL DISCONNECTED, REOPEN ---\n", live_output, verbose)
+            try:
+                ser.close()
+            except Exception:
+                pass
+            ser = reopen_port(port)
+            emit(logf, "--- SERIAL REOPENED ---\n", live_output, verbose)
+            continue
+        if data:
+            text = data.decode("utf-8", "ignore")
+            chunks.append(text)
+            emit(logf, text, live_output, verbose)
+            merged = "".join(chunks)
+            if all(p in merged for p in patterns):
+                return ser, True, merged
+        else:
+            time.sleep(0.05)
+    return ser, False, "".join(chunks)
+
+
+def quarantine_tag_for_sweep(
+    ser: serial.Serial,
+    logf,
+    port: str,
+    target_name: str,
+    live_output: bool,
+    verbose: int,
+) -> tuple[serial.Serial, bool]:
+    emit(logf, f"PRECHECK: quarantining tag target {target_name} for sweep\n", live_output, verbose)
+
+    ser, status_text = send_cmd_collect_text(
+        ser,
+        logf,
+        port,
+        "status",
+        0.8,
+        live_output,
+        verbose,
+        resend_after_reopen=False,
+    )
+    if "Control status: mode=AUTOPOS" in status_text:
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
+            "mode recv",
+            3.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+        )
+        ser, _ = collect_for(ser, logf, 1.5, port, live_output, verbose)
+    elif "Control status: mode=OTA" in status_text:
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
+            "mode recv",
+            3.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+        )
+        ser, _ = collect_for(ser, logf, 1.5, port, live_output, verbose)
+
+    ser = send_cmd_collect(ser, logf, port, "device kind tag", 3.2, live_output, verbose)
+    ser, target_text = send_cmd_collect_text(
+        ser,
+        logf,
+        port,
+        f"ota_target name {target_name}",
+        1.0,
+        live_output,
+        verbose,
+    )
+
+    # Ack line can be dropped during serial backlog; verify with ota_target show as well.
+    ack_ok = (f"ota_target name rc=0 value={target_name.lower()}" in target_text) or \
+             (f"ota_target name rc=0 value={target_name}" in target_text)
+    ser, show_text = send_cmd_collect_text(
+        ser,
+        logf,
+        port,
+        "ota_target show",
+        0.8,
+        live_output,
+        verbose,
+    )
+    show_ok = (f"name={target_name.lower()}" in show_text) or (f"name={target_name}" in show_text)
+    if not (ack_ok or show_ok):
+        emit(logf, f"PRECHECK FAIL: ota_target name {target_name} not acknowledged\n", live_output, verbose)
+        return ser, False
+
+    # Ready signals can also be "already happened" and not re-emit (especially if Tag is
+    # already connected and streaming CM). Also note: "DISC complete/CFG_OK" may arrive
+    # during the *ota_target show* collection window (serial backlog), so include it.
+    ready_text = target_text + show_text
+    # Treat seeing CFG_OK/CM/BLE-ready as "ready" (DISC complete may not re-emit).
+    ready_ok = (
+        ("BLE[0] link ready" in ready_text) or
+        (f"{target_name} notify: CFG_OK" in ready_text) or
+        (("DISC complete[0]" in ready_text) and ("CFG_OK" in ready_text)) or
+        (f"{target_name} notify: CM;" in ready_text)
+    )
+    if not ready_ok:
+        ser, ready_ok, _ = wait_for_patterns(
+            ser,
+            logf,
+            port,
+            [f"{target_name} notify: CFG_OK"],
+            12.0,
+            live_output,
+            verbose,
+        )
+    if not ready_ok:
+        # If Tag is already streaming CM, accept it as ready.
+        ser, cm_ok, _ = wait_for_patterns(
+            ser,
+            logf,
+            port,
+            [f"{target_name} notify: CM;"],
+            2.5,
+            live_output,
+            verbose,
+        )
+        ready_ok = ready_ok or cm_ok
+    if not ready_ok:
+        ser = send_cmd_collect(ser, logf, port, "conn", 0.8, live_output, verbose)
+        ser, ready_ok, _ = wait_for_patterns(
+            ser,
+            logf,
+            port,
+            [f"{target_name} notify: CFG_OK"],
+            25.0,
+            live_output,
+            verbose,
+        )
+        if not ready_ok:
+            ser, cm_ok, _ = wait_for_patterns(
+                ser,
+                logf,
+                port,
+                [f"{target_name} notify: CM;"],
+                3.0,
+                live_output,
+                verbose,
+            )
+            ready_ok = ready_ok or cm_ok
+        if not ready_ok:
+            emit(logf, f"PRECHECK FAIL: tag {target_name} not connected/ready in RECV\n", live_output, verbose)
+            return ser, False
+
+    ser, mode_text = send_cmd_collect_text(
+        ser,
+        logf,
+        port,
+        "cmd MODE AOTA",
+        1.0,
+        live_output,
+        verbose,
+    )
+    mode_ok = "MODE_OK MODE=AOTA" in mode_text
+    if not mode_ok:
+        ser, mode_ok, more_mode_text = wait_for_patterns(
+            ser,
+            logf,
+            port,
+            ["MODE_OK MODE=AOTA"],
+            8.0,
+            live_output,
+            verbose,
+        )
+        mode_text += more_mode_text
+    if not mode_ok:
+        emit(logf, f"PRECHECK FAIL: tag {target_name} did not enter AOTA\n", live_output, verbose)
+        if "MODE_BAD" in mode_text or "cmd rc=-128" in mode_text:
+            emit(logf, "PRECHECK DETAIL: Tag command path rejected MODE AOTA\n", live_output, verbose)
+        return ser, False
+
+    ser, stream_text = send_cmd_collect_text(
+        ser,
+        logf,
+        port,
+        "cmd STREAM OFF",
+        0.8,
+        live_output,
+        verbose,
+    )
+    stream_ok = "STREAM_OK OFF" in stream_text
+    if not stream_ok:
+        ser, stream_ok, more_stream_text = wait_for_patterns(
+            ser,
+            logf,
+            port,
+            ["STREAM_OK OFF"],
+            6.0,
+            live_output,
+            verbose,
+        )
+        stream_text += more_stream_text
+    if not stream_ok:
+        if "UNKNOWN_CMD" in stream_text or "cmd rc=-128" in stream_text:
+            emit(
+                logf,
+                f"PRECHECK WARN: tag {target_name} did not support STREAM OFF; continuing because MODE AOTA already quarantined UWB activity\n",
+                live_output,
+                verbose,
+            )
+        else:
+            emit(logf, f"PRECHECK FAIL: tag {target_name} did not ack STREAM OFF\n", live_output, verbose)
+            return ser, False
+
+    emit(logf, f"PRECHECK PASS: tag {target_name} online but quarantined for sweep (MODE AOTA, STREAM OFF best-effort)\n", live_output, verbose)
+    return ser, True
+
+
 def round_capture(
     port: str,
     master: str,
     out_dir: Path,
     timeout_s: int,
     warmup_min_quality: int,
+    quiet_tag_name: str | None,
     live_output: bool = True,
     verbose: int = 2,
 ) -> dict:
@@ -372,8 +627,11 @@ def round_capture(
         "warmup_min_quality": warmup_min_quality,
         "warmup_sw_lines": [],
         "warmup_sw_count": 0,
+        "min_quality_seen": None,
+        "pairs_below_quality": {},
         "log_path": str(log_path),
         "error": "",
+        "warnings": [],
     }
     verified = set()
     ser = None
@@ -383,11 +641,38 @@ def round_capture(
             emit(logf, f"PORT={port}\n", live_output, verbose)
             emit(logf, f"START={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
             emit(logf, f"MASTER={master}\n", live_output, verbose)
-            time.sleep(1.0)
-            while ser.in_waiting:
-                data = ser.read(ser.in_waiting)
-                if data:
-                    emit(logf, data.decode("utf-8", "ignore"), live_output, verbose)
+            try:
+                time.sleep(1.0)
+                while ser.in_waiting:
+                    data = ser.read(ser.in_waiting)
+                    if data:
+                        emit(logf, data.decode("utf-8", "ignore"), live_output, verbose)
+            except Exception:
+                # Without this, early serial instability produces a nearly-empty log.
+                result["error"] = "serial_drain_failed"
+                emit(logf, "PRECHECK FAIL: serial drain failed\n", live_output, verbose)
+                emit(logf, traceback.format_exc() + "\n", live_output, verbose)
+                emit(logf, f"END={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
+                flush_live_buffer(logf, verbose)
+                return result
+
+            if quiet_tag_name:
+                ser, quiet_ok = quarantine_tag_for_sweep(
+                    ser,
+                    logf,
+                    port,
+                    quiet_tag_name,
+                    live_output,
+                    verbose,
+                )
+                if not quiet_ok:
+                    # Don't hard-fail sweep collection on quiet-tag precheck.
+                    # The sweep data is still valuable for diagnosis, and in many
+                    # cases the Tag is already offline/unconnected so it cannot
+                    # influence the anchor sweep anyway.
+                    warn = f"tag_quiet_failed:{quiet_tag_name}"
+                    result["warnings"].append(warn)
+                    emit(logf, f"PRECHECK WARN: tag quarantine not reached ({warn}); continuing sweep\n", live_output, verbose)
 
             ser, preflight_ok = preflight_clean_autopos_start(
                 ser,
@@ -473,15 +758,20 @@ def round_capture(
                                 f"SW-{master}," in line):
                             line = line.strip()
                             min_quality = sw_line_min_quality(master, line)
-                            if (min_quality is not None and warmup_min_quality > 0 and
-                                    min_quality < warmup_min_quality):
-                                result["warmup_sw_lines"].append(line)
-                                result["warmup_sw_count"] = len(result["warmup_sw_lines"])
-                                continue
                             result["sw_seen"] = True
                             result["sw_line"] = line
                             result["sw_lines"].append(line)
                             result["sw_count"] = len(result["sw_lines"])
+                            if min_quality is not None:
+                                current_min = result["min_quality_seen"]
+                                if current_min is None or min_quality < current_min:
+                                    result["min_quality_seen"] = min_quality
+                                if warmup_min_quality > 0 and min_quality < warmup_min_quality:
+                                    result["warmup_sw_lines"].append(line)
+                                    result["warmup_sw_count"] = len(result["warmup_sw_lines"])
+                                    result["pairs_below_quality"][line] = (
+                                        sw_line_pairs_below_quality(master, line, warmup_min_quality)
+                                    )
                     if (result["apply_success_seen"] and result["sweep_ready_seen"] and
                             result["sw_count"] >= round_capture.target_sw_sets):
                         result["success"] = True
@@ -501,6 +791,19 @@ def round_capture(
                     result["error"] = f"insufficient_sw_sets:{result['sw_count']}/{round_capture.target_sw_sets}"
             emit(logf, f"END={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
             flush_live_buffer(logf, verbose)
+    except Exception:
+        # Ensure the per-round log always captures the actual failure root cause.
+        # This prevents "logs are empty" when something explodes early.
+        result["error"] = result["error"] or "exception"
+        try:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            with open(log_path, "a", buffering=1) as logf:
+                emit(logf, "FATAL: exception in round_capture\n", live_output, verbose)
+                emit(logf, traceback.format_exc() + "\n", live_output, verbose)
+                emit(logf, f"END={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
+                flush_live_buffer(logf, verbose)
+        except Exception:
+            pass
     finally:
         if ser is not None:
             try:
@@ -521,10 +824,15 @@ def main() -> int:
         "--warmup-min-quality",
         type=int,
         default=90,
-        help="Discard and record post-ready SW lines until every reported peer quality is at least this value; use 0 to disable.",
+        help="Annotate post-ready SW lines whose minimum peer quality is below this value; does not block or discard sweep data. Use 0 to disable.",
     )
     parser.add_argument("--verbose", type=int, choices=[0, 1, 2], default=1,
                         help="Live stdout verbosity: 0=SW-X/failures only, 1=normal without ignored scan noise, 2=full flow")
+    parser.add_argument(
+        "--quiet-tag-name",
+        default="BSF66F",
+        help="Before each sweep round, connect to this Tag in RECV and force MODE AOTA + STREAM OFF so it stays online but does not influence anchor sweep. Use - to disable.",
+    )
     parser.add_argument("--out-dir", required=True, help="Output directory")
     parser.add_argument(
         "--no-live-output",
@@ -552,6 +860,7 @@ def main() -> int:
         "warmup_min_quality": args.warmup_min_quality,
         "timeout_s": args.timeout_s,
         "verbose": args.verbose,
+        "quiet_tag_name": None if args.quiet_tag_name == "-" else args.quiet_tag_name,
         "rounds": {},
         "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
@@ -560,15 +869,38 @@ def main() -> int:
         round_dir = out_dir / f"round_{master}"
         round_dir.mkdir(parents=True, exist_ok=True)
         print(f"=== AUTOPOS SWEEP {master} ===", flush=True)
-        result = round_capture(
-            args.port,
-            master,
-            round_dir,
-            args.timeout_s,
-            args.warmup_min_quality,
-            live_output=not args.no_live_output,
-            verbose=args.verbose,
-        )
+        try:
+            result = round_capture(
+                args.port,
+                master,
+                round_dir,
+                args.timeout_s,
+                args.warmup_min_quality,
+                None if args.quiet_tag_name == "-" else args.quiet_tag_name,
+                live_output=not args.no_live_output,
+                verbose=args.verbose,
+            )
+        except Exception:
+            # Defensive: round_capture itself is hardened, but still ensure the outer loop
+            # writes a summary.json instead of crashing and leaving "empty" outputs.
+            result = {
+                "master": master,
+                "success": False,
+                "sw_seen": False,
+                "apply_success_seen": False,
+                "sweep_ready_seen": False,
+                "verified_count": 0,
+                "sw_line": "",
+                "sw_lines": [],
+                "sw_count": 0,
+                "warmup_min_quality": args.warmup_min_quality,
+                "warmup_sw_lines": [],
+                "warmup_sw_count": 0,
+                "min_quality_seen": None,
+                "pairs_below_quality": {},
+                "log_path": str((round_dir / "master.log").resolve()),
+                "error": "exception_in_round_capture",
+            }
         summary["rounds"][master] = result
         with open(out_dir / "summary.json", "w", encoding="utf-8") as f:
             json.dump(summary, f, indent=2)

@@ -50,7 +50,9 @@ def main() -> int:
     parser.add_argument("--distance-sigma-vertical-pair-mm", type=float, default=120.0)
     parser.add_argument("--height-prior-m", type=float, default=1.4)
     parser.add_argument("--height-sigma-mm", type=float, default=300.0)
-    parser.add_argument("--vertical-sigma-mm", type=float, default=900.0)
+    # Vertical-pair XY alignment is often not physically true (upper/lower XY
+    # projections may be offset). Keep it disabled by default.
+    parser.add_argument("--vertical-sigma-mm", type=float, default=0.0)
     parser.add_argument("--lower-plane-sigma-mm", type=float, default=80.0)
     parser.add_argument("--upper-plane-sigma-mm", type=float, default=160.0)
     parser.add_argument("--upper-level-sigma-mm", type=float, default=35.0)
