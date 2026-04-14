@@ -433,6 +433,18 @@ def main() -> int:
     ap.add_argument("--floating-reference-z-sigma-mm", type=float, default=80.0)
     ap.add_argument("--sigma-dist-mm", type=float, default=80.0, help="base sigma for inter-anchor distances")
     ap.add_argument("--sigma-ref-mm", type=float, default=70.0, help="sigma for floating reference mean ranges")
+    # Soft constraints: keep defaults aligned with the repo's constrained solver.
+    ap.add_argument("--height-prior-m", type=float, default=1.4, help="Soft prior mean height for upper plane (E/F/G/H).")
+    ap.add_argument("--height-sigma-mm", type=float, default=300.0, help="1-sigma for the upper mean height prior.")
+    ap.add_argument("--lower-plane-sigma-mm", type=float, default=80.0, help="1-sigma for C.z deviation from z=0.")
+    ap.add_argument("--upper-level-sigma-mm", type=float, default=35.0, help="1-sigma for upper z spread around its mean.")
+    ap.add_argument("--pair-height-sigma-mm", type=float, default=45.0, help="1-sigma for vertical-pair height spread around its mean.")
+    ap.add_argument(
+        "--vertical-xy-sigma-mm",
+        type=float,
+        default=0.0,
+        help="Optional 1-sigma XY offset to softly encourage vertical-pair XY alignment. Set 0 to disable (recommended).",
+    )
     ap.add_argument("--max-iters", type=int, default=15)
     ap.add_argument("--tukey-c-mult", type=float, default=4.685, help="Tukey c = mult * sigma(MAD)")
     ap.add_argument(
@@ -511,6 +523,11 @@ def main() -> int:
     sigma_ref_m = float(args.sigma_ref_mm) / 1000.0
     z_prior_m = None if args.floating_reference_z_prior_mm is None else float(args.floating_reference_z_prior_mm) / 1000.0
     z_prior_sigma_m = float(args.floating_reference_z_sigma_mm) / 1000.0
+    height_sigma_m = float(args.height_sigma_mm) / 1000.0
+    lower_plane_sigma_m = float(args.lower_plane_sigma_mm) / 1000.0
+    upper_level_sigma_m = float(args.upper_level_sigma_mm) / 1000.0
+    pair_height_sigma_m = float(args.pair_height_sigma_mm) / 1000.0
+    vertical_xy_sigma_m = float(args.vertical_xy_sigma_mm) / 1000.0
 
     w_edges: dict[tuple[str, str], float] | None = None
     last_rms_mm = None
@@ -536,6 +553,12 @@ def main() -> int:
                 z_prior_m=z_prior_m,
                 z_prior_sigma_m=z_prior_sigma_m,
                 w_edges=w_edges,
+                height_prior_m=float(args.height_prior_m),
+                height_sigma_m=height_sigma_m,
+                lower_plane_sigma_m=lower_plane_sigma_m,
+                upper_level_sigma_m=upper_level_sigma_m,
+                pair_height_sigma_m=pair_height_sigma_m,
+                vertical_xy_sigma_m=vertical_xy_sigma_m,
             )
 
         # Use plain least squares; robustification is done via IRLS weights on edges.
@@ -651,6 +674,12 @@ def main() -> int:
             "sigma_ref_mm": float(args.sigma_ref_mm),
             "floating_reference_z_prior_mm": args.floating_reference_z_prior_mm,
             "floating_reference_z_sigma_mm": float(args.floating_reference_z_sigma_mm),
+            "height_prior_m": float(args.height_prior_m),
+            "height_sigma_mm": float(args.height_sigma_mm),
+            "lower_plane_sigma_mm": float(args.lower_plane_sigma_mm),
+            "upper_level_sigma_mm": float(args.upper_level_sigma_mm),
+            "pair_height_sigma_mm": float(args.pair_height_sigma_mm),
+            "vertical_xy_sigma_mm": float(args.vertical_xy_sigma_mm),
             "bias_sigma_mm": float(args.bias_sigma_mm),
             "bias_mu": float(args.bias_mu) if args.bias_mu is not None else None,
         },

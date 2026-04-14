@@ -282,6 +282,10 @@ def main() -> int:
             "8",
             "--converge-mm",
             "1.5",
+            # Floating-ref CM ranges are noisy and sometimes biased; keep them
+            # clearly "soft" so they don't collapse the inter-anchor geometry.
+            "--reference-sigma-mm",
+            "150",
             "--floating-reference-session",
             str(floating_ref_train_dir),
             "--floating-reference-z-prior-mm",

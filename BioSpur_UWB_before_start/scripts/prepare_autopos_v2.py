@@ -156,6 +156,10 @@ def main() -> int:
             "8",
             "--converge-mm",
             "1.5",
+            # Floating-ref CM ranges are noisy and sometimes biased; keep them
+            # clearly "soft" so they don't collapse the inter-anchor geometry.
+            "--reference-sigma-mm",
+            "150",
         ]
         # Enable floating-ref Z prior by default when floating reference data is available.
         z_prior_mm = args.floating_reference_z_prior_mm

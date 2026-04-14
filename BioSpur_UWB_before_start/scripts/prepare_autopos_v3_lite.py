@@ -148,6 +148,10 @@ def main() -> int:
             "90",
             "--distance-sigma-cross-plane-mm",
             "140",
+            # Floating-ref CM ranges are noisy and sometimes biased; keep them
+            # clearly "soft" so they don't collapse the inter-anchor geometry.
+            "--reference-sigma-mm",
+            "150",
         ]
         z_prior_mm = args.floating_reference_z_prior_mm
         if z_prior_mm is None and args.floating_reference_session:

@@ -17,47 +17,98 @@ def load_anchor_layout(path: Path) -> dict[str, Any]:
 
 
 def extract_anchor_map(layout: dict[str, Any]) -> dict[str, list[float]]:
+    """
+    Accept common layout formats:
+    - solve_anchor_layout*.py: {"anchors": {"A":[x,y,z], ...}, "units":"m|mm"}
+    - v3_full: {"anchors":[{"label":"A","x_mm":..,"y_mm":..,"z_mm":..}, ...], "units":"mm"}
+    """
     anchors = layout.get("anchors")
-    if not isinstance(anchors, dict):
-        raise ValueError("layout missing anchors{}")
-    out = {}
-    for k in ANCHORS:
-        v = anchors.get(k)
-        if isinstance(v, list) and len(v) >= 3:
-            out[k] = [float(v[0]), float(v[1]), float(v[2])]
+    units = str(layout.get("units") or "m").lower()
+    scale = 0.001 if units == "mm" else 1.0
+
+    out: dict[str, list[float]] = {}
+    if isinstance(anchors, dict):
+        for k in ANCHORS:
+            v = anchors.get(k)
+            if isinstance(v, list) and len(v) >= 3:
+                out[k] = [float(v[0]) * scale, float(v[1]) * scale, float(v[2]) * scale]
+    elif isinstance(anchors, list):
+        for e in anchors:
+            if not isinstance(e, dict):
+                continue
+            lbl = str(e.get("label") or "").strip().upper()
+            if lbl not in ANCHORS:
+                continue
+            if "x_mm" in e:
+                out[lbl] = [float(e["x_mm"]) * 0.001, float(e["y_mm"]) * 0.001, float(e.get("z_mm", 0.0)) * 0.001]
+            else:
+                out[lbl] = [float(e.get("x", 0.0)) * scale, float(e.get("y", 0.0)) * scale, float(e.get("z", 0.0)) * scale]
+    else:
+        raise ValueError("layout missing anchors")
+
     if len(out) != len(ANCHORS):
         raise ValueError("layout missing some anchors")
     return out
 
 
 def find_solved_reference_m(layout: dict[str, Any], session_dir: Path | None) -> list[float] | None:
+    # v1/v2/v3-lite format
     fr = layout.get("floating_reference_constraints")
-    if not isinstance(fr, list) or not fr:
+    if isinstance(fr, list) and fr:
+        if session_dir is None:
+            if len(fr) == 1 and isinstance(fr[0], dict):
+                v = fr[0].get("solved_reference_m")
+                if isinstance(v, list) and len(v) == 3:
+                    return [float(v[0]), float(v[1]), float(v[2])]
+            return None
+
+        want = str(session_dir.resolve())
+        for entry in fr:
+            if not isinstance(entry, dict):
+                continue
+            sd = entry.get("session_dir")
+            if not isinstance(sd, str):
+                continue
+            try:
+                got = str((Path(sd)).resolve())
+            except Exception:
+                got = sd
+            if got == want:
+                v = entry.get("solved_reference_m")
+                if isinstance(v, list) and len(v) == 3:
+                    return [float(v[0]), float(v[1]), float(v[2])]
+        return None
+
+    # v3_full format
+    fr2 = layout.get("floating_reference")
+    if not isinstance(fr2, list) or not fr2:
         return None
     if session_dir is None:
-        # if only one floating ref, accept it
-        if len(fr) == 1 and isinstance(fr[0], dict):
-            v = fr[0].get("solved_reference_m")
-            if isinstance(v, list) and len(v) == 3:
-                return [float(v[0]), float(v[1]), float(v[2])]
+        if len(fr2) != 1 or not isinstance(fr2[0], dict):
+            return None
+        rp = fr2[0].get("ref_point_mm") or fr2[0].get("ref_point_m")
+        if isinstance(rp, dict) and all(k in rp for k in ("x", "y", "z")):
+            scale = 0.001 if "ref_point_mm" in fr2[0] else 1.0
+            return [float(rp["x"]) * scale, float(rp["y"]) * scale, float(rp["z"]) * scale]
         return None
 
     want = str(session_dir.resolve())
-    for entry in fr:
+    for entry in fr2:
         if not isinstance(entry, dict):
             continue
         sd = entry.get("session_dir")
         if not isinstance(sd, str):
             continue
-        # session_dir in json is usually relative; resolve against cwd if possible
         try:
             got = str((Path(sd)).resolve())
         except Exception:
             got = sd
-        if got == want:
-            v = entry.get("solved_reference_m")
-            if isinstance(v, list) and len(v) == 3:
-                return [float(v[0]), float(v[1]), float(v[2])]
+        if got != want:
+            continue
+        rp = entry.get("ref_point_mm") or entry.get("ref_point_m")
+        if isinstance(rp, dict) and all(k in rp for k in ("x", "y", "z")):
+            scale = 0.001 if "ref_point_mm" in entry else 1.0
+            return [float(rp["x"]) * scale, float(rp["y"]) * scale, float(rp["z"]) * scale]
     return None
 
 
@@ -104,7 +155,7 @@ def main() -> int:
         # fallback: allow layout to contain exactly one floating ref
         ref = find_solved_reference_m(layout, None)
     if ref is None:
-        raise SystemExit("[error] layout json missing floating_reference_constraints.solved_reference_m")
+        raise SystemExit("[error] layout json missing solved floating reference point")
 
     ranges_csv = holdout_dir / "ranges.csv"
     if not ranges_csv.exists():
