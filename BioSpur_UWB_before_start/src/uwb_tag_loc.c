@@ -563,73 +563,96 @@ int uwb_tag_loc_solve(const struct uwb_tag_measurement *measurements,
     uwb_tag_loc_prune_candidates(candidates, &candidate_count);
     uwb_tag_loc_compute_bounds(candidates, candidate_count, &bounds);
 
-    for (uint32_t mask = 0U; mask < (1UL << candidate_count); ++mask) {
-        struct uwb_tag_loc_vector estimate;
-        double rms_m;
-        double max_residual_m;
-        double score;
-        double volume_penalty_m;
-        uint8_t subset_size;
-        uint8_t lower_count;
-        uint8_t upper_count;
+    /*
+     * Prefer 3D-observable subsets (>=2 lower and >=2 upper anchors).
+     * If the environment temporarily drops upper-plane visibility, degrade
+     * gracefully so localization keeps running instead of stalling forever.
+     */
+    const uint8_t plane_reqs[][2] = {
+        {2U, 2U},
+        {1U, 1U},
+        {0U, 0U},
+    };
 
-        subset_size = uwb_tag_loc_popcount_u32(mask);
-        if (subset_policy == UWB_TAG_LOC_SUBSET_POLICY_EXACT4 &&
-            subset_size != UWB_TAG_LOC_MIN_ANCHORS) {
-            continue;
+    for (size_t req_idx = 0U; req_idx < (sizeof(plane_reqs) / sizeof(plane_reqs[0])); ++req_idx) {
+        uint8_t req_lower = plane_reqs[req_idx][0];
+        uint8_t req_upper = plane_reqs[req_idx][1];
+
+        best_valid = false;
+        best_score = 0.0;
+
+        for (uint32_t mask = 0U; mask < (1UL << candidate_count); ++mask) {
+            struct uwb_tag_loc_vector estimate;
+            double rms_m;
+            double max_residual_m;
+            double score;
+            double volume_penalty_m;
+            uint8_t subset_size;
+            uint8_t lower_count;
+            uint8_t upper_count;
+
+            subset_size = uwb_tag_loc_popcount_u32(mask);
+            if (subset_policy == UWB_TAG_LOC_SUBSET_POLICY_EXACT4 &&
+                subset_size != UWB_TAG_LOC_MIN_ANCHORS) {
+                continue;
+            }
+
+            if (subset_size < UWB_TAG_LOC_MIN_ANCHORS) {
+                continue;
+            }
+
+            if (!uwb_tag_loc_linear_seed(candidates, candidate_count, mask,
+                                         &estimate)) {
+                continue;
+            }
+
+            if (!uwb_tag_loc_refine_gauss_newton(candidates, candidate_count, mask,
+                                                 &estimate)) {
+                continue;
+            }
+
+            uwb_tag_loc_compute_residuals(candidates, candidate_count, mask,
+                                          &estimate, &rms_m, &max_residual_m,
+                                          &lower_count, &upper_count);
+
+            if (lower_count < req_lower || upper_count < req_upper) {
+                continue;
+            }
+
+            if (uwb_tag_loc_subset_max_tetra_volume_m3(candidates, candidate_count,
+                                                       mask) <
+                UWB_TAG_LOC_MIN_TETRA_VOLUME_M3) {
+                continue;
+            }
+
+            score = rms_m * 1000.0 + max_residual_m * 1000.0 *
+                                         UWB_TAG_LOC_MAX_RES_WEIGHT +
+                    (double)(candidate_count - subset_size) *
+                        UWB_TAG_LOC_SIZE_PENALTY_MM;
+
+            volume_penalty_m =
+                uwb_tag_loc_axis_overshoot(estimate.x, bounds.min_x, bounds.max_x,
+                                           UWB_TAG_LOC_XY_MARGIN_M) +
+                uwb_tag_loc_axis_overshoot(estimate.y, bounds.min_y, bounds.max_y,
+                                           UWB_TAG_LOC_XY_MARGIN_M) +
+                uwb_tag_loc_axis_overshoot(estimate.z, bounds.min_z, bounds.max_z,
+                                           UWB_TAG_LOC_Z_MARGIN_M);
+            score += volume_penalty_m * 1000.0 * UWB_TAG_LOC_VOLUME_PENALTY_WEIGHT;
+
+            if (!best_valid || score < best_score) {
+                best_valid = true;
+                best_score = score;
+                best_mask = mask;
+                best_estimate = estimate;
+                best_rms_m = rms_m;
+                best_max_residual_m = max_residual_m;
+                best_lower_count = lower_count;
+                best_upper_count = upper_count;
+            }
         }
 
-        if (subset_size < UWB_TAG_LOC_MIN_ANCHORS) {
-            continue;
-        }
-
-        if (!uwb_tag_loc_linear_seed(candidates, candidate_count, mask,
-                                     &estimate)) {
-            continue;
-        }
-
-        if (!uwb_tag_loc_refine_gauss_newton(candidates, candidate_count, mask,
-                                             &estimate)) {
-            continue;
-        }
-
-        uwb_tag_loc_compute_residuals(candidates, candidate_count, mask,
-                                      &estimate, &rms_m, &max_residual_m,
-                                      &lower_count, &upper_count);
-
-        if (lower_count < 2U || upper_count < 2U) {
-            continue;
-        }
-
-        if (uwb_tag_loc_subset_max_tetra_volume_m3(candidates, candidate_count,
-                                                   mask) <
-            UWB_TAG_LOC_MIN_TETRA_VOLUME_M3) {
-            continue;
-        }
-
-        score = rms_m * 1000.0 + max_residual_m * 1000.0 *
-                                     UWB_TAG_LOC_MAX_RES_WEIGHT +
-                (double)(candidate_count - subset_size) *
-                    UWB_TAG_LOC_SIZE_PENALTY_MM;
-
-        volume_penalty_m =
-            uwb_tag_loc_axis_overshoot(estimate.x, bounds.min_x, bounds.max_x,
-                                       UWB_TAG_LOC_XY_MARGIN_M) +
-            uwb_tag_loc_axis_overshoot(estimate.y, bounds.min_y, bounds.max_y,
-                                       UWB_TAG_LOC_XY_MARGIN_M) +
-            uwb_tag_loc_axis_overshoot(estimate.z, bounds.min_z, bounds.max_z,
-                                       UWB_TAG_LOC_Z_MARGIN_M);
-        score += volume_penalty_m * 1000.0 * UWB_TAG_LOC_VOLUME_PENALTY_WEIGHT;
-
-        if (!best_valid || score < best_score) {
-            best_valid = true;
-            best_score = score;
-            best_mask = mask;
-            best_estimate = estimate;
-            best_rms_m = rms_m;
-            best_max_residual_m = max_residual_m;
-            best_lower_count = lower_count;
-            best_upper_count = upper_count;
+        if (best_valid) {
+            break;
         }
     }
 

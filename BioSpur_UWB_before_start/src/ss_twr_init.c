@@ -693,17 +693,28 @@ static bool ss_twr_init_location_plausible(
     uint32_t *step_mm_out)
 {
     uint32_t step_mm = 0U;
+    bool enforce_quality_limits = true;
 
     if (location == NULL) {
         return false;
     }
 
-    if (APP_TAG_OUTPUT_MAX_RMS_MM != 0U &&
+    /*
+     * In sparse-anchor operation (e.g. temporary visibility drop to 4-5 anchors),
+     * strict residual gates can reject every estimate and stall output forever.
+     */
+    if (location->used_anchor_count < 6U) {
+        enforce_quality_limits = false;
+    }
+
+    if (enforce_quality_limits &&
+        APP_TAG_OUTPUT_MAX_RMS_MM != 0U &&
         location->residual_rms_mm > APP_TAG_OUTPUT_MAX_RMS_MM) {
         return false;
     }
 
-    if (APP_TAG_OUTPUT_MAX_MAX_MM != 0U &&
+    if (enforce_quality_limits &&
+        APP_TAG_OUTPUT_MAX_MAX_MM != 0U &&
         location->residual_max_mm > APP_TAG_OUTPUT_MAX_MAX_MM) {
         return false;
     }
@@ -1388,7 +1399,7 @@ static void ss_twr_init_print_location_if_ready(void)
                                          sizeof(received_anchors));
         if (APP_TAG_PENDING_PRINT_PERIOD != 0U &&
             (ss_twr_init_sweep_count % APP_TAG_PENDING_PRINT_PERIOD) == 0U) {
-            printk("Tag solve pending: need >=4 valid anchors across both planes "
+            printk("Tag solve pending: need >=4 valid anchors with required plane coverage "
                    "plan=%s active=%u sweep_ms=%lu valid=[%s]\n",
                    ss_twr_init_plan_label(),
                    (unsigned int)ss_twr_init_active_anchor_count,
