@@ -10,9 +10,12 @@ snr="$1"
 hex_path="$(realpath "$2")"
 lock_file="${BIOSPUR_FLASH_LOCK_FILE:-/tmp/biospur_flash.lock}"
 lock_wait_s="${BIOSPUR_FLASH_LOCK_WAIT_S:-120}"
-allow_jlink_fallback="${BIOSPUR_FLASH_ALLOW_JLINK_FALLBACK:-0}"
+allow_jlink_fallback="${BIOSPUR_FLASH_ALLOW_JLINK_FALLBACK:-1}"
 jlink_device="${BIOSPUR_FLASH_JLINK_DEVICE:-}"
 force_jlink="${BIOSPUR_FLASH_FORCE_JLINK:-0}"
+# Default to JLinkExe path to avoid any possibility of SEGGER probe-selection GUI popups.
+# Set to 1 if you explicitly want the nrfjprog path.
+prefer_nrfjprog="${BIOSPUR_FLASH_PREFER_NRFJPROG:-0}"
 
 if [ -z "$jlink_device" ]; then
   if [ "$snr" = "683234364" ]; then
@@ -24,8 +27,22 @@ fi
 
 # Prevent VSCode Nordic background hotplug scanner from racing J-Link access
 # and triggering interactive probe-selection dialogs.
-pkill -f "nrfutil-device --json list --hotplug" >/dev/null 2>&1 || true
-sleep 0.2
+kill_jlink_racers() {
+  # VSCode nRF Connect keeps respawning this in the background.
+  pkill -f "nrfutil-device --json list --hotplug" >/dev/null 2>&1 || true
+  # Clear any stuck backend workers; they can keep an exclusive handle to the probe.
+  pkill -f "jlinkarm_nrf_worker_linux" >/dev/null 2>&1 || true
+}
+
+# Try a few times because the hotplug process can respawn immediately.
+for _i in $(seq 1 10); do
+  kill_jlink_racers
+  if pgrep -f "nrfutil-device --json list --hotplug" >/dev/null 2>&1; then
+    sleep 0.2
+    continue
+  fi
+  break
+done
 
 if [ ! -f "$hex_path" ]; then
   echo "[error] image not found: $hex_path" >&2
@@ -86,24 +103,47 @@ EOF
   JLinkExe -NoGui 1 -SelectEmuBySN "$snr" -CommanderScript "$jlink_cmd"
 }
 
-if [ "$force_jlink" != "1" ] && command -v nrfjprog >/dev/null 2>&1; then
-  ids="$(run_nrf_cmd nrfjprog --ids || true)"
-  if ! printf '%s\n' "$ids" | grep -qx "$snr"; then
-    echo "[error] target snr ${snr} not present in nrfjprog --ids list" >&2
-    echo "[info] visible probes:" >&2
-    printf '%s\n' "$ids" >&2
-    exit 4
+ensure_jlink_snr_present() {
+  # Non-interactive SN check that avoids nrfjprog/SeggerBackend popups.
+  local tmp rc
+  tmp="$(mktemp)"
+  rc=0
+  printf "ShowEmuList USB\nExit\n" | JLinkExe -NoGui 1 >"$tmp" 2>&1 || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    cat "$tmp" >&2
+    rm -f "$tmp"
+    return "$rc"
   fi
-fi
+  if ! grep -Eq "Serial number: ${snr}(,|\\b)" "$tmp"; then
+    echo "[error] target snr ${snr} not present in JLinkExe ShowEmuList USB output" >&2
+    echo "[info] visible probes:" >&2
+    grep -E "Serial number:" "$tmp" >&2 || true
+    rm -f "$tmp"
+    return 4
+  fi
+  rm -f "$tmp"
+  return 0
+}
+
+ensure_jlink_snr_present
 
 echo "[reset-before-flash] $snr"
 echo "[flash] $snr $hex_path"
 echo "[device] $jlink_device"
-# Use nrfjprog as the primary path to guarantee non-interactive SN-pinned flashing.
-# This avoids SEGGER probe-selection popups in multi-probe environments.
-if [ "$force_jlink" != "1" ] && command -v nrfjprog >/dev/null 2>&1; then
+# One more kill right before we touch the probe.
+kill_jlink_racers
+# Use JLinkExe by default to guarantee: no GUI probe selection + SN pinned.
+# If you truly need nrfjprog, set BIOSPUR_FLASH_PREFER_NRFJPROG=1.
+if [ "$force_jlink" = "1" ] || [ "$prefer_nrfjprog" != "1" ]; then
+  fallback_with_jlink
+  echo "[reset-after-flash] $snr"
+  exit 0
+fi
+
+if command -v nrfjprog >/dev/null 2>&1; then
   nrf_transport_error=0
   set +e
+  kill_jlink_racers
   run_nrf_cmd nrfjprog --reset -f NRF52 --snr "$snr"
   rc=$?
   set -e
@@ -116,6 +156,7 @@ if [ "$force_jlink" != "1" ] && command -v nrfjprog >/dev/null 2>&1; then
   fi
   if [ "$nrf_transport_error" -eq 0 ]; then
     set +e
+    kill_jlink_racers
     run_nrf_cmd nrfjprog --program "$hex_path" --sectorerase --verify -f NRF52 --snr "$snr"
     rc=$?
     set -e
@@ -129,6 +170,7 @@ if [ "$force_jlink" != "1" ] && command -v nrfjprog >/dev/null 2>&1; then
   fi
   if [ "$nrf_transport_error" -eq 0 ]; then
     set +e
+    kill_jlink_racers
     run_nrf_cmd nrfjprog --reset -f NRF52 --snr "$snr"
     rc=$?
     set -e

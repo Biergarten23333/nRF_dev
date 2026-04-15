@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import traceback
@@ -92,6 +93,11 @@ def flush_live_buffer(logf, verbose: int) -> None:
 def emit(logf, text: str, live_output: bool, verbose: int = 2) -> None:
     logf.write(text)
     if live_output:
+        # If the caller uses stdout as the log sink (e.g. quarantine_tags.py),
+        # don't double-print via the live-output path.
+        if logf in (sys.stdout, sys.stderr):
+            sys.stdout.flush()
+            return
         key = id(logf)
         buffer = _LIVE_LINE_BUFFERS.get(key, "") + text
         lines = buffer.splitlines(keepends=True)
@@ -119,6 +125,13 @@ def open_port(port: str, timeout_s: float) -> serial.Serial:
 
 def write_cmd(ser: serial.Serial, cmd: str) -> None:
     ser.write((cmd + "\n").encode())
+    ser.flush()
+
+
+def write_cmds(ser: serial.Serial, cmds: list[str]) -> None:
+    if not cmds:
+        return
+    ser.write(("".join(c + "\n" for c in cmds)).encode())
     ser.flush()
 
 
@@ -452,20 +465,41 @@ def quarantine_tag_for_sweep(
         )
         ser, _ = collect_for(ser, logf, 1.5, port, live_output, verbose)
 
-    ser = send_cmd_collect(ser, logf, port, "device kind tag", 3.2, live_output, verbose)
-    ser, target_text = send_cmd_collect_text(
+    # Multi-Tag safety:
+    # First clear filter and stop scan churn best-effort, then program target sequentially.
+    try:
+        ser = send_cmd_collect(ser, logf, port, "ota_target prefix -", 0.8, live_output, verbose)
+        ser = send_cmd_collect(ser, logf, port, "ota_target name -", 0.8, live_output, verbose)
+        ser, _ = collect_for(ser, logf, 0.4, port, live_output, verbose)
+    except Exception:
+        pass
+
+    ser = send_cmd_collect(ser, logf, port, "device kind tag", 1.2, live_output, verbose)
+    ser, _, _ = wait_for_patterns(
+        ser,
+        logf,
+        port,
+        ["device kind set: tag"],
+        8.0,
+        live_output,
+        verbose,
+    )
+    ser, name_text = send_cmd_collect_text(
         ser,
         logf,
         port,
         f"ota_target name {target_name}",
-        1.0,
+        1.2,
         live_output,
         verbose,
     )
+    ser = send_cmd_collect(ser, logf, port, "ota_target prefix BS", 1.0, live_output, verbose)
+    # Kick a fresh scan cycle with the newly-programmed filter.
+    ser = send_cmd_collect(ser, logf, port, "scan", 0.6, live_output, verbose)
 
-    # Ack line can be dropped during serial backlog; verify with ota_target show as well.
-    ack_ok = (f"ota_target name rc=0 value={target_name.lower()}" in target_text) or \
-             (f"ota_target name rc=0 value={target_name}" in target_text)
+    # Verify target via command ack and show output.
+    ack_ok = (f"ota_target name rc=0 value={target_name.lower()}" in name_text) or \
+             (f"ota_target name rc=0 value={target_name}" in name_text)
     ser, show_text = send_cmd_collect_text(
         ser,
         logf,
@@ -483,7 +517,7 @@ def quarantine_tag_for_sweep(
     # Ready signals can also be "already happened" and not re-emit (especially if Tag is
     # already connected and streaming CM). Also note: "DISC complete/CFG_OK" may arrive
     # during the *ota_target show* collection window (serial backlog), so include it.
-    ready_text = target_text + show_text
+    ready_text = name_text + show_text
     # Treat seeing CFG_OK/CM/BLE-ready as "ready" (DISC complete may not re-emit).
     ready_ok = (
         ("BLE[0] link ready" in ready_text) or
@@ -514,6 +548,7 @@ def quarantine_tag_for_sweep(
         )
         ready_ok = ready_ok or cm_ok
     if not ready_ok:
+        # Explicit connect (after filter is in place).
         ser = send_cmd_collect(ser, logf, port, "conn", 0.8, live_output, verbose)
         ser, ready_ok, _ = wait_for_patterns(
             ser,
@@ -539,33 +574,8 @@ def quarantine_tag_for_sweep(
             emit(logf, f"PRECHECK FAIL: tag {target_name} not connected/ready in RECV\n", live_output, verbose)
             return ser, False
 
-    ser, mode_text = send_cmd_collect_text(
-        ser,
-        logf,
-        port,
-        "cmd MODE AOTA",
-        1.0,
-        live_output,
-        verbose,
-    )
-    mode_ok = "MODE_OK MODE=AOTA" in mode_text
-    if not mode_ok:
-        ser, mode_ok, more_mode_text = wait_for_patterns(
-            ser,
-            logf,
-            port,
-            ["MODE_OK MODE=AOTA"],
-            8.0,
-            live_output,
-            verbose,
-        )
-        mode_text += more_mode_text
-    if not mode_ok:
-        emit(logf, f"PRECHECK FAIL: tag {target_name} did not enter AOTA\n", live_output, verbose)
-        if "MODE_BAD" in mode_text or "cmd rc=-128" in mode_text:
-            emit(logf, "PRECHECK DETAIL: Tag command path rejected MODE AOTA\n", live_output, verbose)
-        return ser, False
-
+    # Fast path: STREAM OFF directly (no mode switch), then fallback to MODE AOTA.
+    quarantine_mode = "unknown"
     ser, stream_text = send_cmd_collect_text(
         ser,
         logf,
@@ -587,20 +597,185 @@ def quarantine_tag_for_sweep(
             verbose,
         )
         stream_text += more_stream_text
-    if not stream_ok:
-        if "UNKNOWN_CMD" in stream_text or "cmd rc=-128" in stream_text:
-            emit(
+    if stream_ok:
+        quarantine_mode = "STREAM_OFF_ONLY"
+    else:
+        emit(
+            logf,
+            f"PRECHECK INFO: STREAM OFF direct path not ready for {target_name}; fallback MODE AOTA\n",
+            live_output,
+            verbose,
+        )
+
+        ser, mode_text = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            "cmd MODE AOTA",
+            1.0,
+            live_output,
+            verbose,
+        )
+        mode_ok = "MODE_OK MODE=AOTA" in mode_text
+        if not mode_ok:
+            ser, mode_ok, more_mode_text = wait_for_patterns(
+                ser,
                 logf,
-                f"PRECHECK WARN: tag {target_name} did not support STREAM OFF; continuing because MODE AOTA already quarantined UWB activity\n",
+                port,
+                ["MODE_OK MODE=AOTA"],
+                8.0,
                 live_output,
                 verbose,
             )
-        else:
-            emit(logf, f"PRECHECK FAIL: tag {target_name} did not ack STREAM OFF\n", live_output, verbose)
+            mode_text += more_mode_text
+        if not mode_ok:
+            emit(logf, f"PRECHECK FAIL: tag {target_name} did not enter AOTA\n", live_output, verbose)
+            if "MODE_BAD" in mode_text or "cmd rc=-128" in mode_text:
+                emit(logf, "PRECHECK DETAIL: Tag command path rejected MODE AOTA\n", live_output, verbose)
             return ser, False
 
-    emit(logf, f"PRECHECK PASS: tag {target_name} online but quarantined for sweep (MODE AOTA, STREAM OFF best-effort)\n", live_output, verbose)
+        # Retry STREAM OFF after MODE AOTA.
+        ser, stream_text = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            "cmd STREAM OFF",
+            0.8,
+            live_output,
+            verbose,
+        )
+        stream_ok = "STREAM_OK OFF" in stream_text
+        if not stream_ok:
+            ser, stream_ok, more_stream_text = wait_for_patterns(
+                ser,
+                logf,
+                port,
+                ["STREAM_OK OFF"],
+                6.0,
+                live_output,
+                verbose,
+            )
+            stream_text += more_stream_text
+        if not stream_ok:
+            if "UNKNOWN_CMD" in stream_text or "cmd rc=-128" in stream_text:
+                emit(
+                    logf,
+                    f"PRECHECK WARN: tag {target_name} did not support STREAM OFF; keeping MODE AOTA quarantine\n",
+                    live_output,
+                    verbose,
+                )
+                quarantine_mode = "MODE_AOTA_ONLY"
+            else:
+                emit(logf, f"PRECHECK FAIL: tag {target_name} did not ack STREAM OFF\n", live_output, verbose)
+                return ser, False
+        else:
+            quarantine_mode = "MODE_AOTA_PLUS_STREAM_OFF"
+
+    emit(
+        logf,
+        f"PRECHECK PASS: tag {target_name} quarantined for sweep ({quarantine_mode})\n",
+        live_output,
+        verbose,
+    )
+    # Stop any additional Tag churn after we are done (prevents accidental extra Tag connects in noisy RF).
+    try:
+        ser = send_cmd_collect(ser, logf, port, "ota_target prefix -", 0.8, live_output, verbose)
+        ser = send_cmd_collect(ser, logf, port, "ota_target name -", 0.8, live_output, verbose)
+    except Exception:
+        pass
     return ser, True
+
+
+def parse_quiet_tag_names(quiet_tag_name: str | None) -> list[str]:
+    """
+    Parse Tag BLE names to quarantine before each sweep round.
+
+    Backward compatible:
+    - legacy: --quiet-tag-name BSF66F
+    - new:    --quiet-tag-name 'BSF66F,BS2DCE,BSDC91' (comma/space separated)
+    - use '-' or empty to disable
+    """
+    if quiet_tag_name is None:
+        return []
+    s = quiet_tag_name.strip()
+    if s == "" or s == "-":
+        return []
+    parts = [p for p in re.split(r"[,\s]+", s) if p and p != "-"]
+    out: list[str] = []
+    seen = set()
+    for p in parts:
+        if p in seen:
+            continue
+        seen.add(p)
+        out.append(p)
+    return out
+
+
+def discover_quiet_tag_names_auto(
+    ser: serial.Serial,
+    logf,
+    port: str,
+    live_output: bool,
+    verbose: int,
+) -> tuple[serial.Serial, list[str]]:
+    """
+    Auto-discover Tag BLE names to quarantine before sweep.
+
+    Rule:
+    - include BSxxxx devices
+    - exclude anchors (known anchor UUIDs or names containing "Anchor")
+    """
+    ser, status_text = send_cmd_collect_text(
+        ser, logf, port, "status", 0.8, live_output, verbose, resend_after_reopen=False
+    )
+    if "Control status: mode=AUTOPOS" in status_text or "Control status: mode=OTA" in status_text:
+        ser = send_cmd_collect(
+            ser, logf, port, "mode recv", 3.0, live_output, verbose, resend_after_reopen=False
+        )
+        ser, _ = collect_for(ser, logf, 1.2, port, live_output, verbose)
+
+    # Clear target filters and request a broad BS scan snapshot.
+    setup_cmds = [
+        "device kind tag",
+        "ota_target token -1",
+        "ota_target name -",
+        "ota_target prefix BS",
+        "ota_target uuid -",
+        "scan",
+    ]
+    for c in setup_cmds:
+        emit(logf, f">>> {c}\n", live_output, verbose)
+    write_cmds(ser, setup_cmds)
+    ser, _, scan_text = collect_for_text(ser, logf, 4.0, port, live_output, verbose)
+
+    known_anchor_uuids = {u.upper() for u in UUIDS.values()}
+    found: list[str] = []
+    seen = set()
+
+    for line in scan_text.splitlines():
+        if "SCAN hit:" not in line:
+            continue
+        m_bs = re.search(r"\bbs=(BS[A-Z0-9]+)\b", line)
+        if not m_bs:
+            continue
+        bs_name = m_bs.group(1).upper()
+        m_name = re.search(r"\bname=([^ ]+)", line)
+        dev_name = (m_name.group(1) if m_name else "").lower()
+        if "anchor" in dev_name:
+            continue
+        m_uuid = re.search(r"\buuid=([A-F0-9]{32}|-)\b", line)
+        adv_uuid = m_uuid.group(1).upper() if m_uuid else "-"
+        if adv_uuid in known_anchor_uuids:
+            continue
+        if "target=anchor" in line:
+            continue
+        if bs_name in seen:
+            continue
+        seen.add(bs_name)
+        found.append(bs_name)
+
+    emit(logf, f"PRECHECK AUTO: discovered quiet tags={found}\n", live_output, verbose)
+    return ser, found
 
 
 def round_capture(
@@ -610,6 +785,8 @@ def round_capture(
     timeout_s: int,
     warmup_min_quality: int,
     quiet_tag_name: str | None,
+    quiet_tag_retries: int,
+    quiet_tag_required: bool,
     live_output: bool = True,
     verbose: int = 2,
 ) -> dict:
@@ -656,23 +833,57 @@ def round_capture(
                 flush_live_buffer(logf, verbose)
                 return result
 
-            if quiet_tag_name:
-                ser, quiet_ok = quarantine_tag_for_sweep(
-                    ser,
-                    logf,
-                    port,
-                    quiet_tag_name,
-                    live_output,
-                    verbose,
+            configured_qnames = parse_quiet_tag_names(quiet_tag_name)
+            qnames: list[str] = []
+            if quiet_tag_name and quiet_tag_name.strip().lower() == "auto":
+                ser, qnames = discover_quiet_tag_names_auto(
+                    ser, logf, port, live_output, verbose
                 )
+            else:
+                qnames = configured_qnames
+
+            for qname in qnames:
+                quiet_ok = False
+                max_attempts = max(1, int(quiet_tag_retries))
+                for attempt in range(1, max_attempts + 1):
+                    if attempt > 1:
+                        emit(
+                            logf,
+                            f"PRECHECK RETRY: quarantining tag {qname} attempt={attempt}/{max_attempts}\n",
+                            live_output,
+                            verbose,
+                        )
+                        ser, _ = collect_for(ser, logf, 0.6, port, live_output, verbose)
+                    ser, quiet_ok = quarantine_tag_for_sweep(
+                        ser,
+                        logf,
+                        port,
+                        qname,
+                        live_output,
+                        verbose,
+                    )
+                    if quiet_ok:
+                        break
                 if not quiet_ok:
-                    # Don't hard-fail sweep collection on quiet-tag precheck.
-                    # The sweep data is still valuable for diagnosis, and in many
-                    # cases the Tag is already offline/unconnected so it cannot
-                    # influence the anchor sweep anyway.
-                    warn = f"tag_quiet_failed:{quiet_tag_name}"
+                    warn = f"tag_quiet_failed:{qname}"
+                    if quiet_tag_required:
+                        result["error"] = warn
+                        emit(
+                            logf,
+                            f"PRECHECK FAIL: tag quarantine required but not reached ({warn}); aborting sweep round\n",
+                            live_output,
+                            verbose,
+                        )
+                        emit(logf, f"END={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
+                        flush_live_buffer(logf, verbose)
+                        return result
                     result["warnings"].append(warn)
-                    emit(logf, f"PRECHECK WARN: tag quarantine not reached ({warn}); continuing sweep\n", live_output, verbose)
+                    emit(
+                        logf,
+                        f"PRECHECK WARN: tag quarantine not reached ({warn}); continuing sweep\n",
+                        live_output,
+                        verbose,
+                    )
 
             ser, preflight_ok = preflight_clean_autopos_start(
                 ser,
@@ -830,8 +1041,19 @@ def main() -> int:
                         help="Live stdout verbosity: 0=SW-X/failures only, 1=normal without ignored scan noise, 2=full flow")
     parser.add_argument(
         "--quiet-tag-name",
-        default="BSF66F",
-        help="Before each sweep round, connect to this Tag in RECV and force MODE AOTA + STREAM OFF so it stays online but does not influence anchor sweep. Use - to disable.",
+        default="auto",
+        help="Before each sweep round, quarantine Tag(s) with MODE AOTA + STREAM OFF. Use 'auto' to discover all non-Anchor BSxxxx tags, or pass list like 'BSF66F,BS2DCE'. Use - to disable.",
+    )
+    parser.add_argument(
+        "--quiet-tag-retries",
+        type=int,
+        default=3,
+        help="Retry count per Tag quarantine attempt before giving up.",
+    )
+    parser.add_argument(
+        "--quiet-tag-required",
+        action="store_true",
+        help="If set, abort the sweep round when any configured/discovered Tag cannot be quarantined.",
     )
     parser.add_argument("--out-dir", required=True, help="Output directory")
     parser.add_argument(
@@ -860,7 +1082,10 @@ def main() -> int:
         "warmup_min_quality": args.warmup_min_quality,
         "timeout_s": args.timeout_s,
         "verbose": args.verbose,
-        "quiet_tag_name": None if args.quiet_tag_name == "-" else args.quiet_tag_name,
+        "quiet_tag_names_config": None if args.quiet_tag_name == "-" else args.quiet_tag_name,
+        "quiet_tag_names": parse_quiet_tag_names(None if args.quiet_tag_name == "-" else args.quiet_tag_name),
+        "quiet_tag_retries": args.quiet_tag_retries,
+        "quiet_tag_required": bool(args.quiet_tag_required),
         "rounds": {},
         "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
@@ -877,6 +1102,8 @@ def main() -> int:
                 args.timeout_s,
                 args.warmup_min_quality,
                 None if args.quiet_tag_name == "-" else args.quiet_tag_name,
+                args.quiet_tag_retries,
+                bool(args.quiet_tag_required),
                 live_output=not args.no_live_output,
                 verbose=args.verbose,
             )

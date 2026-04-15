@@ -109,8 +109,30 @@ def run_anchor_responder(
     # Enter AUTOPOS and map anchors.
     ser = send_cmd_collect(ser, logf, port, "mode autopos", 1.0, True, 1)
     ser = send_cmd_collect(ser, logf, port, "device kind anchor", 0.6, True, 1)
+    # Mapping a full A-H table is a hard prerequisite for "anchor role all ...".
+    # With a short serial timeout it's easy to miss the confirmation line and
+    # immediately proceed, which causes unmapped anchors to be skipped later.
     for label, uuid in UUIDS.items():
-        ser = send_cmd_collect(ser, logf, port, f"autopos map {label} {uuid}", 0.25, True, 1)
+        want = f"AUTOPOS map set: {label}={uuid}"
+        ok = False
+        for attempt in range(1, 4):
+            ser, txt = send_cmd_collect_text(
+                ser,
+                logf,
+                port,
+                f"autopos map {label} {uuid}",
+                0.9,
+                True,
+                1,
+            )
+            if want in txt:
+                ok = True
+                break
+            logf.write(f"AUTOPOS_MAP_RETRY label={label} attempt={attempt}/3\n")
+            time.sleep(0.15)
+        if not ok:
+            logf.write(f"PRECHECK FAIL: autopos map did not confirm label={label} uuid={uuid}\n")
+            return ser, False
 
     ser = send_cmd_collect(ser, logf, port, "anchor role all responder", 0.6, True, 1)
 

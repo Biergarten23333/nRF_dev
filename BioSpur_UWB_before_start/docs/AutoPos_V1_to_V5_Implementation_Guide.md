@@ -420,6 +420,31 @@ Notes:
 - `sdp_init_v3.py` uses `cvxpy`+SCS if available; otherwise it falls back to classical MDS.
 - Current V3_full implementation consumes Tag115 CM as **floating reference mean ranges** (aggregated capture), not a per-epoch Ref115 localization loop.
 
+### V3_full Two-Stage Solve (ABCD first, then EFGH)
+
+For your physical deployment (ABCD on lower plane, EFGH on upper plane with non-zero XY projection),
+use a two-stage solve strategy to improve convergence stability:
+
+1. **Stage-1 (Lower plane core): solve ABCD first**
+   - Build a filtered `pairs_all_stage1.csv` that keeps only pair records among `{A,B,C,D}`.
+   - Run V3 fusion + V3_full solve on this stage-1 CSV.
+   - Output: stable lower-plane geometry (`A/B/C/D`) as seed anchor frame.
+
+2. **Stage-2 (Full 8 anchors): solve A..H with Stage-1 seed**
+   - Build `pairs_all_stage2.csv` that contains all anchors `{A..H}`.
+   - Run V3 fusion on full data.
+   - Run `solve_anchor_layout_v3_full.py` with `--seed-layout <stage1_layout.json>`.
+   - Keep soft vertical/level constraints enabled (height prior, upper-level sigma, pair-height sigma).
+
+Why this helps:
+- Stage-1 anchors the global frame using the strongest lower-plane edges first.
+- Stage-2 then introduces upper-plane anchors with better initialization and fewer large early residual jumps.
+- In practice this reduces local-minimum sensitivity versus solving all 8 anchors from scratch under noisy cross-plane links.
+
+Implementation note:
+- Current scripts do not have a direct `--anchors A,B,C,D` option.
+- The standard workflow is to pre-filter `pairs_all.csv` into stage-specific CSVs, then reuse existing V3 fusion + solver commands.
+
 ### Step 1: V3 Fusion (Minimum Variance)
 
 ```python

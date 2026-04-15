@@ -1914,29 +1914,28 @@ static void control_handle_uart_command(const char *line)
 				system_target_print();
 				return;
 			}
-			if (strcmp(arg2, "tag") == 0) {
-				system_target_set_kind(SYS_DEV_TAG);
-				master_clear_one_shot_command();
-				master_disconnect_all_peers();
-				(void)master_ota_target_set_token(-1);
-				(void)master_ota_target_set_name("");
-				(void)master_ota_target_set_prefix("BS");
-				(void)master_ota_target_set_uuid("");
-				ota_target_token_cfg = -1;
-				ota_target_name_cfg[0] = '\0';
-				(void)snprintf(ota_target_prefix_cfg, sizeof(ota_target_prefix_cfg), "BS");
-				ota_target_uuid_cfg[0] = '\0';
-				master_set_runtime_target_kind(MASTER_TARGET_TAG);
-				master_set_runtime_target_token(-1);
-				master_set_runtime_target_name("");
-				master_set_runtime_target_prefix("BS");
-				master_set_runtime_target_uuid("");
-				printk("device kind set: tag\n");
-				if (control_mode == CONTROL_MODE_RECV) {
-					master_set_connect_and_start_mode();
-					control_wait_for_peer_clear(3000);
-					master_restart_discovery();
-				}
+				if (strcmp(arg2, "tag") == 0) {
+					system_target_set_kind(SYS_DEV_TAG);
+					master_clear_one_shot_command();
+					master_disconnect_all_peers();
+					/* Preserve ota_target name/prefix/uuid across kind switches.
+					 *
+					 * Host-side scripts may set `ota_target name <BSxxxx>` before switching to
+					 * `device kind tag`, expecting the filter to be active immediately when RECV
+					 * restarts discovery. Resetting the filter here creates a race where the
+					 * master can connect to the wrong Tag first in a multi-Tag environment.
+					 *
+					 * We only reset token to the safe default (-1). */
+					(void)master_ota_target_set_token(-1);
+					ota_target_token_cfg = -1;
+					master_set_runtime_target_kind(MASTER_TARGET_TAG);
+					master_set_runtime_target_token(-1);
+					printk("device kind set: tag (OTA target preserved)\n");
+					if (control_mode == CONTROL_MODE_RECV) {
+						master_set_connect_and_start_mode();
+						control_wait_for_peer_clear(3000);
+						master_restart_discovery();
+					}
 				system_target_print();
 				return;
 			}
