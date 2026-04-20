@@ -130,7 +130,8 @@ static int anchor_role_runtime_flags(uint8_t role, uint8_t *out_master,
 }
 
 static int anchor_run_runtime_role(uint8_t anchor_id_runtime, uint8_t anchor_id_cfg,
-                                   uint8_t role, bool cfg_valid)
+                                   uint8_t role, bool cfg_valid,
+                                   uint32_t master_sweep_limit)
 {
     uint8_t anchor_peer_ids[UWB_MAX_ANCHORS];
     const uint8_t *anchor_peer_ids_ptr = NULL;
@@ -169,12 +170,19 @@ static int anchor_run_runtime_role(uint8_t anchor_id_runtime, uint8_t anchor_id_
                    (unsigned int)peer_count);
         }
 
-        ret = ss_twr_anchor_init_start(anchor_id_runtime, anchor_peer_ids_ptr, peer_count);
+        ret = ss_twr_anchor_init_start(anchor_id_runtime, anchor_peer_ids_ptr, peer_count,
+                                       master_sweep_limit);
         uart_role_switch_set_ranging_active(false);
         anchor_ble_ctrl_set_busy(false);
         if (ret != 0) {
             printk("ss_twr_anchor_init_start failed: %d\n", ret);
             return ret;
+        }
+        if (master_sweep_limit != 0U &&
+            anchor_runtime_requested_role() == ANCHOR_ROLE_UNSET) {
+            printk("Anchor master finite sweep auto-return to matrix after %lu sets\n",
+                   (unsigned long)master_sweep_limit);
+            anchor_runtime_request_role_switch(ANCHOR_ROLE_MATRIX, 0U);
         }
         printk("Anchor master ranging stopped; control plane remains active\n");
         return 0;
@@ -209,6 +217,7 @@ int anchor_app_run(void)
     char mcu_uid_hex[17];
     char bs_code[7];
     int ret = uwb_hw_bringup_and_init();
+    uint32_t effective_master_sweep_limit = 0U;
     if (ret) {
         return ret;
     }
@@ -334,7 +343,7 @@ int anchor_app_run(void)
         uint8_t next_role;
 
         ret = anchor_run_runtime_role(anchor_id_runtime, anchor_id_cfg, effective_role,
-                                      cfg_valid);
+                                      cfg_valid, effective_master_sweep_limit);
         if (ret != 0) {
             return ret;
         }
@@ -344,6 +353,7 @@ int anchor_app_run(void)
             return 0;
         }
 
+        effective_master_sweep_limit = anchor_runtime_requested_master_sweeps();
         anchor_runtime_clear_role_switch();
         effective_role = next_role;
         ret = anchor_role_runtime_flags(effective_role, &effective_master,
