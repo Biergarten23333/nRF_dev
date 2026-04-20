@@ -27,12 +27,22 @@ case "$input_path" in
     ;;
   *)
     build_root="$(realpath "$input_path")"
-    if [ -f "$build_root/zephyr/zephyr.hex" ]; then
+    # Support both non-sysbuild builds (zephyr/*) and sysbuild outputs
+    # where merged.hex may live at the build root and the app image is under anchor/zephyr/*.
+    if [ -f "$build_root/merged.hex" ]; then
+      # Sysbuild top-level merged image (MCUboot + app). Preferred for direct flashing.
+      hex_path="$build_root/merged.hex"
+    elif [ -f "$build_root/anchor/zephyr/zephyr.hex" ]; then
+      hex_path="$build_root/anchor/zephyr/zephyr.hex"
+    elif [ -f "$build_root/anchor/zephyr/merged.hex" ]; then
+      hex_path="$build_root/anchor/zephyr/merged.hex"
+    elif [ -f "$build_root/zephyr/zephyr.hex" ]; then
       hex_path="$build_root/zephyr/zephyr.hex"
     elif [ -f "$build_root/zephyr/merged.hex" ]; then
       hex_path="$build_root/zephyr/merged.hex"
     else
-      echo "Could not find zephyr.hex or merged.hex under: $build_root" >&2
+      echo "Could not find a flashable hex under: $build_root" >&2
+      echo "Tried: merged.hex, anchor/zephyr/{zephyr,merged}.hex, zephyr/{zephyr,merged}.hex" >&2
       exit 1
     fi
     ;;

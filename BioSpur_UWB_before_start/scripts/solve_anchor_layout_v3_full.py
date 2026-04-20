@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 """
-V3_full solver (practical implementation in this repo):
+V3_full / V3_box / V3_free solver (practical implementation in this repo):
 
 - Input: inter-anchor distances (mm) in the common "inter_anchor_matrix*.json" format
   (for V3 fusion, generate with scripts/fuse_bidirectional_matrix_v3.py).
@@ -12,6 +12,12 @@ V3_full solver (practical implementation in this repo):
   - SDP/MDS seed (scripts/sdp_init_v3.py)
   - Antenna-delay (per-anchor additive bias) joint estimation
   - Tukey bisquare IRLS on inter-anchor residuals
+
+Geometry modes in this file:
+  - box: preserve approximate upper/lower paired-column structure
+         (E-A, F-B, G-C, H-D height similarity; optional XY alignment).
+  - free: only preserve a lower height band (A-D) and an upper height band
+          (E-H), without enforcing paired columns.
 
 Notes on "antenna delay" modeling:
   We model a per-anchor additive bias b_i in meters:
@@ -242,12 +248,15 @@ def build_residuals(
     z_prior_sigma_m: float,
     w_edges: dict[tuple[str, str], float] | None,
     # Soft constraints (all optional; pass sigma<=0 to disable).
+    geometry_mode: str,
     height_prior_m: float,
     height_sigma_m: float,
     lower_plane_sigma_m: float,
     upper_level_sigma_m: float,
     pair_height_sigma_m: float,
     vertical_xy_sigma_m: float,
+    band_separation_prior_m: float | None,
+    band_separation_sigma_m: float,
 ) -> np.ndarray:
     st = unpack_vars(x, n_refs, biases_m, ref_biases_m)
     res = []
@@ -276,35 +285,53 @@ def build_residuals(
     # -----------------------
     # Soft structural priors:
     # -----------------------
-    # 1) Lower plane: encourage C to be close to z=0 (A/B/D are gauge-fixed to z=0).
+    # A/B/D define the gauge plane (z=0). C.z measures lower-cluster deviation
+    # from that plane; in "free" mode this is interpreted as allowed lower-band
+    # spread rather than strict coplanarity.
     if lower_plane_sigma_m > 0.0:
         res.append(float(st.anchors["C"][2]) / float(lower_plane_sigma_m))
 
-    # 2) Upper cluster height coherence: E/F/G/H z should be close to each other.
+    # Upper-band coherence: E/F/G/H z should remain a height-cluster even in
+    # free mode; "box" just interprets this more structurally.
     upper_z = [float(st.anchors[a][2]) for a in ("E", "F", "G", "H")]
     res.extend(mean_centered_residuals(upper_z, upper_level_sigma_m))
 
-    # 3) Upper mean height prior: mean(z_E..z_H) ≈ height_prior_m.
-    if height_sigma_m > 0.0:
-        res.append((float(np.mean(np.asarray(upper_z))) - float(height_prior_m)) / float(height_sigma_m))
+    lower_z = [float(st.anchors[a][2]) for a in ("A", "B", "C", "D")]
+    upper_mean = float(np.mean(np.asarray(upper_z)))
+    lower_mean = float(np.mean(np.asarray(lower_z)))
 
-    # 4) Vertical-pair height consistency: (E-A),(F-B),(G-C),(H-D) dz should be similar.
-    pair_heights = [
-        float(st.anchors["E"][2] - st.anchors["A"][2]),
-        float(st.anchors["F"][2] - st.anchors["B"][2]),
-        float(st.anchors["G"][2] - st.anchors["C"][2]),
-        float(st.anchors["H"][2] - st.anchors["D"][2]),
-    ]
-    res.extend(mean_centered_residuals(pair_heights, pair_height_sigma_m))
+    if geometry_mode == "box":
+        # Box mode: the upper cluster has a soft absolute height prior, and
+        # paired columns should have similar vertical translation.
+        if height_sigma_m > 0.0:
+            res.append((upper_mean - float(height_prior_m)) / float(height_sigma_m))
 
-    # 5) Optional: vertical-pair XY alignment (disabled by default; real installs can be offset).
-    if vertical_xy_sigma_m > 0.0:
-        pairs = [("A", "E"), ("B", "F"), ("C", "G"), ("D", "H")]
-        for lo, up in pairs:
-            dx = float(st.anchors[up][0] - st.anchors[lo][0])
-            dy = float(st.anchors[up][1] - st.anchors[lo][1])
-            res.append(dx / float(vertical_xy_sigma_m))
-            res.append(dy / float(vertical_xy_sigma_m))
+        pair_heights = [
+            float(st.anchors["E"][2] - st.anchors["A"][2]),
+            float(st.anchors["F"][2] - st.anchors["B"][2]),
+            float(st.anchors["G"][2] - st.anchors["C"][2]),
+            float(st.anchors["H"][2] - st.anchors["D"][2]),
+        ]
+        res.extend(mean_centered_residuals(pair_heights, pair_height_sigma_m))
+
+        if vertical_xy_sigma_m > 0.0:
+            pairs = [("A", "E"), ("B", "F"), ("C", "G"), ("D", "H")]
+            for lo, up in pairs:
+                dx = float(st.anchors[up][0] - st.anchors[lo][0])
+                dy = float(st.anchors[up][1] - st.anchors[lo][1])
+                res.append(dx / float(vertical_xy_sigma_m))
+                res.append(dy / float(vertical_xy_sigma_m))
+    elif geometry_mode == "free":
+        # Free mode: no fixed column pairing. Keep only lower-band / upper-band
+        # separation and upper-band compactness.
+        if band_separation_prior_m is not None and band_separation_sigma_m > 0.0:
+            res.append(((upper_mean - lower_mean) - float(band_separation_prior_m)) / float(band_separation_sigma_m))
+        elif height_sigma_m > 0.0:
+            # Fallback for legacy callers: treat height_prior_m as absolute upper
+            # mean height when no explicit inter-band prior is supplied.
+            res.append((upper_mean - float(height_prior_m)) / float(height_sigma_m))
+    else:  # pragma: no cover
+        raise ValueError(f"unsupported geometry_mode={geometry_mode}")
 
     return np.asarray(res, dtype=float)
 
@@ -428,6 +455,12 @@ def main() -> int:
     ap.add_argument("--input", required=True, help="inter_anchor_matrix_*.json (mm)")
     ap.add_argument("--output", required=True, help="output layout json")
     ap.add_argument("--seed-layout", default=None, help="optional seed layout json (mm/m)")
+    ap.add_argument(
+        "--geometry-mode",
+        choices=("box", "free"),
+        default="box",
+        help="box: approximate paired upper/lower columns; free: only lower-band / upper-band separation.",
+    )
     ap.add_argument("--floating-reference-session", action="append", default=[], help="Tag115 CM ranges session dir; may repeat")
     ap.add_argument("--floating-reference-z-prior-mm", type=float, default=None)
     ap.add_argument("--floating-reference-z-sigma-mm", type=float, default=80.0)
@@ -444,6 +477,18 @@ def main() -> int:
         type=float,
         default=0.0,
         help="Optional 1-sigma XY offset to softly encourage vertical-pair XY alignment. Set 0 to disable (recommended).",
+    )
+    ap.add_argument(
+        "--band-separation-prior-mm",
+        type=float,
+        default=None,
+        help="Free mode: expected mean height gap between upper band (E-H) and lower band (A-D).",
+    )
+    ap.add_argument(
+        "--band-separation-sigma-mm",
+        type=float,
+        default=250.0,
+        help="Free mode: 1-sigma for upper/lower band mean-height separation.",
     )
     ap.add_argument("--max-iters", type=int, default=15)
     ap.add_argument("--tukey-c-mult", type=float, default=4.685, help="Tukey c = mult * sigma(MAD)")
@@ -528,6 +573,8 @@ def main() -> int:
     upper_level_sigma_m = float(args.upper_level_sigma_mm) / 1000.0
     pair_height_sigma_m = float(args.pair_height_sigma_mm) / 1000.0
     vertical_xy_sigma_m = float(args.vertical_xy_sigma_mm) / 1000.0
+    band_separation_prior_m = None if args.band_separation_prior_mm is None else float(args.band_separation_prior_mm) / 1000.0
+    band_separation_sigma_m = float(args.band_separation_sigma_mm) / 1000.0
 
     w_edges: dict[tuple[str, str], float] | None = None
     last_rms_mm = None
@@ -553,12 +600,15 @@ def main() -> int:
                 z_prior_m=z_prior_m,
                 z_prior_sigma_m=z_prior_sigma_m,
                 w_edges=w_edges,
+                geometry_mode=str(args.geometry_mode),
                 height_prior_m=float(args.height_prior_m),
                 height_sigma_m=height_sigma_m,
                 lower_plane_sigma_m=lower_plane_sigma_m,
                 upper_level_sigma_m=upper_level_sigma_m,
                 pair_height_sigma_m=pair_height_sigma_m,
                 vertical_xy_sigma_m=vertical_xy_sigma_m,
+                band_separation_prior_m=band_separation_prior_m,
+                band_separation_sigma_m=band_separation_sigma_m,
             )
 
         # Use plain least squares; robustification is done via IRLS weights on edges.
@@ -672,6 +722,7 @@ def main() -> int:
             "floating_reference_sessions": args.floating_reference_session,
             "sigma_dist_mm": float(args.sigma_dist_mm),
             "sigma_ref_mm": float(args.sigma_ref_mm),
+            "geometry_mode": str(args.geometry_mode),
             "floating_reference_z_prior_mm": args.floating_reference_z_prior_mm,
             "floating_reference_z_sigma_mm": float(args.floating_reference_z_sigma_mm),
             "height_prior_m": float(args.height_prior_m),
@@ -680,11 +731,14 @@ def main() -> int:
             "upper_level_sigma_mm": float(args.upper_level_sigma_mm),
             "pair_height_sigma_mm": float(args.pair_height_sigma_mm),
             "vertical_xy_sigma_mm": float(args.vertical_xy_sigma_mm),
+            "band_separation_prior_mm": args.band_separation_prior_mm,
+            "band_separation_sigma_mm": float(args.band_separation_sigma_mm),
             "bias_sigma_mm": float(args.bias_sigma_mm),
             "bias_mu": float(args.bias_mu) if args.bias_mu is not None else None,
         },
         "notes": [
             "V3_full practical: Tukey-IRLS on inter-anchor residuals + per-anchor antenna bias (b_i) estimation.",
+            f"Geometry mode: {args.geometry_mode}.",
             "Bias gauge fixed by b_A=0; delays reported as tau_ns = 2*b/c.",
             "Floating reference uses mean ranges per anchor (aggregated Tag115 CM).",
         ],

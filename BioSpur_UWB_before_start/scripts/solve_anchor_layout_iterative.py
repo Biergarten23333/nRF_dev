@@ -64,6 +64,14 @@ def main() -> int:
     parser.add_argument("--prior-lower-z-sigma-mm", type=float, default=500.0)
     parser.add_argument("--prior-upper-xy-sigma-mm", type=float, default=800.0)
     parser.add_argument("--prior-upper-z-sigma-mm", type=float, default=350.0)
+    parser.add_argument("--lower-parallelogram-sigma-mm", type=float, default=400.0)
+    parser.add_argument("--upper-parallelogram-sigma-mm", type=float, default=400.0)
+    parser.add_argument("--cuboid-translation-xy-sigma-mm", type=float, default=400.0)
+    parser.add_argument("--cuboid-translation-z-sigma-mm", type=float, default=200.0)
+    parser.add_argument("--rect-diagonal-sigma-mm", type=float, default=400.0)
+    parser.add_argument("--space-diagonal-sigma-mm", type=float, default=600.0)
+    parser.add_argument("--lower-ortho-sigma", type=float, default=0.0)
+    parser.add_argument("--upper-ortho-sigma", type=float, default=0.0)
     parser.add_argument("--multi-start", type=int, default=8)
     parser.add_argument("--start-jitter-mm", type=float, default=450.0)
     parser.add_argument("--adaptive-edge-reweight-rounds", type=int, default=2)
@@ -129,6 +137,22 @@ def main() -> int:
             str(args.prior_upper_xy_sigma_mm),
             "--prior-upper-z-sigma-mm",
             str(args.prior_upper_z_sigma_mm),
+            "--lower-parallelogram-sigma-mm",
+            str(args.lower_parallelogram_sigma_mm),
+            "--upper-parallelogram-sigma-mm",
+            str(args.upper_parallelogram_sigma_mm),
+            "--cuboid-translation-xy-sigma-mm",
+            str(args.cuboid_translation_xy_sigma_mm),
+            "--cuboid-translation-z-sigma-mm",
+            str(args.cuboid_translation_z_sigma_mm),
+            "--rect-diagonal-sigma-mm",
+            str(args.rect_diagonal_sigma_mm),
+            "--space-diagonal-sigma-mm",
+            str(args.space_diagonal_sigma_mm),
+            "--lower-ortho-sigma",
+            str(args.lower_ortho_sigma),
+            "--upper-ortho-sigma",
+            str(args.upper_ortho_sigma),
             "--multi-start",
             str(args.multi_start),
             "--start-jitter-mm",

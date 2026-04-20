@@ -1,0 +1,14 @@
+/ {
+	/* EVK-NORA-B120 routes the integrated SKY66405-11 FEM control
+	 * signals to P1.08 (TX_EN/PA) and P1.09 (RX_EN/LNA).
+	 */
+	nrf_radio_fem: nrf_radio_fem {
+		compatible = "generic-fem-two-ctrl-pins";
+		ctx-gpios = <&gpio1 8 GPIO_ACTIVE_HIGH>;
+		crx-gpios = <&gpio1 9 GPIO_ACTIVE_HIGH>;
+		ctx-settle-time-us = <23>;
+		crx-settle-time-us = <5>;
+		tx-gain-db = <10>;
+		rx-gain-db = <5>;
+	};
+};

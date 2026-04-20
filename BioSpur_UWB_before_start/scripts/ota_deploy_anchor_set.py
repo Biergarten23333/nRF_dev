@@ -144,6 +144,14 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--out-dir", required=True, help="Root artifact directory")
     p.add_argument("--timeout-s", type=int, default=900, help="Per-anchor OTA timeout")
     p.add_argument("--order", default="ABCDEFGH", help="Anchor deployment order, e.g. ABCDEFGH")
+    p.add_argument(
+        "--force-kill-port-owner",
+        action="store_true",
+        help=(
+            "If the master_control CDC port is exclusively locked by another process, "
+            "try to terminate the owning PID(s) and retry. DANGEROUS."
+        ),
+    )
     return p.parse_args()
 
 
@@ -179,6 +187,8 @@ def main() -> int:
                 "--out-dir",
                 str(stage_dir),
             ]
+            if args.force_kill_port_owner:
+                cmd.append("--force-kill-port-owner")
             print(f"=== OTA {label} {uuid} attempt={attempt}/{max_attempts} ===", flush=True)
             cp = run_with_progress(cmd, stage_dir / "single_shot.log", label=label, attempt=attempt, max_attempts=max_attempts)
             attempt_entry: dict[str, object] = {

@@ -30,6 +30,32 @@ python3 scripts/prepare_autopos_v3_full.py \
   --verbose 1
 ```
 
+## V3-box / V3-free
+
+Two geometry-specialized variants are now available on top of the same `V3_full`
+core solver:
+
+- `V3-box`: keeps approximate upper/lower paired-column structure
+- `V3-free`: keeps only lower-band / upper-band separation
+
+```bash
+cd /home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start
+
+python3 scripts/prepare_autopos_v3_box.py \
+  --pairs-csv <PATH_TO_pairs_all.csv> \
+  --out-dir <OUT_DIR>
+```
+
+```bash
+cd /home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start
+
+python3 scripts/prepare_autopos_v3_free.py \
+  --pairs-csv <PATH_TO_pairs_all.csv> \
+  --out-dir <OUT_DIR>
+```
+
+See [docs/20260419_V3_box_V3_free.md](/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/docs/20260419_V3_box_V3_free.md).
+
 ## Run
 
 ```bash

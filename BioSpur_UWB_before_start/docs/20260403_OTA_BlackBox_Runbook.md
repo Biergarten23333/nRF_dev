@@ -51,6 +51,32 @@ python3 scripts/ota_single_shot_stable.py \
   --out-dir logs/live_ota_<anchor>_<timestamp>/stage1
 ```
 
+### Port Locked (Errno 11) Recovery (Dangerous)
+
+If you see:
+
+```text
+Could not exclusively lock port ... Errno 11
+```
+
+it means another process currently holds the controller CDC port (for example a previous sweep/OTA run still running).
+
+Preferred fix:
+
+- stop the other run, then retry.
+
+Emergency option (use only when you are sure it is safe to kill the owner):
+
+```bash
+python3 scripts/ota_single_shot_stable.py \
+  --force-kill-port-owner \
+  --port /dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_XXXXXXXX-if00 \
+  --target-uuid <TARGET_UUID_32HEX> \
+  --out-dir logs/live_ota_<anchor>_<timestamp>/stage1
+```
+
+This will attempt to identify the process(es) using the underlying `/dev/ttyACM*` device (via `fuser`) and terminate them, then retry opening the port.
+
 The launcher behavior is:
 
 - treat Anchor USB as power-only and skip Anchor USB / RTT observability gating

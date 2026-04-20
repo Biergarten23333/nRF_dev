@@ -7,6 +7,8 @@ import re
 import subprocess
 import threading
 import time
+import os
+import signal
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
@@ -109,6 +111,15 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--baud", type=int, default=115200)
     p.add_argument("--reconnect-timeout-s", type=float, default=45.0)
     p.add_argument(
+        "--force-kill-port-owner",
+        action="store_true",
+        help=(
+            "If the master_control CDC port is exclusively locked by another process, "
+            "try to identify the owning PID(s) (via fuser) and terminate them, then retry. "
+            "DANGEROUS: only use when you are sure no other critical session is using the port."
+        ),
+    )
+    p.add_argument(
         "--anchor-port",
         default="/dev/serial/by-id/usb-SEGGER_J-Link_000760186071-if00",
         help="Deprecated debug-only anchor observability port. Strict mode ignores Anchor USB data paths.",
@@ -153,15 +164,99 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def open_serial(port: str, baud: int) -> serial.Serial:
-    return serial.Serial(
-        port,
-        baud,
-        timeout=0.2,
-        exclusive=True,
-        dsrdtr=False,
-        rtscts=False,
-    )
+def _is_exclusive_lock_error(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    if "exclusively lock port" in msg:
+        return True
+    if isinstance(exc, SerialException) and getattr(exc, "errno", None) == 11:
+        return True
+    return False
+
+
+def _force_kill_port_owners(port: str, logf, t0: float) -> bool:
+    # Resolve by-id symlink to the actual /dev/ttyACM* path so fuser works.
+    dev = os.path.realpath(port)
+    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] serial_lock force_kill begin dev={dev}\n")
+    logf.flush()
+
+    try:
+        cp = subprocess.run(["fuser", dev], capture_output=True, text=True, check=False)
+    except FileNotFoundError:
+        logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] serial_lock force_kill failed reason=fuser_not_found\n")
+        logf.flush()
+        return False
+
+    text = (cp.stdout or "") + "\n" + (cp.stderr or "")
+    pids = sorted({int(x) for x in re.findall(r"\\b(\\d+)\\b", text)})
+    pids = [pid for pid in pids if pid not in (0, os.getpid())]
+    if not pids:
+        logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] serial_lock force_kill none_found dev={dev}\n")
+        logf.flush()
+        return False
+
+    for pid in pids:
+        try:
+            logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] serial_lock force_kill term pid={pid}\n")
+            logf.flush()
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            continue
+        except PermissionError:
+            logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] serial_lock force_kill permission_denied pid={pid}\n")
+            logf.flush()
+
+    # Give processes a moment to exit gracefully, then SIGKILL any survivors.
+    time.sleep(0.8)
+    survivors = []
+    for pid in pids:
+        try:
+            os.kill(pid, 0)
+            survivors.append(pid)
+        except Exception:
+            pass
+    for pid in survivors:
+        try:
+            logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] serial_lock force_kill kill pid={pid}\n")
+            logf.flush()
+            os.kill(pid, signal.SIGKILL)
+        except Exception:
+            pass
+
+    time.sleep(0.4)
+    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] serial_lock force_kill done pids={pids}\n")
+    logf.flush()
+    return True
+
+
+def open_serial(port: str, baud: int, *, force_kill_port_owner: bool = False, logf=None, t0: float = 0.0) -> serial.Serial:
+    """
+    Open the master_control CDC port robustly.
+
+    After SWD flashing or mode-switch reboots the USB CDC device can briefly
+    disappear and re-enumerate. Keep a short retry window so higher-level OTA
+    runners don't fail immediately on transient FileNotFoundError.
+    """
+    deadline = time.monotonic() + 30.0
+    last_exc: Exception | None = None
+    kill_attempted = False
+    while time.monotonic() < deadline:
+        try:
+            return serial.Serial(
+                port,
+                baud,
+                timeout=0.2,
+                exclusive=True,
+                dsrdtr=False,
+                rtscts=False,
+            )
+        except Exception as exc:
+            last_exc = exc
+            if force_kill_port_owner and (not kill_attempted) and _is_exclusive_lock_error(exc) and logf is not None:
+                kill_attempted = True
+                _force_kill_port_owners(port, logf, t0)
+            time.sleep(0.4)
+    assert last_exc is not None
+    raise last_exc
 
 
 def send_cmd(ser: serial.Serial, cmd: str, logf, t0: float) -> None:
@@ -621,7 +716,13 @@ def main() -> int:
                 logf.flush()
 
             # Phase A: pre-reboot control session
-            ser = open_serial(args.port, args.baud)
+            ser = open_serial(
+                args.port,
+                args.baud,
+                force_kill_port_owner=bool(args.force_kill_port_owner),
+                logf=logf,
+                t0=t0,
+            )
             ser.reset_input_buffer()
             ser.reset_output_buffer()
             logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A serial_opened port={args.port}\n")

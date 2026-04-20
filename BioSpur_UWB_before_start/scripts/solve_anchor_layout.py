@@ -304,6 +304,14 @@ def residuals(
     prior_lower_z_sigma_m: float,
     prior_upper_xy_sigma_m: float,
     prior_upper_z_sigma_m: float,
+    lower_parallelogram_sigma_m: float,
+    upper_parallelogram_sigma_m: float,
+    cuboid_translation_xy_sigma_m: float,
+    cuboid_translation_z_sigma_m: float,
+    rect_diagonal_sigma_m: float,
+    space_diagonal_sigma_m: float,
+    lower_ortho_sigma: float,
+    upper_ortho_sigma: float,
 ) -> np.ndarray:
     coords, floating_reference_points = unpack_params(params, floating_reference_constraints)
     res = []
@@ -326,6 +334,25 @@ def residuals(
     # deviate from it slightly instead of being forced exactly coplanar.
     res.append(coords["C"][2] / lower_plane_sigma_m)
 
+    # Optional: enforce approximate parallelogram closure on lower and upper quads.
+    #
+    # For an (almost) rectangle-like placement, we expect:
+    #   A + C ≈ B + D
+    #   E + G ≈ F + H
+    #
+    # This is *not* redundant with distances when ranging is noisy/NLOS: it encodes
+    # a structural prior about the layout topology.
+    if lower_parallelogram_sigma_m > 0.0:
+        closure = (coords["A"] + coords["C"]) - (coords["B"] + coords["D"])
+        res.append(closure[0] / lower_parallelogram_sigma_m)
+        res.append(closure[1] / lower_parallelogram_sigma_m)
+        res.append(closure[2] / lower_parallelogram_sigma_m)
+    if upper_parallelogram_sigma_m > 0.0:
+        closure = (coords["E"] + coords["G"]) - (coords["F"] + coords["H"])
+        res.append(closure[0] / upper_parallelogram_sigma_m)
+        res.append(closure[1] / upper_parallelogram_sigma_m)
+        res.append(closure[2] / upper_parallelogram_sigma_m)
+
     # Soft upper-plane prior: the four upper anchors should be close to a common
     # plane, but not exactly share the same Z.
     upper_points = [coords[name] for name in UPPER_PLANE]
@@ -341,6 +368,71 @@ def residuals(
     # Soft average height prior for the upper cluster.
     upper_mean_height = float(np.mean([coords[name][2] for name in UPPER_PLANE]))
     res.append((upper_mean_height - plane_height_prior_m) / height_sigma_m)
+
+    # Optional: cuboid-like vertical translation consistency.
+    #
+    # Even if AE/BF/CG/DH are not perfectly aligned in XY, in a "stacked rectangle"
+    # installation we expect the translation vectors to be similar:
+    #   t_A = E - A, t_B = F - B, t_C = G - C, t_D = H - D
+    #
+    # This helps stabilize Z/tilt under NLOS without forcing exact XY equality.
+    if cuboid_translation_xy_sigma_m > 0.0 or cuboid_translation_z_sigma_m > 0.0:
+        t = [
+            coords["E"] - coords["A"],
+            coords["F"] - coords["B"],
+            coords["G"] - coords["C"],
+            coords["H"] - coords["D"],
+        ]
+        mean_t = np.mean(np.vstack(t), axis=0)
+        for ti in t:
+            d = ti - mean_t
+            if cuboid_translation_xy_sigma_m > 0.0:
+                res.append(d[0] / cuboid_translation_xy_sigma_m)
+                res.append(d[1] / cuboid_translation_xy_sigma_m)
+            if cuboid_translation_z_sigma_m > 0.0:
+                res.append(d[2] / cuboid_translation_z_sigma_m)
+
+    # Optional: rectangle diagonal equality in each quad (AC ≈ BD, EG ≈ FH).
+    if rect_diagonal_sigma_m > 0.0:
+        d_ac = float(np.linalg.norm(coords["A"] - coords["C"]))
+        d_bd = float(np.linalg.norm(coords["B"] - coords["D"]))
+        d_eg = float(np.linalg.norm(coords["E"] - coords["G"]))
+        d_fh = float(np.linalg.norm(coords["F"] - coords["H"]))
+        res.append((d_ac - d_bd) / rect_diagonal_sigma_m)
+        res.append((d_eg - d_fh) / rect_diagonal_sigma_m)
+
+    # Optional: space diagonal equality for the implied parallelepiped.
+    # In an ideal cuboid-like placement, these four body diagonals should be equal:
+    #   A-G, B-H, C-E, D-F
+    if space_diagonal_sigma_m > 0.0:
+        d_ag = float(np.linalg.norm(coords["A"] - coords["G"]))
+        d_bh = float(np.linalg.norm(coords["B"] - coords["H"]))
+        d_ce = float(np.linalg.norm(coords["C"] - coords["E"]))
+        d_df = float(np.linalg.norm(coords["D"] - coords["F"]))
+        mean_d = (d_ag + d_bh + d_ce + d_df) / 4.0
+        res.append((d_ag - mean_d) / space_diagonal_sigma_m)
+        res.append((d_bh - mean_d) / space_diagonal_sigma_m)
+        res.append((d_ce - mean_d) / space_diagonal_sigma_m)
+        res.append((d_df - mean_d) / space_diagonal_sigma_m)
+
+    # Optional: orthogonality priors for the rectangle edges (AB ⟂ AD, EF ⟂ EH).
+    #
+    # We use cos(theta) as a unitless residual (0 means perfectly orthogonal).
+    def cos_angle(u: np.ndarray, v: np.ndarray) -> float:
+        nu = float(np.linalg.norm(u))
+        nv = float(np.linalg.norm(v))
+        if nu <= 1e-9 or nv <= 1e-9:
+            return 0.0
+        return float(np.dot(u, v) / (nu * nv))
+
+    if lower_ortho_sigma > 0.0:
+        u = coords["B"] - coords["A"]
+        v = coords["D"] - coords["A"]
+        res.append(cos_angle(u, v) / lower_ortho_sigma)
+    if upper_ortho_sigma > 0.0:
+        u = coords["F"] - coords["E"]
+        v = coords["H"] - coords["E"]
+        res.append(cos_angle(u, v) / upper_ortho_sigma)
 
     # Optional: Encourage paired anchors to stay roughly vertically aligned in XY.
     #
@@ -462,6 +554,14 @@ def solve_once(
     prior_lower_z_sigma_mm: float,
     prior_upper_xy_sigma_mm: float,
     prior_upper_z_sigma_mm: float,
+    lower_parallelogram_sigma_mm: float,
+    upper_parallelogram_sigma_mm: float,
+    cuboid_translation_xy_sigma_mm: float,
+    cuboid_translation_z_sigma_mm: float,
+    rect_diagonal_sigma_mm: float,
+    space_diagonal_sigma_mm: float,
+    lower_ortho_sigma: float,
+    upper_ortho_sigma: float,
     loss: str,
     max_nfev: int,
 ):
@@ -495,6 +595,14 @@ def solve_once(
             prior_lower_z_sigma_mm / 1000.0,
             prior_upper_xy_sigma_mm / 1000.0,
             prior_upper_z_sigma_mm / 1000.0,
+            lower_parallelogram_sigma_mm / 1000.0,
+            upper_parallelogram_sigma_mm / 1000.0,
+            cuboid_translation_xy_sigma_mm / 1000.0,
+            cuboid_translation_z_sigma_mm / 1000.0,
+            rect_diagonal_sigma_mm / 1000.0,
+            space_diagonal_sigma_mm / 1000.0,
+            lower_ortho_sigma,
+            upper_ortho_sigma,
         ),
         max_nfev=max_nfev,
         loss=loss,
@@ -756,6 +864,54 @@ def main() -> int:
         help="Layout-prior 1-sigma for upper anchor Z drift from initial layout.",
     )
     parser.add_argument(
+        "--lower-parallelogram-sigma-mm",
+        type=float,
+        default=400.0,
+        help="Optional 1-sigma (mm) for lower quad closure prior: A + C ≈ B + D. 0 disables.",
+    )
+    parser.add_argument(
+        "--upper-parallelogram-sigma-mm",
+        type=float,
+        default=400.0,
+        help="Optional 1-sigma (mm) for upper quad closure prior: E + G ≈ F + H. 0 disables.",
+    )
+    parser.add_argument(
+        "--cuboid-translation-xy-sigma-mm",
+        type=float,
+        default=400.0,
+        help="Optional 1-sigma (mm) to keep vertical translation vectors (E-A,F-B,G-C,H-D) consistent in XY. 0 disables.",
+    )
+    parser.add_argument(
+        "--cuboid-translation-z-sigma-mm",
+        type=float,
+        default=200.0,
+        help="Optional 1-sigma (mm) to keep vertical translation vectors (E-A,F-B,G-C,H-D) consistent in Z. 0 disables.",
+    )
+    parser.add_argument(
+        "--rect-diagonal-sigma-mm",
+        type=float,
+        default=400.0,
+        help="Optional 1-sigma (mm) for rectangle diagonal equality: AC ≈ BD and EG ≈ FH. 0 disables.",
+    )
+    parser.add_argument(
+        "--space-diagonal-sigma-mm",
+        type=float,
+        default=600.0,
+        help="Optional 1-sigma (mm) for space diagonal equality: A-G, B-H, C-E, D-F. 0 disables.",
+    )
+    parser.add_argument(
+        "--lower-ortho-sigma",
+        type=float,
+        default=0.0,
+        help="Unitless 1-sigma for cos(angle) prior of AB ⟂ AD. 0 disables.",
+    )
+    parser.add_argument(
+        "--upper-ortho-sigma",
+        type=float,
+        default=0.0,
+        help="Unitless 1-sigma for cos(angle) prior of EF ⟂ EH. 0 disables.",
+    )
+    parser.add_argument(
         "--multi-start",
         type=int,
         default=8,
@@ -831,6 +987,14 @@ def main() -> int:
             prior_lower_z_sigma_mm=args.prior_lower_z_sigma_mm * 2.5,
             prior_upper_xy_sigma_mm=args.prior_upper_xy_sigma_mm * 2.5,
             prior_upper_z_sigma_mm=args.prior_upper_z_sigma_mm * 2.5,
+            lower_parallelogram_sigma_mm=args.lower_parallelogram_sigma_mm * 1.6,
+            upper_parallelogram_sigma_mm=args.upper_parallelogram_sigma_mm * 1.6,
+            cuboid_translation_xy_sigma_mm=args.cuboid_translation_xy_sigma_mm * 1.6,
+            cuboid_translation_z_sigma_mm=args.cuboid_translation_z_sigma_mm * 1.6,
+            rect_diagonal_sigma_mm=args.rect_diagonal_sigma_mm * 1.6,
+            space_diagonal_sigma_mm=args.space_diagonal_sigma_mm * 1.6,
+            lower_ortho_sigma=args.lower_ortho_sigma * 1.6,
+            upper_ortho_sigma=args.upper_ortho_sigma * 1.6,
             loss="linear",
             max_nfev=2500,
         )
@@ -865,6 +1029,14 @@ def main() -> int:
                 prior_lower_z_sigma_mm=args.prior_lower_z_sigma_mm,
                 prior_upper_xy_sigma_mm=args.prior_upper_xy_sigma_mm,
                 prior_upper_z_sigma_mm=args.prior_upper_z_sigma_mm,
+                lower_parallelogram_sigma_mm=args.lower_parallelogram_sigma_mm,
+                upper_parallelogram_sigma_mm=args.upper_parallelogram_sigma_mm,
+                cuboid_translation_xy_sigma_mm=args.cuboid_translation_xy_sigma_mm,
+                cuboid_translation_z_sigma_mm=args.cuboid_translation_z_sigma_mm,
+                rect_diagonal_sigma_mm=args.rect_diagonal_sigma_mm,
+                space_diagonal_sigma_mm=args.space_diagonal_sigma_mm,
+                lower_ortho_sigma=args.lower_ortho_sigma,
+                upper_ortho_sigma=args.upper_ortho_sigma,
                 loss="soft_l1",
                 max_nfev=5000,
             )
@@ -931,6 +1103,14 @@ def main() -> int:
             "prior_lower_z_sigma_mm": args.prior_lower_z_sigma_mm,
             "prior_upper_xy_sigma_mm": args.prior_upper_xy_sigma_mm,
             "prior_upper_z_sigma_mm": args.prior_upper_z_sigma_mm,
+            "lower_parallelogram_sigma_mm": args.lower_parallelogram_sigma_mm,
+            "upper_parallelogram_sigma_mm": args.upper_parallelogram_sigma_mm,
+            "cuboid_translation_xy_sigma_mm": args.cuboid_translation_xy_sigma_mm,
+            "cuboid_translation_z_sigma_mm": args.cuboid_translation_z_sigma_mm,
+            "rect_diagonal_sigma_mm": args.rect_diagonal_sigma_mm,
+            "space_diagonal_sigma_mm": args.space_diagonal_sigma_mm,
+            "lower_ortho_sigma": args.lower_ortho_sigma,
+            "upper_ortho_sigma": args.upper_ortho_sigma,
             "multi_start": args.multi_start,
             "start_jitter_mm": args.start_jitter_mm,
             "adaptive_edge_reweight_rounds": args.adaptive_edge_reweight_rounds,

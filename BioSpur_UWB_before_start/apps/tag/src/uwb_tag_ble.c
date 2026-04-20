@@ -38,6 +38,10 @@
 #define APP_TAG_CALIBRATION_MODE 0U
 #endif
 
+#ifndef APP_TAG_STREAM_FORCE_OFF_AT_BOOT
+#define APP_TAG_STREAM_FORCE_OFF_AT_BOOT 0U
+#endif
+
 #ifndef APP_TAG_BLE_PACKET_BUNDLE_RECORDS
 #define APP_TAG_BLE_PACKET_BUNDLE_RECORDS 1U
 #endif
@@ -453,10 +457,16 @@ static void uwb_tag_ble_runtime_params_apply_settings_locked(void)
 	uwb_tag_ble_runtime_params_reset_locked();
 	runtime_stream_enabled = true;
 	if (!runtime_settings_record_loaded || !runtime_settings_record.valid) {
+		if (APP_TAG_STREAM_FORCE_OFF_AT_BOOT != 0U) {
+			runtime_stream_enabled = false;
+		}
 		return;
 	}
 
 	runtime_stream_enabled = (runtime_settings_record.stream_enabled != 0U);
+	if (APP_TAG_STREAM_FORCE_OFF_AT_BOOT != 0U) {
+		runtime_stream_enabled = false;
+	}
 
 	if (runtime_settings_record.identity_code != 0U) {
 		active_runtime_params.identity_code =
@@ -1486,7 +1496,8 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		return;
 	}
 
-	if (strcmp(cmd, "STREAM OFF") == 0 || strcmp(cmd, "STREAMON 0") == 0) {
+	if (strcmp(cmd, "STREAM OFF") == 0 || strcmp(cmd, "STREAMON 0") == 0 ||
+	    strcmp(cmd, "STREAM 0") == 0) {
 		struct uwb_tag_runtime_params params;
 		int store_err;
 
@@ -1507,7 +1518,8 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		return;
 	}
 
-	if (strcmp(cmd, "STREAM ON") == 0 || strcmp(cmd, "STREAMON 1") == 0) {
+	if (strcmp(cmd, "STREAM ON") == 0 || strcmp(cmd, "STREAMON 1") == 0 ||
+	    strcmp(cmd, "STREAM 1") == 0) {
 		struct uwb_tag_runtime_params params;
 		int store_err;
 

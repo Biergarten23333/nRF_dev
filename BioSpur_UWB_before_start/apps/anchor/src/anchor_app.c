@@ -104,16 +104,95 @@ static void bytes_to_hex(const uint8_t *src, size_t len, char *dst, size_t dst_l
     dst[len * 2U] = '\0';
 }
 
+static int anchor_role_runtime_flags(uint8_t role, uint8_t *out_master,
+                                     uint8_t *out_allow_tag_polls)
+{
+    if (out_master == NULL || out_allow_tag_polls == NULL) {
+        return -EINVAL;
+    }
+
+    switch (role) {
+    case ANCHOR_ROLE_MASTER:
+        *out_master = 1U;
+        *out_allow_tag_polls = 0U;
+        return 0;
+    case ANCHOR_ROLE_MATRIX:
+        *out_master = 0U;
+        *out_allow_tag_polls = 0U;
+        return 0;
+    case ANCHOR_ROLE_RESPONDER:
+        *out_master = 0U;
+        *out_allow_tag_polls = 1U;
+        return 0;
+    default:
+        return -EINVAL;
+    }
+}
+
+static int anchor_run_runtime_role(uint8_t anchor_id_runtime, uint8_t anchor_id_cfg,
+                                   uint8_t role, bool cfg_valid)
+{
+    uint8_t anchor_peer_ids[UWB_MAX_ANCHORS];
+    const uint8_t *anchor_peer_ids_ptr = NULL;
+    size_t peer_count = 0U;
+    uint8_t effective_master = 0U;
+    uint8_t effective_allow_tag_polls = 0U;
+    int ret;
+
+    ret = anchor_role_runtime_flags(role, &effective_master, &effective_allow_tag_polls);
+    if (ret != 0) {
+        printk("Invalid runtime role=%u\n", (unsigned int)role);
+        return ret;
+    }
+
+    anchor_ble_ctrl_set_runtime_switch_pending(false);
+    uart_role_switch_set_runtime(anchor_id_cfg, role, cfg_valid);
+    anchor_ble_ctrl_set_runtime(anchor_id_cfg, role, cfg_valid);
+    uart_role_switch_set_ranging_active(true);
+    anchor_ble_ctrl_set_busy(true);
+    anchor_runtime_clear_stop();
+
+    if (effective_master != 0U) {
+        if (APP_ANCHOR_USE_AUTO_SCHEDULE != 0U) {
+            if (APP_ANCHOR_SCHEDULE_MODE == 2U) {
+                peer_count = uwb_anchor_schedule_all_except_self(
+                    anchor_id_runtime, anchor_peer_ids, sizeof(anchor_peer_ids));
+            } else {
+                peer_count = uwb_anchor_schedule_upper_triangle(
+                    anchor_id_runtime, anchor_peer_ids, sizeof(anchor_peer_ids));
+            }
+            anchor_peer_ids_ptr = anchor_peer_ids;
+
+            printk("Anchor master auto schedule %c mode=%u peer_count=%u\n",
+                   uwb_anchor_label(anchor_id_runtime),
+                   (unsigned int)APP_ANCHOR_SCHEDULE_MODE,
+                   (unsigned int)peer_count);
+        }
+
+        ret = ss_twr_anchor_init_start(anchor_id_runtime, anchor_peer_ids_ptr, peer_count);
+        uart_role_switch_set_ranging_active(false);
+        anchor_ble_ctrl_set_busy(false);
+        if (ret != 0) {
+            printk("ss_twr_anchor_init_start failed: %d\n", ret);
+            return ret;
+        }
+        printk("Anchor master ranging stopped; control plane remains active\n");
+        return 0;
+    }
+
+    ret = ss_twr_resp_start(anchor_id_runtime, effective_allow_tag_polls);
+    uart_role_switch_set_ranging_active(false);
+    anchor_ble_ctrl_set_busy(false);
+    if (ret != 0) {
+        printk("ss_twr_resp_start failed: %d\n", ret);
+        return ret;
+    }
+    printk("Anchor responder ranging stopped; control plane remains active\n");
+    return 0;
+}
+
 int anchor_app_run(void)
 {
-    static const uint8_t anchor_peer_ids_static[] = {
-        APP_ANCHOR_PEER_0_ID,
-        APP_ANCHOR_PEER_1_ID,
-        APP_ANCHOR_PEER_2_ID,
-    };
-    uint8_t anchor_peer_ids[UWB_MAX_ANCHORS];
-    const uint8_t *anchor_peer_ids_ptr = anchor_peer_ids_static;
-    size_t peer_count = APP_ANCHOR_PEER_COUNT;
     uint8_t effective_role = ANCHOR_ROLE_UNSET;
     bool unassigned_mode = false;
     uint8_t anchor_id_runtime = APP_ANCHOR_ID;
@@ -134,6 +213,7 @@ int anchor_app_run(void)
         return ret;
     }
 
+#if defined(CONFIG_BOOTLOADER_MCUBOOT)
     if (!boot_is_img_confirmed()) {
         ret = boot_write_img_confirmed();
         printk("MCUboot confirm rc=%d\n", ret);
@@ -141,6 +221,7 @@ int anchor_app_run(void)
             printk("MCUboot confirm failed, continuing: %d\n", ret);
         }
     }
+#endif
 
     anchor_config_get_mcu_uid(mcu_uid);
     anchor_config_get_device_uuid(device_uuid, &cfg, cfg_valid);
@@ -151,7 +232,7 @@ int anchor_app_run(void)
     if (cfg_valid) {
         anchor_id_cfg = cfg.anchor_id;
         if (anchor_id_cfg >= 1U && anchor_id_cfg <= 8U) {
-            anchor_id_runtime = (uint8_t)(anchor_id_cfg - 1U); /* config uses 1..8 => runtime 0..7 */
+            anchor_id_runtime = (uint8_t)(anchor_id_cfg - 1U);
         } else {
             unassigned_mode = true;
         }
@@ -164,21 +245,15 @@ int anchor_app_run(void)
     }
 
     if (effective_role == ANCHOR_ROLE_UNSET) {
-        /* Role unset is build-time fallback for current Phase 2.1 */
         effective_master = (APP_ANCHOR_MASTER != 0U) ? 1U : 0U;
         effective_allow_tag_polls = (APP_ANCHOR_ALLOW_TAG_POLLS != 0U) ? 1U : 0U;
-    } else if (effective_role == ANCHOR_ROLE_MASTER) {
-        effective_master = 1U;
-        effective_allow_tag_polls = 0U;
-    } else if (effective_role == ANCHOR_ROLE_MATRIX) {
-        effective_master = 0U;
-        effective_allow_tag_polls = 0U;
-    } else if (effective_role == ANCHOR_ROLE_RESPONDER) {
-        effective_master = 0U;
-        effective_allow_tag_polls = 1U;
     } else {
-        printk("Invalid APP_ANCHOR_ROLE=%u\n", APP_ANCHOR_ROLE);
-        return -1;
+        ret = anchor_role_runtime_flags(effective_role, &effective_master,
+                                        &effective_allow_tag_polls);
+        if (ret != 0) {
+            printk("Invalid APP_ANCHOR_ROLE=%u\n", APP_ANCHOR_ROLE);
+            return -1;
+        }
     }
 
     if (effective_role == ANCHOR_ROLE_UNSET || anchor_id_cfg == 0U) {
@@ -244,57 +319,40 @@ int anchor_app_run(void)
         }
     }
 
-    uart_role_switch_set_ranging_active(!unassigned_mode);
-    anchor_ble_ctrl_set_busy(!unassigned_mode);
+    uart_role_switch_set_ranging_active(false);
+    anchor_ble_ctrl_set_busy(false);
     anchor_ble_ctrl_set_runtime(anchor_id_cfg, effective_role, cfg_valid);
+    anchor_ble_ctrl_set_runtime_switch_pending(false);
+    uart_role_switch_set_runtime(anchor_id_cfg, effective_role, cfg_valid);
 
     if (unassigned_mode) {
         printk("Anchor in unassigned/unset mode: control plane active, ranging not started\n");
         return 0;
     }
 
-    anchor_runtime_clear_stop();
-    if (effective_master != 0U) {
-        if (APP_ANCHOR_USE_AUTO_SCHEDULE != 0U) {
-            if (APP_ANCHOR_SCHEDULE_MODE == 2U) {
-                peer_count = uwb_anchor_schedule_all_except_self(
-                    anchor_id_runtime, anchor_peer_ids, sizeof(anchor_peer_ids));
-            } else {
-                peer_count = uwb_anchor_schedule_upper_triangle(
-                    anchor_id_runtime, anchor_peer_ids, sizeof(anchor_peer_ids));
-            }
-            anchor_peer_ids_ptr = anchor_peer_ids;
+    while (1) {
+        uint8_t next_role;
 
-            printk("Anchor master auto schedule %c mode=%u peer_count=%u\n",
-                   uwb_anchor_label(anchor_id_runtime),
-                   (unsigned int)APP_ANCHOR_SCHEDULE_MODE,
-                   (unsigned int)peer_count);
-        }
-
-        ret = ss_twr_anchor_init_start(anchor_id_runtime, anchor_peer_ids_ptr,
-                                       peer_count);
-        if (ret) {
-            printk("ss_twr_anchor_init_start failed: %d\n", ret);
-            uart_role_switch_set_ranging_active(false);
-            anchor_ble_ctrl_set_busy(false);
+        ret = anchor_run_runtime_role(anchor_id_runtime, anchor_id_cfg, effective_role,
+                                      cfg_valid);
+        if (ret != 0) {
             return ret;
         }
-        printk("Anchor master ranging stopped; control plane remains active\n");
-        uart_role_switch_set_ranging_active(false);
-        anchor_ble_ctrl_set_busy(false);
-        return 0;
-    }
 
-    ret = ss_twr_resp_start(anchor_id_runtime, effective_allow_tag_polls);
-    if (ret) {
-        printk("ss_twr_resp_start failed: %d\n", ret);
-        uart_role_switch_set_ranging_active(false);
-        anchor_ble_ctrl_set_busy(false);
-        return ret;
-    }
-    printk("Anchor responder ranging stopped; control plane remains active\n");
-    uart_role_switch_set_ranging_active(false);
-    anchor_ble_ctrl_set_busy(false);
+        next_role = anchor_runtime_requested_role();
+        if (next_role == ANCHOR_ROLE_UNSET) {
+            return 0;
+        }
 
-    return 0;
+        anchor_runtime_clear_role_switch();
+        effective_role = next_role;
+        ret = anchor_role_runtime_flags(effective_role, &effective_master,
+                                        &effective_allow_tag_polls);
+        if (ret != 0) {
+            printk("Runtime role switch invalid role=%u\n", (unsigned int)effective_role);
+            return ret;
+        }
+        printk("Anchor runtime role switch applied: anchor=%c role=%s\n",
+               anchor_config_label_char(anchor_id_cfg), anchor_role_name(effective_role));
+    }
 }

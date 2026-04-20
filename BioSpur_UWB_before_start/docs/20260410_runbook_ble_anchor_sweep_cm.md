@@ -146,6 +146,17 @@ After that, start the normal AUTOPOS sweep flow below.
 ```bash
 cd /home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start
 
+#
+# Optional (recommended): build an all-in-one master_control image that embeds the
+# latest unified anchor OTA payload, so the same firmware supports both sweep and OTA.
+# Default behavior of scripts/build_master_control.sh now does this.
+#
+# scripts/build_master_control.sh
+#
+# To skip embedding the anchor OTA payload (faster build):
+# MASTER_CONTROL_EMBED_ANCHOR_OTA=0 scripts/build_master_control.sh
+#
+
 python3 scripts/run_autopos_sweep_loop.py \
   --port /dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_8D3AC42D4D90FAE8-if00 \
   --order ABCDEFGH \

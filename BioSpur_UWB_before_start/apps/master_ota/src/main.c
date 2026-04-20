@@ -36,7 +36,10 @@
 #define OTA_LED_OTA DK_LED3
 #define OTA_LED_ERROR DK_LED4
 
-#define OTA_CHUNK_SIZE 64U
+#ifndef APP_MASTER_OTA_CHUNK_SIZE
+#define APP_MASTER_OTA_CHUNK_SIZE 448U
+#endif
+#define OTA_CHUNK_SIZE APP_MASTER_OTA_CHUNK_SIZE
 #define OTA_CMD_TIMEOUT_SEC 30
 #define OTA_SMP_GROUP_IMG 0x0001U
 #define OTA_SMP_GROUP_OS 0x0000U
@@ -99,7 +102,7 @@
 
 struct smp_packet {
 	struct bt_dfu_smp_header header;
-	uint8_t payload[256];
+	uint8_t payload[512];
 };
 
 struct ota_cmd_result {
@@ -138,6 +141,10 @@ static struct k_sem sec_ready_sem;
 static struct k_sem smp_sub_sem;
 static struct k_sem smp_write_sem;
 static bool leds_ready;
+static const struct bt_conn_le_phy_param *const fast_phy_params =
+	BT_CONN_LE_PHY_PARAM_2M;
+static const struct bt_le_conn_param *const fast_conn_params =
+	BT_LE_CONN_PARAM(6, 6, 0, 400);
 static bool led_scan_state;
 static bool led_link_state;
 static bool led_ota_state;
@@ -1530,23 +1537,50 @@ static int ota_upload_image(struct bt_dfu_smp *smp)
 	master_leds_set(false, true, true, false);
 
 	while (remaining > 0U) {
-		size_t chunk_len = MIN(remaining, OTA_CHUNK_SIZE);
 		size_t payload_len;
+		size_t chunk_len = MIN(remaining, OTA_CHUNK_SIZE);
 		size_t progress_bytes = offset + chunk_len;
 		unsigned int percent = (unsigned int)((progress_bytes * 100U) /
 						      tag_ota_image_len);
 		size_t expected_next;
 		bool log_progress;
+		size_t max_att_payload =
+			(default_conn != NULL && bt_gatt_get_mtu(default_conn) > 3U) ?
+				(bt_gatt_get_mtu(default_conn) - 3U) : 20U;
+		bool chunk_fit = false;
 
 		memset(&pkt, 0, sizeof(pkt));
-		payload_len = ota_build_upload_packet(tag_ota_image, tag_ota_image_len,
-						       tag_ota_image_sha256, offset, &pkt,
-						       chunk_len, first_chunk);
-		if (payload_len == 0U) {
-			printk("OTA upload packet build failed: off=%u len=%u first=%d\n",
-			       (unsigned int)offset, (unsigned int)chunk_len, first_chunk);
+		while (chunk_len > 0U) {
+			payload_len = ota_build_upload_packet(tag_ota_image,
+							       tag_ota_image_len,
+							       tag_ota_image_sha256,
+							       offset, &pkt,
+							       chunk_len,
+							       first_chunk);
+			if (payload_len != 0U &&
+			    (sizeof(pkt.header) + payload_len) <= max_att_payload) {
+				chunk_fit = true;
+				break;
+			}
+			chunk_len /= 2U;
+		}
+		if (!chunk_fit) {
+			printk("OTA upload packet build/fit failed: off=%u mtu=%u max_att=%u first=%d\n",
+			       (unsigned int)offset,
+			       default_conn != NULL ? (unsigned int)bt_gatt_get_mtu(default_conn) : 0U,
+			       (unsigned int)max_att_payload,
+			       first_chunk);
 			return -EIO;
 		}
+		if (chunk_len != MIN(remaining, OTA_CHUNK_SIZE)) {
+			printk("OTA chunk downshift: off=%u requested=%u actual=%u mtu=%u\n",
+			       (unsigned int)offset,
+			       (unsigned int)MIN(remaining, OTA_CHUNK_SIZE),
+			       (unsigned int)chunk_len,
+			       default_conn != NULL ? (unsigned int)bt_gatt_get_mtu(default_conn) : 0U);
+		}
+		progress_bytes = offset + chunk_len;
+		percent = (unsigned int)((progress_bytes * 100U) / tag_ota_image_len);
 
 		log_progress = first_chunk || (percent != last_reported_percent) ||
 			       (remaining <= OTA_CHUNK_SIZE);
@@ -2183,6 +2217,10 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 		printk("Conn LE params: int=%u lat=%u timeout=%u\n",
 		       info.le.interval, info.le.latency, info.le.timeout);
 	}
+	sec_err = bt_conn_le_phy_update(conn, fast_phy_params);
+	printk("PHY update request rc=%d\n", sec_err);
+	sec_err = bt_conn_le_param_update(conn, fast_conn_params);
+	printk("Conn param update request rc=%d\n", sec_err);
 	sec_ready = false;
 	ota_security_required = false;
 	k_sem_reset(&sec_ready_sem);
@@ -2382,8 +2420,7 @@ static void scan_filter_match(struct bt_scan_device_info *device_info,
 	ota_set_state(OTA_OP_CONNECT_PENDING, "bt_conn_le_create");
 	err = bt_conn_le_create(device_info->recv_info->addr,
 				BT_CONN_LE_CREATE_CONN,
-				device_info->conn_param != NULL ?
-					device_info->conn_param : BT_LE_CONN_PARAM_DEFAULT,
+				fast_conn_params,
 				&conn);
 	if (err) {
 		printk("Connect start failed %s err %d\n", addr, err);

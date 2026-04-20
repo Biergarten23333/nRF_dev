@@ -22,6 +22,7 @@ static anchor_config_t g_pending_cfg;
 static bool g_pending_valid;
 static bool g_busy;
 static bool g_reboot_required;
+static bool g_runtime_switch_pending;
 static struct k_mutex g_lock;
 
 static char g_state_text[BLE_CTRL_MAX_TEXT];
@@ -199,6 +200,11 @@ static void refresh_text_locked(void)
              (unsigned int)g_info.active_cfg.schema_version,
              (unsigned long)g_info.active_cfg.generation,
              g_reboot_required ? 1U : 0U);
+    if (g_runtime_switch_pending) {
+        (void)snprintk(&g_state_text[strlen(g_state_text)],
+                       sizeof(g_state_text) - strlen(g_state_text),
+                       " runtime_switch_pending=1");
+    }
 }
 
 static void set_result_locked(const char *text)
@@ -284,6 +290,63 @@ static void handle_reboot_locked(void)
     g_reboot_required = false;
 }
 
+static void handle_reset_role_locked(uint8_t role, const char *result_text)
+{
+    anchor_config_t local;
+    int rc;
+
+    local = g_info.active_cfg_valid ? g_info.active_cfg : g_pending_cfg;
+    local.role = role;
+    local.schema_version = ANCHOR_CONFIG_SCHEMA_VERSION;
+    local.generation = g_info.active_cfg.generation + 1U;
+    cfg_prepare(&local);
+    if (!anchor_config_is_valid(&local)) {
+        set_result_locked("ERR:INVALID_CONFIG");
+        return;
+    }
+
+    rc = anchor_config_write(&local);
+    if (rc == -EILSEQ) {
+        set_result_locked("ERR:CRC_MISMATCH");
+        return;
+    }
+    if (rc != 0) {
+        set_result_locked("ERR:WRITE_FAIL");
+        return;
+    }
+
+    g_info.active_cfg = local;
+    g_info.active_cfg_valid = true;
+    g_pending_cfg = local;
+    g_pending_valid = true;
+    g_info.runtime_role = role;
+    g_reboot_required = false;
+    set_result_locked(result_text);
+}
+
+static void handle_runtime_role_locked(uint8_t role)
+{
+    if (role != ANCHOR_ROLE_MASTER && role != ANCHOR_ROLE_MATRIX &&
+        role != ANCHOR_ROLE_RESPONDER) {
+        set_result_locked("ERR:BAD_RUNTIME_ROLE");
+        return;
+    }
+
+    if (g_info.runtime_role == role && !g_runtime_switch_pending) {
+        set_result_locked("OK RUNTIME_ALREADY_ACTIVE");
+        return;
+    }
+
+    if (!g_busy) {
+        set_result_locked("ERR:RUNTIME_IDLE");
+        return;
+    }
+
+    g_runtime_switch_pending = true;
+    anchor_runtime_request_role_switch(role);
+    set_result_locked("OK RUNTIME_SWITCH_REQUESTED");
+}
+
 static void process_control_cmd_locked(char *line)
 {
     char *tok;
@@ -304,7 +367,7 @@ static void process_control_cmd_locked(char *line)
     }
 
     if (strcmp(tok, "HELP") == 0) {
-        set_result_locked("OK CMDS=PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|STOP|SYNC");
+        set_result_locked("OK CMDS=PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|RESET AUTOPOS|RESET RESPONDER|STOP|SYNC|RUNTIME <MASTER|MATRIX|RESPONDER>");
         return;
     }
 
@@ -327,6 +390,34 @@ static void process_control_cmd_locked(char *line)
 
     if (strcmp(tok, "REBOOT") == 0) {
         handle_reboot_locked();
+        return;
+    }
+
+    if (strcmp(tok, "RUNTIME") == 0) {
+        tok = strtok_r(NULL, " ", &savep);
+        if (tok == NULL || role_parse(tok, &parsed) != 0) {
+            set_result_locked("ERR:BAD_RUNTIME_ROLE");
+            return;
+        }
+        handle_runtime_role_locked(parsed);
+        return;
+    }
+
+    if (strcmp(tok, "RESET") == 0) {
+        tok = strtok_r(NULL, " ", &savep);
+        if (tok == NULL) {
+            set_result_locked("ERR:BAD_CMD");
+            return;
+        }
+        if (strcmp(tok, "AUTOPOS") == 0) {
+            handle_reset_role_locked(ANCHOR_ROLE_MATRIX, "OK RESET_AUTOPOS REBOOT");
+            return;
+        }
+        if (strcmp(tok, "RESPONDER") == 0) {
+            handle_reset_role_locked(ANCHOR_ROLE_RESPONDER, "OK RESET_RESPONDER REBOOT");
+            return;
+        }
+        set_result_locked("ERR:UNSUPPORTED");
         return;
     }
 
@@ -458,7 +549,8 @@ static ssize_t write_control_cb(struct bt_conn *conn, const struct bt_gatt_attr 
     k_mutex_unlock(&g_lock);
 
     notify_result_if_possible();
-    if (strncmp(g_result_text, "OK REBOOT", 9) == 0) {
+    if (strstr(g_result_text, "REBOOT") != NULL &&
+        strncmp(g_result_text, "ERR:", 4) != 0) {
         k_msleep(40);
         sys_reboot(SYS_REBOOT_COLD);
     }
@@ -541,6 +633,7 @@ int anchor_ble_ctrl_init(const struct anchor_ble_ctrl_boot_info *info)
     g_pending_valid = anchor_config_is_valid(&g_pending_cfg);
     g_busy = false;
     g_reboot_required = false;
+    g_runtime_switch_pending = false;
     g_result_notify_enabled = false;
     g_state_notify_enabled = false;
     set_result_locked("OK READY");
@@ -567,6 +660,14 @@ void anchor_ble_ctrl_set_runtime(uint8_t runtime_anchor_id_cfg, uint8_t runtime_
     g_info.runtime_anchor_id_cfg = runtime_anchor_id_cfg;
     g_info.runtime_role = runtime_role;
     g_info.active_cfg_valid = active_cfg_valid;
+    refresh_text_locked();
+    k_mutex_unlock(&g_lock);
+}
+
+void anchor_ble_ctrl_set_runtime_switch_pending(bool pending)
+{
+    k_mutex_lock(&g_lock, K_FOREVER);
+    g_runtime_switch_pending = pending;
     refresh_text_locked();
     k_mutex_unlock(&g_lock);
 }

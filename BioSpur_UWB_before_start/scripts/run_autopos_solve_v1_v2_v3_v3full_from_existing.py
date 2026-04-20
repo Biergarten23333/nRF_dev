@@ -41,6 +41,11 @@ def main() -> int:
         default=DEFAULT_FLOATING_REF_Z_PRIOR_MM,
         help=f"Z prior for floating reference Tag (mm). Default: {DEFAULT_FLOATING_REF_Z_PRIOR_MM:.0f}.",
     )
+    ap.add_argument(
+        "--v3full-with-tag115-cm",
+        action="store_true",
+        help="Require Tag115 CM floating-reference session and run V3-full in explicit Tag115-CM mode.",
+    )
     ap.add_argument("--out-name", default=None, help="Optional fixed rerun dir name; default: solve_rerun_YYYYmmdd_HHMMSS")
     ap.add_argument("--skip-v3full", action="store_true", help="Skip V3-full stage (debug).")
     args = ap.parse_args()
@@ -87,6 +92,12 @@ def main() -> int:
         floating_ref_train = None
     if floating_ref_holdout and not floating_ref_holdout.exists():
         floating_ref_holdout = None
+
+    if args.v3full_with_tag115_cm and not floating_ref_train:
+        raise SystemExit(
+            "[error] --v3full-with-tag115-cm requires --floating-reference-train "
+            "(or an existing solve_* containing floating_ref115_train)"
+        )
 
     solve_dir = run_dir / out_name
     solve_dir.mkdir(parents=True, exist_ok=True)
@@ -244,7 +255,8 @@ def main() -> int:
     run(v3_solve_cmd)
 
     # 4) V3-full
-    v3full_dir = solve_dir / "v3_full"
+    v3full_dir_name = "v3_full_tag115_cm" if args.v3full_with_tag115_cm else "v3_full"
+    v3full_dir = solve_dir / v3full_dir_name
     out_compare_pairs = solve_dir / "compare_v1_v2_v3_v3full_pairs.md"
     out_compare_layouts = solve_dir / "compare_v1_v2_v3_v3full_layouts.md"
     v3full_layout = None
@@ -386,6 +398,7 @@ def main() -> int:
         "floating_ref_train": str(floating_ref_train) if floating_ref_train else None,
         "floating_ref_holdout": str(floating_ref_holdout) if floating_ref_holdout else None,
         "floating_ref_z_prior_mm": float(args.floating_reference_z_prior_mm),
+        "v3full_with_tag115_cm": bool(args.v3full_with_tag115_cm),
         "v1_pairs": str(v1_pairs),
         "v1_layout": str(v1_soft_layout),
         "v2_pairs": str(v2_pairs),

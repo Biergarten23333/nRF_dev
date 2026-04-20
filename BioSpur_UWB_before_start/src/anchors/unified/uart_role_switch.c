@@ -429,3 +429,11 @@ void uart_role_switch_set_ranging_active(bool active)
 {
     g_ranging_active = active;
 }
+
+void uart_role_switch_set_runtime(uint8_t active_anchor_id_cfg, uint8_t active_role,
+                                  bool cfg_valid_on_boot)
+{
+    g_runtime_info.active_anchor_id_cfg = active_anchor_id_cfg;
+    g_runtime_info.active_role = active_role;
+    g_runtime_info.cfg_valid_on_boot = cfg_valid_on_boot;
+}

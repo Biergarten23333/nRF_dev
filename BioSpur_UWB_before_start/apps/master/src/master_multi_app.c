@@ -29,6 +29,7 @@
 #define MASTER_DISCOVERY_RETRY_LIMIT 5U
 #define MASTER_DISCOVERY_START_SETTLE_MS 350U
 #define MASTER_ANCHOR_DISCOVERY_START_SETTLE_MS 900U
+#define MASTER_CONNECT_PENDING_TIMEOUT_MS 6000U
 #define MASTER_TDMA_SLOT_COUNT_MAX 10U
 #define MASTER_TDMA_SLOT_PERIOD_MS 24U
 #define MASTER_TDMA_SLOT_ACTIVE_MS 20U
@@ -100,6 +101,7 @@ struct master_peer {
 	uint8_t discovery_retry_attempts;
 	uint8_t discovery_start_failures;
 	int64_t connected_at_ms;
+	int64_t connect_started_at_ms;
 	bt_addr_le_t addr;
 	bool addr_valid;
 	char adv_name[MASTER_NAME_BUF_LEN];
@@ -164,6 +166,7 @@ static int runtime_target_token = -1;
 static char runtime_target_name[MASTER_NAME_BUF_LEN];
 static char runtime_target_prefix[MASTER_NAME_BUF_LEN];
 static char runtime_target_uuid[MASTER_UUID_HEX_LEN + 1U];
+static bool runtime_anchor_wildcard_scan;
 static struct k_sem anchor_read_sem;
 static struct bt_gatt_read_params anchor_read_params;
 static char anchor_read_buffer[256];
@@ -498,6 +501,7 @@ static void peer_clear(unsigned int idx, bool unref_conn)
 	peers[idx].discovery_retry_attempts = 0U;
 	peers[idx].discovery_start_failures = 0U;
 	peers[idx].connected_at_ms = 0;
+	peers[idx].connect_started_at_ms = 0;
 	peers[idx].addr_valid = false;
 	peers[idx].adv_name[0] = '\0';
 	peers[idx].adv_uuid[0] = '\0';
@@ -941,9 +945,29 @@ static void master_try_connect_pending(void)
 {
 	int slot = -1;
 	int err;
+	int64_t now = k_uptime_get();
 
 	if (!recv_background_allowed()) {
 		return;
+	}
+
+	if (connecting_slot >= 0 && connecting_slot < (int)ARRAY_SIZE(peers)) {
+		struct master_peer *peer = &peers[connecting_slot];
+
+		if (!peer->connected && peer->connect_started_at_ms > 0 &&
+		    now - peer->connect_started_at_ms > MASTER_CONNECT_PENDING_TIMEOUT_MS) {
+			printk("CONNECT pending[%d] watchdog: waited=%lld ms uuid=%s; clearing stale pending link\n",
+			       connecting_slot,
+			       now - peer->connect_started_at_ms,
+			       peer->adv_uuid[0] != '\0' ? peer->adv_uuid : "-");
+			if (peer->conn != NULL) {
+				(void)bt_conn_disconnect(peer->conn,
+							 BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+			}
+			peer_clear((unsigned int)connecting_slot, true);
+			connecting_slot = -1;
+			start_scan();
+		}
 	}
 
 	if (!auto_connect_enabled || connecting_slot >= 0 ||
@@ -964,6 +988,7 @@ static void master_try_connect_pending(void)
 	}
 
 	connecting_slot = slot;
+	peers[slot].connect_started_at_ms = now;
 	printk("CONNECT pending[%d]: addr_valid=%u link=%s uuid=%s scan_running=%u conn_count=%u\n",
 	       slot,
 	       peers[slot].addr_valid ? 1U : 0U,
@@ -1956,12 +1981,16 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	bt_data_parse(&name_copy, scan_name_cb, adv_name);
 
 	if (runtime_target_kind == MASTER_TARGET_ANCHOR) {
+		if (!runtime_anchor_wildcard_scan) {
 			if (runtime_target_uuid[0] == '\0') {
 				return;
 			}
 			if (!uuid_match) {
 				return;
 			}
+		} else if (uuid_hex[0] == '\0') {
+			return;
+		}
 		goto candidate_accept;
 	}
 
@@ -2385,6 +2414,11 @@ void master_set_runtime_target_uuid(const char *uuid_hex)
 
 	strncpy(runtime_target_uuid, uuid_hex, sizeof(runtime_target_uuid) - 1U);
 	runtime_target_uuid[sizeof(runtime_target_uuid) - 1U] = '\0';
+}
+
+void master_set_anchor_wildcard_scan(bool enable)
+{
+	runtime_anchor_wildcard_scan = enable;
 }
 
 int master_anchor_ctrl_ready_count(void)

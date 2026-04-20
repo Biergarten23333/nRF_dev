@@ -19,5 +19,7 @@ int uart_role_switch_init(const struct uart_role_switch_runtime_info *info,
                           const anchor_config_t *initial_cfg,
                           bool initial_cfg_valid);
 void uart_role_switch_set_ranging_active(bool active);
+void uart_role_switch_set_runtime(uint8_t active_anchor_id_cfg, uint8_t active_role,
+                                  bool cfg_valid_on_boot);
 
 #endif

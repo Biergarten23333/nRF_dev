@@ -9,11 +9,15 @@ import traceback
 from pathlib import Path
 
 import serial
-from serial import SerialException
+from serial import SerialException, SerialTimeoutException
 
 from run_autopos_round import UUIDS
 
 _LIVE_LINE_BUFFERS: dict[int, str] = {}
+_PROGRESS_LINE_LEN = 24
+_PROGRESS_ACTIVE = False
+_LAST_PROGRESS_LINE = ""
+_LAST_PROGRESS_PRINTED_LEN = 0
 
 
 def auto_timeout_for_sw_sets(sw_sets: int) -> int:
@@ -21,6 +25,134 @@ def auto_timeout_for_sw_sets(sw_sets: int) -> int:
     # - 10 sets stays around the historical 480s budget
     # - 100 sets expands to about 30 minutes
     return max(480, 360 + (15 * sw_sets))
+
+
+def format_eta_seconds(seconds: float | None) -> str:
+    if seconds is None or seconds < 0:
+        return "--"
+    total = int(round(seconds))
+    mins, secs = divmod(total, 60)
+    if mins >= 60:
+        hours, mins = divmod(mins, 60)
+        return f"{hours}h{mins:02d}m{secs:02d}s"
+    return f"{mins}m{secs:02d}s"
+
+
+def render_round_progress(
+    master: str,
+    round_idx: int,
+    round_total: int,
+    sw_count: int,
+    sw_target: int,
+    stage: str,
+    total_elapsed_s: float,
+    round_elapsed_s: float,
+    eta_s: float | None,
+) -> str:
+    if stage == "sweeping" and sw_target > 0:
+        percent = max(0, min(100, int((sw_count / sw_target) * 100)))
+    elif stage == "done":
+        percent = 100
+    elif stage == "failed":
+        percent = max(0, min(99, int((sw_count / max(sw_target, 1)) * 100)))
+    else:
+        percent = 0
+    filled = max(0, min(_PROGRESS_LINE_LEN, int(round((percent / 100.0) * _PROGRESS_LINE_LEN))))
+    bar = "#" * filled + "." * (_PROGRESS_LINE_LEN - filled)
+    return (
+        f"[SW-{master} {round_idx}/{round_total}] [{bar}] {percent:3d}% "
+        f"sw-set={sw_count}/{sw_target} stage={stage:<10} "
+        f"elapsed={int(total_elapsed_s):4d}s round={int(round_elapsed_s):4d}s "
+        f"eta[SW-{master}]={format_eta_seconds(eta_s):>8}"
+    )
+
+
+def _terminal_width() -> int:
+    try:
+        return max(20, os.get_terminal_size(sys.stdout.fileno()).columns)
+    except OSError:
+        return 120
+
+
+def _progress_for_terminal(line: str) -> str:
+    width = _terminal_width()
+    if len(line) >= width:
+        return line[: max(1, width - 1)]
+    return line
+
+
+def _clear_progress_line() -> None:
+    global _LAST_PROGRESS_PRINTED_LEN
+    if _LAST_PROGRESS_PRINTED_LEN <= 0:
+        sys.stdout.write("\r")
+        return
+    sys.stdout.write("\r" + (" " * _LAST_PROGRESS_PRINTED_LEN) + "\r")
+
+
+def write_live_output(text: str) -> None:
+    """Print normal logs above the live progress line."""
+    global _PROGRESS_ACTIVE
+    if not text:
+        return
+    had_progress = _PROGRESS_ACTIVE and _LAST_PROGRESS_LINE
+    if had_progress:
+        _clear_progress_line()
+    sys.stdout.write(text)
+    if not text.endswith("\n"):
+        sys.stdout.write("\n")
+    if had_progress:
+        _write_progress_line(_LAST_PROGRESS_LINE)
+    sys.stdout.flush()
+
+
+def _write_progress_line(line: str) -> None:
+    global _PROGRESS_ACTIVE, _LAST_PROGRESS_LINE, _LAST_PROGRESS_PRINTED_LEN
+    line = _progress_for_terminal(line.lstrip("\r"))
+    clear_len = max(_LAST_PROGRESS_PRINTED_LEN - len(line), 0)
+    sys.stdout.write("\r" + line + (" " * clear_len))
+    sys.stdout.flush()
+    _PROGRESS_ACTIVE = True
+    _LAST_PROGRESS_LINE = line
+    _LAST_PROGRESS_PRINTED_LEN = len(line)
+
+
+def print_round_progress(
+    master: str,
+    round_idx: int,
+    round_total: int,
+    sw_count: int,
+    sw_target: int,
+    stage: str,
+    total_elapsed_s: float,
+    round_elapsed_s: float,
+    eta_s: float | None,
+) -> None:
+    _write_progress_line(
+        render_round_progress(
+            master,
+            round_idx,
+            round_total,
+            sw_count,
+            sw_target,
+            stage,
+            total_elapsed_s,
+            round_elapsed_s,
+            eta_s,
+        )
+    )
+
+
+def finish_round_progress() -> None:
+    global _PROGRESS_ACTIVE, _LAST_PROGRESS_LINE, _LAST_PROGRESS_PRINTED_LEN
+    if _LAST_PROGRESS_LINE:
+        _clear_progress_line()
+        sys.stdout.write(_LAST_PROGRESS_LINE + "\n")
+    else:
+        sys.stdout.write("\n")
+    sys.stdout.flush()
+    _PROGRESS_ACTIVE = False
+    _LAST_PROGRESS_LINE = ""
+    _LAST_PROGRESS_PRINTED_LEN = 0
 
 
 def sw_line_min_quality(master: str, line: str) -> int | None:
@@ -40,6 +172,28 @@ def sw_line_min_quality(master: str, line: str) -> int | None:
     if not qualities:
         return None
     return min(qualities)
+
+
+def parse_sw_line_triplets(master: str, line: str) -> dict[str, tuple[int, int]]:
+    try:
+        fields = line.split(f"SW-{master},", 1)[1].split(",")
+    except IndexError:
+        return {}
+
+    parsed: dict[str, tuple[int, int]] = {}
+    for idx in range(0, len(fields), 3):
+        if idx + 2 >= len(fields):
+            break
+        peer = fields[idx].strip()
+        if not peer:
+            continue
+        try:
+            distance = int(fields[idx + 1])
+            quality = int(fields[idx + 2])
+        except ValueError:
+            continue
+        parsed[peer] = (distance, quality)
+    return parsed
 
 
 def sw_line_pairs_below_quality(master: str, line: str, threshold: int) -> list[str]:
@@ -64,6 +218,78 @@ def sw_line_pairs_below_quality(master: str, line: str, threshold: int) -> list[
     return bad
 
 
+def summarize_round_warnings(master: str, sw_lines: list[str], sw_seen: bool) -> list[str]:
+    warnings: list[str] = []
+    if not sw_seen or not sw_lines:
+        warnings.append(f"Anchor {master}: no output as Master")
+        return warnings
+
+    peer_zero_only_rounds: dict[str, bool] = {}
+    seen_any_peer: set[str] = set()
+    for line in sw_lines:
+        parsed = parse_sw_line_triplets(master, line)
+        for peer, (distance, quality) in parsed.items():
+            seen_any_peer.add(peer)
+            zero = (distance == 0 and quality == 0)
+            if peer not in peer_zero_only_rounds:
+                peer_zero_only_rounds[peer] = zero
+            else:
+                peer_zero_only_rounds[peer] = peer_zero_only_rounds[peer] and zero
+
+    for peer in sorted(seen_any_peer):
+        if peer_zero_only_rounds.get(peer, False):
+            warnings.append(f"Anchor {peer}: no output as Matrix during SW-{master}")
+    return warnings
+
+
+def summarize_global_warnings(rounds: dict) -> list[str]:
+    warnings: list[str] = []
+    no_master = []
+    matrix_missing: dict[str, list[str]] = {}
+    matrix_low_quality: dict[str, list[tuple[str, int]]] = {}
+
+    for master, result in sorted(rounds.items()):
+        if not result.get("sw_seen") or not result.get("sw_lines"):
+            no_master.append(master)
+        for warning in result.get("warnings", []):
+            m = re.fullmatch(r"Anchor ([A-Z]): no output as Matrix during SW-([A-Z])", warning)
+            if m:
+                peer, sw_master = m.group(1), m.group(2)
+                matrix_missing.setdefault(peer, []).append(sw_master)
+        for line in result.get("sw_lines", []):
+            parsed = parse_sw_line_triplets(master, line)
+            for peer, (_, quality) in parsed.items():
+                if quality <= 85:
+                    matrix_low_quality.setdefault(peer, []).append((master, quality))
+
+    for master in no_master:
+        warnings.append(f"WARNING: Anchor {master}: no output as Master")
+    for peer in sorted(matrix_missing):
+        rounds_str = ",".join(matrix_missing[peer])
+        warnings.append(f"WARNING: Anchor {peer}: no output as Matrix in rounds {rounds_str}")
+        warnings.append(
+            f"WARNING: Check Anchor {peer} status; repeated matrix silence usually means responder path, role transition, or UWB RX issue."
+        )
+    for peer in sorted(matrix_low_quality):
+        by_round: dict[str, int] = {}
+        for master, quality in matrix_low_quality[peer]:
+            current = by_round.get(master)
+            if current is None or quality < current:
+                by_round[master] = quality
+        low_rounds = sorted(by_round.items())
+        if not low_rounds:
+            continue
+        rounds_str = ",".join(master for master, _ in low_rounds)
+        minq = min(q for _, q in low_rounds)
+        warnings.append(
+            f"WARNING: Anchor {peer}: low quality as Matrix in rounds {rounds_str} (minq<={minq})"
+        )
+        warnings.append(
+            f"WARNING: Check Anchor {peer} status; low matrix quality usually points to RF path, antenna delay mismatch, weak supply, or placement/orientation issue."
+        )
+    return warnings
+
+
 def should_print_live_line(line: str, verbose: int) -> bool:
     if verbose >= 2:
         return True
@@ -86,8 +312,7 @@ def flush_live_buffer(logf, verbose: int) -> None:
     key = id(logf)
     tail = _LIVE_LINE_BUFFERS.pop(key, "")
     if tail and should_print_live_line(tail, verbose):
-        sys.stdout.write(tail)
-        sys.stdout.flush()
+        write_live_output(tail)
 
 
 def emit(logf, text: str, live_output: bool, verbose: int = 2) -> None:
@@ -107,8 +332,7 @@ def emit(logf, text: str, live_output: bool, verbose: int = 2) -> None:
         _LIVE_LINE_BUFFERS[key] = tail
         for line in lines:
             if should_print_live_line(line, verbose):
-                sys.stdout.write(line)
-        sys.stdout.flush()
+                write_live_output(line)
 
 
 def open_port(port: str, timeout_s: float) -> serial.Serial:
@@ -116,23 +340,60 @@ def open_port(port: str, timeout_s: float) -> serial.Serial:
     last_exc = None
     while time.time() < deadline:
         try:
-            return serial.Serial(port, 115200, timeout=0.2)
+            return serial.Serial(port, 115200, timeout=0.2, write_timeout=2.0)
         except Exception as exc:
             last_exc = exc
             time.sleep(0.4)
     raise last_exc
 
 
-def write_cmd(ser: serial.Serial, cmd: str) -> None:
-    ser.write((cmd + "\n").encode())
-    ser.flush()
+def _best_effort_reset_serial_buffers(ser: serial.Serial) -> None:
+    try:
+        ser.reset_input_buffer()
+    except Exception:
+        pass
+    try:
+        ser.reset_output_buffer()
+    except Exception:
+        pass
 
 
-def write_cmds(ser: serial.Serial, cmds: list[str]) -> None:
+def _write_bytes_with_recovery(ser: serial.Serial, payload: bytes) -> serial.Serial:
+    try:
+        ser.write(payload)
+        ser.flush()
+        return ser
+    except SerialTimeoutException:
+        _best_effort_reset_serial_buffers(ser)
+        time.sleep(0.2)
+        try:
+            ser.write(payload)
+            ser.flush()
+            return ser
+        except SerialTimeoutException:
+            port = getattr(ser, "port", None)
+            try:
+                ser.close()
+            except Exception:
+                pass
+            if not port:
+                raise
+            ser = reopen_port(port)
+            _best_effort_reset_serial_buffers(ser)
+            time.sleep(0.2)
+            ser.write(payload)
+            ser.flush()
+            return ser
+
+
+def write_cmd(ser: serial.Serial, cmd: str) -> serial.Serial:
+    return _write_bytes_with_recovery(ser, (cmd + "\n").encode())
+
+
+def write_cmds(ser: serial.Serial, cmds: list[str]) -> serial.Serial:
     if not cmds:
-        return
-    ser.write(("".join(c + "\n" for c in cmds)).encode())
-    ser.flush()
+        return ser
+    return _write_bytes_with_recovery(ser, ("".join(c + "\n" for c in cmds)).encode())
 
 
 def reopen_port(port: str) -> serial.Serial:
@@ -146,10 +407,13 @@ def collect_for(
     port: str,
     live_output: bool,
     verbose: int,
+    progress_cb=None,
 ) -> tuple[serial.Serial, bool]:
     end = time.time() + duration_s
     saw_reopen = False
     while time.time() < end:
+        if progress_cb is not None:
+            progress_cb()
         try:
             data = ser.read(4096)
         except (SerialException, OSError):
@@ -177,11 +441,14 @@ def collect_for_text(
     port: str,
     live_output: bool,
     verbose: int,
+    progress_cb=None,
 ) -> tuple[serial.Serial, bool, str]:
     end = time.time() + duration_s
     saw_reopen = False
     chunks = []
     while time.time() < end:
+        if progress_cb is not None:
+            progress_cb()
         try:
             data = ser.read(4096)
         except (SerialException, OSError):
@@ -212,22 +479,43 @@ def send_cmd_collect_text(
     live_output: bool,
     verbose: int,
     resend_after_reopen: bool = True,
+    progress_cb=None,
 ) -> tuple[serial.Serial, str]:
+    if progress_cb is not None:
+        progress_cb()
     emit(logf, f">>> {cmd}\n", live_output, verbose)
     try:
-        write_cmd(ser, cmd)
+        ser = write_cmd(ser, cmd)
     except Exception:
         try:
             ser.close()
         except Exception:
             pass
         ser = reopen_port(port)
-        write_cmd(ser, cmd)
-    ser, saw_reopen, text = collect_for_text(ser, logf, pause_s, port, live_output, verbose)
+        ser = write_cmd(ser, cmd)
+    ser, saw_reopen, text = collect_for_text(
+        ser,
+        logf,
+        pause_s,
+        port,
+        live_output,
+        verbose,
+        progress_cb=progress_cb,
+    )
     if saw_reopen and resend_after_reopen:
+        if progress_cb is not None:
+            progress_cb()
         emit(logf, f">>> RESEND {cmd}\n", live_output, verbose)
-        write_cmd(ser, cmd)
-        ser, _, more = collect_for_text(ser, logf, max(0.6, pause_s), port, live_output, verbose)
+        ser = write_cmd(ser, cmd)
+        ser, _, more = collect_for_text(
+            ser,
+            logf,
+            max(0.6, pause_s),
+            port,
+            live_output,
+            verbose,
+            progress_cb=progress_cb,
+        )
         text += more
     return ser, text
 
@@ -241,22 +529,43 @@ def send_cmd_collect(
     live_output: bool,
     verbose: int,
     resend_after_reopen: bool = True,
+    progress_cb=None,
 ) -> serial.Serial:
+    if progress_cb is not None:
+        progress_cb()
     emit(logf, f">>> {cmd}\n", live_output, verbose)
     try:
-        write_cmd(ser, cmd)
+        ser = write_cmd(ser, cmd)
     except Exception:
         try:
             ser.close()
         except Exception:
             pass
         ser = reopen_port(port)
-        write_cmd(ser, cmd)
-    ser, saw_reopen = collect_for(ser, logf, pause_s, port, live_output, verbose)
+        ser = write_cmd(ser, cmd)
+    ser, saw_reopen = collect_for(
+        ser,
+        logf,
+        pause_s,
+        port,
+        live_output,
+        verbose,
+        progress_cb=progress_cb,
+    )
     if saw_reopen and resend_after_reopen:
+        if progress_cb is not None:
+            progress_cb()
         emit(logf, f">>> RESEND {cmd}\n", live_output, verbose)
-        write_cmd(ser, cmd)
-        ser, _ = collect_for(ser, logf, max(0.6, pause_s), port, live_output, verbose)
+        ser = write_cmd(ser, cmd)
+        ser, _ = collect_for(
+            ser,
+            logf,
+            max(0.6, pause_s),
+            port,
+            live_output,
+            verbose,
+            progress_cb=progress_cb,
+        )
     return ser
 
 
@@ -267,22 +576,27 @@ def wait_for_autopos_idle(
     timeout_s: float,
     live_output: bool,
     verbose: int,
+    progress_cb=None,
 ) -> tuple[serial.Serial, bool]:
     deadline = time.time() + timeout_s
     while time.time() < deadline:
+        if progress_cb is not None:
+            progress_cb()
         emit(logf, ">>> autopos status\n", live_output, verbose)
         try:
-            write_cmd(ser, "autopos status")
+            ser = write_cmd(ser, "autopos status")
         except Exception:
             try:
                 ser.close()
             except Exception:
                 pass
             ser = reopen_port(port)
-            write_cmd(ser, "autopos status")
+            ser = write_cmd(ser, "autopos status")
 
         pause_end = time.time() + 1.4
         while time.time() < pause_end:
+            if progress_cb is not None:
+                progress_cb()
             try:
                 data = ser.read(4096)
             except (SerialException, OSError):
@@ -310,8 +624,11 @@ def preflight_clean_autopos_start(
     port: str,
     live_output: bool,
     verbose: int,
+    progress_cb=None,
 ) -> tuple[serial.Serial, bool]:
     # Reset AUTOPOS state in-place without a RECV reboot boundary.
+    if progress_cb is not None:
+        progress_cb()
     ser, status_text = send_cmd_collect_text(
         ser,
         logf,
@@ -321,8 +638,11 @@ def preflight_clean_autopos_start(
         live_output,
         verbose,
         resend_after_reopen=False,
+        progress_cb=progress_cb,
     )
     if "Control status: mode=OTA" in status_text:
+        if progress_cb is not None:
+            progress_cb()
         emit(logf, "PRECHECK: OTA mode detected; switching through RECV before AUTOPOS\n", live_output, verbose)
         ser = send_cmd_collect(
             ser,
@@ -333,8 +653,11 @@ def preflight_clean_autopos_start(
             live_output,
             verbose,
             resend_after_reopen=False,
+            progress_cb=progress_cb,
         )
-        ser, _ = collect_for(ser, logf, 2.0, port, live_output, verbose)
+        ser, _ = collect_for(ser, logf, 2.0, port, live_output, verbose, progress_cb=progress_cb)
+        if progress_cb is not None:
+            progress_cb()
         ser = send_cmd_collect(
             ser,
             logf,
@@ -344,8 +667,11 @@ def preflight_clean_autopos_start(
             live_output,
             verbose,
             resend_after_reopen=False,
+            progress_cb=progress_cb,
         )
     elif "Control status: mode=AUTOPOS" in status_text:
+        if progress_cb is not None:
+            progress_cb()
         ser = send_cmd_collect(
             ser,
             logf,
@@ -355,8 +681,11 @@ def preflight_clean_autopos_start(
             live_output,
             verbose,
             resend_after_reopen=False,
+            progress_cb=progress_cb,
         )
     else:
+        if progress_cb is not None:
+            progress_cb()
         ser = send_cmd_collect(
             ser,
             logf,
@@ -366,10 +695,21 @@ def preflight_clean_autopos_start(
             live_output,
             verbose,
             resend_after_reopen=False,
+            progress_cb=progress_cb,
         )
-    ser, _ = collect_for(ser, logf, 0.8, port, live_output, verbose)
-    ser, idle_ok = wait_for_autopos_idle(ser, logf, port, 8.0, live_output, verbose)
+    ser, _ = collect_for(ser, logf, 0.8, port, live_output, verbose, progress_cb=progress_cb)
+    ser, idle_ok = wait_for_autopos_idle(
+        ser,
+        logf,
+        port,
+        8.0,
+        live_output,
+        verbose,
+        progress_cb=progress_cb,
+    )
     if not idle_ok:
+        if progress_cb is not None:
+            progress_cb()
         ser = send_cmd_collect(
             ser,
             logf,
@@ -379,10 +719,82 @@ def preflight_clean_autopos_start(
             live_output,
             verbose,
             resend_after_reopen=False,
+            progress_cb=progress_cb,
         )
-        ser, _ = collect_for(ser, logf, 0.8, port, live_output, verbose)
-        ser, idle_ok = wait_for_autopos_idle(ser, logf, port, 5.0, live_output, verbose)
+        ser, _ = collect_for(ser, logf, 0.8, port, live_output, verbose, progress_cb=progress_cb)
+        ser, idle_ok = wait_for_autopos_idle(
+            ser,
+            logf,
+            port,
+            5.0,
+            live_output,
+            verbose,
+            progress_cb=progress_cb,
+        )
     return ser, idle_ok
+
+
+def bootstrap_reset_all_autopos(
+    ser: serial.Serial,
+    logf,
+    port: str,
+    live_output: bool,
+    verbose: int,
+    progress_cb=None,
+) -> tuple[serial.Serial, bool]:
+    emit(logf, "PRECHECK: bootstrap anchor reset all autopos\n", live_output, verbose)
+    ser, reset_text = send_cmd_collect_text(
+        ser,
+        logf,
+        port,
+        "anchor reset all autopos",
+        130.0,
+        live_output,
+        verbose,
+        resend_after_reopen=False,
+        progress_cb=progress_cb,
+    )
+    if "uuid not mapped" in reset_text:
+        emit(logf, "PRECHECK WARN: bootstrap reset saw uuid-not-mapped; check map ordering\n",
+             live_output, verbose)
+    if "anchor reset rc=" not in reset_text:
+        emit(logf, "PRECHECK WARN: bootstrap reset command did not report completion\n",
+             live_output, verbose)
+
+    deadline = time.time() + 90.0
+    ok = False
+    while time.time() < deadline:
+        if progress_cb is not None:
+            progress_cb()
+        ser, text = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            "anchor version all",
+            2.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
+        matrix_count = len(re.findall(r"ANCHOR_VERSION .* role=matrix", text))
+        if matrix_count >= len(UUIDS):
+            ok = True
+            break
+        emit(
+            logf,
+            f"PRECHECK: bootstrap wait matrix_count={matrix_count}/{len(UUIDS)}\n",
+            live_output,
+            verbose,
+        )
+        time.sleep(1.0)
+
+    if ok:
+        emit(logf, "PRECHECK: bootstrap reset all autopos complete\n", live_output, verbose)
+    else:
+        emit(logf, "PRECHECK WARN: bootstrap reset all autopos did not verify all matrix anchors\n",
+             live_output, verbose)
+    return ser, ok
 
 
 def wait_for_patterns(
@@ -425,6 +837,7 @@ def quarantine_tag_for_sweep(
     logf,
     port: str,
     target_name: str,
+    strict: bool,
     live_output: bool,
     verbose: int,
 ) -> tuple[serial.Serial, bool]:
@@ -571,32 +984,54 @@ def quarantine_tag_for_sweep(
             )
             ready_ok = ready_ok or cm_ok
         if not ready_ok:
-            emit(logf, f"PRECHECK FAIL: tag {target_name} not connected/ready in RECV\n", live_output, verbose)
+            level = "FAIL" if strict else "WARN"
+            emit(logf, f"PRECHECK {level}: tag {target_name} not connected/ready in RECV\n", live_output, verbose)
             return ser, False
+
+    def try_stream_off_aliases(cur_ser: serial.Serial) -> tuple[serial.Serial, bool, str, bool]:
+        """
+        Try multiple STREAM OFF command spellings for firmware compatibility.
+        Returns: (ser, ok, merged_text, unsupported)
+        """
+        cmds = [
+            "cmd STREAM OFF",
+            "cmd STREAMON 0",
+            "cmd STREAM 0",
+        ]
+        merged_text = ""
+        unsupported_hits = 0
+        for c in cmds:
+            cur_ser, txt = send_cmd_collect_text(
+                cur_ser,
+                logf,
+                port,
+                c,
+                0.8,
+                live_output,
+                verbose,
+            )
+            merged_text += txt
+            ok = ("STREAM_OK OFF" in txt) or ("STREAM=OFF" in txt)
+            if not ok:
+                cur_ser, ok, more_stream_text = wait_for_patterns(
+                    cur_ser,
+                    logf,
+                    port,
+                    ["STREAM_OK OFF", "STREAM=OFF"],
+                    3.0,
+                    live_output,
+                    verbose,
+                )
+                merged_text += more_stream_text
+            if ok:
+                return cur_ser, True, merged_text, False
+            if "UNKNOWN_CMD" in txt or "cmd rc=-128" in txt:
+                unsupported_hits += 1
+        return cur_ser, False, merged_text, unsupported_hits == len(cmds)
 
     # Fast path: STREAM OFF directly (no mode switch), then fallback to MODE AOTA.
     quarantine_mode = "unknown"
-    ser, stream_text = send_cmd_collect_text(
-        ser,
-        logf,
-        port,
-        "cmd STREAM OFF",
-        0.8,
-        live_output,
-        verbose,
-    )
-    stream_ok = "STREAM_OK OFF" in stream_text
-    if not stream_ok:
-        ser, stream_ok, more_stream_text = wait_for_patterns(
-            ser,
-            logf,
-            port,
-            ["STREAM_OK OFF"],
-            6.0,
-            live_output,
-            verbose,
-        )
-        stream_text += more_stream_text
+    ser, stream_ok, stream_text, stream_unsupported = try_stream_off_aliases(ser)
     if stream_ok:
         quarantine_mode = "STREAM_OFF_ONLY"
     else:
@@ -629,35 +1064,16 @@ def quarantine_tag_for_sweep(
             )
             mode_text += more_mode_text
         if not mode_ok:
-            emit(logf, f"PRECHECK FAIL: tag {target_name} did not enter AOTA\n", live_output, verbose)
+            level = "FAIL" if strict else "WARN"
+            emit(logf, f"PRECHECK {level}: tag {target_name} did not enter AOTA\n", live_output, verbose)
             if "MODE_BAD" in mode_text or "cmd rc=-128" in mode_text:
                 emit(logf, "PRECHECK DETAIL: Tag command path rejected MODE AOTA\n", live_output, verbose)
             return ser, False
 
         # Retry STREAM OFF after MODE AOTA.
-        ser, stream_text = send_cmd_collect_text(
-            ser,
-            logf,
-            port,
-            "cmd STREAM OFF",
-            0.8,
-            live_output,
-            verbose,
-        )
-        stream_ok = "STREAM_OK OFF" in stream_text
+        ser, stream_ok, stream_text, stream_unsupported = try_stream_off_aliases(ser)
         if not stream_ok:
-            ser, stream_ok, more_stream_text = wait_for_patterns(
-                ser,
-                logf,
-                port,
-                ["STREAM_OK OFF"],
-                6.0,
-                live_output,
-                verbose,
-            )
-            stream_text += more_stream_text
-        if not stream_ok:
-            if "UNKNOWN_CMD" in stream_text or "cmd rc=-128" in stream_text:
+            if stream_unsupported or "UNKNOWN_CMD" in stream_text or "cmd rc=-128" in stream_text:
                 emit(
                     logf,
                     f"PRECHECK WARN: tag {target_name} did not support STREAM OFF; keeping MODE AOTA quarantine\n",
@@ -666,7 +1082,8 @@ def quarantine_tag_for_sweep(
                 )
                 quarantine_mode = "MODE_AOTA_ONLY"
             else:
-                emit(logf, f"PRECHECK FAIL: tag {target_name} did not ack STREAM OFF\n", live_output, verbose)
+                level = "FAIL" if strict else "WARN"
+                emit(logf, f"PRECHECK {level}: tag {target_name} did not ack STREAM OFF\n", live_output, verbose)
                 return ser, False
         else:
             quarantine_mode = "MODE_AOTA_PLUS_STREAM_OFF"
@@ -745,7 +1162,7 @@ def discover_quiet_tag_names_auto(
     ]
     for c in setup_cmds:
         emit(logf, f">>> {c}\n", live_output, verbose)
-    write_cmds(ser, setup_cmds)
+    ser = write_cmds(ser, setup_cmds)
     ser, _, scan_text = collect_for_text(ser, logf, 4.0, port, live_output, verbose)
 
     known_anchor_uuids = {u.upper() for u in UUIDS.values()}
@@ -787,6 +1204,10 @@ def round_capture(
     quiet_tag_name: str | None,
     quiet_tag_retries: int,
     quiet_tag_required: bool,
+    context: dict | None = None,
+    round_idx: int = 1,
+    round_total: int = 1,
+    command_started_at: float | None = None,
     live_output: bool = True,
     verbose: int = 2,
 ) -> dict:
@@ -812,6 +1233,25 @@ def round_capture(
     }
     verified = set()
     ser = None
+    round_started_at = time.time()
+    if command_started_at is None:
+        command_started_at = round_started_at
+    sweep_started_at: float | None = None
+    stage = "starting"
+
+    def progress_now(current_stage: str, eta_s: float | None = None) -> None:
+        print_round_progress(
+            master,
+            round_idx,
+            round_total,
+            result["sw_count"],
+            round_capture.target_sw_sets,
+            current_stage,
+            time.time() - command_started_at,
+            time.time() - round_started_at,
+            eta_s,
+        )
+
     try:
         ser = open_port(port, 20.0)
         with open(log_path, "w", buffering=1) as logf:
@@ -833,57 +1273,14 @@ def round_capture(
                 flush_live_buffer(logf, verbose)
                 return result
 
-            configured_qnames = parse_quiet_tag_names(quiet_tag_name)
-            qnames: list[str] = []
-            if quiet_tag_name and quiet_tag_name.strip().lower() == "auto":
-                ser, qnames = discover_quiet_tag_names_auto(
-                    ser, logf, port, live_output, verbose
-                )
-            else:
-                qnames = configured_qnames
-
-            for qname in qnames:
-                quiet_ok = False
-                max_attempts = max(1, int(quiet_tag_retries))
-                for attempt in range(1, max_attempts + 1):
-                    if attempt > 1:
-                        emit(
-                            logf,
-                            f"PRECHECK RETRY: quarantining tag {qname} attempt={attempt}/{max_attempts}\n",
-                            live_output,
-                            verbose,
-                        )
-                        ser, _ = collect_for(ser, logf, 0.6, port, live_output, verbose)
-                    ser, quiet_ok = quarantine_tag_for_sweep(
-                        ser,
-                        logf,
-                        port,
-                        qname,
-                        live_output,
-                        verbose,
-                    )
-                    if quiet_ok:
-                        break
-                if not quiet_ok:
-                    warn = f"tag_quiet_failed:{qname}"
-                    if quiet_tag_required:
-                        result["error"] = warn
-                        emit(
-                            logf,
-                            f"PRECHECK FAIL: tag quarantine required but not reached ({warn}); aborting sweep round\n",
-                            live_output,
-                            verbose,
-                        )
-                        emit(logf, f"END={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
-                        flush_live_buffer(logf, verbose)
-                        return result
-                    result["warnings"].append(warn)
-                    emit(
-                        logf,
-                        f"PRECHECK WARN: tag quarantine not reached ({warn}); continuing sweep\n",
-                        live_output,
-                        verbose,
-                    )
+            stage = "precheck"
+            progress_now(stage)
+            emit(
+                logf,
+                "PRECHECK: BSxxxx tag quarantine disabled; master/matrix anchors ignore tag polls during sweep\n",
+                live_output,
+                verbose,
+            )
 
             ser, preflight_ok = preflight_clean_autopos_start(
                 ser,
@@ -891,27 +1288,80 @@ def round_capture(
                 port,
                 live_output,
                 verbose,
+                progress_cb=lambda: progress_now("precheck"),
             )
             if not preflight_ok:
                 result["error"] = "autopos_idle_not_reached"
                 emit(logf, "PRECHECK FAIL: AUTOPOS idle not reached\n", live_output, verbose)
                 emit(logf, f"END={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
                 flush_live_buffer(logf, verbose)
+                finish_round_progress()
                 return result
 
-            cmds = []
-            cmds.append(("device kind anchor", 0.35))
-            for label, uuid in UUIDS.items():
-                cmds.append((f"autopos map {label} {uuid}", 0.35))
-            cmds.extend(
-                [
-                    (f"autopos round {master}", 0.5),
-                    ("autopos status", 0.5),
-                    ("autopos apply", 0.5),
-                ]
-            )
+            if context is None or not context.get("autopos_initialized", False):
+                init_cmds = [("device kind anchor", 0.35)]
+                for label, uuid in UUIDS.items():
+                    init_cmds.append((f"autopos map {label} {uuid}", 0.35))
+
+                for cmd, pause_s in init_cmds:
+                    stage = "precheck"
+                    ser = send_cmd_collect(
+                        ser,
+                        logf,
+                        port,
+                        cmd,
+                        pause_s,
+                        live_output,
+                        verbose,
+                        progress_cb=lambda: progress_now(stage),
+                    )
+                if context is not None:
+                    context["autopos_initialized"] = True
+
+            if context is not None and context.get("bootstrap_autopos_reset", False) and not context.get("bootstrap_done", False):
+                context["bootstrap_done"] = True
+                bootstrap_ok = False
+                try:
+                    ser, bootstrap_ok = bootstrap_reset_all_autopos(
+                        ser,
+                        logf,
+                        port,
+                        live_output,
+                        verbose,
+                        progress_cb=lambda: progress_now("precheck"),
+                    )
+                except Exception as exc:
+                    result["warnings"].append(
+                        f"bootstrap reset all autopos failed once and was skipped: {exc.__class__.__name__}: {exc}"
+                    )
+                    emit(
+                        logf,
+                        f"PRECHECK WARN: bootstrap reset all autopos failed once: {exc.__class__.__name__}: {exc}\n",
+                        live_output,
+                        verbose,
+                    )
+                if not bootstrap_ok:
+                    result["warnings"].append("bootstrap reset all autopos did not verify all anchors as matrix")
+
+            cmds = [
+                (f"autopos round {master}", 0.5),
+                ("autopos status", 0.5),
+                ("autopos apply", 0.5),
+            ]
 
             for cmd, pause_s in cmds:
+                stage = "switching"
+                print_round_progress(
+                    master,
+                    round_idx,
+                    round_total,
+                    result["sw_count"],
+                    round_capture.target_sw_sets,
+                    stage,
+                    time.time() - command_started_at,
+                    time.time() - round_started_at,
+                    None,
+                )
                 ser = send_cmd_collect(
                     ser,
                     logf,
@@ -920,6 +1370,7 @@ def round_capture(
                     pause_s,
                     live_output,
                     verbose,
+                    progress_cb=lambda: progress_now(stage),
                 )
 
             deadline = time.time() + timeout_s
@@ -927,6 +1378,22 @@ def round_capture(
             sent_marks = set()
             while time.time() < deadline:
                 elapsed = int(timeout_s - (deadline - time.time()))
+                eta_s = None
+                if sweep_started_at is not None and result["sw_count"] > 0 and round_capture.target_sw_sets > 0:
+                    sweep_elapsed = max(0.001, time.time() - sweep_started_at)
+                    total_est = sweep_elapsed / (result["sw_count"] / round_capture.target_sw_sets)
+                    eta_s = max(0.0, total_est - sweep_elapsed)
+                print_round_progress(
+                    master,
+                    round_idx,
+                    round_total,
+                    result["sw_count"],
+                    round_capture.target_sw_sets,
+                    stage,
+                    time.time() - command_started_at,
+                    time.time() - round_started_at,
+                    eta_s,
+                )
                 if (not result["apply_success_seen"] and
                         elapsed in status_marks and elapsed not in sent_marks):
                     cmd = "autopos status"
@@ -963,11 +1430,22 @@ def round_capture(
                             verified.add(parts.split(" ", 1)[0])
                         if f"AUTOPOS apply success: master={master}" in line:
                             result["apply_success_seen"] = True
+                            stage = "switching"
                         if f"AUTOPOS sweep listen attach: master={master}" in line:
                             result["sweep_ready_seen"] = True
-                        if (result["apply_success_seen"] and result["sweep_ready_seen"] and
-                                f"SW-{master}," in line):
+                            stage = "sweeping"
+                        if f"SW-{master}," in line:
                             line = line.strip()
+                            if sweep_started_at is None:
+                                sweep_started_at = time.time()
+                            if (not result["apply_success_seen"] and
+                                    "SW lines observed without AUTOPOS apply success" not in result["warnings"]):
+                                result.setdefault("warnings", []).append(
+                                    "SW lines observed without AUTOPOS apply success"
+                                )
+                            if not result["sweep_ready_seen"]:
+                                result["sweep_ready_seen"] = True
+                            stage = "sweeping"
                             min_quality = sw_line_min_quality(master, line)
                             result["sw_seen"] = True
                             result["sw_line"] = line
@@ -983,23 +1461,35 @@ def round_capture(
                                     result["pairs_below_quality"][line] = (
                                         sw_line_pairs_below_quality(master, line, warmup_min_quality)
                                     )
-                    if (result["apply_success_seen"] and result["sweep_ready_seen"] and
-                            result["sw_count"] >= round_capture.target_sw_sets):
+                    if result["sw_count"] >= round_capture.target_sw_sets:
                         result["success"] = True
+                        stage = "done"
                         break
                 else:
                     time.sleep(0.1)
 
             result["verified_count"] = len(verified)
             if not result["success"]:
-                if not result["apply_success_seen"]:
-                    result["error"] = "apply_success_not_seen"
-                elif not result["sweep_ready_seen"]:
+                if not result["sweep_ready_seen"]:
                     result["error"] = "sweep_ready_not_seen"
                 elif not result["sw_seen"]:
                     result["error"] = "sw_not_seen"
                 else:
                     result["error"] = f"insufficient_sw_sets:{result['sw_count']}/{round_capture.target_sw_sets}"
+                stage = "failed"
+            result["warnings"] = summarize_round_warnings(master, result["sw_lines"], result["sw_seen"])
+            print_round_progress(
+                master,
+                round_idx,
+                round_total,
+                result["sw_count"],
+                round_capture.target_sw_sets,
+                stage,
+                time.time() - command_started_at,
+                time.time() - round_started_at,
+                0.0 if stage == "done" else None,
+            )
+            finish_round_progress()
             emit(logf, f"END={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
             flush_live_buffer(logf, verbose)
     except Exception:
@@ -1013,6 +1503,18 @@ def round_capture(
                 emit(logf, traceback.format_exc() + "\n", live_output, verbose)
                 emit(logf, f"END={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
                 flush_live_buffer(logf, verbose)
+                print_round_progress(
+                    master,
+                    round_idx,
+                    round_total,
+                    result["sw_count"],
+                    round_capture.target_sw_sets,
+                    "failed",
+                    time.time() - command_started_at,
+                    time.time() - round_started_at,
+                    None,
+                )
+                finish_round_progress()
         except Exception:
             pass
     finally:
@@ -1061,6 +1563,11 @@ def main() -> int:
         action="store_true",
         help="Do not mirror runtime logs to stdout; write to log files only.",
     )
+    parser.add_argument(
+        "--no-bootstrap-autopos-reset",
+        action="store_true",
+        help="Skip the one-shot 'anchor reset all autopos' bootstrap at the start of the sweep.",
+    )
     args = parser.parse_args()
 
     if args.sw_sets < 1:
@@ -1075,7 +1582,27 @@ def main() -> int:
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    summary = {
+
+    # Resume-friendly: if the caller reuses an out-dir (e.g. round_F finished but
+    # round_G/H need a rerun), preserve existing per-round results in summary.json
+    # instead of overwriting them with only the new --order subset.
+    summary_path = out_dir / "summary.json"
+    summary: dict = {}
+    if summary_path.exists():
+        try:
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        except Exception:
+            summary = {}
+    if not isinstance(summary, dict):
+        summary = {}
+    summary.setdefault("rounds", {})
+    if not isinstance(summary.get("rounds"), dict):
+        summary["rounds"] = {}
+    if "started_at" not in summary:
+        summary["started_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+
+    # Always refresh run parameters to match the current invocation.
+    summary.update({
         "port": args.port,
         "order": list(args.order),
         "sw_sets": args.sw_sets,
@@ -1086,11 +1613,16 @@ def main() -> int:
         "quiet_tag_names": parse_quiet_tag_names(None if args.quiet_tag_name == "-" else args.quiet_tag_name),
         "quiet_tag_retries": args.quiet_tag_retries,
         "quiet_tag_required": bool(args.quiet_tag_required),
-        "rounds": {},
-        "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "bootstrap_autopos_reset": not bool(args.no_bootstrap_autopos_reset),
+    })
+    command_started_at = time.time()
+    run_context = {
+        "autopos_initialized": False,
+        "bootstrap_autopos_reset": not bool(args.no_bootstrap_autopos_reset),
+        "bootstrap_done": False,
     }
 
-    for master in args.order:
+    for idx, master in enumerate(args.order, start=1):
         round_dir = out_dir / f"round_{master}"
         round_dir.mkdir(parents=True, exist_ok=True)
         print(f"=== AUTOPOS SWEEP {master} ===", flush=True)
@@ -1104,6 +1636,10 @@ def main() -> int:
                 None if args.quiet_tag_name == "-" else args.quiet_tag_name,
                 args.quiet_tag_retries,
                 bool(args.quiet_tag_required),
+                context=run_context,
+                round_idx=idx,
+                round_total=len(args.order),
+                command_started_at=command_started_at,
                 live_output=not args.no_live_output,
                 verbose=args.verbose,
             )
@@ -1127,6 +1663,7 @@ def main() -> int:
                 "pairs_below_quality": {},
                 "log_path": str((round_dir / "master.log").resolve()),
                 "error": "exception_in_round_capture",
+                "warnings": [f"Anchor {master}: no output as Master"],
             }
         summary["rounds"][master] = result
         with open(out_dir / "summary.json", "w", encoding="utf-8") as f:
@@ -1136,8 +1673,13 @@ def main() -> int:
             return 1
 
     summary["finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    summary["warnings"] = summarize_global_warnings(summary["rounds"])
     with open(out_dir / "summary.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
+    if summary["warnings"]:
+        print("=== WARNINGS ===", flush=True)
+        for warning in summary["warnings"]:
+            print(warning, flush=True)
     return 0
 
 
