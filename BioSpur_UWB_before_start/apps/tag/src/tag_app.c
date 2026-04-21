@@ -8,6 +8,8 @@
 
 #include "ss_twr_init.h"
 #include "uwb_bringup.h"
+#include "uwb_port.h"
+#include <deca_device_api.h>
 #if APP_TAG_BLE_ENABLE
 #include "uwb_tag_ble.h"
 #endif
@@ -251,6 +253,39 @@ static void tag_diag_write(const char *msg)
 #define APP_TAG_UWB_ENABLE 1U
 #endif
 
+#ifndef APP_TAG_OTP_DIAG
+#define APP_TAG_OTP_DIAG 0U
+#endif
+
+static void tag_print_otp_diag(void)
+{
+#if APP_TAG_OTP_DIAG
+    uint32 dev_id_port = 0U;
+    uint32 otp_01c = 0U;
+    uint32 otp_01d = 0U;
+    uint32 otp_01e = 0U;
+    uint16 otp_anchor_delay = 0U;
+    uint16 otp_tag_delay = 0U;
+
+    (void)uwb_port_read_dev_id(&dev_id_port);
+    dwt_otpread(0x01C, &otp_01c, 1);
+    dwt_otpread(0x01D, &otp_01d, 1);
+    dwt_otpread(0x01E, &otp_01e, 1);
+    otp_anchor_delay = (uint16)(otp_01c & 0xFFFFU);
+    otp_tag_delay = (uint16)((otp_01c >> 16) & 0xFFFFU);
+
+    printk("OTP_DIAG port_devid=0x%08X dwt_devid=0x%08X otp_rev=0x%02X addr_01C=0x%08X addr_01D=0x%08X addr_01E=0x%08X anchor_delay=%u tag_delay=%u\n",
+           (unsigned int)dev_id_port,
+           (unsigned int)dwt_readdevid(),
+           (unsigned int)dwt_otprevision(),
+           (unsigned int)otp_01c,
+           (unsigned int)otp_01d,
+           (unsigned int)otp_01e,
+           (unsigned int)otp_anchor_delay,
+           (unsigned int)otp_tag_delay);
+#endif
+}
+
 int tag_app_run(void)
 {
     static const uint8_t target_anchor_ids[] = {
@@ -412,6 +447,7 @@ int tag_app_run(void)
             return ret;
         }
         printk("Tag UWB bringup done\n");
+        tag_print_otp_diag();
     } else {
         printk("Tag UWB disabled by build profile (BLE/OTA only)\n");
     }

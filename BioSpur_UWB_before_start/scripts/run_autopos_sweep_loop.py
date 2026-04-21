@@ -75,6 +75,14 @@ def render_round_progress(
     )
 
 
+def render_session_progress(phase: str, status: str, elapsed_s: float) -> str:
+    return (
+        f"[SESSION {phase:<9}] "
+        f"status={status:<64} "
+        f"elapsed={int(elapsed_s):4d}s"
+    )
+
+
 def _terminal_width() -> int:
     try:
         return max(20, os.get_terminal_size(sys.stdout.fileno()).columns)
@@ -154,17 +162,26 @@ def print_round_progress(
     )
 
 
-def finish_round_progress() -> None:
+def print_session_progress(phase: str, status: str, elapsed_s: float) -> None:
+    _write_progress_line(render_session_progress(phase, status, elapsed_s))
+
+
+def finish_progress_line(final_line: str | None = None) -> None:
     global _PROGRESS_ACTIVE, _LAST_PROGRESS_LINE, _LAST_PROGRESS_PRINTED_LEN
-    if _LAST_PROGRESS_LINE:
+    line = final_line if final_line is not None else _LAST_PROGRESS_LINE
+    if line:
         _clear_progress_line()
-        sys.stdout.write(_LAST_PROGRESS_LINE + "\n")
+        sys.stdout.write(_progress_for_terminal(line.lstrip("\r")) + "\n")
     else:
         sys.stdout.write("\n")
     sys.stdout.flush()
     _PROGRESS_ACTIVE = False
     _LAST_PROGRESS_LINE = ""
     _LAST_PROGRESS_PRINTED_LEN = 0
+
+
+def finish_round_progress() -> None:
+    finish_progress_line()
 
 
 def sw_line_min_quality(master: str, line: str) -> int | None:
@@ -316,6 +333,28 @@ def format_duration_brief(seconds: float | None) -> str:
 def build_run_summary_lines(summary: dict) -> list[str]:
     lines = ["=== SUMMARY ==="]
     lines.append(f"Total elapsed: {format_duration_brief(summary.get('total_elapsed_s'))}")
+    guard_result = summary.get("session_role_guard_result")
+    if isinstance(guard_result, dict):
+        lines.append(
+            "Session guard: "
+            + ("matrix ok" if guard_result.get("success") else f"matrix failed ({guard_result.get('error', '-')})")
+        )
+    final_result = summary.get("session_final_responder_result")
+    if isinstance(final_result, dict):
+        if final_result.get("success"):
+            sent = final_result.get("sent_count")
+            ready = final_result.get("ready_count")
+            target = final_result.get("ready_target")
+            if sent is not None and ready is not None and target is not None:
+                lines.append(
+                    f"Session finalizer: responder ok sent={sent} ready={ready}/{target}"
+                )
+            else:
+                lines.append("Session finalizer: responder ok")
+        else:
+            lines.append(
+                f"Session finalizer: responder failed ({final_result.get('error', '-')})"
+            )
     lines.append(
         "Per-round sets: "
         f"requested={summary.get('sw_sets', '--')} "
@@ -907,25 +946,53 @@ def ensure_autopos_maps(
     verbose: int,
     context: dict | None = None,
     progress_cb=None,
+    status_cb=None,
 ) -> serial.Serial:
     if context is not None and context.get("autopos_initialized", False):
         return ser
 
-    init_cmds = [("device kind anchor", 0.35)]
-    for label, uuid in UUIDS.items():
-        init_cmds.append((f"autopos map {label} {uuid}", 0.35))
+    ser = send_cmd_collect(
+        ser,
+        logf,
+        port,
+        "device kind anchor",
+        0.35,
+        live_output,
+        verbose,
+        progress_cb=progress_cb,
+    )
 
-    for cmd, pause_s in init_cmds:
-        ser = send_cmd_collect(
-            ser,
-            logf,
-            port,
-            cmd,
-            pause_s,
-            live_output,
-            verbose,
-            progress_cb=progress_cb,
-        )
+    for label, uuid in UUIDS.items():
+        expected = f"AUTOPOS map set: {label}={uuid}"
+        confirmed = False
+        for attempt in range(1, 4):
+            if status_cb is not None:
+                if attempt == 1:
+                    status_cb(f"map {label}")
+                else:
+                    status_cb(f"map {label} retry {attempt}")
+            ser, text = send_cmd_collect_text(
+                ser,
+                logf,
+                port,
+                f"autopos map {label} {uuid}",
+                0.8,
+                live_output,
+                verbose,
+                progress_cb=progress_cb,
+            )
+            if expected in text:
+                confirmed = True
+                break
+            emit(
+                logf,
+                f"PRECHECK WARN: autopos map {label} not confirmed on attempt {attempt}; retrying\n",
+                live_output,
+                verbose,
+            )
+            ser, _ = collect_for(ser, logf, 0.2, port, live_output, verbose, progress_cb=progress_cb)
+        if not confirmed:
+            raise RuntimeError(f"autopos map confirm failed for {label}")
 
     if context is not None:
         context["autopos_initialized"] = True
@@ -1002,51 +1069,151 @@ def session_prepare_matrix(
         "error": "",
     }
     ser = None
+    session_started_at = time.time()
+    session_status = {"text": "open port"}
+
+    def set_status(text: str) -> None:
+        session_status["text"] = text
+
+    def progress_now() -> None:
+        print_session_progress("PREP", session_status["text"], time.time() - session_started_at)
+
     try:
         ser = open_port(port, 20.0)
         with open(log_path, "w", buffering=1) as logf:
             emit(logf, f"PORT={port}\n", live_output, verbose)
             emit(logf, f"START={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
             emit(logf, "SESSION: prepare anchors for sweep; required role=matrix\n", live_output, verbose)
+            progress_now()
             time.sleep(0.25)
             while ser.in_waiting:
                 data = ser.read(ser.in_waiting)
                 if data:
                     emit(logf, data.decode("utf-8", "ignore"), live_output, verbose)
 
-            ser = send_cmd_collect(ser, logf, port, "mode autopos", 1.6, live_output, verbose)
-            ser = ensure_autopos_maps(ser, logf, port, live_output, verbose, context=context)
-            emit(
-                logf,
-                "SESSION: switching all anchors to runtime matrix before sweep (idempotent guard)\n",
-                live_output,
-                verbose,
+            set_status("switch B120 to AUTOPOS")
+            ser = send_cmd_collect(
+                ser, logf, port, "mode autopos", 1.6, live_output, verbose, progress_cb=progress_now
             )
-            ser, role_text = send_cmd_collect_text(
+            set_status("build AUTOPOS map")
+            ser = ensure_autopos_maps(
                 ser,
                 logf,
                 port,
-                "anchor role all matrix",
-                18.0,
                 live_output,
                 verbose,
-                resend_after_reopen=False,
+                context=context,
+                progress_cb=progress_now,
+                status_cb=set_status,
             )
-            if (
-                "anchor role rc=0 target=all role=matrix" in role_text
-                or "anchor role all matrix runtime sent=" in role_text
-                or "anchor role all matrix runtime repeat sent=" in role_text
-            ):
-                result["success"] = True
-                emit(logf, "SESSION: matrix role guard sent; continuing into sweep\n", live_output, verbose)
-                return True, result
+            set_status("verify matrix roles")
+            ser, ok, counts = wait_all_anchor_role(
+                ser,
+                logf,
+                port,
+                "matrix",
+                3.0,
+                live_output,
+                verbose,
+                context=context,
+            )
+            result["initial_role_counts"] = counts
+            if not ok:
+                emit(
+                    logf,
+                    "SESSION: switching all anchors to runtime matrix before sweep (idempotent guard)\n",
+                    live_output,
+                    verbose,
+                )
+                set_status("all anchors -> matrix")
+                ser, role_text = send_cmd_collect_text(
+                    ser,
+                    logf,
+                    port,
+                    "anchor role all matrix",
+                    18.0,
+                    live_output,
+                    verbose,
+                    resend_after_reopen=False,
+                    progress_cb=progress_now,
+                )
+                command_ok = (
+                    "anchor role rc=0 target=all role=matrix" in role_text
+                    or "anchor role all matrix runtime sent=" in role_text
+                    or "anchor role all matrix runtime repeat sent=" in role_text
+                )
+                if not command_ok:
+                    emit(
+                        logf,
+                        "SESSION WARN: matrix role guard command did not report completion; continuing to verification\n",
+                        live_output,
+                        verbose,
+                    )
 
-            result["success"] = False
-            result["error"] = "matrix_guard_command_failed"
-            emit(logf, "SESSION FAIL: matrix role guard command did not report completion\n", live_output, verbose)
-            return False, result
+                set_status("verify matrix roles")
+                ser, ok, counts = wait_all_anchor_role(
+                    ser,
+                    logf,
+                    port,
+                    "matrix",
+                    20.0,
+                    live_output,
+                    verbose,
+                    context=context,
+                )
+            result["final_role_counts"] = counts
+            if not ok:
+                emit(
+                    logf,
+                    "SESSION WARN: matrix command sent, but not all anchors were verified via anchor version all; retrying once\n",
+                    live_output,
+                    verbose,
+                )
+                ser, role_text = send_cmd_collect_text(
+                    ser,
+                    logf,
+                    port,
+                    "anchor role all matrix",
+                    12.0,
+                    live_output,
+                    verbose,
+                    resend_after_reopen=False,
+                    progress_cb=progress_now,
+                )
+                if (
+                    "anchor role rc=0 target=all role=matrix" in role_text
+                    or "anchor role all matrix runtime sent=" in role_text
+                    or "anchor role all matrix runtime repeat sent=" in role_text
+                ):
+                    ser, ok, counts = wait_all_anchor_role(
+                        ser,
+                        logf,
+                        port,
+                        "matrix",
+                        12.0,
+                        live_output,
+                        verbose,
+                        context=context,
+                    )
+                    result["final_role_counts"] = counts
+
+            if not ok:
+                result["success"] = False
+                result["error"] = "matrix_guard_verify_failed"
+                emit(logf, "SESSION FAIL: matrix role guard did not verify all anchors as matrix\n",
+                     live_output, verbose)
+                set_status("matrix guard failed")
+                finish_progress_line(render_session_progress("PREP", "matrix guard failed", time.time() - session_started_at))
+                return False, result
+
+            result["success"] = True
+            emit(logf, "SESSION: matrix role guard verified; continuing into sweep\n", live_output, verbose)
+            set_status("matrix guard verified")
+            finish_progress_line(render_session_progress("PREP", "matrix guard verified", time.time() - session_started_at))
+            return True, result
     except Exception as exc:
         result["error"] = f"{exc.__class__.__name__}: {exc}"
+        finish_progress_line(render_session_progress("PREP", f"failed: {exc.__class__.__name__}", time.time() - session_started_at))
         return False, result
     finally:
         if ser is not None:
@@ -1069,49 +1236,155 @@ def session_finalize_responder(
         "log_path": str(log_path),
         "role_counts": {},
         "error": "",
+        "command_sent": False,
     }
     ser = None
+    session_started_at = time.time()
+    session_status = {"text": "open port"}
+
+    def set_status(text: str) -> None:
+        session_status["text"] = text
+
+    def progress_now() -> None:
+        print_session_progress("FINAL", session_status["text"], time.time() - session_started_at)
+
     try:
         ser = open_port(port, 20.0)
         with open(log_path, "w", buffering=1) as logf:
             emit(logf, f"PORT={port}\n", live_output, verbose)
             emit(logf, f"START={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
             emit(logf, "SESSION: finalize sweep; switch all anchors to runtime responder\n", live_output, verbose)
-            ser = send_cmd_collect(ser, logf, port, "mode autopos", 1.2, live_output, verbose)
-            ser = ensure_autopos_maps(ser, logf, port, live_output, verbose, context=context)
-            ser, role_text = send_cmd_collect_text(
+            progress_now()
+            set_status("switch B120 to AUTOPOS")
+            ser = send_cmd_collect(
+                ser, logf, port, "mode autopos", 1.2, live_output, verbose, progress_cb=progress_now
+            )
+            set_status("build AUTOPOS map")
+            ser = ensure_autopos_maps(
                 ser,
                 logf,
                 port,
-                "anchor role all responder",
-                24.0,
                 live_output,
                 verbose,
-                resend_after_reopen=False,
+                context=context,
+                progress_cb=progress_now,
+                status_cb=set_status,
             )
-            if "anchor role rc=0 target=all role=responder" not in role_text and "runtime repeat sent=" not in role_text:
-                emit(logf, "SESSION WARN: all-responder command did not report clear completion\n", live_output, verbose)
-
+            set_status("verify responder roles")
             ser, ok, counts = wait_all_anchor_role(
                 ser,
                 logf,
                 port,
                 "responder",
-                20.0,
+                3.0,
                 live_output,
                 verbose,
                 context=context,
             )
-            result["success"] = ok
             result["role_counts"] = counts
+            if not ok:
+                set_status("all anchors -> responder")
+                ser, role_text = send_cmd_collect_text(
+                    ser,
+                    logf,
+                    port,
+                    "anchor role all responder",
+                    24.0,
+                    live_output,
+                    verbose,
+                    resend_after_reopen=False,
+                    progress_cb=progress_now,
+                )
+                command_sent = (
+                    "anchor role rc=0 target=all role=responder" in role_text
+                    or "anchor role all responder runtime sent=" in role_text
+                    or "anchor role all responder runtime repeat sent=" in role_text
+                )
+                result["command_sent"] = command_sent
+                sent_match = re.search(r"anchor role all responder runtime (?:repeat )?sent=(\d+) ready=(\d+)/(\d+)", role_text)
+                if sent_match:
+                    result["sent_count"] = int(sent_match.group(1))
+                    result["ready_count"] = int(sent_match.group(2))
+                    result["ready_target"] = int(sent_match.group(3))
+                if not command_sent:
+                    emit(
+                        logf,
+                        "SESSION WARN: all-responder command did not report completion; continuing to verification\n",
+                        live_output,
+                        verbose,
+                    )
+
+                set_status("verify responder roles")
+                ser, ok, counts = wait_all_anchor_role(
+                    ser,
+                    logf,
+                    port,
+                    "responder",
+                    20.0,
+                    live_output,
+                    verbose,
+                    context=context,
+                )
+                result["role_counts"] = counts
+            if not ok:
+                emit(
+                    logf,
+                    "SESSION WARN: responder command sent, but not all anchors were verified via anchor version all; retrying once\n",
+                    live_output,
+                    verbose,
+                )
+                ser, role_text = send_cmd_collect_text(
+                    ser,
+                    logf,
+                    port,
+                    "anchor role all responder",
+                    12.0,
+                    live_output,
+                    verbose,
+                    resend_after_reopen=False,
+                    progress_cb=progress_now,
+                )
+                command_sent = (
+                    "anchor role rc=0 target=all role=responder" in role_text
+                    or "anchor role all responder runtime sent=" in role_text
+                    or "anchor role all responder runtime repeat sent=" in role_text
+                )
+                result["command_sent"] = command_sent
+                if command_sent:
+                    if sent_match := re.search(r"anchor role all responder runtime (?:repeat )?sent=(\d+) ready=(\d+)/(\d+)", role_text):
+                        result["sent_count"] = int(sent_match.group(1))
+                        result["ready_count"] = int(sent_match.group(2))
+                        result["ready_target"] = int(sent_match.group(3))
+                    ser, ok, counts = wait_all_anchor_role(
+                        ser,
+                        logf,
+                        port,
+                        "responder",
+                        12.0,
+                        live_output,
+                        verbose,
+                        context=context,
+                    )
+                    result["role_counts"] = counts
+
+            result["success"] = bool(ok)
             if ok:
                 emit(logf, "SESSION: all anchors responder\n", live_output, verbose)
+                set_status("all anchors switch back to responder")
+                finish_progress_line(
+                    render_session_progress("FINAL", "all anchors switch back to responder", time.time() - session_started_at)
+                )
             else:
-                result["error"] = "not_all_responder_after_sweep"
-                emit(logf, "SESSION WARN: not all anchors verified responder after sweep\n", live_output, verbose)
+                result["error"] = "responder_verify_failed"
+                emit(logf, "SESSION FAIL: all anchors did not verify as responder\n", live_output, verbose)
+                set_status("responder verify failed")
+                finish_progress_line(
+                    render_session_progress("FINAL", "responder verify failed", time.time() - session_started_at)
+                )
             return result
     except Exception as exc:
         result["error"] = f"{exc.__class__.__name__}: {exc}"
+        finish_progress_line(render_session_progress("FINAL", f"failed: {exc.__class__.__name__}", time.time() - session_started_at))
         return result
     finally:
         if ser is not None:

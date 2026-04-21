@@ -1255,6 +1255,7 @@ static int anchor_apply_role_all(const char *role)
 	if (role != NULL && (strcmp(role, "matrix") == 0 || strcmp(role, "responder") == 0)) {
 		int ready_count;
 		int sent;
+		int total_sent = 0;
 		int waited = 0;
 		const char *runtime_cmd = (strcmp(role, "matrix") == 0) ? "RUNTIME MATRIX" : "RUNTIME RESPONDER";
 
@@ -1269,9 +1270,9 @@ static int anchor_apply_role_all(const char *role)
 		master_set_runtime_target_kind(MASTER_TARGET_ANCHOR);
 		master_set_connect_and_start_mode();
 
-		while (waited < 20000) {
+		while (waited < 6000) {
 			ready_count = master_anchor_ctrl_ready_count();
-			if (ready_count >= AUTOPOS_ANCHOR_COUNT) {
+			if (ready_count > 0) {
 				break;
 			}
 			if ((waited % 1000) == 0) {
@@ -1285,16 +1286,36 @@ static int anchor_apply_role_all(const char *role)
 
 		ready_count = master_anchor_ctrl_ready_count();
 		sent = master_send_command_now(runtime_cmd);
+		if (sent > 0) {
+			total_sent += sent;
+		}
 		printk("anchor role all %s runtime sent=%d ready=%d/%d\n",
 		       role, sent, ready_count, AUTOPOS_ANCHOR_COUNT);
-		if (sent <= 0) {
+		if (sent < 0) {
+			return sent;
+		}
+		if (ready_count <= 0 && sent == 0) {
 			return sent < 0 ? sent : -ENOTCONN;
 		}
+
 		k_sleep(K_MSEC(700));
-		/* Repeat once in case a ready peer was in a connection event gap. */
+		/* Repeat to catch peers that became ready during the first send window. */
 		sent = master_send_command_now(runtime_cmd);
+		if (sent > 0) {
+			total_sent += sent;
+		}
 		printk("anchor role all %s runtime repeat sent=%d ready=%d/%d\n",
 		       role, sent, master_anchor_ctrl_ready_count(), AUTOPOS_ANCHOR_COUNT);
+		k_sleep(K_MSEC(700));
+		sent = master_send_command_now(runtime_cmd);
+		if (sent > 0) {
+			total_sent += sent;
+		}
+		printk("anchor role all %s runtime final sent=%d ready=%d/%d total_sent=%d\n",
+		       role, sent, master_anchor_ctrl_ready_count(), AUTOPOS_ANCHOR_COUNT, total_sent);
+		if (total_sent <= 0) {
+			return -ENOTCONN;
+		}
 		return 0;
 	}
 
