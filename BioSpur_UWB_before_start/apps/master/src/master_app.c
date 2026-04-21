@@ -18,6 +18,8 @@
 #include <bluetooth/services/nus.h>
 #include <bluetooth/services/nus_client.h>
 
+#include "master_multi_app.h"
+
 #define MASTER_CMD_PERIOD K_SECONDS(2)
 
 #ifndef APP_MASTER_ONE_SHOT_CMD
@@ -46,6 +48,8 @@ static bool led_scan_state;
 static bool led_link_state;
 static bool led_ota_state;
 static bool led_error_state;
+static bool led_flow_state;
+static struct k_work_delayable led_flow_off_work;
 
 static void send_work_handler(struct k_work *work);
 
@@ -97,14 +101,35 @@ static bool adv_name_parse_cb(struct bt_data *data, void *user_data)
 
 static void master_leds_apply(void)
 {
+	enum master_log_mode mode = master_get_log_mode();
+
 	if (!leds_ready) {
 		return;
 	}
 
-	(void)dk_set_led(MASTER_LED_SCAN, led_scan_state);
-	(void)dk_set_led(MASTER_LED_LINK, led_link_state);
+	(void)dk_set_led(MASTER_LED_SCAN, led_scan_state || mode == MASTER_LOG_MODE_AUTOPOS);
+	(void)dk_set_led(MASTER_LED_LINK, led_link_state || mode == MASTER_LOG_MODE_RECV);
 	(void)dk_set_led(MASTER_LED_OTA, led_ota_state);
-	(void)dk_set_led(MASTER_LED_ERROR, led_error_state);
+	(void)dk_set_led(MASTER_LED_ERROR, led_error_state || led_flow_state);
+}
+
+static void led_flow_off_handler(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	led_flow_state = false;
+	master_leds_apply();
+}
+
+static void master_ble_activity_pulse(void)
+{
+	if (!leds_ready) {
+		return;
+	}
+
+	led_flow_state = true;
+	master_leds_apply();
+	(void)k_work_reschedule(&led_flow_off_work, K_MSEC(120));
 }
 
 static void master_leds_set(bool scan, bool link, bool ota, bool error)
@@ -124,6 +149,7 @@ static void ble_data_sent(struct bt_nus_client *nus, uint8_t err,
 	ARG_UNUSED(len);
 
 	k_sem_give(&nus_write_sem);
+	master_ble_activity_pulse();
 
 	if (err) {
 		printk("BLE write error: 0x%02x\n", err);
@@ -137,6 +163,7 @@ static uint8_t ble_data_received(struct bt_nus_client *nus,
 	ARG_UNUSED(nus);
 
 	printk("BLE notify: ");
+	master_ble_activity_pulse();
 	for (uint16_t i = 0; i < len; ++i) {
 		char c = (char)data[i];
 		printk("%c", (c >= 32 && c <= 126) ? c : '.');
@@ -205,6 +232,7 @@ static void discovery_complete(struct bt_gatt_dm *dm, void *context)
 	nus_ready = true;
 	printk("BLE link ready, starting command loop\n");
 	master_leds_set(false, true, led_ota_state, false);
+	master_ble_activity_pulse();
 	k_work_reschedule(&send_work, K_NO_WAIT);
 
 	bt_gatt_dm_data_release(dm);
@@ -257,6 +285,7 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 	int err;
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
+	master_ble_activity_pulse();
 
 	if (conn_err) {
 		printk("Failed to connect to %s, err 0x%02x\n", addr, conn_err);
@@ -285,6 +314,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 	printk("Disconnected: %s reason 0x%02x\n", addr, reason);
+	master_ble_activity_pulse();
 
 	if (default_conn == conn) {
 		bt_conn_unref(default_conn);
@@ -315,6 +345,7 @@ static void scan_filter_match(struct bt_scan_device_info *device_info,
 
 	ARG_UNUSED(filter_match);
 	bt_addr_le_to_str(device_info->recv_info->addr, addr, sizeof(addr));
+	master_ble_activity_pulse();
 	adv_name[0] = '\0';
 	if (device_info->adv_data != NULL) {
 		(void)bt_data_parse(device_info->adv_data, adv_name_parse_cb,
@@ -368,6 +399,7 @@ static int scan_init(void)
 	}
 
 	master_leds_set(true, false, false, false);
+	master_ble_activity_pulse();
 
 	return 0;
 }
@@ -428,6 +460,7 @@ int master_app_run(void)
 
 	k_sem_init(&nus_write_sem, 0, 1);
 	k_work_init_delayable(&send_work, send_work_handler);
+	k_work_init_delayable(&led_flow_off_work, led_flow_off_handler);
 
 	err = dk_leds_init();
 	if (err) {
@@ -435,7 +468,7 @@ int master_app_run(void)
 	} else {
 		leds_ready = true;
 		master_leds_set(true, false, false, false);
-		printk("LED map: 0=scan 1=link 2=ota 3=error\n");
+		printk("LED map: 1=AUTOPOS 2=RECV 3=OTA 4=FLOW\n");
 	}
 
 	err = bt_enable(NULL);

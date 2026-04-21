@@ -67,7 +67,10 @@ def main() -> int:
     ap.add_argument("--sw-sets", type=int, default=100, help="Sweep set count")
     ap.add_argument("--timeout-s", type=int, default=3600, help="Sweep timeout seconds")
     ap.add_argument("--warmup-min-quality", type=int, default=0, help="Sweep warmup quality threshold")
-    ap.add_argument("--quiet-tag-name", default="auto", help="Passed through to sweep script")
+    ap.add_argument("--quiet-tag-name", default="-", help="Passed through to sweep script; default disables heavy Tag quarantine")
+    ap.add_argument("--capture-tag115", action="store_true", help="Capture a fresh Tag115 CM session after sweep and use it as floating reference")
+    ap.add_argument("--tag-name", default="BSF66F", help="Tag115 BLE target name for fresh CM capture")
+    ap.add_argument("--cm-lines", type=int, default=80, help="Required CM notify lines for fresh Tag115 capture")
     ap.add_argument("--out-dir", required=True, help="Top-level output directory")
     ap.add_argument("--skip-sweep", action="store_true", help="Reuse existing summary.json under out-dir/sweep")
     ap.add_argument("--no-bootstrap-autopos-reset", action="store_true", help="Passed through to sweep script")
@@ -130,6 +133,30 @@ def main() -> int:
         if args.no_bootstrap_autopos_reset:
             sweep_cmd.append("--no-bootstrap-autopos-reset")
         run(sweep_cmd)
+
+    if args.capture_tag115:
+        tag_dir = out_dir / "tag115_cm"
+        tag_dir.mkdir(parents=True, exist_ok=True)
+        tag_cmd = [
+            "python3",
+            "scripts/run_anchor_responder_then_tag_cm.py",
+            "--port",
+            args.port,
+            "--target-name",
+            args.tag_name,
+            "--cm-lines",
+            str(args.cm_lines),
+            "--quiet-tag-name",
+            args.quiet_tag_name,
+            "--out-dir",
+            str(tag_dir),
+        ]
+        run(tag_cmd)
+        normalized_ref_sessions = normalize_floating_reference_sessions(
+            [str(tag_dir)],
+            out_dir,
+            int(args.cm_lines),
+        )
 
     summary_json = sweep_dir / "summary.json"
     if not summary_json.exists():

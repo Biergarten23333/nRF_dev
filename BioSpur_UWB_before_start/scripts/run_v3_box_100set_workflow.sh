@@ -8,7 +8,10 @@ PORT="${PORT:-/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_87EA2F4A526C5A02
 ORDER="${ORDER:-ABCDEFGH}"
 SW_SETS="${SW_SETS:-100}"
 TIMEOUT_S="${TIMEOUT_S:-7200}"
-QUIET_TAG_NAME="${QUIET_TAG_NAME:-auto}"
+QUIET_TAG_NAME="${QUIET_TAG_NAME:--}"
+CAPTURE_TAG115="${CAPTURE_TAG115:-1}"
+TAG_NAME="${TAG_NAME:-BSF66F}"
+CM_LINES="${CM_LINES:-80}"
 REF_SESSION="${REF_SESSION:-logs/tag115_cm_fresh_20260416_154100}"
 REF_MIN_CM_LINES="${REF_MIN_CM_LINES:-80}"
 OUT_DIR="${OUT_DIR:-logs/v3_box_100set_with115_$(date +%Y%m%d_%H%M%S)}"
@@ -17,7 +20,8 @@ echo "REPO_ROOT=$REPO_ROOT"
 echo "PORT=$PORT"
 echo "OUT_DIR=$OUT_DIR"
 
-python3 scripts/run_autopos_sweep_and_solve_v3_box.py \
+CMD=(
+python3 scripts/run_autopos_sweep_and_solve_v3_box.py
   --port "$PORT" \
   --order "$ORDER" \
   --sw-sets "$SW_SETS" \
@@ -25,11 +29,25 @@ python3 scripts/run_autopos_sweep_and_solve_v3_box.py \
   --warmup-min-quality 0 \
   --quiet-tag-name "$QUIET_TAG_NAME" \
   --no-bootstrap-autopos-reset \
-  --floating-reference-session "$REF_SESSION" \
-  --floating-reference-min-cm-lines "$REF_MIN_CM_LINES" \
   --floating-reference-z-prior-mm 820 \
   --floating-reference-z-sigma-mm 80 \
   --out-dir "$OUT_DIR"
+)
+
+if [[ "$CAPTURE_TAG115" == "1" ]]; then
+  CMD+=(
+    --capture-tag115
+    --tag-name "$TAG_NAME"
+    --cm-lines "$CM_LINES"
+  )
+else
+  CMD+=(
+    --floating-reference-session "$REF_SESSION"
+    --floating-reference-min-cm-lines "$REF_MIN_CM_LINES"
+  )
+fi
+
+"${CMD[@]}"
 
 python3 scripts/summarize_anchor_layout_result.py \
   --layout-json "$OUT_DIR/solve_v3_box/anchor_layout_v3_box.json" \

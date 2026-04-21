@@ -26,6 +26,15 @@ def ensure_ota_target_name(
     """
     want_l = target_name.lower()
     for attempt in range(1, retries + 1):
+        ser, _ = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            "ota_target uuid -",
+            0.8,
+            live_output,
+            verbose,
+        )
         ser, txt = send_cmd_collect_text(
             ser,
             logf,
@@ -48,7 +57,8 @@ def ensure_ota_target_name(
             verbose,
         )
         show_ok = (f"name={want_l}" in show) or (f"name={target_name}" in show)
-        if ack_ok or show_ok:
+        uuid_cleared = ("uuid=-" in show) or ("uuid= -" in show)
+        if (ack_ok or show_ok) and uuid_cleared:
             return ser, True
 
         logf.write(f"OTA_TARGET_RETRY attempt={attempt}/{retries} want={target_name}\n")
@@ -454,6 +464,7 @@ def run_tag_cm_100(
 
     # Fast path: if Tag is already connected and CM can start immediately, skip mode reboot.
     ser = send_cmd_collect(ser, logf, port, "device kind tag", 0.6, True, 1)
+    ser, _ = send_cmd_collect_text(ser, logf, port, "ota_target uuid -", 0.8, True, 1)
     ser, ok = ensure_ota_target_name(ser, logf, port, target_name, True, 1, retries=3)
     if ok:
         ser, ready = ensure_tag_link_ready_in_recv(ser, logf, port, target_name, True, 1, retries=2)
@@ -485,6 +496,7 @@ def run_tag_cm_100(
 
     # Switch to RECV and ensure Tag is connected/ready.
     ser = send_cmd_collect(ser, logf, port, "device kind tag", 0.6, True, 1)
+    ser, _ = send_cmd_collect_text(ser, logf, port, "ota_target uuid -", 0.8, True, 1)
     ser, _ = ensure_ota_target_name(ser, logf, port, target_name, True, 1, retries=3)
     ser = send_cmd_collect(ser, logf, port, "mode recv", 2.8, True, 1, resend_after_reopen=False)
 
@@ -493,6 +505,7 @@ def run_tag_cm_100(
 
     # Re-assert known-good sequence.
     ser = send_cmd_collect(ser, logf, port, "device kind tag", 0.8, True, 1)
+    ser, _ = send_cmd_collect_text(ser, logf, port, "ota_target uuid -", 0.8, True, 1)
     ser, ok = ensure_ota_target_name(ser, logf, port, target_name, True, 1, retries=6)
     if not ok:
         logf.write(f"PRECHECK FAIL: could not lock ota_target name={target_name} after reboot\n")

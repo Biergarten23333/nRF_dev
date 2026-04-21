@@ -30,6 +30,7 @@
 
 #include "ota_image.inc"
 #include "master_ota.h"
+#include "master_multi_app.h"
 
 #define OTA_LED_SCAN DK_LED1
 #define OTA_LED_LINK DK_LED2
@@ -149,6 +150,8 @@ static bool led_scan_state;
 static bool led_link_state;
 static bool led_ota_state;
 static bool led_error_state;
+static bool led_flow_state;
+static struct k_work_delayable led_flow_off_work;
 static bool ota_ready;
 static bool ota_started;
 static bool ota_done;
@@ -810,7 +813,26 @@ static void master_leds_apply(void)
 	(void)dk_set_led(OTA_LED_SCAN, led_scan_state);
 	(void)dk_set_led(OTA_LED_LINK, led_link_state);
 	(void)dk_set_led(OTA_LED_OTA, led_ota_state);
-	(void)dk_set_led(OTA_LED_ERROR, led_error_state);
+	(void)dk_set_led(OTA_LED_ERROR, led_error_state || led_flow_state);
+}
+
+static void led_flow_off_handler(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	led_flow_state = false;
+	master_leds_apply();
+}
+
+static void master_ble_activity_pulse(void)
+{
+	if (!leds_ready) {
+		return;
+	}
+
+	led_flow_state = true;
+	master_leds_apply();
+	(void)k_work_reschedule(&led_flow_off_work, K_MSEC(120));
 }
 
 static void master_leds_set(bool scan, bool link, bool ota, bool error)
@@ -833,6 +855,7 @@ static void nus_data_sent(struct bt_nus_client *nus, uint8_t err,
 		printk("NUS write error: 0x%02x\n", err);
 	}
 
+	master_ble_activity_pulse();
 	k_sem_give(&nus_write_sem);
 }
 
@@ -854,6 +877,7 @@ static uint8_t nus_data_received(struct bt_nus_client *nus,
 	}
 
 	printk("NUS notify: %s\n", payload);
+	master_ble_activity_pulse();
 
 	return BT_GATT_ITER_CONTINUE;
 }
@@ -2048,6 +2072,7 @@ static void discovery_complete(struct bt_gatt_dm *dm, void *context)
 {
 	ARG_UNUSED(context);
 	int err;
+	master_ble_activity_pulse();
 
 	if (discovery_phase == DISCOVERY_PHASE_NUS) {
 		err = bt_nus_handles_assign(dm, &nus_client);
@@ -2104,6 +2129,7 @@ static void discovery_service_not_found(struct bt_conn *conn, void *context)
 {
 	ARG_UNUSED(conn);
 	ARG_UNUSED(context);
+	master_ble_activity_pulse();
 
 	if (discovery_phase == DISCOVERY_PHASE_NUS) {
 		printk("NUS service not found, continuing with DFU\n");
@@ -2123,6 +2149,7 @@ static void discovery_error(struct bt_conn *conn, int err, void *context)
 {
 	ARG_UNUSED(conn);
 	ARG_UNUSED(context);
+	master_ble_activity_pulse();
 
 	if (discovery_phase == DISCOVERY_PHASE_NUS) {
 		printk("NUS discovery error: %d, continuing with DFU\n", err);
@@ -2174,6 +2201,7 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 	struct bt_conn_info info;
 	int sec_err;
 	int scan_err;
+	master_ble_activity_pulse();
 
 	if (!ota_runtime_active) {
 		return;
@@ -2299,6 +2327,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
 	bool was_default = (default_conn == conn);
+	master_ble_activity_pulse();
 
 	if (!ota_runtime_active) {
 		return;
@@ -2366,6 +2395,7 @@ static void scan_filter_match(struct bt_scan_device_info *device_info,
 	if (!ota_runtime_active || !ota_session_active) {
 		return;
 	}
+	master_ble_activity_pulse();
 	bt_addr_le_to_str(device_info->recv_info->addr, addr, sizeof(addr));
 	ad_extract_name(device_info->adv_data, name, sizeof(name));
 	token_id = ad_extract_token_id(device_info->adv_data);
@@ -2452,6 +2482,7 @@ static void scan_connecting_error(struct bt_scan_device_info *device_info)
 {
 	ARG_UNUSED(device_info);
 	printk("Connecting failed\n");
+	master_ble_activity_pulse();
 	ota_set_state(OTA_OP_CONNECT_FAILED, "scan_connecting_error");
 }
 
@@ -2624,6 +2655,7 @@ static int ota_bootstrap(void)
 	k_sem_init(&smp_sub_sem, 0, 1);
 	k_sem_init(&smp_write_sem, 0, 1);
 	k_work_init_delayable(&dfu_ready_watchdog_work, ota_dfu_ready_watchdog_fn);
+	k_work_init_delayable(&led_flow_off_work, led_flow_off_handler);
 	dfu_ready_watchdog_armed = false;
 	dfu_ready_watchdog_redrive_count = 0U;
 	k_thread_create(&ota_thread, ota_thread_stack, K_THREAD_STACK_SIZEOF(ota_thread_stack),
@@ -2635,7 +2667,7 @@ static int ota_bootstrap(void)
 	} else {
 		leds_ready = true;
 		master_leds_set(true, false, false, false);
-		printk("LED map: 0=scan 1=link 2=ota 3=error\n");
+		printk("LED map: 1=AUTOPOS 2=RECV 3=OTA 4=FLOW\n");
 	}
 
 	bt_dfu_smp_init(&dfu_smp, &init_params);

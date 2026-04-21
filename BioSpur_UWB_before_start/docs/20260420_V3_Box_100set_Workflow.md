@@ -81,3 +81,51 @@ Important files:
 - `CM115` is used as floating reference input to the solver, not as a post-solve step.
 - If the floating reference directory does not contain `ranges.csv` but does contain `run.log`, the workflow now auto-extracts `ranges.csv`.
 - Historical `CM115` logs with only `80` CM notify lines are supported via `REF_MIN_CM_LINES=80`.
+- `run_autopos_sweep_loop.py` now discards `10` warm-up SW lines per round by default, so `SW_SETS=100` means `100` kept sets and `110` device-side sweep sets.
+
+## Important: When Tag115 Must Be Re-Captured
+
+If the anchor layout has changed, the old floating-reference session must not be reused blindly.
+
+Reason:
+
+1. `sweep` captures `anchor-anchor` data
+2. `Tag115 CM` captures `tag-anchor` data
+3. if anchor geometry changes, the old `tag-anchor` session is no longer matched to the new layout
+
+So:
+
+- old `REF_SESSION` is only valid for the old physical anchor layout
+- after changing anchor positions, the correct workflow is to capture a fresh `Tag115 CM` session for the new layout
+
+## Recommended Fresh-Tag115 Workflow
+
+For a new layout, the recommended end-to-end flow is:
+
+1. `100 set sweep`
+2. capture a fresh fixed-position `Tag115 CM` session under the current anchor layout
+3. auto-extract `ranges.csv` from that new `run.log` if needed
+4. solve `V3-box` with the fresh floating-reference session
+5. generate result summary and layout plot
+
+In other words, the mathematically correct pipeline is:
+
+```text
+sweep(anchor-anchor) -> fresh Tag115 CM(tag-anchor) -> V3-box solver + floating reference -> analysis
+```
+
+Not:
+
+```text
+new sweep(anchor-anchor) -> old Tag115 CM(tag-anchor from old layout) -> solver
+```
+
+## Practical Rule
+
+Use the old `REF_SESSION` only if all of the following remain unchanged:
+
+- the physical anchor layout
+- the Tag115 fixed position
+- the intended floating-reference interpretation
+
+If any of those changed, capture a new `Tag115 CM` session first.

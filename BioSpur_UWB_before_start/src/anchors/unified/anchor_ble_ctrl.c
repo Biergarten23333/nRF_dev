@@ -223,6 +223,14 @@ static ssize_t read_text_cb(struct bt_conn *conn, const struct bt_gatt_attr *att
 
 static void notify_result_if_possible(void);
 
+static uint8_t persistent_role_normalize(uint8_t role)
+{
+    if (role == ANCHOR_ROLE_MASTER) {
+        return ANCHOR_ROLE_MATRIX;
+    }
+    return role;
+}
+
 static void state_ccc_cfg_changed(const struct bt_gatt_attr *attr, uint16_t value)
 {
     ARG_UNUSED(attr);
@@ -258,6 +266,7 @@ static void handle_commit_locked(void)
         return;
     }
     local = g_pending_cfg;
+    local.role = persistent_role_normalize(local.role);
     local.schema_version = ANCHOR_CONFIG_SCHEMA_VERSION;
     local.generation = g_info.active_cfg.generation + 1U;
     cfg_prepare(&local);
@@ -296,7 +305,7 @@ static void handle_reset_role_locked(uint8_t role, const char *result_text)
     int rc;
 
     local = g_info.active_cfg_valid ? g_info.active_cfg : g_pending_cfg;
-    local.role = role;
+    local.role = persistent_role_normalize(role);
     local.schema_version = ANCHOR_CONFIG_SCHEMA_VERSION;
     local.generation = g_info.active_cfg.generation + 1U;
     cfg_prepare(&local);
@@ -319,12 +328,12 @@ static void handle_reset_role_locked(uint8_t role, const char *result_text)
     g_info.active_cfg_valid = true;
     g_pending_cfg = local;
     g_pending_valid = true;
-    g_info.runtime_role = role;
+    g_info.runtime_role = local.role;
     g_reboot_required = false;
     set_result_locked(result_text);
 }
 
-static void handle_runtime_role_locked(uint8_t role)
+static void handle_runtime_role_locked(uint8_t role, uint32_t master_sweeps)
 {
     if (role != ANCHOR_ROLE_MASTER && role != ANCHOR_ROLE_MATRIX &&
         role != ANCHOR_ROLE_RESPONDER) {
@@ -332,19 +341,22 @@ static void handle_runtime_role_locked(uint8_t role)
         return;
     }
 
-    if (g_info.runtime_role == role && !g_runtime_switch_pending) {
+    if (g_info.runtime_role == role && master_sweeps == 0U && !g_runtime_switch_pending) {
         set_result_locked("OK RUNTIME_ALREADY_ACTIVE");
         return;
     }
 
-    if (!g_busy) {
-        set_result_locked("ERR:RUNTIME_IDLE");
-        return;
-    }
-
     g_runtime_switch_pending = true;
-    anchor_runtime_request_role_switch(role);
-    set_result_locked("OK RUNTIME_SWITCH_REQUESTED");
+    anchor_runtime_request_role_switch(role, master_sweeps);
+    if (role == ANCHOR_ROLE_MASTER && master_sweeps != 0U) {
+        char result[64];
+
+        snprintk(result, sizeof(result), "OK RUNTIME_SWITCH_REQUESTED SWEEP=%lu",
+                 (unsigned long)master_sweeps);
+        set_result_locked(result);
+    } else {
+        set_result_locked("OK RUNTIME_SWITCH_REQUESTED");
+    }
 }
 
 static void process_control_cmd_locked(char *line)
@@ -367,7 +379,7 @@ static void process_control_cmd_locked(char *line)
     }
 
     if (strcmp(tok, "HELP") == 0) {
-        set_result_locked("OK CMDS=PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|RESET AUTOPOS|RESET RESPONDER|STOP|SYNC|RUNTIME <MASTER|MATRIX|RESPONDER>");
+        set_result_locked("OK CMDS=PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|RESET AUTOPOS|RESET RESPONDER|STOP|SYNC|RUNTIME <MASTER|MATRIX|RESPONDER> [SWEEP N]");
         return;
     }
 
@@ -394,12 +406,41 @@ static void process_control_cmd_locked(char *line)
     }
 
     if (strcmp(tok, "RUNTIME") == 0) {
+        uint32_t master_sweeps = 0U;
+
         tok = strtok_r(NULL, " ", &savep);
         if (tok == NULL || role_parse(tok, &parsed) != 0) {
             set_result_locked("ERR:BAD_RUNTIME_ROLE");
             return;
         }
-        handle_runtime_role_locked(parsed);
+        tok = strtok_r(NULL, " ", &savep);
+        if (tok != NULL) {
+            if (strcmp(tok, "SWEEP") != 0) {
+                set_result_locked("ERR:BAD_RUNTIME_ARG");
+                return;
+            }
+            tok = strtok_r(NULL, " ", &savep);
+            if (tok == NULL) {
+                set_result_locked("ERR:BAD_RUNTIME_SWEEP");
+                return;
+            }
+            gen_val = strtoul(tok, &endp, 10);
+            if (endp == tok || *endp != '\0' || gen_val == 0UL ||
+                gen_val > 10000UL) {
+                set_result_locked("ERR:INVALID_RUNTIME_SWEEP");
+                return;
+            }
+            if (strtok_r(NULL, " ", &savep) != NULL) {
+                set_result_locked("ERR:BAD_RUNTIME_ARG");
+                return;
+            }
+            if (parsed != ANCHOR_ROLE_MASTER) {
+                set_result_locked("ERR:SWEEP_REQUIRES_MASTER");
+                return;
+            }
+            master_sweeps = (uint32_t)gen_val;
+        }
+        handle_runtime_role_locked(parsed, master_sweeps);
         return;
     }
 

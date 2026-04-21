@@ -48,8 +48,12 @@ def render_round_progress(
     total_elapsed_s: float,
     round_elapsed_s: float,
     eta_s: float | None,
+    warmup_count: int = 0,
+    warmup_target: int = 0,
 ) -> str:
-    if stage == "sweeping" and sw_target > 0:
+    if stage == "warmup" and warmup_target > 0:
+        percent = max(0, min(99, int((warmup_count / warmup_target) * 100)))
+    elif stage == "sweeping" and sw_target > 0:
         percent = max(0, min(100, int((sw_count / sw_target) * 100)))
     elif stage == "done":
         percent = 100
@@ -59,9 +63,13 @@ def render_round_progress(
         percent = 0
     filled = max(0, min(_PROGRESS_LINE_LEN, int(round((percent / 100.0) * _PROGRESS_LINE_LEN))))
     bar = "#" * filled + "." * (_PROGRESS_LINE_LEN - filled)
+    warmup_part = ""
+    if warmup_target > 0:
+        warmup_part = f" warmup={warmup_count}/{warmup_target}"
     return (
         f"[SW-{master} {round_idx}/{round_total}] [{bar}] {percent:3d}% "
         f"sw-set={sw_count}/{sw_target} stage={stage:<10} "
+        f"{warmup_part}"
         f"elapsed={int(total_elapsed_s):4d}s round={int(round_elapsed_s):4d}s "
         f"eta[SW-{master}]={format_eta_seconds(eta_s):>8}"
     )
@@ -126,6 +134,8 @@ def print_round_progress(
     total_elapsed_s: float,
     round_elapsed_s: float,
     eta_s: float | None,
+    warmup_count: int = 0,
+    warmup_target: int = 0,
 ) -> None:
     _write_progress_line(
         render_round_progress(
@@ -138,6 +148,8 @@ def print_round_progress(
             total_elapsed_s,
             round_elapsed_s,
             eta_s,
+            warmup_count,
+            warmup_target,
         )
     )
 
@@ -290,6 +302,68 @@ def summarize_global_warnings(rounds: dict) -> list[str]:
     return warnings
 
 
+def format_duration_brief(seconds: float | None) -> str:
+    if seconds is None:
+        return "--"
+    total = max(0, int(round(seconds)))
+    mins, secs = divmod(total, 60)
+    if mins >= 60:
+        hours, mins = divmod(mins, 60)
+        return f"{hours}h{mins:02d}m{secs:02d}s"
+    return f"{mins}m{secs:02d}s"
+
+
+def build_run_summary_lines(summary: dict) -> list[str]:
+    lines = ["=== SUMMARY ==="]
+    lines.append(f"Total elapsed: {format_duration_brief(summary.get('total_elapsed_s'))}")
+    lines.append(
+        "Per-round sets: "
+        f"requested={summary.get('sw_sets', '--')} "
+        f"prewarm={summary.get('prewarm_sw_sets', 0)} "
+        f"device={summary.get('device_sw_sets', '--')}"
+    )
+    rounds = summary.get("rounds", {})
+    for master in summary.get("order", []):
+        result = rounds.get(master)
+        if not isinstance(result, dict):
+            continue
+        lines.append(
+            f"SW-{master}: total={format_duration_brief(result.get('total_elapsed_s'))} "
+            f"precheck={format_duration_brief(result.get('precheck_elapsed_s'))} "
+            f"switch={format_duration_brief(result.get('switch_elapsed_s'))} "
+            f"warmup={format_duration_brief(result.get('warmup_elapsed_s'))} "
+            f"collect={format_duration_brief(result.get('collect_elapsed_s'))} "
+            f"sw={result.get('sw_count', 0)}/{summary.get('sw_sets', '--')} "
+            f"raw={result.get('device_sw_count', 0)} "
+            f"discarded={result.get('warmup_discarded_count', 0)} "
+            f"reconnect_retry={'yes' if result.get('reconnect_retry_seen') else 'no'}"
+        )
+    slow_switch_threshold_s = summary.get("slow_switch_threshold_s", 10.0)
+    slow_rounds = []
+    retry_rounds = []
+    for master in summary.get("order", []):
+        result = rounds.get(master)
+        if not isinstance(result, dict):
+            continue
+        switch_s = result.get("switch_elapsed_s")
+        if isinstance(switch_s, (int, float)) and switch_s >= slow_switch_threshold_s:
+            slow_rounds.append((master, switch_s))
+        if result.get("reconnect_retry_seen"):
+            retry_rounds.append(master)
+    lines.append("Slow switch rounds:")
+    if slow_rounds:
+        for master, switch_s in slow_rounds:
+            lines.append(f"SW-{master} switch unusually slow: {format_duration_brief(switch_s)}")
+    else:
+        lines.append("none")
+    lines.append("Reconnect retry rounds:")
+    if retry_rounds:
+        lines.append(",".join(f"SW-{master}" for master in retry_rounds))
+    else:
+        lines.append("none")
+    return lines
+
+
 def should_print_live_line(line: str, verbose: int) -> bool:
     if verbose >= 2:
         return True
@@ -408,6 +482,7 @@ def collect_for(
     live_output: bool,
     verbose: int,
     progress_cb=None,
+    text_filter=None,
 ) -> tuple[serial.Serial, bool]:
     end = time.time() + duration_s
     saw_reopen = False
@@ -428,7 +503,7 @@ def collect_for(
             continue
         if data:
             text = data.decode("utf-8", "ignore")
-            emit(logf, text, live_output, verbose)
+            emit(logf, text_filter(text) if text_filter is not None else text, live_output, verbose)
         else:
             time.sleep(0.05)
     return ser, saw_reopen
@@ -442,6 +517,7 @@ def collect_for_text(
     live_output: bool,
     verbose: int,
     progress_cb=None,
+    text_filter=None,
 ) -> tuple[serial.Serial, bool, str]:
     end = time.time() + duration_s
     saw_reopen = False
@@ -464,7 +540,7 @@ def collect_for_text(
         if data:
             text = data.decode("utf-8", "ignore")
             chunks.append(text)
-            emit(logf, text, live_output, verbose)
+            emit(logf, text_filter(text) if text_filter is not None else text, live_output, verbose)
         else:
             time.sleep(0.05)
     return ser, saw_reopen, "".join(chunks)
@@ -480,6 +556,7 @@ def send_cmd_collect_text(
     verbose: int,
     resend_after_reopen: bool = True,
     progress_cb=None,
+    text_filter=None,
 ) -> tuple[serial.Serial, str]:
     if progress_cb is not None:
         progress_cb()
@@ -501,6 +578,7 @@ def send_cmd_collect_text(
         live_output,
         verbose,
         progress_cb=progress_cb,
+        text_filter=text_filter,
     )
     if saw_reopen and resend_after_reopen:
         if progress_cb is not None:
@@ -515,6 +593,7 @@ def send_cmd_collect_text(
             live_output,
             verbose,
             progress_cb=progress_cb,
+            text_filter=text_filter,
         )
         text += more
     return ser, text
@@ -530,6 +609,7 @@ def send_cmd_collect(
     verbose: int,
     resend_after_reopen: bool = True,
     progress_cb=None,
+    text_filter=None,
 ) -> serial.Serial:
     if progress_cb is not None:
         progress_cb()
@@ -551,6 +631,7 @@ def send_cmd_collect(
         live_output,
         verbose,
         progress_cb=progress_cb,
+        text_filter=text_filter,
     )
     if saw_reopen and resend_after_reopen:
         if progress_cb is not None:
@@ -565,6 +646,7 @@ def send_cmd_collect(
             live_output,
             verbose,
             progress_cb=progress_cb,
+            text_filter=text_filter,
         )
     return ser
 
@@ -710,6 +792,26 @@ def preflight_clean_autopos_start(
     if not idle_ok:
         if progress_cb is not None:
             progress_cb()
+        emit(
+            logf,
+            "PRECHECK WARN: AUTOPOS detach did not settle cleanly; forcing RECV clean-slate before re-entering AUTOPOS\n",
+            live_output,
+            verbose,
+        )
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
+            "mode recv",
+            3.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
+        ser, _ = collect_for(ser, logf, 2.0, port, live_output, verbose, progress_cb=progress_cb)
+        if progress_cb is not None:
+            progress_cb()
         ser = send_cmd_collect(
             ser,
             logf,
@@ -795,6 +897,228 @@ def bootstrap_reset_all_autopos(
         emit(logf, "PRECHECK WARN: bootstrap reset all autopos did not verify all matrix anchors\n",
              live_output, verbose)
     return ser, ok
+
+
+def ensure_autopos_maps(
+    ser: serial.Serial,
+    logf,
+    port: str,
+    live_output: bool,
+    verbose: int,
+    context: dict | None = None,
+    progress_cb=None,
+) -> serial.Serial:
+    if context is not None and context.get("autopos_initialized", False):
+        return ser
+
+    init_cmds = [("device kind anchor", 0.35)]
+    for label, uuid in UUIDS.items():
+        init_cmds.append((f"autopos map {label} {uuid}", 0.35))
+
+    for cmd, pause_s in init_cmds:
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
+            cmd,
+            pause_s,
+            live_output,
+            verbose,
+            progress_cb=progress_cb,
+        )
+
+    if context is not None:
+        context["autopos_initialized"] = True
+    return ser
+
+
+def anchor_role_counts(text: str) -> dict[str, int]:
+    counts = {"matrix": 0, "responder": 0, "master": 0, "other": 0}
+    for role in re.findall(r"ANCHOR_VERSION .* role=([a-zA-Z_-]+)", text):
+        role = role.lower()
+        if role in counts:
+            counts[role] += 1
+        else:
+            counts["other"] += 1
+    return counts
+
+
+def wait_all_anchor_role(
+    ser: serial.Serial,
+    logf,
+    port: str,
+    role: str,
+    timeout_s: float,
+    live_output: bool,
+    verbose: int,
+    context: dict | None = None,
+) -> tuple[serial.Serial, bool, dict[str, int]]:
+    deadline = time.time() + timeout_s
+    last_counts = {"matrix": 0, "responder": 0, "master": 0, "other": 0}
+    while time.time() < deadline:
+        ser, text = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            "anchor version all",
+            2.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+        )
+        last_counts = anchor_role_counts(text)
+        if last_counts.get(role, 0) >= len(UUIDS):
+            return ser, True, last_counts
+        emit(
+            logf,
+            (
+                f"SESSION: wait all {role} role_counts="
+                f"matrix={last_counts.get('matrix', 0)} "
+                f"responder={last_counts.get('responder', 0)} "
+                f"master={last_counts.get('master', 0)} "
+                f"other={last_counts.get('other', 0)}\n"
+            ),
+            live_output,
+            verbose,
+        )
+        time.sleep(1.0)
+    return ser, False, last_counts
+
+
+def session_prepare_matrix(
+    port: str,
+    out_dir: Path,
+    live_output: bool,
+    verbose: int,
+    context: dict,
+) -> tuple[bool, dict]:
+    log_path = out_dir / "session_role_guard.log"
+    result = {
+        "success": False,
+        "log_path": str(log_path),
+        "initial_role_counts": {},
+        "final_role_counts": {},
+        "action": "anchor role all matrix",
+        "error": "",
+    }
+    ser = None
+    try:
+        ser = open_port(port, 20.0)
+        with open(log_path, "w", buffering=1) as logf:
+            emit(logf, f"PORT={port}\n", live_output, verbose)
+            emit(logf, f"START={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
+            emit(logf, "SESSION: prepare anchors for sweep; required role=matrix\n", live_output, verbose)
+            time.sleep(0.25)
+            while ser.in_waiting:
+                data = ser.read(ser.in_waiting)
+                if data:
+                    emit(logf, data.decode("utf-8", "ignore"), live_output, verbose)
+
+            ser = send_cmd_collect(ser, logf, port, "mode autopos", 1.6, live_output, verbose)
+            ser = ensure_autopos_maps(ser, logf, port, live_output, verbose, context=context)
+            emit(
+                logf,
+                "SESSION: switching all anchors to runtime matrix before sweep (idempotent guard)\n",
+                live_output,
+                verbose,
+            )
+            ser, role_text = send_cmd_collect_text(
+                ser,
+                logf,
+                port,
+                "anchor role all matrix",
+                18.0,
+                live_output,
+                verbose,
+                resend_after_reopen=False,
+            )
+            if (
+                "anchor role rc=0 target=all role=matrix" in role_text
+                or "anchor role all matrix runtime sent=" in role_text
+                or "anchor role all matrix runtime repeat sent=" in role_text
+            ):
+                result["success"] = True
+                emit(logf, "SESSION: matrix role guard sent; continuing into sweep\n", live_output, verbose)
+                return True, result
+
+            result["success"] = False
+            result["error"] = "matrix_guard_command_failed"
+            emit(logf, "SESSION FAIL: matrix role guard command did not report completion\n", live_output, verbose)
+            return False, result
+    except Exception as exc:
+        result["error"] = f"{exc.__class__.__name__}: {exc}"
+        return False, result
+    finally:
+        if ser is not None:
+            try:
+                ser.close()
+            except Exception:
+                pass
+
+
+def session_finalize_responder(
+    port: str,
+    out_dir: Path,
+    live_output: bool,
+    verbose: int,
+    context: dict,
+) -> dict:
+    log_path = out_dir / "session_final_responder.log"
+    result = {
+        "success": False,
+        "log_path": str(log_path),
+        "role_counts": {},
+        "error": "",
+    }
+    ser = None
+    try:
+        ser = open_port(port, 20.0)
+        with open(log_path, "w", buffering=1) as logf:
+            emit(logf, f"PORT={port}\n", live_output, verbose)
+            emit(logf, f"START={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
+            emit(logf, "SESSION: finalize sweep; switch all anchors to runtime responder\n", live_output, verbose)
+            ser = send_cmd_collect(ser, logf, port, "mode autopos", 1.2, live_output, verbose)
+            ser = ensure_autopos_maps(ser, logf, port, live_output, verbose, context=context)
+            ser, role_text = send_cmd_collect_text(
+                ser,
+                logf,
+                port,
+                "anchor role all responder",
+                24.0,
+                live_output,
+                verbose,
+                resend_after_reopen=False,
+            )
+            if "anchor role rc=0 target=all role=responder" not in role_text and "runtime repeat sent=" not in role_text:
+                emit(logf, "SESSION WARN: all-responder command did not report clear completion\n", live_output, verbose)
+
+            ser, ok, counts = wait_all_anchor_role(
+                ser,
+                logf,
+                port,
+                "responder",
+                20.0,
+                live_output,
+                verbose,
+                context=context,
+            )
+            result["success"] = ok
+            result["role_counts"] = counts
+            if ok:
+                emit(logf, "SESSION: all anchors responder\n", live_output, verbose)
+            else:
+                result["error"] = "not_all_responder_after_sweep"
+                emit(logf, "SESSION WARN: not all anchors verified responder after sweep\n", live_output, verbose)
+            return result
+    except Exception as exc:
+        result["error"] = f"{exc.__class__.__name__}: {exc}"
+        return result
+    finally:
+        if ser is not None:
+            try:
+                ser.close()
+            except Exception:
+                pass
 
 
 def wait_for_patterns(
@@ -1222,22 +1546,35 @@ def round_capture(
         "sw_line": "",
         "sw_lines": [],
         "sw_count": 0,
+        "device_sw_count": 0,
         "warmup_min_quality": warmup_min_quality,
         "warmup_sw_lines": [],
         "warmup_sw_count": 0,
+        "warmup_discarded_count": 0,
         "min_quality_seen": None,
         "pairs_below_quality": {},
         "log_path": str(log_path),
         "error": "",
         "warnings": [],
+        "reconnect_retry_seen": False,
+        "reconnect_retry_lines": [],
+        "precheck_elapsed_s": None,
+        "switch_elapsed_s": None,
+        "warmup_elapsed_s": None,
+        "collect_elapsed_s": None,
+        "total_elapsed_s": None,
     }
     verified = set()
     ser = None
     round_started_at = time.time()
     if command_started_at is None:
         command_started_at = round_started_at
-    sweep_started_at: float | None = None
+    raw_sweep_started_at: float | None = None
+    formal_sweep_started_at: float | None = None
+    precheck_done_at: float | None = None
     stage = "starting"
+    raw_sw_seen_for_process = 0
+    raw_sw_seen_for_log = 0
 
     def progress_now(current_stage: str, eta_s: float | None = None) -> None:
         print_round_progress(
@@ -1250,6 +1587,8 @@ def round_capture(
             time.time() - command_started_at,
             time.time() - round_started_at,
             eta_s,
+            result["warmup_discarded_count"],
+            round_capture.prewarm_sw_sets,
         )
 
     try:
@@ -1298,25 +1637,15 @@ def round_capture(
                 finish_round_progress()
                 return result
 
-            if context is None or not context.get("autopos_initialized", False):
-                init_cmds = [("device kind anchor", 0.35)]
-                for label, uuid in UUIDS.items():
-                    init_cmds.append((f"autopos map {label} {uuid}", 0.35))
-
-                for cmd, pause_s in init_cmds:
-                    stage = "precheck"
-                    ser = send_cmd_collect(
-                        ser,
-                        logf,
-                        port,
-                        cmd,
-                        pause_s,
-                        live_output,
-                        verbose,
-                        progress_cb=lambda: progress_now(stage),
-                    )
-                if context is not None:
-                    context["autopos_initialized"] = True
+            ser = ensure_autopos_maps(
+                ser,
+                logf,
+                port,
+                live_output,
+                verbose,
+                context=context,
+                progress_cb=lambda: progress_now("precheck"),
+            )
 
             if context is not None and context.get("bootstrap_autopos_reset", False) and not context.get("bootstrap_done", False):
                 context["bootstrap_done"] = True
@@ -1343,8 +1672,92 @@ def round_capture(
                 if not bootstrap_ok:
                     result["warnings"].append("bootstrap reset all autopos did not verify all anchors as matrix")
 
+            def filter_runtime_text(text: str) -> str:
+                nonlocal raw_sw_seen_for_log
+                if round_capture.prewarm_sw_sets <= 0:
+                    return text
+                out_lines: list[str] = []
+                for line in text.splitlines(keepends=True):
+                    stripped = line.rstrip("\n")
+                    if f"SW-{master}," in stripped:
+                        raw_sw_seen_for_log += 1
+                        if raw_sw_seen_for_log <= round_capture.prewarm_sw_sets:
+                            minq = sw_line_min_quality(master, stripped)
+                            out_lines.append(
+                                f"[AUTOPOS] SW-{master} warmup discard "
+                                f"{raw_sw_seen_for_log}/{round_capture.prewarm_sw_sets}"
+                                + (f" minq={minq}\n" if minq is not None else "\n")
+                            )
+                            continue
+                    out_lines.append(line)
+                return "".join(out_lines)
+
+            def process_runtime_text(text: str) -> None:
+                nonlocal stage, raw_sweep_started_at, formal_sweep_started_at, raw_sw_seen_for_process
+                for line in text.splitlines():
+                    if "AUTOPOS anchor " in line and " role verified" in line:
+                        parts = line.split("AUTOPOS anchor ", 1)[1]
+                        verified.add(parts.split(" ", 1)[0])
+                    if "forcing control-link reconnect retry" in line:
+                        result["reconnect_retry_seen"] = True
+                        result["reconnect_retry_lines"].append(line.strip())
+                    if "AUTOPOS apply success:" in line:
+                        result["apply_success_seen"] = True
+                        stage = "switching"
+                    if f"AUTOPOS sweep listen attach: master={master}" in line:
+                        result["sweep_ready_seen"] = True
+                        stage = "sweeping"
+                    if f"SW-{master}," in line:
+                        line = line.strip()
+                        raw_sw_seen_for_process += 1
+                        result["device_sw_count"] = raw_sw_seen_for_process
+                        if raw_sweep_started_at is None:
+                            raw_sweep_started_at = time.time()
+                        if (not result["apply_success_seen"] and
+                                "SW lines observed without AUTOPOS apply success" not in result["warnings"]):
+                            result.setdefault("warnings", []).append(
+                                "SW lines observed without AUTOPOS apply success"
+                            )
+                        if not result["sweep_ready_seen"]:
+                            result["sweep_ready_seen"] = True
+                        if raw_sw_seen_for_process <= round_capture.prewarm_sw_sets:
+                            result["warmup_discarded_count"] = raw_sw_seen_for_process
+                            stage = "warmup"
+                            continue
+                        stage = "sweeping"
+                        if formal_sweep_started_at is None:
+                            formal_sweep_started_at = time.time()
+                        min_quality = sw_line_min_quality(master, line)
+                        result["sw_seen"] = True
+                        result["sw_line"] = line
+                        result["sw_lines"].append(line)
+                        result["sw_count"] = len(result["sw_lines"])
+                        if min_quality is not None:
+                            current_min = result["min_quality_seen"]
+                            if current_min is None or min_quality < current_min:
+                                result["min_quality_seen"] = min_quality
+                            if warmup_min_quality > 0 and min_quality < warmup_min_quality:
+                                result["warmup_sw_lines"].append(line)
+                                result["warmup_sw_count"] = len(result["warmup_sw_lines"])
+                                result["pairs_below_quality"][line] = (
+                                    sw_line_pairs_below_quality(master, line, warmup_min_quality)
+                                )
+                    elif "SW-" in line and f"SW-{master}," not in line:
+                        m = re.search(r"SW-([A-H]),", line)
+                        if m:
+                            stale_master = m.group(1)
+                            warning = (
+                                f"stale SW-{stale_master} observed while preparing SW-{master}; "
+                                "finite-master image should auto-return it to matrix"
+                            )
+                            if warning not in result["warnings"]:
+                                result["warnings"].append(warning)
+                                emit(logf, f"PRECHECK WARN: {warning}\n", live_output, verbose)
+
+            precheck_done_at = time.time()
+
             cmds = [
-                (f"autopos round {master}", 0.5),
+                (f"autopos round {master} {round_capture.device_sw_sets}", 0.5),
                 ("autopos status", 0.5),
                 ("autopos apply", 0.5),
             ]
@@ -1361,8 +1774,10 @@ def round_capture(
                     time.time() - command_started_at,
                     time.time() - round_started_at,
                     None,
+                    result["warmup_discarded_count"],
+                    round_capture.prewarm_sw_sets,
                 )
-                ser = send_cmd_collect(
+                ser, cmd_text = send_cmd_collect_text(
                     ser,
                     logf,
                     port,
@@ -1371,7 +1786,9 @@ def round_capture(
                     live_output,
                     verbose,
                     progress_cb=lambda: progress_now(stage),
+                    text_filter=filter_runtime_text,
                 )
+                process_runtime_text(cmd_text)
 
             deadline = time.time() + timeout_s
             status_marks = {30, 60, 120, 180, 240, 300, 360, 420}
@@ -1379,8 +1796,8 @@ def round_capture(
             while time.time() < deadline:
                 elapsed = int(timeout_s - (deadline - time.time()))
                 eta_s = None
-                if sweep_started_at is not None and result["sw_count"] > 0 and round_capture.target_sw_sets > 0:
-                    sweep_elapsed = max(0.001, time.time() - sweep_started_at)
+                if formal_sweep_started_at is not None and result["sw_count"] > 0 and round_capture.target_sw_sets > 0:
+                    sweep_elapsed = max(0.001, time.time() - formal_sweep_started_at)
                     total_est = sweep_elapsed / (result["sw_count"] / round_capture.target_sw_sets)
                     eta_s = max(0.0, total_est - sweep_elapsed)
                 print_round_progress(
@@ -1393,6 +1810,8 @@ def round_capture(
                     time.time() - command_started_at,
                     time.time() - round_started_at,
                     eta_s,
+                    result["warmup_discarded_count"],
+                    round_capture.prewarm_sw_sets,
                 )
                 if (not result["apply_success_seen"] and
                         elapsed in status_marks and elapsed not in sent_marks):
@@ -1423,44 +1842,8 @@ def round_capture(
 
                 if data:
                     text = data.decode("utf-8", "ignore")
-                    emit(logf, text, live_output, verbose)
-                    for line in text.splitlines():
-                        if "AUTOPOS anchor " in line and " role verified" in line:
-                            parts = line.split("AUTOPOS anchor ", 1)[1]
-                            verified.add(parts.split(" ", 1)[0])
-                        if f"AUTOPOS apply success: master={master}" in line:
-                            result["apply_success_seen"] = True
-                            stage = "switching"
-                        if f"AUTOPOS sweep listen attach: master={master}" in line:
-                            result["sweep_ready_seen"] = True
-                            stage = "sweeping"
-                        if f"SW-{master}," in line:
-                            line = line.strip()
-                            if sweep_started_at is None:
-                                sweep_started_at = time.time()
-                            if (not result["apply_success_seen"] and
-                                    "SW lines observed without AUTOPOS apply success" not in result["warnings"]):
-                                result.setdefault("warnings", []).append(
-                                    "SW lines observed without AUTOPOS apply success"
-                                )
-                            if not result["sweep_ready_seen"]:
-                                result["sweep_ready_seen"] = True
-                            stage = "sweeping"
-                            min_quality = sw_line_min_quality(master, line)
-                            result["sw_seen"] = True
-                            result["sw_line"] = line
-                            result["sw_lines"].append(line)
-                            result["sw_count"] = len(result["sw_lines"])
-                            if min_quality is not None:
-                                current_min = result["min_quality_seen"]
-                                if current_min is None or min_quality < current_min:
-                                    result["min_quality_seen"] = min_quality
-                                if warmup_min_quality > 0 and min_quality < warmup_min_quality:
-                                    result["warmup_sw_lines"].append(line)
-                                    result["warmup_sw_count"] = len(result["warmup_sw_lines"])
-                                    result["pairs_below_quality"][line] = (
-                                        sw_line_pairs_below_quality(master, line, warmup_min_quality)
-                                    )
+                    emit(logf, filter_runtime_text(text), live_output, verbose)
+                    process_runtime_text(text)
                     if result["sw_count"] >= round_capture.target_sw_sets:
                         result["success"] = True
                         stage = "done"
@@ -1469,6 +1852,11 @@ def round_capture(
                     time.sleep(0.1)
 
             result["verified_count"] = len(verified)
+            if result["apply_success_seen"]:
+                result["warnings"] = [
+                    w for w in result["warnings"]
+                    if w != "SW lines observed without AUTOPOS apply success"
+                ]
             if not result["success"]:
                 if not result["sweep_ready_seen"]:
                     result["error"] = "sweep_ready_not_seen"
@@ -1477,7 +1865,24 @@ def round_capture(
                 else:
                     result["error"] = f"insufficient_sw_sets:{result['sw_count']}/{round_capture.target_sw_sets}"
                 stage = "failed"
-            result["warnings"] = summarize_round_warnings(master, result["sw_lines"], result["sw_seen"])
+            result["warnings"] = result["warnings"] + summarize_round_warnings(
+                master, result["sw_lines"], result["sw_seen"]
+            )
+            round_finished_at = time.time()
+            result["total_elapsed_s"] = round_finished_at - round_started_at
+            if precheck_done_at is not None:
+                result["precheck_elapsed_s"] = max(0.0, precheck_done_at - round_started_at)
+                switch_end = raw_sweep_started_at or round_finished_at
+                result["switch_elapsed_s"] = max(0.0, switch_end - precheck_done_at)
+            else:
+                result["precheck_elapsed_s"] = 0.0
+                result["switch_elapsed_s"] = None
+            if raw_sweep_started_at is not None and formal_sweep_started_at is not None:
+                result["warmup_elapsed_s"] = max(0.0, formal_sweep_started_at - raw_sweep_started_at)
+            else:
+                result["warmup_elapsed_s"] = 0.0
+            collect_anchor = formal_sweep_started_at or raw_sweep_started_at or precheck_done_at or round_started_at
+            result["collect_elapsed_s"] = max(0.0, round_finished_at - collect_anchor)
             print_round_progress(
                 master,
                 round_idx,
@@ -1488,6 +1893,8 @@ def round_capture(
                 time.time() - command_started_at,
                 time.time() - round_started_at,
                 0.0 if stage == "done" else None,
+                result["warmup_discarded_count"],
+                round_capture.prewarm_sw_sets,
             )
             finish_round_progress()
             emit(logf, f"END={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
@@ -1534,6 +1941,12 @@ def main() -> int:
     parser.add_argument("--timeout-s", type=int, default=None, help="Per-round timeout; defaults scale with --sw-sets")
     parser.add_argument("--sw-sets", type=int, default=1, help="Required SW lines per round before finishing")
     parser.add_argument(
+        "--prewarm-sw-sets",
+        type=int,
+        default=10,
+        help="Per-round SW lines to discard as warm-up before counting/logging formal sweep data. Use 0 to disable.",
+    )
+    parser.add_argument(
         "--warmup-min-quality",
         type=int,
         default=90,
@@ -1543,8 +1956,8 @@ def main() -> int:
                         help="Live stdout verbosity: 0=SW-X/failures only, 1=normal without ignored scan noise, 2=full flow")
     parser.add_argument(
         "--quiet-tag-name",
-        default="auto",
-        help="Before each sweep round, quarantine Tag(s) with MODE AOTA + STREAM OFF. Use 'auto' to discover all non-Anchor BSxxxx tags, or pass list like 'BSF66F,BS2DCE'. Use - to disable.",
+        default="-",
+        help="Legacy Tag quarantine control. Use - (default) to disable heavy quarantine. 'auto' or a list like 'BSF66F,BS2DCE' retains the old MODE AOTA + STREAM OFF flow.",
     )
     parser.add_argument(
         "--quiet-tag-retries",
@@ -1568,10 +1981,22 @@ def main() -> int:
         action="store_true",
         help="Skip the one-shot 'anchor reset all autopos' bootstrap at the start of the sweep.",
     )
+    parser.add_argument(
+        "--no-session-role-guard",
+        action="store_true",
+        help="Skip session start role guard. By default, all anchors are verified/switched to matrix before SW-A.",
+    )
+    parser.add_argument(
+        "--no-final-responder",
+        action="store_true",
+        help="Skip switching all anchors to runtime responder after the full sweep succeeds.",
+    )
     args = parser.parse_args()
 
     if args.sw_sets < 1:
         raise SystemExit("--sw-sets must be >= 1")
+    if args.prewarm_sw_sets < 0:
+        raise SystemExit("--prewarm-sw-sets must be >= 0")
     if args.warmup_min_quality < 0 or args.warmup_min_quality > 100:
         raise SystemExit("--warmup-min-quality must be between 0 and 100")
 
@@ -1579,6 +2004,8 @@ def main() -> int:
         args.timeout_s = auto_timeout_for_sw_sets(args.sw_sets)
 
     round_capture.target_sw_sets = args.sw_sets
+    round_capture.prewarm_sw_sets = args.prewarm_sw_sets
+    round_capture.device_sw_sets = args.sw_sets + args.prewarm_sw_sets
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1606,6 +2033,8 @@ def main() -> int:
         "port": args.port,
         "order": list(args.order),
         "sw_sets": args.sw_sets,
+        "prewarm_sw_sets": args.prewarm_sw_sets,
+        "device_sw_sets": args.sw_sets + args.prewarm_sw_sets,
         "warmup_min_quality": args.warmup_min_quality,
         "timeout_s": args.timeout_s,
         "verbose": args.verbose,
@@ -1614,6 +2043,9 @@ def main() -> int:
         "quiet_tag_retries": args.quiet_tag_retries,
         "quiet_tag_required": bool(args.quiet_tag_required),
         "bootstrap_autopos_reset": not bool(args.no_bootstrap_autopos_reset),
+        "session_role_guard": not bool(args.no_session_role_guard),
+        "final_responder": not bool(args.no_final_responder),
+        "slow_switch_threshold_s": 10.0,
     })
     command_started_at = time.time()
     run_context = {
@@ -1621,6 +2053,22 @@ def main() -> int:
         "bootstrap_autopos_reset": not bool(args.no_bootstrap_autopos_reset),
         "bootstrap_done": False,
     }
+
+    if not args.no_session_role_guard:
+        print("=== SESSION ROLE GUARD: MATRIX ===", flush=True)
+        ok, guard_result = session_prepare_matrix(
+            args.port,
+            out_dir,
+            live_output=not args.no_live_output,
+            verbose=args.verbose,
+            context=run_context,
+        )
+        summary["session_role_guard_result"] = guard_result
+        with open(out_dir / "summary.json", "w", encoding="utf-8") as f:
+            json.dump(summary, f, indent=2)
+        print(json.dumps(guard_result, indent=2), flush=True)
+        if not ok:
+            return 1
 
     for idx, master in enumerate(args.order, start=1):
         round_dir = out_dir / f"round_{master}"
@@ -1656,14 +2104,23 @@ def main() -> int:
                 "sw_line": "",
                 "sw_lines": [],
                 "sw_count": 0,
+                "device_sw_count": 0,
                 "warmup_min_quality": args.warmup_min_quality,
                 "warmup_sw_lines": [],
                 "warmup_sw_count": 0,
+                "warmup_discarded_count": 0,
                 "min_quality_seen": None,
                 "pairs_below_quality": {},
                 "log_path": str((round_dir / "master.log").resolve()),
                 "error": "exception_in_round_capture",
                 "warnings": [f"Anchor {master}: no output as Master"],
+                "reconnect_retry_seen": False,
+                "reconnect_retry_lines": [],
+                "precheck_elapsed_s": None,
+                "switch_elapsed_s": None,
+                "warmup_elapsed_s": None,
+                "collect_elapsed_s": None,
+                "total_elapsed_s": None,
             }
         summary["rounds"][master] = result
         with open(out_dir / "summary.json", "w", encoding="utf-8") as f:
@@ -1672,10 +2129,29 @@ def main() -> int:
         if not result["success"]:
             return 1
 
+    if not args.no_final_responder:
+        print("=== SESSION FINALIZER: RESPONDER ===", flush=True)
+        final_result = session_finalize_responder(
+            args.port,
+            out_dir,
+            live_output=not args.no_live_output,
+            verbose=args.verbose,
+            context=run_context,
+        )
+        summary["session_final_responder_result"] = final_result
+        with open(out_dir / "summary.json", "w", encoding="utf-8") as f:
+            json.dump(summary, f, indent=2)
+        print(json.dumps(final_result, indent=2), flush=True)
+        if not final_result.get("success"):
+            return 1
+
     summary["finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    summary["total_elapsed_s"] = time.time() - command_started_at
     summary["warnings"] = summarize_global_warnings(summary["rounds"])
     with open(out_dir / "summary.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
+    for line in build_run_summary_lines(summary):
+        print(line, flush=True)
     if summary["warnings"]:
         print("=== WARNINGS ===", flush=True)
         for warning in summary["warnings"]:

@@ -127,6 +127,7 @@ K_THREAD_STACK_DEFINE(autopos_work_q_stack, 4096);
 static const char autopos_labels[AUTOPOS_ANCHOR_COUNT] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
 static char autopos_uuid_map[AUTOPOS_ANCHOR_COUNT][AUTOPOS_UUID_LEN];
 static int8_t autopos_target_idx = -1;
+static uint32_t autopos_round_sets;
 
 static int autopos_wait_anchor_ready(const char *uuid, int timeout_ms);
 static int autopos_wait_anchor_cleared(int timeout_ms);
@@ -194,6 +195,22 @@ static void control_leds_set(uint32_t leds)
 	(void)dk_set_leds(leds);
 }
 
+static void control_apply_mode_leds(void)
+{
+	switch (control_mode) {
+	case CONTROL_MODE_AUTOPOS:
+		control_leds_set(DK_LED1_MSK);
+		break;
+	case CONTROL_MODE_OTA:
+		control_leds_set(DK_LED3_MSK);
+		break;
+	case CONTROL_MODE_RECV:
+	default:
+		control_leds_set(DK_LED2_MSK);
+		break;
+	}
+}
+
 static void control_blink_ack(void)
 {
 	for (int i = 0; i < 3; ++i) {
@@ -219,7 +236,7 @@ static void control_print_help(void)
 	printk("Device model cmds: device show | device kind <anchor|tag>\n");
 	printk("OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->\n");
 	printk("Anchor cmds: anchor version <A..H|UUID32|all> | anchor role <A..H|UUID32|all> <master|matrix|responder> | anchor reset <A..H|UUID32|all> <autopos|responder>\n");
-	printk("AUTOPOS cmds: autopos status | autopos detach | autopos map <A..H> <UUID32> | autopos map show | autopos round <A..H> | autopos apply\n");
+	printk("AUTOPOS cmds: autopos status | autopos detach | autopos map <A..H> <UUID32> | autopos map show | autopos round <A..H> [sets] | autopos apply\n");
 }
 
 static const char *system_kind_name(uint8_t kind)
@@ -288,11 +305,12 @@ static void autopos_set_error(const char *text)
 
 static void autopos_print_status(void)
 {
-	printk("AUTOPOS: mode=%s state=%s staged=%c last_success=%c error=%s\n",
+	printk("AUTOPOS: mode=%s state=%s staged=%c last_success=%c sets=%lu error=%s\n",
 	       control_mode_name(control_mode),
 	       autopos_state,
 	       (autopos_target_idx >= 0) ? autopos_labels[autopos_target_idx] : '-',
 	       (autopos_last_success_idx >= 0) ? autopos_labels[autopos_last_success_idx] : '-',
+	       (unsigned long)autopos_round_sets,
 	       autopos_last_error[0] != '\0' ? autopos_last_error : "-");
 }
 
@@ -705,6 +723,60 @@ static int autopos_wait_result_contains(const char *needle, int timeout_ms)
 	return -ETIMEDOUT;
 }
 
+static int autopos_wait_runtime_master_started(int idx, int timeout_ms)
+{
+	char result[256];
+	char state[256];
+	int waited = 0;
+	int result_log_period_ms = 300;
+	char sw_prefix[8];
+	char role_needle[32];
+
+	if (idx < 0 || idx >= AUTOPOS_ANCHOR_COUNT) {
+		return -EINVAL;
+	}
+
+	(void)snprintf(sw_prefix, sizeof(sw_prefix), "SW-%c,", autopos_labels[idx]);
+	(void)snprintf(role_needle, sizeof(role_needle), "role=master");
+
+	while (waited < timeout_ms) {
+		int rc_result = master_anchor_ctrl_read_result(result, sizeof(result));
+		if (rc_result == 0) {
+			if ((waited % result_log_period_ms) == 0 || strstr(result, "OK RUNTIME") != NULL ||
+			    strstr(result, sw_prefix) != NULL) {
+				printk("AUTOPOS result: %s\n", result);
+			}
+			if (strstr(result, "OK RUNTIME") != NULL) {
+				return 0;
+			}
+			if (strstr(result, sw_prefix) != NULL) {
+				printk("AUTOPOS runtime accept via sweep stream: master=%c\n",
+				       autopos_labels[idx]);
+				return 0;
+			}
+		}
+
+		if ((waited % 300) == 0) {
+			int rc_state = master_anchor_ctrl_read_state(state, sizeof(state));
+			if (rc_state == 0) {
+				printk("AUTOPOS state: %s\n", state);
+				if (strstr(state, role_needle) != NULL &&
+				    strstr(state, "cfg_valid=1") != NULL &&
+				    strstr(state, "reboot_required=0") != NULL) {
+					printk("AUTOPOS runtime accept via role state: master=%c\n",
+					       autopos_labels[idx]);
+					return 0;
+				}
+			}
+		}
+
+		k_sleep(K_MSEC(150));
+		waited += 150;
+	}
+
+	return -ETIMEDOUT;
+}
+
 static bool autopos_sweep_line_converged(const char *line, char master_label,
 					 uint8_t min_quality,
 					 uint8_t *peer_count_out,
@@ -1093,6 +1165,61 @@ static int anchor_apply_role_uuid(const char *query, const char *role_cmd,
 	return rc;
 }
 
+static int anchor_apply_runtime_role_uuid(const char *query, const char *role_cmd,
+					  const char *expect_role)
+{
+	char uuid[33];
+	char label[4];
+	int rc;
+
+	rc = anchor_resolve_query_uuid(query, uuid, sizeof(uuid), label, sizeof(label));
+	if (rc != 0) {
+		printk("anchor runtime role invalid target=%s rc=%d\n",
+		       (query != NULL) ? query : "-", rc);
+		return rc;
+	}
+
+	rc = autopos_wait_anchor_ready(uuid, 12000);
+	if (rc != 0) {
+		printk("anchor runtime role connect failed: target=%s uuid=%s rc=%d\n",
+		       label[0] != '\0' ? label : "-", uuid, rc);
+		return rc;
+	}
+
+	rc = autopos_current_role_matches(expect_role);
+	if (rc > 0) {
+		printk("anchor runtime role already active: target=%s uuid=%s role=%s\n",
+		       label[0] != '\0' ? label : query, uuid, expect_role);
+		return 0;
+	}
+	if (rc < 0) {
+		printk("anchor runtime role state precheck failed: target=%s uuid=%s rc=%d\n",
+		       label[0] != '\0' ? label : query, uuid, rc);
+	}
+
+	rc = autopos_send_anchor_cmd_checked(role_cmd, "OK RUNTIME", 1500);
+	if (rc != 0) {
+		int state_rc = autopos_current_role_matches(expect_role);
+
+		if (state_rc > 0) {
+			printk("anchor runtime role accepted after missed ACK: target=%s uuid=%s role=%s\n",
+			       label[0] != '\0' ? label : query, uuid, expect_role);
+			return 0;
+		}
+		printk("anchor runtime role command failed: target=%s uuid=%s rc=%d\n",
+		       label[0] != '\0' ? label : query, uuid, rc);
+		return rc;
+	}
+
+	rc = autopos_wait_active_role_state(expect_role, 5000);
+	printk("anchor runtime role rc=%d target=%s uuid=%s role=%s\n",
+	       rc,
+	       label[0] != '\0' ? label : query,
+	       uuid,
+	       expect_role);
+	return rc;
+}
+
 static int anchor_apply_role(const char *query, const char *role)
 {
 	char role_cmd[24];
@@ -1109,8 +1236,9 @@ static int anchor_apply_role(const char *query, const char *role)
 		(void)snprintf(role_cmd, sizeof(role_cmd), "R MATRIX");
 		(void)snprintf(expect_role, sizeof(expect_role), "matrix");
 	} else if (strcmp(role, "responder") == 0) {
-		(void)snprintf(role_cmd, sizeof(role_cmd), "R RESPONDER");
+		(void)snprintf(role_cmd, sizeof(role_cmd), "RUNTIME RESPONDER");
 		(void)snprintf(expect_role, sizeof(expect_role), "responder");
+		return anchor_apply_runtime_role_uuid(query, role_cmd, expect_role);
 	} else {
 		return -EINVAL;
 	}
@@ -1123,6 +1251,52 @@ static int anchor_apply_role_all(const char *role)
 	int rc = 0;
 	int first_err = 0;
 	char label[2];
+
+	if (role != NULL && (strcmp(role, "matrix") == 0 || strcmp(role, "responder") == 0)) {
+		int ready_count;
+		int sent;
+		int waited = 0;
+		const char *runtime_cmd = (strcmp(role, "matrix") == 0) ? "RUNTIME MATRIX" : "RUNTIME RESPONDER";
+
+		/* Session role guard/finalizer: matrix/responder are runtime state changes.
+		 * Do not depend on persisted A-H maps or the config/commit path here;
+		 * anchors may be busy in matrix/responder loops, and they are explicitly
+		 * designed to accept RUNTIME role switches while busy.
+		 */
+		master_set_runtime_target_name("");
+		master_set_runtime_target_prefix("");
+		master_set_runtime_target_uuid("");
+		master_set_runtime_target_kind(MASTER_TARGET_ANCHOR);
+		master_set_connect_and_start_mode();
+
+		while (waited < 20000) {
+			ready_count = master_anchor_ctrl_ready_count();
+			if (ready_count >= AUTOPOS_ANCHOR_COUNT) {
+				break;
+			}
+			if ((waited % 1000) == 0) {
+				printk("anchor role all %s wait ready: waited=%d ready=%d/%d\n",
+				       role, waited, ready_count, AUTOPOS_ANCHOR_COUNT);
+				master_dump_ready_state();
+			}
+			k_sleep(K_MSEC(250));
+			waited += 250;
+		}
+
+		ready_count = master_anchor_ctrl_ready_count();
+		sent = master_send_command_now(runtime_cmd);
+		printk("anchor role all %s runtime sent=%d ready=%d/%d\n",
+		       role, sent, ready_count, AUTOPOS_ANCHOR_COUNT);
+		if (sent <= 0) {
+			return sent < 0 ? sent : -ENOTCONN;
+		}
+		k_sleep(K_MSEC(700));
+		/* Repeat once in case a ready peer was in a connection event gap. */
+		sent = master_send_command_now(runtime_cmd);
+		printk("anchor role all %s runtime repeat sent=%d ready=%d/%d\n",
+		       role, sent, master_anchor_ctrl_ready_count(), AUTOPOS_ANCHOR_COUNT);
+		return 0;
+	}
 
 	for (int i = 0; i < AUTOPOS_ANCHOR_COUNT; ++i) {
 		if (autopos_uuid_map[i][0] == '\0') {
@@ -1264,9 +1438,12 @@ static int autopos_reconnect_anchor_ready(int idx, int timeout_ms)
 {
 	int rc;
 
-	master_quiesce_peers();
-	(void)autopos_wait_anchor_cleared(500);
-	k_sleep(K_MSEC(AUTOPOS_ANCHOR_REBOOT_SETTLE_MS));
+	/* Recover only the target control link. Global quiesce tears down
+	 * already-healthy anchor-ctrl peers and turns a single stale target
+	 * into a whole-session reconnect storm.
+	 */
+	master_disconnect_runtime_target_peers();
+	k_sleep(K_MSEC(250));
 
 	rc = autopos_wait_anchor_ready(autopos_uuid_map[idx], timeout_ms);
 	if (rc != 0) {
@@ -1324,10 +1501,13 @@ static void autopos_detach_sweep_listen(void)
 
 	/* Drop the previous round's BLE result stream before reconfiguring roles. */
 	master_set_background_gate(false, "autopos_detach");
-	if (master_anchor_ctrl_ready_count() > 0) {
+	if (master_anchor_ctrl_ready_count() > 0 && autopos_round_sets == 0U) {
 		rc = master_send_command_now("STOP");
 		printk("AUTOPOS detach stop current stream rc=%d\n", rc);
 		k_sleep(K_MSEC(200));
+	} else if (master_anchor_ctrl_ready_count() > 0) {
+		printk("AUTOPOS detach skip STOP: finite master auto-returns to matrix sets=%lu\n",
+		       (unsigned long)autopos_round_sets);
 	}
 	master_set_background_gate(true, "autopos_detach_done");
 }
@@ -1378,35 +1558,100 @@ static int autopos_enter_config_window(int idx)
 static int autopos_apply_one_anchor(int idx, bool is_master)
 {
 	int rc;
+	char runtime_cmd_buf[40];
 	const char *runtime_cmd = is_master ? "RUNTIME MASTER" : "RUNTIME MATRIX";
 	const char *expect_role = is_master ? "master" : "matrix";
 	bool demoting_active_master = false;
+	bool allow_reconnect_retry = true;
+
+retry_after_reconnect:
+	demoting_active_master = false;
 
 	rc = autopos_wait_anchor_ready(autopos_uuid_map[idx], 12000);
 	if (rc != 0) {
+		if (allow_reconnect_retry && rc == -ETIMEDOUT) {
+			printk("AUTOPOS anchor %c ready timeout; forcing control-link reconnect retry\n",
+			       autopos_labels[idx]);
+			allow_reconnect_retry = false;
+			rc = autopos_reconnect_anchor_ready(idx, 15000);
+			if (rc != 0) {
+				return rc;
+			}
+			goto retry_after_reconnect;
+		}
 		return rc;
 	}
 
 	rc = autopos_current_role_matches("master");
 	if (rc < 0) {
+		if (allow_reconnect_retry && (rc == -ETIMEDOUT || rc == -ENOTCONN)) {
+			printk("AUTOPOS anchor %c state read failed rc=%d; forcing control-link reconnect retry\n",
+			       autopos_labels[idx], rc);
+			allow_reconnect_retry = false;
+			rc = autopos_reconnect_anchor_ready(idx, 15000);
+			if (rc != 0) {
+				return rc;
+			}
+			goto retry_after_reconnect;
+		}
 		return rc;
 	}
 	demoting_active_master = !is_master && rc > 0;
 
 	rc = autopos_current_role_matches(expect_role);
-	if (rc > 0) {
+	if (rc > 0 && !(is_master && autopos_round_sets != 0U)) {
 		printk("AUTOPOS anchor %c already active role=%s cfg_valid=1; keeping current config\n",
 		       autopos_labels[idx], expect_role);
 		return 0;
 	}
+	if (!is_master) {
+		rc = autopos_current_role_matches("responder");
+		if (rc > 0) {
+			printk("AUTOPOS anchor %c active role=responder; switching to matrix for sweep\n",
+			       autopos_labels[idx]);
+		}
+	}
 
-	rc = autopos_send_anchor_cmd_checked(runtime_cmd, "OK RUNTIME", 1500);
+	if (is_master && autopos_round_sets != 0U) {
+		(void)snprintf(runtime_cmd_buf, sizeof(runtime_cmd_buf),
+			       "RUNTIME MASTER SWEEP %lu", (unsigned long)autopos_round_sets);
+		runtime_cmd = runtime_cmd_buf;
+	}
+
+	if (is_master && autopos_round_sets != 0U) {
+		rc = master_send_command_now(runtime_cmd);
+		if (rc >= 0) {
+			rc = autopos_wait_runtime_master_started(idx, 1500);
+		}
+	} else {
+		rc = autopos_send_anchor_cmd_checked(runtime_cmd, "OK RUNTIME", 1500);
+	}
 	if (rc != 0) {
+		if (allow_reconnect_retry && (rc == -ETIMEDOUT || rc == -ENOTCONN)) {
+			printk("AUTOPOS anchor %c runtime cmd failed rc=%d; forcing control-link reconnect retry\n",
+			       autopos_labels[idx], rc);
+			allow_reconnect_retry = false;
+			rc = autopos_reconnect_anchor_ready(idx, 15000);
+			if (rc != 0) {
+				return rc;
+			}
+			goto retry_after_reconnect;
+		}
 		return rc;
 	}
 
 	rc = autopos_wait_active_role_state(expect_role, 7000);
 	if (rc != 0) {
+		if (allow_reconnect_retry && rc == -ETIMEDOUT) {
+			printk("AUTOPOS anchor %c role transition timeout; forcing control-link reconnect retry\n",
+			       autopos_labels[idx]);
+			allow_reconnect_retry = false;
+			rc = autopos_reconnect_anchor_ready(idx, 15000);
+			if (rc != 0) {
+				return rc;
+			}
+			goto retry_after_reconnect;
+		}
 		return rc;
 	}
 
@@ -1449,6 +1694,32 @@ static int autopos_apply_full_sync(void)
 		return rc;
 	}
 	printk("AUTOPOS anchor %c role verified\n", autopos_labels[autopos_target_idx]);
+	return 0;
+}
+
+static int autopos_apply_bootstrap_target_only(void)
+{
+	int rc;
+
+	/* On a fresh session, the anchors are already expected to be in their
+	 * persisted matrix runtime. Forcing a BLE control verify on all seven
+	 * non-target anchors before the first master promotion turns the first
+	 * round into an 8-peer discovery storm and trips anchor-ctrl discovery
+	 * resource failures (-120). Promote the requested master first and let
+	 * the existing invariant carry the rest.
+	 */
+	rc = autopos_apply_one_anchor(autopos_target_idx, true);
+	if (rc != 0) {
+		(void)snprintf(autopos_last_error, sizeof(autopos_last_error),
+			       "anchor %c promote failed rc=%d",
+			       autopos_labels[autopos_target_idx], rc);
+		(void)snprintf(autopos_state, sizeof(autopos_state), "failed");
+		printk("AUTOPOS apply failed: %s\n", autopos_last_error);
+		return rc;
+	}
+
+	printk("AUTOPOS bootstrap target-only promote verified: master=%c\n",
+	       autopos_labels[autopos_target_idx]);
 	return 0;
 }
 
@@ -1528,8 +1799,8 @@ static void autopos_apply_work_handler(struct k_work *work)
 	 * touching for the next sweep round.
 	 */
 	if (autopos_last_success_idx < 0) {
-		printk("AUTOPOS apply mode: full-sync\n");
-		rc = autopos_apply_full_sync();
+		printk("AUTOPOS apply mode: bootstrap-target-only\n");
+		rc = autopos_apply_bootstrap_target_only();
 	} else {
 		printk("AUTOPOS apply mode: incremental\n");
 		rc = autopos_apply_incremental_sync();
@@ -1624,6 +1895,7 @@ static void mode_switch_work_handler(struct k_work *work)
 	}
 	control_disconnect_all_links();
 	control_mode = requested_mode;
+	control_apply_mode_leds();
 	sync_master_log_mode(control_mode);
 	control_save_mode();
 	control_stage_ota_target();
@@ -1698,6 +1970,7 @@ static void control_handle_uart_command(const char *line)
 	char cmd[16];
 	char arg[16];
 	char arg2[64] = { 0 };
+	char arg3[16] = { 0 };
 	int parsed;
 	int rc;
 	const char *payload;
@@ -1728,7 +2001,7 @@ static void control_handle_uart_command(const char *line)
 		return;
 	}
 
-	parsed = sscanf(line, "%15s %15s %63s", cmd, arg, arg2);
+	parsed = sscanf(line, "%15s %15s %63s %15s", cmd, arg, arg2, arg3);
 	for (char *p = cmd; *p != '\0'; ++p) {
 		*p = (char)tolower((unsigned char)*p);
 	}
@@ -1978,6 +2251,18 @@ static void control_handle_uart_command(const char *line)
 				printk("autopos round invalid label: %s\n", arg2);
 				return;
 			}
+			if (parsed >= 4) {
+				char *endp = NULL;
+				unsigned long sets = strtoul(arg3, &endp, 10);
+
+				if (endp == arg3 || *endp != '\0' || sets > 10000UL) {
+					printk("autopos round invalid sets: %s\n", arg3);
+					return;
+				}
+				autopos_round_sets = (uint32_t)sets;
+			} else {
+				autopos_round_sets = 0U;
+			}
 			autopos_target_idx = autopos_label_to_index(arg2[0]);
 			if (autopos_target_idx < 0) {
 				printk("autopos round invalid label: %s\n", arg2);
@@ -1986,7 +2271,9 @@ static void control_handle_uart_command(const char *line)
 			autopos_save_target();
 			(void)snprintf(autopos_state, sizeof(autopos_state), "staged");
 			autopos_last_error[0] = '\0';
-			printk("AUTOPOS round staged: master=%c\n", autopos_labels[autopos_target_idx]);
+			printk("AUTOPOS round staged: master=%c sets=%lu\n",
+			       autopos_labels[autopos_target_idx],
+			       (unsigned long)autopos_round_sets);
 			return;
 		}
 		if (strcmp(arg, "apply") == 0) {
@@ -2229,8 +2516,8 @@ static int control_init_ui(void)
 		printk("LED init failed: %d\n", err);
 	} else {
 		leds_ready = true;
-		control_leds_set(DK_LED1_MSK);
-		printk("LED map: 0=scan 1=link 2=ota 3=error\n");
+		control_apply_mode_leds();
+		printk("LED map: 1=AUTOPOS 2=RECV 3=OTA 4=FLOW\n");
 	}
 
 	err = dk_buttons_init(button_handler);
@@ -2255,6 +2542,7 @@ static int control_load_mode(void)
 	sync_master_log_mode(control_mode);
 
 	printk("Control mode loaded: %s\n", control_mode_name(control_mode));
+	control_apply_mode_leds();
 	return 0;
 }
 

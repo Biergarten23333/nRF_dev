@@ -37,6 +37,14 @@ static anchor_config_t g_working_cfg;
 static bool g_working_cfg_valid;
 static struct uart_role_switch_runtime_info g_runtime_info;
 
+static uint8_t persistent_role_normalize(uint8_t role)
+{
+    if (role == ANCHOR_ROLE_MASTER) {
+        return ANCHOR_ROLE_MATRIX;
+    }
+    return role;
+}
+
 static const char *role_name(uint8_t role)
 {
     switch (role) {
@@ -194,7 +202,7 @@ static void cmd_role_set(const char *role_s)
     }
 
     k_mutex_lock(&g_cfg_lock, K_FOREVER);
-    g_working_cfg.role = role;
+    g_working_cfg.role = persistent_role_normalize(role);
     cfg_fill_crc(&g_working_cfg);
     g_working_cfg_valid = anchor_config_is_valid(&g_working_cfg);
     k_mutex_unlock(&g_cfg_lock);
@@ -231,6 +239,7 @@ static void cmd_config_save(void)
     local = g_working_cfg;
     k_mutex_unlock(&g_cfg_lock);
 
+    local.role = persistent_role_normalize(local.role);
     cfg_fill_crc(&local);
     rc = anchor_config_write(&local);
     if (rc != 0) {

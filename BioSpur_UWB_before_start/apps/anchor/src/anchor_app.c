@@ -85,6 +85,52 @@ static const char *anchor_role_name(uint8_t role)
     }
 }
 
+static uint8_t persistent_role_normalize(uint8_t role)
+{
+    if (role == ANCHOR_ROLE_MASTER) {
+        return ANCHOR_ROLE_MATRIX;
+    }
+    return role;
+}
+
+static void anchor_normalize_persisted_role(anchor_config_t *cfg, bool *cfg_valid)
+{
+    anchor_config_t local;
+    int rc;
+
+    if (cfg == NULL || cfg_valid == NULL || !(*cfg_valid)) {
+        return;
+    }
+
+    if (cfg->role != ANCHOR_ROLE_MASTER) {
+        return;
+    }
+
+    local = *cfg;
+    local.role = persistent_role_normalize(local.role);
+    local.schema_version = ANCHOR_CONFIG_SCHEMA_VERSION;
+    local.generation = cfg->generation + 1U;
+    local.crc32 = anchor_config_crc32((const uint8_t *)&local,
+                                      offsetof(anchor_config_t, crc32));
+
+    if (!anchor_config_is_valid(&local)) {
+        printk("Persisted role normalize failed validation; keeping runtime fallback matrix only\n");
+        cfg->role = ANCHOR_ROLE_MATRIX;
+        return;
+    }
+
+    rc = anchor_config_write(&local);
+    if (rc != 0) {
+        printk("Persisted role normalize write failed rc=%d; keeping runtime fallback matrix only\n", rc);
+        cfg->role = ANCHOR_ROLE_MATRIX;
+        return;
+    }
+
+    *cfg = local;
+    printk("Persisted master role normalized to matrix on boot gen=%lu\n",
+           (unsigned long)local.generation);
+}
+
 static void bytes_to_hex(const uint8_t *src, size_t len, char *dst, size_t dst_len)
 {
     static const char hex[] = "0123456789ABCDEF";
@@ -222,6 +268,8 @@ int anchor_app_run(void)
         return ret;
     }
 
+    anchor_normalize_persisted_role(&cfg, &cfg_valid);
+
 #if defined(CONFIG_BOOTLOADER_MCUBOOT)
     if (!boot_is_img_confirmed()) {
         ret = boot_write_img_confirmed();
@@ -245,7 +293,12 @@ int anchor_app_run(void)
         } else {
             unassigned_mode = true;
         }
-        effective_role = cfg.role;
+        if (cfg.role != ANCHOR_ROLE_MATRIX) {
+            printk("Boot role %s ignored; defaulting to matrix autopos standby\n",
+                   anchor_role_name(cfg.role));
+        }
+        cfg.role = ANCHOR_ROLE_MATRIX;
+        effective_role = ANCHOR_ROLE_MATRIX;
     } else {
         effective_role = APP_ANCHOR_ROLE;
         anchor_id_cfg = (uint8_t)(APP_ANCHOR_ID + 1U);
@@ -350,7 +403,10 @@ int anchor_app_run(void)
 
         next_role = anchor_runtime_requested_role();
         if (next_role == ANCHOR_ROLE_UNSET) {
-            return 0;
+            printk("Anchor runtime role %s stopped without new role; restarting same role\n",
+                   anchor_role_name(effective_role));
+            k_msleep(50);
+            continue;
         }
 
         effective_master_sweep_limit = anchor_runtime_requested_master_sweeps();

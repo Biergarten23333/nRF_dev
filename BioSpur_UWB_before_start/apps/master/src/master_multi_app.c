@@ -157,6 +157,8 @@ static bool led_scan_state;
 static bool led_link_state;
 static bool led_ota_state;
 static bool led_error_state;
+static bool led_flow_state;
+static struct k_work_delayable led_flow_off_work;
 static uint8_t tdma_generation;
 static char runtime_one_shot_cmd[MASTER_RUNTIME_ONE_SHOT_CMD_LEN];
 static bool runtime_one_shot_cmd_set;
@@ -394,14 +396,33 @@ static bool peer_matches_runtime_target(const struct master_peer *peer)
 
 static void master_leds_apply(void)
 {
+	bool autopos_mode = (runtime_log_mode == MASTER_LOG_MODE_AUTOPOS);
+	bool recv_mode = (runtime_log_mode == MASTER_LOG_MODE_RECV);
+	bool ota_mode = (runtime_log_mode == MASTER_LOG_MODE_OTA) || led_ota_state;
+
 	if (!leds_ready) {
 		return;
 	}
 
-	(void)dk_set_led(MASTER_LED_SCAN, led_scan_state);
-	(void)dk_set_led(MASTER_LED_LINK, led_link_state);
-	(void)dk_set_led(MASTER_LED_OTA, led_ota_state);
-	(void)dk_set_led(MASTER_LED_ERROR, led_error_state);
+	(void)dk_set_led(MASTER_LED_SCAN, autopos_mode);
+	(void)dk_set_led(MASTER_LED_LINK, recv_mode);
+	(void)dk_set_led(MASTER_LED_OTA, ota_mode);
+	(void)dk_set_led(MASTER_LED_ERROR, led_error_state || led_flow_state);
+}
+
+static void led_flow_off_handler(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	led_flow_state = false;
+	master_leds_apply();
+}
+
+static void master_led_flow_pulse(void)
+{
+	led_flow_state = true;
+	master_leds_apply();
+	(void)k_work_reschedule(&led_flow_off_work, K_MSEC(90));
 }
 
 static void master_leds_refresh(void)
@@ -1451,6 +1472,8 @@ static uint8_t ble_data_received(struct bt_nus_client *nus,
 	bool decoded_sample = false;
 	bool consumed_cal = false;
 
+	master_led_flow_pulse();
+
 	payload[0] = '\0';
 	decoded_sample = ble_decode_sample_packet(data, len, payload, sizeof(payload));
 	consumed_cal = ble_collect_cal_packet(data, len, idx, payload, sizeof(payload));
@@ -1550,6 +1573,8 @@ static void ble_data_sent(struct bt_nus_client *nus, uint8_t err,
 	ARG_UNUSED(data);
 	ARG_UNUSED(len);
 
+	master_led_flow_pulse();
+
 	if (err) {
 		printk("BLE write error[%d]: 0x%02x\n", peer_index_from_nus(nus), err);
 		led_error_state = true;
@@ -1570,6 +1595,8 @@ static uint8_t anchor_ctrl_notify_cb(struct bt_conn *conn,
 	if (data == NULL || length == 0U) {
 		return BT_GATT_ITER_CONTINUE;
 	}
+
+	master_led_flow_pulse();
 
 	copy_len = MIN((size_t)length, sizeof(payload) - 1U);
 	memcpy(payload, data, copy_len);
@@ -2017,19 +2044,13 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	}
 
 candidate_accept:
-	scan_log_candidate(info, buf, name_match, anchor_name_match, nus_match, dfu_match,
-			  token_match, uuid_hex, uuid_match, bs_code, bs_code_valid);
-
 	if (peer_index_from_addr(info->addr) >= 0) {
-		char addr[BT_ADDR_LE_STR_LEN];
-
-		bt_addr_le_to_str(info->addr, addr, sizeof(addr));
-		printk("SCAN accept skipped: peer already known addr=%s uuid=%s target=%s\n",
-		       addr,
-		       uuid_hex[0] != '\0' ? uuid_hex : "-",
-		       runtime_target_kind_label(runtime_target_kind));
+		master_led_flow_pulse();
 		return;
 	}
+
+	scan_log_candidate(info, buf, name_match, anchor_name_match, nus_match, dfu_match,
+			  token_match, uuid_hex, uuid_match, bs_code, bs_code_valid);
 
 	if (connecting_slot >= 0 || conn_count >= MASTER_MAX_CONNECTIONS) {
 		return;
@@ -2093,6 +2114,7 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 	int idx = connecting_slot;
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
+	master_led_flow_pulse();
 
 	if (conn_err) {
 		printk("Failed to connect[%d] to %s, err 0x%02x\n", idx, addr, conn_err);
@@ -2154,6 +2176,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	int idx = peer_index_from_conn(conn);
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
+	master_led_flow_pulse();
 	printk("Disconnected[%d]: %s reason=0x%02x link=%s ready=%u\n",
 	       idx,
 	       addr,
@@ -2213,8 +2236,9 @@ static int init_leds(void)
 	}
 
 	leds_ready = true;
+	k_work_init_delayable(&led_flow_off_work, led_flow_off_handler);
 	master_leds_refresh();
-	printk("LED map: 0=scan 1=link 2=ota 3=error\n");
+	printk("LED map: 1=AUTOPOS 2=RECV 3=OTA 4=BLE-flow/error\n");
 	return 0;
 }
 
@@ -2303,6 +2327,59 @@ void master_disconnect_all_peers(void)
 	}
 }
 
+void master_disconnect_runtime_target_peers(void)
+{
+	uint8_t suppress_count = 0U;
+
+	stop_scan();
+	connecting_slot = -1;
+
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		if (!peer_matches_runtime_target(&peers[i])) {
+			continue;
+		}
+
+		if (peers[i].conn != NULL) {
+			printk("Master disconnect target peer[%zu]: connected=%u ready=%u link=%s uuid=%s\n",
+			       i,
+			       peers[i].connected ? 1U : 0U,
+			       peers[i].ready ? 1U : 0U,
+			       link_type_label(peers[i].link_type),
+			       peers[i].adv_uuid[0] != '\0' ? peers[i].adv_uuid : "-");
+			if (peers[i].connected) {
+				(void)bt_conn_disconnect(peers[i].conn,
+							 BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+				if (suppress_count < UINT8_MAX) {
+					suppress_count++;
+				}
+				peers[i].ready = false;
+				peers[i].setup_pending = false;
+				peers[i].discovery_inflight = false;
+				peers[i].connect_pending = false;
+				peers[i].one_shot_sent = false;
+				continue;
+			}
+
+			peer_clear((unsigned int)i, true);
+			continue;
+		}
+
+		if (peers[i].connect_pending || peers[i].setup_pending ||
+		    peers[i].discovery_inflight || peers[i].addr_valid) {
+			printk("Master clear target pending peer[%zu]: pending=%u setup=%u inflight=%u uuid=%s\n",
+			       i,
+			       peers[i].connect_pending ? 1U : 0U,
+			       peers[i].setup_pending ? 1U : 0U,
+			       peers[i].discovery_inflight ? 1U : 0U,
+			       peers[i].adv_uuid[0] != '\0' ? peers[i].adv_uuid : "-");
+			peer_clear((unsigned int)i, false);
+		}
+	}
+
+	disconnect_restart_suppress_count = suppress_count;
+	master_leds_refresh();
+}
+
 void master_quiesce_peers(void)
 {
 	uint8_t suppress_count = 0U;
@@ -2370,6 +2447,12 @@ void master_restart_discovery(void)
 void master_set_log_mode(enum master_log_mode mode)
 {
 	runtime_log_mode = mode;
+	master_leds_refresh();
+}
+
+enum master_log_mode master_get_log_mode(void)
+{
+	return runtime_log_mode;
 }
 
 void master_set_runtime_target_kind(enum master_runtime_target_kind kind)
