@@ -386,6 +386,10 @@ int anchor_app_run(void)
     anchor_ble_ctrl_set_runtime(anchor_id_cfg, effective_role, cfg_valid);
     anchor_ble_ctrl_set_runtime_switch_pending(false);
     uart_role_switch_set_runtime(anchor_id_cfg, effective_role, cfg_valid);
+    ret = anchor_ble_id_update_role(effective_role);
+    if (ret != 0 && ret != -EAGAIN) {
+        printk("anchor_ble_id_update_role failed: %d\n", ret);
+    }
 
     if (unassigned_mode) {
         printk("Anchor in unassigned/unset mode: control plane active, ranging not started\n");
@@ -420,5 +424,9 @@ int anchor_app_run(void)
         }
         printk("Anchor runtime role switch applied: anchor=%c role=%s\n",
                anchor_config_label_char(anchor_id_cfg), anchor_role_name(effective_role));
+        ret = anchor_ble_id_update_role(effective_role);
+        if (ret != 0 && ret != -EAGAIN) {
+            printk("anchor_ble_id_update_role failed after runtime switch: %d\n", ret);
+        }
     }
 }

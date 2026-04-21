@@ -1,5 +1,6 @@
 #include "anchor_ble_id.h"
 
+#include <errno.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -31,6 +32,7 @@ static struct bt_data g_ad[] = {
 static struct bt_data g_sd[] = {
     BT_DATA(BT_DATA_NAME_COMPLETE, g_name_buf, 0),
 };
+static bool g_adv_started;
 
 int anchor_ble_id_start(uint8_t anchor_id_cfg, uint8_t role,
                         const uint8_t device_uuid[16],
@@ -71,9 +73,29 @@ int anchor_ble_id_start(uint8_t anchor_id_cfg, uint8_t role,
         printk("anchor BLE id adv start failed: %d\n", err);
         return err;
     }
+    g_adv_started = true;
 
     printk("anchor BLE id adv started anchor=%c role=%u bs_code=%s\n",
            label, (unsigned int)role,
            (bs_code != NULL) ? bs_code : "N/A");
+    return 0;
+}
+
+int anchor_ble_id_update_role(uint8_t role)
+{
+    int err;
+
+    if (!g_adv_started) {
+        return -EAGAIN;
+    }
+
+    g_mfg_payload[23] = role;
+    err = bt_le_adv_update_data(g_ad, ARRAY_SIZE(g_ad), g_sd, ARRAY_SIZE(g_sd));
+    if (err) {
+        printk("anchor BLE id adv role update failed: %d\n", err);
+        return err;
+    }
+
+    printk("anchor BLE id adv role updated role=%u\n", (unsigned int)role);
     return 0;
 }

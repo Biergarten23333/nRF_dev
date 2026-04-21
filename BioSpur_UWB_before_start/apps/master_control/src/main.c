@@ -124,10 +124,14 @@ K_THREAD_STACK_DEFINE(autopos_work_q_stack, 4096);
 #define AUTOPOS_SWEEP_CONVERGE_CONSECUTIVE 1
 #define AUTOPOS_SWEEP_ATTACH_HANDOFF_MS 100
 #define AUTOPOS_DEMOTED_MASTER_SETTLE_MS 500
+#define AUTOPOS_RESULT_HISTORY_DEPTH 48
 static const char autopos_labels[AUTOPOS_ANCHOR_COUNT] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
 static char autopos_uuid_map[AUTOPOS_ANCHOR_COUNT][AUTOPOS_UUID_LEN];
 static int8_t autopos_target_idx = -1;
 static uint32_t autopos_round_sets;
+static char autopos_result_history[AUTOPOS_RESULT_HISTORY_DEPTH][256];
+static uint8_t autopos_result_history_head;
+static uint8_t autopos_result_history_count;
 
 static int autopos_wait_anchor_ready(const char *uuid, int timeout_ms);
 static int autopos_wait_anchor_cleared(int timeout_ms);
@@ -143,6 +147,58 @@ static char autopos_last_error[96];
 static char anchor_role_target[40];
 static char anchor_role_value[16];
 static bool anchor_role_all_targets;
+
+static void autopos_result_history_clear(void)
+{
+	autopos_result_history_head = 0U;
+	autopos_result_history_count = 0U;
+	for (size_t i = 0; i < AUTOPOS_RESULT_HISTORY_DEPTH; ++i) {
+		autopos_result_history[i][0] = '\0';
+	}
+}
+
+static void autopos_result_history_push(const char *result)
+{
+	if (result == NULL || result[0] == '\0') {
+		return;
+	}
+
+	(void)snprintf(autopos_result_history[autopos_result_history_head],
+		       sizeof(autopos_result_history[autopos_result_history_head]),
+		       "%s",
+		       result);
+	autopos_result_history_head =
+		(uint8_t)((autopos_result_history_head + 1U) % AUTOPOS_RESULT_HISTORY_DEPTH);
+	if (autopos_result_history_count < AUTOPOS_RESULT_HISTORY_DEPTH) {
+		autopos_result_history_count++;
+	}
+}
+
+static void autopos_result_history_dump(void)
+{
+	uint8_t count = autopos_result_history_count;
+	uint8_t start = 0U;
+
+	if (count == 0U) {
+		printk("AUTOPOS result history empty\n");
+		return;
+	}
+
+	if (count == AUTOPOS_RESULT_HISTORY_DEPTH) {
+		start = autopos_result_history_head;
+	}
+
+	for (uint8_t i = 0U; i < count; ++i) {
+		uint8_t idx = (uint8_t)((start + i) % AUTOPOS_RESULT_HISTORY_DEPTH);
+		if (autopos_result_history[idx][0] == '\0') {
+			continue;
+		}
+		printk("AUTOPOS history[%u/%u]: %s\n",
+		       (unsigned int)(i + 1U),
+		       (unsigned int)count,
+		       autopos_result_history[idx]);
+	}
+}
 
 struct disconnect_ctx {
 	int requested;
@@ -236,7 +292,7 @@ static void control_print_help(void)
 	printk("Device model cmds: device show | device kind <anchor|tag>\n");
 	printk("OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->\n");
 	printk("Anchor cmds: anchor version <A..H|UUID32|all> | anchor role <A..H|UUID32|all> <master|matrix|responder> | anchor reset <A..H|UUID32|all> <autopos|responder>\n");
-	printk("AUTOPOS cmds: autopos status | autopos detach | autopos map <A..H> <UUID32> | autopos map show | autopos round <A..H> [sets] | autopos apply\n");
+	printk("AUTOPOS cmds: autopos status | autopos detach | autopos map <A..H> <UUID32> | autopos map show | autopos round <A..H> [sets] | autopos apply | autopos result show|clear\n");
 }
 
 static const char *system_kind_name(uint8_t kind)
@@ -301,6 +357,17 @@ static void autopos_set_error(const char *text)
 	(void)snprintf(autopos_last_error, sizeof(autopos_last_error), "%s",
 		       (text != NULL) ? text : "-");
 	(void)snprintf(autopos_state, sizeof(autopos_state), "failed");
+}
+
+static void autopos_reset_runtime_state(bool keep_target)
+{
+	(void)snprintf(autopos_state, sizeof(autopos_state), "idle");
+	autopos_last_error[0] = '\0';
+	autopos_last_success_idx = -1;
+	autopos_round_sets = 0U;
+	if (!keep_target) {
+		autopos_target_idx = -1;
+	}
 }
 
 static void autopos_print_status(void)
@@ -517,6 +584,7 @@ static void control_wait_for_peer_clear(int timeout_ms)
 
 static void control_prepare_clean_recv_session(void)
 {
+	autopos_reset_runtime_state(false);
 	master_clear_one_shot_command();
 	master_set_anchor_wildcard_scan(false);
 	master_set_connect_and_start_mode();
@@ -712,6 +780,7 @@ static int autopos_wait_result_contains(const char *needle, int timeout_ms)
 	while (waited < timeout_ms) {
 		rc = master_anchor_ctrl_read_result(result, sizeof(result));
 		if (rc == 0) {
+			autopos_result_history_push(result);
 			printk("AUTOPOS result: %s\n", result);
 			if (needle != NULL && strstr(result, needle) != NULL) {
 				return 0;
@@ -742,6 +811,7 @@ static int autopos_wait_runtime_master_started(int idx, int timeout_ms)
 	while (waited < timeout_ms) {
 		int rc_result = master_anchor_ctrl_read_result(result, sizeof(result));
 		if (rc_result == 0) {
+			autopos_result_history_push(result);
 			if ((waited % result_log_period_ms) == 0 || strstr(result, "OK RUNTIME") != NULL ||
 			    strstr(result, sw_prefix) != NULL) {
 				printk("AUTOPOS result: %s\n", result);
@@ -870,6 +940,7 @@ static int autopos_wait_sweep_converged(int idx, int timeout_ms)
 	while (waited < timeout_ms) {
 		rc = master_anchor_ctrl_read_result(result, sizeof(result));
 		if (rc == 0) {
+			autopos_result_history_push(result);
 			if (strcmp(result, previous_result) != 0) {
 				uint8_t peer_count = 0U;
 				uint8_t min_quality = 0U;
@@ -2203,8 +2274,7 @@ static void control_handle_uart_command(const char *line)
 			control_mode = CONTROL_MODE_AUTOPOS;
 			sync_master_log_mode(control_mode);
 			control_save_mode();
-			(void)snprintf(autopos_state, sizeof(autopos_state), "idle");
-			autopos_last_error[0] = '\0';
+			autopos_reset_runtime_state(false);
 			master_set_anchor_wildcard_scan(true);
 			master_set_runtime_target_name("");
 			master_set_runtime_target_prefix("");
@@ -2226,8 +2296,7 @@ static void control_handle_uart_command(const char *line)
 		}
 		if (strcmp(arg, "detach") == 0) {
 			autopos_detach_sweep_listen();
-			(void)snprintf(autopos_state, sizeof(autopos_state), "idle");
-			autopos_last_error[0] = '\0';
+			autopos_reset_runtime_state(false);
 			printk("AUTOPOS detach complete\n");
 			autopos_print_status();
 			return;
@@ -2267,6 +2336,19 @@ static void control_handle_uart_command(const char *line)
 			printk("AUTOPOS map set: %c=%s\n", autopos_labels[idx], autopos_uuid_map[idx]);
 			return;
 		}
+		if (strcmp(arg, "result") == 0 && parsed >= 3) {
+			if (strcmp(arg2, "show") == 0) {
+				autopos_result_history_dump();
+				return;
+			}
+			if (strcmp(arg2, "clear") == 0) {
+				autopos_result_history_clear();
+				printk("AUTOPOS result history cleared\n");
+				return;
+			}
+			printk("autopos result invalid arg: %s\n", arg2);
+			return;
+		}
 		if (strcmp(arg, "round") == 0 && parsed >= 3) {
 			if (strlen(arg2) != 1U) {
 				printk("autopos round invalid label: %s\n", arg2);
@@ -2289,6 +2371,7 @@ static void control_handle_uart_command(const char *line)
 				printk("autopos round invalid label: %s\n", arg2);
 				return;
 			}
+			autopos_result_history_clear();
 			autopos_save_target();
 			(void)snprintf(autopos_state, sizeof(autopos_state), "staged");
 			autopos_last_error[0] = '\0';

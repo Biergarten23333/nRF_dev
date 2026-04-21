@@ -411,15 +411,19 @@ int tag_app_run(void)
 	if (APP_TAG_CALIBRATION_MODE) {
 		runtime_config.positioning_mode = UWB_TAG_POSITIONING_MODE_CALIBRATION;
 		runtime_config.slot_source = UWB_TAG_SLOT_SOURCE_BUILD;
-		runtime_config.tdma.enabled = false;
-		runtime_config.tdma.slot_index = 0U;
-        runtime_config.tdma.slot_count = 1U;
-        runtime_config.tdma.slot_period_ms = 25U;
-        runtime_config.tdma.slot_active_ms = 25U;
-        runtime_config.tdma.epoch_valid = false;
+		if (runtime_config.tdma.slot_count == 0U ||
+		    runtime_config.tdma.slot_period_ms == 0U ||
+		    runtime_config.tdma.slot_active_ms == 0U) {
+			runtime_config.tdma.enabled = (APP_TAG_TDMA_ENABLE != 0U);
+			runtime_config.tdma.slot_index = APP_TAG_TDMA_SLOT_INDEX;
+			runtime_config.tdma.slot_count = APP_TAG_TDMA_SLOT_COUNT;
+			runtime_config.tdma.slot_period_ms = APP_TAG_TDMA_SLOT_PERIOD_MS;
+			runtime_config.tdma.slot_active_ms = APP_TAG_TDMA_SLOT_ACTIVE_MS;
+		}
+		runtime_config.tdma.epoch_valid = false;
 		runtime_config.tdma.epoch_ms = 0U;
 		runtime_config.tdma.generation = 0U;
-		printk("Tag calibration default mode enabled (runtime switch still allowed)\n");
+		printk("Tag calibration default mode enabled with TDMA preserved when configured\n");
 	}
 
     if (runtime_config.tdma.enabled && runtime_config.tdma.slot_count != 0U) {

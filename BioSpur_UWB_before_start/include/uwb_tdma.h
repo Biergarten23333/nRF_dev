@@ -15,8 +15,10 @@
 enum uwb_tag_positioning_mode {
 	UWB_TAG_POSITIONING_MODE_DYNAMIC = 0U,
 	UWB_TAG_POSITIONING_MODE_FIXED = 1U,
-	UWB_TAG_POSITIONING_MODE_CALIBRATION = 2U,
+	UWB_TAG_POSITIONING_MODE_CALIBRATION = 2U, /* Legacy CAL -> CAL_STATIC */
 	UWB_TAG_POSITIONING_MODE_ANCHOR_OTA = 3U,
+	UWB_TAG_POSITIONING_MODE_CAL_STATIC = 4U,
+	UWB_TAG_POSITIONING_MODE_CAL_ROTO = 5U,
 };
 
 enum uwb_tag_anchor_selection_mode {
@@ -34,6 +36,7 @@ struct uwb_tdma_schedule {
 	bool enabled;
 	uint8_t slot_index;
 	uint8_t slot_count;
+	uint16_t slot_mask;
 	uint16_t slot_period_ms;
 	uint16_t slot_active_ms;
 	uint32_t epoch_ms;

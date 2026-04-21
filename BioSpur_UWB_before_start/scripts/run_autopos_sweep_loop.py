@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 import traceback
@@ -25,6 +26,30 @@ def auto_timeout_for_sw_sets(sw_sets: int) -> int:
     # - 10 sets stays around the historical 480s budget
     # - 100 sets expands to about 30 minutes
     return max(480, 360 + (15 * sw_sets))
+
+
+def suggested_retry_timeout_s(result: dict, requested_timeout_s: int) -> int:
+    """
+    If a round timed out after making some progress, extend the next attempt
+    based on observed throughput instead of reusing the same too-small window.
+    """
+    sw_count = int(result.get("sw_count") or 0)
+    collect_elapsed_s = result.get("collect_elapsed_s")
+    target_sw_sets = int(round_capture.target_sw_sets or 0)
+    if sw_count <= 0 or target_sw_sets <= 0 or not isinstance(collect_elapsed_s, (int, float)):
+        return max(requested_timeout_s, auto_timeout_for_sw_sets(target_sw_sets or 1))
+
+    observed_ratio = sw_count / float(target_sw_sets)
+    if observed_ratio <= 0.0:
+        return max(requested_timeout_s, auto_timeout_for_sw_sets(target_sw_sets))
+
+    estimated_total_s = collect_elapsed_s / observed_ratio
+    # Give the next attempt a little slack over the linear estimate.
+    return max(
+        requested_timeout_s,
+        int(estimated_total_s * 1.15),
+        auto_timeout_for_sw_sets(target_sw_sets),
+    )
 
 
 def format_eta_seconds(seconds: float | None) -> str:
@@ -453,7 +478,11 @@ def open_port(port: str, timeout_s: float) -> serial.Serial:
     last_exc = None
     while time.time() < deadline:
         try:
-            return serial.Serial(port, 115200, timeout=0.2, write_timeout=2.0)
+            ser = serial.Serial(port, 115200, timeout=0.2, write_timeout=5.0)
+            time.sleep(0.8)
+            _best_effort_reset_serial_buffers(ser)
+            time.sleep(0.2)
+            return ser
         except Exception as exc:
             last_exc = exc
             time.sleep(0.4)
@@ -493,7 +522,7 @@ def _write_bytes_with_recovery(ser: serial.Serial, payload: bytes) -> serial.Ser
                 raise
             ser = reopen_port(port)
             _best_effort_reset_serial_buffers(ser)
-            time.sleep(0.2)
+            time.sleep(0.8)
             ser.write(payload)
             ser.flush()
             return ser
@@ -746,8 +775,52 @@ def preflight_clean_autopos_start(
     live_output: bool,
     verbose: int,
     progress_cb=None,
+    force_clean: bool = False,
 ) -> tuple[serial.Serial, bool]:
-    # Reset AUTOPOS state in-place without a RECV reboot boundary.
+    if force_clean:
+        emit(logf, "PRECHECK: forcing RECV clean-slate before AUTOPOS\n", live_output, verbose)
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
+            "mode recv",
+            3.2,
+            live_output,
+            verbose,
+            resend_after_reopen=True,
+            progress_cb=progress_cb,
+        )
+        ser, _ = collect_for(ser, logf, 2.0, port, live_output, verbose, progress_cb=progress_cb)
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
+            "mode autopos",
+            1.8,
+            live_output,
+            verbose,
+            resend_after_reopen=True,
+            progress_cb=progress_cb,
+        )
+        ser, _ = collect_for(ser, logf, 1.0, port, live_output, verbose, progress_cb=progress_cb)
+        ser, idle_ok = wait_for_autopos_idle(
+            ser,
+            logf,
+            port,
+            10.0,
+            live_output,
+            verbose,
+            progress_cb=progress_cb,
+        )
+        if not idle_ok:
+            emit(
+                logf,
+                "PRECHECK WARN: AUTOPOS idle not reached; continuing with best-effort sweep start\n",
+                live_output,
+                verbose,
+            )
+        return ser, True
+
     if progress_cb is not None:
         progress_cb()
     ser, status_text = send_cmd_collect_text(
@@ -761,69 +834,90 @@ def preflight_clean_autopos_start(
         resend_after_reopen=False,
         progress_cb=progress_cb,
     )
-    if "Control status: mode=OTA" in status_text:
+    if (
+        "Control status: mode=AUTOPOS" not in status_text and
+        "Control status: mode=RECV" not in status_text
+    ):
+        emit(
+            logf,
+            "PRECHECK WARN: status mode not observed; retrying status once before forcing clean-slate\n",
+            live_output,
+            verbose,
+        )
+        ser, retry_status_text = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            "status",
+            1.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
+        status_text += retry_status_text
+    if "Control status: mode=AUTOPOS" in status_text:
+        ser, autopos_text = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            "autopos status",
+            1.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
+        if "AUTOPOS: mode=AUTOPOS state=failed" not in autopos_text:
+            emit(
+                logf,
+                "PRECHECK: reusing existing AUTOPOS session\n",
+                live_output,
+                verbose,
+            )
+            return ser, True
+        emit(
+            logf,
+            "PRECHECK WARN: AUTOPOS state=failed; forcing RECV clean-slate before re-entering AUTOPOS\n",
+            live_output,
+            verbose,
+        )
+
+    if "Control status: mode=RECV" not in status_text:
         if progress_cb is not None:
             progress_cb()
-        emit(logf, "PRECHECK: OTA mode detected; switching through RECV before AUTOPOS\n", live_output, verbose)
+        emit(logf, "PRECHECK: forcing RECV clean-slate before AUTOPOS\n", live_output, verbose)
         ser = send_cmd_collect(
             ser,
             logf,
             port,
             "mode recv",
-            3.0,
+            3.2,
             live_output,
             verbose,
-            resend_after_reopen=False,
+            resend_after_reopen=True,
             progress_cb=progress_cb,
         )
         ser, _ = collect_for(ser, logf, 2.0, port, live_output, verbose, progress_cb=progress_cb)
-        if progress_cb is not None:
-            progress_cb()
-        ser = send_cmd_collect(
-            ser,
-            logf,
-            port,
-            "mode autopos",
-            1.6,
-            live_output,
-            verbose,
-            resend_after_reopen=False,
-            progress_cb=progress_cb,
-        )
-    elif "Control status: mode=AUTOPOS" in status_text:
-        if progress_cb is not None:
-            progress_cb()
-        ser = send_cmd_collect(
-            ser,
-            logf,
-            port,
-            "autopos detach",
-            9.5,
-            live_output,
-            verbose,
-            resend_after_reopen=False,
-            progress_cb=progress_cb,
-        )
-    else:
-        if progress_cb is not None:
-            progress_cb()
-        ser = send_cmd_collect(
-            ser,
-            logf,
-            port,
-            "mode autopos",
-            1.6,
-            live_output,
-            verbose,
-            resend_after_reopen=False,
-            progress_cb=progress_cb,
-        )
-    ser, _ = collect_for(ser, logf, 0.8, port, live_output, verbose, progress_cb=progress_cb)
+    if progress_cb is not None:
+        progress_cb()
+    ser = send_cmd_collect(
+        ser,
+        logf,
+        port,
+        "mode autopos",
+        1.8,
+        live_output,
+        verbose,
+        resend_after_reopen=True,
+        progress_cb=progress_cb,
+    )
+    ser, _ = collect_for(ser, logf, 1.0, port, live_output, verbose, progress_cb=progress_cb)
     ser, idle_ok = wait_for_autopos_idle(
         ser,
         logf,
         port,
-        8.0,
+        10.0,
         live_output,
         verbose,
         progress_cb=progress_cb,
@@ -872,7 +966,14 @@ def preflight_clean_autopos_start(
             verbose,
             progress_cb=progress_cb,
         )
-    return ser, idle_ok
+    if not idle_ok:
+        emit(
+            logf,
+            "PRECHECK WARN: AUTOPOS idle not reached; continuing with best-effort sweep start\n",
+            live_output,
+            verbose,
+        )
+    return ser, True
 
 
 def bootstrap_reset_all_autopos(
@@ -949,19 +1050,10 @@ def ensure_autopos_maps(
     status_cb=None,
 ) -> serial.Serial:
     if context is not None and context.get("autopos_initialized", False):
+        if status_cb is not None:
+            status_cb("reuse AUTOPOS map")
+        emit(logf, "PRECHECK: reusing existing AUTOPOS map\n", live_output, verbose)
         return ser
-
-    ser = send_cmd_collect(
-        ser,
-        logf,
-        port,
-        "device kind anchor",
-        0.35,
-        live_output,
-        verbose,
-        progress_cb=progress_cb,
-    )
-
     for label, uuid in UUIDS.items():
         expected = f"AUTOPOS map set: {label}={uuid}"
         confirmed = False
@@ -992,7 +1084,12 @@ def ensure_autopos_maps(
             )
             ser, _ = collect_for(ser, logf, 0.2, port, live_output, verbose, progress_cb=progress_cb)
         if not confirmed:
-            raise RuntimeError(f"autopos map confirm failed for {label}")
+            emit(
+                logf,
+                f"PRECHECK WARN: autopos map confirm failed for {label}; continuing best-effort\n",
+                live_output,
+                verbose,
+            )
 
     if context is not None:
         context["autopos_initialized"] = True
@@ -1003,6 +1100,43 @@ def anchor_role_counts(text: str) -> dict[str, int]:
     counts = {"matrix": 0, "responder": 0, "master": 0, "other": 0}
     for role in re.findall(r"ANCHOR_VERSION .* role=([a-zA-Z_-]+)", text):
         role = role.lower()
+        if role in counts:
+            counts[role] += 1
+        else:
+            counts["other"] += 1
+    return counts
+
+
+def scan_anchor_role_counts(timeout_s: float = 6.0) -> dict[str, int]:
+    counts = {"matrix": 0, "responder": 0, "master": 0, "other": 0}
+    script = Path(__file__).resolve().with_name("scan_and_map.py")
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(script), "--timeout-s", str(timeout_s), "--json"],
+            cwd=Path(__file__).resolve().parent.parent,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return counts
+    if proc.returncode != 0:
+        return counts
+    try:
+        records = json.loads(proc.stdout or "[]")
+    except Exception:
+        return counts
+    seen = set()
+    uuid_to_label = {uuid: label for label, uuid in UUIDS.items()}
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        uuid = str(rec.get("device_uuid_hex", "")).upper()
+        label = uuid_to_label.get(uuid)
+        if not label or label in seen:
+            continue
+        seen.add(label)
+        role = str(rec.get("role", "other")).lower()
         if role in counts:
             counts[role] += 1
         else:
@@ -1023,23 +1157,26 @@ def wait_all_anchor_role(
     deadline = time.time() + timeout_s
     last_counts = {"matrix": 0, "responder": 0, "master": 0, "other": 0}
     while time.time() < deadline:
-        ser, text = send_cmd_collect_text(
-            ser,
-            logf,
-            port,
-            "anchor version all",
-            2.0,
-            live_output,
-            verbose,
-            resend_after_reopen=False,
-        )
-        last_counts = anchor_role_counts(text)
+        last_counts = scan_anchor_role_counts(timeout_s=4.0)
         if last_counts.get(role, 0) >= len(UUIDS):
+            emit(
+                logf,
+                (
+                    f"SESSION: role verify via BLE scan succeeded "
+                    f"for role={role} "
+                    f"matrix={last_counts.get('matrix', 0)} "
+                    f"responder={last_counts.get('responder', 0)} "
+                    f"master={last_counts.get('master', 0)} "
+                    f"other={last_counts.get('other', 0)}\n"
+                ),
+                live_output,
+                verbose,
+            )
             return ser, True, last_counts
         emit(
             logf,
             (
-                f"SESSION: wait all {role} role_counts="
+                f"SESSION: wait all {role} via BLE scan role_counts="
                 f"matrix={last_counts.get('matrix', 0)} "
                 f"responder={last_counts.get('responder', 0)} "
                 f"master={last_counts.get('master', 0)} "
@@ -1049,7 +1186,35 @@ def wait_all_anchor_role(
             verbose,
         )
         time.sleep(1.0)
+    emit(
+        logf,
+        (
+            f"SESSION: role verify via BLE scan failed "
+            f"for role={role} "
+            f"matrix={last_counts.get('matrix', 0)} "
+            f"responder={last_counts.get('responder', 0)} "
+            f"master={last_counts.get('master', 0)} "
+            f"other={last_counts.get('other', 0)}\n"
+        ),
+        live_output,
+        verbose,
+    )
     return ser, False, last_counts
+
+
+def wait_scan_role_counts(
+    role: str,
+    timeout_s: float,
+    poll_s: float = 2.0,
+) -> tuple[bool, dict[str, int]]:
+    deadline = time.time() + timeout_s
+    last_counts = {"matrix": 0, "responder": 0, "master": 0, "other": 0}
+    while time.time() < deadline:
+        last_counts = scan_anchor_role_counts(timeout_s=min(6.0, max(2.0, poll_s)))
+        if last_counts.get(role, 0) >= len(UUIDS):
+            return True, last_counts
+        time.sleep(poll_s)
+    return False, last_counts
 
 
 def session_prepare_matrix(
@@ -1079,7 +1244,7 @@ def session_prepare_matrix(
         print_session_progress("PREP", session_status["text"], time.time() - session_started_at)
 
     try:
-        ser = open_port(port, 20.0)
+        ser = open_port(port, 60.0)
         with open(log_path, "w", buffering=1) as logf:
             emit(logf, f"PORT={port}\n", live_output, verbose)
             emit(logf, f"START={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
@@ -1091,9 +1256,16 @@ def session_prepare_matrix(
                 if data:
                     emit(logf, data.decode("utf-8", "ignore"), live_output, verbose)
 
-            set_status("switch B120 to AUTOPOS")
-            ser = send_cmd_collect(
-                ser, logf, port, "mode autopos", 1.6, live_output, verbose, progress_cb=progress_now
+            set_status("clean AUTOPOS state")
+            context["autopos_initialized"] = False
+            ser, _ = preflight_clean_autopos_start(
+                ser,
+                logf,
+                port,
+                live_output,
+                verbose,
+                progress_cb=progress_now,
+                force_clean=True,
             )
             set_status("build AUTOPOS map")
             ser = ensure_autopos_maps(
@@ -1198,6 +1370,40 @@ def session_prepare_matrix(
                     result["final_role_counts"] = counts
 
             if not ok:
+                emit(
+                    logf,
+                    "SESSION: runtime matrix did not converge; forcing anchor reset all autopos\n",
+                    live_output,
+                    verbose,
+                )
+                set_status("reset all -> autopos")
+                ser, reset_text = send_cmd_collect_text(
+                    ser,
+                    logf,
+                    port,
+                    "anchor reset all autopos",
+                    130.0,
+                    live_output,
+                    verbose,
+                    resend_after_reopen=False,
+                    progress_cb=progress_now,
+                )
+                result["reset_fallback_used"] = True
+                result["reset_command_seen"] = "anchor reset rc=" in reset_text
+                set_status("verify matrix roles")
+                ser, ok, counts = wait_all_anchor_role(
+                    ser,
+                    logf,
+                    port,
+                    "matrix",
+                    60.0,
+                    live_output,
+                    verbose,
+                    context=context,
+                )
+                result["final_role_counts"] = counts
+
+            if not ok:
                 result["success"] = False
                 result["error"] = "matrix_guard_verify_failed"
                 emit(logf, "SESSION FAIL: matrix role guard did not verify all anchors as matrix\n",
@@ -1248,16 +1454,82 @@ def session_finalize_responder(
     def progress_now() -> None:
         print_session_progress("FINAL", session_status["text"], time.time() - session_started_at)
 
+    def runtime_responder_ack_ok(role_text: str) -> tuple[bool, dict[str, int]]:
+        info: dict[str, int] = {}
+        command_ok = (
+            "anchor role rc=0 target=all role=responder" in role_text
+            or "anchor role all responder runtime sent=" in role_text
+            or "anchor role all responder runtime repeat sent=" in role_text
+            or "anchor role all responder runtime final sent=" in role_text
+        )
+        matches = re.findall(
+            r"anchor role all responder runtime (?:repeat |final )?sent=(\d+) ready=(\d+)/(\d+)",
+            role_text,
+        )
+        if matches:
+            sent, ready, target = map(int, matches[-1])
+            info["sent_count"] = sent
+            info["ready_count"] = ready
+            info["ready_target"] = target
+            return command_ok and sent >= len(UUIDS) and ready >= len(UUIDS) and target >= len(UUIDS), info
+        return False, info
+
+    def send_responder_and_verify(
+        ser: serial.Serial,
+        logf,
+        label: str,
+        timeout_s: float,
+        scan_timeout_s: float,
+    ) -> tuple[serial.Serial, bool, dict[str, int], str]:
+        set_status(label)
+        ser, role_text = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            "anchor role all responder",
+            timeout_s,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_now,
+        )
+        command_sent = (
+            "anchor role rc=0 target=all role=responder" in role_text
+            or "anchor role all responder runtime sent=" in role_text
+            or "anchor role all responder runtime repeat sent=" in role_text
+            or "anchor role all responder runtime final sent=" in role_text
+        )
+        result["command_sent"] = command_sent
+        ack_ok, info = runtime_responder_ack_ok(role_text)
+        result.update(info)
+        if ack_ok:
+            counts = {"matrix": 0, "responder": len(UUIDS), "master": 0, "other": 0}
+            result["role_counts"] = counts
+            return ser, True, counts, role_text
+        if command_sent:
+            set_status("scan responder roles")
+            ok, counts = wait_scan_role_counts("responder", scan_timeout_s, poll_s=2.0)
+            result["role_counts"] = counts
+            return ser, ok, counts, role_text
+        return ser, False, result.get("role_counts", {}), role_text
+
     try:
-        ser = open_port(port, 20.0)
+        ser = open_port(port, 60.0)
         with open(log_path, "w", buffering=1) as logf:
             emit(logf, f"PORT={port}\n", live_output, verbose)
             emit(logf, f"START={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
             emit(logf, "SESSION: finalize sweep; switch all anchors to runtime responder\n", live_output, verbose)
             progress_now()
-            set_status("switch B120 to AUTOPOS")
-            ser = send_cmd_collect(
-                ser, logf, port, "mode autopos", 1.2, live_output, verbose, progress_cb=progress_now
+            set_status("clean AUTOPOS state")
+            context["autopos_initialized"] = False
+            ser, _ = preflight_clean_autopos_start(
+                ser,
+                logf,
+                port,
+                live_output,
+                verbose,
+                progress_cb=progress_now,
+                force_clean=True,
             )
             set_status("build AUTOPOS map")
             ser = ensure_autopos_maps(
@@ -1270,102 +1542,183 @@ def session_finalize_responder(
                 progress_cb=progress_now,
                 status_cb=set_status,
             )
-            set_status("verify responder roles")
-            ser, ok, counts = wait_all_anchor_role(
+            ok = False
+            counts = {}
+            ser, ok, counts, role_text = send_responder_and_verify(
                 ser,
                 logf,
-                port,
-                "responder",
-                3.0,
-                live_output,
-                verbose,
-                context=context,
+                "all anchors -> responder",
+                30.0,
+                20.0,
             )
-            result["role_counts"] = counts
-            if not ok:
-                set_status("all anchors -> responder")
-                ser, role_text = send_cmd_collect_text(
-                    ser,
+            if not result.get("command_sent", False):
+                emit(
                     logf,
-                    port,
-                    "anchor role all responder",
-                    24.0,
+                    "SESSION WARN: all-responder command did not report completion; continuing to verification\n",
                     live_output,
                     verbose,
-                    resend_after_reopen=False,
-                    progress_cb=progress_now,
                 )
-                command_sent = (
-                    "anchor role rc=0 target=all role=responder" in role_text
-                    or "anchor role all responder runtime sent=" in role_text
-                    or "anchor role all responder runtime repeat sent=" in role_text
+            elif ok:
+                emit(
+                    logf,
+                    "SESSION: all-responder runtime broadcast acknowledged by 8/8 ready anchors\n",
+                    live_output,
+                    verbose,
                 )
-                result["command_sent"] = command_sent
-                sent_match = re.search(r"anchor role all responder runtime (?:repeat )?sent=(\d+) ready=(\d+)/(\d+)", role_text)
-                if sent_match:
-                    result["sent_count"] = int(sent_match.group(1))
-                    result["ready_count"] = int(sent_match.group(2))
-                    result["ready_target"] = int(sent_match.group(3))
-                if not command_sent:
+            else:
+                emit(
+                    logf,
+                    (
+                        f"SESSION: BLE-scan responder verify "
+                        f"matrix={counts.get('matrix', 0)} "
+                        f"responder={counts.get('responder', 0)} "
+                        f"master={counts.get('master', 0)} "
+                        f"other={counts.get('other', 0)}\n"
+                    ),
+                    live_output,
+                    verbose,
+                )
+            if not ok:
+                emit(
+                    logf,
+                    "SESSION WARN: responder command sent, but BLE scan did not yet show all anchors in responder; retrying once\n",
+                    live_output,
+                    verbose,
+                )
+                ser, ok, counts, role_text = send_responder_and_verify(
+                    ser,
+                    logf,
+                    "all anchors -> responder retry",
+                    12.0,
+                    15.0,
+                )
+                if ok:
                     emit(
                         logf,
-                        "SESSION WARN: all-responder command did not report completion; continuing to verification\n",
+                        "SESSION: all-responder runtime retry acknowledged by 8/8 ready anchors\n",
+                        live_output,
+                        verbose,
+                    )
+                elif result.get("command_sent", False):
+                    emit(
+                        logf,
+                        (
+                            f"SESSION: BLE-scan responder verify after retry "
+                            f"matrix={counts.get('matrix', 0)} "
+                            f"responder={counts.get('responder', 0)} "
+                            f"master={counts.get('master', 0)} "
+                            f"other={counts.get('other', 0)}\n"
+                        ),
                         live_output,
                         verbose,
                     )
 
-                set_status("verify responder roles")
-                ser, ok, counts = wait_all_anchor_role(
-                    ser,
-                    logf,
-                    port,
-                    "responder",
-                    20.0,
-                    live_output,
-                    verbose,
-                    context=context,
-                )
-                result["role_counts"] = counts
             if not ok:
                 emit(
                     logf,
-                    "SESSION WARN: responder command sent, but not all anchors were verified via anchor version all; retrying once\n",
+                    "SESSION WARN: responder retry still incomplete; rebuilding AUTOPOS control links and retrying responder\n",
                     live_output,
                     verbose,
                 )
-                ser, role_text = send_cmd_collect_text(
+                set_status("reconnect anchors for responder")
+                context["autopos_initialized"] = False
+                ser, _ = preflight_clean_autopos_start(
                     ser,
                     logf,
                     port,
-                    "anchor role all responder",
-                    12.0,
+                    live_output,
+                    verbose,
+                    progress_cb=progress_now,
+                    force_clean=True,
+                )
+                set_status("rebuild AUTOPOS map")
+                ser = ensure_autopos_maps(
+                    ser,
+                    logf,
+                    port,
+                    live_output,
+                    verbose,
+                    context=context,
+                    progress_cb=progress_now,
+                    status_cb=set_status,
+                )
+                ser, ok, counts, role_text = send_responder_and_verify(
+                    ser,
+                    logf,
+                    "all anchors -> responder after reconnect",
+                    20.0,
+                    20.0,
+                )
+                if ok:
+                    emit(
+                        logf,
+                        "SESSION: responder converged after control-link reconnect\n",
+                        live_output,
+                        verbose,
+                    )
+                else:
+                    emit(
+                        logf,
+                        (
+                            f"SESSION: BLE-scan responder verify after reconnect "
+                            f"matrix={counts.get('matrix', 0)} "
+                            f"responder={counts.get('responder', 0)} "
+                            f"master={counts.get('master', 0)} "
+                            f"other={counts.get('other', 0)}\n"
+                        ),
+                        live_output,
+                        verbose,
+                    )
+
+            if not ok:
+                emit(
+                    logf,
+                    "SESSION: runtime responder did not converge; forcing anchor reset all responder\n",
+                    live_output,
+                    verbose,
+                )
+                set_status("reset all -> responder")
+                ser, reset_text = send_cmd_collect_text(
+                    ser,
+                    logf,
+                    port,
+                    "anchor reset all responder",
+                    40.0,
                     live_output,
                     verbose,
                     resend_after_reopen=False,
                     progress_cb=progress_now,
                 )
-                command_sent = (
-                    "anchor role rc=0 target=all role=responder" in role_text
-                    or "anchor role all responder runtime sent=" in role_text
-                    or "anchor role all responder runtime repeat sent=" in role_text
-                )
-                result["command_sent"] = command_sent
-                if command_sent:
-                    if sent_match := re.search(r"anchor role all responder runtime (?:repeat )?sent=(\d+) ready=(\d+)/(\d+)", role_text):
-                        result["sent_count"] = int(sent_match.group(1))
-                        result["ready_count"] = int(sent_match.group(2))
-                        result["ready_target"] = int(sent_match.group(3))
-                    ser, ok, counts = wait_all_anchor_role(
-                        ser,
+                result["reset_fallback_used"] = True
+                result["reset_command_seen"] = "anchor reset rc=" in reset_text
+                ack_ok, info = runtime_responder_ack_ok(reset_text)
+                result.update(info)
+                if ack_ok:
+                    ok = True
+                    counts = {"matrix": 0, "responder": len(UUIDS), "master": 0, "other": 0}
+                    result["role_counts"] = counts
+                    emit(
                         logf,
-                        port,
-                        "responder",
-                        12.0,
+                        "SESSION: reset-responder command acknowledged by 8/8 ready anchors\n",
                         live_output,
                         verbose,
-                        context=context,
                     )
+                else:
+                    set_status("scan responder roles")
+                    ok, counts = wait_scan_role_counts("responder", 120.0, poll_s=3.0)
                     result["role_counts"] = counts
+                    emit(
+                        logf,
+                        (
+                            f"SESSION: BLE-scan responder verify after reset "
+                            f"matrix={counts.get('matrix', 0)} "
+                            f"responder={counts.get('responder', 0)} "
+                            f"master={counts.get('master', 0)} "
+                            f"other={counts.get('other', 0)}\n"
+                        ),
+                        live_output,
+                        verbose,
+                    )
 
             result["success"] = bool(ok)
             if ok:
@@ -1831,6 +2184,7 @@ def round_capture(
         "warnings": [],
         "reconnect_retry_seen": False,
         "reconnect_retry_lines": [],
+        "sweep_done_seen": False,
         "precheck_elapsed_s": None,
         "switch_elapsed_s": None,
         "warmup_elapsed_s": None,
@@ -1865,7 +2219,7 @@ def round_capture(
         )
 
     try:
-        ser = open_port(port, 20.0)
+        ser = open_port(port, 60.0)
         with open(log_path, "w", buffering=1) as logf:
             emit(logf, f"PORT={port}\n", live_output, verbose)
             emit(logf, f"START={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
@@ -1893,22 +2247,35 @@ def round_capture(
                 live_output,
                 verbose,
             )
+            if context is not None:
+                emit(
+                    logf,
+                    "PRECHECK: context "
+                    f"session_autopos_ready={int(bool(context.get('session_autopos_ready', False)))} "
+                    f"autopos_initialized={int(bool(context.get('autopos_initialized', False)))}\n",
+                    live_output,
+                    verbose,
+                )
 
-            ser, preflight_ok = preflight_clean_autopos_start(
-                ser,
-                logf,
-                port,
-                live_output,
-                verbose,
-                progress_cb=lambda: progress_now("precheck"),
-            )
-            if not preflight_ok:
-                result["error"] = "autopos_idle_not_reached"
-                emit(logf, "PRECHECK FAIL: AUTOPOS idle not reached\n", live_output, verbose)
-                emit(logf, f"END={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
-                flush_live_buffer(logf, verbose)
-                finish_round_progress()
-                return result
+            reuse_autopos_session = bool(context and context.get("session_autopos_ready", False))
+            if reuse_autopos_session:
+                emit(logf, "PRECHECK: reusing session AUTOPOS state from matrix guard\n", live_output, verbose)
+            else:
+                ser, preflight_ok = preflight_clean_autopos_start(
+                    ser,
+                    logf,
+                    port,
+                    live_output,
+                    verbose,
+                    progress_cb=lambda: progress_now("precheck"),
+                )
+                if not preflight_ok:
+                    result["error"] = "autopos_idle_not_reached"
+                    emit(logf, "PRECHECK FAIL: AUTOPOS idle not reached\n", live_output, verbose)
+                    emit(logf, f"END={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
+                    flush_live_buffer(logf, verbose)
+                    finish_round_progress()
+                    return result
 
             ser = ensure_autopos_maps(
                 ser,
@@ -1965,6 +2332,25 @@ def round_capture(
                     out_lines.append(line)
                 return "".join(out_lines)
 
+            def reset_sweep_counters_for_history_replay() -> None:
+                nonlocal raw_sw_seen_for_process, raw_sw_seen_for_log, raw_sweep_started_at, formal_sweep_started_at, stage
+                raw_sw_seen_for_process = 0
+                raw_sw_seen_for_log = 0
+                raw_sweep_started_at = None
+                formal_sweep_started_at = None
+                stage = "switching"
+                result["sw_seen"] = False
+                result["sw_line"] = ""
+                result["sw_lines"] = []
+                result["sw_count"] = 0
+                result["device_sw_count"] = 0
+                result["warmup_sw_lines"] = []
+                result["warmup_sw_count"] = 0
+                result["warmup_discarded_count"] = 0
+                result["min_quality_seen"] = None
+                result["pairs_below_quality"] = {}
+                result["sweep_done_seen"] = False
+
             def process_runtime_text(text: str) -> None:
                 nonlocal stage, raw_sweep_started_at, formal_sweep_started_at, raw_sw_seen_for_process
                 for line in text.splitlines():
@@ -1980,6 +2366,8 @@ def round_capture(
                     if f"AUTOPOS sweep listen attach: master={master}" in line:
                         result["sweep_ready_seen"] = True
                         stage = "sweeping"
+                    if f"SWEEP_DONE master={master}" in line:
+                        result["sweep_done_seen"] = True
                     if f"SW-{master}," in line:
                         line = line.strip()
                         raw_sw_seen_for_process += 1
@@ -2027,15 +2415,129 @@ def round_capture(
                                 result["warnings"].append(warning)
                                 emit(logf, f"PRECHECK WARN: {warning}\n", live_output, verbose)
 
+            def recover_sw_lines_from_result_history(reason: str) -> bool:
+                nonlocal ser
+                emit(
+                    logf,
+                    f"RECOVER: requesting AUTOPOS result history ({reason})\n",
+                    live_output,
+                    verbose,
+                )
+                try:
+                    cur_ser, show_text = send_cmd_collect_text(
+                        ser,
+                        logf,
+                        port,
+                        "autopos result show",
+                        2.0,
+                        live_output,
+                        verbose,
+                        resend_after_reopen=True,
+                        progress_cb=lambda: progress_now("sweeping"),
+                    )
+                except Exception as exc:
+                    emit(
+                        logf,
+                        f"RECOVER WARN: autopos result show failed: {exc.__class__.__name__}: {exc}\n",
+                        live_output,
+                        verbose,
+                    )
+                    return False
+
+                history_lines = []
+                for line in show_text.splitlines():
+                    if line.startswith("AUTOPOS history["):
+                        history_lines.append(line)
+                if not history_lines:
+                    emit(logf, "RECOVER WARN: no AUTOPOS history lines returned\n", live_output, verbose)
+                    return False
+
+                history_payload = "\n".join(history_lines) + "\n"
+                ser = cur_ser
+                reset_sweep_counters_for_history_replay()
+                process_runtime_text(history_payload)
+                emit(
+                    logf,
+                    "RECOVER: replayed AUTOPOS history "
+                    f"entries={len(history_lines)} sw={result['sw_count']}/{round_capture.target_sw_sets} "
+                    f"raw={result['device_sw_count']} sweep_done={int(bool(result['sweep_done_seen']))}\n",
+                    live_output,
+                    verbose,
+                )
+                return True
+
             precheck_done_at = time.time()
 
-            cmds = [
-                (f"autopos round {master} {round_capture.device_sw_sets}", 0.5),
-                ("autopos status", 0.5),
-                ("autopos apply", 0.5),
-            ]
+            round_cmd = f"autopos round {master} {round_capture.device_sw_sets}"
+            round_confirmed = False
+            ser, round_text = send_cmd_collect_text(
+                ser,
+                logf,
+                port,
+                round_cmd,
+                1.5,
+                live_output,
+                verbose,
+                progress_cb=lambda: progress_now("switching"),
+                text_filter=filter_runtime_text,
+            )
+            process_runtime_text(round_text)
+            if f"AUTOPOS round staged: master={master}" in round_text:
+                round_confirmed = True
+            else:
+                emit(
+                    logf,
+                    f"PRECHECK WARN: round staging for {master} not confirmed on first try; retrying once\n",
+                    live_output,
+                    verbose,
+                )
+                ser, round_text = send_cmd_collect_text(
+                    ser,
+                    logf,
+                    port,
+                    round_cmd,
+                    2.0,
+                    live_output,
+                    verbose,
+                    progress_cb=lambda: progress_now("switching"),
+                    text_filter=filter_runtime_text,
+                )
+                process_runtime_text(round_text)
+                if f"AUTOPOS round staged: master={master}" in round_text:
+                    round_confirmed = True
+            if not round_confirmed:
+                ser, status_text = send_cmd_collect_text(
+                    ser,
+                    logf,
+                    port,
+                    "autopos status",
+                    1.0,
+                    live_output,
+                    verbose,
+                    progress_cb=lambda: progress_now("switching"),
+                    text_filter=filter_runtime_text,
+                )
+                process_runtime_text(status_text)
+                status_ok = (
+                    (
+                        f"state=staged staged={master}" in status_text or
+                        f"state=ready staged={master}" in status_text or
+                        f"state=running staged={master}" in status_text
+                    )
+                    and f"sets={round_capture.device_sw_sets}" in status_text
+                )
+                if status_ok:
+                    round_confirmed = True
+                    emit(
+                        logf,
+                        f"PRECHECK: round staging for {master} confirmed via autopos status\n",
+                        live_output,
+                        verbose,
+                    )
+            if not round_confirmed:
+                raise RuntimeError(f"autopos round staging failed for {master}")
 
-            for cmd, pause_s in cmds:
+            for cmd, pause_s in [("autopos status", 0.5), ("autopos apply", 0.5)]:
                 stage = "switching"
                 print_round_progress(
                     master,
@@ -2121,6 +2623,9 @@ def round_capture(
                         result["success"] = True
                         stage = "done"
                         break
+                    if result["sweep_done_seen"]:
+                        stage = "failed"
+                        break
                 else:
                     time.sleep(0.1)
 
@@ -2130,6 +2635,33 @@ def round_capture(
                     w for w in result["warnings"]
                     if w != "SW lines observed without AUTOPOS apply success"
                 ]
+            if not result["success"] and result["sw_count"] < round_capture.target_sw_sets:
+                history_replayed = False
+                if result["sweep_done_seen"]:
+                    history_replayed = recover_sw_lines_from_result_history("SWEEP_DONE seen before target reached")
+                if not history_replayed:
+                    ser, final_status_text = send_cmd_collect_text(
+                        ser,
+                        logf,
+                        port,
+                        "autopos status",
+                        1.0,
+                        live_output,
+                        verbose,
+                        resend_after_reopen=True,
+                        progress_cb=lambda: progress_now("sweeping"),
+                        text_filter=filter_runtime_text,
+                    )
+                    process_runtime_text(final_status_text)
+                    status_indicates_complete = (
+                        f"last_success={master}" in final_status_text and
+                        f"sets={round_capture.device_sw_sets}" in final_status_text
+                    )
+                    if status_indicates_complete:
+                        recover_sw_lines_from_result_history("autopos status indicates round completed")
+                if result["sw_count"] >= round_capture.target_sw_sets:
+                    result["success"] = True
+                    stage = "done"
             if not result["success"]:
                 if not result["sweep_ready_seen"]:
                     result["error"] = "sweep_ready_not_seen"
@@ -2264,6 +2796,12 @@ def main() -> int:
         action="store_true",
         help="Skip switching all anchors to runtime responder after the full sweep succeeds.",
     )
+    parser.add_argument(
+        "--round-retries",
+        type=int,
+        default=2,
+        help="Retry a failed master round this many extra times before giving up.",
+    )
     args = parser.parse_args()
 
     if args.sw_sets < 1:
@@ -2325,6 +2863,7 @@ def main() -> int:
         "autopos_initialized": False,
         "bootstrap_autopos_reset": not bool(args.no_bootstrap_autopos_reset),
         "bootstrap_done": False,
+        "session_autopos_ready": False,
     }
 
     if not args.no_session_role_guard:
@@ -2342,63 +2881,88 @@ def main() -> int:
         print(json.dumps(guard_result, indent=2), flush=True)
         if not ok:
             return 1
+        run_context["session_autopos_ready"] = True
 
     for idx, master in enumerate(args.order, start=1):
         round_dir = out_dir / f"round_{master}"
         round_dir.mkdir(parents=True, exist_ok=True)
         print(f"=== AUTOPOS SWEEP {master} ===", flush=True)
-        try:
-            result = round_capture(
-                args.port,
-                master,
-                round_dir,
-                args.timeout_s,
-                args.warmup_min_quality,
-                None if args.quiet_tag_name == "-" else args.quiet_tag_name,
-                args.quiet_tag_retries,
-                bool(args.quiet_tag_required),
-                context=run_context,
-                round_idx=idx,
-                round_total=len(args.order),
-                command_started_at=command_started_at,
-                live_output=not args.no_live_output,
-                verbose=args.verbose,
+        result = None
+        attempt_count = max(0, int(args.round_retries)) + 1
+        attempt_timeout_s = args.timeout_s
+        for attempt in range(1, attempt_count + 1):
+            if attempt > 1:
+                print(
+                    f"=== RETRY SWEEP {master} attempt={attempt}/{attempt_count} timeout_s={attempt_timeout_s} ===",
+                    flush=True,
+                )
+                time.sleep(2.0)
+            try:
+                result = round_capture(
+                    args.port,
+                    master,
+                    round_dir,
+                    attempt_timeout_s,
+                    args.warmup_min_quality,
+                    None if args.quiet_tag_name == "-" else args.quiet_tag_name,
+                    args.quiet_tag_retries,
+                    bool(args.quiet_tag_required),
+                    context=run_context,
+                    round_idx=idx,
+                    round_total=len(args.order),
+                    command_started_at=command_started_at,
+                    live_output=not args.no_live_output,
+                    verbose=args.verbose,
+                )
+            except Exception:
+                # Defensive: round_capture itself is hardened, but still ensure the outer loop
+                # writes a summary.json instead of crashing and leaving "empty" outputs.
+                result = {
+                    "master": master,
+                    "success": False,
+                    "sw_seen": False,
+                    "apply_success_seen": False,
+                    "sweep_ready_seen": False,
+                    "verified_count": 0,
+                    "sw_line": "",
+                    "sw_lines": [],
+                    "sw_count": 0,
+                    "device_sw_count": 0,
+                    "warmup_min_quality": args.warmup_min_quality,
+                    "warmup_sw_lines": [],
+                    "warmup_sw_count": 0,
+                    "warmup_discarded_count": 0,
+                    "min_quality_seen": None,
+                    "pairs_below_quality": {},
+                    "log_path": str((round_dir / "master.log").resolve()),
+                    "error": "exception_in_round_capture",
+                    "warnings": [f"Anchor {master}: no output as Master"],
+                    "reconnect_retry_seen": False,
+                    "reconnect_retry_lines": [],
+                    "precheck_elapsed_s": None,
+                    "switch_elapsed_s": None,
+                    "warmup_elapsed_s": None,
+                    "collect_elapsed_s": None,
+                    "total_elapsed_s": None,
+                }
+            summary["rounds"][master] = result
+            with open(out_dir / "summary.json", "w", encoding="utf-8") as f:
+                json.dump(summary, f, indent=2)
+            print(json.dumps(result, indent=2), flush=True)
+            if result.get("success"):
+                run_context["session_autopos_ready"] = True
+                break
+            run_context["session_autopos_ready"] = False
+            run_context["autopos_initialized"] = False
+            if attempt >= attempt_count:
+                break
+            next_timeout_s = suggested_retry_timeout_s(result, attempt_timeout_s)
+            print(
+                f"ROUND RETRY: SW-{master} failed ({result.get('error', '-')}); "
+                f"next timeout_s={next_timeout_s}",
+                flush=True,
             )
-        except Exception:
-            # Defensive: round_capture itself is hardened, but still ensure the outer loop
-            # writes a summary.json instead of crashing and leaving "empty" outputs.
-            result = {
-                "master": master,
-                "success": False,
-                "sw_seen": False,
-                "apply_success_seen": False,
-                "sweep_ready_seen": False,
-                "verified_count": 0,
-                "sw_line": "",
-                "sw_lines": [],
-                "sw_count": 0,
-                "device_sw_count": 0,
-                "warmup_min_quality": args.warmup_min_quality,
-                "warmup_sw_lines": [],
-                "warmup_sw_count": 0,
-                "warmup_discarded_count": 0,
-                "min_quality_seen": None,
-                "pairs_below_quality": {},
-                "log_path": str((round_dir / "master.log").resolve()),
-                "error": "exception_in_round_capture",
-                "warnings": [f"Anchor {master}: no output as Master"],
-                "reconnect_retry_seen": False,
-                "reconnect_retry_lines": [],
-                "precheck_elapsed_s": None,
-                "switch_elapsed_s": None,
-                "warmup_elapsed_s": None,
-                "collect_elapsed_s": None,
-                "total_elapsed_s": None,
-            }
-        summary["rounds"][master] = result
-        with open(out_dir / "summary.json", "w", encoding="utf-8") as f:
-            json.dump(summary, f, indent=2)
-        print(json.dumps(result, indent=2), flush=True)
+            attempt_timeout_s = next_timeout_s
         if not result["success"]:
             return 1
 
