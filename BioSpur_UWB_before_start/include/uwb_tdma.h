@@ -92,5 +92,6 @@ bool uwb_tdma_schedule_exchange_fits(const struct uwb_tdma_schedule *schedule,
 					 uint32_t required_ms,
 					 uint32_t guard_ms);
 uint32_t uwb_tdma_wait_until_slot(const struct uwb_tdma_schedule *schedule);
+uint32_t uwb_tdma_wait_until_next_slot(const struct uwb_tdma_schedule *schedule);
 
 #endif /* UWB_TDMA_H */

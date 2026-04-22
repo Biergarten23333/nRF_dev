@@ -724,7 +724,8 @@ int uwb_tag_loc_evaluate_solution(const struct uwb_tag_measurement *measurements
     }
 
     uwb_tag_loc_compute_residuals(candidates, candidate_count, subset_mask,
-                                  &estimate, &rms_m, &max_abs_m, &lower, &upper);
+                                  &estimate, &rms_m, &max_abs_m,
+                                  &lower, &upper);
 
     if (residual_rms_mm != NULL) {
         *residual_rms_mm = (uint32_t)lround(rms_m * 1000.0);

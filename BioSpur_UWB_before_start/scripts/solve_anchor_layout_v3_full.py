@@ -114,14 +114,31 @@ def load_floating_reference_sessions(session_dirs: list[str]) -> list[dict[str, 
                 try:
                     anchor_id = int(row["anchor_id"])
                     mm = float(row["filt_mm"])
+                    ok = int(row.get("ok", "1"))
                 except Exception:
                     continue
                 if anchor_id < 0 or anchor_id >= 8:
                     continue
+                if ok != 1:
+                    continue
                 if not math.isfinite(mm) or mm <= 0:
                     continue
                 by_anchor.setdefault(anchor_id, []).append(mm / 1000.0)
-        means = {aid: float(np.mean(vals)) for aid, vals in by_anchor.items() if vals}
+        means = {}
+        for aid, vals in by_anchor.items():
+            if not vals:
+                continue
+            arr = np.asarray(vals, dtype=float)
+            med = float(np.median(arr))
+            mad = float(np.median(np.abs(arr - med)))
+            if mad > 0.0:
+                # Keep a conservative inlier band around the median so a few
+                # malformed CM rows cannot corrupt the floating-reference mean.
+                band = 6.0 * 1.4826 * mad
+                arr = arr[np.abs(arr - med) <= band]
+            if arr.size == 0:
+                arr = np.asarray([med], dtype=float)
+            means[aid] = float(np.mean(arr))
         if not means:
             raise ValueError(f"Floating reference session {d} has no valid samples")
 

@@ -30,7 +30,6 @@
 
 #include "ota_image.inc"
 #include "master_ota.h"
-#include "master_multi_app.h"
 
 #define OTA_LED_SCAN DK_LED1
 #define OTA_LED_LINK DK_LED2
@@ -721,6 +720,25 @@ static bool scan_mfg_uuid_cb(struct bt_data *data, void *user_data)
 	return false;
 }
 
+static bool scan_mfg_bs_code_cb(struct bt_data *data, void *user_data)
+{
+	uint16_t *bs_code = user_data;
+
+	if (data->type != BT_DATA_MANUFACTURER_DATA || data->data_len < 6U) {
+		return true;
+	}
+
+	if (data->data[0] == BIOSPUR_MFG_ID_LSB &&
+	    data->data[1] == BIOSPUR_MFG_ID_MSB &&
+	    data->data[2] == BIOSPUR_MFG_MAGIC0 &&
+	    (data->data_len < 5U || data->data[3] != BIOSPUR_MFG_MAGIC1)) {
+		*bs_code = sys_get_le16(&data->data[4]);
+		return false;
+	}
+
+	return true;
+}
+
 static uint8_t ad_extract_token_id(struct net_buf_simple *ad)
 {
 	struct net_buf_simple copy = *ad;
@@ -728,6 +746,24 @@ static uint8_t ad_extract_token_id(struct net_buf_simple *ad)
 
 	bt_data_parse(&copy, scan_mfg_token_cb, &token_id);
 	return token_id;
+}
+
+static bool ad_extract_bs_code(struct net_buf_simple *ad, uint16_t *bs_code)
+{
+	struct net_buf_simple copy = *ad;
+	uint16_t parsed = 0xFFFFU;
+
+	if (bs_code == NULL) {
+		return false;
+	}
+
+	bt_data_parse(&copy, scan_mfg_bs_code_cb, &parsed);
+	if (parsed == 0xFFFFU) {
+		return false;
+	}
+
+	*bs_code = parsed;
+	return true;
 }
 
 static bool ad_extract_uuid_hex(struct net_buf_simple *ad, char *uuid_hex, size_t uuid_hex_len)
@@ -777,10 +813,10 @@ static bool ad_eval_target(struct net_buf_simple *ad, const char *name, uint8_t 
 				   str_case_eq(uuid_hex, runtime_target_uuid);
 	} else {
 		if (runtime_target_name[0] != '\0') {
-			eval->name_match = !eval->has_name ||
+			eval->name_match = eval->has_name &&
 					   str_case_eq(name, runtime_target_name);
 		} else if (runtime_target_prefix[0] != '\0') {
-			eval->name_match = !eval->has_name ||
+			eval->name_match = eval->has_name &&
 					   str_case_startswith(name, runtime_target_prefix);
 		} else {
 			eval->name_match = true;
@@ -2388,7 +2424,11 @@ static void scan_filter_match(struct bt_scan_device_info *device_info,
 	int err;
 	struct bt_conn *conn = NULL;
 	uint8_t token_id;
+	uint16_t bs_code;
+	bool bs_code_valid;
 	char uuid_hex[OTA_UUID_HEX_LEN + 1U];
+	char bs_name[8];
+	const char *identity_name;
 	struct scan_target_eval eval;
 
 	ARG_UNUSED(filter_match);
@@ -2399,6 +2439,14 @@ static void scan_filter_match(struct bt_scan_device_info *device_info,
 	bt_addr_le_to_str(device_info->recv_info->addr, addr, sizeof(addr));
 	ad_extract_name(device_info->adv_data, name, sizeof(name));
 	token_id = ad_extract_token_id(device_info->adv_data);
+	bs_code_valid = ad_extract_bs_code(device_info->adv_data, &bs_code);
+	if (bs_code_valid) {
+		snprintk(bs_name, sizeof(bs_name), "BS%04X", bs_code);
+		identity_name = bs_name;
+	} else {
+		bs_name[0] = '\0';
+		identity_name = name;
+	}
 	if (!ad_extract_uuid_hex(device_info->adv_data, uuid_hex, sizeof(uuid_hex))) {
 		uuid_hex[0] = '\0';
 	}
@@ -2415,12 +2463,14 @@ static void scan_filter_match(struct bt_scan_device_info *device_info,
 			return;
 		}
 	}
-	accept = ad_eval_target(device_info->adv_data, name, token_id, uuid_hex, &eval);
-	printk("Scan eval: %s conn=%d token=%d uuid=%s name_ok=%u token_ok=%u uuid_ok=%u strict_id=%u\n",
+	accept = ad_eval_target(device_info->adv_data, identity_name, token_id, uuid_hex, &eval);
+	printk("Scan eval: %s conn=%d token=%d uuid=%s name=%s bs=%s name_ok=%u token_ok=%u uuid_ok=%u strict_id=%u\n",
 	       addr,
 	       connectable,
 	       token_id == 0xffU ? -1 : (int)token_id,
 	       uuid_hex[0] != '\0' ? uuid_hex : "-",
+	       name[0] != '\0' ? name : "-",
+	       bs_name[0] != '\0' ? bs_name : "-",
 	       eval.name_match ? 1U : 0U,
 	       eval.token_match ? 1U : 0U,
 	       eval.uuid_match ? 1U : 0U,
@@ -2443,10 +2493,11 @@ static void scan_filter_match(struct bt_scan_device_info *device_info,
 	if (err && err != -EALREADY) {
 		printk("Scan stop failed before connect %s err %d\n", addr, err);
 	}
-	printk("Connect start: %s token=%d name=%s\n",
+	printk("Connect start: %s token=%d name=%s bs=%s\n",
 	       addr,
 	       token_id == 0xffU ? -1 : (int)token_id,
-	       name[0] != '\0' ? name : "-");
+	       name[0] != '\0' ? name : "-",
+	       bs_name[0] != '\0' ? bs_name : "-");
 	ota_set_state(OTA_OP_CONNECT_PENDING, "bt_conn_le_create");
 	err = bt_conn_le_create(device_info->recv_info->addr,
 				BT_CONN_LE_CREATE_CONN,
@@ -2463,7 +2514,7 @@ static void scan_filter_match(struct bt_scan_device_info *device_info,
 	selected_identity_verified = eval.strict_identity_ok;
 	(void)snprintf(selected_addr, sizeof(selected_addr), "%s", addr);
 	(void)snprintf(selected_name, sizeof(selected_name), "%s",
-		       name[0] != '\0' ? name : "");
+		       identity_name[0] != '\0' ? identity_name : "");
 	(void)snprintf(selected_uuid, sizeof(selected_uuid), "%s",
 		       uuid_hex[0] != '\0' ? uuid_hex : "");
 	selected_token = token_id == 0xffU ? -1 : (int)token_id;

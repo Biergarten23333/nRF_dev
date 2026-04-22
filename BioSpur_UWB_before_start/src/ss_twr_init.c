@@ -60,6 +60,10 @@
 #define APP_TAG_PENDING_PRINT_PERIOD 20U
 #endif
 
+#ifndef APP_TAG_CALIBRATION_MODE
+#define APP_TAG_CALIBRATION_MODE 0U
+#endif
+
 #ifndef APP_TAG_IMU_SAMPLE_PERIOD
 #define APP_TAG_IMU_SAMPLE_PERIOD 4U
 #endif
@@ -160,7 +164,7 @@ static void ss_twr_diag_write(const char *msg)
 #endif
 
 #ifndef APP_TAG_CAL_STATIC_SLOT_DIVIDER
-#define APP_TAG_CAL_STATIC_SLOT_DIVIDER 3U
+#define APP_TAG_CAL_STATIC_SLOT_DIVIDER 1U
 #endif
 
 #ifndef APP_TAG_MOTION_EKF_MEAS_STD_MM
@@ -306,6 +310,8 @@ static struct uwb_tag_runtime_params ss_twr_init_pending_runtime_params;
 static bool ss_twr_init_runtime_update_pending;
 static bool ss_twr_init_last_sweep_cut_short;
 static uint32_t ss_twr_init_last_tdma_wait_ms;
+static uint32_t ss_twr_init_last_slot_guard_log_ms;
+static uint32_t ss_twr_init_last_solve_pending_log_ms;
 static enum ss_twr_init_solve_reason ss_twr_init_last_solve_reason;
 static uint8_t ss_twr_init_static_cal_group_cursor;
 static uint32_t ss_twr_init_static_cal_slot_tick;
@@ -809,6 +815,11 @@ static uint32_t ss_twr_init_wait_until_slot_if_needed(void)
 	return uwb_tdma_wait_until_slot(&ss_twr_init_tdma_schedule);
 }
 
+static uint32_t ss_twr_init_wait_until_next_slot_if_needed(void)
+{
+	return uwb_tdma_wait_until_next_slot(&ss_twr_init_tdma_schedule);
+}
+
 static void ss_twr_init_apply_runtime_params(
 	const struct uwb_tag_runtime_params *params)
 {
@@ -1247,6 +1258,8 @@ static int ss_twr_init_load_runtime_config(
     ss_twr_init_runtime_update_pending = false;
     ss_twr_init_last_sweep_cut_short = false;
     ss_twr_init_last_tdma_wait_ms = 0U;
+    ss_twr_init_last_slot_guard_log_ms = 0U;
+    ss_twr_init_last_solve_pending_log_ms = 0U;
     ss_twr_init_last_solve_reason = SS_TWR_INIT_SOLVE_NONE;
     memset(&ss_twr_init_last_imu_sample, 0, sizeof(ss_twr_init_last_imu_sample));
     ss_twr_init_perf_motion_dt_sum_ms = 0U;
@@ -1481,12 +1494,16 @@ static void ss_twr_init_print_location_if_ready(void)
                                          sizeof(received_anchors));
         if (APP_TAG_PENDING_PRINT_PERIOD != 0U &&
             (ss_twr_init_sweep_count % APP_TAG_PENDING_PRINT_PERIOD) == 0U) {
-            printk("Tag solve pending: need >=4 valid anchors with required plane coverage "
-                   "plan=%s active=%u sweep_ms=%lu valid=[%s]\n",
-                   ss_twr_init_plan_label(),
-                   (unsigned int)ss_twr_init_active_anchor_count,
-                   (unsigned long)sweep_elapsed_ms,
-                    received_anchors);
+            uint32_t now_ms = (uint32_t)k_uptime_get();
+            if ((now_ms - ss_twr_init_last_solve_pending_log_ms) >= 1000U) {
+                ss_twr_init_last_solve_pending_log_ms = now_ms;
+                printk("Tag solve pending: need >=4 valid anchors with required plane coverage "
+                       "plan=%s active=%u sweep_ms=%lu valid=[%s]\n",
+                       ss_twr_init_plan_label(),
+                       (unsigned int)ss_twr_init_active_anchor_count,
+                       (unsigned long)sweep_elapsed_ms,
+                        received_anchors);
+            }
         }
         return;
     }
@@ -1986,20 +2003,44 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
 
             ss_twr_init_last_sweep_cut_short = true;
             ss_twr_init_last_solve_reason = SS_TWR_INIT_SOLVE_SLOT_CUT_SHORT;
-            printk("Tag slot guard: cut short plan=%s next_anchor=%u active=%u remain=%lu ms slot=%u/%u gen=%u\n",
-                   ss_twr_init_plan_label(),
-                   (unsigned int)ss_twr_init_active_anchor_index,
-                   (unsigned int)ss_twr_init_active_anchor_count,
-                   (unsigned long)remain_ms,
-                   (unsigned int)ss_twr_init_tdma_schedule.slot_index,
-                   (unsigned int)ss_twr_init_tdma_schedule.slot_count,
-                   (unsigned int)ss_twr_init_tdma_schedule.generation);
+            {
+                uint32_t now_ms = (uint32_t)k_uptime_get();
+                if ((now_ms - ss_twr_init_last_slot_guard_log_ms) >= 1000U) {
+                    ss_twr_init_last_slot_guard_log_ms = now_ms;
+                    printk("Tag slot guard: cut short plan=%s next_anchor=%u active=%u remain=%lu ms slot=%u/%u gen=%u\n",
+                           ss_twr_init_plan_label(),
+                           (unsigned int)ss_twr_init_active_anchor_index,
+                           (unsigned int)ss_twr_init_active_anchor_count,
+                           (unsigned long)remain_ms,
+                           (unsigned int)ss_twr_init_tdma_schedule.slot_index,
+                           (unsigned int)ss_twr_init_tdma_schedule.slot_count,
+                           (unsigned int)ss_twr_init_tdma_schedule.generation);
+                }
+            }
             ss_twr_init_sweep_count++;
             ss_twr_init_print_location_if_ready();
             ss_twr_init_apply_pending_runtime_config_if_any();
-	        ss_twr_init_last_tdma_wait_ms = ss_twr_init_wait_until_slot_if_needed();
+	        ss_twr_init_last_tdma_wait_ms = ss_twr_init_wait_until_next_slot_if_needed();
             ss_twr_init_prepare_sweep_plan();
             continue;
+        }
+
+        if (ss_twr_init_active_anchor_index == 0U &&
+            ss_twr_init_active_anchor_count > 1U &&
+            ss_twr_init_tdma_schedule.enabled) {
+            uint32_t remain_ms =
+                uwb_tdma_schedule_time_remaining_ms(&ss_twr_init_tdma_schedule);
+            uint32_t sweep_budget_ms =
+                ((uint32_t)ss_twr_init_active_anchor_count *
+                 SS_TWR_INIT_SLOT_EXCHANGE_BUDGET_MS) +
+                SS_TWR_INIT_SLOT_GUARD_MARGIN_MS;
+
+            if (remain_ms < sweep_budget_ms) {
+                dwt_forcetrxoff();
+                ss_twr_init_last_tdma_wait_ms =
+                    ss_twr_init_wait_until_next_slot_if_needed();
+                continue;
+            }
         }
 
         if (ss_twr_init_runtime_static_calibration_mode() &&
@@ -2007,12 +2048,12 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
             ss_twr_init_active_anchor_index == 0U) {
             uint32_t slot_tick = ss_twr_init_static_cal_slot_tick++;
 
-            if ((slot_tick % APP_TAG_CAL_STATIC_SLOT_DIVIDER) != 0U) {
-                dwt_forcetrxoff();
-                ss_twr_init_last_tdma_wait_ms =
-                    ss_twr_init_wait_until_slot_if_needed();
-                continue;
-            }
+                    if ((slot_tick % APP_TAG_CAL_STATIC_SLOT_DIVIDER) != 0U) {
+                        dwt_forcetrxoff();
+                        ss_twr_init_last_tdma_wait_ms =
+                    ss_twr_init_wait_until_next_slot_if_needed();
+                        continue;
+                    }
         }
 
         uint8_t current_anchor_id =
@@ -2206,7 +2247,7 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
 	                        ss_twr_init_print_location_if_ready();
 	                        ss_twr_init_apply_pending_runtime_config_if_any();
 	                        ss_twr_init_last_tdma_wait_ms =
-	                            ss_twr_init_wait_until_slot_if_needed();
+	                            ss_twr_init_wait_until_next_slot_if_needed();
 	                        ss_twr_init_prepare_sweep_plan();
 	                    }
 	                }
@@ -2278,7 +2319,8 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
 	            ss_twr_init_sweep_count++;
 	            ss_twr_init_print_location_if_ready();
 	            ss_twr_init_apply_pending_runtime_config_if_any();
-	            ss_twr_init_last_tdma_wait_ms = ss_twr_init_wait_until_slot_if_needed();
+	            ss_twr_init_last_tdma_wait_ms =
+	                ss_twr_init_wait_until_next_slot_if_needed();
 	            ss_twr_init_prepare_sweep_plan();
 	        }
         ss_twr_init_sleep_between_ranges();

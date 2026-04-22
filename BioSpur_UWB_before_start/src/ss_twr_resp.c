@@ -61,6 +61,26 @@ static uint16_t ss_twr_resp_local_addr;
 static uint8_t ss_twr_resp_anchor_id;
 static int ss_twr_resp_allow_tag_polls;
 
+static void ss_twr_resp_diag_periodic(uint32 *last_ms,
+                                      uint32 replies_ok,
+                                      uint32 rx_error_count,
+                                      uint32 ignored_tag_polls,
+                                      uint32 ignored_nonpoll_frames)
+{
+    uint32_t now_ms = k_uptime_get_32();
+    if ((now_ms - *last_ms) < 1000U) {
+        return;
+    }
+    *last_ms = now_ms;
+    printk("Responder diag anchor=%u ok=%lu rx_err=%lu ignored_tag=%lu ignored_nonpoll=%lu allow_tag_polls=%u\n",
+           (unsigned int)ss_twr_resp_anchor_id,
+           (unsigned long)replies_ok,
+           (unsigned long)rx_error_count,
+           (unsigned long)ignored_tag_polls,
+           (unsigned long)ignored_nonpoll_frames,
+           (unsigned int)(ss_twr_resp_allow_tag_polls != 0));
+}
+
 static dwtime_u64_t ss_twr_resp_get_rx_timestamp_u64(void)
 {
     uint8 ts_tab[5];
@@ -107,7 +127,11 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
 {
     uint32 status_reg;
     uint32 rx_error_count = 0U;
+    uint32 replies_ok = 0U;
+    uint32 ignored_tag_polls = 0U;
+    uint32 ignored_nonpoll_frames = 0U;
     uint32 wait_cycles = 0U;
+    uint32 diag_last_ms = k_uptime_get_32();
 
     if (anchor_id >= UWB_MAX_ANCHORS) {
         printk("Invalid SS-TWR responder anchor_id=%u\n", anchor_id);
@@ -160,6 +184,8 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
                            (unsigned int)ss_twr_resp_anchor_id);
                     return 0;
                 }
+                ss_twr_resp_diag_periodic(&diag_last_ms, replies_ok, rx_error_count,
+                                          ignored_tag_polls, ignored_nonpoll_frames);
                 k_yield();
                 ss_twr_resp_coop_sleep();
             }
@@ -175,6 +201,8 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             }
             dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_ERR);
             dwt_rxreset();
+            ss_twr_resp_diag_periodic(&diag_last_ms, replies_ok, rx_error_count,
+                                      ignored_tag_polls, ignored_nonpoll_frames);
             ss_twr_resp_coop_sleep();
             continue;
         }
@@ -194,12 +222,18 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
 
         if (!uwb_ss_twr_poll_matches(ss_twr_resp_rx_buffer,
                                      ss_twr_resp_local_addr)) {
+            ignored_nonpoll_frames++;
+            ss_twr_resp_diag_periodic(&diag_last_ms, replies_ok, rx_error_count,
+                                      ignored_tag_polls, ignored_nonpoll_frames);
             ss_twr_resp_coop_sleep();
             continue;
         }
 
         poll_src_addr = uwb_frame_get_src_addr(ss_twr_resp_rx_buffer);
         if (!ss_twr_resp_allow_tag_polls && uwb_short_addr_is_tag(poll_src_addr)) {
+            ignored_tag_polls++;
+            ss_twr_resp_diag_periodic(&diag_last_ms, replies_ok, rx_error_count,
+                                      ignored_tag_polls, ignored_nonpoll_frames);
             ss_twr_resp_coop_sleep();
             continue;
         }
@@ -229,6 +263,8 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             if (APP_ANCHOR_VERBOSE_RESPONDER_ERRORS != 0U) {
                 printk("Responder TX buffer write failed\n");
             }
+            ss_twr_resp_diag_periodic(&diag_last_ms, replies_ok, rx_error_count,
+                                      ignored_tag_polls, ignored_nonpoll_frames);
             ss_twr_resp_coop_sleep();
             continue;
         }
@@ -241,6 +277,8 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             }
             dwt_forcetrxoff();
             dwt_rxreset();
+            ss_twr_resp_diag_periodic(&diag_last_ms, replies_ok, rx_error_count,
+                                      ignored_tag_polls, ignored_nonpoll_frames);
             ss_twr_resp_coop_sleep();
             continue;
         }
@@ -262,6 +300,7 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         wait_cycles = 0U;
 
         dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_TXFRS);
+        replies_ok++;
         if (APP_ANCHOR_VERBOSE_RESPONDER != 0U) {
             if (uwb_short_addr_is_anchor(poll_src_addr)) {
                 printk("Responder replied to anchor poll %u anchor=%u src=0x%04x\n",
@@ -275,6 +314,8 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
                        (unsigned int)poll_src_addr);
             }
         }
+        ss_twr_resp_diag_periodic(&diag_last_ms, replies_ok, rx_error_count,
+                                  ignored_tag_polls, ignored_nonpoll_frames);
         ss_twr_resp_frame_seq_nb++;
         ss_twr_resp_coop_sleep();
     }

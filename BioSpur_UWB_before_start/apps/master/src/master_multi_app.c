@@ -1,8 +1,10 @@
 #include <errno.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 
@@ -23,6 +25,7 @@
 #include <bluetooth/services/nus_client.h>
 
 #include "master_multi_app.h"
+#include "uwb_tdma.h"
 
 #define MASTER_MAX_CONNECTIONS 10U
 #define MASTER_DISCOVERY_RETRY_DELAY_MS 1500U
@@ -30,10 +33,14 @@
 #define MASTER_DISCOVERY_START_SETTLE_MS 350U
 #define MASTER_ANCHOR_DISCOVERY_START_SETTLE_MS 900U
 #define MASTER_CONNECT_PENDING_TIMEOUT_MS 6000U
-#define MASTER_TDMA_SLOT_COUNT_MAX 10U
-#define MASTER_TDMA_SLOT_PERIOD_MS 24U
-#define MASTER_TDMA_SLOT_ACTIVE_MS 20U
+#define MASTER_TDMA_SLOT_COUNT_MAX 12U
+#define MASTER_TDMA_SLOT_PERIOD_MS 32U
+#define MASTER_TDMA_SLOT_ACTIVE_MS 32U
 #define MASTER_TDMA_EPOCH_LEAD_MS 3000U
+#define MASTER_TDMA_PROFILE_MAX MASTER_MAX_CONNECTIONS
+#define MASTER_TDMA_ROTO_DEFAULT_HZ 15U
+#define MASTER_TDMA_STATIC_DEFAULT_HZ 5U
+#define MASTER_TDMA_MOTION_DEFAULT_HZ 5U
 #ifndef APP_MASTER_TAG_NAME_PREFIX
 #define APP_MASTER_TAG_NAME_PREFIX "BS"
 #endif
@@ -123,6 +130,23 @@ struct master_peer {
 };
 
 static bool peer_matches_runtime_target(const struct master_peer *peer);
+
+enum master_tdma_profile_kind {
+	MASTER_TDMA_PROFILE_MOTION = 0,
+	MASTER_TDMA_PROFILE_STATIC = 1,
+	MASTER_TDMA_PROFILE_ROTO = 2,
+};
+
+struct master_tdma_profile_entry {
+	bool valid;
+	uint16_t bs_code;
+	enum master_tdma_profile_kind kind;
+};
+
+static struct master_tdma_profile_entry tdma_profiles[MASTER_TDMA_PROFILE_MAX];
+static uint8_t tdma_roto_target_hz = MASTER_TDMA_ROTO_DEFAULT_HZ;
+static uint8_t tdma_static_target_hz = MASTER_TDMA_STATIC_DEFAULT_HZ;
+static uint8_t tdma_motion_target_hz = MASTER_TDMA_MOTION_DEFAULT_HZ;
 
 struct master_cal_record {
 	bool present;
@@ -881,14 +905,145 @@ static size_t master_collect_ready_peers(struct master_peer **ordered,
 	return count;
 }
 
+static const char *master_tdma_profile_label(enum master_tdma_profile_kind kind)
+{
+	switch (kind) {
+	case MASTER_TDMA_PROFILE_STATIC:
+		return "static";
+	case MASTER_TDMA_PROFILE_ROTO:
+		return "roto";
+	case MASTER_TDMA_PROFILE_MOTION:
+	default:
+		return "motion";
+	}
+}
+
+static uint8_t master_tdma_profile_pmode(enum master_tdma_profile_kind kind)
+{
+	switch (kind) {
+	case MASTER_TDMA_PROFILE_STATIC:
+		return UWB_TAG_POSITIONING_MODE_CAL_STATIC;
+	case MASTER_TDMA_PROFILE_ROTO:
+		return UWB_TAG_POSITIONING_MODE_CAL_ROTO;
+	case MASTER_TDMA_PROFILE_MOTION:
+	default:
+		return UWB_TAG_POSITIONING_MODE_DYNAMIC;
+	}
+}
+
+static uint8_t master_tdma_profile_target_hz(enum master_tdma_profile_kind kind)
+{
+	switch (kind) {
+	case MASTER_TDMA_PROFILE_STATIC:
+		return tdma_static_target_hz;
+	case MASTER_TDMA_PROFILE_ROTO:
+		return tdma_roto_target_hz;
+	case MASTER_TDMA_PROFILE_MOTION:
+	default:
+		return tdma_motion_target_hz;
+	}
+}
+
+static bool master_tdma_parse_profile_kind(const char *profile,
+					   enum master_tdma_profile_kind *kind)
+{
+	if (profile == NULL || kind == NULL) {
+		return false;
+	}
+
+	if (strcasecmp(profile, "static") == 0 ||
+	    strcasecmp(profile, "cal_static") == 0) {
+		*kind = MASTER_TDMA_PROFILE_STATIC;
+		return true;
+	}
+	if (strcasecmp(profile, "roto") == 0 ||
+	    strcasecmp(profile, "cal_roto") == 0) {
+		*kind = MASTER_TDMA_PROFILE_ROTO;
+		return true;
+	}
+	if (strcasecmp(profile, "motion") == 0 ||
+	    strcasecmp(profile, "mmot") == 0) {
+		*kind = MASTER_TDMA_PROFILE_MOTION;
+		return true;
+	}
+
+	return false;
+}
+
+static bool master_tdma_parse_bs_code(const char *bs_name, uint16_t *bs_code)
+{
+	const char *p = bs_name;
+	char *end = NULL;
+	unsigned long value;
+
+	if (bs_name == NULL || bs_code == NULL) {
+		return false;
+	}
+
+	if (strncasecmp(p, "BS", 2) == 0) {
+		p += 2;
+	}
+	if (*p == '\0') {
+		return false;
+	}
+
+	value = strtoul(p, &end, 16);
+	if (end == p || *end != '\0' || value > UINT16_MAX) {
+		return false;
+	}
+
+	*bs_code = (uint16_t)value;
+	return true;
+}
+
+static enum master_tdma_profile_kind master_tdma_profile_for_peer(
+	const struct master_peer *peer)
+{
+	if (peer == NULL || !peer->bs_code_valid) {
+		return MASTER_TDMA_PROFILE_MOTION;
+	}
+
+	for (size_t i = 0U; i < ARRAY_SIZE(tdma_profiles); ++i) {
+		if (tdma_profiles[i].valid && tdma_profiles[i].bs_code == peer->bs_code) {
+			return tdma_profiles[i].kind;
+		}
+	}
+
+	return MASTER_TDMA_PROFILE_MOTION;
+}
+
+static bool master_tdma_any_profile_defined(void)
+{
+	for (size_t i = 0U; i < ARRAY_SIZE(tdma_profiles); ++i) {
+		if (tdma_profiles[i].valid) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static bool master_tdma_profile_has_bs_code(uint16_t bs_code)
+{
+	for (size_t i = 0U; i < ARRAY_SIZE(tdma_profiles); ++i) {
+		if (tdma_profiles[i].valid && tdma_profiles[i].bs_code == bs_code) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 static int master_send_runtime_config(struct master_peer *peer,
 				      uint8_t logical_tag_id,
 				      uint8_t slot_index,
 				      uint8_t slot_count,
+				      uint16_t slot_mask,
 				      uint16_t slot_period_ms,
 				      uint16_t slot_active_ms,
 				      uint32_t epoch_ms,
-				      uint8_t generation)
+				      uint8_t generation,
+				      uint8_t positioning_mode)
 {
 	char cmd[160];
 	int err;
@@ -898,15 +1053,16 @@ static int master_send_runtime_config(struct master_peer *peer,
 	}
 
 	snprintk(cmd, sizeof(cmd),
-		 "CFG TAG=%u SLOT=%u COUNT=%u PERIOD=%u ACTIVE=%u EPOCH=%lu GEN=%u PMODE=%u AMODE=%u",
+		 "CFG TAG=%u SLOT=%u COUNT=%u MASK=0x%04X PERIOD=%u ACTIVE=%u EPOCH=%lu GEN=%u PMODE=%u AMODE=%u",
 		 (unsigned int)logical_tag_id,
 		 (unsigned int)slot_index,
 		 (unsigned int)slot_count,
+		 (unsigned int)slot_mask,
 		 (unsigned int)slot_period_ms,
 		 (unsigned int)slot_active_ms,
 		 (unsigned long)epoch_ms,
 		 (unsigned int)generation,
-		 0U,
+		 (unsigned int)positioning_mode,
 		 0U);
 	err = bt_nus_client_send(&peer->nus_client, (const uint8_t *)cmd, strlen(cmd));
 	if (err) {
@@ -923,42 +1079,232 @@ static int master_send_runtime_config(struct master_peer *peer,
 	peer->tdma_slot = slot_index;
 	peer->tdma_slot_valid = true;
 	peer->tdma_generation = generation;
-	printk("CFG assigned[%d]: bs=BS%04X tag=%u slot=%u/%u period=%u active=%u gen=%u\n",
+	printk("CFG assigned[%d]: bs=BS%04X tag=%u slot=%u/%u mask=0x%04X period=%u active=%u gen=%u pmode=%u\n",
 	       peer_index_from_nus(&peer->nus_client),
 	       (unsigned int)peer->bs_code,
 	       (unsigned int)logical_tag_id,
 	       (unsigned int)slot_index,
 	       (unsigned int)slot_count,
+	       (unsigned int)slot_mask,
 	       (unsigned int)slot_period_ms,
 	       (unsigned int)slot_active_ms,
-	       (unsigned int)generation);
+	       (unsigned int)generation,
+	       (unsigned int)positioning_mode);
 	return 0;
+}
+
+static uint8_t master_tdma_build_occupied_slots(uint8_t slot_count,
+						 uint8_t total_assignments,
+						 uint8_t *occupied_slots,
+						 size_t occupied_len)
+{
+	uint8_t written = 0U;
+	bool used[MASTER_TDMA_SLOT_COUNT_MAX] = { false };
+
+	if (occupied_slots == NULL || occupied_len == 0U || slot_count == 0U ||
+	    total_assignments == 0U) {
+		return 0U;
+	}
+
+	for (uint8_t j = 0U; j < total_assignments && written < occupied_len; ++j) {
+		uint8_t pos =
+			(uint8_t)(((uint32_t)j * (uint32_t)slot_count +
+				   (uint32_t)total_assignments / 2U) /
+				  (uint32_t)total_assignments);
+
+		if (pos >= slot_count) {
+			pos = (uint8_t)(slot_count - 1U);
+		}
+		while (pos < slot_count && used[pos]) {
+			pos++;
+		}
+		if (pos >= slot_count) {
+			for (pos = 0U; pos < slot_count; ++pos) {
+				if (!used[pos]) {
+					break;
+				}
+			}
+		}
+		if (pos >= slot_count) {
+			break;
+		}
+
+		used[pos] = true;
+		occupied_slots[written++] = pos;
+	}
+
+	return written;
+}
+
+static uint8_t master_tdma_select_fair_owner(const uint8_t *target_slots,
+					      const uint8_t *assigned_slots,
+					      int32_t *credits,
+					      size_t peer_count,
+					      uint8_t total_assignments)
+{
+	int best_idx = -1;
+	int32_t best_credit = INT32_MIN;
+
+	for (size_t i = 0U; i < peer_count; ++i) {
+		if (assigned_slots[i] >= target_slots[i] || target_slots[i] == 0U) {
+			continue;
+		}
+
+		credits[i] += (int32_t)target_slots[i];
+		if (credits[i] > best_credit) {
+			best_credit = credits[i];
+			best_idx = (int)i;
+		}
+	}
+
+	if (best_idx < 0) {
+		return UINT8_MAX;
+	}
+
+	credits[best_idx] -= (int32_t)total_assignments;
+	return (uint8_t)best_idx;
 }
 
 static void master_rebalance_tdma_slots(void)
 {
 	struct master_peer *ordered[MASTER_MAX_CONNECTIONS];
 	size_t ready_count;
-	uint8_t slot_count;
+	uint8_t best_slot_count = 0U;
+	uint8_t target_slots[MASTER_MAX_CONNECTIONS] = { 0U };
+	uint16_t slot_masks[MASTER_MAX_CONNECTIONS] = { 0U };
+	enum master_tdma_profile_kind kinds[MASTER_MAX_CONNECTIONS];
 	uint32_t epoch_ms;
+	uint32_t best_error = UINT32_MAX;
+	uint8_t total_target_slots = 0U;
+	uint8_t occupied_slots[MASTER_TDMA_SLOT_COUNT_MAX] = { 0U };
+	uint8_t assigned_slots[MASTER_MAX_CONNECTIONS] = { 0U };
+	int32_t credits[MASTER_MAX_CONNECTIONS] = { 0 };
 
 	ready_count = master_collect_ready_peers(ordered, ARRAY_SIZE(ordered));
 	if (ready_count == 0U) {
 		return;
 	}
 
-	slot_count = (uint8_t)MIN(ready_count, (size_t)MASTER_TDMA_SLOT_COUNT_MAX);
+	for (size_t i = 0U; i < ready_count; ++i) {
+		kinds[i] = master_tdma_profile_for_peer(ordered[i]);
+	}
+
+	for (uint8_t candidate_count = (uint8_t)ready_count;
+	     candidate_count <= MASTER_TDMA_SLOT_COUNT_MAX;
+	     ++candidate_count) {
+		uint8_t candidate_slots[MASTER_MAX_CONNECTIONS] = { 0U };
+		uint8_t total_slots = 0U;
+		uint32_t error = 0U;
+
+		for (size_t i = 0U; i < ready_count; ++i) {
+			uint32_t target_hz = master_tdma_profile_target_hz(kinds[i]);
+			uint32_t numerator =
+				target_hz * candidate_count * MASTER_TDMA_SLOT_PERIOD_MS;
+			uint8_t slots =
+				(uint8_t)((numerator + 500U) / 1000U);
+
+			if (slots == 0U) {
+				slots = 1U;
+			}
+			candidate_slots[i] = slots;
+			total_slots += slots;
+		}
+
+		if (total_slots > candidate_count) {
+			continue;
+		}
+
+		for (size_t i = 0U; i < ready_count; ++i) {
+			uint32_t actual_hz_x100 =
+				((uint32_t)candidate_slots[i] * 100000U) /
+				((uint32_t)candidate_count * MASTER_TDMA_SLOT_PERIOD_MS);
+			uint32_t target_hz_x100 =
+				(uint32_t)master_tdma_profile_target_hz(kinds[i]) * 100U;
+
+			error += (actual_hz_x100 > target_hz_x100) ?
+				 (actual_hz_x100 - target_hz_x100) :
+				 (target_hz_x100 - actual_hz_x100);
+		}
+
+		if (error < best_error ||
+		    (error == best_error && candidate_count > best_slot_count)) {
+			best_error = error;
+			best_slot_count = candidate_count;
+			memcpy(target_slots, candidate_slots, sizeof(target_slots));
+		}
+	}
+
+	if (best_slot_count == 0U) {
+		best_slot_count = (uint8_t)MIN(ready_count, (size_t)MASTER_TDMA_SLOT_COUNT_MAX);
+		for (size_t i = 0U; i < ready_count; ++i) {
+			target_slots[i] = 1U;
+		}
+	}
+
+	for (size_t i = 0U; i < ready_count; ++i) {
+		total_target_slots += target_slots[i];
+	}
+	if (total_target_slots > best_slot_count) {
+		total_target_slots = best_slot_count;
+	}
+
+	if (master_tdma_build_occupied_slots(best_slot_count,
+					      total_target_slots,
+					      occupied_slots,
+					      ARRAY_SIZE(occupied_slots)) != total_target_slots) {
+		printk("TDMA occupied-slot build failed: total=%u count=%u\n",
+		       (unsigned int)total_target_slots,
+		       (unsigned int)best_slot_count);
+		return;
+	}
+
+	for (uint8_t j = 0U; j < total_target_slots; ++j) {
+		uint8_t owner = master_tdma_select_fair_owner(target_slots,
+							      assigned_slots,
+							      credits,
+							      ready_count,
+							      total_target_slots);
+		if (owner == UINT8_MAX) {
+			break;
+		}
+
+		slot_masks[owner] |= (uint16_t)(1U << occupied_slots[j]);
+		assigned_slots[owner]++;
+	}
+
 	tdma_generation++;
 	epoch_ms = k_uptime_get_32() + MASTER_TDMA_EPOCH_LEAD_MS;
-	for (size_t i = 0U; i < slot_count; ++i) {
+	for (size_t i = 0U; i < ready_count; ++i) {
+		uint8_t first_slot = 0U;
+
+		for (uint8_t slot = 0U; slot < best_slot_count; ++slot) {
+			if ((slot_masks[i] & (uint16_t)(1U << slot)) != 0U) {
+				first_slot = slot;
+				break;
+			}
+		}
+
 		(void)master_send_runtime_config(ordered[i],
 						 (uint8_t)(i + 1U),
-						 (uint8_t)i,
-						 slot_count,
+						 first_slot,
+						 best_slot_count,
+						 slot_masks[i],
 						 MASTER_TDMA_SLOT_PERIOD_MS,
 						 MASTER_TDMA_SLOT_ACTIVE_MS,
 						 epoch_ms,
-						 tdma_generation);
+						 tdma_generation,
+						 master_tdma_profile_pmode(kinds[i]));
+		printk("TDMA weighted[%zu]: bs=BS%04X profile=%s target=%uHz mask=0x%04X slots=%u/%u actual_x100=%lu\n",
+		       i,
+		       (unsigned int)ordered[i]->bs_code,
+		       master_tdma_profile_label(kinds[i]),
+		       (unsigned int)master_tdma_profile_target_hz(kinds[i]),
+		       (unsigned int)slot_masks[i],
+		       (unsigned int)target_slots[i],
+		       (unsigned int)best_slot_count,
+		       (unsigned long)(((uint32_t)target_slots[i] * 100000U) /
+				       ((uint32_t)best_slot_count *
+					MASTER_TDMA_SLOT_PERIOD_MS)));
 	}
 }
 
@@ -1405,7 +1751,7 @@ static bool ble_collect_cal_packet(const uint8_t *data, uint16_t len, int idx,
 		offset += BLE_CAL_RECORD_LEN;
 	}
 
-	if (state->present_count < BLE_CAL_ANCHOR_COUNT) {
+	if (state->present_count == 0U) {
 		return true;
 	}
 
@@ -1414,13 +1760,13 @@ static bool ble_collect_cal_packet(const uint8_t *data, uint16_t len, int idx,
 		int written;
 
 		if (!record->present) {
-			return true;
+			continue;
 		}
 
 		written = snprintk(
 			&payload[used], payload_len - used,
 			"%sCM;%u;%u;%u;%s;%d;%u;%u;%u;%u",
-			(anchor_id == 0U) ? "" : "|",
+			(used == 0U) ? "" : "|",
 			(unsigned int)state->version,
 			(unsigned int)state->sweep,
 			(unsigned int)anchor_id,
@@ -1506,22 +1852,23 @@ static uint8_t ble_data_received(struct bt_nus_client *nus,
 		unsigned int tag = 0U;
 		unsigned int slot = 0U;
 		unsigned int slot_count = 0U;
+		unsigned int slot_mask = 0U;
 		unsigned int period = 0U;
 		unsigned int active = 0U;
 		unsigned int generation = 0U;
 		unsigned int live = 0U;
 
 		if (sscanf(payload,
-			   "CFG_OK TAG=%u SLOT=%u/%u PERIOD=%u ACTIVE=%u GEN=%u LIVE=%u",
-			   &tag, &slot, &slot_count, &period, &active,
+			   "CFG_OK TAG=%u SLOT=%u/%u MASK=0x%X PERIOD=%u ACTIVE=%u GEN=%u LIVE=%u",
+			   &tag, &slot, &slot_count, &slot_mask, &period, &active,
 			   &generation, &live) >= 3) {
 			peers[idx].logical_tag_id = (uint8_t)tag;
 			peers[idx].logical_tag_id_valid = true;
 			peers[idx].tdma_slot = (uint8_t)slot;
 			peers[idx].tdma_slot_valid = true;
 			peers[idx].tdma_generation = (uint8_t)generation;
-			printk("CFG confirmed[%d]: tag=%u slot=%u/%u period=%u active=%u gen=%u live=%u\n",
-			       idx, tag, slot, slot_count, period, active,
+			printk("CFG confirmed[%d]: tag=%u slot=%u/%u mask=0x%04X period=%u active=%u gen=%u live=%u\n",
+			       idx, tag, slot, slot_count, slot_mask, period, active,
 			       generation, live);
 		}
 	}
@@ -2022,6 +2369,19 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	}
 
 	if (!bs_code_valid) {
+		return;
+	}
+
+	if (runtime_target_kind == MASTER_TARGET_TAG &&
+	    master_tdma_any_profile_defined() &&
+	    !master_tdma_profile_has_bs_code(bs_code)) {
+		char addr[BT_ADDR_LE_STR_LEN];
+		char bs_name[8];
+
+		bt_addr_le_to_str(info->addr, addr, sizeof(addr));
+		snprintk(bs_name, sizeof(bs_name), "BS%04X", (unsigned int)bs_code);
+		printk("RECV candidate rejected: %s bs=%s not in TDMA profile allow-list\n",
+		       addr, bs_name);
 		return;
 	}
 
@@ -2818,4 +3178,110 @@ void master_print_one_shot_command(void)
 	}
 
 	printk("One-shot cmd: <none>\n");
+}
+
+int master_tdma_set_profile(const char *bs_name, const char *profile)
+{
+	uint16_t bs_code;
+	enum master_tdma_profile_kind kind;
+	int free_idx = -1;
+
+	if (!master_tdma_parse_bs_code(bs_name, &bs_code) ||
+	    !master_tdma_parse_profile_kind(profile, &kind)) {
+		return -EINVAL;
+	}
+
+	for (size_t i = 0U; i < ARRAY_SIZE(tdma_profiles); ++i) {
+		if (tdma_profiles[i].valid && tdma_profiles[i].bs_code == bs_code) {
+			tdma_profiles[i].kind = kind;
+			printk("TDMA profile set: BS%04X -> %s\n",
+			       (unsigned int)bs_code,
+			       master_tdma_profile_label(kind));
+			master_rebalance_tdma_slots();
+			return 0;
+		}
+		if (!tdma_profiles[i].valid && free_idx < 0) {
+			free_idx = (int)i;
+		}
+	}
+
+	if (free_idx < 0) {
+		return -ENOMEM;
+	}
+
+	tdma_profiles[free_idx].valid = true;
+	tdma_profiles[free_idx].bs_code = bs_code;
+	tdma_profiles[free_idx].kind = kind;
+	printk("TDMA profile set: BS%04X -> %s\n",
+	       (unsigned int)bs_code,
+	       master_tdma_profile_label(kind));
+	master_rebalance_tdma_slots();
+	return 0;
+}
+
+int master_tdma_set_profile_freq(const char *profile, uint8_t hz)
+{
+	enum master_tdma_profile_kind kind;
+
+	if (!master_tdma_parse_profile_kind(profile, &kind) || hz == 0U || hz > 50U) {
+		return -EINVAL;
+	}
+
+	switch (kind) {
+	case MASTER_TDMA_PROFILE_STATIC:
+		tdma_static_target_hz = hz;
+		break;
+	case MASTER_TDMA_PROFILE_ROTO:
+		tdma_roto_target_hz = hz;
+		break;
+	case MASTER_TDMA_PROFILE_MOTION:
+	default:
+		tdma_motion_target_hz = hz;
+		break;
+	}
+
+	printk("TDMA freq set: %s=%uHz\n",
+	       master_tdma_profile_label(kind),
+	       (unsigned int)hz);
+	master_rebalance_tdma_slots();
+	return 0;
+}
+
+int master_tdma_rebalance_now(void)
+{
+	master_rebalance_tdma_slots();
+	return 0;
+}
+
+int master_tdma_clear_profiles(void)
+{
+	for (size_t i = 0U; i < ARRAY_SIZE(tdma_profiles); ++i) {
+		tdma_profiles[i].valid = false;
+		tdma_profiles[i].bs_code = 0U;
+		tdma_profiles[i].kind = MASTER_TDMA_PROFILE_MOTION;
+	}
+
+	printk("TDMA profiles cleared\n");
+	master_rebalance_tdma_slots();
+	return 0;
+}
+
+void master_tdma_print_status(void)
+{
+	printk("TDMA weighted scheduler: period=%ums active=%ums max_slots=%u freq motion=%uHz static=%uHz roto=%uHz\n",
+	       MASTER_TDMA_SLOT_PERIOD_MS,
+	       MASTER_TDMA_SLOT_ACTIVE_MS,
+	       MASTER_TDMA_SLOT_COUNT_MAX,
+	       (unsigned int)tdma_motion_target_hz,
+	       (unsigned int)tdma_static_target_hz,
+	       (unsigned int)tdma_roto_target_hz);
+	for (size_t i = 0U; i < ARRAY_SIZE(tdma_profiles); ++i) {
+		if (!tdma_profiles[i].valid) {
+			continue;
+		}
+		printk("TDMA profile: BS%04X -> %s target=%uHz\n",
+		       (unsigned int)tdma_profiles[i].bs_code,
+		       master_tdma_profile_label(tdma_profiles[i].kind),
+		       (unsigned int)master_tdma_profile_target_hz(tdma_profiles[i].kind));
+	}
 }

@@ -74,7 +74,7 @@ set(APP_TAG_TDMA_SLOT_INDEX "0" CACHE STRING "Zero-based TDMA slot index for thi
 set(APP_TAG_TDMA_SLOT_COUNT "1" CACHE STRING "Total TDMA slot count in the cycle")
 set(APP_TAG_TDMA_SLOT_PERIOD_MS "25" CACHE STRING "TDMA slot period in milliseconds")
 set(APP_TAG_TDMA_SLOT_ACTIVE_MS "20" CACHE STRING "Usable active time within each slot in milliseconds")
-set(APP_TAG_CAL_STATIC_SLOT_DIVIDER "3" CACHE STRING "Sample one CAL_STATIC slot out of every N TDMA slots")
+set(APP_TAG_CAL_STATIC_SLOT_DIVIDER "1" CACHE STRING "Sample one CAL_STATIC slot out of every N TDMA slots")
 set(APP_TAG_EKF_ENABLE "0" CACHE STRING "Enable the post-solve linear position filter (legacy EKF name)")
 set(APP_TAG_EKF_MEAS_STD_MM "25" CACHE STRING "Base measurement standard deviation for the post-solve position filter")
 set(APP_TAG_EKF_RESIDUAL_GAIN_PCT "0" CACHE STRING "Additional measurement std as a percent of residual hint")

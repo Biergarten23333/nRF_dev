@@ -17,6 +17,7 @@ ANCHOR_BUILD_DIR="${1:-build-anchor-unified-ota}"
 CONTROL_BUILD_DIR="${2:-build-master-control-anchor-ota}"
 FW_MARKER_INPUT="${3:-}"
 NCS_ROOT="${NCS_ROOT:-/home/zekaixiao/ncs/v2.8.0}"
+ANCHOR_EXTRA_CMAKE_ARGS="${ANCHOR_EXTRA_CMAKE_ARGS:-}"
 
 if [[ -n "${FW_MARKER_INPUT}" ]]; then
   FW_MARKER="${FW_MARKER_INPUT}"
@@ -51,7 +52,8 @@ HOST_SITE_PACKAGES="$(python3 -c 'import site; print(":".join(p for p in site.ge
   -DSB_CONFIG_BOOTLOADER_MCUBOOT=y \
   "-DCONF_FILE=prj.conf;prj_ota.conf" \
   -DAPP_ANCHOR_SCHEDULE_MODE=2 \
-  "-DAPP_ANCHOR_FW_MARKER=${FW_MARKER}")
+  "-DAPP_ANCHOR_FW_MARKER=${FW_MARKER}" \
+  ${ANCHOR_EXTRA_CMAKE_ARGS})
 
 (cd "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start" && \
   env \

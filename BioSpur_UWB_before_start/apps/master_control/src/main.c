@@ -289,6 +289,7 @@ static void control_print_help(void)
 	printk("Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate\n");
 	printk("OTA runtime cmds: ota_reset\n");
 	printk("Runtime NUS cmds: cmd <raw> | oneshot <raw> | oneshot show | oneshot clear\n");
+	printk("TDMA cmds: tdma show | tdma profile <BSxxxx> <static|roto|motion> | tdma freq <static|roto|motion> <hz> | tdma rebalance\n");
 	printk("Device model cmds: device show | device kind <anchor|tag>\n");
 	printk("OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->\n");
 	printk("Anchor cmds: anchor version <A..H|UUID32|all> | anchor role <A..H|UUID32|all> <master|matrix|responder> | anchor reset <A..H|UUID32|all> <autopos|responder>\n");
@@ -2090,6 +2091,58 @@ static void control_handle_uart_command(const char *line)
 		}
 		rc = master_set_one_shot_command(payload, true);
 		printk("oneshot rc=%d payload=%s\n", rc, payload);
+		return;
+	}
+
+	if (strncasecmp(line, "tdma ", 5) == 0) {
+		char sub[16] = { 0 };
+		char a[32] = { 0 };
+		char b[32] = { 0 };
+		int n;
+
+		n = sscanf(line + 5, "%15s %31s %31s", sub, a, b);
+		for (char *p = sub; *p != '\0'; ++p) {
+			*p = (char)tolower((unsigned char)*p);
+		}
+		for (char *p = b; *p != '\0'; ++p) {
+			*p = (char)tolower((unsigned char)*p);
+		}
+
+		if (n >= 1 && strcmp(sub, "show") == 0) {
+			master_tdma_print_status();
+			return;
+		}
+		if (n >= 1 && strcmp(sub, "rebalance") == 0) {
+			rc = master_tdma_rebalance_now();
+			printk("tdma rebalance rc=%d\n", rc);
+			return;
+		}
+		if (n >= 1 && strcmp(sub, "clear") == 0) {
+			rc = master_tdma_clear_profiles();
+			printk("tdma clear rc=%d\n", rc);
+			return;
+		}
+		if (n >= 3 && strcmp(sub, "profile") == 0) {
+			rc = master_tdma_set_profile(a, b);
+			printk("tdma profile rc=%d target=%s profile=%s\n", rc, a, b);
+			return;
+		}
+		if (n >= 3 && strcmp(sub, "freq") == 0) {
+			unsigned long hz;
+			char *end = NULL;
+
+			hz = strtoul(b, &end, 10);
+			if (end == b || *end != '\0' || hz > UINT8_MAX) {
+				printk("tdma freq parse failed: %s\n", b);
+				return;
+			}
+			rc = master_tdma_set_profile_freq(a, (uint8_t)hz);
+			printk("tdma freq rc=%d profile=%s hz=%lu\n", rc, a, hz);
+			return;
+		}
+
+		printk("Unknown tdma command: %s\n", line);
+		control_print_help();
 		return;
 	}
 

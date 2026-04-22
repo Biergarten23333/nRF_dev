@@ -156,7 +156,7 @@ bool uwb_tdma_schedule_exchange_fits(const struct uwb_tdma_schedule *schedule,
 	}
 
 	remaining_ms = uwb_tdma_schedule_time_remaining_ms(schedule);
-	return remaining_ms > (required_ms + guard_ms);
+	return remaining_ms >= (required_ms + guard_ms);
 }
 
 uint32_t uwb_tdma_wait_until_slot(const struct uwb_tdma_schedule *schedule)
@@ -187,6 +187,51 @@ uint32_t uwb_tdma_wait_until_slot(const struct uwb_tdma_schedule *schedule)
 		if (phase_ms >= slot_start_ms && phase_ms < slot_end_ms) {
 			return 0U;
 		}
+
+		if (phase_ms < slot_start_ms) {
+			uint32_t candidate = slot_start_ms - phase_ms;
+
+			if (candidate < wait_ms) {
+				wait_ms = candidate;
+			}
+		} else {
+			uint32_t candidate = cycle_ms - phase_ms + slot_start_ms;
+
+			if (candidate < wait_ms) {
+				wait_ms = candidate;
+			}
+		}
+	}
+
+	if (wait_ms > 0U) {
+		k_msleep(wait_ms);
+	}
+
+	return wait_ms;
+}
+
+uint32_t uwb_tdma_wait_until_next_slot(const struct uwb_tdma_schedule *schedule)
+{
+	uint32_t cycle_ms;
+	uint32_t phase_ms;
+	uint32_t slot_start_ms;
+	uint32_t wait_ms;
+	uint16_t slot_mask;
+
+	if (!uwb_tdma_schedule_is_valid(schedule)) {
+		return 0U;
+	}
+
+	phase_ms = uwb_tdma_schedule_phase_ms(schedule, &cycle_ms);
+	slot_mask = uwb_tdma_effective_slot_mask(schedule);
+	wait_ms = cycle_ms;
+
+	for (uint8_t slot = 0U; slot < schedule->slot_count; ++slot) {
+		if ((slot_mask & (uint16_t)(1U << slot)) == 0U) {
+			continue;
+		}
+
+		slot_start_ms = (uint32_t)slot * (uint32_t)schedule->slot_period_ms;
 
 		if (phase_ms < slot_start_ms) {
 			uint32_t candidate = slot_start_ms - phase_ms;

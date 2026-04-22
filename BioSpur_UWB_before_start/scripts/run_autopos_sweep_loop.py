@@ -790,6 +790,28 @@ def preflight_clean_autopos_start(
             resend_after_reopen=True,
             progress_cb=progress_cb,
         )
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
+            "device kind anchor",
+            1.2,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
+            "mode recv",
+            2.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
         ser, _ = collect_for(ser, logf, 2.0, port, live_output, verbose, progress_cb=progress_cb)
         ser = send_cmd_collect(
             ser,
@@ -898,6 +920,28 @@ def preflight_clean_autopos_start(
             resend_after_reopen=True,
             progress_cb=progress_cb,
         )
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
+            "device kind anchor",
+            1.2,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
+            "mode recv",
+            2.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
         ser, _ = collect_for(ser, logf, 2.0, port, live_output, verbose, progress_cb=progress_cb)
     if progress_cb is not None:
         progress_cb()
@@ -937,6 +981,28 @@ def preflight_clean_autopos_start(
             port,
             "mode recv",
             3.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
+            "device kind anchor",
+            1.2,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
+            "mode recv",
+            2.0,
             live_output,
             verbose,
             resend_after_reopen=False,
@@ -1144,6 +1210,37 @@ def scan_anchor_role_counts(timeout_s: float = 6.0) -> dict[str, int]:
     return counts
 
 
+def scan_anchor_role_map(timeout_s: float = 6.0) -> dict[str, str]:
+    roles: dict[str, str] = {}
+    script = Path(__file__).resolve().with_name("scan_and_map.py")
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(script), "--timeout-s", str(timeout_s), "--json"],
+            cwd=Path(__file__).resolve().parent.parent,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return roles
+    if proc.returncode != 0:
+        return roles
+    try:
+        records = json.loads(proc.stdout or "[]")
+    except Exception:
+        return roles
+    uuid_to_label = {uuid: label for label, uuid in UUIDS.items()}
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        uuid = str(rec.get("device_uuid_hex", "")).upper()
+        label = uuid_to_label.get(uuid)
+        if not label:
+            continue
+        roles[label] = str(rec.get("role", "other")).lower()
+    return roles
+
+
 def wait_all_anchor_role(
     ser: serial.Serial,
     logf,
@@ -1215,6 +1312,128 @@ def wait_scan_role_counts(
             return True, last_counts
         time.sleep(poll_s)
     return False, last_counts
+
+
+def repair_missing_matrix_anchors(
+    ser: serial.Serial,
+    logf,
+    port: str,
+    live_output: bool,
+    verbose: int,
+    progress_cb=None,
+) -> tuple[serial.Serial, list[str], dict[str, str]]:
+    role_map = scan_anchor_role_map(timeout_s=6.0)
+    missing = [label for label in UUIDS.keys() if role_map.get(label) != "matrix"]
+    if not missing:
+        emit(logf, "SESSION: no targeted matrix repair needed\n", live_output, verbose)
+        return ser, missing, role_map
+
+    emit(
+        logf,
+        "SESSION: rebuilding AUTOPOS control links before targeted matrix repair\n",
+        live_output,
+        verbose,
+    )
+    ser, _ = preflight_clean_autopos_start(
+        ser,
+        logf,
+        port,
+        live_output,
+        verbose,
+        progress_cb=progress_cb,
+        force_clean=True,
+    )
+    ser = ensure_autopos_maps(
+        ser,
+        logf,
+        port,
+        live_output,
+        verbose,
+        context={"autopos_initialized": False},
+        progress_cb=progress_cb,
+    )
+    ser, _ = collect_for(
+        ser,
+        logf,
+        3.0,
+        port,
+        live_output,
+        verbose,
+        progress_cb=progress_cb,
+    )
+
+    emit(
+        logf,
+        "SESSION: targeted matrix repair for anchors="
+        + ",".join(f"{label}:{role_map.get(label, 'missing')}" for label in missing)
+        + "\n",
+        live_output,
+        verbose,
+    )
+    for label in missing:
+        if progress_cb is not None:
+            progress_cb()
+        emit(
+            logf,
+            f"SESSION: targeted matrix repair start label={label} prior_role={role_map.get(label, 'missing')}\n",
+            live_output,
+            verbose,
+        )
+        # First force a dedicated control-link rebuild / probe for this anchor.
+        ser, _ = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            f"anchor version {label}",
+            12.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
+        ser, _ = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            f"anchor reset {label} autopos",
+            18.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
+        ser, _ = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            f"anchor version {label}",
+            12.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
+        ser, _ = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            f"anchor role {label} matrix",
+            18.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
+        ser, _ = collect_for(
+            ser,
+            logf,
+            2.0,
+            port,
+            live_output,
+            verbose,
+            progress_cb=progress_cb,
+        )
+    return ser, missing, role_map
 
 
 def session_prepare_matrix(
@@ -1370,9 +1589,35 @@ def session_prepare_matrix(
                     result["final_role_counts"] = counts
 
             if not ok:
+                set_status("targeted matrix repair")
+                ser, missing_labels, role_map = repair_missing_matrix_anchors(
+                    ser,
+                    logf,
+                    port,
+                    live_output,
+                    verbose,
+                    progress_cb=progress_now,
+                )
+                result["targeted_repair_labels"] = missing_labels
+                result["targeted_repair_role_map"] = role_map
+                if missing_labels:
+                    set_status("verify matrix roles")
+                    ser, ok, counts = wait_all_anchor_role(
+                        ser,
+                        logf,
+                        port,
+                        "matrix",
+                        25.0,
+                        live_output,
+                        verbose,
+                        context=context,
+                    )
+                    result["final_role_counts"] = counts
+
+            if not ok:
                 emit(
                     logf,
-                    "SESSION: runtime matrix did not converge; forcing anchor reset all autopos\n",
+                    "SESSION: targeted repair did not converge; forcing anchor reset all autopos\n",
                     live_output,
                     verbose,
                 )

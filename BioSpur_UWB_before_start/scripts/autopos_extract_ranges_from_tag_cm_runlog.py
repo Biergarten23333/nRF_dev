@@ -84,7 +84,7 @@ def main() -> int:
     rows: list[dict[str, str]] = []
     for e in entries:
         r = parse_one(e)
-        if r:
+        if r and r["ok"] == "1" and int(r["filt_mm"]) > 0:
             rows.append(r)
 
     out_csv = out_dir / "ranges.csv"
@@ -104,4 +104,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
