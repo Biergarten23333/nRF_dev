@@ -520,7 +520,9 @@ static void uwb_tag_ble_runtime_params_apply_settings_locked(void)
 	}
 
 	active_runtime_params.positioning_mode =
-		runtime_settings_record.positioning_mode;
+		(runtime_settings_record.positioning_mode == UWB_TAG_POSITIONING_MODE_RESERVED_2) ?
+			UWB_TAG_POSITIONING_MODE_CAL_STATIC :
+			runtime_settings_record.positioning_mode;
 	active_runtime_params.anchor_selection_mode =
 		runtime_settings_record.anchor_selection_mode;
 	active_runtime_params.fixed_anchor_count =
@@ -606,7 +608,6 @@ int uwb_tag_ble_runtime_config_store(const struct uwb_tag_runtime_params *params
 static const char *uwb_tag_ble_mode_label(uint8_t positioning_mode)
 {
 	switch (positioning_mode) {
-	case UWB_TAG_POSITIONING_MODE_CALIBRATION:
 	case UWB_TAG_POSITIONING_MODE_CAL_STATIC:
 		return "CAL_STATIC";
 	case UWB_TAG_POSITIONING_MODE_CAL_ROTO:
@@ -622,8 +623,7 @@ static const char *uwb_tag_ble_mode_label(uint8_t positioning_mode)
 
 static bool uwb_tag_ble_mode_is_calibration(uint8_t positioning_mode)
 {
-	return positioning_mode == UWB_TAG_POSITIONING_MODE_CALIBRATION ||
-	       positioning_mode == UWB_TAG_POSITIONING_MODE_CAL_STATIC ||
+	return positioning_mode == UWB_TAG_POSITIONING_MODE_CAL_STATIC ||
 	       positioning_mode == UWB_TAG_POSITIONING_MODE_CAL_ROTO;
 }
 
@@ -642,8 +642,7 @@ static bool uwb_tag_ble_parse_mode_value(const char *mode_text,
 	if (strcasecmp(mode_text, "CAL") == 0 ||
 	    strcasecmp(mode_text, "CAL_STATIC") == 0 ||
 	    strcasecmp(mode_text, "STATIC_CAL") == 0 ||
-	    strcasecmp(mode_text, "CALI") == 0 ||
-	    strcasecmp(mode_text, "CALIBRATION") == 0) {
+	    strcasecmp(mode_text, "CALI") == 0) {
 		*positioning_mode_out = UWB_TAG_POSITIONING_MODE_CAL_STATIC;
 		return true;
 	}
@@ -736,7 +735,6 @@ static int uwb_tag_ble_apply_mode_policy(struct uwb_tag_runtime_params *params,
 	}
 
 	switch (params->positioning_mode) {
-	case UWB_TAG_POSITIONING_MODE_CALIBRATION:
 	case UWB_TAG_POSITIONING_MODE_CAL_STATIC:
 		/* CAL_STATIC owns its sweep coverage; stale fixed lists are ignored. */
 		params->anchor_selection_mode = UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
@@ -932,7 +930,6 @@ static int uwb_tag_ble_parse_cfg_command(
 	    slot_mask > UINT16_MAX ||
 	    (positioning_mode != UWB_TAG_POSITIONING_MODE_DYNAMIC &&
 	     positioning_mode != UWB_TAG_POSITIONING_MODE_FIXED &&
-	     positioning_mode != UWB_TAG_POSITIONING_MODE_CALIBRATION &&
 	     positioning_mode != UWB_TAG_POSITIONING_MODE_ANCHOR_OTA &&
 	     positioning_mode != UWB_TAG_POSITIONING_MODE_CAL_STATIC &&
 	     positioning_mode != UWB_TAG_POSITIONING_MODE_CAL_ROTO) ||

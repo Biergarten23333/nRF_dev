@@ -409,7 +409,7 @@ int tag_app_run(void)
     }
 
 	if (APP_TAG_CALIBRATION_MODE) {
-		runtime_config.positioning_mode = UWB_TAG_POSITIONING_MODE_CALIBRATION;
+		runtime_config.positioning_mode = UWB_TAG_POSITIONING_MODE_CAL_STATIC;
 		runtime_config.slot_source = UWB_TAG_SLOT_SOURCE_BUILD;
 		if (runtime_config.tdma.slot_count == 0U ||
 		    runtime_config.tdma.slot_period_ms == 0U ||
@@ -423,7 +423,7 @@ int tag_app_run(void)
 		runtime_config.tdma.epoch_valid = false;
 		runtime_config.tdma.epoch_ms = 0U;
 		runtime_config.tdma.generation = 0U;
-		printk("Tag calibration default mode enabled with TDMA preserved when configured\n");
+		printk("Tag CAL_STATIC default mode enabled with TDMA preserved when configured\n");
 	}
 
     if (runtime_config.tdma.enabled && runtime_config.tdma.slot_count != 0U) {

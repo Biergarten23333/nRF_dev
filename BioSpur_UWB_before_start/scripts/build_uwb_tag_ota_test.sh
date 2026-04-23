@@ -83,13 +83,19 @@ signed_bin = Path(sys.argv[4])
 if not signed_bin.is_absolute():
     signed_bin = repo_root / signed_bin
 signed_bin = signed_bin.resolve()
-cache = tag_build_dir / "CMakeCache.txt"
 fw_marker = "-"
-if cache.exists():
+cache_candidates = [
+    tag_build_dir / "tag" / "CMakeCache.txt",
+    tag_build_dir / "CMakeCache.txt",
+]
+for cache in cache_candidates:
+    if not cache.exists():
+        continue
     text = cache.read_text(encoding="utf-8", errors="replace")
     m = re.search(r"^APP_TAG_FW_MARKER:STRING=(.+)$", text, re.MULTILINE)
     if m:
         fw_marker = m.group(1).strip()
+        break
 manifest = {
     "kind": "tag_ota_bundle",
     "fw_marker": fw_marker,

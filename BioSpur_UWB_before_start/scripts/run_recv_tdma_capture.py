@@ -273,6 +273,23 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Do not fail the session when one or more targets produce no position rows.",
     )
+    parser.add_argument(
+        "--cm-probe-target",
+        default="BSF66F",
+        help="Fixed static tag used for startup CM preflight.",
+    )
+    parser.add_argument(
+        "--cm-probe-timeout-s",
+        type=float,
+        default=20.0,
+        help="Seconds to wait for the fixed startup tag to show 8/8 CM ok anchors.",
+    )
+    parser.add_argument(
+        "--cm-probe-retries",
+        type=int,
+        default=2,
+        help="CM probe attempts before aborting capture. Failed attempts trigger all-responder repair.",
+    )
     return parser
 
 
@@ -295,6 +312,10 @@ def profile_expected_pmode(profile: str) -> int:
     if profile == "roto":
         return 5
     return 0
+
+
+def profile_expects_positions(profile: str) -> bool:
+    return profile_expected_pmode(profile) not in {4, 5}
 
 
 def write_rows(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
@@ -342,6 +363,102 @@ def run_anchor_responder_preflight(args, session_dir: Path) -> dict:
     return result
 
 
+def configure_recv_capture_session(
+    ser: serial.Serial,
+    logf,
+    args,
+    profile_items: list[tuple[str, str]],
+) -> serial.Serial:
+    ser = send_cmd(ser, logf, "mode recv", 8.0)
+    ser = send_cmd(ser, logf, "tdma clear", 0.8)
+    ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
+    ser = send_cmd(ser, logf, "ota_target name -", 0.5)
+    ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
+    ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
+    for name, profile in profile_items:
+        ser = send_cmd(ser, logf, f"tdma profile {name} {profile}", 0.8)
+    ser = send_cmd(ser, logf, f"tdma freq static {args.static_hz}", 0.5)
+    ser = send_cmd(ser, logf, f"tdma freq roto {args.roto_hz}", 0.5)
+    ser = send_cmd(ser, logf, f"tdma freq motion {args.motion_hz}", 0.5)
+    ser = send_cmd(ser, logf, "device kind tag", 2.0)
+    ser = send_cmd(ser, logf, "tdma rebalance", 0.8)
+    ser = send_cmd(ser, logf, "tdma show", 1.0)
+    ser = send_cmd(ser, logf, "status", 0.8)
+    ser = send_cmd(ser, logf, "device show", 0.8)
+    return ser
+
+
+def run_static_cm_probe(
+    ser: serial.Serial,
+    logf,
+    probe_target: str,
+    timeout_s: float,
+) -> tuple[serial.Serial, dict]:
+    deadline = time.time() + timeout_s
+    ok_anchors: set[int] = set()
+    seen_anchors: set[int] = set()
+    pending = ""
+    last_progress = 0.0
+
+    while time.time() < deadline:
+        try:
+            chunk = ser.read(ser.in_waiting or 1)
+        except (SerialException, OSError):
+            try:
+                ser.close()
+            except Exception:
+                pass
+            ser = open_serial_with_retry(ser.port, ser.baudrate)
+            time.sleep(0.8)
+            drain_serial_until(ser, logf, 0.8)
+            continue
+
+        if not chunk:
+            now = time.time()
+            if now - last_progress >= 1.0:
+                print(
+                    f"[CAPTURE] preflight probe {probe_target}: ok={len(ok_anchors)}/8 seen={len(seen_anchors)}/8",
+                    flush=True,
+                )
+                last_progress = now
+            continue
+
+        text = chunk.decode("utf-8", errors="replace")
+        logf.write(text)
+        logf.flush()
+        pending += text
+
+        while "\n" in pending:
+            line, pending = pending.split("\n", 1)
+            line = line.rstrip("\r")
+            if not line:
+                continue
+            for m in iter_cm_matches(line):
+                peer_name = extract_bs_name(line)
+                if peer_name != probe_target:
+                    continue
+                anchor_id = int(m.group("anchor"))
+                seen_anchors.add(anchor_id)
+                if m.group("status") == "ok":
+                    ok_anchors.add(anchor_id)
+            if len(ok_anchors) == 8:
+                return ser, {
+                    "success": True,
+                    "probe_target": probe_target,
+                    "ok_anchors": sorted(ok_anchors),
+                    "seen_anchors": sorted(seen_anchors),
+                    "timeout_s": timeout_s,
+                }
+
+    return ser, {
+        "success": False,
+        "probe_target": probe_target,
+        "ok_anchors": sorted(ok_anchors),
+        "seen_anchors": sorted(seen_anchors),
+        "timeout_s": timeout_s,
+    }
+
+
 def print_capture_status(start_wall: float,
                          end_time: float,
                          positions: list[dict],
@@ -367,6 +484,7 @@ def print_capture_status(start_wall: float,
 def main() -> int:
     args = build_parser().parse_args()
     assert_not_jlink_when_biospur_available(args.port)
+    probe_target = normalize_target(args.cm_probe_target)
 
     targets = [normalize_target(x) for x in args.targets.split(",") if x.strip()]
     profile_items = parse_profiles(args.profiles)
@@ -395,11 +513,22 @@ def main() -> int:
             "roto": args.roto_hz,
             "motion": args.motion_hz,
         },
+        "cm_probe": {
+            "target": probe_target,
+            "timeout_s": args.cm_probe_timeout_s,
+            "retries": args.cm_probe_retries,
+        },
         "duration_s": args.duration,
     }
     commands_json_path.write_text(json.dumps(cmd_plan, indent=2), encoding="utf-8")
 
+    start_wall = time.time()
     anchor_preflight = {"skipped": True, "success": True}
+    cm_probe = {
+        "success": False,
+        "probe_target": probe_target,
+        "attempts": [],
+    }
     if not args.skip_anchor_preflight:
         anchor_preflight = run_anchor_responder_preflight(args, session_dir)
         if not anchor_preflight.get("success"):
@@ -416,10 +545,11 @@ def main() -> int:
                 "freq_hz": {
                     "static": args.static_hz,
                     "roto": args.roto_hz,
-                    "motion": args.motion_hz,
+                "motion": args.motion_hz,
                 },
                 "positions_all": 0,
                 "cm_all": 0,
+                "cm_probe": cm_probe,
                 "raw_log": str(raw_log_path),
                 "positions_all_csv": str(session_dir / "positions_all.csv"),
                 "cm_all_csv": str(session_dir / "cm_all.csv"),
@@ -468,7 +598,6 @@ def main() -> int:
     conn_meta: dict[str, dict] = {}
     positions: list[dict] = []
     cm_rows: list[dict] = []
-    start_wall = time.time()
     interrupted = False
     startup_failed = False
     startup_fail_targets: list[str] = []
@@ -480,22 +609,114 @@ def main() -> int:
             # Initial drain
             drain_serial_until(ser, logf, 1.0)
 
-            ser = send_cmd(ser, logf, "mode recv", 8.0)
-            ser = send_cmd(ser, logf, "tdma clear", 0.8)
-            ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
-            ser = send_cmd(ser, logf, "ota_target name -", 0.5)
-            ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
-            ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
-            for name, profile in profile_items:
-                ser = send_cmd(ser, logf, f"tdma profile {name} {profile}", 0.8)
-            ser = send_cmd(ser, logf, f"tdma freq static {args.static_hz}", 0.5)
-            ser = send_cmd(ser, logf, f"tdma freq roto {args.roto_hz}", 0.5)
-            ser = send_cmd(ser, logf, f"tdma freq motion {args.motion_hz}", 0.5)
-            ser = send_cmd(ser, logf, "device kind tag", 2.0)
-            ser = send_cmd(ser, logf, "tdma rebalance", 0.8)
-            ser = send_cmd(ser, logf, "tdma show", 1.0)
-            ser = send_cmd(ser, logf, "status", 0.8)
-            ser = send_cmd(ser, logf, "device show", 0.8)
+            for attempt in range(1, args.cm_probe_retries + 1):
+                print(
+                    f"[CAPTURE] startup CM probe attempt {attempt}/{args.cm_probe_retries}: target={probe_target}",
+                    flush=True,
+                )
+                ser = configure_recv_capture_session(ser, logf, args, profile_items)
+                ser, probe_result = run_static_cm_probe(
+                    ser, logf, probe_target, args.cm_probe_timeout_s
+                )
+                probe_result["attempt"] = attempt
+                cm_probe["attempts"].append(probe_result)
+                if probe_result.get("success"):
+                    cm_probe["success"] = True
+                    break
+
+                print(
+                    f"[CAPTURE] startup CM probe failed: target={probe_target} ok={len(probe_result['ok_anchors'])}/8; forcing all anchors responder",
+                    flush=True,
+                )
+                repair = run_anchor_responder_preflight(args, session_dir)
+                cm_probe["attempts"][-1]["responder_repair"] = repair
+                if not repair.get("success"):
+                    break
+                try:
+                    ser.close()
+                except Exception:
+                    pass
+                ser = open_serial_with_retry(args.port, args.baud)
+                time.sleep(0.8)
+                drain_serial_until(ser, logf, 1.0)
+
+            if not cm_probe.get("success"):
+                summary = {
+                    "success": False,
+                    "startup_failed": True,
+                    "startup_fail_targets": [probe_target],
+                    "zero_position_failed": False,
+                    "zero_position_targets": [],
+                    "anchor_preflight": anchor_preflight,
+                    "cm_probe": cm_probe,
+                    "port": args.port,
+                    "duration_s": args.duration,
+                    "elapsed_s": time.time() - start_wall,
+                    "session_dir": str(session_dir),
+                    "targets": targets,
+                    "profiles": {name: profile for name, profile in profile_items},
+                    "expected_pmode": expected_pmode_by_target,
+                    "freq_hz": {
+                        "static": args.static_hz,
+                        "roto": args.roto_hz,
+                        "motion": args.motion_hz,
+                    },
+                    "positions_all": 0,
+                    "cm_all": 0,
+                    "connections": {},
+                    "per_tag": {},
+                    "raw_log": str(raw_log_path),
+                    "positions_all_csv": str(session_dir / "positions_all.csv"),
+                    "cm_all_csv": str(session_dir / "cm_all.csv"),
+                }
+                write_rows(
+                    session_dir / "positions_all.csv",
+                    [
+                        "sweep",
+                        "conn_id",
+                        "peer_name",
+                        "tag_id",
+                        "plan",
+                        "pmode",
+                        "plan_label",
+                        "quality_flag_percent",
+                        "x_mm",
+                        "y_mm",
+                        "z_mm",
+                        "rms_mm",
+                        "max_mm",
+                        "anchors",
+                        "motion_dt_ms",
+                        "disp_mm",
+                        "speed_mm_s",
+                    ],
+                    [],
+                )
+                write_rows(
+                    session_dir / "cm_all.csv",
+                    [
+                        "sweep",
+                        "conn_id",
+                        "peer_name",
+                        "tag_id",
+                        "anchor_id",
+                        "status",
+                        "raw_mm",
+                        "filt_mm",
+                        "quality_percent",
+                        "ok_count",
+                        "fail_count",
+                    ],
+                    [],
+                )
+                summary_json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+                print(json.dumps(summary, indent=2))
+                return 2
+
+            print(
+                f"[CAPTURE] startup CM probe passed: target={probe_target} ok=8/8; start capture",
+                flush=True,
+            )
 
             pending = ""
             end_time = time.time() + args.duration
@@ -773,7 +994,7 @@ def main() -> int:
             },
         }
         profile = dict(profile_items).get(target, "")
-        if not pos_rows and not (profile == "static" and cm_target_rows):
+        if profile_expects_positions(profile) and not pos_rows:
             zero_position_targets.append(target)
 
     zero_position_failed = bool(zero_position_targets) and not args.allow_zero_positions
@@ -785,6 +1006,7 @@ def main() -> int:
         "zero_position_failed": zero_position_failed,
         "zero_position_targets": zero_position_targets,
         "anchor_preflight": anchor_preflight,
+        "cm_probe": cm_probe,
         "port": args.port,
         "duration_s": args.duration,
         "elapsed_s": time.time() - start_wall,

@@ -72,6 +72,14 @@
 #define APP_TAG_CONSOLE_SUMMARY_ENABLE 1U
 #endif
 
+#ifndef APP_TAG_CAL_ROTO_MIN_TETRA_VOLUME_M3
+#define APP_TAG_CAL_ROTO_MIN_TETRA_VOLUME_M3 0.1
+#endif
+
+#ifndef APP_TAG_CAL_ROTO_PREWARM_MS
+#define APP_TAG_CAL_ROTO_PREWARM_MS 5000U
+#endif
+
 #ifndef APP_TAG_EKF_ENABLE
 #define APP_TAG_EKF_ENABLE 0U
 #endif
@@ -316,6 +324,7 @@ static enum ss_twr_init_solve_reason ss_twr_init_last_solve_reason;
 static uint8_t ss_twr_init_static_cal_group_cursor;
 static uint8_t ss_twr_init_roto_cal_group_cursor;
 static uint32_t ss_twr_init_static_cal_slot_tick;
+static uint32_t ss_twr_init_roto_prewarm_deadline_ms;
 
 static void ss_twr_init_prepare_sweep_plan(void);
 static bool ss_twr_init_runtime_any_calibration_mode(void);
@@ -499,37 +508,123 @@ static uint8_t ss_twr_init_anchor_quality(uint8_t anchor_id)
     return uwb_range_tracker_quality_percent(&ss_twr_init_trackers[anchor_id]);
 }
 
-static size_t ss_twr_init_append_roto_fallback(uint8_t *dest_ids,
+static double ss_twr_init_tetra_volume_m3(uint8_t a_id, uint8_t b_id,
+                                          uint8_t c_id, uint8_t d_id)
+{
+    const struct uwb_anchor_pose_mm *a = uwb_anchor_layout_get(a_id);
+    const struct uwb_anchor_pose_mm *b = uwb_anchor_layout_get(b_id);
+    const struct uwb_anchor_pose_mm *c = uwb_anchor_layout_get(c_id);
+    const struct uwb_anchor_pose_mm *d = uwb_anchor_layout_get(d_id);
+    double abx, aby, abz;
+    double acx, acy, acz;
+    double adx, ady, adz;
+    double cx, cy, cz;
+    double det;
+
+    if (a == NULL || b == NULL || c == NULL || d == NULL) {
+        return 0.0;
+    }
+
+    abx = ((double)b->x_mm - (double)a->x_mm) / 1000.0;
+    aby = ((double)b->y_mm - (double)a->y_mm) / 1000.0;
+    abz = ((double)b->z_mm - (double)a->z_mm) / 1000.0;
+    acx = ((double)c->x_mm - (double)a->x_mm) / 1000.0;
+    acy = ((double)c->y_mm - (double)a->y_mm) / 1000.0;
+    acz = ((double)c->z_mm - (double)a->z_mm) / 1000.0;
+    adx = ((double)d->x_mm - (double)a->x_mm) / 1000.0;
+    ady = ((double)d->y_mm - (double)a->y_mm) / 1000.0;
+    adz = ((double)d->z_mm - (double)a->z_mm) / 1000.0;
+
+    cx = acy * adz - acz * ady;
+    cy = acz * adx - acx * adz;
+    cz = acx * ady - acy * adx;
+    det = abx * cx + aby * cy + abz * cz;
+
+    return fabs(det) / 6.0;
+}
+
+static size_t ss_twr_init_append_roto_balanced(uint8_t *dest_ids,
                                                size_t dest_count,
                                                size_t dest_capacity)
 {
-    while (dest_count < dest_capacity) {
-        size_t best_idx = SIZE_MAX;
-        uint8_t best_quality = 0U;
+    uint8_t lower_ids[UWB_MAX_ANCHORS];
+    uint8_t upper_ids[UWB_MAX_ANCHORS];
+    size_t lower_count = 0U;
+    size_t upper_count = 0U;
+    bool found = false;
+    double best_volume = 0.0;
+    uint32_t best_quality_sum = 0U;
+    uint8_t best_min_quality = 0U;
+    uint8_t best_ids[4] = {0U};
 
-        for (size_t offset = 0U; offset < ss_twr_init_anchor_count; ++offset) {
-            size_t idx = (ss_twr_init_roto_cal_group_cursor + offset) %
-                         ss_twr_init_anchor_count;
-            uint8_t anchor_id = ss_twr_init_anchor_ids[idx];
-            uint8_t quality;
+    if (dest_ids == NULL || dest_count >= dest_capacity || dest_capacity - dest_count < 4U) {
+        return dest_count;
+    }
 
-            if (ss_twr_init_anchor_id_in_list(dest_ids, dest_count,
-                                              anchor_id)) {
-                continue;
-            }
+    for (size_t offset = 0U; offset < ss_twr_init_anchor_count; ++offset) {
+        size_t idx = (ss_twr_init_roto_cal_group_cursor + offset) %
+                     ss_twr_init_anchor_count;
+        uint8_t anchor_id = ss_twr_init_anchor_ids[idx];
 
-            quality = ss_twr_init_anchor_quality(anchor_id);
-            if (best_idx == SIZE_MAX || quality > best_quality) {
-                best_idx = idx;
-                best_quality = quality;
+        if (uwb_anchor_layout_is_lower_plane(anchor_id)) {
+            lower_ids[lower_count++] = anchor_id;
+        } else if (uwb_anchor_layout_is_upper_plane(anchor_id)) {
+            upper_ids[upper_count++] = anchor_id;
+        }
+    }
+
+    if (lower_count < 2U || upper_count < 2U) {
+        return dest_count;
+    }
+
+    for (size_t i = 0U; i < lower_count; ++i) {
+        for (size_t j = i + 1U; j < lower_count; ++j) {
+            for (size_t k = 0U; k < upper_count; ++k) {
+                for (size_t l = k + 1U; l < upper_count; ++l) {
+                    uint8_t a = lower_ids[i];
+                    uint8_t b = lower_ids[j];
+                    uint8_t c = upper_ids[k];
+                    uint8_t d = upper_ids[l];
+                    uint8_t qa = ss_twr_init_anchor_quality(a);
+                    uint8_t qb = ss_twr_init_anchor_quality(b);
+                    uint8_t qc = ss_twr_init_anchor_quality(c);
+                    uint8_t qd = ss_twr_init_anchor_quality(d);
+                    uint8_t min_quality = MIN(MIN(qa, qb), MIN(qc, qd));
+                    uint32_t quality_sum =
+                        (uint32_t)qa + (uint32_t)qb + (uint32_t)qc + (uint32_t)qd;
+                    double volume = ss_twr_init_tetra_volume_m3(a, b, c, d);
+
+                    if (volume < APP_TAG_CAL_ROTO_MIN_TETRA_VOLUME_M3) {
+                        continue;
+                    }
+
+                    if (!found ||
+                        quality_sum > best_quality_sum ||
+                        (quality_sum == best_quality_sum &&
+                         min_quality > best_min_quality) ||
+                        (quality_sum == best_quality_sum &&
+                         min_quality == best_min_quality &&
+                         volume > best_volume)) {
+                        found = true;
+                        best_quality_sum = quality_sum;
+                        best_min_quality = min_quality;
+                        best_volume = volume;
+                        best_ids[0] = a;
+                        best_ids[1] = b;
+                        best_ids[2] = c;
+                        best_ids[3] = d;
+                    }
+                }
             }
         }
+    }
 
-        if (best_idx == SIZE_MAX) {
-            break;
-        }
+    if (!found) {
+        return dest_count;
+    }
 
-        dest_ids[dest_count++] = ss_twr_init_anchor_ids[best_idx];
+    for (size_t i = 0U; i < 4U; ++i) {
+        dest_ids[dest_count++] = best_ids[i];
     }
 
     return dest_count;
@@ -895,15 +990,23 @@ static bool ss_twr_init_runtime_static_calibration_mode(void)
 	}
 
 	return ss_twr_init_runtime_params.positioning_mode ==
-		       UWB_TAG_POSITIONING_MODE_CALIBRATION ||
-	       ss_twr_init_runtime_params.positioning_mode ==
-		       UWB_TAG_POSITIONING_MODE_CAL_STATIC;
+	       UWB_TAG_POSITIONING_MODE_CAL_STATIC;
 }
 
 static bool ss_twr_init_runtime_roto_calibration_mode(void)
 {
 	return ss_twr_init_runtime_params.positioning_mode ==
 	       UWB_TAG_POSITIONING_MODE_CAL_ROTO;
+}
+
+static bool ss_twr_init_roto_prewarm_active(void)
+{
+	if (!ss_twr_init_runtime_roto_calibration_mode() ||
+	    ss_twr_init_roto_prewarm_deadline_ms == 0U) {
+		return false;
+	}
+
+	return (uint32_t)k_uptime_get() < ss_twr_init_roto_prewarm_deadline_ms;
 }
 
 static bool ss_twr_init_runtime_any_calibration_mode(void)
@@ -994,6 +1097,11 @@ static void ss_twr_init_apply_runtime_params(
 	ss_twr_init_tdma_schedule = params->tdma;
 	ss_twr_init_static_cal_group_cursor = 0U;
 	ss_twr_init_static_cal_slot_tick = 0U;
+	ss_twr_init_roto_cal_group_cursor = 0U;
+	ss_twr_init_roto_prewarm_deadline_ms =
+		(params->positioning_mode == UWB_TAG_POSITIONING_MODE_CAL_ROTO) ?
+			((uint32_t)k_uptime_get() + APP_TAG_CAL_ROTO_PREWARM_MS) :
+			0U;
 
 	if (params->anchor_selection_mode == UWB_TAG_ANCHOR_SELECTION_FIXED_SUBSET &&
 	    params->fixed_anchor_count >= 4U) {
@@ -1171,15 +1279,29 @@ static void ss_twr_init_prepare_sweep_plan(void)
     }
 
     if (ss_twr_init_runtime_roto_calibration_mode()) {
+        if (ss_twr_init_roto_prewarm_active()) {
+            for (size_t i = 0U; i < ss_twr_init_anchor_count; ++i) {
+                ss_twr_init_active_anchor_ids[active_count++] =
+                    ss_twr_init_anchor_ids[i];
+            }
+
+            ss_twr_init_current_sweep_full = true;
+            ss_twr_init_current_sweep_refresh = false;
+            ss_twr_init_active_anchor_count = active_count;
+            ss_twr_init_active_anchor_index = 0U;
+            ss_twr_init_current_sweep_start_ms = (uint32_t)k_uptime_get();
+            return;
+        }
+
         size_t desired_count = MIN((size_t)4U, ss_twr_init_anchor_count);
 
         /*
-         * CAL_ROTO must not stick to the previous solution's anchor set. Pick
-         * the best four currently visible candidates from all eight anchors.
-         * Quality ranks candidates, but low quality never reduces the range
-         * window below four attempted anchors.
+         * CAL_ROTO front-end selection is constrained before ranging:
+         * exactly 2 anchors from ids 0..3 and 2 anchors from ids 4..7.
+         * Among those balanced 2+2 candidates, choose the set with the best
+         * aggregate tracker quality, but reject geometrically weak tetrahedra.
          */
-        active_count = ss_twr_init_append_roto_fallback(
+        active_count = ss_twr_init_append_roto_balanced(
             ss_twr_init_active_anchor_ids, active_count, desired_count);
 
         if (ss_twr_init_anchor_count != 0U) {
@@ -1409,6 +1531,7 @@ static int ss_twr_init_load_runtime_config(
     ss_twr_init_last_slot_guard_log_ms = 0U;
     ss_twr_init_last_solve_pending_log_ms = 0U;
     ss_twr_init_last_solve_reason = SS_TWR_INIT_SOLVE_NONE;
+    ss_twr_init_roto_prewarm_deadline_ms = 0U;
     memset(&ss_twr_init_last_imu_sample, 0, sizeof(ss_twr_init_last_imu_sample));
     ss_twr_init_perf_motion_dt_sum_ms = 0U;
     ss_twr_init_perf_track_sweep_sum_ms = 0U;
@@ -1931,8 +2054,8 @@ static void ss_twr_init_print_location_if_ready(void)
 #endif
     }
 
-    {
-            char ble_summary[256];
+    if (!ss_twr_init_runtime_any_calibration_mode()) {
+        char ble_summary[256];
         char ble_anchors[32];
         char ble_anchor_labels[32];
         size_t ble_anchors_len = 0U;
@@ -2564,7 +2687,6 @@ int ss_twr_init_runtime_configure(const struct uwb_tag_runtime_params *params)
 
 	if (params->positioning_mode != UWB_TAG_POSITIONING_MODE_DYNAMIC &&
 	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_FIXED &&
-	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_CALIBRATION &&
 	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_ANCHOR_OTA &&
 	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_CAL_STATIC &&
 	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_CAL_ROTO) {
