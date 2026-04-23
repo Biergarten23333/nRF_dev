@@ -76,6 +76,18 @@ CM_RE = re.compile(
     r"(?P<fail>\d+)"
 )
 
+CS_RE = re.compile(
+    rf"{TAG_NOTIFY_PREFIX_RE} notify: CS;"
+    r"(?P<ver>\d+);"
+    r"(?P<sweep>\d+);"
+    r"(?P<plan>[A-Za-z0-9_]+);"
+    r"(?P<pmode>\d+);"
+    r"(?P<qf>\d+);"
+    r"(?P<targets>[A-Z0-9,]*);"
+    r"(?P<statuses>[a-z_,]*);"
+    r"(?P<qualities>[0-9,]*)"
+)
+
 CONNECTED_RE = re.compile(
     r"Connected\[(?P<conn>\d+)\]:.*?(?:name=(?P<name>[^\s]+))?.*?(?:bs=(?P<bs>BS[0-9A-F]{4}))?.*?tag_id=(?P<tag_id>-?\d+)"
 )
@@ -134,6 +146,23 @@ def iter_cm_matches(text: str):
             fragment = (prefix or "NUS notify: ") + fragment
 
         match = CM_RE.search(fragment)
+        if match:
+            yield match
+
+
+def iter_cs_matches(text: str):
+    prefix = None
+    if "notify:" in text:
+        prefix = text.split("notify:", 1)[0] + "notify: "
+
+    for idx, fragment in enumerate(text.split("|")):
+        fragment = fragment.strip()
+        if not fragment:
+            continue
+        if idx > 0 and "notify:" not in fragment and fragment.startswith("CS;"):
+            fragment = (prefix or "NUS notify: ") + fragment
+
+        match = CS_RE.search(fragment)
         if match:
             yield match
 
@@ -363,24 +392,80 @@ def run_anchor_responder_preflight(args, session_dir: Path) -> dict:
     return result
 
 
-def configure_recv_capture_session(
+def ensure_target_links_ready(
     ser: serial.Serial,
     logf,
-    args,
-    profile_items: list[tuple[str, str]],
+    targets: list[str],
+    wait_per_target_s: float = 18.0,
 ) -> serial.Serial:
-    ser = send_cmd(ser, logf, "mode recv", 8.0)
-    ser = send_cmd(ser, logf, "tdma clear", 0.8)
+    for target in targets:
+        ser = send_cmd(ser, logf, "ota_target uuid -", 0.6)
+        ser = send_cmd(ser, logf, f"ota_target name {target}", 0.8)
+        ser = send_cmd(ser, logf, "ota_target prefix BS", 0.6)
+        ser = send_cmd(ser, logf, "ota_target show", 0.6)
+
+        deadline = time.time() + wait_per_target_s
+        ready = False
+        while time.time() < deadline:
+            ser = send_cmd(ser, logf, "scan", 0.8)
+            ser = send_cmd(ser, logf, "conn", 1.6)
+            burst = drain_serial_until_capture(ser, logf, 4.0)
+            burst_u = burst.upper()
+            target_u = target.upper()
+            if (
+                f"CFG ASSIGNED[0]: BS={target_u}" in burst_u
+                or (f"CONNECTED[0]:" in burst_u and f"BS={target_u}" in burst_u)
+                or f"{target_u} NOTIFY:" in burst_u
+                or f"CFG ASSIGNED[1]: BS={target_u}" in burst_u
+                or f"CFG ASSIGNED[2]: BS={target_u}" in burst_u
+            ):
+                ready = True
+                break
+            time.sleep(0.4)
+
+        if not ready:
+            raise RuntimeError(f"target_link_not_ready:{target}")
+
     ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
     ser = send_cmd(ser, logf, "ota_target name -", 0.5)
     ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
     ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
+    return ser
+
+
+def drain_serial_until_capture(ser: serial.Serial, logf, wait_s: float) -> str:
+    deadline = time.time() + wait_s
+    chunks: list[str] = []
+    while time.time() < deadline:
+        try:
+            data = ser.read(ser.in_waiting or 1)
+        except (SerialException, OSError):
+            raise
+        if not data:
+            continue
+        text = data.decode("utf-8", errors="replace")
+        chunks.append(text)
+        logf.write(text)
+        logf.flush()
+    return "".join(chunks)
+
+
+def configure_recv_capture_session(
+    ser: serial.Serial,
+    logf,
+    args,
+    targets: list[str],
+    profile_items: list[tuple[str, str]],
+) -> serial.Serial:
+    ser = send_cmd(ser, logf, "mode recv", 8.0)
+    ser = send_cmd(ser, logf, "tdma clear", 0.8)
+    ser = send_cmd(ser, logf, "device kind tag", 2.0)
+    ser = ensure_target_links_ready(ser, logf, targets)
     for name, profile in profile_items:
         ser = send_cmd(ser, logf, f"tdma profile {name} {profile}", 0.8)
     ser = send_cmd(ser, logf, f"tdma freq static {args.static_hz}", 0.5)
     ser = send_cmd(ser, logf, f"tdma freq roto {args.roto_hz}", 0.5)
     ser = send_cmd(ser, logf, f"tdma freq motion {args.motion_hz}", 0.5)
-    ser = send_cmd(ser, logf, "device kind tag", 2.0)
     ser = send_cmd(ser, logf, "tdma rebalance", 0.8)
     ser = send_cmd(ser, logf, "tdma show", 1.0)
     ser = send_cmd(ser, logf, "status", 0.8)
@@ -459,14 +544,14 @@ def run_static_cm_probe(
     }
 
 
-def print_capture_status(start_wall: float,
+def print_capture_status(capture_start_wall: float,
                          end_time: float,
                          positions: list[dict],
                          cm_rows: list[dict],
                          targets: list[str],
                          positions_by_target: dict[str, int],
                          cm_by_target: dict[str, int]) -> None:
-    elapsed = max(0.0, time.time() - start_wall)
+    elapsed = max(0.0, time.time() - capture_start_wall)
     remaining = max(0.0, end_time - time.time())
     parts = [
         f"elapsed={elapsed:.0f}s",
@@ -549,10 +634,12 @@ def main() -> int:
                 },
                 "positions_all": 0,
                 "cm_all": 0,
+                "cs_all": 0,
                 "cm_probe": cm_probe,
                 "raw_log": str(raw_log_path),
                 "positions_all_csv": str(session_dir / "positions_all.csv"),
                 "cm_all_csv": str(session_dir / "cm_all.csv"),
+                "cs_all_csv": str(session_dir / "cs_all.csv"),
             }
             write_rows(
                 session_dir / "positions_all.csv",
@@ -591,6 +678,22 @@ def main() -> int:
                 ],
                 [],
             )
+            write_rows(
+                session_dir / "cs_all.csv",
+                [
+                    "sweep",
+                    "conn_id",
+                    "peer_name",
+                    "tag_id",
+                    "plan",
+                    "pmode",
+                    "quality_flag_percent",
+                    "targets",
+                    "statuses",
+                    "qualities",
+                ],
+                [],
+            )
             summary_json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
             print(json.dumps(summary, indent=2))
             return 2
@@ -598,6 +701,7 @@ def main() -> int:
     conn_meta: dict[str, dict] = {}
     positions: list[dict] = []
     cm_rows: list[dict] = []
+    cs_rows: list[dict] = []
     interrupted = False
     startup_failed = False
     startup_fail_targets: list[str] = []
@@ -614,7 +718,7 @@ def main() -> int:
                     f"[CAPTURE] startup CM probe attempt {attempt}/{args.cm_probe_retries}: target={probe_target}",
                     flush=True,
                 )
-                ser = configure_recv_capture_session(ser, logf, args, profile_items)
+                ser = configure_recv_capture_session(ser, logf, args, targets, profile_items)
                 ser, probe_result = run_static_cm_probe(
                     ser, logf, probe_target, args.cm_probe_timeout_s
                 )
@@ -663,11 +767,13 @@ def main() -> int:
                     },
                     "positions_all": 0,
                     "cm_all": 0,
+                    "cs_all": 0,
                     "connections": {},
                     "per_tag": {},
                     "raw_log": str(raw_log_path),
                     "positions_all_csv": str(session_dir / "positions_all.csv"),
                     "cm_all_csv": str(session_dir / "cm_all.csv"),
+                    "cs_all_csv": str(session_dir / "cs_all.csv"),
                 }
                 write_rows(
                     session_dir / "positions_all.csv",
@@ -709,6 +815,22 @@ def main() -> int:
                     ],
                     [],
                 )
+                write_rows(
+                    session_dir / "cs_all.csv",
+                    [
+                        "sweep",
+                        "conn_id",
+                        "peer_name",
+                        "tag_id",
+                        "plan",
+                        "pmode",
+                        "quality_flag_percent",
+                        "targets",
+                        "statuses",
+                        "qualities",
+                    ],
+                    [],
+                )
                 summary_json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
                 print(json.dumps(summary, indent=2))
                 return 2
@@ -719,7 +841,8 @@ def main() -> int:
             )
 
             pending = ""
-            end_time = time.time() + args.duration
+            capture_start_wall = time.time()
+            end_time = capture_start_wall + args.duration
             last_status_at = 0.0
             positions_seen: dict[str, int] = defaultdict(int)
             cm_seen: dict[str, int] = defaultdict(int)
@@ -755,7 +878,7 @@ def main() -> int:
                     if not chunk:
                         if time.time() - last_status_at >= 1.0:
                             print_capture_status(
-                                start_wall,
+                                capture_start_wall,
                                 end_time,
                                 positions,
                                 cm_rows,
@@ -763,7 +886,7 @@ def main() -> int:
                                 positions_seen,
                                 cm_seen,
                             )
-                            elapsed = time.time() - start_wall
+                            elapsed = time.time() - capture_start_wall
                             if elapsed >= 60.0:
                                 bad = []
                                 for target in targets:
@@ -889,9 +1012,35 @@ def main() -> int:
                                 if m.group("status") == "ok":
                                     cm_ok_seen[peer_name] += 1
 
+                        for m in iter_cs_matches(line):
+                            conn_id = m.groupdict().get("conn") or ""
+                            meta = conn_meta.get(conn_id, {}) if conn_id else {}
+                            peer_name = extract_bs_name(line) or meta.get("peer_name", "")
+                            if peer_name and peer_name not in target_set:
+                                continue
+                            expected_pmode = expected_pmode_by_target.get(peer_name)
+                            active_pmode = int(m.group("pmode"))
+                            if expected_pmode is not None and active_pmode != expected_pmode:
+                                skipped_before_target_pmode += 1
+                                continue
+                            cs_rows.append(
+                                {
+                                    "conn_id": conn_id,
+                                    "peer_name": peer_name,
+                                    "tag_id": meta.get("tag_id", ""),
+                                    "sweep": int(m.group("sweep")),
+                                    "plan": m.group("plan"),
+                                    "pmode": active_pmode,
+                                    "quality_flag_percent": int(m.group("qf")),
+                                    "targets": m.group("targets"),
+                                    "statuses": m.group("statuses"),
+                                    "qualities": m.group("qualities"),
+                                }
+                            )
+
                     if time.time() - last_status_at >= 1.0:
                         print_capture_status(
-                            start_wall,
+                            capture_start_wall,
                             end_time,
                             positions,
                             cm_rows,
@@ -899,7 +1048,7 @@ def main() -> int:
                             positions_seen,
                             cm_seen,
                         )
-                        elapsed = time.time() - start_wall
+                        elapsed = time.time() - capture_start_wall
                         if elapsed >= 60.0:
                             bad = []
                             for target in targets:
@@ -969,24 +1118,45 @@ def main() -> int:
         "ok_count",
         "fail_count",
     ]
+    cs_fields = [
+        "sweep",
+        "conn_id",
+        "peer_name",
+        "tag_id",
+        "plan",
+        "pmode",
+        "quality_flag_percent",
+        "targets",
+        "statuses",
+        "qualities",
+    ]
 
     write_rows(session_dir / "positions_all.csv", position_fields, positions)
     write_rows(session_dir / "cm_all.csv", cm_fields, cm_rows)
+    write_rows(session_dir / "cs_all.csv", cs_fields, cs_rows)
 
     per_tag_summary: dict[str, dict] = {}
     zero_position_targets: list[str] = []
+    cs_by_target: dict[str, list[dict]] = defaultdict(list)
+    for row in cs_rows:
+        key = row["peer_name"] or f"tag{row['tag_id']}"
+        cs_by_target[key].append(row)
     for target in targets:
         tag_dir = session_dir / target
         tag_dir.mkdir(parents=True, exist_ok=True)
         pos_rows = positions_by_target.get(target, [])
         cm_target_rows = cm_by_target.get(target, [])
+        cs_target_rows = cs_by_target.get(target, [])
         write_rows(tag_dir / "positions.csv", position_fields, pos_rows)
         write_rows(tag_dir / "cm.csv", cm_fields, cm_target_rows)
+        write_rows(tag_dir / "cs.csv", cs_fields, cs_target_rows)
 
         per_tag_summary[target] = {
             "position_rows": len(pos_rows),
             "cm_rows": len(cm_target_rows),
+            "cs_rows": len(cs_target_rows),
             "latest_position": pos_rows[-1] if pos_rows else None,
+            "latest_calibration_summary": cs_target_rows[-1] if cs_target_rows else None,
             "anchors_seen": sorted({row["anchor_id"] for row in cm_target_rows}) if cm_target_rows else [],
             "status_counts": {
                 status: sum(1 for row in cm_target_rows if row["status"] == status)
@@ -1022,11 +1192,13 @@ def main() -> int:
         },
         "positions_all": len(positions),
         "cm_all": len(cm_rows),
+        "cs_all": len(cs_rows),
         "connections": conn_meta,
         "per_tag": per_tag_summary,
         "raw_log": str(raw_log_path),
         "positions_all_csv": str(session_dir / "positions_all.csv"),
         "cm_all_csv": str(session_dir / "cm_all.csv"),
+        "cs_all_csv": str(session_dir / "cs_all.csv"),
     }
     summary_json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2))

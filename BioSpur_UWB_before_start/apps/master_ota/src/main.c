@@ -1518,6 +1518,20 @@ static int ota_send_packet(struct bt_dfu_smp *smp, struct smp_packet *pkt,
 		printk("OTA upload ack: status=%d off=%u\n",
 		       result->status, (unsigned int)result->off);
 	}
+	if (group_id == OTA_SMP_GROUP_IMG && command_id == OTA_SMP_CMD_IMG_STATE) {
+		const struct bt_dfu_smp_header *rsp =
+			(const struct bt_dfu_smp_header *)smp_rsp_buf;
+		size_t rsp_payload_len = smp_rsp_len > sizeof(*rsp) ?
+			smp_rsp_len - sizeof(*rsp) : 0U;
+
+		printk("OTA IMG_STATE rsp: status=%d payload=%u bytes\n",
+		       result->status, (unsigned int)rsp_payload_len);
+		printk("OTA IMG_STATE rsp bytes:");
+		for (size_t i = 0; i < rsp_payload_len; i++) {
+			printk(" %02x", smp_rsp_buf[sizeof(*rsp) + i]);
+		}
+		printk("\n");
+	}
 	if (result->status != 0) {
 		const struct bt_dfu_smp_header *rsp =
 			(const struct bt_dfu_smp_header *)smp_rsp_buf;

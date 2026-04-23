@@ -214,6 +214,21 @@ def query_tag_versions(port: str, targets: list[str], out_root: Path) -> dict[st
         "versions": {},
     }
     transcript: list[str] = []
+
+    def collect_versions(text: str) -> dict[str, dict[str, object]]:
+        versions: dict[str, dict[str, object]] = {}
+        for match in TAG_VERSION_RE.finditer(text):
+            name = match.group("name").upper()
+            versions[name] = {
+                "name": name,
+                "fw": match.group("fw"),
+                "bs": match.group("bs"),
+                "tag": int(match.group("tag")),
+                "pmode": int(match.group("pmode")),
+                "amode": int(match.group("amode")),
+            }
+        return versions
+
     try:
         ser = open_control_serial(port)
         try:
@@ -223,8 +238,42 @@ def query_tag_versions(port: str, targets: list[str], out_root: Path) -> dict[st
             transcript.append(send_serial_command(ser, "mode recv", 4.0))
             transcript.append(">>> device kind tag\n")
             transcript.append(send_serial_command(ser, "device kind tag", 6.0))
-            transcript.append(">>> cmd VERSION\n")
-            transcript.append(send_serial_command(ser, "cmd VERSION", 10.0))
+            for target in targets:
+                transcript.append(">>> ota_target uuid -\n")
+                transcript.append(send_serial_command(ser, "ota_target uuid -", 0.8))
+                transcript.append(f">>> ota_target name {target}\n")
+                transcript.append(send_serial_command(ser, f"ota_target name {target}", 1.0))
+                transcript.append(">>> ota_target prefix BS\n")
+                transcript.append(send_serial_command(ser, "ota_target prefix BS", 0.8))
+                transcript.append(">>> ota_target show\n")
+                transcript.append(send_serial_command(ser, "ota_target show", 0.8))
+
+                # Ensure the specific target link is ready before sending cmd VERSION.
+                ready_deadline = time.time() + 18.0
+                while time.time() < ready_deadline:
+                    transcript.append(">>> scan\n")
+                    transcript.append(send_serial_command(ser, "scan", 0.8))
+                    transcript.append(">>> conn\n")
+                    burst = send_serial_command(ser, "conn", 1.6)
+                    burst += drain_serial(ser, 4.0)
+                    transcript.append(burst)
+                    burst_u = burst.upper()
+                    if (
+                        f"CFG ASSIGNED[0]: BS={target}".upper() in burst_u
+                        or f"CONNECTED[0]:".upper() in burst_u and f"BS={target}".upper() in burst_u
+                        or f"{target} NOTIFY:".upper() in burst_u
+                    ):
+                        break
+                    time.sleep(0.4)
+
+                for attempt in range(1, 4):
+                    transcript.append(f">>> cmd VERSION {target} #attempt={attempt}\n")
+                    reply = send_serial_command(ser, "cmd VERSION", 2.5)
+                    reply += drain_serial(ser, 4.0)
+                    transcript.append(reply)
+                    parsed = collect_versions("".join(transcript))
+                    if target.upper() in parsed:
+                        break
         finally:
             ser.close()
     except Exception as exc:
@@ -234,17 +283,7 @@ def query_tag_versions(port: str, targets: list[str], out_root: Path) -> dict[st
 
     raw_text = "".join(transcript)
     raw_log_path.write_text(raw_text, encoding="utf-8")
-    versions: dict[str, dict[str, object]] = {}
-    for match in TAG_VERSION_RE.finditer(raw_text):
-        name = match.group("name").upper()
-        versions[name] = {
-            "name": name,
-            "fw": match.group("fw"),
-            "bs": match.group("bs"),
-            "tag": int(match.group("tag")),
-            "pmode": int(match.group("pmode")),
-            "amode": int(match.group("amode")),
-        }
+    versions = collect_versions(raw_text)
     summary["versions"] = versions
     summary["missing_targets"] = [t for t in targets if t not in versions]
     return summary

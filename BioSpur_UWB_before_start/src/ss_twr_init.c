@@ -325,11 +325,15 @@ static uint8_t ss_twr_init_static_cal_group_cursor;
 static uint8_t ss_twr_init_roto_cal_group_cursor;
 static uint32_t ss_twr_init_static_cal_slot_tick;
 static uint32_t ss_twr_init_roto_prewarm_deadline_ms;
+static uint8_t ss_twr_init_sweep_anchor_status[UWB_MAX_ANCHORS];
+static uint8_t ss_twr_init_sweep_anchor_quality[UWB_MAX_ANCHORS];
 
 static void ss_twr_init_prepare_sweep_plan(void);
 static bool ss_twr_init_runtime_any_calibration_mode(void);
 static bool ss_twr_init_runtime_static_calibration_mode(void);
 static bool ss_twr_init_runtime_roto_calibration_mode(void);
+
+#define SS_TWR_INIT_SWEEP_ANCHOR_PENDING 0xffU
 
 #if APP_TAG_BLE_ENABLE
 static void ss_twr_init_publish_cal_range(uint8_t anchor_id,
@@ -358,6 +362,46 @@ static void ss_twr_init_publish_cal_range(uint8_t anchor_id,
 	(void)uwb_tag_ble_publish_calibration_range(&sample);
 }
 #endif
+
+static void ss_twr_init_reset_sweep_anchor_state(void)
+{
+    for (size_t i = 0U; i < UWB_MAX_ANCHORS; ++i) {
+        ss_twr_init_sweep_anchor_status[i] = SS_TWR_INIT_SWEEP_ANCHOR_PENDING;
+        ss_twr_init_sweep_anchor_quality[i] = 0U;
+    }
+}
+
+static void ss_twr_init_record_sweep_anchor_state(
+    uint8_t anchor_id, enum uwb_tag_ble_cal_status status,
+    const struct uwb_range_tracker *tracker)
+{
+    if (anchor_id >= UWB_MAX_ANCHORS) {
+        return;
+    }
+
+    ss_twr_init_sweep_anchor_status[anchor_id] = (uint8_t)status;
+    ss_twr_init_sweep_anchor_quality[anchor_id] =
+        (tracker != NULL) ? uwb_range_tracker_quality_percent(
+                                (struct uwb_range_tracker *)tracker)
+                          : 0U;
+}
+
+static const char *ss_twr_init_cal_status_label(uint8_t status)
+{
+    switch (status) {
+    case UWB_TAG_BLE_CAL_STATUS_OK:
+        return "ok";
+    case UWB_TAG_BLE_CAL_STATUS_REJECT:
+        return "reject";
+    case UWB_TAG_BLE_CAL_STATUS_TIMEOUT:
+        return "timeout";
+    case UWB_TAG_BLE_CAL_STATUS_ERROR:
+        return "error";
+    case SS_TWR_INIT_SWEEP_ANCHOR_PENDING:
+    default:
+        return "pending";
+    }
+}
 
 static const char *ss_twr_init_slot_source_label(uint8_t slot_source)
 {
@@ -1182,6 +1226,89 @@ static void ss_twr_init_format_anchor_labels(const uint8_t *anchor_ids,
     out[pos < out_len ? pos : out_len - 1U] = '\0';
 }
 
+static uint8_t ss_twr_init_compute_target_quality_percent(
+    const struct uwb_tag_measurement *measurements, size_t measurement_count)
+{
+    uint32_t quality_sum = 0U;
+    uint8_t quality_count = 0U;
+
+    for (size_t i = 0U; i < ss_twr_init_active_anchor_count; ++i) {
+        uint8_t target_anchor_id = ss_twr_init_active_anchor_ids[i];
+
+        for (size_t j = 0U; j < measurement_count; ++j) {
+            if (measurements[j].anchor_id == target_anchor_id) {
+                quality_sum += measurements[j].quality_percent;
+                quality_count++;
+                break;
+            }
+        }
+    }
+
+    return (quality_count != 0U) ? (uint8_t)(quality_sum / quality_count) : 0U;
+}
+
+static void ss_twr_init_publish_calibration_summary(
+    const char *plan_label, uint8_t positioning_mode, uint8_t qf_percent)
+{
+    char targets[32];
+    char statuses[64];
+    char qualities[32];
+    char line[256];
+    size_t targets_pos = 0U;
+    size_t statuses_pos = 0U;
+    size_t qualities_pos = 0U;
+
+    if (!ss_twr_init_runtime_any_calibration_mode() ||
+        ss_twr_init_active_anchor_count == 0U) {
+        return;
+    }
+
+    targets[0] = '\0';
+    statuses[0] = '\0';
+    qualities[0] = '\0';
+
+    for (size_t i = 0U; i < ss_twr_init_active_anchor_count; ++i) {
+        uint8_t anchor_id = ss_twr_init_active_anchor_ids[i];
+        const struct uwb_anchor_pose_mm *pose = uwb_anchor_layout_get(anchor_id);
+
+        if (i != 0U) {
+            if (targets_pos + 1U < sizeof(targets)) {
+                targets[targets_pos++] = ',';
+                targets[targets_pos] = '\0';
+            }
+            statuses_pos += (size_t)snprintk(
+                statuses + statuses_pos, sizeof(statuses) - statuses_pos, ",");
+            qualities_pos += (size_t)snprintk(
+                qualities + qualities_pos, sizeof(qualities) - qualities_pos, ",");
+        }
+
+        if (pose != NULL && targets_pos + 1U < sizeof(targets)) {
+            targets[targets_pos++] = pose->label;
+            targets[targets_pos] = '\0';
+        } else {
+            targets_pos += (size_t)snprintk(
+                targets + targets_pos, sizeof(targets) - targets_pos, "%u",
+                (unsigned int)anchor_id);
+        }
+
+        statuses_pos += (size_t)snprintk(
+            statuses + statuses_pos, sizeof(statuses) - statuses_pos, "%s",
+            ss_twr_init_cal_status_label(ss_twr_init_sweep_anchor_status[anchor_id]));
+        qualities_pos += (size_t)snprintk(
+            qualities + qualities_pos, sizeof(qualities) - qualities_pos, "%u",
+            (unsigned int)ss_twr_init_sweep_anchor_quality[anchor_id]);
+    }
+
+    snprintk(line, sizeof(line), "CS;1;%lu;%s;%u;%u;%s;%s;%s",
+             (unsigned long)ss_twr_init_sweep_count, plan_label,
+             (unsigned int)positioning_mode, (unsigned int)qf_percent, targets,
+             statuses, qualities);
+    printk("%s\n", line);
+#if APP_TAG_BLE_ENABLE
+    (void)uwb_tag_ble_publish_status(line);
+#endif
+}
+
 #if APP_TAG_STATUS_PERIOD_MS > 0U
 static void ss_twr_init_status_work_handler(struct k_work *work)
 {
@@ -1261,6 +1388,7 @@ static void ss_twr_init_prepare_sweep_plan(void)
         ss_twr_init_active_anchor_count = active_count;
         ss_twr_init_active_anchor_index = 0U;
         ss_twr_init_current_sweep_start_ms = (uint32_t)k_uptime_get();
+        ss_twr_init_reset_sweep_anchor_state();
         return;
     }
 
@@ -1275,6 +1403,7 @@ static void ss_twr_init_prepare_sweep_plan(void)
         ss_twr_init_active_anchor_count = active_count;
         ss_twr_init_active_anchor_index = 0U;
         ss_twr_init_current_sweep_start_ms = (uint32_t)k_uptime_get();
+        ss_twr_init_reset_sweep_anchor_state();
         return;
     }
 
@@ -1290,6 +1419,7 @@ static void ss_twr_init_prepare_sweep_plan(void)
             ss_twr_init_active_anchor_count = active_count;
             ss_twr_init_active_anchor_index = 0U;
             ss_twr_init_current_sweep_start_ms = (uint32_t)k_uptime_get();
+            ss_twr_init_reset_sweep_anchor_state();
             return;
         }
 
@@ -1315,6 +1445,7 @@ static void ss_twr_init_prepare_sweep_plan(void)
         ss_twr_init_active_anchor_count = active_count;
         ss_twr_init_active_anchor_index = 0U;
         ss_twr_init_current_sweep_start_ms = (uint32_t)k_uptime_get();
+        ss_twr_init_reset_sweep_anchor_state();
         return;
     }
 
@@ -1393,6 +1524,7 @@ static void ss_twr_init_prepare_sweep_plan(void)
         ss_twr_init_active_anchor_count = active_count;
         ss_twr_init_active_anchor_index = 0U;
         ss_twr_init_current_sweep_start_ms = (uint32_t)k_uptime_get();
+        ss_twr_init_reset_sweep_anchor_state();
         return;
     }
 
@@ -1449,6 +1581,7 @@ static void ss_twr_init_prepare_sweep_plan(void)
     ss_twr_init_active_anchor_index = 0U;
     ss_twr_init_current_sweep_start_ms = (uint32_t)k_uptime_get();
     ss_twr_init_last_sweep_cut_short = false;
+    ss_twr_init_reset_sweep_anchor_state();
 }
 
 static void ss_twr_init_read_ts(const uint8_t *ts_field, uint32 *ts)
@@ -1760,6 +1893,9 @@ static void ss_twr_init_print_location_if_ready(void)
     if (uwb_tag_loc_solve(measurements, ss_twr_init_anchor_count, subset_policy,
                           &location) != 0) {
         ss_twr_init_last_solve_reason = SS_TWR_INIT_SOLVE_PENDING;
+        solution_quality_percent =
+            ss_twr_init_compute_target_quality_percent(measurements,
+                                                       ss_twr_init_anchor_count);
         ss_twr_init_format_anchor_labels(valid_anchor_ids,
                                          valid_anchor_count,
                                          received_anchors,
@@ -1777,6 +1913,12 @@ static void ss_twr_init_print_location_if_ready(void)
                         received_anchors);
             }
         }
+        if (ss_twr_init_runtime_any_calibration_mode()) {
+            ss_twr_init_publish_calibration_summary(
+                ss_twr_init_plan_label(),
+                ss_twr_init_runtime_params.positioning_mode,
+                solution_quality_percent);
+        }
         return;
     }
 
@@ -1787,22 +1929,28 @@ static void ss_twr_init_print_location_if_ready(void)
                                          received_anchors,
                                          sizeof(received_anchors));
         if (location.used_anchor_count != 0U) {
-            uint32_t quality_sum = 0U;
-            uint8_t quality_count = 0U;
-
-            for (size_t i = 0U; i < location.used_anchor_count; ++i) {
-                for (size_t j = 0U; j < ss_twr_init_anchor_count; ++j) {
-                    if (measurements[j].anchor_id == location.anchor_ids[i]) {
-                        quality_sum += measurements[j].quality_percent;
-                        quality_count++;
-                        break;
+            if (ss_twr_init_runtime_roto_calibration_mode() &&
+                !ss_twr_init_roto_prewarm_active() &&
+                ss_twr_init_active_anchor_count != 0U) {
+                solution_quality_percent =
+                    ss_twr_init_compute_target_quality_percent(
+                        measurements, ss_twr_init_anchor_count);
+            } else {
+                uint32_t quality_sum = 0U;
+                uint8_t quality_count = 0U;
+                for (size_t i = 0U; i < location.used_anchor_count; ++i) {
+                    for (size_t j = 0U; j < ss_twr_init_anchor_count; ++j) {
+                        if (measurements[j].anchor_id == location.anchor_ids[i]) {
+                            quality_sum += measurements[j].quality_percent;
+                            quality_count++;
+                            break;
+                        }
                     }
                 }
-            }
-
-            if (quality_count != 0U) {
-                solution_quality_percent =
-                    (uint8_t)(quality_sum / quality_count);
+                if (quality_count != 0U) {
+                    solution_quality_percent =
+                        (uint8_t)(quality_sum / quality_count);
+                }
             }
         }
 
@@ -2163,6 +2311,13 @@ static void ss_twr_init_print_location_if_ready(void)
 #endif
     }
 
+    if (ss_twr_init_runtime_any_calibration_mode()) {
+        ss_twr_init_publish_calibration_summary(
+            ss_twr_init_plan_label(),
+            ss_twr_init_runtime_params.positioning_mode,
+            solution_quality_percent);
+    }
+
     ss_twr_init_perf_motion_dt_sum_ms = 0U;
     ss_twr_init_perf_track_sweep_sum_ms = 0U;
     ss_twr_init_perf_full_sweep_sum_ms = 0U;
@@ -2294,7 +2449,7 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
             continue;
         }
 
-	    if (!ss_twr_init_tdma_exchange_can_start_if_needed()) {
+        if (!ss_twr_init_tdma_exchange_can_start_if_needed()) {
             uint32_t remain_ms =
                 uwb_tdma_schedule_time_remaining_ms(&ss_twr_init_tdma_schedule);
 
@@ -2314,6 +2469,22 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
                            (unsigned int)ss_twr_init_tdma_schedule.generation);
                 }
             }
+            /*
+             * CAL_ROTO must preserve the selected 4-anchor intent even when a
+             * TDMA slot boundary lands mid-sweep. Do not finalize/replan a
+             * partial sweep; wait for the next slot and continue the same
+             * anchor group so output does not silently collapse to 2/3 anchors.
+             */
+            if (ss_twr_init_runtime_roto_calibration_mode() &&
+                !ss_twr_init_roto_prewarm_active() &&
+                ss_twr_init_active_anchor_index != 0U &&
+                ss_twr_init_active_anchor_count >= 4U) {
+                dwt_forcetrxoff();
+                ss_twr_init_last_tdma_wait_ms =
+                    ss_twr_init_wait_until_next_slot_if_needed();
+                continue;
+            }
+
             ss_twr_init_sweep_count++;
             ss_twr_init_print_location_if_ready();
             ss_twr_init_apply_pending_runtime_config_if_any();
@@ -2513,6 +2684,8 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
             if (!ss_twr_init_raw_range_plausible(
                     tracker, (uint32_t)raw_distance_mm)) {
                 uwb_range_tracker_record_failure(tracker);
+                ss_twr_init_record_sweep_anchor_state(
+                    current_anchor_id, UWB_TAG_BLE_CAL_STATUS_REJECT, tracker);
 #if APP_TAG_BLE_ENABLE
                 ss_twr_init_publish_cal_range(current_anchor_id,
                                               UWB_TAG_BLE_CAL_STATUS_REJECT,
@@ -2554,6 +2727,8 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
 
             filtered_mm = uwb_range_tracker_record_success(
                 tracker, (uint32_t)raw_distance_mm);
+            ss_twr_init_record_sweep_anchor_state(
+                current_anchor_id, UWB_TAG_BLE_CAL_STATUS_OK, tracker);
             resp_src_addr = uwb_frame_get_src_addr(ss_twr_init_rx_buffer);
 
             if (APP_TAG_VERBOSE_RANGING != 0U) {
@@ -2576,6 +2751,8 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
         } else {
             if (tracker != NULL) {
                 uwb_range_tracker_record_failure(tracker);
+                ss_twr_init_record_sweep_anchor_state(
+                    current_anchor_id, UWB_TAG_BLE_CAL_STATUS_TIMEOUT, tracker);
 #if APP_TAG_BLE_ENABLE
                 ss_twr_init_publish_cal_range(current_anchor_id,
                                               UWB_TAG_BLE_CAL_STATUS_TIMEOUT,
