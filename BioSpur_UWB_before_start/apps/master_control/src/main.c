@@ -25,6 +25,8 @@
 
 #include "master_multi_app.h"
 #include "master_ota.h"
+#include "../../master_ota/generated/anchor_ota_manifest.h"
+#include "../../master_ota/generated/tag_ota_manifest.h"
 
 #define CONTROL_SETTINGS_SUBTREE "master_ctrl"
 #define CONTROL_SETTINGS_MODE_KEY "mode"
@@ -135,6 +137,9 @@ static uint8_t autopos_result_history_count;
 
 static int autopos_wait_anchor_ready(const char *uuid, int timeout_ms);
 static int autopos_wait_anchor_cleared(int timeout_ms);
+static void autopos_save_map_entry(int idx);
+static void control_disconnect_all_links(void);
+static void control_wait_for_peer_clear(int timeout_ms);
 static int autopos_send_anchor_cmd_checked(const char *cmd, const char *expect_result,
 					   int result_timeout_ms);
 static int autopos_reconnect_anchor_ready(int idx, int timeout_ms);
@@ -287,13 +292,30 @@ static void control_print_status(void)
 static void control_print_help(void)
 {
 	printk("Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate\n");
-	printk("OTA runtime cmds: ota_reset\n");
+	printk("OTA runtime cmds: ota_reset | ota show | ota version\n");
 	printk("Runtime NUS cmds: cmd <raw> | oneshot <raw> | oneshot show | oneshot clear\n");
 	printk("TDMA cmds: tdma show | tdma profile <BSxxxx> <static|roto|motion> | tdma freq <static|roto|motion> <hz> | tdma rebalance\n");
 	printk("Device model cmds: device show | device kind <anchor|tag>\n");
 	printk("OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->\n");
 	printk("Anchor cmds: anchor version <A..H|UUID32|all> | anchor role <A..H|UUID32|all> <master|matrix|responder> | anchor reset <A..H|UUID32|all> <autopos|responder>\n");
 	printk("AUTOPOS cmds: autopos status | autopos detach | autopos map <A..H> <UUID32> | autopos map show | autopos round <A..H> [sets] | autopos apply | autopos result show|clear\n");
+}
+
+static void control_print_ota_bundle_info(void)
+{
+	if (strcmp(APP_MASTER_OTA_ANCHOR_FW_MARKER, "-") != 0) {
+		printk("OTA_BUNDLE kind=anchor fw=%s build_dir=%s dfu_zip=%s\n",
+		       APP_MASTER_OTA_ANCHOR_FW_MARKER,
+		       APP_MASTER_OTA_ANCHOR_BUILD_DIR,
+		       APP_MASTER_OTA_ANCHOR_DFU_ZIP);
+	}
+	if (strcmp(APP_MASTER_OTA_TAG_FW_MARKER, "-") != 0) {
+		printk("OTA_BUNDLE kind=tag fw=%s build_dir=%s dfu_zip=%s\n",
+		       APP_MASTER_OTA_TAG_FW_MARKER,
+		       APP_MASTER_OTA_TAG_BUILD_DIR,
+		       APP_MASTER_OTA_TAG_DFU_ZIP);
+	}
+	master_ota_target_print();
 }
 
 static const char *system_kind_name(uint8_t kind)
@@ -380,6 +402,72 @@ static void autopos_print_status(void)
 	       (autopos_last_success_idx >= 0) ? autopos_labels[autopos_last_success_idx] : '-',
 	       (unsigned long)autopos_round_sets,
 	       autopos_last_error[0] != '\0' ? autopos_last_error : "-");
+}
+
+static int autopos_refresh_uuid_map_from_anchor_scan(int timeout_ms)
+{
+	char labels[AUTOPOS_ANCHOR_COUNT];
+	char uuids[AUTOPOS_ANCHOR_COUNT][AUTOPOS_UUID_LEN];
+	int found = 0;
+	int waited = 0;
+	int first_new = 0;
+
+	master_set_runtime_target_kind(MASTER_TARGET_ANCHOR);
+	master_set_anchor_wildcard_scan(true);
+	master_set_runtime_target_name("");
+	master_set_runtime_target_prefix("");
+	master_set_runtime_target_uuid("");
+	master_set_scan_only_mode();
+	control_disconnect_all_links();
+	control_wait_for_peer_clear(5000);
+	master_restart_discovery();
+
+	while (waited <= timeout_ms) {
+		int snapshot = master_anchor_snapshot_uuid_map(labels, ARRAY_SIZE(labels),
+							       uuids, ARRAY_SIZE(uuids));
+		if (snapshot > 0) {
+			found = snapshot;
+			for (int i = 0; i < snapshot; ++i) {
+				int idx = autopos_label_to_index(labels[i]);
+
+				if (idx < 0 || uuids[i][0] == '\0') {
+					continue;
+				}
+				if (strcmp(autopos_uuid_map[idx], uuids[i]) == 0) {
+					continue;
+				}
+
+				snprintk(autopos_uuid_map[idx], sizeof(autopos_uuid_map[idx]), "%s",
+					 uuids[i]);
+				autopos_save_map_entry(idx);
+				if (first_new == 0) {
+					first_new = 1;
+				}
+				printk("AUTOPOS map refresh: %c=%s\n", labels[i], autopos_uuid_map[idx]);
+			}
+		}
+
+		bool complete = true;
+		for (int i = 0; i < AUTOPOS_ANCHOR_COUNT; ++i) {
+			if (autopos_uuid_map[i][0] == '\0') {
+				complete = false;
+				break;
+			}
+		}
+		if (complete) {
+			master_quiesce_peers();
+			return AUTOPOS_ANCHOR_COUNT;
+		}
+		if (first_new && found >= 4 && waited >= 2000) {
+			break;
+		}
+
+		k_sleep(K_MSEC(200));
+		waited += 200;
+	}
+
+	master_quiesce_peers();
+	return found;
 }
 
 static void autopos_print_map(void)
@@ -608,8 +696,8 @@ static int autopos_wait_anchor_ready(const char *uuid, int timeout_ms)
 	master_set_runtime_target_name("");
 	master_set_runtime_target_prefix("");
 	master_set_runtime_target_kind(MASTER_TARGET_ANCHOR);
-	master_set_anchor_wildcard_scan(true);
 	master_set_runtime_target_uuid(uuid);
+	master_set_anchor_wildcard_scan(false);
 	master_set_connect_and_start_mode();
 
 	/* Reuse an in-flight or ready control link when it already targets the
@@ -1128,6 +1216,20 @@ static int anchor_query_version_all(void)
 	int rc = 0;
 	int first_err = 0;
 	char label[2];
+	bool missing_map = false;
+
+	for (int i = 0; i < AUTOPOS_ANCHOR_COUNT; ++i) {
+		if (autopos_uuid_map[i][0] == '\0') {
+			missing_map = true;
+			break;
+		}
+	}
+
+	if (missing_map) {
+		int refresh_count = autopos_refresh_uuid_map_from_anchor_scan(8000);
+
+		printk("ANCHOR_VERSION map refresh count=%d\n", refresh_count);
+	}
 
 	for (int i = 0; i < AUTOPOS_ANCHOR_COUNT; ++i) {
 		if (autopos_uuid_map[i][0] == '\0') {
@@ -2209,6 +2311,17 @@ static void control_handle_uart_command(const char *line)
 		return;
 	}
 
+	if (strcmp(cmd, "ota") == 0) {
+		if (parsed >= 2 &&
+		    (strcmp(arg, "show") == 0 || strcmp(arg, "version") == 0)) {
+			control_print_ota_bundle_info();
+			return;
+		}
+		printk("Unknown ota command: %s\n", line);
+		control_print_help();
+		return;
+	}
+
 	if (strcmp(cmd, "anchor") == 0 && parsed >= 3) {
 		if (strcmp(arg, "version") == 0) {
 			if (control_mode == CONTROL_MODE_OTA) {
@@ -2547,7 +2660,6 @@ static void control_handle_uart_command(const char *line)
 			if (strcmp(arg2, "anchor") == 0) {
 				system_target_set_kind(SYS_DEV_ANCHOR);
 				master_clear_one_shot_command();
-				master_disconnect_all_peers();
 				(void)master_ota_target_set_token(-1);
 				(void)master_ota_target_set_name("");
 				(void)master_ota_target_set_prefix("BS");
@@ -2562,6 +2674,7 @@ static void control_handle_uart_command(const char *line)
 				master_set_runtime_target_name("");
 				master_set_runtime_target_prefix("BS");
 				master_set_runtime_target_uuid("");
+				control_disconnect_all_links();
 				printk("device kind set: anchor (OTA target defaults reset)\n");
 				if (control_mode == CONTROL_MODE_RECV) {
 					master_set_connect_and_start_mode();

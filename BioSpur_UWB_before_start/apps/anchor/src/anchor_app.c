@@ -23,6 +23,10 @@
 #define APP_ANCHOR_ROLE 0U
 #endif
 
+#ifndef APP_ANCHOR_FORCE_BOOT_ROLE
+#define APP_ANCHOR_FORCE_BOOT_ROLE 0U
+#endif
+
 #ifndef APP_ANCHOR_MASTER
 #define APP_ANCHOR_MASTER 0U
 #endif
@@ -315,6 +319,20 @@ int anchor_app_run(void)
         if (ret != 0) {
             printk("Invalid APP_ANCHOR_ROLE=%u\n", APP_ANCHOR_ROLE);
             return -1;
+        }
+    }
+
+    if (APP_ANCHOR_FORCE_BOOT_ROLE != ANCHOR_ROLE_UNSET) {
+        uint8_t forced_role = (uint8_t)APP_ANCHOR_FORCE_BOOT_ROLE;
+        ret = anchor_role_runtime_flags(forced_role, &effective_master,
+                                        &effective_allow_tag_polls);
+        if (ret == 0) {
+            printk("Anchor force boot role override: %s -> %s\n",
+                   anchor_role_name(effective_role), anchor_role_name(forced_role));
+            effective_role = forced_role;
+        } else {
+            printk("Invalid APP_ANCHOR_FORCE_BOOT_ROLE=%u ignored\n",
+                   (unsigned int)forced_role);
         }
     }
 

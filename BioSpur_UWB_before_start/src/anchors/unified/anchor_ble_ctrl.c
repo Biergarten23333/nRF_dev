@@ -341,11 +341,6 @@ static void handle_runtime_role_locked(uint8_t role, uint32_t master_sweeps)
         return;
     }
 
-    if (g_info.runtime_role == role && master_sweeps == 0U && !g_runtime_switch_pending) {
-        set_result_locked("OK RUNTIME_ALREADY_ACTIVE");
-        return;
-    }
-
     g_runtime_switch_pending = true;
     anchor_runtime_request_role_switch(role, master_sweeps);
     if (role == ANCHOR_ROLE_MASTER && master_sweeps != 0U) {
@@ -354,6 +349,8 @@ static void handle_runtime_role_locked(uint8_t role, uint32_t master_sweeps)
         snprintk(result, sizeof(result), "OK RUNTIME_SWITCH_REQUESTED SWEEP=%lu",
                  (unsigned long)master_sweeps);
         set_result_locked(result);
+    } else if (g_info.runtime_role == role && master_sweeps == 0U) {
+        set_result_locked("OK RUNTIME_RESTART_REQUESTED");
     } else {
         set_result_locked("OK RUNTIME_SWITCH_REQUESTED");
     }

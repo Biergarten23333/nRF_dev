@@ -21,6 +21,8 @@ TAG_NOTIFY_PREFIX_RE = r"(?:BLE(?:\[(?P<conn>\d+)(?::[^\]]*)?\])?|BS[0-9A-F]{4}|
 
 TAG_SUMMARY_RE_FULL = re.compile(
     rf"{TAG_NOTIFY_PREFIX_RE} notify: TagSummary sweep=(?P<sweep>\d+) plan=(?P<plan>\w+) "
+    r"(?:pmode=(?P<pmode>\d+) )?"
+    r"(?:qf=(?P<qf>\d+) )?"
     r"xyz=\((?P<x>-?\d+),(?P<y>-?\d+),(?P<z>-?\d+)\) "
     r"rms=(?P<rms>\d+) max=(?P<max>\d+)"
     r"(?: anchors=\[(?P<anchors>[A-Z,]*)\])?"
@@ -48,7 +50,7 @@ TAG_SUMMARY_RE_SEMI = re.compile(
     rf"{TAG_NOTIFY_PREFIX_RE} notify: TS;"
     r"(?P<ver>\d+);"
     r"(?P<sweep>\d+);"
-    r"(?P<plan>[tfrx]);"
+    r"(?P<plan>[A-Za-z0-9_]+);"
     r"(?P<x>-?\d+);(?P<y>-?\d+);(?P<z>-?\d+);"
     r"(?P<rms>\d+);(?P<max>\d+);"
     r"(?P<anchors>[A-Z0-9]*);"
@@ -57,6 +59,7 @@ TAG_SUMMARY_RE_SEMI = re.compile(
     r"(?P<cut>[01]);"
     r"(?P<reason>[SPRCN]);"
     r"(?P<motion_dt>\d+)"
+    r"(?:;(?P<pmode>\d+);(?P<plan_label>[A-Za-z0-9_]+);(?P<qf>\d+))?"
 )
 
 CM_RE = re.compile(
@@ -325,6 +328,9 @@ def main() -> int:
                                     "peer_name": conn_meta.get(conn_id, {}).get("name", ""),
                                     "sweep": sweep,
                                     "plan": match.group("plan"),
+                                    "pmode": match.groupdict().get("pmode") or "",
+                                    "plan_label": match.groupdict().get("plan_label") or "",
+                                    "quality_flag_percent": match.groupdict().get("qf") or "",
                                     "x_mm": int(x),
                                     "y_mm": int(y),
                                     "z_mm": int(z),
@@ -387,6 +393,9 @@ def main() -> int:
                 "tag_id",
                 "peer_name",
                 "plan",
+                "pmode",
+                "plan_label",
+                "quality_flag_percent",
                 "x_mm",
                 "y_mm",
                 "z_mm",

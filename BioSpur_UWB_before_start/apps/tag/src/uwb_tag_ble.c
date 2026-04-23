@@ -42,6 +42,10 @@
 #define APP_TAG_STREAM_FORCE_OFF_AT_BOOT 0U
 #endif
 
+#ifndef APP_TAG_FW_MARKER
+#define APP_TAG_FW_MARKER "unified-default"
+#endif
+
 #ifndef APP_TAG_BLE_PACKET_BUNDLE_RECORDS
 #define APP_TAG_BLE_PACKET_BUNDLE_RECORDS 1U
 #endif
@@ -734,13 +738,13 @@ static int uwb_tag_ble_apply_mode_policy(struct uwb_tag_runtime_params *params,
 	switch (params->positioning_mode) {
 	case UWB_TAG_POSITIONING_MODE_CALIBRATION:
 	case UWB_TAG_POSITIONING_MODE_CAL_STATIC:
-		/* Static calibration: TDMA-capable 4+4 sweep source for solver input. */
+		/* CAL_STATIC owns its sweep coverage; stale fixed lists are ignored. */
 		params->anchor_selection_mode = UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
 		params->fixed_anchor_count = 0U;
 		memset(params->fixed_anchor_ids, 0, sizeof(params->fixed_anchor_ids));
 		break;
 	case UWB_TAG_POSITIONING_MODE_CAL_ROTO:
-		/* Roto calibration: fast best-4 snapshot source, never full 8 sweep. */
+		/* CAL_ROTO owns anchor selection; quality affects qf, not output count. */
 		params->anchor_selection_mode = UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
 		params->fixed_anchor_count = 0U;
 		memset(params->fixed_anchor_ids, 0, sizeof(params->fixed_anchor_ids));
@@ -1517,6 +1521,22 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		return;
 	}
 
+	if (strcmp(cmd, "VERSION") == 0) {
+		char resp[128];
+		struct uwb_tag_runtime_params params;
+
+		(void)uwb_tag_ble_runtime_config_get(&params);
+		snprintk(resp, sizeof(resp),
+			 "VERSION fw=%s bs=BS%04X tag=%u pmode=%u amode=%u",
+			 APP_TAG_FW_MARKER,
+			 (unsigned int)params.identity_code,
+			 (unsigned int)params.logical_tag_id,
+			 (unsigned int)params.positioning_mode,
+			 (unsigned int)params.anchor_selection_mode);
+		uwb_tag_ble_send_text(resp);
+		return;
+	}
+
 	if (strcmp(cmd, "CFG_STATUS") == 0) {
 		char resp[192];
 		struct uwb_tag_runtime_params params;
@@ -1711,9 +1731,9 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 
 	if (strcmp(cmd, "HELP") == 0) {
 #if APP_TAG_BLE_OTA_ENABLE
-		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|CFG_STATUS|MODE?|MODE <CAL_STATIC|CAL_ROTO|MOTION|FIXED|AOTA>|MCAL|MROT|MMOT|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2|3|4|5> FIXED=a,b,c,d|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|MODE?|MODE <CAL_STATIC|CAL_ROTO|MOTION|FIXED|AOTA>|MCAL|MROT|MMOT|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2|3|4|5> FIXED=a,b,c,d|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
 #else
-		uwb_tag_ble_send_text("PING|STATUS|TDMA_STATUS|CFG_STATUS|MODE?|MODE <CAL_STATIC|CAL_ROTO|MOTION|FIXED|AOTA>|MCAL|MROT|MMOT|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2|3|4|5> FIXED=a,b,c,d|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|MODE?|MODE <CAL_STATIC|CAL_ROTO|MOTION|FIXED|AOTA>|MCAL|MROT|MMOT|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2|3|4|5> FIXED=a,b,c,d|REBOOT|HELP");
 #endif
 		return;
 	}
@@ -1841,12 +1861,6 @@ int uwb_tag_ble_publish_status(const char *line)
 	if (uwb_tag_ble_runtime_stream_blocked_locked()) {
 		k_mutex_unlock(&ble_mutex);
 		return -EBUSY;
-	}
-
-	if (uwb_tag_ble_mode_is_calibration(active_runtime_params.positioning_mode) &&
-	    uwb_tag_ble_line_is_bundle_candidate(last_status)) {
-		k_mutex_unlock(&ble_mutex);
-		return 0;
 	}
 
 	bundle_line = uwb_tag_ble_bundle_enabled() &&

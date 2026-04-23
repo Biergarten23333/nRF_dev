@@ -8,7 +8,13 @@ import subprocess
 import time
 from pathlib import Path
 
+import serial
+
 UPLOAD_PROGRESS_RE = re.compile(r"OTA upload progress:\s*(\d+)%")
+TAG_VERSION_RE = re.compile(
+    r"(?P<name>BS[0-9A-F]{4}) notify:\s+VERSION fw=(?P<fw>\S+)\s+bs=(?P<bs>BS[0-9A-F]{4})\s+tag=(?P<tag>\d+)\s+pmode=(?P<pmode>\d+)\s+amode=(?P<amode>\d+)",
+    re.IGNORECASE,
+)
 
 
 def detect_stage(log_path: Path) -> tuple[str, int | None]:
@@ -136,7 +142,119 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--prefix", default="BS")
     p.add_argument("--max-attempts", type=int, default=2)
     p.add_argument("--force-kill-port-owner", action="store_true")
+    p.add_argument("--expected-fw-marker", default="", help="Expected tag fw marker. If omitted, auto-detect from manifest/build cache.")
     return p.parse_args()
+
+
+def open_control_serial(port: str, timeout: float = 0.2, retries: int = 20, retry_delay_s: float = 0.5) -> serial.Serial:
+    last_exc: Exception | None = None
+    for _ in range(retries):
+        try:
+            return serial.Serial(port, 115200, timeout=timeout, write_timeout=2.0)
+        except Exception as exc:
+            last_exc = exc
+            time.sleep(retry_delay_s)
+    assert last_exc is not None
+    raise last_exc
+
+
+def drain_serial(ser: serial.Serial, duration_s: float) -> str:
+    end = time.time() + duration_s
+    chunks: list[str] = []
+    while time.time() < end:
+        data = ser.read(4096)
+        if data:
+            chunks.append(data.decode("utf-8", "ignore"))
+    return "".join(chunks)
+
+
+def send_serial_command(ser: serial.Serial, cmd: str, wait_s: float) -> str:
+    ser.write((cmd + "\n").encode("utf-8"))
+    ser.flush()
+    return drain_serial(ser, wait_s)
+
+
+def load_expected_tag_fw_marker(repo_root: Path, explicit_value: str) -> tuple[str | None, dict[str, object]]:
+    if explicit_value:
+        return explicit_value, {"source": "arg", "path": None}
+
+    generated_manifest = repo_root / "apps" / "master_ota" / "generated" / "tag_ota_manifest.json"
+    if generated_manifest.exists():
+        try:
+            data = json.loads(generated_manifest.read_text(encoding="utf-8"))
+            fw = str(data.get("fw_marker") or "").strip()
+            if fw:
+                return fw, {"source": "generated_manifest", "path": str(generated_manifest)}
+        except Exception:
+            pass
+
+    caches = sorted(
+        repo_root.glob("build-tag*/CMakeCache.txt"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    for path in caches:
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+        m = re.search(r"^APP_TAG_FW_MARKER:STRING=(.+)$", text, re.MULTILINE)
+        if m:
+            fw = m.group(1).strip()
+            if fw:
+                return fw, {"source": "cmake_cache", "path": str(path)}
+    return None, {"source": "none", "path": None}
+
+
+def query_tag_versions(port: str, targets: list[str], out_root: Path) -> dict[str, object]:
+    raw_log_path = out_root / "tag_version_query.log"
+    summary: dict[str, object] = {
+        "raw_log": str(raw_log_path),
+        "targets": targets,
+        "versions": {},
+    }
+    transcript: list[str] = []
+    try:
+        ser = open_control_serial(port)
+        try:
+            time.sleep(1.0)
+            transcript.append(drain_serial(ser, 0.8))
+            transcript.append(">>> mode recv\n")
+            transcript.append(send_serial_command(ser, "mode recv", 4.0))
+            transcript.append(">>> device kind tag\n")
+            transcript.append(send_serial_command(ser, "device kind tag", 6.0))
+            transcript.append(">>> cmd VERSION\n")
+            transcript.append(send_serial_command(ser, "cmd VERSION", 10.0))
+        finally:
+            ser.close()
+    except Exception as exc:
+        summary["error"] = repr(exc)
+        raw_log_path.write_text("".join(transcript), encoding="utf-8")
+        return summary
+
+    raw_text = "".join(transcript)
+    raw_log_path.write_text(raw_text, encoding="utf-8")
+    versions: dict[str, dict[str, object]] = {}
+    for match in TAG_VERSION_RE.finditer(raw_text):
+        name = match.group("name").upper()
+        versions[name] = {
+            "name": name,
+            "fw": match.group("fw"),
+            "bs": match.group("bs"),
+            "tag": int(match.group("tag")),
+            "pmode": int(match.group("pmode")),
+            "amode": int(match.group("amode")),
+        }
+    summary["versions"] = versions
+    summary["missing_targets"] = [t for t in targets if t not in versions]
+    return summary
+
+
+def print_version_banner(label: str, current_fw: str, target_fw: str, actual_fw: str | None = None) -> None:
+    if actual_fw is None:
+        print(f"=== {label} VERSION pre current={current_fw} target={target_fw} ===", flush=True)
+    else:
+        print(f"=== {label} VERSION post target={target_fw} actual={actual_fw} match={actual_fw == target_fw} ===", flush=True)
 
 
 def main() -> int:
@@ -146,6 +264,8 @@ def main() -> int:
         raise SystemExit("No targets specified")
     out_root = Path(args.out_dir)
     out_root.mkdir(parents=True, exist_ok=True)
+    repo_root = Path(__file__).resolve().parent.parent
+    expected_fw_marker, expected_fw_meta = load_expected_tag_fw_marker(repo_root, args.expected_fw_marker)
     deploy_summary: dict[str, object] = {
         "port": args.port,
         "timeout_s": args.timeout_s,
@@ -153,12 +273,23 @@ def main() -> int:
         "prefix": args.prefix,
         "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "rounds": {},
+        "expected_fw_marker": expected_fw_marker,
+        "expected_fw_marker_meta": expected_fw_meta,
+        "pre_version_query": {},
+        "post_version_query": {},
     }
+
+    pre_version_summary = query_tag_versions(args.port, targets, out_root)
+    deploy_summary["pre_version_query"] = pre_version_summary
+    (out_root / "deploy_summary.json").write_text(json.dumps(deploy_summary, indent=2) + "\n", encoding="utf-8")
 
     for target in targets:
         round_dir = out_root / target
         round_dir.mkdir(parents=True, exist_ok=True)
         entry: dict[str, object] = {"target_name": target, "attempts": []}
+        current_fw = str((pre_version_summary.get("versions") or {}).get(target, {}).get("fw", "-"))
+        target_fw = expected_fw_marker or "-"
+        print_version_banner(target, current_fw, target_fw)
         for attempt in range(1, args.max_attempts + 1):
             stage_dir = round_dir / f"stage{attempt}"
             cmd = [
@@ -240,6 +371,24 @@ def main() -> int:
         (out_root / "deploy_summary.json").write_text(json.dumps(deploy_summary, indent=2) + "\n", encoding="utf-8")
         if int(entry.get("returncode", 1)) != 0:
             return int(entry.get("returncode", 1))
+
+    post_version_summary = query_tag_versions(args.port, targets, out_root)
+    deploy_summary["post_version_query"] = post_version_summary
+    for target in targets:
+        actual_fw = str((post_version_summary.get("versions") or {}).get(target, {}).get("fw", "-"))
+        print_version_banner(target, expected_fw_marker or "-", expected_fw_marker or "-", actual_fw)
+        deploy_summary["rounds"][target]["post_version"] = {
+            "expected_fw": expected_fw_marker,
+            "actual_fw": actual_fw,
+            "match": bool(expected_fw_marker) and actual_fw == expected_fw_marker,
+        }
+    (out_root / "deploy_summary.json").write_text(json.dumps(deploy_summary, indent=2) + "\n", encoding="utf-8")
+
+    if expected_fw_marker:
+        for target in targets:
+            post = deploy_summary["rounds"][target].get("post_version", {})
+            if not bool(post.get("match")):
+                return 3
 
     deploy_summary["finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
     (out_root / "deploy_summary.json").write_text(json.dumps(deploy_summary, indent=2) + "\n", encoding="utf-8")

@@ -11,6 +11,7 @@ TAG_SUMMARY_PERIOD="${TAG_SUMMARY_PERIOD:-1}"
 TAG_CMAKE_ARGS="${TAG_CMAKE_ARGS:-}"
 TAG_SIGN_VERSION="${TAG_SIGN_VERSION:-}"
 MASTER_CMAKE_ARGS="${MASTER_CMAKE_ARGS:-}"
+REPO_ROOT="/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start"
 
 export ZEPHYR_NRF_MODULE_DIR="${ZEPHYR_NRF_MODULE_DIR:-$NCS_ROOT/nrf}"
 export ZEPHYR_MODULES="${ZEPHYR_MODULES:-$(west list --format={abspath} | tr '\n' ';' | sed 's/;$//')}"
@@ -67,6 +68,47 @@ python3 scripts/write_build_source.py \
 python3 scripts/gen_ota_image_inc.py \
   "$SIGNED_BIN" \
   apps/master_ota/generated/ota_image.inc
+
+python3 - <<'PY' "$REPO_ROOT" "$TAG_BUILD_DIR" "$MASTER_BUILD_DIR" "$SIGNED_BIN"
+import json
+import re
+import sys
+import time
+from pathlib import Path
+
+repo_root = Path(sys.argv[1])
+tag_build_dir = repo_root / sys.argv[2]
+master_build_dir = sys.argv[3]
+signed_bin = Path(sys.argv[4])
+if not signed_bin.is_absolute():
+    signed_bin = repo_root / signed_bin
+signed_bin = signed_bin.resolve()
+cache = tag_build_dir / "CMakeCache.txt"
+fw_marker = "-"
+if cache.exists():
+    text = cache.read_text(encoding="utf-8", errors="replace")
+    m = re.search(r"^APP_TAG_FW_MARKER:STRING=(.+)$", text, re.MULTILINE)
+    if m:
+        fw_marker = m.group(1).strip()
+manifest = {
+    "kind": "tag_ota_bundle",
+    "fw_marker": fw_marker,
+    "tag_build_dir": tag_build_dir.name,
+    "control_build_dir": master_build_dir,
+    "signed_bin": str(signed_bin.relative_to(repo_root)),
+    "dfu_zip": f"{tag_build_dir.name}/dfu_application.zip",
+    "generated_at_epoch": int(time.time()),
+}
+(repo_root / "apps" / "master_ota" / "generated" / "tag_ota_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+header = repo_root / "apps" / "master_ota" / "generated" / "tag_ota_manifest.h"
+header.write_text(
+    "#pragma once\n\n"
+    f"#define APP_MASTER_OTA_TAG_FW_MARKER \"{fw_marker}\"\n"
+    f"#define APP_MASTER_OTA_TAG_BUILD_DIR \"{tag_build_dir.name}\"\n"
+    f"#define APP_MASTER_OTA_TAG_DFU_ZIP \"{tag_build_dir.name}/dfu_application.zip\"\n",
+    encoding="utf-8",
+)
+PY
 
 west build \
   -b "$MASTER_BOARD" \

@@ -81,6 +81,42 @@ static void ss_twr_resp_diag_periodic(uint32 *last_ms,
            (unsigned int)(ss_twr_resp_allow_tag_polls != 0));
 }
 
+static void ss_twr_resp_log_unexpected_frame(const uint8_t *frame,
+                                             uint32_t frame_len,
+                                             uint32_t ignored_nonpoll_frames)
+{
+    uint16_t dst_addr = 0U;
+    uint16_t src_addr = 0U;
+    uint16_t pan_id = 0U;
+    uint8_t code = 0U;
+
+    if (frame_len > UWB_MSG_CODE_IDX) {
+        code = frame[UWB_MSG_CODE_IDX];
+    }
+    if (frame_len > (UWB_MSG_DST_IDX + 1U)) {
+        dst_addr = uwb_frame_get_dst_addr(frame);
+    }
+    if (frame_len > (UWB_MSG_SRC_IDX + 1U)) {
+        src_addr = uwb_frame_get_src_addr(frame);
+    }
+    if (frame_len > (UWB_MSG_PAN_IDX + 1U)) {
+        pan_id = (uint16_t)frame[UWB_MSG_PAN_IDX] |
+                 ((uint16_t)frame[UWB_MSG_PAN_IDX + 1U] << 8);
+    }
+
+    if (ignored_nonpoll_frames <= 5U || (ignored_nonpoll_frames % 200U) == 0U) {
+        printk("Responder unexpected frame anchor=%u len=%lu fctrl=%02x%02x code=0x%02x pan=0x%04x dst=0x%04x src=0x%04x\n",
+               (unsigned int)ss_twr_resp_anchor_id,
+               (unsigned long)frame_len,
+               (unsigned int)(frame_len > 1U ? frame[1] : 0U),
+               (unsigned int)(frame_len > 0U ? frame[0] : 0U),
+               (unsigned int)code,
+               (unsigned int)pan_id,
+               (unsigned int)dst_addr,
+               (unsigned int)src_addr);
+    }
+}
+
 static dwtime_u64_t ss_twr_resp_get_rx_timestamp_u64(void)
 {
     uint8 ts_tab[5];
@@ -223,6 +259,10 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         if (!uwb_ss_twr_poll_matches(ss_twr_resp_rx_buffer,
                                      ss_twr_resp_local_addr)) {
             ignored_nonpoll_frames++;
+            if (APP_ANCHOR_VERBOSE_RESPONDER_ERRORS != 0U) {
+                ss_twr_resp_log_unexpected_frame(ss_twr_resp_rx_buffer, frame_len,
+                                                 ignored_nonpoll_frames);
+            }
             ss_twr_resp_diag_periodic(&diag_last_ms, replies_ok, rx_error_count,
                                       ignored_tag_polls, ignored_nonpoll_frames);
             ss_twr_resp_coop_sleep();

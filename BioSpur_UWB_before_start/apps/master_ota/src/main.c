@@ -2285,35 +2285,15 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 	printk("PHY update request rc=%d\n", sec_err);
 	sec_err = bt_conn_le_param_update(conn, fast_conn_params);
 	printk("Conn param update request rc=%d\n", sec_err);
-	sec_ready = false;
+	sec_ready = true;
 	ota_security_required = false;
 	k_sem_reset(&sec_ready_sem);
-	if (runtime_expect_nus) {
-		ota_security_required = true;
-		/* Tag-oriented path may require encrypted link for control/data ops. */
-		sec_err = bt_conn_set_security(conn, BT_SECURITY_L2);
-		if (sec_err && sec_err != -EALREADY) {
-			printk("Security request failed: %d\n", sec_err);
-			printk("Security fallback: proceeding with current link level\n");
-			sec_ready = true;
-		} else {
-			printk("Security request: L2 (rc=%d)\n", sec_err);
-			/* Some targets gate MCUmgr writes by ATT perms; wait briefly for
-			 * encrypted link before DFU discovery/commands.
-			 */
-			if (k_sem_take(&sec_ready_sem, K_SECONDS(3)) != 0) {
-				printk("Security fallback: L2 wait timeout, proceeding with current link level\n");
-				sec_ready = true;
-			}
-		}
-	} else {
-		/* Anchor OTA profile: keep link security at L1 by default.
-		 * Some bench targets reject pairing/security upgrade (err=9),
-		 * which disconnects before DFU discovery and blocks OTA start.
-		 */
-		printk("Security(anchor OTA): skip L2 upgrade, use current link level\n");
-		sec_ready = true;
-	}
+	/* Keep OTA at the current link security level for both Anchor and Tag
+	 * targets. Several field Tags reject pairing/security upgrade with err=9,
+	 * which disconnects before SMP DFU discovery and leaves the controller in
+	 * a stale connected-but-not-ready state.
+	 */
+	printk("Security OTA: skip L2 upgrade, use current link level\n");
 	/* Stop scan before OTA service discovery to avoid scan callbacks from
 	 * unrelated peers racing with OTA state on busy benches.
 	 */

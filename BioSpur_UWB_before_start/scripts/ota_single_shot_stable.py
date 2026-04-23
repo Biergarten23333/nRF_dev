@@ -13,7 +13,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 
 import serial
-from serial import SerialException
+from serial import SerialException, SerialTimeoutException
 
 
 FILTER_RE = re.compile(
@@ -245,7 +245,8 @@ def open_serial(port: str, baud: int, *, force_kill_port_owner: bool = False, lo
                 port,
                 baud,
                 timeout=0.2,
-                exclusive=True,
+                write_timeout=2.0,
+                exclusive=False,
                 dsrdtr=False,
                 rtscts=False,
             )
@@ -260,9 +261,30 @@ def open_serial(port: str, baud: int, *, force_kill_port_owner: bool = False, lo
 
 
 def send_cmd(ser: serial.Serial, cmd: str, logf, t0: float) -> None:
-    ser.write((cmd + "\n").encode("utf-8"))
-    logf.write(f"[HOST_CMD {time.monotonic()-t0:7.2f}s] {cmd}\n")
-    logf.flush()
+    payload = (cmd + "\n").encode("utf-8")
+    last_exc: Exception | None = None
+    for attempt in range(1, 4):
+        try:
+            ser.write(payload)
+            ser.flush()
+            logf.write(f"[HOST_CMD {time.monotonic()-t0:7.2f}s] {cmd}\n")
+            logf.flush()
+            return
+        except (SerialTimeoutException, SerialException, OSError) as exc:
+            last_exc = exc
+            logf.write(
+                f"[HOST_EVT {time.monotonic()-t0:7.2f}s] serial_write_failed "
+                f"attempt={attempt}/3 cmd={cmd!r} err={exc}\n"
+            )
+            logf.flush()
+            try:
+                ser.reset_output_buffer()
+                ser.reset_input_buffer()
+            except Exception:
+                pass
+            time.sleep(0.35)
+    assert last_exc is not None
+    raise RuntimeError(f"serial_write_failed:{cmd}:{last_exc}") from last_exc
 
 
 def read_line(ser: serial.Serial) -> str | None:
@@ -727,6 +749,15 @@ def main() -> int:
             ser.reset_output_buffer()
             logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A serial_opened port={args.port}\n")
             logf.flush()
+            # Freshly-enumerated CDC can reject immediate writes; settle and
+            # drain boot chatter before active status probing.
+            settle_deadline = time.monotonic() + 1.5
+            while time.monotonic() < settle_deadline:
+                line = read_line(ser)
+                if line is None:
+                    continue
+                logf.write(line + "\n")
+                logf.flush()
 
             # Wait until control UART is actually ready; commands sent before
             # this line can be silently dropped during boot/scan startup.

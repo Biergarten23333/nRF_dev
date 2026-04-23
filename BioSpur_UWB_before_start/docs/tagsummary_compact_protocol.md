@@ -11,13 +11,13 @@ Goals:
 ## Single Record Format
 
 ```
-TS;<ver>;<sweep>;<plan>;<x>;<y>;<z>;<rms>;<max>;<anchors>;<slot_idx>;<slot_cnt>;<src>;<cut>;<reason>;<dt>
+TS;<ver>;<sweep>;<plan>;<x>;<y>;<z>;<rms>;<max>;<anchors>;<slot_idx>;<slot_cnt>;<src>;<cut>;<reason>;<dt>[;<pmode>;<plan_label>;<qf>]
 ```
 
 Example:
 
 ```
-TS;1;279;t;2562;844;723;4;6;BDEH;3;4;M;0;S;96
+TS;1;279;o;2562;844;723;4;6;BDEH;3;4;M;0;S;96;5;cal_roto;82
 ```
 
 ## Field Order And Meaning
@@ -40,6 +40,9 @@ TS;1;279;t;2562;844;723;4;6;BDEH;3;4;M;0;S;96
 | 13 | `cut` | Slot cut-short flag | `0` or `1` |
 | 14 | `reason` | Solve reason code | enum (`S/P/R/C/N`) |
 | 15 | `dt` | Motion/update interval in ms | unsigned int, `0` means unavailable |
+| 16 | `pmode` | Runtime positioning mode | optional unsigned int (`4` = CAL_STATIC, `5` = CAL_ROTO) |
+| 17 | `plan_label` | Human-readable plan/mode | optional text, e.g. `cal_static`, `cal_roto` |
+| 18 | `qf` | Solution quality flag | optional mean quality percent of final solve anchors |
 
 ## Enumerations
 
@@ -48,6 +51,8 @@ TS;1;279;t;2562;844;723;4;6;BDEH;3;4;M;0;S;96
 - `f` = full
 - `r` = refresh
 - `x` = fixed
+- `s` = CAL_STATIC
+- `o` = CAL_ROTO
 
 ### `src`
 - `M` = MASTER
@@ -77,7 +82,7 @@ Receiver rule:
 ## Receiver Parsing Rules
 
 - delimiter is `;`
-- field count must be exactly `16`
+- field count is `16` for legacy records or `19` when `pmode/plan_label/qf` are appended
 - unknown `ver` should be rejected or routed to a compatibility path
 - unknown enum values should be mapped to safe fallback (`plan=x`, `src=B`, `reason=N`) if needed
 - whitespace is not expected in compact records

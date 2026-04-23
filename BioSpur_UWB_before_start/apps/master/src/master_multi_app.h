@@ -38,6 +38,8 @@ void master_dump_ready_state(void);
 int master_anchor_ctrl_ready_count(void);
 int master_anchor_ctrl_target_peer_count(void);
 int master_connection_count(void);
+int master_anchor_snapshot_uuid_map(char labels_out[], size_t labels_len,
+				      char uuids_out[][33], size_t uuids_len);
 int master_anchor_ctrl_read_state(char *out, size_t out_len);
 int master_anchor_ctrl_read_result(char *out, size_t out_len);
 int master_send_command_now(const char *cmd);

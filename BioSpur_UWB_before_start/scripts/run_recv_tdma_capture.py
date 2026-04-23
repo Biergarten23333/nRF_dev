@@ -5,6 +5,7 @@ import argparse
 import csv
 import json
 import re
+import subprocess
 import sys
 import time
 from collections import defaultdict
@@ -21,6 +22,8 @@ TAG_NOTIFY_PREFIX_RE = r"(?:BLE(?:\[(?P<conn>\d+)(?::[^\]]*)?\])?|BS[0-9A-F]{4}|
 
 TAG_SUMMARY_RE_FULL = re.compile(
     rf"{TAG_NOTIFY_PREFIX_RE} notify: TagSummary sweep=(?P<sweep>\d+) plan=(?P<plan>\w+) "
+    r"(?:pmode=(?P<pmode>\d+) )?"
+    r"(?:qf=(?P<qf>\d+) )?"
     r"xyz=\((?P<x>-?\d+),(?P<y>-?\d+),(?P<z>-?\d+)\) "
     r"rms=(?P<rms>\d+) max=(?P<max>\d+)"
     r"(?: anchors=\[(?P<anchors>[A-Z,]*)\])?"
@@ -48,7 +51,7 @@ TAG_SUMMARY_RE_SEMI = re.compile(
     rf"{TAG_NOTIFY_PREFIX_RE} notify: TS;"
     r"(?P<ver>\d+);"
     r"(?P<sweep>\d+);"
-    r"(?P<plan>[tfrx]);"
+    r"(?P<plan>[A-Za-z0-9_]+);"
     r"(?P<x>-?\d+);(?P<y>-?\d+);(?P<z>-?\d+);"
     r"(?P<rms>\d+);(?P<max>\d+);"
     r"(?P<anchors>[A-Z0-9]*);"
@@ -57,6 +60,7 @@ TAG_SUMMARY_RE_SEMI = re.compile(
     r"(?P<cut>[01]);"
     r"(?P<reason>[SPRCN]);"
     r"(?P<motion_dt>\d+)"
+    r"(?:;(?P<pmode>\d+);(?P<plan_label>[A-Za-z0-9_]+);(?P<qf>\d+))?"
 )
 
 CM_RE = re.compile(
@@ -78,6 +82,7 @@ CONNECTED_RE = re.compile(
 
 CFG_ASSIGNED_RE = re.compile(
     r"CFG assigned\[(?P<conn>\d+)\]: bs=(?P<bs>BS[0-9A-F]{4}) tag=(?P<tag_id>\d+)"
+    r".*?pmode=(?P<pmode>\d+)"
 )
 
 
@@ -168,14 +173,29 @@ def drain_serial_until(ser: serial.Serial, logf, wait_s: float) -> None:
 def send_cmd(ser: serial.Serial, logf, cmd: str, wait_s: float) -> serial.Serial:
     logf.write(f"[HOST_CMD {time.monotonic():.3f}] {cmd}\n")
     logf.flush()
-    ser.write((cmd + "\n").encode("utf-8"))
-    ser.flush()
+    try:
+        ser.write((cmd + "\n").encode("utf-8"))
+        ser.flush()
+    except (serial.SerialTimeoutException, SerialException, OSError) as exc:
+        logf.write(
+            f"[HOST_WARN {time.monotonic():.3f}] write failed for {cmd!r}: {exc}; reopen/retry\n"
+        )
+        logf.flush()
+        port = ser.port
+        baud = ser.baudrate
+        try:
+            ser.close()
+        except Exception:
+            pass
+        ser = open_serial_with_retry(port, baud)
+        time.sleep(1.0)
+        drain_serial_until(ser, logf, 1.0)
+        ser.write((cmd + "\n").encode("utf-8"))
+        ser.flush()
     try:
         drain_serial_until(ser, logf, wait_s)
         return ser
     except (SerialException, OSError):
-        if cmd.strip().lower() != "mode recv":
-            raise
         try:
             ser.close()
         except Exception:
@@ -186,6 +206,10 @@ def send_cmd(ser: serial.Serial, logf, cmd: str, wait_s: float) -> serial.Serial
                 time.sleep(0.75)
                 ser = open_serial_with_retry(ser.port, ser.baudrate)
                 drain_serial_until(ser, logf, max(wait_s, 2.5))
+                logf.write(
+                    f"[HOST_WARN {time.monotonic():.3f}] read failed after {cmd!r}; reopened serial and continued\n"
+                )
+                logf.flush()
                 return ser
             except (SerialException, OSError) as exc:
                 last_exc = exc
@@ -227,6 +251,28 @@ def build_parser() -> argparse.ArgumentParser:
         default="logs/recv_tdma_capture",
         help="Base output directory",
     )
+    parser.add_argument(
+        "--skip-anchor-preflight",
+        action="store_true",
+        help="Skip 8/8 runtime responder verification before tag capture.",
+    )
+    parser.add_argument(
+        "--anchor-preflight-timeout-s",
+        type=float,
+        default=30.0,
+        help="Per-attempt anchor runtime responder command timeout.",
+    )
+    parser.add_argument(
+        "--anchor-preflight-retries",
+        type=int,
+        default=3,
+        help="Runtime responder verification attempts before aborting capture.",
+    )
+    parser.add_argument(
+        "--allow-zero-positions",
+        action="store_true",
+        help="Do not fail the session when one or more targets produce no position rows.",
+    )
     return parser
 
 
@@ -243,12 +289,57 @@ def parse_profiles(text: str) -> list[tuple[str, str]]:
     return items
 
 
+def profile_expected_pmode(profile: str) -> int:
+    if profile == "static":
+        return 4
+    if profile == "roto":
+        return 5
+    return 0
+
+
 def write_rows(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
+
+
+def run_anchor_responder_preflight(args, session_dir: Path) -> dict:
+    preflight_base = session_dir / "anchor_responder_preflight"
+    preflight_log = session_dir / "anchor_responder_preflight.console.log"
+    cmd = [
+        sys.executable,
+        "scripts/verify_all_anchor_responder_runtime.py",
+        "--port",
+        args.port,
+        "--command-timeout-s",
+        str(args.anchor_preflight_timeout_s),
+        "--retry-count",
+        str(args.anchor_preflight_retries),
+        "--out-dir",
+        str(preflight_base),
+    ]
+    print("[CAPTURE] anchor preflight: require 8/8 runtime responder ack", flush=True)
+    cp = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
+    preflight_log.write_text(cp.stdout, encoding="utf-8")
+    print(cp.stdout, end="", flush=True)
+
+    result = {
+        "success": False,
+        "returncode": cp.returncode,
+        "console_log": str(preflight_log),
+    }
+    json_match = re.search(r"(\{\s*\"success\".*\})\s*$", cp.stdout, re.S)
+    if json_match:
+        try:
+            parsed = json.loads(json_match.group(1))
+            result.update(parsed)
+        except json.JSONDecodeError as exc:
+            result["error"] = f"preflight_json_parse_failed: {exc}"
+    else:
+        result["error"] = "preflight_json_not_found"
+    return result
 
 
 def print_capture_status(start_wall: float,
@@ -280,6 +371,9 @@ def main() -> int:
     targets = [normalize_target(x) for x in args.targets.split(",") if x.strip()]
     profile_items = parse_profiles(args.profiles)
     target_set = set(targets)
+    expected_pmode_by_target = {
+        name: profile_expected_pmode(profile) for name, profile in profile_items
+    }
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_out = Path(args.out_dir)
@@ -295,6 +389,7 @@ def main() -> int:
         "device_kind": "tag",
         "targets": targets,
         "profiles": [{"name": name, "profile": profile} for name, profile in profile_items],
+        "expected_pmode": expected_pmode_by_target,
         "freq_hz": {
             "static": args.static_hz,
             "roto": args.roto_hz,
@@ -303,6 +398,72 @@ def main() -> int:
         "duration_s": args.duration,
     }
     commands_json_path.write_text(json.dumps(cmd_plan, indent=2), encoding="utf-8")
+
+    anchor_preflight = {"skipped": True, "success": True}
+    if not args.skip_anchor_preflight:
+        anchor_preflight = run_anchor_responder_preflight(args, session_dir)
+        if not anchor_preflight.get("success"):
+            summary = {
+                "success": False,
+                "anchor_preflight_failed": True,
+                "anchor_preflight": anchor_preflight,
+                "port": args.port,
+                "duration_s": args.duration,
+                "elapsed_s": time.time() - start_wall,
+                "session_dir": str(session_dir),
+                "targets": targets,
+                "profiles": {name: profile for name, profile in profile_items},
+                "freq_hz": {
+                    "static": args.static_hz,
+                    "roto": args.roto_hz,
+                    "motion": args.motion_hz,
+                },
+                "positions_all": 0,
+                "cm_all": 0,
+                "raw_log": str(raw_log_path),
+                "positions_all_csv": str(session_dir / "positions_all.csv"),
+                "cm_all_csv": str(session_dir / "cm_all.csv"),
+            }
+            write_rows(
+                session_dir / "positions_all.csv",
+                [
+                    "sweep",
+                    "conn_id",
+                    "peer_name",
+                    "tag_id",
+                    "plan",
+                    "x_mm",
+                    "y_mm",
+                    "z_mm",
+                    "rms_mm",
+                    "max_mm",
+                    "anchors",
+                    "motion_dt_ms",
+                    "disp_mm",
+                    "speed_mm_s",
+                ],
+                [],
+            )
+            write_rows(
+                session_dir / "cm_all.csv",
+                [
+                    "sweep",
+                    "conn_id",
+                    "peer_name",
+                    "tag_id",
+                    "anchor_id",
+                    "status",
+                    "raw_mm",
+                    "filt_mm",
+                    "quality_percent",
+                    "ok_count",
+                    "fail_count",
+                ],
+                [],
+            )
+            summary_json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+            print(json.dumps(summary, indent=2))
+            return 2
 
     conn_meta: dict[str, dict] = {}
     positions: list[dict] = []
@@ -319,7 +480,7 @@ def main() -> int:
             # Initial drain
             drain_serial_until(ser, logf, 1.0)
 
-            ser = send_cmd(ser, logf, "mode recv", 3.0)
+            ser = send_cmd(ser, logf, "mode recv", 8.0)
             ser = send_cmd(ser, logf, "tdma clear", 0.8)
             ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
             ser = send_cmd(ser, logf, "ota_target name -", 0.5)
@@ -343,9 +504,33 @@ def main() -> int:
             cm_seen: dict[str, int] = defaultdict(int)
             cm_ok_seen: dict[str, int] = defaultdict(int)
             startup_strikes: dict[str, int] = defaultdict(int)
+            skipped_before_target_pmode = 0
+            # The setup commands above drain serial output before the parser loop
+            # starts. Seed the desired final pmode so CM rows, which do not carry
+            # pmode in-band, are not discarded just because their CFG_ASSIGNED
+            # line was consumed during command setup.
+            pmode_by_peer: dict[str, int] = {
+                name: pmode
+                for name, pmode in expected_pmode_by_target.items()
+                if pmode is not None
+            }
             try:
                 while time.time() < end_time:
-                    chunk = ser.read(ser.in_waiting or 1)
+                    try:
+                        chunk = ser.read(ser.in_waiting or 1)
+                    except (SerialException, OSError) as exc:
+                        logf.write(
+                            f"[HOST_WARN {time.monotonic():.3f}] capture read failed: {exc}; reopen\n"
+                        )
+                        logf.flush()
+                        try:
+                            ser.close()
+                        except Exception:
+                            pass
+                        ser = open_serial_with_retry(args.port, args.baud)
+                        time.sleep(0.8)
+                        drain_serial_until(ser, logf, 0.8)
+                        continue
                     if not chunk:
                         if time.time() - last_status_at >= 1.0:
                             print_capture_status(
@@ -358,12 +543,12 @@ def main() -> int:
                                 cm_seen,
                             )
                             elapsed = time.time() - start_wall
-                            if elapsed >= 5.0:
+                            if elapsed >= 60.0:
                                 bad = []
                                 for target in targets:
-                                    if cm_ok_seen.get(target, 0) == 0:
+                                    if cm_ok_seen.get(target, 0) == 0 and positions_seen.get(target, 0) == 0:
                                         startup_strikes[target] += 1
-                                        if startup_strikes[target] >= 3:
+                                        if startup_strikes[target] >= 10:
                                             bad.append(target)
                                     else:
                                         startup_strikes[target] = 0
@@ -371,7 +556,7 @@ def main() -> int:
                                     startup_failed = True
                                     startup_fail_targets = bad
                                     print(
-                                        "[CAPTURE] startup failed after 3 checks with no CM ok: "
+                                        "[CAPTURE] startup failed after extended checks with no CM ok: "
                                         + ",".join(bad),
                                         file=sys.stderr,
                                         flush=True,
@@ -407,12 +592,23 @@ def main() -> int:
                             meta = conn_meta.setdefault(conn_id, {})
                             meta["peer_name"] = match.group("bs")
                             meta["tag_id"] = int(match.group("tag_id"))
+                            meta["pmode"] = int(match.group("pmode"))
+                            pmode_by_peer[match.group("bs")] = int(match.group("pmode"))
 
                         for m in iter_tag_summary_matches(line):
-                            conn_id = m.groupdict().get("conn") or "0"
-                            meta = conn_meta.get(conn_id, {})
+                            conn_id = m.groupdict().get("conn") or ""
+                            meta = conn_meta.get(conn_id, {}) if conn_id else {}
                             peer_name = extract_bs_name(line) or meta.get("peer_name", "")
                             if peer_name and peer_name not in target_set:
+                                continue
+                            expected_pmode = expected_pmode_by_target.get(peer_name)
+                            reported_pmode = m.groupdict().get("pmode")
+                            active_pmode = (
+                                int(reported_pmode) if reported_pmode
+                                else pmode_by_peer.get(peer_name, meta.get("pmode"))
+                            )
+                            if expected_pmode is not None and active_pmode != expected_pmode:
+                                skipped_before_target_pmode += 1
                                 continue
                             x = m.group("x") or m.group("x2")
                             y = m.group("y") or m.group("y2")
@@ -424,6 +620,9 @@ def main() -> int:
                                     "tag_id": meta.get("tag_id", ""),
                                     "sweep": int(m.group("sweep")),
                                     "plan": m.group("plan"),
+                                    "pmode": m.groupdict().get("pmode") or "",
+                                    "plan_label": m.groupdict().get("plan_label") or "",
+                                    "quality_flag_percent": m.groupdict().get("qf") or "",
                                     "x_mm": int(x),
                                     "y_mm": int(y),
                                     "z_mm": int(z),
@@ -439,10 +638,15 @@ def main() -> int:
                                 positions_seen[peer_name] += 1
 
                         for m in iter_cm_matches(line):
-                            conn_id = m.groupdict().get("conn") or "0"
-                            meta = conn_meta.get(conn_id, {})
+                            conn_id = m.groupdict().get("conn") or ""
+                            meta = conn_meta.get(conn_id, {}) if conn_id else {}
                             peer_name = extract_bs_name(line) or meta.get("peer_name", "")
                             if peer_name and peer_name not in target_set:
+                                continue
+                            expected_pmode = expected_pmode_by_target.get(peer_name)
+                            active_pmode = pmode_by_peer.get(peer_name, meta.get("pmode"))
+                            if expected_pmode is not None and active_pmode != expected_pmode:
+                                skipped_before_target_pmode += 1
                                 continue
                             cm_rows.append(
                                 {
@@ -475,12 +679,12 @@ def main() -> int:
                             cm_seen,
                         )
                         elapsed = time.time() - start_wall
-                        if elapsed >= 5.0:
+                        if elapsed >= 60.0:
                             bad = []
                             for target in targets:
-                                if cm_ok_seen.get(target, 0) == 0:
+                                if cm_ok_seen.get(target, 0) == 0 and positions_seen.get(target, 0) == 0:
                                     startup_strikes[target] += 1
-                                    if startup_strikes[target] >= 3:
+                                    if startup_strikes[target] >= 10:
                                         bad.append(target)
                                 else:
                                     startup_strikes[target] = 0
@@ -488,7 +692,7 @@ def main() -> int:
                                 startup_failed = True
                                 startup_fail_targets = bad
                                 print(
-                                    "[CAPTURE] startup failed after 3 checks with no CM ok: "
+                                    "[CAPTURE] startup failed after extended checks with no CM ok: "
                                     + ",".join(bad),
                                     file=sys.stderr,
                                     flush=True,
@@ -518,6 +722,9 @@ def main() -> int:
         "peer_name",
         "tag_id",
         "plan",
+        "pmode",
+        "plan_label",
+        "quality_flag_percent",
         "x_mm",
         "y_mm",
         "z_mm",
@@ -546,6 +753,7 @@ def main() -> int:
     write_rows(session_dir / "cm_all.csv", cm_fields, cm_rows)
 
     per_tag_summary: dict[str, dict] = {}
+    zero_position_targets: list[str] = []
     for target in targets:
         tag_dir = session_dir / target
         tag_dir.mkdir(parents=True, exist_ok=True)
@@ -564,18 +772,27 @@ def main() -> int:
                 for status in sorted({row["status"] for row in cm_target_rows})
             },
         }
+        profile = dict(profile_items).get(target, "")
+        if not pos_rows and not (profile == "static" and cm_target_rows):
+            zero_position_targets.append(target)
 
+    zero_position_failed = bool(zero_position_targets) and not args.allow_zero_positions
     summary = {
-        "success": (not interrupted) and (not startup_failed),
+        "success": (not interrupted) and (not startup_failed) and (not zero_position_failed),
         "interrupted": interrupted,
         "startup_failed": startup_failed,
         "startup_fail_targets": startup_fail_targets,
+        "zero_position_failed": zero_position_failed,
+        "zero_position_targets": zero_position_targets,
+        "anchor_preflight": anchor_preflight,
         "port": args.port,
         "duration_s": args.duration,
         "elapsed_s": time.time() - start_wall,
         "session_dir": str(session_dir),
         "targets": targets,
         "profiles": {name: profile for name, profile in profile_items},
+        "expected_pmode": expected_pmode_by_target,
+        "skipped_before_target_pmode": skipped_before_target_pmode,
         "freq_hz": {
             "static": args.static_hz,
             "roto": args.roto_hz,

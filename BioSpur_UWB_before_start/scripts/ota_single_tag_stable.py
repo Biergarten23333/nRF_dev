@@ -802,14 +802,13 @@ def main() -> int:
                 except Exception:
                     pass
 
-        if ota_success_seen:
-            controller_returned_to_recv = restore_controller_to_recv(
-                port=args.port,
-                baud=args.baud,
-                reconnect_timeout_s=args.reconnect_timeout_s,
-                logf=logf,
-                t0=t0,
-            )
+        controller_returned_to_recv = restore_controller_to_recv(
+            port=args.port,
+            baud=args.baud,
+            reconnect_timeout_s=args.reconnect_timeout_s,
+            logf=logf,
+            t0=t0,
+        )
 
     if args.phase_a_only and phase_a_ok:
         classification = "PHASE_A_PASS"
