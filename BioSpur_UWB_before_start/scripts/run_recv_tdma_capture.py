@@ -413,6 +413,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Runtime responder verification attempts before aborting capture.",
     )
     parser.add_argument(
+        "--anchor-preflight-launch-retries",
+        type=int,
+        default=2,
+        help="Rerun the whole responder preflight if a controller reboot window causes a failed launch.",
+    )
+    parser.add_argument(
         "--allow-zero-positions",
         action="store_true",
         help="Do not fail the session when one or more targets produce no position rows.",
@@ -476,39 +482,55 @@ def write_rows(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
 
 
 def run_anchor_responder_preflight(args, session_dir: Path) -> dict:
-    preflight_base = session_dir / "anchor_responder_preflight"
-    preflight_log = session_dir / "anchor_responder_preflight.console.log"
-    cmd = [
-        sys.executable,
-        "scripts/verify_all_anchor_responder_runtime.py",
-        "--port",
-        args.port,
-        "--command-timeout-s",
-        str(args.anchor_preflight_timeout_s),
-        "--retry-count",
-        str(args.anchor_preflight_retries),
-        "--out-dir",
-        str(preflight_base),
-    ]
     print("[CAPTURE] anchor preflight: require 8/8 runtime responder ack", flush=True)
-    cp = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
-    preflight_log.write_text(cp.stdout, encoding="utf-8")
-    print(cp.stdout, end="", flush=True)
+    attempts = []
+    launch_retries = max(1, int(args.anchor_preflight_launch_retries))
+    result: dict = {"success": False, "error": "preflight_not_run"}
 
-    result = {
-        "success": False,
-        "returncode": cp.returncode,
-        "console_log": str(preflight_log),
-    }
-    json_match = re.search(r"(\{\s*\"success\".*\})\s*$", cp.stdout, re.S)
-    if json_match:
-        try:
-            parsed = json.loads(json_match.group(1))
-            result.update(parsed)
-        except json.JSONDecodeError as exc:
-            result["error"] = f"preflight_json_parse_failed: {exc}"
-    else:
-        result["error"] = "preflight_json_not_found"
+    for launch in range(1, launch_retries + 1):
+        preflight_base = session_dir / f"anchor_responder_preflight_launch{launch}"
+        preflight_log = session_dir / f"anchor_responder_preflight_launch{launch}.console.log"
+        cmd = [
+            sys.executable,
+            "scripts/verify_all_anchor_responder_runtime.py",
+            "--port",
+            args.port,
+            "--command-timeout-s",
+            str(args.anchor_preflight_timeout_s),
+            "--retry-count",
+            str(args.anchor_preflight_retries),
+            "--out-dir",
+            str(preflight_base),
+        ]
+        cp = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
+        preflight_log.write_text(cp.stdout, encoding="utf-8")
+        print(cp.stdout, end="", flush=True)
+
+        result = {
+            "success": False,
+            "returncode": cp.returncode,
+            "console_log": str(preflight_log),
+            "launch": launch,
+        }
+        json_match = re.search(r"(\{\s*\"success\".*\})\s*$", cp.stdout, re.S)
+        if json_match:
+            try:
+                parsed = json.loads(json_match.group(1))
+                result.update(parsed)
+            except json.JSONDecodeError as exc:
+                result["error"] = f"preflight_json_parse_failed: {exc}"
+        else:
+            result["error"] = "preflight_json_not_found"
+        attempts.append(dict(result))
+        if result.get("success"):
+            break
+        print(
+            f"[CAPTURE] anchor preflight launch {launch}/{launch_retries} failed; retrying whole preflight",
+            flush=True,
+        )
+        time.sleep(3.0)
+
+    result["launch_attempts"] = attempts
     return result
 
 

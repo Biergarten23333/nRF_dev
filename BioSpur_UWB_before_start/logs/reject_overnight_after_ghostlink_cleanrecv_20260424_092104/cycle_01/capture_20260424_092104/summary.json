@@ -1,0 +1,451 @@
+{
+  "success": true,
+  "interrupted": false,
+  "startup_failed": false,
+  "startup_fail_targets": [],
+  "zero_position_failed": false,
+  "zero_position_targets": [],
+  "anchor_preflight": {
+    "success": true,
+    "returncode": 0,
+    "console_log": "logs/reject_overnight_after_ghostlink_cleanrecv_20260424_092104/cycle_01/capture_20260424_092104/anchor_responder_preflight.console.log",
+    "port": "/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_87EA2F4A526C5A02-if00",
+    "log_path": "logs/reject_overnight_after_ghostlink_cleanrecv_20260424_092104/cycle_01/capture_20260424_092104/anchor_responder_preflight_20260424_092104/verify.log",
+    "command_sent": true,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ack_ok": false,
+        "sent_count": 3,
+        "ready_count": 3,
+        "ready_target": 8,
+        "role_counts": {
+          "matrix": 0,
+          "responder": 8,
+          "master": 0,
+          "other": 0
+        }
+      },
+      {
+        "attempt": 2,
+        "ack_ok": true,
+        "sent_count": 8,
+        "ready_count": 8,
+        "ready_target": 8,
+        "role_counts": {
+          "matrix": 0,
+          "responder": 8,
+          "master": 0,
+          "other": 0
+        }
+      }
+    ],
+    "final_ack": {
+      "sent_count": 8,
+      "ready_count": 8,
+      "ready_target": 8
+    },
+    "final_role_counts": {
+      "matrix": 0,
+      "responder": 8,
+      "master": 0,
+      "other": 0
+    },
+    "error": ""
+  },
+  "cm_probe": {
+    "success": true,
+    "probe_target": "BSF66F",
+    "attempts": [
+      {
+        "success": true,
+        "probe_target": "BSF66F",
+        "ok_anchors": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "seen_anchors": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "timeout_s": 20.0,
+        "attempt": 1
+      }
+    ]
+  },
+  "port": "/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_87EA2F4A526C5A02-if00",
+  "duration_s": 45.0,
+  "elapsed_s": 196.91931343078613,
+  "session_dir": "logs/reject_overnight_after_ghostlink_cleanrecv_20260424_092104/cycle_01/capture_20260424_092104",
+  "targets": [
+    "BSF66F",
+    "BS2DCE",
+    "BSDC91"
+  ],
+  "profiles": {
+    "BSF66F": "static",
+    "BS2DCE": "roto",
+    "BSDC91": "roto"
+  },
+  "expected_pmode": {
+    "BSF66F": 4,
+    "BS2DCE": 5,
+    "BSDC91": 5
+  },
+  "skipped_before_target_pmode": 0,
+  "freq_hz": {
+    "static": 5,
+    "roto": 10,
+    "motion": 5
+  },
+  "positions_all": 0,
+  "cm_all": 2256,
+  "cs_all": 737,
+  "cr_all": 2999,
+  "cf_all": 737,
+  "connections": {},
+  "per_tag": {
+    "BSF66F": {
+      "position_rows": 0,
+      "cm_rows": 702,
+      "cs_rows": 235,
+      "cr_rows": 940,
+      "cf_rows": 235,
+      "latest_position": null,
+      "latest_calibration_summary": {
+        "conn_id": "",
+        "peer_name": "BSF66F",
+        "tag_id": "",
+        "sweep": 160828,
+        "plan": "cal_static",
+        "pmode": 4,
+        "quality_flag_percent": 90,
+        "targets": "E,F,G,H",
+        "statuses": "ok,ok,ok,ok",
+        "qualities": "100,85,89,89"
+      },
+      "latest_calibration_reject": {
+        "conn_id": "",
+        "peer_name": "BSF66F",
+        "tag_id": "",
+        "sweep": 160828,
+        "plan": "cal_static",
+        "pmode": 4,
+        "anchor_label": "H",
+        "status": "ok",
+        "reason": "continuity_hard",
+        "raw_mm": 3316,
+        "filt_mm": 3316,
+        "pred_mm": 7235,
+        "resid_mm": 3919,
+        "tracker_quality_percent": 89,
+        "solve_quality_percent": 89
+      },
+      "latest_calibration_frame": {
+        "conn_id": "",
+        "peer_name": "BSF66F",
+        "tag_id": "",
+        "sweep": 160828,
+        "plan": "cal_static",
+        "pmode": 4,
+        "solve_reason": "pending",
+        "quality_flag_percent": 90,
+        "active_anchor_count": 4,
+        "valid_anchor_count": 0,
+        "rms_mm": 0,
+        "max_mm": 0,
+        "step_mm": 0
+      },
+      "anchors_seen": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "status_counts": {
+        "ok": 643,
+        "timeout": 59
+      },
+      "reject_reason_counts": {
+        "continuity_hard": 862,
+        "rx_error": 4,
+        "rx_timeout": 74
+      },
+      "anchor_reject_reason_counts": {
+        "E": {
+          "continuity_hard": 116,
+          "rx_error": 1,
+          "rx_timeout": 1
+        },
+        "F": {
+          "continuity_hard": 102,
+          "rx_timeout": 16
+        },
+        "G": {
+          "continuity_hard": 101,
+          "rx_timeout": 17
+        },
+        "H": {
+          "continuity_hard": 103,
+          "rx_timeout": 15
+        },
+        "A": {
+          "continuity_hard": 114,
+          "rx_error": 1,
+          "rx_timeout": 2
+        },
+        "B": {
+          "continuity_hard": 101,
+          "rx_timeout": 16
+        },
+        "C": {
+          "continuity_hard": 116,
+          "rx_error": 1
+        },
+        "D": {
+          "continuity_hard": 109,
+          "rx_error": 1,
+          "rx_timeout": 7
+        }
+      }
+    },
+    "BS2DCE": {
+      "position_rows": 0,
+      "cm_rows": 804,
+      "cs_rows": 259,
+      "cr_rows": 1065,
+      "cf_rows": 259,
+      "latest_position": null,
+      "latest_calibration_summary": {
+        "conn_id": "",
+        "peer_name": "BS2DCE",
+        "tag_id": "",
+        "sweep": 3748,
+        "plan": "cal_roto",
+        "pmode": 5,
+        "quality_flag_percent": 97,
+        "targets": "D,B,F,H",
+        "statuses": "ok,ok,ok,ok",
+        "qualities": "100,96,96,96"
+      },
+      "latest_calibration_reject": {
+        "conn_id": "",
+        "peer_name": "BS2DCE",
+        "tag_id": "",
+        "sweep": 3748,
+        "plan": "cal_roto",
+        "pmode": 5,
+        "anchor_label": "H",
+        "status": "ok",
+        "reason": "ok",
+        "raw_mm": 2772,
+        "filt_mm": 2772,
+        "pred_mm": 0,
+        "resid_mm": 0,
+        "tracker_quality_percent": 96,
+        "solve_quality_percent": 96
+      },
+      "latest_calibration_frame": {
+        "conn_id": "",
+        "peer_name": "BS2DCE",
+        "tag_id": "",
+        "sweep": 3748,
+        "plan": "cal_roto",
+        "pmode": 5,
+        "solve_reason": "success",
+        "quality_flag_percent": 97,
+        "active_anchor_count": 4,
+        "valid_anchor_count": 4,
+        "rms_mm": 43,
+        "max_mm": 47,
+        "step_mm": 0
+      },
+      "anchors_seen": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "status_counts": {
+        "ok": 760,
+        "reject": 6,
+        "timeout": 38
+      },
+      "reject_reason_counts": {
+        "raw_outlier": 6,
+        "ok": 1007,
+        "rx_timeout": 51,
+        "rx_error": 1
+      },
+      "anchor_reject_reason_counts": {
+        "A": {
+          "raw_outlier": 2,
+          "ok": 2
+        },
+        "B": {
+          "raw_outlier": 2,
+          "ok": 247,
+          "rx_timeout": 14
+        },
+        "C": {
+          "raw_outlier": 1,
+          "ok": 3
+        },
+        "D": {
+          "ok": 256,
+          "rx_timeout": 6,
+          "rx_error": 1
+        },
+        "E": {
+          "ok": 197,
+          "rx_timeout": 14
+        },
+        "F": {
+          "ok": 35,
+          "raw_outlier": 1,
+          "rx_timeout": 1
+        },
+        "G": {
+          "ok": 216,
+          "rx_timeout": 14
+        },
+        "H": {
+          "ok": 51,
+          "rx_timeout": 2
+        }
+      }
+    },
+    "BSDC91": {
+      "position_rows": 0,
+      "cm_rows": 750,
+      "cs_rows": 243,
+      "cr_rows": 994,
+      "cf_rows": 243,
+      "latest_position": null,
+      "latest_calibration_summary": {
+        "conn_id": "",
+        "peer_name": "BSDC91",
+        "tag_id": "",
+        "sweep": 3670,
+        "plan": "cal_roto",
+        "pmode": 5,
+        "quality_flag_percent": 99,
+        "targets": "A,B,G,H",
+        "statuses": "ok,ok,ok,ok",
+        "qualities": "100,100,96,100"
+      },
+      "latest_calibration_reject": {
+        "conn_id": "",
+        "peer_name": "BSDC91",
+        "tag_id": "",
+        "sweep": 3670,
+        "plan": "cal_roto",
+        "pmode": 5,
+        "anchor_label": "H",
+        "status": "ok",
+        "reason": "ok",
+        "raw_mm": 3281,
+        "filt_mm": 3281,
+        "pred_mm": 0,
+        "resid_mm": 0,
+        "tracker_quality_percent": 100,
+        "solve_quality_percent": 100
+      },
+      "latest_calibration_frame": {
+        "conn_id": "",
+        "peer_name": "BSDC91",
+        "tag_id": "",
+        "sweep": 3670,
+        "plan": "cal_roto",
+        "pmode": 5,
+        "solve_reason": "success",
+        "quality_flag_percent": 99,
+        "active_anchor_count": 4,
+        "valid_anchor_count": 4,
+        "rms_mm": 27,
+        "max_mm": 31,
+        "step_mm": 0
+      },
+      "anchors_seen": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "status_counts": {
+        "ok": 731,
+        "reject": 6,
+        "timeout": 13
+      },
+      "reject_reason_counts": {
+        "ok": 972,
+        "raw_outlier": 6,
+        "rx_timeout": 15,
+        "rx_error": 1
+      },
+      "anchor_reject_reason_counts": {
+        "G": {
+          "ok": 241,
+          "rx_timeout": 5,
+          "rx_error": 1
+        },
+        "A": {
+          "ok": 243,
+          "raw_outlier": 1,
+          "rx_timeout": 2
+        },
+        "B": {
+          "ok": 242,
+          "rx_timeout": 4
+        },
+        "C": {
+          "ok": 1,
+          "raw_outlier": 2
+        },
+        "D": {
+          "raw_outlier": 3
+        },
+        "E": {
+          "ok": 3
+        },
+        "F": {
+          "ok": 3
+        },
+        "H": {
+          "ok": 239,
+          "rx_timeout": 4
+        }
+      }
+    }
+  },
+  "raw_log": "logs/reject_overnight_after_ghostlink_cleanrecv_20260424_092104/cycle_01/capture_20260424_092104/raw.log",
+  "positions_all_csv": "logs/reject_overnight_after_ghostlink_cleanrecv_20260424_092104/cycle_01/capture_20260424_092104/positions_all.csv",
+  "cm_all_csv": "logs/reject_overnight_after_ghostlink_cleanrecv_20260424_092104/cycle_01/capture_20260424_092104/cm_all.csv",
+  "cs_all_csv": "logs/reject_overnight_after_ghostlink_cleanrecv_20260424_092104/cycle_01/capture_20260424_092104/cs_all.csv",
+  "cr_all_csv": "logs/reject_overnight_after_ghostlink_cleanrecv_20260424_092104/cycle_01/capture_20260424_092104/cr_all.csv",
+  "cf_all_csv": "logs/reject_overnight_after_ghostlink_cleanrecv_20260424_092104/cycle_01/capture_20260424_092104/cf_all.csv"
+}

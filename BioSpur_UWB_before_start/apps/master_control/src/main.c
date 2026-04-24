@@ -139,7 +139,7 @@ static int autopos_wait_anchor_ready(const char *uuid, int timeout_ms);
 static int autopos_wait_anchor_cleared(int timeout_ms);
 static void autopos_save_map_entry(int idx);
 static void control_disconnect_all_links(void);
-static void control_wait_for_peer_clear(int timeout_ms);
+static bool control_wait_for_peer_clear(int timeout_ms);
 static int autopos_send_anchor_cmd_checked(const char *cmd, const char *expect_result,
 					   int result_timeout_ms);
 static int autopos_reconnect_anchor_ready(int idx, int timeout_ms);
@@ -642,7 +642,7 @@ static void control_disconnect_all_links(void)
 	k_sleep(K_MSEC(250));
 }
 
-static void control_wait_for_peer_clear(int timeout_ms)
+static bool control_wait_for_peer_clear(int timeout_ms)
 {
 	int waited = 0;
 	int last_conn = -1;
@@ -660,7 +660,7 @@ static void control_wait_for_peer_clear(int timeout_ms)
 		}
 
 		if (conn_count == 0 && ready_count == 0) {
-			return;
+			return true;
 		}
 
 		k_sleep(K_MSEC(100));
@@ -669,6 +669,7 @@ static void control_wait_for_peer_clear(int timeout_ms)
 
 	printk("Peer clear wait timeout: conn_count=%d ready_count=%d\n",
 	       master_connection_count(), master_anchor_ctrl_ready_count());
+	return false;
 }
 
 static void control_prepare_clean_recv_session(void)
@@ -676,9 +677,23 @@ static void control_prepare_clean_recv_session(void)
 	autopos_reset_runtime_state(false);
 	master_clear_one_shot_command();
 	master_set_anchor_wildcard_scan(false);
+
+	/* Stop scan/auto-connect before disconnecting.  If scan remains active
+	 * while we wait for links to clear, new advertisements can enqueue fresh
+	 * connections and leave the central stuck with conn_count > 0 but no
+	 * ready NUS links.
+	 */
+	master_quiesce_peers();
+	if (!control_wait_for_peer_clear(3000)) {
+		printk("RECV clean slate requires reboot: stale BLE links did not clear\n");
+		control_mode = CONTROL_MODE_RECV;
+		sync_master_log_mode(control_mode);
+		control_save_mode();
+		k_sleep(K_MSEC(100));
+		sys_reboot(SYS_REBOOT_COLD);
+		return;
+	}
 	master_set_connect_and_start_mode();
-	master_disconnect_all_peers();
-	control_wait_for_peer_clear(3000);
 	master_restart_discovery();
 	printk("RECV clean slate prepared\n");
 }
