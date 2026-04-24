@@ -280,6 +280,7 @@ static struct uwb_tdma_schedule ss_twr_init_tdma_schedule;
 static uint8_t ss_twr_init_active_anchor_ids[UWB_MAX_ANCHORS];
 static size_t ss_twr_init_active_anchor_count;
 static size_t ss_twr_init_active_anchor_index;
+static uint8_t ss_twr_init_current_anchor_retry_count;
 static uint32_t ss_twr_init_sweep_count;
 static bool ss_twr_init_imu_ready;
 static bool ss_twr_init_have_last_imu_sample;
@@ -386,6 +387,7 @@ static void ss_twr_init_publish_cal_range(uint8_t anchor_id,
 
 static void ss_twr_init_reset_sweep_anchor_state(void)
 {
+    ss_twr_init_current_anchor_retry_count = 0U;
     for (size_t i = 0U; i < UWB_MAX_ANCHORS; ++i) {
         ss_twr_init_sweep_anchor_status[i] = SS_TWR_INIT_SWEEP_ANCHOR_PENDING;
         ss_twr_init_sweep_anchor_quality[i] = 0U;
@@ -991,11 +993,12 @@ static bool ss_twr_init_apply_range_continuity_gate(uint8_t anchor_id,
     }
 
     /*
-     * CAL_ROTO can move fast and may enter this mode after a stale pre-CFG
-     * solve. Keep the range visible; residual/quality downstream can still
-     * mark the resulting frame as weak.
+     * Calibration modes are CM-first data collection modes.  The tag does not
+     * own the authoritative layout here, so a stale pre-CFG location must not
+     * suppress otherwise valid ranges.  Keep the leg visible and let offline
+     * solver/QF logic judge quality.
      */
-    if (ss_twr_init_runtime_roto_calibration_mode()) {
+    if (ss_twr_init_runtime_any_calibration_mode()) {
         ss_twr_init_record_sweep_anchor_diag(anchor_id, SS_TWR_INIT_CAL_REASON_OK,
                                              (int32_t)range_mm, range_mm, 0U, 0U,
                                              *quality_percent);
@@ -1167,6 +1170,18 @@ static void ss_twr_init_sleep_between_ranges(void)
     if (SS_TWR_INIT_RNG_DELAY_MS > 0U) {
         k_msleep(SS_TWR_INIT_RNG_DELAY_MS);
     }
+}
+
+static bool ss_twr_init_should_retry_current_cal_anchor(void)
+{
+    if (!ss_twr_init_runtime_any_calibration_mode() ||
+        ss_twr_init_roto_prewarm_active() ||
+        ss_twr_init_active_anchor_count != 4U ||
+        ss_twr_init_current_anchor_retry_count >= 1U) {
+        return false;
+    }
+
+    return true;
 }
 
 static const char *ss_twr_init_plan_label(void)
@@ -1793,6 +1808,7 @@ static int ss_twr_init_load_runtime_config(
     ss_twr_init_sweep_count = 0U;
     ss_twr_init_active_anchor_count = 0U;
     ss_twr_init_active_anchor_index = 0U;
+    ss_twr_init_current_anchor_retry_count = 0U;
     ss_twr_init_have_last_solution = false;
     ss_twr_init_last_solution_anchor_count = 0U;
     ss_twr_init_have_last_location = false;
@@ -2932,11 +2948,12 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
 	                     * In calibration mode, do not stall on one problematic anchor.
 	                     * Advance to the next anchor so coverage/throughput stays balanced.
 	                     */
-	                    ss_twr_init_active_anchor_index =
-	                        (ss_twr_init_active_anchor_index + 1U) %
-	                        ss_twr_init_active_anchor_count;
-	                    if (ss_twr_init_active_anchor_index == 0U) {
-	                        ss_twr_init_sweep_count++;
+                    ss_twr_init_active_anchor_index =
+                        (ss_twr_init_active_anchor_index + 1U) %
+                        ss_twr_init_active_anchor_count;
+                    ss_twr_init_current_anchor_retry_count = 0U;
+                    if (ss_twr_init_active_anchor_index == 0U) {
+                        ss_twr_init_sweep_count++;
 	                        ss_twr_init_print_location_if_ready();
 	                        ss_twr_init_apply_pending_runtime_config_if_any();
 	                        ss_twr_init_last_tdma_wait_ms =
@@ -2980,6 +2997,20 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
                     ((status_reg & SYS_STATUS_ALL_RX_TO) != 0U)
                         ? SS_TWR_INIT_CAL_REASON_RX_TIMEOUT
                         : SS_TWR_INIT_CAL_REASON_RX_ERROR;
+
+                if (ss_twr_init_should_retry_current_cal_anchor()) {
+                    ss_twr_init_current_anchor_retry_count++;
+                    dwt_write32bitreg(SYS_STATUS_ID,
+                                      SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR);
+                    dwt_rxreset();
+                    if (!ss_twr_init_tdma_exchange_can_start_if_needed()) {
+                        dwt_forcetrxoff();
+                        ss_twr_init_last_tdma_wait_ms =
+                            ss_twr_init_wait_until_next_slot_if_needed();
+                    }
+                    continue;
+                }
+
                 uwb_range_tracker_record_failure(tracker);
                 ss_twr_init_record_sweep_anchor_state(
                     current_anchor_id, UWB_TAG_BLE_CAL_STATUS_TIMEOUT, tracker);
@@ -3022,6 +3053,7 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
         ss_twr_init_active_anchor_index =
             (ss_twr_init_active_anchor_index + 1U) %
             ss_twr_init_active_anchor_count;
+        ss_twr_init_current_anchor_retry_count = 0U;
         if (ss_twr_init_active_anchor_index == 0U) {
 	            ss_twr_init_sweep_count++;
 	            ss_twr_init_print_location_if_ready();

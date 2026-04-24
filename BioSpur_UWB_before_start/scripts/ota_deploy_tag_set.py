@@ -174,6 +174,60 @@ def send_serial_command(ser: serial.Serial, cmd: str, wait_s: float) -> str:
     return drain_serial(ser, wait_s)
 
 
+class ReconnectingSerial:
+    def __init__(self, port: str, timeout: float = 0.2):
+        self.port = port
+        self.timeout = timeout
+        self.ser: serial.Serial | None = None
+        self.reconnects = 0
+        self.open()
+
+    def open(self) -> None:
+        self.close()
+        self.ser = open_control_serial(self.port, timeout=self.timeout, retries=80, retry_delay_s=0.25)
+
+    def close(self) -> None:
+        if self.ser is not None:
+            try:
+                self.ser.close()
+            except Exception:
+                pass
+            self.ser = None
+
+    def drain(self, duration_s: float) -> str:
+        assert self.ser is not None
+        end = time.time() + duration_s
+        chunks: list[str] = []
+        while time.time() < end:
+            try:
+                data = self.ser.read(4096)
+            except (serial.SerialException, OSError):
+                self.reconnects += 1
+                self.open()
+                chunks.append(f"[HOST] serial reconnected during drain count={self.reconnects}\n")
+                continue
+            if data:
+                chunks.append(data.decode("utf-8", "ignore"))
+            else:
+                time.sleep(0.02)
+        return "".join(chunks)
+
+    def send(self, cmd: str, wait_s: float) -> str:
+        assert self.ser is not None
+        for attempt in range(2):
+            try:
+                self.ser.write((cmd + "\n").encode("utf-8"))
+                self.ser.flush()
+                return self.drain(wait_s)
+            except (serial.SerialTimeoutException, serial.SerialException, OSError):
+                self.reconnects += 1
+                self.open()
+                if attempt == 0:
+                    continue
+                raise
+        return ""
+
+
 def load_expected_tag_fw_marker(repo_root: Path, explicit_value: str) -> tuple[str | None, dict[str, object]]:
     if explicit_value:
         return explicit_value, {"source": "arg", "path": None}
@@ -230,52 +284,52 @@ def query_tag_versions(port: str, targets: list[str], out_root: Path) -> dict[st
         return versions
 
     try:
-        ser = open_control_serial(port)
+        rs = ReconnectingSerial(port)
         try:
             time.sleep(1.0)
-            transcript.append(drain_serial(ser, 0.8))
-            transcript.append(">>> mode recv\n")
-            transcript.append(send_serial_command(ser, "mode recv", 4.0))
-            transcript.append(">>> device kind tag\n")
-            transcript.append(send_serial_command(ser, "device kind tag", 6.0))
+            transcript.append(rs.drain(0.8))
+            for cmd, wait_s in [
+                ("mode recv", 6.0),
+                ("device kind tag", 8.0),
+                ("ota_target uuid -", 0.8),
+                ("ota_target prefix BS", 0.8),
+                ("ota_target show", 0.8),
+            ]:
+                transcript.append(f">>> {cmd}\n")
+                transcript.append(rs.send(cmd, wait_s))
+
+            # Query each BS name explicitly.  master_control treats an empty
+            # name as prefix-only matching, but tags usually have no GAP name;
+            # matching by concrete BSxxxx is the reliable path.
             for target in targets:
-                transcript.append(">>> ota_target uuid -\n")
-                transcript.append(send_serial_command(ser, "ota_target uuid -", 0.8))
-                transcript.append(f">>> ota_target name {target}\n")
-                transcript.append(send_serial_command(ser, f"ota_target name {target}", 1.0))
-                transcript.append(">>> ota_target prefix BS\n")
-                transcript.append(send_serial_command(ser, "ota_target prefix BS", 0.8))
+                target_u = target.upper()
+                transcript.append(f">>> ota_target name {target_u}\n")
+                transcript.append(rs.send(f"ota_target name {target_u}", 1.0))
                 transcript.append(">>> ota_target show\n")
-                transcript.append(send_serial_command(ser, "ota_target show", 0.8))
+                transcript.append(rs.send("ota_target show", 0.8))
 
-                # Ensure the specific target link is ready before sending cmd VERSION.
-                ready_deadline = time.time() + 18.0
-                while time.time() < ready_deadline:
-                    transcript.append(">>> scan\n")
-                    transcript.append(send_serial_command(ser, "scan", 0.8))
-                    transcript.append(">>> conn\n")
-                    burst = send_serial_command(ser, "conn", 1.6)
-                    burst += drain_serial(ser, 4.0)
-                    transcript.append(burst)
-                    burst_u = burst.upper()
-                    if (
-                        f"CFG ASSIGNED[0]: BS={target}".upper() in burst_u
-                        or f"CONNECTED[0]:".upper() in burst_u and f"BS={target}".upper() in burst_u
-                        or f"{target} NOTIFY:".upper() in burst_u
-                    ):
-                        break
-                    time.sleep(0.4)
-
-                for attempt in range(1, 4):
-                    transcript.append(f">>> cmd VERSION {target} #attempt={attempt}\n")
-                    reply = send_serial_command(ser, "cmd VERSION", 2.5)
-                    reply += drain_serial(ser, 4.0)
-                    transcript.append(reply)
+                deadline = time.time() + 45.0
+                query_idx = 0
+                while time.time() < deadline:
                     parsed = collect_versions("".join(transcript))
-                    if target.upper() in parsed:
+                    if target_u in parsed:
                         break
+
+                    for cmd, wait_s in [
+                        ("scan", 1.0),
+                        ("conn", 5.0),
+                    ]:
+                        transcript.append(f">>> {cmd}\n")
+                        transcript.append(rs.send(cmd, wait_s))
+                        transcript.append(rs.drain(1.0))
+
+                    query_idx += 1
+                    transcript.append(f">>> cmd VERSION {target_u} #attempt={query_idx}\n")
+                    transcript.append(rs.send("cmd VERSION", 2.0))
+                    transcript.append(rs.drain(3.0))
         finally:
-            ser.close()
+            summary["serial_reconnects"] = rs.reconnects
+            rs.close()
     except Exception as exc:
         summary["error"] = repr(exc)
         raw_log_path.write_text("".join(transcript), encoding="utf-8")

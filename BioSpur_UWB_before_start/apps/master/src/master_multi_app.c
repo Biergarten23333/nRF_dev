@@ -35,8 +35,9 @@
 #define MASTER_ANCHOR_DISCOVERY_START_SETTLE_MS 900U
 #define MASTER_CONNECT_PENDING_TIMEOUT_MS 6000U
 #define MASTER_SCAN_HIT_CONNECT_SETTLE_MS 300U
+#define MASTER_ANCHOR_CONNECT_UNREADY_LIMIT 1U
 #define MASTER_TDMA_SLOT_COUNT_MAX 12U
-#define MASTER_TDMA_SLOT_PERIOD_MS 32U
+#define MASTER_TDMA_SLOT_PERIOD_MS 40U
 #define MASTER_TDMA_SLOT_ACTIVE_MS 32U
 #define MASTER_TDMA_EPOCH_LEAD_MS 3000U
 #define MASTER_TDMA_PROFILE_MAX MASTER_MAX_CONNECTIONS
@@ -530,6 +531,22 @@ static int peer_index_from_addr(const bt_addr_le_t *addr)
 	}
 
 	return -1;
+}
+
+static uint8_t master_anchor_unready_link_count(void)
+{
+	uint8_t count = 0U;
+
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		if (peers[i].link_type != MASTER_LINK_ANCHOR_CTRL) {
+			continue;
+		}
+		if (peers[i].connected && !peers[i].ready) {
+			count++;
+		}
+	}
+
+	return count;
 }
 
 static int peer_index_from_nus(struct bt_nus_client *nus)
@@ -1424,6 +1441,11 @@ static void master_try_connect_pending(void)
 		return;
 	}
 
+	if (runtime_target_kind == MASTER_TARGET_ANCHOR &&
+	    master_anchor_unready_link_count() >= MASTER_ANCHOR_CONNECT_UNREADY_LIMIT) {
+		return;
+	}
+
 	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
 		if (peers[i].connect_pending && peers[i].addr_valid &&
 		    peers[i].conn == NULL && !peers[i].connected) {
@@ -1434,6 +1456,25 @@ static void master_try_connect_pending(void)
 
 	if (slot < 0) {
 		return;
+	}
+
+	if (peers[slot].conn == NULL) {
+		struct bt_conn *existing =
+			bt_conn_lookup_addr_le(BT_ID_DEFAULT, &peers[slot].addr);
+
+		if (existing != NULL) {
+			char addr[BT_ADDR_LE_STR_LEN];
+
+			bt_addr_le_to_str(&peers[slot].addr, addr, sizeof(addr));
+			printk("CONNECT pending[%d]: found untracked existing conn for %s; disconnect and rescan\n",
+			       slot, addr);
+			(void)bt_conn_disconnect(existing, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+			bt_conn_unref(existing);
+			peer_clear((unsigned int)slot, false);
+			connecting_slot = -1;
+			start_scan();
+			return;
+		}
 	}
 
 	if (peers[slot].connect_queued_at_ms > 0 &&
@@ -1481,7 +1522,7 @@ static void master_try_connect_pending(void)
 	printk("CONNECT pending[%d] rc=%d conn=%p\n", slot, err, peers[slot].conn);
 	if (err) {
 		printk("Create conn failed[%d]: %d\n", slot, err);
-		peer_clear((unsigned int)slot, false);
+		peer_clear((unsigned int)slot, true);
 		connecting_slot = -1;
 		start_scan();
 	}
@@ -2647,6 +2688,7 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 
 	if (idx < 0 || idx >= (int)ARRAY_SIZE(peers)) {
 		printk("Connected to %s but no slot was reserved\n", addr);
+		(void)bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
 		return;
 	}
 
@@ -2705,10 +2747,12 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 
 	if (idx >= 0) {
 		peer_clear((unsigned int)idx, true);
-	}
-
-	if (conn_count > 0U) {
-		conn_count--;
+		if (conn_count > 0U) {
+			conn_count--;
+		}
+	} else {
+		printk("Disconnected untracked peer: conn_count unchanged=%u\n",
+		       (unsigned int)conn_count);
 	}
 
 	master_leds_refresh();

@@ -13,10 +13,10 @@ import serial
 
 from run_autopos_round import UUIDS
 from run_autopos_sweep_loop import (
+    collect_for_text,
     emit,
     ensure_autopos_maps,
     open_port,
-    preflight_clean_autopos_start,
     scan_anchor_role_counts,
     send_cmd_collect_text,
 )
@@ -49,6 +49,93 @@ def timestamped_out_dir(base: Path) -> Path:
     if base.name.endswith(stamp):
         return base
     return base.parent / f"{base.name}_{stamp}"
+
+
+def prepare_anchor_autopos_control_plane(
+    ser: serial.Serial,
+    logf,
+    port: str,
+    live_output: bool,
+    verbose: int,
+) -> serial.Serial:
+    """Enter AUTOPOS with anchor target selected before any clean-slate reboot.
+
+    The old sequence started with ``mode recv``.  If stale tag links existed,
+    the controller rebooted while the discovery target was still BS/tag and
+    immediately reconnected the tags.  Then ``anchor role all responder`` was
+    sent to tag NUS links and every tag answered UNKNOWN_CMD.  Selecting the
+    anchor model first prevents that tag reconnect race.
+    """
+
+    emit(logf, "VERIFY: force anchor target before AUTOPOS preflight\n", live_output, verbose)
+    for cmd, wait_s, resend in [
+        ("device kind anchor", 6.0, False),
+        ("mode recv", 8.0, True),
+        ("device kind anchor", 3.0, False),
+    ]:
+        ser, _ = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            cmd,
+            wait_s,
+            live_output,
+            verbose,
+            resend_after_reopen=resend,
+        )
+
+    for attempt in range(1, 4):
+        emit(logf, f"VERIFY: enter AUTOPOS attempt={attempt}/3\n", live_output, verbose)
+        ser, text = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            "mode autopos",
+            10.0 if attempt == 1 else 6.0,
+            live_output,
+            verbose,
+            resend_after_reopen=True,
+        )
+        ser, _, status_text = collect_for_text(
+            ser,
+            logf,
+            1.0,
+            port,
+            live_output,
+            verbose,
+        )
+        ser, status_reply = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            "status",
+            1.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+        )
+        if (
+            "Control status: mode=AUTOPOS" in text
+            or "Control status: mode=AUTOPOS" in status_text
+            or "Control status: mode=AUTOPOS" in status_reply
+        ):
+            emit(logf, "VERIFY: AUTOPOS anchor control plane active\n", live_output, verbose)
+            return ser
+
+        # If a stale-link reboot happened, reassert anchor target before retry.
+        ser, _ = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            "device kind anchor",
+            3.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+        )
+
+    emit(logf, "VERIFY WARN: AUTOPOS mode not confirmed; continuing best-effort\n", live_output, verbose)
+    return ser
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -100,13 +187,12 @@ def main() -> int:
             emit(logf, "VERIFY: prepare AUTOPOS control plane for all-responder runtime verification\n", args.live_output, args.verbose)
 
             context = {"autopos_initialized": False}
-            ser, _ = preflight_clean_autopos_start(
+            ser = prepare_anchor_autopos_control_plane(
                 ser,
                 logf,
                 args.port,
                 args.live_output,
                 args.verbose,
-                force_clean=True,
             )
             ser = ensure_autopos_maps(
                 ser,
