@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import re
 import subprocess
 import sys
@@ -88,6 +89,38 @@ CS_RE = re.compile(
     r"(?P<qualities>[0-9,]*)"
 )
 
+CR_RE = re.compile(
+    rf"{TAG_NOTIFY_PREFIX_RE} notify: CR;"
+    r"(?P<ver>\d+);"
+    r"(?P<sweep>\d+);"
+    r"(?P<plan>[A-Za-z0-9_]+);"
+    r"(?P<pmode>\d+);"
+    r"(?P<anchor>[A-Z\?]);"
+    r"(?P<status>[a-z_]+);"
+    r"(?P<reason>[a-z_]+);"
+    r"(?P<raw>-?\d+);"
+    r"(?P<filt>\d+);"
+    r"(?P<pred>\d+);"
+    r"(?P<resid>\d+);"
+    r"(?P<tracker_q>\d+);"
+    r"(?P<solve_q>\d+)"
+)
+
+CF_RE = re.compile(
+    rf"{TAG_NOTIFY_PREFIX_RE} notify: CF;"
+    r"(?P<ver>\d+);"
+    r"(?P<sweep>\d+);"
+    r"(?P<plan>[A-Za-z0-9_]+);"
+    r"(?P<pmode>\d+);"
+    r"(?P<solve_reason>[a-z_]+);"
+    r"(?P<qf>\d+);"
+    r"(?P<active>\d+);"
+    r"(?P<valid>\d+);"
+    r"(?P<rms>\d+);"
+    r"(?P<max>\d+);"
+    r"(?P<step>\d+)"
+)
+
 CONNECTED_RE = re.compile(
     r"Connected\[(?P<conn>\d+)\]:.*?(?:name=(?P<name>[^\s]+))?.*?(?:bs=(?P<bs>BS[0-9A-F]{4}))?.*?tag_id=(?P<tag_id>-?\d+)"
 )
@@ -163,6 +196,40 @@ def iter_cs_matches(text: str):
             fragment = (prefix or "NUS notify: ") + fragment
 
         match = CS_RE.search(fragment)
+        if match:
+            yield match
+
+
+def iter_cr_matches(text: str):
+    prefix = None
+    if "notify:" in text:
+        prefix = text.split("notify:", 1)[0] + "notify: "
+
+    for idx, fragment in enumerate(text.split("|")):
+        fragment = fragment.strip()
+        if not fragment:
+            continue
+        if idx > 0 and "notify:" not in fragment and fragment.startswith("CR;"):
+            fragment = (prefix or "NUS notify: ") + fragment
+
+        match = CR_RE.search(fragment)
+        if match:
+            yield match
+
+
+def iter_cf_matches(text: str):
+    prefix = None
+    if "notify:" in text:
+        prefix = text.split("notify:", 1)[0] + "notify: "
+
+    for idx, fragment in enumerate(text.split("|")):
+        fragment = fragment.strip()
+        if not fragment:
+            continue
+        if idx > 0 and "notify:" not in fragment and fragment.startswith("CF;"):
+            fragment = (prefix or "NUS notify: ") + fragment
+
+        match = CF_RE.search(fragment)
         if match:
             yield match
 
@@ -251,6 +318,49 @@ def send_cmd(ser: serial.Serial, logf, cmd: str, wait_s: float) -> serial.Serial
         raise RuntimeError("mode recv reopen failed")
 
 
+def reset_controller_via_jlink(logf, snr: str) -> bool:
+    snr = (snr or "").strip()
+    if not snr:
+        return False
+
+    cmd_path = Path(f"/tmp/biospur_b120_reset_{snr}.jlink")
+    cmd_path.write_text(
+        "\n".join(
+            [
+                "Device NRF5340_XXAA_APP",
+                "SI SWD",
+                "Speed 4000",
+                "r",
+                "g",
+                "q",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    logf.write(f"[HOST_RECOVERY {time.monotonic():.3f}] J-Link reset B120 snr={snr}\n")
+    logf.flush()
+    cp = subprocess.run(
+        [
+            "JLinkExe",
+            "-NoGui",
+            "1",
+            "-SelectEmuBySN",
+            snr,
+            "-CommanderScript",
+            str(cmd_path),
+        ],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    logf.write(cp.stdout)
+    logf.write(f"[HOST_RECOVERY {time.monotonic():.3f}] J-Link reset rc={cp.returncode}\n")
+    logf.flush()
+    return cp.returncode == 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Prepare master RECV tag session, configure TDMA, and capture multi-tag logs."
@@ -261,6 +371,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Master control serial port",
     )
     parser.add_argument("--baud", type=int, default=115200)
+    parser.add_argument(
+        "--controller-reset-snr",
+        default=os.environ.get("B120_SNR", "960148546"),
+        help="B120 J-Link SNR used for hard recovery when BLE central links get stuck. Use '-' to disable.",
+    )
     parser.add_argument("--duration", type=float, default=120.0, help="Capture duration in seconds")
     parser.add_argument(
         "--targets",
@@ -318,6 +433,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=2,
         help="CM probe attempts before aborting capture. Failed attempts trigger all-responder repair.",
+    )
+    parser.add_argument(
+        "--skip-cm-probe",
+        action="store_true",
+        help="Skip startup BSF66F CM probe and go straight to capture configuration.",
     )
     return parser
 
@@ -396,35 +516,82 @@ def ensure_target_links_ready(
     ser: serial.Serial,
     logf,
     targets: list[str],
-    wait_per_target_s: float = 18.0,
+    controller_reset_snr: str = "",
+    wait_per_target_s: float = 30.0,
 ) -> serial.Serial:
-    for target in targets:
-        ser = send_cmd(ser, logf, "ota_target uuid -", 0.6)
-        ser = send_cmd(ser, logf, f"ota_target name {target}", 0.8)
-        ser = send_cmd(ser, logf, "ota_target prefix BS", 0.6)
-        ser = send_cmd(ser, logf, "ota_target show", 0.6)
+    ready_targets: set[str] = set()
+    hard_reset_used = False
+
+    def mark_ready_from_text(text: str) -> None:
+        text_u = text.upper()
+        for item in targets:
+            target_u = item.upper()
+            if (
+                f"BS={target_u}" in text_u
+                or f"{target_u} NOTIFY:" in text_u
+                or f"CFG_OK" in text_u and target_u in text_u
+            ):
+                ready_targets.add(target_u)
+
+    for pass_idx in range(1, 6):
+        ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
+        ser = send_cmd(ser, logf, "ota_target name -", 0.5)
+        ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
+        ser = send_cmd(ser, logf, "ota_target prefix BS", 0.5)
+        ser = send_cmd(ser, logf, "ota_target show", 0.5)
 
         deadline = time.time() + wait_per_target_s
-        ready = False
         while time.time() < deadline:
             ser = send_cmd(ser, logf, "scan", 0.8)
             ser = send_cmd(ser, logf, "conn", 1.6)
             burst = drain_serial_until_capture(ser, logf, 4.0)
-            burst_u = burst.upper()
-            target_u = target.upper()
-            if (
-                f"CFG ASSIGNED[0]: BS={target_u}" in burst_u
-                or (f"CONNECTED[0]:" in burst_u and f"BS={target_u}" in burst_u)
-                or f"{target_u} NOTIFY:" in burst_u
-                or f"CFG ASSIGNED[1]: BS={target_u}" in burst_u
-                or f"CFG ASSIGNED[2]: BS={target_u}" in burst_u
-            ):
-                ready = True
+            mark_ready_from_text(burst)
+            if all(target.upper() in ready_targets for target in targets):
                 break
             time.sleep(0.4)
 
-        if not ready:
-            raise RuntimeError(f"target_link_not_ready:{target}")
+        if all(target.upper() in ready_targets for target in targets):
+            break
+
+        missing = sorted(
+            target for target in targets
+            if target.upper() not in ready_targets
+        )
+        logf.write(
+            f"[HOST_WARN {time.monotonic():.3f}] target links missing after pass {pass_idx}: {','.join(missing)}; reset recv discovery\n"
+        )
+        logf.flush()
+
+        if pass_idx >= 3 and not hard_reset_used and controller_reset_snr != "-":
+            port = ser.port
+            baud = ser.baudrate
+            try:
+                ser.close()
+            except Exception:
+                pass
+            if reset_controller_via_jlink(logf, controller_reset_snr):
+                hard_reset_used = True
+                ready_targets.clear()
+                time.sleep(2.5)
+                ser = open_serial_with_retry(port, baud, retries=60)
+                drain_serial_until(ser, logf, 3.0)
+                ser = send_cmd(ser, logf, "mode recv", 8.0)
+                ser = send_cmd(ser, logf, "device kind tag", 2.0)
+                continue
+            ser = open_serial_with_retry(port, baud, retries=60)
+
+        ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
+        ser = send_cmd(ser, logf, "ota_target name -", 0.5)
+        ser = send_cmd(ser, logf, "ota_target prefix BS", 0.5)
+        ser = send_cmd(ser, logf, "mode recv", 8.0)
+        ser = send_cmd(ser, logf, "device kind tag", 2.0)
+
+    missing = [
+        target for target in targets
+        if target.upper() not in ready_targets
+    ]
+    if missing:
+        raise RuntimeError(f"target_link_not_ready:{','.join(missing)}")
 
     ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
     ser = send_cmd(ser, logf, "ota_target name -", 0.5)
@@ -460,7 +627,7 @@ def configure_recv_capture_session(
     ser = send_cmd(ser, logf, "mode recv", 8.0)
     ser = send_cmd(ser, logf, "tdma clear", 0.8)
     ser = send_cmd(ser, logf, "device kind tag", 2.0)
-    ser = ensure_target_links_ready(ser, logf, targets)
+    ser = ensure_target_links_ready(ser, logf, targets, args.controller_reset_snr)
     for name, profile in profile_items:
         ser = send_cmd(ser, logf, f"tdma profile {name} {profile}", 0.8)
     ser = send_cmd(ser, logf, f"tdma freq static {args.static_hz}", 0.5)
@@ -635,11 +802,15 @@ def main() -> int:
                 "positions_all": 0,
                 "cm_all": 0,
                 "cs_all": 0,
+                "cr_all": 0,
+                "cf_all": 0,
                 "cm_probe": cm_probe,
                 "raw_log": str(raw_log_path),
                 "positions_all_csv": str(session_dir / "positions_all.csv"),
                 "cm_all_csv": str(session_dir / "cm_all.csv"),
                 "cs_all_csv": str(session_dir / "cs_all.csv"),
+                "cr_all_csv": str(session_dir / "cr_all.csv"),
+                "cf_all_csv": str(session_dir / "cf_all.csv"),
             }
             write_rows(
                 session_dir / "positions_all.csv",
@@ -694,6 +865,46 @@ def main() -> int:
                 ],
                 [],
             )
+            write_rows(
+                session_dir / "cr_all.csv",
+                [
+                    "sweep",
+                    "conn_id",
+                    "peer_name",
+                    "tag_id",
+                    "plan",
+                    "pmode",
+                    "anchor_label",
+                    "status",
+                    "reason",
+                    "raw_mm",
+                    "filt_mm",
+                    "pred_mm",
+                    "resid_mm",
+                    "tracker_quality_percent",
+                    "solve_quality_percent",
+                ],
+                [],
+            )
+            write_rows(
+                session_dir / "cf_all.csv",
+                [
+                    "sweep",
+                    "conn_id",
+                    "peer_name",
+                    "tag_id",
+                    "plan",
+                    "pmode",
+                    "solve_reason",
+                    "quality_flag_percent",
+                    "active_anchor_count",
+                    "valid_anchor_count",
+                    "rms_mm",
+                    "max_mm",
+                    "step_mm",
+                ],
+                [],
+            )
             summary_json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
             print(json.dumps(summary, indent=2))
             return 2
@@ -702,6 +913,8 @@ def main() -> int:
     positions: list[dict] = []
     cm_rows: list[dict] = []
     cs_rows: list[dict] = []
+    cr_rows: list[dict] = []
+    cf_rows: list[dict] = []
     interrupted = False
     startup_failed = False
     startup_fail_targets: list[str] = []
@@ -713,36 +926,41 @@ def main() -> int:
             # Initial drain
             drain_serial_until(ser, logf, 1.0)
 
-            for attempt in range(1, args.cm_probe_retries + 1):
-                print(
-                    f"[CAPTURE] startup CM probe attempt {attempt}/{args.cm_probe_retries}: target={probe_target}",
-                    flush=True,
-                )
+            if args.skip_cm_probe:
+                cm_probe["success"] = True
+                print("[CAPTURE] startup CM probe skipped by flag", flush=True)
                 ser = configure_recv_capture_session(ser, logf, args, targets, profile_items)
-                ser, probe_result = run_static_cm_probe(
-                    ser, logf, probe_target, args.cm_probe_timeout_s
-                )
-                probe_result["attempt"] = attempt
-                cm_probe["attempts"].append(probe_result)
-                if probe_result.get("success"):
-                    cm_probe["success"] = True
-                    break
+            else:
+                for attempt in range(1, args.cm_probe_retries + 1):
+                    print(
+                        f"[CAPTURE] startup CM probe attempt {attempt}/{args.cm_probe_retries}: target={probe_target}",
+                        flush=True,
+                    )
+                    ser = configure_recv_capture_session(ser, logf, args, targets, profile_items)
+                    ser, probe_result = run_static_cm_probe(
+                        ser, logf, probe_target, args.cm_probe_timeout_s
+                    )
+                    probe_result["attempt"] = attempt
+                    cm_probe["attempts"].append(probe_result)
+                    if probe_result.get("success"):
+                        cm_probe["success"] = True
+                        break
 
-                print(
-                    f"[CAPTURE] startup CM probe failed: target={probe_target} ok={len(probe_result['ok_anchors'])}/8; forcing all anchors responder",
-                    flush=True,
-                )
-                repair = run_anchor_responder_preflight(args, session_dir)
-                cm_probe["attempts"][-1]["responder_repair"] = repair
-                if not repair.get("success"):
-                    break
-                try:
-                    ser.close()
-                except Exception:
-                    pass
-                ser = open_serial_with_retry(args.port, args.baud)
-                time.sleep(0.8)
-                drain_serial_until(ser, logf, 1.0)
+                    print(
+                        f"[CAPTURE] startup CM probe failed: target={probe_target} ok={len(probe_result['ok_anchors'])}/8; forcing all anchors responder",
+                        flush=True,
+                    )
+                    repair = run_anchor_responder_preflight(args, session_dir)
+                    cm_probe["attempts"][-1]["responder_repair"] = repair
+                    if not repair.get("success"):
+                        break
+                    try:
+                        ser.close()
+                    except Exception:
+                        pass
+                    ser = open_serial_with_retry(args.port, args.baud)
+                    time.sleep(0.8)
+                    drain_serial_until(ser, logf, 1.0)
 
             if not cm_probe.get("success"):
                 summary = {
@@ -768,12 +986,16 @@ def main() -> int:
                     "positions_all": 0,
                     "cm_all": 0,
                     "cs_all": 0,
+                    "cr_all": 0,
+                    "cf_all": 0,
                     "connections": {},
                     "per_tag": {},
                     "raw_log": str(raw_log_path),
                     "positions_all_csv": str(session_dir / "positions_all.csv"),
                     "cm_all_csv": str(session_dir / "cm_all.csv"),
                     "cs_all_csv": str(session_dir / "cs_all.csv"),
+                    "cr_all_csv": str(session_dir / "cr_all.csv"),
+                    "cf_all_csv": str(session_dir / "cf_all.csv"),
                 }
                 write_rows(
                     session_dir / "positions_all.csv",
@@ -828,6 +1050,46 @@ def main() -> int:
                         "targets",
                         "statuses",
                         "qualities",
+                    ],
+                    [],
+                )
+                write_rows(
+                    session_dir / "cr_all.csv",
+                    [
+                        "sweep",
+                        "conn_id",
+                        "peer_name",
+                        "tag_id",
+                        "plan",
+                        "pmode",
+                        "anchor_label",
+                        "status",
+                        "reason",
+                        "raw_mm",
+                        "filt_mm",
+                        "pred_mm",
+                        "resid_mm",
+                        "tracker_quality_percent",
+                        "solve_quality_percent",
+                    ],
+                    [],
+                )
+                write_rows(
+                    session_dir / "cf_all.csv",
+                    [
+                        "sweep",
+                        "conn_id",
+                        "peer_name",
+                        "tag_id",
+                        "plan",
+                        "pmode",
+                        "solve_reason",
+                        "quality_flag_percent",
+                        "active_anchor_count",
+                        "valid_anchor_count",
+                        "rms_mm",
+                        "max_mm",
+                        "step_mm",
                     ],
                     [],
                 )
@@ -1038,6 +1300,66 @@ def main() -> int:
                                 }
                             )
 
+                        for m in iter_cr_matches(line):
+                            conn_id = m.groupdict().get("conn") or ""
+                            meta = conn_meta.get(conn_id, {}) if conn_id else {}
+                            peer_name = extract_bs_name(line) or meta.get("peer_name", "")
+                            if peer_name and peer_name not in target_set:
+                                continue
+                            expected_pmode = expected_pmode_by_target.get(peer_name)
+                            active_pmode = int(m.group("pmode"))
+                            if expected_pmode is not None and active_pmode != expected_pmode:
+                                skipped_before_target_pmode += 1
+                                continue
+                            cr_rows.append(
+                                {
+                                    "conn_id": conn_id,
+                                    "peer_name": peer_name,
+                                    "tag_id": meta.get("tag_id", ""),
+                                    "sweep": int(m.group("sweep")),
+                                    "plan": m.group("plan"),
+                                    "pmode": active_pmode,
+                                    "anchor_label": m.group("anchor"),
+                                    "status": m.group("status"),
+                                    "reason": m.group("reason"),
+                                    "raw_mm": int(m.group("raw")),
+                                    "filt_mm": int(m.group("filt")),
+                                    "pred_mm": int(m.group("pred")),
+                                    "resid_mm": int(m.group("resid")),
+                                    "tracker_quality_percent": int(m.group("tracker_q")),
+                                    "solve_quality_percent": int(m.group("solve_q")),
+                                }
+                            )
+
+                        for m in iter_cf_matches(line):
+                            conn_id = m.groupdict().get("conn") or ""
+                            meta = conn_meta.get(conn_id, {}) if conn_id else {}
+                            peer_name = extract_bs_name(line) or meta.get("peer_name", "")
+                            if peer_name and peer_name not in target_set:
+                                continue
+                            expected_pmode = expected_pmode_by_target.get(peer_name)
+                            active_pmode = int(m.group("pmode"))
+                            if expected_pmode is not None and active_pmode != expected_pmode:
+                                skipped_before_target_pmode += 1
+                                continue
+                            cf_rows.append(
+                                {
+                                    "conn_id": conn_id,
+                                    "peer_name": peer_name,
+                                    "tag_id": meta.get("tag_id", ""),
+                                    "sweep": int(m.group("sweep")),
+                                    "plan": m.group("plan"),
+                                    "pmode": active_pmode,
+                                    "solve_reason": m.group("solve_reason"),
+                                    "quality_flag_percent": int(m.group("qf")),
+                                    "active_anchor_count": int(m.group("active")),
+                                    "valid_anchor_count": int(m.group("valid")),
+                                    "rms_mm": int(m.group("rms")),
+                                    "max_mm": int(m.group("max")),
+                                    "step_mm": int(m.group("step")),
+                                }
+                            )
+
                     if time.time() - last_status_at >= 1.0:
                         print_capture_status(
                             capture_start_wall,
@@ -1130,38 +1452,100 @@ def main() -> int:
         "statuses",
         "qualities",
     ]
+    cr_fields = [
+        "sweep",
+        "conn_id",
+        "peer_name",
+        "tag_id",
+        "plan",
+        "pmode",
+        "anchor_label",
+        "status",
+        "reason",
+        "raw_mm",
+        "filt_mm",
+        "pred_mm",
+        "resid_mm",
+        "tracker_quality_percent",
+        "solve_quality_percent",
+    ]
+    cf_fields = [
+        "sweep",
+        "conn_id",
+        "peer_name",
+        "tag_id",
+        "plan",
+        "pmode",
+        "solve_reason",
+        "quality_flag_percent",
+        "active_anchor_count",
+        "valid_anchor_count",
+        "rms_mm",
+        "max_mm",
+        "step_mm",
+    ]
 
     write_rows(session_dir / "positions_all.csv", position_fields, positions)
     write_rows(session_dir / "cm_all.csv", cm_fields, cm_rows)
     write_rows(session_dir / "cs_all.csv", cs_fields, cs_rows)
+    write_rows(session_dir / "cr_all.csv", cr_fields, cr_rows)
+    write_rows(session_dir / "cf_all.csv", cf_fields, cf_rows)
 
     per_tag_summary: dict[str, dict] = {}
     zero_position_targets: list[str] = []
     cs_by_target: dict[str, list[dict]] = defaultdict(list)
+    cr_by_target: dict[str, list[dict]] = defaultdict(list)
+    cf_by_target: dict[str, list[dict]] = defaultdict(list)
     for row in cs_rows:
         key = row["peer_name"] or f"tag{row['tag_id']}"
         cs_by_target[key].append(row)
+    for row in cr_rows:
+        key = row["peer_name"] or f"tag{row['tag_id']}"
+        cr_by_target[key].append(row)
+    for row in cf_rows:
+        key = row["peer_name"] or f"tag{row['tag_id']}"
+        cf_by_target[key].append(row)
     for target in targets:
         tag_dir = session_dir / target
         tag_dir.mkdir(parents=True, exist_ok=True)
         pos_rows = positions_by_target.get(target, [])
         cm_target_rows = cm_by_target.get(target, [])
         cs_target_rows = cs_by_target.get(target, [])
+        cr_target_rows = cr_by_target.get(target, [])
+        cf_target_rows = cf_by_target.get(target, [])
         write_rows(tag_dir / "positions.csv", position_fields, pos_rows)
         write_rows(tag_dir / "cm.csv", cm_fields, cm_target_rows)
         write_rows(tag_dir / "cs.csv", cs_fields, cs_target_rows)
+        write_rows(tag_dir / "cr.csv", cr_fields, cr_target_rows)
+        write_rows(tag_dir / "cf.csv", cf_fields, cf_target_rows)
+
+        reason_counts: dict[str, int] = {}
+        anchor_reason_counts: dict[str, dict[str, int]] = {}
+        for row in cr_target_rows:
+            reason = row["reason"]
+            reason_counts[reason] = reason_counts.get(reason, 0) + 1
+            anchor_reason_counts.setdefault(row["anchor_label"], {})
+            anchor_reason_counts[row["anchor_label"]][reason] = (
+                anchor_reason_counts[row["anchor_label"]].get(reason, 0) + 1
+            )
 
         per_tag_summary[target] = {
             "position_rows": len(pos_rows),
             "cm_rows": len(cm_target_rows),
             "cs_rows": len(cs_target_rows),
+            "cr_rows": len(cr_target_rows),
+            "cf_rows": len(cf_target_rows),
             "latest_position": pos_rows[-1] if pos_rows else None,
             "latest_calibration_summary": cs_target_rows[-1] if cs_target_rows else None,
+            "latest_calibration_reject": cr_target_rows[-1] if cr_target_rows else None,
+            "latest_calibration_frame": cf_target_rows[-1] if cf_target_rows else None,
             "anchors_seen": sorted({row["anchor_id"] for row in cm_target_rows}) if cm_target_rows else [],
             "status_counts": {
                 status: sum(1 for row in cm_target_rows if row["status"] == status)
                 for status in sorted({row["status"] for row in cm_target_rows})
             },
+            "reject_reason_counts": reason_counts,
+            "anchor_reject_reason_counts": anchor_reason_counts,
         }
         profile = dict(profile_items).get(target, "")
         if profile_expects_positions(profile) and not pos_rows:
@@ -1193,12 +1577,16 @@ def main() -> int:
         "positions_all": len(positions),
         "cm_all": len(cm_rows),
         "cs_all": len(cs_rows),
+        "cr_all": len(cr_rows),
+        "cf_all": len(cf_rows),
         "connections": conn_meta,
         "per_tag": per_tag_summary,
         "raw_log": str(raw_log_path),
         "positions_all_csv": str(session_dir / "positions_all.csv"),
         "cm_all_csv": str(session_dir / "cm_all.csv"),
         "cs_all_csv": str(session_dir / "cs_all.csv"),
+        "cr_all_csv": str(session_dir / "cr_all.csv"),
+        "cf_all_csv": str(session_dir / "cf_all.csv"),
     }
     summary_json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2))
