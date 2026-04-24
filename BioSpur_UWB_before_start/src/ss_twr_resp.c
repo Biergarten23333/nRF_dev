@@ -38,6 +38,7 @@
 
 #define SS_TWR_RESP_UUS_TO_DWT_TIME 65536ULL
 #define SS_TWR_RESP_POLL_RX_TO_RESP_TX_DLY_UUS APP_ANCHOR_RESP_DELAY_UUS
+#define SS_TWR_RESP_DIAG_TAG_SLOTS 8U
 
 typedef unsigned long long dwtime_u64_t;
 
@@ -65,20 +66,49 @@ static void ss_twr_resp_diag_periodic(uint32 *last_ms,
                                       uint32 replies_ok,
                                       uint32 rx_error_count,
                                       uint32 ignored_tag_polls,
-                                      uint32 ignored_nonpoll_frames)
+                                      uint32 ignored_nonpoll_frames,
+                                      uint32 delayed_tx_miss_count,
+                                      const uint32 tag_poll_count[SS_TWR_RESP_DIAG_TAG_SLOTS],
+                                      const uint32 tag_reply_count[SS_TWR_RESP_DIAG_TAG_SLOTS],
+                                      const uint32 tag_tx_miss_count[SS_TWR_RESP_DIAG_TAG_SLOTS])
 {
     uint32_t now_ms = k_uptime_get_32();
     if ((now_ms - *last_ms) < 1000U) {
         return;
     }
     *last_ms = now_ms;
-    printk("Responder diag anchor=%u ok=%lu rx_err=%lu ignored_tag=%lu ignored_nonpoll=%lu allow_tag_polls=%u\n",
+    printk("Responder diag anchor=%u ok=%lu rx_err=%lu ignored_tag=%lu ignored_nonpoll=%lu tx_miss=%lu allow_tag_polls=%u tag_poll=%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu tag_ok=%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu tag_tx_miss=%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu\n",
            (unsigned int)ss_twr_resp_anchor_id,
            (unsigned long)replies_ok,
            (unsigned long)rx_error_count,
            (unsigned long)ignored_tag_polls,
            (unsigned long)ignored_nonpoll_frames,
-           (unsigned int)(ss_twr_resp_allow_tag_polls != 0));
+           (unsigned long)delayed_tx_miss_count,
+           (unsigned int)(ss_twr_resp_allow_tag_polls != 0),
+           (unsigned long)tag_poll_count[0],
+           (unsigned long)tag_poll_count[1],
+           (unsigned long)tag_poll_count[2],
+           (unsigned long)tag_poll_count[3],
+           (unsigned long)tag_poll_count[4],
+           (unsigned long)tag_poll_count[5],
+           (unsigned long)tag_poll_count[6],
+           (unsigned long)tag_poll_count[7],
+           (unsigned long)tag_reply_count[0],
+           (unsigned long)tag_reply_count[1],
+           (unsigned long)tag_reply_count[2],
+           (unsigned long)tag_reply_count[3],
+           (unsigned long)tag_reply_count[4],
+           (unsigned long)tag_reply_count[5],
+           (unsigned long)tag_reply_count[6],
+           (unsigned long)tag_reply_count[7],
+           (unsigned long)tag_tx_miss_count[0],
+           (unsigned long)tag_tx_miss_count[1],
+           (unsigned long)tag_tx_miss_count[2],
+           (unsigned long)tag_tx_miss_count[3],
+           (unsigned long)tag_tx_miss_count[4],
+           (unsigned long)tag_tx_miss_count[5],
+           (unsigned long)tag_tx_miss_count[6],
+           (unsigned long)tag_tx_miss_count[7]);
 }
 
 static void ss_twr_resp_log_unexpected_frame(const uint8_t *frame,
@@ -166,6 +196,10 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
     uint32 replies_ok = 0U;
     uint32 ignored_tag_polls = 0U;
     uint32 ignored_nonpoll_frames = 0U;
+    uint32 delayed_tx_miss_count = 0U;
+    uint32 tag_poll_count[SS_TWR_RESP_DIAG_TAG_SLOTS] = {0U};
+    uint32 tag_reply_count[SS_TWR_RESP_DIAG_TAG_SLOTS] = {0U};
+    uint32 tag_tx_miss_count[SS_TWR_RESP_DIAG_TAG_SLOTS] = {0U};
     uint32 wait_cycles = 0U;
     uint32 diag_last_ms = k_uptime_get_32();
 
@@ -179,10 +213,11 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
     ss_twr_resp_allow_tag_polls = allow_tag_polls;
 
     ss_twr_resp_configure_radio();
-    printk("SS-TWR responder ready anchor=%u addr=0x%04x allow_tag_polls=%u\n",
+    printk("SS-TWR responder ready anchor=%u addr=0x%04x allow_tag_polls=%u resp_delay_uus=%u\n",
            (unsigned int)ss_twr_resp_anchor_id,
            (unsigned int)ss_twr_resp_local_addr,
-           (unsigned int)(ss_twr_resp_allow_tag_polls != 0));
+           (unsigned int)(ss_twr_resp_allow_tag_polls != 0),
+           (unsigned int)SS_TWR_RESP_POLL_RX_TO_RESP_TX_DLY_UUS);
 
     while (1) {
         uint32 frame_len;
@@ -220,8 +255,11 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
                            (unsigned int)ss_twr_resp_anchor_id);
                     return 0;
                 }
-                ss_twr_resp_diag_periodic(&diag_last_ms, replies_ok, rx_error_count,
-                                          ignored_tag_polls, ignored_nonpoll_frames);
+                ss_twr_resp_diag_periodic(
+                    &diag_last_ms, replies_ok, rx_error_count,
+                    ignored_tag_polls, ignored_nonpoll_frames,
+                    delayed_tx_miss_count, tag_poll_count, tag_reply_count,
+                    tag_tx_miss_count);
                 k_yield();
                 ss_twr_resp_coop_sleep();
             }
@@ -237,8 +275,10 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             }
             dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_ERR);
             dwt_rxreset();
-            ss_twr_resp_diag_periodic(&diag_last_ms, replies_ok, rx_error_count,
-                                      ignored_tag_polls, ignored_nonpoll_frames);
+            ss_twr_resp_diag_periodic(
+                &diag_last_ms, replies_ok, rx_error_count, ignored_tag_polls,
+                ignored_nonpoll_frames, delayed_tx_miss_count, tag_poll_count,
+                tag_reply_count, tag_tx_miss_count);
             ss_twr_resp_coop_sleep();
             continue;
         }
@@ -263,17 +303,28 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
                 ss_twr_resp_log_unexpected_frame(ss_twr_resp_rx_buffer, frame_len,
                                                  ignored_nonpoll_frames);
             }
-            ss_twr_resp_diag_periodic(&diag_last_ms, replies_ok, rx_error_count,
-                                      ignored_tag_polls, ignored_nonpoll_frames);
+            ss_twr_resp_diag_periodic(
+                &diag_last_ms, replies_ok, rx_error_count, ignored_tag_polls,
+                ignored_nonpoll_frames, delayed_tx_miss_count, tag_poll_count,
+                tag_reply_count, tag_tx_miss_count);
             ss_twr_resp_coop_sleep();
             continue;
         }
 
         poll_src_addr = uwb_frame_get_src_addr(ss_twr_resp_rx_buffer);
-        if (!ss_twr_resp_allow_tag_polls && uwb_short_addr_is_tag(poll_src_addr)) {
+        bool poll_src_is_tag = uwb_short_addr_is_tag(poll_src_addr);
+        uint8_t poll_tag_id = poll_src_is_tag ?
+            uwb_tag_id_from_addr(poll_src_addr) : 0xffU;
+
+        if (poll_src_is_tag && poll_tag_id < SS_TWR_RESP_DIAG_TAG_SLOTS) {
+            tag_poll_count[poll_tag_id]++;
+        }
+        if (!ss_twr_resp_allow_tag_polls && poll_src_is_tag) {
             ignored_tag_polls++;
-            ss_twr_resp_diag_periodic(&diag_last_ms, replies_ok, rx_error_count,
-                                      ignored_tag_polls, ignored_nonpoll_frames);
+            ss_twr_resp_diag_periodic(
+                &diag_last_ms, replies_ok, rx_error_count, ignored_tag_polls,
+                ignored_nonpoll_frames, delayed_tx_miss_count, tag_poll_count,
+                tag_reply_count, tag_tx_miss_count);
             ss_twr_resp_coop_sleep();
             continue;
         }
@@ -303,8 +354,10 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             if (APP_ANCHOR_VERBOSE_RESPONDER_ERRORS != 0U) {
                 printk("Responder TX buffer write failed\n");
             }
-            ss_twr_resp_diag_periodic(&diag_last_ms, replies_ok, rx_error_count,
-                                      ignored_tag_polls, ignored_nonpoll_frames);
+            ss_twr_resp_diag_periodic(
+                &diag_last_ms, replies_ok, rx_error_count, ignored_tag_polls,
+                ignored_nonpoll_frames, delayed_tx_miss_count, tag_poll_count,
+                tag_reply_count, tag_tx_miss_count);
             ss_twr_resp_coop_sleep();
             continue;
         }
@@ -312,13 +365,19 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         dwt_writetxfctrl(sizeof(ss_twr_resp_tx_resp_msg), 0, 1);
 
         if (dwt_starttx(DWT_START_TX_DELAYED) != DWT_SUCCESS) {
+            delayed_tx_miss_count++;
+            if (poll_src_is_tag && poll_tag_id < SS_TWR_RESP_DIAG_TAG_SLOTS) {
+                tag_tx_miss_count[poll_tag_id]++;
+            }
             if (APP_ANCHOR_VERBOSE_RESPONDER_ERRORS != 0U) {
                 printk("Responder delayed TX missed slot\n");
             }
             dwt_forcetrxoff();
             dwt_rxreset();
-            ss_twr_resp_diag_periodic(&diag_last_ms, replies_ok, rx_error_count,
-                                      ignored_tag_polls, ignored_nonpoll_frames);
+            ss_twr_resp_diag_periodic(
+                &diag_last_ms, replies_ok, rx_error_count, ignored_tag_polls,
+                ignored_nonpoll_frames, delayed_tx_miss_count, tag_poll_count,
+                tag_reply_count, tag_tx_miss_count);
             ss_twr_resp_coop_sleep();
             continue;
         }
@@ -341,6 +400,9 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
 
         dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_TXFRS);
         replies_ok++;
+        if (poll_src_is_tag && poll_tag_id < SS_TWR_RESP_DIAG_TAG_SLOTS) {
+            tag_reply_count[poll_tag_id]++;
+        }
         if (APP_ANCHOR_VERBOSE_RESPONDER != 0U) {
             if (uwb_short_addr_is_anchor(poll_src_addr)) {
                 printk("Responder replied to anchor poll %u anchor=%u src=0x%04x\n",
@@ -354,8 +416,10 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
                        (unsigned int)poll_src_addr);
             }
         }
-        ss_twr_resp_diag_periodic(&diag_last_ms, replies_ok, rx_error_count,
-                                  ignored_tag_polls, ignored_nonpoll_frames);
+        ss_twr_resp_diag_periodic(
+            &diag_last_ms, replies_ok, rx_error_count, ignored_tag_polls,
+            ignored_nonpoll_frames, delayed_tx_miss_count, tag_poll_count,
+            tag_reply_count, tag_tx_miss_count);
         ss_twr_resp_frame_seq_nb++;
         ss_twr_resp_coop_sleep();
     }

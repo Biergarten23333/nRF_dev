@@ -36,6 +36,7 @@ set(APP_TAG_ANCHOR_5_ID "5" CACHE STRING "Anchor slot 5 ID")
 set(APP_TAG_ANCHOR_6_ID "6" CACHE STRING "Anchor slot 6 ID")
 set(APP_TAG_ANCHOR_7_ID "7" CACHE STRING "Anchor slot 7 ID")
 set(APP_TAG_RNG_DELAY_MS "0" CACHE STRING "Delay between anchor polls in milliseconds")
+set(APP_TAG_CAL_RNG_SETTLE_US "0" CACHE STRING "Calibration-mode settle time between anchor polls in microseconds")
 set(APP_TAG_TX_TO_RX_DLY_UUS "140" CACHE STRING "Initiator RX enable delay after poll TX in UWB usec")
 set(APP_TAG_RESP_RX_TIMEOUT_UUS "1800" CACHE STRING "Initiator response RX timeout in UWB usec")
 set(APP_TAG_FAST_TRACKING "1" CACHE STRING "Use reduced anchor subset between periodic full sweeps")
@@ -128,6 +129,7 @@ target_compile_definitions(app PRIVATE
     APP_TAG_ANCHOR_6_ID=${APP_TAG_ANCHOR_6_ID}
     APP_TAG_ANCHOR_7_ID=${APP_TAG_ANCHOR_7_ID}
     APP_TAG_RNG_DELAY_MS=${APP_TAG_RNG_DELAY_MS}
+    APP_TAG_CAL_RNG_SETTLE_US=${APP_TAG_CAL_RNG_SETTLE_US}
     APP_TAG_TX_TO_RX_DLY_UUS=${APP_TAG_TX_TO_RX_DLY_UUS}
     APP_TAG_RESP_RX_TIMEOUT_UUS=${APP_TAG_RESP_RX_TIMEOUT_UUS}
     APP_TAG_FAST_TRACKING=${APP_TAG_FAST_TRACKING}

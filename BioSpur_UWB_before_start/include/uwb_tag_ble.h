@@ -55,6 +55,7 @@ int uwb_tag_ble_runtime_config_store(const struct uwb_tag_runtime_params *params
 int uwb_tag_ble_publish_status(const char *line);
 int uwb_tag_ble_publish_sample(const struct uwb_tag_ble_sample *sample);
 int uwb_tag_ble_publish_calibration_range(const struct uwb_tag_ble_cal_range *sample);
+void uwb_tag_ble_set_tx_paused(bool paused);
 bool uwb_tag_ble_ota_active(void);
 
 #endif /* UWB_TAG_BLE_H */

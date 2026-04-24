@@ -38,7 +38,7 @@
 #define MASTER_ANCHOR_CONNECT_UNREADY_LIMIT 1U
 #define MASTER_TDMA_SLOT_COUNT_MAX 12U
 #define MASTER_TDMA_SLOT_PERIOD_MS 40U
-#define MASTER_TDMA_SLOT_ACTIVE_MS 32U
+#define MASTER_TDMA_SLOT_ACTIVE_MS 24U
 #define MASTER_TDMA_EPOCH_LEAD_MS 3000U
 #define MASTER_TDMA_PROFILE_MAX MASTER_MAX_CONNECTIONS
 #define MASTER_TDMA_ROTO_DEFAULT_HZ 15U
@@ -1272,7 +1272,7 @@ static void master_rebalance_tdma_slots(void)
 	uint8_t target_slots[MASTER_MAX_CONNECTIONS] = { 0U };
 	uint16_t slot_masks[MASTER_MAX_CONNECTIONS] = { 0U };
 	enum master_tdma_profile_kind kinds[MASTER_MAX_CONNECTIONS];
-	uint32_t epoch_ms;
+	uint32_t epoch_deadline_ms;
 	uint32_t best_error = UINT32_MAX;
 	uint8_t total_target_slots = 0U;
 	uint8_t occupied_slots[MASTER_TDMA_SLOT_COUNT_MAX] = { 0U };
@@ -1372,9 +1372,11 @@ static void master_rebalance_tdma_slots(void)
 	}
 
 	tdma_generation++;
-	epoch_ms = k_uptime_get_32() + MASTER_TDMA_EPOCH_LEAD_MS;
+	epoch_deadline_ms = k_uptime_get_32() + MASTER_TDMA_EPOCH_LEAD_MS;
 	for (size_t i = 0U; i < ready_count; ++i) {
 		uint8_t first_slot = 0U;
+		uint32_t now_ms;
+		uint32_t epoch_delay_ms;
 
 		for (uint8_t slot = 0U; slot < best_slot_count; ++slot) {
 			if ((slot_masks[i] & (uint16_t)(1U << slot)) != 0U) {
@@ -1383,6 +1385,10 @@ static void master_rebalance_tdma_slots(void)
 			}
 		}
 
+		now_ms = k_uptime_get_32();
+		epoch_delay_ms =
+			((int32_t)(epoch_deadline_ms - now_ms) > 0) ?
+				(epoch_deadline_ms - now_ms) : 0U;
 		(void)master_send_runtime_config(ordered[i],
 						 (uint8_t)(i + 1U),
 						 first_slot,
@@ -1390,10 +1396,10 @@ static void master_rebalance_tdma_slots(void)
 						 slot_masks[i],
 						 MASTER_TDMA_SLOT_PERIOD_MS,
 						 MASTER_TDMA_SLOT_ACTIVE_MS,
-						 epoch_ms,
+						 epoch_delay_ms,
 						 tdma_generation,
 						 master_tdma_profile_pmode(kinds[i]));
-		printk("TDMA weighted[%zu]: bs=BS%04X profile=%s target=%uHz mask=0x%04X slots=%u/%u actual_x100=%lu\n",
+		printk("TDMA weighted[%zu]: bs=BS%04X profile=%s target=%uHz mask=0x%04X slots=%u/%u actual_x100=%lu epoch_delay=%lu\n",
 		       i,
 		       (unsigned int)ordered[i]->bs_code,
 		       master_tdma_profile_label(kinds[i]),
@@ -1403,7 +1409,8 @@ static void master_rebalance_tdma_slots(void)
 		       (unsigned int)best_slot_count,
 		       (unsigned long)(((uint32_t)target_slots[i] * 100000U) /
 				       ((uint32_t)best_slot_count *
-					MASTER_TDMA_SLOT_PERIOD_MS)));
+					MASTER_TDMA_SLOT_PERIOD_MS)),
+		       (unsigned long)epoch_delay_ms);
 	}
 }
 

@@ -189,6 +189,7 @@ static uint8_t ble_conn_count;
 static bool ota_ready;
 static bool ota_active;
 static uint32_t ble_tx_drop_count;
+static volatile bool ble_tx_paused;
 static char last_status[UWB_TAG_BLE_MAX_STATUS_LEN];
 static char pending_bundle[UWB_TAG_BLE_MAX_STATUS_LEN];
 static size_t pending_bundle_len;
@@ -706,10 +707,10 @@ static void uwb_tag_ble_apply_mode_defaults(struct uwb_tag_runtime_params *param
 			params->tdma.slot_mask = 0U;
 			params->tdma.slot_period_ms = APP_TAG_TDMA_SLOT_PERIOD_MS;
 			params->tdma.slot_active_ms = APP_TAG_TDMA_SLOT_ACTIVE_MS;
+			params->tdma.epoch_valid = false;
+			params->tdma.epoch_ms = 0U;
+			params->tdma.generation = 0U;
 		}
-		params->tdma.epoch_valid = false;
-		params->tdma.epoch_ms = 0U;
-		params->tdma.generation = 0U;
 		return;
 	}
 
@@ -1374,6 +1375,10 @@ static void uwb_tag_ble_tx_thread_entry(void *arg1, void *arg2, void *arg3)
 			continue;
 		}
 
+		while (ble_tx_paused) {
+			k_msleep(1);
+		}
+
 		k_mutex_lock(&ble_mutex, K_FOREVER);
 		active_conns = ble_conn_count;
 		k_mutex_unlock(&ble_mutex);
@@ -1404,6 +1409,11 @@ static void uwb_tag_ble_tx_thread_entry(void *arg1, void *arg2, void *arg3)
 		k_mem_slab_free(&ble_tx_slab, (void *)item);
 		k_yield();
 	}
+}
+
+void uwb_tag_ble_set_tx_paused(bool paused)
+{
+	ble_tx_paused = paused;
 }
 
 static void ble_notif_enabled(enum bt_nus_send_status status)

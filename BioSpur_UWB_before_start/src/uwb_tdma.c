@@ -49,8 +49,14 @@ void uwb_tdma_sync_schedule_epoch(struct uwb_tdma_schedule *schedule,
 		return;
 	}
 
-	schedule->epoch_ms = epoch_ms;
-	schedule->sync_local_ms = k_uptime_get_32();
+	/*
+	 * The BLE CFG command carries EPOCH as a relative delay in ms, not as an
+	 * absolute clock shared with the master.  Each tag converts that delay to
+	 * its own local epoch start so sequential BLE delivery still converges on
+	 * one common TDMA phase.
+	 */
+	schedule->epoch_ms = 0U;
+	schedule->sync_local_ms = k_uptime_get_32() + epoch_ms;
 	schedule->epoch_valid = true;
 	schedule->generation = generation;
 }
@@ -67,7 +73,34 @@ uint32_t uwb_tdma_schedule_now_ms(const struct uwb_tdma_schedule *schedule)
 		return local_now_ms;
 	}
 
-	return schedule->epoch_ms + (local_now_ms - schedule->sync_local_ms);
+	if ((int32_t)(local_now_ms - schedule->sync_local_ms) < 0) {
+		return 0U;
+	}
+
+	return local_now_ms - schedule->sync_local_ms;
+}
+
+static uint32_t uwb_tdma_wait_until_epoch_if_needed(
+	const struct uwb_tdma_schedule *schedule)
+{
+	uint32_t local_now_ms;
+	uint32_t wait_ms;
+
+	if (schedule == NULL || !schedule->epoch_valid) {
+		return 0U;
+	}
+
+	local_now_ms = k_uptime_get_32();
+	if ((int32_t)(local_now_ms - schedule->sync_local_ms) >= 0) {
+		return 0U;
+	}
+
+	wait_ms = schedule->sync_local_ms - local_now_ms;
+	if (wait_ms > 0U) {
+		k_msleep(wait_ms);
+	}
+
+	return wait_ms;
 }
 
 static uint32_t uwb_tdma_schedule_phase_ms(const struct uwb_tdma_schedule *schedule,
@@ -102,6 +135,10 @@ bool uwb_tdma_schedule_in_active_window(const struct uwb_tdma_schedule *schedule
 	if (!uwb_tdma_schedule_is_valid(schedule)) {
 		return true;
 	}
+	if (schedule->epoch_valid &&
+	    (int32_t)(k_uptime_get_32() - schedule->sync_local_ms) < 0) {
+		return false;
+	}
 
 	phase_ms = uwb_tdma_schedule_phase_ms(schedule, NULL);
 	slot = (uint8_t)(phase_ms / (uint32_t)schedule->slot_period_ms);
@@ -126,6 +163,10 @@ uint32_t uwb_tdma_schedule_time_remaining_ms(
 
 	if (!uwb_tdma_schedule_is_valid(schedule)) {
 		return UINT32_MAX;
+	}
+	if (schedule->epoch_valid &&
+	    (int32_t)(k_uptime_get_32() - schedule->sync_local_ms) < 0) {
+		return 0U;
 	}
 
 	phase_ms = uwb_tdma_schedule_phase_ms(schedule, NULL);
@@ -171,6 +212,8 @@ uint32_t uwb_tdma_wait_until_slot(const struct uwb_tdma_schedule *schedule)
 	if (!uwb_tdma_schedule_is_valid(schedule)) {
 		return 0U;
 	}
+
+	(void)uwb_tdma_wait_until_epoch_if_needed(schedule);
 
 	phase_ms = uwb_tdma_schedule_phase_ms(schedule, &cycle_ms);
 	slot_mask = uwb_tdma_effective_slot_mask(schedule);
@@ -221,6 +264,8 @@ uint32_t uwb_tdma_wait_until_next_slot(const struct uwb_tdma_schedule *schedule)
 	if (!uwb_tdma_schedule_is_valid(schedule)) {
 		return 0U;
 	}
+
+	(void)uwb_tdma_wait_until_epoch_if_needed(schedule);
 
 	phase_ms = uwb_tdma_schedule_phase_ms(schedule, &cycle_ms);
 	slot_mask = uwb_tdma_effective_slot_mask(schedule);

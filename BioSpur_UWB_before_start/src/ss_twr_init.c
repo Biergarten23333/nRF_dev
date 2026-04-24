@@ -28,6 +28,10 @@
 #define APP_TAG_RNG_DELAY_MS 1000U
 #endif
 
+#ifndef APP_TAG_CAL_RNG_SETTLE_US
+#define APP_TAG_CAL_RNG_SETTLE_US 0U
+#endif
+
 #ifndef APP_TAG_TX_TO_RX_DLY_UUS
 #define APP_TAG_TX_TO_RX_DLY_UUS 140U
 #endif
@@ -216,6 +220,7 @@ static void ss_twr_diag_write(const char *msg)
 #endif
 
 #define SS_TWR_INIT_RNG_DELAY_MS APP_TAG_RNG_DELAY_MS
+#define SS_TWR_INIT_CAL_RNG_SETTLE_US APP_TAG_CAL_RNG_SETTLE_US
 #define SS_TWR_INIT_TX_TO_RX_DLY_UUS APP_TAG_TX_TO_RX_DLY_UUS
 #define SS_TWR_INIT_RESP_RX_TIMEOUT_UUS APP_TAG_RESP_RX_TIMEOUT_UUS
 
@@ -1170,6 +1175,25 @@ static void ss_twr_init_sleep_between_ranges(void)
     if (SS_TWR_INIT_RNG_DELAY_MS > 0U) {
         k_msleep(SS_TWR_INIT_RNG_DELAY_MS);
     }
+
+    if (ss_twr_init_runtime_any_calibration_mode() &&
+        SS_TWR_INIT_CAL_RNG_SETTLE_US > 0U) {
+        k_busy_wait(SS_TWR_INIT_CAL_RNG_SETTLE_US);
+    }
+}
+
+static void ss_twr_init_prepare_radio_for_poll(void)
+{
+    /*
+     * Consecutive 4-anchor CAL sweeps stress the DW1000 state machine more than
+     * single-leg debug tests.  Return to idle and clear stale TX/RX state before
+     * every poll so the next immediate TX cannot inherit a previous RX timeout or
+     * good-frame latch.
+     */
+    dwt_forcetrxoff();
+    dwt_write32bitreg(SYS_STATUS_ID,
+                      SYS_STATUS_ALL_TX | SYS_STATUS_ALL_RX_GOOD |
+                          SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_RX_TO);
 }
 
 static bool ss_twr_init_should_retry_current_cal_anchor(void)
@@ -1212,6 +1236,16 @@ static bool ss_twr_init_tdma_exchange_can_start(void)
 					       SS_TWR_INIT_SLOT_GUARD_MARGIN_MS);
 }
 
+static bool ss_twr_init_tdma_active_guard_enabled(void)
+{
+	/*
+	 * CAL_ROTO prewarm is a responder/link-state probe, not a positioning
+	 * frame.  It must be allowed to run the full 8-anchor handshake even when
+	 * the later fast 4-anchor positioning slot uses a shorter active window.
+	 */
+	return !ss_twr_init_roto_prewarm_active();
+}
+
 static bool ss_twr_init_runtime_static_calibration_mode(void)
 {
 	if (APP_TAG_CALIBRATION_MODE != 0U) {
@@ -1252,7 +1286,36 @@ static bool ss_twr_init_runtime_anchor_ota_mode(void)
 
 static bool ss_twr_init_tdma_exchange_can_start_if_needed(void)
 {
+	if (!ss_twr_init_tdma_active_guard_enabled()) {
+		return true;
+	}
+
 	return ss_twr_init_tdma_exchange_can_start();
+}
+
+static void ss_twr_init_set_ble_tx_paused(bool paused)
+{
+#if APP_TAG_BLE_ENABLE
+	uwb_tag_ble_set_tx_paused(paused);
+#else
+	ARG_UNUSED(paused);
+#endif
+}
+
+static void ss_twr_init_release_ble_tx_after_active_slot(void)
+{
+#if APP_TAG_BLE_ENABLE
+	if (ss_twr_init_tdma_schedule.enabled) {
+		uint32_t remain_ms =
+			uwb_tdma_schedule_time_remaining_ms(&ss_twr_init_tdma_schedule);
+
+		if (remain_ms > 0U) {
+			k_msleep(remain_ms + 1U);
+		}
+	}
+
+	uwb_tag_ble_set_tx_paused(false);
+#endif
 }
 
 static uint32_t ss_twr_init_wait_until_slot_if_needed(void)
@@ -2578,10 +2641,11 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
            (unsigned int)ss_twr_init_local_tag_id,
            (unsigned int)ss_twr_init_local_addr,
            (unsigned int)ss_twr_init_anchor_count);
-    printk("Tag motion mode rng_delay_ms=%u tx_to_rx_uus=%u resp_timeout_uus=%u fast_tracking=%u full_interval=%u track_count=%u fixed=%u fixed_count=%u tdma=%u slot=%u/%u period=%u active=%u source=%s epoch_valid=%u gen=%u\n",
-           (unsigned int)SS_TWR_INIT_RNG_DELAY_MS,
-           (unsigned int)SS_TWR_INIT_TX_TO_RX_DLY_UUS,
-           (unsigned int)SS_TWR_INIT_RESP_RX_TIMEOUT_UUS,
+    printk("Tag motion mode rng_delay_ms=%u cal_settle_us=%u tx_to_rx_uus=%u resp_timeout_uus=%u fast_tracking=%u full_interval=%u track_count=%u fixed=%u fixed_count=%u tdma=%u slot=%u/%u period=%u active=%u source=%s epoch_valid=%u gen=%u\n",
+	           (unsigned int)SS_TWR_INIT_RNG_DELAY_MS,
+	           (unsigned int)SS_TWR_INIT_CAL_RNG_SETTLE_US,
+	           (unsigned int)SS_TWR_INIT_TX_TO_RX_DLY_UUS,
+	           (unsigned int)SS_TWR_INIT_RESP_RX_TIMEOUT_UUS,
            (unsigned int)APP_TAG_FAST_TRACKING,
            (unsigned int)APP_TAG_FULL_SWEEP_INTERVAL,
            (unsigned int)APP_TAG_TRACK_ANCHOR_COUNT,
@@ -2671,6 +2735,7 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
     while (1) {
 #if APP_TAG_BLE_ENABLE
         if (uwb_tag_ble_ota_active()) {
+            ss_twr_init_set_ble_tx_paused(false);
             dwt_forcetrxoff();
             k_msleep(20);
             continue;
@@ -2679,6 +2744,7 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
         ss_twr_init_apply_pending_runtime_config_if_any();
 
         if (ss_twr_init_runtime_anchor_ota_mode()) {
+            ss_twr_init_set_ble_tx_paused(false);
             dwt_forcetrxoff();
             k_msleep(20);
             continue;
@@ -2715,12 +2781,14 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
                 ss_twr_init_active_anchor_index != 0U &&
                 ss_twr_init_active_anchor_count >= 4U) {
                 dwt_forcetrxoff();
+                ss_twr_init_release_ble_tx_after_active_slot();
                 ss_twr_init_last_tdma_wait_ms =
                     ss_twr_init_wait_until_next_slot_if_needed();
                 continue;
             }
 
             ss_twr_init_sweep_count++;
+            ss_twr_init_release_ble_tx_after_active_slot();
             ss_twr_init_print_location_if_ready();
             ss_twr_init_apply_pending_runtime_config_if_any();
 	        ss_twr_init_last_tdma_wait_ms = ss_twr_init_wait_until_next_slot_if_needed();
@@ -2728,9 +2796,10 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
             continue;
         }
 
-        if (ss_twr_init_active_anchor_index == 0U &&
-            ss_twr_init_active_anchor_count > 1U &&
-            ss_twr_init_tdma_schedule.enabled) {
+	        if (ss_twr_init_active_anchor_index == 0U &&
+	            ss_twr_init_active_anchor_count > 1U &&
+	            ss_twr_init_tdma_schedule.enabled &&
+	            ss_twr_init_tdma_active_guard_enabled()) {
             uint32_t remain_ms =
                 uwb_tdma_schedule_time_remaining_ms(&ss_twr_init_tdma_schedule);
             uint32_t sweep_budget_ms =
@@ -2740,6 +2809,7 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
 
             if (remain_ms < sweep_budget_ms) {
                 dwt_forcetrxoff();
+                ss_twr_init_release_ble_tx_after_active_slot();
                 ss_twr_init_last_tdma_wait_ms =
                     ss_twr_init_wait_until_next_slot_if_needed();
                 continue;
@@ -2753,11 +2823,14 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
 
                     if ((slot_tick % APP_TAG_CAL_STATIC_SLOT_DIVIDER) != 0U) {
                         dwt_forcetrxoff();
+                        ss_twr_init_release_ble_tx_after_active_slot();
                         ss_twr_init_last_tdma_wait_ms =
                     ss_twr_init_wait_until_next_slot_if_needed();
                         continue;
                     }
         }
+
+        ss_twr_init_set_ble_tx_paused(true);
 
         uint8_t current_anchor_id =
             ss_twr_init_active_anchor_ids[ss_twr_init_active_anchor_index];
@@ -2770,7 +2843,7 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
                                     ss_twr_init_frame_seq_nb, current_anchor_addr,
                                     ss_twr_init_local_addr);
 
-        dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_TXFRS);
+	        ss_twr_init_prepare_radio_for_poll();
 
         if (ss_twr_init_sweep_count == 0U &&
             ss_twr_init_active_anchor_index == 0U) {
@@ -2952,15 +3025,16 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
                         (ss_twr_init_active_anchor_index + 1U) %
                         ss_twr_init_active_anchor_count;
                     ss_twr_init_current_anchor_retry_count = 0U;
-                    if (ss_twr_init_active_anchor_index == 0U) {
-                        ss_twr_init_sweep_count++;
+	                    if (ss_twr_init_active_anchor_index == 0U) {
+	                        ss_twr_init_sweep_count++;
+	                        ss_twr_init_release_ble_tx_after_active_slot();
 	                        ss_twr_init_print_location_if_ready();
 	                        ss_twr_init_apply_pending_runtime_config_if_any();
 	                        ss_twr_init_last_tdma_wait_ms =
 	                            ss_twr_init_wait_until_next_slot_if_needed();
 	                        ss_twr_init_prepare_sweep_plan();
 	                    }
-	                }
+		                }
                 ss_twr_init_sleep_between_ranges();
                 continue;
             }
@@ -3002,12 +3076,13 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
                     ss_twr_init_current_anchor_retry_count++;
                     dwt_write32bitreg(SYS_STATUS_ID,
                                       SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR);
-                    dwt_rxreset();
-                    if (!ss_twr_init_tdma_exchange_can_start_if_needed()) {
-                        dwt_forcetrxoff();
-                        ss_twr_init_last_tdma_wait_ms =
-                            ss_twr_init_wait_until_next_slot_if_needed();
-                    }
+	                    dwt_rxreset();
+	                    if (!ss_twr_init_tdma_exchange_can_start_if_needed()) {
+	                        dwt_forcetrxoff();
+	                        ss_twr_init_release_ble_tx_after_active_slot();
+	                        ss_twr_init_last_tdma_wait_ms =
+	                            ss_twr_init_wait_until_next_slot_if_needed();
+	                    }
                     continue;
                 }
 
@@ -3053,9 +3128,10 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
         ss_twr_init_active_anchor_index =
             (ss_twr_init_active_anchor_index + 1U) %
             ss_twr_init_active_anchor_count;
-        ss_twr_init_current_anchor_retry_count = 0U;
-        if (ss_twr_init_active_anchor_index == 0U) {
+	        ss_twr_init_current_anchor_retry_count = 0U;
+	        if (ss_twr_init_active_anchor_index == 0U) {
 	            ss_twr_init_sweep_count++;
+	            ss_twr_init_release_ble_tx_after_active_slot();
 	            ss_twr_init_print_location_if_ready();
 	            ss_twr_init_apply_pending_runtime_config_if_any();
 	            ss_twr_init_last_tdma_wait_ms =
