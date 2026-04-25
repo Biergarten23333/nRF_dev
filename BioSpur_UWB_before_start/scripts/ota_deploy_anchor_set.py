@@ -436,6 +436,25 @@ def main() -> int:
     out_root = Path(args.out_dir)
     out_root.mkdir(parents=True, exist_ok=True)
     repo_root = Path(__file__).resolve().parent.parent
+    guard = subprocess.run(
+        [
+            "python3",
+            "scripts/verify_ota_payload_kind.py",
+            "--expected",
+            "anchor",
+            "--repo-root",
+            str(repo_root),
+        ],
+        text=True,
+        capture_output=True,
+    )
+    (out_root / "payload_guard_anchor.json").write_text(
+        (guard.stdout or "") + (guard.stderr or ""),
+        encoding="utf-8",
+    )
+    if guard.returncode != 0:
+        print((guard.stdout or "") + (guard.stderr or ""), flush=True)
+        raise SystemExit("refusing Anchor OTA: embedded payload is not an Anchor image")
     expected_fw_marker, expected_fw_meta = load_expected_fw_marker(repo_root, args.expected_fw_marker)
     deploy_summary: dict[str, object] = {
         "port": args.port,

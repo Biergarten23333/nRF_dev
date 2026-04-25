@@ -89,6 +89,8 @@ python3 scripts/gen_ota_image_inc.py \
   "${SIGNED_BIN}" \
   apps/master_ota/generated/ota_image.inc
 
+python3 scripts/verify_ota_payload_kind.py --expected anchor
+
 printf '%s\n' "${FW_MARKER}" > "${ANCHOR_BUILD_DIR}/fw_marker.txt"
 python3 - <<'PY' "${REPO_ROOT}" "${ANCHOR_BUILD_DIR}" "${CONTROL_BUILD_DIR}" "${FW_MARKER}" "${SIGNED_BIN}"
 import json

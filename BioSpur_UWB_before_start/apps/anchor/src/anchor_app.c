@@ -75,6 +75,14 @@
 #define APP_ANCHOR_FW_MARKER "anchor-unified"
 #endif
 
+#ifndef APP_ANCHOR_DIAG_BLE_BEFORE_UWB
+#define APP_ANCHOR_DIAG_BLE_BEFORE_UWB 0U
+#endif
+
+#ifndef APP_ANCHOR_DIAG_CONTINUE_ON_UWB_FAIL
+#define APP_ANCHOR_DIAG_CONTINUE_ON_UWB_FAIL 0U
+#endif
+
 static const char *anchor_role_name(uint8_t role)
 {
     switch (role) {
@@ -266,15 +274,16 @@ int anchor_app_run(void)
     char uuid_hex[33];
     char mcu_uid_hex[17];
     char bs_code[7];
-    int ret = uwb_hw_bringup_and_init();
+    int ret;
+    bool uwb_ready = false;
     uint32_t effective_master_sweep_limit = 0U;
-    if (ret) {
-        return ret;
-    }
-
-    anchor_normalize_persisted_role(&cfg, &cfg_valid);
 
 #if defined(CONFIG_BOOTLOADER_MCUBOOT)
+    /*
+     * Confirm before UWB/BLE bring-up.  Recovery OTA may switch a device from
+     * an older tag image to the anchor app; if any later hardware init path
+     * stalls during the first boot, MCUboot would otherwise revert the image.
+     */
     if (!boot_is_img_confirmed()) {
         ret = boot_write_img_confirmed();
         printk("MCUboot confirm rc=%d\n", ret);
@@ -283,6 +292,25 @@ int anchor_app_run(void)
         }
     }
 #endif
+
+#if APP_ANCHOR_DIAG_BLE_BEFORE_UWB == 0U
+    printk("Anchor UWB bringup starting before control plane\n");
+    ret = uwb_hw_bringup_and_init();
+    if (ret) {
+#if APP_ANCHOR_DIAG_CONTINUE_ON_UWB_FAIL != 0U
+        printk("Anchor UWB bringup failed before control plane: %d; continuing BLE/control only\n",
+               ret);
+#else
+        return ret;
+#endif
+    } else {
+        uwb_ready = true;
+    }
+#else
+    printk("Anchor diag: BLE/control starts before UWB bringup\n");
+#endif
+
+    anchor_normalize_persisted_role(&cfg, &cfg_valid);
 
     anchor_config_get_mcu_uid(mcu_uid);
     anchor_config_get_device_uuid(device_uuid, &cfg, cfg_valid);
@@ -407,6 +435,31 @@ int anchor_app_run(void)
     ret = anchor_ble_id_update_role(effective_role);
     if (ret != 0 && ret != -EAGAIN) {
         printk("anchor_ble_id_update_role failed: %d\n", ret);
+    }
+
+#if APP_ANCHOR_DIAG_BLE_BEFORE_UWB != 0U
+    printk("Anchor UWB bringup starting after control plane\n");
+    ret = uwb_hw_bringup_and_init();
+    if (ret) {
+        printk("Anchor UWB bringup failed after control plane: %d\n", ret);
+#if APP_ANCHOR_DIAG_CONTINUE_ON_UWB_FAIL != 0U
+        while (1) {
+            printk("Anchor diag BLE/control alive despite UWB bringup failure rc=%d anchor=%c\n",
+                   ret, anchor_config_label_char(anchor_id_cfg));
+            k_sleep(K_SECONDS(5));
+        }
+#else
+        return ret;
+#endif
+    }
+    uwb_ready = true;
+#endif
+
+    if (!uwb_ready) {
+        printk("Anchor UWB unavailable; control plane active, ranging not started\n");
+        while (1) {
+            k_sleep(K_SECONDS(5));
+        }
     }
 
     if (unassigned_mode) {

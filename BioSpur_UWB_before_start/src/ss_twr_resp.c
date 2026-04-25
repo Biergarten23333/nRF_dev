@@ -10,6 +10,9 @@
 #include <deca_regs.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
+#if APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE
+#include <hal/nrf_gpio.h>
+#endif
 
 #define SS_TWR_RESP_TX_ANT_DLY 16436U
 #define SS_TWR_RESP_RX_ANT_DLY 16436U
@@ -42,6 +45,18 @@
 #define APP_ANCHOR_RESPONDER_PROFILE_ENABLE 0U
 #endif
 
+#ifndef APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE
+#define APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE 0U
+#endif
+
+#ifndef APP_ANCHOR_RESPONDER_BLUE_LED_PIN
+#define APP_ANCHOR_RESPONDER_BLUE_LED_PIN 31U
+#endif
+
+#ifndef APP_ANCHOR_RESPONDER_BLUE_LED_ACTIVE_LOW
+#define APP_ANCHOR_RESPONDER_BLUE_LED_ACTIVE_LOW 1U
+#endif
+
 #define SS_TWR_RESP_RX_BUF_LEN 127U
 #define SS_TWR_RESP_ALL_MSG_COMMON_LEN 10U
 #define SS_TWR_RESP_MSG_SN_IDX 2U
@@ -65,6 +80,36 @@ typedef unsigned long long dwtime_u64_t;
 #define RESP_PROF_PRINTK(...) printk(__VA_ARGS__)
 #else
 #define RESP_PROF_PRINTK(...) do { } while (0)
+#endif
+
+#if APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE
+static inline void ss_twr_resp_led_on(void)
+{
+#if APP_ANCHOR_RESPONDER_BLUE_LED_ACTIVE_LOW
+    nrf_gpio_pin_clear(APP_ANCHOR_RESPONDER_BLUE_LED_PIN);
+#else
+    nrf_gpio_pin_set(APP_ANCHOR_RESPONDER_BLUE_LED_PIN);
+#endif
+}
+
+static inline void ss_twr_resp_led_off(void)
+{
+#if APP_ANCHOR_RESPONDER_BLUE_LED_ACTIVE_LOW
+    nrf_gpio_pin_set(APP_ANCHOR_RESPONDER_BLUE_LED_PIN);
+#else
+    nrf_gpio_pin_clear(APP_ANCHOR_RESPONDER_BLUE_LED_PIN);
+#endif
+}
+
+static void ss_twr_resp_led_init(void)
+{
+    nrf_gpio_cfg_output(APP_ANCHOR_RESPONDER_BLUE_LED_PIN);
+    ss_twr_resp_led_off();
+}
+#else
+static inline void ss_twr_resp_led_on(void) { }
+static inline void ss_twr_resp_led_off(void) { }
+static inline void ss_twr_resp_led_init(void) { }
 #endif
 
 static dwt_config_t ss_twr_resp_config = {
@@ -371,6 +416,7 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
     ss_twr_resp_local_addr = uwb_anchor_short_addr(ss_twr_resp_anchor_id);
     ss_twr_resp_allow_tag_polls = allow_tag_polls;
 
+    ss_twr_resp_led_init();
     ss_twr_resp_configure_radio();
     RESP_PRINTK("SS-TWR responder ready anchor=%u addr=0x%04x allow_tag_polls=%u resp_delay_uus=%u\n",
            (unsigned int)ss_twr_resp_anchor_id,
@@ -385,6 +431,7 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         if (anchor_runtime_stop_requested()) {
             dwt_forcetrxoff();
             dwt_rxreset();
+            ss_twr_resp_led_off();
             RESP_PRINTK("Responder stop requested anchor=%u\n",
                    (unsigned int)ss_twr_resp_anchor_id);
             return 0;
@@ -532,6 +579,7 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         int32_t prof_slack_uus = ss_twr_resp_slack_uus(resp_tx_time);
 
         uint32_t prof_starttx_cyc = k_cycle_get_32();
+        ss_twr_resp_led_on();
         int starttx_ok = (dwt_starttx(DWT_START_TX_DELAYED) == DWT_SUCCESS);
         uint32_t prof_start_done_cyc = k_cycle_get_32();
         uint32_t prof_starttx_us =
@@ -542,6 +590,7 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             prof_starttx_us, starttx_ok);
 
         if (!starttx_ok) {
+            ss_twr_resp_led_off();
             delayed_tx_miss_count++;
             if (poll_src_is_tag && poll_tag_id < SS_TWR_RESP_DIAG_TAG_SLOTS) {
                 tag_tx_miss_count[poll_tag_id]++;
@@ -566,6 +615,7 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
                 if (anchor_runtime_stop_requested()) {
                     dwt_forcetrxoff();
                     dwt_rxreset();
+                    ss_twr_resp_led_off();
                     RESP_PRINTK("Responder stop requested during TX wait anchor=%u\n",
                            (unsigned int)ss_twr_resp_anchor_id);
                     return 0;
@@ -577,6 +627,7 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         wait_cycles = 0U;
 
         dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_TXFRS);
+        ss_twr_resp_led_off();
         replies_ok++;
         if (poll_src_is_tag && poll_tag_id < SS_TWR_RESP_DIAG_TAG_SLOTS) {
             tag_reply_count[poll_tag_id]++;

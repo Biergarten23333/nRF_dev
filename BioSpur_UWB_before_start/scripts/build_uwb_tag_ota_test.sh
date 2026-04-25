@@ -69,6 +69,8 @@ python3 scripts/gen_ota_image_inc.py \
   "$SIGNED_BIN" \
   apps/master_ota/generated/ota_image.inc
 
+python3 scripts/verify_ota_payload_kind.py --expected tag
+
 python3 - <<'PY' "$REPO_ROOT" "$TAG_BUILD_DIR" "$MASTER_BUILD_DIR" "$SIGNED_BIN"
 import json
 import re

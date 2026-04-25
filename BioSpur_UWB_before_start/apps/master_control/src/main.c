@@ -28,6 +28,18 @@
 #include "../../master_ota/generated/anchor_ota_manifest.h"
 #include "../../master_ota/generated/tag_ota_manifest.h"
 
+#ifndef APP_MASTER_OTA_TARGET_NAME
+#define APP_MASTER_OTA_TARGET_NAME ""
+#endif
+
+#ifndef APP_MASTER_OTA_TARGET_NAME_PREFIX
+#define APP_MASTER_OTA_TARGET_NAME_PREFIX "BS"
+#endif
+
+#ifndef APP_MASTER_OTA_TARGET_TOKEN_ID
+#define APP_MASTER_OTA_TARGET_TOKEN_ID -1
+#endif
+
 #define CONTROL_SETTINGS_SUBTREE "master_ctrl"
 #define CONTROL_SETTINGS_MODE_KEY "mode"
 #define CONTROL_SETTINGS_AUTOPOS_TARGET_KEY "autopos_target"
@@ -1446,6 +1458,7 @@ static int anchor_apply_role_all(const char *role)
 		int sent;
 		int total_sent = 0;
 		int waited = 0;
+		int last_ready = -1;
 		const char *runtime_cmd = (strcmp(role, "matrix") == 0) ? "RUNTIME MATRIX" : "RUNTIME RESPONDER";
 
 		/* Session role guard/finalizer: matrix/responder are runtime state changes.
@@ -1459,21 +1472,29 @@ static int anchor_apply_role_all(const char *role)
 		master_set_runtime_target_kind(MASTER_TARGET_ANCHOR);
 		master_set_connect_and_start_mode();
 
-		while (waited < 6000) {
+		while (waited < 45000) {
 			ready_count = master_anchor_ctrl_ready_count();
-			if (ready_count > 0) {
+			if (ready_count >= AUTOPOS_ANCHOR_COUNT) {
 				break;
 			}
-			if ((waited % 1000) == 0) {
+			if (ready_count != last_ready || (waited % 3000) == 0) {
 				printk("anchor role all %s wait ready: waited=%d ready=%d/%d\n",
 				       role, waited, ready_count, AUTOPOS_ANCHOR_COUNT);
 				master_dump_ready_state();
+				last_ready = ready_count;
 			}
 			k_sleep(K_MSEC(250));
 			waited += 250;
 		}
 
 		ready_count = master_anchor_ctrl_ready_count();
+		if (ready_count < AUTOPOS_ANCHOR_COUNT) {
+			printk("anchor role all %s aborted: ctrl ready gate failed ready=%d/%d\n",
+			       role, ready_count, AUTOPOS_ANCHOR_COUNT);
+			master_dump_ready_state();
+			return -EAGAIN;
+		}
+
 		sent = master_send_command_now(runtime_cmd);
 		if (sent > 0) {
 			total_sent += sent;
@@ -2883,11 +2904,13 @@ int main(void)
 
 	uart_irq_rx_enable(console_uart);
 	printk("UART control ready: type 'status' or 'mode recv'/'mode ota'/'mode autopos'\n");
-	master_ota_target_reset();
-	ota_target_token_cfg = -1;
-	ota_target_name_cfg[0] = '\0';
-	(void)snprintf(ota_target_prefix_cfg, sizeof(ota_target_prefix_cfg), "BS");
-	ota_target_uuid_cfg[0] = '\0';
+		master_ota_target_reset();
+		ota_target_token_cfg = APP_MASTER_OTA_TARGET_TOKEN_ID;
+		(void)snprintf(ota_target_name_cfg, sizeof(ota_target_name_cfg), "%s",
+			       APP_MASTER_OTA_TARGET_NAME);
+		(void)snprintf(ota_target_prefix_cfg, sizeof(ota_target_prefix_cfg), "%s",
+			       APP_MASTER_OTA_TARGET_NAME_PREFIX);
+		ota_target_uuid_cfg[0] = '\0';
 	if (ota_target_boot_cookie == OTA_TARGET_BOOT_COOKIE_MAGIC) {
 		ota_target_token_cfg = ota_target_boot_token;
 		(void)snprintf(ota_target_name_cfg, sizeof(ota_target_name_cfg), "%s",
@@ -2916,9 +2939,15 @@ int main(void)
 	master_set_runtime_target_prefix(ota_target_prefix_cfg);
 	master_set_runtime_target_uuid(ota_target_uuid_cfg);
 	master_ota_set_expect_nus(ota_expect_nus_cfg);
-	system_target.kind = SYS_DEV_UNKNOWN;
-	system_target.caps = system_caps_for_kind(SYS_DEV_UNKNOWN);
-	master_set_runtime_target_kind(MASTER_TARGET_UNKNOWN);
+		if (ota_target_name_cfg[0] != '\0') {
+			system_target.kind = SYS_DEV_TAG;
+			system_target.caps = system_caps_for_kind(SYS_DEV_TAG);
+			master_set_runtime_target_kind(MASTER_TARGET_TAG);
+		} else {
+			system_target.kind = SYS_DEV_UNKNOWN;
+			system_target.caps = system_caps_for_kind(SYS_DEV_UNKNOWN);
+			master_set_runtime_target_kind(MASTER_TARGET_UNKNOWN);
+		}
 	master_ota_target_print();
 	if (autopos_state[0] == '\0') {
 		(void)snprintf(autopos_state, sizeof(autopos_state), "idle");

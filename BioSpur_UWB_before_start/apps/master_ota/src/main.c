@@ -1788,7 +1788,7 @@ static int ota_remote_reset(struct bt_dfu_smp *smp)
 	printk("OTA reset request\n");
 	master_leds_set(false, true, true, false);
 	return ota_send_packet(smp, &pkt, payload_len, &result, OTA_SMP_GROUP_OS,
-			       OTA_SMP_CMD_OS_RESET, 2U, false);
+			       OTA_SMP_CMD_OS_RESET, 2U, true);
 }
 
 static int ota_erase_secondary_slot(struct bt_dfu_smp *smp)

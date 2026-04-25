@@ -14,6 +14,7 @@
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/kernel.h>
+#include <zephyr/sys/atomic.h>
 #include <zephyr/settings/settings.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/printk.h>
@@ -70,6 +71,8 @@
 #define APP_MASTER_ONE_SHOT_CMD ""
 #endif
 #define MASTER_RUNTIME_ONE_SHOT_CMD_LEN 160U
+#define MASTER_NOTIFY_PRINT_PAYLOAD_LEN 1024U
+#define MASTER_NOTIFY_PRINT_QUEUE_DEPTH 24U
 
 enum master_peer_link_type {
 	MASTER_LINK_NONE = 0,
@@ -149,6 +152,11 @@ struct master_tdma_profile_entry {
 	enum master_tdma_profile_kind kind;
 };
 
+struct master_notify_print_msg {
+	char bs_name[8];
+	char payload[MASTER_NOTIFY_PRINT_PAYLOAD_LEN];
+};
+
 static struct master_tdma_profile_entry tdma_profiles[MASTER_TDMA_PROFILE_MAX];
 static uint8_t tdma_roto_target_hz = MASTER_TDMA_ROTO_DEFAULT_HZ;
 static uint8_t tdma_static_target_hz = MASTER_TDMA_STATIC_DEFAULT_HZ;
@@ -207,6 +215,12 @@ static size_t anchor_read_length;
 static int anchor_read_status = -EAGAIN;
 static bool anchor_read_inflight;
 static struct k_work connect_pending_work;
+static struct k_work notify_print_work;
+K_MSGQ_DEFINE(notify_print_msgq,
+	      sizeof(struct master_notify_print_msg),
+	      MASTER_NOTIFY_PRINT_QUEUE_DEPTH,
+	      4);
+static atomic_t notify_print_drops;
 static struct bt_gatt_dm_cb discovery_cb;
 static bool gatt_discovery_active;
 static void start_scan(void);
@@ -1964,6 +1978,44 @@ static void stop_scan(void)
 	}
 }
 
+static void notify_print_work_fn(struct k_work *work)
+{
+	struct master_notify_print_msg msg;
+	atomic_val_t drops;
+
+	ARG_UNUSED(work);
+
+	drops = atomic_set(&notify_print_drops, 0);
+	if (drops > 0) {
+		printk("notify print queue drops=%ld\n", (long)drops);
+	}
+
+	while (k_msgq_get(&notify_print_msgq, &msg, K_NO_WAIT) == 0) {
+		printk("%s notify: %s\n", msg.bs_name, msg.payload);
+	}
+}
+
+static void notify_print_enqueue(const char *bs_name, const char *payload)
+{
+	struct master_notify_print_msg msg;
+
+	if (payload == NULL || payload[0] == '\0') {
+		return;
+	}
+
+	strncpy(msg.bs_name, bs_name, sizeof(msg.bs_name) - 1U);
+	msg.bs_name[sizeof(msg.bs_name) - 1U] = '\0';
+	strncpy(msg.payload, payload, sizeof(msg.payload) - 1U);
+	msg.payload[sizeof(msg.payload) - 1U] = '\0';
+
+	if (k_msgq_put(&notify_print_msgq, &msg, K_NO_WAIT) != 0) {
+		atomic_inc(&notify_print_drops);
+		return;
+	}
+
+	k_work_submit(&notify_print_work);
+}
+
 static void exchange_func(struct bt_conn *conn, uint8_t err,
 			  struct bt_gatt_exchange_params *params)
 {
@@ -2004,9 +2056,7 @@ static uint8_t ble_data_received(struct bt_nus_client *nus,
 		bs_name[sizeof(bs_name) - 1U] = '\0';
 	}
 
-	if (payload[0] != '\0') {
-		printk("%s notify: %s\n", bs_name, payload);
-	}
+	notify_print_enqueue(bs_name, payload);
 
 	if (ble_payload_contains(data, len, "OTA_STATE=READY") ||
 	    ble_payload_contains(data, len, "OTA_READY") ||
@@ -2844,6 +2894,7 @@ int master_app_run(void)
 	bt_le_scan_cb_register(&scan_callbacks);
 	k_sem_init(&anchor_read_sem, 0, 1);
 	k_work_init(&connect_pending_work, connect_pending_work_fn);
+	k_work_init(&notify_print_work, notify_print_work_fn);
 	k_work_init_delayable(&discovery_pump_work, discovery_pump_work_fn);
 
 	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {

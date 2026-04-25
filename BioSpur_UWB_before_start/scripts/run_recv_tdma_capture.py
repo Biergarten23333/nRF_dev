@@ -267,11 +267,13 @@ def drain_serial_until(ser: serial.Serial, logf, wait_s: float) -> None:
 
 
 def send_cmd(ser: serial.Serial, logf, cmd: str, wait_s: float) -> serial.Serial:
+    print(f"[HOST_CMD] {cmd}", flush=True)
     logf.write(f"[HOST_CMD {time.monotonic():.3f}] {cmd}\n")
     logf.flush()
     try:
-        ser.write((cmd + "\n").encode("utf-8"))
-        ser.flush()
+        written = ser.write((cmd + "\n").encode("utf-8"))
+        if written <= 0:
+            raise SerialException(f"serial write returned {written}")
     except (serial.SerialTimeoutException, SerialException, OSError) as exc:
         logf.write(
             f"[HOST_WARN {time.monotonic():.3f}] write failed for {cmd!r}: {exc}; reopen/retry\n"
@@ -286,8 +288,9 @@ def send_cmd(ser: serial.Serial, logf, cmd: str, wait_s: float) -> serial.Serial
         ser = open_serial_with_retry(port, baud)
         time.sleep(1.0)
         drain_serial_until(ser, logf, 1.0)
-        ser.write((cmd + "\n").encode("utf-8"))
-        ser.flush()
+        written = ser.write((cmd + "\n").encode("utf-8"))
+        if written <= 0:
+            raise SerialException(f"serial retry write returned {written}")
     try:
         drain_serial_until(ser, logf, wait_s)
         return ser
@@ -361,6 +364,39 @@ def reset_controller_via_jlink(logf, snr: str) -> bool:
     return cp.returncode == 0
 
 
+def recover_controller_serial(args, logf, reason: str) -> serial.Serial | None:
+    """Recover the B120 CDC port after USB disappears during capture."""
+    logf.write(f"[HOST_RECOVERY {time.monotonic():.3f}] serial recovery start: {reason}\n")
+    logf.flush()
+    try:
+        ser = open_serial_with_retry(args.port, args.baud, retries=40)
+        logf.write(f"[HOST_RECOVERY {time.monotonic():.3f}] serial reopened without reset\n")
+        logf.flush()
+        return ser
+    except (SerialException, OSError) as exc:
+        logf.write(f"[HOST_RECOVERY {time.monotonic():.3f}] reopen failed before reset: {exc}\n")
+        logf.flush()
+
+    if args.controller_reset_snr == "-":
+        logf.write(f"[HOST_RECOVERY {time.monotonic():.3f}] controller reset disabled\n")
+        logf.flush()
+        return None
+
+    if not reset_controller_via_jlink(logf, args.controller_reset_snr):
+        return None
+
+    time.sleep(2.0)
+    try:
+        ser = open_serial_with_retry(args.port, args.baud, retries=160)
+        logf.write(f"[HOST_RECOVERY {time.monotonic():.3f}] serial reopened after J-Link reset\n")
+        logf.flush()
+        return ser
+    except (SerialException, OSError) as exc:
+        logf.write(f"[HOST_RECOVERY {time.monotonic():.3f}] reopen failed after reset: {exc}\n")
+        logf.flush()
+        return None
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Prepare master RECV tag session, configure TDMA, and capture multi-tag logs."
@@ -419,6 +455,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Rerun the whole responder preflight if a controller reboot window causes a failed launch.",
     )
     parser.add_argument(
+        "--anchor-responder-settle-s",
+        type=float,
+        default=10.0,
+        help="Seconds to wait after a successful runtime responder ack before starting tag polling.",
+    )
+    parser.add_argument(
         "--allow-zero-positions",
         action="store_true",
         help="Do not fail the session when one or more targets produce no position rows.",
@@ -444,6 +486,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-cm-probe",
         action="store_true",
         help="Skip startup BSF66F CM probe and go straight to capture configuration.",
+    )
+    parser.add_argument(
+        "--no-cleanup",
+        action="store_true",
+        help="Leave tags running after capture. By default tags are returned to AOTA/idle mode.",
     )
     return parser
 
@@ -495,6 +542,7 @@ def run_anchor_responder_preflight(args, session_dir: Path) -> dict:
             "scripts/verify_all_anchor_responder_runtime.py",
             "--port",
             args.port,
+            "--live-output",
             "--command-timeout-s",
             str(args.anchor_preflight_timeout_s),
             "--retry-count",
@@ -502,17 +550,36 @@ def run_anchor_responder_preflight(args, session_dir: Path) -> dict:
             "--out-dir",
             str(preflight_base),
         ]
-        cp = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
-        preflight_log.write_text(cp.stdout, encoding="utf-8")
-        print(cp.stdout, end="", flush=True)
+        print(
+            f"[CAPTURE] anchor preflight launch {launch}/{launch_retries}: "
+            f"log={preflight_log}",
+            flush=True,
+        )
+        output_parts: list[str] = []
+        with preflight_log.open("w", encoding="utf-8") as pf:
+            proc = subprocess.Popen(
+                cmd,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                bufsize=1,
+            )
+            assert proc.stdout is not None
+            for line in proc.stdout:
+                output_parts.append(line)
+                pf.write(line)
+                pf.flush()
+                print(line, end="", flush=True)
+            returncode = proc.wait()
+        stdout = "".join(output_parts)
 
         result = {
             "success": False,
-            "returncode": cp.returncode,
+            "returncode": returncode,
             "console_log": str(preflight_log),
             "launch": launch,
         }
-        json_match = re.search(r"(\{\s*\"success\".*\})\s*$", cp.stdout, re.S)
+        json_match = re.search(r"(\{\s*\"success\".*\})\s*$", stdout, re.S)
         if json_match:
             try:
                 parsed = json.loads(json_match.group(1))
@@ -532,6 +599,17 @@ def run_anchor_responder_preflight(args, session_dir: Path) -> dict:
 
     result["launch_attempts"] = attempts
     return result
+
+
+def settle_after_anchor_preflight(args, reason: str) -> None:
+    settle_s = max(0.0, float(getattr(args, "anchor_responder_settle_s", 0.0)))
+    if settle_s <= 0:
+        return
+    print(
+        f"[CAPTURE] anchor responder settle after {reason}: {settle_s:.1f}s",
+        flush=True,
+    )
+    time.sleep(settle_s)
 
 
 def ensure_target_links_ready(
@@ -556,6 +634,10 @@ def ensure_target_links_ready(
                 ready_targets.add(target_u)
 
     for pass_idx in range(1, 6):
+        print(
+            f"[CAPTURE] link setup pass {pass_idx}/5: ready={len(ready_targets)}/{len(targets)}",
+            flush=True,
+        )
         ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
         ser = send_cmd(ser, logf, "ota_target name -", 0.5)
         ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
@@ -568,6 +650,12 @@ def ensure_target_links_ready(
             ser = send_cmd(ser, logf, "conn", 1.6)
             burst = drain_serial_until_capture(ser, logf, 4.0)
             mark_ready_from_text(burst)
+            print(
+                "[CAPTURE] link setup: ready="
+                + ",".join(sorted(ready_targets) or ["-"])
+                + f" ({len(ready_targets)}/{len(targets)})",
+                flush=True,
+            )
             if all(target.upper() in ready_targets for target in targets):
                 break
             time.sleep(0.4)
@@ -646,10 +734,13 @@ def configure_recv_capture_session(
     targets: list[str],
     profile_items: list[tuple[str, str]],
 ) -> serial.Serial:
+    print("[CAPTURE] configure: enter RECV/tag mode", flush=True)
     ser = send_cmd(ser, logf, "mode recv", 8.0)
     ser = send_cmd(ser, logf, "tdma clear", 0.8)
     ser = send_cmd(ser, logf, "device kind tag", 2.0)
+    print("[CAPTURE] configure: wait for target links", flush=True)
     ser = ensure_target_links_ready(ser, logf, targets, args.controller_reset_snr)
+    print("[CAPTURE] configure: apply TDMA profiles", flush=True)
     for name, profile in profile_items:
         ser = send_cmd(ser, logf, f"tdma profile {name} {profile}", 0.8)
     ser = send_cmd(ser, logf, f"tdma freq static {args.static_hz}", 0.5)
@@ -659,7 +750,42 @@ def configure_recv_capture_session(
     ser = send_cmd(ser, logf, "tdma show", 1.0)
     ser = send_cmd(ser, logf, "status", 0.8)
     ser = send_cmd(ser, logf, "device show", 0.8)
+    print("[CAPTURE] configure: TDMA ready", flush=True)
     return ser
+
+
+def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Serial, dict]:
+    if args.no_cleanup:
+        return ser, {"attempted": False, "reason": "disabled_by_flag"}
+
+    result = {"attempted": True, "success": False, "command": "cmd MODE AOTA", "error": ""}
+    try:
+        print("[CAPTURE] cleanup: stopping tag ranging with MODE AOTA", flush=True)
+        logf.write(f"[HOST_CLEANUP {time.monotonic():.3f}] stop tag ranging via MODE AOTA\n")
+        logf.flush()
+        ser = send_cmd(ser, logf, "cmd MODE AOTA", 2.0)
+        ser = send_cmd(ser, logf, "cmd MODE?", 1.0)
+        result["success"] = True
+        print("[CAPTURE] cleanup: MODE AOTA sent", flush=True)
+    except (SerialException, OSError) as exc:
+        result["error"] = str(exc)
+        try:
+            ser.close()
+        except Exception:
+            pass
+        try:
+            ser = open_serial_with_retry(args.port, args.baud, retries=30)
+            time.sleep(0.8)
+            drain_serial_until(ser, logf, 0.8)
+            ser = send_cmd(ser, logf, "cmd MODE AOTA", 2.0)
+            ser = send_cmd(ser, logf, "cmd MODE?", 1.0)
+            result["success"] = True
+            result["error"] = ""
+            print("[CAPTURE] cleanup: MODE AOTA sent after serial reopen", flush=True)
+        except Exception as retry_exc:
+            result["error"] = f"{type(retry_exc).__name__}: {retry_exc}"
+            print(f"[CAPTURE] cleanup: failed: {result['error']}", flush=True)
+    return ser, result
 
 
 def run_static_cm_probe(
@@ -742,11 +868,19 @@ def print_capture_status(capture_start_wall: float,
                          cm_by_target: dict[str, int]) -> None:
     elapsed = max(0.0, time.time() - capture_start_wall)
     remaining = max(0.0, end_time - time.time())
+    total = max(0.001, end_time - capture_start_wall)
+    pct = min(100.0, max(0.0, elapsed * 100.0 / total))
+    filled = int(round(pct / 5.0))
+    bar = "#" * filled + "." * (20 - filled)
+    cm_rate = len(cm_rows) / elapsed if elapsed > 0 else 0.0
     parts = [
+        f"[{bar}]",
+        f"{pct:5.1f}%",
         f"elapsed={elapsed:.0f}s",
-        f"remain={remaining:.0f}s",
+        f"eta={remaining:.0f}s",
         f"pos={len(positions)}",
         f"cm={len(cm_rows)}",
+        f"cm_rate={cm_rate:.1f}/s",
     ]
     for target in targets:
         parts.append(
@@ -795,6 +929,14 @@ def main() -> int:
         "duration_s": args.duration,
     }
     commands_json_path.write_text(json.dumps(cmd_plan, indent=2), encoding="utf-8")
+    print(f"[CAPTURE] session_dir={session_dir}", flush=True)
+    print(f"[CAPTURE] raw_log={raw_log_path}", flush=True)
+    print(
+        "[CAPTURE] plan: "
+        + ", ".join(f"{name}:{profile}" for name, profile in profile_items)
+        + f" static={args.static_hz}Hz roto={args.roto_hz}Hz motion={args.motion_hz}Hz duration={args.duration:.0f}s",
+        flush=True,
+    )
 
     start_wall = time.time()
     anchor_preflight = {"skipped": True, "success": True}
@@ -930,6 +1072,7 @@ def main() -> int:
             summary_json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
             print(json.dumps(summary, indent=2))
             return 2
+        settle_after_anchor_preflight(args, "initial preflight")
 
     conn_meta: dict[str, dict] = {}
     positions: list[dict] = []
@@ -940,12 +1083,18 @@ def main() -> int:
     interrupted = False
     startup_failed = False
     startup_fail_targets: list[str] = []
+    controller_lost = False
+    controller_recovery_attempts = 0
+    controller_recovery_successes = 0
+    cleanup_result: dict = {"attempted": False, "reason": "not_reached"}
 
     with raw_log_path.open("w", encoding="utf-8") as logf:
+        print(f"[CAPTURE] open serial: {args.port}", flush=True)
         with open_serial_with_retry(args.port, args.baud) as ser:
             time.sleep(0.8)
 
             # Initial drain
+            print("[CAPTURE] drain boot/runtime output", flush=True)
             drain_serial_until(ser, logf, 1.0)
 
             if args.skip_cm_probe:
@@ -976,6 +1125,7 @@ def main() -> int:
                     cm_probe["attempts"][-1]["responder_repair"] = repair
                     if not repair.get("success"):
                         break
+                    settle_after_anchor_preflight(args, "cm-probe repair")
                     try:
                         ser.close()
                     except Exception:
@@ -985,6 +1135,7 @@ def main() -> int:
                     drain_serial_until(ser, logf, 1.0)
 
             if not cm_probe.get("success"):
+                ser, cleanup_result = cleanup_capture_session(ser, logf, args)
                 summary = {
                     "success": False,
                     "startup_failed": True,
@@ -993,6 +1144,7 @@ def main() -> int:
                     "zero_position_targets": [],
                     "anchor_preflight": anchor_preflight,
                     "cm_probe": cm_probe,
+                    "cleanup": cleanup_result,
                     "port": args.port,
                     "duration_s": args.duration,
                     "elapsed_s": time.time() - start_wall,
@@ -1147,22 +1299,42 @@ def main() -> int:
                     try:
                         chunk = ser.read(ser.in_waiting or 1)
                     except (SerialException, OSError) as exc:
+                        controller_recovery_attempts += 1
                         logf.write(
-                            f"[HOST_WARN {time.monotonic():.3f}] capture read failed: {exc}; reopen\n"
+                            f"[HOST_WARN {time.monotonic():.3f}] capture read failed: {exc}; recover controller\n"
                         )
                         logf.flush()
                         try:
                             ser.close()
                         except Exception:
                             pass
-                        ser = open_serial_with_retry(args.port, args.baud)
+                        recovered = recover_controller_serial(args, logf, str(exc))
+                        if recovered is None:
+                            controller_lost = True
+                            logf.write(
+                                f"[HOST_ERROR {time.monotonic():.3f}] controller recovery failed; closing capture and writing partial summary\n"
+                            )
+                            logf.flush()
+                            break
+                        controller_recovery_successes += 1
+                        ser = recovered
                         time.sleep(0.8)
                         drain_serial_until(ser, logf, 0.8)
                         logf.write(
                             f"[HOST_WARN {time.monotonic():.3f}] controller reopened; reconfigure recv/tdma session\n"
                         )
                         logf.flush()
-                        ser = configure_recv_capture_session(ser, logf, args, targets, profile_items)
+                        try:
+                            ser = configure_recv_capture_session(
+                                ser, logf, args, targets, profile_items
+                            )
+                        except (SerialException, OSError, RuntimeError) as cfg_exc:
+                            controller_lost = True
+                            logf.write(
+                                f"[HOST_ERROR {time.monotonic():.3f}] controller recovery reconfigure failed: {cfg_exc}; closing capture and writing partial summary\n"
+                            )
+                            logf.flush()
+                            break
                         continue
                     if not chunk:
                         if time.time() - last_status_at >= 1.0:
@@ -1424,6 +1596,7 @@ def main() -> int:
 
             if pending.strip():
                 logf.write(pending.rstrip("\r") + "\n")
+            ser, cleanup_result = cleanup_capture_session(ser, logf, args)
 
     positions_by_target: dict[str, list[dict]] = defaultdict(list)
     cm_by_target: dict[str, list[dict]] = defaultdict(list)
@@ -1580,14 +1753,18 @@ def main() -> int:
 
     zero_position_failed = bool(zero_position_targets) and not args.allow_zero_positions
     summary = {
-        "success": (not interrupted) and (not startup_failed) and (not zero_position_failed),
+        "success": (not interrupted) and (not startup_failed) and (not zero_position_failed) and (not controller_lost),
         "interrupted": interrupted,
         "startup_failed": startup_failed,
         "startup_fail_targets": startup_fail_targets,
+        "controller_lost": controller_lost,
+        "controller_recovery_attempts": controller_recovery_attempts,
+        "controller_recovery_successes": controller_recovery_successes,
         "zero_position_failed": zero_position_failed,
         "zero_position_targets": zero_position_targets,
         "anchor_preflight": anchor_preflight,
         "cm_probe": cm_probe,
+        "cleanup": cleanup_result,
         "port": args.port,
         "duration_s": args.duration,
         "elapsed_s": time.time() - start_wall,

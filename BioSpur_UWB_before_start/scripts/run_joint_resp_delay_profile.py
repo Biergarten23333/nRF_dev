@@ -44,14 +44,17 @@ def tag_timing_for_delay(delay_uus: int, rx_lead_uus: int, rx_timeout_uus: int) 
     return tx_to_rx, rx_timeout_uus
 
 
-def build_tag_profile(delay_uus: int, marker: str, out_dir: Path, args: argparse.Namespace) -> tuple[str, str]:
+def build_tag_profile(delay_uus: int, marker: str, out_dir: Path, args: argparse.Namespace, sign_build_number: int) -> tuple[str, str]:
     tag_tx_to_rx, tag_timeout = tag_timing_for_delay(
         delay_uus, args.tag_rx_lead_uus, args.tag_rx_timeout_uus
     )
     tag_build = f"build-tag-uwb-ota-{marker}"
     master_ota_build = f"build-master-ota-{marker}"
     env = os.environ.copy()
-    env["TAG_SIGN_VERSION"] = f"0.0.1+{delay_uus}"
+    # The delay sweep intentionally goes 1000 -> 900 -> 800.  MCUboot may
+    # reject lower image versions, so keep the sign version monotonic and put
+    # the actual timing value in the fw marker.
+    env["TAG_SIGN_VERSION"] = f"0.0.3+{sign_build_number}"
     env["TAG_CMAKE_ARGS"] = " ".join(
         [
             "-DAPP_TAG_BLE_ENABLE=1",
@@ -84,7 +87,7 @@ def build_tag_profile(delay_uus: int, marker: str, out_dir: Path, args: argparse
     return tag_build, master_ota_build
 
 
-def build_anchor_profile(delay_uus: int, marker: str, out_dir: Path) -> str:
+def build_anchor_profile(delay_uus: int, marker: str, out_dir: Path, sign_build_number: int) -> str:
     anchor_marker = f"anchor-{marker}"
     anchor_build = f"build-anchor-unified-ota-{anchor_marker}"
     control_build = f"build-master-control-anchor-ota-{anchor_marker}"
@@ -92,6 +95,7 @@ def build_anchor_profile(delay_uus: int, marker: str, out_dir: Path) -> str:
     env["ANCHOR_EXTRA_CMAKE_ARGS"] = " ".join(
         [
             f"-DAPP_ANCHOR_RESP_DELAY_UUS={delay_uus}",
+            f"-DCONFIG_MCUBOOT_IMGTOOL_SIGN_VERSION=\"0.0.3+{sign_build_number}\"",
             "-DAPP_ANCHOR_RESPONDER_ADV_INT_MIN_MS=5000",
             "-DAPP_ANCHOR_RESPONDER_ADV_INT_MAX_MS=10000",
             "-DAPP_ANCHOR_RESPONDER_DIAG_PERIOD_MS=5000",
@@ -230,7 +234,7 @@ def latest_capture_summary(out_dir: Path) -> dict[str, Any]:
     return data
 
 
-def run_delay(delay_uus: int, args: argparse.Namespace, base: Path) -> dict[str, Any]:
+def run_delay(delay_uus: int, args: argparse.Namespace, base: Path, index: int) -> dict[str, Any]:
     tag_tx_to_rx, tag_timeout = tag_timing_for_delay(
         delay_uus, args.tag_rx_lead_uus, args.tag_rx_timeout_uus
     )
@@ -244,13 +248,15 @@ def run_delay(delay_uus: int, args: argparse.Namespace, base: Path) -> dict[str,
         "tag_rx_timeout_uus": tag_timeout,
         "out_dir": str(out_dir),
     }
-    tag_build, master_ota_build = build_tag_profile(delay_uus, marker, out_dir, args)
+    sign_build_number = args.sign_base + index
+    row["sign_build_number"] = sign_build_number
+    tag_build, master_ota_build = build_tag_profile(delay_uus, marker, out_dir, args, sign_build_number)
     row["tag_build"] = tag_build
     row["master_ota_build"] = master_ota_build
     b120_tag = build_flash_b120(f"tag-{marker}", out_dir / "b120_tag")
     row["b120_tag_build"] = b120_tag
     row["tag_ota"] = deploy_tags(marker, out_dir, args)
-    anchor_build = build_anchor_profile(delay_uus, marker, out_dir)
+    anchor_build = build_anchor_profile(delay_uus, marker, out_dir, sign_build_number)
     row["anchor_build"] = anchor_build
     flash_anchors(anchor_build, out_dir)
     b120_anchor = build_flash_b120(f"anchor-{marker}", out_dir / "b120_anchor")
@@ -275,6 +281,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--cm-probe-target", default="BSF66F")
     p.add_argument("--duration", type=int, default=180)
     p.add_argument("--ota-timeout-s", type=int, default=420)
+    p.add_argument("--sign-base", type=int, default=int(time.time()) % 1000000)
     p.add_argument("--out-dir", default=None)
     return p.parse_args()
 
@@ -285,12 +292,12 @@ def main() -> int:
     base.mkdir(parents=True, exist_ok=True)
     delays = [int(x.strip()) for x in args.delays.split(",") if x.strip()]
     rows: list[dict[str, Any]] = []
-    for delay in delays:
+    for index, delay in enumerate(delays):
         row: dict[str, Any] = {"delay_uus": delay, "status": "running"}
         rows.append(row)
         (base / "summary.json").write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
         try:
-            row.update(run_delay(delay, args, base))
+            row.update(run_delay(delay, args, base, index))
             row["status"] = "ok" if row.get("capture_returncode") == 0 else f"capture_rc_{row.get('capture_returncode')}"
         except subprocess.CalledProcessError as exc:
             row["status"] = "fail"

@@ -2,13 +2,21 @@
 set -euo pipefail
 
 build_dir="${1:-build-master-control-b120-m1}"
+MASTER_CMAKE_ARGS="${MASTER_CMAKE_ARGS:-}"
+
+extra_args=()
+if [ -n "$MASTER_CMAKE_ARGS" ]; then
+  read -r -a extra_args <<<"$MASTER_CMAKE_ARGS"
+fi
 
 west build \
   --no-sysbuild \
   -b nrf5340dk/nrf5340/cpuapp \
   -s apps/master_control \
   -d "$build_dir" \
-  --pristine=always
+  --pristine=always \
+  -- \
+  "${extra_args[@]}"
 
 python3 scripts/write_build_source.py \
   --build-dir "$build_dir" \
