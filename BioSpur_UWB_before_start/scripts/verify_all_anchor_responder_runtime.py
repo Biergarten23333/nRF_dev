@@ -44,6 +44,73 @@ def runtime_responder_ack_info(text: str) -> tuple[bool, dict[str, int]]:
     return False, info
 
 
+def anchor_ctrl_ready_uuids_from_log(log_path: Path) -> set[str]:
+    try:
+        text = log_path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return set()
+    return {
+        m.group(1).upper()
+        for m in re.finditer(
+            r"ANCHOR_CTRL\[\d+\] link ready[^\n]*uuid=([0-9A-Fa-f]{32})",
+            text,
+        )
+    }
+
+
+def wait_anchor_ctrl_ready(
+    ser: serial.Serial,
+    logf,
+    log_path: Path,
+    port: str,
+    live_output: bool,
+    verbose: int,
+    timeout_s: float = 60.0,
+) -> serial.Serial:
+    deadline = time.time() + timeout_s
+    last_count = -1
+    gate_reached_at: float | None = None
+    while time.time() < deadline:
+        ready = anchor_ctrl_ready_uuids_from_log(log_path)
+        if len(ready) != last_count:
+            emit(
+                logf,
+                f"VERIFY: anchor ctrl ready gate {len(ready)}/{len(UUIDS)}\n",
+                live_output,
+                verbose,
+            )
+            last_count = len(ready)
+        if len(ready) >= len(UUIDS):
+            if gate_reached_at is None:
+                gate_reached_at = time.time()
+                emit(
+                    logf,
+                    "VERIFY: anchor ctrl ready gate reached; settling for 2.0s\n",
+                    live_output,
+                    verbose,
+                )
+            if (time.time() - gate_reached_at) >= 2.0:
+                return ser
+        else:
+            gate_reached_at = None
+        ser, _, _ = collect_for_text(
+            ser,
+            logf,
+            0.5,
+            port,
+            live_output,
+            verbose,
+        )
+    ready = anchor_ctrl_ready_uuids_from_log(log_path)
+    emit(
+        logf,
+        f"VERIFY WARN: anchor ctrl ready gate timed out {len(ready)}/{len(UUIDS)}; continuing best-effort\n",
+        live_output,
+        verbose,
+    )
+    return ser
+
+
 def timestamped_out_dir(base: Path) -> Path:
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if base.name.endswith(stamp):
@@ -201,6 +268,15 @@ def main() -> int:
                 args.live_output,
                 args.verbose,
                 context=context,
+            )
+            ser = wait_anchor_ctrl_ready(
+                ser,
+                logf,
+                log_path,
+                args.port,
+                args.live_output,
+                args.verbose,
+                timeout_s=max(60.0, args.scan_timeout_s),
             )
 
             for attempt in range(1, args.retry_count + 1):

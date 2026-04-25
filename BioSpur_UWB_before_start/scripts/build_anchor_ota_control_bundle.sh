@@ -20,6 +20,18 @@ NCS_ROOT="${NCS_ROOT:-/home/zekaixiao/ncs/v2.8.0}"
 ANCHOR_EXTRA_CMAKE_ARGS="${ANCHOR_EXTRA_CMAKE_ARGS:-}"
 REPO_ROOT="/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start"
 
+# Sysbuild does not automatically forward arbitrary top-level -DAPP_ANCHOR_*
+# cache entries into the child "anchor" image. The anchor app CMake reads these
+# values from the environment, so mirror explicit extra args there as well.
+for _arg in ${ANCHOR_EXTRA_CMAKE_ARGS}; do
+  case "${_arg}" in
+    -DAPP_ANCHOR_*=*|-DAPP_UWB_*=*)
+      export "${_arg#-D}"
+      ;;
+  esac
+done
+unset _arg
+
 if [[ -n "${FW_MARKER_INPUT}" ]]; then
   FW_MARKER="${FW_MARKER_INPUT}"
 else

@@ -241,7 +241,7 @@ def normalize_target(name: str) -> str:
     return value
 
 
-def open_serial_with_retry(port: str, baud: int, timeout_s: float = 0.2, retries: int = 40) -> serial.Serial:
+def open_serial_with_retry(port: str, baud: int, timeout_s: float = 0.2, retries: int = 240) -> serial.Serial:
     last_exc = None
     for _ in range(retries):
         try:
@@ -1158,6 +1158,11 @@ def main() -> int:
                         ser = open_serial_with_retry(args.port, args.baud)
                         time.sleep(0.8)
                         drain_serial_until(ser, logf, 0.8)
+                        logf.write(
+                            f"[HOST_WARN {time.monotonic():.3f}] controller reopened; reconfigure recv/tdma session\n"
+                        )
+                        logf.flush()
+                        ser = configure_recv_capture_session(ser, logf, args, targets, profile_items)
                         continue
                     if not chunk:
                         if time.time() - last_status_at >= 1.0:

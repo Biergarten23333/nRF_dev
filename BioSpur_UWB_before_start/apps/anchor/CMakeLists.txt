@@ -46,8 +46,13 @@ set_cache_from_env(APP_ANCHOR_SCHEDULE_MODE "2" STRING "1=upper triangle, 2=all 
 set_cache_from_env(APP_ANCHOR_ALLOW_TAG_POLLS "1" STRING "Worker accepts tag polls")
 set_cache_from_env(APP_ANCHOR_RESP_DELAY_UUS "1200" STRING "Responder poll-to-response delay in UWB usec")
 set_cache_from_env(APP_ANCHOR_RESPONDER_COOP_SLEEP_MS "0" STRING "Responder cooperative sleep (ms) to reduce CPU starvation under OTA/BLE load")
+set_cache_from_env(APP_ANCHOR_RESPONDER_ADV_INT_MIN_MS "5000" STRING "Responder-role connectable BLE advertising minimum interval in ms")
+set_cache_from_env(APP_ANCHOR_RESPONDER_ADV_INT_MAX_MS "10000" STRING "Responder-role connectable BLE advertising maximum interval in ms")
+set_cache_from_env(APP_ANCHOR_RESPONDER_DIAG_PERIOD_MS "5000" STRING "Responder diagnostic print period in ms")
 set_cache_from_env(APP_ANCHOR_VERBOSE_RESPONDER "0" STRING "Print responder success logs")
 set_cache_from_env(APP_ANCHOR_VERBOSE_RESPONDER_ERRORS "0" STRING "Print responder RX/TX error logs")
+set_cache_from_env(APP_ANCHOR_RESPONDER_PRINTK_ENABLE "1" STRING "Enable responder-path printk output")
+set_cache_from_env(APP_ANCHOR_RESPONDER_PROFILE_ENABLE "0" STRING "Enable low-rate responder fast-path timing profile output")
 set_cache_from_env(APP_UWB_CHANNEL "5" STRING "DW1000 UWB channel number")
 set_cache_from_env(APP_UWB_PAN_ID "0xDECA" STRING "DW1000 PAN ID")
 
@@ -75,8 +80,13 @@ target_compile_definitions(app PRIVATE
     APP_ANCHOR_ALLOW_TAG_POLLS=${APP_ANCHOR_ALLOW_TAG_POLLS}
     APP_ANCHOR_RESP_DELAY_UUS=${APP_ANCHOR_RESP_DELAY_UUS}
     APP_ANCHOR_RESPONDER_COOP_SLEEP_MS=${APP_ANCHOR_RESPONDER_COOP_SLEEP_MS}
+    APP_ANCHOR_RESPONDER_ADV_INT_MIN_MS=${APP_ANCHOR_RESPONDER_ADV_INT_MIN_MS}
+    APP_ANCHOR_RESPONDER_ADV_INT_MAX_MS=${APP_ANCHOR_RESPONDER_ADV_INT_MAX_MS}
+    APP_ANCHOR_RESPONDER_DIAG_PERIOD_MS=${APP_ANCHOR_RESPONDER_DIAG_PERIOD_MS}
     APP_ANCHOR_VERBOSE_RESPONDER=${APP_ANCHOR_VERBOSE_RESPONDER}
     APP_ANCHOR_VERBOSE_RESPONDER_ERRORS=${APP_ANCHOR_VERBOSE_RESPONDER_ERRORS}
+    APP_ANCHOR_RESPONDER_PRINTK_ENABLE=${APP_ANCHOR_RESPONDER_PRINTK_ENABLE}
+    APP_ANCHOR_RESPONDER_PROFILE_ENABLE=${APP_ANCHOR_RESPONDER_PROFILE_ENABLE}
     APP_UWB_CHANNEL=${APP_UWB_CHANNEL}
     APP_UWB_PAN_ID=${APP_UWB_PAN_ID}
 )
