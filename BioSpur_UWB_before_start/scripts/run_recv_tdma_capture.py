@@ -119,6 +119,11 @@ CF_RE = re.compile(
     r"(?P<rms>\d+);"
     r"(?P<max>\d+);"
     r"(?P<step>\d+)"
+    r"(?:;"
+    r"(?P<first_to_last_us>\d+);"
+    r"(?P<frame_us>\d+);"
+    r"(?P<poll_count>\d+)"
+    r")?"
 )
 
 CONNECTED_RE = re.compile(
@@ -1185,6 +1190,9 @@ def main() -> int:
                     "rms_mm",
                     "max_mm",
                     "step_mm",
+                    "first_to_last_us",
+                    "frame_us",
+                    "poll_count",
                 ],
                 [],
             )
@@ -1388,6 +1396,9 @@ def main() -> int:
                         "rms_mm",
                         "max_mm",
                         "step_mm",
+                        "first_to_last_us",
+                        "frame_us",
+                        "poll_count",
                     ],
                     [],
                 )
@@ -1712,6 +1723,9 @@ def main() -> int:
                                     "rms_mm": int(m.group("rms")),
                                     "max_mm": int(m.group("max")),
                                     "step_mm": int(m.group("step")),
+                                    "first_to_last_us": int(m.group("first_to_last_us") or 0),
+                                    "frame_us": int(m.group("frame_us") or 0),
+                                    "poll_count": int(m.group("poll_count") or 0),
                                 }
                             )
 
@@ -1849,6 +1863,9 @@ def main() -> int:
         "rms_mm",
         "max_mm",
         "step_mm",
+        "first_to_last_us",
+        "frame_us",
+        "poll_count",
     ]
 
     write_rows(session_dir / "positions_all.csv", position_fields, positions)

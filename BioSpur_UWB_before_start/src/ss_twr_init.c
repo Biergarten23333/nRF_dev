@@ -13,6 +13,7 @@
 
 #include <math.h>
 #include <errno.h>
+#include <stdint.h>
 #include <string.h>
 
 #include <deca_device_api.h>
@@ -327,6 +328,11 @@ static uint32_t ss_twr_init_last_tdma_wait_ms;
 static uint32_t ss_twr_init_last_slot_guard_log_ms;
 static uint32_t ss_twr_init_last_solve_pending_log_ms;
 static enum ss_twr_init_solve_reason ss_twr_init_last_solve_reason;
+static uint32_t ss_twr_init_sweep_first_poll_cycle;
+static uint32_t ss_twr_init_sweep_last_poll_cycle;
+static uint32_t ss_twr_init_sweep_done_cycle;
+static uint8_t ss_twr_init_sweep_poll_count;
+static bool ss_twr_init_sweep_timing_valid;
 static uint8_t ss_twr_init_static_cal_group_cursor;
 static uint8_t ss_twr_init_roto_cal_group_cursor;
 static uint32_t ss_twr_init_static_cal_slot_tick;
@@ -519,8 +525,10 @@ static void ss_twr_init_publish_cal_frame_summary(const char *plan_label,
                                                   uint32_t step_mm,
                                                   size_t valid_anchor_count)
 {
-    char line[160];
+    char line[192];
     size_t reported_valid_count = valid_anchor_count;
+    uint32_t first_to_last_us = 0U;
+    uint32_t frame_us = 0U;
 
     if (!ss_twr_init_runtime_any_calibration_mode()) {
         return;
@@ -535,18 +543,53 @@ static void ss_twr_init_publish_cal_frame_summary(const char *plan_label,
         reported_valid_count = ss_twr_init_active_anchor_count;
     }
 
-    snprintk(line, sizeof(line), "CF;1;%lu;%s;%u;%s;%u;%u;%u;%lu;%lu;%lu",
+    if (ss_twr_init_sweep_timing_valid && ss_twr_init_sweep_poll_count != 0U) {
+        first_to_last_us = k_cyc_to_us_floor32(
+            ss_twr_init_sweep_last_poll_cycle -
+            ss_twr_init_sweep_first_poll_cycle);
+        frame_us = k_cyc_to_us_floor32(
+            ss_twr_init_sweep_done_cycle -
+            ss_twr_init_sweep_first_poll_cycle);
+    }
+
+    snprintk(line, sizeof(line), "CF;1;%lu;%s;%u;%s;%u;%u;%u;%lu;%lu;%lu;%lu;%lu;%u",
              (unsigned long)ss_twr_init_sweep_count, plan_label,
              (unsigned int)positioning_mode, ss_twr_init_solve_reason_label(),
              (unsigned int)qf_percent,
              (unsigned int)ss_twr_init_active_anchor_count,
              (unsigned int)reported_valid_count,
              (unsigned long)rms_mm, (unsigned long)max_mm,
-             (unsigned long)step_mm);
+             (unsigned long)step_mm, (unsigned long)first_to_last_us,
+             (unsigned long)frame_us,
+             (unsigned int)ss_twr_init_sweep_poll_count);
     printk("%s\n", line);
 #if APP_TAG_BLE_ENABLE
     (void)uwb_tag_ble_publish_status(line);
 #endif
+}
+
+static void ss_twr_init_note_poll_started(void)
+{
+    uint32_t cycle = k_cycle_get_32();
+
+    if (ss_twr_init_active_anchor_index == 0U ||
+        ss_twr_init_sweep_poll_count == 0U) {
+        ss_twr_init_sweep_first_poll_cycle = cycle;
+        ss_twr_init_sweep_poll_count = 0U;
+        ss_twr_init_sweep_timing_valid = true;
+    }
+
+    ss_twr_init_sweep_last_poll_cycle = cycle;
+    if (ss_twr_init_sweep_poll_count < UINT8_MAX) {
+        ss_twr_init_sweep_poll_count++;
+    }
+}
+
+static void ss_twr_init_note_sweep_done(void)
+{
+    if (ss_twr_init_sweep_timing_valid) {
+        ss_twr_init_sweep_done_cycle = k_cycle_get_32();
+    }
 }
 
 static const char *ss_twr_init_slot_source_label(uint8_t slot_source)
@@ -2799,6 +2842,7 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
 
             ss_twr_init_sweep_count++;
             ss_twr_init_release_ble_tx_after_active_slot();
+            ss_twr_init_note_sweep_done();
             ss_twr_init_print_location_if_ready();
             ss_twr_init_apply_pending_runtime_config_if_any();
 	        ss_twr_init_last_tdma_wait_ms = ss_twr_init_wait_until_next_slot_if_needed();
@@ -2877,6 +2921,7 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
             ss_twr_init_sleep_between_ranges();
             continue;
         }
+        ss_twr_init_note_poll_started();
 
         if (ss_twr_init_sweep_count == 0U &&
             ss_twr_init_active_anchor_index == 0U) {
@@ -3035,11 +3080,12 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
                         (ss_twr_init_active_anchor_index + 1U) %
                         ss_twr_init_active_anchor_count;
                     ss_twr_init_current_anchor_retry_count = 0U;
-	                    if (ss_twr_init_active_anchor_index == 0U) {
-	                        ss_twr_init_sweep_count++;
-	                        ss_twr_init_release_ble_tx_after_active_slot();
-	                        ss_twr_init_print_location_if_ready();
-	                        ss_twr_init_apply_pending_runtime_config_if_any();
+		                    if (ss_twr_init_active_anchor_index == 0U) {
+		                        ss_twr_init_sweep_count++;
+		                        ss_twr_init_release_ble_tx_after_active_slot();
+		                        ss_twr_init_note_sweep_done();
+		                        ss_twr_init_print_location_if_ready();
+		                        ss_twr_init_apply_pending_runtime_config_if_any();
 	                        ss_twr_init_last_tdma_wait_ms =
 	                            ss_twr_init_wait_until_next_slot_if_needed();
 	                        ss_twr_init_prepare_sweep_plan();
@@ -3142,6 +3188,7 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
 	        if (ss_twr_init_active_anchor_index == 0U) {
 	            ss_twr_init_sweep_count++;
 	            ss_twr_init_release_ble_tx_after_active_slot();
+	            ss_twr_init_note_sweep_done();
 	            ss_twr_init_print_location_if_ready();
 	            ss_twr_init_apply_pending_runtime_config_if_any();
 	            ss_twr_init_last_tdma_wait_ms =
