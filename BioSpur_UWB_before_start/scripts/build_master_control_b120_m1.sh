@@ -3,6 +3,17 @@ set -euo pipefail
 
 build_dir="${1:-build-master-control-b120-m1}"
 MASTER_CMAKE_ARGS="${MASTER_CMAKE_ARGS:-}"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+default_internal_conf="$repo_root/configs/b120_internal_osc_default_usb.conf"
+
+if [[ "$MASTER_CMAKE_ARGS" != *"EXTRA_CONF_FILE"* ]]; then
+  if [ ! -f "$default_internal_conf" ]; then
+    echo "[error] missing default B120 internal oscillator config: $default_internal_conf" >&2
+    exit 2
+  fi
+  MASTER_CMAKE_ARGS="-DEXTRA_CONF_FILE=$default_internal_conf -Dhci_ipc_EXTRA_CONF_FILE=$default_internal_conf $MASTER_CMAKE_ARGS"
+  echo "[build] B120 default clock policy: internal LFRC on CPUAPP+CPUNET"
+fi
 
 extra_args=()
 if [ -n "$MASTER_CMAKE_ARGS" ]; then
@@ -27,3 +38,5 @@ echo
 echo "Built: $build_dir"
 echo "ELF:   $build_dir/zephyr/zephyr.elf"
 echo "HEX:   $build_dir/zephyr/zephyr.hex"
+
+"$repo_root/scripts/assert_b120_internal_osc_build.sh" "$build_dir"

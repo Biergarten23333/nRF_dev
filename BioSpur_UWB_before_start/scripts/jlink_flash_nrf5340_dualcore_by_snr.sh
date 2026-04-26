@@ -39,6 +39,8 @@ if [ "$SNR" = "960148546" ] && [ -e "$PROTECT_FILE" ]; then
   exit 5
 fi
 
+"$REPO_ROOT/scripts/assert_b120_internal_osc_build.sh" "$BUILD_DIR"
+
 tmp_net="$(mktemp -t jlink_nrf5340_net_${SNR}_XXXXXX.jlink)"
 tmp_app="$(mktemp -t jlink_nrf5340_app_${SNR}_XXXXXX.jlink)"
 

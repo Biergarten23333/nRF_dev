@@ -18,6 +18,8 @@ if [ "$snr" = "960148546" ] && [ -e "$protect_file" ]; then
   exit 2
 fi
 
+"$repo_root/scripts/assert_b120_internal_osc_build.sh" "$image"
+
 if ! command -v "$jlinkexe" >/dev/null 2>&1; then
   echo "[error] JLinkExe not found in PATH" >&2
   exit 1

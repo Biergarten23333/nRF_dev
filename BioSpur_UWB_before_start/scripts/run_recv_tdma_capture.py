@@ -617,7 +617,7 @@ def ensure_target_links_ready(
     logf,
     targets: list[str],
     controller_reset_snr: str = "",
-    wait_per_target_s: float = 30.0,
+    wait_per_target_s: float = 120.0,
 ) -> serial.Serial:
     ready_targets: set[str] = set()
     hard_reset_used = False
@@ -633,34 +633,43 @@ def ensure_target_links_ready(
             ):
                 ready_targets.add(target_u)
 
-    for pass_idx in range(1, 6):
+    def passive_wait(label: str, wait_s: float) -> bool:
+        # `device kind tag` starts scan/connect/GATT setup by itself. Avoid
+        # pushing more UART commands during that busy window; internal-oscillator
+        # B120s expose CDC write starvation when host retries overlap BLE setup.
+        deadline = time.time() + wait_s
+        last_progress_print = 0.0
         print(
-            f"[CAPTURE] link setup pass {pass_idx}/5: ready={len(ready_targets)}/{len(targets)}",
+            f"[CAPTURE] link setup passive {label}: wait up to {wait_s:.0f}s",
             flush=True,
         )
-        ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
-        ser = send_cmd(ser, logf, "ota_target name -", 0.5)
-        ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
-        ser = send_cmd(ser, logf, "ota_target prefix BS", 0.5)
-        ser = send_cmd(ser, logf, "ota_target show", 0.5)
-
-        deadline = time.time() + wait_per_target_s
         while time.time() < deadline:
-            ser = send_cmd(ser, logf, "scan", 0.8)
-            ser = send_cmd(ser, logf, "conn", 1.6)
-            burst = drain_serial_until_capture(ser, logf, 4.0)
-            mark_ready_from_text(burst)
-            print(
-                "[CAPTURE] link setup: ready="
-                + ",".join(sorted(ready_targets) or ["-"])
-                + f" ({len(ready_targets)}/{len(targets)})",
-                flush=True,
-            )
+            burst = drain_serial_until_capture(ser, logf, 1.0)
+            if burst:
+                mark_ready_from_text(burst)
+            now = time.time()
+            if now - last_progress_print >= 5.0:
+                last_progress_print = now
+                print(
+                    "[CAPTURE] link setup passive: ready="
+                    + ",".join(sorted(ready_targets) or ["-"])
+                    + f" ({len(ready_targets)}/{len(targets)})",
+                    flush=True,
+                )
             if all(target.upper() in ready_targets for target in targets):
-                break
-            time.sleep(0.4)
+                return True
+        return all(target.upper() in ready_targets for target in targets)
 
-        if all(target.upper() in ready_targets for target in targets):
+    if passive_wait("initial", wait_per_target_s):
+        return ser
+
+    for pass_idx in range(1, 6):
+        print(
+            f"[CAPTURE] link setup recovery pass {pass_idx}/5: ready={len(ready_targets)}/{len(targets)}",
+            flush=True,
+        )
+
+        if passive_wait(f"recovery{pass_idx}", wait_per_target_s):
             break
 
         missing = sorted(
@@ -672,7 +681,7 @@ def ensure_target_links_ready(
         )
         logf.flush()
 
-        if pass_idx >= 3 and not hard_reset_used and controller_reset_snr != "-":
+        if not hard_reset_used and controller_reset_snr != "-":
             port = ser.port
             baud = ser.baudrate
             try:
@@ -687,6 +696,8 @@ def ensure_target_links_ready(
                 drain_serial_until(ser, logf, 3.0)
                 ser = send_cmd(ser, logf, "mode recv", 8.0)
                 ser = send_cmd(ser, logf, "device kind tag", 2.0)
+                if passive_wait(f"post-reset{pass_idx}", wait_per_target_s):
+                    break
                 continue
             ser = open_serial_with_retry(port, baud, retries=60)
 

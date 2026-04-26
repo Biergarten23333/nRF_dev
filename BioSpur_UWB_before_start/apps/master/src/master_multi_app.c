@@ -2030,7 +2030,7 @@ static uint8_t ble_data_received(struct bt_nus_client *nus,
 {
 	int idx = peer_index_from_nus(nus);
 	char bs_name[8];
-	char payload[1024];
+	static char payload[MASTER_NOTIFY_PRINT_PAYLOAD_LEN];
 	size_t copy_len;
 	bool decoded_sample = false;
 	bool consumed_cal = false;
@@ -2058,12 +2058,12 @@ static uint8_t ble_data_received(struct bt_nus_client *nus,
 
 	notify_print_enqueue(bs_name, payload);
 
-	if (ble_payload_contains(data, len, "OTA_STATE=READY") ||
-	    ble_payload_contains(data, len, "OTA_READY") ||
-	    ble_payload_contains(data, len, "OTA_BEGIN_OK")) {
+	if (idx >= 0 && (ble_payload_contains(data, len, "OTA_STATE=READY") ||
+			 ble_payload_contains(data, len, "OTA_READY") ||
+			 ble_payload_contains(data, len, "OTA_BEGIN_OK"))) {
 		peers[idx].ota_ready = true;
 	}
-	if (ble_payload_contains(data, len, "CFG_OK")) {
+	if (idx >= 0 && ble_payload_contains(data, len, "CFG_OK")) {
 		unsigned int tag = 0U;
 		unsigned int slot = 0U;
 		unsigned int slot_count = 0U;
@@ -2087,7 +2087,7 @@ static uint8_t ble_data_received(struct bt_nus_client *nus,
 			       generation, live);
 		}
 	}
-	if (ble_payload_contains(data, len, "TDMA_SET_OK")) {
+	if (idx >= 0 && ble_payload_contains(data, len, "TDMA_SET_OK")) {
 		uint8_t slot = 0U;
 		uint8_t live = 0U;
 
@@ -2098,7 +2098,7 @@ static uint8_t ble_data_received(struct bt_nus_client *nus,
 			       idx, (unsigned int)slot, (unsigned int)live);
 		}
 	}
-	if (ble_payload_contains(data, len, "TDMA_SLOT=")) {
+	if (idx >= 0 && ble_payload_contains(data, len, "TDMA_SLOT=")) {
 		uint8_t slot = 0U;
 		unsigned int slot_count = 0U;
 		char source[16] = {0};
@@ -2110,11 +2110,11 @@ static uint8_t ble_data_received(struct bt_nus_client *nus,
 			       idx, (unsigned int)slot, slot_count, source);
 		}
 	}
-	if (ble_payload_contains(data, len, "OTA_STATE=ACTIVE")) {
+	if (idx >= 0 && ble_payload_contains(data, len, "OTA_STATE=ACTIVE")) {
 		peers[idx].ota_active = true;
 	}
-	if (ble_payload_contains(data, len, "OTA_STATE=NORMAL") ||
-	    ble_payload_contains(data, len, "OTA_CANCELLED")) {
+	if (idx >= 0 && (ble_payload_contains(data, len, "OTA_STATE=NORMAL") ||
+			 ble_payload_contains(data, len, "OTA_CANCELLED"))) {
 		peers[idx].ota_ready = false;
 		peers[idx].ota_active = false;
 	}
