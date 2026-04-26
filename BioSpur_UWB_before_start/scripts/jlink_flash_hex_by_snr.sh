@@ -18,10 +18,17 @@ SNR="$1"
 DEVICE="$2"
 IMAGE="$3"
 SPEED_KHZ="${4:-4000}"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROTECT_FILE="$REPO_ROOT/.protec/noflash960148546"
 
 if [ ! -f "$IMAGE" ]; then
   echo "[error] image not found: $IMAGE" >&2
   exit 3
+fi
+
+if [ "$SNR" = "960148546" ] && [ -e "$PROTECT_FILE" ]; then
+  echo "[error] protected B120 SNR 960148546; refusing to flash because $PROTECT_FILE exists" >&2
+  exit 5
 fi
 
 tmp="$(mktemp -t jlink_flash_${SNR}_XXXXXX.jlink)"
@@ -43,4 +50,3 @@ EOF
 
 echo "tool=jlink_flash_hex_by_snr snr=${SNR} device=${DEVICE} image=${IMAGE} speed_khz=${SPEED_KHZ}"
 JLinkExe -NoGui 1 -ExitOnError 1 -SelectEmuBySN "${SNR}" -CommanderScript "$tmp"
-

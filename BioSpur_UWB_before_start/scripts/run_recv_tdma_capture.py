@@ -891,6 +891,15 @@ def print_capture_status(capture_start_wall: float,
 
 def main() -> int:
     args = build_parser().parse_args()
+    if (
+        args.controller_reset_snr == "960148546"
+        and "6918E0384172A49F" in str(args.port)
+    ):
+        args.controller_reset_snr = "1050070698"
+        print(
+            "[CAPTURE] BioSpur_1 port detected; controller reset SNR set to 1050070698",
+            flush=True,
+        )
     assert_not_jlink_when_biospur_available(args.port)
     probe_target = normalize_target(args.cm_probe_target)
 
@@ -979,6 +988,7 @@ def main() -> int:
             write_rows(
                 session_dir / "positions_all.csv",
                 [
+                    "host_elapsed_s",
                     "sweep",
                     "conn_id",
                     "peer_name",
@@ -999,6 +1009,7 @@ def main() -> int:
             write_rows(
                 session_dir / "cm_all.csv",
                 [
+                    "host_elapsed_s",
                     "sweep",
                     "conn_id",
                     "peer_name",
@@ -1016,6 +1027,7 @@ def main() -> int:
             write_rows(
                 session_dir / "cs_all.csv",
                 [
+                    "host_elapsed_s",
                     "sweep",
                     "conn_id",
                     "peer_name",
@@ -1032,6 +1044,7 @@ def main() -> int:
             write_rows(
                 session_dir / "cr_all.csv",
                 [
+                    "host_elapsed_s",
                     "sweep",
                     "conn_id",
                     "peer_name",
@@ -1053,6 +1066,7 @@ def main() -> int:
             write_rows(
                 session_dir / "cf_all.csv",
                 [
+                    "host_elapsed_s",
                     "sweep",
                     "conn_id",
                     "peer_name",
@@ -1174,6 +1188,7 @@ def main() -> int:
                 write_rows(
                     session_dir / "positions_all.csv",
                     [
+                        "host_elapsed_s",
                         "sweep",
                         "conn_id",
                         "peer_name",
@@ -1197,6 +1212,7 @@ def main() -> int:
                 write_rows(
                     session_dir / "cm_all.csv",
                     [
+                        "host_elapsed_s",
                         "sweep",
                         "conn_id",
                         "peer_name",
@@ -1214,6 +1230,7 @@ def main() -> int:
                 write_rows(
                     session_dir / "cs_all.csv",
                     [
+                        "host_elapsed_s",
                         "sweep",
                         "conn_id",
                         "peer_name",
@@ -1230,6 +1247,7 @@ def main() -> int:
                 write_rows(
                     session_dir / "cr_all.csv",
                     [
+                        "host_elapsed_s",
                         "sweep",
                         "conn_id",
                         "peer_name",
@@ -1251,6 +1269,7 @@ def main() -> int:
                 write_rows(
                     session_dir / "cf_all.csv",
                     [
+                        "host_elapsed_s",
                         "sweep",
                         "conn_id",
                         "peer_name",
@@ -1320,6 +1339,26 @@ def main() -> int:
                         ser = recovered
                         time.sleep(0.8)
                         drain_serial_until(ser, logf, 0.8)
+                        if not args.skip_anchor_preflight:
+                            try:
+                                ser.close()
+                            except Exception:
+                                pass
+                            logf.write(
+                                f"[HOST_WARN {time.monotonic():.3f}] controller recovery: rerun anchor responder preflight before tag TDMA\n"
+                            )
+                            logf.flush()
+                            anchor_preflight = run_anchor_responder_preflight(args, session_dir)
+                            if not anchor_preflight.get("success"):
+                                controller_lost = True
+                                logf.write(
+                                    f"[HOST_ERROR {time.monotonic():.3f}] controller recovery anchor preflight failed; closing capture and writing partial summary\n"
+                                )
+                                logf.flush()
+                                break
+                            settle_after_anchor_preflight(args, "controller recovery preflight")
+                            ser = open_serial_with_retry(args.port, args.baud)
+                            drain_serial_until(ser, logf, 0.8)
                         logf.write(
                             f"[HOST_WARN {time.monotonic():.3f}] controller reopened; reconfigure recv/tdma session\n"
                         )
@@ -1380,6 +1419,8 @@ def main() -> int:
                         line = line.rstrip("\r")
                         if not line:
                             continue
+                        host_epoch_s = round(time.time(), 6)
+                        host_elapsed_s = round(host_epoch_s - capture_start_wall, 6)
 
                         match = CONNECTED_RE.search(line)
                         if match:
@@ -1421,6 +1462,8 @@ def main() -> int:
                             positions.append(
                                 {
                                     "conn_id": conn_id,
+                                    "host_elapsed_s": host_elapsed_s,
+                                    "host_epoch_s": host_epoch_s,
                                     "peer_name": peer_name,
                                     "tag_id": meta.get("tag_id", ""),
                                     "sweep": int(m.group("sweep")),
@@ -1456,6 +1499,8 @@ def main() -> int:
                             cm_rows.append(
                                 {
                                     "conn_id": conn_id,
+                                    "host_elapsed_s": host_elapsed_s,
+                                    "host_epoch_s": host_epoch_s,
                                     "peer_name": peer_name,
                                     "tag_id": meta.get("tag_id", ""),
                                     "sweep": int(m.group("sweep")),
@@ -1487,6 +1532,8 @@ def main() -> int:
                             cs_rows.append(
                                 {
                                     "conn_id": conn_id,
+                                    "host_elapsed_s": host_elapsed_s,
+                                    "host_epoch_s": host_epoch_s,
                                     "peer_name": peer_name,
                                     "tag_id": meta.get("tag_id", ""),
                                     "sweep": int(m.group("sweep")),
@@ -1513,6 +1560,8 @@ def main() -> int:
                             cr_rows.append(
                                 {
                                     "conn_id": conn_id,
+                                    "host_elapsed_s": host_elapsed_s,
+                                    "host_epoch_s": host_epoch_s,
                                     "peer_name": peer_name,
                                     "tag_id": meta.get("tag_id", ""),
                                     "sweep": int(m.group("sweep")),
@@ -1544,6 +1593,8 @@ def main() -> int:
                             cf_rows.append(
                                 {
                                     "conn_id": conn_id,
+                                    "host_elapsed_s": host_elapsed_s,
+                                    "host_epoch_s": host_epoch_s,
                                     "peer_name": peer_name,
                                     "tag_id": meta.get("tag_id", ""),
                                     "sweep": int(m.group("sweep")),
@@ -1609,6 +1660,8 @@ def main() -> int:
         cm_by_target[key].append(row)
 
     position_fields = [
+        "host_elapsed_s",
+        "host_epoch_s",
         "sweep",
         "conn_id",
         "peer_name",
@@ -1628,6 +1681,8 @@ def main() -> int:
         "speed_mm_s",
     ]
     cm_fields = [
+        "host_elapsed_s",
+        "host_epoch_s",
         "sweep",
         "conn_id",
         "peer_name",
@@ -1641,6 +1696,8 @@ def main() -> int:
         "fail_count",
     ]
     cs_fields = [
+        "host_elapsed_s",
+        "host_epoch_s",
         "sweep",
         "conn_id",
         "peer_name",
@@ -1653,6 +1710,8 @@ def main() -> int:
         "qualities",
     ]
     cr_fields = [
+        "host_elapsed_s",
+        "host_epoch_s",
         "sweep",
         "conn_id",
         "peer_name",
@@ -1670,6 +1729,8 @@ def main() -> int:
         "solve_quality_percent",
     ]
     cf_fields = [
+        "host_elapsed_s",
+        "host_epoch_s",
         "sweep",
         "conn_id",
         "peer_name",

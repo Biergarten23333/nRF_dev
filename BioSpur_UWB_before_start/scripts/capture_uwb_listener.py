@@ -53,10 +53,11 @@ def open_serial(port: str, baud: int) -> serial.Serial:
     return serial.Serial(port, baud, timeout=0.2, write_timeout=1)
 
 
-def row_from_match(match: re.Match[str], host_elapsed_s: float) -> dict:
+def row_from_match(match: re.Match[str], host_elapsed_s: float, host_epoch_s: float) -> dict:
     row = match.groupdict()
     out = {
         "host_elapsed_s": f"{host_elapsed_s:.3f}",
+        "host_epoch_s": f"{host_epoch_s:.6f}",
         "listener_t_ms": int(row["t_ms"]),
         "seq": int(row["seq"]),
         "anchor": row["anchor"],
@@ -74,10 +75,11 @@ def row_from_match(match: re.Match[str], host_elapsed_s: float) -> dict:
     return out
 
 
-def uf_row_from_match(match: re.Match[str], host_elapsed_s: float) -> dict:
+def uf_row_from_match(match: re.Match[str], host_elapsed_s: float, host_epoch_s: float) -> dict:
     row = match.groupdict()
     return {
         "host_elapsed_s": f"{host_elapsed_s:.3f}",
+        "host_epoch_s": f"{host_epoch_s:.6f}",
         "listener_t_ms": int(row["t_ms"]),
         "seq": int(row["seq"]),
         "pan": row["pan"].lower(),
@@ -122,6 +124,7 @@ def main() -> int:
 
     fieldnames = [
         "host_elapsed_s",
+        "host_epoch_s",
         "listener_t_ms",
         "seq",
         "anchor",
@@ -138,6 +141,7 @@ def main() -> int:
     ]
     uf_fieldnames = [
         "host_elapsed_s",
+        "host_epoch_s",
         "listener_t_ms",
         "seq",
         "pan",
@@ -191,7 +195,8 @@ def main() -> int:
                 line, buf = buf.split("\n", 1)
                 match = UL_RE.search(line)
                 if match:
-                    row = row_from_match(match, time.time() - start)
+                    now = time.time()
+                    row = row_from_match(match, now - start, now)
                     writer.writerow(row)
                     csv_file.flush()
                     rows.append(row)
@@ -201,7 +206,8 @@ def main() -> int:
 
                 uf_match = UF_RE.search(line)
                 if uf_match:
-                    uf_row = uf_row_from_match(uf_match, time.time() - start)
+                    now = time.time()
+                    uf_row = uf_row_from_match(uf_match, now - start, now)
                     uf_writer.writerow(uf_row)
                     uf_csv_file.flush()
                     uf_rows.append(uf_row)

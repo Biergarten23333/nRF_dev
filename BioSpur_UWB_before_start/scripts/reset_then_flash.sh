@@ -8,6 +8,8 @@ fi
 
 snr="$1"
 hex_path="$(realpath "$2")"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+protect_file="$repo_root/.protec/noflash960148546"
 lock_file="${BIOSPUR_FLASH_LOCK_FILE:-/tmp/biospur_flash.lock}"
 lock_wait_s="${BIOSPUR_FLASH_LOCK_WAIT_S:-120}"
 allow_jlink_fallback="${BIOSPUR_FLASH_ALLOW_JLINK_FALLBACK:-1}"
@@ -47,6 +49,11 @@ done
 if [ ! -f "$hex_path" ]; then
   echo "[error] image not found: $hex_path" >&2
   exit 2
+fi
+
+if [ "$snr" = "960148546" ] && [ -e "$protect_file" ]; then
+  echo "[error] protected B120 SNR 960148546; refusing to flash because $protect_file exists" >&2
+  exit 5
 fi
 
 exec 9>"$lock_file"

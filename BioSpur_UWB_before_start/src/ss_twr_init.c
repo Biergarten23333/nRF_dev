@@ -520,9 +520,19 @@ static void ss_twr_init_publish_cal_frame_summary(const char *plan_label,
                                                   size_t valid_anchor_count)
 {
     char line[160];
+    size_t reported_valid_count = valid_anchor_count;
 
     if (!ss_twr_init_runtime_any_calibration_mode()) {
         return;
+    }
+
+    /*
+     * In CAL_STATIC/CAL_ROTO the active target set is the contract. A failed
+     * leg must remain visible as timeout/reject in CS/CR/qf, not silently turn
+     * the frame into a "3-anchor" record in CF.
+     */
+    if (ss_twr_init_active_anchor_count == 4U) {
+        reported_valid_count = ss_twr_init_active_anchor_count;
     }
 
     snprintk(line, sizeof(line), "CF;1;%lu;%s;%u;%s;%u;%u;%u;%lu;%lu;%lu",
@@ -530,7 +540,7 @@ static void ss_twr_init_publish_cal_frame_summary(const char *plan_label,
              (unsigned int)positioning_mode, ss_twr_init_solve_reason_label(),
              (unsigned int)qf_percent,
              (unsigned int)ss_twr_init_active_anchor_count,
-             (unsigned int)valid_anchor_count,
+             (unsigned int)reported_valid_count,
              (unsigned long)rms_mm, (unsigned long)max_mm,
              (unsigned long)step_mm);
     printk("%s\n", line);

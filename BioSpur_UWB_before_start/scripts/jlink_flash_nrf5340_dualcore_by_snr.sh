@@ -18,6 +18,8 @@ fi
 SNR="$1"
 BUILD_DIR="$2"
 SPEED_KHZ="${3:-4000}"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROTECT_FILE="$REPO_ROOT/.protec/noflash960148546"
 
 NET_HEX="${BUILD_DIR}/hci_ipc/zephyr/merged_CPUNET.hex"
 APP_HEX="${BUILD_DIR}/zephyr/merged.hex"
@@ -30,6 +32,11 @@ fi
 if [ ! -f "$APP_HEX" ]; then
   echo "[error] CPUAPP image not found: $APP_HEX" >&2
   exit 4
+fi
+
+if [ "$SNR" = "960148546" ] && [ -e "$PROTECT_FILE" ]; then
+  echo "[error] protected B120 SNR 960148546; refusing to flash because $PROTECT_FILE exists" >&2
+  exit 5
 fi
 
 tmp_net="$(mktemp -t jlink_nrf5340_net_${SNR}_XXXXXX.jlink)"
