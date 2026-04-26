@@ -51,7 +51,7 @@ set_cache_from_env(APP_ANCHOR_RESPONDER_ADV_INT_MAX_MS "10000" STRING "Responder
 set_cache_from_env(APP_ANCHOR_RESPONDER_DIAG_PERIOD_MS "5000" STRING "Responder diagnostic print period in ms")
 set_cache_from_env(APP_ANCHOR_VERBOSE_RESPONDER "0" STRING "Print responder success logs")
 set_cache_from_env(APP_ANCHOR_VERBOSE_RESPONDER_ERRORS "0" STRING "Print responder RX/TX error logs")
-set_cache_from_env(APP_ANCHOR_RESPONDER_PRINTK_ENABLE "1" STRING "Enable responder-path printk output")
+set_cache_from_env(APP_ANCHOR_RESPONDER_PRINTK_ENABLE "0" STRING "Enable low-rate responder-path printk output; keep disabled outside debug builds")
 set_cache_from_env(APP_ANCHOR_RESPONDER_PROFILE_ENABLE "0" STRING "Enable low-rate responder fast-path timing profile output")
 set_cache_from_env(APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE "0" STRING "Pulse DWM1001C blue LED while a responder TX is active")
 set_cache_from_env(APP_ANCHOR_RESPONDER_BLUE_LED_PIN "31" STRING "GPIO pin for responder activity LED")

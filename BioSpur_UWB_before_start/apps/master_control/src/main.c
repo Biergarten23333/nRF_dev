@@ -40,6 +40,10 @@
 #define APP_MASTER_OTA_TARGET_TOKEN_ID -1
 #endif
 
+#ifndef APP_MASTER_BOOT_PROFILE
+#define APP_MASTER_BOOT_PROFILE "neutral"
+#endif
+
 #define CONTROL_SETTINGS_SUBTREE "master_ctrl"
 #define CONTROL_SETTINGS_MODE_KEY "mode"
 #define CONTROL_SETTINGS_AUTOPOS_TARGET_KEY "autopos_target"
@@ -373,6 +377,49 @@ static void system_target_print(void)
 	       (system_target.caps & SYS_CAP_STREAM) ? 1U : 0U,
 	       (system_target.caps & SYS_CAP_STATUS) ? 1U : 0U);
 	master_ota_target_print();
+}
+
+static bool boot_profile_is(const char *profile)
+{
+	return strcmp(APP_MASTER_BOOT_PROFILE, profile) == 0;
+}
+
+static void control_apply_boot_profile(void)
+{
+	if (control_mode == CONTROL_MODE_OTA) {
+		printk("Boot profile %s skipped: OTA mode active\n", APP_MASTER_BOOT_PROFILE);
+		return;
+	}
+
+	if (boot_profile_is("anchor")) {
+		control_mode = CONTROL_MODE_AUTOPOS;
+		sync_master_log_mode(control_mode);
+		system_target_set_kind(SYS_DEV_ANCHOR);
+		master_set_runtime_target_kind(MASTER_TARGET_ANCHOR);
+		master_set_anchor_wildcard_scan(true);
+		master_set_runtime_target_token(-1);
+		master_set_runtime_target_name("");
+		master_set_runtime_target_prefix("");
+		master_set_runtime_target_uuid("");
+		printk("Boot profile anchor: auto-connect ANCHOR-* control links; no tag scan\n");
+		return;
+	}
+
+	if (boot_profile_is("tag")) {
+		control_mode = CONTROL_MODE_RECV;
+		sync_master_log_mode(control_mode);
+		system_target_set_kind(SYS_DEV_TAG);
+		master_set_runtime_target_kind(MASTER_TARGET_TAG);
+		master_set_anchor_wildcard_scan(false);
+		master_set_runtime_target_token(-1);
+		master_set_runtime_target_name("");
+		master_set_runtime_target_prefix("BS");
+		master_set_runtime_target_uuid("");
+		printk("Boot profile tag: auto-connect BS* tag links; TDMA remains host-controlled\n");
+		return;
+	}
+
+	printk("Boot profile neutral: no role-specific auto target\n");
 }
 
 static int autopos_label_to_index(char label)
@@ -1437,7 +1484,7 @@ static int anchor_apply_role(const char *query, const char *role)
 		(void)snprintf(role_cmd, sizeof(role_cmd), "R MATRIX");
 		(void)snprintf(expect_role, sizeof(expect_role), "matrix");
 	} else if (strcmp(role, "responder") == 0) {
-		(void)snprintf(role_cmd, sizeof(role_cmd), "RUNTIME RESPONDER");
+		(void)snprintf(role_cmd, sizeof(role_cmd), "RUNTIME RESPONDER FORCE");
 		(void)snprintf(expect_role, sizeof(expect_role), "responder");
 		return anchor_apply_runtime_role_uuid(query, role_cmd, expect_role);
 	} else {
@@ -1459,7 +1506,8 @@ static int anchor_apply_role_all(const char *role)
 		int total_sent = 0;
 		int waited = 0;
 		int last_ready = -1;
-		const char *runtime_cmd = (strcmp(role, "matrix") == 0) ? "RUNTIME MATRIX" : "RUNTIME RESPONDER";
+		const char *runtime_cmd = (strcmp(role, "matrix") == 0) ?
+			"RUNTIME MATRIX FORCE" : "RUNTIME RESPONDER FORCE";
 
 		/* Session role guard/finalizer: matrix/responder are runtime state changes.
 		 * Do not depend on persisted A-H maps or the config/commit path here;
@@ -2939,15 +2987,16 @@ int main(void)
 	master_set_runtime_target_prefix(ota_target_prefix_cfg);
 	master_set_runtime_target_uuid(ota_target_uuid_cfg);
 	master_ota_set_expect_nus(ota_expect_nus_cfg);
-		if (ota_target_name_cfg[0] != '\0') {
-			system_target.kind = SYS_DEV_TAG;
-			system_target.caps = system_caps_for_kind(SYS_DEV_TAG);
-			master_set_runtime_target_kind(MASTER_TARGET_TAG);
-		} else {
-			system_target.kind = SYS_DEV_UNKNOWN;
-			system_target.caps = system_caps_for_kind(SYS_DEV_UNKNOWN);
-			master_set_runtime_target_kind(MASTER_TARGET_UNKNOWN);
-		}
+	if (ota_target_name_cfg[0] != '\0') {
+		system_target.kind = SYS_DEV_TAG;
+		system_target.caps = system_caps_for_kind(SYS_DEV_TAG);
+		master_set_runtime_target_kind(MASTER_TARGET_TAG);
+	} else {
+		system_target.kind = SYS_DEV_UNKNOWN;
+		system_target.caps = system_caps_for_kind(SYS_DEV_UNKNOWN);
+		master_set_runtime_target_kind(MASTER_TARGET_UNKNOWN);
+	}
+	control_apply_boot_profile();
 	master_ota_target_print();
 	if (autopos_state[0] == '\0') {
 		(void)snprintf(autopos_state, sizeof(autopos_state), "idle");

@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 import serial
+from serial import SerialException
 
 
 UUIDS = {
@@ -302,6 +303,140 @@ def send_serial_command(ser: serial.Serial, cmd: str, wait_s: float) -> str:
     return drain_serial(ser, wait_s)
 
 
+def wait_for_serial_port(port: str, timeout_s: float = 30.0) -> bool:
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        if Path(port).exists():
+            return True
+        time.sleep(0.25)
+    return Path(port).exists()
+
+
+def wait_for_control_ready(port: str, timeout_s: float = 45.0) -> tuple[serial.Serial, str]:
+    deadline = time.time() + timeout_s
+    transcript: list[str] = []
+    last_exc: Exception | None = None
+    while time.time() < deadline:
+        try:
+            ser = serial.Serial(port, 115200, timeout=0.2, write_timeout=2.0)
+            time.sleep(0.5)
+            transcript.append(drain_serial(ser, 0.8))
+            transcript.append(">>> status\n")
+            transcript.append(send_serial_command(ser, "status", 1.2))
+            text = "".join(transcript)
+            if "Control status:" in text or "UART control ready" in text or "BioSpur BLE master control ready" in text:
+                return ser, text
+            ser.close()
+        except Exception as exc:
+            last_exc = exc
+        time.sleep(0.5)
+    if last_exc is not None:
+        raise last_exc
+    raise TimeoutError(f"control port did not become ready: {port}")
+
+
+def prepare_control_plane_after_ota(args: argparse.Namespace, out_root: Path) -> dict[str, object]:
+    """Return the B120 master from OTA mode to AUTOPOS/anchor before post-verify.
+
+    The firmware intentionally reboots when switching OTA -> RECV.  The deploy
+    script must treat the CDC disconnect as expected and reopen the port before
+    running responder verification.
+    """
+    log_path = out_root / "post_verify_mode_handoff.log"
+    transcript: list[str] = []
+    summary: dict[str, object] = {
+        "port": args.port,
+        "log_path": str(log_path),
+        "mode_recv_sent": False,
+        "reboot_observed": False,
+        "autopos_ready": False,
+        "device_kind_anchor_sent": False,
+    }
+
+    def append(text: str) -> None:
+        transcript.append(text)
+        log_path.write_text("".join(transcript), encoding="utf-8")
+
+    print("=== POST-VERIFY mode handoff: OTA -> RECV -> AUTOPOS ===", flush=True)
+    try:
+        ser = open_control_serial(args.port, retries=30, retry_delay_s=0.5)
+        try:
+            time.sleep(0.5)
+            append(drain_serial(ser, 0.5))
+            append(">>> status\n")
+            status_text = send_serial_command(ser, "status", 1.5)
+            append(status_text)
+            in_ota = "mode=OTA" in status_text or "[OTA]" in status_text
+            summary["initial_status"] = status_text.strip()
+            if in_ota:
+                append(">>> mode recv\n")
+                summary["mode_recv_sent"] = True
+                try:
+                    append(send_serial_command(ser, "mode recv", 8.0))
+                except SerialException as exc:
+                    summary["reboot_observed"] = True
+                    append(f"\n[SCRIPT] expected CDC disconnect during OTA->RECV reboot: {exc}\n")
+                except OSError as exc:
+                    summary["reboot_observed"] = True
+                    append(f"\n[SCRIPT] expected CDC disconnect during OTA->RECV reboot: {exc}\n")
+            else:
+                append("[SCRIPT] master is not in OTA; no mode recv reboot required\n")
+        finally:
+            try:
+                ser.close()
+            except Exception:
+                pass
+
+        if bool(summary["mode_recv_sent"]):
+            wait_for_serial_port(args.port, timeout_s=45.0)
+            time.sleep(2.0)
+
+        ser, ready_text = wait_for_control_ready(args.port, timeout_s=60.0)
+        append(ready_text)
+        try:
+            append(">>> device kind anchor\n")
+            append(send_serial_command(ser, "device kind anchor", 2.5))
+            summary["device_kind_anchor_sent"] = True
+            append(">>> mode autopos\n")
+            append(send_serial_command(ser, "mode autopos", 8.0))
+        except SerialException as exc:
+            summary["autopos_reboot_observed"] = True
+            append(f"\n[SCRIPT] CDC disconnect during RECV->AUTOPOS switch: {exc}\n")
+        finally:
+            try:
+                ser.close()
+            except Exception:
+                pass
+
+        if bool(summary.get("autopos_reboot_observed")):
+            wait_for_serial_port(args.port, timeout_s=45.0)
+            time.sleep(2.0)
+
+        ser, ready_text = wait_for_control_ready(args.port, timeout_s=60.0)
+        append(ready_text)
+        try:
+            append(">>> status\n")
+            final_status = send_serial_command(ser, "status", 1.5)
+            append(final_status)
+            summary["final_status"] = final_status.strip()
+            summary["autopos_ready"] = "mode=AUTOPOS" in final_status or "[AUTOPOS]" in final_status
+            if not summary["autopos_ready"]:
+                append(">>> mode autopos\n")
+                append(send_serial_command(ser, "mode autopos", 8.0))
+                append(">>> status\n")
+                final_status = send_serial_command(ser, "status", 1.5)
+                append(final_status)
+                summary["final_status"] = final_status.strip()
+                summary["autopos_ready"] = "mode=AUTOPOS" in final_status or "[AUTOPOS]" in final_status
+        finally:
+            ser.close()
+    except Exception as exc:
+        summary["error"] = repr(exc)
+        append(f"\n[SCRIPT] post-verify mode handoff failed: {exc!r}\n")
+
+    return summary
+
+
 def run_anchor_version_verify(args: argparse.Namespace, out_root: Path, expected_fw_marker: str) -> tuple[bool, dict[str, object]]:
     raw_log_path = out_root / "post_anchor_version_verify.log"
     summary: dict[str, object] = {
@@ -416,11 +551,16 @@ def run_post_verify(args: argparse.Namespace, out_root: Path) -> tuple[int, dict
         final_ack = verify_summary.get("final_ack") or {}
         final_role_counts = verify_summary.get("final_role_counts") or {}
         ack_ok = bool(verify_summary.get("success"))
-        responder_ok = int(final_role_counts.get("responder", 0)) >= len(UUIDS)
+        role_total = sum(int(final_role_counts.get(role, 0)) for role in ("matrix", "responder", "master", "other"))
+        # When Master_Anchor keeps all anchors connected, they may stop
+        # advertising, so BLE scan role counts can legitimately be 0/0.  In
+        # that resident-control case the runtime NUS ack is authoritative.
+        responder_ok = role_total == 0 or int(final_role_counts.get("responder", 0)) >= len(UUIDS)
         ready_ok = (
             int(final_ack.get("ready_count", 0)) >= len(UUIDS)
             and int(final_ack.get("ready_target", 0)) >= len(UUIDS)
         )
+        summary["role_total"] = role_total
         summary["ack_ok"] = ack_ok
         summary["ready_ok"] = ready_ok
         summary["responder_ok"] = responder_ok
@@ -568,6 +708,20 @@ def main() -> int:
             return final_rc
 
     if not args.skip_post_verify:
+        handoff_summary = prepare_control_plane_after_ota(args, out_root)
+        deploy_summary["post_verify_mode_handoff"] = handoff_summary
+        with open(out_root / "deploy_summary.json", "w", encoding="utf-8") as f:
+            json.dump(deploy_summary, f, indent=2)
+        if not bool(handoff_summary.get("autopos_ready")):
+            deploy_summary["post_verify"] = {
+                "strict_ok": False,
+                "error": "post_verify_mode_handoff_failed",
+                "handoff": handoff_summary,
+            }
+            with open(out_root / "deploy_summary.json", "w", encoding="utf-8") as f:
+                json.dump(deploy_summary, f, indent=2)
+            return 2
+
         verify_rc, verify_summary = run_post_verify(args, out_root)
         deploy_summary["post_verify"] = verify_summary
         with open(out_root / "deploy_summary.json", "w", encoding="utf-8") as f:

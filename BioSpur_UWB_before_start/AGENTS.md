@@ -10,3 +10,7 @@
 - Use `scripts/build_master_control_b120_m1_internal_osc.sh` or `scripts/build_master_control_b120_m1.sh`; the latter defaults to LFRC if no explicit oscillator config is provided.
 - Before any B120 flash, verify the build with `scripts/assert_b120_internal_osc_build.sh <build-dir-or-image>`.
 - Never use `nrfjprog`; use the repository J-Link scripts with explicit SNR.
+- Dual-master naming:
+  - SNR `960148546` is `Master_Anchor`.
+  - SNR `1050070698` is `Master_Tag`.
+  - Keep these CDC display names distinct to avoid selecting the wrong serial port.

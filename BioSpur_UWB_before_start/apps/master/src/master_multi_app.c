@@ -49,6 +49,10 @@
 #define APP_MASTER_TAG_NAME_PREFIX "BS"
 #endif
 
+#ifndef APP_MASTER_BOOT_TAG_ALLOWLIST
+#define APP_MASTER_BOOT_TAG_ALLOWLIST ""
+#endif
+
 #ifndef APP_MASTER_ANCHOR_NAME_PREFIX
 #define APP_MASTER_ANCHOR_NAME_PREFIX "ANCHOR-"
 #endif
@@ -711,6 +715,18 @@ static bool ad_name_matches_prefix(struct net_buf_simple *ad, const char *prefix
 static bool ad_name_matches_tag_target(struct net_buf_simple *ad)
 {
 	return ad_name_matches_prefix(ad, APP_MASTER_TAG_NAME_PREFIX);
+}
+
+static bool master_boot_tag_allowlist_has(uint16_t bs_code)
+{
+	char bs_name[8];
+
+	if (APP_MASTER_BOOT_TAG_ALLOWLIST[0] == '\0') {
+		return true;
+	}
+
+	snprintk(bs_name, sizeof(bs_name), "BS%04X", (unsigned int)bs_code);
+	return strstr(APP_MASTER_BOOT_TAG_ALLOWLIST, bs_name) != NULL;
 }
 
 static bool ad_name_matches_anchor_target(struct net_buf_simple *ad)
@@ -2623,6 +2639,11 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	}
 
 	if (!bs_code_valid) {
+		return;
+	}
+
+	if (runtime_target_kind == MASTER_TARGET_TAG &&
+	    !master_boot_tag_allowlist_has(bs_code)) {
 		return;
 	}
 

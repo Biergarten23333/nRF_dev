@@ -333,7 +333,7 @@ static void handle_reset_role_locked(uint8_t role, const char *result_text)
     set_result_locked(result_text);
 }
 
-static void handle_runtime_role_locked(uint8_t role, uint32_t master_sweeps)
+static void handle_runtime_role_locked(uint8_t role, uint32_t master_sweeps, bool force_restart)
 {
     if (role != ANCHOR_ROLE_MASTER && role != ANCHOR_ROLE_MATRIX &&
         role != ANCHOR_ROLE_RESPONDER) {
@@ -341,7 +341,7 @@ static void handle_runtime_role_locked(uint8_t role, uint32_t master_sweeps)
         return;
     }
 
-    if (role == g_info.runtime_role && master_sweeps == 0U) {
+    if (role == g_info.runtime_role && master_sweeps == 0U && !force_restart) {
         set_result_locked("OK RUNTIME_ALREADY_ACTIVE");
         return;
     }
@@ -355,7 +355,8 @@ static void handle_runtime_role_locked(uint8_t role, uint32_t master_sweeps)
                  (unsigned long)master_sweeps);
         set_result_locked(result);
     } else {
-        set_result_locked("OK RUNTIME_SWITCH_REQUESTED");
+        set_result_locked(force_restart ? "OK RUNTIME_RESTART_REQUESTED" :
+                          "OK RUNTIME_SWITCH_REQUESTED");
     }
 }
 
@@ -379,7 +380,7 @@ static void process_control_cmd_locked(char *line)
     }
 
     if (strcmp(tok, "HELP") == 0) {
-        set_result_locked("OK CMDS=PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|RESET AUTOPOS|RESET RESPONDER|STOP|SYNC|RUNTIME <MASTER|MATRIX|RESPONDER> [SWEEP N]");
+        set_result_locked("OK CMDS=PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|RESET AUTOPOS|RESET RESPONDER|STOP|SYNC|RUNTIME <MASTER|MATRIX|RESPONDER> [FORCE|SWEEP N]");
         return;
     }
 
@@ -407,6 +408,7 @@ static void process_control_cmd_locked(char *line)
 
     if (strcmp(tok, "RUNTIME") == 0) {
         uint32_t master_sweeps = 0U;
+        bool force_restart = false;
 
         tok = strtok_r(NULL, " ", &savep);
         if (tok == NULL || role_parse(tok, &parsed) != 0) {
@@ -415,32 +417,39 @@ static void process_control_cmd_locked(char *line)
         }
         tok = strtok_r(NULL, " ", &savep);
         if (tok != NULL) {
-            if (strcmp(tok, "SWEEP") != 0) {
+            if (strcmp(tok, "FORCE") == 0 || strcmp(tok, "RESTART") == 0) {
+                force_restart = true;
+                if (strtok_r(NULL, " ", &savep) != NULL) {
+                    set_result_locked("ERR:BAD_RUNTIME_ARG");
+                    return;
+                }
+            } else if (strcmp(tok, "SWEEP") == 0) {
+                tok = strtok_r(NULL, " ", &savep);
+                if (tok == NULL) {
+                    set_result_locked("ERR:BAD_RUNTIME_SWEEP");
+                    return;
+                }
+                gen_val = strtoul(tok, &endp, 10);
+                if (endp == tok || *endp != '\0' || gen_val == 0UL ||
+                    gen_val > 10000UL) {
+                    set_result_locked("ERR:INVALID_RUNTIME_SWEEP");
+                    return;
+                }
+                if (strtok_r(NULL, " ", &savep) != NULL) {
+                    set_result_locked("ERR:BAD_RUNTIME_ARG");
+                    return;
+                }
+                if (parsed != ANCHOR_ROLE_MASTER) {
+                    set_result_locked("ERR:SWEEP_REQUIRES_MASTER");
+                    return;
+                }
+                master_sweeps = (uint32_t)gen_val;
+            } else {
                 set_result_locked("ERR:BAD_RUNTIME_ARG");
                 return;
             }
-            tok = strtok_r(NULL, " ", &savep);
-            if (tok == NULL) {
-                set_result_locked("ERR:BAD_RUNTIME_SWEEP");
-                return;
-            }
-            gen_val = strtoul(tok, &endp, 10);
-            if (endp == tok || *endp != '\0' || gen_val == 0UL ||
-                gen_val > 10000UL) {
-                set_result_locked("ERR:INVALID_RUNTIME_SWEEP");
-                return;
-            }
-            if (strtok_r(NULL, " ", &savep) != NULL) {
-                set_result_locked("ERR:BAD_RUNTIME_ARG");
-                return;
-            }
-            if (parsed != ANCHOR_ROLE_MASTER) {
-                set_result_locked("ERR:SWEEP_REQUIRES_MASTER");
-                return;
-            }
-            master_sweeps = (uint32_t)gen_val;
         }
-        handle_runtime_role_locked(parsed, master_sweeps);
+        handle_runtime_role_locked(parsed, master_sweeps, force_restart);
         return;
     }
 

@@ -252,8 +252,9 @@ def open_serial_with_retry(port: str, baud: int, timeout_s: float = 0.2, retries
     raise last_exc if last_exc is not None else RuntimeError("serial open failed")
 
 
-def drain_serial_until(ser: serial.Serial, logf, wait_s: float) -> None:
+def drain_serial_until(ser: serial.Serial, logf, wait_s: float) -> str:
     deadline = time.time() + wait_s
+    chunks: list[str] = []
     while time.time() < deadline:
         try:
             data = ser.read(ser.in_waiting or 1)
@@ -262,8 +263,10 @@ def drain_serial_until(ser: serial.Serial, logf, wait_s: float) -> None:
         if not data:
             continue
         text = data.decode("utf-8", errors="replace")
+        chunks.append(text)
         logf.write(text)
         logf.flush()
+    return "".join(chunks)
 
 
 def send_cmd(ser: serial.Serial, logf, cmd: str, wait_s: float) -> serial.Serial:
@@ -319,6 +322,62 @@ def send_cmd(ser: serial.Serial, logf, cmd: str, wait_s: float) -> serial.Serial
         if last_exc is not None:
             raise last_exc
         raise RuntimeError("mode recv reopen failed")
+
+
+def send_cmd_collect(ser: serial.Serial, logf, cmd: str, wait_s: float) -> tuple[serial.Serial, str]:
+    print(f"[HOST_CMD] {cmd}", flush=True)
+    logf.write(f"[HOST_CMD {time.monotonic():.3f}] {cmd}\n")
+    logf.flush()
+    try:
+        written = ser.write((cmd + "\n").encode("utf-8"))
+        if written <= 0:
+            raise SerialException(f"serial write returned {written}")
+    except (serial.SerialTimeoutException, SerialException, OSError) as exc:
+        logf.write(
+            f"[HOST_WARN {time.monotonic():.3f}] write failed for {cmd!r}: {exc}; reopen/retry\n"
+        )
+        logf.flush()
+        port = ser.port
+        baud = ser.baudrate
+        try:
+            ser.close()
+        except Exception:
+            pass
+        ser = open_serial_with_retry(port, baud)
+        time.sleep(1.0)
+        drain_serial_until(ser, logf, 1.0)
+        written = ser.write((cmd + "\n").encode("utf-8"))
+        if written <= 0:
+            raise SerialException(f"serial retry write returned {written}")
+    try:
+        return ser, drain_serial_until(ser, logf, wait_s)
+    except (SerialException, OSError):
+        try:
+            ser.close()
+        except Exception:
+            pass
+        last_exc = None
+        port = ser.port
+        baud = ser.baudrate
+        for _ in range(12):
+            try:
+                time.sleep(0.75)
+                ser = open_serial_with_retry(port, baud)
+                text = drain_serial_until(ser, logf, max(wait_s, 2.5))
+                logf.write(
+                    f"[HOST_WARN {time.monotonic():.3f}] read failed after {cmd!r}; reopened serial and continued\n"
+                )
+                logf.flush()
+                return ser, text
+            except (SerialException, OSError) as exc:
+                last_exc = exc
+                try:
+                    ser.close()
+                except Exception:
+                    pass
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("command reopen failed")
 
 
 def reset_controller_via_jlink(logf, snr: str) -> bool:
@@ -437,6 +496,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip 8/8 runtime responder verification before tag capture.",
     )
     parser.add_argument(
+        "--anchor-preflight-port",
+        default="",
+        help="Optional separate Master_Anchor serial port for dual-master responder preflight/repair.",
+    )
+    parser.add_argument(
         "--anchor-preflight-timeout-s",
         type=float,
         default=30.0,
@@ -488,6 +552,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip startup BSF66F CM probe and go straight to capture configuration.",
     )
     parser.add_argument(
+        "--reuse-tag-links",
+        action="store_true",
+        help="Assume a Master_Tag boot profile is already maintaining BS* links; do not force mode/device reconnect unless recovery is needed.",
+    )
+    parser.add_argument(
+        "--tag-link-timeout-s",
+        type=float,
+        default=120.0,
+        help="Seconds to wait for all target tag links before recovery.",
+    )
+    parser.add_argument(
         "--no-cleanup",
         action="store_true",
         help="Leave tags running after capture. By default tags are returned to AOTA/idle mode.",
@@ -533,6 +608,7 @@ def run_anchor_responder_preflight(args, session_dir: Path) -> dict:
     attempts = []
     launch_retries = max(1, int(args.anchor_preflight_launch_retries))
     result: dict = {"success": False, "error": "preflight_not_run"}
+    preflight_port = getattr(args, "anchor_preflight_port", "") or args.port
 
     for launch in range(1, launch_retries + 1):
         preflight_base = session_dir / f"anchor_responder_preflight_launch{launch}"
@@ -541,7 +617,7 @@ def run_anchor_responder_preflight(args, session_dir: Path) -> dict:
             sys.executable,
             "scripts/verify_all_anchor_responder_runtime.py",
             "--port",
-            args.port,
+            preflight_port,
             "--live-output",
             "--command-timeout-s",
             str(args.anchor_preflight_timeout_s),
@@ -618,6 +694,7 @@ def ensure_target_links_ready(
     targets: list[str],
     controller_reset_snr: str = "",
     wait_per_target_s: float = 120.0,
+    initial_text: str = "",
 ) -> serial.Serial:
     ready_targets: set[str] = set()
     hard_reset_used = False
@@ -632,6 +709,9 @@ def ensure_target_links_ready(
                 or f"CFG_OK" in text_u and target_u in text_u
             ):
                 ready_targets.add(target_u)
+
+    if initial_text:
+        mark_ready_from_text(initial_text)
 
     def passive_wait(label: str, wait_s: float) -> bool:
         # `device kind tag` starts scan/connect/GATT setup by itself. Avoid
@@ -745,12 +825,26 @@ def configure_recv_capture_session(
     targets: list[str],
     profile_items: list[tuple[str, str]],
 ) -> serial.Serial:
-    print("[CAPTURE] configure: enter RECV/tag mode", flush=True)
-    ser = send_cmd(ser, logf, "mode recv", 8.0)
-    ser = send_cmd(ser, logf, "tdma clear", 0.8)
-    ser = send_cmd(ser, logf, "device kind tag", 2.0)
+    if args.reuse_tag_links:
+        print("[CAPTURE] configure: reuse Master_Tag resident links", flush=True)
+        ser, status_text = send_cmd_collect(ser, logf, "status", 0.8)
+        ser, device_text = send_cmd_collect(ser, logf, "device show", 0.8)
+    else:
+        print("[CAPTURE] configure: enter RECV/tag mode", flush=True)
+        ser = send_cmd(ser, logf, "mode recv", 8.0)
+        ser = send_cmd(ser, logf, "device kind tag", 2.0)
+        status_text = ""
+        device_text = ""
+    ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
     print("[CAPTURE] configure: wait for target links", flush=True)
-    ser = ensure_target_links_ready(ser, logf, targets, args.controller_reset_snr)
+    ser = ensure_target_links_ready(
+        ser,
+        logf,
+        targets,
+        args.controller_reset_snr,
+        wait_per_target_s=args.tag_link_timeout_s,
+        initial_text=status_text + device_text + clear_text,
+    )
     print("[CAPTURE] configure: apply TDMA profiles", flush=True)
     for name, profile in profile_items:
         ser = send_cmd(ser, logf, f"tdma profile {name} {profile}", 0.8)

@@ -45,6 +45,18 @@
 #define APP_LISTENER_UF_TRACE_EVERY 1U
 #endif
 
+#ifndef APP_LISTENER_UI_ENABLE
+#define APP_LISTENER_UI_ENABLE 1
+#endif
+
+#ifndef APP_LISTENER_STATUS_PRINT_ENABLE
+#define APP_LISTENER_STATUS_PRINT_ENABLE 0
+#endif
+
+#ifndef APP_LISTENER_DEBUG_PRINT_ENABLE
+#define APP_LISTENER_DEBUG_PRINT_ENABLE 0
+#endif
+
 /* DWM1001-DEV J10 header pins as nRF52832 GPIO numbers. */
 #define SHIFT595_SER_PIN 6U
 #define SHIFT595_SRCLK_PIN 4U
@@ -641,7 +653,8 @@ static void handle_good_frame(uint32_t now_ms)
 		       rx_counters.last_dst_addr, rx_counters.last_code,
 		       anchor_id);
 
-	if (anchor_id == selected_anchor_id &&
+	if (APP_LISTENER_STATUS_PRINT_ENABLE &&
+	    anchor_id == selected_anchor_id &&
 	    (now_ms - last_status_print_ms) >= LISTENER_STATUS_PRINT_MS) {
 		last_status_print_ms = now_ms;
 		printk("listener anchor=%c src=0x%04x code=0x%02x level=%u q=%lu cir=%u rxpacc=%u fp=%u/%u/%u frames=%lu\n",
@@ -666,6 +679,10 @@ static void print_rx_debug(uint32_t now_ms)
 	uint32_t sys_status;
 	uint32_t rx_finfo;
 	uint32_t age_ms = selected->valid ? now_ms - selected->last_seen_ms : 0U;
+
+	if (!APP_LISTENER_DEBUG_PRINT_ENABLE) {
+		return;
+	}
 
 	if ((now_ms - last_rx_debug_print_ms) < 1000U) {
 		return;
@@ -719,24 +736,31 @@ int main(void)
 	       (unsigned int)uwb_anchor_short_addr(6U),
 	       (unsigned int)uwb_anchor_short_addr(7U));
 
-	ret = listener_gpio_init();
-	if (ret != 0) {
-		printk("listener GPIO init failed: %d\n", ret);
-		return ret;
+	if (APP_LISTENER_UI_ENABLE) {
+		ret = listener_gpio_init();
+		if (ret != 0) {
+			printk("listener GPIO init failed: %d\n", ret);
+			return ret;
+		}
+
+		shift595_power_on_self_test();
+		wait_for_start_button();
+	} else {
+		printk("listener UI disabled; serial-only capture starts immediately\n");
 	}
-
-	shift595_power_on_self_test();
-
-	wait_for_start_button();
 
 	ret = uwb_hw_bringup_and_init();
 	if (ret != 0) {
 		printk("listener UWB bringup failed: %d\n", ret);
 		while (true) {
-			shift595_write(0x55U);
+			if (APP_LISTENER_UI_ENABLE) {
+				shift595_write(0x55U);
+			}
 			k_msleep(150);
-			shift595_write(0xaaU);
-			k_msleep(150);
+			if (APP_LISTENER_UI_ENABLE) {
+				shift595_write(0xaaU);
+				k_msleep(150);
+			}
 		}
 	}
 
@@ -750,7 +774,9 @@ int main(void)
 		uint32_t now_ms = k_uptime_get_32();
 		uint32_t status_reg;
 
-		handle_button(now_ms);
+		if (APP_LISTENER_UI_ENABLE) {
+			handle_button(now_ms);
+		}
 
 		status_reg = dwt_read32bitreg(SYS_STATUS_ID);
 		if ((status_reg & SYS_STATUS_RXFCG) != 0U) {
@@ -765,8 +791,10 @@ int main(void)
 			listener_restart_rx();
 		}
 
-		display_selected_anchor(now_ms);
-		update_buzzer(now_ms);
+		if (APP_LISTENER_UI_ENABLE) {
+			display_selected_anchor(now_ms);
+			update_buzzer(now_ms);
+		}
 		print_rx_debug(now_ms);
 		k_msleep(5);
 	}
