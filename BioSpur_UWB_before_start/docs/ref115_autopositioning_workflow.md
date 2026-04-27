@@ -1,5 +1,9 @@
 # Ref115 Autopositioning Workflow
 
+> Note: for the current BLE OTA runtime/control setup, use
+> [`docs/ref115_autopositioning_workflow_current.md`](/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/docs/ref115_autopositioning_workflow_current.md)
+> as the primary operational workflow.
+
 This is the current one-command host-side workflow for recalibrating the fixed
 `A-H` anchor layout with static reference Tag `115`.
 

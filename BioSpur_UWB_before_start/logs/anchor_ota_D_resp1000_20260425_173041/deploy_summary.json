@@ -1,0 +1,40 @@
+{
+  "port": "/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_87EA2F4A526C5A02-if00",
+  "timeout_s": 420,
+  "order": [
+    "D"
+  ],
+  "started_at": "2026-04-25 17:30:41",
+  "rounds": {
+    "D": {
+      "uuid": "AB14CCA262A092E70EB26B0ACB0A394B",
+      "attempts": [
+        {
+          "attempt": 1,
+          "returncode": -15,
+          "summary_json": "logs/anchor_ota_D_resp1000_20260425_173041/anchor_D/stage1/summary.json",
+          "summary_read_error": "FileNotFoundError(2, 'No such file or directory')",
+          "retry_pending_state": false,
+          "recovery_only": false
+        }
+      ],
+      "returncode": -15,
+      "summary_json": "logs/anchor_ota_D_resp1000_20260425_173041/anchor_D/stage1/summary.json"
+    }
+  },
+  "post_verify": {},
+  "post_version_verify": {},
+  "expected_fw_marker": "anchor-joint-resp1000-tagrx650to900-20260425_125049",
+  "expected_fw_marker_meta": {
+    "source": "arg",
+    "path": null
+  },
+  "pre_version_verify": {
+    "expected_fw_marker": "anchor-joint-resp1000-tagrx650to900-20260425_125049",
+    "port": "/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_87EA2F4A526C5A02-if00",
+    "raw_log": "logs/anchor_ota_D_resp1000_20260425_173041/post_anchor_version_verify.log",
+    "anchors": {},
+    "strict_ok": false,
+    "error": "SerialException('device reports readiness to read but returned no data (device disconnected or multiple access on port?)')"
+  }
+}

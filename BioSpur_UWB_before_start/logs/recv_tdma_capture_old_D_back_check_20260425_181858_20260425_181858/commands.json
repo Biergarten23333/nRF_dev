@@ -1,0 +1,39 @@
+{
+  "mode": "recv",
+  "device_kind": "tag",
+  "targets": [
+    "BSF66F",
+    "BS2DCE",
+    "BSDC91"
+  ],
+  "profiles": [
+    {
+      "name": "BSF66F",
+      "profile": "static"
+    },
+    {
+      "name": "BS2DCE",
+      "profile": "roto"
+    },
+    {
+      "name": "BSDC91",
+      "profile": "roto"
+    }
+  ],
+  "expected_pmode": {
+    "BSF66F": 4,
+    "BS2DCE": 5,
+    "BSDC91": 5
+  },
+  "freq_hz": {
+    "static": 5,
+    "roto": 10,
+    "motion": 5
+  },
+  "cm_probe": {
+    "target": "BSF66F",
+    "timeout_s": 20.0,
+    "retries": 2
+  },
+  "duration_s": 30.0
+}

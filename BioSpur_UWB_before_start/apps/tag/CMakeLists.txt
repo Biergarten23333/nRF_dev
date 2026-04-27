@@ -36,8 +36,9 @@ set(APP_TAG_ANCHOR_5_ID "5" CACHE STRING "Anchor slot 5 ID")
 set(APP_TAG_ANCHOR_6_ID "6" CACHE STRING "Anchor slot 6 ID")
 set(APP_TAG_ANCHOR_7_ID "7" CACHE STRING "Anchor slot 7 ID")
 set(APP_TAG_RNG_DELAY_MS "0" CACHE STRING "Delay between anchor polls in milliseconds")
+set(APP_TAG_CAL_RNG_SETTLE_US "0" CACHE STRING "Calibration-mode settle time between anchor polls in microseconds")
 set(APP_TAG_TX_TO_RX_DLY_UUS "140" CACHE STRING "Initiator RX enable delay after poll TX in UWB usec")
-set(APP_TAG_RESP_RX_TIMEOUT_UUS "1500" CACHE STRING "Initiator response RX timeout in UWB usec")
+set(APP_TAG_RESP_RX_TIMEOUT_UUS "1800" CACHE STRING "Initiator response RX timeout in UWB usec")
 set(APP_TAG_FAST_TRACKING "1" CACHE STRING "Use reduced anchor subset between periodic full sweeps")
 set(APP_TAG_FULL_SWEEP_INTERVAL "4" CACHE STRING "Run one full 8-anchor sweep every N sweeps")
 set(APP_TAG_TRACK_ANCHOR_COUNT "6" CACHE STRING "Anchor count used in fast tracking sweeps")
@@ -74,6 +75,7 @@ set(APP_TAG_TDMA_SLOT_INDEX "0" CACHE STRING "Zero-based TDMA slot index for thi
 set(APP_TAG_TDMA_SLOT_COUNT "1" CACHE STRING "Total TDMA slot count in the cycle")
 set(APP_TAG_TDMA_SLOT_PERIOD_MS "25" CACHE STRING "TDMA slot period in milliseconds")
 set(APP_TAG_TDMA_SLOT_ACTIVE_MS "20" CACHE STRING "Usable active time within each slot in milliseconds")
+set(APP_TAG_CAL_STATIC_SLOT_DIVIDER "1" CACHE STRING "Sample one CAL_STATIC slot out of every N TDMA slots")
 set(APP_TAG_EKF_ENABLE "0" CACHE STRING "Enable the post-solve linear position filter (legacy EKF name)")
 set(APP_TAG_EKF_MEAS_STD_MM "25" CACHE STRING "Base measurement standard deviation for the post-solve position filter")
 set(APP_TAG_EKF_RESIDUAL_GAIN_PCT "0" CACHE STRING "Additional measurement std as a percent of residual hint")
@@ -99,10 +101,13 @@ set(APP_TAG_BLE_ENABLE "1" CACHE STRING "Enable BLE/NUS and OTA transport on the
 set(APP_TAG_BLE_OTA_ENABLE "1" CACHE STRING "Enable OTA command and bootloader-advertising BLE payloads on the tag")
 set(APP_TAG_BLE_SETTINGS_ENABLE "1" CACHE STRING "Enable Bluetooth settings persistence on the tag")
 set(APP_TAG_MCUBOOT_ENABLE "1" CACHE STRING "Enable MCUboot confirm/OTA plumbing on the tag")
-set(APP_TAG_BLE_COMPACT_STATUS "0" CACHE STRING "Enable compact BLE TagSummary payloads on the tag")
-set(APP_TAG_BLE_PACKET_BUNDLE_RECORDS "1" CACHE STRING "Bundle this many TagSummary records into one BLE NUS payload")
-set(APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS "0" CACHE STRING "Flush a partial BLE bundle after this many milliseconds (0 disables)")
+set(APP_TAG_UWB_ENABLE "1" CACHE STRING "Enable UWB ranging runtime on the tag (0 keeps BLE/OTA online only)")
+set(APP_TAG_BLE_COMPACT_STATUS "1" CACHE STRING "Enable compact BLE TagSummary payloads on the tag")
+set(APP_TAG_BLE_PACKET_BUNDLE_RECORDS "3" CACHE STRING "Bundle this many TagSummary records into one BLE NUS payload")
+set(APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS "250" CACHE STRING "Flush a partial BLE bundle after this many milliseconds (0 disables)")
+set(APP_TAG_STREAM_FORCE_OFF_AT_BOOT "0" CACHE STRING "Force STREAM OFF on every boot regardless of persisted setting")
 set(APP_TAG_FW_MARKER "unified-default" CACHE STRING "Runtime firmware marker printed at boot for OTA validation")
+set(APP_TAG_CALIBRATION_MODE "0" CACHE STRING "Calibration-role mode: ignore runtime TDMA settings/master slot commands")
 if(NOT DEFINED APP_TAG_BLE_TOKEN_ID OR APP_TAG_BLE_TOKEN_ID STREQUAL "")
 set(APP_TAG_BLE_TOKEN_ID "${APP_TAG_ID}" CACHE STRING "BLE identity token advertised in manufacturer data")
 endif()
@@ -124,6 +129,7 @@ target_compile_definitions(app PRIVATE
     APP_TAG_ANCHOR_6_ID=${APP_TAG_ANCHOR_6_ID}
     APP_TAG_ANCHOR_7_ID=${APP_TAG_ANCHOR_7_ID}
     APP_TAG_RNG_DELAY_MS=${APP_TAG_RNG_DELAY_MS}
+    APP_TAG_CAL_RNG_SETTLE_US=${APP_TAG_CAL_RNG_SETTLE_US}
     APP_TAG_TX_TO_RX_DLY_UUS=${APP_TAG_TX_TO_RX_DLY_UUS}
     APP_TAG_RESP_RX_TIMEOUT_UUS=${APP_TAG_RESP_RX_TIMEOUT_UUS}
     APP_TAG_FAST_TRACKING=${APP_TAG_FAST_TRACKING}
@@ -162,6 +168,7 @@ target_compile_definitions(app PRIVATE
     APP_TAG_TDMA_SLOT_COUNT=${APP_TAG_TDMA_SLOT_COUNT}
     APP_TAG_TDMA_SLOT_PERIOD_MS=${APP_TAG_TDMA_SLOT_PERIOD_MS}
     APP_TAG_TDMA_SLOT_ACTIVE_MS=${APP_TAG_TDMA_SLOT_ACTIVE_MS}
+    APP_TAG_CAL_STATIC_SLOT_DIVIDER=${APP_TAG_CAL_STATIC_SLOT_DIVIDER}
     APP_TAG_EKF_ENABLE=${APP_TAG_EKF_ENABLE}
     APP_TAG_EKF_MEAS_STD_MM=${APP_TAG_EKF_MEAS_STD_MM}
     APP_TAG_EKF_RESIDUAL_GAIN_PCT=${APP_TAG_EKF_RESIDUAL_GAIN_PCT}
@@ -187,10 +194,13 @@ target_compile_definitions(app PRIVATE
     APP_TAG_BLE_OTA_ENABLE=${APP_TAG_BLE_OTA_ENABLE}
     APP_TAG_USB_DIAG_TRACE=${APP_TAG_USB_DIAG_TRACE}
     APP_TAG_BLE_SETTINGS_ENABLE=${APP_TAG_BLE_SETTINGS_ENABLE}
+    APP_TAG_UWB_ENABLE=${APP_TAG_UWB_ENABLE}
     APP_TAG_BLE_COMPACT_STATUS=${APP_TAG_BLE_COMPACT_STATUS}
     APP_TAG_BLE_PACKET_BUNDLE_RECORDS=${APP_TAG_BLE_PACKET_BUNDLE_RECORDS}
     APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS=${APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS}
+    APP_TAG_STREAM_FORCE_OFF_AT_BOOT=${APP_TAG_STREAM_FORCE_OFF_AT_BOOT}
     APP_TAG_FW_MARKER=\"${APP_TAG_FW_MARKER}\"
+    APP_TAG_CALIBRATION_MODE=${APP_TAG_CALIBRATION_MODE}
     APP_TAG_BLE_TOKEN_ID=${APP_TAG_BLE_TOKEN_ID}
     APP_TAG_MCUBOOT_ENABLE=${APP_TAG_MCUBOOT_ENABLE}
     APP_UWB_CHANNEL=${APP_UWB_CHANNEL}
