@@ -1,0 +1,38 @@
+{
+  "listener_cmd": [
+    "/usr/bin/python3",
+    "scripts/capture_uwb_listener.py",
+    "--port",
+    "/dev/serial/by-id/usb-SEGGER_J-Link_000760185886-if00",
+    "--duration",
+    "55",
+    "--out-dir",
+    "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/alt-SS-TWR/logs/alt_frame_diag_3tag_skippreflight_20260428_004530/listener"
+  ],
+  "capture_cmd": [
+    "/usr/bin/python3",
+    "scripts/run_recv_tdma_capture.py",
+    "--port",
+    "/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00",
+    "--controller-reset-snr",
+    "1050070698",
+    "--duration",
+    "40",
+    "--targets",
+    "BSF66F,BS2DCE,BSDC91",
+    "--profiles",
+    "BSF66F:static,BS2DCE:static,BSDC91:static",
+    "--static-hz",
+    "5",
+    "--roto-hz",
+    "10",
+    "--motion-hz",
+    "5",
+    "--skip-anchor-preflight",
+    "--skip-cm-probe",
+    "--allow-zero-positions",
+    "--out-dir",
+    "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/alt-SS-TWR/logs/alt_frame_diag_3tag_skippreflight_20260428_004530/recv"
+  ],
+  "out_dir": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/alt-SS-TWR/logs/alt_frame_diag_3tag_skippreflight_20260428_004530"
+}

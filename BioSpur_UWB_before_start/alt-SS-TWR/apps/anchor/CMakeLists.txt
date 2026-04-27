@@ -55,6 +55,7 @@ set_cache_from_env(APP_ANCHOR_VERBOSE_RESPONDER "0" STRING "Print responder succ
 set_cache_from_env(APP_ANCHOR_VERBOSE_RESPONDER_ERRORS "0" STRING "Print responder RX/TX error logs")
 set_cache_from_env(APP_ANCHOR_RESPONDER_PRINTK_ENABLE "0" STRING "Enable low-rate responder-path printk output; keep disabled outside debug builds")
 set_cache_from_env(APP_ANCHOR_RESPONDER_PROFILE_ENABLE "0" STRING "Enable low-rate responder fast-path timing profile output")
+set_cache_from_env(APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE "0" STRING "Enable per-frame responder diagnostics for alt SS-TWR bringup")
 set_cache_from_env(APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE "0" STRING "Pulse DWM1001C blue LED while a responder TX is active")
 set_cache_from_env(APP_ANCHOR_RESPONDER_BLUE_LED_PIN "31" STRING "GPIO pin for responder activity LED")
 set_cache_from_env(APP_ANCHOR_RESPONDER_BLUE_LED_ACTIVE_LOW "1" STRING "Responder activity LED active-low polarity")
@@ -99,6 +100,7 @@ target_compile_definitions(app PRIVATE
     APP_ANCHOR_VERBOSE_RESPONDER_ERRORS=${APP_ANCHOR_VERBOSE_RESPONDER_ERRORS}
     APP_ANCHOR_RESPONDER_PRINTK_ENABLE=${APP_ANCHOR_RESPONDER_PRINTK_ENABLE}
     APP_ANCHOR_RESPONDER_PROFILE_ENABLE=${APP_ANCHOR_RESPONDER_PROFILE_ENABLE}
+    APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE=${APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE}
     APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE=${APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE}
     APP_ANCHOR_RESPONDER_BLUE_LED_PIN=${APP_ANCHOR_RESPONDER_BLUE_LED_PIN}
     APP_ANCHOR_RESPONDER_BLUE_LED_ACTIVE_LOW=${APP_ANCHOR_RESPONDER_BLUE_LED_ACTIVE_LOW}

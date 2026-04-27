@@ -58,6 +58,10 @@ static uint8_t ss_twr_resp_count_mask_bits_before(uint8_t mask, uint8_t anchor_i
 #define APP_ANCHOR_RESPONDER_PROFILE_ENABLE 0U
 #endif
 
+#ifndef APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE
+#define APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE 0U
+#endif
+
 #ifndef APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE
 #define APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE 0U
 #endif
@@ -115,6 +119,12 @@ typedef unsigned long long dwtime_u64_t;
 #define RESP_PROF_PRINTK(...) do { } while (0)
 #endif
 
+#if APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE
+#define RESP_FRAME_PRINTK(...) printk(__VA_ARGS__)
+#else
+#define RESP_FRAME_PRINTK(...) do { } while (0)
+#endif
+
 #if APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE
 static inline void ss_twr_resp_led_on(void)
 {
@@ -164,6 +174,16 @@ static uint8_t ss_twr_resp_tx_resp_msg[20];
 static uint16_t ss_twr_resp_local_addr;
 static uint8_t ss_twr_resp_anchor_id;
 static int ss_twr_resp_allow_tag_polls;
+
+static bool ss_twr_resp_frame_diag_should_log(uint32_t count)
+{
+#if APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE
+    return count <= 20U || (count % 100U) == 0U;
+#else
+    ARG_UNUSED(count);
+    return false;
+#endif
+}
 
 struct ss_twr_resp_profile_stats {
     uint32_t samples;
@@ -382,6 +402,138 @@ static void ss_twr_resp_log_unexpected_frame(const uint8_t *frame,
     }
 }
 
+static void ss_twr_resp_log_rx_frame(const uint8_t *frame, uint32_t frame_len,
+                                     uint32_t seen_frames)
+{
+#if APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE
+    uint16_t dst_addr = 0U;
+    uint16_t src_addr = 0U;
+    uint16_t pan_id = 0U;
+    uint8_t code = 0U;
+    uint8_t poll_index = 0U;
+    uint8_t poll_count = 0U;
+    uint8_t anchor_mask = 0U;
+
+    if (!ss_twr_resp_frame_diag_should_log(seen_frames)) {
+        return;
+    }
+
+    if (frame_len > UWB_MSG_CODE_IDX) {
+        code = frame[UWB_MSG_CODE_IDX];
+    }
+    if (frame_len > (UWB_MSG_DST_IDX + 1U)) {
+        dst_addr = uwb_frame_get_dst_addr(frame);
+    }
+    if (frame_len > (UWB_MSG_SRC_IDX + 1U)) {
+        src_addr = uwb_frame_get_src_addr(frame);
+    }
+    if (frame_len > (UWB_MSG_PAN_IDX + 1U)) {
+        pan_id = (uint16_t)frame[UWB_MSG_PAN_IDX] |
+                 ((uint16_t)frame[UWB_MSG_PAN_IDX + 1U] << 8);
+    }
+    if (frame_len > UWB_MSG_POLL_ANCHOR_MASK_IDX) {
+        poll_index = uwb_ss_twr_poll_index(frame);
+        poll_count = uwb_ss_twr_poll_count(frame);
+        anchor_mask = uwb_ss_twr_poll_anchor_mask(frame);
+    }
+
+    RESP_FRAME_PRINTK("Responder frame anchor=%u seen=%lu len=%lu fctrl=%02x%02x code=0x%02x pan=0x%04x dst=0x%04x src=0x%04x poll_idx=%u poll_count=%u mask=0x%02x local=0x%04x filter=%u\n",
+                      (unsigned int)ss_twr_resp_anchor_id,
+                      (unsigned long)seen_frames,
+                      (unsigned long)frame_len,
+                      (unsigned int)(frame_len > 1U ? frame[1] : 0U),
+                      (unsigned int)(frame_len > 0U ? frame[0] : 0U),
+                      (unsigned int)code,
+                      (unsigned int)pan_id,
+                      (unsigned int)dst_addr,
+                      (unsigned int)src_addr,
+                      (unsigned int)poll_index,
+                      (unsigned int)poll_count,
+                      (unsigned int)anchor_mask,
+                      (unsigned int)ss_twr_resp_local_addr,
+                      (unsigned int)APP_UWB_HW_FRAME_FILTER_ENABLE);
+#else
+    ARG_UNUSED(frame);
+    ARG_UNUSED(frame_len);
+    ARG_UNUSED(seen_frames);
+#endif
+}
+
+static void ss_twr_resp_log_match_reject(const uint8_t *frame,
+                                         uint32_t frame_len,
+                                         uint32_t ignored_nonpoll_frames)
+{
+#if APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE
+    uint16_t dst_addr = 0U;
+    uint16_t src_addr = 0U;
+    uint16_t pan_id = 0U;
+    uint8_t code = 0U;
+    uint8_t anchor_mask = 0U;
+    uint8_t local_bit = 0U;
+    const char *reason = "unknown";
+
+    if (!ss_twr_resp_frame_diag_should_log(ignored_nonpoll_frames)) {
+        return;
+    }
+
+    if (frame_len > UWB_MSG_CODE_IDX) {
+        code = frame[UWB_MSG_CODE_IDX];
+    }
+    if (frame_len > (UWB_MSG_DST_IDX + 1U)) {
+        dst_addr = uwb_frame_get_dst_addr(frame);
+    }
+    if (frame_len > (UWB_MSG_SRC_IDX + 1U)) {
+        src_addr = uwb_frame_get_src_addr(frame);
+    }
+    if (frame_len > (UWB_MSG_PAN_IDX + 1U)) {
+        pan_id = (uint16_t)frame[UWB_MSG_PAN_IDX] |
+                 ((uint16_t)frame[UWB_MSG_PAN_IDX + 1U] << 8);
+    }
+    if (frame_len > UWB_MSG_POLL_ANCHOR_MASK_IDX) {
+        anchor_mask = uwb_ss_twr_poll_anchor_mask(frame);
+    }
+    if (ss_twr_resp_anchor_id < UWB_MAX_ANCHORS) {
+        local_bit = (uint8_t)(1U << ss_twr_resp_anchor_id);
+    }
+
+    if (frame_len <= UWB_MSG_CODE_IDX ||
+        frame[0] != UWB_FRAME_CTRL_LOW ||
+        frame[1] != UWB_FRAME_CTRL_HIGH) {
+        reason = "bad_header";
+    } else if (pan_id != APP_UWB_PAN_ID) {
+        reason = "pan";
+    } else if (code != UWB_MSG_POLL_CODE) {
+        reason = "code";
+    } else if (dst_addr == UWB_BROADCAST_SHORT_ADDR && anchor_mask == 0U) {
+        reason = "broadcast_mask_zero";
+    } else if (dst_addr == UWB_BROADCAST_SHORT_ADDR &&
+               (anchor_mask & local_bit) == 0U) {
+        reason = "broadcast_not_for_anchor";
+    } else if (dst_addr != UWB_BROADCAST_SHORT_ADDR &&
+               dst_addr != ss_twr_resp_local_addr) {
+        reason = "dst";
+    } else if (!uwb_short_addr_is_ranging_initiator(src_addr)) {
+        reason = "src";
+    }
+
+    RESP_FRAME_PRINTK("Responder match reject anchor=%u count=%lu reason=%s len=%lu code=0x%02x pan=0x%04x dst=0x%04x src=0x%04x mask=0x%02x local_bit=0x%02x\n",
+                      (unsigned int)ss_twr_resp_anchor_id,
+                      (unsigned long)ignored_nonpoll_frames,
+                      reason,
+                      (unsigned long)frame_len,
+                      (unsigned int)code,
+                      (unsigned int)pan_id,
+                      (unsigned int)dst_addr,
+                      (unsigned int)src_addr,
+                      (unsigned int)anchor_mask,
+                      (unsigned int)local_bit);
+#else
+    ARG_UNUSED(frame);
+    ARG_UNUSED(frame_len);
+    ARG_UNUSED(ignored_nonpoll_frames);
+#endif
+}
+
 static dwtime_u64_t ss_twr_resp_get_rx_timestamp_u64(void)
 {
     uint8 ts_tab[5];
@@ -439,6 +591,7 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
     uint32 ignored_tag_polls = 0U;
     uint32 ignored_nonpoll_frames = 0U;
     uint32 delayed_tx_miss_count = 0U;
+    uint32 rx_good_frame_count = 0U;
     uint32 tag_poll_count[SS_TWR_RESP_DIAG_TAG_SLOTS] = {0U};
     uint32 tag_reply_count[SS_TWR_RESP_DIAG_TAG_SLOTS] = {0U};
     uint32 tag_tx_miss_count[SS_TWR_RESP_DIAG_TAG_SLOTS] = {0U};
@@ -458,11 +611,16 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
 
     ss_twr_resp_led_init();
     ss_twr_resp_configure_radio();
-    RESP_PRINTK("SS-TWR responder ready anchor=%u addr=0x%04x allow_tag_polls=%u resp_delay_uus=%u\n",
+    RESP_PRINTK("SS-TWR responder ready anchor=%u addr=0x%04x allow_tag_polls=%u resp_delay_uus=%u hw_filter=%u alt=%u guard_us=%u resp_spacing_us=%u frame_diag=%u\n",
            (unsigned int)ss_twr_resp_anchor_id,
            (unsigned int)ss_twr_resp_local_addr,
            (unsigned int)(ss_twr_resp_allow_tag_polls != 0),
-           (unsigned int)SS_TWR_RESP_POLL_RX_TO_RESP_TX_DLY_UUS);
+           (unsigned int)SS_TWR_RESP_POLL_RX_TO_RESP_TX_DLY_UUS,
+           (unsigned int)APP_UWB_HW_FRAME_FILTER_ENABLE,
+           (unsigned int)APP_ALT_SS_TWR_ENABLE,
+           (unsigned int)APP_ALT_SS_TWR_GUARD_US,
+           (unsigned int)APP_ALT_SS_TWR_RESP_SPACING_US,
+           (unsigned int)APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE);
 
     while (1) {
         uint32 frame_len;
@@ -545,10 +703,15 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         memset(ss_twr_resp_rx_buffer, 0, sizeof(ss_twr_resp_rx_buffer));
         dwt_readrxdata(ss_twr_resp_rx_buffer, (uint16)frame_len, 0);
         uint32_t prof_frame_cyc = k_cycle_get_32();
+        rx_good_frame_count++;
+        ss_twr_resp_log_rx_frame(ss_twr_resp_rx_buffer, frame_len,
+                                 rx_good_frame_count);
 
         if (!uwb_ss_twr_poll_matches(ss_twr_resp_rx_buffer,
                                      ss_twr_resp_local_addr)) {
             ignored_nonpoll_frames++;
+            ss_twr_resp_log_match_reject(ss_twr_resp_rx_buffer, frame_len,
+                                         ignored_nonpoll_frames);
             if (APP_ANCHOR_VERBOSE_RESPONDER_ERRORS != 0U) {
                 ss_twr_resp_log_unexpected_frame(ss_twr_resp_rx_buffer, frame_len,
                                                  ignored_nonpoll_frames);
@@ -583,6 +746,7 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         dwtime_u64_t poll_rx_ts = ss_twr_resp_get_rx_timestamp_u64();
         uint32_t prof_ts_cyc = k_cycle_get_32();
         uint32_t resp_delay_uus = SS_TWR_RESP_POLL_RX_TO_RESP_TX_DLY_UUS;
+        uint8_t resp_rank = 0xffU;
 #if APP_ALT_SS_TWR_ENABLE
         /*
          * Alt SS-TWR broadcast poll: one poll carries the participating anchor
@@ -595,13 +759,13 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         uint8_t alt_anchor_mask = uwb_ss_twr_poll_anchor_mask(ss_twr_resp_rx_buffer);
         if (alt_anchor_mask != 0U &&
             (alt_anchor_mask & (uint8_t)(1U << ss_twr_resp_anchor_id)) != 0U) {
-            uint8_t resp_rank =
-                ss_twr_resp_count_mask_bits_before(alt_anchor_mask,
-                                                   ss_twr_resp_anchor_id);
+            resp_rank = ss_twr_resp_count_mask_bits_before(
+                alt_anchor_mask, ss_twr_resp_anchor_id);
             resp_delay_uus =
                 APP_ALT_SS_TWR_GUARD_US +
                 ((uint32_t)resp_rank * APP_ALT_SS_TWR_RESP_SPACING_US);
         } else if (alt_poll_count > 0U && alt_poll_index < alt_poll_count) {
+            resp_rank = alt_poll_index;
             resp_delay_uus =
                 ((uint32_t)(alt_poll_count - alt_poll_index) *
                  APP_ALT_SS_TWR_POLL_SPACING_US) +
@@ -655,6 +819,22 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             &prof_stats, prof_rx_cyc, prof_frame_cyc, prof_ts_cyc,
             prof_txprog_cyc, prof_start_done_cyc, prof_slack_uus,
             prof_starttx_us, starttx_ok);
+        uint32_t tx_diag_count = poll_src_is_tag &&
+                                 poll_tag_id < SS_TWR_RESP_DIAG_TAG_SLOTS
+                                     ? tag_poll_count[poll_tag_id]
+                                     : replies_ok + delayed_tx_miss_count + 1U;
+        if (APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE != 0U &&
+            ss_twr_resp_frame_diag_should_log(tx_diag_count)) {
+            RESP_FRAME_PRINTK("Responder tx attempt anchor=%u tag=%u src=0x%04x delay_uus=%lu rank=%u slack_uus=%ld starttx_ok=%d starttx_us=%lu\n",
+                              (unsigned int)ss_twr_resp_anchor_id,
+                              (unsigned int)poll_tag_id,
+                              (unsigned int)poll_src_addr,
+                              (unsigned long)resp_delay_uus,
+                              (unsigned int)resp_rank,
+                              (long)prof_slack_uus,
+                              starttx_ok,
+                              (unsigned long)prof_starttx_us);
+        }
 
         if (!starttx_ok) {
             ss_twr_resp_led_off();
