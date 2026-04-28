@@ -1,0 +1,31 @@
+#!/bin/sh
+export PYTHONPATH="/home/zekaixiao/ncs/toolchains/b81a7cd864/usr/local/lib/python3.12/site-packages${PYTHONPATH:+:$PYTHONPATH}"
+orig_pwd="$(pwd)"
+if [ "$1" = "build" ]; then
+    shift
+    out_args="build"
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            -s|--source-dir|-d|--build-dir)
+                key="$1"
+                shift
+                val="$1"
+                case "$val" in
+                    /*) ;;
+                    *) val="$orig_pwd/$val" ;;
+                esac
+                out_args="$out_args $key $val"
+                ;;
+            *)
+                out_args="$out_args $1"
+                ;;
+        esac
+        shift
+    done
+    cd /home/zekaixiao/ncs/v2.8.0 || exit 1
+    # shellcheck disable=SC2086
+    exec /home/zekaixiao/ncs/toolchains/b81a7cd864/usr/local/bin/python3 -m west $out_args
+fi
+
+cd /home/zekaixiao/ncs/v2.8.0 || exit 1
+exec /home/zekaixiao/ncs/toolchains/b81a7cd864/usr/local/bin/python3 -m west "$@"

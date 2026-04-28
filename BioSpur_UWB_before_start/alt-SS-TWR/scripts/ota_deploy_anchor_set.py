@@ -27,9 +27,6 @@ UPLOAD_PROGRESS_RE = re.compile(r"OTA upload progress:\s*(\d+)%")
 ANCHOR_VERSION_RE = re.compile(
     r"ANCHOR_VERSION query=(?P<query>\S+)\s+uuid=(?P<uuid>[0-9A-F]+)\s+fw=(?P<fw>\S+)\s+label=(?P<label>\S+)\s+role=(?P<role>\S+)"
 )
-ANCHOR_VERSION_STATE_RE = re.compile(
-    r"(?:ANCHOR_VERSION state=(?:OK VERSION )?|ANCHOR_CTRL\[\d+\] notify: OK VERSION )(?P<state>STATE [^\r\n]+)"
-)
 
 
 def detect_stage(log_path: Path) -> tuple[str, int | None]:
@@ -244,11 +241,6 @@ def parse_args() -> argparse.Namespace:
         help="Skip post-OTA all-responder runtime verification/recovery.",
     )
     p.add_argument(
-        "--skip-pre-version",
-        action="store_true",
-        help="Skip pre-OTA anchor version query. Post-OTA version verify still runs.",
-    )
-    p.add_argument(
         "--expected-fw-marker",
         default="",
         help="Expected anchor fw marker. If omitted, auto-detect from generated/build manifest.",
@@ -445,133 +437,27 @@ def prepare_control_plane_after_ota(args: argparse.Namespace, out_root: Path) ->
     return summary
 
 
-def state_field_value(state: str, key: str) -> str:
-    for part in state.split():
-        if part.startswith(key):
-            return part[len(key):]
-    return ""
-
-
-def parse_anchor_versions(raw_text: str) -> dict[str, dict[str, object]]:
-    anchors: dict[str, dict[str, object]] = {}
-    pending_label_by_uuid: dict[str, str] = {}
-    pending_query_by_uuid: dict[str, str] = {}
-
-    for match in ANCHOR_VERSION_RE.finditer(raw_text):
-        query = match.group("query")
-        uuid = match.group("uuid")
-        fw = match.group("fw")
-        role = match.group("role")
-        label = match.group("label")
-        label_key = label if len(label) == 1 and label in UUIDS else query
-        if len(label_key) == 1 and label_key in UUIDS:
-            anchors[label_key] = {
-                "query": query,
-                "uuid": uuid,
-                "fw": fw,
-                "label": label,
-                "role": role,
-            }
-        pending_label_by_uuid[uuid] = label_key
-        pending_query_by_uuid[uuid] = query
-
-    for match in ANCHOR_VERSION_STATE_RE.finditer(raw_text):
-        state = match.group("state")
-        uuid = state_field_value(state, "uuid=")
-        fw = state_field_value(state, "fw=")
-        label = state_field_value(state, "label=")
-        role = state_field_value(state, "role=")
-        if len(label) != 1 or label not in UUIDS:
-            label = pending_label_by_uuid.get(uuid, "")
-        if len(label) != 1 or label not in UUIDS:
-            continue
-        anchors[label] = {
-            "query": pending_query_by_uuid.get(uuid, label),
-            "uuid": uuid,
-            "fw": fw or "-",
-            "label": label,
-            "role": role or "-",
-            "state": state,
-        }
-
-    return anchors
-
-
-def run_anchor_version_verify(
-    args: argparse.Namespace,
-    out_root: Path,
-    expected_fw_marker: str,
-    *,
-    phase: str = "post",
-    query_timeout_s: float = 90.0,
-) -> tuple[bool, dict[str, object]]:
+def run_anchor_version_verify(args: argparse.Namespace, out_root: Path, expected_fw_marker: str) -> tuple[bool, dict[str, object]]:
     raw_log_path = out_root / "post_anchor_version_verify.log"
     summary: dict[str, object] = {
         "expected_fw_marker": expected_fw_marker,
         "port": args.port,
         "raw_log": str(raw_log_path),
-        "phase": phase,
-        "query_timeout_s": query_timeout_s,
         "anchors": {},
         "strict_ok": False,
     }
     transcript: list[str] = []
-    print(f"=== ANCHOR VERSION {phase}: query_timeout={int(query_timeout_s)}s target={expected_fw_marker} ===", flush=True)
     try:
         ser = open_control_serial(args.port)
         try:
             time.sleep(1.0)
             transcript.append(drain_serial(ser, 0.8))
-            if phase != "post":
-                transcript.append(">>> device kind anchor\n")
-                transcript.append(send_serial_command(ser, "device kind anchor", 3.0))
-                transcript.append(">>> mode autopos\n")
-                transcript.append(send_serial_command(ser, "mode autopos", 8.0))
-            else:
-                transcript.append("[SCRIPT] post version verify: keep resident anchor links; no device-kind/mode handoff\n")
-        finally:
-            ser.close()
-    except (SerialException, OSError):
-        wait_for_serial_port(args.port, timeout_s=45.0)
-        time.sleep(2.0)
-    except Exception as exc:
-        summary["error"] = repr(exc)
-        raw_log_path.write_text("".join(transcript), encoding="utf-8")
-        return False, summary
-
-    try:
-        ser, ready_text = wait_for_control_ready(args.port, timeout_s=60.0)
-        try:
-            transcript.append(ready_text)
+            transcript.append(">>> mode recv\n")
+            transcript.append(send_serial_command(ser, "mode recv", 4.0))
+            transcript.append(">>> device kind anchor\n")
+            transcript.append(send_serial_command(ser, "device kind anchor", 4.0))
             transcript.append(">>> anchor version all\n")
-            # This can legitimately take a while because it may reuse/rebuild
-            # resident anchor-control links one by one.  Keep collecting until
-            # all labels are seen or the deadline expires.
-            ser.write(b"anchor version all\n")
-            ser.flush()
-            deadline = time.time() + query_timeout_s
-            last_print = 0.0
-            while time.time() < deadline:
-                chunk = ser.read(4096)
-                if chunk:
-                    transcript.append(chunk.decode("utf-8", "ignore"))
-                    found = len(parse_anchor_versions("".join(transcript)))
-                    now = time.time()
-                    if now - last_print > 2.0:
-                        print(f"=== ANCHOR VERSION {phase}: found={found}/8 elapsed={int(query_timeout_s - max(0.0, deadline - now))}s ===", flush=True)
-                        last_print = now
-                    if found >= len(UUIDS):
-                        # Give the final rc line a short chance to arrive.
-                        transcript.append(drain_serial(ser, 1.0))
-                        break
-                else:
-                    now = time.time()
-                    if now - last_print > 5.0:
-                        found = len(parse_anchor_versions("".join(transcript)))
-                        remain = max(0, int(deadline - now))
-                        print(f"=== ANCHOR VERSION {phase}: waiting found={found}/8 remain={remain}s ===", flush=True)
-                        last_print = now
-                    time.sleep(0.05)
+            transcript.append(send_serial_command(ser, "anchor version all", 32.0))
         finally:
             ser.close()
     except Exception as exc:
@@ -582,9 +468,23 @@ def run_anchor_version_verify(
     raw_text = "".join(transcript)
     raw_log_path.write_text(raw_text, encoding="utf-8")
 
-    anchors = parse_anchor_versions(raw_text)
-    for entry in anchors.values():
-        entry["fw_match"] = entry.get("fw") == expected_fw_marker
+    anchors: dict[str, dict[str, object]] = {}
+    for match in ANCHOR_VERSION_RE.finditer(raw_text):
+        query = match.group("query")
+        if len(query) != 1 or query not in UUIDS:
+            continue
+        fw = match.group("fw")
+        role = match.group("role")
+        label = match.group("label")
+        entry = {
+            "query": query,
+            "uuid": match.group("uuid"),
+            "fw": fw,
+            "label": label,
+            "role": role,
+            "fw_match": fw == expected_fw_marker,
+        }
+        anchors[query] = entry
 
     missing = [label for label in UUIDS if label not in anchors]
     summary["anchors"] = anchors
@@ -708,21 +608,12 @@ def main() -> int:
         "expected_fw_marker_meta": expected_fw_meta,
     }
 
-    if expected_fw_marker and not args.skip_pre_version:
-        _, pre_version_summary = run_anchor_version_verify(args, out_root, expected_fw_marker, phase="pre", query_timeout_s=20.0)
+    if expected_fw_marker:
+        _, pre_version_summary = run_anchor_version_verify(args, out_root, expected_fw_marker)
         deploy_summary["pre_version_verify"] = pre_version_summary
         for label in args.order:
             current_fw = str((pre_version_summary.get("anchors") or {}).get(label, {}).get("fw", "-"))
             print_anchor_version_banner(label, current_fw, expected_fw_marker)
-        with open(out_root / "deploy_summary.json", "w", encoding="utf-8") as f:
-            json.dump(deploy_summary, f, indent=2)
-    elif expected_fw_marker:
-        deploy_summary["pre_version_verify"] = {
-            "skipped": True,
-            "reason": "skip_pre_version",
-        }
-        for label in args.order:
-            print_anchor_version_banner(label, "-", expected_fw_marker)
         with open(out_root / "deploy_summary.json", "w", encoding="utf-8") as f:
             json.dump(deploy_summary, f, indent=2)
 
@@ -839,7 +730,7 @@ def main() -> int:
             return 2
 
     if expected_fw_marker:
-        version_ok, version_summary = run_anchor_version_verify(args, out_root, expected_fw_marker, phase="post", query_timeout_s=120.0)
+        version_ok, version_summary = run_anchor_version_verify(args, out_root, expected_fw_marker)
         deploy_summary["post_version_verify"] = version_summary
         for label in args.order:
             actual_fw = str((version_summary.get("anchors") or {}).get(label, {}).get("fw", "-"))

@@ -463,8 +463,6 @@ static void autopos_print_status(void)
 	       autopos_last_error[0] != '\0' ? autopos_last_error : "-");
 }
 
-static bool autopos_map_complete(void);
-
 static int autopos_refresh_uuid_map_from_anchor_scan(int timeout_ms)
 {
 	char labels[AUTOPOS_ANCHOR_COUNT];
@@ -472,10 +470,6 @@ static int autopos_refresh_uuid_map_from_anchor_scan(int timeout_ms)
 	int found = 0;
 	int waited = 0;
 	int first_new = 0;
-
-	if (autopos_map_complete()) {
-		return AUTOPOS_ANCHOR_COUNT;
-	}
 
 	master_set_runtime_target_kind(MASTER_TARGET_ANCHOR);
 	master_set_anchor_wildcard_scan(true);
@@ -520,11 +514,7 @@ static int autopos_refresh_uuid_map_from_anchor_scan(int timeout_ms)
 			}
 		}
 		if (complete) {
-			/* In Master_Anchor daemon mode the anchor control links are
-			 * resident.  UUID map refresh must not tear them down; version
-			 * query / role switch should reuse the existing links.
-			 */
-			master_stop_discovery();
+			master_quiesce_peers();
 			return AUTOPOS_ANCHOR_COUNT;
 		}
 		if (first_new && found >= 4 && waited >= 2000) {
@@ -535,7 +525,7 @@ static int autopos_refresh_uuid_map_from_anchor_scan(int timeout_ms)
 		waited += 200;
 	}
 
-	master_stop_discovery();
+	master_quiesce_peers();
 	return found;
 }
 
@@ -965,34 +955,6 @@ static int autopos_wait_result_contains(const char *needle, int timeout_ms)
 	return -ETIMEDOUT;
 }
 
-static int autopos_wait_result_copy(const char *needle, char *out, size_t out_len,
-				    int timeout_ms)
-{
-	char result[256];
-	int waited = 0;
-	int rc;
-
-	if (out == NULL || out_len == 0U) {
-		return -EINVAL;
-	}
-	out[0] = '\0';
-
-	while (waited < timeout_ms) {
-		rc = master_anchor_ctrl_read_result(result, sizeof(result));
-		if (rc == 0) {
-			autopos_result_history_push(result);
-			printk("AUTOPOS result: %s\n", result);
-			if (needle == NULL || needle[0] == '\0' || strstr(result, needle) != NULL) {
-				(void)snprintf(out, out_len, "%s", result);
-				return 0;
-			}
-		}
-		k_sleep(K_MSEC(150));
-		waited += 150;
-	}
-	return -ETIMEDOUT;
-}
-
 static int autopos_wait_runtime_master_started(int idx, int timeout_ms)
 {
 	char result[256];
@@ -1284,8 +1246,6 @@ static int anchor_query_version(const char *query)
 	char uuid[33];
 	char label[4];
 	char state[256];
-	char result[256];
-	const char *state_src;
 	char fw[48] = { 0 };
 	char state_label[8] = { 0 };
 	char role[24] = { 0 };
@@ -1305,24 +1265,12 @@ static int anchor_query_version(const char *query)
 		return rc;
 	}
 
-	autopos_result_history_clear();
-	rc = master_send_command_now("VERSION");
+	rc = master_anchor_ctrl_read_state(state, sizeof(state));
 	if (rc != 0) {
-		printk("anchor version command failed: target=%s uuid=%s rc=%d\n",
+		printk("anchor version state read failed: target=%s uuid=%s rc=%d\n",
 		       label[0] != '\0' ? label : "-", uuid, rc);
 		return rc;
 	}
-	rc = autopos_wait_result_copy("OK VERSION", result, sizeof(result), 2500);
-	if (rc != 0) {
-		printk("anchor version result failed: target=%s uuid=%s rc=%d\n",
-		       label[0] != '\0' ? label : "-", uuid, rc);
-		return rc;
-	}
-	state_src = strstr(result, "STATE ");
-	if (state_src == NULL) {
-		state_src = result;
-	}
-	(void)snprintf(state, sizeof(state), "%s", state_src);
 
 	(void)anchor_state_field_value(state, "fw=", fw, sizeof(fw));
 	(void)anchor_state_field_value(state, "label=", state_label, sizeof(state_label));

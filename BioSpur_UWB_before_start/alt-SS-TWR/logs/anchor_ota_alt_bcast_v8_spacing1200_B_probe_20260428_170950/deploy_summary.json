@@ -1,0 +1,40 @@
+{
+  "port": "/dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02-if00",
+  "timeout_s": 260,
+  "order": [
+    "B"
+  ],
+  "started_at": "2026-04-28 17:09:50",
+  "rounds": {
+    "B": {
+      "uuid": "B9179575C776C98F1CB132DD6EDC6223",
+      "attempts": [
+        {
+          "attempt": 1,
+          "returncode": -15,
+          "summary_json": "logs/anchor_ota_alt_bcast_v8_spacing1200_B_probe_20260428_170950/anchor_B/stage1/summary.json",
+          "summary_read_error": "FileNotFoundError(2, 'No such file or directory')",
+          "retry_pending_state": false,
+          "recovery_only": false
+        }
+      ],
+      "returncode": -15,
+      "summary_json": "logs/anchor_ota_alt_bcast_v8_spacing1200_B_probe_20260428_170950/anchor_B/stage1/summary.json"
+    }
+  },
+  "post_verify": {},
+  "post_version_verify": {},
+  "expected_fw_marker": "alt-bcast-v8-spacing1200",
+  "expected_fw_marker_meta": {
+    "source": "arg",
+    "path": null
+  },
+  "pre_version_verify": {
+    "expected_fw_marker": "alt-bcast-v8-spacing1200",
+    "port": "/dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02-if00",
+    "raw_log": "logs/anchor_ota_alt_bcast_v8_spacing1200_B_probe_20260428_170950/post_anchor_version_verify.log",
+    "anchors": {},
+    "strict_ok": false,
+    "error": "SerialException('device reports readiness to read but returned no data (device disconnected or multiple access on port?)')"
+  }
+}

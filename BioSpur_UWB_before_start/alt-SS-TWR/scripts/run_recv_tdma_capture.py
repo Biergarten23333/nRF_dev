@@ -787,8 +787,12 @@ def ensure_target_links_ready(
             ser = open_serial_with_retry(port, baud, retries=60)
 
         ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
-        ser = send_cmd(ser, logf, "ota_target name -", 0.5)
-        ser = send_cmd(ser, logf, "ota_target prefix BS", 0.5)
+        if len(targets) == 1:
+            ser = send_cmd(ser, logf, f"ota_target name {targets[0]}", 0.5)
+            ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
+        else:
+            ser = send_cmd(ser, logf, "ota_target name -", 0.5)
+            ser = send_cmd(ser, logf, "ota_target prefix BS", 0.5)
         ser = send_cmd(ser, logf, "mode recv", 8.0)
         ser = send_cmd(ser, logf, "device kind tag", 2.0)
 
@@ -830,6 +834,8 @@ def configure_recv_capture_session(
     targets: list[str],
     profile_items: list[tuple[str, str]],
 ) -> serial.Serial:
+    single_target = targets[0] if len(targets) == 1 else ""
+
     if args.reuse_tag_links:
         print("[CAPTURE] configure: reuse Master_Tag resident links", flush=True)
         ser, status_text = send_cmd_collect(ser, logf, "status", 0.8)
@@ -837,6 +843,15 @@ def configure_recv_capture_session(
     else:
         print("[CAPTURE] configure: enter RECV/tag mode", flush=True)
         ser = send_cmd(ser, logf, "mode recv", 8.0)
+        if single_target:
+            print(
+                f"[CAPTURE] configure: restrict tag discovery to {single_target}",
+                flush=True,
+            )
+            ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
+            ser = send_cmd(ser, logf, f"ota_target name {single_target}", 0.5)
+            ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
+            ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
         ser = send_cmd(ser, logf, "device kind tag", 2.0)
         status_text = ""
         device_text = ""

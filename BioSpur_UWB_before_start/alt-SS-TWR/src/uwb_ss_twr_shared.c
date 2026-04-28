@@ -82,6 +82,8 @@ void uwb_ss_twr_build_alt_poll_frame(uint8_t *frame, uint8_t seq,
     frame[UWB_MSG_POLL_INDEX_IDX] = poll_index;
     frame[UWB_MSG_POLL_COUNT_IDX] = poll_count;
     frame[UWB_MSG_POLL_ANCHOR_MASK_IDX] = 0U;
+    frame[13] = 0U;
+    frame[14] = 0U;
 }
 
 void uwb_ss_twr_build_alt_broadcast_poll_frame(uint8_t *frame, uint8_t seq,
@@ -93,6 +95,8 @@ void uwb_ss_twr_build_alt_broadcast_poll_frame(uint8_t *frame, uint8_t seq,
     frame[UWB_MSG_POLL_INDEX_IDX] = 0U;
     frame[UWB_MSG_POLL_COUNT_IDX] = poll_count;
     frame[UWB_MSG_POLL_ANCHOR_MASK_IDX] = anchor_mask;
+    frame[13] = 0U;
+    frame[14] = 0U;
 }
 
 void uwb_ss_twr_build_resp_frame(uint8_t *frame, uint8_t seq, uint16_t dst_addr,

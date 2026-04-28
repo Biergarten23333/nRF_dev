@@ -61,6 +61,10 @@
 #define APP_ALT_SS_TWR_RESP_SPACING_US 800U
 #endif
 
+#ifndef APP_TAG_ALT_POLL_DIAG_PERIOD_MS
+#define APP_TAG_ALT_POLL_DIAG_PERIOD_MS 5000U
+#endif
+
 #ifndef APP_TAG_FAST_TRACKING
 #define APP_TAG_FAST_TRACKING 0U
 #endif
@@ -251,6 +255,7 @@ static void ss_twr_diag_write(const char *msg)
 #define SS_TWR_INIT_RESP_MSG_POLL_RX_TS_IDX 10U
 #define SS_TWR_INIT_RESP_MSG_RESP_TX_TS_IDX 14U
 #define SS_TWR_INIT_RESP_MSG_TS_LEN 4U
+#define SS_TWR_INIT_LEGACY_POLL_FRAME_LEN 13U
 #define SS_TWR_INIT_UUS_TO_DWT_TIME 65536ULL
 
 #define SS_TWR_INIT_SPEED_OF_LIGHT 299702547.0
@@ -282,10 +287,11 @@ static dwt_config_t ss_twr_init_config = {
 
 static uint8_t ss_twr_init_frame_seq_nb;
 static uint8_t ss_twr_init_rx_buffer[SS_TWR_INIT_RX_BUF_LEN];
-static uint8_t ss_twr_init_tx_poll_msg[13];
+static uint8_t ss_twr_init_tx_poll_msg[UWB_MSG_ALT_POLL_FRAME_LEN];
 static uint16_t ss_twr_init_local_addr;
 static uint8_t ss_twr_init_local_tag_id;
 static uint16_t ss_twr_init_identity_code;
+static bool ss_twr_init_radio_configured;
 static struct uwb_range_tracker ss_twr_init_trackers[UWB_MAX_ANCHORS];
 static uint8_t ss_twr_init_anchor_ids[UWB_MAX_ANCHORS];
 static size_t ss_twr_init_anchor_count;
@@ -1443,6 +1449,7 @@ static void ss_twr_init_apply_runtime_params(
 	const struct uwb_tag_runtime_params *params)
 {
 	bool reset_history;
+	uint16_t previous_local_addr;
 
 	if (params == NULL) {
 		return;
@@ -1458,8 +1465,16 @@ static void ss_twr_init_apply_runtime_params(
 		params->tdma.slot_active_ms != ss_twr_init_tdma_schedule.slot_active_ms;
 
 	ss_twr_init_runtime_params = *params;
+	previous_local_addr = ss_twr_init_local_addr;
 	ss_twr_init_local_tag_id = params->logical_tag_id;
 	ss_twr_init_local_addr = uwb_tag_short_addr(ss_twr_init_local_tag_id);
+	if (ss_twr_init_radio_configured &&
+	    ss_twr_init_local_addr != previous_local_addr) {
+		dwt_setaddress16(ss_twr_init_local_addr);
+		printk("Tag UWB short addr updated 0x%04x -> 0x%04x\n",
+		       (unsigned int)previous_local_addr,
+		       (unsigned int)ss_twr_init_local_addr);
+	}
 	ss_twr_init_tdma_schedule = params->tdma;
 	ss_twr_init_static_cal_group_cursor = 0U;
 	ss_twr_init_static_cal_slot_tick = 0U;
@@ -1934,6 +1949,7 @@ static void ss_twr_init_configure_radio(void)
     dwt_write32bitreg(SYS_STATUS_ID,
                       SYS_STATUS_ALL_TX | SYS_STATUS_ALL_RX_GOOD |
                           SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_RX_TO);
+    ss_twr_init_radio_configured = true;
 }
 
 static int ss_twr_init_load_runtime_config(
@@ -2712,6 +2728,52 @@ static void ss_twr_init_print_location_if_ready(void)
 }
 
 #if APP_ALT_SS_TWR_ENABLE
+static uint32_t ss_twr_init_alt_last_poll_diag_ms;
+static uint32_t ss_twr_init_alt_last_rx_diag_ms;
+
+static void ss_twr_init_alt_publish_rx_diag(uint32_t status_reg,
+                                            uint32_t rx_finfo,
+                                            uint32_t response_window_us,
+                                            uint8_t poll_count,
+                                            uint8_t anchor_mask,
+                                            uint8_t responses,
+                                            uint8_t unexpected_count,
+                                            uint32_t last_frame_len,
+                                            uint16_t last_src_addr,
+                                            uint16_t last_dst_addr,
+                                            uint8_t last_code)
+{
+    uint32_t now_ms = (uint32_t)k_uptime_get();
+    char line[160];
+
+    if (ss_twr_init_alt_last_rx_diag_ms != 0U &&
+        (uint32_t)(now_ms - ss_twr_init_alt_last_rx_diag_ms) < 1000U) {
+        return;
+    }
+    ss_twr_init_alt_last_rx_diag_ms = now_ms;
+
+    snprintk(line, sizeof(line),
+             "CD;1;%lu;tag=%u;local=0x%04x;status=0x%08lx;rxf=0x%08lx;win=%lu;pc=%u;mask=0x%02x;resp=%u;unexp=%u;last_len=%lu;last_src=0x%04x;last_dst=0x%04x;last_code=0x%02x",
+             (unsigned long)ss_twr_init_sweep_count,
+             (unsigned int)ss_twr_init_local_tag_id,
+             (unsigned int)ss_twr_init_local_addr,
+             (unsigned long)status_reg,
+             (unsigned long)rx_finfo,
+             (unsigned long)response_window_us,
+             (unsigned int)poll_count,
+             (unsigned int)anchor_mask,
+             (unsigned int)responses,
+             (unsigned int)unexpected_count,
+             (unsigned long)last_frame_len,
+             (unsigned int)last_src_addr,
+             (unsigned int)last_dst_addr,
+             (unsigned int)last_code);
+    printk("%s\n", line);
+#if APP_TAG_BLE_ENABLE
+    (void)uwb_tag_ble_publish_status(line);
+#endif
+}
+
 static void ss_twr_init_alt_mark_scheduled_poll_timing(uint8_t poll_count)
 {
     uint32_t now = k_cycle_get_32();
@@ -2724,6 +2786,38 @@ static void ss_twr_init_alt_mark_scheduled_poll_timing(uint8_t poll_count)
     ss_twr_init_sweep_last_poll_cycle = now;
     ss_twr_init_sweep_poll_count = poll_count;
     ss_twr_init_sweep_timing_valid = true;
+}
+
+static void ss_twr_init_alt_print_poll_diag(uint8_t poll_count,
+                                            uint8_t anchor_mask)
+{
+    uint32_t now_ms = (uint32_t)k_uptime_get();
+
+    if (ss_twr_init_alt_last_poll_diag_ms != 0U &&
+        (uint32_t)(now_ms - ss_twr_init_alt_last_poll_diag_ms) <
+            APP_TAG_ALT_POLL_DIAG_PERIOD_MS) {
+        return;
+    }
+
+    ss_twr_init_alt_last_poll_diag_ms = now_ms;
+    printk("Alt poll diag tag=%u src=0x%04x seq=%u poll_count=%u mask=0x%02x "
+           "frame10=%u frame11=%u frame12=0x%02x active=%u,%u,%u,%u,%u,%u,%u,%u\n",
+           (unsigned int)ss_twr_init_local_tag_id,
+           (unsigned int)ss_twr_init_local_addr,
+           (unsigned int)ss_twr_init_frame_seq_nb,
+           (unsigned int)poll_count,
+           (unsigned int)anchor_mask,
+           (unsigned int)ss_twr_init_tx_poll_msg[UWB_MSG_POLL_INDEX_IDX],
+           (unsigned int)ss_twr_init_tx_poll_msg[UWB_MSG_POLL_COUNT_IDX],
+           (unsigned int)ss_twr_init_tx_poll_msg[UWB_MSG_POLL_ANCHOR_MASK_IDX],
+           (unsigned int)ss_twr_init_active_anchor_ids[0],
+           (unsigned int)ss_twr_init_active_anchor_ids[1],
+           (unsigned int)ss_twr_init_active_anchor_ids[2],
+           (unsigned int)ss_twr_init_active_anchor_ids[3],
+           (unsigned int)ss_twr_init_active_anchor_ids[4],
+           (unsigned int)ss_twr_init_active_anchor_ids[5],
+           (unsigned int)ss_twr_init_active_anchor_ids[6],
+           (unsigned int)ss_twr_init_active_anchor_ids[7]);
 }
 
 static void ss_twr_init_alt_record_range(uint8_t anchor_id, long raw_distance_mm)
@@ -2824,8 +2918,15 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
     uint32_t poll_tx_ts[UWB_MAX_ANCHORS] = {0};
     bool received[UWB_MAX_ANCHORS] = {0};
     uint8_t responses = 0U;
+    uint8_t unexpected_count = 0U;
     uint32_t first_tx_time_hi;
     uint32_t response_window_us;
+    uint32_t last_status_reg = 0U;
+    uint32_t last_rx_finfo = 0U;
+    uint32_t last_frame_len = 0U;
+    uint16_t last_src_addr = 0U;
+    uint16_t last_dst_addr = 0U;
+    uint8_t last_code = 0U;
     uint8_t anchor_mask = 0U;
 
     if (poll_count == 0U || poll_count > UWB_MAX_ANCHORS) {
@@ -2849,8 +2950,9 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
                                               ss_twr_init_frame_seq_nb,
                                               ss_twr_init_local_addr,
                                               anchor_mask, poll_count);
+    ss_twr_init_alt_print_poll_diag(poll_count, anchor_mask);
     dwt_setdelayedtrxtime(first_tx_time_hi);
-    if (dwt_writetxdata(sizeof(ss_twr_init_tx_poll_msg),
+    if (dwt_writetxdata(UWB_MSG_ALT_POLL_FRAME_LEN,
                         ss_twr_init_tx_poll_msg, 0) != DWT_SUCCESS) {
         for (uint8_t i = 0U; i < poll_count; ++i) {
             ss_twr_init_alt_record_timeout(ss_twr_init_active_anchor_ids[i],
@@ -2859,7 +2961,7 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
         ss_twr_init_alt_finish_sweep();
         return true;
     }
-    dwt_writetxfctrl(sizeof(ss_twr_init_tx_poll_msg), 0, 1);
+    dwt_writetxfctrl(UWB_MSG_ALT_POLL_FRAME_LEN, 0, 1);
     if (dwt_starttx(DWT_START_TX_DELAYED) != DWT_SUCCESS) {
         for (uint8_t i = 0U; i < poll_count; ++i) {
             ss_twr_init_alt_record_timeout(ss_twr_init_active_anchor_ids[i],
@@ -2898,6 +3000,8 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             status_reg = dwt_read32bitreg(SYS_STATUS_ID);
         } while ((status_reg & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO |
                                 SYS_STATUS_ALL_RX_ERR)) == 0U);
+        last_status_reg = status_reg;
+        last_rx_finfo = dwt_read32bitreg(RX_FINFO_ID);
 
         if ((status_reg & SYS_STATUS_RXFCG) != 0U) {
             uint32 frame_len;
@@ -2913,7 +3017,8 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             double distance_m;
 
             dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
-            frame_len = dwt_read32bitreg(RX_FINFO_ID) & RX_FINFO_RXFLEN_MASK;
+            frame_len = last_rx_finfo & RX_FINFO_RXFLEN_MASK;
+            last_frame_len = frame_len;
             if (frame_len > sizeof(ss_twr_init_rx_buffer)) {
                 dwt_forcetrxoff();
                 dwt_rxreset();
@@ -2923,16 +3028,22 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             memset(ss_twr_init_rx_buffer, 0, sizeof(ss_twr_init_rx_buffer));
             dwt_readrxdata(ss_twr_init_rx_buffer, (uint16)frame_len, 0);
             resp_src_addr = uwb_frame_get_src_addr(ss_twr_init_rx_buffer);
+            last_src_addr = resp_src_addr;
+            last_dst_addr = uwb_frame_get_dst_addr(ss_twr_init_rx_buffer);
+            last_code = frame_len > UWB_MSG_CODE_IDX ?
+                        ss_twr_init_rx_buffer[UWB_MSG_CODE_IDX] : 0U;
             if (!uwb_short_addr_is_anchor(resp_src_addr) ||
                 !uwb_ss_twr_resp_matches(ss_twr_init_rx_buffer,
                                          ss_twr_init_local_addr,
                                          resp_src_addr)) {
+                unexpected_count++;
                 ss_twr_init_alt_rx_restart(response_window_us);
                 continue;
             }
             anchor_id = uwb_anchor_id_from_addr(resp_src_addr);
             if (anchor_id >= UWB_MAX_ANCHORS || received[anchor_id] ||
                 poll_tx_ts[anchor_id] == 0U) {
+                unexpected_count++;
                 ss_twr_init_alt_rx_restart(response_window_us);
                 continue;
             }
@@ -2968,6 +3079,11 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
         dwt_rxreset();
         break;
     }
+
+    ss_twr_init_alt_publish_rx_diag(last_status_reg, last_rx_finfo,
+                                    response_window_us, poll_count, anchor_mask,
+                                    responses, unexpected_count, last_frame_len,
+                                    last_src_addr, last_dst_addr, last_code);
 
     for (uint8_t i = 0U; i < poll_count; ++i) {
         uint8_t anchor_id = ss_twr_init_active_anchor_ids[i];
@@ -3216,14 +3332,14 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
             ss_twr_diag_write("SS-TWR: first poll tx prepare\n");
 #endif
         }
-        if (dwt_writetxdata(sizeof(ss_twr_init_tx_poll_msg),
+        if (dwt_writetxdata(SS_TWR_INIT_LEGACY_POLL_FRAME_LEN,
                             ss_twr_init_tx_poll_msg, 0) != DWT_SUCCESS) {
             printk("Initiator TX buffer write failed\n");
             ss_twr_init_sleep_between_ranges();
             continue;
         }
 
-        dwt_writetxfctrl(sizeof(ss_twr_init_tx_poll_msg), 0, 1);
+        dwt_writetxfctrl(SS_TWR_INIT_LEGACY_POLL_FRAME_LEN, 0, 1);
 
         if (dwt_starttx(DWT_START_TX_IMMEDIATE | DWT_RESPONSE_EXPECTED) !=
             DWT_SUCCESS) {

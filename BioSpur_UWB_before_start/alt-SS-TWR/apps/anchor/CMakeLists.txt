@@ -19,14 +19,12 @@ project(BioSpur_UWB_anchor)
 
 set(APP_ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
 function(set_cache_from_env name default type doc)
-  if(DEFINED ${name} AND NOT "${${name}}" STREQUAL "")
-    set(_value "${${name}}")
-  elseif(DEFINED ENV{${name}} AND NOT "$ENV{${name}}" STREQUAL "")
+  if(DEFINED ENV{${name}} AND NOT "$ENV{${name}}" STREQUAL "")
     set(_value "$ENV{${name}}")
   else()
     set(_value "${default}")
   endif()
-  set(${name} "${_value}" CACHE ${type} "${doc}" FORCE)
+  set(${name} "${_value}" CACHE ${type} "${doc}")
 endfunction()
 
 set_cache_from_env(APP_ANCHOR_ID "4" STRING "Anchor node ID (0..7 legacy fallback only)")
@@ -37,7 +35,7 @@ set_cache_from_env(APP_ANCHOR_CONFIG_PAGE_SIZE "4096" STRING "Flash erase page s
 set_cache_from_env(APP_ANCHOR_BLE_ID_ENABLE "1" STRING "Enable BLE identification advertising")
 set_cache_from_env(APP_ANCHOR_SERIAL_CMD_ENABLE "1" STRING "Enable UART role/config command handler")
 set_cache_from_env(APP_ANCHOR_SERIAL_CMD_BOOT_WINDOW_MS "5000" STRING "Boot window for serial config before ranging starts")
-set_cache_from_env(APP_ANCHOR_FW_MARKER "alt-anchor-real-v1" STRING "Firmware marker/version string for startup/control readback")
+set_cache_from_env(APP_ANCHOR_FW_MARKER "anchor-unified" STRING "Firmware marker/version string for startup/control readback")
 set_cache_from_env(APP_ANCHOR_MASTER "0" STRING "Whether this anchor actively ranges peers")
 set_cache_from_env(APP_ANCHOR_PEER_COUNT "3" STRING "Number of peer anchors for master mode")
 set_cache_from_env(APP_ANCHOR_PEER_0_ID "5" STRING "Peer slot 0")
@@ -55,13 +53,12 @@ set_cache_from_env(APP_ANCHOR_VERBOSE_RESPONDER "0" STRING "Print responder succ
 set_cache_from_env(APP_ANCHOR_VERBOSE_RESPONDER_ERRORS "0" STRING "Print responder RX/TX error logs")
 set_cache_from_env(APP_ANCHOR_RESPONDER_PRINTK_ENABLE "0" STRING "Enable low-rate responder-path printk output; keep disabled outside debug builds")
 set_cache_from_env(APP_ANCHOR_RESPONDER_PROFILE_ENABLE "0" STRING "Enable low-rate responder fast-path timing profile output")
-set_cache_from_env(APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE "0" STRING "Enable per-frame responder diagnostics for alt SS-TWR bringup")
 set_cache_from_env(APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE "0" STRING "Pulse DWM1001C blue LED while a responder TX is active")
 set_cache_from_env(APP_ANCHOR_RESPONDER_BLUE_LED_PIN "31" STRING "GPIO pin for responder activity LED")
 set_cache_from_env(APP_ANCHOR_RESPONDER_BLUE_LED_ACTIVE_LOW "1" STRING "Responder activity LED active-low polarity")
 set_cache_from_env(APP_ANCHOR_DIAG_BLE_BEFORE_UWB "0" STRING "Diagnostic: start BLE/control before UWB bringup")
 set_cache_from_env(APP_ANCHOR_DIAG_CONTINUE_ON_UWB_FAIL "0" STRING "Diagnostic: keep BLE/control alive if UWB bringup fails")
-set_cache_from_env(APP_ALT_SS_TWR_ENABLE "1" STRING "Enable experimental burst-poll SS-TWR responder scheduling")
+set_cache_from_env(APP_ALT_SS_TWR_ENABLE "0" STRING "Enable experimental burst-poll SS-TWR responder scheduling")
 set_cache_from_env(APP_ALT_SS_TWR_POLL_SPACING_US "200" STRING "Alt SS-TWR spacing between burst polls in microseconds")
 set_cache_from_env(APP_ALT_SS_TWR_GUARD_US "2000" STRING "Alt SS-TWR guard time after poll burst in microseconds")
 set_cache_from_env(APP_ALT_SS_TWR_RESP_SPACING_US "800" STRING "Alt SS-TWR spacing between anchor response slots in microseconds")
@@ -100,7 +97,6 @@ target_compile_definitions(app PRIVATE
     APP_ANCHOR_VERBOSE_RESPONDER_ERRORS=${APP_ANCHOR_VERBOSE_RESPONDER_ERRORS}
     APP_ANCHOR_RESPONDER_PRINTK_ENABLE=${APP_ANCHOR_RESPONDER_PRINTK_ENABLE}
     APP_ANCHOR_RESPONDER_PROFILE_ENABLE=${APP_ANCHOR_RESPONDER_PROFILE_ENABLE}
-    APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE=${APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE}
     APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE=${APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE}
     APP_ANCHOR_RESPONDER_BLUE_LED_PIN=${APP_ANCHOR_RESPONDER_BLUE_LED_PIN}
     APP_ANCHOR_RESPONDER_BLUE_LED_ACTIVE_LOW=${APP_ANCHOR_RESPONDER_BLUE_LED_ACTIVE_LOW}
