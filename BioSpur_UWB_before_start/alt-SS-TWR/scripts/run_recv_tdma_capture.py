@@ -804,8 +804,12 @@ def ensure_target_links_ready(
         raise RuntimeError(f"target_link_not_ready:{','.join(missing)}")
 
     ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
-    ser = send_cmd(ser, logf, "ota_target name -", 0.5)
-    ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
+    if len(targets) == 1:
+        ser = send_cmd(ser, logf, f"ota_target name {targets[0]}", 0.5)
+        ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
+    else:
+        ser = send_cmd(ser, logf, "ota_target name -", 0.5)
+        ser = send_cmd(ser, logf, "ota_target prefix BS", 0.5)
     ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
     return ser
 

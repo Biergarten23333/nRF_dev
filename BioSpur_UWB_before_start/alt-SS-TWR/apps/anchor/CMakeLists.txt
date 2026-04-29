@@ -62,6 +62,7 @@ set_cache_from_env(APP_ALT_SS_TWR_ENABLE "0" STRING "Enable experimental burst-p
 set_cache_from_env(APP_ALT_SS_TWR_POLL_SPACING_US "200" STRING "Alt SS-TWR spacing between burst polls in microseconds")
 set_cache_from_env(APP_ALT_SS_TWR_GUARD_US "2000" STRING "Alt SS-TWR guard time after poll burst in microseconds")
 set_cache_from_env(APP_ALT_SS_TWR_RESP_SPACING_US "800" STRING "Alt SS-TWR spacing between anchor response slots in microseconds")
+set_cache_from_env(APP_ALT_SS_TWR_UNICAST_POLL_REARM_US "0" STRING "Extra responder-side allowance per remaining unicast poll for tag TX rearm overhead")
 set_cache_from_env(APP_UWB_CHANNEL "5" STRING "DW1000 UWB channel number")
 set_cache_from_env(APP_UWB_PAN_ID "0xDECA" STRING "DW1000 PAN ID")
 set_cache_from_env(APP_UWB_HW_FRAME_FILTER_ENABLE "1" STRING "Enable DW1000 hardware frame filtering")
@@ -106,6 +107,7 @@ target_compile_definitions(app PRIVATE
     APP_ALT_SS_TWR_POLL_SPACING_US=${APP_ALT_SS_TWR_POLL_SPACING_US}
     APP_ALT_SS_TWR_GUARD_US=${APP_ALT_SS_TWR_GUARD_US}
     APP_ALT_SS_TWR_RESP_SPACING_US=${APP_ALT_SS_TWR_RESP_SPACING_US}
+    APP_ALT_SS_TWR_UNICAST_POLL_REARM_US=${APP_ALT_SS_TWR_UNICAST_POLL_REARM_US}
     APP_UWB_CHANNEL=${APP_UWB_CHANNEL}
     APP_UWB_PAN_ID=${APP_UWB_PAN_ID}
     APP_UWB_HW_FRAME_FILTER_ENABLE=${APP_UWB_HW_FRAME_FILTER_ENABLE}

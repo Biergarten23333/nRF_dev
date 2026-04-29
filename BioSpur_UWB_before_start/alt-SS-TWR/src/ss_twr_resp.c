@@ -94,6 +94,10 @@ static uint8_t ss_twr_resp_count_mask_bits_before(uint8_t mask, uint8_t anchor_i
 #define APP_ALT_SS_TWR_RESP_SPACING_US 800U
 #endif
 
+#ifndef APP_ALT_SS_TWR_UNICAST_POLL_REARM_US
+#define APP_ALT_SS_TWR_UNICAST_POLL_REARM_US 0U
+#endif
+
 #define SS_TWR_RESP_RX_BUF_LEN 127U
 #define SS_TWR_RESP_ALL_MSG_COMMON_LEN 10U
 #define SS_TWR_RESP_MSG_SN_IDX 2U
@@ -835,6 +839,16 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         wait_cycles = 0U;
 
         if ((status_reg & SYS_STATUS_RXFCG) == 0U) {
+            if ((status_reg & SYS_STATUS_AFFREJ) != 0U) {
+                /*
+                 * In unicast-burst mode every anchor hears poll frames for the
+                 * other anchors. DW1000 frame filtering reports those as
+                 * AFFREJ; treating that like a PHY error with rxreset/sleep
+                 * makes the responder miss the next poll in the burst.
+                 */
+                dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_AFFREJ);
+                continue;
+            }
             rx_error_count++;
             if (APP_ANCHOR_VERBOSE_RESPONDER_ERRORS != 0U &&
                 (rx_error_count <= 5U || (rx_error_count % 50U) == 0U)) {
@@ -948,9 +962,12 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
                 ((uint32_t)resp_rank * APP_ALT_SS_TWR_RESP_SPACING_US);
         } else if (alt_poll_count > 0U && alt_poll_index < alt_poll_count) {
             resp_rank = alt_poll_index;
+            uint32_t alt_unicast_poll_slot_us =
+                APP_ALT_SS_TWR_POLL_SPACING_US +
+                APP_ALT_SS_TWR_UNICAST_POLL_REARM_US;
             resp_delay_uus =
-                ((uint32_t)(alt_poll_count - alt_poll_index) *
-                 APP_ALT_SS_TWR_POLL_SPACING_US) +
+                ((uint32_t)(alt_poll_count - 1U - alt_poll_index) *
+                 alt_unicast_poll_slot_us) +
                 APP_ALT_SS_TWR_GUARD_US +
                 ((uint32_t)alt_poll_index * APP_ALT_SS_TWR_RESP_SPACING_US);
         }

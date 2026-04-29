@@ -1,0 +1,39 @@
+{
+  "listener_cmd": [
+    "/usr/bin/python3",
+    "scripts/capture_uwb_listener.py",
+    "--port",
+    "/dev/serial/by-id/usb-SEGGER_J-Link_000760185886-if00",
+    "--duration",
+    "270.0",
+    "--out-dir",
+    "logs/alt_u13_raw0_cont0_3tag_motion_listener_anchorserial_20260429_032540/listener"
+  ],
+  "capture_cmd": [
+    "/usr/bin/python3",
+    "scripts/run_recv_tdma_capture.py",
+    "--port",
+    "/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00",
+    "--anchor-preflight-port",
+    "/dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02-if00",
+    "--controller-reset-snr",
+    "1050070698",
+    "--duration",
+    "90",
+    "--targets",
+    "BSF66F,BS2DCE,BSDC91",
+    "--profiles",
+    "BSF66F:motion,BS2DCE:motion,BSDC91:motion",
+    "--static-hz",
+    "5",
+    "--roto-hz",
+    "10",
+    "--motion-hz",
+    "5",
+    "--skip-cm-probe",
+    "--allow-zero-positions",
+    "--out-dir",
+    "logs/alt_u13_raw0_cont0_3tag_motion_listener_anchorserial_20260429_032540/recv"
+  ],
+  "duration_s": 90.0
+}

@@ -1245,7 +1245,7 @@ static int anchor_query_version(const char *query)
 {
 	char uuid[33];
 	char label[4];
-	char state[256];
+	char result[256];
 	char fw[48] = { 0 };
 	char state_label[8] = { 0 };
 	char role[24] = { 0 };
@@ -1265,23 +1265,23 @@ static int anchor_query_version(const char *query)
 		return rc;
 	}
 
-	rc = master_anchor_ctrl_read_state(state, sizeof(state));
+	rc = master_anchor_ctrl_send_command_wait_result("VERSION", result, sizeof(result), 3000);
 	if (rc != 0) {
-		printk("anchor version state read failed: target=%s uuid=%s rc=%d\n",
+		printk("anchor version result notify failed: target=%s uuid=%s rc=%d\n",
 		       label[0] != '\0' ? label : "-", uuid, rc);
 		return rc;
 	}
 
-	(void)anchor_state_field_value(state, "fw=", fw, sizeof(fw));
-	(void)anchor_state_field_value(state, "label=", state_label, sizeof(state_label));
-	(void)anchor_state_field_value(state, "role=", role, sizeof(role));
+	(void)anchor_state_field_value(result, "fw=", fw, sizeof(fw));
+	(void)anchor_state_field_value(result, "label=", state_label, sizeof(state_label));
+	(void)anchor_state_field_value(result, "role=", role, sizeof(role));
 	printk("ANCHOR_VERSION query=%s uuid=%s fw=%s label=%s role=%s\n",
 	       label[0] != '\0' ? label : query,
 	       uuid,
 	       fw[0] != '\0' ? fw : "-",
 	       state_label[0] != '\0' ? state_label : "-",
 	       role[0] != '\0' ? role : "-");
-	printk("ANCHOR_VERSION state=%s\n", state);
+	printk("ANCHOR_VERSION result=%s\n", result);
 	return 0;
 }
 

@@ -135,6 +135,8 @@ struct master_peer {
 	uint16_t anchor_state_ccc_handle;
 	uint16_t anchor_result_handle;
 	uint16_t anchor_result_ccc_handle;
+	char anchor_last_result[MASTER_NOTIFY_PRINT_PAYLOAD_LEN];
+	uint32_t anchor_result_seq;
 	uint8_t logical_tag_id;
 	bool logical_tag_id_valid;
 	uint8_t tdma_slot;
@@ -641,6 +643,8 @@ static void peer_clear(unsigned int idx, bool unref_conn)
 	peers[idx].anchor_state_ccc_handle = 0U;
 	peers[idx].anchor_result_handle = 0U;
 	peers[idx].anchor_result_ccc_handle = 0U;
+	peers[idx].anchor_last_result[0] = '\0';
+	peers[idx].anchor_result_seq = 0U;
 	memset(&peers[idx].anchor_state_sub_params, 0, sizeof(peers[idx].anchor_state_sub_params));
 	memset(&peers[idx].anchor_result_sub_params, 0, sizeof(peers[idx].anchor_result_sub_params));
 	peers[idx].logical_tag_id = 0U;
@@ -1161,6 +1165,48 @@ static bool master_tdma_profile_has_bs_code(uint16_t bs_code)
 	}
 
 	return false;
+}
+
+static bool scan_tag_matches_runtime_filter(const char *adv_name,
+					    uint16_t bs_code,
+					    bool bs_code_valid,
+					    const char *uuid_hex)
+{
+	char bs_name[8];
+
+	if (runtime_target_uuid[0] != '\0' &&
+	    (uuid_hex == NULL || uuid_hex[0] == '\0' ||
+	     strcasecmp(uuid_hex, runtime_target_uuid) != 0)) {
+		return false;
+	}
+
+	if (runtime_target_name[0] != '\0') {
+		if (adv_name != NULL && adv_name[0] != '\0' &&
+		    strcasecmp(adv_name, runtime_target_name) == 0) {
+			return true;
+		}
+		if (bs_code_valid) {
+			snprintk(bs_name, sizeof(bs_name), "BS%04X", (unsigned int)bs_code);
+			return strcasecmp(bs_name, runtime_target_name) == 0;
+		}
+		return false;
+	}
+
+	if (runtime_target_prefix[0] != '\0') {
+		if (adv_name != NULL && adv_name[0] != '\0' &&
+		    strncasecmp(adv_name, runtime_target_prefix,
+				strlen(runtime_target_prefix)) == 0) {
+			return true;
+		}
+		if (bs_code_valid) {
+			snprintk(bs_name, sizeof(bs_name), "BS%04X", (unsigned int)bs_code);
+			return strncasecmp(bs_name, runtime_target_prefix,
+					   strlen(runtime_target_prefix)) == 0;
+		}
+		return false;
+	}
+
+	return true;
 }
 
 static int master_send_runtime_config(struct master_peer *peer,
@@ -2179,6 +2225,12 @@ static uint8_t anchor_ctrl_notify_cb(struct bt_conn *conn,
 	copy_len = MIN((size_t)length, sizeof(payload) - 1U);
 	memcpy(payload, data, copy_len);
 	payload[copy_len] = '\0';
+	if (idx >= 0 && idx < (int)ARRAY_SIZE(peers)) {
+		strncpy(peers[idx].anchor_last_result, payload,
+			sizeof(peers[idx].anchor_last_result) - 1U);
+		peers[idx].anchor_last_result[sizeof(peers[idx].anchor_last_result) - 1U] = '\0';
+		peers[idx].anchor_result_seq++;
+	}
 	if (strncmp(payload, "SW-", 3) == 0) {
 		printk("%s\n", payload);
 		return BT_GATT_ITER_CONTINUE;
@@ -2644,6 +2696,22 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 
 	if (runtime_target_kind == MASTER_TARGET_TAG &&
 	    !master_boot_tag_allowlist_has(bs_code)) {
+		return;
+	}
+
+	if (runtime_target_kind == MASTER_TARGET_TAG &&
+	    !scan_tag_matches_runtime_filter(adv_name, bs_code, bs_code_valid, uuid_hex)) {
+		char addr[BT_ADDR_LE_STR_LEN];
+		char bs_name[8];
+
+		bt_addr_le_to_str(info->addr, addr, sizeof(addr));
+		snprintk(bs_name, sizeof(bs_name), "BS%04X", (unsigned int)bs_code);
+		printk("RECV candidate rejected: %s bs=%s target_name=%s target_prefix=%s uuid=%s\n",
+		       addr,
+		       bs_name,
+		       runtime_target_name[0] != '\0' ? runtime_target_name : "-",
+		       runtime_target_prefix[0] != '\0' ? runtime_target_prefix : "-",
+		       runtime_target_uuid[0] != '\0' ? runtime_target_uuid : "-");
 		return;
 	}
 
@@ -3358,6 +3426,54 @@ int master_anchor_ctrl_read_result(char *out, size_t out_len)
 		return -ENOTCONN;
 	}
 	return master_anchor_ctrl_read_text(peers[idx].anchor_result_handle, out, out_len);
+}
+
+int master_anchor_ctrl_send_command_wait_result(const char *cmd, char *out, size_t out_len,
+						int timeout_ms)
+{
+	int idx;
+	size_t cmd_len;
+	uint32_t start_seq;
+	int err;
+	int waited = 0;
+
+	if (cmd == NULL || cmd[0] == '\0' || out == NULL || out_len == 0U) {
+		return -EINVAL;
+	}
+
+	idx = find_ready_anchor_peer_index();
+	if (idx < 0) {
+		return -ENOTCONN;
+	}
+	if (peers[idx].anchor_ctrl_handle == 0U) {
+		return -EINVAL;
+	}
+
+	cmd_len = strlen(cmd);
+	start_seq = peers[idx].anchor_result_seq;
+	peers[idx].anchor_last_result[0] = '\0';
+
+	err = bt_gatt_write_without_response(peers[idx].conn,
+					     peers[idx].anchor_ctrl_handle,
+					     cmd, cmd_len, false);
+	if (err) {
+		return err;
+	}
+	printk("Anchor ctrl request[%d]: %s uuid=%s\n", idx, cmd,
+	       peers[idx].adv_uuid[0] != '\0' ? peers[idx].adv_uuid : "-");
+
+	while (waited < timeout_ms) {
+		if (peers[idx].anchor_result_seq != start_seq &&
+		    peers[idx].anchor_last_result[0] != '\0') {
+			strncpy(out, peers[idx].anchor_last_result, out_len - 1U);
+			out[out_len - 1U] = '\0';
+			return 0;
+		}
+		k_sleep(K_MSEC(50));
+		waited += 50;
+	}
+
+	return -ETIMEDOUT;
 }
 
 void master_set_background_gate(bool allow, const char *reason)

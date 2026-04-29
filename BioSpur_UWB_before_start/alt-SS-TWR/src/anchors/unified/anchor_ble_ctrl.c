@@ -380,7 +380,23 @@ static void process_control_cmd_locked(char *line)
     }
 
     if (strcmp(tok, "HELP") == 0) {
-        set_result_locked("OK CMDS=PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|RESET AUTOPOS|RESET RESPONDER|STOP|SYNC|RUNTIME <MASTER|MATRIX|RESPONDER> [FORCE|SWEEP N]");
+        set_result_locked("OK CMDS=VERSION|PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|RESET AUTOPOS|RESET RESPONDER|STOP|SYNC|RUNTIME <MASTER|MATRIX|RESPONDER> [FORCE|SWEEP N]");
+        return;
+    }
+
+    if (strcmp(tok, "VERSION") == 0) {
+        char uuid_hex[33];
+
+        bytes_to_hex(g_info.device_uuid, sizeof(g_info.device_uuid), uuid_hex, sizeof(uuid_hex));
+        snprintk(g_result_text, sizeof(g_result_text),
+                 "ANCHOR_FW fw=%s bs=%s uuid=%s label=%c role=%s cfg_valid=%u busy=%u",
+                 g_info.fw_marker,
+                 g_info.bs_code,
+                 uuid_hex,
+                 anchor_config_label_char(g_info.runtime_anchor_id_cfg),
+                 role_name(g_info.runtime_role),
+                 g_info.active_cfg_valid ? 1U : 0U,
+                 g_busy ? 1U : 0U);
         return;
     }
 

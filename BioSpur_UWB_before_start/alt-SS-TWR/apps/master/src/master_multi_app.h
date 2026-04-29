@@ -42,6 +42,8 @@ int master_anchor_snapshot_uuid_map(char labels_out[], size_t labels_len,
 				      char uuids_out[][33], size_t uuids_len);
 int master_anchor_ctrl_read_state(char *out, size_t out_len);
 int master_anchor_ctrl_read_result(char *out, size_t out_len);
+int master_anchor_ctrl_send_command_wait_result(const char *cmd, char *out, size_t out_len,
+						int timeout_ms);
 int master_send_command_now(const char *cmd);
 int master_set_one_shot_command(const char *cmd, bool send_now);
 void master_clear_one_shot_command(void);

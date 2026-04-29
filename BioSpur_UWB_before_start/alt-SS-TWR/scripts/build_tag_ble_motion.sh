@@ -14,9 +14,14 @@ fw_marker="${APP_TAG_FW_MARKER:-unified-default}"
 uwb_channel="${APP_UWB_CHANNEL:-5}"
 uwb_pan_id="${APP_UWB_PAN_ID:-0xDECA}"
 alt_ss_twr_enable="${APP_ALT_SS_TWR_ENABLE:-0}"
+alt_ss_twr_mode="${APP_ALT_SS_TWR_MODE:-2}"
 alt_ss_twr_poll_spacing_us="${APP_ALT_SS_TWR_POLL_SPACING_US:-200}"
 alt_ss_twr_guard_us="${APP_ALT_SS_TWR_GUARD_US:-500}"
 alt_ss_twr_resp_spacing_us="${APP_ALT_SS_TWR_RESP_SPACING_US:-800}"
+multitag_plan_mode="${APP_TAG_MULTITAG_PLAN_MODE:-0}"
+maintenance_full_interval="${APP_TAG_MAINTENANCE_FULL_INTERVAL:-100}"
+range_filter_outlier_mm="${APP_TAG_RANGE_FILTER_OUTLIER_MM:-450}"
+range_continuity_enable="${APP_TAG_RANGE_CONTINUITY_ENABLE:-1}"
 if [ -z "${ZEPHYR_NRF_MODULE_DIR:-}" ]; then
   export ZEPHYR_NRF_MODULE_DIR="$(dirname "${ZEPHYR_BASE}")/nrf"
 fi
@@ -36,7 +41,10 @@ fi
   printf 'set(APP_TAG_TDMA_SLOT_COUNT %s CACHE STRING "Motion tag preload" FORCE)\n' "${slot_count}"
   printf 'set(APP_TAG_TDMA_SLOT_PERIOD_MS %s CACHE STRING "Motion tag preload" FORCE)\n' "25"
   printf 'set(APP_TAG_TDMA_SLOT_ACTIVE_MS %s CACHE STRING "Motion tag preload" FORCE)\n' "20"
-  printf 'set(APP_TAG_MULTITAG_PLAN_MODE %s CACHE STRING "Motion tag preload" FORCE)\n' "0"
+  printf 'set(APP_TAG_MULTITAG_PLAN_MODE %s CACHE STRING "Motion tag preload" FORCE)\n' "${multitag_plan_mode}"
+  printf 'set(APP_TAG_MAINTENANCE_FULL_INTERVAL %s CACHE STRING "Motion tag preload" FORCE)\n' "${maintenance_full_interval}"
+  printf 'set(APP_TAG_RANGE_FILTER_OUTLIER_MM %s CACHE STRING "Motion tag preload" FORCE)\n' "${range_filter_outlier_mm}"
+  printf 'set(APP_TAG_RANGE_CONTINUITY_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${range_continuity_enable}"
   printf 'set(APP_TAG_ACTIVE_ANCHOR_0_ID %s CACHE STRING "Motion tag preload" FORCE)\n' "0"
   printf 'set(APP_TAG_ACTIVE_ANCHOR_1_ID %s CACHE STRING "Motion tag preload" FORCE)\n' "1"
   printf 'set(APP_TAG_ACTIVE_ANCHOR_2_ID %s CACHE STRING "Motion tag preload" FORCE)\n' "4"
@@ -49,6 +57,7 @@ fi
   printf 'set(APP_UWB_PAN_ID %s CACHE STRING "Motion tag preload" FORCE)\n' "${uwb_pan_id}"
   printf 'set(APP_TAG_FW_MARKER %s CACHE STRING "Motion tag preload" FORCE)\n' "${fw_marker}"
   printf 'set(APP_ALT_SS_TWR_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_enable}"
+  printf 'set(APP_ALT_SS_TWR_MODE %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_mode}"
   printf 'set(APP_ALT_SS_TWR_POLL_SPACING_US %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_poll_spacing_us}"
   printf 'set(APP_ALT_SS_TWR_GUARD_US %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_guard_us}"
   printf 'set(APP_ALT_SS_TWR_RESP_SPACING_US %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_resp_spacing_us}"
@@ -70,6 +79,7 @@ west build \
   -DAPP_UWB_PAN_ID="${uwb_pan_id}" \
   -DAPP_TAG_FW_MARKER="${fw_marker}" \
   -DAPP_ALT_SS_TWR_ENABLE="${alt_ss_twr_enable}" \
+  -DAPP_ALT_SS_TWR_MODE="${alt_ss_twr_mode}" \
   -DAPP_ALT_SS_TWR_POLL_SPACING_US="${alt_ss_twr_poll_spacing_us}" \
   -DAPP_ALT_SS_TWR_GUARD_US="${alt_ss_twr_guard_us}" \
   -DAPP_ALT_SS_TWR_RESP_SPACING_US="${alt_ss_twr_resp_spacing_us}" \
@@ -87,7 +97,8 @@ west build \
   -DAPP_TAG_TDMA_SLOT_COUNT="${slot_count}" \
   -DAPP_TAG_TDMA_SLOT_PERIOD_MS=25 \
   -DAPP_TAG_TDMA_SLOT_ACTIVE_MS=20 \
-  -DAPP_TAG_MULTITAG_PLAN_MODE=0 \
+  -DAPP_TAG_MULTITAG_PLAN_MODE="${multitag_plan_mode}" \
+  -DAPP_TAG_MAINTENANCE_FULL_INTERVAL="${maintenance_full_interval}" \
   -DAPP_TAG_ACTIVE_ANCHOR_0_ID=0 \
   -DAPP_TAG_ACTIVE_ANCHOR_1_ID=1 \
   -DAPP_TAG_ACTIVE_ANCHOR_2_ID=4 \
@@ -113,6 +124,8 @@ west build \
   -DAPP_TAG_EKF_OUTLIER_GATE_MM=120 \
   -DAPP_TAG_RANGE_SOFT_RESIDUAL_MM=180 \
   -DAPP_TAG_RANGE_HARD_RESIDUAL_MM=350 \
+  -DAPP_TAG_RANGE_FILTER_OUTLIER_MM="${range_filter_outlier_mm}" \
+  -DAPP_TAG_RANGE_CONTINUITY_ENABLE="${range_continuity_enable}" \
   -DAPP_TAG_LOC_MIN_QUALITY_PERCENT=20 \
   -DAPP_TAG_MOTION_FULL_SWEEP_INTERVAL=0 \
   -DAPP_TAG_MOTION_SPEED_THRESHOLD_MM_S=100 \

@@ -314,3 +314,562 @@ Conclusion:
   scheduling fix is proven.
 - Do not direct-flash other Anchors unless explicitly authorized. Future Anchor
   updates should proceed by OTA using the restored original bundle flow.
+
+## 2026-04-28 B-H Direct Recovery And A-H OTA Verification
+
+User explicitly authorized one direct recovery flash pass for Anchors B-H, then
+a full A-H OTA verification.
+
+Direct recovery action:
+
+- B: `760185876`
+- C: `760185878`
+- D: `760186081`
+- E: `760185904`
+- F: `760186124`
+- G: `760185889`
+- H: `760186121`
+
+All B-H direct recovery flashes used:
+
+- build: `build-anchor-unified-ota-alt-bcast-v14-spacing1000-coop1`
+- image: `merged.hex`
+- tool path: repository `scripts/flash_anchor_auto.sh`
+- transport: `JLinkExe -SelectEmuBySN <snr>`
+- result: program/verify OK for all seven boards
+
+Built v15 for the OTA verification:
+
+- Anchor build: `build-anchor-unified-ota-alt-bcast-v15-spacing1000-coop1`
+- Master_Anchor carrier:
+  `build-master-control-b120-m1-master-anchor-lfrc-alt-bcast-v15-spacing1000-coop1-carrier`
+- Marker: `alt-bcast-v15-spacing1000-coop1`
+- Payload verification passed as `anchor_ota_bundle`.
+- B120 LFRC assert passed.
+- Master_Anchor `960148546` was flashed with the v15 carrier using the
+  repository J-Link script and explicit SNR.
+
+Full A-H OTA result:
+
+- Log root:
+  `logs/anchor_AH_v14_to_v15_full_ota_20260428_211422`
+- A: `ota_success_seen=true`, `classification=D`,
+  `reason=ota_success_observed`
+- B: `ota_success_seen=true`, `classification=D`,
+  `reason=ota_success_observed`
+- C: `ota_success_seen=true`, `classification=D`,
+  `reason=ota_success_observed`
+- D: `ota_success_seen=true`, `classification=D`,
+  `reason=ota_success_observed`
+- E: `ota_success_seen=true`, `classification=D`,
+  `reason=ota_success_observed`
+- F: `ota_success_seen=true`, `classification=D`,
+  `reason=ota_success_observed`
+- G: `ota_success_seen=true`, `classification=D`,
+  `reason=ota_success_observed`
+- H: `ota_success_seen=true`, `classification=D`,
+  `reason=ota_success_observed`
+
+Post-OTA responder verification:
+
+- Log:
+  `logs/anchor_AH_v14_to_v15_full_ota_20260428_211422/post_verify_all_responder_20260428_212212/verify.log`
+- Summary:
+  - `success=true`
+  - `sent_count=8`
+  - `ready_count=8`
+  - `ready_target=8`
+
+Known remaining caveat:
+
+- Final `ANCHOR VERSION post` still reports `actual=-` for A-H and the deploy
+  wrapper exits non-zero because of that marker check.
+- This is the same version-query/control-path observability issue already seen
+  before. It does not match the OTA transport result: all eight OTA uploads,
+  pending-test/reset steps, and responder runtime verification succeeded.
+
+Conclusion:
+
+- B-H are recovered to an OTA-serviceable coop1 baseline.
+- A-H can now complete a full OTA pass with the original copied OTA bundle flow.
+- Continue Alt SS-TWR ranging work from this v15 coop1 baseline. Do not perform
+  more Anchor direct flash operations unless explicitly authorized again.
+
+## 2026-04-28 Anchor OTA Version Match Fixed
+
+Problem:
+
+- `ANCHOR VERSION post` reported `actual=- match=False` even after successful
+  OTA and responder runtime verification.
+- Root cause: the previous post-version path depended on synchronous version
+  result handling. Anchors did return the new marker via control notify, but the
+  notify arrived after the Master-side synchronous wait had timed out.
+
+Fix in `alt-SS-TWR/`:
+
+- Added an Anchor runtime `VERSION` control command that reports the active
+  firmware marker through the reliable result-notify path as `ANCHOR_FW ...`.
+- Updated Master_Anchor version query plumbing to request that control command.
+- Updated `scripts/ota_deploy_anchor_set.py` to parse both structured
+  `ANCHOR_VERSION query=...` lines and late
+  `ANCHOR_CTRL[...] notify: ANCHOR_FW ...` lines.
+
+Validation:
+
+- Anchor OTA image:
+  `build-anchor-unified-ota-alt-bcast-v16-coop1-ver`
+- Marker: `alt-bcast-v16-coop1-ver`
+- Payload guard passed as `anchor_ota_bundle`, with no tag markers.
+- Master_Anchor carrier:
+  `build-master-control-b120-m1-master-anchor-lfrc-alt-bcast-v16-coop1-ver-carrier`
+- B120 LFRC assert passed.
+- Master_Anchor `960148546` was flashed with the repository B120 J-Link script
+  and explicit SNR.
+- Full A-H OTA log:
+  `logs/anchor_AH_v15_to_v16_versionnotify_20260428_214016`
+- A-H all completed OTA with `ota_success_seen=true`,
+  `classification=D`, and `reason=ota_success_observed`.
+- Post responder verify:
+  `logs/anchor_AH_v15_to_v16_versionnotify_20260428_214016/post_verify_all_responder_20260428_215000/verify.log`
+  reported `success=true`, `sent_count=8`, `ready_count=8`,
+  `ready_target=8`.
+- Re-run post version verify:
+  `logs/anchor_AH_v15_to_v16_versionnotify_rerun_post_20260428_215356/post_anchor_version_verify.log`
+  reported `strict_ok=True`.
+
+Version match result:
+
+- A-H all reported
+  `actual=alt-bcast-v16-coop1-ver match=True`.
+
+Conclusion:
+
+- OTA transport is working.
+- The version-match standard now works for A-H using the Anchor runtime marker
+  notify path.
+- Continue Alt SS-TWR ranging validation from v16.
+
+## 2026-04-28 v16 3-Tag Listener Capture
+
+Capture:
+
+- Log root:
+  `logs/alt_v16_3tag_listener_anchorserial_20260428_220007`
+- Tags:
+  - `BSF66F:static`
+  - `BS2DCE:roto`
+  - `BSDC91:roto`
+- Anchor preflight:
+  - `success=true`
+  - `sent_count=8`
+  - `ready_count=8`
+  - `ready_target=8`
+
+Result summary:
+
+- `positions_all=0`
+- `cm_all=9499`
+- `cs_all=1620`
+- `cr_all=6821`
+- `cf_all=1632`
+- The session marked `startup_failed=true` for `BSDC91`.
+
+Listener note:
+
+- The first listener process ended before the real Tag capture because anchor
+  preflight consumed the initial listener window.
+- A second late listener was started during the active capture:
+  `logs/alt_v16_3tag_listener_anchorserial_20260428_220007/listener_late/listener_20260428_220235`
+- Late listener result:
+  - `uf_rows=1813`
+  - `ul_rows=546`
+  - `UF code=0xe0` count `1267`
+  - `UL/response code=0xe1` count `546`
+  - Responses were seen from A-H.
+
+Important finding:
+
+- This is no longer the previous "listener sees poll but no anchor response"
+  failure. Listener now sees anchor responses on air.
+- Tag-side ranging is still not solved:
+  - `BSF66F`: many partial OK ranges, but no full position.
+  - `BS2DCE`: mostly timeout.
+  - `BSDC91`: mostly timeout and triggered startup failure.
+
+Timing:
+
+- `BSF66F` CF:
+  - `first_to_last_us=0`
+  - `poll_count=4`
+- `BS2DCE` and `BSDC91` CF:
+  - `first_to_last_us=579`
+  - `poll_count=4`
+
+Tag firmware check:
+
+- `BSF66F`: `alt-bcast-v7-tag-addrfix`, tag id `3`
+- `BS2DCE`: `alt-ss-twr-tag-v4-rxrestart`, tag id `1`
+- `BSDC91`: `alt-ss-twr-tag-v4-rxrestart`, tag id `2`
+
+Conclusion:
+
+- Anchors A-H are online and responding over UWB.
+- The three Tags are not running the same Alt broadcast baseline.
+- Next step should be to OTA `BS2DCE` and `BSDC91` to the same broadcast Tag
+  image family as `BSF66F`, then rerun the 3-tag listener capture with a longer
+  listener window that starts after or spans anchor preflight.
+
+## 2026-04-28 Tag OTA To Broadcast v9
+
+Goal:
+
+- Put all three online Tags on the same latest Alt broadcast Tag image before
+  rerunning the 3-tag capture.
+
+Payload:
+
+- Tag build: `build-alt-tag-bcast-v9-spacing1000`
+- Marker: `alt-bcast-v9-spacing1000`
+- Settings:
+  - `APP_ALT_SS_TWR_ENABLE=1`
+  - `APP_ALT_SS_TWR_GUARD_US=2000`
+  - `APP_ALT_SS_TWR_POLL_SPACING_US=200`
+  - `APP_ALT_SS_TWR_RESP_SPACING_US=1000`
+- Payload guard passed as `tag_ota_bundle`.
+
+Master_Tag carrier:
+
+- Build:
+  `build-master-control-b120-m1-master-tag-lfrc-alt-bcast-v9-spacing1000-carrier`
+- B120 LFRC assert passed.
+- Master_Tag `1050070698` was flashed with the repository B120 J-Link script
+  and explicit SNR.
+
+OTA result:
+
+- Log root:
+  `logs/tag_all_to_alt_bcast_v9_spacing1000_20260428_221229`
+- `BSF66F`: OTA success, post version
+  `actual=alt-bcast-v9-spacing1000 match=True`
+- `BS2DCE`: OTA success, post version
+  `actual=alt-bcast-v9-spacing1000 match=True`
+- `BSDC91`: OTA success, post version
+  `actual=alt-bcast-v9-spacing1000 match=True`
+
+Conclusion:
+
+- All three Tags now match the same latest Alt broadcast v9 Tag image.
+- Next step is to rerun 3-tag listener + anchor serial capture with a listener
+  window long enough to cover anchor preflight and the active Tag capture.
+
+## 2026-04-28 v9 3-Tag Broadcast Capture
+
+Capture:
+
+- Log root:
+  `logs/alt_v9_3tag_listener_anchorserial_20260428_221928`
+- Recv session:
+  `logs/alt_v9_3tag_listener_anchorserial_20260428_221928/recv_20260428_221930`
+- Listener:
+  `logs/alt_v9_3tag_listener_anchorserial_20260428_221928/listener/listener_20260428_221929`
+- Tags:
+  - `BSF66F:static`
+  - `BS2DCE:roto`
+  - `BSDC91:roto`
+- Listener window was extended to cover anchor preflight and active capture.
+
+Run status:
+
+- Capture `success=true`
+- `startup_failed=false`
+- Anchor preflight `success=true`, `ready_count=8`, `ready_target=8`
+- `positions_all=0`
+- `cm_all=6861`
+- `cs_all=2180`
+- `cr_all=9025`
+- `cf_all=2182`
+
+Timing objective:
+
+- `BSF66F`: `first_to_last_us=0`, `poll_count=4`
+- `BS2DCE`: `first_to_last_us=0`, `poll_count=4`
+- `BSDC91`: `first_to_last_us=0`, `poll_count=4`
+
+Tag-side range status:
+
+- `BSF66F`:
+  - `ok=748`
+  - `timeout=602`
+  - `reject=3`
+- `BS2DCE`:
+  - `ok=946`
+  - `timeout=1784`
+  - `reject=10`
+- `BSDC91`:
+  - `ok=1776`
+  - `timeout=980`
+  - `reject=12`
+
+Listener:
+
+- `UF rows=1847`
+- `UL rows=19`
+- `UF code=0xe0` count `1828`
+- `UL/response code=0xe1` count `19`
+- Listener saw response frames from A/E/G/H only in this run.
+
+Interpretation:
+
+- All three Tags are now using the broadcast Alt timing path.
+- The timing goal is achieved for all three Tags: every CF row has
+  `first_to_last_us=0`.
+- Ranging is partially working at the Tag side: thousands of `CM ok` rows were
+  produced after the v9 Tag OTA.
+- Full positioning is still not working because each sweep still has too many
+  timeout/error anchors for a stable solve.
+- Listener visibility is now inconsistent with Tag-side CM: listener saw only
+  19 response frames while Tags reported 3470 `CM ok` rows. This needs a
+  focused next diagnostic; do not interpret listener UL count alone as Tag
+  receive count.
+
+Next technical focus:
+
+- Investigate why per-sweep anchor subsets are asymmetric. Examples:
+  - `BS2DCE` mostly gets A/E OK but C/G timeout.
+  - `BSDC91` mostly gets A/E OK but C/H timeout.
+  - `BSF66F` gets partial OK across more anchors but not consistently enough.
+- Add/enable low-rate Anchor responder diag for v9/v10 that records recent
+  matched tag src, mask, rank, delay, and tx result, then correlate with Tag
+  `CM ok/timeout` by tag id and anchor id.
+
+## 2026-04-29 A-H Direct Recovery To Alt Unicast v5 coop1
+
+User explicitly authorized direct recovery flash for Anchors A-H before sleep.
+
+Recovery target:
+
+- build: `build-anchor-unified-ota-alt-unicast-v5-s1000-r2000-coop1`
+- image: `merged.hex`
+- marker: `alt-unicast-v5-s1000-r2000-coop1`
+- key params:
+  - `APP_ALT_SS_TWR_ENABLE=1`
+  - `APP_ALT_SS_TWR_POLL_SPACING_US=1000`
+  - `APP_ALT_SS_TWR_RESP_SPACING_US=2000`
+  - `APP_ANCHOR_RESPONDER_COOP_SLEEP_MS=1`
+  - `APP_UWB_HW_FRAME_FILTER_ENABLE=1`
+
+Direct recovery flash:
+
+- command wrapper: `scripts/flash_all_anchors.sh`
+- per-board transport: `JLinkExe -NoGui 1 -SelectEmuBySN <snr>`
+- no `nrfjprog`
+- log root: `logs/recovery_AH_direct_flash_v5_coop1_20260429_002210`
+- result: A-H all completed J-Link program/verify OK.
+
+Post-flash verification:
+
+- Runtime responder verify log:
+  `logs/recovery_AH_v5_coop1_post_flash_responder_verify_20260429_002656`
+- Result:
+  - `success=true`
+  - `sent_count=8`
+  - `ready_count=8`
+  - `ready_target=8`
+
+OTA gate verification:
+
+- A-only OTA gate probe after Master_Anchor reset:
+  `logs/recovery_AH_v5_coop1_anchor_A_ota_gate_probe_after_master_reset_20260429_003155`
+- Result:
+  - `classification=D`
+  - `ota_started=true`
+  - `dfu_ready_seen=true`
+  - `ota_upload_started_seen=true`
+  - `ota_upload_complete_seen=true`
+  - `ota_success_seen=true`
+  - `reason=ota_success_observed`
+
+Important interpretation:
+
+- The earlier DFU-ready/SMP stall was caused by the already-running
+  `alt-unicast-v1-s1000` Anchor image, which had
+  `APP_ANCHOR_RESPONDER_COOP_SLEEP_MS=0`.
+- After direct recovery to v5 coop1, A-H control links recover and A proves the
+  OTA gate can pass image-state read and complete upload.
+- `anchor version all` is still flaky as a control-plane query under active
+  scan/connect churn; do not use that alone to judge recovery success.
+
+Final state left for the next session:
+
+- Master_Anchor is back in `AUTOPOS`.
+- OTA target UUID was cleared back to `-`.
+- Master_Anchor status after cleanup: `mode=AUTOPOS pending=0`.
+
+## 2026-04-29 Overnight Alt Unicast Tag v12/v13 Gate Diagnosis
+
+Goal:
+
+- Continue Phase 1/2 Alt SS-TWR unicast burst validation with 3 online Tags.
+- Keep Anchors on the recovered stable OTA base; do not direct-flash Anchors.
+- Test whether the remaining ROTO imbalance comes from Tag-side range gates.
+
+Deployed Tag images:
+
+- v12 marker: `alt-u12-unicast-s1000-r2000-rawgate0`
+  - unicast burst
+  - poll spacing 1000 us
+  - response spacing 2000 us
+  - raw range delta gate disabled
+  - continuity gate still enabled
+- v13 marker: `alt-u13-unicast-s1000-r2000-raw0-cont0`
+  - same as v12
+  - additionally `APP_TAG_RANGE_CONTINUITY_ENABLE=0`
+
+OTA / carrier verification:
+
+- Master_Tag B120 carrier builds used LFRC and passed
+  `scripts/assert_b120_internal_osc_build.sh`.
+- Master_Tag was flashed only with explicit SNR `1050070698`.
+- Tag OTA match:
+  - v12: `BSF66F`, `BS2DCE`, `BSDC91` all `match=True`
+  - v13: `BSF66F`, `BS2DCE`, `BSDC91` all `match=True`
+
+Key logs:
+
+- v12 single BS2DCE:
+  `logs/alt_u12_rawgate0_BS2DCE_motion_1tag_listener_anchorserial_20260429_031032`
+- v12 3 Tag:
+  `logs/alt_u12_rawgate0_3tag_motion_listener_anchorserial_20260429_031347`
+- v13 3 Tag:
+  `logs/alt_u13_raw0_cont0_3tag_motion_listener_anchorserial_20260429_032540`
+
+Results:
+
+- v10 3 Tag baseline for this overnight sequence:
+  - total positions: 209
+  - `BSF66F=201`, `BS2DCE=5`, `BSDC91=3`
+- v12 3 Tag:
+  - total positions: 209
+  - `BSF66F=138`, `BS2DCE=31`, `BSDC91=40`
+  - raw gate removal improved ROTO Tags but cadence was still poor.
+- v13 3 Tag:
+  - total positions: 799 in 90 s
+  - `BSF66F=201`, `BS2DCE=332`, `BSDC91=266`
+  - median motion dt:
+    - `BSF66F=400 ms`
+    - `BS2DCE=201 ms`
+    - `BSDC91=211 ms`
+  - median RMS:
+    - `BSF66F=96 mm`
+    - `BS2DCE=40 mm`
+    - `BSDC91=30.5 mm`
+  - listener saw active UWB traffic: `uf=4288`, `ul=2035`
+
+Interpretation:
+
+- Anchor responder path is not the current blocker. A-H responder preflight was
+  repeatedly `ready=8/8`, and listener saw many anchor responses.
+- The v10/v12 imbalance was mainly Tag-side range plausibility / continuity
+  gating under moving ROTO geometry.
+- Disabling both the raw delta gate and continuity gate makes 3 Tag Alt
+  unicast burst produce stable positioning data.
+- Next validation should compare v13 against earlier standard SS-TWR data and
+  run static/roto profile captures, then decide whether to replace the hard
+  continuity disable with a motion-aware softer gate.
+
+Static/ROTO mixed validation:
+
+- v13 static/roto log:
+  `logs/alt_u13_raw0_cont0_static_roto_3tag_listener_anchorserial_20260429_032936`
+- Profiles:
+  - `BSF66F:static`
+  - `BS2DCE:roto`
+  - `BSDC91:roto`
+- Result:
+  - `cm_all=4882`
+  - `cf_all=1594`
+  - `CM ok=4201/4882 = 86.1%`
+  - per Tag CM ok:
+    - `BSF66F=1111/1354 = 82.1%`
+    - `BS2DCE=1562/1750 = 89.3%`
+    - `BSDC91=1528/1778 = 85.9%`
+  - CF median `first_to_last_us`:
+    - `BSF66F=5187`
+    - `BS2DCE=5279`
+    - `BSDC91=5218`
+  - CF success:
+    - `BSF66F=89/451`
+    - `BS2DCE=370/567`
+    - `BSDC91=354/576`
+
+800 us spacing experiment:
+
+- v14 marker: `alt-u14-unicast-s800-r2000-raw0-cont0`
+- v14 static/roto log:
+  `logs/alt_u14_s800_raw0_cont0_static_roto_3tag_listener_anchorserial_20260429_033920`
+- Result:
+  - `cm_all=6644`
+  - `cf_all=2101`
+  - `CM ok=3866/6644 = 58.2%`
+  - per Tag CM ok:
+    - `BSF66F=792/1350 = 58.7%`
+    - `BS2DCE=1464/2591 = 56.5%`
+    - `BSDC91=1610/2703 = 59.6%`
+  - CF median `first_to_last_us` improved to roughly 4.6 ms, but CF success
+    collapsed:
+    - `BSF66F=0/450`
+    - `BS2DCE=12/824`
+    - `BSDC91=4/827`
+
+Conclusion from v14:
+
+- 800 us poll spacing is not a safe point with the current Anchor v7 responder
+  and Tag v13/v14 timing. It increases attempted frame rate but costs too many
+  anchor responses.
+- Current best-known stable Alt unicast point is v13:
+  `s1000-r2000-raw0-cont0`.
+- After the v14 test, all three Tags were restored by OTA back to v13:
+  `BSF66F`, `BS2DCE`, `BSDC91` all `match=True`.
+
+2026-04-29 Tag-only spacing compression on stable Anchor a21:
+
+- Safety boundary:
+  - Anchor A-H stayed on stable `alt-a21-s1000-affrejfast`.
+  - Anchor OTA logic was not modified.
+  - Tag OTA used the existing `ota_deploy_tag_set.py` path.
+- Built Tag-only images:
+  - `alt-u18-tagonly-s600-a21resp`
+  - `alt-u18-tagonly-s300-a21resp`
+- Deployed `alt-u18-tagonly-s600-a21resp` to all three Tags:
+  - `BSF66F`, `BS2DCE`, `BSDC91` all post-version `match=True`.
+- s600 3 Tag static/roto capture:
+  - log: `logs/alt_u18_s600_a21_3tag_listener_anchorserial_20260429_140120`
+  - `first_to_last_us`: median `1739`, p95 `2014`
+  - `poll_count=4` for all CF rows
+  - `CM ok=611/2532`, `timeout=1869`, `reject=52`
+  - listener saw responses again: `UF=360`, `UL=143`
+- s600 BSF66F single-Tag static capture:
+  - log: `logs/alt_u18_s600_a21_BSF66F_1tag_listener_anchorserial_20260429_140249`
+  - `first_to_last_us`: median `1739`, p95 `1892`
+  - `CM ok=407/451`, `timeout=9`, `reject=35`
+- Deployed `alt-u18-tagonly-s300-a21resp` to BSF66F only:
+  - post-version `match=True`.
+- s300 BSF66F single-Tag static capture:
+  - log: `logs/alt_u18_s300_a21_BSF66F_1tag_listener_anchorserial_20260429_140640`
+  - `first_to_last_us`: median `1678`, p95 `1922`
+  - `CM ok=411/450`, `timeout=17`, `reject=22`
+
+Interpretation:
+
+- Lowering requested spacing from 600 us to 300 us did not reduce
+  `first_to_last_us` below about 1.65-1.75 ms.
+- The current unicast burst path sends each poll with `DWT_START_TX_IMMEDIATE`,
+  waits for `SYS_STATUS_TXFRS`, then writes and starts the next frame. With one
+  DW1000 TX buffer, this creates an observed floor of roughly 550 us per
+  poll-to-poll gap for the current PHY and driver path.
+- Therefore the current Tag-only unicast implementation cannot reach
+  sub-1000 us for four separate unicast poll frames by changing
+  `APP_ALT_SS_TWR_POLL_SPACING_US` alone.
+- s600/s300 are viable single-Tag ranging experiments, but s600 3 Tag is not
+  stable enough yet. Multi-Tag work needs TDMA window/slot tuning after the
+  single-Tag timing path is understood.

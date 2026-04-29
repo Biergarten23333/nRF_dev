@@ -331,7 +331,7 @@ int tag_app_run(void)
         .fixed_anchor_mode = (APP_TAG_FIXED_MODE != 0U),
         .fixed_anchor_ids = runtime_fixed_anchor_ids,
         .fixed_anchor_count = APP_TAG_FIXED_ANCHOR_COUNT,
-        .multitag_anchor_plan_mode = false,
+        .multitag_anchor_plan_mode = (APP_TAG_MULTITAG_PLAN_MODE != 0U),
         .active_anchor_ids = active_anchor_ids,
         .active_anchor_count = ARRAY_SIZE(active_anchor_ids),
         .standby_anchor_ids = standby_anchor_ids,

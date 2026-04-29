@@ -46,7 +46,7 @@ def main() -> int:
             ok = False
             # A small retry helps if the device is mid-discovery.
             for attempt in range(1, 4):
-                ser, ok = quarantine_tag_for_sweep(ser, sys.stdout, args.port, tag, True, 1)
+                ser, ok = quarantine_tag_for_sweep(ser, sys.stdout, args.port, tag, True, True, 1)
                 if ok:
                     break
                 print(f"QUIET_RETRY tag={tag} attempt={attempt}/3", flush=True)
@@ -66,4 +66,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

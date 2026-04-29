@@ -85,6 +85,7 @@ set(APP_TAG_EKF_INIT_VEL_STD_MM_S "1000" CACHE STRING "Initial velocity standard
 set(APP_TAG_EKF_OUTLIER_GATE_MM "0" CACHE STRING "Reject position updates larger than this gate in millimeters (0 disables)")
 set(APP_TAG_RANGE_SOFT_RESIDUAL_MM "180" CACHE STRING "Soft residual gate for per-anchor range continuity weighting")
 set(APP_TAG_RANGE_HARD_RESIDUAL_MM "350" CACHE STRING "Hard residual gate for per-anchor range continuity rejection")
+set(APP_TAG_RANGE_FILTER_OUTLIER_MM "450" CACHE STRING "Raw range delta outlier gate in millimeters, or 0 to disable")
 set(APP_TAG_OUTPUT_MAX_RMS_MM "0" CACHE STRING "Reject solved positions above this RMS residual in millimeters (0 disables)")
 set(APP_TAG_OUTPUT_MAX_MAX_MM "0" CACHE STRING "Reject solved positions above this max residual in millimeters (0 disables)")
 set(APP_TAG_OUTPUT_MAX_STEP_MM "0" CACHE STRING "Reject solved positions that jump more than this distance from the last accepted position in millimeters (0 disables)")
@@ -109,9 +110,11 @@ set(APP_TAG_STREAM_FORCE_OFF_AT_BOOT "0" CACHE STRING "Force STREAM OFF on every
 set(APP_TAG_FW_MARKER "unified-default" CACHE STRING "Runtime firmware marker printed at boot for OTA validation")
 set(APP_TAG_CALIBRATION_MODE "0" CACHE STRING "Calibration-role mode: ignore runtime TDMA settings/master slot commands")
 set(APP_ALT_SS_TWR_ENABLE "0" CACHE STRING "Enable experimental burst-poll SS-TWR protocol")
+set(APP_ALT_SS_TWR_MODE "2" CACHE STRING "Alt SS-TWR mode: 1=unicast burst, 2=broadcast mask")
 set(APP_ALT_SS_TWR_POLL_SPACING_US "200" CACHE STRING "Alt SS-TWR spacing between burst polls in microseconds")
 set(APP_ALT_SS_TWR_GUARD_US "500" CACHE STRING "Alt SS-TWR guard time after poll burst in microseconds")
 set(APP_ALT_SS_TWR_RESP_SPACING_US "800" CACHE STRING "Alt SS-TWR spacing between anchor response slots in microseconds")
+set(APP_TAG_ALT_POLL_DIAG_PERIOD_MS "5000" CACHE STRING "Alt SS-TWR poll timing diagnostic period in milliseconds")
 if(NOT DEFINED APP_TAG_BLE_TOKEN_ID OR APP_TAG_BLE_TOKEN_ID STREQUAL "")
 set(APP_TAG_BLE_TOKEN_ID "${APP_TAG_ID}" CACHE STRING "BLE identity token advertised in manufacturer data")
 endif()
@@ -183,6 +186,7 @@ target_compile_definitions(app PRIVATE
     APP_TAG_EKF_OUTLIER_GATE_MM=${APP_TAG_EKF_OUTLIER_GATE_MM}
     APP_TAG_RANGE_SOFT_RESIDUAL_MM=${APP_TAG_RANGE_SOFT_RESIDUAL_MM}
     APP_TAG_RANGE_HARD_RESIDUAL_MM=${APP_TAG_RANGE_HARD_RESIDUAL_MM}
+    APP_TAG_RANGE_FILTER_OUTLIER_MM=${APP_TAG_RANGE_FILTER_OUTLIER_MM}
     APP_TAG_OUTPUT_MAX_RMS_MM=${APP_TAG_OUTPUT_MAX_RMS_MM}
     APP_TAG_OUTPUT_MAX_MAX_MM=${APP_TAG_OUTPUT_MAX_MAX_MM}
     APP_TAG_OUTPUT_MAX_STEP_MM=${APP_TAG_OUTPUT_MAX_STEP_MM}
@@ -207,9 +211,11 @@ target_compile_definitions(app PRIVATE
     APP_TAG_FW_MARKER=\"${APP_TAG_FW_MARKER}\"
     APP_TAG_CALIBRATION_MODE=${APP_TAG_CALIBRATION_MODE}
     APP_ALT_SS_TWR_ENABLE=${APP_ALT_SS_TWR_ENABLE}
+    APP_ALT_SS_TWR_MODE=${APP_ALT_SS_TWR_MODE}
     APP_ALT_SS_TWR_POLL_SPACING_US=${APP_ALT_SS_TWR_POLL_SPACING_US}
     APP_ALT_SS_TWR_GUARD_US=${APP_ALT_SS_TWR_GUARD_US}
     APP_ALT_SS_TWR_RESP_SPACING_US=${APP_ALT_SS_TWR_RESP_SPACING_US}
+    APP_TAG_ALT_POLL_DIAG_PERIOD_MS=${APP_TAG_ALT_POLL_DIAG_PERIOD_MS}
     APP_TAG_BLE_TOKEN_ID=${APP_TAG_BLE_TOKEN_ID}
     APP_TAG_MCUBOOT_ENABLE=${APP_TAG_MCUBOOT_ENABLE}
     APP_UWB_CHANNEL=${APP_UWB_CHANNEL}
