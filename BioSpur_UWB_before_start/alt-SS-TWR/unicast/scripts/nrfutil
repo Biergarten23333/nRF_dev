@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ -z "${NRFUTIL_DEVICE_BIN:-}" ]]; then
+  if [[ -x "${HOME}/.nrfutil/bin/nrfutil-device" ]]; then
+    NRFUTIL_DEVICE_BIN="${HOME}/.nrfutil/bin/nrfutil-device"
+  elif [[ -x "${HOME}/.vscode/extensions/nordic-semiconductor.nrf-connect-2026.4.1637-linux-x64/platform/nrfutil/bin/nrfutil-device" ]]; then
+    NRFUTIL_DEVICE_BIN="${HOME}/.vscode/extensions/nordic-semiconductor.nrf-connect-2026.4.1637-linux-x64/platform/nrfutil/bin/nrfutil-device"
+  elif [[ -x "${HOME}/.vscode/extensions/nordic-semiconductor.nrf-connect-2026.3.1484-linux-x64/platform/nrfutil/bin/nrfutil-device" ]]; then
+    NRFUTIL_DEVICE_BIN="${HOME}/.vscode/extensions/nordic-semiconductor.nrf-connect-2026.3.1484-linux-x64/platform/nrfutil/bin/nrfutil-device"
+  fi
+fi
+
+if [[ ! -x "${NRFUTIL_DEVICE_BIN:-}" ]]; then
+  echo "nrfutil-device not found: ${NRFUTIL_DEVICE_BIN:-unset}" >&2
+  exit 127
+fi
+
+args=()
+for arg in "$@"; do
+  if [[ "$arg" == "device" ]]; then
+    continue
+  fi
+  args+=("$arg")
+done
+
+exec "$NRFUTIL_DEVICE_BIN" "${args[@]}"
