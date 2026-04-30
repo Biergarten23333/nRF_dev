@@ -89,6 +89,8 @@ set(APP_TAG_RANGE_FILTER_OUTLIER_MM "450" CACHE STRING "Raw range delta outlier 
 set(APP_TAG_OUTPUT_MAX_RMS_MM "0" CACHE STRING "Reject solved positions above this RMS residual in millimeters (0 disables)")
 set(APP_TAG_OUTPUT_MAX_MAX_MM "0" CACHE STRING "Reject solved positions above this max residual in millimeters (0 disables)")
 set(APP_TAG_OUTPUT_MAX_STEP_MM "0" CACHE STRING "Reject solved positions that jump more than this distance from the last accepted position in millimeters (0 disables)")
+set(APP_TAG_OUTPUT_FILTER_RMS_MM "0" CACHE STRING "Emit TF and suppress TS for solved positions above this RMS residual in millimeters (0 disables)")
+set(APP_TAG_OUTPUT_FILTER_SPEED_MM_S "0" CACHE STRING "Emit TF and suppress TS for solved positions faster than this from the last accepted position in mm/s (0 disables)")
 set(APP_TAG_MOTION_FULL_SWEEP_INTERVAL "0" CACHE STRING "Use a shorter full-sweep interval while in dynamic context (0 disables)")
 set(APP_TAG_MOTION_SPEED_THRESHOLD_MM_S "250" CACHE STRING "Recent speed threshold used to classify dynamic context")
 set(APP_TAG_MOTION_RANGE_SOFT_BONUS_MM "0" CACHE STRING "Additional continuity soft gate while in dynamic context")
@@ -115,6 +117,8 @@ set(APP_ALT_SS_TWR_MODE "2" CACHE STRING "Alt SS-TWR mode: 1=unicast burst, 2=br
 set(APP_ALT_SS_TWR_POLL_SPACING_US "200" CACHE STRING "Alt SS-TWR spacing between burst polls in microseconds")
 set(APP_ALT_SS_TWR_GUARD_US "400" CACHE STRING "Alt SS-TWR guard time after poll burst in microseconds")
 set(APP_ALT_SS_TWR_RESP_SPACING_US "1000" CACHE STRING "Alt SS-TWR spacing between anchor response slots in microseconds")
+set(APP_ALT_SS_TWR_BCAST_FORCE_FULL_SWEEP "0" CACHE STRING "Force broadcast Alt SS-TWR sweeps to use all configured anchors")
+set(APP_ALT_SS_TWR_LIGHT_TDMA_ENABLE "0" CACHE STRING "Use broadcast-dedicated lightweight TDMA scheduler")
 set(APP_TAG_ALT_POLL_DIAG_PERIOD_MS "5000" CACHE STRING "Alt SS-TWR poll timing diagnostic period in milliseconds")
 if(NOT DEFINED APP_TAG_BLE_TOKEN_ID OR APP_TAG_BLE_TOKEN_ID STREQUAL "")
 set(APP_TAG_BLE_TOKEN_ID "${APP_TAG_ID}" CACHE STRING "BLE identity token advertised in manufacturer data")
@@ -191,6 +195,8 @@ target_compile_definitions(app PRIVATE
     APP_TAG_OUTPUT_MAX_RMS_MM=${APP_TAG_OUTPUT_MAX_RMS_MM}
     APP_TAG_OUTPUT_MAX_MAX_MM=${APP_TAG_OUTPUT_MAX_MAX_MM}
     APP_TAG_OUTPUT_MAX_STEP_MM=${APP_TAG_OUTPUT_MAX_STEP_MM}
+    APP_TAG_OUTPUT_FILTER_RMS_MM=${APP_TAG_OUTPUT_FILTER_RMS_MM}
+    APP_TAG_OUTPUT_FILTER_SPEED_MM_S=${APP_TAG_OUTPUT_FILTER_SPEED_MM_S}
     APP_TAG_MOTION_FULL_SWEEP_INTERVAL=${APP_TAG_MOTION_FULL_SWEEP_INTERVAL}
     APP_TAG_MOTION_SPEED_THRESHOLD_MM_S=${APP_TAG_MOTION_SPEED_THRESHOLD_MM_S}
     APP_TAG_MOTION_RANGE_SOFT_BONUS_MM=${APP_TAG_MOTION_RANGE_SOFT_BONUS_MM}
@@ -217,6 +223,8 @@ target_compile_definitions(app PRIVATE
     APP_ALT_SS_TWR_POLL_SPACING_US=${APP_ALT_SS_TWR_POLL_SPACING_US}
     APP_ALT_SS_TWR_GUARD_US=${APP_ALT_SS_TWR_GUARD_US}
     APP_ALT_SS_TWR_RESP_SPACING_US=${APP_ALT_SS_TWR_RESP_SPACING_US}
+    APP_ALT_SS_TWR_BCAST_FORCE_FULL_SWEEP=${APP_ALT_SS_TWR_BCAST_FORCE_FULL_SWEEP}
+    APP_ALT_SS_TWR_LIGHT_TDMA_ENABLE=${APP_ALT_SS_TWR_LIGHT_TDMA_ENABLE}
     APP_TAG_ALT_POLL_DIAG_PERIOD_MS=${APP_TAG_ALT_POLL_DIAG_PERIOD_MS}
     APP_TAG_BLE_TOKEN_ID=${APP_TAG_BLE_TOKEN_ID}
     APP_TAG_MCUBOOT_ENABLE=${APP_TAG_MCUBOOT_ENABLE}
@@ -236,6 +244,7 @@ target_sources(app PRIVATE
     ${APP_ROOT}/src/uwb_motion.c
     ${APP_ROOT}/src/uwb_ss_twr_shared.c
     ${APP_ROOT}/src/uwb_tdma.c
+    ${APP_ROOT}/src/broadcast_tdma.c
     ${APP_ROOT}/src/uwb_range_tracker.c
     ${APP_ROOT}/src/uwb_tag_loc.c
     ${APP_ROOT}/src/ss_twr_init.c

@@ -64,6 +64,28 @@ TAG_SUMMARY_RE_SEMI = re.compile(
     r"(?:;(?P<pmode>\d+);(?P<plan_label>[A-Za-z0-9_]+);(?P<qf>\d+))?"
 )
 
+TAG_FILTER_RE_SEMI = re.compile(
+    rf"{TAG_NOTIFY_PREFIX_RE} notify: TF;"
+    r"(?P<ver>\d+);"
+    r"(?P<sweep>\d+);"
+    r"(?P<plan>[A-Za-z0-9_]+);"
+    r"(?P<x>-?\d+);(?P<y>-?\d+);(?P<z>-?\d+);"
+    r"(?P<rms>\d+);(?P<max>\d+);"
+    r"(?P<anchors>[A-Z0-9]*);"
+    r"(?P<slot_idx>\d+);(?P<slot_cnt>\d+);"
+    r"(?P<src>[MSB]);"
+    r"(?P<cut>[01]);"
+    r"(?P<solve_reason>[SPRCN]);"
+    r"(?P<pmode>\d+);"
+    r"(?P<filter_reason>[A-Za-z0-9_]+);"
+    r"(?P<step>\d+);"
+    r"(?P<motion_dt>\d+);"
+    r"(?P<speed>\d+);"
+    r"(?P<qf>\d+);"
+    r"(?P<plan_label>[A-Za-z0-9_]+);"
+    r"(?P<used>\d+)"
+)
+
 CM_RE = re.compile(
     rf"{TAG_NOTIFY_PREFIX_RE} notify: CM;"
     r"(?P<ver>\d+);"
@@ -167,6 +189,23 @@ def iter_tag_summary_matches(text: str):
             fragment = (prefix or "BLE notify: ") + fragment
 
         match = parse_tag_summary(fragment)
+        if match:
+            yield match
+
+
+def iter_tag_filter_matches(text: str):
+    prefix = None
+    if "notify:" in text:
+        prefix = text.split("notify:", 1)[0] + "notify: "
+
+    for idx, fragment in enumerate(text.split("|")):
+        fragment = fragment.strip()
+        if not fragment:
+            continue
+        if idx > 0 and "notify:" not in fragment and fragment.startswith("TF;"):
+            fragment = (prefix or "BLE notify: ") + fragment
+
+        match = TAG_FILTER_RE_SEMI.search(fragment)
         if match:
             yield match
 
@@ -1226,6 +1265,7 @@ def main() -> int:
     cs_rows: list[dict] = []
     cr_rows: list[dict] = []
     cf_rows: list[dict] = []
+    tf_rows: list[dict] = []
     interrupted = False
     startup_failed = False
     startup_fail_targets: list[str] = []
@@ -1620,6 +1660,43 @@ def main() -> int:
                             if peer_name:
                                 positions_seen[peer_name] += 1
 
+                        for m in iter_tag_filter_matches(line):
+                            conn_id = m.groupdict().get("conn") or ""
+                            meta = conn_meta.get(conn_id, {}) if conn_id else {}
+                            peer_name = extract_bs_name(line) or meta.get("peer_name", "")
+                            if peer_name and peer_name not in target_set:
+                                continue
+                            expected_pmode = expected_pmode_by_target.get(peer_name)
+                            active_pmode = int(m.group("pmode"))
+                            if expected_pmode is not None and active_pmode != expected_pmode:
+                                skipped_before_target_pmode += 1
+                                continue
+                            tf_rows.append(
+                                {
+                                    "conn_id": conn_id,
+                                    "host_elapsed_s": host_elapsed_s,
+                                    "host_epoch_s": host_epoch_s,
+                                    "peer_name": peer_name,
+                                    "tag_id": meta.get("tag_id", ""),
+                                    "sweep": int(m.group("sweep")),
+                                    "plan": m.group("plan"),
+                                    "pmode": active_pmode,
+                                    "plan_label": m.group("plan_label"),
+                                    "quality_flag_percent": int(m.group("qf")),
+                                    "x_mm": int(m.group("x")),
+                                    "y_mm": int(m.group("y")),
+                                    "z_mm": int(m.group("z")),
+                                    "rms_mm": int(m.group("rms")),
+                                    "max_mm": int(m.group("max")),
+                                    "anchors": m.group("anchors") or "",
+                                    "filter_reason": m.group("filter_reason"),
+                                    "step_mm": int(m.group("step")),
+                                    "motion_dt_ms": int(m.group("motion_dt")),
+                                    "speed_mm_s": int(m.group("speed")),
+                                    "used_anchor_count": int(m.group("used")),
+                                }
+                            )
+
                         for m in iter_cm_matches(line):
                             conn_id = m.groupdict().get("conn") or ""
                             meta = conn_meta.get(conn_id, {}) if conn_id else {}
@@ -1886,12 +1963,36 @@ def main() -> int:
         "frame_us",
         "poll_count",
     ]
+    tf_fields = [
+        "host_elapsed_s",
+        "host_epoch_s",
+        "sweep",
+        "conn_id",
+        "peer_name",
+        "tag_id",
+        "plan",
+        "pmode",
+        "plan_label",
+        "quality_flag_percent",
+        "x_mm",
+        "y_mm",
+        "z_mm",
+        "rms_mm",
+        "max_mm",
+        "anchors",
+        "filter_reason",
+        "step_mm",
+        "motion_dt_ms",
+        "speed_mm_s",
+        "used_anchor_count",
+    ]
 
     write_rows(session_dir / "positions_all.csv", position_fields, positions)
     write_rows(session_dir / "cm_all.csv", cm_fields, cm_rows)
     write_rows(session_dir / "cs_all.csv", cs_fields, cs_rows)
     write_rows(session_dir / "cr_all.csv", cr_fields, cr_rows)
     write_rows(session_dir / "cf_all.csv", cf_fields, cf_rows)
+    write_rows(session_dir / "tf_all.csv", tf_fields, tf_rows)
 
     per_tag_summary: dict[str, dict] = {}
     zero_position_targets: list[str] = []
@@ -1985,6 +2086,7 @@ def main() -> int:
         "cs_all": len(cs_rows),
         "cr_all": len(cr_rows),
         "cf_all": len(cf_rows),
+        "tf_all": len(tf_rows),
         "connections": conn_meta,
         "per_tag": per_tag_summary,
         "raw_log": str(raw_log_path),
@@ -1993,6 +2095,7 @@ def main() -> int:
         "cs_all_csv": str(session_dir / "cs_all.csv"),
         "cr_all_csv": str(session_dir / "cr_all.csv"),
         "cf_all_csv": str(session_dir / "cf_all.csv"),
+        "tf_all_csv": str(session_dir / "tf_all.csv"),
     }
     summary_json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2))

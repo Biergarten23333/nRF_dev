@@ -20,6 +20,8 @@ project(BioSpur_UWB_master)
 set(APP_ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
 set(APP_MASTER_ONE_SHOT_CMD "" CACHE STRING "Optional single NUS command sent once after link ready")
 set(APP_MASTER_TAG_NAME_PREFIX "BS" CACHE STRING "BLE device-name prefix for receiver mode")
+set(APP_MASTER_TDMA_SLOT_PERIOD_MS "40" CACHE STRING "Master TDMA slot period in milliseconds")
+set(APP_MASTER_TDMA_SLOT_ACTIVE_MS "24" CACHE STRING "Master TDMA slot active window in milliseconds")
 
 # Allow operators/scripts to inject one-shot behavior under sysbuild via env.
 if(DEFINED ENV{APP_MASTER_ONE_SHOT_CMD})
@@ -38,6 +40,8 @@ target_include_directories(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src)
 target_compile_definitions(app PRIVATE
     APP_MASTER_TAG_NAME_PREFIX="${APP_MASTER_TAG_NAME_PREFIX}"
     APP_MASTER_ONE_SHOT_CMD="${APP_MASTER_ONE_SHOT_CMD}"
+    APP_MASTER_TDMA_SLOT_PERIOD_MS=${APP_MASTER_TDMA_SLOT_PERIOD_MS}
+    APP_MASTER_TDMA_SLOT_ACTIVE_MS=${APP_MASTER_TDMA_SLOT_ACTIVE_MS}
 )
 
 target_sources(app PRIVATE
