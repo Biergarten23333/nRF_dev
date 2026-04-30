@@ -1,0 +1,301 @@
+{
+  "success": true,
+  "interrupted": false,
+  "startup_failed": false,
+  "startup_fail_targets": [],
+  "controller_lost": false,
+  "controller_recovery_attempts": 0,
+  "controller_recovery_successes": 0,
+  "zero_position_failed": false,
+  "zero_position_targets": [],
+  "anchor_preflight": {
+    "skipped": true,
+    "success": true
+  },
+  "cm_probe": {
+    "success": true,
+    "probe_target": "BSF66F",
+    "attempts": []
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "command": "cmd MODE AOTA",
+    "error": ""
+  },
+  "port": "/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00",
+  "duration_s": 120.0,
+  "elapsed_s": 148.55509448051453,
+  "session_dir": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/alt-SS-TWR/broadcast/logs/overnight_b15_diag_20260429_234317/04_pair_BSF66F_static_BS2DCE_roto/recv_20260429_235119",
+  "targets": [
+    "BSF66F",
+    "BS2DCE"
+  ],
+  "profiles": {
+    "BSF66F": "static",
+    "BS2DCE": "roto"
+  },
+  "expected_pmode": {
+    "BSF66F": 4,
+    "BS2DCE": 5
+  },
+  "skipped_before_target_pmode": 0,
+  "freq_hz": {
+    "static": 5,
+    "roto": 10,
+    "motion": 5
+  },
+  "positions_all": 0,
+  "cm_all": 3589,
+  "cs_all": 1186,
+  "cr_all": 4773,
+  "cf_all": 1186,
+  "connections": {},
+  "per_tag": {
+    "BSF66F": {
+      "position_rows": 0,
+      "cm_rows": 1800,
+      "cs_rows": 600,
+      "cr_rows": 2402,
+      "cf_rows": 600,
+      "latest_position": null,
+      "latest_calibration_summary": {
+        "conn_id": "",
+        "host_elapsed_s": 119.826452,
+        "host_epoch_s": 1777499625.057041,
+        "peer_name": "BSF66F",
+        "tag_id": "",
+        "sweep": 8958,
+        "plan": "cal_static",
+        "pmode": 4,
+        "quality_flag_percent": 97,
+        "targets": "A,B,C,D",
+        "statuses": "ok,ok,ok,ok",
+        "qualities": "96,96,100,96"
+      },
+      "latest_calibration_reject": {
+        "conn_id": "",
+        "host_elapsed_s": 119.978536,
+        "host_epoch_s": 1777499625.209125,
+        "peer_name": "BSF66F",
+        "tag_id": "",
+        "sweep": 8959,
+        "plan": "cal_static",
+        "pmode": 4,
+        "anchor_label": "H",
+        "status": "ok",
+        "reason": "ok",
+        "raw_mm": 1935,
+        "filt_mm": 1935,
+        "pred_mm": 0,
+        "resid_mm": 0,
+        "tracker_quality_percent": 93,
+        "solve_quality_percent": 93
+      },
+      "latest_calibration_frame": {
+        "conn_id": "",
+        "host_elapsed_s": 119.823327,
+        "host_epoch_s": 1777499625.053916,
+        "peer_name": "BSF66F",
+        "tag_id": "",
+        "sweep": 8958,
+        "plan": "cal_static",
+        "pmode": 4,
+        "solve_reason": "pending",
+        "quality_flag_percent": 97,
+        "active_anchor_count": 4,
+        "valid_anchor_count": 4,
+        "rms_mm": 0,
+        "max_mm": 0,
+        "step_mm": 0,
+        "first_to_last_us": 0,
+        "frame_us": 23223,
+        "poll_count": 4
+      },
+      "anchors_seen": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "status_counts": {
+        "ok": 1695,
+        "timeout": 105
+      },
+      "reject_reason_counts": {
+        "ok": 2260,
+        "rx_timeout": 50,
+        "rx_error": 92
+      },
+      "anchor_reject_reason_counts": {
+        "G": {
+          "ok": 282,
+          "rx_timeout": 7,
+          "rx_error": 12
+        },
+        "H": {
+          "ok": 280,
+          "rx_timeout": 9,
+          "rx_error": 12
+        },
+        "A": {
+          "ok": 285,
+          "rx_error": 11,
+          "rx_timeout": 4
+        },
+        "B": {
+          "ok": 285,
+          "rx_error": 11,
+          "rx_timeout": 4
+        },
+        "C": {
+          "ok": 284,
+          "rx_error": 11,
+          "rx_timeout": 5
+        },
+        "D": {
+          "ok": 284,
+          "rx_error": 11,
+          "rx_timeout": 5
+        },
+        "E": {
+          "ok": 282,
+          "rx_error": 12,
+          "rx_timeout": 6
+        },
+        "F": {
+          "ok": 278,
+          "rx_error": 12,
+          "rx_timeout": 10
+        }
+      }
+    },
+    "BS2DCE": {
+      "position_rows": 0,
+      "cm_rows": 1789,
+      "cs_rows": 586,
+      "cr_rows": 2371,
+      "cf_rows": 586,
+      "latest_position": null,
+      "latest_calibration_summary": {
+        "conn_id": "",
+        "host_elapsed_s": 119.790476,
+        "host_epoch_s": 1777499625.021065,
+        "peer_name": "BS2DCE",
+        "tag_id": "",
+        "sweep": 5603,
+        "plan": "cal_roto",
+        "pmode": 5,
+        "quality_flag_percent": 94,
+        "targets": "B,A,F,G",
+        "statuses": "timeout,timeout,timeout,timeout",
+        "qualities": "96,93,93,96"
+      },
+      "latest_calibration_reject": {
+        "conn_id": "",
+        "host_elapsed_s": 119.999999,
+        "host_epoch_s": 1777499625.230588,
+        "peer_name": "BS2DCE",
+        "tag_id": "",
+        "sweep": 5604,
+        "plan": "cal_roto",
+        "pmode": 5,
+        "anchor_label": "A",
+        "status": "ok",
+        "reason": "ok",
+        "raw_mm": 4442,
+        "filt_mm": 4442,
+        "pred_mm": 0,
+        "resid_mm": 0,
+        "tracker_quality_percent": 93,
+        "solve_quality_percent": 93
+      },
+      "latest_calibration_frame": {
+        "conn_id": "",
+        "host_elapsed_s": 119.787534,
+        "host_epoch_s": 1777499625.018123,
+        "peer_name": "BS2DCE",
+        "tag_id": "",
+        "sweep": 5603,
+        "plan": "cal_roto",
+        "pmode": 5,
+        "solve_reason": "pending",
+        "quality_flag_percent": 94,
+        "active_anchor_count": 4,
+        "valid_anchor_count": 4,
+        "rms_mm": 0,
+        "max_mm": 0,
+        "step_mm": 0,
+        "first_to_last_us": 0,
+        "frame_us": 217102,
+        "poll_count": 4
+      },
+      "anchors_seen": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "status_counts": {
+        "ok": 1688,
+        "timeout": 101
+      },
+      "reject_reason_counts": {
+        "ok": 2236,
+        "rx_timeout": 39,
+        "rx_error": 96
+      },
+      "anchor_reject_reason_counts": {
+        "A": {
+          "ok": 561,
+          "rx_error": 23,
+          "rx_timeout": 6
+        },
+        "B": {
+          "ok": 557,
+          "rx_error": 23,
+          "rx_timeout": 9
+        },
+        "C": {
+          "ok": 4,
+          "rx_error": 1
+        },
+        "D": {
+          "ok": 4,
+          "rx_error": 1
+        },
+        "E": {
+          "ok": 3,
+          "rx_timeout": 1
+        },
+        "F": {
+          "ok": 553,
+          "rx_error": 24,
+          "rx_timeout": 13
+        },
+        "G": {
+          "ok": 553,
+          "rx_error": 24,
+          "rx_timeout": 10
+        },
+        "H": {
+          "ok": 1
+        }
+      }
+    }
+  },
+  "raw_log": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/alt-SS-TWR/broadcast/logs/overnight_b15_diag_20260429_234317/04_pair_BSF66F_static_BS2DCE_roto/recv_20260429_235119/raw.log",
+  "positions_all_csv": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/alt-SS-TWR/broadcast/logs/overnight_b15_diag_20260429_234317/04_pair_BSF66F_static_BS2DCE_roto/recv_20260429_235119/positions_all.csv",
+  "cm_all_csv": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/alt-SS-TWR/broadcast/logs/overnight_b15_diag_20260429_234317/04_pair_BSF66F_static_BS2DCE_roto/recv_20260429_235119/cm_all.csv",
+  "cs_all_csv": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/alt-SS-TWR/broadcast/logs/overnight_b15_diag_20260429_234317/04_pair_BSF66F_static_BS2DCE_roto/recv_20260429_235119/cs_all.csv",
+  "cr_all_csv": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/alt-SS-TWR/broadcast/logs/overnight_b15_diag_20260429_234317/04_pair_BSF66F_static_BS2DCE_roto/recv_20260429_235119/cr_all.csv",
+  "cf_all_csv": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/alt-SS-TWR/broadcast/logs/overnight_b15_diag_20260429_234317/04_pair_BSF66F_static_BS2DCE_roto/recv_20260429_235119/cf_all.csv"
+}

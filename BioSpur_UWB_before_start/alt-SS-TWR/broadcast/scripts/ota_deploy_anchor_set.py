@@ -28,9 +28,7 @@ ANCHOR_VERSION_RE = re.compile(
     r"ANCHOR_VERSION query=(?P<query>\S+)\s+uuid=(?P<uuid>[0-9A-F]+)\s+fw=(?P<fw>\S+)\s+label=(?P<label>\S+)\s+role=(?P<role>\S+)"
 )
 ANCHOR_FW_NOTIFY_RE = re.compile(
-    r"ANCHOR_CTRL\[(?P<peer>\d+)\]\s+notify:\s+ANCHOR_FW\s+"
-    r"fw=(?P<fw>\S+)\s+bs=(?P<bs>\S+)\s+uuid=(?P<uuid>[0-9A-F]+)\s+"
-    r"label=(?P<label>\S+)(?:\s+role=(?P<role>\S+))?"
+    r"ANCHOR_CTRL\[\d+\]\s+notify:\s+ANCHOR_FW\s+fw=(?P<fw>\S+)\s+bs=(?P<bs>\S+)\s+uuid=(?P<uuid>[0-9A-F]+)\s+label=(?P<label>[A-H])(?:\s+role=(?P<role>\S+)|\s+r)?"
 )
 
 
@@ -453,14 +451,16 @@ def run_anchor_version_verify(args: argparse.Namespace, out_root: Path, expected
     }
     transcript: list[str] = []
     try:
-        ser, ready_text = wait_for_control_ready(args.port, timeout_s=90.0)
+        ser = open_control_serial(args.port)
         try:
-            transcript.append(ready_text)
-            transcript.append(drain_serial(ser, 1.0))
-            transcript.append(">>> status\n")
-            transcript.append(send_serial_command(ser, "status", 2.0))
+            time.sleep(1.0)
+            transcript.append(drain_serial(ser, 0.8))
+            transcript.append(">>> mode recv\n")
+            transcript.append(send_serial_command(ser, "mode recv", 4.0))
+            transcript.append(">>> device kind anchor\n")
+            transcript.append(send_serial_command(ser, "device kind anchor", 4.0))
             transcript.append(">>> anchor version all\n")
-            transcript.append(send_serial_command(ser, "anchor version all", 120.0))
+            transcript.append(send_serial_command(ser, "anchor version all", 32.0))
         finally:
             ser.close()
     except Exception as exc:
@@ -488,26 +488,22 @@ def run_anchor_version_verify(args: argparse.Namespace, out_root: Path, expected
             "fw_match": fw == expected_fw_marker,
         }
         anchors[query] = entry
-
-    uuid_to_label = {uuid: label for label, uuid in UUIDS.items()}
     for match in ANCHOR_FW_NOTIFY_RE.finditer(raw_text):
-        uuid = match.group("uuid")
-        query = uuid_to_label.get(uuid)
-        if query is None:
+        label = match.group("label")
+        if label not in UUIDS:
             continue
         fw = match.group("fw")
         role = match.group("role")
-        label = match.group("label")
         entry = {
-            "query": query,
-            "uuid": uuid,
+            "query": label,
+            "uuid": match.group("uuid"),
             "fw": fw,
             "label": label,
             "role": role,
             "fw_match": fw == expected_fw_marker,
             "source": "anchor_fw_notify",
         }
-        anchors[query] = entry
+        anchors[label] = entry
 
     missing = [label for label in UUIDS if label not in anchors]
     summary["anchors"] = anchors

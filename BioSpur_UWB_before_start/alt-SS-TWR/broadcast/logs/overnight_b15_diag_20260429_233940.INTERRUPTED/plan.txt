@@ -1,0 +1,22 @@
+b15 overnight diagnostic plan
+
+SINGLE_S=120
+PAIR_S=120
+LONG_S=300
+
+Test 1:
+  1a BSF66F only static
+  1b BS2DCE only roto
+  1c BSDC91 only roto
+
+Test 2:
+  2a BSF66F static + BS2DCE roto
+  2b BSF66F static + BSDC91 roto
+  2c BS2DCE roto + BSDC91 roto
+
+Test 3:
+  3a 3-tag static/roto long run for CM/CF timeout matrix
+
+Note:
+  all-motion emits TS positions but no CM/CF timeout matrix, so this script keeps Test 3 in calibration profiles.
+  Set RUN_ALL_MOTION=1 to append an optional 3-tag all-motion position run.

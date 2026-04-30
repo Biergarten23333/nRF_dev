@@ -1,0 +1,33 @@
+{
+  "expected": "anchor",
+  "marker": "alt-bcast-a1-g400-r1000-coop1",
+  "active_payload": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/alt-SS-TWR/broadcast/apps/master_ota/generated/active_ota_payload.json",
+  "active_kind": "tag",
+  "active_marker": "alt-bcast-b2-tag-bcast-g400-r1000",
+  "verify_payload_kind_rc": 2,
+  "ok": false,
+  "errors": [
+    "active payload kind=tag expected=anchor",
+    "active payload marker=alt-bcast-b2-tag-bcast-g400-r1000 expected=alt-bcast-a1-g400-r1000-coop1",
+    "embedded OTA payload kind verification failed"
+  ]
+}
+{
+  "expected": "anchor",
+  "inc": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/alt-SS-TWR/broadcast/apps/master_ota/generated/ota_image.inc",
+  "size": 203040,
+  "anchor_markers": [],
+  "tag_markers": [
+    "Tag BLE",
+    "VERSION fw=",
+    "CFG_OK TAG=",
+    "TDMA_SET_OK"
+  ],
+  "manifest": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/alt-SS-TWR/broadcast/apps/master_ota/generated/anchor_ota_manifest.json",
+  "manifest_kind": "anchor_ota_bundle",
+  "ok": false,
+  "errors": [
+    "embedded image does not contain anchor markers",
+    "embedded image contains tag markers: ['Tag BLE', 'VERSION fw=', 'CFG_OK TAG=', 'TDMA_SET_OK']"
+  ]
+}

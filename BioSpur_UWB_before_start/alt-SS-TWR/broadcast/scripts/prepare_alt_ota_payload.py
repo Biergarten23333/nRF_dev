@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import json
 import time
 from pathlib import Path
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def write_header(path: Path, kind: str, marker: str, build_dir: str, dfu_zip: str) -> None:
@@ -43,11 +52,12 @@ def main() -> int:
 
     # Generate the C array used by apps/master_ota/src/main.c. Keep the existing symbol name.
     from subprocess import check_call
+    ota_inc = gen / "ota_image.inc"
     check_call([
         "python3",
         "scripts/gen_ota_image_inc.py",
         str(signed),
-        str(gen / "ota_image.inc"),
+        str(ota_inc),
         "--symbol-prefix",
         "tag_ota_image",
     ])
@@ -70,6 +80,24 @@ def main() -> int:
         args.marker,
         args.build_dir,
         str(dfu),
+    )
+
+    active = {
+        "kind": args.kind,
+        "manifest_kind": manifest["kind"],
+        "fw_marker": args.marker,
+        f"{args.kind}_build_dir": args.build_dir,
+        "control_build_dir": args.control_build_dir,
+        "signed_bin": str(signed),
+        "signed_bin_sha256": sha256_file(signed),
+        "dfu_zip": str(dfu),
+        "dfu_zip_sha256": sha256_file(dfu),
+        "ota_image_inc": str(ota_inc),
+        "ota_image_inc_sha256": sha256_file(ota_inc),
+        "generated_at_epoch": manifest["generated_at_epoch"],
+    }
+    (gen / "active_ota_payload.json").write_text(
+        json.dumps(active, indent=2) + "\n", encoding="utf-8"
     )
     print(json.dumps(manifest, indent=2))
     return 0

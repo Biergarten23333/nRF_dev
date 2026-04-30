@@ -14,6 +14,7 @@ fw_marker="${APP_TAG_FW_MARKER:-unified-default}"
 uwb_channel="${APP_UWB_CHANNEL:-5}"
 uwb_pan_id="${APP_UWB_PAN_ID:-0xDECA}"
 alt_ss_twr_enable="${APP_ALT_SS_TWR_ENABLE:-0}"
+alt_ss_twr_bcast_enable="${APP_ALT_SS_TWR_BCAST_ENABLE:-0}"
 alt_ss_twr_mode="${APP_ALT_SS_TWR_MODE:-2}"
 alt_ss_twr_poll_spacing_us="${APP_ALT_SS_TWR_POLL_SPACING_US:-200}"
 alt_ss_twr_guard_us="${APP_ALT_SS_TWR_GUARD_US:-500}"
@@ -57,6 +58,7 @@ fi
   printf 'set(APP_UWB_PAN_ID %s CACHE STRING "Motion tag preload" FORCE)\n' "${uwb_pan_id}"
   printf 'set(APP_TAG_FW_MARKER %s CACHE STRING "Motion tag preload" FORCE)\n' "${fw_marker}"
   printf 'set(APP_ALT_SS_TWR_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_enable}"
+  printf 'set(APP_ALT_SS_TWR_BCAST_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_bcast_enable}"
   printf 'set(APP_ALT_SS_TWR_MODE %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_mode}"
   printf 'set(APP_ALT_SS_TWR_POLL_SPACING_US %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_poll_spacing_us}"
   printf 'set(APP_ALT_SS_TWR_GUARD_US %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_guard_us}"
@@ -79,6 +81,7 @@ west build \
   -DAPP_UWB_PAN_ID="${uwb_pan_id}" \
   -DAPP_TAG_FW_MARKER="${fw_marker}" \
   -DAPP_ALT_SS_TWR_ENABLE="${alt_ss_twr_enable}" \
+  -DAPP_ALT_SS_TWR_BCAST_ENABLE="${alt_ss_twr_bcast_enable}" \
   -DAPP_ALT_SS_TWR_MODE="${alt_ss_twr_mode}" \
   -DAPP_ALT_SS_TWR_POLL_SPACING_US="${alt_ss_twr_poll_spacing_us}" \
   -DAPP_ALT_SS_TWR_GUARD_US="${alt_ss_twr_guard_us}" \

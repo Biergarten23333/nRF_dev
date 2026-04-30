@@ -268,6 +268,11 @@ static void ss_twr_diag_write(const char *msg)
 #define SS_TWR_INIT_RESP_MSG_TS_LEN 4U
 #define SS_TWR_INIT_LEGACY_POLL_FRAME_LEN 13U
 #define SS_TWR_INIT_UUS_TO_DWT_TIME 65536ULL
+#define SS_TWR_INIT_ALT_BCAST_POLL_SCHED_UUS 1000U
+#define SS_TWR_INIT_ALT_BCAST_TX_DONE_TIMEOUT_US 5000U
+#define SS_TWR_INIT_ALT_BCAST_TAIL_MARGIN_US 500U
+#define SS_TWR_INIT_ALT_BCAST_SLOT_RX_EARLY_US 150U
+#define SS_TWR_INIT_ALT_BCAST_SLOT_RX_TIMEOUT_US 850U
 
 #define SS_TWR_INIT_SPEED_OF_LIGHT 299702547.0
 #define SS_TWR_INIT_SLOT_EXCHANGE_BUDGET_MS \
@@ -1367,8 +1372,22 @@ static const char *ss_twr_init_plan_label(void)
 
 static bool ss_twr_init_tdma_exchange_can_start(void)
 {
+	uint32_t required_ms = SS_TWR_INIT_SLOT_EXCHANGE_BUDGET_MS;
+
+#if APP_ALT_SS_TWR_ENABLE && APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST
+	if (ss_twr_init_active_anchor_index == 0U &&
+	    ss_twr_init_active_anchor_count > 1U) {
+		uint32_t window_us = APP_ALT_SS_TWR_GUARD_US +
+				     ((uint32_t)ss_twr_init_active_anchor_count *
+				      APP_ALT_SS_TWR_RESP_SPACING_US) +
+				     SS_TWR_INIT_ALT_BCAST_TAIL_MARGIN_US;
+
+		required_ms = (window_us + 999U) / 1000U;
+	}
+#endif
+
 	return uwb_tdma_schedule_exchange_fits(&ss_twr_init_tdma_schedule,
-					       SS_TWR_INIT_SLOT_EXCHANGE_BUDGET_MS,
+					       required_ms,
 					       SS_TWR_INIT_SLOT_GUARD_MARGIN_MS);
 }
 
@@ -3102,6 +3121,19 @@ static void ss_twr_init_alt_wait_until_cycle(uint32_t target_cycle)
     }
 }
 
+static uint8_t ss_twr_init_alt_mask_rank(uint8_t mask, uint8_t anchor_id)
+{
+    uint8_t rank = 0U;
+
+    for (uint8_t i = 0U; i < anchor_id && i < UWB_MAX_ANCHORS; ++i) {
+        if ((mask & (uint8_t)(1U << i)) != 0U) {
+            rank++;
+        }
+    }
+
+    return rank;
+}
+
 static void ss_twr_init_alt_rx_restart(uint32_t response_window_us)
 {
     dwt_forcetrxoff();
@@ -3144,6 +3176,8 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
     uint16_t last_dst_addr = 0U;
     uint8_t last_code = 0U;
     uint8_t anchor_mask = 0U;
+    uint32_t response_window_start_cycles = 0U;
+    uint32_t response_window_cycles = 0U;
     uint32_t first_poll_cycle = 0U;
     uint32_t last_poll_cycle = 0U;
 
@@ -3238,10 +3272,12 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
 #else
     uint32_t first_tx_time_hi =
         dwt_readsystimestamphi32() +
-        (uint32_t)((1000ULL * SS_TWR_INIT_UUS_TO_DWT_TIME) >> 8);
+        (uint32_t)((SS_TWR_INIT_ALT_BCAST_POLL_SCHED_UUS *
+                    SS_TWR_INIT_UUS_TO_DWT_TIME) >> 8);
+    uint64_t scheduled_poll_sys_ts =
+        ((uint64_t)(first_tx_time_hi & 0xFFFFFFFEUL)) << 8;
     uint64_t scheduled_poll_tx_ts =
-        (((uint64_t)(first_tx_time_hi & 0xFFFFFFFEUL)) << 8) +
-        SS_TWR_INIT_TX_ANT_DLY;
+        scheduled_poll_sys_ts + SS_TWR_INIT_TX_ANT_DLY;
 
     uwb_ss_twr_build_alt_broadcast_poll_frame(ss_twr_init_tx_poll_msg,
                                               ss_twr_init_frame_seq_nb,
@@ -3269,7 +3305,7 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
         ss_twr_init_alt_finish_sweep();
         return true;
     }
-    if (!ss_twr_init_alt_wait_tx_done(APP_ALT_SS_TWR_POLL_SPACING_US + 1000U)) {
+    if (!ss_twr_init_alt_wait_tx_done(SS_TWR_INIT_ALT_BCAST_TX_DONE_TIMEOUT_US)) {
         dwt_forcetrxoff();
         dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_TXFRS);
         for (uint8_t i = 0U; i < poll_count; ++i) {
@@ -3289,20 +3325,128 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
 
     response_window_us =
         APP_ALT_SS_TWR_GUARD_US +
-        (poll_count * APP_ALT_SS_TWR_RESP_SPACING_US) + 2000U;
+        (poll_count * APP_ALT_SS_TWR_RESP_SPACING_US) +
+        SS_TWR_INIT_ALT_BCAST_TAIL_MARGIN_US;
+    response_window_start_cycles = k_cycle_get_32();
+    response_window_cycles = k_us_to_cyc_floor32(response_window_us + 500U);
 #if APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST
-    ss_twr_init_alt_set_rx_auto_reenable(true);
-#endif
+    ss_twr_init_alt_set_rx_auto_reenable(false);
+
+    dwt_forcetrxoff();
+    dwt_write32bitreg(SYS_STATUS_ID,
+                      SYS_STATUS_ALL_RX_GOOD | SYS_STATUS_ALL_RX_ERR |
+                          SYS_STATUS_ALL_RX_TO);
+    dwt_setrxtimeout(0U);
+    (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
+
+    while ((uint32_t)(k_cycle_get_32() - response_window_start_cycles) <
+           response_window_cycles) {
+        uint32_t status_reg = dwt_read32bitreg(SYS_STATUS_ID);
+        last_status_reg = status_reg;
+
+        if ((status_reg & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO |
+                           SYS_STATUS_ALL_RX_ERR)) == 0U) {
+            continue;
+        }
+        last_rx_finfo = dwt_read32bitreg(RX_FINFO_ID);
+
+        if ((status_reg & SYS_STATUS_RXFCG) != 0U) {
+            uint32 frame_len;
+            uint16_t resp_src_addr;
+            uint8_t anchor_id;
+            uint32 resp_rx_ts;
+            uint32 poll_rx_ts;
+            uint32 resp_tx_ts;
+            int32_t carrier_integrator;
+
+            frame_len = last_rx_finfo & RX_FINFO_RXFLEN_MASK;
+            last_frame_len = frame_len;
+            if (frame_len > sizeof(ss_twr_init_rx_buffer)) {
+                dwt_write32bitreg(SYS_STATUS_ID,
+                                  SYS_STATUS_ALL_RX_GOOD |
+                                      SYS_STATUS_ALL_RX_ERR |
+                                      SYS_STATUS_ALL_RX_TO);
+                dwt_rxreset();
+                (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
+                continue;
+            }
+
+            dwt_readrxdata(ss_twr_init_rx_buffer, (uint16)frame_len, 0);
+            resp_rx_ts = dwt_readrxtimestamplo32();
+            carrier_integrator = dwt_readcarrierintegrator();
+            dwt_write32bitreg(SYS_STATUS_ID,
+                              SYS_STATUS_ALL_RX_GOOD | SYS_STATUS_ALL_RX_ERR |
+                                  SYS_STATUS_ALL_RX_TO);
+
+            resp_src_addr = uwb_frame_get_src_addr(ss_twr_init_rx_buffer);
+            last_src_addr = resp_src_addr;
+            last_dst_addr = uwb_frame_get_dst_addr(ss_twr_init_rx_buffer);
+            last_code = frame_len > UWB_MSG_CODE_IDX ?
+                        ss_twr_init_rx_buffer[UWB_MSG_CODE_IDX] : 0U;
+            if (!uwb_short_addr_is_anchor(resp_src_addr) ||
+                !uwb_ss_twr_resp_matches(ss_twr_init_rx_buffer,
+                                         ss_twr_init_local_addr,
+                                         resp_src_addr)) {
+                unexpected_count++;
+                (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
+                continue;
+            }
+
+            anchor_id = uwb_anchor_id_from_addr(resp_src_addr);
+            if (anchor_id >= UWB_MAX_ANCHORS || received[anchor_id] ||
+                poll_tx_ts[anchor_id] == 0U) {
+                unexpected_count++;
+                (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
+                continue;
+            }
+
+            ss_twr_init_read_ts(
+                &ss_twr_init_rx_buffer[SS_TWR_INIT_RESP_MSG_POLL_RX_TS_IDX],
+                &poll_rx_ts);
+            ss_twr_init_read_ts(
+                &ss_twr_init_rx_buffer[SS_TWR_INIT_RESP_MSG_RESP_TX_TS_IDX],
+                &resp_tx_ts);
+
+            resp_rx_ts_by_anchor[anchor_id] = resp_rx_ts;
+            poll_rx_ts_by_anchor[anchor_id] = poll_rx_ts;
+            resp_tx_ts_by_anchor[anchor_id] = resp_tx_ts;
+            carrier_integrator_by_anchor[anchor_id] = carrier_integrator;
+            received[anchor_id] = true;
+            responses++;
+            if (responses >= poll_count) {
+                break;
+            }
+            (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
+            continue;
+        }
+
+        dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_TO |
+                                             SYS_STATUS_ALL_RX_ERR);
+        dwt_rxreset();
+        (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
+    }
+    dwt_forcetrxoff();
+#else
     ss_twr_init_alt_rx_restart(response_window_us);
 
     while (responses < poll_count) {
         uint32_t status_reg;
         do {
             status_reg = dwt_read32bitreg(SYS_STATUS_ID);
+            if ((uint32_t)(k_cycle_get_32() - response_window_start_cycles) >=
+                response_window_cycles) {
+                break;
+            }
         } while ((status_reg & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO |
                                 SYS_STATUS_ALL_RX_ERR)) == 0U);
         last_status_reg = status_reg;
         last_rx_finfo = dwt_read32bitreg(RX_FINFO_ID);
+
+        if ((status_reg & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO |
+                           SYS_STATUS_ALL_RX_ERR)) == 0U) {
+            dwt_forcetrxoff();
+            break;
+        }
 
         if ((status_reg & SYS_STATUS_RXFCG) != 0U) {
             uint32 frame_len;
@@ -3322,7 +3466,6 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
                 break;
             }
 
-            memset(ss_twr_init_rx_buffer, 0, sizeof(ss_twr_init_rx_buffer));
             dwt_readrxdata(ss_twr_init_rx_buffer, (uint16)frame_len, 0);
             resp_src_addr = uwb_frame_get_src_addr(ss_twr_init_rx_buffer);
             last_src_addr = resp_src_addr;
@@ -3377,6 +3520,7 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
         dwt_rxreset();
         break;
     }
+#endif
 
     ss_twr_init_alt_publish_rx_diag(last_status_reg, last_rx_finfo,
                                     response_window_us, poll_count, anchor_mask,
@@ -3600,6 +3744,16 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
                 ((uint32_t)ss_twr_init_active_anchor_count *
                  SS_TWR_INIT_SLOT_EXCHANGE_BUDGET_MS) +
                 SS_TWR_INIT_SLOT_GUARD_MARGIN_MS;
+
+#if APP_ALT_SS_TWR_ENABLE && APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST
+            sweep_budget_ms =
+                ((APP_ALT_SS_TWR_GUARD_US +
+                  ((uint32_t)ss_twr_init_active_anchor_count *
+                   APP_ALT_SS_TWR_RESP_SPACING_US) +
+                  SS_TWR_INIT_ALT_BCAST_TAIL_MARGIN_US + 999U) /
+                 1000U) +
+                SS_TWR_INIT_SLOT_GUARD_MARGIN_MS;
+#endif
 
             if (remain_ms < sweep_budget_ms) {
                 ss_twr_init_publish_tdma_diag("sweep_budget", remain_ms,

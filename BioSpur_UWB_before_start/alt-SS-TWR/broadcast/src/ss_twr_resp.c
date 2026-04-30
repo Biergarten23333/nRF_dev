@@ -877,7 +877,6 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             continue;
         }
 
-        memset(ss_twr_resp_rx_buffer, 0, sizeof(ss_twr_resp_rx_buffer));
         dwt_readrxdata(ss_twr_resp_rx_buffer, (uint16)frame_len, 0);
         uint32_t prof_frame_cyc = k_cycle_get_32();
         rx_good_frame_count++;

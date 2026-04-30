@@ -34,6 +34,11 @@ python3 scripts/write_build_source.py \
   --source "scripts/build_master_control_b120_m1.sh" \
   --command "$0 $*"
 
+if [[ -f "$repo_root/apps/master_ota/generated/active_ota_payload.json" ]]; then
+  cp "$repo_root/apps/master_ota/generated/active_ota_payload.json" \
+    "$build_dir/active_ota_payload.json"
+fi
+
 echo
 echo "Built: $build_dir"
 echo "ELF:   $build_dir/zephyr/zephyr.elf"

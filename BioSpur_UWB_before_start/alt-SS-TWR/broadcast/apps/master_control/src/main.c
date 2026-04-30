@@ -1300,9 +1300,36 @@ static int anchor_query_version_all(void)
 	}
 
 	if (missing_map) {
-		int refresh_count = autopos_refresh_uuid_map_from_anchor_scan(8000);
+		char labels[AUTOPOS_ANCHOR_COUNT];
+		char uuids[AUTOPOS_ANCHOR_COUNT][AUTOPOS_UUID_LEN];
+		int snapshot = master_anchor_snapshot_uuid_map(labels, ARRAY_SIZE(labels),
+							       uuids, ARRAY_SIZE(uuids));
 
-		printk("ANCHOR_VERSION map refresh count=%d\n", refresh_count);
+		for (int i = 0; i < snapshot; ++i) {
+			int idx = autopos_label_to_index(labels[i]);
+
+			if (idx < 0 || uuids[i][0] == '\0') {
+				continue;
+			}
+			snprintk(autopos_uuid_map[idx], sizeof(autopos_uuid_map[idx]), "%s",
+				 uuids[i]);
+		}
+
+		missing_map = false;
+		for (int i = 0; i < AUTOPOS_ANCHOR_COUNT; ++i) {
+			if (autopos_uuid_map[i][0] == '\0') {
+				missing_map = true;
+				break;
+			}
+		}
+
+		printk("ANCHOR_VERSION map snapshot count=%d complete=%u\n",
+		       snapshot, missing_map ? 0U : 1U);
+		if (missing_map) {
+			int refresh_count = autopos_refresh_uuid_map_from_anchor_scan(8000);
+
+			printk("ANCHOR_VERSION map refresh count=%d\n", refresh_count);
+		}
 	}
 
 	for (int i = 0; i < AUTOPOS_ANCHOR_COUNT; ++i) {
