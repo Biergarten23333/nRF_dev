@@ -14,6 +14,7 @@
 
 #include <math.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -75,6 +76,14 @@
 
 #ifndef APP_ALT_SS_TWR_BCAST_FORCE_FULL_SWEEP
 #define APP_ALT_SS_TWR_BCAST_FORCE_FULL_SWEEP 0U
+#endif
+
+#ifndef APP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE
+#define APP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE 0U
+#endif
+
+#ifndef APP_ALT_SS_TWR_BCAST_PREWRITE_TX_ENABLE
+#define APP_ALT_SS_TWR_BCAST_PREWRITE_TX_ENABLE 0U
 #endif
 
 #ifndef APP_ALT_SS_TWR_LIGHT_TDMA_ENABLE
@@ -2162,6 +2171,13 @@ static void ss_twr_init_prepare_sweep_plan(void)
             ((ss_twr_init_sweep_count % ss_twr_init_refresh_interval_sweeps) ==
              0U);
 
+#if APP_ALT_SS_TWR_ENABLE && APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST
+        if (APP_ALT_SS_TWR_BCAST_FORCE_FULL_SWEEP != 0U) {
+            do_full = true;
+            do_refresh = false;
+        }
+#endif
+
         if (do_full) {
             for (size_t i = 0; i < ss_twr_init_anchor_count; ++i) {
                 ss_twr_init_active_anchor_ids[active_count++] =
@@ -3153,6 +3169,15 @@ static uint32_t ss_twr_init_alt_last_poll_timing_diag_ms;
 static uint32_t ss_twr_init_alt_last_rx_diag_ms;
 static uint32_t ss_twr_init_alt_last_rx_gap_diag_ms;
 static uint32_t ss_twr_init_alt_ltdma_slot_start_cycles;
+static uint32_t ss_twr_init_alt_last_sweep_entry_cycles;
+static uint32_t ss_twr_init_alt_last_tx_sched_cycles;
+static uint32_t ss_twr_init_alt_last_tx_write_done_cycles;
+static uint32_t ss_twr_init_alt_last_tx_cmd_cycles;
+static bool ss_twr_init_alt_bcast_tx_prearmed;
+static bool ss_twr_init_alt_last_tx_prearmed;
+static uint8_t ss_twr_init_alt_bcast_prearmed_seq;
+static uint8_t ss_twr_init_alt_bcast_prearmed_mask;
+static uint8_t ss_twr_init_alt_bcast_prearmed_count;
 
 static void ss_twr_init_alt_publish_rx_gap_diag(uint32_t tx_done_cycles,
                                                 uint32_t rx_start_cycles,
@@ -3163,9 +3188,27 @@ static void ss_twr_init_alt_publish_rx_gap_diag(uint32_t tx_done_cycles,
                                                 int rxenable_rc)
 {
     uint32_t now_ms = (uint32_t)k_uptime_get();
-    char line[224];
+    char line[384];
     uint32_t slot_to_txdone_us = broadcast_tdma_slot_to_us(
         ss_twr_init_alt_ltdma_slot_start_cycles, tx_done_cycles);
+    uint32_t slot_to_entry_us = broadcast_tdma_slot_to_us(
+        ss_twr_init_alt_ltdma_slot_start_cycles,
+        ss_twr_init_alt_last_sweep_entry_cycles);
+    uint32_t slot_to_sched_us = broadcast_tdma_slot_to_us(
+        ss_twr_init_alt_ltdma_slot_start_cycles,
+        ss_twr_init_alt_last_tx_sched_cycles);
+    uint32_t slot_to_write_done_us = broadcast_tdma_slot_to_us(
+        ss_twr_init_alt_ltdma_slot_start_cycles,
+        ss_twr_init_alt_last_tx_write_done_cycles);
+    uint32_t slot_to_txcmd_us = broadcast_tdma_slot_to_us(
+        ss_twr_init_alt_ltdma_slot_start_cycles,
+        ss_twr_init_alt_last_tx_cmd_cycles);
+    uint32_t txcmd_to_txdone_us =
+        (ss_twr_init_alt_last_tx_cmd_cycles != 0U &&
+         tx_done_cycles != 0U) ?
+            k_cyc_to_us_floor32(tx_done_cycles -
+                                ss_twr_init_alt_last_tx_cmd_cycles) :
+            UINT_MAX;
 
     if (tx_done_cycles == 0U || rx_start_cycles == 0U || rx_done_cycles == 0U) {
         return;
@@ -3178,7 +3221,7 @@ static void ss_twr_init_alt_publish_rx_gap_diag(uint32_t tx_done_cycles,
     ss_twr_init_alt_last_rx_gap_diag_ms = now_ms;
 
     snprintk(line, sizeof(line),
-             "RXG;1;%lu;tag=%u;mask=0x%02x;pc=%u;guard=%u;spacing=%u;win=%lu;slot_to_txdone_us=%lu;txdone_to_rxstart_us=%lu;txdone_to_rxend_us=%lu;rxenable_us=%lu;rc=%d;slot=%u/%u;period=%u;active=%u;lperiod=%u;lcount=%u",
+             "RXG;1;%lu;tag=%u;mask=0x%02x;pc=%u;guard=%u;spacing=%u;win=%lu;pre=%u;slot_to_entry_us=%lu;slot_to_sched_us=%lu;slot_to_write_done_us=%lu;slot_to_txcmd_us=%lu;slot_to_txdone_us=%lu;txcmd_to_txdone_us=%lu;txdone_to_rxstart_us=%lu;txdone_to_rxend_us=%lu;rxenable_us=%lu;rc=%d;slot=%u/%u;period=%u;active=%u;lperiod=%u;lcount=%u",
              (unsigned long)ss_twr_init_sweep_count,
              (unsigned int)ss_twr_init_local_tag_id,
              (unsigned int)anchor_mask,
@@ -3186,7 +3229,13 @@ static void ss_twr_init_alt_publish_rx_gap_diag(uint32_t tx_done_cycles,
              (unsigned int)APP_ALT_SS_TWR_GUARD_US,
              (unsigned int)APP_ALT_SS_TWR_RESP_SPACING_US,
              (unsigned long)response_window_us,
+             (unsigned int)ss_twr_init_alt_last_tx_prearmed,
+             (unsigned long)slot_to_entry_us,
+             (unsigned long)slot_to_sched_us,
+             (unsigned long)slot_to_write_done_us,
+             (unsigned long)slot_to_txcmd_us,
              (unsigned long)slot_to_txdone_us,
+             (unsigned long)txcmd_to_txdone_us,
              (unsigned long)k_cyc_to_us_floor32(rx_start_cycles - tx_done_cycles),
              (unsigned long)k_cyc_to_us_floor32(rx_done_cycles - tx_done_cycles),
              (unsigned long)k_cyc_to_us_floor32(rx_done_cycles - rx_start_cycles),
@@ -3506,8 +3555,69 @@ static void ss_twr_init_alt_set_rx_auto_reenable(bool enable)
     dwt_write32bitreg(SYS_CFG_ID, sys_cfg);
 }
 
+static uint8_t ss_twr_init_alt_active_anchor_mask(uint8_t poll_count)
+{
+    uint8_t anchor_mask = 0U;
+
+    for (uint8_t i = 0U; i < poll_count; ++i) {
+        uint8_t anchor_id = ss_twr_init_active_anchor_ids[i];
+        if (anchor_id < UWB_MAX_ANCHORS) {
+            anchor_mask |= (uint8_t)(1U << anchor_id);
+        }
+    }
+
+    return anchor_mask;
+}
+
+static bool ss_twr_init_alt_bcast_prewrite_tx(void)
+{
+#if APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST && \
+    APP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE != 0U && \
+    APP_ALT_SS_TWR_BCAST_PREWRITE_TX_ENABLE != 0U
+    uint8_t poll_count = (uint8_t)ss_twr_init_active_anchor_count;
+    uint8_t anchor_mask;
+
+    ss_twr_init_alt_bcast_tx_prearmed = false;
+    if (poll_count == 0U || poll_count > UWB_MAX_ANCHORS) {
+        return false;
+    }
+
+    anchor_mask = ss_twr_init_alt_active_anchor_mask(poll_count);
+    if (anchor_mask == 0U) {
+        return false;
+    }
+
+    ss_twr_init_prepare_radio_for_poll();
+    uwb_ss_twr_build_alt_broadcast_poll_frame(ss_twr_init_tx_poll_msg,
+                                              ss_twr_init_frame_seq_nb,
+                                              ss_twr_init_local_addr,
+                                              anchor_mask,
+                                              ss_twr_init_local_tag_id,
+                                              0U);
+    if (dwt_writetxdata(UWB_MSG_ALT_POLL_FRAME_LEN,
+                        ss_twr_init_tx_poll_msg, 0) != DWT_SUCCESS) {
+        return false;
+    }
+    dwt_writetxfctrl(UWB_MSG_ALT_POLL_FRAME_LEN, 0, 1);
+
+    ss_twr_init_alt_bcast_prearmed_seq = ss_twr_init_frame_seq_nb;
+    ss_twr_init_alt_bcast_prearmed_mask = anchor_mask;
+    ss_twr_init_alt_bcast_prearmed_count = poll_count;
+    ss_twr_init_alt_bcast_tx_prearmed = true;
+    return true;
+#else
+    return false;
+#endif
+}
+
 static bool ss_twr_init_alt_burst_sweep_once(void)
 {
+    ss_twr_init_alt_last_sweep_entry_cycles = k_cycle_get_32();
+    ss_twr_init_alt_last_tx_sched_cycles = 0U;
+    ss_twr_init_alt_last_tx_write_done_cycles = 0U;
+    ss_twr_init_alt_last_tx_cmd_cycles = 0U;
+    ss_twr_init_alt_last_tx_prearmed = false;
+
     uint8_t poll_count = (uint8_t)ss_twr_init_active_anchor_count;
     uint32_t poll_tx_ts[UWB_MAX_ANCHORS] = {0};
     uint32_t resp_rx_ts_by_anchor[UWB_MAX_ANCHORS] = {0};
@@ -3534,6 +3644,7 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
     uint32_t rx_enable_start_cycles = 0U;
     uint32_t rx_enable_done_cycles = 0U;
     int rxenable_rc = 0;
+    bool use_prearmed_tx = false;
 
     if (poll_count == 0U || poll_count > UWB_MAX_ANCHORS) {
         return false;
@@ -3543,14 +3654,23 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
     APP_ALT_SS_TWR_LIGHT_TDMA_ENABLE == 0U
     ss_twr_init_set_ble_tx_paused(true);
 #endif
-    ss_twr_init_prepare_radio_for_poll();
+    anchor_mask = ss_twr_init_alt_active_anchor_mask(poll_count);
 
-    for (uint8_t i = 0U; i < poll_count; ++i) {
-        uint8_t anchor_id = ss_twr_init_active_anchor_ids[i];
-        if (anchor_id < UWB_MAX_ANCHORS) {
-            anchor_mask |= (uint8_t)(1U << anchor_id);
-        }
+#if !(APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST && \
+      APP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE != 0U && \
+      APP_ALT_SS_TWR_BCAST_PREWRITE_TX_ENABLE != 0U)
+    ss_twr_init_prepare_radio_for_poll();
+#else
+    use_prearmed_tx =
+        ss_twr_init_alt_bcast_tx_prearmed &&
+        ss_twr_init_alt_bcast_prearmed_seq == ss_twr_init_frame_seq_nb &&
+        ss_twr_init_alt_bcast_prearmed_mask == anchor_mask &&
+        ss_twr_init_alt_bcast_prearmed_count == poll_count;
+
+    if (!use_prearmed_tx) {
+        ss_twr_init_prepare_radio_for_poll();
     }
+#endif
 
 #if APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_UNICAST
     ss_twr_init_alt_print_poll_diag(poll_count, 0U);
@@ -3627,6 +3747,65 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
         poll_count, target_poll_cycles, write_start_cycles, write_done_cycles,
         starttx_cycles, txfrs_cycles);
 #else
+#if APP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE != 0U
+    ss_twr_init_alt_last_tx_prearmed = use_prearmed_tx;
+    if (use_prearmed_tx) {
+        ss_twr_init_alt_last_tx_sched_cycles =
+            ss_twr_init_alt_ltdma_slot_start_cycles;
+        ss_twr_init_alt_last_tx_write_done_cycles =
+            ss_twr_init_alt_ltdma_slot_start_cycles;
+    } else {
+        ss_twr_init_alt_last_tx_sched_cycles = k_cycle_get_32();
+        uwb_ss_twr_build_alt_broadcast_poll_frame(ss_twr_init_tx_poll_msg,
+                                                  ss_twr_init_frame_seq_nb,
+                                                  ss_twr_init_local_addr,
+                                                  anchor_mask,
+                                                  ss_twr_init_local_tag_id,
+                                                  0U);
+        ss_twr_init_alt_print_poll_diag(poll_count, anchor_mask);
+        if (dwt_writetxdata(UWB_MSG_ALT_POLL_FRAME_LEN,
+                            ss_twr_init_tx_poll_msg, 0) != DWT_SUCCESS) {
+            for (uint8_t i = 0U; i < poll_count; ++i) {
+                ss_twr_init_alt_record_timeout(ss_twr_init_active_anchor_ids[i],
+                                               SS_TWR_INIT_CAL_REASON_RX_ERROR);
+            }
+            ss_twr_init_alt_finish_sweep();
+            return true;
+        }
+        dwt_writetxfctrl(UWB_MSG_ALT_POLL_FRAME_LEN, 0, 1);
+        ss_twr_init_alt_last_tx_write_done_cycles = k_cycle_get_32();
+    }
+    ss_twr_init_alt_last_tx_cmd_cycles = k_cycle_get_32();
+    ss_twr_init_alt_bcast_tx_prearmed = false;
+    if (dwt_starttx(DWT_START_TX_IMMEDIATE) != DWT_SUCCESS) {
+        for (uint8_t i = 0U; i < poll_count; ++i) {
+            ss_twr_init_alt_record_timeout(ss_twr_init_active_anchor_ids[i],
+                                           SS_TWR_INIT_CAL_REASON_RX_ERROR);
+        }
+        ss_twr_init_alt_finish_sweep();
+        return true;
+    }
+    if (!ss_twr_init_alt_wait_tx_done(SS_TWR_INIT_ALT_BCAST_TX_DONE_TIMEOUT_US)) {
+        dwt_forcetrxoff();
+        dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_TXFRS);
+        for (uint8_t i = 0U; i < poll_count; ++i) {
+            ss_twr_init_alt_record_timeout(ss_twr_init_active_anchor_ids[i],
+                                           SS_TWR_INIT_CAL_REASON_RX_ERROR);
+        }
+        ss_twr_init_alt_finish_sweep();
+        return true;
+    }
+    poll_tx_done_cycles = k_cycle_get_32();
+    {
+        uint32_t actual_poll_tx_ts = dwt_readtxtimestamplo32();
+        for (uint8_t i = 0U; i < poll_count; ++i) {
+            uint8_t anchor_id = ss_twr_init_active_anchor_ids[i];
+            poll_tx_ts[anchor_id] = actual_poll_tx_ts;
+        }
+    }
+    ss_twr_init_frame_seq_nb++;
+    ss_twr_init_alt_mark_scheduled_poll_timing(poll_count);
+#else
     uint32_t first_tx_time_hi =
         dwt_readsystimestamphi32() +
         (uint32_t)((SS_TWR_INIT_ALT_BCAST_POLL_SCHED_UUS *
@@ -3635,6 +3814,7 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
         ((uint64_t)(first_tx_time_hi & 0xFFFFFFFEUL)) << 8;
     uint64_t scheduled_poll_tx_ts =
         scheduled_poll_sys_ts + SS_TWR_INIT_TX_ANT_DLY;
+    ss_twr_init_alt_last_tx_sched_cycles = k_cycle_get_32();
 
     uwb_ss_twr_build_alt_broadcast_poll_frame(ss_twr_init_tx_poll_msg,
                                               ss_twr_init_frame_seq_nb,
@@ -3654,6 +3834,8 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
         return true;
 	    }
 	    dwt_writetxfctrl(UWB_MSG_ALT_POLL_FRAME_LEN, 0, 1);
+    ss_twr_init_alt_last_tx_write_done_cycles = k_cycle_get_32();
+    ss_twr_init_alt_last_tx_cmd_cycles = k_cycle_get_32();
 	    if (dwt_starttx(DWT_START_TX_DELAYED) != DWT_SUCCESS) {
 	        for (uint8_t i = 0U; i < poll_count; ++i) {
 	            ss_twr_init_alt_record_timeout(ss_twr_init_active_anchor_ids[i],
@@ -3680,10 +3862,11 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
     ss_twr_init_frame_seq_nb++;
     ss_twr_init_alt_mark_scheduled_poll_timing(poll_count);
 #endif
+#endif
 
     response_window_us = ss_twr_init_alt_bcast_response_window_us(poll_count);
     response_window_start_cycles = k_cycle_get_32();
-    response_window_cycles = k_us_to_cyc_floor32(response_window_us + 500U);
+    response_window_cycles = k_us_to_cyc_floor32(response_window_us);
 	#if APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST
 	    ss_twr_init_alt_set_rx_auto_reenable(false);
 
@@ -4051,6 +4234,7 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
     APP_ALT_SS_TWR_LIGHT_TDMA_ENABLE != 0U
         if (ss_twr_init_active_anchor_index == 0U &&
             ss_twr_init_active_anchor_count > 1U) {
+            (void)ss_twr_init_alt_bcast_prewrite_tx();
             ss_twr_init_alt_ltdma_slot_start_cycles =
                 broadcast_tdma_wait_next_slot_start(
                     &ss_twr_init_tdma_schedule);

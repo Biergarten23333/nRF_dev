@@ -23,6 +23,8 @@ alt_ss_twr_guard_us="${APP_ALT_SS_TWR_GUARD_US:-500}"
 alt_ss_twr_resp_spacing_us="${APP_ALT_SS_TWR_RESP_SPACING_US:-800}"
 alt_ss_twr_bcast_force_full_sweep="${APP_ALT_SS_TWR_BCAST_FORCE_FULL_SWEEP:-0}"
 alt_ss_twr_light_tdma_enable="${APP_ALT_SS_TWR_LIGHT_TDMA_ENABLE:-0}"
+alt_ss_twr_bcast_immediate_tx_enable="${APP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE:-0}"
+alt_ss_twr_bcast_prewrite_tx_enable="${APP_ALT_SS_TWR_BCAST_PREWRITE_TX_ENABLE:-0}"
 multitag_plan_mode="${APP_TAG_MULTITAG_PLAN_MODE:-0}"
 maintenance_full_interval="${APP_TAG_MAINTENANCE_FULL_INTERVAL:-100}"
 range_filter_outlier_mm="${APP_TAG_RANGE_FILTER_OUTLIER_MM:-120000}"
@@ -81,6 +83,8 @@ fi
   printf 'set(APP_ALT_SS_TWR_RESP_SPACING_US %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_resp_spacing_us}"
   printf 'set(APP_ALT_SS_TWR_BCAST_FORCE_FULL_SWEEP %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_bcast_force_full_sweep}"
   printf 'set(APP_ALT_SS_TWR_LIGHT_TDMA_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_light_tdma_enable}"
+  printf 'set(APP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_bcast_immediate_tx_enable}"
+  printf 'set(APP_ALT_SS_TWR_BCAST_PREWRITE_TX_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_bcast_prewrite_tx_enable}"
 } > "${app_tag_preload_file}"
 
 export APP_TAG_PRELOAD_FILE="${app_tag_preload_file}"
@@ -106,6 +110,8 @@ west build \
   -DAPP_ALT_SS_TWR_RESP_SPACING_US="${alt_ss_twr_resp_spacing_us}" \
   -DAPP_ALT_SS_TWR_BCAST_FORCE_FULL_SWEEP="${alt_ss_twr_bcast_force_full_sweep}" \
   -DAPP_ALT_SS_TWR_LIGHT_TDMA_ENABLE="${alt_ss_twr_light_tdma_enable}" \
+  -DAPP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE="${alt_ss_twr_bcast_immediate_tx_enable}" \
+  -DAPP_ALT_SS_TWR_BCAST_PREWRITE_TX_ENABLE="${alt_ss_twr_bcast_prewrite_tx_enable}" \
   -DAPP_TAG_USB_DIAG_TRACE=1 \
   -DAPP_TAG_BLE_ENABLE=1 \
   -DCONFIG_BT_DEVICE_NAME=\"${device_name}\" \
