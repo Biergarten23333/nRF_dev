@@ -452,6 +452,7 @@ static bool peer_matches_runtime_target(const struct master_peer *peer)
 		    strcasecmp(peer->adv_uuid, runtime_target_uuid) != 0) {
 			return false;
 		}
+		return true;
 	}
 
 	if (runtime_target_name[0] != '\0') {

@@ -380,7 +380,7 @@ static void process_control_cmd_locked(char *line)
     }
 
     if (strcmp(tok, "HELP") == 0) {
-        set_result_locked("OK CMDS=VERSION|PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|RESET AUTOPOS|RESET RESPONDER|STOP|SYNC|RUNTIME <MASTER|MATRIX|RESPONDER> [FORCE|SWEEP N]");
+        set_result_locked("OK CMDS=VERSION|PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|RESET AUTOPOS|RESET RESPONDER|STOP|DFU|SYNC|RUNTIME <MASTER|MATRIX|RESPONDER> [FORCE|SWEEP N]");
         return;
     }
 
@@ -490,6 +490,13 @@ static void process_control_cmd_locked(char *line)
     if (strcmp(tok, "STOP") == 0) {
         anchor_runtime_request_stop();
         set_result_locked(g_busy ? "OK STOP_REQUESTED" : "OK STOP_IDLE");
+        return;
+    }
+
+    if (strcmp(tok, "DFU") == 0 || strcmp(tok, "ENTER_DFU") == 0 ||
+        strcmp(tok, "OTA") == 0 || strcmp(tok, "ENTER_OTA") == 0) {
+        anchor_runtime_request_dfu();
+        set_result_locked("OK DFU_REQUESTED");
         return;
     }
 

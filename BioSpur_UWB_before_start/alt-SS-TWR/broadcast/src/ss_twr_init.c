@@ -305,6 +305,7 @@ static void ss_twr_diag_write(const char *msg)
 #define SS_TWR_INIT_ALT_BCAST_POLL_SCHED_UUS 1000U
 #define SS_TWR_INIT_ALT_BCAST_TX_DONE_TIMEOUT_US 5000U
 #define SS_TWR_INIT_ALT_BCAST_TAIL_MARGIN_US 300U
+#define SS_TWR_INIT_ALT_BCAST_POLL_AIRTIME_US 335U
 #define SS_TWR_INIT_ALT_BCAST_SLOT_RX_EARLY_US 150U
 #define SS_TWR_INIT_ALT_BCAST_SLOT_RX_TIMEOUT_US 850U
 
@@ -1572,13 +1573,46 @@ static const char *ss_twr_init_plan_label(void)
 
 static uint32_t ss_twr_init_alt_bcast_response_window_us(size_t anchor_count)
 {
+    uint32_t window_us;
+
     if (anchor_count == 0U) {
         return 0U;
     }
 
-    return APP_ALT_SS_TWR_GUARD_US +
-           (((uint32_t)anchor_count - 1U) * APP_ALT_SS_TWR_RESP_SPACING_US) +
-           SS_TWR_INIT_ALT_BCAST_TAIL_MARGIN_US;
+    window_us = APP_ALT_SS_TWR_GUARD_US +
+                (((uint32_t)anchor_count - 1U) *
+                 APP_ALT_SS_TWR_RESP_SPACING_US) +
+                SS_TWR_INIT_ALT_BCAST_TAIL_MARGIN_US;
+
+#if APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST
+    /*
+     * The broadcast collector starts after TXFRS, not at poll TX start.  Keep
+     * it open until the last response plus tail, but do not charge the poll
+     * airtime twice.
+     */
+    if (window_us > SS_TWR_INIT_ALT_BCAST_POLL_AIRTIME_US) {
+        window_us -= SS_TWR_INIT_ALT_BCAST_POLL_AIRTIME_US;
+    }
+#endif
+
+    return window_us;
+}
+
+static uint32_t ss_twr_init_alt_bcast_response_window_estimated_us(size_t anchor_count)
+{
+    uint32_t window_us = ss_twr_init_alt_bcast_response_window_us(anchor_count);
+
+    /*
+     * The collector window starts after TX-done/RX-enable work has already
+     * consumed part of the poll-to-last-response interval.  Use this estimate
+     * only for TDMA admission budgeting; the actual collector still uses the
+     * full response window.
+     */
+    if (window_us > 800U) {
+        return window_us - 800U;
+    }
+
+    return window_us;
 }
 
 static uint32_t ss_twr_init_tdma_period_remaining_ms(void)
@@ -1636,7 +1670,7 @@ static bool ss_twr_init_tdma_exchange_can_start(void)
 #if APP_ALT_SS_TWR_ENABLE && APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST
 	if (ss_twr_init_active_anchor_index == 0U &&
 	    ss_twr_init_active_anchor_count > 1U) {
-		uint32_t window_us = ss_twr_init_alt_bcast_response_window_us(
+		uint32_t window_us = ss_twr_init_alt_bcast_response_window_estimated_us(
 			ss_twr_init_active_anchor_count);
 
 		required_ms = (window_us + 999U) / 1000U;
@@ -3655,6 +3689,12 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
     ss_twr_init_set_ble_tx_paused(true);
 #endif
     anchor_mask = ss_twr_init_alt_active_anchor_mask(poll_count);
+    response_window_us = ss_twr_init_alt_bcast_response_window_us(poll_count);
+    response_window_cycles = k_us_to_cyc_floor32(response_window_us);
+#if APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST
+    ss_twr_init_alt_set_rx_auto_reenable(false);
+    dwt_setrxtimeout(0U);
+#endif
 
 #if !(APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST && \
       APP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE != 0U && \
@@ -3796,15 +3836,6 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
         return true;
     }
     poll_tx_done_cycles = k_cycle_get_32();
-    {
-        uint32_t actual_poll_tx_ts = dwt_readtxtimestamplo32();
-        for (uint8_t i = 0U; i < poll_count; ++i) {
-            uint8_t anchor_id = ss_twr_init_active_anchor_ids[i];
-            poll_tx_ts[anchor_id] = actual_poll_tx_ts;
-        }
-    }
-    ss_twr_init_frame_seq_nb++;
-    ss_twr_init_alt_mark_scheduled_poll_timing(poll_count);
 #else
     uint32_t first_tx_time_hi =
         dwt_readsystimestamphi32() +
@@ -3859,30 +3890,24 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
         uint8_t anchor_id = ss_twr_init_active_anchor_ids[i];
         poll_tx_ts[anchor_id] = (uint32_t)scheduled_poll_tx_ts;
     }
-    ss_twr_init_frame_seq_nb++;
-    ss_twr_init_alt_mark_scheduled_poll_timing(poll_count);
 #endif
 #endif
 
-    response_window_us = ss_twr_init_alt_bcast_response_window_us(poll_count);
-    response_window_start_cycles = k_cycle_get_32();
-    response_window_cycles = k_us_to_cyc_floor32(response_window_us);
 	#if APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST
-	    ss_twr_init_alt_set_rx_auto_reenable(false);
-
-	    dwt_forcetrxoff();
-	    dwt_write32bitreg(SYS_STATUS_ID,
-	                      SYS_STATUS_ALL_RX_GOOD | SYS_STATUS_ALL_RX_ERR |
-	                          SYS_STATUS_ALL_RX_TO);
-	    dwt_setrxtimeout(0U);
+	    dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_TX);
 	    rx_enable_start_cycles = k_cycle_get_32();
 	    rxenable_rc = dwt_rxenable(DWT_START_RX_IMMEDIATE);
 	    rx_enable_done_cycles = k_cycle_get_32();
-	    ss_twr_init_alt_publish_rx_gap_diag(poll_tx_done_cycles,
-	                                        rx_enable_start_cycles,
-	                                        rx_enable_done_cycles,
-                                        response_window_us, poll_count,
-                                        anchor_mask, rxenable_rc);
+    response_window_start_cycles = rx_enable_done_cycles;
+
+    {
+        uint32_t actual_poll_tx_ts = dwt_readtxtimestamplo32();
+
+        for (uint8_t i = 0U; i < poll_count; ++i) {
+            uint8_t anchor_id = ss_twr_init_active_anchor_ids[i];
+            poll_tx_ts[anchor_id] = actual_poll_tx_ts;
+        }
+    }
 
     while ((uint32_t)(k_cycle_get_32() - response_window_start_cycles) <
            response_window_cycles) {
@@ -3971,7 +3996,15 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
         (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
     }
     dwt_forcetrxoff();
+    ss_twr_init_frame_seq_nb++;
+    ss_twr_init_alt_mark_scheduled_poll_timing(poll_count);
+    ss_twr_init_alt_publish_rx_gap_diag(poll_tx_done_cycles,
+                                        rx_enable_start_cycles,
+                                        rx_enable_done_cycles,
+                                        response_window_us, poll_count,
+                                        anchor_mask, rxenable_rc);
 #else
+    response_window_start_cycles = k_cycle_get_32();
     ss_twr_init_alt_rx_restart(response_window_us);
 
     while (responses < poll_count) {
@@ -4308,7 +4341,7 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
 
 #if APP_ALT_SS_TWR_ENABLE && APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST
             sweep_budget_ms =
-                (ss_twr_init_alt_bcast_response_window_us(
+                (ss_twr_init_alt_bcast_response_window_estimated_us(
                      ss_twr_init_active_anchor_count) + 999U) /
                 1000U;
             remain_ms = ss_twr_init_tdma_period_remaining_ms();

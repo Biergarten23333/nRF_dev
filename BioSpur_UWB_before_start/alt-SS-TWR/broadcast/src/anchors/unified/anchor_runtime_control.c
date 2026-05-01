@@ -3,6 +3,7 @@
 #include <zephyr/sys/atomic.h>
 
 static atomic_t g_stop_requested;
+static atomic_t g_dfu_requested;
 static atomic_t g_requested_role;
 static atomic_t g_requested_master_sweeps;
 
@@ -19,6 +20,22 @@ void anchor_runtime_clear_stop(void)
 bool anchor_runtime_stop_requested(void)
 {
 	return atomic_get(&g_stop_requested) != 0;
+}
+
+void anchor_runtime_request_dfu(void)
+{
+	atomic_set(&g_dfu_requested, 1);
+	anchor_runtime_request_stop();
+}
+
+void anchor_runtime_clear_dfu(void)
+{
+	atomic_clear(&g_dfu_requested);
+}
+
+bool anchor_runtime_dfu_requested(void)
+{
+	return atomic_get(&g_dfu_requested) != 0;
 }
 
 void anchor_runtime_request_role_switch(uint8_t role, uint32_t master_sweeps)

@@ -25,6 +25,8 @@ MODE_RE = re.compile(r"Control status:\s*mode=([A-Z]+)")
 INIT_RE = re.compile(r"initiate rc=([-\d]+)")
 SYSTEM_TARGET_RE = re.compile(r"System target:\s*kind=([a-zA-Z]+)")
 NUS_STAGE_RE = re.compile(r"OTA NUS stage:\s*(enabled|disabled)", re.IGNORECASE)
+ANCHOR_CTRL_READY_RE = re.compile(r"ANCHOR_CTRL\[\d+\]\s+link ready .*uuid=([0-9A-F]+)", re.IGNORECASE)
+READY_PEER_RE = re.compile(r"READY peer\[\d+\].*link=anchor-ctrl.*ready=1.*uuid=([0-9A-F]+)", re.IGNORECASE)
 
 
 def classify_phase_a_reason(
@@ -295,6 +297,63 @@ def read_line(ser: serial.Serial) -> str | None:
     if not raw:
         return None
     return raw.decode("utf-8", errors="replace").rstrip("\r\n")
+
+
+def line_has_ready_anchor_uuid(line: str, target_uuid: str) -> bool:
+    for regex in (ANCHOR_CTRL_READY_RE, READY_PEER_RE):
+        m = regex.search(line)
+        if m and m.group(1).upper() == target_uuid:
+            return True
+    return False
+
+
+def wait_for_anchor_ctrl_ready(
+    ser: serial.Serial,
+    target_uuid: str,
+    logf,
+    t0: float,
+    *,
+    timeout_s: float = 35.0,
+) -> bool:
+    """Wait until Master_Anchor has a ready anchor-control link to target_uuid.
+
+    The explicit DFU command is a NUS/control command, not an SMP command. If it
+    is sent before the target anchor-control link is ready, master_control can
+    correctly reject it as a target mismatch while still later connecting to the
+    target's DFU service. That leaves nosleep anchors in their tight responder
+    loop and SMP image-state requests time out. Keep this gate local to the
+    single-shot OTA launcher so the lower OTA upload path stays unchanged.
+    """
+    deadline = time.monotonic() + timeout_s
+    next_status = 0.0
+    next_conn = 0.0
+    while time.monotonic() < deadline:
+        now = time.monotonic()
+        if now >= next_conn:
+            send_cmd(ser, "conn", logf, t0)
+            next_conn = now + 6.0
+        if now >= next_status:
+            send_cmd(ser, "status", logf, t0)
+            next_status = now + 2.0
+        try:
+            line = read_line(ser)
+        except SerialException:
+            raise
+        if line is None:
+            continue
+        logf.write(line + "\n")
+        logf.flush()
+        if line_has_ready_anchor_uuid(line, target_uuid):
+            logf.write(
+                f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A anchor_ctrl_target_ready uuid={target_uuid}\n"
+            )
+            logf.flush()
+            return True
+    logf.write(
+        f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A anchor_ctrl_target_ready_timeout uuid={target_uuid}\n"
+    )
+    logf.flush()
+    return False
 
 
 def wait_uart_ready(
@@ -906,6 +965,67 @@ def main() -> int:
                 classification = "PHASE_A_PASS"
                 blocker = ""
                 raise RuntimeError(reason)
+
+            # New nosleep anchor images require an explicit control-plane
+            # request to leave the tight responder loop before the B120 reboots
+            # into OTA/SMP mode. This command must hit the selected anchor's
+            # control link. If we send it while only another anchor is ready,
+            # master_control rejects it as target mismatch and the later SMP
+            # upload stalls with no image-state response.
+            target_ctrl_ready = wait_for_anchor_ctrl_ready(
+                ser,
+                target_uuid,
+                logf,
+                t0,
+                timeout_s=35.0,
+            )
+            if not target_ctrl_ready:
+                logf.write(
+                    f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A anchor_dfu_cmd_no_target_ctrl; proceeding legacy-best-effort\n"
+                )
+                logf.flush()
+
+            # Older coop-sleep images do not understand this command; keep it
+            # best-effort so the first upgrade into nosleep can still use the
+            # legacy passive OTA path.
+            send_cmd(ser, "cmd DFU", logf, t0)
+            dfu_cmd_deadline = time.monotonic() + 4.0
+            dfu_cmd_hit_target = False
+            while time.monotonic() < dfu_cmd_deadline:
+                try:
+                    line = read_line(ser)
+                except SerialException as e:
+                    serial_lost = True
+                    reason = f"phase_a_serial_lost_after_dfu_cmd:{e}"
+                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] {reason}\n")
+                    logf.flush()
+                    raise RuntimeError(reason)
+                if line is None:
+                    continue
+                logf.write(line + "\n")
+                logf.flush()
+                if "OK DFU_REQUESTED" in line or "OK DFU_READY" in line:
+                    dfu_cmd_hit_target = True
+                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A anchor_dfu_requested\n")
+                    logf.flush()
+                    break
+                if "ERR:BAD_CMD" in line:
+                    logf.write(f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A anchor_dfu_cmd_best_effort_done\n")
+                    logf.flush()
+                    break
+                if "target mismatch" in line or "BLE cmd not sent" in line or "cmd rc=" in line:
+                    logf.write(
+                        f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A anchor_dfu_cmd_not_target_yet; retrying\n"
+                    )
+                    logf.flush()
+                    time.sleep(0.2)
+                    send_cmd(ser, "cmd DFU", logf, t0)
+            if target_ctrl_ready and not dfu_cmd_hit_target:
+                logf.write(
+                    f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A anchor_dfu_cmd_no_ack_after_target_ready\n"
+                )
+                logf.flush()
+            time.sleep(0.1)
 
             send_cmd(ser, "mode ota", logf, t0)
 

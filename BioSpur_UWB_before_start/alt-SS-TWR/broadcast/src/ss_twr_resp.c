@@ -709,6 +709,18 @@ static void ss_twr_resp_write_ts(uint8_t *ts_field, dwtime_u64_t ts)
     }
 }
 
+static void ss_twr_resp_write_u16(uint8_t *field, uint16_t value)
+{
+    field[0] = (uint8_t)(value & 0xffU);
+    field[1] = (uint8_t)(value >> 8);
+}
+
+static void ss_twr_resp_prepare_resp_template(void)
+{
+    uwb_ss_twr_build_resp_frame(ss_twr_resp_tx_resp_msg, 0U, 0U,
+                                ss_twr_resp_local_addr);
+}
+
 static void ss_twr_resp_configure_radio(void)
 {
     dwt_configure(&ss_twr_resp_config);
@@ -727,13 +739,6 @@ static void ss_twr_resp_configure_radio(void)
     dwt_write32bitreg(SYS_STATUS_ID,
                       SYS_STATUS_ALL_TX | SYS_STATUS_ALL_RX_GOOD |
                           SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_RX_TO);
-}
-
-static inline void ss_twr_resp_coop_sleep(void)
-{
-#if APP_ANCHOR_RESPONDER_COOP_SLEEP_MS > 0
-    k_msleep(APP_ANCHOR_RESPONDER_COOP_SLEEP_MS);
-#endif
 }
 
 int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
@@ -765,7 +770,8 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
 
     ss_twr_resp_led_init();
     ss_twr_resp_configure_radio();
-    RESP_PRINTK("SS-TWR responder ready anchor=%u addr=0x%04x allow_tag_polls=%u resp_delay_uus=%u hw_filter=%u alt=%u guard_us=%u resp_spacing_us=%u frame_diag=%u\n",
+    ss_twr_resp_prepare_resp_template();
+    RESP_PRINTK("SS-TWR responder ready anchor=%u addr=0x%04x allow_tag_polls=%u resp_delay_uus=%u hw_filter=%u alt=%u guard_us=%u resp_spacing_us=%u coop_ms=%u frame_diag=%u\n",
            (unsigned int)ss_twr_resp_anchor_id,
            (unsigned int)ss_twr_resp_local_addr,
            (unsigned int)(ss_twr_resp_allow_tag_polls != 0),
@@ -774,6 +780,7 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
            (unsigned int)APP_ALT_SS_TWR_ENABLE,
            (unsigned int)APP_ALT_SS_TWR_GUARD_US,
            (unsigned int)APP_ALT_SS_TWR_RESP_SPACING_US,
+           (unsigned int)APP_ANCHOR_RESPONDER_COOP_SLEEP_MS,
            (unsigned int)APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE);
 
     while (1) {
@@ -785,7 +792,8 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             dwt_forcetrxoff();
             dwt_rxreset();
             ss_twr_resp_led_off();
-            RESP_PRINTK("Responder stop requested anchor=%u\n",
+            RESP_PRINTK("Responder %s requested anchor=%u\n",
+                   anchor_runtime_dfu_requested() ? "DFU" : "stop",
                    (unsigned int)ss_twr_resp_anchor_id);
             return 0;
         }
@@ -807,13 +815,11 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             status_reg = dwt_read32bitreg(SYS_STATUS_ID);
             wait_cycles++;
             if ((wait_cycles & 0x3FFU) == 0U) {
-                /* Responder runs forever on main thread; periodically yield so
-                 * BLE/mcumgr workqueues can make progress under heavy UWB load.
-                 */
                 if (anchor_runtime_stop_requested()) {
                     dwt_forcetrxoff();
                     dwt_rxreset();
-                    RESP_PRINTK("Responder stop requested during RX wait anchor=%u\n",
+                    RESP_PRINTK("Responder %s requested during RX wait anchor=%u\n",
+                           anchor_runtime_dfu_requested() ? "DFU" : "stop",
                            (unsigned int)ss_twr_resp_anchor_id);
                     return 0;
                 }
@@ -828,8 +834,6 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
                     delayed_tx_miss_count, tag_poll_count, tag_reply_count,
                     tag_tx_miss_count, &match_diag);
                 ss_twr_resp_profile_periodic(&prof_stats, &prof_last_ms);
-                k_yield();
-                ss_twr_resp_coop_sleep();
             }
         } while ((status_reg & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_ERR)) == 0U);
         if (pause_for_ble_ota) {
@@ -862,18 +866,15 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
                 ignored_nonpoll_frames, delayed_tx_miss_count, tag_poll_count,
                 tag_reply_count, tag_tx_miss_count, &match_diag);
             ss_twr_resp_profile_periodic(&prof_stats, &prof_last_ms);
-            ss_twr_resp_coop_sleep();
             continue;
         }
 
         uint32_t prof_rx_cyc = k_cycle_get_32();
-        dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
 
         frame_len = dwt_read32bitreg(RX_FINFO_ID) & RX_FINFO_RXFL_MASK_1023;
         if (frame_len > sizeof(ss_twr_resp_rx_buffer)) {
             dwt_forcetrxoff();
             dwt_rxreset();
-            ss_twr_resp_coop_sleep();
             continue;
         }
 
@@ -901,7 +902,6 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
                 ignored_nonpoll_frames, delayed_tx_miss_count, tag_poll_count,
                 tag_reply_count, tag_tx_miss_count, &match_diag);
             ss_twr_resp_profile_periodic(&prof_stats, &prof_last_ms);
-            ss_twr_resp_coop_sleep();
             continue;
         }
 
@@ -919,24 +919,11 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
                 &diag_last_ms, replies_ok, rx_error_count, ignored_tag_polls,
                 ignored_nonpoll_frames, delayed_tx_miss_count, tag_poll_count,
                 tag_reply_count, tag_tx_miss_count, &match_diag);
-            ss_twr_resp_coop_sleep();
             continue;
         }
 
         dwtime_u64_t poll_rx_ts = ss_twr_resp_get_rx_timestamp_u64();
         uint32_t prof_ts_cyc = k_cycle_get_32();
-
-        /*
-         * Broadcast-poll responder TX was observed reporting TXFRS locally while
-         * neither tag nor passive listener saw the response. Put the DW1000 in a
-         * known idle state after the RX timestamp/data are captured, before
-         * programming the delayed response.
-         */
-        dwt_forcetrxoff();
-        dwt_write32bitreg(SYS_STATUS_ID,
-                          SYS_STATUS_ALL_RX_GOOD | SYS_STATUS_ALL_RX_ERR |
-                              SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_TX |
-                              SYS_STATUS_HPDWARN);
 
         uint32_t resp_delay_uus = SS_TWR_RESP_POLL_RX_TO_RESP_TX_DLY_UUS;
         uint8_t resp_rank = 0xffU;
@@ -980,11 +967,12 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             (((dwtime_u64_t)(resp_tx_time & 0xFFFFFFFEUL)) << 8) +
             SS_TWR_RESP_TX_ANT_DLY;
 
-        dwt_setdelayedtrxtime(resp_tx_time);
-
-        uwb_ss_twr_build_resp_frame(ss_twr_resp_tx_resp_msg,
-                                    ss_twr_resp_frame_seq_nb, poll_src_addr,
-                                    ss_twr_resp_local_addr);
+        ss_twr_resp_tx_resp_msg[SS_TWR_RESP_MSG_SN_IDX] =
+            ss_twr_resp_frame_seq_nb;
+        ss_twr_resp_write_u16(&ss_twr_resp_tx_resp_msg[UWB_MSG_DST_IDX],
+                              poll_src_addr);
+        ss_twr_resp_write_u16(&ss_twr_resp_tx_resp_msg[UWB_MSG_SRC_IDX],
+                              ss_twr_resp_local_addr);
         ss_twr_resp_match_diag_observe_resp(&match_diag, poll_src_addr,
                                             ss_twr_resp_local_addr,
                                             resp_delay_uus, resp_rank);
@@ -1002,35 +990,47 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
                 &diag_last_ms, replies_ok, rx_error_count, ignored_tag_polls,
                 ignored_nonpoll_frames, delayed_tx_miss_count, tag_poll_count,
                 tag_reply_count, tag_tx_miss_count, &match_diag);
-            ss_twr_resp_coop_sleep();
             continue;
         }
 
         dwt_writetxfctrl(sizeof(ss_twr_resp_tx_resp_msg), 0, 1);
+        dwt_setdelayedtrxtime(resp_tx_time);
         uint32_t prof_txprog_cyc = k_cycle_get_32();
+#if APP_ANCHOR_RESPONDER_PROFILE_ENABLE || APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE
         int32_t prof_slack_uus = ss_twr_resp_slack_uus(resp_tx_time);
+#else
+        int32_t prof_slack_uus = 0;
+#endif
 
         uint32_t prof_starttx_cyc = k_cycle_get_32();
         ss_twr_resp_led_on();
+        int starttx_ok = (dwt_starttx(DWT_START_TX_DELAYED) == DWT_SUCCESS);
+        uint32_t prof_start_done_cyc = k_cycle_get_32();
+        uint32_t prof_starttx_us =
+            ss_twr_resp_elapsed_us(prof_starttx_cyc, prof_start_done_cyc);
+
         /*
-         * Delayed TX completion must be observed for this response, not a
-         * stale TXFRS left by a previous mode/transaction. If stale TXFRS is
-         * consumed here, the responder can re-enter RX before the scheduled
-         * transmit time and silently cancel the response while still counting
-         * it as OK.
+         * The delayed-TX deadline is now behind us, so diagnostics and stale
+         * status cleanup can happen without making rank0 late.
          */
+#if APP_ANCHOR_RESPONDER_PRINTK_ENABLE || APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE
         uint32_t tx_status_before_clear = dwt_read32bitreg(SYS_STATUS_ID);
+#else
+        uint32_t tx_status_before_clear = 0U;
+#endif
         dwt_write32bitreg(SYS_STATUS_ID,
                           SYS_STATUS_ALL_TX | SYS_STATUS_ALL_RX_GOOD |
                               SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_RX_TO |
                               SYS_STATUS_HPDWARN);
+#if APP_ANCHOR_RESPONDER_PRINTK_ENABLE || APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE
         uint32_t tx_status_after_clear = dwt_read32bitreg(SYS_STATUS_ID);
-        int starttx_ok = (dwt_starttx(DWT_START_TX_DELAYED) == DWT_SUCCESS);
         uint32_t tx_status_after_start = dwt_read32bitreg(SYS_STATUS_ID);
         uint16_t tx_check_hi16 = dwt_read16bitoffsetreg(SYS_STATUS_ID, 3);
-        uint32_t prof_start_done_cyc = k_cycle_get_32();
-        uint32_t prof_starttx_us =
-            ss_twr_resp_elapsed_us(prof_starttx_cyc, prof_start_done_cyc);
+#else
+        uint32_t tx_status_after_clear = 0U;
+        uint32_t tx_status_after_start = 0U;
+        uint16_t tx_check_hi16 = 0U;
+#endif
         ss_twr_resp_match_diag_observe_tx_start(
             &match_diag, tx_status_before_clear, tx_status_after_clear,
             tx_status_after_start, tx_check_hi16, starttx_ok);
@@ -1076,7 +1076,6 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
                 ignored_nonpoll_frames, delayed_tx_miss_count, tag_poll_count,
                 tag_reply_count, tag_tx_miss_count, &match_diag);
             ss_twr_resp_profile_periodic(&prof_stats, &prof_last_ms);
-            ss_twr_resp_coop_sleep();
             continue;
         }
 
@@ -1089,12 +1088,11 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
                     dwt_forcetrxoff();
                     dwt_rxreset();
                     ss_twr_resp_led_off();
-                    RESP_PRINTK("Responder stop requested during TX wait anchor=%u\n",
+                    RESP_PRINTK("Responder %s requested during TX wait anchor=%u\n",
+                           anchor_runtime_dfu_requested() ? "DFU" : "stop",
                            (unsigned int)ss_twr_resp_anchor_id);
                     return 0;
                 }
-                k_yield();
-                ss_twr_resp_coop_sleep();
             }
         }
         ss_twr_resp_match_diag_observe_tx_done(
@@ -1127,6 +1125,5 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             tag_reply_count, tag_tx_miss_count, &match_diag);
         ss_twr_resp_profile_periodic(&prof_stats, &prof_last_ms);
         ss_twr_resp_frame_seq_nb++;
-        ss_twr_resp_coop_sleep();
     }
 }

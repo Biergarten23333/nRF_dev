@@ -257,6 +257,25 @@ static int anchor_run_runtime_role(uint8_t anchor_id_runtime, uint8_t anchor_id_
     return 0;
 }
 
+static void anchor_enter_dfu_mode(uint8_t anchor_id_cfg, uint8_t role, bool cfg_valid)
+{
+    printk("Anchor explicit DFU mode entered anchor=%c role=%s\n",
+           anchor_config_label_char(anchor_id_cfg), anchor_role_name(role));
+    uart_role_switch_set_ranging_active(false);
+    anchor_ble_ctrl_set_busy(false);
+    anchor_ble_ctrl_set_runtime(anchor_id_cfg, role, cfg_valid);
+    (void)anchor_ble_ctrl_publish_result_line("OK DFU_READY");
+
+    while (anchor_runtime_dfu_requested()) {
+        if (anchor_runtime_requested_role() != ANCHOR_ROLE_UNSET) {
+            anchor_runtime_clear_dfu();
+            printk("Anchor explicit DFU mode leaving for runtime role switch\n");
+            return;
+        }
+        k_sleep(K_MSEC(100));
+    }
+}
+
 int anchor_app_run(void)
 {
     uint8_t effective_role = ANCHOR_ROLE_UNSET;
@@ -474,6 +493,10 @@ int anchor_app_run(void)
                                       cfg_valid, effective_master_sweep_limit);
         if (ret != 0) {
             return ret;
+        }
+
+        if (anchor_runtime_dfu_requested()) {
+            anchor_enter_dfu_mode(anchor_id_cfg, effective_role, cfg_valid);
         }
 
         next_role = anchor_runtime_requested_role();

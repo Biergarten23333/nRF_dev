@@ -388,3 +388,237 @@ Stopped here intentionally per revised overnight flow. Next required action is a
   - `txdone_to_rxend_us`: median=915 p95=1037 max=1159
 - Listener: UF=892, UL=178; inferred UL source counts mostly H/G plus small B/D, so listener remains incomplete for proving all anchors.
 - Verdict: The forced-responder process fixes the A/rank0 absence. However, b44 no-slack does not improve throughput under a valid responder state: `positions_all=253/60s`, comparable to the original b40 class and below the `>500` probe target. The previous b44 result (`403` positions with `A=0`) was not a valid success case because the Anchor responder state was stale/incomplete. Future guard/window conclusions must be made only after explicit Anchor responder force or capture preflight success.
+
+## 2026-05-01 Step 1 Anchor a9 g1200 Deploy
+
+- Guard tested: g1200/r1000
+- Anchor marker: `alt-bcast-a9-g1200-r1000-coop1`
+- Anchor build: `build-anchor-unified-ota-alt-bcast-a9-g1200-r1000-coop1`
+- Master_Anchor carrier: `build-master-control-b120-m1-master-anchor-lfrc-alt-bcast-a9-g1200-r1000-coop1-carrier`
+- B120 LFRC assert: passed
+- Master_Anchor flash: SNR `960148546`, repo J-Link script, passed
+- Anchor OTA directory: `logs/alt_bcast_a9_g1200_anchor_ota_20260501_105324`
+- OTA result: A-H upload/confirm success on attempt 1
+- Runtime responder verify: `post_verify_all_responder_20260501_110022/verify.log`, success `ready=8/8`, sent=8
+- VERSION readback: `actual=-` for A-H, `match=False`; accepted as known control-plane readback issue because runtime responder verify passed.
+- Verdict: PASS for deployment/runtime gate. Continue to Tag b46 g1200.
+
+## 2026-05-01 Step 2 Tag b46 g1200 Deploy
+
+- Guard tested: g1200/r1000
+- Tag marker: `alt-bcast-b46-8anc-pretx-g1200-r1000`
+- Tag build: `build-alt-bcast-b46-8anc-pretx-tag-g1200-r1000-raw0-cont0`
+- Master_Tag carrier: `build-master-control-b120-m1-master-tag-lfrc-alt-bcast-b46-8anc-pretx-g1200-r1000-carrier`
+- B120 LFRC assert: passed
+- Master_Tag flash: SNR `1050070698`, repo J-Link script, passed
+- Tag OTA directory: `logs/alt_bcast_b46_g1200_tag_ota_20260501_110328`
+- OTA result: BSF66F/BS2DCE/BSDC91 upload success on attempt 1
+- VERSION match: BSF66F/BS2DCE/BSDC91 all `match=True`
+- Verdict: PASS. Continue to g1200 60s probe with mandatory Anchor responder force/preflight.
+
+## 2026-05-01 Step 3 b46/a9 g1200 60s Probe
+
+- Guard tested: g1200/r1000
+- Anchor marker: `alt-bcast-a9-g1200-r1000-coop1`
+- Tag marker: `alt-bcast-b46-8anc-pretx-g1200-r1000`
+- Mandatory Anchor force before capture: `logs/anchor_ready_force_before_b46_probe_20260501_110805/verify.log`, success `ready=8/8`
+- Capture directory: `logs/alt_bcast_b46_g1200_probe60_20260501_110849`
+- Capture preflight: enabled, `recv_20260501_110904/anchor_responder_preflight_launch1_20260501_110904/verify.log`, success `ready=8/8`
+- Listener: enabled, but `listener-extra-s=12` was partly consumed by preflight; use a larger listener-extra for future preflight captures.
+- Anchor serial: attempted on all non-listener 760* ports under `anchor_serial/`; current port set includes some non-anchor/tag serial output, so serial mapping still needs cleanup.
+- `positions_all`: 410
+- `tf_all`: 0
+- Per-tag positions: BSF66F=134, BS2DCE=135, BSDC91=141
+- Per-tag rate over 60s: BSF66F=2.23 Hz, BS2DCE=2.25 Hz, BSDC91=2.35 Hz, total=6.83 Hz
+- Rank0/A present: no, A count=0
+- Anchor counts in position anchors field: B=282, C=296, D=267, E=149, F=286, G=278, H=221
+- RXG timing:
+  - `win_us`: n=172 min=8500 median=8500 p95=8500 max=8500
+  - `slot_to_txdone_us`: n=172 min=335 median=335 p95=396 max=518
+  - `txdone_to_rxstart_us`: n=172 min=640 median=793 p95=946 max=1037
+  - `txdone_to_rxend_us`: n=172 min=732 median=915 p95=1098 max=1159
+- Listener UL rows: 97; source counts mostly H (`0xa107`=88), with sparse D/C/G/E.
+- RMS stats:
+  - BSF66F: median=27.5 mm, p95=65 mm, p99=75 mm, max=82 mm
+  - BS2DCE: median=13 mm, p95=52 mm, p99=65 mm, max=127 mm
+  - BSDC91: median=15 mm, p95=58 mm, p99=170 mm, max=187 mm
+- Verdict: FAIL per overnight rule. g1200 has rank0/A missing even with explicit responder force and capture preflight `ready=8/8`. Stop guard-bisect here; do not attempt g1000/g800. Current evidence says g1200 is too aggressive for rank0 under this a9/b46 configuration. The last guard where rank0 was observed under forced responder process was g1600, but g1600 throughput was still below the >500/60s target, so the next engineering work should separate rank0 timing from throughput rather than continuing this overnight bisect.
+
+## Final Summary
+
+Minimum observed guard with rank0 present under forced-responder process: g1600 from b44/a7 retest (`A=60`), but that run had only `positions_all=253/60s`.
+Current g1200 retest: FAIL, `positions_all=410/60s`, `A=0` despite `ready=8/8` preflight.
+Best current position count in this forced-preflight sequence: g1200 with 410/60s, but it is not valid for 8-anchor rank0 coverage because A is absent.
+End condition reached: g1200 rank0 fail even with responder force. Stopped before g1000/g800 as instructed.
+
+## 2026-05-01 b50 fastrx Tag Hot-Path Check
+
+- Goal: reduce Tag `txdone_to_rxstart_us` by opening RX immediately after TXFRS and moving bookkeeping after the collector.
+- Source touched: `src/ss_twr_init.c` only.
+- Anchor image: unchanged from current `alt-bcast-a9-g1200-r1000-coop1`.
+- Tag marker: `alt-bcast-b50-fastrx-8anc-pretx-g1600-r1000`.
+- Tag OTA:
+  - First b50 deploy: `logs/alt_bcast_b50_g1600_tag_ota_20260501_222000`, all three Tags `match=True`.
+  - Second b50/fastrx2 deploy after moving TX timestamp read after RX enable: `logs/alt_bcast_b50_g1600_tag_ota_fastrx2_20260501_223029`, all three Tags `match=True`.
+- Capture 1: `logs/alt_bcast_b50_fastrx_g1600_probe60_20260501_222512`
+  - Anchor preflight: success `ready=8/8`
+  - `positions_all`: 436
+  - `tf_all`: 0
+  - Per-tag: BSF66F=140, BS2DCE=146, BSDC91=150
+  - Position anchor counts: B=280, C=293, D=319, E=149, F=285, G=313, H=230, A=0
+  - RXG: `win=8565`, `slot_to_txdone_us` median=488 p95=549 max=793
+  - RXG: `txdone_to_rxstart_us` median=244 p95=335 max=579
+  - Listener UL: 198, mostly H=169; A=0
+  - Verdict: partial timing improvement, but not below target.
+- Capture 2: `logs/alt_bcast_b50_fastrx2_g1600_probe60_20260501_223452`
+  - Anchor preflight: success `ready=8/8`
+  - `positions_all`: 434
+  - `tf_all`: 0
+  - Per-tag: BSF66F=140, BS2DCE=147, BSDC91=147
+  - Position anchor counts: B=288, C=312, D=300, E=136, F=301, G=292, H=253, A=0
+  - RXG: `win=8565`, `slot_to_txdone_us` median=610 p95=701 max=976
+  - RXG: `txdone_to_rxstart_us` median=61 p95=91 max=122
+  - RXG: `txdone_to_rxend_us` median=183 p95=213 max=274
+  - Listener UL: 158, mostly H=156; A=0
+  - Verdict: PASS for Tag RX hot-path timing. The target `txdone_to_rxstart_us < 200us` is met with margin.
+- Important conclusion: b50 proves the Tag collector now opens RX fast enough. Rank0/A is still absent in both Tag positions and listener UL even when Anchor preflight reports `ready=8/8`, so the remaining blocker is no longer Tag `txdone_to_rxstart`. Next work should debug Anchor A/rank0 response visibility/state or Anchor-side guard/slot behavior, not keep tuning Tag hot path blindly.
+
+## 2026-05-01 b51 nosleep/DFU-trigger checkpoint
+
+Status: code + build only. No hardware deployment was performed after this checkpoint.
+
+Changes:
+- Anchor responder hot loop no longer calls `k_yield()` or coop sleep in normal ranging path.
+- Added Anchor BLE control command `DFU` / `ENTER_DFU` / `OTA` / `ENTER_OTA`.
+- Added runtime DFU request flag so responder exits, stops UWB, publishes `OK DFU_READY`, then leaves CPU to BLE/SMP until OTA reset.
+- Updated `ota_single_shot_stable.py` to send best-effort `cmd DFU` before `mode ota`. Older coop images may return `ERR:BAD_CMD`; this is accepted for the first upgrade into nosleep.
+
+Builds:
+- Anchor marker: `alt-bcast-a10-nosleep-g1200-r1000`
+- Anchor OTA build: `build-anchor-unified-ota-alt-bcast-a10-nosleep-g1200-r1000/dfu_application.zip`
+- Master_Anchor B120 carrier: `build-master-control-b120-m1-master-anchor-lfrc-alt-bcast-a10-nosleep-g1200-r1000-carrier/zephyr/merged_domains.hex`
+- B120 LFRC assert: passed.
+
+Hardware:
+- Not flashed.
+- No Anchor OTA started.
+- Tags unchanged on current b50.
+
+Next hardware step, when explicitly approved:
+1. Flash only Master_Anchor B120 SNR `960148546` with the b51 carrier.
+2. OTA A-H using existing `ota_deploy_anchor_set.py` flow.
+3. Power cycle Anchors if needed, force responder verify `ready=8/8`.
+4. Run 60s 3-tag capture with anchor preflight and check rank0/A.
+
+## 2026-05-01 a10 Anchor-A staged deployment
+
+- Master_Anchor B120 flashed with `alt-bcast-a10-nosleep-g1200-r1000-carrier`; LFRC assert passed.
+- Anchor OTA was intentionally limited to Anchor A only.
+- Anchor A OTA result: upload/reset observed in `logs/alt_bcast_a10_nosleep_anchorA_ota_20260501_233232`.
+- Anchor A version by UUID reported `ANCHOR_FW fw=alt-bcast-a10-nosleep-g1200-r10... label=A`, confirming the a10-nosleep image booted on A. The marker is truncated by the control field, but the prefix is correct.
+- Forced responder verify after A deployment: `ready=8/8` in `logs/anchor_ready_force_after_a10_anchorA_20260501_233538`.
+- 30s BSF66F-only probe: `logs/alt_bcast_a10_nosleep_anchorA_BSF66F_probe30_20260501_234059`.
+  - `positions_all=70`, `tf_all=0`.
+  - Position anchor letters: B=33, C=49, D=64, E=16, F=44, G=58, H=34, A=0.
+  - RXG: `mask=0xff`, `pc=8`, `guard=1600`, `win=8565`.
+  - RXG timing: `slot_to_txdone_us` median=579 p95=610 max=762; `txdone_to_rxstart_us` median=61 p95=91 max=122.
+  - Listener UL: 20 rows, all H (`anchor_id=7`, `src=0xa107`).
+- Verdict: a10-nosleep booted and system still ranges with non-A anchors, but this probe did not prove Anchor A/rank0 response recovery. Next staged step is a10 -> a11 marker-only OTA on Anchor A to prove the new BLE-triggered DFU path before touching B-H.
+
+## 2026-05-01 Anchor-A a11 OTA / ReOTA proof
+
+- Built marker-only Anchor image `alt-bcast-a11-nosleep-g1200-r1000` from the same nosleep/DFU-trigger code and g1200/r1000 parameters.
+- Built Master_Anchor carrier with the a11 payload and LFRC assert passed.
+- Fixed Master_Anchor runtime command routing for UUID-selected anchors: when `runtime_target_uuid` is set and matches a peer UUID, that peer now matches immediately instead of also requiring the default `prefix=BS` filter. Without this, `cmd DFU` was incorrectly skipped as target mismatch for Anchor control links.
+- Updated `ota_single_shot_stable.py` so nosleep Anchor OTA waits for the selected Anchor control UUID to be ready before sending `cmd DFU`.
+- First successful a10 -> a11 OTA for Anchor A:
+  - Log: `logs/alt_bcast_a11_nosleep_anchorA_ota_fixuuid_20260501_235200`.
+  - Evidence: `Anchor ctrl sent[0]: DFU uuid=4DC6B8187E33803AE8601FB0D7992B96`, `OK DFU_REQUESTED`, `OTA upload complete`.
+  - Summary: `returncode=0`, `ota_success_seen=true`, `ota_upload_complete_seen=true`.
+  - Post VERSION readback still reported `actual=- match=False`; this is the known Master_Anchor VERSION control-plane readback problem, not an upload failure.
+- ReOTA proof using the already-running a11 image on Anchor A:
+  - B120 Master_Anchor was reset only, not flashed, after CDC writes timed out.
+  - Log: `logs/alt_bcast_a11_nosleep_anchorA_reota_a11_after_b120reset_20260501_235813`.
+  - Result: upload reached 100%, summary `ota_success_seen=true`, `ota_upload_complete_seen=true`, `reason=ota_success_observed`.
+  - This proves the a11 nosleep image can itself enter DFU via BLE trigger and accept a second OTA.
+- Scope: only Anchor A was OTA-updated/reOTA-tested. B-H were not touched.
+
+## 2026-05-02 B-H a11 nosleep deployment
+
+- Active Anchor OTA payload guard passed for `alt-bcast-a11-nosleep-g1200-r1000`.
+- Master_Anchor carrier in use: `build-master-control-b120-m1-master-anchor-lfrc-alt-bcast-a11-nosleep-g1200-r1000-carrier-fixuuid`; LFRC assert passed before flash.
+- OTA directory: `logs/alt_bcast_a11_nosleep_anchor_BH_ota_20260502_000148`.
+- Scope: B-H only. Anchor A was already proven on a11 by the staged OTA/ReOTA test above.
+- Per-anchor OTA result:
+  - B: `returncode=0`, `dfu_ready_seen=true`, `ota_upload_complete_seen=true`, `ota_success_seen=true`, `reason=ota_success_observed`.
+  - C: `returncode=0`, `dfu_ready_seen=true`, `ota_upload_complete_seen=true`, `ota_success_seen=true`, `reason=ota_success_observed`.
+  - D: `returncode=0`, `dfu_ready_seen=true`, `ota_upload_complete_seen=true`, `ota_success_seen=true`, `reason=ota_success_observed`.
+  - E: `returncode=0`, `dfu_ready_seen=true`, `ota_upload_complete_seen=true`, `ota_success_seen=true`, `reason=ota_success_observed`.
+  - F: `returncode=0`, `dfu_ready_seen=true`, `ota_upload_complete_seen=true`, `ota_success_seen=true`, `reason=ota_success_observed`.
+  - G: `returncode=0`, `dfu_ready_seen=true`, `ota_upload_complete_seen=true`, `ota_success_seen=true`, `reason=ota_success_observed`.
+  - H: `returncode=0`, `dfu_ready_seen=true`, `ota_upload_complete_seen=true`, `ota_success_seen=true`, `reason=ota_success_observed`.
+- Post VERSION readback remains unreliable (`actual=-` / CDC disconnect behavior), but all B-H OTA upload/reset success signals were observed.
+- Intended Anchor fleet state: A-H on `alt-bcast-a11-nosleep-g1200-r1000`.
+- Next required step: manual full hardware power cycle, then force responder verify `ready=8/8`, then 60s g1200 nosleep capture.
+
+## 2026-05-02 a11 nosleep fleet power-cycle + 60s probe
+
+- Manual power cycle completed by developer.
+- Post-power-cycle responder force/verify:
+  - Log: `logs/anchor_ready_force_after_a11_all_powercycle_20260502_001934/verify.log`.
+  - Result: `success=true`, `sent=8`, `ready=8/8`.
+- 60s 3-tag motion probe:
+  - Directory: `logs/alt_bcast_a11_nosleep_g1200_b50_probe60_20260502_002054`.
+  - Capture preflight also passed: `ready=8/8`.
+  - Tag firmware used: current b50-style fastrx image, reporting `guard=1600`, `mask=0xff`, `pc=8`. Anchor fleet intended state is a11 nosleep g1200.
+  - `positions_all=427`, `tf_all=0`.
+  - Per-tag positions: BSF66F=124, BS2DCE=151, BSDC91=152.
+  - Position anchor counts: B=304, C=275, D=290, E=117, F=274, G=296, H=231, A=0.
+  - Top tracks: CDGH=108, BDFH=84, BDFG=47, BCFG=41, BCEG=35.
+  - RXG timing: `slot_to_txdone_us` median=579 p95=701 max=762; `txdone_to_rxstart_us` median=61 p95=91 max=183.
+  - RXG config observed: `win=8565`, `guard=1600`, `pc=8`, `mask=0xff`.
+  - Listener: `uf_rows=701`, `ul_rows=143`; UL anchors H=122, G=18, B=2, E=1, A=0.
+- Verdict:
+  - Anchor control/runtime state is healthy (`ready=8/8` twice).
+  - Tag RX hot path is healthy (`txdone_to_rxstart_us` p95 < 100 us).
+  - A/rank0 is still absent from both Tag positions and passive listener UL.
+  - This probe does not prove g1200 nosleep success. The remaining blocker is Anchor A/rank0 response transmission/slot timing, not Tag-side RX startup.
+
+## 2026-05-02 Anchor-A a12 g1200 nosleepdiag proof
+
+- Built diagnostic Anchor image `alt-bcast-a12-nosleepdiag-g1200-r1000`.
+  - Same g1200/r1000 nosleep behavior as a11.
+  - Enabled low-rate responder/profile diag only:
+    `APP_ANCHOR_RESPONDER_PRINTK_ENABLE=1`,
+    `APP_ANCHOR_RESPONDER_PROFILE_ENABLE=1`,
+    `APP_ANCHOR_RESPONDER_DIAG_PERIOD_MS=5000`.
+  - No per-frame printk enabled.
+- Built and flashed Master_Anchor B120 carrier:
+  `build-master-control-b120-m1-master-anchor-lfrc-alt-bcast-a12-nosleepdiag-g1200-r1000-carrier`.
+  - B120 LFRC assert passed.
+  - Flash used explicit SNR `960148546`.
+- OTA scope: Anchor A only.
+  - Directory: `logs/alt_bcast_a12_nosleepdiag_anchorA_ota_20260502_003131`.
+  - Upload reached 100%, `dfu_ready_seen=true`, `ota_upload_complete_seen=true`, `ota_success_seen=true`.
+  - Post VERSION still `actual=-`; ignored as known readback issue.
+- Post-OTA responder verify:
+  - Directory: `logs/anchor_ready_force_after_a12diag_anchorA_20260502_003224`.
+  - Result: `ready=8/8`.
+- 30s diagnostic capture:
+  - Directory: `logs/alt_bcast_a12diag_anchorA_g1200_b50_diag30_20260502_003319`.
+  - `positions_all=219`, `tf_all=0`.
+  - Position anchor counts: B=150, C=148, D=154, E=61, F=149, G=148, H=123, A=0.
+  - Listener UL anchors: H=85, B=14, G=7, F=5, C=1, E=1, A=0.
+  - Tag RXG still reports current b50 Tag config: `guard=1600`, `win=8565`, `mask=0xff`, `pc=8`, `txdone_to_rxstart_us` median=61 p95=91 max=122.
+- Anchor A serial diag is decisive:
+  - Anchor A matches the broadcast poll: `matched_broadcast=494`, `last_dst=0xffff`, `last_mask=0xff`, `last_resp_rank=0`.
+  - Anchor A schedules rank0 delay: `last_resp_delay_uus=1200`.
+  - Anchor A never transmits successfully: `tx_ok=0`, `tx_miss=494`, `starttx_ok=0`.
+  - Per-tag counts: `tag_poll=0,173,165,156,0,0,0,0`; `tag_ok=0,0,0,0,0,0,0,0`; `tag_tx_miss=0,173,165,156,0,0,0,0`.
+  - Profile shows Anchor A delayed-TX start path is too slow for g1200:
+    examples include `avg_us ... txprog=1007 start=1595`, `max_us ... start=1831`.
+- Verdict:
+  - The previous A/rank0 absence is not a mask/match problem and not a Tag RX problem.
+  - Anchor A receives and matches broadcast polls correctly, but `DWT_START_TX_DELAYED` is called too late for `guard=1200`.
+  - Current Anchor responder hot path requires roughly 1.6-1.8 ms before delayed TX start; g1200 is below the measured implementation limit.
+  - Immediate stable path is guard >= ~1800-2000, or optimize the Anchor TX hot path before retrying g1200/g800.
