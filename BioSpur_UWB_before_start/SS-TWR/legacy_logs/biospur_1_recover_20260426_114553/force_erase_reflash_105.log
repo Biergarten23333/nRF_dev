@@ -1,0 +1,414 @@
+SEGGER J-Link Commander V9.24a (Compiled Mar  5 2026 11:04:55)
+DLL version V9.24a, compiled Mar  5 2026 11:03:48
+
+
+J-Link Command File read successfully.
+Processing script file...
+J-Link>Device NRF5340_XXAA_APP
+J-Link connection not established yet but required for command.
+Connecting to J-Link via USB...O.K.
+Firmware: J-Link OB-nRF5340-NordicSemi compiled Jul  8 2025 10:15:34
+Hardware version: V1.00
+J-Link uptime (since boot): 0d 10h 34m 00s
+S/N: 1050070698
+License(s): RDI, FlashBP, FlashDL, JFlash, GDB
+USB speed mode: Full speed (12 MBit/s)
+VTref=3.300V
+J-Link>SI SWD
+Selecting SWD as current target interface.
+J-Link>Speed 4000
+Selecting 4000 kHz as target interface speed
+J-Link>r
+Target connection not established yet but required for command.
+Device "NRF5340_XXAA_APP" selected.
+
+
+Connecting to target via SWD
+ConfigTargetSettings() start
+ConfigTargetSettings() end - Took 27us
+InitTarget() start
+InitTarget() end - Took 1.45ms
+Found SW-DP with ID 0x6BA02477
+DPIDR: 0x6BA02477
+CoreSight SoC-400 or earlier
+AP map detection skipped. Manually configured AP map found.
+AP[0]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[1]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[2]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[3]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x410FD214. Implementer code: 0x41 (ARM)
+Feature set: Mainline
+Cache: No cache
+Found Cortex-M33 r0p4, Little endian.
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 000BB4C9 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 000BBD21 DEVARCH 47702A04 DEVTYPE 00 Cortex-M33
+[1][1]: E0001000 CID B105900D PID 000BBD21 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000BBD21 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000BBD21 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][5]: E0041000 CID B105900D PID 002BBD21 DEVARCH 47724A13 DEVTYPE 13 ETM
+[1][6]: E0042000 CID B105900D PID 000BBD21 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000BBD21 DEVARCH 00000000 DEVTYPE 11 TPIU
+Memory zones:
+  Zone: "Default" Description: Default access mode
+Cortex-M33 identified.
+Reset delay: 0 ms
+Reset type: NORMAL (https://kb.segger.com/J-Link_Reset_Strategies)
+Reset: ARMv8M core with Security Extension enabled detected. Switch to secure domain.
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via AIRCR.SYSRESETREQ.
+J-Link>erase
+No address range specified, 'Erase Chip' will be executed
+'erase': Performing implicit reset & halt of MCU.
+Reset type: NORMAL (https://kb.segger.com/J-Link_Reset_Strategies)
+Reset: ARMv8M core with Security Extension enabled detected. Switch to secure domain.
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via AIRCR.SYSRESETREQ.
+Erasing device...
+J-Link: Flash download: Only internal flash banks will be erased.
+To enable erasing of other flash banks like QSPI or CFI, it needs to be enabled via "exec EnableEraseAllFlashBanks"
+Comparing flash   [000%]100%] Done.
+Erasing flash     [000%]000%]100%] Done.
+J-Link: Flash download: Total time needed: 0.463s (Prepare: 0.162s, Compare: 0.000s, Erase: 0.173s, Program: 0.000s, Verify: 0.000s, Restore: 0.127s)
+Erasing done.
+J-Link>loadfile build-master-control-b120-m1-biospur1-internalsynth-equivalent-20260426_024358/zephyr/merged_domains.hex
+'loadfile': Performing implicit reset & halt of MCU.
+Reset type: NORMAL (https://kb.segger.com/J-Link_Reset_Strategies)
+Reset: ARMv8M core with Security Extension enabled detected. Switch to secure domain.
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via AIRCR.SYSRESETREQ.
+Reset: SYSRESETREQ has confused core.
+Found SW-DP with ID 0x6BA02477
+DPIDR: 0x6BA02477
+CoreSight SoC-400 or earlier
+AP map detection skipped. Manually configured AP map found.
+AP[0]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[1]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[2]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[3]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[0]: Skipped. Could not read CPUID register
+Attach to CPU failed. Executing connect under reset.
+Failed to power up DAP
+Reset: Using fallback: VECTRESET.
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via AIRCR.VECTRESET.
+Reset: VECTRESET has confused core.
+Reset: Using fallback: Reset pin.
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via reset pin
+Reset: VC_CORERESET did not halt CPU. (Debug logic also reset by reset pin?).
+Reset: Reconnecting and manually halting CPU.
+Found SW-DP with ID 0x6BA02477
+DPIDR: 0x6BA02477
+CoreSight SoC-400 or earlier
+AP map detection skipped. Manually configured AP map found.
+AP[0]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[1]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[2]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[3]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[0]: Skipped. Could not read CPUID register
+Attach to CPU failed. Executing connect under reset.
+Failed to power up DAP
+
+**************************
+WARNING: CPU could not be halted
+**************************
+
+Reset: Core did not halt after reset, trying to disable WDT.
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via reset pin
+Reset: VC_CORERESET did not halt CPU. (Debug logic also reset by reset pin?).
+Reset: Reconnecting and manually halting CPU.
+Found SW-DP with ID 0x6BA02477
+DPIDR: 0x6BA02477
+CoreSight SoC-400 or earlier
+AP map detection skipped. Manually configured AP map found.
+AP[0]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[1]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[2]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[3]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[0]: Skipped. Could not read CPUID register
+Attach to CPU failed. Executing connect under reset.
+Failed to power up DAP
+
+**************************
+WARNING: CPU could not be halted
+**************************
+
+Reset: Failed. Toggling reset pin and trying reset strategy again.
+Failed to attach to CPU. Trying connect under reset.
+Found SW-DP with ID 0x6BA02477
+SWD speed too high. Reduced from 2000 kHz to 1350 kHz for stability
+DPIDR: 0x6BA02477
+CoreSight SoC-400 or earlier
+AP map detection skipped. Manually configured AP map found.
+AP[0]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[1]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[2]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[3]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[0]: Skipped. Could not read CPUID register
+Attach to CPU failed. Executing connect under reset.
+Failed to power up DAP
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via AIRCR.SYSRESETREQ.
+Reset: SYSRESETREQ has confused core.
+Found SW-DP with ID 0x6BA02477
+DPIDR: 0x6BA02477
+CoreSight SoC-400 or earlier
+AP map detection skipped. Manually configured AP map found.
+AP[0]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[1]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[2]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[3]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[0]: Skipped. Could not read CPUID register
+Attach to CPU failed. Executing connect under reset.
+Failed to power up DAP
+Reset: Using fallback: VECTRESET.
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via AIRCR.VECTRESET.
+Reset: VECTRESET has confused core.
+Reset: Using fallback: Reset pin.
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via reset pin
+Reset: VC_CORERESET did not halt CPU. (Debug logic also reset by reset pin?).
+Reset: Reconnecting and manually halting CPU.
+Found SW-DP with ID 0x6BA02477
+DPIDR: 0x6BA02477
+CoreSight SoC-400 or earlier
+AP map detection skipped. Manually configured AP map found.
+AP[0]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[1]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[2]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[3]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[0]: Skipped. Could not read CPUID register
+Attach to CPU failed. Executing connect under reset.
+Failed to power up DAP
+
+**************************
+WARNING: CPU could not be halted
+**************************
+
+Reset: Core did not halt after reset, trying to disable WDT.
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via reset pin
+Reset: VC_CORERESET did not halt CPU. (Debug logic also reset by reset pin?).
+Reset: Reconnecting and manually halting CPU.
+Found SW-DP with ID 0x6BA02477
+DPIDR: 0x6BA02477
+CoreSight SoC-400 or earlier
+AP map detection skipped. Manually configured AP map found.
+AP[0]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[1]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[2]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[3]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[0]: Skipped. Could not read CPUID register
+Attach to CPU failed. Executing connect under reset.
+Failed to power up DAP
+
+**************************
+WARNING: CPU could not be halted
+**************************
+
+
+**************************
+WARNING: CPU could not be halted
+**************************
+
+
+****** Error: Failed to halt CPU.
+
+**************************
+WARNING: CPU could not be halted
+**************************
+
+Downloading file [build-master-control-b120-m1-biospur1-internalsynth-equivalent-20260426_024358/zephyr/merged_domains.hex]...
+
+**************************
+WARNING: CPU could not be halted
+**************************
+
+
+****** Error: Cannot read register 16 (XPSR) while CPU is running
+Cannot read register 20 (CFBP) while CPU is running
+Cannot read register 0 (R0) while CPU is running
+Cannot read register 1 (R1) while CPU is running
+Cannot read register 2 (R2) while CPU is running
+Cannot read register 3 (R3) while CPU is running
+Cannot read register 4 (R4) while CPU is running
+Cannot read register 5 (R5) while CPU is running
+Cannot read register 6 (R6) while CPU is running
+Cannot read register 7 (R7) while CPU is running
+Cannot read register 8 (R8) while CPU is running
+Cannot read register 9 (R9) while CPU is running
+Cannot read register 10 (R10) while CPU is running
+Cannot read register 11 (R11) while CPU is running
+Cannot read register 12 (R12) while CPU is running
+Cannot read register 14 (R14) while CPU is running
+Cannot read register 15 (R15) while CPU is running
+Cannot read register 17 (MSP) while CPU is running
+Cannot read register 18 (PSP) while CPU is running
+Cannot read register 66 (MSP_NS) while CPU is running
+Cannot read regist
+
+****** Error: Failed to preserve target RAM @ 0x20000000-0x2007FFFF.
+Failed to prepare for programming.
+Could not start CPU core. (ErrorCode: -1)
+Writing target memory failed.
+J-Link>r
+Reset delay: 0 ms
+Reset type: NORMAL (https://kb.segger.com/J-Link_Reset_Strategies)
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via AIRCR.SYSRESETREQ.
+Reset: SYSRESETREQ has confused core.
+Found SW-DP with ID 0x6BA02477
+DPIDR: 0x6BA02477
+CoreSight SoC-400 or earlier
+AP map detection skipped. Manually configured AP map found.
+AP[0]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[1]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[2]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[3]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[0]: Skipped. Could not read CPUID register
+Attach to CPU failed. Executing connect under reset.
+Failed to power up DAP
+Reset: Using fallback: VECTRESET.
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via AIRCR.VECTRESET.
+Reset: VECTRESET has confused core.
+Reset: Using fallback: Reset pin.
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via reset pin
+Reset: VC_CORERESET did not halt CPU. (Debug logic also reset by reset pin?).
+Reset: Reconnecting and manually halting CPU.
+Found SW-DP with ID 0x6BA02477
+DPIDR: 0x6BA02477
+CoreSight SoC-400 or earlier
+AP map detection skipped. Manually configured AP map found.
+AP[0]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[1]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[2]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[3]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[0]: Skipped. Could not read CPUID register
+Attach to CPU failed. Executing connect under reset.
+Failed to power up DAP
+
+**************************
+WARNING: CPU could not be halted
+**************************
+
+Reset: Core did not halt after reset, trying to disable WDT.
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via reset pin
+Reset: VC_CORERESET did not halt CPU. (Debug logic also reset by reset pin?).
+Reset: Reconnecting and manually halting CPU.
+Found SW-DP with ID 0x6BA02477
+DPIDR: 0x6BA02477
+CoreSight SoC-400 or earlier
+AP map detection skipped. Manually configured AP map found.
+AP[0]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[1]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[2]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[3]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[0]: Skipped. Could not read CPUID register
+Attach to CPU failed. Executing connect under reset.
+Failed to power up DAP
+
+**************************
+WARNING: CPU could not be halted
+**************************
+
+Reset: Failed. Toggling reset pin and trying reset strategy again.
+Failed to attach to CPU. Trying connect under reset.
+Found SW-DP with ID 0x6BA02477
+SWD speed too high. Reduced from 1348 kHz to 909 kHz for stability
+DPIDR: 0x6BA02477
+CoreSight SoC-400 or earlier
+AP map detection skipped. Manually configured AP map found.
+AP[0]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[1]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[2]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[3]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[0]: Skipped. Could not read CPUID register
+Attach to CPU failed. Executing connect under reset.
+Failed to power up DAP
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via AIRCR.SYSRESETREQ.
+Reset: SYSRESETREQ has confused core.
+Found SW-DP with ID 0x6BA02477
+DPIDR: 0x6BA02477
+CoreSight SoC-400 or earlier
+AP map detection skipped. Manually configured AP map found.
+AP[0]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[1]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[2]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[3]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[0]: Skipped. Could not read CPUID register
+Attach to CPU failed. Executing connect under reset.
+Failed to power up DAP
+Reset: Using fallback: VECTRESET.
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via AIRCR.VECTRESET.
+Reset: VECTRESET has confused core.
+Reset: Using fallback: Reset pin.
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via reset pin
+Reset: VC_CORERESET did not halt CPU. (Debug logic also reset by reset pin?).
+Reset: Reconnecting and manually halting CPU.
+Found SW-DP with ID 0x6BA02477
+DPIDR: 0x6BA02477
+CoreSight SoC-400 or earlier
+AP map detection skipped. Manually configured AP map found.
+AP[0]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[1]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[2]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[3]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[0]: Skipped. Could not read CPUID register
+Attach to CPU failed. Executing connect under reset.
+Failed to power up DAP
+
+**************************
+WARNING: CPU could not be halted
+**************************
+
+Reset: Core did not halt after reset, trying to disable WDT.
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via reset pin
+Reset: VC_CORERESET did not halt CPU. (Debug logic also reset by reset pin?).
+Reset: Reconnecting and manually halting CPU.
+Found SW-DP with ID 0x6BA02477
+DPIDR: 0x6BA02477
+CoreSight SoC-400 or earlier
+AP map detection skipped. Manually configured AP map found.
+AP[0]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[1]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[2]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[3]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[0]: Skipped. Could not read CPUID register
+Attach to CPU failed. Executing connect under reset.
+Failed to power up DAP
+
+**************************
+WARNING: CPU could not be halted
+**************************
+
+
+**************************
+WARNING: CPU could not be halted
+**************************
+
+
+****** Error: Failed to halt CPU.
+J-Link>g
+
+****** Error: CPU is not halted
+J-Link>q
+
+Script processing completed.
+

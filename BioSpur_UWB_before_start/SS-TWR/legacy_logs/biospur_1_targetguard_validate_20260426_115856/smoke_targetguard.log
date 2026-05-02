@@ -1,0 +1,28 @@
+exists True /dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_6918E0384172A49F-if00
+*** Booting nRF Connect SDK v2.8.0-a2386bfc8401 ***
+*** Using Zephyr OS v3.7.99-0bc3393fb112 ***
+[RECV] LED map: 1=AUTOPOS 2=RECV 3=OTA 4=FLOW
+[RECV] Control mode loaded: RECV
+[RECV] UART control ready: type 'status' or 'mode recv'/'mode ota'/'mode autopos'
+OTA_STATE:target_configured detail=token
+OTA NUS stage: enabled
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] BioSpur BLE master control ready on nrf5340dk/nrf5340/cpuapp
+[RECV] BTN1 toggles RECV/OTA, BTN2 forces OTA mode, BTN3=SCAN, BTN4=CONN&START
+[RECV] Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate
+[RECV] OTA runtime cmds: ota_reset | ota show | ota version
+[RECV] Runtime NUS cmds: cmd <raw> | oneshot <raw> | oneshot show | oneshot clear
+[RECV] TDMA cmds: tdma show | tdma profile <BSxxxx> <static|roto|motion> | tdma freq <static|roto|motion> <hz> | tdma rebalance
+[RECV] Device model cmds: device show | device kind <anchor|tag>
+[RECV] OTA target cmds: ota_target show | ota_target token <id|-1>>>> status
+[RECV] Control status: mode=RECV pending=0
+>>> device show
+[RECV] System target: kind=unknown caps=0x08 (config=0 ota=0 stream=0 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+>>> ota version
+[RECV] OTA_BUNDLE kind=anchor fw=anchor-resp1000-led31-idem-20260426_002123 build_dir=build-anchor-unified-ota-anchor-resp1000-led31-idem-20260426_002123 dfu_zip=build-anchor-unified-ota-anchor-resp1000-led31-idem-20260426_002123/dfu_application.zip
+[RECV] OTA_BUNDLE kind=tag fw=joint-resp1000-cf4hostts-20260426_005215 build_dir=build-tag-uwb-ota-joint-resp1000-cf4hostts-20260426_005215 dfu_zip=build-tag-uwb-ota-joint-resp1000-cf4hostts-20260426_005215/dfu_application.zip
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+>>> tdma show
+[RECV] TDMA weighted scheduler: period=40ms active=24ms max_slots=12 freq motion=5Hz static=5Hz roto=15Hz
+smoke_rc=0

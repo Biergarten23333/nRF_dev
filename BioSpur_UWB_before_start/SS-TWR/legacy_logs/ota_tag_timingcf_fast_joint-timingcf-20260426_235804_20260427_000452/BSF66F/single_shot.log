@@ -1,0 +1,150 @@
+[HOST_EVT    0.00s] tag_ota target=BSF66F prefix=BS
+[HOST_EVT    0.00s] phase=A serial_opened port=/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00
+[HOST_CMD    0.00s] status
+[OTA] Control status: mode=OTA pending=0
+[HOST_CMD    0.01s] status
+[HOST_CMD    0.01s] ota_target show
+[OTA] Control status: mode=OTA pending=0
+OTA target filter: token=-1 name=bsf66f prefix=bs uuid=-
+[HOST_EVT    0.01s] phase=A ota_boot_filter_readback name=bsf66f prefix=bs
+[HOST_CMD    0.01s] initiate
+OTA initiate rejected: session already active
+[OTA] initiate rc=-16
+[HOST_EVT    0.01s] initiate_busy_auto_reset
+[HOST_EVT    0.01s] ota_busy_recovery begin
+[HOST_CMD    0.01s] ota_reset
+OTA reset request
+OTA send: op=2 len=1 group=0x0000 cmd=0x05 seq=147
+OTA command issued(write_req): rc=0 tx_len=9 smp=0x0018 ccc=0x0019 sec=1
+[48885->48991] OTA command wait failed: group=0x0001 cmd=0x01 rc=-116
+OTA wait debug: rsp_len=0 rsp_total=0 chunk=0 off=0
+OTA timeout inflight: dt=106 conn=0x200020a0 grp=0x0000 cmd=0x05 seq=147
+OTA timeout context: subscribe=1 sec=1 smp=0x0018 ccc=0x0019 conn=0x200020a0 default_conn=0x200020a0 selected_uuid=- tx=write_cmd
+OTA upload timeout at off=178080, retry 1/3
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=148
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x0018 ccc=0x0019 sec=1
+OTA tx inflight: t=49114 conn=0x200020a0 grp=0x0001 cmd=0x01 seq=148 len=473
+OTA write_req callback timeout: grp=0x0000 cmd=0x05 conn=0x200020a0 smp=0x0018
+[OTA] ota_reset rc=-116
+OTA rsp part: t=51992 conn=0x200020a0 grp=0x0001 cmd=0x01 seq=148 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=51992 dt=2878 conn=0x200020a0 grp=0x0001 cmd=0x01 seq=148 rsp_len=19
+OTA upload progress: 88% (178976/203364 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=149
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x0018 ccc=0x0019 sec=1
+OTA tx inflight: t=51994 conn=0x200020a0 grp=0x0001 cmd=0x01 seq=149 len=473
+OTA rsp part: t=52078 conn=0x200020a0 grp=0x0001 cmd=0x01 seq=149 off=0 chunk=10 acc=10 total=10
+OTA rx complete: t=52079 dt=85 conn=0x200020a0 grp=0x0001 cmd=0x01 seq=149 rsp_len=10
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=150
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x0018 ccc=0x0019 sec=1
+OTA tx inflight: t=52081 conn=0x200020a0 grp=0x0001 cmd=0x01 seq=150 len=473
+OTA rsp part: t=52179 conn=0x200020a0 grp=0x0001 cmd=0x01 seq=150 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=52180 dt=99 conn=0x200020a0 grp=0x0001 cmd=0x01 seq=150 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=151
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x0018 ccc=0x0019 sec=1
+OTA tx inflight: t=52182 conn=0x200020a0 grp=0x0001 cmd=0x01 seq=151 len=473
+Disconnected: FC:9A:15:34:AB:20 (random) reason 0x08
+Scan eval: FF:5E:D2:80:EA:D2 (random) conn=1 token=206 uuid=- name=- bs=BS2DCE name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: FF:5E:D2:80:EA:D2 (random) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+OTA_STATE:target_rejected detail=scan_filter
+Scan eval: FF:5E:D2:80:EA:D2 (random) conn=0 token=-1 uuid=- name=BS2DCE bs=- name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: FF:5E:D2:80:EA:D2 (random) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: 1D:4E:76:07:66:9F (random) conn=0 token=-1 uuid=- name=- bs=- name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: 1D:4E:76:07:66:9F (random) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: 6C:43:7B:D6:D0:FE (random) conn=0 token=-1 uuid=- name=- bs=- name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: 6C:43:7B:D6:D0:FE (random) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: D5:53:48:EF:8F:59 (random) conn=1 token=145 uuid=- name=- bs=BSDC91 name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: D5:53:48:EF:8F:59 (random) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: D5:53:48:EF:8F:59 (random) conn=0 token=-1 uuid=- name=BSDC91 bs=- name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: D5:53:48:EF:8F:59 (random) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: 64:07:F6:65:37:8D (public) conn=0 token=-1 uuid=- name=- bs=- name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: 64:07:F6:65:37:8D (public) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: FF:5E:D2:80:EA:D2 (random) conn=1 token=206 uuid=- name=- bs=BS2DCE name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: FF:5E:D2:80:EA:D2 (random) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: FF:5E:D2:80:EA:D2 (random) conn=0 token=-1 uuid=- name=BS2DCE bs=- name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: FF:5E:D2:80:EA:D2 (random) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: D5:53:48:EF:8F:59 (random) conn=1 token=145 uuid=- name=- bs=BSDC91 name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: D5:53:48:EF:8F:59 (random) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: D5:53:48:EF:8F:59 (random) conn=0 token=-1 uuid=- name=BSDC91 bs=- name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: D5:53:48:EF:8F:59 (random) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: 6C:43:7B:D6:D0:FE (random) conn=0 token=-1 uuid=- name=- bs=- name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: 6C:43:7B:D6:D0:FE (random) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: 1D:4E:76:07:66:9F (random) conn=0 token=-1 uuid=- name=- bs=- name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: 1D:4E:76:07:66:9F (random) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: 7E:4D:8F:23:FD:FC (public) conn=1 token=-1 uuid=- name=- bs=- name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: 7E:4D:8F:23:FD:FC (public) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: 6C:43:7B:D6:D0:FE (random) conn=0 token=-1 uuid=- name=- bs=- name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: 6C:43:7B:D6:D0:FE (random) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: 1D:4E:76:07:66:9F (random) conn=0 token=-1 uuid=- name=- bs=- name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: 1D:4E:76:07:66:9F (random) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: 7E:4D:8F:23:FD:FC (public) conn=1 token=-1 uuid=- name=- bs=- name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: 7E:4D:8F:23:FD:FC (public) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: D5:53:48:EF:8F:59 (random) conn=1 token=145 uuid=- name=- bs=BSDC91 name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: D5:53:48:EF:8F:59 (random) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: D5:53:48:EF:8F:59 (random) conn=0 token=-1 uuid=- name=BSDC91 bs=- name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: D5:53:48:EF:8F:59 (random) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: FF:5E:D2:80:EA:D2 (random) conn=1 token=206 uuid=- name=- bs=BS2DCE name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: FF:5E:D2:80:EA:D2 (random) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: FF:5E:D2:80:EA:D2 (random) conn=0 token=-1 uuid=- name=BS2DCE bs=- name_ok=0 token_ok=1 uuid_ok=0 strict_id=0
+Scan decision: FF:5E:D2:80:EA:D2 (random) accept=0 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Scan eval: FC:9A:15:34:AB:20 (random) conn=1 token=111 uuid=- name=- bs=BSF66F name_ok=1 token_ok=1 uuid_ok=0 strict_id=1
+Scan decision: FC:9A:15:34:AB:20 (random) accept=1 default_conn=0 target_name=bsf66f target_token=-1 target_uuid=-
+Connect start: FC:9A:15:34:AB:20 (random) token=111 name=- bs=BSF66F
+OTA_STATE:connect_pending detail=bt_conn_le_create
+Connected: FC:9A:15:34:AB:20 (random)
+Connected target evidence: verified=1 uuid=- name=BSF66F token=111
+OTA_STATE:connected_verified detail=connected
+OTA watchdog armed: wait_dfu_ready timeout=2500 ms uuid=- conn=0x200020a0
+Connected MTU: 23
+Conn LE params: int=6 lat=0 timeout=400
+PHY update request rc=0
+Conn param update request rc=0
+Security OTA: skip L2 upgrade, use current link level
+MTU exchange done, mtu=498
+NUS service ready
+OTA arm via NUS: OTA_PREPARE
+OTA arm via NUS: OTA_BEGIN
+OTA arm via NUS failed: -120
+OTA watchdog cancel: reason=dfu_ready
+[HOST_CMD    5.05s] mode recv
+DFU SMP service ready
+DFU handles: smp=0x0018 ccc=0x0019
+[OTA] UART requested: switching to RECV
+OTA handoff: quiesce before mode switch
+OTA session released: reason=mode_handoff
+[OTA] Mode switch preflight: disconnect requests=1
+[RECV] Control mode staged: RECV
+[RECV] OTA target staged: token=-1 name=bsf66f prefix=bs uuid=-
+[RECV] Control mode now RECV, rebooting
+[HOST_EVT    6.15s] serial_reconnected port=/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00
+[HOST_CMD    6.15s] status
+[HOST_EVT    7.00s] serial_reconnected port=/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00
+[HOST_CMD    7.00s] status
+*** Booting nRF Connect SDK v2.8.0-a2386bfc8401 ***
+*** Using Zephyr OS v3.7.99-0bc3393fb112 ***
+[RECV] LED map: 1=AUTOPOS 2=RECV 3=OTA 4=FLOW
+[RECV] Control mode loaded: RECV
+[RECV] UART control ready: type 'status' or 'mode recv'/'mode ota'/'mode autopos'
+[HOST_EVT    7.10s] ota_busy_recovery ready mode=RECV
+[HOST_EVT    7.10s] initiate_busy_recovery_result ready=1 mode=RECV
+[HOST_EVT    7.10s] restore_recv begin
+[HOST_CMD    7.10s] mode recv
+SETUP[0] defer: waiting[RECV] One-shot NUS command cleared (runtime)
+[RECV] Master quiesce peer[0]: connected=1 ready=0 link=nus uuid=-
+ 18 ms before discovery start
+SETUP[1] defer: waiting 81 ms before discovery start
+SETUP[2] defer: waiting 264 ms before discovery start
+[RECV] Master quiesce peer[1]: connected=1 ready=0 link=nus uuid=-
+[RECV] Master quiesce peer[2]: connected=1 ready=0 link=nus uuid=-
+[RECV] Peer clear wait: waited=0 conn_count=3 ready_count=0
+[RECV] Peer clear wait timeout: conn_count=3 ready_count=0
+[RECV] RECV clean slate requires reboot: stale BLE links did not clear
+[RECV] Control mode staged: RECV
+[HOST_EVT   10.21s] serial_disconnect_during_recovery err=device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+[HOST_EVT   10.61s] serial_reconnected port=/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00
+[HOST_CMD   10.61s] status
+*** Booting nRF Connect SDK v2.8.0-a2386bfc8401 ***
+*** Using Zephyr OS v3.7.99-0bc3393fb112 ***
+[RECV] LED map: 1=AUTOPOS 2=RECV 3=OTA 4=FLOW
+[RECV] Control mode loaded: RECV
+[RECV] UART control ready: type 'status' or 'mode recv'/'mode ota'/'mode autopos'
+[HOST_EVT   10.71s] restore_recv result ready=1 mode=RECV ok=1

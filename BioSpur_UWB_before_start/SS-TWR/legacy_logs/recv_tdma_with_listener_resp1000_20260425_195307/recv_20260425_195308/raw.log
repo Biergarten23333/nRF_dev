@@ -1,0 +1,479 @@
+[HOST_CMD 86171.981] mode recv
+[AUTOPOS] UART requested: switching to RECV
+[AUTOPOS] Mode switch preflight: disconnect requests=8
+[RECV] Control mode staged: RECV
+[RECV] OTA target staged: token=-1 name=- prefix=BS uuid=-
+[RECV] Control mode now RECV, rebooting
+*** Booting nRF Connect SDK v2.8.0-a2386bfc8401 ***
+*** Using Zephyr OS v3.7.99-0bc3393fb112 ***
+[RECV] LED map: 1=AUTOPOS 2=RECV 3=OTA 4=FLOW
+[RECV] Control mode loaded: RECV
+[RECV] UART control ready: type 'status' or 'mode recv'/'mode ota'/'mode autopos'
+[RECV] OTA target restored: token=-1 name=- prefix=BS uuid=-
+OTA_STATE:target_configured detail=token
+OTA NUS stage: disabled
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] BioSpur BLE master control ready on nrf5340dk/nrf5340/cpuapp
+[RECV] BTN1 toggles RECV/OTA, BTN2 forces OTA mode, BTN3=SCAN, BTN4=CONN&START
+[RECV] Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate
+[RECV] OTA runtime cmds: ota_reset | ota show | ota version
+[RECV] Runtime NUS cmds: cmd <raw> | oneshot <raw> | oneshot show | oneshot clear
+[RECV] TDMA cmds: tdma show | tdma profile <BSxxxx> <static|roto|motion> | tdma freq <static|roto|motion> <hz> | tdma rebalance
+[RECV] Device model cmds: device show | device kind <anchor|tag>
+[RESETUP[0] defer: waiting 128 ms before discovery start
+SETUP[1] defer: waiting 239 ms before discovery start
+SETUP[0] defer: waiting 78 ms before discovery start
+SETUP[1] defer: waiting 189 ms before discovery start
+[RECV] PHY updated[1]: tx=0x2 rx=0x2
+SETUP[0] defer: waiting 27 ms before discovery start
+SETUP[1] defer: waiting 138 ms before discovery start
+SETUP[0] begin: link=nus uuid=- conn=0x20002020
+SETUP[0] mtu_exchange rc=0
+SETUP[0] phy_update rc=0
+SETUP[0] conn_param_update rc=0
+[RECV] DISC start[0]: link=nus uuid=- conn=0x20002020
+SETUP[1] defer: global discovery busy
+[RECV] MTU exchange[0] done (498)
+[RECV] Conn param updated[0]: int=6 lat=0 to=400
+SETUP[1] defer: global discovery busy
+[RECV] PHY updated[0]: tx=0x2 rx=0x2
+SETUP[1] defer: global discovery busy
+SETUP[1] defer: global discovery busy
+SETUP[1] defer: global discovery busy
+[RECV] DISC complete[0]: link=nus discovered_service=2800 uuid=-
+[RECV] BLE[0] link ready
+[RECV] CFG assigned[0]: bs=BSF66F tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=1 pmode=0
+[RECV] TDMA weighted[0]: bs=BSF66F profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=2 target=unknown prefix=BS
+[RECV] Scanning for BS*
+SETUP[1] begin: link=nus uuid=- conn=0x200020f0
+SETUP[1] mtu_exchange rc=0
+SETUP[1] phy_update rc=0
+SETUP[1] conn_param_update rc=0
+[RECV] DISC start[1]: link=nus uuid=- conn=0x200020f0
+[RECV] BSF66F notify: CS;1;31630;cal_static;4;3;A,B,C,D;timeout,timeout,timeout,timeout;3,3,3,3
+[RECV] MTU exchange[1] done (498)
+[RECV] BSF66F notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0021 PERIOD=40 ACTIVE=24 GEN=1 LIVE=1
+[RECV] CFG confirmed[0]: tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=1 live=1
+[RECV] Conn param updated[1]: int=6 lat=0 to=400
+[RECV] PHY updated[1]: tx=0x2 rx=0x2
+[RECV] DISC complete[1]: link=nus discovered_service=2800 uuid=-
+[RECV] BLE[1] link ready
+[RECV] CFG assigned[1]: bs=BS2DCE tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=2 pmode=0
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] CFG assigned[0]: bs=BSF66F tag=2 slot=3/10 mask=0x0108 period=40 active=24 gen=2 pmode=0
+[RECV] TDMA weighted[1]: bs=BSF66F profile=motion target=5Hz mask=0x0108 slots=2/10 actual_x100=500 epoch_delay=2999
+[RECV] BS2DCE notify: CS;1;7802;cal_roto;5;3;D,B,E,G;timeout,timeout,timeout,timeout;3,3,3,3
+[RECV] BSF66F notify: CFG_OK TAG=2 SLOT=3/10 MASK=0x0108 PERIOD=40 ACTIVE=24 GEN=2 LIVE=1
+[RECV] CFG confirmed[0]: tag=2 slot=3/10 mask=0x0108 period=40 active=24 gen=2 live=1
+[RECV] BS2DCE notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0021 PERIOD=40 ACTIVE=24 GEN=2 LIVE=1
+[RECV] CFG confirmed[1]: tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=2 live=1
+[RECV] SCAN hit: D5:53:48:EF:8F:59 (random) rssi=-65 name=- bs=BSDC91 uuid=- target=unknown uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[RECV] CONNECT queue[2]: addr=D5:53:48:EF:8F:59 (random) link=nus uuid=- target=unknown
+[RECV] CONNECT pending[2]: addr_valid=1 link=nus uuid=- scan_running=1 conn_count=2
+[RECV] CONNECT pending[2]: bt_le_scan_stop rc=0 scan_running=1
+[RECV] CONNECT pending[2] rc=0 conn=0x200021c0
+[RECV] Connected[2]: D5:53:48:EF:8F:59 (random) name=- bs=BSDC91
+[RECV] CONNECT state[2]: link=nus uuid=- ready=0 conn=0x200021c0
+SETUP[2] defer: waiting 329 ms before discovery start
+[RECV] Disconnected[2]: D5:53:48:EF:8F:59 (random) reason=0x3e link=nus ready=0
+[RECV] CFG assigned[1]: bs=BS2DCE tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=3 pmode=0
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] CFG assigned[0]: bs=BSF66F tag=2 slot=3/10 mask=0x0108 period=40 active=24 gen=3 pmode=0
+[RECV] TDMA weighted[1]: bs=BSF66F profile=motion target=5Hz mask=0x0108 slots=2/10 actual_x100=500 epoch_delay=2999
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=2 target=unknown prefix=BS
+[RECV] Scanning for BS*
+[RECV] BS2DCE notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0021 PERIOD=40 ACTIVE=24 GEN=3 LIVE=1
+[RECV] CFG confirmed[1]: tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=3 live=1
+[RECV] BSF66F notify: CFG_OK TAG=2 SLOT=3/10 MASK=0x0108 PERIOD=40 ACTIVE=24 GEN=3 LIVE=1
+[RECV] CFG confirmed[0]: tag=2 slot=3/10 mask=0x0108 period=40 active=24 gen=3 live=1
+[RECV] SCAN hit: D5:53:48:EF:8F:59 (random) rssi=-52 name=- bs=BSDC91 uuid=- target=unknown uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[RECV] CONNECT queue[2]: addr=D5:53:48:EF:8F:59 (random) link=nus uuid=- target=unknown
+[RECV] CONNECT pending[2]: addr_valid=1 link=nus uuid=- scan_running=1 conn_count=2
+[RECV] CONNECT pending[2]: bt_le_scan_stop rc=0 scan_running=1
+[RECV] CONNECT pending[2] rc=0 conn=0x200021c0
+[RECV] Connected[2]: D5:53:48:EF:8F:59 (random) name=- bs=BSDC91
+[RECV] CONNECT state[2]: link=nus uuid=- ready=0 conn=0x200021c0
+SETUP[2] defer: waiting 312 ms before discovery start
+SETUP[2] defer: waiting 262 ms before discovery start
+SETUP[2] defer: waiting 211 ms before discovery start
+SETUP[2] defer: waiting 161 ms before discovery start
+SETUP[2] defer: waiting 111 ms before discovery start
+[RECV] PHY updated[2]: tx=0x2 rx=0x2
+SETUP[2] defer: waiting 60 ms before discovery start
+SETUP[2] defer: waiting 10 ms before discovery start
+SETUP[2] begin: link=nus uuid=- conn=0x200021c0
+SETUP[2] mtu_exchange rc=0
+SETUP[2] phy_update rc=0
+SETUP[2] conn_param_update rc=0
+[RECV] DISC start[2]: link=nus uuid=- conn=0x200021c0
+[RECV] MTU exchange[2] done (498)
+[RECV] Conn param updated[2]: int=6 lat=0 to=400
+[RECV] PHY updated[2]: tx=0x2 rx=0x2
+[RECV] DISC complete[2]: link=nus discovered_service=2800 uuid=-
+[RECV] BLE[2] link ready
+[RECV] CFG assigned[1]: bs=BS2DCE tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=4 pmode=0
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] CFG assigned[2]: bs=BSDC91 tag=2 slot=2/10 mask=0x0084 period=40 active=24 gen=4 pmode=0
+[RECV] TDMA weighted[1]: bs=BSDC91 profile=motion target=5Hz mask=0x0084 slots=2/10 actual_x100=500 epoch_delay=2999
+[RECV] CFG assigned[0]: bs=BSF66F tag=3 slot=3/10 mask=0x0108 period=40 active=24 gen=4 pmode=0
+[RECV] TDMA weighted[2]: bs=BSF66F profile=motion target=5Hz mask=0x0108 slots=2/10 actual_x100=500 epoch_delay=2998
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=3 target=unknown prefix=BS
+[RECV] Scanning for BS*
+[RECV] BS2DCE notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0021 PERIOD=40 ACTIVE=24 GEN=4 LIVE=1
+[RECV] CFG confirmed[1]: tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=4 live=1
+[RECV] BSDC91 notify: CS;1;7801;cal_roto;5;4;B,D,E,G;timeout,timeout,timeout,timeout;5,5,3,3
+[RECV] BSF66F notify: CFG_OK TAG=3 SLOT=3/10 MASK=0x0108 PERIOD=40 ACTIVE=24 GEN=4 LIVE=1
+[RECV] CFG confirmed[0]: tag=3 slot=3/10 mask=0x0108 period=40 active=24 gen=4 live=1
+[RECV] BSDC91 notify: CFG_OK TAG=2 SLOT=2/10 MASK=0x0084 PERIOD=40 ACTIVE=24 GEN=4 LIVE=1
+[RECV] CFG confirmed[2]: tag=2 slot=2/10 mask=0x0084 period=40 active=24 gen=4 live=1
+[RECV] Conn param updated[0]: int=6 lat=0 to=400
+[RECV] Conn param updated[1]: int=6 lat=0 to=400
+[HOST_WARN 86182.166] read failed after 'mode recv'; reopened serial and continued
+[HOST_CMD 86182.166] tdma clear
+[RECV] TDMA profiles cleared
+[RECV] CFG assigned[1]: bs=BS2DCE tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=5 pmode=0
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] CFG assigned[2]: bs=BSDC91 tag=2 slot=2/10 mask=0x0084 period=40 active=24 gen=5 pmode=0
+[RECV] TDMA weighted[1]: bs=BSDC91 profile=motion target=5Hz mask=0x0084 slots=2/10 actual_x100=500 epoch_delay=2999
+[RECV] CFG assigned[0]: bs=BSF66F tag=3 slot=3/10 mask=0x0108 period=40 active=24 gen=5 pmode=0
+[RECV] TDMA weighted[2]: bs=BSF66F profile=motion target=5Hz mask=0x0108 slots=2/10 actual_x100=500 epoch_delay=2998
+[RECV] tdma clear rc=0
+[RECV] BS2DCE notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0021 PERIOD=40 ACTIVE=24 GEN=5 LIVE=1
+[RECV] CFG confirmed[1]: tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=5 live=1
+[RECV] BSDC91 notify: CFG_OK TAG=2 SLOT=2/10 MASK=0x0084 PERIOD=40 ACTIVE=24 GEN=5 LIVE=1
+[RECV] CFG confirmed[2]: tag=2 slot=2/10 mask=0x0084 period=40 active=24 gen=5 live=1
+[RECV] BSF66F notify: CFG_OK TAG=3 SLOT=3/10 MASK=0x0108 PERIOD=40 ACTIVE=24 GEN=5 LIVE=1
+[RECV] CFG confirmed[0]: tag=3 slot=3/10 mask=0x0108 period=40 active=24 gen=5 live=1
+[RECV] Conn param updated[2]: int=6 lat=0 to=400
+[HOST_CMD 86183.142] device kind tag
+OTA NUS stage: enabled
+[RECV] One-shot NUS command cleared (runtime)
+[RECV] Master disconnecting peer[0]: bs=BSF66F
+[RECV] Master disconnecting peer[1]: bs=BS2DCE
+[RECV] Master disconnecting peer[2]: bs=BSDC91
+[RECV] device kind set: tag (OTA target preserved)
+[RECV] Master discovery mode: CONN & START
+[RECV] Peer clear wait: waited=0 conn_count=3 ready_count=0
+[HOST_CMD 86185.150] ota_target token -1
+[HOST_CMD 86185.751] ota_target name -
+[RECV] Peer clear wait timeout: conn_count=3 ready_count=0
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=3 target=tag prefix=BS
+[RECV] Scanning for BS*
+[RECV] System target: kind=tag caps=0x0f (config=1 ota=1 stream=1 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] ota_target name rc=0 value=-
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] Disconnected[2]: D5:53:48:EF:8F:59 (random) reason=0x16 link=nus ready=1
+[RECV] CFG send failed[1]: tag=1 slot=0 err=-128
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] CFG send failed[0]: tag=2 slot=3 err=-128
+[RECV] TDMA weighted[1]: bs=BSF66F profile=motion target=5Hz mask=0x0108 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] Disconnected[0]: FC:9A:15:34:AB:20 (random) reason=0x16 link=nus ready=1
+[RECV] CFG send failed[1]: tag=1 slot=0 err=-128
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] Disconnected[1]: FF:5E:D2:80:EA:D2 (random) reason=0x16 link=nus ready=1
+[[HOST_CMD 86186.289] ota_target uuid -
+RECV] SCAN hit: FF:5E:D2:80:EA:D2 (random) rssi=-55 name=- bs=BS2DCE uuid=- target=tag uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[RECV] CONNECT queue[0]: addr=FF:5E:D2:80:EA:D2 (random) link=nus uuid=- target=tag
+[RECV] ota_target uuid rc=0 value=-
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] SCAN hit: FC:9A:15:34:AB:20 (random) rssi=-60 name=- bs=BSF66F uuid=- target=tag uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[RECV] CONNECT queue[1]: addr=FC:9A:15:34:AB:20 (random) link=nus uuid=- target=tag
+[RECV] SCAN hit: D5:53:48:EF:8F:59 (random) rssi=-67 name=- bs=BSDC91 uuid=- target=tag uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[RECV] CONNECT queue[2]: addr=D5:53:48:EF:8F:59 (random) link=nus uuid=- target=tag
+[RECV] CONNECT pending[0]: addr_valid=1 link=nus uuid=- scan_running=1 conn_count=0
+[RECV] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[RECV] CONNECT pending[0] rc=0 conn=0x20002020
+[RECV] Connected[0]: FF:5E:D2:80:EA:D2 (random) name=- bs=BS2DCE
+[RECV] CONNECT state[0]: link=nus uuid=- ready=0 conn=0x20002020
+[RECV] CONNECT pending[1]: addr_valid=1 link=nus uuid=- scan_running=0 conn_count=1
+[RECV] CONNECT pending[1] rc=0 conn=0x200020f0
+SETUP[0] defer: waiting 336 ms before discovery start
+[RECV] Connected[1]: FC:9A:15:34:AB:20 (random) name=- bs=BSF66F
+[RECV] CONNECT state[1]: link=nus uuid=- ready=0 conn=0x200020f0
+[RECV] CONNECT pending[2]: addr_valid=1 link=nus uuid=- scan_running=0 conn_count=2
+[RECV] CONNECT pending[2] rc=0 conn=0x200021c0
+SETUP[0] defer: waiting 284 ms before discovery start
+SETUP[1] defer: waiting 303 ms before discovery start
+S[HOST_CMD 86186.824] ota_target prefix BS
+ETUP[0] defer: waiting 234 ms before discovery start
+SETUP[1] defer: waiting 253 ms before discovery start
+[RECV] ota_target prefix rc=0 value=bs
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+[RECV] PHY updated[0]: tx=0x2 rx=0x2
+SETUP[0] defer: waiting 183 ms before discovery start
+SETUP[1] defer: waiting 202 ms before discovery start
+[RECV] PHY updated[1]: tx=0x2 rx=0x2
+SETUP[0] defer: waiting 133 ms before discovery start
+SETUP[1] defer: waiting 151 ms before discovery start
+[RECV] Connected[2]: D5:53:48:EF:8F:59 (random) name=- bs=BSDC91
+[RECV] CONNECT state[2]: link=nus uuid=- ready=0 conn=0x200021c0
+SETUP[0] defer: waiting 82 ms before discovery start
+SETUP[1] defer: waiting 101 ms before discovery start
+SETUP[2] defer: waiting 313 ms before discovery start
+[RECV] Disconnected[2]: D5:53:48:EF:8F:59 (random) reason=0x3e link=nus ready=0
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=2 target=tag prefix=BS
+[RECV] Scanning for BS*
+SETUP[0] defer: waiting 31 ms before discovery start
+SETUP[1] defer: waiting 50 ms before discovery start
+SETUP[0] begin: link=nus uuid=- conn=0x20002020
+SETUP[0] mtu_exchange rc=0
+SETUP[0] phy_update rc=0
+SETUP[0] conn_param_update rc=0
+[RECV] DISC start[0]: link=nus uuid=- conn=0x20002020
+SETUP[1] defer: global discovery busy
+[RECV] MTU exchange[0] done (498)
+SETUP[1] defer: global discovery busy
+[RECV] Conn param updated[0]: int=6 lat=0 to=400
+[RECV] PHY updated[0]: tx=0x2 rx=0x2
+SETUP[1] defer: global discovery busy
+SETUP[1] defer: global discovery busy
+SETUP[1] defer: global discovery busy
+S[HOST_CMD 86187.332] ota_target show
+ETUP[1] defer: global discovery busy
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+[RECV] DISC complete[0]: link=nus discovered_service=2800 uuid=-
+[RECV] BLE[0] link ready
+[RECV] CFG assigned[0]: bs=BS2DCE tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=8 pmode=0
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] SCAN hit: D5:53:48:EF:8F:59 (random) rssi=-56 name=- bs=BSDC91 uuid=- target=tag uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[RECV] CONNECT queue[2]: addr=D5:53:48:EF:8F:59 (random) link=nus uuid=- target=tag
+SETUP[1] begin: link=nus uuid=- conn=0x200020f0
+SETUP[1] mtu_exchange rc=0
+SETUP[1] phy_update rc=0
+SETUP[1] conn_param_update rc=0
+[RECV] DISC start[1]: link=nus uuid=- conn=0x200020f0
+[RECV] BS2DCE notify: CS;1;7802;cal_roto;5;3;D,B,E,G;timeout,timeout,timeout,timeout;3,3,3,3
+[RECV] MTU exchange[1] done (498)
+[RECV] BS2DCE notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0021 PERIOD=40 ACTIVE=24 GEN=8 LIVE=1
+[RECV] CFG confirmed[0]: tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=8 live=1
+[RECV] Conn param updated[1]: int=6 lat=0 to=400
+[RECV] PHY updated[1]: tx=0x2 rx=0x2
+[RECV] DISC complete[1]: link=nus discovered_service=2800 uuid=-
+[RECV] BLE[1] link ready
+[RECV] CFG assigned[0]: bs=BS2DCE tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=9 pmode=0
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] CFG assigned[1]: bs=BSF66F tag=2 slot=3/10 mask=0x0108 period=40 active=24 gen=9 pmode=0
+[RECV] TDMA weighted[1]: bs=BSF66F profile=motion target=5Hz mask=0x0108 slots=2/10 actual_x100=500 epoch_delay=2999
+[RECV] CONNECT pending[2]: addr_valid=1 link=nus uuid=- scan_running=1 conn_count=2
+[RECV] CONNECT pending[2]: bt_le_scan_stop rc=0 scan_running=1
+[RECV] CONNECT pending[2] rc=0 conn=0x200021c0
+[RECV] BSF66F notify: CS;1;31630;cal_static;4;3;A,B,C,D;timeout,timeout,timeout,timeout;3,3,3,3
+[RECV] BS2DCE notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0021 PERIOD=40 ACTIVE=24 GEN=9 LIVE=1
+[RECV] CFG confirmed[0]: tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=9 live=1
+[RECV] Connected[2]: D5:53:48:EF:8F:59 (random) name=- bs=BSDC91
+[RECV] CONNECT state[2]: link=nus uuid=- ready=0 conn=0x200021c0
+[RECV] BSF66F notify: CFG_OK TAG=2 SLOT=3/10 MASK=0x0108 PERIOD=40 ACTIVE=24 GEN=9 LIVE=1
+[RECV] CFG confirmed[1]: tag=2 slot=3/10 mask=0x0108 period=40 active=24 gen=9 live=1
+S[HOST_CMD 86187.835] scan
+ETUP[2] defer: waiting 308 ms before discovery start
+[RECV] Master discovery mode: SCAN only
+[RECV] Master disconnecting peer[0]: bs=BS2DCE
+[RECV] Master disconnecting peer[1]: bs=BSF66F
+[RECV] Master disconnecting peer[2]: bs=BSDC91
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=3 target=tag prefix=BS
+[RECV] Scanning for BS*
+[RECV] Disconnected[2]: D5:53:48:EF:8F:59 (random) reason=0x16 link=nus ready=0
+[RECV] CFG send failed[0]: tag=1 slot=0 err=-128
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] CFG send failed[1]: tag=2 slot=3 err=-128
+[RECV] TDMA weighted[1]: bs=BSF66F profile=motion target=5Hz mask=0x0108 slots=2/10 actual_x100=500 epoch_delay=2999
+[RECV] Disconnected[1]: FC:9A:15:34:AB:20 (random) reason=0x16 link=nus ready=1
+[RECV] CFG send failed[0]: tag=1 slot=0 err=-128
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] Disconnected[0]: FF:5E:D2:80:EA:D2 (random) reason=0x16 link=nus ready=1
+[RECV] SCAN hit: FC:9A:15:34:AB:20 (random) rssi=-55 name=- bs=BSF66F uuid=- target=tag uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[RECV] SCAN hit: FF:5E:D2:80:EA:D2 (random) rssi=-61 name=- bs=BS2DCE uuid=- target=tag uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[RECV] SCAN hit: D5:53:48:EF:8F:59 (random) rssi=-59 name=- bs=BSDC91 uuid=- target=tag uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[HOST_CMD 86188.651] conn
+[RECV] Master discovery mode: CONN & START
+[RECV] CONNECT pending[0]: addr_valid=1 link=nus uuid=- scan_running=1 conn_count=0
+[RECV] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[RECV] CONNECT pending[0] rc=0 conn=0x20002020
+[RECV] Connected[0]: FC:9A:15:34:AB:20 (random) name=- bs=BSF66F
+[RECV] CONNECT state[0]: link=nus uuid=- ready=0 conn=0x20002020
+[RECV] CONNECT pending[1]: addr_valid=1 link=nus uuid=- scan_running=0 conn_count=1
+[RECV] CONNECT pending[1] rc=0 conn=0x200020f0
+SETUP[0] defer: waiting 324 ms before discovery start
+SETUP[0] defer: waiting 274 ms before discovery start
+[RECV] Connected[1]: FF:5E:D2:80:EA:D2 (random) name=- bs=BS2DCE
+[RECV] CONNECT state[1]: link=nus uuid=- ready=0 conn=0x200020f0
+[RECV] PHY updated[0]: tx=0x2 rx=0x2
+[RECV] CONNECT pending[2]: addr_valid=1 link=nus uuid=- scan_running=0 conn_count=2
+[RECV] CONNECT pending[2] rc=0 conn=0x200021c0
+SETUP[0] defer: waiting 222 ms before discovery start
+SETUP[1] defer: waiting 316 ms before discovery start
+[RECV] Connected[2]: D5:53:48:EF:8F:59 (random) name=- bs=BSDC91
+[RECV] CONNECT state[2]: link=nus uuid=- ready=0 conn=0x200021c0
+SETUP[0] defer: waiting 171 ms before discovery start
+SETUP[1] defer: waiting 265 ms before discovery start
+SETUP[2] defer: waiting 349 ms before discovery start
+SETUP[0] defer: waiting 120 ms before discovery start
+SETUP[1] defer: waiting 214 ms before discovery start
+SETUP[2] defer: waiting 298 ms before discovery start
+SETUP[0] defer: waiting 69 ms before discovery start
+SETUP[1] defer: waiting 163 ms before discovery start
+SETUP[2] defer: waiting 248 ms before discovery start
+[RECV] PHY updated[1]: tx=0x2 rx=0x2
+SETUP[0] defer: waiting 18 ms before discovery start
+SETUP[1] defer: waiting 112 ms before discovery start
+SETUP[2] defer: waiting 197 ms before discovery start
+SETUP[0] begin: link=nus uuid=- conn=0x20002020
+SETUP[0] mtu_exchange rc=0
+SETUP[0] phy_update rc=0
+SETUP[0] conn_param_update rc=0
+[RECV] DISC start[0]: link=nus uuid=- conn=0x20002020
+SETUP[1] defer: global discovery busy
+SETUP[2] defer: global discovery busy
+[RECV] MTU exchange[0] done (498)
+[RECV] PHY updated[2]: tx=0x2 rx=0x2
+SETUP[1] defer: global discovery busy
+SETUP[2] defer: global discovery busy
+[RECV] Conn param updated[0]: int=6 lat=0 to=400
+[RECV] PHY updated[0]: tx=0x2 rx=0x2
+SETUP[1] defer: global discovery busy
+SETUP[2] defer: global discovery busy
+SETUP[1] defer: global discovery busy
+SETUP[2] defer: global discovery busy
+SETUP[1] defer: global discovery busy
+SETUP[2] defer: global discovery busy
+SETUP[1] defer: global discovery busy
+SETUP[2] defer: global discovery busy
+SETUP[1] defer: global discovery busy
+SETUP[2] defer: global discovery busy
+[RECV] DISC complete[0]: link=nus discovered_service=2800 uuid=-
+[RECV] BLE[0] link ready
+[RECV] CFG assigned[0]: bs=BSF66F tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=12 pmode=0
+[RECV] TDMA weighted[0]: bs=BSF66F profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=3 target=tag prefix=BS
+SETUP[1] begin: link=nus uuid=- conn=0x200020f0
+SETUP[1] mtu_exchange rc=0
+SETUP[1] phy_update rc=0
+SETUP[1] conn_param_update rc=0
+[RECV] DISC start[1]: link=nus uuid=- conn=0x200020f0
+[RECV] Could not start NUS discovery[1]: -120
+[RECV] DISC start failed[1]: connected_for=649ms ready=0 retries=0 start_failures=1
+SETUP[2] begin: link=nus uuid=- conn=0x200021c0
+SETUP[2] mtu_exchange rc=0
+[RECV] Scanning for BS*
+SETUP[2] phy_update rc=0
+SETUP[2] conn_param_update rc=0
+[RECV] DISC start[2]: link=nus uuid=- conn=0x200021c0
+[RECV] MTU exchange[1] done (498)
+[RECV] BSF66F notify: CS;1;31630;cal_static;4;3;A,B,C,D;timeout,timeout,timeout,timeout;3,3,3,3
+[RECV] MTU exchange[2] done (498)
+[RECV] Conn param updated[1]: int=6 lat=0 to=400
+[RECV] Conn param updated[2]: int=6 lat=0 to=400
+[RECV] PHY updated[1]: tx=0x2 rx=0x2
+[RECV] BSF66F notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0021 PERIOD=40 ACTIVE=24 GEN=12 LIVE=1
+[RECV] CFG confirmed[0]: tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=12 live=1
+[RECV] PHY updated[2]: tx=0x2 rx=0x2
+[RECV] DISC complete[2]: link=nus discovered_service=2800 uuid=-
+[RECV] BLE[2] link ready
+[RECV] CFG assigned[2]: bs=BSDC91 tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=13 pmode=0
+[RECV] TDMA weighted[0]: bs=BSDC91 profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] CFG assigned[0]: bs=BSF66F tag=2 slot=3/10 mask=0x0108 period=40 active=24 gen=13 pmode=0
+[RECV] TDMA weighted[1]: bs=BSF66F profile=motion target=5Hz mask=0x0108 slots=2/10 actual_x100=500 epoch_delay=2999
+[RECV] BSDC91 notify: CS;1;7801;cal_roto;5;4;B,D,E,G;timeout,timeout,timeout,timeout;5,5,3,3
+[RECV] BSF66F notify: CFG_OK TAG=2 SLOT=3/10 MASK=0x0108 PERIOD=40 ACTIVE=24 GEN=13 LIVE=1
+[RECV] CFG confirmed[0]: tag=2 slot=3/10 mask=0x0108 period=40 active=24 gen=13 live=1
+[RECV] BSDC91 notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0021 PERIOD=40 ACTIVE=24 GEN=13 LIVE=1
+[RECV] CFG confirmed[2]: tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=13 live=1
+[RECV] NUS discovery retry armed[1] attempt=1
+[RECV] DISC complete[1]: link=nus discovered_service=2800 uuid=-
+[RECV] BLE[1] link ready
+[RECV] CFG assigned[1]: bs=BS2DCE tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=14 pmode=0
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] CFG assigned[2]: bs=BSDC91 tag=2 slot=2/10 mask=0x0084 period=40 active=24 gen=14 pmode=0
+[RECV] TDMA weighted[1]: bs=BSDC91 profile=motion target=5Hz mask=0x0084 slots=2/10 actual_x100=500 epoch_delay=2999
+[RECV] CFG assigned[0]: bs=BSF66F tag=3 slot=3/10 mask=0x0108 period=40 active=24 gen=14 pmode=0
+[RECV] TDMA weighted[2]: bs=BSF66F profile=motion target=5Hz mask=0x0108 slots=2/10 actual_x100=500 epoch_delay=2998
+[RECV] BS2DCE notify: CS;1;7802;cal_roto;5;3;D,B,E,G;timeout,timeout,timeout,timeout;3,3,3,3
+[RECV] BSDC91 notify: CFG_OK TAG=2 SLOT=2/10 MASK=0x0084 PERIOD=40 ACTIVE=24 GEN=14 LIVE=1
+[RECV] CFG confirmed[2]: tag=2 slot=2/10 mask=0x0084 period=40 active=24 gen=14 live=1
+[RECV] BSF66F notify: CFG_OK TAG=3 SLOT=3/10 MASK=0x0108 PERIOD=40 ACTIVE=24 GEN=14 LIVE=1
+[RECV] CFG confirmed[0]: tag=3 slot=3/10 mask=0x0108 period=40 active=24 gen=14 live=1
+[RECV] BS2DCE notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0021 PERIOD=40 ACTIVE=24 GEN=14 LIVE=1
+[RECV] CFG confirmed[1]: tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=14 live=1
+[RECV] Conn param updated[0]: int=6 lat=0 to=400
+[RECV] Conn param updated[1]: int=6 lat=0 to=400
+[RECV] Conn param updated[2]: int=6 lat=0 to=400
+[HOST_CMD 86194.480] ota_target token -1
+[RECV] ota_target token rc=0 value=-1
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+[HOST_CMD 86195.084] ota_target name -
+[RECV] ota_target name rc=0 value=-
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+[HOST_CMD 86195.687] ota_target prefix -
+[RECV] ota_target prefix rc=0 value=-
+OTA target filter: token=-1 name=- prefix=- uuid=-
+[HOST_CMD 86196.290] ota_target uuid -
+[RECV] ota_target uuid rc=0 value=-
+OTA target filter: token=-1 name=- prefix=- uuid=-
+[HOST_CMD 86196.893] tdma profile BSF66F static
+[RECV] TDMA profile set: BSF66F -> static
+[RECV] CFG assigned[1]: bs=BS2DCE tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=15 pmode=0
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] CFG assigned[2]: bs=BSDC91 tag=2 slot=2/10 mask=0x0084 period=40 active=24 gen=15 pmode=0
+[RECV] TDMA weighted[1]: bs=BSDC91 profile=motion target=5Hz mask=0x0084 slots=2/10 actual_x100=500 epoch_delay=2999
+[RECV] CFG assigned[0]: bs=BSF66F tag=3 slot=3/10 mask=0x0108 period=40 active=24 gen=15 pmode=4
+[RECV] TDMA weighted[2]: bs=BSF66F profile=static target=5Hz mask=0x0108 slots=2/10 actual_x100=500 epoch_delay=2998
+[RECV] tdma profile rc=0 target=BSF66F profile=static
+[RECV] BS2DCE notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0021 PERIOD=40 ACTIVE=24 GEN=15 LIVE=1
+[RECV] CFG confirmed[1]: tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=15 live=1
+[RECV] BSF66F notify: CFG_OK TAG=3 SLOT=3/10 MASK=0x0108 PERIOD=40 ACTIVE=24 GEN=15 LIVE=1
+[RECV] CFG confirmed[0]: tag=3 slot=3/10 mask=0x0108 period=40 active=24 gen=15 live=1
+[RECV] BSDC91 notify: CFG_OK TAG=2 SLOT=2/10 MASK=0x0084 PERIOD=40 ACTIVE=24 GEN=15 LIVE=1
+[RECV] CFG confirmed[2]: tag=2 slot=2/10 mask=0x0084 period=40 active=24 gen=15 live=1
+[RECV] BSF66F notify: CR;1;31639;cal_static;4;A;pending;not_measured;0;0;0;0;0;0
+[RECV] BSF66F notify: CR;1;31639;cal_static;4;B;pending;not_measured;0;0;0;0;0;0
+[RECV] BSF66F notify: CR;1;31639;cal_static;4;C;pending;not_measured;0;0;0;0;0;0
+[RECV] BSF66F notify: CR;1;31639;cal_static;4;D;pending;not_measured;0;0;0;0;0;0
+[RECV] BSF66F notify: CF;1;31639;cal_static;4;pending;0;4;0;0;0;0
+[RECV] BSF66F notify: CS;1;31639;cal_static;4;0;A,B,C,D;pending,pending,pending,pending;0,0,0,0
+[HOST_CMD 86197.709] tdma profile BS2DCE roto
+[RECV] TDMA profile set: BS2DCE -> roto
+[RECV] CFG assigned[1]: bs=BS2DCE tag=1 slot=0/10 mask=0x02B5 period=40 active=24 gen=16 pmode=5
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=roto target=15Hz mask=0x02B5 slots=6/10 actual_x100=1500 epoch_delay=3000
+[RECV] CFG assigned[2]: bs=BSDC91 tag=2 slot=1/10 mask=0x0042 period=40 active=24 gen=16 pmode=0
+[RECV] TDMA weighted[1]: bs=BSDC91 profile=motion target=5Hz mask=0x0042 slots=2/10 actual_x100=500 epoch_delay=2999
+[RECV] CFG assigned[0]: bs=BSF66F tag=3 slot=3/10 mask=0x0108 period=40 active=24 gen=16 pmode=4
+[RECV] TDMA weighted[2]: bs=BSF66F profile=static target=5Hz mask=0x0108 slots=2/10 actual_x100=500 epoch_delay=2998
+[RECV] tdma profile rc=0 target=BS2DCE profile=roto
+[RECV] BS2DCE notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x02B5 PERIOD=40 ACTIVE=24 GEN=16 LIVE=1
+[RECV] CFG confirmed[1]: tag=1 slot=0/10 mask=0x02B5 period=40 active=24 gen=16 live=1
+[RECV] BSDC91 notify: CFG_OK TAG=2 SLOT=1/10 MASK=0x0042 PERIOD=40 ACTIVE=24 GEN=16 LIVE=1
+[RECV] CFG confirmed[2]: tag=2 slot=1/10 mask=0x0042 period=40 active=24 gen=16 live=1
+[RECV] BSF66F notify: CFG_OK TAG=3 SLOT=3/10 MASK=0x0108 PERIOD=40 ACTIVE=24 GEN=16 LIVE=1
+[RECV] CFG confirmed[0]: tag=3 slot=3/10 mask=0x0108 period=40 active=24 gen=16 live=1
+[HOST_CMD 86198.603] tdma profile BSDC91 roto
+[RECV] TDMA profile set: BSDC91 -> roto
+[RECV] CFG assigned[1]: bs=BS2DCE tag=1 slot=0/3 mask=0x0001 period=40 active=24 gen=17 pmode=5
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=roto target=15Hz mask=0x0001 slots=1/3 actual_x100=833 epoch_delay=3000
+[RECV] CFG assigned[2]: bs=BSDC91 tag=2 slot=1/3 mask=0x0002 period=40 active=24 gen=17 pmode=5
+[RECV] TDMA weighted[1]: bs=BSDC91 profile=roto target=15Hz mask=0x0002 slots=1/3 actual_x100=833 epoch_delay=2999
+[RECV] CFG assigned[0]: bs=BSF66F tag=3 slot=2/3 mask=0x0004 period=40 active=24 gen=17 pmode=4
+[RECV] TDMA weighted[2]: bs=BSF66F profile=static target=5Hz mask=0x0004 slots=1/3 actual_x100=833 epoch_delay=2998
+[RECV] tdma profile rc=0 target=BSDC91 profile=roto
+[RECV] BS2DCE notify: CFG_OK TAG=1 SLOT=0/3 MASK=0x0001 PERIOD=40 ACTIVE=24 GEN=17 LIVE=1
+[RECV] CFG confirmed[1]: tag=1 slot=0/3 mask=0x0001 period=40 active=24 gen=17 live=1
+[RECV] BSF66F notify: CFG_OK TAG=3 SLOT=2/3 MASK=0x0004 PERIOD=40 ACTIVE=24 GEN=17 LIVE=1
+[RECV] CFG confirmed[0]: tag=3 slot=2/3 mask=0x0004 period=40 active=24 gen=17 live=1
+[RECV] BSDC91 notify: CFG_OK TAG=2 SLOT=1/3 MASK=0x0002 PERIOD=40 ACTIVE=24 GEN=17 LIVE=1
+[RECV] CFG confirmed[2]: tag=2 slot=1/3 mask=0x0002 period=40 active=24 gen=17 live=1
+[HOST_CMD 86199.509] tdma freq static 5
+[RECV] TDMA freq set: static=5Hz
+[RECV] CFG assigned[1]: bs=BS2DCE tag=1 slot=0/3 mask=0x0001 period=40 active=24 gen=18 pmode=5
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=roto target=15Hz mask=0x0001 slots=1/3 actual_x100=833 epoch_delay=3000
+[RECV] CFG assigned[2]: bs=BSDC91 tag=2 slot=1/3 mask=0x0002 period=40 active=24 gen=18 pmode=5
+[RECV] TDMA weighted[1]: bs=BSDC91 profile=roto target=15Hz mask=0x0002 slots=1/3 actual_x100=833 epoch_delay=2999
+[RECV] CFG assigned[0]: bs=BSF66F tag=3 slot=2/3 mask=0x0004 period=40 active=24 gen=18 pmode=4
+[RECV] TDMA weighted[2]: bs=BSF66F profile=static target=5Hz mask=0x0004 slots=1/3 actual_x100=833 epoch_delay=2998
+[RECV] tdma freq rc=0 profile=static hz=5
+[RECV] BS2DCE notify: CFG_OK TAG=1 SLOT=0/3 MASK=0x0001 PERIOD=40 ACTIVE=24 GEN=18 LIVE=1
+[RECV] CFG confirmed[1]: tag=1 slot=0/3 mask=0x0001 period=40 active=24 gen=18 live=1
+[RECV] BSDC91 notify: CFG_OK TAG=2 SLOT=1/3 MASK=0x0002 PERIOD=40 ACTIVE=24 GEN=18 LIVE=1
+[RECV] CFG confirmed[2]: tag=2 slot=1/3 mask=0x0002 period=40 active=24 gen=18 live=1
+[RECV] BSF66F notify: CFG_OK TAG=3 SLOT=2/3 MASK=0x0004 PERIOD=40 ACTIVE=24 GEN=18 LIVE=1
+[RECV] CFG confirmed[0]: tag=3 slot=2/3 mask=0x0004 period=40 active=24 gen=18 live=1

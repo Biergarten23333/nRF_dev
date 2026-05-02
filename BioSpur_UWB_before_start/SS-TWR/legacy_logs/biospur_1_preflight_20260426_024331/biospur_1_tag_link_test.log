@@ -1,0 +1,40 @@
+>>> mode recv
+[RECV] One-shot NUS command cleared (runtime)
+[RECV] Peer clear wait: waited=0 conn_count=0 ready_count=0
+[RECV] Master discovery mode: CONN & START
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=unknown prefix=BS
+[RECV] Scanning for BS*
+[RECV] RECV clean slate prepared
+>>> device kind tag
+OTA NUS stage: enabled
+[RECV] One-shot NUS command cleared (runtime)
+[RECV] device kind set: tag (OTA target preserved)
+[RECV] Master discovery mode: CONN & START
+[RECV] Peer clear wait: waited=0 conn_count=0 ready_count=0
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=tag prefix=BS
+[RECV] Scanning for BS*
+[RECV] System target: kind=tag caps=0x0f (config=1 ota=1 stream=1 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+>>> tdma profile BSF66F static
+[RECV] TDMA profile set: BSF66F -> static
+[RECV] tdma profile rc=0 target=BSF66F profile=static
+>>> tdma profile BS2DCE roto
+[RECV] TDMA profile set: BS2DCE -> roto
+[RECV] tdma profile rc=0 target=BS2DCE profile=roto
+>>> tdma profile BSDC91 roto
+[RECV] TDMA profile set: BSDC91 -> roto
+[RECV] tdma profile rc=0 target=BSDC91 profile=roto
+>>> tdma freq static 5
+[RECV] TDMA freq set: static=5Hz
+[RECV] tdma freq rc=0 profile=static hz=5
+>>> tdma freq roto 10
+[RECV] TDMA freq set: roto=10Hz
+[RECV] tdma freq rc=0 profile=roto hz=10
+>>> tdma rebalance
+[RECV] tdma rebalance rc=0
+>>> tdma show
+[RECV] TDMA weighted scheduler: period=40ms active=24ms max_slots=12 freq motion=5Hz static=5Hz roto=10Hz
+[RECV] TDMA profile: BSF66F -> static target=5Hz
+[RECV] TDMA profile: BS2DCE -> roto target=10Hz
+[RECV] TDMA profile: BSDC91 -> roto target=10Hz
+>>> observe 45s

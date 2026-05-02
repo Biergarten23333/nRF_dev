@@ -1,0 +1,96 @@
+[HOST_CMD 52686.901] mode recv
+[AUTOPOS] UART requested: switching to RECV
+[AUTOPOS] Mode switch preflight: disconnect requests=8
+[RECV] Control mode staged: RECV
+[RECV] OTA target staged: token=-1 name=- prefix=BS uuid=-
+[RECV] Control mode now RECV, rebooting
+*** Booting nRF Connect SDK v2.8.0-a2386bfc8401 ***
+*** Using Zephyr OS v3.7.99-0bc3393fb112 ***
+[RECV] LED map: 1=AUTOPOS 2=RECV 3=OTA 4=FLOW
+[RECV] Control mode loaded: RECV
+[RECV] UART control ready: type 'status' or 'mode recv'/'mode ota'/'mode autopos'
+[RECV] OTA target restored: token=-1 name=- prefix=BS uuid=-
+OTA_STATE:target_configured detail=token
+OTA NUS stage: disabled
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] BioSpur BLE master control ready on nrf5340dk/nrf5340/cpuapp
+[RECV] BTN1 toggles RECV/OTA, BTN2 forces OTA mode, BTN3=SCAN, BTN4=CONN&START
+[RECV] Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate
+[RECV] OTA runtime cmds: ota_reset | ota show | ota version
+[RECV] Runtime NUS cmds: cmd <raw> | oneshot <raw> | oneshot show | oneshot clear
+[RECV] TDMA cmds: tdma show | tdma profile <BSxxxx> <static|roto|motion> | tdma freq <static|roto|motion> <hz> | tdma rebalance
+[RECV] Device model cmds: device show | device kind <anchor|tag>
+[RE[HOST_WARN 52697.020] read failed after 'mode recv'; reopened serial and continued
+[HOST_CMD 52697.020] tdma clear
+[RECV] TDMA profiles cleared
+[RECV] tdma clear rc=0
+[HOST_CMD 52697.824] device kind tag
+OTA NUS stage: enabled
+[RECV] One-shot NUS command cleared (runtime)
+[RECV] device kind set: tag (OTA target preserved)
+[RECV] Master discovery mode: CONN & START
+[RECV] Peer clear wait: waited=0 conn_count=0 ready_count=0
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=tag prefix=BS
+[RECV] Scanning for BS*
+[RECV] System target: kind=tag caps=0x0f (config=1 ota=1 stream=1 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] SCAN hit: FF:5E:D2:80:EA:D2 (random) rssi=-58 name=- bs=BS2DCE uuid=- target=tag uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[RECV] CONNECT queue[0]: addr=FF:5E:D2:80:EA:D2 (random) link=nus uuid=- target=tag
+[RECV] SCAN hit: D5:53:48:EF:8F:59 (random) rssi=-55 name=- bs=BSDC91 uuid=- target=tag uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[RECV] CONNECT queue[1]: addr=D5:53:48:EF:8F:59 (random) link=nus uuid=- target=tag
+[RECV] SCAN hit: FC:9A:15:34:AB:20 (random) rssi=-62 name=- bs=BSF66F uuid=- target=tag uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[RECV] CONNECT queue[2]: addr=FC:9A:15:34:AB:20 (random) link=nus uuid=- target=tag
+[[HOST_CMD 52843.240] ota_target token -1
+RECV] CONNECT pending[0]: addr_valid=1 link=nus uuid=- scan_running=1 conn_count=0
+[RECV] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[RECV] CONNECT pending[[RECV] ota_target token rc=0 value=-1
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+0] rc=0 conn=0x20002098
+[RECV] Connected[0]: FF:5E:D2:80:EA:D2 (random) name=- bs=BS2DCE
+[RECV] CONNECT state[0]: link=nus uuid=- ready=0 conn=0x20002098
+[RECV] CONNECT pending[1]: addr_valid=1 link=nus uuid=- scan_running=0 conn_count=1
+[RECV] CONNECT pending[1] rc=0 conn=0x20002168
+SETUP[0] defer: waiting 334 ms before discovery start
+SETUP[0] defer: waiting 283 ms before discovery start
+[RECV] Connected[1]: D5:53:48:EF:8F:59 (random) name=- bs=BSDC91
+[RECV] CONNECT state[1]: link=nus uuid=- ready=0 conn=0x20002168
+[RECV] Disconnected[1]: D5:53:48:EF:8F:59 (random) reason=0x3e link=nus ready=0
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=1 target=tag prefix=BS
+[RECV] Scanning for BS*
+[RECV] CONNECT pending[2]: addr_valid=1 link=nus uuid=- scan_running=1 conn_count=1
+[RECV] CONNECT pending[2]: addr_valid=1 link=nus uuid=- scan_running=1 conn_count=1
+[RECV] CONNECT pending[2]: bt_le_scan_stop rc=0 scan_running=1
+[RECV] CONNECT pending[2] rc=0 conn=0x20002238
+[RECV] PHY updated[0]: tx=0x2 rx=0x2
+[RECV] CONNECT pending[2]: bt_le_scan_stop rc=0 scan_running=0
+[RECV] CONNECT pending[2] rc=-120 conn=0x20002238
+[RECV] Create conn failed[2]: -120
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=1 target=tag prefix=BS
+[RECV] Failed to start scan: -1
+SETUP[0] defer: waiting 180 ms before discovery start
+[RECV] Connected to FC:9A:15:34:AB:20 (random) but no slot was reserved
+[RECV] Disconnected[-1]: FC:9A:15:34:AB:20 (random) reason=0x16 link=none ready=0
+[RECV] Disconnected untracked peer: conn_count unchanged=1
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=1 target=tag prefix=BS
+SETUP[0] defer: waiting 129 ms before discovery start
+[RECV] Scanning for BS*
+SETUP[0] defer: waiting 78 ms before discovery start
+SETUP[0] defer: waiting 28 ms before discovery start
+SETUP[0] begin: link=nus uuid=- conn=0x20002098
+SETUP[0] mtu_exchange rc=0
+SETUP[0] phy_update rc=0
+SETUP[0] conn_param_update rc=0
+[RECV] DISC start[0]: link=nus uuid=- conn=0x20002098
+[RECV] MTU exchange[0] done (498)
+[[HOST_CMD 52843.749] ota_target name -
+RECV] Conn param updated[0]: int=6 lat=0 to=400
+[RECV] PHY updated[0]: tx=0x2 rx=0x2
+[RECV] ota_target name rc=0 value=-
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] DISC complete[0]: link=nus discovered_service=2800 uuid=-
+[RECV] BLE[0] link ready
+[RECV] CFG assigned[0]: bs=BS2DCE tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=1 pmode=0
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[HOST_CMD 52844.433] ota_target prefix -
+[HOST_CMD 52845.035] ota_target uuid -
+[HOST_WARN 52847.036] write failed for 'ota_target uuid -': Write timeout; reopen/retry

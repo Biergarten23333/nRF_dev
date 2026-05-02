@@ -1,0 +1,100 @@
+PORT=/dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02-if00
+START=2026-04-26 22:17:59
+VERIFY: prepare AUTOPOS control plane for all-responder runtime verification
+VERIFY: prepare anchor target before AUTOPOS preflight
+>>> status
+[OTA] Control status: mode=OTA pending=0
+>>> device show
+[OTA] System target: kind=unknown caps=0x08 (config=0 ota=0 stream=0 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=1EABFBEC28B8053FBB0D5C448112AE93
+>>> device kind anchor
+OTA NUS stage: disabled
+[OTA] One-shot NUS command cleared (runtime)
+OTA_STATE:target_configured detail=token
+[OTA] Mode switch preflight: disconnect requests=0
+[OTA] device kind set: anchor (OTA target defaults reset)
+[OTA] System target: kind=anchor caps=0x0b (config=1 ota=1 stream=0 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+VERIFY: enter AUTOPOS attempt=1/3
+>>> mode autopos
+[OTA] mode autopos ignored: switch to RECV first
+>>> status
+[OTA] Control status: mode=OTA pending=0
+>>> device kind anchor
+OTA NUS stage: disabled
+[OTA] One-shot NUS command cleared (runtime)
+[OTA] Mode switch preflight: disconnect requests=0
+[OTA] device kind set: anchor (OTA target defaults reset)
+[OTA] System target: kind=anchor caps=0x0b (config=1 ota=1 stream=0 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+VERIFY: enter AUTOPOS attempt=2/3
+>>> mode autopos
+[OTA] mode autopos ignored: switch to RECV first
+>>> status
+[OTA] Control status: mode=OTA pending=0
+>>> device kind anchor
+OTA NUS stage: disabled
+[OTA] One-shot NUS command cleared (runtime)
+[OTA] Mode switch preflight: disconnect requests=0
+[OTA] device kind set: anchor (OTA target defaults reset)
+[OTA] System target: kind=anchor caps=0x0b (config=1 ota=1 stream=0 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+VERIFY: enter AUTOPOS attempt=3/3
+>>> mode autopos
+[OTA] mode autopos ignored: switch to RECV first
+>>> status
+[OTA] Control status: mode=OTA pending=0
+>>> device kind anchor
+OTA NUS stage: disabled
+[OTA] One-shot NUS command cleared (runtime)
+[OTA] Mode switch preflight: disconnect requests=0
+[OTA] device kind set: anchor (OTA target defaults reset)
+[OTA] System target: kind=anchor caps=0x0b (config=1 ota=1 stream=0 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+VERIFY WARN: AUTOPOS mode not confirmed; continuing best-effort
+>>> autopos map A 4DC6B8187E33803AE8601FB0D7992B96
+[OTA] AUTOPOS map set: A=4DC6B8187E33803AE8601FB0D7992B96
+>>> autopos map B B9179575C776C98F1CB132DD6EDC6223
+[OTA] AUTOPOS map set: B=B9179575C776C98F1CB132DD6EDC6223
+>>> autopos map C CEE5A7EFCB35F8A56B430047629F5309
+[OTA] AUTOPOS map set: C=CEE5A7EFCB35F8A56B430047629F5309
+>>> autopos map D AB14CCA262A092E70EB26B0ACB0A394B
+[OTA] AUTOPOS map set: D=AB14CCA262A092E70EB26B0ACB0A394B
+>>> autopos map E A892AF05DD59CF0D0D3408AD74F364A1
+[OTA] AUTOPOS map set: E=A892AF05DD59CF0D0D3408AD74F364A1
+>>> autopos map F 840C68591E90019821AACFF1B73AAA34
+[OTA] AUTOPOS map set: F=840C68591E90019821AACFF1B73AAA34
+>>> autopos map G B3087BC3D87CCCD316AEDC6B71D6677F
+[OTA] AUTOPOS map set: G=B3087BC3D87CCCD316AEDC6B71D6677F
+>>> autopos map H 1EABFBEC28B8053FBB0D5C448112AE93
+[OTA] AUTOPOS map set: H=1EABFBEC28B8053FBB0D5C448112AE93
+VERIFY: start anchor discovery/control links
+>>> conn
+[OTA] CONN ignored: control mode must be RECV/AUTOPOS
+[OTA] Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate
+[OTA] OTA runtime cmds: ota_reset | ota show | ota version
+[OTA] Runtime NUS cmds: cmd <raw> | oneshot <raw> | oneshot show | oneshot clear
+[OTA] TDMA cmds: tdma show | tdma profile <BSxxxx> <static|roto|motion> | tdma freq <static|roto|motion> <hz> | tdma rebalance
+[OTA] Device model cmds: device show | device kind <anchor|tag>
+[OTA] OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->
+[OTA] Anchor cmds: anchor version <A..H|UUID32|all> | anchor role <A..H|UUID32|all> <master|matrix|responder> | anchor reset <A..H|UUID32|all> <autopos|responder>
+[OTA] AUTOPOS cmds: autopos status | autopos detach | autopos map <A..H> <UUID32> | autopos map show | autopos round <A..H> [sets] | autopos apply | autopos result show|clear
+VERIFY: anchor ctrl ready gate ready_log=0/8 conn_count=0/8
+VERIFY WARN: anchor ctrl ready gate timed out 0/8; final runtime ack will be authoritative
+VERIFY WARN: proceeding to runtime command despite soft ready-gate miss
+VERIFY: responder runtime attempt=1/4
+>>> anchor role all responder
+[OTA] anchor role ignored: control mode must not be OTA
+VERIFY: attempt=1 ack_ok=0 sent=0 ready=0/0 scan=matrix=8 responder=0 master=0 other=0
+VERIFY: responder runtime attempt=2/4
+>>> anchor role all responder
+[OTA] anchor role ignored: control mode must not be OTA
+VERIFY: attempt=2 ack_ok=0 sent=0 ready=0/0 scan=matrix=8 responder=0 master=0 other=0
+VERIFY: responder runtime attempt=3/4
+>>> anchor role all responder
+[OTA] anchor role ignored: control mode must not be OTA
+VERIFY: attempt=3 ack_ok=0 sent=0 ready=0/0 scan=matrix=8 responder=0 master=0 other=0
+VERIFY: responder runtime attempt=4/4
+>>> anchor role all responder
+[OTA] anchor role ignored: control mode must not be OTA
+VERIFY: attempt=4 ack_ok=0 sent=0 ready=0/0 scan=matrix=8 responder=0 master=0 other=0

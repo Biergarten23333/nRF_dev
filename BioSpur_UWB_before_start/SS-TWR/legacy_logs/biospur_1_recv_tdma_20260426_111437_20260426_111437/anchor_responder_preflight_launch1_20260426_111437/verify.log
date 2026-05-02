@@ -1,0 +1,20 @@
+PORT=/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_6918E0384172A49F-if00
+START=2026-04-26 11:14:38
+VERIFY: prepare AUTOPOS control plane for all-responder runtime verification
+VERIFY: prepare anchor target before AUTOPOS preflight
+>>> status
+[RECV] Control status: mode=RECV pending=0
+>>> device show
+[RECV] System target: kind=tag caps=0x0f (config=1 ota=1 stream=1 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+>>> device kind anchor
+OTA NUS stage: disabled
+[RECV] One-shot NUS command cleared (runtime)
+[RECV] Mode switch preflight: disconnect requests=0
+[RECV] device kind set: anchor (OTA target defaults reset)
+[RECV] Master discovery mode: CONN & START
+[RECV] Peer clear wait: waited=0 conn_count=0 ready_count=0
+VERIFY: enter AUTOPOS attempt=1/3
+>>> mode autopos
+>>> status
+>>> device kind anchor

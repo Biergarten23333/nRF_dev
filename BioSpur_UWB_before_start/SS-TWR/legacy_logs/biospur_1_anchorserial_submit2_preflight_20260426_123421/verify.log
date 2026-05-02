@@ -1,0 +1,335 @@
+PORT=/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_6918E0384172A49F-if00
+START=2026-04-26 12:34:22
+VERIFY: prepare AUTOPOS control plane for all-responder runtime verification
+VERIFY: prepare anchor target before AUTOPOS preflight
+>>> status
+[AUTOPOS] Control status: mode=AUTOPOS pending=0
+>>> device show
+[AUTOPOS] System target: kind=unknown caps=0x08 (config=0 ota=0 stream=0 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+>>> device kind anchor
+OTA NUS stage: disabled
+[AUTOPOS] One-shot NUS command cleared (runtime)
+[AUTOPOS] Mode switch preflight: disconnect requests=0
+[AUTOPOS] device kind set: anchor (OTA target defaults reset)
+[AUTOPOS] System target: kind=anchor caps=0x0b (config=1 ota=1 stream=0 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+VERIFY: enter AUTOPOS attempt=1/3
+>>> status
+[AUTOPOS] Control status: mode=AUTOPOS pending=0
+VERIFY: AUTOPOS anchor control plane already active
+>>> autopos map A 4DC6B8187E33803AE8601FB0D7992B96
+[AUTOPOS] AUTOPOS map set: A=4DC6B8187E33803AE8601FB0D7992B96
+>>> autopos map B B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] AUTOPOS map set: B=B9179575C776C98F1CB132DD6EDC6223
+>>> autopos map C CEE5A7EFCB35F8A56B430047629F5309
+[AUTOPOS] AUTOPOS map set: C=CEE5A7EFCB35F8A56B430047629F5309
+>>> autopos map D AB14CCA262A092E70EB26B0ACB0A394B
+[AUTOPOS] AUTOPOS map set: D=AB14CCA262A092E70EB26B0ACB0A394B
+>>> autopos map E A892AF05DD59CF0D0D3408AD74F364A1
+[AUTOPOS] AUTOPOS map set: E=A892AF05DD59CF0D0D3408AD74F364A1
+>>> autopos map F 840C68591E90019821AACFF1B73AAA34
+[AUTOPOS] AUTOPOS map set: F=840C68591E90019821AACFF1B73AAA34
+>>> autopos map G B3087BC3D87CCCD316AEDC6B71D6677F
+[AUTOPOS] AUTOPOS map set: G=B3087BC3D87CCCD316AEDC6B71D6677F
+>>> autopos map H 1EABFBEC28B8053FBB0D5C448112AE93
+[AUTOPOS] AUTOPOS map set: H=1EABFBEC28B8053FBB0D5C448112AE93
+VERIFY: start anchor discovery/control links
+>>> conn
+[AUTOPOS] Master discovery mode: CONN & START
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: F1:B3:DF:83:B1:C9 (random) rssi=-58 name=- bs=- uuid=AB14CCA262A092E70EB26B0ACB0A394B target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=F1:B3:DF:83:B1:C9 (random) link=anchor-ctrl uuid=AB14CCA262A092E70EB26B0ACB0A394B target=anchor
+CONNECT work: process pending peer queue
+[AUTOPOS] SCAN hit: E9:CB:F3:C4:51:43 (random) rssi=-68 name=- bs=- uuid=840C68591E90019821AACFF1B73AAA34 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: EC:9F:55:9D:7E:A1 (random) rssi=-83 name=- bs=- uuid=B3087BC3D87CCCD316AEDC6B71D6677F target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-55 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: FD:64:2E:93:37:86 (random) rssi=-65 name=- bs=- uuid=CEE5A7EFCB35F8A56B430047629F5309 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: E3:77:2C:61:AA:19 (random) rssi=-71 name=- bs=- uuid=1EABFBEC28B8053FBB0D5C448112AE93 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: E3:77:2C:61:AA:19 (random) rssi=-71 name=- bs=- uuid=1EABFBEC28B8053FBB0D5C448112AE93 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: D9:C7:9C:16:71:C9 (random) rssi=-62 name=- bs=- uuid=A892AF05DD59CF0D0D3408AD74F364A1 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: C0:1D:D1:D0:CE:B0 (random) rssi=-66 name=- bs=- uuid=B9179575C776C98F1CB132DD6EDC6223 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: E9:CB:F3:C4:51:43 (random) rssi=-68 name=- bs=- uuid=840C68591E90019821AACFF1B73AAA34 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: D9:C7:9C:16:71:C9 (random) rssi=-59 name=- bs=- uuid=A892AF05DD59CF0D0D3408AD74F364A1 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=AB14CCA262A092E70EB26B0ACB0A394B scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x20002050
+[AUTOPOS] Connected[0]: F1:B3:DF:83:B1:C9 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=AB14CCA262A092E70EB26B0ACB0A394B ready=0 conn=0x20002050
+SETUP[0] defer: waiting 885 ms before discovery start
+SETUP[0] defer: waiting 835 ms before discovery start
+SETUP[0] defer: waiting 785 ms before discovery start
+SETUP[0] defer: waiting 734 ms before discovery start
+SETUP[0] defer: waiting 684 ms before discovery start
+[AUTOPOS] Disconnected[0]: F1:B3:DF:83:B1:C9 (random) reason=0x3e link=anchor-ctrl ready=0
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: E3:77:2C:61:AA:19 (random) rssi=-77 name=- bs=- uuid=1EABFBEC28B8053FBB0D5C448112AE93 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=E3:77:2C:61:AA:19 (random) link=anchor-ctrl uuid=1EABFBEC28B8053FBB0D5C448112AE93 target=anchor
+CONNECT work: process pending peer queue
+[AUTOPOS] SCAN hit: D9:C7:9C:16:71:C9 (random) rssi=-60 name=- bs=- uuid=A892AF05DD59CF0D0D3408AD74F364A1 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: C0:1D:D1:D0:CE:B0 (random) rssi=-62 name=- bs=- uuid=B9179575C776C98F1CB132DD6EDC6223 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: D9:C7:9C:16:71:C9 (random) rssi=-58 name=- bs=- uuid=A892AF05DD59CF0D0D3408AD74F364A1 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: F1:B3:DF:83:B1:C9 (random) rssi=-61 name=- bs=- uuid=AB14CCA262A092E70EB26B0ACB0A394B target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-58 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: FD:64:2E:93:37:86 (random) rssi=-94 name=- bs=- uuid=CEE5A7EFCB35F8A56B430047629F5309 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: E9:CB:F3:C4:51:43 (random) rssi=-59 name=- bs=- uuid=840C68591E90019821AACFF1B73AAA34 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: EC:9F:55:9D:7E:A1 (random) rssi=-67 name=- bs=- uuid=B3087BC3D87CCCD316AEDC6B71D6677F target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: F1:B3:DF:83:B1:C9 (random) rssi=-60 name=- bs=- uuid=AB14CCA262A092E70EB26B0ACB0A394B target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: EC:9F:55:9D:7E:A1 (random) rssi=-70 name=- bs=- uuid=B3087BC3D87CCCD316AEDC6B71D6677F target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=1EABFBEC28B8053FBB0D5C448112AE93 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x20002050
+[AUTOPOS] Connected[0]: E3:77:2C:61:AA:19 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=1EABFBEC28B8053FBB0D5C448112AE93 ready=0 conn=0x20002050
+SETUP[0] defer: waiting 860 ms before discovery start
+SETUP[0] defer: waiting 810 ms before discovery start
+SETUP[0] defer: waiting 760 ms before discovery start
+SETUP[0] defer: waiting 709 ms before discovery start
+SETUP[0] defer: waiting 659 ms before discovery start
+SETUP[0] defer: waiting 609 ms before discovery start
+SETUP[0] defer: waiting 558 ms before discovery start
+SETUP[0] defer: waiting 508 ms before discovery start
+SETUP[0] defer: waiting 458 ms before discovery start
+SETUP[0] defer: waiting 407 ms before discovery start
+SETUP[0] defer: waiting 357 ms before discovery start
+SETUP[0] defer: waiting 307 ms before discovery start
+SETUP[0] defer: waiting 256 ms before discovery start
+SETUP[0] defer: waiting 206 ms before discovery start
+SETUP[0] defer: waiting 156 ms before discovery start
+SETUP[0] defer: waiting 105 ms before discovery start
+SETUP[0] defer: waiting 55 ms before discovery start
+SETUP[0] defer: waiting 5 ms before discovery start
+SETUP[0] begin: link=anchor-ctrl uuid=1EABFBEC28B8053FBB0D5C448112AE93 conn=0x20002050
+[AUTOPOS] DISC start[0]: link=anchor-ctrl uuid=1EABFBEC28B8053FBB0D5C448112AE93 conn=0x20002050
+[AUTOPOS] Anchor ctrl service not found[0]
+[AUTOPOS] Disconnected[0]: E3:77:2C:61:AA:19 (random) reason=0x08 link=anchor-ctrl ready=0
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: EC:9F:55:9D:7E:A1 (random) rssi=-66 name=- bs=- uuid=B3087BC3D87CCCD316AEDC6B71D6677F target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=EC:9F:55:9D:7E:A1 (random) link=anchor-ctrl uuid=B3087BC3D87CCCD316AEDC6B71D6677F target=anchor
+CONNECT work: process pending peer queue
+[AUTOPOS] SCAN hit: FD:64:2E:93:37:86 (random) rssi=-66 name=- bs=- uuid=CEE5A7EFCB35F8A56B430047629F5309 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+VERIFY: anchor ctrl ready gate ready_log=0/8 conn_count=0/8
+[AUTOPOS] SCAN hit: E3:77:2C:61:AA:19 (random) rssi=-68 name=- bs=- uuid=1EABFBEC28B8053FBB0D5C448112AE93 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: F1:B3:DF:83:B1:C9 (random) rssi=-61 name=- bs=- uuid=AB14CCA262A092E70EB26B0ACB0A394B target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: E9:CB:F3:C4:51:43 (random) rssi=-59 name=- bs=- uuid=840C68591E90019821AACFF1B73AAA34 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: C0:1D:D1:D0:CE:B0 (random) rssi=-60 name=- bs=- uuid=B9179575C776C98F1CB132DD6EDC6223 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: D9:C7:9C:16:71:C9 (random) rssi=-59 name=- bs=- uuid=A892AF05DD59CF0D0D3408AD74F364A1 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: E3:77:2C:61:AA:19 (random) rssi=-69 name=- bs=- uuid=1EABFBEC28B8053FBB0D5C448112AE93 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: F1:B3:DF:83:B1:C9 (random) rssi=-60 name=- bs=- uuid=AB14CCA262A092E70EB26B0ACB0A394B target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: E9:CB:F3:C4:51:43 (random) rssi=-59 name=- bs=- uuid=840C68591E90019821AACFF1B73AAA34 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: C0:1D:D1:D0:CE:B0 (random) rssi=-61 name=- bs=- uuid=B9179575C776C98F1CB132DD6EDC6223 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-55 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=B3087BC3D87CCCD316AEDC6B71D6677F scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x20002050
+[AUTOPOS] Connected[0]: EC:9F:55:9D:7E:A1 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=B3087BC3D87CCCD316AEDC6B71D6677F ready=0 conn=0x20002050
+SETUP[0] defer: waiting 880 ms before discovery start
+SETUP[0] defer: waiting 830 ms before discovery start
+SETUP[0] defer: waiting 779 ms before discovery start
+SETUP[0] defer: waiting 729 ms before discovery start
+SETUP[0] defer: waiting 679 ms before discovery start
+SETUP[0] defer: waiting 628 ms before discovery start
+SETUP[0] defer: waiting 578 ms before discovery start
+SETUP[0] defer: waiting 528 ms before discovery start
+SETUP[0] defer: waiting 477 ms before discovery start
+SETUP[0] defer: waiting 427 ms before discovery start
+SETUP[0] defer: waiting 377 ms before discovery start
+SETUP[0] defer: waiting 326 ms before discovery start
+SETUP[0] defer: waiting 276 ms before discovery start
+SETUP[0] defer: waiting 226 ms before discovery start
+SETUP[0] defer: waiting 175 ms before discovery start
+SETUP[0] defer: waiting 125 ms before discovery start
+SETUP[0] defer: waiting 75 ms before discovery start
+SETUP[0] defer: waiting 24 ms before discovery start
+SETUP[0] begin: link=anchor-ctrl uuid=B3087BC3D87CCCD316AEDC6B71D6677F conn=0x20002050
+[AUTOPOS] DISC start[0]: link=anchor-ctrl uuid=B3087BC3D87CCCD316AEDC6B71D6677F conn=0x20002050
+[AUTOPOS] Anchor ctrl service not found[0]
+[AUTOPOS] Disconnected[0]: EC:9F:55:9D:7E:A1 (random) reason=0x08 link=anchor-ctrl ready=0
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-60 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=F2:B7:4E:8A:79:01 (random) link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor
+CONNECT work: process pending peer queue
+[AUTOPOS] SCAN hit: C0:1D:D1:D0:CE:B0 (random) rssi=-62 name=- bs=- uuid=B9179575C776C98F1CB132DD6EDC6223 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: FD:64:2E:93:37:86 (random) rssi=-78 name=- bs=- uuid=CEE5A7EFCB35F8A56B430047629F5309 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: D9:C7:9C:16:71:C9 (random) rssi=-64 name=- bs=- uuid=A892AF05DD59CF0D0D3408AD74F364A1 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: F1:B3:DF:83:B1:C9 (random) rssi=-59 name=- bs=- uuid=AB14CCA262A092E70EB26B0ACB0A394B target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: FD:64:2E:93:37:86 (random) rssi=-64 name=- bs=- uuid=CEE5A7EFCB35F8A56B430047629F5309 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: E3:77:2C:61:AA:19 (random) rssi=-70 name=- bs=- uuid=1EABFBEC28B8053FBB0D5C448112AE93 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: F1:B3:DF:83:B1:C9 (random) rssi=-61 name=- bs=- uuid=AB14CCA262A092E70EB26B0ACB0A394B target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: E9:CB:F3:C4:51:43 (random) rssi=-59 name=- bs=- uuid=840C68591E90019821AACFF1B73AAA34 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: E3:77:2C:61:AA:19 (random) rssi=-78 name=- bs=- uuid=1EABFBEC28B8053FBB0D5C448112AE93 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: EC:9F:55:9D:7E:A1 (random) rssi=-69 name=- bs=- uuid=B3087BC3D87CCCD316AEDC6B71D6677F target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x20002050
+[AUTOPOS] Connected[0]: F2:B7:4E:8A:79:01 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 ready=0 conn=0x20002050
+SETUP[0] defer: waiting 894 ms before discovery start
+SETUP[0] defer: waiting 844 ms before discovery start
+SETUP[0] defer: waiting 793 ms before discovery start
+SETUP[0] defer: waiting 743 ms before discovery start
+SETUP[0] defer: waiting 693 ms before discovery start
+SETUP[0] defer: waiting 642 ms before discovery start
+SETUP[0] defer: waiting 592 ms before discovery start
+SETUP[0] defer: waiting 542 ms before discovery start
+SETUP[0] defer: waiting 491 ms before discovery start
+SETUP[0] defer: waiting 441 ms before discovery start
+SETUP[0] defer: waiting 391 ms before discovery start
+SETUP[0] defer: waiting 340 ms before discovery start
+SETUP[0] defer: waiting 290 ms before discovery start
+SETUP[0] defer: waiting 240 ms before discovery start
+SETUP[0] defer: waiting 189 ms before discovery start
+SETUP[0] defer: waiting 139 ms before discovery start
+SETUP[0] defer: waiting 89 ms before discovery start
+SETUP[0] defer: waiting 39 ms before discovery start
+SETUP[0] begin: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 conn=0x20002050
+[AUTOPOS] DISC start[0]: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 conn=0x20002050
+[AUTOPOS] Anchor ctrl service not found[0]
+[AUTOPOS] Disconnected[0]: F2:B7:4E:8A:79:01 (random) reason=0x08 link=anchor-ctrl ready=0
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: E9:CB:F3:C4:51:43 (random) rssi=-60 name=- bs=- uuid=840C68591E90019821AACFF1B73AAA34 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=E9:CB:F3:C4:51:43 (random) link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 target=anchor
+CONNECT work: process pending peer queue
+[AUTOPOS] SCAN hit: EC:9F:55:9D:7E:A1 (random) rssi=-66 name=- bs=- uuid=B3087BC3D87CCCD316AEDC6B71D6677F target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: E3:77:2C:61:AA:19 (random) rssi=-71 name=- bs=- uuid=1EABFBEC28B8053FBB0D5C448112AE93 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: C0:1D:D1:D0:CE:B0 (random) rssi=-61 name=- bs=- uuid=B9179575C776C98F1CB132DD6EDC6223 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: FD:64:2E:93:37:86 (random) rssi=-76 name=- bs=- uuid=CEE5A7EFCB35F8A56B430047629F5309 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: EC:9F:55:9D:7E:A1 (random) rssi=-65 name=- bs=- uuid=B3087BC3D87CCCD316AEDC6B71D6677F target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-60 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: D9:C7:9C:16:71:C9 (random) rssi=-67 name=- bs=- uuid=A892AF05DD59CF0D0D3408AD74F364A1 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: EC:9F:55:9D:7E:A1 (random) rssi=-71 name=- bs=- uuid=B3087BC3D87CCCD316AEDC6B71D6677F target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-63 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: F1:B3:DF:83:B1:C9 (random) rssi=-65 name=- bs=- uuid=AB14CCA262A092E70EB26B0ACB0A394B target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: D9:C7:9C:16:71:C9 (random) rssi=-63 name=- bs=- uuid=A892AF05DD59CF0D0D3408AD74F364A1 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: FD:64:2E:93:37:86 (random) rssi=-77 name=- bs=- uuid=CEE5A7EFCB35F8A56B430047629F5309 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x20002050
+[AUTOPOS] Connected[0]: E9:CB:F3:C4:51:43 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 ready=0 conn=0x20002050
+SETUP[0] defer: waiting 882 ms before discovery start
+SETUP[0] defer: waiting 831 ms before discovery start
+SETUP[0] defer: waiting 781 ms before discovery start
+SETUP[0] defer: waiting 731 ms before discovery start
+SETUP[0] defer: waiting 680 ms before discovery start
+SETUP[0] defer: waiting 630 ms before discovery start
+SETUP[0] defer: waiting 580 ms before discovery start
+SETUP[0] defer: waiting 529 ms before discovery start
+SETUP[0] defer: waiting 479 ms before discovery start
+SETUP[0] defer: waiting 429 ms before discovery start
+SETUP[0] defer: waiting 378 ms before discovery start
+SETUP[0] defer: waiting 328 ms before discovery start
+SETUP[0] defer: waiting 278 ms before discovery start
+SETUP[0] defer: waiting 227 ms before discovery start
+SETUP[0] defer: waiting 177 ms before discovery start
+SETUP[0] defer: waiting 127 ms before discovery start
+SETUP[0] defer: waiting 76 ms before discovery start
+SETUP[0] defer: waiting 26 ms before discovery start
+SETUP[0] begin: link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 conn=0x20002050
+[AUTOPOS] DISC start[0]: link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 conn=0x20002050
+[AUTOPOS] Anchor ctrl service not found[0]
+[AUTOPOS] Disconnected[0]: E9:CB:F3:C4:51:43 (random) reason=0x08 link=anchor-ctrl ready=0
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: D9:C7:9C:16:71:C9 (random) rssi=-64 name=- bs=- uuid=A892AF05DD59CF0D0D3408AD74F364A1 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=D9:C7:9C:16:71:C9 (random) link=anchor-ctrl uuid=A892AF05DD59CF0D0D3408AD74F364A1 target=anchor
+CONNECT work: process pending peer queue
+[AUTOPOS] SCAN hit: C0:1D:D1:D0:CE:B0 (random) rssi=-62 name=- bs=- uuid=B9179575C776C98F1CB132DD6EDC6223 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: EC:9F:55:9D:7E:A1 (random) rssi=-68 name=- bs=- uuid=B3087BC3D87CCCD316AEDC6B71D6677F target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: E3:77:2C:61:AA:19 (random) rssi=-78 name=- bs=- uuid=1EABFBEC28B8053FBB0D5C448112AE93 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: FD:64:2E:93:37:86 (random) rssi=-63 name=- bs=- uuid=CEE5A7EFCB35F8A56B430047629F5309 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: C0:1D:D1:D0:CE:B0 (random) rssi=-64 name=- bs=- uuid=B9179575C776C98F1CB132DD6EDC6223 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: F1:B3:DF:83:B1:C9 (random) rssi=-61 name=- bs=- uuid=AB14CCA262A092E70EB26B0ACB0A394B target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-59 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=A892AF05DD59CF0D0D3408AD74F364A1 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x20002050
+[AUTOPOS] Connected[0]: D9:C7:9C:16:71:C9 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=A892AF05DD59CF0D0D3408AD74F364A1 ready=0 conn=0x20002050
+SETUP[0] defer: waiting 892 ms before discovery start
+SETUP[0] defer: waiting 842 ms before discovery start
+SETUP[0] defer: waiting 791 ms before discovery start
+SETUP[0] defer: waiting 741 ms before discovery start
+SETUP[0] defer: waiting 691 ms before discovery start
+SETUP[0] defer: waiting 640 ms before discovery start
+SETUP[0] defer: waiting 590 ms before discovery start
+SETUP[0] defer: waiting 540 ms before discovery start
+SETUP[0] defer: waiting 489 ms before discovery start
+SETUP[0] defer: waiting 439 ms before discovery start
+SETUP[0] defer: waiting 389 ms before discovery start
+SETUP[0] defer: waiting 339 ms before discovery start
+SETUP[0] defer: waiting 288 ms before discovery start
+SETUP[0] defer: waiting 238 ms before discovery start
+SETUP[0] defer: waiting 188 ms before discovery start
+SETUP[0] defer: waiting 137 ms before discovery start
+SETUP[0] defer: waiting 87 ms before discovery start
+SETUP[0] defer: waiting 37 ms before discovery start
+SETUP[0] begin: link=anchor-ctrl uuid=A892AF05DD59CF0D0D3408AD74F364A1 conn=0x20002050
+[AUTOPOS] DISC start[0]: link=anchor-ctrl uuid=A892AF05DD59CF0D0D3408AD74F364A1 conn=0x20002050
+[AUTOPOS] Anchor ctrl service not found[0]
+[AUTOPOS] Disconnected[0]: D9:C7:9C:16:71:C9 (random) reason=0x08 link=anchor-ctrl ready=0
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: E3:77:2C:61:AA:19 (random) rssi=-71 name=- bs=- uuid=1EABFBEC28B8053FBB0D5C448112AE93 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=E3:77:2C:61:AA:19 (random) link=anchor-ctrl uuid=1EABFBEC28B8053FBB0D5C448112AE93 target=anchor
+CONNECT work: process pending peer queue
+[AUTOPOS] SCAN hit: EC:9F:55:9D:7E:A1 (random) rssi=-65 name=- bs=- uuid=B3087BC3D87CCCD316AEDC6B71D6677F target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: E9:CB:F3:C4:51:43 (random) rssi=-62 name=- bs=- uuid=840C68591E90019821AACFF1B73AAA34 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: FD:64:2E:93:37:86 (random) rssi=-76 name=- bs=- uuid=CEE5A7EFCB35F8A56B430047629F5309 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-59 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: D9:C7:9C:16:71:C9 (random) rssi=-62 name=- bs=- uuid=A892AF05DD59CF0D0D3408AD74F364A1 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: FD:64:2E:93:37:86 (random) rssi=-63 name=- bs=- uuid=CEE5A7EFCB35F8A56B430047629F5309 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=1EABFBEC28B8053FBB0D5C448112AE93 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x20002050
+[AUTOPOS] Connected[0]: E3:77:2C:61:AA:19 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=1EABFBEC28B8053FBB0D5C448112AE93 ready=0 conn=0x20002050
+SETUP[0] defer: waiting 869 ms before discovery start
+SETUP[0] defer: waiting 819 ms before discovery start
+SETUP[0] defer: waiting 769 ms before discovery start
+SETUP[0] defer: waiting 718 ms before discovery start
+SETUP[0] defer: waiting 668 ms before discovery start
+[AUTOPOS] Disconnected[0]: E3:77:2C:61:AA:19 (random) reason=0x3e link=anchor-ctrl ready=0
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: E9:CB:F3:C4:51:43 (random) rssi=-60 name=- bs=- uuid=840C68591E90019821AACFF1B73AAA34 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=E9:CB:F3:C4:51:43 (random) link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 target=anchor
+CONNECT work: process pending peer queue
+[AUTOPOS] SCAN hit: C0:1D:D1:D0:CE:B0 (random) rssi=-61 name=- bs=- uuid=B9179575C776C98F1CB132DD6EDC6223 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: FD:64:2E:93:37:86 (random) rssi=-68 name=- bs=- uuid=CEE5A7EFCB35F8A56B430047629F5309 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: FD:64:2E:93:37:86 (random) rssi=-86 name=- bs=- uuid=CEE5A7EFCB35F8A56B430047629F5309 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: F1:B3:DF:83:B1:C9 (random) rssi=-63 name=- bs=- uuid=AB14CCA262A092E70EB26B0ACB0A394B target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: D9:C7:9C:16:71:C9 (random) rssi=-62 name=- bs=- uuid=A892AF05DD59CF0D0D3408AD74F364A1 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: E3:77:2C:61:AA:19 (random) rssi=-91 name=- bs=- uuid=1EABFBEC28B8053FBB0D5C448112AE93 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] SCAN hit: D9:C7:9C:16:71:C9 (random) rssi=-61 name=- bs=- uuid=A892AF05DD59CF0D0D3408AD74F364A1 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x20002050
+[AUTOPOS] Connected[0]: E9:CB:F3:C4:51:43 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 ready=0 conn=0x20002050
+SETUP[0] defer: waiting 896 ms before discovery start
+SETUP[0] defer: waiting 846 ms before discovery start
+SETUP[0] defer: waiting 795 ms before discovery start
+SETUP[0] defer: waiting 745 ms before discovery start
+SETUP[0] defer: waiting 695 ms before discovery start
+SETUP[0] defer: waiting 644 ms before discovery start
+SETUP[0] defer: waiting 594 ms before discovery start
+SETUP[0] defer: waiting 544 ms before discovery start
+SETUP[0] defer: waiting 493 ms before discovery start
+SETUP[0] defer: waiting 443 ms before discovery start
+SETUP[0] defer: waiting 393 ms before discovery start
+SETUP[0] defer: waiting 342 ms before discovery start
+SETUP[0] defer: waiting 292 ms before discovery start
+SETUP[0] defer: waiting 242 ms before discovery start
+SETUP[0] defer: waiting 191 ms before discovery start
+SETUP[0] defer: waiting 141 ms before discovery start
+SETUP[0] defer: waiting 91 ms before discovery start
+SETUP[0] defer: waiting 40 ms before discovery start
+SETUP[0] begin: link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 conn=0x20002050
+[AUTOPOS] DISC start[0]: link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 conn=0x20002050

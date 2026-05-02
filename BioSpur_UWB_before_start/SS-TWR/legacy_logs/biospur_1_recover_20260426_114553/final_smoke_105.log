@@ -1,0 +1,32 @@
+exists True /dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_6918E0384172A49F-if00
+*** Booting nRF Connect SDK v2.8.0-a2386bfc8401 ***
+*** Using Zephyr OS v3.7.99-0bc3393fb112 ***
+[RECV] LED map: 1=AUTOPOS 2=RECV 3=OTA 4=FLOW
+[RECV] Control mode loaded: RECV
+[RECV] UART control ready: type 'status' or 'mode recv'/'mode ota'/'mode autopos'
+OTA_STATE:target_configured detail=token
+OTA NUS stage: enabled
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] BioSpur BLE master control ready on nrf5340dk/nrf5340/cpuapp
+[RECV] BTN1 toggles RECV/OTA, BTN2 forces OTA mode, BTN3=SCAN, BTN4=CONN&START
+[RECV] Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate
+[RECV] OTA runtime cmds: ota_reset | ota show | ota version
+[RECV] Runtime NUS cmds: cmd <raw> | oneshot <raw> | oneshot show | oneshot clear
+[RECV] TDMA cmds: tdma show | tdma profile <BSxxxx> <static|roto|motion> | tdma freq <static|roto|motion> <hz> | tdma rebalance
+[RECV] Device model cmds: device show | device kind <anchor|tag>
+[RECV] OTA target cmds: ota_target show | ota_target token <id|-1>SETUP[1] defer: global discovery busy
+SETUP[1] defer: global discovery busy
+[RECV] DISC complete[0]: link=nus discovered_service=2800 uuid=-
+[RECV] BLE[0] link ready
+[RECV] CFG assigned[0]: bs=BSDC91 tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=1 pmode=0
+[RECV] TDMA weighted[0]: bs=BSDC91 profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=2 target=unknown prefix=BS
+[RECV] Scanning for BS*
+>>> status
+>>> device show
+Traceback (most recent call last):
+  File "<stdin>", line 9, in <module>
+  File "/usr/lib/python3/dist-packages/serial/serialposix.py", line 636, in write
+    raise SerialTimeoutException('Write timeout')
+serial.serialutil.SerialTimeoutException: Write timeout
+smoke_rc=124

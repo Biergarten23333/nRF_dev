@@ -1,0 +1,191 @@
+tool=jlink_flash_nrf5340_dualcore_by_snr snr=1050070698 build_dir=build-master-control-b120-m1-biospur1-internalsynth-equivalent-20260426_024358 speed_khz=1000
+cpunet=build-master-control-b120-m1-biospur1-internalsynth-equivalent-20260426_024358/hci_ipc/zephyr/merged_CPUNET.hex
+cpuapp=build-master-control-b120-m1-biospur1-internalsynth-equivalent-20260426_024358/zephyr/merged.hex
+[1/2] flash CPUNET
+SEGGER J-Link Commander V9.24a (Compiled Mar  5 2026 11:04:55)
+DLL version V9.24a, compiled Mar  5 2026 11:03:48
+
+J-Link Commander will now exit on Error
+
+J-Link Command File read successfully.
+Processing script file...
+J-Link>si 1
+J-Link connection not established yet but required for command.
+Connecting to J-Link via USB...O.K.
+Firmware: J-Link OB-nRF5340-NordicSemi compiled Jul  8 2025 10:15:34
+Hardware version: V1.00
+J-Link uptime (since boot): 0d 10h 34m 24s
+S/N: 1050070698
+License(s): RDI, FlashBP, FlashDL, JFlash, GDB
+USB speed mode: Full speed (12 MBit/s)
+VTref=3.300V
+Selecting SWD as current target interface.
+J-Link>speed 1000
+Selecting 1000 kHz as target interface speed
+J-Link>device nrf5340_xxaa_net
+J-Link>if SWD
+Selecting SWD as current target interface.
+J-Link>r
+Target connection not established yet but required for command.
+Device "NRF5340_XXAA_NET" selected.
+
+
+Connecting to target via SWD
+ConfigTargetSettings() start
+ConfigTargetSettings() end - Took 34us
+InitTarget() start
+Device will be unsecured now.
+InitTarget() end - Took 2.86s
+Found SW-DP with ID 0x6BA02477
+DPIDR: 0x6BA02477
+CoreSight SoC-400 or earlier
+AP map detection skipped. Manually configured AP map found.
+AP[0]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[1]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[2]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[3]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[1]: Core found
+AP[1]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x410FD214. Implementer code: 0x41 (ARM)
+Feature set: Mainline
+Cache: No cache
+Found Cortex-M33 r0p4, Little endian.
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: not implemented
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 000BB4C9 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 000BBD21 DEVARCH 47702A04 DEVTYPE 00 Cortex-M33
+[1][1]: E0001000 CID B105900D PID 000BBD21 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000BBD21 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][6]: E0042000 CID B105900D PID 000BBD21 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+Memory zones:
+  Zone: "Default" Description: Default access mode
+Cortex-M33 identified.
+Reset delay: 0 ms
+Reset type: NORMAL (https://kb.segger.com/J-Link_Reset_Strategies)
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via AIRCR.SYSRESETREQ.
+J-Link>loadfile build-master-control-b120-m1-biospur1-internalsynth-equivalent-20260426_024358/hci_ipc/zephyr/merged_CPUNET.hex
+'loadfile': Performing implicit reset & halt of MCU.
+Reset type: NORMAL (https://kb.segger.com/J-Link_Reset_Strategies)
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via AIRCR.SYSRESETREQ.
+Downloading file [build-master-control-b120-m1-biospur1-internalsynth-equivalent-20260426_024358/hci_ipc/zephyr/merged_CPUNET.hex]...
+Comparing flash   [000%]000%]040%]040%]050%]100%] Done.
+Erasing flash     [000%]100%] Done.
+Programming flash [000%]000%]000%]000%]005%]005%]005%]005%]010%]010%]010%]010%]015%]015%]015%]015%]020%]020%]020%]020%]025%]025%]025%]025%]030%]030%]030%]030%]035%]035%]035%]035%]040%]040%]040%]040%]045%]045%]050%]050%]050%]050%]055%]055%]055%]055%]060%]060%]060%]060%]065%]065%]065%]065%]070%]070%]070%]070%]075%]075%]075%]075%]080%]080%]080%]080%]085%]085%]085%]085%]090%]090%]090%]090%]095%]095%]100%] Done.
+J-Link: Flash download: Bank 1 @ 0x01000000: 1 range affected (155648 bytes)
+J-Link: Flash download: Total: 2.382s (Prepare: 0.170s, Compare: 0.027s, Erase: 0.000s, Program & Verify: 2.051s, Restore: 0.133s)
+J-Link: Flash download: Program & Verify speed: 73 KB/s
+O.K.
+J-Link>r
+Reset delay: 0 ms
+Reset type: NORMAL (https://kb.segger.com/J-Link_Reset_Strategies)
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via AIRCR.SYSRESETREQ.
+J-Link>g
+Memory map 'after startup completion point' is active
+J-Link>exit
+
+Script processing completed.
+
+[2/2] flash CPUAPP
+SEGGER J-Link Commander V9.24a (Compiled Mar  5 2026 11:04:55)
+DLL version V9.24a, compiled Mar  5 2026 11:03:48
+
+J-Link Commander will now exit on Error
+
+J-Link Command File read successfully.
+Processing script file...
+J-Link>si 1
+J-Link connection not established yet but required for command.
+Connecting to J-Link via USB...O.K.
+Firmware: J-Link OB-nRF5340-NordicSemi compiled Jul  8 2025 10:15:34
+Hardware version: V1.00
+J-Link uptime (since boot): 0d 10h 34m 29s
+S/N: 1050070698
+License(s): RDI, FlashBP, FlashDL, JFlash, GDB
+USB speed mode: Full speed (12 MBit/s)
+VTref=3.300V
+Selecting SWD as current target interface.
+J-Link>speed 1000
+Selecting 1000 kHz as target interface speed
+J-Link>device nrf5340_xxaa_app
+J-Link>if SWD
+Selecting SWD as current target interface.
+J-Link>r
+Target connection not established yet but required for command.
+Device "NRF5340_XXAA_APP" selected.
+
+
+Connecting to target via SWD
+ConfigTargetSettings() start
+ConfigTargetSettings() end - Took 12us
+InitTarget() start
+InitTarget() end - Took 1.59ms
+Found SW-DP with ID 0x6BA02477
+DPIDR: 0x6BA02477
+CoreSight SoC-400 or earlier
+AP map detection skipped. Manually configured AP map found.
+AP[0]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[1]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[2]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[3]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x410FD214. Implementer code: 0x41 (ARM)
+Feature set: Mainline
+Cache: No cache
+Found Cortex-M33 r0p4, Little endian.
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 000BB4C9 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 000BBD21 DEVARCH 47702A04 DEVTYPE 00 Cortex-M33
+[1][1]: E0001000 CID B105900D PID 000BBD21 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000BBD21 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000BBD21 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][5]: E0041000 CID B105900D PID 002BBD21 DEVARCH 47724A13 DEVTYPE 13 ETM
+[1][6]: E0042000 CID B105900D PID 000BBD21 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000BBD21 DEVARCH 00000000 DEVTYPE 11 TPIU
+Memory zones:
+  Zone: "Default" Description: Default access mode
+Cortex-M33 identified.
+Reset delay: 0 ms
+Reset type: NORMAL (https://kb.segger.com/J-Link_Reset_Strategies)
+Reset: ARMv8M core with Security Extension enabled detected. Switch to secure domain.
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via AIRCR.SYSRESETREQ.
+J-Link>loadfile build-master-control-b120-m1-biospur1-internalsynth-equivalent-20260426_024358/zephyr/merged.hex
+'loadfile': Performing implicit reset & halt of MCU.
+Reset type: NORMAL (https://kb.segger.com/J-Link_Reset_Strategies)
+Reset: ARMv8M core with Security Extension enabled detected. Switch to secure domain.
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via AIRCR.SYSRESETREQ.
+Downloading file [build-master-control-b120-m1-biospur1-internalsynth-equivalent-20260426_024358/zephyr/merged.hex]...
+Comparing flash   [000%]000%]015%]015%]020%]020%]025%]025%]025%]025%]030%]030%]050%]050%]055%]055%]055%]055%]060%]060%]065%]065%]080%]080%]085%]085%]090%]090%]095%]095%]100%] Done.
+Erasing flash     [000%]000%]030%]030%]065%]065%]100%] Done.
+Programming flash [000%]000%]000%]000%]000%]000%]000%]000%]000%]000%]005%]005%]005%]005%]005%]005%]005%]005%]005%]005%]010%]010%]010%]010%]010%]010%]010%]010%]010%]010%]015%]015%]015%]015%]015%]015%]015%]015%]020%]020%]020%]020%]020%]020%]020%]020%]020%]020%]025%]025%]025%]025%]025%]025%]025%]025%]025%]025%]030%]030%]030%]030%]030%]030%]030%]030%]035%]035%]035%]035%]035%]035%]035%]035%]035%]035%]040%]040%]040%]040%]040%]040%]040%]040%]040%]040%]045%]045%]045%]045%]045%]045%]045%]045%]050%]050%]050%]050%]050%]050%]050%]050%]050%]050%]055%]055%]055%]055%]055%]055%]055%]055%]055%]055%]060%]060%]060%]060%]060%]060%]060%]060%]060%]060%]065%]065%]065%]065%]065%]065%]065%]065%]070%]070%]070%]070%]070%]070%]070%]070%]070%]070%]075%]075%]075%]075%]075%]075%]075%]075%]075%]075%]080%]080%]080%]080%]080%]080%]080%]080%]085%]085%]085%]085%]085%]085%]085%]085%]085%]085%]090%]090%]090%]090%]090%]090%]090%]090%]090%]090%]095%]095%]095%]095%]095%]095%]095%]095%]100%] Done.
+Verifying flash   [000%]000%]030%]030%]065%]065%]100%] Done.
+J-Link: Flash download: Bank 2 @ 0x00000000: 1 range affected (385024 bytes)
+J-Link: Flash download: Total: 14.191s (Prepare: 0.289s, Compare: 0.352s, Erase: 8.100s, Program: 5.036s, Verify: 0.167s, Restore: 0.244s)
+J-Link: Flash download: Program speed: 74 KB/s
+O.K.
+J-Link>r
+Reset delay: 0 ms
+Reset type: NORMAL (https://kb.segger.com/J-Link_Reset_Strategies)
+Reset: ARMv8M core with Security Extension enabled detected. Switch to secure domain.
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via AIRCR.SYSRESETREQ.
+J-Link>g
+Memory map 'after startup completion point' is active
+J-Link>exit
+
+Script processing completed.
+
+[ok] dual-core flash done

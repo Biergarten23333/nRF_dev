@@ -1,0 +1,112 @@
+[HOST_CMD 84340.087] status
+[RECV] Control status: mode=RECV pending=0
+[HOST_CMD 84340.890] device show
+[RECV] System target: kind=tag caps=0x0f (config=1 ota=1 stream=1 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[HOST_CMD 84341.692] tdma clear
+[RECV] TDMA profiles cleared
+[RECV] CFG assigned[2]: bs=BS2DCE tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=4 pmode=0
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] CFG assigned[0]: bs=BSDC91 tag=2 slot=2/10 mask=0x0084 period=40 active=24 gen=4 pmode=0
+[RECV] TDMA weighted[1]: bs=BSDC91 profile=motion target=5Hz mask=0x0084 slots=2/10 actual_x100=500 epoch_delay=2999
+[RECV] CFG assigned[1]: bs=BSF66F tag=3 slot=3/10 mask=0x0108 period=40 active=24 gen=4 pmode=0
+[RECV] TDMA weighted[2]: bs=BSF66F profile=motion target=5Hz mask=0x0108 slots=2/10 actual_x100=500 epoch_delay=2998
+[RECV] tdma clear rc=0
+[RECV] CFG confirmed[2]: tag=1 slot=0/10 mask=0x0021 period=40 active=24 gen=4 live=1
+[RECV] BS2DCE notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0021 PERIOD=40 ACTIVE=24 GEN=4 LIVE=1
+[RECV] CFG confirmed[0]: tag=2 slot=2/10 mask=0x0084 period=40 active=24 gen=4 live=1
+[RECV] BSDC91 notify: CFG_OK TAG=2 SLOT=2/10 MASK=0x0084 PERIOD=40 ACTIVE=24 GEN=4 LIVE=1
+[RECV] CFG confirmed[1]: tag=3 slot=3/10 mask=0x0108 period=40 active=24 gen=4 live=1
+[RECV] BSF66F notify: CFG_OK TAG=3 SLOT=3/10 MASK=0x0108 PERIOD=40 ACTIVE=24 GEN=4 LIVE=1
+[HOST_WARN 84402.657] target links missing after pass 1: BS2DCE,BSDC91,BSF66F; reset recv discovery
+[HOST_RECOVERY 84402.659] J-Link reset B120 snr=1050070698
+SEGGER J-Link Commander V9.24a (Compiled Mar  5 2026 11:04:55)
+DLL version V9.24a, compiled Mar  5 2026 11:03:48
+
+
+J-Link Command File read successfully.
+Processing script file...
+J-Link>Device NRF5340_XXAA_APP
+J-Link connection not established yet but required for command.
+Connecting to J-Link via USB...O.K.
+Firmware: J-Link OB-nRF5340-NordicSemi compiled Jul  8 2025 10:15:34
+Hardware version: V1.00
+J-Link uptime (since boot): 0d 04h 07m 28s
+S/N: 1050070698
+License(s): RDI, FlashBP, FlashDL, JFlash, GDB
+USB speed mode: Full speed (12 MBit/s)
+VTref=3.300V
+J-Link>SI SWD
+Selecting SWD as current target interface.
+J-Link>Speed 4000
+Selecting 4000 kHz as target interface speed
+J-Link>r
+Target connection not established yet but required for command.
+Device "NRF5340_XXAA_APP" selected.
+
+
+Connecting to target via SWD
+ConfigTargetSettings() start
+ConfigTargetSettings() end - Took 7us
+InitTarget() start
+InitTarget() end - Took 1.23ms
+Found SW-DP with ID 0x6BA02477
+DPIDR: 0x6BA02477
+CoreSight SoC-400 or earlier
+AP map detection skipped. Manually configured AP map found.
+AP[0]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[1]: AHB-AP (IDR: Not set, ADDR: 0x00000000)
+AP[2]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[3]: MEM-AP (IDR: Not set, ADDR: 0x00000000)
+AP[0]: Core found
+AP[0]: AHB-AP ROM base: 0xE00FE000
+CPUID register: 0x410FD214. Implementer code: 0x41 (ARM)
+Feature set: Mainline
+Cache: No cache
+Found Cortex-M33 r0p4, Little endian.
+FPUnit: 8 code (BP) slots and 0 literal slots
+Security extension: implemented
+Secure debug: enabled
+CoreSight components:
+ROMTbl[0] @ E00FE000
+[0][0]: E00FF000 CID B105100D PID 000BB4C9 ROM Table
+ROMTbl[1] @ E00FF000
+[1][0]: E000E000 CID B105900D PID 000BBD21 DEVARCH 47702A04 DEVTYPE 00 Cortex-M33
+[1][1]: E0001000 CID B105900D PID 000BBD21 DEVARCH 47701A02 DEVTYPE 00 DWT
+[1][2]: E0002000 CID B105900D PID 000BBD21 DEVARCH 47701A03 DEVTYPE 00 FPB
+[1][3]: E0000000 CID B105900D PID 000BBD21 DEVARCH 47701A01 DEVTYPE 43 ITM
+[1][5]: E0041000 CID B105900D PID 002BBD21 DEVARCH 47724A13 DEVTYPE 13 ETM
+[1][6]: E0042000 CID B105900D PID 000BBD21 DEVARCH 47701A14 DEVTYPE 14 CSS600-CTI
+[0][1]: E0040000 CID B105900D PID 000BBD21 DEVARCH 00000000 DEVTYPE 11 TPIU
+Memory zones:
+  Zone: "Default" Description: Default access mode
+Cortex-M33 identified.
+Reset delay: 0 ms
+Reset type: NORMAL (https://kb.segger.com/J-Link_Reset_Strategies)
+Reset: ARMv8M core with Security Extension enabled detected. Switch to secure domain.
+Reset: Halt core after reset via DEMCR.VC_CORERESET.
+Reset: Reset device via AIRCR.SYSRESETREQ.
+J-Link>g
+Memory map 'after startup completion point' is active
+J-Link>q
+
+Script processing completed.
+
+[HOST_RECOVERY 84402.843] J-Link reset rc=0
+*** Booting nRF Connect SDK v2.8.0-a2386bfc8401 ***
+*** Using Zephyr OS v3.7.99-0bc3393fb112 ***
+[RECV] LED map: 1=AUTOPOS 2=RECV 3=OTA 4=FLOW
+[RECV] Control mode loaded: RECV
+[RECV] UART control ready: type 'status' or 'mode recv'/'mode ota'/'mode autopos'
+OTA_STATE:target_configured detail=token
+OTA NUS stage: enabled
+OTA NUS stage: enabled
+[RECV] Boot profile tag: auto-connect BS* tag links; TDMA remains host-controlled
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] BioSpur BLE master control ready on nrf5340dk/nrf5340/cpuapp
+[RECV] BTN1 toggles RECV/OTA, BTN2 forces OTA mode, BTN3=SCAN, BTN4=CONN&START
+[RECV] Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate
+[RECV] OTA runtime cmds: ota_reset | ota show | ota version
+[RECV] Runtime NUS cmds: cmd <raw> | oneshot <raw> | oneshot show | oneshot clear
+[RECV] TDMA cmds: tdma show | tdma profile <BSxxxx> <static|roto|motion> | tdma freq <static|roto|motion> <hz> | tdma rebalance
+[RECV] Device model cmds:
