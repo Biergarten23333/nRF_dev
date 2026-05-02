@@ -350,3 +350,21 @@ Next development directions, in priority order:
 2. 10-tag scaling validation.
 3. Guard compression below `g1200`, requiring Anchor hot-path profiling.
 4. Spacing compression below `r1000`, requiring double-buffer RX or RXAUTR.
+
+## Return To Main Workspace Checkpoint - 2026-05-02 12:35
+
+Broadcast baseline remains frozen at:
+
+- Tag: `alt-bcast-b55-noconsole-8anc-g1200-r1000-rms0`
+- Anchor: `alt-bcast-a13-nosleep-hotpath-g1200-r1000`
+
+No broadcast source, build, OTA, or hardware deployment changes were made after the freeze.
+
+One AutoPos inter-anchor sweep was attempted before returning to the main workspace:
+
+- Log directory: `logs/autopos_inter_anchor_sweep_one_round_nobootstrap_20260502_122627`
+- `SW-A` and `SW-B` completed, but all pair values were `0,0`.
+- `SW-C` stalled in `state=staged staged=C last_success=B`, so the run was stopped.
+- A-H were restored to responder runtime afterward: `ready=8/8`.
+
+Broadcast ranging baseline is still considered valid and unchanged. AutoPos/layout calibration remains the next separate task.
