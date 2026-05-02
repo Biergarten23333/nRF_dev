@@ -31,6 +31,24 @@ range_filter_outlier_mm="${APP_TAG_RANGE_FILTER_OUTLIER_MM:-120000}"
 range_continuity_enable="${APP_TAG_RANGE_CONTINUITY_ENABLE:-0}"
 output_filter_rms_mm="${APP_TAG_OUTPUT_FILTER_RMS_MM:-0}"
 output_filter_speed_mm_s="${APP_TAG_OUTPUT_FILTER_SPEED_MM_S:-0}"
+tag_loc_fast_all_valid_enable="${APP_TAG_LOC_FAST_ALL_VALID_ENABLE:-0}"
+sweep_diag_enable="${APP_TAG_SWEEP_DIAG_ENABLE:-0}"
+sweep_diag_period="${APP_TAG_SWEEP_DIAG_PERIOD:-10}"
+tag_console_summary_enable="${APP_TAG_CONSOLE_SUMMARY_ENABLE:-1}"
+tag_verbose_perf="${APP_TAG_VERBOSE_PERF:-1}"
+tag_pending_print_period="${APP_TAG_PENDING_PRINT_PERIOD:-1}"
+tag_imu_sample_period="${APP_TAG_IMU_SAMPLE_PERIOD:-2}"
+tag_ekf_enable="${APP_TAG_EKF_ENABLE:-1}"
+tag_loc_min_quality_percent="${APP_TAG_LOC_MIN_QUALITY_PERCENT:-20}"
+tag_motion_speed_threshold_mm_s="${APP_TAG_MOTION_SPEED_THRESHOLD_MM_S:-100}"
+tag_motion_range_soft_bonus_mm="${APP_TAG_MOTION_RANGE_SOFT_BONUS_MM:-140}"
+tag_motion_range_hard_bonus_mm="${APP_TAG_MOTION_RANGE_HARD_BONUS_MM:-260}"
+tag_motion_ekf_meas_std_mm="${APP_TAG_MOTION_EKF_MEAS_STD_MM:-35}"
+tag_motion_ekf_proc_accel_mm_s2="${APP_TAG_MOTION_EKF_PROC_ACCEL_MM_S2:-1800}"
+tag_motion_ekf_outlier_gate_mm="${APP_TAG_MOTION_EKF_OUTLIER_GATE_MM:-220}"
+tag_motion_imu_delta_threshold_mg="${APP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG:-250}"
+tag_motion_imu_gravity_err_threshold_mg="${APP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG:-140}"
+tag_usb_diag_trace="${APP_TAG_USB_DIAG_TRACE:-1}"
 active_anchor_0_id="${APP_TAG_ACTIVE_ANCHOR_0_ID:-0}"
 active_anchor_1_id="${APP_TAG_ACTIVE_ANCHOR_1_ID:-1}"
 active_anchor_2_id="${APP_TAG_ACTIVE_ANCHOR_2_ID:-4}"
@@ -64,6 +82,24 @@ fi
   printf 'set(APP_TAG_RANGE_CONTINUITY_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${range_continuity_enable}"
   printf 'set(APP_TAG_OUTPUT_FILTER_RMS_MM %s CACHE STRING "Motion tag preload" FORCE)\n' "${output_filter_rms_mm}"
   printf 'set(APP_TAG_OUTPUT_FILTER_SPEED_MM_S %s CACHE STRING "Motion tag preload" FORCE)\n' "${output_filter_speed_mm_s}"
+  printf 'set(APP_TAG_LOC_FAST_ALL_VALID_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_loc_fast_all_valid_enable}"
+  printf 'set(APP_TAG_SWEEP_DIAG_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${sweep_diag_enable}"
+  printf 'set(APP_TAG_SWEEP_DIAG_PERIOD %s CACHE STRING "Motion tag preload" FORCE)\n' "${sweep_diag_period}"
+  printf 'set(APP_TAG_CONSOLE_SUMMARY_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_console_summary_enable}"
+  printf 'set(APP_TAG_VERBOSE_PERF %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_verbose_perf}"
+  printf 'set(APP_TAG_PENDING_PRINT_PERIOD %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_pending_print_period}"
+  printf 'set(APP_TAG_IMU_SAMPLE_PERIOD %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_imu_sample_period}"
+  printf 'set(APP_TAG_EKF_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_ekf_enable}"
+  printf 'set(APP_TAG_LOC_MIN_QUALITY_PERCENT %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_loc_min_quality_percent}"
+  printf 'set(APP_TAG_MOTION_SPEED_THRESHOLD_MM_S %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_motion_speed_threshold_mm_s}"
+  printf 'set(APP_TAG_MOTION_RANGE_SOFT_BONUS_MM %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_motion_range_soft_bonus_mm}"
+  printf 'set(APP_TAG_MOTION_RANGE_HARD_BONUS_MM %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_motion_range_hard_bonus_mm}"
+  printf 'set(APP_TAG_MOTION_EKF_MEAS_STD_MM %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_motion_ekf_meas_std_mm}"
+  printf 'set(APP_TAG_MOTION_EKF_PROC_ACCEL_MM_S2 %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_motion_ekf_proc_accel_mm_s2}"
+  printf 'set(APP_TAG_MOTION_EKF_OUTLIER_GATE_MM %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_motion_ekf_outlier_gate_mm}"
+  printf 'set(APP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_motion_imu_delta_threshold_mg}"
+  printf 'set(APP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_motion_imu_gravity_err_threshold_mg}"
+  printf 'set(APP_TAG_USB_DIAG_TRACE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_usb_diag_trace}"
   printf 'set(APP_TAG_ACTIVE_ANCHOR_0_ID %s CACHE STRING "Motion tag preload" FORCE)\n' "${active_anchor_0_id}"
   printf 'set(APP_TAG_ACTIVE_ANCHOR_1_ID %s CACHE STRING "Motion tag preload" FORCE)\n' "${active_anchor_1_id}"
   printf 'set(APP_TAG_ACTIVE_ANCHOR_2_ID %s CACHE STRING "Motion tag preload" FORCE)\n' "${active_anchor_2_id}"
@@ -112,7 +148,7 @@ west build \
   -DAPP_ALT_SS_TWR_LIGHT_TDMA_ENABLE="${alt_ss_twr_light_tdma_enable}" \
   -DAPP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE="${alt_ss_twr_bcast_immediate_tx_enable}" \
   -DAPP_ALT_SS_TWR_BCAST_PREWRITE_TX_ENABLE="${alt_ss_twr_bcast_prewrite_tx_enable}" \
-  -DAPP_TAG_USB_DIAG_TRACE=1 \
+  -DAPP_TAG_USB_DIAG_TRACE="${tag_usb_diag_trace}" \
   -DAPP_TAG_BLE_ENABLE=1 \
   -DCONFIG_BT_DEVICE_NAME=\"${device_name}\" \
   -DAPP_TAG_BLE_OTA_ENABLE=1 \
@@ -140,11 +176,11 @@ west build \
   -DAPP_TAG_FULL_SWEEP_INTERVAL=8 \
   -DAPP_TAG_TRACK_ANCHOR_COUNT=6 \
   -DAPP_TAG_SUMMARY_PERIOD=1 \
-  -DAPP_TAG_PENDING_PRINT_PERIOD=1 \
-  -DAPP_TAG_IMU_SAMPLE_PERIOD=2 \
+  -DAPP_TAG_PENDING_PRINT_PERIOD="${tag_pending_print_period}" \
+  -DAPP_TAG_IMU_SAMPLE_PERIOD="${tag_imu_sample_period}" \
   -DAPP_TAG_VERBOSE_RANGING=0 \
   -DAPP_TAG_VERBOSE_MEASUREMENTS=0 \
-  -DAPP_TAG_EKF_ENABLE=1 \
+  -DAPP_TAG_EKF_ENABLE="${tag_ekf_enable}" \
   -DAPP_TAG_EKF_MEAS_STD_MM=35 \
   -DAPP_TAG_EKF_RESIDUAL_GAIN_PCT=0 \
   -DAPP_TAG_EKF_PROC_ACCEL_MM_S2=500 \
@@ -157,16 +193,21 @@ west build \
   -DAPP_TAG_RANGE_CONTINUITY_ENABLE="${range_continuity_enable}" \
   -DAPP_TAG_OUTPUT_FILTER_RMS_MM="${output_filter_rms_mm}" \
   -DAPP_TAG_OUTPUT_FILTER_SPEED_MM_S="${output_filter_speed_mm_s}" \
-  -DAPP_TAG_LOC_MIN_QUALITY_PERCENT=20 \
+  -DAPP_TAG_LOC_FAST_ALL_VALID_ENABLE="${tag_loc_fast_all_valid_enable}" \
+  -DAPP_TAG_SWEEP_DIAG_ENABLE="${sweep_diag_enable}" \
+  -DAPP_TAG_SWEEP_DIAG_PERIOD="${sweep_diag_period}" \
+  -DAPP_TAG_CONSOLE_SUMMARY_ENABLE="${tag_console_summary_enable}" \
+  -DAPP_TAG_VERBOSE_PERF="${tag_verbose_perf}" \
+  -DAPP_TAG_LOC_MIN_QUALITY_PERCENT="${tag_loc_min_quality_percent}" \
   -DAPP_TAG_MOTION_FULL_SWEEP_INTERVAL=0 \
-  -DAPP_TAG_MOTION_SPEED_THRESHOLD_MM_S=100 \
-  -DAPP_TAG_MOTION_RANGE_SOFT_BONUS_MM=140 \
-  -DAPP_TAG_MOTION_RANGE_HARD_BONUS_MM=260 \
-  -DAPP_TAG_MOTION_EKF_MEAS_STD_MM=35 \
-  -DAPP_TAG_MOTION_EKF_PROC_ACCEL_MM_S2=1800 \
-  -DAPP_TAG_MOTION_EKF_OUTLIER_GATE_MM=220 \
-  -DAPP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG=250 \
-  -DAPP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG=140 \
+  -DAPP_TAG_MOTION_SPEED_THRESHOLD_MM_S="${tag_motion_speed_threshold_mm_s}" \
+  -DAPP_TAG_MOTION_RANGE_SOFT_BONUS_MM="${tag_motion_range_soft_bonus_mm}" \
+  -DAPP_TAG_MOTION_RANGE_HARD_BONUS_MM="${tag_motion_range_hard_bonus_mm}" \
+  -DAPP_TAG_MOTION_EKF_MEAS_STD_MM="${tag_motion_ekf_meas_std_mm}" \
+  -DAPP_TAG_MOTION_EKF_PROC_ACCEL_MM_S2="${tag_motion_ekf_proc_accel_mm_s2}" \
+  -DAPP_TAG_MOTION_EKF_OUTLIER_GATE_MM="${tag_motion_ekf_outlier_gate_mm}" \
+  -DAPP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG="${tag_motion_imu_delta_threshold_mg}" \
+  -DAPP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG="${tag_motion_imu_gravity_err_threshold_mg}" \
   ${TAG_CMAKE_ARGS:-}
 
 python3 scripts/write_build_source.py \

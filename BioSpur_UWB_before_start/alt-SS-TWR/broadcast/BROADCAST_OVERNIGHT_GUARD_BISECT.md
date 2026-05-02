@@ -622,3 +622,56 @@ Next hardware step, when explicitly approved:
   - Anchor A receives and matches broadcast polls correctly, but `DWT_START_TX_DELAYED` is called too late for `guard=1200`.
   - Current Anchor responder hot path requires roughly 1.6-1.8 ms before delayed TX start; g1200 is below the measured implementation limit.
   - Immediate stable path is guard >= ~1800-2000, or optimize the Anchor TX hot path before retrying g1200/g800.
+
+## 2026-05-02 a13 Anchor hot-path deployment
+
+- Implemented Anchor responder hot-path optimization in `src/ss_twr_resp.c` only.
+  - Pre-built the response frame template at responder init.
+  - Removed pre-`starttx(DELAYED)` `forcetrxoff()` and broad status clear from the matched-poll path.
+  - Moved stale status cleanup and diagnostic status reads until after `dwt_starttx(DWT_START_TX_DELAYED)` is issued.
+  - Gated the expensive slack read behind profile/frame-diag builds.
+  - Left Tag firmware, BLE DFU trigger, OTA/SMP/MCUboot, production workspace, and `unicast/` untouched.
+- Built Anchor image:
+  - Marker: `alt-bcast-a13-nosleep-hotpath-g1200-r1000`.
+  - Build dir: `build-anchor-unified-ota-alt-bcast-a13-nosleep-hotpath-g1200-r1000`.
+  - Build parameters: g1200/r1000, frame filter on, coop sleep 0, responder/profile printk disabled.
+- Built and flashed Master_Anchor B120 carrier:
+  - Build dir: `build-master-control-b120-m1-master-anchor-lfrc-alt-bcast-a13-nosleep-hotpath-g1200-r1000-carrier`.
+  - LFRC assert passed.
+  - Flash used explicit SNR `960148546`.
+- Staged Anchor A OTA:
+  - Directory: `logs/alt_bcast_a13_hotpath_anchorA_ota_20260502_004853`.
+  - Upload reached 100%, `dfu_ready_seen=true`, `ota_upload_complete_seen=true`, `ota_success_seen=true`.
+  - Post VERSION remains `actual=-`; treated as known Anchor version readback issue.
+- Post-A responder verify:
+  - Directory: `logs/anchor_ready_force_after_a13_anchorA_20260502_004958`.
+  - Result: `ready=8/8`.
+- 30s BSF66F-only staged probe:
+  - Directory: `logs/alt_bcast_a13_hotpath_anchorA_BSF66F_probe30_20260502_005206`.
+  - Anchor A result changed from a12 `tx_ok=0 / tx_miss=494` to Tag-side `A ok=108 timeout=2`.
+  - E was still mostly timeout at this point (`E timeout=111`) because only A had a13 and E is rank0 for the E/F/G/H group.
+  - Verdict: a13 hot path fixed the rank0 transmit miss for Anchor A, so staged rollout to B-H was justified.
+- B-H OTA to a13:
+  - Directory: `logs/alt_bcast_a13_hotpath_anchor_BH_ota_20260502_005522`.
+  - B-H all reported `ota_success_observed` with upload/reset success signals.
+  - Script rc remained 3 only because post VERSION readback is `actual=-`.
+- Post-fleet responder verify:
+  - Directory: `logs/anchor_ready_force_after_a13_all_20260502_010048`.
+  - Result: `ready=8/8`.
+- 60s 3-tag calibration-style probe:
+  - Directory: `logs/alt_bcast_a13_hotpath_all_3tag_probe60_20260502_010247`.
+  - Profiles: BSF66F static, BS2DCE roto, BSDC91 roto.
+  - `positions_all=0`, `tf_all=0`; this run produced CM/CF calibration logs rather than TS position rows.
+  - UWB ranging result is strong:
+    - `cm_all=3344`, `ok=3282`, `timeout=62` (~98.1% ok).
+    - Per-tag ok/timeout: BSF66F 1338/26, BS2DCE 880/16, BSDC91 1064/20.
+    - Per-anchor ok/timeout:
+      A 577/4, B 506/11, C 486/12, D 384/13,
+      E 360/2, F 471/12, G 249/3, H 249/5.
+    - `cf_all=981`, `solve_reason`: success=633, pending=348.
+    - `first_to_last_us=0` for all CF rows, `poll_count=4`.
+  - Listener in this run saw limited parsed UL (`A=1`, `C=1`, `E=1`, `H=61`), but Tag-side CM/CF proves all anchors are responding and being ranged.
+- An attempted all-motion 60s run was invalid for this capture script because startup CM probe expects CM rows; it failed at startup with `ok=0/8` in motion profile before collecting data.
+- Current verdict:
+  - The Anchor hot-path issue is solved at g1200 for the deployed a13 image.
+  - The remaining issue is not UWB response visibility; it is selecting/running the correct host/firmware mode that emits TS/position rows rather than only calibration CM/CF rows.

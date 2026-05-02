@@ -28,6 +28,7 @@ struct uwb_tag_location_result {
 enum uwb_tag_loc_subset_policy {
     UWB_TAG_LOC_SUBSET_POLICY_MIN4 = 0,
     UWB_TAG_LOC_SUBSET_POLICY_EXACT4 = 1,
+    UWB_TAG_LOC_SUBSET_POLICY_ALL_VALID = 2,
 };
 
 int uwb_tag_loc_solve(const struct uwb_tag_measurement *measurements,

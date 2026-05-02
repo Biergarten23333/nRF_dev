@@ -563,6 +563,52 @@ int uwb_tag_loc_solve(const struct uwb_tag_measurement *measurements,
     uwb_tag_loc_prune_candidates(candidates, &candidate_count);
     uwb_tag_loc_compute_bounds(candidates, candidate_count, &bounds);
 
+    if (subset_policy == UWB_TAG_LOC_SUBSET_POLICY_ALL_VALID) {
+        uint32_t mask;
+        struct uwb_tag_loc_vector estimate;
+        double rms_m;
+        double max_residual_m;
+        uint8_t lower_count;
+        uint8_t upper_count;
+
+        if (candidate_count < UWB_TAG_LOC_MIN_ANCHORS ||
+            candidate_count >= (sizeof(mask) * 8U)) {
+            return -1;
+        }
+
+        mask = (1UL << candidate_count) - 1UL;
+        if (!uwb_tag_loc_linear_seed(candidates, candidate_count, mask,
+                                     &estimate)) {
+            return -1;
+        }
+        if (!uwb_tag_loc_refine_gauss_newton(candidates, candidate_count, mask,
+                                             &estimate)) {
+            return -1;
+        }
+        uwb_tag_loc_compute_residuals(candidates, candidate_count, mask,
+                                      &estimate, &rms_m, &max_residual_m,
+                                      &lower_count, &upper_count);
+        if (uwb_tag_loc_subset_max_tetra_volume_m3(candidates, candidate_count,
+                                                   mask) <
+            UWB_TAG_LOC_MIN_TETRA_VOLUME_M3) {
+            return -1;
+        }
+
+        result->valid = true;
+        result->used_anchor_count = (uint8_t)candidate_count;
+        result->lower_anchor_count = lower_count;
+        result->upper_anchor_count = upper_count;
+        result->x_mm = (int32_t)lround(estimate.x * 1000.0);
+        result->y_mm = (int32_t)lround(estimate.y * 1000.0);
+        result->z_mm = (int32_t)lround(estimate.z * 1000.0);
+        result->residual_rms_mm = (uint32_t)lround(rms_m * 1000.0);
+        result->residual_max_mm = (uint32_t)lround(max_residual_m * 1000.0);
+        for (size_t i = 0U; i < candidate_count; ++i) {
+            result->anchor_ids[i] = candidates[i].anchor_id;
+        }
+        return 0;
+    }
+
     /*
      * Prefer 3D-observable subsets (>=2 lower and >=2 upper anchors).
      * If the environment temporarily drops upper-plane visibility, degrade
