@@ -38,8 +38,9 @@ def anchor_id(value: str | int) -> int | None:
     return i if 0 <= i < 8 else None
 
 
-def read_inter_anchor_pairs(path: Path, sigma_floor_mm: float, min_quality: float) -> list[dict[str, Any]]:
+def read_inter_anchor_pairs(path: Path, sigma_floor_mm: float, min_quality: float, aggregate: str) -> list[dict[str, Any]]:
     groups: dict[tuple[int, int], list[dict[str, float]]] = defaultdict(list)
+    raw_rows: list[dict[str, Any]] = []
     with path.open(encoding="utf-8") as f:
         for row in csv.DictReader(f):
             ai = anchor_id(row.get("a", ""))
@@ -54,7 +55,23 @@ def read_inter_anchor_pairs(path: Path, sigma_floor_mm: float, min_quality: floa
             if not math.isfinite(d) or d <= 0 or q < min_quality:
                 continue
             i, j = sorted((ai, aj))
+            if aggregate == "raw":
+                raw_rows.append(
+                    {
+                        "i": i,
+                        "j": j,
+                        "range_mm": d,
+                        "sigma_mm": sigma_floor_mm,
+                        "quality": q,
+                        "n": 1,
+                        "source": str(path),
+                        "master": row.get("master") or "",
+                    }
+                )
             groups[(i, j)].append({"range_mm": d, "quality": q})
+
+    if aggregate == "raw":
+        return raw_rows
 
     out: list[dict[str, Any]] = []
     for (i, j), rows in sorted(groups.items()):
@@ -78,14 +95,15 @@ def find_recv_dirs(paths: list[Path]) -> list[Path]:
     out: list[Path] = []
     for p in paths:
         if p.is_file():
-            if p.name in {"cm_all.csv", "positions_all.csv", "raw.log"}:
+            if p.name in {"cm_all.csv", "tr_all.csv", "positions_all.csv", "raw.log"}:
                 out.append(p.parent)
             continue
         if not p.exists():
             continue
-        if (p / "cm_all.csv").exists() or (p / "positions_all.csv").exists():
+        if (p / "cm_all.csv").exists() or (p / "tr_all.csv").exists() or (p / "positions_all.csv").exists():
             out.append(p)
         out.extend(sorted(x.parent for x in p.rglob("cm_all.csv")))
+        out.extend(sorted(x.parent for x in p.rglob("tr_all.csv")))
     # Stable unique order.
     seen = set()
     uniq = []
@@ -134,7 +152,86 @@ def read_tag_ranges_from_cm(recv_dir: Path, sigma_mm: float, min_quality: float)
     return out
 
 
+def read_tag_ranges_from_tr(recv_dir: Path, sigma_mm: float, min_quality: float) -> list[dict[str, Any]]:
+    tr = recv_dir / "tr_all.csv"
+    if not tr.exists():
+        return []
+    out: list[dict[str, Any]] = []
+    with tr.open(encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            try:
+                status = (row.get("status") or "").strip().lower()
+                valid = str(row.get("valid") or "").strip().lower()
+                ok = status in {"o", "ok", "success", "valid", "1"} or valid in {"1", "true", "yes"}
+                rng = float(row.get("range_mm") or row.get("raw_mm") or "")
+                q = float(row.get("quality_percent") or row.get("quality") or 100.0)
+                aid = anchor_id(row.get("anchor_id", ""))
+            except ValueError:
+                continue
+            if aid is None or not ok or q < min_quality or not math.isfinite(rng) or rng <= 0:
+                continue
+            t_raw = row.get("host_epoch_s") or row.get("host_elapsed_s") or row.get("sweep") or "0"
+            try:
+                t = float(t_raw)
+            except ValueError:
+                t = 0.0
+            out.append(
+                {
+                    "t": t,
+                    "tag": row.get("peer_name") or row.get("tag_id") or "",
+                    "sweep": row.get("sweep") or "",
+                    "anchor": aid,
+                    "range_mm": rng,
+                    "sigma_mm": sigma_mm,
+                    "quality": q,
+                    "source": str(tr),
+                }
+            )
+    return out
+
+
 TS_RE = re.compile(r"(?:^|notify:\s*)TS;")
+TR_RAW_RE = re.compile(
+    r"\[RECV\]\s+(?P<peer>\S+)\s+notify:\s+TR;2;(?P<sweep>[^;]+);(?P<plan>[^;]*);"
+    r"(?P<pmode>[^;]*);(?P<mask>[^;]*);(?P<valid>[^;]*);"
+    r"(?P<raw>[^;]*);(?P<filt>[^;]*);(?P<q>[^;]*);(?P<status>[OTXRE]{8})"
+)
+
+
+def read_tag_ranges_from_raw_tr(recv_dir: Path, sigma_mm: float, min_quality: float) -> list[dict[str, Any]]:
+    raw = recv_dir / "raw.log"
+    if not raw.exists():
+        return []
+    out: list[dict[str, Any]] = []
+    text = raw.read_text(encoding="utf-8", errors="ignore")
+    for m in TR_RAW_RE.finditer(text):
+        peer = m.group("peer")
+        sweep = m.group("sweep")
+        try:
+            ranges = [float(x) for x in m.group("filt").split(",")]
+            qualities = [float(x) for x in m.group("q").split(",")]
+            statuses = m.group("status")
+            t = float(sweep)
+        except ValueError:
+            t = 0.0
+        if len(ranges) != 8 or len(qualities) != 8 or len(statuses) != 8:
+            continue
+        for aid, (rng, q, status) in enumerate(zip(ranges, qualities, statuses)):
+            if status != "O" or q < min_quality or not math.isfinite(rng) or rng <= 0:
+                continue
+            out.append(
+                {
+                    "t": t,
+                    "tag": peer,
+                    "sweep": sweep,
+                    "anchor": aid,
+                    "range_mm": rng,
+                    "sigma_mm": sigma_mm,
+                    "quality": q,
+                    "source": str(raw),
+                }
+            )
+    return out
 
 
 def read_tag_position_inits(recv_dir: Path, max_rows: int) -> list[dict[str, Any]]:
@@ -176,6 +273,7 @@ def main() -> int:
     ap.add_argument("--tag-capture", action="append", default=[], help="Broadcast recv dir/log root containing cm_all.csv.")
     ap.add_argument("--out", required=True, help="Output JSON path.")
     ap.add_argument("--inter-sigma-floor-mm", type=float, default=30.0)
+    ap.add_argument("--inter-aggregate", choices=("median", "raw"), default="median")
     ap.add_argument("--inter-min-quality", type=float, default=80.0)
     ap.add_argument("--tag-sigma-mm", type=float, default=80.0)
     ap.add_argument("--tag-min-quality", type=float, default=0.0)
@@ -186,13 +284,15 @@ def main() -> int:
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    inter = read_inter_anchor_pairs(pairs_csv, args.inter_sigma_floor_mm, args.inter_min_quality)
+    inter = read_inter_anchor_pairs(pairs_csv, args.inter_sigma_floor_mm, args.inter_min_quality, args.inter_aggregate)
     recv_dirs = find_recv_dirs([Path(p) for p in args.tag_capture])
 
     tag_ranges: list[dict[str, Any]] = []
     tag_position_inits: list[dict[str, Any]] = []
     for d in recv_dirs:
         tag_ranges.extend(read_tag_ranges_from_cm(d, args.tag_sigma_mm, args.tag_min_quality))
+        tag_ranges.extend(read_tag_ranges_from_tr(d, args.tag_sigma_mm, args.tag_min_quality))
+        tag_ranges.extend(read_tag_ranges_from_raw_tr(d, args.tag_sigma_mm, args.tag_min_quality))
         remaining = max(0, args.max_position_inits - len(tag_position_inits))
         if remaining:
             tag_position_inits.extend(read_tag_position_inits(d, remaining))
@@ -210,6 +310,7 @@ def main() -> int:
         },
         "stats": {
             "inter_anchor_ranges": len(inter),
+            "inter_aggregate": args.inter_aggregate,
             "tag_anchor_ranges": len(tag_ranges),
             "tag_position_initializers": len(tag_position_inits),
             "warning": (

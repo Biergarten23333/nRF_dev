@@ -6,6 +6,7 @@ import json
 import math
 from collections import defaultdict
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -18,263 +19,399 @@ ANCHORS = "ABCDEFGH"
 def load_layout(path: Path) -> np.ndarray:
     raw = json.loads(path.read_text(encoding="utf-8"))
     coords = np.zeros((8, 3), dtype=float)
-    for ent in raw["anchors"]:
-        if "label" in ent:
-            idx = ANCHORS.index(str(ent["label"]).upper())
-        else:
-            idx = int(ent["id"])
-        coords[idx] = [float(ent["x_mm"]), float(ent["y_mm"]), float(ent["z_mm"])]
+    if "anchors" in raw:
+        for ent in raw["anchors"]:
+            idx = ANCHORS.index(str(ent["label"]).upper()) if "label" in ent else int(ent["id"])
+            coords[idx] = [float(ent["x_mm"]), float(ent["y_mm"]), float(ent["z_mm"])]
+    elif "layout" in raw:
+        for key, val in raw["layout"].items():
+            coords[int(key)] = [float(val[0]), float(val[1]), float(val[2])]
+    else:
+        raise KeyError(f"{path} has neither 'anchors' nor APOS 'layout'")
     return coords
 
 
-def pack(anchors: np.ndarray, tag_positions: np.ndarray, delays: np.ndarray | None) -> np.ndarray:
-    vals: list[float] = []
-    # Gauge-fixed anchors:
-    # A=(0,0,0), B=(Bx,0,0), D=(Dx,Dy,0), C/E/F/G/H free as needed.
-    vals.append(float(anchors[1, 0]))
-    vals.extend(anchors[2].tolist())
-    vals.extend([float(anchors[3, 0]), float(anchors[3, 1])])
-    for idx in (4, 5, 6, 7):
-        vals.extend(anchors[idx].tolist())
-    vals.extend(tag_positions.reshape(-1).tolist())
-    if delays is not None:
-        # D0 is fixed to zero; optimize D1..D7.
-        vals.extend(delays[1:].tolist())
-    return np.asarray(vals, dtype=float)
+def tag_names_from_ranges(tag_ranges: list[dict[str, Any]]) -> list[str]:
+    names = sorted({str(r.get("tag", "")).strip() for r in tag_ranges if str(r.get("tag", "")).strip()})
+    return names
 
 
-def unpack(x: np.ndarray, n_tags: int, with_delays: bool) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
-    idx = 0
-    anchors = np.zeros((8, 3), dtype=float)
-    anchors[1] = [x[idx], 0.0, 0.0]
-    idx += 1
-    anchors[2] = x[idx : idx + 3]
-    idx += 3
-    anchors[3] = [x[idx], x[idx + 1], 0.0]
-    idx += 2
-    for aid in (4, 5, 6, 7):
-        anchors[aid] = x[idx : idx + 3]
-        idx += 3
-    tag_positions = x[idx : idx + 3 * n_tags].reshape((n_tags, 3)).copy()
-    idx += 3 * n_tags
-    delays = None
-    if with_delays:
-        delays = np.zeros((8,), dtype=float)
-        delays[1:] = x[idx : idx + 7]
-    return anchors, tag_positions, delays
-
-
-def make_tag_keys(tag_ranges: list[dict[str, Any]], subsample: int) -> tuple[list[tuple[str, str]], dict[tuple[str, str], int]]:
-    grouped: dict[tuple[str, str], int] = defaultdict(int)
+def build_tag_frame_map(
+    tag_ranges: list[dict[str, Any]],
+    tag_to_id: dict[str, int],
+    subsample: int,
+) -> tuple[list[tuple[int, str]], dict[tuple[int, str], int], list[dict[str, Any]]]:
+    grouped: dict[tuple[int, str], int] = defaultdict(int)
     for r in tag_ranges:
-        grouped[(str(r.get("tag", "")), str(r.get("sweep") or r.get("t")))] += 1
+        tag = str(r.get("tag", "")).strip()
+        if tag not in tag_to_id:
+            continue
+        key = (tag_to_id[tag], str(r.get("sweep") or r.get("t")))
+        grouped[key] += 1
     keys = [k for k, n in grouped.items() if n >= 4]
     keys.sort()
     if subsample > 1:
         keys = keys[::subsample]
-    return keys, {k: i for i, k in enumerate(keys)}
+    frame_map = {k: i for i, k in enumerate(keys)}
+    filtered = []
+    for r in tag_ranges:
+        tag = str(r.get("tag", "")).strip()
+        if tag not in tag_to_id:
+            continue
+        key = (tag_to_id[tag], str(r.get("sweep") or r.get("t")))
+        if key in frame_map:
+            rr = dict(r)
+            rr["tag_id"] = tag_to_id[tag]
+            rr["frame_key"] = key
+            filtered.append(rr)
+    return keys, frame_map, filtered
 
 
 def initial_tag_positions(
-    keys: list[tuple[str, str]],
+    frame_keys: list[tuple[int, str]],
+    frame_map: dict[tuple[int, str], int],
+    tag_ranges: list[dict[str, Any]],
     tag_pos_rows: list[dict[str, Any]],
-    anchor_init: np.ndarray,
+    tag_to_id: dict[str, int],
+    anchor_xyz: np.ndarray,
 ) -> np.ndarray:
-    by_key: dict[tuple[str, str], np.ndarray] = {}
+    by_key: dict[tuple[int, str], np.ndarray] = {}
     for r in tag_pos_rows:
-        key = (str(r.get("tag", "")), str(r.get("sweep") or r.get("t")))
+        tag = str(r.get("tag", "")).strip()
+        if tag not in tag_to_id:
+            continue
+        key = (tag_to_id[tag], str(r.get("sweep") or r.get("t")))
         try:
             by_key[key] = np.array([float(r["x_mm"]), float(r["y_mm"]), float(r["z_mm"])], dtype=float)
         except Exception:
             pass
-    centroid = np.mean(anchor_init, axis=0)
-    centroid[2] = max(500.0, min(1400.0, centroid[2]))
-    out = np.zeros((len(keys), 3), dtype=float)
-    for i, key in enumerate(keys):
-        out[i] = by_key.get(key, centroid)
+
+    ranges_by_key: dict[tuple[int, str], list[dict[str, Any]]] = defaultdict(list)
+    for r in tag_ranges:
+        ranges_by_key[r["frame_key"]].append(r)
+
+    centroid = np.mean(anchor_xyz, axis=0)
+    centroid[2] = max(300.0, min(1500.0, centroid[2]))
+    out = np.zeros((len(frame_keys), 3), dtype=float)
+    for key in frame_keys:
+        idx = frame_map[key]
+        if key in by_key:
+            out[idx] = by_key[key]
+            continue
+        rows = ranges_by_key.get(key) or []
+        if not rows:
+            out[idx] = centroid
+            continue
+        weights = []
+        points = []
+        for r in rows:
+            aid = int(r["anchor"])
+            rng = max(float(r["range_mm"]), 100.0)
+            weights.append(1.0 / rng)
+            points.append(anchor_xyz[aid])
+        out[idx] = np.average(np.asarray(points, dtype=float), axis=0, weights=np.asarray(weights, dtype=float))
     return out
+
+
+def pack_variables(anchor_xyz: np.ndarray, d_anchor: np.ndarray, d_tag: np.ndarray, tag_positions: np.ndarray) -> np.ndarray:
+    vals = np.zeros(33 + len(tag_positions) * 3, dtype=float)
+    vals[0:24] = anchor_xyz.reshape(-1)
+    vals[24:31] = d_anchor[1:8]
+    vals[31:33] = d_tag[1:3]
+    vals[33:] = tag_positions.reshape(-1)
+    return vals
+
+
+def variable_bounds(n_tag_frames: int, delay_bound_mm: float) -> tuple[np.ndarray, np.ndarray]:
+    n = 33 + n_tag_frames * 3
+    lower = np.full(n, -np.inf, dtype=float)
+    upper = np.full(n, np.inf, dtype=float)
+    lower[24:33] = -abs(delay_bound_mm)
+    upper[24:33] = abs(delay_bound_mm)
+    return lower, upper
+
+
+def unpack_variables(x: np.ndarray, n_tag_frames: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    anchor_xyz = x[0:24].reshape((8, 3)).copy()
+    d_anchor = np.zeros(8, dtype=float)
+    d_anchor[1:8] = x[24:31]
+    d_tag = np.zeros(3, dtype=float)
+    d_tag[1:3] = x[31:33]
+    tag_positions = x[33:].reshape((n_tag_frames, 3)).copy()
+    return anchor_xyz, d_anchor, d_tag, tag_positions
 
 
 def residuals(
     x: np.ndarray,
-    *,
-    n_tags: int,
-    with_delays: bool,
-    inter: list[dict[str, Any]],
+    inter_ranges: list[dict[str, Any]],
     tag_ranges: list[dict[str, Any]],
-    tag_key_to_idx: dict[tuple[str, str], int],
-    lower_sigma: float,
-    upper_sigma: float,
-    band_prior: float,
-    band_sigma: float,
-    delay_sigma: float,
+    frame_map: dict[tuple[int, str], int],
+    config: SimpleNamespace,
 ) -> np.ndarray:
-    anchors, tags, delays = unpack(x, n_tags, with_delays)
+    anchor_xyz, d_anchor, d_tag, tag_pos = unpack_variables(x, config.n_tag_frames)
     res: list[float] = []
-    d = delays if delays is not None else np.zeros((8,), dtype=float)
 
-    for obs in inter:
+    for obs in inter_ranges:
         i = int(obs["i"])
         j = int(obs["j"])
-        pred = float(np.linalg.norm(anchors[i] - anchors[j]) + d[i] + d[j])
-        sig = max(1.0, float(obs.get("sigma_mm") or 50.0))
-        res.append((pred - float(obs["range_mm"])) / sig)
+        pred = float(np.linalg.norm(anchor_xyz[i] - anchor_xyz[j]) + d_anchor[i] + d_anchor[j])
+        res.append((pred - float(obs["range_mm"])) / config.sigma_inter)
 
     for obs in tag_ranges:
-        key = (str(obs.get("tag", "")), str(obs.get("sweep") or obs.get("t")))
-        ti = tag_key_to_idx.get(key)
-        if ti is None:
-            continue
         aid = int(obs["anchor"])
-        pred = float(np.linalg.norm(tags[ti] - anchors[aid]) + d[aid])
-        sig = max(1.0, float(obs.get("sigma_mm") or 80.0))
-        res.append((pred - float(obs["range_mm"])) / sig)
+        tid = int(obs["tag_id"])
+        frame_idx = frame_map[obs["frame_key"]]
+        pred = float(np.linalg.norm(tag_pos[frame_idx] - anchor_xyz[aid]) + d_anchor[aid] + d_tag[tid])
+        res.append((pred - float(obs["range_mm"])) / config.sigma_tag)
 
-    # Weak high-DOF geometry priors: height bands only, no rectangle/column prior.
-    if lower_sigma > 0:
-        res.append(float(anchors[2, 2]) / lower_sigma)
-    if upper_sigma > 0:
-        uz = anchors[4:8, 2]
-        res.extend(((uz - np.mean(uz)) / upper_sigma).tolist())
-    if band_sigma > 0:
-        lower_mean = float(np.mean(anchors[:4, 2]))
-        upper_mean = float(np.mean(anchors[4:8, 2]))
-        res.append(((upper_mean - lower_mean) - band_prior) / band_sigma)
-    if with_delays and delay_sigma > 0 and delays is not None:
-        res.extend((delays[1:] / delay_sigma).tolist())
+    # Gauge only: define coordinate frame without imposing a rectangular box.
+    res.extend((anchor_xyz[0] / config.sigma_gauge).tolist())  # A at origin.
+    res.append(float(anchor_xyz[1, 1]) / config.sigma_gauge)   # B on x-axis.
+    res.append(float(anchor_xyz[1, 2]) / config.sigma_gauge)
+    res.append(float(anchor_xyz[2, 2]) / config.sigma_gauge)   # Fix remaining rotation about x-axis.
+
+    # Soft delay priors. d_anchor[0] and d_tag[0] are fixed by packing.
+    res.extend((d_anchor[1:] / config.sigma_delay_prior).tolist())
+    res.extend((d_tag[1:] / config.sigma_delay_prior).tolist())
     return np.asarray(res, dtype=float)
 
 
-def edge_stats(anchors: np.ndarray, delays: np.ndarray, inter: list[dict[str, Any]]) -> dict[str, Any]:
-    errs = []
-    per = []
-    for obs in inter:
+def split_residuals(
+    anchor_xyz: np.ndarray,
+    d_anchor: np.ndarray,
+    d_tag: np.ndarray,
+    tag_positions: np.ndarray,
+    inter_ranges: list[dict[str, Any]],
+    tag_ranges: list[dict[str, Any]],
+    frame_map: dict[tuple[int, str], int],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    inter = []
+    for obs in inter_ranges:
         i = int(obs["i"])
         j = int(obs["j"])
-        pred = float(np.linalg.norm(anchors[i] - anchors[j]) + delays[i] + delays[j])
+        pred = float(np.linalg.norm(anchor_xyz[i] - anchor_xyz[j]) + d_anchor[i] + d_anchor[j])
         err = pred - float(obs["range_mm"])
-        errs.append(err)
-        per.append({"pair": f"{ANCHORS[i]}-{ANCHORS[j]}", "err_mm": err, "abs_err_mm": abs(err)})
-    arr = np.asarray(errs, dtype=float)
-    per.sort(key=lambda r: r["abs_err_mm"], reverse=True)
-    return {
-        "rms_mm": float(np.sqrt(np.mean(arr * arr))) if arr.size else 0.0,
-        "top_errors": per[:10],
-    }
-
-
-def tag_stats(anchors: np.ndarray, tags: np.ndarray, delays: np.ndarray, tag_ranges: list[dict[str, Any]], key_map: dict[tuple[str, str], int]) -> dict[str, Any]:
-    errs = []
-    by_anchor: dict[int, list[float]] = defaultdict(list)
+        inter.append({"pair": f"{ANCHORS[i]}-{ANCHORS[j]}", "err_mm": err, "abs_err_mm": abs(err)})
+    tag = []
     for obs in tag_ranges:
-        key = (str(obs.get("tag", "")), str(obs.get("sweep") or obs.get("t")))
-        ti = key_map.get(key)
-        if ti is None:
-            continue
         aid = int(obs["anchor"])
-        pred = float(np.linalg.norm(tags[ti] - anchors[aid]) + delays[aid])
+        tid = int(obs["tag_id"])
+        frame_idx = frame_map[obs["frame_key"]]
+        pred = float(np.linalg.norm(tag_positions[frame_idx] - anchor_xyz[aid]) + d_anchor[aid] + d_tag[tid])
         err = pred - float(obs["range_mm"])
-        errs.append(err)
-        by_anchor[aid].append(err)
-    arr = np.asarray(errs, dtype=float)
-    return {
-        "rms_mm": float(np.sqrt(np.mean(arr * arr))) if arr.size else 0.0,
-        "count": int(arr.size),
-        "per_anchor_rms_mm": {
-            ANCHORS[i]: float(np.sqrt(np.mean(np.asarray(v) ** 2))) for i, v in sorted(by_anchor.items())
-        },
-    }
+        tag.append(
+            {
+                "tag_id": tid,
+                "tag_name": str(obs.get("tag", "")),
+                "anchor_id": aid,
+                "anchor": ANCHORS[aid],
+                "err_mm": err,
+                "abs_err_mm": abs(err),
+            }
+        )
+    inter.sort(key=lambda r: r["abs_err_mm"], reverse=True)
+    tag.sort(key=lambda r: r["abs_err_mm"], reverse=True)
+    return inter, tag
+
+
+def rms(vals: list[float]) -> float:
+    arr = np.asarray(vals, dtype=float)
+    return float(np.sqrt(np.mean(arr * arr))) if arr.size else 0.0
+
+
+def per_anchor_tag_rms(tag_errors: list[dict[str, Any]]) -> dict[str, float]:
+    groups: dict[str, list[float]] = defaultdict(list)
+    for r in tag_errors:
+        groups[str(r["anchor"])].append(float(r["err_mm"]))
+    return {k: rms(v) for k, v in sorted(groups.items())}
+
+
+def per_tag_rms(tag_errors: list[dict[str, Any]]) -> dict[str, float]:
+    groups: dict[str, list[float]] = defaultdict(list)
+    for r in tag_errors:
+        groups[str(r["tag_name"])].append(float(r["err_mm"]))
+    return {k: rms(v) for k, v in sorted(groups.items())}
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="AutoPos V4 Phase A/B SciPy fusion solver.")
+    ap = argparse.ArgumentParser(description="AutoPos V4 joint anchor/tag delay fusion solver.")
     ap.add_argument("--data", required=True, help="V4 data JSON from prepare_v4_data.py")
     ap.add_argument("--init-layout", required=True, help="Initial anchor layout JSON")
     ap.add_argument("--output", required=True, help="Output layout JSON")
-    ap.add_argument("--phase", choices=("A", "B"), default="A", help="A=no delay variables, B=anchor delay variables")
     ap.add_argument("--tag-subsample", type=int, default=10)
-    ap.add_argument("--lower-plane-sigma-mm", type=float, default=140.0)
-    ap.add_argument("--upper-level-sigma-mm", type=float, default=120.0)
-    ap.add_argument("--band-separation-prior-mm", type=float, default=1600.0)
-    ap.add_argument("--band-separation-sigma-mm", type=float, default=350.0)
-    ap.add_argument("--delay-sigma-mm", type=float, default=5.0)
+    ap.add_argument("--sigma-inter-mm", "--sigma-inter", dest="sigma_inter_mm", type=float, default=30.0)
+    ap.add_argument("--sigma-tag-mm", "--sigma-tag", dest="sigma_tag_mm", type=float, default=80.0)
+    ap.add_argument("--sigma-gauge-mm", type=float, default=1.0)
+    ap.add_argument("--sigma-delay-prior-mm", type=float, default=10.0)
+    ap.add_argument("--delay-bound-mm", type=float, default=30.0)
+    ap.add_argument("--loss", default="huber", choices=["linear", "soft_l1", "huber", "cauchy", "arctan"])
+    ap.add_argument(
+        "--f-scale",
+        type=float,
+        default=30.0,
+        help="Robust loss transition in mm, converted to normalized units using sigma_inter_mm",
+    )
     ap.add_argument("--max-nfev", type=int, default=500)
+    ap.add_argument("--verbose", type=int, default=1)
     args = ap.parse_args()
 
-    data = json.loads(Path(args.data).read_text(encoding="utf-8"))
-    inter = data.get("inter_anchor_ranges") or []
+    data_path = Path(args.data)
+    init_path = Path(args.init_layout)
+    data = json.loads(data_path.read_text(encoding="utf-8"))
+    inter_ranges = data.get("inter_anchor_ranges") or []
     tag_ranges_all = data.get("tag_anchor_ranges") or []
-    if not inter:
+    if not inter_ranges:
         raise SystemExit("[error] no inter_anchor_ranges in data")
+    if not tag_ranges_all:
+        raise SystemExit("[error] no tag_anchor_ranges in data")
 
-    keys, key_map = make_tag_keys(tag_ranges_all, args.tag_subsample)
-    tag_ranges = [r for r in tag_ranges_all if (str(r.get("tag", "")), str(r.get("sweep") or r.get("t"))) in key_map]
+    tag_names = tag_names_from_ranges(tag_ranges_all)
+    if len(tag_names) > 3:
+        raise SystemExit(f"[error] current joint model supports up to 3 tags, got {tag_names}")
+    tag_to_id = {name: idx for idx, name in enumerate(tag_names)}
+
+    frame_keys, frame_map, tag_ranges = build_tag_frame_map(tag_ranges_all, tag_to_id, args.tag_subsample)
     if not tag_ranges:
-        print("[warn] no tag-anchor ranges available; solving inter-anchor-only high-DOF layout")
+        raise SystemExit("[error] no tag ranges survived frame subsampling")
 
-    anchors0 = load_layout(Path(args.init_layout))
-    tags0 = initial_tag_positions(keys, data.get("tag_position_initializers") or [], anchors0)
-    delays0 = np.zeros((8,), dtype=float) if args.phase == "B" else None
-    x0 = pack(anchors0, tags0, delays0)
-
-    fun = lambda x: residuals(
-        x,
-        n_tags=len(keys),
-        with_delays=args.phase == "B",
-        inter=inter,
-        tag_ranges=tag_ranges,
-        tag_key_to_idx=key_map,
-        lower_sigma=args.lower_plane_sigma_mm,
-        upper_sigma=args.upper_level_sigma_mm,
-        band_prior=args.band_separation_prior_mm,
-        band_sigma=args.band_separation_sigma_mm,
-        delay_sigma=args.delay_sigma_mm,
+    anchor_init = load_layout(init_path)
+    tag_pos_init = initial_tag_positions(
+        frame_keys,
+        frame_map,
+        tag_ranges,
+        data.get("tag_position_initializers") or [],
+        tag_to_id,
+        anchor_init,
     )
-    loss = "soft_l1" if tag_ranges else "linear"
-    sol = least_squares(fun, x0, loss=loss, f_scale=2.0, max_nfev=args.max_nfev, verbose=1)
-    anchors, tags, delays = unpack(sol.x, len(keys), args.phase == "B")
-    if delays is None:
-        delays = np.zeros((8,), dtype=float)
+    d_anchor_init = np.zeros(8, dtype=float)
+    d_tag_init = np.zeros(3, dtype=float)
+    x0 = pack_variables(anchor_init, d_anchor_init, d_tag_init, tag_pos_init)
+
+    config = SimpleNamespace(
+        sigma_inter=args.sigma_inter_mm,
+        sigma_tag=args.sigma_tag_mm,
+        sigma_gauge=args.sigma_gauge_mm,
+        sigma_delay_prior=args.sigma_delay_prior_mm,
+        n_tag_frames=len(frame_keys),
+    )
+
+    fun = lambda x: residuals(x, inter_ranges, tag_ranges, frame_map, config)
+    bounds = variable_bounds(len(frame_keys), args.delay_bound_mm)
+    # Residuals are normalized by their sigma. Interpret --f-scale as a
+    # physical millimeter threshold for inter-anchor residuals, then convert to
+    # scipy's normalized residual units. This keeps CLI usage readable:
+    # --sigma-inter 15 --f-scale 30 means Huber starts around 30mm for inter.
+    normalized_f_scale = max(args.f_scale / max(args.sigma_inter_mm, 1e-9), 1e-9)
+    result = least_squares(
+        fun,
+        x0,
+        loss=args.loss,
+        f_scale=normalized_f_scale,
+        bounds=bounds,
+        max_nfev=args.max_nfev,
+        verbose=args.verbose,
+    )
+    anchor_xyz, d_anchor, d_tag, tag_positions = unpack_variables(result.x, len(frame_keys))
+    inter_errors, tag_errors = split_residuals(
+        anchor_xyz,
+        d_anchor,
+        d_tag,
+        tag_positions,
+        inter_ranges,
+        tag_ranges,
+        frame_map,
+    )
+
+    inter_rms = rms([float(r["err_mm"]) for r in inter_errors])
+    tag_rms = rms([float(r["err_mm"]) for r in tag_errors])
+    inter_abs = [float(r["abs_err_mm"]) for r in inter_errors]
+    tag_abs = [float(r["abs_err_mm"]) for r in tag_errors]
+
+    def threshold_stats(values: list[float], threshold: float) -> dict[str, float | int]:
+        kept = [v for v in values if v <= threshold]
+        return {
+            "threshold_mm": float(threshold),
+            "n": int(len(kept)),
+            "rms_mm": rms(kept),
+            "median_abs_mm": float(np.median(np.asarray(kept, dtype=float))) if kept else 0.0,
+        }
 
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "schema": "autopos_v4_layout_v1",
+        "schema": "autopos_v4_joint_layout_v1",
         "units": "mm",
-        "phase": args.phase,
         "anchors": [
             {
                 "id": i,
                 "label": ANCHORS[i],
-                "x_mm": float(anchors[i, 0]),
-                "y_mm": float(anchors[i, 1]),
-                "z_mm": float(anchors[i, 2]),
-                "delay_mm": float(delays[i]),
+                "x_mm": float(anchor_xyz[i, 0]),
+                "y_mm": float(anchor_xyz[i, 1]),
+                "z_mm": float(anchor_xyz[i, 2]),
+                "d_anchor_mm": float(d_anchor[i]),
+                "delay_mm": float(d_anchor[i]),
             }
             for i in range(8)
         ],
+        "tags": [
+            {
+                "id": idx,
+                "name": name,
+                "d_tag_mm": float(d_tag[idx]),
+            }
+            for name, idx in sorted(tag_to_id.items(), key=lambda kv: kv[1])
+        ],
         "stats": {
-            "inter_anchor": edge_stats(anchors, delays, inter),
-            "tag_anchor": tag_stats(anchors, tags, delays, tag_ranges, key_map),
-            "inter_factors": len(inter),
-            "tag_factors": len(tag_ranges),
-            "tag_position_variables": len(keys),
-            "total_residuals": int(fun(sol.x).size),
-            "cost": float(sol.cost),
-            "nfev": int(sol.nfev),
-            "success": bool(sol.success),
-            "message": sol.message,
-            "data_warning": data.get("stats", {}).get("warning", ""),
+            "inter_anchor_rms_mm": inter_rms,
+            "tag_anchor_rms_mm": tag_rms,
+            "per_anchor_tag_rms_mm": per_anchor_tag_rms(tag_errors),
+            "per_tag_rms_mm": per_tag_rms(tag_errors),
+            "top_inter_errors": inter_errors[:10],
+            "top_tag_errors": tag_errors[:20],
+            "inter_inlier_stats": {
+                "abs_le_30mm": threshold_stats(inter_abs, 30.0),
+                "abs_le_50mm": threshold_stats(inter_abs, 50.0),
+                "abs_le_100mm": threshold_stats(inter_abs, 100.0),
+            },
+            "tag_inlier_stats": {
+                "abs_le_50mm": threshold_stats(tag_abs, 50.0),
+                "abs_le_100mm": threshold_stats(tag_abs, 100.0),
+                "abs_le_150mm": threshold_stats(tag_abs, 150.0),
+            },
+            "total_variables": int(len(result.x)),
+            "total_residuals": int(fun(result.x).size),
+            "n_inter_obs": int(len(inter_ranges)),
+            "n_tag_obs": int(len(tag_ranges)),
+            "n_tag_frames": int(len(frame_keys)),
+            "optimizer_cost": float(result.cost),
+            "optimizer_nfev": int(result.nfev),
+            "optimizer_status": int(result.status),
+            "optimizer_success": bool(result.success),
+            "optimizer_message": result.message,
+        },
+        "config": {
+            "sigma_inter_mm": args.sigma_inter_mm,
+            "sigma_tag_mm": args.sigma_tag_mm,
+            "sigma_gauge_mm": args.sigma_gauge_mm,
+            "sigma_delay_prior_mm": args.sigma_delay_prior_mm,
+            "delay_bound_mm": args.delay_bound_mm,
+            "loss": args.loss,
+            "f_scale_mm": args.f_scale,
+            "normalized_f_scale": normalized_f_scale,
+            "tag_subsample": args.tag_subsample,
+            "tag_names": tag_names,
+            "gauge": "A at origin, B on x-axis, C.z=0 to fix rotation about x-axis",
         },
         "source": {
-            "data": str(Path(args.data)),
-            "init_layout": str(Path(args.init_layout)),
-            "tag_subsample": args.tag_subsample,
-            "note": "SciPy implementation because python-gtsam is not installed in this environment.",
+            "data": str(data_path),
+            "init_layout": str(init_path),
+            "old_solver_backup": "autopos_pipeline/solve_v4_fusion/solve_v4_old.py",
         },
     }
     out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(payload["stats"], indent=2))
+    print("delays_anchor", {ANCHORS[i]: round(float(d_anchor[i]), 3) for i in range(8)})
+    print("delays_tag", {name: round(float(d_tag[idx]), 3) for name, idx in sorted(tag_to_id.items(), key=lambda kv: kv[1])})
     print(f"[ok] wrote {out}")
     return 0
 
