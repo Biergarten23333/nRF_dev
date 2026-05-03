@@ -310,6 +310,7 @@ static void control_print_help(void)
 	printk("Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate\n");
 	printk("OTA runtime cmds: ota_reset | ota show | ota version\n");
 	printk("Runtime NUS cmds: cmd <raw> | oneshot <raw> | oneshot show | oneshot clear\n");
+	printk("Tag layout cmds: APOS <id> <x_mm> <y_mm> <z_mm> | APOS_TO <BSxxxx> APOS... | APOS_COMMIT | APOS_STATUS | APOS_RESET\n");
 	printk("TDMA cmds: tdma show | tdma profile <BSxxxx> <static|roto|motion> | tdma freq <static|roto|motion> <hz> | tdma rebalance\n");
 	printk("Device model cmds: device show | device kind <anchor|tag>\n");
 	printk("OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->\n");
@@ -2118,6 +2119,14 @@ static void autopos_apply_work_handler(struct k_work *work)
 	autopos_last_success_idx = autopos_target_idx;
 	(void)snprintf(autopos_state, sizeof(autopos_state), "ready");
 	printk("AUTOPOS apply success: master=%c\n", autopos_labels[autopos_target_idx]);
+
+	if (autopos_round_sets != 0U) {
+		printk("AUTOPOS finite sweep handoff: master=%c sets=%lu; host waits for SWEEP_DONE\n",
+		       autopos_labels[autopos_target_idx],
+		       (unsigned long)autopos_round_sets);
+		goto done;
+	}
+
 	printk("AUTOPOS sweep converge: master=%c discovery kept active for background anchor retention\n",
 	       autopos_labels[autopos_target_idx]);
 	rc = autopos_wait_sweep_converged(autopos_target_idx,
@@ -2282,6 +2291,46 @@ static void control_handle_uart_command(const char *line)
 	const char *payload;
 
 	if (line == NULL || line[0] == '\0') {
+		return;
+	}
+
+	if (strncasecmp(line, "APOS_TO ", 8) == 0) {
+		const char *rest = line + 8;
+		const char *space = strchr(rest, ' ');
+		char target[32];
+		const char *apos_payload;
+		size_t target_len;
+
+		if (space == NULL) {
+			printk("apos_to rc=%d reason=no_payload payload=%s\n", -EINVAL, line);
+			return;
+		}
+		target_len = (size_t)(space - rest);
+		if (target_len == 0U || target_len >= sizeof(target)) {
+			printk("apos_to rc=%d reason=bad_target payload=%s\n", -EINVAL, line);
+			return;
+		}
+		memcpy(target, rest, target_len);
+		target[target_len] = '\0';
+		apos_payload = space + 1;
+		if (strncasecmp(apos_payload, "APOS", 4) != 0) {
+			printk("apos_to rc=%d target=%s reason=bad_apos payload=%s\n",
+			       -EINVAL, target, apos_payload);
+			return;
+		}
+
+		master_set_runtime_target_kind(MASTER_TARGET_TAG);
+		master_set_runtime_target_name(target);
+		master_set_runtime_target_prefix("");
+		master_set_runtime_target_uuid("");
+		rc = master_send_command_now(apos_payload);
+		printk("apos_to rc=%d target=%s payload=%s\n", rc, target, apos_payload);
+		return;
+	}
+
+	if (strncasecmp(line, "APOS", 4) == 0) {
+		rc = master_send_command_now(line);
+		printk("apos rc=%d payload=%s\n", rc, line);
 		return;
 	}
 

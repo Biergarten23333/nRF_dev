@@ -7,6 +7,7 @@
 #include <zephyr/sys/util.h>
 
 #include "ss_twr_init.h"
+#include "uwb_anchor_layout.h"
 #include "uwb_bringup.h"
 #include "uwb_port.h"
 #include <deca_device_api.h>
@@ -363,6 +364,8 @@ int tag_app_run(void)
 #else
     printk("MCUboot disabled, running direct USB serial image\n");
 #endif
+
+    uwb_anchor_layout_init();
 
 #if APP_TAG_BLE_ENABLE
     ret = uwb_tag_ble_init();

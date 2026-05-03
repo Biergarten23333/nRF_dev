@@ -27,11 +27,31 @@ static uint8_t ss_twr_resp_count_mask_bits_before(uint8_t mask, uint8_t anchor_i
     return count;
 }
 
+static bool ss_twr_resp_matrix_poll_matches(const uint8_t *frame,
+                                            uint16_t local_addr)
+{
+    if (frame[0] != UWB_FRAME_CTRL_LOW ||
+        frame[1] != UWB_FRAME_CTRL_HIGH ||
+        frame[UWB_MSG_CODE_IDX] != UWB_MSG_POLL_CODE) {
+        return false;
+    }
+
+    if (uwb_frame_get_dst_addr(frame) != local_addr) {
+        return false;
+    }
+
+    return uwb_short_addr_is_anchor(uwb_frame_get_src_addr(frame));
+}
+
 #define SS_TWR_RESP_TX_ANT_DLY 16436U
 #define SS_TWR_RESP_RX_ANT_DLY 16436U
 
 #ifndef APP_ANCHOR_RESP_DELAY_UUS
 #define APP_ANCHOR_RESP_DELAY_UUS 500U
+#endif
+
+#ifndef APP_ANCHOR_MATRIX_RESP_DELAY_UUS
+#define APP_ANCHOR_MATRIX_RESP_DELAY_UUS 1200U
 #endif
 
 #ifndef APP_ANCHOR_VERBOSE_RESPONDER
@@ -884,8 +904,13 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         ss_twr_resp_log_rx_frame(ss_twr_resp_rx_buffer, frame_len,
                                  rx_good_frame_count);
 
-        if (!uwb_ss_twr_poll_matches(ss_twr_resp_rx_buffer,
-                                     ss_twr_resp_local_addr)) {
+        bool poll_match = (ss_twr_resp_allow_tag_polls != 0) ?
+            uwb_ss_twr_poll_matches(ss_twr_resp_rx_buffer,
+                                    ss_twr_resp_local_addr) :
+            ss_twr_resp_matrix_poll_matches(ss_twr_resp_rx_buffer,
+                                            ss_twr_resp_local_addr);
+
+        if (!poll_match) {
             ignored_nonpoll_frames++;
             if (ss_twr_resp_is_broadcast_mask_miss(ss_twr_resp_rx_buffer,
                                                    frame_len)) {
@@ -925,7 +950,9 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         dwtime_u64_t poll_rx_ts = ss_twr_resp_get_rx_timestamp_u64();
         uint32_t prof_ts_cyc = k_cycle_get_32();
 
-        uint32_t resp_delay_uus = SS_TWR_RESP_POLL_RX_TO_RESP_TX_DLY_UUS;
+        uint32_t resp_delay_uus = poll_src_is_tag ?
+            SS_TWR_RESP_POLL_RX_TO_RESP_TX_DLY_UUS :
+            APP_ANCHOR_MATRIX_RESP_DELAY_UUS;
         uint8_t resp_rank = 0xffU;
         ss_twr_resp_match_diag_observe_poll(&match_diag, ss_twr_resp_rx_buffer,
                                             frame_len);
@@ -936,26 +963,28 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
          * respond by rank in the mask. Legacy/unicast burst polls keep the older
          * index-based fallback for compatibility while this experiment evolves.
          */
-        uint8_t alt_poll_count = uwb_ss_twr_poll_count(ss_twr_resp_rx_buffer);
-        uint8_t alt_poll_index = uwb_ss_twr_poll_index(ss_twr_resp_rx_buffer);
-        uint8_t alt_anchor_mask = uwb_ss_twr_poll_anchor_mask(ss_twr_resp_rx_buffer);
-        if (alt_anchor_mask != 0U &&
-            (alt_anchor_mask & (uint8_t)(1U << ss_twr_resp_anchor_id)) != 0U) {
-            resp_rank = ss_twr_resp_count_mask_bits_before(
-                alt_anchor_mask, ss_twr_resp_anchor_id);
-            resp_delay_uus =
-                APP_ALT_SS_TWR_GUARD_US +
-                ((uint32_t)resp_rank * APP_ALT_SS_TWR_RESP_SPACING_US);
-        } else if (alt_poll_count > 0U && alt_poll_index < alt_poll_count) {
-            resp_rank = alt_poll_index;
-            uint32_t alt_unicast_poll_slot_us =
-                APP_ALT_SS_TWR_POLL_SPACING_US +
-                APP_ALT_SS_TWR_UNICAST_POLL_REARM_US;
-            resp_delay_uus =
-                ((uint32_t)(alt_poll_count - 1U - alt_poll_index) *
-                 alt_unicast_poll_slot_us) +
-                APP_ALT_SS_TWR_GUARD_US +
-                ((uint32_t)alt_poll_index * APP_ALT_SS_TWR_RESP_SPACING_US);
+        if (poll_src_is_tag) {
+            uint8_t alt_poll_count = uwb_ss_twr_poll_count(ss_twr_resp_rx_buffer);
+            uint8_t alt_poll_index = uwb_ss_twr_poll_index(ss_twr_resp_rx_buffer);
+            uint8_t alt_anchor_mask = uwb_ss_twr_poll_anchor_mask(ss_twr_resp_rx_buffer);
+            if (alt_anchor_mask != 0U &&
+                (alt_anchor_mask & (uint8_t)(1U << ss_twr_resp_anchor_id)) != 0U) {
+                resp_rank = ss_twr_resp_count_mask_bits_before(
+                    alt_anchor_mask, ss_twr_resp_anchor_id);
+                resp_delay_uus =
+                    APP_ALT_SS_TWR_GUARD_US +
+                    ((uint32_t)resp_rank * APP_ALT_SS_TWR_RESP_SPACING_US);
+            } else if (alt_poll_count > 0U && alt_poll_index < alt_poll_count) {
+                resp_rank = alt_poll_index;
+                uint32_t alt_unicast_poll_slot_us =
+                    APP_ALT_SS_TWR_POLL_SPACING_US +
+                    APP_ALT_SS_TWR_UNICAST_POLL_REARM_US;
+                resp_delay_uus =
+                    ((uint32_t)(alt_poll_count - 1U - alt_poll_index) *
+                     alt_unicast_poll_slot_us) +
+                    APP_ALT_SS_TWR_GUARD_US +
+                    ((uint32_t)alt_poll_index * APP_ALT_SS_TWR_RESP_SPACING_US);
+            }
         }
 #endif
         uint32 resp_tx_time =

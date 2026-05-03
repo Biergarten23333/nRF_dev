@@ -459,7 +459,10 @@ static bool ss_twr_init_runtime_static_calibration_mode(void);
 static bool ss_twr_init_runtime_roto_calibration_mode(void);
 static bool ss_twr_init_roto_prewarm_active(void);
 static const char *ss_twr_init_plan_label(void);
+static char ss_twr_init_plan_code(const char *plan_label);
 static const char *ss_twr_init_solve_reason_label(void);
+static bool ss_twr_init_anchor_id_in_list(const uint8_t *anchor_ids, size_t count,
+                                          uint8_t anchor_id);
 
 #define SS_TWR_INIT_SWEEP_ANCHOR_PENDING 0xffU
 
@@ -551,6 +554,128 @@ static const char *ss_twr_init_cal_status_label(uint8_t status)
         return "pending";
     }
 }
+
+static char ss_twr_init_range_status_code(uint8_t status)
+{
+    switch (status) {
+    case UWB_TAG_BLE_CAL_STATUS_OK:
+        return 'O';
+    case UWB_TAG_BLE_CAL_STATUS_REJECT:
+        return 'R';
+    case UWB_TAG_BLE_CAL_STATUS_TIMEOUT:
+        return 'T';
+    case UWB_TAG_BLE_CAL_STATUS_ERROR:
+        return 'E';
+    case SS_TWR_INIT_SWEEP_ANCHOR_PENDING:
+    default:
+        return 'P';
+    }
+}
+
+#if APP_TAG_BLE_ENABLE && APP_ALT_SS_TWR_ENABLE && \
+    APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST
+static size_t ss_twr_init_append_csv_i32(char *buf, size_t len, size_t pos,
+                                         int32_t value, bool first)
+{
+    if (pos >= len) {
+        return pos;
+    }
+
+    pos += snprintk(&buf[pos], len - pos, first ? "%ld" : ",%ld",
+                    (long)value);
+    return pos;
+}
+
+static size_t ss_twr_init_append_csv_u32(char *buf, size_t len, size_t pos,
+                                         uint32_t value, bool first)
+{
+    if (pos >= len) {
+        return pos;
+    }
+
+    pos += snprintk(&buf[pos], len - pos, first ? "%lu" : ",%lu",
+                    (unsigned long)value);
+    return pos;
+}
+
+static void ss_twr_init_publish_tag_range_summary(
+    const struct uwb_tag_measurement *measurements, size_t measurement_count)
+{
+    char line[256];
+    char raw_csv[64];
+    char range_csv[64];
+    char quality_csv[40];
+    char status_codes[UWB_MAX_ANCHORS + 1U];
+    size_t raw_pos = 0U;
+    size_t range_pos = 0U;
+    size_t quality_pos = 0U;
+    size_t status_pos = 0U;
+    uint32_t active_mask = 0U;
+    uint32_t valid_mask = 0U;
+    bool first = true;
+
+    if (ss_twr_init_runtime_any_calibration_mode()) {
+        return;
+    }
+
+    for (size_t i = 0U; i < measurement_count; ++i) {
+        uint8_t anchor_id = measurements[i].anchor_id;
+
+        if (anchor_id >= UWB_MAX_ANCHORS ||
+            !ss_twr_init_anchor_id_in_list(ss_twr_init_active_anchor_ids,
+                                           ss_twr_init_active_anchor_count,
+                                           anchor_id)) {
+            continue;
+        }
+
+        active_mask |= BIT(anchor_id);
+        if (measurements[i].valid) {
+            valid_mask |= BIT(anchor_id);
+        }
+
+        raw_pos = ss_twr_init_append_csv_i32(
+            raw_csv, sizeof(raw_csv), raw_pos,
+            ss_twr_init_sweep_anchor_raw_mm[anchor_id], first);
+        range_pos = ss_twr_init_append_csv_u32(
+            range_csv, sizeof(range_csv), range_pos,
+            measurements[i].range_mm, first);
+        quality_pos = ss_twr_init_append_csv_u32(
+            quality_csv, sizeof(quality_csv), quality_pos,
+            measurements[i].quality_percent, first);
+
+        if (status_pos + 1U < sizeof(status_codes)) {
+            status_codes[status_pos++] = ss_twr_init_range_status_code(
+                ss_twr_init_sweep_anchor_status[anchor_id]);
+        }
+        first = false;
+    }
+
+    if (active_mask == 0U) {
+        return;
+    }
+
+    raw_csv[MIN(raw_pos, sizeof(raw_csv) - 1U)] = '\0';
+    range_csv[MIN(range_pos, sizeof(range_csv) - 1U)] = '\0';
+    quality_csv[MIN(quality_pos, sizeof(quality_csv) - 1U)] = '\0';
+    status_codes[MIN(status_pos, sizeof(status_codes) - 1U)] = '\0';
+
+    snprintk(line, sizeof(line),
+             "TR;2;%lu;%c;%u;%02lx;%02lx;%s;%s;%s;%s",
+             (unsigned long)ss_twr_init_sweep_count,
+             ss_twr_init_plan_code(ss_twr_init_plan_label()),
+             (unsigned int)ss_twr_init_runtime_params.positioning_mode,
+             (unsigned long)active_mask, (unsigned long)valid_mask,
+             raw_csv, range_csv, quality_csv, status_codes);
+    (void)uwb_tag_ble_publish_status(line);
+}
+#else
+static void ss_twr_init_publish_tag_range_summary(
+    const struct uwb_tag_measurement *measurements, size_t measurement_count)
+{
+    ARG_UNUSED(measurements);
+    ARG_UNUSED(measurement_count);
+}
+#endif
 
 static const char *ss_twr_init_cal_reason_label(uint8_t reason)
 {
@@ -2818,6 +2943,8 @@ static void ss_twr_init_print_location_if_ready(void)
                                        0U,
                                        0U,
                                        received_anchors);
+        ss_twr_init_publish_tag_range_summary(measurements,
+                                              ss_twr_init_anchor_count);
 #if APP_TAG_SWEEP_DIAG_ENABLE != 0U
         ss_twr_init_diag_out_done_cycles = k_cycle_get_32();
 #endif
@@ -3293,6 +3420,8 @@ static void ss_twr_init_print_location_if_ready(void)
         printk("%s\n", ble_summary);
 #endif
         (void)uwb_tag_ble_publish_status(ble_summary);
+        ss_twr_init_publish_tag_range_summary(measurements,
+                                              ss_twr_init_anchor_count);
 #endif
     }
 

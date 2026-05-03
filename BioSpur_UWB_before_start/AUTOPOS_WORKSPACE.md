@@ -4,6 +4,8 @@ The main workspace is now organized around AutoPos work.
 
 ## Active Areas
 
+- `autopos_pipeline/`
+  - Active full-chain AutoPos workspace for sweep -> solve -> validate -> report runs.
 - `scripts/autopos_*.py`
   - Pair extraction, layout solving, comparison, holdout evaluation, and report generation.
 - `scripts/run_autopos_*.py`

@@ -1,6 +1,8 @@
 #include "uwb_tag_ble.h"
 
 #include <errno.h>
+#include <limits.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -19,6 +21,7 @@
 #include <bluetooth/services/dfu_smp.h>
 
 #include "ss_twr_init.h"
+#include "uwb_anchor_layout.h"
 
 #include <hal/nrf_ficr.h>
 
@@ -246,6 +249,37 @@ static void uwb_tag_ble_clear_pending_cal_locked(void);
 static bool uwb_tag_ble_snapshot_pending_cal_locked(
 	uint8_t *out, size_t out_len, size_t *encoded_len);
 static bool uwb_tag_ble_runtime_stream_blocked_locked(void);
+static bool uwb_tag_ble_parse_i32_token(const char *text, char **end_out,
+					int32_t *value_out);
+
+static bool uwb_tag_ble_parse_i32_token(const char *text, char **end_out,
+					int32_t *value_out)
+{
+	char *end = NULL;
+	long value;
+
+	if (text == NULL || value_out == NULL) {
+		return false;
+	}
+
+	while (*text == ' ' || *text == '\t') {
+		text++;
+	}
+	if (*text == '\0') {
+		return false;
+	}
+
+	value = strtol(text, &end, 10);
+	if (end == text || value < INT32_MIN || value > INT32_MAX) {
+		return false;
+	}
+
+	*value_out = (int32_t)value;
+	if (end_out != NULL) {
+		*end_out = end;
+	}
+	return true;
+}
 
 static void ble_reboot_work_handler(struct k_work *work)
 {
@@ -1528,6 +1562,96 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		return;
 	}
 
+	if (strncmp(cmd, "APOS ", 5) == 0) {
+		const char *arg = cmd + 5;
+		char *end = NULL;
+		int32_t id;
+		int32_t x;
+		int32_t y;
+		int32_t z;
+		int err;
+		char resp[96];
+
+		if (!uwb_tag_ble_parse_i32_token(arg, &end, &id) ||
+		    !uwb_tag_ble_parse_i32_token(end, &end, &x) ||
+		    !uwb_tag_ble_parse_i32_token(end, &end, &y) ||
+		    !uwb_tag_ble_parse_i32_token(end, &end, &z)) {
+			uwb_tag_ble_send_text("APOS_BAD");
+			return;
+		}
+		while (end != NULL && (*end == ' ' || *end == '\t')) {
+			end++;
+		}
+		if (end == NULL || *end != '\0' || id < 0 || id > UINT8_MAX) {
+			uwb_tag_ble_send_text("APOS_BAD");
+			return;
+		}
+
+		err = uwb_anchor_layout_set((uint8_t)id, x, y, z);
+		if (err) {
+			snprintk(resp, sizeof(resp), "APOS_FAIL ID=%ld RC=%d",
+				 (long)id, err);
+			uwb_tag_ble_send_text(resp);
+			return;
+		}
+
+		snprintk(resp, sizeof(resp), "APOS_OK ID=%ld X=%ld Y=%ld Z=%ld",
+			 (long)id, (long)x, (long)y, (long)z);
+		uwb_tag_ble_send_text(resp);
+		return;
+	}
+
+	if (strcmp(cmd, "APOS_COMMIT") == 0) {
+		int err = uwb_anchor_layout_commit();
+		char resp[64];
+
+		if (err) {
+			snprintk(resp, sizeof(resp), "APOS_COMMIT_FAIL RC=%d", err);
+		} else {
+			snprintk(resp, sizeof(resp), "APOS_COMMIT_OK N=%u",
+				 (unsigned int)uwb_anchor_layout_count());
+		}
+		uwb_tag_ble_send_text(resp);
+		return;
+	}
+
+	if (strcmp(cmd, "APOS_RESET") == 0) {
+		int err = uwb_anchor_layout_reset();
+		char resp[64];
+
+		if (err) {
+			snprintk(resp, sizeof(resp), "APOS_RESET_FAIL RC=%d", err);
+		} else {
+			snprintk(resp, sizeof(resp), "APOS_RESET_OK N=%u",
+				 (unsigned int)uwb_anchor_layout_count());
+		}
+		uwb_tag_ble_send_text(resp);
+		return;
+	}
+
+	if (strcmp(cmd, "APOS_STATUS") == 0) {
+		char resp[96];
+		const char *source =
+			uwb_anchor_layout_loaded_from_settings() ? "SETTINGS" : "DEFAULT";
+
+		for (uint8_t i = 0U; i < uwb_anchor_layout_count(); ++i) {
+			const struct uwb_anchor_pose_mm *pose = uwb_anchor_layout_get(i);
+
+			if (pose == NULL) {
+				continue;
+			}
+			snprintk(resp, sizeof(resp), "APOS %u %ld %ld %ld",
+				 (unsigned int)pose->anchor_id,
+				 (long)pose->x_mm,
+				 (long)pose->y_mm,
+				 (long)pose->z_mm);
+			uwb_tag_ble_send_text(resp);
+		}
+		snprintk(resp, sizeof(resp), "APOS_STATUS_DONE SRC=%s", source);
+		uwb_tag_ble_send_text(resp);
+		return;
+	}
+
 	if (strcmp(cmd, "VERSION") == 0) {
 		char resp[128];
 		struct uwb_tag_runtime_params params;
@@ -1738,9 +1862,9 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 
 	if (strcmp(cmd, "HELP") == 0) {
 #if APP_TAG_BLE_OTA_ENABLE
-		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|MODE?|MODE <CAL_STATIC|CAL_ROTO|MOTION|FIXED|AOTA>|MCAL|MROT|MMOT|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2|3|4|5> FIXED=a,b,c,d|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <CAL_STATIC|CAL_ROTO|MOTION|FIXED|AOTA>|MCAL|MROT|MMOT|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2|3|4|5> FIXED=a,b,c,d|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
 #else
-		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|MODE?|MODE <CAL_STATIC|CAL_ROTO|MOTION|FIXED|AOTA>|MCAL|MROT|MMOT|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2|3|4|5> FIXED=a,b,c,d|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <CAL_STATIC|CAL_ROTO|MOTION|FIXED|AOTA>|MCAL|MROT|MMOT|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2|3|4|5> FIXED=a,b,c,d|REBOOT|HELP");
 #endif
 		return;
 	}

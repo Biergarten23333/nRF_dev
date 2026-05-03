@@ -18,8 +18,13 @@
 #define SS_TWR_ANCHOR_INIT_RX_ANT_DLY 16436U
 
 #define SS_TWR_ANCHOR_INIT_RNG_DELAY_MS 0U
-#define SS_TWR_ANCHOR_INIT_TX_TO_RX_DLY_UUS 140U
-#define SS_TWR_ANCHOR_INIT_RESP_RX_TIMEOUT_UUS 1500U
+#ifndef APP_ANCHOR_MATRIX_TX_TO_RX_DLY_UUS
+#define APP_ANCHOR_MATRIX_TX_TO_RX_DLY_UUS 140U
+#endif
+
+#ifndef APP_ANCHOR_MATRIX_RESP_RX_TIMEOUT_UUS
+#define APP_ANCHOR_MATRIX_RESP_RX_TIMEOUT_UUS 1500U
+#endif
 
 #define SS_TWR_ANCHOR_INIT_RX_BUF_LEN 127U
 #define SS_TWR_ANCHOR_INIT_RESP_MSG_POLL_RX_TS_IDX 10U
@@ -122,8 +127,8 @@ static void ss_twr_anchor_init_configure_radio(void)
     dwt_setrxantennadelay(SS_TWR_ANCHOR_INIT_RX_ANT_DLY);
     dwt_settxantennadelay(SS_TWR_ANCHOR_INIT_TX_ANT_DLY);
     dwt_setleds(DWT_LEDS_ENABLE);
-    dwt_setrxaftertxdelay(SS_TWR_ANCHOR_INIT_TX_TO_RX_DLY_UUS);
-    dwt_setrxtimeout(SS_TWR_ANCHOR_INIT_RESP_RX_TIMEOUT_UUS);
+    dwt_setrxaftertxdelay(APP_ANCHOR_MATRIX_TX_TO_RX_DLY_UUS);
+    dwt_setrxtimeout(APP_ANCHOR_MATRIX_RESP_RX_TIMEOUT_UUS);
     dwt_setpreambledetecttimeout(0);
     dwt_write32bitreg(SYS_STATUS_ID,
                       SYS_STATUS_ALL_TX | SYS_STATUS_ALL_RX_GOOD |

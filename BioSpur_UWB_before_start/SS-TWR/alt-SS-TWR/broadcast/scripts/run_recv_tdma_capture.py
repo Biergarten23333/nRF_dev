@@ -86,6 +86,34 @@ TAG_FILTER_RE_SEMI = re.compile(
     r"(?P<used>\d+)"
 )
 
+TR_RE = re.compile(
+    rf"{TAG_NOTIFY_PREFIX_RE} notify: TR;"
+    r"(?P<ver>\d+);"
+    r"(?P<sweep>\d+);"
+    r"(?P<plan>[A-Za-z0-9_]+);"
+    r"(?P<anchor>\d+);"
+    r"(?P<raw>-?\d+);"
+    r"(?P<range>\d+);"
+    r"(?P<q>\d+);"
+    r"(?P<valid>[01]);"
+    r"(?P<status>[ORTEP]);"
+    r"(?P<pmode>\d+)"
+)
+
+TR2_RE = re.compile(
+    rf"{TAG_NOTIFY_PREFIX_RE} notify: TR;"
+    r"2;"
+    r"(?P<sweep>\d+);"
+    r"(?P<plan>[A-Za-z0-9_]+);"
+    r"(?P<pmode>\d+);"
+    r"(?P<active_mask>[0-9A-Fa-f]+);"
+    r"(?P<valid_mask>[0-9A-Fa-f]+);"
+    r"(?P<raws>-?\d+(?:,-?\d+)*);"
+    r"(?P<ranges>\d+(?:,\d+)*);"
+    r"(?P<qs>\d+(?:,\d+)*);"
+    r"(?P<statuses>[ORTEP]+)"
+)
+
 CM_RE = re.compile(
     rf"{TAG_NOTIFY_PREFIX_RE} notify: CM;"
     r"(?P<ver>\d+);"
@@ -208,6 +236,79 @@ def iter_tag_filter_matches(text: str):
         match = TAG_FILTER_RE_SEMI.search(fragment)
         if match:
             yield match
+
+
+def iter_tr_matches(text: str):
+    prefix = None
+    if "notify:" in text:
+        prefix = text.split("notify:", 1)[0] + "notify: "
+
+    for idx, fragment in enumerate(text.split("|")):
+        fragment = fragment.strip()
+        if not fragment:
+            continue
+        if idx > 0 and "notify:" not in fragment and fragment.startswith("TR;"):
+            fragment = (prefix or "BLE notify: ") + fragment
+
+        match = TR_RE.search(fragment)
+        if match:
+            yield match
+
+
+def iter_tr_records(text: str):
+    prefix = None
+    if "notify:" in text:
+        prefix = text.split("notify:", 1)[0] + "notify: "
+
+    for idx, fragment in enumerate(text.split("|")):
+        fragment = fragment.strip()
+        if not fragment:
+            continue
+        if idx > 0 and "notify:" not in fragment and fragment.startswith("TR;"):
+            fragment = (prefix or "BLE notify: ") + fragment
+
+        match = TR_RE.search(fragment)
+        if match:
+            yield {
+                "sweep": int(match.group("sweep")),
+                "plan": match.group("plan"),
+                "pmode": int(match.group("pmode")),
+                "anchor_id": int(match.group("anchor")),
+                "raw_mm": int(match.group("raw")),
+                "range_mm": int(match.group("range")),
+                "quality_percent": int(match.group("q")),
+                "valid": int(match.group("valid")),
+                "status": match.group("status"),
+            }
+            continue
+
+        match = TR2_RE.search(fragment)
+        if not match:
+            continue
+
+        active_mask = int(match.group("active_mask"), 16)
+        valid_mask = int(match.group("valid_mask"), 16)
+        raws = [int(v) for v in match.group("raws").split(",")]
+        ranges = [int(v) for v in match.group("ranges").split(",")]
+        qualities = [int(v) for v in match.group("qs").split(",")]
+        statuses = list(match.group("statuses"))
+        active_anchors = [anchor_id for anchor_id in range(8)
+                          if active_mask & (1 << anchor_id)]
+        count = min(len(active_anchors), len(raws), len(ranges),
+                    len(qualities), len(statuses))
+        for pos in range(count):
+            anchor_id = active_anchors[pos]
+            yield {
+                "sweep": int(match.group("sweep")),
+                "plan": match.group("plan"),
+                "pmode": int(match.group("pmode")),
+                "anchor_id": anchor_id,
+                "raw_mm": raws[pos],
+                "range_mm": ranges[pos],
+                "quality_percent": qualities[pos],
+                "valid": 1 if (valid_mask & (1 << anchor_id)) else 0,
+                "status": statuses[pos],
+            }
 
 
 def iter_cm_matches(text: str):
@@ -1031,28 +1132,30 @@ def print_capture_status(capture_start_wall: float,
                          end_time: float,
                          positions: list[dict],
                          cm_rows: list[dict],
+                         tr_rows: list[dict],
                          targets: list[str],
                          positions_by_target: dict[str, int],
-                         cm_by_target: dict[str, int]) -> None:
+                         cm_by_target: dict[str, int],
+                         tr_by_target: dict[str, int]) -> None:
     elapsed = max(0.0, time.time() - capture_start_wall)
     remaining = max(0.0, end_time - time.time())
     total = max(0.001, end_time - capture_start_wall)
     pct = min(100.0, max(0.0, elapsed * 100.0 / total))
     filled = int(round(pct / 5.0))
     bar = "#" * filled + "." * (20 - filled)
-    cm_rate = len(cm_rows) / elapsed if elapsed > 0 else 0.0
+    tr_rate = len(tr_rows) / elapsed if elapsed > 0 else 0.0
     parts = [
         f"[{bar}]",
         f"{pct:5.1f}%",
         f"elapsed={elapsed:.0f}s",
         f"eta={remaining:.0f}s",
         f"pos={len(positions)}",
-        f"cm={len(cm_rows)}",
-        f"cm_rate={cm_rate:.1f}/s",
+        f"tr={len(tr_rows)}",
+        f"tr_rate={tr_rate:.1f}/s",
     ]
     for target in targets:
         parts.append(
-            f"{target}:TS={positions_by_target.get(target, 0)} CM={cm_by_target.get(target, 0)}"
+            f"{target}:TS={positions_by_target.get(target, 0)} TR={tr_by_target.get(target, 0)}"
         )
     print("[CAPTURE] " + " ".join(parts), flush=True)
 
@@ -1261,6 +1364,7 @@ def main() -> int:
 
     conn_meta: dict[str, dict] = {}
     positions: list[dict] = []
+    tr_rows: list[dict] = []
     cm_rows: list[dict] = []
     cs_rows: list[dict] = []
     cr_rows: list[dict] = []
@@ -1476,6 +1580,7 @@ def main() -> int:
             last_status_at = 0.0
             positions_seen: dict[str, int] = defaultdict(int)
             cm_seen: dict[str, int] = defaultdict(int)
+            tr_seen: dict[str, int] = defaultdict(int)
             cm_ok_seen: dict[str, int] = defaultdict(int)
             startup_strikes: dict[str, int] = defaultdict(int)
             skipped_before_target_pmode = 0
@@ -1557,9 +1662,11 @@ def main() -> int:
                                 end_time,
                                 positions,
                                 cm_rows,
+                                tr_rows,
                                 targets,
                                 positions_seen,
                                 cm_seen,
+                                tr_seen,
                             )
                             elapsed = time.time() - capture_start_wall
                             if elapsed >= 60.0:
@@ -1659,6 +1766,39 @@ def main() -> int:
                             )
                             if peer_name:
                                 positions_seen[peer_name] += 1
+
+                        for tr in iter_tr_records(line):
+                            match = re.search(TAG_NOTIFY_PREFIX_RE, line)
+                            conn_id = match.groupdict().get("conn") if match else ""
+                            meta = conn_meta.get(conn_id, {}) if conn_id else {}
+                            peer_name = extract_bs_name(line) or meta.get("peer_name", "")
+                            if peer_name and peer_name not in target_set:
+                                continue
+                            expected_pmode = expected_pmode_by_target.get(peer_name)
+                            active_pmode = int(tr["pmode"])
+                            if expected_pmode is not None and active_pmode != expected_pmode:
+                                skipped_before_target_pmode += 1
+                                continue
+                            tr_rows.append(
+                                {
+                                    "conn_id": conn_id,
+                                    "host_elapsed_s": host_elapsed_s,
+                                    "host_epoch_s": host_epoch_s,
+                                    "peer_name": peer_name,
+                                    "tag_id": meta.get("tag_id", ""),
+                                    "sweep": int(tr["sweep"]),
+                                    "plan": tr["plan"],
+                                    "pmode": active_pmode,
+                                    "anchor_id": int(tr["anchor_id"]),
+                                    "raw_mm": int(tr["raw_mm"]),
+                                    "range_mm": int(tr["range_mm"]),
+                                    "quality_percent": int(tr["quality_percent"]),
+                                    "valid": int(tr["valid"]),
+                                    "status": tr["status"],
+                                }
+                            )
+                            if peer_name:
+                                tr_seen[peer_name] += 1
 
                         for m in iter_tag_filter_matches(line):
                             conn_id = m.groupdict().get("conn") or ""
@@ -1831,9 +1971,11 @@ def main() -> int:
                             end_time,
                             positions,
                             cm_rows,
+                            tr_rows,
                             targets,
                             positions_seen,
                             cm_seen,
+                            tr_seen,
                         )
                         elapsed = time.time() - capture_start_wall
                         if elapsed >= 60.0:
@@ -1865,11 +2007,15 @@ def main() -> int:
             ser, cleanup_result = cleanup_capture_session(ser, logf, args)
 
     positions_by_target: dict[str, list[dict]] = defaultdict(list)
+    tr_by_target: dict[str, list[dict]] = defaultdict(list)
     cm_by_target: dict[str, list[dict]] = defaultdict(list)
 
     for row in positions:
         key = row["peer_name"] or f"tag{row['tag_id']}"
         positions_by_target[key].append(row)
+    for row in tr_rows:
+        key = row["peer_name"] or f"tag{row['tag_id']}"
+        tr_by_target[key].append(row)
     for row in cm_rows:
         key = row["peer_name"] or f"tag{row['tag_id']}"
         cm_by_target[key].append(row)
@@ -1894,6 +2040,22 @@ def main() -> int:
         "motion_dt_ms",
         "disp_mm",
         "speed_mm_s",
+    ]
+    tr_fields = [
+        "host_elapsed_s",
+        "host_epoch_s",
+        "sweep",
+        "conn_id",
+        "peer_name",
+        "tag_id",
+        "plan",
+        "pmode",
+        "anchor_id",
+        "raw_mm",
+        "range_mm",
+        "quality_percent",
+        "valid",
+        "status",
     ]
     cm_fields = [
         "host_elapsed_s",
@@ -1988,6 +2150,7 @@ def main() -> int:
     ]
 
     write_rows(session_dir / "positions_all.csv", position_fields, positions)
+    write_rows(session_dir / "tr_all.csv", tr_fields, tr_rows)
     write_rows(session_dir / "cm_all.csv", cm_fields, cm_rows)
     write_rows(session_dir / "cs_all.csv", cs_fields, cs_rows)
     write_rows(session_dir / "cr_all.csv", cr_fields, cr_rows)
@@ -2012,11 +2175,13 @@ def main() -> int:
         tag_dir = session_dir / target
         tag_dir.mkdir(parents=True, exist_ok=True)
         pos_rows = positions_by_target.get(target, [])
+        tr_target_rows = tr_by_target.get(target, [])
         cm_target_rows = cm_by_target.get(target, [])
         cs_target_rows = cs_by_target.get(target, [])
         cr_target_rows = cr_by_target.get(target, [])
         cf_target_rows = cf_by_target.get(target, [])
         write_rows(tag_dir / "positions.csv", position_fields, pos_rows)
+        write_rows(tag_dir / "tr.csv", tr_fields, tr_target_rows)
         write_rows(tag_dir / "cm.csv", cm_fields, cm_target_rows)
         write_rows(tag_dir / "cs.csv", cs_fields, cs_target_rows)
         write_rows(tag_dir / "cr.csv", cr_fields, cr_target_rows)
@@ -2034,6 +2199,8 @@ def main() -> int:
 
         per_tag_summary[target] = {
             "position_rows": len(pos_rows),
+            "tr_rows": len(tr_target_rows),
+            "tr_valid_rows": sum(1 for row in tr_target_rows if row["valid"]),
             "cm_rows": len(cm_target_rows),
             "cs_rows": len(cs_target_rows),
             "cr_rows": len(cr_target_rows),
@@ -2042,7 +2209,14 @@ def main() -> int:
             "latest_calibration_summary": cs_target_rows[-1] if cs_target_rows else None,
             "latest_calibration_reject": cr_target_rows[-1] if cr_target_rows else None,
             "latest_calibration_frame": cf_target_rows[-1] if cf_target_rows else None,
-            "anchors_seen": sorted({row["anchor_id"] for row in cm_target_rows}) if cm_target_rows else [],
+            "anchors_seen": sorted(
+                {row["anchor_id"] for row in tr_target_rows if row["valid"]}
+                or {row["anchor_id"] for row in cm_target_rows}
+            ),
+            "tr_status_counts": {
+                status: sum(1 for row in tr_target_rows if row["status"] == status)
+                for status in sorted({row["status"] for row in tr_target_rows})
+            },
             "status_counts": {
                 status: sum(1 for row in cm_target_rows if row["status"] == status)
                 for status in sorted({row["status"] for row in cm_target_rows})
@@ -2082,6 +2256,8 @@ def main() -> int:
             "motion": args.motion_hz,
         },
         "positions_all": len(positions),
+        "tr_all": len(tr_rows),
+        "tr_valid_all": sum(1 for row in tr_rows if row["valid"]),
         "cm_all": len(cm_rows),
         "cs_all": len(cs_rows),
         "cr_all": len(cr_rows),
@@ -2091,6 +2267,7 @@ def main() -> int:
         "per_tag": per_tag_summary,
         "raw_log": str(raw_log_path),
         "positions_all_csv": str(session_dir / "positions_all.csv"),
+        "tr_all_csv": str(session_dir / "tr_all.csv"),
         "cm_all_csv": str(session_dir / "cm_all.csv"),
         "cs_all_csv": str(session_dir / "cs_all.csv"),
         "cr_all_csv": str(session_dir / "cr_all.csv"),

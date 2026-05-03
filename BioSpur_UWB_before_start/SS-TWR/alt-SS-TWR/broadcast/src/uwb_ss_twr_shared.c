@@ -88,7 +88,8 @@ void uwb_ss_twr_build_poll_frame(uint8_t *frame, uint8_t seq, uint16_t dst_addr,
     uwb_frame_write_u16(frame, UWB_MSG_DST_IDX, dst_addr);
     uwb_frame_write_u16(frame, UWB_MSG_SRC_IDX, src_addr);
     frame[UWB_MSG_CODE_IDX] = UWB_MSG_POLL_CODE;
-    for (uint8_t i = UWB_MSG_COMMON_LEN; i < UWB_MSG_ALT_POLL_FRAME_LEN; ++i) {
+    for (uint8_t i = UWB_MSG_COMMON_LEN;
+         i <= UWB_MSG_POLL_ANCHOR_MASK_IDX; ++i) {
         frame[i] = 0U;
     }
 }

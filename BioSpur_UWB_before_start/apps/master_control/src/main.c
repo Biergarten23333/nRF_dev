@@ -2091,6 +2091,14 @@ static void autopos_apply_work_handler(struct k_work *work)
 	autopos_last_success_idx = autopos_target_idx;
 	(void)snprintf(autopos_state, sizeof(autopos_state), "ready");
 	printk("AUTOPOS apply success: master=%c\n", autopos_labels[autopos_target_idx]);
+
+	if (autopos_round_sets != 0U) {
+		printk("AUTOPOS finite sweep handoff: master=%c sets=%lu; host waits for SWEEP_DONE\n",
+		       autopos_labels[autopos_target_idx],
+		       (unsigned long)autopos_round_sets);
+		goto done;
+	}
+
 	printk("AUTOPOS sweep converge: master=%c discovery kept active for background anchor retention\n",
 	       autopos_labels[autopos_target_idx]);
 	rc = autopos_wait_sweep_converged(autopos_target_idx,

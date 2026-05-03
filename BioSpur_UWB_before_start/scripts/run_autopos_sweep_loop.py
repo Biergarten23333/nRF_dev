@@ -2912,6 +2912,7 @@ def round_capture(
                 process_runtime_text(cmd_text)
 
             deadline = time.time() + timeout_s
+            post_target_deadline = None
             status_marks = {30, 60, 120, 180, 240, 300, 360, 420}
             sent_marks = set()
             while time.time() < deadline:
@@ -2966,14 +2967,33 @@ def round_capture(
                     emit(logf, filter_runtime_text(text), live_output, verbose)
                     process_runtime_text(text)
                     if result["sw_count"] >= round_capture.target_sw_sets:
-                        result["success"] = True
-                        stage = "done"
-                        break
+                        if result["sweep_done_seen"] or round_capture.device_sw_sets == 0:
+                            result["success"] = True
+                            stage = "done"
+                            break
+                        if post_target_deadline is None:
+                            post_target_deadline = time.time() + 8.0
+                            stage = "finishing"
+                            emit(
+                                logf,
+                                "ROUND: target SW count reached; waiting for finite-master SWEEP_DONE\n",
+                                live_output,
+                                verbose,
+                            )
                     if result["sweep_done_seen"]:
-                        stage = "failed"
+                        if result["sw_count"] >= round_capture.target_sw_sets:
+                            result["success"] = True
+                            stage = "done"
+                        else:
+                            stage = "failed"
                         break
                 else:
                     time.sleep(0.1)
+                if post_target_deadline is not None and time.time() >= post_target_deadline:
+                    result["success"] = True
+                    stage = "done"
+                    result["warnings"].append("target SW count reached but SWEEP_DONE was not observed before handoff wait expired")
+                    break
 
             result["verified_count"] = len(verified)
             if result["apply_success_seen"]:
@@ -3130,7 +3150,15 @@ def main() -> int:
     parser.add_argument(
         "--no-bootstrap-autopos-reset",
         action="store_true",
-        help="Skip the one-shot 'anchor reset all autopos' bootstrap at the start of the sweep.",
+        help="Deprecated compatibility flag. Bootstrap reset is disabled by default.",
+    )
+    parser.add_argument(
+        "--bootstrap-autopos-reset",
+        action="store_true",
+        help=(
+            "Opt in to the one-shot 'anchor reset all autopos' bootstrap. "
+            "Default is disabled to match the proven 2026-04-26 AutoPos handoff."
+        ),
     )
     parser.add_argument(
         "--no-session-role-guard",
@@ -3194,6 +3222,8 @@ def main() -> int:
         summary["started_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
 
     # Always refresh run parameters to match the current invocation.
+    bootstrap_autopos_reset = bool(args.bootstrap_autopos_reset) and not bool(args.no_bootstrap_autopos_reset)
+
     summary.update({
         "port": args.port,
         "order": list(args.order),
@@ -3207,7 +3237,7 @@ def main() -> int:
         "quiet_tag_names": parse_quiet_tag_names(None if args.quiet_tag_name == "-" else args.quiet_tag_name),
         "quiet_tag_retries": args.quiet_tag_retries,
         "quiet_tag_required": bool(args.quiet_tag_required),
-        "bootstrap_autopos_reset": not bool(args.no_bootstrap_autopos_reset),
+        "bootstrap_autopos_reset": bootstrap_autopos_reset,
         "session_role_guard": not bool(args.no_session_role_guard),
         "final_responder": not bool(args.no_final_responder),
         "reuse_resident_anchor_master": bool(args.reuse_resident_anchor_master),
@@ -3216,7 +3246,7 @@ def main() -> int:
     command_started_at = time.time()
     run_context = {
         "autopos_initialized": False,
-        "bootstrap_autopos_reset": not bool(args.no_bootstrap_autopos_reset),
+        "bootstrap_autopos_reset": bootstrap_autopos_reset,
         "bootstrap_done": False,
         "session_autopos_ready": False,
     }
