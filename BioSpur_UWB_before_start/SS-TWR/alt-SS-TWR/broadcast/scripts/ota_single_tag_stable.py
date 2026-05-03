@@ -560,7 +560,32 @@ def main() -> int:
                     classification = "PHASE_A_PASS"
                     reason = "phase_a_pass"
                     raise RuntimeError(reason)
-    
+
+                # b61-era broadcast Tags may keep streaming TR/TS after
+                # OTA_PREPARE, which races the SMP subscribe gate.  Put the
+                # selected Tag into AOTA immediately before the Master reboots
+                # to OTA mode so no later RECV CFG can re-enable TDMA.  The
+                # target may not be the first ready peer when several BS* Tags
+                # are advertising, so keep trying until this specific command
+                # is actually sent/acknowledged.
+                aota_ok = False
+                aota_deadline = time.monotonic() + 14.0
+                send_cmd(ser, "conn", logf, t0)
+                consume_phase_a_lines(read_lines_for(ser, logf, t0, timeout_s=1.0))
+                while time.monotonic() < aota_deadline and not aota_ok:
+                    send_cmd(ser, "cmd MODE AOTA", logf, t0)
+                    for line in read_lines_for(ser, logf, t0, timeout_s=1.2):
+                        consume_phase_a_lines([line])
+                        if "MODE_OK MODE=AOTA" in line or "BLE cmd sent" in line:
+                            aota_ok = True
+                    if not aota_ok:
+                        time.sleep(0.4)
+                if not aota_ok:
+                    logf.write(
+                        f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A warn_aota_not_confirmed target={target_name}\n"
+                    )
+                    logf.flush()
+
                 send_cmd(ser, "mode ota", logf, t0)
                 reboot_deadline = time.monotonic() + 12.0
                 while time.monotonic() < reboot_deadline:
