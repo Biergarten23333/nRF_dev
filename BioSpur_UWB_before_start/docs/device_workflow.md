@@ -29,6 +29,8 @@ Helper scripts:
 Latest high-level summary:
 
 - `docs/session_summary_20260322.md`
+- Broadcast Tag inventory and pressure-test Tag identities:
+  - `docs/broadcast_tag_inventory.md`
 
 UI shell:
 

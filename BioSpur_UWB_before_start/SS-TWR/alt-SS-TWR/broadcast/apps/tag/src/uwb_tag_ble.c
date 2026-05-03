@@ -1393,6 +1393,15 @@ static void uwb_tag_ble_send_text(const char *text)
 	uwb_tag_ble_send_payload((const uint8_t *)text, strlen(text));
 }
 
+static void uwb_tag_ble_purge_tx_queue(void)
+{
+	struct uwb_tag_ble_tx_item *item;
+
+	while ((item = k_fifo_get(&ble_tx_fifo, K_NO_WAIT)) != NULL) {
+		k_mem_slab_free(&ble_tx_slab, (void *)item);
+	}
+}
+
 static void uwb_tag_ble_tx_thread_entry(void *arg1, void *arg2, void *arg3)
 {
 	ARG_UNUSED(arg1);
@@ -1462,6 +1471,10 @@ static void ble_notif_enabled(enum bt_nus_send_status status)
 		bool have_snapshot = false;
 
 		k_mutex_lock(&ble_mutex, K_FOREVER);
+		if (uwb_tag_ble_runtime_stream_blocked_locked()) {
+			k_mutex_unlock(&ble_mutex);
+			return;
+		}
 		if (pending_cal_count > 0U &&
 		    uwb_tag_ble_snapshot_pending_cal_locked(binary_snapshot,
 							    sizeof(binary_snapshot),
@@ -1882,8 +1895,15 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 	}
 
 	if (strcmp(cmd, "OTA_PREPARE") == 0) {
+		k_mutex_lock(&ble_mutex, K_FOREVER);
 		ota_ready = true;
-		ota_active = false;
+		ota_active = true;
+		uwb_tag_ble_clear_pending_cal_locked();
+		uwb_tag_ble_clear_pending_samples_locked();
+		uwb_tag_ble_clear_pending_bundle_locked();
+		k_mutex_unlock(&ble_mutex);
+		uwb_tag_ble_cancel_bundle_flush();
+		uwb_tag_ble_purge_tx_queue();
 		uwb_tag_ble_send_text("OTA_READY");
 		return;
 	}
@@ -1901,6 +1921,7 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		uwb_tag_ble_clear_pending_bundle_locked();
 		k_mutex_unlock(&ble_mutex);
 		uwb_tag_ble_cancel_bundle_flush();
+		uwb_tag_ble_purge_tx_queue();
 		uwb_tag_ble_send_text("OTA_BEGIN_OK");
 		return;
 	}
