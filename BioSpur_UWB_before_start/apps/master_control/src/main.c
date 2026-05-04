@@ -309,8 +309,8 @@ static void control_print_help(void)
 {
 	printk("Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate\n");
 	printk("OTA runtime cmds: ota_reset | ota show | ota version\n");
-	printk("Runtime NUS cmds: cmd <raw> | oneshot <raw> | oneshot show | oneshot clear\n");
-	printk("TDMA cmds: tdma show | tdma profile <BSxxxx> <static|roto|motion> | tdma freq <static|roto|motion> <hz> | tdma rebalance\n");
+	printk("Runtime NUS cmds: cmd <raw> | cmd_all <raw> | oneshot <raw> | oneshot show | oneshot clear\n");
+	printk("TDMA cmds: tdma show | tdma hold <0|1> | tdma roster <BSxxxx> <static|roto|motion> | tdma profile <BSxxxx> <static|roto|motion> | tdma freq <static|roto|motion> <hz> | tdma rebalance\n");
 	printk("Device model cmds: device show | device kind <anchor|tag>\n");
 	printk("OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->\n");
 	printk("Anchor cmds: anchor version <A..H|UUID32|all> | anchor role <A..H|UUID32|all> <master|matrix|responder> | anchor reset <A..H|UUID32|all> <autopos|responder>\n");
@@ -2273,6 +2273,13 @@ static void control_handle_uart_command(const char *line)
 		return;
 	}
 
+	if (strncasecmp(line, "cmd_all ", 8) == 0) {
+		payload = line + 8;
+		rc = master_send_command_all_now(payload);
+		printk("cmd_all rc=%d payload=%s\n", rc, payload);
+		return;
+	}
+
 	if (strncasecmp(line, "oneshot ", 8) == 0) {
 		payload = line + 8;
 		if (strcasecmp(payload, "show") == 0) {
@@ -2314,6 +2321,24 @@ static void control_handle_uart_command(const char *line)
 		if (n >= 1 && strcmp(sub, "clear") == 0) {
 			rc = master_tdma_clear_profiles();
 			printk("tdma clear rc=%d\n", rc);
+			return;
+		}
+		if (n >= 2 && strcmp(sub, "hold") == 0) {
+			unsigned long hold;
+			char *end = NULL;
+
+			hold = strtoul(a, &end, 10);
+			if (end == a || *end != '\0' || hold > 1UL) {
+				printk("tdma hold parse failed: %s\n", a);
+				return;
+			}
+			rc = master_tdma_set_rebalance_hold(hold != 0UL);
+			printk("tdma hold rc=%d hold=%lu\n", rc, hold);
+			return;
+		}
+		if (n >= 3 && strcmp(sub, "roster") == 0) {
+			rc = master_tdma_add_roster_target(a, b);
+			printk("tdma roster rc=%d target=%s profile=%s\n", rc, a, b);
 			return;
 		}
 		if (n >= 3 && strcmp(sub, "profile") == 0) {

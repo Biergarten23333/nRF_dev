@@ -210,6 +210,8 @@ static bool led_error_state;
 static bool led_flow_state;
 static struct k_work_delayable led_flow_off_work;
 static uint8_t tdma_generation;
+static bool tdma_rebalance_hold;
+static bool tdma_rebalance_deferred;
 static char runtime_one_shot_cmd[MASTER_RUNTIME_ONE_SHOT_CMD_LEN];
 static bool runtime_one_shot_cmd_set;
 static enum master_runtime_target_kind runtime_target_kind = MASTER_TARGET_UNKNOWN;
@@ -1216,6 +1218,36 @@ static bool scan_tag_matches_runtime_filter(const char *adv_name,
 	return true;
 }
 
+static bool bs_code_from_name(const char *name, uint16_t *bs_code)
+{
+	char *end = NULL;
+	unsigned long value;
+
+	if (name == NULL || bs_code == NULL) {
+		return false;
+	}
+	if (strlen(name) != 6U) {
+		return false;
+	}
+	if (toupper((unsigned char)name[0]) != 'B' ||
+	    toupper((unsigned char)name[1]) != 'S') {
+		return false;
+	}
+	for (size_t i = 2U; i < 6U; ++i) {
+		if (!isxdigit((unsigned char)name[i])) {
+			return false;
+		}
+	}
+
+	value = strtoul(&name[2], &end, 16);
+	if (end == NULL || *end != '\0' || value > 0xffffUL) {
+		return false;
+	}
+
+	*bs_code = (uint16_t)value;
+	return true;
+}
+
 static int master_send_runtime_config(struct master_peer *peer,
 				      uint8_t logical_tag_id,
 				      uint8_t slot_index,
@@ -1361,6 +1393,12 @@ static void master_rebalance_tdma_slots(void)
 	uint8_t occupied_slots[MASTER_TDMA_SLOT_COUNT_MAX] = { 0U };
 	uint8_t assigned_slots[MASTER_MAX_CONNECTIONS] = { 0U };
 	int32_t credits[MASTER_MAX_CONNECTIONS] = { 0 };
+
+	if (tdma_rebalance_hold) {
+		tdma_rebalance_deferred = true;
+		printk("TDMA rebalance deferred: hold=1\n");
+		return;
+	}
 
 	ready_count = master_collect_ready_peers(ordered, ARRAY_SIZE(ordered));
 	if (ready_count == 0U) {
@@ -2682,6 +2720,12 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 		     (uuid_hex[0] != '\0' && !strcasecmp(uuid_hex, runtime_target_uuid));
 	memset(adv_name, 0, sizeof(adv_name));
 	bt_data_parse(&name_copy, scan_name_cb, adv_name);
+	if (!bs_code_valid && runtime_target_kind == MASTER_TARGET_TAG &&
+	    bs_code_from_name(adv_name, &bs_code)) {
+		bs_code_valid = true;
+		tag_id = (uint8_t)(bs_code & 0xffU);
+		tag_id_valid = true;
+	}
 
 	if (runtime_target_kind == MASTER_TARGET_ANCHOR) {
 		if (!runtime_anchor_wildcard_scan) {
@@ -2702,6 +2746,8 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	}
 
 	if (runtime_target_kind == MASTER_TARGET_TAG &&
+	    runtime_target_name[0] == '\0' &&
+	    runtime_target_uuid[0] == '\0' &&
 	    !master_boot_tag_allowlist_has(bs_code)) {
 		return;
 	}
@@ -2723,6 +2769,8 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	}
 
 	if (runtime_target_kind == MASTER_TARGET_TAG &&
+	    runtime_target_name[0] == '\0' &&
+	    runtime_target_uuid[0] == '\0' &&
 	    master_tdma_any_profile_defined() &&
 	    !master_tdma_profile_has_bs_code(bs_code)) {
 		char addr[BT_ADDR_LE_STR_LEN];
@@ -3587,6 +3635,72 @@ int master_send_command_now(const char *cmd)
 	return (sent > 0) ? sent : -ENOTCONN;
 }
 
+int master_send_command_all_now(const char *cmd)
+{
+	size_t cmd_len;
+	int sent = 0;
+	int considered = 0;
+
+	if (cmd == NULL) {
+		return -EINVAL;
+	}
+
+	while (*cmd == ' ' || *cmd == '\t') {
+		cmd++;
+	}
+	if (*cmd == '\0') {
+		return -EINVAL;
+	}
+
+	cmd_len = strlen(cmd);
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		int err;
+
+		if (!peers[i].connected || !peers[i].ready || peers[i].conn == NULL) {
+			continue;
+		}
+		if (runtime_target_kind == MASTER_TARGET_TAG &&
+		    peers[i].link_type != MASTER_LINK_NUS) {
+			continue;
+		}
+		if (runtime_target_kind == MASTER_TARGET_ANCHOR &&
+		    peers[i].link_type != MASTER_LINK_ANCHOR_CTRL) {
+			continue;
+		}
+
+		considered++;
+		if (peers[i].link_type == MASTER_LINK_ANCHOR_CTRL) {
+			err = bt_gatt_write_without_response(peers[i].conn,
+							     peers[i].anchor_ctrl_handle,
+							     cmd, cmd_len, false);
+			if (err) {
+				printk("Anchor ctrl all send failed[%zu]: %d cmd=%s\n", i, err, cmd);
+				continue;
+			}
+			sent++;
+			printk("Anchor ctrl all sent[%zu]: %s uuid=%s\n", i, cmd,
+			       peers[i].adv_uuid[0] != '\0' ? peers[i].adv_uuid : "-");
+			continue;
+		}
+
+		err = bt_nus_client_send(&peers[i].nus_client, (const uint8_t *)cmd, cmd_len);
+		if (err) {
+			printk("BLE cmd_all send failed[%zu]: %d cmd=%s\n", i, err, cmd);
+			continue;
+		}
+
+		sent++;
+		printk("BLE cmd_all sent[%zu]: %s\n", i, cmd);
+	}
+
+	if (sent == 0) {
+		printk("BLE cmd_all not sent: considered=%d target_kind=%s cmd=%s\n",
+		       considered, runtime_target_kind_label(runtime_target_kind), cmd);
+	}
+
+	return (sent > 0) ? sent : -ENOTCONN;
+}
+
 int master_set_one_shot_command(const char *cmd, bool send_now)
 {
 	size_t cmd_len;
@@ -3686,6 +3800,43 @@ int master_tdma_set_profile(const char *bs_name, const char *profile)
 	return 0;
 }
 
+int master_tdma_add_roster_target(const char *bs_name, const char *profile)
+{
+	uint16_t bs_code;
+	enum master_tdma_profile_kind kind;
+	int free_idx = -1;
+
+	if (!master_tdma_parse_bs_code(bs_name, &bs_code) ||
+	    !master_tdma_parse_profile_kind(profile, &kind)) {
+		return -EINVAL;
+	}
+
+	for (size_t i = 0U; i < ARRAY_SIZE(tdma_profiles); ++i) {
+		if (tdma_profiles[i].valid && tdma_profiles[i].bs_code == bs_code) {
+			tdma_profiles[i].kind = kind;
+			printk("TDMA roster set: BS%04X -> %s\n",
+			       (unsigned int)bs_code,
+			       master_tdma_profile_label(kind));
+			return 0;
+		}
+		if (!tdma_profiles[i].valid && free_idx < 0) {
+			free_idx = (int)i;
+		}
+	}
+
+	if (free_idx < 0) {
+		return -ENOMEM;
+	}
+
+	tdma_profiles[free_idx].valid = true;
+	tdma_profiles[free_idx].bs_code = bs_code;
+	tdma_profiles[free_idx].kind = kind;
+	printk("TDMA roster set: BS%04X -> %s\n",
+	       (unsigned int)bs_code,
+	       master_tdma_profile_label(kind));
+	return 0;
+}
+
 int master_tdma_set_profile_freq(const char *profile, uint8_t hz)
 {
 	enum master_tdma_profile_kind kind;
@@ -3714,9 +3865,27 @@ int master_tdma_set_profile_freq(const char *profile, uint8_t hz)
 	return 0;
 }
 
+int master_tdma_set_rebalance_hold(bool hold)
+{
+	tdma_rebalance_hold = hold;
+	printk("TDMA rebalance hold=%u deferred=%u\n",
+	       hold ? 1U : 0U,
+	       tdma_rebalance_deferred ? 1U : 0U);
+	if (!hold && tdma_rebalance_deferred) {
+		tdma_rebalance_deferred = false;
+		master_rebalance_tdma_slots();
+	}
+	return 0;
+}
+
 int master_tdma_rebalance_now(void)
 {
+	bool was_held = tdma_rebalance_hold;
+
+	tdma_rebalance_hold = false;
+	tdma_rebalance_deferred = false;
 	master_rebalance_tdma_slots();
+	tdma_rebalance_hold = was_held;
 	return 0;
 }
 

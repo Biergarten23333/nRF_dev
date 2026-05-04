@@ -1,0 +1,39 @@
+{
+  "listener_cmd": [
+    "/usr/bin/python3",
+    "scripts/capture_uwb_listener.py",
+    "--port",
+    "/dev/serial/by-id/usb-SEGGER_J-Link_000760185886-if00",
+    "--duration",
+    "100.0",
+    "--out-dir",
+    "logs/tdma_10tag_add_BS10CE_motion60_20260504_125335/listener"
+  ],
+  "capture_cmd": [
+    "/usr/bin/python3",
+    "scripts/run_recv_tdma_capture.py",
+    "--port",
+    "/dev/serial/by-id/usb-BioSpur_1_BioSpur_BLE_Control_6918E0384172A49F-if00",
+    "--controller-reset-snr",
+    "-",
+    "--duration",
+    "60",
+    "--targets",
+    "BSF66F,BS2DCE,BSDC91,BSE88E,BS6F3A,BS8251,BSF8E0,BS1396,BS7724,BS10CE",
+    "--profiles",
+    "BSF66F:motion,BS2DCE:motion,BSDC91:motion,BSE88E:motion,BS6F3A:motion,BS8251:motion,BSF8E0:motion,BS1396:motion,BS7724:motion,BS10CE:motion",
+    "--motion-hz",
+    "10",
+    "--skip-cm-probe",
+    "--allow-zero-positions",
+    "--anchor-preflight-port",
+    "/dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02-if00",
+    "--anchor-preflight-retries",
+    "2",
+    "--anchor-preflight-launch-retries",
+    "2",
+    "--out-dir",
+    "logs/tdma_10tag_add_BS10CE_motion60_20260504_125335/recv"
+  ],
+  "duration_s": 60.0
+}

@@ -225,3 +225,74 @@ Recommended next step:
 
 1. Push and verify the current V4 APOS layout to BSE88E, because the new Tag may not have the calibrated layout in NVS.
 2. Run the 120s 4-Tag TDMA motion capture with `BSF66F,BS2DCE,BSDC91,BSE88E`.
+
+
+## BS6F3A / Ankle_R Addition - 2026-05-03
+
+Context:
+
+- A second custom-board pressure-test Tag was brought up after BSE88E.
+- Mount / role note: `Ankle_R`
+- Stable BLE identity: `BS6F3A`
+- BLE address observed by Master_Tag: `FB:BE:DD:5A:88:33` (random)
+
+FICR / identity:
+
+```text
+DEVICEID[0] = 0xCE9788BB
+DEVICEID[1] = 0x06335B4C
+computed BS code = 0x6F3A
+computed BLE name = BS6F3A
+default tag byte = 0x3A
+default local short address = 0xB13A
+```
+
+Direct-flash image used:
+
+```text
+SS-TWR/alt-SS-TWR/broadcast/build-alt-bcast-b62-otaprep-silent-tag-g1200-r1000-rms0/merged.hex
+```
+
+Master_Tag discovery fix:
+
+- BS6F3A was visible from a second Linux machine as a BLE local name, but the Master_Tag initially did not accept it.
+- Root cause: Master_Tag scan path dropped Tag advertisements without a parsed BioSpur manufacturer token.
+- Fix: Master_Tag now accepts explicit `BSxxxx` name-derived targets and bypasses boot allowlist only when an explicit target name/UUID is set.
+- Validation log: `logs/scan_BS6F3A_after_master_namefallback_20260503.log`
+
+BS6F3A b62 OTA validation:
+
+- Command output directory: `SS-TWR/alt-SS-TWR/broadcast/logs/ota_tag_BS6F3A_b62_20260503_232316`
+- Pre-version: `alt-bcast-b61-tr2-b55base-ekf0-g1200-r1000-rms0`
+- Target marker: `alt-bcast-b62-otaprep-silent-g1200-r1000`
+- Upload gate passed.
+- Upload progress reached 100%.
+- Post-version: `alt-bcast-b62-otaprep-silent-g1200-r1000`
+- Match: `True`
+
+5-Tag TDMA pressure test including BS6F3A:
+
+- Capture: `SS-TWR/alt-SS-TWR/broadcast/logs/tdma_5tag_motion180_b62_20260503_232731`
+- Targets: `BSF66F,BS2DCE,BSDC91,BSE88E,BS6F3A`
+- Duration: `180s`
+- Total TR rows: `72016`
+- Theoretical TR rows: `5 tags * 8 anchors * 10Hz * 180s = 72000`
+- Total TS rows: `7472`
+- `tf_all=0`
+
+Per-Tag result:
+
+| Tag | Role | TS rows | TS rate | TR rows | TR valid | Notes |
+|---|---|---:|---:|---:|---:|---|
+| BSF66F | Static Tag | 1800 | 10.00 Hz | 14400 | 13365 / 92.8% | OK |
+| BS2DCE | RotoTag | 1800 | 10.00 Hz | 14400 | 14140 / 98.2% | OK |
+| BSDC91 | RotoTag | 271 | 1.51 Hz | 14400 | 3027 / 21.0% | TR full-rate but range validity collapsed after ~55s |
+| BSE88E | Pelvis | 1800 | 10.00 Hz | 14408 | 13273 / 92.1% | OK |
+| BS6F3A | Ankle_R | 1801 | 10.01 Hz | 14408 | 14151 / 98.2% | OK |
+
+Conclusion:
+
+- BS6F3A is now a validated b62 OTA-capable pressure-test Tag.
+- BS6F3A sustained full 10 Hz TS output in the 5-Tag TDMA run.
+- The 5-Tag TR transport path is effectively full-rate at ~400 TR/s.
+- The only failing Tag in that run was BSDC91, whose TR rows were present but mostly timeout/invalid; this is a per-Tag UWB range/solve issue, not a global TDMA/BLE throughput failure.

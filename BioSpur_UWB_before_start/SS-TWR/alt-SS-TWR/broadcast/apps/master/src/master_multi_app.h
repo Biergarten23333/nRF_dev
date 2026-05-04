@@ -45,11 +45,14 @@ int master_anchor_ctrl_read_result(char *out, size_t out_len);
 int master_anchor_ctrl_send_command_wait_result(const char *cmd, char *out, size_t out_len,
 						int timeout_ms);
 int master_send_command_now(const char *cmd);
+int master_send_command_all_now(const char *cmd);
 int master_set_one_shot_command(const char *cmd, bool send_now);
 void master_clear_one_shot_command(void);
 void master_print_one_shot_command(void);
 int master_tdma_set_profile(const char *bs_name, const char *profile);
+int master_tdma_add_roster_target(const char *bs_name, const char *profile);
 int master_tdma_set_profile_freq(const char *profile, uint8_t hz);
+int master_tdma_set_rebalance_hold(bool hold);
 int master_tdma_rebalance_now(void);
 int master_tdma_clear_profiles(void);
 void master_tdma_print_status(void);

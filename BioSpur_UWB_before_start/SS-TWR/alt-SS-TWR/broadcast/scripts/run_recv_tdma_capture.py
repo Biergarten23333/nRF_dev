@@ -708,6 +708,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Seconds to wait for all target tag links before recovery.",
     )
     parser.add_argument(
+        "--tag-link-stable-s",
+        type=float,
+        default=8.0,
+        help="Seconds to keep all requested tag links connected before TDMA release.",
+    )
+    parser.add_argument(
         "--no-cleanup",
         action="store_true",
         help="Leave tags running after capture. By default tags are returned to AOTA/idle mode.",
@@ -839,6 +845,7 @@ def ensure_target_links_ready(
     targets: list[str],
     controller_reset_snr: str = "",
     wait_per_target_s: float = 120.0,
+    stable_s: float = 8.0,
     initial_text: str = "",
 ) -> serial.Serial:
     ready_targets: set[str] = set()
@@ -864,6 +871,7 @@ def ensure_target_links_ready(
         # B120s expose CDC write starvation when host retries overlap BLE setup.
         deadline = time.time() + wait_s
         last_progress_print = 0.0
+        all_ready_since: float | None = None
         print(
             f"[CAPTURE] link setup passive {label}: wait up to {wait_s:.0f}s",
             flush=True,
@@ -881,9 +889,16 @@ def ensure_target_links_ready(
                     + f" ({len(ready_targets)}/{len(targets)})",
                     flush=True,
                 )
-            if all(target.upper() in ready_targets for target in targets):
+            all_ready = all(target.upper() in ready_targets for target in targets)
+            if all_ready and all_ready_since is None:
+                all_ready_since = now
+                print(
+                    f"[CAPTURE] link setup passive: all {len(targets)}/{len(targets)} ready; settle {stable_s:.1f}s before TDMA release",
+                    flush=True,
+                )
+            if all_ready and (now - (all_ready_since or now)) >= stable_s:
                 return True
-        return all(target.upper() in ready_targets for target in targets)
+        return all(target.upper() in ready_targets for target in targets) and all_ready_since is not None
 
     if passive_wait("initial", wait_per_target_s):
         return ser
@@ -999,7 +1014,29 @@ def configure_recv_capture_session(
         ser = send_cmd(ser, logf, "device kind tag", 2.0)
         status_text = ""
         device_text = ""
+    ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
+    ser = send_cmd(ser, logf, "ota_target name -", 0.5)
+    ser = send_cmd(ser, logf, "ota_target prefix BS", 0.5)
+    ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
+    print("[CAPTURE] configure: silence resident Tag links for enrollment", flush=True)
+    ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
+    ser = send_cmd(ser, logf, "cmd_all MODE AOTA", 1.0)
     ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
+    ser = send_cmd(ser, logf, f"tdma freq static {args.static_hz}", 0.5)
+    ser = send_cmd(ser, logf, f"tdma freq roto {args.roto_hz}", 0.5)
+    ser = send_cmd(ser, logf, f"tdma freq motion {args.motion_hz}", 0.5)
+    print("[CAPTURE] configure: preseed TDMA target roster", flush=True)
+    for name, profile in profile_items:
+        ser = send_cmd(ser, logf, f"tdma roster {name} {profile}", 0.5)
+    # Keep discovery broad, but make Master_Tag's profile allow-list equal to
+    # this run's requested roster before link setup.  Otherwise new Tags that
+    # are not in the firmware boot allow-list can be silently ignored until a
+    # per-name target is set, which does not scale to 10-tag stress tests.
+    ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
+    ser = send_cmd(ser, logf, "ota_target name -", 0.5)
+    ser = send_cmd(ser, logf, "ota_target prefix BS", 0.5)
+    ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
+    ser = send_cmd(ser, logf, "conn", 0.5)
     print("[CAPTURE] configure: wait for target links", flush=True)
     ser = ensure_target_links_ready(
         ser,
@@ -1007,15 +1044,11 @@ def configure_recv_capture_session(
         targets,
         args.controller_reset_snr,
         wait_per_target_s=args.tag_link_timeout_s,
+        stable_s=args.tag_link_stable_s,
         initial_text=status_text + device_text + clear_text,
     )
-    print("[CAPTURE] configure: apply TDMA profiles", flush=True)
-    for name, profile in profile_items:
-        ser = send_cmd(ser, logf, f"tdma profile {name} {profile}", 0.8)
-    ser = send_cmd(ser, logf, f"tdma freq static {args.static_hz}", 0.5)
-    ser = send_cmd(ser, logf, f"tdma freq roto {args.roto_hz}", 0.5)
-    ser = send_cmd(ser, logf, f"tdma freq motion {args.motion_hz}", 0.5)
-    ser = send_cmd(ser, logf, "tdma rebalance", 0.8)
+    print("[CAPTURE] configure: release TDMA hold and rebalance once", flush=True)
+    ser = send_cmd(ser, logf, "tdma hold 0", 1.0)
     ser = send_cmd(ser, logf, "tdma show", 1.0)
     ser = send_cmd(ser, logf, "status", 0.8)
     ser = send_cmd(ser, logf, "device show", 0.8)
@@ -1027,15 +1060,39 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
     if args.no_cleanup:
         return ser, {"attempted": False, "reason": "disabled_by_flag"}
 
-    result = {"attempted": True, "success": False, "command": "cmd MODE AOTA", "error": ""}
+    result = {
+        "attempted": True,
+        "success": False,
+        "command": "cmd_all MODE AOTA",
+        "error": "",
+        "stop_notify_rows": None,
+        "stop_verify_s": 3.0,
+    }
+
+    def verify_quiet() -> int:
+        text = drain_serial_until(ser, logf, result["stop_verify_s"])
+        rows = 0
+        for line in text.splitlines():
+            if TAG_SUMMARY_RE_SEMI.search(line) or TAG_FILTER_RE_SEMI.search(line):
+                rows += 1
+                continue
+            if TR_RE.search(line) or TR2_RE.search(line):
+                rows += 1
+        return rows
+
     try:
-        print("[CAPTURE] cleanup: stopping tag ranging with MODE AOTA", flush=True)
-        logf.write(f"[HOST_CLEANUP {time.monotonic():.3f}] stop tag ranging via MODE AOTA\n")
+        print("[CAPTURE] cleanup: stopping all tag ranging with cmd_all MODE AOTA", flush=True)
+        logf.write(f"[HOST_CLEANUP {time.monotonic():.3f}] stop all tag ranging via cmd_all MODE AOTA\n")
         logf.flush()
-        ser = send_cmd(ser, logf, "cmd MODE AOTA", 2.0)
-        ser = send_cmd(ser, logf, "cmd MODE?", 1.0)
-        result["success"] = True
-        print("[CAPTURE] cleanup: MODE AOTA sent", flush=True)
+        ser = send_cmd(ser, logf, "cmd_all MODE AOTA", 1.0)
+        rows = verify_quiet()
+        result["stop_notify_rows"] = rows
+        result["success"] = rows == 0
+        if result["success"]:
+            print("[CAPTURE] cleanup: all tags quiet after MODE AOTA", flush=True)
+        else:
+            result["error"] = f"still saw {rows} TS/TF/TR rows after stop"
+            print(f"[CAPTURE] cleanup: stop verify failed: {result['error']}", flush=True)
     except (SerialException, OSError) as exc:
         result["error"] = str(exc)
         try:
@@ -1046,11 +1103,15 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
             ser = open_serial_with_retry(args.port, args.baud, retries=30)
             time.sleep(0.8)
             drain_serial_until(ser, logf, 0.8)
-            ser = send_cmd(ser, logf, "cmd MODE AOTA", 2.0)
-            ser = send_cmd(ser, logf, "cmd MODE?", 1.0)
-            result["success"] = True
-            result["error"] = ""
-            print("[CAPTURE] cleanup: MODE AOTA sent after serial reopen", flush=True)
+            ser = send_cmd(ser, logf, "cmd_all MODE AOTA", 1.0)
+            rows = verify_quiet()
+            result["stop_notify_rows"] = rows
+            result["success"] = rows == 0
+            result["error"] = "" if result["success"] else f"still saw {rows} TS/TF/TR rows after stop"
+            if result["success"]:
+                print("[CAPTURE] cleanup: all tags quiet after serial reopen", flush=True)
+            else:
+                print(f"[CAPTURE] cleanup: stop verify failed after reopen: {result['error']}", flush=True)
         except Exception as retry_exc:
             result["error"] = f"{type(retry_exc).__name__}: {retry_exc}"
             print(f"[CAPTURE] cleanup: failed: {result['error']}", flush=True)
@@ -1672,7 +1733,12 @@ def main() -> int:
                             if elapsed >= 60.0:
                                 bad = []
                                 for target in targets:
-                                    if cm_ok_seen.get(target, 0) == 0 and positions_seen.get(target, 0) == 0:
+                                    tr_only_ok = args.allow_zero_positions and tr_seen.get(target, 0) > 0
+                                    if (
+                                        cm_ok_seen.get(target, 0) == 0
+                                        and positions_seen.get(target, 0) == 0
+                                        and not tr_only_ok
+                                    ):
                                         startup_strikes[target] += 1
                                         if startup_strikes[target] >= 10:
                                             bad.append(target)
@@ -1981,7 +2047,12 @@ def main() -> int:
                         if elapsed >= 60.0:
                             bad = []
                             for target in targets:
-                                if cm_ok_seen.get(target, 0) == 0 and positions_seen.get(target, 0) == 0:
+                                tr_only_ok = args.allow_zero_positions and tr_seen.get(target, 0) > 0
+                                if (
+                                    cm_ok_seen.get(target, 0) == 0
+                                    and positions_seen.get(target, 0) == 0
+                                    and not tr_only_ok
+                                ):
                                     startup_strikes[target] += 1
                                     if startup_strikes[target] >= 10:
                                         bad.append(target)

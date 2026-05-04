@@ -1,0 +1,39 @@
+{
+  "listener_cmd": [
+    "/usr/bin/python3",
+    "scripts/capture_uwb_listener.py",
+    "--port",
+    "/dev/serial/by-id/usb-SEGGER_J-Link_000760185886-if00",
+    "--duration",
+    "240.0",
+    "--out-dir",
+    "logs/tdma_9tag_motion180_tronly_b66_cmdall_20260504_114121/listener"
+  ],
+  "capture_cmd": [
+    "/usr/bin/python3",
+    "scripts/run_recv_tdma_capture.py",
+    "--port",
+    "/dev/serial/by-id/usb-BioSpur_1_BioSpur_BLE_Control_6918E0384172A49F-if00",
+    "--controller-reset-snr",
+    "-",
+    "--duration",
+    "180",
+    "--targets",
+    "BSF66F,BS2DCE,BSDC91,BSE88E,BS6F3A,BSF8E0,BS8251,BS7724,BS1396",
+    "--profiles",
+    "BSF66F:motion,BS2DCE:motion,BSDC91:motion,BSE88E:motion,BS6F3A:motion,BSF8E0:motion,BS8251:motion,BS7724:motion,BS1396:motion",
+    "--motion-hz",
+    "10",
+    "--skip-cm-probe",
+    "--allow-zero-positions",
+    "--anchor-preflight-port",
+    "/dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02-if00",
+    "--anchor-preflight-retries",
+    "2",
+    "--anchor-preflight-launch-retries",
+    "2",
+    "--out-dir",
+    "logs/tdma_9tag_motion180_tronly_b66_cmdall_20260504_114121/recv"
+  ],
+  "duration_s": 180.0
+}
