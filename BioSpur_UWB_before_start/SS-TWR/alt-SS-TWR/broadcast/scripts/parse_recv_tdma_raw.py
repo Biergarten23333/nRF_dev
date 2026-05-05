@@ -22,6 +22,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def write_rows(path: Path, fields: list[str], rows: list[dict]) -> None:
+    if path.suffix == ".csv" and path.name[:2] in {"cm", "cs", "cr", "cf"}:
+        return
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
@@ -35,6 +37,7 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     positions: list[dict] = []
+    tr_rows: list[dict] = []
     cm_rows: list[dict] = []
     cs_rows: list[dict] = []
     cr_rows: list[dict] = []
@@ -77,6 +80,26 @@ def main() -> int:
                     "quality_percent": int(m.group("q")),
                     "ok_count": int(m.group("ok")),
                     "fail_count": int(m.group("fail")),
+                }
+            )
+
+        for tr in cap.iter_tr_records(line):
+            tr_rows.append(
+                {
+                    "sweep": int(tr["sweep"]),
+                    "peer_name": peer_name,
+                    "plan": tr["plan"],
+                    "pmode": int(tr["pmode"]),
+                    "anchor_id": int(tr["anchor_id"]),
+                    "raw_mm": int(tr["raw_mm"]),
+                    "range_mm": int(tr["range_mm"]),
+                    "quality_percent": int(tr["quality_percent"]),
+                    "valid": int(tr["valid"]),
+                    "status": tr["status"],
+                    "quality_flag_percent": int(tr.get("quality_flag_percent") or 0),
+                    "first_to_last_us": int(tr.get("first_to_last_us") or 0),
+                    "frame_us": int(tr.get("frame_us") or 0),
+                    "poll_count": int(tr.get("poll_count") or 0),
                 }
             )
 
@@ -131,19 +154,22 @@ def main() -> int:
             )
 
     write_rows(out_dir / "positions_all.csv", list(positions[0].keys()) if positions else ["sweep"], positions)
+    write_rows(out_dir / "tr_all.csv", list(tr_rows[0].keys()) if tr_rows else ["sweep"], tr_rows)
     write_rows(out_dir / "cm_all.csv", list(cm_rows[0].keys()) if cm_rows else ["sweep"], cm_rows)
     write_rows(out_dir / "cs_all.csv", list(cs_rows[0].keys()) if cs_rows else ["sweep"], cs_rows)
     write_rows(out_dir / "cr_all.csv", list(cr_rows[0].keys()) if cr_rows else ["sweep"], cr_rows)
     write_rows(out_dir / "cf_all.csv", list(cf_rows[0].keys()) if cf_rows else ["sweep"], cf_rows)
 
     per_tag = {}
-    for name in sorted({r["peer_name"] for r in cm_rows + cs_rows + cr_rows + cf_rows + positions if r.get("peer_name")}):
+    for name in sorted({r["peer_name"] for r in tr_rows + cm_rows + cs_rows + cr_rows + cf_rows + positions if r.get("peer_name")}):
+        tr = [r for r in tr_rows if r["peer_name"] == name]
         cm = [r for r in cm_rows if r["peer_name"] == name]
         cs = [r for r in cs_rows if r["peer_name"] == name]
         cr = [r for r in cr_rows if r["peer_name"] == name]
         cf = [r for r in cf_rows if r["peer_name"] == name]
         per_tag[name] = {
             "positions": sum(1 for r in positions if r["peer_name"] == name),
+            "tr": len(tr),
             "cm": len(cm),
             "cs": len(cs),
             "cr": len(cr),
@@ -158,16 +184,14 @@ def main() -> int:
         "success": True,
         "raw_log": str(raw_path),
         "positions_all": len(positions),
+        "tr_all": len(tr_rows),
         "cm_all": len(cm_rows),
         "cs_all": len(cs_rows),
         "cr_all": len(cr_rows),
         "cf_all": len(cf_rows),
         "per_tag": per_tag,
         "positions_all_csv": str(out_dir / "positions_all.csv"),
-        "cm_all_csv": str(out_dir / "cm_all.csv"),
-        "cs_all_csv": str(out_dir / "cs_all.csv"),
-        "cr_all_csv": str(out_dir / "cr_all.csv"),
-        "cf_all_csv": str(out_dir / "cf_all.csv"),
+        "tr_all_csv": str(out_dir / "tr_all.csv"),
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2))

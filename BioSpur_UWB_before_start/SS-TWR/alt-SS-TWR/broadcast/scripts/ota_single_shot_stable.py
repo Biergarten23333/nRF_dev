@@ -367,7 +367,11 @@ def wait_uart_ready(
     boot_ready = False
     boot_mode = ""
     boot_ready_deadline = time.monotonic() + timeout_s
-    last_probe = 0.0
+    # Freshly flashed B120 CDC can still be draining boot chatter when the
+    # port opens.  Prefer consuming the ready/status lines already emitted by
+    # firmware before actively writing a probe command; writing too early can
+    # leave the CDC TX path wedged on some hosts.
+    last_probe = time.monotonic() + 4.0
     while time.monotonic() < boot_ready_deadline:
         now = time.monotonic()
         if probe_status and now - last_probe > 2.0:

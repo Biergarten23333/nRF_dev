@@ -91,6 +91,7 @@ set(APP_TAG_OUTPUT_MAX_MAX_MM "0" CACHE STRING "Reject solved positions above th
 set(APP_TAG_OUTPUT_MAX_STEP_MM "0" CACHE STRING "Reject solved positions that jump more than this distance from the last accepted position in millimeters (0 disables)")
 set(APP_TAG_OUTPUT_FILTER_RMS_MM "0" CACHE STRING "Emit TF and suppress TS for solved positions above this RMS residual in millimeters (0 disables)")
 set(APP_TAG_OUTPUT_FILTER_SPEED_MM_S "0" CACHE STRING "Emit TF and suppress TS for solved positions faster than this from the last accepted position in mm/s (0 disables)")
+set(APP_TAG_POSITION_OUTPUT_ENABLE "0" CACHE STRING "Emit Tag-side solved position status lines (TS/TF). Enable only when Tag-side solved positions are needed.")
 set(APP_TAG_LOC_FAST_ALL_VALID_ENABLE "0" CACHE STRING "Use the all-valid-anchor fast location solve path")
 set(APP_TAG_SWEEP_DIAG_ENABLE "0" CACHE STRING "Emit per-sweep timing diagnostic lines")
 set(APP_TAG_SWEEP_DIAG_PERIOD "10" CACHE STRING "Emit one sweep timing diagnostic every N sweeps")
@@ -202,6 +203,7 @@ target_compile_definitions(app PRIVATE
     APP_TAG_OUTPUT_MAX_STEP_MM=${APP_TAG_OUTPUT_MAX_STEP_MM}
     APP_TAG_OUTPUT_FILTER_RMS_MM=${APP_TAG_OUTPUT_FILTER_RMS_MM}
     APP_TAG_OUTPUT_FILTER_SPEED_MM_S=${APP_TAG_OUTPUT_FILTER_SPEED_MM_S}
+    APP_TAG_POSITION_OUTPUT_ENABLE=${APP_TAG_POSITION_OUTPUT_ENABLE}
     APP_TAG_LOC_FAST_ALL_VALID_ENABLE=${APP_TAG_LOC_FAST_ALL_VALID_ENABLE}
     APP_TAG_SWEEP_DIAG_ENABLE=${APP_TAG_SWEEP_DIAG_ENABLE}
     APP_TAG_SWEEP_DIAG_PERIOD=${APP_TAG_SWEEP_DIAG_PERIOD}

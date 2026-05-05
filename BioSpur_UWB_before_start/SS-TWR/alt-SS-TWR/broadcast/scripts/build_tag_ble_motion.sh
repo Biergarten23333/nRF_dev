@@ -31,6 +31,7 @@ range_filter_outlier_mm="${APP_TAG_RANGE_FILTER_OUTLIER_MM:-120000}"
 range_continuity_enable="${APP_TAG_RANGE_CONTINUITY_ENABLE:-0}"
 output_filter_rms_mm="${APP_TAG_OUTPUT_FILTER_RMS_MM:-0}"
 output_filter_speed_mm_s="${APP_TAG_OUTPUT_FILTER_SPEED_MM_S:-0}"
+position_output_enable="${APP_TAG_POSITION_OUTPUT_ENABLE:-0}"
 tag_loc_fast_all_valid_enable="${APP_TAG_LOC_FAST_ALL_VALID_ENABLE:-0}"
 sweep_diag_enable="${APP_TAG_SWEEP_DIAG_ENABLE:-0}"
 sweep_diag_period="${APP_TAG_SWEEP_DIAG_PERIOD:-10}"
@@ -82,6 +83,7 @@ fi
   printf 'set(APP_TAG_RANGE_CONTINUITY_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${range_continuity_enable}"
   printf 'set(APP_TAG_OUTPUT_FILTER_RMS_MM %s CACHE STRING "Motion tag preload" FORCE)\n' "${output_filter_rms_mm}"
   printf 'set(APP_TAG_OUTPUT_FILTER_SPEED_MM_S %s CACHE STRING "Motion tag preload" FORCE)\n' "${output_filter_speed_mm_s}"
+  printf 'set(APP_TAG_POSITION_OUTPUT_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${position_output_enable}"
   printf 'set(APP_TAG_LOC_FAST_ALL_VALID_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_loc_fast_all_valid_enable}"
   printf 'set(APP_TAG_SWEEP_DIAG_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${sweep_diag_enable}"
   printf 'set(APP_TAG_SWEEP_DIAG_PERIOD %s CACHE STRING "Motion tag preload" FORCE)\n' "${sweep_diag_period}"
@@ -193,6 +195,7 @@ west build \
   -DAPP_TAG_RANGE_CONTINUITY_ENABLE="${range_continuity_enable}" \
   -DAPP_TAG_OUTPUT_FILTER_RMS_MM="${output_filter_rms_mm}" \
   -DAPP_TAG_OUTPUT_FILTER_SPEED_MM_S="${output_filter_speed_mm_s}" \
+  -DAPP_TAG_POSITION_OUTPUT_ENABLE="${position_output_enable}" \
   -DAPP_TAG_LOC_FAST_ALL_VALID_ENABLE="${tag_loc_fast_all_valid_enable}" \
   -DAPP_TAG_SWEEP_DIAG_ENABLE="${sweep_diag_enable}" \
   -DAPP_TAG_SWEEP_DIAG_PERIOD="${sweep_diag_period}" \

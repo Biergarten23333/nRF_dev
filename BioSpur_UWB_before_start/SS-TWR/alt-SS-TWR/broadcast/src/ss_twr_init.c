@@ -102,6 +102,10 @@
 #define APP_TAG_SWEEP_DIAG_PERIOD 10U
 #endif
 
+#ifndef APP_TAG_POSITION_OUTPUT_ENABLE
+#define APP_TAG_POSITION_OUTPUT_ENABLE 0U
+#endif
+
 #ifndef APP_TAG_TDMA_SLOT_PERIOD_MS
 #define APP_TAG_TDMA_SLOT_PERIOD_MS 0U
 #endif
@@ -599,9 +603,10 @@ static size_t ss_twr_init_append_csv_u32(char *buf, size_t len, size_t pos,
 }
 
 static void ss_twr_init_publish_tag_range_summary(
-    const struct uwb_tag_measurement *measurements, size_t measurement_count)
+    const struct uwb_tag_measurement *measurements, size_t measurement_count,
+    uint8_t qf_percent)
 {
-    char line[256];
+    char line[320];
     char raw_csv[64];
     char range_csv[64];
     char quality_csv[40];
@@ -612,6 +617,8 @@ static void ss_twr_init_publish_tag_range_summary(
     size_t status_pos = 0U;
     uint32_t active_mask = 0U;
     uint32_t valid_mask = 0U;
+    uint32_t first_to_last_us = 0U;
+    uint32_t frame_us = 0U;
     bool first = true;
 
     if (ss_twr_init_runtime_any_calibration_mode()) {
@@ -659,21 +666,36 @@ static void ss_twr_init_publish_tag_range_summary(
     quality_csv[MIN(quality_pos, sizeof(quality_csv) - 1U)] = '\0';
     status_codes[MIN(status_pos, sizeof(status_codes) - 1U)] = '\0';
 
+    if (ss_twr_init_sweep_timing_valid && ss_twr_init_sweep_poll_count != 0U) {
+        first_to_last_us = k_cyc_to_us_floor32(
+            ss_twr_init_sweep_last_poll_cycle -
+            ss_twr_init_sweep_first_poll_cycle);
+        frame_us = k_cyc_to_us_floor32(
+            ss_twr_init_sweep_done_cycle -
+            ss_twr_init_sweep_first_poll_cycle);
+    }
+
     snprintk(line, sizeof(line),
-             "TR;2;%lu;%c;%u;%02lx;%02lx;%s;%s;%s;%s",
+             "TR;3;%lu;%c;%u;%02lx;%02lx;%s;%s;%s;%s;%u;%lu;%lu;%u",
              (unsigned long)ss_twr_init_sweep_count,
              ss_twr_init_plan_code(ss_twr_init_plan_label()),
              (unsigned int)ss_twr_init_runtime_params.positioning_mode,
              (unsigned long)active_mask, (unsigned long)valid_mask,
-             raw_csv, range_csv, quality_csv, status_codes);
+             raw_csv, range_csv, quality_csv, status_codes,
+             (unsigned int)qf_percent,
+             (unsigned long)first_to_last_us,
+             (unsigned long)frame_us,
+             (unsigned int)ss_twr_init_sweep_poll_count);
     (void)uwb_tag_ble_publish_status(line);
 }
 #else
 static void ss_twr_init_publish_tag_range_summary(
-    const struct uwb_tag_measurement *measurements, size_t measurement_count)
+    const struct uwb_tag_measurement *measurements, size_t measurement_count,
+    uint8_t qf_percent)
 {
     ARG_UNUSED(measurements);
     ARG_UNUSED(measurement_count);
+    ARG_UNUSED(qf_percent);
 }
 #endif
 
@@ -1665,7 +1687,8 @@ static void ss_twr_init_publish_filtered_position(
 {
     char line[224];
 
-    if (location == NULL || ss_twr_init_runtime_any_calibration_mode()) {
+    if (APP_TAG_POSITION_OUTPUT_ENABLE == 0U || location == NULL ||
+        ss_twr_init_runtime_any_calibration_mode()) {
         return;
     }
 
@@ -2944,7 +2967,8 @@ static void ss_twr_init_print_location_if_ready(void)
                                        0U,
                                        received_anchors);
         ss_twr_init_publish_tag_range_summary(measurements,
-                                              ss_twr_init_anchor_count);
+                                              ss_twr_init_anchor_count,
+                                              solution_quality_percent);
 #if APP_TAG_SWEEP_DIAG_ENABLE != 0U
         ss_twr_init_diag_out_done_cycles = k_cycle_get_32();
 #endif
@@ -3315,6 +3339,7 @@ static void ss_twr_init_print_location_if_ready(void)
     }
 
     if (!ss_twr_init_runtime_any_calibration_mode()) {
+#if APP_TAG_POSITION_OUTPUT_ENABLE != 0U
         char ble_summary[256];
         char ble_anchors[32];
         char ble_anchor_labels[32];
@@ -3420,8 +3445,12 @@ static void ss_twr_init_print_location_if_ready(void)
         printk("%s\n", ble_summary);
 #endif
         (void)uwb_tag_ble_publish_status(ble_summary);
+#endif
+#endif
+#if APP_TAG_BLE_ENABLE
         ss_twr_init_publish_tag_range_summary(measurements,
-                                              ss_twr_init_anchor_count);
+                                              ss_twr_init_anchor_count,
+                                              solution_quality_percent);
 #endif
     }
 

@@ -100,9 +100,9 @@ TR_RE = re.compile(
     r"(?P<pmode>\d+)"
 )
 
-TR2_RE = re.compile(
+TR_BUNDLE_RE = re.compile(
     rf"{TAG_NOTIFY_PREFIX_RE} notify: TR;"
-    r"2;"
+    r"(?P<ver>[23]);"
     r"(?P<sweep>\d+);"
     r"(?P<plan>[A-Za-z0-9_]+);"
     r"(?P<pmode>\d+);"
@@ -112,7 +112,16 @@ TR2_RE = re.compile(
     r"(?P<ranges>\d+(?:,\d+)*);"
     r"(?P<qs>\d+(?:,\d+)*);"
     r"(?P<statuses>[ORTEP]+)"
+    r"(?:;"
+    r"(?P<qf>\d+);"
+    r"(?P<first_to_last_us>\d+);"
+    r"(?P<frame_us>\d+);"
+    r"(?P<poll_count>\d+)"
+    r")?"
 )
+
+# Backwards-compatible alias for older helper code and text checks.
+TR2_RE = TR_BUNDLE_RE
 
 CM_RE = re.compile(
     rf"{TAG_NOTIFY_PREFIX_RE} notify: CM;"
@@ -282,7 +291,7 @@ def iter_tr_records(text: str):
             }
             continue
 
-        match = TR2_RE.search(fragment)
+        match = TR_BUNDLE_RE.search(fragment)
         if not match:
             continue
 
@@ -308,6 +317,10 @@ def iter_tr_records(text: str):
                 "quality_percent": qualities[pos],
                 "valid": 1 if (valid_mask & (1 << anchor_id)) else 0,
                 "status": statuses[pos],
+                "quality_flag_percent": int(match.group("qf") or 0),
+                "first_to_last_us": int(match.group("first_to_last_us") or 0),
+                "frame_us": int(match.group("frame_us") or 0),
+                "poll_count": int(match.group("poll_count") or 0),
             }
 
 
@@ -747,6 +760,8 @@ def profile_expects_positions(profile: str) -> bool:
 
 
 def write_rows(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
+    if path.suffix == ".csv" and path.name[:2] in {"cm", "cs", "cr", "cf"}:
+        return
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
@@ -1861,6 +1876,10 @@ def main() -> int:
                                     "quality_percent": int(tr["quality_percent"]),
                                     "valid": int(tr["valid"]),
                                     "status": tr["status"],
+                                    "quality_flag_percent": int(tr.get("quality_flag_percent") or 0),
+                                    "first_to_last_us": int(tr.get("first_to_last_us") or 0),
+                                    "frame_us": int(tr.get("frame_us") or 0),
+                                    "poll_count": int(tr.get("poll_count") or 0),
                                 }
                             )
                             if peer_name:
@@ -2127,6 +2146,10 @@ def main() -> int:
         "quality_percent",
         "valid",
         "status",
+        "quality_flag_percent",
+        "first_to_last_us",
+        "frame_us",
+        "poll_count",
     ]
     cm_fields = [
         "host_elapsed_s",
@@ -2339,10 +2362,6 @@ def main() -> int:
         "raw_log": str(raw_log_path),
         "positions_all_csv": str(session_dir / "positions_all.csv"),
         "tr_all_csv": str(session_dir / "tr_all.csv"),
-        "cm_all_csv": str(session_dir / "cm_all.csv"),
-        "cs_all_csv": str(session_dir / "cs_all.csv"),
-        "cr_all_csv": str(session_dir / "cr_all.csv"),
-        "cf_all_csv": str(session_dir / "cf_all.csv"),
         "tf_all_csv": str(session_dir / "tf_all.csv"),
     }
     summary_json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")

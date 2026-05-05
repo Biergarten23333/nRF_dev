@@ -1,4 +1,5 @@
 #include <zephyr/kernel.h>
+#include <zephyr/drivers/gpio.h>
 #include <zephyr/sys/printk.h>
 #include <errno.h>
 #include <string.h>
@@ -95,6 +96,110 @@ static const char *anchor_role_name(uint8_t role)
     default:
         return "unset";
     }
+}
+
+#define ANCHOR_BLUE_LED_NODE DT_ALIAS(led3)
+
+#if DT_NODE_HAS_STATUS(ANCHOR_BLUE_LED_NODE, okay)
+#define ANCHOR_BLUE_LED_AVAILABLE 1
+static const struct gpio_dt_spec anchor_blue_led =
+    GPIO_DT_SPEC_GET(ANCHOR_BLUE_LED_NODE, gpios);
+#else
+#define ANCHOR_BLUE_LED_AVAILABLE 0
+#endif
+
+enum anchor_blue_led_mode {
+    ANCHOR_BLUE_LED_OFF = 0,
+    ANCHOR_BLUE_LED_ON,
+    ANCHOR_BLUE_LED_BLINK,
+};
+
+static enum anchor_blue_led_mode anchor_blue_led_mode_current = ANCHOR_BLUE_LED_OFF;
+static bool anchor_blue_led_ready;
+static bool anchor_blue_led_state;
+
+static void anchor_blue_led_work_handler(struct k_work *work);
+K_WORK_DELAYABLE_DEFINE(anchor_blue_led_work, anchor_blue_led_work_handler);
+
+static void anchor_blue_led_work_handler(struct k_work *work)
+{
+    ARG_UNUSED(work);
+
+#if ANCHOR_BLUE_LED_AVAILABLE
+    if (!anchor_blue_led_ready ||
+        anchor_blue_led_mode_current != ANCHOR_BLUE_LED_BLINK) {
+        return;
+    }
+
+    anchor_blue_led_state = !anchor_blue_led_state;
+    (void)gpio_pin_set_dt(&anchor_blue_led, anchor_blue_led_state ? 1 : 0);
+    (void)k_work_schedule(&anchor_blue_led_work, K_MSEC(500));
+#endif
+}
+
+static void anchor_blue_led_set_mode(enum anchor_blue_led_mode mode)
+{
+#if ANCHOR_BLUE_LED_AVAILABLE
+    if (!anchor_blue_led_ready) {
+        return;
+    }
+
+    (void)k_work_cancel_delayable(&anchor_blue_led_work);
+    anchor_blue_led_mode_current = mode;
+
+    switch (mode) {
+    case ANCHOR_BLUE_LED_ON:
+        anchor_blue_led_state = true;
+        (void)gpio_pin_set_dt(&anchor_blue_led, 1);
+        break;
+    case ANCHOR_BLUE_LED_BLINK:
+        anchor_blue_led_state = true;
+        (void)gpio_pin_set_dt(&anchor_blue_led, 1);
+        (void)k_work_schedule(&anchor_blue_led_work, K_MSEC(500));
+        break;
+    case ANCHOR_BLUE_LED_OFF:
+    default:
+        anchor_blue_led_state = false;
+        (void)gpio_pin_set_dt(&anchor_blue_led, 0);
+        break;
+    }
+#else
+    ARG_UNUSED(mode);
+#endif
+}
+
+static enum anchor_blue_led_mode anchor_blue_led_mode_for_role(uint8_t role)
+{
+    switch (role) {
+    case ANCHOR_ROLE_RESPONDER:
+        return ANCHOR_BLUE_LED_ON;
+    case ANCHOR_ROLE_MASTER:
+    case ANCHOR_ROLE_MATRIX:
+        return ANCHOR_BLUE_LED_BLINK;
+    default:
+        return ANCHOR_BLUE_LED_OFF;
+    }
+}
+
+static void anchor_blue_led_init(void)
+{
+#if ANCHOR_BLUE_LED_AVAILABLE
+    int ret;
+
+    if (!device_is_ready(anchor_blue_led.port)) {
+        printk("Anchor blue LED GPIO not ready\n");
+        return;
+    }
+
+    ret = gpio_pin_configure_dt(&anchor_blue_led, GPIO_OUTPUT_INACTIVE);
+    if (ret != 0) {
+        printk("Anchor blue LED configure failed: %d\n", ret);
+        return;
+    }
+
+    anchor_blue_led_ready = true;
+    anchor_blue_led_set_mode(ANCHOR_BLUE_LED_OFF);
+#endif
 }
 
 static uint8_t persistent_role_normalize(uint8_t role)
@@ -210,6 +315,7 @@ static int anchor_run_runtime_role(uint8_t anchor_id_runtime, uint8_t anchor_id_
     uart_role_switch_set_ranging_active(true);
     anchor_ble_ctrl_set_busy(true);
     anchor_runtime_clear_stop();
+    anchor_blue_led_set_mode(anchor_blue_led_mode_for_role(role));
 
     if (effective_master != 0U) {
         if (APP_ANCHOR_USE_AUTO_SCHEDULE != 0U) {
@@ -261,6 +367,7 @@ static void anchor_enter_dfu_mode(uint8_t anchor_id_cfg, uint8_t role, bool cfg_
 {
     printk("Anchor explicit DFU mode entered anchor=%c role=%s\n",
            anchor_config_label_char(anchor_id_cfg), anchor_role_name(role));
+    anchor_blue_led_set_mode(ANCHOR_BLUE_LED_OFF);
     uart_role_switch_set_ranging_active(false);
     anchor_ble_ctrl_set_busy(false);
     anchor_ble_ctrl_set_runtime(anchor_id_cfg, role, cfg_valid);
@@ -311,6 +418,8 @@ int anchor_app_run(void)
         }
     }
 #endif
+
+    anchor_blue_led_init();
 
 #if APP_ANCHOR_DIAG_BLE_BEFORE_UWB == 0U
     printk("Anchor UWB bringup starting before control plane\n");
@@ -476,6 +585,7 @@ int anchor_app_run(void)
 
     if (!uwb_ready) {
         printk("Anchor UWB unavailable; control plane active, ranging not started\n");
+        anchor_blue_led_set_mode(ANCHOR_BLUE_LED_OFF);
         while (1) {
             k_sleep(K_SECONDS(5));
         }
@@ -483,6 +593,7 @@ int anchor_app_run(void)
 
     if (unassigned_mode) {
         printk("Anchor in unassigned/unset mode: control plane active, ranging not started\n");
+        anchor_blue_led_set_mode(ANCHOR_BLUE_LED_OFF);
         return 0;
     }
 

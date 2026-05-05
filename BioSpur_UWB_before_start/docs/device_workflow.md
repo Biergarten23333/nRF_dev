@@ -31,6 +31,7 @@ Latest high-level summary:
 - `docs/session_summary_20260322.md`
 - Broadcast Tag inventory and pressure-test Tag identities:
   - `docs/broadcast_tag_inventory.md`
+  - `docs/broadcast_tdma_10tag_baseline_20260504.md`
   - Latest pressure-test Tag additions:
     - `BSE88E`: Pelvis
     - `BS6F3A`: Ankle_R

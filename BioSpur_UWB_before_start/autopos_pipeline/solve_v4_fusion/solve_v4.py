@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 from scipy.optimize import least_squares
+from scipy.sparse import lil_matrix
 
 
 ANCHORS = "ABCDEFGH"
@@ -40,13 +41,16 @@ def build_tag_frame_map(
     tag_ranges: list[dict[str, Any]],
     tag_to_id: dict[str, int],
     subsample: int,
-) -> tuple[list[tuple[int, str]], dict[tuple[int, str], int], list[dict[str, Any]]]:
-    grouped: dict[tuple[int, str], int] = defaultdict(int)
+) -> tuple[list[tuple[int, str, str]], dict[tuple[int, str, str], int], list[dict[str, Any]]]:
+    grouped: dict[tuple[int, str, str], int] = defaultdict(int)
     for r in tag_ranges:
         tag = str(r.get("tag", "")).strip()
         if tag not in tag_to_id:
             continue
-        key = (tag_to_id[tag], str(r.get("sweep") or r.get("t")))
+        # Sweep counters restart across capture folders. Include source so
+        # physically different placements from ID01-ID31 never collapse into
+        # the same nuisance tag-position variable.
+        key = (tag_to_id[tag], str(r.get("source") or ""), str(r.get("sweep") or r.get("t")))
         grouped[key] += 1
     keys = [k for k, n in grouped.items() if n >= 4]
     keys.sort()
@@ -58,7 +62,7 @@ def build_tag_frame_map(
         tag = str(r.get("tag", "")).strip()
         if tag not in tag_to_id:
             continue
-        key = (tag_to_id[tag], str(r.get("sweep") or r.get("t")))
+        key = (tag_to_id[tag], str(r.get("source") or ""), str(r.get("sweep") or r.get("t")))
         if key in frame_map:
             rr = dict(r)
             rr["tag_id"] = tag_to_id[tag]
@@ -68,19 +72,19 @@ def build_tag_frame_map(
 
 
 def initial_tag_positions(
-    frame_keys: list[tuple[int, str]],
-    frame_map: dict[tuple[int, str], int],
+    frame_keys: list[tuple[int, str, str]],
+    frame_map: dict[tuple[int, str, str], int],
     tag_ranges: list[dict[str, Any]],
     tag_pos_rows: list[dict[str, Any]],
     tag_to_id: dict[str, int],
     anchor_xyz: np.ndarray,
 ) -> np.ndarray:
-    by_key: dict[tuple[int, str], np.ndarray] = {}
+    by_key: dict[tuple[int, str, str], np.ndarray] = {}
     for r in tag_pos_rows:
         tag = str(r.get("tag", "")).strip()
         if tag not in tag_to_id:
             continue
-        key = (tag_to_id[tag], str(r.get("sweep") or r.get("t")))
+        key = (tag_to_id[tag], str(r.get("source") or ""), str(r.get("sweep") or r.get("t")))
         try:
             by_key[key] = np.array([float(r["x_mm"]), float(r["y_mm"]), float(r["z_mm"])], dtype=float)
         except Exception:
@@ -174,6 +178,73 @@ def residuals(
     res.extend((d_anchor[1:] / config.sigma_delay_prior).tolist())
     res.extend((d_tag[1:] / config.sigma_delay_prior).tolist())
     return np.asarray(res, dtype=float)
+
+
+def build_jac_sparsity(
+    inter_ranges: list[dict[str, Any]],
+    tag_ranges: list[dict[str, Any]],
+    frame_map: dict[tuple[int, str, str], int],
+    n_tag_frames: int,
+) -> lil_matrix:
+    """Sparse finite-difference structure for the joint V4 residual.
+
+    Without this, scipy estimates a dense Jacobian over every tag-position
+    nuisance variable, which is prohibitively slow once many captures are fused.
+    Each range residual only touches two anchors or one anchor plus one tag
+    frame, so the Jacobian is extremely sparse.
+    """
+    n_vars = 33 + n_tag_frames * 3
+    n_res = len(inter_ranges) + len(tag_ranges) + 3 + 2 + 1 + 7 + 2
+    mat = lil_matrix((n_res, n_vars), dtype=int)
+
+    row = 0
+    for obs in inter_ranges:
+        i = int(obs["i"])
+        j = int(obs["j"])
+        mat[row, 3 * i : 3 * i + 3] = 1
+        mat[row, 3 * j : 3 * j + 3] = 1
+        if i > 0:
+            mat[row, 24 + i - 1] = 1
+        if j > 0:
+            mat[row, 24 + j - 1] = 1
+        row += 1
+
+    for obs in tag_ranges:
+        aid = int(obs["anchor"])
+        tid = int(obs["tag_id"])
+        frame_idx = frame_map[obs["frame_key"]]
+        mat[row, 3 * aid : 3 * aid + 3] = 1
+        if aid > 0:
+            mat[row, 24 + aid - 1] = 1
+        if tid > 0:
+            mat[row, 31 + tid - 1] = 1
+        t0 = 33 + 3 * frame_idx
+        mat[row, t0 : t0 + 3] = 1
+        row += 1
+
+    # Gauge: A xyz, B y/z, C z.
+    mat[row, 0] = 1
+    row += 1
+    mat[row, 1] = 1
+    row += 1
+    mat[row, 2] = 1
+    row += 1
+    mat[row, 4] = 1
+    row += 1
+    mat[row, 5] = 1
+    row += 1
+    mat[row, 8] = 1
+    row += 1
+
+    # Delay priors.
+    for i in range(1, 8):
+        mat[row, 24 + i - 1] = 1
+        row += 1
+    for tid in range(1, 3):
+        mat[row, 31 + tid - 1] = 1
+        row += 1
+
+    return mat
 
 
 def split_residuals(
@@ -308,6 +379,7 @@ def main() -> int:
         loss=args.loss,
         f_scale=normalized_f_scale,
         bounds=bounds,
+        jac_sparsity=build_jac_sparsity(inter_ranges, tag_ranges, frame_map, len(frame_keys)),
         max_nfev=args.max_nfev,
         verbose=args.verbose,
     )

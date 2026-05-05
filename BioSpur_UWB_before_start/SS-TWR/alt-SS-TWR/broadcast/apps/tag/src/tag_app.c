@@ -2,6 +2,7 @@
 #if APP_TAG_MCUBOOT_ENABLE
 #include <zephyr/dfu/mcuboot.h>
 #endif
+#include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
@@ -258,6 +259,52 @@ static void tag_diag_write(const char *msg)
 #define APP_TAG_OTP_DIAG 0U
 #endif
 
+#define TAG_BLUE_LED_NODE DT_ALIAS(led3)
+
+#if DT_NODE_HAS_STATUS(TAG_BLUE_LED_NODE, okay)
+#define TAG_BLUE_LED_AVAILABLE 1
+static const struct gpio_dt_spec tag_blue_led =
+    GPIO_DT_SPEC_GET(TAG_BLUE_LED_NODE, gpios);
+#else
+#define TAG_BLUE_LED_AVAILABLE 0
+#endif
+
+static bool tag_blue_led_ready;
+
+static void tag_blue_led_set(bool on)
+{
+#if TAG_BLUE_LED_AVAILABLE
+    if (!tag_blue_led_ready) {
+        return;
+    }
+
+    (void)gpio_pin_set_dt(&tag_blue_led, on ? 1 : 0);
+#else
+    ARG_UNUSED(on);
+#endif
+}
+
+static void tag_blue_led_init(void)
+{
+#if TAG_BLUE_LED_AVAILABLE
+    int ret;
+
+    if (!device_is_ready(tag_blue_led.port)) {
+        printk("Tag blue LED GPIO not ready\n");
+        return;
+    }
+
+    ret = gpio_pin_configure_dt(&tag_blue_led, GPIO_OUTPUT_INACTIVE);
+    if (ret != 0) {
+        printk("Tag blue LED configure failed: %d\n", ret);
+        return;
+    }
+
+    tag_blue_led_ready = true;
+    tag_blue_led_set(false);
+#endif
+}
+
 static void tag_print_otp_diag(void)
 {
 #if APP_TAG_OTP_DIAG
@@ -365,6 +412,8 @@ int tag_app_run(void)
     printk("MCUboot disabled, running direct USB serial image\n");
 #endif
 
+    tag_blue_led_init();
+
     uwb_anchor_layout_init();
 
 #if APP_TAG_BLE_ENABLE
@@ -451,6 +500,7 @@ int tag_app_run(void)
         ret = uwb_hw_bringup_and_init();
         if (ret) {
             printk("Tag UWB bringup failed: %d\n", ret);
+            tag_blue_led_set(false);
             return ret;
         }
         printk("Tag UWB bringup done\n");
@@ -505,13 +555,16 @@ int tag_app_run(void)
            APP_TAG_MOTION_FULL_SWEEP_INTERVAL);
     if (APP_TAG_UWB_ENABLE) {
         printk("Tag app handoff: entering SS-TWR\n");
+        tag_blue_led_set(true);
         ret = ss_twr_init_start_with_config(&runtime_config);
         if (ret) {
             printk("ss_twr_init_start_with_config failed: %d\n", ret);
+            tag_blue_led_set(false);
             return ret;
         }
     } else {
         printk("Tag app handoff: UWB scheduler skipped (UWB disabled)\n");
+        tag_blue_led_set(false);
         while (1) {
             k_sleep(K_SECONDS(1));
         }
