@@ -33,7 +33,8 @@ class _ConnectionPageState extends State<ConnectionPage> {
   String? _selectedPort2;
   final List<String> _log = [];
   final Map<String, BlePeerInfo> _blePeers = {};
-  String _connectionHint = 'Awaiting SCAN / CONN events...';
+  String _connectionHint =
+      'Legacy page. Prefer AutoPos for current workflows. Backend is manual only.';
   StreamSubscription<BackendMessage>? _msgSub;
   Timer? _pollTimer;
 
@@ -221,6 +222,18 @@ class _ConnectionPageState extends State<ConnectionPage> {
       return;
     }
 
+    final exePath = _exeController.text.trim();
+    if (exePath.isEmpty || !File(exePath).existsSync()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Backend executable not found: $exePath')),
+      );
+      setState(() {
+        _connectionHint =
+            'Legacy backend missing. Use AutoPos page or point this page to a valid executable.';
+      });
+      return;
+    }
+
     await _msgSub?.cancel();
     _msgSub = _client.messages.listen((msg) {
       if (!mounted) return;
@@ -229,11 +242,25 @@ class _ConnectionPageState extends State<ConnectionPage> {
       });
     });
 
-    await _client.start(
-      exePath: _exeController.text,
-      serial1: _selectedPort1!,
-      serial2: _selectedPort2,
-    );
+    try {
+      await _client.start(
+        exePath: exePath,
+        serial1: _selectedPort1!,
+        serial2: _selectedPort2,
+      );
+      if (!mounted) return;
+      setState(() {
+        _connectionHint = 'Legacy backend started.';
+      });
+    } catch (err) {
+      if (!mounted) return;
+      setState(() {
+        _connectionHint = 'Legacy backend failed to start.';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to start backend: $err')),
+      );
+    }
   }
 
   Future<void> _stopBackend() async {
@@ -257,11 +284,27 @@ class _ConnectionPageState extends State<ConnectionPage> {
     final sortedLog = _log.length <= 200 ? _log : _log.sublist(_log.length - 200);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('BioSpur - Connection')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'This is a legacy BLE/backend page. For the current anchor/tag workflow, use the AutoPos page as the primary entry.',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
             FlutterConnectionPannel(
               backendController: _exeController,
               serialPortItems: dropdownItems,

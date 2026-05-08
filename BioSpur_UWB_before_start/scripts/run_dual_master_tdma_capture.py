@@ -59,6 +59,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--static-hz", type=int, default=5)
     parser.add_argument("--roto-hz", type=int, default=10)
     parser.add_argument("--motion-hz", type=int, default=5)
+    parser.add_argument(
+        "--caliwand-mode",
+        action="store_true",
+        help="Forward run_recv_tdma_capture.py CaliWand 3-Tag allow-list/high-cadence preset.",
+    )
     parser.add_argument("--cm-probe-target", default="BSF66F")
     parser.add_argument("--out-dir", default="logs/dual_master_tdma_capture")
     parser.add_argument("--skip-anchor-preflight", action="store_true")
@@ -189,6 +194,8 @@ def main() -> int:
             "--out-dir",
             str(recv_dir),
         ]
+        if args.caliwand_mode:
+            tag_cmd.append("--caliwand-mode")
         rc = run_stream(tag_cmd, out_dir / "tag_capture.console.log")
         summary["tag_capture_returncode"] = rc
         summaries = sorted(out_dir.glob("tag_capture_*/summary.json"))

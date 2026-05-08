@@ -15,12 +15,26 @@ class ScriptRunner {
 
   String? _activeName;
   String? _activeCommand;
+  String? _lastFinishedName;
+  int? _lastExitCode;
+  int _completedRuns = 0;
   bool _starting = false;
 
   Stream<void> get changes => _changes.stream;
   bool get isRunning => _process != null;
   String? get activeName => _activeName;
   String? get activeCommand => _activeCommand;
+  String? get lastFinishedName => _lastFinishedName;
+  int? get lastExitCode => _lastExitCode;
+  int get completedRuns => _completedRuns;
+  String? get lastFailureHint {
+    for (final line in _logLines.reversed) {
+      if (line.startsWith('[stderr] ') || line.startsWith('[error] ')) {
+        return line;
+      }
+    }
+    return null;
+  }
   List<String> get logTail => _logLines.length <= 120
       ? List.unmodifiable(_logLines)
       : List.unmodifiable(_logLines.sublist(_logLines.length - 120));
@@ -32,7 +46,10 @@ class ScriptRunner {
     _starting = true;
     _activeName = name;
     _activeCommand = command;
+    _lastFinishedName = null;
+    _lastExitCode = null;
     _logLines.add('[start] $name');
+    _logLines.add('[cwd] ${RepoPaths.root.path}');
     _emit();
     try {
       final proc = await Process.start(
@@ -48,6 +65,9 @@ class ScriptRunner {
       unawaited(_pipe(proc.stderr, 'stderr'));
       proc.exitCode.then((code) {
         _logLines.add('[exit] $name code=$code');
+        _lastFinishedName = name;
+        _lastExitCode = code;
+        _completedRuns += 1;
         _process = null;
         _activeName = null;
         _activeCommand = null;
@@ -55,6 +75,9 @@ class ScriptRunner {
       });
     } catch (err) {
       _logLines.add('[error] $err');
+      _lastFinishedName = name;
+      _lastExitCode = -1;
+      _completedRuns += 1;
       _process = null;
       _activeName = null;
       _activeCommand = null;

@@ -1,6 +1,7 @@
 #include "uwb_tag_ble.h"
 
 #include <errno.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -62,13 +63,35 @@
 #define APP_TAG_BLE_TOKEN_ID APP_TAG_ID
 #endif
 
-#define UWB_TAG_BLE_DEVICE_NAME_LEN 8U
+#ifndef APP_TAG_BLE_NAME_PREFIX
+#define APP_TAG_BLE_NAME_PREFIX ""
+#endif
+
+#ifndef APP_TAG_WAND_MODE_ENABLE
+#define APP_TAG_WAND_MODE_ENABLE 0U
+#endif
+
+#define UWB_TAG_BLE_DEVICE_NAME_LEN 32U
 #define UWB_TAG_BLE_ADV_MFG_LEN 6U
 
 #define UWB_TAG_BLE_MAX_STATUS_LEN 256U
 /* Keep ~20% headroom so bundled NUS payloads do not sit on the limit. */
 #define UWB_TAG_BLE_BUNDLE_PAYLOAD_CAP 180U
 #define UWB_TAG_BLE_MAX_CMD_LEN 192U
+
+static const char *uwb_tag_ble_wand_role_for_code(uint16_t code)
+{
+	switch (code) {
+	case 0xCCF4:
+		return "A";
+	case 0x9336:
+		return "B";
+	case 0x955A:
+		return "C";
+	default:
+		return NULL;
+	}
+}
 #define UWB_TAG_BLE_TX_THREAD_STACK 1536
 #define UWB_TAG_BLE_TX_THREAD_PRIO 7
 #define UWB_TAG_BLE_TX_ITEM_COUNT 10U
@@ -154,6 +177,11 @@ static struct uwb_tag_ble_settings_record runtime_settings_record;
 static bool runtime_settings_record_loaded;
 static struct uwb_tag_runtime_params active_runtime_params;
 static bool runtime_stream_enabled = true;
+#if APP_TAG_WAND_MODE_ENABLE
+static bool wand_mode_enabled;
+static char wand_label = '?';
+static char wand_role[8] = "IDLE";
+#endif
 
 static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
@@ -246,6 +274,9 @@ static void uwb_tag_ble_clear_pending_cal_locked(void);
 static bool uwb_tag_ble_snapshot_pending_cal_locked(
 	uint8_t *out, size_t out_len, size_t *encoded_len);
 static bool uwb_tag_ble_runtime_stream_blocked_locked(void);
+#if APP_TAG_WAND_MODE_ENABLE
+static bool uwb_tag_ble_handle_wand_command(const char *cmd);
+#endif
 
 static void ble_reboot_work_handler(struct k_work *work)
 {
@@ -444,10 +475,29 @@ static void uwb_tag_ble_init_identity(void)
 		active_runtime_params.logical_tag_id = ble_tag_id;
 	}
 	k_mutex_unlock(&ble_mutex);
-	len = snprintk(ble_device_name, sizeof(ble_device_name), "BS%04X", code);
+	if (APP_TAG_BLE_NAME_PREFIX[0] != '\0') {
+		const char *wand_role = NULL;
+
+		if (strcmp(APP_TAG_BLE_NAME_PREFIX, "Wand") == 0) {
+			wand_role = uwb_tag_ble_wand_role_for_code(code);
+		}
+		if (wand_role != NULL) {
+			len = snprintk(ble_device_name, sizeof(ble_device_name),
+				       "%s-%s-BS%04X", APP_TAG_BLE_NAME_PREFIX,
+				       wand_role, code);
+		} else {
+			len = snprintk(ble_device_name, sizeof(ble_device_name),
+				       "%s-BS%04X", APP_TAG_BLE_NAME_PREFIX, code);
+		}
+	} else {
+		len = snprintk(ble_device_name, sizeof(ble_device_name), "BS%04X", code);
+	}
 	if (len < 0) {
 		memcpy(ble_device_name, "BS0000", sizeof("BS0000"));
 		len = (int)(sizeof("BS0000") - 1);
+	} else if ((size_t)len >= sizeof(ble_device_name)) {
+		len = sizeof(ble_device_name) - 1;
+		ble_device_name[len] = '\0';
 	}
 
 	sd[0].data_len = (uint8_t)len;
@@ -1416,6 +1466,200 @@ void uwb_tag_ble_set_tx_paused(bool paused)
 	ble_tx_paused = paused;
 }
 
+#if APP_TAG_WAND_MODE_ENABLE
+static bool uwb_tag_ble_parse_wand_tag_token(const char *text, char **end_out,
+					     uint8_t *tag_id_out)
+{
+	char *end = NULL;
+	unsigned long value;
+
+	if (text == NULL || tag_id_out == NULL) {
+		return false;
+	}
+	while (*text == ' ' || *text == '\t') {
+		text++;
+	}
+	if ((text[0] == 'B' || text[0] == 'b') &&
+	    (text[1] == 'S' || text[1] == 's')) {
+		text += 2;
+		value = strtoul(text, &end, 16);
+	} else {
+		value = strtoul(text, &end, 0);
+	}
+	if (end == text || value > UINT16_MAX) {
+		return false;
+	}
+	*tag_id_out = (uint8_t)(value & 0xFFUL);
+	if (end_out != NULL) {
+		*end_out = end;
+	}
+	return true;
+}
+
+static bool uwb_tag_ble_handle_wand_command(const char *cmd)
+{
+	char resp[128];
+	const char *arg;
+
+	if (cmd == NULL) {
+		return false;
+	}
+
+	if (strcmp(cmd, "WAND?") == 0 || strcmp(cmd, "WAND_STATUS") == 0) {
+		bool enabled;
+		char label;
+		char role[sizeof(wand_role)];
+		struct uwb_tag_runtime_params params;
+
+		(void)uwb_tag_ble_runtime_config_get(&params);
+		k_mutex_lock(&ble_mutex, K_FOREVER);
+		enabled = wand_mode_enabled;
+		label = wand_label;
+		snprintk(role, sizeof(role), "%s", wand_role);
+		k_mutex_unlock(&ble_mutex);
+
+		snprintk(resp, sizeof(resp),
+			 "WAND_STATUS ENABLED=%u LABEL=%c ROLE=%s BS=BS%04X TAG=%u DIRECT_UWB=1",
+			 (unsigned int)(enabled ? 1U : 0U), label, role,
+			 (unsigned int)params.identity_code,
+			 (unsigned int)params.logical_tag_id);
+		uwb_tag_ble_send_text(resp);
+		return true;
+	}
+
+	if (strncmp(cmd, "WAND START", 10) == 0) {
+		char label = '?';
+
+		arg = cmd + 10;
+		while (*arg == ' ' || *arg == '\t') {
+			arg++;
+		}
+		if (*arg != '\0') {
+			label = *arg;
+			if (label >= 'a' && label <= 'z') {
+				label = (char)(label - 'a' + 'A');
+			}
+		}
+		if (label != 'A' && label != 'B' && label != 'C' && label != '?') {
+			uwb_tag_ble_send_text("WAND_BAD LABEL=A|B|C");
+			return true;
+		}
+
+		k_mutex_lock(&ble_mutex, K_FOREVER);
+		wand_mode_enabled = true;
+		wand_label = label;
+		snprintk(wand_role, sizeof(wand_role), "%s", "IDLE");
+		uwb_tag_ble_clear_pending_cal_locked();
+		uwb_tag_ble_clear_pending_samples_locked();
+		uwb_tag_ble_clear_pending_bundle_locked();
+		runtime_stream_enabled = true;
+		k_mutex_unlock(&ble_mutex);
+		uwb_tag_ble_cancel_bundle_flush();
+		(void)ss_twr_init_wand_set_enabled(true, label);
+		(void)ss_twr_init_wand_set_role(SS_TWR_INIT_WAND_ROLE_IDLE);
+
+		snprintk(resp, sizeof(resp),
+			 "WAND_OK ENABLED=1 LABEL=%c ROLE=IDLE STREAM=1 DIRECT_UWB=1",
+			 label);
+		uwb_tag_ble_send_text(resp);
+		return true;
+	}
+
+	if (strcmp(cmd, "WAND STOP") == 0) {
+		k_mutex_lock(&ble_mutex, K_FOREVER);
+		wand_mode_enabled = false;
+		wand_label = '?';
+		snprintk(wand_role, sizeof(wand_role), "%s", "IDLE");
+		runtime_stream_enabled = true;
+		uwb_tag_ble_clear_pending_cal_locked();
+		uwb_tag_ble_clear_pending_samples_locked();
+		uwb_tag_ble_clear_pending_bundle_locked();
+		k_mutex_unlock(&ble_mutex);
+		uwb_tag_ble_cancel_bundle_flush();
+		(void)ss_twr_init_wand_set_enabled(false, '?');
+		(void)ss_twr_init_wand_set_role(SS_TWR_INIT_WAND_ROLE_IDLE);
+		uwb_tag_ble_send_text("WAND_OK ENABLED=0 STREAM=1 DIRECT_UWB=1");
+		return true;
+	}
+
+	if (strncmp(cmd, "WAND ROLE", 9) == 0) {
+		enum ss_twr_init_wand_role role = SS_TWR_INIT_WAND_ROLE_IDLE;
+		const char *role_text;
+
+		arg = cmd + 9;
+		while (*arg == ' ' || *arg == '\t') {
+			arg++;
+		}
+		if (strcasecmp(arg, "INIT") == 0) {
+			role = SS_TWR_INIT_WAND_ROLE_INIT;
+			role_text = "INIT";
+		} else if (strcasecmp(arg, "RESP") == 0) {
+			role = SS_TWR_INIT_WAND_ROLE_RESP;
+			role_text = "RESP";
+		} else if (strcasecmp(arg, "IDLE") == 0) {
+			role_text = "IDLE";
+		} else {
+			uwb_tag_ble_send_text("WAND_BAD ROLE=INIT|RESP|IDLE");
+			return true;
+		}
+		k_mutex_lock(&ble_mutex, K_FOREVER);
+		snprintk(wand_role, sizeof(wand_role), "%s", role_text);
+		k_mutex_unlock(&ble_mutex);
+		(void)ss_twr_init_wand_set_role(role);
+		snprintk(resp, sizeof(resp), "WAND_OK ROLE=%s DIRECT_UWB=1", role_text);
+		uwb_tag_ble_send_text(resp);
+		return true;
+	}
+
+	if (strncmp(cmd, "WAND PEERS", 10) == 0) {
+		uint8_t a;
+		uint8_t b;
+		uint8_t c;
+		char *end = NULL;
+
+		arg = cmd + 10;
+		if (!uwb_tag_ble_parse_wand_tag_token(arg, &end, &a) ||
+		    !uwb_tag_ble_parse_wand_tag_token(end, &end, &b) ||
+		    !uwb_tag_ble_parse_wand_tag_token(end, &end, &c)) {
+			uwb_tag_ble_send_text("WAND_BAD PEERS <A> <B> <C>");
+			return true;
+		}
+		(void)ss_twr_init_wand_set_peers(a, b, c);
+		snprintk(resp, sizeof(resp), "WAND_PEERS_OK A=0x%02X B=0x%02X C=0x%02X",
+			 (unsigned int)a, (unsigned int)b, (unsigned int)c);
+		uwb_tag_ble_send_text(resp);
+		return true;
+	}
+
+	if (strncmp(cmd, "WAND_SWEEP", 10) == 0 ||
+	    strncmp(cmd, "WAND RANGE", 10) == 0) {
+		unsigned long count = 1UL;
+		char *end = NULL;
+
+		arg = cmd + 10;
+		while (*arg == ' ' || *arg == '\t') {
+			arg++;
+		}
+		if (*arg != '\0') {
+			count = strtoul(arg, &end, 10);
+			if (end == arg || count == 0UL || count > UINT16_MAX) {
+				uwb_tag_ble_send_text("WAND_SWEEP_BAD N=1..65535");
+				return true;
+			}
+		}
+		if (ss_twr_init_wand_request_sweep((uint16_t)count) != 0) {
+			uwb_tag_ble_send_text("WAND_SWEEP_FAIL ENABLE_ROLE");
+			return true;
+		}
+		snprintk(resp, sizeof(resp), "WAND_SWEEP_QUEUED N=%lu", count);
+		uwb_tag_ble_send_text(resp);
+		return true;
+	}
+
+	return false;
+}
+#endif
+
 static void ble_notif_enabled(enum bt_nus_send_status status)
 {
 	printk("Tag BLE notifications %s\n",
@@ -1488,6 +1732,12 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		cmd[len - 1U] = '\0';
 		len--;
 	}
+
+#if APP_TAG_WAND_MODE_ENABLE
+	if (uwb_tag_ble_handle_wand_command(cmd)) {
+		return;
+	}
+#endif
 
 	if (strcmp(cmd, "PING") == 0) {
 		uwb_tag_ble_send_text("PONG");

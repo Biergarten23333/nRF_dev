@@ -27,38 +27,84 @@ class BioSpurApp extends StatelessWidget {
   }
 }
 
-class BioSpurHomeShell extends StatelessWidget {
+class BioSpurHomeShell extends StatefulWidget {
   const BioSpurHomeShell({super.key});
 
   @override
+  State<BioSpurHomeShell> createState() => _BioSpurHomeShellState();
+}
+
+class _BioSpurHomeShellState extends State<BioSpurHomeShell> {
+  int _selectedIndex = 0;
+
+  static const _titles = <String>[
+    'BioSpur UWB - AutoPos',
+    'BioSpur UWB - Dashboard',
+    'BioSpur UWB - Sessions',
+    'BioSpur UWB - Live View',
+    'BioSpur UWB - 3D View',
+    'BioSpur UWB - Legacy BLE',
+  ];
+
+  Widget _buildCurrentPage() {
+    switch (_selectedIndex) {
+      case 0:
+        return const AutopositioningPage();
+      case 1:
+        return const DashboardPage();
+      case 2:
+        return const SessionsPage();
+      case 3:
+        return const LiveViewPage();
+      case 4:
+        return const ThreeDViewPage();
+      case 5:
+        return const ConnectionPage();
+      default:
+        return const AutopositioningPage();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 6,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('BioSpur UWB'),
-          bottom: const TabBar(
-            isScrollable: true,
-            tabs: [
-              Tab(text: 'Dashboard'),
-              Tab(text: 'Connection'),
-              Tab(text: 'Live View'),
-              Tab(text: 'Sessions'),
-              Tab(text: '3D View'),
-              Tab(text: 'Autopositioning'),
-            ],
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_titles[_selectedIndex]),
+      ),
+      body: _buildCurrentPage(),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.hub_outlined),
+            label: 'AutoPos',
           ),
-        ),
-        body: const TabBarView(
-          children: [
-            DashboardPage(),
-            ConnectionPage(),
-            LiveViewPage(),
-            SessionsPage(),
-            ThreeDViewPage(),
-            AutopositioningPage(),
-          ],
-        ),
+          NavigationDestination(
+            icon: Icon(Icons.dashboard_outlined),
+            label: 'Dashboard',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.folder_outlined),
+            label: 'Sessions',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.monitor_heart_outlined),
+            label: 'Live',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.view_in_ar_outlined),
+            label: '3D',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.build_circle_outlined),
+            label: 'Legacy BLE',
+          ),
+        ],
       ),
     );
   }

@@ -11,6 +11,10 @@ slot_count="${2:-10}"
 build_dir="${3:-build-tag-ble-motion-unified}"
 device_name="${TAG_DEVICE_NAME:-BS_AUTO}"
 fw_marker="${APP_TAG_FW_MARKER:-unified-default}"
+ble_name_prefix="${APP_TAG_BLE_NAME_PREFIX:-}"
+wand_mode_enable="${APP_TAG_WAND_MODE_ENABLE:-0}"
+tag_resp_rx_timeout_uus="${APP_TAG_RESP_RX_TIMEOUT_UUS:-1800}"
+tag_wand_resp_delay_uus="${APP_TAG_WAND_RESP_DELAY_UUS:-1200}"
 uwb_channel="${APP_UWB_CHANNEL:-5}"
 uwb_pan_id="${APP_UWB_PAN_ID:-0xDECA}"
 if [ -z "${ZEPHYR_NRF_MODULE_DIR:-}" ]; then
@@ -44,6 +48,10 @@ fi
   printf 'set(APP_UWB_CHANNEL %s CACHE STRING "Motion tag preload" FORCE)\n' "${uwb_channel}"
   printf 'set(APP_UWB_PAN_ID %s CACHE STRING "Motion tag preload" FORCE)\n' "${uwb_pan_id}"
   printf 'set(APP_TAG_FW_MARKER %s CACHE STRING "Motion tag preload" FORCE)\n' "${fw_marker}"
+  printf 'set(APP_TAG_BLE_NAME_PREFIX %s CACHE STRING "Motion tag preload" FORCE)\n' "${ble_name_prefix}"
+  printf 'set(APP_TAG_WAND_MODE_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${wand_mode_enable}"
+  printf 'set(APP_TAG_RESP_RX_TIMEOUT_UUS %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_resp_rx_timeout_uus}"
+  printf 'set(APP_TAG_WAND_RESP_DELAY_UUS %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_wand_resp_delay_uus}"
 } > "${app_tag_preload_file}"
 
 export APP_TAG_PRELOAD_FILE="${app_tag_preload_file}"
@@ -61,6 +69,9 @@ west build \
   -DAPP_UWB_CHANNEL="${uwb_channel}" \
   -DAPP_UWB_PAN_ID="${uwb_pan_id}" \
   -DAPP_TAG_FW_MARKER="${fw_marker}" \
+  -DAPP_TAG_WAND_MODE_ENABLE="${wand_mode_enable}" \
+  -DAPP_TAG_RESP_RX_TIMEOUT_UUS="${tag_resp_rx_timeout_uus}" \
+  -DAPP_TAG_WAND_RESP_DELAY_UUS="${tag_wand_resp_delay_uus}" \
   -DAPP_TAG_USB_DIAG_TRACE=1 \
   -DAPP_TAG_BLE_ENABLE=1 \
   -DCONFIG_BT_DEVICE_NAME=\"${device_name}\" \
@@ -69,6 +80,7 @@ west build \
   -DAPP_TAG_BLE_COMPACT_STATUS=1 \
   -DAPP_TAG_BLE_PACKET_BUNDLE_RECORDS=3 \
   -DAPP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS=250 \
+  -DAPP_TAG_BLE_NAME_PREFIX="${ble_name_prefix}" \
   -DAPP_TAG_MCUBOOT_ENABLE=1 \
   -DAPP_TAG_TDMA_ENABLE=1 \
   -DAPP_TAG_TDMA_SLOT_INDEX="${slot_index}" \

@@ -3,6 +3,50 @@
 This file records DWM1001C / nRF52832 Tags used with the broadcast Alt SS-TWR
 pipeline.
 
+## Current Broadcast Anchor Firmware
+
+Frozen common Anchor image:
+
+```text
+SS-TWR/alt-SS-TWR/broadcast/build-anchor-unified-ota-alt-bcast-a18-ledrole-g1200-r1000/merged.hex
+```
+
+Firmware marker:
+
+```text
+alt-bcast-a18-ledrole-g1200-r1000
+```
+
+Build properties:
+
+- Broadcast Alt SS-TWR enabled.
+- `APP_ALT_SS_TWR_GUARD_US=1200`
+- `APP_ALT_SS_TWR_RESP_SPACING_US=1000`
+- `APP_ANCHOR_RESP_DELAY_UUS=1200`
+- `APP_UWB_HW_FRAME_FILTER_ENABLE=1`
+- `APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE=1`
+- Responder role: DWM1001C blue LED should stay on.
+
+Rollout status:
+
+- This A18 image is the known-good anchor image frozen on 2026-05-08.
+- Do not modify or rebuild this image without an explicit new version marker.
+- Matching `Master_Anchor` B120 carrier:
+  `SS-TWR/alt-SS-TWR/broadcast/build-master-control-b120-m1-master-anchor-lfrc-alt-bcast-a18-ledrole-g1200-r1000-carrier/zephyr/merged_domains.hex`
+- 2026-05-08 100-set AutoPos anchor sweep passed for all 8 anchors with no
+  reconnect retry and no slow switch rounds:
+  `SS-TWR/alt-SS-TWR/broadcast/logs/autopos_anchor_sweep_100set_20260508_190915/`
+- D/H replacement UUIDs below are active in the AutoPos and OTA scripts.
+- Rollout record:
+  `docs/anchor_a18_freeze_20260508.md`
+
+## Known Anchors
+
+| Anchor | BLE name | J-Link SNR | UUID | Runtime id | UWB short addr | Current note |
+|---|---|---:|---|---:|---:|---|
+| D | `ANCHOR-D-BS20AC` | `760184974` | `B2B5FA625534A8C617135DCAFC9E036A` | `3` | `0xA103` | Replacement D; active AutoPos UUID as of 2026-05-08 |
+| H | `ANCHOR-H-BSB77F` | `760184753` | `CF12E703AC1A118F6AB440AB05B0BA23` | `7` | `0xA107` | Replacement H; active AutoPos UUID as of 2026-05-08 |
+
 ## Current Broadcast Tag Firmware
 
 Recommended direct-flash image for extra pressure-test Tags:
@@ -51,6 +95,37 @@ After direct flash, push APOS layout again because NVS may be erased.
 | BS10CE | Pressure-test EVK | TBD | TBD | `0x10CE` | `0xCE` | `F2:8A:A6:F5:E2:4A` | DWM1001C EVK flashed to b62 on 2026-05-04; excellent 8-tag TR/TS performance |
 | BS7724 | Pressure-test EVK | `0xC0624B92` | `0xF85CEC31` | `0x7724` | `0x24` | TBD | DWM1001C EVK flashed to b62 on 2026-05-04; TDMA/TR verified, UWB range quality weak in first bench probe |
 | BS1396 | Pressure-test EVK | `0xD807C222` | `0x49ECF97F` | `0x1396` | `0x96` | `D3:67:A5:A7:35:2F` | DWM1001C EVK flashed to b62 on 2026-05-04; pending TDMA pressure-test validation |
+| Wand-A-BSCCF4 | Calibration Wand A | `0x2C9E36F2` | `0x60B3C94E` | `0xCCF4` | `0xF4` | TBD | DWM1001C EVK / J-Link SNR `760184526`; OTA verified to common normal-Tag image `tag-wand-role-prefix-20260508` on 2026-05-08 |
+| Wand-B-BS9336 | Calibration Wand B | `0x65DA856F` | `0xC39F31A8` | `0x9336` | `0x36` | TBD | DWM1001C EVK / J-Link SNR `760184756`; OTA verified to common normal-Tag image `tag-wand-role-prefix-20260508` on 2026-05-08 |
+| Wand-C-BS955A | Calibration Wand C | `0xE62FF1FE` | `0x25D3064F` | `0x955A` | `0x5A` | TBD | DWM1001C EVK / J-Link SNR `760184959`; OTA verified to common normal-Tag image `tag-wand-role-prefix-20260508` on 2026-05-08 |
+
+## Calibration Wand Naming Policy
+
+Date: 2026-05-08
+
+Calibration Wand Tags should run the normal Tag behavior unless explicitly
+testing direct Tag-to-Tag Wand sweep firmware. The BLE name still carries the
+Wand role so `Master_Tag` can identify the calibration wand members during
+capture:
+
+| Wand role | Identity code | Expected BLE name | Firmware behavior |
+|---|---:|---|---|
+| A | `0xCCF4` | `Wand-A-BSCCF4` | Normal Tag |
+| B | `0x9336` | `Wand-B-BS9336` | Normal Tag |
+| C | `0x955A` | `Wand-C-BS955A` | Normal Tag |
+
+Implementation note:
+
+- Use one common Tag image for all three Wand boards.
+- Build-time prefix is `APP_TAG_BLE_NAME_PREFIX=Wand`.
+- Firmware maps known identity codes to the role infix at runtime:
+  - `BSCCF4` -> `Wand-A-BSCCF4`
+  - `BS9336` -> `Wand-B-BS9336`
+  - `BS955A` -> `Wand-C-BS955A`
+- Unknown Wand-prefixed Tags fall back to `Wand-BSxxxx`.
+- `APP_TAG_WAND_MODE_ENABLE=0` for this normal calibration-capture image.
+- Verified common OTA marker: `tag-wand-role-prefix-20260508`.
+- OTA evidence: `logs/wand_role_prefix_common_ota_20260508_113340/`.
 
 ## BSE88E Bring-Up Record
 

@@ -487,6 +487,24 @@ def build_parser() -> argparse.ArgumentParser:
         default="BSF66F:static,BS2DCE:roto,BSDC91:roto",
         help="Comma-separated TDMA profile map: BSxxxx:static|roto|motion",
     )
+    parser.add_argument(
+        "--caliwand-mode",
+        action="store_true",
+        help=(
+            "Calibration-wand capture preset: exactly three target Tags, all motion profile, "
+            "8 Hz each requested, startup CM probe skipped, and target roster installed before "
+            "scan so non-target BS Tags are rejected."
+        ),
+    )
+    parser.add_argument(
+        "--tdma-profile-before-scan",
+        action="store_true",
+        help=(
+            "Install TDMA profile roster before device-kind tag scanning. This acts as a "
+            "multi-Tag allow-list in firmware and prevents non-target BS Tags from being "
+            "connected into the TDMA schedule."
+        ),
+    )
     parser.add_argument("--static-hz", type=int, default=5)
     parser.add_argument("--roto-hz", type=int, default=10)
     parser.add_argument("--motion-hz", type=int, default=5)
@@ -830,6 +848,7 @@ def configure_recv_capture_session(
     targets: list[str],
     profile_items: list[tuple[str, str]],
 ) -> serial.Serial:
+    preloaded_profile_allowlist = bool(args.tdma_profile_before_scan or args.caliwand_mode)
     if args.reuse_tag_links:
         print("[CAPTURE] configure: reuse Master_Tag resident links", flush=True)
         ser, status_text = send_cmd_collect(ser, logf, "status", 0.8)
@@ -837,10 +856,22 @@ def configure_recv_capture_session(
     else:
         print("[CAPTURE] configure: enter RECV/tag mode", flush=True)
         ser = send_cmd(ser, logf, "mode recv", 8.0)
+        if preloaded_profile_allowlist:
+            print("[CAPTURE] configure: preload TDMA target allow-list before scan", flush=True)
+            ser = send_cmd(ser, logf, "tdma clear", 1.2)
+            ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
+            for name, profile in profile_items:
+                ser = send_cmd(ser, logf, f"tdma profile {name} {profile}", 0.5)
+            ser = send_cmd(ser, logf, f"tdma freq static {args.static_hz}", 0.3)
+            ser = send_cmd(ser, logf, f"tdma freq roto {args.roto_hz}", 0.3)
+            ser = send_cmd(ser, logf, f"tdma freq motion {args.motion_hz}", 0.3)
         ser = send_cmd(ser, logf, "device kind tag", 2.0)
         status_text = ""
         device_text = ""
-    ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
+    if preloaded_profile_allowlist:
+        ser, clear_text = send_cmd_collect(ser, logf, "tdma show", 0.8)
+    else:
+        ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
     print("[CAPTURE] configure: wait for target links", flush=True)
     ser = ensure_target_links_ready(
         ser,
@@ -851,11 +882,15 @@ def configure_recv_capture_session(
         initial_text=status_text + device_text + clear_text,
     )
     print("[CAPTURE] configure: apply TDMA profiles", flush=True)
+    ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
+    if not preloaded_profile_allowlist:
+        ser = send_cmd(ser, logf, "tdma clear", 1.2)
     for name, profile in profile_items:
         ser = send_cmd(ser, logf, f"tdma profile {name} {profile}", 0.8)
     ser = send_cmd(ser, logf, f"tdma freq static {args.static_hz}", 0.5)
     ser = send_cmd(ser, logf, f"tdma freq roto {args.roto_hz}", 0.5)
     ser = send_cmd(ser, logf, f"tdma freq motion {args.motion_hz}", 0.5)
+    ser = send_cmd(ser, logf, "tdma hold 0", 0.5)
     ser = send_cmd(ser, logf, "tdma rebalance", 0.8)
     ser = send_cmd(ser, logf, "tdma show", 1.0)
     ser = send_cmd(ser, logf, "status", 0.8)
@@ -1011,9 +1046,23 @@ def main() -> int:
             flush=True,
         )
     assert_not_jlink_when_biospur_available(args.port)
+    targets = [normalize_target(x) for x in args.targets.split(",") if x.strip()]
+    if args.caliwand_mode:
+        if len(targets) != 3:
+            raise SystemExit("--caliwand-mode requires exactly 3 comma-separated --targets")
+        args.profiles = ",".join(f"{target}:motion" for target in targets)
+        args.static_hz = 8
+        args.roto_hz = 8
+        args.motion_hz = 8
+        args.skip_cm_probe = True
+        args.allow_zero_positions = True
+        args.tdma_profile_before_scan = True
+        print(
+            "[CAPTURE] CaliWand mode: 3 target allow-list, all motion profile, requested 8Hz/tag",
+            flush=True,
+        )
     probe_target = normalize_target(args.cm_probe_target)
 
-    targets = [normalize_target(x) for x in args.targets.split(",") if x.strip()]
     profile_items = parse_profiles(args.profiles)
     target_set = set(targets)
     expected_pmode_by_target = {

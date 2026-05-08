@@ -106,6 +106,30 @@
 #define APP_TAG_POSITION_OUTPUT_ENABLE 0U
 #endif
 
+#ifndef APP_TAG_WAND_MODE_ENABLE
+#define APP_TAG_WAND_MODE_ENABLE 0U
+#endif
+
+#ifndef APP_TAG_WAND_DEFAULT_A_ID
+#define APP_TAG_WAND_DEFAULT_A_ID 0xF4U
+#endif
+
+#ifndef APP_TAG_WAND_DEFAULT_B_ID
+#define APP_TAG_WAND_DEFAULT_B_ID 0x36U
+#endif
+
+#ifndef APP_TAG_WAND_DEFAULT_C_ID
+#define APP_TAG_WAND_DEFAULT_C_ID 0x5AU
+#endif
+
+#ifndef APP_TAG_WAND_RESP_RX_MS
+#define APP_TAG_WAND_RESP_RX_MS 20U
+#endif
+
+#ifndef APP_TAG_WAND_RESP_DELAY_UUS
+#define APP_TAG_WAND_RESP_DELAY_UUS 500U
+#endif
+
 #ifndef APP_TAG_TDMA_SLOT_PERIOD_MS
 #define APP_TAG_TDMA_SLOT_PERIOD_MS 0U
 #endif
@@ -355,11 +379,25 @@ static dwt_config_t ss_twr_init_config = {
 static uint8_t ss_twr_init_frame_seq_nb;
 static uint8_t ss_twr_init_rx_buffer[SS_TWR_INIT_RX_BUF_LEN];
 static uint8_t ss_twr_init_tx_poll_msg[UWB_MSG_ALT_POLL_FRAME_LEN];
+static uint8_t ss_twr_init_tx_resp_msg[20];
 static uint16_t ss_twr_init_local_addr;
 static uint8_t ss_twr_init_local_tag_id;
 static uint16_t ss_twr_init_identity_code;
 static bool ss_twr_init_radio_configured;
 static struct uwb_range_tracker ss_twr_init_trackers[UWB_MAX_ANCHORS];
+#if APP_TAG_WAND_MODE_ENABLE
+static volatile bool ss_twr_init_wand_enabled;
+static volatile enum ss_twr_init_wand_role ss_twr_init_wand_role =
+    SS_TWR_INIT_WAND_ROLE_IDLE;
+static volatile uint16_t ss_twr_init_wand_pending_sweeps;
+static char ss_twr_init_wand_label = '?';
+static uint8_t ss_twr_init_wand_tags[3] = {
+    APP_TAG_WAND_DEFAULT_A_ID,
+    APP_TAG_WAND_DEFAULT_B_ID,
+    APP_TAG_WAND_DEFAULT_C_ID,
+};
+static uint32_t ss_twr_init_wand_seq;
+#endif
 static uint8_t ss_twr_init_anchor_ids[UWB_MAX_ANCHORS];
 static size_t ss_twr_init_anchor_count;
 static bool ss_twr_init_fixed_anchor_mode;
@@ -2585,6 +2623,13 @@ static void ss_twr_init_read_ts(const uint8_t *ts_field, uint32 *ts)
     }
 }
 
+static void ss_twr_init_write_ts(uint8_t *ts_field, uint32 ts)
+{
+    for (int i = 0; i < SS_TWR_INIT_RESP_MSG_TS_LEN; ++i) {
+        ts_field[i] = (uint8_t)(ts >> (i * 8));
+    }
+}
+
 static void ss_twr_init_configure_radio(void)
 {
     dwt_configure(&ss_twr_init_config);
@@ -2606,6 +2651,314 @@ static void ss_twr_init_configure_radio(void)
                           SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_RX_TO);
     ss_twr_init_radio_configured = true;
 }
+
+#if APP_TAG_WAND_MODE_ENABLE
+int ss_twr_init_wand_set_enabled(bool enabled, char label)
+{
+    if (label >= 'a' && label <= 'z') {
+        label = (char)(label - 'a' + 'A');
+    }
+    if (label != 'A' && label != 'B' && label != 'C' && label != '?') {
+        return -EINVAL;
+    }
+
+    ss_twr_init_wand_enabled = enabled;
+    ss_twr_init_wand_label = enabled ? label : '?';
+    if (!enabled) {
+        ss_twr_init_wand_role = SS_TWR_INIT_WAND_ROLE_IDLE;
+        ss_twr_init_wand_pending_sweeps = 0U;
+    }
+    return 0;
+}
+
+int ss_twr_init_wand_set_role(enum ss_twr_init_wand_role role)
+{
+    if (role != SS_TWR_INIT_WAND_ROLE_IDLE &&
+        role != SS_TWR_INIT_WAND_ROLE_INIT &&
+        role != SS_TWR_INIT_WAND_ROLE_RESP) {
+        return -EINVAL;
+    }
+    ss_twr_init_wand_role = role;
+    return 0;
+}
+
+int ss_twr_init_wand_set_peers(uint8_t tag_a, uint8_t tag_b, uint8_t tag_c)
+{
+    ss_twr_init_wand_tags[0] = tag_a;
+    ss_twr_init_wand_tags[1] = tag_b;
+    ss_twr_init_wand_tags[2] = tag_c;
+    return 0;
+}
+
+int ss_twr_init_wand_request_sweep(uint16_t count)
+{
+    if (!ss_twr_init_wand_enabled) {
+        return -EACCES;
+    }
+    if (count == 0U) {
+        count = 1U;
+    }
+    ss_twr_init_wand_role = SS_TWR_INIT_WAND_ROLE_INIT;
+    ss_twr_init_wand_pending_sweeps = count;
+    return 0;
+}
+
+static char ss_twr_init_wand_label_for_index(uint8_t index)
+{
+    return (char)('A' + index);
+}
+
+static void ss_twr_init_wand_publish(const char *line)
+{
+    printk("%s\n", line);
+#if APP_TAG_BLE_ENABLE
+    (void)uwb_tag_ble_publish_status(line);
+#else
+    ARG_UNUSED(line);
+#endif
+}
+
+static bool ss_twr_init_wand_range_peer(uint8_t peer_tag_id, long *raw_mm_out)
+{
+    uint16_t peer_addr = uwb_tag_short_addr(peer_tag_id);
+    uint32 status_reg;
+
+    if (raw_mm_out == NULL) {
+        return false;
+    }
+    *raw_mm_out = 0L;
+
+    ss_twr_init_configure_radio();
+    uwb_ss_twr_build_poll_frame(ss_twr_init_tx_poll_msg,
+                                ss_twr_init_frame_seq_nb,
+                                peer_addr,
+                                ss_twr_init_local_addr);
+    ss_twr_init_prepare_radio_for_poll();
+    if (dwt_writetxdata(SS_TWR_INIT_LEGACY_POLL_FRAME_LEN,
+                        ss_twr_init_tx_poll_msg, 0) != DWT_SUCCESS) {
+        return false;
+    }
+    dwt_writetxfctrl(SS_TWR_INIT_LEGACY_POLL_FRAME_LEN, 0, 1);
+    if (dwt_starttx(DWT_START_TX_IMMEDIATE | DWT_RESPONSE_EXPECTED) !=
+        DWT_SUCCESS) {
+        dwt_forcetrxoff();
+        return false;
+    }
+
+    do {
+        status_reg = dwt_read32bitreg(SYS_STATUS_ID);
+    } while ((status_reg & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO |
+                            SYS_STATUS_ALL_RX_ERR)) == 0U);
+
+    ss_twr_init_frame_seq_nb++;
+
+    if ((status_reg & SYS_STATUS_RXFCG) == 0U) {
+        dwt_write32bitreg(SYS_STATUS_ID,
+                          SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR);
+        dwt_rxreset();
+        return false;
+    }
+
+    uint32 frame_len = dwt_read32bitreg(RX_FINFO_ID) & RX_FINFO_RXFLEN_MASK;
+    if (frame_len > sizeof(ss_twr_init_rx_buffer)) {
+        dwt_forcetrxoff();
+        dwt_rxreset();
+        return false;
+    }
+
+    dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
+    memset(ss_twr_init_rx_buffer, 0, sizeof(ss_twr_init_rx_buffer));
+    dwt_readrxdata(ss_twr_init_rx_buffer, (uint16)frame_len, 0);
+    ss_twr_init_rx_buffer[SS_TWR_INIT_MSG_SN_IDX] = 0;
+
+    if (!uwb_ss_twr_resp_matches(ss_twr_init_rx_buffer,
+                                 ss_twr_init_local_addr, peer_addr)) {
+        return false;
+    }
+
+    uint32 poll_tx_ts = dwt_readtxtimestamplo32();
+    uint32 resp_rx_ts = dwt_readrxtimestamplo32();
+    uint32 poll_rx_ts;
+    uint32 resp_tx_ts;
+    ss_twr_init_read_ts(
+        &ss_twr_init_rx_buffer[SS_TWR_INIT_RESP_MSG_POLL_RX_TS_IDX],
+        &poll_rx_ts);
+    ss_twr_init_read_ts(
+        &ss_twr_init_rx_buffer[SS_TWR_INIT_RESP_MSG_RESP_TX_TS_IDX],
+        &resp_tx_ts);
+
+    double clock_offset_ratio =
+        (double)dwt_readcarrierintegrator() *
+        (FREQ_OFFSET_MULTIPLIER * HERTZ_TO_PPM_MULTIPLIER_CHAN_5 / 1.0e6);
+    int32 rtd_init = (int32)(resp_rx_ts - poll_tx_ts);
+    int32 rtd_resp = (int32)(resp_tx_ts - poll_rx_ts);
+    double tof = ((rtd_init - rtd_resp * (1.0 - clock_offset_ratio)) / 2.0) *
+                 DWT_TIME_UNITS;
+    long raw_mm = (long)(tof * SS_TWR_INIT_SPEED_OF_LIGHT * 1000.0);
+    if (raw_mm < 0L) {
+        raw_mm = 0L;
+    }
+    *raw_mm_out = raw_mm;
+    return true;
+}
+
+static void ss_twr_init_wand_responder_once(void)
+{
+    uint32_t start_ms = k_uptime_get_32();
+    uint32 status_reg;
+
+    ss_twr_init_configure_radio();
+    dwt_setrxtimeout(0);
+    dwt_rxenable(DWT_START_RX_IMMEDIATE);
+
+    while ((uint32_t)(k_uptime_get_32() - start_ms) < APP_TAG_WAND_RESP_RX_MS) {
+        status_reg = dwt_read32bitreg(SYS_STATUS_ID);
+        if ((status_reg & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_ERR)) != 0U) {
+            break;
+        }
+        k_yield();
+    }
+
+    status_reg = dwt_read32bitreg(SYS_STATUS_ID);
+    if ((status_reg & SYS_STATUS_RXFCG) == 0U) {
+        if ((status_reg & SYS_STATUS_ALL_RX_ERR) != 0U) {
+            dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_ERR);
+            dwt_rxreset();
+        }
+        dwt_forcetrxoff();
+        return;
+    }
+
+    uint32 frame_len = dwt_read32bitreg(RX_FINFO_ID) & RX_FINFO_RXFL_MASK_1023;
+    if (frame_len > sizeof(ss_twr_init_rx_buffer)) {
+        dwt_forcetrxoff();
+        dwt_rxreset();
+        return;
+    }
+    dwt_readrxdata(ss_twr_init_rx_buffer, (uint16)frame_len, 0);
+    dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
+    if (!uwb_ss_twr_poll_matches(ss_twr_init_rx_buffer,
+                                 ss_twr_init_local_addr)) {
+        return;
+    }
+
+    uint16_t poll_src_addr = uwb_frame_get_src_addr(ss_twr_init_rx_buffer);
+    if (!uwb_short_addr_is_tag(poll_src_addr)) {
+        return;
+    }
+
+    uint32 poll_rx_ts = dwt_readrxtimestamplo32();
+    uint32 resp_tx_time =
+        (uint32)(((uint64_t)poll_rx_ts +
+                  ((uint64_t)APP_TAG_WAND_RESP_DELAY_UUS *
+                   SS_TWR_INIT_UUS_TO_DWT_TIME)) >> 8);
+    uint32 resp_tx_ts =
+        ((resp_tx_time & 0xFFFFFFFEUL) << 8) + SS_TWR_INIT_TX_ANT_DLY;
+
+    uwb_ss_twr_build_resp_frame(ss_twr_init_tx_resp_msg,
+                                ss_twr_init_frame_seq_nb,
+                                poll_src_addr,
+                                ss_twr_init_local_addr);
+    ss_twr_init_write_ts(&ss_twr_init_tx_resp_msg
+                         [SS_TWR_INIT_RESP_MSG_POLL_RX_TS_IDX],
+                         poll_rx_ts);
+    ss_twr_init_write_ts(&ss_twr_init_tx_resp_msg
+                         [SS_TWR_INIT_RESP_MSG_RESP_TX_TS_IDX],
+                         resp_tx_ts);
+    if (dwt_writetxdata(sizeof(ss_twr_init_tx_resp_msg),
+                        ss_twr_init_tx_resp_msg, 0) != DWT_SUCCESS) {
+        return;
+    }
+    dwt_writetxfctrl(sizeof(ss_twr_init_tx_resp_msg), 0, 1);
+    dwt_setdelayedtrxtime(resp_tx_time);
+    if (dwt_starttx(DWT_START_TX_DELAYED) != DWT_SUCCESS) {
+        dwt_forcetrxoff();
+        dwt_rxreset();
+        return;
+    }
+    while ((dwt_read32bitreg(SYS_STATUS_ID) & SYS_STATUS_TXFRS) == 0U) {
+        k_yield();
+    }
+    dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_TXFRS);
+    ss_twr_init_frame_seq_nb++;
+}
+
+static void ss_twr_init_wand_sweep_once(void)
+{
+    char line[128];
+    uint8_t self_index = 0xffU;
+    uint8_t ok_count = 0U;
+
+    for (uint8_t i = 0U; i < 3U; ++i) {
+        if (ss_twr_init_wand_label == ss_twr_init_wand_label_for_index(i) ||
+            ss_twr_init_wand_tags[i] == ss_twr_init_local_tag_id) {
+            self_index = i;
+            break;
+        }
+    }
+
+    ss_twr_init_wand_seq++;
+    for (uint8_t i = 0U; i < 3U; ++i) {
+        long raw_mm = 0L;
+        bool ok;
+
+        if (i == self_index || ss_twr_init_wand_tags[i] == ss_twr_init_local_tag_id) {
+            continue;
+        }
+        ok = ss_twr_init_wand_range_peer(ss_twr_init_wand_tags[i], &raw_mm);
+        if (ok) {
+            ok_count++;
+        }
+        snprintk(line, sizeof(line),
+                 "WR;%lu;%c;%c;0x%02X;%ld;%u",
+                 (unsigned long)ss_twr_init_wand_seq,
+                 ss_twr_init_wand_label,
+                 ss_twr_init_wand_label_for_index(i),
+                 (unsigned int)ss_twr_init_wand_tags[i],
+                 raw_mm,
+                 (unsigned int)(ok ? 1U : 0U));
+        ss_twr_init_wand_publish(line);
+        k_msleep(5);
+    }
+
+    snprintk(line, sizeof(line),
+             "WS;%lu;%c;ok=%u;peers=%02X,%02X,%02X",
+             (unsigned long)ss_twr_init_wand_seq,
+             ss_twr_init_wand_label,
+             (unsigned int)ok_count,
+             (unsigned int)ss_twr_init_wand_tags[0],
+             (unsigned int)ss_twr_init_wand_tags[1],
+             (unsigned int)ss_twr_init_wand_tags[2]);
+    ss_twr_init_wand_publish(line);
+}
+#else
+int ss_twr_init_wand_set_enabled(bool enabled, char label)
+{
+    ARG_UNUSED(enabled);
+    ARG_UNUSED(label);
+    return -ENOTSUP;
+}
+
+int ss_twr_init_wand_set_role(enum ss_twr_init_wand_role role)
+{
+    ARG_UNUSED(role);
+    return -ENOTSUP;
+}
+
+int ss_twr_init_wand_set_peers(uint8_t tag_a, uint8_t tag_b, uint8_t tag_c)
+{
+    ARG_UNUSED(tag_a);
+    ARG_UNUSED(tag_b);
+    ARG_UNUSED(tag_c);
+    return -ENOTSUP;
+}
+
+int ss_twr_init_wand_request_sweep(uint16_t count)
+{
+    ARG_UNUSED(count);
+    return -ENOTSUP;
+}
+#endif
 
 static int ss_twr_init_load_runtime_config(
     const struct uwb_tag_runtime_config *config)
@@ -4562,6 +4915,22 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
         }
 #endif
         ss_twr_init_apply_pending_runtime_config_if_any();
+
+#if APP_TAG_WAND_MODE_ENABLE
+        if (ss_twr_init_wand_enabled) {
+            ss_twr_init_set_ble_tx_paused(false);
+            if (ss_twr_init_wand_role == SS_TWR_INIT_WAND_ROLE_RESP) {
+                ss_twr_init_wand_responder_once();
+                continue;
+            }
+            if (ss_twr_init_wand_pending_sweeps > 0U &&
+                ss_twr_init_wand_role == SS_TWR_INIT_WAND_ROLE_INIT) {
+                ss_twr_init_wand_pending_sweeps--;
+                ss_twr_init_wand_sweep_once();
+                continue;
+            }
+        }
+#endif
 
         if (ss_twr_init_runtime_anchor_ota_mode()) {
             ss_twr_init_publish_tdma_diag("anchor_ota", 0U, 0U);

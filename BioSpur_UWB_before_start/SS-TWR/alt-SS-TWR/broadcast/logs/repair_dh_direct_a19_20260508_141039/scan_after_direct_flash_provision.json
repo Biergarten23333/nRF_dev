@@ -1,0 +1,26 @@
+Traceback (most recent call last):
+  File "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/scripts/scan_and_map.py", line 68, in do_scan
+    from bleak import BleakScanner
+ModuleNotFoundError: No module named 'bleak'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/scripts/scan_and_map.py", line 104, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/scripts/scan_and_map.py", line 89, in main
+    records = asyncio.run(do_scan(args.timeout_s))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 687, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/scripts/scan_and_map.py", line 70, in do_scan
+    raise RuntimeError("Bleak not installed. Install with: pip install bleak") from exc
+RuntimeError: Bleak not installed. Install with: pip install bleak

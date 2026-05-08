@@ -12,6 +12,8 @@ build_dir="${3:-build-tag-ble-motion-unified}"
 slot_period_ms="${APP_TAG_TDMA_SLOT_PERIOD_MS:-25}"
 slot_active_ms="${APP_TAG_TDMA_SLOT_ACTIVE_MS:-20}"
 device_name="${TAG_DEVICE_NAME:-BS_AUTO}"
+ble_name_prefix="${APP_TAG_BLE_NAME_PREFIX:-}"
+wand_mode_enable="${APP_TAG_WAND_MODE_ENABLE:-0}"
 fw_marker="${APP_TAG_FW_MARKER:-unified-default}"
 uwb_channel="${APP_UWB_CHANNEL:-5}"
 uwb_pan_id="${APP_UWB_PAN_ID:-0xDECA}"
@@ -113,6 +115,8 @@ fi
   printf 'set(APP_UWB_CHANNEL %s CACHE STRING "Motion tag preload" FORCE)\n' "${uwb_channel}"
   printf 'set(APP_UWB_PAN_ID %s CACHE STRING "Motion tag preload" FORCE)\n' "${uwb_pan_id}"
   printf 'set(APP_TAG_FW_MARKER %s CACHE STRING "Motion tag preload" FORCE)\n' "${fw_marker}"
+  printf 'set(APP_TAG_BLE_NAME_PREFIX %s CACHE STRING "Motion tag preload" FORCE)\n' "${ble_name_prefix}"
+  printf 'set(APP_TAG_WAND_MODE_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${wand_mode_enable}"
   printf 'set(APP_ALT_SS_TWR_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_enable}"
   printf 'set(APP_ALT_SS_TWR_BCAST_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_bcast_enable}"
   printf 'set(APP_ALT_SS_TWR_MODE %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_mode}"
@@ -158,6 +162,8 @@ west build \
   -DAPP_TAG_BLE_COMPACT_STATUS=1 \
   -DAPP_TAG_BLE_PACKET_BUNDLE_RECORDS=3 \
   -DAPP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS=250 \
+  -DAPP_TAG_BLE_NAME_PREFIX="${ble_name_prefix}" \
+  -DAPP_TAG_WAND_MODE_ENABLE="${wand_mode_enable}" \
   -DAPP_TAG_MCUBOOT_ENABLE=1 \
   -DAPP_TAG_TDMA_ENABLE=1 \
   -DAPP_TAG_TDMA_SLOT_INDEX="${slot_index}" \

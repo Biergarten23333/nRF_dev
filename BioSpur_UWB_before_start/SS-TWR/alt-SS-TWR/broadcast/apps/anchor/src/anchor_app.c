@@ -453,12 +453,13 @@ int anchor_app_run(void)
         } else {
             unassigned_mode = true;
         }
-        if (cfg.role != ANCHOR_ROLE_MATRIX) {
-            printk("Boot role %s ignored; defaulting to matrix autopos standby\n",
-                   anchor_role_name(cfg.role));
-        }
-        cfg.role = ANCHOR_ROLE_MATRIX;
-        effective_role = ANCHOR_ROLE_MATRIX;
+        /*
+         * Honor the persisted NVS role for field-replaced anchors.  The
+         * control plane can still switch roles later, but a device provisioned
+         * as responder must boot as responder so BLE discovery, blue LED state,
+         * and OTA targeting remain stable after direct flash/reprovision.
+         */
+        effective_role = cfg.role;
     } else {
         effective_role = APP_ANCHOR_ROLE;
         anchor_id_cfg = (uint8_t)(APP_ANCHOR_ID + 1U);
