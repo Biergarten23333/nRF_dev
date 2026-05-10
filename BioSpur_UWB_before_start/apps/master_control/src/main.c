@@ -310,7 +310,7 @@ static void control_print_help(void)
 	printk("Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate\n");
 	printk("OTA runtime cmds: ota_reset | ota show | ota version\n");
 	printk("Runtime NUS cmds: cmd <raw> | cmd_all <raw> | oneshot <raw> | oneshot show | oneshot clear\n");
-	printk("TDMA cmds: tdma show | tdma hold <0|1> | tdma roster <BSxxxx> <static|roto|motion> | tdma profile <BSxxxx> <static|roto|motion> | tdma freq <static|roto|motion> <hz> | tdma rebalance\n");
+	printk("TDMA cmds: tdma show | tdma hold <0|1> | tdma arm | tdma run | tdma stop | tdma roster <BSxxxx> <static|roto|motion> | tdma profile <BSxxxx> <static|roto|motion> | tdma freq <static|roto|motion> <hz> | tdma rebalance\n");
 	printk("Device model cmds: device show | device kind <anchor|tag>\n");
 	printk("OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->\n");
 	printk("Anchor cmds: anchor version <A..H|UUID32|all> | anchor role <A..H|UUID32|all> <master|matrix|responder> | anchor reset <A..H|UUID32|all> <autopos|responder>\n");
@@ -2316,6 +2316,21 @@ static void control_handle_uart_command(const char *line)
 		if (n >= 1 && strcmp(sub, "rebalance") == 0) {
 			rc = master_tdma_rebalance_now();
 			printk("tdma rebalance rc=%d\n", rc);
+			return;
+		}
+		if (n >= 1 && strcmp(sub, "arm") == 0) {
+			rc = master_tdma_set_run_enabled(false);
+			printk("tdma arm rc=%d\n", rc);
+			return;
+		}
+		if (n >= 1 && strcmp(sub, "run") == 0) {
+			rc = master_tdma_set_run_enabled(true);
+			printk("tdma run rc=%d\n", rc);
+			return;
+		}
+		if (n >= 1 && strcmp(sub, "stop") == 0) {
+			rc = master_tdma_set_run_enabled(false);
+			printk("tdma stop rc=%d\n", rc);
 			return;
 		}
 		if (n >= 1 && strcmp(sub, "clear") == 0) {

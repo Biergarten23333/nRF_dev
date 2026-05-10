@@ -973,6 +973,7 @@ static int uwb_tag_ble_parse_cfg_command(
 	uint32_t slot_mask = 0U;
 	uint32_t epoch = 0U;
 	uint32_t generation = 0U;
+	uint32_t run_enabled = 1U;
 	uint32_t positioning_mode = UWB_TAG_MODE_RANGE;
 	uint32_t anchor_mode = UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
 	uint8_t fixed_anchor_ids[UWB_TAG_FIXED_ANCHOR_MAX] = { 0U };
@@ -993,6 +994,7 @@ static int uwb_tag_ble_parse_cfg_command(
 
 	(void)uwb_tag_ble_parse_u32_field(cmd, "GEN=", &generation);
 	(void)uwb_tag_ble_parse_u32_field(cmd, "MASK=", &slot_mask);
+	(void)uwb_tag_ble_parse_u32_field(cmd, "RUN=", &run_enabled);
 	(void)uwb_tag_ble_parse_u32_field(cmd, "PMODE=", &positioning_mode);
 	(void)uwb_tag_ble_parse_u32_field(cmd, "AMODE=", &anchor_mode);
 	fixed_count = uwb_tag_ble_parse_fixed_anchor_list(cmd, fixed_anchor_ids,
@@ -1001,7 +1003,7 @@ static int uwb_tag_ble_parse_cfg_command(
 	if (tag_id >= UWB_MAX_TAGS || slot >= UINT8_MAX || count == 0U ||
 	    count > UINT8_MAX || period == 0U || period > UINT16_MAX ||
 	    active == 0U || active > UINT16_MAX || active > period ||
-	    slot_mask > UINT16_MAX ||
+	    slot_mask > UINT16_MAX || run_enabled > 1U ||
 	    (positioning_mode != UWB_TAG_MODE_RANGE &&
 	     positioning_mode != UWB_TAG_MODE_SOLVE &&
 	     positioning_mode != UWB_TAG_MODE_DEBUG &&
@@ -1020,7 +1022,7 @@ static int uwb_tag_ble_parse_cfg_command(
 	memset(params->fixed_anchor_ids, 0, sizeof(params->fixed_anchor_ids));
 	memcpy(params->fixed_anchor_ids, fixed_anchor_ids,
 	       sizeof(fixed_anchor_ids));
-	params->tdma.enabled = true;
+	params->tdma.enabled = (run_enabled != 0U);
 	params->tdma.slot_index = (uint8_t)slot;
 	params->tdma.slot_count = (uint8_t)count;
 	params->tdma.slot_mask = (uint16_t)slot_mask;
@@ -1034,6 +1036,25 @@ static int uwb_tag_ble_parse_cfg_command(
 	}
 
 	return 0;
+}
+
+static void uwb_tag_ble_set_cfg_run_state(bool run)
+{
+	struct uwb_tag_runtime_params params;
+	char resp[96];
+	int live_err;
+
+	(void)uwb_tag_ble_runtime_config_get(&params);
+	params.tdma.enabled = run;
+	live_err = ss_twr_init_runtime_configure(&params);
+	snprintk(resp, sizeof(resp),
+		 "CFG_%s_OK RUN=%u STATE=%s LIVE=%u GEN=%u",
+		 run ? "RUN" : "STOP",
+		 run ? 1U : 0U,
+		 run ? "RUNNING" : "ARMED",
+		 (unsigned int)((live_err == 0) ? 1U : 0U),
+		 (unsigned int)params.tdma.generation);
+	uwb_tag_ble_send_text(resp);
 }
 
 static int uwb_tag_ble_start_advertising(void)
@@ -2117,7 +2138,7 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		}
 
 		snprintk(resp, sizeof(resp),
-			 "CFG_OK TAG=%u SLOT=%u/%u MASK=0x%04X PERIOD=%u ACTIVE=%u GEN=%u LIVE=%u",
+			 "CFG_OK TAG=%u SLOT=%u/%u MASK=0x%04X PERIOD=%u ACTIVE=%u GEN=%u LIVE=%u RUN=%u STATE=%s",
 			 (unsigned int)params.logical_tag_id,
 			 (unsigned int)params.tdma.slot_index,
 			 (unsigned int)params.tdma.slot_count,
@@ -2125,16 +2146,28 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 			 (unsigned int)params.tdma.slot_period_ms,
 			 (unsigned int)params.tdma.slot_active_ms,
 			 (unsigned int)params.tdma.generation,
-			 (unsigned int)((live_err == 0) ? 1U : 0U));
+			 (unsigned int)((live_err == 0) ? 1U : 0U),
+			 params.tdma.enabled ? 1U : 0U,
+			 params.tdma.enabled ? "RUNNING" : "ARMED");
 		uwb_tag_ble_send_text(resp);
+		return;
+	}
+
+	if (strcmp(cmd, "CFG_RUN") == 0) {
+		uwb_tag_ble_set_cfg_run_state(true);
+		return;
+	}
+
+	if (strcmp(cmd, "CFG_STOP") == 0) {
+		uwb_tag_ble_set_cfg_run_state(false);
 		return;
 	}
 
 	if (strcmp(cmd, "HELP") == 0) {
 #if APP_TAG_BLE_OTA_ENABLE
-		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RANGE|SOLVE|DEBUG|AOTA>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2|3>|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RANGE|SOLVE|DEBUG|AOTA>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|1|2|3>|CFG_RUN|CFG_STOP|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
 #else
-		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RANGE|SOLVE|DEBUG|AOTA>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> PMODE=<0|1|2|3>|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RANGE|SOLVE|DEBUG|AOTA>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|1|2|3>|CFG_RUN|CFG_STOP|REBOOT|HELP");
 #endif
 #if APP_TAG_WAND_MODE_ENABLE
 		uwb_tag_ble_send_text("WAND?|WAND START <A|B|C>|WAND PEERS <A> <B> <C>|WAND ROLE <IDLE|INIT|RESP>|WAND_SWEEP [n]|WAND STOP");

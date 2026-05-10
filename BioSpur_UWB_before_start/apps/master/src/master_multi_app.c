@@ -182,6 +182,7 @@ static uint8_t tdma_static_target_hz = MASTER_TDMA_STATIC_DEFAULT_HZ;
 static uint8_t tdma_motion_target_hz = MASTER_TDMA_MOTION_DEFAULT_HZ;
 static bool tdma_rebalance_hold;
 static bool tdma_rebalance_deferred;
+static bool tdma_run_enabled = true;
 
 struct master_cal_record {
 	bool present;
@@ -1188,9 +1189,10 @@ static int master_send_runtime_config(struct master_peer *peer,
 				      uint16_t slot_active_ms,
 				      uint32_t epoch_ms,
 				      uint8_t generation,
-				      uint8_t positioning_mode)
+				      uint8_t positioning_mode,
+				      bool run_enabled)
 {
-	char cmd[160];
+	char cmd[176];
 	int err;
 
 	if (peer == NULL || !peer->ready || !peer->connected) {
@@ -1198,7 +1200,7 @@ static int master_send_runtime_config(struct master_peer *peer,
 	}
 
 	snprintk(cmd, sizeof(cmd),
-		 "CFG TAG=%u SLOT=%u COUNT=%u MASK=0x%04X PERIOD=%u ACTIVE=%u EPOCH=%lu GEN=%u PMODE=%u AMODE=%u",
+		 "CFG TAG=%u SLOT=%u COUNT=%u MASK=0x%04X PERIOD=%u ACTIVE=%u EPOCH=%lu GEN=%u RUN=%u PMODE=%u AMODE=%u",
 		 (unsigned int)logical_tag_id,
 		 (unsigned int)slot_index,
 		 (unsigned int)slot_count,
@@ -1207,6 +1209,7 @@ static int master_send_runtime_config(struct master_peer *peer,
 		 (unsigned int)slot_active_ms,
 		 (unsigned long)epoch_ms,
 		 (unsigned int)generation,
+		 run_enabled ? 1U : 0U,
 		 (unsigned int)positioning_mode,
 		 0U);
 	err = bt_nus_client_send(&peer->nus_client, (const uint8_t *)cmd, strlen(cmd));
@@ -1224,7 +1227,7 @@ static int master_send_runtime_config(struct master_peer *peer,
 	peer->tdma_slot = slot_index;
 	peer->tdma_slot_valid = true;
 	peer->tdma_generation = generation;
-	printk("CFG assigned[%d]: bs=BS%04X tag=%u slot=%u/%u mask=0x%04X period=%u active=%u gen=%u pmode=%u\n",
+	printk("CFG assigned[%d]: bs=BS%04X tag=%u slot=%u/%u mask=0x%04X period=%u active=%u gen=%u pmode=%u run=%u\n",
 	       peer_index_from_nus(&peer->nus_client),
 	       (unsigned int)peer->bs_code,
 	       (unsigned int)logical_tag_id,
@@ -1234,7 +1237,8 @@ static int master_send_runtime_config(struct master_peer *peer,
 	       (unsigned int)slot_period_ms,
 	       (unsigned int)slot_active_ms,
 	       (unsigned int)generation,
-	       (unsigned int)positioning_mode);
+	       (unsigned int)positioning_mode,
+	       run_enabled ? 1U : 0U);
 	return 0;
 }
 
@@ -1465,7 +1469,8 @@ static void master_rebalance_tdma_slots(void)
 						 MASTER_TDMA_SLOT_ACTIVE_MS,
 						 epoch_delay_ms,
 						 tdma_generation,
-						 master_tdma_profile_pmode(kinds[i]));
+						 master_tdma_profile_pmode(kinds[i]),
+						 tdma_run_enabled);
 #if APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE
 		printk("TDMA legacy-single[%zu]: bs=BS%04X profile=%s target=%uHz mask=0x%04X slots=%u/%u actual_x100=%lu epoch_delay=%lu\n",
 #else
@@ -3802,6 +3807,14 @@ int master_tdma_rebalance_now(void)
 	return 0;
 }
 
+int master_tdma_set_run_enabled(bool run_enabled)
+{
+	tdma_run_enabled = run_enabled;
+	printk("TDMA run=%u\n", run_enabled ? 1U : 0U);
+	master_rebalance_tdma_slots();
+	return 0;
+}
+
 int master_tdma_clear_profiles(void)
 {
 	for (size_t i = 0U; i < ARRAY_SIZE(tdma_profiles); ++i) {
@@ -3817,12 +3830,13 @@ int master_tdma_clear_profiles(void)
 
 void master_tdma_print_status(void)
 {
-	printk("TDMA %s scheduler: period=%ums active=%ums max_slots=%u freq motion=%uHz static=%uHz roto=%uHz\n",
+	printk("TDMA %s scheduler: run=%u period=%ums active=%ums max_slots=%u freq motion=%uHz static=%uHz roto=%uHz\n",
 #if APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE
 	       "legacy-single",
 #else
 	       "weighted",
 #endif
+	       tdma_run_enabled ? 1U : 0U,
 	       MASTER_TDMA_SLOT_PERIOD_MS,
 	       MASTER_TDMA_SLOT_ACTIVE_MS,
 	       MASTER_TDMA_SLOT_COUNT_MAX,

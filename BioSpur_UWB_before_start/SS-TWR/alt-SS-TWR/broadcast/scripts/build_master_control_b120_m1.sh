@@ -23,7 +23,7 @@ fi
 west build \
   --no-sysbuild \
   -b nrf5340dk/nrf5340/cpuapp \
-  -s apps/master_control \
+  -s "$repo_root/apps/master_control" \
   -d "$build_dir" \
   --pristine=always \
   -- \

@@ -59,7 +59,7 @@
 #endif
 #define MASTER_TDMA_SLOT_PERIOD_MS APP_MASTER_TDMA_SLOT_PERIOD_MS
 #define MASTER_TDMA_SLOT_ACTIVE_MS APP_MASTER_TDMA_SLOT_ACTIVE_MS
-#define MASTER_TDMA_EPOCH_LEAD_MS 3000U
+#define MASTER_TDMA_EPOCH_LEAD_MS 5000U
 #define MASTER_TDMA_PROFILE_MAX MASTER_MAX_CONNECTIONS
 #define MASTER_TDMA_ROTO_DEFAULT_HZ 15U
 #define MASTER_TDMA_STATIC_DEFAULT_HZ 5U
@@ -159,6 +159,10 @@ struct master_peer {
 	uint8_t logical_tag_id;
 	bool logical_tag_id_valid;
 	uint8_t tdma_slot;
+	uint8_t tdma_slot_count;
+	uint16_t tdma_slot_mask;
+	uint16_t tdma_slot_period_ms;
+	uint16_t tdma_slot_active_ms;
 	bool tdma_slot_valid;
 	uint8_t tdma_generation;
 };
@@ -223,6 +227,8 @@ static bool led_error_state;
 static bool led_flow_state;
 static struct k_work_delayable led_flow_off_work;
 static uint8_t tdma_generation;
+static bool tdma_run_enabled = true;
+static bool tdma_run_schedule_locked;
 static bool tdma_rebalance_hold;
 static bool tdma_rebalance_deferred;
 static char runtime_one_shot_cmd[MASTER_RUNTIME_ONE_SHOT_CMD_LEN];
@@ -575,6 +581,22 @@ static int peer_index_from_addr(const bt_addr_le_t *addr)
 	return -1;
 }
 
+static int peer_index_from_bs_code(uint16_t bs_code)
+{
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		if (!peers[i].bs_code_valid || peers[i].bs_code != bs_code) {
+			continue;
+		}
+
+		if (peers[i].conn != NULL || peers[i].connected ||
+		    peers[i].connect_pending || peers[i].addr_valid) {
+			return (int)i;
+		}
+	}
+
+	return -1;
+}
+
 static uint8_t master_anchor_unready_link_count(void)
 {
 	uint8_t count = 0U;
@@ -672,6 +694,10 @@ static void peer_clear(unsigned int idx, bool unref_conn)
 	peers[idx].logical_tag_id = 0U;
 	peers[idx].logical_tag_id_valid = false;
 	peers[idx].tdma_slot = 0U;
+	peers[idx].tdma_slot_count = 0U;
+	peers[idx].tdma_slot_mask = 0U;
+	peers[idx].tdma_slot_period_ms = 0U;
+	peers[idx].tdma_slot_active_ms = 0U;
 	peers[idx].tdma_slot_valid = false;
 	peers[idx].tdma_generation = 0U;
 	master_cal_reset_state((int)idx);
@@ -1294,9 +1320,10 @@ static int master_send_runtime_config(struct master_peer *peer,
 				      uint16_t slot_active_ms,
 				      uint32_t epoch_ms,
 				      uint8_t generation,
-				      uint8_t positioning_mode)
+	uint8_t positioning_mode,
+	bool run_enabled)
 {
-	char cmd[160];
+	char cmd[176];
 	int err;
 
 	if (peer == NULL || !peer->ready || !peer->connected) {
@@ -1304,7 +1331,7 @@ static int master_send_runtime_config(struct master_peer *peer,
 	}
 
 	snprintk(cmd, sizeof(cmd),
-		 "CFG TAG=%u SLOT=%u COUNT=%u MASK=0x%04X PERIOD=%u ACTIVE=%u EPOCH=%lu GEN=%u PMODE=%u AMODE=%u",
+		 "CFG TAG=%u SLOT=%u COUNT=%u MASK=0x%04X PERIOD=%u ACTIVE=%u EPOCH=%lu GEN=%u RUN=%u PMODE=%u AMODE=%u",
 		 (unsigned int)logical_tag_id,
 		 (unsigned int)slot_index,
 		 (unsigned int)slot_count,
@@ -1313,6 +1340,7 @@ static int master_send_runtime_config(struct master_peer *peer,
 		 (unsigned int)slot_active_ms,
 		 (unsigned long)epoch_ms,
 		 (unsigned int)generation,
+		 run_enabled ? 1U : 0U,
 		 (unsigned int)positioning_mode,
 		 0U);
 	err = bt_nus_client_send(&peer->nus_client, (const uint8_t *)cmd, strlen(cmd));
@@ -1328,9 +1356,13 @@ static int master_send_runtime_config(struct master_peer *peer,
 	peer->logical_tag_id = logical_tag_id;
 	peer->logical_tag_id_valid = true;
 	peer->tdma_slot = slot_index;
+	peer->tdma_slot_count = slot_count;
+	peer->tdma_slot_mask = slot_mask;
+	peer->tdma_slot_period_ms = slot_period_ms;
+	peer->tdma_slot_active_ms = slot_active_ms;
 	peer->tdma_slot_valid = true;
 	peer->tdma_generation = generation;
-	printk("CFG assigned[%d]: bs=BS%04X tag=%u slot=%u/%u mask=0x%04X period=%u active=%u gen=%u pmode=%u\n",
+	printk("CFG assigned[%d]: bs=BS%04X tag=%u slot=%u/%u mask=0x%04X period=%u active=%u gen=%u pmode=%u run=%u\n",
 	       peer_index_from_nus(&peer->nus_client),
 	       (unsigned int)peer->bs_code,
 	       (unsigned int)logical_tag_id,
@@ -1340,7 +1372,8 @@ static int master_send_runtime_config(struct master_peer *peer,
 	       (unsigned int)slot_period_ms,
 	       (unsigned int)slot_active_ms,
 	       (unsigned int)generation,
-	       (unsigned int)positioning_mode);
+	       (unsigned int)positioning_mode,
+	       run_enabled ? 1U : 0U);
 	return 0;
 }
 
@@ -1416,7 +1449,7 @@ static uint8_t master_tdma_select_fair_owner(const uint8_t *target_slots,
 	return (uint8_t)best_idx;
 }
 
-static void master_rebalance_tdma_slots(void)
+static void master_rebalance_tdma_slots_impl(bool force)
 {
 	struct master_peer *ordered[MASTER_MAX_CONNECTIONS];
 	size_t ready_count;
@@ -1430,6 +1463,12 @@ static void master_rebalance_tdma_slots(void)
 	uint8_t occupied_slots[MASTER_TDMA_SLOT_COUNT_MAX] = { 0U };
 	uint8_t assigned_slots[MASTER_MAX_CONNECTIONS] = { 0U };
 	int32_t credits[MASTER_MAX_CONNECTIONS] = { 0 };
+
+	if (tdma_run_schedule_locked && !force) {
+		tdma_rebalance_deferred = true;
+		printk("TDMA rebalance suppressed: run schedule locked\n");
+		return;
+	}
 
 	if (tdma_rebalance_hold) {
 		tdma_rebalance_deferred = true;
@@ -1571,7 +1610,17 @@ static void master_rebalance_tdma_slots(void)
 						 MASTER_TDMA_SLOT_ACTIVE_MS,
 						 epoch_delay_ms,
 						 tdma_generation,
-						 master_tdma_profile_pmode(kinds[i]));
+						 master_tdma_profile_pmode(kinds[i]),
+						 tdma_run_enabled);
+		if (i + 1U < ready_count) {
+			/*
+			 * Runtime TDMA CFG is control-plane traffic, not the UWB
+			 * fast path.  The Wand ARM/RUN flow keeps several NUS links
+			 * up at once; spacing CFG writes avoids bt_nus completion
+			 * errors that otherwise drop links before CFG_OK is reported.
+			 */
+			k_sleep(K_MSEC(900));
+		}
 #if APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE
 		printk("TDMA legacy-single[%zu]: bs=BS%04X profile=%s target=%uHz mask=0x%04X slots=%u/%u actual_x100=%lu epoch_delay=%lu\n",
 #else
@@ -1589,6 +1638,51 @@ static void master_rebalance_tdma_slots(void)
 					MASTER_TDMA_SLOT_PERIOD_MS)),
 		       (unsigned long)epoch_delay_ms);
 	}
+}
+
+static void master_rebalance_tdma_slots(void)
+{
+	master_rebalance_tdma_slots_impl(false);
+}
+
+static int master_send_locked_tdma_run_configs(void)
+{
+	uint32_t epoch_deadline_ms = k_uptime_get_32() + MASTER_TDMA_EPOCH_LEAD_MS;
+	uint8_t sent = 0U;
+
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		struct master_peer *peer = &peers[i];
+		uint32_t now_ms;
+		uint32_t epoch_delay_ms;
+
+		if (!peer->connected || !peer->ready || !peer->tdma_slot_valid ||
+		    !peer->logical_tag_id_valid || peer->tdma_slot_count == 0U ||
+		    peer->tdma_slot_mask == 0U) {
+			continue;
+		}
+
+		now_ms = k_uptime_get_32();
+		epoch_delay_ms =
+			((int32_t)(epoch_deadline_ms - now_ms) > 0) ?
+				(epoch_deadline_ms - now_ms) : 0U;
+		if (master_send_runtime_config(peer,
+						peer->logical_tag_id,
+						peer->tdma_slot,
+						peer->tdma_slot_count,
+						peer->tdma_slot_mask,
+						peer->tdma_slot_period_ms,
+						peer->tdma_slot_active_ms,
+						epoch_delay_ms,
+						peer->tdma_generation,
+						master_tdma_profile_pmode(
+							master_tdma_profile_for_peer(peer)),
+						true) == 0) {
+			sent++;
+		}
+		k_sleep(K_MSEC(900));
+	}
+
+	return sent > 0U ? (int)sent : -ENOTCONN;
 }
 
 static void master_try_connect_pending(void)
@@ -2858,9 +2952,9 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 		return;
 	}
 
-	if (runtime_target_kind == MASTER_TARGET_TAG &&
-	    !tag_uuid_only_recovery_match &&
-	    !scan_tag_matches_runtime_filter(adv_name, bs_code, bs_code_valid, uuid_hex)) {
+		if (runtime_target_kind == MASTER_TARGET_TAG &&
+		    !tag_uuid_only_recovery_match &&
+		    !scan_tag_matches_runtime_filter(adv_name, bs_code, bs_code_valid, uuid_hex)) {
 		char addr[BT_ADDR_LE_STR_LEN];
 		char bs_name[8];
 
@@ -2872,11 +2966,11 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 		       runtime_target_name[0] != '\0' ? runtime_target_name : "-",
 		       runtime_target_prefix[0] != '\0' ? runtime_target_prefix : "-",
 		       runtime_target_uuid[0] != '\0' ? runtime_target_uuid : "-");
-		return;
-	}
+			return;
+		}
 
-	if (runtime_target_kind == MASTER_TARGET_TAG &&
-	    runtime_target_name[0] == '\0' &&
+		if (runtime_target_kind == MASTER_TARGET_TAG &&
+		    runtime_target_name[0] == '\0' &&
 	    runtime_target_uuid[0] == '\0' &&
 	    master_tdma_any_profile_defined() &&
 	    !master_tdma_profile_has_bs_code(bs_code)) {
@@ -2913,6 +3007,22 @@ candidate_accept:
 	if (peer_index_from_addr(info->addr) >= 0) {
 		master_led_flow_pulse();
 		return;
+	}
+	if (bs_code_valid) {
+		int bs_idx = peer_index_from_bs_code(bs_code);
+
+		if (bs_idx >= 0) {
+			char addr[BT_ADDR_LE_STR_LEN];
+			char bs_name[8];
+
+			bt_addr_le_to_str(info->addr, addr, sizeof(addr));
+			snprintk(bs_name, sizeof(bs_name), "BS%04X",
+				 (unsigned int)bs_code);
+			printk("RECV candidate rejected: %s duplicate %s already slot=%d\n",
+			       addr, bs_name, bs_idx);
+			master_led_flow_pulse();
+			return;
+		}
 	}
 
 	scan_log_candidate(info, buf, name_match, anchor_name_match, nus_match, dfu_match,
@@ -3992,9 +4102,52 @@ int master_tdma_rebalance_now(void)
 
 	tdma_rebalance_hold = false;
 	tdma_rebalance_deferred = false;
-	master_rebalance_tdma_slots();
+	master_rebalance_tdma_slots_impl(true);
 	tdma_rebalance_hold = was_held;
 	return 0;
+}
+
+int master_tdma_set_run_enabled(bool run_enabled)
+{
+	tdma_run_enabled = run_enabled;
+	printk("TDMA run=%u\n", run_enabled ? 1U : 0U);
+	if (run_enabled) {
+		if (tdma_run_schedule_locked) {
+			int rc = master_send_locked_tdma_run_configs();
+
+			printk("TDMA run schedule locked; replayed RUN=1 CFG rc=%d\n", rc);
+			return rc < 0 ? rc : 0;
+		}
+
+		master_rebalance_tdma_slots_impl(true);
+		tdma_run_schedule_locked = true;
+		printk("TDMA run schedule locked\n");
+		return 0;
+	}
+
+	tdma_run_schedule_locked = false;
+	tdma_rebalance_deferred = false;
+	tdma_rebalance_hold = false;
+	master_rebalance_tdma_slots_impl(true);
+	tdma_rebalance_hold = true;
+	tdma_run_schedule_locked = true;
+	printk("TDMA armed schedule locked\n");
+	return 0;
+}
+
+int master_tdma_stop_runtime(void)
+{
+	int rc;
+
+	tdma_run_enabled = false;
+	tdma_run_schedule_locked = false;
+	printk("TDMA run=0 stop\n");
+	rc = master_send_command_all_now("CFG_STOP");
+	if (rc < 0) {
+		printk("TDMA stop command had no ready recipients: %d\n", rc);
+		return 0;
+	}
+	return rc;
 }
 
 int master_tdma_clear_profiles(void)
@@ -4012,12 +4165,14 @@ int master_tdma_clear_profiles(void)
 
 void master_tdma_print_status(void)
 {
-	printk("TDMA %s scheduler: period=%ums active=%ums max_slots=%u freq motion=%uHz static=%uHz roto=%uHz\n",
+	printk("TDMA %s scheduler: run=%u lock=%u period=%ums active=%ums max_slots=%u freq motion=%uHz static=%uHz roto=%uHz\n",
 #if APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE
 	       "legacy-single",
 #else
 	       "weighted",
 #endif
+	       tdma_run_enabled ? 1U : 0U,
+	       tdma_run_schedule_locked ? 1U : 0U,
 	       MASTER_TDMA_SLOT_PERIOD_MS,
 	       MASTER_TDMA_SLOT_ACTIVE_MS,
 	       MASTER_TDMA_SLOT_COUNT_MAX,

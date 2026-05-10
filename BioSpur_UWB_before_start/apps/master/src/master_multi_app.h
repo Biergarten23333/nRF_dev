@@ -52,6 +52,7 @@ int master_tdma_add_roster_target(const char *bs_name, const char *profile);
 int master_tdma_set_profile_freq(const char *profile, uint8_t hz);
 int master_tdma_set_rebalance_hold(bool hold);
 int master_tdma_rebalance_now(void);
+int master_tdma_set_run_enabled(bool run_enabled);
 int master_tdma_clear_profiles(void);
 void master_tdma_print_status(void);
 
