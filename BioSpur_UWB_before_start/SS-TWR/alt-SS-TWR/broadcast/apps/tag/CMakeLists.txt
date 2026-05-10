@@ -92,6 +92,9 @@ set(APP_TAG_OUTPUT_MAX_STEP_MM "0" CACHE STRING "Reject solved positions that ju
 set(APP_TAG_OUTPUT_FILTER_RMS_MM "0" CACHE STRING "Emit TF and suppress TS for solved positions above this RMS residual in millimeters (0 disables)")
 set(APP_TAG_OUTPUT_FILTER_SPEED_MM_S "0" CACHE STRING "Emit TF and suppress TS for solved positions faster than this from the last accepted position in mm/s (0 disables)")
 set(APP_TAG_POSITION_OUTPUT_ENABLE "0" CACHE STRING "Emit Tag-side solved position status lines (TS/TF). Enable only when Tag-side solved positions are needed.")
+set(APP_TAG_TR_BCAST_V2_ENABLE "0" CACHE STRING "Also emit broadcast-rich TR;2 range summaries with rx/timing fields")
+set(APP_TAG_BCAST_SUMMARY_ENABLE "1" CACHE STRING "Emit 1Hz broadcast SSTWR summary lines")
+set(APP_TAG_BCAST_SUMMARY_PERIOD_MS "1000" CACHE STRING "Broadcast SSTWR summary period in milliseconds")
 set(APP_TAG_LOC_FAST_ALL_VALID_ENABLE "0" CACHE STRING "Use the all-valid-anchor fast location solve path")
 set(APP_TAG_SWEEP_DIAG_ENABLE "0" CACHE STRING "Emit per-sweep timing diagnostic lines")
 set(APP_TAG_SWEEP_DIAG_PERIOD "10" CACHE STRING "Emit one sweep timing diagnostic every N sweeps")
@@ -112,6 +115,7 @@ set(APP_TAG_UWB_ENABLE "1" CACHE STRING "Enable UWB ranging runtime on the tag (
 set(APP_TAG_BLE_COMPACT_STATUS "1" CACHE STRING "Enable compact BLE TagSummary payloads on the tag")
 set(APP_TAG_BLE_PACKET_BUNDLE_RECORDS "3" CACHE STRING "Bundle this many TagSummary records into one BLE NUS payload")
 set(APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS "250" CACHE STRING "Flush a partial BLE bundle after this many milliseconds (0 disables)")
+set(APP_TAG_BLE_UWB_DIAG_OUTPUT_ENABLE "0" CACHE STRING "Forward UWB diagnostic status lines over BLE")
 set(APP_TAG_BLE_NAME_PREFIX "" CACHE STRING "Optional BLE name prefix prepended before BSxxxx, for example Wand-A")
 set(APP_TAG_WAND_MODE_ENABLE "0" CACHE STRING "Enable experimental Calibration Wand BLE control-plane commands")
 set(APP_TAG_STREAM_FORCE_OFF_AT_BOOT "0" CACHE STRING "Force STREAM OFF on every boot regardless of persisted setting")
@@ -206,6 +210,9 @@ target_compile_definitions(app PRIVATE
     APP_TAG_OUTPUT_FILTER_RMS_MM=${APP_TAG_OUTPUT_FILTER_RMS_MM}
     APP_TAG_OUTPUT_FILTER_SPEED_MM_S=${APP_TAG_OUTPUT_FILTER_SPEED_MM_S}
     APP_TAG_POSITION_OUTPUT_ENABLE=${APP_TAG_POSITION_OUTPUT_ENABLE}
+    APP_TAG_TR_BCAST_V2_ENABLE=${APP_TAG_TR_BCAST_V2_ENABLE}
+    APP_TAG_BCAST_SUMMARY_ENABLE=${APP_TAG_BCAST_SUMMARY_ENABLE}
+    APP_TAG_BCAST_SUMMARY_PERIOD_MS=${APP_TAG_BCAST_SUMMARY_PERIOD_MS}
     APP_TAG_LOC_FAST_ALL_VALID_ENABLE=${APP_TAG_LOC_FAST_ALL_VALID_ENABLE}
     APP_TAG_SWEEP_DIAG_ENABLE=${APP_TAG_SWEEP_DIAG_ENABLE}
     APP_TAG_SWEEP_DIAG_PERIOD=${APP_TAG_SWEEP_DIAG_PERIOD}
@@ -226,6 +233,7 @@ target_compile_definitions(app PRIVATE
     APP_TAG_BLE_COMPACT_STATUS=${APP_TAG_BLE_COMPACT_STATUS}
     APP_TAG_BLE_PACKET_BUNDLE_RECORDS=${APP_TAG_BLE_PACKET_BUNDLE_RECORDS}
     APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS=${APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS}
+    APP_TAG_BLE_UWB_DIAG_OUTPUT_ENABLE=${APP_TAG_BLE_UWB_DIAG_OUTPUT_ENABLE}
     APP_TAG_BLE_NAME_PREFIX=\"${APP_TAG_BLE_NAME_PREFIX}\"
     APP_TAG_WAND_MODE_ENABLE=${APP_TAG_WAND_MODE_ENABLE}
     APP_TAG_STREAM_FORCE_OFF_AT_BOOT=${APP_TAG_STREAM_FORCE_OFF_AT_BOOT}

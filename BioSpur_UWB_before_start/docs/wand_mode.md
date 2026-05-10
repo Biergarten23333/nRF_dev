@@ -1,52 +1,105 @@
 # Calibration Wand Mode
 
-This mode is for the three CaliWand tags. It is currently a safe BLE
-control-plane mode: it lets the Master_Tag identify the three wand nodes,
-put them into a quiet wand state, and assign temporary roles before direct
-Tag-to-Tag ranging is wired into the UWB runtime.
+This document records the canonical meaning of "Wand Calibration" in the
+broadcast SS-TWR system.
 
-## Build Flag
+## Current Definition
 
-Enable with:
+Wand Calibration is a `Master_Tag` / host-script workflow, not a special Tag
+firmware ranging protocol.
 
-```bash
-APP_TAG_WAND_MODE_ENABLE=1
+When the user says "do Wand Calibration":
+
+1. Use `Master_Tag`, never `Master_Anchor`.
+2. Connect only the three Wand Tags.
+3. Filter by Wand identity/name and reject ordinary `BSxxxx` Tags from the TDMA
+   roster.
+4. Run the normal broadcast SS-TWR Tag ranging path.
+5. Record normal `TR` output for the offline solver.
+6. Do not enable TS/CX/CAL_STATIC/CAL_ROTO outputs.
+7. Request `30Hz` per Wand Tag. Three Wand Tags at `30Hz` each are `90Hz`
+   aggregate, still below the validated `10Tag x 10Hz = 100Hz` broadcast
+   baseline.
+
+The Wand Tags themselves are normal Tags. They only differ in BLE identity:
+
+| Wand | Identity code | Expected BLE name |
+|---|---:|---|
+| A | `0xCCF4` | `Wand-A-BSCCF4` |
+| B | `0x9336` | `Wand-B-BS9336` |
+| C | `0x955A` | `Wand-C-BS955A` |
+
+## Current Firmware Image
+
+Use one common image for all three Wand boards:
+
+```text
+alt-bcast-b65-tr3-ledpos-tronly-g1200-r1000-wand-roleprefix-20260509
 ```
 
-Optional naming:
+Build evidence:
 
-```bash
-APP_TAG_BLE_NAME_PREFIX=Wand
+```text
+SS-TWR/alt-SS-TWR/broadcast/build-alt-bcast-b65-tr3-ledpos-tronly-tag-wand-roleprefix-g1200-r1000-tdma10-20260509/
 ```
 
-The build exposes `wand=1` in the `VERSION` response.
+OTA evidence:
 
-## BLE Commands
+```text
+SS-TWR/alt-SS-TWR/broadcast/logs/wand_roleprefix_b65_ota_by_bs_20260509_012422/
+```
 
-| Command | Response | Purpose |
-|---|---|---|
-| `WAND?` | `WAND_STATUS ...` | Read wand state, label, role, BS id, and direct-UWB support flag. |
-| `WAND START <A|B|C>` | `WAND_OK ... STREAM=0` | Enter wand mode and silence normal BLE status streaming. |
-| `WAND ROLE <IDLE|INIT|RESP>` | `WAND_OK ROLE=...` | Assign a transient role for the future internal sweep controller. |
-| `WAND STOP` | `WAND_OK ... STREAM=1` | Leave wand mode and restore normal status streaming. |
-| `WAND_SWEEP` | `WAND_UNSUPPORTED ...` | Reserved command; direct Tag-to-Tag UWB is not connected yet. |
+Key build parameters:
 
-If the build does not enable `APP_TAG_WAND_MODE_ENABLE`, all `WAND...`
-commands return `WAND_DISABLED`.
+| Parameter | Value |
+|---|---:|
+| `APP_TAG_BLE_NAME_PREFIX` | `Wand` |
+| `APP_TAG_WAND_MODE_ENABLE` | `0` |
+| `APP_ALT_SS_TWR_ENABLE` | `1` |
+| `APP_ALT_SS_TWR_BCAST_ENABLE` | `1` |
+| `APP_ALT_SS_TWR_GUARD_US` | `1200` |
+| `APP_ALT_SS_TWR_RESP_SPACING_US` | `1000` |
+| `APP_TAG_TDMA_SLOT_PERIOD_MS` | `10` |
+| `APP_TAG_TDMA_SLOT_ACTIVE_MS` | `9` |
+| `APP_TAG_POSITION_OUTPUT_ENABLE` | `0` |
+| `APP_TAG_EKF_ENABLE` | `0` |
 
-## Current Limitation
+Runtime capture target:
 
-`DIRECT_UWB=0` is intentional. The existing Tag app runs the normal SS-TWR
-initiator loop continuously, and the existing responder loop is anchor-addressed.
-Starting a second direct-ranging loop from BLE would race the same DW1000 radio.
+```text
+Wand-A: 30Hz
+Wand-B: 30Hz
+Wand-C: 30Hz
+Expected TR rows: 3 x 30 x 8 = 720 rows/s
+```
 
-The next firmware step is to add a radio-safe wand runtime hook:
+## Naming Rule
 
-1. Pause the normal Tag initiator loop while wand sweep is active.
-2. Let a tag responder bind to its tag short address (`0xB1xx`), not an anchor
-   address.
-3. Let an initiator tag unicast polls to the other two wand tag short addresses.
-4. Emit `WR;...` records for AB/AC/BC ranges and a summary block.
+The image is common. It does not require separate builds for A/B/C.
 
-Until that radio hook exists, use this mode only to identify and prepare the
-three Wand tags without disturbing normal TDMA/OTA behavior.
+At runtime, firmware maps known identity codes:
+
+```text
+BSCCF4 -> Wand-A-BSCCF4
+BS9336 -> Wand-B-BS9336
+BS955A -> Wand-C-BS955A
+```
+
+If a Wand board is still running an older image, it may advertise only
+`BSCCF4`, `BS9336`, or `BS955A`. In that case, OTA must target the old BS name
+first. After the new image boots, use the `Wand-X-BSxxxx` names.
+
+## What Not To Do
+
+- Do not treat Wand Calibration as Tag-side PMODE logic.
+- Do not require the Wand Tags to parse a new PMODE.
+- Do not enable direct Tag-to-Tag internal sweep unless explicitly testing a
+  separate prototype.
+- Do not output CX/CAL_STATIC/CAL_ROTO for Wand Calibration.
+- Do not include old ordinary Tags in the Wand TDMA roster.
+
+## Future Prototype
+
+Direct Tag-to-Tag Wand sweep is a separate future firmware feature. It would
+pause normal broadcast SS-TWR and add a radio-safe internal ranging loop. It is
+not the current production Wand Calibration path.

@@ -188,12 +188,13 @@ def main() -> int:
             args.cm_probe_target,
             "--anchor-responder-settle-s",
             str(args.anchor_responder_settle_s),
-            "--reuse-tag-links",
             "--tag-link-timeout-s",
             str(args.tag_link_timeout_s),
             "--out-dir",
             str(recv_dir),
         ]
+        if not args.caliwand_mode:
+            tag_cmd.append("--reuse-tag-links")
         if args.caliwand_mode:
             tag_cmd.append("--caliwand-mode")
         rc = run_stream(tag_cmd, out_dir / "tag_capture.console.log")

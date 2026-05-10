@@ -21,72 +21,7 @@ from master_control_port import assert_not_jlink_when_biospur_available
 
 TAG_NOTIFY_PREFIX_RE = r"(?:BLE(?:\[(?P<conn>\d+)(?::[^\]]*)?\])?|BS[0-9A-F]{4}|NUS)"
 
-TAG_SUMMARY_RE_FULL = re.compile(
-    rf"{TAG_NOTIFY_PREFIX_RE} notify: TagSummary sweep=(?P<sweep>\d+) plan=(?P<plan>\w+) "
-    r"(?:pmode=(?P<pmode>\d+) )?"
-    r"(?:qf=(?P<qf>\d+) )?"
-    r"xyz=\((?P<x>-?\d+),(?P<y>-?\d+),(?P<z>-?\d+)\) "
-    r"rms=(?P<rms>\d+) max=(?P<max>\d+)"
-    r"(?: anchors=\[(?P<anchors>[A-Z,]*)\])?"
-    r"(?: motion_dt=(?P<motion_dt>\d+))?"
-    r"(?: disp=(?P<disp>\d+) speed=(?P<speed>\d+))?"
-)
-
-TAG_SUMMARY_RE_COMPACT = re.compile(
-    rf"{TAG_NOTIFY_PREFIX_RE} notify: TagSummary s=(?P<sweep>\d+) p=(?P<plan>\w+) "
-    r"xyz=\((?P<x>-?\d+),(?P<y>-?\d+),(?P<z>-?\d+)\) "
-    r"r=(?P<rms>\d+) m=(?P<max>\d+)"
-    r"(?: a=\[(?P<anchors>[A-Z,]*)\])?"
-    r"(?: dt=(?P<motion_dt>\d+)| motion=na)?"
-)
-
-TAG_SUMMARY_RE_BUNDLE = re.compile(
-    rf"{TAG_NOTIFY_PREFIX_RE} notify: (?:TS|TagSummary) s=(?P<sweep>\d+) p=(?P<plan>\w+) "
-    r"xyz=(?:(?P<x>-?\d+),(?P<y>-?\d+),(?P<z>-?\d+)|\((?P<x2>-?\d+),(?P<y2>-?\d+),(?P<z2>-?\d+)\)) "
-    r"r=(?P<rms>\d+) m=(?P<max>\d+)"
-    r"(?: a=(?P<anchors>[A-Z0-9,\[\]]*))?"
-    r"(?: (?:d|dt)=(?P<motion_dt>\d+)| motion=na)?"
-)
-
-TAG_SUMMARY_RE_SEMI = re.compile(
-    rf"{TAG_NOTIFY_PREFIX_RE} notify: TS;"
-    r"(?P<ver>\d+);"
-    r"(?P<sweep>\d+);"
-    r"(?P<plan>[A-Za-z0-9_]+);"
-    r"(?P<x>-?\d+);(?P<y>-?\d+);(?P<z>-?\d+);"
-    r"(?P<rms>\d+);(?P<max>\d+);"
-    r"(?P<anchors>[A-Z0-9]*);"
-    r"(?P<slot_idx>\d+);(?P<slot_cnt>\d+);"
-    r"(?P<src>[MSB]);"
-    r"(?P<cut>[01]);"
-    r"(?P<reason>[SPRCN]);"
-    r"(?P<motion_dt>\d+)"
-    r"(?:;(?P<pmode>\d+);(?P<plan_label>[A-Za-z0-9_]+);(?P<qf>\d+))?"
-)
-
-TAG_FILTER_RE_SEMI = re.compile(
-    rf"{TAG_NOTIFY_PREFIX_RE} notify: TF;"
-    r"(?P<ver>\d+);"
-    r"(?P<sweep>\d+);"
-    r"(?P<plan>[A-Za-z0-9_]+);"
-    r"(?P<x>-?\d+);(?P<y>-?\d+);(?P<z>-?\d+);"
-    r"(?P<rms>\d+);(?P<max>\d+);"
-    r"(?P<anchors>[A-Z0-9]*);"
-    r"(?P<slot_idx>\d+);(?P<slot_cnt>\d+);"
-    r"(?P<src>[MSB]);"
-    r"(?P<cut>[01]);"
-    r"(?P<solve_reason>[SPRCN]);"
-    r"(?P<pmode>\d+);"
-    r"(?P<filter_reason>[A-Za-z0-9_]+);"
-    r"(?P<step>\d+);"
-    r"(?P<motion_dt>\d+);"
-    r"(?P<speed>\d+);"
-    r"(?P<qf>\d+);"
-    r"(?P<plan_label>[A-Za-z0-9_]+);"
-    r"(?P<used>\d+)"
-)
-
-TR_RE = re.compile(
+TR_SINGLE_RE = re.compile(
     rf"{TAG_NOTIFY_PREFIX_RE} notify: TR;"
     r"(?P<ver>\d+);"
     r"(?P<sweep>\d+);"
@@ -100,9 +35,9 @@ TR_RE = re.compile(
     r"(?P<pmode>\d+)"
 )
 
-TR_BUNDLE_RE = re.compile(
+TR_RANGE_RE = re.compile(
     rf"{TAG_NOTIFY_PREFIX_RE} notify: TR;"
-    r"(?P<ver>[23]);"
+    r"(?P<ver>[13]);"
     r"(?P<sweep>\d+);"
     r"(?P<plan>[A-Za-z0-9_]+);"
     r"(?P<pmode>\d+);"
@@ -120,70 +55,29 @@ TR_BUNDLE_RE = re.compile(
     r")?"
 )
 
-# Backwards-compatible alias for older helper code and text checks.
-TR2_RE = TR_BUNDLE_RE
-
-CM_RE = re.compile(
-    rf"{TAG_NOTIFY_PREFIX_RE} notify: CM;"
-    r"(?P<ver>\d+);"
-    r"(?P<sweep>\d+);"
-    r"(?P<anchor>\d+);"
-    r"(?P<status>[a-z_]+);"
-    r"(?P<raw>-?\d+);"
-    r"(?P<filt>\d+);"
-    r"(?P<q>\d+);"
-    r"(?P<ok>\d+);"
-    r"(?P<fail>\d+)"
-)
-
-CS_RE = re.compile(
-    rf"{TAG_NOTIFY_PREFIX_RE} notify: CS;"
-    r"(?P<ver>\d+);"
+TR_BCAST_RE = re.compile(
+    rf"{TAG_NOTIFY_PREFIX_RE} notify: TR;"
+    r"(?P<ver>2);"
     r"(?P<sweep>\d+);"
     r"(?P<plan>[A-Za-z0-9_]+);"
     r"(?P<pmode>\d+);"
+    r"(?P<active_mask>[0-9A-Fa-f]+);"
+    r"(?P<valid_mask>[0-9A-Fa-f]+);"
+    r"(?P<rx_mask>[0-9A-Fa-f]+);"
+    r"(?P<raws>-?\d+(?:,-?\d+)*);"
+    r"(?P<ranges>\d+(?:,\d+)*);"
+    r"(?P<qs>\d+(?:,\d+)*);"
+    r"(?P<statuses>[ORTEPL]+);"
     r"(?P<qf>\d+);"
-    r"(?P<targets>[A-Z0-9,]*);"
-    r"(?P<statuses>[a-z_,]*);"
-    r"(?P<qualities>[0-9,]*)"
-)
-
-CR_RE = re.compile(
-    rf"{TAG_NOTIFY_PREFIX_RE} notify: CR;"
-    r"(?P<ver>\d+);"
-    r"(?P<sweep>\d+);"
-    r"(?P<plan>[A-Za-z0-9_]+);"
-    r"(?P<pmode>\d+);"
-    r"(?P<anchor>[A-Z\?]);"
-    r"(?P<status>[a-z_]+);"
-    r"(?P<reason>[a-z_]+);"
-    r"(?P<raw>-?\d+);"
-    r"(?P<filt>\d+);"
-    r"(?P<pred>\d+);"
-    r"(?P<resid>\d+);"
-    r"(?P<tracker_q>\d+);"
-    r"(?P<solve_q>\d+)"
-)
-
-CF_RE = re.compile(
-    rf"{TAG_NOTIFY_PREFIX_RE} notify: CF;"
-    r"(?P<ver>\d+);"
-    r"(?P<sweep>\d+);"
-    r"(?P<plan>[A-Za-z0-9_]+);"
-    r"(?P<pmode>\d+);"
-    r"(?P<solve_reason>[a-z_]+);"
-    r"(?P<qf>\d+);"
-    r"(?P<active>\d+);"
-    r"(?P<valid>\d+);"
-    r"(?P<rms>\d+);"
-    r"(?P<max>\d+);"
-    r"(?P<step>\d+)"
-    r"(?:;"
-    r"(?P<first_to_last_us>\d+);"
-    r"(?P<frame_us>\d+);"
+    r"(?P<air_us>\d+);"
+    r"(?P<post_us>\d+);"
+    r"(?P<cycle_us>\d+);"
     r"(?P<poll_count>\d+)"
-    r")?"
 )
+
+# Backwards-compatible aliases for older helper code and text checks.
+TR_RE = TR_RANGE_RE
+TR2_RE = TR_RANGE_RE
 
 CONNECTED_RE = re.compile(
     r"Connected\[(?P<conn>\d+)\]:.*?(?:name=(?P<name>[^\s]+))?.*?(?:bs=(?P<bs>BS[0-9A-F]{4}))?.*?tag_id=(?P<tag_id>-?\d+)"
@@ -194,57 +88,36 @@ CFG_ASSIGNED_RE = re.compile(
     r".*?pmode=(?P<pmode>\d+)"
 )
 
+CFG_ASSIGNED_DETAIL_RE = re.compile(
+    r"CFG assigned\[(?P<conn>\d+)\]: bs=(?P<bs>BS[0-9A-F]{4}) "
+    r"tag=(?P<tag_id>\d+) slot=(?P<slot>\d+)/(?P<count>\d+) "
+    r"mask=0x(?P<mask>[0-9A-Fa-f]+) period=(?P<period>\d+) "
+    r"active=(?P<active>\d+) gen=(?P<gen>\d+) pmode=(?P<pmode>\d+)"
+)
 
-def parse_tag_summary(text: str):
-    for regex in (
-        TAG_SUMMARY_RE_FULL,
-        TAG_SUMMARY_RE_COMPACT,
-        TAG_SUMMARY_RE_BUNDLE,
-        TAG_SUMMARY_RE_SEMI,
-    ):
-        match = regex.search(text)
-        if match:
-            return match
-    return None
+CFG_OK_RE = re.compile(
+    rf"{TAG_NOTIFY_PREFIX_RE} notify: CFG_OK TAG=(?P<tag_id>\d+) "
+    r"SLOT=(?P<slot>\d+)/(?P<count>\d+) MASK=0x(?P<mask>[0-9A-Fa-f]+) "
+    r"PERIOD=(?P<period>\d+) ACTIVE=(?P<active>\d+) GEN=(?P<gen>\d+) "
+    r"LIVE=(?P<live>\d+)"
+)
+
+TDMA_WEIGHTED_RE = re.compile(
+    r"TDMA weighted\[\d+\]: bs=(?P<bs>BS[0-9A-F]{4}) profile=(?P<profile>\w+) "
+    r"target=(?P<target_hz>\d+)Hz mask=0x(?P<mask>[0-9A-Fa-f]+) "
+    r"slots=(?P<slots>\d+)/(?P<count>\d+) actual_x100=(?P<actual_x100>\d+)"
+)
+
+WAND_ROLE_BS_CODES = {
+    "A": "BSCCF4",
+    "B": "BS9336",
+    "C": "BS955A",
+}
 
 
 def extract_bs_name(text: str) -> str:
     match = re.search(r"\b(BS[0-9A-F]{4})\b", text)
     return match.group(1) if match else ""
-
-
-def iter_tag_summary_matches(text: str):
-    prefix = None
-    if "notify:" in text:
-        prefix = text.split("notify:", 1)[0] + "notify: "
-
-    for idx, fragment in enumerate(text.split("|")):
-        fragment = fragment.strip()
-        if not fragment:
-            continue
-        if idx > 0 and "notify:" not in fragment and fragment.startswith(("TagSummary", "TS", "TS;")):
-            fragment = (prefix or "BLE notify: ") + fragment
-
-        match = parse_tag_summary(fragment)
-        if match:
-            yield match
-
-
-def iter_tag_filter_matches(text: str):
-    prefix = None
-    if "notify:" in text:
-        prefix = text.split("notify:", 1)[0] + "notify: "
-
-    for idx, fragment in enumerate(text.split("|")):
-        fragment = fragment.strip()
-        if not fragment:
-            continue
-        if idx > 0 and "notify:" not in fragment and fragment.startswith("TF;"):
-            fragment = (prefix or "BLE notify: ") + fragment
-
-        match = TAG_FILTER_RE_SEMI.search(fragment)
-        if match:
-            yield match
 
 
 def iter_tr_matches(text: str):
@@ -259,7 +132,7 @@ def iter_tr_matches(text: str):
         if idx > 0 and "notify:" not in fragment and fragment.startswith("TR;"):
             fragment = (prefix or "BLE notify: ") + fragment
 
-        match = TR_RE.search(fragment)
+        match = TR_SINGLE_RE.search(fragment)
         if match:
             yield match
 
@@ -276,7 +149,7 @@ def iter_tr_records(text: str):
         if idx > 0 and "notify:" not in fragment and fragment.startswith("TR;"):
             fragment = (prefix or "BLE notify: ") + fragment
 
-        match = TR_RE.search(fragment)
+        match = TR_SINGLE_RE.search(fragment)
         if match:
             yield {
                 "sweep": int(match.group("sweep")),
@@ -291,7 +164,45 @@ def iter_tr_records(text: str):
             }
             continue
 
-        match = TR_BUNDLE_RE.search(fragment)
+        match = TR_BCAST_RE.search(fragment)
+        if match:
+            active_mask = int(match.group("active_mask"), 16)
+            valid_mask = int(match.group("valid_mask"), 16)
+            rx_mask = int(match.group("rx_mask"), 16)
+            raws = [int(v) for v in match.group("raws").split(",")]
+            ranges = [int(v) for v in match.group("ranges").split(",")]
+            qualities = [int(v) for v in match.group("qs").split(",")]
+            statuses = list(match.group("statuses"))
+            active_anchors = [anchor_id for anchor_id in range(8)
+                              if active_mask & (1 << anchor_id)]
+            count = min(len(active_anchors), len(raws), len(ranges),
+                        len(qualities), len(statuses))
+            for pos in range(count):
+                anchor_id = active_anchors[pos]
+                yield {
+                    "sweep": int(match.group("sweep")),
+                    "plan": match.group("plan"),
+                    "pmode": int(match.group("pmode")),
+                    "anchor_id": anchor_id,
+                    "raw_mm": raws[pos],
+                    "range_mm": ranges[pos],
+                    "quality_percent": qualities[pos],
+                    "valid": 1 if (valid_mask & (1 << anchor_id)) else 0,
+                    "status": statuses[pos],
+                    "quality_flag_percent": int(match.group("qf") or 0),
+                    "first_to_last_us": int(match.group("air_us") or 0),
+                    "frame_us": int(match.group("post_us") or 0),
+                    "poll_count": int(match.group("poll_count") or 0),
+                    "tr_version": int(match.group("ver")),
+                    "rx_mask": f"{rx_mask:02x}",
+                    "air_us": int(match.group("air_us") or 0),
+                    "post_us": int(match.group("post_us") or 0),
+                    "cycle_us": int(match.group("cycle_us") or 0),
+                    "rx_seen": 1 if (rx_mask & (1 << anchor_id)) else 0,
+                }
+            continue
+
+        match = TR_RANGE_RE.search(fragment)
         if not match:
             continue
 
@@ -321,82 +232,60 @@ def iter_tr_records(text: str):
                 "first_to_last_us": int(match.group("first_to_last_us") or 0),
                 "frame_us": int(match.group("frame_us") or 0),
                 "poll_count": int(match.group("poll_count") or 0),
+                "tr_version": int(match.group("ver")),
+                "rx_mask": "",
+                "air_us": "",
+                "post_us": "",
+                "cycle_us": "",
+                "rx_seen": "",
             }
 
 
-def iter_cm_matches(text: str):
-    prefix = None
-    if "notify:" in text:
-        prefix = text.split("notify:", 1)[0] + "notify: "
-
-    for idx, fragment in enumerate(text.split("|")):
-        fragment = fragment.strip()
-        if not fragment:
-            continue
-        if idx > 0 and "notify:" not in fragment and fragment.startswith("CM;"):
-            fragment = (prefix or "NUS notify: ") + fragment
-
-        match = CM_RE.search(fragment)
-        if match:
-            yield match
-
-
-def iter_cs_matches(text: str):
-    prefix = None
-    if "notify:" in text:
-        prefix = text.split("notify:", 1)[0] + "notify: "
-
-    for idx, fragment in enumerate(text.split("|")):
-        fragment = fragment.strip()
-        if not fragment:
-            continue
-        if idx > 0 and "notify:" not in fragment and fragment.startswith("CS;"):
-            fragment = (prefix or "NUS notify: ") + fragment
-
-        match = CS_RE.search(fragment)
-        if match:
-            yield match
-
-
-def iter_cr_matches(text: str):
-    prefix = None
-    if "notify:" in text:
-        prefix = text.split("notify:", 1)[0] + "notify: "
-
-    for idx, fragment in enumerate(text.split("|")):
-        fragment = fragment.strip()
-        if not fragment:
-            continue
-        if idx > 0 and "notify:" not in fragment and fragment.startswith("CR;"):
-            fragment = (prefix or "NUS notify: ") + fragment
-
-        match = CR_RE.search(fragment)
-        if match:
-            yield match
-
-
-def iter_cf_matches(text: str):
-    prefix = None
-    if "notify:" in text:
-        prefix = text.split("notify:", 1)[0] + "notify: "
-
-    for idx, fragment in enumerate(text.split("|")):
-        fragment = fragment.strip()
-        if not fragment:
-            continue
-        if idx > 0 and "notify:" not in fragment and fragment.startswith("CF;"):
-            fragment = (prefix or "NUS notify: ") + fragment
-
-        match = CF_RE.search(fragment)
-        if match:
-            yield match
-
-
 def normalize_target(name: str) -> str:
+    raw = name.strip()
+    value = raw.upper()
+    if value.startswith("BS"):
+        return value
+    parts = value.split("-")
+    if len(parts) == 3 and parts[0] == "WAND" and parts[1] in {"A", "B", "C"} and parts[2].startswith("BS"):
+        expected_bs = WAND_ROLE_BS_CODES[parts[1]]
+        if parts[2] != expected_bs:
+            raise ValueError(
+                f"Invalid Wand target: {name}; expected Wand-{parts[1]}-{expected_bs}"
+            )
+        return f"Wand-{parts[1]}-{parts[2]}"
+    raise ValueError(f"Invalid target name: {name}")
+
+
+def target_aliases(name: str) -> set[str]:
     value = name.strip().upper()
-    if not value.startswith("BS"):
-        raise ValueError(f"Invalid target name: {name}")
+    aliases = {value}
+    parts = value.split("-")
+    if len(parts) == 3 and parts[0] == "WAND" and parts[2].startswith("BS"):
+        aliases.add(parts[2])
+    return aliases
+
+
+def target_bs_name(name: str) -> str:
+    value = name.strip().upper()
+    parts = value.split("-")
+    if len(parts) == 3 and parts[0] == "WAND" and parts[2].startswith("BS"):
+        return parts[2]
     return value
+
+
+def target_discovery_prefix(targets: list[str]) -> str:
+    # Wand Calibration is a Master_Tag/script-side filter. Prefer the Wand
+    # display name for steady-state discovery, while keeping TDMA/CSV identity
+    # as BSxxxx.
+    return "Wand" if any(t.strip().upper().startswith("WAND-") for t in targets) else "BS"
+
+
+def target_link_setup_prefix(targets: list[str]) -> str:
+    # Wand names live in the scan response. During a fast reconnect the Master
+    # may only see the manufacturer BS code, so link setup must admit BSxxxx
+    # aliases too. The TDMA roster still limits ranging to the requested Wands.
+    return "BS" if target_discovery_prefix(targets).lower() == "wand" else "BS"
 
 
 def open_serial_with_retry(port: str, baud: int, timeout_s: float = 0.2, retries: int = 240) -> serial.Serial:
@@ -636,13 +525,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Comma-separated BS names to collect",
     )
     parser.add_argument(
-        "--profiles",
-        default="BSF66F:static,BS2DCE:roto,BSDC91:roto",
-        help="Comma-separated TDMA profile map: BSxxxx:static|roto|motion",
+        "--tr-hz",
+        "--hz",
+        dest="tr_hz",
+        type=int,
+        default=None,
+        help="Unified broadcast TR rate per target.",
     )
-    parser.add_argument("--static-hz", type=int, default=5)
-    parser.add_argument("--roto-hz", type=int, default=10)
-    parser.add_argument("--motion-hz", type=int, default=5)
     parser.add_argument(
         "--out-dir",
         default="logs/recv_tdma_capture",
@@ -683,33 +572,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Seconds to wait after a successful runtime responder ack before starting tag polling.",
     )
     parser.add_argument(
-        "--allow-zero-positions",
-        action="store_true",
-        help="Do not fail the session when one or more targets produce no position rows.",
-    )
-    parser.add_argument(
-        "--cm-probe-target",
-        default="BSF66F",
-        help="Fixed static tag used for startup CM preflight.",
-    )
-    parser.add_argument(
-        "--cm-probe-timeout-s",
-        type=float,
-        default=20.0,
-        help="Seconds to wait for the fixed startup tag to show 8/8 CM ok anchors.",
-    )
-    parser.add_argument(
-        "--cm-probe-retries",
-        type=int,
-        default=2,
-        help="CM probe attempts before aborting capture. Failed attempts trigger all-responder repair.",
-    )
-    parser.add_argument(
-        "--skip-cm-probe",
-        action="store_true",
-        help="Skip startup BSF66F CM probe and go straight to capture configuration.",
-    )
-    parser.add_argument(
         "--reuse-tag-links",
         action="store_true",
         help="Assume a Master_Tag boot profile is already maintaining BS* links; do not force mode/device reconnect unless recovery is needed.",
@@ -727,6 +589,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Seconds to keep all requested tag links connected before TDMA release.",
     )
     parser.add_argument(
+        "--tdma-config-retries",
+        type=int,
+        default=3,
+        help="TDMA CFG apply/check attempts before capture starts.",
+    )
+    parser.add_argument(
         "--no-cleanup",
         action="store_true",
         help="Leave tags running after capture. By default tags are returned to AOTA/idle mode.",
@@ -734,34 +602,28 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_profiles(text: str) -> list[tuple[str, str]]:
-    items: list[tuple[str, str]] = []
-    for token in text.split(","):
-        token = token.strip()
-        if not token:
-            continue
-        if ":" not in token:
-            raise ValueError(f"Invalid profile token: {token}")
-        name, profile = token.split(":", 1)
-        items.append((normalize_target(name), profile.strip().lower()))
-    return items
+def effective_tr_hz(args) -> int:
+    return int(args.tr_hz if args.tr_hz is not None else 10)
 
 
-def profile_expected_pmode(profile: str) -> int:
-    if profile == "static":
-        return 4
-    if profile == "roto":
-        return 5
-    return 0
+def expected_tdma_maps(args, targets: list[str]) -> tuple[dict[str, int], dict[str, int]]:
+    tr_hz = effective_tr_hz(args)
+    expected_pmode_by_target = {target: 0 for target in targets}
+    expected_freq_by_target = {target: tr_hz for target in targets}
+    for target in targets:
+        for alias in target_aliases(target):
+            expected_pmode_by_target[alias] = 0
+            expected_freq_by_target[alias] = tr_hz
+    return expected_pmode_by_target, expected_freq_by_target
 
 
-def profile_expects_positions(profile: str) -> bool:
-    return profile_expected_pmode(profile) not in {4, 5}
+def tdma_roster_profile() -> str:
+    # Current Master firmware still calls the high-rate TR TDMA bucket "motion".
+    # This string is only a wire-compatibility shim; script semantics are TR-only.
+    return "motion"
 
 
 def write_rows(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
-    if path.suffix == ".csv" and path.name[:2] in {"cm", "cs", "cr", "cf"}:
-        return
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
@@ -862,20 +724,23 @@ def ensure_target_links_ready(
     wait_per_target_s: float = 120.0,
     stable_s: float = 8.0,
     initial_text: str = "",
+    discovery_prefix_override: str = "",
 ) -> serial.Serial:
     ready_targets: set[str] = set()
     hard_reset_used = False
+    discovery_prefix = discovery_prefix_override or target_discovery_prefix(targets)
 
     def mark_ready_from_text(text: str) -> None:
         text_u = text.upper()
         for item in targets:
-            target_u = item.upper()
-            if (
-                f"BS={target_u}" in text_u
-                or f"{target_u} NOTIFY:" in text_u
-                or f"CFG_OK" in text_u and target_u in text_u
-            ):
-                ready_targets.add(target_u)
+            for alias in target_aliases(item):
+                if (
+                    f"BS={alias}" in text_u
+                    or f"{alias} NOTIFY:" in text_u
+                    or f"CFG_OK" in text_u and alias in text_u
+                ):
+                    ready_targets.add(item.upper())
+                    break
 
     if initial_text:
         mark_ready_from_text(initial_text)
@@ -950,6 +815,14 @@ def ensure_target_links_ready(
                 ser = open_serial_with_retry(port, baud, retries=60)
                 drain_serial_until(ser, logf, 3.0)
                 ser = send_cmd(ser, logf, "mode recv", 8.0)
+                ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
+                if len(targets) == 1:
+                    ser = send_cmd(ser, logf, f"ota_target name {targets[0]}", 0.5)
+                    ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
+                else:
+                    ser = send_cmd(ser, logf, "ota_target name -", 0.5)
+                    ser = send_cmd(ser, logf, f"ota_target prefix {discovery_prefix}", 0.5)
+                ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
                 ser = send_cmd(ser, logf, "device kind tag", 2.0)
                 if passive_wait(f"post-reset{pass_idx}", wait_per_target_s):
                     break
@@ -962,7 +835,7 @@ def ensure_target_links_ready(
             ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
         else:
             ser = send_cmd(ser, logf, "ota_target name -", 0.5)
-            ser = send_cmd(ser, logf, "ota_target prefix BS", 0.5)
+            ser = send_cmd(ser, logf, f"ota_target prefix {discovery_prefix}", 0.5)
         ser = send_cmd(ser, logf, "mode recv", 8.0)
         ser = send_cmd(ser, logf, "device kind tag", 2.0)
 
@@ -979,7 +852,7 @@ def ensure_target_links_ready(
         ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
     else:
         ser = send_cmd(ser, logf, "ota_target name -", 0.5)
-        ser = send_cmd(ser, logf, "ota_target prefix BS", 0.5)
+        ser = send_cmd(ser, logf, f"ota_target prefix {discovery_prefix}", 0.5)
     ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
     return ser
 
@@ -1006,9 +879,24 @@ def configure_recv_capture_session(
     logf,
     args,
     targets: list[str],
-    profile_items: list[tuple[str, str]],
 ) -> serial.Serial:
     single_target = targets[0] if len(targets) == 1 else ""
+    discovery_prefix = target_discovery_prefix(targets)
+    link_setup_prefix = target_link_setup_prefix(targets)
+    wand_mode = discovery_prefix.lower() == "wand"
+    clear_text = ""
+
+    def restore_capture_filter(prefix_override: str = "") -> None:
+        nonlocal ser
+        prefix = prefix_override or discovery_prefix
+        ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
+        if single_target:
+            ser = send_cmd(ser, logf, f"ota_target name {single_target}", 0.5)
+            ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
+        else:
+            ser = send_cmd(ser, logf, "ota_target name -", 0.5)
+            ser = send_cmd(ser, logf, f"ota_target prefix {prefix}", 0.5)
+        ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
 
     if args.reuse_tag_links:
         print("[CAPTURE] configure: reuse Master_Tag resident links", flush=True)
@@ -1017,6 +905,13 @@ def configure_recv_capture_session(
     else:
         print("[CAPTURE] configure: enter RECV/tag mode", flush=True)
         ser = send_cmd(ser, logf, "mode recv", 8.0)
+        print("[CAPTURE] configure: preseed TDMA allow-list before tag discovery", flush=True)
+        ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
+        ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
+        tr_hz = effective_tr_hz(args)
+        ser = send_cmd(ser, logf, f"tdma freq motion {tr_hz}", 0.5)
+        for target in targets:
+            ser = send_cmd(ser, logf, f"tdma roster {target_bs_name(target)} {tdma_roster_profile()}", 0.5)
         if single_target:
             print(
                 f"[CAPTURE] configure: restrict tag discovery to {single_target}",
@@ -1026,31 +921,46 @@ def configure_recv_capture_session(
             ser = send_cmd(ser, logf, f"ota_target name {single_target}", 0.5)
             ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
             ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
+        elif wand_mode:
+            print(
+                "[CAPTURE] configure: Wand mode uses BS prefix for live BLE; fixed Wand map + TDMA roster enforce admission",
+                flush=True,
+            )
+            ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
+            ser = send_cmd(ser, logf, "ota_target name -", 0.5)
+            ser = send_cmd(ser, logf, f"ota_target prefix {link_setup_prefix}", 0.5)
+            ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
         ser = send_cmd(ser, logf, "device kind tag", 2.0)
         status_text = ""
         device_text = ""
-    ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
-    ser = send_cmd(ser, logf, "ota_target name -", 0.5)
-    ser = send_cmd(ser, logf, "ota_target prefix BS", 0.5)
-    ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
+    if wand_mode:
+        # Do not broadcast MODE AOTA in Wand mode. Wand devices advertise both
+        # Wand-X-BSxxxx and BSxxxx aliases, and MODE AOTA is persisted by the
+        # tag firmware as runtime_cfg. A broad BS/Wand AOTA command can leave
+        # the Wand in stale anchor_ota/old-TDMA state for the next run.
+        print(
+            "[CAPTURE] configure: Wand mode skips broad MODE AOTA; TDMA roster is the only admission filter",
+            flush=True,
+        )
+    restore_capture_filter(link_setup_prefix if wand_mode else "")
     print("[CAPTURE] configure: silence resident Tag links for enrollment", flush=True)
     ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
-    ser = send_cmd(ser, logf, "cmd_all MODE AOTA", 1.0)
-    ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
-    ser = send_cmd(ser, logf, f"tdma freq static {args.static_hz}", 0.5)
-    ser = send_cmd(ser, logf, f"tdma freq roto {args.roto_hz}", 0.5)
-    ser = send_cmd(ser, logf, f"tdma freq motion {args.motion_hz}", 0.5)
-    print("[CAPTURE] configure: preseed TDMA target roster", flush=True)
-    for name, profile in profile_items:
-        ser = send_cmd(ser, logf, f"tdma roster {name} {profile}", 0.5)
+    if not wand_mode:
+        ser = send_cmd(ser, logf, "cmd_all MODE AOTA", 1.0)
+    else:
+        print("[CAPTURE] configure: Wand mode keeps Wand links active after prefix switch", flush=True)
+    print("[CAPTURE] configure: reassert TDMA target roster", flush=True)
+    tr_hz = effective_tr_hz(args)
+    if single_target:
+        ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
+    ser = send_cmd(ser, logf, f"tdma freq motion {tr_hz}", 0.5)
+    for target in targets:
+        ser = send_cmd(ser, logf, f"tdma roster {target_bs_name(target)} {tdma_roster_profile()}", 0.5)
     # Keep discovery broad, but make Master_Tag's profile allow-list equal to
     # this run's requested roster before link setup.  Otherwise new Tags that
     # are not in the firmware boot allow-list can be silently ignored until a
     # per-name target is set, which does not scale to 10-tag stress tests.
-    ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
-    ser = send_cmd(ser, logf, "ota_target name -", 0.5)
-    ser = send_cmd(ser, logf, "ota_target prefix BS", 0.5)
-    ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
+    restore_capture_filter(link_setup_prefix if wand_mode else "")
     ser = send_cmd(ser, logf, "conn", 0.5)
     print("[CAPTURE] configure: wait for target links", flush=True)
     ser = ensure_target_links_ready(
@@ -1061,12 +971,79 @@ def configure_recv_capture_session(
         wait_per_target_s=args.tag_link_timeout_s,
         stable_s=args.tag_link_stable_s,
         initial_text=status_text + device_text + clear_text,
+        discovery_prefix_override=link_setup_prefix if wand_mode else "",
     )
-    print("[CAPTURE] configure: release TDMA hold and rebalance once", flush=True)
+    print("[CAPTURE] configure: release TDMA hold and verify TDMA CFG", flush=True)
     ser = send_cmd(ser, logf, "tdma hold 0", 1.0)
-    ser = send_cmd(ser, logf, "tdma show", 1.0)
-    ser = send_cmd(ser, logf, "status", 0.8)
-    ser = send_cmd(ser, logf, "device show", 0.8)
+    # Runtime CFG can collide with link traffic right after hold release, and a
+    # disconnected target can make Master print TDMA weighted without a matching
+    # CFG_OK. Close that loop before capture starts.
+    expected_pmode_by_target, expected_freq_by_target = expected_tdma_maps(args, targets)
+    config_retries = max(1, int(getattr(args, "tdma_config_retries", 3)))
+    last_check: dict | None = None
+    for attempt in range(1, config_retries + 1):
+        print(
+            f"[CAPTURE] configure: TDMA CFG apply/check attempt {attempt}/{config_retries}",
+            flush=True,
+        )
+        ser = send_cmd(ser, logf, f"tdma freq motion {tr_hz}", 0.5)
+        for target in targets:
+            ser = send_cmd(ser, logf, f"tdma roster {target_bs_name(target)} {tdma_roster_profile()}", 0.5)
+        ser = send_cmd(ser, logf, "tdma rebalance", 1.0)
+        ser, _ = send_cmd_collect(ser, logf, "tdma show", 1.0)
+        ser, _ = send_cmd_collect(ser, logf, "status", 0.8)
+        ser, _ = send_cmd_collect(ser, logf, "device show", 0.8)
+        logf.flush()
+        raw_log = Path(getattr(logf, "name", ""))
+        last_check = build_tdma_config_check(
+            raw_log,
+            targets,
+            expected_pmode_by_target,
+            expected_freq_by_target,
+        )
+        if last_check.get("match", False):
+            print("[CAPTURE] configure: TDMA CFG verified match=true", flush=True)
+            break
+
+        bad = [
+            f"{target}:{','.join(info.get('mismatches', [])) or 'unknown'}"
+            for target, info in last_check.get("per_target", {}).items()
+            if not info.get("match", False)
+        ]
+        print(
+            "[CAPTURE] configure: TDMA CFG mismatch; retry "
+            + "; ".join(bad),
+            flush=True,
+        )
+        if attempt >= config_retries:
+            break
+
+        print("[CAPTURE] configure: refresh links and reassert roster before retry", flush=True)
+        ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
+        restore_capture_filter(link_setup_prefix if wand_mode else "")
+        ser = send_cmd(ser, logf, "conn", 0.5)
+        ser = ensure_target_links_ready(
+            ser,
+            logf,
+            targets,
+            args.controller_reset_snr,
+            wait_per_target_s=args.tag_link_timeout_s,
+            stable_s=args.tag_link_stable_s,
+            initial_text="",
+            discovery_prefix_override=link_setup_prefix if wand_mode else "",
+        )
+        for target in targets:
+            ser = send_cmd(ser, logf, f"tdma roster {target_bs_name(target)} {tdma_roster_profile()}", 0.5)
+        ser = send_cmd(ser, logf, f"tdma freq motion {tr_hz}", 0.5)
+        ser = send_cmd(ser, logf, "tdma hold 0", 1.0)
+
+    if last_check is not None and not last_check.get("match", False):
+        bad = [
+            f"{target}:{','.join(info.get('mismatches', [])) or 'unknown'}"
+            for target, info in last_check.get("per_target", {}).items()
+            if not info.get("match", False)
+        ]
+        raise RuntimeError("TDMA CFG verify failed before capture: " + "; ".join(bad))
     print("[CAPTURE] configure: TDMA ready", flush=True)
     return ser
 
@@ -1074,6 +1051,28 @@ def configure_recv_capture_session(
 def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Serial, dict]:
     if args.no_cleanup:
         return ser, {"attempted": False, "reason": "disabled_by_flag"}
+
+    cleanup_targets = [
+        normalize_target(item)
+        for item in getattr(args, "targets", "").split(",")
+        if item.strip()
+    ]
+    if target_discovery_prefix(cleanup_targets).lower() == "wand":
+        print(
+            "[CAPTURE] cleanup: Wand mode skips MODE AOTA to avoid persisting stale runtime_cfg",
+            flush=True,
+        )
+        logf.write(
+            f"[HOST_CLEANUP {time.monotonic():.3f}] Wand mode skip cmd_all MODE AOTA; "
+            "leaving tags for next explicit CFG\n"
+        )
+        logf.flush()
+        return ser, {
+            "attempted": False,
+            "success": True,
+            "reason": "wand_mode_skip_aota_cleanup",
+            "command": "none",
+        }
 
     result = {
         "attempted": True,
@@ -1088,10 +1087,7 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
         text = drain_serial_until(ser, logf, result["stop_verify_s"])
         rows = 0
         for line in text.splitlines():
-            if TAG_SUMMARY_RE_SEMI.search(line) or TAG_FILTER_RE_SEMI.search(line):
-                rows += 1
-                continue
-            if TR_RE.search(line) or TR2_RE.search(line):
+            if TR_SINGLE_RE.search(line) or TR_RANGE_RE.search(line) or TR_BCAST_RE.search(line):
                 rows += 1
         return rows
 
@@ -1106,7 +1102,7 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
         if result["success"]:
             print("[CAPTURE] cleanup: all tags quiet after MODE AOTA", flush=True)
         else:
-            result["error"] = f"still saw {rows} TS/TF/TR rows after stop"
+            result["error"] = f"still saw {rows} TR rows after stop"
             print(f"[CAPTURE] cleanup: stop verify failed: {result['error']}", flush=True)
     except (SerialException, OSError) as exc:
         result["error"] = str(exc)
@@ -1122,7 +1118,7 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
             rows = verify_quiet()
             result["stop_notify_rows"] = rows
             result["success"] = rows == 0
-            result["error"] = "" if result["success"] else f"still saw {rows} TS/TF/TR rows after stop"
+            result["error"] = "" if result["success"] else f"still saw {rows} TR rows after stop"
             if result["success"]:
                 print("[CAPTURE] cleanup: all tags quiet after serial reopen", flush=True)
             else:
@@ -1133,85 +1129,141 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
     return ser, result
 
 
-def run_static_cm_probe(
-    ser: serial.Serial,
-    logf,
-    probe_target: str,
-    timeout_s: float,
-) -> tuple[serial.Serial, dict]:
-    deadline = time.time() + timeout_s
-    ok_anchors: set[int] = set()
-    seen_anchors: set[int] = set()
-    pending = ""
-    last_progress = 0.0
+def _cfg_assigned_record(match: re.Match) -> dict:
+    return {
+        "tag_id": int(match.group("tag_id")),
+        "slot": int(match.group("slot")),
+        "count": int(match.group("count")),
+        "mask": int(match.group("mask"), 16),
+        "mask_hex": f"0x{int(match.group('mask'), 16):04X}",
+        "period_ms": int(match.group("period")),
+        "active_ms": int(match.group("active")),
+        "generation": int(match.group("gen")),
+        "pmode": int(match.group("pmode")),
+    }
 
-    while time.time() < deadline:
-        try:
-            chunk = ser.read(ser.in_waiting or 1)
-        except (SerialException, OSError):
-            try:
-                ser.close()
-            except Exception:
-                pass
-            ser = open_serial_with_retry(ser.port, ser.baudrate)
-            time.sleep(0.8)
-            drain_serial_until(ser, logf, 0.8)
-            continue
 
-        if not chunk:
-            now = time.time()
-            if now - last_progress >= 1.0:
-                print(
-                    f"[CAPTURE] preflight probe {probe_target}: ok={len(ok_anchors)}/8 seen={len(seen_anchors)}/8",
-                    flush=True,
-                )
-                last_progress = now
-            continue
+def _cfg_ok_record(match: re.Match) -> dict:
+    return {
+        "tag_id": int(match.group("tag_id")),
+        "slot": int(match.group("slot")),
+        "count": int(match.group("count")),
+        "mask": int(match.group("mask"), 16),
+        "mask_hex": f"0x{int(match.group('mask'), 16):04X}",
+        "period_ms": int(match.group("period")),
+        "active_ms": int(match.group("active")),
+        "generation": int(match.group("gen")),
+        "live": int(match.group("live")),
+    }
 
-        text = chunk.decode("utf-8", errors="replace")
-        logf.write(text)
-        logf.flush()
-        pending += text
 
-        while "\n" in pending:
-            line, pending = pending.split("\n", 1)
-            line = line.rstrip("\r")
-            if not line:
-                continue
-            for m in iter_cm_matches(line):
-                peer_name = extract_bs_name(line)
-                if peer_name != probe_target:
-                    continue
-                anchor_id = int(m.group("anchor"))
-                seen_anchors.add(anchor_id)
-                if m.group("status") == "ok":
-                    ok_anchors.add(anchor_id)
-            if len(ok_anchors) == 8:
-                return ser, {
-                    "success": True,
-                    "probe_target": probe_target,
-                    "ok_anchors": sorted(ok_anchors),
-                    "seen_anchors": sorted(seen_anchors),
-                    "timeout_s": timeout_s,
-                }
+def _tdma_weighted_record(match: re.Match) -> dict:
+    return {
+        "profile": match.group("profile"),
+        "target_hz": int(match.group("target_hz")),
+        "mask": int(match.group("mask"), 16),
+        "mask_hex": f"0x{int(match.group('mask'), 16):04X}",
+        "slots": int(match.group("slots")),
+        "count": int(match.group("count")),
+        "actual_x100": int(match.group("actual_x100")),
+        "actual_hz": int(match.group("actual_x100")) / 100.0,
+    }
 
-    return ser, {
-        "success": False,
-        "probe_target": probe_target,
-        "ok_anchors": sorted(ok_anchors),
-        "seen_anchors": sorted(seen_anchors),
-        "timeout_s": timeout_s,
+
+def build_tdma_config_check(
+    raw_log_path: Path,
+    targets: list[str],
+    expected_pmode_by_target: dict[str, int],
+    expected_freq_by_target: dict[str, int] | None = None,
+) -> dict:
+    expected_by_bs: dict[str, dict] = {}
+    actual_by_bs: dict[str, dict] = {}
+    weighted_by_bs: dict[str, dict] = {}
+
+    if raw_log_path.exists():
+        for line in raw_log_path.read_text(encoding="utf-8", errors="replace").splitlines():
+            for fragment in line.split("|"):
+                assigned = CFG_ASSIGNED_DETAIL_RE.search(fragment)
+                if assigned:
+                    expected_by_bs[assigned.group("bs").upper()] = _cfg_assigned_record(assigned)
+
+                ok = CFG_OK_RE.search(fragment)
+                if ok:
+                    bs = extract_bs_name(fragment)
+                    if bs:
+                        actual_by_bs[bs.upper()] = _cfg_ok_record(ok)
+                weighted = TDMA_WEIGHTED_RE.search(fragment)
+                if weighted:
+                    weighted_by_bs[weighted.group("bs").upper()] = _tdma_weighted_record(weighted)
+
+    per_target: dict[str, dict] = {}
+    all_match = True
+    fields = ["tag_id", "slot", "count", "mask", "period_ms", "active_ms", "generation"]
+    for target in targets:
+        bs = target_bs_name(target).upper()
+        expected = expected_by_bs.get(bs)
+        actual = actual_by_bs.get(bs)
+        mismatches: list[str] = []
+
+        if expected is None:
+            mismatches.append("missing_expected_cfg_assigned")
+        if actual is None:
+            mismatches.append("missing_actual_cfg_ok")
+        if expected is not None and actual is not None:
+            for field in fields:
+                if expected.get(field) != actual.get(field):
+                    mismatches.append(field)
+            if actual.get("live") != 1:
+                mismatches.append("live")
+
+        expected_pmode = expected_pmode_by_target.get(target)
+        if expected_pmode is None:
+            expected_pmode = expected_pmode_by_target.get(bs)
+        if expected is not None and expected_pmode is not None and expected.get("pmode") != expected_pmode:
+            mismatches.append("pmode")
+
+        expected_freq_hz = None
+        if expected_freq_by_target:
+            expected_freq_hz = expected_freq_by_target.get(target)
+            if expected_freq_hz is None:
+                expected_freq_hz = expected_freq_by_target.get(bs)
+        weighted = weighted_by_bs.get(bs)
+        if weighted is None:
+            mismatches.append("missing_tdma_weighted")
+        elif expected_freq_hz is not None:
+            if weighted.get("target_hz") != expected_freq_hz:
+                mismatches.append("scheduler_target_hz")
+            if weighted.get("actual_x100", 0) < expected_freq_hz * 100:
+                mismatches.append("scheduler_actual_hz")
+            if actual is not None:
+                if weighted.get("mask") != actual.get("mask"):
+                    mismatches.append("scheduler_mask_not_applied")
+                if weighted.get("count") != actual.get("count"):
+                    mismatches.append("scheduler_count_not_applied")
+
+        match = not mismatches
+        all_match = all_match and match
+        per_target[target] = {
+            "bs": bs,
+            "match": match,
+            "mismatches": mismatches,
+            "expected": expected,
+            "actual": actual,
+            "scheduler": weighted,
+            "expected_pmode": expected_pmode,
+            "expected_freq_hz": expected_freq_hz,
+        }
+
+    return {
+        "match": all_match,
+        "per_target": per_target,
     }
 
 
 def print_capture_status(capture_start_wall: float,
                          end_time: float,
-                         positions: list[dict],
-                         cm_rows: list[dict],
                          tr_rows: list[dict],
                          targets: list[str],
-                         positions_by_target: dict[str, int],
-                         cm_by_target: dict[str, int],
                          tr_by_target: dict[str, int]) -> None:
     elapsed = max(0.0, time.time() - capture_start_wall)
     remaining = max(0.0, end_time - time.time())
@@ -1225,14 +1277,12 @@ def print_capture_status(capture_start_wall: float,
         f"{pct:5.1f}%",
         f"elapsed={elapsed:.0f}s",
         f"eta={remaining:.0f}s",
-        f"pos={len(positions)}",
         f"tr={len(tr_rows)}",
         f"tr_rate={tr_rate:.1f}/s",
     ]
     for target in targets:
-        parts.append(
-            f"{target}:TS={positions_by_target.get(target, 0)} TR={tr_by_target.get(target, 0)}"
-        )
+        count = sum(tr_by_target.get(alias, 0) for alias in target_aliases(target))
+        parts.append(f"{target}:TR={count}")
     print("[CAPTURE] " + " ".join(parts), flush=True)
 
 
@@ -1248,14 +1298,11 @@ def main() -> int:
             flush=True,
         )
     assert_not_jlink_when_biospur_available(args.port)
-    probe_target = normalize_target(args.cm_probe_target)
 
     targets = [normalize_target(x) for x in args.targets.split(",") if x.strip()]
-    profile_items = parse_profiles(args.profiles)
-    target_set = set(targets)
-    expected_pmode_by_target = {
-        name: profile_expected_pmode(profile) for name, profile in profile_items
-    }
+    tr_hz = effective_tr_hz(args)
+    target_set = {alias for target in targets for alias in target_aliases(target)}
+    expected_pmode_by_target, expected_freq_by_target = expected_tdma_maps(args, targets)
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_out = Path(args.out_dir)
@@ -1270,37 +1317,23 @@ def main() -> int:
         "mode": "recv",
         "device_kind": "tag",
         "targets": targets,
-        "profiles": [{"name": name, "profile": profile} for name, profile in profile_items],
         "expected_pmode": expected_pmode_by_target,
-        "freq_hz": {
-            "static": args.static_hz,
-            "roto": args.roto_hz,
-            "motion": args.motion_hz,
-        },
-        "cm_probe": {
-            "target": probe_target,
-            "timeout_s": args.cm_probe_timeout_s,
-            "retries": args.cm_probe_retries,
-        },
+        "expected_freq_hz": expected_freq_by_target,
+        "freq_hz": {"tr": tr_hz},
         "duration_s": args.duration,
     }
     commands_json_path.write_text(json.dumps(cmd_plan, indent=2), encoding="utf-8")
     print(f"[CAPTURE] session_dir={session_dir}", flush=True)
     print(f"[CAPTURE] raw_log={raw_log_path}", flush=True)
     print(
-        "[CAPTURE] plan: "
-        + ", ".join(f"{name}:{profile}" for name, profile in profile_items)
-        + f" static={args.static_hz}Hz roto={args.roto_hz}Hz motion={args.motion_hz}Hz duration={args.duration:.0f}s",
+        "[CAPTURE] plan: targets="
+        + ",".join(targets)
+        + f" tr={tr_hz}Hz duration={args.duration:.0f}s",
         flush=True,
     )
 
     start_wall = time.time()
     anchor_preflight = {"skipped": True, "success": True}
-    cm_probe = {
-        "success": False,
-        "probe_target": probe_target,
-        "attempts": [],
-    }
     if not args.skip_anchor_preflight:
         anchor_preflight = run_anchor_responder_preflight(args, session_dir)
         if not anchor_preflight.get("success"):
@@ -1313,139 +1346,19 @@ def main() -> int:
                 "elapsed_s": time.time() - start_wall,
                 "session_dir": str(session_dir),
                 "targets": targets,
-                "profiles": {name: profile for name, profile in profile_items},
-                "freq_hz": {
-                    "static": args.static_hz,
-                    "roto": args.roto_hz,
-                "motion": args.motion_hz,
-                },
-                "positions_all": 0,
-                "cm_all": 0,
-                "cs_all": 0,
-                "cr_all": 0,
-                "cf_all": 0,
-                "cm_probe": cm_probe,
+                "freq_hz": {"tr": tr_hz},
+                "tr_all": 0,
+                "tr_valid_all": 0,
                 "raw_log": str(raw_log_path),
-                "positions_all_csv": str(session_dir / "positions_all.csv"),
-                "cm_all_csv": str(session_dir / "cm_all.csv"),
-                "cs_all_csv": str(session_dir / "cs_all.csv"),
-                "cr_all_csv": str(session_dir / "cr_all.csv"),
-                "cf_all_csv": str(session_dir / "cf_all.csv"),
+                "tr_all_csv": str(session_dir / "tr_all.csv"),
             }
-            write_rows(
-                session_dir / "positions_all.csv",
-                [
-                    "host_elapsed_s",
-                    "sweep",
-                    "conn_id",
-                    "peer_name",
-                    "tag_id",
-                    "plan",
-                    "x_mm",
-                    "y_mm",
-                    "z_mm",
-                    "rms_mm",
-                    "max_mm",
-                    "anchors",
-                    "motion_dt_ms",
-                    "disp_mm",
-                    "speed_mm_s",
-                ],
-                [],
-            )
-            write_rows(
-                session_dir / "cm_all.csv",
-                [
-                    "host_elapsed_s",
-                    "sweep",
-                    "conn_id",
-                    "peer_name",
-                    "tag_id",
-                    "anchor_id",
-                    "status",
-                    "raw_mm",
-                    "filt_mm",
-                    "quality_percent",
-                    "ok_count",
-                    "fail_count",
-                ],
-                [],
-            )
-            write_rows(
-                session_dir / "cs_all.csv",
-                [
-                    "host_elapsed_s",
-                    "sweep",
-                    "conn_id",
-                    "peer_name",
-                    "tag_id",
-                    "plan",
-                    "pmode",
-                    "quality_flag_percent",
-                    "targets",
-                    "statuses",
-                    "qualities",
-                ],
-                [],
-            )
-            write_rows(
-                session_dir / "cr_all.csv",
-                [
-                    "host_elapsed_s",
-                    "sweep",
-                    "conn_id",
-                    "peer_name",
-                    "tag_id",
-                    "plan",
-                    "pmode",
-                    "anchor_label",
-                    "status",
-                    "reason",
-                    "raw_mm",
-                    "filt_mm",
-                    "pred_mm",
-                    "resid_mm",
-                    "tracker_quality_percent",
-                    "solve_quality_percent",
-                ],
-                [],
-            )
-            write_rows(
-                session_dir / "cf_all.csv",
-                [
-                    "host_elapsed_s",
-                    "sweep",
-                    "conn_id",
-                    "peer_name",
-                    "tag_id",
-                    "plan",
-                    "pmode",
-                    "solve_reason",
-                    "quality_flag_percent",
-                    "active_anchor_count",
-                    "valid_anchor_count",
-                    "rms_mm",
-                    "max_mm",
-                    "step_mm",
-                    "first_to_last_us",
-                    "frame_us",
-                    "poll_count",
-                ],
-                [],
-            )
             summary_json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
             print(json.dumps(summary, indent=2))
             return 2
         settle_after_anchor_preflight(args, "initial preflight")
 
     conn_meta: dict[str, dict] = {}
-    positions: list[dict] = []
     tr_rows: list[dict] = []
-    cm_rows: list[dict] = []
-    cs_rows: list[dict] = []
-    cr_rows: list[dict] = []
-    cf_rows: list[dict] = []
-    tf_rows: list[dict] = []
     interrupted = False
     startup_failed = False
     startup_fail_targets: list[str] = []
@@ -1463,207 +1376,17 @@ def main() -> int:
             print("[CAPTURE] drain boot/runtime output", flush=True)
             drain_serial_until(ser, logf, 1.0)
 
-            if args.skip_cm_probe:
-                cm_probe["success"] = True
-                print("[CAPTURE] startup CM probe skipped by flag", flush=True)
-                ser = configure_recv_capture_session(ser, logf, args, targets, profile_items)
-            else:
-                for attempt in range(1, args.cm_probe_retries + 1):
-                    print(
-                        f"[CAPTURE] startup CM probe attempt {attempt}/{args.cm_probe_retries}: target={probe_target}",
-                        flush=True,
-                    )
-                    ser = configure_recv_capture_session(ser, logf, args, targets, profile_items)
-                    ser, probe_result = run_static_cm_probe(
-                        ser, logf, probe_target, args.cm_probe_timeout_s
-                    )
-                    probe_result["attempt"] = attempt
-                    cm_probe["attempts"].append(probe_result)
-                    if probe_result.get("success"):
-                        cm_probe["success"] = True
-                        break
-
-                    print(
-                        f"[CAPTURE] startup CM probe failed: target={probe_target} ok={len(probe_result['ok_anchors'])}/8; forcing all anchors responder",
-                        flush=True,
-                    )
-                    repair = run_anchor_responder_preflight(args, session_dir)
-                    cm_probe["attempts"][-1]["responder_repair"] = repair
-                    if not repair.get("success"):
-                        break
-                    settle_after_anchor_preflight(args, "cm-probe repair")
-                    try:
-                        ser.close()
-                    except Exception:
-                        pass
-                    ser = open_serial_with_retry(args.port, args.baud)
-                    time.sleep(0.8)
-                    drain_serial_until(ser, logf, 1.0)
-
-            if not cm_probe.get("success"):
-                ser, cleanup_result = cleanup_capture_session(ser, logf, args)
-                summary = {
-                    "success": False,
-                    "startup_failed": True,
-                    "startup_fail_targets": [probe_target],
-                    "zero_position_failed": False,
-                    "zero_position_targets": [],
-                    "anchor_preflight": anchor_preflight,
-                    "cm_probe": cm_probe,
-                    "cleanup": cleanup_result,
-                    "port": args.port,
-                    "duration_s": args.duration,
-                    "elapsed_s": time.time() - start_wall,
-                    "session_dir": str(session_dir),
-                    "targets": targets,
-                    "profiles": {name: profile for name, profile in profile_items},
-                    "expected_pmode": expected_pmode_by_target,
-                    "freq_hz": {
-                        "static": args.static_hz,
-                        "roto": args.roto_hz,
-                        "motion": args.motion_hz,
-                    },
-                    "positions_all": 0,
-                    "cm_all": 0,
-                    "cs_all": 0,
-                    "cr_all": 0,
-                    "cf_all": 0,
-                    "connections": {},
-                    "per_tag": {},
-                    "raw_log": str(raw_log_path),
-                    "positions_all_csv": str(session_dir / "positions_all.csv"),
-                    "cm_all_csv": str(session_dir / "cm_all.csv"),
-                    "cs_all_csv": str(session_dir / "cs_all.csv"),
-                    "cr_all_csv": str(session_dir / "cr_all.csv"),
-                    "cf_all_csv": str(session_dir / "cf_all.csv"),
-                }
-                write_rows(
-                    session_dir / "positions_all.csv",
-                    [
-                        "host_elapsed_s",
-                        "sweep",
-                        "conn_id",
-                        "peer_name",
-                        "tag_id",
-                        "plan",
-                        "pmode",
-                        "plan_label",
-                        "quality_flag_percent",
-                        "x_mm",
-                        "y_mm",
-                        "z_mm",
-                        "rms_mm",
-                        "max_mm",
-                        "anchors",
-                        "motion_dt_ms",
-                        "disp_mm",
-                        "speed_mm_s",
-                    ],
-                    [],
-                )
-                write_rows(
-                    session_dir / "cm_all.csv",
-                    [
-                        "host_elapsed_s",
-                        "sweep",
-                        "conn_id",
-                        "peer_name",
-                        "tag_id",
-                        "anchor_id",
-                        "status",
-                        "raw_mm",
-                        "filt_mm",
-                        "quality_percent",
-                        "ok_count",
-                        "fail_count",
-                    ],
-                    [],
-                )
-                write_rows(
-                    session_dir / "cs_all.csv",
-                    [
-                        "host_elapsed_s",
-                        "sweep",
-                        "conn_id",
-                        "peer_name",
-                        "tag_id",
-                        "plan",
-                        "pmode",
-                        "quality_flag_percent",
-                        "targets",
-                        "statuses",
-                        "qualities",
-                    ],
-                    [],
-                )
-                write_rows(
-                    session_dir / "cr_all.csv",
-                    [
-                        "host_elapsed_s",
-                        "sweep",
-                        "conn_id",
-                        "peer_name",
-                        "tag_id",
-                        "plan",
-                        "pmode",
-                        "anchor_label",
-                        "status",
-                        "reason",
-                        "raw_mm",
-                        "filt_mm",
-                        "pred_mm",
-                        "resid_mm",
-                        "tracker_quality_percent",
-                        "solve_quality_percent",
-                    ],
-                    [],
-                )
-                write_rows(
-                    session_dir / "cf_all.csv",
-                    [
-                        "host_elapsed_s",
-                        "sweep",
-                        "conn_id",
-                        "peer_name",
-                        "tag_id",
-                        "plan",
-                        "pmode",
-                        "solve_reason",
-                        "quality_flag_percent",
-                        "active_anchor_count",
-                        "valid_anchor_count",
-                        "rms_mm",
-                        "max_mm",
-                        "step_mm",
-                        "first_to_last_us",
-                        "frame_us",
-                        "poll_count",
-                    ],
-                    [],
-                )
-                summary_json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
-                print(json.dumps(summary, indent=2))
-                return 2
-
-            print(
-                f"[CAPTURE] startup CM probe passed: target={probe_target} ok=8/8; start capture",
-                flush=True,
-            )
+            ser = configure_recv_capture_session(ser, logf, args, targets)
+            print("[CAPTURE] TDMA verified; start TR capture", flush=True)
 
             pending = ""
             capture_start_wall = time.time()
             end_time = capture_start_wall + args.duration
             last_status_at = 0.0
-            positions_seen: dict[str, int] = defaultdict(int)
-            cm_seen: dict[str, int] = defaultdict(int)
             tr_seen: dict[str, int] = defaultdict(int)
-            cm_ok_seen: dict[str, int] = defaultdict(int)
-            startup_strikes: dict[str, int] = defaultdict(int)
             skipped_before_target_pmode = 0
             # The setup commands above drain serial output before the parser loop
-            # starts. Seed the desired final pmode so CM rows, which do not carry
-            # pmode in-band, are not discarded just because their CFG_ASSIGNED
-            # line was consumed during command setup.
+            # starts, so seed the desired final pmode from the requested TDMA CFG.
             pmode_by_peer: dict[str, int] = {
                 name: pmode
                 for name, pmode in expected_pmode_by_target.items()
@@ -1721,7 +1444,7 @@ def main() -> int:
                         logf.flush()
                         try:
                             ser = configure_recv_capture_session(
-                                ser, logf, args, targets, profile_items
+                                ser, logf, args, targets
                             )
                         except (SerialException, OSError, RuntimeError) as cfg_exc:
                             controller_lost = True
@@ -1736,39 +1459,10 @@ def main() -> int:
                             print_capture_status(
                                 capture_start_wall,
                                 end_time,
-                                positions,
-                                cm_rows,
                                 tr_rows,
                                 targets,
-                                positions_seen,
-                                cm_seen,
                                 tr_seen,
                             )
-                            elapsed = time.time() - capture_start_wall
-                            if elapsed >= 60.0:
-                                bad = []
-                                for target in targets:
-                                    tr_only_ok = args.allow_zero_positions and tr_seen.get(target, 0) > 0
-                                    if (
-                                        cm_ok_seen.get(target, 0) == 0
-                                        and positions_seen.get(target, 0) == 0
-                                        and not tr_only_ok
-                                    ):
-                                        startup_strikes[target] += 1
-                                        if startup_strikes[target] >= 10:
-                                            bad.append(target)
-                                    else:
-                                        startup_strikes[target] = 0
-                                if bad:
-                                    startup_failed = True
-                                    startup_fail_targets = bad
-                                    print(
-                                        "[CAPTURE] startup failed after extended checks with no CM ok: "
-                                        + ",".join(bad),
-                                        file=sys.stderr,
-                                        flush=True,
-                                    )
-                                    break
                             last_status_at = time.time()
                         continue
 
@@ -1804,50 +1498,6 @@ def main() -> int:
                             meta["pmode"] = int(match.group("pmode"))
                             pmode_by_peer[match.group("bs")] = int(match.group("pmode"))
 
-                        for m in iter_tag_summary_matches(line):
-                            conn_id = m.groupdict().get("conn") or ""
-                            meta = conn_meta.get(conn_id, {}) if conn_id else {}
-                            peer_name = extract_bs_name(line) or meta.get("peer_name", "")
-                            if peer_name and peer_name not in target_set:
-                                continue
-                            expected_pmode = expected_pmode_by_target.get(peer_name)
-                            reported_pmode = m.groupdict().get("pmode")
-                            active_pmode = (
-                                int(reported_pmode) if reported_pmode
-                                else pmode_by_peer.get(peer_name, meta.get("pmode"))
-                            )
-                            if expected_pmode is not None and active_pmode != expected_pmode:
-                                skipped_before_target_pmode += 1
-                                continue
-                            x = m.group("x") or m.group("x2")
-                            y = m.group("y") or m.group("y2")
-                            z = m.group("z") or m.group("z2")
-                            positions.append(
-                                {
-                                    "conn_id": conn_id,
-                                    "host_elapsed_s": host_elapsed_s,
-                                    "host_epoch_s": host_epoch_s,
-                                    "peer_name": peer_name,
-                                    "tag_id": meta.get("tag_id", ""),
-                                    "sweep": int(m.group("sweep")),
-                                    "plan": m.group("plan"),
-                                    "pmode": m.groupdict().get("pmode") or "",
-                                    "plan_label": m.groupdict().get("plan_label") or "",
-                                    "quality_flag_percent": m.groupdict().get("qf") or "",
-                                    "x_mm": int(x),
-                                    "y_mm": int(y),
-                                    "z_mm": int(z),
-                                    "rms_mm": int(m.group("rms")),
-                                    "max_mm": int(m.group("max")),
-                                    "anchors": m.group("anchors") or "",
-                                    "motion_dt_ms": int(m.group("motion_dt") or 0),
-                                    "disp_mm": int(m.groupdict().get("disp") or 0),
-                                    "speed_mm_s": int(m.groupdict().get("speed") or 0),
-                                }
-                            )
-                            if peer_name:
-                                positions_seen[peer_name] += 1
-
                         for tr in iter_tr_records(line):
                             match = re.search(TAG_NOTIFY_PREFIX_RE, line)
                             conn_id = match.groupdict().get("conn") if match else ""
@@ -1880,213 +1530,25 @@ def main() -> int:
                                     "first_to_last_us": int(tr.get("first_to_last_us") or 0),
                                     "frame_us": int(tr.get("frame_us") or 0),
                                     "poll_count": int(tr.get("poll_count") or 0),
+                                    "tr_version": tr.get("tr_version", ""),
+                                    "rx_mask": tr.get("rx_mask", ""),
+                                    "air_us": tr.get("air_us", ""),
+                                    "post_us": tr.get("post_us", ""),
+                                    "cycle_us": tr.get("cycle_us", ""),
+                                    "rx_seen": tr.get("rx_seen", ""),
                                 }
                             )
                             if peer_name:
                                 tr_seen[peer_name] += 1
 
-                        for m in iter_tag_filter_matches(line):
-                            conn_id = m.groupdict().get("conn") or ""
-                            meta = conn_meta.get(conn_id, {}) if conn_id else {}
-                            peer_name = extract_bs_name(line) or meta.get("peer_name", "")
-                            if peer_name and peer_name not in target_set:
-                                continue
-                            expected_pmode = expected_pmode_by_target.get(peer_name)
-                            active_pmode = int(m.group("pmode"))
-                            if expected_pmode is not None and active_pmode != expected_pmode:
-                                skipped_before_target_pmode += 1
-                                continue
-                            tf_rows.append(
-                                {
-                                    "conn_id": conn_id,
-                                    "host_elapsed_s": host_elapsed_s,
-                                    "host_epoch_s": host_epoch_s,
-                                    "peer_name": peer_name,
-                                    "tag_id": meta.get("tag_id", ""),
-                                    "sweep": int(m.group("sweep")),
-                                    "plan": m.group("plan"),
-                                    "pmode": active_pmode,
-                                    "plan_label": m.group("plan_label"),
-                                    "quality_flag_percent": int(m.group("qf")),
-                                    "x_mm": int(m.group("x")),
-                                    "y_mm": int(m.group("y")),
-                                    "z_mm": int(m.group("z")),
-                                    "rms_mm": int(m.group("rms")),
-                                    "max_mm": int(m.group("max")),
-                                    "anchors": m.group("anchors") or "",
-                                    "filter_reason": m.group("filter_reason"),
-                                    "step_mm": int(m.group("step")),
-                                    "motion_dt_ms": int(m.group("motion_dt")),
-                                    "speed_mm_s": int(m.group("speed")),
-                                    "used_anchor_count": int(m.group("used")),
-                                }
-                            )
-
-                        for m in iter_cm_matches(line):
-                            conn_id = m.groupdict().get("conn") or ""
-                            meta = conn_meta.get(conn_id, {}) if conn_id else {}
-                            peer_name = extract_bs_name(line) or meta.get("peer_name", "")
-                            if peer_name and peer_name not in target_set:
-                                continue
-                            expected_pmode = expected_pmode_by_target.get(peer_name)
-                            active_pmode = pmode_by_peer.get(peer_name, meta.get("pmode"))
-                            if expected_pmode is not None and active_pmode != expected_pmode:
-                                skipped_before_target_pmode += 1
-                                continue
-                            cm_rows.append(
-                                {
-                                    "conn_id": conn_id,
-                                    "host_elapsed_s": host_elapsed_s,
-                                    "host_epoch_s": host_epoch_s,
-                                    "peer_name": peer_name,
-                                    "tag_id": meta.get("tag_id", ""),
-                                    "sweep": int(m.group("sweep")),
-                                    "anchor_id": int(m.group("anchor")),
-                                    "status": m.group("status"),
-                                    "raw_mm": int(m.group("raw")),
-                                    "filt_mm": int(m.group("filt")),
-                                    "quality_percent": int(m.group("q")),
-                                    "ok_count": int(m.group("ok")),
-                                    "fail_count": int(m.group("fail")),
-                                }
-                            )
-                            if peer_name:
-                                cm_seen[peer_name] += 1
-                                if m.group("status") == "ok":
-                                    cm_ok_seen[peer_name] += 1
-
-                        for m in iter_cs_matches(line):
-                            conn_id = m.groupdict().get("conn") or ""
-                            meta = conn_meta.get(conn_id, {}) if conn_id else {}
-                            peer_name = extract_bs_name(line) or meta.get("peer_name", "")
-                            if peer_name and peer_name not in target_set:
-                                continue
-                            expected_pmode = expected_pmode_by_target.get(peer_name)
-                            active_pmode = int(m.group("pmode"))
-                            if expected_pmode is not None and active_pmode != expected_pmode:
-                                skipped_before_target_pmode += 1
-                                continue
-                            cs_rows.append(
-                                {
-                                    "conn_id": conn_id,
-                                    "host_elapsed_s": host_elapsed_s,
-                                    "host_epoch_s": host_epoch_s,
-                                    "peer_name": peer_name,
-                                    "tag_id": meta.get("tag_id", ""),
-                                    "sweep": int(m.group("sweep")),
-                                    "plan": m.group("plan"),
-                                    "pmode": active_pmode,
-                                    "quality_flag_percent": int(m.group("qf")),
-                                    "targets": m.group("targets"),
-                                    "statuses": m.group("statuses"),
-                                    "qualities": m.group("qualities"),
-                                }
-                            )
-
-                        for m in iter_cr_matches(line):
-                            conn_id = m.groupdict().get("conn") or ""
-                            meta = conn_meta.get(conn_id, {}) if conn_id else {}
-                            peer_name = extract_bs_name(line) or meta.get("peer_name", "")
-                            if peer_name and peer_name not in target_set:
-                                continue
-                            expected_pmode = expected_pmode_by_target.get(peer_name)
-                            active_pmode = int(m.group("pmode"))
-                            if expected_pmode is not None and active_pmode != expected_pmode:
-                                skipped_before_target_pmode += 1
-                                continue
-                            cr_rows.append(
-                                {
-                                    "conn_id": conn_id,
-                                    "host_elapsed_s": host_elapsed_s,
-                                    "host_epoch_s": host_epoch_s,
-                                    "peer_name": peer_name,
-                                    "tag_id": meta.get("tag_id", ""),
-                                    "sweep": int(m.group("sweep")),
-                                    "plan": m.group("plan"),
-                                    "pmode": active_pmode,
-                                    "anchor_label": m.group("anchor"),
-                                    "status": m.group("status"),
-                                    "reason": m.group("reason"),
-                                    "raw_mm": int(m.group("raw")),
-                                    "filt_mm": int(m.group("filt")),
-                                    "pred_mm": int(m.group("pred")),
-                                    "resid_mm": int(m.group("resid")),
-                                    "tracker_quality_percent": int(m.group("tracker_q")),
-                                    "solve_quality_percent": int(m.group("solve_q")),
-                                }
-                            )
-
-                        for m in iter_cf_matches(line):
-                            conn_id = m.groupdict().get("conn") or ""
-                            meta = conn_meta.get(conn_id, {}) if conn_id else {}
-                            peer_name = extract_bs_name(line) or meta.get("peer_name", "")
-                            if peer_name and peer_name not in target_set:
-                                continue
-                            expected_pmode = expected_pmode_by_target.get(peer_name)
-                            active_pmode = int(m.group("pmode"))
-                            if expected_pmode is not None and active_pmode != expected_pmode:
-                                skipped_before_target_pmode += 1
-                                continue
-                            cf_rows.append(
-                                {
-                                    "conn_id": conn_id,
-                                    "host_elapsed_s": host_elapsed_s,
-                                    "host_epoch_s": host_epoch_s,
-                                    "peer_name": peer_name,
-                                    "tag_id": meta.get("tag_id", ""),
-                                    "sweep": int(m.group("sweep")),
-                                    "plan": m.group("plan"),
-                                    "pmode": active_pmode,
-                                    "solve_reason": m.group("solve_reason"),
-                                    "quality_flag_percent": int(m.group("qf")),
-                                    "active_anchor_count": int(m.group("active")),
-                                    "valid_anchor_count": int(m.group("valid")),
-                                    "rms_mm": int(m.group("rms")),
-                                    "max_mm": int(m.group("max")),
-                                    "step_mm": int(m.group("step")),
-                                    "first_to_last_us": int(m.group("first_to_last_us") or 0),
-                                    "frame_us": int(m.group("frame_us") or 0),
-                                    "poll_count": int(m.group("poll_count") or 0),
-                                }
-                            )
-
                     if time.time() - last_status_at >= 1.0:
                         print_capture_status(
                             capture_start_wall,
                             end_time,
-                            positions,
-                            cm_rows,
                             tr_rows,
                             targets,
-                            positions_seen,
-                            cm_seen,
                             tr_seen,
                         )
-                        elapsed = time.time() - capture_start_wall
-                        if elapsed >= 60.0:
-                            bad = []
-                            for target in targets:
-                                tr_only_ok = args.allow_zero_positions and tr_seen.get(target, 0) > 0
-                                if (
-                                    cm_ok_seen.get(target, 0) == 0
-                                    and positions_seen.get(target, 0) == 0
-                                    and not tr_only_ok
-                                ):
-                                    startup_strikes[target] += 1
-                                    if startup_strikes[target] >= 10:
-                                        bad.append(target)
-                                else:
-                                    startup_strikes[target] = 0
-                            if bad:
-                                startup_failed = True
-                                startup_fail_targets = bad
-                                print(
-                                    "[CAPTURE] startup failed after extended checks with no CM ok: "
-                                    + ",".join(bad),
-                                    file=sys.stderr,
-                                    flush=True,
-                                )
-                                break
                         last_status_at = time.time()
             except KeyboardInterrupt:
                 interrupted = True
@@ -2096,41 +1558,12 @@ def main() -> int:
                 logf.write(pending.rstrip("\r") + "\n")
             ser, cleanup_result = cleanup_capture_session(ser, logf, args)
 
-    positions_by_target: dict[str, list[dict]] = defaultdict(list)
     tr_by_target: dict[str, list[dict]] = defaultdict(list)
-    cm_by_target: dict[str, list[dict]] = defaultdict(list)
 
-    for row in positions:
-        key = row["peer_name"] or f"tag{row['tag_id']}"
-        positions_by_target[key].append(row)
     for row in tr_rows:
         key = row["peer_name"] or f"tag{row['tag_id']}"
         tr_by_target[key].append(row)
-    for row in cm_rows:
-        key = row["peer_name"] or f"tag{row['tag_id']}"
-        cm_by_target[key].append(row)
 
-    position_fields = [
-        "host_elapsed_s",
-        "host_epoch_s",
-        "sweep",
-        "conn_id",
-        "peer_name",
-        "tag_id",
-        "plan",
-        "pmode",
-        "plan_label",
-        "quality_flag_percent",
-        "x_mm",
-        "y_mm",
-        "z_mm",
-        "rms_mm",
-        "max_mm",
-        "anchors",
-        "motion_dt_ms",
-        "disp_mm",
-        "speed_mm_s",
-    ]
     tr_fields = [
         "host_elapsed_s",
         "host_epoch_s",
@@ -2150,219 +1583,87 @@ def main() -> int:
         "first_to_last_us",
         "frame_us",
         "poll_count",
-    ]
-    cm_fields = [
-        "host_elapsed_s",
-        "host_epoch_s",
-        "sweep",
-        "conn_id",
-        "peer_name",
-        "tag_id",
-        "anchor_id",
-        "status",
-        "raw_mm",
-        "filt_mm",
-        "quality_percent",
-        "ok_count",
-        "fail_count",
-    ]
-    cs_fields = [
-        "host_elapsed_s",
-        "host_epoch_s",
-        "sweep",
-        "conn_id",
-        "peer_name",
-        "tag_id",
-        "plan",
-        "pmode",
-        "quality_flag_percent",
-        "targets",
-        "statuses",
-        "qualities",
-    ]
-    cr_fields = [
-        "host_elapsed_s",
-        "host_epoch_s",
-        "sweep",
-        "conn_id",
-        "peer_name",
-        "tag_id",
-        "plan",
-        "pmode",
-        "anchor_label",
-        "status",
-        "reason",
-        "raw_mm",
-        "filt_mm",
-        "pred_mm",
-        "resid_mm",
-        "tracker_quality_percent",
-        "solve_quality_percent",
-    ]
-    cf_fields = [
-        "host_elapsed_s",
-        "host_epoch_s",
-        "sweep",
-        "conn_id",
-        "peer_name",
-        "tag_id",
-        "plan",
-        "pmode",
-        "solve_reason",
-        "quality_flag_percent",
-        "active_anchor_count",
-        "valid_anchor_count",
-        "rms_mm",
-        "max_mm",
-        "step_mm",
-        "first_to_last_us",
-        "frame_us",
-        "poll_count",
-    ]
-    tf_fields = [
-        "host_elapsed_s",
-        "host_epoch_s",
-        "sweep",
-        "conn_id",
-        "peer_name",
-        "tag_id",
-        "plan",
-        "pmode",
-        "plan_label",
-        "quality_flag_percent",
-        "x_mm",
-        "y_mm",
-        "z_mm",
-        "rms_mm",
-        "max_mm",
-        "anchors",
-        "filter_reason",
-        "step_mm",
-        "motion_dt_ms",
-        "speed_mm_s",
-        "used_anchor_count",
+        "tr_version",
+        "rx_mask",
+        "air_us",
+        "post_us",
+        "cycle_us",
+        "rx_seen",
     ]
 
-    write_rows(session_dir / "positions_all.csv", position_fields, positions)
     write_rows(session_dir / "tr_all.csv", tr_fields, tr_rows)
-    write_rows(session_dir / "cm_all.csv", cm_fields, cm_rows)
-    write_rows(session_dir / "cs_all.csv", cs_fields, cs_rows)
-    write_rows(session_dir / "cr_all.csv", cr_fields, cr_rows)
-    write_rows(session_dir / "cf_all.csv", cf_fields, cf_rows)
-    write_rows(session_dir / "tf_all.csv", tf_fields, tf_rows)
 
     per_tag_summary: dict[str, dict] = {}
-    zero_position_targets: list[str] = []
-    cs_by_target: dict[str, list[dict]] = defaultdict(list)
-    cr_by_target: dict[str, list[dict]] = defaultdict(list)
-    cf_by_target: dict[str, list[dict]] = defaultdict(list)
-    for row in cs_rows:
-        key = row["peer_name"] or f"tag{row['tag_id']}"
-        cs_by_target[key].append(row)
-    for row in cr_rows:
-        key = row["peer_name"] or f"tag{row['tag_id']}"
-        cr_by_target[key].append(row)
-    for row in cf_rows:
-        key = row["peer_name"] or f"tag{row['tag_id']}"
-        cf_by_target[key].append(row)
+
+    def rows_for_target(mapping: dict[str, list[dict]], target: str) -> list[dict]:
+        rows: list[dict] = []
+        seen_ids: set[int] = set()
+        for alias in target_aliases(target):
+            for row in mapping.get(alias, []):
+                marker = id(row)
+                if marker not in seen_ids:
+                    rows.append(row)
+                    seen_ids.add(marker)
+        return rows
+
     for target in targets:
         tag_dir = session_dir / target
         tag_dir.mkdir(parents=True, exist_ok=True)
-        pos_rows = positions_by_target.get(target, [])
-        tr_target_rows = tr_by_target.get(target, [])
-        cm_target_rows = cm_by_target.get(target, [])
-        cs_target_rows = cs_by_target.get(target, [])
-        cr_target_rows = cr_by_target.get(target, [])
-        cf_target_rows = cf_by_target.get(target, [])
-        write_rows(tag_dir / "positions.csv", position_fields, pos_rows)
+        tr_target_rows = rows_for_target(tr_by_target, target)
         write_rows(tag_dir / "tr.csv", tr_fields, tr_target_rows)
-        write_rows(tag_dir / "cm.csv", cm_fields, cm_target_rows)
-        write_rows(tag_dir / "cs.csv", cs_fields, cs_target_rows)
-        write_rows(tag_dir / "cr.csv", cr_fields, cr_target_rows)
-        write_rows(tag_dir / "cf.csv", cf_fields, cf_target_rows)
-
-        reason_counts: dict[str, int] = {}
-        anchor_reason_counts: dict[str, dict[str, int]] = {}
-        for row in cr_target_rows:
-            reason = row["reason"]
-            reason_counts[reason] = reason_counts.get(reason, 0) + 1
-            anchor_reason_counts.setdefault(row["anchor_label"], {})
-            anchor_reason_counts[row["anchor_label"]][reason] = (
-                anchor_reason_counts[row["anchor_label"]].get(reason, 0) + 1
-            )
 
         per_tag_summary[target] = {
-            "position_rows": len(pos_rows),
             "tr_rows": len(tr_target_rows),
             "tr_valid_rows": sum(1 for row in tr_target_rows if row["valid"]),
-            "cm_rows": len(cm_target_rows),
-            "cs_rows": len(cs_target_rows),
-            "cr_rows": len(cr_target_rows),
-            "cf_rows": len(cf_target_rows),
-            "latest_position": pos_rows[-1] if pos_rows else None,
-            "latest_calibration_summary": cs_target_rows[-1] if cs_target_rows else None,
-            "latest_calibration_reject": cr_target_rows[-1] if cr_target_rows else None,
-            "latest_calibration_frame": cf_target_rows[-1] if cf_target_rows else None,
+            "latest_tr": tr_target_rows[-1] if tr_target_rows else None,
             "anchors_seen": sorted(
                 {row["anchor_id"] for row in tr_target_rows if row["valid"]}
-                or {row["anchor_id"] for row in cm_target_rows}
             ),
             "tr_status_counts": {
                 status: sum(1 for row in tr_target_rows if row["status"] == status)
                 for status in sorted({row["status"] for row in tr_target_rows})
             },
-            "status_counts": {
-                status: sum(1 for row in cm_target_rows if row["status"] == status)
-                for status in sorted({row["status"] for row in cm_target_rows})
-            },
-            "reject_reason_counts": reason_counts,
-            "anchor_reject_reason_counts": anchor_reason_counts,
         }
-        profile = dict(profile_items).get(target, "")
-        if profile_expects_positions(profile) and not pos_rows:
-            zero_position_targets.append(target)
 
-    zero_position_failed = bool(zero_position_targets) and not args.allow_zero_positions
+    tdma_config_check = build_tdma_config_check(
+        raw_log_path,
+        targets,
+        expected_pmode_by_target,
+        expected_freq_by_target,
+    )
+    tdma_config_failed = not tdma_config_check.get("match", False)
     summary = {
-        "success": (not interrupted) and (not startup_failed) and (not zero_position_failed) and (not controller_lost),
+        "success": (
+            (not interrupted)
+            and (not startup_failed)
+            and (not controller_lost)
+            and (not tdma_config_failed)
+        ),
         "interrupted": interrupted,
         "startup_failed": startup_failed,
         "startup_fail_targets": startup_fail_targets,
         "controller_lost": controller_lost,
         "controller_recovery_attempts": controller_recovery_attempts,
         "controller_recovery_successes": controller_recovery_successes,
-        "zero_position_failed": zero_position_failed,
-        "zero_position_targets": zero_position_targets,
+        "tdma_config_failed": tdma_config_failed,
+        "tdma_config_check": tdma_config_check,
         "anchor_preflight": anchor_preflight,
-        "cm_probe": cm_probe,
         "cleanup": cleanup_result,
         "port": args.port,
         "duration_s": args.duration,
         "elapsed_s": time.time() - start_wall,
         "session_dir": str(session_dir),
         "targets": targets,
-        "profiles": {name: profile for name, profile in profile_items},
         "expected_pmode": expected_pmode_by_target,
+        "expected_freq_hz": expected_freq_by_target,
         "skipped_before_target_pmode": skipped_before_target_pmode,
-        "freq_hz": {
-            "static": args.static_hz,
-            "roto": args.roto_hz,
-            "motion": args.motion_hz,
-        },
-        "positions_all": len(positions),
+        "freq_hz": {"tr": tr_hz},
         "tr_all": len(tr_rows),
         "tr_valid_all": sum(1 for row in tr_rows if row["valid"]),
-        "cm_all": len(cm_rows),
-        "cs_all": len(cs_rows),
-        "cr_all": len(cr_rows),
-        "cf_all": len(cf_rows),
-        "tf_all": len(tf_rows),
         "connections": conn_meta,
         "per_tag": per_tag_summary,
         "raw_log": str(raw_log_path),
-        "positions_all_csv": str(session_dir / "positions_all.csv"),
         "tr_all_csv": str(session_dir / "tr_all.csv"),
-        "tf_all_csv": str(session_dir / "tf_all.csv"),
     }
     summary_json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2))

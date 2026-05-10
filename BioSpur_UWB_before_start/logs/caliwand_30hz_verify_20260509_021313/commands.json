@@ -1,0 +1,39 @@
+{
+  "cmd": [
+    "/usr/bin/python3",
+    "scripts/run_dual_master_tdma_capture.py",
+    "--anchor-port",
+    "/dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02-if00",
+    "--anchor-snr",
+    "960148546",
+    "--tag-port",
+    "/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00",
+    "--tag-snr",
+    "1050070698",
+    "--duration",
+    "20.0",
+    "--targets",
+    "Wand-A-BSCCF4,Wand-B-BS9336,Wand-C-BS955A",
+    "--profiles",
+    "Wand-A-BSCCF4:motion,Wand-B-BS9336:motion,Wand-C-BS955A:motion",
+    "--static-hz",
+    "30",
+    "--roto-hz",
+    "30",
+    "--motion-hz",
+    "30",
+    "--caliwand-mode",
+    "--cm-probe-target",
+    "Wand-A-BSCCF4",
+    "--out-dir",
+    "logs/caliwand_30hz_verify_20260509_021313",
+    "--tag-link-timeout-s",
+    "45",
+    "--skip-anchor-preflight"
+  ],
+  "targets": [
+    "Wand-A-BSCCF4",
+    "Wand-B-BS9336",
+    "Wand-C-BS955A"
+  ]
+}

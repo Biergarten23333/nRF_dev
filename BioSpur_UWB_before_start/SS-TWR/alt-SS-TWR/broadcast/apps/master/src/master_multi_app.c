@@ -44,6 +44,19 @@
 #ifndef APP_MASTER_TDMA_SLOT_ACTIVE_MS
 #define APP_MASTER_TDMA_SLOT_ACTIVE_MS 24U
 #endif
+#ifndef APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE
+#define APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE 0
+#endif
+#ifndef APP_MASTER_TDMA_LEGACY_SLOT_COUNT
+#define APP_MASTER_TDMA_LEGACY_SLOT_COUNT 10U
+#endif
+
+#ifndef APP_MASTER_SCAN_DEBUG_ALL_ENABLE
+#define APP_MASTER_SCAN_DEBUG_ALL_ENABLE 0
+#endif
+#ifndef APP_MASTER_TAG_UUID_ONLY_RECOVERY_ENABLE
+#define APP_MASTER_TAG_UUID_ONLY_RECOVERY_ENABLE 0
+#endif
 #define MASTER_TDMA_SLOT_PERIOD_MS APP_MASTER_TDMA_SLOT_PERIOD_MS
 #define MASTER_TDMA_SLOT_ACTIVE_MS APP_MASTER_TDMA_SLOT_ACTIVE_MS
 #define MASTER_TDMA_EPOCH_LEAD_MS 3000U
@@ -1064,12 +1077,11 @@ static uint8_t master_tdma_profile_pmode(enum master_tdma_profile_kind kind)
 {
 	switch (kind) {
 	case MASTER_TDMA_PROFILE_STATIC:
-		return UWB_TAG_POSITIONING_MODE_CAL_STATIC;
 	case MASTER_TDMA_PROFILE_ROTO:
-		return UWB_TAG_POSITIONING_MODE_CAL_ROTO;
 	case MASTER_TDMA_PROFILE_MOTION:
 	default:
-		return UWB_TAG_POSITIONING_MODE_DYNAMIC;
+		/* Offline solver flow only needs broadcast TR output. */
+		return UWB_TAG_MODE_RANGE;
 	}
 }
 
@@ -1120,6 +1132,20 @@ static bool master_tdma_parse_bs_code(const char *bs_name, uint16_t *bs_code)
 
 	if (bs_name == NULL || bs_code == NULL) {
 		return false;
+	}
+
+	for (const char *scan = bs_name; scan[0] != '\0'; ++scan) {
+		if (strlen(scan) == 6U &&
+		    toupper((unsigned char)scan[0]) == 'B' &&
+		    toupper((unsigned char)scan[1]) == 'S' &&
+		    isxdigit((unsigned char)scan[2]) &&
+		    isxdigit((unsigned char)scan[3]) &&
+		    isxdigit((unsigned char)scan[4]) &&
+		    isxdigit((unsigned char)scan[5]) &&
+		    scan[6] == '\0') {
+			p = scan + 2;
+			break;
+		}
 	}
 
 	if (strncasecmp(p, "BS", 2) == 0) {
@@ -1220,26 +1246,37 @@ static bool scan_tag_matches_runtime_filter(const char *adv_name,
 
 static bool bs_code_from_name(const char *name, uint16_t *bs_code)
 {
+	const char *p = name;
 	char *end = NULL;
 	unsigned long value;
 
 	if (name == NULL || bs_code == NULL) {
 		return false;
 	}
-	if (strlen(name) != 6U) {
-		return false;
-	}
-	if (toupper((unsigned char)name[0]) != 'B' ||
-	    toupper((unsigned char)name[1]) != 'S') {
-		return false;
-	}
-	for (size_t i = 2U; i < 6U; ++i) {
-		if (!isxdigit((unsigned char)name[i])) {
-			return false;
+
+	for (const char *scan = name; scan[0] != '\0'; ++scan) {
+		if (strlen(scan) == 6U &&
+		    toupper((unsigned char)scan[0]) == 'B' &&
+		    toupper((unsigned char)scan[1]) == 'S' &&
+		    isxdigit((unsigned char)scan[2]) &&
+		    isxdigit((unsigned char)scan[3]) &&
+		    isxdigit((unsigned char)scan[4]) &&
+		    isxdigit((unsigned char)scan[5]) &&
+		    scan[6] == '\0') {
+			p = scan + 2;
+			break;
 		}
 	}
+	if (p == name && (toupper((unsigned char)p[0]) != 'B' ||
+			  toupper((unsigned char)p[1]) != 'S')) {
+		return false;
+	}
+	if (toupper((unsigned char)p[0]) == 'B' &&
+	    toupper((unsigned char)p[1]) == 'S') {
+		p += 2;
+	}
 
-	value = strtoul(&name[2], &end, 16);
+	value = strtoul(p, &end, 16);
 	if (end == NULL || *end != '\0' || value > 0xffffUL) {
 		return false;
 	}
@@ -1409,6 +1446,20 @@ static void master_rebalance_tdma_slots(void)
 		kinds[i] = master_tdma_profile_for_peer(ordered[i]);
 	}
 
+#if APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE
+	best_slot_count = APP_MASTER_TDMA_LEGACY_SLOT_COUNT;
+	if (best_slot_count == 0U) {
+		best_slot_count = 10U;
+	}
+	if (best_slot_count > MASTER_TDMA_SLOT_COUNT_MAX) {
+		best_slot_count = MASTER_TDMA_SLOT_COUNT_MAX;
+	}
+	for (size_t i = 0U; i < ready_count && i < best_slot_count; ++i) {
+		target_slots[i] = 1U;
+		slot_masks[i] = (uint16_t)(1U << i);
+		total_target_slots++;
+	}
+#else
 	for (uint8_t candidate_count = (uint8_t)ready_count;
 	     candidate_count <= MASTER_TDMA_SLOT_COUNT_MAX;
 	     ++candidate_count) {
@@ -1491,6 +1542,7 @@ static void master_rebalance_tdma_slots(void)
 		slot_masks[owner] |= (uint16_t)(1U << occupied_slots[j]);
 		assigned_slots[owner]++;
 	}
+#endif
 
 	tdma_generation++;
 	epoch_deadline_ms = k_uptime_get_32() + MASTER_TDMA_EPOCH_LEAD_MS;
@@ -1520,7 +1572,11 @@ static void master_rebalance_tdma_slots(void)
 						 epoch_delay_ms,
 						 tdma_generation,
 						 master_tdma_profile_pmode(kinds[i]));
+#if APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE
+		printk("TDMA legacy-single[%zu]: bs=BS%04X profile=%s target=%uHz mask=0x%04X slots=%u/%u actual_x100=%lu epoch_delay=%lu\n",
+#else
 		printk("TDMA weighted[%zu]: bs=BS%04X profile=%s target=%uHz mask=0x%04X slots=%u/%u actual_x100=%lu epoch_delay=%lu\n",
+#endif
 		       i,
 		       (unsigned int)ordered[i]->bs_code,
 		       master_tdma_profile_label(kinds[i]),
@@ -2685,6 +2741,7 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	bool anchor_id_valid;
 	char uuid_hex[MASTER_UUID_HEX_LEN + 1U];
 	bool uuid_match = false;
+	bool tag_uuid_only_recovery_match = false;
 	struct net_buf_simple name_copy = *buf;
 	char adv_name[MASTER_NAME_BUF_LEN];
 
@@ -2718,8 +2775,40 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	}
 	uuid_match = (runtime_target_uuid[0] == '\0') ||
 		     (uuid_hex[0] != '\0' && !strcasecmp(uuid_hex, runtime_target_uuid));
+	tag_uuid_only_recovery_match =
+		(APP_MASTER_TAG_UUID_ONLY_RECOVERY_ENABLE != 0) &&
+		runtime_target_kind == MASTER_TARGET_TAG &&
+		runtime_target_uuid[0] != '\0' &&
+		uuid_hex[0] != '\0' && uuid_match;
 	memset(adv_name, 0, sizeof(adv_name));
 	bt_data_parse(&name_copy, scan_name_cb, adv_name);
+#if APP_MASTER_SCAN_DEBUG_ALL_ENABLE
+	{
+		char addr[BT_ADDR_LE_STR_LEN];
+		char bs_name[8];
+
+		bt_addr_le_to_str(info->addr, addr, sizeof(addr));
+		if (bs_code_valid) {
+			snprintk(bs_name, sizeof(bs_name), "BS%04X", (unsigned int)bs_code);
+		} else {
+			strncpy(bs_name, "-", sizeof(bs_name) - 1U);
+			bs_name[sizeof(bs_name) - 1U] = '\0';
+		}
+		printk("SCAN raw: %s rssi=%d name=%s bs=%s uuid=%s kind=%s tag_name=%u anchor_name=%u nus=%u dfu=%u token=%u props=0x%02x\n",
+		       addr,
+		       info->rssi,
+		       adv_name[0] != '\0' ? adv_name : "-",
+		       bs_name,
+		       uuid_hex[0] != '\0' ? uuid_hex : "-",
+		       runtime_target_kind_label(runtime_target_kind),
+		       name_match ? 1U : 0U,
+		       anchor_name_match ? 1U : 0U,
+		       nus_match ? 1U : 0U,
+		       dfu_match ? 1U : 0U,
+		       token_match ? 1U : 0U,
+		       info->adv_props);
+	}
+#endif
 	if (!bs_code_valid && runtime_target_kind == MASTER_TARGET_TAG &&
 	    bs_code_from_name(adv_name, &bs_code)) {
 		bs_code_valid = true;
@@ -2728,31 +2817,49 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	}
 
 	if (runtime_target_kind == MASTER_TARGET_ANCHOR) {
+		bool anchor_uuid_target_match = (runtime_target_uuid[0] != '\0') && uuid_match;
+		bool anchor_uuid_present = (uuid_hex[0] != '\0');
+		bool anchor_identity_match =
+			anchor_name_match || anchor_id_valid || anchor_uuid_present;
+
 		if (!runtime_anchor_wildcard_scan) {
 			if (runtime_target_uuid[0] == '\0') {
+				return;
+			}
+			if (!anchor_name_match && !anchor_id_valid && !anchor_uuid_target_match) {
 				return;
 			}
 			if (!uuid_match) {
 				return;
 			}
-		} else if (uuid_hex[0] == '\0') {
-			return;
+		} else {
+			/* Wildcard anchor sessions intentionally discover all BioSpur
+			 * devices first, then only mark links ready after the
+			 * anchor-control service is found. Some deployed anchor images
+			 * advertise only the stable BioSpur UUID, without ANCHOR-* name
+			 * or anchor-id metadata.
+			 */
+			if (!anchor_identity_match) {
+				return;
+			}
 		}
 		goto candidate_accept;
 	}
 
-	if (!bs_code_valid) {
+	if (!bs_code_valid && !tag_uuid_only_recovery_match) {
 		return;
 	}
 
 	if (runtime_target_kind == MASTER_TARGET_TAG &&
 	    runtime_target_name[0] == '\0' &&
+	    runtime_target_prefix[0] == '\0' &&
 	    runtime_target_uuid[0] == '\0' &&
 	    !master_boot_tag_allowlist_has(bs_code)) {
 		return;
 	}
 
 	if (runtime_target_kind == MASTER_TARGET_TAG &&
+	    !tag_uuid_only_recovery_match &&
 	    !scan_tag_matches_runtime_filter(adv_name, bs_code, bs_code_valid, uuid_hex)) {
 		char addr[BT_ADDR_LE_STR_LEN];
 		char bs_name[8];
@@ -2790,7 +2897,8 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	 * DFU-only advertisers (typical anchors in OTA-capable builds) still stay
 	 * filtered out because they provide neither tag_id nor token markers.
 	 */
-	if (!(name_match || nus_match || token_match || tag_id_valid)) {
+	if (!(name_match || nus_match || token_match || tag_id_valid ||
+	      tag_uuid_only_recovery_match)) {
 		if (dfu_match) {
 			char addr[BT_ADDR_LE_STR_LEN];
 			bt_addr_le_to_str(info->addr, addr, sizeof(addr));
@@ -3904,7 +4012,12 @@ int master_tdma_clear_profiles(void)
 
 void master_tdma_print_status(void)
 {
-	printk("TDMA weighted scheduler: period=%ums active=%ums max_slots=%u freq motion=%uHz static=%uHz roto=%uHz\n",
+	printk("TDMA %s scheduler: period=%ums active=%ums max_slots=%u freq motion=%uHz static=%uHz roto=%uHz\n",
+#if APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE
+	       "legacy-single",
+#else
+	       "weighted",
+#endif
 	       MASTER_TDMA_SLOT_PERIOD_MS,
 	       MASTER_TDMA_SLOT_ACTIVE_MS,
 	       MASTER_TDMA_SLOT_COUNT_MAX,

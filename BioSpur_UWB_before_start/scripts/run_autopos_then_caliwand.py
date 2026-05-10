@@ -18,21 +18,28 @@ DEFAULT_ANCHOR_PORT = (
 DEFAULT_TAG_PORT = (
     "/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00"
 )
-DEFAULT_WAND_TARGETS = "BSCCF4,BS9336,BS955A"
+DEFAULT_WAND_TARGETS = "Wand-A-BSCCF4,Wand-B-BS9336,Wand-C-BS955A"
 
 
-def normalize_bs(value: str) -> str:
-    name = value.strip().upper()
-    if not name.startswith("BS") or len(name) != 6:
-        raise argparse.ArgumentTypeError(f"invalid BS name: {value!r}")
-    int(name[2:], 16)
-    return name
+def normalize_wand_target(value: str) -> str:
+    raw = value.strip()
+    upper = raw.upper()
+    if upper.startswith("BS") and len(upper) == 6:
+        int(upper[2:], 16)
+        return upper
+    parts = upper.split("-")
+    if len(parts) == 3 and parts[0] == "WAND" and parts[1] in {"A", "B", "C"}:
+        bs = parts[2]
+        if bs.startswith("BS") and len(bs) == 6:
+            int(bs[2:], 16)
+            return f"Wand-{parts[1]}-{bs}"
+    raise argparse.ArgumentTypeError(f"invalid Wand target name: {value!r}")
 
 
 def parse_targets(value: str) -> list[str]:
-    targets = [normalize_bs(item) for item in value.replace(" ", ",").split(",") if item.strip()]
+    targets = [normalize_wand_target(item) for item in value.replace(" ", ",").split(",") if item.strip()]
     if not targets:
-        raise argparse.ArgumentTypeError("at least one BS target is required")
+        raise argparse.ArgumentTypeError("at least one Wand target is required")
     if len(set(targets)) != len(targets):
         raise argparse.ArgumentTypeError("targets must be unique")
     return targets

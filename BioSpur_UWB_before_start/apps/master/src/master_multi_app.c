@@ -38,8 +38,23 @@
 #define MASTER_SCAN_HIT_CONNECT_SETTLE_MS 300U
 #define MASTER_ANCHOR_CONNECT_UNREADY_LIMIT 1U
 #define MASTER_TDMA_SLOT_COUNT_MAX 12U
-#define MASTER_TDMA_SLOT_PERIOD_MS 40U
-#define MASTER_TDMA_SLOT_ACTIVE_MS 24U
+#ifndef APP_MASTER_TDMA_SLOT_PERIOD_MS
+#define APP_MASTER_TDMA_SLOT_PERIOD_MS 40U
+#endif
+#ifndef APP_MASTER_TDMA_SLOT_ACTIVE_MS
+#define APP_MASTER_TDMA_SLOT_ACTIVE_MS 24U
+#endif
+#ifndef APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE
+#define APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE 0
+#endif
+#ifndef APP_MASTER_TDMA_LEGACY_SLOT_COUNT
+#define APP_MASTER_TDMA_LEGACY_SLOT_COUNT 10U
+#endif
+#ifndef APP_MASTER_SCAN_DEBUG_ALL_ENABLE
+#define APP_MASTER_SCAN_DEBUG_ALL_ENABLE 0
+#endif
+#define MASTER_TDMA_SLOT_PERIOD_MS APP_MASTER_TDMA_SLOT_PERIOD_MS
+#define MASTER_TDMA_SLOT_ACTIVE_MS APP_MASTER_TDMA_SLOT_ACTIVE_MS
 #define MASTER_TDMA_EPOCH_LEAD_MS 3000U
 #define MASTER_TDMA_PROFILE_MAX MASTER_MAX_CONNECTIONS
 #define MASTER_TDMA_ROTO_DEFAULT_HZ 15U
@@ -1053,12 +1068,11 @@ static uint8_t master_tdma_profile_pmode(enum master_tdma_profile_kind kind)
 {
 	switch (kind) {
 	case MASTER_TDMA_PROFILE_STATIC:
-		return UWB_TAG_POSITIONING_MODE_CAL_STATIC;
 	case MASTER_TDMA_PROFILE_ROTO:
-		return UWB_TAG_POSITIONING_MODE_CAL_ROTO;
 	case MASTER_TDMA_PROFILE_MOTION:
 	default:
-		return UWB_TAG_POSITIONING_MODE_DYNAMIC;
+		/* Offline solver flow only needs broadcast TR output. */
+		return UWB_TAG_MODE_RANGE;
 	}
 }
 
@@ -1326,6 +1340,20 @@ static void master_rebalance_tdma_slots(void)
 		kinds[i] = master_tdma_profile_for_peer(ordered[i]);
 	}
 
+#if APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE
+	best_slot_count = APP_MASTER_TDMA_LEGACY_SLOT_COUNT;
+	if (best_slot_count == 0U) {
+		best_slot_count = 10U;
+	}
+	if (best_slot_count > MASTER_TDMA_SLOT_COUNT_MAX) {
+		best_slot_count = MASTER_TDMA_SLOT_COUNT_MAX;
+	}
+	for (size_t i = 0U; i < ready_count && i < best_slot_count; ++i) {
+		target_slots[i] = 1U;
+		slot_masks[i] = (uint16_t)(1U << i);
+		total_target_slots++;
+	}
+#else
 	for (uint8_t candidate_count = (uint8_t)ready_count;
 	     candidate_count <= MASTER_TDMA_SLOT_COUNT_MAX;
 	     ++candidate_count) {
@@ -1408,6 +1436,7 @@ static void master_rebalance_tdma_slots(void)
 		slot_masks[owner] |= (uint16_t)(1U << occupied_slots[j]);
 		assigned_slots[owner]++;
 	}
+#endif
 
 	tdma_generation++;
 	epoch_deadline_ms = k_uptime_get_32() + MASTER_TDMA_EPOCH_LEAD_MS;
@@ -1437,7 +1466,11 @@ static void master_rebalance_tdma_slots(void)
 						 epoch_delay_ms,
 						 tdma_generation,
 						 master_tdma_profile_pmode(kinds[i]));
+#if APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE
+		printk("TDMA legacy-single[%zu]: bs=BS%04X profile=%s target=%uHz mask=0x%04X slots=%u/%u actual_x100=%lu epoch_delay=%lu\n",
+#else
 		printk("TDMA weighted[%zu]: bs=BS%04X profile=%s target=%uHz mask=0x%04X slots=%u/%u actual_x100=%lu epoch_delay=%lu\n",
+#endif
 		       i,
 		       (unsigned int)ordered[i]->bs_code,
 		       master_tdma_profile_label(kinds[i]),
@@ -2631,17 +2664,60 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 		     (uuid_hex[0] != '\0' && !strcasecmp(uuid_hex, runtime_target_uuid));
 	memset(adv_name, 0, sizeof(adv_name));
 	bt_data_parse(&name_copy, scan_name_cb, adv_name);
+#if APP_MASTER_SCAN_DEBUG_ALL_ENABLE
+	{
+		char addr[BT_ADDR_LE_STR_LEN];
+		char bs_name[8];
+
+		bt_addr_le_to_str(info->addr, addr, sizeof(addr));
+		if (bs_code_valid) {
+			snprintk(bs_name, sizeof(bs_name), "BS%04X", (unsigned int)bs_code);
+		} else {
+			strncpy(bs_name, "-", sizeof(bs_name) - 1U);
+			bs_name[sizeof(bs_name) - 1U] = '\0';
+		}
+		printk("SCAN raw: %s rssi=%d name=%s bs=%s uuid=%s kind=%s tag_name=%u anchor_name=%u nus=%u dfu=%u token=%u props=0x%02x\n",
+		       addr,
+		       info->rssi,
+		       adv_name[0] != '\0' ? adv_name : "-",
+		       bs_name,
+		       uuid_hex[0] != '\0' ? uuid_hex : "-",
+		       runtime_target_kind_label(runtime_target_kind),
+		       name_match ? 1U : 0U,
+		       anchor_name_match ? 1U : 0U,
+		       nus_match ? 1U : 0U,
+		       dfu_match ? 1U : 0U,
+		       token_match ? 1U : 0U,
+		       info->adv_props);
+	}
+#endif
 
 	if (runtime_target_kind == MASTER_TARGET_ANCHOR) {
+		bool anchor_uuid_target_match = (runtime_target_uuid[0] != '\0') && uuid_match;
+		bool anchor_uuid_present = (uuid_hex[0] != '\0');
+		bool anchor_identity_match =
+			anchor_name_match || anchor_id_valid || anchor_uuid_present;
+
 		if (!runtime_anchor_wildcard_scan) {
 			if (runtime_target_uuid[0] == '\0') {
+				return;
+			}
+			if (!anchor_name_match && !anchor_id_valid && !anchor_uuid_target_match) {
 				return;
 			}
 			if (!uuid_match) {
 				return;
 			}
-		} else if (uuid_hex[0] == '\0') {
-			return;
+		} else {
+			/* Wildcard anchor sessions intentionally discover all BioSpur
+			 * devices first, then only mark links ready after the
+			 * anchor-control service is found. Some deployed anchor images
+			 * advertise only the stable BioSpur UUID, without ANCHOR-* name
+			 * or anchor-id metadata.
+			 */
+			if (!anchor_identity_match) {
+				return;
+			}
 		}
 		goto candidate_accept;
 	}
@@ -3741,7 +3817,12 @@ int master_tdma_clear_profiles(void)
 
 void master_tdma_print_status(void)
 {
-	printk("TDMA weighted scheduler: period=%ums active=%ums max_slots=%u freq motion=%uHz static=%uHz roto=%uHz\n",
+	printk("TDMA %s scheduler: period=%ums active=%ums max_slots=%u freq motion=%uHz static=%uHz roto=%uHz\n",
+#if APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE
+	       "legacy-single",
+#else
+	       "weighted",
+#endif
 	       MASTER_TDMA_SLOT_PERIOD_MS,
 	       MASTER_TDMA_SLOT_ACTIVE_MS,
 	       MASTER_TDMA_SLOT_COUNT_MAX,

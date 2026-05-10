@@ -2847,17 +2847,18 @@ static void control_handle_uart_command(const char *line)
 				master_clear_one_shot_command();
 				(void)master_ota_target_set_token(-1);
 				(void)master_ota_target_set_name("");
-				(void)master_ota_target_set_prefix("BS");
+				(void)master_ota_target_set_prefix("ANCHOR-");
 				(void)master_ota_target_set_uuid("");
 				ota_target_token_cfg = -1;
 				ota_target_name_cfg[0] = '\0';
-				(void)snprintf(ota_target_prefix_cfg, sizeof(ota_target_prefix_cfg), "BS");
+				(void)snprintf(ota_target_prefix_cfg, sizeof(ota_target_prefix_cfg),
+					       "ANCHOR-");
 				ota_target_uuid_cfg[0] = '\0';
 				master_set_runtime_target_kind(MASTER_TARGET_ANCHOR);
 				master_set_anchor_wildcard_scan(control_mode == CONTROL_MODE_AUTOPOS);
 				master_set_runtime_target_token(-1);
 				master_set_runtime_target_name("");
-				master_set_runtime_target_prefix("BS");
+				master_set_runtime_target_prefix("");
 				master_set_runtime_target_uuid("");
 				control_disconnect_all_links();
 				printk("device kind set: anchor (OTA target defaults reset)\n");

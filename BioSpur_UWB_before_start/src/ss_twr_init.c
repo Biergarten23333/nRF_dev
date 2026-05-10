@@ -101,12 +101,12 @@
 #define APP_TAG_CONSOLE_SUMMARY_ENABLE 1U
 #endif
 
-#ifndef APP_TAG_CAL_ROTO_MIN_TETRA_VOLUME_M3
-#define APP_TAG_CAL_ROTO_MIN_TETRA_VOLUME_M3 0.1
+#ifndef APP_TAG_LEGACY_CX_ROTO_MIN_TETRA_VOLUME_M3
+#define APP_TAG_LEGACY_CX_ROTO_MIN_TETRA_VOLUME_M3 0.1
 #endif
 
-#ifndef APP_TAG_CAL_ROTO_PREWARM_MS
-#define APP_TAG_CAL_ROTO_PREWARM_MS 5000U
+#ifndef APP_TAG_LEGACY_CX_ROTO_PREWARM_MS
+#define APP_TAG_LEGACY_CX_ROTO_PREWARM_MS 5000U
 #endif
 
 #ifndef APP_TAG_EKF_ENABLE
@@ -200,8 +200,8 @@ static void ss_twr_diag_write(const char *msg)
 #define APP_TAG_MOTION_RANGE_HARD_BONUS_MM 0U
 #endif
 
-#ifndef APP_TAG_CAL_STATIC_SLOT_DIVIDER
-#define APP_TAG_CAL_STATIC_SLOT_DIVIDER 1U
+#ifndef APP_TAG_LEGACY_CX_STATIC_SLOT_DIVIDER
+#define APP_TAG_LEGACY_CX_STATIC_SLOT_DIVIDER 1U
 #endif
 
 #ifndef APP_TAG_MOTION_EKF_MEAS_STD_MM
@@ -575,7 +575,7 @@ static void ss_twr_init_publish_cal_frame_summary(const char *plan_label,
     }
 
     /*
-     * In CAL_STATIC/CAL_ROTO the active target set is the contract. A failed
+     * In legacy CX the active target set is the contract. A failed
      * leg must remain visible as timeout/reject in CS/CR/qf, not silently turn
      * the frame into a "3-anchor" record in CF.
      */
@@ -867,7 +867,7 @@ static size_t ss_twr_init_append_roto_balanced(uint8_t *dest_ids,
                         (uint32_t)qa + (uint32_t)qb + (uint32_t)qc + (uint32_t)qd;
                     double volume = ss_twr_init_tetra_volume_m3(a, b, c, d);
 
-                    if (volume < APP_TAG_CAL_ROTO_MIN_TETRA_VOLUME_M3) {
+                    if (volume < APP_TAG_LEGACY_CX_ROTO_MIN_TETRA_VOLUME_M3) {
                         continue;
                     }
 
@@ -1180,11 +1180,11 @@ static bool ss_twr_init_raw_range_plausible(
     }
 
     /*
-     * CAL_ROTO after prewarm deliberately tracks fast-changing geometry.
+     * legacy roto-CX after prewarm deliberately tracks fast-changing geometry.
      * A fixed raw-vs-last-raw delta gate misclassifies real motion as an
      * outlier and drops otherwise valid LOS anchors before the continuity
      * gate or solver can score them. Keep the conservative gate for static
-     * and prewarm phases, but let mature CAL_ROTO frames flow downstream.
+     * and prewarm phases, but let mature legacy roto-CX frames flow downstream.
      */
     if (ss_twr_init_runtime_roto_calibration_mode() &&
         !ss_twr_init_roto_prewarm_active()) {
@@ -1332,7 +1332,7 @@ static bool ss_twr_init_tdma_exchange_can_start(void)
 static bool ss_twr_init_tdma_active_guard_enabled(void)
 {
 	/*
-	 * CAL_ROTO prewarm is a responder/link-state probe, not a positioning
+	 * legacy roto-CX prewarm is a responder/link-state probe, not a positioning
 	 * frame.  It must be allowed to run the full 8-anchor handshake even when
 	 * the later fast 4-anchor positioning slot uses a shorter active window.
 	 */
@@ -1341,18 +1341,12 @@ static bool ss_twr_init_tdma_active_guard_enabled(void)
 
 static bool ss_twr_init_runtime_static_calibration_mode(void)
 {
-	if (APP_TAG_CALIBRATION_MODE != 0U) {
-		return true;
-	}
-
-	return ss_twr_init_runtime_params.positioning_mode ==
-	       UWB_TAG_POSITIONING_MODE_CAL_STATIC;
+	return false;
 }
 
 static bool ss_twr_init_runtime_roto_calibration_mode(void)
 {
-	return ss_twr_init_runtime_params.positioning_mode ==
-	       UWB_TAG_POSITIONING_MODE_CAL_ROTO;
+	return false;
 }
 
 static bool ss_twr_init_roto_prewarm_active(void)
@@ -1374,7 +1368,7 @@ static bool ss_twr_init_runtime_any_calibration_mode(void)
 static bool ss_twr_init_runtime_anchor_ota_mode(void)
 {
 	return ss_twr_init_runtime_params.positioning_mode ==
-	       UWB_TAG_POSITIONING_MODE_ANCHOR_OTA;
+	       UWB_TAG_MODE_AOTA;
 }
 
 static bool ss_twr_init_tdma_exchange_can_start_if_needed(void)
@@ -1461,11 +1455,19 @@ static void ss_twr_init_reset_tracking_history(void)
 static void ss_twr_init_apply_runtime_params(
 	const struct uwb_tag_runtime_params *params)
 {
+	struct uwb_tag_runtime_params normalized_params;
 	bool reset_history;
 
 	if (params == NULL) {
 		return;
 	}
+
+	normalized_params = *params;
+	if (normalized_params.positioning_mode == UWB_TAG_MODE_RESERVED_4 ||
+	    normalized_params.positioning_mode == UWB_TAG_MODE_RESERVED_5) {
+		normalized_params.positioning_mode = UWB_TAG_MODE_RANGE;
+	}
+	params = &normalized_params;
 
 	reset_history =
 		params->positioning_mode != ss_twr_init_runtime_params.positioning_mode ||
@@ -1483,10 +1485,7 @@ static void ss_twr_init_apply_runtime_params(
 	ss_twr_init_static_cal_group_cursor = 0U;
 	ss_twr_init_static_cal_slot_tick = 0U;
 	ss_twr_init_roto_cal_group_cursor = 0U;
-	ss_twr_init_roto_prewarm_deadline_ms =
-		(params->positioning_mode == UWB_TAG_POSITIONING_MODE_CAL_ROTO) ?
-			((uint32_t)k_uptime_get() + APP_TAG_CAL_ROTO_PREWARM_MS) :
-			0U;
+	ss_twr_init_roto_prewarm_deadline_ms = 0U;
 
 	if (params->anchor_selection_mode == UWB_TAG_ANCHOR_SELECTION_FIXED_SUBSET &&
 	    params->fixed_anchor_count >= 4U) {
@@ -1716,7 +1715,7 @@ static void ss_twr_init_prepare_sweep_plan(void)
 
     if (ss_twr_init_runtime_static_calibration_mode()) {
         /*
-         * CAL_STATIC is for calibration data coverage, not for a sticky
+         * legacy static-CX is for calibration data coverage, not for a sticky
          * last-solution tracking set. Alternate A/B/C/D and E/F/G/H so CM logs
          * cover all anchors deterministically without collapsing to DEFH.
          */
@@ -1767,7 +1766,7 @@ static void ss_twr_init_prepare_sweep_plan(void)
         size_t desired_count = MIN((size_t)4U, ss_twr_init_anchor_count);
 
         /*
-         * CAL_ROTO front-end selection is constrained before ranging:
+         * legacy roto-CX front-end selection is constrained before ranging:
          * exactly 2 anchors from ids 0..3 and 2 anchors from ids 4..7.
          * Among those balanced 2+2 candidates, choose the set with the best
          * aggregate tracker quality, but reject geometrically weak tetrahedra.
@@ -3236,7 +3235,7 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
                 }
             }
             /*
-             * CAL_ROTO must preserve the selected 4-anchor intent even when a
+             * legacy roto-CX must preserve the selected 4-anchor intent even when a
              * TDMA slot boundary lands mid-sweep. Do not finalize/replan a
              * partial sweep; wait for the next slot and continue the same
              * anchor group so output does not silently collapse to 2/3 anchors.
@@ -3283,11 +3282,11 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
         }
 
         if (ss_twr_init_runtime_static_calibration_mode() &&
-            APP_TAG_CAL_STATIC_SLOT_DIVIDER > 1U &&
+            APP_TAG_LEGACY_CX_STATIC_SLOT_DIVIDER > 1U &&
             ss_twr_init_active_anchor_index == 0U) {
             uint32_t slot_tick = ss_twr_init_static_cal_slot_tick++;
 
-                    if ((slot_tick % APP_TAG_CAL_STATIC_SLOT_DIVIDER) != 0U) {
+                    if ((slot_tick % APP_TAG_LEGACY_CX_STATIC_SLOT_DIVIDER) != 0U) {
                         dwt_forcetrxoff();
                         ss_twr_init_release_ble_tx_after_active_slot();
                         ss_twr_init_last_tdma_wait_ms =
@@ -3672,11 +3671,10 @@ int ss_twr_init_runtime_configure(const struct uwb_tag_runtime_params *params)
 		return -ERANGE;
 	}
 
-	if (params->positioning_mode != UWB_TAG_POSITIONING_MODE_DYNAMIC &&
-	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_FIXED &&
-	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_ANCHOR_OTA &&
-	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_CAL_STATIC &&
-	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_CAL_ROTO) {
+	if (params->positioning_mode != UWB_TAG_MODE_RANGE &&
+	    params->positioning_mode != UWB_TAG_MODE_SOLVE &&
+	    params->positioning_mode != UWB_TAG_MODE_DEBUG &&
+	    params->positioning_mode != UWB_TAG_MODE_AOTA) {
 		return -ERANGE;
 	}
 

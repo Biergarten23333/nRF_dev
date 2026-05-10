@@ -1,6 +1,10 @@
 #include "ss_twr_init.h"
 #include "broadcast_tdma.h"
 #include "uwb_tdma.h"
+
+#ifndef APP_TAG_BLE_UWB_DIAG_OUTPUT_ENABLE
+#define APP_TAG_BLE_UWB_DIAG_OUTPUT_ENABLE 0U
+#endif
 #include "uwb_imu.h"
 #include "uwb_anchor_layout.h"
 #include "uwb_ekf.h"
@@ -106,6 +110,18 @@
 #define APP_TAG_POSITION_OUTPUT_ENABLE 0U
 #endif
 
+#ifndef APP_TAG_TR_BCAST_V2_ENABLE
+#define APP_TAG_TR_BCAST_V2_ENABLE 0U
+#endif
+
+#ifndef APP_TAG_BCAST_SUMMARY_ENABLE
+#define APP_TAG_BCAST_SUMMARY_ENABLE 1U
+#endif
+
+#ifndef APP_TAG_BCAST_SUMMARY_PERIOD_MS
+#define APP_TAG_BCAST_SUMMARY_PERIOD_MS 1000U
+#endif
+
 #ifndef APP_TAG_WAND_MODE_ENABLE
 #define APP_TAG_WAND_MODE_ENABLE 0U
 #endif
@@ -178,12 +194,12 @@
 #define APP_TAG_CONSOLE_SUMMARY_ENABLE 1U
 #endif
 
-#ifndef APP_TAG_CAL_ROTO_MIN_TETRA_VOLUME_M3
-#define APP_TAG_CAL_ROTO_MIN_TETRA_VOLUME_M3 0.1
+#ifndef APP_TAG_LEGACY_CX_ROTO_MIN_TETRA_VOLUME_M3
+#define APP_TAG_LEGACY_CX_ROTO_MIN_TETRA_VOLUME_M3 0.1
 #endif
 
-#ifndef APP_TAG_CAL_ROTO_PREWARM_MS
-#define APP_TAG_CAL_ROTO_PREWARM_MS 5000U
+#ifndef APP_TAG_LEGACY_CX_ROTO_PREWARM_MS
+#define APP_TAG_LEGACY_CX_ROTO_PREWARM_MS 5000U
 #endif
 
 #ifndef APP_TAG_EKF_ENABLE
@@ -285,8 +301,8 @@ static void ss_twr_diag_write(const char *msg)
 #define APP_TAG_MOTION_RANGE_HARD_BONUS_MM 0U
 #endif
 
-#ifndef APP_TAG_CAL_STATIC_SLOT_DIVIDER
-#define APP_TAG_CAL_STATIC_SLOT_DIVIDER 1U
+#ifndef APP_TAG_LEGACY_CX_STATIC_SLOT_DIVIDER
+#define APP_TAG_LEGACY_CX_STATIC_SLOT_DIVIDER 1U
 #endif
 
 #ifndef APP_TAG_MOTION_EKF_MEAS_STD_MM
@@ -467,6 +483,26 @@ static uint32_t ss_twr_init_sweep_last_poll_cycle;
 static uint32_t ss_twr_init_sweep_done_cycle;
 static uint8_t ss_twr_init_sweep_poll_count;
 static bool ss_twr_init_sweep_timing_valid;
+static uint32_t ss_twr_init_bcast_last_start_cycle;
+static uint32_t ss_twr_init_bcast_rx_done_cycle;
+static uint32_t ss_twr_init_bcast_air_us;
+static uint32_t ss_twr_init_bcast_post_us;
+static uint32_t ss_twr_init_bcast_cycle_us;
+static uint32_t ss_twr_init_bcast_rx_window_us;
+static uint8_t ss_twr_init_bcast_rx_mask;
+static uint8_t ss_twr_init_bcast_timeout_mask;
+static uint8_t ss_twr_init_bcast_err_mask;
+static uint8_t ss_twr_init_bcast_late_mask;
+static uint32_t ss_twr_init_bcast_overrun_us;
+static uint32_t ss_twr_init_bcast_summary_start_ms;
+static uint32_t ss_twr_init_bcast_summary_sweeps;
+static uint32_t ss_twr_init_bcast_summary_valid_sweeps;
+static uint32_t ss_twr_init_bcast_summary_air_sum_us;
+static uint32_t ss_twr_init_bcast_summary_air_max_us;
+static uint32_t ss_twr_init_bcast_summary_post_sum_us;
+static uint32_t ss_twr_init_bcast_summary_post_max_us;
+static uint32_t ss_twr_init_bcast_summary_cycle_sum_us;
+static uint32_t ss_twr_init_bcast_summary_cycle_max_us;
 #if APP_TAG_SWEEP_DIAG_ENABLE != 0U
 static uint32_t ss_twr_init_diag_t0_cycles;
 static uint32_t ss_twr_init_diag_wait_done_cycles;
@@ -640,11 +676,83 @@ static size_t ss_twr_init_append_csv_u32(char *buf, size_t len, size_t pos,
     return pos;
 }
 
+static void ss_twr_init_publish_bcast_summary(uint32_t active_mask,
+                                              uint32_t valid_mask)
+{
+#if APP_TAG_BCAST_SUMMARY_ENABLE != 0U
+    uint32_t now_ms = (uint32_t)k_uptime_get();
+    uint32_t elapsed_ms;
+    char line[192];
+
+    if (ss_twr_init_bcast_summary_start_ms == 0U) {
+        ss_twr_init_bcast_summary_start_ms = now_ms;
+    }
+
+    ss_twr_init_bcast_summary_sweeps++;
+    if (valid_mask == active_mask && active_mask != 0U) {
+        ss_twr_init_bcast_summary_valid_sweeps++;
+    }
+    ss_twr_init_bcast_summary_air_sum_us += ss_twr_init_bcast_air_us;
+    ss_twr_init_bcast_summary_post_sum_us += ss_twr_init_bcast_post_us;
+    ss_twr_init_bcast_summary_cycle_sum_us += ss_twr_init_bcast_cycle_us;
+    if (ss_twr_init_bcast_air_us > ss_twr_init_bcast_summary_air_max_us) {
+        ss_twr_init_bcast_summary_air_max_us = ss_twr_init_bcast_air_us;
+    }
+    if (ss_twr_init_bcast_post_us > ss_twr_init_bcast_summary_post_max_us) {
+        ss_twr_init_bcast_summary_post_max_us = ss_twr_init_bcast_post_us;
+    }
+    if (ss_twr_init_bcast_cycle_us > ss_twr_init_bcast_summary_cycle_max_us) {
+        ss_twr_init_bcast_summary_cycle_max_us = ss_twr_init_bcast_cycle_us;
+    }
+
+    elapsed_ms = now_ms - ss_twr_init_bcast_summary_start_ms;
+    if (elapsed_ms < APP_TAG_BCAST_SUMMARY_PERIOD_MS ||
+        ss_twr_init_bcast_summary_sweeps == 0U) {
+        return;
+    }
+
+    snprintk(line, sizeof(line),
+             "BS;1;%lu;%u;%02lx;%lu;%lu;%lu;%lu;%lu;%lu;%lu;%lu;%lu;%lu",
+             (unsigned long)ss_twr_init_sweep_count,
+             (unsigned int)ss_twr_init_runtime_params.positioning_mode,
+             (unsigned long)active_mask,
+             (unsigned long)elapsed_ms,
+             (unsigned long)ss_twr_init_bcast_summary_sweeps,
+             (unsigned long)ss_twr_init_bcast_summary_valid_sweeps,
+             (unsigned long)((ss_twr_init_bcast_summary_sweeps * 10000U) /
+                             MAX(elapsed_ms, 1U)),
+             (unsigned long)((ss_twr_init_bcast_summary_valid_sweeps * 10000U) /
+                             MAX(elapsed_ms, 1U)),
+             (unsigned long)(ss_twr_init_bcast_summary_air_sum_us /
+                             ss_twr_init_bcast_summary_sweeps),
+             (unsigned long)ss_twr_init_bcast_summary_air_max_us,
+             (unsigned long)(ss_twr_init_bcast_summary_post_sum_us /
+                             ss_twr_init_bcast_summary_sweeps),
+             (unsigned long)ss_twr_init_bcast_summary_post_max_us,
+             (unsigned long)(ss_twr_init_bcast_summary_cycle_sum_us /
+                             ss_twr_init_bcast_summary_sweeps));
+    (void)uwb_tag_ble_publish_status(line);
+
+    ss_twr_init_bcast_summary_start_ms = now_ms;
+    ss_twr_init_bcast_summary_sweeps = 0U;
+    ss_twr_init_bcast_summary_valid_sweeps = 0U;
+    ss_twr_init_bcast_summary_air_sum_us = 0U;
+    ss_twr_init_bcast_summary_air_max_us = 0U;
+    ss_twr_init_bcast_summary_post_sum_us = 0U;
+    ss_twr_init_bcast_summary_post_max_us = 0U;
+    ss_twr_init_bcast_summary_cycle_sum_us = 0U;
+    ss_twr_init_bcast_summary_cycle_max_us = 0U;
+#else
+    ARG_UNUSED(active_mask);
+    ARG_UNUSED(valid_mask);
+#endif
+}
+
 static void ss_twr_init_publish_tag_range_summary(
     const struct uwb_tag_measurement *measurements, size_t measurement_count,
     uint8_t qf_percent)
 {
-    char line[320];
+    char line[384];
     char raw_csv[64];
     char range_csv[64];
     char quality_csv[40];
@@ -674,7 +782,17 @@ static void ss_twr_init_publish_tag_range_summary(
         }
 
         active_mask |= BIT(anchor_id);
-        if (measurements[i].valid) {
+        /*
+         * Broadcast TR is the offline-solver range stream. Its valid_mask must
+         * describe fresh UWB ranging success for this sweep, not the later
+         * on-board positioning/continuity-gate decision. A stale APOS layout or
+         * transient TS solver state can otherwise hide perfectly received
+         * ranges from the host even though status='O' and rx_mask saw the
+         * anchor.
+         */
+        if (ss_twr_init_sweep_anchor_status[anchor_id] ==
+                UWB_TAG_BLE_CAL_STATUS_OK &&
+            measurements[i].range_mm > 0U) {
             valid_mask |= BIT(anchor_id);
         }
 
@@ -714,7 +832,7 @@ static void ss_twr_init_publish_tag_range_summary(
     }
 
     snprintk(line, sizeof(line),
-             "TR;3;%lu;%c;%u;%02lx;%02lx;%s;%s;%s;%s;%u;%lu;%lu;%u",
+             "TR;1;%lu;%c;%u;%02lx;%02lx;%s;%s;%s;%s;%u;%lu;%lu;%u",
              (unsigned long)ss_twr_init_sweep_count,
              ss_twr_init_plan_code(ss_twr_init_plan_label()),
              (unsigned int)ss_twr_init_runtime_params.positioning_mode,
@@ -725,6 +843,24 @@ static void ss_twr_init_publish_tag_range_summary(
              (unsigned long)frame_us,
              (unsigned int)ss_twr_init_sweep_poll_count);
     (void)uwb_tag_ble_publish_status(line);
+
+#if APP_TAG_TR_BCAST_V2_ENABLE != 0U
+    snprintk(line, sizeof(line),
+             "TR;2;%lu;%c;%u;%02lx;%02lx;%02x;%s;%s;%s;%s;%u;%lu;%lu;%lu;%u",
+             (unsigned long)ss_twr_init_sweep_count,
+             ss_twr_init_plan_code(ss_twr_init_plan_label()),
+             (unsigned int)ss_twr_init_runtime_params.positioning_mode,
+             (unsigned long)active_mask, (unsigned long)valid_mask,
+             (unsigned int)ss_twr_init_bcast_rx_mask,
+             raw_csv, range_csv, quality_csv, status_codes,
+             (unsigned int)qf_percent,
+             (unsigned long)ss_twr_init_bcast_air_us,
+             (unsigned long)ss_twr_init_bcast_post_us,
+             (unsigned long)ss_twr_init_bcast_cycle_us,
+             (unsigned int)ss_twr_init_sweep_poll_count);
+    (void)uwb_tag_ble_publish_status(line);
+#endif
+    ss_twr_init_publish_bcast_summary(active_mask, valid_mask);
 }
 #else
 static void ss_twr_init_publish_tag_range_summary(
@@ -826,7 +962,7 @@ static void ss_twr_init_publish_cal_frame_summary(const char *plan_label,
     }
 
     /*
-     * In CAL_STATIC/CAL_ROTO the active target set is the contract. A failed
+     * In legacy CX the active target set is the contract. A failed
      * leg must remain visible as timeout/reject in CS/CR/qf, not silently turn
      * the frame into a "3-anchor" record in CF.
      */
@@ -854,7 +990,7 @@ static void ss_twr_init_publish_cal_frame_summary(const char *plan_label,
              (unsigned long)frame_us,
              (unsigned int)ss_twr_init_sweep_poll_count);
     printk("%s\n", line);
-#if APP_TAG_BLE_ENABLE
+#if APP_TAG_BLE_ENABLE && APP_TAG_BLE_UWB_DIAG_OUTPUT_ENABLE
     (void)uwb_tag_ble_publish_status(line);
 #endif
 }
@@ -894,7 +1030,7 @@ static void ss_twr_init_publish_solve_diag(char stage,
              (unsigned int)ss_twr_init_tdma_schedule.slot_index,
              (unsigned int)ss_twr_init_tdma_schedule.slot_count);
     printk("%s\n", line);
-#if APP_TAG_BLE_ENABLE
+#if APP_TAG_BLE_ENABLE && APP_TAG_BLE_UWB_DIAG_OUTPUT_ENABLE
     (void)uwb_tag_ble_publish_status(line);
 #endif
 }
@@ -957,7 +1093,7 @@ static void ss_twr_init_sweep_diag_maybe_print(void)
              (unsigned long)clean_us,
              (unsigned long)total_ms);
     printk("%s\n", line);
-#if APP_TAG_BLE_ENABLE
+#if APP_TAG_BLE_ENABLE && APP_TAG_BLE_UWB_DIAG_OUTPUT_ENABLE
     (void)uwb_tag_ble_publish_status(line);
 #endif
 }
@@ -984,6 +1120,10 @@ static void ss_twr_init_note_sweep_done(void)
 {
     if (ss_twr_init_sweep_timing_valid) {
         ss_twr_init_sweep_done_cycle = k_cycle_get_32();
+        if (ss_twr_init_bcast_rx_done_cycle != 0U) {
+            ss_twr_init_bcast_post_us = k_cyc_to_us_floor32(
+                ss_twr_init_sweep_done_cycle - ss_twr_init_bcast_rx_done_cycle);
+        }
     }
 }
 
@@ -1222,7 +1362,7 @@ static size_t ss_twr_init_append_roto_balanced(uint8_t *dest_ids,
                         (uint32_t)qa + (uint32_t)qb + (uint32_t)qc + (uint32_t)qd;
                     double volume = ss_twr_init_tetra_volume_m3(a, b, c, d);
 
-                    if (volume < APP_TAG_CAL_ROTO_MIN_TETRA_VOLUME_M3) {
+                    if (volume < APP_TAG_LEGACY_CX_ROTO_MIN_TETRA_VOLUME_M3) {
                         continue;
                     }
 
@@ -1539,11 +1679,11 @@ static bool ss_twr_init_raw_range_plausible(
     }
 
     /*
-     * CAL_ROTO after prewarm deliberately tracks fast-changing geometry.
+     * legacy roto-CX after prewarm deliberately tracks fast-changing geometry.
      * A fixed raw-vs-last-raw delta gate misclassifies real motion as an
      * outlier and drops otherwise valid LOS anchors before the continuity
      * gate or solver can score them. Keep the conservative gate for static
-     * and prewarm phases, but let mature CAL_ROTO frames flow downstream.
+     * and prewarm phases, but let mature legacy roto-CX frames flow downstream.
      */
     if (ss_twr_init_runtime_roto_calibration_mode() &&
         !ss_twr_init_roto_prewarm_active()) {
@@ -1753,7 +1893,7 @@ static void ss_twr_init_publish_filtered_position(
              plan_label,
              (unsigned int)location->used_anchor_count);
     printk("%s\n", line);
-#if APP_TAG_BLE_ENABLE
+#if APP_TAG_BLE_ENABLE && APP_TAG_BLE_UWB_DIAG_OUTPUT_ENABLE
     (void)uwb_tag_ble_publish_status(line);
 #endif
 }
@@ -1964,7 +2104,7 @@ static bool ss_twr_init_tdma_exchange_can_start(void)
 static bool ss_twr_init_tdma_active_guard_enabled(void)
 {
 	/*
-	 * CAL_ROTO prewarm is a responder/link-state probe, not a positioning
+	 * legacy roto-CX prewarm is a responder/link-state probe, not a positioning
 	 * frame.  It must be allowed to run the full 8-anchor handshake even when
 	 * the later fast 4-anchor positioning slot uses a shorter active window.
 	 */
@@ -2007,18 +2147,12 @@ static void ss_twr_init_publish_tdma_diag(const char *reason,
 
 static bool ss_twr_init_runtime_static_calibration_mode(void)
 {
-	if (APP_TAG_CALIBRATION_MODE != 0U) {
-		return true;
-	}
-
-	return ss_twr_init_runtime_params.positioning_mode ==
-	       UWB_TAG_POSITIONING_MODE_CAL_STATIC;
+	return false;
 }
 
 static bool ss_twr_init_runtime_roto_calibration_mode(void)
 {
-	return ss_twr_init_runtime_params.positioning_mode ==
-	       UWB_TAG_POSITIONING_MODE_CAL_ROTO;
+	return false;
 }
 
 static bool ss_twr_init_roto_prewarm_active(void)
@@ -2040,7 +2174,7 @@ static bool ss_twr_init_runtime_any_calibration_mode(void)
 static bool ss_twr_init_runtime_anchor_ota_mode(void)
 {
 	return ss_twr_init_runtime_params.positioning_mode ==
-	       UWB_TAG_POSITIONING_MODE_ANCHOR_OTA;
+	       UWB_TAG_MODE_AOTA;
 }
 
 static bool ss_twr_init_tdma_exchange_can_start_if_needed(void)
@@ -2129,6 +2263,7 @@ static void ss_twr_init_reset_tracking_history(void)
 static void ss_twr_init_apply_runtime_params(
 	const struct uwb_tag_runtime_params *params)
 {
+	struct uwb_tag_runtime_params normalized_params;
 	bool reset_history;
 	uint16_t previous_local_addr;
 
@@ -2136,12 +2271,20 @@ static void ss_twr_init_apply_runtime_params(
 		return;
 	}
 
+	normalized_params = *params;
+	if (normalized_params.positioning_mode == UWB_TAG_MODE_RESERVED_4 ||
+	    normalized_params.positioning_mode == UWB_TAG_MODE_RESERVED_5) {
+		normalized_params.positioning_mode = UWB_TAG_MODE_RANGE;
+	}
+	params = &normalized_params;
+
 	reset_history =
 		params->positioning_mode != ss_twr_init_runtime_params.positioning_mode ||
 		params->anchor_selection_mode != ss_twr_init_runtime_params.anchor_selection_mode ||
 		params->tdma.generation != ss_twr_init_tdma_schedule.generation ||
 		params->tdma.slot_index != ss_twr_init_tdma_schedule.slot_index ||
 		params->tdma.slot_count != ss_twr_init_tdma_schedule.slot_count ||
+		params->tdma.slot_mask != ss_twr_init_tdma_schedule.slot_mask ||
 		params->tdma.slot_period_ms != ss_twr_init_tdma_schedule.slot_period_ms ||
 		params->tdma.slot_active_ms != ss_twr_init_tdma_schedule.slot_active_ms;
 
@@ -2160,10 +2303,7 @@ static void ss_twr_init_apply_runtime_params(
 	ss_twr_init_static_cal_group_cursor = 0U;
 	ss_twr_init_static_cal_slot_tick = 0U;
 	ss_twr_init_roto_cal_group_cursor = 0U;
-	ss_twr_init_roto_prewarm_deadline_ms =
-		(params->positioning_mode == UWB_TAG_POSITIONING_MODE_CAL_ROTO) ?
-			((uint32_t)k_uptime_get() + APP_TAG_CAL_ROTO_PREWARM_MS) :
-			0U;
+	ss_twr_init_roto_prewarm_deadline_ms = 0U;
 
 	if (params->anchor_selection_mode == UWB_TAG_ANCHOR_SELECTION_FIXED_SUBSET &&
 	    params->fixed_anchor_count >= 4U) {
@@ -2181,10 +2321,11 @@ static void ss_twr_init_apply_runtime_params(
 
 	if (reset_history) {
 		ss_twr_init_reset_tracking_history();
-		printk("Tag runtime tracking reset pmode=%u slot=%u/%u gen=%u\n",
+		printk("Tag runtime tracking reset pmode=%u slot=%u/%u mask=0x%04x gen=%u\n",
 		       (unsigned int)ss_twr_init_runtime_params.positioning_mode,
 		       (unsigned int)ss_twr_init_tdma_schedule.slot_index,
 		       (unsigned int)ss_twr_init_tdma_schedule.slot_count,
+		       (unsigned int)ss_twr_init_tdma_schedule.slot_mask,
 		       (unsigned int)ss_twr_init_tdma_schedule.generation);
 	}
 }
@@ -2199,10 +2340,11 @@ static void ss_twr_init_apply_pending_runtime_config_if_any(void)
 	ss_twr_init_runtime_update_pending = false;
 	ss_twr_init_active_anchor_index = 0U;
 	ss_twr_init_prepare_sweep_plan();
-	printk("Tag runtime config applied tag=%u slot=%u/%u period=%u active=%u source=%s gen=%u amode=%u\n",
+	printk("Tag runtime config applied tag=%u slot=%u/%u mask=0x%04x period=%u active=%u source=%s gen=%u amode=%u\n",
 	       (unsigned int)ss_twr_init_runtime_params.logical_tag_id,
 	       (unsigned int)ss_twr_init_tdma_schedule.slot_index,
 	       (unsigned int)ss_twr_init_tdma_schedule.slot_count,
+	       (unsigned int)ss_twr_init_tdma_schedule.slot_mask,
 	       (unsigned int)ss_twr_init_tdma_schedule.slot_period_ms,
 	       (unsigned int)ss_twr_init_tdma_schedule.slot_active_ms,
 	       ss_twr_init_slot_source_label(ss_twr_init_runtime_params.slot_source),
@@ -2322,7 +2464,7 @@ static void ss_twr_init_publish_calibration_summary(
              (unsigned int)positioning_mode, (unsigned int)qf_percent, targets,
              statuses, qualities);
     printk("%s\n", line);
-#if APP_TAG_BLE_ENABLE
+#if APP_TAG_BLE_ENABLE && APP_TAG_BLE_UWB_DIAG_OUTPUT_ENABLE
     (void)uwb_tag_ble_publish_status(line);
 #endif
 }
@@ -2393,7 +2535,7 @@ static void ss_twr_init_prepare_sweep_plan(void)
 
     if (ss_twr_init_runtime_static_calibration_mode()) {
         /*
-         * CAL_STATIC is for calibration data coverage, not for a sticky
+         * legacy static-CX is for calibration data coverage, not for a sticky
          * last-solution tracking set. Alternate A/B/C/D and E/F/G/H so CM logs
          * cover all anchors deterministically without collapsing to DEFH.
          */
@@ -2444,7 +2586,7 @@ static void ss_twr_init_prepare_sweep_plan(void)
         size_t desired_count = MIN((size_t)4U, ss_twr_init_anchor_count);
 
         /*
-         * CAL_ROTO front-end selection is constrained before ranging:
+         * legacy roto-CX front-end selection is constrained before ranging:
          * exactly 2 anchors from ids 0..3 and 2 anchors from ids 4..7.
          * Among those balanced 2+2 candidates, choose the set with the best
          * aggregate tracker quality, but reject geometrically weak tetrahedra.
@@ -3889,7 +4031,7 @@ static void ss_twr_init_alt_publish_rx_gap_diag(uint32_t tx_done_cycles,
     ss_twr_init_alt_last_rx_gap_diag_ms = now_ms;
 
     snprintk(line, sizeof(line),
-             "RXG;1;%lu;tag=%u;mask=0x%02x;pc=%u;guard=%u;spacing=%u;win=%lu;pre=%u;slot_to_entry_us=%lu;slot_to_sched_us=%lu;slot_to_write_done_us=%lu;slot_to_txcmd_us=%lu;slot_to_txdone_us=%lu;txcmd_to_txdone_us=%lu;txdone_to_rxstart_us=%lu;txdone_to_rxend_us=%lu;rxenable_us=%lu;rc=%d;slot=%u/%u;period=%u;active=%u;lperiod=%u;lcount=%u",
+             "BD;1;%lu;tag=%u;mask=0x%02x;pc=%u;guard=%u;spacing=%u;win=%lu;pre=%u;slot_to_entry_us=%lu;slot_to_sched_us=%lu;slot_to_write_done_us=%lu;slot_to_txcmd_us=%lu;slot_to_txdone_us=%lu;txcmd_to_txdone_us=%lu;txdone_to_rxstart_us=%lu;txdone_to_rxend_us=%lu;rxenable_us=%lu;rc=%d;slot=%u/%u;period=%u;active=%u;lperiod=%u;lcount=%u",
              (unsigned long)ss_twr_init_sweep_count,
              (unsigned int)ss_twr_init_local_tag_id,
              (unsigned int)anchor_mask,
@@ -3915,7 +4057,7 @@ static void ss_twr_init_alt_publish_rx_gap_diag(uint32_t tx_done_cycles,
              (unsigned int)APP_TAG_TDMA_SLOT_PERIOD_MS,
              (unsigned int)APP_TAG_TDMA_SLOT_COUNT);
     printk("%s\n", line);
-#if APP_TAG_BLE_ENABLE
+#if APP_TAG_BLE_ENABLE && APP_TAG_BLE_UWB_DIAG_OUTPUT_ENABLE
     (void)uwb_tag_ble_publish_status(line);
 #endif
 }
@@ -3933,7 +4075,7 @@ static void ss_twr_init_alt_publish_rx_diag(uint32_t status_reg,
                                             uint8_t last_code)
 {
     uint32_t now_ms = (uint32_t)k_uptime_get();
-    char line[160];
+    char line[224];
 
     if (ss_twr_init_alt_last_rx_diag_ms != 0U &&
         (uint32_t)(now_ms - ss_twr_init_alt_last_rx_diag_ms) < 1000U) {
@@ -3942,7 +4084,7 @@ static void ss_twr_init_alt_publish_rx_diag(uint32_t status_reg,
     ss_twr_init_alt_last_rx_diag_ms = now_ms;
 
     snprintk(line, sizeof(line),
-             "CD;1;%lu;tag=%u;local=0x%04x;status=0x%08lx;rxf=0x%08lx;win=%lu;pc=%u;mask=0x%02x;resp=%u;unexp=%u;last_len=%lu;last_src=0x%04x;last_dst=0x%04x;last_code=0x%02x",
+             "BD;2;%lu;tag=%u;local=0x%04x;status=0x%08lx;rxf=0x%08lx;win=%lu;pc=%u;mask=0x%02x;rx=0x%02x;to=0x%02x;resp=%u;unexp=%u;last_len=%lu;last_src=0x%04x;last_dst=0x%04x;last_code=0x%02x",
              (unsigned long)ss_twr_init_sweep_count,
              (unsigned int)ss_twr_init_local_tag_id,
              (unsigned int)ss_twr_init_local_addr,
@@ -3951,6 +4093,8 @@ static void ss_twr_init_alt_publish_rx_diag(uint32_t status_reg,
              (unsigned long)response_window_us,
              (unsigned int)poll_count,
              (unsigned int)anchor_mask,
+             (unsigned int)ss_twr_init_bcast_rx_mask,
+             (unsigned int)ss_twr_init_bcast_timeout_mask,
              (unsigned int)responses,
              (unsigned int)unexpected_count,
              (unsigned long)last_frame_len,
@@ -3958,7 +4102,7 @@ static void ss_twr_init_alt_publish_rx_diag(uint32_t status_reg,
              (unsigned int)last_dst_addr,
              (unsigned int)last_code);
     printk("%s\n", line);
-#if APP_TAG_BLE_ENABLE
+#if APP_TAG_BLE_ENABLE && APP_TAG_BLE_UWB_DIAG_OUTPUT_ENABLE
     (void)uwb_tag_ble_publish_status(line);
 #endif
 }
@@ -4065,7 +4209,7 @@ static void ss_twr_init_alt_print_unicast_timing_diag(
     }
 
     snprintk(line, sizeof(line),
-             "CD;2;%lu;tag=%u;src=0x%04x;pc=%u;spacing=%u;gap=%lu,%lu,%lu;write=%lu,%lu,%lu,%lu;txfrs=%lu,%lu,%lu,%lu;late=%ld,%ld,%ld,%ld",
+             "BD;3;%lu;tag=%u;src=0x%04x;pc=%u;spacing=%u;gap=%lu,%lu,%lu;write=%lu,%lu,%lu,%lu;txfrs=%lu,%lu,%lu,%lu;late=%ld,%ld,%ld,%ld",
              (unsigned long)ss_twr_init_sweep_count,
              (unsigned int)ss_twr_init_local_tag_id,
              (unsigned int)ss_twr_init_local_addr,
@@ -4087,7 +4231,7 @@ static void ss_twr_init_alt_print_unicast_timing_diag(
              (long)lateness_us[2],
              (long)lateness_us[3]);
     printk("%s\n", line);
-#if APP_TAG_BLE_ENABLE
+#if APP_TAG_BLE_ENABLE && APP_TAG_BLE_UWB_DIAG_OUTPUT_ENABLE
     (void)uwb_tag_ble_publish_status(line);
 #endif
 }
@@ -4152,6 +4296,7 @@ static void ss_twr_init_alt_finish_sweep(void)
     ss_twr_init_sweep_count++;
 #if APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST && \
     APP_ALT_SS_TWR_LIGHT_TDMA_ENABLE != 0U
+    ss_twr_init_release_ble_tx_after_active_slot();
     ss_twr_init_note_sweep_done();
     ss_twr_init_print_location_if_ready();
     ss_twr_init_apply_pending_runtime_config_if_any();
@@ -4313,6 +4458,7 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
     uint8_t last_code = 0U;
     uint8_t anchor_mask = 0U;
     uint32_t response_window_start_cycles = 0U;
+    uint32_t response_window_done_cycles = 0U;
     uint32_t response_window_cycles = 0U;
     uint32_t first_poll_cycle = 0U;
     uint32_t last_poll_cycle = 0U;
@@ -4326,12 +4472,28 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
         return false;
     }
 
-#if APP_ALT_SS_TWR_MODE != APP_ALT_SS_TWR_MODE_BROADCAST || \
-    APP_ALT_SS_TWR_LIGHT_TDMA_ENABLE == 0U
+    if (ss_twr_init_bcast_last_start_cycle != 0U) {
+        ss_twr_init_bcast_cycle_us = k_cyc_to_us_floor32(
+            ss_twr_init_alt_last_sweep_entry_cycles -
+            ss_twr_init_bcast_last_start_cycle);
+    } else {
+        ss_twr_init_bcast_cycle_us = 0U;
+    }
+    ss_twr_init_bcast_last_start_cycle = ss_twr_init_alt_last_sweep_entry_cycles;
+    ss_twr_init_bcast_rx_done_cycle = 0U;
+    ss_twr_init_bcast_air_us = 0U;
+    ss_twr_init_bcast_post_us = 0U;
+    ss_twr_init_bcast_rx_window_us = 0U;
+    ss_twr_init_bcast_rx_mask = 0U;
+    ss_twr_init_bcast_timeout_mask = 0U;
+    ss_twr_init_bcast_err_mask = 0U;
+    ss_twr_init_bcast_late_mask = 0U;
+    ss_twr_init_bcast_overrun_us = 0U;
+
     ss_twr_init_set_ble_tx_paused(true);
-#endif
     anchor_mask = ss_twr_init_alt_active_anchor_mask(poll_count);
     response_window_us = ss_twr_init_alt_bcast_response_window_us(poll_count);
+    ss_twr_init_bcast_rx_window_us = response_window_us;
     response_window_cycles = k_us_to_cyc_floor32(response_window_us);
 #if APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST
     ss_twr_init_alt_set_rx_auto_reenable(false);
@@ -4633,6 +4795,7 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             resp_tx_ts_by_anchor[anchor_id] = resp_tx_ts;
             carrier_integrator_by_anchor[anchor_id] = carrier_integrator;
             received[anchor_id] = true;
+            ss_twr_init_bcast_rx_mask |= (uint8_t)(1U << anchor_id);
             responses++;
             if (responses >= poll_count) {
                 break;
@@ -4738,6 +4901,7 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             resp_tx_ts_by_anchor[anchor_id] = resp_tx_ts;
             carrier_integrator_by_anchor[anchor_id] = carrier_integrator;
             received[anchor_id] = true;
+            ss_twr_init_bcast_rx_mask |= (uint8_t)(1U << anchor_id);
             responses++;
 #if APP_ALT_SS_TWR_MODE != APP_ALT_SS_TWR_MODE_BROADCAST
             if (responses < poll_count) {
@@ -4753,6 +4917,16 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
         break;
     }
 #endif
+
+    response_window_done_cycles = k_cycle_get_32();
+    ss_twr_init_bcast_rx_done_cycle = response_window_done_cycles;
+    if (poll_tx_done_cycles != 0U) {
+        ss_twr_init_bcast_air_us = k_cyc_to_us_floor32(
+            response_window_done_cycles - poll_tx_done_cycles) +
+            SS_TWR_INIT_ALT_BCAST_POLL_AIRTIME_US;
+    }
+    ss_twr_init_bcast_timeout_mask =
+        (uint8_t)(anchor_mask & ~ss_twr_init_bcast_rx_mask);
 
     ss_twr_init_alt_publish_rx_diag(last_status_reg, last_rx_finfo,
                                     response_window_us, poll_count, anchor_mask,
@@ -4997,7 +5171,7 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
                 }
             }
             /*
-             * CAL_ROTO must preserve the selected 4-anchor intent even when a
+             * legacy roto-CX must preserve the selected 4-anchor intent even when a
              * TDMA slot boundary lands mid-sweep. Do not finalize/replan a
              * partial sweep; wait for the next slot and continue the same
              * anchor group so output does not silently collapse to 2/3 anchors.
@@ -5039,6 +5213,10 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
                 (ss_twr_init_alt_bcast_response_window_estimated_us(
                      ss_twr_init_active_anchor_count) + 999U) /
                 1000U;
+            if (ss_twr_init_tdma_schedule.slot_active_ms != 0U &&
+                sweep_budget_ms > ss_twr_init_tdma_schedule.slot_active_ms) {
+                sweep_budget_ms = ss_twr_init_tdma_schedule.slot_active_ms;
+            }
             remain_ms = ss_twr_init_tdma_period_remaining_ms();
 #endif
 
@@ -5054,11 +5232,11 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
         }
 
         if (ss_twr_init_runtime_static_calibration_mode() &&
-            APP_TAG_CAL_STATIC_SLOT_DIVIDER > 1U &&
+            APP_TAG_LEGACY_CX_STATIC_SLOT_DIVIDER > 1U &&
             ss_twr_init_active_anchor_index == 0U) {
             uint32_t slot_tick = ss_twr_init_static_cal_slot_tick++;
 
-                    if ((slot_tick % APP_TAG_CAL_STATIC_SLOT_DIVIDER) != 0U) {
+                    if ((slot_tick % APP_TAG_LEGACY_CX_STATIC_SLOT_DIVIDER) != 0U) {
                         dwt_forcetrxoff();
                         ss_twr_init_release_ble_tx_after_active_slot();
                         ss_twr_init_last_tdma_wait_ms =
@@ -5456,11 +5634,10 @@ int ss_twr_init_runtime_configure(const struct uwb_tag_runtime_params *params)
 		return -ERANGE;
 	}
 
-	if (params->positioning_mode != UWB_TAG_POSITIONING_MODE_DYNAMIC &&
-	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_FIXED &&
-	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_ANCHOR_OTA &&
-	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_CAL_STATIC &&
-	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_CAL_ROTO) {
+	if (params->positioning_mode != UWB_TAG_MODE_RANGE &&
+	    params->positioning_mode != UWB_TAG_MODE_SOLVE &&
+	    params->positioning_mode != UWB_TAG_MODE_DEBUG &&
+	    params->positioning_mode != UWB_TAG_MODE_AOTA) {
 		return -ERANGE;
 	}
 

@@ -34,12 +34,17 @@ range_continuity_enable="${APP_TAG_RANGE_CONTINUITY_ENABLE:-0}"
 output_filter_rms_mm="${APP_TAG_OUTPUT_FILTER_RMS_MM:-0}"
 output_filter_speed_mm_s="${APP_TAG_OUTPUT_FILTER_SPEED_MM_S:-0}"
 position_output_enable="${APP_TAG_POSITION_OUTPUT_ENABLE:-0}"
+tr_bcast_v2_enable="${APP_TAG_TR_BCAST_V2_ENABLE:-0}"
+bcast_summary_enable="${APP_TAG_BCAST_SUMMARY_ENABLE:-1}"
+bcast_summary_period_ms="${APP_TAG_BCAST_SUMMARY_PERIOD_MS:-1000}"
 tag_loc_fast_all_valid_enable="${APP_TAG_LOC_FAST_ALL_VALID_ENABLE:-0}"
 sweep_diag_enable="${APP_TAG_SWEEP_DIAG_ENABLE:-0}"
 sweep_diag_period="${APP_TAG_SWEEP_DIAG_PERIOD:-10}"
 tag_console_summary_enable="${APP_TAG_CONSOLE_SUMMARY_ENABLE:-1}"
 tag_verbose_perf="${APP_TAG_VERBOSE_PERF:-1}"
 tag_pending_print_period="${APP_TAG_PENDING_PRINT_PERIOD:-1}"
+tag_ble_packet_bundle_records="${APP_TAG_BLE_PACKET_BUNDLE_RECORDS:-3}"
+tag_ble_packet_bundle_flush_ms="${APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS:-250}"
 tag_imu_sample_period="${APP_TAG_IMU_SAMPLE_PERIOD:-2}"
 tag_ekf_enable="${APP_TAG_EKF_ENABLE:-1}"
 tag_loc_min_quality_percent="${APP_TAG_LOC_MIN_QUALITY_PERCENT:-20}"
@@ -86,12 +91,17 @@ fi
   printf 'set(APP_TAG_OUTPUT_FILTER_RMS_MM %s CACHE STRING "Motion tag preload" FORCE)\n' "${output_filter_rms_mm}"
   printf 'set(APP_TAG_OUTPUT_FILTER_SPEED_MM_S %s CACHE STRING "Motion tag preload" FORCE)\n' "${output_filter_speed_mm_s}"
   printf 'set(APP_TAG_POSITION_OUTPUT_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${position_output_enable}"
+  printf 'set(APP_TAG_TR_BCAST_V2_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tr_bcast_v2_enable}"
+  printf 'set(APP_TAG_BCAST_SUMMARY_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${bcast_summary_enable}"
+  printf 'set(APP_TAG_BCAST_SUMMARY_PERIOD_MS %s CACHE STRING "Motion tag preload" FORCE)\n' "${bcast_summary_period_ms}"
   printf 'set(APP_TAG_LOC_FAST_ALL_VALID_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_loc_fast_all_valid_enable}"
   printf 'set(APP_TAG_SWEEP_DIAG_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${sweep_diag_enable}"
   printf 'set(APP_TAG_SWEEP_DIAG_PERIOD %s CACHE STRING "Motion tag preload" FORCE)\n' "${sweep_diag_period}"
   printf 'set(APP_TAG_CONSOLE_SUMMARY_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_console_summary_enable}"
   printf 'set(APP_TAG_VERBOSE_PERF %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_verbose_perf}"
   printf 'set(APP_TAG_PENDING_PRINT_PERIOD %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_pending_print_period}"
+  printf 'set(APP_TAG_BLE_PACKET_BUNDLE_RECORDS %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_ble_packet_bundle_records}"
+  printf 'set(APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_ble_packet_bundle_flush_ms}"
   printf 'set(APP_TAG_IMU_SAMPLE_PERIOD %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_imu_sample_period}"
   printf 'set(APP_TAG_EKF_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_ekf_enable}"
   printf 'set(APP_TAG_LOC_MIN_QUALITY_PERCENT %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_loc_min_quality_percent}"
@@ -160,8 +170,8 @@ west build \
   -DAPP_TAG_BLE_OTA_ENABLE=1 \
   -DAPP_TAG_BLE_SETTINGS_ENABLE=1 \
   -DAPP_TAG_BLE_COMPACT_STATUS=1 \
-  -DAPP_TAG_BLE_PACKET_BUNDLE_RECORDS=3 \
-  -DAPP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS=250 \
+  -DAPP_TAG_BLE_PACKET_BUNDLE_RECORDS="${tag_ble_packet_bundle_records}" \
+  -DAPP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS="${tag_ble_packet_bundle_flush_ms}" \
   -DAPP_TAG_BLE_NAME_PREFIX="${ble_name_prefix}" \
   -DAPP_TAG_WAND_MODE_ENABLE="${wand_mode_enable}" \
   -DAPP_TAG_MCUBOOT_ENABLE=1 \
@@ -202,6 +212,9 @@ west build \
   -DAPP_TAG_OUTPUT_FILTER_RMS_MM="${output_filter_rms_mm}" \
   -DAPP_TAG_OUTPUT_FILTER_SPEED_MM_S="${output_filter_speed_mm_s}" \
   -DAPP_TAG_POSITION_OUTPUT_ENABLE="${position_output_enable}" \
+  -DAPP_TAG_TR_BCAST_V2_ENABLE="${tr_bcast_v2_enable}" \
+  -DAPP_TAG_BCAST_SUMMARY_ENABLE="${bcast_summary_enable}" \
+  -DAPP_TAG_BCAST_SUMMARY_PERIOD_MS="${bcast_summary_period_ms}" \
   -DAPP_TAG_LOC_FAST_ALL_VALID_ENABLE="${tag_loc_fast_all_valid_enable}" \
   -DAPP_TAG_SWEEP_DIAG_ENABLE="${sweep_diag_enable}" \
   -DAPP_TAG_SWEEP_DIAG_PERIOD="${sweep_diag_period}" \

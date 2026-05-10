@@ -38,6 +38,16 @@ set(APP_MASTER_BOOT_PROFILE "neutral" CACHE STRING
     "Boot profile: neutral, anchor, or tag")
 set(APP_MASTER_BOOT_TAG_ALLOWLIST "" CACHE STRING
     "Comma-separated BS names accepted by the tag boot profile; empty accepts all BS*")
+set(APP_MASTER_TDMA_SLOT_PERIOD_MS "40" CACHE STRING
+    "Master TDMA slot period in milliseconds")
+set(APP_MASTER_TDMA_SLOT_ACTIVE_MS "24" CACHE STRING
+    "Master TDMA slot active window in milliseconds")
+set(APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE "0" CACHE STRING
+    "Force one TDMA slot per connected tag in a fixed 10-slot roster")
+set(APP_MASTER_TDMA_LEGACY_SLOT_COUNT "10" CACHE STRING
+    "Slot count used when legacy single-slot TDMA mode is enabled")
+set(APP_MASTER_SCAN_DEBUG_ALL_ENABLE "0" CACHE STRING
+    "Print all connectable BLE scan candidates before BioSpur filtering")
 
 target_include_directories(app PRIVATE
     ${APP_ROOT}/include
@@ -57,6 +67,11 @@ target_compile_definitions(app PRIVATE
     APP_MASTER_OTA_TARGET_TOKEN_ID=${APP_MASTER_OTA_TARGET_TOKEN_ID}
     APP_MASTER_BOOT_PROFILE="${APP_MASTER_BOOT_PROFILE}"
     APP_MASTER_BOOT_TAG_ALLOWLIST="${APP_MASTER_BOOT_TAG_ALLOWLIST}"
+    APP_MASTER_TDMA_SLOT_PERIOD_MS=${APP_MASTER_TDMA_SLOT_PERIOD_MS}
+    APP_MASTER_TDMA_SLOT_ACTIVE_MS=${APP_MASTER_TDMA_SLOT_ACTIVE_MS}
+    APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE=${APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE}
+    APP_MASTER_TDMA_LEGACY_SLOT_COUNT=${APP_MASTER_TDMA_LEGACY_SLOT_COUNT}
+    APP_MASTER_SCAN_DEBUG_ALL_ENABLE=${APP_MASTER_SCAN_DEBUG_ALL_ENABLE}
 )
 
 set_source_files_properties(${APP_ROOT}/apps/master_ota/src/main.c PROPERTIES

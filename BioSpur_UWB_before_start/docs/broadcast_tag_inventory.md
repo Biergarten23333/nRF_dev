@@ -95,13 +95,18 @@ After direct flash, push APOS layout again because NVS may be erased.
 | BS10CE | Pressure-test EVK | TBD | TBD | `0x10CE` | `0xCE` | `F2:8A:A6:F5:E2:4A` | DWM1001C EVK flashed to b62 on 2026-05-04; excellent 8-tag TR/TS performance |
 | BS7724 | Pressure-test EVK | `0xC0624B92` | `0xF85CEC31` | `0x7724` | `0x24` | TBD | DWM1001C EVK flashed to b62 on 2026-05-04; TDMA/TR verified, UWB range quality weak in first bench probe |
 | BS1396 | Pressure-test EVK | `0xD807C222` | `0x49ECF97F` | `0x1396` | `0x96` | `D3:67:A5:A7:35:2F` | DWM1001C EVK flashed to b62 on 2026-05-04; pending TDMA pressure-test validation |
-| Wand-A-BSCCF4 | Calibration Wand A | `0x2C9E36F2` | `0x60B3C94E` | `0xCCF4` | `0xF4` | TBD | DWM1001C EVK / J-Link SNR `760184526`; OTA verified to common normal-Tag image `tag-wand-role-prefix-20260508` on 2026-05-08 |
-| Wand-B-BS9336 | Calibration Wand B | `0x65DA856F` | `0xC39F31A8` | `0x9336` | `0x36` | TBD | DWM1001C EVK / J-Link SNR `760184756`; OTA verified to common normal-Tag image `tag-wand-role-prefix-20260508` on 2026-05-08 |
-| Wand-C-BS955A | Calibration Wand C | `0xE62FF1FE` | `0x25D3064F` | `0x955A` | `0x5A` | TBD | DWM1001C EVK / J-Link SNR `760184959`; OTA verified to common normal-Tag image `tag-wand-role-prefix-20260508` on 2026-05-08 |
+| Wand-A-BSCCF4 | Calibration Wand A | `0x2C9E36F2` | `0x60B3C94E` | `0xCCF4` | `0xF4` | TBD | DWM1001C EVK / J-Link SNR `760184526`; OTA verified to common mature b65 TR-only Wand image `alt-bcast-b65-tr3-ledpos-tronly-g1200-r1000-wand-roleprefix-20260509` on 2026-05-09 |
+| Wand-B-BS9336 | Calibration Wand B | `0x65DA856F` | `0xC39F31A8` | `0x9336` | `0x36` | TBD | DWM1001C EVK / J-Link SNR `760184756`; OTA verified to common mature b65 TR-only Wand image `alt-bcast-b65-tr3-ledpos-tronly-g1200-r1000-wand-roleprefix-20260509` on 2026-05-09 |
+| Wand-C-BS955A | Calibration Wand C | `0xE62FF1FE` | `0x25D3064F` | `0x955A` | `0x5A` | TBD | DWM1001C EVK / J-Link SNR `760184959`; OTA verified to common mature b65 TR-only Wand image `alt-bcast-b65-tr3-ledpos-tronly-g1200-r1000-wand-roleprefix-20260509` on 2026-05-09 |
 
 ## Calibration Wand Naming Policy
 
-Date: 2026-05-08
+Date: 2026-05-08, updated 2026-05-09
+
+Canonical operating docs:
+
+- `docs/wand_mode.md`: what "Wand Calibration" means operationally.
+- `docs/caliwand_mode.md`: host/script commands for Wand capture.
 
 Calibration Wand Tags should run the normal Tag behavior unless explicitly
 testing direct Tag-to-Tag Wand sweep firmware. The BLE name still carries the
@@ -124,8 +129,28 @@ Implementation note:
   - `BS955A` -> `Wand-C-BS955A`
 - Unknown Wand-prefixed Tags fall back to `Wand-BSxxxx`.
 - `APP_TAG_WAND_MODE_ENABLE=0` for this normal calibration-capture image.
-- Verified common OTA marker: `tag-wand-role-prefix-20260508`.
-- OTA evidence: `logs/wand_role_prefix_common_ota_20260508_113340/`.
+- 2026-05-08 image marker `tag-wand-role-prefix-20260508` proved common
+  Wand naming, but did not carry the mature b65 broadcast TR-only timing.
+- Current verified common Wand image marker:
+  `alt-bcast-b65-tr3-ledpos-tronly-g1200-r1000-wand-roleprefix-20260509`.
+- Current Wand image parameters:
+  - `APP_ALT_SS_TWR_ENABLE=1`
+  - `APP_ALT_SS_TWR_BCAST_ENABLE=1`
+  - `APP_ALT_SS_TWR_GUARD_US=1200`
+  - `APP_ALT_SS_TWR_RESP_SPACING_US=1000`
+  - `APP_TAG_TDMA_SLOT_PERIOD_MS=10`
+  - `APP_TAG_TDMA_SLOT_ACTIVE_MS=9`
+  - `APP_TAG_POSITION_OUTPUT_ENABLE=0`
+  - `APP_TAG_EKF_ENABLE=0`
+- Build evidence:
+  `SS-TWR/alt-SS-TWR/broadcast/build-alt-bcast-b65-tr3-ledpos-tronly-tag-wand-roleprefix-g1200-r1000-tdma10-20260509/`.
+- OTA evidence:
+  `SS-TWR/alt-SS-TWR/broadcast/logs/wand_roleprefix_b65_ota_by_bs_20260509_012422/`.
+- Important OTA note: before this 2026-05-09 OTA, the three boards still
+  advertised as `BSCCF4`, `BS9336`, and `BS955A`, so the successful OTA run
+  targeted those old BS names. After the image boots, the firmware-side Wand
+  role prefix maps the same identity codes to `Wand-A-BSCCF4`,
+  `Wand-B-BS9336`, and `Wand-C-BS955A`.
 
 ## BSE88E Bring-Up Record
 

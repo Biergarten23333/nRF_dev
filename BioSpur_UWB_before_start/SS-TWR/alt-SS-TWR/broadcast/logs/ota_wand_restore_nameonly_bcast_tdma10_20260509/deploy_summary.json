@@ -1,0 +1,44 @@
+{
+  "port": "/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_6918E0384172A49F-if00",
+  "timeout_s": 420,
+  "targets": [
+    "BSCCF4",
+    "BS9336",
+    "BS955A"
+  ],
+  "prefix": "BS",
+  "started_at": "2026-05-09 04:28:48",
+  "rounds": {
+    "BSCCF4": {
+      "target_name": "BSCCF4",
+      "attempts": [
+        {
+          "attempt": 1,
+          "returncode": 1,
+          "summary_json": "logs/ota_wand_restore_nameonly_bcast_tdma10_20260509/BSCCF4/stage1/summary.json",
+          "summary_read_error": "FileNotFoundError(2, 'No such file or directory')",
+          "retry_pending_state": false,
+          "recovery_only": false
+        }
+      ],
+      "returncode": 1,
+      "summary_json": "logs/ota_wand_restore_nameonly_bcast_tdma10_20260509/BSCCF4/stage1/summary.json"
+    }
+  },
+  "expected_fw_marker": "wand-nameonly-bcast-tdma10-20260509",
+  "expected_fw_marker_meta": {
+    "source": "arg",
+    "path": null
+  },
+  "pre_version_query": {
+    "raw_log": "logs/ota_wand_restore_nameonly_bcast_tdma10_20260509/tag_version_query.log",
+    "targets": [
+      "BSCCF4",
+      "BS9336",
+      "BS955A"
+    ],
+    "versions": {},
+    "error": "SerialException(2, \"could not open port /dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_6918E0384172A49F-if00: [Errno 2] No such file or directory: '/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_6918E0384172A49F-if00'\")"
+  },
+  "post_version_query": {}
+}

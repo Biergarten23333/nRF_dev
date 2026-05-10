@@ -30,7 +30,7 @@ EXTRA_MASTER_ARGS=()
 APP_TAG_PRELOAD_FILE="$(mktemp /tmp/app_tag_preload.XXXXXX.cmake)"
 printf 'set(APP_TAG_SUMMARY_PERIOD %s CACHE STRING "App tag preload" FORCE)\n' "$TAG_SUMMARY_PERIOD" >> "$APP_TAG_PRELOAD_FILE"
 for arg in "${EXTRA_TAG_ARGS[@]}"; do
-  if [[ "$arg" == -DAPP_TAG_* ]]; then
+  if [[ "$arg" == -DAPP_TAG_* || "$arg" == -DAPP_ALT_* || "$arg" == -DAPP_UWB_* ]]; then
     key="${arg#-D}"
     key="${key%%=*}"
     value="${arg#*=}"

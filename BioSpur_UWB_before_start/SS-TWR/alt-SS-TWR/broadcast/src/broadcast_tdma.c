@@ -27,6 +27,28 @@ static uint32_t broadcast_tdma_now_ms(const struct uwb_tdma_schedule *schedule)
 	return now - schedule->sync_local_ms;
 }
 
+static uint16_t broadcast_tdma_effective_slot_mask(
+	const struct uwb_tdma_schedule *schedule, uint32_t slot_count)
+{
+	uint16_t valid_mask;
+
+	if (schedule == NULL || slot_count == 0U) {
+		return 0U;
+	}
+	if (slot_count >= 16U) {
+		valid_mask = 0xffffU;
+	} else {
+		valid_mask = (uint16_t)((1U << slot_count) - 1U);
+	}
+	if ((schedule->slot_mask & valid_mask) != 0U) {
+		return (uint16_t)(schedule->slot_mask & valid_mask);
+	}
+	if (schedule->slot_index < slot_count) {
+		return (uint16_t)(1U << schedule->slot_index);
+	}
+	return 0U;
+}
+
 uint32_t broadcast_tdma_wait_next_slot_start(
 	const struct uwb_tdma_schedule *schedule)
 {
@@ -36,7 +58,7 @@ uint32_t broadcast_tdma_wait_next_slot_start(
 	uint32_t wait_ms;
 	uint32_t slot_period_ms = APP_TAG_TDMA_SLOT_PERIOD_MS;
 	uint32_t slot_count = APP_TAG_TDMA_SLOT_COUNT;
-	uint32_t slot_index;
+	uint16_t slot_mask;
 
 	if (schedule == NULL || !schedule->enabled) {
 		return k_cycle_get_32();
@@ -50,7 +72,10 @@ uint32_t broadcast_tdma_wait_next_slot_start(
 	if (slot_period_ms == 0U || slot_count == 0U) {
 		return k_cycle_get_32();
 	}
-	slot_index = (uint32_t)schedule->slot_index % slot_count;
+	slot_mask = broadcast_tdma_effective_slot_mask(schedule, slot_count);
+	if (slot_mask == 0U) {
+		return k_cycle_get_32();
+	}
 
 	while (schedule->epoch_valid &&
 	       (int32_t)(k_uptime_get_32() - schedule->sync_local_ms) < 0) {
@@ -70,16 +95,31 @@ uint32_t broadcast_tdma_wait_next_slot_start(
 	}
 
 	phase_ms = broadcast_tdma_now_ms(schedule) % cycle_ms;
-	target_ms = slot_index * slot_period_ms;
+	wait_ms = cycle_ms;
+	target_ms = 0U;
 
 	/*
-	 * This loop is called after the previous sweep has already consumed this
-	 * tag's current slot. Always aim for the next owned slot boundary.
+	 * This loop is called after the previous sweep has consumed an owned
+	 * slot. For multi-slot schedules, pick the next slot in the mask instead
+	 * of falling back to the primary slot_index only.
 	 */
-	if (phase_ms < target_ms) {
-		wait_ms = target_ms - phase_ms;
-	} else {
-		wait_ms = cycle_ms - phase_ms + target_ms;
+	for (uint32_t slot = 0U; slot < slot_count; ++slot) {
+		uint32_t candidate_ms;
+		uint32_t delta_ms;
+
+		if ((slot_mask & (uint16_t)(1U << slot)) == 0U) {
+			continue;
+		}
+		candidate_ms = slot * slot_period_ms;
+		if (phase_ms < candidate_ms) {
+			delta_ms = candidate_ms - phase_ms;
+		} else {
+			delta_ms = cycle_ms - phase_ms + candidate_ms;
+		}
+		if (delta_ms < wait_ms) {
+			wait_ms = delta_ms;
+			target_ms = candidate_ms;
+		}
 	}
 
 	if (wait_ms > 1U) {

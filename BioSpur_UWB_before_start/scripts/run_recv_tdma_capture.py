@@ -77,6 +77,26 @@ CM_RE = re.compile(
     r"(?P<fail>\d+)"
 )
 
+TR_RE = re.compile(
+    rf"{TAG_NOTIFY_PREFIX_RE} notify: TR;"
+    r"(?P<ver>\d+);"
+    r"(?P<sweep>\d+);"
+    r"(?P<plan>[A-Za-z0-9_]+);"
+    r"(?P<pmode>\d+);"
+    r"(?P<active_mask>[0-9A-Fa-f]+);"
+    r"(?P<valid_mask>[0-9A-Fa-f]+);"
+    r"(?P<raws>[^;]*);"
+    r"(?P<ranges>[^;]*);"
+    r"(?P<qualities>[^;]*);"
+    r"(?P<statuses>[^;|\\r\\n]*)"
+    r"(?:;"
+    r"(?P<qf>\d+);"
+    r"(?P<first_to_last_us>\d+);"
+    r"(?P<frame_us>\d+);"
+    r"(?P<poll_count>\d+)"
+    r")?"
+)
+
 CS_RE = re.compile(
     rf"{TAG_NOTIFY_PREFIX_RE} notify: CS;"
     r"(?P<ver>\d+);"
@@ -188,6 +208,23 @@ def iter_cm_matches(text: str):
             yield match
 
 
+def iter_tr_matches(text: str):
+    prefix = None
+    if "notify:" in text:
+        prefix = text.split("notify:", 1)[0] + "notify: "
+
+    for idx, fragment in enumerate(text.split("|")):
+        fragment = fragment.strip()
+        if not fragment:
+            continue
+        if idx > 0 and "notify:" not in fragment and fragment.startswith("TR;"):
+            fragment = (prefix or "NUS notify: ") + fragment
+
+        match = TR_RE.search(fragment)
+        if match:
+            yield match
+
+
 def iter_cs_matches(text: str):
     prefix = None
     if "notify:" in text:
@@ -240,10 +277,23 @@ def iter_cf_matches(text: str):
 
 
 def normalize_target(name: str) -> str:
+    raw = name.strip()
+    value = raw.upper()
+    if value.startswith("BS"):
+        return value
+    parts = value.split("-")
+    if len(parts) == 3 and parts[0] == "WAND" and parts[1] in {"A", "B", "C"} and parts[2].startswith("BS"):
+        return f"Wand-{parts[1]}-{parts[2]}"
+    raise ValueError(f"Invalid target name: {name}")
+
+
+def target_aliases(name: str) -> set[str]:
     value = name.strip().upper()
-    if not value.startswith("BS"):
-        raise ValueError(f"Invalid target name: {name}")
-    return value
+    aliases = {value}
+    parts = value.split("-")
+    if len(parts) == 3 and parts[0] == "WAND" and parts[2].startswith("BS"):
+        aliases.add(parts[2])
+    return aliases
 
 
 def open_serial_with_retry(port: str, baud: int, timeout_s: float = 0.2, retries: int = 240) -> serial.Serial:
@@ -492,7 +542,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Calibration-wand capture preset: exactly three target Tags, all motion profile, "
-            "8 Hz each requested, startup CM probe skipped, and target roster installed before "
+            "30 Hz each requested, startup CM probe skipped, and target roster installed before "
             "scan so non-target BS Tags are rejected."
         ),
     )
@@ -725,13 +775,14 @@ def ensure_target_links_ready(
     def mark_ready_from_text(text: str) -> None:
         text_u = text.upper()
         for item in targets:
-            target_u = item.upper()
-            if (
-                f"BS={target_u}" in text_u
-                or f"{target_u} NOTIFY:" in text_u
-                or f"CFG_OK" in text_u and target_u in text_u
-            ):
-                ready_targets.add(target_u)
+            for alias in target_aliases(item):
+                if (
+                    f"BS={alias}" in text_u
+                    or f"{alias} NOTIFY:" in text_u
+                    or f"CFG_OK" in text_u and alias in text_u
+                ):
+                    ready_targets.add(item.upper())
+                    break
 
     if initial_text:
         mark_ready_from_text(initial_text)
@@ -798,6 +849,7 @@ def ensure_target_links_ready(
                 ser = open_serial_with_retry(port, baud, retries=60)
                 drain_serial_until(ser, logf, 3.0)
                 ser = send_cmd(ser, logf, "mode recv", 8.0)
+                ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
                 ser = send_cmd(ser, logf, "device kind tag", 2.0)
                 if passive_wait(f"post-reset{pass_idx}", wait_per_target_s):
                     break
@@ -806,7 +858,7 @@ def ensure_target_links_ready(
 
         ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
         ser = send_cmd(ser, logf, "ota_target name -", 0.5)
-        ser = send_cmd(ser, logf, "ota_target prefix BS", 0.5)
+        ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
         ser = send_cmd(ser, logf, "mode recv", 8.0)
         ser = send_cmd(ser, logf, "device kind tag", 2.0)
 
@@ -849,6 +901,9 @@ def configure_recv_capture_session(
     profile_items: list[tuple[str, str]],
 ) -> serial.Serial:
     preloaded_profile_allowlist = bool(args.tdma_profile_before_scan or args.caliwand_mode)
+    single_target = targets[0] if len(targets) == 1 else ""
+    clear_text = ""
+
     if args.reuse_tag_links:
         print("[CAPTURE] configure: reuse Master_Tag resident links", flush=True)
         ser, status_text = send_cmd_collect(ser, logf, "status", 0.8)
@@ -857,21 +912,50 @@ def configure_recv_capture_session(
         print("[CAPTURE] configure: enter RECV/tag mode", flush=True)
         ser = send_cmd(ser, logf, "mode recv", 8.0)
         if preloaded_profile_allowlist:
-            print("[CAPTURE] configure: preload TDMA target allow-list before scan", flush=True)
-            ser = send_cmd(ser, logf, "tdma clear", 1.2)
+            print("[CAPTURE] configure: preseed TDMA target roster", flush=True)
             ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
-            for name, profile in profile_items:
-                ser = send_cmd(ser, logf, f"tdma profile {name} {profile}", 0.5)
+            ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
             ser = send_cmd(ser, logf, f"tdma freq static {args.static_hz}", 0.3)
             ser = send_cmd(ser, logf, f"tdma freq roto {args.roto_hz}", 0.3)
             ser = send_cmd(ser, logf, f"tdma freq motion {args.motion_hz}", 0.3)
+            for name, profile in profile_items:
+                ser = send_cmd(ser, logf, f"tdma roster {name} {profile}", 0.5)
+            if single_target:
+                print(
+                    f"[CAPTURE] configure: restrict tag discovery to {single_target}",
+                    flush=True,
+                )
+                ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
+                ser = send_cmd(ser, logf, f"ota_target name {single_target}", 0.5)
+                ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
+                ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
         ser = send_cmd(ser, logf, "device kind tag", 2.0)
         status_text = ""
         device_text = ""
-    if preloaded_profile_allowlist:
-        ser, clear_text = send_cmd_collect(ser, logf, "tdma show", 0.8)
-    else:
+
+    if not preloaded_profile_allowlist:
         ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
+
+    if preloaded_profile_allowlist:
+        # `tdma roster` blocks new non-target connections, but links that were
+        # already connected before this run still exist. Put all current Tag
+        # links back to AOTA, then enroll only this run's roster.
+        ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
+        ser = send_cmd(ser, logf, "ota_target name -", 0.5)
+        ser = send_cmd(ser, logf, "ota_target prefix BS", 0.5)
+        ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
+        print("[CAPTURE] configure: silence resident Tag links for enrollment", flush=True)
+        ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
+        ser = send_cmd(ser, logf, "cmd_all MODE AOTA", 1.0)
+        print("[CAPTURE] configure: reassert TDMA target roster", flush=True)
+        for name, profile in profile_items:
+            ser = send_cmd(ser, logf, f"tdma roster {name} {profile}", 0.5)
+        ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
+        ser = send_cmd(ser, logf, "ota_target name -", 0.5)
+        ser = send_cmd(ser, logf, "ota_target prefix BS", 0.5)
+        ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
+        ser = send_cmd(ser, logf, "conn", 0.5)
+
     print("[CAPTURE] configure: wait for target links", flush=True)
     ser = ensure_target_links_ready(
         ser,
@@ -881,17 +965,18 @@ def configure_recv_capture_session(
         wait_per_target_s=args.tag_link_timeout_s,
         initial_text=status_text + device_text + clear_text,
     )
-    print("[CAPTURE] configure: apply TDMA profiles", flush=True)
-    ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
     if not preloaded_profile_allowlist:
+        print("[CAPTURE] configure: apply TDMA profiles", flush=True)
+        ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
         ser = send_cmd(ser, logf, "tdma clear", 1.2)
-    for name, profile in profile_items:
-        ser = send_cmd(ser, logf, f"tdma profile {name} {profile}", 0.8)
-    ser = send_cmd(ser, logf, f"tdma freq static {args.static_hz}", 0.5)
-    ser = send_cmd(ser, logf, f"tdma freq roto {args.roto_hz}", 0.5)
-    ser = send_cmd(ser, logf, f"tdma freq motion {args.motion_hz}", 0.5)
-    ser = send_cmd(ser, logf, "tdma hold 0", 0.5)
-    ser = send_cmd(ser, logf, "tdma rebalance", 0.8)
+        for name, profile in profile_items:
+            ser = send_cmd(ser, logf, f"tdma profile {name} {profile}", 0.8)
+        ser = send_cmd(ser, logf, f"tdma freq static {args.static_hz}", 0.5)
+        ser = send_cmd(ser, logf, f"tdma freq roto {args.roto_hz}", 0.5)
+        ser = send_cmd(ser, logf, f"tdma freq motion {args.motion_hz}", 0.5)
+
+    print("[CAPTURE] configure: release TDMA hold and rebalance", flush=True)
+    ser = send_cmd(ser, logf, "tdma hold 0", 1.0)
     ser = send_cmd(ser, logf, "tdma show", 1.0)
     ser = send_cmd(ser, logf, "status", 0.8)
     ser = send_cmd(ser, logf, "device show", 0.8)
@@ -903,13 +988,17 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
     if args.no_cleanup:
         return ser, {"attempted": False, "reason": "disabled_by_flag"}
 
-    result = {"attempted": True, "success": False, "command": "cmd MODE AOTA", "error": ""}
+    cleanup_cmd = "cmd_all MODE AOTA" if (args.caliwand_mode or args.tdma_profile_before_scan) else "cmd MODE AOTA"
+    result = {"attempted": True, "success": False, "command": cleanup_cmd, "error": ""}
     try:
         print("[CAPTURE] cleanup: stopping tag ranging with MODE AOTA", flush=True)
-        logf.write(f"[HOST_CLEANUP {time.monotonic():.3f}] stop tag ranging via MODE AOTA\n")
+        logf.write(f"[HOST_CLEANUP {time.monotonic():.3f}] stop tag ranging via {cleanup_cmd}\n")
         logf.flush()
-        ser = send_cmd(ser, logf, "cmd MODE AOTA", 2.0)
-        ser = send_cmd(ser, logf, "cmd MODE?", 1.0)
+        ser = send_cmd(ser, logf, cleanup_cmd, 2.0)
+        if cleanup_cmd.startswith("cmd_all "):
+            ser = send_cmd(ser, logf, "cmd_all MODE?", 1.0)
+        else:
+            ser = send_cmd(ser, logf, "cmd MODE?", 1.0)
         result["success"] = True
         print("[CAPTURE] cleanup: MODE AOTA sent", flush=True)
     except (SerialException, OSError) as exc:
@@ -922,8 +1011,11 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
             ser = open_serial_with_retry(args.port, args.baud, retries=30)
             time.sleep(0.8)
             drain_serial_until(ser, logf, 0.8)
-            ser = send_cmd(ser, logf, "cmd MODE AOTA", 2.0)
-            ser = send_cmd(ser, logf, "cmd MODE?", 1.0)
+            ser = send_cmd(ser, logf, cleanup_cmd, 2.0)
+            if cleanup_cmd.startswith("cmd_all "):
+                ser = send_cmd(ser, logf, "cmd_all MODE?", 1.0)
+            else:
+                ser = send_cmd(ser, logf, "cmd MODE?", 1.0)
             result["success"] = True
             result["error"] = ""
             print("[CAPTURE] cleanup: MODE AOTA sent after serial reopen", flush=True)
@@ -1051,23 +1143,32 @@ def main() -> int:
         if len(targets) != 3:
             raise SystemExit("--caliwand-mode requires exactly 3 comma-separated --targets")
         args.profiles = ",".join(f"{target}:motion" for target in targets)
-        args.static_hz = 8
-        args.roto_hz = 8
-        args.motion_hz = 8
+        args.static_hz = 30
+        args.roto_hz = 30
+        args.motion_hz = 30
         args.skip_cm_probe = True
         args.allow_zero_positions = True
         args.tdma_profile_before_scan = True
         print(
-            "[CAPTURE] CaliWand mode: 3 target allow-list, all motion profile, requested 8Hz/tag",
+            "[CAPTURE] CaliWand mode: 3 target allow-list, all motion profile, requested 30Hz/tag",
             flush=True,
         )
     probe_target = normalize_target(args.cm_probe_target)
 
     profile_items = parse_profiles(args.profiles)
     target_set = set(targets)
+    target_alias_to_name: dict[str, str] = {}
+    for target in targets:
+        for alias in target_aliases(target):
+            target_set.add(alias)
+            target_alias_to_name[alias] = target
+    target_alias_to_name.update({target: target for target in targets})
     expected_pmode_by_target = {
         name: profile_expected_pmode(profile) for name, profile in profile_items
     }
+    for name, profile in profile_items:
+        for alias in target_aliases(name):
+            expected_pmode_by_target[alias] = profile_expected_pmode(profile)
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_out = Path(args.out_dir)
@@ -1253,6 +1354,7 @@ def main() -> int:
     conn_meta: dict[str, dict] = {}
     positions: list[dict] = []
     cm_rows: list[dict] = []
+    tr_rows: list[dict] = []
     cs_rows: list[dict] = []
     cr_rows: list[dict] = []
     cf_rows: list[dict] = []
@@ -1610,6 +1712,7 @@ def main() -> int:
                             conn_id = m.groupdict().get("conn") or ""
                             meta = conn_meta.get(conn_id, {}) if conn_id else {}
                             peer_name = extract_bs_name(line) or meta.get("peer_name", "")
+                            peer_name = target_alias_to_name.get(peer_name.upper(), peer_name) if peer_name else peer_name
                             if peer_name and peer_name not in target_set:
                                 continue
                             expected_pmode = expected_pmode_by_target.get(peer_name)
@@ -1654,6 +1757,7 @@ def main() -> int:
                             conn_id = m.groupdict().get("conn") or ""
                             meta = conn_meta.get(conn_id, {}) if conn_id else {}
                             peer_name = extract_bs_name(line) or meta.get("peer_name", "")
+                            peer_name = target_alias_to_name.get(peer_name.upper(), peer_name) if peer_name else peer_name
                             if peer_name and peer_name not in target_set:
                                 continue
                             expected_pmode = expected_pmode_by_target.get(peer_name)
@@ -1683,10 +1787,46 @@ def main() -> int:
                                 if m.group("status") == "ok":
                                     cm_ok_seen[peer_name] += 1
 
+                        for m in iter_tr_matches(line):
+                            conn_id = m.groupdict().get("conn") or ""
+                            meta = conn_meta.get(conn_id, {}) if conn_id else {}
+                            peer_name = extract_bs_name(line) or meta.get("peer_name", "")
+                            peer_name = target_alias_to_name.get(peer_name.upper(), peer_name) if peer_name else peer_name
+                            if peer_name and peer_name not in target_set:
+                                continue
+                            expected_pmode = expected_pmode_by_target.get(peer_name)
+                            active_pmode = int(m.group("pmode"))
+                            if expected_pmode is not None and active_pmode != expected_pmode:
+                                skipped_before_target_pmode += 1
+                                continue
+                            tr_rows.append(
+                                {
+                                    "conn_id": conn_id,
+                                    "host_elapsed_s": host_elapsed_s,
+                                    "host_epoch_s": host_epoch_s,
+                                    "peer_name": peer_name,
+                                    "tag_id": meta.get("tag_id", ""),
+                                    "sweep": int(m.group("sweep")),
+                                    "plan": m.group("plan"),
+                                    "pmode": active_pmode,
+                                    "active_mask": m.group("active_mask"),
+                                    "valid_mask": m.group("valid_mask"),
+                                    "raws": m.group("raws"),
+                                    "ranges": m.group("ranges"),
+                                    "qualities": m.group("qualities"),
+                                    "statuses": m.group("statuses"),
+                                    "quality_flag_percent": int(m.group("qf") or 0),
+                                    "first_to_last_us": int(m.group("first_to_last_us") or 0),
+                                    "frame_us": int(m.group("frame_us") or 0),
+                                    "poll_count": int(m.group("poll_count") or 0),
+                                }
+                            )
+
                         for m in iter_cs_matches(line):
                             conn_id = m.groupdict().get("conn") or ""
                             meta = conn_meta.get(conn_id, {}) if conn_id else {}
                             peer_name = extract_bs_name(line) or meta.get("peer_name", "")
+                            peer_name = target_alias_to_name.get(peer_name.upper(), peer_name) if peer_name else peer_name
                             if peer_name and peer_name not in target_set:
                                 continue
                             expected_pmode = expected_pmode_by_target.get(peer_name)
@@ -1715,6 +1855,7 @@ def main() -> int:
                             conn_id = m.groupdict().get("conn") or ""
                             meta = conn_meta.get(conn_id, {}) if conn_id else {}
                             peer_name = extract_bs_name(line) or meta.get("peer_name", "")
+                            peer_name = target_alias_to_name.get(peer_name.upper(), peer_name) if peer_name else peer_name
                             if peer_name and peer_name not in target_set:
                                 continue
                             expected_pmode = expected_pmode_by_target.get(peer_name)
@@ -1748,6 +1889,7 @@ def main() -> int:
                             conn_id = m.groupdict().get("conn") or ""
                             meta = conn_meta.get(conn_id, {}) if conn_id else {}
                             peer_name = extract_bs_name(line) or meta.get("peer_name", "")
+                            peer_name = target_alias_to_name.get(peer_name.upper(), peer_name) if peer_name else peer_name
                             if peer_name and peer_name not in target_set:
                                 continue
                             expected_pmode = expected_pmode_by_target.get(peer_name)
@@ -1819,6 +1961,7 @@ def main() -> int:
 
     positions_by_target: dict[str, list[dict]] = defaultdict(list)
     cm_by_target: dict[str, list[dict]] = defaultdict(list)
+    tr_by_target: dict[str, list[dict]] = defaultdict(list)
 
     for row in positions:
         key = row["peer_name"] or f"tag{row['tag_id']}"
@@ -1826,6 +1969,9 @@ def main() -> int:
     for row in cm_rows:
         key = row["peer_name"] or f"tag{row['tag_id']}"
         cm_by_target[key].append(row)
+    for row in tr_rows:
+        key = row["peer_name"] or f"tag{row['tag_id']}"
+        tr_by_target[key].append(row)
 
     position_fields = [
         "host_elapsed_s",
@@ -1862,6 +2008,26 @@ def main() -> int:
         "quality_percent",
         "ok_count",
         "fail_count",
+    ]
+    tr_fields = [
+        "host_elapsed_s",
+        "host_epoch_s",
+        "sweep",
+        "conn_id",
+        "peer_name",
+        "tag_id",
+        "plan",
+        "pmode",
+        "active_mask",
+        "valid_mask",
+        "raws",
+        "ranges",
+        "qualities",
+        "statuses",
+        "quality_flag_percent",
+        "first_to_last_us",
+        "frame_us",
+        "poll_count",
     ]
     cs_fields = [
         "host_elapsed_s",
@@ -1919,6 +2085,7 @@ def main() -> int:
 
     write_rows(session_dir / "positions_all.csv", position_fields, positions)
     write_rows(session_dir / "cm_all.csv", cm_fields, cm_rows)
+    write_rows(session_dir / "tr_all.csv", tr_fields, tr_rows)
     write_rows(session_dir / "cs_all.csv", cs_fields, cs_rows)
     write_rows(session_dir / "cr_all.csv", cr_fields, cr_rows)
     write_rows(session_dir / "cf_all.csv", cf_fields, cf_rows)
@@ -1942,11 +2109,13 @@ def main() -> int:
         tag_dir.mkdir(parents=True, exist_ok=True)
         pos_rows = positions_by_target.get(target, [])
         cm_target_rows = cm_by_target.get(target, [])
+        tr_target_rows = tr_by_target.get(target, [])
         cs_target_rows = cs_by_target.get(target, [])
         cr_target_rows = cr_by_target.get(target, [])
         cf_target_rows = cf_by_target.get(target, [])
         write_rows(tag_dir / "positions.csv", position_fields, pos_rows)
         write_rows(tag_dir / "cm.csv", cm_fields, cm_target_rows)
+        write_rows(tag_dir / "tr.csv", tr_fields, tr_target_rows)
         write_rows(tag_dir / "cs.csv", cs_fields, cs_target_rows)
         write_rows(tag_dir / "cr.csv", cr_fields, cr_target_rows)
         write_rows(tag_dir / "cf.csv", cf_fields, cf_target_rows)
@@ -1964,6 +2133,7 @@ def main() -> int:
         per_tag_summary[target] = {
             "position_rows": len(pos_rows),
             "cm_rows": len(cm_target_rows),
+            "tr_rows": len(tr_target_rows),
             "cs_rows": len(cs_target_rows),
             "cr_rows": len(cr_target_rows),
             "cf_rows": len(cf_target_rows),
@@ -1972,6 +2142,8 @@ def main() -> int:
             "latest_calibration_reject": cr_target_rows[-1] if cr_target_rows else None,
             "latest_calibration_frame": cf_target_rows[-1] if cf_target_rows else None,
             "anchors_seen": sorted({row["anchor_id"] for row in cm_target_rows}) if cm_target_rows else [],
+            "tr_poll_counts": sorted({row["poll_count"] for row in tr_target_rows}) if tr_target_rows else [],
+            "tr_frame_us": sorted({row["frame_us"] for row in tr_target_rows}) if tr_target_rows else [],
             "status_counts": {
                 status: sum(1 for row in cm_target_rows if row["status"] == status)
                 for status in sorted({row["status"] for row in cm_target_rows})
@@ -2012,6 +2184,7 @@ def main() -> int:
         },
         "positions_all": len(positions),
         "cm_all": len(cm_rows),
+        "tr_all": len(tr_rows),
         "cs_all": len(cs_rows),
         "cr_all": len(cr_rows),
         "cf_all": len(cf_rows),
@@ -2020,6 +2193,7 @@ def main() -> int:
         "raw_log": str(raw_log_path),
         "positions_all_csv": str(session_dir / "positions_all.csv"),
         "cm_all_csv": str(session_dir / "cm_all.csv"),
+        "tr_all_csv": str(session_dir / "tr_all.csv"),
         "cs_all_csv": str(session_dir / "cs_all.csv"),
         "cr_all_csv": str(session_dir / "cr_all.csv"),
         "cf_all_csv": str(session_dir / "cf_all.csv"),

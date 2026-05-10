@@ -16,20 +16,28 @@ DEFAULT_TAG_PORT = (
 DEFAULT_ANCHOR_PORT = (
     "/dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02-if00"
 )
+CALIWAND_HZ = 30
 
 
-def normalize_bs(value: str) -> str:
-    name = value.strip().upper()
-    if not name.startswith("BS") or len(name) != 6:
-        raise argparse.ArgumentTypeError(f"invalid BS tag name: {value!r}")
-    int(name[2:], 16)
-    return name
+def normalize_wand_target(value: str) -> str:
+    raw = value.strip()
+    upper = raw.upper()
+    if upper.startswith("BS") and len(upper) == 6:
+        int(upper[2:], 16)
+        return upper
+    parts = upper.split("-")
+    if len(parts) == 3 and parts[0] == "WAND" and parts[1] in {"A", "B", "C"}:
+        bs = parts[2]
+        if bs.startswith("BS") and len(bs) == 6:
+            int(bs[2:], 16)
+            return f"Wand-{parts[1]}-{bs}"
+    raise argparse.ArgumentTypeError(f"invalid Wand tag name: {value!r}")
 
 
 def parse_targets(value: str) -> list[str]:
-    targets = [normalize_bs(item) for item in value.replace(" ", ",").split(",") if item.strip()]
+    targets = [normalize_wand_target(item) for item in value.replace(" ", ",").split(",") if item.strip()]
     if len(targets) != 3:
-        raise argparse.ArgumentTypeError("CaliWand mode requires exactly 3 BSxxxx targets")
+        raise argparse.ArgumentTypeError("CaliWand mode requires exactly 3 Wand targets")
     if len(set(targets)) != 3:
         raise argparse.ArgumentTypeError("CaliWand targets must be unique")
     return targets
@@ -53,16 +61,22 @@ def summarize_capture(summary_path: Path) -> dict:
     duration_s = float(summary.get("duration_s") or 0.0)
     for tag, data in sorted(per_tag.items()):
         cm_rows = int(data.get("cm_rows") or 0)
+        tr_rows = int(data.get("tr_rows") or 0)
         cf_rows = int(data.get("cf_rows") or 0)
         pos_rows = int(data.get("position_rows") or 0)
         rows[tag] = {
             "cm_rows": cm_rows,
+            "tr_rows": tr_rows,
             "cf_rows": cf_rows,
             "position_rows": pos_rows,
             "cm_rows_per_s": round(cm_rows / duration_s, 3) if duration_s > 0 else None,
+            "tr_rows_per_s": round(tr_rows / duration_s, 3) if duration_s > 0 else None,
+            "tr_sweeps_per_s": round(tr_rows / duration_s, 3) if duration_s > 0 else None,
             "cf_rows_per_s": round(cf_rows / duration_s, 3) if duration_s > 0 else None,
             "position_rows_per_s": round(pos_rows / duration_s, 3) if duration_s > 0 else None,
             "anchors_seen": data.get("anchors_seen") or [],
+            "tr_poll_counts": data.get("tr_poll_counts") or [],
+            "tr_frame_us": data.get("tr_frame_us") or [],
             "status_counts": data.get("status_counts") or {},
         }
     return {
@@ -73,6 +87,7 @@ def summarize_capture(summary_path: Path) -> dict:
         "profiles": summary.get("profiles") or {},
         "freq_hz": freq_hz,
         "cm_all": summary.get("cm_all"),
+        "tr_all": summary.get("tr_all"),
         "cf_all": summary.get("cf_all"),
         "positions_all": summary.get("positions_all"),
         "per_tag": rows,
@@ -91,7 +106,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--targets",
         required=True,
         type=parse_targets,
-        help="Exactly three wand Tags, comma/space separated, e.g. BS1111,BS2222,BS3333",
+        help="Exactly three wand Tags, comma/space separated, e.g. Wand-A-BSCCF4,Wand-B-BS9336,Wand-C-BS955A",
     )
     p.add_argument("--duration", type=float, default=120.0)
     p.add_argument("--tag-port", default=os.environ.get("BIOSPUR_TAG_PORT", DEFAULT_TAG_PORT))
@@ -142,11 +157,11 @@ def main() -> int:
         "--profiles",
         ",".join(f"{target}:motion" for target in targets),
         "--static-hz",
-        "8",
+        str(CALIWAND_HZ),
         "--roto-hz",
-        "8",
+        str(CALIWAND_HZ),
         "--motion-hz",
-        "8",
+        str(CALIWAND_HZ),
         "--caliwand-mode",
         "--cm-probe-target",
         targets[0],
@@ -176,7 +191,10 @@ def main() -> int:
     env["BIOSPUR_CALIWAND_MODE"] = "1"
 
     print("[CALIWAND] targets=" + target_csv, flush=True)
-    print("[CALIWAND] requested=8Hz/tag, aggregate TDMA practical max ~=25Hz", flush=True)
+    print(
+        f"[CALIWAND] requested={CALIWAND_HZ}Hz/tag, aggregate target={CALIWAND_HZ * 3}Hz",
+        flush=True,
+    )
     print("[CALIWAND] run: " + " ".join(cmd), flush=True)
     if args.dry_run:
         return 0
