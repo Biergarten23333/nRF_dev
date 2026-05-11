@@ -13,11 +13,11 @@ import serial
 
 from run_autopos_round import UUIDS
 from run_autopos_sweep_loop import (
+    anchor_role_counts,
     collect_for_text,
     emit,
     ensure_autopos_maps,
     open_port,
-    scan_anchor_role_counts,
     send_cmd_collect_text,
 )
 
@@ -373,7 +373,7 @@ def main() -> int:
                     or "anchor role all responder runtime final sent=" in attempt_text
                 )
                 ack_ok, ack_info = runtime_responder_ack_info(attempt_text)
-                role_counts = scan_anchor_role_counts(timeout_s=min(8.0, args.scan_timeout_s))
+                role_counts = anchor_role_counts(attempt_text)
                 attempt_result = {
                     "attempt": attempt,
                     "ack_ok": ack_ok,

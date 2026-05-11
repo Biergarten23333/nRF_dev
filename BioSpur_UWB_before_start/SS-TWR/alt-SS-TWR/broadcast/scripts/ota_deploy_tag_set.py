@@ -125,21 +125,35 @@ def run_with_progress(cmd: list[str], log_path: Path, *, label: str, attempt: in
     return subprocess.CompletedProcess(cmd, proc.returncode, stdout=stdout_text, stderr=None)
 
 
+BS_CODE_RE = re.compile(r"BS[0-9A-F]{4}", re.IGNORECASE)
+
+
 def parse_targets(value: str) -> list[str]:
     targets: list[str] = []
     for item in re.split(r"[,\s]+", value.strip()):
-        if item:
-            targets.append(item)
+        if not item:
+            continue
+        match = BS_CODE_RE.search(item)
+        if match:
+            target = match.group(0).upper()
+        else:
+            target = item.upper()
+        if target not in targets:
+            targets.append(target)
     return targets
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Deploy current embedded Tag OTA payload to BioSpur Tags by BLE name.")
+    p = argparse.ArgumentParser(description="Deploy current embedded Tag OTA payload to BioSpur Tags by BS code.")
     p.add_argument("--port", required=True, help="B120/master_control CDC port")
     p.add_argument("--out-dir", required=True, help="Root artifact directory")
     p.add_argument("--timeout-s", type=int, default=420, help="Per-Tag OTA timeout")
-    p.add_argument("--targets", default="BSF66F,BS2DCE,BSDC91", help="Comma/space separated Tag names")
-    p.add_argument("--prefix", default="BS")
+    p.add_argument(
+        "--targets",
+        default="BSF66F,BS2DCE,BSDC91",
+        help="Comma/space separated BS codes. Names like Wand-A-BSCCF4 are canonicalized to BSCCF4.",
+    )
+    p.add_argument("--prefix", default="BS", help="OTA scan prefix; keep BS for BS-code targeting.")
     p.add_argument("--max-attempts", type=int, default=2)
     p.add_argument("--force-kill-port-owner", action="store_true")
     p.add_argument("--expected-fw-marker", default="", help="Expected tag fw marker. If omitted, auto-detect from manifest/build cache.")

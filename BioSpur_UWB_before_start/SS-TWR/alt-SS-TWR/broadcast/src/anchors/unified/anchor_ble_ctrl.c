@@ -14,6 +14,8 @@
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/reboot.h>
 
+#include <deca_device_api.h>
+
 #define BLE_CTRL_MAX_TEXT 256
 #define BLE_CTRL_MAX_CMD 128
 
@@ -212,6 +214,12 @@ static void set_result_locked(const char *text)
     snprintk(g_result_text, sizeof(g_result_text), "%s", text);
 }
 
+static void force_runtime_radio_idle(void)
+{
+    dwt_forcetrxoff();
+    dwt_rxreset();
+}
+
 static ssize_t read_text_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf,
                             uint16_t len, uint16_t offset)
 {
@@ -225,7 +233,7 @@ static void notify_result_if_possible(void);
 
 static uint8_t persistent_role_normalize(uint8_t role)
 {
-    if (role == ANCHOR_ROLE_MASTER) {
+    if (role == ANCHOR_ROLE_MASTER || role == ANCHOR_ROLE_RESPONDER) {
         return ANCHOR_ROLE_MATRIX;
     }
     return role;
@@ -347,6 +355,7 @@ static void handle_runtime_role_locked(uint8_t role, uint32_t master_sweeps, boo
     }
 
     g_runtime_switch_pending = true;
+    force_runtime_radio_idle();
     anchor_runtime_request_role_switch(role, master_sweeps);
     if (role == ANCHOR_ROLE_MASTER && master_sweeps != 0U) {
         char result[64];
@@ -422,6 +431,26 @@ static void process_control_cmd_locked(char *line)
         return;
     }
 
+    if (strcmp(tok, "RM") == 0) {
+        tok = strtok_r(NULL, " ", &savep);
+        if (tok == NULL) {
+            set_result_locked("ERR:BAD_RUNTIME_SWEEP");
+            return;
+        }
+        gen_val = strtoul(tok, &endp, 10);
+        if (endp == tok || *endp != '\0' || gen_val == 0UL ||
+            gen_val > 10000UL) {
+            set_result_locked("ERR:INVALID_RUNTIME_SWEEP");
+            return;
+        }
+        if (strtok_r(NULL, " ", &savep) != NULL) {
+            set_result_locked("ERR:BAD_RUNTIME_ARG");
+            return;
+        }
+        handle_runtime_role_locked(ANCHOR_ROLE_MASTER, (uint32_t)gen_val, false);
+        return;
+    }
+
     if (strcmp(tok, "RUNTIME") == 0) {
         uint32_t master_sweeps = 0U;
         bool force_restart = false;
@@ -488,6 +517,7 @@ static void process_control_cmd_locked(char *line)
     }
 
     if (strcmp(tok, "STOP") == 0) {
+        force_runtime_radio_idle();
         anchor_runtime_request_stop();
         set_result_locked(g_busy ? "OK STOP_REQUESTED" : "OK STOP_IDLE");
         return;

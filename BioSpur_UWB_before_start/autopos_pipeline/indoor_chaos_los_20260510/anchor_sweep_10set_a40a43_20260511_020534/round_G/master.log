@@ -1,0 +1,103 @@
+PORT=/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_87EA2F4A526C5A02-if00
+START=2026-05-11 02:07:02
+MASTER=G
+PRECHECK: BSxxxx tag quarantine disabled; master/matrix anchors ignore tag polls during sweep
+PRECHECK: context session_autopos_ready=1 autopos_initialized=1
+PRECHECK: reusing session AUTOPOS state from matrix guard
+PRECHECK: reusing existing AUTOPOS map
+>>> autopos round G 10
+[AUTOPOS] AUTOPOS round staged: master=G sets=10
+[AUTOPOS] Disconnected[2]: D9:C7:9C:16:71:C9 (random) reason=0x08 link=anchor-ctrl ready=1
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=3 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+>>> autopos status
+[AUTOPOS] AUTOPOS: mode=AUTOPOS state=staged staged=G last_success=F sets=10 error=-
+>>> autopos apply
+[AUTOPOS] AUTOPOS apply started
+[AUTOPOS] RECV_BG gate: SUPPRESS reason=autopos_detach
+[AUTOPOS] AUTOPOS detach skip STOP: finite master auto-returns to matrix sets=10
+[AUTOPOS] RECV_BG gate: ALLOW reason=autopos_detach_done
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=3 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] AUTOPOS apply mode: incremental
+[AUTOPOS] AUTOPOS apply incremental: prev_master=F new_master=G
+[AUTOPOS] AUTOPOS incremental: skip F demote for finite sweep; master auto-returned to matrix
+[AUTOPOS] Master discovery mode: CONN & START
+[AUTOPOS] Master discovery mode: CONN & START
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=3 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] AUTOPOS wait anchor ready: uuid=B3087BC3D87CCCD316AEDC6B71D6677F timeout_ms=12000
+[AUTOPOS] AUTOPOS wait anchor ready: waited=0 ready_count=0
+[AUTOPOS] READY count=0 target=anchor target_uuid=B3087BC3D87CCCD316AEDC6B71D6677F conn_count=3 connecting_slot=-1 scan=1 auto=1
+[AUTOPOS] READY peer[0]: link=anchor-ctrl connected=1 ready=1 pending=0 inflight=0 retries=0 start_failures=0 uuid=CEE5A7EFCB35F8A56B430047629F5309 name=- state_h=0x0012 ctrl_h=0x0019 result_h=0x001b
+[AUTOPOS] READY peer[1]: link=anchor-ctrl connected=1 ready=1 pending=0 inflight=0 retries=0 start_failures=0 uuid=B2B5FA625534A8C617135DCAFC9E036A name=- state_h=0x0012 ctrl_h=0x0019 result_h=0x001b
+[AUTOPOS] READY peer[3]: link=anchor-ctrl connected=1 ready=1 pending=0 inflight=0 retries=0 start_failures=0 uuid=840C68591E90019821AACFF1B73AAA34 name=- state_h=0x0012 ctrl_h=0x0019 result_h=0x001b
+[AUTOPOS] AUTOPOS wait anchor ready: waited=1000 ready_count=0
+[AUTOPOS] READY count=0 target=anchor target_uuid=B3087BC3D87CCCD316AEDC6B71D6677F conn_count=3 connecting_slot=-1 scan=1 auto=1
+[AUTOPOS] READY peer[0]: link=anchor-ctrl connected=1 ready=1 pending=0 inflight=0 retries=0 start_failures=0 uuid=CEE5A7EFCB35F8A56B430047629F5309 name=- state_h=0x0012 ctrl_h=0x0019 result_h=0x001b
+[AUTOPOS] READY peer[1]: link=anchor-ctrl connected=1 ready=1 pending=0 inflight=0 retries=0 start_failures=0 uuid=B2B5FA625534A8C617135DCAFC9E036A name=- state_h=0x0012 ctrl_h=0x0019 result_h=0x001b
+[AUTOPOS] READY peer[3]: link=anchor-ctrl connected=1 ready=1 pending=0 inflight=0 retries=0 start_failures=0 uuid=840C68591E90019821AACFF1B73AAA34 name=- state_h=0x0012 ctrl_h=0x0019 result_h=0x001b
+[AUTOPOS] AUTOPOS wait anchor ready: waited=2000 ready_count=0
+[AUTOPOS] READY count=0 target=anchor target_uuid=B3087BC3D87CCCD316AEDC6B71D6677F conn_count=3 connecting_slot=-1 scan=1 auto=1
+[AUTOPOS] READY peer[0]: link=anchor-ctrl connected=1 ready=1 pending=0 inflight=0 retries=0 start_failures=0 uuid=CEE5A7EFCB35F8A56B430047629F5309 name=- state_h=0x0012 ctrl_h=0x0019 result_h=0x001b
+[AUTOPOS] READY peer[1]: link=anchor-ctrl connected=1 ready=1 pending=0 inflight=0 retries=0 start_failures=0 uuid=B2B5FA625534A8C617135DCAFC9E036A name=- state_h=0x0012 ctrl_h=0x0019 result_h=0x001b
+[AUTOPOS] READY peer[3]: link=anchor-ctrl connected=1 ready=1 pending=0 inflight=0 retries=0 start_failures=0 uuid=840C68591E90019821AACFF1B73AAA34 name=- state_h=0x0012 ctrl_h=0x0019 result_h=0x001b
+[AUTOPOS] AUTOPOS wait anchor ready: waited=3000 ready_count=0
+[AUTOPOS] READY count=0 target=anchor target_uuid=B3087BC3D87CCCD316AEDC6B71D6677F conn_count=3 connecting_slot=-1 scan=1 auto=1
+[AUTOPOS] READY peer[0]: link=anchor-ctrl connected=1 ready=1 pending=0 inflight=0 retries=0 start_failures=0 uuid=CEE5A7EFCB35F8A56B430047629F5309 name=- state_h=0x0012 ctrl_h=0x0019 result_h=0x001b
+[AUTOPOS] READY peer[1]: link=anchor-ctrl connected=1 ready=1 pending=0 inflight=0 retries=0 start_failures=0 uuid=B2B5FA625534A8C617135DCAFC9E036A name=- state_h=0x0012 ctrl_h=0x0019 result_h=0x001b
+[AUTOPOS] READY peer[3]: link=anchor-ctrl connected=1 ready=1 pending=0 inflight=0 retries=0 start_failures=0 uuid=840C68591E90019821AACFF1B73AAA34 name=- state_h=0x0012 ctrl_h=0x0019 result_h=0x001b
+[AUTOPOS] SCAN hit: EC:9F:55:9D:7E:A1 (random) rssi=-68 name=- bs=- uuid=B3087BC3D87CCCD316AEDC6B71D6677F target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[2]: addr=EC:9F:55:9D:7E:A1 (random) link=anchor-ctrl uuid=B3087BC3D87CCCD316AEDC6B71D6677F target=anchor
+[AUTOPOS] CONNECT pending[2]: addr_valid=1 link=anchor-ctrl uuid=B3087BC3D87CCCD316AEDC6B71D6677F scan_running=1 conn_count=3
+[AUTOPOS] CONNECT pending[2]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[2] rc=0 conn=0x20004a78 interval=32-56 timeout=1000
+[AUTOPOS] Connected[2]: EC:9F:55:9D:7E:A1 (random) name=- bs=-
+[AUTOPOS] CONNECT state[2]: link=anchor-ctrl uuid=B3087BC3D87CCCD316AEDC6B71D6677F ready=0 conn=0x20004a78
+SETUP[2] begin: link=anchor-ctrl uuid=B3087BC3D87CCCD316AEDC6B71D6677F conn=0x20004a78
+SETUP[2] anchor-ctrl result-stream mtu_exchange rc=0
+SETUP[2] conn_param_update rc=0 interval=32-56 timeout=1000
+Anchor ctrl result-stream subscribe[2] rc=0
+ANCHOR_CTRL[2] static link ready state=0x0012 ctrl=0x0019 result=0x001b uuid=B3087BC3D87CCCD316AEDC6B71D6677F
+[AUTOPOS] AUTOPOS wait anchor ready: waited=3800 ready_count=1
+[AUTOPOS] READY count=1 target=anchor target_uuid=B3087BC3D87CCCD316AEDC6B71D6677F conn_count=4 connecting_slot=-1 scan=0 auto=1
+[AUTOPOS] READY peer[0]: link=anchor-ctrl connected=1 ready=1 pending=0 inflight=0 retries=0 start_failures=0 uuid=CEE5A7EFCB35F8A56B430047629F5309 name=- state_h=0x0012 ctrl_h=0x0019 result_h=0x001b
+[AUTOPOS] READY peer[1]: link=anchor-ctrl connected=1 ready=1 pending=0 inflight=0 retries=0 start_failures=0 uuid=B2B5FA625534A8C617135DCAFC9E036A name=- state_h=0x0012 ctrl_h=0x0019 result_h=0x001b
+[AUTOPOS] READY peer[2]: link=anchor-ctrl connected=1 ready=1 pending=0 inflight=0 retries=0 start_failures=0 uuid=B3087BC3D87CCCD316AEDC6B71D6677F name=- state_h=0x0012 ctrl_h=0x0019 result_h=0x001b
+[AUTOPOS] READY peer[3]: link=anchor-ctrl connected=1 ready=1 pending=0 inflight=0 retries=0 start_failures=0 uuid=840C68591E90019821AACFF1B73AAA34 name=- state_h=0x0012 ctrl_h=0x0019 result_h=0x001b
+[AUTOPOS] AUTOPOS wait anchor ready: uuid=B3087BC3D87CCCD316AEDC6B71D6677F control link ready
+[AUTOPOS] Master anchor result stream: on
+[AUTOPOS] MTU exchange[2] done (498)
+[AUTOPOS] BLE cmd skip[0]: target mismatch kind=anchor target_name=- target_uuid=B3087BC3D87CCCD316AEDC6B71D6677F peer_name=- peer_bs=- peer_uuid=CEE5A7EFCB35F8A56B430047629F5309 link=anchor-ctrl ready=1
+[AUTOPOS] BLE cmd skip[1]: target mismatch kind=anchor target_name=- target_uuid=B3087BC3D87CCCD316AEDC6B71D6677F peer_name=- peer_bs=- peer_uuid=B2B5FA625534A8C617135DCAFC9E036A link=anchor-ctrl ready=1
+[AUTOPOS] Anchor ctrl sent[2]: RM 10 uuid=B3087BC3D87CCCD316AEDC6B71D6677F
+[AUTOPOS] BLE cmd skip[3]: target mismatch kind=anchor target_name=- target_uuid=B3087BC3D87CCCD316AEDC6B71D6677F peer_name=- peer_bs=- peer_uuid=840C68591E90019821AACFF1B73AAA34 link=anchor-ctrl ready=1
+[AUTOPOS] ANCHOR_CTRL[2] notify: OK RUNTIME_SWITCH_REQUESTED SWEEP=10
+[AUTOPOS] ANCHOR_CTRL[2] notify: DBG ROLE_SWITCH anchor=G role=master sets=10
+[AUTOPOS] ANCHOR_CTRL[2] notify: DBG ROLE_START anchor=G role=master sets=10
+[AUTOPOS] ANCHOR_CTRL[2] notify: DBG MASTER_START anchor=G peers=7 sets=10
+[AUTOPOS] ANCHOR_CTRL[2] notify: DBG MASTER_FIRST_PEER anchor=G peer=A
+[AUTOPOS] Conn param updated[2]: int=56 lat=0 to=1000
+[AUTOPOS] ANCHOR_CTRL[2] notify: DBG MASTER_FIRST_RESULT anchor=G peer=A rx=0 status=0x008200f2
+[AUTOPOS] AUTOPOS result: DBG MASTER_FIRST_RESULT anchor=G peer=A rx=0 status=0x008200f2
+[AUTOPOS] SW-G,A,0,0,B,0,0,C,1649,100,D,4371,100,E,0,0,F,0,0,H,3897,100
+[AUTOPOS] SW-G,A,0,0,B,0,0,C,1632,100,D,4337,100,E,0,0,F,0,0,H,3954,100
+[AUTOPOS] SW-G,A,0,0,B,0,0,C,1668,100,D,4311,100,E,0,0,F,0,0,H,3929,100
+[AUTOPOS] AUTOPOS state: STATE fw=alt-bcast-a40-pendingguard-g120 bs=BSEC88 uuid=B3087BC3D87CCCD316AEDC6B71D6677F label=G role=master cfg_valid=1 busy=1 pending_valid=1 schema=2 gen=0 reboot_required=0
+[AUTOPOS] AUTOPOS runtime accept via ro[AUTOPOS] SW-G,A,0,0,B,0,0,C,1672,100,D,4381,100,E,0,0,F,0,0,H,3901,100
+le state: master=G
+[AUTOPOS] AUTOPOS anchor G role verified
+[AUTOPOS] AUTOPOS apply success: master=G
+[AUTOPOS] AUTOPOS finite sweep handoff: master=G sets=10; host[AUTOPOS] SW-G,A,0,0,B,0,0,C,1672,100,D,4310,100,E,0,0,F,0,0,H,3929,100
+ waits for SWEEP_DONE
+[AUTOPOS] AUTOPOS sweep listen attach: master=G uuid=B3087BC3D87CCCD316AEDC6B71D6677F
+[AUTOPOS] Master anchor result stream: on
+[AUTOPOS] Master discovery mode: CONN & START
+[AUTOPOS] SW-G,A,0,0,B,0,0,C,1674,100,D,4309,100,E,0,0,F,0,0,H,3924,100
+[AUTOPOS] SW-G,A,0,0,B,0,0,C,1642,100,D,4327,100,E,0,0,F,0,0,H,3912,100
+[AUTOPOS] SW-G,A,0,0,B,0,0,C,1666,100,D,4368,100,E,0,0,F,0,0,H,3940,100
+[AUTOPOS] SW-G,A,0,0,B,0,0,C,1687,100,D,4359,100,E,0,0,F,0,0,H,3900,100
+[AUTOPOS] SW-G,A,0,0,B,0,0,C,1652,100,D,4301,100,E,0,0,F,0,0,H,3925,100
+[AUTOPOS] ANCHOR_CTRL[2] notify: SWEEP_DONE master=G sets=10 role=matrix
+[AUTOPOS] ANCHOR_CTRL[2] notify: DBG ROLE_SWITCH anchor=G role=matrix sets=0
+END=2026-05-11 02:07:10

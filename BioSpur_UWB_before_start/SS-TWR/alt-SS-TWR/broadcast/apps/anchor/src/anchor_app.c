@@ -204,7 +204,7 @@ static void anchor_blue_led_init(void)
 
 static uint8_t persistent_role_normalize(uint8_t role)
 {
-    if (role == ANCHOR_ROLE_MASTER) {
+    if (role == ANCHOR_ROLE_MASTER || role == ANCHOR_ROLE_RESPONDER) {
         return ANCHOR_ROLE_MATRIX;
     }
     return role;
@@ -219,7 +219,7 @@ static void anchor_normalize_persisted_role(anchor_config_t *cfg, bool *cfg_vali
         return;
     }
 
-    if (cfg->role != ANCHOR_ROLE_MASTER) {
+    if (cfg->role != ANCHOR_ROLE_MASTER && cfg->role != ANCHOR_ROLE_RESPONDER) {
         return;
     }
 
@@ -244,7 +244,7 @@ static void anchor_normalize_persisted_role(anchor_config_t *cfg, bool *cfg_vali
     }
 
     *cfg = local;
-    printk("Persisted master role normalized to matrix on boot gen=%lu\n",
+    printk("Persisted non-matrix role normalized to matrix on boot gen=%lu\n",
            (unsigned long)local.generation);
 }
 
@@ -303,6 +303,41 @@ static int anchor_run_runtime_role(uint8_t anchor_id_runtime, uint8_t anchor_id_
     uint8_t effective_allow_tag_polls = 0U;
     int ret;
 
+    if (anchor_runtime_requested_role() != ANCHOR_ROLE_UNSET) {
+        char role_line[80];
+
+        snprintk(role_line, sizeof(role_line),
+                 "DBG ROLE_ENTRY_PENDING anchor=%c current=%s pending=%s sets=%lu",
+                 anchor_config_label_char(anchor_id_cfg),
+                 anchor_role_name(role),
+                 anchor_role_name(anchor_runtime_requested_role()),
+                 (unsigned long)anchor_runtime_requested_master_sweeps());
+        (void)anchor_ble_ctrl_publish_result_line(role_line);
+        return 0;
+    }
+
+    /*
+     * Clear any stale stop from the previous role before publishing this role
+     * as active.  A new runtime role command can arrive on the BLE control
+     * link between the pending-role check above and this clear.  Re-check
+     * immediately after the clear so we never erase the stop bit for a freshly
+     * requested RM/MATRIX transition and then enter the old UWB loop forever
+     * with pending_valid=1.
+     */
+    anchor_runtime_clear_stop();
+    if (anchor_runtime_requested_role() != ANCHOR_ROLE_UNSET) {
+        char role_line[80];
+
+        snprintk(role_line, sizeof(role_line),
+                 "DBG ROLE_ENTRY_RACE anchor=%c current=%s pending=%s sets=%lu",
+                 anchor_config_label_char(anchor_id_cfg),
+                 anchor_role_name(role),
+                 anchor_role_name(anchor_runtime_requested_role()),
+                 (unsigned long)anchor_runtime_requested_master_sweeps());
+        (void)anchor_ble_ctrl_publish_result_line(role_line);
+        return 0;
+    }
+
     ret = anchor_role_runtime_flags(role, &effective_master, &effective_allow_tag_polls);
     if (ret != 0) {
         printk("Invalid runtime role=%u\n", (unsigned int)role);
@@ -314,10 +349,16 @@ static int anchor_run_runtime_role(uint8_t anchor_id_runtime, uint8_t anchor_id_
     anchor_ble_ctrl_set_runtime(anchor_id_cfg, role, cfg_valid);
     uart_role_switch_set_ranging_active(true);
     anchor_ble_ctrl_set_busy(true);
-    anchor_runtime_clear_stop();
     anchor_blue_led_set_mode(anchor_blue_led_mode_for_role(role));
 
     if (effective_master != 0U) {
+        char role_line[64];
+
+        snprintk(role_line, sizeof(role_line), "DBG ROLE_START anchor=%c role=master sets=%lu",
+                 anchor_config_label_char(anchor_id_cfg),
+                 (unsigned long)master_sweep_limit);
+        (void)anchor_ble_ctrl_publish_result_line(role_line);
+
         if (APP_ANCHOR_USE_AUTO_SCHEDULE != 0U) {
             if (APP_ANCHOR_SCHEDULE_MODE == 2U) {
                 peer_count = uwb_anchor_schedule_all_except_self(
@@ -454,10 +495,10 @@ int anchor_app_run(void)
             unassigned_mode = true;
         }
         /*
-         * Honor the persisted NVS role for field-replaced anchors.  The
-         * control plane can still switch roles later, but a device provisioned
-         * as responder must boot as responder so BLE discovery, blue LED state,
-         * and OTA targeting remain stable after direct flash/reprovision.
+         * Persisted config carries identity only.  Runtime roles such as master
+         * and responder are deliberately not sticky across power cycles: a new
+         * power cycle means the rig moved or a previous calibration session
+         * ended, so every anchor must come back as scan-friendly matrix.
          */
         effective_role = cfg.role;
     } else {
@@ -630,6 +671,15 @@ int anchor_app_run(void)
         }
         printk("Anchor runtime role switch applied: anchor=%c role=%s\n",
                anchor_config_label_char(anchor_id_cfg), anchor_role_name(effective_role));
+        {
+            char role_line[64];
+
+            snprintk(role_line, sizeof(role_line), "DBG ROLE_SWITCH anchor=%c role=%s sets=%lu",
+                     anchor_config_label_char(anchor_id_cfg),
+                     anchor_role_name(effective_role),
+                     (unsigned long)effective_master_sweep_limit);
+            (void)anchor_ble_ctrl_publish_result_line(role_line);
+        }
         ret = anchor_ble_id_update_role(effective_role);
         if (ret != 0 && ret != -EAGAIN) {
             printk("anchor_ble_id_update_role failed after runtime switch: %d\n", ret);

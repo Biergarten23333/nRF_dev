@@ -1,0 +1,224 @@
+PORT=/dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02-if00
+START=2026-05-11 01:11:33
+MASTER=A
+PRECHECK: BSxxxx tag quarantine disabled; master/matrix anchors ignore tag polls during sweep
+PRECHECK: context session_autopos_ready=1 autopos_initialized=1
+PRECHECK: reusing session AUTOPOS state from matrix guard
+PRECHECK: reusing existing AUTOPOS map
+>>> autopos round A 10
+[AUTOPOS] AUTOPOS round staged: master=A sets=10
+>>> autopos status
+[AUTOPOS] AUTOPOS: mode=AUTOPOS state=staged staged=A last_success=- sets=10 error=-
+>>> autopos apply
+[AUTOPOS] AUTOPOS apply started
+[AUTOPOS] RECV_BG gate: SUPPRESS reason=autopos_detach
+[AUTOPOS] RECV_BG gate: ALLOW reason=autopos_detach_done
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] AUTOPOS apply mode: bootstrap-target-only
+[AUTOPOS] Master discovery mode: CONN & START
+[AUTOPOS] Master discovery mode: CONN & START
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] AUTOPOS wait anchor ready: uuid=4DC6B8187E33803AE8601FB0D7992B96 timeout_ms=12000
+[AUTOPOS] AUTOPOS wait anchor ready: waited=0 ready_count=0
+[AUTOPOS] READY count=0 target=anchor target_uuid=4DC6B8187E33803AE8601FB0D7992B96 conn_count=0 connecting_slot=-1 scan=1 auto=1
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-94 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=F2:B7:4E:8A:79:01 (random) link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x200048e8 interval=32-56 timeout=1000
+[AUTOPOS] Connected[0]: F2:B7:4E:8A:79:01 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 ready=0 conn=0x200048e8
+SETUP[0] begin: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 conn=0x200048e8
+SETUP[0] anchor-ctrl: skip mtu/phy negotiation
+SETUP[0] conn_param_update rc=0 interval=32-56 timeout=1000
+ANCHOR_CTRL[0] static link ready state=0x0012 ctrl=0x0019 result=0x001b uuid=4DC6B8187E33803AE8601FB0D7992B96
+[AUTOPOS] AUTOPOS wait anchor ready: waited=800 ready_count=1
+[AUTOPOS] READY count=1 target=anchor target_uuid=4DC6B8187E33803AE8601FB0D7992B96 conn_count=1 connecting_slot=-1 scan=0 auto=1
+[AUTOPOS] READY peer[0]: link=anchor-ctrl connected=1 ready=1 pending=0 inflight=0 retries=0 start_failures=0 uuid=4DC6B8187E33803AE8601FB0D7992B96 name=- state_h=0x0012 ctrl_h=0x0019 result_h=0x001b
+[AUTOPOS] AUTOPOS wait anchor ready: uuid=4DC6B8187E33803AE8601FB0D7992B96 control link ready
+[AUTOPOS] Anchor ctrl sent[0]: RM 10 uuid=4DC6B8187E33803AE8601FB0D7992B96
+[AUTOPOS] AUTOPOS result: OK RUNTIME_SWITCH_REQU
+[AUTOPOS] AUTOPOS bootstrap target-only promote verified: master=A
+[AUTOPOS] AUTOPOS apply success: master=A
+[AUTOPOS] AUTOPOS finite sweep handoff: master=A sets=10; host waits for SWEEP_DONE
+[AUTOPOS] AUTOPOS sweep listen attach: master=A uuid=4DC6B8187E33803AE8601FB0D7992B96
+[AUTOPOS] Master discovery mode: CONN & START
+[AUTOPOS] Conn param updated[0]: int=56 lat=0 to=1000
+[AUTOPOS] Disconnected[0]: F2:B7:4E:8A:79:01 (random) reason=0x08 link=anchor-ctrl ready=1
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-93 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=F2:B7:4E:8A:79:01 (random) link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x200048e8 interval=32-56 timeout=1000
+[AUTOPOS] Connected[0]: F2:B7:4E:8A:79:01 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 ready=0 conn=0x200048e8
+SETUP[0] begin: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 conn=0x200048e8
+SETUP[0] anchor-ctrl: skip mtu/phy negotiation
+SETUP[0] conn_param_update rc=0 interval=32-56 timeout=1000
+ANCHOR_CTRL[0] static link ready state=0x0012 ctrl=0x0019 result=0x001b uuid=4DC6B8187E33803AE8601FB0D7992B96
+[AUTOPOS] Conn param updated[0]: int=56 lat=0 to=1000
+[AUTOPOS] Disconnected[0]: F2:B7:4E:8A:79:01 (random) reason=0x08 link=anchor-ctrl ready=1
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-93 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=F2:B7:4E:8A:79:01 (random) link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x200048e8 interval=32-56 timeout=1000
+[AUTOPOS] Connected[0]: F2:B7:4E:8A:79:01 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 ready=0 conn=0x200048e8
+SETUP[0] begin: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 conn=0x200048e8
+SETUP[0] anchor-ctrl: skip mtu/phy negotiation
+SETUP[0] conn_param_update rc=0 interval=32-56 timeout=1000
+ANCHOR_CTRL[0] static link ready state=0x0012 ctrl=0x0019 result=0x001b uuid=4DC6B8187E33803AE8601FB0D7992B96
+[AUTOPOS] Disconnected[0]: F2:B7:4E:8A:79:01 (random) reason=0x3e link=anchor-ctrl ready=1
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-68 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=F2:B7:4E:8A:79:01 (random) link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x200048e8 interval=32-56 timeout=1000
+[AUTOPOS] Connected[0]: F2:B7:4E:8A:79:01 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 ready=0 conn=0x200048e8
+SETUP[0] begin: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 conn=0x200048e8
+SETUP[0] anchor-ctrl: skip mtu/phy negotiation
+SETUP[0] conn_param_update rc=0 interval=32-56 timeout=1000
+ANCHOR_CTRL[0] static link ready state=0x0012 ctrl=0x0019 result=0x001b uuid=4DC6B8187E33803AE8601FB0D7992B96
+[AUTOPOS] Disconnected[0]: F2:B7:4E:8A:79:01 (random) reason=0x3e link=anchor-ctrl ready=1
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-68 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=F2:B7:4E:8A:79:01 (random) link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x200048e8 interval=32-56 timeout=1000
+[AUTOPOS] Connected[0]: F2:B7:4E:8A:79:01 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 ready=0 conn=0x200048e8
+SETUP[0] begin: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 conn=0x200048e8
+SETUP[0] anchor-ctrl: skip mtu/phy negotiation
+SETUP[0] conn_param_update rc=0 interval=32-56 timeout=1000
+ANCHOR_CTRL[0] static link ready state=0x0012 ctrl=0x0019 result=0x001b uuid=4DC6B8187E33803AE8601FB0D7992B96
+[AUTOPOS] Disconnected[0]: F2:B7:4E:8A:79:01 (random) reason=0x3e link=anchor-ctrl ready=1
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-94 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=F2:B7:4E:8A:79:01 (random) link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x200048e8 interval=32-56 timeout=1000
+[AUTOPOS] Connected[0]: F2:B7:4E:8A:79:01 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 ready=0 conn=0x200048e8
+SETUP[0] begin: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 conn=0x200048e8
+SETUP[0] anchor-ctrl: skip mtu/phy negotiation
+SETUP[0] conn_param_update rc=0 interval=32-56 timeout=1000
+ANCHOR_CTRL[0] static link ready state=0x0012 ctrl=0x0019 result=0x001b uuid=4DC6B8187E33803AE8601FB0D7992B96
+[AUTOPOS] Conn param updated[0]: int=56 lat=0 to=1000
+[AUTOPOS] Conn param updated[0]: int=56 lat=0 to=1000
+[AUTOPOS] Disconnected[0]: F2:B7:4E:8A:79:01 (random) reason=0x08 link=anchor-ctrl ready=1
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-68 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=F2:B7:4E:8A:79:01 (random) link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x200048e8 interval=32-56 timeout=1000
+[AUTOPOS] Connected[0]: F2:B7:4E:8A:79:01 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 ready=0 conn=0x200048e8
+SETUP[0] begin: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 conn=0x200048e8
+SETUP[0] anchor-ctrl: skip mtu/phy negotiation
+SETUP[0] conn_param_update rc=0 interval=32-56 timeout=1000
+ANCHOR_CTRL[0] static link ready state=0x0012 ctrl=0x0019 result=0x001b uuid=4DC6B8187E33803AE8601FB0D7992B96
+[AUTOPOS] Conn param updated[0]: int=56 lat=0 to=1000
+[AUTOPOS] Disconnected[0]: F2:B7:4E:8A:79:01 (random) reason=0x08 link=anchor-ctrl ready=1
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-68 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=F2:B7:4E:8A:79:01 (random) link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x200048e8 interval=32-56 timeout=1000
+[AUTOPOS] Connected[0]: F2:B7:4E:8A:79:01 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 ready=0 conn=0x200048e8
+SETUP[0] begin: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 conn=0x200048e8
+SETUP[0] anchor-ctrl: skip mtu/phy negotiation
+SETUP[0] conn_param_update rc=0 interval=32-56 timeout=1000
+ANCHOR_CTRL[0] static link ready state=0x0012 ctrl=0x0019 result=0x001b uuid=4DC6B8187E33803AE8601FB0D7992B96
+[AUTOPOS] Conn param updated[0]: int=56 lat=0 to=1000
+[AUTOPOS] Disconnected[0]: F2:B7:4E:8A:79:01 (random) reason=0x08 link=anchor-ctrl ready=1
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-74 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=F2:B7:4E:8A:79:01 (random) link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x200048e8 interval=32-56 timeout=1000
+[AUTOPOS] Connected[0]: F2:B7:4E:8A:79:01 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 ready=0 conn=0x200048e8
+SETUP[0] begin: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 conn=0x200048e8
+SETUP[0] anchor-ctrl: skip mtu/phy negotiation
+SETUP[0] conn_param_update rc=0 interval=32-56 timeout=1000
+ANCHOR_CTRL[0] static link ready state=0x0012 ctrl=0x0019 result=0x001b uuid=4DC6B8187E33803AE8601FB0D7992B96
+[AUTOPOS] Conn param updated[0]: int=56 lat=0 to=1000
+[AUTOPOS] Disconnected[0]: F2:B7:4E:8A:79:01 (random) reason=0x08 link=anchor-ctrl ready=1
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-93 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=F2:B7:4E:8A:79:01 (random) link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x200048e8 interval=32-56 timeout=1000
+[AUTOPOS] Connected[0]: F2:B7:4E:8A:79:01 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 ready=0 conn=0x200048e8
+SETUP[0] begin: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 conn=0x200048e8
+SETUP[0] anchor-ctrl: skip mtu/phy negotiation
+SETUP[0] conn_param_update rc=0 interval=32-56 timeout=1000
+ANCHOR_CTRL[0] static link ready state=0x0012 ctrl=0x0019 result=0x001b uuid=4DC6B8187E33803AE8601FB0D7992B96
+[AUTOPOS] Conn param updated[0]: int=56 lat=0 to=1000
+[AUTOPOS] Disconnected[0]: F2:B7:4E:8A:79:01 (random) reason=0x08 link=anchor-ctrl ready=1
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-68 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=F2:B7:4E:8A:79:01 (random) link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x200048e8 interval=32-56 timeout=1000
+[AUTOPOS] Connected[0]: F2:B7:4E:8A:79:01 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 ready=0 conn=0x200048e8
+SETUP[0] begin: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 conn=0x200048e8
+SETUP[0] anchor-ctrl: skip mtu/phy negotiation
+SETUP[0] conn_param_update rc=0 interval=32-56 timeout=1000
+ANCHOR_CTRL[0] static link ready state=0x0012 ctrl=0x0019 result=0x001b uuid=4DC6B8187E33803AE8601FB0D7992B96
+[AUTOPOS] Disconnected[0]: F2:B7:4E:8A:79:01 (random) reason=0x3e link=anchor-ctrl ready=1
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-68 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=F2:B7:4E:8A:79:01 (random) link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x200048e8 interval=32-56 timeout=1000
+[AUTOPOS] Connected[0]: F2:B7:4E:8A:79:01 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 ready=0 conn=0x200048e8
+SETUP[0] begin: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 conn=0x200048e8
+SETUP[0] anchor-ctrl: skip mtu/phy negotiation
+SETUP[0] conn_param_update rc=0 interval=32-56 timeout=1000
+ANCHOR_CTRL[0] static link ready state=0x0012 ctrl=0x0019 result=0x001b uuid=4DC6B8187E33803AE8601FB0D7992B96
+[AUTOPOS] Disconnected[0]: F2:B7:4E:8A:79:01 (random) reason=0x3e link=anchor-ctrl ready=1
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: F2:B7:4E:8A:79:01 (random) rssi=-68 name=- bs=- uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=F2:B7:4E:8A:79:01 (random) link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 target=anchor
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x200048e8 interval=32-56 timeout=1000
+[AUTOPOS] Connected[0]: F2:B7:4E:8A:79:01 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 ready=0 conn=0x200048e8
+SETUP[0] begin: link=anchor-ctrl uuid=4DC6B8187E33803AE8601FB0D7992B96 conn=0x200048e8
+SETUP[0] anchor-ctrl: skip mtu/phy negotiation
+SETUP[0] conn_param_update rc=0 interval=32-56 timeout=1000
+ANCHOR_CTRL[0] static link ready state=0x0012 ctrl=0x0019 result=0x001b uuid=4DC6B8187E33803AE8601FB0D7992B96
+[AUTOPOS] Conn param updated[0]: int=56 lat=0 to=1000

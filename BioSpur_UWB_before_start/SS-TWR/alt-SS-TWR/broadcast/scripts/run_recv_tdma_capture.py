@@ -166,6 +166,7 @@ def iter_tr_records(text: str):
 
         match = TR_BCAST_RE.search(fragment)
         if match:
+            tr_version = int(match.group("ver"))
             active_mask = int(match.group("active_mask"), 16)
             valid_mask = int(match.group("valid_mask"), 16)
             rx_mask = int(match.group("rx_mask"), 16)
@@ -179,21 +180,30 @@ def iter_tr_records(text: str):
                         len(qualities), len(statuses))
             for pos in range(count):
                 anchor_id = active_anchors[pos]
+                status = statuses[pos]
+                range_mm = ranges[pos]
+                # TR2 is a debug/broadcast diagnostic record.  Its valid_mask
+                # can lag or represent the diagnostic mask, while the per-anchor
+                # status field is the ranging success contract.
+                effective_valid = (
+                    (valid_mask & (1 << anchor_id)) != 0
+                    or (tr_version == 2 and status == "O" and range_mm > 100)
+                )
                 yield {
                     "sweep": int(match.group("sweep")),
                     "plan": match.group("plan"),
                     "pmode": int(match.group("pmode")),
                     "anchor_id": anchor_id,
                     "raw_mm": raws[pos],
-                    "range_mm": ranges[pos],
+                    "range_mm": range_mm,
                     "quality_percent": qualities[pos],
-                    "valid": 1 if (valid_mask & (1 << anchor_id)) else 0,
-                    "status": statuses[pos],
+                    "valid": 1 if effective_valid else 0,
+                    "status": status,
                     "quality_flag_percent": int(match.group("qf") or 0),
                     "first_to_last_us": int(match.group("air_us") or 0),
                     "frame_us": int(match.group("post_us") or 0),
                     "poll_count": int(match.group("poll_count") or 0),
-                    "tr_version": int(match.group("ver")),
+                    "tr_version": tr_version,
                     "rx_mask": f"{rx_mask:02x}",
                     "air_us": int(match.group("air_us") or 0),
                     "post_us": int(match.group("post_us") or 0),
@@ -206,6 +216,7 @@ def iter_tr_records(text: str):
         if not match:
             continue
 
+        tr_version = int(match.group("ver"))
         active_mask = int(match.group("active_mask"), 16)
         valid_mask = int(match.group("valid_mask"), 16)
         raws = [int(v) for v in match.group("raws").split(",")]
@@ -218,21 +229,29 @@ def iter_tr_records(text: str):
                     len(qualities), len(statuses))
         for pos in range(count):
             anchor_id = active_anchors[pos]
+            status = statuses[pos]
+            range_mm = ranges[pos]
+            # TR1 is legacy/debug output.  On Wand debug images the valid_mask
+            # is not always the final per-anchor validity; status=O is.
+            effective_valid = (
+                (valid_mask & (1 << anchor_id)) != 0
+                or (tr_version == 1 and status == "O" and range_mm > 100)
+            )
             yield {
                 "sweep": int(match.group("sweep")),
                 "plan": match.group("plan"),
                 "pmode": int(match.group("pmode")),
                 "anchor_id": anchor_id,
                 "raw_mm": raws[pos],
-                "range_mm": ranges[pos],
+                "range_mm": range_mm,
                 "quality_percent": qualities[pos],
-                "valid": 1 if (valid_mask & (1 << anchor_id)) else 0,
-                "status": statuses[pos],
+                "valid": 1 if effective_valid else 0,
+                "status": status,
                 "quality_flag_percent": int(match.group("qf") or 0),
                 "first_to_last_us": int(match.group("first_to_last_us") or 0),
                 "frame_us": int(match.group("frame_us") or 0),
                 "poll_count": int(match.group("poll_count") or 0),
-                "tr_version": int(match.group("ver")),
+                "tr_version": tr_version,
                 "rx_mask": "",
                 "air_us": "",
                 "post_us": "",
@@ -631,6 +650,44 @@ def write_rows(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
             writer.writerow(row)
 
 
+def summarize_sweep_validity(rows: list[dict]) -> dict:
+    """Summarize whether each TDMA sweep saw enough valid anchor responses."""
+    by_sweep: dict[int, set[int]] = defaultdict(set)
+    for row in rows:
+        if not int(row.get("valid") or 0):
+            continue
+        try:
+            sweep = int(row["sweep"])
+            anchor_id = int(row["anchor_id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        by_sweep[sweep].add(anchor_id)
+
+    valid_counts = [len(anchor_ids) for anchor_ids in by_sweep.values()]
+    all_sweeps: set[int] = set()
+    for row in rows:
+        try:
+            all_sweeps.add(int(row["sweep"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    total_sweeps = len(all_sweeps)
+    distribution = {str(count): valid_counts.count(count) for count in range(9)}
+    ge4 = sum(1 for count in valid_counts if count >= 4)
+    ge7 = sum(1 for count in valid_counts if count >= 7)
+    ge8 = sum(1 for count in valid_counts if count >= 8)
+    return {
+        "sweeps_total": total_sweeps,
+        "sweeps_with_any_valid": len(by_sweep),
+        "sweeps_ge4": ge4,
+        "sweeps_ge7": ge7,
+        "sweeps_ge8": ge8,
+        "ratio_ge4": round(ge4 / total_sweeps, 6) if total_sweeps else 0.0,
+        "ratio_ge7": round(ge7 / total_sweeps, 6) if total_sweeps else 0.0,
+        "ratio_ge8": round(ge8 / total_sweeps, 6) if total_sweeps else 0.0,
+        "valid_count_distribution": distribution,
+    }
+
+
 def run_anchor_responder_preflight(args, session_dir: Path) -> dict:
     print("[CAPTURE] anchor preflight: require 8/8 runtime responder ack", flush=True)
     attempts = []
@@ -735,9 +792,11 @@ def ensure_target_links_ready(
         for item in targets:
             for alias in target_aliases(item):
                 if (
-                    f"BS={alias}" in text_u
-                    or f"{alias} NOTIFY:" in text_u
-                    or f"CFG_OK" in text_u and alias in text_u
+                    f"{alias} NOTIFY:" in text_u
+                    or (f"CFG_OK" in text_u and alias in text_u)
+                    or (f"CONNECTED" in text_u and f"BS={alias}" in text_u)
+                    or (f"CFG ASSIGNED" in text_u and f"BS={alias}" in text_u)
+                    or (f"TDMA WEIGHTED" in text_u and f"BS={alias}" in text_u)
                 ):
                     ready_targets.add(item.upper())
                     break
@@ -780,6 +839,30 @@ def ensure_target_links_ready(
                 return True
         return all(target.upper() in ready_targets for target in targets) and all_ready_since is not None
 
+    def exact_target_enrollment(pass_idx: int, wait_s: float) -> bool:
+        nonlocal ser
+        missing = [
+            target for target in targets
+            if target.upper() not in ready_targets
+        ]
+        if not missing:
+            return True
+        print(
+            "[CAPTURE] link setup exact enrollment pass "
+            f"{pass_idx}: missing={','.join(missing)}",
+            flush=True,
+        )
+        for target in missing:
+            ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
+            ser = send_cmd(ser, logf, f"ota_target name {target}", 0.5)
+            ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
+            ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
+            ser = send_cmd(ser, logf, "device kind tag", 2.0)
+            ser = send_cmd(ser, logf, "conn", 0.5)
+            if passive_wait(f"exact-{target}", wait_s):
+                return True
+        return all(target.upper() in ready_targets for target in targets)
+
     if passive_wait("initial", wait_per_target_s):
         return ser
 
@@ -790,6 +873,9 @@ def ensure_target_links_ready(
         )
 
         if passive_wait(f"recovery{pass_idx}", wait_per_target_s):
+            break
+
+        if exact_target_enrollment(pass_idx, min(45.0, wait_per_target_s)):
             break
 
         missing = sorted(
@@ -1615,6 +1701,7 @@ def main() -> int:
         per_tag_summary[target] = {
             "tr_rows": len(tr_target_rows),
             "tr_valid_rows": sum(1 for row in tr_target_rows if row["valid"]),
+            "sweep_validity": summarize_sweep_validity(tr_target_rows),
             "latest_tr": tr_target_rows[-1] if tr_target_rows else None,
             "anchors_seen": sorted(
                 {row["anchor_id"] for row in tr_target_rows if row["valid"]}
@@ -1660,6 +1747,7 @@ def main() -> int:
         "freq_hz": {"tr": tr_hz},
         "tr_all": len(tr_rows),
         "tr_valid_all": sum(1 for row in tr_rows if row["valid"]),
+        "sweep_validity_all": summarize_sweep_validity(tr_rows),
         "connections": conn_meta,
         "per_tag": per_tag_summary,
         "raw_log": str(raw_log_path),

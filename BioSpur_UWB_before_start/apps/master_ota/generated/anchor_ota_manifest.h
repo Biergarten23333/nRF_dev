@@ -1,5 +1,5 @@
 #pragma once
 
-#define APP_MASTER_OTA_ANCHOR_FW_MARKER "anchor-dh-repl-base-20260508_dh_repl"
-#define APP_MASTER_OTA_ANCHOR_BUILD_DIR "build-anchor-unified-ota-anchor-dh-repl-base-20260508_dh_repl"
-#define APP_MASTER_OTA_ANCHOR_DFU_ZIP "build-anchor-unified-ota-anchor-dh-repl-base-20260508_dh_repl/dfu_application.zip"
+#define APP_MASTER_OTA_ANCHOR_FW_MARKER "alt-bcast-a18-ledrole-g1200-r1000"
+#define APP_MASTER_OTA_ANCHOR_BUILD_DIR "SS-TWR/alt-SS-TWR/broadcast/build-anchor-unified-ota-alt-bcast-a18-ledrole-g1200-r1000"
+#define APP_MASTER_OTA_ANCHOR_DFU_ZIP "SS-TWR/alt-SS-TWR/broadcast/build-anchor-unified-ota-alt-bcast-a18-ledrole-g1200-r1000/dfu_application.zip"

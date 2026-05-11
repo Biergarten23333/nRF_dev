@@ -34,6 +34,7 @@ void master_set_runtime_target_name(const char *name);
 void master_set_runtime_target_prefix(const char *prefix);
 void master_set_runtime_target_uuid(const char *uuid_hex);
 void master_set_anchor_wildcard_scan(bool enable);
+void master_set_anchor_result_stream(bool enable);
 void master_dump_ready_state(void);
 int master_anchor_ctrl_ready_count(void);
 int master_anchor_ctrl_target_peer_count(void);

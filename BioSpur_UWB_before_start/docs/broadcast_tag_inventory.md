@@ -95,13 +95,39 @@ After direct flash, push APOS layout again because NVS may be erased.
 | BS10CE | Pressure-test EVK | TBD | TBD | `0x10CE` | `0xCE` | `F2:8A:A6:F5:E2:4A` | DWM1001C EVK flashed to b62 on 2026-05-04; excellent 8-tag TR/TS performance |
 | BS7724 | Pressure-test EVK | `0xC0624B92` | `0xF85CEC31` | `0x7724` | `0x24` | TBD | DWM1001C EVK flashed to b62 on 2026-05-04; TDMA/TR verified, UWB range quality weak in first bench probe |
 | BS1396 | Pressure-test EVK | `0xD807C222` | `0x49ECF97F` | `0x1396` | `0x96` | `D3:67:A5:A7:35:2F` | DWM1001C EVK flashed to b62 on 2026-05-04; pending TDMA pressure-test validation |
-| Wand-A-BSCCF4 | Calibration Wand A | `0x2C9E36F2` | `0x60B3C94E` | `0xCCF4` | `0xF4` | TBD | DWM1001C EVK / J-Link SNR `760184526`; OTA verified to common mature b65 TR-only Wand image `alt-bcast-b65-tr3-ledpos-tronly-g1200-r1000-wand-roleprefix-20260509` on 2026-05-09 |
-| Wand-B-BS9336 | Calibration Wand B | `0x65DA856F` | `0xC39F31A8` | `0x9336` | `0x36` | TBD | DWM1001C EVK / J-Link SNR `760184756`; OTA verified to common mature b65 TR-only Wand image `alt-bcast-b65-tr3-ledpos-tronly-g1200-r1000-wand-roleprefix-20260509` on 2026-05-09 |
-| Wand-C-BS955A | Calibration Wand C | `0xE62FF1FE` | `0x25D3064F` | `0x955A` | `0x5A` | TBD | DWM1001C EVK / J-Link SNR `760184959`; OTA verified to common mature b65 TR-only Wand image `alt-bcast-b65-tr3-ledpos-tronly-g1200-r1000-wand-roleprefix-20260509` on 2026-05-09 |
+| BSCCF4 / Wand-A-BSCCF4 | Calibration Wand A | `0x2C9E36F2` | `0x60B3C94E` | `0xCCF4` | `0xF4` | TBD | DWM1001C EVK / J-Link SNR `760184526`; current stable rollback marker `wand-b65timing-g1200-r1000-tr1tr2-bd-bs-v015-20260510`; OTA must target BS code `BSCCF4` |
+| BS9336 / Wand-B-BS9336 | Calibration Wand B | `0x65DA856F` | `0xC39F31A8` | `0x9336` | `0x36` | TBD | DWM1001C EVK / J-Link SNR `760184756`; current stable rollback marker `wand-b65timing-g1200-r1000-tr1tr2-bd-bs-v015-20260510`; OTA must target BS code `BS9336` |
+| BS955A / Wand-C-BS955A | Calibration Wand C | `0xE62FF1FE` | `0x25D3064F` | `0x955A` | `0x5A` | TBD | DWM1001C EVK / J-Link SNR `760184959`; current stable rollback marker `wand-b65timing-g1200-r1000-tr1tr2-bd-bs-v015-20260510`; OTA must target BS code `BS955A` |
 
 ## Calibration Wand Naming Policy
 
 Date: 2026-05-08, updated 2026-05-09
+
+Current operating memory, updated 2026-05-10:
+
+- When the user says "the Wand Tags", this means exactly:
+  `BSCCF4`, `BS9336`, and `BS955A`.
+- Role names are only human-facing aliases:
+  `BSCCF4 = Wand-A`, `BS9336 = Wand-B`, `BS955A = Wand-C`.
+- For OTA/deploy scripts, always target the BS codes directly:
+  `BSCCF4,BS9336,BS955A`.
+- Do not require `Wand-A-BSCCF4`, `Wand-B-BS9336`, or
+  `Wand-C-BS955A` to be present for OTA. The deploy script canonicalizes
+  any Wand-style name back to its `BSxxxx` code.
+- For capture scripts, Wand-style names may still be used when convenient,
+  because the script maps them back to the same BS identities for TDMA.
+- Current verified stable rollback:
+  - `Master_Tag` carrier:
+    `SS-TWR/alt-SS-TWR/broadcast/build-master-control-b120-m1-master-tag-lfrc-b65-master10ms-wandpayload-tr1tr2-bd-bs-v015-mastertdma10ms-20260510/`
+  - Tag firmware marker:
+    `wand-b65timing-g1200-r1000-tr1tr2-bd-bs-v015-20260510`
+  - verified capture:
+    `SS-TWR/alt-SS-TWR/broadcast/logs/wand3_v015_bscode_verify_tr10_60s_20260510_20260510_193758/`
+  - result: all three Wand Tags `TDMA match=true`, `period_ms=10`,
+    `active_ms=9`, `actual_hz=10.0`, and anchors `0-7` all seen.
+- Physical T-structure geometry is recorded in `docs/wand_mode.md`:
+  `BSCCF4 --285mm-- T center --385mm-- BS9336`, and
+  `T center --595mm-- BS955A`.
 
 Canonical operating docs:
 

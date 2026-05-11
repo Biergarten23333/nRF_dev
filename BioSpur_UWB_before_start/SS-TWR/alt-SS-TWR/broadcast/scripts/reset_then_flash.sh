@@ -15,6 +15,7 @@ lock_wait_s="${BIOSPUR_FLASH_LOCK_WAIT_S:-120}"
 allow_jlink_fallback="${BIOSPUR_FLASH_ALLOW_JLINK_FALLBACK:-1}"
 jlink_device="${BIOSPUR_FLASH_JLINK_DEVICE:-}"
 force_jlink="${BIOSPUR_FLASH_FORCE_JLINK:-0}"
+jlink_speed="${BIOSPUR_FLASH_JLINK_SPEED:-4000}"
 # Default to JLinkExe path to avoid any possibility of SEGGER probe-selection GUI popups.
 # Set to 1 if you explicitly want the nrfjprog path.
 prefer_nrfjprog="${BIOSPUR_FLASH_PREFER_NRFJPROG:-0}"
@@ -100,7 +101,7 @@ fallback_with_jlink() {
   cat >"$jlink_cmd" <<EOF
 Device $jlink_device
 SelectInterface SWD
-Speed 4000
+Speed $jlink_speed
 Connect
 LoadFile $hex_path
 Reset

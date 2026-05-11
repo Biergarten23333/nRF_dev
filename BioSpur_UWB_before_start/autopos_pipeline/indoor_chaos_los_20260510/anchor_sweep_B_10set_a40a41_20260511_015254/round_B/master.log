@@ -1,0 +1,123 @@
+PORT=/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_87EA2F4A526C5A02-if00
+START=2026-05-11 01:53:36
+MASTER=B
+PRECHECK: BSxxxx tag quarantine disabled; master/matrix anchors ignore tag polls during sweep
+PRECHECK: context session_autopos_ready=1 autopos_initialized=1
+PRECHECK: reusing session AUTOPOS state from matrix guard
+PRECHECK: reusing existing AUTOPOS map
+>>> autopos round B 10
+[AUTOPOS] AUTOPOS round staged: master=B sets=10
+>>> autopos status
+[AUTOPOS] AUTOPOS: mode=AUTOPOS state=staged staged=B last_success=- sets=10 error=-
+>>> autopos apply
+[AUTOPOS] AUTOPOS apply started
+[AUTOPOS] RECV_BG gate: SUPPRESS reason=autopos_detach
+[AUTOPOS] RECV_BG gate: ALLOW reason=autopos_detach_done
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] AUTOPOS apply mode: bootstrap-target-only
+[AUTOPOS] Master discovery mode: CONN & START
+[AUTOPOS] Master discovery mode: CONN & START
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] AUTOPOS wait anchor ready: uuid=B9179575C776C98F1CB132DD6EDC6223 timeout_ms=12000
+[AUTOPOS] AUTOPOS wait anchor ready: waited=0 ready_count=0
+[AUTOPOS] READY count=0 target=anchor target_uuid=B9179575C776C98F1CB132DD6EDC6223 conn_count=0 connecting_slot=-1 scan=1 auto=1
+[AUTOPOS] SCAN hit: C0:1D:D1:D0:CE:B0 (random) rssi=-49 name=- bs=- uuid=B9179575C776C98F1CB132DD6EDC6223 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=C0:1D:D1:D0:CE:B0 (random) link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 target=anchor
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x200048d8 interval=32-56 timeout=1000
+[AUTOPOS] Connected[0]: C0:1D:D1:D0:CE:B0 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 ready=0 conn=0x200048d8
+SETUP[0] begin: link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 conn=0x200048d8
+SETUP[0] anchor-ctrl: skip mtu/phy negotiation
+SETUP[0] conn_param_update rc=0 interval=32-56 timeout=1000
+ANCHOR_CTRL[0] static link ready state=0x0012 ctrl=0x0019 result=0x001b uuid=B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] AUTOPOS wait anchor ready: waited=600 ready_count=1
+[AUTOPOS] READY count=1 target=anchor target_uuid=B9179575C776C98F1CB132DD6EDC6223 conn_count=1 connecting_slot=-1 scan=0 auto=1
+[AUTOPOS] READY peer[0]: link=anchor-ctrl connected=1 ready=1 pending=0 inflight=0 retries=0 start_failures=0 uuid=B9179575C776C98F1CB132DD6EDC6223 name=- state_h=0x0012 ctrl_h=0x0019 result_h=0x001b
+[AUTOPOS] AUTOPOS wait anchor ready: uuid=B9179575C776C98F1CB132DD6EDC6223 control link ready
+[AUTOPOS] Master anchor result stream: on
+[AUTOPOS] Anchor ctrl sent[0]: RM 10 uuid=B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] Disconnected[0]: C0:1D:D1:D0:CE:B0 (random) reason=0x3e link=anchor-ctrl ready=1
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: C0:1D:D1:D0:CE:B0 (random) rssi=-54 name=- bs=- uuid=B9179575C776C98F1CB132DD6EDC6223 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=C0:1D:D1:D0:CE:B0 (random) link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 target=anchor
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x200048d8 interval=32-56 timeout=1000
+[AUTOPOS] Connected[0]: C0:1D:D1:D0:CE:B0 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 ready=0 conn=0x200048d8
+SETUP[0] begin: link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 conn=0x200048d8
+SETUP[0] anchor-ctrl result-stream mtu_exchange rc=0
+SETUP[0] conn_param_update rc=0 interval=32-56 timeout=1000
+Anchor ctrl result-stream subscribe[0] rc=0
+ANCHOR_CTRL[0] static link ready state=0x0012 ctrl=0x0019 result=0x001b uuid=B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] MTU exchange[0] done (498)
+[AUTOPOS] Conn param updated[0]: int=56 lat=0 to=1000
+[AUTOPOS] AUTOPOS result: OK READY
+[AUTOPOS] AUTOPOS state: STATE fw=alt-bcast-a40-pendingguard-g120 bs=BS592A uuid=B9179575C776C98F1CB132DD6EDC6223 label=B role=matrix cfg_valid=1 busy=0 pending_valid=1 schema=2 gen=0 reboot_required=0
+[AUTOPOS] AUTOPOS result: OK READY
+[AUTOPOS] AUTOPOS state: STATE fw=alt-bcast-a40-pendingguard-g120 bs=BS592A uuid=B9179575C776C98F1CB132DD6EDC6223 label=B role=matrix cfg_valid=1 busy=0 pending_valid=1 schema=2 gen=0 reboot_required=0
+[AUTOPOS] AUTOPOS anchor B runtime sweep cmd failed rc=-116; forcing control-link reconnect retry
+[AUTOPOS] Master disconnect target peer[0]: connected=1 ready=1 link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] Disconnected[0]: C0:1D:D1:D0:CE:B0 (random) reason=0x16 link=anchor-ctrl ready=0
+[AUTOPOS] RECV_BG suppressed: quiesce disconnect restart blocked remaining=0
+[AUTOPOS] Master discovery mode: CONN & START
+[AUTOPOS] Master discovery mode: CONN & START
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] AUTOPOS wait anchor ready: uuid=B9179575C776C98F1CB132DD6EDC6223 timeout_ms=15000
+[AUTOPOS] AUTOPOS wait anchor ready: waited=0 ready_count=0
+[AUTOPOS] READY count=0 target=anchor target_uuid=B9179575C776C98F1CB132DD6EDC6223 conn_count=0 connecting_slot=-1 scan=1 auto=1
+[AUTOPOS] SCAN hit: C0:1D:D1:D0:CE:B0 (random) rssi=-53 name=- bs=- uuid=B9179575C776C98F1CB132DD6EDC6223 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=C0:1D:D1:D0:CE:B0 (random) link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 target=anchor
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x200048d8 interval=32-56 timeout=1000
+[AUTOPOS] Connected[0]: C0:1D:D1:D0:CE:B0 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 ready=0 conn=0x200048d8
+SETUP[0] begin: link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 conn=0x200048d8
+SETUP[0] anchor-ctrl result-stream mtu_exchange rc=0
+SETUP[0] conn_param_update rc=0 interval=32-56 timeout=1000
+Anchor ctrl result-stream subscribe[0] rc=0
+ANCHOR_CTRL[0] static link ready state=0x0012 ctrl=0x0019 result=0x001b uuid=B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] AUTOPOS wait anchor ready: waited=800 ready_count=1
+[AUTOPOS] READY count=1 target=anchor target_uuid=B9179575C776C98F1CB132DD6EDC6223 conn_count=1 connecting_slot=-1 scan=0 auto=1
+[AUTOPOS] READY peer[0]: link=anchor-ctrl connected=1 ready=1 pending=0 inflight=0 retries=0 start_failures=0 uuid=B9179575C776C98F1CB132DD6EDC6223 name=- state_h=0x0012 ctrl_h=0x0019 result_h=0x001b
+[AUTOPOS] AUTOPOS wait anchor ready: uuid=B9179575C776C98F1CB132DD6EDC6223 control link ready
+[AUTOPOS] Master discovery mode: CONN & START
+[AUTOPOS] AUTOPOS wait anchor ready: uuid=B9179575C776C98F1CB132DD6EDC6223 reuse existing ready control link
+[AUTOPOS] Master anchor result stream: on
+[AUTOPOS] MTU exchange[0] done (498)
+[AUTOPOS] Anchor ctrl sent[0]: RM 10 uuid=B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] ANCHOR_CTRL[0] notify: OK RUNTIME_SWITCH_REQUESTED SWEEP=10
+[AUTOPOS] AUTOPOS result: OK RUNTIME_SWITCH_REQUESTED SWEEP=10
+[AUTOPOS] AUTOPOS bootstrap target-only promote verified: master=B
+[AUTOPOS] AUTOPOS apply success: master=B
+[AUTOPOS] AUTOPOS finite sweep handoff: master=B sets=10; host waits for SWEEP_DONE
+[AUTOPOS] AUTOPOS sweep listen attach: master=B uuid=B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] Master anchor result stream: on
+[AUTOPOS] Master discovery mode: CONN & START
+[AUTOPOS] Conn param updated[0]: int=56 lat=0 to=1000
+[AUTOPOS] ANCHOR_CTRL[0] notify: DBG ROLE_ENTRY_PENDING anchor=B current=matrix pending=master sets=10
+[AUTOPOS] ANCHOR_CTRL[0] notify: DBG ROLE_SWITCH anchor=B role=master sets=10
+[AUTOPOS] ANCHOR_CTRL[0] notify: DBG ROLE_START anchor=B role=master sets=10
+[AUTOPOS] ANCHOR_CTRL[0] notify: DBG MASTER_START anchor=B peers=7 sets=10
+[AUTOPOS] ANCHOR_CTRL[0] notify: DBG MASTER_FIRST_PEER anchor=B peer=A
+[AUTOPOS] ANCHOR_CTRL[0] notify: DBG MASTER_FIRST_RESULT anchor=B peer=A rx=1 status=0x00806ff2
+[AUTOPOS] SW-B,A,3619,100,C,4697,100,D,2912,100,E,4200,100,F,1750,100,G,5096,100,H,3237,100
+[AUTOPOS] SW-B,A,3642,100,C,4673,100,D,2953,100,E,4246,100,F,1811,100,G,5000,100,H,3243,100
+[AUTOPOS] SW-B,A,3666,100,C,4691,100,D,2879,100,E,4199,100,F,1788,100,G,5046,100,H,3268,100
+[AUTOPOS] SW-B,A,3696,100,C,4675,100,D,2911,100,E,4248,100,F,1782,100,G,5008,100,H,3207,100
+[AUTOPOS] SW-B,A,3595,100,C,4678,100,D,2954,100,E,4197,100,F,1766,100,G,5121,100,H,3271,100
+[AUTOPOS] SW-B,A,3637,100,C,4711,100,D,2943,100,E,4251,100,F,1755,100,G,5037,100,H,3264,100
+[AUTOPOS] SW-B,A,3617,100,C,4700,100,D,2904,100,E,4302,100,F,1815,100,G,5098,100,H,3209,100
+[AUTOPOS] SW-B,A,3634,100,C,4707,100,D,2927,100,E,4202,100,F,1835,100,G,5059,100,H,3285,100
+[AUTOPOS] SW-B,A,3677,100,C,4701,100,D,2902,100,E,4254,100,F,1819,100,G,5100,100,H,3178,100
+[AUTOPOS] SW-B,A,3587,100,C,4627,100,D,2908,100,E,4170,100,F,1759,100,G,5076,100,H,3223,100
+[AUTOPOS] ANCHOR_CTRL[0] notify: SWEEP_DONE master=B sets=10 role=matrix
+[AUTOPOS] ANCHOR_CTRL[0] notify: DBG ROLE_SWITCH anchor=B role=matrix sets=0
+END=2026-05-11 01:53:48
