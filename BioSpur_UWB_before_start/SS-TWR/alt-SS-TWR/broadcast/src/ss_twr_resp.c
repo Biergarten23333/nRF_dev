@@ -66,10 +66,6 @@ static bool ss_twr_resp_matrix_poll_matches(const uint8_t *frame,
 #define APP_ANCHOR_RESPONDER_COOP_SLEEP_MS 0U
 #endif
 
-#ifndef APP_ANCHOR_RESPONDER_RX_TIMEOUT_UUS
-#define APP_ANCHOR_RESPONDER_RX_TIMEOUT_UUS 5000U
-#endif
-
 #ifndef APP_ANCHOR_RESPONDER_DIAG_PERIOD_MS
 #define APP_ANCHOR_RESPONDER_DIAG_PERIOD_MS 5000U
 #endif
@@ -758,7 +754,7 @@ static void ss_twr_resp_configure_radio(void)
     dwt_setrxantennadelay(SS_TWR_RESP_RX_ANT_DLY);
     dwt_settxantennadelay(SS_TWR_RESP_TX_ANT_DLY);
     dwt_setleds(DWT_LEDS_ENABLE);
-    dwt_setrxtimeout(APP_ANCHOR_RESPONDER_RX_TIMEOUT_UUS);
+    dwt_setrxtimeout(0);
     dwt_setpreambledetecttimeout(0);
     dwt_write32bitreg(SYS_STATUS_ID,
                       SYS_STATUS_ALL_TX | SYS_STATUS_ALL_RX_GOOD |
@@ -859,8 +855,7 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
                     tag_tx_miss_count, &match_diag);
                 ss_twr_resp_profile_periodic(&prof_stats, &prof_last_ms);
             }
-        } while ((status_reg & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_ERR |
-                                SYS_STATUS_ALL_RX_TO)) == 0U);
+        } while ((status_reg & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_ERR)) == 0U);
         if (pause_for_ble_ota) {
             k_msleep(2);
             continue;
@@ -868,10 +863,6 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         wait_cycles = 0U;
 
         if ((status_reg & SYS_STATUS_RXFCG) == 0U) {
-            if ((status_reg & SYS_STATUS_ALL_RX_TO) != 0U) {
-                dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_TO);
-                continue;
-            }
             if ((status_reg & SYS_STATUS_AFFREJ) != 0U) {
                 /*
                  * In unicast-burst mode every anchor hears poll frames for the

@@ -310,7 +310,7 @@ static void control_print_help(void)
 	printk("Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate\n");
 	printk("OTA runtime cmds: ota_reset | ota show | ota version\n");
 	printk("Runtime NUS cmds: cmd <raw> | cmd_all <raw> | oneshot <raw> | oneshot show | oneshot clear\n");
-	printk("TDMA cmds: tdma show | tdma hold <0|1> | tdma arm | tdma run | tdma stop | tdma roster <BSxxxx> <static|roto|motion> | tdma profile <BSxxxx> <static|roto|motion> | tdma freq <static|roto|motion> <hz> | tdma rebalance\n");
+	printk("TDMA cmds: tdma show | tdma hold <0|1> | tdma roster <BSxxxx> <static|roto|motion> | tdma profile <BSxxxx> <static|roto|motion> | tdma freq <static|roto|motion> <hz> | tdma rebalance\n");
 	printk("Device model cmds: device show | device kind <anchor|tag>\n");
 	printk("OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->\n");
 	printk("Anchor cmds: anchor version <A..H|UUID32|all> | anchor role <A..H|UUID32|all> <master|matrix|responder> | anchor reset <A..H|UUID32|all> <autopos|responder>\n");
@@ -2318,21 +2318,6 @@ static void control_handle_uart_command(const char *line)
 			printk("tdma rebalance rc=%d\n", rc);
 			return;
 		}
-		if (n >= 1 && strcmp(sub, "arm") == 0) {
-			rc = master_tdma_set_run_enabled(false);
-			printk("tdma arm rc=%d\n", rc);
-			return;
-		}
-		if (n >= 1 && strcmp(sub, "run") == 0) {
-			rc = master_tdma_set_run_enabled(true);
-			printk("tdma run rc=%d\n", rc);
-			return;
-		}
-		if (n >= 1 && strcmp(sub, "stop") == 0) {
-			rc = master_tdma_set_run_enabled(false);
-			printk("tdma stop rc=%d\n", rc);
-			return;
-		}
 		if (n >= 1 && strcmp(sub, "clear") == 0) {
 			rc = master_tdma_clear_profiles();
 			printk("tdma clear rc=%d\n", rc);
@@ -2794,18 +2779,17 @@ static void control_handle_uart_command(const char *line)
 				master_clear_one_shot_command();
 				(void)master_ota_target_set_token(-1);
 				(void)master_ota_target_set_name("");
-				(void)master_ota_target_set_prefix("ANCHOR-");
+				(void)master_ota_target_set_prefix("BS");
 				(void)master_ota_target_set_uuid("");
 				ota_target_token_cfg = -1;
 				ota_target_name_cfg[0] = '\0';
-				(void)snprintf(ota_target_prefix_cfg, sizeof(ota_target_prefix_cfg),
-					       "ANCHOR-");
+				(void)snprintf(ota_target_prefix_cfg, sizeof(ota_target_prefix_cfg), "BS");
 				ota_target_uuid_cfg[0] = '\0';
 				master_set_runtime_target_kind(MASTER_TARGET_ANCHOR);
 				master_set_anchor_wildcard_scan(control_mode == CONTROL_MODE_AUTOPOS);
 				master_set_runtime_target_token(-1);
 				master_set_runtime_target_name("");
-				master_set_runtime_target_prefix("");
+				master_set_runtime_target_prefix("BS");
 				master_set_runtime_target_uuid("");
 				control_disconnect_all_links();
 				printk("device kind set: anchor (OTA target defaults reset)\n");

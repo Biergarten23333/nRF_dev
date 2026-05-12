@@ -22,10 +22,6 @@ set(APP_MASTER_ONE_SHOT_CMD "" CACHE STRING "Optional single NUS command sent on
 set(APP_MASTER_TAG_NAME_PREFIX "BS" CACHE STRING "BLE device-name prefix for receiver mode")
 set(APP_MASTER_TDMA_SLOT_PERIOD_MS "40" CACHE STRING "Master TDMA slot period in milliseconds")
 set(APP_MASTER_TDMA_SLOT_ACTIVE_MS "24" CACHE STRING "Master TDMA slot active window in milliseconds")
-set(APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE "0" CACHE STRING "Force one TDMA slot per connected tag in a fixed 10-slot roster")
-set(APP_MASTER_TDMA_LEGACY_SLOT_COUNT "10" CACHE STRING "Slot count used when legacy single-slot TDMA mode is enabled")
-set(APP_MASTER_SCAN_DEBUG_ALL_ENABLE "0" CACHE STRING "Print all connectable BLE scan candidates before BioSpur filtering")
-set(APP_MASTER_TAG_UUID_ONLY_RECOVERY_ENABLE "0" CACHE STRING "Allow an explicit ota_target uuid to connect to a tag advertiser even when BS token is missing")
 
 # Allow operators/scripts to inject one-shot behavior under sysbuild via env.
 if(DEFINED ENV{APP_MASTER_ONE_SHOT_CMD})
@@ -46,10 +42,6 @@ target_compile_definitions(app PRIVATE
     APP_MASTER_ONE_SHOT_CMD="${APP_MASTER_ONE_SHOT_CMD}"
     APP_MASTER_TDMA_SLOT_PERIOD_MS=${APP_MASTER_TDMA_SLOT_PERIOD_MS}
     APP_MASTER_TDMA_SLOT_ACTIVE_MS=${APP_MASTER_TDMA_SLOT_ACTIVE_MS}
-    APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE=${APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE}
-    APP_MASTER_TDMA_LEGACY_SLOT_COUNT=${APP_MASTER_TDMA_LEGACY_SLOT_COUNT}
-    APP_MASTER_SCAN_DEBUG_ALL_ENABLE=${APP_MASTER_SCAN_DEBUG_ALL_ENABLE}
-    APP_MASTER_TAG_UUID_ONLY_RECOVERY_ENABLE=${APP_MASTER_TAG_UUID_ONLY_RECOVERY_ENABLE}
 )
 
 target_sources(app PRIVATE

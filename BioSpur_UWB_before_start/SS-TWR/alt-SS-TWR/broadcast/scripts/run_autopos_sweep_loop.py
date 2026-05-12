@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import fcntl
 import json
 import os
 import re
@@ -27,18 +26,6 @@ def auto_timeout_for_sw_sets(sw_sets: int) -> int:
     # - 10 sets stays around the historical 480s budget
     # - 100 sets expands to about 30 minutes
     return max(480, 360 + (15 * sw_sets))
-
-
-def parse_master_order(raw: str) -> list[str]:
-    order = []
-    for token in raw.replace(",", "").replace(" ", "").upper():
-        if token in "ABCDEFGH":
-            order.append(token)
-        else:
-            raise SystemExit(f"--order contains invalid anchor label: {token!r}")
-    if not order:
-        raise SystemExit("--order must include at least one anchor label A-H")
-    return order
 
 
 def suggested_retry_timeout_s(result: dict, requested_timeout_s: int) -> int:
@@ -261,15 +248,6 @@ def parse_sw_line_triplets(master: str, line: str) -> dict[str, tuple[int, int]]
             continue
         parsed[peer] = (distance, quality)
     return parsed
-
-
-def sw_line_invalid_matrix_peers(master: str, line: str) -> list[str]:
-    parsed = parse_sw_line_triplets(master, line)
-    invalid = []
-    for peer, (distance, quality) in parsed.items():
-        if distance <= 0 or quality <= 0:
-            invalid.append(peer)
-    return invalid
 
 
 def sw_line_pairs_below_quality(master: str, line: str, threshold: int) -> list[str]:
@@ -790,42 +768,6 @@ def wait_for_autopos_idle(
     return ser, False
 
 
-def force_anchor_target_filter(
-    ser: serial.Serial,
-    logf,
-    port: str,
-    live_output: bool,
-    verbose: int,
-    progress_cb=None,
-) -> serial.Serial:
-    """
-    AutoPos anchor sweep must never inherit the Tag/Master_Tag BS* target filter.
-
-    Older quiet-tag / OTA helper paths temporarily used ``ota_target prefix BS``.
-    If that state leaks into Master_Anchor, the control side starts scanning the
-    wrong devices and the anchor matrix guard becomes unstable.  Keep the sweep
-    path explicitly anchored on ANCHOR-* every time we enter or rebuild AUTOPOS.
-    """
-    for cmd, pause_s in [
-        ("ota_target token -1", 0.4),
-        ("ota_target name -", 0.4),
-        ("ota_target prefix ANCHOR-", 0.4),
-        ("ota_target uuid -", 0.4),
-    ]:
-        ser = send_cmd_collect(
-            ser,
-            logf,
-            port,
-            cmd,
-            pause_s,
-            live_output,
-            verbose,
-            resend_after_reopen=False,
-            progress_cb=progress_cb,
-        )
-    return ser
-
-
 def preflight_clean_autopos_start(
     ser: serial.Serial,
     logf,
@@ -860,74 +802,19 @@ def preflight_clean_autopos_start(
             resend_after_reopen=False,
             progress_cb=progress_cb,
         )
-        if "Control status: mode=OTA" in status_text:
-            emit(
-                logf,
-                "PRECHECK: resident Master_Anchor left in OTA; switch RECV before AUTOPOS\n",
-                live_output,
-                verbose,
-            )
+        if "Control status: mode=AUTOPOS" not in status_text:
+            emit(logf, "PRECHECK: resident Master_Anchor not in AUTOPOS; request mode autopos only\n", live_output, verbose)
             ser = send_cmd_collect(
                 ser,
                 logf,
                 port,
-                "mode recv",
-                4.0,
+                "mode autopos",
+                2.0,
                 live_output,
                 verbose,
                 resend_after_reopen=True,
                 progress_cb=progress_cb,
             )
-            ser, _ = collect_for(ser, logf, 2.0, port, live_output, verbose, progress_cb=progress_cb)
-            ser, status_text = send_cmd_collect_text(
-                ser,
-                logf,
-                port,
-                "status",
-                1.0,
-                live_output,
-                verbose,
-                resend_after_reopen=False,
-                progress_cb=progress_cb,
-            )
-        ser = force_anchor_target_filter(ser, logf, port, live_output, verbose, progress_cb=progress_cb)
-        if "Control status: mode=AUTOPOS" in status_text:
-            emit(
-                logf,
-                "PRECHECK: refresh resident Master_Anchor anchor-only AUTOPOS target\n",
-                live_output,
-                verbose,
-            )
-        else:
-            emit(
-                logf,
-                "PRECHECK: resident Master_Anchor not in AUTOPOS; request mode autopos only\n",
-                live_output,
-                verbose,
-            )
-        ser = send_cmd_collect(
-            ser,
-            logf,
-            port,
-            "mode autopos",
-            2.0,
-            live_output,
-            verbose,
-            resend_after_reopen=True,
-            progress_cb=progress_cb,
-        )
-        ser, _ = collect_for(ser, logf, 1.0, port, live_output, verbose, progress_cb=progress_cb)
-        ser, _ = send_cmd_collect_text(
-            ser,
-            logf,
-            port,
-            "device show",
-            0.8,
-            live_output,
-            verbose,
-            resend_after_reopen=False,
-            progress_cb=progress_cb,
-        )
         return ser, True
 
     if force_clean:
@@ -947,6 +834,17 @@ def preflight_clean_autopos_start(
             ser,
             logf,
             port,
+            "device kind anchor",
+            1.2,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
             "mode recv",
             2.0,
             live_output,
@@ -954,7 +852,6 @@ def preflight_clean_autopos_start(
             resend_after_reopen=False,
             progress_cb=progress_cb,
         )
-        ser = force_anchor_target_filter(ser, logf, port, live_output, verbose, progress_cb=progress_cb)
         ser, _ = collect_for(ser, logf, 2.0, port, live_output, verbose, progress_cb=progress_cb)
         ser = send_cmd_collect(
             ser,
@@ -1067,6 +964,17 @@ def preflight_clean_autopos_start(
             ser,
             logf,
             port,
+            "device kind anchor",
+            1.2,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
             "mode recv",
             2.0,
             live_output,
@@ -1074,7 +982,6 @@ def preflight_clean_autopos_start(
             resend_after_reopen=False,
             progress_cb=progress_cb,
         )
-        ser = force_anchor_target_filter(ser, logf, port, live_output, verbose, progress_cb=progress_cb)
         ser, _ = collect_for(ser, logf, 2.0, port, live_output, verbose, progress_cb=progress_cb)
     if progress_cb is not None:
         progress_cb()
@@ -1123,6 +1030,17 @@ def preflight_clean_autopos_start(
             ser,
             logf,
             port,
+            "device kind anchor",
+            1.2,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
+        ser = send_cmd_collect(
+            ser,
+            logf,
+            port,
             "mode recv",
             2.0,
             live_output,
@@ -1130,7 +1048,6 @@ def preflight_clean_autopos_start(
             resend_after_reopen=False,
             progress_cb=progress_cb,
         )
-        ser = force_anchor_target_filter(ser, logf, port, live_output, verbose, progress_cb=progress_cb)
         ser, _ = collect_for(ser, logf, 2.0, port, live_output, verbose, progress_cb=progress_cb)
         if progress_cb is not None:
             progress_cb()
@@ -1296,18 +1213,158 @@ def anchor_role_counts(text: str) -> dict[str, int]:
     return counts
 
 
+def scan_anchor_role_counts(timeout_s: float = 6.0) -> dict[str, int]:
+    counts = {"matrix": 0, "responder": 0, "master": 0, "other": 0}
+    script = Path(__file__).resolve().with_name("scan_and_map.py")
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(script), "--timeout-s", str(timeout_s), "--json"],
+            cwd=Path(__file__).resolve().parent.parent,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return counts
+    if proc.returncode != 0:
+        return counts
+    try:
+        records = json.loads(proc.stdout or "[]")
+    except Exception:
+        return counts
+    seen = set()
+    uuid_to_label = {uuid: label for label, uuid in UUIDS.items()}
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        uuid = str(rec.get("device_uuid_hex", "")).upper()
+        label = uuid_to_label.get(uuid)
+        if not label or label in seen:
+            continue
+        seen.add(label)
+        role = str(rec.get("role", "other")).lower()
+        if role in counts:
+            counts[role] += 1
+        else:
+            counts["other"] += 1
+    return counts
+
+
+def scan_anchor_role_map(timeout_s: float = 6.0) -> dict[str, str]:
+    roles: dict[str, str] = {}
+    script = Path(__file__).resolve().with_name("scan_and_map.py")
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(script), "--timeout-s", str(timeout_s), "--json"],
+            cwd=Path(__file__).resolve().parent.parent,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return roles
+    if proc.returncode != 0:
+        return roles
+    try:
+        records = json.loads(proc.stdout or "[]")
+    except Exception:
+        return roles
+    uuid_to_label = {uuid: label for label, uuid in UUIDS.items()}
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        uuid = str(rec.get("device_uuid_hex", "")).upper()
+        label = uuid_to_label.get(uuid)
+        if not label:
+            continue
+        roles[label] = str(rec.get("role", "other")).lower()
+    return roles
+
+
+def wait_all_anchor_role(
+    ser: serial.Serial,
+    logf,
+    port: str,
+    role: str,
+    timeout_s: float,
+    live_output: bool,
+    verbose: int,
+    context: dict | None = None,
+) -> tuple[serial.Serial, bool, dict[str, int]]:
+    deadline = time.time() + timeout_s
+    last_counts = {"matrix": 0, "responder": 0, "master": 0, "other": 0}
+    while time.time() < deadline:
+        last_counts = scan_anchor_role_counts(timeout_s=4.0)
+        if last_counts.get(role, 0) >= len(UUIDS):
+            emit(
+                logf,
+                (
+                    f"SESSION: role verify via BLE scan succeeded "
+                    f"for role={role} "
+                    f"matrix={last_counts.get('matrix', 0)} "
+                    f"responder={last_counts.get('responder', 0)} "
+                    f"master={last_counts.get('master', 0)} "
+                    f"other={last_counts.get('other', 0)}\n"
+                ),
+                live_output,
+                verbose,
+            )
+            return ser, True, last_counts
+        emit(
+            logf,
+            (
+                f"SESSION: wait all {role} via BLE scan role_counts="
+                f"matrix={last_counts.get('matrix', 0)} "
+                f"responder={last_counts.get('responder', 0)} "
+                f"master={last_counts.get('master', 0)} "
+                f"other={last_counts.get('other', 0)}\n"
+            ),
+            live_output,
+            verbose,
+        )
+        time.sleep(1.0)
+    emit(
+        logf,
+        (
+            f"SESSION: role verify via BLE scan failed "
+            f"for role={role} "
+            f"matrix={last_counts.get('matrix', 0)} "
+            f"responder={last_counts.get('responder', 0)} "
+            f"master={last_counts.get('master', 0)} "
+            f"other={last_counts.get('other', 0)}\n"
+        ),
+        live_output,
+        verbose,
+    )
+    return ser, False, last_counts
+
+
+def wait_scan_role_counts(
+    role: str,
+    timeout_s: float,
+    poll_s: float = 2.0,
+) -> tuple[bool, dict[str, int]]:
+    deadline = time.time() + timeout_s
+    last_counts = {"matrix": 0, "responder": 0, "master": 0, "other": 0}
+    while time.time() < deadline:
+        last_counts = scan_anchor_role_counts(timeout_s=min(6.0, max(2.0, poll_s)))
+        if last_counts.get(role, 0) >= len(UUIDS):
+            return True, last_counts
+        time.sleep(poll_s)
+    return False, last_counts
+
+
 def runtime_all_role_ack_ok(role_text: str, role: str) -> tuple[bool, dict[str, int]]:
     info: dict[str, int] = {}
     role = role.lower()
     command_ok = (
         f"anchor role rc=0 target=all role={role}" in role_text
         or f"anchor role all {role} runtime sent=" in role_text
-        or f"anchor role all {role} runtime round=" in role_text
         or f"anchor role all {role} runtime repeat sent=" in role_text
         or f"anchor role all {role} runtime final sent=" in role_text
     )
     matches = re.findall(
-        rf"anchor role all {re.escape(role)} runtime (?:round=\d+ |repeat |final )?sent=(\d+) ready=(\d+)/(\d+)",
+        rf"anchor role all {re.escape(role)} runtime (?:repeat |final )?sent=(\d+) ready=(\d+)/(\d+)",
         role_text,
     )
     if matches:
@@ -1319,78 +1376,135 @@ def runtime_all_role_ack_ok(role_text: str, role: str) -> tuple[bool, dict[str, 
     return False, info
 
 
-def send_all_role_until_ready(
+def repair_missing_matrix_anchors(
     ser: serial.Serial,
     logf,
     port: str,
-    role: str,
-    attempts: int,
-    collect_s: float,
     live_output: bool,
     verbose: int,
     progress_cb=None,
-) -> tuple[serial.Serial, bool, dict[str, int], str]:
-    """
-    Broadcast a runtime role command until the Master_Anchor reports ready=8/8.
+    resident_anchor_master: bool = False,
+) -> tuple[serial.Serial, list[str], dict[str, str]]:
+    role_map = scan_anchor_role_map(timeout_s=6.0)
+    missing = [label for label in UUIDS.keys() if role_map.get(label) != "matrix"]
+    if not missing:
+        emit(logf, "SESSION: no targeted matrix repair needed\n", live_output, verbose)
+        return ser, missing, role_map
 
-    BLE advertisement role scans are useful diagnostics, but they are not a
-    reliable gate for the high-churn AutoPos sweep path.  The successful
-    2026-05-08 flow used the runtime acknowledgement from connected anchor
-    control links as the source of truth; keep that behavior here and avoid
-    tearing down nearly-ready links for a scan-only verification miss.
-    """
-    merged_info: dict[str, int] = {}
-    last_text = ""
-    last_ack_tuple: tuple[int, int, int] | None = None
-    for attempt in range(1, attempts + 1):
+    if resident_anchor_master:
         emit(
             logf,
-            f"SESSION: runtime role broadcast attempt {attempt}/{attempts}: anchor role all {role}\n",
+            "SESSION: resident Master_Anchor repair; keep existing control links, no RECV clean-slate\n",
             live_output,
             verbose,
         )
-        emit(logf, f">>> anchor role all {role}\n", live_output, verbose)
-        ser = write_cmd(ser, f"anchor role all {role}")
+    else:
+        emit(
+            logf,
+            "SESSION: rebuilding AUTOPOS control links before targeted matrix repair\n",
+            live_output,
+            verbose,
+        )
+        ser, _ = preflight_clean_autopos_start(
+            ser,
+            logf,
+            port,
+            live_output,
+            verbose,
+            progress_cb=progress_cb,
+            force_clean=True,
+        )
+        ser = ensure_autopos_maps(
+            ser,
+            logf,
+            port,
+            live_output,
+            verbose,
+            context={"autopos_initialized": False},
+            progress_cb=progress_cb,
+        )
+        ser, _ = collect_for(
+            ser,
+            logf,
+            3.0,
+            port,
+            live_output,
+            verbose,
+            progress_cb=progress_cb,
+        )
 
-        deadline = time.time() + collect_s
-        role_text = ""
-        while time.time() < deadline:
-            ser, _, chunk = collect_for_text(
-                ser,
-                logf,
-                min(2.0, max(0.1, deadline - time.time())),
-                port,
-                live_output,
-                verbose,
-                progress_cb=progress_cb,
-            )
-            role_text += chunk
-            last_text += chunk
-            ack_ok, ack_info = runtime_all_role_ack_ok(role_text, role)
-            if ack_info:
-                merged_info.update(ack_info)
-                ack_tuple = (
-                    int(ack_info.get("sent_count", -1)),
-                    int(ack_info.get("ready_count", -1)),
-                    int(ack_info.get("ready_target", -1)),
-                )
-                if ack_tuple != last_ack_tuple:
-                    last_ack_tuple = ack_tuple
-                    emit(
-                        logf,
-                        (
-                            f"SESSION: runtime role ack attempt {attempt}: "
-                            f"sent={ack_info.get('sent_count', '-')} "
-                            f"ready={ack_info.get('ready_count', '-')}/{ack_info.get('ready_target', '-')}\n"
-                        ),
-                        live_output,
-                        verbose,
-                    )
-            if ack_ok:
-                return ser, True, merged_info, last_text
-
-        ser, _ = collect_for(ser, logf, 1.5, port, live_output, verbose, progress_cb=progress_cb)
-    return ser, False, merged_info, last_text
+    emit(
+        logf,
+        "SESSION: targeted matrix repair for anchors="
+        + ",".join(f"{label}:{role_map.get(label, 'missing')}" for label in missing)
+        + "\n",
+        live_output,
+        verbose,
+    )
+    for label in missing:
+        if progress_cb is not None:
+            progress_cb()
+        emit(
+            logf,
+            f"SESSION: targeted matrix repair start label={label} prior_role={role_map.get(label, 'missing')}\n",
+            live_output,
+            verbose,
+        )
+        # First force a dedicated control-link rebuild / probe for this anchor.
+        ser, _ = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            f"anchor version {label}",
+            12.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
+        ser, _ = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            f"anchor reset {label} autopos",
+            18.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
+        ser, _ = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            f"anchor version {label}",
+            12.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
+        ser, _ = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            f"anchor role {label} matrix",
+            18.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+            progress_cb=progress_cb,
+        )
+        ser, _ = collect_for(
+            ser,
+            logf,
+            2.0,
+            port,
+            live_output,
+            verbose,
+            progress_cb=progress_cb,
+        )
+    return ser, missing, role_map
 
 
 def session_prepare_matrix(
@@ -1399,7 +1513,7 @@ def session_prepare_matrix(
     live_output: bool,
     verbose: int,
     context: dict,
-    reuse_resident_anchor_master: bool = True,
+    reuse_resident_anchor_master: bool = False,
 ) -> tuple[bool, dict]:
     log_path = out_dir / "session_role_guard.log"
     result = {
@@ -1435,13 +1549,6 @@ def session_prepare_matrix(
 
             set_status("clean AUTOPOS state")
             context["autopos_initialized"] = False
-            if not reuse_resident_anchor_master:
-                emit(
-                    logf,
-                    "SESSION WARN: force-clean path can enter RECV and is not the normal Master_Anchor sweep path\n",
-                    live_output,
-                    verbose,
-                )
             ser, _ = preflight_clean_autopos_start(
                 ser,
                 logf,
@@ -1463,46 +1570,180 @@ def session_prepare_matrix(
                 progress_cb=progress_now,
                 status_cb=set_status,
             )
-            emit(
-                logf,
-                "SESSION: using B120 Master_Anchor runtime ack only; external BLE scan role verify disabled\n",
-                live_output,
-                verbose,
-            )
-            set_status("all anchors -> matrix")
-            ser, ok, ack_info, role_text = send_all_role_until_ready(
+            set_status("verify matrix roles")
+            ser, ok, counts = wait_all_anchor_role(
                 ser,
                 logf,
                 port,
                 "matrix",
-                attempts=24,
-                collect_s=3.0,
-                live_output=live_output,
-                verbose=verbose,
-                progress_cb=progress_now,
+                3.0,
+                live_output,
+                verbose,
+                context=context,
             )
-            result.update(ack_info)
-            if ok:
-                counts = {"matrix": len(UUIDS), "responder": 0, "master": 0, "other": 0}
-                result["final_role_counts"] = counts
+            result["initial_role_counts"] = counts
+            if not ok:
                 emit(
                     logf,
-                    "SESSION: matrix runtime broadcast acknowledged by 8/8 ready anchors\n",
+                    "SESSION: switching all anchors to runtime matrix before sweep (idempotent guard)\n",
                     live_output,
                     verbose,
                 )
-                set_status("matrix guard acked")
-                finish_progress_line(render_session_progress("PREP", "matrix guard acked", time.time() - session_started_at))
-                result["success"] = True
-                return True, result
+                set_status("all anchors -> matrix")
+                ser, role_text = send_cmd_collect_text(
+                    ser,
+                    logf,
+                    port,
+                    "anchor role all matrix",
+                    18.0,
+                    live_output,
+                    verbose,
+                    resend_after_reopen=False,
+                    progress_cb=progress_now,
+                )
+                command_ok = (
+                    "anchor role rc=0 target=all role=matrix" in role_text
+                    or "anchor role all matrix runtime sent=" in role_text
+                    or "anchor role all matrix runtime repeat sent=" in role_text
+                )
+                ack_ok, ack_info = runtime_all_role_ack_ok(role_text, "matrix")
+                result.update(ack_info)
+                if ack_ok:
+                    ok = True
+                    counts = {"matrix": len(UUIDS), "responder": 0, "master": 0, "other": 0}
+                    result["final_role_counts"] = counts
+                    emit(
+                        logf,
+                        "SESSION: matrix runtime broadcast acknowledged by 8/8 ready anchors\n",
+                        live_output,
+                        verbose,
+                    )
+                    set_status("matrix guard acked")
+                    finish_progress_line(render_session_progress("PREP", "matrix guard acked", time.time() - session_started_at))
+                    result["success"] = True
+                    return True, result
+                if not command_ok:
+                    emit(
+                        logf,
+                        "SESSION WARN: matrix role guard command did not report completion; continuing to verification\n",
+                        live_output,
+                        verbose,
+                    )
+
+                set_status("verify matrix roles")
+                ser, ok, counts = wait_all_anchor_role(
+                    ser,
+                    logf,
+                    port,
+                    "matrix",
+                    20.0,
+                    live_output,
+                    verbose,
+                    context=context,
+                )
+            result["final_role_counts"] = counts
+            if not ok:
+                emit(
+                    logf,
+                    "SESSION WARN: matrix command sent, but not all anchors were verified via anchor version all; retrying once\n",
+                    live_output,
+                    verbose,
+                )
+                ser, role_text = send_cmd_collect_text(
+                    ser,
+                    logf,
+                    port,
+                    "anchor role all matrix",
+                    12.0,
+                    live_output,
+                    verbose,
+                    resend_after_reopen=False,
+                    progress_cb=progress_now,
+                )
+                ack_ok, ack_info = runtime_all_role_ack_ok(role_text, "matrix")
+                result.update(ack_info)
+                if (
+                    ack_ok or
+                    "anchor role rc=0 target=all role=matrix" in role_text
+                    or "anchor role all matrix runtime sent=" in role_text
+                    or "anchor role all matrix runtime repeat sent=" in role_text
+                ):
+                    if ack_ok:
+                        ok = True
+                        counts = {"matrix": len(UUIDS), "responder": 0, "master": 0, "other": 0}
+                    else:
+                        ser, ok, counts = wait_all_anchor_role(
+                            ser,
+                            logf,
+                            port,
+                            "matrix",
+                            12.0,
+                            live_output,
+                            verbose,
+                            context=context,
+                        )
+                    result["final_role_counts"] = counts
+
+            if not ok:
+                set_status("targeted matrix repair")
+                ser, missing_labels, role_map = repair_missing_matrix_anchors(
+                    ser,
+                    logf,
+                    port,
+                    live_output,
+                    verbose,
+                    progress_cb=progress_now,
+                    resident_anchor_master=reuse_resident_anchor_master,
+                )
+                result["targeted_repair_labels"] = missing_labels
+                result["targeted_repair_role_map"] = role_map
+                if missing_labels:
+                    set_status("verify matrix roles")
+                    ser, ok, counts = wait_all_anchor_role(
+                        ser,
+                        logf,
+                        port,
+                        "matrix",
+                        25.0,
+                        live_output,
+                        verbose,
+                        context=context,
+                    )
+                    result["final_role_counts"] = counts
 
             if not ok:
                 emit(
                     logf,
-                    "SESSION: runtime matrix ack did not reach ready=8/8; not rebuilding links in this guard path\n",
+                    "SESSION: targeted repair did not converge; forcing anchor reset all autopos\n",
                     live_output,
                     verbose,
                 )
+                set_status("reset all -> autopos")
+                ser, reset_text = send_cmd_collect_text(
+                    ser,
+                    logf,
+                    port,
+                    "anchor reset all autopos",
+                    130.0,
+                    live_output,
+                    verbose,
+                    resend_after_reopen=False,
+                    progress_cb=progress_now,
+                )
+                result["reset_fallback_used"] = True
+                result["reset_command_seen"] = "anchor reset rc=" in reset_text
+                set_status("verify matrix roles")
+                ser, ok, counts = wait_all_anchor_role(
+                    ser,
+                    logf,
+                    port,
+                    "matrix",
+                    60.0,
+                    live_output,
+                    verbose,
+                    context=context,
+                )
+                result["final_role_counts"] = counts
 
             if not ok:
                 result["success"] = False
@@ -1581,6 +1822,7 @@ def session_finalize_responder(
         logf,
         label: str,
         timeout_s: float,
+        scan_timeout_s: float,
     ) -> tuple[serial.Serial, bool, dict[str, int], str]:
         set_status(label)
         ser, role_text = send_cmd_collect_text(
@@ -1607,6 +1849,11 @@ def session_finalize_responder(
             counts = {"matrix": 0, "responder": len(UUIDS), "master": 0, "other": 0}
             result["role_counts"] = counts
             return ser, True, counts, role_text
+        if command_sent:
+            set_status("scan responder roles")
+            ok, counts = wait_scan_role_counts("responder", scan_timeout_s, poll_s=2.0)
+            result["role_counts"] = counts
+            return ser, ok, counts, role_text
         return ser, False, result.get("role_counts", {}), role_text
 
     try:
@@ -1646,6 +1893,7 @@ def session_finalize_responder(
                 logf,
                 "all anchors -> responder",
                 30.0,
+                20.0,
             )
             if not result.get("command_sent", False):
                 emit(
@@ -1664,14 +1912,20 @@ def session_finalize_responder(
             else:
                 emit(
                     logf,
-                    "SESSION: responder runtime ack did not reach ready=8/8; external BLE scan verify disabled\n",
+                    (
+                        f"SESSION: BLE-scan responder verify "
+                        f"matrix={counts.get('matrix', 0)} "
+                        f"responder={counts.get('responder', 0)} "
+                        f"master={counts.get('master', 0)} "
+                        f"other={counts.get('other', 0)}\n"
+                    ),
                     live_output,
                     verbose,
                 )
             if not ok:
                 emit(
                     logf,
-                    "SESSION WARN: responder runtime ack incomplete; retrying once without external BLE scan\n",
+                    "SESSION WARN: responder command sent, but BLE scan did not yet show all anchors in responder; retrying once\n",
                     live_output,
                     verbose,
                 )
@@ -1680,6 +1934,7 @@ def session_finalize_responder(
                     logf,
                     "all anchors -> responder retry",
                     12.0,
+                    15.0,
                 )
                 if ok:
                     emit(
@@ -1689,7 +1944,18 @@ def session_finalize_responder(
                         verbose,
                     )
                 elif result.get("command_sent", False):
-                    emit(logf, "SESSION: responder runtime retry still incomplete\n", live_output, verbose)
+                    emit(
+                        logf,
+                        (
+                            f"SESSION: BLE-scan responder verify after retry "
+                            f"matrix={counts.get('matrix', 0)} "
+                            f"responder={counts.get('responder', 0)} "
+                            f"master={counts.get('master', 0)} "
+                            f"other={counts.get('other', 0)}\n"
+                        ),
+                        live_output,
+                        verbose,
+                    )
 
             if not ok:
                 emit(
@@ -1726,6 +1992,7 @@ def session_finalize_responder(
                     logf,
                     "all anchors -> responder after reconnect",
                     20.0,
+                    20.0,
                 )
                 if ok:
                     emit(
@@ -1735,7 +2002,18 @@ def session_finalize_responder(
                         verbose,
                     )
                 else:
-                    emit(logf, "SESSION: responder runtime ack after reconnect still incomplete\n", live_output, verbose)
+                    emit(
+                        logf,
+                        (
+                            f"SESSION: BLE-scan responder verify after reconnect "
+                            f"matrix={counts.get('matrix', 0)} "
+                            f"responder={counts.get('responder', 0)} "
+                            f"master={counts.get('master', 0)} "
+                            f"other={counts.get('other', 0)}\n"
+                        ),
+                        live_output,
+                        verbose,
+                    )
 
             if not ok:
                 emit(
@@ -1771,7 +2049,21 @@ def session_finalize_responder(
                         verbose,
                     )
                 else:
-                    emit(logf, "SESSION: reset-responder runtime ack still incomplete; external BLE scan verify disabled\n", live_output, verbose)
+                    set_status("scan responder roles")
+                    ok, counts = wait_scan_role_counts("responder", 120.0, poll_s=3.0)
+                    result["role_counts"] = counts
+                    emit(
+                        logf,
+                        (
+                            f"SESSION: BLE-scan responder verify after reset "
+                            f"matrix={counts.get('matrix', 0)} "
+                            f"responder={counts.get('responder', 0)} "
+                            f"master={counts.get('master', 0)} "
+                            f"other={counts.get('other', 0)}\n"
+                        ),
+                        live_output,
+                        verbose,
+                    )
 
             result["success"] = bool(ok)
             if ok:
@@ -2099,7 +2391,8 @@ def quarantine_tag_for_sweep(
     )
     # Stop any additional Tag churn after we are done (prevents accidental extra Tag connects in noisy RF).
     try:
-        ser = force_anchor_target_filter(ser, logf, port, live_output, verbose)
+        ser = send_cmd_collect(ser, logf, port, "ota_target prefix -", 0.8, live_output, verbose)
+        ser = send_cmd_collect(ser, logf, port, "ota_target name -", 0.8, live_output, verbose)
     except Exception:
         pass
     return ser, True
@@ -2194,10 +2487,6 @@ def discover_quiet_tag_names_auto(
         found.append(bs_name)
 
     emit(logf, f"PRECHECK AUTO: discovered quiet tags={found}\n", live_output, verbose)
-    try:
-        ser = force_anchor_target_filter(ser, logf, port, live_output, verbose)
-    except Exception:
-        pass
     return ser, found
 
 
@@ -2229,9 +2518,6 @@ def round_capture(
         "sw_lines": [],
         "sw_count": 0,
         "device_sw_count": 0,
-        "invalid_sw_lines": [],
-        "invalid_sw_count": 0,
-        "invalid_sw_peers": {},
         "warmup_min_quality": warmup_min_quality,
         "warmup_sw_lines": [],
         "warmup_sw_count": 0,
@@ -2244,8 +2530,6 @@ def round_capture(
         "reconnect_retry_seen": False,
         "reconnect_retry_lines": [],
         "sweep_done_seen": False,
-        "apply_idle_seen": False,
-        "per_round_matrix_guard": {},
         "precheck_elapsed_s": None,
         "switch_elapsed_s": None,
         "warmup_elapsed_s": None,
@@ -2349,41 +2633,6 @@ def round_capture(
                 progress_cb=lambda: progress_now("precheck"),
             )
 
-            if context is not None and context.get("per_round_matrix_guard", False):
-                emit(
-                    logf,
-                    "PRECHECK: per-round matrix guard before finite master promotion\n",
-                    live_output,
-                    verbose,
-                )
-                ser, matrix_ok, matrix_ack, _ = send_all_role_until_ready(
-                    ser,
-                    logf,
-                    port,
-                    "matrix",
-                    attempts=24,
-                    collect_s=3.0,
-                    live_output=live_output,
-                    verbose=verbose,
-                    progress_cb=lambda: progress_now("matrix"),
-                )
-                result["per_round_matrix_guard"] = {
-                    "success": bool(matrix_ok),
-                    **matrix_ack,
-                }
-                if not matrix_ok:
-                    result["error"] = "per_round_matrix_guard_failed"
-                    emit(
-                        logf,
-                        "PRECHECK FAIL: per-round matrix guard did not reach ready=8/8\n",
-                        live_output,
-                        verbose,
-                    )
-                    emit(logf, f"END={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
-                    flush_live_buffer(logf, verbose)
-                    finish_round_progress()
-                    return result
-
             if context is not None and context.get("bootstrap_autopos_reset", False) and not context.get("bootstrap_done", False):
                 context["bootstrap_done"] = True
                 bootstrap_ok = False
@@ -2446,9 +2695,6 @@ def round_capture(
                 result["warmup_discarded_count"] = 0
                 result["min_quality_seen"] = None
                 result["pairs_below_quality"] = {}
-                result["invalid_sw_lines"] = []
-                result["invalid_sw_count"] = 0
-                result["invalid_sw_peers"] = {}
                 result["sweep_done_seen"] = False
 
             def process_runtime_text(text: str) -> None:
@@ -2489,15 +2735,6 @@ def round_capture(
                         if formal_sweep_started_at is None:
                             formal_sweep_started_at = time.time()
                         min_quality = sw_line_min_quality(master, line)
-                        invalid_peers = sw_line_invalid_matrix_peers(master, line)
-                        if invalid_peers:
-                            result["invalid_sw_lines"].append(line)
-                            result["invalid_sw_count"] = len(result["invalid_sw_lines"])
-                            result["invalid_sw_peers"][line] = invalid_peers
-                            result.setdefault("warnings", []).append(
-                                f"discarded SW-{master} row with invalid matrix peers: {','.join(invalid_peers)}"
-                            )
-                            continue
                         result["sw_seen"] = True
                         result["sw_line"] = line
                         result["sw_lines"].append(line)
@@ -2646,141 +2883,36 @@ def round_capture(
             if not round_confirmed:
                 raise RuntimeError(f"autopos round staging failed for {master}")
 
-            def round_staged_in_status(text: str) -> bool:
-                return (
-                    (
-                        f"state=staged staged={master}" in text or
-                        f"state=ready staged={master}" in text or
-                        f"state=running staged={master}" in text
-                    )
-                    and f"sets={round_capture.device_sw_sets}" in text
+            for cmd, pause_s in [("autopos status", 0.5), ("autopos apply", 0.5)]:
+                stage = "switching"
+                print_round_progress(
+                    master,
+                    round_idx,
+                    round_total,
+                    result["sw_count"],
+                    round_capture.target_sw_sets,
+                    stage,
+                    time.time() - command_started_at,
+                    time.time() - round_started_at,
+                    None,
+                    result["warmup_discarded_count"],
+                    round_capture.prewarm_sw_sets,
                 )
-
-            def restage_round_after_failed_apply(reason: str) -> bool:
-                nonlocal ser
-                emit(
-                    logf,
-                    f"ROUND: restaging {round_cmd} after apply failure ({reason})\n",
-                    live_output,
-                    verbose,
-                )
-                time.sleep(2.0)
-                ser, status_text = send_cmd_collect_text(
+                ser, cmd_text = send_cmd_collect_text(
                     ser,
                     logf,
                     port,
-                    "autopos status",
-                    0.8,
-                    live_output,
-                    verbose,
-                    progress_cb=lambda: progress_now("switching"),
-                    text_filter=filter_runtime_text,
-                )
-                process_runtime_text(status_text)
-                ser, restage_text = send_cmd_collect_text(
-                    ser,
-                    logf,
-                    port,
-                    round_cmd,
-                    1.5,
-                    live_output,
-                    verbose,
-                    resend_after_reopen=True,
-                    progress_cb=lambda: progress_now("switching"),
-                    text_filter=filter_runtime_text,
-                )
-                process_runtime_text(restage_text)
-                if f"AUTOPOS round staged: master={master}" in restage_text:
-                    return True
-                ser, status_text = send_cmd_collect_text(
-                    ser,
-                    logf,
-                    port,
-                    "autopos status",
-                    0.8,
-                    live_output,
-                    verbose,
-                    progress_cb=lambda: progress_now("switching"),
-                    text_filter=filter_runtime_text,
-                )
-                process_runtime_text(status_text)
-                if round_staged_in_status(status_text):
-                    emit(
-                        logf,
-                        f"ROUND: restage confirmed via autopos status after {reason}\n",
-                        live_output,
-                        verbose,
-                    )
-                    return True
-                emit(
-                    logf,
-                    f"ROUND WARN: restage did not confirm after {reason}\n",
-                    live_output,
-                    verbose,
-                )
-                return False
-
-            stage = "switching"
-            print_round_progress(
-                master,
-                round_idx,
-                round_total,
-                result["sw_count"],
-                round_capture.target_sw_sets,
-                stage,
-                time.time() - command_started_at,
-                time.time() - round_started_at,
-                None,
-                result["warmup_discarded_count"],
-                round_capture.prewarm_sw_sets,
-            )
-            ser, status_text = send_cmd_collect_text(
-                ser,
-                logf,
-                port,
-                "autopos status",
-                0.5,
-                live_output,
-                verbose,
-                progress_cb=lambda: progress_now(stage),
-                text_filter=filter_runtime_text,
-            )
-            process_runtime_text(status_text)
-
-            # BLE control links can drop exactly while a target is being promoted.
-            # If apply loses that race, the target often reconnects a second later;
-            # re-issuing apply is cheaper and safer than timing out the whole round.
-            for apply_attempt in range(1, 4):
-                ser, apply_text = send_cmd_collect_text(
-                    ser,
-                    logf,
-                    port,
-                    "autopos apply",
-                    0.8,
+                    cmd,
+                    pause_s,
                     live_output,
                     verbose,
                     progress_cb=lambda: progress_now(stage),
                     text_filter=filter_runtime_text,
                 )
-                process_runtime_text(apply_text)
-                if result["apply_success_seen"] or result["sweep_ready_seen"] or result["sw_seen"]:
-                    break
-                if "AUTOPOS apply failed:" in apply_text and apply_attempt < 3:
-                    emit(
-                        logf,
-                        f"ROUND: autopos apply failed on attempt {apply_attempt}; "
-                        "waiting for target reconnect, restaging round, then retrying apply\n",
-                        live_output,
-                        verbose,
-                    )
-                    if not restage_round_after_failed_apply(f"apply_attempt_{apply_attempt}"):
-                        break
-                else:
-                    break
+                process_runtime_text(cmd_text)
 
             deadline = time.time() + timeout_s
             post_target_deadline = None
-            async_apply_retries = 0
             status_marks = {30, 60, 120, 180, 240, 300, 360, 420}
             sent_marks = set()
             while time.time() < deadline:
@@ -2834,40 +2966,6 @@ def round_capture(
                     text = data.decode("utf-8", "ignore")
                     emit(logf, filter_runtime_text(text), live_output, verbose)
                     process_runtime_text(text)
-                    async_apply_failed = (
-                        not result["apply_success_seen"] and
-                        not result["sweep_ready_seen"] and
-                        not result["sw_seen"] and
-                        (
-                            "AUTOPOS apply failed:" in text or
-                            ("AUTOPOS: mode=AUTOPOS state=failed" in text and "promote failed" in text)
-                        )
-                    )
-                    if async_apply_failed and async_apply_retries < 3:
-                        async_apply_retries += 1
-                        emit(
-                            logf,
-                            f"ROUND: async apply failure observed; restaging and retrying "
-                            f"autopos apply {async_apply_retries}/3 after target reconnect window\n",
-                            live_output,
-                            verbose,
-                        )
-                        if not restage_round_after_failed_apply(f"async_apply_{async_apply_retries}"):
-                            continue
-                        ser, retry_text = send_cmd_collect_text(
-                            ser,
-                            logf,
-                            port,
-                            "autopos apply",
-                            1.0,
-                            live_output,
-                            verbose,
-                            resend_after_reopen=True,
-                            progress_cb=lambda: progress_now(stage),
-                            text_filter=filter_runtime_text,
-                        )
-                        process_runtime_text(retry_text)
-                        continue
                     if result["sw_count"] >= round_capture.target_sw_sets:
                         if result["sweep_done_seen"] or round_capture.device_sw_sets == 0:
                             result["success"] = True
@@ -2903,35 +3001,6 @@ def round_capture(
                     w for w in result["warnings"]
                     if w != "SW lines observed without AUTOPOS apply success"
                 ]
-            if result["success"]:
-                idle_deadline = time.time() + 8.0
-                while time.time() < idle_deadline:
-                    ser, idle_text = send_cmd_collect_text(
-                        ser,
-                        logf,
-                        port,
-                        "autopos status",
-                        0.6,
-                        live_output,
-                        verbose,
-                        resend_after_reopen=True,
-                        progress_cb=lambda: progress_now("finishing"),
-                        text_filter=filter_runtime_text,
-                    )
-                    process_runtime_text(idle_text)
-                    if (
-                        "AUTOPOS: mode=AUTOPOS state=ready" in idle_text
-                        and f"last_success={master}" in idle_text
-                    ):
-                        result["apply_idle_seen"] = True
-                        break
-                    time.sleep(0.2)
-                if not result["apply_idle_seen"]:
-                    result["success"] = False
-                    result["error"] = "apply_not_idle_after_sweep"
-                    result["warnings"].append(
-                        "finite sweep ended before Master_Anchor apply worker reported ready"
-                    )
             if not result["success"] and result["sw_count"] < round_capture.target_sw_sets:
                 history_replayed = False
                 if result["sweep_done_seen"]:
@@ -2960,12 +3029,7 @@ def round_capture(
                     result["success"] = True
                     stage = "done"
             if not result["success"]:
-                if result.get("invalid_sw_count", 0) > 0:
-                    result["error"] = (
-                        f"invalid_sw_rows:{result['invalid_sw_count']} "
-                        f"valid:{result['sw_count']}/{round_capture.target_sw_sets}"
-                    )
-                elif not result["sweep_ready_seen"]:
+                if not result["sweep_ready_seen"]:
                     result["error"] = "sweep_ready_not_seen"
                 elif not result["sw_seen"]:
                     result["error"] = "sw_not_seen"
@@ -3104,43 +3168,21 @@ def main() -> int:
     parser.add_argument(
         "--reuse-resident-anchor-master",
         action="store_true",
-        default=True,
         help=(
-            "Default behavior: assume the port is Master_Anchor with resident anchor control links. "
-            "Avoid RECV clean-slate reboots and never connect ordinary Tags during anchor sweep prep."
-        ),
-    )
-    parser.add_argument(
-        "--force-clean-autopos-recv",
-        action="store_true",
-        help=(
-            "Legacy diagnostic only: enter RECV before AUTOPOS. "
-            "Do not use for normal anchor sweeps because ordinary Tags can be connected/configured."
+            "Assume the port is Master_Anchor with resident anchor control links. "
+            "Avoid RECV clean-slate reboots and accept 8/8 runtime role ack even when connected anchors stop advertising."
         ),
     )
     parser.add_argument(
         "--no-final-responder",
         action="store_true",
-        help="Deprecated no-op: final responder restore is skipped by default.",
-    )
-    parser.add_argument(
-        "--final-responder",
-        action="store_true",
-        help="After the full sweep succeeds, switch all anchors to runtime responder.",
+        help="Skip switching all anchors to runtime responder after the full sweep succeeds.",
     )
     parser.add_argument(
         "--round-retries",
         type=int,
         default=2,
         help="Retry a failed master round this many extra times before giving up.",
-    )
-    parser.add_argument(
-        "--no-per-round-matrix-guard",
-        action="store_true",
-        help=(
-            "Skip the extra 'anchor role all matrix' ready=8/8 guard before each finite master round. "
-            "Default keeps each SW-X round starting from a confirmed matrix baseline."
-        ),
     )
     args = parser.parse_args()
 
@@ -3150,22 +3192,9 @@ def main() -> int:
         raise SystemExit("--prewarm-sw-sets must be >= 0")
     if args.warmup_min_quality < 0 or args.warmup_min_quality > 100:
         raise SystemExit("--warmup-min-quality must be between 0 and 100")
-    args.order = parse_master_order(args.order)
 
     if args.timeout_s is None:
         args.timeout_s = auto_timeout_for_sw_sets(args.sw_sets)
-
-    lock_path = Path("/tmp/biospur_autopos_sweep_loop.lock")
-    lockf = open(lock_path, "w")
-    try:
-        fcntl.flock(lockf.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        raise SystemExit(
-            f"another run_autopos_sweep_loop.py is already active (lock: {lock_path}); "
-            "kill the old run before starting a new sweep"
-        )
-    lockf.write(f"pid={os.getpid()} port={args.port} out_dir={args.out_dir}\n")
-    lockf.flush()
 
     round_capture.target_sw_sets = args.sw_sets
     round_capture.prewarm_sw_sets = args.prewarm_sw_sets
@@ -3210,9 +3239,8 @@ def main() -> int:
         "quiet_tag_required": bool(args.quiet_tag_required),
         "bootstrap_autopos_reset": bootstrap_autopos_reset,
         "session_role_guard": not bool(args.no_session_role_guard),
-        "final_responder": bool(args.final_responder),
-        "reuse_resident_anchor_master": not bool(args.force_clean_autopos_recv),
-        "per_round_matrix_guard": not bool(args.no_per_round_matrix_guard),
+        "final_responder": not bool(args.no_final_responder),
+        "reuse_resident_anchor_master": bool(args.reuse_resident_anchor_master),
         "slow_switch_threshold_s": 10.0,
     })
     command_started_at = time.time()
@@ -3221,7 +3249,6 @@ def main() -> int:
         "bootstrap_autopos_reset": bootstrap_autopos_reset,
         "bootstrap_done": False,
         "session_autopos_ready": False,
-        "per_round_matrix_guard": not bool(args.no_per_round_matrix_guard),
     }
 
     if not args.no_session_role_guard:
@@ -3232,7 +3259,7 @@ def main() -> int:
             live_output=not args.no_live_output,
             verbose=args.verbose,
             context=run_context,
-            reuse_resident_anchor_master=not bool(args.force_clean_autopos_recv),
+            reuse_resident_anchor_master=bool(args.reuse_resident_anchor_master),
         )
         summary["session_role_guard_result"] = guard_result
         with open(out_dir / "summary.json", "w", encoding="utf-8") as f:
@@ -3287,10 +3314,6 @@ def main() -> int:
                     "sw_lines": [],
                     "sw_count": 0,
                     "device_sw_count": 0,
-                    "invalid_sw_lines": [],
-                    "invalid_sw_count": 0,
-                    "invalid_sw_peers": {},
-                    "per_round_matrix_guard": {},
                     "warmup_min_quality": args.warmup_min_quality,
                     "warmup_sw_lines": [],
                     "warmup_sw_count": 0,
@@ -3302,7 +3325,6 @@ def main() -> int:
                     "warnings": [f"Anchor {master}: no output as Master"],
                     "reconnect_retry_seen": False,
                     "reconnect_retry_lines": [],
-                    "apply_idle_seen": False,
                     "precheck_elapsed_s": None,
                     "switch_elapsed_s": None,
                     "warmup_elapsed_s": None,
@@ -3330,7 +3352,7 @@ def main() -> int:
         if not result["success"]:
             return 1
 
-    if args.final_responder:
+    if not args.no_final_responder:
         print("=== SESSION FINALIZER: RESPONDER ===", flush=True)
         final_result = session_finalize_responder(
             args.port,

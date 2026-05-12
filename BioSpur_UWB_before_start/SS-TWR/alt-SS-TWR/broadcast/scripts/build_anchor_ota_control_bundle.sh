@@ -51,7 +51,6 @@ export ZEPHYR_MODULES="${ZEPHYR_MODULES:-$(cd "$WEST_TOPDIR" && "$WEST_BIN" list
 # Avoid /usr/local site-packages here because this machine has an incompatible
 # `enum34` package there, which breaks both west and the NCS toolchain Python.
 HOST_SITE_PACKAGES="$(python3 -c 'import site; print(":".join(p for p in site.getsitepackages() if not p.startswith("/usr/local/lib/python")) )')"
-export PYTHONPATH="${HOST_SITE_PACKAGES}${PYTHONPATH:+:${PYTHONPATH}}"
 CMAKE_BIN="${CMAKE_BIN:-cmake}"
 
 (cd "$WEST_TOPDIR" && "$WEST_BIN" build \
@@ -63,7 +62,6 @@ CMAKE_BIN="${CMAKE_BIN:-cmake}"
   --pristine=always \
   -- \
   -DPython3_EXECUTABLE=/usr/bin/python3 \
-  -Dmcuboot_Python3_EXECUTABLE=/usr/bin/python3 \
   -DCONFIG_BUILD_OUTPUT_META=n \
   -Dmcuboot_CONFIG_BUILD_OUTPUT_META=n \
   -DSB_CONFIG_BOOTLOADER_MCUBOOT=y \
@@ -76,6 +74,7 @@ CMAKE_BIN="${CMAKE_BIN:-cmake}"
   env \
   WEST_TOPDIR="${WEST_TOPDIR}" \
   ZEPHYR_BASE="${NCS_ROOT}/zephyr" \
+  PYTHONPATH="${HOST_SITE_PACKAGES}${PYTHONPATH:+:${PYTHONPATH}}" \
   "${CMAKE_BIN}" --build "${ANCHOR_BUILD_DIR}")
 
 SIGNED_BIN="${ANCHOR_BUILD_DIR}/anchor/zephyr/zephyr.signed.bin"

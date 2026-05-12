@@ -30,11 +30,10 @@
 #include "uwb_tdma.h"
 
 #define MASTER_MAX_CONNECTIONS 10U
-#define MASTER_ANCHOR_COUNT 8U
 #define MASTER_DISCOVERY_RETRY_DELAY_MS 1500U
 #define MASTER_DISCOVERY_RETRY_LIMIT 5U
 #define MASTER_DISCOVERY_START_SETTLE_MS 350U
-#define MASTER_ANCHOR_DISCOVERY_START_SETTLE_MS 0U
+#define MASTER_ANCHOR_DISCOVERY_START_SETTLE_MS 900U
 #define MASTER_CONNECT_PENDING_TIMEOUT_MS 6000U
 #define MASTER_SCAN_HIT_CONNECT_SETTLE_MS 300U
 #define MASTER_ANCHOR_CONNECT_UNREADY_LIMIT 1U
@@ -45,22 +44,9 @@
 #ifndef APP_MASTER_TDMA_SLOT_ACTIVE_MS
 #define APP_MASTER_TDMA_SLOT_ACTIVE_MS 24U
 #endif
-#ifndef APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE
-#define APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE 0
-#endif
-#ifndef APP_MASTER_TDMA_LEGACY_SLOT_COUNT
-#define APP_MASTER_TDMA_LEGACY_SLOT_COUNT 10U
-#endif
-
-#ifndef APP_MASTER_SCAN_DEBUG_ALL_ENABLE
-#define APP_MASTER_SCAN_DEBUG_ALL_ENABLE 0
-#endif
-#ifndef APP_MASTER_TAG_UUID_ONLY_RECOVERY_ENABLE
-#define APP_MASTER_TAG_UUID_ONLY_RECOVERY_ENABLE 0
-#endif
 #define MASTER_TDMA_SLOT_PERIOD_MS APP_MASTER_TDMA_SLOT_PERIOD_MS
 #define MASTER_TDMA_SLOT_ACTIVE_MS APP_MASTER_TDMA_SLOT_ACTIVE_MS
-#define MASTER_TDMA_EPOCH_LEAD_MS 5000U
+#define MASTER_TDMA_EPOCH_LEAD_MS 3000U
 #define MASTER_TDMA_PROFILE_MAX MASTER_MAX_CONNECTIONS
 #define MASTER_TDMA_ROTO_DEFAULT_HZ 15U
 #define MASTER_TDMA_STATIC_DEFAULT_HZ 5U
@@ -111,15 +97,6 @@ static const struct bt_le_conn_param fast_conn_params = {
 	.latency = 0,
 	.timeout = 400,
 };
-static const struct bt_le_conn_param anchor_ctrl_conn_params = {
-	/* Keep 8 persistent anchor-control links calm. Data-plane tag links can
-	 * stay fast, but anchor role/config traffic does not need 7.5 ms intervals.
-	 */
-	.interval_min = 32,
-	.interval_max = 56,
-	.latency = 0,
-	.timeout = 1000,
-};
 
 enum master_led_id {
 	MASTER_LED_SCAN = DK_LED1,
@@ -169,18 +146,11 @@ struct master_peer {
 	uint8_t logical_tag_id;
 	bool logical_tag_id_valid;
 	uint8_t tdma_slot;
-	uint8_t tdma_slot_count;
-	uint16_t tdma_slot_mask;
-	uint16_t tdma_slot_period_ms;
-	uint16_t tdma_slot_active_ms;
 	bool tdma_slot_valid;
 	uint8_t tdma_generation;
 };
 
 static bool peer_matches_runtime_target(const struct master_peer *peer);
-static uint8_t anchor_ctrl_notify_cb(struct bt_conn *conn,
-				     struct bt_gatt_subscribe_params *params,
-				     const void *data, uint16_t length);
 
 enum master_tdma_profile_kind {
 	MASTER_TDMA_PROFILE_MOTION = 0,
@@ -240,8 +210,6 @@ static bool led_error_state;
 static bool led_flow_state;
 static struct k_work_delayable led_flow_off_work;
 static uint8_t tdma_generation;
-static bool tdma_run_enabled = true;
-static bool tdma_run_schedule_locked;
 static bool tdma_rebalance_hold;
 static bool tdma_rebalance_deferred;
 static char runtime_one_shot_cmd[MASTER_RUNTIME_ONE_SHOT_CMD_LEN];
@@ -253,18 +221,7 @@ static char runtime_target_name[MASTER_NAME_BUF_LEN];
 static char runtime_target_prefix[MASTER_NAME_BUF_LEN];
 static char runtime_target_uuid[MASTER_UUID_HEX_LEN + 1U];
 static bool runtime_anchor_wildcard_scan;
-static bool runtime_anchor_result_stream;
 static char anchor_adv_uuid_map[8][MASTER_UUID_HEX_LEN + 1U];
-static const char *const known_anchor_uuid_allowlist[MASTER_ANCHOR_COUNT] = {
-	"4DC6B8187E33803AE8601FB0D7992B96", /* A */
-	"B9179575C776C98F1CB132DD6EDC6223", /* B */
-	"CEE5A7EFCB35F8A56B430047629F5309", /* C */
-	"B2B5FA625534A8C617135DCAFC9E036A", /* D replacement, 2026-05-08 */
-	"A892AF05DD59CF0D0D3408AD74F364A1", /* E */
-	"840C68591E90019821AACFF1B73AAA34", /* F */
-	"B3087BC3D87CCCD316AEDC6B71D6677F", /* G */
-	"CF12E703AC1A118F6AB440AB05B0BA23", /* H replacement, 2026-05-08 */
-};
 static struct k_sem anchor_read_sem;
 static struct bt_gatt_read_params anchor_read_params;
 static char anchor_read_buffer[256];
@@ -315,61 +272,6 @@ static void discovery_pump_work_fn(struct k_work *work)
 static void discovery_pump_schedule(uint32_t delay_ms)
 {
 	(void)k_work_schedule(&discovery_pump_work, K_MSEC(delay_ms));
-}
-
-static const struct bt_le_conn_param *peer_conn_params(const struct master_peer *peer)
-{
-	if (peer != NULL && peer->link_type == MASTER_LINK_ANCHOR_CTRL) {
-		return &anchor_ctrl_conn_params;
-	}
-
-	return &fast_conn_params;
-}
-
-static void anchor_ctrl_ensure_result_stream(struct master_peer *peer)
-{
-	if (!runtime_anchor_result_stream || peer == NULL ||
-	    peer->link_type != MASTER_LINK_ANCHOR_CTRL ||
-	    !peer->connected || peer->conn == NULL) {
-		return;
-	}
-	if (!peer_matches_runtime_target(peer)) {
-		return;
-	}
-
-	int idx = (int)(peer - peers);
-	int err;
-
-	if (peer->anchor_result_handle == 0U) {
-		peer->anchor_result_handle = 0x001bU;
-	}
-	if (peer->anchor_result_ccc_handle == 0U) {
-		peer->anchor_result_ccc_handle = 0x001cU;
-	}
-	if (peer->anchor_result_sub_params.value_handle == peer->anchor_result_handle &&
-	    peer->anchor_result_sub_params.ccc_handle == peer->anchor_result_ccc_handle) {
-		return;
-	}
-
-	/* Only the selected sweep-master needs long result notifications.  Keep
-	 * ordinary resident anchor-control links calm, but restore MTU here so
-	 * STATE/result/SW text is not truncated to the default ATT payload.
-	 */
-	peer->mtu_exchange_params.func = exchange_func;
-	err = bt_gatt_exchange_mtu(peer->conn, &peer->mtu_exchange_params);
-	printk("Anchor ctrl result-stream mtu ensure[%d] rc=%d\n", idx, err);
-	k_sleep(K_MSEC(150));
-
-	memset(&peer->anchor_result_sub_params, 0, sizeof(peer->anchor_result_sub_params));
-	peer->anchor_result_sub_params.notify = anchor_ctrl_notify_cb;
-	peer->anchor_result_sub_params.value = BT_GATT_CCC_NOTIFY;
-	peer->anchor_result_sub_params.value_handle = peer->anchor_result_handle;
-	peer->anchor_result_sub_params.ccc_handle = peer->anchor_result_ccc_handle;
-	atomic_set_bit(peer->anchor_result_sub_params.flags,
-		       BT_GATT_SUBSCRIBE_FLAG_VOLATILE);
-	err = bt_gatt_subscribe(peer->conn, &peer->anchor_result_sub_params);
-	printk("Anchor ctrl result-stream subscribe ensure[%d] rc=%d handle=0x%04x\n",
-	       idx, err, peer->anchor_result_handle);
 }
 
 static void master_cal_reset_state(int idx)
@@ -443,68 +345,13 @@ static void peer_run_setup(struct master_peer *peer)
 	       link_type_label(peer->link_type),
 	       peer->adv_uuid[0] != '\0' ? peer->adv_uuid : "-",
 	       peer->conn);
-	if (peer->link_type == MASTER_LINK_ANCHOR_CTRL) {
-		/* Anchor-control traffic is tiny but needs eight resident links.
-		 * Avoid MTU/2M-PHY negotiation bursts that can destabilize the
-		 * nRF5340 controller while all A-H links are being discovered.
-		 * Finite sweep result streaming is the one exception: SW-* rows are
-		 * longer than the default 20-byte ATT payload, so enable MTU only for
-		 * the single sweep-master listener path.
-		 */
-		printk("SETUP[%d] anchor-ctrl: skip mtu/phy negotiation\n", idx);
-	} else {
-		peer->mtu_exchange_params.func = exchange_func;
-		err = bt_gatt_exchange_mtu(peer->conn, &peer->mtu_exchange_params);
-		printk("SETUP[%d] mtu_exchange rc=%d\n", idx, err);
-		err = bt_conn_le_phy_update(peer->conn, fast_phy_params);
-		printk("SETUP[%d] phy_update rc=%d\n", idx, err);
-	}
-	const struct bt_le_conn_param *conn_param = peer_conn_params(peer);
-	err = bt_conn_le_param_update(peer->conn, conn_param);
-	printk("SETUP[%d] conn_param_update rc=%d interval=%u-%u timeout=%u\n",
-	       idx, err,
-	       (unsigned int)conn_param->interval_min,
-	       (unsigned int)conn_param->interval_max,
-	       (unsigned int)conn_param->timeout);
-
-	if (peer->link_type == MASTER_LINK_ANCHOR_CTRL) {
-		/* The A-H anchor-control service layout is fixed in our anchor image.
-		 * Discovery has repeatedly proven to be the fragile part of the
-		 * B120<->anchor control plane, while the handles themselves are stable
-		 * across all current A-H anchors:
-		 *   service=0x0010 state=0x0012 control=0x0019 result=0x001b
-		 * Use the static map directly so Master_Anchor can issue short runtime
-		 * commands without spending tens of seconds in GATT discovery churn.
-		 */
-		peer->anchor_state_handle = 0x0012U;
-		peer->anchor_state_ccc_handle = 0x0013U;
-		peer->anchor_ctrl_handle = 0x0019U;
-		peer->anchor_result_handle = 0x001bU;
-		peer->anchor_result_ccc_handle = 0x001cU;
-		peer->ready = true;
-		peer->discovery_inflight = false;
-		anchor_ctrl_ensure_result_stream(peer);
-		printk("ANCHOR_CTRL[%d] static link ready state=0x%04x ctrl=0x%04x result=0x%04x uuid=%s\n",
-		       idx,
-		       peer->anchor_state_handle,
-		       peer->anchor_ctrl_handle,
-		       peer->anchor_result_handle,
-		       peer->adv_uuid[0] != '\0' ? peer->adv_uuid : "-");
-		if (master_anchor_ctrl_ready_count() >= (int)MASTER_ANCHOR_COUNT) {
-			printk("ANCHOR_CTRL ready full: ready=%d/%d; stop scan before runtime commands\n",
-			       master_anchor_ctrl_ready_count(), (int)MASTER_ANCHOR_COUNT);
-			stop_scan();
-		} else if (runtime_target_kind == MASTER_TARGET_ANCHOR &&
-			   conn_count < MASTER_MAX_CONNECTIONS) {
-			/* Static-handle anchor-control setup returns before the normal
-			 * discovery_complete() path. Keep scanning until all A-H resident
-			 * links are present; otherwise we can stop at 5/8 or 6/8 after
-			 * bt_le_scan_stop() was used for the previous connection attempt.
-			 */
-			start_scan();
-		}
-		return;
-	}
+	peer->mtu_exchange_params.func = exchange_func;
+	err = bt_gatt_exchange_mtu(peer->conn, &peer->mtu_exchange_params);
+	printk("SETUP[%d] mtu_exchange rc=%d\n", idx, err);
+	err = bt_conn_le_phy_update(peer->conn, fast_phy_params);
+	printk("SETUP[%d] phy_update rc=%d\n", idx, err);
+	err = bt_conn_le_param_update(peer->conn, &fast_conn_params);
+	printk("SETUP[%d] conn_param_update rc=%d\n", idx, err);
 	gatt_discover(peer->conn, peer);
 }
 
@@ -715,22 +562,6 @@ static int peer_index_from_addr(const bt_addr_le_t *addr)
 	return -1;
 }
 
-static int peer_index_from_bs_code(uint16_t bs_code)
-{
-	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
-		if (!peers[i].bs_code_valid || peers[i].bs_code != bs_code) {
-			continue;
-		}
-
-		if (peers[i].conn != NULL || peers[i].connected ||
-		    peers[i].connect_pending || peers[i].addr_valid) {
-			return (int)i;
-		}
-	}
-
-	return -1;
-}
-
 static uint8_t master_anchor_unready_link_count(void)
 {
 	uint8_t count = 0U;
@@ -751,24 +582,6 @@ static int peer_index_from_nus(struct bt_nus_client *nus)
 {
 	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
 		if (&peers[i].nus_client == nus) {
-			return (int)i;
-		}
-	}
-
-	return -1;
-}
-
-static int peer_index_from_uuid_hex(const char *uuid_hex)
-{
-	if (uuid_hex == NULL || uuid_hex[0] == '\0') {
-		return -1;
-	}
-
-	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
-		if (peers[i].adv_uuid[0] == '\0') {
-			continue;
-		}
-		if (strcasecmp(peers[i].adv_uuid, uuid_hex) == 0) {
 			return (int)i;
 		}
 	}
@@ -846,10 +659,6 @@ static void peer_clear(unsigned int idx, bool unref_conn)
 	peers[idx].logical_tag_id = 0U;
 	peers[idx].logical_tag_id_valid = false;
 	peers[idx].tdma_slot = 0U;
-	peers[idx].tdma_slot_count = 0U;
-	peers[idx].tdma_slot_mask = 0U;
-	peers[idx].tdma_slot_period_ms = 0U;
-	peers[idx].tdma_slot_active_ms = 0U;
 	peers[idx].tdma_slot_valid = false;
 	peers[idx].tdma_generation = 0U;
 	master_cal_reset_state((int)idx);
@@ -1186,21 +995,6 @@ static bool ad_extract_uuid_hex(struct net_buf_simple *ad, char *uuid_hex, size_
 	return uuid_hex[0] != '\0';
 }
 
-static bool is_known_anchor_uuid(const char *uuid_hex)
-{
-	if (uuid_hex == NULL || uuid_hex[0] == '\0') {
-		return false;
-	}
-
-	for (size_t i = 0U; i < ARRAY_SIZE(known_anchor_uuid_allowlist); ++i) {
-		if (!strcasecmp(uuid_hex, known_anchor_uuid_allowlist[i])) {
-			return true;
-		}
-	}
-
-	return false;
-}
-
 static bool master_peer_sort_before(const struct master_peer *lhs,
 				    const struct master_peer *rhs)
 {
@@ -1270,11 +1064,12 @@ static uint8_t master_tdma_profile_pmode(enum master_tdma_profile_kind kind)
 {
 	switch (kind) {
 	case MASTER_TDMA_PROFILE_STATIC:
+		return UWB_TAG_POSITIONING_MODE_CAL_STATIC;
 	case MASTER_TDMA_PROFILE_ROTO:
+		return UWB_TAG_POSITIONING_MODE_CAL_ROTO;
 	case MASTER_TDMA_PROFILE_MOTION:
 	default:
-		/* Offline solver flow only needs broadcast TR output. */
-		return UWB_TAG_MODE_RANGE;
+		return UWB_TAG_POSITIONING_MODE_DYNAMIC;
 	}
 }
 
@@ -1325,20 +1120,6 @@ static bool master_tdma_parse_bs_code(const char *bs_name, uint16_t *bs_code)
 
 	if (bs_name == NULL || bs_code == NULL) {
 		return false;
-	}
-
-	for (const char *scan = bs_name; scan[0] != '\0'; ++scan) {
-		if (strlen(scan) == 6U &&
-		    toupper((unsigned char)scan[0]) == 'B' &&
-		    toupper((unsigned char)scan[1]) == 'S' &&
-		    isxdigit((unsigned char)scan[2]) &&
-		    isxdigit((unsigned char)scan[3]) &&
-		    isxdigit((unsigned char)scan[4]) &&
-		    isxdigit((unsigned char)scan[5]) &&
-		    scan[6] == '\0') {
-			p = scan + 2;
-			break;
-		}
 	}
 
 	if (strncasecmp(p, "BS", 2) == 0) {
@@ -1439,37 +1220,26 @@ static bool scan_tag_matches_runtime_filter(const char *adv_name,
 
 static bool bs_code_from_name(const char *name, uint16_t *bs_code)
 {
-	const char *p = name;
 	char *end = NULL;
 	unsigned long value;
 
 	if (name == NULL || bs_code == NULL) {
 		return false;
 	}
-
-	for (const char *scan = name; scan[0] != '\0'; ++scan) {
-		if (strlen(scan) == 6U &&
-		    toupper((unsigned char)scan[0]) == 'B' &&
-		    toupper((unsigned char)scan[1]) == 'S' &&
-		    isxdigit((unsigned char)scan[2]) &&
-		    isxdigit((unsigned char)scan[3]) &&
-		    isxdigit((unsigned char)scan[4]) &&
-		    isxdigit((unsigned char)scan[5]) &&
-		    scan[6] == '\0') {
-			p = scan + 2;
-			break;
-		}
-	}
-	if (p == name && (toupper((unsigned char)p[0]) != 'B' ||
-			  toupper((unsigned char)p[1]) != 'S')) {
+	if (strlen(name) != 6U) {
 		return false;
 	}
-	if (toupper((unsigned char)p[0]) == 'B' &&
-	    toupper((unsigned char)p[1]) == 'S') {
-		p += 2;
+	if (toupper((unsigned char)name[0]) != 'B' ||
+	    toupper((unsigned char)name[1]) != 'S') {
+		return false;
+	}
+	for (size_t i = 2U; i < 6U; ++i) {
+		if (!isxdigit((unsigned char)name[i])) {
+			return false;
+		}
 	}
 
-	value = strtoul(p, &end, 16);
+	value = strtoul(&name[2], &end, 16);
 	if (end == NULL || *end != '\0' || value > 0xffffUL) {
 		return false;
 	}
@@ -1487,10 +1257,9 @@ static int master_send_runtime_config(struct master_peer *peer,
 				      uint16_t slot_active_ms,
 				      uint32_t epoch_ms,
 				      uint8_t generation,
-	uint8_t positioning_mode,
-	bool run_enabled)
+				      uint8_t positioning_mode)
 {
-	char cmd[176];
+	char cmd[160];
 	int err;
 
 	if (peer == NULL || !peer->ready || !peer->connected) {
@@ -1498,7 +1267,7 @@ static int master_send_runtime_config(struct master_peer *peer,
 	}
 
 	snprintk(cmd, sizeof(cmd),
-		 "CFG TAG=%u SLOT=%u COUNT=%u MASK=0x%04X PERIOD=%u ACTIVE=%u EPOCH=%lu GEN=%u RUN=%u PMODE=%u AMODE=%u",
+		 "CFG TAG=%u SLOT=%u COUNT=%u MASK=0x%04X PERIOD=%u ACTIVE=%u EPOCH=%lu GEN=%u PMODE=%u AMODE=%u",
 		 (unsigned int)logical_tag_id,
 		 (unsigned int)slot_index,
 		 (unsigned int)slot_count,
@@ -1507,7 +1276,6 @@ static int master_send_runtime_config(struct master_peer *peer,
 		 (unsigned int)slot_active_ms,
 		 (unsigned long)epoch_ms,
 		 (unsigned int)generation,
-		 run_enabled ? 1U : 0U,
 		 (unsigned int)positioning_mode,
 		 0U);
 	err = bt_nus_client_send(&peer->nus_client, (const uint8_t *)cmd, strlen(cmd));
@@ -1523,13 +1291,9 @@ static int master_send_runtime_config(struct master_peer *peer,
 	peer->logical_tag_id = logical_tag_id;
 	peer->logical_tag_id_valid = true;
 	peer->tdma_slot = slot_index;
-	peer->tdma_slot_count = slot_count;
-	peer->tdma_slot_mask = slot_mask;
-	peer->tdma_slot_period_ms = slot_period_ms;
-	peer->tdma_slot_active_ms = slot_active_ms;
 	peer->tdma_slot_valid = true;
 	peer->tdma_generation = generation;
-	printk("CFG assigned[%d]: bs=BS%04X tag=%u slot=%u/%u mask=0x%04X period=%u active=%u gen=%u pmode=%u run=%u\n",
+	printk("CFG assigned[%d]: bs=BS%04X tag=%u slot=%u/%u mask=0x%04X period=%u active=%u gen=%u pmode=%u\n",
 	       peer_index_from_nus(&peer->nus_client),
 	       (unsigned int)peer->bs_code,
 	       (unsigned int)logical_tag_id,
@@ -1539,8 +1303,7 @@ static int master_send_runtime_config(struct master_peer *peer,
 	       (unsigned int)slot_period_ms,
 	       (unsigned int)slot_active_ms,
 	       (unsigned int)generation,
-	       (unsigned int)positioning_mode,
-	       run_enabled ? 1U : 0U);
+	       (unsigned int)positioning_mode);
 	return 0;
 }
 
@@ -1616,7 +1379,7 @@ static uint8_t master_tdma_select_fair_owner(const uint8_t *target_slots,
 	return (uint8_t)best_idx;
 }
 
-static void master_rebalance_tdma_slots_impl(bool force)
+static void master_rebalance_tdma_slots(void)
 {
 	struct master_peer *ordered[MASTER_MAX_CONNECTIONS];
 	size_t ready_count;
@@ -1630,12 +1393,6 @@ static void master_rebalance_tdma_slots_impl(bool force)
 	uint8_t occupied_slots[MASTER_TDMA_SLOT_COUNT_MAX] = { 0U };
 	uint8_t assigned_slots[MASTER_MAX_CONNECTIONS] = { 0U };
 	int32_t credits[MASTER_MAX_CONNECTIONS] = { 0 };
-
-	if (tdma_run_schedule_locked && !force) {
-		tdma_rebalance_deferred = true;
-		printk("TDMA rebalance suppressed: run schedule locked\n");
-		return;
-	}
 
 	if (tdma_rebalance_hold) {
 		tdma_rebalance_deferred = true;
@@ -1652,20 +1409,6 @@ static void master_rebalance_tdma_slots_impl(bool force)
 		kinds[i] = master_tdma_profile_for_peer(ordered[i]);
 	}
 
-#if APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE
-	best_slot_count = APP_MASTER_TDMA_LEGACY_SLOT_COUNT;
-	if (best_slot_count == 0U) {
-		best_slot_count = 10U;
-	}
-	if (best_slot_count > MASTER_TDMA_SLOT_COUNT_MAX) {
-		best_slot_count = MASTER_TDMA_SLOT_COUNT_MAX;
-	}
-	for (size_t i = 0U; i < ready_count && i < best_slot_count; ++i) {
-		target_slots[i] = 1U;
-		slot_masks[i] = (uint16_t)(1U << i);
-		total_target_slots++;
-	}
-#else
 	for (uint8_t candidate_count = (uint8_t)ready_count;
 	     candidate_count <= MASTER_TDMA_SLOT_COUNT_MAX;
 	     ++candidate_count) {
@@ -1748,7 +1491,6 @@ static void master_rebalance_tdma_slots_impl(bool force)
 		slot_masks[owner] |= (uint16_t)(1U << occupied_slots[j]);
 		assigned_slots[owner]++;
 	}
-#endif
 
 	tdma_generation++;
 	epoch_deadline_ms = k_uptime_get_32() + MASTER_TDMA_EPOCH_LEAD_MS;
@@ -1777,22 +1519,8 @@ static void master_rebalance_tdma_slots_impl(bool force)
 						 MASTER_TDMA_SLOT_ACTIVE_MS,
 						 epoch_delay_ms,
 						 tdma_generation,
-						 master_tdma_profile_pmode(kinds[i]),
-						 tdma_run_enabled);
-		if (i + 1U < ready_count) {
-			/*
-			 * Runtime TDMA CFG is control-plane traffic, not the UWB
-			 * fast path.  The Wand ARM/RUN flow keeps several NUS links
-			 * up at once; spacing CFG writes avoids bt_nus completion
-			 * errors that otherwise drop links before CFG_OK is reported.
-			 */
-			k_sleep(K_MSEC(900));
-		}
-#if APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE
-		printk("TDMA legacy-single[%zu]: bs=BS%04X profile=%s target=%uHz mask=0x%04X slots=%u/%u actual_x100=%lu epoch_delay=%lu\n",
-#else
+						 master_tdma_profile_pmode(kinds[i]));
 		printk("TDMA weighted[%zu]: bs=BS%04X profile=%s target=%uHz mask=0x%04X slots=%u/%u actual_x100=%lu epoch_delay=%lu\n",
-#endif
 		       i,
 		       (unsigned int)ordered[i]->bs_code,
 		       master_tdma_profile_label(kinds[i]),
@@ -1805,51 +1533,6 @@ static void master_rebalance_tdma_slots_impl(bool force)
 					MASTER_TDMA_SLOT_PERIOD_MS)),
 		       (unsigned long)epoch_delay_ms);
 	}
-}
-
-static void master_rebalance_tdma_slots(void)
-{
-	master_rebalance_tdma_slots_impl(false);
-}
-
-static int master_send_locked_tdma_run_configs(void)
-{
-	uint32_t epoch_deadline_ms = k_uptime_get_32() + MASTER_TDMA_EPOCH_LEAD_MS;
-	uint8_t sent = 0U;
-
-	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
-		struct master_peer *peer = &peers[i];
-		uint32_t now_ms;
-		uint32_t epoch_delay_ms;
-
-		if (!peer->connected || !peer->ready || !peer->tdma_slot_valid ||
-		    !peer->logical_tag_id_valid || peer->tdma_slot_count == 0U ||
-		    peer->tdma_slot_mask == 0U) {
-			continue;
-		}
-
-		now_ms = k_uptime_get_32();
-		epoch_delay_ms =
-			((int32_t)(epoch_deadline_ms - now_ms) > 0) ?
-				(epoch_deadline_ms - now_ms) : 0U;
-		if (master_send_runtime_config(peer,
-						peer->logical_tag_id,
-						peer->tdma_slot,
-						peer->tdma_slot_count,
-						peer->tdma_slot_mask,
-						peer->tdma_slot_period_ms,
-						peer->tdma_slot_active_ms,
-						epoch_delay_ms,
-						peer->tdma_generation,
-						master_tdma_profile_pmode(
-							master_tdma_profile_for_peer(peer)),
-						true) == 0) {
-			sent++;
-		}
-		k_sleep(K_MSEC(900));
-	}
-
-	return sent > 0U ? (int)sent : -ENOTCONN;
 }
 
 static void master_try_connect_pending(void)
@@ -1883,10 +1566,6 @@ static void master_try_connect_pending(void)
 
 	if (!auto_connect_enabled || connecting_slot >= 0 ||
 	    conn_count >= MASTER_MAX_CONNECTIONS) {
-		if (runtime_target_kind == MASTER_TARGET_ANCHOR &&
-		    conn_count >= MASTER_MAX_CONNECTIONS) {
-			stop_scan();
-		}
 		return;
 	}
 
@@ -1967,12 +1646,8 @@ static void master_try_connect_pending(void)
 	connecting_slot = slot;
 	peers[slot].connect_started_at_ms = now;
 	err = bt_conn_le_create(&peers[slot].addr, BT_CONN_LE_CREATE_CONN,
-				peer_conn_params(&peers[slot]), &peers[slot].conn);
-	printk("CONNECT pending[%d] rc=%d conn=%p interval=%u-%u timeout=%u\n",
-	       slot, err, peers[slot].conn,
-	       (unsigned int)peer_conn_params(&peers[slot])->interval_min,
-	       (unsigned int)peer_conn_params(&peers[slot])->interval_max,
-	       (unsigned int)peer_conn_params(&peers[slot])->timeout);
+				&fast_conn_params, &peers[slot].conn);
+	printk("CONNECT pending[%d] rc=%d conn=%p\n", slot, err, peers[slot].conn);
 	if (err) {
 		printk("Create conn failed[%d]: %d\n", slot, err);
 		peer_clear((unsigned int)slot, true);
@@ -2694,9 +2369,6 @@ static void discovery_complete(struct bt_gatt_dm *dm, void *context)
 	discovery_pump_schedule(0U);
 
 	if (peer->link_type == MASTER_LINK_ANCHOR_CTRL) {
-		uint16_t svc_handle = gatt_service->handle;
-		bool use_static_anchor_handles = false;
-
 		printk("DISC anchor service found[%d]: uuid=%s\n",
 		       idx,
 		       peer->adv_uuid[0] != '\0' ? peer->adv_uuid : "-");
@@ -2704,62 +2376,51 @@ static void discovery_complete(struct bt_gatt_dm *dm, void *context)
 		gatt_chrc = bt_gatt_dm_char_by_uuid(dm, &anchor_state_uuid.uuid);
 		if (gatt_chrc == NULL) {
 			printk("Anchor ctrl state characteristic missing[%d]\n", idx);
-			use_static_anchor_handles = true;
-		} else {
-			gatt_desc = bt_gatt_dm_desc_by_uuid(dm, gatt_chrc, &anchor_state_uuid.uuid);
-			if (gatt_desc == NULL) {
-				printk("Anchor ctrl state value missing[%d]\n", idx);
-				use_static_anchor_handles = true;
-			} else {
-				peer->anchor_state_handle = gatt_desc->handle;
-			}
-			gatt_desc = bt_gatt_dm_desc_by_uuid(dm, gatt_chrc, BT_UUID_GATT_CCC);
-			if (gatt_desc != NULL) {
-				peer->anchor_state_ccc_handle = gatt_desc->handle;
-			}
+			bt_gatt_dm_data_release(dm);
+			return;
+		}
+		gatt_desc = bt_gatt_dm_desc_by_uuid(dm, gatt_chrc, &anchor_state_uuid.uuid);
+		if (gatt_desc == NULL) {
+			printk("Anchor ctrl state value missing[%d]\n", idx);
+			bt_gatt_dm_data_release(dm);
+			return;
+		}
+		peer->anchor_state_handle = gatt_desc->handle;
+		gatt_desc = bt_gatt_dm_desc_by_uuid(dm, gatt_chrc, BT_UUID_GATT_CCC);
+		if (gatt_desc != NULL) {
+			peer->anchor_state_ccc_handle = gatt_desc->handle;
 		}
 
 		gatt_chrc = bt_gatt_dm_char_by_uuid(dm, &anchor_control_uuid.uuid);
 		if (gatt_chrc == NULL) {
 			printk("Anchor ctrl write characteristic missing[%d]\n", idx);
-			use_static_anchor_handles = true;
-		} else {
-			gatt_desc = bt_gatt_dm_desc_by_uuid(dm, gatt_chrc, &anchor_control_uuid.uuid);
-			if (gatt_desc == NULL) {
-				printk("Anchor ctrl write value missing[%d]\n", idx);
-				use_static_anchor_handles = true;
-			} else {
-				peer->anchor_ctrl_handle = gatt_desc->handle;
-			}
+			bt_gatt_dm_data_release(dm);
+			return;
 		}
+		gatt_desc = bt_gatt_dm_desc_by_uuid(dm, gatt_chrc, &anchor_control_uuid.uuid);
+		if (gatt_desc == NULL) {
+			printk("Anchor ctrl write value missing[%d]\n", idx);
+			bt_gatt_dm_data_release(dm);
+			return;
+		}
+		peer->anchor_ctrl_handle = gatt_desc->handle;
 
 		gatt_chrc = bt_gatt_dm_char_by_uuid(dm, &anchor_result_uuid.uuid);
 		if (gatt_chrc == NULL) {
 			printk("Anchor ctrl result characteristic missing[%d]\n", idx);
-			use_static_anchor_handles = true;
-		} else {
-			gatt_desc = bt_gatt_dm_desc_by_uuid(dm, gatt_chrc, &anchor_result_uuid.uuid);
-			if (gatt_desc == NULL) {
-				printk("Anchor ctrl result value missing[%d]\n", idx);
-				use_static_anchor_handles = true;
-			} else {
-				peer->anchor_result_handle = gatt_desc->handle;
-			}
-			gatt_desc = bt_gatt_dm_desc_by_uuid(dm, gatt_chrc, BT_UUID_GATT_CCC);
-			if (gatt_desc != NULL) {
-				peer->anchor_result_ccc_handle = gatt_desc->handle;
-			}
+			bt_gatt_dm_data_release(dm);
+			return;
 		}
-
-		if (use_static_anchor_handles) {
-			peer->anchor_state_handle = svc_handle + 2U;
-			peer->anchor_state_ccc_handle = svc_handle + 3U;
-			peer->anchor_ctrl_handle = svc_handle + 9U;
-			peer->anchor_result_handle = svc_handle + 11U;
-			peer->anchor_result_ccc_handle = svc_handle + 12U;
-			printk("Anchor ctrl static-handle fallback[%d]: svc=0x%04x state=0x%04x ctrl=0x%04x result=0x%04x\n",
-			       idx, svc_handle, peer->anchor_state_handle,
-			       peer->anchor_ctrl_handle, peer->anchor_result_handle);
+		gatt_desc = bt_gatt_dm_desc_by_uuid(dm, gatt_chrc, &anchor_result_uuid.uuid);
+		if (gatt_desc == NULL) {
+			printk("Anchor ctrl result value missing[%d]\n", idx);
+			bt_gatt_dm_data_release(dm);
+			return;
+		}
+		peer->anchor_result_handle = gatt_desc->handle;
+		gatt_desc = bt_gatt_dm_desc_by_uuid(dm, gatt_chrc, BT_UUID_GATT_CCC);
+		if (gatt_desc != NULL) {
+			peer->anchor_result_ccc_handle = gatt_desc->handle;
 		}
 
 		if (peer->anchor_state_ccc_handle != 0U) {
@@ -2790,11 +2451,7 @@ static void discovery_complete(struct bt_gatt_dm *dm, void *context)
 		       peer->adv_uuid[0] != '\0' ? peer->adv_uuid : "-");
 		master_leds_refresh();
 		master_try_connect_pending();
-		if (master_anchor_ctrl_ready_count() >= (int)MASTER_ANCHOR_COUNT) {
-			printk("ANCHOR_CTRL ready full: ready=%d/%d; stop scan before runtime commands\n",
-			       master_anchor_ctrl_ready_count(), (int)MASTER_ANCHOR_COUNT);
-			stop_scan();
-		} else if (conn_count < MASTER_MAX_CONNECTIONS) {
+		if (conn_count < MASTER_MAX_CONNECTIONS) {
 			start_scan();
 		}
 		bt_gatt_dm_data_release(dm);
@@ -3028,7 +2685,6 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	bool anchor_id_valid;
 	char uuid_hex[MASTER_UUID_HEX_LEN + 1U];
 	bool uuid_match = false;
-	bool tag_uuid_only_recovery_match = false;
 	struct net_buf_simple name_copy = *buf;
 	char adv_name[MASTER_NAME_BUF_LEN];
 
@@ -3062,40 +2718,8 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	}
 	uuid_match = (runtime_target_uuid[0] == '\0') ||
 		     (uuid_hex[0] != '\0' && !strcasecmp(uuid_hex, runtime_target_uuid));
-	tag_uuid_only_recovery_match =
-		(APP_MASTER_TAG_UUID_ONLY_RECOVERY_ENABLE != 0) &&
-		runtime_target_kind == MASTER_TARGET_TAG &&
-		runtime_target_uuid[0] != '\0' &&
-		uuid_hex[0] != '\0' && uuid_match;
 	memset(adv_name, 0, sizeof(adv_name));
 	bt_data_parse(&name_copy, scan_name_cb, adv_name);
-#if APP_MASTER_SCAN_DEBUG_ALL_ENABLE
-	{
-		char addr[BT_ADDR_LE_STR_LEN];
-		char bs_name[8];
-
-		bt_addr_le_to_str(info->addr, addr, sizeof(addr));
-		if (bs_code_valid) {
-			snprintk(bs_name, sizeof(bs_name), "BS%04X", (unsigned int)bs_code);
-		} else {
-			strncpy(bs_name, "-", sizeof(bs_name) - 1U);
-			bs_name[sizeof(bs_name) - 1U] = '\0';
-		}
-		printk("SCAN raw: %s rssi=%d name=%s bs=%s uuid=%s kind=%s tag_name=%u anchor_name=%u nus=%u dfu=%u token=%u props=0x%02x\n",
-		       addr,
-		       info->rssi,
-		       adv_name[0] != '\0' ? adv_name : "-",
-		       bs_name,
-		       uuid_hex[0] != '\0' ? uuid_hex : "-",
-		       runtime_target_kind_label(runtime_target_kind),
-		       name_match ? 1U : 0U,
-		       anchor_name_match ? 1U : 0U,
-		       nus_match ? 1U : 0U,
-		       dfu_match ? 1U : 0U,
-		       token_match ? 1U : 0U,
-		       info->adv_props);
-	}
-#endif
 	if (!bs_code_valid && runtime_target_kind == MASTER_TARGET_TAG &&
 	    bs_code_from_name(adv_name, &bs_code)) {
 		bs_code_valid = true;
@@ -3104,61 +2728,32 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	}
 
 	if (runtime_target_kind == MASTER_TARGET_ANCHOR) {
-		bool anchor_uuid_target_match = (runtime_target_uuid[0] != '\0') && uuid_match;
-		bool anchor_uuid_allow_match = is_known_anchor_uuid(uuid_hex);
-		bool anchor_identity_match =
-			anchor_name_match || anchor_uuid_target_match || anchor_uuid_allow_match;
-
 		if (!runtime_anchor_wildcard_scan) {
 			if (runtime_target_uuid[0] == '\0') {
-				return;
-			}
-			if (!anchor_name_match && !anchor_id_valid && !anchor_uuid_target_match) {
 				return;
 			}
 			if (!uuid_match) {
 				return;
 			}
-		} else {
-			/* Anchor Master is forbidden from connecting to Tag/Wand peers.
-			 * In wildcard mode, a generic BioSpur UUID is not enough because
-			 * Tags advertise one too; require Anchor-X name or the frozen A-H
-			 * UUID allow-list. A plain BSXXXX advertisement is always rejected.
-			 */
-			if (!anchor_identity_match) {
-				if (name_match || nus_match || token_match || tag_id_valid ||
-				    bs_code_valid || anchor_id_valid || uuid_hex[0] != '\0') {
-					char addr[BT_ADDR_LE_STR_LEN];
-
-					bt_addr_le_to_str(info->addr, addr, sizeof(addr));
-					printk("ANCHOR candidate rejected: not in anchor allow-list %s name=%s bs=%04X uuid=%s anchor_id=%u\n",
-					       addr,
-					       adv_name[0] != '\0' ? adv_name : "-",
-					       bs_code_valid ? (unsigned int)bs_code : 0U,
-					       uuid_hex[0] != '\0' ? uuid_hex : "-",
-					       anchor_id_valid ? (unsigned int)anchor_id_cfg : 0U);
-				}
-				return;
-			}
+		} else if (uuid_hex[0] == '\0') {
+			return;
 		}
 		goto candidate_accept;
 	}
 
-	if (!bs_code_valid && !tag_uuid_only_recovery_match) {
+	if (!bs_code_valid) {
 		return;
 	}
 
 	if (runtime_target_kind == MASTER_TARGET_TAG &&
 	    runtime_target_name[0] == '\0' &&
-	    runtime_target_prefix[0] == '\0' &&
 	    runtime_target_uuid[0] == '\0' &&
 	    !master_boot_tag_allowlist_has(bs_code)) {
 		return;
 	}
 
-		if (runtime_target_kind == MASTER_TARGET_TAG &&
-		    !tag_uuid_only_recovery_match &&
-		    !scan_tag_matches_runtime_filter(adv_name, bs_code, bs_code_valid, uuid_hex)) {
+	if (runtime_target_kind == MASTER_TARGET_TAG &&
+	    !scan_tag_matches_runtime_filter(adv_name, bs_code, bs_code_valid, uuid_hex)) {
 		char addr[BT_ADDR_LE_STR_LEN];
 		char bs_name[8];
 
@@ -3170,11 +2765,11 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 		       runtime_target_name[0] != '\0' ? runtime_target_name : "-",
 		       runtime_target_prefix[0] != '\0' ? runtime_target_prefix : "-",
 		       runtime_target_uuid[0] != '\0' ? runtime_target_uuid : "-");
-			return;
-		}
+		return;
+	}
 
-		if (runtime_target_kind == MASTER_TARGET_TAG &&
-		    runtime_target_name[0] == '\0' &&
+	if (runtime_target_kind == MASTER_TARGET_TAG &&
+	    runtime_target_name[0] == '\0' &&
 	    runtime_target_uuid[0] == '\0' &&
 	    master_tdma_any_profile_defined() &&
 	    !master_tdma_profile_has_bs_code(bs_code)) {
@@ -3195,8 +2790,7 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	 * DFU-only advertisers (typical anchors in OTA-capable builds) still stay
 	 * filtered out because they provide neither tag_id nor token markers.
 	 */
-	if (!(name_match || nus_match || token_match || tag_id_valid ||
-	      tag_uuid_only_recovery_match)) {
+	if (!(name_match || nus_match || token_match || tag_id_valid)) {
 		if (dfu_match) {
 			char addr[BT_ADDR_LE_STR_LEN];
 			bt_addr_le_to_str(info->addr, addr, sizeof(addr));
@@ -3211,38 +2805,6 @@ candidate_accept:
 	if (peer_index_from_addr(info->addr) >= 0) {
 		master_led_flow_pulse();
 		return;
-	}
-	if (uuid_hex[0] != '\0') {
-		int uuid_idx = peer_index_from_uuid_hex(uuid_hex);
-
-		if (uuid_idx >= 0) {
-			char addr[BT_ADDR_LE_STR_LEN];
-
-			bt_addr_le_to_str(info->addr, addr, sizeof(addr));
-			printk("%s candidate rejected: %s duplicate uuid=%s already slot=%d\n",
-			       runtime_target_kind == MASTER_TARGET_ANCHOR ? "ANCHOR" : "RECV",
-			       addr,
-			       uuid_hex,
-			       uuid_idx);
-			master_led_flow_pulse();
-			return;
-		}
-	}
-	if (bs_code_valid) {
-		int bs_idx = peer_index_from_bs_code(bs_code);
-
-		if (bs_idx >= 0) {
-			char addr[BT_ADDR_LE_STR_LEN];
-			char bs_name[8];
-
-			bt_addr_le_to_str(info->addr, addr, sizeof(addr));
-			snprintk(bs_name, sizeof(bs_name), "BS%04X",
-				 (unsigned int)bs_code);
-			printk("RECV candidate rejected: %s duplicate %s already slot=%d\n",
-			       addr, bs_name, bs_idx);
-			master_led_flow_pulse();
-			return;
-		}
 	}
 
 	scan_log_candidate(info, buf, name_match, anchor_name_match, nus_match, dfu_match,
@@ -3368,12 +2930,6 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 	peers[idx].discovery_inflight = false;
 	peers[idx].connected_at_ms = k_uptime_get();
 	master_leds_refresh();
-	if (runtime_target_kind == MASTER_TARGET_ANCHOR &&
-	    conn_count >= MASTER_ANCHOR_COUNT) {
-		printk("CONNECT anchor full: conn_count=%u; stop scan and wait for stable ready\n",
-		       (unsigned int)conn_count);
-		stop_scan();
-	}
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
@@ -3417,48 +2973,8 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 static void conn_param_updated(struct bt_conn *conn, uint16_t interval,
 			       uint16_t latency, uint16_t timeout)
 {
-	int idx = peer_index_from_conn(conn);
-
 	printk("Conn param updated[%d]: int=%u lat=%u to=%u\n",
-	       idx, interval, latency, timeout);
-	if (idx >= 0 && idx < (int)ARRAY_SIZE(peers) &&
-	    peers[idx].link_type == MASTER_LINK_ANCHOR_CTRL &&
-	    (interval < anchor_ctrl_conn_params.interval_min ||
-	     timeout < anchor_ctrl_conn_params.timeout)) {
-		int err = bt_conn_le_param_update(conn, &anchor_ctrl_conn_params);
-
-		printk("Conn param anchor clamp[%d]: requested stable interval=%u-%u timeout=%u rc=%d\n",
-		       idx,
-		       (unsigned int)anchor_ctrl_conn_params.interval_min,
-		       (unsigned int)anchor_ctrl_conn_params.interval_max,
-		       (unsigned int)anchor_ctrl_conn_params.timeout,
-		       err);
-	}
-}
-
-static bool conn_param_req(struct bt_conn *conn, struct bt_le_conn_param *param)
-{
-	int idx = peer_index_from_conn(conn);
-
-	if (idx >= 0 && idx < (int)ARRAY_SIZE(peers) &&
-	    peers[idx].link_type == MASTER_LINK_ANCHOR_CTRL) {
-		if (param->interval_min < anchor_ctrl_conn_params.interval_min ||
-		    param->interval_max < anchor_ctrl_conn_params.interval_min ||
-		    param->timeout < anchor_ctrl_conn_params.timeout) {
-			printk("Conn param req anchor clamp[%d]: %u-%u/%u -> %u-%u/%u\n",
-			       idx,
-			       (unsigned int)param->interval_min,
-			       (unsigned int)param->interval_max,
-			       (unsigned int)param->timeout,
-			       (unsigned int)anchor_ctrl_conn_params.interval_min,
-			       (unsigned int)anchor_ctrl_conn_params.interval_max,
-			       (unsigned int)anchor_ctrl_conn_params.timeout);
-			*param = anchor_ctrl_conn_params;
-		}
-		return true;
-	}
-
-	return true;
+	       peer_index_from_conn(conn), interval, latency, timeout);
 }
 
 static void le_phy_updated(struct bt_conn *conn, struct bt_conn_le_phy_info *info)
@@ -3470,7 +2986,6 @@ static void le_phy_updated(struct bt_conn *conn, struct bt_conn_le_phy_info *inf
 static struct bt_conn_cb conn_callbacks = {
 	.connected = connected,
 	.disconnected = disconnected,
-	.le_param_req = conn_param_req,
 	.le_param_updated = conn_param_updated,
 	.le_phy_updated = le_phy_updated,
 };
@@ -3753,21 +3268,6 @@ void master_set_runtime_target_uuid(const char *uuid_hex)
 void master_set_anchor_wildcard_scan(bool enable)
 {
 	runtime_anchor_wildcard_scan = enable;
-}
-
-void master_set_anchor_result_stream(bool enable)
-{
-	runtime_anchor_result_stream = enable;
-	printk("Master anchor result stream: %s\n", enable ? "on" : "off");
-	if (!enable) {
-		return;
-	}
-
-	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
-		if (peer_matches_runtime_target(&peers[i])) {
-			anchor_ctrl_ensure_result_stream(&peers[i]);
-		}
-	}
 }
 
 int master_anchor_ctrl_ready_count(void)
@@ -4100,20 +3600,9 @@ int master_send_command_now(const char *cmd)
 		}
 
 		if (peers[i].link_type == MASTER_LINK_ANCHOR_CTRL) {
-			for (int attempt = 1; attempt <= 20; ++attempt) {
-				err = bt_gatt_write_without_response(peers[i].conn,
-								     peers[i].anchor_ctrl_handle,
-								     cmd, cmd_len, false);
-				if (err == 0) {
-					break;
-				}
-				if (err != -ENOMEM && err != -EBUSY && err != -EAGAIN) {
-					break;
-				}
-				printk("Anchor ctrl send busy[%zu]: err=%d attempt=%d cmd=%s\n",
-				       i, err, attempt, cmd);
-				k_sleep(K_MSEC(50));
-			}
+			err = bt_gatt_write_without_response(peers[i].conn,
+							     peers[i].anchor_ctrl_handle,
+							     cmd, cmd_len, false);
 			if (err) {
 				printk("Anchor ctrl send failed[%zu]: %d cmd=%s\n", i, err, cmd);
 				continue;
@@ -4395,52 +3884,9 @@ int master_tdma_rebalance_now(void)
 
 	tdma_rebalance_hold = false;
 	tdma_rebalance_deferred = false;
-	master_rebalance_tdma_slots_impl(true);
+	master_rebalance_tdma_slots();
 	tdma_rebalance_hold = was_held;
 	return 0;
-}
-
-int master_tdma_set_run_enabled(bool run_enabled)
-{
-	tdma_run_enabled = run_enabled;
-	printk("TDMA run=%u\n", run_enabled ? 1U : 0U);
-	if (run_enabled) {
-		if (tdma_run_schedule_locked) {
-			int rc = master_send_locked_tdma_run_configs();
-
-			printk("TDMA run schedule locked; replayed RUN=1 CFG rc=%d\n", rc);
-			return rc < 0 ? rc : 0;
-		}
-
-		master_rebalance_tdma_slots_impl(true);
-		tdma_run_schedule_locked = true;
-		printk("TDMA run schedule locked\n");
-		return 0;
-	}
-
-	tdma_run_schedule_locked = false;
-	tdma_rebalance_deferred = false;
-	tdma_rebalance_hold = false;
-	master_rebalance_tdma_slots_impl(true);
-	tdma_rebalance_hold = true;
-	tdma_run_schedule_locked = true;
-	printk("TDMA armed schedule locked\n");
-	return 0;
-}
-
-int master_tdma_stop_runtime(void)
-{
-	int rc;
-
-	tdma_run_enabled = false;
-	tdma_run_schedule_locked = false;
-	printk("TDMA run=0 stop\n");
-	rc = master_send_command_all_now("CFG_STOP");
-	if (rc < 0) {
-		printk("TDMA stop command had no ready recipients: %d\n", rc);
-		return 0;
-	}
-	return rc;
 }
 
 int master_tdma_clear_profiles(void)
@@ -4458,14 +3904,7 @@ int master_tdma_clear_profiles(void)
 
 void master_tdma_print_status(void)
 {
-	printk("TDMA %s scheduler: run=%u lock=%u period=%ums active=%ums max_slots=%u freq motion=%uHz static=%uHz roto=%uHz\n",
-#if APP_MASTER_TDMA_LEGACY_SINGLE_SLOT_ENABLE
-	       "legacy-single",
-#else
-	       "weighted",
-#endif
-	       tdma_run_enabled ? 1U : 0U,
-	       tdma_run_schedule_locked ? 1U : 0U,
+	printk("TDMA weighted scheduler: period=%ums active=%ums max_slots=%u freq motion=%uHz static=%uHz roto=%uHz\n",
 	       MASTER_TDMA_SLOT_PERIOD_MS,
 	       MASTER_TDMA_SLOT_ACTIVE_MS,
 	       MASTER_TDMA_SLOT_COUNT_MAX,

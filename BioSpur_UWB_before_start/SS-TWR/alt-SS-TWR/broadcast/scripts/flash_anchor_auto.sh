@@ -98,11 +98,11 @@ else
     A) snr=760186071 ;;
     B) snr=760185876 ;;
     C) snr=760185878 ;;
-    D) snr=760184974 ;;
+    D) snr=760186081 ;;
     E) snr=760185904 ;;
     F) snr=760186124 ;;
     G) snr=760185889 ;;
-    H) snr=760184753 ;;
+    H) snr=760186121 ;;
     *)
       echo "Could not infer anchor role from path: $input_path" >&2
       echo "Pass the J-Link serial as the second argument." >&2

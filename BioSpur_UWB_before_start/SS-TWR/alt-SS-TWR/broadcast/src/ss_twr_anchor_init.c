@@ -145,9 +145,6 @@ static bool ss_twr_anchor_init_raw_range_plausible(
 int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
                              size_t peer_count, uint32_t max_sweeps)
 {
-    bool first_peer_diag_sent = false;
-    bool first_peer_done_diag_sent = false;
-
     if (anchor_id >= UWB_MAX_ANCHORS || peer_ids == NULL || peer_count == 0U ||
         peer_count > UWB_MAX_ANCHORS) {
         printk("Invalid anchor master config anchor=%u peers=%u\n", anchor_id,
@@ -179,16 +176,6 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
            (unsigned int)ss_twr_anchor_init_local_id,
            (unsigned int)ss_twr_anchor_init_local_addr,
            (unsigned int)ss_twr_anchor_init_peer_count);
-    {
-        char diag_line[96];
-
-        snprintk(diag_line, sizeof(diag_line),
-                 "DBG MASTER_START anchor=%c peers=%u sets=%lu",
-                 uwb_anchor_label(ss_twr_anchor_init_local_id),
-                 (unsigned int)ss_twr_anchor_init_peer_count,
-                 (unsigned long)max_sweeps);
-        (void)anchor_ble_ctrl_publish_result_line(diag_line);
-    }
     if (max_sweeps != 0U) {
         printk("Anchor master finite sweep limit %c sets=%lu\n",
                uwb_anchor_label(ss_twr_anchor_init_local_id),
@@ -216,25 +203,14 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
                                     ss_twr_anchor_init_frame_seq_nb,
                                     current_peer_addr,
                                     ss_twr_anchor_init_local_addr);
-        if (!first_peer_diag_sent) {
-            char diag_line[96];
 
-            first_peer_diag_sent = true;
-            snprintk(diag_line, sizeof(diag_line),
-                     "DBG MASTER_FIRST_PEER anchor=%c peer=%c",
-                     uwb_anchor_label(ss_twr_anchor_init_local_id),
-                     uwb_anchor_label(current_peer_id));
-            (void)anchor_ble_ctrl_publish_result_line(diag_line);
-        }
-
-        dwt_write32bitreg(SYS_STATUS_ID,
-                          SYS_STATUS_ALL_TX | SYS_STATUS_ALL_RX_GOOD |
-                              SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_RX_TO);
+        dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_TXFRS);
 
         if (dwt_writetxdata(sizeof(ss_twr_anchor_init_tx_poll_msg),
                             ss_twr_anchor_init_tx_poll_msg, 0) != DWT_SUCCESS) {
             printk("Anchor master TX buffer write failed\n");
-            goto finish_peer_attempt;
+            ss_twr_anchor_init_range_delay();
+            continue;
         }
 
         dwt_writetxfctrl(sizeof(ss_twr_anchor_init_tx_poll_msg), 0, 1);
@@ -244,7 +220,8 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
             printk("Anchor master TX start failed peer=%u\n",
                    (unsigned int)current_peer_id);
             dwt_forcetrxoff();
-            goto finish_peer_attempt;
+            ss_twr_anchor_init_range_delay();
+            continue;
         }
 
         do {
@@ -261,9 +238,7 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
 
         ss_twr_anchor_init_frame_seq_nb++;
 
-        if ((status_reg & SYS_STATUS_RXFCG) != 0U &&
-            (status_reg & SYS_STATUS_ALL_RX_ERR) == 0U &&
-            status_reg != 0xffffffffU) {
+        if ((status_reg & SYS_STATUS_RXFCG) != 0U) {
             uint16_t resp_src_addr;
             uint32_t frame_len;
             uint32_t poll_tx_ts;
@@ -278,33 +253,14 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
             long raw_distance_mm;
             uint32_t filtered_mm;
 
-            if (!first_peer_done_diag_sent) {
-                char diag_line[112];
-
-                first_peer_done_diag_sent = true;
-                snprintk(diag_line, sizeof(diag_line),
-                         "DBG MASTER_FIRST_RESULT anchor=%c peer=%c rx=1 status=0x%08lx",
-                         uwb_anchor_label(ss_twr_anchor_init_local_id),
-                         uwb_anchor_label(current_peer_id),
-                         (unsigned long)status_reg);
-                (void)anchor_ble_ctrl_publish_result_line(diag_line);
-            }
-
             dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
 
             frame_len = dwt_read32bitreg(RX_FINFO_ID) & RX_FINFO_RXFLEN_MASK;
             if (frame_len > sizeof(ss_twr_anchor_init_rx_buffer)) {
-                printk("Anchor master bad frame length peer=%u addr=0x%04x len=%lu status=0x%08lx\n",
-                       (unsigned int)current_peer_id,
-                       (unsigned int)current_peer_addr,
-                       (unsigned long)frame_len,
-                       (unsigned long)status_reg);
-                if (tracker->filtered_valid) {
-                    uwb_range_tracker_record_failure(tracker);
-                }
                 dwt_forcetrxoff();
                 dwt_rxreset();
-                goto finish_peer_attempt;
+                ss_twr_anchor_init_range_delay();
+                continue;
             }
 
             memset(ss_twr_anchor_init_rx_buffer, 0,
@@ -323,10 +279,8 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
                            ss_twr_anchor_init_rx_buffer),
                        (unsigned int)ss_twr_anchor_init_rx_buffer[UWB_MSG_CODE_IDX]);
 #endif
-                if (tracker->filtered_valid) {
-                    uwb_range_tracker_record_failure(tracker);
-                }
-                goto finish_peer_attempt;
+                ss_twr_anchor_init_range_delay();
+                continue;
             }
 
             poll_tx_ts = dwt_readtxtimestamplo32();
@@ -368,7 +322,8 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
                        (unsigned long)tracker->success_count,
                        (unsigned long)tracker->failure_count,
                        (unsigned int)uwb_range_tracker_quality_percent(tracker));
-                goto finish_peer_attempt;
+                ss_twr_anchor_init_range_delay();
+                continue;
             }
 
             filtered_mm = uwb_range_tracker_record_success(
@@ -388,17 +343,6 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
                    (unsigned long)tracker->failure_count,
                    (unsigned int)uwb_range_tracker_quality_percent(tracker));
         } else {
-            if (!first_peer_done_diag_sent) {
-                char diag_line[112];
-
-                first_peer_done_diag_sent = true;
-                snprintk(diag_line, sizeof(diag_line),
-                         "DBG MASTER_FIRST_RESULT anchor=%c peer=%c rx=0 status=0x%08lx",
-                         uwb_anchor_label(ss_twr_anchor_init_local_id),
-                         uwb_anchor_label(current_peer_id),
-                         (unsigned long)status_reg);
-                (void)anchor_ble_ctrl_publish_result_line(diag_line);
-            }
             if (tracker->filtered_valid) {
                 uwb_range_tracker_record_failure(tracker);
             }
@@ -409,12 +353,10 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
                    (unsigned long)tracker->failure_count,
                    (unsigned int)uwb_range_tracker_quality_percent(tracker));
             dwt_write32bitreg(SYS_STATUS_ID,
-                              SYS_STATUS_ALL_RX_GOOD | SYS_STATUS_ALL_RX_TO |
-                                  SYS_STATUS_ALL_RX_ERR);
+                              SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR);
             dwt_rxreset();
         }
 
-finish_peer_attempt:
         ss_twr_anchor_init_peer_index =
             (ss_twr_anchor_init_peer_index + 1U) % ss_twr_anchor_init_peer_count;
         if (ss_twr_anchor_init_peer_index == 0U) {
