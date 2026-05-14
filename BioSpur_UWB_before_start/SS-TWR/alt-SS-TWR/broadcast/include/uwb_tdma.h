@@ -21,6 +21,17 @@ enum uwb_tag_positioning_mode {
 	UWB_TAG_POSITIONING_MODE_CAL_ROTO = 5U,
 };
 
+/*
+ * Backward-compatible aliases kept for older Tag control/build paths that
+ * still refer to the pre-unified UWB_TAG_MODE_* names.
+ */
+#define UWB_TAG_MODE_RANGE UWB_TAG_POSITIONING_MODE_DYNAMIC
+#define UWB_TAG_MODE_SOLVE UWB_TAG_POSITIONING_MODE_FIXED
+#define UWB_TAG_MODE_DEBUG UWB_TAG_POSITIONING_MODE_RESERVED_2
+#define UWB_TAG_MODE_AOTA UWB_TAG_POSITIONING_MODE_ANCHOR_OTA
+#define UWB_TAG_MODE_RESERVED_4 UWB_TAG_POSITIONING_MODE_CAL_STATIC
+#define UWB_TAG_MODE_RESERVED_5 UWB_TAG_POSITIONING_MODE_CAL_ROTO
+
 enum uwb_tag_anchor_selection_mode {
 	UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2 = 0U,
 	UWB_TAG_ANCHOR_SELECTION_FIXED_SUBSET = 1U,
@@ -39,6 +50,7 @@ struct uwb_tdma_schedule {
 	uint16_t slot_mask;
 	uint16_t slot_period_ms;
 	uint16_t slot_active_ms;
+	uint16_t slot_active_us;
 	uint32_t epoch_ms;
 	uint32_t sync_local_ms;
 	bool epoch_valid;

@@ -27,18 +27,37 @@ static uint16_t uwb_tdma_effective_slot_mask(const struct uwb_tdma_schedule *sch
 	return 0U;
 }
 
+static uint32_t uwb_tdma_effective_slot_active_us(const struct uwb_tdma_schedule *schedule)
+{
+	if (schedule == NULL) {
+		return 0U;
+	}
+
+	if (schedule->slot_active_us != 0U) {
+		return schedule->slot_active_us;
+	}
+
+	return (uint32_t)schedule->slot_active_ms * 1000U;
+}
+
 bool uwb_tdma_schedule_is_valid(const struct uwb_tdma_schedule *schedule)
 {
+	uint32_t active_us;
+	uint32_t period_us;
+
 	if (schedule == NULL || !schedule->enabled) {
 		return false;
 	}
+
+	active_us = uwb_tdma_effective_slot_active_us(schedule);
+	period_us = (uint32_t)schedule->slot_period_ms * 1000U;
 
 	return schedule->slot_count != 0U &&
 	       schedule->slot_count <= 16U &&
 	       uwb_tdma_effective_slot_mask(schedule) != 0U &&
 	       schedule->slot_period_ms != 0U &&
-	       schedule->slot_active_ms != 0U &&
-	       schedule->slot_active_ms <= schedule->slot_period_ms;
+	       active_us != 0U &&
+	       active_us <= period_us;
 }
 
 void uwb_tdma_sync_schedule_epoch(struct uwb_tdma_schedule *schedule,
@@ -127,8 +146,10 @@ static uint32_t uwb_tdma_schedule_phase_ms(const struct uwb_tdma_schedule *sched
 bool uwb_tdma_schedule_in_active_window(const struct uwb_tdma_schedule *schedule)
 {
 	uint32_t phase_ms;
+	uint32_t phase_us;
 	uint32_t slot_start_ms;
-	uint32_t slot_end_ms;
+	uint32_t slot_start_us;
+	uint32_t slot_end_us;
 	uint8_t slot;
 	uint16_t slot_mask;
 
@@ -147,17 +168,21 @@ bool uwb_tdma_schedule_in_active_window(const struct uwb_tdma_schedule *schedule
 		return false;
 	}
 	slot_start_ms = (uint32_t)slot * (uint32_t)schedule->slot_period_ms;
-	slot_end_ms = slot_start_ms + (uint32_t)schedule->slot_active_ms;
+	slot_start_us = slot_start_ms * 1000U;
+	slot_end_us = slot_start_us + uwb_tdma_effective_slot_active_us(schedule);
+	phase_us = phase_ms * 1000U;
 
-	return phase_ms >= slot_start_ms && phase_ms < slot_end_ms;
+	return phase_us >= slot_start_us && phase_us < slot_end_us;
 }
 
 uint32_t uwb_tdma_schedule_time_remaining_ms(
 	const struct uwb_tdma_schedule *schedule)
 {
 	uint32_t phase_ms;
+	uint32_t phase_us;
 	uint32_t slot_start_ms;
-	uint32_t slot_end_ms;
+	uint32_t slot_start_us;
+	uint32_t slot_end_us;
 	uint8_t slot;
 	uint16_t slot_mask;
 
@@ -177,13 +202,15 @@ uint32_t uwb_tdma_schedule_time_remaining_ms(
 	}
 
 	slot_start_ms = (uint32_t)slot * (uint32_t)schedule->slot_period_ms;
-	slot_end_ms = slot_start_ms + (uint32_t)schedule->slot_active_ms;
+	slot_start_us = slot_start_ms * 1000U;
+	slot_end_us = slot_start_us + uwb_tdma_effective_slot_active_us(schedule);
+	phase_us = phase_ms * 1000U;
 
-	if (phase_ms < slot_start_ms || phase_ms >= slot_end_ms) {
+	if (phase_us < slot_start_us || phase_us >= slot_end_us) {
 		return 0U;
 	}
 
-	return slot_end_ms - phase_ms;
+	return (slot_end_us - phase_us + 999U) / 1000U;
 }
 
 bool uwb_tdma_schedule_exchange_fits(const struct uwb_tdma_schedule *schedule,
@@ -205,7 +232,6 @@ uint32_t uwb_tdma_wait_until_slot(const struct uwb_tdma_schedule *schedule)
 	uint32_t cycle_ms;
 	uint32_t phase_ms;
 	uint32_t slot_start_ms;
-	uint32_t slot_end_ms;
 	uint32_t wait_ms;
 	uint16_t slot_mask;
 
@@ -220,14 +246,20 @@ uint32_t uwb_tdma_wait_until_slot(const struct uwb_tdma_schedule *schedule)
 	wait_ms = cycle_ms;
 
 	for (uint8_t slot = 0U; slot < schedule->slot_count; ++slot) {
+		uint32_t phase_us;
+		uint32_t slot_start_us;
+		uint32_t slot_end_us;
+
 		if ((slot_mask & (uint16_t)(1U << slot)) == 0U) {
 			continue;
 		}
 
 		slot_start_ms = (uint32_t)slot * (uint32_t)schedule->slot_period_ms;
-		slot_end_ms = slot_start_ms + (uint32_t)schedule->slot_active_ms;
+		slot_start_us = slot_start_ms * 1000U;
+		slot_end_us = slot_start_us + uwb_tdma_effective_slot_active_us(schedule);
+		phase_us = phase_ms * 1000U;
 
-		if (phase_ms >= slot_start_ms && phase_ms < slot_end_ms) {
+		if (phase_us >= slot_start_us && phase_us < slot_end_us) {
 			return 0U;
 		}
 

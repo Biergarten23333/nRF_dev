@@ -18,8 +18,32 @@ fi
 SNR="$1"
 BUILD_DIR="$2"
 SPEED_KHZ="${3:-4000}"
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT=""
+SEARCH_DIR="$SCRIPT_DIR"
+while [ "$SEARCH_DIR" != "/" ]; do
+  if [ -e "$SEARCH_DIR/.protec/noflash960148546" ] || [ -e "$SEARCH_DIR/.protec/biospur_ports.env" ]; then
+    REPO_ROOT="$SEARCH_DIR"
+    break
+  fi
+  SEARCH_DIR="$(dirname "$SEARCH_DIR")"
+done
+if [ -z "$REPO_ROOT" ]; then
+  REPO_ROOT="$(cd "$SCRIPT_DIR/../../../../" && pwd)"
+fi
 PROTECT_FILE="$REPO_ROOT/.protec/noflash960148546"
+PORTS_FILE="$REPO_ROOT/.protec/biospur_ports.env"
+ASSERT_SCRIPT="$SCRIPT_DIR/assert_b120_internal_osc_build.sh"
+
+if [ -f "$PORTS_FILE" ]; then
+  # shellcheck disable=SC1090
+  source "$PORTS_FILE"
+fi
+
+if [ -f "$PROTECT_FILE" ]; then
+  # shellcheck disable=SC1090
+  source "$PROTECT_FILE"
+fi
 
 NET_HEX="${BUILD_DIR}/hci_ipc/zephyr/merged_CPUNET.hex"
 APP_HEX="${BUILD_DIR}/zephyr/merged.hex"
@@ -34,12 +58,37 @@ if [ ! -f "$APP_HEX" ]; then
   exit 4
 fi
 
+LOGICAL_ROLE="unknown"
+if [ "${BIOSPUR_ANCHOR_SNR:-}" = "$SNR" ] || [ "${BIOSPUR_PROTECTED_SNR:-}" = "$SNR" ]; then
+  LOGICAL_ROLE="Master_Anchor"
+elif [ "${BIOSPUR_TAG_SNR:-}" = "$SNR" ]; then
+  LOGICAL_ROLE="Master_Tag"
+fi
+
+BUILD_HINT="$(realpath "$BUILD_DIR" 2>/dev/null || printf '%s' "$BUILD_DIR")"
+BUILD_LOWER="$(printf '%s' "$BUILD_HINT" | tr '[:upper:]' '[:lower:]')"
+
+if [ "${BIOSPUR_FLASH_POLICY_REQUIRE_ROLE_BANNER:-1}" = "1" ]; then
+  echo "[flash-guard] SNR=${SNR} role=${LOGICAL_ROLE} image=${BUILD_HINT}"
+fi
+
+if [ "${BIOSPUR_FLASH_POLICY_BLOCK_ROLE_MISMATCH:-1}" = "1" ]; then
+  if [[ "$BUILD_LOWER" == *master-tag* ]] && [ "$LOGICAL_ROLE" = "Master_Anchor" ]; then
+    echo "[error] role mismatch: refusing to flash master-tag build onto Master_Anchor (${SNR})" >&2
+    exit 8
+  fi
+  if [[ "$BUILD_LOWER" == *master-anchor* ]] && [ "$LOGICAL_ROLE" = "Master_Tag" ]; then
+    echo "[error] role mismatch: refusing to flash master-anchor build onto Master_Tag (${SNR})" >&2
+    exit 9
+  fi
+fi
+
 if [ "$SNR" = "960148546" ] && [ -e "$PROTECT_FILE" ]; then
   echo "[error] protected B120 SNR 960148546; refusing to flash because $PROTECT_FILE exists" >&2
   exit 5
 fi
 
-"$REPO_ROOT/scripts/assert_b120_internal_osc_build.sh" "$BUILD_DIR"
+"$ASSERT_SCRIPT" "$BUILD_DIR"
 
 tmp_net="$(mktemp -t jlink_nrf5340_net_${SNR}_XXXXXX.jlink)"
 tmp_app="$(mktemp -t jlink_nrf5340_app_${SNR}_XXXXXX.jlink)"

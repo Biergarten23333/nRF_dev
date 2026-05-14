@@ -11,6 +11,7 @@ slot_count="${2:-10}"
 build_dir="${3:-build-tag-ble-motion-unified}"
 slot_period_ms="${APP_TAG_TDMA_SLOT_PERIOD_MS:-25}"
 slot_active_ms="${APP_TAG_TDMA_SLOT_ACTIVE_MS:-20}"
+slot_active_us="${APP_TAG_TDMA_SLOT_ACTIVE_US:-0}"
 device_name="${TAG_DEVICE_NAME:-BS_AUTO}"
 ble_name_prefix="${APP_TAG_BLE_NAME_PREFIX:-}"
 wand_mode_enable="${APP_TAG_WAND_MODE_ENABLE:-0}"
@@ -45,6 +46,8 @@ tag_verbose_perf="${APP_TAG_VERBOSE_PERF:-1}"
 tag_pending_print_period="${APP_TAG_PENDING_PRINT_PERIOD:-1}"
 tag_ble_packet_bundle_records="${APP_TAG_BLE_PACKET_BUNDLE_RECORDS:-3}"
 tag_ble_packet_bundle_flush_ms="${APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS:-250}"
+tag_ble_tx_item_count="${APP_TAG_BLE_TX_ITEM_COUNT:-10}"
+tag_alt_rxg_ble_diag_enable="${APP_TAG_ALT_RXG_BLE_DIAG_ENABLE:-1}"
 tag_imu_sample_period="${APP_TAG_IMU_SAMPLE_PERIOD:-2}"
 tag_ekf_enable="${APP_TAG_EKF_ENABLE:-1}"
 tag_loc_min_quality_percent="${APP_TAG_LOC_MIN_QUALITY_PERCENT:-20}"
@@ -84,6 +87,7 @@ fi
   printf 'set(APP_TAG_TDMA_SLOT_COUNT %s CACHE STRING "Motion tag preload" FORCE)\n' "${slot_count}"
   printf 'set(APP_TAG_TDMA_SLOT_PERIOD_MS %s CACHE STRING "Motion tag preload" FORCE)\n' "${slot_period_ms}"
   printf 'set(APP_TAG_TDMA_SLOT_ACTIVE_MS %s CACHE STRING "Motion tag preload" FORCE)\n' "${slot_active_ms}"
+  printf 'set(APP_TAG_TDMA_SLOT_ACTIVE_US %s CACHE STRING "Motion tag preload" FORCE)\n' "${slot_active_us}"
   printf 'set(APP_TAG_MULTITAG_PLAN_MODE %s CACHE STRING "Motion tag preload" FORCE)\n' "${multitag_plan_mode}"
   printf 'set(APP_TAG_MAINTENANCE_FULL_INTERVAL %s CACHE STRING "Motion tag preload" FORCE)\n' "${maintenance_full_interval}"
   printf 'set(APP_TAG_RANGE_FILTER_OUTLIER_MM %s CACHE STRING "Motion tag preload" FORCE)\n' "${range_filter_outlier_mm}"
@@ -102,6 +106,8 @@ fi
   printf 'set(APP_TAG_PENDING_PRINT_PERIOD %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_pending_print_period}"
   printf 'set(APP_TAG_BLE_PACKET_BUNDLE_RECORDS %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_ble_packet_bundle_records}"
   printf 'set(APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_ble_packet_bundle_flush_ms}"
+  printf 'set(APP_TAG_BLE_TX_ITEM_COUNT %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_ble_tx_item_count}"
+  printf 'set(APP_TAG_ALT_RXG_BLE_DIAG_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_alt_rxg_ble_diag_enable}"
   printf 'set(APP_TAG_IMU_SAMPLE_PERIOD %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_imu_sample_period}"
   printf 'set(APP_TAG_EKF_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_ekf_enable}"
   printf 'set(APP_TAG_LOC_MIN_QUALITY_PERCENT %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_loc_min_quality_percent}"
@@ -172,6 +178,8 @@ west build \
   -DAPP_TAG_BLE_COMPACT_STATUS=1 \
   -DAPP_TAG_BLE_PACKET_BUNDLE_RECORDS="${tag_ble_packet_bundle_records}" \
   -DAPP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS="${tag_ble_packet_bundle_flush_ms}" \
+  -DAPP_TAG_BLE_TX_ITEM_COUNT="${tag_ble_tx_item_count}" \
+  -DAPP_TAG_ALT_RXG_BLE_DIAG_ENABLE="${tag_alt_rxg_ble_diag_enable}" \
   -DAPP_TAG_BLE_NAME_PREFIX="${ble_name_prefix}" \
   -DAPP_TAG_WAND_MODE_ENABLE="${wand_mode_enable}" \
   -DAPP_TAG_MCUBOOT_ENABLE=1 \
@@ -180,6 +188,7 @@ west build \
   -DAPP_TAG_TDMA_SLOT_COUNT="${slot_count}" \
   -DAPP_TAG_TDMA_SLOT_PERIOD_MS="${slot_period_ms}" \
   -DAPP_TAG_TDMA_SLOT_ACTIVE_MS="${slot_active_ms}" \
+  -DAPP_TAG_TDMA_SLOT_ACTIVE_US="${slot_active_us}" \
   -DAPP_TAG_MULTITAG_PLAN_MODE="${multitag_plan_mode}" \
   -DAPP_TAG_MAINTENANCE_FULL_INTERVAL="${maintenance_full_interval}" \
   -DAPP_TAG_ACTIVE_ANCHOR_0_ID="${active_anchor_0_id}" \

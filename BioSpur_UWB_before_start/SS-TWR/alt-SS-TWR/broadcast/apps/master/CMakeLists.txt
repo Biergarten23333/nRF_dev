@@ -22,6 +22,9 @@ set(APP_MASTER_ONE_SHOT_CMD "" CACHE STRING "Optional single NUS command sent on
 set(APP_MASTER_TAG_NAME_PREFIX "BS" CACHE STRING "BLE device-name prefix for receiver mode")
 set(APP_MASTER_TDMA_SLOT_PERIOD_MS "40" CACHE STRING "Master TDMA slot period in milliseconds")
 set(APP_MASTER_TDMA_SLOT_ACTIVE_MS "24" CACHE STRING "Master TDMA slot active window in milliseconds")
+set(APP_MASTER_TDMA_MOTION_DEFAULT_HZ "5" CACHE STRING "Default TDMA target Hz for motion profile")
+set(APP_MASTER_TDMA_STATIC_DEFAULT_HZ "5" CACHE STRING "Default TDMA target Hz for static profile")
+set(APP_MASTER_TDMA_ROTO_DEFAULT_HZ "15" CACHE STRING "Default TDMA target Hz for roto profile")
 
 # Allow operators/scripts to inject one-shot behavior under sysbuild via env.
 if(DEFINED ENV{APP_MASTER_ONE_SHOT_CMD})
@@ -42,6 +45,9 @@ target_compile_definitions(app PRIVATE
     APP_MASTER_ONE_SHOT_CMD="${APP_MASTER_ONE_SHOT_CMD}"
     APP_MASTER_TDMA_SLOT_PERIOD_MS=${APP_MASTER_TDMA_SLOT_PERIOD_MS}
     APP_MASTER_TDMA_SLOT_ACTIVE_MS=${APP_MASTER_TDMA_SLOT_ACTIVE_MS}
+    APP_MASTER_TDMA_MOTION_DEFAULT_HZ=${APP_MASTER_TDMA_MOTION_DEFAULT_HZ}
+    APP_MASTER_TDMA_STATIC_DEFAULT_HZ=${APP_MASTER_TDMA_STATIC_DEFAULT_HZ}
+    APP_MASTER_TDMA_ROTO_DEFAULT_HZ=${APP_MASTER_TDMA_ROTO_DEFAULT_HZ}
 )
 
 target_sources(app PRIVATE

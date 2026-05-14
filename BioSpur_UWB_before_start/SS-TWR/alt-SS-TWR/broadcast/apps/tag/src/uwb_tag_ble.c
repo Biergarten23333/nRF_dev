@@ -61,6 +61,10 @@
 #define APP_TAG_ID 0U
 #endif
 
+#ifndef APP_TAG_TDMA_SLOT_ACTIVE_US
+#define APP_TAG_TDMA_SLOT_ACTIVE_US 0U
+#endif
+
 #ifndef APP_TAG_BLE_TOKEN_ID
 #define APP_TAG_BLE_TOKEN_ID APP_TAG_ID
 #endif
@@ -97,7 +101,10 @@ static const char *uwb_tag_ble_wand_role_for_code(uint16_t code)
 
 #define UWB_TAG_BLE_TX_THREAD_STACK 1536
 #define UWB_TAG_BLE_TX_THREAD_PRIO 7
-#define UWB_TAG_BLE_TX_ITEM_COUNT 10U
+#ifndef APP_TAG_BLE_TX_ITEM_COUNT
+#define APP_TAG_BLE_TX_ITEM_COUNT 10U
+#endif
+#define UWB_TAG_BLE_TX_ITEM_COUNT APP_TAG_BLE_TX_ITEM_COUNT
 #define UWB_TAG_BLE_TX_RETRY_MAX 4U
 #define UWB_TAG_BLE_TX_RETRY_DELAY_MS 2U
 #define UWB_TAG_BLE_BINARY_MAGIC0 0x42U
@@ -586,6 +593,7 @@ static void uwb_tag_ble_runtime_params_reset_locked(void)
 	active_runtime_params.tdma.slot_mask = 0U;
 	active_runtime_params.tdma.slot_period_ms = APP_TAG_TDMA_SLOT_PERIOD_MS;
 	active_runtime_params.tdma.slot_active_ms = APP_TAG_TDMA_SLOT_ACTIVE_MS;
+	active_runtime_params.tdma.slot_active_us = APP_TAG_TDMA_SLOT_ACTIVE_US;
 	active_runtime_params.tdma.epoch_ms = 0U;
 	active_runtime_params.tdma.sync_local_ms = 0U;
 	active_runtime_params.tdma.epoch_valid = false;
@@ -643,6 +651,8 @@ static void uwb_tag_ble_runtime_params_apply_settings_locked(void)
 			runtime_settings_record.slot_period_ms;
 		active_runtime_params.tdma.slot_active_ms =
 			runtime_settings_record.slot_active_ms;
+		active_runtime_params.tdma.slot_active_us =
+			APP_TAG_TDMA_SLOT_ACTIVE_US;
 	}
 }
 
@@ -784,6 +794,7 @@ static void uwb_tag_ble_apply_mode_defaults(struct uwb_tag_runtime_params *param
 		params->tdma.slot_mask = 0U;
 		params->tdma.slot_period_ms = 25U;
 		params->tdma.slot_active_ms = 25U;
+		params->tdma.slot_active_us = 0U;
 		params->tdma.epoch_valid = false;
 		params->tdma.epoch_ms = 0U;
 		params->tdma.generation = 0U;
@@ -799,6 +810,7 @@ static void uwb_tag_ble_apply_mode_defaults(struct uwb_tag_runtime_params *param
 			params->tdma.slot_mask = 0U;
 			params->tdma.slot_period_ms = APP_TAG_TDMA_SLOT_PERIOD_MS;
 			params->tdma.slot_active_ms = APP_TAG_TDMA_SLOT_ACTIVE_MS;
+			params->tdma.slot_active_us = APP_TAG_TDMA_SLOT_ACTIVE_US;
 			params->tdma.epoch_valid = false;
 			params->tdma.epoch_ms = 0U;
 			params->tdma.generation = 0U;
@@ -814,6 +826,7 @@ static void uwb_tag_ble_apply_mode_defaults(struct uwb_tag_runtime_params *param
 		params->tdma.slot_mask = 0U;
 		params->tdma.slot_period_ms = APP_TAG_TDMA_SLOT_PERIOD_MS;
 		params->tdma.slot_active_ms = APP_TAG_TDMA_SLOT_ACTIVE_MS;
+		params->tdma.slot_active_us = APP_TAG_TDMA_SLOT_ACTIVE_US;
 		params->tdma.epoch_valid = false;
 		params->tdma.epoch_ms = 0U;
 		params->tdma.generation = 0U;
@@ -883,6 +896,9 @@ int uwb_tag_ble_tdma_slot_override_store(uint8_t slot_index)
 	}
 	if (params.tdma.slot_active_ms == 0U) {
 		params.tdma.slot_active_ms = APP_TAG_TDMA_SLOT_ACTIVE_MS;
+	}
+	if (params.tdma.slot_active_us == 0U) {
+		params.tdma.slot_active_us = APP_TAG_TDMA_SLOT_ACTIVE_US;
 	}
 
 	return uwb_tag_ble_runtime_config_store(&params);
@@ -970,6 +986,7 @@ static int uwb_tag_ble_parse_cfg_command(
 	uint32_t count = 0U;
 	uint32_t period = 0U;
 	uint32_t active = 0U;
+	uint32_t active_us = 0U;
 	uint32_t slot_mask = 0U;
 	uint32_t epoch = 0U;
 	uint32_t generation = 0U;
@@ -994,6 +1011,7 @@ static int uwb_tag_ble_parse_cfg_command(
 
 	(void)uwb_tag_ble_parse_u32_field(cmd, "GEN=", &generation);
 	(void)uwb_tag_ble_parse_u32_field(cmd, "MASK=", &slot_mask);
+	(void)uwb_tag_ble_parse_u32_field(cmd, "ACTIVE_US=", &active_us);
 	(void)uwb_tag_ble_parse_u32_field(cmd, "RUN=", &run_enabled);
 	(void)uwb_tag_ble_parse_u32_field(cmd, "PMODE=", &positioning_mode);
 	(void)uwb_tag_ble_parse_u32_field(cmd, "AMODE=", &anchor_mode);
@@ -1003,6 +1021,7 @@ static int uwb_tag_ble_parse_cfg_command(
 	if (tag_id >= UWB_MAX_TAGS || slot >= UINT8_MAX || count == 0U ||
 	    count > UINT8_MAX || period == 0U || period > UINT16_MAX ||
 	    active == 0U || active > UINT16_MAX || active > period ||
+	    active_us > UINT16_MAX || active_us > (period * 1000U) ||
 	    slot_mask > UINT16_MAX || run_enabled > 1U ||
 	    (positioning_mode != UWB_TAG_MODE_RANGE &&
 	     positioning_mode != UWB_TAG_MODE_SOLVE &&
@@ -1028,6 +1047,7 @@ static int uwb_tag_ble_parse_cfg_command(
 	params->tdma.slot_mask = (uint16_t)slot_mask;
 	params->tdma.slot_period_ms = (uint16_t)period;
 	params->tdma.slot_active_ms = (uint16_t)active;
+	params->tdma.slot_active_us = (uint16_t)active_us;
 	params->tdma.epoch_ms = epoch;
 	params->tdma.epoch_valid = true;
 	params->tdma.generation = (uint8_t)generation;
@@ -1845,13 +1865,14 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 
 		(void)uwb_tag_ble_runtime_config_get(&params);
 		snprintk(resp, sizeof(resp),
-			 "TDMA_SLOT=%u/%u MASK=0x%04X SOURCE=%s PERIOD=%u ACTIVE=%u GEN=%u",
+			 "TDMA_SLOT=%u/%u MASK=0x%04X SOURCE=%s PERIOD=%u ACTIVE=%u ACTIVE_US=%u GEN=%u",
 			 (unsigned int)params.tdma.slot_index,
 			 (unsigned int)params.tdma.slot_count,
 			 (unsigned int)params.tdma.slot_mask,
 			 uwb_tag_ble_slot_source_label(params.slot_source),
 			 (unsigned int)params.tdma.slot_period_ms,
 			 (unsigned int)params.tdma.slot_active_ms,
+			 (unsigned int)params.tdma.slot_active_us,
 			 (unsigned int)params.tdma.generation);
 		uwb_tag_ble_send_text(resp);
 		return;
@@ -1982,7 +2003,7 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 						(unsigned int)params.fixed_anchor_ids[i]);
 		}
 		snprintk(resp, sizeof(resp),
-			 "CFG tag=%u bs=BS%04X slot=%u/%u mask=0x%04X src=%s period=%u active=%u epoch=%lu gen=%u pmode=%u amode=%u fixed=%s",
+			 "CFG tag=%u bs=BS%04X slot=%u/%u mask=0x%04X src=%s period=%u active=%u active_us=%u epoch=%lu gen=%u pmode=%u amode=%u fixed=%s",
 			 (unsigned int)params.logical_tag_id,
 			 (unsigned int)params.identity_code,
 			 (unsigned int)params.tdma.slot_index,
@@ -1991,6 +2012,7 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 			 uwb_tag_ble_slot_source_label(params.slot_source),
 			 (unsigned int)params.tdma.slot_period_ms,
 			 (unsigned int)params.tdma.slot_active_ms,
+			 (unsigned int)params.tdma.slot_active_us,
 			 (unsigned long)params.tdma.epoch_ms,
 			 (unsigned int)params.tdma.generation,
 			 (unsigned int)params.positioning_mode,
@@ -2138,13 +2160,14 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		}
 
 		snprintk(resp, sizeof(resp),
-			 "CFG_OK TAG=%u SLOT=%u/%u MASK=0x%04X PERIOD=%u ACTIVE=%u GEN=%u LIVE=%u RUN=%u STATE=%s",
+			 "CFG_OK TAG=%u SLOT=%u/%u MASK=0x%04X PERIOD=%u ACTIVE=%u ACTIVE_US=%u GEN=%u LIVE=%u RUN=%u STATE=%s",
 			 (unsigned int)params.logical_tag_id,
 			 (unsigned int)params.tdma.slot_index,
 			 (unsigned int)params.tdma.slot_count,
 			 (unsigned int)params.tdma.slot_mask,
 			 (unsigned int)params.tdma.slot_period_ms,
 			 (unsigned int)params.tdma.slot_active_ms,
+			 (unsigned int)params.tdma.slot_active_us,
 			 (unsigned int)params.tdma.generation,
 			 (unsigned int)((live_err == 0) ? 1U : 0U),
 			 params.tdma.enabled ? 1U : 0U,

@@ -106,6 +106,10 @@
 #define APP_TAG_POSITION_OUTPUT_ENABLE 0U
 #endif
 
+#ifndef APP_TAG_TR_BCAST_V2_ENABLE
+#define APP_TAG_TR_BCAST_V2_ENABLE 0U
+#endif
+
 #ifndef APP_TAG_WAND_MODE_ENABLE
 #define APP_TAG_WAND_MODE_ENABLE 0U
 #endif
@@ -140,6 +144,10 @@
 
 #ifndef APP_TAG_ALT_POLL_DIAG_PERIOD_MS
 #define APP_TAG_ALT_POLL_DIAG_PERIOD_MS 5000U
+#endif
+
+#ifndef APP_TAG_ALT_RXG_BLE_DIAG_ENABLE
+#define APP_TAG_ALT_RXG_BLE_DIAG_ENABLE 1U
 #endif
 
 #ifndef APP_TAG_FAST_TRACKING
@@ -655,8 +663,10 @@ static void ss_twr_init_publish_tag_range_summary(
     size_t status_pos = 0U;
     uint32_t active_mask = 0U;
     uint32_t valid_mask = 0U;
+    uint32_t rx_mask = 0U;
     uint32_t first_to_last_us = 0U;
     uint32_t frame_us = 0U;
+    uint32_t cycle_us = 0U;
     bool first = true;
 
     if (ss_twr_init_runtime_any_calibration_mode()) {
@@ -676,6 +686,10 @@ static void ss_twr_init_publish_tag_range_summary(
         active_mask |= BIT(anchor_id);
         if (measurements[i].valid) {
             valid_mask |= BIT(anchor_id);
+        }
+        if (ss_twr_init_sweep_anchor_status[anchor_id] !=
+            SS_TWR_INIT_SWEEP_ANCHOR_PENDING) {
+            rx_mask |= BIT(anchor_id);
         }
 
         raw_pos = ss_twr_init_append_csv_i32(
@@ -711,8 +725,23 @@ static void ss_twr_init_publish_tag_range_summary(
         frame_us = k_cyc_to_us_floor32(
             ss_twr_init_sweep_done_cycle -
             ss_twr_init_sweep_first_poll_cycle);
+        cycle_us = frame_us;
     }
 
+#if APP_TAG_TR_BCAST_V2_ENABLE
+    snprintk(line, sizeof(line),
+             "TR;2;%lu;%c;%u;%02lx;%02lx;%02lx;%s;%s;%s;%s;%u;%lu;%lu;%lu;%u",
+             (unsigned long)ss_twr_init_sweep_count,
+             ss_twr_init_plan_code(ss_twr_init_plan_label()),
+             (unsigned int)ss_twr_init_runtime_params.positioning_mode,
+             (unsigned long)active_mask, (unsigned long)valid_mask,
+             (unsigned long)rx_mask, raw_csv, range_csv, quality_csv,
+             status_codes, (unsigned int)qf_percent,
+             (unsigned long)first_to_last_us,
+             (unsigned long)frame_us,
+             (unsigned long)cycle_us,
+             (unsigned int)ss_twr_init_sweep_poll_count);
+#else
     snprintk(line, sizeof(line),
              "TR;3;%lu;%c;%u;%02lx;%02lx;%s;%s;%s;%s;%u;%lu;%lu;%u",
              (unsigned long)ss_twr_init_sweep_count,
@@ -724,6 +753,7 @@ static void ss_twr_init_publish_tag_range_summary(
              (unsigned long)first_to_last_us,
              (unsigned long)frame_us,
              (unsigned int)ss_twr_init_sweep_poll_count);
+#endif
     (void)uwb_tag_ble_publish_status(line);
 }
 #else
@@ -854,7 +884,7 @@ static void ss_twr_init_publish_cal_frame_summary(const char *plan_label,
              (unsigned long)frame_us,
              (unsigned int)ss_twr_init_sweep_poll_count);
     printk("%s\n", line);
-#if APP_TAG_BLE_ENABLE
+#if APP_TAG_BLE_ENABLE && APP_TAG_ALT_RXG_BLE_DIAG_ENABLE != 0U
     (void)uwb_tag_ble_publish_status(line);
 #endif
 }
@@ -2199,12 +2229,13 @@ static void ss_twr_init_apply_pending_runtime_config_if_any(void)
 	ss_twr_init_runtime_update_pending = false;
 	ss_twr_init_active_anchor_index = 0U;
 	ss_twr_init_prepare_sweep_plan();
-	printk("Tag runtime config applied tag=%u slot=%u/%u period=%u active=%u source=%s gen=%u amode=%u\n",
+	printk("Tag runtime config applied tag=%u slot=%u/%u period=%u active=%u active_us=%u source=%s gen=%u amode=%u\n",
 	       (unsigned int)ss_twr_init_runtime_params.logical_tag_id,
 	       (unsigned int)ss_twr_init_tdma_schedule.slot_index,
 	       (unsigned int)ss_twr_init_tdma_schedule.slot_count,
 	       (unsigned int)ss_twr_init_tdma_schedule.slot_period_ms,
 	       (unsigned int)ss_twr_init_tdma_schedule.slot_active_ms,
+	       (unsigned int)ss_twr_init_tdma_schedule.slot_active_us,
 	       ss_twr_init_slot_source_label(ss_twr_init_runtime_params.slot_source),
 	       (unsigned int)ss_twr_init_tdma_schedule.generation,
 	       (unsigned int)ss_twr_init_runtime_params.anchor_selection_mode);
@@ -3889,7 +3920,7 @@ static void ss_twr_init_alt_publish_rx_gap_diag(uint32_t tx_done_cycles,
     ss_twr_init_alt_last_rx_gap_diag_ms = now_ms;
 
     snprintk(line, sizeof(line),
-             "RXG;1;%lu;tag=%u;mask=0x%02x;pc=%u;guard=%u;spacing=%u;win=%lu;pre=%u;slot_to_entry_us=%lu;slot_to_sched_us=%lu;slot_to_write_done_us=%lu;slot_to_txcmd_us=%lu;slot_to_txdone_us=%lu;txcmd_to_txdone_us=%lu;txdone_to_rxstart_us=%lu;txdone_to_rxend_us=%lu;rxenable_us=%lu;rc=%d;slot=%u/%u;period=%u;active=%u;lperiod=%u;lcount=%u",
+             "RXG;1;%lu;tag=%u;mask=0x%02x;pc=%u;guard=%u;spacing=%u;win=%lu;pre=%u;slot_to_entry_us=%lu;slot_to_sched_us=%lu;slot_to_write_done_us=%lu;slot_to_txcmd_us=%lu;slot_to_txdone_us=%lu;txcmd_to_txdone_us=%lu;txdone_to_rxstart_us=%lu;txdone_to_rxend_us=%lu;rxenable_us=%lu;rc=%d;slot=%u/%u;period=%u;active=%u;active_us=%u;lperiod=%u;lcount=%u",
              (unsigned long)ss_twr_init_sweep_count,
              (unsigned int)ss_twr_init_local_tag_id,
              (unsigned int)anchor_mask,
@@ -3912,6 +3943,7 @@ static void ss_twr_init_alt_publish_rx_gap_diag(uint32_t tx_done_cycles,
              (unsigned int)ss_twr_init_tdma_schedule.slot_count,
              (unsigned int)ss_twr_init_tdma_schedule.slot_period_ms,
              (unsigned int)ss_twr_init_tdma_schedule.slot_active_ms,
+             (unsigned int)ss_twr_init_tdma_schedule.slot_active_us,
              (unsigned int)APP_TAG_TDMA_SLOT_PERIOD_MS,
              (unsigned int)APP_TAG_TDMA_SLOT_COUNT);
     printk("%s\n", line);

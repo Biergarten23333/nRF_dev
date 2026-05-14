@@ -133,6 +133,125 @@ def wait_anchor_ctrl_ready(
     return ser, False
 
 
+def rebuild_anchor_control_links(
+    ser: serial.Serial,
+    logf,
+    log_path: Path,
+    port: str,
+    live_output: bool,
+    verbose: int,
+    context: dict,
+    timeout_s: float,
+) -> tuple[serial.Serial, bool]:
+    """Force a fresh anchor-control discovery pass before runtime role commands.
+
+    Matrix anchors advertise slowly, so a stale AUTOPOS session can sit in
+    scan=1/conn_count=0 forever from the script's point of view.  Bounce only
+    the Master_Anchor control plane back through RECV, reassert the anchor
+    target and UUID map, then wait for real A-H control links before sending
+    role changes.
+    """
+
+    emit(
+        logf,
+        "VERIFY: anchor ctrl ready gate missed; force rebuild anchor control links\n",
+        live_output,
+        verbose,
+    )
+    for attempt in range(1, 4):
+        emit(logf, f"VERIFY: anchor ctrl rebuild attempt={attempt}/3\n", live_output, verbose)
+        ser, _ = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            "mode recv",
+            3.0,
+            live_output,
+            verbose,
+            resend_after_reopen=True,
+        )
+        ser, _ = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            "device kind anchor",
+            2.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+        )
+        ser, _ = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            "mode recv",
+            2.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+        )
+        ser, _, _ = collect_for_text(
+            ser,
+            logf,
+            1.0,
+            port,
+            live_output,
+            verbose,
+        )
+        ser, _ = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            "mode autopos",
+            8.0,
+            live_output,
+            verbose,
+            resend_after_reopen=True,
+        )
+        ser, _, _ = collect_for_text(
+            ser,
+            logf,
+            1.0,
+            port,
+            live_output,
+            verbose,
+        )
+        context["autopos_initialized"] = False
+        ser = ensure_autopos_maps(
+            ser,
+            logf,
+            port,
+            live_output,
+            verbose,
+            context=context,
+        )
+        ser, _ = send_cmd_collect_text(
+            ser,
+            logf,
+            port,
+            "conn",
+            5.0,
+            live_output,
+            verbose,
+            resend_after_reopen=False,
+        )
+        ser, ready_ok = wait_anchor_ctrl_ready(
+            ser,
+            logf,
+            log_path,
+            port,
+            live_output,
+            verbose,
+            timeout_s=timeout_s,
+        )
+        if ready_ok:
+            emit(logf, "VERIFY: anchor ctrl rebuild succeeded\n", live_output, verbose)
+            return ser, True
+
+    emit(logf, "VERIFY ERROR: anchor ctrl rebuild failed; no runtime responder command sent\n", live_output, verbose)
+    return ser, False
+
+
 def timestamped_out_dir(base: Path) -> Path:
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if base.name.endswith(stamp):
@@ -340,9 +459,32 @@ def main() -> int:
                 timeout_s=max(60.0, args.scan_timeout_s),
             )
             if not ctrl_ready_ok:
+                ser, ctrl_ready_ok = rebuild_anchor_control_links(
+                    ser,
+                    logf,
+                    log_path,
+                    args.port,
+                    args.live_output,
+                    args.verbose,
+                    context,
+                    timeout_s=max(90.0, args.scan_timeout_s),
+                )
+            if not ctrl_ready_ok:
+                result["error"] = "anchor_ctrl_ready_failed"
+                result["final_role_counts"] = scan_anchor_role_counts(timeout_s=min(8.0, args.scan_timeout_s))
+                summary_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+                print(json.dumps(result, indent=2))
+                return 1
+
+            runtime_command_timeout_s = min(float(args.command_timeout_s), 30.0)
+            if runtime_command_timeout_s < float(args.command_timeout_s):
                 emit(
                     logf,
-                    "VERIFY WARN: proceeding to runtime command despite soft ready-gate miss\n",
+                    (
+                        "VERIFY: cap runtime responder command collect window "
+                        f"from {float(args.command_timeout_s):.1f}s to {runtime_command_timeout_s:.1f}s; "
+                        "ready=8/8 ack is authoritative\n"
+                    ),
                     args.live_output,
                     args.verbose,
                 )
@@ -359,7 +501,7 @@ def main() -> int:
                     logf,
                     args.port,
                     "anchor role all responder",
-                    args.command_timeout_s,
+                    runtime_command_timeout_s,
                     args.live_output,
                     args.verbose,
                     resend_after_reopen=False,

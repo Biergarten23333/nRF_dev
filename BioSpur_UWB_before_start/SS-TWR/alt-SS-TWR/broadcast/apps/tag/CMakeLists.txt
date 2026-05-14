@@ -75,6 +75,7 @@ set(APP_TAG_TDMA_SLOT_INDEX "0" CACHE STRING "Zero-based TDMA slot index for thi
 set(APP_TAG_TDMA_SLOT_COUNT "1" CACHE STRING "Total TDMA slot count in the cycle")
 set(APP_TAG_TDMA_SLOT_PERIOD_MS "25" CACHE STRING "TDMA slot period in milliseconds")
 set(APP_TAG_TDMA_SLOT_ACTIVE_MS "20" CACHE STRING "Usable active time within each slot in milliseconds")
+set(APP_TAG_TDMA_SLOT_ACTIVE_US "0" CACHE STRING "Optional usable active time within each slot in microseconds; 0 uses ACTIVE_MS")
 set(APP_TAG_CAL_STATIC_SLOT_DIVIDER "1" CACHE STRING "Sample one CAL_STATIC slot out of every N TDMA slots")
 set(APP_TAG_EKF_ENABLE "0" CACHE STRING "Enable the post-solve linear position filter (legacy EKF name)")
 set(APP_TAG_EKF_MEAS_STD_MM "25" CACHE STRING "Base measurement standard deviation for the post-solve position filter")
@@ -115,6 +116,7 @@ set(APP_TAG_UWB_ENABLE "1" CACHE STRING "Enable UWB ranging runtime on the tag (
 set(APP_TAG_BLE_COMPACT_STATUS "1" CACHE STRING "Enable compact BLE TagSummary payloads on the tag")
 set(APP_TAG_BLE_PACKET_BUNDLE_RECORDS "3" CACHE STRING "Bundle this many TagSummary records into one BLE NUS payload")
 set(APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS "250" CACHE STRING "Flush a partial BLE bundle after this many milliseconds (0 disables)")
+set(APP_TAG_BLE_TX_ITEM_COUNT "10" CACHE STRING "BLE NUS transmit queue item count")
 set(APP_TAG_BLE_UWB_DIAG_OUTPUT_ENABLE "0" CACHE STRING "Forward UWB diagnostic status lines over BLE")
 set(APP_TAG_BLE_NAME_PREFIX "" CACHE STRING "Optional BLE name prefix prepended before BSxxxx, for example Wand-A")
 set(APP_TAG_WAND_MODE_ENABLE "0" CACHE STRING "Enable experimental Calibration Wand BLE control-plane commands")
@@ -132,6 +134,7 @@ set(APP_ALT_SS_TWR_LIGHT_TDMA_ENABLE "0" CACHE STRING "Use broadcast-dedicated l
 set(APP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE "0" CACHE STRING "Use immediate TX for broadcast Alt SS-TWR poll frames")
 set(APP_ALT_SS_TWR_BCAST_PREWRITE_TX_ENABLE "0" CACHE STRING "Prewrite broadcast Alt SS-TWR poll TX buffer before the TDMA slot")
 set(APP_TAG_ALT_POLL_DIAG_PERIOD_MS "5000" CACHE STRING "Alt SS-TWR poll timing diagnostic period in milliseconds")
+set(APP_TAG_ALT_RXG_BLE_DIAG_ENABLE "1" CACHE STRING "Forward broadcast RX gap timing diagnostics over BLE")
 if(NOT DEFINED APP_TAG_BLE_TOKEN_ID OR APP_TAG_BLE_TOKEN_ID STREQUAL "")
 set(APP_TAG_BLE_TOKEN_ID "${APP_TAG_ID}" CACHE STRING "BLE identity token advertised in manufacturer data")
 endif()
@@ -193,6 +196,7 @@ target_compile_definitions(app PRIVATE
     APP_TAG_TDMA_SLOT_COUNT=${APP_TAG_TDMA_SLOT_COUNT}
     APP_TAG_TDMA_SLOT_PERIOD_MS=${APP_TAG_TDMA_SLOT_PERIOD_MS}
     APP_TAG_TDMA_SLOT_ACTIVE_MS=${APP_TAG_TDMA_SLOT_ACTIVE_MS}
+    APP_TAG_TDMA_SLOT_ACTIVE_US=${APP_TAG_TDMA_SLOT_ACTIVE_US}
     APP_TAG_CAL_STATIC_SLOT_DIVIDER=${APP_TAG_CAL_STATIC_SLOT_DIVIDER}
     APP_TAG_EKF_ENABLE=${APP_TAG_EKF_ENABLE}
     APP_TAG_EKF_MEAS_STD_MM=${APP_TAG_EKF_MEAS_STD_MM}
@@ -233,6 +237,7 @@ target_compile_definitions(app PRIVATE
     APP_TAG_BLE_COMPACT_STATUS=${APP_TAG_BLE_COMPACT_STATUS}
     APP_TAG_BLE_PACKET_BUNDLE_RECORDS=${APP_TAG_BLE_PACKET_BUNDLE_RECORDS}
     APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS=${APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS}
+    APP_TAG_BLE_TX_ITEM_COUNT=${APP_TAG_BLE_TX_ITEM_COUNT}
     APP_TAG_BLE_UWB_DIAG_OUTPUT_ENABLE=${APP_TAG_BLE_UWB_DIAG_OUTPUT_ENABLE}
     APP_TAG_BLE_NAME_PREFIX=\"${APP_TAG_BLE_NAME_PREFIX}\"
     APP_TAG_WAND_MODE_ENABLE=${APP_TAG_WAND_MODE_ENABLE}
@@ -250,6 +255,7 @@ target_compile_definitions(app PRIVATE
     APP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE=${APP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE}
     APP_ALT_SS_TWR_BCAST_PREWRITE_TX_ENABLE=${APP_ALT_SS_TWR_BCAST_PREWRITE_TX_ENABLE}
     APP_TAG_ALT_POLL_DIAG_PERIOD_MS=${APP_TAG_ALT_POLL_DIAG_PERIOD_MS}
+    APP_TAG_ALT_RXG_BLE_DIAG_ENABLE=${APP_TAG_ALT_RXG_BLE_DIAG_ENABLE}
     APP_TAG_BLE_TOKEN_ID=${APP_TAG_BLE_TOKEN_ID}
     APP_TAG_MCUBOOT_ENABLE=${APP_TAG_MCUBOOT_ENABLE}
     APP_UWB_CHANNEL=${APP_UWB_CHANNEL}

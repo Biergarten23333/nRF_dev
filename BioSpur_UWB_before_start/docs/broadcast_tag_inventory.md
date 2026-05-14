@@ -36,7 +36,7 @@ Rollout status:
 - 2026-05-08 100-set AutoPos anchor sweep passed for all 8 anchors with no
   reconnect retry and no slow switch rounds:
   `SS-TWR/alt-SS-TWR/broadcast/logs/autopos_anchor_sweep_100set_20260508_190915/`
-- D/H replacement UUIDs below are active in the AutoPos and OTA scripts.
+- A/D/H replacement UUIDs below are active in the AutoPos and OTA scripts.
 - Rollout record:
   `docs/anchor_a18_freeze_20260508.md`
 
@@ -44,6 +44,7 @@ Rollout status:
 
 | Anchor | BLE name | J-Link SNR | UUID | Runtime id | UWB short addr | Current note |
 |---|---|---:|---|---:|---:|---|
+| A | `ANCHOR-A-BS1FFC` | `760184781` | `F3BB7A04104F9CB8561DDDACB9E53714` | `0` | `0xA100` | Replacement A; active AutoPos UUID as of 2026-05-11 |
 | D | `ANCHOR-D-BS20AC` | `760184974` | `B2B5FA625534A8C617135DCAFC9E036A` | `3` | `0xA103` | Replacement D; active AutoPos UUID as of 2026-05-08 |
 | H | `ANCHOR-H-BSB77F` | `760184753` | `CF12E703AC1A118F6AB440AB05B0BA23` | `7` | `0xA107` | Replacement H; active AutoPos UUID as of 2026-05-08 |
 

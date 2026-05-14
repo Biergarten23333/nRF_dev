@@ -123,7 +123,7 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument(
         "--anchor-port",
-        default="/dev/serial/by-id/usb-SEGGER_J-Link_000760186071-if00",
+        default="/dev/serial/by-id/usb-SEGGER_J-Link_000760184781-if00",
         help="Deprecated debug-only anchor observability port. Strict mode ignores Anchor USB data paths.",
     )
     p.add_argument(

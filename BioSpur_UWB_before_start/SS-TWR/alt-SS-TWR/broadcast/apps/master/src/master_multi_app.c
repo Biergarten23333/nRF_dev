@@ -44,13 +44,26 @@
 #ifndef APP_MASTER_TDMA_SLOT_ACTIVE_MS
 #define APP_MASTER_TDMA_SLOT_ACTIVE_MS 24U
 #endif
+#ifndef APP_MASTER_TDMA_SLOT_ACTIVE_US
+#define APP_MASTER_TDMA_SLOT_ACTIVE_US 0U
+#endif
 #define MASTER_TDMA_SLOT_PERIOD_MS APP_MASTER_TDMA_SLOT_PERIOD_MS
 #define MASTER_TDMA_SLOT_ACTIVE_MS APP_MASTER_TDMA_SLOT_ACTIVE_MS
+#define MASTER_TDMA_SLOT_ACTIVE_US APP_MASTER_TDMA_SLOT_ACTIVE_US
 #define MASTER_TDMA_EPOCH_LEAD_MS 3000U
 #define MASTER_TDMA_PROFILE_MAX MASTER_MAX_CONNECTIONS
-#define MASTER_TDMA_ROTO_DEFAULT_HZ 15U
-#define MASTER_TDMA_STATIC_DEFAULT_HZ 5U
-#define MASTER_TDMA_MOTION_DEFAULT_HZ 5U
+#ifndef APP_MASTER_TDMA_ROTO_DEFAULT_HZ
+#define APP_MASTER_TDMA_ROTO_DEFAULT_HZ 15U
+#endif
+#ifndef APP_MASTER_TDMA_STATIC_DEFAULT_HZ
+#define APP_MASTER_TDMA_STATIC_DEFAULT_HZ 5U
+#endif
+#ifndef APP_MASTER_TDMA_MOTION_DEFAULT_HZ
+#define APP_MASTER_TDMA_MOTION_DEFAULT_HZ 5U
+#endif
+#define MASTER_TDMA_ROTO_DEFAULT_HZ APP_MASTER_TDMA_ROTO_DEFAULT_HZ
+#define MASTER_TDMA_STATIC_DEFAULT_HZ APP_MASTER_TDMA_STATIC_DEFAULT_HZ
+#define MASTER_TDMA_MOTION_DEFAULT_HZ APP_MASTER_TDMA_MOTION_DEFAULT_HZ
 #ifndef APP_MASTER_TAG_NAME_PREFIX
 #define APP_MASTER_TAG_NAME_PREFIX "BS"
 #endif
@@ -747,6 +760,22 @@ static bool ad_name_matches_anchor_target(struct net_buf_simple *ad)
 	return ad_name_matches_prefix(ad, APP_MASTER_ANCHOR_NAME_PREFIX);
 }
 
+static bool master_anchor_uuid_is_configured(const char *uuid_hex)
+{
+	if (uuid_hex == NULL || uuid_hex[0] == '\0') {
+		return false;
+	}
+
+	for (size_t i = 0U; i < ARRAY_SIZE(anchor_adv_uuid_map); ++i) {
+		if (anchor_adv_uuid_map[i][0] != '\0' &&
+		    !strcasecmp(anchor_adv_uuid_map[i], uuid_hex)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 static bool scan_uuid128_cb(struct bt_data *data, void *user_data)
 {
 	bool *match = user_data;
@@ -1266,18 +1295,34 @@ static int master_send_runtime_config(struct master_peer *peer,
 		return -EINVAL;
 	}
 
-	snprintk(cmd, sizeof(cmd),
-		 "CFG TAG=%u SLOT=%u COUNT=%u MASK=0x%04X PERIOD=%u ACTIVE=%u EPOCH=%lu GEN=%u PMODE=%u AMODE=%u",
-		 (unsigned int)logical_tag_id,
-		 (unsigned int)slot_index,
-		 (unsigned int)slot_count,
-		 (unsigned int)slot_mask,
-		 (unsigned int)slot_period_ms,
-		 (unsigned int)slot_active_ms,
-		 (unsigned long)epoch_ms,
-		 (unsigned int)generation,
-		 (unsigned int)positioning_mode,
-		 0U);
+	if (MASTER_TDMA_SLOT_ACTIVE_US != 0U) {
+		snprintk(cmd, sizeof(cmd),
+			 "CFG TAG=%u SLOT=%u COUNT=%u MASK=0x%04X PERIOD=%u ACTIVE=%u ACTIVE_US=%u EPOCH=%lu GEN=%u PMODE=%u AMODE=%u",
+			 (unsigned int)logical_tag_id,
+			 (unsigned int)slot_index,
+			 (unsigned int)slot_count,
+			 (unsigned int)slot_mask,
+			 (unsigned int)slot_period_ms,
+			 (unsigned int)slot_active_ms,
+			 (unsigned int)MASTER_TDMA_SLOT_ACTIVE_US,
+			 (unsigned long)epoch_ms,
+			 (unsigned int)generation,
+			 (unsigned int)positioning_mode,
+			 0U);
+	} else {
+		snprintk(cmd, sizeof(cmd),
+			 "CFG TAG=%u SLOT=%u COUNT=%u MASK=0x%04X PERIOD=%u ACTIVE=%u EPOCH=%lu GEN=%u PMODE=%u AMODE=%u",
+			 (unsigned int)logical_tag_id,
+			 (unsigned int)slot_index,
+			 (unsigned int)slot_count,
+			 (unsigned int)slot_mask,
+			 (unsigned int)slot_period_ms,
+			 (unsigned int)slot_active_ms,
+			 (unsigned long)epoch_ms,
+			 (unsigned int)generation,
+			 (unsigned int)positioning_mode,
+			 0U);
+	}
 	err = bt_nus_client_send(&peer->nus_client, (const uint8_t *)cmd, strlen(cmd));
 	if (err) {
 		printk("CFG send failed[%d]: tag=%u slot=%u err=%d\n",
@@ -1293,7 +1338,7 @@ static int master_send_runtime_config(struct master_peer *peer,
 	peer->tdma_slot = slot_index;
 	peer->tdma_slot_valid = true;
 	peer->tdma_generation = generation;
-	printk("CFG assigned[%d]: bs=BS%04X tag=%u slot=%u/%u mask=0x%04X period=%u active=%u gen=%u pmode=%u\n",
+	printk("CFG assigned[%d]: bs=BS%04X tag=%u slot=%u/%u mask=0x%04X period=%u active=%u active_us=%u gen=%u pmode=%u\n",
 	       peer_index_from_nus(&peer->nus_client),
 	       (unsigned int)peer->bs_code,
 	       (unsigned int)logical_tag_id,
@@ -1302,6 +1347,7 @@ static int master_send_runtime_config(struct master_peer *peer,
 	       (unsigned int)slot_mask,
 	       (unsigned int)slot_period_ms,
 	       (unsigned int)slot_active_ms,
+	       (unsigned int)MASTER_TDMA_SLOT_ACTIVE_US,
 	       (unsigned int)generation,
 	       (unsigned int)positioning_mode);
 	return 0;
@@ -2728,6 +2774,23 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	}
 
 	if (runtime_target_kind == MASTER_TARGET_ANCHOR) {
+		bool configured_anchor_uuid = master_anchor_uuid_is_configured(uuid_hex);
+		bool anchor_identity_match =
+			anchor_name_match || anchor_id_valid || configured_anchor_uuid;
+
+		if (bs_code_valid && !anchor_identity_match) {
+			char addr[BT_ADDR_LE_STR_LEN];
+			char bs_name[8];
+
+			bt_addr_le_to_str(info->addr, addr, sizeof(addr));
+			snprintk(bs_name, sizeof(bs_name), "BS%04X", (unsigned int)bs_code);
+			printk("ANCHOR candidate rejected: bare BS peer %s bs=%s uuid=%s\n",
+			       addr,
+			       bs_name,
+			       uuid_hex[0] != '\0' ? uuid_hex : "-");
+			return;
+		}
+
 		if (!runtime_anchor_wildcard_scan) {
 			if (runtime_target_uuid[0] == '\0') {
 				return;
@@ -2735,7 +2798,20 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 			if (!uuid_match) {
 				return;
 			}
+			if (!anchor_identity_match && bs_code_valid) {
+				return;
+			}
 		} else if (uuid_hex[0] == '\0') {
+			return;
+		} else if (!anchor_identity_match) {
+			char addr[BT_ADDR_LE_STR_LEN];
+
+			bt_addr_le_to_str(info->addr, addr, sizeof(addr));
+			printk("ANCHOR candidate rejected: uuid not in anchor map %s uuid=%s name_match=%u anchor_id=%u\n",
+			       addr,
+			       uuid_hex,
+			       anchor_name_match ? 1U : 0U,
+			       anchor_id_valid ? 1U : 0U);
 			return;
 		}
 		goto candidate_accept;
@@ -3904,9 +3980,10 @@ int master_tdma_clear_profiles(void)
 
 void master_tdma_print_status(void)
 {
-	printk("TDMA weighted scheduler: period=%ums active=%ums max_slots=%u freq motion=%uHz static=%uHz roto=%uHz\n",
+	printk("TDMA weighted scheduler: period=%ums active=%ums active_us=%u max_slots=%u freq motion=%uHz static=%uHz roto=%uHz\n",
 	       MASTER_TDMA_SLOT_PERIOD_MS,
 	       MASTER_TDMA_SLOT_ACTIVE_MS,
+	       MASTER_TDMA_SLOT_ACTIVE_US,
 	       MASTER_TDMA_SLOT_COUNT_MAX,
 	       (unsigned int)tdma_motion_target_hz,
 	       (unsigned int)tdma_static_target_hz,

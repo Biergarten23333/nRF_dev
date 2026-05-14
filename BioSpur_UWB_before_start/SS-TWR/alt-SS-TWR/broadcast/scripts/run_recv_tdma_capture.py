@@ -37,7 +37,7 @@ TR_SINGLE_RE = re.compile(
 
 TR_RANGE_RE = re.compile(
     rf"{TAG_NOTIFY_PREFIX_RE} notify: TR;"
-    r"(?P<ver>[13]);"
+    r"(?P<ver>[123]);"
     r"(?P<sweep>\d+);"
     r"(?P<plan>[A-Za-z0-9_]+);"
     r"(?P<pmode>\d+);"
@@ -67,12 +67,14 @@ TR_BCAST_RE = re.compile(
     r"(?P<raws>-?\d+(?:,-?\d+)*);"
     r"(?P<ranges>\d+(?:,\d+)*);"
     r"(?P<qs>\d+(?:,\d+)*);"
-    r"(?P<statuses>[ORTEPL]+);"
+    r"(?P<statuses>[ORTEPL]+)"
+    r"(?:;"
     r"(?P<qf>\d+);"
     r"(?P<air_us>\d+);"
     r"(?P<post_us>\d+);"
     r"(?P<cycle_us>\d+);"
     r"(?P<poll_count>\d+)"
+    r")?"
 )
 
 # Backwards-compatible aliases for older helper code and text checks.
@@ -92,13 +94,14 @@ CFG_ASSIGNED_DETAIL_RE = re.compile(
     r"CFG assigned\[(?P<conn>\d+)\]: bs=(?P<bs>BS[0-9A-F]{4}) "
     r"tag=(?P<tag_id>\d+) slot=(?P<slot>\d+)/(?P<count>\d+) "
     r"mask=0x(?P<mask>[0-9A-Fa-f]+) period=(?P<period>\d+) "
-    r"active=(?P<active>\d+) gen=(?P<gen>\d+) pmode=(?P<pmode>\d+)"
+    r"active=(?P<active>\d+)(?: active_us=(?P<active_us>\d+))? "
+    r"gen=(?P<gen>\d+) pmode=(?P<pmode>\d+)"
 )
 
 CFG_OK_RE = re.compile(
     rf"{TAG_NOTIFY_PREFIX_RE} notify: CFG_OK TAG=(?P<tag_id>\d+) "
     r"SLOT=(?P<slot>\d+)/(?P<count>\d+) MASK=0x(?P<mask>[0-9A-Fa-f]+) "
-    r"PERIOD=(?P<period>\d+) ACTIVE=(?P<active>\d+) GEN=(?P<gen>\d+) "
+    r"PERIOD=(?P<period>\d+) ACTIVE=(?P<active>\d+)(?: ACTIVE_US=(?P<active_us>\d+))? GEN=(?P<gen>\d+) "
     r"LIVE=(?P<live>\d+)"
 )
 
@@ -106,6 +109,10 @@ TDMA_WEIGHTED_RE = re.compile(
     r"TDMA weighted\[\d+\]: bs=(?P<bs>BS[0-9A-F]{4}) profile=(?P<profile>\w+) "
     r"target=(?P<target_hz>\d+)Hz mask=0x(?P<mask>[0-9A-Fa-f]+) "
     r"slots=(?P<slots>\d+)/(?P<count>\d+) actual_x100=(?P<actual_x100>\d+)"
+)
+
+TDMA_SHOW_PROFILE_RE = re.compile(
+    r"TDMA profile: (?P<bs>BS[0-9A-F]{4}) -> (?P<profile>\w+) target=(?P<target_hz>\d+)Hz"
 )
 
 WAND_ROLE_BS_CODES = {
@@ -231,11 +238,12 @@ def iter_tr_records(text: str):
             anchor_id = active_anchors[pos]
             status = statuses[pos]
             range_mm = ranges[pos]
-            # TR1 is legacy/debug output.  On Wand debug images the valid_mask
-            # is not always the final per-anchor validity; status=O is.
+            # TR1/TR2 short records are legacy/debug output.  On Wand debug
+            # images the valid_mask is not always the final per-anchor
+            # validity; status=O is.
             effective_valid = (
                 (valid_mask & (1 << anchor_id)) != 0
-                or (tr_version == 1 and status == "O" and range_mm > 100)
+                or (tr_version in {1, 2} and status == "O" and range_mm > 100)
             )
             yield {
                 "sweep": int(match.group("sweep")),
@@ -272,17 +280,13 @@ def normalize_target(name: str) -> str:
             raise ValueError(
                 f"Invalid Wand target: {name}; expected Wand-{parts[1]}-{expected_bs}"
             )
-        return f"Wand-{parts[1]}-{parts[2]}"
+        return parts[2]
     raise ValueError(f"Invalid target name: {name}")
 
 
 def target_aliases(name: str) -> set[str]:
     value = name.strip().upper()
-    aliases = {value}
-    parts = value.split("-")
-    if len(parts) == 3 and parts[0] == "WAND" and parts[2].startswith("BS"):
-        aliases.add(parts[2])
-    return aliases
+    return {target_bs_name(value)}
 
 
 def target_bs_name(name: str) -> str:
@@ -294,17 +298,13 @@ def target_bs_name(name: str) -> str:
 
 
 def target_discovery_prefix(targets: list[str]) -> str:
-    # Wand Calibration is a Master_Tag/script-side filter. Prefer the Wand
-    # display name for steady-state discovery, while keeping TDMA/CSV identity
-    # as BSxxxx.
-    return "Wand" if any(t.strip().upper().startswith("WAND-") for t in targets) else "BS"
+    # Current field Wand tags advertise as plain BSxxxx. Wand-A/B/C aliases are
+    # accepted at the CLI, but runtime discovery and TDMA use the BS identity.
+    return "BS"
 
 
 def target_link_setup_prefix(targets: list[str]) -> str:
-    # Wand names live in the scan response. During a fast reconnect the Master
-    # may only see the manufacturer BS code, so link setup must admit BSxxxx
-    # aliases too. The TDMA roster still limits ranging to the requested Wands.
-    return "BS" if target_discovery_prefix(targets).lower() == "wand" else "BS"
+    return "BS"
 
 
 def open_serial_with_retry(port: str, baud: int, timeout_s: float = 0.2, retries: int = 240) -> serial.Serial:
@@ -554,7 +554,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--out-dir",
         default="logs/recv_tdma_capture",
-        help="Base output directory",
+        help="Base output directory. By default a timestamped sibling directory is created.",
+    )
+    parser.add_argument(
+        "--out-dir-exact",
+        action="store_true",
+        help="Use --out-dir itself as the session directory instead of creating a timestamped sibling.",
     )
     parser.add_argument(
         "--skip-anchor-preflight",
@@ -614,9 +619,31 @@ def build_parser() -> argparse.ArgumentParser:
         help="TDMA CFG apply/check attempts before capture starts.",
     )
     parser.add_argument(
+        "--allow-legacy-tdma-show-only",
+        action="store_true",
+        help=(
+            "Allow capture to start when legacy Tags do not emit CFG_ASSIGNED/CFG_OK, "
+            "provided tdma show reports every requested BS target/profile."
+        ),
+    )
+    parser.add_argument(
+        "--allow-scheduler-actual-hz-below-request",
+        action="store_true",
+        help=(
+            "Allow TDMA CFG verify to pass when the Master scheduler reports an "
+            "actual rate below the requested target Hz. Default is strict."
+        ),
+    )
+    parser.add_argument(
         "--no-cleanup",
         action="store_true",
         help="Leave tags running after capture. By default tags are returned to AOTA/idle mode.",
+    )
+    parser.add_argument(
+        "--no-tr-timeout-s",
+        type=float,
+        default=15.0,
+        help="Abort capture early if no TR row is seen this many seconds after TDMA release. Use 0 to disable.",
     )
     return parser
 
@@ -651,23 +678,25 @@ def write_rows(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
 
 
 def summarize_sweep_validity(rows: list[dict]) -> dict:
-    """Summarize whether each TDMA sweep saw enough valid anchor responses."""
-    by_sweep: dict[int, set[int]] = defaultdict(set)
+    """Summarize whether each tag sweep saw enough valid anchor responses."""
+    by_sweep: dict[tuple[str, int], set[int]] = defaultdict(set)
     for row in rows:
         if not int(row.get("valid") or 0):
             continue
         try:
+            peer = str(row.get("peer_name") or row.get("bs") or row.get("tag_id") or "")
             sweep = int(row["sweep"])
             anchor_id = int(row["anchor_id"])
         except (KeyError, TypeError, ValueError):
             continue
-        by_sweep[sweep].add(anchor_id)
+        by_sweep[(peer, sweep)].add(anchor_id)
 
     valid_counts = [len(anchor_ids) for anchor_ids in by_sweep.values()]
-    all_sweeps: set[int] = set()
+    all_sweeps: set[tuple[str, int]] = set()
     for row in rows:
         try:
-            all_sweeps.add(int(row["sweep"]))
+            peer = str(row.get("peer_name") or row.get("bs") or row.get("tag_id") or "")
+            all_sweeps.add((peer, int(row["sweep"])))
         except (KeyError, TypeError, ValueError):
             continue
     total_sweeps = len(all_sweeps)
@@ -971,6 +1000,8 @@ def configure_recv_capture_session(
     link_setup_prefix = target_link_setup_prefix(targets)
     wand_mode = discovery_prefix.lower() == "wand"
     clear_text = ""
+    status_text = ""
+    device_text = ""
 
     def restore_capture_filter(prefix_override: str = "") -> None:
         nonlocal ser
@@ -984,13 +1015,28 @@ def configure_recv_capture_session(
             ser = send_cmd(ser, logf, f"ota_target prefix {prefix}", 0.5)
         ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
 
-    if args.reuse_tag_links:
-        print("[CAPTURE] configure: reuse Master_Tag resident links", flush=True)
-        ser, status_text = send_cmd_collect(ser, logf, "status", 0.8)
-        ser, device_text = send_cmd_collect(ser, logf, "device show", 0.8)
+    ser, status_text = send_cmd_collect(ser, logf, "status", 0.8)
+    ser, device_text = send_cmd_collect(ser, logf, "device show", 0.8)
+    already_recv_tag = (
+        "mode=RECV" in status_text
+        and "kind=tag" in device_text.lower()
+    )
+
+    if args.reuse_tag_links or already_recv_tag:
+        if already_recv_tag:
+            print(
+                "[CAPTURE] configure: Master_Tag already RECV/tag; skip mode recv clean-slate",
+                flush=True,
+            )
+        else:
+            print("[CAPTURE] configure: reuse Master_Tag resident links", flush=True)
     else:
         print("[CAPTURE] configure: enter RECV/tag mode", flush=True)
         ser = send_cmd(ser, logf, "mode recv", 8.0)
+        ser, status_text = send_cmd_collect(ser, logf, "status", 0.8)
+        ser, device_text = send_cmd_collect(ser, logf, "device show", 0.8)
+
+    if not args.reuse_tag_links:
         print("[CAPTURE] configure: preseed TDMA allow-list before tag discovery", flush=True)
         ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
         ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
@@ -1016,9 +1062,8 @@ def configure_recv_capture_session(
             ser = send_cmd(ser, logf, "ota_target name -", 0.5)
             ser = send_cmd(ser, logf, f"ota_target prefix {link_setup_prefix}", 0.5)
             ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
-        ser = send_cmd(ser, logf, "device kind tag", 2.0)
-        status_text = ""
-        device_text = ""
+        if "kind=tag" not in device_text.lower():
+            ser = send_cmd(ser, logf, "device kind tag", 2.0)
     if wand_mode:
         # Do not broadcast MODE AOTA in Wand mode. Wand devices advertise both
         # Wand-X-BSxxxx and BSxxxx aliases, and MODE AOTA is persisted by the
@@ -1031,10 +1076,10 @@ def configure_recv_capture_session(
     restore_capture_filter(link_setup_prefix if wand_mode else "")
     print("[CAPTURE] configure: silence resident Tag links for enrollment", flush=True)
     ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
-    if not wand_mode:
-        ser = send_cmd(ser, logf, "cmd_all MODE AOTA", 1.0)
-    else:
-        print("[CAPTURE] configure: Wand mode keeps Wand links active after prefix switch", flush=True)
+    print(
+        "[CAPTURE] configure: skip setup MODE AOTA; TDMA roster/hold controls admission",
+        flush=True,
+    )
     print("[CAPTURE] configure: reassert TDMA target roster", flush=True)
     tr_hz = effective_tr_hz(args)
     if single_target:
@@ -1086,6 +1131,7 @@ def configure_recv_capture_session(
             targets,
             expected_pmode_by_target,
             expected_freq_by_target,
+            allow_scheduler_actual_hz_below_request=args.allow_scheduler_actual_hz_below_request,
         )
         if last_check.get("match", False):
             print("[CAPTURE] configure: TDMA CFG verified match=true", flush=True)
@@ -1124,6 +1170,31 @@ def configure_recv_capture_session(
         ser = send_cmd(ser, logf, "tdma hold 0", 1.0)
 
     if last_check is not None and not last_check.get("match", False):
+        if getattr(args, "allow_legacy_tdma_show_only", False):
+            legacy_check = build_legacy_tdma_show_check(
+                raw_log,
+                targets,
+                expected_freq_by_target,
+            )
+            if legacy_check.get("match", False):
+                print(
+                    "[CAPTURE] configure: legacy TDMA show-only match=true; "
+                    "continuing without CFG_OK",
+                    flush=True,
+                )
+                logf.write(
+                    "[HOST_INFO "
+                    f"{time.monotonic():.3f}] legacy_tdma_show_only="
+                    + json.dumps(legacy_check, sort_keys=True)
+                    + "\n"
+                )
+                logf.flush()
+                last_check = legacy_check
+
+        if last_check.get("match", False):
+            print("[CAPTURE] configure: TDMA ready", flush=True)
+            return ser
+
         bad = [
             f"{target}:{','.join(info.get('mismatches', [])) or 'unknown'}"
             for target, info in last_check.get("per_target", {}).items()
@@ -1224,6 +1295,7 @@ def _cfg_assigned_record(match: re.Match) -> dict:
         "mask_hex": f"0x{int(match.group('mask'), 16):04X}",
         "period_ms": int(match.group("period")),
         "active_ms": int(match.group("active")),
+        "active_us": int(match.group("active_us") or 0),
         "generation": int(match.group("gen")),
         "pmode": int(match.group("pmode")),
     }
@@ -1238,6 +1310,7 @@ def _cfg_ok_record(match: re.Match) -> dict:
         "mask_hex": f"0x{int(match.group('mask'), 16):04X}",
         "period_ms": int(match.group("period")),
         "active_ms": int(match.group("active")),
+        "active_us": int(match.group("active_us") or 0),
         "generation": int(match.group("gen")),
         "live": int(match.group("live")),
     }
@@ -1256,11 +1329,33 @@ def _tdma_weighted_record(match: re.Match) -> dict:
     }
 
 
+def _mask_slot_count(mask: int) -> int:
+    return int(mask).bit_count()
+
+
+def _actual_cfg_hz(actual: dict | None) -> float | None:
+    if not actual:
+        return None
+    try:
+        period_ms = int(actual.get("period_ms") or 0)
+        count = int(actual.get("count") or 0)
+        mask = int(actual.get("mask") or 0)
+    except (TypeError, ValueError):
+        return None
+    if period_ms <= 0 or count <= 0 or mask <= 0:
+        return None
+    epoch_s = (period_ms * count) / 1000.0
+    if epoch_s <= 0:
+        return None
+    return _mask_slot_count(mask) / epoch_s
+
+
 def build_tdma_config_check(
     raw_log_path: Path,
     targets: list[str],
     expected_pmode_by_target: dict[str, int],
     expected_freq_by_target: dict[str, int] | None = None,
+    allow_scheduler_actual_hz_below_request: bool = False,
 ) -> dict:
     expected_by_bs: dict[str, dict] = {}
     actual_by_bs: dict[str, dict] = {}
@@ -1284,17 +1379,21 @@ def build_tdma_config_check(
 
     per_target: dict[str, dict] = {}
     all_match = True
-    fields = ["tag_id", "slot", "count", "mask", "period_ms", "active_ms", "generation"]
+    fields = ["tag_id", "slot", "count", "mask", "period_ms", "active_ms", "active_us", "generation"]
     for target in targets:
         bs = target_bs_name(target).upper()
         expected = expected_by_bs.get(bs)
         actual = actual_by_bs.get(bs)
         mismatches: list[str] = []
+        warnings: list[str] = []
 
-        if expected is None:
-            mismatches.append("missing_expected_cfg_assigned")
         if actual is None:
             mismatches.append("missing_actual_cfg_ok")
+        elif expected is None:
+            # Console diagnostics can be split/coalesced with TR notify traffic
+            # during high-rate multi-tag captures. CFG_OK is the target-side
+            # acknowledgement that the runtime TDMA tuple was actually applied.
+            warnings.append("missing_expected_cfg_assigned")
         if expected is not None and actual is not None:
             for field in fields:
                 if expected.get(field) != actual.get(field):
@@ -1313,14 +1412,23 @@ def build_tdma_config_check(
             expected_freq_hz = expected_freq_by_target.get(target)
             if expected_freq_hz is None:
                 expected_freq_hz = expected_freq_by_target.get(bs)
+        actual_cfg_hz = _actual_cfg_hz(actual)
         weighted = weighted_by_bs.get(bs)
         if weighted is None:
-            mismatches.append("missing_tdma_weighted")
+            if actual is None:
+                mismatches.append("missing_tdma_weighted")
+            else:
+                warnings.append("missing_tdma_weighted")
+                if expected_freq_hz is not None and actual_cfg_hz is not None:
+                    if round(actual_cfg_hz, 3) != round(float(expected_freq_hz), 3):
+                        mismatches.append("actual_cfg_hz")
         elif expected_freq_hz is not None:
             if weighted.get("target_hz") != expected_freq_hz:
                 mismatches.append("scheduler_target_hz")
             if weighted.get("actual_x100", 0) < expected_freq_hz * 100:
-                mismatches.append("scheduler_actual_hz")
+                warnings.append("scheduler_actual_hz")
+                if not allow_scheduler_actual_hz_below_request:
+                    mismatches.append("scheduler_actual_hz")
             if actual is not None:
                 if weighted.get("mask") != actual.get("mask"):
                     mismatches.append("scheduler_mask_not_applied")
@@ -1333,8 +1441,10 @@ def build_tdma_config_check(
             "bs": bs,
             "match": match,
             "mismatches": mismatches,
+            "warnings": warnings,
             "expected": expected,
             "actual": actual,
+            "actual_cfg_hz": actual_cfg_hz,
             "scheduler": weighted,
             "expected_pmode": expected_pmode,
             "expected_freq_hz": expected_freq_hz,
@@ -1346,29 +1456,99 @@ def build_tdma_config_check(
     }
 
 
+def build_legacy_tdma_show_check(
+    raw_log_path: Path,
+    targets: list[str],
+    expected_freq_by_target: dict[str, int] | None = None,
+) -> dict:
+    show_by_bs: dict[str, dict] = {}
+
+    if raw_log_path.exists():
+        for line in raw_log_path.read_text(encoding="utf-8", errors="replace").splitlines():
+            for fragment in line.split("|"):
+                profile = TDMA_SHOW_PROFILE_RE.search(fragment)
+                if profile:
+                    show_by_bs[profile.group("bs").upper()] = {
+                        "profile": profile.group("profile"),
+                        "target_hz": int(profile.group("target_hz")),
+                    }
+
+    per_target: dict[str, dict] = {}
+    all_match = True
+    for target in targets:
+        bs = target_bs_name(target).upper()
+        expected_hz = None
+        if expected_freq_by_target:
+            expected_hz = expected_freq_by_target.get(target)
+            if expected_hz is None:
+                expected_hz = expected_freq_by_target.get(bs)
+        show = show_by_bs.get(bs)
+        mismatches: list[str] = []
+        if show is None:
+            mismatches.append("missing_tdma_show_profile")
+        else:
+            if show.get("profile") != tdma_roster_profile():
+                mismatches.append("profile")
+            if expected_hz is not None and show.get("target_hz") != expected_hz:
+                mismatches.append("target_hz")
+
+        per_target[target] = {
+            "bs": bs,
+            "tdma_show": show,
+            "mismatches": mismatches,
+            "match": not mismatches,
+        }
+        if mismatches:
+            all_match = False
+
+    return {
+        "match": all_match,
+        "mode": "legacy_tdma_show_only",
+        "per_target": per_target,
+    }
+
+
 def print_capture_status(capture_start_wall: float,
                          end_time: float,
                          tr_rows: list[dict],
                          targets: list[str],
-                         tr_by_target: dict[str, int]) -> None:
+                         tr_by_target: dict[str, int],
+                         expected_freq_by_target: dict[str, int] | None = None) -> None:
     elapsed = max(0.0, time.time() - capture_start_wall)
     remaining = max(0.0, end_time - time.time())
     total = max(0.001, end_time - capture_start_wall)
     pct = min(100.0, max(0.0, elapsed * 100.0 / total))
     filled = int(round(pct / 5.0))
     bar = "#" * filled + "." * (20 - filled)
-    tr_rate = len(tr_rows) / elapsed if elapsed > 0 else 0.0
+    row_rate = len(tr_rows) / elapsed if elapsed > 0 else 0.0
+    sweep_quality = summarize_sweep_validity(tr_rows)
+    sweeps_total = int(sweep_quality.get("sweeps_total") or 0)
+    sweeps_ge7 = int(sweep_quality.get("sweeps_ge7") or 0)
+    sweeps_ge8 = int(sweep_quality.get("sweeps_ge8") or 0)
+    ge7_pct = (sweeps_ge7 * 100.0 / sweeps_total) if sweeps_total > 0 else 0.0
+    ge8_pct = (sweeps_ge8 * 100.0 / sweeps_total) if sweeps_total > 0 else 0.0
     parts = [
         f"[{bar}]",
         f"{pct:5.1f}%",
         f"elapsed={elapsed:.0f}s",
         f"eta={remaining:.0f}s",
-        f"tr={len(tr_rows)}",
-        f"tr_rate={tr_rate:.1f}/s",
+        f"rows={len(tr_rows)}",
+        f"row_rate={row_rate:.1f}/s",
+        f"sw={sweeps_total}",
+        f"ge7={ge7_pct:.0f}%",
+        f"ge8={ge8_pct:.0f}%",
     ]
     for target in targets:
         count = sum(tr_by_target.get(alias, 0) for alias in target_aliases(target))
-        parts.append(f"{target}:TR={count}")
+        cfg_hz = None
+        if expected_freq_by_target:
+            cfg_hz = expected_freq_by_target.get(target)
+            if cfg_hz is None:
+                cfg_hz = expected_freq_by_target.get(target_bs_name(target))
+        if cfg_hz is not None:
+            parts.append(f"{target}:rows={count},cfg={cfg_hz}Hz")
+        else:
+            parts.append(f"{target}:rows={count}")
     print("[CAPTURE] " + " ".join(parts), flush=True)
 
 
@@ -1392,7 +1572,7 @@ def main() -> int:
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_out = Path(args.out_dir)
-    session_dir = base_out.parent / f"{base_out.name}_{ts}"
+    session_dir = base_out if args.out_dir_exact else base_out.parent / f"{base_out.name}_{ts}"
     session_dir.mkdir(parents=True, exist_ok=True)
 
     raw_log_path = session_dir / "raw.log"
@@ -1448,6 +1628,7 @@ def main() -> int:
     interrupted = False
     startup_failed = False
     startup_fail_targets: list[str] = []
+    no_tr_timeout = False
     controller_lost = False
     controller_recovery_attempts = 0
     controller_recovery_successes = 0
@@ -1468,6 +1649,11 @@ def main() -> int:
             pending = ""
             capture_start_wall = time.time()
             end_time = capture_start_wall + args.duration
+            no_tr_deadline = (
+                capture_start_wall + max(0.0, float(args.no_tr_timeout_s))
+                if float(args.no_tr_timeout_s) > 0.0
+                else None
+            )
             last_status_at = 0.0
             tr_seen: dict[str, int] = defaultdict(int)
             skipped_before_target_pmode = 0
@@ -1541,6 +1727,21 @@ def main() -> int:
                             break
                         continue
                     if not chunk:
+                        if (
+                            no_tr_deadline is not None
+                            and not tr_rows
+                            and time.time() >= no_tr_deadline
+                        ):
+                            no_tr_timeout = True
+                            logf.write(
+                                f"[HOST_ERROR {time.monotonic():.3f}] no TR rows within {args.no_tr_timeout_s:.1f}s after TDMA release; abort capture early\n"
+                            )
+                            logf.flush()
+                            print(
+                                f"[CAPTURE] abort: no TR rows within {args.no_tr_timeout_s:.1f}s after TDMA release",
+                                flush=True,
+                            )
+                            break
                         if time.time() - last_status_at >= 1.0:
                             print_capture_status(
                                 capture_start_wall,
@@ -1548,6 +1749,7 @@ def main() -> int:
                                 tr_rows,
                                 targets,
                                 tr_seen,
+                                expected_freq_by_target,
                             )
                             last_status_at = time.time()
                         continue
@@ -1634,8 +1836,24 @@ def main() -> int:
                             tr_rows,
                             targets,
                             tr_seen,
+                            expected_freq_by_target,
                         )
                         last_status_at = time.time()
+                    if (
+                        no_tr_deadline is not None
+                        and not tr_rows
+                        and time.time() >= no_tr_deadline
+                    ):
+                        no_tr_timeout = True
+                        logf.write(
+                            f"[HOST_ERROR {time.monotonic():.3f}] no TR rows within {args.no_tr_timeout_s:.1f}s after TDMA release; abort capture early\n"
+                        )
+                        logf.flush()
+                        print(
+                            f"[CAPTURE] abort: no TR rows within {args.no_tr_timeout_s:.1f}s after TDMA release",
+                            flush=True,
+                        )
+                        break
             except KeyboardInterrupt:
                 interrupted = True
                 print("\n[CAPTURE] interrupted by user; writing partial outputs...", file=sys.stderr, flush=True)
@@ -1717,6 +1935,7 @@ def main() -> int:
         targets,
         expected_pmode_by_target,
         expected_freq_by_target,
+        allow_scheduler_actual_hz_below_request=args.allow_scheduler_actual_hz_below_request,
     )
     tdma_config_failed = not tdma_config_check.get("match", False)
     summary = {
@@ -1724,12 +1943,14 @@ def main() -> int:
             (not interrupted)
             and (not startup_failed)
             and (not controller_lost)
+            and (not no_tr_timeout)
             and (not tdma_config_failed)
         ),
         "interrupted": interrupted,
         "startup_failed": startup_failed,
         "startup_fail_targets": startup_fail_targets,
         "controller_lost": controller_lost,
+        "no_tr_timeout": no_tr_timeout,
         "controller_recovery_attempts": controller_recovery_attempts,
         "controller_recovery_successes": controller_recovery_successes,
         "tdma_config_failed": tdma_config_failed,

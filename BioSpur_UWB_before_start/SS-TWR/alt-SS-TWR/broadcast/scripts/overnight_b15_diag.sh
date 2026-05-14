@@ -26,7 +26,7 @@ LOG_ROOT="${LOG_ROOT:-${BCAST_ROOT}/logs/overnight_b15_diag_$(date +%Y%m%d_%H%M%
 mkdir -p "${LOG_ROOT}"
 
 declare -A ANCHOR_PORTS=(
-  [A]="/dev/serial/by-id/usb-SEGGER_J-Link_000760186071-if00"
+  [A]="/dev/serial/by-id/usb-SEGGER_J-Link_000760184781-if00"
   [B]="/dev/serial/by-id/usb-SEGGER_J-Link_000760185876-if00"
   [C]="/dev/serial/by-id/usb-SEGGER_J-Link_000760185878-if00"
   [D]="/dev/serial/by-id/usb-SEGGER_J-Link_000760186081-if00"
@@ -52,7 +52,7 @@ out = pathlib.Path(sys.argv[1]) / "anchor_serial"
 duration_s = float(sys.argv[2])
 stop = time.time() + duration_s
 ports = {
-    "A": "/dev/serial/by-id/usb-SEGGER_J-Link_000760186071-if00",
+    "A": "/dev/serial/by-id/usb-SEGGER_J-Link_000760184781-if00",
     "B": "/dev/serial/by-id/usb-SEGGER_J-Link_000760185876-if00",
     "C": "/dev/serial/by-id/usb-SEGGER_J-Link_000760185878-if00",
     "D": "/dev/serial/by-id/usb-SEGGER_J-Link_000760186081-if00",

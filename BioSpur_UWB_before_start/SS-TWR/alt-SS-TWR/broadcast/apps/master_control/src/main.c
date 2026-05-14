@@ -247,6 +247,11 @@ static const char *control_mode_name(uint8_t mode)
 	}
 }
 
+static bool control_build_anchor_only(void)
+{
+	return strcmp(APP_MASTER_BOOT_PROFILE, "anchor") == 0;
+}
+
 static void sync_master_log_mode(uint8_t mode)
 {
 	switch (mode) {
@@ -361,11 +366,27 @@ static uint8_t system_caps_for_kind(uint8_t kind)
 
 static void system_target_set_kind(uint8_t kind)
 {
+	if (control_build_anchor_only() && kind == SYS_DEV_TAG) {
+		printk("Anchor-only build: refusing tag system target; keeping anchor target\n");
+		kind = SYS_DEV_ANCHOR;
+	}
+
 	system_target.kind = kind;
 	system_target.caps = system_caps_for_kind(kind);
 	/* Anchor OTA path should skip NUS arm stage and go directly DFU/SMP. */
 	ota_expect_nus_cfg = (kind != SYS_DEV_ANCHOR);
 	master_ota_set_expect_nus(ota_expect_nus_cfg);
+}
+
+static void control_force_anchor_runtime_target(bool wildcard_scan)
+{
+	system_target_set_kind(SYS_DEV_ANCHOR);
+	master_set_runtime_target_kind(MASTER_TARGET_ANCHOR);
+	master_set_anchor_wildcard_scan(wildcard_scan);
+	master_set_runtime_target_token(-1);
+	master_set_runtime_target_name("");
+	master_set_runtime_target_prefix("");
+	master_set_runtime_target_uuid("");
 }
 
 static void system_target_print(void)
@@ -395,13 +416,7 @@ static void control_apply_boot_profile(void)
 	if (boot_profile_is("anchor")) {
 		control_mode = CONTROL_MODE_AUTOPOS;
 		sync_master_log_mode(control_mode);
-		system_target_set_kind(SYS_DEV_ANCHOR);
-		master_set_runtime_target_kind(MASTER_TARGET_ANCHOR);
-		master_set_anchor_wildcard_scan(true);
-		master_set_runtime_target_token(-1);
-		master_set_runtime_target_name("");
-		master_set_runtime_target_prefix("");
-		master_set_runtime_target_uuid("");
+		control_force_anchor_runtime_target(true);
 		printk("Boot profile anchor: auto-connect ANCHOR-* control links; no tag scan\n");
 		return;
 	}
@@ -2301,6 +2316,12 @@ static void control_handle_uart_command(const char *line)
 		const char *apos_payload;
 		size_t target_len;
 
+		if (control_build_anchor_only()) {
+			printk("apos_to ignored: anchor-only build never targets BS tags\n");
+			control_force_anchor_runtime_target(control_mode == CONTROL_MODE_AUTOPOS);
+			return;
+		}
+
 		if (space == NULL) {
 			printk("apos_to rc=%d reason=no_payload payload=%s\n", -EINVAL, line);
 			return;
@@ -2609,6 +2630,20 @@ static void control_handle_uart_command(const char *line)
 		}
 
 		if (strcmp(arg, "recv") == 0 || strcmp(arg, "rx") == 0) {
+			if (control_build_anchor_only()) {
+				printk("mode recv redirected: anchor-only build stays in AUTOPOS anchor control\n");
+				control_mode = CONTROL_MODE_AUTOPOS;
+				sync_master_log_mode(control_mode);
+				control_save_mode();
+				autopos_reset_runtime_state(false);
+				control_force_anchor_runtime_target(true);
+				master_set_connect_and_start_mode();
+				master_disconnect_all_peers();
+				control_wait_for_peer_clear(3000);
+				master_restart_discovery();
+				autopos_print_status();
+				return;
+			}
 			if (control_mode == CONTROL_MODE_RECV) {
 				control_prepare_clean_recv_session();
 				return;
@@ -2843,24 +2878,18 @@ static void control_handle_uart_command(const char *line)
 
 		if (strcmp(arg, "kind") == 0 && parsed >= 3) {
 			if (strcmp(arg2, "anchor") == 0) {
-				system_target_set_kind(SYS_DEV_ANCHOR);
 				master_clear_one_shot_command();
 				(void)master_ota_target_set_token(-1);
 				(void)master_ota_target_set_name("");
-				(void)master_ota_target_set_prefix("BS");
+				(void)master_ota_target_set_prefix("");
 				(void)master_ota_target_set_uuid("");
 				ota_target_token_cfg = -1;
 				ota_target_name_cfg[0] = '\0';
-				(void)snprintf(ota_target_prefix_cfg, sizeof(ota_target_prefix_cfg), "BS");
+				ota_target_prefix_cfg[0] = '\0';
 				ota_target_uuid_cfg[0] = '\0';
-				master_set_runtime_target_kind(MASTER_TARGET_ANCHOR);
-				master_set_anchor_wildcard_scan(control_mode == CONTROL_MODE_AUTOPOS);
-				master_set_runtime_target_token(-1);
-				master_set_runtime_target_name("");
-				master_set_runtime_target_prefix("BS");
-				master_set_runtime_target_uuid("");
+				control_force_anchor_runtime_target(control_mode == CONTROL_MODE_AUTOPOS);
 				control_disconnect_all_links();
-				printk("device kind set: anchor (OTA target defaults reset)\n");
+				printk("device kind set: anchor (OTA target defaults reset, no BS prefix)\n");
 				if (control_mode == CONTROL_MODE_RECV) {
 					master_set_connect_and_start_mode();
 					control_wait_for_peer_clear(3000);
@@ -2869,10 +2898,16 @@ static void control_handle_uart_command(const char *line)
 				system_target_print();
 				return;
 			}
-				if (strcmp(arg2, "tag") == 0) {
-					system_target_set_kind(SYS_DEV_TAG);
-					master_clear_one_shot_command();
-					master_disconnect_all_peers();
+			if (strcmp(arg2, "tag") == 0) {
+				if (control_build_anchor_only()) {
+					printk("device kind tag ignored: anchor-only build never connects BS tags\n");
+					control_force_anchor_runtime_target(control_mode == CONTROL_MODE_AUTOPOS);
+					system_target_print();
+					return;
+				}
+				system_target_set_kind(SYS_DEV_TAG);
+				master_clear_one_shot_command();
+				master_disconnect_all_peers();
 					/* Preserve ota_target name/prefix/uuid across kind switches.
 					 *
 					 * Host-side scripts may set `ota_target name <BSxxxx>` before switching to
@@ -2892,9 +2927,9 @@ static void control_handle_uart_command(const char *line)
 						control_wait_for_peer_clear(3000);
 						master_restart_discovery();
 					}
-				system_target_print();
-				return;
-			}
+					system_target_print();
+					return;
+				}
 			printk("device kind invalid: %s\n", arg2);
 			return;
 		}
@@ -3079,6 +3114,13 @@ int main(void)
 		ota_expect_nus_cfg = (ota_expect_nus_boot != 0U);
 		ota_nus_boot_cookie = 0U;
 	}
+	if (control_build_anchor_only()) {
+		ota_target_token_cfg = -1;
+		ota_target_name_cfg[0] = '\0';
+		ota_target_prefix_cfg[0] = '\0';
+		ota_expect_nus_cfg = false;
+		printk("Anchor-only build: sanitized restored OTA target to anchor/uuid-only\n");
+	}
 	(void)master_ota_target_set_token(ota_target_token_cfg);
 	(void)master_ota_target_set_name(ota_target_name_cfg);
 	(void)master_ota_target_set_prefix(ota_target_prefix_cfg);
@@ -3088,7 +3130,11 @@ int main(void)
 	master_set_runtime_target_prefix(ota_target_prefix_cfg);
 	master_set_runtime_target_uuid(ota_target_uuid_cfg);
 	master_ota_set_expect_nus(ota_expect_nus_cfg);
-	if (ota_target_name_cfg[0] != '\0') {
+	if (control_build_anchor_only()) {
+		system_target_set_kind(SYS_DEV_ANCHOR);
+		master_set_runtime_target_kind(MASTER_TARGET_ANCHOR);
+		master_set_anchor_wildcard_scan(control_mode == CONTROL_MODE_AUTOPOS);
+	} else if (ota_target_name_cfg[0] != '\0') {
 		system_target.kind = SYS_DEV_TAG;
 		system_target.caps = system_caps_for_kind(SYS_DEV_TAG);
 		master_set_runtime_target_kind(MASTER_TARGET_TAG);

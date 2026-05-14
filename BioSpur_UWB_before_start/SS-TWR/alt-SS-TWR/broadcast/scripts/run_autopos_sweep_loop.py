@@ -1,4 +1,34 @@
 #!/usr/bin/env python3
+"""
+Recommended BioSpur AutoPos sweep entrypoint.
+
+Run from repo root:
+
+    cd /home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start
+    source .protec/biospur_ports.env
+
+    stamp="$(date +%Y%m%d_%H%M%S)"
+    out="SS-TWR/alt-SS-TWR/broadcast/logs/sweep50_${stamp}"
+    mkdir -p "$out"
+
+    python3 SS-TWR/alt-SS-TWR/broadcast/scripts/run_autopos_sweep_loop.py \
+      --port "$BIOSPUR_ANCHOR_PORT" \
+      --order ABCDEFGH \
+      --sw-sets 50 \
+      --prewarm-sw-sets 0 \
+      --timeout-s 1200 \
+      --no-final-responder \
+      --out-dir "$out" \
+      --verbose 0 2>&1 | tee "$out/console.log"
+
+For SW100, only change `--sw-sets 50` to `--sw-sets 100`.
+
+Important:
+- Use this broadcast script, not the outer repo `scripts/` variants.
+- This command expects the frozen Master_Anchor + Anchor path and keeps the
+  final role in matrix via `--no-final-responder`.
+- Do not add resident/reuse/unicast options unless explicitly debugging them.
+"""
 import argparse
 import json
 import os
@@ -803,7 +833,35 @@ def preflight_clean_autopos_start(
             progress_cb=progress_cb,
         )
         if "Control status: mode=AUTOPOS" not in status_text:
-            emit(logf, "PRECHECK: resident Master_Anchor not in AUTOPOS; request mode autopos only\n", live_output, verbose)
+            emit(
+                logf,
+                "PRECHECK: resident Master_Anchor not in AUTOPOS; set anchor target then enter AUTOPOS\n",
+                live_output,
+                verbose,
+            )
+            if "Control status: mode=RECV" not in status_text:
+                ser = send_cmd_collect(
+                    ser,
+                    logf,
+                    port,
+                    "mode recv",
+                    2.0,
+                    live_output,
+                    verbose,
+                    resend_after_reopen=True,
+                    progress_cb=progress_cb,
+                )
+            ser = send_cmd_collect(
+                ser,
+                logf,
+                port,
+                "device kind anchor",
+                1.2,
+                live_output,
+                verbose,
+                resend_after_reopen=False,
+                progress_cb=progress_cb,
+            )
             ser = send_cmd_collect(
                 ser,
                 logf,
@@ -815,6 +873,23 @@ def preflight_clean_autopos_start(
                 resend_after_reopen=True,
                 progress_cb=progress_cb,
             )
+            ser, _ = collect_for(ser, logf, 1.0, port, live_output, verbose, progress_cb=progress_cb)
+            ser, idle_ok = wait_for_autopos_idle(
+                ser,
+                logf,
+                port,
+                10.0,
+                live_output,
+                verbose,
+                progress_cb=progress_cb,
+            )
+            if not idle_ok:
+                emit(
+                    logf,
+                    "PRECHECK WARN: resident AUTOPOS idle not observed after RECV->AUTOPOS transition\n",
+                    live_output,
+                    verbose,
+                )
         return ser, True
 
     if force_clean:
@@ -1685,6 +1760,28 @@ def session_prepare_matrix(
                     result["final_role_counts"] = counts
 
             if not ok:
+                if reuse_resident_anchor_master:
+                    result["success"] = False
+                    result["error"] = "resident_matrix_guard_ready_incomplete"
+                    emit(
+                        logf,
+                        (
+                            "SESSION FAIL: resident Master_Anchor matrix guard did not reach 8/8; "
+                            "skip targeted repair/reset because BLE scan role map is invalid while "
+                            "anchors may already be connected\n"
+                        ),
+                        live_output,
+                        verbose,
+                    )
+                    set_status("resident matrix guard failed")
+                    finish_progress_line(
+                        render_session_progress(
+                            "PREP",
+                            "resident matrix guard failed",
+                            time.time() - session_started_at,
+                        )
+                    )
+                    return False, result
                 set_status("targeted matrix repair")
                 ser, missing_labels, role_map = repair_missing_matrix_anchors(
                     ser,

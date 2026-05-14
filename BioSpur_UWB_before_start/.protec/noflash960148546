@@ -1,1 +1,72 @@
-960148546 is the protected baseline B120. Do not flash this SNR from repo scripts.
+# Flash protection policy for the protected baseline B120.
+# Scripts may source this file for stronger guardrails.
+#
+# Core policy:
+# - SNR 960148546 is Master_Anchor and is protected by default.
+# - Current frozen Master_Anchor CDC identity:
+#     /dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02-if00
+#     USB serial short: 87EA2F4A526C5A02
+# - Master_Tag may be unplugged. Missing Master_Tag USB/CDC enumeration does
+#   not change the role of SNR 960148546 and must not permit Tag images here.
+# - Current verified Master_Tag CDC identity:
+#     /dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00
+#     USB serial short: 6918E0384172A49F
+#   On 2026-05-12 the Master_Tag was corrected back from an accidental
+#   Master_Anchor CDC manufacturer string by flashing SNR 1050070698 with:
+#     SS-TWR/alt-SS-TWR/broadcast/build-master-control-b120-m1-master-tag-lfrc-stable-tr12-bundle8-10hz-20260512
+#   Verified config:
+#     CONFIG_USB_DEVICE_MANUFACTURER="Master_Tag"
+#     CONFIG_USB_DEVICE_PRODUCT="BioSpur_BLE_Control"
+# - Before any flash, scripts should print:
+#     SNR -> logical role -> image path
+# - If an image path/name contains "master-tag", scripts must refuse to flash
+#   SNR 960148546.
+# - If an image path/name contains "master-anchor", scripts must refuse to flash
+#   SNR 1050070698.
+# - Master_Anchor carrier builds may only embed Anchor OTA payloads.
+# - Master_Tag carrier builds may only embed Tag OTA payloads.
+# - Never build or flash a Master carrier when the embedded OTA payload kind
+#   does not match the Master role, even if the carrier image path looks right.
+# - Anchor and Master_Anchor images are frozen at the point recorded in
+#   .protec/anchor_master_freeze.env. Do not modify, OTA, rebuild, or flash
+#   them unless the user explicitly requests Anchor / Master_Anchor image work.
+# - Full-system freeze record for the currently paired Anchor / Master_Anchor /
+#   Tag / Master_Tag images is recorded in:
+#     .protec/full_system_freeze_20260512.env
+#   Use that manifest when restoring the whole system to the 2026-05-12 point.
+# - Emergency restored full-speed Tag/Master_Tag baseline is recorded in:
+#     .protec/fullspeed_10hz_b62_restore_20260513.env
+#   This is the 5/4-era b62 Tag line restored on 2026-05-13. It restores
+#   old3 10 Hz/tag full-speed output, but it does not authorize Anchor or
+#   Master_Anchor image changes.
+# - Wand3 600 s Master_Tag restore point is recorded in:
+#     .protec/master_tag_wand3_600s_restore_20260513.env
+#   Current verified Master_Tag restore build from that point:
+#     SS-TWR/alt-SS-TWR/broadcast/build-master-control-b120-m1-master-tag-lfrc-b62-10x10hz-restore-20260513
+#   This build must support "tdma hold" and "tdma roster".
+# - Current frozen build versions:
+#     Anchor image:
+#       SS-TWR/alt-SS-TWR/broadcast/build-anchor-unified-ota-altbcast-responder-a18-g1200-r1000-20260512_154806
+#     Master_Anchor carrier:
+#       SS-TWR/alt-SS-TWR/broadcast/build-master-control-b120-m1-master-anchor-lfrc-anchoronly-altbcast-embed-altbcast-responder-a18-g1200-r1000-20260512_154806
+#     Tag image:
+#       SS-TWR/alt-SS-TWR/broadcast/build-tag-stable10x9-tr12-bdbs-cleantr-20260512
+#     Master_Tag carrier:
+#       SS-TWR/alt-SS-TWR/broadcast/build-master-control-b120-m1-master-tag-lfrc-stable10x9-tr12-bdbs-cleantr-mastertdma10ms-20260512
+#       Master TDMA: period=10ms active=9ms active_us=0 motion_hz=10
+#
+# Temporary override is intentionally separate from role mismatch protection.
+# Remove this file only after explicit confirmation from the user.
+
+export BIOSPUR_PROTECTED_SNR="960148546"
+export BIOSPUR_PROTECTED_ROLE="Master_Anchor"
+export BIOSPUR_FLASH_POLICY_REQUIRE_ROLE_BANNER="1"
+export BIOSPUR_FLASH_POLICY_BLOCK_ROLE_MISMATCH="1"
+export BIOSPUR_FLASH_POLICY_BLOCK_PAYLOAD_MISMATCH="1"
+export BIOSPUR_ANCHOR_MASTER_FREEZE_ACTIVE="1"
+export BIOSPUR_ANCHOR_MASTER_FREEZE_REQUIRES_EXPLICIT_USER_REQUEST="1"
+export BIOSPUR_FULL_SYSTEM_FREEZE_MANIFEST=".protec/full_system_freeze_20260512.env"
+export BIOSPUR_FROZEN_ANCHOR_BUILD="SS-TWR/alt-SS-TWR/broadcast/build-anchor-unified-ota-altbcast-responder-a18-g1200-r1000-20260512_154806"
+export BIOSPUR_FROZEN_MASTER_ANCHOR_BUILD="SS-TWR/alt-SS-TWR/broadcast/build-master-control-b120-m1-master-anchor-lfrc-anchoronly-altbcast-embed-altbcast-responder-a18-g1200-r1000-20260512_154806"
+export BIOSPUR_FROZEN_TAG_BUILD="SS-TWR/alt-SS-TWR/broadcast/build-tag-stable10x9-tr12-bdbs-cleantr-20260512"
+export BIOSPUR_FROZEN_MASTER_TAG_BUILD="SS-TWR/alt-SS-TWR/broadcast/build-master-control-b120-m1-master-tag-lfrc-stable10x9-tr12-bdbs-cleantr-mastertdma10ms-20260512"

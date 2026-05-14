@@ -1,0 +1,24 @@
+# Flash protection policy for the protected baseline B120.
+# Scripts may source this file for stronger guardrails.
+#
+# Core policy:
+# - SNR 960148546 is Master_Anchor and is protected by default.
+# - Before any flash, scripts should print:
+#     SNR -> logical role -> image path
+# - If an image path/name contains "master-tag", scripts must refuse to flash
+#   SNR 960148546.
+# - If an image path/name contains "master-anchor", scripts must refuse to flash
+#   SNR 1050070698.
+# - Master_Anchor carrier builds may only embed Anchor OTA payloads.
+# - Master_Tag carrier builds may only embed Tag OTA payloads.
+# - Never build or flash a Master carrier when the embedded OTA payload kind
+#   does not match the Master role, even if the carrier image path looks right.
+#
+# Temporary override is intentionally separate from role mismatch protection.
+# Remove this file only after explicit confirmation from the user.
+
+export BIOSPUR_PROTECTED_SNR="960148546"
+export BIOSPUR_PROTECTED_ROLE="Master_Anchor"
+export BIOSPUR_FLASH_POLICY_REQUIRE_ROLE_BANNER="1"
+export BIOSPUR_FLASH_POLICY_BLOCK_ROLE_MISMATCH="1"
+export BIOSPUR_FLASH_POLICY_BLOCK_PAYLOAD_MISMATCH="1"

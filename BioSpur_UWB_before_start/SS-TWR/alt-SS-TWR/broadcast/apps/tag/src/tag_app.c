@@ -171,6 +171,10 @@ static void tag_diag_write(const char *msg)
 #define APP_TAG_TDMA_SLOT_ACTIVE_MS 20U
 #endif
 
+#ifndef APP_TAG_TDMA_SLOT_ACTIVE_US
+#define APP_TAG_TDMA_SLOT_ACTIVE_US 0U
+#endif
+
 #ifndef APP_TAG_EKF_ENABLE
 #define APP_TAG_EKF_ENABLE 0U
 #endif
@@ -396,6 +400,7 @@ int tag_app_run(void)
                 .slot_count = APP_TAG_TDMA_SLOT_COUNT,
                 .slot_period_ms = APP_TAG_TDMA_SLOT_PERIOD_MS,
                 .slot_active_ms = APP_TAG_TDMA_SLOT_ACTIVE_MS,
+                .slot_active_us = APP_TAG_TDMA_SLOT_ACTIVE_US,
             },
     };
     int ret;
@@ -471,6 +476,7 @@ int tag_app_run(void)
 			runtime_config.tdma.slot_count = APP_TAG_TDMA_SLOT_COUNT;
 			runtime_config.tdma.slot_period_ms = APP_TAG_TDMA_SLOT_PERIOD_MS;
 			runtime_config.tdma.slot_active_ms = APP_TAG_TDMA_SLOT_ACTIVE_MS;
+			runtime_config.tdma.slot_active_us = APP_TAG_TDMA_SLOT_ACTIVE_US;
 		}
 		runtime_config.tdma.epoch_valid = false;
 		runtime_config.tdma.epoch_ms = 0U;
