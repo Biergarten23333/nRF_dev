@@ -1,702 +1,591 @@
 # AutoPos 2026-05-13 Full Compare 分析报告
 
-本文是对 `outdoor_20260513` 三套正式 Full Compare 结果的集中解释。中文优先，方便后续整理成给教授看的报告；关键术语保留英文名，避免和代码/表格脱节。
+本文是 `outdoor_20260513` 三套 clean rebuild 结果的集中分析。中文优先，方便直接整理给教授；关键算法名保留英文，避免和代码/表格脱节。
 
-分析目录：
+本次 rebuild 新增了一个版本：
 
-- `autopos_pipeline/outdoor_20260513/FULL-COMPARE-1000`
-- `autopos_pipeline/outdoor_20260513/FULL-COMPARE-500`
-- `autopos_pipeline/outdoor_20260513/FULL-COMPARE-500+500`
+```text
+v4-io-td = V4-io fixed layout + static common Tag-delay scan
+```
+
+它不是新的 Anchor layout solver。它保持 `V4-io` 的 anchor 坐标和 per-anchor delay 不变，只用 static captures 扫描一个 common type-level Tag delay，然后重新做下游 static / roto / wand evaluation。
+
+---
+
+## 1. 本次分析目录
+
+三套正式结果：
+
+| Directory | Meaning |
+|---|---|
+| `FULL-COMPARE-1000` | 使用全部 1000-set inter-anchor sweep 解 layout |
+| `FULL-COMPARE-500` | 使用 first-500 sweep 解 layout，并用 last-500 做 holdout |
+| `FULL-COMPARE-500+500` | first-500 和 last-500 分别解 layout，再 align + consensus |
 
 核心脚本：
 
-- `autopos_pipeline/outdoor_20260513/run_clean_full_compare.py`
+```text
+autopos_pipeline/outdoor_20260513/run_clean_full_compare.py
+```
 
 核心输出：
 
-- `tables/version_summary.csv`
-- `tables/autopos_quality_summary.csv`
-- `tables/holdout_generalization.csv`
-- `tables/split_layout_stability.csv`
-- `tables/static_all_captures.csv`
-- `tables/roto_all_captures.csv`
-- `tables/wand_static_summary.csv`
-- `figures/progression_autopos_static_roto.png`
-- `reports/full_compare_report.md`
+```text
+tables/version_summary.csv
+tables/autopos_quality_summary.csv
+tables/delay_sanity.csv
+tables/static_all_captures.csv
+tables/roto_all_captures.csv
+tables/wand_static_summary.csv
+v4-io-td/tag_delay_scan.csv
+v4-io-td/tag_delay_scan_first500.csv
+v4-io-td/tag_delay_scan_last500.csv
+reports/full_compare_report.md
+figures/
+```
 
 ---
 
-## 1. 这次实验到底在回答什么问题？
+## 2. 这次到底回答什么问题？
 
-这次不是单纯比较“Tag 定位 RMS 谁更低”。这次真正要回答的是：
+这次不是单纯问“哪个版本 Tag RMS 最低”。我们要回答三层问题：
 
 1. **AutoPos anchor layout 自身是否可靠？**
-   - 不依赖 OptiTrack，也不先看 Tag RMS。
-   - 主要看 inter-anchor residual、holdout、split layout stability、delay sanity、FIM / usable-area diagnostics。
+   - 看 inter-anchor residual / holdout / split stability / delay sanity。
+   - 这部分不依赖 static Tag RMS。
 
-2. **AutoPos layout 对下游定位是否有稳定贡献？**
-   - 用 static tag repeatability 验证。
-   - 用 roto dynamic circle-fit residual 验证。
-   - 用 wand rigid body distance 验证。
+2. **AutoPos layout 对下游定位是否稳定？**
+   - 用 static repeatability 验证。
+   - 用 roto circle-fit 验证。
+   - 用 wand rigid-body distance 验证。
 
-3. **算法版本是否有清楚的能力递进？**
-   - V1: 最早 baseline。
-   - V2/V3-lite: 更好的 pair fusion / robust fusion。
-   - V3-full: 引入 antenna delay estimation，但目前不稳定。
-   - V4-io: 当前 production inter-anchor solver。
-   - V4-io-roto / V4-io-wand: 两个 experimental constraint-injection 分支。
-   - V5: 不改变 layout，负责 uncertainty / diagnostics。
-
-4. **1000 set、500 set、500+500 split consensus 是否给出一致结论？**
-   - 如果三者趋势一致，说明结论不是某个 sweep 子集偶然造成的。
+3. **Tag delay 是否值得加入当前 pipeline？**
+   - 新增 `v4-io-td`，估一个 common type-level Tag delay。
+   - 重点看它是否明显改善 static / roto / wand。
+   - 如果 scan curve 很平，就不能把估计值当成 strong calibration。
 
 ---
 
-## 2. 数据集与评价范围
+## 3. Solver 版本定义
 
-这次结果使用了所有已经采集到的数据，而不是旧 `FULL-COMPARE/` 里为了节省时间而抽样的版本。
+| Version | Paper name | Anchor delay | Tag delay | Layout source | Meaning |
+|---|---|---:|---:|---|---|
+| `v1-old` | V1 | No | No | early MDS baseline | 最早最弱 baseline |
+| `v2` | V2 | No | No | IVW pair fusion | 加权 pair fusion |
+| `v3-lite` | V3-lite | No | No | MAD/MVUE robust fusion | 抗 outlier / 抗方向不对称 |
+| `v3-full` | V3-full | Yes | No | Tukey + per-anchor delay | 第一次引入 anchor delay，但当前不稳定 |
+| `v4-io` | V4-io | Yes | No | Huber bounded-delay inter-anchor | 当前 production baseline |
+| `v4-io-td` | V4-io-td | Yes | Common type-level | V4-io fixed + static delay scan | 下游 Tag-delay compensation test |
+| `v4-io-roto` | V4-io-roto | Yes | No | V4-io + RotoArm soft constraints | 实验性 Z/动态约束 |
+| `v4-io-wand` | V4-io-wand | Yes | No | V4-io + W01-W04 wand constraints | 实验性 calibration wand 约束 |
+| `v5` | V5 | Uses V4 | No | diagnostics only | FIM / uncertainty / usable-area |
 
-### 2.1 Sweep 数据
+重要定义：
 
-`sweep1000/pairs_all.csv`
-
-三种 layout generation 方式：
-
-| 目录 | Layout 生成方式 | 目的 |
-|---|---|---|
-| `FULL-COMPARE-1000` | 使用全部 1000 set sweep 解 layout | full-data baseline |
-| `FULL-COMPARE-500` | 使用 first 500 set sweep 解 layout | 测试少一半 sweep 是否仍稳定 |
-| `FULL-COMPARE-500+500` | first 500 和 last 500 分别解 layout，再 align + consensus | 测试 split stability / generalization |
-
-### 2.2 Static 数据
-
-Static 使用 `Static_Test/ID01-ID24`。实际有效采集为 23 个点，`ID10` 没有采到，因此在表中应记录为 `missing`，不能硬算。
-
-分组逻辑：
-
-| Group | IDs | 含义 |
-|---|---|---|
-| edge low | ID01, ID04, ID07, ID10 | 四个侧面低高度，ID10 missing |
-| edge mid | ID02, ID05, ID08, ID11 | 四个侧面中高度 |
-| edge high | ID03, ID06, ID09, ID12 | 四个侧面高高度 |
-| center mid | ID13-ID16 | 中心中高度，四个朝向 |
-| center low | ID17-ID20 | 中心低高度，四个朝向 |
-| center high | ID21-ID24 | 中心高高度，四个朝向 |
-
-Static 指标是 **repeatability**，不是 absolute accuracy，因为没有 OptiTrack / survey ground truth。
-
-### 2.3 Roto 数据
-
-Roto 使用 `Roto_Test/ID25-ID41`，每个 capture 中有两个 Roto peer：
-
-- `BS2DCE`
-- `BSDC91`
-
-一共 34 个 peer-capture 组合，即 17 个 ID x 2 个 tag。
-
-Roto 指标：
-
-- fitted circle radius
-- radial std
-- plane/off-axis std
-- 3D circle RMS
-- plane tilt angle
-
-Roto 的意义不是“静止点重复性”，而是动态约束下的空间一致性。
-
-### 2.4 Wand 数据
-
-Wand 静态刚体约束使用 W01-W04。
-
-已知三边：
-
-| Pair | Ground truth |
-|---|---:|
-| BSCCF4-BS9336 | 670.0 mm |
-| BSCCF4-BS955A | 659.7 mm |
-| BS9336-BS955A | 708.7 mm |
-
-W05 是 dynamic free move。由于 TDMA 下三颗 Wand tag 并非严格同一时刻测距，因此 W05 不作为同步 rigid-body constraint，只用于 coverage / residual / usable-area 类型诊断。
+```text
+V4-io = AutoPos production baseline
+V4-io-td = V4-io layout fixed, only add common Tag delay in downstream positioning
+V4-io-roto / V4-io-wand = experimental layout-constraint branches
+V5 = diagnostics layer, not a new layout
+```
 
 ---
 
-## 3. 版本定义
+## 4. v4-io-td 是什么？为什么要做？
 
-| Version | 真实含义 | Delay-aware | 是否使用额外几何约束 |
-|---|---|---:|---|
-| `v1-old` | earliest MDS baseline, simple bidirectional mean | No | No |
-| `v2` | IVW pair fusion + no-delay solve | No | No |
-| `v3-lite` | MAD/MVUE robust pair fusion + no-delay solve | No | No |
-| `v3-full` | robust fusion + Tukey / median-style antenna delay estimation | Yes | No |
-| `v4-io` | current production inter-anchor Huber bounded-delay solver | Yes | No |
-| `v4-io-roto` | V4-io + RotoArm soft constraints | Yes | RotoArm |
-| `v4-io-wand` | V4-io + W01-W04 calibration-wand soft constraints | Yes | Static Wand |
-| `v5` | V4-io diagnostics layer | Uses V4 | No new layout |
+之前主线模型是：
 
-重要说明：
+```text
+r_i = ||p_tag - A_i|| + b_anchor_i + noise
+```
 
-- `v5` 不应该被理解为“更高精度 solver”。它复用 `v4-io` layout，增加 FIM / uncertainty / usable-area 诊断。
-- 当前 `v4-io-roto` 是 lightweight pseudo-constraint branch：用 V4-io 得到少量 roto pseudo-positions，再作为软约束注入 anchor layout。它不是完整 joint RotoArm optimizer。这一点在报告中要诚实说明。
-- `v4-io-wand` 是为了验证 calibration wand 假设。即使最后没有明显提升，也应该保留，因为它对应之前和教授沟通过的实验方向。
+其中：
 
----
+- `A_i` 是第 i 个 anchor 坐标；
+- `b_anchor_i` 是 per-anchor delay；
+- `p_tag` 是 Tag 位置。
 
-## 4. 总览结果
+`v4-io-td` 加一个 common Tag delay：
 
-### 4.1 FULL-COMPARE-1000
+```text
+r_i = ||p_tag - A_i|| + b_anchor_i + c_tag_type + noise
+```
 
-| Version | AutoPos RMS | AutoPos p95 | Static median | Static p95 | Roto median | Roto p95 |
-|---|---:|---:|---:|---:|---:|---:|
-| v1-old | 64.23 | 143.92 | 50.75 | 79.52 | 103.18 | 154.75 |
-| v2 | 40.43 | 80.36 | 48.65 | 71.04 | 103.09 | 155.95 |
-| v3-lite | 40.82 | 82.01 | 48.69 | 70.91 | 103.07 | 155.94 |
-| v3-full | 66.42 | 182.57 | 54.94 | 84.07 | 108.47 | 156.03 |
-| v4-io | 44.34 | 87.75 | 49.25 | 81.65 | 103.82 | 157.55 |
-| v4-io-roto | 57.91 | 134.07 | 48.05 | 71.87 | 100.23 | 138.23 |
-| v4-io-wand | 44.24 | 87.60 | 48.58 | 77.30 | 101.41 | 151.98 |
-| v5 | 44.34 | 87.75 | 49.25 | 81.65 | 103.82 | 157.55 |
+但这里有一个现实限制：
 
-### 4.2 FULL-COMPARE-500
+> 在普通 deploy 中，Tag delay 很难现场估计，因为 Tag 位置未知，`p_tag` 和 `c_tag_type` 会互相吸收。
 
-| Version | AutoPos RMS | AutoPos p95 | Static median | Static p95 | Roto median | Roto p95 |
-|---|---:|---:|---:|---:|---:|---:|
-| v1-old | 63.27 | 143.74 | 50.33 | 76.09 | 103.19 | 162.10 |
-| v2 | 40.56 | 80.45 | 48.30 | 71.95 | 102.65 | 160.27 |
-| v3-lite | 41.03 | 81.79 | 48.58 | 71.94 | 102.56 | 160.42 |
-| v3-full | 61.84 | 178.31 | 55.77 | 90.77 | 108.70 | 158.14 |
-| v4-io | 44.69 | 89.17 | 48.43 | 80.86 | 102.97 | 160.31 |
-| v4-io-roto | 56.89 | 131.80 | 48.20 | 74.48 | 99.77 | 142.09 |
-| v4-io-wand | 44.35 | 87.38 | 48.18 | 79.12 | 101.36 | 154.66 |
-| v5 | 44.69 | 89.17 | 48.43 | 80.86 | 102.97 | 160.31 |
+所以这次只做一个谨慎实验：
 
-### 4.3 FULL-COMPARE-500+500
+1. 固定 V4-io anchor layout；
+2. 固定 V4-io anchor delay；
+3. 用 static captures 的 median per-anchor ranges；
+4. 扫描 `c_tag_type`；
+5. 看 objective curve 有没有明确最低点；
+6. 再用这个 delay 跑全部 static / roto / wand validation。
 
-| Version | AutoPos RMS | AutoPos p95 | Static median | Static p95 | Roto median | Roto p95 |
-|---|---:|---:|---:|---:|---:|---:|
-| v1-old | 64.23 | 143.91 | 50.87 | 77.82 | 103.58 | 162.62 |
-| v2 | 40.43 | 80.43 | 48.47 | 72.21 | 103.06 | 160.81 |
-| v3-lite | 40.83 | 81.95 | 48.60 | 72.06 | 103.01 | 160.81 |
-| v3-full | 64.91 | 177.98 | 52.48 | 85.58 | 106.73 | 157.80 |
-| v4-io | 44.24 | 88.55 | 48.39 | 80.59 | 103.45 | 160.50 |
-| v4-io-roto | 57.53 | 133.71 | 48.02 | 75.10 | 99.97 | 142.10 |
-| v4-io-wand | 44.20 | 88.50 | 48.15 | 79.26 | 101.88 | 154.75 |
-| v5 | 44.24 | 88.55 | 48.39 | 80.59 | 103.45 | 160.50 |
+这不是 factory calibration。它只是回答：
 
-### 4.4 第一眼结论
-
-1. **500 set 已经非常接近 1000 set。**
-   - V2/V3-lite/V4-io 在 500、1000、500+500 三套结果中差异都很小。
-   - 说明这次 inter-anchor sweep 的统计量比较稳定，不是必须 1000 set 才能得到结论。
-
-2. **V2/V3-lite 在 AutoPos inter-anchor self-consistency 上最好。**
-   - 1000-set 下 V2: 40.43 mm，V3-lite: 40.82 mm。
-   - 这说明 robust pair fusion / no-delay geometry 已经能把 sweep matrix 拟合得很好。
-
-3. **V4-io 的 AutoPos RMS 比 V2/V3-lite 略高，但 delay sanity 更合理。**
-   - 1000-set V4-io RMS 为 44.34 mm。
-   - Delay 没有撞边界，delay L2 约 43.9 mm。
-   - 这是一个工程上更可信、更稳的 production solver，而不是单纯追求最小 residual。
-
-4. **V3-full 当前不适合作为主线最终版本。**
-   - AutoPos RMS 和 p95 明显变差。
-   - Delay 出现极大值：1000-set 下 min = -220.12 mm，max = 96.23 mm，delay L2 = 244.18 mm。
-   - 这说明 V3-full 的 delay estimation 有吸收几何误差 / 不稳定的风险。
-
-5. **V4-io-roto 对 roto validation 有帮助，但牺牲 inter-anchor self-consistency。**
-   - 1000-set 下 roto median 从 V4-io 的 103.82 mm 改到 100.23 mm。
-   - roto p95 从 157.55 mm 改到 138.23 mm，tail 明显改善。
-   - 但 AutoPos RMS 从 44.34 mm 变差到 57.91 mm。
-   - 说明 RotoArm soft constraints 确实给动态/空间覆盖带来信息，但当前注入方式还不能作为主 layout solver。
-
-6. **V4-io-wand 是弱改善/弱影响。**
-   - 1000-set static median: V4-io 49.25 mm, V4-io-wand 48.58 mm。
-   - roto median: V4-io 103.82 mm, V4-io-wand 101.41 mm。
-   - 但 wand 自身三边 median abs bias 仍在约 56-63 mm 量级。
-   - 结论应是：Wand 数据有一定信息，但当前 W01-W04 的刚体约束质量不足以显著改变 AutoPos。
+> 在当前数据里，一个 common Tag delay 是否能明显改善下游 repeatability？
 
 ---
 
-## 5. AutoPos layout 自身质量分析
+## 5. 1000-set 结果
 
-这一节不看 Tag RMS，只看 AutoPos anchor layout 是否自洽。
+`FULL-COMPARE-1000/tables/version_summary.csv`
 
-### 5.1 Inter-anchor residual
+| Version | Tag delay mm | AutoPos RMS | AutoPos p95 | Static median | Static p95 | Roto median | Roto p95 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v1-old | 0.0 | 64.23 | 143.92 | 50.75 | 79.52 | 103.18 | 154.75 |
+| v2 | 0.0 | 40.43 | 80.36 | 48.65 | 71.04 | 103.09 | 155.95 |
+| v3-lite | 0.0 | 40.82 | 82.01 | 48.69 | 70.91 | 103.07 | 155.94 |
+| v3-full | 0.0 | 66.42 | 182.57 | 54.94 | 84.07 | 108.47 | 156.03 |
+| v4-io | 0.0 | 44.34 | 87.75 | 49.25 | 81.65 | 103.82 | 157.55 |
+| v4-io-td | 3.0 | 44.34 | 87.75 | 48.91 | 82.81 | 102.65 | 154.95 |
+| v4-io-roto | 0.0 | 57.91 | 134.07 | 48.05 | 71.87 | 100.23 | 138.23 |
+| v4-io-wand | 0.0 | 44.24 | 87.60 | 48.58 | 77.30 | 101.41 | 151.98 |
+| v5 | 0.0 | 44.34 | 87.75 | 49.25 | 81.65 | 103.82 | 157.55 |
 
-1000-set 下：
+### 5.1 1000-set 主要结论
 
-| Version | RMS | p50 abs | p75 abs | p95 abs | max abs |
-|---|---:|---:|---:|---:|---:|
-| v1-old | 64.23 | 28.31 | 51.10 | 143.92 | 183.12 |
-| v2 | 40.43 | 27.15 | 42.99 | 80.36 | 90.38 |
-| v3-lite | 40.82 | 27.36 | 43.22 | 82.01 | 91.65 |
-| v3-full | 66.42 | 2.00 | 7.16 | 182.57 | 207.90 |
-| v4-io | 44.34 | 15.26 | 25.30 | 87.75 | 163.32 |
-| v4-io-roto | 57.91 | 22.82 | 57.05 | 134.07 | 146.93 |
-| v4-io-wand | 44.24 | 17.55 | 28.21 | 87.60 | 163.80 |
+1. `v2` / `v3-lite` 的 inter-anchor residual 最低。
+   - AutoPos RMS 约 40-41 mm。
+   - 这说明 robust pair fusion 已经解释了大部分 inter-anchor 数据。
 
-读法：
+2. `v4-io` 的 inter-anchor RMS 略高。
+   - RMS 44.34 mm。
+   - 但它有 bounded per-anchor delay，物理模型更完整，工程上更适合作为 production baseline。
 
-- V1-old 的 RMS/p95 很差，说明最早 baseline 对 raw sweep matrix 很敏感。
-- V2/V3-lite 的 RMS 和 p95 最好，说明这次 sweep 数据质量高时，no-delay robust fusion 就已经能拟合得很好。
-- V3-full 的 p50 很小但 p95/max 极大，这是一个危险信号：它可能让大部分 pair 看起来很好，但把少数 pair / delay 搞得很糟。
-- V4-io 的 p50/p75 非常好，但 max 较高，说明 Huber/bounded-delay 把大部分 residual 控住了，但仍有少数 pair tail。
+3. `v3-full` 明显不稳定。
+   - AutoPos RMS 66.42 mm，p95 182.57 mm。
+   - 它虽然是 delay-aware，但 delay / geometry coupling 处理不够稳。
 
-### 5.2 500-set holdout
+4. `v4-io-td` 只带来很小改善。
+   - static median: 49.25 -> 48.91 mm。
+   - roto median: 103.82 -> 102.65 mm。
+   - static p95 反而略差：81.65 -> 82.81 mm。
+   - 说明 common Tag delay 对这批数据不是主导误差。
 
-`FULL-COMPARE-500` 使用 first 500 solve，last 500 holdout。
+5. `v4-io-roto` 对 roto tail 改善明显，但牺牲 AutoPos self-consistency。
+   - roto p95: 157.55 -> 138.23 mm。
+   - AutoPos RMS: 44.34 -> 57.91 mm。
+   - 适合作为 experimental branch，不适合作为当前主 baseline。
 
-| Version | Train RMS | Holdout RMS | Train p95 | Holdout p95 |
-|---|---:|---:|---:|---:|
-| v1-old | 63.27 | 61.98 | 143.74 | 144.03 |
-| v2 | 40.56 | 40.57 | 80.45 | 78.65 |
-| v3-lite | 41.03 | 41.20 | 81.79 | 79.64 |
-| v3-full | 61.84 | 62.17 | 178.31 | 178.48 |
-| v4-io | 44.69 | 44.92 | 89.17 | 90.11 |
-| v4-io-roto | 56.89 | 58.51 | 131.80 | 133.55 |
-| v4-io-wand | 44.35 | 44.79 | 87.38 | 83.44 |
+6. `v4-io-wand` 有轻微改善。
+   - static p95: 81.65 -> 77.30 mm。
+   - roto median: 103.82 -> 101.41 mm。
+   - 但改善不够强，Wand 本身数据质量仍是限制。
 
-结论：
+---
 
-- train 和 holdout 非常接近。
-- 说明这次 sweep 的 first half / second half 是一致的，没有明显过拟合。
-- V2/V3-lite/V4-io 的 holdout 可靠性都不错。
-- V4-io-wand 的 holdout p95 比 train p95 还低一点，说明 wand 分支没有明显 overfit first 500。
-- V4-io-roto 的 holdout 仍然差于 V4-io，说明当前 roto pseudo-constraint 分支不应作为主 AutoPos layout。
+## 6. v4-io-td Tag-delay scan
 
-### 5.3 Split layout stability
+### 6.1 1000-set scan
 
-`FULL-COMPARE-500+500` 中，first 500 和 last 500 分别解 layout，再 Procrustes align 后看 per-anchor 差异。
+`FULL-COMPARE-1000/v4-io-td/tag_delay_scan.csv`
 
-关键观察：
+| Rank | Tag delay mm | Case RMS median | Raw RMS | Raw p95 abs |
+|---:|---:|---:|---:|---:|
+| 1 | 3.0 | 40.05 | 61.46 | 123.18 |
+| 2 | 2.0 | 40.29 | 61.39 | 123.67 |
+| 3 | 4.0 | 40.40 | 61.55 | 122.68 |
+| 4 | 1.0 | 40.54 | 61.33 | 124.15 |
+| 5 | 0.0 | 40.80 | 61.28 | 124.64 |
 
-- V2 / V3-lite 的 split 差异大约是几毫米到 9 mm 量级。
-- V4-io 的 split 差异大约是 5-13 mm 量级。
-- V4-io-roto 的 split 差异也在 5-11 mm 量级。
-- V3-full 的 split 差异非常大，最高接近 193 mm，delay 差异也很大。
+解释：
+
+- 最佳点在 `+3 mm`。
+- 但 `+2 / +3 / +4 mm` 非常接近。
+- 从 0 mm 到 3 mm，case RMS median 只改善约 0.75 mm。
+- raw RMS 几乎没有明显改善。
+
+所以：
+
+> 当前数据对 common Tag delay 只有弱可观测性。估计值大约在 +3 mm 附近，但不能作为强 factory calibration 结论。
+
+### 6.2 500-set scan
+
+`FULL-COMPARE-500/v4-io-td/tag_delay_scan.csv`
+
+| Rank | Tag delay mm | Case RMS median | Raw RMS | Raw p95 abs |
+|---:|---:|---:|---:|---:|
+| 1 | 4.0 | 40.73 | 61.97 | 116.74 |
+| 2 | 5.0 | 40.88 | 62.07 | 118.01 |
+| 3 | 3.0 | 40.89 | 61.86 | 115.62 |
+| 4 | 2.0 | 41.07 | 61.76 | 114.49 |
+| 5 | 1.0 | 41.26 | 61.68 | 114.19 |
+
+### 6.3 500+500 split scan
+
+`FULL-COMPARE-500+500/v4-io-td/tag_delay_scan_first500.csv`
+
+| Rank | Tag delay mm | Case RMS median | Raw RMS | Raw p95 abs |
+|---:|---:|---:|---:|---:|
+| 1 | 4.0 | 40.73 | 61.97 | 116.74 |
+| 2 | 5.0 | 40.88 | 62.07 | 118.01 |
+| 3 | 3.0 | 40.89 | 61.86 | 115.62 |
+
+`FULL-COMPARE-500+500/v4-io-td/tag_delay_scan_last500.csv`
+
+| Rank | Tag delay mm | Case RMS median | Raw RMS | Raw p95 abs |
+|---:|---:|---:|---:|---:|
+| 1 | 3.0 | 39.52 | 61.15 | 114.69 |
+| 2 | 4.0 | 39.60 | 61.22 | 114.21 |
+| 3 | 2.0 | 39.77 | 61.08 | 115.94 |
+
+500+500 consensus 使用：
+
+```text
+(first500 best 4.0 + last500 best 3.0) / 2 = 3.5 mm
+```
 
 这说明：
 
-1. V2/V3-lite/V4-io 的 layout 从两个独立 half 中得到的结果基本一致。
-2. V3-full 的 delay-aware 方案在 split 上明显不稳定。
-3. V4-io 虽然 AutoPos RMS 不如 V2/V3-lite 低，但 split stability 仍在合理范围内。
+- common Tag delay 的估计值在三套 sweep 选择下比较一致：约 `+3 到 +4 mm`。
+- 但 objective 很平，改善很弱。
+- 因此它可以作为 exploratory result，而不是强校准结论。
 
-### 5.4 Delay sanity
+---
 
-| Version | 1000 delay min/max | 1000 delay L2 | near bound |
-|---|---:|---:|---:|
-| v3-full | -220.12 / 96.23 | 244.18 | 2 |
-| v4-io | -2.39 / 32.30 | 43.90 | 0 |
-| v4-io-roto | -28.91 / 13.17 | 35.23 | 0 |
-| v4-io-wand | -9.79 / 60.00 | 63.99 | 1 |
+## 7. 500-set 结果
+
+`FULL-COMPARE-500/tables/version_summary.csv`
+
+| Version | Tag delay mm | AutoPos RMS | AutoPos p95 | Static median | Static p95 | Roto median | Roto p95 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v1-old | 0.0 | 63.27 | 143.74 | 50.33 | 76.09 | 103.19 | 162.10 |
+| v2 | 0.0 | 40.56 | 80.45 | 48.30 | 71.95 | 102.65 | 160.27 |
+| v3-lite | 0.0 | 41.03 | 81.79 | 48.58 | 71.94 | 102.56 | 160.42 |
+| v3-full | 0.0 | 61.84 | 178.31 | 55.77 | 90.77 | 108.70 | 158.14 |
+| v4-io | 0.0 | 44.69 | 89.17 | 48.43 | 80.86 | 102.97 | 160.31 |
+| v4-io-td | 4.0 | 44.69 | 89.17 | 47.94 | 82.26 | 101.78 | 157.09 |
+| v4-io-roto | 0.0 | 56.89 | 131.80 | 48.20 | 74.48 | 99.77 | 142.09 |
+| v4-io-wand | 0.0 | 44.35 | 87.38 | 48.18 | 79.12 | 101.36 | 154.66 |
+| v5 | 0.0 | 44.69 | 89.17 | 48.43 | 80.86 | 102.97 | 160.31 |
+
+### 7.1 500-set holdout
+
+`FULL-COMPARE-500/tables/holdout_generalization.csv`
+
+关键版本：
+
+| Version | Train | Eval | RMS | p50 abs | p95 abs | Max abs |
+|---|---|---|---:|---:|---:|---:|
+| v4-io | first500 | last500 | 44.92 | 15.30 | 90.11 | 168.10 |
+| v4-io-td | first500 | last500 | 44.92 | 15.30 | 90.11 | 168.10 |
+| v4-io-roto | first500 | last500 | 58.51 | 24.01 | 133.55 | 146.45 |
+| v4-io-wand | first500 | last500 | 44.79 | 20.89 | 83.44 | 165.38 |
+
+解释：
+
+- `v4-io-td` 不改变 anchor layout，所以 holdout inter-anchor 指标和 `v4-io` 完全一样。
+- `v4-io` first500 -> last500 泛化稳定，RMS 44.92 mm。
+- `v4-io-roto` 的 holdout 明显更差，说明它在 inter-anchor self-consistency 上不是主线。
+- `v4-io-wand` 和 `v4-io` 很接近。
+
+---
+
+## 8. 500+500 split-consensus 结果
+
+`FULL-COMPARE-500+500/tables/version_summary.csv`
+
+| Version | Tag delay mm | AutoPos RMS | AutoPos p95 | Static median | Static p95 | Roto median | Roto p95 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v1-old | 0.0 | 64.23 | 143.91 | 50.87 | 77.82 | 103.58 | 162.62 |
+| v2 | 0.0 | 40.43 | 80.43 | 48.47 | 72.21 | 103.06 | 160.81 |
+| v3-lite | 0.0 | 40.83 | 81.95 | 48.60 | 72.06 | 103.01 | 160.81 |
+| v3-full | 0.0 | 64.91 | 177.98 | 52.48 | 85.58 | 106.73 | 157.80 |
+| v4-io | 0.0 | 44.24 | 88.55 | 48.39 | 80.59 | 103.45 | 160.50 |
+| v4-io-td | 3.5 | 44.24 | 88.55 | 47.97 | 81.76 | 102.31 | 157.79 |
+| v4-io-roto | 0.0 | 57.53 | 133.71 | 48.02 | 75.10 | 99.97 | 142.10 |
+| v4-io-wand | 0.0 | 44.20 | 88.50 | 48.15 | 79.26 | 101.88 | 154.75 |
+| v5 | 0.0 | 44.24 | 88.55 | 48.39 | 80.59 | 103.45 | 160.50 |
+
+### 8.1 Split 的意义
+
+`500+500` 是最适合讲 robustness 的结果，因为它检查：
+
+```text
+first500 layout 和 last500 layout 是否一致
+```
+
+对 `v4-io-td` 来说：
+
+- first500 best tag delay = +4 mm；
+- last500 best tag delay = +3 mm；
+- consensus = +3.5 mm。
+
+这说明 `v4-io-td` 的估计值在 split 下稳定，但改善仍然很弱。
+
+---
+
+## 9. Static repeatability 分析
+
+Static 使用 `Static_Test/ID01-ID24`，实际有效为 23 个点，`ID10` missing。
+
+核心结果：
+
+1. `v2` / `v3-lite` static median 很强。
+   - 1000-set 下约 48.65 / 48.69 mm。
+
+2. `v4-io` static median 稍差一点。
+   - 1000-set 下 49.25 mm。
+   - 但它的模型更物理，delay bounded，更适合作为 production baseline。
+
+3. `v4-io-td` 对 static median 只改善约 0.3-0.5 mm。
+   - 1000: 49.25 -> 48.91 mm。
+   - 500: 48.43 -> 47.94 mm。
+   - 500+500: 48.39 -> 47.97 mm。
+
+4. `v4-io-td` 对 static p95 没有改善，甚至略差。
+   - 1000: 81.65 -> 82.81 mm。
+   - 500: 80.86 -> 82.26 mm。
+   - 500+500: 80.59 -> 81.76 mm。
 
 结论：
 
-- V3-full 的 delay 过大，不适合作为稳定主线。
-- V4-io 的 delay 最健康，没有撞边界。
-- V4-io-wand 有一个 delay 到 60 mm 边界，说明 wand constraint 在推某个 delay 到边界附近，需要谨慎解释。
-- V4-io-roto 的 delay 范围较健康，但 AutoPos residual 变差，说明它是用几何变形换取动态 roto residual 改善。
+> common Tag delay 不是 static tail 的主要误差源。static tail 更可能来自空间区域、NLOS、anchor/tag orientation、Z observability 或个别方向问题。
 
 ---
 
-## 6. Static Tag repeatability 分析
+## 10. Roto dynamic 分析
 
-Static 指标是固定 Tag 的重复性，不是 absolute accuracy。没有 OptiTrack 时，它能反映 layout + ranging + solver 的稳定性，但不能单独证明绝对坐标正确。
+Roto 使用 `Roto_Test/ID25-ID41`，peer 为：
 
-### 6.1 总体水平
+```text
+BS2DCE = inner
+BSDC91 = outer
+```
 
-三套数据策略中，static median 非常接近：
+核心结果：
 
-| Version | 1000 | 500 | 500+500 |
-|---|---:|---:|---:|
-| v1-old | 50.75 | 50.33 | 50.87 |
-| v2 | 48.65 | 48.30 | 48.47 |
-| v3-lite | 48.69 | 48.58 | 48.60 |
-| v3-full | 54.94 | 55.77 | 52.48 |
-| v4-io | 49.25 | 48.43 | 48.39 |
-| v4-io-roto | 48.05 | 48.20 | 48.02 |
-| v4-io-wand | 48.58 | 48.18 | 48.15 |
+1. `v4-io-td` 对 roto 有小幅改善。
+   - 1000 roto median: 103.82 -> 102.65 mm。
+   - 500 roto median: 102.97 -> 101.78 mm。
+   - 500+500 roto median: 103.45 -> 102.31 mm。
+
+2. 但 `v4-io-roto` 对 roto 改善更明显。
+   - 1000 roto p95: 157.55 -> 138.23 mm。
+   - 500 roto p95: 160.31 -> 142.09 mm。
+   - 500+500 roto p95: 160.50 -> 142.10 mm。
+
+3. `v4-io-roto` 的代价是 AutoPos inter-anchor residual 变差。
+   - 1000 AutoPos RMS: 44.34 -> 57.91 mm。
+   - 500 AutoPos RMS: 44.69 -> 56.89 mm。
+   - 500+500 AutoPos RMS: 44.24 -> 57.53 mm。
 
 结论：
 
-- 主流版本的 static median 都在 48-50 mm 附近。
-- 这说明 static repeatability 的瓶颈可能不完全来自 AutoPos layout；也可能来自 UWB ranging noise、NLOS、Tag antenna orientation、Z geometry。
-- V3-full 明显偏差，说明 delay instability 会影响 static。
-- V4-io-roto 和 V4-io-wand 对 static median 有小幅改善，但不是决定性改善。
-
-### 6.2 空间分组
-
-1000-set static group：
-
-| Group | median 3D std |
-|---|---:|
-| center | 48.35 mm |
-| edge | 50.43 mm |
-| high | 43.08 mm |
-| mid | 49.25 mm |
-| low | 58.21 mm |
-| facing ABEF | 47.89 mm |
-| facing ADHE | 48.79 mm |
-| facing BCGF | 50.78 mm |
-| facing CDHG | 63.03 mm |
-
-最明显的结论：
-
-1. **low height 明显更差。**
-   - low median 约 58 mm。
-   - high median 约 43 mm。
-   - 这说明低高度位置的几何 / NLOS / 地面反射可能更差。
-
-2. **CDHG 方向明显更差。**
-   - CDHG facing median 约 63 mm。
-   - ABEF / ADHE / BCGF 在 48-51 mm。
-   - 这说明 CDHG 方向存在空间/朝向相关的问题。
-
-3. **edge 比 center 略差，但不是最大问题。**
-   - center 48.35 mm，edge 50.43 mm。
-   - 差异存在，但不如高度和 CDHG 方向明显。
-
-### 6.3 最差 static capture
-
-三个数据策略中最差 static 几乎都指向同一个位置：
-
-- `ID08`: edge mid CDHG
-- `ID07`: edge low CDHG
-- `ID09`: edge high CDHG
-
-这很重要。它说明 static 的坏例子不是随机散布，而是和 **CDHG face / direction** 强相关。
-
-1000-set 下：
-
-| Version | Worst ID | 3D std | Z std |
-|---|---|---:|---:|
-| v3-full | ID08 | 146.73 | 125.88 |
-| v1-old | ID08 | 90.24 | 71.50 |
-| v4-io | ID08 | 88.19 | 71.07 |
-| v4-io-wand | ID08 | 83.52 | 66.34 |
-| v4-io-roto | ID08 | 81.14 | 66.58 |
-
-读法：
-
-- ID08 是稳定的 worst case。
-- worst case 主要由 Z std 拉高。
-- V4-io-roto / V4-io-wand 对 ID08 有一点帮助，但没有彻底解决。
-- 如果要给教授讲“哪里最弱”，CDHG/ID08 是非常明确的 evidence。
+> RotoArm 数据确实包含对动态/Z 的有用信息，但当前 `v4-io-roto` 是 experimental soft-constraint branch，不能替代 `v4-io` 作为主 AutoPos baseline。
 
 ---
 
-## 7. Roto dynamic 分析
+## 11. Wand calibration 分析
 
-Roto 是动态验证，和 static repeatability 是互补的。Static 可以很稳定但仍然有 bias；Roto 的 circle-fit residual 更容易暴露空间连续性和 Z 方向弱点。
+Wand 使用 W01-W04 static rigid-body captures。
 
-### 7.1 总体趋势
+Wand 约束的定位：
 
-1000-set：
+- `v4-io-wand` 是对之前 calibration wand concept 的诚实验证；
+- 它不是主线；
+- 它有轻微改善，但没有强到可以支撑“Wand constraint 显著提升 AutoPos”。
 
-| Version | Roto median | Roto p95 | Roto max |
-|---|---:|---:|---:|
-| v1-old | 103.18 | 154.75 | 160.68 |
-| v2 | 103.09 | 155.95 | 173.89 |
-| v3-lite | 103.07 | 155.94 | 173.78 |
-| v3-full | 108.47 | 156.03 | 177.97 |
-| v4-io | 103.82 | 157.55 | 171.71 |
-| v4-io-roto | 100.23 | 138.23 | 148.88 |
-| v4-io-wand | 101.41 | 151.98 | 162.06 |
+当前结果：
 
-结论：
+| Mode | v4-io static p95 | v4-io-wand static p95 | v4-io roto p95 | v4-io-wand roto p95 |
+|---|---:|---:|---:|---:|
+| 1000 | 81.65 | 77.30 | 157.55 | 151.98 |
+| 500 | 80.86 | 79.12 | 160.31 | 154.66 |
+| 500+500 | 80.59 | 79.26 | 160.50 | 154.75 |
 
-- V4-io-roto 对 roto tail 有最明显改善。
-- V4-io-wand 也有轻微改善，但不如 roto 分支。
-- V3-full 仍然不是好选择。
-- V2/V3-lite/V4-io 的 roto median 其实很接近，说明 Roto 的瓶颈可能更多是动态 ranging / spatial geometry，而不只是 inter-anchor layout residual。
+解释：
 
-### 7.2 Tilt ablation
-
-1000-set roto group：
-
-| Tilt | Peer | median RMS |
-|---|---|---:|
-| planar | BS2DCE | 153.65 |
-| planar | BSDC91 | 138.67 |
-| small | BS2DCE | 137.39 |
-| small | BSDC91 | 141.78 |
-| mid | BS2DCE | 103.09 |
-| mid | BSDC91 | 102.54 |
-| high | BS2DCE | 100.01 |
-| high | BSDC91 | 86.80 |
-| vertical | BS2DCE | 87.13 |
-| vertical | BSDC91 | 89.59 |
-
-非常清楚的结论：
-
-1. **planar / small tilt 最差。**
-   - 因为对 Z 方向约束弱。
-
-2. **high / vertical tilt 明显更好。**
-   - 这支持之前 concept 中关于 RotoArm 引入 Z 信息的假设。
-   - 尤其 vertical 的 BS2DCE/BS DC91 都在 87-90 mm 左右。
-
-3. **RotoArm 的信息价值是存在的。**
-   - 但当前 `v4-io-roto` 只是轻量 soft-constraint branch，还不能直接作为最终 solver。
-   - 更合理的论文叙述是：RotoArm 数据证明 high-tilt / vertical motion 对 Z 可观测性有帮助，未来可发展为更完整 joint optimization。
-
-### 7.3 最差 roto capture
-
-最差 Roto 几乎总是：
-
-- `ID29 BS2DCE mid ABEF`
-- `ID26 BS2DCE small BCGF`
-
-1000-set worst：
-
-| Version | ID | Peer | Tilt | RMS |
-|---|---|---|---|---:|
-| v3-full | ID29 | BS2DCE | mid | 177.97 |
-| v2 | ID29 | BS2DCE | mid | 173.89 |
-| v3-lite | ID29 | BS2DCE | mid | 173.78 |
-| v4-io | ID29 | BS2DCE | mid | 171.71 |
-| v4-io-wand | ID29 | BS2DCE | mid | 162.06 |
-| v4-io-roto | worst reduced to 148.88 max | - | - | - |
-
-`v4-io-roto` 的意义主要体现在这里：它没有让 AutoPos inter-anchor RMS 变好，但让 Roto worst/tail 明显下降。
+- Wand 对 p95/tail 有轻微帮助；
+- 但改善幅度不大；
+- W01-W04 自身刚体距离噪声仍然偏大；
+- W05 由于 TDMA 下三颗 Tag 不同步，不应用作 synchronized rigid-body constraint。
 
 ---
 
-## 8. Wand calibration 约束分析
+## 12. V2/V3-lite 为什么 inter-anchor 更好，但不是最终主线？
 
-Wand 的问题要实事求是：我们确实做了 W01-W04 static calibration wand，但它本身的刚体距离误差并不小。
+这是报告里要讲清楚的一点。
 
-### 8.1 Wand 三边 bias
+`v2` / `v3-lite` 在 inter-anchor residual 上确实很好：
 
-1000-set 下 median abs bias：
+```text
+1000-set:
+V2 RMS      40.43 mm
+V3-lite RMS 40.82 mm
+V4-io RMS   44.34 mm
+```
 
-| Version | median abs bias | mean abs bias | max abs bias |
-|---|---:|---:|---:|
-| v1-old | 52.49 | 46.95 | 98.70 |
-| v2 | 50.18 | 51.60 | 92.85 |
-| v3-lite | 50.67 | 51.59 | 93.06 |
-| v3-full | 55.74 | 63.71 | 125.03 |
-| v4-io | 59.39 | 51.46 | 89.23 |
-| v4-io-roto | 53.50 | 56.39 | 107.65 |
-| v4-io-wand | 62.68 | 48.80 | 93.21 |
+但它们没有显式 anchor delay model。结果可能是：
 
-注意：
+```text
+未建模的 antenna / RF delay 被吸收到 anchor geometry 里
+```
 
-- median abs bias 大约 50-63 mm。
-- 这对一个 calibration wand 来说并不算很强的刚体约束。
-- 因此 `v4-io-wand` 没有显著提升是合理的。
+这不一定让 repeatability 变差。因为如果系统 bias 稳定，Tag positioning 仍然可能稳定。但它会让 layout 的物理解释变弱。
 
-### 8.2 Wand 约束是否“乱用”？
+所以建议报告中这样表述：
 
-目前结论：
-
-- Wand 不是完全没用：`v4-io-wand` 在 static/roto tail 上有轻微改善。
-- 但 Wand 也不是强约束：它自身 bias 比较大，不能期待显著提升 AutoPos。
-- W01-W04 可以作为论文中的探索性分支：我们尝试 calibration wand rigid-body constraints，但当前数据质量不足以支撑它成为主 solver。
-- W05 不应该用于同步刚体约束，因为 TDMA 下三颗 tag 不是同一时刻观测；它更适合 coverage / residual map / usable-area diagnosis。
-
----
-
-## 9. 1000 vs 500 vs 500+500
-
-这部分非常重要，因为它说明结果是不是稳定。
-
-### 9.1 500 set 是否足够？
-
-从结果看，500 set 已经足够接近 1000 set。
-
-例如：
-
-| Version | 1000 AutoPos RMS | 500 AutoPos RMS | 500+500 AutoPos RMS |
-|---|---:|---:|---:|
-| v2 | 40.43 | 40.56 | 40.43 |
-| v3-lite | 40.82 | 41.03 | 40.83 |
-| v4-io | 44.34 | 44.69 | 44.24 |
-| v4-io-wand | 44.24 | 44.35 | 44.20 |
-
-结论：
-
-- 这次 sweep 质量比较稳定。
-- 1000 set 的优势不是“显著提高精度”，而是让报告更有说服力。
-- 500 set 可以作为 future fast calibration 的候选。
-
-### 9.2 500+500 split 是否有意义？
-
-有意义。它给了一个无 OptiTrack 情况下很重要的判断标准：
-
-- first half 和 second half 是否能解出一致 layout？
-- consensus layout 是否接近 full 1000？
-- 某个 solver 是否对数据 split 很敏感？
-
-结果表明：
-
-- V2/V3-lite/V4-io split 很稳定。
-- V3-full split 很不稳定。
-- V4-io-roto / V4-io-wand 的 split 差异在可接受范围，但 roto branch 牺牲了 inter-anchor self-consistency。
-
----
-
-## 10. 该如何给教授讲这个故事？
-
-建议不要把报告讲成“某个版本 Tag RMS 最低”。那样会很弱，因为没有 OptiTrack。
-
-更好的故事是：
-
-### 10.1 主线 1：AutoPos 在无外部 ground truth 下的自洽验证
-
-我们提出一组 no-OptiTrack 评价标准：
-
-1. inter-anchor self-consistency
-2. first/last holdout generalization
-3. split layout stability
-4. delay sanity
-5. downstream static repeatability
-6. downstream roto dynamic consistency
-7. wand rigid body check
-
-这比只报 Tag RMS 更完整。
-
-### 10.2 主线 2：软件/算法从 fragile baseline 到 robust production
-
-可以这样讲：
-
-- V1-old：早期 baseline，对数据异常更敏感。
-- V2/V3-lite：pair fusion 和 robust fusion 显著改善 inter-anchor matrix。
-- V3-full：第一次尝试 delay estimation，但当前实现不稳定，delay 会吸收几何误差。
-- V4-io：工程上更稳定的 bounded-delay solver，是当前 production baseline。
-- V4-io-roto：RotoArm 信息对 dynamic/Z 方向有价值，但当前只是 experimental branch。
-- V4-io-wand：calibration wand 尝试保留，但当前数据质量不足以成为主路线。
-- V5：不是新 layout solver，而是 reliability / usable-area diagnostics。
-
-### 10.3 主线 3：D/H 或坏数据 robustness
-
-如果和 20260504 比：
-
-- 20260504 D/H 数据很差，但 robust solver 仍把结果拉回到可用范围。
-- 20260513 D/H 正常后，整体 repeatability 并没有成倍提升。
-- 这说明下游 repeatability 的瓶颈不仅是 D/H，也包括 Z geometry、NLOS、Tag antenna orientation、dynamic ranging noise。
-- 同时也说明 robust solver 对坏数据有抵抗力：坏数据时没有彻底崩。
-
-### 10.4 主线 4：空间弱点定位
-
-当前最清楚的空间弱点是：
-
-- static: `CDHG` 方向，尤其 `ID08 edge mid CDHG`
-- roto: `ID29 BS2DCE mid ABEF` 和 `ID26 BS2DCE small BCGF`
-- height: low height 更差
-- roto tilt: planar/small tilt 差，high/vertical tilt 好
-
-这比单一 RMS 更有工程意义，因为它告诉我们下一步应该改哪里。
-
----
-
-## 11. 推荐结论
-
-### 11.1 当前主 baseline
-
-建议主 baseline 写：
-
-> Current production AutoPos uses V4-io: MAD/MVUE inter-anchor fusion, Huber bounded-delay joint layout solve, and V5 diagnostics for uncertainty / usable-area analysis.
+> V2/V3-lite are strong empirical baselines. They achieve low inter-anchor residual and good repeatability, but they do not explicitly model antenna delay. V4-io is preferred as the production AutoPos baseline because it provides a bounded, physically interpretable delay-aware layout, even when its raw residual is not the absolute lowest.
 
 中文：
 
-> 当前主 AutoPos baseline 是 V4-io：使用 MAD/MVUE inter-anchor fusion，Huber bounded-delay joint layout solve，并使用 V5 作为 uncertainty / usable-area 诊断层。
-
-理由：
-
-- AutoPos RMS 不是最低，但稳定。
-- Delay sanity 好。
-- Split stability 好。
-- Static/roto 下游表现稳定。
-- 工程上可解释。
-
-### 11.2 V2/V3-lite 怎么解释？
-
-V2/V3-lite 在 inter-anchor residual 上更好，但它们 no-delay。
-
-推荐解释：
-
-> On this clean outdoor dataset, robust pair fusion alone already explains most inter-anchor measurements. However, no-delay solvers do not model antenna bias explicitly, so they are strong baselines but less physically complete than V4-io.
-
-中文：
-
-> 在这次干净的户外数据中，robust pair fusion 本身已经能解释大部分 inter-anchor measurement。因此 V2/V3-lite 的 residual 很低。但它们没有显式建模 antenna delay，所以适合作为强 baseline，而不是最终 production model。
-
-### 11.3 V3-full 怎么解释？
-
-不要把 V3-full 作为成功版本。
-
-推荐写：
-
-> V3-full demonstrates that naive/free antenna-delay estimation can be unstable. Although it reduces many small residuals, its delay variables become too large and the p95/max residuals worsen.
-
-中文：
-
-> V3-full 说明“引入 antenna delay estimation”本身不是自动变好。如果 delay 没有合理约束，它会吸收几何误差，导致 tail residual 和 split stability 变差。
-
-### 11.4 RotoArm 怎么解释？
-
-推荐写：
-
-> RotoArm data is valuable as a Z-observability and dynamic validation source. The high/vertical tilt experiments show much lower circle residual than planar/small tilt. However, the current V4-io-roto branch is still experimental and trades inter-anchor self-consistency for dynamic-tail improvement.
-
-中文：
-
-> RotoArm 数据有价值，尤其用于 Z 可观测性和动态验证。high/vertical tilt 明显优于 planar/small tilt。但当前 V4-io-roto 还只是实验分支，它改善了 roto tail，却牺牲了 inter-anchor self-consistency，因此不应直接替代 V4-io。
-
-### 11.5 Calibration Wand 怎么解释？
-
-推荐写：
-
-> Static calibration-wand constraints were tested because they were part of the original experimental concept. The current W01-W04 data shows only weak improvement and the wand rigid-body distance bias remains around 50-60 mm, so it is not yet strong enough to drive layout calibration.
-
-中文：
-
-> Calibration wand 约束确实测试了，因为这是原始实验构想的一部分。但 W01-W04 当前三边刚体误差仍在 50-60 mm 量级，只带来弱改善，不足以作为主 layout calibration 约束。
+> V2/V3-lite 是很强的经验 baseline，但它们没有显式建模 antenna delay，可能把 delay bias 吸收到几何坐标里。V4-io 虽然 raw residual 不是最低，但它有 bounded delay model，更物理、更适合现场 pipeline。
 
 ---
 
-## 12. 推荐给教授看的核心表
+## 13. Tag delay 的最终判断
 
-如果时间有限，建议最终报告只放这些表：
+现在可以回答：
 
-1. **Version summary table**
-   - AutoPos RMS / p95
-   - Static median / p95
-   - Roto median / p95
+> 我们能不能在当前数据里估一个 common Tag delay？
 
-2. **Holdout table**
-   - first500 train vs last500 holdout
+答案是：
 
-3. **Split stability table**
-   - per-anchor first500 vs last500 layout difference
+```text
+可以探索性估计，约 +3 到 +4 mm。
+但改善很小，objective 很平，不能当作 strong calibration。
+```
 
-4. **Delay sanity table**
-   - delay min/max/L2/bound hits
+证据：
 
-5. **Static spatial summary**
-   - center vs edge
-   - low/mid/high
-   - facing direction
+| Mode | Best Tag delay | Static median change | Static p95 change | Roto median change | Roto p95 change |
+|---|---:|---:|---:|---:|---:|
+| 1000 | +3.0 mm | 49.25 -> 48.91 | 81.65 -> 82.81 | 103.82 -> 102.65 | 157.55 -> 154.95 |
+| 500 | +4.0 mm | 48.43 -> 47.94 | 80.86 -> 82.26 | 102.97 -> 101.78 | 160.31 -> 157.09 |
+| 500+500 | +3.5 mm | 48.39 -> 47.97 | 80.59 -> 81.76 | 103.45 -> 102.31 | 160.50 -> 157.79 |
 
-6. **Roto tilt ablation table**
-   - planar/small/mid/high/vertical
+解释：
 
-7. **Wand rigid-body bias table**
-   - W01-W04 measured vs GT
+- median 有小改善；
+- p95 没有稳定改善；
+- roto 有小改善；
+- delay 估计值在不同 split 下比较一致；
+- 但整体贡献太小，不是当前主要误差源。
 
-8. **Worst-case table**
-   - worst static captures
-   - worst roto captures
+所以建议写成：
+
+> A common type-level Tag-delay term was tested by fixing the V4-io AutoPos layout and scanning a shared delay using static captures. The optimum was consistently around +3 to +4 mm across 1000, 500, and split-consensus runs. However, the improvement in downstream validation was marginal and the scan objective was shallow, so Tag delay is not a dominant error source in this dataset. Per-tag or factory calibration may still be useful, but online field estimation is not justified by this evidence.
 
 ---
 
-## 13. 最终一句话总结
+## 14. 哪个版本应作为主结论？
 
-这次实验最适合这样总结：
+推荐主线：
 
-> We validated AutoPos without OptiTrack by combining inter-anchor self-consistency, train/holdout generalization, split-layout stability, delay sanity, static repeatability, dynamic RotoArm consistency, and calibration-wand checks. The current V4-io solver is the best production baseline: it is not always the lowest residual, but it has stable bounded delay, strong split consistency, and reliable downstream validation. RotoArm and Wand constraints are useful exploratory signals, but they should remain experimental branches until the joint constraint model and data quality improve.
+```text
+Production baseline: V4-io
+Diagnostics: V5
+Exploratory branch 1: V4-io-td
+Exploratory branch 2: V4-io-roto
+Exploratory branch 3: V4-io-wand
+Strong empirical baselines: V2 / V3-lite
+Unstable historical delay-aware solver: V3-full
+```
 
-中文版本：
+具体讲法：
 
-> 在没有 OptiTrack 的情况下，我们用 inter-anchor 自洽性、train/holdout 泛化、split layout 稳定性、delay 合理性、static repeatability、RotoArm 动态一致性和 calibration wand 刚体检查共同评价 AutoPos。当前最适合作为 production baseline 的是 V4-io：它不一定拥有最低 residual，但 delay 合理、split 稳定、下游验证稳定。RotoArm 和 Wand 约束提供了有价值的探索性信息，但在 joint constraint model 和数据质量进一步改进前，不应替代 V4-io 主线。
+1. `V4-io` 是当前 production baseline。
+   - bounded per-anchor delay；
+   - split / holdout 稳；
+   - 下游 validation 稳；
+   - 物理解释合理。
 
+2. `V2/V3-lite` 是强 baseline。
+   - residual 更低；
+   - repeatability 也很好；
+   - 但没有 delay model，不作为最终 field pipeline 解释框架。
+
+3. `V4-io-td` 是小修正。
+   - delay 约 +3 到 +4 mm；
+   - 不是主要提升来源。
+
+4. `V4-io-roto` 证明 RotoArm/Z 信息有价值。
+   - dynamic roto tail 明显改善；
+   - 但 inter-anchor self-consistency 变差；
+   - 应继续作为 future joint optimization，而不是当前主线。
+
+5. `V4-io-wand` 是诚实的 calibration wand 尝试。
+   - 有轻微改善；
+   - 但数据质量不足以作为强论点。
+
+---
+
+## 15. 给教授看的报告结构建议
+
+建议不要一开始讲 Tag RMS。应先讲 AutoPos。
+
+### 15.1 Section 1: AutoPos without OptiTrack
+
+重点：
+
+```text
+没有 OptiTrack 时，不能直接声称 absolute accuracy。
+我们评价的是 AutoPos layout self-consistency 和 downstream repeatability。
+```
+
+指标：
+
+- inter-anchor RMS / p95；
+- holdout generalization；
+- split layout stability；
+- delay sanity；
+- downstream repeatability。
+
+### 15.2 Section 2: Algorithm progression
+
+讲版本递进：
+
+```text
+V1 -> V2 -> V3-lite -> V3-full -> V4-io -> V5
+```
+
+再说明 experimental branches：
+
+```text
+V4-io-td
+V4-io-roto
+V4-io-wand
+```
+
+### 15.3 Section 3: Main quantitative table
+
+用 `FULL-COMPARE-1000` 作为主表，然后用 500 / 500+500 证明 consistency。
+
+### 15.4 Section 4: Tag delay experiment
+
+建议标题：
+
+```text
+Common type-level Tag delay is weakly observable and not the dominant error source
+```
+
+### 15.5 Section 5: RotoArm and Wand
+
+RotoArm：
+
+```text
+useful as dynamic/Z validation and future constraint source
+```
+
+Wand：
+
+```text
+tested honestly, weak improvement, current data too noisy for strong calibration
+```
+
+---
+
+## 16. 最终一句话总结
+
+中文：
+
+> 本次 2026-05-13 outdoor clean rebuild 显示，AutoPos 在无 OptiTrack 条件下可以通过 inter-anchor self-consistency、holdout、split stability、delay sanity 和 downstream repeatability 进行评价。V2/V3-lite 是很强的 no-delay empirical baseline，但 V4-io 由于具有 bounded per-anchor delay 和更合理的物理解释，仍然是当前最适合的 production baseline。新增的 V4-io-td 估计出约 +3 到 +4 mm 的 common Tag delay，但改善很小，说明 Tag delay 不是这批数据的主导误差源；RotoArm 和 Wand 约束提供有价值的探索性信息，但目前仍应作为 experimental branches。
+
+English:
+
+> The 2026-05-13 outdoor clean rebuild shows that AutoPos can be evaluated without OptiTrack using inter-anchor self-consistency, holdout generalization, split-layout stability, delay sanity, and downstream repeatability. V2/V3-lite are strong no-delay empirical baselines, but V4-io remains the preferred production baseline because it provides a bounded, physically interpretable per-anchor delay model. The new V4-io-td branch estimates a consistent common Tag delay of about +3 to +4 mm, but the downstream improvement is marginal, indicating that Tag delay is not the dominant error source in this dataset. RotoArm and Wand constraints remain useful exploratory signals rather than production replacements for V4-io.

@@ -24,6 +24,7 @@ The first 500 sweep sets and last 500 sweep sets are solved separately, then ali
 | `v3-lite` | `V3-lite` | MAD/MVUE robust pair fusion | No | None | robust fusion and asymmetry handling |
 | `v3-full` | `V3-full` | MAD/MVUE robust pair fusion | Yes | None | first antenna-delay-aware solver |
 | `v4-io` | `V4-io` | MAD/MVUE robust pair fusion | Yes | None | current production inter-anchor solver |
+| `v4-io-td` | `V4-io-td` | V4-io fixed layout + static common Tag-delay scan | Yes | static type-level Tag delay | tests whether one deploy-realistic common Tag delay improves downstream validation |
 | `v4-io-roto` | `V4-io-roto` | V4-io + RotoArm constraints | Yes | RotoArm | tests whether RotoArm Z information improves layout |
 | `v4-io-wand` | `V4-io-wand` | V4-io + static calibration-wand constraints | Yes | W01-W04 rigid body | tests whether Wand rigid-body constraints improve layout |
 | `v5` | `V5` | V4 diagnostics layer | Uses V4 | No new layout by default | FIM / uncertainty / usable-area diagnosis |
@@ -42,6 +43,8 @@ The first 500 sweep sets and last 500 sweep sets are solved separately, then ali
 `V4-io-roto` must be built on top of `V4-io`, not as a separate unrelated solver. It adds RotoArm geometric constraints to inject vertical/Z information. RotoArm is not used for V1, V2, V3-lite, or V3-full layout generation.
 
 `V4-io-wand` must also be built on top of `V4-io`. It adds calibration-wand rigid-body constraints from W01-W04 only, using the measured Wand tag distances as soft constraints. W05 is dynamic under TDMA and should not be used as a synchronized rigid-body constraint; it can still be used for coverage and residual diagnostics.
+
+`V4-io-td` must keep the V4-io anchor layout and per-anchor delay fixed, then scan one common type-level Tag delay using static captures only. This is a downstream compensation experiment, not a factory calibration and not a new AutoPos anchor-layout constraint. The scan should report whether the static objective has a clear minimum; if the curve is flat, the estimated Tag delay must be treated as weakly observable.
 
 ## Evaluation Dataset Requirements
 
@@ -175,6 +178,7 @@ Each version should produce:
 - `tables/autopos_quality_summary.csv`
 - `tables/holdout_generalization.csv`
 - `tables/delay_sanity.csv` for delay-aware versions
+- `v4-io-td/tag_delay_scan_first500.csv` and `v4-io-td/tag_delay_scan_last500.csv` for the static common Tag-delay scans
 - `tables/split_layout_disagreement.csv`
 - `tables/layout_residuals_first500.csv`
 - `tables/layout_residuals_last500.csv`
@@ -203,5 +207,6 @@ Each version should also produce:
 2. Which solver has the smallest split disagreement?
 3. Does split-consensus improve robustness compared with first-500 alone?
 4. Does split-consensus approach the full 1000-set result?
-5. Does V4-io-roto reduce split disagreement in Z or improve roto validation?
-6. Does V4-io-wand reduce split disagreement or improve static Wand consistency?
+5. Does V4-io-td estimate similar common Tag delay on first500 and last500, and does the consensus delay improve downstream validation?
+6. Does V4-io-roto reduce split disagreement in Z or improve roto validation?
+7. Does V4-io-wand reduce split disagreement or improve static Wand consistency?

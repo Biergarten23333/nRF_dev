@@ -38,6 +38,7 @@ VERSIONS = [
     ("v3-lite", "V3-lite", "MAD/MVUE no-delay"),
     ("v3-full", "V3-full", "Tukey + delay"),
     ("v4-io", "V4-io", "Huber bounded-delay inter-anchor"),
+    ("v4-io-td", "V4-io-td", "V4-io + static common tag-delay scan"),
     ("v4-io-roto", "V4-io-roto", "V4-io + RotoArm soft constraints"),
     ("v4-io-wand", "V4-io-wand", "V4-io + W01-W04 wand soft constraints"),
     ("v5", "V5", "V4-io diagnostics"),
@@ -99,6 +100,7 @@ class Layout:
     x: np.ndarray
     dly: np.ndarray
     extra: dict
+    tag_delay_mm: float = 0.0
 
 
 def load_eval_module():
@@ -259,6 +261,17 @@ def solve_version(mod, version: str, fused, anchor_ids, extra_data=None) -> Layo
             rows, cond = mod.compute_fim_v5(res, len(anchor_ids))
             extra.update({"based_on": "v4-io", "condition_number": cond, "fim_rows": rows})
         return Layout(version, "V5" if version == "v5" else "V4-io", x, d, extra)
+    if version == "v4-io-td":
+        base = solve_version(mod, "v4-io", fused, anchor_ids)
+        tag_delay, scan_rows = estimate_common_static_tag_delay(mod, base, anchor_ids)
+        extra = dict(base.extra)
+        extra.update({
+            "based_on": "v4-io",
+            "tag_delay_model": "single common static type-level tag delay",
+            "tag_delay_source": "Static_Test median per-anchor observations",
+            "tag_delay_scan_rows": scan_rows,
+        })
+        return Layout(version, "V4-io-td", base.x.copy(), base.dly.copy(), extra, tag_delay)
     if version == "v4-io-wand":
         base = solve_version(mod, "v4-io", fused, anchor_ids)
         return solve_v4_wand(mod, fused["v3"], anchor_ids, base, extra_data or {})
@@ -300,6 +313,87 @@ def load_frames_by_peer(path: Path) -> dict[str, list[dict]]:
     return by_peer
 
 
+def load_static_median_observations(min_samples_per_anchor: int = 20) -> list[dict]:
+    """Median per-anchor static observations for common tag-delay scan.
+
+    The scan intentionally uses each static capture as one fixed unknown
+    position. It does not use dynamic roto or wand data, and it does not modify
+    the anchor layout. This keeps v4-io-td as a downstream tag-delay
+    compensation branch rather than a new AutoPos layout solver.
+    """
+    cases = []
+    dirs = latest_dirs(DATA / "Static_Test", "ID")
+    for sid in [f"ID{i:02d}" for i in range(1, 25)]:
+        if sid not in dirs:
+            continue
+        by_peer = load_frames_by_peer(dirs[sid] / "tr_all.csv")
+        per_anchor: dict[int, list[float]] = defaultdict(list)
+        for frames in by_peer.values():
+            for fr in frames:
+                for a, r in fr["obs"]:
+                    per_anchor[a].append(r)
+        obs = [(a, float(np.median(vals))) for a, vals in per_anchor.items() if len(vals) >= min_samples_per_anchor]
+        if len(obs) >= 4:
+            cases.append({"ID": sid, "obs": obs, "path": str(dirs[sid])})
+    return cases
+
+
+def residuals_for_static_delay(obs, global_xyz, global_delay, anchor_sigma, tag_delay_mm: float) -> tuple[np.ndarray, np.ndarray]:
+    p = solve_position_fast(obs, global_xyz, global_delay, anchor_sigma, None, tag_delay_mm)
+    raw = []
+    normed = []
+    for a, measured in obs:
+        diff = p - global_xyz[a]
+        dist = float(np.linalg.norm(diff))
+        pred = dist + (0.0 if np.isnan(global_delay[a]) else global_delay[a]) + tag_delay_mm
+        err = pred - measured
+        sigma = max(5.0, float(anchor_sigma.get(a, 50.0)))
+        raw.append(err)
+        normed.append(err / sigma)
+    return np.asarray(raw, dtype=float), np.asarray(normed, dtype=float)
+
+
+def estimate_common_static_tag_delay(mod, base: Layout, anchor_ids, grid_min=-120.0, grid_max=120.0, grid_step=1.0) -> tuple[float, list[dict]]:
+    cases = load_static_median_observations()
+    global_xyz, global_delay = layout_to_global(mod, base, anchor_ids)
+    scan_rows = []
+    if not cases:
+        return 0.0, [{"status": "no_static_cases", "tag_delay_mm": 0.0}]
+    grid = np.arange(grid_min, grid_max + 0.5 * grid_step, grid_step, dtype=float)
+    for c in grid:
+        raw_all = []
+        norm_all = []
+        per_case_rms = []
+        for case in cases:
+            raw, normed = residuals_for_static_delay(case["obs"], global_xyz, global_delay, mod.ANCHOR_SIGMA, float(c))
+            if raw.size:
+                raw_all.extend(raw.tolist())
+                norm_all.extend(normed.tolist())
+                per_case_rms.append(float(np.sqrt(np.mean(raw * raw))))
+        raw_arr = np.asarray(raw_all, dtype=float)
+        norm_arr = np.asarray(norm_all, dtype=float)
+        case_arr = np.asarray(per_case_rms, dtype=float)
+        if raw_arr.size == 0:
+            continue
+        abs_arr = np.abs(raw_arr)
+        scan_rows.append({
+            "tag_delay_mm": float(c),
+            "n_static_cases": len(cases),
+            "n_residuals": int(raw_arr.size),
+            "raw_rms": float(np.sqrt(np.mean(raw_arr * raw_arr))),
+            "raw_p50_abs": float(np.percentile(abs_arr, 50)),
+            "raw_p95_abs": float(np.percentile(abs_arr, 95)),
+            "norm_rms": float(np.sqrt(np.mean(norm_arr * norm_arr))) if norm_arr.size else float("nan"),
+            "case_rms_median": float(np.median(case_arr)) if case_arr.size else float("nan"),
+            "case_rms_p95": float(np.percentile(case_arr, 95)) if case_arr.size else float("nan"),
+            "status": "ok",
+        })
+    if not scan_rows:
+        return 0.0, [{"status": "empty_scan", "tag_delay_mm": 0.0}]
+    best = min(scan_rows, key=lambda r: (float(r["case_rms_median"]), float(r["raw_rms"])))
+    return float(best["tag_delay_mm"]), scan_rows
+
+
 def solve_positions(mod, records: list[dict], layout: Layout, anchor_ids):
     global_xyz, global_delay = layout_to_global(mod, layout, anchor_ids)
     active = set(anchor_ids)
@@ -312,14 +406,14 @@ def solve_positions(mod, records: list[dict], layout: Layout, anchor_ids):
         counts.append(len(obs))
         if len(obs) < 4:
             continue
-        pos = solve_position_fast(obs, global_xyz, global_delay, mod.ANCHOR_SIGMA, last)
+        pos = solve_position_fast(obs, global_xyz, global_delay, mod.ANCHOR_SIGMA, last, layout.tag_delay_mm)
         positions.append(pos)
         times.append(rec["t"])
         last = pos
     return np.asarray(positions, dtype=float), np.asarray(times, dtype=float), np.asarray(counts, dtype=float)
 
 
-def solve_position_fast(obs, global_xyz, global_delay, anchor_sigma, x0=None):
+def solve_position_fast(obs, global_xyz, global_delay, anchor_sigma, x0=None, tag_delay_mm: float = 0.0):
     """Fast per-frame WLS/HUBER trilateration.
 
     This replaces scipy least_squares for downstream evaluation only. It still
@@ -339,7 +433,7 @@ def solve_position_fast(obs, global_xyz, global_delay, anchor_sigma, x0=None):
             dist = float(np.linalg.norm(diff))
             if dist < 1e-6:
                 continue
-            pred = dist + (0.0 if np.isnan(global_delay[a]) else global_delay[a])
+            pred = dist + (0.0 if np.isnan(global_delay[a]) else global_delay[a]) + tag_delay_mm
             sigma = max(5.0, float(anchor_sigma.get(a, 50.0)))
             rn = (pred - measured) / sigma
             # Huber f=2 in normalized residual units.
@@ -508,6 +602,7 @@ def save_layout(path: Path, layout: Layout, anchor_ids, stats=None):
             {"id": int(gi), "label": ANCHORS[gi], "x_mm": float(layout.x[li, 0]), "y_mm": float(layout.x[li, 1]), "z_mm": float(layout.x[li, 2]), "d_anchor_mm": float(layout.dly[li])}
             for li, gi in enumerate(anchor_ids)
         ],
+        "tag_delay_mm": float(layout.tag_delay_mm),
         "stats": stats or {},
         "extra": layout.extra,
     }
@@ -679,7 +774,8 @@ def consensus_layout(a: Layout, b: Layout, version: str, label: str) -> tuple[La
             "delta_3d": float(np.linalg.norm(delta)),
             "delta_delay": float(bd[i] - a.dly[i]),
         })
-    return Layout(version, label, x, d, {"split_align_rms": rms_align, "source": "mean(first500,last500_aligned)"}), rows
+    tag_delay = 0.5 * (float(a.tag_delay_mm) + float(b.tag_delay_mm))
+    return Layout(version, label, x, d, {"split_align_rms": rms_align, "source": "mean(first500,last500_aligned)"}, tag_delay), rows
 
 
 def evaluate_static(mod, layout: Layout, anchor_ids) -> list[dict]:
@@ -812,6 +908,7 @@ def delay_sanity(layouts: list[Layout]) -> list[dict]:
             "delay_max": float(np.max(d)),
             "delay_l2": float(np.linalg.norm(d)),
             "n_near_bounds_55mm": int(np.sum(np.abs(d) >= 55.0)),
+            "tag_delay_mm": float(l.tag_delay_mm),
         })
     return rows
 
@@ -916,6 +1013,7 @@ def make_report(out_dir: Path, mode: str, summary_rows, quality_rows, static_row
     for r in summary_rows:
         rows.append([
             r["version"],
+            f"{float(r.get('tag_delay_mm', 0.0) or 0.0):.1f}",
             f"{float(r.get('autopos_rms', float('nan'))):.2f}",
             f"{float(r.get('autopos_p95', float('nan'))):.2f}",
             f"{float(r.get('static_median', float('nan'))):.2f}",
@@ -923,12 +1021,13 @@ def make_report(out_dir: Path, mode: str, summary_rows, quality_rows, static_row
             f"{float(r.get('roto_median', float('nan'))):.2f}",
             f"{float(r.get('roto_p95', float('nan'))):.2f}",
         ])
-    lines.append(md_table(["Version", "AutoPos RMS", "AutoPos p95", "Static med", "Static p95", "Roto med", "Roto p95"], rows))
+    lines.append(md_table(["Version", "Tag delay", "AutoPos RMS", "AutoPos p95", "Static med", "Static p95", "Roto med", "Roto p95"], rows))
     lines.append("\n## Notes\n")
     lines.append("- AutoPos RMS/p95 are inter-anchor layout residual metrics, not Tag RMS.")
     lines.append("- Static validation uses all available ID01-ID24 captures; missing captures are recorded as missing.")
     lines.append("- Roto validation uses every collected Roto_Test/ID* folder and both peers when present.")
     lines.append("- `v4-io-roto` and `v4-io-wand` are experimental soft-constraint branches built on top of `v4-io`.")
+    lines.append("- `v4-io-td` keeps the V4-io anchor layout fixed and scans one common static type-level tag delay; it is a downstream compensation test, not a factory calibration.")
     if split_rows:
         vals = [float(r["delta_3d"]) for r in split_rows if r.get("delta_3d") not in {"", None}]
         if vals:
@@ -981,6 +1080,8 @@ def run_single(mode: str, out_name: str):
         layout = solve_version(mod, version, fused_solve, anchor_ids, extra_cache)
         layouts.append(layout)
         save_layout(out_dir / version / "layout.json", layout, anchor_ids)
+        if layout.extra.get("tag_delay_scan_rows"):
+            write_csv(out_dir / version / "tag_delay_scan.csv", layout.extra["tag_delay_scan_rows"])
         eval_sets = [("solve", fused_solve["v3"] if version not in {"v1-old", "v2"} else fused_solve["v1" if version == "v1-old" else "v2"]),
                      ("all1000", fused_all["v3"] if version not in {"v1-old", "v2"} else fused_all["v1" if version == "v1-old" else "v2"])]
         if mode == "500":
@@ -1030,6 +1131,7 @@ def run_single(mode: str, out_name: str):
             "version": version,
             "label": label,
             "meaning": meaning,
+            "tag_delay_mm": next((l.tag_delay_mm for l in layouts if l.version == version), ""),
             "autopos_rms": q.get("rms", ""),
             "autopos_p95": q.get("p95_abs", ""),
             "static_n": st_s["n"],
@@ -1089,8 +1191,12 @@ def run_split():
         vdir = out_dir / version
         save_layout(vdir / "layout_first500.json", a, anchor_ids)
         bx, bd, _r = align_layout_to_ref(b, a)
-        save_layout(vdir / "layout_last500_aligned.json", Layout(version, label, bx, bd, b.extra), anchor_ids)
+        save_layout(vdir / "layout_last500_aligned.json", Layout(version, label, bx, bd, b.extra, b.tag_delay_mm), anchor_ids)
         save_layout(vdir / "layout_consensus.json", final, anchor_ids)
+        if a.extra.get("tag_delay_scan_rows"):
+            write_csv(vdir / "tag_delay_scan_first500.csv", a.extra["tag_delay_scan_rows"])
+        if b.extra.get("tag_delay_scan_rows"):
+            write_csv(vdir / "tag_delay_scan_last500.csv", b.extra["tag_delay_scan_rows"])
         eval_defs = [
             ("first500", fused_first),
             ("last500", fused_last),
@@ -1105,7 +1211,7 @@ def run_split():
         key = "v1" if version == "v1-old" else "v2" if version == "v2" else "v3"
         for lname, layout, fused, train_name, hold_name in [
             ("first_to_last", a, fused_last[key], "first500", "last500"),
-            ("last_to_first", Layout(version, label, bx, bd, b.extra), fused_first[key], "last500", "first500"),
+            ("last_to_first", Layout(version, label, bx, bd, b.extra, b.tag_delay_mm), fused_first[key], "last500", "first500"),
         ]:
             rows = inter_residual_rows(mod, layout, fused, anchor_ids, lname)
             s = summarize([float(r["residual_mm"]) for r in rows])
@@ -1151,6 +1257,7 @@ def run_split():
             "version": version,
             "label": label,
             "meaning": meaning,
+            "tag_delay_mm": next((l.tag_delay_mm for l in final_layouts if l.version == version), ""),
             "autopos_rms": q.get("rms", ""),
             "autopos_p95": q.get("p95_abs", ""),
             "static_n": st_s["n"],

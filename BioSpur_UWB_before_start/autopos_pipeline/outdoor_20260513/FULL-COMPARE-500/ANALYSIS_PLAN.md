@@ -23,6 +23,7 @@ The key question is whether fewer sweep samples still produce a layout that vali
 | `v3-lite` | `V3-lite` | MAD/MVUE robust pair fusion | No | None | robust fusion and asymmetry handling |
 | `v3-full` | `V3-full` | MAD/MVUE robust pair fusion | Yes | None | first antenna-delay-aware solver |
 | `v4-io` | `V4-io` | MAD/MVUE robust pair fusion | Yes | None | current production inter-anchor solver |
+| `v4-io-td` | `V4-io-td` | V4-io fixed layout + static common Tag-delay scan | Yes | static type-level Tag delay | tests whether one deploy-realistic common Tag delay improves downstream validation |
 | `v4-io-roto` | `V4-io-roto` | V4-io + RotoArm constraints | Yes | RotoArm | tests whether RotoArm Z information improves layout |
 | `v4-io-wand` | `V4-io-wand` | V4-io + static calibration-wand constraints | Yes | W01-W04 rigid body | tests whether Wand rigid-body constraints improve layout |
 | `v5` | `V5` | V4 diagnostics layer | Uses V4 | No new layout by default | FIM / uncertainty / usable-area diagnosis |
@@ -41,6 +42,8 @@ The key question is whether fewer sweep samples still produce a layout that vali
 `V4-io-roto` must be built on top of `V4-io`, not as a separate unrelated solver. It adds RotoArm geometric constraints to inject vertical/Z information. RotoArm is not used for V1, V2, V3-lite, or V3-full layout generation.
 
 `V4-io-wand` must also be built on top of `V4-io`. It adds calibration-wand rigid-body constraints from W01-W04 only, using the measured Wand tag distances as soft constraints. W05 is dynamic under TDMA and should not be used as a synchronized rigid-body constraint; it can still be used for coverage and residual diagnostics.
+
+`V4-io-td` must keep the V4-io anchor layout and per-anchor delay fixed, then scan one common type-level Tag delay using static captures only. This is a downstream compensation experiment, not a factory calibration and not a new AutoPos anchor-layout constraint. The scan should report whether the static objective has a clear minimum; if the curve is flat, the estimated Tag delay must be treated as weakly observable.
 
 ## Evaluation Dataset Requirements
 
@@ -172,6 +175,7 @@ Each version should produce:
 - `tables/holdout_generalization.csv`
 - `tables/split_layout_stability.csv` if a split exists
 - `tables/delay_sanity.csv` for delay-aware versions
+- `v4-io-td/tag_delay_scan.csv` for the static common Tag-delay scan
 - `tables/static_all_captures.csv`
 - `tables/static_group_summary.csv`
 - `tables/static_orientation_effect.csv`
@@ -186,8 +190,9 @@ Each version should produce:
 ## Main Questions
 
 1. How much layout quality is lost when using 500 sets instead of 1000?
-2. Does first-500 layout still validate on all static / roto / wand captures?
-3. Does holdout performance on last-500 remain close to train performance on first-500?
-4. Does V4-io-roto compensate for weaker sweep statistics by injecting RotoArm Z information?
-5. Does V4-io-wand compensate for weaker sweep statistics, or is the Wand constraint too noisy?
-6. Is the V1 to V4 progression more visible under reduced sweep data?
+2. Does V4-io-td improve static / roto / wand validation compared with V4-io, and is the Tag-delay scan objective sharp enough to be trusted?
+3. Does first-500 layout still validate on all static / roto / wand captures?
+4. Does holdout performance on last-500 remain close to train performance on first-500?
+5. Does V4-io-roto compensate for weaker sweep statistics by injecting RotoArm Z information?
+6. Does V4-io-wand compensate for weaker sweep statistics, or is the Wand constraint too noisy?
+7. Is the V1 to V4 progression more visible under reduced sweep data?
