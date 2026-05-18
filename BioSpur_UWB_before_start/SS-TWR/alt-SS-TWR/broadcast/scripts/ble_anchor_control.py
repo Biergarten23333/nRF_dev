@@ -35,6 +35,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--set-role", choices=["unset", "master", "matrix", "responder"])
     p.add_argument("--set-label", help="U or A..H")
     p.add_argument("--set-generation", type=int)
+    p.add_argument(
+        "--cmd",
+        action="append",
+        default=[],
+        help="Send a raw anchor BLE control command, e.g. 'US?', 'USON 30', or 'USOFF'. Can be repeated.",
+    )
     p.add_argument("--validate", action="store_true")
     p.add_argument("--commit", action="store_true")
     p.add_argument("--reboot", action="store_true")
@@ -172,6 +178,12 @@ async def run(args: argparse.Namespace) -> dict:
         if args.sync:
             resp = await write_cmd(client, "SYNC")
             out["commands"].append({"cmd": "SYNC", "resp": resp})
+        for raw_cmd in args.cmd:
+            cmd = raw_cmd.strip()
+            if not cmd:
+                continue
+            resp = await write_cmd(client, cmd)
+            out["commands"].append({"cmd": cmd, "resp": resp})
         if args.set_role:
             cmd = f"R {args.set_role.upper()}"
             resp = await write_cmd(client, cmd)

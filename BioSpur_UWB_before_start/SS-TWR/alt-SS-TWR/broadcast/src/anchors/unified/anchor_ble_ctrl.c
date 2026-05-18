@@ -1,5 +1,6 @@
 #include "anchor_ble_ctrl.h"
 #include "anchor_runtime_control.h"
+#include "anchor_ultrasound.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -360,6 +361,53 @@ static void handle_runtime_role_locked(uint8_t role, uint32_t master_sweeps, boo
     }
 }
 
+static void handle_ultrasound_status_locked(void)
+{
+    char status[BLE_CTRL_MAX_TEXT];
+
+    anchor_ultrasound_status(status, sizeof(status));
+    set_result_locked(status);
+}
+
+static void handle_ultrasound_start_locked(const char *duration_tok)
+{
+    unsigned long duration_s = 30UL;
+    char *endp;
+    int rc;
+
+    if (duration_tok != NULL) {
+        duration_s = strtoul(duration_tok, &endp, 10);
+        if (endp == duration_tok || *endp != '\0' || duration_s > 120UL) {
+            set_result_locked("ERR:BAD_US_DURATION");
+            return;
+        }
+    }
+
+    rc = anchor_ultrasound_start((uint32_t)duration_s);
+    if (rc == 0) {
+        char result[64];
+
+        snprintk(result, sizeof(result), "OK USON duration_s=%lu", duration_s);
+        set_result_locked(result);
+        return;
+    }
+    if (rc == -EBUSY) {
+        set_result_locked("ERR:US_BUSY");
+        return;
+    }
+    if (rc == -ENOTSUP) {
+        set_result_locked("ERR:US_DISABLED");
+        return;
+    }
+
+    {
+        char result[64];
+
+        snprintk(result, sizeof(result), "ERR:US_INIT rc=%d", rc);
+        set_result_locked(result);
+    }
+}
+
 static void process_control_cmd_locked(char *line)
 {
     char *tok;
@@ -380,7 +428,25 @@ static void process_control_cmd_locked(char *line)
     }
 
     if (strcmp(tok, "HELP") == 0) {
-        set_result_locked("OK CMDS=VERSION|PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|RESET AUTOPOS|RESET RESPONDER|STOP|DFU|SYNC|RUNTIME <MASTER|MATRIX|RESPONDER> [FORCE|SWEEP N]");
+        set_result_locked("OK CMDS=VERSION|PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|RESET AUTOPOS|RESET RESPONDER|STOP|DFU|SYNC|US?|USON [SEC]|USOFF|RUNTIME <MASTER|MATRIX|RESPONDER> [FORCE|SWEEP N]");
+        return;
+    }
+
+    if (strcmp(tok, "US") == 0 || strcmp(tok, "US?") == 0 ||
+        strcmp(tok, "ULTRASOUND") == 0) {
+        handle_ultrasound_status_locked();
+        return;
+    }
+
+    if (strcmp(tok, "USON") == 0 || strcmp(tok, "ULTRASOUND_ON") == 0) {
+        tok = strtok_r(NULL, " ", &savep);
+        handle_ultrasound_start_locked(tok);
+        return;
+    }
+
+    if (strcmp(tok, "USOFF") == 0 || strcmp(tok, "ULTRASOUND_OFF") == 0) {
+        anchor_ultrasound_stop();
+        set_result_locked("OK USOFF");
         return;
     }
 

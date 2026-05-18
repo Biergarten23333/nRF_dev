@@ -1,4 +1,5 @@
 #include "uart_role_switch.h"
+#include "anchor_ultrasound.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -261,6 +262,38 @@ static void cmd_reboot(void)
     sys_reboot(SYS_REBOOT_COLD);
 }
 
+static void cmd_ultrasound_status(void)
+{
+    char status[192];
+
+    anchor_ultrasound_status(status, sizeof(status));
+    uart_txf("%s\r\n", status);
+}
+
+static void cmd_ultrasound_start(const char *arg)
+{
+    unsigned int duration_s = 30U;
+    int rc;
+
+    if (arg != NULL && arg[0] != '\0') {
+        if (sscanf(arg, "%u", &duration_s) != 1 || duration_s > 120U) {
+            uart_reply_err("BAD_US_DURATION");
+            return;
+        }
+    }
+
+    rc = anchor_ultrasound_start((uint32_t)duration_s);
+    if (rc == 0) {
+        uart_txf("OK USON duration_s=%u\r\n", duration_s);
+    } else if (rc == -EBUSY) {
+        uart_reply_err("US_BUSY");
+    } else if (rc == -ENOTSUP) {
+        uart_reply_err("US_DISABLED");
+    } else {
+        uart_txf("ERR:US_INIT rc=%d\r\n", rc);
+    }
+}
+
 static void process_line(char *line)
 {
     char role_buf[16];
@@ -290,6 +323,24 @@ static void process_line(char *line)
     }
     if (strncmp(line, "STATUS", 6) == 0) {
         cmd_status();
+        return;
+    }
+    if (strcmp(line, "US") == 0 || strcmp(line, "US?") == 0 ||
+        strcmp(line, "ULTRASOUND") == 0) {
+        cmd_ultrasound_status();
+        return;
+    }
+    if (strcmp(line, "USON") == 0) {
+        cmd_ultrasound_start(NULL);
+        return;
+    }
+    if (strncmp(line, "USON ", 5) == 0) {
+        cmd_ultrasound_start(line + 5);
+        return;
+    }
+    if (strcmp(line, "USOFF") == 0) {
+        anchor_ultrasound_stop();
+        uart_reply_ok();
         return;
     }
     if (strcmp(line, "M") == 0 || strcmp(line, "MASTER") == 0) {

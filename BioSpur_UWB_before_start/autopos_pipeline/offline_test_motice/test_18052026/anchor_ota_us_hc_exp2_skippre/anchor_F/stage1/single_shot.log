@@ -1,0 +1,2242 @@
+[HOST_EVT    0.00s] strict_preflight anchor_usb_policy=power_only anchor_observability_gate=disabled evidence=controller_uuid_restore_dfu
+[HOST_EVT    0.00s] phase=A serial_opened port=/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_87EA2F4A526C5A02-if00
+Disconnected: D9:C7:9C:16:71:C9 (random) reason 0x08
+Scan restart suppressed (no active OTA session)
+[HOST_CMD    7.69s] status
+[OTA] Control status: mode=OTA pending=0
+[HOST_EVT    7.70s] phase=A cleanup existing host OTA mode before new target session
+[HOST_CMD    7.70s] mode recv
+[OTA] UART requested: switching to RECV
+OTA handoff: quiesce before mode switch
+[OTA] Mode switch preflight: disconnect requests=0
+[RECV] Control mode staged: RECV
+[RECV] OTA target staged: token=-1 name=- prefix=- uuid=a892af05dd59cf0d0d3408ad74f364a1
+[RECV] Control mode now RECV, rebooting
+[HOST_EVT    8.83s] phase=A cleanup serial_reconnected port=/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_87EA2F4A526C5A02-if00
+[HOST_EVT    9.66s] phase=A cleanup serial_reconnected port=/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_87EA2F4A526C5A02-if00
+*** Booting nRF Connect SDK v2.8.0-a2386bfc8401 ***
+*** Using Zephyr OS v3.7.99-0bc3393fb112 ***
+[RECV] LED map: 1=AUTOPOS 2=RECV 3=OTA 4=FLOW
+[RECV] Control mode loaded: RECV
+[RECV] UART control ready: type 'status' or 'mode recv'/'mode ota'/'mode autopos'
+[HOST_CMD    9.76s] status
+[HOST_CMD    9.76s] device kind anchor
+[HOST_CMD    9.76s] device show
+[HOST_CMD    9.76s] status
+[RECV] OTA target restored: token=-1 name=- prefix=- uuid=a892af05dd59cf0d0d3408ad74f364a1
+OTA_STATE:target_configured detail=token
+OTA NUS stage: disabled
+[HOST_EVT    9.76s] phase=A ota_nus_disabled
+[RECV] Boot profile neutral: no role-specific auto target
+OTA target filter: token=-1 name=- prefix=- uuid=A892AF05DD59CF0D0D3408AD74F364A1
+[HOST_EVT    9.76s] phase=A filter_readback uuid=A892AF05DD59CF0D0D3408AD74F364A1
+[RECV] BioSpur BLE master control ready on nrf5340dk/nrf5340/cpuapp
+[RECV] BTN1 toggles RECV/OTA, BTN2 forces OTA mode, BTN3=SCAN, BTN4=CONN&START
+[RECV] Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate
+[RECV] OTA runtime cmds: ota_reset | ota show | ota version
+[RECV] Runtime NUS cmds: cmd <raw> | cmd_all <raw> | oneshot <raw> | oneshot show | oneshot clear
+[RECV] Tag layout cmds: APOS <id> <x_mm> <y_mm> <z_mm> | APOS_T[RECV] Control status: mode=RECV pending=0
+[RECV] One-shot NUS command cleared (runtime)
+OTA NUS stage: disabled
+[HOST_EVT    9.77s] phase=A ota_nus_disabled
+[RECV] Mode switch preflight: disconnect requests=0
+[RECV] device kind set: anchor (OTA target defaults reset, no BS prefix)
+[RECV] Master discovery mode: CONN & START
+[RECV] Peer clear wait: waited=0 conn_count=0 ready_count=0
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[RECV] Scanning for ANCHOR-*
+[RECV] System target: kind=anchor caps=0x0b (config=1 ota=1 stream=0 status=1)
+[HOST_EVT   10.02s] phase=A system_target_anchor
+[HOST_CMD   10.02s] ota_target uuid 840C68591E90019821AACFF1B73AAA34
+[HOST_CMD   10.02s] ota_target show
+[HOST_EVT   10.02s] phase=A anchor_ready_uuid_write
+OTA target filter: token=-1 name=- prefix=- uuid=-
+[HOST_EVT   10.02s] phase=A filter_readback uuid=-
+[RECV] Control status: mode=RECV pending=0
+[RECV] ota_target uuid rc=0 value=840c68591e90019821aacff1b73aaa34
+[HOST_EVT   10.02s] phase=A uuid_ack_ok
+OTA target filter: token=-1 name=- prefix=- uuid=840C68591E90019821AACFF1B73AAA34
+[HOST_EVT   10.02s] phase=A filter_readback uuid=840C68591E90019821AACFF1B73AAA34
+[HOST_CMD   10.02s] conn
+[HOST_CMD   10.03s] status
+OTA target filter: token=-1 name=- prefix=- uuid=840C68591E90019821AACFF1B73AAA34
+[RECV] Control status: mode=RECV pending=0
+[RECV] SCAN hit: E9:CB:F3:C4:51:43 (random) rssi=-67 name=- bs=- uuid=840C68591E90019821AACFF1B73AAA34 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[RECV] CONNECT queue[0]: addr=E9:CB:F3:C4:51:43 (random) link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 target=anchor
+[RECV] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 scan_running=1 conn_count=0
+[RECV] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[RECV] CONNECT pending[0] rc=0 conn=0x20004898
+[RECV] Connected[0]: E9:CB:F3:C4:51:43 (random) name=- bs=-
+[RECV] CONNECT state[0]: link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 ready=0 conn=0x20004898
+SETUP[0] defer: waiting 873 ms before discovery start
+SETUP[0] defer: waiting 823 ms before discovery start
+SETUP[0] defer: waiting 773 ms before discovery start
+SETUP[0] defer: waiting 722 ms before discovery start
+SETUP[0] defer: waiting 672 ms before discovery start
+SETUP[0] defer: waiting 622 ms before discovery start
+SETUP[0] defer: waiting 571 ms before discovery start
+SETUP[0] defer: waiting 521 ms before discovery start
+SETUP[0] defer: waiting 470 ms before discovery start
+SETUP[0] defer: waiting 420 ms before discovery start
+SETUP[0] defer: waiting 370 ms before discovery start
+SETUP[0] defer: waiting 319 ms before discovery start
+SETUP[0] defer: waiting 269 ms before discovery start
+SETUP[0] defer: waiting 219 ms before discovery start
+SETUP[0] defer: waiting 168 ms before discovery start
+SETUP[0] defer: waiting 118 ms before discovery start
+SETUP[0] defer: waiting 68 ms before discovery start
+SETUP[0] defer: waiting 17 ms before discovery start
+SETUP[0] begin: link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 conn=0x20004898
+SETUP[0] mtu_exchange rc=0
+SETUP[0] phy_update rc=0
+SETUP[0] conn_param_update rc=0
+[RECV] DISC start[0]: link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 conn=0x20004898
+[RECV] MTU exchange[0] done (498)
+[RECV] Conn param updated[0]: int=6 lat=0 to=400
+[RECV] PHY updated[0]: tx=0x2 rx=0x2
+[RECV] DISC complete[0]: link=anchor-ctrl discovered_service=2800 uuid=840C68591E90019821AACFF1B73AAA34
+[RECV] DISC anchor service found[0]: uuid=840C68591E90019821AACFF1B73AAA34
+[RECV] Anchor ctrl state subscribe[0] rc=0
+[RECV] Anchor ctrl result subscribe[0] rc=0
+[RECV] ANCHOR_CTRL[0] link ready handle=0x0019 result=0x001b uuid=840C68591E90019821AACFF1B73AAA34
+[HOST_EVT   11.70s] phase=A anchor_ctrl_target_ready uuid=840C68591E90019821AACFF1B73AAA34
+[HOST_CMD   11.70s] cmd DFU
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=1 target=anchor prefix=ANCHOR-
+[RECV] Scanning for ANCHOR-*
+[RECV] Anchor ctrl sent[0]: DFU uuid=840C68591E90019821AACFF1B73AAA34
+[RECV] cmd rc=1 payload=DFU
+[HOST_EVT   11.70s] phase=A anchor_dfu_cmd_not_target_yet; retrying
+[HOST_CMD   11.90s] cmd DFU
+[RECV] ANCHOR_CTRL[0] notify: OK DFU_READY
+[HOST_EVT   11.90s] phase=A anchor_dfu_requested
+[HOST_CMD   12.00s] mode ota
+[RECV] Anchor ctrl sent[0]: DFU uuid=840C68591E90019821AACFF1B73AAA34
+[RECV] cmd rc=1 payload=DFU
+[RECV] ANCHOR_CTRL[0] notify: OK DFU_REQUESTED
+[RECV] MODE_TRANSITION: request RECV->OTA (pre-gate)
+[RECV] RECV_BG gate: SUPPRESS reason=request_to_ota
+[RECV] UART requested: switching to OTA
+[RECV] MODE_TRANSITION: RECV->OTA transition_active=1
+[RECV] Master disconnecting peer[0]: bs=BS0000
+[RECV] Mode switch preflight: disconnect requests=1
+[OTA] Control mode staged: OTA
+[OTA] OTA target staged: token=-1 name=- prefix=- uuid=840c68591e90019821aacff1b73aaa34
+[OTA] Control mode now OTA, rebooting
+[HOST_EVT   13.35s] phase=A serial_disconnect_expected err=device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+[HOST_EVT   13.75s] phase=B serial_reconnected port=/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_87EA2F4A526C5A02-if00
+[HOST_CMD   13.75s] status
+[HOST_CMD   13.75s] ota_target show
+*** Booting nRF Connect SDK v2.8.0-a2386bfc8401 ***
+*** Using Zephyr OS v3.7.99-0bc3393fb112 ***
+[RECV] LED map: 1=AUTOPOS 2=RECV 3=OTA 4=FLOW
+[OTA] Control mode loaded: OTA
+[OTA] UART control ready: type 'status' or 'mode recv'/'mode ota'/'mode autopos'
+[OTA] OTA target restored: token=-1 name=- prefix=- uuid=840c68591e90019821aacff1b73aaa34
+OTA_STATE:target_configured detail=token
+OTA NUS stage: disabled
+[OTA] Boot profile neutral skipped: OTA mode active
+OTA target filter: token=-1 name=- prefix=- uuid=840C68591E90019821AACFF1B73AAA34
+[HOST_CMD   13.86s] initiate
+[OTA] BioSpur BLE master control ready on nrf5340dk/nrf5340/cpuapp
+[OTA] BTN1 toggles RECV/OTA, BTN2 forces OTA mode, BTN3=SCAN, BTN4=CONN&START
+[OTA] Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate
+[OTA] OTA runtime cmds: ota_reset | ota show | ota version
+[OTA] Runtime NUS cmds: cmd <raw> | cmd_all <raw> | oneshot <raw> | oneshot show | oneshot clear
+[OTA] Tag layout cmds: APOS <id> <x_mm> <y_mm> <z_mm> | APOS_TO <BSxxxx> APOS.OTA initiate: disconnect requests=0
+OTA_STATE:connect_pending detail=initiate
+OTA session acquired: reason=initiate
+OTA initiate: scan restarted (passive), armed=1
+[OTA] initiate rc=0
+Scan eval: E9:CB:F3:C4:51:43 (random) conn=1 token=83 uuid=840C68591E90019821AACFF1B73AAA34 name=- bs=- name_ok=1 token_ok=1 uuid_ok=1 strict_id=1
+Scan decision: E9:CB:F3:C4:51:43 (random) accept=1 default_conn=0 target_name=- target_token=-1 target_uuid=840C68591E90019821AACFF1B73AAA34
+Connect start: E9:CB:F3:C4:51:43 (random) token=83 name=- bs=-
+Connected: E9:CB:F3:C4:51:43 (random)
+Connected target evidence: verified=1 uuid=840C68591E90019821AACFF1B73AAA34 name=- token=83
+OTA_STATE:connected_verified detail=connected
+OTA watchdog armed: wait_dfu_ready timeout=2500 ms uuid=840C68591E90019821AACFF1B73AAA34 conn=0x20004898
+Connected MTU: 23
+Conn LE params: int=6 lat=0 timeout=400
+PHY update request rc=0
+Conn param update request rc=0
+Security OTA: skip L2 upgrade, use current link level
+MTU exchange done, mtu=498
+OTA watchdog cancel: reason=dfu_ready
+DFU SMP service ready
+DFU handles: smp=0x001f ccc=0x0020
+OTA start gate: mtu=498 conn=0x20004898
+OTA upload gate probe: attempt=1/5
+OTA image state read request
+OTA send: op=0 len=1 group=0x0001 cmd=0x00 seq=1
+OTA first-frame raw: transport=write_req handle=0x001f total=9 hdr_op=0 hdr_flags=0x00 hdr_len=1 hdr_group=0x0001 hdr_id=0x00 hdr_seq=1 raw=0000000100010100a0
+OTA SMP subscribe cb: conn=0x20004898 err=0 value_handle=0x001f ccc=0x0020
+OTA SMP subscribe ok: rc=0 smp=0x001f ccc=0x0020
+OTA command issued(write_req): rc=0 tx_len=9 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=2794 conn=0x20004898 grp=0x0001 cmd=0x00 seq=1 len=1
+OTA rsp part: t=2814 conn=0x20004898 grp=0x0001 cmd=0x00 seq=1 off=0 chunk=256 acc=256 total=256
+OTA rx complete: t=2814 dt=20 conn=0x20004898 grp=0x0001 cmd=0x00 seq=1 rsp_len=256
+OTA command done: group=0x0001 cmd=0x00 status=0 off=0
+OTA IMG_STATE rsp: status=0 payload=248 bytes
+OTA IMG_STATE rsp bytes: bf 66 69 6d 61 67 65 73 9f bf 64 73 6c 6f 74 00 67 76 65 72 73 69 6f 6e 67 30 2e 30 2e 31 2e 31 64 68 61 73 68 58 20 ba ba b3 7f c3 09 2c 4d b4 f8 68 6a 2e 8f d1 26 7a 36 d6 80 cb f2 8d ac ef 53 98 42 1d 4f 99 68 68 62 6f 6f 74 61 62 6c 65 f5 67 70 65 6e 64 69 6e 67 f4 69 63 6f 6e 66 69 72 6d 65 64 f5 66 61 63 74 69 76 65 f5 69 70 65 72 6d 61 6e 65 6e 74 f4 ff bf 64 73 6c 6f 74 01 67 76 65 72 73 69 6f 6e 67 30 2e 30 2e 31 2e 31 64 68 61 73 68 58 20 0f ce ba 1a d3 18 36 97 ac ca fe b1 79 d3 2c d1 d1 33 8d 64 1f 97 8c ae 01 ca c2 b4 f4 f6 a0 76 68 62 6f 6f 74 61 62 6c 65 f5 67 70 65 6e 64 69 6e 67 f4 69 63 6f 6e 66 69 72 6d 65 64 f4 66 61 63 74 69 76 65 f4 69 70 65 72 6d 61 6e 65 6e 74 f4 ff ff 6b 73 70 6c 69 74 53 74 61 74 75 73 00 ff
+OTA upload gate open: attempt=1
+OTA_STATE:ota_uploading detail=start
+OTA prime echo request
+OTA prime payload len=8 bytes:a161646470696e67
+OTA send: op=2 len=8 group=0x0000 cmd=0x00 seq=2
+OTA command issued(write_cmd): rc=0 tx_len=16 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=2823 conn=0x20004898 grp=0x0000 cmd=0x00 seq=2 len=8
+OTA rsp part: t=2846 conn=0x20004898 grp=0x0000 cmd=0x00 seq=2 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=2847 dt=24 conn=0x20004898 grp=0x0000 cmd=0x00 seq=2 rsp_len=17
+OTA command done: group=0x0000 cmd=0x00 status=0 off=0
+OTA erase secondary slot request
+OTA send: op=2 len=7 group=0x0001 cmd=0x05 seq=3
+OTA command issued(write_cmd): rc=0 tx_len=15 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=2849 conn=0x20004898 grp=0x0001 cmd=0x05 seq=3 len=7
+OTA rsp part: t=3071 conn=0x20004898 grp=0x0001 cmd=0x05 seq=3 off=0 chunk=10 acc=10 total=10
+OTA rx complete: t=3072 dt=223 conn=0x20004898 grp=0x0001 cmd=0x05 seq=3 rsp_len=10
+OTA command done: group=0x0001 cmd=0x05 status=0 off=0
+OTA upload starting: image_len=170536 bytes
+OTA upload progress: 0% (0/170536 bytes)
+OTA chunk downshift: off=0 requested=448 actual=224 mtu=498
+OTA upload progress: 0% (224/170536 bytes)
+OTA first IMG_UPLOAD tx prep: t=3074 conn=0x20004898 uuid=840C68591E90019821AACFF1B73AAA34 off=0 chunk=224
+OTA send: op=2 len=291 group=0x0001 cmd=0x01 seq=4
+OTA command issued(write_cmd): rc=0 tx_len=299 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=3075 conn=0x20004898 grp=0x0001 cmd=0x01 seq=4 len=291
+OTA rsp part: t=3161 conn=0x20004898 grp=0x0001 cmd=0x01 seq=4 off=0 chunk=16 acc=16 total=16
+OTA rx complete: t=3162 dt=87 conn=0x20004898 grp=0x0001 cmd=0x01 seq=4 rsp_len=16
+OTA send: op=2 len=470 group=0x0001 cmd=0x01 seq=5
+OTA command issued(write_cmd): rc=0 tx_len=478 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=3163 conn=0x20004898 grp=0x0001 cmd=0x01 seq=5 len=470
+OTA rsp part: t=3229 conn=0x20004898 grp=0x0001 cmd=0x01 seq=5 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=3229 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=5 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=6
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=3231 conn=0x20004898 grp=0x0001 cmd=0x01 seq=6 len=471
+OTA rsp part: t=3296 conn=0x20004898 grp=0x0001 cmd=0x01 seq=6 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=3297 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=6 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=7
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=3299 conn=0x20004898 grp=0x0001 cmd=0x01 seq=7 len=471
+OTA rsp part: t=3364 conn=0x20004898 grp=0x0001 cmd=0x01 seq=7 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=3364 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=7 rsp_len=17
+OTA upload progress: 1% (2016/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=8
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=3366 conn=0x20004898 grp=0x0001 cmd=0x01 seq=8 len=471
+OTA rsp part: t=3416 conn=0x20004898 grp=0x0001 cmd=0x01 seq=8 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=3417 dt=51 conn=0x20004898 grp=0x0001 cmd=0x01 seq=8 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=9
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=3418 conn=0x20004898 grp=0x0001 cmd=0x01 seq=9 len=471
+OTA rsp part: t=3484 conn=0x20004898 grp=0x0001 cmd=0x01 seq=9 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=3484 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=9 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=10
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=3486 conn=0x20004898 grp=0x0001 cmd=0x01 seq=10 len=471
+OTA rsp part: t=3566 conn=0x20004898 grp=0x0001 cmd=0x01 seq=10 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=3567 dt=81 conn=0x20004898 grp=0x0001 cmd=0x01 seq=10 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=11
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=3568 conn=0x20004898 grp=0x0001 cmd=0x01 seq=11 len=471
+OTA rsp part: t=3641 conn=0x20004898 grp=0x0001 cmd=0x01 seq=11 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=3642 dt=74 conn=0x20004898 grp=0x0001 cmd=0x01 seq=11 rsp_len=17
+OTA upload progress: 2% (3808/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=12
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=3644 conn=0x20004898 grp=0x0001 cmd=0x01 seq=12 len=471
+OTA rsp part: t=3709 conn=0x20004898 grp=0x0001 cmd=0x01 seq=12 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=3709 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=12 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=13
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=3711 conn=0x20004898 grp=0x0001 cmd=0x01 seq=13 len=471
+OTA rsp part: t=3784 conn=0x20004898 grp=0x0001 cmd=0x01 seq=13 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=3784 dt=73 conn=0x20004898 grp=0x0001 cmd=0x01 seq=13 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=14
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=3786 conn=0x20004898 grp=0x0001 cmd=0x01 seq=14 len=471
+OTA rsp part: t=3851 conn=0x20004898 grp=0x0001 cmd=0x01 seq=14 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=3852 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=14 rsp_len=17
+OTA upload progress: 3% (5152/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=15
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=3854 conn=0x20004898 grp=0x0001 cmd=0x01 seq=15 len=471
+OTA rsp part: t=3919 conn=0x20004898 grp=0x0001 cmd=0x01 seq=15 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=3919 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=15 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=16
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=3921 conn=0x20004898 grp=0x0001 cmd=0x01 seq=16 len=471
+OTA rsp part: t=3979 conn=0x20004898 grp=0x0001 cmd=0x01 seq=16 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=3979 dt=58 conn=0x20004898 grp=0x0001 cmd=0x01 seq=16 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=17
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=3981 conn=0x20004898 grp=0x0001 cmd=0x01 seq=17 len=471
+OTA rsp part: t=4046 conn=0x20004898 grp=0x0001 cmd=0x01 seq=17 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=4047 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=17 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=18
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=4048 conn=0x20004898 grp=0x0001 cmd=0x01 seq=18 len=471
+OTA rsp part: t=4121 conn=0x20004898 grp=0x0001 cmd=0x01 seq=18 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=4122 dt=74 conn=0x20004898 grp=0x0001 cmd=0x01 seq=18 rsp_len=17
+OTA upload progress: 4% (6944/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=19
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=4124 conn=0x20004898 grp=0x0001 cmd=0x01 seq=19 len=471
+OTA rsp part: t=4196 conn=0x20004898 grp=0x0001 cmd=0x01 seq=19 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=4197 dt=73 conn=0x20004898 grp=0x0001 cmd=0x01 seq=19 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=20
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=4198 conn=0x20004898 grp=0x0001 cmd=0x01 seq=20 len=471
+OTA rsp part: t=4271 conn=0x20004898 grp=0x0001 cmd=0x01 seq=20 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=4272 dt=74 conn=0x20004898 grp=0x0001 cmd=0x01 seq=20 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=21
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=4273 conn=0x20004898 grp=0x0001 cmd=0x01 seq=21 len=471
+OTA rsp part: t=4339 conn=0x20004898 grp=0x0001 cmd=0x01 seq=21 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=4339 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=21 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=22
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=4341 conn=0x20004898 grp=0x0001 cmd=0x01 seq=22 len=471
+OTA rsp part: t=4414 conn=0x20004898 grp=0x0001 cmd=0x01 seq=22 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=4414 dt=73 conn=0x20004898 grp=0x0001 cmd=0x01 seq=22 rsp_len=17
+OTA upload progress: 5% (8736/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=23
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=4416 conn=0x20004898 grp=0x0001 cmd=0x01 seq=23 len=471
+OTA rsp part: t=4481 conn=0x20004898 grp=0x0001 cmd=0x01 seq=23 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=4482 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=23 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=24
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=4483 conn=0x20004898 grp=0x0001 cmd=0x01 seq=24 len=471
+OTA rsp part: t=4549 conn=0x20004898 grp=0x0001 cmd=0x01 seq=24 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=4549 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=24 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=25
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=4551 conn=0x20004898 grp=0x0001 cmd=0x01 seq=25 len=471
+OTA rsp part: t=4631 conn=0x20004898 grp=0x0001 cmd=0x01 seq=25 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=4632 dt=81 conn=0x20004898 grp=0x0001 cmd=0x01 seq=25 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=26
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=4633 conn=0x20004898 grp=0x0001 cmd=0x01 seq=26 len=471
+OTA rsp part: t=4699 conn=0x20004898 grp=0x0001 cmd=0x01 seq=26 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=4699 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=26 rsp_len=17
+OTA upload progress: 6% (10528/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=27
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=4701 conn=0x20004898 grp=0x0001 cmd=0x01 seq=27 len=471
+OTA rsp part: t=4796 conn=0x20004898 grp=0x0001 cmd=0x01 seq=27 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=4797 dt=96 conn=0x20004898 grp=0x0001 cmd=0x01 seq=27 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=28
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=4798 conn=0x20004898 grp=0x0001 cmd=0x01 seq=28 len=471
+OTA rsp part: t=4864 conn=0x20004898 grp=0x0001 cmd=0x01 seq=28 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=4864 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=28 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=29
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=4866 conn=0x20004898 grp=0x0001 cmd=0x01 seq=29 len=471
+OTA rsp part: t=4939 conn=0x20004898 grp=0x0001 cmd=0x01 seq=29 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=4939 dt=73 conn=0x20004898 grp=0x0001 cmd=0x01 seq=29 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=30
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=4941 conn=0x20004898 grp=0x0001 cmd=0x01 seq=30 len=471
+OTA rsp part: t=5006 conn=0x20004898 grp=0x0001 cmd=0x01 seq=30 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=5007 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=30 rsp_len=17
+OTA upload progress: 7% (12320/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=31
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=5009 conn=0x20004898 grp=0x0001 cmd=0x01 seq=31 len=471
+OTA rsp part: t=5081 conn=0x20004898 grp=0x0001 cmd=0x01 seq=31 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=5082 dt=73 conn=0x20004898 grp=0x0001 cmd=0x01 seq=31 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=32
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=5083 conn=0x20004898 grp=0x0001 cmd=0x01 seq=32 len=471
+OTA rsp part: t=5141 conn=0x20004898 grp=0x0001 cmd=0x01 seq=32 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=5142 dt=59 conn=0x20004898 grp=0x0001 cmd=0x01 seq=32 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=33
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=5143 conn=0x20004898 grp=0x0001 cmd=0x01 seq=33 len=471
+OTA rsp part: t=5209 conn=0x20004898 grp=0x0001 cmd=0x01 seq=33 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=5209 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=33 rsp_len=17
+OTA upload progress: 8% (13664/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=34
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=5211 conn=0x20004898 grp=0x0001 cmd=0x01 seq=34 len=471
+OTA rsp part: t=5284 conn=0x20004898 grp=0x0001 cmd=0x01 seq=34 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=5284 dt=73 conn=0x20004898 grp=0x0001 cmd=0x01 seq=34 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=35
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=5286 conn=0x20004898 grp=0x0001 cmd=0x01 seq=35 len=471
+OTA rsp part: t=5351 conn=0x20004898 grp=0x0001 cmd=0x01 seq=35 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=5352 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=35 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=36
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=5353 conn=0x20004898 grp=0x0001 cmd=0x01 seq=36 len=471
+OTA rsp part: t=5434 conn=0x20004898 grp=0x0001 cmd=0x01 seq=36 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=5434 dt=81 conn=0x20004898 grp=0x0001 cmd=0x01 seq=36 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=37
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=5436 conn=0x20004898 grp=0x0001 cmd=0x01 seq=37 len=471
+OTA rsp part: t=5501 conn=0x20004898 grp=0x0001 cmd=0x01 seq=37 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=5502 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=37 rsp_len=17
+OTA upload progress: 9% (15456/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=38
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=5504 conn=0x20004898 grp=0x0001 cmd=0x01 seq=38 len=471
+OTA rsp part: t=5569 conn=0x20004898 grp=0x0001 cmd=0x01 seq=38 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=5569 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=38 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=39
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=5571 conn=0x20004898 grp=0x0001 cmd=0x01 seq=39 len=471
+OTA rsp part: t=5636 conn=0x20004898 grp=0x0001 cmd=0x01 seq=39 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=5637 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=39 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=40
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=5638 conn=0x20004898 grp=0x0001 cmd=0x01 seq=40 len=471
+OTA rsp part: t=5696 conn=0x20004898 grp=0x0001 cmd=0x01 seq=40 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=5697 dt=59 conn=0x20004898 grp=0x0001 cmd=0x01 seq=40 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=41
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=5698 conn=0x20004898 grp=0x0001 cmd=0x01 seq=41 len=471
+OTA rsp part: t=5771 conn=0x20004898 grp=0x0001 cmd=0x01 seq=41 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=5772 dt=74 conn=0x20004898 grp=0x0001 cmd=0x01 seq=41 rsp_len=17
+OTA upload progress: 10% (17248/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=42
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=5774 conn=0x20004898 grp=0x0001 cmd=0x01 seq=42 len=471
+OTA rsp part: t=5846 conn=0x20004898 grp=0x0001 cmd=0x01 seq=42 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=5847 dt=73 conn=0x20004898 grp=0x0001 cmd=0x01 seq=42 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=43
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=5849 conn=0x20004898 grp=0x0001 cmd=0x01 seq=43 len=471
+OTA rsp part: t=5929 conn=0x20004898 grp=0x0001 cmd=0x01 seq=43 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=5929 dt=80 conn=0x20004898 grp=0x0001 cmd=0x01 seq=43 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=44
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=5931 conn=0x20004898 grp=0x0001 cmd=0x01 seq=44 len=471
+OTA rsp part: t=5996 conn=0x20004898 grp=0x0001 cmd=0x01 seq=44 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=5997 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=44 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=45
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=5998 conn=0x20004898 grp=0x0001 cmd=0x01 seq=45 len=471
+OTA rsp part: t=6064 conn=0x20004898 grp=0x0001 cmd=0x01 seq=45 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=6064 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=45 rsp_len=17
+OTA upload progress: 11% (19040/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=46
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=6066 conn=0x20004898 grp=0x0001 cmd=0x01 seq=46 len=471
+OTA rsp part: t=6147 conn=0x20004898 grp=0x0001 cmd=0x01 seq=46 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=6148 dt=82 conn=0x20004898 grp=0x0001 cmd=0x01 seq=46 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=47
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=6149 conn=0x20004898 grp=0x0001 cmd=0x01 seq=47 len=471
+OTA rsp part: t=6229 conn=0x20004898 grp=0x0001 cmd=0x01 seq=47 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=6229 dt=80 conn=0x20004898 grp=0x0001 cmd=0x01 seq=47 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=48
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=6231 conn=0x20004898 grp=0x0001 cmd=0x01 seq=48 len=471
+OTA rsp part: t=6285 conn=0x20004898 grp=0x0001 cmd=0x01 seq=48 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=6286 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=48 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=49
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=6287 conn=0x20004898 grp=0x0001 cmd=0x01 seq=49 len=471
+OTA rsp part: t=6353 conn=0x20004898 grp=0x0001 cmd=0x01 seq=49 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=6353 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=49 rsp_len=17
+OTA upload progress: 12% (20832/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=50
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=6355 conn=0x20004898 grp=0x0001 cmd=0x01 seq=50 len=471
+OTA rsp part: t=6420 conn=0x20004898 grp=0x0001 cmd=0x01 seq=50 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=6421 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=50 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=51
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=6422 conn=0x20004898 grp=0x0001 cmd=0x01 seq=51 len=471
+OTA rsp part: t=6488 conn=0x20004898 grp=0x0001 cmd=0x01 seq=51 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=6488 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=51 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=52
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=6490 conn=0x20004898 grp=0x0001 cmd=0x01 seq=52 len=471
+OTA rsp part: t=6555 conn=0x20004898 grp=0x0001 cmd=0x01 seq=52 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=6556 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=52 rsp_len=17
+OTA upload progress: 13% (22176/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=53
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=6558 conn=0x20004898 grp=0x0001 cmd=0x01 seq=53 len=471
+OTA rsp part: t=6634 conn=0x20004898 grp=0x0001 cmd=0x01 seq=53 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=6634 dt=76 conn=0x20004898 grp=0x0001 cmd=0x01 seq=53 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=54
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=6636 conn=0x20004898 grp=0x0001 cmd=0x01 seq=54 len=471
+OTA rsp part: t=6701 conn=0x20004898 grp=0x0001 cmd=0x01 seq=54 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=6702 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=54 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=55
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=6703 conn=0x20004898 grp=0x0001 cmd=0x01 seq=55 len=471
+OTA rsp part: t=6769 conn=0x20004898 grp=0x0001 cmd=0x01 seq=55 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=6769 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=55 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=56
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=6771 conn=0x20004898 grp=0x0001 cmd=0x01 seq=56 len=471
+OTA rsp part: t=6825 conn=0x20004898 grp=0x0001 cmd=0x01 seq=56 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=6826 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=56 rsp_len=17
+OTA upload progress: 14% (23968/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=57
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=6828 conn=0x20004898 grp=0x0001 cmd=0x01 seq=57 len=471
+OTA rsp part: t=6893 conn=0x20004898 grp=0x0001 cmd=0x01 seq=57 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=6893 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=57 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=58
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=6895 conn=0x20004898 grp=0x0001 cmd=0x01 seq=58 len=471
+OTA rsp part: t=6960 conn=0x20004898 grp=0x0001 cmd=0x01 seq=58 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=6961 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=58 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=59
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=6962 conn=0x20004898 grp=0x0001 cmd=0x01 seq=59 len=471
+OTA rsp part: t=7028 conn=0x20004898 grp=0x0001 cmd=0x01 seq=59 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=7028 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=59 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=60
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=7030 conn=0x20004898 grp=0x0001 cmd=0x01 seq=60 len=471
+OTA rsp part: t=7095 conn=0x20004898 grp=0x0001 cmd=0x01 seq=60 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=7096 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=60 rsp_len=17
+OTA upload progress: 15% (25760/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=61
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=7098 conn=0x20004898 grp=0x0001 cmd=0x01 seq=61 len=471
+OTA rsp part: t=7185 conn=0x20004898 grp=0x0001 cmd=0x01 seq=61 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=7186 dt=88 conn=0x20004898 grp=0x0001 cmd=0x01 seq=61 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=62
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=7187 conn=0x20004898 grp=0x0001 cmd=0x01 seq=62 len=471
+OTA rsp part: t=7286 conn=0x20004898 grp=0x0001 cmd=0x01 seq=62 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=7287 dt=100 conn=0x20004898 grp=0x0001 cmd=0x01 seq=62 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=63
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=7288 conn=0x20004898 grp=0x0001 cmd=0x01 seq=63 len=471
+OTA rsp part: t=7376 conn=0x20004898 grp=0x0001 cmd=0x01 seq=63 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=7377 dt=89 conn=0x20004898 grp=0x0001 cmd=0x01 seq=63 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=64
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=7378 conn=0x20004898 grp=0x0001 cmd=0x01 seq=64 len=471
+OTA rsp part: t=7433 conn=0x20004898 grp=0x0001 cmd=0x01 seq=64 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=7433 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=64 rsp_len=17
+OTA upload progress: 16% (27552/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=65
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=7435 conn=0x20004898 grp=0x0001 cmd=0x01 seq=65 len=471
+OTA rsp part: t=7500 conn=0x20004898 grp=0x0001 cmd=0x01 seq=65 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=7501 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=65 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=66
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=7502 conn=0x20004898 grp=0x0001 cmd=0x01 seq=66 len=471
+OTA rsp part: t=7590 conn=0x20004898 grp=0x0001 cmd=0x01 seq=66 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=7591 dt=89 conn=0x20004898 grp=0x0001 cmd=0x01 seq=66 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=67
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=7592 conn=0x20004898 grp=0x0001 cmd=0x01 seq=67 len=471
+OTA rsp part: t=7658 conn=0x20004898 grp=0x0001 cmd=0x01 seq=67 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=7658 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=67 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=68
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=7660 conn=0x20004898 grp=0x0001 cmd=0x01 seq=68 len=471
+OTA rsp part: t=7725 conn=0x20004898 grp=0x0001 cmd=0x01 seq=68 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=7726 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=68 rsp_len=17
+OTA upload progress: 17% (29344/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=69
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=7728 conn=0x20004898 grp=0x0001 cmd=0x01 seq=69 len=471
+OTA rsp part: t=7793 conn=0x20004898 grp=0x0001 cmd=0x01 seq=69 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=7793 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=69 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=70
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=7795 conn=0x20004898 grp=0x0001 cmd=0x01 seq=70 len=471
+OTA rsp part: t=7860 conn=0x20004898 grp=0x0001 cmd=0x01 seq=70 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=7861 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=70 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=71
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=7862 conn=0x20004898 grp=0x0001 cmd=0x01 seq=71 len=471
+OTA rsp part: t=7928 conn=0x20004898 grp=0x0001 cmd=0x01 seq=71 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=7928 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=71 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=72
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=7930 conn=0x20004898 grp=0x0001 cmd=0x01 seq=72 len=471
+OTA rsp part: t=7984 conn=0x20004898 grp=0x0001 cmd=0x01 seq=72 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=7984 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=72 rsp_len=17
+OTA upload progress: 18% (31136/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=73
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=7986 conn=0x20004898 grp=0x0001 cmd=0x01 seq=73 len=471
+OTA rsp part: t=8063 conn=0x20004898 grp=0x0001 cmd=0x01 seq=73 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=8063 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=73 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=74
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=8065 conn=0x20004898 grp=0x0001 cmd=0x01 seq=74 len=471
+OTA rsp part: t=8141 conn=0x20004898 grp=0x0001 cmd=0x01 seq=74 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=8142 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=74 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=75
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=8143 conn=0x20004898 grp=0x0001 cmd=0x01 seq=75 len=471
+OTA rsp part: t=8209 conn=0x20004898 grp=0x0001 cmd=0x01 seq=75 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=8209 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=75 rsp_len=17
+OTA upload progress: 19% (32480/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=76
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=8211 conn=0x20004898 grp=0x0001 cmd=0x01 seq=76 len=471
+OTA rsp part: t=8276 conn=0x20004898 grp=0x0001 cmd=0x01 seq=76 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=8277 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=76 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=77
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=8278 conn=0x20004898 grp=0x0001 cmd=0x01 seq=77 len=471
+OTA rsp part: t=8344 conn=0x20004898 grp=0x0001 cmd=0x01 seq=77 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=8344 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=77 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=78
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=8346 conn=0x20004898 grp=0x0001 cmd=0x01 seq=78 len=471
+OTA rsp part: t=8411 conn=0x20004898 grp=0x0001 cmd=0x01 seq=78 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=8412 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=78 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=79
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=8414 conn=0x20004898 grp=0x0001 cmd=0x01 seq=79 len=471
+OTA rsp part: t=8479 conn=0x20004898 grp=0x0001 cmd=0x01 seq=79 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=8479 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=79 rsp_len=17
+OTA upload progress: 20% (34272/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=80
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=8481 conn=0x20004898 grp=0x0001 cmd=0x01 seq=80 len=471
+OTA rsp part: t=8535 conn=0x20004898 grp=0x0001 cmd=0x01 seq=80 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=8536 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=80 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=81
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=8537 conn=0x20004898 grp=0x0001 cmd=0x01 seq=81 len=471
+OTA rsp part: t=8603 conn=0x20004898 grp=0x0001 cmd=0x01 seq=81 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=8603 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=81 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=82
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=8605 conn=0x20004898 grp=0x0001 cmd=0x01 seq=82 len=471
+OTA rsp part: t=8670 conn=0x20004898 grp=0x0001 cmd=0x01 seq=82 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=8671 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=82 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=83
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=8672 conn=0x20004898 grp=0x0001 cmd=0x01 seq=83 len=471
+OTA rsp part: t=8738 conn=0x20004898 grp=0x0001 cmd=0x01 seq=83 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=8738 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=83 rsp_len=17
+OTA upload progress: 21% (36064/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=84
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=8740 conn=0x20004898 grp=0x0001 cmd=0x01 seq=84 len=471
+OTA rsp part: t=8805 conn=0x20004898 grp=0x0001 cmd=0x01 seq=84 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=8806 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=84 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=85
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=8807 conn=0x20004898 grp=0x0001 cmd=0x01 seq=85 len=471
+OTA rsp part: t=8873 conn=0x20004898 grp=0x0001 cmd=0x01 seq=85 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=8873 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=85 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=86
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=8875 conn=0x20004898 grp=0x0001 cmd=0x01 seq=86 len=471
+OTA rsp part: t=8940 conn=0x20004898 grp=0x0001 cmd=0x01 seq=86 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=8941 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=86 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=87
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=8942 conn=0x20004898 grp=0x0001 cmd=0x01 seq=87 len=471
+OTA rsp part: t=9008 conn=0x20004898 grp=0x0001 cmd=0x01 seq=87 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=9008 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=87 rsp_len=17
+OTA upload progress: 22% (37856/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=88
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=9010 conn=0x20004898 grp=0x0001 cmd=0x01 seq=88 len=471
+OTA rsp part: t=9064 conn=0x20004898 grp=0x0001 cmd=0x01 seq=88 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=9064 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=88 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=89
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=9066 conn=0x20004898 grp=0x0001 cmd=0x01 seq=89 len=471
+OTA rsp part: t=9131 conn=0x20004898 grp=0x0001 cmd=0x01 seq=89 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=9132 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=89 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=90
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=9133 conn=0x20004898 grp=0x0001 cmd=0x01 seq=90 len=471
+OTA rsp part: t=9199 conn=0x20004898 grp=0x0001 cmd=0x01 seq=90 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=9199 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=90 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=91
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=9201 conn=0x20004898 grp=0x0001 cmd=0x01 seq=91 len=471
+OTA rsp part: t=9266 conn=0x20004898 grp=0x0001 cmd=0x01 seq=91 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=9267 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=91 rsp_len=17
+OTA upload progress: 23% (39648/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=92
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=9269 conn=0x20004898 grp=0x0001 cmd=0x01 seq=92 len=471
+OTA rsp part: t=9345 conn=0x20004898 grp=0x0001 cmd=0x01 seq=92 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=9346 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=92 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=93
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=9347 conn=0x20004898 grp=0x0001 cmd=0x01 seq=93 len=471
+OTA rsp part: t=9413 conn=0x20004898 grp=0x0001 cmd=0x01 seq=93 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=9413 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=93 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=94
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=9415 conn=0x20004898 grp=0x0001 cmd=0x01 seq=94 len=471
+OTA rsp part: t=9480 conn=0x20004898 grp=0x0001 cmd=0x01 seq=94 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=9481 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=94 rsp_len=17
+OTA upload progress: 24% (40992/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=95
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=9483 conn=0x20004898 grp=0x0001 cmd=0x01 seq=95 len=471
+OTA rsp part: t=9548 conn=0x20004898 grp=0x0001 cmd=0x01 seq=95 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=9548 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=95 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=96
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=9550 conn=0x20004898 grp=0x0001 cmd=0x01 seq=96 len=471
+OTA rsp part: t=9604 conn=0x20004898 grp=0x0001 cmd=0x01 seq=96 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=9604 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=96 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=97
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=9606 conn=0x20004898 grp=0x0001 cmd=0x01 seq=97 len=471
+OTA rsp part: t=9671 conn=0x20004898 grp=0x0001 cmd=0x01 seq=97 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=9672 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=97 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=98
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=9673 conn=0x20004898 grp=0x0001 cmd=0x01 seq=98 len=471
+OTA rsp part: t=9739 conn=0x20004898 grp=0x0001 cmd=0x01 seq=98 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=9739 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=98 rsp_len=17
+OTA upload progress: 25% (42784/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=99
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=9741 conn=0x20004898 grp=0x0001 cmd=0x01 seq=99 len=471
+OTA rsp part: t=9806 conn=0x20004898 grp=0x0001 cmd=0x01 seq=99 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=9807 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=99 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=100
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=9808 conn=0x20004898 grp=0x0001 cmd=0x01 seq=100 len=471
+OTA rsp part: t=9874 conn=0x20004898 grp=0x0001 cmd=0x01 seq=100 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=9874 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=100 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=101
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=9876 conn=0x20004898 grp=0x0001 cmd=0x01 seq=101 len=471
+OTA rsp part: t=9941 conn=0x20004898 grp=0x0001 cmd=0x01 seq=101 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=9942 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=101 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=102
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=9943 conn=0x20004898 grp=0x0001 cmd=0x01 seq=102 len=471
+OTA rsp part: t=10009 conn=0x20004898 grp=0x0001 cmd=0x01 seq=102 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=10009 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=102 rsp_len=17
+OTA upload progress: 26% (44576/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=103
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=10011 conn=0x20004898 grp=0x0001 cmd=0x01 seq=103 len=471
+OTA rsp part: t=10088 conn=0x20004898 grp=0x0001 cmd=0x01 seq=103 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=10088 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=103 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=104
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=10090 conn=0x20004898 grp=0x0001 cmd=0x01 seq=104 len=471
+OTA rsp part: t=10144 conn=0x20004898 grp=0x0001 cmd=0x01 seq=104 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=10144 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=104 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=105
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=10146 conn=0x20004898 grp=0x0001 cmd=0x01 seq=105 len=471
+OTA rsp part: t=10211 conn=0x20004898 grp=0x0001 cmd=0x01 seq=105 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=10212 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=105 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=106
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=10213 conn=0x20004898 grp=0x0001 cmd=0x01 seq=106 len=471
+OTA rsp part: t=10279 conn=0x20004898 grp=0x0001 cmd=0x01 seq=106 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=10279 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=106 rsp_len=17
+OTA upload progress: 27% (46368/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=107
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=10281 conn=0x20004898 grp=0x0001 cmd=0x01 seq=107 len=471
+OTA rsp part: t=10346 conn=0x20004898 grp=0x0001 cmd=0x01 seq=107 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=10347 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=107 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=108
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=10348 conn=0x20004898 grp=0x0001 cmd=0x01 seq=108 len=471
+OTA rsp part: t=10414 conn=0x20004898 grp=0x0001 cmd=0x01 seq=108 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=10414 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=108 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=109
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=10416 conn=0x20004898 grp=0x0001 cmd=0x01 seq=109 len=471
+OTA rsp part: t=10481 conn=0x20004898 grp=0x0001 cmd=0x01 seq=109 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=10482 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=109 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=110
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=10483 conn=0x20004898 grp=0x0001 cmd=0x01 seq=110 len=471
+OTA rsp part: t=10560 conn=0x20004898 grp=0x0001 cmd=0x01 seq=110 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=10561 dt=78 conn=0x20004898 grp=0x0001 cmd=0x01 seq=110 rsp_len=17
+OTA upload progress: 28% (48160/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=111
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=10563 conn=0x20004898 grp=0x0001 cmd=0x01 seq=111 len=471
+OTA rsp part: t=10628 conn=0x20004898 grp=0x0001 cmd=0x01 seq=111 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=10628 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=111 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=112
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=10630 conn=0x20004898 grp=0x0001 cmd=0x01 seq=112 len=471
+OTA rsp part: t=10684 conn=0x20004898 grp=0x0001 cmd=0x01 seq=112 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=10684 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=112 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=113
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=10686 conn=0x20004898 grp=0x0001 cmd=0x01 seq=113 len=471
+OTA rsp part: t=10751 conn=0x20004898 grp=0x0001 cmd=0x01 seq=113 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=10752 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=113 rsp_len=17
+OTA upload progress: 29% (49504/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=114
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=10754 conn=0x20004898 grp=0x0001 cmd=0x01 seq=114 len=471
+OTA rsp part: t=10819 conn=0x20004898 grp=0x0001 cmd=0x01 seq=114 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=10819 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=114 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=115
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=10821 conn=0x20004898 grp=0x0001 cmd=0x01 seq=115 len=471
+OTA rsp part: t=10886 conn=0x20004898 grp=0x0001 cmd=0x01 seq=115 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=10887 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=115 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=116
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=10888 conn=0x20004898 grp=0x0001 cmd=0x01 seq=116 len=471
+OTA rsp part: t=10954 conn=0x20004898 grp=0x0001 cmd=0x01 seq=116 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=10954 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=116 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=117
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=10956 conn=0x20004898 grp=0x0001 cmd=0x01 seq=117 len=471
+OTA rsp part: t=11033 conn=0x20004898 grp=0x0001 cmd=0x01 seq=117 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=11033 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=117 rsp_len=17
+OTA upload progress: 30% (51296/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=118
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=11035 conn=0x20004898 grp=0x0001 cmd=0x01 seq=118 len=471
+OTA rsp part: t=11100 conn=0x20004898 grp=0x0001 cmd=0x01 seq=118 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=11101 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=118 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=119
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=11102 conn=0x20004898 grp=0x0001 cmd=0x01 seq=119 len=471
+OTA rsp part: t=11168 conn=0x20004898 grp=0x0001 cmd=0x01 seq=119 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=11168 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=119 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=120
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=11170 conn=0x20004898 grp=0x0001 cmd=0x01 seq=120 len=471
+OTA rsp part: t=11224 conn=0x20004898 grp=0x0001 cmd=0x01 seq=120 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=11224 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=120 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=121
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=11226 conn=0x20004898 grp=0x0001 cmd=0x01 seq=121 len=471
+OTA rsp part: t=11291 conn=0x20004898 grp=0x0001 cmd=0x01 seq=121 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=11292 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=121 rsp_len=17
+OTA upload progress: 31% (53088/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=122
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=11294 conn=0x20004898 grp=0x0001 cmd=0x01 seq=122 len=471
+OTA rsp part: t=11370 conn=0x20004898 grp=0x0001 cmd=0x01 seq=122 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=11371 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=122 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=123
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=11372 conn=0x20004898 grp=0x0001 cmd=0x01 seq=123 len=471
+OTA rsp part: t=11438 conn=0x20004898 grp=0x0001 cmd=0x01 seq=123 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=11438 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=123 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=124
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=11440 conn=0x20004898 grp=0x0001 cmd=0x01 seq=124 len=471
+OTA rsp part: t=11505 conn=0x20004898 grp=0x0001 cmd=0x01 seq=124 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=11506 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=124 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=125
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=11507 conn=0x20004898 grp=0x0001 cmd=0x01 seq=125 len=471
+OTA rsp part: t=11573 conn=0x20004898 grp=0x0001 cmd=0x01 seq=125 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=11573 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=125 rsp_len=17
+OTA upload progress: 32% (54880/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=126
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=11575 conn=0x20004898 grp=0x0001 cmd=0x01 seq=126 len=471
+OTA rsp part: t=11640 conn=0x20004898 grp=0x0001 cmd=0x01 seq=126 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=11641 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=126 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=127
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=11642 conn=0x20004898 grp=0x0001 cmd=0x01 seq=127 len=471
+OTA rsp part: t=11708 conn=0x20004898 grp=0x0001 cmd=0x01 seq=127 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=11708 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=127 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=128
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=11710 conn=0x20004898 grp=0x0001 cmd=0x01 seq=128 len=471
+OTA rsp part: t=11775 conn=0x20004898 grp=0x0001 cmd=0x01 seq=128 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=11776 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=128 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=129
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=11777 conn=0x20004898 grp=0x0001 cmd=0x01 seq=129 len=471
+OTA rsp part: t=11843 conn=0x20004898 grp=0x0001 cmd=0x01 seq=129 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=11843 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=129 rsp_len=17
+OTA upload progress: 33% (56672/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=130
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=11845 conn=0x20004898 grp=0x0001 cmd=0x01 seq=130 len=471
+OTA rsp part: t=11910 conn=0x20004898 grp=0x0001 cmd=0x01 seq=130 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=11911 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=130 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=131
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=11912 conn=0x20004898 grp=0x0001 cmd=0x01 seq=131 len=471
+OTA rsp part: t=11978 conn=0x20004898 grp=0x0001 cmd=0x01 seq=131 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=11978 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=131 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=132
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=11980 conn=0x20004898 grp=0x0001 cmd=0x01 seq=132 len=471
+OTA rsp part: t=12045 conn=0x20004898 grp=0x0001 cmd=0x01 seq=132 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=12046 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=132 rsp_len=17
+OTA upload progress: 34% (58016/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=133
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=12048 conn=0x20004898 grp=0x0001 cmd=0x01 seq=133 len=471
+OTA rsp part: t=12113 conn=0x20004898 grp=0x0001 cmd=0x01 seq=133 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=12113 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=133 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=134
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=12115 conn=0x20004898 grp=0x0001 cmd=0x01 seq=134 len=471
+OTA rsp part: t=12180 conn=0x20004898 grp=0x0001 cmd=0x01 seq=134 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=12181 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=134 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=135
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=12182 conn=0x20004898 grp=0x0001 cmd=0x01 seq=135 len=471
+OTA rsp part: t=12248 conn=0x20004898 grp=0x0001 cmd=0x01 seq=135 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=12248 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=135 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=136
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=12250 conn=0x20004898 grp=0x0001 cmd=0x01 seq=136 len=471
+OTA rsp part: t=12304 conn=0x20004898 grp=0x0001 cmd=0x01 seq=136 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=12304 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=136 rsp_len=17
+OTA upload progress: 35% (59808/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=137
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=12306 conn=0x20004898 grp=0x0001 cmd=0x01 seq=137 len=471
+OTA rsp part: t=12371 conn=0x20004898 grp=0x0001 cmd=0x01 seq=137 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=12372 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=137 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=138
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=12373 conn=0x20004898 grp=0x0001 cmd=0x01 seq=138 len=471
+OTA rsp part: t=12439 conn=0x20004898 grp=0x0001 cmd=0x01 seq=138 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=12439 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=138 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=139
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=12441 conn=0x20004898 grp=0x0001 cmd=0x01 seq=139 len=471
+OTA rsp part: t=12506 conn=0x20004898 grp=0x0001 cmd=0x01 seq=139 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=12507 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=139 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=140
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=12509 conn=0x20004898 grp=0x0001 cmd=0x01 seq=140 len=471
+OTA rsp part: t=12574 conn=0x20004898 grp=0x0001 cmd=0x01 seq=140 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=12574 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=140 rsp_len=17
+OTA upload progress: 36% (61600/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=141
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=12576 conn=0x20004898 grp=0x0001 cmd=0x01 seq=141 len=471
+OTA rsp part: t=12641 conn=0x20004898 grp=0x0001 cmd=0x01 seq=141 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=12642 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=141 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=142
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=12643 conn=0x20004898 grp=0x0001 cmd=0x01 seq=142 len=471
+OTA rsp part: t=12709 conn=0x20004898 grp=0x0001 cmd=0x01 seq=142 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=12709 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=142 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=143
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=12711 conn=0x20004898 grp=0x0001 cmd=0x01 seq=143 len=471
+OTA rsp part: t=12776 conn=0x20004898 grp=0x0001 cmd=0x01 seq=143 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=12777 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=143 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=144
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=12778 conn=0x20004898 grp=0x0001 cmd=0x01 seq=144 len=471
+OTA rsp part: t=12833 conn=0x20004898 grp=0x0001 cmd=0x01 seq=144 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=12833 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=144 rsp_len=17
+OTA upload progress: 37% (63392/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=145
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=12835 conn=0x20004898 grp=0x0001 cmd=0x01 seq=145 len=471
+OTA rsp part: t=12900 conn=0x20004898 grp=0x0001 cmd=0x01 seq=145 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=12901 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=145 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=146
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=12902 conn=0x20004898 grp=0x0001 cmd=0x01 seq=146 len=471
+OTA rsp part: t=12979 conn=0x20004898 grp=0x0001 cmd=0x01 seq=146 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=12979 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=146 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=147
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=12981 conn=0x20004898 grp=0x0001 cmd=0x01 seq=147 len=471
+OTA rsp part: t=13046 conn=0x20004898 grp=0x0001 cmd=0x01 seq=147 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=13047 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=147 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=148
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=13048 conn=0x20004898 grp=0x0001 cmd=0x01 seq=148 len=471
+OTA rsp part: t=13114 conn=0x20004898 grp=0x0001 cmd=0x01 seq=148 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=13114 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=148 rsp_len=17
+OTA upload progress: 38% (65184/170536 bytes)
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=149
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=13116 conn=0x20004898 grp=0x0001 cmd=0x01 seq=149 len=471
+OTA rsp part: t=13181 conn=0x20004898 grp=0x0001 cmd=0x01 seq=149 off=0 chunk=17 acc=17 total=17
+OTA rx complete: t=13182 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=149 rsp_len=17
+OTA send: op=2 len=471 group=0x0001 cmd=0x01 seq=150
+OTA command issued(write_cmd): rc=0 tx_len=479 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=13184 conn=0x20004898 grp=0x0001 cmd=0x01 seq=150 len=471
+OTA rsp part: t=13249 conn=0x20004898 grp=0x0001 cmd=0x01 seq=150 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=13249 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=150 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=151
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=13251 conn=0x20004898 grp=0x0001 cmd=0x01 seq=151 len=473
+OTA rsp part: t=13316 conn=0x20004898 grp=0x0001 cmd=0x01 seq=151 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=13317 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=151 rsp_len=19
+OTA upload progress: 39% (66528/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=152
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=13319 conn=0x20004898 grp=0x0001 cmd=0x01 seq=152 len=473
+OTA rsp part: t=13373 conn=0x20004898 grp=0x0001 cmd=0x01 seq=152 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=13373 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=152 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=153
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=13375 conn=0x20004898 grp=0x0001 cmd=0x01 seq=153 len=473
+OTA rsp part: t=13451 conn=0x20004898 grp=0x0001 cmd=0x01 seq=153 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=13452 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=153 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=154
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=13453 conn=0x20004898 grp=0x0001 cmd=0x01 seq=154 len=473
+OTA rsp part: t=13519 conn=0x20004898 grp=0x0001 cmd=0x01 seq=154 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=13519 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=154 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=155
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=13521 conn=0x20004898 grp=0x0001 cmd=0x01 seq=155 len=473
+OTA rsp part: t=13586 conn=0x20004898 grp=0x0001 cmd=0x01 seq=155 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=13587 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=155 rsp_len=19
+OTA upload progress: 40% (68320/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=156
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=13589 conn=0x20004898 grp=0x0001 cmd=0x01 seq=156 len=473
+OTA rsp part: t=13654 conn=0x20004898 grp=0x0001 cmd=0x01 seq=156 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=13654 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=156 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=157
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=13656 conn=0x20004898 grp=0x0001 cmd=0x01 seq=157 len=473
+OTA rsp part: t=13733 conn=0x20004898 grp=0x0001 cmd=0x01 seq=157 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=13733 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=157 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=158
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=13735 conn=0x20004898 grp=0x0001 cmd=0x01 seq=158 len=473
+OTA rsp part: t=13800 conn=0x20004898 grp=0x0001 cmd=0x01 seq=158 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=13801 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=158 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=159
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=13802 conn=0x20004898 grp=0x0001 cmd=0x01 seq=159 len=473
+OTA rsp part: t=13868 conn=0x20004898 grp=0x0001 cmd=0x01 seq=159 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=13868 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=159 rsp_len=19
+OTA upload progress: 41% (70112/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=160
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=13870 conn=0x20004898 grp=0x0001 cmd=0x01 seq=160 len=473
+OTA rsp part: t=13924 conn=0x20004898 grp=0x0001 cmd=0x01 seq=160 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=13924 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=160 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=161
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=13926 conn=0x20004898 grp=0x0001 cmd=0x01 seq=161 len=473
+OTA rsp part: t=13991 conn=0x20004898 grp=0x0001 cmd=0x01 seq=161 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=13992 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=161 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=162
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=13993 conn=0x20004898 grp=0x0001 cmd=0x01 seq=162 len=473
+OTA rsp part: t=14059 conn=0x20004898 grp=0x0001 cmd=0x01 seq=162 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=14059 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=162 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=163
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=14061 conn=0x20004898 grp=0x0001 cmd=0x01 seq=163 len=473
+OTA rsp part: t=14138 conn=0x20004898 grp=0x0001 cmd=0x01 seq=163 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=14138 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=163 rsp_len=19
+OTA upload progress: 42% (71904/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=164
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=14140 conn=0x20004898 grp=0x0001 cmd=0x01 seq=164 len=473
+OTA rsp part: t=14205 conn=0x20004898 grp=0x0001 cmd=0x01 seq=164 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=14206 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=164 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=165
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=14207 conn=0x20004898 grp=0x0001 cmd=0x01 seq=165 len=473
+OTA rsp part: t=14273 conn=0x20004898 grp=0x0001 cmd=0x01 seq=165 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=14273 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=165 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=166
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=14275 conn=0x20004898 grp=0x0001 cmd=0x01 seq=166 len=473
+OTA rsp part: t=14340 conn=0x20004898 grp=0x0001 cmd=0x01 seq=166 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=14341 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=166 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=167
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=14342 conn=0x20004898 grp=0x0001 cmd=0x01 seq=167 len=473
+OTA rsp part: t=14408 conn=0x20004898 grp=0x0001 cmd=0x01 seq=167 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=14408 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=167 rsp_len=19
+OTA upload progress: 43% (73696/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=168
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=14410 conn=0x20004898 grp=0x0001 cmd=0x01 seq=168 len=473
+OTA rsp part: t=14464 conn=0x20004898 grp=0x0001 cmd=0x01 seq=168 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=14464 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=168 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=169
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=14466 conn=0x20004898 grp=0x0001 cmd=0x01 seq=169 len=473
+OTA rsp part: t=14543 conn=0x20004898 grp=0x0001 cmd=0x01 seq=169 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=14543 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=169 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=170
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=14545 conn=0x20004898 grp=0x0001 cmd=0x01 seq=170 len=473
+OTA rsp part: t=14610 conn=0x20004898 grp=0x0001 cmd=0x01 seq=170 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=14611 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=170 rsp_len=19
+OTA upload progress: 44% (75040/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=171
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=14613 conn=0x20004898 grp=0x0001 cmd=0x01 seq=171 len=473
+OTA rsp part: t=14678 conn=0x20004898 grp=0x0001 cmd=0x01 seq=171 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=14678 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=171 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=172
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=14680 conn=0x20004898 grp=0x0001 cmd=0x01 seq=172 len=473
+OTA rsp part: t=14745 conn=0x20004898 grp=0x0001 cmd=0x01 seq=172 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=14746 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=172 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=173
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=14747 conn=0x20004898 grp=0x0001 cmd=0x01 seq=173 len=473
+OTA rsp part: t=14813 conn=0x20004898 grp=0x0001 cmd=0x01 seq=173 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=14813 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=173 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=174
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=14815 conn=0x20004898 grp=0x0001 cmd=0x01 seq=174 len=473
+OTA rsp part: t=14880 conn=0x20004898 grp=0x0001 cmd=0x01 seq=174 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=14881 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=174 rsp_len=19
+OTA upload progress: 45% (76832/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=175
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=14883 conn=0x20004898 grp=0x0001 cmd=0x01 seq=175 len=473
+OTA rsp part: t=14948 conn=0x20004898 grp=0x0001 cmd=0x01 seq=175 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=14948 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=175 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=176
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=14950 conn=0x20004898 grp=0x0001 cmd=0x01 seq=176 len=473
+OTA rsp part: t=15004 conn=0x20004898 grp=0x0001 cmd=0x01 seq=176 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=15004 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=176 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=177
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=15006 conn=0x20004898 grp=0x0001 cmd=0x01 seq=177 len=473
+OTA rsp part: t=15071 conn=0x20004898 grp=0x0001 cmd=0x01 seq=177 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=15072 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=177 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=178
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=15074 conn=0x20004898 grp=0x0001 cmd=0x01 seq=178 len=473
+OTA rsp part: t=15139 conn=0x20004898 grp=0x0001 cmd=0x01 seq=178 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=15139 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=178 rsp_len=19
+OTA upload progress: 46% (78624/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=179
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=15141 conn=0x20004898 grp=0x0001 cmd=0x01 seq=179 len=473
+OTA rsp part: t=15206 conn=0x20004898 grp=0x0001 cmd=0x01 seq=179 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=15207 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=179 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=180
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=15208 conn=0x20004898 grp=0x0001 cmd=0x01 seq=180 len=473
+OTA rsp part: t=15285 conn=0x20004898 grp=0x0001 cmd=0x01 seq=180 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=15286 dt=78 conn=0x20004898 grp=0x0001 cmd=0x01 seq=180 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=181
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=15287 conn=0x20004898 grp=0x0001 cmd=0x01 seq=181 len=473
+OTA rsp part: t=15353 conn=0x20004898 grp=0x0001 cmd=0x01 seq=181 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=15353 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=181 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=182
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=15355 conn=0x20004898 grp=0x0001 cmd=0x01 seq=182 len=473
+OTA rsp part: t=15420 conn=0x20004898 grp=0x0001 cmd=0x01 seq=182 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=15421 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=182 rsp_len=19
+OTA upload progress: 47% (80416/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=183
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=15423 conn=0x20004898 grp=0x0001 cmd=0x01 seq=183 len=473
+OTA rsp part: t=15488 conn=0x20004898 grp=0x0001 cmd=0x01 seq=183 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=15488 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=183 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=184
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=15490 conn=0x20004898 grp=0x0001 cmd=0x01 seq=184 len=473
+OTA rsp part: t=15544 conn=0x20004898 grp=0x0001 cmd=0x01 seq=184 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=15544 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=184 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=185
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=15546 conn=0x20004898 grp=0x0001 cmd=0x01 seq=185 len=473
+OTA rsp part: t=15611 conn=0x20004898 grp=0x0001 cmd=0x01 seq=185 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=15612 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=185 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=186
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=15613 conn=0x20004898 grp=0x0001 cmd=0x01 seq=186 len=473
+OTA rsp part: t=15679 conn=0x20004898 grp=0x0001 cmd=0x01 seq=186 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=15679 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=186 rsp_len=19
+OTA upload progress: 48% (82208/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=187
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=15681 conn=0x20004898 grp=0x0001 cmd=0x01 seq=187 len=473
+OTA rsp part: t=15746 conn=0x20004898 grp=0x0001 cmd=0x01 seq=187 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=15747 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=187 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=188
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=15749 conn=0x20004898 grp=0x0001 cmd=0x01 seq=188 len=473
+OTA rsp part: t=15814 conn=0x20004898 grp=0x0001 cmd=0x01 seq=188 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=15814 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=188 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=189
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=15816 conn=0x20004898 grp=0x0001 cmd=0x01 seq=189 len=473
+OTA rsp part: t=15881 conn=0x20004898 grp=0x0001 cmd=0x01 seq=189 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=15882 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=189 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=190
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=15883 conn=0x20004898 grp=0x0001 cmd=0x01 seq=190 len=473
+OTA rsp part: t=15949 conn=0x20004898 grp=0x0001 cmd=0x01 seq=190 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=15949 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=190 rsp_len=19
+OTA upload progress: 49% (84000/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=191
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=15951 conn=0x20004898 grp=0x0001 cmd=0x01 seq=191 len=473
+OTA rsp part: t=16016 conn=0x20004898 grp=0x0001 cmd=0x01 seq=191 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=16017 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=191 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=192
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=16018 conn=0x20004898 grp=0x0001 cmd=0x01 seq=192 len=473
+OTA rsp part: t=16073 conn=0x20004898 grp=0x0001 cmd=0x01 seq=192 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=16073 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=192 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=193
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=16075 conn=0x20004898 grp=0x0001 cmd=0x01 seq=193 len=473
+OTA rsp part: t=16140 conn=0x20004898 grp=0x0001 cmd=0x01 seq=193 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=16141 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=193 rsp_len=19
+OTA upload progress: 50% (85344/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=194
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=16143 conn=0x20004898 grp=0x0001 cmd=0x01 seq=194 len=473
+OTA rsp part: t=16208 conn=0x20004898 grp=0x0001 cmd=0x01 seq=194 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=16208 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=194 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=195
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=16210 conn=0x20004898 grp=0x0001 cmd=0x01 seq=195 len=473
+OTA rsp part: t=16275 conn=0x20004898 grp=0x0001 cmd=0x01 seq=195 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=16276 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=195 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=196
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=16277 conn=0x20004898 grp=0x0001 cmd=0x01 seq=196 len=473
+OTA rsp part: t=16343 conn=0x20004898 grp=0x0001 cmd=0x01 seq=196 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=16343 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=196 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=197
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=16345 conn=0x20004898 grp=0x0001 cmd=0x01 seq=197 len=473
+OTA rsp part: t=16410 conn=0x20004898 grp=0x0001 cmd=0x01 seq=197 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=16411 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=197 rsp_len=19
+OTA upload progress: 51% (87136/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=198
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=16413 conn=0x20004898 grp=0x0001 cmd=0x01 seq=198 len=473
+OTA rsp part: t=16478 conn=0x20004898 grp=0x0001 cmd=0x01 seq=198 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=16478 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=198 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=199
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=16480 conn=0x20004898 grp=0x0001 cmd=0x01 seq=199 len=473
+OTA rsp part: t=16556 conn=0x20004898 grp=0x0001 cmd=0x01 seq=199 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=16557 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=199 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=200
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=16558 conn=0x20004898 grp=0x0001 cmd=0x01 seq=200 len=473
+OTA rsp part: t=16613 conn=0x20004898 grp=0x0001 cmd=0x01 seq=200 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=16613 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=200 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=201
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=16615 conn=0x20004898 grp=0x0001 cmd=0x01 seq=201 len=473
+OTA rsp part: t=16680 conn=0x20004898 grp=0x0001 cmd=0x01 seq=201 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=16681 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=201 rsp_len=19
+OTA upload progress: 52% (88928/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=202
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=16683 conn=0x20004898 grp=0x0001 cmd=0x01 seq=202 len=473
+OTA rsp part: t=16748 conn=0x20004898 grp=0x0001 cmd=0x01 seq=202 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=16748 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=202 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=203
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=16750 conn=0x20004898 grp=0x0001 cmd=0x01 seq=203 len=473
+OTA rsp part: t=16815 conn=0x20004898 grp=0x0001 cmd=0x01 seq=203 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=16816 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=203 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=204
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=16817 conn=0x20004898 grp=0x0001 cmd=0x01 seq=204 len=473
+OTA rsp part: t=16883 conn=0x20004898 grp=0x0001 cmd=0x01 seq=204 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=16883 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=204 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=205
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=16885 conn=0x20004898 grp=0x0001 cmd=0x01 seq=205 len=473
+OTA rsp part: t=16950 conn=0x20004898 grp=0x0001 cmd=0x01 seq=205 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=16951 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=205 rsp_len=19
+OTA upload progress: 53% (90720/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=206
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=16953 conn=0x20004898 grp=0x0001 cmd=0x01 seq=206 len=473
+OTA rsp part: t=17018 conn=0x20004898 grp=0x0001 cmd=0x01 seq=206 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=17018 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=206 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=207
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=17020 conn=0x20004898 grp=0x0001 cmd=0x01 seq=207 len=473
+OTA rsp part: t=17085 conn=0x20004898 grp=0x0001 cmd=0x01 seq=207 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=17086 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=207 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=208
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=17087 conn=0x20004898 grp=0x0001 cmd=0x01 seq=208 len=473
+OTA rsp part: t=17141 conn=0x20004898 grp=0x0001 cmd=0x01 seq=208 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=17142 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=208 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=209
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=17143 conn=0x20004898 grp=0x0001 cmd=0x01 seq=209 len=473
+OTA rsp part: t=17209 conn=0x20004898 grp=0x0001 cmd=0x01 seq=209 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=17209 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=209 rsp_len=19
+OTA upload progress: 54% (92512/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=210
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=17211 conn=0x20004898 grp=0x0001 cmd=0x01 seq=210 len=473
+OTA rsp part: t=17276 conn=0x20004898 grp=0x0001 cmd=0x01 seq=210 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=17277 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=210 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=211
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=17278 conn=0x20004898 grp=0x0001 cmd=0x01 seq=211 len=473
+OTA rsp part: t=17344 conn=0x20004898 grp=0x0001 cmd=0x01 seq=211 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=17344 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=211 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=212
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=17346 conn=0x20004898 grp=0x0001 cmd=0x01 seq=212 len=473
+OTA rsp part: t=17411 conn=0x20004898 grp=0x0001 cmd=0x01 seq=212 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=17412 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=212 rsp_len=19
+OTA upload progress: 55% (93856/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=213
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=17414 conn=0x20004898 grp=0x0001 cmd=0x01 seq=213 len=473
+OTA rsp part: t=17479 conn=0x20004898 grp=0x0001 cmd=0x01 seq=213 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=17479 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=213 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=214
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=17481 conn=0x20004898 grp=0x0001 cmd=0x01 seq=214 len=473
+OTA rsp part: t=17546 conn=0x20004898 grp=0x0001 cmd=0x01 seq=214 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=17547 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=214 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=215
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=17548 conn=0x20004898 grp=0x0001 cmd=0x01 seq=215 len=473
+OTA rsp part: t=17614 conn=0x20004898 grp=0x0001 cmd=0x01 seq=215 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=17614 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=215 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=216
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=17616 conn=0x20004898 grp=0x0001 cmd=0x01 seq=216 len=473
+OTA rsp part: t=17670 conn=0x20004898 grp=0x0001 cmd=0x01 seq=216 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=17671 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=216 rsp_len=19
+OTA upload progress: 56% (95648/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=217
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=17673 conn=0x20004898 grp=0x0001 cmd=0x01 seq=217 len=473
+OTA rsp part: t=17749 conn=0x20004898 grp=0x0001 cmd=0x01 seq=217 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=17749 dt=76 conn=0x20004898 grp=0x0001 cmd=0x01 seq=217 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=218
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=17751 conn=0x20004898 grp=0x0001 cmd=0x01 seq=218 len=473
+OTA rsp part: t=17816 conn=0x20004898 grp=0x0001 cmd=0x01 seq=218 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=17817 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=218 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=219
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=17818 conn=0x20004898 grp=0x0001 cmd=0x01 seq=219 len=473
+OTA rsp part: t=17884 conn=0x20004898 grp=0x0001 cmd=0x01 seq=219 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=17884 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=219 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=220
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=17886 conn=0x20004898 grp=0x0001 cmd=0x01 seq=220 len=473
+OTA rsp part: t=17951 conn=0x20004898 grp=0x0001 cmd=0x01 seq=220 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=17952 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=220 rsp_len=19
+OTA upload progress: 57% (97440/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=221
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=17954 conn=0x20004898 grp=0x0001 cmd=0x01 seq=221 len=473
+OTA rsp part: t=18019 conn=0x20004898 grp=0x0001 cmd=0x01 seq=221 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=18019 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=221 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=222
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=18021 conn=0x20004898 grp=0x0001 cmd=0x01 seq=222 len=473
+OTA rsp part: t=18098 conn=0x20004898 grp=0x0001 cmd=0x01 seq=222 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=18098 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=222 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=223
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=18100 conn=0x20004898 grp=0x0001 cmd=0x01 seq=223 len=473
+OTA rsp part: t=18176 conn=0x20004898 grp=0x0001 cmd=0x01 seq=223 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=18177 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=223 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=224
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=18178 conn=0x20004898 grp=0x0001 cmd=0x01 seq=224 len=473
+OTA rsp part: t=18233 conn=0x20004898 grp=0x0001 cmd=0x01 seq=224 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=18233 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=224 rsp_len=19
+OTA upload progress: 58% (99232/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=225
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=18235 conn=0x20004898 grp=0x0001 cmd=0x01 seq=225 len=473
+OTA rsp part: t=18300 conn=0x20004898 grp=0x0001 cmd=0x01 seq=225 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=18301 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=225 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=226
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=18302 conn=0x20004898 grp=0x0001 cmd=0x01 seq=226 len=473
+OTA rsp part: t=18368 conn=0x20004898 grp=0x0001 cmd=0x01 seq=226 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=18368 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=226 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=227
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=18370 conn=0x20004898 grp=0x0001 cmd=0x01 seq=227 len=473
+OTA rsp part: t=18435 conn=0x20004898 grp=0x0001 cmd=0x01 seq=227 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=18436 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=227 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=228
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=18437 conn=0x20004898 grp=0x0001 cmd=0x01 seq=228 len=473
+OTA rsp part: t=18503 conn=0x20004898 grp=0x0001 cmd=0x01 seq=228 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=18503 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=228 rsp_len=19
+OTA upload progress: 59% (101024/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=229
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=18505 conn=0x20004898 grp=0x0001 cmd=0x01 seq=229 len=473
+OTA rsp part: t=18570 conn=0x20004898 grp=0x0001 cmd=0x01 seq=229 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=18571 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=229 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=230
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=18572 conn=0x20004898 grp=0x0001 cmd=0x01 seq=230 len=473
+OTA rsp part: t=18638 conn=0x20004898 grp=0x0001 cmd=0x01 seq=230 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=18638 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=230 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=231
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=18640 conn=0x20004898 grp=0x0001 cmd=0x01 seq=231 len=473
+OTA rsp part: t=18705 conn=0x20004898 grp=0x0001 cmd=0x01 seq=231 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=18706 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=231 rsp_len=19
+OTA upload progress: 60% (102368/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=232
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=18708 conn=0x20004898 grp=0x0001 cmd=0x01 seq=232 len=473
+OTA rsp part: t=18761 conn=0x20004898 grp=0x0001 cmd=0x01 seq=232 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=18762 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=232 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=233
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=18763 conn=0x20004898 grp=0x0001 cmd=0x01 seq=233 len=473
+OTA rsp part: t=18829 conn=0x20004898 grp=0x0001 cmd=0x01 seq=233 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=18829 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=233 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=234
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=18831 conn=0x20004898 grp=0x0001 cmd=0x01 seq=234 len=473
+OTA rsp part: t=18896 conn=0x20004898 grp=0x0001 cmd=0x01 seq=234 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=18897 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=234 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=235
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=18898 conn=0x20004898 grp=0x0001 cmd=0x01 seq=235 len=473
+OTA rsp part: t=18975 conn=0x20004898 grp=0x0001 cmd=0x01 seq=235 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=18976 dt=78 conn=0x20004898 grp=0x0001 cmd=0x01 seq=235 rsp_len=19
+OTA upload progress: 61% (104160/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=236
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=18978 conn=0x20004898 grp=0x0001 cmd=0x01 seq=236 len=473
+OTA rsp part: t=19043 conn=0x20004898 grp=0x0001 cmd=0x01 seq=236 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=19043 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=236 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=237
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=19045 conn=0x20004898 grp=0x0001 cmd=0x01 seq=237 len=473
+OTA rsp part: t=19110 conn=0x20004898 grp=0x0001 cmd=0x01 seq=237 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=19111 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=237 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=238
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=19112 conn=0x20004898 grp=0x0001 cmd=0x01 seq=238 len=473
+OTA rsp part: t=19178 conn=0x20004898 grp=0x0001 cmd=0x01 seq=238 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=19178 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=238 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=239
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=19180 conn=0x20004898 grp=0x0001 cmd=0x01 seq=239 len=473
+OTA rsp part: t=19256 conn=0x20004898 grp=0x0001 cmd=0x01 seq=239 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=19257 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=239 rsp_len=19
+OTA upload progress: 62% (105952/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=240
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=19259 conn=0x20004898 grp=0x0001 cmd=0x01 seq=240 len=473
+OTA rsp part: t=19313 conn=0x20004898 grp=0x0001 cmd=0x01 seq=240 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=19313 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=240 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=241
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=19315 conn=0x20004898 grp=0x0001 cmd=0x01 seq=241 len=473
+OTA rsp part: t=19380 conn=0x20004898 grp=0x0001 cmd=0x01 seq=241 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=19381 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=241 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=242
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=19382 conn=0x20004898 grp=0x0001 cmd=0x01 seq=242 len=473
+OTA rsp part: t=19459 conn=0x20004898 grp=0x0001 cmd=0x01 seq=242 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=19459 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=242 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=243
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=19461 conn=0x20004898 grp=0x0001 cmd=0x01 seq=243 len=473
+OTA rsp part: t=19526 conn=0x20004898 grp=0x0001 cmd=0x01 seq=243 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=19527 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=243 rsp_len=19
+OTA upload progress: 63% (107744/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=244
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=19529 conn=0x20004898 grp=0x0001 cmd=0x01 seq=244 len=473
+OTA rsp part: t=19594 conn=0x20004898 grp=0x0001 cmd=0x01 seq=244 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=19594 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=244 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=245
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=19596 conn=0x20004898 grp=0x0001 cmd=0x01 seq=245 len=473
+OTA rsp part: t=19661 conn=0x20004898 grp=0x0001 cmd=0x01 seq=245 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=19662 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=245 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=246
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=19664 conn=0x20004898 grp=0x0001 cmd=0x01 seq=246 len=473
+OTA rsp part: t=19729 conn=0x20004898 grp=0x0001 cmd=0x01 seq=246 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=19729 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=246 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=247
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=19731 conn=0x20004898 grp=0x0001 cmd=0x01 seq=247 len=473
+OTA rsp part: t=19796 conn=0x20004898 grp=0x0001 cmd=0x01 seq=247 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=19797 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=247 rsp_len=19
+OTA upload progress: 64% (109536/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=248
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=19799 conn=0x20004898 grp=0x0001 cmd=0x01 seq=248 len=473
+OTA rsp part: t=19853 conn=0x20004898 grp=0x0001 cmd=0x01 seq=248 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=19853 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=248 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=249
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=19855 conn=0x20004898 grp=0x0001 cmd=0x01 seq=249 len=473
+OTA rsp part: t=19920 conn=0x20004898 grp=0x0001 cmd=0x01 seq=249 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=19921 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=249 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=250
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=19922 conn=0x20004898 grp=0x0001 cmd=0x01 seq=250 len=473
+OTA rsp part: t=19988 conn=0x20004898 grp=0x0001 cmd=0x01 seq=250 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=19988 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=250 rsp_len=19
+OTA upload progress: 65% (110880/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=251
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=19990 conn=0x20004898 grp=0x0001 cmd=0x01 seq=251 len=473
+OTA rsp part: t=20066 conn=0x20004898 grp=0x0001 cmd=0x01 seq=251 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=20067 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=251 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=252
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=20068 conn=0x20004898 grp=0x0001 cmd=0x01 seq=252 len=473
+OTA rsp part: t=20134 conn=0x20004898 grp=0x0001 cmd=0x01 seq=252 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=20134 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=252 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=253
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=20136 conn=0x20004898 grp=0x0001 cmd=0x01 seq=253 len=473
+OTA rsp part: t=20213 conn=0x20004898 grp=0x0001 cmd=0x01 seq=253 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=20213 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=253 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=254
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=20215 conn=0x20004898 grp=0x0001 cmd=0x01 seq=254 len=473
+OTA rsp part: t=20280 conn=0x20004898 grp=0x0001 cmd=0x01 seq=254 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=20281 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=254 rsp_len=19
+OTA upload progress: 66% (112672/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=255
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=20283 conn=0x20004898 grp=0x0001 cmd=0x01 seq=255 len=473
+OTA rsp part: t=20348 conn=0x20004898 grp=0x0001 cmd=0x01 seq=255 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=20348 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=255 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=0
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=20350 conn=0x20004898 grp=0x0001 cmd=0x01 seq=0 len=473
+OTA rsp part: t=20404 conn=0x20004898 grp=0x0001 cmd=0x01 seq=0 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=20404 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=0 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=1
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=20406 conn=0x20004898 grp=0x0001 cmd=0x01 seq=1 len=473
+OTA rsp part: t=20471 conn=0x20004898 grp=0x0001 cmd=0x01 seq=1 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=20472 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=1 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=2
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=20473 conn=0x20004898 grp=0x0001 cmd=0x01 seq=2 len=473
+OTA rsp part: t=20539 conn=0x20004898 grp=0x0001 cmd=0x01 seq=2 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=20539 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=2 rsp_len=19
+OTA upload progress: 67% (114464/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=3
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=20541 conn=0x20004898 grp=0x0001 cmd=0x01 seq=3 len=473
+OTA rsp part: t=20606 conn=0x20004898 grp=0x0001 cmd=0x01 seq=3 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=20607 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=3 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=4
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=20608 conn=0x20004898 grp=0x0001 cmd=0x01 seq=4 len=473
+OTA rsp part: t=20674 conn=0x20004898 grp=0x0001 cmd=0x01 seq=4 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=20674 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=4 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=5
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=20676 conn=0x20004898 grp=0x0001 cmd=0x01 seq=5 len=473
+OTA rsp part: t=20741 conn=0x20004898 grp=0x0001 cmd=0x01 seq=5 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=20742 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=5 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=6
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=20743 conn=0x20004898 grp=0x0001 cmd=0x01 seq=6 len=473
+OTA rsp part: t=20809 conn=0x20004898 grp=0x0001 cmd=0x01 seq=6 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=20809 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=6 rsp_len=19
+OTA upload progress: 68% (116256/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=7
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=20811 conn=0x20004898 grp=0x0001 cmd=0x01 seq=7 len=473
+OTA rsp part: t=20876 conn=0x20004898 grp=0x0001 cmd=0x01 seq=7 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=20877 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=7 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=8
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=20879 conn=0x20004898 grp=0x0001 cmd=0x01 seq=8 len=473
+OTA rsp part: t=20933 conn=0x20004898 grp=0x0001 cmd=0x01 seq=8 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=20933 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=8 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=9
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=20935 conn=0x20004898 grp=0x0001 cmd=0x01 seq=9 len=473
+OTA rsp part: t=21000 conn=0x20004898 grp=0x0001 cmd=0x01 seq=9 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=21001 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=9 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=10
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=21002 conn=0x20004898 grp=0x0001 cmd=0x01 seq=10 len=473
+OTA rsp part: t=21068 conn=0x20004898 grp=0x0001 cmd=0x01 seq=10 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=21068 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=10 rsp_len=19
+OTA upload progress: 69% (118048/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=11
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=21070 conn=0x20004898 grp=0x0001 cmd=0x01 seq=11 len=473
+OTA rsp part: t=21135 conn=0x20004898 grp=0x0001 cmd=0x01 seq=11 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=21136 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=11 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=12
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=21137 conn=0x20004898 grp=0x0001 cmd=0x01 seq=12 len=473
+OTA rsp part: t=21203 conn=0x20004898 grp=0x0001 cmd=0x01 seq=12 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=21203 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=12 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=13
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=21205 conn=0x20004898 grp=0x0001 cmd=0x01 seq=13 len=473
+OTA rsp part: t=21281 conn=0x20004898 grp=0x0001 cmd=0x01 seq=13 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=21282 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=13 rsp_len=19
+OTA upload progress: 70% (119392/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=14
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=21284 conn=0x20004898 grp=0x0001 cmd=0x01 seq=14 len=473
+OTA rsp part: t=21349 conn=0x20004898 grp=0x0001 cmd=0x01 seq=14 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=21349 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=14 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=15
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=21351 conn=0x20004898 grp=0x0001 cmd=0x01 seq=15 len=473
+OTA rsp part: t=21416 conn=0x20004898 grp=0x0001 cmd=0x01 seq=15 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=21417 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=15 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=16
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=21418 conn=0x20004898 grp=0x0001 cmd=0x01 seq=16 len=473
+OTA rsp part: t=21473 conn=0x20004898 grp=0x0001 cmd=0x01 seq=16 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=21473 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=16 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=17
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=21475 conn=0x20004898 grp=0x0001 cmd=0x01 seq=17 len=473
+OTA rsp part: t=21551 conn=0x20004898 grp=0x0001 cmd=0x01 seq=17 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=21552 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=17 rsp_len=19
+OTA upload progress: 71% (121184/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=18
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=21554 conn=0x20004898 grp=0x0001 cmd=0x01 seq=18 len=473
+OTA rsp part: t=21619 conn=0x20004898 grp=0x0001 cmd=0x01 seq=18 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=21619 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=18 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=19
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=21621 conn=0x20004898 grp=0x0001 cmd=0x01 seq=19 len=473
+OTA rsp part: t=21686 conn=0x20004898 grp=0x0001 cmd=0x01 seq=19 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=21687 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=19 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=20
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=21688 conn=0x20004898 grp=0x0001 cmd=0x01 seq=20 len=473
+OTA rsp part: t=21754 conn=0x20004898 grp=0x0001 cmd=0x01 seq=20 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=21754 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=20 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=21
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=21756 conn=0x20004898 grp=0x0001 cmd=0x01 seq=21 len=473
+OTA rsp part: t=21821 conn=0x20004898 grp=0x0001 cmd=0x01 seq=21 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=21822 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=21 rsp_len=19
+OTA upload progress: 72% (122976/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=22
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=21824 conn=0x20004898 grp=0x0001 cmd=0x01 seq=22 len=473
+OTA rsp part: t=21889 conn=0x20004898 grp=0x0001 cmd=0x01 seq=22 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=21889 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=22 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=23
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=21891 conn=0x20004898 grp=0x0001 cmd=0x01 seq=23 len=473
+OTA rsp part: t=21956 conn=0x20004898 grp=0x0001 cmd=0x01 seq=23 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=21957 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=23 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=24
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=21958 conn=0x20004898 grp=0x0001 cmd=0x01 seq=24 len=473
+OTA rsp part: t=22013 conn=0x20004898 grp=0x0001 cmd=0x01 seq=24 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=22013 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=24 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=25
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=22015 conn=0x20004898 grp=0x0001 cmd=0x01 seq=25 len=473
+OTA rsp part: t=22080 conn=0x20004898 grp=0x0001 cmd=0x01 seq=25 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=22081 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=25 rsp_len=19
+OTA upload progress: 73% (124768/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=26
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=22083 conn=0x20004898 grp=0x0001 cmd=0x01 seq=26 len=473
+OTA rsp part: t=22148 conn=0x20004898 grp=0x0001 cmd=0x01 seq=26 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=22148 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=26 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=27
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=22150 conn=0x20004898 grp=0x0001 cmd=0x01 seq=27 len=473
+OTA rsp part: t=22215 conn=0x20004898 grp=0x0001 cmd=0x01 seq=27 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=22216 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=27 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=28
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=22217 conn=0x20004898 grp=0x0001 cmd=0x01 seq=28 len=473
+OTA rsp part: t=22294 conn=0x20004898 grp=0x0001 cmd=0x01 seq=28 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=22294 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=28 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=29
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=22296 conn=0x20004898 grp=0x0001 cmd=0x01 seq=29 len=473
+OTA rsp part: t=22361 conn=0x20004898 grp=0x0001 cmd=0x01 seq=29 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=22362 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=29 rsp_len=19
+OTA upload progress: 74% (126560/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=30
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=22364 conn=0x20004898 grp=0x0001 cmd=0x01 seq=30 len=473
+OTA rsp part: t=22429 conn=0x20004898 grp=0x0001 cmd=0x01 seq=30 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=22429 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=30 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=31
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=22431 conn=0x20004898 grp=0x0001 cmd=0x01 seq=31 len=473
+OTA rsp part: t=22496 conn=0x20004898 grp=0x0001 cmd=0x01 seq=31 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=22497 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=31 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=32
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=22498 conn=0x20004898 grp=0x0001 cmd=0x01 seq=32 len=473
+OTA rsp part: t=22553 conn=0x20004898 grp=0x0001 cmd=0x01 seq=32 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=22553 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=32 rsp_len=19
+OTA upload progress: 75% (127904/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=33
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=22555 conn=0x20004898 grp=0x0001 cmd=0x01 seq=33 len=473
+OTA rsp part: t=22631 conn=0x20004898 grp=0x0001 cmd=0x01 seq=33 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=22632 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=33 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=34
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=22633 conn=0x20004898 grp=0x0001 cmd=0x01 seq=34 len=473
+OTA rsp part: t=22699 conn=0x20004898 grp=0x0001 cmd=0x01 seq=34 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=22699 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=34 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=35
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=22701 conn=0x20004898 grp=0x0001 cmd=0x01 seq=35 len=473
+OTA rsp part: t=22766 conn=0x20004898 grp=0x0001 cmd=0x01 seq=35 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=22767 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=35 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=36
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=22769 conn=0x20004898 grp=0x0001 cmd=0x01 seq=36 len=473
+OTA rsp part: t=22834 conn=0x20004898 grp=0x0001 cmd=0x01 seq=36 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=22834 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=36 rsp_len=19
+OTA upload progress: 76% (129696/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=37
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=22836 conn=0x20004898 grp=0x0001 cmd=0x01 seq=37 len=473
+OTA rsp part: t=22913 conn=0x20004898 grp=0x0001 cmd=0x01 seq=37 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=22913 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=37 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=38
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=22915 conn=0x20004898 grp=0x0001 cmd=0x01 seq=38 len=473
+OTA rsp part: t=22991 conn=0x20004898 grp=0x0001 cmd=0x01 seq=38 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=22992 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=38 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=39
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=22993 conn=0x20004898 grp=0x0001 cmd=0x01 seq=39 len=473
+OTA rsp part: t=23059 conn=0x20004898 grp=0x0001 cmd=0x01 seq=39 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=23059 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=39 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=40
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=23061 conn=0x20004898 grp=0x0001 cmd=0x01 seq=40 len=473
+OTA rsp part: t=23115 conn=0x20004898 grp=0x0001 cmd=0x01 seq=40 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=23116 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=40 rsp_len=19
+OTA upload progress: 77% (131488/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=41
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=23118 conn=0x20004898 grp=0x0001 cmd=0x01 seq=41 len=473
+OTA rsp part: t=23194 conn=0x20004898 grp=0x0001 cmd=0x01 seq=41 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=23194 dt=76 conn=0x20004898 grp=0x0001 cmd=0x01 seq=41 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=42
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=23196 conn=0x20004898 grp=0x0001 cmd=0x01 seq=42 len=473
+OTA rsp part: t=23261 conn=0x20004898 grp=0x0001 cmd=0x01 seq=42 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=23262 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=42 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=43
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=23263 conn=0x20004898 grp=0x0001 cmd=0x01 seq=43 len=473
+OTA rsp part: t=23329 conn=0x20004898 grp=0x0001 cmd=0x01 seq=43 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=23329 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=43 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=44
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=23331 conn=0x20004898 grp=0x0001 cmd=0x01 seq=44 len=473
+OTA rsp part: t=23396 conn=0x20004898 grp=0x0001 cmd=0x01 seq=44 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=23397 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=44 rsp_len=19
+OTA upload progress: 78% (133280/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=45
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=23399 conn=0x20004898 grp=0x0001 cmd=0x01 seq=45 len=473
+OTA rsp part: t=23464 conn=0x20004898 grp=0x0001 cmd=0x01 seq=45 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=23464 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=45 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=46
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=23466 conn=0x20004898 grp=0x0001 cmd=0x01 seq=46 len=473
+OTA rsp part: t=23531 conn=0x20004898 grp=0x0001 cmd=0x01 seq=46 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=23532 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=46 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=47
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=23533 conn=0x20004898 grp=0x0001 cmd=0x01 seq=47 len=473
+OTA rsp part: t=23599 conn=0x20004898 grp=0x0001 cmd=0x01 seq=47 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=23599 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=47 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=48
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=23601 conn=0x20004898 grp=0x0001 cmd=0x01 seq=48 len=473
+OTA rsp part: t=23655 conn=0x20004898 grp=0x0001 cmd=0x01 seq=48 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=23656 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=48 rsp_len=19
+OTA upload progress: 79% (135072/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=49
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=23658 conn=0x20004898 grp=0x0001 cmd=0x01 seq=49 len=473
+OTA rsp part: t=23723 conn=0x20004898 grp=0x0001 cmd=0x01 seq=49 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=23723 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=49 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=50
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=23725 conn=0x20004898 grp=0x0001 cmd=0x01 seq=50 len=473
+OTA rsp part: t=23790 conn=0x20004898 grp=0x0001 cmd=0x01 seq=50 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=23791 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=50 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=51
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=23792 conn=0x20004898 grp=0x0001 cmd=0x01 seq=51 len=473
+OTA rsp part: t=23858 conn=0x20004898 grp=0x0001 cmd=0x01 seq=51 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=23858 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=51 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=52
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=23860 conn=0x20004898 grp=0x0001 cmd=0x01 seq=52 len=473
+OTA rsp part: t=23925 conn=0x20004898 grp=0x0001 cmd=0x01 seq=52 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=23926 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=52 rsp_len=19
+OTA upload progress: 80% (136864/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=53
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=23928 conn=0x20004898 grp=0x0001 cmd=0x01 seq=53 len=473
+OTA rsp part: t=23993 conn=0x20004898 grp=0x0001 cmd=0x01 seq=53 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=23993 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=53 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=54
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=23995 conn=0x20004898 grp=0x0001 cmd=0x01 seq=54 len=473
+OTA rsp part: t=24083 conn=0x20004898 grp=0x0001 cmd=0x01 seq=54 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=24083 dt=88 conn=0x20004898 grp=0x0001 cmd=0x01 seq=54 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=55
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=24085 conn=0x20004898 grp=0x0001 cmd=0x01 seq=55 len=473
+OTA rsp part: t=24150 conn=0x20004898 grp=0x0001 cmd=0x01 seq=55 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=24151 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=55 rsp_len=19
+OTA upload progress: 81% (138208/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=56
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=24153 conn=0x20004898 grp=0x0001 cmd=0x01 seq=56 len=473
+OTA rsp part: t=24206 conn=0x20004898 grp=0x0001 cmd=0x01 seq=56 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=24207 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=56 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=57
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=24208 conn=0x20004898 grp=0x0001 cmd=0x01 seq=57 len=473
+OTA rsp part: t=24274 conn=0x20004898 grp=0x0001 cmd=0x01 seq=57 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=24274 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=57 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=58
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=24276 conn=0x20004898 grp=0x0001 cmd=0x01 seq=58 len=473
+OTA rsp part: t=24341 conn=0x20004898 grp=0x0001 cmd=0x01 seq=58 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=24342 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=58 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=59
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=24344 conn=0x20004898 grp=0x0001 cmd=0x01 seq=59 len=473
+OTA rsp part: t=24409 conn=0x20004898 grp=0x0001 cmd=0x01 seq=59 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=24409 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=59 rsp_len=19
+OTA upload progress: 82% (140000/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=60
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=24411 conn=0x20004898 grp=0x0001 cmd=0x01 seq=60 len=473
+OTA rsp part: t=24476 conn=0x20004898 grp=0x0001 cmd=0x01 seq=60 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=24477 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=60 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=61
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=24478 conn=0x20004898 grp=0x0001 cmd=0x01 seq=61 len=473
+OTA rsp part: t=24544 conn=0x20004898 grp=0x0001 cmd=0x01 seq=61 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=24544 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=61 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=62
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=24546 conn=0x20004898 grp=0x0001 cmd=0x01 seq=62 len=473
+OTA rsp part: t=24611 conn=0x20004898 grp=0x0001 cmd=0x01 seq=62 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=24612 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=62 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=63
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=24613 conn=0x20004898 grp=0x0001 cmd=0x01 seq=63 len=473
+OTA rsp part: t=24679 conn=0x20004898 grp=0x0001 cmd=0x01 seq=63 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=24679 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=63 rsp_len=19
+OTA upload progress: 83% (141792/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=64
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=24681 conn=0x20004898 grp=0x0001 cmd=0x01 seq=64 len=473
+OTA rsp part: t=24735 conn=0x20004898 grp=0x0001 cmd=0x01 seq=64 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=24736 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=64 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=65
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=24737 conn=0x20004898 grp=0x0001 cmd=0x01 seq=65 len=473
+OTA rsp part: t=24803 conn=0x20004898 grp=0x0001 cmd=0x01 seq=65 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=24803 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=65 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=66
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=24805 conn=0x20004898 grp=0x0001 cmd=0x01 seq=66 len=473
+OTA rsp part: t=24870 conn=0x20004898 grp=0x0001 cmd=0x01 seq=66 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=24871 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=66 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=67
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=24872 conn=0x20004898 grp=0x0001 cmd=0x01 seq=67 len=473
+OTA rsp part: t=24938 conn=0x20004898 grp=0x0001 cmd=0x01 seq=67 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=24938 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=67 rsp_len=19
+OTA upload progress: 84% (143584/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=68
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=24940 conn=0x20004898 grp=0x0001 cmd=0x01 seq=68 len=473
+OTA rsp part: t=25005 conn=0x20004898 grp=0x0001 cmd=0x01 seq=68 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=25006 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=68 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=69
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=25007 conn=0x20004898 grp=0x0001 cmd=0x01 seq=69 len=473
+OTA rsp part: t=25073 conn=0x20004898 grp=0x0001 cmd=0x01 seq=69 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=25073 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=69 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=70
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=25075 conn=0x20004898 grp=0x0001 cmd=0x01 seq=70 len=473
+OTA rsp part: t=25140 conn=0x20004898 grp=0x0001 cmd=0x01 seq=70 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=25141 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=70 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=71
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=25142 conn=0x20004898 grp=0x0001 cmd=0x01 seq=71 len=473
+OTA rsp part: t=25208 conn=0x20004898 grp=0x0001 cmd=0x01 seq=71 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=25208 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=71 rsp_len=19
+OTA upload progress: 85% (145376/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=72
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=25210 conn=0x20004898 grp=0x0001 cmd=0x01 seq=72 len=473
+OTA rsp part: t=25264 conn=0x20004898 grp=0x0001 cmd=0x01 seq=72 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=25264 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=72 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=73
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=25266 conn=0x20004898 grp=0x0001 cmd=0x01 seq=73 len=473
+OTA rsp part: t=25331 conn=0x20004898 grp=0x0001 cmd=0x01 seq=73 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=25332 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=73 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=74
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=25333 conn=0x20004898 grp=0x0001 cmd=0x01 seq=74 len=473
+OTA rsp part: t=25399 conn=0x20004898 grp=0x0001 cmd=0x01 seq=74 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=25399 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=74 rsp_len=19
+OTA upload progress: 86% (146720/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=75
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=25401 conn=0x20004898 grp=0x0001 cmd=0x01 seq=75 len=473
+OTA rsp part: t=25466 conn=0x20004898 grp=0x0001 cmd=0x01 seq=75 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=25467 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=75 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=76
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=25468 conn=0x20004898 grp=0x0001 cmd=0x01 seq=76 len=473
+OTA rsp part: t=25534 conn=0x20004898 grp=0x0001 cmd=0x01 seq=76 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=25534 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=76 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=77
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=25536 conn=0x20004898 grp=0x0001 cmd=0x01 seq=77 len=473
+OTA rsp part: t=25601 conn=0x20004898 grp=0x0001 cmd=0x01 seq=77 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=25602 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=77 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=78
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=25603 conn=0x20004898 grp=0x0001 cmd=0x01 seq=78 len=473
+OTA rsp part: t=25669 conn=0x20004898 grp=0x0001 cmd=0x01 seq=78 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=25669 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=78 rsp_len=19
+OTA upload progress: 87% (148512/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=79
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=25671 conn=0x20004898 grp=0x0001 cmd=0x01 seq=79 len=473
+OTA rsp part: t=25736 conn=0x20004898 grp=0x0001 cmd=0x01 seq=79 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=25737 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=79 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=80
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=25738 conn=0x20004898 grp=0x0001 cmd=0x01 seq=80 len=473
+OTA rsp part: t=25793 conn=0x20004898 grp=0x0001 cmd=0x01 seq=80 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=25793 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=80 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=81
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=25795 conn=0x20004898 grp=0x0001 cmd=0x01 seq=81 len=473
+OTA rsp part: t=25860 conn=0x20004898 grp=0x0001 cmd=0x01 seq=81 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=25861 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=81 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=82
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=25862 conn=0x20004898 grp=0x0001 cmd=0x01 seq=82 len=473
+OTA rsp part: t=25928 conn=0x20004898 grp=0x0001 cmd=0x01 seq=82 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=25928 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=82 rsp_len=19
+OTA upload progress: 88% (150304/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=83
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=25930 conn=0x20004898 grp=0x0001 cmd=0x01 seq=83 len=473
+OTA rsp part: t=25995 conn=0x20004898 grp=0x0001 cmd=0x01 seq=83 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=25996 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=83 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=84
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=25997 conn=0x20004898 grp=0x0001 cmd=0x01 seq=84 len=473
+OTA rsp part: t=26063 conn=0x20004898 grp=0x0001 cmd=0x01 seq=84 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=26063 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=84 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=85
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=26065 conn=0x20004898 grp=0x0001 cmd=0x01 seq=85 len=473
+OTA rsp part: t=26130 conn=0x20004898 grp=0x0001 cmd=0x01 seq=85 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=26131 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=85 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=86
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=26132 conn=0x20004898 grp=0x0001 cmd=0x01 seq=86 len=473
+OTA rsp part: t=26198 conn=0x20004898 grp=0x0001 cmd=0x01 seq=86 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=26198 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=86 rsp_len=19
+OTA upload progress: 89% (152096/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=87
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=26200 conn=0x20004898 grp=0x0001 cmd=0x01 seq=87 len=473
+OTA rsp part: t=26265 conn=0x20004898 grp=0x0001 cmd=0x01 seq=87 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=26266 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=87 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=88
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=26267 conn=0x20004898 grp=0x0001 cmd=0x01 seq=88 len=473
+OTA rsp part: t=26321 conn=0x20004898 grp=0x0001 cmd=0x01 seq=88 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=26322 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=88 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=89
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=26323 conn=0x20004898 grp=0x0001 cmd=0x01 seq=89 len=473
+OTA rsp part: t=26389 conn=0x20004898 grp=0x0001 cmd=0x01 seq=89 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=26389 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=89 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=90
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=26391 conn=0x20004898 grp=0x0001 cmd=0x01 seq=90 len=473
+OTA rsp part: t=26456 conn=0x20004898 grp=0x0001 cmd=0x01 seq=90 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=26457 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=90 rsp_len=19
+OTA upload progress: 90% (153888/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=91
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=26459 conn=0x20004898 grp=0x0001 cmd=0x01 seq=91 len=473
+OTA rsp part: t=26524 conn=0x20004898 grp=0x0001 cmd=0x01 seq=91 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=26524 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=91 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=92
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=26526 conn=0x20004898 grp=0x0001 cmd=0x01 seq=92 len=473
+OTA rsp part: t=26614 conn=0x20004898 grp=0x0001 cmd=0x01 seq=92 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=26614 dt=88 conn=0x20004898 grp=0x0001 cmd=0x01 seq=92 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=93
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=26616 conn=0x20004898 grp=0x0001 cmd=0x01 seq=93 len=473
+OTA rsp part: t=26681 conn=0x20004898 grp=0x0001 cmd=0x01 seq=93 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=26682 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=93 rsp_len=19
+OTA upload progress: 91% (155232/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=94
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=26684 conn=0x20004898 grp=0x0001 cmd=0x01 seq=94 len=473
+OTA rsp part: t=26749 conn=0x20004898 grp=0x0001 cmd=0x01 seq=94 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=26749 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=94 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=95
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=26751 conn=0x20004898 grp=0x0001 cmd=0x01 seq=95 len=473
+OTA rsp part: t=26816 conn=0x20004898 grp=0x0001 cmd=0x01 seq=95 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=26817 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=95 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=96
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=26818 conn=0x20004898 grp=0x0001 cmd=0x01 seq=96 len=473
+OTA rsp part: t=26873 conn=0x20004898 grp=0x0001 cmd=0x01 seq=96 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=26873 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=96 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=97
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=26875 conn=0x20004898 grp=0x0001 cmd=0x01 seq=97 len=473
+OTA rsp part: t=26940 conn=0x20004898 grp=0x0001 cmd=0x01 seq=97 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=26941 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=97 rsp_len=19
+OTA upload progress: 92% (157024/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=98
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=26943 conn=0x20004898 grp=0x0001 cmd=0x01 seq=98 len=473
+OTA rsp part: t=27008 conn=0x20004898 grp=0x0001 cmd=0x01 seq=98 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=27008 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=98 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=99
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=27010 conn=0x20004898 grp=0x0001 cmd=0x01 seq=99 len=473
+OTA rsp part: t=27075 conn=0x20004898 grp=0x0001 cmd=0x01 seq=99 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=27076 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=99 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=100
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=27077 conn=0x20004898 grp=0x0001 cmd=0x01 seq=100 len=473
+OTA rsp part: t=27143 conn=0x20004898 grp=0x0001 cmd=0x01 seq=100 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=27143 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=100 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=101
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=27145 conn=0x20004898 grp=0x0001 cmd=0x01 seq=101 len=473
+OTA rsp part: t=27210 conn=0x20004898 grp=0x0001 cmd=0x01 seq=101 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=27211 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=101 rsp_len=19
+OTA upload progress: 93% (158816/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=102
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=27213 conn=0x20004898 grp=0x0001 cmd=0x01 seq=102 len=473
+OTA rsp part: t=27289 conn=0x20004898 grp=0x0001 cmd=0x01 seq=102 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=27289 dt=76 conn=0x20004898 grp=0x0001 cmd=0x01 seq=102 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=103
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=27291 conn=0x20004898 grp=0x0001 cmd=0x01 seq=103 len=473
+OTA rsp part: t=27356 conn=0x20004898 grp=0x0001 cmd=0x01 seq=103 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=27357 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=103 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=104
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=27358 conn=0x20004898 grp=0x0001 cmd=0x01 seq=104 len=473
+OTA rsp part: t=27413 conn=0x20004898 grp=0x0001 cmd=0x01 seq=104 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=27413 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=104 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=105
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=27415 conn=0x20004898 grp=0x0001 cmd=0x01 seq=105 len=473
+OTA rsp part: t=27480 conn=0x20004898 grp=0x0001 cmd=0x01 seq=105 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=27481 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=105 rsp_len=19
+OTA upload progress: 94% (160608/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=106
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=27483 conn=0x20004898 grp=0x0001 cmd=0x01 seq=106 len=473
+OTA rsp part: t=27548 conn=0x20004898 grp=0x0001 cmd=0x01 seq=106 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=27548 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=106 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=107
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=27550 conn=0x20004898 grp=0x0001 cmd=0x01 seq=107 len=473
+OTA rsp part: t=27615 conn=0x20004898 grp=0x0001 cmd=0x01 seq=107 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=27616 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=107 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=108
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=27617 conn=0x20004898 grp=0x0001 cmd=0x01 seq=108 len=473
+OTA rsp part: t=27683 conn=0x20004898 grp=0x0001 cmd=0x01 seq=108 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=27683 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=108 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=109
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=27685 conn=0x20004898 grp=0x0001 cmd=0x01 seq=109 len=473
+OTA rsp part: t=27750 conn=0x20004898 grp=0x0001 cmd=0x01 seq=109 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=27751 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=109 rsp_len=19
+OTA upload progress: 95% (162400/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=110
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=27753 conn=0x20004898 grp=0x0001 cmd=0x01 seq=110 len=473
+OTA rsp part: t=27818 conn=0x20004898 grp=0x0001 cmd=0x01 seq=110 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=27818 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=110 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=111
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=27820 conn=0x20004898 grp=0x0001 cmd=0x01 seq=111 len=473
+OTA rsp part: t=27885 conn=0x20004898 grp=0x0001 cmd=0x01 seq=111 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=27886 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=111 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=112
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=27887 conn=0x20004898 grp=0x0001 cmd=0x01 seq=112 len=473
+OTA rsp part: t=27953 conn=0x20004898 grp=0x0001 cmd=0x01 seq=112 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=27953 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=112 rsp_len=19
+OTA upload progress: 96% (163744/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=113
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=27955 conn=0x20004898 grp=0x0001 cmd=0x01 seq=113 len=473
+OTA rsp part: t=28020 conn=0x20004898 grp=0x0001 cmd=0x01 seq=113 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=28021 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=113 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=114
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=28022 conn=0x20004898 grp=0x0001 cmd=0x01 seq=114 len=473
+OTA rsp part: t=28088 conn=0x20004898 grp=0x0001 cmd=0x01 seq=114 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=28088 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=114 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=115
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=28090 conn=0x20004898 grp=0x0001 cmd=0x01 seq=115 len=473
+OTA rsp part: t=28166 conn=0x20004898 grp=0x0001 cmd=0x01 seq=115 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=28167 dt=77 conn=0x20004898 grp=0x0001 cmd=0x01 seq=115 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=116
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=28168 conn=0x20004898 grp=0x0001 cmd=0x01 seq=116 len=473
+OTA rsp part: t=28234 conn=0x20004898 grp=0x0001 cmd=0x01 seq=116 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=28234 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=116 rsp_len=19
+OTA upload progress: 97% (165536/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=117
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=28236 conn=0x20004898 grp=0x0001 cmd=0x01 seq=117 len=473
+OTA rsp part: t=28301 conn=0x20004898 grp=0x0001 cmd=0x01 seq=117 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=28302 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=117 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=118
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=28303 conn=0x20004898 grp=0x0001 cmd=0x01 seq=118 len=473
+OTA rsp part: t=28380 conn=0x20004898 grp=0x0001 cmd=0x01 seq=118 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=28381 dt=78 conn=0x20004898 grp=0x0001 cmd=0x01 seq=118 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=119
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=28382 conn=0x20004898 grp=0x0001 cmd=0x01 seq=119 len=473
+OTA rsp part: t=28448 conn=0x20004898 grp=0x0001 cmd=0x01 seq=119 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=28448 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=119 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=120
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=28450 conn=0x20004898 grp=0x0001 cmd=0x01 seq=120 len=473
+OTA rsp part: t=28515 conn=0x20004898 grp=0x0001 cmd=0x01 seq=120 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=28516 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=120 rsp_len=19
+OTA upload progress: 98% (167328/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=121
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=28518 conn=0x20004898 grp=0x0001 cmd=0x01 seq=121 len=473
+OTA rsp part: t=28583 conn=0x20004898 grp=0x0001 cmd=0x01 seq=121 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=28583 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=121 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=122
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=28585 conn=0x20004898 grp=0x0001 cmd=0x01 seq=122 len=473
+OTA rsp part: t=28650 conn=0x20004898 grp=0x0001 cmd=0x01 seq=122 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=28651 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=122 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=123
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=28652 conn=0x20004898 grp=0x0001 cmd=0x01 seq=123 len=473
+OTA rsp part: t=28718 conn=0x20004898 grp=0x0001 cmd=0x01 seq=123 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=28718 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=123 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=124
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=28720 conn=0x20004898 grp=0x0001 cmd=0x01 seq=124 len=473
+OTA rsp part: t=28785 conn=0x20004898 grp=0x0001 cmd=0x01 seq=124 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=28786 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=124 rsp_len=19
+OTA upload progress: 99% (169120/170536 bytes)
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=125
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=28788 conn=0x20004898 grp=0x0001 cmd=0x01 seq=125 len=473
+OTA rsp part: t=28853 conn=0x20004898 grp=0x0001 cmd=0x01 seq=125 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=28853 dt=65 conn=0x20004898 grp=0x0001 cmd=0x01 seq=125 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=126
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=28855 conn=0x20004898 grp=0x0001 cmd=0x01 seq=126 len=473
+OTA rsp part: t=28920 conn=0x20004898 grp=0x0001 cmd=0x01 seq=126 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=28921 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=126 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=127
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=28922 conn=0x20004898 grp=0x0001 cmd=0x01 seq=127 len=473
+OTA rsp part: t=28988 conn=0x20004898 grp=0x0001 cmd=0x01 seq=127 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=28988 dt=66 conn=0x20004898 grp=0x0001 cmd=0x01 seq=127 rsp_len=19
+OTA send: op=2 len=473 group=0x0001 cmd=0x01 seq=128
+OTA command issued(write_cmd): rc=0 tx_len=481 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=28990 conn=0x20004898 grp=0x0001 cmd=0x01 seq=128 len=473
+OTA rsp part: t=29044 conn=0x20004898 grp=0x0001 cmd=0x01 seq=128 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=29044 dt=54 conn=0x20004898 grp=0x0001 cmd=0x01 seq=128 rsp_len=19
+OTA upload progress: 100% (170536/170536 bytes)
+OTA send: op=2 len=96 group=0x0001 cmd=0x01 seq=129
+OTA command issued(write_cmd): rc=0 tx_len=104 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=29046 conn=0x20004898 grp=0x0001 cmd=0x01 seq=129 len=96
+OTA rsp part: t=29100 conn=0x20004898 grp=0x0001 cmd=0x01 seq=129 off=0 chunk=19 acc=19 total=19
+OTA rx complete: t=29101 dt=55 conn=0x20004898 grp=0x0001 cmd=0x01 seq=129 rsp_len=19
+OTA upload ack: status=0 off=170536
+OTA upload complete
+OTA_STATE:ota_upload_complete detail=upload_done
+OTA image state read request
+OTA send: op=0 len=1 group=0x0001 cmd=0x00 seq=130
+OTA first-frame raw: transport=write_cmd handle=0x001f total=9 hdr_op=0 hdr_flags=0x00 hdr_len=1 hdr_group=0x0001 hdr_id=0x00 hdr_seq=130 raw=0000000100018200a0
+OTA command issued(write_cmd): rc=0 tx_len=9 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=29104 conn=0x20004898 grp=0x0001 cmd=0x00 seq=130 len=1
+OTA rsp part: t=29139 conn=0x20004898 grp=0x0001 cmd=0x00 seq=130 off=0 chunk=256 acc=256 total=256
+OTA rx complete: t=29139 dt=35 conn=0x20004898 grp=0x0001 cmd=0x00 seq=130 rsp_len=256
+OTA command done: group=0x0001 cmd=0x00 status=0 off=0
+OTA IMG_STATE rsp: status=0 payload=248 bytes
+OTA IMG_STATE rsp bytes: bf 66 69 6d 61 67 65 73 9f bf 64 73 6c 6f 74 00 67 76 65 72 73 69 6f 6e 67 30 2e 30 2e 31 2e 31 64 68 61 73 68 58 20 ba ba b3 7f c3 09 2c 4d b4 f8 68 6a 2e 8f d1 26 7a 36 d6 80 cb f2 8d ac ef 53 98 42 1d 4f 99 68 68 62 6f 6f 74 61 62 6c 65 f5 67 70 65 6e 64 69 6e 67 f4 69 63 6f 6e 66 69 72 6d 65 64 f5 66 61 63 74 69 76 65 f5 69 70 65 72 6d 61 6e 65 6e 74 f4 ff bf 64 73 6c 6f 74 01 67 76 65 72 73 69 6f 6e 67 30 2e 30 2e 31 2e 31 64 68 61 73 68 58 20 4c e5 77 72 a3 8c 97 db e2 5e e6 80 2c 73 f0 1b be fc a8 db 18 2b e2 b3 1a a5 5d c0 ad b6 c7 b3 68 62 6f 6f 74 61 62 6c 65 f5 67 70 65 6e 64 69 6e 67 f4 69 63 6f 6e 66 69 72 6d 65 64 f4 66 61 63 74 69 76 65 f4 69 70 65 72 6d 61 6e 65 6e 74 f4 ff ff 6b 73 70 6c 69 74 53 74 61 74 75 73 00 ff
+OTA pending/test request
+OTA send: op=2 len=49 group=0x0001 cmd=0x00 seq=131
+OTA first-frame raw: transport=write_cmd handle=0x001f total=57 hdr_op=2 hdr_flags=0x00 hdr_len=49 hdr_group=0x0001 hdr_id=0x00 hdr_seq=131 raw=0200003100018300a264686173685820
+OTA command issued(write_cmd): rc=0 tx_len=57 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=29149 conn=0x20004898 grp=0x0001 cmd=0x00 seq=131 len=49
+OTA rsp part: t=29206 conn=0x20004898 grp=0x0001 cmd=0x00 seq=131 off=0 chunk=256 acc=256 total=256
+OTA rx complete: t=29207 dt=58 conn=0x20004898 grp=0x0001 cmd=0x00 seq=131 rsp_len=256
+OTA command done: group=0x0001 cmd=0x00 status=0 off=0
+OTA IMG_STATE rsp: status=0 payload=248 bytes
+OTA IMG_STATE rsp bytes: bf 66 69 6d 61 67 65 73 9f bf 64 73 6c 6f 74 00 67 76 65 72 73 69 6f 6e 67 30 2e 30 2e 31 2e 31 64 68 61 73 68 58 20 ba ba b3 7f c3 09 2c 4d b4 f8 68 6a 2e 8f d1 26 7a 36 d6 80 cb f2 8d ac ef 53 98 42 1d 4f 99 68 68 62 6f 6f 74 61 62 6c 65 f5 67 70 65 6e 64 69 6e 67 f4 69 63 6f 6e 66 69 72 6d 65 64 f5 66 61 63 74 69 76 65 f5 69 70 65 72 6d 61 6e 65 6e 74 f4 ff bf 64 73 6c 6f 74 01 67 76 65 72 73 69 6f 6e 67 30 2e 30 2e 31 2e 31 64 68 61 73 68 58 20 4c e5 77 72 a3 8c 97 db e2 5e e6 80 2c 73 f0 1b be fc a8 db 18 2b e2 b3 1a a5 5d c0 ad b6 c7 b3 68 62 6f 6f 74 61 62 6c 65 f5 67 70 65 6e 64 69 6e 67 f5 69 63 6f 6e 66 69 72 6d 65 64 f4 66 61 63 74 69 76 65 f4 69 70 65 72 6d 61 6e 65 6e 74 f4 ff ff 6b 73 70 6c 69 74 53 74 61 74 75 73 00 ff
+OTA reset request
+OTA send: op=2 len=1 group=0x0000 cmd=0x05 seq=132
+OTA command issued(write_req): rc=0 tx_len=9 smp=0x001f ccc=0x0020 sec=1
+OTA tx inflight: t=29235 conn=0x20004898 grp=0x0000 cmd=0x05 seq=132 len=1
+OTA rsp part: t=29246 conn=0x20004898 grp=0x0000 cmd=0x05 seq=132 off=0 chunk=10 acc=10 total=10
+OTA rx complete: t=29247 dt=12 conn=0x20004898 grp=0x0000 cmd=0x05 seq=132 rsp_len=10
+OTA command done: group=0x0000 cmd=0x05 status=0 off=0
+OTA command sequence sent

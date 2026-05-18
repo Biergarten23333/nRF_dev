@@ -1,0 +1,139 @@
+PORT=/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_87EA2F4A526C5A02-if00
+START=2026-05-18 19:17:43
+VERIFY: prepare AUTOPOS control plane for all-responder runtime verification
+VERIFY: prepare anchor target before AUTOPOS preflight
+>>> status
+[AUTOPOS] PHY updated[5]: tx=0x2 rx=0x2
+[AUTOPOS] Control status: mode=AUTOPOS pending=0
+>>> device show
+[AUTOPOS] System target: kind=anchor caps=0x0b (config=1 ota=1 stream=0 status=1)
+OTA target filter: token=-1 name=- prefix=- uuid=-
+[AUTOPOS] DISC complete[5]: link=anchor-ctrl discovered_service=2800 uuid=840C68591E90019821AACFF1B73AAA34
+[AUTOPOS] DISC anchor service found[5]: uuid=840C68591E90019821AACFF1B73AAA34
+[AUTOPOS] Anchor ctrl state subscribe[5] rc=0
+[AUTOPOS] Anchor ctrl result subscribe[5] rc=0
+[AUTOPOS] ANCHOR_CTRL[5] link ready handle=0x0019 result=0x001b uuid=840C68591E90019821AACFF1B73AAA34
+[AUTOPOS] CONNECT pending[7]: addr_valid=1 link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 scan_running=0 conn_count=7
+[AUTOPOS] CONNECT pending[7] rc=0 conn=0x20004e48
+[AUTOPOS] Connected[7]: C0:1D:D1:D0:CE:B0 (random) name=- bs=-
+[AUTOPOS] CONNECT state[7]: link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 ready=0 conn=0x20004e48
+SETUP[7] defer: waiting 869 ms before discovery start
+SETUP[7] defer: waiting 818 ms before discovery start
+SETUP[7] defer: waiting 768 ms before discovery start
+SETUP[7] defer: waiting 718 ms before discovery start
+SETUP[7] defer: waiting 667 ms before discovery start
+[AUTOPOS] Conn param updated[4]: int=6 lat=0 to=400
+SETUP[7] defer: waiting 617 ms before discovery start
+SETUP[7] defer: waiting 567 ms before discovery start
+SETUP[7] defer: waiting 516 ms before discovery start
+SETUP[7] defer: waiting 466 ms before discovery start
+SETUP[7] defer: waiting 416 ms before discovery start
+SETUP[7] defer: waiting 365 ms before discovery start
+SETUP[7] defer: waiting 315 ms before discovery start
+SETUP[7] defer: waiting 265 ms before discovery start
+SETUP[7] defer: waiting 214 ms before discovery start
+SETUP[7] defer: waiting 164 ms before discovery start
+SETUP[7] defer: waiting 114 ms before discovery start
+SETUP[7] defer: waiting 63 ms before discovery start
+SETUP[7] defer: waiting 13 ms before discovery start
+VERIFY: enter AUTOPOS attempt=1/3
+>>> status
+SETUP[7] begin: link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 conn=0x20004e48
+SETUP[7] mtu_exchange rc=0
+SETUP[7] phy_update rc[AUTOPOS] Control status: mode=AUTOPOS pending=0
+=0
+SETUP[7] conn_param_update rc=0
+[AUTOPOS] DISC start[7]: link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 conn=0x20004e48
+[AUTOPOS] MTU exchange[7] done (498)
+[AUTOPOS] Conn param updated[7]: int=6 lat=0 to=400
+[AUTOPOS] PHY updated[7]: tx=0x2 rx=0x2
+VERIFY: AUTOPOS anchor control plane already active
+>>> autopos map A F3BB7A04104F9CB8561DDDACB9E53714
+[AUTOPOS] AUTOPOS map set: A=F3BB7A04104F9CB8561DDDACB9E53714
+[AUTOPOS] Conn param updated[5]: int=6 lat=0 to=400
+[AUTOPOS] DISC complete[7]: link=anchor-ctrl discovered_service=2800 uuid=B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] DISC anchor service found[7]: uuid=B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] Anchor ctrl state subscribe[7] rc=0
+[AUTOPOS] Anchor ctrl result subscribe[7] rc=0
+[AUTOPOS] ANCHOR_CTRL[7] link ready handle=0x0019 result=0x001b uuid=B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=8 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+>>> autopos map B B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] AUTOPOS map set: B=B9179575C776C98F1CB132DD6EDC6223
+>>> autopos map C CEE5A7EFCB35F8A56B430047629F5309
+[AUTOPOS] AUTOPOS map set: C=CEE5A7EFCB35F8A56B430047629F5309
+>>> autopos map D B2B5FA625534A8C617135DCAFC9E036A
+[AUTOPOS] AUTOPOS map set: D=B2B5FA625534A8C617135DCAFC9E036A
+[AUTOPOS] Conn param updated[7]: int=6 lat=0 to=400
+>>> autopos map E A892AF05DD59CF0D0D3408AD74F364A1
+[AUTOPOS] AUTOPOS map set: E=A892AF05DD59CF0D0D3408AD74F364A1
+>>> autopos map F 840C68591E90019821AACFF1B73AAA34
+[AUTOPOS] AUTOPOS map set: F=840C68591E90019821AACFF1B73AAA34
+>>> autopos map G B3087BC3D87CCCD316AEDC6B71D6677F
+[AUTOPOS] AUTOPOS map set: G=B3087BC3D87CCCD316AEDC6B71D6677F
+>>> autopos map H B1E487C2B1FD740D1442206A1857DFA1
+[AUTOPOS] AUTOPOS map set: H=B1E487C2B1FD740D1442206A1857DFA1
+VERIFY: start anchor discovery/control links
+>>> conn
+[AUTOPOS] Master discovery mode: CONN & START
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=8 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+VERIFY: anchor ctrl ready gate ready_log=2/8 conn_count=8/8
+VERIFY: anchor ctrl ready/conn gate reached; settling for 2.0s
+VERIFY: responder runtime attempt=1/4
+>>> anchor role all responder
+[AUTOPOS] anchor role started target=all role=responder
+[AUTOPOS] Master discovery mode: CONN & START
+[AUTOPOS] Anchor ctrl sent[0]: RUNTIME RESPONDER FORCE uuid=A892AF05DD59CF0D0D3408AD74F364A1
+[AUTOPOS] Anchor ctrl sent[1]: RUNTIME RESPONDER FORCE uuid=B1E487C2B1FD740D1442206A1857DFA1
+[AUTOPOS] Anchor ctrl sent[2]: RUNTIME RESPONDER FORCE uuid=CEE5A7EFCB35F8A56B430047629F5309
+[AUTOPOS] Anchor ctrl sent[3]: RUNTIME RESPONDER FORCE uuid=F3BB7A04104F9CB8561DDDACB9E53714
+[AUTOPOS] Anchor ctrl sent[4]: RUNTIME RESPONDER FORCE uuid=B2B5FA625534A8C617135DCAFC9E036A
+[AUTOPOS] Anchor ctrl sent[5]: RUNTIME RESPONDER FORCE uuid=840C68591E90019821AACFF1B73AAA34
+[AUTOPOS] Anchor ctrl sent[6]: RUNTIME RESPONDER FORCE uuid=B3087BC3D87CCCD316AEDC6B71D6677F
+[AUTOPOS] Anchor ctrl sent[7]: RUNTIME RESPONDER FORCE uuid=B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] anchor role all responder runtime sent=8 ready=8/8
+[AUTOPOS] ANCHOR_CTRL[2] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[1] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[0] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[3] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[5] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[4] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[6] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[7] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] Anchor ctrl sent[0]: RUNTIME RESPONDER FORCE uuid=A892AF05DD59CF0D0D3408AD74F364A1
+[AUTOPOS] Anchor ctrl sent[1]: RUNTIME RESPONDER FORCE uuid=B1E487C2B1FD740D1442206A1857DFA1
+[AUTOPOS] Anchor ctrl sent[2]: RUNTIME RESPONDER FORCE uuid=CEE5A7EFCB35F8A56B430047629F5309
+[AUTOPOS] Anchor ctrl sent[3]: RUNTIME RESPONDER FORCE uuid=F3BB7A04104F9CB8561DDDACB9E53714
+[AUTOPOS] Anchor ctrl sent[4]: RUNTIME RESPONDER FORCE uuid=B2B5FA625534A8C617135DCAFC9E036A
+[AUTOPOS] Anchor ctrl sent[5]: RUNTIME RESPONDER FORCE uuid=840C68591E90019821AACFF1B73AAA34
+[AUTOPOS] Anchor ctrl sent[6]: RUNTIME RESPONDER FORCE uuid=B3087BC3D87CCCD316AEDC6B71D6677F
+[AUTOPOS] Anchor ctrl sent[7]: RUNTIME RESPONDER FORCE uuid=B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] anchor role all responder runtime repeat sent=8 ready=8/8
+[AUTOPOS] ANCHOR_CTRL[0] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[2] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[1] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[3] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[4] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[6] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[5] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[7] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] Anchor ctrl sent[0]: RUNTIME RESPONDER FORCE uuid=A892AF05DD59CF0D0D3408AD74F364A1
+[AUTOPOS] Anchor ctrl sent[1]: RUNTIME RESPONDER FORCE uuid=B1E487C2B1FD740D1442206A1857DFA1
+[AUTOPOS] Anchor ctrl sent[2]: RUNTIME RESPONDER FORCE uuid=CEE5A7EFCB35F8A56B430047629F5309
+[AUTOPOS] Anchor ctrl sent[3]: RUNTIME RESPONDER FORCE uuid=F3BB7A04104F9CB8561DDDACB9E53714
+[AUTOPOS] Anchor ctrl sent[4]: RUNTIME RESPONDER FORCE uuid=B2B5FA625534A8C617135DCAFC9E036A
+[AUTOPOS] Anchor ctrl sent[5]: RUNTIME RESPONDER FORCE uuid=840C68591E90019821AACFF1B73AAA34
+[AUTOPOS] Anchor ctrl sent[6]: RUNTIME RESPONDER FORCE uuid=B3087BC3D87CCCD316AEDC6B71D6677F
+[AUTOPOS] Anchor ctrl sent[7]: RUNTIME RESPONDER FORCE uuid=B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] anchor role all responder runtime final sent=8 ready=8/8 total_sent=24
+[AUTOPOS] anchor role rc=0 target=all role=responder
+[AUTOPOS] ANCHOR_CTRL[0] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[1] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[3] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[2] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[5] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[4] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[6] notify: OK RUNTIME_RESTART_REQUESTED
+[AUTOPOS] ANCHOR_CTRL[7] notify: OK RUNTIME_RESTART_REQUESTED
+VERIFY: attempt=1 ack_ok=1 sent=8 ready=8/8 scan=matrix=0 responder=0 master=0 other=0

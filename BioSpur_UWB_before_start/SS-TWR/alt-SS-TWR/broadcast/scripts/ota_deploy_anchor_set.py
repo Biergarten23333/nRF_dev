@@ -20,7 +20,7 @@ UUIDS = {
     "E": "A892AF05DD59CF0D0D3408AD74F364A1",
     "F": "840C68591E90019821AACFF1B73AAA34",
     "G": "B3087BC3D87CCCD316AEDC6B71D6677F",
-    "H": "CF12E703AC1A118F6AB440AB05B0BA23",
+    "H": "B1E487C2B1FD740D1442206A1857DFA1",
 }
 
 UPLOAD_PROGRESS_RE = re.compile(r"OTA upload progress:\s*(\d+)%")
@@ -242,6 +242,15 @@ def parse_args() -> argparse.Namespace:
         "--skip-post-verify",
         action="store_true",
         help="Skip post-OTA all-responder runtime verification/recovery.",
+    )
+    p.add_argument(
+        "--skip-pre-version-verify",
+        action="store_true",
+        help=(
+            "Skip the pre-OTA anchor version query. Useful when old resident "
+            "anchor firmware does not reliably answer version queries; the "
+            "post-OTA version check still runs unless no expected marker is known."
+        ),
     )
     p.add_argument(
         "--expected-fw-marker",
@@ -627,12 +636,20 @@ def main() -> int:
         "expected_fw_marker_meta": expected_fw_meta,
     }
 
-    if expected_fw_marker:
+    if expected_fw_marker and not args.skip_pre_version_verify:
         _, pre_version_summary = run_anchor_version_verify(args, out_root, expected_fw_marker)
         deploy_summary["pre_version_verify"] = pre_version_summary
         for label in args.order:
             current_fw = str((pre_version_summary.get("anchors") or {}).get(label, {}).get("fw", "-"))
             print_anchor_version_banner(label, current_fw, expected_fw_marker)
+        with open(out_root / "deploy_summary.json", "w", encoding="utf-8") as f:
+            json.dump(deploy_summary, f, indent=2)
+    elif expected_fw_marker:
+        deploy_summary["pre_version_verify"] = {
+            "skipped": True,
+            "reason": "skip_pre_version_verify_requested",
+            "expected_fw_marker": expected_fw_marker,
+        }
         with open(out_root / "deploy_summary.json", "w", encoding="utf-8") as f:
             json.dump(deploy_summary, f, indent=2)
 

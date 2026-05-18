@@ -114,6 +114,18 @@ static bool ss_twr_resp_matrix_poll_matches(const uint8_t *frame,
 #define APP_ALT_SS_TWR_RESP_SPACING_US 800U
 #endif
 
+#ifndef APP_ALT_SS_TWR_TAIL_COMPRESS_ENABLE
+#define APP_ALT_SS_TWR_TAIL_COMPRESS_ENABLE 0U
+#endif
+
+#ifndef APP_ALT_SS_TWR_TAIL_START_RANK
+#define APP_ALT_SS_TWR_TAIL_START_RANK 5U
+#endif
+
+#ifndef APP_ALT_SS_TWR_TAIL_RESP_SPACING_US
+#define APP_ALT_SS_TWR_TAIL_RESP_SPACING_US APP_ALT_SS_TWR_RESP_SPACING_US
+#endif
+
 #ifndef APP_ALT_SS_TWR_UNICAST_POLL_REARM_US
 #define APP_ALT_SS_TWR_UNICAST_POLL_REARM_US 0U
 #endif
@@ -537,6 +549,22 @@ static void ss_twr_resp_match_diag_observe_tx_done(
     if (wait_cycles > diag->max_tx_wait_cycles) {
         diag->max_tx_wait_cycles = wait_cycles;
     }
+}
+
+static uint32_t ss_twr_resp_alt_bcast_delay_uus(uint8_t resp_rank)
+{
+#if APP_ALT_SS_TWR_TAIL_COMPRESS_ENABLE != 0U
+    if (resp_rank >= APP_ALT_SS_TWR_TAIL_START_RANK &&
+        APP_ALT_SS_TWR_TAIL_START_RANK > 0U) {
+        return APP_ALT_SS_TWR_GUARD_US +
+               ((uint32_t)(APP_ALT_SS_TWR_TAIL_START_RANK - 1U) *
+                APP_ALT_SS_TWR_RESP_SPACING_US) +
+               ((uint32_t)(resp_rank - (APP_ALT_SS_TWR_TAIL_START_RANK - 1U)) *
+                APP_ALT_SS_TWR_TAIL_RESP_SPACING_US);
+    }
+#endif
+    return APP_ALT_SS_TWR_GUARD_US +
+           ((uint32_t)resp_rank * APP_ALT_SS_TWR_RESP_SPACING_US);
 }
 
 static void ss_twr_resp_log_unexpected_frame(const uint8_t *frame,
@@ -971,9 +999,7 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
                 (alt_anchor_mask & (uint8_t)(1U << ss_twr_resp_anchor_id)) != 0U) {
                 resp_rank = ss_twr_resp_count_mask_bits_before(
                     alt_anchor_mask, ss_twr_resp_anchor_id);
-                resp_delay_uus =
-                    APP_ALT_SS_TWR_GUARD_US +
-                    ((uint32_t)resp_rank * APP_ALT_SS_TWR_RESP_SPACING_US);
+                resp_delay_uus = ss_twr_resp_alt_bcast_delay_uus(resp_rank);
             } else if (alt_poll_count > 0U && alt_poll_index < alt_poll_count) {
                 resp_rank = alt_poll_index;
                 uint32_t alt_unicast_poll_slot_us =

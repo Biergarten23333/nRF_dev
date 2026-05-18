@@ -56,6 +56,12 @@ set_cache_from_env(APP_ANCHOR_RESPONDER_PROFILE_ENABLE "0" STRING "Enable low-ra
 set_cache_from_env(APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE "0" STRING "Pulse DWM1001C blue LED while a responder TX is active")
 set_cache_from_env(APP_ANCHOR_RESPONDER_BLUE_LED_PIN "31" STRING "GPIO pin for responder activity LED")
 set_cache_from_env(APP_ANCHOR_RESPONDER_BLUE_LED_ACTIVE_LOW "1" STRING "Responder activity LED active-low polarity")
+set_cache_from_env(APP_ANCHOR_ULTRASOUND_ENABLE "0" STRING "Enable HC-SR04 ultrasound diagnostic commands")
+set_cache_from_env(APP_ANCHOR_ULTRASOUND_TRIG_PIN "6" STRING "HC-SR04 TRIG GPIO0 pin")
+set_cache_from_env(APP_ANCHOR_ULTRASOUND_ECHO_PIN "7" STRING "HC-SR04 ECHO GPIO0 pin")
+set_cache_from_env(APP_ANCHOR_ULTRASOUND_ECHO_TIMEOUT_US "30000" STRING "HC-SR04 echo timeout in microseconds")
+set_cache_from_env(APP_ANCHOR_ULTRASOUND_SAMPLE_PERIOD_MS "100" STRING "HC-SR04 capture sample period in milliseconds")
+set_cache_from_env(APP_ANCHOR_ULTRASOUND_MAX_SAMPLES "300" STRING "HC-SR04 maximum buffered samples")
 set_cache_from_env(APP_ANCHOR_DIAG_BLE_BEFORE_UWB "0" STRING "Diagnostic: start BLE/control before UWB bringup")
 set_cache_from_env(APP_ANCHOR_DIAG_CONTINUE_ON_UWB_FAIL "0" STRING "Diagnostic: keep BLE/control alive if UWB bringup fails")
 set_cache_from_env(APP_ALT_SS_TWR_ENABLE "0" STRING "Enable experimental burst-poll SS-TWR responder scheduling")
@@ -63,6 +69,9 @@ set_cache_from_env(APP_ALT_SS_TWR_BCAST_ENABLE "0" STRING "Enable clean broadcas
 set_cache_from_env(APP_ALT_SS_TWR_POLL_SPACING_US "200" STRING "Alt SS-TWR spacing between burst polls in microseconds")
 set_cache_from_env(APP_ALT_SS_TWR_GUARD_US "400" STRING "Alt SS-TWR guard time after poll burst in microseconds")
 set_cache_from_env(APP_ALT_SS_TWR_RESP_SPACING_US "1000" STRING "Alt SS-TWR spacing between anchor response slots in microseconds")
+set_cache_from_env(APP_ALT_SS_TWR_TAIL_COMPRESS_ENABLE "0" STRING "Enable tail-compressed broadcast response slots")
+set_cache_from_env(APP_ALT_SS_TWR_TAIL_START_RANK "5" STRING "First broadcast response rank using tail spacing")
+set_cache_from_env(APP_ALT_SS_TWR_TAIL_RESP_SPACING_US "800" STRING "Tail-compressed response slot spacing in microseconds")
 set_cache_from_env(APP_ALT_SS_TWR_UNICAST_POLL_REARM_US "0" STRING "Extra responder-side allowance per remaining unicast poll for tag TX rearm overhead")
 set_cache_from_env(APP_UWB_CHANNEL "5" STRING "DW1000 UWB channel number")
 set_cache_from_env(APP_UWB_PAN_ID "0xDECA" STRING "DW1000 PAN ID")
@@ -102,6 +111,12 @@ target_compile_definitions(app PRIVATE
     APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE=${APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE}
     APP_ANCHOR_RESPONDER_BLUE_LED_PIN=${APP_ANCHOR_RESPONDER_BLUE_LED_PIN}
     APP_ANCHOR_RESPONDER_BLUE_LED_ACTIVE_LOW=${APP_ANCHOR_RESPONDER_BLUE_LED_ACTIVE_LOW}
+    APP_ANCHOR_ULTRASOUND_ENABLE=${APP_ANCHOR_ULTRASOUND_ENABLE}
+    APP_ANCHOR_ULTRASOUND_TRIG_PIN=${APP_ANCHOR_ULTRASOUND_TRIG_PIN}
+    APP_ANCHOR_ULTRASOUND_ECHO_PIN=${APP_ANCHOR_ULTRASOUND_ECHO_PIN}
+    APP_ANCHOR_ULTRASOUND_ECHO_TIMEOUT_US=${APP_ANCHOR_ULTRASOUND_ECHO_TIMEOUT_US}
+    APP_ANCHOR_ULTRASOUND_SAMPLE_PERIOD_MS=${APP_ANCHOR_ULTRASOUND_SAMPLE_PERIOD_MS}
+    APP_ANCHOR_ULTRASOUND_MAX_SAMPLES=${APP_ANCHOR_ULTRASOUND_MAX_SAMPLES}
     APP_ANCHOR_DIAG_BLE_BEFORE_UWB=${APP_ANCHOR_DIAG_BLE_BEFORE_UWB}
     APP_ANCHOR_DIAG_CONTINUE_ON_UWB_FAIL=${APP_ANCHOR_DIAG_CONTINUE_ON_UWB_FAIL}
     APP_ALT_SS_TWR_ENABLE=${APP_ALT_SS_TWR_ENABLE}
@@ -109,6 +124,9 @@ target_compile_definitions(app PRIVATE
     APP_ALT_SS_TWR_POLL_SPACING_US=${APP_ALT_SS_TWR_POLL_SPACING_US}
     APP_ALT_SS_TWR_GUARD_US=${APP_ALT_SS_TWR_GUARD_US}
     APP_ALT_SS_TWR_RESP_SPACING_US=${APP_ALT_SS_TWR_RESP_SPACING_US}
+    APP_ALT_SS_TWR_TAIL_COMPRESS_ENABLE=${APP_ALT_SS_TWR_TAIL_COMPRESS_ENABLE}
+    APP_ALT_SS_TWR_TAIL_START_RANK=${APP_ALT_SS_TWR_TAIL_START_RANK}
+    APP_ALT_SS_TWR_TAIL_RESP_SPACING_US=${APP_ALT_SS_TWR_TAIL_RESP_SPACING_US}
     APP_ALT_SS_TWR_UNICAST_POLL_REARM_US=${APP_ALT_SS_TWR_UNICAST_POLL_REARM_US}
     APP_UWB_CHANNEL=${APP_UWB_CHANNEL}
     APP_UWB_PAN_ID=${APP_UWB_PAN_ID}
@@ -122,6 +140,7 @@ target_sources(app PRIVATE
     ${APP_ROOT}/src/anchors/unified/anchor_ble_id.c
     ${APP_ROOT}/src/anchors/unified/anchor_ble_ctrl.c
     ${APP_ROOT}/src/anchors/unified/anchor_runtime_control.c
+    ${APP_ROOT}/src/anchors/unified/anchor_ultrasound.c
     ${APP_ROOT}/src/anchors/unified/anchor_mcumgr_diag.c
     ${APP_ROOT}/src/anchors/unified/uart_role_switch.c
     ${APP_ROOT}/src/uwb_bringup.c

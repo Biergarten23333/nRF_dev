@@ -1,3 +1,145 @@
+## Erlangen Baseline Freeze - 2026-05-19
+
+This is the current baseline for the planned Erlangen / OptiTrack field test.
+
+### Frozen Decision
+
+Use the **tail900 start5** broadcast responder timing as the Erlangen baseline.
+
+The first five anchor response slots remain unchanged. Only the tail anchors
+F/G/H are compressed from the old 1000 us spacing to 900 us spacing:
+
+| Anchor | Rank | Response slot after poll |
+|---|---:|---:|
+| A | 0 | 1200 us |
+| B | 1 | 2200 us |
+| C | 2 | 3200 us |
+| D | 3 | 4200 us |
+| E | 4 | 5200 us |
+| F | 5 | 6100 us |
+| G | 6 | 7000 us |
+| H | 7 | 7900 us |
+
+This keeps the conservative 1200 us initial guard and avoids compressing A-E,
+while improving the late H response window compared with the old
+`guard=1200 us, rank_spacing=1000 us` schedule.
+
+### Firmware / Build Marker
+
+- Experimental anchor marker: `us-hc-exp4-tail900-start5`
+- Tail compression parameters:
+  - `APP_ALT_SS_TWR_TAIL_COMPRESS_ENABLE=1`
+  - `APP_ALT_SS_TWR_TAIL_START_RANK=5`
+  - `APP_ALT_SS_TWR_TAIL_RESP_SPACING_US=900`
+- Guard remains: `APP_ALT_SS_TWR_GUARD_US=1200`
+- Normal rank spacing remains: `APP_ALT_SS_TWR_RESP_SPACING_US=1000`
+- Ultrasound support is present in this image, but must be explicitly opened
+  only during the short ultrasound capture window and closed before Tag/Wand
+  capture. Normal responder operation after ultrasound close has been verified.
+
+Implementation files for this freeze:
+
+- `src/ss_twr_resp.c`
+- `apps/anchor/CMakeLists.txt`
+- `scripts/build_experimental_ultrasound_anchor_carrier_b120.sh`
+
+### Hardware Roster
+
+Current A-H anchor roster for this freeze:
+
+| Anchor | BS code | SNR | UUID |
+|---|---|---:|---|
+| A | BS1FFC | 760184781 | F3BB7A04104F9CB8561DDDACB9E53714 |
+| B | BS592A | 760185876 | B9179575C776C98F1CB132DD6EDC6223 |
+| C | BS5380 | 760185878 | CEE5A7EFCB35F8A56B430047629F5309 |
+| D | BS20AC | 760184974 | B2B5FA625534A8C617135DCAFC9E036A |
+| E | BS4B52 | 760185904 | A892AF05DD59CF0D0D3408AD74F364A1 |
+| F | BS928B | 760186124 | 840C68591E90019821AACFF1B73AAA34 |
+| G | BSEC88 | 760185889 | B3087BC3D87CCCD316AEDC6B71D6677F |
+| H | BS506D | 760184500 | B1E487C2B1FD740D1442206A1857DFA1 |
+
+Anchor H has been replaced. The old H was `BSB77F`, SNR `760184753`,
+UUID `CF12E703AC1A118F6AB440AB05B0BA23`, and should not be used unless
+explicitly rolling back.
+
+### Validation Evidence
+
+Single-tag BSF66F, center of the current small volume:
+
+- Session:
+  `autopos_pipeline/offline_test_motice/test_18052026/bsf66f_center_60s_tail900_start5_rerun`
+- Duration: 60 s
+- `sweeps_total = 601`
+- `8/8 = 600/601 = 99.83%`
+- `>=7 = 601/601 = 100.00%`
+- `tr_valid_all = 4807/4808`
+- Cleanup after capture succeeded with `cmd_all MODE AOTA`.
+
+Single-tag BSF66F, 180 s tail900 start5 test:
+
+- Session:
+  `autopos_pipeline/offline_test_motice/test_18052026/bsf66f_180s_us_hc_exp4_tail900_start5`
+- `sweeps_total = 1801`
+- `8/8 = 1680/1801 = 93.28%`
+- `>=7 = 1800/1801 = 99.94%`
+- Per-anchor validity:
+  - A/r0: 99.72%
+  - B/r1: 99.94%
+  - C/r2: 99.83%
+  - D/r3: 99.83%
+  - E/r4: 99.94%
+  - F/r5: 98.89%
+  - G/r6: 96.22%
+  - H/r7: 98.83%
+
+Comparison against tail800 start5:
+
+- tail800 start5 improved H but compressed F/G too aggressively.
+- tail900 start5 preserves most of the H improvement while recovering F/G
+  stability, so it is the best tested compromise.
+
+### Small-Volume Caveat
+
+The local room used on 2026-05-18/19 is much smaller than the outdoor
+experiment volume. The latest SW100 solver results give approximately:
+
+- X span: 1.83 m
+- Y span: 2.49 m
+- Z span: 1.60 m
+- Layout edge RMS: approximately 71-74 mm across three SW100 cycles
+
+This small volume is acceptable for firmware smoke tests, timing validation,
+and responder availability checks. It is **not** a reliable environment for
+judging RotoArm or Calibration Wand quality, because Tag orientation, body
+shadowing, cable/power placement, and mutual occlusion dominate the result.
+
+Examples from the small-volume tests:
+
+- BSF66F at the center gives 99.83% 8/8, proving that the timing and the Tag
+  can work very well.
+- Roto/Wand multi-tag captures show large tag-to-tag differences under the same
+  anchor timing, which points to physical RF visibility rather than broadcast
+  slot timing.
+
+Therefore, do not change the tail900 start5 timing based only on poor Roto/Wand
+results from this small room. Re-evaluate Roto/Wand in a larger volume,
+preferably close to the previous 3 m x 4 m scale or in the Erlangen OptiTrack
+setup.
+
+### Erlangen Test Recommendation
+
+For the next Erlangen / outdoor trial:
+
+1. Use `tail900 start5` as the baseline.
+2. Start with SW100 and solve the anchor layout.
+3. Run one center static Tag check first.
+4. Then run RotoArm / Wand only after the static center Tag has high 8/8
+   availability.
+5. Keep ultrasound disabled during all normal Tag, RotoArm, and Wand captures.
+
+This section supersedes the old `g1200/r1000` timing baseline for new
+Erlangen tests, while the older section below remains as historical context.
+
 ## Broadcast Baseline Freeze - b55 Tag + a13 Anchor
 
 ### Frozen Configuration
@@ -46,7 +188,7 @@ APP_TAG_EKF_PROC_ACCEL_MM_S2=500
 APP_TAG_EKF_RESIDUAL_GAIN_PCT=0
 APP_TAG_FAST_TRACKING=1
 APP_TAG_FULL_SWEEP_INTERVAL=8
-APP_TAG_FW_MARKER=alt-bcast-b55-noconsole-8anc-g1200-r1000-rms0
+APP_TAG_FW_MARKER=alt-bcast-b55-no当前测试看起来没有破坏正常 UWB responder 行为
 APP_TAG_IMU_SAMPLE_PERIOD=8
 APP_TAG_LOC_FAST_ALL_VALID_ENABLE=1
 APP_TAG_LOC_MIN_QUALITY_PERCENT=50

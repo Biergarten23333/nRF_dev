@@ -1,0 +1,279 @@
+Disconnected: D7:93:2A:57:6D:1E (random) reason 0x08
+Scan restart suppressed (no active OTA session)
+>>> status
+[OTA] Control status: mode=OTA pending=0
+>>> mode recv
+
+[SCRIPT] expected CDC disconnect during OTA->RECV reboot: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+*** Booting nRF Connect SDK v2.8.0-a2386bfc8401 ***
+*** Using Zephyr OS v3.7.99-0bc3393fb112 ***
+[RECV] LED map: 1=AUTOPOS 2=RECV 3=OTA 4=FLOW
+[RECV] Control mode loaded: RECV
+[RECV] UART control ready: type 'status' or 'mode recv'/'mode ota'/'mode autopos'
+[RECV] OTA target restored: token=-1 name=- prefix=- uuid=b1e487c2b1fd740d1442206a1857dfa1
+OTA_STATE:target_configured detail=token
+OTA NUS stage: disabled
+[RECV] Boot profile neutral: no role-specific auto target
+OTA target filter: token=-1 name=- prefix=- uuid=B1E487C2B1FD740D1442206A1857DFA1
+[RECV] BioSpur BLE master control ready on nrf5340dk/nrf5340/cpuapp
+[RECV] BTN1 toggles RECV/OTA, BTN2 forces OTA mode, BTN3=SCAN, BTN4=CONN&START
+[RECV] Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate
+[RECV] OTA runtime cmds: ota_reset | ota show | ota version
+[RECV] Runtime NUS cmds: cmd <raw> | cmd_all <raw> | oneshot <raw> | oneshot show | oneshot clear
+[RECV] Tag layout cmds: APOS <id> <x_mm> <y_mm> <z_mm> | APOS_T>>> status
+[RECV] Control status: mode=RECV pending=0
+>>> device kind anchor
+[RECV] One-shot NUS command cleared (runtime)
+OTA NUS stage: disabled
+[RECV] Mode switch preflight: disconnect requests=0
+[RECV] device kind set: anchor (OTA target defaults reset, no BS prefix)
+[RECV] Master discovery mode: CONN & START
+[RECV] Peer clear wait: waited=0 conn_count=0 ready_count=0
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[RECV] Scanning for ANCHOR-*
+[RECV] System target: kind=anchor caps=0x0b (config=1 ota=1 stream=0 status=1)
+OTA target filter: token=-1 name=- prefix=- uuid=-
+>>> mode autopos
+[AUTOPOS] Control mode staged: AUTOPOS
+[AUTOPOS] Master discovery mode: CONN & START
+[AUTOPOS] Peer clear wait: waited=0 conn_count=0 ready_count=0
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=0 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] AUTOPOS: mode=AUTOPOS state=idle staged=- last_success=- sets=0 error=-
+[AUTOPOS] SCAN hit: C0:1D:D1:D0:CE:B0 (random) rssi=-73 name=- bs=- uuid=B9179575C776C98F1CB132DD6EDC6223 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[0]: addr=C0:1D:D1:D0:CE:B0 (random) link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 target=anchor
+[AUTOPOS] SCAN hit: F9:5B:1A:A3:84:45 (random) rssi=-74 name=- bs=- uuid=B2B5FA625534A8C617135DCAFC9E036A target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[1]: addr=F9:5B:1A:A3:84:45 (random) link=anchor-ctrl uuid=B2B5FA625534A8C617135DCAFC9E036A target=anchor
+[AUTOPOS] SCAN hit: EC:9F:55:9D:7E:A1 (random) rssi=-63 name=- bs=- uuid=B3087BC3D87CCCD316AEDC6B71D6677F target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[2]: addr=EC:9F:55:9D:7E:A1 (random) link=anchor-ctrl uuid=B3087BC3D87CCCD316AEDC6B71D6677F target=anchor
+[AUTOPOS] SCAN hit: D7:93:2A:57:6D:1E (random) rssi=-54 name=- bs=- uuid=B1E487C2B1FD740D1442206A1857DFA1 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[3]: addr=D7:93:2A:57:6D:1E (random) link=anchor-ctrl uuid=B1E487C2B1FD740D1442206A1857DFA1 target=anchor
+[AUTOPOS] SCAN hit: E9:CB:F3:C4:51:43 (random) rssi=-59 name=- bs=- uuid=840C68591E90019821AACFF1B73AAA34 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[4]: addr=E9:CB:F3:C4:51:43 (random) link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 target=anchor
+[AUTOPOS] SCAN hit: D9:C7:9C:16:71:C9 (random) rssi=-65 name=- bs=- uuid=A892AF05DD59CF0D0D3408AD74F364A1 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[5]: addr=D9:C7:9C:16:71:C9 (random) link=anchor-ctrl uuid=A892AF05DD59CF0D0D3408AD74F364A1 target=anchor
+[AUTOPOS] SCAN hit: DE:49:E3:D0:E4:E8 (random) rssi=-65 name=- bs=- uuid=F3BB7A04104F9CB8561DDDACB9E53714 target=anchor uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[6]: addr=DE:49:E3:D0:E4:E8 (random) link=anchor-ctrl uuid=F3BB7A04104F9CB8561DDDACB9E53714 target=anchor
+[AUTOPOS] CONNECT pending[0]: addr_valid=1 link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 scan_running=1 conn_count=0
+[AUTOPOS] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[AUTOPOS] CONNECT pending[0] rc=0 conn=0x20004898
+[AUTOPOS] Connected[0]: C0:1D:D1:D0:CE:B0 (random) name=- bs=-
+[AUTOPOS] CONNECT state[0]: link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 ready=0 conn=0x20004898
+SETUP[0] defer: waiting 889 ms before discovery start
+SETUP[0] defer: waiting 838 ms before discovery start
+SETUP[0] defer: waiting 788 ms before discovery start
+SETUP[0] defer: waiting 738 ms before discovery start
+SETUP[0] defer: waiting 687 ms before discovery start
+SETUP[0] defer: waiting 637 ms before discovery start
+SETUP[0] defer: waiting 587 ms before discovery start
+SETUP[0] defer: waiting 536 ms before discovery start
+SETUP[0] defer: waiting 486 ms before discovery start
+SETUP[0] defer: waiting 436 ms before discovery start
+SETUP[0] defer: waiting 385 ms before discovery start
+SETUP[0] defer: waiting 335 ms before discovery start
+SETUP[0] defer: waiting 285 ms before discovery start
+SETUP[0] defer: waiting 234 ms before discovery start
+SETUP[0] defer: waiting 184 ms before discovery start
+SETUP[0] defer: waiting 134 ms before discovery start
+SETUP[0] defer: waiting 83 ms before discovery start
+SETUP[0] defer: waiting 33 ms before discovery start
+SETUP[0] begin: link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 conn=0x20004898
+SETUP[0] mtu_exchange rc=0
+SETUP[0] phy_update rc=0
+SETUP[0] conn_param_update rc=0
+[AUTOPOS] DISC start[0]: link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 conn=0x20004898
+[AUTOPOS] MTU exchange[0] done (498)
+[AUTOPOS] Conn param updated[0]: int=6 lat=0 to=400
+[AUTOPOS] PHY updated[0]: tx=0x2 rx=0x2
+[AUTOPOS] DISC complete[0]: link=anchor-ctrl discovered_service=2800 uuid=B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] DISC anchor service found[0]: uuid=B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] Anchor ctrl state subscribe[0] rc=0
+[AUTOPOS] Anchor ctrl result subscribe[0] rc=0
+[AUTOPOS] ANCHOR_CTRL[0] link ready handle=0x0019 result=0x001b uuid=B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] CONNECT pending[1]: addr_valid=1 link=anchor-ctrl uuid=B2B5FA625534A8C617135DCAFC9E036A scan_running=0 conn_count=1
+[AUTOPOS] CONNECT pending[1] rc=0 conn=0x20004968
+[AUTOPOS] Connected[1]: F9:5B:1A:A3:84:45 (random) name=- bs=-
+[AUTOPOS] CONNECT state[1]: link=anchor-ctrl uuid=B2B5FA625534A8C617135DCAFC9E036A ready=0 conn=0x20004968
+SETUP[1] defer: waiting 869 ms before discovery start
+SETUP[1] defer: waiting 819 ms before discovery start
+SETUP[1] defer: waiting 768 ms before discovery start
+SETUP[1] defer: waiting 718 ms before discovery start
+SETUP[1] defer: waiting 668 ms before discovery start
+SETUP[1] defer: waiting 617 ms before discovery start
+SETUP[1] defer: waiting 567 ms before discovery start
+SETUP[1] defer: waiting 517 ms before discovery start
+SETUP[1] defer: waiting 466 ms before discovery start
+SETUP[1] defer: waiting 416 ms before discovery start
+SETUP[1] defer: waiting 366 ms before discovery start
+SETUP[1] defer: waiting 315 ms before discovery start
+SETUP[1] defer: waiting 265 ms before discovery start
+SETUP[1] defer: waiting 215 ms before discovery start
+SETUP[1] defer: waiting 164 ms before discovery start
+SETUP[1] defer: waiting 114 ms before discovery start
+SETUP[1] defer: waiting 64 ms before discovery start
+SETUP[1] defer: waiting 13 ms before discovery start
+SETUP[1] begin: link=anchor-ctrl uuid=B2B5FA625534A8C617135DCAFC9E036A conn=0x20004968
+SETUP[1] mtu_exchange rc=0
+SETUP[1] phy_update rc=0
+SETUP[1] conn_param_update rc=0
+[AUTOPOS] DISC start[1]: link=anchor-ctrl uuid=B2B5FA625534A8C617135DCAFC9E036A conn=0x20004968
+[AUTOPOS] MTU exchange[1] done (498)
+[AUTOPOS] Conn param updated[1]: int=6 lat=0 to=400
+[AUTOPOS] PHY updated[1]: tx=0x2 rx=0x2
+[AUTOPOS] DISC complete[1]: link=anchor-ctrl discovered_service=2800 uuid=B2B5FA625534A8C617135DCAFC9E036A
+[AUTOPOS] DISC anchor service found[1]: uuid=B2B5FA625534A8C617135DCAFC9E036A
+[AUTOPOS] Anchor ctrl state subscribe[1] rc=0
+[AUTOPOS] Anchor ctrl result subscribe[1] rc=0
+[AUTOPOS] ANCHOR_CTRL[1] link ready handle=0x0019 result=0x001b uuid=B2B5FA625534A8C617135DCAFC9E036A
+[AUTOPOS] CONNECT pending[2]: addr_valid=1 link=anchor-ctrl uuid=B3087BC3D87CCCD316AEDC6B71D6677F scan_running=0 conn_count=2
+[AUTOPOS] CONNECT pending[2] rc=0 conn=0x20004a38
+[AUTOPOS] Connected[2]: EC:9F:55:9D:7E:A1 (random) name=- bs=-
+[AUTOPOS] CONNECT state[2]: link=anchor-ctrl uuid=B3087BC3D87CCCD316AEDC6B71D6677F ready=0 conn=0x20004a38
+SETUP[2] defer: waiting 878 ms before discovery start
+SETUP[2] defer: waiting 827 ms before discovery start
+SETUP[2] defer: waiting 777 ms before discovery start
+SETUP[2] defer: waiting 727 ms before discovery start
+SETUP[2] defer: waiting 676 ms before discovery start
+SETUP[2] defer: waiting 626 ms before discovery start
+SETUP[2] defer: waiting 575 ms before discovery start
+SETUP[2] defer: waiting 525 ms before discovery start
+SETUP[2] defer: waiting 475 ms before discovery start
+SETUP[2] defer: waiting 424 ms before discovery start
+SETUP[2] defer: waiting 374 ms before discovery start
+SETUP[2] defer: waiting 324 ms before discovery start
+SETUP[2] defer: waiting 273 ms before discovery start
+SETUP[2] defer: waiting 223 ms before discovery start
+SETUP[2] defer: waiting 173 ms before discovery start
+SETUP[2] defer: waiting 122 ms before discovery start
+SETUP[2] defer: waiting 72 ms before discovery start
+SETUP[2] defer: waiting 22 ms before discovery start
+SETUP[2] begin: link=anchor-ctrl uuid=B3087BC3D87CCCD316AEDC6B71D6677F conn=0x20004a38
+SETUP[2] mtu_exchange rc=0
+SETUP[2] phy_update rc=0
+SETUP[2] conn_param_update rc=0
+[AUTOPOS] DISC start[2]: link=anchor-ctrl uuid=B3087BC3D87CCCD316AEDC6B71D6677F conn=0x20004a38
+[AUTOPOS] MTU exchange[2] done (498)
+[AUTOPOS] Conn param updated[2]: int=6 lat=0 to=400
+[AUTOPOS] PHY updated[2]: tx=0x2 rx=0x2
+[AUTOPOS] DISC complete[2]: link=anchor-ctrl discovered_service=2800 uuid=B3087BC3D87CCCD316AEDC6B71D6677F
+[AUTOPOS] DISC anchor service found[2]: uuid=B3087BC3D87CCCD316AEDC6B71D6677F
+[AUTOPOS] Anchor ctrl state subscribe[2] rc=0
+[AUTOPOS] Anchor ctrl result subscribe[2] rc=0
+[AUTOPOS] ANCHOR_CTRL[2] link ready handle=0x0019 result=0x001b uuid=B3087BC3D87CCCD316AEDC6B71D6677F
+[AUTOPOS] CONNECT pending[3]: addr_valid=1 link=anchor-ctrl uuid=B1E487C2B1FD740D1442206A1857DFA1 scan_running=0 conn_count=3
+[AUTOPOS] CONNECT pending[3] rc=0 conn=0x20004b08
+[AUTOPOS] Connected[3]: D7:93:2A:57:6D:1E (random) name=- bs=-
+[AUTOPOS] CONNECT state[3]: link=anchor-ctrl uuid=B1E487C2B1FD740D1442206A1857DFA1 ready=0 conn=0x20004b08
+SETUP[3] defer: waiting 878 ms before discovery start
+SETUP[3] defer: waiting 828 ms before discovery start
+SETUP[3] defer: waiting 777 ms before discovery start
+SETUP[3] defer: waiting 727 ms before discovery start
+SETUP[3] defer: waiting 677 ms before discovery start
+[AUTOPOS] Conn param updated[0]: int=6 lat=0 to=400
+SETUP[3] defer: waiting 626 ms before discovery start
+SETUP[3] defer: waiting 576 ms before discovery start
+SETUP[3] defer: waiting 526 ms before discovery start
+SETUP[3] defer: waiting 475 ms before discovery start
+SETUP[3] defer: waiting 425 ms before discovery start
+SETUP[3] defer: waiting 374 ms before discovery start
+SETUP[3] defer: waiting 324 ms before discovery start
+SETUP[3] defer: waiting 274 ms before discovery start
+SETUP[3] defer: waiting 223 ms before discovery start
+SETUP[3] defer: waiting 173 ms before discovery start
+SETUP[3] defer: waiting 123 ms before discovery start
+SETUP[3] defer: waiting 72 ms before discovery start
+SETUP[3] defer: waiting 22 ms before discovery start
+SETUP[3] begin: link=anchor-ctrl uuid=B1E487C2B1FD740D1442206A1857DFA1 conn=0x20004b08
+SETUP[3] mtu_exchange rc=0
+SETUP[3] phy_update rc=0
+SETUP[3] conn_param_update rc=0
+[AUTOPOS] DISC start[3]: link=anchor-ctrl uuid=B1E487C2B1FD740D1442206A1857DFA1 conn=0x20004b08
+[AUTOPOS] MTU exchange[3] done (498)
+[AUTOPOS] Conn param updated[3]: int=6 lat=0 to=400
+[AUTOPOS] PHY updated[3]: tx=0x2 rx=0x2
+[AUTOPOS] Conn param updated[1]: int=6 lat=0 to=400
+[AUTOPOS] DISC complete[3]: link=anchor-ctrl discovered_service=2800 uuid=B1E487C2B1FD740D1442206A1857DFA1
+[AUTOPOS] DISC anchor service found[3]: uuid=B1E487C2B1FD740D1442206A1857DFA1
+[AUTOPOS] Anchor ctrl state subscribe[3] rc=0
+[AUTOPOS] Anchor ctrl result subscribe[3] rc=0
+[AUTOPOS] ANCHOR_CTRL[3] link ready handle=0x0019 result=0x001b uuid=B1E487C2B1FD740D1442206A1857DFA1
+[AUTOPOS] CONNECT pending[4]: addr_valid=1 link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 scan_running=0 conn_count=4
+[AUTOPOS] CONNECT pending[4] rc=0 conn=0x20004bd8
+[AUTOPOS] Connected[4]: E9:CB:F3:C4:51:43 (random) name=- bs=-
+[AUTOPOS] CONNECT state[4]: link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 ready=0 conn=0x20004bd8
+SETUP[4] defer: waiting 892 ms before discovery start
+SETUP[4] defer: waiting 842 ms before discovery start
+SETUP[4] defer: waiting 791 ms before discovery start
+SETUP[4] defer: waiting 741 ms before discovery start
+SETUP[4] defer: waiting 691 ms before discovery start
+SETUP[4] defer: waiting 640 ms before discovery start
+SETUP[4] defer: waiting 590 ms before discovery start
+SETUP[4] defer: waiting 540 ms before discovery start
+SETUP[4] defer: waiting 489 ms before discovery start
+SETUP[4] defer: waiting 439 ms before discovery start
+SETUP[4] defer: waiting 389 ms before discovery start
+SETUP[4] defer: waiting 338 ms before discovery start
+SETUP[4] defer: waiting 288 ms before discovery start
+SETUP[4] defer: waiting 238 ms before discovery start
+SETUP[4] defer: waiting 137 ms before discovery start
+SETUP[4] defer: waiting 87 ms before discovery start
+SETUP[4] defer: waiting 36 ms before discovery start
+SETUP[4] begin: link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 conn=0x20004bd8
+SETUP[4] mtu_exchange rc=0
+SETUP[4] phy_update rc=0
+SETUP[4] conn_param_update rc=0
+[AUTOPOS] DISC start[4]: link=anchor-ctrl uuid=840C68591E90019821AACFF1B73AAA34 conn=0x20004bd8
+[AUTOPOS] MTU exchange[4] done (498)
+[AUTOPOS] Conn param updated[4]: int=6 lat=0 to=400
+[AUTOPOS] PHY updated[4]: tx=0x2 rx=0x2
+[AUTOPOS] Conn param updated[2]: int=6 lat=0 to=400
+>>> status
+[AUTOPOS] Control status: mode=AUTOPOS pending=0
+[AUTOPOS] DISC complete[4]: link=anchor-ctrl discovered_service=2800 uuid=840C68591E90019821AACFF1B73AAA34
+[AUTOPOS] DISC anchor service found[4]: uuid=840C68591E90019821AACFF1B73AAA34
+[AUTOPOS] Anchor ctrl state subscribe[4] rc=0
+[AUTOPOS] Anchor ctrl result subscribe[4] rc=0
+[AUTOPOS] ANCHOR_CTRL[4] link ready handle=0x0019 result=0x001b uuid=840C68591E90019821AACFF1B73AAA34
+[AUTOPOS] CONNECT pending[5]: addr_valid=1 link=anchor-ctrl uuid=A892AF05DD59CF0D0D3408AD74F364A1 scan_running=0 conn_count=5
+[AUTOPOS] CONNECT pending[5] rc=0 conn=0x20004ca8
+[AUTOPOS] Connected[5]: D9:C7:9C:16:71:C9 (random) name=- bs=-
+[AUTOPOS] CONNECT state[5]: link=anchor-ctrl uuid=A892AF05DD59CF0D0D3408AD74F364A1 ready=0 conn=0x20004ca8
+SETUP[5] defer: waiting 892 ms before discovery start
+SETUP[5] defer: waiting 842 ms before discovery start
+SETUP[5] defer: waiting 791 ms before discovery start
+SETUP[5] defer: waiting 741 ms before discovery start
+SETUP[5] defer: waiting 690 ms before discovery start
+SETUP[5] defer: waiting 640 ms before discovery start
+SETUP[5] defer: waiting 590 ms before discovery start
+SETUP[5] defer: waiting 539 ms before discovery start
+SETUP[5] defer: waiting 489 ms before discovery start
+SETUP[5] defer: waiting 439 ms before discovery start
+SETUP[5] defer: waiting 388 ms before discovery start
+SETUP[5] defer: waiting 338 ms before discovery start
+SETUP[5] defer: waiting 288 ms before discovery start
+SETUP[5] defer: waiting 237 ms before discovery start
+SETUP[5] defer: waiting 187 ms before discovery start
+SETUP[5] defer: waiting 137 ms before discovery start
+SETUP[5] defer: waiting 86 ms before discovery start
+SETUP[5] defer: waiting 36 ms before discovery start
+SETUP[5] begin: link=anchor-ctrl uuid=A892AF05DD59CF0D0D3408AD74F364A1 conn=0x20004ca8
+SETUP[5] mtu_exchange rc=0
+SETUP[5] phy_update rc=0
+SETUP[5] conn_param_update rc=0
+[AUTOPOS] DISC start[5]: link=anchor-ctrl uuid=A892AF05DD59CF0D0D3408AD74F364A1 conn=0x20004ca8
+[AUTOPOS] Conn param updated[3]: int=6 lat=0 to=400
+[AUTOPOS] MTU exchange[5] done (498)
+[AUTOPOS] Conn param updated[5]: int=6 lat=0 to=400
+>>> status
+[AUTOPOS] Control status: mode=AUTOPOS pending=0
+[AUTOPOS] PHY updated[5]: tx=0x2 rx=0x2
+[AUTOPOS] DISC complete[5]: link=anchor-ctrl discovered_service=2800 uuid=A892AF05DD59CF0D0D3408AD74F364A1
+[AUTOPOS] DISC anchor service found[5]: uuid=A892AF05DD59CF0D0D3408AD74F364A1
+[AUTOPOS] Anchor ctrl state subscribe[5] rc=0
+[AUTOPOS] Anchor ctrl result subscribe[5] rc=0
+[AUTOPOS] ANCHOR_CTRL[5] link ready handle=0x0019 result=0x001b uuid=A892AF05DD59CF0D0D3408AD74F364A1
+[AUTOPOS] CONNECT pending[6]: addr_valid=1 link=anchor-ctrl uuid=F3BB7A04104F9CB8561DDDACB9E53714 scan_running=0 conn_count=6
+[AUTOPOS] CONNECT pending[6] rc=0 conn=0x20004d78
+[AUTOPOS] Connected[6]: DE:49:E3:D0:E4:E8 (random) name=- bs=-
+[AUTOPOS] CONNECT state[6]: link=anchor-ctrl uuid=F3BB7A04104F9CB8561DDDACB9E53714 ready=0 conn=0x20004d78
+SETUP[6] defer: waiting 866 ms before discovery start

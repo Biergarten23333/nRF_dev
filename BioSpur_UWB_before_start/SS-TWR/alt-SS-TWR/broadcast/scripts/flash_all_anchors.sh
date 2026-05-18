@@ -14,7 +14,7 @@ declare -A SNR=(
   [E]=760185904
   [F]=760186124
   [G]=760185889
-  [H]=760184753
+  [H]=760184500
 )
 
 for anchor in A B C D E F G H; do

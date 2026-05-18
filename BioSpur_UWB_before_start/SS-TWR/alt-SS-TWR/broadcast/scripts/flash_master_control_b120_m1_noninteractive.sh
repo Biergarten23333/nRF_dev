@@ -61,10 +61,16 @@ if [ "${BIOSPUR_FLASH_POLICY_BLOCK_ROLE_MISMATCH:-1}" = "1" ]; then
   fi
 fi
 
-if [ "$snr" = "960148546" ] && [ -e "$protect_file" ]; then
+if [ "$snr" = "960148546" ] && [ -e "$protect_file" ] && \
+   [ "${BIOSPUR_ALLOW_PROTECTED_MASTER_ANCHOR_FLASH:-0}" != "1" ]; then
   echo "[error] protected B120 SNR 960148546; refusing to flash because $protect_file exists" >&2
   echo "[hint] set B120_SNR=1050070698 for BioSpur_1 validation" >&2
+  echo "[hint] for the approved ultrasound experiment only, set BIOSPUR_ALLOW_PROTECTED_MASTER_ANCHOR_FLASH=1" >&2
   exit 2
+fi
+
+if [ "$snr" = "960148546" ] && [ -e "$protect_file" ]; then
+  echo "[flash-guard] OVERRIDE: BIOSPUR_ALLOW_PROTECTED_MASTER_ANCHOR_FLASH=1 permits approved ultrasound Master_Anchor flash"
 fi
 
 "$assert_script" "$image"

@@ -97,6 +97,21 @@ Expected:
 - RotoArm tags are visible.
 - Wand tags are visible.
 
+Current anchor identity map after replacing the weak H hardware:
+
+| Anchor | BS code | J-Link SNR | Device UUID |
+| --- | --- | ---: | --- |
+| A | BS1FFC | 760184781 | F3BB7A04104F9CB8561DDDACB9E53714 |
+| B | BS592A | 760185876 | B9179575C776C98F1CB132DD6EDC6223 |
+| C | BS5380 | 760185878 | CEE5A7EFCB35F8A56B430047629F5309 |
+| D | BS20AC | 760184974 | B2B5FA625534A8C617135DCAFC9E036A |
+| E | BS4B52 | 760185904 | A892AF05DD59CF0D0D3408AD74F364A1 |
+| F | BS928B | 760186124 | 840C68591E90019821AACFF1B73AAA34 |
+| G | BSEC88 | 760185889 | B3087BC3D87CCCD316AEDC6B71D6677F |
+| H | BS506D | 760184500 | B1E487C2B1FD740D1442206A1857DFA1 |
+
+The old H (`BSB77F`, SNR `760184753`, UUID `CF12E703AC1A118F6AB440AB05B0BA23`) has been replaced and should not appear in fresh scans.
+
 ## 3. AutoPos Inter-Anchor Sweep
 
 This is the anchor-only calibration dataset.
@@ -478,4 +493,3 @@ If the lab time is limited, collect at least:
 ```
 
 This is enough for a first OptiTrack absolute validation pass.
-

@@ -102,7 +102,7 @@ else
     E) snr=760185904 ;;
     F) snr=760186124 ;;
     G) snr=760185889 ;;
-    H) snr=760184753 ;;
+    H) snr=760184500 ;;
     *)
       echo "Could not infer anchor role from path: $input_path" >&2
       echo "Pass the J-Link serial as the second argument." >&2
