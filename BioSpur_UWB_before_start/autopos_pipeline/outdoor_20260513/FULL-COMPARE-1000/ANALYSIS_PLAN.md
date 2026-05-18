@@ -48,6 +48,26 @@ Layout generation uses all 1000 inter-anchor sweep sets. Every solver version is
 
 Every solver/layout version must be evaluated on the same downstream captures. Do not evaluate only a subset unless the source folder is missing or the capture has insufficient valid frames; in that case record `status=missing` or `status=insufficient`.
 
+## Validation / Information Isolation Policy
+
+All downstream validation must use the full collected capture set, not randomly selected sessions and not cherry-picked subsets:
+
+- Static validation: all available `Static_Test/ID*` captures
+- Roto validation: all available `Roto_Test/ID*` captures
+- Wand validation: all available `Wand_Test/W*` captures
+
+Every solver version must be evaluated on static, roto, and wand validation. The difference between solver versions is the information used during layout generation or downstream compensation, not the validation data selection.
+
+Information injection sources must remain isolated:
+
+- `V1`, `V2`, `V3-lite`, `V3-full`, and `V4-io` use no roto or wand layout constraints; roto/wand are validation only.
+- `V4-io-td` uses only V4-io plus a common static Tag-delay compensation scan; it must not inject roto or wand layout constraints.
+- `V4-io-roto` uses RotoArm constraints on top of V4-io; it must not inject wand constraints or Tag-delay scan into the same variant.
+- `V4-io-wand` uses W01-W04 calibration-wand constraints on top of V4-io; it must not inject roto constraints or Tag-delay scan into the same variant.
+- `V5` is a diagnostics / uncertainty layer based on V4-io unless explicitly stated otherwise.
+
+When a solver uses a validation source as a layout constraint, report that clearly. For example, `V4-io-roto` is not a fully independent roto holdout because a small amount of roto information is injected into the layout; however, the full roto capture set is still evaluated for consistency.
+
 ## AutoPos Layout Quality Metrics
 
 These metrics judge the AutoPos anchor layout itself and must be reported before Tag-position repeatability. They do not use static/roto Tag RMS as the primary score.
@@ -153,18 +173,39 @@ Use all collected roto captures under `autopos_pipeline/outdoor_20260513/Roto_Te
 
 Expected IDs include `ID25` through `ID41` and any extra collected roto IDs such as `ID38`-`ID41`. Do not hard-code only the original plan; discover all existing `ID*` capture folders.
 
-For each version, each roto ID, and each roto peer (`BS2DCE`, `BSDC91`), output:
+Important interpretation rule:
+
+- Do **not** report raw dynamic circle-thickness diagnostics as dynamic positioning accuracy.
+- The Roto target is continuously moving, so circle residual mixes localization noise, mechanical wobble, time/TDMA effects, Z observability, and outlier frames.
+- Report Roto primarily as **kinematic consistency**, not absolute dynamic accuracy.
+
+For each version, each roto ID, and each roto peer (`BS2DCE`, `BSDC91`), output diagnostic circle-fit quantities:
 
 - `N_frames`
 - fitted circle radius
 - radial std
 - plane/off-axis std
-- 3D circle std and RMS
 - plane tilt angle
 - fitted center and normal if available
-- radius difference between inner/outer tags when both peers exist
 
-Also output grouped summaries by tilt level and facing direction when the ID mapping is known.
+Optional circle-thickness diagnostics may be emitted only under explicit diagnostic names such as `circle_thickness_*_diagnostic`. They must not be included in main progression tables, main accuracy summaries, or headline figures.
+
+For each roto ID where both peers exist, output the primary physical consistency metrics:
+
+- `deltaR_mm = R_outer - R_inner`
+- `deltaR_error_mm = (R_outer - R_inner) - 120mm`
+- `deltaR_error_rms_mm`, the signed RMS of `deltaR_error_mm` over all roto captures
+- `abs_deltaR_error_mm`
+- `inner_outer_center_sep_mm`
+
+Also compute per-revolution center repeatability:
+
+- unwrap fitted circle angle over time
+- split the trajectory into approximately one-turn segments (`2π`)
+- fit one circle center per turn
+- report `turn_center_rms_3d_mm`, `turn_center_p95_3d_mm`, and per-axis center std
+
+These metrics should be summarized by version, tilt level, and facing direction when the ID mapping is known. In the main report, prefer `abs_deltaR_error` and `turn_center_rms` over raw circle thickness.
 
 ## Required Outputs
 
@@ -182,8 +223,11 @@ Each version should produce:
 - `tables/static_group_summary.csv`
 - `tables/static_orientation_effect.csv`
 - `tables/roto_all_captures.csv`
-- `tables/roto_group_summary.csv`
 - `tables/roto_radius_consistency.csv`
+- `tables/roto_physical_consistency_all.csv`
+- `tables/roto_physical_consistency_summary.csv`
+- `figures/roto_deltaR_distribution.png`
+- `figures/roto_turn_center_rms_distribution.png`
 - `tables/wand_static_summary.csv` for W01-W04 if usable
 - `reports/repeatability_xyz_report.md`
 - `reports/autopos_layout_report.md`

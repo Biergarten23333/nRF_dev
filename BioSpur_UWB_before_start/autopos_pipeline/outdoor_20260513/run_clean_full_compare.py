@@ -506,14 +506,18 @@ def fit_circle_3d(points: np.ndarray) -> dict:
     zplane = (pts - center0) @ normal
     total = np.sqrt(radial * radial + zplane * zplane)
     center3 = center0 + cx * e1 + cy * e2
+    theta = np.unwrap(np.arctan2(y - cy, x - cx))
+    if theta.size and theta[-1] < theta[0]:
+        theta = -theta
     return {
         "status": "ok",
         "N_frames": int(pts.shape[0]),
         "radius": float(radius),
         "radial_std": float(np.std(radial, ddof=1)),
         "z_plane_std": float(np.std(zplane, ddof=1)),
-        "circle_3d_std": float(np.std(total, ddof=1)),
-        "circle_3d_rms": float(np.sqrt(np.mean(total * total))),
+        "circle_thickness_std_diagnostic": float(np.std(total, ddof=1)),
+        "circle_thickness_rms_diagnostic": float(np.sqrt(np.mean(total * total))),
+        "circle_thickness_p95_diagnostic": float(np.percentile(total, 95)),
         "plane_tilt_deg": float(np.degrees(np.arccos(np.clip(abs(normal[2]), -1.0, 1.0)))),
         "center_x": float(center3[0]),
         "center_y": float(center3[1]),
@@ -521,6 +525,43 @@ def fit_circle_3d(points: np.ndarray) -> dict:
         "normal_x": float(normal[0]),
         "normal_y": float(normal[1]),
         "normal_z": float(normal[2]),
+        "_theta": theta,
+    }
+
+
+def per_turn_center_stats(points: np.ndarray, theta: np.ndarray) -> dict:
+    pts = np.asarray(points, dtype=float)
+    th = np.asarray(theta, dtype=float)
+    if pts.shape[0] < 80 or th.size != pts.shape[0]:
+        return {"turn_count": 0}
+    th = th - th[0]
+    estimated_turns = float((th[-1] - th[0]) / (2.0 * math.pi))
+    bins = np.floor(th / (2.0 * math.pi)).astype(int)
+    centers = []
+    radii = []
+    for b in range(int(np.min(bins)), int(np.max(bins)) + 1):
+        idx = np.where(bins == b)[0]
+        if idx.size < 30:
+            continue
+        fit = fit_circle_3d(pts[idx])
+        if fit.get("status") == "ok":
+            centers.append([fit["center_x"], fit["center_y"], fit["center_z"]])
+            radii.append(float(fit["radius"]))
+    if len(centers) < 2:
+        return {"turn_count": len(centers), "estimated_turns": estimated_turns}
+    c = np.asarray(centers, dtype=float)
+    mean = np.mean(c, axis=0)
+    dist = np.linalg.norm(c - mean, axis=1)
+    std = np.std(c, axis=0, ddof=1)
+    return {
+        "turn_count": int(len(centers)),
+        "estimated_turns": estimated_turns,
+        "turn_center_rms_3d_mm": float(np.sqrt(np.mean(dist * dist))),
+        "turn_center_p95_3d_mm": float(np.percentile(dist, 95)),
+        "turn_center_x_std_mm": float(std[0]),
+        "turn_center_y_std_mm": float(std[1]),
+        "turn_center_z_std_mm": float(std[2]),
+        "turn_radius_std_mm": float(np.std(radii, ddof=1)) if len(radii) > 1 else float("nan"),
     }
 
 
@@ -805,7 +846,11 @@ def evaluate_roto(mod, layout: Layout, anchor_ids) -> list[dict]:
         for peer, frames in by_peer.items():
             pos, _t, counts = solve_positions(mod, frames, layout, anchor_ids)
             row = {"version": layout.version, "ID": rid, "peer": peer, "path": str(cap_dir), "tilt": tilt, "facing": facing}
-            row.update(fit_circle_3d(pos))
+            fit = fit_circle_3d(pos)
+            theta = fit.pop("_theta", None)
+            row.update(fit)
+            if fit.get("status") == "ok" and theta is not None:
+                row.update(per_turn_center_stats(pos, theta))
             if counts.size:
                 row.update({"median_anchors": float(np.median(counts)), "pct_ge7": float(np.mean(counts >= 7) * 100), "pct_ge8": float(np.mean(counts >= 8) * 100)})
             rows.append(row)
@@ -869,18 +914,6 @@ def static_orientation_effect(rows: list[dict]) -> list[dict]:
     return out
 
 
-def group_roto(rows: list[dict]) -> list[dict]:
-    out = []
-    groups = defaultdict(list)
-    for r in rows:
-        if r.get("status") == "ok":
-            groups[(r.get("tilt", "unknown"), r.get("peer", "unknown"))].append(float(r["circle_3d_rms"]))
-    for (tilt, peer), vals in sorted(groups.items()):
-        s = summarize(vals)
-        out.append({"tilt": tilt, "peer": peer, "n": s["n"], "rms_median": s["p50"], "rms_p75": s["p75"], "rms_p95": s["p95"], "rms_max": s["max"]})
-    return out
-
-
 def radius_consistency(rows: list[dict]) -> list[dict]:
     by_id_ver = defaultdict(dict)
     for r in rows:
@@ -895,6 +928,85 @@ def radius_consistency(rows: list[dict]) -> list[dict]:
             row["delta_radius"] = vals["BSDC91"] - vals["BS2DCE"]
             row["delta_radius_bias_vs_120"] = row["delta_radius"] - 120.0
         out.append(row)
+    return out
+
+
+def roto_physical_consistency(rows: list[dict]) -> list[dict]:
+    by_id_ver = defaultdict(dict)
+    for r in rows:
+        if r.get("status") == "ok" and r.get("peer") in ROTO_RADIUS:
+            by_id_ver[(r["version"], r["ID"])][r["peer"]] = r
+    out = []
+    for (version, rid), vals in sorted(by_id_ver.items()):
+        if "BS2DCE" not in vals or "BSDC91" not in vals:
+            continue
+        inner = vals["BS2DCE"]
+        outer = vals["BSDC91"]
+        ri = float(inner["radius"])
+        ro = float(outer["radius"])
+        delta = ro - ri
+        ci = np.array([float(inner["center_x"]), float(inner["center_y"]), float(inner["center_z"])])
+        co = np.array([float(outer["center_x"]), float(outer["center_y"]), float(outer["center_z"])])
+        row = {
+            "version": version,
+            "ID": rid,
+            "tilt": inner.get("tilt", ""),
+            "facing": inner.get("facing", ""),
+            "inner_radius_mm": ri,
+            "outer_radius_mm": ro,
+            "deltaR_mm": delta,
+            "deltaR_error_mm": delta - 120.0,
+            "abs_deltaR_error_mm": abs(delta - 120.0),
+            "inner_radius_bias_mm": ri - ROTO_RADIUS["BS2DCE"],
+            "outer_radius_bias_mm": ro - ROTO_RADIUS["BSDC91"],
+            "inner_outer_center_sep_mm": float(np.linalg.norm(co - ci)),
+            "inner_turn_center_rms_3d_mm": inner.get("turn_center_rms_3d_mm", ""),
+            "outer_turn_center_rms_3d_mm": outer.get("turn_center_rms_3d_mm", ""),
+            "inner_turn_center_p95_3d_mm": inner.get("turn_center_p95_3d_mm", ""),
+            "outer_turn_center_p95_3d_mm": outer.get("turn_center_p95_3d_mm", ""),
+            "inner_turn_count": inner.get("turn_count", ""),
+            "outer_turn_count": outer.get("turn_count", ""),
+            "inner_circle_thickness_rms_diagnostic": inner.get("circle_thickness_rms_diagnostic", ""),
+            "outer_circle_thickness_rms_diagnostic": outer.get("circle_thickness_rms_diagnostic", ""),
+        }
+        out.append(row)
+    return out
+
+
+def roto_physical_summary(rows: list[dict]) -> list[dict]:
+    out = []
+    for version in sorted({r["version"] for r in rows}):
+        rs = [r for r in rows if r["version"] == version]
+        err = np.asarray([float(r["deltaR_error_mm"]) for r in rs], dtype=float)
+        abs_err = np.abs(err)
+        sep = np.asarray([float(r["inner_outer_center_sep_mm"]) for r in rs], dtype=float)
+        turn = []
+        thick = []
+        for r in rs:
+            for k in ("inner_turn_center_rms_3d_mm", "outer_turn_center_rms_3d_mm"):
+                v = safe_float(r.get(k))
+                if np.isfinite(v):
+                    turn.append(v)
+            for k in ("inner_circle_thickness_rms_diagnostic", "outer_circle_thickness_rms_diagnostic"):
+                v = safe_float(r.get(k))
+                if np.isfinite(v):
+                    thick.append(v)
+        turn_s = summarize(turn)
+        thick_s = summarize(thick)
+        out.append({
+            "version": version,
+            "capture_pairs": len(rs),
+            "deltaR_error_mean_mm": float(np.mean(err)) if err.size else "",
+            "deltaR_error_rms_mm": float(np.sqrt(np.mean(err * err))) if err.size else "",
+            "abs_deltaR_error_median_mm": float(np.percentile(abs_err, 50)) if abs_err.size else "",
+            "abs_deltaR_error_p95_mm": float(np.percentile(abs_err, 95)) if abs_err.size else "",
+            "inner_outer_center_sep_median_mm": float(np.percentile(sep, 50)) if sep.size else "",
+            "inner_outer_center_sep_p95_mm": float(np.percentile(sep, 95)) if sep.size else "",
+            "turn_center_rms_median_mm": turn_s.get("p50", ""),
+            "turn_center_rms_p95_mm": turn_s.get("p95", ""),
+            "circle_thickness_rms_median_mm_diagnostic": thick_s.get("p50", ""),
+            "circle_thickness_rms_p95_mm_diagnostic": thick_s.get("p95", ""),
+        })
     return out
 
 
@@ -965,17 +1077,17 @@ def autopos_quality_rows(pair_rows: list[dict]) -> list[dict]:
     return out
 
 
-def save_figures(out_dir: Path, summary_rows, static_rows, roto_rows, split_rows=None):
+def save_figures(out_dir: Path, summary_rows, static_rows, roto_phys_rows, split_rows=None):
     fig_dir = out_dir / "figures"
     fig_dir.mkdir(parents=True, exist_ok=True)
     labels = [r["version"] for r in summary_rows]
     inter = [float(r.get("autopos_rms", np.nan)) for r in summary_rows]
     stat = [float(r.get("static_median", np.nan)) for r in summary_rows]
-    roto = [float(r.get("roto_median", np.nan)) for r in summary_rows]
+    roto = [float(r.get("roto_deltaR_rms", np.nan)) for r in summary_rows]
     plt.figure(figsize=(9, 5))
     plt.plot(labels, inter, marker="o", label="AutoPos inter-anchor RMS")
     plt.plot(labels, stat, marker="s", label="Static median 3D std")
-    plt.plot(labels, roto, marker="^", label="Roto median circle RMS")
+    plt.plot(labels, roto, marker="^", label="Roto ΔR error RMS")
     plt.ylabel("mm")
     plt.xticks(rotation=25, ha="right")
     plt.grid(True, alpha=0.3)
@@ -995,17 +1107,37 @@ def save_figures(out_dir: Path, summary_rows, static_rows, roto_rows, split_rows
     plt.close()
 
     plt.figure(figsize=(10, 5))
-    data = [[float(r["circle_3d_rms"]) for r in roto_rows if r.get("version") == v and r.get("status") == "ok"] for v in labels]
+    data = [[float(r["abs_deltaR_error_mm"]) for r in roto_phys_rows if r.get("version") == v] for v in labels]
     plt.boxplot(data, labels=labels, showmeans=True)
-    plt.ylabel("Roto circle RMS (mm)")
+    plt.ylabel("Roto |ΔR error| (mm)")
     plt.xticks(rotation=25, ha="right")
     plt.grid(True, axis="y", alpha=0.3)
     plt.tight_layout()
-    plt.savefig(fig_dir / "roto_distribution_all_versions.png", dpi=300)
+    plt.savefig(fig_dir / "roto_deltaR_distribution.png", dpi=300)
+    plt.close()
+
+    plt.figure(figsize=(10, 5))
+    data = []
+    for v in labels:
+        vals = []
+        for r in roto_phys_rows:
+            if r.get("version") != v:
+                continue
+            for k in ("inner_turn_center_rms_3d_mm", "outer_turn_center_rms_3d_mm"):
+                vv = safe_float(r.get(k))
+                if np.isfinite(vv):
+                    vals.append(vv)
+        data.append(vals)
+    plt.boxplot(data, labels=labels, showmeans=True)
+    plt.ylabel("Roto per-turn center RMS (mm)")
+    plt.xticks(rotation=25, ha="right")
+    plt.grid(True, axis="y", alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(fig_dir / "roto_turn_center_rms_distribution.png", dpi=300)
     plt.close()
 
 
-def make_report(out_dir: Path, mode: str, summary_rows, quality_rows, static_rows, roto_rows, split_rows=None):
+def make_report(out_dir: Path, mode: str, summary_rows, quality_rows, static_rows, roto_phys_rows, split_rows=None):
     lines = [f"# {out_dir.name} Report\n"]
     lines.append(f"Mode: `{mode}`\n")
     lines.append("## Version Summary\n")
@@ -1018,14 +1150,15 @@ def make_report(out_dir: Path, mode: str, summary_rows, quality_rows, static_row
             f"{float(r.get('autopos_p95', float('nan'))):.2f}",
             f"{float(r.get('static_median', float('nan'))):.2f}",
             f"{float(r.get('static_p95', float('nan'))):.2f}",
-            f"{float(r.get('roto_median', float('nan'))):.2f}",
-            f"{float(r.get('roto_p95', float('nan'))):.2f}",
+            f"{float(r.get('roto_deltaR_rms', float('nan'))):.2f}",
+            f"{float(r.get('roto_abs_deltaR_p95', float('nan'))):.2f}",
         ])
-    lines.append(md_table(["Version", "Tag delay", "AutoPos RMS", "AutoPos p95", "Static med", "Static p95", "Roto med", "Roto p95"], rows))
+    lines.append(md_table(["Version", "Tag delay", "AutoPos RMS", "AutoPos p95", "Static med", "Static p95", "Roto ΔR RMS", "Roto |ΔR| p95"], rows))
     lines.append("\n## Notes\n")
     lines.append("- AutoPos RMS/p95 are inter-anchor layout residual metrics, not Tag RMS.")
     lines.append("- Static validation uses all available ID01-ID24 captures; missing captures are recorded as missing.")
     lines.append("- Roto validation uses every collected Roto_Test/ID* folder and both peers when present.")
+    lines.append("- Roto is reported as kinematic consistency: ΔR error and per-turn center repeatability. Circle-thickness diagnostics are not dynamic positioning accuracy.")
     lines.append("- `v4-io-roto` and `v4-io-wand` are experimental soft-constraint branches built on top of `v4-io`.")
     lines.append("- `v4-io-td` keeps the V4-io anchor layout fixed and scans one common static type-level tag delay; it is a downstream compensation test, not a factory calibration.")
     if split_rows:
@@ -1116,17 +1249,19 @@ def run_single(mode: str, out_name: str):
     write_csv(out_dir / "tables" / "static_group_summary.csv", group_static(static_rows))
     write_csv(out_dir / "tables" / "static_orientation_effect.csv", static_orientation_effect(static_rows))
     write_csv(out_dir / "tables" / "roto_all_captures.csv", roto_rows)
-    write_csv(out_dir / "tables" / "roto_group_summary.csv", group_roto(roto_rows))
     write_csv(out_dir / "tables" / "roto_radius_consistency.csv", radius_consistency(roto_rows))
+    roto_phys_rows = roto_physical_consistency(roto_rows)
+    roto_phys_summary = roto_physical_summary(roto_phys_rows)
+    write_csv(out_dir / "tables" / "roto_physical_consistency_all.csv", roto_phys_rows)
+    write_csv(out_dir / "tables" / "roto_physical_consistency_summary.csv", roto_phys_summary)
     write_csv(out_dir / "tables" / "wand_static_summary.csv", wand_rows)
 
     summary_rows = []
     for version, label, meaning in VERSIONS:
         q = next((r for r in quality_rows if r["version"] == version and r["eval_set"] == "solve"), {})
         st_vals = [float(r["D3_std"]) for r in static_rows if r.get("version") == version and r.get("status") == "ok"]
-        ro_vals = [float(r["circle_3d_rms"]) for r in roto_rows if r.get("version") == version and r.get("status") == "ok"]
         st_s = summarize(st_vals)
-        ro_s = summarize(ro_vals)
+        ro_s = next((r for r in roto_phys_summary if r.get("version") == version), {})
         summary_rows.append({
             "version": version,
             "label": label,
@@ -1138,14 +1273,17 @@ def run_single(mode: str, out_name: str):
             "static_median": st_s.get("p50", ""),
             "static_p95": st_s.get("p95", ""),
             "static_max": st_s.get("max", ""),
-            "roto_n": ro_s["n"],
-            "roto_median": ro_s.get("p50", ""),
-            "roto_p95": ro_s.get("p95", ""),
-            "roto_max": ro_s.get("max", ""),
+            "roto_n": ro_s.get("capture_pairs", ""),
+            "roto_deltaR_mean": ro_s.get("deltaR_error_mean_mm", ""),
+            "roto_deltaR_rms": ro_s.get("deltaR_error_rms_mm", ""),
+            "roto_abs_deltaR_median": ro_s.get("abs_deltaR_error_median_mm", ""),
+            "roto_abs_deltaR_p95": ro_s.get("abs_deltaR_error_p95_mm", ""),
+            "roto_turn_center_median": ro_s.get("turn_center_rms_median_mm", ""),
+            "roto_turn_center_p95": ro_s.get("turn_center_rms_p95_mm", ""),
         })
     write_csv(out_dir / "tables" / "version_summary.csv", summary_rows)
-    save_figures(out_dir, summary_rows, static_rows, roto_rows)
-    make_report(out_dir, mode, summary_rows, quality_rows, static_rows, roto_rows)
+    save_figures(out_dir, summary_rows, static_rows, roto_phys_rows)
+    make_report(out_dir, mode, summary_rows, quality_rows, static_rows, roto_phys_rows)
 
 
 def run_split():
@@ -1242,17 +1380,19 @@ def run_split():
     write_csv(out_dir / "tables" / "static_group_summary.csv", group_static(static_rows))
     write_csv(out_dir / "tables" / "static_orientation_effect.csv", static_orientation_effect(static_rows))
     write_csv(out_dir / "tables" / "roto_all_captures.csv", roto_rows)
-    write_csv(out_dir / "tables" / "roto_group_summary.csv", group_roto(roto_rows))
     write_csv(out_dir / "tables" / "roto_radius_consistency.csv", radius_consistency(roto_rows))
+    roto_phys_rows = roto_physical_consistency(roto_rows)
+    roto_phys_summary = roto_physical_summary(roto_phys_rows)
+    write_csv(out_dir / "tables" / "roto_physical_consistency_all.csv", roto_phys_rows)
+    write_csv(out_dir / "tables" / "roto_physical_consistency_summary.csv", roto_phys_summary)
     write_csv(out_dir / "tables" / "wand_static_summary.csv", wand_rows)
 
     summary_rows = []
     for version, label, meaning in VERSIONS:
         q = next((r for r in quality_rows if r["version"] == version and r["eval_set"] == "all1000"), {})
         st_vals = [float(r["D3_std"]) for r in static_rows if r.get("version") == version and r.get("status") == "ok"]
-        ro_vals = [float(r["circle_3d_rms"]) for r in roto_rows if r.get("version") == version and r.get("status") == "ok"]
         st_s = summarize(st_vals)
-        ro_s = summarize(ro_vals)
+        ro_s = next((r for r in roto_phys_summary if r.get("version") == version), {})
         summary_rows.append({
             "version": version,
             "label": label,
@@ -1264,14 +1404,17 @@ def run_split():
             "static_median": st_s.get("p50", ""),
             "static_p95": st_s.get("p95", ""),
             "static_max": st_s.get("max", ""),
-            "roto_n": ro_s["n"],
-            "roto_median": ro_s.get("p50", ""),
-            "roto_p95": ro_s.get("p95", ""),
-            "roto_max": ro_s.get("max", ""),
+            "roto_n": ro_s.get("capture_pairs", ""),
+            "roto_deltaR_mean": ro_s.get("deltaR_error_mean_mm", ""),
+            "roto_deltaR_rms": ro_s.get("deltaR_error_rms_mm", ""),
+            "roto_abs_deltaR_median": ro_s.get("abs_deltaR_error_median_mm", ""),
+            "roto_abs_deltaR_p95": ro_s.get("abs_deltaR_error_p95_mm", ""),
+            "roto_turn_center_median": ro_s.get("turn_center_rms_median_mm", ""),
+            "roto_turn_center_p95": ro_s.get("turn_center_rms_p95_mm", ""),
         })
     write_csv(out_dir / "tables" / "version_summary.csv", summary_rows)
-    save_figures(out_dir, summary_rows, static_rows, roto_rows, split_rows)
-    make_report(out_dir, "500+500", summary_rows, quality_rows, static_rows, roto_rows, split_rows)
+    save_figures(out_dir, summary_rows, static_rows, roto_phys_rows, split_rows)
+    make_report(out_dir, "500+500", summary_rows, quality_rows, static_rows, roto_phys_rows, split_rows)
 
 
 def main() -> int:

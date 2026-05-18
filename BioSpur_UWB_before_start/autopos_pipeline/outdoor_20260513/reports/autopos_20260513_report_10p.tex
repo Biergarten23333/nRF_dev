@@ -1,0 +1,386 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.85in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{titlesec}
+\usepackage{hyperref}
+
+\setlength{\parindent}{1.4em}
+\setlength{\parskip}{0.25\baselineskip}
+\linespread{1.03}
+\titlespacing*{\section}{0pt}{0.75\baselineskip}{0.35\baselineskip}
+\titlespacing*{\subsection}{0pt}{0.55\baselineskip}{0.25\baselineskip}
+
+\begin{document}
+
+\begin{center}
+    \Large\textbf{AutoPos 2026-05-13 Outdoor Experiment}\\
+    \large\textbf{Technical Progress Report}
+\end{center}
+\vspace{-0.8\baselineskip}
+
+\section{Purpose and Experimental Context}
+
+AutoPos is a self-calibration pipeline for estimating the 3D layout of UWB anchors from inter-anchor ranging. The long-term goal is to reduce the setup burden of UWB-based wearable motion-capture systems: instead of manually surveying each anchor position or relying on external motion capture during deployment, the anchor system should recover a usable 3D layout from its own measurements.
+
+The April 2026 paper concept established an important algorithmic point: antenna-delay-aware anchor self-calibration is essential. In the earlier concept, a no-delay baseline showed a 3D positioning standard deviation of 132 mm, while the delay-aware V3-full solver reduced it to approximately 50 mm, with the improvement concentrated in the vertical axis. However, two questions remained. First, the 50 mm value was a repeatability metric without optical ground truth, so it could not be reported as absolute positioning accuracy. Second, the 100 mm-plus Z-axis degradation observed under a 4-anchor online setting was not fully explained: it was unclear how much came from the AutoPos layout itself and how much came from runtime anchor subset geometry.
+
+The 2026-05-13 outdoor experiment addresses these questions with an 8-anchor broadcast SS-TWR dataset. The deployment used eight DWM1001C anchors in a four-lower plus four-upper geometry. Missing responses still occur, but the redundancy regime is different from a 4-anchor online setting: in the current static dataset, 68.0\% of solve-eligible epochs use 7 anchors and 31.9\% use all 8 anchors. Broadcast SS-TWR is also important for dynamic validation because multiple anchor responses are collected within the same broadcast epoch, reducing protocol-induced timing inconsistency in moving-tag measurements.
+
+No OptiTrack ground truth was available in this experiment. Therefore, all downstream positioning numbers in this report are repeatability, consistency, or positioning standard deviation metrics. They should not be interpreted as absolute positioning accuracy.
+
+\begin{center}
+\IfFileExists{anchor_geometry_report.png}{%
+    \includegraphics[width=0.78\linewidth]{anchor_geometry_report.png}%
+}{%
+    \fbox{\parbox{0.78\linewidth}{\centering Figure unavailable: setup\_geometry/anchor\_geometry\_report.png}}%
+}
+
+\vspace{-0.35\baselineskip}
+{\footnotesize Figure 1. V4-io anchor layout used in the 2026-05-13 outdoor experiment. A--D form the lower anchor layer and E--H form the upper anchor layer.}
+\end{center}
+
+\section{Experimental Setup and Data Coverage}
+
+The recovered V4-io anchor layout has a footprint of approximately 3.17 m by 4.78 m, a Z span of 1.74 m, and an average layer separation of 1.51 m. The coordinates below use the reporting convention in which A--D are the physical lower layer and E--H are the physical upper layer.
+
+\begin{center}
+\small
+\begin{tabular}{l l r r r r}
+\toprule
+Anchor & Layer & X (mm) & Y (mm) & Z (mm) & Delay equiv. (mm) \\
+\midrule
+A & lower & 0.0 & 0.0 & 0.0 & 0.0 \\
+B & lower & 2961.0 & 0.0 & 0.0 & 20.2 \\
+C & lower & 3167.2 & 4507.1 & 0.0 & 32.3 \\
+D & lower & 191.7 & 4650.6 & -70.9 & 20.7 \\
+E & upper & 106.8 & -103.5 & 1441.4 & 5.9 \\
+F & upper & 2882.6 & -14.6 & 1418.2 & -2.4 \\
+G & upper & 2958.8 & 4672.3 & 1673.5 & 1.8 \\
+H & upper & 39.4 & 4623.6 & 1420.8 & -0.7 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The validation data contain 23 static Tag sessions, 17 rotating-arm sessions, and 5 rigid-wand sessions. Static sessions are ID01--ID09 and ID11--ID24; ID10 was not captured. Roto sessions are ID25--ID41. Wand sessions are W01--W05; W01--W04 are static rigid-wand captures, while W05 is better treated as coverage or diagnostic data.
+
+\begin{center}
+\small
+\begin{tabular}{r r r}
+\toprule
+Anchor count per epoch & Epochs & Percent of solve-eligible epochs \\
+\midrule
+5 & 2 & 0.0\% \\
+6 & 12 & 0.1\% \\
+7 & 9395 & 68.0\% \\
+8 & 4408 & 31.9\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{center}
+\IfFileExists{static_anchor_count_distribution_pie.png}{%
+    \includegraphics[width=0.62\linewidth]{static_anchor_count_distribution_pie.png}%
+}{%
+    \fbox{\parbox{0.62\linewidth}{\centering Figure unavailable: setup\_geometry/static\_anchor\_count\_distribution\_pie.png}}%
+}
+
+\vspace{-0.35\baselineskip}
+{\footnotesize Figure 2. Per-epoch anchor availability in the static broadcast dataset.}
+\end{center}
+
+Three layout-generation configurations were evaluated. `FULL-COMPARE-1000' uses the full 1000-set sweep and is the main result. `FULL-COMPARE-500' uses the first 500 sweep sets to test stability under less calibration data. `FULL-COMPARE-500+500' uses a first-500 solve and last-500 holdout logic to test generalization.
+
+These three configurations are important because they separate two questions. The first question is whether the layout is stable when less calibration data are used. The second question is whether a layout generated from one part of the sweep data generalizes to held-out sweep data and to downstream Tag captures. In the present dataset, the V4-io results are nearly unchanged across the three configurations, which indicates that the main conclusions are not artifacts of a single calibration split.
+
+\begin{center}
+\small
+\begin{tabular}{l r r r r r}
+\toprule
+Dataset & Layout residual RMS & Layout p95 & Static 3D med & Static 3D p95 & Roto dR RMS \\
+ & (mm) & (mm) & (mm) & (mm) & (mm) \\
+\midrule
+FULL-COMPARE-1000 & 44.3 & 87.7 & 49.2 & 81.6 & 32.3 \\
+FULL-COMPARE-500 & 44.7 & 89.2 & 48.4 & 80.9 & 33.0 \\
+FULL-COMPARE-500+500 & 44.2 & 88.5 & 48.4 & 80.6 & 33.4 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{AutoPos Solver Evolution and Anchor-Only Consistency}
+
+This report should be read as an AutoPos system ablation, not only as a Tag repeatability report. The first layer of evaluation is anchor-only self-consistency: how well does the recovered layout explain the inter-anchor calibration measurements?
+
+\begin{center}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{l l c r r}
+\toprule
+Version & Main idea & Delay-aware & Layout residual RMS & Static 3D med \\
+ & & & (mm) & (mm) \\
+\midrule
+V1 & early MDS no-delay baseline & no & 64.2 & 50.7 \\
+V2 & weighted/IVW pair fusion & no & 40.4 & 48.7 \\
+V3-lite & robust MAD/MVUE pair fusion & no & 40.8 & 48.7 \\
+V3-full & Tukey robust solver + delay estimation & yes & 66.4 & 54.9 \\
+V4-io & production bounded-delay robust solver & yes & 44.3 & 49.2 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The layout residual RMS is an AutoPos self-consistency metric, not a Tag positioning metric. It measures how well the recovered anchor layout explains the inter-anchor calibration data. The Static 3D median column, in contrast, reports downstream static Tag repeatability. V2 and V3-lite give the lowest inter-anchor residuals, showing that robust pair fusion is already strong. V4-io is not the minimum-residual solver, but it is the production-oriented delay-aware baseline. Under the high-redundancy broadcast dataset, several solvers converge near 49 mm static median, so the main story is not a large version-by-version static median difference. The more important questions are physical-constraint compatibility and runtime robustness.
+
+\section{Static Tag Repeatability and XYZ Structure}
+
+The main V4-io layout was generated from the full 1000-sweep calibration data and evaluated on all captured static Tag sessions. The all-available result uses all valid ranges present in each epoch; it is not the same as forcing every epoch to use exactly all eight anchors.
+
+\begin{center}
+\small
+\begin{tabular}{l r r r r r r}
+\toprule
+Condition & Frames & X med & Y med & Z med & 3D med & 3D p95 \\
+ & & (mm) & (mm) & (mm) & (mm) & (mm) \\
+\midrule
+All-available & 13817 & 26.0 & 16.3 & 37.9 & 49.2 & 81.6 \\
+Strict 8/8 only & 4408 & 23.4 & 14.8 & 37.4 & 44.5 & 67.0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The strict 8/8 diagnostic keeps only 31.9\% of the static frames. It improves X and Y and reduces the 3D tail, but Z is almost unchanged: 37.9 mm becomes 37.4 mm. This is an important result because it separates two effects. Missing-anchor frames add horizontal and tail degradation, but the persistent Z weakness is primarily geometry-driven rather than simply availability-driven.
+
+The full XYZ decomposition confirms that the current limitation is not isotropic noise. For V4-io, X and Y medians are 26.0 mm and 16.3 mm, while Z is 37.9 mm and contributes 62.1\% of the 3D variance. The same pattern is stable across the reduced-data splits.
+
+\begin{center}
+\small
+\begin{tabular}{l r r r r r}
+\toprule
+Dataset & X med & Y med & Z med & 3D med & Z variance share \\
+ & (mm) & (mm) & (mm) & (mm) & \\
+\midrule
+FULL-COMPARE-1000 & 26.0 & 16.3 & 37.9 & 49.2 & 62.1\% \\
+FULL-COMPARE-500 & 26.4 & 16.5 & 39.9 & 48.4 & 63.8\% \\
+FULL-COMPARE-500+500 & 26.3 & 16.6 & 40.7 & 48.4 & 63.7\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Spatial grouping shows that low-height static captures are weaker than high-height captures, and that the CDHG-facing group is the most difficult orientation. Low-height sessions have 49.9 mm Z median and 59.7 mm 3D median, while high-height sessions have 29.3 mm Z median and 41.6 mm 3D median. The CDHG-facing group reaches 56.0 mm Z median and 67.8 mm 3D median. This supports the interpretation that vertical observability and local geometry dominate the remaining repeatability limitation.
+
+\begin{center}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{l l r r r r r}
+\toprule
+Group type & Group & N & X med & Y med & Z med & 3D med \\
+ & & & (mm) & (mm) & (mm) & (mm) \\
+\midrule
+location & center & 12 & 25.9 & 15.0 & 36.5 & 46.9 \\
+location & edge & 11 & 26.3 & 18.1 & 41.8 & 50.4 \\
+height & high & 8 & 25.9 & 15.2 & 29.3 & 41.6 \\
+height & mid & 8 & 22.7 & 16.6 & 39.8 & 48.8 \\
+height & low & 7 & 27.1 & 16.4 & 49.9 & 59.7 \\
+facing & ABEF & 6 & 23.6 & 17.6 & 36.1 & 47.3 \\
+facing & ADHE & 5 & 25.9 & 17.7 & 35.4 & 47.8 \\
+facing & BCGF & 6 & 25.8 & 14.2 & 39.7 & 49.7 \\
+facing & CDHG & 6 & 30.4 & 17.6 & 56.0 & 67.8 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The worst individual static captures show the same structure. The largest 3D standard deviations are not caused by uniformly large X, Y, and Z scatter. Instead, most of the worst captures are dominated by the vertical component or by a single-axis tail. Several of these captures also have low percentages of all-eight-anchor epochs, which means that spatial geometry and runtime availability interact.
+
+\begin{center}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{r l l l l r r r r r}
+\toprule
+Rank & ID & location & height & facing & X std & Y std & Z std & 3D std & pct $\geq$8 \\
+ & & & & & (mm) & (mm) & (mm) & (mm) & (\%) \\
+\midrule
+1 & ID08 & edge & mid & CDHG & 42.5 & 30.3 & 71.1 & 88.2 & 19.5 \\
+2 & ID09 & edge & high & CDHG & 46.0 & 21.1 & 64.9 & 82.3 & 35.4 \\
+3 & ID07 & edge & low & CDHG & 27.5 & 18.8 & 68.2 & 75.9 & 14.8 \\
+4 & ID18 & center & low & BCGF & 27.1 & 13.7 & 60.7 & 67.9 & 39.9 \\
+5 & ID17 & center & low & ABEF & 26.8 & 19.7 & 51.8 & 61.5 & 35.8 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{RotoArm and Wand as Physical Information Injection}
+
+The RotoArm and Wand data serve two roles. First, they provide physical consistency checks without OptiTrack. Second, they test whether additional physical information can be injected into AutoPos as soft constraints.
+
+In the rotating-arm setup, two UWB tags are mounted on the same rigid arm with a known mechanical radius difference of 120 mm. For the inter-anchor-only V4-io layout, the radius-difference residual has an RMS of 32.3 mm, and the per-revolution turn-center repeatability has a median of 20.6 mm. The radius-difference residual also has a negative offset, meaning that the reconstructed outer-inner radius difference is smaller than the mechanical reference. This should be investigated with external ground truth before being interpreted as a physical bias source.
+
+The Wand experiment uses a rigid three-tag calibration wand with tape-measured inter-tag distances. W01--W04 are four static wand captures at different positions and orientations. When the three wand tags are solved as ordinary tags, the pairwise distance bias RMS is 59.3 mm for the V4-io layout.
+
+It is important to distinguish the two interpretations of these experiments. When RotoArm and Wand data are used only for evaluation, they act as physical consistency checks: the rotating arm provides a known radius difference, and the wand provides known inter-tag distances. When RotoArm or Wand data are injected into the layout solver, they become soft constraints and are no longer fully independent validation data for the corresponding injected variant. This is why V4-io remains the primary production baseline, while V4-io-roto and V4-io-wand are reported as ablations.
+
+\begin{center}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{l l r r r r}
+\toprule
+Variant & Injected information & Static 3D med & Static 3D p95 & Roto dR RMS & Turn-center med \\
+ & & (mm) & (mm) & (mm) & (mm) \\
+\midrule
+V4-io & none & 49.2 & 81.6 & 32.3 & 20.6 \\
+V4-io-roto & rotating-arm soft constraints & 48.1 & 71.9 & 29.9 & 18.0 \\
+V4-io-wand & W01--W04 wand soft constraints & 48.6 & 77.3 & 31.7 & 19.1 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+RotoArm injection improves both Roto consistency metrics and the static tail, suggesting that the rotating-arm information is compatible with the recovered layout. However, because Roto information is injected into V4-io-roto, the Roto metrics are not a fully independent holdout for that variant. Wand injection also improves the static tail slightly, but the effect is smaller. Overall, these physical constraints are useful as ablations and consistency checks, while the main production baseline remains V4-io without Wand or Roto information injection.
+
+The improvement pattern is modest but consistent. V4-io-roto reduces static 3D p95 from 81.6 mm to 71.9 mm and reduces Roto dR RMS from 32.3 mm to 29.9 mm. V4-io-wand reduces static 3D p95 from 81.6 mm to 77.3 mm and reduces Roto dR RMS from 32.3 mm to 31.7 mm. These numbers suggest that both physical constraints contain useful information, but neither replaces the need for external ground truth. In particular, the negative Roto radius-difference offset must be checked with OptiTrack or a more detailed mechanical survey before it can be interpreted as a layout scale bias, a Tag-specific delay effect, or an antenna-pattern effect.
+
+\section{Anchor Redundancy and Runtime Selection Robustness}
+
+The keep-$k$ robustness experiment tests whether low anchor redundancy can reproduce the 100 mm-plus regime. The experiment uses the same V4-io layout and the same static captures, but randomly reduces the available anchors with 500 Monte Carlo repeats per keep-$k$ setting.
+
+\begin{center}
+\IfFileExists{random_keep_k_z_3d.png}{%
+    \includegraphics[width=0.72\linewidth]{random_keep_k_z_3d.png}%
+}{%
+    \fbox{\parbox{0.72\linewidth}{\centering Figure unavailable: random keep-k robustness.}}%
+}
+
+\vspace{-0.35\baselineskip}
+{\footnotesize Figure 3. Random keep-$k$ robustness under the V4-io layout.}
+\end{center}
+
+\begin{center}
+\small
+\begin{tabular}{r r r r}
+\toprule
+Keep anchors & Z med (mm) & 3D med (mm) & 3D p95 (mm) \\
+\midrule
+8 & 37.9 & 49.2 & 81.6 \\
+7 & 43.6 & 53.2 & 105.6 \\
+6 & 60.9 & 77.1 & 166.5 \\
+5 & 83.4 & 100.7 & 225.2 \\
+4 & 124.6 & 156.3 & 355.3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Seven-anchor operation remains close to the all-available baseline. Keep-6 already shows clear tail degradation, and 5-anchor or 4-anchor operation enters the 100 mm-plus regime. This explains why the earlier 4-anchor online setting showed much larger Z degradation: the AutoPos layout may be usable under high redundancy, while small layout or ranging biases are amplified when the runtime solver operates close to the minimum geometry.
+
+\subsection*{Dropout and Leave-One-Out Diagnostics}
+
+Independent dropout confirms that the system does not immediately fail when responses are lost. Instead, it first returns numerically valid but degraded positions. With 20\% independent dropout, the solved rate is 97.5\%, but the 3D median is already 87.9 mm and the 3D p95 reaches 188.4 mm. With 40\% dropout, the solved rate falls to 74.7\%, and the 3D median reaches 119.0 mm.
+
+\begin{center}
+\small
+\begin{tabular}{l r r r r r}
+\toprule
+Dropout & Solved rate & Fail rate & Z med & 3D med & 3D p95 \\
+ & & & (mm) & (mm) & (mm) \\
+\midrule
+p05 & 100.0\% & 0.0\% & 46.9 & 59.5 & 115.5 \\
+p10 & 99.8\% & 0.2\% & 55.7 & 69.4 & 142.5 \\
+p20 & 97.5\% & 2.5\% & 70.9 & 87.9 & 188.4 \\
+p30 & 89.5\% & 10.5\% & 83.8 & 104.8 & 225.0 \\
+p40 & 74.7\% & 25.3\% & 94.9 & 119.0 & 285.3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Leave-one-out and residual diagnostics identify different failure modes. Removing B gives the worst 3D median, and removing C gives the worst Z median, indicating that B/C are geometrically influential. Anchor E has the largest residual tail, with absolute residual p95 of 212.7 mm. Anchor H has a low-Q rate of 90.6\% and far fewer observations than the other anchors, making it primarily an availability and signal-quality concern.
+
+\begin{center}
+\small
+\begin{tabular}{l r r r l}
+\toprule
+Condition & Z med & 3D med & 3D p95 & Interpretation \\
+ & (mm) & (mm) & (mm) & \\
+\midrule
+baseline & 37.9 & 49.2 & 81.6 & all-available reference \\
+no\_B & 45.2 & 58.4 & 78.1 & worst 3D median \\
+no\_C & 45.5 & 56.4 & 68.6 & worst Z median \\
+no\_E & 41.2 & 51.1 & 80.6 & residual tail, not largest median effect \\
+no\_H & 37.4 & 49.0 & 73.4 & H already has low availability \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{center}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{l r r r r r}
+\toprule
+Anchor & Observations & Residual RMS & Abs p95 & Downweighted & Low-Q $<80$ \\
+ & & (mm) & (mm) & (\%) & (\%) \\
+\midrule
+A & 13806 & 44.1 & 91.1 & 18.6 & 0.0 \\
+B & 13808 & 101.7 & 196.9 & 18.3 & 0.0 \\
+C & 13804 & 51.0 & 101.7 & 17.0 & 0.0 \\
+D & 13802 & 69.5 & 153.6 & 23.5 & 0.0 \\
+E & 13801 & 98.6 & 212.7 & 45.3 & 0.0 \\
+F & 13811 & 42.7 & 99.2 & 15.7 & 0.0 \\
+G & 13800 & 43.5 & 94.1 & 17.5 & 0.0 \\
+H & 4479 & 52.5 & 109.1 & 19.9 & 90.6 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+These diagnostics should not be collapsed into a single statement that one anchor is simply bad. E is the largest residual-tail anchor, B and C are the most geometrically influential in leave-one-out medians, and H is the clearest availability or signal-quality concern. The appropriate next step is therefore not only a solver change, but a targeted field inspection of antenna placement, line-of-sight, and response quality for these anchors.
+
+\begin{center}
+\IfFileExists{leave_one_anchor_out_z_3d.png}{%
+    \includegraphics[width=0.48\linewidth]{leave_one_anchor_out_z_3d.png}%
+}{%
+    \fbox{\parbox{0.48\linewidth}{\centering Figure unavailable: leave-one-out.}}%
+}
+\hfill
+\IfFileExists{residual_abs_p95_by_anchor.png}{%
+    \includegraphics[width=0.48\linewidth]{residual_abs_p95_by_anchor.png}%
+}{%
+    \fbox{\parbox{0.48\linewidth}{\centering Figure unavailable: residual p95.}}%
+}
+
+\vspace{-0.35\baselineskip}
+{\footnotesize Figure 4. Leave-one-out robustness and per-anchor residual-tail diagnostics.}
+\end{center}
+
+\section{FIM-Based Candidate Anchor Direction}
+
+The FIM simulation is a geometric observability analysis, not an empirical validation. It assumes an unbiased Gaussian range model and does not model NLOS, antenna pattern, TDMA availability, synchronization, or installation errors. Its role is to suggest where an additional anchor might improve Z observability.
+
+\begin{center}
+\small
+\begin{tabular}{l r r r r r}
+\toprule
+Candidate & X (mm) & Y (mm) & Z (mm) & Median Z factor & p05 factor \\
+\midrule
+center\_low\_level & 1538 & 2292 & 71 & 3.54 & 0.11 \\
+center\_extra\_high & 1538 & 2292 & -2473 & 3.32 & 1.76 \\
+center\_high\_level & 1538 & 2292 & -1673 & 2.15 & 0.23 \\
+center\_mid\_level & 1538 & 2292 & -735 & 1.50 & 0.08 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The center-low-level candidate has the strongest median improvement but weak lower-tail behavior. The center-extra-high candidate is more robust because its p05 reduction factor remains above 1, meaning that even difficult regions are not expected to degrade under the simplified FIM model. A real ninth-anchor deployment must still be checked against broadcast timing and installation constraints.
+
+\section{Interpretation and Limitations}
+
+The results support three separate conclusions. First, AutoPos layout generation is stable across the 1000, 500, and 500+500 sweep configurations. Second, downstream static repeatability under the broadcast dataset is around 49 mm median in 3D, but the limiting component is Z rather than isotropic noise. Third, runtime anchor redundancy is critical: the same layout behaves very differently under all-available or 7-anchor conditions than under 5-anchor or 4-anchor conditions.
+
+The main limitation is the lack of external ground truth. Without OptiTrack, the report can compare repeatability, self-consistency, physical consistency, and robustness, but it cannot claim absolute positioning accuracy. This distinction matters especially for V4-io-roto and V4-io-wand. Their injected constraints improve internal metrics, but only OptiTrack can show whether the injected constraints reduce absolute layout bias or simply improve consistency within the current measurement model.
+
+Another limitation is that the broadcast and earlier online setting are not a controlled A/B comparison. The current data show that high redundancy prevents the 100 mm-plus regime under the tested conditions, and keep-$k$ experiments show that low redundancy can reproduce that regime. This strongly supports the runtime-subset explanation, but it does not isolate every protocol-level difference between the previous and current firmware.
+
+Finally, RotoArm and Wand data should be interpreted as physical consistency checks, not replacement ground truth systems. The RotoArm has a known radius difference and repeated circular motion; the Wand has known inter-tag distances. Both are valuable, but both can still be affected by Tag-specific delay, antenna orientation, mechanical mounting, and line-of-sight effects.
+
+\section{Conclusions and Next Steps}
+
+The main conclusion is that AutoPos is stable in the current broadcast dataset, but the dominant remaining weakness is vertical geometry. V4-io gives a static 3D median of 49.2 mm and a Z median of 37.9 mm; strict 8/8 filtering reduces the horizontal and tail components but does not remove the Z weakness. RotoArm and Wand soft constraints are compatible with the recovered layout and provide small but consistent improvements, but the production baseline remains inter-anchor-only V4-io.
+
+The first priority is OptiTrack validation, because only external ground truth can convert repeatability analysis into absolute accuracy analysis. The second priority is improving vertical geometry, likely with a high central ninth anchor. The third priority is hardware and signal-quality follow-up on anchor E and H. Finally, the RotoArm and Wand experiments should be repeated with OptiTrack so that physical constraint injection can be evaluated not only through internal consistency, but also through absolute layout and Tag-position bias.
+
+\end{document}
