@@ -62,6 +62,17 @@ AutoPos SW100 in Matrix mode
 
 Ultrasound data are read through the Master_Anchor serial/NUS bridge, not through direct host BlueZ. The PC talks to Master_Anchor, Master_Anchor sends `USON`, `US?`, or `USOFF` to H over Anchor-control, and the response returns through the Master_Anchor serial port.
 
+The firmware reports raw HC-SR04 acoustic distance. The host-side experiment
+script adds the calibrated Anchor-H antenna-center offset in the CSV output:
+
+```text
+US_H_ANTENNA_CENTER_OFFSET_MM = 107
+median_ant_center_mm = median_mm + 107
+```
+
+Use the `*_ant_center_mm` columns for solver-facing Anchor-H height values.
+The raw `*_mm` columns are kept for debugging the ultrasound sensor itself.
+
 ### Three-Cycle Regression Result
 
 The three-cycle regression was run at:

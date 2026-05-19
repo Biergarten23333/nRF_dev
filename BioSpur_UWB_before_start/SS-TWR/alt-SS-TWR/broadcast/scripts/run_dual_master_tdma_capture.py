@@ -55,7 +55,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--tag-snr", default=os.environ.get("BIOSPUR_TAG_SNR", "1050070698"))
     parser.add_argument("--duration", type=float, default=180.0)
     parser.add_argument("--targets", default="BSF66F,BS2DCE,BSDC91")
-    parser.add_argument("--profiles", default="BSF66F:static,BS2DCE:roto,BSDC91:roto")
+    parser.add_argument("--tr-hz", type=int, default=10)
+    parser.add_argument("--profiles", default="", help="Deprecated compatibility option; ignored.")
     parser.add_argument("--static-hz", type=int, default=5)
     parser.add_argument("--roto-hz", type=int, default=10)
     parser.add_argument("--motion-hz", type=int, default=5)
@@ -168,19 +169,11 @@ def main() -> int:
             str(args.duration),
             "--targets",
             args.targets,
-            "--profiles",
-            args.profiles,
-            "--static-hz",
-            str(args.static_hz),
-            "--roto-hz",
-            str(args.roto_hz),
-            "--motion-hz",
-            str(args.motion_hz),
+            "--tr-hz",
+            str(args.tr_hz),
             "--skip-anchor-preflight",
             "--anchor-preflight-port",
             args.anchor_port,
-            "--cm-probe-target",
-            args.cm_probe_target,
             "--anchor-responder-settle-s",
             str(args.anchor_responder_settle_s),
             "--reuse-tag-links",

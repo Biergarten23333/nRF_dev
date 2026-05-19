@@ -16,6 +16,26 @@ import serial
 
 
 DEFAULT_H_UUID = "B1E487C2B1FD740D1442206A1857DFA1"
+US_H_ANTENNA_CENTER_OFFSET_MM = int(os.environ.get("BIOSPUR_US_H_ANTENNA_CENTER_OFFSET_MM", "107"))
+
+
+def add_us_antenna_center_fields(row: dict[str, str]) -> dict[str, str]:
+    row["ant_center_offset_mm"] = str(US_H_ANTENNA_CENTER_OFFSET_MM)
+    for src, dst in [
+        ("latest_mm", "latest_ant_center_mm"),
+        ("median_mm", "median_ant_center_mm"),
+        ("mean_mm", "mean_ant_center_mm"),
+        ("min_mm", "min_ant_center_mm"),
+        ("max_mm", "max_ant_center_mm"),
+    ]:
+        value = row.get(src)
+        if value in (None, ""):
+            continue
+        try:
+            row[dst] = str(int(round(float(value) + US_H_ANTENNA_CENTER_OFFSET_MM)))
+        except ValueError:
+            pass
+    return row
 
 
 def run_stream(cmd: list[str], log_path: Path, cwd: Path) -> int:
@@ -80,7 +100,7 @@ def parse_us_status(resp: str) -> dict[str, str]:
         if "=" in part:
             key, value = part.split("=", 1)
             out[key.strip()] = value.strip()
-    return out
+    return add_us_antenna_center_fields(out)
 
 
 def read_serial_for(ser: serial.Serial, duration_s: float) -> str:
@@ -164,10 +184,16 @@ def write_us_csv(csv_path: Path, rows: list[dict[str, str]]) -> None:
         "ok",
         "timeout",
         "latest_mm",
+        "latest_ant_center_mm",
         "median_mm",
+        "median_ant_center_mm",
         "mean_mm",
+        "mean_ant_center_mm",
         "min_mm",
+        "min_ant_center_mm",
         "max_mm",
+        "max_ant_center_mm",
+        "ant_center_offset_mm",
         "echo_us",
         "trig",
         "echo",
@@ -375,16 +401,21 @@ def main() -> int:
             **parse_us_status(off_resp),
         })
         _, post_resp = master_anchor_us_cmd(args.anchor_port, args.h_uuid, "US?", us_dir, "us_status_after_usoff")
-        us_rows.append({
+        post_row = {
             "cycle": str(cycle),
             "timestamp": datetime.now().isoformat(timespec="seconds"),
             "phase": "post_off_status",
             **parse_us_status(post_resp),
-        })
+        }
+        us_rows.append(post_row)
         write_us_csv(us_dir / "ultrasound_H.csv", us_rows)
         cycle_summary["ultrasound_csv"] = str(us_dir / "ultrasound_H.csv")
         cycle_summary["ultrasound_done"] = done
         cycle_summary["ultrasound_final_status"] = post_resp
+        cycle_summary["ultrasound_ant_center_offset_mm"] = US_H_ANTENNA_CENTER_OFFSET_MM
+        cycle_summary["ultrasound_final_latest_ant_center_mm"] = post_row.get("latest_ant_center_mm", "")
+        cycle_summary["ultrasound_final_median_ant_center_mm"] = post_row.get("median_ant_center_mm", "")
+        cycle_summary["ultrasound_final_mean_ant_center_mm"] = post_row.get("mean_ant_center_mm", "")
         if not done:
             cycle_summary["error"] = "ultrasound_not_done"
             summary["cycles"].append(cycle_summary)

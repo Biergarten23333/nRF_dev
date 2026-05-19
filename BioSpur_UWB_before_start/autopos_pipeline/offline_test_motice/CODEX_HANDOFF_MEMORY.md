@@ -4,6 +4,7 @@ This file is a compact memory export for continuing this project on another comp
 
 Read this first, then read:
 
+- `autopos_pipeline/offline_test_motice/ERLANGEN_20260519_BASELINE_CAPTURE_FREEZE.md`
 - `autopos_pipeline/offline_test_motice/ERLANGEN_OPTITRACK_COMMANDS.md`
 - `autopos_pipeline/outdoor_20260513/reports/README_FINAL.md`
 - `autopos_pipeline/outdoor_20260513/reports/autopos_20260513_report_10p.tex`
@@ -23,6 +24,143 @@ Two reports were prepared and sent to Prof. Björn Eskofier:
 - `Short-Summary-17052026.pdf`
 
 Prof. Eskofier replied positively and supports an optical measurement-system validation. Munich is not yet set up; Erlangen is likely the easier option because measurement equipment exists there.
+
+## 1A. Latest Erlangen Baseline Freeze: 2026-05-19
+
+This is the newest working field baseline before moving the whole folder to the
+experiment laptop. Use this first in a new Codex session.
+
+Primary freeze document:
+
+- `autopos_pipeline/offline_test_motice/ERLANGEN_20260519_BASELINE_CAPTURE_FREEZE.md`
+
+Session root:
+
+```text
+/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/offline_test_motice/erlangen_20260519_110221
+```
+
+Current broadcast timing baseline:
+
+```text
+tail900 start5
+A 1200 us
+B 2200 us
+C 3200 us
+D 4200 us
+E 5200 us
+F 6100 us
+G 7000 us
+H 7900 us
+```
+
+Current working Master ports on the desktop where this was frozen:
+
+```bash
+export BIOSPUR_ANCHOR_PORT="/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_87EA2F4A526C5A02-if00"
+export BIOSPUR_TAG_PORT="/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00"
+export BIOSPUR_ANCHOR_SNR="960148546"
+export BIOSPUR_TAG_SNR="1050070698"
+```
+
+Important for another computer:
+
+- Re-detect serial ports. Do not assume the `/dev/serial/by-id/...` paths are identical.
+- Keep SNR values the same:
+  - `Master_Anchor`: `960148546`
+  - `Master_Tag`: `1050070698`
+- Capture commands are now TR-only. Do not use old command logic that separates
+  `static`, `roto`, and `motion` profiles.
+- Use:
+  - `--targets "BS....,BS...."`
+  - `--tr-hz 10`
+- Do not rely on `--profiles`, `--static-hz`, `--roto-hz`, or `--motion-hz` for
+  the current field capture workflow.
+
+The compatibility wrapper was updated:
+
+- `SS-TWR/alt-SS-TWR/broadcast/scripts/run_dual_master_tdma_capture.py`
+
+It now forwards only the supported lower-level capture arguments:
+
+- `--targets`
+- `--tr-hz`
+
+Deprecated profile arguments are ignored by the wrapper for compatibility.
+
+### Validated 2026-05-19 Captures
+
+AutoPos sweep:
+
+```text
+autopos_sweep1000_prewarm10_us30/sweep1000
+summary.json: success true
+order: ABCDEFGH
+formal SW sets per round: 1000
+device SW sets per round: 1010
+prewarm setting: 10
+final responder restore: success true, sent=8 ready=8/8
+```
+
+Note: the folder name contains `us30`, but no `ultrasound_H.csv` was found in
+that folder. If the H ultrasound value is needed for the field dataset, run a
+standalone US30 and save it under an explicit folder name.
+
+BSF66F 120 s:
+
+```text
+folder: BSF66F_120s_20260519_113311
+raw_log: tag_capture_20260519_113401/raw.log
+tr_all_csv: tag_capture_20260519_113401/tr_all.csv
+success: true
+TR rows: 9608
+valid TR rows: 9540
+sweeps_total: 1201
+>=7 anchors: 1201 / 1201 = 100.00%
+8/8 anchors: 1133 / 1201 = 94.34%
+US residual in raw log: none
+```
+
+Roto 2 Tag 120 s:
+
+```text
+folder: roto_BS2DCE_BSDC91_120s_20260519_114009
+raw_log: tag_capture_20260519_114057/raw.log
+tr_all_csv: tag_capture_20260519_114057/tr_all.csv
+success: true
+targets: BS2DCE, BSDC91
+TR rows: 19200
+valid TR rows: 19045
+sweeps_total: 2400
+>=7 anchors: 2398 / 2400 = 99.92%
+8/8 anchors: 2247 / 2400 = 93.63%
+US residual in raw log: none
+```
+
+Wand 3 Tag 120 s:
+
+```text
+folder: wand3_BS9336_BS955A_BSCCF4_120s_20260519_114436
+raw_log: tag_capture_20260519_114525/raw.log
+tr_all_csv: tag_capture_20260519_114525/tr_all.csv
+success: true
+targets: BS9336, BS955A, BSCCF4
+TR rows: 28816
+valid TR rows: 28616
+sweeps_total: 3602
+>=7 anchors: 3599 / 3602 = 99.92%
+8/8 anchors: 3405 / 3602 = 94.53%
+US residual in raw log: none
+```
+
+Do not use this failed old-profile folder:
+
+```text
+BSF66F_static_120s_20260519_111929
+```
+
+It failed because an old command passed unsupported profile arguments to the
+lower-level capture script. The hardware was not the cause.
 
 ## 2. Critical Safety / Hardware Rules
 
@@ -605,9 +743,12 @@ Suggested first prompt on another computer:
 ```text
 Please first read:
 autopos_pipeline/offline_test_motice/CODEX_HANDOFF_MEMORY.md
+autopos_pipeline/offline_test_motice/ERLANGEN_20260519_BASELINE_CAPTURE_FREEZE.md
 autopos_pipeline/offline_test_motice/ERLANGEN_OPTITRACK_COMMANDS.md
 
 Then help me continue the BioSpur UWB / AutoPos Erlangen OptiTrack validation workflow.
 Do not flash Master_Anchor or Master_Tag unless I explicitly ask.
 Use broadcast SS-TWR scripts under SS-TWR/alt-SS-TWR/broadcast/scripts.
+Use the 2026-05-19 TR-only capture command style: --targets ... --tr-hz 10.
+Do not use old static/roto/motion profile arguments for current field capture.
 ```

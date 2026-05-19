@@ -36,6 +36,9 @@ while improving the late H response window compared with the old
 - Ultrasound support is present in this image, but must be explicitly opened
   only during the short ultrasound capture window and closed before Tag/Wand
   capture. Normal responder operation after ultrasound close has been verified.
+- Ultrasound firmware output remains the raw HC-SR04 acoustic distance. The
+  host pipeline adds `+107 mm` in CSV post-processing so the solver-facing
+  value directly represents the Anchor H UWB antenna-center height.
 
 Implementation files for this freeze:
 
@@ -61,6 +64,40 @@ Current A-H anchor roster for this freeze:
 Anchor H has been replaced. The old H was `BSB77F`, SNR `760184753`,
 UUID `CF12E703AC1A118F6AB440AB05B0BA23`, and should not be used unless
 explicitly rolling back.
+
+### Anchor H Ultrasound Offset
+
+The HC-SR04 distance is calibrated in the host script, not in the firmware.
+This avoids another OTA change and keeps the frozen Anchor image simple.
+
+Current script-side offset:
+
+```text
+US_H_ANTENNA_CENTER_OFFSET_MM = 107
+```
+
+Meaning:
+
+- raw `median_mm` is the HC-SR04 measured acoustic distance.
+- `median_ant_center_mm = median_mm + 107`.
+- The same offset is also applied to `latest_mm`, `mean_mm`, `min_mm`, and
+  `max_mm`.
+- The derived columns are written by
+  `scripts/run_autopos_ultrasound_motion_triplet.py` into
+  `ultrasound_H.csv`.
+
+Calibration evidence from 2026-05-19:
+
+| Reference height | Raw US median | Raw bias |
+|---:|---:|---:|
+| 1545 mm | 1539 mm | +6 mm |
+| 1287 mm | 1277 mm | +10 mm |
+| 1000 mm | 989 mm | +11 mm |
+| 1545 mm repeat | 1539 mm | +6 mm |
+
+The measured mechanical offset from the HC-SR04 reference plane to the Anchor H
+UWB antenna center is approximately 98 mm. The raw US bias is about 9 mm, so the
+solver-facing antenna-center offset is frozen as `98 + 9 = 107 mm`.
 
 ### Validation Evidence
 
