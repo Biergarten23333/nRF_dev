@@ -14,6 +14,12 @@ Short experiment plan:
 docs/experiment_plan_short.md
 ```
 
+On-site solver sanity check:
+
+```text
+solver/README.md
+```
+
 Field helper commands:
 
 ```bash
