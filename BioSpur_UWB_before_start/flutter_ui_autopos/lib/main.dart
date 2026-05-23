@@ -244,15 +244,33 @@ class _FieldConsolePageState extends State<FieldConsolePage>
     });
   }
 
-  void _useDesktopWorkspace() {
+  Future<void> _browseWorkspace() async {
     final home = Platform.environment['HOME'] ?? '/tmp';
-    final stamp = DateTime.now()
-        .toIso8601String()
-        .replaceAll('-', '')
-        .replaceAll(':', '')
-        .split('.')
-        .first;
-    _workspaceController.text = '$home/Desktop/BioSpur_AutoPos_$stamp';
+    final initialPath = Directory(_workspaceController.text).existsSync()
+        ? _workspaceController.text
+        : '$home/Desktop';
+    final result = await Process.run('zenity', [
+      '--file-selection',
+      '--directory',
+      '--title=Select BioSpur data workspace',
+      '--filename=$initialPath/',
+    ]);
+    if (result.exitCode == 0) {
+      final selected = result.stdout.toString().trim();
+      if (selected.isNotEmpty) {
+        _workspaceController.text = selected;
+      }
+      return;
+    }
+    if (result.exitCode != 1 && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Folder picker failed. Type the workspace path manually. ${result.stderr}',
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _refreshAll() async {
@@ -343,7 +361,7 @@ echo "[clear] done"
                 runner: _runner,
                 workspaceController: _workspaceController,
                 onApplyWorkspace: _applyWorkspace,
-                onUseDesktopWorkspace: _useDesktopWorkspace,
+                onBrowseWorkspace: _browseWorkspace,
               ),
               AnchorStatusBar(ports: _ports, sweep: _sweep, runner: _runner),
               Material(
@@ -532,7 +550,7 @@ class FieldHeader extends StatelessWidget {
     required this.runner,
     required this.workspaceController,
     required this.onApplyWorkspace,
-    required this.onUseDesktopWorkspace,
+    required this.onBrowseWorkspace,
   });
 
   final PortSnapshot ports;
@@ -540,7 +558,7 @@ class FieldHeader extends StatelessWidget {
   final ScriptRunner runner;
   final TextEditingController workspaceController;
   final VoidCallback onApplyWorkspace;
-  final VoidCallback onUseDesktopWorkspace;
+  final VoidCallback onBrowseWorkspace;
 
   @override
   Widget build(BuildContext context) {
@@ -605,9 +623,9 @@ class FieldHeader extends StatelessWidget {
                           OutlinedButton.icon(
                             onPressed: runner.isRunning
                                 ? null
-                                : onUseDesktopWorkspace,
-                            icon: const Icon(Icons.desktop_windows_outlined),
-                            label: const Text('Desktop'),
+                                : onBrowseWorkspace,
+                            icon: const Icon(Icons.folder_outlined),
+                            label: const Text('Browse'),
                           ),
                           const SizedBox(width: 8),
                           FilledButton.icon(

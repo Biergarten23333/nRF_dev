@@ -25,7 +25,11 @@ export BIOSPUR_DOC_ROOT="${BIOSPUR_ERLANGEN_ROOT}/docs"
 
 export BIOSPUR_ANCHOR_SNR="${BIOSPUR_ANCHOR_SNR:-960148546}"
 export BIOSPUR_TAG_SNR="${BIOSPUR_TAG_SNR:-1050070698}"
+export BIOSPUR_F_UUID="${BIOSPUR_F_UUID:-840C68591E90019821AACFF1B73AAA34}"
+export BIOSPUR_G_UUID="${BIOSPUR_G_UUID:-B3087BC3D87CCCD316AEDC6B71D6677F}"
 export BIOSPUR_H_UUID="${BIOSPUR_H_UUID:-B1E487C2B1FD740D1442206A1857DFA1}"
+export BIOSPUR_US_F_ANTENNA_CENTER_OFFSET_MM="${BIOSPUR_US_F_ANTENNA_CENTER_OFFSET_MM:-0}"
+export BIOSPUR_US_G_ANTENNA_CENTER_OFFSET_MM="${BIOSPUR_US_G_ANTENNA_CENTER_OFFSET_MM:-0}"
 export BIOSPUR_US_H_ANTENNA_CENTER_OFFSET_MM="${BIOSPUR_US_H_ANTENNA_CENTER_OFFSET_MM:-107}"
 export BIOSPUR_RESET_MASTERS_BEFORE_CAPTURE="${BIOSPUR_RESET_MASTERS_BEFORE_CAPTURE:-1}"
 export BIOSPUR_RESET_ANCHOR_BEFORE_CAPTURE="${BIOSPUR_RESET_ANCHOR_BEFORE_CAPTURE:-0}"
@@ -66,7 +70,7 @@ BioSpur Erlangen helpers:
       AutoPos sweep with configurable formal sets and prewarm sets.
 
   us30 -id US01
-      Standalone H ultrasound 30 s capture, writes ultrasound_H.csv.
+      Standalone F/G/H ultrasound 30 s capture, writes ultrasound_F/G/H.csv.
 
   bio_check_latest
       Print the latest summary.json under the current session.
@@ -596,17 +600,25 @@ us30() {
   [[ -n "${id}" ]] || { echo "[ERR] Missing -id, for example: us30 -id US01" >&2; return 2; }
   _bio_need_setup || return $?
 
-  local out="${BIOSPUR_SESSION_ROOT}/us_${id}_H_US30_$(_bio_ts)"
+  local out="${BIOSPUR_SESSION_ROOT}/us_${id}_FGH_US30_$(_bio_ts)"
   mkdir -p "${out}"
   echo "[us30] id=${id}"
   echo "[us30] out=${out}"
   (
     cd "${BIOSPUR_BCAST_DIR}" && \
-    python3 - "${BIOSPUR_ANCHOR_PORT}" "${BIOSPUR_H_UUID}" "${out}" <<'PY'
+    python3 - \
+      "${BIOSPUR_ANCHOR_PORT}" \
+      "${out}" \
+      "${BIOSPUR_F_UUID}" "${BIOSPUR_US_F_ANTENNA_CENTER_OFFSET_MM}" \
+      "${BIOSPUR_G_UUID}" "${BIOSPUR_US_G_ANTENNA_CENTER_OFFSET_MM}" \
+      "${BIOSPUR_H_UUID}" "${BIOSPUR_US_H_ANTENNA_CENTER_OFFSET_MM}" <<'PY'
 import json
 import sys
+import time
 from pathlib import Path
+import serial
 
+import scripts.run_autopos_ultrasound_motion_triplet as usmod
 from scripts.run_autopos_ultrasound_motion_triplet import (
     master_anchor_us_cmd,
     parse_us_status,
@@ -614,35 +626,88 @@ from scripts.run_autopos_ultrasound_motion_triplet import (
     write_us_csv,
 )
 
-anchor_port, uuid, out_dir_s = sys.argv[1], sys.argv[2], sys.argv[3]
+anchor_port, out_dir_s = sys.argv[1], sys.argv[2]
 out_dir = Path(out_dir_s)
-rows = []
+anchors = [
+    ("F", "BS928B", sys.argv[3], float(sys.argv[4])),
+    ("G", "BSEC88", sys.argv[5], float(sys.argv[6])),
+    ("H", "BS506D", sys.argv[7], float(sys.argv[8])),
+]
 
-cmd_log, resp = master_anchor_us_cmd(anchor_port, uuid, "USON 30", out_dir, "us_on", wait_s=2.0, setup_wait_s=12.0)
-row = parse_us_status(resp)
-row.update({"cycle": "1", "phase": "on"})
-rows.append(row)
-if not resp.startswith("OK USON"):
-    master_anchor_us_cmd(anchor_port, uuid, "USOFF", out_dir, "us_off_after_failed_on", wait_s=1.5, setup_wait_s=5.0)
-    write_us_csv(out_dir / "ultrasound_H.csv", rows)
-    print(json.dumps({"success": False, "error": "uson_failed", "response": resp, "csv": str(out_dir / "ultrasound_H.csv")}, indent=2))
-    raise SystemExit(3)
+def read_for(ser, seconds):
+    end = time.time() + seconds
+    chunks = []
+    while time.time() < end:
+        data = ser.read(4096)
+        if data:
+            chunks.append(data.decode("utf-8", "ignore"))
+    return "".join(chunks)
 
-done, poll_rows = wait_for_us_done(anchor_port, uuid, 1, out_dir, 30)
-rows.extend(poll_rows)
-_, off_resp = master_anchor_us_cmd(anchor_port, uuid, "USOFF", out_dir, "us_off", wait_s=1.5, setup_wait_s=5.0)
-off_row = parse_us_status(off_resp)
-off_row.update({"cycle": "1", "phase": "off"})
-rows.append(off_row)
+with serial.Serial(anchor_port, 115200, timeout=0.2) as ser:
+    text = read_for(ser, 0.5)
+    ser.write(b"mode autopos\n")
+    ser.flush()
+    text += read_for(ser, 3.0)
+    (out_dir / "mode_autopos.log").write_text(text, encoding="utf-8")
 
-write_us_csv(out_dir / "ultrasound_H.csv", rows)
-print(json.dumps({
-    "success": bool(done),
-    "off_response": off_resp,
-    "csv": str(out_dir / "ultrasound_H.csv"),
-    "last": rows[-2] if len(rows) >= 2 else rows[-1],
-}, indent=2))
-raise SystemExit(0 if done else 4)
+summary = {"success": True, "anchors": {}, "out_dir": str(out_dir)}
+for label, bs, uuid, offset in anchors:
+    anchor_dir = out_dir / f"anchor_{label}"
+    anchor_dir.mkdir(parents=True, exist_ok=True)
+    usmod.US_H_ANTENNA_CENTER_OFFSET_MM = int(round(offset))
+    rows = []
+
+    _, before = master_anchor_us_cmd(anchor_port, uuid, "US?", anchor_dir, "before", wait_s=1.8, setup_wait_s=10.0)
+    before_row = parse_us_status(before)
+    before_row.update({"cycle": "1", "phase": "before"})
+    rows.append(before_row)
+
+    _, resp = master_anchor_us_cmd(anchor_port, uuid, "USON 30", anchor_dir, "us_on", wait_s=2.0, setup_wait_s=10.0)
+    row = parse_us_status(resp)
+    row.update({"cycle": "1", "phase": "on"})
+    rows.append(row)
+
+    if not resp.startswith("OK USON"):
+        master_anchor_us_cmd(anchor_port, uuid, "USOFF", anchor_dir, "us_off_after_failed_on", wait_s=1.5, setup_wait_s=5.0)
+        csv_path = out_dir / f"ultrasound_{label}.csv"
+        write_us_csv(csv_path, rows)
+        summary["success"] = False
+        summary["anchors"][label] = {
+            "success": False,
+            "bs": bs,
+            "uuid": uuid,
+            "offset_mm": offset,
+            "error": "uson_failed",
+            "response": resp,
+            "csv": str(csv_path),
+        }
+        continue
+
+    done, poll_rows = wait_for_us_done(anchor_port, uuid, 1, anchor_dir, 30)
+    rows.extend(poll_rows)
+    _, off_resp = master_anchor_us_cmd(anchor_port, uuid, "USOFF", anchor_dir, "us_off", wait_s=1.5, setup_wait_s=5.0)
+    off_row = parse_us_status(off_resp)
+    off_row.update({"cycle": "1", "phase": "off"})
+    rows.append(off_row)
+
+    csv_path = out_dir / f"ultrasound_{label}.csv"
+    write_us_csv(csv_path, rows)
+    last = poll_rows[-1] if poll_rows else rows[-1]
+    ok = bool(done)
+    summary["success"] = summary["success"] and ok
+    summary["anchors"][label] = {
+        "success": ok,
+        "bs": bs,
+        "uuid": uuid,
+        "offset_mm": offset,
+        "off_response": off_resp,
+        "csv": str(csv_path),
+        "last": last,
+    }
+
+(out_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+print(json.dumps(summary, indent=2))
+raise SystemExit(0 if summary["success"] else 4)
 PY
   )
   local rc=$?
@@ -650,12 +715,14 @@ PY
     printf '%s,' "$(date -Is)"
     _bio_csv_escape "${id}"
     printf ',us30,'
-    _bio_csv_escape "${out}/ultrasound_H.csv"
+    _bio_csv_escape "${out}"
     printf ','
-    _bio_csv_escape "anchor=H; duration_s=30; ant_center_offset_mm=${BIOSPUR_US_H_ANTENNA_CENTER_OFFSET_MM}; rc=${rc}"
+    _bio_csv_escape "anchors=F,G,H; duration_s=30; offsets_mm=F:${BIOSPUR_US_F_ANTENNA_CENTER_OFFSET_MM}/G:${BIOSPUR_US_G_ANTENNA_CENTER_OFFSET_MM}/H:${BIOSPUR_US_H_ANTENNA_CENTER_OFFSET_MM}; rc=${rc}"
     printf '\n'
   } >> "${BIOSPUR_SESSION_ROOT}/session_notes.csv"
   echo "[us30] rc=${rc}"
+  echo "[us30] csv=${out}/ultrasound_F.csv"
+  echo "[us30] csv=${out}/ultrasound_G.csv"
   echo "[us30] csv=${out}/ultrasound_H.csv"
   return "${rc}"
 }
