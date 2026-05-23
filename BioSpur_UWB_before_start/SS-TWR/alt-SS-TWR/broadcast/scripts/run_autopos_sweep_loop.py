@@ -533,14 +533,12 @@ def _best_effort_reset_serial_buffers(ser: serial.Serial) -> None:
 def _write_bytes_with_recovery(ser: serial.Serial, payload: bytes) -> serial.Serial:
     try:
         ser.write(payload)
-        ser.flush()
         return ser
     except SerialTimeoutException:
         _best_effort_reset_serial_buffers(ser)
         time.sleep(0.2)
         try:
             ser.write(payload)
-            ser.flush()
             return ser
         except SerialTimeoutException:
             port = getattr(ser, "port", None)
@@ -554,7 +552,6 @@ def _write_bytes_with_recovery(ser: serial.Serial, payload: bytes) -> serial.Ser
             _best_effort_reset_serial_buffers(ser)
             time.sleep(0.8)
             ser.write(payload)
-            ser.flush()
             return ser
 
 

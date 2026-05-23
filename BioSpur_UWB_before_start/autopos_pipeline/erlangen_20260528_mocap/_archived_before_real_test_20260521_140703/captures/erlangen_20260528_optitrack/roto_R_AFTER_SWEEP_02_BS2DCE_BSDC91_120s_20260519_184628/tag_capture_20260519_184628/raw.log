@@ -1,0 +1,1605 @@
+*** Booting nRF Connect SDK v2.8.0-a2386bfc8401 ***
+*** Using Zephyr OS v3.7.99-0bc3393fb112 ***
+[RECV] LED map: 1=AUTOPOS 2=RECV 3=OTA 4=FLOW
+[RECV] Control mode loaded: RECV
+[RECV] UART control ready: type 'status' or 'mode recv'/'mode ota'/'mode autopos'
+OTA_STATE:target_configured detail=token
+OTA NUS stage: enabled
+[RECV] Boot profile neutral: no role-specific auto target
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] BioSpur BLE master control ready on nrf5340dk/nrf5340/cpuapp
+[RECV] BTN1 toggles RECV/OTA, BTN2 forces OTA mode, BTN3=SCAN, BTN4=CONN&START
+[RECV] Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate
+[RECV] OTA runtime cmds: ota_reset | ota show | ota version
+[RECV] Runtime NUS cmds: cmd <raw> | cmd_all <raw> | oneshot <raw> | oneshot show | oneshot clear
+[RECV] Tag layout cmds: APOS <id> <x_mm> <y_mm> <z_mm> | APOS_TO <BSxxxx> APOS... | APOS_COMMIT | APOS_STATUS | APOS_RESET
+[RECV] TDMA cmds: tdma show | tdma hold <0|1> | tdma roster <B[HOST_CMD 14227.786] status
+[RECV] Control status: mode=RECV pending=0
+[RECV] SCAN hit: D5:53:48:EF:8F:59 (random) rssi=-55 name=- bs=BSDC91 uuid=- target=unknown uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[RECV] CONNECT queue[0]: addr=D5:53:48:EF:8F:59 (random) link=nus uuid=- target=unknown
+[RECV] SCAN hit: FF:5E:D2:80:EA:D2 (random) rssi=-54 name=- bs=BS2DCE uuid=- target=unknown uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[RECV] CONNECT queue[1]: addr=FF:5E:D2:80:EA:D2 (random) link=nus uuid=- target=unknown
+[RECV] CONNECT pending[0]: addr_valid=1 link=nus uuid=- scan_running=1 conn_count=0
+[RECV] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[RECV] CONNECT pending[0] rc=0 conn=0x200048a0
+[RECV] Connected[0]: D5:53:48:EF:8F:59 (random) name=- bs=BSDC91
+[RECV] CONNECT state[0]: link=nus uuid=- ready=0 conn=0x200048a0
+[RECV] CONNECT pending[1]: addr_valid=1 link=nus uuid=- scan_running=0 conn_count=1
+[RECV] CONNECT pending[1] rc=0 conn=0x20004970
+SETUP[0] defer: waiting 310 ms before discovery start
+S[HOST_CMD 14228.603] device show
+ETUP[0] defer: waiting 260 ms before discovery start
+[RECV] System target: kind=unknown caps=0x08 (config=0 ota=0 stream=0 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] PHY updated[0]: tx=0x2 rx=0x2
+SETUP[0] defer: waiting 209 ms before discovery start
+SETUP[0] defer: waiting 159 ms before discovery start
+[RECV] Connected[1]: FF:5E:D2:80:EA:D2 (random) name=- bs=BS2DCE
+[RECV] CONNECT state[1]: link=nus uuid=- ready=0 conn=0x20004970
+SETUP[0] defer: waiting 109 ms before discovery start
+SETUP[1] defer: waiting 316 ms before discovery start
+SETUP[0] defer: waiting 58 ms before discovery start
+SETUP[1] defer: waiting 265 ms before discovery start
+SETUP[0] defer: waiting 8 ms before discovery start
+SETUP[1] defer: waiting 214 ms before discovery start
+[RECV] PHY updated[1]: tx=0x2 rx=0x2
+SETUP[0] begin: link=nus uuid=- conn=0x200048a0
+SETUP[0] mtu_exchange rc=0
+SETUP[0] phy_update rc=0
+SETUP[0] conn_param_update rc=0
+[RECV] DISC start[0]: link=nus uuid=- conn=0x200048a0
+SETUP[1] defer: global discovery busy
+[RECV] MTU exchange[0] done (498)
+[RECV] Conn param updated[0]: int=6 lat=0 to=400
+SETUP[1] defer: global discovery busy
+[RECV] PHY updated[0]: tx=0x2 rx=0x2
+SETUP[1] defer: global discovery busy
+SETUP[1] defer: global discovery busy
+SETUP[1] defer: global discovery busy
+[RECV] DISC complete[0]: link=nus discovered_service=2800 uuid=-
+[RECV] BLE[0] link ready
+[RECV] CFG assigned[0]: bs=BSDC91 tag=1 slot=0/10 mask=0x0001 period=10 active=9 active_us=0 gen=1 pmode=0
+[RECV] TDMA weighted[0]: bs=BSDC91 profile=motion target=10Hz mask=0x0001 slots=1/10 actual_x100=1000 epoch_delay=3000
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=2 target=unknown prefix=BS
+[RECV] Scanning for BS*
+SETUP[1] begin: link=nus uuid=- conn=0x20004970
+SETUP[1] mtu_exchange rc=0
+SETUP[1] phy_update rc=0
+SETUP[1] conn_param_update rc=0
+[RECV] DISC start[1]: link=nus uuid=- conn=0x20004970
+[RECV] BSDC91 notify: TD;1;1385;3;anchor_ota;0;0;1;0;25;0;0;0;8;0
+[RECV] MTU exchange[1] done (498)
+[RECV] CFG confirmed[0]: tag=1 slot=0/10 mask=0x0001 period=10 active=9 gen=1 live=1
+[RECV] BSDC91 notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0001 PERIOD=10 ACTIVE=9 GEN=1 LIVE=1
+[RECV] Conn param updated[1]: int=6 lat=0 to=400
+[RECV] PHY updated[1]: tx=0x2 rx=0x2
+[HOST_CMD 14229.427] device kind tag
+OTA NUS stage: enabled
+[RECV] One-shot NUS command cleared (runtime)
+[RECV] Master disconnecting peer[0]: bs=BSDC91
+[RECV] Master disconnecting peer[1]: bs=BS2DCE
+[RECV] device kind set: tag (OTA target preserved)
+[RECV] Master discovery mode: CONN & START
+[RECV] Peer clear wait: waited=0 conn_count=2 ready_count=0
+[HOST_CMD 14231.439] device show
+[HOST_CMD 14232.242] ota_target token -1
+[RECV] Peer clear wait timeout: conn_count=2 ready_count=0
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=2 target=tag prefix=BS
+[RECV] Scanning for BS*
+[RECV] System target: kind=tag caps=0x0f (config=1 ota=1 stream=1 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] ota_target token rc=0 value=-1
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] Disconnected[0]: D5:53:48:EF:8F:59 (random) reason=0x16 link=nus ready=1
+[RECV] DISC complete[1]: link=nus discovered_service=2800 uuid=-
+[RECV] NUS subscribe failed[1]: -128
+[RECV] Disconnected[1]: FF:5E:D2:80:EA:D2 (random) reason=0x16 link=nus ready=0
+[RECV] SCAN hit: D5:53:48:EF:8F:59 (random) rssi=-60 name=- bs=BSDC91 uuid=- target=tag uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[RECV] CONNECT queue[0]: addr=D5:53:48:EF:8F:59 (random) link=nus uuid=- target=tag
+[[HOST_CMD 14232.778] ota_target name -
+RECV] SCAN hit: FF:5E:D2:80:EA:D2 (random) rssi=-63 name=- bs=BS2DCE uuid=- target=tag uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[RECV] CONNECT queue[1]: addr=FF:5E:D2:80:EA:D2 (random) link=nus uuid=- target=tag
+[RECV] ota_target name rc=0 value=-
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] CONNECT pending[0]: addr_valid=1 link=nus uuid=- scan_running=1 conn_count=0
+[RECV] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[RECV] CONNECT pending[0] rc=0 conn=0x200048a0
+[RECV] Connected[0]: D5:53:48:EF:8F:59 (random) name=- bs=BSDC91
+[RECV] CONNECT state[0]: link=nus uuid=- ready=0 conn=0x200048a0
+[RECV] CONNECT pending[1]: addr_valid=1 link=nus uuid=- scan_running=0 conn_count=1
+[RECV] CONNECT pending[1] rc=0 conn=0x20004970
+SETUP[0] defer: waiting 321 ms before discovery start
+SETUP[0] defer: waiting 270 ms before discovery start
+[[HOST_CMD 14233.306] ota_target prefix BS
+RECV] PHY updated[0]: tx=0x2 rx=0x2
+[RECV] ota_target prefix rc=0 value=bs
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+SETUP[0] defer: waiting 220 ms before discovery start
+SETUP[0] defer: waiting 170 ms before discovery start
+[RECV] Connected[1]: FF:5E:D2:80:EA:D2 (random) name=- bs=BS2DCE
+[RECV] CONNECT state[1]: link=nus uuid=- ready=0 conn=0x20004970
+SETUP[0] defer: waiting 120 ms before discovery start
+SETUP[1] defer: waiting 327 ms before discovery start
+SETUP[0] defer: waiting 69 ms before discovery start
+SETUP[1] defer: waiting 277 ms before discovery start
+SETUP[0] defer: waiting 18 ms before discovery start
+SETUP[1] defer: waiting 226 ms before discovery start
+SETUP[0] begin: link=nus uuid=- conn=0x200048a0
+SETUP[0] mtu_exchange rc=0
+SETUP[0] phy_update rc=0
+[RECV] PHY updated[0]: tx=0x2 rx=0x2
+SETUP[0] conn_param_update rc=0
+[RECV] DISC start[0]: link=nus uuid=- conn=0x200048a0
+SETUP[1] defer: global discovery busy
+[RECV] PHY updated[1]: tx=0x2 rx=0x2
+[RECV] MTU exchange[0] done (498)
+SETUP[1] defer: global discovery busy
+[RECV] Conn param updated[0]: int=6 lat=0 to=400
+SETUP[1] defer: global discovery busy
+SETUP[1] defer: global discovery busy
+SETUP[1] defer: global discovery busy
+[[HOST_CMD 14233.819] ota_target uuid -
+RECV] DISC complete[0]: link=nus discovered_service=2800 uuid=-
+[RECV] BLE[0] link ready
+[RECV] CFG assigned[0]: bs=BSDC91 tag=1 slot=0/10 mask=0x0001 period=10 active=9 active_us=0 gen=2 pmode=0
+[RECV] TDMA weighted[0]: bs=BSDC91 profile=motion target=10Hz mask=0x0001 slots=1/10 actual_x100=1000 epoch_delay=3000
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=2 target=tag prefix=BS
+[RECV] ota_target uuid rc=0 value=-
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+[RECV] Scanning for BS*
+SETUP[1] begin: link=nus uuid=- conn=0x20004970
+SETUP[1] mtu_exchange rc=0
+SETUP[1] phy_update rc=0
+SETUP[1] conn_param_update rc=0
+[RECV] DISC start[1]: link=nus uuid=- conn=0x20004970
+[RECV] BSDC91 notify: TR;2;1401;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] MTU exchange[1] done (498)
+[RECV] CFG confirmed[0]: tag=1 slot=0/10 mask=0x0001 period=10 active=9 gen=2 live=1
+[RECV] BSDC91 notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0001 PERIOD=10 ACTIVE=9 GEN=2 LIVE=1
+[RECV] Conn param updated[1]: int=6 lat=0 to=400
+[RECV] PHY updated[1]: tx=0x2 rx=0x2
+[RECV] BSDC91 notify: TR;2;1402;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] DISC complete[1]: link=nus discovered_service=2800 uuid=-
+[RECV] BLE[1] link ready
+[RECV] CFG assigned[1]: bs=BS2DCE tag=1 slot=0/10 mask=0x0001 period=10 active=9 active_us=0 gen=3 pmode=0
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=motion target=10Hz mask=0x0001 slots=1/10 actual_x100=1000 epoch_delay=3000
+[RECV] CFG assigned[0]: bs=BSDC91 tag=2 slot=5/10 mask=0x0020 period=10 active=9 active_us=0 gen=3 pmode=0
+[RECV] TDMA weighted[1]: bs=BSDC91 profile=motion target=10Hz mask=0x0020 slots=1/10 actual_x100=1000 epoch_delay=2999
+[RECV] BS2DCE notify: TD;1;1415;3;anchor_ota;0;0;1;0;25;0;0;0;8;0
+[RECV] CFG confirmed[0]: tag=2 slot=5/10 mask=0x0020 period=10 active=9 gen=3 live=1
+[RECV] BSDC91 notify: CFG_OK TAG=2 SLOT=5/10 MASK=0x0020 PERIOD=10 ACTIVE=9 GEN=3 LIVE=1
+[RECV] CFG confirmed[1]: tag=1 slot=0/10 mask=0x0001 period=10 active=9 gen=3 live=1
+[RECV] BS2DCE notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0001 PERIOD=10 ACTIVE=9 GEN=3 LIVE=1
+[HOST_CMD 14234.432] tdma hold 1
+[RECV] TDMA rebalance hold=1 deferred=0
+[RECV] tdma hold rc=0 hold=1
+[HOST_CMD 14235.035] tdma freq motion 10
+[RECV] TDMA freq set: motion=10Hz
+[RECV] TDMA rebalance deferred: hold=1
+[RECV] tdma freq rc=0 profile=motion hz=10
+[HOST_CMD 14235.639] tdma roster BS2DCE motion
+[RECV] TDMA roster set: BS2DCE -> motion
+[RECV] tdma roster rc=0 target=BS2DCE profile=motion
+[HOST_CMD 14236.243] tdma roster BSDC91 motion
+[RECV] TDMA roster set: BSDC91 -> motion
+[RECV] tdma roster rc=0 target=BSDC91 profile=motion
+[HOST_CMD 14236.846] ota_target token -1
+[RECV] ota_target token rc=0 value=-1
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+[RECV] BSDC91 notify: RXG;1;1402;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1402;tag=1;local=0xb101;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1403;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BSDC91 notify: TR;2;1403;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: SD;1;1404;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1404;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1405;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[[HOST_CMD 14237.357] ota_target name -
+RECV] BS2DCE notify: RXG;1;1415;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=213;rxenable_
+[RECV] ota_target name rc=0 value=-
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+[RECV] BS2DCE notify: CD;1;1415;tag=1;local=0xb101;status=0x02800002;rxf=0x07c6c811;win=8165;pc=8;mask=0xff;resp=0;unexp=1;last_len=17;last_src=0xb102;last_dst=0xffff;last_code=0xe0
+[RECV] BS2DCE notify: SD;1;1416;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1416;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1406;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1417;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1407;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1418;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1408;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1419;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1409;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1420;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=244;coll_us=8209;range_us=427;solve_us=0;out_us=549;clean_us=30;total_ms=100
+[RECV] BSDC91 notify: TR;2;1410;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8209;range_us=427;solve_us=0;out_us=549;clean_us=61;total_ms=100
+[RECV] BS2DCE notify: TR;2;1421;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[[HOST_CMD 14237.899] ota_target prefix BS
+RECV] BS2DCE notify: TR;2;1422;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] ota_target prefix rc=0 value=bs
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+[RECV] BSDC91 notify: TR;2;1411;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1423;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1411;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1411;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: TR;2;1412;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1413;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1424;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1414;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1425;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] Conn param updated[0]: int=6 lat=0 to=400
+[RECV] BSDC91 notify: SD;1;1415;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1415;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1425;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=244;slot_to_txdone_us=579;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=152;rxenable_
+[RECV] BS2DCE notify: CD;1;1425;tag=1;local=0xb101;status=0x02800002;rxf=0x0766c811;win=8165;pc=8;mask=0xff;resp=0;unexp=1;last_len=17;last_src=0xb102;last_dst=0xffff;last_code=0xe0
+[RECV] BS2DCE notify: SD;1;1426;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1426;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[[HOST_CMD 14238.401] ota_target uuid -
+RECV] BS2DCE notify: TR;2;1427;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] ota_target uuid rc=0 value=-
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+[RECV] BSDC91 notify: TR;2;1416;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] Conn param updated[1]: int=6 lat=0 to=400
+[RECV] BS2DCE notify: TR;2;1428;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1417;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1418;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1429;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1419;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1430;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=213;coll_us=8178;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1431;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1420;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=793;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=549;clean_us=61;total_ms=100
+[[HOST_CMD 14238.904] conn
+RECV] BSDC91 notify: TR;2;1421;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] Master discovery mode: CONN & START
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=2 target=tag prefix=BS
+[RECV] Scanning for BS*
+[RECV] BS2DCE notify: TR;2;1432;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1433;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1421;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1421;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: TR;2;1422;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1434;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1423;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1424;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1435;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: SD;1;1425;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1425;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1435;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=91;txdone_to_rxend_us=213;rxenable_
+[RECV] BS2DCE notify: CD;1;1435;tag=1;local=0xb101;status=0x02800002;rxf=0x07a6c811;win=8165;pc=8;mask=0xff;resp=0;unexp=1;last_len=17;last_src=0xb102;last_dst=0xffff;last_code=0xe0
+[RECV] BS2DCE notify: SD;1;1436;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1436;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1426;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1437;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1438;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1427;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1439;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1428;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1429;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1440;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=457;solve_us=30;out_us=549;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1441;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1430;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=549;clean_us=30;total_ms=99
+[RECV] BSDC91 notify: TR;2;1431;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1442;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1443;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1431;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=457;slot_to_txdone_us=793;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1431;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: TR;2;1432;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1444;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1433;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1445;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1434;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: SD;1;1435;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1435;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1445;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: CD;1;1445;tag=1;local=0xb101;status=0x02800002;rxf=0x07c6c811;win=8165;pc=8;mask=0xff;resp=0;unexp=1;last_len=17;last_src=0xb102;last_dst=0xffff;last_code=0xe0
+[RECV] BS2DCE notify: SD;1;1446;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1446;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1447;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1436;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1437;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1448;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1438;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1449;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1439;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1450;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=579;clean_us=30;total_ms=99
+[RECV] BS2DCE notify: TR;2;1451;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1440;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=671;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1452;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1441;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1453;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1441;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1441;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: TR;2;1442;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1454;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1443;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1444;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1455;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1445;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1455;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: CD;1;1455;tag=1;local=0xb101;status=0x02800002;rxf=0x0796c811;win=8165;pc=8;mask=0xff;resp=0;unexp=1;last_len=17;last_src=0xb102;last_dst=0xffff;last_code=0xe0
+[RECV] BS2DCE notify: SD;1;1456;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1456;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1457;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: SD;1;1446;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1446;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1458;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1447;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1448;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1459;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1449;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1460;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=213;coll_us=8178;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=99
+[RECV] BS2DCE notify: TR;2;1461;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1450;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=793;rx_us=183;coll_us=8148;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1462;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1451;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1463;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1451;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1451;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: TR;2;1452;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1464;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1453;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1465;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1454;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1455;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1465;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=91;txdone_to_rxend_us=213;rxenable_
+[RECV] BS2DCE notify: CD;1;1465;tag=1;local=0xb101;status=0x02800002;rxf=0x07b6c811;win=8165;pc=8;mask=0xff;resp=0;unexp=1;last_len=17;last_src=0xb102;last_dst=0xffff;last_code=0xe0
+[RECV] BS2DCE notify: SD;1;1466;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1466;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: SD;1;1456;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1456;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1467;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1468;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1457;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1469;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1458;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1470;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=213;coll_us=8178;range_us=427;solve_us=0;out_us=549;clean_us=30;total_ms=100
+[RECV] BSDC91 notify: TR;2;1459;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1471;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1460;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=99
+[RECV] BSDC91 notify: TR;2;1461;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1472;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1473;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1461;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=457;slot_to_txdone_us=793;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1461;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: TR;2;1462;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1474;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1463;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1475;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1464;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1465;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1475;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: CD;1;1475;tag=1;local=0xb101;status=0x02800002;rxf=0x07c6c811;win=8165;pc=8;mask=0xff;resp=0;unexp=1;last_len=17;last_src=0xb102;last_dst=0xffff;last_code=0xe0
+[RECV] BS2DCE notify: SD;1;1476;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1476;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1466;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1477;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: SD;1;1467;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1467;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1478;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1468;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1479;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1469;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1480;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=579;clean_us=30;total_ms=99
+[RECV] BS2DCE notify: TR;2;1481;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1470;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=671;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1482;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1471;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1483;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1471;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1471;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: TR;2;1472;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1473;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1484;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1474;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1485;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1475;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1485;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: CD;1;1485;tag=1;local=0xb101;status=0x02800002;rxf=0x0776c811;win=8165;pc=8;mask=0xff;resp=0;unexp=1;last_len=17;last_src=0xb102;last_dst=0xffff;last_code=0xe0
+[RECV] BS2DCE notify: SD;1;1486;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1486;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1487;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1476;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1488;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: SD;1;1477;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1477;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1478;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1489;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1490;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=213;coll_us=8178;range_us=427;solve_us=0;out_us=549;clean_us=30;total_ms=99
+[RECV] BSDC91 notify: TR;2;1479;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1491;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1480;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=732;rx_us=183;coll_us=8148;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=99
+[RECV] BS2DCE notify: TR;2;1492;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1481;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1493;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1481;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1481;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: TR;2;1482;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1494;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1483;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1484;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1495;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1485;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1495;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=91;txdone_to_rxend_us=213;rxenable_
+[RECV] BS2DCE notify: CD;1;1495;tag=1;local=0xb101;status=0x02800002;rxf=0x0796c811;win=8165;pc=8;mask=0xff;resp=0;unexp=1;last_len=17;last_src=0xb102;last_dst=0xffff;last_code=0xe0
+[RECV] BS2DCE notify: SD;1;1496;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1496;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1486;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1497;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1498;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1487;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1499;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: SD;1;1488;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1488;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1489;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1500;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=457;solve_us=0;out_us=549;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1501;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1490;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=99
+[RECV] BSDC91 notify: TR;2;1491;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1502;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1503;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1491;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=335;slot_to_txdone_us=762;txcmd_to_txdone_us=427;txdone_to_rxstart_us=91;txdone_to_rxend_us=213;rxenable_
+[RECV] BSDC91 notify: CD;1;1491;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: TR;2;1492;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1504;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1493;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1505;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1494;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1495;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1505;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: CD;1;1505;tag=1;local=0xb101;status=0x02800002;rxf=0x0766c811;win=8165;pc=8;mask=0xff;resp=0;unexp=1;last_len=17;last_src=0xb102;last_dst=0xffff;last_code=0xe0
+[RECV] BS2DCE notify: SD;1;1506;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1506;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1496;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1507;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1508;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1497;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: SD;1;1498;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1498;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1509;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1499;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1510;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=518;solve_us=0;out_us=579;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1511;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1500;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=732;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1512;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1501;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1513;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1501;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1501;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: TR;2;1502;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1503;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1514;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1515;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1504;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1505;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1515;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: CD;1;1515;tag=1;local=0xb101;status=0x02800002;rxf=0x0786c811;win=8165;pc=8;mask=0xff;resp=0;unexp=1;last_len=17;last_src=0xb102;last_dst=0xffff;last_code=0xe0
+[RECV] BS2DCE notify: SD;1;1516;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1516;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1517;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1506;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1518;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1507;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1508;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1519;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: SD;1;1509;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1509;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1520;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=457;solve_us=30;out_us=549;clean_us=30;total_ms=99
+[RECV] BS2DCE notify: TR;2;1521;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1510;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=85;tx_us=854;rx_us=183;coll_us=8148;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=96
+[RECV] BS2DCE notify: TR;2;1522;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1511;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1523;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1511;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1511;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: TR;2;1512;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1524;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1513;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1514;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1525;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1515;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1525;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=91;txdone_to_rxend_us=213;rxenable_
+[RECV] BS2DCE notify: CD;1;1525;tag=1;local=0xb101;status=0x02800002;rxf=0x07c6c811;win=8165;pc=8;mask=0xff;resp=0;unexp=1;last_len=17;last_src=0xb102;last_dst=0xffff;last_code=0xe0
+[RECV] BS2DCE notify: SD;1;1526;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1526;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1527;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1516;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1528;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1517;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1518;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[[HOST_CMD 14248.616] tdma hold 0
+RECV] BS2DCE notify: TR;2;1529;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] TDMA rebalance hold=0 deferred=1
+[RECV] CFG assigned[1]: bs=BS2DCE tag=1 slot=0/10 mask=0x0001 period=10 active=9 active_us=0 gen=4 pmode=0
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=motion target=10Hz mask=0x0001 slots=1/10 actual_x100=1000 epoch_delay=3000
+[RECV] CFG assigned[0]: bs=BSDC91 tag=2 slot=5/10 mask=0x0020 period=10 active=9 active_us=0 gen=4 pmode=0
+[RECV] TDMA weighted[1]: bs=BSDC91 profile=motion target=10Hz mask=0x0020 slots=1/10 actual_x100=1000 epoch_delay=2998
+[RECV] tdma hold rc=0 hold=0
+[RECV] CFG confirmed[1]: tag=1 slot=0/10 mask=0x0001 period=10 active=9 gen=4 live=1
+[RECV] BS2DCE notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0001 PERIOD=10 ACTIVE=9 GEN=4 LIVE=1
+[RECV] CFG confirmed[0]: tag=2 slot=5/10 mask=0x0020 period=10 active=9 gen=4 live=1
+[RECV] BSDC91 notify: CFG_OK TAG=2 SLOT=5/10 MASK=0x0020 PERIOD=10 ACTIVE=9 GEN=4 LIVE=1
+[RECV] BS2DCE notify: TR;2;1530;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=579;clean_us=13183;total_ms=113
+[RECV] BSDC91 notify: SD;1;1519;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1519;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[HOST_CMD 14249.733] tdma freq motion 10
+[RECV] TDMA freq set: motion=10Hz
+[RECV] CFG assigned[1]: bs=BS2DCE tag=1 slot=0/10 mask=0x0001 period=10 active=9 active_us=0 gen=5 pmode=0
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=motion target=10Hz mask=0x0001 slots=1/10 actual_x100=1000 epoch_delay=3000
+[RECV] CFG assigned[0]: bs=BSDC91 tag=2 slot=5/10 mask=0x0020 period=10 active=9 active_us=0 gen=5 pmode=0
+[RECV] TDMA weighted[1]: bs=BSDC91 profile=motion target=10Hz mask=0x0020 slots=1/10 actual_x100=1000 epoch_delay=2999
+[RECV] tdma freq rc=0 profile=motion hz=10
+[RECV] CFG confirmed[1]: tag=1 slot=0/10 mask=0x0001 period=10 active=9 gen=5 live=1
+[RECV] BS2DCE notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0001 PERIOD=10 ACTIVE=9 GEN=5 LIVE=1
+[RECV] CFG confirmed[0]: tag=2 slot=5/10 mask=0x0020 period=10 active=9 gen=5 live=1
+[RECV] BSDC91 notify: CFG_OK TAG=2 SLOT=5/10 MASK=0x0020 PERIOD=10 ACTIVE=9 GEN=5 LIVE=1
+[HOST_CMD 14250.388] tdma roster BS2DCE motion
+[RECV] TDMA roster set: BS2DCE -> motion
+[RECV] tdma roster rc=0 target=BS2DCE profile=motion
+[HOST_CMD 14250.991] tdma roster BSDC91 motion
+[RECV] TDMA roster set: BSDC91 -> motion
+[RECV] tdma roster rc=0 target=BSDC91 profile=motion
+[HOST_CMD 14251.594] tdma rebalance
+[RECV] CFG assigned[1]: bs=BS2DCE tag=1 slot=0/10 mask=0x0001 period=10 active=9 active_us=0 gen=6 pmode=0
+[RECV] TDMA weighted[0]: bs=BS2DCE profile=motion target=10Hz mask=0x0001 slots=1/10 actual_x100=1000 epoch_delay=3000
+[RECV] CFG assigned[0]: bs=BSDC91 tag=2 slot=5/10 mask=0x0020 period=10 active=9 active_us=0 gen=6 pmode=0
+[RECV] TDMA weighted[1]: bs=BSDC91 profile=motion target=10Hz mask=0x0020 slots=1/10 actual_x100=1000 epoch_delay=2999
+[RECV] tdma rebalance rc=0
+[RECV] CFG confirmed[1]: tag=1 slot=0/10 mask=0x0001 period=10 active=9 gen=6 live=1
+[RECV] BS2DCE notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0001 PERIOD=10 ACTIVE=9 GEN=6 LIVE=1
+[RECV] CFG confirmed[0]: tag=2 slot=5/10 mask=0x0020 period=10 active=9 gen=6 live=1
+[RECV] BSDC91 notify: CFG_OK TAG=2 SLOT=5/10 MASK=0x0020 PERIOD=10 ACTIVE=9 GEN=6 LIVE=1
+[RECV] BSDC91 notify: RXG;1;1519;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1519;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1520;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1520;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=2977;tx_us=610;rx_us=183;coll_us=8148;range_us=43762;solve_us=0;out_us=4119;clean_us=12725;total_ms=3047
+[RECV] BS2DCE notify: RXG;1;1530;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=213;rxenable_
+[RECV] BS2DCE notify: CD;1;1530;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1531;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1531;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[HOST_CMD 14252.676] tdma show
+[RECV] TDMA weighted scheduler: period=10ms active=9ms active_us=0 max_slots=12 freq motion=10Hz static=10Hz roto=10Hz
+[RECV] TDMA profile: BS2DCE -> motion target=10Hz
+[RECV] TDMA profile: BSDC91 -> motion target=10Hz
+[HOST_CMD 14253.680] status
+[RECV] Control status: mode=RECV pending=0
+[HOST_CMD 14254.483] device show
+[RECV] System target: kind=tag caps=0x0f (config=1 ota=1 stream=1 status=1)
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+[RECV] BSDC91 notify: RXG;1;1520;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: RXG;1;1531;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1520;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1521;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1521;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1522;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1531;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1532;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1532;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1533;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1523;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1534;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1524;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1535;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1525;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1536;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1526;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1537;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1527;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1538;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1528;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1539;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1529;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1540;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=427;solve_us=0;out_us=549;clean_us=30;total_ms=99
+[RECV] BSDC91 notify: TR;2;1530;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=610;solve_us=30;out_us=549;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1541;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1530;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1530;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1531;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1531;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1541;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=305;rxenable_
+[RECV] BSDC91 notify: TR;2;1532;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1541;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1542;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1542;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1543;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1533;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1544;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1534;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1545;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1535;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1546;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1547;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1536;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1537;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1548;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1538;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1549;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1539;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1550;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=427;solve_us=0;out_us=610;clean_us=61;total_ms=100
+[RECV] BSDC91 notify: TR;2;1540;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=99
+[RECV] BS2DCE notify: TR;2;1551;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1540;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1540;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1541;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1541;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1542;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1551;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: CD;1;1551;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1552;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1552;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1553;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1543;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1554;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1544;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1555;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1545;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1556;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1546;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1557;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1547;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1558;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1548;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1559;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1549;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1560;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=671;rx_us=305;coll_us=8148;range_us=427;solve_us=0;out_us=549;clean_us=61;total_ms=100
+[RECV] BSDC91 notify: TR;2;1550;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1561;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1550;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=91;txdone_to_rxend_us=213;rxenable_
+[RECV] BSDC91 notify: CD;1;1550;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1551;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1551;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1561;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: TR;2;1552;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1561;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1562;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1562;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1563;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1553;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1564;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1554;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1565;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1555;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1566;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1556;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1567;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1557;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1568;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1558;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1569;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1559;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1570;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=427;solve_us=0;out_us=549;clean_us=61;total_ms=100
+[RECV] BSDC91 notify: TR;2;1560;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=671;solve_us=0;out_us=549;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1571;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1560;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1560;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1561;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1561;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1571;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=671;txcmd_to_txdone_us=396;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: TR;2;1562;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1571;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1572;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1572;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1573;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1563;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1574;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1564;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1575;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1565;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1576;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1566;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1577;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1567;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1578;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1568;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1579;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1569;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1580;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=427;solve_us=0;out_us=579;clean_us=30;total_ms=100
+[RECV] BSDC91 notify: TR;2;1570;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=549;clean_us=30;total_ms=99
+[RECV] BS2DCE notify: TR;2;1581;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1570;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1570;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1571;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1571;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1581;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=91;txdone_to_rxend_us=213;rxenable_
+[RECV] BS2DCE notify: CD;1;1581;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1582;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1582;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1583;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1572;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1573;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1584;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1574;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1585;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1575;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1586;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1576;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1587;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1577;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1588;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1578;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1589;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1579;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1590;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=244;coll_us=8209;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=100
+[RECV] BSDC91 notify: TR;2;1580;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1591;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1580;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1580;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1581;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1581;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1591;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: TR;2;1582;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1591;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1592;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1592;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1593;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1583;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1594;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1584;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1595;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1585;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1596;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1586;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1597;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1587;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1598;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1588;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1599;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1589;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1600;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=427;solve_us=0;out_us=549;clean_us=30;total_ms=99
+[RECV] BSDC91 notify: TR;2;1590;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=213;coll_us=8209;range_us=549;solve_us=0;out_us=549;clean_us=61;total_ms=100
+[RECV] BS2DCE notify: TR;2;1601;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1590;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1590;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1591;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1591;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1601;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=244;rxenable_
+[RECV] BSDC91 notify: TR;2;1592;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1601;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1602;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1602;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1603;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1593;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1604;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1594;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1605;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1595;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1606;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1596;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1607;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1597;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1608;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1598;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1609;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1599;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1610;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=427;solve_us=0;out_us=549;clean_us=61;total_ms=100
+[RECV] BSDC91 notify: TR;2;1600;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=549;clean_us=30;total_ms=99
+[RECV] BS2DCE notify: TR;2;1611;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1600;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1600;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1601;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1601;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1611;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=91;txdone_to_rxend_us=213;rxenable_
+[RECV] BSDC91 notify: TR;2;1602;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1611;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1612;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1612;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1613;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1603;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1614;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1604;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1615;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1605;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1616;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1606;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1617;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1607;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1618;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1608;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1619;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1609;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1620;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8209;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=100
+[RECV] BSDC91 notify: TR;2;1610;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1621;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1610;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: RXG;1;1621;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1610;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1611;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1611;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1612;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1621;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1622;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1622;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1623;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1613;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1624;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1614;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1625;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1615;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1626;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1616;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1627;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1617;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1628;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1618;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1629;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1619;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1630;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=213;coll_us=8148;range_us=427;solve_us=0;out_us=549;clean_us=61;total_ms=100
+[RECV] BSDC91 notify: TR;2;1620;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=488;solve_us=0;out_us=549;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1631;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1620;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1620;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1621;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1621;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1622;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1631;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: CD;1;1631;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1632;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1632;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1633;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1623;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1634;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1624;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1635;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1625;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1636;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1626;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1637;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1627;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1638;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1628;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1639;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1629;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1640;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=427;solve_us=0;out_us=549;clean_us=61;total_ms=100
+[RECV] BSDC91 notify: TR;2;1630;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=99
+[RECV] BS2DCE notify: TR;2;1641;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1630;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1630;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1631;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1631;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1641;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: CD;1;1641;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1642;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1642;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1632;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1643;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1633;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1644;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1634;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1645;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1635;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1646;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1636;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1647;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1637;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1648;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1638;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1649;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1639;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1650;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=457;solve_us=30;out_us=549;clean_us=30;total_ms=100
+[RECV] BSDC91 notify: TR;2;1640;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1651;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1640;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1640;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1641;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1641;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1651;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: TR;2;1642;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1651;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1652;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1652;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1653;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1643;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1654;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1644;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1655;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1645;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1656;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1646;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1657;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1647;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1658;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1648;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1659;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1649;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1660;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=427;solve_us=0;out_us=549;clean_us=61;total_ms=99
+[RECV] BSDC91 notify: TR;2;1650;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=549;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1661;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1650;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1650;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1651;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1651;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1661;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: TR;2;1652;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1661;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1662;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1662;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1663;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1653;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1664;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1654;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1665;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1655;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1666;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1656;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1667;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1657;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1668;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1658;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1669;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1659;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1670;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=213;coll_us=8148;range_us=427;solve_us=0;out_us=579;clean_us=30;total_ms=100
+[RECV] BSDC91 notify: TR;2;1660;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=549;clean_us=30;total_ms=99
+[RECV] BS2DCE notify: TR;2;1671;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1660;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1660;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1661;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1661;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1671;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: CD;1;1671;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1672;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1672;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1662;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1673;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1663;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1674;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1664;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1675;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1665;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1676;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1666;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1677;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1667;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1678;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1668;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1679;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1669;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1680;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8209;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=100
+[RECV] BSDC91 notify: TR;2;1670;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=99
+[RECV] BS2DCE notify: TR;2;1681;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1670;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1670;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1671;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1671;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1681;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: TR;2;1672;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1681;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1682;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1682;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1683;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1673;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1684;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1674;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1685;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1675;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1686;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1676;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1687;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1677;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1688;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1678;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1689;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1679;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1690;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=427;solve_us=0;out_us=549;clean_us=30;total_ms=99
+[RECV] BSDC91 notify: TR;2;1680;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=549;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1691;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1680;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1680;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1681;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1681;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1691;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: TR;2;1682;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1691;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1692;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1692;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1693;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1683;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1694;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1684;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1695;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1685;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1696;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1686;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1697;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1687;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1698;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1688;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1699;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1689;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1700;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=427;solve_us=0;out_us=549;clean_us=61;total_ms=100
+[RECV] BSDC91 notify: TR;2;1690;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=549;clean_us=30;total_ms=99
+[RECV] BS2DCE notify: TR;2;1701;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1690;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1690;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1691;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1691;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1701;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: CD;1;1701;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1702;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1702;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1692;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1703;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1693;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1704;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1694;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1705;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1695;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1706;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1696;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1707;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1697;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1708;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1698;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1709;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1699;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1710;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=549;solve_us=0;out_us=549;clean_us=61;total_ms=100
+[RECV] BSDC91 notify: TR;2;1700;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=99
+[RECV] BS2DCE notify: TR;2;1711;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1700;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: RXG;1;1711;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=213;rxenable_
+[RECV] BSDC91 notify: CD;1;1700;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1701;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1701;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1702;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1711;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1712;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1712;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1713;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1703;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1714;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1704;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1715;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1705;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1716;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1706;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1717;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1707;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1718;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1708;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1719;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1709;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1720;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=427;solve_us=0;out_us=549;clean_us=61;total_ms=99
+[RECV] BSDC91 notify: TR;2;1710;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=671;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1721;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1710;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=396;slot_to_txdone_us=732;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1710;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1711;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1711;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1721;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: CD;1;1721;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1722;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1722;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1712;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1723;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1713;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1724;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1714;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1725;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1715;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1726;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1727;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1716;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1717;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1728;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1718;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1729;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1719;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1730;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=427;solve_us=0;out_us=579;clean_us=30;total_ms=100
+[RECV] BSDC91 notify: TR;2;1720;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=701;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=549;clean_us=30;total_ms=99
+[RECV] BS2DCE notify: TR;2;1731;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1720;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1720;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1721;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1721;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1731;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: CD;1;1731;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1732;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1732;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1722;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1733;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1723;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1734;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1724;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1735;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1725;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1736;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1726;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1737;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1727;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1738;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1728;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1739;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1729;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1740;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=213;coll_us=8148;range_us=518;solve_us=0;out_us=549;clean_us=61;total_ms=100
+[RECV] BSDC91 notify: TR;2;1730;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=99
+[RECV] BS2DCE notify: TR;2;1741;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1730;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1730;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1731;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1731;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1741;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: TR;2;1732;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1741;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1742;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1742;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1743;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1733;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1744;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1745;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1734;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1735;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1746;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1736;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1747;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1737;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1748;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1738;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1749;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1739;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1750;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=99
+[RECV] BSDC91 notify: TR;2;1740;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=732;clean_us=61;total_ms=100
+[RECV] BS2DCE notify: TR;2;1751;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1740;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=457;slot_to_txdone_us=793;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1740;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1741;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1741;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1751;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=305;slot_to_txdone_us=610;txcmd_to_txdone_us=305;txdone_to_rxstart_us=91;txdone_to_rxend_us=213;rxenable_
+[RECV] BSDC91 notify: TR;2;1742;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1751;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1752;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1752;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1753;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1743;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1754;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1744;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1755;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1745;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1756;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1746;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1757;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1747;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1758;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1748;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1759;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1749;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1760;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=427;solve_us=0;out_us=579;clean_us=30;total_ms=100
+[RECV] BSDC91 notify: TR;2;1750;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=701;rx_us=213;coll_us=8148;range_us=427;solve_us=0;out_us=549;clean_us=61;total_ms=99
+[RECV] BS2DCE notify: TR;2;1761;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1750;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: RXG;1;1761;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1750;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1751;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1751;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1752;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1761;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1762;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1762;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1763;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1753;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1764;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1754;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1765;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1755;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1766;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1756;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1767;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1757;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1768;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1758;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1769;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1759;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1770;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=213;coll_us=8148;range_us=579;solve_us=0;out_us=579;clean_us=30;total_ms=100
+[RECV] BSDC91 notify: TR;2;1760;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=579;clean_us=30;total_ms=99
+[RECV] BS2DCE notify: TR;2;1771;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1760;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1760;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1761;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1761;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1771;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: TR;2;1762;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1771;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1772;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1772;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1773;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1763;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1774;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1764;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1775;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1765;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1776;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1766;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1777;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1767;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1778;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1768;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1779;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1769;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1780;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=427;solve_us=0;out_us=549;clean_us=61;total_ms=99
+[RECV] BS2DCE notify: TR;2;1781;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1770;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=732;clean_us=30;total_ms=100
+[RECV] BSDC91 notify: RXG;1;1770;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=396;slot_to_txdone_us=732;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1770;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1771;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1771;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1781;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=305;slot_to_txdone_us=610;txcmd_to_txdone_us=305;txdone_to_rxstart_us=91;txdone_to_rxend_us=213;rxenable_
+[RECV] BSDC91 notify: TR;2;1772;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1781;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1782;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1782;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1783;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1773;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1784;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1774;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1785;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1775;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1786;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1776;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1787;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1777;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1788;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1778;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1789;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1779;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1790;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=213;coll_us=8148;range_us=427;solve_us=0;out_us=579;clean_us=30;total_ms=100
+[RECV] BSDC91 notify: TR;2;1780;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=701;rx_us=213;coll_us=8148;range_us=427;solve_us=0;out_us=549;clean_us=61;total_ms=99
+[RECV] BS2DCE notify: TR;2;1791;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1780;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1780;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1781;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1781;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1791;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: CD;1;1791;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1792;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1792;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1782;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1793;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1783;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1794;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1784;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1795;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1785;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1796;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1786;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1797;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1787;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1798;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1799;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1788;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1789;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1800;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=213;coll_us=8148;range_us=579;solve_us=0;out_us=579;clean_us=30;total_ms=100
+[RECV] BSDC91 notify: TR;2;1790;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=99
+[RECV] BS2DCE notify: TR;2;1801;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1790;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: RXG;1;1801;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1790;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1791;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1791;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1792;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1801;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1802;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1802;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1803;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1793;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1804;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1794;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1805;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1795;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1806;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1796;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1807;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1797;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1808;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1798;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1809;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1799;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1810;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=213;coll_us=8148;range_us=427;solve_us=0;out_us=549;clean_us=61;total_ms=99
+[RECV] BSDC91 notify: TR;2;1800;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=793;clean_us=61;total_ms=100
+[RECV] BS2DCE notify: TR;2;1811;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1800;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=396;slot_to_txdone_us=762;txcmd_to_txdone_us=366;txdone_to_rxstart_us=91;txdone_to_rxend_us=213;rxenable_
+[RECV] BSDC91 notify: CD;1;1800;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1801;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1801;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1811;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=91;txdone_to_rxend_us=213;rxenable_
+[RECV] BSDC91 notify: TR;2;1802;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1811;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1812;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1812;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1813;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1803;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1814;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1804;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1815;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1805;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1816;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1817;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1806;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1807;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1818;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1808;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1819;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1809;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1820;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=427;solve_us=0;out_us=579;clean_us=30;total_ms=100
+[RECV] BSDC91 notify: TR;2;1810;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=762;rx_us=213;coll_us=8209;range_us=427;solve_us=0;out_us=549;clean_us=61;total_ms=100
+[RECV] BS2DCE notify: TR;2;1821;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1810;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1810;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1811;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1811;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1821;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BS2DCE notify: CD;1;1821;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1822;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1822;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1812;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1823;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1813;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1824;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1814;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1825;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1815;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1826;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1816;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1827;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1817;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1828;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1818;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1829;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1819;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1830;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=213;coll_us=8148;range_us=488;solve_us=0;out_us=579;clean_us=30;total_ms=100
+[RECV] BSDC91 notify: TR;2;1820;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=549;clean_us=30;total_ms=99
+[RECV] BS2DCE notify: TR;2;1831;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1820;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1820;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1821;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1821;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1831;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: TR;2;1822;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1831;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1832;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1832;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1833;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1823;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1834;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1835;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1824;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1825;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1836;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1826;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1837;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1827;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1838;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1828;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1839;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1829;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1840;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=427;solve_us=0;out_us=549;clean_us=30;total_ms=99
+[RECV] BSDC91 notify: TR;2;1830;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=793;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1841;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1830;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=335;slot_to_txdone_us=854;txcmd_to_txdone_us=518;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1830;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1831;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1831;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1832;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1841;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=91;txdone_to_rxend_us=213;rxenable_
+[RECV] BS2DCE notify: CD;1;1841;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1842;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1842;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1843;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1833;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1844;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1834;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1845;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1835;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1846;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1836;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1847;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1837;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1848;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1838;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1849;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1839;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1850;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=427;solve_us=0;out_us=579;clean_us=30;total_ms=100
+[RECV] BSDC91 notify: TR;2;1840;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=793;rx_us=183;coll_us=8148;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1851;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1840;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1840;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1841;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1841;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1851;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=91;txdone_to_rxend_us=213;rxenable_
+[RECV] BS2DCE notify: CD;1;1851;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1852;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1852;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1853;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1842;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1843;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1854;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1844;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1855;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1845;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1856;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1846;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1857;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1847;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1858;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1848;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1859;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1849;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1860;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=213;coll_us=8148;range_us=427;solve_us=0;out_us=579;clean_us=30;total_ms=100
+[RECV] BSDC91 notify: TR;2;1850;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=30;out_us=549;clean_us=30;total_ms=99
+[RECV] BS2DCE notify: TR;2;1861;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1850;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1850;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1851;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1851;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1861;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=213;rxenable_
+[RECV] BSDC91 notify: TR;2;1852;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1861;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1862;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1862;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1863;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1853;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1864;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1854;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1865;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1855;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1866;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1856;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1867;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1857;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1868;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1858;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1869;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1859;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1870;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8178;range_us=427;solve_us=0;out_us=549;clean_us=61;total_ms=99
+[RECV] BS2DCE notify: TR;2;1871;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1860;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=183;coll_us=8148;range_us=427;solve_us=0;out_us=610;clean_us=91;total_ms=100
+[RECV] BSDC91 notify: RXG;1;1860;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=732;txcmd_to_txdone_us=457;txdone_to_rxstart_us=183;txdone_to_rxend_us=305;rxenable
+[RECV] BS2DCE notify: RXG;1;1871;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=640;txcmd_to_txdone_us=366;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1860;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1861;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1861;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1862;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: CD;1;1871;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1872;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1872;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1873;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1863;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1874;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1864;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1875;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1865;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1876;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1866;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1877;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1867;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1878;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1868;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1879;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1869;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1880;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TDIAG;wait_ms=89;tx_us=610;rx_us=213;coll_us=8148;range_us=427;solve_us=0;out_us=549;clean_us=61;total_ms=99
+[RECV] BSDC91 notify: TR;2;1870;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TDIAG;wait_ms=89;tx_us=610;rx_us=274;coll_us=8148;range_us=427;solve_us=0;out_us=549;clean_us=30;total_ms=100
+[RECV] BS2DCE notify: TR;2;1881;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: RXG;1;1870;tag=2;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSDC91 notify: CD;1;1870;tag=2;local=0xb102;status=0x00800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSDC91 notify: SD;1;1871;p;full;8;0;0;0;0;0;0;;5;10
+[RECV] BSDC91 notify: TR;2;1871;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: RXG;1;1881;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=213;rxenable_
+[RECV] BS2DCE notify: CD;1;1881;tag=1;local=0xb101;status=0x02800002;rxf=0x00000000;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BS2DCE notify: SD;1;1882;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BS2DCE notify: TR;2;1882;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1872;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TR;2;1883;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TR;2;1873;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[HOST_CLEANUP 14289.909] stop all tag ranging via cmd_all MODE AOTA
+[HOST_CMD 14289.909] cmd_all MODE AOTA
+[RECV] BLE cmd_all sent[0]: MODE AOTA
+[RECV] BLE cmd_all sent[1]: MODE AOTA
+[RECV] cmd_all rc=2 payload=MODE AOTA
+[RECV] BSDC91 notify: MODE_OK MODE=AOTA LIVE=1
+[RECV] BS2DCE notify: MODE_OK MODE=AOTA LIVE=1
+[RECV] BS2DCE notify: TR;2;1884;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BS2DCE notify: TD;1;1884;3;anchor_ota;0;0;1;0;25;0;0;0;8;0
+[RECV] BSDC91 notify: TR;2;1874;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT
+[RECV] BSDC91 notify: TD;1;1874;3;anchor_ota;0;0;1;0;25;0;0;0;8;0
+*** Booting nRF Connect SDK v2.8.0-a2386bfc8401 ***
+*** Using Zephyr OS v3.7.99-0bc3393fb112 ***
+[RECV] LED map: 1=AUTOPOS 2=RECV 3=OTA 4=FLOW
+[RECV] Control mode loaded: RECV
+[RECV] UART control ready: type 'status' or 'mode recv'/'mode ota'/'mode autopos'
+OTA_STATE:target_configured detail=token
+OTA NUS stage: enabled
+[RECV] Boot profile neutral: no role-specific auto target
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] BioSpur BLE master control ready on nrf5340dk/nrf5340/cpuapp
+[RECV] BTN1 toggles RECV/OTA, BTN2 forces OTA mode, BTN3=SCAN, BTN4=CONN&START
+[RECV] Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate
+[RECV] OTA runtime cmds: ota_reset | ota show | ota version
+[RECV] Runtime NUS cmds: cmd <raw> | cmd_all <raw> | oneshot <raw> | oneshot show | oneshot clear
+[RECV] Tag layout cmds: APOS <id> <x_mm> <y_mm> <z_mm> | APOS_TO <BSxxxx> APOS... | APOS_COMMIT | APOS_STATUS | APOS_RESET
+[RECV] TDMA cmds: tdma show | tdma hold <0|1> | tdma roster <B

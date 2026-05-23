@@ -1,31 +1,24 @@
-# Erlangen MoCap Experiment Plan - Short Version
+# Erlangen MoCap Capture Plan - Field Version
 
-Goal: collect one clean OptiTrack-aligned dataset for AutoPos validation. Keep the
-field procedure simple: capture raw TR data and write clear IDs. Solver and paper
-analysis can happen later.
+This file is the plan shown inside the BioSpur AutoPos UI. It keeps the
+outdoor full experiment plan content, but uses the short section names that the
+UI parser reads.
 
 ## Baseline
 
-- Broadcast timing: `tail900 start5`.
 - Capture mode: TR-only, 10 Hz, explicit target BS IDs.
-- Output root after `bio_setup`:
-
-```text
-autopos_pipeline/erlangen_20260528_mocap/captures/erlangen_20260528_optitrack
-```
-
-## Device Groups
-
-```text
-Static Tag: BSF66F
-Roto Tags:  BS2DCE, BSDC91
-Wand Tags:  BS9336, BS955A, BSCCF4
-Anchor H:   BS506D, UUID B1E487C2B1FD740D1442206A1857DFA1
-```
+- Do not push APOS layout to Tags during capture.
+- Layout / position / trajectory are solved offline from raw TR.
+- Static Tag: `BSF66F`.
+- Roto Tags: `BS2DCE`, `BSDC91`.
+- Wand Tags: `BSCCF4`, `BS9336`, `BS955A`.
+- Wand geometry:
+  - `BSCCF4 --285 mm-- T center --385 mm-- BS9336`
+  - `T center --595 mm-- BS955A`
 
 ## Phase 0 - Port and Smoke Test
 
-Run this before real capture:
+Run before real capture:
 
 ```bash
 bio_ports
@@ -71,38 +64,46 @@ static -id ID01
 
 Recommended IDs:
 
-| ID | Position |
+| ID | Plan |
 |---|---|
-| ID01 | near ABEF, low |
-| ID02 | near ABEF, mid |
-| ID03 | near ABEF, high |
-| ID04 | near BCGF, low |
-| ID05 | near BCGF, mid |
-| ID06 | near BCGF, high |
-| ID07 | near CDHG, low |
-| ID08 | near CDHG, mid |
-| ID09 | near CDHG, high |
-| ID10 | near ADHE, low |
-| ID11 | near ADHE, mid |
-| ID12 | near ADHE, high |
-| ID13 | center mid, faces ABEF |
-| ID14 | center mid, faces BCGF |
-| ID15 | center mid, faces CDHG |
-| ID16 | center mid, faces ADHE |
-| ID17 | center low, faces ABEF |
-| ID18 | center low, faces BCGF |
-| ID19 | center low, faces CDHG |
-| ID20 | center low, faces ADHE |
-| ID21 | center high, faces ABEF |
-| ID22 | center high, faces BCGF |
-| ID23 | center high, faces CDHG |
-| ID24 | center high, faces ADHE |
+| ID01 | Near ABEF face, low height, 60s, edge + low |
+| ID02 | Near ABEF face, mid height, 60s, edge + mid |
+| ID03 | Near ABEF face, high height, 60s, edge + high |
+| ID04 | Near BCGF face, low height, 60s, edge + low |
+| ID05 | Near BCGF face, mid height, 60s, edge + mid |
+| ID06 | Near BCGF face, high height, 60s, edge + high |
+| ID07 | Near CDHG face, low height, 60s, edge + low |
+| ID08 | Near CDHG face, mid height, 60s, edge + mid |
+| ID09 | Near CDHG face, high height, 60s, edge + high |
+| ID10 | Near ADHE face, low height, 60s, edge + low |
+| ID11 | Near ADHE face, mid height, 60s, edge + mid |
+| ID12 | Near ADHE face, high height, 60s, edge + high |
+| ID13 | Center mid, Tag faces ABEF, 60s, known orientation |
+| ID14 | Center mid, Tag faces BCGF, 60s, known orientation |
+| ID15 | Center mid, Tag faces CDHG, 60s, known orientation |
+| ID16 | Center mid, Tag faces ADHE, 60s, known orientation |
+| ID17 | Center low, Tag faces ABEF, 60s, known orientation |
+| ID18 | Center low, Tag faces BCGF, 60s, known orientation |
+| ID19 | Center low, Tag faces CDHG, 60s, known orientation |
+| ID20 | Center low, Tag faces ADHE, 60s, known orientation |
+| ID21 | Center high, Tag faces ABEF, 60s, known orientation |
+| ID22 | Center high, Tag faces BCGF, 60s, known orientation |
+| ID23 | Center high, Tag faces CDHG, 60s, known orientation |
+| ID24 | Center high, Tag faces ADHE, 60s, known orientation |
 
 If time is short, minimum static set:
 
 ```text
 ID01, ID03, ID07, ID09, ID13, ID15, ID17, ID21, ID23
 ```
+
+Notes:
+
+- `BSF66F` should run around `10Hz/tag`.
+- Each capture should see 8 anchors frequently.
+- Static center-mid 3D std should be checked against the previous `40-50mm`
+  baseline, but OptiTrack alignment is the real reference for Erlangen.
+- `BS2DCE/BSDC91` are not the primary static dataset; they belong to Roto.
 
 ## Phase 3 - RotoArm Dataset
 
@@ -114,17 +115,25 @@ roto -id R01
 
 Recommended IDs:
 
-| ID | Roto pose |
+| ID | Plan |
 |---|---|
-| R01 | planar / low tilt |
-| R02 | small tilt, faces ABEF |
-| R03 | small tilt, faces BCGF |
-| R04 | small tilt, faces CDHG |
-| R05 | small tilt, faces ADHE |
-| R06 | mid tilt, faces ABEF |
-| R07 | mid tilt, faces BCGF |
-| R08 | mid tilt, faces CDHG |
-| R09 | mid tilt, faces ADHE |
+| R01 | Almost planar, 180s, planar does not distinguish antenna face |
+| R02 | Small tilt, antenna faces ABEF, 180s |
+| R03 | Small tilt, antenna faces BCGF, 180s |
+| R04 | Small tilt, antenna faces CDHG, 180s |
+| R05 | Small tilt, antenna faces ADHE, 180s |
+| R06 | Mid tilt, antenna faces ABEF, 180s |
+| R07 | Mid tilt, antenna faces BCGF, 180s |
+| R08 | Mid tilt, antenna faces CDHG, 180s |
+| R09 | Mid tilt, antenna faces ADHE, 180s |
+| R10 | High tilt, antenna faces ABEF, 180s |
+| R11 | High tilt, antenna faces BCGF, 180s |
+| R12 | High tilt, antenna faces CDHG, 180s |
+| R13 | High tilt, antenna faces ADHE, 180s |
+| R14 | Almost vertical, antenna faces ABEF, 180s |
+| R15 | Almost vertical, antenna faces BCGF, 180s |
+| R16 | Almost vertical, antenna faces CDHG, 180s |
+| R17 | Almost vertical, antenna faces ADHE, 180s |
 
 If time is short, minimum Roto set:
 
@@ -134,8 +143,13 @@ R01, R02, R03, R04, R05
 
 Notes:
 
+- Roto uses `BS2DCE` and `BSDC91`.
+- True trajectory is approximately a 3D circle.
+- Post-process with circle-fit residual, radius consistency, and two-tag
+  center/normal consistency.
 - The face label is only a repeatable physical orientation label.
 - Do not over-interpret it as the exact UWB antenna main-lobe direction.
+- Dynamic pure-UWB residual around `100-300mm` RMS can still be normal.
 
 ## Phase 4 - Wand Dataset
 
@@ -147,13 +161,13 @@ wand -id W01
 
 Recommended IDs:
 
-| ID | Wand pose |
+| ID | Plan |
 |---|---|
-| W01 | fixed pose, one orientation |
-| W02 | fixed pose, rotated |
-| W03 | fixed pose, rotated |
-| W04 | fixed pose, rotated |
-| W05 | slow free move / rotation |
+| W01 | Fixed on small fixture, AB is local triangle base, AB near vertical, BSCCF4 upper, BS9336 lower, BS955A tip points to ABEF, 120s |
+| W02 | Same fixture, rotate around center of mass, BS955A tip points to BCGF, 120s |
+| W03 | Same fixture, rotate around center of mass, BS955A tip points to CDHG, 120s |
+| W04 | Same fixture, rotate around center of mass, BS955A tip points to ADHE, 120s |
+| W05 | Free move like OptiTrack calibration wand, slow spatial move and rotation, 180s |
 
 Known Wand geometry:
 
@@ -164,9 +178,15 @@ T center --595 mm-- BS955A
 
 Notes:
 
-- Wand is for physical consistency and possible layout refinement.
+- Wand is not only for validation; it can provide rigid-body constraints for
+  anchor layout refinement.
 - Do not require a perfectly horizontal table.
 - For fixed captures, keep the Wand as still as possible.
+- In windy environment the Wand may slightly turn; relative geometry matters,
+  absolute fixture pose should not be treated as ground truth.
+- `BS955A tip points to face X` is a repeatable pose label, not a strict antenna
+  main-lobe definition.
+- Free Move should be analyzed separately from fixed-pose repeatability.
 
 ## Stop Conditions
 
@@ -177,7 +197,10 @@ Pause and debug if any of these happen:
 - Sweep misses one anchor for a long time.
 - Capture `summary.json` has `success: false`.
 - Static/Roto/Wand capture has sustained fewer than 7 anchors.
-- US30 stays running after `USOFF` or US text appears in normal Tag capture raw logs.
+- TDMA verify fails for one or more target Tags.
+- Wand three Tags cannot all maintain around `10Hz/tag`.
+- US30 stays running after `USOFF` or US text appears in normal Tag capture raw
+  logs.
 
 ## Notes to Record
 

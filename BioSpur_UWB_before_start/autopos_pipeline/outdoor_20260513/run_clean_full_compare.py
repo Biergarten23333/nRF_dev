@@ -1081,9 +1081,9 @@ def save_figures(out_dir: Path, summary_rows, static_rows, roto_phys_rows, split
     fig_dir = out_dir / "figures"
     fig_dir.mkdir(parents=True, exist_ok=True)
     labels = [r["version"] for r in summary_rows]
-    inter = [float(r.get("autopos_rms", np.nan)) for r in summary_rows]
-    stat = [float(r.get("static_median", np.nan)) for r in summary_rows]
-    roto = [float(r.get("roto_deltaR_rms", np.nan)) for r in summary_rows]
+    inter = [safe_float(r.get("autopos_rms")) for r in summary_rows]
+    stat = [safe_float(r.get("static_median")) for r in summary_rows]
+    roto = [safe_float(r.get("roto_deltaR_rms")) for r in summary_rows]
     plt.figure(figsize=(9, 5))
     plt.plot(labels, inter, marker="o", label="AutoPos inter-anchor RMS")
     plt.plot(labels, stat, marker="s", label="Static median 3D std")
@@ -1097,7 +1097,14 @@ def save_figures(out_dir: Path, summary_rows, static_rows, roto_phys_rows, split
     plt.close()
 
     plt.figure(figsize=(10, 5))
-    data = [[float(r["D3_std"]) for r in static_rows if r.get("version") == v and r.get("status") == "ok"] for v in labels]
+    data = [
+        [
+            safe_float(r.get("D3_std"))
+            for r in static_rows
+            if r.get("version") == v and r.get("status") == "ok" and np.isfinite(safe_float(r.get("D3_std")))
+        ]
+        for v in labels
+    ]
     plt.boxplot(data, labels=labels, showmeans=True)
     plt.ylabel("Static 3D std (mm)")
     plt.xticks(rotation=25, ha="right")
@@ -1107,7 +1114,14 @@ def save_figures(out_dir: Path, summary_rows, static_rows, roto_phys_rows, split
     plt.close()
 
     plt.figure(figsize=(10, 5))
-    data = [[float(r["abs_deltaR_error_mm"]) for r in roto_phys_rows if r.get("version") == v] for v in labels]
+    data = [
+        [
+            safe_float(r.get("abs_deltaR_error_mm"))
+            for r in roto_phys_rows
+            if r.get("version") == v and np.isfinite(safe_float(r.get("abs_deltaR_error_mm")))
+        ]
+        for v in labels
+    ]
     plt.boxplot(data, labels=labels, showmeans=True)
     plt.ylabel("Roto |ΔR error| (mm)")
     plt.xticks(rotation=25, ha="right")
@@ -1145,13 +1159,13 @@ def make_report(out_dir: Path, mode: str, summary_rows, quality_rows, static_row
     for r in summary_rows:
         rows.append([
             r["version"],
-            f"{float(r.get('tag_delay_mm', 0.0) or 0.0):.1f}",
-            f"{float(r.get('autopos_rms', float('nan'))):.2f}",
-            f"{float(r.get('autopos_p95', float('nan'))):.2f}",
-            f"{float(r.get('static_median', float('nan'))):.2f}",
-            f"{float(r.get('static_p95', float('nan'))):.2f}",
-            f"{float(r.get('roto_deltaR_rms', float('nan'))):.2f}",
-            f"{float(r.get('roto_abs_deltaR_p95', float('nan'))):.2f}",
+            f"{safe_float(r.get('tag_delay_mm'), 0.0):.1f}",
+            f"{safe_float(r.get('autopos_rms')):.2f}",
+            f"{safe_float(r.get('autopos_p95')):.2f}",
+            f"{safe_float(r.get('static_median')):.2f}",
+            f"{safe_float(r.get('static_p95')):.2f}",
+            f"{safe_float(r.get('roto_deltaR_rms')):.2f}",
+            f"{safe_float(r.get('roto_abs_deltaR_p95')):.2f}",
         ])
     lines.append(md_table(["Version", "Tag delay", "AutoPos RMS", "AutoPos p95", "Static med", "Static p95", "Roto ΔR RMS", "Roto |ΔR| p95"], rows))
     lines.append("\n## Notes\n")

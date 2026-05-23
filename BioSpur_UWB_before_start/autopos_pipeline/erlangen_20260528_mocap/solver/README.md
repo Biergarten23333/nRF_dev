@@ -65,10 +65,126 @@ Also useful:
 
 ```text
 solver/outputs/v4io_field_check/v4-io/layout.json
+solver/outputs/v4io_field_check/v4-io/layout_us_height.json
 solver/outputs/v4io_field_check/tables/version_summary.csv
 solver/outputs/v4io_field_check/v4-io/static_all_captures.csv
 solver/outputs/v4io_field_check/tables/roto_physical_consistency_summary.csv
 solver/outputs/v4io_field_check/v4-io/wand_static_summary.csv
+```
+
+## Run V1 To V4-io Progression
+
+Use this when you want the field comparison across solver generations, not only
+the current V4-io result:
+
+```bash
+python3 autopos_pipeline/erlangen_20260528_mocap/solver/scripts/run_v1_to_v4_io.py
+```
+
+This runs:
+
+```text
+v1-old   -> V1
+v2       -> V2
+v3-lite  -> V3-lite
+v3-full  -> V3-full
+v4-io    -> V4-io
+```
+
+Main output:
+
+```text
+solver/outputs/v1_to_v4_io_field_check/FIELD_V1_TO_V4_IO.md
+```
+
+Useful files:
+
+```text
+solver/outputs/v1_to_v4_io_field_check/tables/version_summary.csv
+solver/outputs/v1_to_v4_io_field_check/tables/autopos_quality_summary.csv
+solver/outputs/v1_to_v4_io_field_check/tables/delay_sanity.csv
+solver/outputs/v1_to_v4_io_field_check/v1-old/layout.json
+solver/outputs/v1_to_v4_io_field_check/v1-old/layout_us_height.json
+solver/outputs/v1_to_v4_io_field_check/v2/layout.json
+solver/outputs/v1_to_v4_io_field_check/v2/layout_us_height.json
+solver/outputs/v1_to_v4_io_field_check/v3-lite/layout.json
+solver/outputs/v1_to_v4_io_field_check/v3-lite/layout_us_height.json
+solver/outputs/v1_to_v4_io_field_check/v3-full/layout.json
+solver/outputs/v1_to_v4_io_field_check/v3-full/layout_us_height.json
+solver/outputs/v1_to_v4_io_field_check/v4-io/layout.json
+solver/outputs/v1_to_v4_io_field_check/v4-io/layout_us_height.json
+```
+
+`layout.json` is the raw AutoPos gauge frame. `layout_us_height.json` is the
+field-friendly physical-height frame. The post-process enforces the hard z
+convention `mean_z(ABCD) < mean_z(EFGH)`: if the raw solver gauge has the upper
+plane below the lower plane, z is flipped; otherwise it is kept. Then the whole
+layout is shifted so Anchor H matches the latest `ultrasound_H.csv`
+antenna-center height. For the current Erlangen run this uses `median_mm=1533`
+plus `ant_center_offset_mm=107`, so H is set to `1640 mm`.
+
+## Offline Field Command
+
+Use this exact block on site when there is no Codex and no internet:
+
+```bash
+cd /home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start
+
+python3 - <<'PY'
+import scipy, numpy, pandas, matplotlib
+print("solver python dependencies: OK")
+PY
+
+python3 autopos_pipeline/erlangen_20260528_mocap/solver/scripts/stage_field_dataset.py \
+  --session erlangen_20260528_optitrack
+
+python3 autopos_pipeline/erlangen_20260528_mocap/solver/scripts/run_v4io_field_check.py
+
+python3 autopos_pipeline/erlangen_20260528_mocap/solver/scripts/run_v1_to_v4_io.py
+
+echo
+echo "Quick report:"
+cat autopos_pipeline/erlangen_20260528_mocap/solver/outputs/v4io_field_check/FIELD_V4IO_CHECK.md
+
+echo
+echo "V1 to V4-io report:"
+cat autopos_pipeline/erlangen_20260528_mocap/solver/outputs/v1_to_v4_io_field_check/FIELD_V1_TO_V4_IO.md
+
+echo
+echo "Anchor layout:"
+cat autopos_pipeline/erlangen_20260528_mocap/solver/outputs/v4io_field_check/v4-io/layout.json
+
+echo
+echo "Anchor layout, ultrasound height-aligned:"
+cat autopos_pipeline/erlangen_20260528_mocap/solver/outputs/v4io_field_check/v4-io/layout_us_height.json
+```
+
+The staging step now accepts the field sweep format directly. If a sweep folder
+does not already contain `pairs_all.csv`, it automatically finds the newest
+complete `sweep*/sweep1000/summary.json` and derives:
+
+```text
+solver/work/field_dataset_staged/sweep1000/pairs_all.csv
+```
+
+Do not use interrupted sweep folders for final judgement. A complete sweep has
+all `A,B,C,D,E,F,G,H` rounds marked successful in `summary.json`.
+
+## Offline Dependency Note
+
+Do this before going to the lab, while internet is still available:
+
+```bash
+python3 -m pip install --user --break-system-packages scipy
+```
+
+If this dependency check passes, the solver run itself does not need internet:
+
+```bash
+python3 - <<'PY'
+import scipy, numpy, pandas, matplotlib
+print("solver python dependencies: OK")
+PY
 ```
 
 ## What Is Good Enough On Site

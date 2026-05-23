@@ -297,6 +297,30 @@ def target_bs_name(name: str) -> str:
     return value
 
 
+DEFAULT_KNOWN_BS_TAGS = [
+    "BSF66F",
+    "BS2DCE",
+    "BSDC91",
+    "BS9336",
+    "BS955A",
+    "BSCCF4",
+]
+
+
+def parse_bs_tag_csv(value: str) -> list[str]:
+    seen: set[str] = set()
+    tags: list[str] = []
+    for item in value.split(","):
+        raw = item.strip().upper()
+        if not raw:
+            continue
+        tag = target_bs_name(normalize_target(raw))
+        if tag not in seen:
+            seen.add(tag)
+            tags.append(tag)
+    return tags
+
+
 def target_discovery_prefix(targets: list[str]) -> str:
     # Current field Wand tags advertise as plain BSxxxx. Wand-A/B/C aliases are
     # accepted at the CLI, but runtime discovery and TDMA use the BS identity.
@@ -599,6 +623,28 @@ def build_parser() -> argparse.ArgumentParser:
         "--reuse-tag-links",
         action="store_true",
         help="Assume a Master_Tag boot profile is already maintaining BS* links; do not force mode/device reconnect unless recovery is needed.",
+    )
+    parser.add_argument(
+        "--known-bs-tags",
+        default=",".join(DEFAULT_KNOWN_BS_TAGS),
+        help=(
+            "Comma-separated BS tag identities known in the field kit. Tags in this list "
+            "that are not in --targets are sent targeted MODE AOTA before capture."
+        ),
+    )
+    parser.add_argument(
+        "--no-silence-non-target-tags",
+        action="store_true",
+        help=(
+            "Disable targeted pre-capture MODE AOTA for known BS tags that are not in "
+            "the requested TDMA roster."
+        ),
+    )
+    parser.add_argument(
+        "--non-target-silence-settle-s",
+        type=float,
+        default=1.0,
+        help="Seconds to drain serial after targeted non-target AOTA commands.",
     )
     parser.add_argument(
         "--tag-link-timeout-s",
@@ -1015,6 +1061,41 @@ def configure_recv_capture_session(
             ser = send_cmd(ser, logf, f"ota_target prefix {prefix}", 0.5)
         ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
 
+    def silence_non_target_tags() -> list[str]:
+        nonlocal ser
+        if getattr(args, "no_silence_non_target_tags", False):
+            print("[CAPTURE] configure: targeted non-target AOTA disabled", flush=True)
+            return []
+
+        known_tags = parse_bs_tag_csv(getattr(args, "known_bs_tags", ""))
+        target_tags = {target_bs_name(target) for target in targets}
+        non_targets = [tag for tag in known_tags if tag not in target_tags]
+        if not non_targets:
+            print("[CAPTURE] configure: no known non-target tags to silence", flush=True)
+            return []
+
+        print(
+            "[CAPTURE] configure: targeted AOTA non-target tags="
+            + ",".join(non_targets),
+            flush=True,
+        )
+        logf.write(
+            f"[HOST_INFO {time.monotonic():.3f}] targeted_non_target_aota="
+            + ",".join(non_targets)
+            + "\n"
+        )
+        logf.flush()
+        for tag in non_targets:
+            ser = send_cmd(ser, logf, "ota_target token -1", 0.25)
+            ser = send_cmd(ser, logf, f"ota_target name {tag}", 0.25)
+            ser = send_cmd(ser, logf, "ota_target prefix -", 0.25)
+            ser = send_cmd(ser, logf, "ota_target uuid -", 0.25)
+            ser = send_cmd(ser, logf, "cmd_all MODE AOTA", 0.8)
+        settle_s = max(0.0, float(getattr(args, "non_target_silence_settle_s", 1.0)))
+        if settle_s > 0:
+            drain_serial_until(ser, logf, settle_s)
+        return non_targets
+
     ser, status_text = send_cmd_collect(ser, logf, "status", 0.8)
     ser, device_text = send_cmd_collect(ser, logf, "device show", 0.8)
     already_recv_tag = (
@@ -1030,6 +1111,8 @@ def configure_recv_capture_session(
             )
         else:
             print("[CAPTURE] configure: reuse Master_Tag resident links", flush=True)
+            ser = send_cmd(ser, logf, "device kind tag", 2.0)
+            ser, device_text = send_cmd_collect(ser, logf, "device show", 0.8)
     else:
         print("[CAPTURE] configure: enter RECV/tag mode", flush=True)
         ser = send_cmd(ser, logf, "mode recv", 8.0)
@@ -1074,7 +1157,13 @@ def configure_recv_capture_session(
             flush=True,
         )
     restore_capture_filter(link_setup_prefix if wand_mode else "")
-    print("[CAPTURE] configure: silence resident Tag links for enrollment", flush=True)
+    silenced_non_targets = silence_non_target_tags()
+    restore_capture_filter(link_setup_prefix if wand_mode else "")
+    print(
+        "[CAPTURE] configure: silence resident Tag links for enrollment"
+        + (f" after non-target AOTA ({','.join(silenced_non_targets)})" if silenced_non_targets else ""),
+        flush=True,
+    )
     ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
     print(
         "[CAPTURE] configure: skip setup MODE AOTA; TDMA roster/hold controls admission",
@@ -1569,6 +1658,10 @@ def main() -> int:
     tr_hz = effective_tr_hz(args)
     target_set = {alias for target in targets for alias in target_aliases(target)}
     expected_pmode_by_target, expected_freq_by_target = expected_tdma_maps(args, targets)
+    known_bs_tags = parse_bs_tag_csv(args.known_bs_tags)
+    non_target_silence_tags = [
+        tag for tag in known_bs_tags if tag not in {target_bs_name(target) for target in targets}
+    ]
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_out = Path(args.out_dir)
@@ -1587,6 +1680,11 @@ def main() -> int:
         "expected_freq_hz": expected_freq_by_target,
         "freq_hz": {"tr": tr_hz},
         "duration_s": args.duration,
+        "known_bs_tags": known_bs_tags,
+        "silence_non_target_tags": not args.no_silence_non_target_tags,
+        "non_target_silence_tags": non_target_silence_tags
+        if not args.no_silence_non_target_tags
+        else [],
     }
     commands_json_path.write_text(json.dumps(cmd_plan, indent=2), encoding="utf-8")
     print(f"[CAPTURE] session_dir={session_dir}", flush=True)

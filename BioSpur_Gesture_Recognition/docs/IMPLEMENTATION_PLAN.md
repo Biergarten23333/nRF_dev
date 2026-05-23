@@ -33,6 +33,9 @@ Reference projects:
   - Useful `apps/tag_ota` pattern for MCUboot + BLE SMP server.
   - Useful `apps/master_ota` pattern for BLE Central OTA/SMP client.
   - Useful scripts for packaging/deploying OTA images.
+  - Important migration note: reuse the MCUboot/MCUmgr pattern, but do not copy
+    an old nRF52832/512 KB partition map blindly onto B306. B306 is nRF52840,
+    so the GR module image uses a 1 MB flash layout.
 
 ## 2. Proposed Workspace Structure
 
@@ -304,8 +307,22 @@ Exit criteria:
 
 Important:
 
-- The first MCUboot-capable image usually still needs initial flashing by J-Link or factory method.
-- After that, normal updates use OTA.
+- The first MCUboot-capable image still needs initial flashing by J-Link/TC2030
+  or factory method.
+- After that, normal ADS1298/JY61P firmware updates should use OTA.
+- The old UWB `tag_ota` project is used as the reference for DFU mechanics only.
+  Its old static layout ends at `0x80000`, which is a 512 KB-style boundary.
+  The GR B306 layout is nRF52840-specific:
+  - MCUboot: `0x00000..0x0c000`
+  - primary slot: `0x0c000..0x80000`
+  - secondary slot: `0x80000..0xf4000`
+  - storage/reserved: `0xf4000..0x100000`
+
+Current GR module OTA foundation artifacts:
+
+- First TC2030/J-Link flash image: `build/gr_module/merged.hex`
+- OTA package: `build/gr_module/dfu_application.zip`
+- Signed application payload: `build/gr_module/gr_module/zephyr/zephyr.signed.bin`
 
 ### Phase 7: B120 OTA Controller
 

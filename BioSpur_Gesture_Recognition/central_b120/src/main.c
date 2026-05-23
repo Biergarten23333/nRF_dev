@@ -204,7 +204,7 @@ int main(void)
 		return -ENODEV;
 	}
 
-	cdc_write("GR-Master USB CDC ready\r\n");
+	cdc_write("GR-Master native USB CDC ready\r\n");
 
 	err = bt_enable(NULL);
 	if (err) {
@@ -219,4 +219,3 @@ int main(void)
 		k_sleep(K_MSEC(5));
 	}
 }
-

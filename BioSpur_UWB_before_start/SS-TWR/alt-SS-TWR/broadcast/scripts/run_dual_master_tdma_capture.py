@@ -68,6 +68,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--anchor-preflight-launch-retries", type=int, default=2)
     parser.add_argument("--anchor-responder-settle-s", type=float, default=10.0)
     parser.add_argument("--tag-link-timeout-s", type=float, default=30.0)
+    parser.add_argument("--reuse-tag-links", action="store_true")
+    parser.add_argument(
+        "--known-bs-tags",
+        default="BSF66F,BS2DCE,BSDC91,BS9336,BS955A,BSCCF4",
+        help="Known BS tags used for targeted non-target AOTA before capture.",
+    )
+    parser.add_argument("--no-silence-non-target-tags", action="store_true")
+    parser.add_argument("--non-target-silence-settle-s", type=float, default=1.0)
     parser.add_argument("--with-listener", action="store_true")
     parser.add_argument(
         "--listener-port",
@@ -176,12 +184,19 @@ def main() -> int:
             args.anchor_port,
             "--anchor-responder-settle-s",
             str(args.anchor_responder_settle_s),
-            "--reuse-tag-links",
             "--tag-link-timeout-s",
             str(args.tag_link_timeout_s),
+            "--known-bs-tags",
+            args.known_bs_tags,
+            "--non-target-silence-settle-s",
+            str(args.non_target_silence_settle_s),
             "--out-dir",
             str(recv_dir),
         ]
+        if args.reuse_tag_links:
+            tag_cmd.append("--reuse-tag-links")
+        if args.no_silence_non_target_tags:
+            tag_cmd.append("--no-silence-non-target-tags")
         rc = run_stream(tag_cmd, out_dir / "tag_capture.console.log")
         summary["tag_capture_returncode"] = rc
         summaries = sorted(out_dir.glob("tag_capture_*/summary.json"))

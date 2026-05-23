@@ -10,6 +10,7 @@
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/bluetooth/hci.h>
+#include <zephyr/dfu/mcuboot.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/printk.h>
@@ -19,6 +20,17 @@
 static struct bt_conn *current_conn;
 static uint16_t status_seq;
 static int64_t host_time_offset_ms;
+
+static void confirm_running_image(void)
+{
+	int err = boot_write_img_confirmed();
+
+	if (err == 0) {
+		printk("GR MCUboot image confirmed\n");
+	} else {
+		printk("GR MCUboot confirm rc=%d\n", err);
+	}
+}
 
 static uint32_t gr_now_host_ms(void)
 {
@@ -120,7 +132,9 @@ static int start_advertising(void)
 		BT_DATA(BT_DATA_MANUFACTURER_DATA, mfg, sizeof(mfg)),
 	};
 	const struct bt_data sd[] = {
-		BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_NUS_VAL),
+		BT_DATA_BYTES(BT_DATA_UUID128_ALL,
+			      0x84, 0xaa, 0x60, 0x74, 0x52, 0x8a, 0x8b, 0x86,
+			      0xd3, 0x4c, 0xb7, 0x1d, 0x1d, 0xdc, 0x53, 0x8d),
 	};
 
 	return bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
@@ -129,6 +143,7 @@ static int start_advertising(void)
 int main(void)
 {
 	device_id_init();
+	confirm_running_image();
 
 	int err = bt_enable(NULL);
 	if (err) {
@@ -152,4 +167,3 @@ int main(void)
 		k_sleep(K_SECONDS(1));
 	}
 }
-

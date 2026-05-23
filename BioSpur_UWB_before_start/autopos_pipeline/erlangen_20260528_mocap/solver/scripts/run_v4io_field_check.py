@@ -5,12 +5,49 @@ import argparse
 import csv
 import importlib.util
 import json
+import subprocess
+import sys
+import threading
+import time
 from pathlib import Path
 
 
 REPO = Path(__file__).resolve().parents[4]
 FIELD_ROOT = REPO / "autopos_pipeline" / "erlangen_20260528_mocap"
 OUTDOOR_RUN = REPO / "autopos_pipeline" / "outdoor_20260513" / "run_clean_full_compare.py"
+US_HEIGHT_SCRIPT = FIELD_ROOT / "solver" / "scripts" / "apply_ultrasound_height_to_layout.py"
+
+
+def progress(step: int, total: int, message: str, started: float | None = None) -> None:
+    width = 20
+    done = int(round(width * step / total))
+    bar = "#" * done + "." * (width - done)
+    elapsed = ""
+    if started is not None:
+        elapsed = f" elapsed={time.monotonic() - started:.1f}s"
+    print(f"[FIELD_CHECK] [{bar}] {step}/{total} {message}{elapsed}", flush=True)
+
+
+def estimated_progress(
+    start_step: int,
+    end_step: int,
+    total: int,
+    message: str,
+    started: float,
+    expected_s: float,
+):
+    stop = threading.Event()
+
+    def run() -> None:
+        while not stop.wait(5.0):
+            frac = min(0.96, (time.monotonic() - started) / max(expected_s, 1.0))
+            step = start_step + int(round((end_step - start_step) * frac))
+            step = min(max(step, start_step), end_step - 1)
+            progress(step, total, message, started)
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    return stop
 
 
 def load_full_compare():
@@ -18,6 +55,7 @@ def load_full_compare():
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load {OUTDOOR_RUN}")
     mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
     spec.loader.exec_module(mod)
     return mod
 
@@ -85,7 +123,31 @@ def compact_report(out_dir: Path) -> str:
 
     lines.append("\n## Important Caveat")
     lines.append("This is a field sanity check. Without OptiTrack alignment and final metadata review, do not treat these numbers as final absolute accuracy.")
+    us_layout = out_dir / "v4-io" / "layout_us_height.json"
+    if us_layout.exists():
+        lines.append("\n## Ultrasound Height-Aligned Layout")
+        lines.append(f"- `{us_layout}`")
+        lines.append("- Uses Anchor H ultrasound median antenna-center height as the z-up frame reference.")
     return "\n".join(lines) + "\n"
+
+
+def apply_ultrasound_height_layout(out_dir: Path, staged: Path) -> None:
+    layout = out_dir / "v4-io" / "layout.json"
+    if not layout.exists():
+        print(f"[FIELD_CHECK] ultrasound height skip: missing {layout}", flush=True)
+        return
+    cmd = [
+        sys.executable,
+        str(US_HEIGHT_SCRIPT),
+        "--layout",
+        str(layout),
+        "--staged",
+        str(staged),
+    ]
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as exc:
+        print(f"[FIELD_CHECK] ultrasound height warning: rc={exc.returncode}", flush=True)
 
 
 def main() -> int:
@@ -103,14 +165,34 @@ def main() -> int:
     if not (staged / "sweep1000" / "pairs_all.csv").exists():
         raise SystemExit(f"missing staged sweep pairs: {staged / 'sweep1000' / 'pairs_all.csv'}")
 
+    started = time.monotonic()
+    total_steps = 100
+    progress(1, total_steps, f"staged dataset ready: {staged}", started)
+    progress(8, total_steps, f"using sweep pairs: {staged / 'sweep1000' / 'pairs_all.csv'}", started)
+    progress(15, total_steps, "load solver module", started)
     fc = load_full_compare()
     fc.DATA = staged
     fc.SWEEP_CSV = staged / "sweep1000" / "pairs_all.csv"
     fc.VERSIONS = [("v4-io", "V4-io", "Huber bounded-delay inter-anchor")]
-    fc.run_single("1000", str(out_dir))
+    progress(25, total_steps, "solve V4-io anchor layout and evaluate captures", started)
+    heartbeat = estimated_progress(
+        25,
+        90,
+        total_steps,
+        "estimated: solve/evaluate V4-io",
+        started,
+        expected_s=110.0,
+    )
+    try:
+        fc.run_single("1000", str(out_dir))
+    finally:
+        heartbeat.set()
 
+    progress(90, total_steps, "write compact report", started)
+    apply_ultrasound_height_layout(out_dir, staged)
     report = compact_report(out_dir)
     (out_dir / "FIELD_V4IO_CHECK.md").write_text(report, encoding="utf-8")
+    progress(100, total_steps, f"done: {out_dir / 'FIELD_V4IO_CHECK.md'}", started)
     print(report)
     return 0
 
