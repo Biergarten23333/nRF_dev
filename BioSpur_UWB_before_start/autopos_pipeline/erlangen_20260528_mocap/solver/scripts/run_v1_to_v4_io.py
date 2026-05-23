@@ -129,7 +129,8 @@ def compact_report(out_dir: Path) -> str:
 
     if (out_dir / "v4-io" / "layout_us_height.json").exists():
         lines.append("\n## Ultrasound Height-Aligned Layout")
-        lines.append("- `layout_us_height.json` files use Anchor H ultrasound median antenna-center height as the z-up frame reference.")
+        lines.append("- `layout_us_height.json` files use F/G/H ultrasound antenna-center heights for a best-fit rigid z alignment.")
+        lines.append("- `layout.json` remains the pure UWB AutoPos result; the US-aligned layout reports residual PASS/FAIL.")
         lines.append("- This is a coordinate-frame post-process; it does not change inter-anchor solve residuals.")
 
     lines.append("\n## Important Caveat")

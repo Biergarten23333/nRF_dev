@@ -242,6 +242,12 @@ class _FieldConsolePageState extends State<FieldConsolePage>
       _selectedSolverSweep = null;
       _selectedSolverMode = 'v1-v4';
     });
+    await showBioSpurNotice(
+      context,
+      title: 'Workspace activated',
+      message:
+          'Active data workspace is now:\n\n$expanded\n\nNew captures, US measurements, staged solver data, solver outputs, logs, and exports will be written under this folder.',
+    );
   }
 
   Future<void> _browseWorkspace() async {
@@ -1636,16 +1642,6 @@ class _AnchorLayoutTabState extends State<AnchorLayoutTab> {
         '--out ${shellQuote(activeStagedDataset)}$sweepArg';
   }
 
-  Future<void> _runStageDataset() async {
-    setState(() {
-      _layoutLoadingEnabled = false;
-      _solverLoadingEnabled = false;
-      _layoutRefresh++;
-      _solverRefresh++;
-    });
-    await _run('Stage dataset', _stageCommand());
-  }
-
   Future<void> _runSolver() async {
     setState(() {
       _layoutLoadingEnabled = false;
@@ -1764,7 +1760,7 @@ class _AnchorLayoutTabState extends State<AnchorLayoutTab> {
                           label: 'US height source',
                           value: us.path == null
                               ? 'none; raw layout'
-                              : '${us.antennaCenterMm?.toStringAsFixed(0) ?? '?'} mm',
+                              : us.antennaCenterLabel,
                           tone: us.path == null ? PillTone.warn : PillTone.good,
                         ),
                       ],
@@ -1777,16 +1773,9 @@ class _AnchorLayoutTabState extends State<AnchorLayoutTab> {
                   runSpacing: 10,
                   children: [
                     FilledButton.icon(
-                      onPressed: widget.runner.isRunning
-                          ? null
-                          : _runStageDataset,
-                      icon: const Icon(Icons.inventory_2_outlined),
-                      label: const Text('Stage Dataset'),
-                    ),
-                    FilledButton.icon(
                       onPressed: widget.runner.isRunning ? null : _runSolver,
                       icon: const Icon(Icons.stacked_line_chart),
-                      label: const Text('Run Solver'),
+                      label: const Text('Stage + Run Solver'),
                     ),
                     TextButton.icon(
                       onPressed: widget.runner.isRunning
@@ -1799,7 +1788,7 @@ class _AnchorLayoutTabState extends State<AnchorLayoutTab> {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Final physical layout is layout_us_height.json. It enforces ABCD below EFGH and aligns H to ultrasound antenna-center height.',
+                  'Final physical layout is layout_us_height.json. It keeps layout.json as pure UWB, then rigidly aligns F/G/H to ultrasound heights and reports residual PASS/FAIL.',
                 ),
               ],
             ),
@@ -1874,7 +1863,7 @@ class UltrasoundMeasurementCard extends StatelessWidget {
                 FilledButton.icon(
                   onPressed: runner.isRunning ? null : onRun,
                   icon: const Icon(Icons.height),
-                  label: const Text('US 30s'),
+                  label: const Text('FGH US 30s'),
                 ),
                 const SizedBox(width: 8),
                 OutlinedButton.icon(
@@ -1897,27 +1886,15 @@ class UltrasoundMeasurementCard extends StatelessWidget {
               children: [
                 StatusPill(
                   label: 'State',
-                  value: summary.state ?? 'missing',
-                  tone: summary.state == 'DONE' ? PillTone.good : PillTone.warn,
+                  value: summary.anchors.isEmpty
+                      ? 'missing'
+                      : '${summary.doneCount}/${summary.expectedCount} done',
+                  tone: summary.doneCount == summary.expectedCount
+                      ? PillTone.good
+                      : PillTone.warn,
                 ),
                 StatusPill(
-                  label: 'Median',
-                  value: summary.medianMm == null
-                      ? '-'
-                      : '${summary.medianMm!.toStringAsFixed(0)} mm',
-                  tone: summary.medianMm == null
-                      ? PillTone.neutral
-                      : PillTone.good,
-                ),
-                StatusPill(
-                  label: 'Offset',
-                  value: summary.offsetMm == null
-                      ? '-'
-                      : '+${summary.offsetMm!.toStringAsFixed(0)} mm',
-                  tone: PillTone.active,
-                ),
-                StatusPill(
-                  label: 'H target z',
+                  label: 'Mean F/G/H z',
                   value: summary.antennaCenterMm == null
                       ? '-'
                       : '${summary.antennaCenterMm!.toStringAsFixed(0)} mm',
@@ -1926,16 +1903,49 @@ class UltrasoundMeasurementCard extends StatelessWidget {
                       : PillTone.good,
                 ),
                 StatusPill(
-                  label: 'OK',
+                  label: 'Offsets',
+                  value: summary.offsetsLabel,
+                  tone: PillTone.active,
+                ),
+                StatusPill(
+                  label: 'Anchors',
+                  value: summary.anchors.isEmpty
+                      ? '-'
+                      : summary.anchors.keys.join('/'),
+                  tone: summary.anchors.length == 3
+                      ? PillTone.good
+                      : PillTone.warn,
+                ),
+                StatusPill(
+                  label: 'Min OK',
                   value: summary.ok == null ? '-' : '${summary.ok}',
                   tone: summary.ok == null ? PillTone.neutral : PillTone.good,
                 ),
               ],
             ),
+            if (summary.anchors.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final anchor in const ['F', 'G', 'H'])
+                    StatusPill(
+                      label: anchor,
+                      value: summary.anchors[anchor]?.antennaCenterMm == null
+                          ? '-'
+                          : '${summary.anchors[anchor]!.antennaCenterMm!.toStringAsFixed(0)} mm',
+                      tone: summary.anchors[anchor]?.state == 'DONE'
+                          ? PillTone.good
+                          : PillTone.warn,
+                    ),
+                ],
+              ),
+            ],
             const SizedBox(height: 10),
             Text(
               summary.path ??
-                  'No ultrasound_H.csv yet. Run US 30s before final layout solve.',
+                  'No ultrasound_F/G/H.csv yet. Run FGH US 30s before final layout solve.',
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 12, color: mutedText),
             ),
@@ -1974,34 +1984,49 @@ class LayoutSummaryCard extends StatelessWidget {
                   tone: summary.zConventionOk ? PillTone.good : PillTone.warn,
                 ),
                 StatusPill(
-                  label: 'H z',
-                  value: summary.hZ == null
-                      ? '-'
-                      : '${summary.hZ!.toStringAsFixed(1)} mm',
-                  tone: summary.hZ == null ? PillTone.neutral : PillTone.good,
+                  label: 'US-Z',
+                  value: summary.usStatus?.toUpperCase() ?? '-',
+                  tone: summary.usStatus == 'pass'
+                      ? PillTone.good
+                      : summary.usStatus == 'fail'
+                      ? PillTone.bad
+                      : PillTone.warn,
                 ),
                 StatusPill(
-                  label: 'US offset',
-                  value: summary.usOffset == null
+                  label: 'US RMS',
+                  value: summary.usRmsResidual == null
                       ? '-'
-                      : '${summary.usOffset!.toStringAsFixed(1)} mm',
-                  tone: summary.usOffset == null
+                      : '${summary.usRmsResidual!.toStringAsFixed(1)} mm',
+                  tone: summary.usStatus == 'fail'
+                      ? PillTone.bad
+                      : summary.usRmsResidual == null
                       ? PillTone.neutral
-                      : PillTone.active,
+                      : PillTone.good,
                 ),
                 StatusPill(
-                  label: 'US used',
-                  value: summary.usUsedAntCenter == null
+                  label: 'US Max',
+                  value: summary.usMaxResidual == null
                       ? '-'
-                      : '${summary.usUsedAntCenter!.toStringAsFixed(1)} mm',
-                  tone: summary.usStale ? PillTone.bad : PillTone.good,
+                      : '${summary.usMaxResidual!.toStringAsFixed(1)} mm',
+                  tone: summary.usStatus == 'fail'
+                      ? PillTone.bad
+                      : summary.usMaxResidual == null
+                      ? PillTone.neutral
+                      : PillTone.good,
                 ),
                 StatusPill(
                   label: 'Latest US',
-                  value: summary.latestUsAntCenter == null
-                      ? '-'
-                      : '${summary.latestUsAntCenter!.toStringAsFixed(1)} mm',
+                  value: summary.latestUsLabel,
                   tone: summary.usStale ? PillTone.bad : PillTone.good,
+                ),
+                StatusPill(
+                  label: 'US residuals',
+                  value: summary.usResidualLabel,
+                  tone: summary.usStatus == 'fail'
+                      ? PillTone.bad
+                      : summary.usResiduals.isEmpty
+                      ? PillTone.neutral
+                      : PillTone.good,
                 ),
               ],
             ),
@@ -2016,7 +2041,7 @@ class LayoutSummaryCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  'Latest ultrasound is newer/different than the ultrasound used by this layout. Run Solver again to apply Latest US to H z.',
+                  'Latest F/G/H ultrasound is newer/different than the ultrasound used by this layout. Run Solver again to update layout_us_height.json.',
                   style: TextStyle(
                     color: toneColor(PillTone.bad),
                     fontWeight: FontWeight.w800,
@@ -2196,6 +2221,41 @@ class _SolverAnalysisCardState extends State<SolverAnalysisCard> {
                         value:
                             '${fmtMm(layout.spanX)} x ${fmtMm(layout.spanY)} x ${fmtMm(layout.spanZ)}',
                         tone: PillTone.active,
+                      ),
+                    if (layout != null)
+                      StatusPill(
+                        label: 'Layout file',
+                        value: layout.isUsHeightLayout
+                            ? 'US height'
+                            : 'raw UWB',
+                        tone: layout.isUsHeightLayout
+                            ? PillTone.good
+                            : PillTone.warn,
+                      ),
+                    if (layout?.usStatus != null)
+                      StatusPill(
+                        label: 'US-Z',
+                        value: layout!.usStatus!.toUpperCase(),
+                        tone: layout.usStatus == 'pass'
+                            ? PillTone.good
+                            : PillTone.bad,
+                      ),
+                    if (layout?.usRmsResidual != null)
+                      StatusPill(
+                        label: 'US RMS/Max',
+                        value:
+                            '${layout!.usRmsResidual!.toStringAsFixed(1)} / ${layout.usMaxResidual?.toStringAsFixed(1) ?? '-'} mm',
+                        tone: layout.usStatus == 'fail'
+                            ? PillTone.bad
+                            : PillTone.good,
+                      ),
+                    if (layout != null && layout.usResidualLabel != '-')
+                      StatusPill(
+                        label: 'US residuals',
+                        value: layout.usResidualLabel,
+                        tone: layout.usStatus == 'fail'
+                            ? PillTone.bad
+                            : PillTone.good,
                       ),
                   ],
                 ),
@@ -6851,6 +6911,7 @@ class UltrasoundSummary {
     required this.offsetMm,
     required this.antennaCenterMm,
     required this.ok,
+    required this.anchors,
   });
 
   final String? path;
@@ -6860,6 +6921,41 @@ class UltrasoundSummary {
   final double? offsetMm;
   final double? antennaCenterMm;
   final int? ok;
+  final Map<String, UltrasoundAnchorSummary> anchors;
+
+  int get doneCount => anchors.values.where((a) => a.state == 'DONE').length;
+
+  int get expectedCount => 3;
+
+  String get offsetsLabel {
+    if (anchors.isEmpty) {
+      return offsetMm == null ? '-' : '+${offsetMm!.toStringAsFixed(0)} mm';
+    }
+    final parts = <String>[];
+    for (final anchor in const ['F', 'G', 'H']) {
+      final offset = anchors[anchor]?.offsetMm;
+      if (offset == null) continue;
+      final sign = offset >= 0 ? '+' : '';
+      parts.add('$anchor$sign${offset.toStringAsFixed(0)}');
+    }
+    return parts.isEmpty ? '-' : parts.join('/');
+  }
+
+  String get antennaCenterLabel {
+    if (anchors.isEmpty) {
+      return antennaCenterMm == null
+          ? '-'
+          : '${antennaCenterMm!.toStringAsFixed(0)} mm';
+    }
+    final parts = <String>[];
+    for (final anchor in const ['F', 'G', 'H']) {
+      final height = anchors[anchor]?.antennaCenterMm;
+      if (height == null) continue;
+      parts.add('$anchor${height.toStringAsFixed(0)}');
+    }
+    final prefix = parts.isEmpty ? 'F/G/H' : parts.join('/');
+    return '$prefix $doneCount/3';
+  }
 
   factory UltrasoundSummary.empty() => const UltrasoundSummary(
     path: null,
@@ -6869,11 +6965,50 @@ class UltrasoundSummary {
     offsetMm: null,
     antennaCenterMm: null,
     ok: null,
+    anchors: {},
   );
 
   static Future<UltrasoundSummary> readLatest() async {
     final root = Directory(capturesRoot);
     if (!root.existsSync()) return UltrasoundSummary.empty();
+    final anchors = <String, UltrasoundAnchorSummary>{};
+    for (final anchor in const ['F', 'G', 'H']) {
+      final files =
+          root
+              .listSync(recursive: true)
+              .whereType<File>()
+              .where((f) => f.path.endsWith('/ultrasound_$anchor.csv'))
+              .toList()
+            ..sort(
+              (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
+            );
+      if (files.isEmpty) continue;
+      final summary = await UltrasoundAnchorSummary.read(anchor, files.first);
+      if (summary.path != null) anchors[anchor] = summary;
+    }
+    if (anchors.isNotEmpty) {
+      final done = anchors.values.where((a) => a.state == 'DONE').toList();
+      final preferred =
+          anchors['H'] ?? (done.isEmpty ? anchors.values.last : done.last);
+      final antHeights = anchors.values
+          .map((a) => a.antennaCenterMm)
+          .whereType<double>()
+          .toList();
+      return UltrasoundSummary(
+        path: anchors.values.map((a) => a.path).whereType<String>().join(' ; '),
+        timestamp: preferred.timestamp,
+        state: done.length == 3 ? 'DONE' : '${done.length}/3',
+        medianMm: preferred.medianMm,
+        offsetMm: preferred.offsetMm,
+        antennaCenterMm: antHeights.isEmpty
+            ? null
+            : antHeights.reduce((a, b) => a + b) / antHeights.length,
+        ok: done.isEmpty ? null : done.map((a) => a.ok ?? 0).reduce(math.min),
+        anchors: anchors,
+      );
+    }
+
+    // Backward compatibility with older single-H captures.
     final files =
         root
             .listSync(recursive: true)
@@ -6888,9 +7023,48 @@ class UltrasoundSummary {
   }
 
   static Future<UltrasoundSummary> _read(File file) async {
+    final one = await UltrasoundAnchorSummary.read('H', file);
+    if (one.path == null) return UltrasoundSummary.empty();
+    return UltrasoundSummary(
+      path: one.path,
+      timestamp: one.timestamp,
+      state: one.state,
+      medianMm: one.medianMm,
+      offsetMm: one.offsetMm,
+      antennaCenterMm: one.antennaCenterMm,
+      ok: one.ok,
+      anchors: {'H': one},
+    );
+  }
+}
+
+class UltrasoundAnchorSummary {
+  const UltrasoundAnchorSummary({
+    required this.anchor,
+    required this.path,
+    required this.timestamp,
+    required this.state,
+    required this.medianMm,
+    required this.offsetMm,
+    required this.antennaCenterMm,
+    required this.ok,
+  });
+
+  final String anchor;
+  final String? path;
+  final String? timestamp;
+  final String? state;
+  final double? medianMm;
+  final double? offsetMm;
+  final double? antennaCenterMm;
+  final int? ok;
+
+  static Future<UltrasoundAnchorSummary> read(String anchor, File file) async {
     try {
       final lines = await file.readAsLines();
-      if (lines.length < 2) return UltrasoundSummary.empty();
+      if (lines.length < 2) {
+        return UltrasoundAnchorSummary.empty(anchor);
+      }
       final header = lines.first.split(',');
       Map<String, String>? best;
       for (final line in lines.skip(1)) {
@@ -6907,7 +7081,8 @@ class UltrasoundSummary {
         }
       }
       best ??= <String, String>{};
-      return UltrasoundSummary(
+      return UltrasoundAnchorSummary(
+        anchor: anchor,
         path: file.path,
         timestamp: emptyToNull(best['timestamp']),
         state: emptyToNull(best['state']),
@@ -6917,9 +7092,21 @@ class UltrasoundSummary {
         ok: int.tryParse(best['ok'] ?? ''),
       );
     } catch (_) {
-      return UltrasoundSummary.empty();
+      return UltrasoundAnchorSummary.empty(anchor);
     }
   }
+
+  factory UltrasoundAnchorSummary.empty(String anchor) =>
+      UltrasoundAnchorSummary(
+        anchor: anchor,
+        path: null,
+        timestamp: null,
+        state: null,
+        medianMm: null,
+        offsetMm: null,
+        antennaCenterMm: null,
+        ok: null,
+      );
 }
 
 class LayoutSummary {
@@ -6932,6 +7119,12 @@ class LayoutSummary {
     required this.usUsedSource,
     required this.latestUsAntCenter,
     required this.latestUsPath,
+    required this.usStatus,
+    required this.usRmsResidual,
+    required this.usMaxResidual,
+    required this.usResiduals,
+    required this.usUsedSources,
+    required this.latestUsByAnchor,
   });
 
   final String? path;
@@ -6942,13 +7135,46 @@ class LayoutSummary {
   final String? usUsedSource;
   final double? latestUsAntCenter;
   final String? latestUsPath;
+  final String? usStatus;
+  final double? usRmsResidual;
+  final double? usMaxResidual;
+  final Map<String, double> usResiduals;
+  final Map<String, String> usUsedSources;
+  final Map<String, double> latestUsByAnchor;
 
   bool get usStale {
-    final used = usUsedAntCenter;
-    final latest = latestUsAntCenter;
-    if (used == null || latest == null) return false;
-    return (used - latest).abs() > 1.0;
+    for (final entry in latestUsByAnchor.entries) {
+      final usedPath = usUsedSources[entry.key];
+      final latestPath = latestUsPathFor(entry.key);
+      if (usedPath != null && latestPath != null && usedPath != latestPath) {
+        return true;
+      }
+    }
+    return false;
   }
+
+  String get latestUsLabel {
+    if (latestUsByAnchor.isEmpty) return '-';
+    return latestUsByAnchor.entries
+        .map((e) => '${e.key}:${e.value.toStringAsFixed(0)}')
+        .join(' ');
+  }
+
+  String get usResidualLabel {
+    if (usResiduals.isEmpty) return '-';
+    return ['F', 'G', 'H']
+        .where((anchor) => usResiduals.containsKey(anchor))
+        .map((anchor) {
+          final value = usResiduals[anchor]!;
+          final sign = value >= 0 ? '+' : '';
+          return '$anchor:$sign${value.toStringAsFixed(1)}';
+        })
+        .join(' ');
+  }
+
+  String? latestUsPathFor(String anchor) => _latestUsPathByAnchor[anchor];
+
+  static Map<String, String> _latestUsPathByAnchor = {};
 
   factory LayoutSummary.empty() => const LayoutSummary(
     path: null,
@@ -6959,6 +7185,12 @@ class LayoutSummary {
     usUsedSource: null,
     latestUsAntCenter: null,
     latestUsPath: null,
+    usStatus: null,
+    usRmsResidual: null,
+    usMaxResidual: null,
+    usResiduals: {},
+    usUsedSources: {},
+    latestUsByAnchor: {},
   );
 
   static Future<LayoutSummary> read() async {
@@ -6994,22 +7226,61 @@ class LayoutSummary {
       final upper =
           anchors.skip(4).map((a) => z[a] ?? 0).reduce((a, b) => a + b) / 4;
       final meta = decoded['extra']?['ultrasound_height_alignment'];
-      final usMeta = meta is Map<String, dynamic>
-          ? (meta['ultrasound'] as Map<String, dynamic>?)
+      final metaMap = meta is Map<String, dynamic> ? meta : null;
+      final usAll = metaMap?['ultrasound'] is Map<String, dynamic>
+          ? metaMap!['ultrasound'] as Map<String, dynamic>
           : null;
-      final usOffset = (usMeta?['ant_center_offset_mm'] as num?)?.toDouble();
-      final usUsedAntCenter = (usMeta?['height_ant_center_mm'] as num?)
-          ?.toDouble();
-      final usUsedSource = (usMeta?['source_csv'])?.toString();
+      final usedSources = <String, String>{};
+      double? usedMean;
+      if (usAll != null) {
+        final heights = <double>[];
+        for (final entry in usAll.entries) {
+          if (entry.value is! Map<String, dynamic>) continue;
+          final anchor = entry.key.toUpperCase();
+          final item = entry.value as Map<String, dynamic>;
+          final source = item['source_csv']?.toString();
+          if (source != null) usedSources[anchor] = source;
+          final h = (item['height_ant_center_mm'] as num?)?.toDouble();
+          if (h != null) heights.add(h);
+        }
+        if (heights.isNotEmpty) {
+          usedMean = heights.reduce((a, b) => a + b) / heights.length;
+        }
+      }
+      final latestByAnchor = <String, double>{};
+      final latestPathByAnchor = <String, String>{};
+      for (final entry in latestUs.anchors.entries) {
+        final h = entry.value.antennaCenterMm;
+        final p = entry.value.path;
+        if (h != null) latestByAnchor[entry.key] = h;
+        if (p != null) latestPathByAnchor[entry.key] = p;
+      }
+      _latestUsPathByAnchor = latestPathByAnchor;
+      final residuals = <String, double>{};
+      final residualList = metaMap?['residuals'];
+      if (residualList is List<dynamic>) {
+        for (final item in residualList) {
+          if (item is! Map<String, dynamic>) continue;
+          final anchor = item['anchor']?.toString().toUpperCase();
+          final value = (item['residual_mm'] as num?)?.toDouble();
+          if (anchor != null && value != null) residuals[anchor] = value;
+        }
+      }
       return LayoutSummary(
         path: path.path,
         zConventionOk: lower < upper,
         hZ: z['H'],
-        usOffset: usOffset,
-        usUsedAntCenter: usUsedAntCenter,
-        usUsedSource: usUsedSource,
+        usOffset: null,
+        usUsedAntCenter: usedMean,
+        usUsedSource: usedSources.values.join(' ; '),
         latestUsAntCenter: latestUs.antennaCenterMm,
         latestUsPath: latestUs.path,
+        usStatus: metaMap?['status']?.toString(),
+        usRmsResidual: (metaMap?['rms_residual_mm'] as num?)?.toDouble(),
+        usMaxResidual: (metaMap?['max_residual_mm'] as num?)?.toDouble(),
+        usResiduals: residuals,
+        usUsedSources: usedSources,
+        latestUsByAnchor: latestByAnchor,
       );
     } catch (_) {
       return LayoutSummary.empty();
@@ -7308,11 +7579,21 @@ class AnchorLayoutData {
     required this.version,
     required this.path,
     required this.points,
+    required this.isUsHeightLayout,
+    required this.usStatus,
+    required this.usRmsResidual,
+    required this.usMaxResidual,
+    required this.usResiduals,
   });
 
   final String version;
   final String path;
   final List<AnchorPoint> points;
+  final bool isUsHeightLayout;
+  final String? usStatus;
+  final double? usRmsResidual;
+  final double? usMaxResidual;
+  final Map<String, double> usResiduals;
 
   Map<String, AnchorPoint> get byLabel => {for (final p in points) p.label: p};
   double get minX => points.map((p) => p.x).reduce(math.min);
@@ -7327,6 +7608,18 @@ class AnchorLayoutData {
   double get centerX => (minX + maxX) / 2;
   double get centerY => (minY + maxY) / 2;
   double get centerZ => (minZ + maxZ) / 2;
+
+  String get usResidualLabel {
+    if (usResiduals.isEmpty) return '-';
+    return ['F', 'G', 'H']
+        .where((anchor) => usResiduals.containsKey(anchor))
+        .map((anchor) {
+          final value = usResiduals[anchor]!;
+          final sign = value >= 0 ? '+' : '';
+          return '$anchor:$sign${value.toStringAsFixed(1)}';
+        })
+        .join(' ');
+  }
 
   static Future<AnchorLayoutData?> read(String version, File file) async {
     try {
@@ -7357,7 +7650,8 @@ class AnchorLayoutData {
               .map((p) => p.z)
               .fold(0.0, (a, b) => a + b) /
           4;
-      final zSign = lower < upper ? 1.0 : -1.0;
+      final isUsHeightLayout = file.path.endsWith('/layout_us_height.json');
+      final zSign = isUsHeightLayout ? 1.0 : (lower < upper ? 1.0 : -1.0);
       var adjusted = points
           .map(
             (p) => AnchorPoint(label: p.label, x: p.x, y: p.y, z: p.z * zSign),
@@ -7386,10 +7680,27 @@ class AnchorLayoutData {
             .toList();
       }
       adjusted.sort((a, b) => a.label.compareTo(b.label));
+      final meta = decoded['extra']?['ultrasound_height_alignment'];
+      final metaMap = meta is Map<String, dynamic> ? meta : null;
+      final residuals = <String, double>{};
+      final residualList = metaMap?['residuals'];
+      if (residualList is List<dynamic>) {
+        for (final item in residualList) {
+          if (item is! Map<String, dynamic>) continue;
+          final anchor = item['anchor']?.toString().toUpperCase();
+          final value = (item['residual_mm'] as num?)?.toDouble();
+          if (anchor != null && value != null) residuals[anchor] = value;
+        }
+      }
       return AnchorLayoutData(
         version: version,
         path: file.path,
         points: adjusted,
+        isUsHeightLayout: isUsHeightLayout,
+        usStatus: metaMap?['status']?.toString(),
+        usRmsResidual: (metaMap?['rms_residual_mm'] as num?)?.toDouble(),
+        usMaxResidual: (metaMap?['max_residual_mm'] as num?)?.toDouble(),
+        usResiduals: residuals,
       );
     } catch (_) {
       return null;
