@@ -4,7 +4,7 @@ Before running any AutoPos, Tag, RotoArm, or Wand capture, first identify the tw
 master devices on the laptop:
 
 - `Master_Anchor`: controls anchors, switches A--H between Matrix and Responder,
-  runs AutoPos sweep, anchor preflight, and H ultrasound commands.
+  runs AutoPos sweep, anchor preflight, and F/G/H ultrasound commands.
 - `Master_Tag`: controls the Tag-side capture stream and records TR data.
 
 Do this once after plugging in both master boards.
@@ -152,7 +152,7 @@ static: BSF66F, 120 s, TR-only, 10 Hz
 roto:   BS2DCE + BSDC91, 120 s, TR-only, 10 Hz
 wand:   BS9336 + BS955A + BSCCF4, 120 s, TR-only, 10 Hz
 sweep:  1000 formal SW sets + 10 prewarm SW sets
-us30:   H ultrasound 30 s, output ultrasound_H.csv
+us30:   F/G/H ultrasound 30 s, output ultrasound_F.csv, ultrasound_G.csv, and ultrasound_H.csv
 ```
 
 Important: do not use the old `static/roto/motion profile` commands. The current

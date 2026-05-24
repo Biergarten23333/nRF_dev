@@ -116,12 +116,10 @@ solver/outputs/v1_to_v4_io_field_check/v4-io/layout_us_height.json
 ```
 
 `layout.json` is the raw AutoPos gauge frame. `layout_us_height.json` is the
-field-friendly physical-height frame. The post-process enforces the hard z
-convention `mean_z(ABCD) < mean_z(EFGH)`: if the raw solver gauge has the upper
-plane below the lower plane, z is flipped; otherwise it is kept. Then the whole
-layout is shifted so Anchor H matches the latest `ultrasound_H.csv`
-antenna-center height. For the current Erlangen run this uses `median_mm=1533`
-plus `ant_center_offset_mm=107`, so H is set to `1640 mm`.
+field-friendly physical-height frame. The post-process rigidly aligns the raw
+layout to the latest F/G/H ultrasound antenna-center heights, while enforcing
+the hard z convention `mean_z(ABCD) < mean_z(EFGH)`. It also writes US-Z RMS,
+max residual, and per-anchor residuals into `extra.ultrasound_height_alignment`.
 
 ## Offline Field Command
 

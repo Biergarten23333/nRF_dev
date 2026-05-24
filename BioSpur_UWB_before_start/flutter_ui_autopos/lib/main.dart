@@ -3508,7 +3508,7 @@ class _CaptureTabState extends State<CaptureTab>
                               sweepMismatch
                                   ? 'Current solver output was staged from $stagedName, but the selected solver sweep is $requestedName. Go to Anchor Layout Analysis and run solver again for the selected sweep.'
                                   : stageNewerThanLayout
-                                  ? 'Staged dataset is newer than this layout file. This usually means Stage Dataset ran after the layout was generated. Run Solver again before using this layout for realtime/playback.'
+                                  ? 'Staged dataset is newer than this layout file. Run Stage + Run Solver again before using this layout for realtime/playback.'
                                   : layoutNeedsPinnedWarning
                                   ? 'No solver sweep is pinned. The solver command uses latest complete sweep at run time, which can be ambiguous after multiple sweeps. Select a concrete sweep in Anchor Layout Analysis before running solver.'
                                   : 'Selected layout is not ready. Run solver before using realtime/playback.',

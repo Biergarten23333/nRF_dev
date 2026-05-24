@@ -32,7 +32,7 @@ Pass condition:
 - Short BSF66F capture succeeds.
 - `bio_check_latest` shows `success: true`.
 
-## Phase 1 - AutoPos Sweep and H Ultrasound
+## Phase 1 - AutoPos Sweep and F/G/H Ultrasound
 
 Run:
 
@@ -45,8 +45,8 @@ Record:
 
 - Sweep folder.
 - `summary.json` success.
-- H ultrasound `ultrasound_H.csv`.
-- H antenna-center value from `*_ant_center_mm` columns.
+- F/G/H ultrasound files: `ultrasound_F.csv`, `ultrasound_G.csv`, and `ultrasound_H.csv`.
+- F/G/H antenna-center values from `*_ant_center_mm` columns.
 
 Pass condition:
 

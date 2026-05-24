@@ -76,8 +76,8 @@ Default workspace:
 In the app header:
 
 - edit `Data workspace`
-- click `Desktop` to create a desktop workspace path
-- click `Use` to activate it
+- click `Browse` to choose a workspace folder
+- click `Use` to activate it; the UI shows a confirmation dialog with the active path
 
 The selected workspace is persisted here:
 
@@ -245,6 +245,7 @@ Main things to keep in mind:
 
 - Realtime UI is visualization only. Raw capture data remains the source of truth.
 - Solver outputs are per active workspace now, but if the workspace selector is wrong, analysis will use the wrong data container.
+- `Stage + Run Solver` automatically stages the selected/latest complete sweep before running the solver.
 - If no sweep is pinned, solver can still use latest complete sweep at run time. Prefer selecting a concrete sweep in Anchor Layout Analysis before running solver.
 - Free tag capture currently tries to silence non-target BS tags through targeted AOTA. This needs hardware validation because it depends on firmware target filtering behavior.
 - Capture cleanup may still include broad AOTA behavior in lower-level scripts; be careful when unrelated powered tags are nearby.
@@ -301,4 +302,3 @@ Rebuild deb:
 ../.tooling/flutter/bin/flutter build linux --release
 ./packaging/linux_deb/build_deb.sh
 ```
-
