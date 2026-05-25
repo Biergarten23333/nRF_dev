@@ -63,7 +63,7 @@ Add:
 - current-frame quality weighting
 - short EMA quality memory
 - residual EMA
-- optional leave-one-out residual rejection
+- dynamic-stable soft residual weighting
 
 Each enhancement must be switchable in configuration so older baseline results
 can still be reproduced.
@@ -84,4 +84,3 @@ This should be treated as calibration metadata, not guessed inside the solver.
 
 Before Erlangen validation, do not replace the current working pipeline unless
 the new module has passed behavior-identical comparison on real captures.
-

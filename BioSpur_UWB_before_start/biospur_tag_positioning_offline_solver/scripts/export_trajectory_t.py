@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -16,20 +17,28 @@ def main() -> int:
     ap.add_argument("--layout", required=True)
     ap.add_argument("--capture", required=True, help="Capture directory or tr_all.csv")
     ap.add_argument("--out", required=True)
-    ap.add_argument("--method", choices=["T1", "T2", "T3", "T4"], default="T1")
+    ap.add_argument("--method", choices=["T1", "T2", "T3", "T4", "T4_V6_IMU_GATE"], default="T1")
     ap.add_argument("--anchor-sigma")
+    ap.add_argument("--tag-delay-json", help="Optional JSON file mapping tag BSXXXX to calibrated delay mm.")
     ap.add_argument("--tags", help="Comma-separated tag allow-list, for example BSF66F,BS2DCE")
     ap.add_argument("--max-frames", type=int, default=0)
     ap.add_argument("--tail-rows", type=int, default=0)
     args = ap.parse_args()
 
     tags = {v.strip().upper() for v in (args.tags or "").split(",") if v.strip()} or None
+    tag_delay_by_tag = {}
+    if args.tag_delay_json:
+        tag_delay_by_tag = {
+            str(k).strip().upper(): float(v)
+            for k, v in json.loads(Path(args.tag_delay_json).read_text(encoding="utf-8")).items()
+        }
     result = solve_capture_trajectory(
         layout_path=args.layout,
         capture_path=args.capture,
         method=args.method,
         anchor_sigma_path=args.anchor_sigma,
         tags=tags,
+        tag_delay_by_tag=tag_delay_by_tag,
         max_frames=args.max_frames,
         tail_rows=args.tail_rows,
     )
@@ -40,4 +49,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

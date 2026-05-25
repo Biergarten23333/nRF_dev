@@ -7,7 +7,7 @@ There are currently two active tag-positioning paths.
 Reference copy:
 
 ```text
-biospur_tag_positioning_offline_solver/reference_current_implementations/ui_realtime_trajectory_solver/export_capture_trajectory.py
+biospur_tag_positioning_offline_solver/reference_current_implementations/ui_realtime_trajectory_solver_20052026/export_capture_trajectory.py
 ```
 
 Original source:
@@ -44,7 +44,7 @@ the source of truth.
 Reference copy:
 
 ```text
-biospur_tag_positioning_offline_solver/reference_current_implementations/official_report_field_solver/run_clean_full_compare.py
+biospur_tag_positioning_offline_solver/reference_current_implementations/official_report_field_solver_13052026/run_clean_full_compare.py
 ```
 
 Original source:
@@ -101,4 +101,3 @@ biospur_tag_positioning_offline_solver/
 
 The copied files in `reference_current_implementations/` should remain as
 behavior references until the migration is proven.
-

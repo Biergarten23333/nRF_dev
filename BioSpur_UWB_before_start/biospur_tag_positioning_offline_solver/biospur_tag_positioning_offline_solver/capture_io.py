@@ -4,7 +4,50 @@ import csv
 from collections import defaultdict, deque
 from pathlib import Path
 
-from .models import Frame, Observation
+from .models import Frame, ImuSummary, Observation
+
+
+def _float_or_none(value: str | None) -> float | None:
+    if value is None:
+        return None
+    raw = str(value).strip()
+    if raw == "":
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def _int_or_zero(value: str | None) -> int:
+    val = _float_or_none(value)
+    if val is None:
+        return 0
+    return int(val)
+
+
+def _imu_summary_from_row(row: dict) -> ImuSummary | None:
+    sample_count = _int_or_zero(row.get("imu_n") or row.get("imu_sample_count"))
+    std_mg = _float_or_none(row.get("acc_norm_std_mg") or row.get("imu_acc_norm_std_mg"))
+    mean_mg = _float_or_none(row.get("acc_norm_mean_mg") or row.get("imu_acc_norm_mean_mg"))
+    min_mg = _float_or_none(row.get("acc_norm_min_mg") or row.get("imu_acc_norm_min_mg"))
+    max_mg = _float_or_none(row.get("acc_norm_max_mg") or row.get("imu_acc_norm_max_mg"))
+    skip_count = _int_or_zero(row.get("imu_skip_count"))
+    valid_raw = row.get("imu_valid")
+    valid = sample_count > 0 and std_mg is not None
+    if valid_raw not in (None, ""):
+        valid = valid and bool(_int_or_zero(valid_raw))
+    if not valid and sample_count <= 0 and std_mg is None:
+        return None
+    return ImuSummary(
+        sample_count=sample_count,
+        acc_norm_mean_mg=mean_mg,
+        acc_norm_std_mg=std_mg,
+        acc_norm_min_mg=min_mg,
+        acc_norm_max_mg=max_mg,
+        skip_count=skip_count,
+        valid=valid,
+    )
 
 
 def find_tr_all(capture: str | Path) -> Path:
@@ -64,11 +107,15 @@ def read_tr_all_frames(
                     "host_elapsed_s": elapsed,
                     "host_epoch_s": epoch,
                     "obs_by_anchor": {},
+                    "imu": None,
                 },
             )
             frame["host_elapsed_s"] = min(frame["host_elapsed_s"] or elapsed, elapsed)
             frame["host_epoch_s"] = min(frame["host_epoch_s"] or epoch, epoch)
             frame["obs_by_anchor"][aid] = Observation(aid, rng, q, status)
+            imu = _imu_summary_from_row(row)
+            if imu is not None:
+                frame["imu"] = imu
     frames: list[Frame] = []
     for (_tag, _sweep), item in grouped.items():
         obs = tuple(item["obs_by_anchor"][aid] for aid in sorted(item["obs_by_anchor"]))
@@ -81,6 +128,7 @@ def read_tr_all_frames(
                 host_elapsed_s=float(item["host_elapsed_s"]),
                 host_epoch_s=float(item["host_epoch_s"]),
                 observations=obs,
+                imu=item.get("imu"),
             )
         )
     return sorted(frames, key=lambda f: (f.host_epoch_s, f.tag, f.sweep))
@@ -91,4 +139,3 @@ def summarize_anchor_counts(frames: list[Frame]) -> dict[int, int]:
     for frame in frames:
         counts[len(frame.observations)] += 1
     return dict(sorted(counts.items()))
-

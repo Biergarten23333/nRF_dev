@@ -59,9 +59,18 @@ def compare_reference_sources() -> list[dict]:
     return rows
 
 
-def c_vs_official_reference(data: Path, max_frames: int) -> dict:
+def write_official_sigma(data: Path, out_dir: Path) -> Path:
+    run_clean = import_module(REPO / "autopos_pipeline/outdoor_20260513/run_clean_full_compare.py", "tagpos_ref_sigma_run_clean")
+    eval_mod = run_clean.load_eval_module()
+    path = out_dir / "official_anchor_sigma.json"
+    labels = "ABCDEFGH"
+    obj = {labels[int(k)]: float(v) for k, v in eval_mod.ANCHOR_SIGMA.items()}
+    path.write_text(json.dumps(obj, indent=2), encoding="utf-8")
+    return path
+
+
+def c_vs_official_reference(data: Path, max_frames: int, sigma_path: Path) -> dict:
     layout_path = data / "FULL-COMPARE-1000/v4-io/layout.json"
-    sigma_path = data / "FULL-COMPARE-1000/tables/anchor_sigma.json"
     capture_path = data / "Static_Test/ID02_20260513_153316/tr_all.csv"
     run_clean = import_module(REPO / "autopos_pipeline/outdoor_20260513/run_clean_full_compare.py", "tagpos_ref_run_clean")
     eval_mod = run_clean.load_eval_module()
@@ -105,14 +114,13 @@ def c_vs_official_reference(data: Path, max_frames: int) -> dict:
     }
 
 
-def run_t_methods(data: Path, out_dir: Path, max_frames: int) -> list[dict]:
+def run_t_methods(data: Path, out_dir: Path, max_frames: int, sigma_path: Path) -> list[dict]:
     layout = data / "FULL-COMPARE-1000/v4-io/layout.json"
-    sigma = data / "FULL-COMPARE-1000/tables/anchor_sigma.json"
     capture = data / "Static_Test/ID02_20260513_153316/tr_all.csv"
     rows = []
     for method in ["T1", "T2", "T3", "T4"]:
         out = out_dir / f"ID02_{method}_trajectory.json"
-        result = solve_capture_trajectory(layout, capture, method=method, anchor_sigma_path=sigma, max_frames=max_frames)
+        result = solve_capture_trajectory(layout, capture, method=method, anchor_sigma_path=sigma_path, max_frames=max_frames)
         write_trajectory_json(result, out)
         residuals = [row.residual_rms_mm for row in result.results if math.isfinite(row.residual_rms_mm)]
         rejections = sum(1 for row in result.results if row.rejected_anchor_id is not None)
@@ -161,8 +169,9 @@ def main() -> int:
     build_c_core()
 
     source_rows = compare_reference_sources()
-    method_rows = run_t_methods(data, out_dir, args.max_frames)
-    ref_compare = c_vs_official_reference(data, args.max_frames)
+    sigma_path = write_official_sigma(data, out_dir)
+    method_rows = run_t_methods(data, out_dir, args.max_frames, sigma_path)
+    ref_compare = c_vs_official_reference(data, args.max_frames, sigma_path)
     write_csv(out_dir / "reference_source_copy_check.csv", source_rows)
     write_csv(out_dir / "t_method_summary.csv", method_rows)
     (out_dir / "official_reference_compare.json").write_text(json.dumps(ref_compare, indent=2), encoding="utf-8")
@@ -177,4 +186,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

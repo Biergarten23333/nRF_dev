@@ -3,6 +3,7 @@
 from .models import (
     Anchor,
     Frame,
+    ImuSummary,
     Layout,
     Observation,
     SolveResult,
@@ -13,6 +14,7 @@ from .models import (
 __all__ = [
     "Anchor",
     "Frame",
+    "ImuSummary",
     "Layout",
     "Observation",
     "SolveResult",

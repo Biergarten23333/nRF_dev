@@ -10,10 +10,10 @@ the repository.
 ## Folders
 
 ```text
-ui_realtime_trajectory_solver/
+ui_realtime_trajectory_solver_20052026/
   export_capture_trajectory.py
 
-official_report_field_solver/
+official_report_field_solver_13052026/
   run_clean_full_compare.py
   run_v4io_field_check.py
 ```
@@ -35,4 +35,3 @@ new shared solver output == copied reference output
 
 Only after behavior is identical should we add quality-aware weighting,
 residual-based anchor rejection, or per-tag delay support.
-

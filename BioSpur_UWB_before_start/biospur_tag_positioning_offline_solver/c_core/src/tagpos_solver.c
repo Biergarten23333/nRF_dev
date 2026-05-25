@@ -67,12 +67,15 @@ void biospur_tagpos_default_config(BiospurTagposConfig *cfg, int method) {
     cfg->max_step_mm = 500.0;
     cfg->quality_penalty_scale = 1.5;
     cfg->quality_penalty_cap = 4.0;
-    cfg->residual_ema_start_mm = 40.0;
-    cfg->residual_penalty_scale = 0.75;
-    cfg->residual_penalty_cap = 4.0;
+    cfg->residual_ema_start_mm = 120.0;
+    cfg->residual_penalty_scale = 0.50;
+    cfg->residual_penalty_cap = 2.5;
     cfg->reject_abs_threshold_mm = 120.0;
     cfg->reject_min_improvement_mm = 20.0;
     cfg->reject_improvement_ratio = 0.75;
+    cfg->temporal_prior_sigma_mm = 180.0;
+    cfg->robust_loss = BIOSPUR_TAGPOS_LOSS_HUBER;
+    cfg->tukey_c = 4.685;
 }
 
 const char *biospur_tagpos_method_name(int method) {
@@ -81,10 +84,10 @@ const char *biospur_tagpos_method_name(int method) {
             return "T1_robust_wls";
         case BIOSPUR_TAGPOS_T2_QUALITY_WLS:
             return "T2_quality_wls";
-        case BIOSPUR_TAGPOS_T3_RESIDUAL_REJECT:
-            return "T3_residual_reject";
-        case BIOSPUR_TAGPOS_T4_TAG_DELAY:
-            return "T4_tag_delay";
+        case BIOSPUR_TAGPOS_T3_DYNAMIC_STABLE:
+            return "T3_dynamic_stable";
+        case BIOSPUR_TAGPOS_T4_NLOS_HEALTH:
+            return "T4_nlos_health";
         default:
             return "unknown";
     }
@@ -119,7 +122,7 @@ static double residual_penalty(
     const double *residual_ema,
     int idx
 ) {
-    if (method < BIOSPUR_TAGPOS_T3_RESIDUAL_REJECT) return 1.0;
+    if (method < BIOSPUR_TAGPOS_T3_DYNAMIC_STABLE) return 1.0;
     if (!residual_ema || !is_good(residual_ema[idx]) || residual_ema[idx] <= cfg->residual_ema_start_mm) {
         return 1.0;
     }
@@ -145,6 +148,21 @@ static double effective_sigma(
     sigma *= quality_penalty(method, cfg, quality, quality_ema, idx);
     sigma *= residual_penalty(method, cfg, residual_ema, idx);
     return sigma;
+}
+
+static double robust_weight(const BiospurTagposConfig *cfg, double rn) {
+    double abs_rn = fabs(rn);
+    if (cfg->robust_loss == BIOSPUR_TAGPOS_LOSS_TUKEY) {
+        double c = cfg->tukey_c > 0.0 ? cfg->tukey_c : 4.685;
+        if (abs_rn >= c) return 0.0;
+        double u = rn / c;
+        double a = 1.0 - u * u;
+        return a * a;
+    }
+    if (abs_rn > cfg->huber_k) {
+        return cfg->huber_k / fmax(abs_rn, 1e-12);
+    }
+    return 1.0;
 }
 
 static int count_used(int n, int exclude_index) {
@@ -232,13 +250,12 @@ static int solve_once(
             double residual = pred - ranges[i];
             double sigma = effective_sigma(cfg->method, cfg, anchor_sigma, quality, quality_ema, residual_ema, i);
             double rn = residual / sigma;
-            double huber = 1.0;
-            if (fabs(rn) > cfg->huber_k) {
-                huber = cfg->huber_k / fmax(fabs(rn), 1e-12);
-            }
-            double scale = sqrt(huber) / sigma;
+            double weight = robust_weight(cfg, rn);
+            if (weight <= 0.0) continue;
+            double sqrt_weight = sqrt(weight);
+            double scale = sqrt_weight / sigma;
             double j[3] = {diff[0] / dist * scale, diff[1] / dist * scale, diff[2] / dist * scale};
-            double r = rn * sqrt(huber);
+            double r = rn * sqrt_weight;
             for (int a = 0; a < 3; ++a) {
                 g[a] += j[a] * r;
                 for (int b = 0; b < 3; ++b) {
@@ -248,6 +265,22 @@ static int solve_once(
             ++rows;
         }
         if (rows < 3) return BIOSPUR_TAGPOS_ERR_TOO_FEW_ANCHORS;
+        if (
+            cfg->method >= BIOSPUR_TAGPOS_T3_DYNAMIC_STABLE
+            && x0
+            && cfg->temporal_prior_sigma_mm > 0.0
+            && is_good(x0[0])
+            && is_good(x0[1])
+            && is_good(x0[2])
+        ) {
+            double inv_sigma = 1.0 / cfg->temporal_prior_sigma_mm;
+            double inv_var = inv_sigma * inv_sigma;
+            for (int a = 0; a < 3; ++a) {
+                double r = (p[a] - x0[a]) * inv_sigma;
+                h[a][a] += inv_var;
+                g[a] += inv_sigma * r;
+            }
+        }
         double rhs[3] = {-g[0], -g[1], -g[2]};
         double step[3] = {0.0, 0.0, 0.0};
         int rc = solve_3x3(h, rhs, step);
@@ -337,11 +370,18 @@ int biospur_tagpos_solve_frame(
     } else {
         biospur_tagpos_default_config(&cfg_local, BIOSPUR_TAGPOS_T1_ROBUST_WLS);
     }
-    if (cfg_local.method < BIOSPUR_TAGPOS_T1_ROBUST_WLS || cfg_local.method > BIOSPUR_TAGPOS_T4_TAG_DELAY) {
+    if (cfg_local.method < BIOSPUR_TAGPOS_T1_ROBUST_WLS || cfg_local.method > BIOSPUR_TAGPOS_T4_NLOS_HEALTH) {
         cfg_local.method = BIOSPUR_TAGPOS_T1_ROBUST_WLS;
     }
     if (cfg_local.max_iters <= 0) cfg_local.max_iters = 8;
     if (cfg_local.huber_k <= 0.0) cfg_local.huber_k = 2.0;
+    if (
+        cfg_local.robust_loss != BIOSPUR_TAGPOS_LOSS_HUBER
+        && cfg_local.robust_loss != BIOSPUR_TAGPOS_LOSS_TUKEY
+    ) {
+        cfg_local.robust_loss = BIOSPUR_TAGPOS_LOSS_HUBER;
+    }
+    if (cfg_local.tukey_c <= 0.0) cfg_local.tukey_c = 4.685;
     if (cfg_local.min_sigma_mm <= 0.0) cfg_local.min_sigma_mm = 5.0;
     if (cfg_local.convergence_mm <= 0.0) cfg_local.convergence_mm = 0.02;
     if (cfg_local.max_step_mm <= 0.0) cfg_local.max_step_mm = 500.0;
@@ -375,67 +415,9 @@ int biospur_tagpos_solve_frame(
         return rc;
     }
 
-    BiospurTagposResult best = base_result;
-    double best_xyz[3] = {base_xyz[0], base_xyz[1], base_xyz[2]};
-    int best_exclude = -1;
-    if (cfg_local.method >= BIOSPUR_TAGPOS_T3_RESIDUAL_REJECT && n >= 5) {
-        int candidates[64];
-        int n_candidates = 0;
-        double worst_abs = 0.0;
-        int worst_idx = -1;
-        for (int i = 0; i < n && i < 64; ++i) {
-            double ar = fabs(out_residuals_mm ? out_residuals_mm[i] : 0.0);
-            if (ar > worst_abs) {
-                worst_abs = ar;
-                worst_idx = i;
-            }
-            if (ar >= cfg_local.reject_abs_threshold_mm && n_candidates < 64) {
-                candidates[n_candidates++] = i;
-            }
-        }
-        if (n_candidates == 0 && worst_idx >= 0 && worst_abs >= cfg_local.reject_abs_threshold_mm) {
-            candidates[n_candidates++] = worst_idx;
-        }
-        for (int c = 0; c < n_candidates; ++c) {
-            int excl = candidates[c];
-            double tmp_xyz[3] = {0.0, 0.0, 0.0};
-            double tmp_resid_stack[64];
-            int tmp_mask_stack[64];
-            double *tmp_resid = (n <= 64) ? tmp_resid_stack : NULL;
-            int *tmp_mask = (n <= 64) ? tmp_mask_stack : NULL;
-            BiospurTagposResult cand;
-            int crc = solve_once(
-                anchor_xyz_mm, ranges_mm, anchor_delay_mm, anchor_sigma_mm, quality_percent,
-                quality_ema_percent, residual_ema_abs_mm, n, base_xyz, tag_delay_mm, &cfg_local,
-                excl, tmp_xyz, tmp_resid, tmp_mask, &cand
-            );
-            if (crc != BIOSPUR_TAGPOS_OK) continue;
-            double improve = base_result.residual_rms_mm - cand.residual_rms_mm;
-            int accept = improve >= cfg_local.reject_min_improvement_mm
-                && cand.residual_rms_mm <= base_result.residual_rms_mm * cfg_local.reject_improvement_ratio;
-            if (accept && cand.residual_rms_mm < best.residual_rms_mm) {
-                best = cand;
-                best_xyz[0] = tmp_xyz[0];
-                best_xyz[1] = tmp_xyz[1];
-                best_xyz[2] = tmp_xyz[2];
-                best_exclude = excl;
-            }
-        }
-    }
-
-    if (best_exclude >= 0) {
-        rc = solve_once(
-            anchor_xyz_mm, ranges_mm, anchor_delay_mm, anchor_sigma_mm, quality_percent,
-            quality_ema_percent, residual_ema_abs_mm, n, base_xyz, tag_delay_mm, &cfg_local,
-            best_exclude, out_xyz_mm, out_residuals_mm, out_used_mask, out_result
-        );
-        return rc;
-    }
-
-    out_xyz_mm[0] = best_xyz[0];
-    out_xyz_mm[1] = best_xyz[1];
-    out_xyz_mm[2] = best_xyz[2];
-    if (out_result) *out_result = best;
+    out_xyz_mm[0] = base_xyz[0];
+    out_xyz_mm[1] = base_xyz[1];
+    out_xyz_mm[2] = base_xyz[2];
+    if (out_result) *out_result = base_result;
     return BIOSPUR_TAGPOS_OK;
 }
-

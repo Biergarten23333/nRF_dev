@@ -3,6 +3,7 @@ from __future__ import annotations
 import ctypes
 import math
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 
 from .models import Frame, Layout, MethodName, SolveResult, SolverConfig
@@ -17,6 +18,7 @@ METHOD_TO_INT: dict[MethodName, int] = {
     "T2": 2,
     "T3": 3,
     "T4": 4,
+    "T4_V6_IMU_GATE": 4,
 }
 
 
@@ -36,6 +38,9 @@ class CConfig(ctypes.Structure):
         ("reject_abs_threshold_mm", ctypes.c_double),
         ("reject_min_improvement_mm", ctypes.c_double),
         ("reject_improvement_ratio", ctypes.c_double),
+        ("temporal_prior_sigma_mm", ctypes.c_double),
+        ("robust_loss", ctypes.c_int),
+        ("tukey_c", ctypes.c_double),
     ]
 
 
@@ -137,18 +142,45 @@ def make_c_config(config: SolverConfig) -> CConfig:
     cfg.reject_abs_threshold_mm = float(config.reject_abs_threshold_mm)
     cfg.reject_min_improvement_mm = float(config.reject_min_improvement_mm)
     cfg.reject_improvement_ratio = float(config.reject_improvement_ratio)
+    cfg.temporal_prior_sigma_mm = float(config.temporal_prior_sigma_mm)
     return cfg
 
 
+def clone_c_config(src: CConfig) -> CConfig:
+    dst = CConfig()
+    ctypes.memmove(ctypes.byref(dst), ctypes.byref(src), ctypes.sizeof(CConfig))
+    return dst
+
+
 class TagPositionSolver:
-    def __init__(self, layout: Layout, config: SolverConfig):
+    def __init__(self, layout: Layout, config: SolverConfig, tag_delay_by_tag: dict[str, float] | None = None):
         self.layout = layout
         self.config = config
+        self.tag_delay_by_tag = {k.upper(): float(v) for k, v in (tag_delay_by_tag or {}).items()}
         self.lib = load_c_lib()
         self.c_config = make_c_config(config)
+        self.t4_full_anchor_c_config = None
+        if config.method in {"T4", "T4_V6_IMU_GATE"}:
+            self.t4_full_anchor_c_config = make_c_config(replace(config, method="T1"))
         self.last_by_tag: dict[str, tuple[float, float, float]] = {}
         self.q_ema_by_tag_anchor: dict[tuple[str, int], float] = {}
         self.residual_ema_by_tag_anchor: dict[tuple[str, int], float] = {}
+
+    def _imu_prior_scale(self, frame: Frame) -> float | None:
+        """Return lambda scale for T4_V6 prior gating, or None when IMU is unusable."""
+        if self.config.method != "T4_V6_IMU_GATE" or frame.imu is None:
+            return None
+        if not frame.imu.valid or frame.imu.sample_count < self.config.imu_gate_min_samples:
+            return None
+        std_mg = frame.imu.acc_norm_std_mg
+        if std_mg is None or not math.isfinite(std_mg) or std_mg < 0.0:
+            return None
+        half_sigma = self.config.imu_gate_half_sigma_mps2
+        if half_sigma <= 0.0:
+            return None
+        sigma_acc_mps2 = std_mg * 0.00980665
+        scale = math.exp(-math.log(2.0) * sigma_acc_mps2 / half_sigma)
+        return max(self.config.imu_gate_min_scale, min(1.0, scale))
 
     def _update_quality_ema(self, tag: str, aid: int, q: float) -> float:
         key = (tag, aid)
@@ -192,35 +224,58 @@ class TagPositionSolver:
             q = item.quality_percent if math.isfinite(item.quality_percent) and item.quality_percent > 0.0 else 100.0
             qualities.append(q)
             q_ema.append(self._update_quality_ema(frame.tag, item.anchor_id, q))
+            # T4 uses the same residual-memory input as T3 for low-redundancy
+            # frames; full-anchor dynamic frames may bypass it via a T1 config.
             r_ema.append(self._get_residual_ema(frame.tag, item.anchor_id))
-        x0_tuple = self.last_by_tag.get(frame.tag)
-        if x0_tuple is None:
-            x0_tuple = (
-                sum(anchor_xyz[0::3]) / n,
-                sum(anchor_xyz[1::3]) / n,
-                sum(anchor_xyz[2::3]) / n,
+        tag_delay = self.tag_delay_by_tag.get(frame.tag.upper(), self.layout.tag_delay_mm)
+
+        def run_c(c_config: CConfig, x0: tuple[float, float, float] | None):
+            x0_arr = _c_array(list(x0)) if x0 is not None else None
+            out_xyz = _c_array([0.0, 0.0, 0.0])
+            out_residuals = _c_array([0.0] * n)
+            out_used = _i_array([0] * n)
+            out_result = CResult()
+            rc = self.lib.biospur_tagpos_solve_frame(
+                _c_array(anchor_xyz),
+                _c_array(ranges),
+                _c_array(delays),
+                _c_array(sigmas),
+                _c_array(qualities),
+                _c_array(q_ema),
+                _c_array(r_ema),
+                ctypes.c_int(n),
+                x0_arr,
+                ctypes.c_double(tag_delay),
+                ctypes.byref(c_config),
+                out_xyz,
+                out_residuals,
+                out_used,
+                ctypes.byref(out_result),
             )
-        out_xyz = _c_array([0.0, 0.0, 0.0])
-        out_residuals = _c_array([0.0] * n)
-        out_used = _i_array([0] * n)
-        out_result = CResult()
-        rc = self.lib.biospur_tagpos_solve_frame(
-            _c_array(anchor_xyz),
-            _c_array(ranges),
-            _c_array(delays),
-            _c_array(sigmas),
-            _c_array(qualities),
-            _c_array(q_ema),
-            _c_array(r_ema),
-            ctypes.c_int(n),
-            _c_array(list(x0_tuple)),
-            ctypes.c_double(self.layout.tag_delay_mm),
-            ctypes.byref(self.c_config),
-            out_xyz,
-            out_residuals,
-            out_used,
-            ctypes.byref(out_result),
-        )
+            return rc, out_xyz, out_residuals, out_used, out_result
+
+        c_config = self.c_config
+        imu_prior_scale = None
+        temporal_prior_sigma_used = None
+        x0_tuple = self.last_by_tag.get(frame.tag)
+        if self.config.method in {"T4", "T4_V6_IMU_GATE"} and n >= 8 and self.t4_full_anchor_c_config is not None:
+            # Full-anchor frames use the memory-free T1 path from T4 v5.
+            rc, out_xyz, out_residuals, out_used, out_result = run_c(self.t4_full_anchor_c_config, None)
+        else:
+            if self.config.method == "T4_V6_IMU_GATE":
+                temporal_prior_sigma_used = (
+                    float(self.config.temporal_prior_sigma_mm)
+                    if x0_tuple is not None
+                    else None
+                )
+                imu_prior_scale = self._imu_prior_scale(frame) if x0_tuple is not None else None
+                if imu_prior_scale is not None and imu_prior_scale > 0.0:
+                    c_config = clone_c_config(c_config)
+                    c_config.temporal_prior_sigma_mm = (
+                        self.config.temporal_prior_sigma_mm / math.sqrt(imu_prior_scale)
+                    )
+                    temporal_prior_sigma_used = float(c_config.temporal_prior_sigma_mm)
+            rc, out_xyz, out_residuals, out_used, out_result = run_c(c_config, x0_tuple)
         if rc != 0:
             return None
         xyz = (float(out_xyz[0]), float(out_xyz[1]), float(out_xyz[2]))
@@ -249,5 +304,8 @@ class TagPositionSolver:
             max_abs_residual_mm=float(out_result.max_abs_residual_mm),
             residuals_by_anchor=residuals_by_anchor,
             used_by_anchor=used_by_anchor,
+            imu_sample_count=frame.imu.sample_count if frame.imu else 0,
+            imu_acc_norm_std_mg=frame.imu.acc_norm_std_mg if frame.imu else None,
+            imu_prior_scale=imu_prior_scale,
+            temporal_prior_sigma_used_mm=temporal_prior_sigma_used,
         )
-

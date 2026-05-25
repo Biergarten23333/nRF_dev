@@ -15,6 +15,7 @@ def solve_capture_trajectory(
     method: str = "T1",
     anchor_sigma_path: str | Path | None = None,
     tags: set[str] | None = None,
+    tag_delay_by_tag: dict[str, float] | None = None,
     max_frames: int = 0,
     tail_rows: int = 0,
 ) -> TrajectoryResult:
@@ -23,7 +24,8 @@ def solve_capture_trajectory(
     frames = read_tr_all_frames(capture_path, tags=tags, min_anchors=config.min_anchors, tail_rows=tail_rows)
     if max_frames > 0:
         frames = frames[:max_frames]
-    solver = TagPositionSolver(layout, config)
+    imu_frames = [f for f in frames if f.imu is not None and f.imu.valid]
+    solver = TagPositionSolver(layout, config, tag_delay_by_tag=tag_delay_by_tag)
     results: list[SolveResult] = []
     for frame in frames:
         result = solver.solve_frame(frame)
@@ -38,7 +40,10 @@ def solve_capture_trajectory(
         metadata={
             "capture_path": str(capture_path),
             "anchor_sigma_path": str(anchor_sigma_path) if anchor_sigma_path else "",
+            "tag_delay_by_tag": tag_delay_by_tag or {},
             "anchor_count_distribution": summarize_anchor_counts(frames),
+            "imu_frames_valid": len(imu_frames),
+            "imu_frames_total": len(frames),
         },
     )
 
@@ -67,6 +72,10 @@ def trajectory_to_jsonable(result: TrajectoryResult) -> dict:
                 "max_abs_residual_mm": row.max_abs_residual_mm,
                 "residuals_by_anchor": row.residuals_by_anchor,
                 "used_by_anchor": row.used_by_anchor,
+                "imu_sample_count": row.imu_sample_count,
+                "imu_acc_norm_std_mg": row.imu_acc_norm_std_mg,
+                "imu_prior_scale": row.imu_prior_scale,
+                "temporal_prior_sigma_used_mm": row.temporal_prior_sigma_used_mm,
             }
             for row in result.results
         ],
@@ -77,4 +86,3 @@ def write_trajectory_json(result: TrajectoryResult, out: str | Path) -> None:
     p = Path(out)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(trajectory_to_jsonable(result), indent=2), encoding="utf-8")
-

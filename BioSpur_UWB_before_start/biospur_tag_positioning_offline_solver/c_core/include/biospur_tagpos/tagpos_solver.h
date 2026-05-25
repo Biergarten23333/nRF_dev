@@ -10,11 +10,14 @@ extern "C" {
 #define BIOSPUR_TAGPOS_ERR_TOO_FEW_ANCHORS -2
 #define BIOSPUR_TAGPOS_ERR_SINGULAR -3
 
+#define BIOSPUR_TAGPOS_LOSS_HUBER 1
+#define BIOSPUR_TAGPOS_LOSS_TUKEY 2
+
 typedef enum BiospurTagposMethod {
     BIOSPUR_TAGPOS_T1_ROBUST_WLS = 1,
     BIOSPUR_TAGPOS_T2_QUALITY_WLS = 2,
-    BIOSPUR_TAGPOS_T3_RESIDUAL_REJECT = 3,
-    BIOSPUR_TAGPOS_T4_TAG_DELAY = 4
+    BIOSPUR_TAGPOS_T3_DYNAMIC_STABLE = 3,
+    BIOSPUR_TAGPOS_T4_NLOS_HEALTH = 4
 } BiospurTagposMethod;
 
 typedef struct BiospurTagposConfig {
@@ -32,6 +35,9 @@ typedef struct BiospurTagposConfig {
     double reject_abs_threshold_mm;
     double reject_min_improvement_mm;
     double reject_improvement_ratio;
+    double temporal_prior_sigma_mm;
+    int robust_loss;
+    double tukey_c;
 } BiospurTagposConfig;
 
 typedef struct BiospurTagposResult {
@@ -74,4 +80,3 @@ const char *biospur_tagpos_method_name(int method);
 #endif
 
 #endif
-

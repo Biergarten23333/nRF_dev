@@ -182,6 +182,16 @@
 #define APP_TAG_IMU_SAMPLE_PERIOD 4U
 #endif
 
+#ifndef APP_TAG_TR_IMU_SUMMARY_ENABLE
+#define APP_TAG_TR_IMU_SUMMARY_ENABLE 0U
+#endif
+
+#ifndef APP_TAG_TR_IMU_SUMMARY_WINDOW
+#define APP_TAG_TR_IMU_SUMMARY_WINDOW 5U
+#endif
+
+#define SS_TWR_INIT_IMU_SUMMARY_MAX_WINDOW 16U
+
 #ifndef APP_TAG_CONSOLE_SUMMARY_ENABLE
 #define APP_TAG_CONSOLE_SUMMARY_ENABLE 1U
 #endif
@@ -453,6 +463,23 @@ static uint32_t ss_twr_init_current_sweep_start_ms;
 static struct k_work_delayable ss_twr_init_status_work;
 #endif
 static struct uwb_imu_sample ss_twr_init_last_imu_sample;
+struct ss_twr_init_imu_summary_state {
+    bool valid;
+    uint8_t sample_count;
+    int32_t mean_mg;
+    int32_t std_mg;
+    int32_t min_mg;
+    int32_t max_mg;
+    uint32_t skip_count;
+};
+#if APP_TAG_TR_IMU_SUMMARY_ENABLE != 0U
+static struct ss_twr_init_imu_summary_state ss_twr_init_imu_summary;
+static int32_t
+    ss_twr_init_imu_norm_ring[SS_TWR_INIT_IMU_SUMMARY_MAX_WINDOW];
+static uint8_t ss_twr_init_imu_norm_count;
+static uint8_t ss_twr_init_imu_norm_pos;
+static uint32_t ss_twr_init_imu_skip_count;
+#endif
 static uint32_t ss_twr_init_perf_motion_dt_sum_ms;
 static uint32_t ss_twr_init_perf_track_sweep_sum_ms;
 static uint32_t ss_twr_init_perf_full_sweep_sum_ms;
@@ -652,7 +679,7 @@ static void ss_twr_init_publish_tag_range_summary(
     const struct uwb_tag_measurement *measurements, size_t measurement_count,
     uint8_t qf_percent)
 {
-    char line[320];
+    char line[384];
     char raw_csv[64];
     char range_csv[64];
     char quality_csv[40];
@@ -668,6 +695,7 @@ static void ss_twr_init_publish_tag_range_summary(
     uint32_t frame_us = 0U;
     uint32_t cycle_us = 0U;
     bool first = true;
+    int line_len;
 
     if (ss_twr_init_runtime_any_calibration_mode()) {
         return;
@@ -729,30 +757,51 @@ static void ss_twr_init_publish_tag_range_summary(
     }
 
 #if APP_TAG_TR_BCAST_V2_ENABLE
-    snprintk(line, sizeof(line),
-             "TR;2;%lu;%c;%u;%02lx;%02lx;%02lx;%s;%s;%s;%s;%u;%lu;%lu;%lu;%u",
-             (unsigned long)ss_twr_init_sweep_count,
-             ss_twr_init_plan_code(ss_twr_init_plan_label()),
-             (unsigned int)ss_twr_init_runtime_params.positioning_mode,
-             (unsigned long)active_mask, (unsigned long)valid_mask,
-             (unsigned long)rx_mask, raw_csv, range_csv, quality_csv,
-             status_codes, (unsigned int)qf_percent,
-             (unsigned long)first_to_last_us,
-             (unsigned long)frame_us,
-             (unsigned long)cycle_us,
-             (unsigned int)ss_twr_init_sweep_poll_count);
+    line_len = snprintk(
+        line, sizeof(line),
+        "TR;2;%lu;%c;%u;%02lx;%02lx;%02lx;%s;%s;%s;%s;%u;%lu;%lu;%lu;%u",
+        (unsigned long)ss_twr_init_sweep_count,
+        ss_twr_init_plan_code(ss_twr_init_plan_label()),
+        (unsigned int)ss_twr_init_runtime_params.positioning_mode,
+        (unsigned long)active_mask, (unsigned long)valid_mask,
+        (unsigned long)rx_mask, raw_csv, range_csv, quality_csv,
+        status_codes, (unsigned int)qf_percent,
+        (unsigned long)first_to_last_us,
+        (unsigned long)frame_us,
+        (unsigned long)cycle_us,
+        (unsigned int)ss_twr_init_sweep_poll_count);
 #else
-    snprintk(line, sizeof(line),
-             "TR;3;%lu;%c;%u;%02lx;%02lx;%s;%s;%s;%s;%u;%lu;%lu;%u",
-             (unsigned long)ss_twr_init_sweep_count,
-             ss_twr_init_plan_code(ss_twr_init_plan_label()),
-             (unsigned int)ss_twr_init_runtime_params.positioning_mode,
-             (unsigned long)active_mask, (unsigned long)valid_mask,
-             raw_csv, range_csv, quality_csv, status_codes,
-             (unsigned int)qf_percent,
-             (unsigned long)first_to_last_us,
-             (unsigned long)frame_us,
-             (unsigned int)ss_twr_init_sweep_poll_count);
+    line_len = snprintk(
+        line, sizeof(line),
+        "TR;%u;%lu;%c;%u;%02lx;%02lx;%s;%s;%s;%s;%u;%lu;%lu;%u",
+        (unsigned int)(APP_TAG_TR_IMU_SUMMARY_ENABLE != 0U ? 4U : 3U),
+        (unsigned long)ss_twr_init_sweep_count,
+        ss_twr_init_plan_code(ss_twr_init_plan_label()),
+        (unsigned int)ss_twr_init_runtime_params.positioning_mode,
+        (unsigned long)active_mask, (unsigned long)valid_mask,
+        raw_csv, range_csv, quality_csv, status_codes,
+        (unsigned int)qf_percent,
+        (unsigned long)first_to_last_us,
+        (unsigned long)frame_us,
+        (unsigned int)ss_twr_init_sweep_poll_count);
+#endif
+#if APP_TAG_TR_IMU_SUMMARY_ENABLE != 0U
+    if (line_len > 0 && ss_twr_init_imu_summary.valid) {
+        size_t used = (size_t)line_len;
+
+        if (used >= sizeof(line)) {
+            used = sizeof(line) - 1U;
+        }
+        (void)snprintk(
+            &line[used], sizeof(line) - used,
+            ";I,%u,%ld,%ld,%ld,%ld,%lu",
+            (unsigned int)ss_twr_init_imu_summary.sample_count,
+            (long)ss_twr_init_imu_summary.mean_mg,
+            (long)ss_twr_init_imu_summary.std_mg,
+            (long)ss_twr_init_imu_summary.min_mg,
+            (long)ss_twr_init_imu_summary.max_mg,
+            (unsigned long)ss_twr_init_imu_summary.skip_count);
+    }
 #endif
     (void)uwb_tag_ble_publish_status(line);
 }
@@ -1366,6 +1415,129 @@ static bool ss_twr_init_imu_sample_indicates_motion(
     return sample->delta_magnitude_mg > APP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG ||
            gravity_error_abs > APP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG;
 }
+
+#if APP_TAG_TR_IMU_SUMMARY_ENABLE != 0U
+static uint8_t ss_twr_init_imu_summary_window(void)
+{
+    uint32_t window = APP_TAG_TR_IMU_SUMMARY_WINDOW;
+
+    if (window == 0U) {
+        window = 1U;
+    }
+    if (window > SS_TWR_INIT_IMU_SUMMARY_MAX_WINDOW) {
+        window = SS_TWR_INIT_IMU_SUMMARY_MAX_WINDOW;
+    }
+    return (uint8_t)window;
+}
+
+static void ss_twr_init_reset_imu_summary(void)
+{
+    memset(&ss_twr_init_imu_summary, 0, sizeof(ss_twr_init_imu_summary));
+    memset(ss_twr_init_imu_norm_ring, 0, sizeof(ss_twr_init_imu_norm_ring));
+    ss_twr_init_imu_norm_count = 0U;
+    ss_twr_init_imu_norm_pos = 0U;
+    ss_twr_init_imu_skip_count = 0U;
+}
+
+static void ss_twr_init_recompute_imu_summary(void)
+{
+    int64_t sum = 0;
+    uint64_t var_sum = 0U;
+    int32_t min_mg = INT32_MAX;
+    int32_t max_mg = INT32_MIN;
+    int32_t mean_mg;
+
+    if (ss_twr_init_imu_norm_count == 0U) {
+        ss_twr_init_imu_summary.valid = false;
+        ss_twr_init_imu_summary.sample_count = 0U;
+        ss_twr_init_imu_summary.skip_count = ss_twr_init_imu_skip_count;
+        return;
+    }
+
+    for (uint8_t i = 0U; i < ss_twr_init_imu_norm_count; ++i) {
+        int32_t value = ss_twr_init_imu_norm_ring[i];
+
+        sum += value;
+        if (value < min_mg) {
+            min_mg = value;
+        }
+        if (value > max_mg) {
+            max_mg = value;
+        }
+    }
+
+    mean_mg = (int32_t)lround((double)sum /
+                              (double)ss_twr_init_imu_norm_count);
+    for (uint8_t i = 0U; i < ss_twr_init_imu_norm_count; ++i) {
+        int64_t diff = (int64_t)ss_twr_init_imu_norm_ring[i] - mean_mg;
+
+        var_sum += (uint64_t)(diff * diff);
+    }
+
+    ss_twr_init_imu_summary.valid = true;
+    ss_twr_init_imu_summary.sample_count = ss_twr_init_imu_norm_count;
+    ss_twr_init_imu_summary.mean_mg = mean_mg;
+    ss_twr_init_imu_summary.std_mg =
+        (int32_t)lround(sqrt((double)var_sum /
+                             (double)ss_twr_init_imu_norm_count));
+    ss_twr_init_imu_summary.min_mg = min_mg;
+    ss_twr_init_imu_summary.max_mg = max_mg;
+    ss_twr_init_imu_summary.skip_count = ss_twr_init_imu_skip_count;
+}
+
+static void ss_twr_init_push_imu_norm_sample(int32_t norm_mg)
+{
+    uint8_t window = ss_twr_init_imu_summary_window();
+
+    ss_twr_init_imu_norm_ring[ss_twr_init_imu_norm_pos] = norm_mg;
+    ss_twr_init_imu_norm_pos =
+        (uint8_t)((ss_twr_init_imu_norm_pos + 1U) % window);
+    if (ss_twr_init_imu_norm_count < window) {
+        ss_twr_init_imu_norm_count++;
+    }
+    ss_twr_init_recompute_imu_summary();
+}
+
+static void ss_twr_init_update_imu_summary_for_sweep(
+    struct uwb_imu_sample *sample, bool *have_sample)
+{
+    bool read_due;
+
+    if (have_sample != NULL) {
+        *have_sample = false;
+    }
+
+    if (!ss_twr_init_imu_ready) {
+        return;
+    }
+
+    read_due = !ss_twr_init_have_last_imu_sample ||
+               APP_TAG_IMU_SAMPLE_PERIOD <= 1U ||
+               (ss_twr_init_sweep_count % APP_TAG_IMU_SAMPLE_PERIOD) == 0U;
+
+    if (read_due) {
+        struct uwb_imu_sample fresh;
+
+        if (uwb_imu_read(&fresh)) {
+            ss_twr_init_last_imu_sample = fresh;
+            ss_twr_init_have_last_imu_sample = true;
+            ss_twr_init_push_imu_norm_sample(fresh.norm_mg);
+        } else {
+            ss_twr_init_imu_skip_count++;
+            ss_twr_init_imu_summary.skip_count = ss_twr_init_imu_skip_count;
+        }
+    }
+
+    if (ss_twr_init_have_last_imu_sample) {
+        if (sample != NULL) {
+            *sample = ss_twr_init_last_imu_sample;
+        }
+        if (have_sample != NULL) {
+            *have_sample = true;
+        }
+    }
+}
+#endif
 
 static bool ss_twr_init_dynamic_context_active(void)
 {
@@ -3053,6 +3225,9 @@ static int ss_twr_init_load_runtime_config(
     ss_twr_init_last_solve_reason = SS_TWR_INIT_SOLVE_NONE;
     ss_twr_init_roto_prewarm_deadline_ms = 0U;
     memset(&ss_twr_init_last_imu_sample, 0, sizeof(ss_twr_init_last_imu_sample));
+#if APP_TAG_TR_IMU_SUMMARY_ENABLE != 0U
+    ss_twr_init_reset_imu_summary();
+#endif
     ss_twr_init_perf_motion_dt_sum_ms = 0U;
     ss_twr_init_perf_track_sweep_sum_ms = 0U;
     ss_twr_init_perf_full_sweep_sum_ms = 0U;
@@ -3235,6 +3410,9 @@ static void ss_twr_init_print_location_if_ready(void)
     char received_anchors[32];
 
     memset(measurements, 0, sizeof(measurements));
+#if APP_TAG_TR_IMU_SUMMARY_ENABLE != 0U
+    ss_twr_init_update_imu_summary_for_sweep(&imu, &have_imu);
+#endif
 
     for (size_t i = 0; i < ss_twr_init_anchor_count; ++i) {
         uint8_t anchor_id = ss_twr_init_anchor_ids[i];
@@ -3531,6 +3709,7 @@ static void ss_twr_init_print_location_if_ready(void)
     have_motion = uwb_motion_update(location.x_mm, location.y_mm, location.z_mm,
                                     k_uptime_get(), &motion);
 
+#if APP_TAG_TR_IMU_SUMMARY_ENABLE == 0U
     if (ss_twr_init_imu_ready) {
         if (!ss_twr_init_have_last_imu_sample ||
             APP_TAG_IMU_SAMPLE_PERIOD <= 1U ||
@@ -3545,6 +3724,7 @@ static void ss_twr_init_print_location_if_ready(void)
             have_imu = true;
         }
     }
+#endif
 
     if (ss_twr_init_current_sweep_full) {
         ss_twr_init_perf_full_sweep_sum_ms += sweep_elapsed_ms;

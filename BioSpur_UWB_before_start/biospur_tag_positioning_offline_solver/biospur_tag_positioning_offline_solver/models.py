@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-MethodName = Literal["T1", "T2", "T3", "T4"]
+MethodName = Literal["T1", "T2", "T3", "T4", "T4_V6_IMU_GATE"]
 
 
 @dataclass(frozen=True)
@@ -34,12 +34,24 @@ class Observation:
 
 
 @dataclass(frozen=True)
+class ImuSummary:
+    sample_count: int = 0
+    acc_norm_mean_mg: float | None = None
+    acc_norm_std_mg: float | None = None
+    acc_norm_min_mg: float | None = None
+    acc_norm_max_mg: float | None = None
+    skip_count: int = 0
+    valid: bool = False
+
+
+@dataclass(frozen=True)
 class Frame:
     tag: str
     sweep: int
     host_elapsed_s: float
     host_epoch_s: float
     observations: tuple[Observation, ...]
+    imu: ImuSummary | None = None
 
 
 @dataclass(frozen=True)
@@ -55,7 +67,11 @@ class SolverConfig:
     reject_abs_threshold_mm: float = 120.0
     reject_min_improvement_mm: float = 20.0
     reject_improvement_ratio: float = 0.75
+    temporal_prior_sigma_mm: float = 180.0
     min_anchors: int = 4
+    imu_gate_min_samples: int = 3
+    imu_gate_half_sigma_mps2: float = 0.5
+    imu_gate_min_scale: float = 0.10
 
 
 @dataclass(frozen=True)
@@ -77,6 +93,10 @@ class SolveResult:
     max_abs_residual_mm: float
     residuals_by_anchor: dict[int, float]
     used_by_anchor: dict[int, bool]
+    imu_sample_count: int = 0
+    imu_acc_norm_std_mg: float | None = None
+    imu_prior_scale: float | None = None
+    temporal_prior_sigma_used_mm: float | None = None
 
 
 @dataclass(frozen=True)
@@ -87,4 +107,3 @@ class TrajectoryResult:
     frames_solved: int
     results: list[SolveResult]
     metadata: dict = field(default_factory=dict)
-

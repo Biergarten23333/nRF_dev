@@ -79,16 +79,21 @@ biospur_tag_positioning_offline_solver/
     __init__.py
   docs/
     algorithm_design.md
+    c_api.md
     current_solver_inventory.md
     migration_plan.md
+    t_series_design.md
+    validation_plan.md
   reference_current_implementations/
-    ui_realtime_trajectory_solver/
+    ui_realtime_trajectory_solver_20052026/
       export_capture_trajectory.py
-    official_report_field_solver/
+    official_report_field_solver_13052026/
       run_clean_full_compare.py
       run_v4io_field_check.py
   scripts/
     README.md
+    export_trajectory_t.py
+    validate_outdoor_dataset.py
   tests/
     README.md
 ```
@@ -99,6 +104,42 @@ biospur_tag_positioning_offline_solver/
 - Do not change existing UI or report behavior during the first extraction.
 - Do not estimate per-tag delay until OptiTrack / Roto / Wand evidence is ready.
 - Do not make this an AutoPos-only module.
+
+## Current T-Series Implementation
+
+This module now contains a C core and Python wrapper for:
+
+```text
+T1: robust WLS multilateration
+T2: quality-aware robust WLS
+T3: dynamic-stable robust WLS for Roto/body-motion captures
+T4: adaptive full-anchor/low-redundancy policy for dynamic robustness
+T4_V6_IMU_GATE: T4 v5 plus accelerometer dynamic-index prior gating
+```
+
+T1 is intended to be behavior-compatible with the current official Python
+solver. T2-T4 are forward-looking extensions and must be validated before being
+used for official reports. The current best T4 candidate uses memory-free T1
+when all 8 anchors are present and T3-style dynamic stabilization when runtime
+anchor redundancy drops below 8.
+
+`T4_V6_IMU_GATE` is the planned IMU-assisted dynamic variant. It is backward
+compatible with old captures: if a frame has no valid IMU summary, it falls back
+to the same behavior as T4 v5. When valid IMU summary is available and anchor
+redundancy is below 8, it weakens the previous-position prior according to
+`std(|a|)` from the Tag accelerometer.
+
+See:
+
+```text
+docs/version_chain.md
+```
+
+Run validation:
+
+```bash
+python3 biospur_tag_positioning_offline_solver/scripts/validate_outdoor_dataset.py
+```
 
 ## Intended Ownership
 

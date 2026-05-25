@@ -37,7 +37,7 @@ TR_SINGLE_RE = re.compile(
 
 TR_RANGE_RE = re.compile(
     rf"{TAG_NOTIFY_PREFIX_RE} notify: TR;"
-    r"(?P<ver>[123]);"
+    r"(?P<ver>[1234]);"
     r"(?P<sweep>\d+);"
     r"(?P<plan>[A-Za-z0-9_]+);"
     r"(?P<pmode>\d+);"
@@ -80,6 +80,16 @@ TR_BCAST_RE = re.compile(
 # Backwards-compatible aliases for older helper code and text checks.
 TR_RE = TR_RANGE_RE
 TR2_RE = TR_RANGE_RE
+
+TR_IMU_TRAILER_RE = re.compile(
+    r";I(?:MU)?[,;]"
+    r"(?P<imu_n>\d+)[,;]"
+    r"(?P<acc_norm_mean_mg>-?\d+)[,;]"
+    r"(?P<acc_norm_std_mg>-?\d+)[,;]"
+    r"(?P<acc_norm_min_mg>-?\d+)[,;]"
+    r"(?P<acc_norm_max_mg>-?\d+)"
+    r"(?:[,;](?P<imu_skip_count>\d+))?$"
+)
 
 CONNECTED_RE = re.compile(
     r"Connected\[(?P<conn>\d+)\]:.*?(?:name=(?P<name>[^\s]+))?.*?(?:bs=(?P<bs>BS[0-9A-F]{4}))?.*?tag_id=(?P<tag_id>-?\d+)"
@@ -156,6 +166,9 @@ def iter_tr_records(text: str):
         if idx > 0 and "notify:" not in fragment and fragment.startswith("TR;"):
             fragment = (prefix or "BLE notify: ") + fragment
 
+        imu_fields = extract_imu_trailer(fragment)
+        fragment = imu_fields.pop("_fragment", fragment)
+
         match = TR_SINGLE_RE.search(fragment)
         if match:
             yield {
@@ -168,6 +181,7 @@ def iter_tr_records(text: str):
                 "quality_percent": int(match.group("q")),
                 "valid": int(match.group("valid")),
                 "status": match.group("status"),
+                **imu_fields,
             }
             continue
 
@@ -216,6 +230,7 @@ def iter_tr_records(text: str):
                     "post_us": int(match.group("post_us") or 0),
                     "cycle_us": int(match.group("cycle_us") or 0),
                     "rx_seen": 1 if (rx_mask & (1 << anchor_id)) else 0,
+                    **imu_fields,
                 }
             continue
 
@@ -265,7 +280,26 @@ def iter_tr_records(text: str):
                 "post_us": "",
                 "cycle_us": "",
                 "rx_seen": "",
+                **imu_fields,
             }
+
+
+def extract_imu_trailer(fragment: str) -> dict:
+    """Parse optional TRv4 IMU summary trailer and return the stripped fragment."""
+    match = TR_IMU_TRAILER_RE.search(fragment)
+    if not match:
+        return {"_fragment": fragment}
+    fields = {
+        "_fragment": fragment[: match.start()],
+        "imu_valid": 1,
+        "imu_n": int(match.group("imu_n")),
+        "acc_norm_mean_mg": int(match.group("acc_norm_mean_mg")),
+        "acc_norm_std_mg": int(match.group("acc_norm_std_mg")),
+        "acc_norm_min_mg": int(match.group("acc_norm_min_mg")),
+        "acc_norm_max_mg": int(match.group("acc_norm_max_mg")),
+        "imu_skip_count": int(match.group("imu_skip_count") or 0),
+    }
+    return fields
 
 
 def normalize_target(name: str) -> str:
@@ -927,6 +961,20 @@ def ensure_target_links_ready(
             f"{pass_idx}: missing={','.join(missing)}",
             flush=True,
         )
+        if len(targets) > 1:
+            # Do not narrow the runtime target filter to a single missing tag
+            # during multi-tag captures.  The Master disconnects connected
+            # peers that no longer match the active filter, so exact-enrolling
+            # BSDC91 can drop an already-ready BS2DCE and collapse 2/2 -> 1/2
+            # -> 0/2.  Keep the broad capture prefix and let conn/scan recover
+            # missing peers without evicting ready ones.
+            ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
+            ser = send_cmd(ser, logf, "ota_target name -", 0.5)
+            ser = send_cmd(ser, logf, f"ota_target prefix {discovery_prefix}", 0.5)
+            ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
+            ser = send_cmd(ser, logf, "device kind tag", 2.0)
+            ser = send_cmd(ser, logf, "conn", 0.5)
+            return passive_wait(f"multi-target-recover{pass_idx}", wait_s)
         for target in missing:
             ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
             ser = send_cmd(ser, logf, f"ota_target name {target}", 0.5)
@@ -1922,6 +1970,13 @@ def main() -> int:
                                     "post_us": tr.get("post_us", ""),
                                     "cycle_us": tr.get("cycle_us", ""),
                                     "rx_seen": tr.get("rx_seen", ""),
+                                    "imu_valid": int(tr.get("imu_valid") or 0),
+                                    "imu_n": int(tr.get("imu_n") or 0),
+                                    "acc_norm_mean_mg": tr.get("acc_norm_mean_mg", ""),
+                                    "acc_norm_std_mg": tr.get("acc_norm_std_mg", ""),
+                                    "acc_norm_min_mg": tr.get("acc_norm_min_mg", ""),
+                                    "acc_norm_max_mg": tr.get("acc_norm_max_mg", ""),
+                                    "imu_skip_count": int(tr.get("imu_skip_count") or 0),
                                 }
                             )
                             if peer_name:
@@ -1991,6 +2046,13 @@ def main() -> int:
         "post_us",
         "cycle_us",
         "rx_seen",
+        "imu_valid",
+        "imu_n",
+        "acc_norm_mean_mg",
+        "acc_norm_std_mg",
+        "acc_norm_min_mg",
+        "acc_norm_max_mg",
+        "imu_skip_count",
     ]
 
     write_rows(session_dir / "tr_all.csv", tr_fields, tr_rows)

@@ -38,7 +38,7 @@ TR_BCAST_RE = re.compile(
 )
 TR_RANGE_RE = re.compile(
     rf"{TAG_NOTIFY_PREFIX_RE} notify: TR;"
-    r"(?P<ver>[123]);"
+    r"(?P<ver>[1234]);"
     r"(?P<sweep>\d+);"
     r"(?P<plan>[A-Za-z0-9_]+);"
     r"(?P<pmode>\d+);"
@@ -47,7 +47,7 @@ TR_RANGE_RE = re.compile(
     r"(?P<raws>-?\d+(?:,-?\d+)*);"
     r"(?P<ranges>\d+(?:,\d+)*);"
     r"(?P<qs>\d+(?:,\d+)*);"
-    r"(?P<statuses>[ORTEP]+)"
+    r"(?P<statuses>[ORTEPL]+)"
     r"(?:;"
     r"(?P<qf>\d+);"
     r"(?P<first_to_last_us>\d+);"
