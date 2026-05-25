@@ -15,73 +15,89 @@
     {
       "id": 0,
       "label": "A",
-      "x_mm": 0.0,
-      "y_mm": 0.0,
-      "z_mm": 88.07259948472438,
+      "x_mm": 117.49065209039031,
+      "y_mm": 102.85040235451265,
+      "z_mm": -317.40788567497526,
       "d_anchor_mm": 0.0,
+      "x_mm_raw_autopos": 0.0,
+      "y_mm_raw_autopos": 0.0,
       "z_mm_raw_autopos": 0.0
     },
     {
       "id": 1,
       "label": "B",
-      "x_mm": 1893.993695258845,
-      "y_mm": 0.0,
-      "z_mm": 88.07259948472438,
+      "x_mm": 1998.6780547022406,
+      "y_mm": 102.85040235451265,
+      "z_mm": -97.5304790713495,
       "d_anchor_mm": 0.0,
+      "x_mm_raw_autopos": 1893.993695258845,
+      "y_mm_raw_autopos": 0.0,
       "z_mm_raw_autopos": 0.0
     },
     {
       "id": 2,
       "label": "C",
-      "x_mm": 1624.402258460676,
-      "y_mm": 2429.0508922150098,
-      "z_mm": 88.07259948472438,
+      "x_mm": 1698.2964750044946,
+      "y_mm": 2515.6019515772077,
+      "z_mm": 150.19648366627302,
       "d_anchor_mm": 0.0,
+      "x_mm_raw_autopos": 1624.402258460676,
+      "y_mm_raw_autopos": 2429.0508922150098,
       "z_mm_raw_autopos": 0.0
     },
     {
       "id": 3,
       "label": "D",
-      "x_mm": 182.1582093978489,
-      "y_mm": 2413.9357654171185,
-      "z_mm": 237.53661153327747,
+      "x_mm": 248.77200407014055,
+      "y_mm": 2483.3024848692157,
+      "z_mm": 128.48456008116483,
       "d_anchor_mm": 0.0,
+      "x_mm_raw_autopos": 182.1582093978489,
+      "y_mm_raw_autopos": 2413.9357654171185,
       "z_mm_raw_autopos": 149.4640120485531
     },
     {
       "id": 4,
       "label": "E",
-      "x_mm": 398.3184639077602,
-      "y_mm": 27.11959009618737,
-      "z_mm": 1945.2862224541575,
+      "x_mm": 298.5909869866197,
+      "y_mm": -85.00187112596927,
+      "z_mm": 1564.226963133039,
       "d_anchor_mm": 0.0,
+      "x_mm_raw_autopos": 398.3184639077602,
+      "y_mm_raw_autopos": 27.11959009618737,
       "z_mm_raw_autopos": 1857.2136229694331
     },
     {
       "id": 5,
       "label": "F",
-      "x_mm": 2041.876620670063,
-      "y_mm": 187.05843059586553,
-      "z_mm": 1686.4041578465294,
+      "x_mm": 1958.7412561344318,
+      "y_mm": 103.8038998742741,
+      "z_mm": 1517.9967195554884,
       "d_anchor_mm": 0.0,
+      "x_mm_raw_autopos": 2041.876620670063,
+      "y_mm_raw_autopos": 187.05843059586553,
       "z_mm_raw_autopos": 1598.331558361805
     },
     {
       "id": 6,
       "label": "G",
-      "x_mm": 1682.5617880482835,
-      "y_mm": 2395.804360240503,
-      "z_mm": 1476.5884015493505,
+      "x_mm": 1596.3952856583887,
+      "y_mm": 2321.994316086937,
+      "z_mm": 1523.0024519090803,
       "d_anchor_mm": 0.0,
+      "x_mm_raw_autopos": 1682.5617880482835,
+      "y_mm_raw_autopos": 2395.804360240503,
       "z_mm_raw_autopos": 1388.515802064626
     },
     {
       "id": 7,
       "label": "H",
-      "x_mm": 84.7860353981905,
-      "y_mm": 2354.6245384533368,
-      "z_mm": 1640.0,
+      "x_mm": -8.867643505039268,
+      "y_mm": 2262.191991027331,
+      "z_mm": 1494.0008285354315,
       "d_anchor_mm": 0.0,
+      "x_mm_raw_autopos": 84.7860353981905,
+      "y_mm_raw_autopos": 2354.6245384533368,
       "z_mm_raw_autopos": 1551.9274005152756
     }
   ],
@@ -91,23 +107,96 @@
     "implementation": "archive_v1_classical_mds_only",
     "delay_aware": false,
     "ultrasound_height_alignment": {
-      "anchor": "H",
-      "z_model": "z_corrected_mm = z_sign * z_raw_autopos_mm + z_shift_mm",
+      "anchors_used": [
+        "F",
+        "G",
+        "H"
+      ],
+      "method": "rigid_pitch_roll_z_best_fit",
+      "z_model": "z_corrected_mm = dot(z_axis_unit, raw_xyz_mm) + z_shift_mm",
       "z_convention": "mean_z(ABCD) < mean_z(EFGH)",
-      "z_sign": 1.0,
-      "z_shift_mm": 88.07259948472438,
+      "status": "pass",
+      "rms_residual_mm": 0.0024124431110883944,
+      "max_residual_mm": 0.0032804445115743874,
+      "pass_thresholds": {
+        "rms_residual_mm": 50.0,
+        "max_residual_mm": 80.0
+      },
+      "z_axis_unit_in_raw_frame": [
+        0.11609194220341686,
+        0.11486970369010843,
+        0.9865736729355721
+      ],
+      "x_axis_unit_in_raw_frame": [
+        0.9932384713428285,
+        -0.013426228832725911,
+        -0.1153129456040941
+      ],
+      "y_axis_unit_in_raw_frame": [
+        0.0,
+        0.9932898305899834,
+        -0.11565168587842563
+      ],
+      "z_shift_mm": -317.40788567497526,
+      "xy_shift_mm": [
+        117.49065209039031,
+        102.85040235451265
+      ],
       "lower_mean_raw_z_mm": 37.36600301213827,
       "upper_mean_raw_z_mm": 1598.997095977785,
-      "raw_anchor_z_mm": 1551.9274005152756,
-      "target_anchor_height_mm": 1640.0,
+      "lower_mean_aligned_z_mm": -34.06433024972172,
+      "upper_mean_aligned_z_mm": 1524.8067407832598,
+      "residuals": [
+        {
+          "anchor": "F",
+          "target_z_mm": 1518.0,
+          "fitted_z_mm": 1517.9967195554884,
+          "residual_mm": -0.0032804445115743874,
+          "source_csv": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/erlangen_20260528_mocap/captures/erlangen_20260528_optitrack/us_F_OFFSET_RETEST_F_US30_20260523_205219/ultrasound_F.csv"
+        },
+        {
+          "anchor": "G",
+          "target_z_mm": 1523.0,
+          "fitted_z_mm": 1523.0024519090803,
+          "residual_mm": 0.0024519090802641585,
+          "source_csv": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/erlangen_20260528_mocap/captures/erlangen_20260528_optitrack/us_US_OFFSET01_FGH_US30_20260523_204823/ultrasound_G.csv"
+        },
+        {
+          "anchor": "H",
+          "target_z_mm": 1494.0,
+          "fitted_z_mm": 1494.0008285354315,
+          "residual_mm": 0.0008285354315376026,
+          "source_csv": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/erlangen_20260528_mocap/captures/erlangen_20260528_optitrack/us_US_OFFSET01_FGH_US30_20260523_204823/ultrasound_H.csv"
+        }
+      ],
       "ultrasound": {
-        "source_csv": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/erlangen_20260528_mocap/captures/erlangen_20260528_optitrack/us_US01_H_US30_20260522_170151/ultrasound_H.csv",
-        "timestamp": "2026-05-22T17:02:30",
-        "state": "DONE",
-        "median_mm": 1533.0,
-        "ant_center_offset_mm": 107.0,
-        "height_ant_center_mm": 1640.0,
-        "raw": "US;DONE;attempts=300;target=300;ok=300;timeout=0;latest_mm=1528;median_mm=1533;mean_mm=1533;echo_us="
+        "F": {
+          "source_csv": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/erlangen_20260528_mocap/captures/erlangen_20260528_optitrack/us_F_OFFSET_RETEST_F_US30_20260523_205219/ultrasound_F.csv",
+          "timestamp": "2026-05-23T20:53:17",
+          "state": "DONE",
+          "median_mm": 1518.0,
+          "ant_center_offset_mm": 0.0,
+          "height_ant_center_mm": 1518.0,
+          "raw": "US;DONE;attempts=300;target=300;ok=300;timeout=0;latest_mm=1512;median_mm=1518;mean_mm=1516;echo_us="
+        },
+        "G": {
+          "source_csv": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/erlangen_20260528_mocap/captures/erlangen_20260528_optitrack/us_US_OFFSET01_FGH_US30_20260523_204823/ultrasound_G.csv",
+          "timestamp": "2026-05-23T20:50:05",
+          "state": "DONE",
+          "median_mm": 1523.0,
+          "ant_center_offset_mm": 0.0,
+          "height_ant_center_mm": 1523.0,
+          "raw": "US;DONE;attempts=300;target=300;ok=300;timeout=0;latest_mm=1518;median_mm=1523;mean_mm=1520;echo_us="
+        },
+        "H": {
+          "source_csv": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/erlangen_20260528_mocap/captures/erlangen_20260528_optitrack/us_US_OFFSET01_FGH_US30_20260523_204823/ultrasound_H.csv",
+          "timestamp": "2026-05-23T20:50:52",
+          "state": "DONE",
+          "median_mm": 1387.0,
+          "ant_center_offset_mm": 107.0,
+          "height_ant_center_mm": 1494.0,
+          "raw": "US;DONE;attempts=300;target=300;ok=300;timeout=0;latest_mm=1376;median_mm=1387;mean_mm=1412;echo_us="
+        }
       },
       "note": "Post-process coordinate-frame alignment only. Inter-anchor solve residuals are unchanged."
     }

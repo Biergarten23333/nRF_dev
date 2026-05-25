@@ -51,7 +51,8 @@
 - `v4-io/layout_us_height.json`
 
 ## Ultrasound Height-Aligned Layout
-- `layout_us_height.json` files use Anchor H ultrasound median antenna-center height as the z-up frame reference.
+- `layout_us_height.json` files use F/G/H ultrasound antenna-center heights for a best-fit rigid z alignment.
+- `layout.json` remains the pure UWB AutoPos result; the US-aligned layout reports residual PASS/FAIL.
 - This is a coordinate-frame post-process; it does not change inter-anchor solve residuals.
 
 ## Important Caveat

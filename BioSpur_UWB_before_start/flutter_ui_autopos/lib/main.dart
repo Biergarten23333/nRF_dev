@@ -62,7 +62,7 @@ class AutoPosFieldApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'BioSpur AutoPos Field',
+      title: 'BioSpur Anchor Auto Positioning Interface',
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
@@ -589,12 +589,12 @@ class FieldHeader extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'BioSpur AutoPos',
+                    'BioSpur Anchor Auto Positioning Interface',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Session $captureSession  |  ${sweep.displayName}',
+                    'Sweep status: ${sweep.displayName}',
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: mutedText),
                   ),

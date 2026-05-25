@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 APP_NAME="biospur-autopos"
-DISPLAY_NAME="BioSpur AutoPos"
+DISPLAY_NAME="BioSpur Anchor Auto Positioning Interface"
 VERSION="$(awk '/^version:/ {print $2; exit}' "${ROOT}/pubspec.yaml" | cut -d+ -f1)"
 ARCH="amd64"
 BUILD_DIR="${ROOT}/build/linux/x64/release/bundle"
@@ -37,7 +37,7 @@ cat > "${PKG_ROOT}/usr/share/applications/com.biospur.autopos.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=${DISPLAY_NAME}
-Comment=BioSpur AutoPos field console
+Comment=BioSpur anchor auto positioning field interface
 Exec=${APP_NAME}
 Icon=${APP_NAME}
 Terminal=false
@@ -56,7 +56,7 @@ Architecture: ${ARCH}
 Depends: libgtk-3-0, libstdc++6, libc6
 Installed-Size: ${INSTALLED_SIZE}
 Maintainer: BioSpur <dev@biospur.local>
-Description: BioSpur AutoPos field console
+Description: BioSpur Anchor Auto Positioning Interface
  Desktop UI for AutoPos sweep, anchor layout analysis, and capture playback.
 EOF
 
