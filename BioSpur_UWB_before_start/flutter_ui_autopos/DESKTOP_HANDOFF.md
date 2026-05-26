@@ -76,8 +76,9 @@ Default workspace:
 In the app header:
 
 - edit `Data workspace`
-- click `Browse` to choose a workspace folder
-- click `Use` to activate it; the UI shows a confirmation dialog with the active path
+- click `Browse` to choose a workspace folder; the selected folder is activated immediately
+- click `Activate` only after manually typing or editing the path
+- check the `Active:` line in the header before starting a sweep/capture
 
 The selected workspace is persisted here:
 

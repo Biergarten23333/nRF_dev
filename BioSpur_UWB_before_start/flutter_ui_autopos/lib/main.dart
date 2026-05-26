@@ -265,6 +265,7 @@ class _FieldConsolePageState extends State<FieldConsolePage>
       final selected = result.stdout.toString().trim();
       if (selected.isNotEmpty) {
         _workspaceController.text = selected;
+        await _applyWorkspace();
       }
       return;
     }
@@ -602,6 +603,9 @@ class FieldHeader extends StatelessWidget {
                   LayoutBuilder(
                     builder: (context, constraints) {
                       final fieldWidth = math.min(constraints.maxWidth, 520.0);
+                      final typedWorkspace = workspaceController.text.trim();
+                      final workspaceMatchesActive =
+                          typedWorkspace == activeWorkspaceRoot;
                       return Wrap(
                         spacing: 8,
                         runSpacing: 8,
@@ -634,12 +638,35 @@ class FieldHeader extends StatelessWidget {
                             label: const Text('Browse'),
                           ),
                           const SizedBox(width: 8),
-                          FilledButton.icon(
-                            onPressed: runner.isRunning
-                                ? null
-                                : onApplyWorkspace,
-                            icon: const Icon(Icons.folder_open_outlined),
-                            label: const Text('Use'),
+                          if (workspaceMatchesActive)
+                            const StatusPill(
+                              label: 'Workspace',
+                              value: 'active',
+                              tone: PillTone.good,
+                            )
+                          else
+                            FilledButton.icon(
+                              onPressed: runner.isRunning
+                                  ? null
+                                  : onApplyWorkspace,
+                              icon: const Icon(Icons.folder_open_outlined),
+                              label: const Text('Activate'),
+                            ),
+                          SizedBox(
+                            width: math.min(constraints.maxWidth, 720.0),
+                            child: Text(
+                              workspaceMatchesActive
+                                  ? 'Active: $activeWorkspaceRoot'
+                                  : 'Typed path is not active. Click Activate before capture.',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: workspaceMatchesActive
+                                    ? mutedText
+                                    : Colors.amberAccent,
+                                fontSize: 11,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
                           ),
                         ],
                       );
@@ -3850,7 +3877,7 @@ class _RealtimeMotionCaptureCardState extends State<RealtimeMotionCaptureCard> {
       );
       if (source == null) {
         if (mounted) {
-          setState(() => _status = 'waiting for current tr_all.csv');
+          setState(() => _status = 'waiting for live range data');
         }
         return;
       }
@@ -4158,35 +4185,46 @@ class RealtimeCaptureFinder {
     if (!root.existsSync()) return null;
     final candidates = <RealtimeCaptureSource>[];
     final minModified = startedAt.subtract(const Duration(seconds: 2));
-    for (final dir in root.listSync().whereType<Directory>()) {
-      final name = dir.path.split('/').last;
-      if (!name.startsWith(target.directoryPrefix)) continue;
-      final stat = dir.statSync();
-      if (stat.modified.isBefore(minModified)) continue;
-      final files =
-          dir.listSync(recursive: true).whereType<File>().where((file) {
-            final isRangeSource =
-                file.path.endsWith('/tr_all.csv') ||
-                file.path.endsWith('/raw.log');
-            if (!isRangeSource) return false;
-            if (file.lengthSync() <= 0) return false;
-            return !file.statSync().modified.isBefore(minModified);
-          }).toList()..sort((a, b) {
-            final aIsCsv = a.path.endsWith('/tr_all.csv');
-            final bIsCsv = b.path.endsWith('/tr_all.csv');
-            if (aIsCsv != bIsCsv) return aIsCsv ? -1 : 1;
-            return b.statSync().modified.compareTo(a.statSync().modified);
-          });
-      if (files.isEmpty) continue;
-      final trAll = files.first;
-      candidates.add(
-        RealtimeCaptureSource(
-          capture: dir,
-          trAll: trAll,
-          trAllModified: trAll.statSync().modified,
-          trAllSize: trAll.lengthSync(),
-        ),
-      );
+    void collectCandidates({required bool requireFresh}) {
+      for (final dir in root.listSync().whereType<Directory>()) {
+        final name = dir.path.split('/').last;
+        if (!name.startsWith(target.directoryPrefix)) continue;
+        final stat = dir.statSync();
+        if (requireFresh && stat.modified.isBefore(minModified)) continue;
+        final files =
+            dir.listSync(recursive: true).whereType<File>().where((file) {
+              final isRangeSource =
+                  file.path.endsWith('/tr_all.csv') ||
+                  file.path.endsWith('/raw.log');
+              if (!isRangeSource) return false;
+              if (file.lengthSync() <= 0) return false;
+              if (requireFresh &&
+                  file.statSync().modified.isBefore(minModified)) {
+                return false;
+              }
+              return true;
+            }).toList()..sort((a, b) {
+              final aIsCsv = a.path.endsWith('/tr_all.csv');
+              final bIsCsv = b.path.endsWith('/tr_all.csv');
+              if (aIsCsv != bIsCsv) return aIsCsv ? -1 : 1;
+              return b.statSync().modified.compareTo(a.statSync().modified);
+            });
+        if (files.isEmpty) continue;
+        final trAll = files.first;
+        candidates.add(
+          RealtimeCaptureSource(
+            capture: dir,
+            trAll: trAll,
+            trAllModified: trAll.statSync().modified,
+            trAllSize: trAll.lengthSync(),
+          ),
+        );
+      }
+    }
+
+    collectCandidates(requireFresh: true);
+    if (candidates.isEmpty) {
+      collectCandidates(requireFresh: false);
     }
     if (candidates.isEmpty) return null;
     candidates.sort((a, b) => b.trAllModified.compareTo(a.trAllModified));

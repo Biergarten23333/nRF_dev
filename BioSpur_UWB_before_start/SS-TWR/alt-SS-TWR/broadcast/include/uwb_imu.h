@@ -13,6 +13,9 @@ struct uwb_imu_sample {
     int32_t gravity_error_mg;
     uint32_t delta_magnitude_mg;
     uint32_t timestamp_ms;
+    uint32_t read_start_cycle;
+    uint32_t read_end_cycle;
+    uint32_t timestamp_cycle;
 };
 
 int uwb_imu_init(void);

@@ -50,6 +50,7 @@ tag_ble_tx_item_count="${APP_TAG_BLE_TX_ITEM_COUNT:-10}"
 tag_alt_rxg_ble_diag_enable="${APP_TAG_ALT_RXG_BLE_DIAG_ENABLE:-1}"
 tag_imu_sample_period="${APP_TAG_IMU_SAMPLE_PERIOD:-2}"
 tag_tr_imu_summary_enable="${APP_TAG_TR_IMU_SUMMARY_ENABLE:-0}"
+tag_tr_imu_raw_enable="${APP_TAG_TR_IMU_RAW_ENABLE:-0}"
 tag_tr_imu_summary_window="${APP_TAG_TR_IMU_SUMMARY_WINDOW:-5}"
 tag_ekf_enable="${APP_TAG_EKF_ENABLE:-1}"
 tag_loc_min_quality_percent="${APP_TAG_LOC_MIN_QUALITY_PERCENT:-20}"
@@ -112,6 +113,7 @@ fi
   printf 'set(APP_TAG_ALT_RXG_BLE_DIAG_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_alt_rxg_ble_diag_enable}"
   printf 'set(APP_TAG_IMU_SAMPLE_PERIOD %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_imu_sample_period}"
   printf 'set(APP_TAG_TR_IMU_SUMMARY_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_tr_imu_summary_enable}"
+  printf 'set(APP_TAG_TR_IMU_RAW_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_tr_imu_raw_enable}"
   printf 'set(APP_TAG_TR_IMU_SUMMARY_WINDOW %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_tr_imu_summary_window}"
   printf 'set(APP_TAG_EKF_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_ekf_enable}"
   printf 'set(APP_TAG_LOC_MIN_QUALITY_PERCENT %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_loc_min_quality_percent}"
@@ -210,6 +212,7 @@ west build \
   -DAPP_TAG_PENDING_PRINT_PERIOD="${tag_pending_print_period}" \
   -DAPP_TAG_IMU_SAMPLE_PERIOD="${tag_imu_sample_period}" \
   -DAPP_TAG_TR_IMU_SUMMARY_ENABLE="${tag_tr_imu_summary_enable}" \
+  -DAPP_TAG_TR_IMU_RAW_ENABLE="${tag_tr_imu_raw_enable}" \
   -DAPP_TAG_TR_IMU_SUMMARY_WINDOW="${tag_tr_imu_summary_window}" \
   -DAPP_TAG_VERBOSE_RANGING=0 \
   -DAPP_TAG_VERBOSE_MEASUREMENTS=0 \

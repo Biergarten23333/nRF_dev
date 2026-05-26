@@ -190,15 +190,19 @@ bool uwb_imu_read(struct uwb_imu_sample *sample)
     uint64_t delta_sq = 0U;
     int32_t norm_mg;
     int32_t delta_magnitude_mg;
+    uint32_t read_start_cycle;
+    uint32_t read_end_cycle;
     int ret;
 
     if (sample == NULL || !uwb_imu_state.initialized) {
         return false;
     }
 
+    read_start_cycle = k_cycle_get_32();
     ret = i2c_burst_read_dt(&uwb_imu_i2c,
                             LIS2DH_REG_STATUS | LIS2DH_AUTOINCREMENT_ADDR,
                             raw, sizeof(raw));
+    read_end_cycle = k_cycle_get_32();
     if (ret < 0) {
         printk("Tag accel burst read failed: %d\n", ret);
         return false;
@@ -242,6 +246,10 @@ bool uwb_imu_read(struct uwb_imu_sample *sample)
     sample->gravity_error_mg = norm_mg - UWB_IMU_GRAVITY_MILLI_G;
     sample->delta_magnitude_mg = (uint32_t)delta_magnitude_mg;
     sample->timestamp_ms = (uint32_t)k_uptime_get();
+    sample->read_start_cycle = read_start_cycle;
+    sample->read_end_cycle = read_end_cycle;
+    sample->timestamp_cycle =
+        read_start_cycle + (uint32_t)((read_end_cycle - read_start_cycle) / 2U);
 
     uwb_imu_state.have_prev = true;
     uwb_imu_state.prev_ax_mg = ax_mg;

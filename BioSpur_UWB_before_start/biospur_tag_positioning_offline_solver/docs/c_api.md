@@ -92,3 +92,26 @@ imu_skip_count
 The solver consumes `imu_n`, `imu_valid`, and `acc_norm_std_mg`. If any are
 missing or invalid, `T4_V6_IMU_GATE` falls back to T4 v5 behavior for that
 frame.
+
+## Raw IMU Capture Fields
+
+The b68 Tag firmware can emit raw LIS2DH12 XYZ data in the TR trailer. These
+fields are parsed and kept in the Python capture model for post-processing, but
+they are not passed into the C frame solver ABI:
+
+```text
+imu_raw_valid
+acc_x_mg
+acc_y_mg
+acc_z_mg
+acc_norm_mg
+imu_timestamp_ms
+imu_poll_to_read_start_us
+imu_poll_to_read_mid_us
+imu_poll_to_read_end_us
+imu_read_duration_us
+```
+
+The `imu_poll_to_read_*_us` fields are measured on the Tag from broadcast poll
+TX-done to the I2C read window. They are intended for offline synchronization
+checks, not for changing the per-frame C API.

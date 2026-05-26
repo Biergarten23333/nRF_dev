@@ -186,11 +186,21 @@
 #define APP_TAG_TR_IMU_SUMMARY_ENABLE 0U
 #endif
 
+#ifndef APP_TAG_TR_IMU_RAW_ENABLE
+#define APP_TAG_TR_IMU_RAW_ENABLE 0U
+#endif
+
 #ifndef APP_TAG_TR_IMU_SUMMARY_WINDOW
 #define APP_TAG_TR_IMU_SUMMARY_WINDOW 5U
 #endif
 
 #define SS_TWR_INIT_IMU_SUMMARY_MAX_WINDOW 16U
+
+#if APP_TAG_TR_IMU_SUMMARY_ENABLE != 0U || APP_TAG_TR_IMU_RAW_ENABLE != 0U
+#define SS_TWR_INIT_TR_RANGE_VERSION 4U
+#else
+#define SS_TWR_INIT_TR_RANGE_VERSION 3U
+#endif
 
 #ifndef APP_TAG_CONSOLE_SUMMARY_ENABLE
 #define APP_TAG_CONSOLE_SUMMARY_ENABLE 1U
@@ -774,7 +784,7 @@ static void ss_twr_init_publish_tag_range_summary(
     line_len = snprintk(
         line, sizeof(line),
         "TR;%u;%lu;%c;%u;%02lx;%02lx;%s;%s;%s;%s;%u;%lu;%lu;%u",
-        (unsigned int)(APP_TAG_TR_IMU_SUMMARY_ENABLE != 0U ? 4U : 3U),
+        (unsigned int)SS_TWR_INIT_TR_RANGE_VERSION,
         (unsigned long)ss_twr_init_sweep_count,
         ss_twr_init_plan_code(ss_twr_init_plan_label()),
         (unsigned int)ss_twr_init_runtime_params.positioning_mode,
@@ -801,6 +811,44 @@ static void ss_twr_init_publish_tag_range_summary(
             (long)ss_twr_init_imu_summary.min_mg,
             (long)ss_twr_init_imu_summary.max_mg,
             (unsigned long)ss_twr_init_imu_summary.skip_count);
+    }
+#endif
+#if APP_TAG_TR_IMU_RAW_ENABLE != 0U
+    if (line_len > 0 && ss_twr_init_have_last_imu_sample) {
+        size_t used = strlen(line);
+        uint32_t read_start_us = 0U;
+        uint32_t read_mid_us = 0U;
+        uint32_t read_end_us = 0U;
+        uint32_t read_duration_us = k_cyc_to_us_floor32(
+            ss_twr_init_last_imu_sample.read_end_cycle -
+            ss_twr_init_last_imu_sample.read_start_cycle);
+
+        if (used >= sizeof(line)) {
+            used = sizeof(line) - 1U;
+        }
+        if (ss_twr_init_sweep_timing_valid) {
+            read_start_us = k_cyc_to_us_floor32(
+                ss_twr_init_last_imu_sample.read_start_cycle -
+                ss_twr_init_sweep_first_poll_cycle);
+            read_mid_us = k_cyc_to_us_floor32(
+                ss_twr_init_last_imu_sample.timestamp_cycle -
+                ss_twr_init_sweep_first_poll_cycle);
+            read_end_us = k_cyc_to_us_floor32(
+                ss_twr_init_last_imu_sample.read_end_cycle -
+                ss_twr_init_sweep_first_poll_cycle);
+        }
+        (void)snprintk(
+            &line[used], sizeof(line) - used,
+            ";R,%ld,%ld,%ld,%ld,%lu,%lu,%lu,%lu,%lu",
+            (long)ss_twr_init_last_imu_sample.ax_mg,
+            (long)ss_twr_init_last_imu_sample.ay_mg,
+            (long)ss_twr_init_last_imu_sample.az_mg,
+            (long)ss_twr_init_last_imu_sample.norm_mg,
+            (unsigned long)ss_twr_init_last_imu_sample.timestamp_ms,
+            (unsigned long)read_start_us,
+            (unsigned long)read_mid_us,
+            (unsigned long)read_end_us,
+            (unsigned long)read_duration_us);
     }
 #endif
     (void)uwb_tag_ble_publish_status(line);
@@ -1497,7 +1545,9 @@ static void ss_twr_init_push_imu_norm_sample(int32_t norm_mg)
     }
     ss_twr_init_recompute_imu_summary();
 }
+#endif
 
+#if APP_TAG_TR_IMU_SUMMARY_ENABLE != 0U || APP_TAG_TR_IMU_RAW_ENABLE != 0U
 static void ss_twr_init_update_imu_summary_for_sweep(
     struct uwb_imu_sample *sample, bool *have_sample)
 {
@@ -1521,10 +1571,14 @@ static void ss_twr_init_update_imu_summary_for_sweep(
         if (uwb_imu_read(&fresh)) {
             ss_twr_init_last_imu_sample = fresh;
             ss_twr_init_have_last_imu_sample = true;
+#if APP_TAG_TR_IMU_SUMMARY_ENABLE != 0U
             ss_twr_init_push_imu_norm_sample(fresh.norm_mg);
+#endif
         } else {
+#if APP_TAG_TR_IMU_SUMMARY_ENABLE != 0U
             ss_twr_init_imu_skip_count++;
             ss_twr_init_imu_summary.skip_count = ss_twr_init_imu_skip_count;
+#endif
         }
     }
 
@@ -3410,7 +3464,7 @@ static void ss_twr_init_print_location_if_ready(void)
     char received_anchors[32];
 
     memset(measurements, 0, sizeof(measurements));
-#if APP_TAG_TR_IMU_SUMMARY_ENABLE != 0U
+#if APP_TAG_TR_IMU_SUMMARY_ENABLE != 0U || APP_TAG_TR_IMU_RAW_ENABLE != 0U
     ss_twr_init_update_imu_summary_for_sweep(&imu, &have_imu);
 #endif
 
@@ -3709,7 +3763,7 @@ static void ss_twr_init_print_location_if_ready(void)
     have_motion = uwb_motion_update(location.x_mm, location.y_mm, location.z_mm,
                                     k_uptime_get(), &motion);
 
-#if APP_TAG_TR_IMU_SUMMARY_ENABLE == 0U
+#if APP_TAG_TR_IMU_SUMMARY_ENABLE == 0U && APP_TAG_TR_IMU_RAW_ENABLE == 0U
     if (ss_twr_init_imu_ready) {
         if (!ss_twr_init_have_last_imu_sample ||
             APP_TAG_IMU_SAMPLE_PERIOD <= 1U ||
@@ -4175,16 +4229,16 @@ static void ss_twr_init_alt_publish_rx_diag(uint32_t status_reg,
 #endif
 }
 
-static void ss_twr_init_alt_mark_scheduled_poll_timing(uint8_t poll_count)
+static void ss_twr_init_alt_mark_scheduled_poll_timing(uint32_t poll_cycle,
+                                                       uint8_t poll_count)
 {
-    uint32_t now = k_cycle_get_32();
-    ss_twr_init_sweep_first_poll_cycle = now;
+    ss_twr_init_sweep_first_poll_cycle = poll_cycle;
     /*
      * Alt v3 uses one broadcast poll carrying the active anchor mask. All
      * selected anchors share the same measurement instant, so first-to-last
      * poll skew is intentionally zero even when poll_count is 4/8.
      */
-    ss_twr_init_sweep_last_poll_cycle = now;
+    ss_twr_init_sweep_last_poll_cycle = poll_cycle;
     ss_twr_init_sweep_poll_count = poll_count;
     ss_twr_init_sweep_timing_valid = true;
 }
@@ -4863,7 +4917,8 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
 #endif
     dwt_forcetrxoff();
     ss_twr_init_frame_seq_nb++;
-    ss_twr_init_alt_mark_scheduled_poll_timing(poll_count);
+    ss_twr_init_alt_mark_scheduled_poll_timing(poll_tx_done_cycles,
+                                               poll_count);
     ss_twr_init_alt_publish_rx_gap_diag(poll_tx_done_cycles,
                                         rx_enable_start_cycles,
                                         rx_enable_done_cycles,
@@ -5051,9 +5106,12 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
            (unsigned int)ss_twr_init_refresh_anchor_budget,
            (unsigned int)ss_twr_init_refresh_interval_sweeps,
            (unsigned int)ss_twr_init_full_sweep_interval_sweeps);
-    printk("Tag perf config summary_period=%u imu_sample_period=%u\n",
+    printk("Tag perf config summary_period=%u imu_sample_period=%u imu_summary=%u imu_raw=%u tr_ver=%u\n",
            (unsigned int)APP_TAG_SUMMARY_PERIOD,
-           (unsigned int)APP_TAG_IMU_SAMPLE_PERIOD);
+           (unsigned int)APP_TAG_IMU_SAMPLE_PERIOD,
+           (unsigned int)APP_TAG_TR_IMU_SUMMARY_ENABLE,
+           (unsigned int)APP_TAG_TR_IMU_RAW_ENABLE,
+           (unsigned int)SS_TWR_INIT_TR_RANGE_VERSION);
     printk("Tag status config output_period_ms=%u\n",
            (unsigned int)APP_TAG_STATUS_PERIOD_MS);
     printk("Tag ekf config enable=%u meas_std=%u residual_gain=%u proc_accel=%u init_pos=%u init_vel=%u gate=%u motion_meas=%u motion_proc=%u motion_gate=%u motion_full=%u speed_thr=%u imu_delta=%u imu_gerr=%u range_soft=%u range_hard=%u motion_soft=%u motion_hard=%u\n",

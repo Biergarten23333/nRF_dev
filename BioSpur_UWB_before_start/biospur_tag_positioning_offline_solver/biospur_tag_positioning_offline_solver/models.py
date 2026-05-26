@@ -40,6 +40,15 @@ class ImuSummary:
     acc_norm_std_mg: float | None = None
     acc_norm_min_mg: float | None = None
     acc_norm_max_mg: float | None = None
+    acc_x_mg: float | None = None
+    acc_y_mg: float | None = None
+    acc_z_mg: float | None = None
+    acc_norm_mg: float | None = None
+    timestamp_ms: float | None = None
+    poll_to_read_start_us: float | None = None
+    poll_to_read_mid_us: float | None = None
+    poll_to_read_end_us: float | None = None
+    read_duration_us: float | None = None
     skip_count: int = 0
     valid: bool = False
 

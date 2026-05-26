@@ -46,6 +46,7 @@ set(APP_TAG_SUMMARY_PERIOD "1" CACHE STRING "Print one motion summary every N co
 set(APP_TAG_PENDING_PRINT_PERIOD "20" CACHE STRING "Print one solve-pending line every N failed sweeps")
 set(APP_TAG_IMU_SAMPLE_PERIOD "8" CACHE STRING "Read the IMU once every N completed sweeps")
 set(APP_TAG_TR_IMU_SUMMARY_ENABLE "0" CACHE STRING "Append rolling IMU |a| summary to TR range lines")
+set(APP_TAG_TR_IMU_RAW_ENABLE "0" CACHE STRING "Append raw IMU XYZ and poll-relative read timing to TR range lines")
 set(APP_TAG_TR_IMU_SUMMARY_WINDOW "5" CACHE STRING "Rolling IMU summary window in UWB frames")
 set(APP_TAG_CONSOLE_SUMMARY_ENABLE "1" CACHE STRING "Print motion summaries to the console")
 set(APP_TAG_VERBOSE_RANGING "0" CACHE STRING "Print per-anchor ranging logs")
@@ -169,6 +170,7 @@ target_compile_definitions(app PRIVATE
     APP_TAG_PENDING_PRINT_PERIOD=${APP_TAG_PENDING_PRINT_PERIOD}
     APP_TAG_IMU_SAMPLE_PERIOD=${APP_TAG_IMU_SAMPLE_PERIOD}
     APP_TAG_TR_IMU_SUMMARY_ENABLE=${APP_TAG_TR_IMU_SUMMARY_ENABLE}
+    APP_TAG_TR_IMU_RAW_ENABLE=${APP_TAG_TR_IMU_RAW_ENABLE}
     APP_TAG_TR_IMU_SUMMARY_WINDOW=${APP_TAG_TR_IMU_SUMMARY_WINDOW}
     APP_TAG_CONSOLE_SUMMARY_ENABLE=${APP_TAG_CONSOLE_SUMMARY_ENABLE}
     APP_TAG_VERBOSE_RANGING=${APP_TAG_VERBOSE_RANGING}

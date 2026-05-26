@@ -32,12 +32,25 @@ def _imu_summary_from_row(row: dict) -> ImuSummary | None:
     mean_mg = _float_or_none(row.get("acc_norm_mean_mg") or row.get("imu_acc_norm_mean_mg"))
     min_mg = _float_or_none(row.get("acc_norm_min_mg") or row.get("imu_acc_norm_min_mg"))
     max_mg = _float_or_none(row.get("acc_norm_max_mg") or row.get("imu_acc_norm_max_mg"))
+    acc_x_mg = _float_or_none(row.get("acc_x_mg") or row.get("imu_acc_x_mg"))
+    acc_y_mg = _float_or_none(row.get("acc_y_mg") or row.get("imu_acc_y_mg"))
+    acc_z_mg = _float_or_none(row.get("acc_z_mg") or row.get("imu_acc_z_mg"))
+    acc_norm_mg = _float_or_none(row.get("acc_norm_mg") or row.get("imu_acc_norm_mg"))
+    timestamp_ms = _float_or_none(row.get("imu_timestamp_ms"))
+    poll_to_read_start_us = _float_or_none(row.get("imu_poll_to_read_start_us"))
+    poll_to_read_mid_us = _float_or_none(row.get("imu_poll_to_read_mid_us"))
+    poll_to_read_end_us = _float_or_none(row.get("imu_poll_to_read_end_us"))
+    read_duration_us = _float_or_none(row.get("imu_read_duration_us"))
     skip_count = _int_or_zero(row.get("imu_skip_count"))
     valid_raw = row.get("imu_valid")
+    raw_valid_raw = row.get("imu_raw_valid")
     valid = sample_count > 0 and std_mg is not None
     if valid_raw not in (None, ""):
         valid = valid and bool(_int_or_zero(valid_raw))
-    if not valid and sample_count <= 0 and std_mg is None:
+    raw_valid = acc_x_mg is not None and acc_y_mg is not None and acc_z_mg is not None
+    if raw_valid_raw not in (None, ""):
+        raw_valid = raw_valid and bool(_int_or_zero(raw_valid_raw))
+    if not valid and not raw_valid and sample_count <= 0 and std_mg is None:
         return None
     return ImuSummary(
         sample_count=sample_count,
@@ -45,6 +58,15 @@ def _imu_summary_from_row(row: dict) -> ImuSummary | None:
         acc_norm_std_mg=std_mg,
         acc_norm_min_mg=min_mg,
         acc_norm_max_mg=max_mg,
+        acc_x_mg=acc_x_mg,
+        acc_y_mg=acc_y_mg,
+        acc_z_mg=acc_z_mg,
+        acc_norm_mg=acc_norm_mg,
+        timestamp_ms=timestamp_ms,
+        poll_to_read_start_us=poll_to_read_start_us,
+        poll_to_read_mid_us=poll_to_read_mid_us,
+        poll_to_read_end_us=poll_to_read_end_us,
+        read_duration_us=read_duration_us,
         skip_count=skip_count,
         valid=valid,
     )
