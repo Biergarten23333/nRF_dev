@@ -54,9 +54,9 @@ const biospurBlack = Color(0xFF050806);
 const panelLine = Color(0x33638A01);
 const tableLine = Color(0xAA638A01);
 const mutedText = Color(0xFFB6C7B3);
-const appVersion = '1.0.3';
-const appBuildStamp = '2026-05-26 14:40 CEST';
-const appBuildNote = 'workspace auto-activate + realtime raw fallback';
+const appVersion = '1.0.4';
+const appBuildStamp = '2026-05-26 15:02 CEST';
+const appBuildNote = 'safe stop: current process group only';
 
 class AutoPosFieldApp extends StatelessWidget {
   const AutoPosFieldApp({super.key});
@@ -6509,18 +6509,6 @@ class _RunnerLogCardState extends State<RunnerLogCard> {
 }
 
 class ScriptRunner extends ChangeNotifier {
-  static const List<String> _fieldProcessPatterns = [
-    r'scripts/[r]un_dual_master_tdma_capture.py',
-    r'scripts/[r]un_recv_tdma_capture.py',
-    r'scripts/[r]un_recv_tdma_capture_with_listener.py',
-    r'scripts/[r]un_autopos_sweep_loop.py',
-    r'scripts/[r]un_autopos_round.py',
-    r'scripts/[r]un_autopos_ultrasound_motion_triplet.py',
-    r'scripts/[c]apture_tag_session.py',
-    r'scripts/[c]apture_master_ble_session.py',
-    r'scripts/[c]apture_uwb_listener.py',
-  ];
-
   Process? _process;
   final List<String> logTail = [];
   String? activeName;
@@ -6538,17 +6526,6 @@ class ScriptRunner extends ChangeNotifier {
     progressText = 'starting';
     logTail.clear();
     _append('\$ $command');
-    await _killFieldProcesses(
-      ProcessSignal.sigterm,
-      'pre-start stale cleanup',
-      logMatches: true,
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-    await _killFieldProcesses(
-      ProcessSignal.sigkill,
-      'pre-start stale cleanup',
-      logMatches: true,
-    );
     notifyListeners();
     final process = await Process.start(
       'setsid',
@@ -6581,40 +6558,30 @@ class ScriptRunner extends ChangeNotifier {
   Future<void> stop() async {
     final process = _process;
     progressValue = null;
-    progressText = 'hard stopping';
-    _append('[ui] hard stop requested');
+    progressText = 'stopping current command';
+    _append('[ui] stop requested for current command only');
     notifyListeners();
     if (process == null) {
-      await _hardStopFieldProcesses(logMatches: true);
-      progressText = 'hard stop cleanup complete';
+      progressText = 'no running command';
+      _append('[ui] no active command process; nothing killed');
       notifyListeners();
       return;
     }
     final pgid = process.pid;
     await _signalProcessGroup(pgid, 'TERM');
     _append('[ui] sent SIGTERM to process group $pgid');
-    await _killFieldProcesses(
-      ProcessSignal.sigterm,
-      'hard-stop field cleanup',
-      logMatches: true,
-    );
     notifyListeners();
     Future<void>.delayed(const Duration(seconds: 1), () async {
       if (_process?.pid == pgid) {
         await _signalProcessGroup(pgid, 'KILL');
         _append('[ui] sent SIGKILL to process group $pgid');
       }
-      await _killFieldProcesses(
-        ProcessSignal.sigkill,
-        'hard-stop field cleanup',
-        logMatches: true,
-      );
       notifyListeners();
     });
   }
 
   Future<void> _signalProcessGroup(int pgid, String signal) async {
-    final result = await Process.run('kill', ['-$signal', '-$pgid']);
+    final result = await Process.run('kill', ['-$signal', '--', '-$pgid']);
     if (result.exitCode != 0) {
       _append(
         '[ui] process-group signal failed; fallback direct $signal to pid $pgid',
@@ -6624,38 +6591,6 @@ class ScriptRunner extends ChangeNotifier {
         'TERM' => ProcessSignal.sigterm,
         _ => ProcessSignal.sigint,
       });
-    }
-  }
-
-  Future<void> _hardStopFieldProcesses({required bool logMatches}) async {
-    await _killFieldProcesses(
-      ProcessSignal.sigterm,
-      'hard-stop field cleanup',
-      logMatches: logMatches,
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    await _killFieldProcesses(
-      ProcessSignal.sigkill,
-      'hard-stop field cleanup',
-      logMatches: logMatches,
-    );
-  }
-
-  Future<void> _killFieldProcesses(
-    ProcessSignal signal,
-    String reason, {
-    required bool logMatches,
-  }) async {
-    final signalName = signal == ProcessSignal.sigkill ? 'KILL' : 'TERM';
-    for (final pattern in _fieldProcessPatterns) {
-      final result = await Process.run('pkill', [
-        '-$signalName',
-        '-f',
-        pattern,
-      ]);
-      if (logMatches && result.exitCode == 0) {
-        _append('[ui] $reason: sent SIG$signalName to $pattern');
-      }
     }
   }
 
