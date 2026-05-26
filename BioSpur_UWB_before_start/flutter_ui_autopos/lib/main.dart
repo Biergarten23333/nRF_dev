@@ -54,6 +54,9 @@ const biospurBlack = Color(0xFF050806);
 const panelLine = Color(0x33638A01);
 const tableLine = Color(0xAA638A01);
 const mutedText = Color(0xFFB6C7B3);
+const appVersion = '1.0.3';
+const appBuildStamp = '2026-05-26 14:40 CEST';
+const appBuildNote = 'workspace auto-activate + realtime raw fallback';
 
 class AutoPosFieldApp extends StatelessWidget {
   const AutoPosFieldApp({super.key});
@@ -497,22 +500,78 @@ class SplashScreen extends StatelessWidget {
             alignment: Alignment.bottomCenter,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(56, 0, 56, 54),
-              child: TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0, end: 1),
-                duration: const Duration(seconds: 3),
-                builder: (context, value, _) {
-                  return ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: LinearProgressIndicator(
-                      value: value,
-                      minHeight: 8,
-                      backgroundColor: const Color(0x55384515),
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        controlGreen,
-                      ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 10,
                     ),
-                  );
-                },
+                    decoration: BoxDecoration(
+                      color: const Color(0xAA050806),
+                      border: Border.all(color: panelLine),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'BioSpur AutoPos UI',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 18,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'v$appVersion  |  $appBuildStamp',
+                          style: TextStyle(
+                            color: controlGreen,
+                            fontFamily: 'monospace',
+                            fontSize: 12,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          appBuildNote,
+                          style: TextStyle(color: mutedText, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: 1),
+                    duration: const Duration(seconds: 3),
+                    builder: (context, value, _) {
+                      return ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          value: value,
+                          minHeight: 8,
+                          backgroundColor: const Color(0x55384515),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            controlGreen,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const Positioned(
+            right: 22,
+            top: 18,
+            child: Text(
+              'v$appVersion',
+              style: TextStyle(
+                color: mutedText,
+                fontFamily: 'monospace',
+                fontSize: 12,
               ),
             ),
           ),
