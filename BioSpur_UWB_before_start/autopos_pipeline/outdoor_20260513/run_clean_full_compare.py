@@ -257,6 +257,9 @@ def solve_version(mod, version: str, fused, anchor_ids, extra_data=None) -> Layo
         init, _ = mod.solve_autopos_v1(fused["v3"], anchor_ids)
         x, d, res = mod.solve_v4(fused["v3"], anchor_ids, init)
         extra = {"success": bool(getattr(res, "success", False))}
+        physical = getattr(res, "physical_diagnostics", None)
+        if physical:
+            extra.update(physical)
         if version == "v5":
             rows, cond = mod.compute_fim_v5(res, len(anchor_ids))
             extra.update({"based_on": "v4-io", "condition_number": cond, "fim_rows": rows})
@@ -709,6 +712,8 @@ def solve_v4_wand(mod, pair_dists, anchor_ids, base: Layout, extra_data) -> Layo
         for (i, j), dist in lp.items():
             out.append((np.linalg.norm(x[i] - x[j]) + d[i] + d[j] - dist) / 15.0)
         out.extend((d[1:] / 20.0).tolist())
+        if hasattr(mod, "physical_layout_prior_residuals"):
+            out.extend(mod.physical_layout_prior_residuals(x, anchor_ids))
         for ti, (_cid, _peer, obs, _init) in enumerate(tags):
             p = pts[ti]
             for a, r in obs:
@@ -723,7 +728,10 @@ def solve_v4_wand(mod, pair_dists, anchor_ids, base: Layout, extra_data) -> Layo
 
     res = least_squares(fun, x0, loss="huber", f_scale=2.0, bounds=(lo, hi), max_nfev=2000)
     x, d, _pts = unpack(res.x)
-    return Layout("v4-io-wand", "V4-io-wand", mod.gauge_align_local(x), d, {"success": bool(res.success), "n_wand_tags": len(tags), "n_wand_caps": len(data)})
+    extra = {"success": bool(res.success), "n_wand_tags": len(tags), "n_wand_caps": len(data)}
+    if hasattr(mod, "layout_physical_diagnostics"):
+        extra.update(mod.layout_physical_diagnostics(x, anchor_ids))
+    return Layout("v4-io-wand", "V4-io-wand", mod.gauge_align_local(x), d, extra)
 
 
 def roto_constraint_data(mod, base: Layout, anchor_ids, max_frames_per_peer=24):
@@ -767,6 +775,8 @@ def solve_v4_roto(mod, pair_dists, anchor_ids, base: Layout, extra_data) -> Layo
         for (i, j), dist in lp.items():
             out.append((np.linalg.norm(x[i] - x[j]) + dly[i] + dly[j] - dist) / 15.0)
         out.extend((dly[1:] / 20.0).tolist())
+        if hasattr(mod, "physical_layout_prior_residuals"):
+            out.extend(mod.physical_layout_prior_residuals(x, anchor_ids))
         # RotoArm pseudo-constraints: positions are initialized from V4-io and
         # treated as soft observations. This keeps the branch computationally
         # bounded while still injecting wide-spread roto coverage into the
@@ -780,7 +790,10 @@ def solve_v4_roto(mod, pair_dists, anchor_ids, base: Layout, extra_data) -> Layo
     res = least_squares(fun, x0, loss="huber", f_scale=2.0, bounds=(lo, hi), max_nfev=800)
     x, d = unpack(res.x)
     total_pts = sum(len(block["frames"]) for block in data)
-    return Layout("v4-io-roto", "V4-io-roto", mod.gauge_align_local(x), d, {"success": bool(res.success), "n_roto_blocks": len(data), "n_roto_points": total_pts, "constraint_model": "fixed V4-io roto pseudo-positions"})
+    extra = {"success": bool(res.success), "n_roto_blocks": len(data), "n_roto_points": total_pts, "constraint_model": "fixed V4-io roto pseudo-positions"}
+    if hasattr(mod, "layout_physical_diagnostics"):
+        extra.update(mod.layout_physical_diagnostics(x, anchor_ids))
+    return Layout("v4-io-roto", "V4-io-roto", mod.gauge_align_local(x), d, extra)
 
 
 def align_layout_to_ref(src: Layout, ref: Layout) -> tuple[np.ndarray, np.ndarray, float]:

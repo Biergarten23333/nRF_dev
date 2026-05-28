@@ -1006,9 +1006,27 @@ def ensure_target_links_ready(
             if target.upper() not in ready_targets
         )
         logf.write(
-            f"[HOST_WARN {time.monotonic():.3f}] target links missing after pass {pass_idx}: {','.join(missing)}; reset recv discovery\n"
+            f"[HOST_WARN {time.monotonic():.3f}] target links missing after pass {pass_idx}: {','.join(missing)}\n"
         )
         logf.flush()
+
+        if ready_targets and len(targets) > 1:
+            # Partial multi-tag readiness is valuable state. A global `mode recv`
+            # or controller reset drops already-enrolled peers and can turn a
+            # recoverable 1/N case into 0/N. Keep the broad BS filter active and
+            # let the next passive pass recover only the missing peers.
+            logf.write(
+                f"[HOST_WARN {time.monotonic():.3f}] partial target links ready="
+                + ",".join(sorted(ready_targets))
+                + "; keep resident links and avoid global recv reset\n"
+            )
+            logf.flush()
+            ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
+            ser = send_cmd(ser, logf, "ota_target name -", 0.5)
+            ser = send_cmd(ser, logf, f"ota_target prefix {discovery_prefix}", 0.5)
+            ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
+            ser = send_cmd(ser, logf, "conn", 0.5)
+            continue
 
         if not hard_reset_used and controller_reset_snr != "-":
             port = ser.port
@@ -1219,8 +1237,10 @@ def configure_recv_capture_session(
     )
     print("[CAPTURE] configure: reassert TDMA target roster", flush=True)
     tr_hz = effective_tr_hz(args)
-    if single_target:
-        ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
+    # Always clear before reasserting the capture roster.  Reusing resident
+    # Tag links is useful for speed, but stale TDMA identities from a previous
+    # multi-tag run can otherwise survive and put two targets on the same slot.
+    ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
     ser = send_cmd(ser, logf, f"tdma freq motion {tr_hz}", 0.5)
     for target in targets:
         ser = send_cmd(ser, logf, f"tdma roster {target_bs_name(target)} {tdma_roster_profile()}", 0.5)
@@ -1289,6 +1309,7 @@ def configure_recv_capture_session(
 
         print("[CAPTURE] configure: refresh links and reassert roster before retry", flush=True)
         ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
+        ser = send_cmd(ser, logf, "tdma clear", 1.2)
         restore_capture_filter(link_setup_prefix if wand_mode else "")
         ser = send_cmd(ser, logf, "conn", 0.5)
         ser = ensure_target_links_ready(
@@ -1587,9 +1608,48 @@ def build_tdma_config_check(
             "expected_freq_hz": expected_freq_hz,
         }
 
+    identity_to_targets: dict[tuple[int, int, int, int], list[str]] = {}
+    for target, info in per_target.items():
+        actual = info.get("actual") or {}
+        if not actual:
+            continue
+        key = (
+            int(actual.get("tag_id") or -1),
+            int(actual.get("slot") or -1),
+            int(actual.get("count") or -1),
+            int(actual.get("mask") or 0),
+        )
+        identity_to_targets.setdefault(key, []).append(target)
+
+    duplicate_identities: list[dict[str, object]] = []
+    for key, dup_targets in identity_to_targets.items():
+        if len(dup_targets) < 2:
+            continue
+        tag_id, slot, count, mask = key
+        duplicate_identities.append(
+            {
+                "targets": dup_targets,
+                "tag_id": tag_id,
+                "slot": slot,
+                "count": count,
+                "mask": mask,
+                "mask_hex": f"0x{mask:04X}",
+            }
+        )
+        for dup_target in dup_targets:
+            info = per_target.get(dup_target)
+            if not info:
+                continue
+            mismatches = info.setdefault("mismatches", [])
+            if "duplicate_tdma_identity" not in mismatches:
+                mismatches.append("duplicate_tdma_identity")
+            info["match"] = False
+        all_match = False
+
     return {
         "match": all_match,
         "per_target": per_target,
+        "duplicate_identities": duplicate_identities,
     }
 
 

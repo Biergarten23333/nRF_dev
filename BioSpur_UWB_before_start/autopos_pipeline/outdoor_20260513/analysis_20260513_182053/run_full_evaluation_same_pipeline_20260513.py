@@ -28,6 +28,16 @@ ID02_DIR = CAPTURE_ROOT / "ID14_20260513_161800"
 
 ANCHORS = "ABCDEFGH"
 ANCHOR_SIGMA = {0: 16.0, 1: 20.0, 2: 27.0, 3: 84.0, 4: 37.0, 5: 28.0, 6: 50.0, 7: 133.0}
+LOWER_ANCHOR_IDX = (0, 1, 2, 3)
+UPPER_ANCHOR_IDX = (4, 5, 6, 7)
+# The AutoPos gauge fixes A/B/C onto z=0 to remove coordinate-frame freedom.
+# D and E/F/G/H remain physically free, but they are not allowed to wander
+# into a mathematically valid yet impossible two-layer frame. These are soft
+# priors, not hard coplanarity constraints.
+LOWER_D_Z_SIGMA_MM = 180.0
+UPPER_LAYER_Z_SIGMA_MM = 220.0
+MIN_LAYER_GAP_MM = 450.0
+MAX_LAYER_GAP_MM = 2600.0
 CONFIGS = {
     "Dual-layer 8anc": [0, 1, 2, 3, 4, 5, 6, 7],
     "Upper only EFGH": [4, 5, 6, 7],
@@ -260,6 +270,46 @@ def residual_no_delay_vec(v, n, pair_dists, weights=None, lam=0.0):
     return np.asarray(res)
 
 
+def physical_layout_prior_residuals(x: np.ndarray, anchor_ids: list[int]) -> list[float]:
+    local = {gi: li for li, gi in enumerate(anchor_ids)}
+    if not all(gi in local for gi in LOWER_ANCHOR_IDX + UPPER_ANCHOR_IDX):
+        return []
+
+    lower_z = np.asarray([x[local[i], 2] for i in LOWER_ANCHOR_IDX], dtype=float)
+    upper_z = np.asarray([x[local[i], 2] for i in UPPER_ANCHOR_IDX], dtype=float)
+    lower_ref = float(np.median(lower_z[:3]))  # A/B/C are gauge plane.
+    upper_ref = float(np.median(upper_z))
+    layer_gap = upper_ref - lower_ref
+
+    out: list[float] = []
+    # D should belong to the lower layer, but is allowed real mounting offset.
+    out.append((lower_z[3] - lower_ref) / LOWER_D_Z_SIGMA_MM)
+    # E/F/G/H should be the upper layer, but are not forced exactly coplanar.
+    out.extend(((upper_z - upper_ref) / UPPER_LAYER_Z_SIGMA_MM).tolist())
+    # Enforce only physically plausible layer ordering and rough separation.
+    out.append(max(0.0, MIN_LAYER_GAP_MM - layer_gap) / 120.0)
+    out.append(max(0.0, layer_gap - MAX_LAYER_GAP_MM) / 250.0)
+    return out
+
+
+def layout_physical_diagnostics(x: np.ndarray, anchor_ids: list[int]) -> dict:
+    local = {gi: li for li, gi in enumerate(anchor_ids)}
+    if not all(gi in local for gi in LOWER_ANCHOR_IDX + UPPER_ANCHOR_IDX):
+        return {}
+    lower_z = np.asarray([x[local[i], 2] for i in LOWER_ANCHOR_IDX], dtype=float)
+    upper_z = np.asarray([x[local[i], 2] for i in UPPER_ANCHOR_IDX], dtype=float)
+    lower_ref = float(np.median(lower_z[:3]))
+    upper_ref = float(np.median(upper_z))
+    return {
+        "physical_priors": "soft_two_layer_v1",
+        "lower_d_z_offset_mm": float(lower_z[3] - lower_ref),
+        "lower_z_span_mm": float(np.max(lower_z) - np.min(lower_z)),
+        "upper_z_span_mm": float(np.max(upper_z) - np.min(upper_z)),
+        "layer_gap_median_mm": float(upper_ref - lower_ref),
+        "layer_order_ok": bool(upper_ref > lower_ref),
+    }
+
+
 def nls_refine(x0, pair_dists, lam=0.0, weights=None, max_nfev=1000):
     n = len(x0)
     method = "lm" if weights is None and lam == 0.0 and len(pair_dists) >= len(pack_pos(x0)) else "trf"
@@ -406,6 +456,7 @@ def solve_v4(pair_dists, anchor_ids, x_init=None):
         out = [(np.linalg.norm(x[i] - x[j]) + dly[i] + dly[j] - dist) / 15.0 for (i, j), dist in lp.items()]
         if n > 1:
             out.extend((dly[1:] / 20.0).tolist())
+        out.extend(physical_layout_prior_residuals(x, anchor_ids))
         return np.asarray(out)
 
     x0 = np.r_[pack_pos(x_init), np.zeros(max(0, n - 1))]
@@ -413,6 +464,7 @@ def solve_v4(pair_dists, anchor_ids, x_init=None):
     hi = np.r_[np.full(len(pmap), np.inf), np.full(max(0, n - 1), 60.0)]
     result = least_squares(fun, x0, loss="huber", f_scale=2.0, bounds=(lo, hi), max_nfev=5000)
     x, dly = unpack(result.x)
+    result.physical_diagnostics = layout_physical_diagnostics(x, anchor_ids)
     return gauge_align_local(x), dly, result
 
 

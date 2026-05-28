@@ -19,6 +19,7 @@ UPPER_ANCHORS = ("E", "F", "G", "H")
 DEFAULT_US_ANCHORS = ("F", "G", "H")
 PASS_RMS_MM = 50.0
 PASS_MAX_MM = 80.0
+MIN_PHYSICAL_Z_MM = -20.0
 
 
 def newest(paths: list[Path]) -> Path | None:
@@ -251,7 +252,22 @@ def apply_height(
     upper_mean = float(
         np.mean([next(a for a in anchor_entries(corrected) if a["label"] == label)["z_mm"] for label in UPPER_ANCHORS])
     )
-    status = "pass" if rms <= PASS_RMS_MM and max_abs <= PASS_MAX_MM and lower_mean < upper_mean else "fail"
+    aligned_z_by_label = {
+        (a.get("label") or "").upper(): float(a["z_mm"])
+        for a in anchor_entries(corrected)
+    }
+    min_aligned_z = float(min(aligned_z_by_label.values()))
+    physical_z_ok = min_aligned_z >= MIN_PHYSICAL_Z_MM
+    fail_reasons = []
+    if rms > PASS_RMS_MM:
+        fail_reasons.append("ultrasound_rms_residual_high")
+    if max_abs > PASS_MAX_MM:
+        fail_reasons.append("ultrasound_max_residual_high")
+    if lower_mean >= upper_mean:
+        fail_reasons.append("lower_not_below_upper")
+    if not physical_z_ok:
+        fail_reasons.append("negative_physical_z_after_us_alignment")
+    status = "pass" if not fail_reasons else "fail"
 
     corrected.setdefault("extra", {})
     corrected["extra"]["ultrasound_height_alignment"] = {
@@ -265,6 +281,7 @@ def apply_height(
         "pass_thresholds": {
             "rms_residual_mm": PASS_RMS_MM,
             "max_residual_mm": PASS_MAX_MM,
+            "min_physical_z_mm": MIN_PHYSICAL_Z_MM,
         },
         "z_axis_unit_in_raw_frame": [float(v) for v in e3],
         "x_axis_unit_in_raw_frame": [float(v) for v in e1],
@@ -274,6 +291,9 @@ def apply_height(
         **convention,
         "lower_mean_aligned_z_mm": lower_mean,
         "upper_mean_aligned_z_mm": upper_mean,
+        "min_aligned_z_mm": min_aligned_z,
+        "physical_z_ok": physical_z_ok,
+        "fail_reasons": fail_reasons,
         "residuals": fitted_rows,
         "ultrasound": ultrasound,
         "note": "Post-process coordinate-frame alignment only. Inter-anchor solve residuals are unchanged.",

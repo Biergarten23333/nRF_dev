@@ -1,0 +1,46 @@
+[AUTOPOS] DISC complete[1]: link=anchor-ctrl discovered_service=2800 uuid=F3BB7A04104F9CB8561DDDACB9E53714
+[AUTOPOS] DISC anchor service found[1]: uuid=F3BB7A04104F9CB8561DDDACB9E53714
+[AUTOPOS] Anchor ctrl state subscribe[1] rc=0
+[AUTOPOS] Anchor ctrl result subscribe[1] rc=0
+[AUTOPOS] ANCHOR_CTRL[1] link ready handle=0x0019 result=0x001b uuid=F3BB7A04104F9CB8561DDDACB9E53714
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=7 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] SCAN hit: C0:1D:D1:D0:CE:B0 (random) rssi=-62 name=- bs=- uuid=B9179575C776C98F1CB132DD6EDC6223 target=anchor uuid_ok=0 tag_name=0 anchor_name=0 nus=0 dfu=0 token=0 props=0x03
+[AUTOPOS] CONNECT queue[5]: addr=C0:1D:D1:D0:CE:B0 (random) link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 target=anchor
+[AUTOPOS] CONNECT pending[5]: addr_valid=1 link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 scan_running=1 conn_count=7
+[AUTOPOS] CONNECT pending[5]: bt_le_scan_stop rcSETUP[5] defer: waiting 244 ms before discovery start
+SETUP[5] defer: waiting 194 ms before discovery start
+SETUP[5] defer: waiting 143 ms before discovery start
+SETUP[5] defer: waiting 93 ms before discovery start
+SETUP[5] defer: waiting 43 ms before discovery start
+SETUP[5] begin: link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 conn=0x20004e48
+SETUP[5] mtu_exchange rc=0
+SETUP[5] phy_update rc=0
+SETUP[5] conn_param_update rc=0
+[AUTOPOS] DISC start[5]: link=anchor-ctrl uuid=B9179575C776C98F1CB132DD6EDC6223 conn=0x20004e48
+[AUTOPOS] MTU exchange[5] done (498)
+[AUTOPOS] Conn param updated[5]: int=6 lat=0 to=400
+
+>>> ota_target uuid 840C68591E90019821AACFF1B73AAA34
+[AUTOPOS] ota_target uuid rc=0 value=840c68591e90019821aacff1b73aaa34
+OTA target filter: token=-1 name=- prefix=BS uuid=840C68591E90019821AACFF1B73AAA34
+[AUTOPOS] PHY updated[5]: tx=0x2 rx=0x2
+[AUTOPOS] Conn param updated[1]: int=6 lat=0 to=400
+
+>>> conn
+[AUTOPOS] Master discovery mode: CONN & START
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=8 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] DISC complete[5]: link=anchor-ctrl discovered_service=2800 uuid=B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] DISC anchor service found[5]: uuid=B9179575C776C98F1CB132DD6EDC6223
+[AUTOPOS] Anchor ctrl state subscribe[5] rc=0
+[AUTOPOS] Anchor ctrl result subscribe[5] rc=0
+[AUTOPOS] ANCHOR_CTRL[5] link ready handle=0x0019 result=0x001b uuid=B9179575C776C98F1CB132DD6EDC6223
+
+>>> cmd US?
+[AUTOPOS] BLE cmd skip[0]: target mismatch kind=anchor target_name=- target_uuid=840c68591e90019821aacff1b73aaa34 peer_name=- peer_bs=- peer_uuid=B1E487C2B1FD740D1442206A1857DFA1 link=anchor-ctrl ready=1
+[AUTOPOS] BLE cmd skip[1]: target mismatch kind=anchor target_name=- target_uuid=840c68591e90019821aacff1b73aaa34 peer_name=- peer_bs=- peer_uuid=F3BB7A04104F9CB8561DDDACB9E53714 link=anchor-ctrl ready=1
+[AUTOPOS] BLE cmd skip[2]: target mismatch kind=anchor target_name=- target_uuid=840c68591e90019821aacff1b73aaa34 peer_name=- peer_bs=- peer_uuid=A892AF05DD59CF0D0D3408AD74F364A1 link=anchor-ctrl ready=1
+[AUTOPOS] BLE cmd skip[3]: target mismatch kind=anchor target_name=- target_uuid=840c68591e90019821aacff1b73aaa34 peer_name=- peer_bs=- peer_uuid=CEE5A7EFCB35F8A56B430047629F5309 link=anchor-ctrl ready=1
+[AUTOPOS] Anchor ctrl sent[4]: US? uuid=840C68591E90019821AACFF1B73AAA34
+[AUTOPOS] BLE cmd skip[5]: target mismatch kind=anchor target_name=- target_uuid=840c68591e90019821aacff1b73aaa34 peer_name=- peer[AUTOPOS] ANCHOR_CTRL[4] notify: US;RUNNING;attempts=96;target=300;ok=96;timeout=0;latest_mm=1539;median_mm=1539;mean_mm=1539;echo_us
