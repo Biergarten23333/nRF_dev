@@ -1613,11 +1613,18 @@ def build_tdma_config_check(
         actual = info.get("actual") or {}
         if not actual:
             continue
+
+        def _actual_int(name: str, default: int) -> int:
+            value = actual.get(name)
+            if value is None:
+                return default
+            return int(value)
+
         key = (
-            int(actual.get("tag_id") or -1),
-            int(actual.get("slot") or -1),
-            int(actual.get("count") or -1),
-            int(actual.get("mask") or 0),
+            _actual_int("tag_id", -1),
+            _actual_int("slot", -1),
+            _actual_int("count", -1),
+            _actual_int("mask", 0),
         )
         identity_to_targets.setdefault(key, []).append(target)
 
