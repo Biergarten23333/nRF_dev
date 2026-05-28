@@ -54,9 +54,9 @@ const biospurBlack = Color(0xFF050806);
 const panelLine = Color(0x33638A01);
 const tableLine = Color(0xAA638A01);
 const mutedText = Color(0xFFB6C7B3);
-const appVersion = '1.0.4';
-const appBuildStamp = '2026-05-26 15:02 CEST';
-const appBuildNote = 'safe stop: current process group only';
+const appVersion = '1.0.5';
+const appBuildStamp = '2026-05-27 15:20 CEST';
+const appBuildNote = 'layout/trajectory same-frame display fix';
 
 class AutoPosFieldApp extends StatelessWidget {
   const AutoPosFieldApp({super.key});
@@ -7743,47 +7743,12 @@ class AnchorLayoutData {
         points.add(AnchorPoint(label: label, x: x, y: y, z: z));
       }
       if (points.isEmpty) return null;
-      final lower =
-          points
-              .where((p) => anchors.take(4).contains(p.label))
-              .map((p) => p.z)
-              .fold(0.0, (a, b) => a + b) /
-          4;
-      final upper =
-          points
-              .where((p) => anchors.skip(4).contains(p.label))
-              .map((p) => p.z)
-              .fold(0.0, (a, b) => a + b) /
-          4;
       final isUsHeightLayout = file.path.endsWith('/layout_us_height.json');
-      final zSign = isUsHeightLayout ? 1.0 : (lower < upper ? 1.0 : -1.0);
-      var adjusted = points
-          .map(
-            (p) => AnchorPoint(label: p.label, x: p.x, y: p.y, z: p.z * zSign),
-          )
-          .toList();
-      double signedArea(List<String> labels) {
-        final byLabel = {for (final p in adjusted) p.label: p};
-        var area = 0.0;
-        for (var i = 0; i < labels.length; i++) {
-          final a = byLabel[labels[i]];
-          final b = byLabel[labels[(i + 1) % labels.length]];
-          if (a == null || b == null) return 0.0;
-          area += a.x * b.y - b.x * a.y;
-        }
-        return area / 2.0;
-      }
-
-      // Distances cannot distinguish a mirror image. For display and field use,
-      // force the documented right-handed convention:
-      // ABCD and EFGH are counter-clockwise in XY while ABCD stays below EFGH.
-      final lowerArea = signedArea(const ['A', 'B', 'C', 'D']);
-      final upperArea = signedArea(const ['E', 'F', 'G', 'H']);
-      if (lowerArea < 0 || upperArea < 0) {
-        adjusted = adjusted
-            .map((p) => AnchorPoint(label: p.label, x: p.x, y: -p.y, z: p.z))
-            .toList();
-      }
+      // Keep the layout coordinates exactly as written by the solver.
+      // Trajectory export uses the same layout file to solve tag positions, so
+      // applying display-only sign or mirror corrections here would overlay
+      // mirrored anchors with unmirrored tag coordinates.
+      final adjusted = points.toList();
       adjusted.sort((a, b) => a.label.compareTo(b.label));
       final meta = decoded['extra']?['ultrasound_height_alignment'];
       final metaMap = meta is Map<String, dynamic> ? meta : null;

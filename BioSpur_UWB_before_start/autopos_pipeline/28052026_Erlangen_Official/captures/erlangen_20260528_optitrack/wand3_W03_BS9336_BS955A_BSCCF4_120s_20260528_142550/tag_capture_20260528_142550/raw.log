@@ -1,0 +1,266 @@
+*** Booting nRF Connect SDK v2.8.0-a2386bfc8401 ***
+*** Using Zephyr OS v3.7.99-0bc3393fb112 ***
+[RECV] LED map: 1=AUTOPOS 2=RECV 3=OTA 4=FLOW
+[RECV] Control mode loaded: RECV
+[RECV] UART control ready: type 'status' or 'mode recv'/'mode ota'/'mode autopos'
+OTA_STATE:target_configured detail=token
+OTA NUS stage: enabled
+[RECV] Boot profile neutral: no role-specific auto target
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] BioSpur BLE master control ready on nrf5340dk/nrf5340/cpuapp
+[RECV] BTN1 toggles RECV/OTA, BTN2 forces OTA mode, BTN3=SCAN, BTN4=CONN&START
+[RECV] Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate
+[RECV] OTA runtime cmds: ota_reset | ota show | ota version
+[RECV] Runtime NUS cmds: cmd <raw> | cmd_all <raw> | oneshot <raw> | oneshot show | oneshot clear
+[RECV] Tag layout cmds: APOS <id> <x_mm> <y_mm> <z_mm> | APOS_TO <BSxxxx> APOS... | APOS_COMMIT | APOS_STATUS | APOS_RESET
+[RECV] TDMA cmds: tdma show | tdma hold <0|1> | tdma roster <BSETUP[0] defer: waiting 78 ms before discovery start
+SETUP[0] defer: waiting 28 ms before discovery start
+SETUP[0] begin: link=nus uuid=- conn=0x200048a0
+SETUP[0] mtu_exchange rc=0
+SETUP[0] phy_update rc=0
+SETUP[0] conn_param_update rc=0
+[RECV] DISC start[0]: link=nus uuid=- conn=0x200048a0
+[RECV] MTU exchange[0] done (498)
+[RECV] Conn param updated[0]: int=6 lat=0 to=400
+[RECV] PHY updated[0]: tx=0x2 rx=0x2
+[RECV] DISC complete[0]: link=nus discovered_service=2800 uuid=-
+[RECV] BLE[0] link ready
+[RECV] CFG assigned[0]: bs=BSCCF4 tag=1 slot=0/10 mask=0x0001 period=10 active=9 active_us=0 gen=1 pmode=0
+[RECV] TDMA weighted[0]: bs=BSCCF4 profile=motion target=10Hz mask=0x0001 slots=1/10 actual_x100=1000 epoch_delay=3000
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=1 target=unknown prefix=BS
+[RECV] Scanning for BS*
+[RECV] BSCCF4 notify: TR;2;7;f;0;ff;08;0,0,0,2314,0,0,0,0;0,0,0,2314,0,0,0,0;0,0,0,100,0,0,0,0;TTTOTTTT
+[RECV] CFG confirmed[0]: tag=1 slot=0/10 mask=0x0001 period=10 active=9 gen=1 live=1
+[RECV] BSCCF4 notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0001 PERIOD=10 ACTIVE=9 GEN=1 LIVE=1
+[RECV] BSCCF4 notify: TR;2;8;f;0;ff;08;0,0,0,2314,0,0,0,0;0,0,0,2314,0,0,0,0;0,0,0,100,0,0,0,0;TTTOTTTT
+[HOST_CMD 17711.341] status
+[RECV] Control status: mode=RECV pending=0
+[HOST_CMD 17712.145] device show
+[RECV] System target: kind=unknown caps=0x08 (config=0 ota=0 stream=0 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] SCAN hit: D3:FD:93:FE:02:17 (random) rssi=-62 name=- bs=BS955A uuid=- target=unknown uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[RECV] CONNECT queue[1]: addr=D3:FD:93:FE:02:17 (random) link=nus uuid=- target=unknown
+[RECV] SCAN hit: ED:14:A9:AF:A1:D2 (random) rssi=-62 name=- bs=BS9336 uuid=- target=unknown uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[RECV] CONNECT queue[2]: addr=ED:14:A9:AF:A1:D2 (random) link=nus uuid=- target=unknown
+[RECV] CONNECT pending[1]: addr_valid=1 link=nus uuid=- scan_running=1 conn_count=1
+[RECV] CONNECT pending[1]: bt_le_scan_stop rc=0 scan_running=1
+[RECV] CONNECT pending[1] rc=0 conn=0x20004970
+[HOST_CMD 17712.977] device kind tag
+OTA NUS stage: enabled
+[RECV] One-shot NUS command cleared (runtime)
+[RECV] Master disconnecting peer[0]: bs=BSCCF4
+[RECV] device kind set: tag (OTA target preserved)
+[RECV] Master discovery mode: CONN & START
+[RECV] Peer clear wait: waited=0 conn_count=1 ready_count=0
+[HOST_CMD 17714.988] device show
+[HOST_CMD 17715.792] ota_target token -1
+[RECV] Peer clear wait timeout: conn_count=1 ready_count=0
+[RECV] System target: kind=tag caps=0x0f (config=1 ota=1 stream=1 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] Connected[1]: D3:FD:93:FE:02:17 (random) name=- bs=BS955A
+[RECV] CONNECT state[1]: link=nus uuid=- ready=0 conn=0x20004970
+[RECV] PHY updated[1]: tx=0x2 rx=0x2
+[RECV] ota_target token rc=0 value=-1
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] Disconnected[0]: C9:F6:F2:07:6F:97 (random) reason=0x16 link=nus ready=1
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=1 target=tag prefix=BS
+[RECV] Scanning for BS*
+[RECV] CONNECT pending[2]: addr_valid=1 link=nus uuid=- scan_running=1 conn_count=1
+[RECV] CONNECT pending[2]: bt_le_scan_stop rc=0 scan_running=1
+[RECV] CONNECT pending[2] rc=0 conn=0x20004a40
+[RECV] Connected[2]: ED:14:A9:AF:A1:D2 (random) name=- bs=BS9336
+[RECV] CONNECT state[2]: link=nus uuid=- ready=0 conn=0x20004a40
+SETUP[1] defer: waiting 303 ms before discovery start
+SETUP[2] defer: waiting 337 ms before discovery start
+SETUP[1] defer: waiting 253 ms before discovery start
+SETUP[2] defer: waiting 286 ms before discovery start
+SETUP[1] defer: waiting 202 ms before discovery start
+SETUP[2] defer: waiting 236 ms before discovery start
+SETUP[1] defer: waiting 152 ms before discovery start
+SETUP[2] defer: waiting 185 ms before discovery start
+[RECV] PHY updated[2]: tx=0x2 rx=0x2
+SETUP[1] defer: waiting 101 ms before discovery start
+SETUP[2] defer: waiting 135 ms before discovery start
+SETUP[1] defer: waiting 50 ms before discovery start
+SETUP[2] defer: waiting 84 ms before discovery start
+S[HOST_CMD 17716.334] ota_target name -
+ETUP[1] begin: link=nus uuid=- conn=0x20004970
+SETUP[1] mtu_exchange rc=0
+SETUP[1] phy_update rc=0
+[RECV] ota_target name rc=0 value=-
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+SETUP[1] conn_param_update rc=0
+[RECV] DISC start[1]: link=nus uuid=- conn=0x20004970
+SETUP[2] defer: global discovery busy
+[RECV] MTU exchange[1] done (498)
+SETUP[2] defer: global discovery busy
+[RECV] Conn param updated[1]: int=6 lat=0 to=400
+[RECV] PHY updated[1]: tx=0x2 rx=0x2
+SETUP[2] defer: global discovery busy
+SETUP[2] defer: global discovery busy
+SETUP[2] defer: global discovery busy
+[RECV] DISC complete[1]: link=nus discovered_service=2800 uuid=-
+[RECV] BLE[1] link ready
+[RECV] CFG assigned[1]: bs=BS955A tag=1 slot=0/10 mask=0x0001 period=10 active=9 active_us=0 gen=2 pmode=0
+[RECV] TDMA weighted[0]: bs=BS955A profile=motion target=10Hz mask=0x0001 slots=1/10 actual_x100=1000 epoch_delay=3000
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=2 target=tag prefix=BS
+[RECV] Scanning for BS*
+SETUP[2] begin: link=nus uuid=- conn=0x20004a40
+SETUP[2] mtu_exchange rc=0
+SETUP[2] phy_update rc=0
+SETUP[2] conn_param_update rc=0
+[RECV] DISC start[2]: link=nus uuid=- conn=0x20004a40
+[RECV] BS955A notify: TR;2;39;f;0;ff;ff;2307,2510,1707,1935,2317,2216,1748,1779;2307,2510,1707,1935,2317,2216,1748,1779;100,100,100,100,100,73,100,100;OOOOOOOO
+[RECV] CFG confirmed[1]: tag=1 slot=0/10 mask=0x0001 period=10 active=9 gen=2 live=1
+[RECV] BS955A notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0001 PERIOD=10 ACTIVE=9 GEN=2 LIVE=1
+[RECV] Conn param updated[2]: int=6 lat=0 to=400
+[RECV] MTU exchange[2] done (498)
+[RECV] PHY updated[2]: tx=0x2 rx=0x2
+[RECV] BS955A notify: TS;1;40;f;1245;2502;1812;830;1178;ABCDEFGH;0;10;B;0;S;100;0;full;96
+[RECV] BS955A notify: TR;2;40;f;0;ff;ff;2295,2497,1763,1894,2326,2221,1751,1814;2295,2497,1763,1894,2326,2221,1751,1814;100,100,100,100,100,75,100,100;OOOOOOOO
+[RECV] BS955A notify: TDIAG;wait_ms=75;tx_us=610;rx_us=213;coll_us=8392;range_us=549;solve_us=11657;out_us=2563;clean_us=16815;total_ms=117
+[HOST_CMD 17716.897] ota_target prefix BS
+[RECV] ota_target prefix rc=0 value=bs
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+[RECV] DISC complete[2]: link=nus discovered_service=2800 uuid=-
+[RECV] BLE[2] link ready
+[RECV] CFG assigned[2]: bs=BS9336 tag=1 slot=0/10 mask=0x0001 period=10 active=9 active_us=0 gen=3 pmode=0
+[RECV] TDMA weighted[0]: bs=BS9336 profile=motion target=10Hz mask=0x0001 slots=1/10 actual_x100=1000 epoch_delay=3000
+[RECV] CFG assigned[1]: bs=BS955A tag=2 slot=5/10 mask=0x0020 period=10 active=9 active_us=0 gen=3 pmode=0
+[RECV] TDMA weighted[1]: bs=BS955A profile=motion target=10Hz mask=0x0020 slots=1/10 actual_x100=1000 epoch_delay=2999
+[RECV] CFG confirmed[1]: tag=2 slot=5/10 mask=0x0020 period=10 active=9 gen=3 live=1
+[RECV] BS955A notify: CFG_OK TAG=2 SLOT=5/10 MASK=0x0020 PERIOD=10 ACTIVE=9 GEN=3 LIVE=1
+[RECV] BS9336 notify: TR;2;42;f;0;ff;ff;1991,1622,1882,2144,2130,2000,2187,2370;1991,1622,1882,2144,2130,2000,2187,2370;7,7,7,7,7,7,7,7;OOOOOOOO
+[RECV] BS9336 notify: TR;2;43;f;0;ff;ff;1965,1590,1825,2074,2097,2080,2174,2372;1965,1590,1825,2074,2097,2080,2174,2372;11,11,11,11,11,11,11,11;OOOOOOOO
+[RECV] CFG confirmed[2]: tag=1 slot=0/10 mask=0x0001 period=10 active=9 gen=3 live=1
+[RECV] BS9336 notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0001 PERIOD=10 ACTIVE=9 GEN=3 LIVE=1
+[RECV] BS9336 notify: TR;2;44;f;0;ff;ff;1974,1637,1844,2222,2116,2049,2239,2336;1974,1637,1844,2222,2116,2049,2239,2336;14,14,14,14,14,14,14,14;OOOOOOOO
+[HOST_CMD 17717.478] ota_target uuid -
+[RECV] ota_target uuid rc=0 value=-
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+[HOST_INFO 17718.082] targeted_non_target_aota=BSF66F,BS2DCE,BSDC91
+[HOST_CMD 17718.082] ota_target token -1
+[RECV] ota_target token rc=0 value=-1
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+[RECV] Conn param updated[1]: int=6 lat=0 to=400
+[HOST_CMD 17718.530] ota_target name BSF66F
+[RECV] ota_target name rc=0 value=bsf66f
+OTA target filter: token=-1 name=bsf66f prefix=bs uuid=-
+[HOST_CMD 17718.933] ota_target prefix -
+[RECV] ota_target prefix rc=0 value=-
+OTA target filter: token=-1 name=bsf66f prefix=- uuid=-
+[HOST_CMD 17719.336] ota_target uuid -
+[RECV] ota_target uuid rc=0 value=-
+OTA target filter: token=-1 name=bsf66f prefix=- uuid=-
+[HOST_CMD 17719.740] cmd_all MODE AOTA
+[RECV] BLE cmd_all sent[1]: MODE AOTA
+[RECV] BLE cmd_all sent[2]: MODE AOTA
+[RECV] cmd_all rc=2 payload=MODE AOTA
+[RECV] BS9336 notify: MODE_OK MODE=AOTA LIVE=1
+[RECV] BS955A notify: RXG;1;40;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=335;slot_to_txdone_us=793;txcmd_to_txdone_us=457;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_us
+[RECV] BS955A notify: MODE_OK MODE=AOTA LIVE=1
+[RECV] BS955A notify: CD;1;40;tag=1;local=0xb101;status=0x00806f02;rxf=0x0486c814;win=8165;pc=8;mask=0xff;resp=8;unexp=0;last_len=20;last_src=0xa107;last_dst=0xb101;last_code=0xe1
+[RECV] BS955A notify: TS;1;41;f;1343;2456;-170;770;1133;ABCDEFGH;0;10;M;0;S;0;0;full;100
+[RECV] BS955A notify: TR;2;41;f;0;ff;ff;2319,2496,1719,1892,2264,2211,1729,2185;2319,2496,1719,1892,2264,2211,1729,2185;100,100,100,100,100,100,100,100;OOOOOOOO
+[RECV] BS955A notify: TD;1;41;3;anchor_ota;0;0;1;0;25;0;0;0;8;1
+[RECV] BS9336 notify: RXG;1;44;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=91;txdone_to_rxend_us=213;rxenable_us
+[RECV] BS9336 notify: CD;1;44;tag=1;local=0xb101;status=0x00806f02;rxf=0x0776c814;win=8165;pc=8;mask=0xff;resp=8;unexp=0;last_len=20;last_src=0xa107;last_dst=0xb101;last_code=0xe1
+[RECV] BS9336 notify: TS;1;45;f;1328;2130;-625;956;1211;ABCDEFGH;0;10;M;0;S;0;0;full;100
+[RECV] BS9336 notify: TR;2;45;f;0;ff;ff;1981,1634,1869,2133,2124,2123,2189,2370;1981,1634,1869,2133,2124,2123,2189,2370;100,100,100,100,100,100,100,100;OOOOOOOO
+[RECV] BS9336 notify: TD;1;45;3;anchor_ota;0;0;1;0;25;0;0;0;8;0
+[HOST_CMD 17720.631] ota_target token -1
+[RECV] ota_target token rc=0 value=-1
+OTA target filter: token=-1 name=bsf66f prefix=- uuid=-
+[HOST_CMD 17721.034] ota_target name BS2DCE
+[RECV] ota_target name rc=0 value=bs2dce
+OTA target filter: token=-1 name=bs2dce prefix=- uuid=-
+[RECV] Conn param updated[2]: int=6 lat=0 to=400
+[HOST_CMD 17721.305] ota_target prefix -
+[RECV] ota_target prefix rc=0 value=-
+OTA target filter: token=-1 name=bs2dce prefix=- uuid=-
+[HOST_CMD 17721.710] ota_target uuid -
+[RECV] ota_target uuid rc=0 value=-
+OTA target filter: token=-1 name=bs2dce prefix=- uuid=-
+[HOST_CMD 17722.113] cmd_all MODE AOTA
+[RECV] BLE cmd_all sent[1]: MODE AOTA
+[RECV] BLE cmd_all sent[2]: MODE AOTA
+[RECV] cmd_all rc=2 payload=MODE AOTA
+[RECV] BS9336 notify: MODE_OK MODE=AOTA LIVE=1
+[RECV] BS955A notify: MODE_OK MODE=AOTA LIVE=1
+[HOST_CMD 17722.943] ota_target token -1
+[RECV] ota_target token rc=0 value=-1
+OTA target filter: token=-1 name=bs2dce prefix=- uuid=-
+[HOST_CMD 17723.346] ota_target name BSDC91
+[RECV] ota_target name rc=0 value=bsdc91
+OTA target filter: token=-1 name=bsdc91 prefix=- uuid=-
+[HOST_CMD 17723.749] ota_target prefix -
+[RECV] ota_target prefix rc=0 value=-
+OTA target filter: token=-1 name=bsdc91 prefix=- uuid=-
+[HOST_CMD 17724.152] ota_target uuid -
+[RECV] ota_target uuid rc=0 value=-
+OTA target filter: token=-1 name=bsdc91 prefix=- uuid=-
+[HOST_CMD 17724.556] cmd_all MODE AOTA
+[RECV] BLE cmd_all sent[1]: MODE AOTA
+[RECV] BLE cmd_all sent[2]: MODE AOTA
+[RECV] cmd_all rc=2 payload=MODE AOTA
+[RECV] BS9336 notify: MODE_OK MODE=AOTA LIVE=1
+[RECV] BS955A notify: MODE_OK MODE=AOTA LIVE=1
+[RECV] BS955A notify: TD;1;41;3;anchor_ota;0;0;1;0;25;0;0;0;8;1
+[RECV] BS9336 notify: TD;1;45;3;anchor_ota;0;0;1;0;25;0;0;0;8;0
+[HOST_CMD 17726.404] ota_target token -1
+[RECV] ota_target token rc=0 value=-1
+OTA target filter: token=-1 name=bsdc91 prefix=- uuid=-
+[HOST_CMD 17727.008] ota_target name -
+[RECV] ota_target name rc=0 value=-
+OTA target filter: token=-1 name=- prefix=- uuid=-
+[HOST_CMD 17727.612] ota_target prefix BS
+[RECV] ota_target prefix rc=0 value=bs
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+[HOST_CMD 17728.215] ota_target uuid -
+[RECV] ota_target uuid rc=0 value=-
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+[HOST_CMD 17728.821] tdma hold 1
+[RECV] TDMA rebalance hold=1 deferred=0
+[RECV] tdma hold rc=0 hold=1
+[HOST_CMD 17729.426] tdma freq motion 10
+[RECV] TDMA freq set: motion=10Hz
+[RECV] TDMA rebalance deferred: hold=1
+[RECV] tdma freq rc=0 profile=motion hz=10
+[RECV] BS955A notify: TD;1;41;3;anchor_ota;0;0;1;0;25;0;0;0;8;1
+[HOST_CMD 17730.037] tdma roster BS9336 motion
+[RECV] TDMA roster set: BS9336 -> motion
+[RECV] tdma roster rc=0 target=BS9336 profile=motion
+[RECV] BS9336 notify: TD;1;45;3;anchor_ota;0;0;1;0;25;0;0;0;8;0
+[HOST_CMD 17730.613] tdma roster BS955A motion
+[RECV] TDMA roster set: BS955A -> motion
+[RECV] tdma roster rc=0 target=BS955A profile=motion
+[HOST_CMD 17731.218] tdma roster BSCCF4 motion
+[RECV] TDMA roster set: BSCCF4 -> motion
+[RECV] tdma roster rc=0 target=BSCCF4 profile=motion
+[HOST_CMD 17731.821] ota_target token -1
+[RECV] ota_target token rc=0 value=-1
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+[HOST_CMD 17732.426] ota_target name -
+[RECV] ota_target name rc=0 value=-
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+[HOST_CMD 17733.030] ota_target prefix BS
+[RECV] ota_target prefix rc=0 value=bs
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+[HOST_CMD 17733.634] ota_target uuid -
+[RECV] ota_target uuid rc=0 value=-
+OTA target filter: token=-1 name=- prefix=bs uuid=-
+[HOST_CMD 17734.238] conn
+[RECV] Master discovery mode: CONN & START
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=2 target=tag prefix=BS
+[RECV] Scanning for BS*
+[RECV] BS955A notify: TD;1;41;3;anchor_ota;0;0;1;0;25;0;0;0;8;1
+[RECV] BS9336 notify: TD;1;45;3;anchor_ota;0;0;1;0;25;0;0;0;8;0
+[RECV] BS955A notify: TD;1;41;3;anchor_ota;0;0;1;0;25;0;0;0;8;1
+[RECV] BS9336 notify: TD;1;45;3;anchor_ota;0;0;1;0;25;0;0;0;8;0
+[RECV] BS955A notify: TD;1;41;3;anchor_ota;0;0;1;0;25;0;0;0;8;1
+[RECV] BS9336 notify: TD;1;45;3;anchor_ota;0;0;1;0;25;0;0;0;8;0
+[RECV] BS955A notify: TD;1;41;3;anchor_ota;0;0;1;0;25;0;0;0;8;1
+[RECV] BS9336 notify: TD;1;45;3;anchor_ota;0;0;1;0;25;0;0;0;8;0
+[RECV] BS955A notify: TD;1;41;3;anchor_ota;0;0;1;0;25;0;0;0;8;1
+[RECV] BS9336 notify: TD;1;45;3;anchor_ota;0;0;1;0;25;0;0;0;8;0
+[RECV] BS955A notify: TD;1;41;3;anchor_ota;0;0;1;0;25;0;0;0;8;1
