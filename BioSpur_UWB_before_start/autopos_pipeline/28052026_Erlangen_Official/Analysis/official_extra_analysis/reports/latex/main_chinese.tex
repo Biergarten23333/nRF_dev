@@ -1,0 +1,1161 @@
+% !TeX program = xelatex
+% !TeX encoding = UTF-8 Unicode
+\documentclass[11pt,a4paper]{article}
+
+% ======================================================================
+%  Erlangen 2026-05-28 AutoPos OptiTrack Validation -- 中文 LONG SUMMARY
+%  Structure assumed:  main_chinese.tex  +  figs/*.png
+%  All figures are referenced as figs/<name>.png with the original names.
+%  必须使用 XeLaTeX 编译。不要使用 pdfLaTeX。
+% ======================================================================
+
+\usepackage{iftex}
+\ifPDFTeX
+  \errmessage{This Chinese report must be compiled with XeLaTeX, not pdfLaTeX. In Prism, switch the compiler/build engine to XeLaTeX.}
+\fi
+\ifXeTeX
+  \usepackage{fontspec}
+  \usepackage{xeCJK}
+  \defaultfontfeatures{Ligatures=TeX}
+  \setmainfont{Latin Modern Roman}
+  \IfFontExistsTF{Noto Serif CJK SC}{%
+    \setCJKmainfont[AutoFakeBold=2.0,AutoFakeSlant=0.2]{Noto Serif CJK SC}%
+  }{%
+    \IfFontExistsTF{Source Han Serif SC}{%
+      \setCJKmainfont[AutoFakeBold=2.0,AutoFakeSlant=0.2]{Source Han Serif SC}%
+    }{%
+      \IfFontExistsTF{Noto Sans CJK SC}{%
+        \setCJKmainfont[AutoFakeBold=2.0,AutoFakeSlant=0.2]{Noto Sans CJK SC}%
+      }{%
+        \IfFontExistsTF{Source Han Sans SC}{%
+          \setCJKmainfont[AutoFakeBold=2.0,AutoFakeSlant=0.2]{Source Han Sans SC}%
+        }{%
+          \IfFontExistsTF{FandolSong-Regular}{%
+            \setCJKmainfont[AutoFakeBold=2.0,AutoFakeSlant=0.2]{FandolSong-Regular}%
+          }{%
+            \IfFontExistsTF{AR PL UMing CN}{%
+              \setCJKmainfont[AutoFakeBold=2.0,AutoFakeSlant=0.2]{AR PL UMing CN}%
+            }{%
+              \IfFontExistsTF{SimSun}{%
+                \setCJKmainfont[AutoFakeBold=2.0,AutoFakeSlant=0.2]{SimSun}%
+              }{%
+                \PackageError{AutoPosChineseReport}{No usable Chinese font found}{Install a CJK font such as Noto Serif CJK SC, Source Han Serif SC, Noto Sans CJK SC, or use a LaTeX environment with Chinese fonts.}%
+              }%
+            }%
+          }%
+        }%
+      }%
+    }%
+  }
+  \IfFontExistsTF{Noto Sans CJK SC}{\setCJKsansfont[AutoFakeBold=2.0]{Noto Sans CJK SC}}{}
+  \IfFontExistsTF{Noto Sans Mono CJK SC}{\setCJKmonofont{Noto Sans Mono CJK SC}}{}
+  \XeTeXlinebreaklocale "zh"
+  \XeTeXlinebreakskip=0pt plus 1pt
+\else
+  \errmessage{This Chinese report currently supports XeLaTeX only. Please compile with XeLaTeX.}
+\fi
+
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+\usepackage{siunitx}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{microtype}
+\usepackage[hidelinks,colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+
+\graphicspath{{figs/}}
+
+\sisetup{detect-weight=true,detect-family=true}
+\newcommand{\mm}{\,\si{\milli\meter}}
+\newcommand{\todo}[1]{{\color{red}\textbf{[#1]}}}
+\newcommand{\note}[1]{{\color{blue!50!black}\emph{#1}}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Erlangen AutoPos Validation --- 中文长版}
+\lhead{2026-05-28 Official}
+\cfoot{\thepage}
+
+\title{\textbf{AutoPos 纯 UWB 三维锚点自标定：\\
+基于 OptiTrack 的绝对精度验证\\[4pt]
+\large Erlangen Official Experiment, 2026-05-28 --- 详细技术报告中文长版}}
+\author{Zekai Xiao}
+\date{Generated 2026-05-30}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\begin{abstract}
+\noindent
+本文记录 2026-05-28 Erlangen official 数据集中 AutoPos 纯 UWB 三维锚点自标定系统的
+绝对精度验证。外部参考系统为 OptiTrack。AutoPos 的目标是在部署现场不依赖外部尺子、
+相机或人工测量的情况下，仅使用锚点之间的 UWB ranging，恢复八个 UWB anchor
+（DWM1001C，DW1000 + nRF52832）的三维布局，并联合估计 per-anchor antenna delay。
+本报告覆盖：(i) anchor layout 相对 OptiTrack 的绝对精度；(ii) static tag 的绝对定位
+精度；(iii) 使用 OptiTrack anchor 的 surveyed-anchor control；(iv) range-only VDOP；
+(v) MC5000 与 stratified keep-$k$ dropout robustness；(vi) pair residual、temporal
+drift、anchor health 等 per-anchor 诊断；(vii) delay、scale、radial error 等误差结构分解。
+
+核心结论是：当前 \texttt{v4-io} anchor layout 在 reflection-allowed rigid alignment、
+不做 scale fit 的条件下，all8 3D RMS 约为 $104.9\mm$；production \texttt{v4-io/all8}
+static tag 绝对误差为 median $77.4\mm$、P95 $270.3\mm$；best-case raw replay
+\texttt{v4-io/T3/all8} 为 median $62.3\mm$、P95 $158.2\mm$。误差不是简单随机噪声，
+而是包含明显 radial-outward / scale-coupled 结构，并且 vertical 方向最困难。本文专门
+保留了 roto absolute validation 章节，避免后续忘记补 OptiTrack roto 真值验证。
+\end{abstract}
+
+\tableofcontents
+\clearpage
+
+% ======================================================================
+\section{引言与范围}
+% ======================================================================
+
+\subsection{这份文档的目的}
+这是一份 long summary，不是最终给教授看的短摘要。它的目标是把目前 official analysis
+里所有重要分析、约定、坑、数字和解释完整地写下来。之后可以从这里拆出一页或几页的
+short summary；但这一版故意不压缩，也不只挑好看的数字。
+
+\subsection{被验证的系统}
+AutoPos 是一个纯 UWB anchor self-calibration pipeline。系统有八个 anchor，标记为
+A--H，硬件基于 DWM1001C 模块。Anchor 通过 broadcast single-sided two-way ranging
+（broadcast SS-TWR）采集 inter-anchor range。AutoPos 使用这些 inter-anchor range
+恢复三维 anchor layout。为了固定内部 gauge，solver 将 anchor A 放在原点，并估计其他
+anchor 的相对坐标和 per-anchor delay。部署几何是两层结构：下层 A--D，上层 E--H，
+近似一个三维 box，上下层垂直距离约 \SI{1.4}{\meter}。
+
+\subsection{为什么必须做 OptiTrack 绝对验证}
+只看 UWB solver 自己的 repeatability，只能说明 repeated estimates 在自己的坐标系里
+是否稳定，不能说明这些坐标在真实世界里是否正确。Erlangen 数据集提供了 OptiTrack 光学
+参考，因此可以将 AutoPos 的内部 repeatability 转换成 absolute accuracy，并进一步分析
+误差来自 layout、delay、frame alignment、tag solver、几何条件还是某些 anchor/link。
+
+\subsection{本文声明什么，不声明什么}
+\begin{itemize}[leftmargin=1.4em]
+  \item 本文可以声明：AutoPos 在该数据集上实现了可审计的 decimetre-level 3D anchor
+        calibration；在工作体积内 static tag absolute accuracy 达到约 $6$--$8\,\si{\centi\meter}$
+        median 级别。
+  \item 本文不声明：AutoPos 是通用 centimetre-level optical motion capture replacement。
+  \item 本文也不声明 roto absolute accuracy，因为 roto OptiTrack 真值处理仍然 pending。
+\end{itemize}
+
+% ======================================================================
+\section{坐标系与验证约定}
+% ======================================================================
+\label{sec:conventions}
+
+本分析中同时存在 AutoPos solver frame 和 OptiTrack TRC frame。二者不能直接逐轴比较，
+必须经过明确的 rigid alignment。
+
+\paragraph{AutoPos solver frame.}
+\[
+  x,\,y=\text{水平面},\qquad
+  z=\text{垂直轴，upper layer 为负 }z,\qquad
+  \text{显示高度}=-z.
+\]
+
+\paragraph{OptiTrack frame.}
+\[
+  Y=\text{垂直轴},\qquad X,Z=\text{水平轴}.
+\]
+这个结论不是凭经验假设，而是由 anchor 上下层 marker median 验证出来的：上下层在
+OptiTrack $Y$ 方向相差约 $1423\mm$，而在 $X/Z$ 方向只相差几毫米。因此 OptiTrack 的
+vertical split 必须使用 $Y$，不是 $Z$。
+
+\paragraph{Alignment 约定.}
+\begin{itemize}[leftmargin=1.4em]
+  \item Layout comparison 必须使用 AutoPos 与 OptiTrack 之间的完整 rigid alignment。
+  \item Alignment 必须允许 reflection。仅由 distance matrix 无法决定 handedness，
+        AutoPos 解可能落在 OptiTrack 的 mirror branch。Proper-rotation-only Kabsch 会得到
+        约 \SI{1.4}{\meter} 级别的错误结果；reflection-allowed Kabsch 才得到约
+        $105\mm$ RMS。
+  \item 官方 layout 精度使用 rigid、no-scale RMS。Similarity scale fit 只作为诊断，
+        不能作为 accuracy claim，因为它使用了 OptiTrack truth 来移除 scale bias。
+  \item Static tag absolute accuracy 的 frame transform 只能由 anchor fit 得到，不能用
+        tag truth fit transform，否则会 circular。
+\end{itemize}
+
+% ======================================================================
+\section{数据集与 Solver Matrix}
+% ======================================================================
+
+\paragraph{Anchor-layout solver versions.}
+本次比较包括 \texttt{v1-old}, \texttt{v2}, \texttt{v3-lite}, \texttt{v3-full},
+\texttt{v4-io}。其中 \texttt{v4-io} 是当前 production layout solver。
+
+\paragraph{Tag solver family.}
+Tag positioning solver 包括 \texttt{T1}, \texttt{T2}, \texttt{T3}, \texttt{T4}。
+\texttt{T3} 在本 static 数据集上给出 best-case median；\texttt{T4} 是更偏 deployment
+robustness 的 solver。
+
+\paragraph{Static tag test grid.}
+共有 ID01--ID24 二十四个 static tag capture，覆盖 edge/center、low/mid/high 以及四个
+facing group：ABEF、BCGF、CDHG、ADHE。Tag fixture 带有五个 glued reflective balls
+\texttt{I1..I5}，以及 Motive 生成的 virtual markers \texttt{Icenter} 和 \texttt{Iantenna}。
+
+% ======================================================================
+\section{Methods}
+% ======================================================================
+\label{sec:methods}
+
+这一章只写本实验实际使用的方法，不写 UWB 通用理论。重点是：哪些数据被用来训练或估计，
+哪些数据只用于 validation，哪些自由度被估计，哪些操作为了避免 circularity 被禁止。
+
+\subsection{整体分析链路}
+完整 pipeline 可以分成四层：
+\begin{enumerate}[leftmargin=1.6em]
+  \item \textbf{Raw UWB ranging.} Anchor-to-anchor sweep data 用于 AutoPos layout
+        self-calibration；static tag-to-anchor captures 用于 tag localization validation。
+        Layout solver 不使用 OptiTrack 坐标。
+  \item \textbf{OptiTrack reference.} OptiTrack marker export 提供 anchor antenna truth
+        和 static tag truth。它只用于 validation、frame alignment，以及明确标注的
+        surveyed-anchor control。
+  \item \textbf{AutoPos layout outputs.} 每个 layout solver 输出一个 \texttt{layout.json}，
+        其中包含 anchor 坐标和 \texttt{d\_anchor\_mm} delay terms。这些 layout 后续被
+        tag solver 使用。
+  \item \textbf{Report-side post-processing.} \texttt{official\_extra\_analysis/scripts}
+        中的脚本生成 alignment metrics、tag error、CDF/outlier metrics、DOP maps、MC
+        summaries、drift diagnostics 和 additional diagnostics，并记录到 \texttt{run\_meta.json}。
+\end{enumerate}
+
+\subsection{Traditional SS-TWR 与 broadcast SS-TWR 的角色}
+\label{sec:sstwrmethod}
+本报告不重新推导 SS-TWR timing theory，只说明两种采集模式在本数据集中的作用。
+
+\paragraph{Traditional point-to-point SS-TWR.}
+Traditional SS-TWR 可以理解为一个 initiator 与一个 responder 做一次 pairwise ranging，
+得到某一对设备之间的一个 range observation。这种模式适合 calibration station、简单
+sanity check，以及 tag-to-anchor capture。对于 static tag，每一帧最终被 tag solver
+看成：
+\[
+  \{(\text{anchor }i,\; \rho_i)\}_{i\in \mathcal{A}_t},
+\]
+其中 $\mathcal{A}_t$ 是该帧有效 anchor 集合。Tag solver 使用 layout 中的 anchor 坐标、
+anchor delay 和可选 tag delay 来解 tag position。
+
+\paragraph{Broadcast SS-TWR.}
+Anchor self-calibration 使用 broadcast-style SS-TWR sweep。其目的不是逐对手动测量，
+而是在一次 scheduled sweep 中生成 dense inter-anchor range graph。下游 layout solver
+看到的是 robust pair medians：
+\[
+  \hat{\rho}_{ij}, \qquad 1\le i < j \le 8.
+\]
+Raw directional measurements 也保留下来，用于 raw asymmetry 和 pair stability 诊断。
+因此 broadcast SS-TWR 在这里主要是高效采集 inter-anchor graph 的方式。
+
+\paragraph{为什么要分开讲。}
+Broadcast SS-TWR 负责 anchor-to-anchor layout self-calibration；traditional/static
+tag ranging 负责 tag-to-anchor validation。两者不能混在一起，否则 static tag truth 会
+既参与训练又参与验证，形成 circular argument。
+
+\subsection{Anchor-layout model 与 gauge}
+对于 anchor $i,j$，坐标为 $a_i,a_j$，endpoint delay 为 $d_i,d_j$。Delay-aware variant
+可以概括为最小化：
+\[
+  r_{ij} = \lVert a_i-a_j\rVert + d_i + d_j - \hat{\rho}_{ij}.
+\]
+内部 gauge 通过设置 anchor A 为原点来固定。UWB range 本身无法决定绝对 pose、handedness
+和相对 OptiTrack 的 global scale，因此这些都必须在外部 validation 中评估。
+
+\subsection{Anchor-layout solver variants: V1 到 V4-io}
+\label{sec:vmethod}
+V-series 只指 anchor-layout solver，不是 tag solver。
+
+\begin{description}[leftmargin=2.6em,style=nextline]
+  \item[\texttt{v1-old}.]
+  历史 baseline，基于 classical distance geometry / MDS-style layout recovery，per-anchor
+  delay 为 0。它简单但非常重要，因为最后 OptiTrack absolute validation 发现它并不差：
+  all8 rigid RMS $106.9\mm$，只比 \texttt{v4-io} 差约 $2\mm$。
+
+  \item[\texttt{v2}.]
+  改进的 zero-delay layout solver。它在内部 pair residual 上明显优于 \texttt{v1-old}，
+  但在 OptiTrack absolute alignment 后不是最优。这说明 internal residual quality 与
+  external absolute accuracy 相关但不等价。
+
+  \item[\texttt{v3-lite}.]
+  \texttt{v2} 的轻量后继，最终 exported layout 仍为 zero-delay。表现与 \texttt{v2}
+  很接近：内部 residual 好，但 OptiTrack absolute RMS 约 $135\mm$。
+
+  \item[\texttt{v3-full}.]
+  更自由的 delay-aware variant，会估计非零 per-anchor delay。该数据集中额外自由度没有
+  改善绝对 layout，all8 rigid RMS 为 $144.4\mm$。解释是：更多自由度可能吸收 range
+  inconsistency，但吸收方式不一定对应真实外部几何。
+
+  \item[\texttt{v4-io}.]
+  当前 production layout solver。它是 delay-aware，使用 bounded endpoint delays，并带有
+  适合两层部署几何的 soft physical priors。本数据集中它是最好的 absolute layout，但只
+  比 \texttt{v1-old} 略好，因此应报告为 preferred current solver，而不是夸张成巨大突破。
+\end{description}
+
+\subsection{Tag positioning model 与 T1--T4}
+\label{sec:tmethod}
+T-series 指 tag positioning solver。每一帧 tag-to-anchor range 的 residual 为：
+\[
+  r_i(p) = \lVert p-a_i\rVert + d_i + d_{\text{tag}} - \rho_i,
+\]
+其中 $a_i,d_i$ 来自所选 \texttt{layout.json}，默认 $d_{\text{tag}}=0$。
+
+\begin{description}[leftmargin=2.6em,style=nextline]
+  \item[\texttt{T1}: robust WLS multilateration.]
+  单帧 3D multilateration，使用 Gauss--Newton、anchor sigma weighting 和 Huber robust
+  residual weighting。至少需要四个有效 anchors。Previous frame 只作为 initialization，
+  不是 motion prior。
+
+  \item[\texttt{T2}: quality-aware robust WLS.]
+  在 T1 基础上加入 current quality weighting 和 short quality EMA。它不 hard-reject
+  anchor，只改变 effective sigma。
+
+  \item[\texttt{T3}: dynamic-stable robust WLS.]
+  加入 persistent-residual soft downweighting 和 weak previous-position prior。目标是
+  dynamic / low-redundancy 场景下的稳定轨迹，而不是单帧 residual 最小。它避免 aggressive
+  leave-one-out rejection，因为早期实验显示 hard rejection 可能降低 residual RMS，但破坏
+  trajectory consistency。
+
+  \item[\texttt{T4}: adaptive redundancy policy.]
+  当前 deployment-oriented policy。若有效 anchor 数为 8，则使用 memory-free T1 path；
+  若少于 8，则切换到 T3-style stabilization 和 weak previous-position prior。这个设计与
+  keep-$k$ 结果一致：full-anchor frame 几何足够，low-redundancy frame 需要 temporal
+  stabilization。
+\end{description}
+
+Raw replay matrix 评估：
+\[
+  5\;\text{layout solvers}\times4\;\text{tag solvers}\times\{\text{all8},\text{noG}\}.
+\]
+需要注意：best-case raw replay 不自动成为 production headline。\texttt{v4-io/T3/all8}
+是 best-case solver combination；production-output headline 仍是 production \texttt{v4-io/all8}。
+
+\subsection{OptiTrack marker processing 与 corrected tag truth}
+Anchor truth 来自 OptiTrack marker-derived antenna positions。Static tag truth 来自
+virtual marker \texttt{Iantenna}。由于 tag optical fixture 的 arms 等长，\texttt{I1..I5}
+存在 rotational ambiguity，本数据集中 ID01 与 ID05 被自动标错。修正流程为：
+\begin{enumerate}[leftmargin=1.6em]
+  \item 对 \texttt{I1..I5} 和 \texttt{Iantenna} 做 per-marker median；
+  \item 用十个 inter-ball distances 与 22 个 clean capture 的 consensus fingerprint 比较；
+  \item 对 ID01/ID05 应用 deterministic relabel permutation；
+  \item 从 clean captures 学习 ball-local antenna offset；
+  \item 将 corrected antenna point 投影回对应 capture 的世界坐标。
+\end{enumerate}
+所有 static tag validation 都使用 corrected truth path。
+
+\subsection{Alignment 与 metrics}
+Anchor layout accuracy 使用 reflection-allowed rigid Kabsch，不做 scale fit。Static tag
+accuracy 使用 anchor-locked transform，再与 corrected OptiTrack truth 比较。Localization
+metrics 包括 mean、RMSE、P50、P90、P95、P99、max，以及 50/80/100/200/300 mm 的 cm-scale
+outlier rates。Per-axis error 使用 OptiTrack frame，其中 $Y$ 为 vertical。2D horizontal
+只作为 secondary metric，不作为 headline。
+
+\subsection{Surveyed-anchor baseline 与 delay control}
+Surveyed-anchor baseline 将 AutoPos layout 替换为 OptiTrack-truth anchor coordinates，
+并在 OptiTrack frame 内直接解 tag。它包含三种 delay treatment：zero delay、AutoPos
+\texttt{v4-io} delay vector、OptiTrack-derived inter-anchor endpoint delay fit。Delaycal
+row 使用 OptiTrack anchor 和 OptiTrack-derived delay，因此是 optimistic lower bound；
+AutoPos-delay row 用来测试 AutoPos delay vector 是否能移植到 surveyed layout。
+
+\subsection{Geometry、robustness 与 diagnostics}
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{VDOP/DOP.} 默认 DOP 使用 range-only Jacobian $[u_x,u_y,u_z]$，与 tag solver
+        一致。Range-bias Jacobian 只作为 appendix diagnostic。
+  \item \textbf{MC keep-$k$.} 随机 keep-$k$ repeat 用于量化 anchor dropout robustness。
+  \item \textbf{Stratified keep-$k$.} Exhaustive fixed dropped-set replay 用于区分 lower-heavy、
+        upper-heavy、balanced 和 specific-anchor dropout。
+  \item \textbf{Pair residual and raw asymmetry.} Pair residual heatmap 用于暴露 pair-specific
+        bias；raw directional asymmetry 检查 initiator/responder 方向是否影响 range。
+  \item \textbf{Temporal drift.} 对 static raw range link 做 time regression，得到 drift slope
+        和 drift-over-capture。
+  \item \textbf{Additional diagnostics.} 包括 delay decomposition、radial/tangential split、
+        worst-point residual fingerprint、anchor health、height/edge/facing split 和
+        single-anchor criticality。
+\end{itemize}
+
+% ======================================================================
+\section{Anchor Layout 绝对精度}
+% ======================================================================
+\label{sec:layout}
+
+\subsection{方法}
+AutoPos anchor coordinates 通过 reflection-allowed Kabsch 与 OptiTrack antenna marker
+positions 对齐。由于 mirror ambiguity，reflection 必须允许；proper-rotation-only 只作为
+chirality sanity check。
+
+\subsection{\texttt{v4-io} headline}
+\begin{table}[h]
+\centering
+\caption{\texttt{v4-io} anchor layout absolute accuracy。Similarity scale-fitted RMS 仅为诊断。}
+\begin{tabular}{lrrrrrr}
+\toprule
+eval set & rigid RMS 3D & horiz.\ RMS & vert.\ RMS & shape RMS & sim.\ scale & sim.\ RMS \\
+\midrule
+all8 & 104.9 & 86.1 & 59.9 & 130.5 & 0.960 & 71.2 \\
+noG  & 104.4 & 84.4 & 61.4 & 133.4 & 0.960 & 70.1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{三个 layout 数字如何解读}
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{Rigid RMS $=104.9\mm$} 是官方 absolute accuracy：rigid fit 包含 rotation、
+        translation、reflection，但不包含 scale。
+  \item \textbf{Shape RMS $=130.5\mm$} 是 alignment-free 的 pairwise distance distortion。
+        它不能被 pose 或 handedness 隐藏，因此更接近 intrinsic shape distortion。
+  \item \textbf{Similarity RMS $=71.2\mm$} 是使用 OptiTrack truth fit scale 后的 residual。
+        它说明 scale bias 很重要，但不能当 accuracy claim。
+\end{itemize}
+
+\subsection{Solver ranking}
+\begin{table}[h]
+\centering
+\caption{Reflection-allowed all8 rigid RMS ranking。}
+\begin{tabular}{lrrl}
+\toprule
+solver & rigid RMS 3D (\si{\milli\meter}) & shape RMS (\si{\milli\meter}) & note \\
+\midrule
+v4-io   & 104.9 & 130.5 & best, but only marginally \\
+v1-old  & 106.9 & 137.6 & nearly tied with v4-io \\
+v2      & 135.4 & 185.8 & worse \\
+v3-lite & 135.4 & 185.7 & similar to v2 \\
+v3-full & 144.4 & 149.2 & did not become best despite extra freedom \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+结论要诚实：\texttt{v4-io} 是 best layout solver，但只比 \texttt{v1-old} 好约 $2\mm$。
+因此不能宣传成 layout solver 的巨大突破。更合理的说法是：\texttt{v4-io} 是当前 preferred
+solver，因为它在综合分析中 best-or-near-best。
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.78\textwidth]{layout_opti_vs_autopos_3d.png}
+\caption{AutoPos anchor layout 与 OptiTrack truth 的 3D 对比。}
+\label{fig:layout3d}
+\end{figure}
+
+% ======================================================================
+\section{Static Tag 绝对精度}
+% ======================================================================
+\label{sec:tag}
+
+这一层验证的问题是：当 solved tag positions 通过 anchor-derived transform 映射到 OptiTrack
+frame 后，tag absolute error 到底是多少。
+
+\subsection{Frame-locking：为什么必须用 anchor-locked transform}
+\label{sec:framelock}
+Solved tag positions 在 AutoPos frame，tag truth 在 OptiTrack frame。两者之间的 transform
+不能用 tag truth fit，否则会 circular。三种方法如下：
+
+\begin{table}[h]
+\centering
+\caption{Frame transform 的三种固定方法。只有 anchor-locked 方法非 circular 且唯一。}
+\begin{tabular}{p{4.4cm}cccc}
+\toprule
+Method & locks transl. & locks rot. & locks mirror & tag error unique? \\
+\midrule
+(A) fit $T$ to tag cloud            & yes & yes & yes & \textbf{no --- circular} \\
+(B) align centroid / diagonal point & yes & \textbf{no} & \textbf{no} & \textbf{no --- rotatable} \\
+(C) 8-anchor Procrustes, then apply & yes & yes & yes & \textbf{yes} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+Method (A) 用误差定义本身来最小化误差；Method (B) 只固定 translation，rotation 和 mirror
+仍自由；只有 Method (C) 使用八个 anchors 锁定 frame，然后再评估 tag error，才是唯一且非
+circular 的 official value。
+
+\subsection{ID01/ID05 tag truth marker-label swap 修正}
+\label{sec:swap}
+Static tag truth 是 virtual marker \texttt{Iantenna}。它由五个 glued balls \texttt{I1..I5}
+构成的 rigid body 生成。由于 fixture arms 等长，marker constellation 有 rotational
+ambiguity；本数据集中 ID01 与 ID05 出现 marker label swap。
+
+检测方式是 rotation/translation invariant：比较 \texttt{I1..I5} 十个 pairwise distances
+与 clean 22-capture consensus：
+\[
+[84.5,\,53.0,\,49.0,\,60.5,\,59.9,\,57.6,\,67.2,\,49.6,\,60.0,\,79.8]\mm.
+\]
+120-permutation search 唯一找到以下 relabel：
+
+\begin{table}[h]
+\centering
+\caption{Deterministic marker-label correction。Indices 是新 I1..I5 对应的旧 0-based ball index。}
+\begin{tabular}{lccc}
+\toprule
+ID & corrected I1..I5 & Motive$\to$corrected \texttt{Iantenna} shift & fingerprint dev.\ after relabel \\
+\midrule
+ID01 & $(0,1,4,2,3)$ & 54.1\mm & 1.5\mm \\
+ID05 & $(3,4,2,0,1)$ & 2.1\mm  & 0.8\mm \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+其余 22 个 capture 干净。ID04 虽然 world-frame direction flip，但 ball-local fingerprint
+干净，因此不是 contaminated truth。
+
+设计教训：下一代 optical marker fixture 必须使用 asymmetric unequal arm lengths，避免
+Vicon/Motive 将等长结构旋转成另一个看似合理的 label assignment。
+
+\subsection{Production-output summary}
+\begin{table}[h]
+\centering
+\caption{Production-output static-tag accuracy, \texttt{v4-io}.}
+\begin{tabular}{lrrrrrr}
+\toprule
+eval set & median 3D & p95 3D & RMS 3D & median horiz.\ & median vert.\ & scale-bias diag.\ \\
+\midrule
+all8 & 77.4 & 270.3 & 138.3 & 43.8 & 63.1 & 30.0 \\
+noG  & 81.3 & 278.6 & 141.1 & 46.9 & 63.5 & 31.2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Raw replay matrix}
+Raw replay 将 raw static captures 重新通过 C-core T-series solver 跑一遍：
+\[
+5\;\text{anchor solvers}\times4\;\text{tag solvers}\times\{\text{all8},\text{noG}\}.
+\]
+
+\begin{table}[h]
+\centering
+\caption{Raw replay matrix 中 all8 median 3D 最好的几行。}
+\begin{tabular}{rlllrrrr}
+\toprule
+rank & anchor & tag & eval & median 3D & p95 3D & RMS 3D & vert.\ median \\
+\midrule
+1 & v4-io   & T3 & all8 & 62.3 & 158.2 & 101.8 & 48.6 \\
+2 & v4-io   & T4 & all8 & 69.1 & 182.3 & 107.0 & 55.0 \\
+3 & v2      & T3 & all8 & 71.3 & 190.1 & 100.5 & 53.1 \\
+4 & v3-lite & T3 & all8 & 72.4 & 190.2 & 100.6 & 52.7 \\
+5 & v2      & T4 & all8 & 75.0 & 166.0 & 102.0 & 58.6 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{\texttt{v4-io/T4} all8 versus noG。}
+\begin{tabular}{lrrrrrr}
+\toprule
+eval set & median 3D & p95 3D & RMS 3D & horiz.\ median & vert.\ median & repeat.\ D3 median \\
+\midrule
+all8 & 69.1 & 182.3 & 107.0 & 41.3 & 55.0 & 67.4 \\
+noG  & 83.9 & 291.1 & 138.7 & 67.9 & 43.9 & 56.2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+解读：\texttt{v4-io/T3/all8} 是 best-case solver combination，median $62.3\mm$，但不能
+替代 production headline。\texttt{v4-io/T4/all8} 是 deployment-oriented result，median
+$69.1\mm$。Dropping G 没有改善 tag absolute accuracy；这说明虽然 G optical marker 有
+warning，但 G 的 UWB measurement 对 tag solving 仍有帮助。
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_error_by_position.png}
+  \caption{Production tag error by position.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_error_vs_distance.png}
+  \caption{Tag error versus distance.}
+\end{subfigure}
+\caption{Static tag error by position and distance.}
+\label{fig:tagpos}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_raw_replay_accuracy_matrix.png}
+  \caption{Raw replay accuracy matrix.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_raw_replay_v4io_by_position.png}
+  \caption{Raw replay \texttt{v4-io} by position.}
+\end{subfigure}
+\caption{Raw replay matrix results.}
+\label{fig:rawreplay}
+\end{figure}
+
+% ======================================================================
+\section{Localization Metric Set（cm-scale）}
+% ======================================================================
+\label{sec:metrics}
+
+\subsection{哪些标准指标不适用}
+Latency、update rate、drop rate、availability 和 jitter 不在此处报告，因为这是 offline
+static replay，不是 real-time online stream。Static analogue of jitter 是 repeatability
+D3 std，已经在表中 cross-reference。3D 是 primary metric；2D horizontal 只作为 secondary
+metric，因为本系统贡献点正是 pure-UWB 3D self-calibration，不能用好看的 2D 隐藏 vertical。
+
+\subsection{Full percentile set}
+\begin{table}[h]
+\centering
+\caption{3D error full percentile set（单位 \si{\milli\meter}）。}
+\begin{tabular}{lrrrr}
+\toprule
+metric & prod.\ all8 & prod.\ noG & raw T3/all8 & raw T4/all8 \\
+\midrule
+mean        & 111.2 & 115.6 & 84.1  & 90.2  \\
+RMSE        & 138.3 & 141.1 & 101.8 & 107.0 \\
+P50         & 77.4  & 81.3  & 62.3  & 69.1  \\
+P90         & 187.7 & 183.8 & 149.2 & 155.7 \\
+P95         & 270.3 & 278.6 & 158.2 & 182.3 \\
+P99         & 349.9 & 349.5 & 261.4 & 246.0 \\
+max         & 369.6 & 365.7 & 292.2 & 263.8 \\
+\midrule
+repeat.\ D3 std P50 & 58.6 & 58.6 & 58.7  & 67.4 \\
+repeat.\ D3 std P95 & 88.2 & 88.2 & 137.7 & 88.4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Per-axis signed bias}
+\begin{table}[h]
+\centering
+\caption{Production \texttt{v4-io/all8} per-axis signed bias。OptiTrack frame 中 $Y$ 为 vertical。}
+\begin{tabular}{lrrr}
+\toprule
+component & signed mean bias & signed std & P95 abs.\ error \\
+\midrule
+$X$ (horizontal)        & $+23.7$ & 32.4  & 79.9  \\
+$Y$ (\textbf{vertical}) & $-6.2$  & \textbf{130.8} & \textbf{259.4} \\
+$Z$ (horizontal)        & $-8.8$  & 32.6  & 58.0  \\
+\midrule
+horizontal $XZ$ (2D, secondary) & \multicolumn{3}{l}{RMSE 51.6\quad P50 43.8\quad P95 82.8} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+这是非常重要的结构性结果：horizontal P95 只有 $58$--$80\mm$，而 vertical P95 约为
+$260\mm$。Signed bias 都不大，因此误差不是简单 translation，而是 vertical-dominated
+dispersion 叠加 radial/scale structure。
+
+\subsection{Outlier rates}
+\begin{table}[h]
+\centering
+\caption{24 个 static positions 中落入各 3D error threshold 的比例。}
+\begin{tabular}{lrrrrr}
+\toprule
+within & prod.\ all8 & prod.\ noG & raw T3/all8 & raw T4/all8 \\
+\midrule
+$\le 50\mm$  & 25.0\% & 12.5\% & 33.3\% & 29.2\% \\
+$\le 80\mm$  & 58.3\% & 50.0\% & 66.7\% & 62.5\% \\
+$\le 100\mm$ & 58.3\% & 58.3\% & 70.8\% & 62.5\% \\
+$\le 200\mm$ & 91.7\% & 91.7\% & 95.8\% & 95.8\% \\
+$\le 300\mm$ & 95.8\% & 95.8\% & 100\%  & 100\%  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+Production \texttt{v4-io/all8} 有 $25.0\%$ positions 在 $50\mm$ 内，$58.3\%$ 在 $80\mm$
+内；但 $8.3\%$ 超过 $200\mm$，$4.2\%$ 超过 $300\mm$。所以 median 好看，但 tail 必须诚实
+报告。
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_error_cdf.png}
+  \caption{3D position-error CDF.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_error_per_axis_bias.png}
+  \caption{Per-axis signed bias and P95.}
+\end{subfigure}
+\caption{Localization metric visualizations.}
+\label{fig:metrics}
+\end{figure}
+
+% ======================================================================
+\section{Surveyed-Anchor Baseline：隔离 Self-Calibration Cost}
+% ======================================================================
+\label{sec:surveyed}
+
+\subsection{目的}
+仅看 AutoPos production line，无法区分误差来自 self-calibrated anchor layout，还是来自
+UWB ranging / geometry floor。因此我们加入一个 control：直接使用 OptiTrack-truth anchor
+coordinates，在 OptiTrack frame 中解 static tag，并与 corrected \texttt{Iantenna} 比较。
+这个 control 不做 Kabsch、不做 reflection、不做 scale fit。
+
+\subsection{三种 delay treatment}
+\begin{itemize}[leftmargin=1.4em]
+  \item \texttt{raw\_zero\_delay}: 所有 delay 设为 0，被 missing endpoint delay 主导。
+  \item \texttt{autopos\_v4io\_delay\_vector}: OptiTrack anchors + AutoPos \texttt{v4-io}
+        delay vector，用于测试 AutoPos delay 是否可移植。
+  \item \texttt{inter\_anchor\_delaycal}: 用 OptiTrack inter-anchor distances 拟合 endpoint
+        delays。它是 optimistic lower bound，不是 field-achievable independent number。
+\end{itemize}
+
+\begin{table}[h]
+\centering
+\caption{Surveyed-anchor baseline 与 production AutoPos 对比。}
+\small
+\begin{tabular}{llllrrrrr}
+\toprule
+eval & anchor source & delay & tag & median & p95 & RMS & h.med & v.med \\
+\midrule
+all8 & OptiTrack & raw\_zero      & T4 & 296.0 & 443.1 & 297.8 & 95.5 & 279.9 \\
+all8 & OptiTrack & autopos\_v4io  & T4 & 241.9 & 376.3 & 240.4 & 79.9 & 214.8 \\
+all8 & OptiTrack & delaycal       & T4 & 58.4  & 134.8 & 74.9  & 37.6 & 39.5 \\
+all8 & AutoPos v4-io & estimated  & prod & 77.4 & 270.3 & 138.3 & 43.8 & 63.1 \\
+\midrule
+noG  & OptiTrack & raw\_zero      & T4 & 322.1 & 534.1 & 349.7 & 126.2 & 286.2 \\
+noG  & OptiTrack & autopos\_v4io  & T4 & 255.1 & 471.0 & 287.7 & 114.5 & 206.0 \\
+noG  & OptiTrack & delaycal       & T4 & 78.1  & 198.2 & 118.4 & 50.1  & 64.1 \\
+noG  & AutoPos v4-io & estimated  & prod & 81.3 & 278.6 & 141.1 & 46.9 & 63.5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+关键结论：AutoPos delay vector 不能直接移植到 OptiTrack layout。OptiTrack anchors +
+AutoPos delay 仍然很差，median $241.9\mm$；而 OptiTrack anchors + delaycal 可以到
+median $58.4\mm$。这说明 AutoPos delay 是 layout-coupled effective delay，不是独立物理
+antenna delay calibration。
+
+\subsection{Worst-point resolution}
+\begin{table}[h]
+\centering
+\caption{Production worst points 在 surveyed-anchor control 下的变化。}
+\begin{tabular}{lrrrl}
+\toprule
+ID & prod.\ all8 3D & surveyed+autopos-delay & surveyed delaycal & interpretation \\
+\midrule
+ID03 & 369.6 & 432.5 & 78.2 & collapses with OptiTrack delaycal \\
+ID04 & 283.9 & 388.1 & 89.5 & collapses with OptiTrack delaycal \\
+ID06 & 192.8 & 244.5 & 34.6 & collapses with OptiTrack delaycal \\
+ID05 & 52.1  & 145.2 & 32.6 & moderate; truth shift was only 2.1\,\si{\milli\meter} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+这说明 production tail 主要来自 calibration layer，即 layout / delay / frame-lock budget，
+不是这些点本身不可被 UWB 定位。注意这不是说 AutoPos 只差 $18.9\mm$；delaycal lower
+bound 使用了 OptiTrack truth，带有 circular 成分。
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{autopos_vs_surveyed_per_position.png}
+  \caption{AutoPos versus surveyed, per position.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{worst_points_autopos_vs_surveyed.png}
+  \caption{Worst points, AutoPos versus surveyed.}
+\end{subfigure}
+\caption{Surveyed-anchor control.}
+\label{fig:surveyed}
+\end{figure}
+
+% ======================================================================
+\section{VDOP Geometry}
+% ======================================================================
+\label{sec:vdop}
+
+默认 geometric model 是 range-only Jacobian row $[u_x,u_y,u_z]$，与 tag solver 一致。
+Range-bias model $[u_x,u_y,u_z,1]$ 只作为 diagnostic appendix。
+
+\begin{table}[h]
+\centering
+\caption{25 mm grid 上的 range-only VDOP summary。}
+\begin{tabular}{lrrrrr}
+\toprule
+mask & VDOP median & VDOP p90 & VDOP p95 & GDOP median & HDOP median \\
+\midrule
+all8  & 0.804 & 0.911 & 0.941 & 1.170 & 0.861 \\
+noG   & 0.856 & 1.057 & 1.177 & 1.278 & 0.943 \\
+dropH & 0.861 & 1.075 & 1.199 & 1.283 & 0.941 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+All8 geometry 在工作体积内整体健康。Dropping G/H 会提高 VDOP 和 condition number，但不会
+造成 rank failure。重要的是：ID03/ID04/ID06 这些大误差点并不对应 worst VDOP，因此 tail
+不能仅由 geometric dilution 解释。
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{vdop_slices_grid25.png}
+  \caption{VDOP slices.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{dop_4panel_mid_all8_grid25.png}
+  \caption{DOP 4-panel mid all8.}
+\end{subfigure}
+\caption{Range-only DOP geometry.}
+\label{fig:vdop}
+\end{figure}
+
+% ======================================================================
+\section{Robustness：MC5000 Random Keep-$k$}
+% ======================================================================
+\label{sec:mc}
+
+完整矩阵为：
+\[
+5\;\text{anchor solvers}\times4\;\text{tag solvers}\times
+\text{static/roto}\times\text{keep }8/7/6/5/4\times\text{MC5000}.
+\]
+Integrity 为 40/40 blocks PASS。
+
+\begin{table}[h]
+\centering
+\caption{\texttt{v4-io/T4} random keep-$k$ degradation。}
+\begin{tabular}{lrrrrr}
+\toprule
+kind & keep8 & keep7 & keep6 & keep5 & keep4 \\
+\midrule
+static D3 std median (\si{\milli\meter})    & 61.7 & 83.2 & 107.3 & 149.1 & 196.4 \\
+roto turn-center RMS median (\si{\milli\meter}) & 12.1 & 21.6 & 30.5  & 41.4  & 63.9  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{mc_keepk_static_curves.png}
+  \caption{Static keep-$k$ curves.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{mc_keepk_roto_curves.png}
+  \caption{Roto keep-$k$ curves.}
+\end{subfigure}
+\caption{MC5000 keep-$k$ robustness.}
+\label{fig:mc}
+\end{figure}
+
+% ======================================================================
+\section{Robustness：Stratified Fixed-Drop Keep-$k$}
+% ======================================================================
+\label{sec:stratified}
+
+Stratified fixed-drop replay 用来回答“具体丢哪些 anchor 最危险”。它不同于 random MC，
+可以区分 lower-heavy、upper-heavy、balanced 和 single-anchor 影响。
+
+\begin{table}[h]
+\centering
+\caption{\texttt{v4-io/T4} lower-heavy vs upper-heavy drops。}
+\begin{tabular}{lrrrl}
+\toprule
+kind & keep$k$ & lower-heavy & upper-heavy & interpretation \\
+\midrule
+static D3 std    & 7 & 65.2 & 61.0 & lower drop slightly worse \\
+static D3 std    & 6 & 84.5 & 63.1 & lower drop worse \\
+static D3 std    & 5 & 96.0 & 65.1 & lower drop worse \\
+static D3 std    & 4 & 117.3 & 57.2 & lower drop much worse \\
+roto center RMS  & 7 & 18.3 & 16.0 & lower drop slightly worse \\
+roto center RMS  & 6 & 25.2 & 18.1 & lower drop worse \\
+roto center RMS  & 5 & 30.9 & 24.1 & lower drop worse \\
+roto center RMS  & 4 & 48.5 & 34.0 & lower drop worse \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+结果不支持“丢 upper anchor 一定最伤 Z”的简单直觉。在该 field geometry 中，lower-heavy
+drops 对 static repeatability 和 roto stability 都更伤。
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.7\textwidth]{stratified_keepk_upper_vs_lower.png}
+\caption{Stratified keep-$k$: upper-heavy versus lower-heavy drops.}
+\label{fig:stratified}
+\end{figure}
+
+% ======================================================================
+\section{Per-Anchor Diagnostics}
+% ======================================================================
+\label{sec:pair}
+
+\subsection{Pair residuals 与 raw asymmetry}
+\begin{table}[h]
+\centering
+\caption{\texttt{v4-io} worst residual pairs and raw directional asymmetries。}
+\begin{tabular}{lrl@{\hspace{2em}}lr}
+\toprule
+pair & residual (\si{\milli\meter}) & involves G & pair & asymmetry (\si{\milli\meter}) \\
+\midrule
+B-C & $-141.7$ & no  & D-F & 22.0 \\
+B-G & $+113.7$ & yes & E-F & 20.0 \\
+D-E & $+99.8$  & no  & C-F & 18.0 \\
+D-F & $+91.4$  & no  & A-H & $-17.0$ \\
+F-H & $-59.3$  & no  & B-E & $-16.0$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+Worst residual pairs 不只是 G-involving。B-C、D-E、D-F、F-H 都说明 residual structure
+比单一 G issue 更广。
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{pair_residual_bias_heatmap.png}
+  \caption{Residual bias.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{pair_residual_abs_heatmap.png}
+  \caption{Residual magnitude.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{pair_raw_asymmetry_heatmap.png}
+  \caption{Raw asymmetry.}
+\end{subfigure}
+\caption{Pair residual and raw asymmetry diagnostics.}
+\label{fig:pairheat}
+\end{figure}
+
+\subsection{Temporal / thermal drift}
+Static raw-link drift 共分析 24 个 sessions、192 个 anchor-session links。Median absolute
+drift slope 为 $1.54\mm/\text{min}$，P95 为 $16.21\mm/\text{min}$；median drift-over-capture
+为 $3.07\mm$，P95 为 $32.42\mm$。A--E 基本较稳定，F/G/H tails 更明显，其中 G 和 F 最突出。
+Drift 不是 $60$--$80\mm$ median tag error 的主因，但对 F/G/H 的 placement/hardware stability
+需要保留警惕。
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{temporal_drift_slope_heatmap.png}
+  \caption{Drift slope heatmap.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{temporal_drift_slope_boxplot.png}
+  \caption{Drift slope boxplot.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{temporal_drift_worst_timeseries.png}
+  \caption{Worst-link time series.}
+\end{subfigure}
+\caption{Temporal drift diagnostics.}
+\label{fig:drift}
+\end{figure}
+
+\subsection{Anchor health 与 single-anchor criticality}
+\label{sec:anchorhealth}
+Heuristic trust score 综合 pair residual、raw asymmetry、temporal drift、OptiTrack marker
+flag 和 delay differential。Lowest trust anchors 为 G、D、H；single-anchor criticality
+中最 critical to keep 为 E、D、A。二者不是同一件事：低 trust anchor 可能仍然提供几何约束，
+高 criticality anchor 也不一定是最坏的 range source。
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{anchor_health_scorecard.png}
+  \caption{Anchor health scorecard.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{single_anchor_criticality.png}
+  \caption{Single-anchor criticality.}
+\end{subfigure}
+\caption{Anchor health and criticality.}
+\label{fig:anchorhealth}
+\end{figure}
+
+% ======================================================================
+\section{Additional Error-Structure Diagnostics}
+% ======================================================================
+\label{sec:errstruct}
+
+\subsection{Antenna-delay common/differential decomposition}
+\label{sec:delay}
+\texttt{v4-io} AutoPos effective common delay 为 $34.4\mm$，而 OptiTrack inter-anchor endpoint
+fit 的 common term 为 $90.6\mm$。二者 differential pattern 几乎不相关，Pearson $r=-0.03$。
+因此 AutoPos delay vector 应被描述为 effective joint self-calibration delay，不是 pure
+physical antenna delay。
+
+\subsection{Tag error vs distance from array centre}
+All8 3D error 随 array centroid distance 增长，slope 为 $166.5\mm/\text{m}$，
+$R^2=0.28$，$p=0.007$。Signed radial component slope 为 $229.9\mm/\text{m}$，
+$p=0.000$。这支持 scale-propagation component，但 $R^2$ 不是 1，说明它不是唯一解释。
+
+\subsection{Tag error vector field}
+All8 mean error vector 为 $(23.7,-6.2,-8.8)\mm$，相对 scatter 很小，mean/scatter ratio
+为 0.19。Median signed radial error 为 $63.4\mm$，median tangential magnitude 为
+$40.1\mm$，83\% points 是 radially outward。结论：不是 common translation，而是
+radial-outward scale-like structure。
+
+\subsection{Worst-point raw-range fingerprint}
+ID01/ID03/ID04/ID06 的 raw-range residual fingerprint 具有 anchor-specific structure，
+不是统一 common offset，也不是一个 anchor 单独解释全部 tail。
+
+\subsection{Height、edge、facing stratification}
+Height 和 edge/center split 与 scale/radial 图景一致：mid/center 比 high/low、edge 更干净。
+Facing group 因为每组 n 小，只能作为 exploratory，不可过度声称。
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{delay_decomposition.png}
+  \caption{Delay decomposition.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_error_vs_center_distance.png}
+  \caption{Error vs distance.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_error_vector_field.png}
+  \caption{Error vector field.}
+\end{subfigure}
+\caption{Delay、scale 和 error vector diagnostics.}
+\label{fig:errstruct}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_error_by_height.png}
+  \caption{By height.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_error_edge_vs_center.png}
+  \caption{Edge vs centre.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_error_by_facing.png}
+  \caption{By facing group.}
+\end{subfigure}
+\caption{Stratified tag error.}
+\label{fig:straterr}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.75\textwidth]{worstpoint_range_residual_fingerprint.png}
+\caption{Worst-point raw-range residual fingerprint.}
+\label{fig:worstfinger}
+\end{figure}
+
+\subsection{误差主因综合判断}
+综合证据指向同一个方向：
+\begin{enumerate}[leftmargin=1.6em]
+  \item error 大多 radial outward，并随 distance from centre 增长，这是 scale signature；
+  \item mean error vector 相对 scatter 很小，因此不是 common translation；
+  \item AutoPos delay differential 与 physical delay 不相关，说明 delay 与 layout scale 耦合；
+  \item worst-point residual 不是单 anchor 集中爆炸；
+  \item surveyed-anchor control 下 tail collapse，说明 tail 位于 calibration layer。
+\end{enumerate}
+因此当前 tag error 的主因是 self-calibrated layout 的约 4\% scale bias 通过 radial 方向传播，
+并与 antenna-delay estimate 耦合；不是单一 weak anchor，也不是 isotropic noise。
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.85\textwidth]{bootstrap_confidence_intervals.png}
+\caption{Bootstrap confidence intervals for headline metrics.}
+\label{fig:bootstrap}
+\end{figure}
+
+% ======================================================================
+\section{Rotational (Roto) Absolute Validation}
+% ======================================================================
+\label{sec:roto}
+
+\todo{RESERVED SECTION --- TO BE COMPLETED}
+
+\noindent
+本节故意保留，防止后续忘记补 roto OptiTrack absolute validation。目前只有 UWB-only
+consistency diagnostics；独立 OptiTrack roto ground truth 仍待处理。
+
+\subsection{当前 UWB-only consistency（不是 absolute accuracy）}
+\begin{table}[h]
+\centering
+\caption{\texttt{v4-io} roto UWB-only consistency。注意：这不是 OptiTrack absolute accuracy。}
+\begin{tabular}{lrrr}
+\toprule
+metric & point (\si{\milli\meter}) & CI low & CI high \\
+\midrule
+roto abs $\Delta R$ error median   & 33.33 & 22.52 & 40.15 \\
+roto abs $\Delta R$ error p95      & 42.58 & 40.17 & 47.25 \\
+roto turn-center RMS median        & 14.31 & 13.16 & 17.36 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+Turn-center RMS $14.31\mm$ 很漂亮，但它主要测试 trajectory internal consistency，而不是
+相对于 OptiTrack 的绝对位置。没有 OptiTrack roto truth 前，不能 claim absolute roto
+accuracy。
+
+\subsection{OptiTrack roto 数据到位后要补的内容}
+\begin{itemize}[leftmargin=1.4em]
+  \item Roto trajectory absolute error：ATE/RMSE、per-axis、CDF。
+  \item Turn-center / axis-of-rotation absolute accuracy。
+  \item Dynamic vs static comparison。
+  \item 如果有 real-time stream，再讨论 roto-specific latency/outlier。
+  \item \todo{Insert roto figures here once generated.}
+\end{itemize}
+
+% ======================================================================
+\section{Limitations and Open Items}
+% ======================================================================
+\label{sec:limits}
+
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{Roto absolute validation pending.} 目前只有 UWB-only consistency。
+  \item \textbf{Delay/scale circularity.} OptiTrack-derived delay calibration 不能再用于独立
+        validation。真正干净的方法是 tape/laser independent baseline delay calibration。
+  \item \textbf{Anchor G optical marker suspect.} G marker fingerprint 有问题，但 all8/noG
+        layout RMS 只差约 $0.5\mm$，因此 dual report 是为了 rigor，不是因为 G 改变结论。
+  \item \textbf{Tag marker fixture design.} 等长 arms 导致 ID01/ID05 label swap；下一代
+        fixture 必须使用 unequal arm lengths。
+  \item \textbf{Static tag P95 tail.} Tail 仍较宽，并且 placement-sensitive，主要集中在
+        edge/high/radial scale propagation。
+  \item \textbf{Small-group analyses.} Height/edge/facing 每组样本小，只能作 exploratory。
+\end{itemize}
+
+% ======================================================================
+\section{Recommended Headline Statements}
+% ======================================================================
+\label{sec:headline}
+
+\paragraph{Anchor layout.}
+\texttt{v4-io} 在 reflection-allowed rigid alignment、no scale fit 条件下，all8 anchor
+layout 3D RMS 为 $104.9\mm$，horizontal RMS $86.1\mm$，vertical RMS $59.9\mm$。Similarity
+scale diagnostic 为 0.960，但不是 accuracy claim。
+
+\paragraph{Static tag.}
+Production \texttt{v4-io/all8} 使用 anchor-locked transform 与 corrected tag truth 后，
+median 3D 为 $77.4\mm$，P95 为 $270.3\mm$。Best-case raw replay 为
+\texttt{v4-io/T3/all8}，median $62.3\mm$，P95 $158.2\mm$。Deployment-oriented
+\texttt{v4-io/T4/all8} 为 median $69.1\mm$，P95 $182.3\mm$。Production all8 中 $58.3\%$
+positions 在 $80\mm$ 内，$91.7\%$ 在 $200\mm$ 内。
+
+\paragraph{Surveyed-anchor control.}
+OptiTrack anchors + OptiTrack-derived delaycal 的 all8/T4 optimistic lower bound 为
+median $58.4\mm$。Production tail 在该 control 下 collapse，说明 tail 主要来自
+self-calibration/layout/delay/frame-lock budget，而不是 UWB 本身在这些点彻底失败。
+
+\paragraph{Robustness.}
+MC5000 40/40 blocks PASS。对于 \texttt{v4-io/T4}，static D3 std median 从 keep8 的
+$61.7\mm$ 增长到 keep4 的 $196.4\mm$。Stratified keep-$k$ 显示 lower-heavy drops 在该
+geometry 中比 upper-heavy drops 更伤。
+
+\paragraph{Roto.}
+UWB-only roto turn-center RMS median 为 $14.31\mm$，但 roto OptiTrack absolute validation
+仍 pending。因此不能 claim absolute roto accuracy。
+
+\paragraph{Contribution positioning.}
+这项工作的价值不是“挑一个最小数字”，而是问题定义最难：pure 3D inter-anchor
+self-calibration，无 external sensor aid；并且验证最强：OptiTrack independent reference；
+同时 error budget 被拆得很细。合理 claim 是 credible decimetre-level 3D anchor calibration
+和约 $6$--$8\,\si{\centi\meter}$ static absolute capture，而不是 general centimetre-level
+optical mocap replacement。
+
+\end{document}

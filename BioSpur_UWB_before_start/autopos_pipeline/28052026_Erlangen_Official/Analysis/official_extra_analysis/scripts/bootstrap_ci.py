@@ -108,7 +108,19 @@ def write_csv(path: Path, rows: list[dict]) -> None:
 
 def maybe_add_mc_metrics(rows: list[dict], mc_dir: Path, rng, n_boot: int) -> int:
     count = 0
-    for p in sorted(mc_dir.glob("*/*/*/*_keepk_summary.csv")):
+    metrics_by_kind = {
+        "static": [
+            ("mc_static_d3_std_median", "d3_std_mm_median"),
+            ("mc_static_d3_std_p95", "d3_std_mm_p95"),
+            ("mc_static_z_std_median", "z_std_mm_median"),
+        ],
+        "roto": [
+            ("mc_roto_turn_center_rms_median", "turn_center_rms_3d_mm_median"),
+            ("mc_roto_turn_center_p95_median", "turn_center_p95_3d_mm_median"),
+            ("mc_roto_circle_thickness_median", "circle_thickness_rms_mm_median"),
+        ],
+    }
+    for p in sorted(mc_dir.glob("*/*/*/*_keepk_repeat_summary.csv")):
         try:
             df = pd.read_csv(p)
         except Exception:
@@ -118,21 +130,28 @@ def maybe_add_mc_metrics(rows: list[dict], mc_dir: Path, rng, n_boot: int) -> in
             continue
         version, method, kind = rel[0], rel[1], rel[2]
         for keep, g in df.groupby("keep_k"):
-            # Prefer robust error columns if present; tolerate schema evolution.
-            for col in ["rms_3d_mm", "median_3d_mm", "p95_3d_mm", "mean_3d_mm"]:
+            for metric_name, col in metrics_by_kind.get(kind, []):
                 if col in g.columns:
                     vals = g[col].to_numpy(dtype=float)
-                    add_metric(
-                        rows,
-                        metric=f"mc_keep{int(keep)}_{kind}_{method}_{col}",
-                        version=version,
-                        eval_set=f"{kind}/keep{int(keep)}",
-                        values=vals,
-                        fn_name="median",
-                        fn=np.nanmedian,
-                        rng=rng,
-                        n_boot=n_boot,
-                        source=str(p),
+                    vals = vals[np.isfinite(vals)]
+                    if vals.size == 0:
+                        continue
+                    lo, hi = np.nanpercentile(vals, [2.5, 97.5])
+                    rows.append(
+                        {
+                            "metric": metric_name,
+                            "version": version,
+                            "eval_set": f"{method}/{kind}/keep{int(keep)}",
+                            "stat": "median",
+                            "point": float(np.nanmedian(vals)),
+                            "ci_low": float(lo),
+                            "ci_high": float(hi),
+                            "unit": "mm",
+                            "n_values": int(vals.size),
+                            "n_boot": 0,
+                            "method": "mc_repeat_percentile_interval",
+                            "source": str(p),
+                        }
                     )
                     count += 1
     return count
@@ -209,6 +228,16 @@ def main() -> int:
             add_metric(rows, metric="tag_absolute_3d_error", version=version, eval_set=eval_set, values=g["err_3d_mm"].to_numpy(), fn_name="p95", fn=p95, rng=rng, n_boot=args.n_boot, source=str(tag_abs_path))
             add_metric(rows, metric="tag_absolute_vertical_error", version=version, eval_set=eval_set, values=g["err_vertical_mm"].to_numpy(), fn_name="median", fn=np.nanmedian, rng=rng, n_boot=args.n_boot, source=str(tag_abs_path))
 
+    tag_raw_path = tables_dir / "tag_raw_replay_abs_errors_per_session.csv"
+    if tag_raw_path.exists():
+        df = pd.read_csv(tag_raw_path)
+        for (version, method, eval_set), g in df.groupby(["version", "tag_method", "eval_set"]):
+            scoped_eval = f"{method}/{eval_set}"
+            add_metric(rows, metric="tag_raw_replay_3d_error", version=version, eval_set=scoped_eval, values=g["err_3d_mm"].to_numpy(), fn_name="median", fn=np.nanmedian, rng=rng, n_boot=args.n_boot, source=str(tag_raw_path))
+            add_metric(rows, metric="tag_raw_replay_3d_error", version=version, eval_set=scoped_eval, values=g["err_3d_mm"].to_numpy(), fn_name="p95", fn=p95, rng=rng, n_boot=args.n_boot, source=str(tag_raw_path))
+            add_metric(rows, metric="tag_raw_replay_vertical_error", version=version, eval_set=scoped_eval, values=g["err_vertical_mm"].to_numpy(), fn_name="median", fn=np.nanmedian, rng=rng, n_boot=args.n_boot, source=str(tag_raw_path))
+            add_metric(rows, metric="tag_raw_replay_repeatability_d3", version=version, eval_set=scoped_eval, values=g["d3_std_mm"].to_numpy(), fn_name="median", fn=np.nanmedian, rng=rng, n_boot=args.n_boot, source=str(tag_raw_path))
+
     roto_path = solver_tables / "roto_physical_consistency_all.csv"
     if roto_path.exists():
         df = pd.read_csv(roto_path)
@@ -233,6 +262,7 @@ def main() -> int:
             (df["version"].isin(["v4-io"]))
             & (df["metric"].isin(["layout_rigid_3d_error", "static_radial_p95", "roto_abs_deltaR_error", "roto_turn_center_rms"]))
             | ((df["version"] == "v4-io") & (df["metric"].isin(["tag_absolute_3d_error", "tag_absolute_vertical_error"])))
+            | ((df["version"] == "v4-io") & (df["metric"].isin(["tag_raw_replay_3d_error", "tag_raw_replay_vertical_error", "tag_raw_replay_repeatability_d3"])))
         ].copy()
         md.append("## V4-io headline CIs\n\n")
         md.append("| metric | eval_set | stat | point | ci_low | ci_high | unit | n_values |\n")
@@ -257,7 +287,7 @@ def main() -> int:
                 "layout_upper_layer_sign": LAYOUT_UPPER_LAYER_SIGN,
                 "reported_height_mm": REPORTED_HEIGHT_EXPR,
             },
-            "sources": {str(p): sha256_file(p) for p in sources if p.exists()},
+                "sources": {str(p): sha256_file(p) for p in [*sources, tables_dir / "tag_raw_replay_abs_errors_per_session.csv"] if p.exists()},
             "metric_rows": len(rows),
             "mc_metric_groups": mc_count,
         },

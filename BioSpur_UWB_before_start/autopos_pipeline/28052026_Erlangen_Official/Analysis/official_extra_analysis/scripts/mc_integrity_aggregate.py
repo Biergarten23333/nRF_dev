@@ -61,8 +61,15 @@ def write_csv(path: Path, rows: list[dict]) -> None:
     if not rows:
         path.write_text("")
         return
+    fieldnames = []
+    seen = set()
+    for row in rows:
+        for key in row.keys():
+            if key not in seen:
+                fieldnames.append(key)
+                seen.add(key)
     with path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -91,7 +98,7 @@ def check_block(path: Path, layout: str, method: str, kind: str) -> tuple[list[d
     if "keep_k" not in df.columns:
         issues.append({"severity": "ERROR", "layout": layout, "tag_method": method, "kind": kind, "issue": "missing_keep_k_column", "path": str(path)})
         return rows, issues
-    keep_present = sorted(int(k) for k in df["keep_k"].dropna().unique())
+    keep_present = sorted((int(k) for k in df["keep_k"].dropna().unique()), reverse=True)
     if keep_present != KEEP_LIST:
         issues.append({"severity": "ERROR", "layout": layout, "tag_method": method, "kind": kind, "issue": f"bad_keep_set:{keep_present}", "path": str(path)})
     for col in df.columns:
@@ -155,6 +162,14 @@ def plot_roto(df: pd.DataFrame, out: Path) -> None:
     plt.close(fig)
 
 
+def fmt_mm(value) -> str:
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return "-"
+    return "-" if not np.isfinite(v) else f"{v:.3f}"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--official-root", default="autopos_pipeline/28052026_Erlangen_Official")
@@ -200,6 +215,18 @@ def main() -> int:
             md.append(f"| {i['severity']} | {i['layout']} | {i['tag_method']} | {i['kind']} | {i['issue']} |\n")
     else:
         md.append("No integrity issues detected.\n")
+    if not df.empty:
+        md.append("\n## V4-io / T4 Headline Snapshot\n\n")
+        md.append("| kind | keep_k | repeats | static_d3_std_median_mm | roto_turn_center_rms_median_mm | roto_turn_center_p95_median_mm |\n")
+        md.append("| --- | --- | --- | --- | --- | --- |\n")
+        sub = df[(df["layout"] == "v4-io") & (df["tag_method"] == "T4")].sort_values(["kind", "keep_k"], ascending=[True, False])
+        for _, r in sub.iterrows():
+            md.append(
+                f"| {r['kind']} | {int(r['keep_k'])} | {int(r['repeats'])} | "
+                f"{fmt_mm(r.get('d3_std_mm_median', np.nan))} | "
+                f"{fmt_mm(r.get('turn_center_rms_3d_mm_median', np.nan))} | "
+                f"{fmt_mm(r.get('turn_center_p95_3d_mm_median', np.nan))} |\n"
+            )
     (tables_dir / "mc_integrity_summary.md").write_text("".join(md))
 
     append_run_meta(

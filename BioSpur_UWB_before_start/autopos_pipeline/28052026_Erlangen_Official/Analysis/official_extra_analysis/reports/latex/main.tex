@@ -1,0 +1,1307 @@
+\documentclass[11pt,a4paper]{article}
+
+% ======================================================================
+%  Erlangen 2026-05-28 AutoPos OptiTrack Validation -- LONG SUMMARY
+%  Structure assumed:  main.tex  +  figs/*.png
+%  All figures are referenced as figs/<name>.png with the original names.
+% ======================================================================
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+\usepackage{siunitx}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{microtype}
+\usepackage[hidelinks,colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+
+\graphicspath{{figs/}}
+
+\sisetup{detect-weight=true,detect-family=true}
+\newcommand{\mm}{\,\si{\milli\meter}}
+\newcommand{\todo}[1]{{\color{red}\textbf{[#1]}}}
+\newcommand{\note}[1]{{\color{blue!50!black}\emph{#1}}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Erlangen AutoPos Validation --- Long Summary}
+\lhead{2026-05-28 Official}
+\cfoot{\thepage}
+
+\title{\textbf{AutoPos Pure-UWB 3D Anchor Self-Calibration:\\
+Absolute Validation Against OptiTrack\\[4pt]
+\large Erlangen Official Experiment, 2026-05-28 --- Detailed Technical Report (Long Summary)}}
+\author{Zekai Xiao}
+\date{Generated 2026-05-30}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\begin{abstract}
+\noindent
+This report documents the absolute validation of the AutoPos pure-UWB anchor
+self-calibration system against an independent OptiTrack optical reference, using the
+official Erlangen dataset captured on 2026-05-28. AutoPos recovers the full 3D layout of
+eight UWB anchors (DWM1001C; DW1000 + nRF52832) from \emph{inter-anchor ranging only},
+fixing anchor~A at the origin and jointly estimating per-anchor antenna delays. We report:
+(i) anchor-layout absolute accuracy after reflection-allowed rigid alignment
+($\approx\!105\mm$ RMS); (ii) static-tag absolute accuracy under the AutoPos layout
+($\approx\!77\mm$ median 3D, production output), with a strongly anisotropic error
+structure (horizontal P95 $\approx\!58$--$80\mm$ versus vertical P95 $\approx\!260\mm$);
+(iii) a surveyed-anchor control isolating self-calibration cost from the UWB ranging floor;
+(iv) range-only VDOP geometry; (v) MC5000 and stratified keep-$k$ dropout robustness;
+(vi) per-anchor diagnostics (pair residuals, temporal drift, health scorecard); and
+(vii) an error-structure synthesis attributing the dominant tag error to radial,
+scale-coupled layout error rather than to one weak anchor or isotropic noise. A dedicated
+section is reserved for rotational (roto) absolute validation, which is pending external
+OptiTrack processing. The honest headline is that AutoPos delivers credible decimetre-level
+3D anchor calibration and approximately $6$--$8\,\si{\centi\meter}$ static absolute capture
+with a fully auditable error budget, while not claiming to be a general centimetre-level
+optical-mocap replacement.
+\end{abstract}
+
+\tableofcontents
+\clearpage
+
+% ======================================================================
+\section{Introduction and Scope}
+% ======================================================================
+
+\subsection{Purpose of this document}
+This is the \emph{long} version of the Erlangen validation report. It is intentionally
+exhaustive: it records every analysis performed, the conventions and pitfalls encountered,
+the numerical results, and the honest interpretation of each result, including null results
+and corrections of earlier expectations. A condensed short summary for the supervisor will
+be derived from this document; nothing here is written to be persuasive at the expense of
+accuracy.
+
+\subsection{System under test}
+AutoPos is a pure-UWB anchor self-calibration pipeline. Eight anchors, labelled A--H, are
+built on the DWM1001C module (Decawave DW1000 transceiver plus Nordic nRF52832). The
+anchors exchange broadcast single-sided two-way ranging (SS-TWR) measurements. From the
+resulting inter-anchor range set \emph{alone} --- with no external position reference at
+deployment time --- the solver estimates the 3D coordinates of all anchors, fixing
+A~$=(0,0,0)$ as the gauge origin and estimating per-anchor antenna delays differentially
+(A's delay fixed at zero). The deployment uses a two-layer arrangement (a lower set
+A--D and an upper set E--H) approximating a rectangular box; the layers are separated by
+roughly \SI{1.4}{\meter} in the vertical direction.
+
+\subsection{Why this validation matters}
+Internal repeatability tells us whether repeated estimates cluster tightly in the solver's
+own frame; it does not tell us whether the resulting coordinates are \emph{correct} in the
+real world. The Erlangen campaign provides an independent optical ground truth (OptiTrack,
+sub-millimetre marker noise) so that AutoPos's self-reported ``repeatability'' can be
+converted into \emph{absolute} accuracy, and so that the error can be decomposed into its
+physical sources.
+
+\subsection{What is and is not claimed}
+\begin{itemize}[leftmargin=1.4em]
+  \item We claim a validated, auditable 3D anchor layout at the $\sim\!105\mm$ RMS level
+        and static-tag absolute accuracy at the $\sim\!62$--$77\mm$ median level inside the
+        working volume.
+  \item We do \emph{not} claim a general centimetre-level optical-mocap replacement, nor a
+        validated absolute rotational accuracy (see Section~\ref{sec:roto}).
+\end{itemize}
+
+% ======================================================================
+\section{Coordinate Frames and Validation Conventions}
+% ======================================================================
+\label{sec:conventions}
+
+Two coordinate frames are used throughout and must never be compared component-wise without
+an explicit rigid alignment.
+
+\paragraph{AutoPos solver frame.}
+\[
+  x,\,y \;=\; \text{horizontal plane}, \qquad
+  z \;=\; \text{vertical axis (upper layer is negative $z$)}, \qquad
+  \text{display height} = -z.
+\]
+
+\paragraph{OptiTrack TRC frame.}
+\[
+  Y \;=\; \text{vertical}, \qquad X,\,Z \;=\; \text{horizontal}.
+\]
+This was verified empirically, not assumed: the upper and lower anchor layers separate by
+$\approx\!1423\mm$ along OptiTrack $Y$ and by only $5$--$8\mm$ along $X$ and $Z$. Hence
+$Y$ is unambiguously the vertical axis in the optical frame. A common implementation pitfall
+is to reuse the AutoPos ``$z$ is vertical'' convention on OptiTrack data; doing so would
+silently take a horizontal axis as vertical and corrupt every per-axis result. A dedicated
+audit confirmed that all per-axis splits in the OptiTrack frame use $Y$ (index 1) as
+vertical.
+
+\paragraph{Consequences for alignment.}
+\begin{itemize}[leftmargin=1.4em]
+  \item Layout comparison requires a full rigid alignment between the AutoPos and OptiTrack
+        frames.
+  \item The alignment must \textbf{allow reflection}. Inter-anchor distance calibration
+        cannot determine handedness (the distance matrix is reflection-invariant), and the
+        AutoPos layout converges to the mirror branch relative to OptiTrack. Proper-rotation
+        Kabsch yields nonsensical $\approx\!1.4$--$1.5\,\si{\meter}$ RMS; reflection-allowed
+        Kabsch yields $\approx\!105\mm$.
+  \item The official accuracy figure is the rigid, \emph{no-scale} RMS. A similarity
+        (scale-fitted) RMS is reported only as a diagnostic; it uses OptiTrack truth to
+        remove scale and therefore must not be quoted as an accuracy claim.
+  \item Static-tag absolute accuracy uses a transform locked \emph{from the anchors only};
+        the tag ground truth is never used to fit the transform that later measures tag
+        error (this would be circular).
+\end{itemize}
+
+% ======================================================================
+\section{Dataset and Solver Matrix}
+% ======================================================================
+
+\paragraph{Anchor-layout solver versions.} \texttt{v1-old}, \texttt{v2}, \texttt{v3-lite},
+\texttt{v3-full}, \texttt{v4-io}. \texttt{v4-io} is the current production solver.
+
+\paragraph{Tag solver family.} \texttt{T1}, \texttt{T2}, \texttt{T3}, \texttt{T4}.
+\texttt{T4} is the robustness-oriented deployment solver; \texttt{T3} gives the best static
+median on this dataset.
+
+\paragraph{Static-tag test grid.} Twenty-four static positions (ID01--ID24), spanning
+edge and centre placements, three heights (low/mid/high), and four facing groups
+(ABEF/BCGF/CDHG/ADHE), so that all faces of the array are exercised rather than only the
+positions nearest a few anchors. The tag fixture (\texttt{BSF66F}) carries five glued
+optical balls plus the virtual \texttt{Icenter}/\texttt{Iantenna} markers.
+
+% ======================================================================
+\section{Methods}
+% ======================================================================
+\label{sec:methods}
+
+This section describes the processing chain used to produce the validation results. It is
+written as an experimental method, not as a general UWB theory chapter. The important point
+is which data were used, which degrees of freedom were estimated, which quantities were held
+out for validation, and which operations were deliberately avoided to prevent circularity.
+
+\subsection{End-to-end analysis pipeline}
+The full chain has four data layers:
+\begin{enumerate}[leftmargin=1.6em]
+  \item \textbf{Raw UWB ranging.} Anchor-to-anchor sweep data are used for AutoPos layout
+        self-calibration. Static tag-to-anchor captures are used for tag localization
+        validation. The layout solver does not consume OptiTrack positions.
+  \item \textbf{OptiTrack reference.} Optical marker exports provide anchor antenna truth
+        and static tag truth. These are used only for validation, frame alignment, and the
+        explicitly labelled surveyed-anchor control.
+  \item \textbf{AutoPos layout outputs.} Each anchor-layout solver variant writes a
+        \texttt{layout.json} with anchor coordinates and per-anchor delay terms
+        \texttt{d\_anchor\_mm}. These layouts feed the tag solvers.
+  \item \textbf{Report-side post-processing.} Python scripts under
+        \texttt{official\_extra\_analysis/scripts} compute alignment metrics, static-tag
+        error, CDF/outlier metrics, DOP maps, MC summaries, drift diagnostics, and
+        additional error-structure diagnostics. Each script logs provenance in
+        \texttt{run\_meta.json}.
+\end{enumerate}
+
+\subsection{Traditional SS-TWR and broadcast SS-TWR data roles}
+\label{sec:sstwrmethod}
+The system contains two relevant single-sided two-way ranging (SS-TWR) usage modes. The
+report does not re-derive SS-TWR timing theory; it only states how each mode is used in this
+dataset.
+
+\paragraph{Traditional point-to-point SS-TWR.}
+Traditional SS-TWR is the direct pairwise ranging mode: one initiator exchanges messages
+with one responder and obtains one range observation for that pair. It is conceptually the
+cleanest way to think about a range measurement and is useful for calibration stations,
+simple sanity checks, and tag-to-anchor captures. In the static tag captures, each frame is
+ultimately consumed as a set of tag-to-anchor ranges
+\[
+  \{(\text{anchor }i,\; \rho_i)\}_{i\in \mathcal{A}_t},
+\]
+where $\mathcal{A}_t$ is the set of anchors valid in that frame. The tag solver later
+corrects each measured range using the selected layout's anchor delay and an optional tag
+delay term.
+
+\paragraph{Broadcast SS-TWR.}
+The anchor self-calibration data are generated from a broadcast-style SS-TWR sweep: anchors
+participate in scheduled exchanges so that one capture pass yields a dense matrix of
+inter-anchor ranges rather than a single pair at a time. The report treats the final
+artifact as a set of robust pair medians
+\[
+  \hat{\rho}_{ij}, \qquad 1\le i < j \le 8,
+\]
+and, for diagnostic plots, the raw directional measurements are also retained to estimate
+asymmetry and pair stability. Broadcast SS-TWR is therefore a data-acquisition efficiency
+choice: it creates the dense inter-anchor observation graph needed by AutoPos without
+requiring manual pair-by-pair measurement. All downstream layout solvers see the resulting
+pairwise range table, not the packet schedule itself.
+
+\paragraph{Why both are mentioned.}
+The layout problem and the tag problem are intentionally separated. Broadcast SS-TWR
+supplies the anchor-to-anchor graph for self-calibration; traditional/static tag ranging
+supplies tag-to-anchor frames for validation. Mixing these roles would create a circular
+argument: static tag truth must validate the layout and tag solver, not train or align it.
+
+\subsection{Anchor-layout model and gauge choices}
+The anchor layout is estimated from inter-anchor ranges. For anchors $i,j$ with positions
+$a_i,a_j$ and endpoint delay terms $d_i,d_j$, the residual used by delay-aware variants can
+be summarized as
+\[
+  r_{ij} = \lVert a_i-a_j\rVert + d_i + d_j - \hat{\rho}_{ij}.
+\]
+The coordinate gauge is fixed internally by setting anchor A at the origin and choosing a
+consistent orientation convention in the solver frame. The absolute pose, handedness, and
+scale relative to OptiTrack are not known from UWB distances alone and are evaluated later
+against the optical reference.
+
+The \texttt{d\_anchor\_mm} values in \texttt{layout.json} are endpoint delay terms used by
+the tag solver. They must be read as part of the joint layout solution. The later surveyed
+baseline proves that the \texttt{v4-io} delay vector is not a portable physical calibration:
+it is coupled to the self-calibrated geometry.
+
+\subsection{Anchor-layout solver variants V1 to V4-io}
+\label{sec:vmethod}
+The V-series names refer only to anchor-layout solvers. They are separate from the T-series
+tag solvers.
+
+\begin{description}[leftmargin=2.6em,style=nextline]
+  \item[\texttt{v1-old}.]
+  Archived baseline using classical distance-geometry/MDS-style layout recovery with zero
+  per-anchor delay. It is simple and important as a historical baseline. In the final
+  absolute validation it remains surprisingly competitive: \texttt{v1-old} all8 rigid RMS
+  is $106.9\mm$, only $\approx2\mm$ worse than \texttt{v4-io}.
+
+  \item[\texttt{v2}.]
+  Improved zero-delay layout solver variant. It reduces internal AutoPos pair residuals
+  strongly relative to \texttt{v1-old} in the field-check tables, but after OptiTrack
+  absolute alignment it is not the best layout. This is a useful reminder that internal
+  residual quality and external absolute accuracy are related but not identical.
+
+  \item[\texttt{v3-lite}.]
+  Lightweight successor to \texttt{v2}, also zero-delay in the final exported layout. It
+  behaves very similarly to \texttt{v2}: good internal pair residuals, but absolute
+  OptiTrack RMS around $135\mm$ rather than the \texttt{v4-io} $\approx105\mm$.
+
+  \item[\texttt{v3-full}.]
+  More flexible delay-aware variant. It estimates nonzero per-anchor delay terms, including
+  a wider delay span than \texttt{v4-io}. In this dataset the extra freedom does not improve
+  the final absolute layout: all8 rigid RMS is $144.4\mm$. The interpretation is that
+  additional freedom can absorb range inconsistencies in ways that look good internally but
+  hurt the external geometry.
+
+  \item[\texttt{v4-io}.]
+  Current production layout solver. It is delay-aware, uses bounded endpoint delays
+  (A fixed at $0\mm$, other anchors in this run between roughly $27$ and $60\mm$), and uses
+  soft physical/two-layer priors appropriate for the deployment geometry. It is the best
+  absolute layout in this dataset, but only marginally better than \texttt{v1-old};
+  therefore it is reported as the preferred current solver, not as a dramatic standalone
+  breakthrough.
+\end{description}
+
+\subsection{Tag positioning model and T1--T4 solver family}
+\label{sec:tmethod}
+The T-series names refer to tag positioning, not anchor layout. For each UWB frame, the
+solver estimates the tag position $p$ from valid tag-to-anchor ranges:
+\[
+  r_i(p) = \lVert p-a_i\rVert + d_i + d_{\text{tag}} - \rho_i,
+\]
+where $a_i$ and $d_i$ come from the selected \texttt{layout.json}, and the default tag delay
+is $d_{\text{tag}}=0$ unless a controlled baseline explicitly sets it.
+
+\begin{description}[leftmargin=2.6em,style=nextline]
+  \item[\texttt{T1}: robust WLS multilateration.]
+  Per-frame 3D multilateration with Gauss--Newton iterations, anchor sigma weighting, and
+  Huber robust residual weighting. It requires at least four valid anchors. The previous
+  frame may be used as an initialization but is not a motion prior.
+
+  \item[\texttt{T2}: quality-aware robust WLS.]
+  Adds current quality weighting and a short quality exponential moving average. It does
+  not hard-reject anchors; it changes their effective sigma.
+
+  \item[\texttt{T3}: dynamic-stable robust WLS.]
+  Adds persistent-residual soft downweighting and a weak previous-position prior. The goal
+  is stable dynamic tracking under low redundancy, not single-frame residual minimization.
+  It deliberately avoids aggressive leave-one-out rejection because prior experiments showed
+  that hard rejection can reduce residual RMS while damaging trajectory consistency.
+
+  \item[\texttt{T4}: adaptive redundancy policy.]
+  Current deployment-oriented policy. With all eight anchors valid, T4 uses the memory-free
+  T1 path to avoid carrying temporal bias. With fewer than eight anchors, it switches to
+  T3-style stabilization and the weak previous-position prior. This matches the MC keep-$k$
+  evidence: full-anchor frames have enough geometry, while keep-4/5/6 frames benefit from
+  temporal stabilization.
+\end{description}
+
+The raw replay matrix evaluates all combinations
+\[
+  5\;\text{layout solvers}\times4\;\text{tag solvers}\times\{\text{all8},\text{noG}\}.
+\]
+The production-output headline is not automatically replaced by the best replay result:
+\texttt{v4-io/T3/all8} is labelled best-case, while the representative production output
+remains \texttt{v4-io/all8}.
+
+\subsection{OptiTrack marker processing and corrected tag truth}
+Anchor truth is obtained from the OptiTrack marker-derived antenna positions. Static tag
+truth uses the virtual \texttt{Iantenna} marker. Because ID01 and ID05 have mislabeled
+\texttt{I1..I5} optical balls, their tag truth is reconstructed as follows:
+\begin{enumerate}[leftmargin=1.6em]
+  \item take per-marker medians over frames for the five balls and \texttt{Iantenna};
+  \item compare the ten inter-ball distances to the clean 22-capture consensus;
+  \item apply the deterministic relabel permutations for ID01 and ID05;
+  \item learn the physical ball-local antenna offset from clean captures;
+  \item project the corrected antenna point back into each affected capture.
+\end{enumerate}
+All static-tag validation uses this corrected truth path.
+
+\subsection{Alignment and metric computation}
+Anchor layout accuracy uses reflection-allowed rigid Kabsch with no scale. Static-tag
+accuracy uses the same anchor-locked transform and then compares solved tag coordinates to
+corrected OptiTrack truth. The main 3D metric set includes mean, RMSE, P50, P90, P95, P99,
+max, and cm-scale outlier rates at 50/80/100/200/300\,\si{\milli\meter}. Per-axis errors are
+reported in the OptiTrack frame with $Y$ vertical; 2D horizontal error is secondary only.
+
+\subsection{Surveyed-anchor and delay-control method}
+The surveyed-anchor baseline replaces the AutoPos layout with OptiTrack-truth anchor
+coordinates and solves the tag directly in the OptiTrack frame. Three delay treatments are
+tested: zero delay, the AutoPos \texttt{v4-io} delay vector, and an OptiTrack-derived
+inter-anchor endpoint delay fit. This baseline is explicitly a control: the delaycal row is
+partly circular and should be read as an optimistic lower bound, while the AutoPos-delay row
+tests whether the AutoPos delay vector is portable to a surveyed layout.
+
+\subsection{Geometry, robustness, and diagnostic methods}
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{VDOP/DOP.} The default DOP uses the range-only Jacobian row
+        $[u_x,u_y,u_z]$, matching the solver. A range-bias Jacobian is appendix-only.
+  \item \textbf{MC keep-$k$.} Random keep-$k$ repeats quantify robustness as anchors are
+        forced unavailable, over solver/version/mode combinations.
+  \item \textbf{Stratified keep-$k$.} Exhaustive fixed dropped-set replay separates
+        lower-heavy, upper-heavy, balanced, and specific-anchor dropout effects.
+  \item \textbf{Pair residual and raw asymmetry.} Inter-anchor residual heatmaps expose
+        pair-specific bias; raw directional asymmetry checks whether a pair behaves
+        differently depending on initiator/responder direction.
+  \item \textbf{Temporal drift.} Static raw range links are regressed against time within
+        each capture to measure drift slope and drift-over-capture.
+  \item \textbf{Additional diagnostics.} Delay decomposition, tag error radial/tangential
+        split, worst-point residual fingerprints, anchor health, height/edge/facing splits,
+        and single-anchor criticality are computed from already-generated official outputs.
+\end{itemize}
+
+% ======================================================================
+\section{Anchor-Layout Absolute Accuracy}
+% ======================================================================
+\label{sec:layout}
+
+\subsection{Method}
+AutoPos anchor coordinates are aligned to the OptiTrack antenna marker positions using
+reflection-allowed Kabsch. Because of the mirror ambiguity (Section~\ref{sec:conventions}),
+reflection must be permitted; the proper-rotation result is reported only as a chirality
+sanity check.
+
+\subsection{Headline results (\texttt{v4-io})}
+\begin{table}[h]
+\centering
+\caption{Anchor-layout absolute accuracy, \texttt{v4-io}, reflection-allowed alignment.
+The similarity (scale-fitted) RMS is a diagnostic only and is not an accuracy claim.}
+\begin{tabular}{lrrrrrr}
+\toprule
+eval set & rigid RMS 3D & horiz.\ RMS & vert.\ RMS & shape RMS & sim.\ scale & sim.\ RMS \\
+\midrule
+all8 & 104.9 & 86.1 & 59.9 & 130.5 & 0.960 & 71.2 \\
+noG  & 104.4 & 84.4 & 61.4 & 133.4 & 0.960 & 70.1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Interpretation of the three layout numbers}
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{Rigid RMS $=104.9\mm$} is the official absolute accuracy: best rigid fit
+        (rotation + translation + reflection, no scale), then per-anchor residual RMS.
+  \item \textbf{Shape RMS $=130.5\mm$} is alignment-free: it is the RMS difference of the 28
+        inter-anchor pairwise distances between AutoPos and OptiTrack. It cannot be hidden by
+        any choice of pose or handedness, so it is the most honest lower bound on the
+        intrinsic shape distortion. It is larger than the rigid RMS precisely because it does
+        not allow pose to absorb part of the error, and it includes the $\approx\!4\%$ scale
+        bias (which inflates every pairwise distance).
+  \item \textbf{Similarity RMS $=71.2\mm$} (scale 0.960) is what remains if a global scale is
+        fitted using OptiTrack truth. This is diagnostic only: it quantifies how much of the
+        error is scale, but quoting it as accuracy would mean using the ground truth to
+        flatter the result.
+\end{itemize}
+
+\subsection{Solver ranking}
+\begin{table}[h]
+\centering
+\caption{Solver ranking by reflection-allowed all8 rigid RMS.}
+\begin{tabular}{lrrl}
+\toprule
+solver & rigid RMS 3D (\si{\milli\meter}) & shape RMS (\si{\milli\meter}) & note \\
+\midrule
+v4-io   & 104.9 & 130.5 & best, but only marginally \\
+v1-old  & 106.9 & 137.6 & nearly tied with v4-io \\
+v2      & 135.4 & 185.8 & worse \\
+v3-lite & 135.4 & 185.7 & similar to v2 \\
+v3-full & 144.4 & 149.2 & did not become best despite extra freedom \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+\textbf{Honest reading.} \texttt{v4-io} is the best layout solver but only by
+$\approx\!2\mm$ over the simplest classical-MDS \texttt{v1-old}. This is too small to market
+as a major algorithmic improvement on this dataset; the residual range structure and the
+OptiTrack G-marker uncertainty (Sections~\ref{sec:anchorhealth}, \ref{sec:pair}) dominate
+over the V1--V4 difference. The defensible statement is that \texttt{v4-io} is preferred
+because it is best-or-near-best across the combined analysis, not because it is dramatically
+more accurate in layout alone.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.78\textwidth]{layout_opti_vs_autopos_3d.png}
+\caption{AutoPos anchor layout versus OptiTrack ground truth after reflection-allowed rigid
+alignment.}
+\label{fig:layout3d}
+\end{figure}
+
+% ======================================================================
+\section{Static-Tag Absolute Accuracy}
+% ======================================================================
+\label{sec:tag}
+
+This is the system-output validation layer: it measures how much absolute tag-position error
+results when solved tag positions are mapped into the OptiTrack frame using only the
+anchor-derived transform.
+
+\subsection{Frame-locking (why 8-anchor Procrustes, not a tag fit or a centroid)}
+\label{sec:framelock}
+The solved tag positions live in the AutoPos frame; the tag ground truth lives in the
+OptiTrack frame. Mapping one to the other requires a transform $T$, and the choice of $T$
+determines the error. $T$ must therefore be fixed by something \emph{other} than the tags.
+
+\begin{table}[h]
+\centering
+\caption{Three ways to fix the frame transform. Only the anchor-locked method gives a
+unique, non-circular tag error.}
+\begin{tabular}{p{4.4cm}cccc}
+\toprule
+Method & locks transl. & locks rot. & locks mirror & tag error unique? \\
+\midrule
+(A) fit $T$ to the tag cloud         & yes & yes & yes & \textbf{no --- circular} \\
+(B) align centroid / diagonal point  & yes & \textbf{no} & \textbf{no} & \textbf{no --- rotatable} \\
+(C) 8-anchor Procrustes, then apply  & yes & yes & yes & \textbf{yes} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+Method~(A) uses the error definition to minimise the error (circular; artificially small).
+Method~(B), a single-point/centroid alignment, fixes only the three translation DOF and
+leaves rotation and handedness free, so the tag cloud can be spun about the centre and every
+orientation yields a different error --- it is \emph{less} determined than (A). Only
+method~(C), where the transform is locked by all eight anchors (rigid, reflection-allowed,
+no scale) and then applied to the tags, gives a unique and independent tag error. The
+centroid is used only as an \emph{interpretation} origin (for error-versus-distance), never
+to define the frame.
+
+\subsection{Tag ground-truth correction: the ID01/ID05 marker-label swap}
+\label{sec:swap}
+The static-tag truth is the virtual marker \texttt{Iantenna}, reconstructed from the five
+glued balls \texttt{I1..I5}. The fixture uses \emph{equal-length arms}, which makes the
+optical constellation rotationally ambiguous; in this dataset the optical auto-labeling
+swapped ball identities in ID01 and ID05.
+
+Detection is rotation/translation invariant: for each capture, the ten pairwise distances
+among \texttt{I1..I5} are compared against the clean 22-capture consensus fingerprint,
+\[
+[84.5,\,53.0,\,49.0,\,60.5,\,59.9,\,57.6,\,67.2,\,49.6,\,60.0,\,79.8]\mm,
+\]
+(pair order I1-I2,\,I1-I3,\,I1-I4,\,I1-I5,\,I2-I3,\,I2-I4,\,I2-I5,\,I3-I4,\,I3-I5,\,I4-I5),
+with a clean-capture spread of $\approx\!3\mm$. A 120-permutation search uniquely identifies
+the corrupted captures and their relabels:
+
+\begin{table}[h]
+\centering
+\caption{Deterministic marker-label correction. Indices are the 0-based original ball
+indices used for the new I1..I5.}
+\begin{tabular}{lccc}
+\toprule
+ID & corrected I1..I5 & Motive$\to$corrected \texttt{Iantenna} shift & fingerprint dev.\ after relabel \\
+\midrule
+ID01 & $(0,1,4,2,3)$ & 54.1\mm & 1.5\mm \\
+ID05 & $(3,4,2,0,1)$ & 2.1\mm  & 0.8\mm \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+All other 22 captures (including all eight low-position captures) are clean. ID04 is
+explicitly clean despite a world-frame direction flip --- the correct diagnostic is the
+ball-local fingerprint, not the world direction. Two consequences:
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{ID01} ground truth was materially wrong (shift $54.1\mm$). After correction
+        its UWB error does \emph{not} improve; it rises to $\approx\!139\mm$ in production
+        \texttt{v4-io/all8}. The earlier (corrupted) truth had coincidentally sat closer to
+        the AutoPos solution; the correction therefore \emph{reveals} a genuinely large
+        error at ID01 rather than fixing it.
+  \item \textbf{ID05} truth moved only $2.1\mm$ (the opposite-arm swap is symmetric about the
+        antenna axis), so ID05's error is essentially real.
+\end{itemize}
+\textbf{Design lesson:} the next-generation fixture must use asymmetric, unequal arm lengths
+so every ball has a unique distance signature in any pose; this ties into the planned
+marker-hole PCB redesign.
+
+\subsection{Production-output summary}
+\begin{table}[h]
+\centering
+\caption{Production-output static-tag accuracy, \texttt{v4-io}.}
+\begin{tabular}{lrrrrrr}
+\toprule
+eval set & median 3D & p95 3D & RMS 3D & median horiz.\ & median vert.\ & scale-bias diag.\ \\
+\midrule
+all8 & 77.4 & 270.3 & 138.3 & 43.8 & 63.1 & 30.0 \\
+noG  & 81.3 & 278.6 & 141.1 & 46.9 & 63.5 & 31.2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Raw replay matrix}
+The raw replay matrix replays the raw static captures through the C-core T-series solvers
+($5\;\text{anchor solvers} \times 4\;\text{tag solvers} \times \text{all8/noG}$).
+
+\begin{table}[h]
+\centering
+\caption{Best all8 median 3D rows from the raw replay matrix.}
+\begin{tabular}{rlllrrrr}
+\toprule
+rank & anchor & tag & eval & median 3D & p95 3D & RMS 3D & vert.\ median \\
+\midrule
+1 & v4-io   & T3 & all8 & 62.3 & 158.2 & 101.8 & 48.6 \\
+2 & v4-io   & T4 & all8 & 69.1 & 182.3 & 107.0 & 55.0 \\
+3 & v2      & T3 & all8 & 71.3 & 190.1 & 100.5 & 53.1 \\
+4 & v3-lite & T3 & all8 & 72.4 & 190.2 & 100.6 & 52.7 \\
+5 & v2      & T4 & all8 & 75.0 & 166.0 & 102.0 & 58.6 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{\texttt{v4-io/T4} all8 versus noG (raw replay).}
+\begin{tabular}{lrrrrrr}
+\toprule
+eval set & median 3D & p95 3D & RMS 3D & horiz.\ median & vert.\ median & repeat.\ D3 median \\
+\midrule
+all8 & 69.1 & 182.3 & 107.0 & 41.3 & 55.0 & 67.4 \\
+noG  & 83.9 & 291.1 & 138.7 & 67.9 & 43.9 & 56.2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+\textbf{Reading.} The best-case combination is \texttt{v4-io/T3/all8} (median $62.3\mm$); it
+must be labelled as the best solver combination, not the representative production accuracy.
+The deployment-oriented \texttt{v4-io/T4/all8} is close ($69.1\mm$). Dropping G does not
+improve tag accuracy: for \texttt{v4-io/T4}, noG worsens median from $69.1$ to $83.9\mm$ and
+p95 from $182.3$ to $291.1\mm$. This does not contradict the G-marker warning --- it means
+that for tag solving the G \emph{UWB} measurement still helps more than the noG geometry loss
+hurts, even though the G \emph{optical} marker is suspect.
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_error_by_position.png}
+  \caption{Production tag error by position.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_error_vs_distance.png}
+  \caption{Tag error versus distance.}
+\end{subfigure}
+\caption{Static-tag error by position and versus distance (production output).}
+\label{fig:tagpos}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_raw_replay_accuracy_matrix.png}
+  \caption{Raw replay accuracy matrix.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_raw_replay_v4io_by_position.png}
+  \caption{Raw replay \texttt{v4-io} by position.}
+\end{subfigure}
+\caption{Raw replay matrix results.}
+\label{fig:rawreplay}
+\end{figure}
+
+% ======================================================================
+\section{Localization Metric Set (cm-scale)}
+% ======================================================================
+\label{sec:metrics}
+
+\subsection{Which metrics apply, and which do not}
+Standard localization checklists include real-time and dynamic metrics that do not apply to
+this offline static dataset and are therefore \emph{deliberately omitted}: latency, update
+rate, drop rate, availability/dropout (no real-time stream; offline replay of fixed
+positions), and frame-to-frame jitter (a temporal/dynamic metric whose static analogue is
+the already-reported repeatability D3 std). Crucially, 3D is reported as the \emph{primary}
+metric and the vertical $Y$ axis is shown explicitly --- 2D is given only as a clearly
+labelled secondary line. Demoting 3D to a supplement would hide the very axis (vertical) that
+is the hard, headline part of pure-UWB 3D self-calibration.
+
+\subsection{Full percentile set}
+\begin{table}[h]
+\centering
+\caption{Full 3D-error percentile set (\si{\milli\meter}). Production \texttt{v4-io} and raw
+replay \texttt{v4-io/T3} (best-case) and \texttt{T4} (deployment). Repeatability is the
+static D3 std for cross-reference.}
+\begin{tabular}{lrrrr}
+\toprule
+metric & prod.\ all8 & prod.\ noG & raw T3/all8 & raw T4/all8 \\
+\midrule
+mean        & 111.2 & 115.6 & 84.1  & 90.2  \\
+RMSE        & 138.3 & 141.1 & 101.8 & 107.0 \\
+P50         & 77.4  & 81.3  & 62.3  & 69.1  \\
+P90         & 187.7 & 183.8 & 149.2 & 155.7 \\
+P95         & 270.3 & 278.6 & 158.2 & 182.3 \\
+P99         & 349.9 & 349.5 & 261.4 & 246.0 \\
+max         & 369.6 & 365.7 & 292.2 & 263.8 \\
+\midrule
+repeat.\ D3 std P50 & 58.6 & 58.6 & 58.7  & 67.4 \\
+repeat.\ D3 std P95 & 88.2 & 88.2 & 137.7 & 88.4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+The mean ($111\mm$) exceeds the median ($77\mm$), the classic ``mostly accurate, occasional
+fliers'' signature.
+
+\subsection{Per-axis signed bias --- the anisotropy result}
+\begin{table}[h]
+\centering
+\caption{Per-axis signed bias and dispersion (OptiTrack frame, $Y$ vertical). Production
+\texttt{v4-io/all8}. The error is strongly anisotropic: the vertical std is $\approx\!4\times$
+the horizontal std, while all signed biases are small.}
+\begin{tabular}{lrrr}
+\toprule
+component & signed mean bias & signed std & P95 abs.\ error \\
+\midrule
+$X$ (horizontal)        & $+23.7$ & 32.4  & 79.9  \\
+$Y$ (\textbf{vertical}) & $-6.2$  & \textbf{130.8} & \textbf{259.4} \\
+$Z$ (horizontal)        & $-8.8$  & 32.6  & 58.0  \\
+\midrule
+horizontal $XZ$ (2D, secondary) & \multicolumn{3}{l}{RMSE 51.6\quad P50 43.8\quad P95 82.8} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+\textbf{This is the central error-structure result.} Horizontal P95 is only $58$--$80\mm$
+(solid centimetre-level), whereas vertical P95 is $\approx\!260\mm$ with a std four times the
+horizontal. Signed biases are all small ($|b|<25\mm$), so the error is \emph{not} a
+systematic translation; it is a vertical-dominated dispersion. The raw-replay T3 solver
+reduces the vertical std to $\approx\!82\mm$, indicating that the production solver is
+specifically weaker in the vertical direction.
+
+\subsection{Outlier rates (cm-scale thresholds)}
+\begin{table}[h]
+\centering
+\caption{Fraction of the 24 positions within each 3D-error threshold. Thresholds are tuned
+to this system's magnitude (50/80/100/200/300\,\si{\milli\meter}); generic metre-scale
+thresholds are intentionally not used.}
+\begin{tabular}{lrrrrr}
+\toprule
+within & prod.\ all8 & prod.\ noG & raw T3/all8 & raw T4/all8 \\
+\midrule
+$\le 50\mm$  & 25.0\% & 12.5\% & 33.3\% & 29.2\% \\
+$\le 80\mm$  & 58.3\% & 50.0\% & 66.7\% & 62.5\% \\
+$\le 100\mm$ & 58.3\% & 58.3\% & 70.8\% & 62.5\% \\
+$\le 200\mm$ & 91.7\% & 91.7\% & 95.8\% & 95.8\% \\
+$\le 300\mm$ & 95.8\% & 95.8\% & 100\%  & 100\%  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+\textbf{Reading.} For production \texttt{v4-io/all8}, $58\%$ of positions are within
+$80\mm$, $92\%$ within $200\mm$, and a single position exceeds $300\mm$. Notably the
+$80\mm$ and $100\mm$ columns are identical (no position falls in $80$--$100\mm$): the
+distribution is bimodal --- a cluster of good interior positions and a separate cluster of
+edge/high positions pushed out by radial scale error --- rather than a single smooth spread.
+Raw replay T3/T4 are tighter, with no position above $300\mm$.
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_error_cdf.png}
+  \caption{3D position-error CDF.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_error_per_axis_bias.png}
+  \caption{Per-axis signed bias and P95.}
+\end{subfigure}
+\caption{Localization metric visualizations: error CDF and per-axis bias.}
+\label{fig:metrics}
+\end{figure}
+
+% ======================================================================
+\section{Surveyed-Anchor Baseline: Isolating Self-Calibration Cost}
+% ======================================================================
+\label{sec:surveyed}
+
+\subsection{Rationale and method}
+The single AutoPos line cannot separate ``how much error comes from imperfect
+self-calibration'' from ``the intrinsic UWB ranging/geometry floor.'' Most UWB papers have
+no self-calibration step; they feed surveyed anchor coordinates into the tag solver. We add
+exactly that as a control: OptiTrack-truth anchor coordinates are used directly as the
+solver layout, the static tag is solved from the raw tag-to-anchor ranges, and the result is
+compared directly to the corrected OptiTrack \texttt{Iantenna}. The entire path is in the
+OptiTrack frame end to end --- \textbf{no Kabsch, no reflection, no scale fit} --- so it is a
+clean control for the cost of replacing surveyed anchors with self-calibrated ones.
+
+\subsection{Three delay treatments}
+\begin{itemize}[leftmargin=1.4em]
+  \item \texttt{raw\_zero\_delay}: raw ranges, all delays zero. Dominated by the missing
+        endpoint delay; not the physical floor.
+  \item \texttt{autopos\_v4io\_delay\_vector}: OptiTrack anchors with the \texttt{v4-io}
+        AutoPos per-anchor delay vector. This is the hybrid that asks ``can the AutoPos delay
+        be transplanted onto a surveyed layout?''.
+  \item \texttt{inter\_anchor\_delaycal}: per-anchor endpoint delays fit from raw inter-anchor
+        medians against OptiTrack true inter-anchor distances; tag delay set to the median
+        endpoint delay. This uses OptiTrack \emph{twice} (anchors and delay), so it is partly
+        circular and is an optimistic lower bound, not a field-achievable number.
+\end{itemize}
+The inter-anchor delaycal diagnostic has median common endpoint bias $84.3\mm$ and
+per-anchor least-squares residual RMS $51.1\mm$.
+
+\begin{table}[h]
+\centering
+\caption{Headline surveyed-anchor comparison against the production AutoPos line.}
+\small
+\begin{tabular}{llllrrrrr}
+\toprule
+eval & anchor source & delay & tag & median & p95 & RMS & h.med & v.med \\
+\midrule
+all8 & OptiTrack & raw\_zero      & T4 & 296.0 & 443.1 & 297.8 & 95.5 & 279.9 \\
+all8 & OptiTrack & autopos\_v4io  & T4 & 241.9 & 376.3 & 240.4 & 79.9 & 214.8 \\
+all8 & OptiTrack & delaycal       & T4 & 58.4  & 134.8 & 74.9  & 37.6 & 39.5 \\
+all8 & AutoPos v4-io & estimated  & prod & 77.4 & 270.3 & 138.3 & 43.8 & 63.1 \\
+\midrule
+noG  & OptiTrack & raw\_zero      & T4 & 322.1 & 534.1 & 349.7 & 126.2 & 286.2 \\
+noG  & OptiTrack & autopos\_v4io  & T4 & 255.1 & 471.0 & 287.7 & 114.5 & 206.0 \\
+noG  & OptiTrack & delaycal       & T4 & 78.1  & 198.2 & 118.4 & 50.1  & 64.1 \\
+noG  & AutoPos v4-io & estimated  & prod & 81.3 & 278.6 & 141.1 & 46.9 & 63.5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{The delay vector is coupled to the layout (by design)}
+The hybrid row (OptiTrack layout + AutoPos delay, $241.9\mm$) is far worse than AutoPos used
+as a whole ($77.4\mm$). This is \emph{not} a defect: AutoPos jointly estimates layout and
+delay as a single self-consistent calibration, and the delay is absorbed into the system to
+minimise ranging residuals against AutoPos's own geometry. Detaching the delay and pairing it
+with a foreign (even perfect) layout breaks that self-consistency. The decomposition
+(Section~\ref{sec:delay}) confirms the AutoPos delay's differential part is essentially
+uncorrelated with the independently measured physical delay differences (Pearson
+$r=-0.03$): the AutoPos delay is an \emph{effective} delay (true antenna delay plus geometry/
+scale compensation), not a portable physical delay measurement. The correct framing is
+positive: AutoPos performs a coupled layout-plus-delay self-calibration, which is exactly why
+the integrated solution reaches $77\mm$ \emph{without any external delay measurement}.
+
+\subsection{Worst-point resolution: the tail is layout, not UWB failure}
+\begin{table}[h]
+\centering
+\caption{Worst-point resolution. The 270\,\si{\milli\meter}-class production tail collapses
+under the OptiTrack-anchor delaycal control, locating it in the self-calibration/layout/
+frame-lock budget rather than in irreducible UWB failure at those points.}
+\begin{tabular}{lrrrl}
+\toprule
+ID & prod.\ all8 3D & surveyed+autopos-delay & surveyed delaycal & interpretation \\
+\midrule
+ID03 & 369.6 & 432.5 & 78.2 & collapses with OptiTrack delaycal \\
+ID04 & 283.9 & 388.1 & 89.5 & collapses with OptiTrack delaycal \\
+ID06 & 192.8 & 244.5 & 34.6 & collapses with OptiTrack delaycal \\
+ID05 & 52.1  & 145.2 & 32.6 & moderate; truth shift was only 2.1\,\si{\milli\meter} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+\textbf{Important caveat.} The delaycal lower bound ($58\mm$) uses OptiTrack truth twice and
+is \emph{not} a number AutoPos can reach independently. The defensible conclusion is about
+\emph{error attribution}: the large tail arises in the calibration layer (anchor coordinates
+and delay), not in the UWB ranging at those points. It is \emph{not} that ``AutoPos is only
+$18.9\mm$ from optimal'' --- that gap is measured against an OptiTrack-dependent floor.
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{autopos_vs_surveyed_per_position.png}
+  \caption{AutoPos versus surveyed, per position.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{worst_points_autopos_vs_surveyed.png}
+  \caption{Worst points, AutoPos versus surveyed.}
+\end{subfigure}
+\caption{Surveyed-anchor control.}
+\label{fig:surveyed}
+\end{figure}
+
+% ======================================================================
+\section{VDOP Geometry}
+% ======================================================================
+\label{sec:vdop}
+
+The default geometric model is the range-only Jacobian row $[u_x,u_y,u_z]$, matching the tag
+solver (which does not co-estimate a clock/range bias). The range-bias model
+$[u_x,u_y,u_z,1]$ is computed only as a diagnostic appendix and is not the default
+explanation, because adding the bias column inflates VDOP and does not match the solver.
+
+\begin{table}[h]
+\centering
+\caption{Range-only VDOP summary on the 25\,\si{\milli\meter} grid.}
+\begin{tabular}{lrrrrr}
+\toprule
+mask & VDOP median & VDOP p90 & VDOP p95 & GDOP median & HDOP median \\
+\midrule
+all8  & 0.804 & 0.911 & 0.941 & 1.170 & 0.861 \\
+noG   & 0.856 & 1.057 & 1.177 & 1.278 & 0.943 \\
+dropH & 0.861 & 1.075 & 1.199 & 1.283 & 0.941 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+\textbf{Reading.} The all8 geometry is healthy across the working volume. Dropping an upper
+anchor (G or H) raises VDOP and condition number but does not cause rank failure. Critically,
+the worst-error tag positions (ID03/ID04/ID06) do \emph{not} coincide with the worst VDOP ---
+in fact they sit at favourable (low) VDOP. Therefore geometry alone does not explain the tail;
+combined with Sections~\ref{sec:tag} and~\ref{sec:surveyed}, the tail is attributed to
+layout/scale error, not geometric dilution.
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{vdop_slices_grid25.png}
+  \caption{VDOP slices (25\,\si{\milli\meter} grid).}
+\end{subfigure}\hfill
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{dop_4panel_mid_all8_grid25.png}
+  \caption{GDOP/PDOP/HDOP/VDOP at mid height.}
+\end{subfigure}
+\caption{Range-only DOP geometry.}
+\label{fig:vdop}
+\end{figure}
+
+% ======================================================================
+\section{Robustness: MC5000 Random Keep-$k$}
+% ======================================================================
+\label{sec:mc}
+
+The completed matrix is $5\;\text{anchor solvers}\times 4\;\text{tag solvers}\times
+\text{static/roto}\times\text{keep }8/7/6/5/4\times\text{MC5000}$; integrity is 40/40 blocks
+PASS with no issues.
+
+\begin{table}[h]
+\centering
+\caption{\texttt{v4-io/T4} random keep-$k$ degradation (medians).}
+\begin{tabular}{lrrrrr}
+\toprule
+kind & keep8 & keep7 & keep6 & keep5 & keep4 \\
+\midrule
+static D3 std median (\si{\milli\meter})    & 61.7 & 83.2 & 107.3 & 149.1 & 196.4 \\
+roto turn-center RMS median (\si{\milli\meter}) & 12.1 & 21.6 & 30.5  & 41.4  & 63.9  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+Degradation is monotonic and physically plausible. Note that the random keep-7 \emph{median}
+(averaging over all single-drop choices) is not the same as any specific single-anchor drop;
+the latter is treated in Section~\ref{sec:anchorhealth} and can individually be better or
+worse than keep-8 depending on which anchor is removed.
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{mc_keepk_static_curves.png}
+  \caption{Static keep-$k$ curves.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{mc_keepk_roto_curves.png}
+  \caption{Roto keep-$k$ curves.}
+\end{subfigure}
+\caption{MC5000 keep-$k$ robustness.}
+\label{fig:mc}
+\end{figure}
+
+% ======================================================================
+\section{Robustness: Stratified Fixed-Drop Keep-$k$}
+% ======================================================================
+\label{sec:stratified}
+
+This exhaustive fixed dropped-set replay (6480 detail rows; 40/40 blocks; 162 fixed
+keep-sets per block) answers ``which specific anchors are dangerous to lose,'' which the
+random MC cannot.
+
+\begin{table}[h]
+\centering
+\caption{\texttt{v4-io/T4} composition snapshot (lower-heavy vs upper-heavy drops).}
+\begin{tabular}{lrrrl}
+\toprule
+kind & keep$k$ & lower-heavy & upper-heavy & interpretation \\
+\midrule
+static D3 std    & 7 & 65.2 & 61.0 & lower drop slightly worse \\
+static D3 std    & 6 & 84.5 & 63.1 & lower drop worse \\
+static D3 std    & 5 & 96.0 & 65.1 & lower drop worse \\
+static D3 std    & 4 & 117.3 & 57.2 & lower drop much worse \\
+roto center RMS  & 7 & 18.3 & 16.0 & lower drop slightly worse \\
+roto center RMS  & 6 & 25.2 & 18.1 & lower drop worse \\
+roto center RMS  & 5 & 30.9 & 24.1 & lower drop worse \\
+roto center RMS  & 4 & 48.5 & 34.0 & lower drop worse \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+\textbf{Reading.} The naive intuition ``dropping upper anchors hurts $Z$ most'' is \emph{not}
+what the data shows. In this geometry, lower-heavy drops are more damaging for both static
+repeatability and roto stability. Balanced drops can still be catastrophic (the worst roto
+keep-4 set is \texttt{ACEG}), so anchor identity matters, not only the remaining count.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.7\textwidth]{stratified_keepk_upper_vs_lower.png}
+\caption{Stratified keep-$k$: upper-heavy versus lower-heavy drops.}
+\label{fig:stratified}
+\end{figure}
+
+% ======================================================================
+\section{Per-Anchor Diagnostics}
+% ======================================================================
+\label{sec:pair}
+
+\subsection{Pair residuals and raw asymmetry}
+\begin{table}[h]
+\centering
+\caption{\texttt{v4-io} worst all-1000 residual pairs and largest raw directional
+asymmetries.}
+\begin{tabular}{lrl@{\hspace{2em}}lr}
+\toprule
+pair & residual (\si{\milli\meter}) & involves G & pair & asymmetry (\si{\milli\meter}) \\
+\midrule
+B-C & $-141.7$ & no  & D-F & 22.0 \\
+B-G & $+113.7$ & yes & E-F & 20.0 \\
+D-E & $+99.8$  & no  & C-F & 18.0 \\
+D-F & $+91.4$  & no  & A-H & $-17.0$ \\
+F-H & $-59.3$  & no  & B-E & $-16.0$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+The worst residual pairs are not only G-involving; B-C, D-E, D-F and F-H show that the
+residual structure is broader than a single-anchor G issue. Directional asymmetry exists but
+is modest relative to the largest layout residuals.
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{pair_residual_bias_heatmap.png}
+  \caption{Residual bias.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{pair_residual_abs_heatmap.png}
+  \caption{Residual magnitude.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{pair_raw_asymmetry_heatmap.png}
+  \caption{Raw asymmetry.}
+\end{subfigure}
+\caption{Pair-residual and raw-sweep diagnostics.}
+\label{fig:pairheat}
+\end{figure}
+
+\subsection{Temporal/thermal drift}
+A raw-link drift diagnostic over 24 static sessions (192 anchor-session links): median
+absolute drift slope $1.54\mm/\text{min}$, p95 $16.21\mm/\text{min}$; median absolute drift
+over a capture $3.07\mm$, p95 $32.42\mm$. Per-anchor, A--E drift only a few mm over a
+capture, while F/G/H have larger tails (G and F the most visible; G p95 slope
+$\approx\!24.7\mm/\text{min}$, F $\approx\!19.2\mm/\text{min}$). Drift is not the dominant
+explanation for the median absolute error, but F/G/H are placement/hardware-sensitive and
+relevant to the height-alignment story.
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{temporal_drift_slope_heatmap.png}
+  \caption{Drift slope heatmap.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{temporal_drift_slope_boxplot.png}
+  \caption{Drift slope boxplot.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{temporal_drift_worst_timeseries.png}
+  \caption{Worst-link time series.}
+\end{subfigure}
+\caption{Temporal/thermal drift diagnostics.}
+\label{fig:drift}
+\end{figure}
+
+\subsection{Anchor health scorecard and single-anchor criticality}
+\label{sec:anchorhealth}
+A heuristic composite trust score combines pair-residual magnitude, raw asymmetry, temporal
+drift, OptiTrack marker-fingerprint flag, and delay differential. Least trusted: G (0.46), D
+(0.56), H (0.60), F (0.62); most trusted: B (0.86), E (0.77), A (0.71). The single-anchor
+criticality (drop-one) ranking is dominated by noise: all single-drop deltas are within
+$\pm11\mm$, which is smaller than the repeatability CI, so no anchor shows a statistically
+distinguishable dominant role --- consistent with the near-symmetric box layout and the
+all-faces test design. The one weakly real direction is that dropping the high-drift anchors
+F/G tends to slightly \emph{improve} static repeatability (they add ranging noise while
+contributing geometric constraint), mirroring the all8-vs-noG behaviour in
+Section~\ref{sec:tag}.
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{anchor_health_scorecard.png}
+  \caption{Anchor health scorecard.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.49\textwidth}\centering
+  \includegraphics[width=\textwidth]{single_anchor_criticality.png}
+  \caption{Single-anchor criticality.}
+\end{subfigure}
+\caption{Per-anchor health and criticality. Criticality differences are within measurement
+uncertainty.}
+\label{fig:anchorhealth}
+\end{figure}
+
+% ======================================================================
+\section{Additional Error-Structure Diagnostics}
+% ======================================================================
+\label{sec:errstruct}
+
+\subsection{Antenna-delay common/differential decomposition}
+\label{sec:delay}
+Decomposing the \texttt{v4-io} delay vector $d_i = \overline{d} + (d_i-\overline{d})$ gives a
+common term $\overline{d}\approx34\mm$ and a differential spread (std $\approx\!19\mm$, range
+$-34$ to $+26\mm$). Compared against the independent inter-anchor delaycal endpoint delays,
+the \emph{differential} parts are essentially uncorrelated (Pearson $r=-0.03$, RMSE
+$\approx\!38\mm$), while the common terms differ ($34$ vs $91\mm$). This confirms that the
+AutoPos delay is an effective joint-self-calibration parameter (true antenna delay plus
+geometry/scale compensation), coupled to the layout gauge by design, not a standalone
+physical antenna-delay measurement.
+
+\subsection{Scale propagation (error versus distance from centre)}
+Regressing tag error on distance from the array centroid gives, for the radial component, a
+slope $\approx\!230\mm/\text{m}$ with $R^2=0.48$ ($p=2\times10^{-4}$); the 3D error gives
+$R^2=0.28$ ($p=0.007$). Both are positive and significant: error grows with distance from
+centre, the signature of the $\approx\!4\%$ scale bias.
+
+\subsection{Error vector field (direction, not magnitude)}
+The mean error vector is small ($\approx\!26\mm$ norm) relative to the scatter
+($\approx\!136\mm$), giving a mean-to-scatter ratio of $0.19$; the median radial component
+($63\mm$) exceeds the median tangential ($40\mm$); and $83\%$ of error vectors point radially
+\emph{outward}. Together: the error is predominantly radial-outward (scale), not a common
+translation (small mean vector) and not isotropic noise (directional preference).
+
+\subsection{Worst-point raw-range fingerprint}
+For ID01/ID03/ID04/ID06 the per-anchor raw-range residuals are large but not concentrated on
+a single anchor, and clean reference positions (e.g.\ ID22) also show large single-anchor
+residuals while remaining accurate overall. This rules out ``one bad anchor'' and is
+consistent with geometric amplification of scale error at edge/high positions.
+
+\subsection{Stratified tag error (height, edge/centre, facing)}
+These small-group splits ($n$ of a few per group, so exploratory only) are consistent with
+the scale-propagation picture: edge and high positions are worse, centre/mid better, and the
+facing groups show no strong VDOP-linked differentiation.
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{delay_decomposition.png}
+  \caption{Delay decomposition.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_error_vs_center_distance.png}
+  \caption{Error vs distance from centre.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_error_vector_field.png}
+  \caption{Error vector field.}
+\end{subfigure}
+\caption{Error-structure diagnostics: delay decomposition, scale propagation, vector field.}
+\label{fig:errstruct}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_error_by_height.png}
+  \caption{By height.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_error_edge_vs_center.png}
+  \caption{Edge vs centre.}
+\end{subfigure}\hfill
+\begin{subfigure}{0.32\textwidth}\centering
+  \includegraphics[width=\textwidth]{tag_error_by_facing.png}
+  \caption{By facing group.}
+\end{subfigure}
+\caption{Stratified tag error (exploratory; small group sizes).}
+\label{fig:straterr}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.75\textwidth]{worstpoint_range_residual_fingerprint.png}
+\caption{Worst-point raw-range residual fingerprint versus clean references.}
+\label{fig:worstfinger}
+\end{figure}
+
+\subsection{Synthesis: what dominates the tag error}
+The combined evidence identifies a single dominant cause:
+\begin{enumerate}[leftmargin=1.6em]
+  \item errors point radially outward ($83\%$) and grow with distance from centre
+        ($R^2=0.48$, $p=2\times10^{-4}$) --- a scale signature;
+  \item there is no common translation (mean-vector/scatter ratio $0.19$);
+  \item the AutoPos delay differential is uncorrelated with physical delay ($r=-0.03$), i.e.\
+        scale is absorbed into the effective delay (layout--delay coupling);
+  \item worst-point raw residuals are not concentrated on one anchor, ruling out a single bad
+        anchor;
+  \item the surveyed-anchor control shows the tail collapses with perfect anchors, locating
+        it in the calibration layer rather than the UWB ranging floor.
+\end{enumerate}
+\textbf{Conclusion:} the tag error is dominated by the self-calibrated layout's
+$\approx\!4\%$ scale bias propagating radially, with the scale coupled to the antenna-delay
+estimate; it is \emph{not} dominated by a single weak anchor or by isotropic measurement
+noise. The clear improvement path is to break the scale/delay coupling with an independent
+baseline (tape/laser) delay calibration, rather than to change the UWB ranging or swap an
+anchor.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.85\textwidth]{bootstrap_confidence_intervals.png}
+\caption{Bootstrap 95\% confidence intervals for headline metrics.}
+\label{fig:bootstrap}
+\end{figure}
+
+\noindent
+\textbf{Confidence intervals.} Bootstrap ($n_\text{boot}=10000$, seed 42) gives wide CIs for
+the 24-position static summaries (e.g.\ tag absolute median $77.4\mm$, CI $52.1$--$141.1$;
+p95 $270.3\mm$, CI $151.9$--$369.6$; layout rigid RMS $104.9\mm$, CI $81.4$--$133.2$). Median
+differences of a few mm should not be over-interpreted; MC repeat intervals are tighter
+because they derive from the MC5000 repeat distribution.
+
+% ======================================================================
+\section{Rotational (Roto) Absolute Validation}
+% ======================================================================
+\label{sec:roto}
+
+\todo{RESERVED SECTION --- TO BE COMPLETED}
+
+\noindent
+This section is intentionally reserved so that the rotational validation is not forgotten.
+At the time of writing, only UWB-only consistency diagnostics are available; the independent
+OptiTrack absolute validation of the rotational captures is pending external processing.
+
+\subsection{Current UWB-only consistency (not absolute accuracy)}
+\begin{table}[h]
+\centering
+\caption{\texttt{v4-io} roto UWB-only consistency (bootstrap 95\% CI). These are consistency
+diagnostics, NOT OptiTrack-validated absolute accuracy.}
+\begin{tabular}{lrrr}
+\toprule
+metric & point (\si{\milli\meter}) & CI low & CI high \\
+\midrule
+roto abs $\Delta R$ error median   & 33.33 & 22.52 & 40.15 \\
+roto abs $\Delta R$ error p95      & 42.58 & 40.17 & 47.25 \\
+roto turn-center RMS median        & 14.31 & 13.16 & 17.36 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+The turn-center RMS ($14.31\mm$) is tight, but it mostly tests shape/periodic consistency
+about a fitted trajectory, not absolute alignment to OptiTrack. \textbf{No absolute roto
+accuracy may be claimed until the OptiTrack roto ground truth is processed.}
+
+\subsection{To be completed when OptiTrack roto data lands}
+\begin{itemize}[leftmargin=1.4em]
+  \item Absolute roto trajectory error against OptiTrack (ATE/RMSE, per-axis, CDF).
+  \item Turn-center / axis-of-rotation absolute accuracy versus OptiTrack.
+  \item Dynamic-versus-static comparison and any motion-induced degradation.
+  \item Roto-specific outlier and latency behaviour if a real-time stream is recorded.
+  \item \todo{Insert roto figures here once generated.}
+\end{itemize}
+
+% ======================================================================
+\section{Limitations and Open Items}
+% ======================================================================
+\label{sec:limits}
+
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{Roto absolute validation pending} (Section~\ref{sec:roto}); only UWB-only
+        consistency is available.
+  \item \textbf{Delay/scale circularity.} OptiTrack-derived delay calibration and
+        OptiTrack-based layout validation are not independent if used as a closed loop. The
+        clean path is an independent tape/laser baseline delay calibration, frozen before
+        OptiTrack validation. Static-tag validation remains independent as long as the tag
+        truth is not used for delay calibration, scale fitting, or solver selection.
+  \item \textbf{Anchor G optical marker} is suspect (fingerprint), but changes the layout RMS
+        by only $\approx\!0.5\mm$; all8/noG dual reporting is retained for rigor, not because
+        G changes the conclusion.
+  \item \textbf{Marker fixture} used equal-length arms (caused the ID01/ID05 swaps); the
+        next fixture must use asymmetric arm lengths.
+  \item \textbf{Static-tag p95} remains wide and placement-sensitive; the tail is a
+        layout/scale effect concentrated at edge/high positions.
+  \item \textbf{Small-group analyses} (height/edge/facing) are exploratory due to few points
+        per group.
+\end{itemize}
+
+% ======================================================================
+\section{Recommended Headline Statements}
+% ======================================================================
+\label{sec:headline}
+
+\paragraph{Anchor layout.}
+Using reflection-allowed rigid alignment with no scale fit, the \texttt{v4-io} anchor layout
+reaches $104.9\mm$ 3D RMS against OptiTrack across all eight anchors (horizontal $86.1\mm$,
+vertical $59.9\mm$); the similarity scale diagnostic is $0.960$ and is not an accuracy claim.
+
+\paragraph{Static tag.}
+Using the anchor-locked transform and corrected ground truth, production \texttt{v4-io/all8}
+is $77.4\mm$ median 3D and $270.3\mm$ p95; the error is strongly anisotropic (horizontal p95
+$\approx\!58$--$80\mm$, vertical p95 $\approx\!260\mm$) with no significant signed bias. The
+best-case raw-replay combination is \texttt{v4-io/T3/all8} ($62.3\mm$ median, $158.2\mm$ p95);
+the deployment-oriented \texttt{v4-io/T4/all8} is $69.1\mm$ median, $182.3\mm$ p95. $58\%$ of
+positions are within $80\mm$ and $92\%$ within $200\mm$.
+
+\paragraph{Surveyed-anchor control.}
+With OptiTrack anchors and an OptiTrack-derived inter-anchor delay calibration, the all8/T4
+lower bound is $58.4\mm$ median; the production tail (ID03/ID04/ID06) collapses under this
+control, attributing the tail to self-calibration/layout rather than UWB failure. The AutoPos
+delay vector does not transfer to a surveyed layout ($241.9\mm$), confirming a coupled,
+by-design joint self-calibration.
+
+\paragraph{Robustness.}
+MC5000 completed 40/40 blocks. For \texttt{v4-io/T4}, static D3 std median degrades
+$61.7\to196.4\mm$ from keep8 to keep4. Stratified analysis shows lower-heavy drops are more
+damaging than upper-heavy in this geometry; single-anchor criticality differences are within
+measurement uncertainty.
+
+\paragraph{Roto.}
+UWB-only turn-center RMS median is $14.31\mm$ (CI $13.16$--$17.36$), but roto absolute
+OptiTrack validation is pending and no absolute roto accuracy is claimed.
+
+\paragraph{Positioning of the contribution.}
+The strength of this work is not the smallest number but the hardest problem definition (pure
+3D inter-anchor self-calibration with no external sensor aid), the strongest independent
+validation (OptiTrack), and the most decomposed error budget. The defensible claim is
+credible decimetre-level 3D anchor calibration and approximately $6$--$8\,\si{\centi\meter}$
+static absolute capture inside the working volume, not a general centimetre-level
+optical-mocap replacement.
+
+\end{document}
