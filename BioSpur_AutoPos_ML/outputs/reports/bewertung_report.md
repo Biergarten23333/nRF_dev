@@ -1,6 +1,6 @@
 # Bewertung Report
 
-Generated: `2026-05-30T00:15:50.012613+00:00`
+Generated: `2026-05-31T22:22:05.831742+00:00`
 
 ## Figures
 

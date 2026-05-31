@@ -1,11 +1,11 @@
 # Layout Score v2
 
-Generated: `2026-05-30T00:15:47.946565+00:00`
+Generated: `2026-05-31T22:22:03.424619+00:00`
 
 ## Summary
 
-- Scored layouts: `67`
-- Score groups: `7`
+- Scored layouts: `117`
+- Score groups: `14`
 - Production score excludes OptiTrack labels.
 - OptiTrack validation score is shown only where ground truth exists.
 - Lower score is better.
@@ -13,7 +13,7 @@ Generated: `2026-05-30T00:15:47.946565+00:00`
 
 ## Confidence
 
-- `evaluation_matched`: 45
+- `evaluation_matched`: 95
 - `geometry_only_low`: 17
 - `optitrack_validated`: 5
 
@@ -22,6 +22,13 @@ Generated: `2026-05-30T00:15:47.946565+00:00`
 | Group | Rank | Version | Variant | Layout | Score v2 | Eval | Geo | DOP | Confidence |
 |---|---:|---|---|---|---:|---:|---:|---:|---|
 | `28052026_Erlangen_Official/solver/outputs/v1_to_v4_io_field_check` | 1 | `v2` | `default` | `0752b3202614dca0` | 7.700 | 9.796354 | 2.250120 |  | `optitrack_validated` |
+| `28052026_Erlangen_Smoke/solver/outputs/v1_to_v4_io_field_check` | 1 | `v2` | `default` | `ebda6c001ec839b2` | 2.796 | 0.000000 | 10.065080 |  | `evaluation_matched` |
+| `Garage_Test/solver/outputs/v1_to_v4_io_field_check` | 1 | `v3-lite` | `default` | `d0329b8b5bd6d38d` | 4.151 | 0.000000 | 14.943542 |  | `evaluation_matched` |
+| `Garage_test_2/solver/outputs/v1_to_v4_io_field_check` | 1 | `v3-lite` | `us_height` | `526c5cfba000a235` | 3.489 | 0.000000 | 12.561184 |  | `evaluation_matched` |
+| `Garage_test_nah_2/solver/outputs/v1_to_v4_io_field_check` | 1 | `v3-lite` | `default` | `aad717661a728eef` | 7.040 | 0.000000 | 25.342445 |  | `evaluation_matched` |
+| `Outdoor_LOS/solver/outputs/v1_to_v4_io_field_check` | 1 | `v2` | `default` | `922a7045c2bcb065` | 19.956 | 15.938843 | 30.401810 |  | `evaluation_matched` |
+| `Outdoor_LOS_2/solver/outputs/v1_to_v4_io_field_check` | 1 | `v2` | `default` | `5484092f61ff25fc` | 6.197 | 1.204110 | 19.179178 |  | `evaluation_matched` |
+| `Outdoor_LOS_3/solver/outputs/v1_to_v4_io_field_check` | 1 | `v3-lite` | `default` | `172b3b835dda9c0d` | 15.357 | 3.477793 | 46.242097 |  | `evaluation_matched` |
 | `outdoor_20260513/FULL-COMPARE` | 1 | `v1` | `default` | `554f4e554b20b5b2` | 8.313 |  | 8.312674 |  | `geometry_only_low` |
 | `outdoor_20260513/FULL-COMPARE-1000` | 1 | `v4-io-roto` | `default` | `21d850e593ebb432` | 15.519 | 18.588164 | 7.539468 |  | `evaluation_matched` |
 | `outdoor_20260513/FULL-COMPARE-500` | 1 | `v4-io-roto` | `default` | `c855e34a218d0254` | 16.737 | 19.971847 | 8.324812 |  | `evaluation_matched` |

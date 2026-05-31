@@ -1,17 +1,24 @@
 # Layout Database Report
 
-Generated: `2026-05-30T00:15:45.841522+00:00`
+Generated: `2026-05-31T22:22:01.123025+00:00`
 
 ## Summary
 
-- Indexed layout files: `67`
-- Valid canonical layouts: `67`
+- Indexed layout files: `117`
+- Valid canonical layouts: `117`
 
 ## By Capture
 
 | Capture | Layouts | Valid | Versions | Variants |
 |---|---:|---:|---|---|
 | 28052026_Erlangen_Official | 5 | 5 | v1-old, v2, v3-full, v3-lite, v4-io | default |
+| 28052026_Erlangen_Smoke | 5 | 5 | v1-old, v2, v3-full, v3-lite, v4-io | default |
+| Garage_Test | 5 | 5 | v1-old, v2, v3-full, v3-lite, v4-io | default |
+| Garage_test_2 | 10 | 10 | v1-old, v2, v3-full, v3-lite, v4-io | default, us_height |
+| Garage_test_nah_2 | 5 | 5 | v1-old, v2, v3-full, v3-lite, v4-io | default |
+| Outdoor_LOS | 10 | 10 | v1-old, v2, v3-full, v3-lite, v4-io | default, us_height |
+| Outdoor_LOS_2 | 10 | 10 | v1-old, v2, v3-full, v3-lite, v4-io | default, us_height |
+| Outdoor_LOS_3 | 5 | 5 | v1-old, v2, v3-full, v3-lite, v4-io | default |
 | outdoor_20260513 | 57 | 57 | v1, v1-old, v2, v3-full, v3-lite, v4, v4-io, v4-io-roto, v4-io-td, v4-io-wand, v5 | consensus, default, first500, last500_aligned, us_height |
 | outdoor_v4_20260504 | 5 | 5 | v1, v2, v3-full, v3-lite, v4 | default |
 
@@ -22,6 +29,56 @@ Generated: `2026-05-30T00:15:45.841522+00:00`
 - `28052026_Erlangen_Official` / `28052026_Erlangen_Official/solver/outputs/v1_to_v4_io_field_check` / `v3-full` / `default` -> `db81b403f22247cb`
 - `28052026_Erlangen_Official` / `28052026_Erlangen_Official/solver/outputs/v1_to_v4_io_field_check` / `v3-lite` / `default` -> `a06d00f4a02fdc1a`
 - `28052026_Erlangen_Official` / `28052026_Erlangen_Official/solver/outputs/v1_to_v4_io_field_check` / `v4-io` / `default` -> `48d29ef0f4d28d2d`
+- `28052026_Erlangen_Smoke` / `28052026_Erlangen_Smoke/solver/outputs/v1_to_v4_io_field_check` / `v1-old` / `default` -> `6cd2e6cef6adf989`
+- `28052026_Erlangen_Smoke` / `28052026_Erlangen_Smoke/solver/outputs/v1_to_v4_io_field_check` / `v2` / `default` -> `ebda6c001ec839b2`
+- `28052026_Erlangen_Smoke` / `28052026_Erlangen_Smoke/solver/outputs/v1_to_v4_io_field_check` / `v3-full` / `default` -> `db15409b6d413a3f`
+- `28052026_Erlangen_Smoke` / `28052026_Erlangen_Smoke/solver/outputs/v1_to_v4_io_field_check` / `v3-lite` / `default` -> `053c46629ed8c389`
+- `28052026_Erlangen_Smoke` / `28052026_Erlangen_Smoke/solver/outputs/v1_to_v4_io_field_check` / `v4-io` / `default` -> `d0cb71e52800e4ca`
+- `Garage_Test` / `Garage_Test/solver/outputs/v1_to_v4_io_field_check` / `v1-old` / `default` -> `83427cf136699830`
+- `Garage_Test` / `Garage_Test/solver/outputs/v1_to_v4_io_field_check` / `v2` / `default` -> `b9edbb4d294b8a82`
+- `Garage_Test` / `Garage_Test/solver/outputs/v1_to_v4_io_field_check` / `v3-full` / `default` -> `d0ee95053a894332`
+- `Garage_Test` / `Garage_Test/solver/outputs/v1_to_v4_io_field_check` / `v3-lite` / `default` -> `d0329b8b5bd6d38d`
+- `Garage_Test` / `Garage_Test/solver/outputs/v1_to_v4_io_field_check` / `v4-io` / `default` -> `d4b700dfdb554506`
+- `Garage_test_2` / `Garage_test_2/solver/outputs/v1_to_v4_io_field_check` / `v1-old` / `default` -> `2eb8a6fdb7b789b6`
+- `Garage_test_2` / `Garage_test_2/solver/outputs/v1_to_v4_io_field_check` / `v1-old` / `us_height` -> `41d7fe018de24848`
+- `Garage_test_2` / `Garage_test_2/solver/outputs/v1_to_v4_io_field_check` / `v2` / `default` -> `0cccbfd84eee33e7`
+- `Garage_test_2` / `Garage_test_2/solver/outputs/v1_to_v4_io_field_check` / `v2` / `us_height` -> `c5d2c7a4673b4533`
+- `Garage_test_2` / `Garage_test_2/solver/outputs/v1_to_v4_io_field_check` / `v3-full` / `default` -> `c88f9a385f6f8a28`
+- `Garage_test_2` / `Garage_test_2/solver/outputs/v1_to_v4_io_field_check` / `v3-full` / `us_height` -> `9d1956ebc0dabee6`
+- `Garage_test_2` / `Garage_test_2/solver/outputs/v1_to_v4_io_field_check` / `v3-lite` / `default` -> `6b01d25e57bd2355`
+- `Garage_test_2` / `Garage_test_2/solver/outputs/v1_to_v4_io_field_check` / `v3-lite` / `us_height` -> `526c5cfba000a235`
+- `Garage_test_2` / `Garage_test_2/solver/outputs/v1_to_v4_io_field_check` / `v4-io` / `default` -> `ce231d425384c5ce`
+- `Garage_test_2` / `Garage_test_2/solver/outputs/v1_to_v4_io_field_check` / `v4-io` / `us_height` -> `1ecc66f642af77a7`
+- `Garage_test_nah_2` / `Garage_test_nah_2/solver/outputs/v1_to_v4_io_field_check` / `v1-old` / `default` -> `9b541380fd15fbb5`
+- `Garage_test_nah_2` / `Garage_test_nah_2/solver/outputs/v1_to_v4_io_field_check` / `v2` / `default` -> `15baddb603d871a2`
+- `Garage_test_nah_2` / `Garage_test_nah_2/solver/outputs/v1_to_v4_io_field_check` / `v3-full` / `default` -> `c54a70bd62780086`
+- `Garage_test_nah_2` / `Garage_test_nah_2/solver/outputs/v1_to_v4_io_field_check` / `v3-lite` / `default` -> `aad717661a728eef`
+- `Garage_test_nah_2` / `Garage_test_nah_2/solver/outputs/v1_to_v4_io_field_check` / `v4-io` / `default` -> `d301a2d612bc1d18`
+- `Outdoor_LOS` / `Outdoor_LOS/solver/outputs/v1_to_v4_io_field_check` / `v1-old` / `default` -> `0d3513b55bcb0d9e`
+- `Outdoor_LOS` / `Outdoor_LOS/solver/outputs/v1_to_v4_io_field_check` / `v1-old` / `us_height` -> `be443b0fa3a15759`
+- `Outdoor_LOS` / `Outdoor_LOS/solver/outputs/v1_to_v4_io_field_check` / `v2` / `default` -> `922a7045c2bcb065`
+- `Outdoor_LOS` / `Outdoor_LOS/solver/outputs/v1_to_v4_io_field_check` / `v2` / `us_height` -> `bda2d0e51cf32bc2`
+- `Outdoor_LOS` / `Outdoor_LOS/solver/outputs/v1_to_v4_io_field_check` / `v3-full` / `default` -> `da054d9035b0d65b`
+- `Outdoor_LOS` / `Outdoor_LOS/solver/outputs/v1_to_v4_io_field_check` / `v3-full` / `us_height` -> `f0347383d2e45b5d`
+- `Outdoor_LOS` / `Outdoor_LOS/solver/outputs/v1_to_v4_io_field_check` / `v3-lite` / `default` -> `4aea05fc3e1d10d6`
+- `Outdoor_LOS` / `Outdoor_LOS/solver/outputs/v1_to_v4_io_field_check` / `v3-lite` / `us_height` -> `959530dd2fe8fe5a`
+- `Outdoor_LOS` / `Outdoor_LOS/solver/outputs/v1_to_v4_io_field_check` / `v4-io` / `default` -> `60af45be2893ac48`
+- `Outdoor_LOS` / `Outdoor_LOS/solver/outputs/v1_to_v4_io_field_check` / `v4-io` / `us_height` -> `1af0932d019d6010`
+- `Outdoor_LOS_2` / `Outdoor_LOS_2/solver/outputs/v1_to_v4_io_field_check` / `v1-old` / `default` -> `fbb5ac35d7225b7a`
+- `Outdoor_LOS_2` / `Outdoor_LOS_2/solver/outputs/v1_to_v4_io_field_check` / `v1-old` / `us_height` -> `9b125fc84ecb0d4d`
+- `Outdoor_LOS_2` / `Outdoor_LOS_2/solver/outputs/v1_to_v4_io_field_check` / `v2` / `default` -> `5484092f61ff25fc`
+- `Outdoor_LOS_2` / `Outdoor_LOS_2/solver/outputs/v1_to_v4_io_field_check` / `v2` / `us_height` -> `b5d368d15c9d301e`
+- `Outdoor_LOS_2` / `Outdoor_LOS_2/solver/outputs/v1_to_v4_io_field_check` / `v3-full` / `default` -> `ee4335423ad1a73e`
+- `Outdoor_LOS_2` / `Outdoor_LOS_2/solver/outputs/v1_to_v4_io_field_check` / `v3-full` / `us_height` -> `6b676497df3bfb40`
+- `Outdoor_LOS_2` / `Outdoor_LOS_2/solver/outputs/v1_to_v4_io_field_check` / `v3-lite` / `default` -> `12888496e298b4ec`
+- `Outdoor_LOS_2` / `Outdoor_LOS_2/solver/outputs/v1_to_v4_io_field_check` / `v3-lite` / `us_height` -> `1ce4bc0b1a8b43a9`
+- `Outdoor_LOS_2` / `Outdoor_LOS_2/solver/outputs/v1_to_v4_io_field_check` / `v4-io` / `default` -> `493249c966b80ad2`
+- `Outdoor_LOS_2` / `Outdoor_LOS_2/solver/outputs/v1_to_v4_io_field_check` / `v4-io` / `us_height` -> `b7ec9554ec6c8102`
+- `Outdoor_LOS_3` / `Outdoor_LOS_3/solver/outputs/v1_to_v4_io_field_check` / `v1-old` / `default` -> `2b38dcbd8cbe88a3`
+- `Outdoor_LOS_3` / `Outdoor_LOS_3/solver/outputs/v1_to_v4_io_field_check` / `v2` / `default` -> `291c54b10f65d118`
+- `Outdoor_LOS_3` / `Outdoor_LOS_3/solver/outputs/v1_to_v4_io_field_check` / `v3-full` / `default` -> `6d4f1bbc4dda2c76`
+- `Outdoor_LOS_3` / `Outdoor_LOS_3/solver/outputs/v1_to_v4_io_field_check` / `v3-lite` / `default` -> `172b3b835dda9c0d`
+- `Outdoor_LOS_3` / `Outdoor_LOS_3/solver/outputs/v1_to_v4_io_field_check` / `v4-io` / `default` -> `e0b44fd5cac62866`
 - `outdoor_20260513` / `outdoor_20260513/FULL-COMPARE` / `v1` / `default` -> `554f4e554b20b5b2`
 - `outdoor_20260513` / `outdoor_20260513/FULL-COMPARE` / `v2` / `default` -> `062a9b97a6d2468b`
 - `outdoor_20260513` / `outdoor_20260513/FULL-COMPARE` / `v3-full` / `default` -> `6b6a0714d7d56ce0`

@@ -1,16 +1,16 @@
 # ML Candidate Table Readiness
 
-Generated: `2026-05-30T00:15:48.022407+00:00`
+Generated: `2026-05-31T22:22:03.508604+00:00`
 
 ## Summary
 
-- Candidate rows: `67`
+- Candidate rows: `117`
 - Real OptiTrack labeled layouts: `5`
 - Train-allowed rows: `0`
 
 ## Label Quality Counts
 
-- `proxy_existing_field_evaluation`: 45
+- `proxy_existing_field_evaluation`: 95
 - `real_optitrack_sparse_validation_only`: 5
 - `unlabeled_geometry_only`: 17
 
