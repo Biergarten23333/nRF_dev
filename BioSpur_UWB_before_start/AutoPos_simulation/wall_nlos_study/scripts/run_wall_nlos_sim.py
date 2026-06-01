@@ -229,6 +229,8 @@ def main() -> int:
     ap.add_argument("--trials", type=int, default=96)
     ap.add_argument("--phase2-seeds", type=int, default=12)
     ap.add_argument("--metal-box-count", type=int, default=6)
+    ap.add_argument("--wall-counts", default="", help="Comma-separated wall counts. Defaults to 0,1,2,3,4.")
+    ap.add_argument("--distances-cm", default="", help="Comma-separated distances in cm. Defaults to the standard Phase 1 sweep.")
     args = ap.parse_args()
 
     out_root = Path(args.out)
@@ -236,14 +238,17 @@ def main() -> int:
     tags = tag_grid(args.grid_spacing_m)
     rows: list[dict[str, Any]] = []
     scenario_id = 0
+    wall_counts = [int(x) for x in args.wall_counts.split(",") if x.strip()] if args.wall_counts else sorted(WALL_SETS)
+    distances_cm = [int(x) for x in args.distances_cm.split(",") if x.strip()] if args.distances_cm else DISTANCES_CM
     materials = ["phase1_default_wall"] if args.phase in {"phase1", "phase2"} else list(MATERIALS)
-    total = len(WALL_SETS) * len(DISTANCES_CM) * len(materials)
+    total = len(wall_counts) * len(distances_cm) * len(materials)
     if args.phase == "phase2":
         total *= args.phase2_seeds
     for material_name in materials:
         material = PHASE1_MATERIAL if material_name == "phase1_default_wall" else MATERIALS[material_name]
-        for wall_count, walls in WALL_SETS.items():
-            for dist_cm in DISTANCES_CM:
+        for wall_count in wall_counts:
+            walls = WALL_SETS[wall_count]
+            for dist_cm in distances_cm:
                 seeds = [None] if args.phase in {"phase1", "phase3"} else list(range(args.phase2_seeds))
                 for seed_item in seeds:
                     scenario_id += 1
@@ -277,8 +282,8 @@ def main() -> int:
         "phase": args.phase,
         "layout": "3x3x1.4m paired anchors",
         "ceiling_height_m": 2.5,
-        "wall_counts": sorted(WALL_SETS),
-        "distances_cm": DISTANCES_CM,
+        "wall_counts": wall_counts,
+        "distances_cm": distances_cm,
         "grid_spacing_m": args.grid_spacing_m,
         "trials": args.trials,
         "device": args.device,
