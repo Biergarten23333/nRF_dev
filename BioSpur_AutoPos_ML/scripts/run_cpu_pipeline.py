@@ -16,6 +16,7 @@ STEPS = [
     ("inventory raw captures", ["scripts/inventory_raw_captures.py"]),
     ("build layout database", ["scripts/build_layout_db.py"]),
     ("extract layout features", ["scripts/extract_layout_features.py"]),
+    ("compute axis DOP ranking", ["scripts/compute_axis_dop_ranking.py"]),
     ("bind DOP summaries", ["scripts/bind_dop_summaries.py"]),
     ("validate OptiTrack correlations", ["scripts/validate_optitrack_correlations.py"]),
     ("stratified OptiTrack analysis", ["scripts/stratified_optitrack_analysis.py"]),
