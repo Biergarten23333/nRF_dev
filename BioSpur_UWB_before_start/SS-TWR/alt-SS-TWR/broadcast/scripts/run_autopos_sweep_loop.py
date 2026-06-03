@@ -42,6 +42,7 @@ from pathlib import Path
 import serial
 from serial import SerialException, SerialTimeoutException
 
+from master_control_port import preferred_master_control_port
 from run_autopos_round import UUIDS
 
 _LIVE_LINE_BUFFERS: dict[int, str] = {}
@@ -508,7 +509,8 @@ def open_port(port: str, timeout_s: float) -> serial.Serial:
     last_exc = None
     while time.time() < deadline:
         try:
-            ser = serial.Serial(port, 115200, timeout=0.2, write_timeout=5.0)
+            resolved_port = resolve_control_port(port)
+            ser = serial.Serial(resolved_port, 115200, timeout=0.2, write_timeout=5.0)
             time.sleep(0.8)
             _best_effort_reset_serial_buffers(ser)
             time.sleep(0.2)
@@ -517,6 +519,12 @@ def open_port(port: str, timeout_s: float) -> serial.Serial:
             last_exc = exc
             time.sleep(0.4)
     raise last_exc
+
+
+def resolve_control_port(port: str) -> str:
+    if Path(port).exists():
+        return port
+    return preferred_master_control_port(port) or port
 
 
 def _best_effort_reset_serial_buffers(ser: serial.Serial) -> None:
@@ -1586,14 +1594,19 @@ def session_prepare_matrix(
     verbose: int,
     context: dict,
     reuse_resident_anchor_master: bool = False,
+    matrix_cir_mode: str = "0",
 ) -> tuple[bool, dict]:
     log_path = out_dir / "session_role_guard.log"
+    matrix_role_cmd = "anchor role all matrix"
+    if matrix_cir_mode != "0":
+        matrix_role_cmd = f"{matrix_role_cmd} cir {matrix_cir_mode}"
     result = {
         "success": False,
         "log_path": str(log_path),
         "initial_role_counts": {},
         "final_role_counts": {},
-        "action": "anchor role all matrix",
+        "action": matrix_role_cmd,
+        "matrix_cir_mode": matrix_cir_mode,
         "error": "",
     }
     ser = None
@@ -1666,7 +1679,7 @@ def session_prepare_matrix(
                     ser,
                     logf,
                     port,
-                    "anchor role all matrix",
+                    matrix_role_cmd,
                     18.0,
                     live_output,
                     verbose,
@@ -1725,7 +1738,7 @@ def session_prepare_matrix(
                     ser,
                     logf,
                     port,
-                    "anchor role all matrix",
+                    matrix_role_cmd,
                     12.0,
                     live_output,
                     verbose,
@@ -2599,6 +2612,7 @@ def round_capture(
     command_started_at: float | None = None,
     live_output: bool = True,
     verbose: int = 2,
+    matrix_cir_mode: str = "0",
 ) -> dict:
     log_path = out_dir / "master.log"
     result = {
@@ -2616,6 +2630,7 @@ def round_capture(
         "warmup_sw_lines": [],
         "warmup_sw_count": 0,
         "warmup_discarded_count": 0,
+        "matrix_cir_mode": matrix_cir_mode,
         "min_quality_seen": None,
         "pairs_below_quality": {},
         "log_path": str(log_path),
@@ -2907,6 +2922,26 @@ def round_capture(
                 return True
 
             precheck_done_at = time.time()
+
+            ser, cir_text = send_cmd_collect_text(
+                ser,
+                logf,
+                port,
+                f"autopos cir {matrix_cir_mode}",
+                0.5,
+                live_output,
+                verbose,
+                progress_cb=lambda: progress_now("switching"),
+                text_filter=filter_runtime_text,
+            )
+            process_runtime_text(cir_text)
+            if f"AUTOPOS cir mode set:" not in cir_text:
+                emit(
+                    logf,
+                    f"PRECHECK WARN: autopos cir {matrix_cir_mode} not confirmed\n",
+                    live_output,
+                    verbose,
+                )
 
             round_cmd = f"autopos round {master} {round_capture.device_sw_sets}"
             round_confirmed = False
@@ -3268,6 +3303,15 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--matrix-cir-mode",
+        choices=["0", "compact", "full"],
+        default="0",
+        help=(
+            "Runtime CIR output mode for the matrix role guard. "
+            "Default 0 keeps normal AutoPos sweeps fast; use full for USB full-CIR smoke tests."
+        ),
+    )
+    parser.add_argument(
         "--no-final-responder",
         action="store_true",
         help="Skip switching all anchors to runtime responder after the full sweep succeeds.",
@@ -3335,6 +3379,7 @@ def main() -> int:
         "session_role_guard": not bool(args.no_session_role_guard),
         "final_responder": not bool(args.no_final_responder),
         "reuse_resident_anchor_master": bool(args.reuse_resident_anchor_master),
+        "matrix_cir_mode": args.matrix_cir_mode,
         "slow_switch_threshold_s": 10.0,
     })
     command_started_at = time.time()
@@ -3354,6 +3399,7 @@ def main() -> int:
             verbose=args.verbose,
             context=run_context,
             reuse_resident_anchor_master=bool(args.reuse_resident_anchor_master),
+            matrix_cir_mode=args.matrix_cir_mode,
         )
         summary["session_role_guard_result"] = guard_result
         with open(out_dir / "summary.json", "w", encoding="utf-8") as f:
@@ -3393,6 +3439,7 @@ def main() -> int:
                     command_started_at=command_started_at,
                     live_output=not args.no_live_output,
                     verbose=args.verbose,
+                    matrix_cir_mode=args.matrix_cir_mode,
                 )
             except Exception:
                 # Defensive: round_capture itself is hardened, but still ensure the outer loop

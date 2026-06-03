@@ -77,6 +77,32 @@ def load_inter_anchor_matrix(path: Path) -> tuple[dict[tuple[str, str], float], 
     return distances, raw
 
 
+def load_pair_weights(path: Path | None) -> dict[tuple[str, str], float]:
+    if path is None:
+        return {}
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    weights_raw = raw.get("weights", raw)
+    out: dict[tuple[str, str], float] = {}
+    for key, value in weights_raw.items():
+        if not isinstance(key, str) or "-" not in key:
+            continue
+        a, b = key.split("-", 1)
+        a = a.strip().upper()
+        b = b.strip().upper()
+        if a not in ANCHORS or b not in ANCHORS or a == b:
+            continue
+        try:
+            w = float(value)
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(w):
+            continue
+        w = max(1.0e-6, min(1.0, w))
+        out[(a, b)] = w
+        out[(b, a)] = w
+    return out
+
+
 def load_layout_coords_m(path: Path) -> dict[str, np.ndarray]:
     raw = json.loads(path.read_text(encoding="utf-8"))
     anchors_raw = raw.get("anchors")
@@ -522,6 +548,11 @@ def main() -> int:
         help="Clamp Tukey edge weights to at least this value (prevents edges being fully ignored).",
     )
     ap.add_argument(
+        "--cir-pair-weights",
+        default=None,
+        help="Optional CIR-derived pair-weight JSON. Combined multiplicatively with Tukey edge weights.",
+    )
+    ap.add_argument(
         "--bias-sigma-mm",
         type=float,
         default=80.0,
@@ -543,6 +574,8 @@ def main() -> int:
     inp = Path(args.input)
     out = Path(args.output)
     distances, raw_in = load_inter_anchor_matrix(inp)
+    cir_pair_weights_path = Path(args.cir_pair_weights) if args.cir_pair_weights else None
+    cir_weights = load_pair_weights(cir_pair_weights_path)
 
     ref_constraints = load_floating_reference_sessions(args.floating_reference_session)
     n_refs = len(ref_constraints)
@@ -593,7 +626,7 @@ def main() -> int:
     band_separation_prior_m = None if args.band_separation_prior_mm is None else float(args.band_separation_prior_mm) / 1000.0
     band_separation_sigma_m = float(args.band_separation_sigma_mm) / 1000.0
 
-    w_edges: dict[tuple[str, str], float] | None = None
+    w_edges: dict[tuple[str, str], float] | None = dict(cir_weights) if cir_weights else None
     last_rms_mm = None
     history: list[dict[str, Any]] = []
 
@@ -662,7 +695,10 @@ def main() -> int:
         w_min = float(args.tukey_w_min)
         if w_min > 0.0:
             w_arr = np.maximum(w_arr, w_min)
-        w_edges = {k: float(w) for k, w in zip(keys, w_arr)}
+        w_edges = {
+            k: float(w) * float(cir_weights.get(k, 1.0))
+            for k, w in zip(keys, w_arr)
+        }
 
         rms_mm = rms_mm_of_edges(st.anchors, st.biases_m, distances)
         elapsed = time.time() - t0
@@ -711,6 +747,12 @@ def main() -> int:
             for i, a in enumerate(ANCHORS)
             for b in ANCHORS[i + 1 :]
         },
+        "cir_pair_weights": {
+            f"{a}-{b}": float(cir_weights[(a, b)])
+            for i, a in enumerate(ANCHORS)
+            for b in ANCHORS[i + 1 :]
+            if (a, b) in cir_weights
+        },
         "edge_fit": edge_fit_stats_mm(st.anchors, st.biases_m, distances, w_edges, inlier_w_thresh=0.2),
         "history": history,
     }
@@ -736,6 +778,8 @@ def main() -> int:
         "source": {
             "input": str(inp.resolve()),
             "seed_layout": str(Path(args.seed_layout).resolve()) if args.seed_layout else "auto:sdp_init_v3.py",
+            "cir_pair_weights": str(cir_pair_weights_path.resolve()) if cir_pair_weights_path else None,
+            "cir_pair_weight_count": len(cir_weights) // 2,
             "floating_reference_sessions": args.floating_reference_session,
             "sigma_dist_mm": float(args.sigma_dist_mm),
             "sigma_ref_mm": float(args.sigma_ref_mm),

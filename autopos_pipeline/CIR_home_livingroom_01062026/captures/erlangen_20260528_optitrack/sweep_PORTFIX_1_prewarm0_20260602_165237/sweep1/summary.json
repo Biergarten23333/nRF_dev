@@ -1,0 +1,92 @@
+{
+  "rounds": {
+    "A": {
+      "master": "A",
+      "success": true,
+      "sw_seen": true,
+      "apply_success_seen": true,
+      "sweep_ready_seen": true,
+      "verified_count": 0,
+      "sw_line": "[AUTOPOS] SW-A,B,4310,100,C,5544,100,D,2851,100,E,1717,100,F,4714,100,G,0,0,H,3178,100",
+      "sw_lines": [
+        "[AUTOPOS] SW-A,B,4310,100,C,5544,100,D,2851,100,E,1717,100,F,4714,100,G,0,0,H,3178,100"
+      ],
+      "sw_count": 1,
+      "device_sw_count": 1,
+      "warmup_min_quality": 90,
+      "warmup_sw_lines": [
+        "[AUTOPOS] SW-A,B,4310,100,C,5544,100,D,2851,100,E,1717,100,F,4714,100,G,0,0,H,3178,100"
+      ],
+      "warmup_sw_count": 1,
+      "warmup_discarded_count": 0,
+      "min_quality_seen": 0,
+      "pairs_below_quality": {
+        "[AUTOPOS] SW-A,B,4310,100,C,5544,100,D,2851,100,E,1717,100,F,4714,100,G,0,0,H,3178,100": [
+          "G"
+        ]
+      },
+      "log_path": "../../../../autopos_pipeline/CIR_home_livingroom_01062026/captures/erlangen_20260528_optitrack/sweep_PORTFIX_1_prewarm0_20260602_165237/sweep1/round_A/master.log",
+      "error": "",
+      "warnings": [
+        "Anchor G: no output as Matrix during SW-A"
+      ],
+      "reconnect_retry_seen": false,
+      "reconnect_retry_lines": [],
+      "sweep_done_seen": true,
+      "precheck_elapsed_s": 2.0015571117401123,
+      "switch_elapsed_s": 8.91821551322937,
+      "warmup_elapsed_s": 3.0994415283203125e-06,
+      "collect_elapsed_s": 5.7697296142578125e-05,
+      "total_elapsed_s": 10.919833421707153
+    }
+  },
+  "started_at": "2026-06-02 16:52:37",
+  "port": "/dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02-if00",
+  "order": [
+    "A"
+  ],
+  "sw_sets": 1,
+  "prewarm_sw_sets": 0,
+  "device_sw_sets": 1,
+  "warmup_min_quality": 90,
+  "timeout_s": 240,
+  "verbose": 1,
+  "quiet_tag_names_config": null,
+  "quiet_tag_names": [],
+  "quiet_tag_retries": 3,
+  "quiet_tag_required": false,
+  "bootstrap_autopos_reset": false,
+  "session_role_guard": true,
+  "final_responder": false,
+  "reuse_resident_anchor_master": false,
+  "slow_switch_threshold_s": 10.0,
+  "session_role_guard_result": {
+    "success": true,
+    "log_path": "../../../../autopos_pipeline/CIR_home_livingroom_01062026/captures/erlangen_20260528_optitrack/sweep_PORTFIX_1_prewarm0_20260602_165237/sweep1/session_role_guard.log",
+    "initial_role_counts": {
+      "matrix": 0,
+      "responder": 0,
+      "master": 0,
+      "other": 0
+    },
+    "final_role_counts": {
+      "matrix": 8,
+      "responder": 0,
+      "master": 0,
+      "other": 0
+    },
+    "action": "anchor role all matrix",
+    "error": "",
+    "sent_count": 8,
+    "ready_count": 8,
+    "ready_target": 8
+  },
+  "finished_at": "2026-06-02 16:53:52",
+  "total_elapsed_s": 75.44062161445618,
+  "warnings": [
+    "WARNING: Anchor G: no output as Matrix in rounds A",
+    "WARNING: Check Anchor G status; repeated matrix silence usually means responder path, role transition, or UWB RX issue.",
+    "WARNING: Anchor G: low quality as Matrix in rounds A (minq<=0)",
+    "WARNING: Check Anchor G status; low matrix quality usually points to RF path, antenna delay mismatch, weak supply, or placement/orientation issue."
+  ]
+}

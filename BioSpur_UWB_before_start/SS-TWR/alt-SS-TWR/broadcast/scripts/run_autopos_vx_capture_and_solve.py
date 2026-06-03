@@ -32,6 +32,11 @@ def main() -> int:
     ap.add_argument("--timeout-s", type=int, default=1800, help="Sweep timeout seconds")
     ap.add_argument("--out-dir", required=True, help="Output directory for this Vx run")
     ap.add_argument("--skip-capture", action="store_true", help="Skip sweep/cm capture and only solve using existing logs")
+    ap.add_argument(
+        "--cir-pair-weights",
+        default=None,
+        help="Optional CIR-derived pair-weight JSON. Currently applied to the v3 chain only.",
+    )
     args = ap.parse_args()
 
     out_dir = Path(args.out_dir)
@@ -144,18 +149,19 @@ def main() -> int:
     elif args.version == "v3":
         v3_dir = solve_dir / "v3_lite"
         v3_dir.mkdir(parents=True, exist_ok=True)
-        run(
-            [
-                "python3",
-                "scripts/prepare_autopos_v3_lite.py",
-                "--pairs-csv",
-                str(pairs_csv),
-                "--out-dir",
-                str(v3_dir),
-                "--floating-reference-session",
-                str(floating_ref_dir),
-            ]
-        )
+        cmd = [
+            "python3",
+            "scripts/prepare_autopos_v3_lite.py",
+            "--pairs-csv",
+            str(pairs_csv),
+            "--out-dir",
+            str(v3_dir),
+            "--floating-reference-session",
+            str(floating_ref_dir),
+        ]
+        if args.cir_pair_weights:
+            cmd.extend(["--cir-pair-weights", args.cir_pair_weights])
+        run(cmd)
     else:
         raise SystemExit("[error] unknown version")
 
@@ -173,6 +179,7 @@ def main() -> int:
         "solve_dir": str(solve_dir.resolve()),
         "pairs_csv": str(pairs_csv.resolve()),
         "floating_reference_dir": str(floating_ref_dir.resolve()),
+        "cir_pair_weights": str(Path(args.cir_pair_weights).resolve()) if args.cir_pair_weights else None,
     }
     (out_dir / "latest_run_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(f"[ok] wrote {out_dir / 'latest_run_manifest.json'}")
@@ -181,4 +188,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

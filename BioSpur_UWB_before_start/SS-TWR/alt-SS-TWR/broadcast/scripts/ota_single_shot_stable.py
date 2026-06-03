@@ -836,28 +836,54 @@ def main() -> int:
                 logf.flush()
                 send_cmd(ser, "mode recv", logf, t0)
                 mode_switch_deadline = time.monotonic() + 12.0
+                cleanup_reboot_expected = False
+                cleanup_autopos_ready = False
                 while time.monotonic() < mode_switch_deadline:
                     try:
                         line = read_line(ser)
                     except SerialException:
+                        cleanup_reboot_expected = True
                         break
                     if line is None:
                         continue
                     logf.write(line + "\n")
                     logf.flush()
                     if "rebooting" in line.lower():
+                        cleanup_reboot_expected = True
                         break
-                try:
-                    ser.close()
-                except Exception:
-                    pass
-                ser, boot_ready, boot_mode = wait_uart_ready_with_reconnect(
-                    args.port,
-                    args.baud,
-                    logf,
-                    t0,
-                    timeout_s=args.reconnect_timeout_s,
-                )
+                    if (
+                        "Control mode staged: AUTOPOS" in line or
+                        "Control status: mode=AUTOPOS" in line or
+                        "AUTOPOS: mode=AUTOPOS" in line
+                    ):
+                        cleanup_autopos_ready = True
+                if cleanup_reboot_expected:
+                    try:
+                        ser.close()
+                    except Exception:
+                        pass
+                    ser, boot_ready, boot_mode = wait_uart_ready_with_reconnect(
+                        args.port,
+                        args.baud,
+                        logf,
+                        t0,
+                        timeout_s=args.reconnect_timeout_s,
+                    )
+                elif cleanup_autopos_ready:
+                    boot_ready = True
+                    boot_mode = "AUTOPOS"
+                    logf.write(
+                        f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A cleanup stayed_connected_autopos\n"
+                    )
+                    logf.flush()
+                else:
+                    ser, boot_ready, boot_mode = wait_uart_ready_with_reconnect(
+                        args.port,
+                        args.baud,
+                        logf,
+                        t0,
+                        timeout_s=3.0,
+                    )
                 if not boot_ready:
                     reason = "phase_a_cleanup_reconnect_timeout"
                     raise RuntimeError(reason)

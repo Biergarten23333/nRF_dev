@@ -6,10 +6,20 @@ from pathlib import Path
 
 
 BIO_SPUR_GLOB = "/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_*-if00"
+MASTER_ANCHOR_GLOB = "/dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_*-if00"
+MASTER_TAG_GLOB = "/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_*-if00"
+MASTER_CONTROL_GLOBS = (
+    MASTER_ANCHOR_GLOB,
+    BIO_SPUR_GLOB,
+    MASTER_TAG_GLOB,
+)
 
 
 def find_master_control_ports() -> list[str]:
-    return sorted(glob.glob(BIO_SPUR_GLOB))
+    ports: list[str] = []
+    for pattern in MASTER_CONTROL_GLOBS:
+        ports.extend(sorted(glob.glob(pattern)))
+    return list(dict.fromkeys(ports))
 
 
 def preferred_master_control_port(fallback: str | None = None) -> str | None:

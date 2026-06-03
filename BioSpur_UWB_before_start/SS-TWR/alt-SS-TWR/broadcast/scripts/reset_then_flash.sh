@@ -22,6 +22,10 @@ prefer_nrfjprog="${BIOSPUR_FLASH_PREFER_NRFJPROG:-0}"
 if [ -z "$jlink_device" ]; then
   if [ "$snr" = "683234364" ]; then
     jlink_device="nRF52840_xxAA"
+  elif [[ "$snr" == 9* ]] || [[ "$snr" == 10* ]]; then
+    # BioSpur Master controllers are B120/nRF5340 boards. Keep Master_Anchor
+    # and Master_Tag away from the legacy nRF52832 anchor default.
+    jlink_device="NRF5340_XXAA_APP"
   else
     jlink_device="nRF52832_XXAA"
   fi

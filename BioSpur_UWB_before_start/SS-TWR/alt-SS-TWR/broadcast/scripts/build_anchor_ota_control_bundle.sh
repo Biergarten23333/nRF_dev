@@ -19,6 +19,14 @@ FW_MARKER_INPUT="${3:-}"
 NCS_ROOT="${NCS_ROOT:-/home/zekaixiao/ncs/v2.8.0}"
 ANCHOR_EXTRA_CMAKE_ARGS="${ANCHOR_EXTRA_CMAKE_ARGS:-}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ANCHOR_BUILD_PATH="${ANCHOR_BUILD_DIR}"
+CONTROL_BUILD_PATH="${CONTROL_BUILD_DIR}"
+if [[ "${ANCHOR_BUILD_PATH}" != /* ]]; then
+  ANCHOR_BUILD_PATH="${REPO_ROOT}/${ANCHOR_BUILD_PATH}"
+fi
+if [[ "${CONTROL_BUILD_PATH}" != /* ]]; then
+  CONTROL_BUILD_PATH="${REPO_ROOT}/${CONTROL_BUILD_PATH}"
+fi
 
 # Sysbuild does not automatically forward arbitrary top-level -DAPP_ANCHOR_*
 # cache entries into the child "anchor" image. The anchor app CMake reads these
@@ -52,6 +60,7 @@ export ZEPHYR_MODULES="${ZEPHYR_MODULES:-$(cd "$WEST_TOPDIR" && "$WEST_BIN" list
 # `enum34` package there, which breaks both west and the NCS toolchain Python.
 HOST_SITE_PACKAGES="$(python3 -c 'import site; print(":".join(p for p in site.getsitepackages() if not p.startswith("/usr/local/lib/python")) )')"
 CMAKE_BIN="${CMAKE_BIN:-cmake}"
+export PYTHONPATH="${HOST_SITE_PACKAGES}${PYTHONPATH:+:${PYTHONPATH}}"
 
 (cd "$WEST_TOPDIR" && "$WEST_BIN" build \
   -b decawave_dwm1001_dev/nrf52832 \
@@ -74,60 +83,31 @@ CMAKE_BIN="${CMAKE_BIN:-cmake}"
   env \
   WEST_TOPDIR="${WEST_TOPDIR}" \
   ZEPHYR_BASE="${NCS_ROOT}/zephyr" \
-  PYTHONPATH="${HOST_SITE_PACKAGES}${PYTHONPATH:+:${PYTHONPATH}}" \
+  PYTHONPATH="${PYTHONPATH}" \
   "${CMAKE_BIN}" --build "${ANCHOR_BUILD_DIR}")
 
-SIGNED_BIN="${ANCHOR_BUILD_DIR}/anchor/zephyr/zephyr.signed.bin"
+SIGNED_BIN="${ANCHOR_BUILD_PATH}/anchor/zephyr/zephyr.signed.bin"
 if [[ ! -f "${SIGNED_BIN}" ]]; then
-  SIGNED_BIN="${ANCHOR_BUILD_DIR}/zephyr/zephyr.signed.bin"
+  SIGNED_BIN="${ANCHOR_BUILD_PATH}/zephyr/zephyr.signed.bin"
 fi
 if [[ ! -f "${SIGNED_BIN}" ]]; then
   echo "Missing signed image: ${SIGNED_BIN}" >&2
   exit 1
 fi
 
-python3 scripts/gen_ota_image_inc.py \
-  "${SIGNED_BIN}" \
-  apps/master_ota/generated/ota_image.inc
+printf '%s\n' "${FW_MARKER}" > "${ANCHOR_BUILD_PATH}/fw_marker.txt"
+python3 "${REPO_ROOT}/scripts/prepare_alt_ota_payload.py" \
+  --kind anchor \
+  --marker "${FW_MARKER}" \
+  --build-dir "${ANCHOR_BUILD_PATH}" \
+  --signed-bin "${SIGNED_BIN}" \
+  --dfu-zip "${ANCHOR_BUILD_PATH}/dfu_application.zip" \
+  --control-build-dir "${CONTROL_BUILD_PATH}"
 
-python3 scripts/verify_ota_payload_kind.py --expected anchor
+cp "${REPO_ROOT}/apps/master_ota/generated/anchor_ota_manifest.json" \
+  "${ANCHOR_BUILD_PATH}/build_manifest.json"
 
-printf '%s\n' "${FW_MARKER}" > "${ANCHOR_BUILD_DIR}/fw_marker.txt"
-python3 - <<'PY' "${REPO_ROOT}" "${ANCHOR_BUILD_DIR}" "${CONTROL_BUILD_DIR}" "${FW_MARKER}" "${SIGNED_BIN}"
-import json
-import os
-import sys
-from pathlib import Path
-
-repo_root = Path(sys.argv[1])
-anchor_build_dir = sys.argv[2]
-control_build_dir = sys.argv[3]
-fw_marker = sys.argv[4]
-signed_bin = sys.argv[5]
-
-manifest = {
-    "kind": "anchor_ota_bundle",
-    "fw_marker": fw_marker,
-    "anchor_build_dir": anchor_build_dir,
-    "control_build_dir": control_build_dir,
-    "signed_bin": signed_bin,
-    "dfu_zip": f"{anchor_build_dir}/dfu_application.zip",
-    "generated_at_epoch": int(__import__("time").time()),
-}
-
-build_manifest = repo_root / anchor_build_dir / "build_manifest.json"
-build_manifest.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-
-generated_manifest = repo_root / "apps" / "master_ota" / "generated" / "anchor_ota_manifest.json"
-generated_manifest.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-PY
-cat > "apps/master_ota/generated/anchor_ota_manifest.h" <<EOF
-#pragma once
-
-#define APP_MASTER_OTA_ANCHOR_FW_MARKER "${FW_MARKER}"
-#define APP_MASTER_OTA_ANCHOR_BUILD_DIR "${ANCHOR_BUILD_DIR}"
-#define APP_MASTER_OTA_ANCHOR_DFU_ZIP "${ANCHOR_BUILD_DIR}/dfu_application.zip"
-EOF
+python3 "${REPO_ROOT}/scripts/verify_ota_payload_kind.py" --expected anchor
 
 (cd "$WEST_TOPDIR" && "$WEST_BIN" build \
   -b nrf52840dk/nrf52840 \
@@ -146,16 +126,16 @@ EOF
   env \
   WEST_TOPDIR="${WEST_TOPDIR}" \
   ZEPHYR_BASE="${NCS_ROOT}/zephyr" \
-  PYTHONPATH="${HOST_SITE_PACKAGES}${PYTHONPATH:+:${PYTHONPATH}}" \
+  PYTHONPATH="${PYTHONPATH}" \
   "${CMAKE_BIN}" --build "${CONTROL_BUILD_DIR}")
 
-python3 scripts/write_build_source.py \
-  --build-dir "${ANCHOR_BUILD_DIR}" \
+python3 "${REPO_ROOT}/scripts/write_build_source.py" \
+  --build-dir "${ANCHOR_BUILD_PATH}" \
   --source "scripts/build_anchor_ota_control_bundle.sh" \
   --command "$0 $* (anchor ota image)"
 
-python3 scripts/write_build_source.py \
-  --build-dir "${CONTROL_BUILD_DIR}" \
+python3 "${REPO_ROOT}/scripts/write_build_source.py" \
+  --build-dir "${CONTROL_BUILD_PATH}" \
   --source "scripts/build_anchor_ota_control_bundle.sh" \
   --command "$0 $* (52840 control center)"
 

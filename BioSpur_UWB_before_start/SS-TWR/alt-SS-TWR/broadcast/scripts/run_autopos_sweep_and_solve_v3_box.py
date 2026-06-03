@@ -94,6 +94,11 @@ def main() -> int:
     ap.add_argument("--upper-level-sigma-mm", type=float, default=35.0)
     ap.add_argument("--pair-height-sigma-mm", type=float, default=45.0)
     ap.add_argument("--vertical-xy-sigma-mm", type=float, default=0.0)
+    ap.add_argument(
+        "--cir-pair-weights",
+        default=None,
+        help="Optional CIR-derived pair-weight JSON passed through to V3-box solver.",
+    )
     ap.add_argument("--verbose", type=int, default=1)
     args = ap.parse_args()
 
@@ -218,6 +223,8 @@ def main() -> int:
     ]
     if args.bias_mu is not None:
         solve_cmd.extend(["--bias-mu", str(args.bias_mu)])
+    if args.cir_pair_weights:
+        solve_cmd.extend(["--cir-pair-weights", args.cir_pair_weights])
     if args.floating_reference_z_prior_mm is not None:
         solve_cmd.extend(["--floating-reference-z-prior-mm", str(args.floating_reference_z_prior_mm)])
     for s in normalized_ref_sessions:
@@ -237,6 +244,7 @@ def main() -> int:
         "solve_dir": str(solve_dir.resolve()),
         "layout_json": str((solve_dir / "anchor_layout_v3_box.json").resolve()),
         "manifest_json": str((solve_dir / "v3_box_manifest.json").resolve()),
+        "cir_pair_weights": str(Path(args.cir_pair_weights).resolve()) if args.cir_pair_weights else None,
         "floating_reference_sessions": normalized_ref_sessions,
         "floating_reference_min_cm_lines": int(args.floating_reference_min_cm_lines),
     }

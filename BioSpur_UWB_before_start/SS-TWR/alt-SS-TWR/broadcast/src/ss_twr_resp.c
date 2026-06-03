@@ -1,5 +1,6 @@
 #include "ss_twr_resp.h"
 #include "uwb_ss_twr_shared.h"
+#include "anchor_cir_output.h"
 #include "anchor_mcumgr_diag.h"
 #include "anchor_runtime_control.h"
 
@@ -976,6 +977,7 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         }
 
         dwtime_u64_t poll_rx_ts = ss_twr_resp_get_rx_timestamp_u64();
+        int32_t rx_carrier_integrator = dwt_readcarrierintegrator();
         uint32_t prof_ts_cyc = k_cycle_get_32();
 
         uint32_t resp_delay_uus = poll_src_is_tag ?
@@ -1158,6 +1160,14 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         ss_twr_resp_led_off();
         replies_ok++;
         match_diag.tx_ok_count++;
+        dwt_rxdiag_t rx_diag;
+        dwt_readdiagnostics(&rx_diag);
+        anchor_cir_output_publish_feature(
+            replies_ok, ss_twr_resp_anchor_id, poll_src_addr, -1L,
+            (uint32_t)poll_rx_ts, rx_carrier_integrator, &rx_diag);
+        anchor_cir_output_publish_full(
+            replies_ok, ss_twr_resp_anchor_id, poll_src_addr, -1L,
+            (uint32_t)poll_rx_ts, rx_carrier_integrator, &rx_diag);
         if (poll_src_is_tag && poll_tag_id < SS_TWR_RESP_DIAG_TAG_SLOTS) {
             tag_reply_count[poll_tag_id]++;
         }

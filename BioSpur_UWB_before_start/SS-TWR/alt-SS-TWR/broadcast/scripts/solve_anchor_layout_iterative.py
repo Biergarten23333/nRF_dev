@@ -76,6 +76,11 @@ def main() -> int:
     parser.add_argument("--start-jitter-mm", type=float, default=450.0)
     parser.add_argument("--adaptive-edge-reweight-rounds", type=int, default=2)
     parser.add_argument(
+        "--cir-pair-weights",
+        default=None,
+        help="Optional CIR-derived pair-weight JSON passed through to solve_anchor_layout.py.",
+    )
+    parser.add_argument(
         "--reference-session",
         action="append",
         default=[],
@@ -160,6 +165,8 @@ def main() -> int:
             "--adaptive-edge-reweight-rounds",
             str(args.adaptive_edge_reweight_rounds),
         ]
+        if args.cir_pair_weights:
+            cmd.extend(["--cir-pair-weights", args.cir_pair_weights])
         if args.floating_reference_z_prior_mm is not None:
             cmd.extend(
                 ["--floating-reference-z-prior-mm", str(args.floating_reference_z_prior_mm)]

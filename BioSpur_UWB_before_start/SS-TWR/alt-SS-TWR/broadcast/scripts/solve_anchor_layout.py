@@ -30,6 +30,30 @@ def load_distances(raw: dict) -> dict[tuple[str, str], float]:
     return distances
 
 
+def load_pair_weights(path: Path | None) -> dict[tuple[str, str], float]:
+    if path is None:
+        return {}
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    weights_raw = raw.get("weights", raw)
+    out: dict[tuple[str, str], float] = {}
+    for key, value in weights_raw.items():
+        if "-" not in key:
+            continue
+        a, b = key.split("-", 1)
+        a = a.strip().upper()
+        b = b.strip().upper()
+        if a not in ANCHORS or b not in ANCHORS or a == b:
+            continue
+        try:
+            w = float(value)
+        except (TypeError, ValueError):
+            continue
+        w = max(1.0e-6, min(1.0, w))
+        out[(a, b)] = w
+        out[(b, a)] = w
+    return out
+
+
 def load_anchor_map_from_layout(path: Path) -> dict[str, np.ndarray]:
     raw = json.loads(path.read_text(encoding="utf-8"))
     anchors_raw = raw["anchors"]
@@ -283,6 +307,7 @@ def mean_centered_residuals(values: list[float], sigma_m: float) -> list[float]:
 def residuals(
     params: np.ndarray,
     distances: dict[tuple[str, str], float],
+    pair_weights: dict[tuple[str, str], float],
     reference_constraints: list[dict],
     floating_reference_constraints: list[dict],
     plane_height_prior_m: float,
@@ -328,7 +353,8 @@ def residuals(
                 sigma = distance_sigma_same_plane_m
             else:
                 sigma = distance_sigma_cross_plane_m
-            res.append((actual - target) / sigma)
+            weight = pair_weights.get((a, b), 1.0)
+            res.append(math.sqrt(weight) * (actual - target) / sigma)
 
     # Soft lower-plane prior: A/B/D define the reference plane, C is allowed to
     # deviate from it slightly instead of being forced exactly coplanar.
@@ -533,6 +559,7 @@ def solve_once(
     x0: np.ndarray,
     *,
     distances: dict[tuple[str, str], float],
+    pair_weights: dict[tuple[str, str], float],
     reference_constraints: list[dict],
     floating_reference_constraints: list[dict],
     height_prior_m: float,
@@ -570,6 +597,7 @@ def solve_once(
         x0,
         args=(
             distances,
+            pair_weights,
             reference_constraints,
             floating_reference_constraints,
             height_prior_m,
@@ -929,10 +957,17 @@ def main() -> int:
         default=2,
         help="Adaptive reweight rounds for edge classes based on residual statistics.",
     )
+    parser.add_argument(
+        "--cir-pair-weights",
+        default=None,
+        help="Optional CIR-derived pair-weight JSON. Ranging residuals are multiplied by sqrt(weight_ij).",
+    )
     args = parser.parse_args()
 
     raw = load_input(Path(args.input))
     distances = load_distances(raw)
+    pair_weights_path = Path(args.cir_pair_weights) if args.cir_pair_weights else None
+    pair_weights = load_pair_weights(pair_weights_path)
     reference_constraints = load_reference_constraints(args.reference_session)
     floating_reference_constraints = load_floating_reference_constraints(
         args.floating_reference_session
@@ -966,6 +1001,7 @@ def main() -> int:
         coarse = solve_once(
             start_x,
             distances=distances,
+            pair_weights=pair_weights,
             reference_constraints=reference_constraints,
             floating_reference_constraints=floating_reference_constraints,
             height_prior_m=args.height_prior_m,
@@ -1008,6 +1044,7 @@ def main() -> int:
             current = solve_once(
                 current.x,
                 distances=distances,
+                pair_weights=pair_weights,
                 reference_constraints=reference_constraints,
                 floating_reference_constraints=floating_reference_constraints,
                 height_prior_m=args.height_prior_m,
@@ -1114,6 +1151,14 @@ def main() -> int:
             "multi_start": args.multi_start,
             "start_jitter_mm": args.start_jitter_mm,
             "adaptive_edge_reweight_rounds": args.adaptive_edge_reweight_rounds,
+            "cir_pair_weights": str(pair_weights_path.resolve()) if pair_weights_path else None,
+            "cir_pair_weight_count": len(pair_weights) // 2,
+            "cir_pair_weights_used": {
+                f"{a}-{b}": pair_weights[(a, b)]
+                for i, a in enumerate(ANCHORS)
+                for b in ANCHORS[i + 1 :]
+                if (a, b) in pair_weights
+            },
             "termination_status": int(result.status),
             "message": result.message,
         },

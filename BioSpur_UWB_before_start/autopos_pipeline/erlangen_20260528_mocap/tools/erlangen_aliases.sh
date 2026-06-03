@@ -38,9 +38,9 @@ export BIOSPUR_RESET_ANCHOR_BEFORE_SWEEP="${BIOSPUR_RESET_ANCHOR_BEFORE_SWEEP:-1
 export BIOSPUR_SKIP_ANCHOR_PREFLIGHT_FOR_CAPTURE="${BIOSPUR_SKIP_ANCHOR_PREFLIGHT_FOR_CAPTURE:-1}"
 export BIOSPUR_REUSE_TAG_LINKS_FOR_CAPTURE="${BIOSPUR_REUSE_TAG_LINKS_FOR_CAPTURE:-1}"
 
-# These are the 2026-05-19 desktop paths. On the Erlangen laptop, run `bio_ports`
-# and override them if /dev/serial/by-id names differ.
-export BIOSPUR_ANCHOR_PORT="${BIOSPUR_ANCHOR_PORT:-/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_87EA2F4A526C5A02-if00}"
+# These are the dual-master B120 desktop paths. On another machine, run
+# `bio_ports` and override them if /dev/serial/by-id names differ.
+export BIOSPUR_ANCHOR_PORT="${BIOSPUR_ANCHOR_PORT:-/dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02-if00}"
 export BIOSPUR_TAG_PORT="${BIOSPUR_TAG_PORT:-/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00}"
 
 _bio_ts() {

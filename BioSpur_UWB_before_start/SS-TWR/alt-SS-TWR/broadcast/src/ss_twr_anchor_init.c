@@ -1,5 +1,6 @@
 #include "ss_twr_anchor_init.h"
 
+#include "anchor_cir_output.h"
 #include "anchor_ble_ctrl.h"
 #include "anchor_runtime_control.h"
 #include "uwb_anchor_matrix.h"
@@ -250,8 +251,10 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
             double tof;
             double distance_m;
             double clock_offset_ratio;
+            int32_t carrier_integrator;
             long raw_distance_mm;
             uint32_t filtered_mm;
+            dwt_rxdiag_t rx_diag;
 
             dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
 
@@ -285,8 +288,10 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
 
             poll_tx_ts = dwt_readtxtimestamplo32();
             resp_rx_ts = dwt_readrxtimestamplo32();
+            carrier_integrator = dwt_readcarrierintegrator();
+            dwt_readdiagnostics(&rx_diag);
             clock_offset_ratio =
-                (double)dwt_readcarrierintegrator() *
+                (double)carrier_integrator *
                 (FREQ_OFFSET_MULTIPLIER * HERTZ_TO_PPM_MULTIPLIER_CHAN_5 /
                  1.0e6);
 
@@ -342,6 +347,14 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
                    (unsigned long)tracker->success_count,
                    (unsigned long)tracker->failure_count,
                    (unsigned int)uwb_range_tracker_quality_percent(tracker));
+            anchor_cir_output_publish_feature(
+                (uint32_t)ss_twr_anchor_init_sweep_count,
+                ss_twr_anchor_init_local_id, resp_src_addr, raw_distance_mm,
+                resp_rx_ts, carrier_integrator, &rx_diag);
+            anchor_cir_output_publish_full(
+                (uint32_t)ss_twr_anchor_init_sweep_count,
+                ss_twr_anchor_init_local_id, resp_src_addr, raw_distance_mm,
+                resp_rx_ts, carrier_integrator, &rx_diag);
         } else {
             if (tracker->filtered_valid) {
                 uwb_range_tracker_record_failure(tracker);

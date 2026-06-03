@@ -83,6 +83,11 @@ def main() -> int:
     ap.add_argument("--upper-level-sigma-mm", type=float, default=35.0)
     ap.add_argument("--pair-height-sigma-mm", type=float, default=45.0)
     ap.add_argument("--vertical-xy-sigma-mm", type=float, default=0.0)
+    ap.add_argument(
+        "--cir-pair-weights",
+        default=None,
+        help="Optional CIR-derived pair-weight JSON passed through to V3-full layout solver.",
+    )
     ap.add_argument("--verbose", type=int, default=1)
     args = ap.parse_args()
 
@@ -156,6 +161,8 @@ def main() -> int:
     ]
     if args.bias_mu is not None:
         solve_cmd.extend(["--bias-mu", str(args.bias_mu)])
+    if args.cir_pair_weights:
+        solve_cmd.extend(["--cir-pair-weights", args.cir_pair_weights])
     if args.floating_reference_z_prior_mm is not None:
         solve_cmd.extend(["--floating-reference-z-prior-mm", str(args.floating_reference_z_prior_mm)])
     for s in normalized_ref_sessions:
@@ -169,6 +176,7 @@ def main() -> int:
         "fused_dir": str(fused_dir.resolve()),
         "matrix_json": str(matrix_json.resolve()),
         "layout_json": str(out_layout.resolve()),
+        "cir_pair_weights": str(Path(args.cir_pair_weights).resolve()) if args.cir_pair_weights else None,
         "geometry_mode": "box",
         "bias_sigma_mm": float(args.bias_sigma_mm),
         "bias_mu": float(args.bias_mu) if args.bias_mu is not None else None,

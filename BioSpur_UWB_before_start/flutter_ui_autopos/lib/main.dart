@@ -6663,9 +6663,9 @@ class PortReader {
     if (!dir.existsSync()) return PortSnapshot.empty();
     final names = dir.listSync().map((e) => e.path.split('/').last).join('\n');
     return PortSnapshot(
-      masterAnchor: names.contains(
-        'BioSpur_BioSpur_BLE_Control_87EA2F4A526C5A02',
-      ),
+      masterAnchor:
+          names.contains('Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02') ||
+          names.contains('BioSpur_BioSpur_BLE_Control_87EA2F4A526C5A02'),
       masterTag: names.contains(
         'Master_Tag_BioSpur_BLE_Control_6918E0384172A49F',
       ),

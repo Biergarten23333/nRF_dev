@@ -56,6 +56,12 @@ set_cache_from_env(APP_ANCHOR_RESPONDER_PROFILE_ENABLE "0" STRING "Enable low-ra
 set_cache_from_env(APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE "0" STRING "Pulse DWM1001C blue LED while a responder TX is active")
 set_cache_from_env(APP_ANCHOR_RESPONDER_BLUE_LED_PIN "31" STRING "GPIO pin for responder activity LED")
 set_cache_from_env(APP_ANCHOR_RESPONDER_BLUE_LED_ACTIVE_LOW "1" STRING "Responder activity LED active-low polarity")
+set_cache_from_env(APP_ANCHOR_CIR_FEATURE_OUTPUT_ENABLE "0" STRING "Emit lightweight DW1000 CIR/first-path features for received frames")
+set_cache_from_env(APP_ANCHOR_CIR_FEATURE_OUTPUT_BLE_ENABLE "1" STRING "Forward lightweight Anchor CIR feature lines over BLE control result notifications")
+set_cache_from_env(APP_ANCHOR_CIR_FEATURE_OUTPUT_CDC_ENABLE "0" STRING "Also print lightweight Anchor CIR feature lines to CDC/console")
+set_cache_from_env(APP_ANCHOR_CIR_FULL_OUTPUT_ENABLE "0" STRING "Emit full DW1000 accumulator bytes for received frames")
+set_cache_from_env(APP_ANCHOR_CIR_FULL_OUTPUT_CDC_ENABLE "1" STRING "Print full Anchor CIR accumulator chunks to CDC/console")
+set_cache_from_env(APP_ANCHOR_CIR_FULL_CHUNK_BYTES "48" STRING "Payload bytes per full Anchor CIR text chunk")
 set_cache_from_env(APP_ANCHOR_ULTRASOUND_ENABLE "0" STRING "Enable HC-SR04 ultrasound diagnostic commands")
 set_cache_from_env(APP_ANCHOR_ULTRASOUND_TRIG_PIN "6" STRING "HC-SR04 TRIG GPIO0 pin")
 set_cache_from_env(APP_ANCHOR_ULTRASOUND_ECHO_PIN "7" STRING "HC-SR04 ECHO GPIO0 pin")
@@ -111,6 +117,12 @@ target_compile_definitions(app PRIVATE
     APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE=${APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE}
     APP_ANCHOR_RESPONDER_BLUE_LED_PIN=${APP_ANCHOR_RESPONDER_BLUE_LED_PIN}
     APP_ANCHOR_RESPONDER_BLUE_LED_ACTIVE_LOW=${APP_ANCHOR_RESPONDER_BLUE_LED_ACTIVE_LOW}
+    APP_ANCHOR_CIR_FEATURE_OUTPUT_ENABLE=${APP_ANCHOR_CIR_FEATURE_OUTPUT_ENABLE}
+    APP_ANCHOR_CIR_FEATURE_OUTPUT_BLE_ENABLE=${APP_ANCHOR_CIR_FEATURE_OUTPUT_BLE_ENABLE}
+    APP_ANCHOR_CIR_FEATURE_OUTPUT_CDC_ENABLE=${APP_ANCHOR_CIR_FEATURE_OUTPUT_CDC_ENABLE}
+    APP_ANCHOR_CIR_FULL_OUTPUT_ENABLE=${APP_ANCHOR_CIR_FULL_OUTPUT_ENABLE}
+    APP_ANCHOR_CIR_FULL_OUTPUT_CDC_ENABLE=${APP_ANCHOR_CIR_FULL_OUTPUT_CDC_ENABLE}
+    APP_ANCHOR_CIR_FULL_CHUNK_BYTES=${APP_ANCHOR_CIR_FULL_CHUNK_BYTES}
     APP_ANCHOR_ULTRASOUND_ENABLE=${APP_ANCHOR_ULTRASOUND_ENABLE}
     APP_ANCHOR_ULTRASOUND_TRIG_PIN=${APP_ANCHOR_ULTRASOUND_TRIG_PIN}
     APP_ANCHOR_ULTRASOUND_ECHO_PIN=${APP_ANCHOR_ULTRASOUND_ECHO_PIN}
@@ -139,6 +151,7 @@ target_sources(app PRIVATE
     ${APP_ROOT}/src/anchors/unified/anchor_config.c
     ${APP_ROOT}/src/anchors/unified/anchor_ble_id.c
     ${APP_ROOT}/src/anchors/unified/anchor_ble_ctrl.c
+    ${APP_ROOT}/src/anchors/unified/anchor_cir_output.c
     ${APP_ROOT}/src/anchors/unified/anchor_runtime_control.c
     ${APP_ROOT}/src/anchors/unified/anchor_ultrasound.c
     ${APP_ROOT}/src/anchors/unified/anchor_mcumgr_diag.c

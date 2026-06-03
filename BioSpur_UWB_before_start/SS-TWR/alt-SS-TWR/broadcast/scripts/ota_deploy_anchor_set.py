@@ -22,6 +22,7 @@ UUIDS = {
     "G": "B3087BC3D87CCCD316AEDC6B71D6677F",
     "H": "B1E487C2B1FD740D1442206A1857DFA1",
 }
+SCRIPT_DIR = Path(__file__).resolve().parent
 
 UPLOAD_PROGRESS_RE = re.compile(r"OTA upload progress:\s*(\d+)%")
 ANCHOR_VERSION_RE = re.compile(
@@ -663,7 +664,7 @@ def main() -> int:
             stage_dir = round_dir / f"stage{attempt}"
             cmd = [
                 "python3",
-                "scripts/ota_single_shot_stable.py",
+                str(SCRIPT_DIR / "ota_single_shot_stable.py"),
                 "--timeout-s",
                 str(args.timeout_s),
                 "--port",

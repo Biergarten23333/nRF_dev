@@ -165,9 +165,34 @@ static void anchor_role_work_handler(struct k_work *work);
 static int8_t autopos_last_success_idx = -1;
 static char autopos_state[16] = "idle";
 static char autopos_last_error[96];
+static char autopos_cir_mode[16] = "0";
 static char anchor_role_target[40];
 static char anchor_role_value[16];
+static char anchor_role_cir_value[16] = "0";
 static bool anchor_role_all_targets;
+
+static int normalize_anchor_cir_mode(const char *raw, char *out, size_t out_len)
+{
+	if (raw == NULL || out == NULL || out_len == 0U) {
+		return -EINVAL;
+	}
+	if (strcmp(raw, "0") == 0 || strcmp(raw, "off") == 0 ||
+	    strcmp(raw, "none") == 0) {
+		(void)snprintf(out, out_len, "0");
+		return 0;
+	}
+	if (strcmp(raw, "compact") == 0 || strcmp(raw, "feature") == 0 ||
+	    strcmp(raw, "1") == 0) {
+		(void)snprintf(out, out_len, "COMPACT");
+		return 0;
+	}
+	if (strcmp(raw, "full") == 0 || strcmp(raw, "raw") == 0 ||
+	    strcmp(raw, "2") == 0) {
+		(void)snprintf(out, out_len, "FULL");
+		return 0;
+	}
+	return -EINVAL;
+}
 
 static void autopos_result_history_clear(void)
 {
@@ -319,8 +344,8 @@ static void control_print_help(void)
 	printk("TDMA cmds: tdma show | tdma hold <0|1> | tdma roster <BSxxxx> <static|roto|motion> | tdma profile <BSxxxx> <static|roto|motion> | tdma freq <static|roto|motion> <hz> | tdma rebalance\n");
 	printk("Device model cmds: device show | device kind <anchor|tag>\n");
 	printk("OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->\n");
-	printk("Anchor cmds: anchor version <A..H|UUID32|all> | anchor role <A..H|UUID32|all> <master|matrix|responder> | anchor reset <A..H|UUID32|all> <autopos|responder>\n");
-	printk("AUTOPOS cmds: autopos status | autopos detach | autopos map <A..H> <UUID32> | autopos map show | autopos round <A..H> [sets] | autopos apply | autopos result show|clear\n");
+	printk("Anchor cmds: anchor version <A..H|UUID32|all> | anchor role <A..H|UUID32|all> <master|matrix|responder> [cir <0|compact|full>] | anchor reset <A..H|UUID32|all> <autopos|responder>\n");
+	printk("AUTOPOS cmds: autopos status | autopos detach | autopos cir <0|compact|full> | autopos map <A..H> <UUID32> | autopos map show | autopos round <A..H> [sets] | autopos apply | autopos result show|clear\n");
 }
 
 static void control_print_ota_bundle_info(void)
@@ -470,12 +495,13 @@ static void autopos_reset_runtime_state(bool keep_target)
 
 static void autopos_print_status(void)
 {
-	printk("AUTOPOS: mode=%s state=%s staged=%c last_success=%c sets=%lu error=%s\n",
+	printk("AUTOPOS: mode=%s state=%s staged=%c last_success=%c sets=%lu cir=%s error=%s\n",
 	       control_mode_name(control_mode),
 	       autopos_state,
 	       (autopos_target_idx >= 0) ? autopos_labels[autopos_target_idx] : '-',
 	       (autopos_last_success_idx >= 0) ? autopos_labels[autopos_last_success_idx] : '-',
 	       (unsigned long)autopos_round_sets,
+	       autopos_cir_mode,
 	       autopos_last_error[0] != '\0' ? autopos_last_error : "-");
 }
 
@@ -1511,10 +1537,11 @@ static int anchor_apply_runtime_role_uuid(const char *query, const char *role_cm
 	return rc;
 }
 
-static int anchor_apply_role(const char *query, const char *role)
+static int anchor_apply_role(const char *query, const char *role, const char *cir_mode)
 {
-	char role_cmd[24];
+	char role_cmd[48];
 	char expect_role[16];
+	const char *cir = (cir_mode != NULL && cir_mode[0] != '\0') ? cir_mode : "0";
 
 	if (role == NULL) {
 		return -EINVAL;
@@ -1527,7 +1554,7 @@ static int anchor_apply_role(const char *query, const char *role)
 		(void)snprintf(role_cmd, sizeof(role_cmd), "R MATRIX");
 		(void)snprintf(expect_role, sizeof(expect_role), "matrix");
 	} else if (strcmp(role, "responder") == 0) {
-		(void)snprintf(role_cmd, sizeof(role_cmd), "RUNTIME RESPONDER FORCE");
+		(void)snprintf(role_cmd, sizeof(role_cmd), "RUNTIME RESPONDER FORCE CIR=%s", cir);
 		(void)snprintf(expect_role, sizeof(expect_role), "responder");
 		return anchor_apply_runtime_role_uuid(query, role_cmd, expect_role);
 	} else {
@@ -1537,11 +1564,12 @@ static int anchor_apply_role(const char *query, const char *role)
 	return anchor_apply_role_uuid(query, role_cmd, expect_role);
 }
 
-static int anchor_apply_role_all(const char *role)
+static int anchor_apply_role_all(const char *role, const char *cir_mode)
 {
 	int rc = 0;
 	int first_err = 0;
 	char label[2];
+	const char *cir = (cir_mode != NULL && cir_mode[0] != '\0') ? cir_mode : "0";
 
 	if (role != NULL && (strcmp(role, "matrix") == 0 || strcmp(role, "responder") == 0)) {
 		int ready_count;
@@ -1549,8 +1577,11 @@ static int anchor_apply_role_all(const char *role)
 		int total_sent = 0;
 		int waited = 0;
 		int last_ready = -1;
-		const char *runtime_cmd = (strcmp(role, "matrix") == 0) ?
-			"RUNTIME MATRIX FORCE" : "RUNTIME RESPONDER FORCE";
+		char runtime_cmd[48];
+
+		(void)snprintf(runtime_cmd, sizeof(runtime_cmd), "RUNTIME %s FORCE CIR=%s",
+			       (strcmp(role, "matrix") == 0) ? "MATRIX" : "RESPONDER",
+			       cir);
 
 		/* Session role guard/finalizer: matrix/responder are runtime state changes.
 		 * Do not depend on persisted A-H maps or the config/commit path here;
@@ -1629,7 +1660,7 @@ static int anchor_apply_role_all(const char *role)
 
 		label[0] = autopos_labels[i];
 		label[1] = '\0';
-		rc = anchor_apply_role(label, role);
+		rc = anchor_apply_role(label, role, cir);
 		if (rc != 0 && first_err == 0) {
 			first_err = rc;
 		}
@@ -1881,10 +1912,14 @@ static int autopos_apply_one_anchor(int idx, bool is_master)
 {
 	int rc;
 	char runtime_cmd_buf[40];
-	const char *runtime_cmd = is_master ? "RUNTIME MASTER" : "RUNTIME MATRIX";
+	const char *runtime_cmd = runtime_cmd_buf;
 	const char *expect_role = is_master ? "master" : "matrix";
 	bool demoting_active_master = false;
 	bool allow_reconnect_retry = true;
+
+	(void)snprintf(runtime_cmd_buf, sizeof(runtime_cmd_buf), "RUNTIME %s CIR=%s",
+		       is_master ? "MASTER" : "MATRIX",
+		       autopos_cir_mode);
 
 retry_after_reconnect:
 	demoting_active_master = false;
@@ -1936,7 +1971,9 @@ retry_after_reconnect:
 
 	if (is_master && autopos_round_sets != 0U) {
 		(void)snprintf(runtime_cmd_buf, sizeof(runtime_cmd_buf),
-			       "RUNTIME MASTER SWEEP %lu", (unsigned long)autopos_round_sets);
+			       "RUNTIME MASTER SWEEP %lu CIR=%s",
+			       (unsigned long)autopos_round_sets,
+			       autopos_cir_mode);
 		runtime_cmd = runtime_cmd_buf;
 	}
 
@@ -2176,12 +2213,13 @@ static void anchor_role_work_handler(struct k_work *work)
 	}
 
 	if (anchor_role_all_targets) {
-		rc = anchor_apply_role_all(anchor_role_value);
-		printk("anchor role rc=%d target=all role=%s\n", rc, anchor_role_value);
+		rc = anchor_apply_role_all(anchor_role_value, anchor_role_cir_value);
+		printk("anchor role rc=%d target=all role=%s cir=%s\n",
+		       rc, anchor_role_value, anchor_role_cir_value);
 	} else {
-		rc = anchor_apply_role(anchor_role_target, anchor_role_value);
-		printk("anchor role rc=%d target=%s role=%s\n",
-		       rc, anchor_role_target, anchor_role_value);
+		rc = anchor_apply_role(anchor_role_target, anchor_role_value, anchor_role_cir_value);
+		printk("anchor role rc=%d target=%s role=%s cir=%s\n",
+		       rc, anchor_role_target, anchor_role_value, anchor_role_cir_value);
 	}
 
 done:
@@ -2545,17 +2583,48 @@ static void control_handle_uart_command(const char *line)
 		}
 		if (strcmp(arg, "role") == 0) {
 			char role_raw[24];
+			char opt1[24] = {0};
+			char opt2[24] = {0};
+			char cir_raw[24] = "0";
+			char cir_norm[16] = "0";
+			int role_argc;
 
 			if (control_mode == CONTROL_MODE_OTA) {
 				printk("anchor role ignored: control mode must not be OTA\n");
 				return;
 			}
-			if (sscanf(line, "%*s %*s %*s %23s", role_raw) != 1) {
-				printk("anchor role usage: anchor role <A..H|UUID32|all> <master|matrix|responder>\n");
+			role_argc = sscanf(line, "%*s %*s %*s %23s %23s %23s",
+					   role_raw, opt1, opt2);
+			if (role_argc < 1) {
+				printk("anchor role usage: anchor role <A..H|UUID32|all> <master|matrix|responder> [cir <0|compact|full>|cir=<0|compact|full>]\n");
 				return;
 			}
 			for (char *p = role_raw; *p != '\0'; ++p) {
 				*p = (char)tolower((unsigned char)*p);
+			}
+			for (char *p = opt1; *p != '\0'; ++p) {
+				*p = (char)tolower((unsigned char)*p);
+			}
+			for (char *p = opt2; *p != '\0'; ++p) {
+				*p = (char)tolower((unsigned char)*p);
+			}
+			if (role_argc >= 2) {
+				if (strcmp(opt1, "cir") == 0) {
+					if (role_argc < 3) {
+						printk("anchor role usage: missing cir mode\n");
+						return;
+					}
+					(void)snprintf(cir_raw, sizeof(cir_raw), "%s", opt2);
+				} else if (strncmp(opt1, "cir=", 4) == 0) {
+					(void)snprintf(cir_raw, sizeof(cir_raw), "%s", opt1 + 4);
+				} else {
+					printk("anchor role unsupported option: %s\n", opt1);
+					return;
+				}
+			}
+			if (normalize_anchor_cir_mode(cir_raw, cir_norm, sizeof(cir_norm)) != 0) {
+				printk("anchor role invalid cir mode: %s\n", cir_raw);
+				return;
 			}
 			if (strcmp(arg2, "all") == 0) {
 				if (!atomic_cas(&anchor_role_pending, 0, 1)) {
@@ -2565,8 +2634,11 @@ static void control_handle_uart_command(const char *line)
 				anchor_role_all_targets = true;
 				(void)snprintf(anchor_role_target, sizeof(anchor_role_target), "all");
 				(void)snprintf(anchor_role_value, sizeof(anchor_role_value), "%s", role_raw);
+				(void)snprintf(anchor_role_cir_value, sizeof(anchor_role_cir_value),
+					       "%s", cir_norm);
 				k_work_submit_to_queue(&autopos_work_q, &anchor_role_work);
-				printk("anchor role started target=all role=%s\n", role_raw);
+				printk("anchor role started target=all role=%s cir=%s\n",
+				       role_raw, cir_norm);
 				return;
 			}
 			if (!atomic_cas(&anchor_role_pending, 0, 1)) {
@@ -2576,8 +2648,11 @@ static void control_handle_uart_command(const char *line)
 			anchor_role_all_targets = false;
 			(void)snprintf(anchor_role_target, sizeof(anchor_role_target), "%s", arg2);
 			(void)snprintf(anchor_role_value, sizeof(anchor_role_value), "%s", role_raw);
+			(void)snprintf(anchor_role_cir_value, sizeof(anchor_role_cir_value),
+				       "%s", cir_norm);
 			k_work_submit_to_queue(&autopos_work_q, &anchor_role_work);
-			printk("anchor role started target=%s role=%s\n", arg2, role_raw);
+			printk("anchor role started target=%s role=%s cir=%s\n",
+			       arg2, role_raw, cir_norm);
 			return;
 		}
 		if (strcmp(arg, "reset") == 0) {
@@ -2637,6 +2712,8 @@ static void control_handle_uart_command(const char *line)
 				control_save_mode();
 				autopos_reset_runtime_state(false);
 				control_force_anchor_runtime_target(true);
+				ota_transition_active = false;
+				master_set_background_gate(true, "anchor_only_recv_redirect");
 				master_set_connect_and_start_mode();
 				master_disconnect_all_peers();
 				control_wait_for_peer_clear(3000);
@@ -2661,6 +2738,8 @@ static void control_handle_uart_command(const char *line)
 			sync_master_log_mode(control_mode);
 			control_save_mode();
 			autopos_reset_runtime_state(false);
+			ota_transition_active = false;
+			master_set_background_gate(true, "mode_autopos");
 			master_set_anchor_wildcard_scan(true);
 			master_set_runtime_target_name("");
 			master_set_runtime_target_prefix("");
@@ -2685,6 +2764,21 @@ static void control_handle_uart_command(const char *line)
 			autopos_reset_runtime_state(false);
 			printk("AUTOPOS detach complete\n");
 			autopos_print_status();
+			return;
+		}
+		if (strcmp(arg, "cir") == 0) {
+			char cir_norm[16];
+
+			if (parsed < 3) {
+				printk("autopos cir usage: autopos cir <0|compact|full>\n");
+				return;
+			}
+			if (normalize_anchor_cir_mode(arg2, cir_norm, sizeof(cir_norm)) != 0) {
+				printk("autopos cir invalid mode: %s\n", arg2);
+				return;
+			}
+			(void)snprintf(autopos_cir_mode, sizeof(autopos_cir_mode), "%s", cir_norm);
+			printk("AUTOPOS cir mode set: %s\n", autopos_cir_mode);
 			return;
 		}
 		if (strcmp(arg, "map") == 0) {

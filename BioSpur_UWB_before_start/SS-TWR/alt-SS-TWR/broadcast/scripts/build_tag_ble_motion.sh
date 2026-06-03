@@ -49,9 +49,13 @@ tag_ble_packet_bundle_flush_ms="${APP_TAG_BLE_PACKET_BUNDLE_FLUSH_MS:-250}"
 tag_ble_tx_item_count="${APP_TAG_BLE_TX_ITEM_COUNT:-10}"
 tag_alt_rxg_ble_diag_enable="${APP_TAG_ALT_RXG_BLE_DIAG_ENABLE:-1}"
 tag_imu_sample_period="${APP_TAG_IMU_SAMPLE_PERIOD:-2}"
+tag_track_anchor_count="${APP_TAG_TRACK_ANCHOR_COUNT:-6}"
 tag_tr_imu_summary_enable="${APP_TAG_TR_IMU_SUMMARY_ENABLE:-0}"
 tag_tr_imu_raw_enable="${APP_TAG_TR_IMU_RAW_ENABLE:-0}"
 tag_tr_imu_summary_window="${APP_TAG_TR_IMU_SUMMARY_WINDOW:-5}"
+tag_normal_output_enable="${APP_TAG_NORMAL_OUTPUT_ENABLE:-1}"
+tag_cir_feature_output_enable="${APP_TAG_CIR_FEATURE_OUTPUT_ENABLE:-0}"
+tag_cir_feature_output_ble_enable="${APP_TAG_CIR_FEATURE_OUTPUT_BLE_ENABLE:-1}"
 tag_ekf_enable="${APP_TAG_EKF_ENABLE:-1}"
 tag_loc_min_quality_percent="${APP_TAG_LOC_MIN_QUALITY_PERCENT:-20}"
 tag_motion_speed_threshold_mm_s="${APP_TAG_MOTION_SPEED_THRESHOLD_MM_S:-100}"
@@ -115,6 +119,9 @@ fi
   printf 'set(APP_TAG_TR_IMU_SUMMARY_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_tr_imu_summary_enable}"
   printf 'set(APP_TAG_TR_IMU_RAW_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_tr_imu_raw_enable}"
   printf 'set(APP_TAG_TR_IMU_SUMMARY_WINDOW %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_tr_imu_summary_window}"
+  printf 'set(APP_TAG_NORMAL_OUTPUT_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_normal_output_enable}"
+  printf 'set(APP_TAG_CIR_FEATURE_OUTPUT_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_cir_feature_output_enable}"
+  printf 'set(APP_TAG_CIR_FEATURE_OUTPUT_BLE_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_cir_feature_output_ble_enable}"
   printf 'set(APP_TAG_EKF_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_ekf_enable}"
   printf 'set(APP_TAG_LOC_MIN_QUALITY_PERCENT %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_loc_min_quality_percent}"
   printf 'set(APP_TAG_MOTION_SPEED_THRESHOLD_MM_S %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_motion_speed_threshold_mm_s}"
@@ -207,13 +214,16 @@ west build \
   -DAPP_TAG_RESERVE_ANCHOR_1_ID="${reserve_anchor_1_id}" \
   -DAPP_TAG_FAST_TRACKING=1 \
   -DAPP_TAG_FULL_SWEEP_INTERVAL=8 \
-  -DAPP_TAG_TRACK_ANCHOR_COUNT=6 \
+  -DAPP_TAG_TRACK_ANCHOR_COUNT="${tag_track_anchor_count}" \
   -DAPP_TAG_SUMMARY_PERIOD=1 \
   -DAPP_TAG_PENDING_PRINT_PERIOD="${tag_pending_print_period}" \
   -DAPP_TAG_IMU_SAMPLE_PERIOD="${tag_imu_sample_period}" \
   -DAPP_TAG_TR_IMU_SUMMARY_ENABLE="${tag_tr_imu_summary_enable}" \
   -DAPP_TAG_TR_IMU_RAW_ENABLE="${tag_tr_imu_raw_enable}" \
   -DAPP_TAG_TR_IMU_SUMMARY_WINDOW="${tag_tr_imu_summary_window}" \
+  -DAPP_TAG_NORMAL_OUTPUT_ENABLE="${tag_normal_output_enable}" \
+  -DAPP_TAG_CIR_FEATURE_OUTPUT_ENABLE="${tag_cir_feature_output_enable}" \
+  -DAPP_TAG_CIR_FEATURE_OUTPUT_BLE_ENABLE="${tag_cir_feature_output_ble_enable}" \
   -DAPP_TAG_VERBOSE_RANGING=0 \
   -DAPP_TAG_VERBOSE_MEASUREMENTS=0 \
   -DAPP_TAG_EKF_ENABLE="${tag_ekf_enable}" \

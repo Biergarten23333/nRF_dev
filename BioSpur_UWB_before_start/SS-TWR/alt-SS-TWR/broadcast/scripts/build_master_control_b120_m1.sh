@@ -7,6 +7,11 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 default_internal_conf="$repo_root/configs/b120_internal_osc_default_usb.conf"
 NCS_ROOT="${NCS_ROOT:-/home/zekaixiao/ncs/v2.8.0}"
 WEST_BIN="${WEST_BIN:-west}"
+# Avoid /usr/local site-packages here because this machine has an incompatible
+# `enum34` package there, while the NCS toolchain Python still needs distro
+# packages such as PyYAML.
+HOST_SITE_PACKAGES="$(python3 -c 'import site; print(":".join(p for p in site.getsitepackages() if not p.startswith("/usr/local/lib/python")) )')"
+export PYTHONPATH="${HOST_SITE_PACKAGES}${PYTHONPATH:+:${PYTHONPATH}}"
 
 case "$build_dir" in
   /*) build_dir_abs="$build_dir" ;;

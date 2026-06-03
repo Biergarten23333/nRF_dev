@@ -1,4 +1,5 @@
 #include "anchor_ble_ctrl.h"
+#include "anchor_cir_output.h"
 #include "anchor_runtime_control.h"
 #include "anchor_ultrasound.h"
 
@@ -428,7 +429,7 @@ static void process_control_cmd_locked(char *line)
     }
 
     if (strcmp(tok, "HELP") == 0) {
-        set_result_locked("OK CMDS=VERSION|PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|RESET AUTOPOS|RESET RESPONDER|STOP|DFU|SYNC|US?|USON [SEC]|USOFF|RUNTIME <MASTER|MATRIX|RESPONDER> [FORCE|SWEEP N]");
+        set_result_locked("OK CMDS=VERSION|PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|RESET AUTOPOS|RESET RESPONDER|STOP|DFU|SYNC|US?|USON [SEC]|USOFF|RUNTIME <MASTER|MATRIX|RESPONDER> [FORCE|SWEEP N] [CIR=0|COMPACT|FULL]");
         return;
     }
 
@@ -491,20 +492,16 @@ static void process_control_cmd_locked(char *line)
     if (strcmp(tok, "RUNTIME") == 0) {
         uint32_t master_sweeps = 0U;
         bool force_restart = false;
+        enum anchor_cir_output_mode cir_mode = anchor_cir_output_get_mode();
 
         tok = strtok_r(NULL, " ", &savep);
         if (tok == NULL || role_parse(tok, &parsed) != 0) {
             set_result_locked("ERR:BAD_RUNTIME_ROLE");
             return;
         }
-        tok = strtok_r(NULL, " ", &savep);
-        if (tok != NULL) {
+        while ((tok = strtok_r(NULL, " ", &savep)) != NULL) {
             if (strcmp(tok, "FORCE") == 0 || strcmp(tok, "RESTART") == 0) {
                 force_restart = true;
-                if (strtok_r(NULL, " ", &savep) != NULL) {
-                    set_result_locked("ERR:BAD_RUNTIME_ARG");
-                    return;
-                }
             } else if (strcmp(tok, "SWEEP") == 0) {
                 tok = strtok_r(NULL, " ", &savep);
                 if (tok == NULL) {
@@ -517,20 +514,29 @@ static void process_control_cmd_locked(char *line)
                     set_result_locked("ERR:INVALID_RUNTIME_SWEEP");
                     return;
                 }
-                if (strtok_r(NULL, " ", &savep) != NULL) {
-                    set_result_locked("ERR:BAD_RUNTIME_ARG");
-                    return;
-                }
                 if (parsed != ANCHOR_ROLE_MASTER) {
                     set_result_locked("ERR:SWEEP_REQUIRES_MASTER");
                     return;
                 }
                 master_sweeps = (uint32_t)gen_val;
+            } else if (strcmp(tok, "CIR") == 0) {
+                tok = strtok_r(NULL, " ", &savep);
+                if (anchor_cir_output_parse_mode(tok, &cir_mode) != 0) {
+                    set_result_locked("ERR:BAD_RUNTIME_CIR");
+                    return;
+                }
+            } else if (strncmp(tok, "CIR=", 4) == 0 ||
+                       strncmp(tok, "cir=", 4) == 0) {
+                if (anchor_cir_output_parse_mode(tok, &cir_mode) != 0) {
+                    set_result_locked("ERR:BAD_RUNTIME_CIR");
+                    return;
+                }
             } else {
                 set_result_locked("ERR:BAD_RUNTIME_ARG");
                 return;
             }
         }
+        anchor_cir_output_set_mode(cir_mode);
         handle_runtime_role_locked(parsed, master_sweeps, force_restart);
         return;
     }

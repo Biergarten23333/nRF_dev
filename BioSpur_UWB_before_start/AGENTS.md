@@ -14,3 +14,75 @@
   - SNR `960148546` is `Master_Anchor`.
   - SNR `1050070698` is `Master_Tag`.
   - Keep these CDC display names distinct to avoid selecting the wrong serial port.
+
+## Privileged Package Management
+
+This workspace runs on zekaixiao's Ubuntu workstation. The machine uses a
+restricted sudo package-management wrapper that is authorized by a physical USB
+stick.
+
+USB authorization key:
+
+```text
+USB UUID: 0085-E315
+Typical mount point: /media/zekaixiao/INTENSO
+```
+
+Approved privileged package wrapper:
+
+```bash
+sudo /usr/local/sbin/codex-pkg
+```
+
+Verified behavior:
+
+```text
+USB inserted:
+  sudo -n /usr/local/sbin/codex-pkg update
+  exits with code 0
+
+USB removed:
+  sudo -n /usr/local/sbin/codex-pkg update
+  exits with code 1
+
+Normal sudo:
+  sudo -n whoami
+  fails with: sudo: a password is required
+```
+
+For any package-management task in this workspace, use only:
+
+```bash
+sudo /usr/local/sbin/codex-pkg update
+sudo /usr/local/sbin/codex-pkg install <package...>
+sudo /usr/local/sbin/codex-pkg deb <absolute-path-to-local-deb>
+sudo /usr/local/sbin/codex-pkg fix
+```
+
+Never run direct privileged commands such as:
+
+```bash
+sudo apt
+sudo apt-get
+sudo dpkg
+sudo snap
+sudo rm
+sudo chmod
+sudo chown
+sudo systemctl
+sudo mount
+sudo umount
+sudo dd
+sudo mkfs
+sudo visudo
+```
+
+Do not ask for zekaixiao's sudo password.
+Do not store zekaixiao's sudo password.
+Do not try to bypass `/usr/local/sbin/codex-pkg`.
+
+If the USB key is missing and the wrapper fails, stop and tell zekaixiao to
+insert the USB key.
+
+If a required privileged action is not supported by `/usr/local/sbin/codex-pkg`,
+stop and ask zekaixiao instead of trying another sudo command.

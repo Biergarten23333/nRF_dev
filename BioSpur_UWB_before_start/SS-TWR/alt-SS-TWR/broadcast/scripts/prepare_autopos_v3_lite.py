@@ -89,6 +89,11 @@ def main() -> int:
             "provided, defaults to 820mm (historical Ref115 floor-height prior)."
         ),
     )
+    ap.add_argument(
+        "--cir-pair-weights",
+        default=None,
+        help="Optional CIR-derived pair-weight JSON passed through to the iterative layout solver.",
+    )
     ap.add_argument("--skip-solve", action="store_true")
     args = ap.parse_args()
 
@@ -158,6 +163,8 @@ def main() -> int:
             z_prior_mm = 820.0
         if z_prior_mm is not None and args.floating_reference_session:
             solve_cmd.extend(["--floating-reference-z-prior-mm", str(z_prior_mm)])
+        if args.cir_pair_weights:
+            solve_cmd.extend(["--cir-pair-weights", args.cir_pair_weights])
         for ref in args.floating_reference_session:
             solve_cmd.extend(["--floating-reference-session", ref])
         run(solve_cmd)
@@ -169,6 +176,7 @@ def main() -> int:
         "fused_csv": str(fused_csv.resolve()),
         "matrix_json_v3_lite": str(matrix_json.resolve()),
         "layout_output_v3_lite": str(layout_output.resolve()) if layout_output else None,
+        "cir_pair_weights": str(Path(args.cir_pair_weights).resolve()) if args.cir_pair_weights else None,
         "floating_reference_sessions": args.floating_reference_session,
         "floating_reference_z_prior_mm": (
             float(args.floating_reference_z_prior_mm)

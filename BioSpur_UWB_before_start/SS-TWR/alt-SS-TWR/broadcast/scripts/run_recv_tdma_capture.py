@@ -948,6 +948,17 @@ def ensure_target_links_ready(
                 return True
         return all(target.upper() in ready_targets for target in targets) and all_ready_since is not None
 
+    def ensure_tag_kind(reason: str) -> None:
+        nonlocal ser
+        ser, device_text = send_cmd_collect(ser, logf, "device show", 0.8)
+        if "kind=tag" in device_text.lower():
+            logf.write(
+                f"[HOST_INFO {time.monotonic():.3f}] device_kind_tag_skip reason={reason} already_tag=1\n"
+            )
+            logf.flush()
+            return
+        ser = send_cmd(ser, logf, "device kind tag", 2.0)
+
     def exact_target_enrollment(pass_idx: int, wait_s: float) -> bool:
         nonlocal ser
         missing = [
@@ -972,7 +983,7 @@ def ensure_target_links_ready(
             ser = send_cmd(ser, logf, "ota_target name -", 0.5)
             ser = send_cmd(ser, logf, f"ota_target prefix {discovery_prefix}", 0.5)
             ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
-            ser = send_cmd(ser, logf, "device kind tag", 2.0)
+            ensure_tag_kind(f"multi-target-recover{pass_idx}")
             ser = send_cmd(ser, logf, "conn", 0.5)
             return passive_wait(f"multi-target-recover{pass_idx}", wait_s)
         for target in missing:
@@ -980,7 +991,7 @@ def ensure_target_links_ready(
             ser = send_cmd(ser, logf, f"ota_target name {target}", 0.5)
             ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
             ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
-            ser = send_cmd(ser, logf, "device kind tag", 2.0)
+            ensure_tag_kind(f"exact-{target}")
             ser = send_cmd(ser, logf, "conn", 0.5)
             if passive_wait(f"exact-{target}", wait_s):
                 return True
@@ -1050,7 +1061,7 @@ def ensure_target_links_ready(
                     ser = send_cmd(ser, logf, "ota_target name -", 0.5)
                     ser = send_cmd(ser, logf, f"ota_target prefix {discovery_prefix}", 0.5)
                 ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
-                ser = send_cmd(ser, logf, "device kind tag", 2.0)
+                ensure_tag_kind(f"post-reset{pass_idx}")
                 if passive_wait(f"post-reset{pass_idx}", wait_per_target_s):
                     break
                 continue
@@ -1064,7 +1075,7 @@ def ensure_target_links_ready(
             ser = send_cmd(ser, logf, "ota_target name -", 0.5)
             ser = send_cmd(ser, logf, f"ota_target prefix {discovery_prefix}", 0.5)
         ser = send_cmd(ser, logf, "mode recv", 8.0)
-        ser = send_cmd(ser, logf, "device kind tag", 2.0)
+        ensure_tag_kind(f"recovery{pass_idx}")
 
     missing = [
         target for target in targets
@@ -1127,6 +1138,18 @@ def configure_recv_capture_session(
             ser = send_cmd(ser, logf, f"ota_target prefix {prefix}", 0.5)
         ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
 
+    def ensure_config_tag_kind(reason: str) -> None:
+        nonlocal ser, device_text
+        ser, device_text = send_cmd_collect(ser, logf, "device show", 0.8)
+        if "kind=tag" in device_text.lower():
+            logf.write(
+                f"[HOST_INFO {time.monotonic():.3f}] device_kind_tag_skip reason={reason} already_tag=1\n"
+            )
+            logf.flush()
+            return
+        ser = send_cmd(ser, logf, "device kind tag", 2.0)
+        ser, device_text = send_cmd_collect(ser, logf, "device show", 0.8)
+
     def silence_non_target_tags() -> list[str]:
         nonlocal ser
         if getattr(args, "no_silence_non_target_tags", False):
@@ -1177,8 +1200,7 @@ def configure_recv_capture_session(
             )
         else:
             print("[CAPTURE] configure: reuse Master_Tag resident links", flush=True)
-            ser = send_cmd(ser, logf, "device kind tag", 2.0)
-            ser, device_text = send_cmd_collect(ser, logf, "device show", 0.8)
+            ensure_config_tag_kind("reuse-tag-links")
     else:
         print("[CAPTURE] configure: enter RECV/tag mode", flush=True)
         ser = send_cmd(ser, logf, "mode recv", 8.0)
@@ -1212,7 +1234,7 @@ def configure_recv_capture_session(
             ser = send_cmd(ser, logf, f"ota_target prefix {link_setup_prefix}", 0.5)
             ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
         if "kind=tag" not in device_text.lower():
-            ser = send_cmd(ser, logf, "device kind tag", 2.0)
+            ensure_config_tag_kind("preseed-discovery")
     if wand_mode:
         # Do not broadcast MODE AOTA in Wand mode. Wand devices advertise both
         # Wand-X-BSxxxx and BSxxxx aliases, and MODE AOTA is persisted by the
