@@ -1,0 +1,95 @@
+{
+  "runs": [
+    {
+      "axis_convention": "OptiTrack frame; Y vertical; horizontal plane X/Z",
+      "captures_root": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/captures/erlangen_20260528_optitrack",
+      "elapsed_s": 57.33264446258545,
+      "inputs": {
+        "anchor_sigma": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/solver/outputs/v1_to_v4_io_field_check/tables/anchor_sigma.json",
+        "anchor_sigma_sha256": "f0694adf7c420b4c39469ada7e62d6fd38cb2a65f49ade6f77ee09390d0a8f22",
+        "full_opti_raw_is_gitignored": true,
+        "layout_base": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/solver/outputs/v1_to_v4_io_field_check"
+      },
+      "layouts": [
+        "v4-io"
+      ],
+      "mapping": {
+        "BS2DCE": "WandBantenna",
+        "BSDC91": "WandCantenna"
+      },
+      "official_root": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official",
+      "opti_dir": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/opti_captures/full",
+      "primary_offset_solver": "v4-io/T4",
+      "script": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/Analysis/official_extra_analysis/FULL/roto_absolute/scripts/run_roto_absolute_analysis.py",
+      "spatial_alignment": "anchor-locked reflection-allowed rigid Kabsch, no scale",
+      "tag_methods": [
+        "T4"
+      ],
+      "time_alignment": "one beta per ROTO capture from primary trajectory; reused by all solvers",
+      "timestamp_utc": "2026-06-03T12:18:40Z"
+    },
+    {
+      "axis_convention": "OptiTrack frame; Y vertical; horizontal plane X/Z",
+      "captures_root": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/captures/erlangen_20260528_optitrack",
+      "elapsed_s": 77.07161140441895,
+      "inputs": {
+        "anchor_sigma": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/solver/outputs/v1_to_v4_io_field_check/tables/anchor_sigma.json",
+        "anchor_sigma_sha256": "f0694adf7c420b4c39469ada7e62d6fd38cb2a65f49ade6f77ee09390d0a8f22",
+        "full_opti_raw_is_gitignored": true,
+        "layout_base": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/solver/outputs/v1_to_v4_io_field_check"
+      },
+      "layouts": [
+        "v1-old",
+        "v2",
+        "v3-lite",
+        "v3-full",
+        "v4-io"
+      ],
+      "mapping": {
+        "BS2DCE": "WandBantenna",
+        "BSDC91": "WandCantenna"
+      },
+      "official_root": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official",
+      "opti_dir": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/opti_captures/full",
+      "primary_offset_solver": "v4-io/T4",
+      "script": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/Analysis/official_extra_analysis/FULL/roto_absolute/scripts/run_roto_absolute_analysis.py",
+      "spatial_alignment": "anchor-locked reflection-allowed rigid Kabsch, no scale",
+      "tag_methods": [
+        "T1",
+        "T2",
+        "T3",
+        "T4"
+      ],
+      "time_alignment": "one beta per ROTO capture from primary trajectory; reused by all solvers",
+      "timestamp_utc": "2026-06-03T12:20:22Z"
+    },
+    {
+      "alpha_max": 1.02,
+      "alpha_min": 0.98,
+      "alpha_step": 0.001,
+      "beta_step_s": 0.1,
+      "elapsed_s": 146.5858814716339,
+      "mapping": {
+        "BS2DCE": "WandBantenna",
+        "BSDC91": "WandCantenna"
+      },
+      "purpose": "brute-force affine time segment search for ROTO UWB inside longer OptiTrack exports",
+      "script": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/Analysis/official_extra_analysis/FULL/roto_absolute/scripts/run_roto_segment_alignment_search.py",
+      "time_model": "t_opti = alpha * t_uwb + beta",
+      "timestamp_utc": "2026-06-03T12:32:28Z"
+    },
+    {
+      "coarse_step_s": 0.05,
+      "elapsed_s": 126.15213632583618,
+      "mapping": {
+        "BS2DCE": "WandBantenna",
+        "BSDC91": "WandCantenna"
+      },
+      "purpose": "all-combo independent beta-only ROTO offset consistency",
+      "reference": "v4-io/T4",
+      "refine_step_s": 0.005,
+      "script": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/Analysis/official_extra_analysis/FULL/roto_absolute/scripts/run_roto_offset_consistency_all_combos.py",
+      "timestamp_utc": "2026-06-03T12:58:34Z"
+    }
+  ]
+}

@@ -15,6 +15,24 @@
   - SNR `1050070698` is `Master_Tag`.
   - Keep these CDC display names distinct to avoid selecting the wrong serial port.
 
+## Workstation Resources
+
+This repository is worked on from zekaixiao's Ubuntu workstation. When designing
+long-running analysis scripts, prefer parallel/vectorized execution and use GPU
+acceleration where practical instead of bottlenecking on one CPU core.
+
+Available hardware:
+
+```text
+CPU: Intel Core i7-8700K, overclocked to about 4.9 GHz
+GPU: 2x NVIDIA GeForce GTX 1080 Ti
+RAM: 32 GB DDR4 3200Mhz
+```
+
+For heavy AutoPos, OptiTrack, CIR, Monte Carlo, filtering, or ROTO analyses,
+assume both GPUs may be used when idle, but keep CPU/RAM pressure reasonable and
+avoid spawning jobs that exhaust system memory.
+
 ## Privileged Package Management
 
 This workspace runs on zekaixiao's Ubuntu workstation. The machine uses a
