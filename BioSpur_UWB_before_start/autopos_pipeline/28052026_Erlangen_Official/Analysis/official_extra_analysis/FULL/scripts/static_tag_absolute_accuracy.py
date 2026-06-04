@@ -302,6 +302,8 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--official-root", default="autopos_pipeline/28052026_Erlangen_Official")
     parser.add_argument("--out-dir", default=None)
+    parser.add_argument("--layout-dir", default=None)
+    parser.add_argument("--static-csv", default=None)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--centroid-sweep-samples", type=int, default=720)
     parser.add_argument("--eval-sets", default="all8")
@@ -314,8 +316,8 @@ def main() -> int:
     tables_dir.mkdir(parents=True, exist_ok=True)
     figs_dir.mkdir(parents=True, exist_ok=True)
     opti_dir = official_root / "opti_captures/full"
-    layout_dir = official_root / "solver/outputs/v1_to_v4_io_field_check"
-    static_csv = layout_dir / "tables/static_all_captures.csv"
+    layout_dir = Path(args.layout_dir).resolve() if args.layout_dir else official_root / "solver/outputs/v1_to_v4_io_field_check"
+    static_csv = Path(args.static_csv).resolve() if args.static_csv else layout_dir / "tables/static_all_captures.csv"
 
     anchor_truth, tag_truth, tag_truth_meta, correction_rows = load_corrected_static_truth(
         opti_dir,

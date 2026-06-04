@@ -6,8 +6,8 @@ Anchor,Axis-wise SE(3) anchor error,covered,checklist_anchor_layout_absolute.csv
 Anchor,Sim(3)-aligned residual and scale bias,covered,checklist_anchor_layout_absolute.csv,"Sim(3) scale factor, scale bias %, and Sim(3) RMSE included."
 Anchor,Per-anchor error ranking,partial,layout_abs_errors_all8.csv + checklist_anchor_layout_absolute.csv,Worst anchor is summarized; full per-anchor table already exists.
 Anchor,Per-axis scale / anisotropy,partial,checklist_anchor_layout_absolute.csv,"Horizontal vs vertical-sensitive pairwise RMSE proxy included, not a full anisotropic scale fit."
-Anchor,Repeatability of layout,covered_bootstrap,resilience_gap_audit/tables/bootstrap_layout_repeatability.csv + checklist_anchor_repeatability.csv,Raw-pair bootstrap repeatability is now reported for 4xFULL; independent repeated AutoPos deployments are still not measured.
-Anchor,Delay/bias repeatability,covered_bootstrap,resilience_gap_audit/tables/bootstrap_delay_sd.csv + checklist_anchor_repeatability.csv,Anchor residual-delay correction differences rel_A now have bootstrap SD; absolute/common-mode delay remains gauge-coupled.
+Anchor,Repeatability of layout,not_measured,checklist_anchor_repeatability.csv,"Independent repeated AutoPos deployments/splits are not present. Raw-pair bootstrap is reported separately as numerical precision, not repeatability."
+Anchor,Delay/bias repeatability,numerical_precision,resilience_gap_audit/tables/bootstrap_delay_sd.csv + checklist_anchor_repeatability.csv,"Delay rel_A bootstrap SD is within-campaign median sampling SE, not independent repeated-run delay repeatability; absolute/common-mode delay remains gauge-coupled."
 Anchor,Delay-layout coupling,covered,checklist_ablation.csv,Vicon solver-delay vs Vicon delaycal and scale-to-Vicon solver-delay rows show non-transferability.
 Anchor,Baseline comparison,partial,checklist_ablation.csv,AutoPos/Vicon/one-baseline covered; PANS/manual missing.
 Tag,Static tag repeatability,covered,checklist_tag_static.csv,Per-position d3_std median included.

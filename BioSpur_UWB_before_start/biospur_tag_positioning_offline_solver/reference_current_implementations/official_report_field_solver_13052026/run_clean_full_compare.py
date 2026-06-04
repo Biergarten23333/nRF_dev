@@ -8,6 +8,7 @@ import json
 import math
 import re
 import shutil
+import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,12 +19,26 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import least_squares
 
+WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
+SOLVER_ROOT = Path(__file__).resolve().parents[2]
+if str(SOLVER_ROOT) not in sys.path:
+    sys.path.insert(0, str(SOLVER_ROOT))
 
-REPO = Path(__file__).resolve().parents[2]
-DATA = REPO / "autopos_pipeline" / "outdoor_20260513"
+from biospur_tag_positioning_offline_solver.c_solver import TagPositionSolver
+from biospur_tag_positioning_offline_solver.models import (
+    Anchor as SolverAnchor,
+    Frame as SolverFrame,
+    Layout as SolverLayout,
+    Observation as SolverObservation,
+    SolverConfig,
+)
+
+DATA = WORKSPACE_ROOT / "autopos_pipeline" / "outdoor_20260513"
 SWEEP_CSV = DATA / "sweep1000" / "pairs_all.csv"
 EVAL = DATA / "analysis_20260513_182053" / "run_full_evaluation_same_pipeline_20260513.py"
 ANCHORS = "ABCDEFGH"
+TAG_SOLVER_METHOD = "T4"
+OUT_SUFFIX = ""
 
 WAND_GT = {
     ("BSCCF4", "BS9336"): 670.0,
@@ -168,6 +183,21 @@ def md_table(headers, rows) -> str:
     return "\n".join(out)
 
 
+def resolve_data_file(path: Path) -> Path:
+    if path.exists():
+        return path
+    if path.is_symlink():
+        target = path.readlink()
+        target_str = str(target)
+        desktop_prefix = "/home/zekaixiao/Desktop/28052026_Erlangen_Official"
+        if target.is_absolute() and target_str.startswith(desktop_prefix):
+            rel = target_str[len(desktop_prefix) :].lstrip("/")
+            repo_target = WORKSPACE_ROOT / "autopos_pipeline" / "28052026_Erlangen_Official" / rel
+            if repo_target.exists():
+                return repo_target
+    return path
+
+
 def latest_dirs(base: Path, prefix: str) -> dict[str, Path]:
     pat = re.compile(rf"^({prefix}\d+)(?:_|$)")
     out: dict[str, Path] = {}
@@ -177,7 +207,7 @@ def latest_dirs(base: Path, prefix: str) -> dict[str, Path]:
         if not p.is_dir():
             continue
         m = pat.match(p.name)
-        if m and (p / "tr_all.csv").exists():
+        if m and resolve_data_file(p / "tr_all.csv").exists():
             out[m.group(1)] = p
     return out
 
@@ -285,8 +315,38 @@ def layout_to_global(mod, layout: Layout, anchor_ids):
     return mod.to_global_layout(layout.x, layout.dly, anchor_ids)
 
 
+def layout_to_solver_model(mod, layout: Layout, anchor_ids) -> SolverLayout:
+    global_xyz, global_delay = layout_to_global(mod, layout, anchor_ids)
+    anchors: dict[int, SolverAnchor] = {}
+    for aid in anchor_ids:
+        delay = float(global_delay[aid])
+        if not math.isfinite(delay):
+            delay = 0.0
+        sigma = float(mod.ANCHOR_SIGMA.get(aid, 50.0))
+        anchors[aid] = SolverAnchor(
+            id=int(aid),
+            label=ANCHORS[aid],
+            x_mm=float(global_xyz[aid][0]),
+            y_mm=float(global_xyz[aid][1]),
+            z_mm=float(global_xyz[aid][2]),
+            d_anchor_mm=delay,
+            sigma_mm=max(5.0, sigma),
+        )
+    return SolverLayout(
+        path=f"production_export:{layout.version}",
+        anchors=anchors,
+        tag_delay_mm=float(layout.tag_delay_mm),
+        metadata={
+            "source_layout_version": layout.version,
+            "solver_method": TAG_SOLVER_METHOD,
+            "note": "Production export solver model built from globalized AutoPos layout.",
+        },
+    )
+
+
 def load_frames_by_peer(path: Path) -> dict[str, list[dict]]:
     grouped: dict[tuple[str, int], dict] = {}
+    path = resolve_data_file(path)
     with path.open(newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             try:
@@ -397,6 +457,10 @@ def estimate_common_static_tag_delay(mod, base: Layout, anchor_ids, grid_min=-12
 def solve_positions(mod, records: list[dict], layout: Layout, anchor_ids):
     global_xyz, global_delay = layout_to_global(mod, layout, anchor_ids)
     active = set(anchor_ids)
+    solver = None
+    if TAG_SOLVER_METHOD != "FAST_T1":
+        solver_layout = layout_to_solver_model(mod, layout, anchor_ids)
+        solver = TagPositionSolver(solver_layout, SolverConfig(method=TAG_SOLVER_METHOD))
     positions = []
     times = []
     counts = []
@@ -406,7 +470,23 @@ def solve_positions(mod, records: list[dict], layout: Layout, anchor_ids):
         counts.append(len(obs))
         if len(obs) < 4:
             continue
-        pos = solve_position_fast(obs, global_xyz, global_delay, mod.ANCHOR_SIGMA, last, layout.tag_delay_mm)
+        if solver is None:
+            pos = solve_position_fast(obs, global_xyz, global_delay, mod.ANCHOR_SIGMA, last, layout.tag_delay_mm)
+        else:
+            frame = SolverFrame(
+                tag=str(rec.get("peer") or "tag"),
+                sweep=int(rec.get("sweep") or 0),
+                host_elapsed_s=float(rec.get("t") or 0.0),
+                host_epoch_s=0.0,
+                observations=tuple(
+                    SolverObservation(anchor_id=int(a), range_mm=float(r), quality_percent=100.0, status="O")
+                    for a, r in obs
+                ),
+            )
+            result = solver.solve_frame(frame)
+            if result is None or result.status != "ok":
+                continue
+            pos = np.asarray([result.x_mm, result.y_mm, result.z_mm], dtype=float)
         positions.append(pos)
         times.append(rec["t"])
         last = pos
@@ -1199,9 +1279,9 @@ def prepare_out(out_dir: Path):
 def run_single(mode: str, out_name: str):
     mod = load_eval_module()
     anchor_ids = list(range(8))
-    out_dir = DATA / out_name
+    out_dir = DATA / f"{out_name}{OUT_SUFFIX}"
     prepare_out(out_dir)
-    print(f"[run] {out_name} mode={mode}", flush=True)
+    print(f"[run] {out_dir.name} mode={mode} tag_solver={TAG_SOLVER_METHOD}", flush=True)
     raw_all = load_sweep_grouped()
     raw_solve = slice_raw(raw_all, "all" if mode == "1000" else "first500")
     raw_eval_all = slice_raw(raw_all, "all")
@@ -1303,9 +1383,9 @@ def run_single(mode: str, out_name: str):
 def run_split():
     mod = load_eval_module()
     anchor_ids = list(range(8))
-    out_dir = DATA / "FULL-COMPARE-500+500"
+    out_dir = DATA / f"FULL-COMPARE-500+500{OUT_SUFFIX}"
     prepare_out(out_dir)
-    print("[run] FULL-COMPARE-500+500", flush=True)
+    print(f"[run] {out_dir.name} tag_solver={TAG_SOLVER_METHOD}", flush=True)
     raw_all = load_sweep_grouped()
     raw_first = slice_raw(raw_all, "first500")
     raw_last = slice_raw(raw_all, "last500")
@@ -1432,9 +1512,26 @@ def run_split():
 
 
 def main() -> int:
+    global DATA, SWEEP_CSV, EVAL, TAG_SOLVER_METHOD, OUT_SUFFIX, VERSIONS
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", choices=["1000", "500", "500+500", "all"], default="all")
+    ap.add_argument("--data-root", default=str(DATA), help="Dataset root containing sweep1000, Static_Test, Roto_Test, Wand_Test.")
+    ap.add_argument("--eval-module", default=str(EVAL), help="Path to run_full_evaluation_same_pipeline_*.py helper module.")
+    ap.add_argument("--tag-solver-method", default=TAG_SOLVER_METHOD, help="Production export tag solver method: T4, T3, T2, T1, or FAST_T1 for the legacy analytic path.")
+    ap.add_argument("--versions", default="", help="Comma-separated layout versions to run; blank means all versions.")
+    ap.add_argument("--out-suffix", default="", help="Suffix appended to output directory names, e.g. -production-T4-real.")
     args = ap.parse_args()
+    DATA = Path(args.data_root).resolve()
+    SWEEP_CSV = DATA / "sweep1000" / "pairs_all.csv"
+    EVAL = Path(args.eval_module).resolve()
+    TAG_SOLVER_METHOD = str(args.tag_solver_method).strip() or TAG_SOLVER_METHOD
+    OUT_SUFFIX = str(args.out_suffix or "")
+    if args.versions.strip():
+        requested = {v.strip() for v in args.versions.split(",") if v.strip()}
+        missing = requested - {v[0] for v in VERSIONS}
+        if missing:
+            raise ValueError(f"unknown versions {sorted(missing)}; available {[v[0] for v in VERSIONS]}")
+        VERSIONS = [v for v in VERSIONS if v[0] in requested]
     if args.mode in {"1000", "all"}:
         run_single("1000", "FULL-COMPARE-1000")
     if args.mode in {"500", "all"}:

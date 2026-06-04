@@ -219,7 +219,7 @@ Dynamic ROTO absolute validation is about 10 cm median 3D trajectory error and r
 可以这样放到论文或报告里：
 
 ```text
-Compared with published UWB indoor positioning evaluations, AutoPos falls in the sub-decimeter-to-decimeter regime for median static 3D accuracy and around decimeter-level for dynamic ROTO trajectory accuracy. Its contribution is different from most surveyed-anchor UWB systems: the anchor coordinates are recovered from inter-anchor UWB ranging alone and then validated against OptiTrack, rather than being manually measured or provided by the optical system.
+Compared with published UWB indoor positioning evaluations, AutoPos falls in the sub-decimeter-to-decimeter regime for median static 3D accuracy and around decimeter-level for dynamic ROTO trajectory accuracy. Its contribution is different from most surveyed-anchor UWB systems: the anchor coordinates are recovered from inter-anchor UWB ranging alone, then OptiTrack is used to isolate how much error comes from geometry, scale, and layout-level residual-delay coupling. The key quantified result is not generic joint geometry/delay fitting, but the 311/252/77 mm delay-layout non-separability triangle showing that survey/optical coordinates alone can inflate tag error when residual corrections are not re-estimated on the imposed frame.
 ```
 
 ## 5. 对外写作时必须避免的坑
@@ -238,7 +238,7 @@ Compared with published UWB indoor positioning evaluations, AutoPos falls in the
 
 ### 5.4 不要把 known-anchor control 当 field result
 
-OptiTrack anchors + delaycal 是 lower bound/control，不是现场可直接达到的 AutoPos claim。
+OptiTrack anchors + re-estimated delaycal 应写成 known-anchor + re-estimated-delay control，不要叫 lower bound。它是当前最佳静态 control，并且优于 self-cal（77.7 mm vs 108.9 mm RMSE），所以不是 achievable error 的下界；它只是说明在已知坐标系上重估 layout-level residual delay corrections 后能达到什么。
 
 ### 5.5 不要隐藏 vertical
 

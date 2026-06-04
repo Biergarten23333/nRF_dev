@@ -37,6 +37,7 @@ OPTI_FULL_ROOT = OFFICIAL_ROOT / "opti_captures" / "full"
 OUT_ROOT = COMP_ROOT / "reviewer_audit"
 TABLE_DIR = OUT_ROOT / "tables"
 REPORT_DIR = OUT_ROOT / "reports"
+PRODUCTION_T4_REAL_EVAL_ROOT = COMP_ROOT / "production_method_probe" / "production_static_method_real_run_eval"
 
 UWB_TAGS = ["BS2DCE", "BSDC91"]
 PHYSICAL_TAGS = ["BSF66F", "BS2DCE", "BSDC91"]
@@ -1208,6 +1209,18 @@ def audit_production_vs_raw() -> tuple[list[dict], dict]:
     raw_v4 = raw_summary[(raw_summary["version"] == "v4-io") & (raw_summary["eval_set"] == "all8")]
     prod_summary = pd.read_csv(FULL_ROOT / "tables" / "tag_accuracy_summary.csv")
     prod_v4 = prod_summary[(prod_summary["version"] == "v4-io") & (prod_summary["eval_set"] == "all8")].iloc[0]
+    prod_t4_p50 = float("nan")
+    prod_t4_p95 = float("nan")
+    prod_t4_rmse = float("nan")
+    prod_t4_summary_path = PRODUCTION_T4_REAL_EVAL_ROOT / "tables" / "tag_accuracy_summary.csv"
+    if prod_t4_summary_path.exists():
+        prod_t4_summary = pd.read_csv(prod_t4_summary_path)
+        prod_t4 = prod_t4_summary[
+            (prod_t4_summary["version"] == "v4-io") & (prod_t4_summary["eval_set"] == "all8")
+        ].iloc[0]
+        prod_t4_p50 = float(prod_t4["err_3d_median_mm"])
+        prod_t4_p95 = float(prod_t4["err_3d_p95_mm"])
+        prod_t4_rmse = float(prod_t4["err_3d_rms_mm"])
     rows = []
     for _, row in raw_v4.iterrows():
         rows.append(
@@ -1254,15 +1267,50 @@ def audit_production_vs_raw() -> tuple[list[dict], dict]:
                     }
                 )
     summary = {
-        "production_p50_mm": float(prod_v4["err_3d_median_mm"]),
-        "production_p95_mm": float(prod_v4["err_3d_p95_mm"]),
+        "legacy_production_T1_mean_p50_mm": float(prod_v4["err_3d_median_mm"]),
+        "legacy_production_T1_mean_p95_mm": float(prod_v4["err_3d_p95_mm"]),
+        "legacy_production_T1_mean_rmse_mm": float(prod_v4["err_3d_rms_mm"]),
+        "production_T4_mean_p50_mm": prod_t4_p50,
+        "production_T4_mean_p95_mm": prod_t4_p95,
+        "production_T4_mean_rmse_mm": prod_t4_rmse,
+        "raw_T4_median_p50_mm": float(raw_v4[raw_v4["tag_method"] == "T4"].iloc[0]["err_3d_median_mm"]),
+        "raw_T4_median_rmse_mm": float(raw_v4[raw_v4["tag_method"] == "T4"].iloc[0]["err_3d_rms_mm"]),
         "raw_T1_p95_mm": float(raw_v4[raw_v4["tag_method"] == "T1"].iloc[0]["err_3d_p95_mm"]),
         "raw_T4_p95_mm": float(raw_v4[raw_v4["tag_method"] == "T4"].iloc[0]["err_3d_p95_mm"]),
-        "production_minus_T4_p95_mm": float(
+        "legacy_production_T1_mean_minus_raw_T4_p95_mm": float(
             prod_v4["err_3d_p95_mm"] - raw_v4[raw_v4["tag_method"] == "T4"].iloc[0]["err_3d_p95_mm"]
         ),
     }
     return rows, summary
+
+
+def production_t4_real_run_rows(prod_summary: dict) -> list[dict]:
+    return [
+        {
+            "case": "legacy_production_T1_mean",
+            "source": "FULL/tables/tag_accuracy_summary.csv",
+            "p50_3d_mm": prod_summary["legacy_production_T1_mean_p50_mm"],
+            "p95_3d_mm": prod_summary["legacy_production_T1_mean_p95_mm"],
+            "rmse_3d_mm": prod_summary["legacy_production_T1_mean_rmse_mm"],
+            "interpretation": "legacy production mean-aggregated static point before switching solve_positions to T4",
+        },
+        {
+            "case": "real_production_T4_mean",
+            "source": "production_method_probe/production_static_method_real_run_eval/tables/tag_accuracy_summary.csv",
+            "p50_3d_mm": prod_summary["production_T4_mean_p50_mm"],
+            "p95_3d_mm": prod_summary["production_T4_mean_p95_mm"],
+            "rmse_3d_mm": prod_summary["production_T4_mean_rmse_mm"],
+            "interpretation": "real production export path with solve_positions switched to T4 and position_summary mean aggregation unchanged",
+        },
+        {
+            "case": "median_estimator_ablation_T4",
+            "source": "FULL/tables/tag_raw_replay_accuracy_summary.csv",
+            "p50_3d_mm": prod_summary["raw_T4_median_p50_mm"],
+            "p95_3d_mm": prod_summary["raw_T4_p95_mm"],
+            "rmse_3d_mm": prod_summary["raw_T4_median_rmse_mm"],
+            "interpretation": "median static-point estimator ablation; not the deployed production mean-aggregated static point",
+        },
+    ]
 
 
 def position_dop(anchors_xyz: np.ndarray, point_xyz: np.ndarray) -> float:
@@ -2344,6 +2392,54 @@ def anchor_check_consistent(corr: float, median_abs_gap_mm: float) -> bool:
     return bool(math.isfinite(corr) and corr >= 0.8 and math.isfinite(median_abs_gap_mm) and median_abs_gap_mm <= 20.0)
 
 
+def simple_linear_regression(y: np.ndarray, x: np.ndarray) -> tuple[float, float, float, np.ndarray, np.ndarray]:
+    y_arr = np.asarray(y, dtype=float)
+    x_arr = np.asarray(x, dtype=float)
+    finite = np.isfinite(y_arr) & np.isfinite(x_arr)
+    if int(np.sum(finite)) < 4:
+        nan_arr = np.full_like(y_arr, float("nan"), dtype=float)
+        return float("nan"), float("nan"), float("nan"), nan_arr, nan_arr
+    design = np.column_stack([np.ones(int(np.sum(finite))), x_arr[finite]])
+    intercept, slope = np.linalg.lstsq(design, y_arr[finite], rcond=None)[0]
+    pred_finite = design @ np.asarray([intercept, slope], dtype=float)
+    ss_res = float(np.sum((y_arr[finite] - pred_finite) ** 2))
+    ss_tot = float(np.sum((y_arr[finite] - float(np.mean(y_arr[finite]))) ** 2))
+    r2 = float(1.0 - ss_res / ss_tot) if ss_tot > 0.0 else float("nan")
+    pred = np.full_like(y_arr, float("nan"), dtype=float)
+    resid = np.full_like(y_arr, float("nan"), dtype=float)
+    pred[finite] = pred_finite
+    resid[finite] = y_arr[finite] - pred_finite
+    return float(intercept), float(slope), r2, pred, resid
+
+
+def v4io_layout_error_by_anchor() -> dict[str, dict[str, float]]:
+    path = FULL_ROOT / "tables" / "layout_abs_errors_all8.csv"
+    if not path.exists():
+        return {}
+    df = pd.read_csv(path)
+    df = df[(df["version"].astype(str) == "v4-io") & (df["eval_set"].astype(str) == "all8")].copy()
+    if df.empty:
+        return {}
+    truth = df[["truth_x_mm", "truth_y_vertical_mm", "truth_z_mm"]].to_numpy(float)
+    centroid = np.nanmean(truth, axis=0)
+    out: dict[str, dict[str, float]] = {}
+    for _, row in df.iterrows():
+        label = str(row["anchor"])
+        err_vec = np.asarray([row["err_x_mm"], row["err_y_vertical_mm"], row["err_z_mm"]], dtype=float)
+        truth_vec = np.asarray([row["truth_x_mm"], row["truth_y_vertical_mm"], row["truth_z_mm"]], dtype=float)
+        radial = truth_vec - centroid
+        radial_norm = float(np.linalg.norm(radial))
+        radial_out = float(np.dot(err_vec, radial / radial_norm)) if radial_norm > 0.0 else float("nan")
+        out[label] = {
+            "layout_error_3d_mm": float(row["err_3d_mm"]),
+            "layout_error_horizontal_mm": float(row["err_horizontal_mm"]),
+            "layout_error_vertical_mm": float(row["err_vertical_mm"]),
+            "layout_error_radial_outward_mm": radial_out,
+            "layout_error_radial_inward_mm": -radial_out if math.isfinite(radial_out) else float("nan"),
+        }
+    return out
+
+
 def why9_anchor_consistency_rows(effect_rows: list[dict], solver_d_anchor_by_scenario: dict[str, dict[int, float]]) -> list[dict]:
     effects = {str(row["scenario"]): row for row in effect_rows}
     required = ["self_cal_v4io_T4", "vicon_truth_delaycal_T4"]
@@ -2365,11 +2461,30 @@ def why9_anchor_consistency_rows(effect_rows: list[dict], solver_d_anchor_by_sce
         )
         anchor_main_rel_by_scenario[scenario_name] = rel_a(anchor_main)
         d_anchor_rel_by_scenario[scenario_name] = rel_a(d_anchor)
+        if not math.isclose(float(anchor_main_rel_by_scenario[scenario_name][0]), 0.0, abs_tol=1e-9):
+            raise AssertionError(f"WHY #9 anchor_main_rel_A convention failed for {scenario_name}")
+        if not math.isclose(float(d_anchor_rel_by_scenario[scenario_name][0]), 0.0, abs_tol=1e-9):
+            raise AssertionError(f"WHY #9 d_anchor_rel_A convention failed for {scenario_name}")
 
     self_main_rel = anchor_main_rel_by_scenario["self_cal_v4io_T4"]
     vicon_main_rel = anchor_main_rel_by_scenario["vicon_truth_delaycal_T4"]
     self_d_rel = d_anchor_rel_by_scenario["self_cal_v4io_T4"]
     vicon_d_rel = d_anchor_rel_by_scenario["vicon_truth_delaycal_T4"]
+    self_sign_direct_corr, _self_sign_gap = corr_gap(self_main_rel, self_d_rel)
+    self_sign_negated_corr, _self_neg_gap = corr_gap(self_main_rel, -self_d_rel)
+    vicon_sign_direct_corr, _vicon_sign_gap = corr_gap(vicon_main_rel, vicon_d_rel)
+    vicon_sign_negated_corr, _vicon_neg_gap = corr_gap(vicon_main_rel, -vicon_d_rel)
+    if not (
+        math.isfinite(self_sign_direct_corr)
+        and math.isfinite(self_sign_negated_corr)
+        and math.isfinite(vicon_sign_direct_corr)
+        and math.isfinite(vicon_sign_negated_corr)
+        and self_sign_direct_corr > self_sign_negated_corr
+        and vicon_sign_direct_corr > vicon_sign_negated_corr
+    ):
+        raise AssertionError(
+            "WHY #9 d_anchor sign convention failed: negated solver d_anchor correlates at least as well as direct sign"
+        )
 
     check_defs = [
         {
@@ -2463,7 +2578,23 @@ def why9_anchor_consistency_rows(effect_rows: list[dict], solver_d_anchor_by_sce
 
     coord_delta = self_main_rel - vicon_main_rel
     coord_median_abs = pct(np.abs(coord_delta[np.isfinite(coord_delta)]), 50)
+    layout_error = v4io_layout_error_by_anchor()
+    layout_3d = np.asarray([layout_error.get(label, {}).get("layout_error_3d_mm", float("nan")) for label in ANCHOR_LABELS])
+    layout_radial_out = np.asarray(
+        [layout_error.get(label, {}).get("layout_error_radial_outward_mm", float("nan")) for label in ANCHOR_LABELS],
+        dtype=float,
+    )
+    layout_3d_intercept, layout_3d_slope, layout_3d_r2, layout_3d_pred, layout_3d_resid = simple_linear_regression(
+        coord_delta,
+        layout_3d,
+    )
+    radial_intercept, radial_slope, radial_r2, radial_pred, radial_resid = simple_linear_regression(
+        coord_delta,
+        layout_radial_out,
+    )
+    absorption_explained = bool(math.isfinite(radial_r2) and radial_r2 >= 0.8 and math.isfinite(radial_slope))
     for aid, label in enumerate(ANCHOR_LABELS):
+        layout_info = layout_error.get(label, {})
         rows.append(
             {
                 "check_type": "coord_scale_error",
@@ -2477,6 +2608,21 @@ def why9_anchor_consistency_rows(effect_rows: list[dict], solver_d_anchor_by_sce
                 "right_value_rel_A_mm": float(vicon_main_rel[aid]),
                 "gap_left_minus_right_mm": float(coord_delta[aid]),
                 "coord_scale_error_self_minus_vicon_mm": float(coord_delta[aid]),
+                "layout_error_3d_mm": layout_info.get("layout_error_3d_mm", float("nan")),
+                "layout_error_horizontal_mm": layout_info.get("layout_error_horizontal_mm", float("nan")),
+                "layout_error_vertical_mm": layout_info.get("layout_error_vertical_mm", float("nan")),
+                "layout_error_radial_outward_mm": layout_info.get("layout_error_radial_outward_mm", float("nan")),
+                "layout_error_radial_inward_mm": layout_info.get("layout_error_radial_inward_mm", float("nan")),
+                "layout_absorption_pred_radial_mm": float(radial_pred[aid]),
+                "layout_absorption_residual_radial_mm": float(radial_resid[aid]),
+                "layout_absorption_pred_3d_mm": float(layout_3d_pred[aid]),
+                "layout_absorption_residual_3d_mm": float(layout_3d_resid[aid]),
+                "layout_absorption_radial_r2": radial_r2,
+                "layout_absorption_radial_slope_mm_per_mm": radial_slope,
+                "layout_absorption_radial_intercept_mm": radial_intercept,
+                "layout_absorption_3d_r2": layout_3d_r2,
+                "layout_absorption_3d_slope_mm_per_mm": layout_3d_slope,
+                "layout_absorption_3d_intercept_mm": layout_3d_intercept,
                 "anchor_consistency_corr": float("nan"),
                 "anchor_consistency_median_abs_gap_mm": coord_median_abs,
                 "check_consistent": "",
@@ -2491,7 +2637,23 @@ def why9_anchor_consistency_rows(effect_rows: list[dict], solver_d_anchor_by_sce
 
     within_self_ok = bool(check_stats["within_self_cal"]["consistent"])
     within_vicon_ok = bool(check_stats["within_vicon"]["consistent"])
-    if within_self_ok and within_vicon_ok:
+    no_sign_flip = bool(
+        math.isfinite(self_sign_direct_corr)
+        and math.isfinite(self_sign_negated_corr)
+        and math.isfinite(vicon_sign_direct_corr)
+        and math.isfinite(vicon_sign_negated_corr)
+        and self_sign_direct_corr > self_sign_negated_corr
+        and vicon_sign_direct_corr > vicon_sign_negated_corr
+    )
+    if absorption_explained and no_sign_flip:
+        overall_verdict = "ANCHOR_DECOMP_GAUGE_ABSORBED"
+        consequence = (
+            "The cross-scenario anchor mismatch is explained by coordinate/scale gauge absorption: self-minus-Vicon anchor_main_rel_A "
+            f"regresses on v4-io radial layout error with R^2={radial_r2:.3f} and slope={radial_slope:.3f} mm/mm. "
+            "Self-cal d_anchor should therefore be described as a layout-level residual correction, not a physical anchor delay. "
+            "Within-scenario d_anchor checks are not exact because median-polish range residuals and solver delaycal use different objectives/references."
+        )
+    elif within_self_ok and within_vicon_ok:
         overall_verdict = "ANCHOR_DECOMP_SOUND_FLAG_IS_LAYOUT"
         consequence = (
             "Median polish reproduces each scenario's own d_anchor; the cross-scenario flag is a real self-cal-vs-truth "
@@ -2510,15 +2672,27 @@ def why9_anchor_consistency_rows(effect_rows: list[dict], solver_d_anchor_by_sce
             "anchor": "ALL",
             "anchor_id": -1,
             "within_self_cal_corr": check_stats["within_self_cal"]["corr"],
+            "within_self_cal_negated_corr": self_sign_negated_corr,
             "within_self_cal_median_abs_gap_mm": check_stats["within_self_cal"]["median_abs_gap"],
             "within_self_cal_consistent": within_self_ok,
             "within_vicon_corr": check_stats["within_vicon"]["corr"],
+            "within_vicon_negated_corr": vicon_sign_negated_corr,
             "within_vicon_median_abs_gap_mm": check_stats["within_vicon"]["median_abs_gap"],
             "within_vicon_consistent": within_vicon_ok,
+            "anchor_reference_convention": "anchor_main_rel_A = anchor_main - anchor_main[A]; d_anchor_rel_A = d_anchor - d_anchor[A] for both scenarios",
+            "sign_convention_check": "direct d_anchor sign is used for correlation; negated d_anchor sign is worse for both within-scenario checks",
+            "no_sign_flip_detected": no_sign_flip,
             "cross_vicon_main_vs_self_danchor_corr": check_stats["cross_vicon_main_vs_self_danchor"]["corr"],
             "cross_vicon_main_vs_self_danchor_median_abs_gap_mm": check_stats["cross_vicon_main_vs_self_danchor"]["median_abs_gap"],
             "cross_vicon_main_vs_self_danchor_verdict": check_stats["cross_vicon_main_vs_self_danchor"]["cross_verdict"],
             "coord_scale_error_median_abs_mm": coord_median_abs,
+            "layout_absorption_explained": absorption_explained,
+            "layout_absorption_radial_r2": radial_r2,
+            "layout_absorption_radial_slope_mm_per_mm": radial_slope,
+            "layout_absorption_radial_intercept_mm": radial_intercept,
+            "layout_absorption_3d_r2": layout_3d_r2,
+            "layout_absorption_3d_slope_mm_per_mm": layout_3d_slope,
+            "layout_absorption_3d_intercept_mm": layout_3d_intercept,
             "anchor_decomp_verdict": overall_verdict,
             "paper_consequence": consequence,
             "firmware_antenna_delay_setting_dtu": FIRMWARE_ANTENNA_DELAY_DTU,
@@ -3126,11 +3300,25 @@ def build_report(
         f"median abs gap {fmt(why9_anchor_within_vicon_a['anchor_consistency_median_abs_gap_mm'])} mm."
     )
     lines.append(
+        f"- Anchor convention/sign check: both scenarios use `rel_A = value - value[A]`; direct `d_anchor` sign is better than negated sign "
+        f"(self corr {fmt(why9_anchor_overall.get('within_self_cal_corr', float('nan')), 2)} vs "
+        f"{fmt(why9_anchor_overall.get('within_self_cal_negated_corr', float('nan')), 2)}, Vicon corr "
+        f"{fmt(why9_anchor_overall.get('within_vicon_corr', float('nan')), 2)} vs "
+        f"{fmt(why9_anchor_overall.get('within_vicon_negated_corr', float('nan')), 2)})."
+    )
+    lines.append(
         f"- Coordinate/scale absorption signature, self `anchor_main_rel_A` minus Vicon `anchor_main_rel_A`: "
         f"median abs {fmt(why9_anchor_coord_a['anchor_consistency_median_abs_gap_mm'])} mm; B/C/D "
         f"{fmt(why9_anchor_coord_by_label['B']['coord_scale_error_self_minus_vicon_mm'])} / "
         f"{fmt(why9_anchor_coord_by_label['C']['coord_scale_error_self_minus_vicon_mm'])} / "
         f"{fmt(why9_anchor_coord_by_label['D']['coord_scale_error_self_minus_vicon_mm'])} mm."
+    )
+    lines.append(
+        f"- Layout absorption regression: self-minus-Vicon `anchor_main_rel_A` versus v4-io radial layout error gives "
+        f"R2 {fmt(why9_anchor_overall.get('layout_absorption_radial_r2', float('nan')), 3)} and slope "
+        f"{fmt(why9_anchor_overall.get('layout_absorption_radial_slope_mm_per_mm', float('nan')), 2)} mm/mm; "
+        f"against 3D layout error magnitude R2 is "
+        f"{fmt(why9_anchor_overall.get('layout_absorption_3d_r2', float('nan')), 3)}."
     )
     lines.append(
         f"- Vicon `anchor_main` relative to A for B/C/D: "
@@ -3226,25 +3414,35 @@ def build_report(
     lines.append("**Numbers computed.**")
     lines.append("")
     lines.append(
-        f"- Production v4-io static: P50 {fmt(prod_summary['production_p50_mm'])} / "
-        f"P95 {fmt(prod_summary['production_p95_mm'])} mm."
+        f"- Legacy production mean-aggregated static point v4-io/T1: P50 "
+        f"{fmt(prod_summary['legacy_production_T1_mean_p50_mm'])} / "
+        f"P95 {fmt(prod_summary['legacy_production_T1_mean_p95_mm'])} mm, "
+        f"RMSE {fmt(prod_summary['legacy_production_T1_mean_rmse_mm'])} mm."
     )
     lines.append(
-        f"- Raw replay T1 P95: {fmt(prod_summary['raw_T1_p95_mm'])} mm; raw replay T4 P95: "
-        f"{fmt(prod_summary['raw_T4_p95_mm'])} mm."
+        f"- Real production mean-aggregated static point v4-io/T4: P50 "
+        f"{fmt(prod_summary['production_T4_mean_p50_mm'])} / "
+        f"P95 {fmt(prod_summary['production_T4_mean_p95_mm'])} mm, "
+        f"RMSE {fmt(prod_summary['production_T4_mean_rmse_mm'])} mm."
     )
     lines.append(
-        f"- Production minus T4 P95 gap: {fmt(prod_summary['production_minus_T4_p95_mm'])} mm."
+        f"- Median-estimator ablation v4-io/T4: P50 {fmt(prod_summary['raw_T4_median_p50_mm'])} / "
+        f"P95 {fmt(prod_summary['raw_T4_p95_mm'])} mm, "
+        f"RMSE {fmt(prod_summary['raw_T4_median_rmse_mm'])} mm."
+    )
+    lines.append(
+        f"- The legacy T1 production minus median-estimator T4 P95 gap was "
+        f"{fmt(prod_summary['legacy_production_T1_mean_minus_raw_T4_p95_mm'])} mm."
     )
     lines.append("")
     lines.append(
-        "**Verdict.** Production output tracks the T1/T2-class tail, not the T3/T4 tail. "
-        "The code default `SolverConfig.method` is T1, and T4 is only explicitly used in the raw replay/ablation scripts."
+        "**Verdict.** The old production export tracked the T1/T2-class tail because the real production path used the T1-style solver. "
+        "After switching the real production export to T4 while keeping production mean aggregation, the deployed static headline becomes the T4 mean row above."
     )
     lines.append("")
     lines.append(
-        "**Reviewer-survivability.** A paper can report both, but it must define them cleanly: production/current-export result versus achievable deployment estimator result. "
-        "Do not call 74.0/282.1 the final system limit when the same v4-io layout reaches 69.7/173.9 under T4 replay."
+        "**Reviewer-survivability.** A paper can report both, but it must define them cleanly: production mean-aggregated static point versus median-estimator ablation. "
+        "Do not call 69.7/173.9 the deployed static number unless production also switches from mean aggregation to the median static-point estimator."
     )
     lines.append("")
     lines.append("## Report Coverage Check")
@@ -3255,7 +3453,7 @@ def build_report(
         "WHY #5 production-vs-raw; WHY #6 clock skew; WHY #7 single-shot/GDOP/static-bias decomposition; "
         "WHY #8 bias/scatter, tag-delay, and GDOP-overlap checks; WHY #9 raw tag-by-anchor residual decomposition; "
         "WHY #10 ROTO post-solve dynamic filtering; and WHY #11 lever-armed pseudo-IMU motion-prior replay. "
-        "The separate `resilience_gap_audit` adds raw-pair bootstrap repeatability, delay-bootstrap SD, and synthetic dropout stress for 4x FULL."
+        "The separate `resilience_gap_audit` adds raw-pair bootstrap numerical precision, delay-bootstrap SD, and synthetic dropout stress for 4x FULL."
     )
     lines.append("")
     lines.append(
@@ -3271,16 +3469,16 @@ def build_report(
     lines.append(
         "**Paper reporting checklist.** The separate `reporting_checklist` audit now maps the requested reporting structure onto the FULL outputs. "
         "It splits anchor absolute error, anchor repeatability, scale bias, Sim(3) shape distortion, delay-layout coupling, static tag error, dynamic tag ATE/RPE, and missing robustness evidence. "
-        "Raw-pair bootstrap/synthetic stress now covers the feasible repeatability, delay-SD, and dropout diagnostics. "
+        "Raw-pair bootstrap and delay-bootstrap SD are now labeled numerical precision rather than repeatability; synthetic dropout stress covers the feasible stress diagnostics. "
         "The remaining true gaps are independent repeated AutoPos deployments, a PANS/manual baseline, explicit CIR/NLOS labels, and raw dynamic ROTO range re-solve or physical packet-loss stress sweeps."
     )
     lines.append("")
     lines.append("## Headline Recommendation")
     lines.append("")
     lines.append(
-        "For the paper headline, use `v4-io/T4 raw replay` as the static deployment-capable claim: "
-        "`69.7 mm P50 / 173.9 mm P95` 3D, with XY/Z split reported separately. "
-        "Report `production 74.0/282.1` as the legacy/current exported production-output ablation unless production is actually switched to T4. "
+        "For the paper headline, use the real production mean-aggregated static point `v4-io/T4`: "
+        "`72.7 mm P50 / 171.5 mm P95 / 109.8 mm RMSE` 3D, with XY/Z split reported separately. "
+        "Report `69.7 / 173.9` as a median-estimator ablation and `74.0 / 282.1` as the legacy T1 production-output ablation. "
         "For dynamic ROTO, the honest claim is `about 105.8 mm P50 / 231.8 mm P95` absolute 3D for self-cal v4-io/T4, "
         "and `105.6 mm P50 / 200.4 mm P95` for Vicon-truth+delaycal; this shows ROTO absolute error is not primarily a layout-calibration issue. "
         "Report ROTO filtering separately: fixed-lag F4 can reach about "
@@ -3309,6 +3507,7 @@ def build_report(
         "why3_one_baseline_cv_summary.csv",
         "why4_procrustes_check.csv",
         "why5_production_vs_raw_methods.csv",
+        "why5_production_T4_real_run_summary.csv",
         "why6_time_skew_per_capture.csv",
         "why6_time_skew_summary.csv",
         "why7_single_shot_summary.csv",
@@ -3420,7 +3619,14 @@ def print_why9_summary(
         f"{fmt(why9_anchor_within_vicon_a['anchor_consistency_median_abs_gap_mm'])} mm | "
         f"coord_scale_median_abs={fmt(why9_anchor_coord_a['anchor_consistency_median_abs_gap_mm'])} mm"
     )
-    print(f"WHY #9 anchor disambiguation: {why9_anchor_overall['anchor_decomp_verdict']}")
+    print(
+        "WHY #9 anchor disambiguation: "
+        f"{why9_anchor_overall['anchor_decomp_verdict']} | "
+        f"radial_layout_R2/slope={fmt(why9_anchor_overall.get('layout_absorption_radial_r2', float('nan')), 3)}/"
+        f"{fmt(why9_anchor_overall.get('layout_absorption_radial_slope_mm_per_mm', float('nan')), 2)} | "
+        f"layout3d_R2={fmt(why9_anchor_overall.get('layout_absorption_3d_r2', float('nan')), 3)} | "
+        f"no_sign_flip={why9_anchor_overall.get('no_sign_flip_detected', '')}"
+    )
     vicon_main = []
     self_d = []
     for label in ANCHOR_LABELS:
@@ -3596,6 +3802,7 @@ def main(argv: list[str] | None = None) -> None:
     write_csv(TABLE_DIR / "why3_one_baseline_cv_summary.csv", [cv_summary])
     write_csv(TABLE_DIR / "why4_procrustes_check.csv", procrustes_rows)
     write_csv(TABLE_DIR / "why5_production_vs_raw_methods.csv", prod_rows)
+    write_csv(TABLE_DIR / "why5_production_T4_real_run_summary.csv", production_t4_real_run_rows(prod_summary))
     write_csv(TABLE_DIR / "why6_time_skew_per_capture.csv", skew_rows)
     write_csv(TABLE_DIR / "why6_time_skew_summary.csv", skew_summary)
     write_csv(TABLE_DIR / "why7_single_shot_summary.csv", single_shot_summary)

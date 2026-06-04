@@ -4,21 +4,25 @@
 This script fills three currently feasible gaps without claiming new repeated
 experiments:
 
-* AutoPos split/bootstrap layout repeatability from raw inter-anchor ranges.
-* Layout-level residual delay correction bootstrap SD.
+* AutoPos bootstrap numerical precision from raw inter-anchor ranges.
+* Layout-level residual delay correction bootstrap numerical precision.
 * Synthetic packet/dropout stress for the four FULL comparison conditions.
 
-The bootstrap is diagnostic.  It estimates repeatability under resampled raw
-range observations from this capture campaign; it is not a replacement for
-independent repeated AutoPos deployments.
+The bootstrap is diagnostic.  It estimates within-campaign median sampling
+precision under resampled raw range observations from this capture campaign.
+Because each anchor pair has a large number of samples, the resulting
+millimeter-class layout/delay spread is mainly the sampling SE of per-pair
+medians; it is not a replacement for independent repeated AutoPos deployments.
 """
 
 from __future__ import annotations
 
 import csv
+import hashlib
 import importlib.util
 import math
 import sys
+import itertools
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -74,6 +78,49 @@ def rmse(values) -> float:
     if arr.size == 0:
         return float("nan")
     return float(math.sqrt(float(np.mean(arr * arr))))
+
+
+def position_gdop(anchors_xyz: np.ndarray, point_xyz: np.ndarray, anchor_ids: list[int] | tuple[int, ...]) -> float:
+    anchors = np.asarray(anchors_xyz, dtype=float)
+    point = np.asarray(point_xyz, dtype=float)
+    ids = [int(i) for i in anchor_ids]
+    if len(ids) < 4:
+        return float("nan")
+    vec = anchors[ids] - point[None, :]
+    dist = np.linalg.norm(vec, axis=1)
+    good = np.isfinite(dist) & (dist > 1e-9) & np.isfinite(vec).all(axis=1)
+    if int(np.sum(good)) < 4:
+        return float("nan")
+    h = vec[good] / dist[good, None]
+    normal = h.T @ h
+    try:
+        q = np.linalg.inv(normal)
+    except np.linalg.LinAlgError:
+        return float("nan")
+    val = float(np.trace(q))
+    return float(math.sqrt(val)) if math.isfinite(val) and val >= 0.0 else float("nan")
+
+
+def best_gdop_subset(anchors_xyz: np.ndarray, point_xyz: np.ndarray, k: int = 4) -> tuple[tuple[int, ...], float]:
+    best_ids: tuple[int, ...] = tuple()
+    best = float("inf")
+    for ids in itertools.combinations(range(len(ANCHORS)), k):
+        gdop = position_gdop(anchors_xyz, point_xyz, ids)
+        if math.isfinite(gdop) and gdop < best:
+            best = gdop
+            best_ids = tuple(int(i) for i in ids)
+    return best_ids, best
+
+
+def stable_seed(base_seed: int, *parts: object) -> int:
+    text = "|".join([str(base_seed), *[str(p) for p in parts]])
+    digest = hashlib.sha256(text.encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "little") & ((1 << 63) - 1)
+
+
+def fixed_random_subset(base_seed: int, case_id: str, sid: str, k: int) -> tuple[int, ...]:
+    rng = np.random.default_rng(stable_seed(base_seed, case_id, sid, "fixedrandom", k))
+    return tuple(sorted(int(i) for i in rng.choice(len(ANCHORS), size=k, replace=False)))
 
 
 def fmt(x: float, ndigits: int = 1) -> str:
@@ -183,6 +230,66 @@ def load_pair_observations() -> dict[tuple[str, str], np.ndarray]:
         key = pair_key(str(row["a"]), str(row["b"]))
         out.setdefault(key, []).append(float(row["dist_mm"]))
     return {k: np.asarray(v, dtype=float) for k, v in out.items()}
+
+
+def pair_sampling_se_rows(pair_obs: dict[tuple[str, str], np.ndarray]) -> list[dict]:
+    rows: list[dict] = []
+    for a, b in sorted(pair_obs):
+        vals = np.asarray(pair_obs[(a, b)], dtype=float)
+        vals = vals[np.isfinite(vals)]
+        std = float(np.std(vals, ddof=1)) if vals.size > 1 else float("nan")
+        se_median = 1.2533 * std / math.sqrt(float(vals.size)) if vals.size else float("nan")
+        rows.append(
+            {
+                "pair": f"{a}-{b}",
+                "anchor_a": a,
+                "anchor_b": b,
+                "n_samples": int(vals.size),
+                "range_std_mm": std,
+                "analytical_se_median_mm": se_median,
+                "se_formula": "1.2533 * std / sqrt(n_samples)",
+            }
+        )
+    return rows
+
+
+def bootstrap_numerical_precision_rows(layout_rows: list[dict], pair_se_rows: list[dict]) -> list[dict]:
+    median_se = pct([r["analytical_se_median_mm"] for r in pair_se_rows], 50)
+    p95_se = pct([r["analytical_se_median_mm"] for r in pair_se_rows], 95)
+    median_n = pct([r["n_samples"] for r in pair_se_rows], 50)
+    out: list[dict] = []
+    for row in layout_rows:
+        case_id = str(row["case_id"])
+        fixed_truth = str(row.get("truth_status", "")) == "fixed_truth_coords_no_layout_bootstrap"
+        coord_sd = float(row["coordinate_sd_median_mm"])
+        pair_sd = float(row["pairwise_distance_sd_median_mm"])
+        coord_ratio = coord_sd / median_se if median_se > 0.0 and not fixed_truth else float("nan")
+        pair_ratio = pair_sd / median_se if median_se > 0.0 and not fixed_truth else float("nan")
+        coord_ratio_p95 = coord_sd / p95_se if p95_se > 0.0 and not fixed_truth else float("nan")
+        pair_ratio_p95 = pair_sd / p95_se if p95_se > 0.0 and not fixed_truth else float("nan")
+        out.append(
+            {
+                "case_id": case_id,
+                "case_label": row.get("case_label", ""),
+                "median_pair_n_samples": median_n,
+                "pair_analytical_se_median_mm": median_se,
+                "pair_analytical_se_p95_mm": p95_se,
+                "bootstrap_pairwise_distance_sd_median_mm": pair_sd,
+                "bootstrap_coordinate_sd_median_mm": coord_sd,
+                "pairwise_sd_over_median_se": pair_ratio,
+                "coordinate_sd_over_median_se": coord_ratio,
+                "pairwise_sd_over_p95_se": pair_ratio_p95,
+                "coordinate_sd_over_p95_se": coord_ratio_p95,
+                "comparison_applicable": not fixed_truth,
+                "sampling_se_confirmed": bool((not fixed_truth) and max(pair_ratio_p95, coord_ratio_p95) <= 1.5),
+                "interpretation": (
+                    "fixed truth coordinates; no layout bootstrap to interpret"
+                    if fixed_truth
+                    else "within-campaign median sampling SE, NOT independent deployment repeatability"
+                ),
+            }
+        )
+    return out
 
 
 def bootstrap_pair_medians(pair_obs: dict[tuple[str, str], np.ndarray], rng: np.random.Generator) -> dict[tuple[str, str], float]:
@@ -396,6 +503,7 @@ def bootstrap_layout_and_delay(
                 "reference_case_coord_gap_median_mm": pct(per_anchor_ref_abs, 50),
                 "reference_case_coord_gap_worst_mm": float(np.nanmax(per_anchor_ref_abs)),
                 "truth_status": "fixed_truth_coords_no_layout_bootstrap" if case.case_id == "vicon_truth_delaycal" else "bootstrapped_from_raw_pairs",
+                "interpretation": "within-campaign median sampling SE, NOT independent deployment repeatability",
             }
         )
         delay_rows.append(
@@ -453,9 +561,12 @@ def make_layout(ablation_mod, case: Case):
     )
 
 
-def dropped_frame(ablation_mod, frame, anchor_keep: int, rng: np.random.Generator):
+def dropped_frame(ablation_mod, frame, anchor_keep: int, rng: np.random.Generator, fixed_anchor_ids: tuple[int, ...] | None = None):
     observations = list(frame.observations)
-    if len(observations) > anchor_keep:
+    if fixed_anchor_ids is not None:
+        wanted = set(int(i) for i in fixed_anchor_ids)
+        observations = [o for o in observations if int(o.anchor_id) in wanted]
+    elif len(observations) > anchor_keep:
         idx = np.sort(rng.choice(len(observations), size=anchor_keep, replace=False))
         observations = [observations[int(i)] for i in idx]
     if len(observations) < 4:
@@ -481,26 +592,29 @@ def solve_static_dropout(
     seed: int,
 ) -> tuple[list[dict], list[dict]]:
     conditions = [
-        ("baseline_all_frames_all8", 1.00, 8),
-        ("frame_keep_75_all8", 0.75, 8),
-        ("frame_keep_50_all8", 0.50, 8),
-        ("frame_keep_25_all8", 0.25, 8),
-        ("anchor_keep_7", 1.00, 7),
-        ("anchor_keep_6", 1.00, 6),
-        ("anchor_keep_5", 1.00, 5),
-        ("anchor_keep_4", 1.00, 4),
-        ("frame_keep_50_anchor_keep_6", 0.50, 6),
-        ("frame_keep_50_anchor_keep_4", 0.50, 4),
+        ("baseline_all_frames_all8", 1.00, 8, "all_available"),
+        ("frame_keep_75_all8", 0.75, 8, "all_available"),
+        ("frame_keep_50_all8", 0.50, 8, "all_available"),
+        ("frame_keep_25_all8", 0.25, 8, "all_available"),
+        ("anchor_keep_7", 1.00, 7, "random_per_frame"),
+        ("anchor_keep_6", 1.00, 6, "random_per_frame"),
+        ("anchor_keep_5", 1.00, 5, "random_per_frame"),
+        ("anchor_keep_4", 1.00, 4, "random_per_frame"),
+        ("anchor_keep_4_fixedrandom", 1.00, 4, "fixed_random_per_position"),
+        ("anchor_keep_4_bestgdop", 1.00, 4, "best_gdop_per_position"),
+        ("frame_keep_50_anchor_keep_6", 0.50, 6, "random_per_frame"),
+        ("frame_keep_50_anchor_keep_4", 0.50, 4, "random_per_frame"),
     ]
     per_position: list[dict] = []
     summary_rows: list[dict] = []
     for case_i, case in enumerate(cases):
         layout = make_layout(ablation_mod, case)
         solver = ablation_mod.TagPositionSolver(layout, ablation_mod.SolverConfig(method="T4"))
-        for cond_i, (condition, frame_keep, anchor_keep) in enumerate(conditions):
+        for cond_i, (condition, frame_keep, anchor_keep, subset_mode) in enumerate(conditions):
             sample_errors = []
             pos_errors = []
             repeatability = []
+            gdop_values = []
             frames_in_total = 0
             frames_solved_total = 0
             for file_i, path in enumerate(static_files):
@@ -521,8 +635,17 @@ def solve_static_dropout(
                     frames = [frame for frame, use in zip(frames, keep) if bool(use)]
                 frames_in_total += len(frames)
                 solved_pts = []
+                fixed_anchor_ids: tuple[int, ...] | None = None
+                fixed_gdop = float("nan")
+                if subset_mode == "best_gdop_per_position":
+                    fixed_anchor_ids, fixed_gdop = best_gdop_subset(case.coords_mm, truth, anchor_keep)
+                    if len(fixed_anchor_ids) < anchor_keep:
+                        fixed_anchor_ids = None
+                elif subset_mode == "fixed_random_per_position":
+                    fixed_anchor_ids = fixed_random_subset(seed, case.case_id, sid, anchor_keep)
+                    fixed_gdop = position_gdop(case.coords_mm, truth, fixed_anchor_ids)
                 for frame in frames:
-                    mod_frame = dropped_frame(ablation_mod, frame, anchor_keep, local_rng)
+                    mod_frame = dropped_frame(ablation_mod, frame, anchor_keep, local_rng, fixed_anchor_ids=fixed_anchor_ids)
                     if mod_frame is None:
                         continue
                     result = solver.solve_frame(mod_frame)
@@ -533,6 +656,9 @@ def solve_static_dropout(
                         continue
                     solved_pts.append(point)
                     sample_errors.append(float(np.linalg.norm(point - truth)))
+                    ids = tuple(sorted(int(o.anchor_id) for o in mod_frame.observations))
+                    gdop = fixed_gdop if subset_mode in {"best_gdop_per_position", "fixed_random_per_position"} else position_gdop(case.coords_mm, truth, ids)
+                    gdop_values.append(gdop)
                 frames_solved_total += len(solved_pts)
                 if not solved_pts:
                     continue
@@ -551,10 +677,26 @@ def solve_static_dropout(
                         "condition": condition,
                         "frame_keep_fraction": frame_keep,
                         "anchor_keep": anchor_keep,
+                        "anchor_subset_mode": subset_mode,
+                        "fixed_anchor_subset": "-".join(ANCHORS[i] for i in fixed_anchor_ids) if fixed_anchor_ids else "",
+                        "subset_selection_criterion": (
+                            "min range-only GDOP over C(8,4) subsets at the static truth coordinate"
+                            if subset_mode == "best_gdop_per_position"
+                            else (
+                                "one seeded random 4-anchor subset per static truth position, fixed across frames"
+                                if subset_mode == "fixed_random_per_position"
+                                else ""
+                            )
+                        ),
+                        "gdop_median": pct(gdop_values[-len(solved_pts):], 50),
+                        "gdop_p95": pct(gdop_values[-len(solved_pts):], 95),
                         "ID": sid,
                         "frames_input_after_packet_drop": int(len(frames)),
+                        "n_frames_attempted": int(len(frames)),
                         "frames_solved": int(len(solved_pts)),
+                        "n_frames_failed": int(max(0, len(frames) - len(solved_pts))),
                         "solve_fraction": float(len(solved_pts) / len(frames)) if frames else 0.0,
+                        "nonconvergence_rate": float(1.0 - len(solved_pts) / len(frames)) if frames else float("nan"),
                         "position_err_3d_mm": err3,
                         "sample_err_3d_p50_mm": pct([float(np.linalg.norm(p - truth)) for p in solved_pts], 50),
                         "sample_err_3d_p95_mm": pct([float(np.linalg.norm(p - truth)) for p in solved_pts], 95),
@@ -569,10 +711,14 @@ def solve_static_dropout(
                     "condition": condition,
                     "frame_keep_fraction": frame_keep,
                     "anchor_keep": anchor_keep,
+                    "anchor_subset_mode": subset_mode,
                     "n_positions": len(pos_errors),
                     "frames_input_after_packet_drop_total": int(frames_in_total),
+                    "n_frames_attempted": int(frames_in_total),
                     "frames_solved_total": int(frames_solved_total),
+                    "n_frames_failed": int(max(0, frames_in_total - frames_solved_total)),
                     "solve_fraction": float(frames_solved_total / frames_in_total) if frames_in_total else 0.0,
+                    "nonconvergence_rate": float(1.0 - frames_solved_total / frames_in_total) if frames_in_total else float("nan"),
                     "position_err_3d_p50_mm": pct(pos_errors, 50),
                     "position_err_3d_p95_mm": pct(pos_errors, 95),
                     "position_err_3d_rmse_mm": rmse(pos_errors),
@@ -580,7 +726,18 @@ def solve_static_dropout(
                     "sample_err_3d_p95_mm": pct(sample_errors, 95),
                     "sample_err_3d_rmse_mm": rmse(sample_errors),
                     "repeatability_d3_std_median_mm": pct(repeatability, 50),
-                    "stress_input_note": "static raw frame replay with synthetic frame packet-drop and per-frame anchor observation dropout",
+                    "gdop_median": pct(gdop_values, 50),
+                    "gdop_p95": pct(gdop_values, 95),
+                    "subset_selection_criterion": (
+                        "min range-only GDOP over C(8,4)=70 subsets at each static truth coordinate, fixed across frames"
+                        if subset_mode == "best_gdop_per_position"
+                        else (
+                            "one seeded random 4-anchor subset per static truth position, fixed across frames"
+                            if subset_mode == "fixed_random_per_position"
+                            else ""
+                        )
+                    ),
+                    "stress_input_note": "static raw frame replay with synthetic frame packet-drop and anchor observation dropout; P50/P95 are conditional on convergence",
                 }
             )
     return summary_rows, per_position
@@ -653,24 +810,26 @@ def build_report(
     delay_rows: list[dict],
     static_rows: list[dict],
     roto_rows: list[dict],
+    precision_rows: list[dict] | None = None,
 ) -> str:
     lines: list[str] = []
     lines.append("# Resilience Gap Audit")
     lines.append("")
     lines.append(
-        "This audit adds diagnostic coverage for three previously open gaps: AutoPos bootstrap repeatability, "
-        "layout-level residual delay correction bootstrap SD, and synthetic packet/dropout stress. It uses the four FULL comparison conditions."
+        "This audit adds diagnostic coverage for three previously open gaps: AutoPos bootstrap numerical precision, "
+        "layout-level residual delay correction numerical precision, and synthetic packet/dropout stress. It uses the four FULL comparison conditions."
     )
     lines.append("")
     lines.append("## Scope")
     lines.append("")
     lines.append("- Bootstrap input: raw inter-anchor range rows from `pairs_all.csv`, resampled within each unordered anchor pair.")
     lines.append("- Layout bootstrap: metric MDS from bootstrap pair medians, then the same four case-specific alignment/scale gauges.")
-    lines.append("- Delay bootstrap: additive layout-level residual delay correction differences relative to anchor A.")
+    lines.append("- Numerical-precision check: analytical per-pair median SE uses `1.2533 * std / sqrt(n)` and is compared to the existing layout bootstrap spread.")
+    lines.append("- Delay bootstrap: additive layout-level residual delay correction differences relative to anchor A, interpreted as within-campaign median sampling SE rather than independent delay repeatability.")
     lines.append("- Static stress: raw static frames replayed through the T4 solver with synthetic frame packet-drop and anchor observation dropout.")
     lines.append("- ROTO stress: solved-sample thinning only; this measures dynamic ATE/RPE/update-rate sensitivity, not raw ROTO range re-solving.")
     lines.append("")
-    lines.append("## Bootstrap Layout Repeatability")
+    lines.append("## Bootstrap Layout Numerical Precision")
     lines.append("")
     cols = [
         "case_id",
@@ -692,7 +851,33 @@ def build_report(
             + " |"
         )
     lines.append("")
-    lines.append("## Delay Bootstrap SD")
+    if precision_rows:
+        lines.append("## Bootstrap Numerical Precision Check")
+        lines.append("")
+        cols = [
+            "case_id",
+            "pair_analytical_se_median_mm",
+            "pair_analytical_se_p95_mm",
+            "bootstrap_pairwise_distance_sd_median_mm",
+            "bootstrap_coordinate_sd_median_mm",
+            "pairwise_sd_over_median_se",
+            "coordinate_sd_over_median_se",
+        ]
+        lines.append("| " + " | ".join(cols) + " |")
+        lines.append("| " + " | ".join(["---"] * len(cols)) + " |")
+        for row in precision_rows:
+            vals = []
+            for c in cols:
+                vals.append(str(row[c]) if c == "case_id" else fmt(float(row[c]), 3))
+            lines.append("| " + " | ".join(vals) + " |")
+        lines.append("")
+        lines.append(
+            "The pair-level analytical median SE is sub-millimeter because each unordered anchor pair has about two thousand samples. "
+            "The layout bootstrap SD is the propagated version of that within-campaign median sampling SE, with modest MDS/gauge amplification. "
+            "It is therefore a numerical-precision diagnostic, not independent deployment repeatability."
+        )
+        lines.append("")
+    lines.append("## Delay Bootstrap Numerical Precision")
     lines.append("")
     cols = [
         "case_id",
@@ -712,25 +897,67 @@ def build_report(
     lines.append("")
     lines.append("## Static Dropout Stress")
     lines.append("")
-    baseline = [r for r in static_rows if r["condition"] in {"baseline_all_frames_all8", "anchor_keep_4", "frame_keep_50_anchor_keep_4"}]
+    baseline = [
+        r
+        for r in static_rows
+        if r["condition"]
+        in {
+            "baseline_all_frames_all8",
+            "anchor_keep_4",
+            "anchor_keep_4_fixedrandom",
+            "anchor_keep_4_bestgdop",
+            "frame_keep_50_anchor_keep_4",
+        }
+    ]
     cols = [
         "case_id",
         "condition",
         "solve_fraction",
+        "n_frames_attempted",
+        "n_frames_failed",
+        "nonconvergence_rate",
         "position_err_3d_p50_mm",
         "position_err_3d_p95_mm",
         "sample_err_3d_p50_mm",
         "sample_err_3d_p95_mm",
         "repeatability_d3_std_median_mm",
+        "gdop_median",
     ]
     lines.append("| " + " | ".join(cols) + " |")
     lines.append("| " + " | ".join(["---"] * len(cols)) + " |")
     for row in baseline:
         vals = []
         for c in cols:
-            vals.append(str(row[c]) if c in {"case_id", "condition"} else fmt(float(row[c]), 3 if c == "solve_fraction" else 1))
+            if c in {"case_id", "condition", "n_frames_attempted", "n_frames_failed"}:
+                vals.append(str(row[c]))
+            elif c in {"solve_fraction", "nonconvergence_rate"}:
+                vals.append(fmt(float(row[c]), 3))
+            else:
+                vals.append(fmt(float(row[c]), 1))
         lines.append("| " + " | ".join(vals) + " |")
     lines.append("")
+    best_rows = [r for r in static_rows if r["condition"] == "anchor_keep_4_bestgdop"]
+    random_rows = [r for r in static_rows if r["condition"] == "anchor_keep_4"]
+    fixed_rows = [r for r in static_rows if r["condition"] == "anchor_keep_4_fixedrandom"]
+    if best_rows and random_rows and fixed_rows:
+        best_gdop = pct([r["gdop_median"] for r in best_rows], 50)
+        random_gdop = pct([r["gdop_median"] for r in random_rows], 50)
+        fixed_gdop = pct([r["gdop_median"] for r in fixed_rows], 50)
+        best_p50 = pct([r["position_err_3d_p50_mm"] for r in best_rows], 50)
+        random_p50 = pct([r["position_err_3d_p50_mm"] for r in random_rows], 50)
+        fixed_p50 = pct([r["position_err_3d_p50_mm"] for r in fixed_rows], 50)
+        best_fail = pct([r["nonconvergence_rate"] for r in best_rows], 50)
+        fixed_fail = pct([r["nonconvergence_rate"] for r in fixed_rows], 50)
+        lines.append(
+            f"The `anchor_keep_4_bestgdop` control uses the requested criterion: for each static truth position it evaluates all C(8,4)=70 subsets, "
+            f"computes range-only GDOP from unit-vector rows, picks the minimum-GDOP subset, and keeps that subset fixed across frames. "
+            f"The fair fixed-vs-fixed comparison is `anchor_keep_4_fixedrandom` versus `anchor_keep_4_bestgdop`: median GDOP changes from "
+            f"{fmt(fixed_gdop, 2)} to {fmt(best_gdop, 2)}, while position P50 changes from {fmt(fixed_p50)} mm to {fmt(best_p50)} mm "
+            f"and median non-convergence changes from {fmt(100.0 * fixed_fail, 1)}% to {fmt(100.0 * best_fail, 1)}%. "
+            f"The rotating random-per-frame keep-4 baseline remains useful but is not the clean control; its median position P50 is {fmt(random_p50)} mm "
+            f"and median GDOP is {fmt(random_gdop, 2)}. P50/P95 values in this table are conditional on convergence; failed frames are exposed separately."
+        )
+        lines.append("")
     lines.append("## ROTO Solved-Sample Dropout")
     lines.append("")
     selected = [r for r in roto_rows if r["condition"] in {"solved_sample_keep_100", "solved_sample_keep_50", "solved_sample_keep_10"}]
@@ -746,12 +973,14 @@ def build_report(
     lines.append("## Interpretation")
     lines.append("")
     lines.append(
-        "The bootstrap closes the reporting gap as a diagnostic repeatability estimate, but it does not replace a true repeated-deployment AutoPos split. "
+        "The bootstrap is a numerical-precision diagnostic, not a true repeated-deployment AutoPos split. "
+        "After the analytical SE check, the layout-bootstrap and delay-bootstrap rows should be read as within-campaign numerical precision rather than deployment repeatability. "
         "Delay numbers are quoted as differences relative to anchor A because the absolute delay/common-mode gauge is not identifiable from ranges alone."
     )
     lines.append("")
     lines.append(
         "Static dropout is the strongest stress table here because it replays raw range frames through the solver. "
+        "The best-GDOP keep-4 result shows that GDOP alone is not a safe runtime subset-selection criterion; a deployable 4-anchor policy needs layer diversity, root/mirror sanity checks, and residual gating. "
         "ROTO dropout is intentionally labelled as solved-sample thinning; a full raw dynamic range re-solve with dropout would be a heavier follow-up."
     )
     lines.append("")
@@ -759,6 +988,8 @@ def build_report(
     lines.append("")
     for name in [
         "bootstrap_layout_repeatability.csv",
+        "bootstrap_pair_sampling_se.csv",
+        "bootstrap_numerical_precision.csv",
         "bootstrap_anchor_repeatability.csv",
         "bootstrap_delay_sd.csv",
         "bootstrap_delay_per_anchor.csv",
@@ -777,10 +1008,30 @@ def main() -> None:
     parser.add_argument("--n-bootstrap", type=int, default=300)
     parser.add_argument("--max-frames-per-position", type=int, default=220)
     parser.add_argument("--seed", type=int, default=20260604)
+    parser.add_argument("--precision-only", action="store_true", help="update pair sampling-SE tables/report from existing bootstrap outputs")
     args = parser.parse_args()
 
     TABLE_DIR.mkdir(parents=True, exist_ok=True)
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
+
+    if args.precision_only:
+        pair_obs = load_pair_observations()
+        pair_se = pair_sampling_se_rows(pair_obs)
+        layout_rows = pd.read_csv(TABLE_DIR / "bootstrap_layout_repeatability.csv").to_dict("records")
+        delay_rows = pd.read_csv(TABLE_DIR / "bootstrap_delay_sd.csv").to_dict("records")
+        static_summary = pd.read_csv(TABLE_DIR / "static_dropout_stress_summary.csv").to_dict("records")
+        roto_summary = pd.read_csv(TABLE_DIR / "roto_sample_dropout_stress_summary.csv").to_dict("records")
+        precision_rows = bootstrap_numerical_precision_rows(layout_rows, pair_se)
+        write_csv(TABLE_DIR / "bootstrap_pair_sampling_se.csv", pair_se)
+        write_csv(TABLE_DIR / "bootstrap_numerical_precision.csv", precision_rows)
+        report = build_report(layout_rows, delay_rows, static_summary, roto_summary, precision_rows)
+        (REPORT_DIR / "RESILIENCE_GAP_AUDIT.md").write_text(report, encoding="utf-8")
+        print(
+            "Updated bootstrap numerical precision check: "
+            f"median pair SE={fmt(precision_rows[0]['pair_analytical_se_median_mm'], 3)} mm, "
+            f"p95 pair SE={fmt(precision_rows[0]['pair_analytical_se_p95_mm'], 3)} mm"
+        )
+        return
 
     ablation_mod = import_static_ablation_module()
     cases, truth_coords, tag_truth, tag_truth_meta, static_files = load_case_layouts(ablation_mod)
@@ -791,6 +1042,8 @@ def main() -> None:
         n_bootstrap=args.n_bootstrap,
         seed=args.seed,
     )
+    pair_se = pair_sampling_se_rows(load_pair_observations())
+    precision_rows = bootstrap_numerical_precision_rows(layout_rows, pair_se)
     static_summary, static_per_position = solve_static_dropout(
         ablation_mod,
         cases,
@@ -803,13 +1056,15 @@ def main() -> None:
     roto_summary = roto_sample_dropout(cases, seed=args.seed + 19000)
 
     write_csv(TABLE_DIR / "bootstrap_layout_repeatability.csv", layout_rows)
+    write_csv(TABLE_DIR / "bootstrap_pair_sampling_se.csv", pair_se)
+    write_csv(TABLE_DIR / "bootstrap_numerical_precision.csv", precision_rows)
     write_csv(TABLE_DIR / "bootstrap_anchor_repeatability.csv", anchor_rows)
     write_csv(TABLE_DIR / "bootstrap_delay_sd.csv", delay_rows)
     write_csv(TABLE_DIR / "bootstrap_delay_per_anchor.csv", delay_anchor_rows)
     write_csv(TABLE_DIR / "static_dropout_stress_summary.csv", static_summary)
     write_csv(TABLE_DIR / "static_dropout_stress_per_position.csv", static_per_position)
     write_csv(TABLE_DIR / "roto_sample_dropout_stress_summary.csv", roto_summary)
-    report = build_report(layout_rows, delay_rows, static_summary, roto_summary)
+    report = build_report(layout_rows, delay_rows, static_summary, roto_summary, precision_rows)
     (REPORT_DIR / "RESILIENCE_GAP_AUDIT.md").write_text(report, encoding="utf-8")
 
     best_static = sorted(

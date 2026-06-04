@@ -174,13 +174,15 @@ with `t_ref` at the capture start. Alpha is reported in ppm. Search used coarse 
 - `BS2DCE - BSDC91` tag_main difference: self-cal 43.7 mm; Vicon-truth 46.3 mm; cross-scenario |delta| 2.6 mm.
 - Anchor consistency against solver `d_anchor_mm` relative to A: verdict `ANCHOR_CONSISTENCY_FLAGGED`, correlation -0.54, median absolute gap 99.7 mm.
 - Within-scenario anchor check, self-cal: corr 0.31, median abs gap 11.1 mm; Vicon-truth: corr 0.46, median abs gap 21.6 mm.
+- Anchor convention/sign check: both scenarios use `rel_A = value - value[A]`; direct `d_anchor` sign is better than negated sign (self corr 0.31 vs -0.31, Vicon corr 0.46 vs -0.46).
 - Coordinate/scale absorption signature, self `anchor_main_rel_A` minus Vicon `anchor_main_rel_A`: median abs 113.2 mm; B/C/D 111.4 / 114.9 / 98.8 mm.
+- Layout absorption regression: self-minus-Vicon `anchor_main_rel_A` versus v4-io radial layout error gives R2 0.998 and slope -0.98 mm/mm; against 3D layout error magnitude R2 is 0.875.
 - Vicon `anchor_main` relative to A for B/C/D: -76.1 / -91.6 / -32.6 mm; solver `d_anchor_mm` relative to A for B/C/D: 37.1 / 60.0 / 60.0 mm.
-- Anchor disambiguation verdict: `ANCHOR_DECOMP_INCONSISTENT_INVESTIGATE`.
+- Anchor disambiguation verdict: `ANCHOR_DECOMP_GAUGE_ABSORBED`.
 
 **Verdict.** `PER_TAG_PHYSICAL_STABLE`.
 
-**Consequence for the paper.** Pairwise tag_main differences are stable and are the deployable per-device residual trim targets; confirm with an independent known-baseline loop before changing firmware antenna-delay settings. At least one within-scenario anchor check fails; resolve a centering/sign/reference bug before interpreting the cross-scenario flag.
+**Consequence for the paper.** Pairwise tag_main differences are stable and are the deployable per-device residual trim targets; confirm with an independent known-baseline loop before changing firmware antenna-delay settings. The cross-scenario anchor mismatch is explained by coordinate/scale gauge absorption: self-minus-Vicon anchor_main_rel_A regresses on v4-io radial layout error with R^2=0.998 and slope=-0.982 mm/mm. Self-cal d_anchor should therefore be described as a layout-level residual correction, not a physical anchor delay. Within-scenario d_anchor checks are not exact because median-polish range residuals and solver delaycal use different objectives/references.
 
 **Reviewer-survivability.** Quote only differences. For tags, use pairwise `tag_main` differences; for anchors, use `anchor_main` relative to A and carry the anchor-consistency verdict with it. Absolute per-anchor or per-tag delay still requires a known baseline or inter-anchor ranging.
 
@@ -216,27 +218,28 @@ with `t_ref` at the capture start. Alpha is reported in ppm. Search used coarse 
 
 **Numbers computed.**
 
-- Production v4-io static: P50 74.0 / P95 282.1 mm.
-- Raw replay T1 P95: 283.7 mm; raw replay T4 P95: 173.9 mm.
-- Production minus T4 P95 gap: 108.2 mm.
+- Legacy production mean-aggregated static point v4-io/T1: P50 74.0 / P95 282.1 mm, RMSE 139.6 mm.
+- Real production mean-aggregated static point v4-io/T4: P50 72.7 / P95 171.5 mm, RMSE 109.8 mm.
+- Median-estimator ablation v4-io/T4: P50 69.7 / P95 173.9 mm, RMSE 108.9 mm.
+- The legacy T1 production minus median-estimator T4 P95 gap was 108.2 mm.
 
-**Verdict.** Production output tracks the T1/T2-class tail, not the T3/T4 tail. The code default `SolverConfig.method` is T1, and T4 is only explicitly used in the raw replay/ablation scripts.
+**Verdict.** The old production export tracked the T1/T2-class tail because the real production path used the T1-style solver. After switching the real production export to T4 while keeping production mean aggregation, the deployed static headline becomes the T4 mean row above.
 
-**Reviewer-survivability.** A paper can report both, but it must define them cleanly: production/current-export result versus achievable deployment estimator result. Do not call 74.0/282.1 the final system limit when the same v4-io layout reaches 69.7/173.9 under T4 replay.
+**Reviewer-survivability.** A paper can report both, but it must define them cleanly: production mean-aggregated static point versus median-estimator ablation. Do not call 69.7/173.9 the deployed static number unless production also switches from mean aggregation to the median static-point estimator.
 
 ## Report Coverage Check
 
-**Reviewer-audit coverage.** This report now covers every table generated under `reviewer_audit/tables`: WHY #1/#2 dynamic time, rigid, and circle metrics; WHY #3 one-baseline LOOCV; WHY #4 Procrustes scale; WHY #5 production-vs-raw; WHY #6 clock skew; WHY #7 single-shot/GDOP/static-bias decomposition; WHY #8 bias/scatter, tag-delay, and GDOP-overlap checks; WHY #9 raw tag-by-anchor residual decomposition; WHY #10 ROTO post-solve dynamic filtering; and WHY #11 lever-armed pseudo-IMU motion-prior replay. The separate `resilience_gap_audit` adds raw-pair bootstrap repeatability, delay-bootstrap SD, and synthetic dropout stress for 4x FULL.
+**Reviewer-audit coverage.** This report now covers every table generated under `reviewer_audit/tables`: WHY #1/#2 dynamic time, rigid, and circle metrics; WHY #3 one-baseline LOOCV; WHY #4 Procrustes scale; WHY #5 production-vs-raw; WHY #6 clock skew; WHY #7 single-shot/GDOP/static-bias decomposition; WHY #8 bias/scatter, tag-delay, and GDOP-overlap checks; WHY #9 raw tag-by-anchor residual decomposition; WHY #10 ROTO post-solve dynamic filtering; and WHY #11 lever-armed pseudo-IMU motion-prior replay. The separate `resilience_gap_audit` adds raw-pair bootstrap numerical precision, delay-bootstrap SD, and synthetic dropout stress for 4x FULL.
 
 **What is summarized rather than printed row-by-row.** Large per-capture, per-anchor, per-tag, and full solver-matrix tables are intentionally indexed in Output Tables rather than expanded in text. They are comparison evidence, but not headline claims.
 
 **Separate FULL diagnostics.** The broader FULL directory also contains DOP grids, Monte Carlo keep-k/drop-anchor runs, temporal drift checks, pair residual diagnostics, and anchor-health scorecards. Those are not missing from this reviewer audit; they are robustness/sensor-health appendices and should be pulled into the paper only if a reviewer asks about geometry sensitivity, anchor removal, or acquisition drift.
 
-**Paper reporting checklist.** The separate `reporting_checklist` audit now maps the requested reporting structure onto the FULL outputs. It splits anchor absolute error, anchor repeatability, scale bias, Sim(3) shape distortion, delay-layout coupling, static tag error, dynamic tag ATE/RPE, and missing robustness evidence. Raw-pair bootstrap/synthetic stress now covers the feasible repeatability, delay-SD, and dropout diagnostics. The remaining true gaps are independent repeated AutoPos deployments, a PANS/manual baseline, explicit CIR/NLOS labels, and raw dynamic ROTO range re-solve or physical packet-loss stress sweeps.
+**Paper reporting checklist.** The separate `reporting_checklist` audit now maps the requested reporting structure onto the FULL outputs. It splits anchor absolute error, anchor repeatability, scale bias, Sim(3) shape distortion, delay-layout coupling, static tag error, dynamic tag ATE/RPE, and missing robustness evidence. Raw-pair bootstrap and delay-bootstrap SD are now labeled numerical precision rather than repeatability; synthetic dropout stress covers the feasible stress diagnostics. The remaining true gaps are independent repeated AutoPos deployments, a PANS/manual baseline, explicit CIR/NLOS labels, and raw dynamic ROTO range re-solve or physical packet-loss stress sweeps.
 
 ## Headline Recommendation
 
-For the paper headline, use `v4-io/T4 raw replay` as the static deployment-capable claim: `69.7 mm P50 / 173.9 mm P95` 3D, with XY/Z split reported separately. Report `production 74.0/282.1` as the legacy/current exported production-output ablation unless production is actually switched to T4. For dynamic ROTO, the honest claim is `about 105.8 mm P50 / 231.8 mm P95` absolute 3D for self-cal v4-io/T4, and `105.6 mm P50 / 200.4 mm P95` for Vicon-truth+delaycal; this shows ROTO absolute error is not primarily a layout-calibration issue. Report ROTO filtering separately: fixed-lag F4 can reach about `86.3 / 158.2 mm` on self-cal FULL, but it is a trajectory-filter/latency ablation, not the calibration-level dynamic claim. Report pseudo-IMU replay as an oracle upper bound: a correctly lever-armed motion prior can reach `66.1 / 97.5 mm` causally on self-cal FULL, but it is not a real IMU deployment claim. Demote similarity-scale, one-baseline-best, offline F5/PI4 smoothing, pseudo-IMU oracle replay, and per-capture post-hoc rigid results to diagnostic/ablation status.
+For the paper headline, use the real production mean-aggregated static point `v4-io/T4`: `72.7 mm P50 / 171.5 mm P95 / 109.8 mm RMSE` 3D, with XY/Z split reported separately. Report `69.7 / 173.9` as a median-estimator ablation and `74.0 / 282.1` as the legacy T1 production-output ablation. For dynamic ROTO, the honest claim is `about 105.8 mm P50 / 231.8 mm P95` absolute 3D for self-cal v4-io/T4, and `105.6 mm P50 / 200.4 mm P95` for Vicon-truth+delaycal; this shows ROTO absolute error is not primarily a layout-calibration issue. Report ROTO filtering separately: fixed-lag F4 can reach about `86.3 / 158.2 mm` on self-cal FULL, but it is a trajectory-filter/latency ablation, not the calibration-level dynamic claim. Report pseudo-IMU replay as an oracle upper bound: a correctly lever-armed motion prior can reach `66.1 / 97.5 mm` causally on self-cal FULL, but it is not a real IMU deployment claim. Demote similarity-scale, one-baseline-best, offline F5/PI4 smoothing, pseudo-IMU oracle replay, and per-capture post-hoc rigid results to diagnostic/ablation status.
 
 ## Output Tables
 
@@ -254,6 +257,7 @@ For the paper headline, use `v4-io/T4 raw replay` as the static deployment-capab
 - `../tables/why3_one_baseline_cv_summary.csv`
 - `../tables/why4_procrustes_check.csv`
 - `../tables/why5_production_vs_raw_methods.csv`
+- `../tables/why5_production_T4_real_run_summary.csv`
 - `../tables/why6_time_skew_per_capture.csv`
 - `../tables/why6_time_skew_summary.csv`
 - `../tables/why7_single_shot_summary.csv`

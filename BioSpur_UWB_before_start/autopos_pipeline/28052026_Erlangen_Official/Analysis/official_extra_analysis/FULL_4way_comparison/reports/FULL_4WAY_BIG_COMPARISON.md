@@ -1,24 +1,25 @@
 # FULL 4-Way Big Comparison
 
-Generated 2026-06-04T10:24:58.041729+00:00.
+Generated 2026-06-04T12:29:12.050538+00:00.
 
 This is the combined comparison for the corrected FULL OptiTrack export and the three derived analysis paths: known Vicon anchors, full similarity scale-to-Vicon, and one-baseline scale correction. Static rows summarize 24 fixed positions; ROTO rows summarize 34 tag-tracks over 17 rotating captures using fixed capture-level time offsets from original FULL v4-io/T4.
 
 ## One-Screen Headline
 
-- Original FULL static production `v4-io`: **74.0 mm median / 282.1 mm P95**.
-- Original FULL static raw replay `v4-io/T4`: **69.7 / 173.9 mm**; `v4-io/T3`: **69.2 / 173.0 mm**.
+- Original FULL deployed static headline after the real production export path is switched to T4, keeping production mean aggregation: **72.7 mm median / 171.5 mm P95 / 109.8 mm RMSE**.
+- Legacy original FULL static production `v4-io/T1` mean-aggregated path: **74.0 mm median / 282.1 mm P95 / 139.6 mm RMSE**.
+- Median-estimator ablation `v4-io/T4`: **69.7 / 173.9 mm**, RMSE **108.9 mm**; `v4-io/T3`: **69.2 / 173.0 mm**. This is not the deployed production mean-aggregated static point.
 - Original FULL static stationary filter/static-lock: `v4-io/T4+F5` reaches **64.9 / 175.7 mm** and cuts repeatability spread from **67.4 mm** to **18.7 mm**; `v4-io/T3+F5` reaches **65.2 / 169.9 mm**.
-- Static Vicon anchors + delaycal lower bound: **64.1 / 128.4 mm** for T4.
+- Static Vicon anchors + re-estimated delaycal control: **64.1 / 128.4 mm** for T4. This is the best known-anchor control, not a lower bound on achievable error.
 - Static one-baseline correction: best row **55.2 / 141.0 mm** (`v1-old`, F-H, T4, delaycal); useful v4-io E-H/T4 row **58.1 / 130.2 mm**.
 - Original FULL ROTO `v4-io/T4`: **105.8 / 231.8 mm** track-median 3D P50/P95.
 - ROTO post-solve filtered replay: original FULL fixed-lag `T4+F4` reaches **86.3 / 158.2 mm**; offline RTS `T4+F5` reaches **83.3 / 148.6 mm** but uses future samples.
 - ROTO lever-armed pseudo-IMU replay: original FULL strong causal `T4+PI1` reaches **66.1 / 97.5 mm**; offline `PI4` reaches **58.7 / 81.5 mm**. This is an OptiTrack-derived oracle diagnostic, not a real IMU deployment result.
 - Legacy no-groundtruth ROTO self-consistency for original FULL `v4-io/T4`: **25.9 mm dR RMS**, **13.7 mm turn-center repeatability median**, and **37.6 mm inner/outer center-separation median**.
 - New OptiTrack/Vicon ROTO turn-center absolute 3D RMS is **72.1 mm** for original FULL, **72.7 mm** for Vicon anchors + delaycal, **76.7 mm** for full similarity scale + delaycal, and **77.1 mm** for one-baseline E-H + delaycal.
-- Resilience-gap audit now adds raw-pair bootstrap repeatability and synthetic dropout stress for 4x FULL: AutoPos-bootstrap layout coordinate SD is about **1.0--1.2 mm** median, residual-delay rel-A SD is about **0.45--0.56 mm**, and one-baseline E-H static stress baseline is **60.6 / 127.9 mm**.
+- Resilience-gap audit now adds raw-pair bootstrap numerical precision and synthetic dropout stress for 4x FULL: AutoPos-bootstrap layout coordinate SD is about **1.0--1.2 mm** median sampling precision, residual-delay rel-A bootstrap SD is about **0.45--0.56 mm** numerical precision, and one-baseline E-H static stress baseline is **60.6 / 127.9 mm**.
 - Reporting checklist audit now separates anchor absolute error, repeatability, scale bias, shape distortion, delay-layout coupling, static tag error, and dynamic tag error instead of relying on one 3D RMSE.
-- Apples-to-apples comparison is static raw replay `v4-io/T4` versus ROTO `v4-io/T4`: ROTO is worse (**69.7 -> 105.8 mm** median, **173.9 -> 231.8 mm** P95). Do not compare the ROTO track-level P95 directly against static production P95.
+- Apples-to-apples deployed-vs-dynamic comparison is production mean-aggregated static `v4-io/T4` versus ROTO `v4-io/T4`: ROTO is worse (**72.7 -> 105.8 mm** median, **171.5 -> 231.8 mm** P95). The **69.7 / 173.9 mm** row is a median-estimator ablation, not the deployed static headline.
 - ROTO Vicon anchors + delaycal: **105.6 / 200.4 mm**, so dynamic ROTO median does **not** collapse like static.
 - ROTO best overall row: **100.1 / 220.5 mm** (`v4-io`, B-C one-baseline with solver delay, T4), but its P95 is worse than Vicon+delaycal.
 
@@ -26,9 +27,10 @@ This is the combined comparison for the corrected FULL OptiTrack export and the 
 
 | case | type | layout_or_anchor | delay_mode | tag_solver | static_3d_p50_mm | static_3d_p95_mm | static_xy_p95_mm | static_z_p95_mm | roto_3d_p50_mm | roto_3d_p95_mm | roto_xy_p95_mm | roto_z_p95_mm | opti_turn_center_abs_error_p50_mm | opti_turn_center_abs_error_rms_mm | legacy_deltaR_rms_mm | legacy_turn_center_repeatability_median_mm |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| FULL original production v4-io | static production | AutoPos v4-io rigid no-scale | solver_delay | production | 74.0 | 282.1 |  |  |  |  |  |  |  |  |  |  |
-| FULL original raw replay v4-io/T4 | static + ROTO | AutoPos v4-io rigid no-scale | solver_delay | T4 | 69.7 | 173.9 |  |  | 105.8 | 231.8 | 167.5 | 187.4 | 69.1 | 72.1 | 25.9 | 13.7 |
-| FULL original raw replay v4-io/T3 | static replay best-ish | AutoPos v4-io rigid no-scale | solver_delay | T3 | 69.2 | 173.0 |  |  |  |  |  |  |  |  |  |  |
+| FULL production mean-aggregated v4-io/T4 | static production headline | AutoPos v4-io rigid no-scale | solver_delay | T4 production mean | 72.7 | 171.5 |  |  |  |  |  |  |  |  |  |  |
+| FULL legacy production mean-aggregated v4-io/T1 | static legacy production | AutoPos v4-io rigid no-scale | solver_delay | T1 production mean | 74.0 | 282.1 |  |  |  |  |  |  |  |  |  |  |
+| FULL median-estimator ablation v4-io/T4 | static estimator ablation + ROTO solver line | AutoPos v4-io rigid no-scale | solver_delay | T4 median estimator | 69.7 | 173.9 |  |  | 105.8 | 231.8 | 167.5 | 187.4 | 69.1 | 72.1 | 25.9 | 13.7 |
+| FULL median-estimator ablation v4-io/T3 | static estimator ablation | AutoPos v4-io rigid no-scale | solver_delay | T3 median estimator | 69.2 | 173.0 |  |  |  |  |  |  |  |  |  |  |
 | Vicon anchors + delaycal / T4 | static control/ablation | vicon_truth | vicon_inter_anchor_delaycal | T4 | 64.1 | 128.4 | 81.3 | 112.8 |  |  |  |  |  |  |  |  |
 | Full similarity scale + delaycal / v4-io/T4 | static control/ablation | solver_similarity_scale_to_vicon | scaled_layout_inter_anchor_delaycal | T4 | 67.1 | 132.6 | 80.5 | 117.4 |  |  |  |  |  |  |  |  |
 | One-baseline E-H + delaycal / v4-io/T4 | static control/ablation | one_baseline_scale | one_baseline_layout_inter_anchor_delaycal | T4 | 58.1 | 130.2 | 72.9 | 106.8 |  |  |  |  |  |  |  |  |
@@ -62,11 +64,12 @@ Interpretation: corrected FULL still has the same scale story. `v4-io` is the pr
 
 | source | layout_solver | tag_method | err_3d_median_mm | err_3d_p95_mm | err_3d_rms_mm | err_horizontal_median_mm | err_vertical_median_mm | d3_std_median_mm |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| raw replay | v4-io | T3 | 69.2 | 173.0 | 106.6 | 45.5 | 47.8 | 58.7 |
-| raw replay | v4-io | T4 | 69.7 | 173.9 | 108.9 | 37.5 | 60.0 | 67.4 |
+| median-estimator ablation | v4-io | T3 | 69.2 | 173.0 | 106.6 | 45.5 | 47.8 | 58.7 |
+| median-estimator ablation | v4-io | T4 | 69.7 | 173.9 | 108.9 | 37.5 | 60.0 | 67.4 |
 | raw replay | v4-io | T1 | 70.8 | 283.7 | 139.3 | 42.7 | 64.0 | 58.6 |
 | raw replay | v4-io | T2 | 71.1 | 282.9 | 139.0 | 42.8 | 63.9 | 58.9 |
-| production | v4-io | production | 74.0 | 282.1 | 139.6 | 42.3 | 65.3 |  |
+| production mean export | v4-io | T4 mean | 72.7 | 171.5 | 109.8 | 37.4 | 61.9 |  |
+| legacy production mean export | v4-io | T1 mean | 74.0 | 282.1 | 139.6 | 42.3 | 65.3 |  |
 | raw replay | v2 | T3 | 74.0 | 205.3 | 106.2 | 49.0 | 60.1 | 63.3 |
 | raw replay | v3-lite | T3 | 74.7 | 205.3 | 106.2 | 49.2 | 64.1 | 63.1 |
 | raw replay | v2 | T4 | 76.5 | 168.2 | 104.9 | 42.6 | 66.0 | 62.7 |
@@ -83,13 +86,15 @@ Interpretation: corrected FULL still has the same scale story. `v4-io` is the pr
 | raw replay | v3-full | T2 | 116.8 | 291.6 | 159.8 | 47.5 | 110.0 | 65.3 |
 | production | v3-full | production | 120.6 | 293.8 | 160.7 | 48.8 | 113.7 |  |
 
+Production-path interpretation: the real production export path has been switched to the T4 solver at `solve_positions` while preserving `position_summary` mean aggregation. The end-to-end real run gives **72.691 / 171.493 mm**, RMSE **109.843 mm**, matching the earlier production-style probe (**72.689 / 171.497 mm**, RMSE **109.845 mm**) within numerical noise. The production-vs-replay T1 P50 gap is an aggregation difference: production uses a per-position mean, while the 69.7/173.9 T4 row uses the median static-point estimator. Therefore **72.7 / 171.5 / 109.8 mm** is the deployed static headline; **69.7 / 173.9 / 108.9 mm** is an estimator-sensitivity ablation.
+
 ## Static: Stationary Filter / IMU-Equivalent Static Lock
 
 The static equivalent of an IMU prior is already present in the `FULL/filtered_deployment` matrix: when the tag is known to be static, stabilize the output over the dwell window instead of treating each UWB solve independently. This is the same practical idea as an IMU zero-motion detector locking or slowly updating one position estimate.
 
 | solver | family | median 3D | p95 3D | RMSE 3D | repeat D3 std median | note |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
-| T4+F0 | external_position_filter | 69.7 | 173.9 | 108.9 | 67.4 | baseline unfiltered T4 |
+| T4+F0 | external_position_filter | 69.7 | 173.9 | 108.9 | 67.4 | median-estimator baseline unfiltered T4 |
 | T4+F5 | external_position_filter | 64.9 | 175.7 | 109.5 | 18.7 | offline stationary smoother / static lock |
 | T4+F4 | external_position_filter | 65.9 | 176.1 | 109.6 | 21.4 | fixed-lag stationary smoother |
 | T3+F5 | external_position_filter | 65.2 | 169.9 | 105.4 | 21.0 | best combined filtered static row |
@@ -137,6 +142,19 @@ Static interpretation:
 - Vicon anchors without delaycal, or Vicon anchors with the AutoPos delay vector, are bad. AutoPos delay is layout-coupled, not portable physical antenna-delay calibration.
 - Scale correction alone is not enough; it becomes useful only when paired with re-estimated endpoint delay on the corrected layout.
 - One independent baseline is a strong engineering path because it attacks scale/delay coupling without requiring full Vicon layout.
+
+## Delay-Layout Coupling Mechanism
+
+The dedicated checklist table `reporting_checklist/tables/delay_layout_coupling.csv` now promotes this from a buried ablation to a first-class result. On the same static tag data and OptiTrack truth:
+
+| case | static tag RMSE | interpretation |
+| --- | ---: | --- |
+| Vicon truth anchors, no residual delay correction | 311.3 | optical geometry alone is not sufficient |
+| Vicon truth anchors, transplanted AutoPos self-cal residual corrections | 252.2 | self-cal residual corrections are layout-frame conditioned |
+| Vicon truth anchors, re-estimated residual corrections | 77.7 | known-anchor + re-estimated-delay control |
+| AutoPos self-cal v4-io/T4 | 108.9 | competitive because geometry and residual corrections are co-fitted |
+
+Mechanism view from WHY #9: self-minus-Vicon `anchor_main_rel_A` regresses on v4-io radial layout error with **R2 = 0.998** and slope **-0.982 mm/mm**. Outcome view: the same coupling appears as the **311/252/77 mm** tag-RMSE triangle. Together these explain why the self-cal layout can be geometrically off by about **105 mm** rigid SE(3) RMSE yet remain ranging-competitive: the self-cal residual-delay term absorbs radial coordinate/scale error, so it is a layout-level residual correction, not a physical per-anchor delay and not a solver bug.
 
 ## ROTO: Original FULL Solver Matrix
 
@@ -187,8 +205,8 @@ Static interpretation:
 
 ROTO interpretation:
 
-- In the same `v4-io/T4` solver line, ROTO is worse than static raw replay. The apparently lower ROTO P95 versus static production is not an accuracy improvement; it mixes a different static output path with a track-level ROTO summary.
-- Static and ROTO tell different stories. Static lower bound drops to about 6 cm median; ROTO stays around 10 cm median even with Vicon anchors + delaycal.
+- In the same `v4-io/T4` solver line, ROTO is worse than the deployed production mean-aggregated static point. The median-estimator static ablation is useful, but it is not the deployed static headline.
+- Static and ROTO tell different stories. The known-anchor + re-estimated-delay static control reaches about 6 cm median, but ROTO stays around 10 cm median even with Vicon anchors + delaycal.
 - The old no-groundtruth ROTO metrics are still useful as self-consistency checks: original FULL `v4-io/T4` has 25.9 mm dR RMS and 13.7 mm turn-center repeatability median.
 - The new OptiTrack/Vicon turn-center absolute error is a different metric: it stays around 7--8 cm across original FULL and the derived FULL controls.
 - Therefore ROTO error is not explained by layout scale alone. It includes motion, time alignment residuals, rotating-wand ranging behavior, and possibly tag/antenna geometry effects.
@@ -247,20 +265,20 @@ Pseudo-IMU interpretation:
 
 ## Resilience Gap Audit
 
-The three feasible robustness gaps are now covered diagnostically in `resilience_gap_audit/reports/RESILIENCE_GAP_AUDIT.md`: raw-pair bootstrap layout repeatability, layout-level residual-delay bootstrap SD, and synthetic packet/dropout stress. These are not new independent repeated deployments; they are resampling/stress tests on the existing FULL data.
+The three feasible robustness gaps are now covered diagnostically in `resilience_gap_audit/reports/RESILIENCE_GAP_AUDIT.md`: raw-pair bootstrap numerical precision, layout-level residual-delay numerical precision, and synthetic packet/dropout stress. These are not new independent repeated deployments; they are resampling/stress tests on the existing FULL data.
 
-| case | bootstrap coord SD median | bootstrap pair-distance SD median | delay rel-A SD median | static baseline P50/P95 | anchor-keep-4 P50/P95 | ROTO sample-keep-10 ATE P50/P95 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| original self-cal | 1.02 | 0.76 | 0.56 | 76.3 / 180.9 | 87.7 / 292.4 | 101.2 / 250.5 |
-| Vicon truth + delaycal | 0.00 | 0.00 | 0.45 | 65.0 / 126.7 | 65.0 / 127.9 | 103.4 / 207.8 |
-| Sim(3) scale + delaycal | 0.97 | 0.70 | 0.53 | 69.3 / 134.8 | 83.2 / 140.2 | 109.3 / 209.9 |
-| one-baseline E-H + delaycal | 1.20 | 1.24 | 0.54 | 60.6 / 127.9 | 63.8 / 163.8 | 103.3 / 204.5 |
+| case | bootstrap coord SD median | delay rel-A SD median | static baseline P50/P95 | keep-4 rotating P50/P95 | keep-4 fixed-random P50/P95/fail | keep-4 best-GDOP P50/P95/fail | ROTO keep-10 ATE P50/P95 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| original self-cal | 1.02 | 0.56 | 76.3 / 180.9 | 87.7 / 292.4 | 129.8 / 649.5 / 3.8% | 384.0 / 2981.3 / 2.9% | 101.2 / 250.5 |
+| Vicon truth + delaycal | 0.00 | 0.45 | 65.0 / 126.7 | 65.0 / 127.9 | 163.2 / 517.9 / 3.4% | 277.8 / 2808.6 / 2.8% | 103.4 / 207.8 |
+| Sim(3) scale + delaycal | 0.97 | 0.53 | 69.3 / 134.8 | 83.2 / 140.2 | 183.8 / 490.0 / 3.8% | 241.0 / 2831.5 / 2.4% | 109.3 / 209.9 |
+| one-baseline E-H + delaycal | 1.20 | 0.54 | 60.6 / 127.9 | 63.8 / 163.8 | 190.0 / 660.2 / 4.3% | 224.2 / 2892.1 / 2.7% | 103.3 / 204.5 |
 
 Resilience interpretation:
 
-- Raw-pair bootstrap repeatability is tight: coordinate SD is about **1 mm** for self-cal/scale/one-baseline gauges, and residual-delay correction differences relative to anchor A have **sub-mm bootstrap SD**. This supports numerical repeatability under resampled raw range observations.
+- Raw-pair bootstrap numerical precision is tight: coordinate SD is about **1 mm** for self-cal/scale/one-baseline gauges, and residual-delay correction differences relative to anchor A have **sub-mm bootstrap SD**. This is within-campaign median sampling precision, not deployment repeatability.
 - This does **not** mean a physical repeated-deployment AutoPos run was performed. Independent setup/re-run variability remains a separate missing experiment.
-- Static anchor-dropout stress is the meaningful raw-solver stress here. With only four anchors per frame, sample-level P95 and repeatability spread degrade sharply, even when the per-position median stays reasonable after aggregation.
+- Static anchor-dropout stress is the meaningful raw-solver stress here. With only four anchors per frame, P50/P95 are convergence-conditional and the failed-frame rate is exposed. Fixed-random keep-4 isolates the fixed-subset effect; best-GDOP lowers GDOP but can be worse because it selects geometries vulnerable to mirror/root ambiguity.
 - ROTO packet stress is solved-sample thinning only. It shows ATE distribution is stable under random thinning, while RPE worsens as effective update rate drops from about 10 Hz to about 1 Hz; a raw dynamic range re-solve dropout test remains a heavier follow-up.
 
 ## Reporting Checklist Audit
@@ -270,16 +288,16 @@ The requested paper-reporting checklist is now generated as a separate coverage 
 Key extracted numbers:
 
 - Anchor layout absolute table, original FULL `v4-io`: frame-normalized rigid SE(3) RMSE **105.4 mm**, median **92.8 mm**, P95 **156.9 mm**; axis RMSE X/Y/Z **52.9 / 59.8 / 68.9 mm**; Sim(3) scale bias **-4.17%** and Sim(3) residual **67.1 mm**.
-- Anchor repeatability: OptiTrack repeated static anchor truth is **0.28 mm** coordinate-SD median and **0.24 mm** pairwise-distance-SD median. Raw-pair bootstrap coordinate-SD medians across 4x FULL are **0.00 / 0.97 / 1.02 / 1.20 mm** depending on the gauge, and residual-delay rel-A bootstrap SD medians are **0.45--0.56 mm**. Independent repeated AutoPos deployments are still not measured.
-- Tag static table, `v4-io/T4`: original raw replay is **108.9 mm RMSE / 173.9 mm P95** with repeatability SD median **67.4 mm**; Vicon truth + delaycal is **77.7 mm RMSE / 128.4 mm P95**.
+- Anchor repeatability: OptiTrack repeated static anchor truth is **0.28 mm** coordinate-SD median and **0.24 mm** pairwise-distance-SD median. Raw-pair bootstrap coordinate-SD medians across 4x FULL are **0.00 / 0.97 / 1.02 / 1.20 mm** depending on the gauge, and residual-delay rel-A bootstrap SD medians are **0.45--0.56 mm**; both bootstrap values are numerical precision / median sampling SE, not independent repeated-deployment repeatability. Independent repeated AutoPos deployments are still not measured.
+- Tag static table, `v4-io/T4`: deployed production mean aggregation is **109.8 mm RMSE / 171.5 mm P95**; the median-estimator ablation is **108.9 mm RMSE / 173.9 mm P95** with repeatability SD median **67.4 mm**; Vicon truth + delaycal is **77.7 mm RMSE / 128.4 mm P95**.
 - Tag dynamic table, `v4-io/T4`: original ROTO ATE is **141.3 mm RMSE / 256.9 mm sample P95**, RPE RMSE **134.5 mm**, effective solved-sample update rate **9.73 Hz**. The new dropout table adds solved-sample thinning; raw static dropout is re-solved, but ROTO dropout is not a raw range re-solve.
-- Ablation table: Vicon truth anchors with no residual delay correction are poor (**311.3 mm tag RMSE**), and Vicon truth with AutoPos solver residual corrections is still poor (**252.2 mm RMSE**). Vicon truth with re-estimated inter-anchor residual corrections drops to **77.7 mm RMSE**, confirming delay-layout coupling.
+- Ablation table: Vicon truth anchors with no residual delay correction are poor (**311.3 mm tag RMSE**), and Vicon truth with AutoPos solver residual corrections is still poor (**252.2 mm RMSE**). Vicon truth with re-estimated inter-anchor residual corrections drops to **77.7 mm RMSE**, confirming delay-layout coupling. WHY #9 gives the matching mechanism: self-minus-Vicon `anchor_main_rel_A` regresses on radial layout error with **R2 = 0.998** and slope **-0.982 mm/mm**.
 
-Checklist gaps are explicit rather than hidden. The bootstrap/synthetic versions of layout repeatability, delay SD, and packet/dropout stress now exist. Remaining true evidence gaps are: no independent repeated AutoPos deployment/split experiment, no PANS/manual baseline found in the current FULL dataset, no explicit CIR/NLOS label table, and no raw dynamic ROTO range re-solve / physical packet-loss stress sweep.
+Checklist gaps are explicit rather than hidden. The bootstrap/synthetic versions of layout numerical precision, delay numerical precision, and packet/dropout stress now exist. Remaining true evidence gaps are: no independent repeated AutoPos deployment/split experiment, no independent repeated-run delay SD, no PANS/manual baseline found in the current FULL dataset, no explicit CIR/NLOS label table, and no raw dynamic ROTO range re-solve / physical packet-loss stress sweep.
 
 ## Recommended Claims
 
-1. Keep the unfiltered original FULL result as the calibration-level validation number: about **7 cm median** static replay and **7.4 cm production median**, with a wide vertical/tail component.
+1. Keep the unfiltered original FULL result as the calibration-level validation number: the deployed production mean-aggregated static point is **72.7 / 171.5 mm**, RMSE **109.8 mm**, with a wide vertical/tail component. The **69.7 / 173.9 mm** row is only the median-estimator ablation.
 2. Vicon-anchor and scale/baseline ablations are diagnostic controls, not field claims unless the corresponding field measurement exists.
 3. The strongest engineering recommendation is independent baseline calibration plus delay re-estimation.
 4. ROTO absolute validation should be stated conservatively: about **10 cm median dynamic absolute trajectory error**, with P95 around **20--23 cm** depending on the control row.
@@ -293,6 +311,11 @@ Checklist gaps are explicit rather than hidden. The bootstrap/synthetic versions
 - `reports/FULL_4WAY_BIG_COMPARISON.md`
 - `reports/STATIC_4WAY_COMPARISON.md`
 - `reports/ROTO_4WAY_COMPARISON.md`
+- `../../solver/work/field_dataset_staged/FULL-COMPARE-1000-production-T4-real/tables/static_all_captures.csv`
+- `production_method_probe/production_static_method_real_run_eval/tables/tag_accuracy_summary.csv`
+- `production_method_probe/production_static_method_real_run_eval/tables/tag_abs_errors_per_session.csv`
+- `production_method_probe/production_static_method_probe/tables/production_static_method_probe_summary.csv`
+- `production_method_probe/production_static_method_probe/reports/PRODUCTION_STATIC_METHOD_PROBE.md`
 - `../FULL/filtered_deployment/tables/filtered_static_accuracy_summary.csv`
 - `../FULL/filtered_deployment/reports/filtered_static_results.md`
 - `roto_filtered/tables/roto_filtered_summary.csv`

@@ -17,6 +17,10 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 
 THIS = Path(__file__).resolve()
@@ -31,7 +35,10 @@ SOLVER_ROOT = OFFICIAL_ROOT / "solver/outputs/v1_to_v4_io_field_check"
 OUT_ROOT = COMP_ROOT / "reporting_checklist"
 TABLE_DIR = OUT_ROOT / "tables"
 REPORT_DIR = OUT_ROOT / "reports"
+FIG_DIR = OUT_ROOT / "figs"
 RESILIENCE_ROOT = COMP_ROOT / "resilience_gap_audit"
+REVIEWER_ROOT = COMP_ROOT / "reviewer_audit"
+PRODUCTION_T4_REAL_EVAL_ROOT = COMP_ROOT / "production_method_probe" / "production_static_method_real_run_eval"
 
 
 def write_csv(path: Path, rows: list[dict]) -> None:
@@ -204,24 +211,48 @@ def build_anchor_repeatability_table() -> list[dict]:
         }
     )
 
+    rows.append(
+        {
+            "method_or_split": "Independent repeated AutoPos layout runs",
+            "coordinate_sd_median_mm": float("nan"),
+            "pairwise_distance_sd_median_mm": float("nan"),
+            "delay_sd_mm": float("nan"),
+            "worst_anchor_sd_mm": float("nan"),
+            "status": "not_measured",
+            "note": "no physically independent repeated AutoPos deployment/split table is present",
+        }
+    )
+
     boot_layout_path = RESILIENCE_ROOT / "tables/bootstrap_layout_repeatability.csv"
     boot_delay_path = RESILIENCE_ROOT / "tables/bootstrap_delay_sd.csv"
+    boot_precision_path = RESILIENCE_ROOT / "tables/bootstrap_numerical_precision.csv"
     if boot_layout_path.exists() and boot_delay_path.exists():
         boot_layout = pd.read_csv(boot_layout_path)
         boot_delay = pd.read_csv(boot_delay_path)
+        boot_precision = pd.read_csv(boot_precision_path) if boot_precision_path.exists() else pd.DataFrame()
+        precision_by_case = {str(r["case_id"]): r for _, r in boot_precision.iterrows()}
         delay_by_case = {str(r["case_id"]): r for _, r in boot_delay.iterrows()}
         for _, r in boot_layout.iterrows():
             case_id = str(r["case_id"])
             d = delay_by_case.get(case_id)
+            p = precision_by_case.get(case_id)
             rows.append(
                 {
-                    "method_or_split": f"Raw-pair bootstrap {case_id}",
+                    "method_or_split": f"Numerical precision: raw-pair median bootstrap {case_id}",
                     "coordinate_sd_median_mm": float(r["coordinate_sd_median_mm"]),
                     "pairwise_distance_sd_median_mm": float(r["pairwise_distance_sd_median_mm"]),
                     "delay_sd_mm": float(d["anchor_delay_rel_A_sd_median_mm"]) if d is not None else float("nan"),
                     "worst_anchor_sd_mm": float(r["coordinate_sd_worst_mm"]),
-                    "status": "bootstrap_diagnostic",
-                    "note": "raw inter-anchor range bootstrap for 4xFULL; not an independent repeated deployment",
+                    "status": "numerical_precision",
+                    "note": (
+                        "within-campaign per-pair median sampling SE, not independent deployment repeatability"
+                        if p is None
+                        else (
+                            "within-campaign per-pair median sampling SE; "
+                            f"median analytical pair SE={float(p['pair_analytical_se_median_mm']):.3f} mm, "
+                            f"P95={float(p['pair_analytical_se_p95_mm']):.3f} mm"
+                        )
+                    ),
                 }
             )
 
@@ -235,17 +266,6 @@ def build_anchor_repeatability_table() -> list[dict]:
             "worst_anchor_sd_mm": float("nan"),
             "status": "structure_not_repeatability",
             "note": "std of fitted layout-level residual delay corrections; not a repeated-run delay SD",
-        }
-    )
-    rows.append(
-        {
-            "method_or_split": "Independent repeated AutoPos layout runs",
-            "coordinate_sd_median_mm": float("nan"),
-            "pairwise_distance_sd_median_mm": float("nan"),
-            "delay_sd_mm": float("nan"),
-            "worst_anchor_sd_mm": float("nan"),
-            "status": "not_measured",
-            "note": "bootstrap diagnostic exists, but no physically independent repeated AutoPos deployment/split table is present",
         }
     )
     return rows
@@ -277,22 +297,33 @@ def build_tag_static_table() -> list[dict]:
     align = pd.read_csv(ALIGN_ROOT / "tables/static_abs_errors_per_session.csv")
     scale = pd.read_csv(SCALE_ROOT / "tables/static_abs_errors_per_session.csv")
     one = pd.read_csv(ONE_BASELINE_ROOT / "tables/static_abs_errors_per_session.csv")
+    prod_t4_real_path = PRODUCTION_T4_REAL_EVAL_ROOT / "tables/tag_abs_errors_per_session.csv"
+    if prod_t4_real_path.exists():
+        prod_t4_real = pd.read_csv(prod_t4_real_path)
+        rows.append(summarize_static_df(
+            "Original FULL production mean-aggregated static point v4-io/T4",
+            "AutoPos v4-io rigid no-scale",
+            "solver residual corrections",
+            "T4 production mean aggregation",
+            prod_t4_real[(prod_t4_real["version"] == "v4-io") & (prod_t4_real["eval_set"] == "all8")].copy(),
+            "deployed/static headline after real production export path was switched to T4; per-position mean aggregation unchanged",
+        ))
 
     rows.append(summarize_static_df(
-        "Original FULL production v4-io",
+        "Legacy production mean-aggregated static point v4-io/T1",
         "AutoPos v4-io rigid no-scale",
         "solver residual corrections",
-        "production",
+        "T1 production mean aggregation",
         prod[(prod["version"] == "v4-io") & (prod["eval_set"] == "all8")].copy(),
-        "current exported production output",
+        "legacy exported production output before the production path was switched to T4",
     ))
     rows.append(summarize_static_df(
-        "Original FULL raw replay v4-io/T4",
+        "Original FULL median-estimator ablation v4-io/T4",
         "AutoPos v4-io rigid no-scale",
         "solver residual corrections",
         "T4",
         raw[(raw["version"] == "v4-io") & (raw["eval_set"] == "all8") & (raw["tag_method"] == "T4")].copy(),
-        "static raw replay deployment-capable estimator",
+        "median static-point estimator ablation; not the deployed production mean-aggregated static point",
     ))
     rows.append(summarize_static_df(
         "Original FULL filtered static v4-io/T4+F5",
@@ -316,7 +347,7 @@ def build_tag_static_table() -> list[dict]:
         "vicon_inter_anchor_delaycal",
         "T4",
         align[(align["layout_solver"] == "v4-io") & (align["layout_variant"] == "vicon_truth") & (align["delay_mode"] == "vicon_inter_anchor_delaycal") & (align["tag_method"] == "T4")].copy(),
-        "known-anchor lower-bound control with re-estimated residual delay corrections",
+        "known-anchor + re-estimated-delay control; best static control and better than self-cal, not a lower bound on achievable error",
     ))
     rows.append(summarize_static_df(
         "Full Sim(3) scale-to-Vicon + delaycal/T4",
@@ -458,7 +489,7 @@ def build_ablation_table() -> list[dict]:
             "solver residual corrections",
             first_row(static, experiment="scale_to_vicon", layout_solver="v4-io", layout_variant="original_rigid_no_scale", delay_mode="solver_delay", tag_method="T4", scale_source="rigid_no_scale"),
             auto_resid,
-            "current self-cal joint solution; geometry and layout-level residual delay corrections are coupled",
+            "current self-cal co-fit output; geometry and layout-level residual delay corrections are coupled",
         ),
         (
             "AutoPos v4-io Sim(3)-scaled",
@@ -493,7 +524,7 @@ def build_ablation_table() -> list[dict]:
             "re-estimated inter-anchor residual corrections",
             first_row(static, experiment="align_to_vicon", layout_solver="v4-io", layout_variant="vicon_truth", delay_mode="vicon_inter_anchor_delaycal", tag_method="T4"),
             vicon_delaycal_resid,
-            "known-anchor lower-bound control",
+            "known-anchor + re-estimated-delay control; best static control and better than self-cal, not a lower bound on achievable error",
         ),
         (
             "One-baseline E-H v4-io",
@@ -531,6 +562,159 @@ def build_ablation_table() -> list[dict]:
     return rows
 
 
+def build_delay_layout_coupling_table(
+    ablation: list[dict],
+    tag_static: list[dict],
+    anchor_layout: list[dict],
+) -> list[dict]:
+    ab = pd.DataFrame(ablation)
+    static = pd.DataFrame(tag_static)
+    anchors = pd.DataFrame(anchor_layout)
+
+    def ablation_row(layout: str, delay_or_bias: str) -> pd.Series:
+        rows = ab[(ab["layout"] == layout) & (ab["delay_or_bias"] == delay_or_bias)]
+        if rows.empty:
+            raise KeyError(f"missing delay-layout row {layout!r} / {delay_or_bias!r}")
+        return rows.iloc[0]
+
+    def static_row(config: str) -> pd.Series:
+        rows = static[static["layout_delay_config"] == config]
+        if rows.empty:
+            raise KeyError(f"missing static row {config!r}")
+        return rows.iloc[0]
+
+    v4_anchor = anchors[anchors["version"] == "v4-io"].iloc[0]
+    auto_static = static_row("Original FULL production mean-aggregated static point v4-io/T4")
+    mechanism = load_anchor_absorption_mechanism()
+    rows = [
+        {
+            "case": "truth_coords_no_delay",
+            "layout_frame": "Vicon/OptiTrack truth anchors",
+            "delay_treatment": "none",
+            "tag_rmse_mm": float(ablation_row("Vicon/OptiTrack truth anchors", "none")["tag_rmse_mm"]),
+            "tag_median_mm": float(ablation_row("Vicon/OptiTrack truth anchors", "none")["tag_median_mm"]),
+            "tag_p95_mm": float(ablation_row("Vicon/OptiTrack truth anchors", "none")["tag_p95_mm"]),
+            "source_table": "checklist_ablation.csv",
+            "claim_role": "optical geometry alone is not sufficient",
+        },
+        {
+            "case": "truth_coords_transplanted_selfcal_delay",
+            "layout_frame": "Vicon/OptiTrack truth anchors",
+            "delay_treatment": "AutoPos self-cal layout-level residual corrections transplanted",
+            "tag_rmse_mm": float(
+                ablation_row("Vicon/OptiTrack truth anchors", "AutoPos solver residual corrections")["tag_rmse_mm"]
+            ),
+            "tag_median_mm": float(
+                ablation_row("Vicon/OptiTrack truth anchors", "AutoPos solver residual corrections")["tag_median_mm"]
+            ),
+            "tag_p95_mm": float(
+                ablation_row("Vicon/OptiTrack truth anchors", "AutoPos solver residual corrections")["tag_p95_mm"]
+            ),
+            "source_table": "checklist_ablation.csv",
+            "claim_role": "residual corrections are layout-frame conditioned, not transferable",
+        },
+        {
+            "case": "truth_coords_reestimated_delay",
+            "layout_frame": "Vicon/OptiTrack truth anchors",
+            "delay_treatment": "re-estimated inter-anchor residual corrections",
+            "tag_rmse_mm": float(
+                ablation_row("Vicon/OptiTrack truth anchors", "re-estimated inter-anchor residual corrections")[
+                    "tag_rmse_mm"
+                ]
+            ),
+            "tag_median_mm": float(
+                ablation_row("Vicon/OptiTrack truth anchors", "re-estimated inter-anchor residual corrections")[
+                    "tag_median_mm"
+                ]
+            ),
+            "tag_p95_mm": float(
+                ablation_row("Vicon/OptiTrack truth anchors", "re-estimated inter-anchor residual corrections")[
+                    "tag_p95_mm"
+                ]
+            ),
+            "source_table": "checklist_ablation.csv",
+            "claim_role": "known-anchor + re-estimated-delay control",
+        },
+        {
+            "case": "autopos_selfcal_rigid_solver_delay",
+            "layout_frame": "AutoPos v4-io rigid no-scale",
+            "delay_treatment": "self-cal layout-level residual corrections",
+            "tag_rmse_mm": float(auto_static["absolute_3d_rmse_mm"]),
+            "tag_median_mm": float(auto_static["absolute_3d_median_mm"]),
+            "tag_p95_mm": float(auto_static["absolute_3d_p95_mm"]),
+            "source_table": "checklist_tag_static.csv + checklist_anchor_layout_absolute.csv",
+            "claim_role": "self-cal is competitive because geometry and residual corrections are co-fitted",
+        },
+    ]
+    for row in rows:
+        row["autopos_v4io_se3_rmse_mm"] = float(v4_anchor["se3_rmse_mm"])
+        row["autopos_v4io_sim3_scale"] = float(v4_anchor["scale_factor_sim3"])
+        row["mechanism_radial_absorption_r2"] = mechanism["layout_absorption_radial_r2"]
+        row["mechanism_radial_absorption_slope_mm_per_mm"] = mechanism[
+            "layout_absorption_radial_slope_mm_per_mm"
+        ]
+        row["mechanism_verdict"] = mechanism["anchor_decomp_verdict"]
+        row["caption_claim"] = (
+            "Imposed geometric ground-truth coordinates are not a sufficient solver input: "
+            "layout-level residual delay corrections are coupled to the coordinate frame and must be "
+            "re-estimated on that frame. AutoPos self-cal remains competitive because it co-fits geometry "
+            "and layout-level residual corrections."
+        )
+    return rows
+
+
+def load_anchor_absorption_mechanism() -> dict:
+    path = REVIEWER_ROOT / "tables" / "why9_anchor_consistency.csv"
+    default = {
+        "layout_absorption_radial_r2": float("nan"),
+        "layout_absorption_radial_slope_mm_per_mm": float("nan"),
+        "anchor_decomp_verdict": "",
+        "paper_consequence": "",
+    }
+    if not path.exists():
+        return default
+    df = pd.read_csv(path)
+    overall = df[df["check_type"].astype(str) == "overall"]
+    if overall.empty:
+        return default
+    row = overall.iloc[0]
+    return {
+        "layout_absorption_radial_r2": float(row.get("layout_absorption_radial_r2", float("nan"))),
+        "layout_absorption_radial_slope_mm_per_mm": float(
+            row.get("layout_absorption_radial_slope_mm_per_mm", float("nan"))
+        ),
+        "anchor_decomp_verdict": str(row.get("anchor_decomp_verdict", "")),
+        "paper_consequence": str(row.get("paper_consequence", "")),
+    }
+
+
+def write_delay_layout_coupling_figure(rows: list[dict]) -> None:
+    FIG_DIR.mkdir(parents=True, exist_ok=True)
+    labels = [
+        "Truth coords\nno delay",
+        "Truth coords\nself-cal delay",
+        "Truth coords\nre-fit delay",
+        "AutoPos self-cal\nrigid/T4",
+    ]
+    values = [float(row["tag_rmse_mm"]) for row in rows]
+    colors = ["#b9504a", "#c98b3a", "#327a65", "#3f6f9f"]
+    fig, ax = plt.subplots(figsize=(8.0, 4.8))
+    bars = ax.bar(labels, values, color=colors)
+    ax.set_ylabel("static tag 3D RMSE (mm)")
+    ax.set_title("Delay-layout coupling on the same static tag data")
+    ax.grid(axis="y", alpha=0.25)
+    for bar, value in zip(bars, values):
+        ax.text(bar.get_x() + bar.get_width() / 2.0, value + 6.0, f"{value:.0f}", ha="center", va="bottom")
+    caption = (
+        "Truth coordinates only are insufficient; residual delay corrections must be re-estimated "
+        "on the imposed coordinate frame."
+    )
+    fig.text(0.02, 0.01, caption, ha="left", va="bottom", fontsize=9)
+    fig.tight_layout(rect=(0.0, 0.06, 1.0, 1.0))
+    fig.savefig(FIG_DIR / "delay_layout_coupling.png", dpi=180)
+    plt.close(fig)
+
+
 def build_coverage_table() -> list[dict]:
     rows = [
         ("Anchor", "Inter-anchor range residual", "covered", "checklist_anchor_layout_absolute.csv + checklist_ablation.csv", "AutoPos internal residual and Vicon delaycal residual are reported."),
@@ -540,8 +724,8 @@ def build_coverage_table() -> list[dict]:
         ("Anchor", "Sim(3)-aligned residual and scale bias", "covered", "checklist_anchor_layout_absolute.csv", "Sim(3) scale factor, scale bias %, and Sim(3) RMSE included."),
         ("Anchor", "Per-anchor error ranking", "partial", "layout_abs_errors_all8.csv + checklist_anchor_layout_absolute.csv", "Worst anchor is summarized; full per-anchor table already exists."),
         ("Anchor", "Per-axis scale / anisotropy", "partial", "checklist_anchor_layout_absolute.csv", "Horizontal vs vertical-sensitive pairwise RMSE proxy included, not a full anisotropic scale fit."),
-        ("Anchor", "Repeatability of layout", "covered_bootstrap", "resilience_gap_audit/tables/bootstrap_layout_repeatability.csv + checklist_anchor_repeatability.csv", "Raw-pair bootstrap repeatability is now reported for 4xFULL; independent repeated AutoPos deployments are still not measured."),
-        ("Anchor", "Delay/bias repeatability", "covered_bootstrap", "resilience_gap_audit/tables/bootstrap_delay_sd.csv + checklist_anchor_repeatability.csv", "Anchor residual-delay correction differences rel_A now have bootstrap SD; absolute/common-mode delay remains gauge-coupled."),
+        ("Anchor", "Repeatability of layout", "not_measured", "checklist_anchor_repeatability.csv", "Independent repeated AutoPos deployments/splits are not present. Raw-pair bootstrap is reported separately as numerical precision, not repeatability."),
+        ("Anchor", "Delay/bias repeatability", "numerical_precision", "resilience_gap_audit/tables/bootstrap_delay_sd.csv + checklist_anchor_repeatability.csv", "Delay rel_A bootstrap SD is within-campaign median sampling SE, not independent repeated-run delay repeatability; absolute/common-mode delay remains gauge-coupled."),
         ("Anchor", "Delay-layout coupling", "covered", "checklist_ablation.csv", "Vicon solver-delay vs Vicon delaycal and scale-to-Vicon solver-delay rows show non-transferability."),
         ("Anchor", "Baseline comparison", "partial", "checklist_ablation.csv", "AutoPos/Vicon/one-baseline covered; PANS/manual missing."),
         ("Tag", "Static tag repeatability", "covered", "checklist_tag_static.csv", "Per-position d3_std median included."),
@@ -568,6 +752,7 @@ def write_report(
     tag_static: list[dict],
     tag_dynamic: list[dict],
     ablation: list[dict],
+    delay_layout_coupling: list[dict],
     coverage: list[dict],
 ) -> None:
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
@@ -598,6 +783,27 @@ def write_report(
     lines.append("### Ablation")
     lines.extend(markdown_table(ablation, ["layout", "delay_or_bias", "tag_rmse_mm", "tag_p95_mm", "anchor_or_pair_residual_rms_mm", "interpretation"]))
     lines.append("")
+    lines.append("### Delay-Layout Coupling")
+    lines.extend(markdown_table(delay_layout_coupling, ["case", "layout_frame", "delay_treatment", "tag_rmse_mm", "tag_p95_mm", "claim_role"]))
+    lines.append("")
+    mechanism = delay_layout_coupling[0] if delay_layout_coupling else {}
+    lines.append(
+        "The `truth_coords_no_delay`, `truth_coords_transplanted_selfcal_delay`, and "
+        "`truth_coords_reestimated_delay` rows isolate the same tag data under the imposed optical coordinate frame. "
+        "The result is the 311/252/77 mm RMSE triangle: ground-truth coordinates alone are not enough, and "
+        "layout-level residual delay corrections must be re-estimated on the coordinate frame being solved. "
+        "This is the narrow contribution claim; it is not a novelty claim about generic joint geometry/delay fitting."
+    )
+    if mechanism:
+        lines.append("")
+        lines.append(
+            "Mechanism view: WHY #9 regresses self-minus-Vicon `anchor_main_rel_A` on v4-io radial layout error and obtains "
+            f"R2={fmt(mechanism.get('mechanism_radial_absorption_r2', float('nan')), 3)} with slope "
+            f"{fmt(mechanism.get('mechanism_radial_absorption_slope_mm_per_mm', float('nan')), 3)} mm/mm "
+            f"(`{mechanism.get('mechanism_verdict', '')}`). "
+            "Outcome view: the same coupling appears as the 311/252/77 tag-RMSE triangle above. Together they explain why the self-cal layout can be geometrically off by about 105 mm rigid SE(3) RMSE yet remain ranging-competitive: the self-cal residual-delay term absorbs radial coordinate/scale error, so it is not a physical per-anchor delay and not a solver bug."
+        )
+    lines.append("")
     lines.append("## Coverage")
     lines.extend(markdown_table(coverage, ["domain", "check", "status", "evidence", "note"]))
     lines.append("")
@@ -608,9 +814,11 @@ def write_report(
         "checklist_tag_static.csv",
         "checklist_tag_dynamic.csv",
         "checklist_ablation.csv",
+        "delay_layout_coupling.csv",
         "checklist_coverage.csv",
     ]:
         lines.append(f"- `../tables/{name}`")
+    lines.append("- `../figs/delay_layout_coupling.png`")
     lines.append("- `../../resilience_gap_audit/reports/RESILIENCE_GAP_AUDIT.md`")
     (REPORT_DIR / "REPORTING_CHECKLIST_AUDIT.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -618,19 +826,23 @@ def write_report(
 def main() -> None:
     TABLE_DIR.mkdir(parents=True, exist_ok=True)
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    FIG_DIR.mkdir(parents=True, exist_ok=True)
     anchor_layout = build_anchor_layout_absolute_table()
     anchor_repeat = build_anchor_repeatability_table()
     tag_static = build_tag_static_table()
     tag_dynamic = build_tag_dynamic_table()
     ablation = build_ablation_table()
+    delay_layout_coupling = build_delay_layout_coupling_table(ablation, tag_static, anchor_layout)
     coverage = build_coverage_table()
     write_csv(TABLE_DIR / "checklist_anchor_layout_absolute.csv", anchor_layout)
     write_csv(TABLE_DIR / "checklist_anchor_repeatability.csv", anchor_repeat)
     write_csv(TABLE_DIR / "checklist_tag_static.csv", tag_static)
     write_csv(TABLE_DIR / "checklist_tag_dynamic.csv", tag_dynamic)
     write_csv(TABLE_DIR / "checklist_ablation.csv", ablation)
+    write_csv(TABLE_DIR / "delay_layout_coupling.csv", delay_layout_coupling)
     write_csv(TABLE_DIR / "checklist_coverage.csv", coverage)
-    write_report(anchor_layout, anchor_repeat, tag_static, tag_dynamic, ablation, coverage)
+    write_delay_layout_coupling_figure(delay_layout_coupling)
+    write_report(anchor_layout, anchor_repeat, tag_static, tag_dynamic, ablation, delay_layout_coupling, coverage)
     print(f"Wrote {REPORT_DIR / 'REPORTING_CHECKLIST_AUDIT.md'}")
 
 
