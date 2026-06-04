@@ -11,25 +11,27 @@ This is the combined comparison for the corrected FULL OptiTrack export and the 
 - Static Vicon anchors + delaycal lower bound: **64.1 / 128.4 mm** for T4.
 - Static one-baseline correction: best row **55.2 / 141.0 mm** (`v1-old`, F-H, T4, delaycal); useful v4-io E-H/T4 row **58.1 / 130.2 mm**.
 - Original FULL ROTO `v4-io/T4`: **105.8 / 231.8 mm** track-median 3D P50/P95.
+- Legacy no-groundtruth ROTO self-consistency for original FULL `v4-io/T4`: **25.9 mm dR RMS**, **13.7 mm turn-center repeatability median**, and **37.6 mm inner/outer center-separation median**.
+- New OptiTrack/Vicon ROTO turn-center absolute 3D RMS is **72.1 mm** for original FULL, **72.7 mm** for Vicon anchors + delaycal, **76.7 mm** for full similarity scale + delaycal, and **77.1 mm** for one-baseline E-H + delaycal.
 - Apples-to-apples comparison is static raw replay `v4-io/T4` versus ROTO `v4-io/T4`: ROTO is worse (**69.7 -> 105.8 mm** median, **173.9 -> 231.8 mm** P95). Do not compare the ROTO track-level P95 directly against static production P95.
 - ROTO Vicon anchors + delaycal: **105.6 / 200.4 mm**, so dynamic ROTO median does **not** collapse like static.
 - ROTO best overall row: **100.1 / 220.5 mm** (`v4-io`, B-C one-baseline with solver delay, T4), but its P95 is worse than Vicon+delaycal.
 
 ## Headline Table
 
-| case | type | layout_or_anchor | delay_mode | tag_solver | static_3d_p50_mm | static_3d_p95_mm | static_xy_p95_mm | static_z_p95_mm | roto_3d_p50_mm | roto_3d_p95_mm | roto_xy_p95_mm | roto_z_p95_mm | turn_center_p50_mm |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| FULL original production v4-io | static production | AutoPos v4-io rigid no-scale | solver_delay | production | 74.0 | 282.1 |  |  |  |  |  |  |  |
-| FULL original raw replay v4-io/T4 | static + ROTO | AutoPos v4-io rigid no-scale | solver_delay | T4 | 69.7 | 173.9 |  |  | 105.8 | 231.8 | 167.5 | 187.4 | 69.1 |
-| FULL original raw replay v4-io/T3 | static replay best-ish | AutoPos v4-io rigid no-scale | solver_delay | T3 | 69.2 | 173.0 |  |  |  |  |  |  |  |
-| Vicon anchors + delaycal / T4 | static control/ablation | vicon_truth | vicon_inter_anchor_delaycal | T4 | 64.1 | 128.4 | 81.3 | 112.8 |  |  |  |  |  |
-| Full similarity scale + delaycal / v4-io/T4 | static control/ablation | solver_similarity_scale_to_vicon | scaled_layout_inter_anchor_delaycal | T4 | 67.1 | 132.6 | 80.5 | 117.4 |  |  |  |  |  |
-| One-baseline E-H + delaycal / v4-io/T4 | static control/ablation | one_baseline_scale | one_baseline_layout_inter_anchor_delaycal | T4 | 58.1 | 130.2 | 72.9 | 106.8 |  |  |  |  |  |
-| One-baseline best static row | static control/ablation | one_baseline_scale | one_baseline_layout_inter_anchor_delaycal | T4 | 55.2 | 141.0 | 69.2 | 121.4 |  |  |  |  |  |
-| ROTO Vicon anchors + delaycal / T4 | ROTO control/ablation | vicon_truth | vicon_inter_anchor_delaycal | T4 |  |  |  |  | 105.6 | 200.4 | 137.2 | 172.0 | 69.8 |
-| ROTO full similarity scale + delaycal / v4-io/T4 | ROTO control/ablation | solver_similarity_scale_to_vicon | scaled_layout_inter_anchor_delaycal | T4 |  |  |  |  | 110.5 | 200.7 | 139.5 | 176.5 | 71.3 |
-| ROTO one-baseline E-H + delaycal / v4-io/T4 | ROTO control/ablation | one_baseline_scale | one_baseline_layout_inter_anchor_delaycal | T4 |  |  |  |  | 106.2 | 200.4 | 138.2 | 170.4 | 75.2 |
-| ROTO best overall row | ROTO control/ablation | one_baseline_scale | solver_delay | T4 |  |  |  |  | 100.1 | 220.5 | 159.3 | 176.2 | 69.4 |
+| case | type | layout_or_anchor | delay_mode | tag_solver | static_3d_p50_mm | static_3d_p95_mm | static_xy_p95_mm | static_z_p95_mm | roto_3d_p50_mm | roto_3d_p95_mm | roto_xy_p95_mm | roto_z_p95_mm | opti_turn_center_abs_error_p50_mm | opti_turn_center_abs_error_rms_mm | legacy_deltaR_rms_mm | legacy_turn_center_repeatability_median_mm |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| FULL original production v4-io | static production | AutoPos v4-io rigid no-scale | solver_delay | production | 74.0 | 282.1 |  |  |  |  |  |  |  |  |  |  |
+| FULL original raw replay v4-io/T4 | static + ROTO | AutoPos v4-io rigid no-scale | solver_delay | T4 | 69.7 | 173.9 |  |  | 105.8 | 231.8 | 167.5 | 187.4 | 69.1 | 72.1 | 25.9 | 13.7 |
+| FULL original raw replay v4-io/T3 | static replay best-ish | AutoPos v4-io rigid no-scale | solver_delay | T3 | 69.2 | 173.0 |  |  |  |  |  |  |  |  |  |  |
+| Vicon anchors + delaycal / T4 | static control/ablation | vicon_truth | vicon_inter_anchor_delaycal | T4 | 64.1 | 128.4 | 81.3 | 112.8 |  |  |  |  |  |  |  |  |
+| Full similarity scale + delaycal / v4-io/T4 | static control/ablation | solver_similarity_scale_to_vicon | scaled_layout_inter_anchor_delaycal | T4 | 67.1 | 132.6 | 80.5 | 117.4 |  |  |  |  |  |  |  |  |
+| One-baseline E-H + delaycal / v4-io/T4 | static control/ablation | one_baseline_scale | one_baseline_layout_inter_anchor_delaycal | T4 | 58.1 | 130.2 | 72.9 | 106.8 |  |  |  |  |  |  |  |  |
+| One-baseline best static row | static control/ablation | one_baseline_scale | one_baseline_layout_inter_anchor_delaycal | T4 | 55.2 | 141.0 | 69.2 | 121.4 |  |  |  |  |  |  |  |  |
+| ROTO Vicon anchors + delaycal / T4 | ROTO control/ablation | vicon_truth | vicon_inter_anchor_delaycal | T4 |  |  |  |  | 105.6 | 200.4 | 137.2 | 172.0 | 69.8 | 72.7 | 18.0 | 13.3 |
+| ROTO full similarity scale + delaycal / v4-io/T4 | ROTO control/ablation | solver_similarity_scale_to_vicon | scaled_layout_inter_anchor_delaycal | T4 |  |  |  |  | 110.5 | 200.7 | 139.5 | 176.5 | 71.3 | 76.7 | 15.6 | 13.3 |
+| ROTO one-baseline E-H + delaycal / v4-io/T4 | ROTO control/ablation | one_baseline_scale | one_baseline_layout_inter_anchor_delaycal | T4 |  |  |  |  | 106.2 | 200.4 | 138.2 | 170.4 | 75.2 | 77.1 | 13.4 | 13.7 |
+| ROTO best overall row | ROTO control/ablation | one_baseline_scale | solver_delay | T4 |  |  |  |  | 100.1 | 220.5 | 159.3 | 176.2 | 69.4 | 71.4 |  |  |
 
 ## Layout Absolute Accuracy, Original FULL
 
@@ -155,6 +157,8 @@ ROTO interpretation:
 
 - In the same `v4-io/T4` solver line, ROTO is worse than static raw replay. The apparently lower ROTO P95 versus static production is not an accuracy improvement; it mixes a different static output path with a track-level ROTO summary.
 - Static and ROTO tell different stories. Static lower bound drops to about 6 cm median; ROTO stays around 10 cm median even with Vicon anchors + delaycal.
+- The old no-groundtruth ROTO metrics are still useful as self-consistency checks: original FULL `v4-io/T4` has 25.9 mm dR RMS and 13.7 mm turn-center repeatability median.
+- The new OptiTrack/Vicon turn-center absolute error is a different metric: it stays around 7--8 cm across original FULL and the derived FULL controls.
 - Therefore ROTO error is not explained by layout scale alone. It includes motion, time alignment residuals, rotating-wand ranging behavior, and possibly tag/antenna geometry effects.
 - One-baseline can slightly improve ROTO median in some rows, but the clean Vicon+delaycal control has better P95. For deployment claims, quote both median and P95.
 
