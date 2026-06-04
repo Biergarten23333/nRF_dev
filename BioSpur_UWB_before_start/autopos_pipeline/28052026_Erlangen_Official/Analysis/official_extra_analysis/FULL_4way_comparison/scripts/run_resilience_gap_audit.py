@@ -38,6 +38,7 @@ FULL_ROOT = EXTRA_ROOT / "FULL"
 ALIGN_ROOT = EXTRA_ROOT / "FULL_AutoPos_align_to_Vicon"
 SCALE_ROOT = EXTRA_ROOT / "FULL_AutoPos_scale_to_vicon"
 ONE_BASELINE_ROOT = EXTRA_ROOT / "FULL_AutoPos_one_baseline_scale_correction"
+LAYOUT_ROOT = OFFICIAL_ROOT / "solver/outputs/v1_to_v4_io_field_check"
 OUT_ROOT = COMP_ROOT / "resilience_gap_audit"
 TABLE_DIR = OUT_ROOT / "tables"
 REPORT_DIR = OUT_ROOT / "reports"
@@ -46,6 +47,32 @@ ANCHORS = list("ABCDEFGH")
 ANCHOR_TO_ID = {a: i for i, a in enumerate(ANCHORS)}
 STATIC_TAG = "BSF66F"
 ROTO_TAGS = ["BS2DCE", "BSDC91"]
+
+
+def configure_paths(
+    *,
+    layout_root: Path | None = None,
+    full_root: Path | None = None,
+    align_root: Path | None = None,
+    scale_root: Path | None = None,
+    one_baseline_root: Path | None = None,
+    out_root: Path | None = None,
+) -> None:
+    global LAYOUT_ROOT, FULL_ROOT, ALIGN_ROOT, SCALE_ROOT, ONE_BASELINE_ROOT, OUT_ROOT, TABLE_DIR, REPORT_DIR
+    if layout_root is not None:
+        LAYOUT_ROOT = Path(layout_root).resolve()
+    if full_root is not None:
+        FULL_ROOT = Path(full_root).resolve()
+    if align_root is not None:
+        ALIGN_ROOT = Path(align_root).resolve()
+    if scale_root is not None:
+        SCALE_ROOT = Path(scale_root).resolve()
+    if one_baseline_root is not None:
+        ONE_BASELINE_ROOT = Path(one_baseline_root).resolve()
+    if out_root is not None:
+        OUT_ROOT = Path(out_root).resolve()
+        TABLE_DIR = OUT_ROOT / "tables"
+        REPORT_DIR = OUT_ROOT / "reports"
 
 
 def write_csv(path: Path, rows: list[dict]) -> None:
@@ -301,7 +328,7 @@ def bootstrap_pair_medians(pair_obs: dict[tuple[str, str], np.ndarray], rng: np.
 
 
 def load_case_layouts(ablation_mod) -> tuple[list[Case], np.ndarray, dict[str, np.ndarray], dict[str, dict], list[Path]]:
-    layout_base = OFFICIAL_ROOT / "solver/outputs/v1_to_v4_io_field_check"
+    layout_base = LAYOUT_ROOT
     opti_dir = OFFICIAL_ROOT / "opti_captures/full"
     captures_root = OFFICIAL_ROOT / "captures/erlangen_20260528_optitrack"
     sigma_path = layout_base / "tables/anchor_sigma.json"
@@ -547,9 +574,7 @@ def bootstrap_layout_and_delay(
 
 
 def make_layout(ablation_mod, case: Case):
-    sigma_by_id = ablation_mod.load_anchor_sigma(
-        OFFICIAL_ROOT / "solver/outputs/v1_to_v4_io_field_check/tables/anchor_sigma.json"
-    )
+    sigma_by_id = ablation_mod.load_anchor_sigma(LAYOUT_ROOT / "tables/anchor_sigma.json")
     return ablation_mod.build_layout(
         name=f"resilience_gap/{case.case_id}",
         labels=ANCHORS,
@@ -1005,11 +1030,26 @@ def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(description="Run 4xFULL resilience/gap audit.")
+    parser.add_argument("--layout-root", default=None)
+    parser.add_argument("--full-root", default=None)
+    parser.add_argument("--align-root", default=None)
+    parser.add_argument("--scale-root", default=None)
+    parser.add_argument("--one-baseline-root", default=None)
+    parser.add_argument("--out-root", default=None)
     parser.add_argument("--n-bootstrap", type=int, default=300)
     parser.add_argument("--max-frames-per-position", type=int, default=220)
     parser.add_argument("--seed", type=int, default=20260604)
     parser.add_argument("--precision-only", action="store_true", help="update pair sampling-SE tables/report from existing bootstrap outputs")
     args = parser.parse_args()
+
+    configure_paths(
+        layout_root=Path(args.layout_root) if args.layout_root else None,
+        full_root=Path(args.full_root) if args.full_root else None,
+        align_root=Path(args.align_root) if args.align_root else None,
+        scale_root=Path(args.scale_root) if args.scale_root else None,
+        one_baseline_root=Path(args.one_baseline_root) if args.one_baseline_root else None,
+        out_root=Path(args.out_root) if args.out_root else None,
+    )
 
     TABLE_DIR.mkdir(parents=True, exist_ok=True)
     REPORT_DIR.mkdir(parents=True, exist_ok=True)

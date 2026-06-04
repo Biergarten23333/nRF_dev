@@ -515,6 +515,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Replay static tag raw captures for every Vx x Tx combination.")
     parser.add_argument("--official-root", default="autopos_pipeline/28052026_Erlangen_Official")
     parser.add_argument("--out-dir", default=None)
+    parser.add_argument("--layout-dir", default=None)
+    parser.add_argument("--static-csv", default=None)
     parser.add_argument("--layout-versions", default="all", help="comma list or all")
     parser.add_argument("--tag-methods", default="all", help="comma list or all")
     parser.add_argument("--eval-sets", default="all8")
@@ -531,11 +533,11 @@ def main() -> int:
     tables_dir.mkdir(parents=True, exist_ok=True)
     figs_dir.mkdir(parents=True, exist_ok=True)
 
-    layout_base = official_root / "solver/outputs/v1_to_v4_io_field_check"
+    layout_base = Path(args.layout_dir).resolve() if args.layout_dir else official_root / "solver/outputs/v1_to_v4_io_field_check"
     sigma_path = layout_base / "tables/anchor_sigma.json"
     captures_root = official_root / "captures/erlangen_20260528_optitrack"
     opti_dir = official_root / "opti_captures/full"
-    static_table = layout_base / "tables/static_all_captures.csv"
+    static_table = Path(args.static_csv).resolve() if args.static_csv else layout_base / "tables/static_all_captures.csv"
     metadata = load_static_metadata(static_table)
     anchor_truth, tag_truth, tag_truth_meta, correction_rows = load_truth(opti_dir)
     static_files = sorted(captures_root.glob("static_ID*/tag_capture*/tr_all.csv"))

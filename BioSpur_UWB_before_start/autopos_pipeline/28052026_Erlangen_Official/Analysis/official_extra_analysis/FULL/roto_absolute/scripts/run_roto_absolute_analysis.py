@@ -945,6 +945,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="FULL OptiTrack absolute ROTO analysis with capture-level time-offset estimation.")
     parser.add_argument("--official-root", default=str(OFFICIAL_ROOT))
     parser.add_argument("--out", default=str(ROTO_ROOT))
+    parser.add_argument("--layout-dir", default=None)
     parser.add_argument("--layouts", default="all", help="comma list from v1-old,v2,v3-lite,v3-full,v4-io or all")
     parser.add_argument("--tag-methods", default="all", help="comma list from T1,T2,T3,T4 or all")
     parser.add_argument("--workers", type=int, default=max(1, min(10, os.cpu_count() or 1)))
@@ -964,7 +965,7 @@ def main() -> int:
         p.mkdir(parents=True, exist_ok=True)
 
     t0 = time.time()
-    layout_base = official_root / "solver/outputs/v1_to_v4_io_field_check"
+    layout_base = Path(args.layout_dir).resolve() if args.layout_dir else official_root / "solver/outputs/v1_to_v4_io_field_check"
     sigma_path = layout_base / "tables/anchor_sigma.json"
     captures_root = official_root / "captures/erlangen_20260528_optitrack"
     opti_dir = official_root / "opti_captures/full"

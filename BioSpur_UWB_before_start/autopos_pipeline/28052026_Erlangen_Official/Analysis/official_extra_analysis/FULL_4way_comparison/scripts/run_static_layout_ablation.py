@@ -418,7 +418,7 @@ def write_markdown_summary(path: Path, title: str, summary_rows: list[dict], gro
 
 def make_variant_jobs(args: argparse.Namespace) -> tuple[list[dict], dict[str, list[str]], list[dict]]:
     official_root = Path(args.official_root).resolve()
-    layout_base = official_root / "solver/outputs/v1_to_v4_io_field_check"
+    layout_base = Path(args.layout_dir).resolve() if args.layout_dir else official_root / "solver/outputs/v1_to_v4_io_field_check"
     captures_root = official_root / "captures/erlangen_20260528_optitrack"
     opti_dir = official_root / "opti_captures/full"
     static_table = layout_base / "tables/static_all_captures.csv"
@@ -433,10 +433,11 @@ def make_variant_jobs(args: argparse.Namespace) -> tuple[list[dict], dict[str, l
     delaycal_delays, delaycal_tag_delay, delay_rows = estimate_delaycal(anchor_truth, pair_quality)
 
     jobs: list[dict] = []
+    suffix = str(args.output_suffix or "")
     experiment_dirs = {
-        "align_to_vicon": EXTRA_ROOT / "FULL_AutoPos_align_to_Vicon",
-        "scale_to_vicon": EXTRA_ROOT / "FULL_AutoPos_scale_to_vicon",
-        "one_baseline": EXTRA_ROOT / "FULL_AutoPos_one_baseline_scale_correction",
+        "align_to_vicon": EXTRA_ROOT / f"FULL_AutoPos_align_to_Vicon{suffix}",
+        "scale_to_vicon": EXTRA_ROOT / f"FULL_AutoPos_scale_to_vicon{suffix}",
+        "one_baseline": EXTRA_ROOT / f"FULL_AutoPos_one_baseline_scale_correction{suffix}",
     }
     for out in experiment_dirs.values():
         for sub in ["scripts", "configs", "tables", "figs", "reports", "logs"]:
@@ -596,6 +597,9 @@ def make_variant_jobs(args: argparse.Namespace) -> tuple[list[dict], dict[str, l
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run static known-anchor and scale-correction ablations.")
     parser.add_argument("--official-root", default=str(OFFICIAL_ROOT_DEFAULT))
+    parser.add_argument("--layout-dir", default=None)
+    parser.add_argument("--comparison-root", default=str(COMPARISON_ROOT))
+    parser.add_argument("--output-suffix", default="")
     parser.add_argument("--layouts", default="all")
     parser.add_argument("--tag-methods", default="all")
     parser.add_argument("--workers", type=int, default=max(1, min(10, os.cpu_count() or 1)))
@@ -603,6 +607,7 @@ def main() -> int:
     parser.add_argument("--max-frames", type=int, default=0)
     parser.add_argument("--only", choices=["all", "align_to_vicon", "scale_to_vicon", "one_baseline"], default="all")
     args = parser.parse_args()
+    comparison_root = Path(args.comparison_root).resolve()
 
     t0 = time.time()
     jobs, exp_dirs_raw, delay_rows = make_variant_jobs(args)
@@ -654,8 +659,8 @@ def main() -> int:
             continue
         for _, row in df.iterrows():
             comparison_rows.append({"experiment": exp, **row.to_dict()})
-    comp_tables = COMPARISON_ROOT / "tables"
-    comp_reports = COMPARISON_ROOT / "reports"
+    comp_tables = comparison_root / "tables"
+    comp_reports = comparison_root / "reports"
     write_csv(comp_tables / "static_4way_accuracy_summary.csv", comparison_rows)
     write_markdown_summary(
         comp_reports / "STATIC_4WAY_COMPARISON.md",
@@ -671,7 +676,7 @@ def main() -> int:
         "jobs": len(jobs),
         "only": args.only,
     }
-    (COMPARISON_ROOT / "run_static_ablation_meta.json").write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+    (comparison_root / "run_static_ablation_meta.json").write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
     print(f"[static-ablation] done in {meta['elapsed_s']:.1f}s", flush=True)
     return 0
 

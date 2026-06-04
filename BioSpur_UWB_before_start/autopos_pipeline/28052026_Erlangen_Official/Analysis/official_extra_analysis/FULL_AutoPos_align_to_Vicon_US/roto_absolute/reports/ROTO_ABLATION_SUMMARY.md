@@ -1,0 +1,103 @@
+# FULL AutoPos Align To Vicon: ROTO Known-Anchor Baseline
+
+Generated 2026-06-04T14:25:11.675720+00:00.
+
+## Best Rows By Track-Median 3D P50
+
+| experiment | layout_solver | layout_variant | delay_mode | tag_method | tracks_ok | captures_ok | err3d_p50_track_median_mm | err3d_p95_track_median_mm | err_horizontal_xz_p95_track_median_mm | err_vertical_y_p95_track_median_mm | turn_center_abs_error_3d_track_median_mm | radius_error_abs_track_median_mm |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| align_to_vicon | v1-old | vicon_truth | vicon_inter_anchor_delaycal | T4 | 34 | 17 | 105.6 | 200.4 | 137.2 | 172.0 | 69.8 | 18.2 |
+| align_to_vicon | v2 | vicon_truth | vicon_inter_anchor_delaycal | T4 | 34 | 17 | 105.6 | 200.4 | 137.2 | 172.0 | 69.8 | 18.2 |
+| align_to_vicon | v3-full | vicon_truth | vicon_inter_anchor_delaycal | T4 | 34 | 17 | 105.6 | 200.4 | 137.2 | 172.0 | 69.8 | 18.2 |
+| align_to_vicon | v3-lite | vicon_truth | vicon_inter_anchor_delaycal | T4 | 34 | 17 | 105.6 | 200.4 | 137.2 | 172.0 | 69.8 | 18.2 |
+| align_to_vicon | v4-io | vicon_truth | vicon_inter_anchor_delaycal | T4 | 34 | 17 | 105.6 | 200.4 | 137.2 | 172.0 | 69.8 | 18.2 |
+| align_to_vicon | v1-old | vicon_truth | vicon_inter_anchor_delaycal | T3 | 34 | 17 | 105.7 | 202.2 | 135.3 | 171.9 | 72.0 | 16.9 |
+| align_to_vicon | v2 | vicon_truth | vicon_inter_anchor_delaycal | T3 | 34 | 17 | 105.7 | 202.2 | 135.3 | 171.9 | 72.0 | 16.9 |
+| align_to_vicon | v3-full | vicon_truth | vicon_inter_anchor_delaycal | T3 | 34 | 17 | 105.7 | 202.2 | 135.3 | 171.9 | 72.0 | 16.9 |
+| align_to_vicon | v3-lite | vicon_truth | vicon_inter_anchor_delaycal | T3 | 34 | 17 | 105.7 | 202.2 | 135.3 | 171.9 | 72.0 | 16.9 |
+| align_to_vicon | v4-io | vicon_truth | vicon_inter_anchor_delaycal | T3 | 34 | 17 | 105.7 | 202.2 | 135.3 | 171.9 | 72.0 | 16.9 |
+| align_to_vicon | v1-old | vicon_truth | vicon_inter_anchor_delaycal | T1 | 34 | 17 | 106.3 | 203.6 | 136.6 | 171.4 | 69.9 | 21.8 |
+| align_to_vicon | v2 | vicon_truth | vicon_inter_anchor_delaycal | T1 | 34 | 17 | 106.3 | 203.6 | 136.6 | 171.4 | 69.9 | 21.8 |
+| align_to_vicon | v3-full | vicon_truth | vicon_inter_anchor_delaycal | T1 | 34 | 17 | 106.3 | 203.6 | 136.6 | 171.4 | 69.9 | 21.8 |
+| align_to_vicon | v3-lite | vicon_truth | vicon_inter_anchor_delaycal | T1 | 34 | 17 | 106.3 | 203.6 | 136.6 | 171.4 | 69.9 | 21.8 |
+| align_to_vicon | v4-io | vicon_truth | vicon_inter_anchor_delaycal | T1 | 34 | 17 | 106.3 | 203.6 | 136.6 | 171.4 | 69.9 | 21.8 |
+| align_to_vicon | v1-old | vicon_truth | vicon_inter_anchor_delaycal | T2 | 34 | 17 | 106.5 | 203.7 | 136.6 | 171.5 | 70.0 | 21.9 |
+| align_to_vicon | v2 | vicon_truth | vicon_inter_anchor_delaycal | T2 | 34 | 17 | 106.5 | 203.7 | 136.6 | 171.5 | 70.0 | 21.9 |
+| align_to_vicon | v3-full | vicon_truth | vicon_inter_anchor_delaycal | T2 | 34 | 17 | 106.5 | 203.7 | 136.6 | 171.5 | 70.0 | 21.9 |
+| align_to_vicon | v3-lite | vicon_truth | vicon_inter_anchor_delaycal | T2 | 34 | 17 | 106.5 | 203.7 | 136.6 | 171.5 | 70.0 | 21.9 |
+| align_to_vicon | v4-io | vicon_truth | vicon_inter_anchor_delaycal | T2 | 34 | 17 | 106.5 | 203.7 | 136.6 | 171.5 | 70.0 | 21.9 |
+| align_to_vicon | v4-io | vicon_truth | solver_delay | T4 | 34 | 17 | 210.1 | 379.3 | 232.6 | 343.8 | 80.7 | 142.1 |
+| align_to_vicon | v3-full | vicon_truth | solver_delay | T4 | 34 | 17 | 210.6 | 378.3 | 234.7 | 340.9 | 91.4 | 129.6 |
+| align_to_vicon | v4-io | vicon_truth | solver_delay | T3 | 34 | 17 | 222.4 | 397.4 | 262.9 | 355.0 | 89.5 | 148.8 |
+| align_to_vicon | v4-io | vicon_truth | solver_delay | T2 | 34 | 17 | 224.8 | 390.6 | 248.8 | 344.1 | 81.9 | 156.1 |
+| align_to_vicon | v4-io | vicon_truth | solver_delay | T1 | 34 | 17 | 225.0 | 390.5 | 249.4 | 344.1 | 81.0 | 157.7 |
+| align_to_vicon | v3-full | vicon_truth | solver_delay | T3 | 34 | 17 | 225.4 | 393.2 | 274.5 | 342.1 | 115.7 | 138.1 |
+| align_to_vicon | v3-full | vicon_truth | solver_delay | T2 | 34 | 17 | 225.8 | 394.9 | 256.0 | 343.3 | 98.6 | 153.7 |
+| align_to_vicon | v3-full | vicon_truth | solver_delay | T1 | 34 | 17 | 225.9 | 395.1 | 254.7 | 343.3 | 98.3 | 153.6 |
+| align_to_vicon | v1-old | vicon_truth | solver_delay | T4 | 34 | 17 | 267.4 | 451.9 | 257.7 | 397.5 | 87.8 | 197.1 |
+| align_to_vicon | v1-old | vicon_truth | zero_delay | T4 | 34 | 17 | 267.4 | 451.9 | 257.7 | 397.5 | 87.8 | 197.1 |
+
+## Full Summary
+
+| experiment | layout_solver | layout_variant | delay_mode | tag_method | tracks_ok | captures_ok | err3d_p50_track_median_mm | err3d_p95_track_median_mm | err_horizontal_xz_p95_track_median_mm | err_vertical_y_p95_track_median_mm | turn_center_abs_error_3d_track_median_mm | radius_error_abs_track_median_mm |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| align_to_vicon | v1-old | vicon_truth | solver_delay | T1 | 34 | 17 | 287.9 | 454.4 | 281.5 | 413.7 | 103.0 | 223.0 |
+| align_to_vicon | v1-old | vicon_truth | solver_delay | T2 | 34 | 17 | 288.1 | 454.5 | 281.5 | 413.7 | 102.2 | 222.9 |
+| align_to_vicon | v1-old | vicon_truth | solver_delay | T3 | 34 | 17 | 293.7 | 488.1 | 304.1 | 439.6 | 105.3 | 186.3 |
+| align_to_vicon | v1-old | vicon_truth | solver_delay | T4 | 34 | 17 | 267.4 | 451.9 | 257.7 | 397.5 | 87.8 | 197.1 |
+| align_to_vicon | v1-old | vicon_truth | vicon_inter_anchor_delaycal | T1 | 34 | 17 | 106.3 | 203.6 | 136.6 | 171.4 | 69.9 | 21.8 |
+| align_to_vicon | v1-old | vicon_truth | vicon_inter_anchor_delaycal | T2 | 34 | 17 | 106.5 | 203.7 | 136.6 | 171.5 | 70.0 | 21.9 |
+| align_to_vicon | v1-old | vicon_truth | vicon_inter_anchor_delaycal | T3 | 34 | 17 | 105.7 | 202.2 | 135.3 | 171.9 | 72.0 | 16.9 |
+| align_to_vicon | v1-old | vicon_truth | vicon_inter_anchor_delaycal | T4 | 34 | 17 | 105.6 | 200.4 | 137.2 | 172.0 | 69.8 | 18.2 |
+| align_to_vicon | v1-old | vicon_truth | zero_delay | T1 | 34 | 17 | 287.9 | 454.4 | 281.5 | 413.7 | 103.0 | 223.0 |
+| align_to_vicon | v1-old | vicon_truth | zero_delay | T2 | 34 | 17 | 288.1 | 454.5 | 281.5 | 413.7 | 102.2 | 222.9 |
+| align_to_vicon | v1-old | vicon_truth | zero_delay | T3 | 34 | 17 | 293.7 | 488.1 | 304.1 | 439.6 | 105.3 | 186.3 |
+| align_to_vicon | v1-old | vicon_truth | zero_delay | T4 | 34 | 17 | 267.4 | 451.9 | 257.7 | 397.5 | 87.8 | 197.1 |
+| align_to_vicon | v2 | vicon_truth | solver_delay | T1 | 34 | 17 | 287.9 | 454.4 | 281.5 | 413.7 | 103.0 | 223.0 |
+| align_to_vicon | v2 | vicon_truth | solver_delay | T2 | 34 | 17 | 288.1 | 454.5 | 281.5 | 413.7 | 102.2 | 222.9 |
+| align_to_vicon | v2 | vicon_truth | solver_delay | T3 | 34 | 17 | 293.7 | 488.1 | 304.1 | 439.6 | 105.3 | 186.3 |
+| align_to_vicon | v2 | vicon_truth | solver_delay | T4 | 34 | 17 | 267.4 | 451.9 | 257.7 | 397.5 | 87.8 | 197.1 |
+| align_to_vicon | v2 | vicon_truth | vicon_inter_anchor_delaycal | T1 | 34 | 17 | 106.3 | 203.6 | 136.6 | 171.4 | 69.9 | 21.8 |
+| align_to_vicon | v2 | vicon_truth | vicon_inter_anchor_delaycal | T2 | 34 | 17 | 106.5 | 203.7 | 136.6 | 171.5 | 70.0 | 21.9 |
+| align_to_vicon | v2 | vicon_truth | vicon_inter_anchor_delaycal | T3 | 34 | 17 | 105.7 | 202.2 | 135.3 | 171.9 | 72.0 | 16.9 |
+| align_to_vicon | v2 | vicon_truth | vicon_inter_anchor_delaycal | T4 | 34 | 17 | 105.6 | 200.4 | 137.2 | 172.0 | 69.8 | 18.2 |
+| align_to_vicon | v2 | vicon_truth | zero_delay | T1 | 34 | 17 | 287.9 | 454.4 | 281.5 | 413.7 | 103.0 | 223.0 |
+| align_to_vicon | v2 | vicon_truth | zero_delay | T2 | 34 | 17 | 288.1 | 454.5 | 281.5 | 413.7 | 102.2 | 222.9 |
+| align_to_vicon | v2 | vicon_truth | zero_delay | T3 | 34 | 17 | 293.7 | 488.1 | 304.1 | 439.6 | 105.3 | 186.3 |
+| align_to_vicon | v2 | vicon_truth | zero_delay | T4 | 34 | 17 | 267.4 | 451.9 | 257.7 | 397.5 | 87.8 | 197.1 |
+| align_to_vicon | v3-full | vicon_truth | solver_delay | T1 | 34 | 17 | 225.9 | 395.1 | 254.7 | 343.3 | 98.3 | 153.6 |
+| align_to_vicon | v3-full | vicon_truth | solver_delay | T2 | 34 | 17 | 225.8 | 394.9 | 256.0 | 343.3 | 98.6 | 153.7 |
+| align_to_vicon | v3-full | vicon_truth | solver_delay | T3 | 34 | 17 | 225.4 | 393.2 | 274.5 | 342.1 | 115.7 | 138.1 |
+| align_to_vicon | v3-full | vicon_truth | solver_delay | T4 | 34 | 17 | 210.6 | 378.3 | 234.7 | 340.9 | 91.4 | 129.6 |
+| align_to_vicon | v3-full | vicon_truth | vicon_inter_anchor_delaycal | T1 | 34 | 17 | 106.3 | 203.6 | 136.6 | 171.4 | 69.9 | 21.8 |
+| align_to_vicon | v3-full | vicon_truth | vicon_inter_anchor_delaycal | T2 | 34 | 17 | 106.5 | 203.7 | 136.6 | 171.5 | 70.0 | 21.9 |
+| align_to_vicon | v3-full | vicon_truth | vicon_inter_anchor_delaycal | T3 | 34 | 17 | 105.7 | 202.2 | 135.3 | 171.9 | 72.0 | 16.9 |
+| align_to_vicon | v3-full | vicon_truth | vicon_inter_anchor_delaycal | T4 | 34 | 17 | 105.6 | 200.4 | 137.2 | 172.0 | 69.8 | 18.2 |
+| align_to_vicon | v3-full | vicon_truth | zero_delay | T1 | 34 | 17 | 287.9 | 454.4 | 281.5 | 413.7 | 103.0 | 223.0 |
+| align_to_vicon | v3-full | vicon_truth | zero_delay | T2 | 34 | 17 | 288.1 | 454.5 | 281.5 | 413.7 | 102.2 | 222.9 |
+| align_to_vicon | v3-full | vicon_truth | zero_delay | T3 | 34 | 17 | 293.7 | 488.1 | 304.1 | 439.6 | 105.3 | 186.3 |
+| align_to_vicon | v3-full | vicon_truth | zero_delay | T4 | 34 | 17 | 267.4 | 451.9 | 257.7 | 397.5 | 87.8 | 197.1 |
+| align_to_vicon | v3-lite | vicon_truth | solver_delay | T1 | 34 | 17 | 287.9 | 454.4 | 281.5 | 413.7 | 103.0 | 223.0 |
+| align_to_vicon | v3-lite | vicon_truth | solver_delay | T2 | 34 | 17 | 288.1 | 454.5 | 281.5 | 413.7 | 102.2 | 222.9 |
+| align_to_vicon | v3-lite | vicon_truth | solver_delay | T3 | 34 | 17 | 293.7 | 488.1 | 304.1 | 439.6 | 105.3 | 186.3 |
+| align_to_vicon | v3-lite | vicon_truth | solver_delay | T4 | 34 | 17 | 267.4 | 451.9 | 257.7 | 397.5 | 87.8 | 197.1 |
+| align_to_vicon | v3-lite | vicon_truth | vicon_inter_anchor_delaycal | T1 | 34 | 17 | 106.3 | 203.6 | 136.6 | 171.4 | 69.9 | 21.8 |
+| align_to_vicon | v3-lite | vicon_truth | vicon_inter_anchor_delaycal | T2 | 34 | 17 | 106.5 | 203.7 | 136.6 | 171.5 | 70.0 | 21.9 |
+| align_to_vicon | v3-lite | vicon_truth | vicon_inter_anchor_delaycal | T3 | 34 | 17 | 105.7 | 202.2 | 135.3 | 171.9 | 72.0 | 16.9 |
+| align_to_vicon | v3-lite | vicon_truth | vicon_inter_anchor_delaycal | T4 | 34 | 17 | 105.6 | 200.4 | 137.2 | 172.0 | 69.8 | 18.2 |
+| align_to_vicon | v3-lite | vicon_truth | zero_delay | T1 | 34 | 17 | 287.9 | 454.4 | 281.5 | 413.7 | 103.0 | 223.0 |
+| align_to_vicon | v3-lite | vicon_truth | zero_delay | T2 | 34 | 17 | 288.1 | 454.5 | 281.5 | 413.7 | 102.2 | 222.9 |
+| align_to_vicon | v3-lite | vicon_truth | zero_delay | T3 | 34 | 17 | 293.7 | 488.1 | 304.1 | 439.6 | 105.3 | 186.3 |
+| align_to_vicon | v3-lite | vicon_truth | zero_delay | T4 | 34 | 17 | 267.4 | 451.9 | 257.7 | 397.5 | 87.8 | 197.1 |
+| align_to_vicon | v4-io | vicon_truth | solver_delay | T1 | 34 | 17 | 225.0 | 390.5 | 249.4 | 344.1 | 81.0 | 157.7 |
+| align_to_vicon | v4-io | vicon_truth | solver_delay | T2 | 34 | 17 | 224.8 | 390.6 | 248.8 | 344.1 | 81.9 | 156.1 |
+| align_to_vicon | v4-io | vicon_truth | solver_delay | T3 | 34 | 17 | 222.4 | 397.4 | 262.9 | 355.0 | 89.5 | 148.8 |
+| align_to_vicon | v4-io | vicon_truth | solver_delay | T4 | 34 | 17 | 210.1 | 379.3 | 232.6 | 343.8 | 80.7 | 142.1 |
+| align_to_vicon | v4-io | vicon_truth | vicon_inter_anchor_delaycal | T1 | 34 | 17 | 106.3 | 203.6 | 136.6 | 171.4 | 69.9 | 21.8 |
+| align_to_vicon | v4-io | vicon_truth | vicon_inter_anchor_delaycal | T2 | 34 | 17 | 106.5 | 203.7 | 136.6 | 171.5 | 70.0 | 21.9 |
+| align_to_vicon | v4-io | vicon_truth | vicon_inter_anchor_delaycal | T3 | 34 | 17 | 105.7 | 202.2 | 135.3 | 171.9 | 72.0 | 16.9 |
+| align_to_vicon | v4-io | vicon_truth | vicon_inter_anchor_delaycal | T4 | 34 | 17 | 105.6 | 200.4 | 137.2 | 172.0 | 69.8 | 18.2 |
+| align_to_vicon | v4-io | vicon_truth | zero_delay | T1 | 34 | 17 | 287.9 | 454.4 | 281.5 | 413.7 | 103.0 | 223.0 |
+| align_to_vicon | v4-io | vicon_truth | zero_delay | T2 | 34 | 17 | 288.1 | 454.5 | 281.5 | 413.7 | 102.2 | 222.9 |
+| align_to_vicon | v4-io | vicon_truth | zero_delay | T3 | 34 | 17 | 293.7 | 488.1 | 304.1 | 439.6 | 105.3 | 186.3 |
+| align_to_vicon | v4-io | vicon_truth | zero_delay | T4 | 34 | 17 | 267.4 | 451.9 | 257.7 | 397.5 | 87.8 | 197.1 |

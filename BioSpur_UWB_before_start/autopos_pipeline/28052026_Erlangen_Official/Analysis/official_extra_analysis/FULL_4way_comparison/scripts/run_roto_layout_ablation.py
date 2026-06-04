@@ -213,7 +213,7 @@ def solve_variant_capture_job(job: dict) -> dict:
 
 def make_variants(args: argparse.Namespace) -> tuple[list[VariantSpec], dict[str, Path], list[dict]]:
     official_root = Path(args.official_root).resolve()
-    layout_base = official_root / "solver/outputs/v1_to_v4_io_field_check"
+    layout_base = Path(args.layout_dir).resolve() if args.layout_dir else official_root / "solver/outputs/v1_to_v4_io_field_check"
     opti_dir = official_root / "opti_captures/full"
     sigma_path = layout_base / "tables/anchor_sigma.json"
     pair_quality = layout_base / "tables/pair_quality_solve.csv"
@@ -223,10 +223,11 @@ def make_variants(args: argparse.Namespace) -> tuple[list[VariantSpec], dict[str
     truth_coords = np.vstack([anchor_truth[a] for a in ANCHORS])
     delaycal_delays, delaycal_tag_delay, delay_rows = static_ablation.estimate_delaycal(anchor_truth, pair_quality)
 
+    suffix = str(args.output_suffix or "")
     experiment_dirs = {
-        "align_to_vicon": EXTRA_ROOT / "FULL_AutoPos_align_to_Vicon/roto_absolute",
-        "scale_to_vicon": EXTRA_ROOT / "FULL_AutoPos_scale_to_vicon/roto_absolute",
-        "one_baseline": EXTRA_ROOT / "FULL_AutoPos_one_baseline_scale_correction/roto_absolute",
+        "align_to_vicon": EXTRA_ROOT / f"FULL_AutoPos_align_to_Vicon{suffix}/roto_absolute",
+        "scale_to_vicon": EXTRA_ROOT / f"FULL_AutoPos_scale_to_vicon{suffix}/roto_absolute",
+        "one_baseline": EXTRA_ROOT / f"FULL_AutoPos_one_baseline_scale_correction{suffix}/roto_absolute",
     }
 
     layout_versions = LAYOUT_VERSIONS if args.layouts == "all" else [x.strip() for x in args.layouts.split(",") if x.strip()]
@@ -547,19 +548,25 @@ def make_comparison_report(path: Path, rows: list[dict]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run ROTO layout/delay ablations with fixed FULL time offsets.")
     parser.add_argument("--official-root", default=str(OFFICIAL_ROOT_DEFAULT))
+    parser.add_argument("--layout-dir", default=None)
+    parser.add_argument("--full-root", default=str(FULL_ROOT))
+    parser.add_argument("--comparison-root", default=str(COMPARISON_ROOT))
+    parser.add_argument("--output-suffix", default="")
     parser.add_argument("--layouts", default="all")
     parser.add_argument("--tag-methods", default="all")
     parser.add_argument("--workers", type=int, default=max(1, min(10, os.cpu_count() or 1)))
     parser.add_argument("--only", choices=["all", "align_to_vicon", "scale_to_vicon", "one_baseline"], default="all")
     parser.add_argument("--clean", action="store_true")
     args = parser.parse_args()
+    full_root = Path(args.full_root).resolve()
+    comparison_root = Path(args.comparison_root).resolve()
 
     official_root = Path(args.official_root).resolve()
     captures_root = official_root / "captures/erlangen_20260528_optitrack"
     opti_dir = official_root / "opti_captures/full"
     layout_base = official_root / "solver/outputs/v1_to_v4_io_field_check"
     sigma_path = layout_base / "tables/anchor_sigma.json"
-    original_roto = FULL_ROOT / "roto_absolute"
+    original_roto = full_root / "roto_absolute"
 
     t0 = time.time()
     print("[roto-ablation] initializing", flush=True)
@@ -583,8 +590,8 @@ def main() -> int:
     for out in experiment_dirs.values():
         for sub in ["tables", "reports", "figs", "logs", "scripts"]:
             (out / sub).mkdir(parents=True, exist_ok=True)
-    (COMPARISON_ROOT / "tables").mkdir(parents=True, exist_ok=True)
-    (COMPARISON_ROOT / "reports").mkdir(parents=True, exist_ok=True)
+    (comparison_root / "tables").mkdir(parents=True, exist_ok=True)
+    (comparison_root / "reports").mkdir(parents=True, exist_ok=True)
 
     mapping = read_mapping(original_roto / "tables/roto_wand_mapping_decision.csv")
     beta_by_capture = read_offsets(original_roto / "tables/roto_time_offsets_v4io_T4.csv")
@@ -722,9 +729,9 @@ def main() -> int:
             encoding="utf-8",
         )
 
-    write_csv(COMPARISON_ROOT / "tables/roto_4way_accuracy_summary.csv", comparison_rows)
-    make_comparison_report(COMPARISON_ROOT / "reports/ROTO_4WAY_COMPARISON.md", comparison_rows)
-    (COMPARISON_ROOT / "run_roto_ablation_meta.json").write_text(
+    write_csv(comparison_root / "tables/roto_4way_accuracy_summary.csv", comparison_rows)
+    make_comparison_report(comparison_root / "reports/ROTO_4WAY_COMPARISON.md", comparison_rows)
+    (comparison_root / "run_roto_ablation_meta.json").write_text(
         json.dumps(
             {
                 "script": str(THIS),

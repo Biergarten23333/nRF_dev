@@ -41,6 +41,54 @@ REVIEWER_ROOT = COMP_ROOT / "reviewer_audit"
 PRODUCTION_T4_REAL_EVAL_ROOT = COMP_ROOT / "production_method_probe" / "production_static_method_real_run_eval"
 
 
+def configure_paths(
+    *,
+    comparison_root: Path | None = None,
+    full_root: Path | None = None,
+    align_root: Path | None = None,
+    scale_root: Path | None = None,
+    one_baseline_root: Path | None = None,
+    solver_root: Path | None = None,
+    out_root: Path | None = None,
+    resilience_root: Path | None = None,
+    reviewer_root: Path | None = None,
+    production_t4_real_eval_root: Path | None = None,
+) -> None:
+    global COMP_ROOT, FULL_ROOT, ALIGN_ROOT, SCALE_ROOT, ONE_BASELINE_ROOT, SOLVER_ROOT
+    global OUT_ROOT, TABLE_DIR, REPORT_DIR, FIG_DIR, RESILIENCE_ROOT, REVIEWER_ROOT, PRODUCTION_T4_REAL_EVAL_ROOT
+    if comparison_root is not None:
+        COMP_ROOT = Path(comparison_root).resolve()
+    if full_root is not None:
+        FULL_ROOT = Path(full_root).resolve()
+    if align_root is not None:
+        ALIGN_ROOT = Path(align_root).resolve()
+    if scale_root is not None:
+        SCALE_ROOT = Path(scale_root).resolve()
+    if one_baseline_root is not None:
+        ONE_BASELINE_ROOT = Path(one_baseline_root).resolve()
+    if solver_root is not None:
+        SOLVER_ROOT = Path(solver_root).resolve()
+    if out_root is not None:
+        OUT_ROOT = Path(out_root).resolve()
+    elif comparison_root is not None:
+        OUT_ROOT = COMP_ROOT / "reporting_checklist"
+    TABLE_DIR = OUT_ROOT / "tables"
+    REPORT_DIR = OUT_ROOT / "reports"
+    FIG_DIR = OUT_ROOT / "figs"
+    if resilience_root is not None:
+        RESILIENCE_ROOT = Path(resilience_root).resolve()
+    elif comparison_root is not None:
+        RESILIENCE_ROOT = COMP_ROOT / "resilience_gap_audit"
+    if reviewer_root is not None:
+        REVIEWER_ROOT = Path(reviewer_root).resolve()
+    elif comparison_root is not None:
+        REVIEWER_ROOT = COMP_ROOT / "reviewer_audit"
+    if production_t4_real_eval_root is not None:
+        PRODUCTION_T4_REAL_EVAL_ROOT = Path(production_t4_real_eval_root).resolve()
+    elif comparison_root is not None:
+        PRODUCTION_T4_REAL_EVAL_ROOT = COMP_ROOT / "production_method_probe" / "production_static_method_real_run_eval"
+
+
 def write_csv(path: Path, rows: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if not rows:
@@ -256,18 +304,20 @@ def build_anchor_repeatability_table() -> list[dict]:
                 }
             )
 
-    delay = pd.read_csv(FULL_ROOT / "tables/delay_common_differential.csv")
-    rows.append(
-        {
-            "method_or_split": "AutoPos v4-io residual delay structure",
-            "coordinate_sd_median_mm": float("nan"),
-            "pairwise_distance_sd_median_mm": float("nan"),
-            "delay_sd_mm": float(np.std(delay["autopos_differential_mm"].to_numpy(float), ddof=1)),
-            "worst_anchor_sd_mm": float("nan"),
-            "status": "structure_not_repeatability",
-            "note": "std of fitted layout-level residual delay corrections; not a repeated-run delay SD",
-        }
-    )
+    delay_path = FULL_ROOT / "tables/delay_common_differential.csv"
+    if delay_path.exists():
+        delay = pd.read_csv(delay_path)
+        rows.append(
+            {
+                "method_or_split": "AutoPos v4-io residual delay structure",
+                "coordinate_sd_median_mm": float("nan"),
+                "pairwise_distance_sd_median_mm": float("nan"),
+                "delay_sd_mm": float(np.std(delay["autopos_differential_mm"].to_numpy(float), ddof=1)),
+                "worst_anchor_sd_mm": float("nan"),
+                "status": "structure_not_repeatability",
+                "note": "std of fitted layout-level residual delay corrections; not a repeated-run delay SD",
+            }
+        )
     return rows
 
 
@@ -584,7 +634,10 @@ def build_delay_layout_coupling_table(
         return rows.iloc[0]
 
     v4_anchor = anchors[anchors["version"] == "v4-io"].iloc[0]
-    auto_static = static_row("Original FULL production mean-aggregated static point v4-io/T4")
+    try:
+        auto_static = static_row("Original FULL production mean-aggregated static point v4-io/T4")
+    except KeyError:
+        auto_static = static_row("Original FULL median-estimator ablation v4-io/T4")
     mechanism = load_anchor_absorption_mechanism()
     rows = [
         {
@@ -824,6 +877,36 @@ def write_report(
 
 
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Build reporting checklist audit from existing FULL/4-way outputs.")
+    parser.add_argument("--comparison-root", default=None)
+    parser.add_argument("--full-root", default=None)
+    parser.add_argument("--align-root", default=None)
+    parser.add_argument("--scale-root", default=None)
+    parser.add_argument("--one-baseline-root", default=None)
+    parser.add_argument("--solver-root", default=None)
+    parser.add_argument("--out-root", default=None)
+    parser.add_argument("--resilience-root", default=None)
+    parser.add_argument("--reviewer-root", default=None)
+    parser.add_argument("--production-t4-real-eval-root", default=None)
+    args = parser.parse_args()
+
+    configure_paths(
+        comparison_root=Path(args.comparison_root) if args.comparison_root else None,
+        full_root=Path(args.full_root) if args.full_root else None,
+        align_root=Path(args.align_root) if args.align_root else None,
+        scale_root=Path(args.scale_root) if args.scale_root else None,
+        one_baseline_root=Path(args.one_baseline_root) if args.one_baseline_root else None,
+        solver_root=Path(args.solver_root) if args.solver_root else None,
+        out_root=Path(args.out_root) if args.out_root else None,
+        resilience_root=Path(args.resilience_root) if args.resilience_root else None,
+        reviewer_root=Path(args.reviewer_root) if args.reviewer_root else None,
+        production_t4_real_eval_root=Path(args.production_t4_real_eval_root)
+        if args.production_t4_real_eval_root
+        else None,
+    )
+
     TABLE_DIR.mkdir(parents=True, exist_ok=True)
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     FIG_DIR.mkdir(parents=True, exist_ok=True)

@@ -853,6 +853,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run filtered static deployment matrix.")
     parser.add_argument("--official-root", default="autopos_pipeline/28052026_Erlangen_Official")
     parser.add_argument("--out-dir", default=None)
+    parser.add_argument("--layout-dir", default=None, help="layout output directory; defaults to solver/outputs/v1_to_v4_io_field_check")
+    parser.add_argument("--static-csv", default=None, help="static_all_captures.csv for metadata in the selected layout gauge")
     parser.add_argument("--layout-versions", default="all")
     parser.add_argument("--tag-methods", default="all")
     parser.add_argument("--external-filters", default="all")
@@ -877,11 +879,12 @@ def main() -> int:
     for d in [tables_dir, figs_dir, reports_dir]:
         d.mkdir(parents=True, exist_ok=True)
 
-    layout_base = official_root / "solver/outputs/v1_to_v4_io_field_check"
+    layout_base = Path(args.layout_dir).resolve() if args.layout_dir else official_root / "solver/outputs/v1_to_v4_io_field_check"
+    static_csv = Path(args.static_csv).resolve() if args.static_csv else layout_base / "tables/static_all_captures.csv"
     sigma_path = layout_base / "tables/anchor_sigma.json"
     captures_root = official_root / "captures/erlangen_20260528_optitrack"
     opti_dir = official_root / "opti_captures/full"
-    metadata = load_static_metadata(layout_base / "tables/static_all_captures.csv")
+    metadata = load_static_metadata(static_csv)
     anchor_truth, tag_truth, tag_truth_meta, _correction_rows = load_truth(opti_dir)
     static_files = sorted(captures_root.glob("static_ID*/tag_capture*/tr_all.csv"))
     if args.layout_versions.lower() == "all":
@@ -933,6 +936,8 @@ def main() -> int:
             "mode": "combine_shards_only",
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             "official_root": str(official_root),
+            "layout_base": str(layout_base),
+            "static_csv": str(static_csv),
             "layout_versions": layout_versions,
             "tag_methods": tag_methods,
             "external_filters": external_filters,
@@ -1068,6 +1073,8 @@ def main() -> int:
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             "elapsed_s": time.perf_counter() - t_start,
             "official_root": str(official_root),
+            "layout_base": str(layout_base),
+            "static_csv": str(static_csv),
             "layout_versions": layout_versions,
             "tag_methods": tag_methods,
             "external_filters": external_filters,
@@ -1113,6 +1120,8 @@ def main() -> int:
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "elapsed_s": time.perf_counter() - t_start,
         "official_root": str(official_root),
+        "layout_base": str(layout_base),
+        "static_csv": str(static_csv),
         "layout_versions": layout_versions,
         "tag_methods": tag_methods,
         "external_filters": external_filters,
@@ -1123,6 +1132,7 @@ def main() -> int:
         "axis_convention": "OptiTrack Y is vertical",
         "inputs": {
             "sigma_path": str(sigma_path),
+            "static_csv": str(static_csv),
             "n_static_files": len(static_files),
             "layout_hashes": {v: sha256_file(layout_base / v / "layout.json") for v in layout_versions},
         },

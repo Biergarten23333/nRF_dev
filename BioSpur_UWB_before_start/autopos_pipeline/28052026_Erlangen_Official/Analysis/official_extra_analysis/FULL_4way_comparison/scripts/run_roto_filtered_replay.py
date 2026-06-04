@@ -64,6 +64,29 @@ FILTER_SPECS = [
 ]
 
 
+def configure_paths(
+    *,
+    full_root: str | Path | None = None,
+    align_root: str | Path | None = None,
+    scale_root: str | Path | None = None,
+    one_baseline_root: str | Path | None = None,
+    out_root: str | Path | None = None,
+) -> None:
+    global FULL_ROOT, ALIGN_ROOT, SCALE_ROOT, ONE_BASELINE_ROOT, OUT_ROOT, TABLE_DIR, REPORT_DIR
+    if full_root is not None:
+        FULL_ROOT = Path(full_root).resolve()
+    if align_root is not None:
+        ALIGN_ROOT = Path(align_root).resolve()
+    if scale_root is not None:
+        SCALE_ROOT = Path(scale_root).resolve()
+    if one_baseline_root is not None:
+        ONE_BASELINE_ROOT = Path(one_baseline_root).resolve()
+    if out_root is not None:
+        OUT_ROOT = Path(out_root).resolve()
+    TABLE_DIR = OUT_ROOT / "tables"
+    REPORT_DIR = OUT_ROOT / "reports"
+
+
 def write_csv(path: Path, rows: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if not rows:
@@ -659,12 +682,24 @@ def write_report(summary_rows: list[dict]) -> None:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run ROTO post-solve filtered replay.")
+    parser.add_argument("--full-root", default=str(FULL_ROOT))
+    parser.add_argument("--align-root", default=str(ALIGN_ROOT))
+    parser.add_argument("--scale-root", default=str(SCALE_ROOT))
+    parser.add_argument("--one-baseline-root", default=str(ONE_BASELINE_ROOT))
+    parser.add_argument("--out-root", default=str(OUT_ROOT))
     parser.add_argument("--summary-only", action="store_true", help="Only print existing summary table.")
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
+    configure_paths(
+        full_root=args.full_root,
+        align_root=args.align_root,
+        scale_root=args.scale_root,
+        one_baseline_root=args.one_baseline_root,
+        out_root=args.out_root,
+    )
     TABLE_DIR.mkdir(parents=True, exist_ok=True)
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     if args.summary_only:

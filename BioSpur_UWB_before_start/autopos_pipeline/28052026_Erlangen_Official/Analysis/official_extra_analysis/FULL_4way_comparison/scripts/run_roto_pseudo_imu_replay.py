@@ -40,6 +40,14 @@ BODY_MARKERS = {
 ANTENNA_MARKERS = {"BS2DCE": "WandBantenna", "BSDC91": "WandCantenna"}
 
 
+def configure_output(out_root: str | Path | None = None) -> None:
+    global OUT_ROOT, TABLE_DIR, REPORT_DIR
+    if out_root is not None:
+        OUT_ROOT = Path(out_root).resolve()
+    TABLE_DIR = OUT_ROOT / "tables"
+    REPORT_DIR = OUT_ROOT / "reports"
+
+
 @dataclass(frozen=True)
 class PseudoSpec:
     fusion_id: str
@@ -638,8 +646,20 @@ def write_report(summary_rows: list[dict], extrinsic_rows: list[dict]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--full-root", default=str(filtered.FULL_ROOT))
+    parser.add_argument("--align-root", default=str(filtered.ALIGN_ROOT))
+    parser.add_argument("--scale-root", default=str(filtered.SCALE_ROOT))
+    parser.add_argument("--one-baseline-root", default=str(filtered.ONE_BASELINE_ROOT))
+    parser.add_argument("--out-root", default=str(OUT_ROOT))
     parser.add_argument("--report-only", action="store_true", help="rewrite report from existing tables")
     args = parser.parse_args()
+    filtered.configure_paths(
+        full_root=args.full_root,
+        align_root=args.align_root,
+        scale_root=args.scale_root,
+        one_baseline_root=args.one_baseline_root,
+    )
+    configure_output(args.out_root)
     TABLE_DIR.mkdir(parents=True, exist_ok=True)
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     if args.report_only:
