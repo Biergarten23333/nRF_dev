@@ -27,6 +27,28 @@ Generated 2026-06-03T15:31:53.860679+00:00.
 | one_baseline | v1-old | one_baseline_scale | one_baseline_layout_inter_anchor_delaycal | T2 | B-G | 24 | 57.8 | 127.7 | 70.3 | 109.8 | 61.8 |
 | one_baseline | v1-old | one_baseline_scale | one_baseline_layout_inter_anchor_delaycal | T4 | D-E | 24 | 57.8 | 129.5 | 77.3 | 108.0 | 64.2 |
 
+## Static Stationary / IMU-Equivalent Filtering
+
+The static report was behind the newer deployment-filter results. The existing `FULL/filtered_deployment` matrix already tests the static equivalent of an IMU stationary prior: detect that the tag is not moving, then stabilize the output over the dwell window instead of treating every solved point as an independent position. This is best interpreted as a deployment/static-lock filter, not as a new calibration result.
+
+For `v4-io/all8`, the useful comparison is:
+
+| solver | family | median 3D | p95 3D | RMSE 3D | repeat D3 std median | note |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| T4+F0 | external_position_filter | 69.7 | 173.9 | 108.9 | 67.4 | baseline unfiltered T4 |
+| T4+F5 | external_position_filter | 64.9 | 175.7 | 109.5 | 18.7 | offline stationary smoother / static lock |
+| T4+F4 | external_position_filter | 65.9 | 176.1 | 109.6 | 21.4 | fixed-lag stationary smoother |
+| T3+F5 | external_position_filter | 65.2 | 169.9 | 105.4 | 21.0 | best combined filtered static row |
+| T3+F0 | external_position_filter | 69.2 | 173.0 | 106.6 | 58.7 | unfiltered T3 reference |
+
+Static interpretation:
+
+- Yes, static can use an IMU-style stationary detector. In a real deployment this would be a zero-velocity / zero-motion gate: once the IMU says the tag is static, hold or slowly update one position estimate instead of outputting every noisy UWB solve.
+- The strongest effect is repeatability: `T4+F5` reduces median 3D within-capture spread from **67.4 mm** to **18.7 mm**. That is exactly the "reduce vibration" behavior.
+- Absolute accuracy improves only modestly: `T4+F0` **69.7 / 173.9 mm** becomes `T4+F5` **64.9 / 175.7 mm**. Systematic layout/delay/ranging bias remains even if the point cloud is stabilized.
+- `T3+F5` is the cleanest static filtered deployment row here: **65.2 / 169.9 mm**, RMSE **105.4 mm**, repeatability **21.0 mm**.
+- Paper wording should call this a static deployment filter or stationary-lock ablation. Do not sell it as a new raw positioning accuracy limit unless the latency/window and stationary detector are stated.
+
 ## Full Summary
 
 | experiment | layout_solver | layout_variant | delay_mode | tag_method | scale_source | n_sessions | err_3d_median_mm | err_3d_p95_mm | err_horizontal_xz_p95_mm | err_vertical_y_p95_mm | d3_std_median_mm |

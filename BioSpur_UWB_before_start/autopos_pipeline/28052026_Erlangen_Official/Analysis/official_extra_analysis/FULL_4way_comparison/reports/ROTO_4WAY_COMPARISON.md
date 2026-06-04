@@ -56,3 +56,40 @@ All rows use the corrected FULL OptiTrack export and fixed capture-level offsets
 | one_baseline | v4-io | one_baseline_scale | solver_delay | T4 | B-C | B-C | 34 | 100.1 | 220.5 | 159.3 | 176.2 | 69.4 |
 | align_to_vicon | v1-old | vicon_truth | vicon_inter_anchor_delaycal | T4 |  |  | 34 | 105.6 | 200.4 | 137.2 | 172.0 | 69.8 |
 | scale_to_vicon | v1-old | vicon_truth | vicon_inter_anchor_delaycal | T4 | none_truth_anchor |  | 34 | 105.6 | 200.4 | 137.2 | 172.0 | 69.8 |
+
+## ROTO Post-Solve Filtered Replay
+
+This report was generated before the newer filtered replay. These rows are post-solve trajectory filters on the already solved ROTO samples. They do not change the range solver, layout, residual delay corrections, tag solver, or capture-level time offset. `F4` is bounded fixed-lag smoothing with latency; `F5` is offline and uses future samples.
+
+| case | filter | deployability | track P50 3D | track P95 3D | sample RMSE 3D | center RMS 3D | dR RMS | verdict |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| FULL original v4-io/T4 | F0 | baseline | 105.8 | 231.8 | 141.3 | 72.1 | 25.9 | BASELINE_UNFILTERED |
+| FULL original v4-io/T4 | F4 | fixed_lag | 86.3 | 158.2 | 103.1 | 69.1 | 24.5 | FILTER_HELPS |
+| FULL original v4-io/T4 | F5 | offline_upper_bound | 83.3 | 148.6 | 98.9 | 68.3 | 24.6 | OFFLINE_FILTER_HELPS_DIAGNOSTIC_ONLY |
+| Vicon anchors + delaycal / T4 | F0 | baseline | 105.6 | 200.4 | 125.4 | 72.7 | 18.0 | BASELINE_UNFILTERED |
+| Vicon anchors + delaycal / T4 | F4 | fixed_lag | 84.0 | 145.4 | 95.1 | 70.5 | 17.7 | FILTER_HELPS |
+| Vicon anchors + delaycal / T4 | F5 | offline_upper_bound | 82.7 | 139.1 | 91.2 | 70.0 | 18.0 | OFFLINE_FILTER_HELPS_DIAGNOSTIC_ONLY |
+
+Filtered interpretation:
+
+- Fixed-lag smoothing helps ROTO: original FULL improves from **105.8 / 231.8 mm** to **86.3 / 158.2 mm**.
+- Offline `F5` is better, **83.3 / 148.6 mm**, but it is diagnostic only because it uses future samples.
+- This is a trajectory-output/latency result, not evidence that the underlying calibration or range solver became better.
+
+## ROTO Lever-Armed Pseudo-IMU Replay
+
+This is the OptiTrack-derived oracle test. It fits wand-body motion from non-antenna markers, estimates the body-to-UWB-antenna lever arm against `WandBantenna`/`WandCantenna`, and applies an antenna-point relative-motion prior. It is not a real IMU deployment result yet.
+
+| case | fusion | deployability | track P50 3D | track P95 3D | sample RMSE 3D | center RMS 3D | dR RMS | verdict |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| FULL original v4-io/T4 | PI0 | baseline | 105.8 | 231.8 | 141.3 | 72.1 | 25.9 | BASELINE_UNFILTERED |
+| FULL original v4-io/T4 | PI1 | online_oracle | 66.1 | 97.5 | 71.6 | 60.4 | 12.3 | PSEUDO_IMU_HELPS |
+| FULL original v4-io/T4 | PI4 | offline_upper_bound | 58.7 | 81.5 | 61.8 | 57.6 | 5.3 | PSEUDO_IMU_HELPS_DIAGNOSTIC_ONLY |
+| Vicon anchors + delaycal / T4 | PI1 | online_oracle | 64.0 | 100.2 | 69.8 | 63.3 | 11.7 | PSEUDO_IMU_HELPS |
+| Vicon anchors + delaycal / T4 | PI4 | offline_upper_bound | 59.9 | 82.0 | 63.1 | 60.5 | 4.3 | PSEUDO_IMU_HELPS_DIAGNOSTIC_ONLY |
+
+Pseudo-IMU interpretation:
+
+- A correctly lever-armed motion prior has much stronger leverage than generic smoothing: original FULL drops to **66.1 / 97.5 mm** under the causal oracle prior.
+- Because the prior comes from OptiTrack, this is an upper-bound experiment. A real result requires real IMU data, IMU-to-antenna extrinsic calibration, and raw-range fusion validation.
+- The full 4x FULL matrix is in `roto_pseudo_imu/tables/roto_pseudo_imu_summary.csv`.

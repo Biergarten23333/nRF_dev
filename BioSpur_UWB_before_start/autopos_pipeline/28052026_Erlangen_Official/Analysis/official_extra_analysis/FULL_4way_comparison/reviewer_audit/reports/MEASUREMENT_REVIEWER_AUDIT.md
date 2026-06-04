@@ -45,6 +45,46 @@ This is a skeptical data interrogation of the corrected FULL analysis. It is not
 
 **Reviewer-survivability.** The relative-distance claim survives as a scale/delay-consistency metric. It must not be sold as absolute dynamic accuracy.
 
+## WHY #10: Does Post-Solve Dynamic Filtering Change ROTO?
+
+**Tests run.**
+
+- Applied post-solve trajectory filters to the already solved, OptiTrack-aligned ROTO `v4-io/T4` sample trajectories, keeping layout, delay mode, tag solver, and capture-level beta fixed.
+- Filter variants: `F0` passthrough; `F1` online constant-velocity Kalman; `F2` online robust innovation down-weighting; `F3` online adaptive-acceleration robust Kalman; `F4` bounded fixed-lag smoother; `F5` full-sequence RTS smoother.
+- `F5` is an offline upper bound because it uses future samples. `F4` is deployable only with output latency. `F1-F3` are the online post-solve filters.
+
+**Numbers computed.**
+
+- Self-cal FULL track-median 3D P50/P95, F0/F3/F4/F5: 105.8/231.8, 111.1/213.4, 86.3/158.2, 83.3/148.6 mm.
+- Vicon-truth+delaycal track-median 3D P50/P95, F0/F3/F4/F5: 105.6/200.4, 98.9/181.4, 84.0/145.4, 82.7/139.1 mm.
+- Fixed-lag F4 across the main controls: self-cal 86.3/158.2 mm; Vicon-truth 84.0/145.4 mm; scale-to-Vicon 88.8/151.2 mm; one-baseline E-H 87.7/146.0 mm.
+- Self-cal F4 improves track-median P50 by 19.5 mm versus F0; F5 improves by 22.5 mm but is offline-only.
+- The best online self-cal row among F1-F3 is F3 at 111.1/213.4 mm, which is worse in median than F0; the same F3 row under Vicon-truth improves to 98.9/181.4 mm.
+
+**Verdict.** Dynamic filtering is real but conditional. Bounded-lag and offline smoothing can suppress the ROTO single-shot scatter and move the main result from the ~105 mm P50 class to the mid-80 mm class, but pure online post-solve filtering is not enough for the self-cal FULL trajectory and can even worsen the median. This means filtering addresses temporal scatter, not the full layout/ranging residual structure.
+
+**Reviewer-survivability.** Report unfiltered ROTO as the calibration-level dynamic validation. Report F1-F4 as deployment trajectory-filter ablations with latency/causality stated, and F5 only as an offline upper bound.
+
+## WHY #11: What If ROTO Had A Correctly Lever-Armed IMU Prior?
+
+**Tests run.**
+
+- Fitted each wand's rigid-body pose from non-antenna OptiTrack markers, then estimated the body-to-UWB-antenna lever arm using `WandBantenna`/`WandCantenna`.
+- Used the fitted antenna-point trajectory as an OptiTrack-derived pseudo-IMU relative-motion prior for already solved UWB antenna positions across the same 4x FULL ROTO cases.
+- Variants: `PI0` passthrough; `PI1` strong causal pseudo-IMU prior; `PI2` balanced causal pseudo-IMU prior; `PI3` fixed-lag over PI1; `PI4/PI5` full-sequence RTS upper bounds.
+
+**Numbers computed.**
+
+- Lever-arm sanity: body-fit antenna residual across 34 capture/tag tracks is 0.62 mm P50-of-P50 and 1.54 mm P50-of-P95. So the prior is applied to the antenna point, not to the marker-body centroid.
+- Self-cal FULL track-median 3D P50/P95, PI0/PI1/PI2/PI4: 105.8/231.8, 66.1/97.5, 84.7/153.2, 58.7/81.5 mm.
+- Vicon-truth+delaycal PI1/PI4: 64.0/100.2 mm and 59.9/82.0 mm.
+- PI1 across the 4x FULL cases: self-cal 66.1/97.5 mm; Vicon-truth 64.0/100.2 mm; scale-to-Vicon 69.7/104.0 mm; one-baseline E-H 70.2/104.6 mm.
+- Self-cal PI1 improves track-median P50 by 39.7 mm versus PI0; offline PI4 improves by 47.2 mm.
+
+**Verdict.** A correctly lever-armed inertial relative-motion prior would materially reduce ROTO dynamic scatter: the self-cal trajectory moves from the 105.8/231.8 mm class to 66.1/97.5 mm under the strong causal pseudo-IMU prior. This is stronger than post-solve position filtering, but it is an OptiTrack-derived oracle diagnostic, not a deployable UWB+IMU result.
+
+**Reviewer-survivability.** Keep this as an upper-bound sensor-fusion argument. A real paper claim needs actual IMU data, IMU-to-antenna extrinsic calibration, and raw-range EKF/UKF validation; this audit only proves the lever-armed motion-prior channel has enough leverage to matter.
+
 ## WHY #6: Does Intra-Capture Clock Skew Explain The ROTO Residual?
 
 **Test run.** For each capture, both wand tags share one affine time model:
@@ -186,15 +226,17 @@ with `t_ref` at the capture start. Alpha is reported in ppm. Search used coarse 
 
 ## Report Coverage Check
 
-**Reviewer-audit coverage.** This report now covers every table generated under `reviewer_audit/tables`: WHY #1/#2 dynamic time, rigid, and circle metrics; WHY #3 one-baseline LOOCV; WHY #4 Procrustes scale; WHY #5 production-vs-raw; WHY #6 clock skew; WHY #7 single-shot/GDOP/static-bias decomposition; WHY #8 bias/scatter, tag-delay, and GDOP-overlap checks; and WHY #9 raw tag-by-anchor residual decomposition.
+**Reviewer-audit coverage.** This report now covers every table generated under `reviewer_audit/tables`: WHY #1/#2 dynamic time, rigid, and circle metrics; WHY #3 one-baseline LOOCV; WHY #4 Procrustes scale; WHY #5 production-vs-raw; WHY #6 clock skew; WHY #7 single-shot/GDOP/static-bias decomposition; WHY #8 bias/scatter, tag-delay, and GDOP-overlap checks; WHY #9 raw tag-by-anchor residual decomposition; WHY #10 ROTO post-solve dynamic filtering; and WHY #11 lever-armed pseudo-IMU motion-prior replay. The separate `resilience_gap_audit` adds raw-pair bootstrap repeatability, delay-bootstrap SD, and synthetic dropout stress for 4x FULL.
 
 **What is summarized rather than printed row-by-row.** Large per-capture, per-anchor, per-tag, and full solver-matrix tables are intentionally indexed in Output Tables rather than expanded in text. They are comparison evidence, but not headline claims.
 
 **Separate FULL diagnostics.** The broader FULL directory also contains DOP grids, Monte Carlo keep-k/drop-anchor runs, temporal drift checks, pair residual diagnostics, and anchor-health scorecards. Those are not missing from this reviewer audit; they are robustness/sensor-health appendices and should be pulled into the paper only if a reviewer asks about geometry sensitivity, anchor removal, or acquisition drift.
 
+**Paper reporting checklist.** The separate `reporting_checklist` audit now maps the requested reporting structure onto the FULL outputs. It splits anchor absolute error, anchor repeatability, scale bias, Sim(3) shape distortion, delay-layout coupling, static tag error, dynamic tag ATE/RPE, and missing robustness evidence. Raw-pair bootstrap/synthetic stress now covers the feasible repeatability, delay-SD, and dropout diagnostics. The remaining true gaps are independent repeated AutoPos deployments, a PANS/manual baseline, explicit CIR/NLOS labels, and raw dynamic ROTO range re-solve or physical packet-loss stress sweeps.
+
 ## Headline Recommendation
 
-For the paper headline, use `v4-io/T4 raw replay` as the static deployment-capable claim: `69.7 mm P50 / 173.9 mm P95` 3D, with XY/Z split reported separately. Report `production 74.0/282.1` as the legacy/current exported production-output ablation unless production is actually switched to T4. For dynamic ROTO, the honest claim is `about 105.8 mm P50 / 231.8 mm P95` absolute 3D for self-cal v4-io/T4, and `105.6 mm P50 / 200.4 mm P95` for Vicon-truth+delaycal; this shows ROTO absolute error is not primarily a layout-calibration issue. Demote similarity-scale, one-baseline-best, and per-capture post-hoc rigid results to diagnostic/ablation status.
+For the paper headline, use `v4-io/T4 raw replay` as the static deployment-capable claim: `69.7 mm P50 / 173.9 mm P95` 3D, with XY/Z split reported separately. Report `production 74.0/282.1` as the legacy/current exported production-output ablation unless production is actually switched to T4. For dynamic ROTO, the honest claim is `about 105.8 mm P50 / 231.8 mm P95` absolute 3D for self-cal v4-io/T4, and `105.6 mm P50 / 200.4 mm P95` for Vicon-truth+delaycal; this shows ROTO absolute error is not primarily a layout-calibration issue. Report ROTO filtering separately: fixed-lag F4 can reach about `86.3 / 158.2 mm` on self-cal FULL, but it is a trajectory-filter/latency ablation, not the calibration-level dynamic claim. Report pseudo-IMU replay as an oracle upper bound: a correctly lever-armed motion prior can reach `66.1 / 97.5 mm` causally on self-cal FULL, but it is not a real IMU deployment claim. Demote similarity-scale, one-baseline-best, offline F5/PI4 smoothing, pseudo-IMU oracle replay, and per-capture post-hoc rigid results to diagnostic/ablation status.
 
 ## Output Tables
 
@@ -203,6 +245,11 @@ For the paper headline, use `v4-io/T4 raw replay` as the static deployment-capab
 - `../tables/why2_posthoc_rigid_per_capture.csv`
 - `../tables/why2_roto_refit_summary.csv`
 - `../tables/why2_roto_circle_metrics.csv`
+- `../tables/why10_roto_filtered_summary.csv`
+- `../tables/why10_roto_filtered_per_track.csv`
+- `../tables/why11_roto_pseudo_imu_summary.csv`
+- `../tables/why11_roto_pseudo_imu_per_track.csv`
+- `../tables/why11_roto_pseudo_imu_extrinsics.csv`
 - `../tables/why3_one_baseline_loocv.csv`
 - `../tables/why3_one_baseline_cv_summary.csv`
 - `../tables/why4_procrustes_check.csv`
@@ -220,3 +267,15 @@ For the paper headline, use `v4-io/T4 raw replay` as the static deployment-capab
 - `../tables/why9_twoway_effects.csv`
 - `../tables/why9_stability_summary.csv`
 - `../tables/why9_anchor_consistency.csv`
+- `../../reporting_checklist/tables/checklist_anchor_layout_absolute.csv`
+- `../../reporting_checklist/tables/checklist_anchor_repeatability.csv`
+- `../../reporting_checklist/tables/checklist_tag_static.csv`
+- `../../reporting_checklist/tables/checklist_tag_dynamic.csv`
+- `../../reporting_checklist/tables/checklist_ablation.csv`
+- `../../reporting_checklist/tables/checklist_coverage.csv`
+- `../../reporting_checklist/reports/REPORTING_CHECKLIST_AUDIT.md`
+- `../../resilience_gap_audit/tables/bootstrap_layout_repeatability.csv`
+- `../../resilience_gap_audit/tables/bootstrap_delay_sd.csv`
+- `../../resilience_gap_audit/tables/static_dropout_stress_summary.csv`
+- `../../resilience_gap_audit/tables/roto_sample_dropout_stress_summary.csv`
+- `../../resilience_gap_audit/reports/RESILIENCE_GAP_AUDIT.md`

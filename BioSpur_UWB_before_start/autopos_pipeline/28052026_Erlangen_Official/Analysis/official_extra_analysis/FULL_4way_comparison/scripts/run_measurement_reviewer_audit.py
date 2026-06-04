@@ -73,7 +73,7 @@ def write_csv(path: Path, rows: list[dict]) -> None:
             if key not in fields:
                 fields.append(key)
     with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fields)
+        writer = csv.DictWriter(f, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -883,6 +883,62 @@ def audit_roto_circle_metrics() -> list[dict]:
         ),
     ]
     return [circle_metrics_row(case, root, filters, note) for case, root, filters, note in configs]
+
+
+def import_roto_filtered_module():
+    path = COMP_ROOT / "scripts" / "run_roto_filtered_replay.py"
+    spec = importlib.util.spec_from_file_location("full_roto_filtered_replay", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot import {path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def audit_roto_filtered_replay() -> tuple[list[dict], list[dict]]:
+    """ROTO post-solve trajectory filtering across the 4-way comparison cases."""
+    summary_path = COMP_ROOT / "roto_filtered" / "tables" / "roto_filtered_summary.csv"
+    per_track_path = COMP_ROOT / "roto_filtered" / "tables" / "roto_filtered_per_track.csv"
+    if not summary_path.exists() or not per_track_path.exists():
+        filt_mod = import_roto_filtered_module()
+        summary_rows, per_track_rows = filt_mod.run_matrix()
+        filt_mod.write_csv(filt_mod.TABLE_DIR / "roto_filtered_summary.csv", summary_rows)
+        filt_mod.write_csv(filt_mod.TABLE_DIR / "roto_filtered_per_track.csv", per_track_rows)
+        filt_mod.write_report(summary_rows)
+        return summary_rows, per_track_rows
+    return pd.read_csv(summary_path).to_dict("records"), pd.read_csv(per_track_path).to_dict("records")
+
+
+def import_roto_pseudo_imu_module():
+    path = COMP_ROOT / "scripts" / "run_roto_pseudo_imu_replay.py"
+    spec = importlib.util.spec_from_file_location("full_roto_pseudo_imu_replay", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot import {path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def audit_roto_pseudo_imu_replay() -> tuple[list[dict], list[dict], list[dict]]:
+    """OptiTrack-derived pseudo-IMU relative-motion prior across the 4-way ROTO cases."""
+    summary_path = COMP_ROOT / "roto_pseudo_imu" / "tables" / "roto_pseudo_imu_summary.csv"
+    per_track_path = COMP_ROOT / "roto_pseudo_imu" / "tables" / "roto_pseudo_imu_per_track.csv"
+    extrinsics_path = COMP_ROOT / "roto_pseudo_imu" / "tables" / "roto_pseudo_imu_extrinsics.csv"
+    if not summary_path.exists() or not per_track_path.exists() or not extrinsics_path.exists():
+        pseudo_mod = import_roto_pseudo_imu_module()
+        summary_rows, per_track_rows, extrinsic_rows = pseudo_mod.run_matrix()
+        pseudo_mod.write_csv(pseudo_mod.TABLE_DIR / "roto_pseudo_imu_summary.csv", summary_rows)
+        pseudo_mod.write_csv(pseudo_mod.TABLE_DIR / "roto_pseudo_imu_per_track.csv", per_track_rows)
+        pseudo_mod.write_csv(pseudo_mod.TABLE_DIR / "roto_pseudo_imu_extrinsics.csv", extrinsic_rows)
+        pseudo_mod.write_report(summary_rows, extrinsic_rows)
+        return summary_rows, per_track_rows, extrinsic_rows
+    return (
+        pd.read_csv(summary_path).to_dict("records"),
+        pd.read_csv(per_track_path).to_dict("records"),
+        pd.read_csv(extrinsics_path).to_dict("records"),
+    )
 
 
 def skew_verdict_for_summary(row: dict) -> tuple[str, str]:
@@ -2517,6 +2573,9 @@ def build_report(
     roto_summary: list[dict],
     dynamic_budget: dict[str, float],
     center_rms_rows: list[dict],
+    roto_filtered_summary: list[dict],
+    roto_pseudo_summary: list[dict],
+    roto_pseudo_extrinsics: list[dict],
     skew_summary: list[dict],
     single_shot_summary: list[dict],
     bias_scatter_summary: list[dict],
@@ -2538,6 +2597,34 @@ def build_report(
     center_scale = center_by_case["scale_to_vicon_delaycal_v4io_T4"]
     center_one_eh = center_by_case["one_baseline_EH_delaycal_v4io_T4"]
     center_one_best = center_by_case["one_baseline_best_roto_solver_delay_v4io_T4_BC"]
+    filtered_by_case = {
+        (str(r["case"]), str(r["filter_id"])): r
+        for r in roto_filtered_summary
+    }
+    filt_self_f0 = filtered_by_case[("full_original_v4io_T4", "F0")]
+    filt_self_f3 = filtered_by_case[("full_original_v4io_T4", "F3")]
+    filt_self_f4 = filtered_by_case[("full_original_v4io_T4", "F4")]
+    filt_self_f5 = filtered_by_case[("full_original_v4io_T4", "F5")]
+    filt_vicon_f0 = filtered_by_case[("vicon_truth_delaycal_v4io_T4", "F0")]
+    filt_vicon_f3 = filtered_by_case[("vicon_truth_delaycal_v4io_T4", "F3")]
+    filt_vicon_f4 = filtered_by_case[("vicon_truth_delaycal_v4io_T4", "F4")]
+    filt_vicon_f5 = filtered_by_case[("vicon_truth_delaycal_v4io_T4", "F5")]
+    filt_scale_f4 = filtered_by_case[("scale_to_vicon_delaycal_v4io_T4", "F4")]
+    filt_one_eh_f4 = filtered_by_case[("one_baseline_EH_delaycal_v4io_T4", "F4")]
+    pseudo_by_case = {
+        (str(r["case"]), str(r["fusion_id"])): r
+        for r in roto_pseudo_summary
+    }
+    pseudo_self_pi0 = pseudo_by_case[("full_original_v4io_T4", "PI0")]
+    pseudo_self_pi1 = pseudo_by_case[("full_original_v4io_T4", "PI1")]
+    pseudo_self_pi2 = pseudo_by_case[("full_original_v4io_T4", "PI2")]
+    pseudo_self_pi4 = pseudo_by_case[("full_original_v4io_T4", "PI4")]
+    pseudo_vicon_pi1 = pseudo_by_case[("vicon_truth_delaycal_v4io_T4", "PI1")]
+    pseudo_vicon_pi4 = pseudo_by_case[("vicon_truth_delaycal_v4io_T4", "PI4")]
+    pseudo_scale_pi1 = pseudo_by_case[("scale_to_vicon_delaycal_v4io_T4", "PI1")]
+    pseudo_one_eh_pi1 = pseudo_by_case[("one_baseline_EH_delaycal_v4io_T4", "PI1")]
+    pseudo_extrinsic_p50 = pct([float(r["bodyfit_antenna_residual_p50_mm"]) for r in roto_pseudo_extrinsics], 50)
+    pseudo_extrinsic_p95_of_p95 = pct([float(r["bodyfit_antenna_residual_p95_mm"]) for r in roto_pseudo_extrinsics], 50)
     self_skew = next(r for r in skew_summary if r["scenario"] == "self_cal_v4io_T4")
     vicon_skew = next(r for r in skew_summary if r["scenario"] == "vicon_truth_delaycal_T4")
     self_single = next(r for r in single_shot_summary if r["scenario"] == "self_cal_v4io_T4")
@@ -2710,6 +2797,115 @@ def build_report(
     lines.append("")
     lines.append(
         "**Reviewer-survivability.** The relative-distance claim survives as a scale/delay-consistency metric. It must not be sold as absolute dynamic accuracy."
+    )
+    lines.append("")
+    lines.append("## WHY #10: Does Post-Solve Dynamic Filtering Change ROTO?")
+    lines.append("")
+    lines.append("**Tests run.**")
+    lines.append("")
+    lines.append(
+        "- Applied post-solve trajectory filters to the already solved, OptiTrack-aligned ROTO `v4-io/T4` sample trajectories, keeping layout, delay mode, tag solver, and capture-level beta fixed."
+    )
+    lines.append(
+        "- Filter variants: `F0` passthrough; `F1` online constant-velocity Kalman; `F2` online robust innovation down-weighting; `F3` online adaptive-acceleration robust Kalman; `F4` bounded fixed-lag smoother; `F5` full-sequence RTS smoother."
+    )
+    lines.append(
+        "- `F5` is an offline upper bound because it uses future samples. `F4` is deployable only with output latency. `F1-F3` are the online post-solve filters."
+    )
+    lines.append("")
+    lines.append("**Numbers computed.**")
+    lines.append("")
+    lines.append(
+        f"- Self-cal FULL track-median 3D P50/P95, F0/F3/F4/F5: "
+        f"{fmt(filt_self_f0['trackmedian_err3d_p50_mm'])}/{fmt(filt_self_f0['trackmedian_err3d_p95_mm'])}, "
+        f"{fmt(filt_self_f3['trackmedian_err3d_p50_mm'])}/{fmt(filt_self_f3['trackmedian_err3d_p95_mm'])}, "
+        f"{fmt(filt_self_f4['trackmedian_err3d_p50_mm'])}/{fmt(filt_self_f4['trackmedian_err3d_p95_mm'])}, "
+        f"{fmt(filt_self_f5['trackmedian_err3d_p50_mm'])}/{fmt(filt_self_f5['trackmedian_err3d_p95_mm'])} mm."
+    )
+    lines.append(
+        f"- Vicon-truth+delaycal track-median 3D P50/P95, F0/F3/F4/F5: "
+        f"{fmt(filt_vicon_f0['trackmedian_err3d_p50_mm'])}/{fmt(filt_vicon_f0['trackmedian_err3d_p95_mm'])}, "
+        f"{fmt(filt_vicon_f3['trackmedian_err3d_p50_mm'])}/{fmt(filt_vicon_f3['trackmedian_err3d_p95_mm'])}, "
+        f"{fmt(filt_vicon_f4['trackmedian_err3d_p50_mm'])}/{fmt(filt_vicon_f4['trackmedian_err3d_p95_mm'])}, "
+        f"{fmt(filt_vicon_f5['trackmedian_err3d_p50_mm'])}/{fmt(filt_vicon_f5['trackmedian_err3d_p95_mm'])} mm."
+    )
+    lines.append(
+        f"- Fixed-lag F4 across the main controls: self-cal {fmt(filt_self_f4['trackmedian_err3d_p50_mm'])}/{fmt(filt_self_f4['trackmedian_err3d_p95_mm'])} mm; "
+        f"Vicon-truth {fmt(filt_vicon_f4['trackmedian_err3d_p50_mm'])}/{fmt(filt_vicon_f4['trackmedian_err3d_p95_mm'])} mm; "
+        f"scale-to-Vicon {fmt(filt_scale_f4['trackmedian_err3d_p50_mm'])}/{fmt(filt_scale_f4['trackmedian_err3d_p95_mm'])} mm; "
+        f"one-baseline E-H {fmt(filt_one_eh_f4['trackmedian_err3d_p50_mm'])}/{fmt(filt_one_eh_f4['trackmedian_err3d_p95_mm'])} mm."
+    )
+    lines.append(
+        f"- Self-cal F4 improves track-median P50 by {fmt(filt_self_f4['improvement_vs_F0_trackmedian_err3d_p50_mm'])} mm versus F0; "
+        f"F5 improves by {fmt(filt_self_f5['improvement_vs_F0_trackmedian_err3d_p50_mm'])} mm but is offline-only."
+    )
+    lines.append(
+        f"- The best online self-cal row among F1-F3 is F3 at {fmt(filt_self_f3['trackmedian_err3d_p50_mm'])}/"
+        f"{fmt(filt_self_f3['trackmedian_err3d_p95_mm'])} mm, which is worse in median than F0; "
+        f"the same F3 row under Vicon-truth improves to {fmt(filt_vicon_f3['trackmedian_err3d_p50_mm'])}/"
+        f"{fmt(filt_vicon_f3['trackmedian_err3d_p95_mm'])} mm."
+    )
+    lines.append("")
+    lines.append(
+        "**Verdict.** Dynamic filtering is real but conditional. Bounded-lag and offline smoothing can suppress the ROTO single-shot scatter and move the main result from the ~105 mm P50 class to the mid-80 mm class, but pure online post-solve filtering is not enough for the self-cal FULL trajectory and can even worsen the median. "
+        "This means filtering addresses temporal scatter, not the full layout/ranging residual structure."
+    )
+    lines.append("")
+    lines.append(
+        "**Reviewer-survivability.** Report unfiltered ROTO as the calibration-level dynamic validation. Report F1-F4 as deployment trajectory-filter ablations with latency/causality stated, and F5 only as an offline upper bound."
+    )
+    lines.append("")
+    lines.append("## WHY #11: What If ROTO Had A Correctly Lever-Armed IMU Prior?")
+    lines.append("")
+    lines.append("**Tests run.**")
+    lines.append("")
+    lines.append(
+        "- Fitted each wand's rigid-body pose from non-antenna OptiTrack markers, then estimated the body-to-UWB-antenna lever arm using `WandBantenna`/`WandCantenna`."
+    )
+    lines.append(
+        "- Used the fitted antenna-point trajectory as an OptiTrack-derived pseudo-IMU relative-motion prior for already solved UWB antenna positions across the same 4x FULL ROTO cases."
+    )
+    lines.append(
+        "- Variants: `PI0` passthrough; `PI1` strong causal pseudo-IMU prior; `PI2` balanced causal pseudo-IMU prior; `PI3` fixed-lag over PI1; `PI4/PI5` full-sequence RTS upper bounds."
+    )
+    lines.append("")
+    lines.append("**Numbers computed.**")
+    lines.append("")
+    lines.append(
+        f"- Lever-arm sanity: body-fit antenna residual across 34 capture/tag tracks is "
+        f"{fmt(pseudo_extrinsic_p50, 2)} mm P50-of-P50 and {fmt(pseudo_extrinsic_p95_of_p95, 2)} mm P50-of-P95. "
+        "So the prior is applied to the antenna point, not to the marker-body centroid."
+    )
+    lines.append(
+        f"- Self-cal FULL track-median 3D P50/P95, PI0/PI1/PI2/PI4: "
+        f"{fmt(pseudo_self_pi0['trackmedian_err3d_p50_mm'])}/{fmt(pseudo_self_pi0['trackmedian_err3d_p95_mm'])}, "
+        f"{fmt(pseudo_self_pi1['trackmedian_err3d_p50_mm'])}/{fmt(pseudo_self_pi1['trackmedian_err3d_p95_mm'])}, "
+        f"{fmt(pseudo_self_pi2['trackmedian_err3d_p50_mm'])}/{fmt(pseudo_self_pi2['trackmedian_err3d_p95_mm'])}, "
+        f"{fmt(pseudo_self_pi4['trackmedian_err3d_p50_mm'])}/{fmt(pseudo_self_pi4['trackmedian_err3d_p95_mm'])} mm."
+    )
+    lines.append(
+        f"- Vicon-truth+delaycal PI1/PI4: "
+        f"{fmt(pseudo_vicon_pi1['trackmedian_err3d_p50_mm'])}/{fmt(pseudo_vicon_pi1['trackmedian_err3d_p95_mm'])} mm and "
+        f"{fmt(pseudo_vicon_pi4['trackmedian_err3d_p50_mm'])}/{fmt(pseudo_vicon_pi4['trackmedian_err3d_p95_mm'])} mm."
+    )
+    lines.append(
+        f"- PI1 across the 4x FULL cases: self-cal {fmt(pseudo_self_pi1['trackmedian_err3d_p50_mm'])}/{fmt(pseudo_self_pi1['trackmedian_err3d_p95_mm'])} mm; "
+        f"Vicon-truth {fmt(pseudo_vicon_pi1['trackmedian_err3d_p50_mm'])}/{fmt(pseudo_vicon_pi1['trackmedian_err3d_p95_mm'])} mm; "
+        f"scale-to-Vicon {fmt(pseudo_scale_pi1['trackmedian_err3d_p50_mm'])}/{fmt(pseudo_scale_pi1['trackmedian_err3d_p95_mm'])} mm; "
+        f"one-baseline E-H {fmt(pseudo_one_eh_pi1['trackmedian_err3d_p50_mm'])}/{fmt(pseudo_one_eh_pi1['trackmedian_err3d_p95_mm'])} mm."
+    )
+    lines.append(
+        f"- Self-cal PI1 improves track-median P50 by {fmt(pseudo_self_pi1['improvement_vs_PI0_trackmedian_err3d_p50_mm'])} mm versus PI0; "
+        f"offline PI4 improves by {fmt(pseudo_self_pi4['improvement_vs_PI0_trackmedian_err3d_p50_mm'])} mm."
+    )
+    lines.append("")
+    lines.append(
+        "**Verdict.** A correctly lever-armed inertial relative-motion prior would materially reduce ROTO dynamic scatter: the self-cal trajectory moves from the 105.8/231.8 mm class to 66.1/97.5 mm under the strong causal pseudo-IMU prior. "
+        "This is stronger than post-solve position filtering, but it is an OptiTrack-derived oracle diagnostic, not a deployable UWB+IMU result."
+    )
+    lines.append("")
+    lines.append(
+        "**Reviewer-survivability.** Keep this as an upper-bound sensor-fusion argument. A real paper claim needs actual IMU data, IMU-to-antenna extrinsic calibration, and raw-range EKF/UKF validation; this audit only proves the lever-armed motion-prior channel has enough leverage to matter."
     )
     lines.append("")
     lines.append("## WHY #6: Does Intra-Capture Clock Skew Explain The ROTO Residual?")
@@ -3057,7 +3253,9 @@ def build_report(
         "**Reviewer-audit coverage.** This report now covers every table generated under `reviewer_audit/tables`: "
         "WHY #1/#2 dynamic time, rigid, and circle metrics; WHY #3 one-baseline LOOCV; WHY #4 Procrustes scale; "
         "WHY #5 production-vs-raw; WHY #6 clock skew; WHY #7 single-shot/GDOP/static-bias decomposition; "
-        "WHY #8 bias/scatter, tag-delay, and GDOP-overlap checks; and WHY #9 raw tag-by-anchor residual decomposition."
+        "WHY #8 bias/scatter, tag-delay, and GDOP-overlap checks; WHY #9 raw tag-by-anchor residual decomposition; "
+        "WHY #10 ROTO post-solve dynamic filtering; and WHY #11 lever-armed pseudo-IMU motion-prior replay. "
+        "The separate `resilience_gap_audit` adds raw-pair bootstrap repeatability, delay-bootstrap SD, and synthetic dropout stress for 4x FULL."
     )
     lines.append("")
     lines.append(
@@ -3070,6 +3268,13 @@ def build_report(
         "Those are not missing from this reviewer audit; they are robustness/sensor-health appendices and should be pulled into the paper only if a reviewer asks about geometry sensitivity, anchor removal, or acquisition drift."
     )
     lines.append("")
+    lines.append(
+        "**Paper reporting checklist.** The separate `reporting_checklist` audit now maps the requested reporting structure onto the FULL outputs. "
+        "It splits anchor absolute error, anchor repeatability, scale bias, Sim(3) shape distortion, delay-layout coupling, static tag error, dynamic tag ATE/RPE, and missing robustness evidence. "
+        "Raw-pair bootstrap/synthetic stress now covers the feasible repeatability, delay-SD, and dropout diagnostics. "
+        "The remaining true gaps are independent repeated AutoPos deployments, a PANS/manual baseline, explicit CIR/NLOS labels, and raw dynamic ROTO range re-solve or physical packet-loss stress sweeps."
+    )
+    lines.append("")
     lines.append("## Headline Recommendation")
     lines.append("")
     lines.append(
@@ -3078,7 +3283,13 @@ def build_report(
         "Report `production 74.0/282.1` as the legacy/current exported production-output ablation unless production is actually switched to T4. "
         "For dynamic ROTO, the honest claim is `about 105.8 mm P50 / 231.8 mm P95` absolute 3D for self-cal v4-io/T4, "
         "and `105.6 mm P50 / 200.4 mm P95` for Vicon-truth+delaycal; this shows ROTO absolute error is not primarily a layout-calibration issue. "
-        "Demote similarity-scale, one-baseline-best, and per-capture post-hoc rigid results to diagnostic/ablation status."
+        "Report ROTO filtering separately: fixed-lag F4 can reach about "
+        f"`{fmt(filt_self_f4['trackmedian_err3d_p50_mm'])} / {fmt(filt_self_f4['trackmedian_err3d_p95_mm'])} mm` "
+        "on self-cal FULL, but it is a trajectory-filter/latency ablation, not the calibration-level dynamic claim. "
+        "Report pseudo-IMU replay as an oracle upper bound: a correctly lever-armed motion prior can reach "
+        f"`{fmt(pseudo_self_pi1['trackmedian_err3d_p50_mm'])} / {fmt(pseudo_self_pi1['trackmedian_err3d_p95_mm'])} mm` "
+        "causally on self-cal FULL, but it is not a real IMU deployment claim. "
+        "Demote similarity-scale, one-baseline-best, offline F5/PI4 smoothing, pseudo-IMU oracle replay, and per-capture post-hoc rigid results to diagnostic/ablation status."
     )
     lines.append("")
     lines.append("## Output Tables")
@@ -3089,6 +3300,11 @@ def build_report(
         "why2_posthoc_rigid_per_capture.csv",
         "why2_roto_refit_summary.csv",
         "why2_roto_circle_metrics.csv",
+        "why10_roto_filtered_summary.csv",
+        "why10_roto_filtered_per_track.csv",
+        "why11_roto_pseudo_imu_summary.csv",
+        "why11_roto_pseudo_imu_per_track.csv",
+        "why11_roto_pseudo_imu_extrinsics.csv",
         "why3_one_baseline_loocv.csv",
         "why3_one_baseline_cv_summary.csv",
         "why4_procrustes_check.csv",
@@ -3108,6 +3324,21 @@ def build_report(
         "why9_anchor_consistency.csv",
     ]:
         lines.append(f"- `../tables/{name}`")
+    for name in [
+        "checklist_anchor_layout_absolute.csv",
+        "checklist_anchor_repeatability.csv",
+        "checklist_tag_static.csv",
+        "checklist_tag_dynamic.csv",
+        "checklist_ablation.csv",
+        "checklist_coverage.csv",
+    ]:
+        lines.append(f"- `../../reporting_checklist/tables/{name}`")
+    lines.append("- `../../reporting_checklist/reports/REPORTING_CHECKLIST_AUDIT.md`")
+    lines.append("- `../../resilience_gap_audit/tables/bootstrap_layout_repeatability.csv`")
+    lines.append("- `../../resilience_gap_audit/tables/bootstrap_delay_sd.csv`")
+    lines.append("- `../../resilience_gap_audit/tables/static_dropout_stress_summary.csv`")
+    lines.append("- `../../resilience_gap_audit/tables/roto_sample_dropout_stress_summary.csv`")
+    lines.append("- `../../resilience_gap_audit/reports/RESILIENCE_GAP_AUDIT.md`")
     return "\n".join(lines) + "\n"
 
 
@@ -3117,11 +3348,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--only",
-        choices=["all", "why9", "center-rms", "circle-metrics", "report"],
+        choices=["all", "why9", "center-rms", "circle-metrics", "roto-filtered", "pseudo-imu", "report"],
         default="all",
         help=(
             "Run only one audit section. Use why9 to resume the raw tag x anchor residual decomposition; "
             "use circle-metrics/center-rms for ROTO circle self-consistency and absolute center metrics; "
+            "use roto-filtered for post-solve ROTO trajectory filter replay; "
+            "use pseudo-imu for OptiTrack-derived lever-armed pseudo-IMU replay; "
             "use report to rebuild markdown from existing CSV tables."
         ),
     )
@@ -3231,6 +3464,39 @@ def run_center_rms_only() -> None:
     print(f"Wrote {TABLE_DIR / 'why2_roto_circle_metrics.csv'}")
 
 
+def run_roto_filtered_only() -> None:
+    summary_rows, per_track_rows = audit_roto_filtered_replay()
+    write_csv(TABLE_DIR / "why10_roto_filtered_summary.csv", summary_rows)
+    write_csv(TABLE_DIR / "why10_roto_filtered_per_track.csv", per_track_rows)
+    print("ROTO filtered replay:", flush=True)
+    for row in sorted(summary_rows, key=lambda r: (str(r["case"]), float(r["trackmedian_err3d_p50_mm"]))):
+        print(
+            f"  {row['case']} {row['filter_id']}: "
+            f"track P50/P95={fmt(row['trackmedian_err3d_p50_mm'])}/"
+            f"{fmt(row['trackmedian_err3d_p95_mm'])} mm, "
+            f"gain={fmt(row['improvement_vs_F0_trackmedian_err3d_p50_mm'])} mm, "
+            f"verdict={row['filter_verdict']}"
+        )
+    print(f"Wrote {TABLE_DIR / 'why10_roto_filtered_summary.csv'}")
+
+
+def run_pseudo_imu_only() -> None:
+    summary_rows, per_track_rows, extrinsic_rows = audit_roto_pseudo_imu_replay()
+    write_csv(TABLE_DIR / "why11_roto_pseudo_imu_summary.csv", summary_rows)
+    write_csv(TABLE_DIR / "why11_roto_pseudo_imu_per_track.csv", per_track_rows)
+    write_csv(TABLE_DIR / "why11_roto_pseudo_imu_extrinsics.csv", extrinsic_rows)
+    print("ROTO pseudo-IMU replay:", flush=True)
+    for row in sorted(summary_rows, key=lambda r: (str(r["case"]), str(r["fusion_id"]))):
+        print(
+            f"  {row['case']} {row['fusion_id']}: "
+            f"track P50/P95={fmt(row['trackmedian_err3d_p50_mm'])}/"
+            f"{fmt(row['trackmedian_err3d_p95_mm'])} mm, "
+            f"gain={fmt(row['improvement_vs_PI0_trackmedian_err3d_p50_mm'])} mm, "
+            f"verdict={row['fusion_verdict']}"
+        )
+    print(f"Wrote {TABLE_DIR / 'why11_roto_pseudo_imu_summary.csv'}")
+
+
 def read_table_rows(name: str) -> list[dict]:
     path = TABLE_DIR / name
     if not path.exists():
@@ -3256,6 +3522,9 @@ def run_report_only() -> None:
         read_table_rows("why2_roto_refit_summary.csv"),
         read_table_row("why1_dynamic_error_budget.csv"),
         read_table_rows("why2_roto_circle_metrics.csv"),
+        read_table_rows("why10_roto_filtered_summary.csv"),
+        read_table_rows("why11_roto_pseudo_imu_summary.csv"),
+        read_table_rows("why11_roto_pseudo_imu_extrinsics.csv"),
         read_table_rows("why6_time_skew_summary.csv"),
         read_table_rows("why7_single_shot_summary.csv"),
         read_table_rows("why8_bias_scatter_summary.csv"),
@@ -3285,12 +3554,20 @@ def main(argv: list[str] | None = None) -> None:
     if args.only in {"center-rms", "circle-metrics"}:
         run_center_rms_only()
         return
+    if args.only == "roto-filtered":
+        run_roto_filtered_only()
+        return
+    if args.only == "pseudo-imu":
+        run_pseudo_imu_only()
+        return
     if args.only == "report":
         run_report_only()
         return
 
     time_rows, rigid_rows, roto_summary, dynamic_budget = audit_roto_time_and_rigid()
     center_rms_rows = audit_roto_circle_metrics()
+    roto_filtered_summary, roto_filtered_per_track = audit_roto_filtered_replay()
+    roto_pseudo_summary, roto_pseudo_per_track, roto_pseudo_extrinsics = audit_roto_pseudo_imu_replay()
     skew_rows, skew_summary = audit_roto_time_skew(time_rows)
     single_shot_summary, gdop_rows, static_bias_rows = audit_single_shot_decomposition()
     bias_scatter_summary, tag_range_rows, tag_delay_summary, gdop_overlap_rows = audit_tag_delay_and_overlap(
@@ -3309,6 +3586,11 @@ def main(argv: list[str] | None = None) -> None:
     write_csv(TABLE_DIR / "why2_posthoc_rigid_per_capture.csv", rigid_rows)
     write_csv(TABLE_DIR / "why2_roto_refit_summary.csv", roto_summary)
     write_csv(TABLE_DIR / "why2_roto_circle_metrics.csv", center_rms_rows)
+    write_csv(TABLE_DIR / "why10_roto_filtered_summary.csv", roto_filtered_summary)
+    write_csv(TABLE_DIR / "why10_roto_filtered_per_track.csv", roto_filtered_per_track)
+    write_csv(TABLE_DIR / "why11_roto_pseudo_imu_summary.csv", roto_pseudo_summary)
+    write_csv(TABLE_DIR / "why11_roto_pseudo_imu_per_track.csv", roto_pseudo_per_track)
+    write_csv(TABLE_DIR / "why11_roto_pseudo_imu_extrinsics.csv", roto_pseudo_extrinsics)
     write_csv(TABLE_DIR / "why1_dynamic_error_budget.csv", [dynamic_budget])
     write_csv(TABLE_DIR / "why3_one_baseline_loocv.csv", cv_rows)
     write_csv(TABLE_DIR / "why3_one_baseline_cv_summary.csv", [cv_summary])
@@ -3332,6 +3614,9 @@ def main(argv: list[str] | None = None) -> None:
         roto_summary,
         dynamic_budget,
         center_rms_rows,
+        roto_filtered_summary,
+        roto_pseudo_summary,
+        roto_pseudo_extrinsics,
         skew_summary,
         single_shot_summary,
         bias_scatter_summary,
