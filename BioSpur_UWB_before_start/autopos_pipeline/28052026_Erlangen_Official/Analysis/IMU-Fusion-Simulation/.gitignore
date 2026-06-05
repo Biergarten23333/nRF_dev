@@ -1,0 +1,18 @@
+# Regeneratable IMU/UWB simulation artifacts.
+#
+# Keep scripts, configs, reports, figures, manifests, and lightweight summary
+# tables in git. Keep raw traces/caches and oversized per-sample tables out of
+# git so the repository remains pushable on GitHub.
+
+cache/
+scripts/__pycache__/
+
+runs/**/traces/
+runs/**/logs/*.pid
+runs/**/logs/*.log
+
+# Oversized generated metric tables. The corresponding summaries/reports remain
+# versioned; rerun scripts can regenerate these if detailed per-track rows are
+# needed.
+runs/**/stage1_full_nominal_multiseed/tables/phase3_nominal_track_metrics.csv
+runs/**/stage1_full_nominal_multiseed/seeds/*/tables/phase3_seed_track_metrics.csv

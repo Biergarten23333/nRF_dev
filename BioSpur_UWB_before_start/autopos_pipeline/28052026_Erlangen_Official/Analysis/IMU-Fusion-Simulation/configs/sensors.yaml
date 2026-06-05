@@ -1,0 +1,433 @@
+# IMU sensor definitions.
+#
+# Units:
+#   accel_noise_mg: mg at the sampled grid level for this vertical slice
+#   residual_accel_bias_mg: post-I3 residual bias sigma
+#   accel_bias_random_walk_mg_sqrt_s: residual random walk
+#   gyro_* fields are recorded for provenance; Phase 1 position-domain
+#   diagnostics do not yet consume full attitude/gyro strapdown.
+#
+# Datasheet fields keep the raw device-level source values. Simulation fields are
+# post-calibration residuals used to generate synthetic drift from Vicon pose.
+# Price gate for L10-L19: consumer/drone-grade, at least 6-axis, <=100 EUR/chip.
+
+L0:
+  name: perfect_vicon_imu
+  description: perfect Vicon/OptiTrack-derived IMU diagnostic
+  axes: 6
+  accel_noise_mg: 0.0
+  gyro_noise_dps: 0.0
+  residual_accel_bias_mg: 0.0
+  residual_gyro_bias_dps: 0.0
+  accel_bias_random_walk_mg_sqrt_s: 0.0
+  gyro_bias_random_walk_dps_sqrt_s: 0.0
+  timestamp_jitter_ms: 0.0
+  quantization_mg: 0.0
+  odr_hz: 120.0
+  vibration_sensitivity_mg: 0.0
+  extrinsic_mg: 0.0
+
+L1:
+  name: perfect_sampled_imu_odr_timestamp_only
+  description: perfect sampled IMU with ODR and timestamp effects only
+  axes: 6
+  market_class: oracle_sampling_control
+  accel_noise_mg: 0.15
+  gyro_noise_dps: 0.005
+  residual_accel_bias_mg: 0.03
+  residual_gyro_bias_dps: 0.002
+  accel_bias_random_walk_mg_sqrt_s: 0.005
+  gyro_bias_random_walk_dps_sqrt_s: 0.0004
+  timestamp_jitter_ms: 0.25
+  quantization_mg: 0.0
+  odr_hz: 120.0
+  vibration_sensitivity_mg: 0.02
+  extrinsic_mg: 0.0
+
+L2:
+  name: mpu6050_like_6axis_i3_residual
+  description: MPU6050-like residual noise after simple I3 bias calibration
+  axes: 6
+  market_class: legacy_consumer_6axis_generic
+  accel_noise_mg: 0.8
+  gyro_noise_dps: 0.05
+  residual_accel_bias_mg: 0.20
+  residual_gyro_bias_dps: 0.02
+  accel_bias_random_walk_mg_sqrt_s: 0.03
+  gyro_bias_random_walk_dps_sqrt_s: 0.002
+  timestamp_jitter_ms: 1.0
+  quantization_mg: 0.061
+  odr_hz: 120.0
+  vibration_sensitivity_mg: 0.25
+  extrinsic_mg: 0.05
+
+L3:
+  name: mpu9250_icm20948_like_9axis_as_6axis
+  description: MPU9250/ICM20948-like consumer 9-axis IMU, simulated as accel+gyro only
+  axes: 9
+  simulated_axes: 6
+  market_class: legacy_consumer_9axis_generic
+  accel_noise_mg: 0.60
+  gyro_noise_dps: 0.035
+  residual_accel_bias_mg: 0.15
+  residual_gyro_bias_dps: 0.018
+  accel_bias_random_walk_mg_sqrt_s: 0.025
+  gyro_bias_random_walk_dps_sqrt_s: 0.0020
+  timestamp_jitter_ms: 0.90
+  quantization_mg: 0.061
+  odr_hz: 120.0
+  vibration_sensitivity_mg: 0.18
+  extrinsic_mg: 0.04
+  calibration_model: generic_legacy_static_bias_calibration
+
+L4:
+  name: lis2dh12_accel_only_proxy
+  description: accel-only low-cost sensor proxy; gyro channels are intentionally weak
+  axes: 3
+  simulated_axes: 6
+  market_class: accel_only_negative_control
+  accel_noise_mg: 1.40
+  gyro_noise_dps: 0.200
+  residual_accel_bias_mg: 0.50
+  residual_gyro_bias_dps: 0.080
+  accel_bias_random_walk_mg_sqrt_s: 0.060
+  gyro_bias_random_walk_dps_sqrt_s: 0.0100
+  timestamp_jitter_ms: 1.20
+  quantization_mg: 0.244
+  odr_hz: 120.0
+  vibration_sensitivity_mg: 0.45
+  extrinsic_mg: 0.12
+  calibration_model: negative_control_accel_only_proxy
+
+L5:
+  name: bmi270_lsm6dso_like_modern_6axis
+  description: generic modern BMI270/LSM6DSO-like 6-axis IMU
+  axes: 6
+  market_class: modern_consumer_generic
+  accel_noise_mg: 0.35
+  gyro_noise_dps: 0.025
+  residual_accel_bias_mg: 0.08
+  residual_gyro_bias_dps: 0.010
+  accel_bias_random_walk_mg_sqrt_s: 0.012
+  gyro_bias_random_walk_dps_sqrt_s: 0.0012
+  timestamp_jitter_ms: 0.60
+  quantization_mg: 0.061
+  odr_hz: 120.0
+  vibration_sensitivity_mg: 0.08
+  extrinsic_mg: 0.03
+  calibration_model: generic_modern_static_bias_calibration
+
+L7:
+  name: bad_cheap_clone_6axis
+  description: pessimistic cheap clone / poor mounting / high vibration sensitivity IMU
+  axes: 6
+  market_class: bad_cheap_negative_control
+  accel_noise_mg: 3.00
+  gyro_noise_dps: 0.120
+  residual_accel_bias_mg: 1.20
+  residual_gyro_bias_dps: 0.080
+  accel_bias_random_walk_mg_sqrt_s: 0.120
+  gyro_bias_random_walk_dps_sqrt_s: 0.0100
+  timestamp_jitter_ms: 2.50
+  quantization_mg: 0.244
+  odr_hz: 120.0
+  vibration_sensitivity_mg: 1.00
+  extrinsic_mg: 0.35
+  calibration_model: negative_control_high_bias_high_vibration
+
+L8:
+  name: mis_mounted_imu_extrinsic_stress
+  description: modern-ish IMU with large IMU/body extrinsic error stress
+  axes: 6
+  market_class: extrinsic_error_stress
+  accel_noise_mg: 0.90
+  gyro_noise_dps: 0.050
+  residual_accel_bias_mg: 0.25
+  residual_gyro_bias_dps: 0.025
+  accel_bias_random_walk_mg_sqrt_s: 0.040
+  gyro_bias_random_walk_dps_sqrt_s: 0.0030
+  timestamp_jitter_ms: 1.00
+  quantization_mg: 0.061
+  odr_hz: 120.0
+  vibration_sensitivity_mg: 0.35
+  extrinsic_mg: 0.65
+  calibration_model: extrinsic_error_stress_not_a_chip_claim
+
+L10:
+  name: invensense_mpu6050_legacy_6axis
+  description: legacy low-cost MPU-6050/GY-521 class 6-axis IMU
+  manufacturer: TDK InvenSense
+  axes: 6
+  market_class: legacy_consumer_low_cost
+  price_gate_eur_per_chip_max: 100
+  datasheet_or_dist_source: https://invensense.tdk.com/wp-content/uploads/2015/02/MPU-6000-Datasheet1.pdf
+  price_source_note: widely available low-cost legacy part/module; use as cheap-consumer lower bound
+  datasheet_accel_noise_ug_sqrt_hz: 400
+  datasheet_gyro_noise_mdps_sqrt_hz: 5.0
+  datasheet_accel_zero_g_offset_mg: 80
+  datasheet_gyro_zero_rate_offset_dps: 20.0
+  datasheet_accel_offset_temp_mg_per_c: 0.8
+  datasheet_gyro_offset_temp_dps_per_c: 0.05
+  accel_noise_mg: 3.10
+  gyro_noise_dps: 0.039
+  residual_accel_bias_mg: 0.35
+  residual_gyro_bias_dps: 0.035
+  accel_bias_random_walk_mg_sqrt_s: 0.055
+  gyro_bias_random_walk_dps_sqrt_s: 0.0045
+  timestamp_jitter_ms: 1.50
+  quantization_mg: 0.061
+  odr_hz: 120.0
+  vibration_sensitivity_mg: 0.60
+  extrinsic_mg: 0.08
+  calibration_model: simple_static_bias_calibration_with_large_residual_temp_and_vibration_error
+
+L11:
+  name: invensense_icm20948_9axis_as_6axis
+  description: ICM-20948 9-axis consumer IMU, simulated using accel+gyro only
+  manufacturer: TDK InvenSense
+  axes: 9
+  simulated_axes: 6
+  market_class: legacy_consumer_9axis
+  price_gate_eur_per_chip_max: 100
+  datasheet_or_dist_source: https://www.digikey.co.uk/en/htmldatasheets/production/2502344/0/0/1/icm-20948-datasheet.html
+  datasheet_accel_noise_ug_sqrt_hz: 230
+  datasheet_gyro_noise_mdps_sqrt_hz: 15.0
+  datasheet_accel_zero_g_offset_mg: 60
+  datasheet_gyro_zero_rate_offset_dps: 5.0
+  datasheet_accel_offset_temp_mg_per_c: 0.5
+  datasheet_gyro_offset_temp_dps_per_c: 0.03
+  accel_noise_mg: 1.78
+  gyro_noise_dps: 0.116
+  residual_accel_bias_mg: 0.25
+  residual_gyro_bias_dps: 0.025
+  accel_bias_random_walk_mg_sqrt_s: 0.040
+  gyro_bias_random_walk_dps_sqrt_s: 0.0035
+  timestamp_jitter_ms: 1.20
+  quantization_mg: 0.061
+  odr_hz: 120.0
+  vibration_sensitivity_mg: 0.35
+  extrinsic_mg: 0.06
+  calibration_model: simple_static_bias_calibration_without_using_magnetometer
+
+L12:
+  name: invensense_icm20602_fpv_6axis
+  description: ICM-20602 class FPV/drone 6-axis IMU
+  manufacturer: TDK InvenSense
+  axes: 6
+  market_class: fpv_drone_consumer
+  price_gate_eur_per_chip_max: 100
+  datasheet_or_dist_source: https://www.lcsc.com/product-detail/C97633.html
+  datasheet_accel_noise_ug_sqrt_hz: 100
+  datasheet_gyro_noise_mdps_sqrt_hz: 4.0
+  datasheet_accel_zero_g_offset_mg: 40
+  datasheet_gyro_zero_rate_offset_dps: 1.0
+  datasheet_accel_offset_temp_mg_per_c: 0.25
+  datasheet_gyro_offset_temp_dps_per_c: 0.015
+  accel_noise_mg: 0.77
+  gyro_noise_dps: 0.031
+  residual_accel_bias_mg: 0.18
+  residual_gyro_bias_dps: 0.018
+  accel_bias_random_walk_mg_sqrt_s: 0.028
+  gyro_bias_random_walk_dps_sqrt_s: 0.0022
+  timestamp_jitter_ms: 0.90
+  quantization_mg: 0.061
+  odr_hz: 120.0
+  vibration_sensitivity_mg: 0.24
+  extrinsic_mg: 0.04
+  calibration_model: fpv_static_bias_calibration_with_moderate_vibration_residual
+
+L13:
+  name: invensense_icm42605_6axis
+  description: ICM-42605 modern low-noise 6-axis IMU
+  manufacturer: TDK InvenSense
+  axes: 6
+  market_class: modern_consumer
+  price_gate_eur_per_chip_max: 100
+  datasheet_or_dist_source: https://product.tdk.com/system/files/dam/doc/product/sensor/mortion-inertial/imu/data_sheet/ds-000292-icm-42605-v1.6.pdf
+  price_source: https://www.digikey.com/en/products/detail/tdk-invensense/ICM-42605/9953675
+  datasheet_accel_noise_ug_sqrt_hz: 70
+  datasheet_gyro_noise_mdps_sqrt_hz: 3.8
+  datasheet_accel_zero_g_offset_mg: 25
+  datasheet_gyro_zero_rate_offset_dps: 1.0
+  datasheet_accel_offset_temp_mg_per_c: 0.15
+  datasheet_gyro_offset_temp_dps_per_c: 0.020
+  accel_noise_mg: 0.54
+  gyro_noise_dps: 0.029
+  residual_accel_bias_mg: 0.11
+  residual_gyro_bias_dps: 0.012
+  accel_bias_random_walk_mg_sqrt_s: 0.018
+  gyro_bias_random_walk_dps_sqrt_s: 0.0015
+  timestamp_jitter_ms: 0.60
+  quantization_mg: 0.061
+  odr_hz: 120.0
+  vibration_sensitivity_mg: 0.16
+  extrinsic_mg: 0.03
+  calibration_model: modern_static_bias_calibration_with_datasheet_temp_stability_residual
+
+L14:
+  name: invensense_icm42670p_drone_6axis
+  description: ICM-42670-P high-performance 6-axis IMU for consumer/drone/robotics
+  manufacturer: TDK InvenSense
+  axes: 6
+  market_class: modern_consumer_drone_robotics
+  price_gate_eur_per_chip_max: 100
+  datasheet_or_dist_source: https://www.digikey.com/en/htmldatasheets/production/10215597/0/0/1/icm-42670-p.html
+  price_source: https://www.digikey.com/en/products/detail/tdk-invensense/ICM-42670-P/14319524
+  datasheet_accel_noise_ug_sqrt_hz: 70
+  datasheet_gyro_noise_mdps_sqrt_hz: 7.0
+  datasheet_accel_zero_g_offset_mg: 25
+  datasheet_gyro_zero_rate_offset_dps: 1.0
+  datasheet_accel_offset_temp_mg_per_c: 0.15
+  datasheet_gyro_offset_temp_dps_per_c: 0.015
+  accel_noise_mg: 0.54
+  gyro_noise_dps: 0.054
+  residual_accel_bias_mg: 0.10
+  residual_gyro_bias_dps: 0.012
+  accel_bias_random_walk_mg_sqrt_s: 0.016
+  gyro_bias_random_walk_dps_sqrt_s: 0.0014
+  timestamp_jitter_ms: 0.55
+  quantization_mg: 0.061
+  odr_hz: 120.0
+  vibration_sensitivity_mg: 0.14
+  extrinsic_mg: 0.025
+  calibration_model: modern_static_bias_calibration_with_good_shock_and_vibration_residual
+
+L15:
+  name: invensense_icm42688p_high_precision_6axis
+  description: ICM-42688-P high-precision 6-axis IMU, common high-performance consumer/drone class
+  manufacturer: TDK InvenSense
+  axes: 6
+  market_class: high_performance_consumer_drone
+  price_gate_eur_per_chip_max: 100
+  datasheet_or_dist_source: https://www.invensense.tdk.com/en-us/products/consumer/icm-42688-p
+  price_source: https://www.digikey.com/en/products/detail/tdk-invensense/icm-42688-p/10824934
+  datasheet_accel_noise_ug_sqrt_hz: 70
+  datasheet_gyro_noise_mdps_sqrt_hz: 2.8
+  datasheet_accel_zero_g_offset_mg: 25
+  datasheet_gyro_zero_rate_offset_dps: 1.0
+  datasheet_accel_offset_temp_mg_per_c: 0.10
+  datasheet_gyro_offset_temp_dps_per_c: 0.005
+  accel_noise_mg: 0.54
+  gyro_noise_dps: 0.022
+  residual_accel_bias_mg: 0.075
+  residual_gyro_bias_dps: 0.008
+  accel_bias_random_walk_mg_sqrt_s: 0.012
+  gyro_bias_random_walk_dps_sqrt_s: 0.0010
+  timestamp_jitter_ms: 0.35
+  quantization_mg: 0.061
+  odr_hz: 120.0
+  vibration_sensitivity_mg: 0.10
+  extrinsic_mg: 0.020
+  calibration_model: high_precision_static_bias_calibration_with_low_temp_residual
+
+L16:
+  name: invensense_icm45686_balancedgyro_6axis
+  description: ICM-45686 ultra high-performance 6-axis IMU with BalancedGyro family
+  manufacturer: TDK InvenSense
+  axes: 6
+  market_class: premium_consumer_drone_robotics
+  price_gate_eur_per_chip_max: 100
+  datasheet_or_dist_source: https://invensense.tdk.com/products/motion-tracking/6-axis/icm-45686/
+  price_source: https://www.lcsc.com/product-detail/C22459454.html
+  datasheet_accel_noise_ug_sqrt_hz: 70
+  datasheet_gyro_noise_mdps_sqrt_hz: 3.8
+  datasheet_accel_zero_g_offset_mg: 12
+  datasheet_gyro_zero_rate_offset_dps: 0.5
+  datasheet_accel_offset_temp_mg_per_c: 0.15
+  datasheet_gyro_offset_temp_dps_per_c: 0.005
+  accel_noise_mg: 0.54
+  gyro_noise_dps: 0.029
+  residual_accel_bias_mg: 0.060
+  residual_gyro_bias_dps: 0.006
+  accel_bias_random_walk_mg_sqrt_s: 0.010
+  gyro_bias_random_walk_dps_sqrt_s: 0.0008
+  timestamp_jitter_ms: 0.30
+  quantization_mg: 0.061
+  odr_hz: 120.0
+  vibration_sensitivity_mg: 0.08
+  extrinsic_mg: 0.015
+  calibration_model: premium_static_bias_calibration_with_low_temp_and_bias_residual
+
+L17:
+  name: bosch_bmi270_low_power_6axis
+  description: Bosch BMI270 smart low-power consumer 6-axis IMU
+  manufacturer: Bosch Sensortec
+  axes: 6
+  market_class: consumer_low_power
+  price_gate_eur_per_chip_max: 100
+  datasheet_or_dist_source: https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmi270-ds000.pdf
+  price_source: https://www.digikey.com/en/products/detail/bosch-sensortec/BMI270/9974486
+  datasheet_accel_noise_ug_sqrt_hz: 160
+  datasheet_gyro_noise_mdps_sqrt_hz: 8.0
+  datasheet_accel_zero_g_offset_mg: 20
+  datasheet_gyro_zero_rate_offset_dps: 0.5
+  datasheet_accel_offset_temp_mg_per_c: 0.25
+  datasheet_gyro_offset_temp_dps_per_c: 0.020
+  accel_noise_mg: 1.24
+  gyro_noise_dps: 0.062
+  residual_accel_bias_mg: 0.14
+  residual_gyro_bias_dps: 0.014
+  accel_bias_random_walk_mg_sqrt_s: 0.022
+  gyro_bias_random_walk_dps_sqrt_s: 0.0018
+  timestamp_jitter_ms: 0.75
+  quantization_mg: 0.061
+  odr_hz: 120.0
+  vibration_sensitivity_mg: 0.22
+  extrinsic_mg: 0.030
+  calibration_model: low_power_static_bias_calibration_with_moderate_noise_residual
+
+L18:
+  name: bosch_bmi088_drone_robust_6axis
+  description: Bosch BMI088 drone/robotics 6-axis IMU optimized for vibration robustness
+  manufacturer: Bosch Sensortec
+  axes: 6
+  market_class: drone_robotics_vibration_robust
+  price_gate_eur_per_chip_max: 100
+  datasheet_or_dist_source: https://www.bosch-sensortec.com/en/products/motion-sensors/imus/bmi088
+  price_source: https://www.digikey.com/en/products/detail/bosch-sensortec/BMI088/828-1082-1-ND/8634942
+  datasheet_accel_noise_ug_sqrt_hz: 175
+  datasheet_gyro_noise_mdps_sqrt_hz: 14.0
+  datasheet_accel_zero_g_offset_mg: 20
+  datasheet_gyro_zero_rate_offset_dps: 1.0
+  datasheet_accel_offset_temp_mg_per_c: 0.20
+  datasheet_gyro_offset_temp_dps_per_c: 0.015
+  accel_noise_mg: 1.36
+  gyro_noise_dps: 0.108
+  residual_accel_bias_mg: 0.12
+  residual_gyro_bias_dps: 0.012
+  accel_bias_random_walk_mg_sqrt_s: 0.018
+  gyro_bias_random_walk_dps_sqrt_s: 0.0014
+  timestamp_jitter_ms: 0.65
+  quantization_mg: 0.090
+  odr_hz: 120.0
+  vibration_sensitivity_mg: 0.08
+  extrinsic_mg: 0.020
+  calibration_model: drone_static_bias_calibration_with_low_vibration_residual
+
+L19:
+  name: st_lsm6dsv16x_high_end_6axis
+  description: ST LSM6DSV16X high-end low-noise 6-axis IMU with embedded sensor features
+  manufacturer: STMicroelectronics
+  axes: 6
+  market_class: high_end_consumer
+  price_gate_eur_per_chip_max: 100
+  datasheet_or_dist_source: https://www.st.com/resource/en/datasheet/lsm6dsv16x.pdf
+  price_source: https://datasheet4u.com/datasheets/STMicroelectronics/LSM6DSV16X/1512539
+  datasheet_accel_noise_ug_sqrt_hz: 60
+  datasheet_gyro_noise_mdps_sqrt_hz: 2.8
+  datasheet_accel_zero_g_offset_mg: 12
+  datasheet_gyro_zero_rate_offset_dps: 1.0
+  datasheet_accel_offset_temp_mg_per_c: 0.07
+  datasheet_gyro_offset_temp_dps_per_c: 0.006
+  accel_noise_mg: 0.46
+  gyro_noise_dps: 0.022
+  residual_accel_bias_mg: 0.065
+  residual_gyro_bias_dps: 0.007
+  accel_bias_random_walk_mg_sqrt_s: 0.010
+  gyro_bias_random_walk_dps_sqrt_s: 0.0009
+  timestamp_jitter_ms: 0.35
+  quantization_mg: 0.061
+  odr_hz: 120.0
+  vibration_sensitivity_mg: 0.09
+  extrinsic_mg: 0.018
+  calibration_model: high_end_static_bias_calibration_with_low_noise_and_temp_residual

@@ -33,6 +33,28 @@ For heavy AutoPos, OptiTrack, CIR, Monte Carlo, filtering, or ROTO analyses,
 assume both GPUs may be used when idle, but keep CPU/RAM pressure reasonable and
 avoid spawning jobs that exhaust system memory.
 
+Long-running analysis jobs must not leave one CPU core doing the work while the
+rest of the workstation is idle. This applies to every stage of the pipeline,
+including setup/precompute steps such as synthetic IMU generation, cache
+generation, pairing scans, filtering, solver rows, plotting, and final ranking.
+If a stage has many independent captures, tags, seeds, sensors, filters, solver
+rows, or figures, parallelize/vectorize that stage before launching the long run.
+Do not rely on a later stage becoming parallel while an earlier stage burns time
+single-core.
+
+For IMU/UWB/AutoPos/ROTO sweeps, default to using most CPU cores while keeping
+the desktop responsive:
+
+```text
+target CPU workers: 8-10 on this 12-thread i7-8700K
+minimum for broad sweeps: 2 workers
+single-core broad sweep: not allowed unless there is a written technical reason
+```
+
+When GPU acceleration is practical, use balanced work allocation across both GTX
+1080 Ti cards. If the current algorithm is not GPU-friendly, state that clearly
+and still parallelize the CPU path instead of running single-core.
+
 ## Privileged Package Management
 
 This workspace runs on zekaixiao's Ubuntu workstation. The machine uses a

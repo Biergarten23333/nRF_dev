@@ -1,0 +1,4 @@
+gate_id,status,blocking_next_phase,evidence
+G11_two_gpu_dynamic_balance,PASS,True,"devices=['cuda:0', 'cuda:1']; partial_chunks_by_gpu={'cuda:0': 72, 'cuda:1': 72}; gpu0 max_util=100%, gpu1 max_util=99%; failed=0"
+G12_cpu_parallel_execution,PASS,True,"workers_per_device=3; total_workers=6; cpu_golden_mean=20.58s, simulate_imu_prior_mean=0.58s, torch_gpu_mean=2.24s"
+G13_thread_oversubscription_control,PASS,True,checked_logs=20; torch_threads_1_in_sample=True; workers_per_device=3

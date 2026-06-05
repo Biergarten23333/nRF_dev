@@ -1,0 +1,292 @@
+# Fusion/filter registry for the IMU-Fusion-Simulation line.
+#
+# Critical naming rule:
+#   filter != EKF
+#
+# I/P/R are preprocessing/filter layers. T is the final tag estimator/solver
+# layer. EKF is only one possible T family.
+
+layers:
+  I:
+    name: imu_preprocessing_filter
+    meaning: IMU-side preprocessing and filtering before final fusion.
+    examples:
+      - low_pass
+      - fir
+      - notch_vibration_filter
+      - bias_calibration
+      - bias_random_walk_model
+      - mahony_madgwick_attitude_filter
+      - zupt_zaru
+      - hampel_median_spike_rejection
+      - adaptive_imu_noise
+    not_synonymous_with:
+      - EKF
+      - final_tag_solver
+
+  P:
+    name: uwb_position_post_filter
+    meaning: Filtering after pure UWB has already produced solved positions.
+    examples:
+      - passthrough
+      - hampel_median_spike_filter
+      - constant_velocity_kalman
+      - robust_innovation_gate
+      - session_window_fixed_lag_smoother
+      - full_session_rts_upper_bound
+    not_synonymous_with:
+      - final_fusion
+
+  R:
+    name: raw_uwb_range_filter_or_correction
+    meaning: Raw range preprocessing/correction for tightly coupled solvers.
+    examples:
+      - range_sanity_gate
+      - anchor_tag_range_bias_correction
+      - residual_robust_weighting
+      - nlos_dropout_mixture_weighting
+    not_synonymous_with:
+      - EKF
+
+  T:
+    name: final_offline_tag_trajectory_estimator
+    meaning: Final offline UWB-only or UWB+IMU tag trajectory estimator.
+    examples:
+      - uwb_only_passthrough
+      - complementary_alpha_beta
+      - loose_ekf
+      - error_state_ekf
+      - tight_range_ekf
+      - ukf
+      - particle_or_rbpf
+      - session_window_factor_graph
+      - full_session_batch_or_rts_solver
+      - robust_m_estimator
+
+imu_filters:
+  I0:
+    name: no_imu_filter
+    status: implemented
+  I1:
+    name: low_pass_fir
+    status: implemented
+  I2:
+    name: notch_vibration_filter
+    status: implemented
+  I3:
+    name: bias_calibration_plus_bias_random_walk
+    status: implemented
+  I4:
+    name: mahony_madgwick_attitude_prefilter
+    status: implemented_proxy
+  I5:
+    name: error_state_preintegration
+    status: pending_full_algorithm
+  I6:
+    name: zupt_zaru_low_motion_constraint
+    status: pending_full_algorithm
+  I7:
+    name: hampel_median_spike_rejection
+    status: implemented
+  I8:
+    name: adaptive_imu_noise
+    status: implemented
+  I1+I3+I7:
+    name: low_pass_plus_bias_model_plus_spike_rejection
+    status: implemented
+  I1+I2+I3+I8:
+    name: low_pass_plus_notch_plus_bias_model_plus_adaptive_noise
+    status: implemented
+
+uwb_position_filters:
+  P0:
+    name: no_uwb_position_post_filter
+    status: implemented
+  P1:
+    name: hampel_median_spike_filter
+    status: planned
+  P2:
+    name: constant_velocity_kalman_filter
+    status: implemented
+  P3:
+    name: robust_innovation_gate
+    status: planned
+  P4:
+    name: session_window_fixed_lag_smoother
+    status: planned
+  P5:
+    name: full_session_rts_upper_bound
+    status: planned
+
+raw_range_filters:
+  R0:
+    name: raw_ranges_passthrough
+    status: planned
+  R1:
+    name: raw_ranges_plus_sanity_gate
+    status: planned
+  R2:
+    name: raw_ranges_plus_tag_anchor_bias_correction
+    status: implemented
+  R3:
+    name: raw_ranges_plus_residual_robust_weighting
+    status: planned
+  R4:
+    name: raw_ranges_plus_nlos_dropout_mixture_weighting
+    status: implemented
+
+tag_solvers:
+  T0:
+    name: no_final_solver_passthrough_diagnostic
+    status: planned
+    family: diagnostic
+  T1:
+    name: uwb_only_baseline_using_u4_positions
+    status: implemented
+    family: uwb_only
+    coupling_mode: uwb_only_control
+  T2:
+    name: position_relative_motion_prior
+    status: implemented
+    family: complementary_or_alpha_beta_like
+    coupling_mode: imu_corrects_uwb
+    consumes: solved_uwb_positions
+    prior_sigma_mm: 8.0
+    measurement_sigma_mm: 90.0
+    row_class: solved_position_control_or_oracle_when_L0
+  T3:
+    name: loose_coupled_position_ekf
+    status: implemented
+    family: ekf
+    coupling_mode: bidirectional_joint
+    consumes: solved_uwb_positions
+    prior_sigma_mm: 80.0
+    measurement_sigma_mm: 90.0
+    row_class: solved_position_control_prototype
+  T4:
+    name: loose_coupled_ukf
+    status: pending_full_algorithm
+    family: ukf
+    coupling_mode: bidirectional_joint
+    consumes: solved_uwb_positions
+  T5:
+    name: error_state_ekf_with_imu_bias_states
+    status: implemented
+    family: eskf
+    coupling_mode: uwb_corrects_imu
+    consumes: solved_uwb_positions
+  T6:
+    name: raw_range_tight_ekf
+    status: implemented_limited_proto
+    family: tight_range_ekf
+    coupling_mode: bidirectional_joint
+    consumes: raw_anchor_tag_measurements
+    prior_sigma_mm: 45.0
+    measurement_sigma_mm: 75.0
+    row_class: raw_measurement_primary_limited_proto
+    caution: Must use R2/R4 range-bias or robust policy; otherwise stable range residual can dominate the state.
+  T7:
+    name: raw_range_tight_ukf
+    status: pending_full_algorithm
+    family: tight_range_ukf
+    coupling_mode: bidirectional_joint
+    consumes: raw_anchor_tag_measurements
+  T8:
+    name: robust_raw_range_tight_ekf
+    status: implemented_limited_proto
+    family: robust_tight_range_ekf
+    coupling_mode: bidirectional_joint
+    consumes: raw_anchor_tag_measurements
+    caution: Not proof of robust fusion until range-bias policy and visual audit both pass.
+  T9:
+    name: session_window_fixed_lag_factor_graph
+    status: pending_full_algorithm
+    family: factor_graph
+    coupling_mode:
+      - bidirectional_joint
+      - calibration_coestimate_when_bias_delay_or_extrinsic_states_enabled
+    consumes: solved_positions_or_raw_ranges
+    row_class: raw_measurement_primary_when_using_R
+  T10:
+    name: full_session_batch_or_rts_upper_bound
+    status: pending_full_algorithm
+    family: full_session_solver
+    coupling_mode:
+      - bidirectional_joint
+      - calibration_coestimate_when_bias_delay_or_extrinsic_states_enabled
+    consumes: solved_positions_or_raw_ranges
+    row_class: full_session_primary_when_using_R
+  T11:
+    name: imu_only_strapdown_dead_reckoning_diagnostic
+    status: implemented
+    family: diagnostic_not_fusion
+    coupling_mode: imu_only_diagnostic
+    consumes: imu_only
+  T12:
+    name: imu_only_with_zupt_zaru_or_pseudo_reset_diagnostic
+    status: pending_full_algorithm
+    family: diagnostic_not_fusion
+    coupling_mode: imu_only_diagnostic
+    consumes: imu_only
+
+phase3_current_scope:
+  status: full_sweep_over_currently_implemented_solver_families
+  implemented_T_families:
+    - T2
+    - T3
+    - T5
+    - T6
+    - T8
+    - T11
+  not_yet_algorithm_complete:
+    - T4
+    - T7
+    - T9
+    - T10
+    - T12
+  rule: Do not claim final best filter/fusion algorithm until pending T families and planned P/R/I filters are either implemented or explicitly excluded.
+
+phase4_algorithm_factory_requirements:
+  status: planned_algorithm_complete_gpu_sweep
+  primary_input: raw_anchor_tag_measurements
+  solved_position_branch: baseline_and_control
+  full_sweep_policy:
+    meaning_of_full: every_compatible_declared_combination_without_score_based_pruning
+    full_nominal_manifest_required_before_launch: true
+    gpu_runs_manifest_chunks_not_manual_selected_subsets: true
+    gpu_memory_controls_chunk_size_only: true
+    no_solver_family_pruning_from_phase2_or_phase3: true
+    no_sensor_family_pruning_for_runtime: true
+    no_filter_family_pruning_for_runtime: true
+    exclude_only_physically_or_data_incompatible_rows: true
+    exclusion_reason_table_required: true
+    selected_stress_views_do_not_replace_full_stress_matrix: true
+    segmented_execution_allowed: true
+    full_matrix_can_resume_across_multiple_nights: true
+    completed_chunks_must_not_be_recomputed_on_resume: true
+    final_ranking_requires_all_required_chunks_done: true
+  required_T_families:
+    - T1
+    - T2
+    - T3
+    - T4
+    - T5
+    - T6
+    - T7
+    - T8
+    - T9
+    - T10
+  diagnostic_T_families:
+    - T11
+    - T12
+  hard_gates:
+    - cpu_golden_exists_for_each_T_family
+    - cpu_gpu_agreement_subset_passes_before_full_gpu_sweep
+    - all_I_P_R_filter_components_recorded_in_manifest
+    - L10_to_L19_not_pruned_for_runtime
+    - multiseed_and_stress_evidence_required_for_final_winner
+    - G11_two_gpu_dynamic_balance_passes_for_official_launcher
+    - G12_cpu_parallel_execution_passes_for_broad_sweeps
+    - G13_thread_oversubscription_control_passes_for_gpu_feeders
+    - segmented_resume_manifest_passes_before_multi_night_full_run
+  output_goal: best_L_plus_I_plus_P_or_R_plus_T_combination_with_failure_reasons

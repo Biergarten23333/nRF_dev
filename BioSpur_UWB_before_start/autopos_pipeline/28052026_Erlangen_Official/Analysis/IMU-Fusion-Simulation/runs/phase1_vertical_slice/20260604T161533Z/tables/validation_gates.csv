@@ -1,0 +1,7 @@
+gate_id,status,phase,evidence,blocking_next_phase
+G1_frame_gravity,PASS,phase1,frame_conventions.md exists=True; L0/T11 P95=0.000 mm,False
+G2_drift_from_L_properties,PASS,phase1,sensors.yaml exists=True; L2/T11 endpoint drift median=23486.4 mm,False
+G3_range_bias_policy,PASS_OR_LIMITED_PROTO,phase1,range_bias_policy.md exists; T6 raw availability audited but solved-position proxy is used,True
+G4_fixed_time_alignment,PASS,phase1,all Phase 1 rows use official aligned sample grid; no beta_s refit,False
+G5_noise_seed_repeats,PASS_DEBUG_SINGLE_SEED,phase1,recorded stochastic seeds=34; final claims still require multiseed,True
+G6_multimetric_verdict,PASS,phase1,summary metric columns present=True; figure_count=245,False

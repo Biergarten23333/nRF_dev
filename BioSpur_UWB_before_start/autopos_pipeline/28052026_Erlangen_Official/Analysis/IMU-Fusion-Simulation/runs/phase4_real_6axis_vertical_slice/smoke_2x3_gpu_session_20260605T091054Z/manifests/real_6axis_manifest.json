@@ -1,0 +1,79 @@
+{
+  "imu_filter": "I1+I3",
+  "input_baseline": "B0_A0_U4_P0_T1",
+  "odr_hz": 120.0,
+  "orientation_source": "world_aligned",
+  "outputs": {
+    "full_png": "figs/contact_sheets/real_6axis_overlay_full.png",
+    "imu_packets": "traces/real_6axis_imu_packets.csv.gz",
+    "method_pngs": {
+      "full": [
+        "figs/method_sheets/full/01_pure_UWB__REAL6_B0_A0_U4_P0_T1.png",
+        "figs/method_sheets/full/02_perfect_IMU__REAL6_X_A0_L0_I0_T11.png",
+        "figs/method_sheets/full/03_realistic_IMU__REAL6_X_A0_L15_I1_I3_T11.png",
+        "figs/method_sheets/full/04_Fwd_IMU-_UWB__REAL6_X_A0_U4_P0_L15_I1_I3_T2LITE_IMU2UWB.png",
+        "figs/method_sheets/full/05_Fwd_Bidir__REAL6_X_A0_U4_P0_L15_I1_I3_T3LITE_BIDIR.png",
+        "figs/method_sheets/full/06_Fwd_UWB-_IMU__REAL6_X_A0_U4_P0_L15_I1_I3_T5LITE.png",
+        "figs/method_sheets/full/07_Sess_UWB-_IMU__REAL6_X_A0_U4_P0_L15_I1_I3_T9LITE_UWB2IMU.png",
+        "figs/method_sheets/full/08_Sess_IMU-_UWB__REAL6_X_A0_U4_P0_L15_I1_I3_T9LITE_IMU2UWB.png",
+        "figs/method_sheets/full/09_Sess_Bidir__REAL6_X_A0_U4_P0_L15_I1_I3_T10LITE_BIDIR.png"
+      ],
+      "selected": [
+        "figs/method_sheets/selected/01_pure_UWB__REAL6_B0_A0_U4_P0_T1.png",
+        "figs/method_sheets/selected/02_perfect_IMU__REAL6_X_A0_L0_I0_T11.png",
+        "figs/method_sheets/selected/03_realistic_IMU__REAL6_X_A0_L15_I1_I3_T11.png",
+        "figs/method_sheets/selected/04_Fwd_IMU-_UWB__REAL6_X_A0_U4_P0_L15_I1_I3_T2LITE_IMU2UWB.png",
+        "figs/method_sheets/selected/05_Fwd_Bidir__REAL6_X_A0_U4_P0_L15_I1_I3_T3LITE_BIDIR.png",
+        "figs/method_sheets/selected/06_Fwd_UWB-_IMU__REAL6_X_A0_U4_P0_L15_I1_I3_T5LITE.png",
+        "figs/method_sheets/selected/07_Sess_UWB-_IMU__REAL6_X_A0_U4_P0_L15_I1_I3_T9LITE_UWB2IMU.png",
+        "figs/method_sheets/selected/08_Sess_IMU-_UWB__REAL6_X_A0_U4_P0_L15_I1_I3_T9LITE_IMU2UWB.png",
+        "figs/method_sheets/selected/09_Sess_Bidir__REAL6_X_A0_U4_P0_L15_I1_I3_T10LITE_BIDIR.png"
+      ]
+    },
+    "report": "reports/REAL_6AXIS_VERTICAL_SLICE.md",
+    "samples": "traces/real_6axis_samples.csv.gz",
+    "selected_png": "figs/contact_sheets/real_6axis_overlay_selected.png",
+    "summary": "tables/real_6axis_summary.csv",
+    "tracks": "tables/real_6axis_track_metrics.csv",
+    "triad_pngs": {
+      "full": "figs/triad_sheets/opti_vs_pure_uwb_vs_uwb_imu_full.png",
+      "selected": "figs/triad_sheets/opti_vs_pure_uwb_vs_uwb_imu_selected.png"
+    }
+  },
+  "phase": "phase4_real_6axis_vertical_slice",
+  "rows": [
+    "REAL6_B0_A0_U4_P0_T1",
+    "REAL6_X_A0_L0_I0_T11",
+    "REAL6_X_A0_L15_I1+I3_T11",
+    "REAL6_X_A0_U4_P0_L15_I1+I3_T2LITE_IMU2UWB",
+    "REAL6_X_A0_U4_P0_L15_I1+I3_T3LITE_BIDIR",
+    "REAL6_X_A0_U4_P0_L15_I1+I3_T5LITE",
+    "REAL6_X_A0_U4_P0_L15_I1+I3_T10LITE_BIDIR",
+    "REAL6_X_A0_U4_P0_L15_I1+I3_T9LITE_IMU2UWB",
+    "REAL6_X_A0_U4_P0_L15_I1+I3_T9LITE_UWB2IMU"
+  ],
+  "run_id": "smoke_2x3_gpu_session_20260605T091054Z",
+  "script": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/Analysis/IMU-Fusion-Simulation/scripts/run_real_6axis_vertical_slice.py",
+  "sensor": "L15",
+  "session_iters": 3,
+  "session_lr": 0.075,
+  "session_solver_device_info": {
+    "cuda_available": true,
+    "cuda_device_count": 2,
+    "cuda_devices": [
+      "NVIDIA GeForce GTX 1080 Ti",
+      "NVIDIA GeForce GTX 1080 Ti"
+    ],
+    "requested_devices": [
+      "cuda:0",
+      "cuda:1"
+    ],
+    "resolved_devices": [
+      "cuda:0",
+      "cuda:1"
+    ],
+    "torch_available": true,
+    "torch_version": "2.12.0+cu126"
+  },
+  "status": "complete"
+}
