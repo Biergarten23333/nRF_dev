@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Run the Phase 4 L2 single-I seed0 factory matrix.
+"""Run the Phase 4 single-I factory matrix for one selected IMU sensor.
 
-This is the L2/JY61P/MPU6050-like single-I, one-seed launcher. It creates the
-declared 5292-row L2/single-I/seed0 manifest and evaluates every row that has
-source artifacts and a current implementation. Missing-source rows are recorded
+This is the single-sensor/single-I launcher used for L2/JY61P/MPU6050-like
+screening and follow-up L16/L20 replacement runs. It creates the declared
+5292-row single-I/seed manifest and evaluates every row that has source
+artifacts and a current implementation. Missing-source rows are recorded
 explicitly instead of being silently pruned.
 """
 
@@ -17,6 +18,7 @@ import math
 import multiprocessing as mp
 import os
 import platform
+import re
 import subprocess
 import sys
 import time
@@ -115,6 +117,7 @@ _RANGE_BIAS: np.ndarray | None = None
 _RANGE_SIGMA: np.ndarray | None = None
 _L_PROPS: dict[str, dict] = {}
 _SEED_ID = "S00"
+_SENSOR_ID = "L2"
 
 
 def fmt(value: object, digits: int = 1) -> str:
@@ -183,11 +186,13 @@ def torch_cuda_info() -> dict:
     return out
 
 
-def install_l2_props() -> tuple[dict[str, dict], dict[str, dict]]:
+def install_sensor_props(sensor_id: str) -> tuple[dict[str, dict], dict[str, dict]]:
     raw = yaml.safe_load(SENSORS_YAML.read_text(encoding="utf-8"))
-    row = raw["L2"]
+    if sensor_id not in raw:
+        raise KeyError(f"{sensor_id} not found in {SENSORS_YAML}")
+    row = raw[sensor_id]
     props = {
-        "L2": {
+        sensor_id: {
             "bias_mg": float(row["residual_accel_bias_mg"]),
             "noise_mg": float(row["accel_noise_mg"]),
             "rw_mg": float(row["accel_bias_random_walk_mg_sqrt_s"]),
@@ -197,7 +202,7 @@ def install_l2_props() -> tuple[dict[str, dict], dict[str, dict]]:
     }
     S1.L_PROPS = props
     S1.I_MODS.update(EXTRA_I_MODS)
-    return props, {"L2": row}
+    return props, {sensor_id: row}
 
 
 def p_filter(stream: pd.DataFrame, p_id: str) -> pd.DataFrame:
@@ -299,7 +304,7 @@ def build_full_manifest() -> tuple[list[dict], list[dict], list[tuple], list[tup
                             if u_id != "U4":
                                 status = "excluded_source_missing"
                                 reason = "only U4 solved-position sample stream exists on disk"
-                            row = {"experiment_id": exp, "branch": "position", "A": a_id, "U": u_id, "P": p_id, "L": l_id, "I": i_id, "T": t_id, "seed_id": "S00", "status": status, "reason": reason}
+                            row = {"experiment_id": exp, "branch": "position", "A": a_id, "U": u_id, "P": p_id, "L": l_id, "I": i_id, "T": t_id, "seed_id": _SEED_ID, "status": status, "reason": reason}
                             manifest.append(row)
                             if status == "runnable":
                                 pos_jobs.append((len(pos_jobs), a_id, u_id, p_id, l_id, i_id, t_id))
@@ -317,7 +322,7 @@ def build_full_manifest() -> tuple[list[dict], list[dict], list[tuple], list[tup
                         if a_id != "A0":
                             status = "excluded_source_missing"
                             reason = "raw range path and anchor layout currently wired for A0 only"
-                        row = {"experiment_id": exp, "branch": "raw_range", "A": a_id, "R": r_id, "L": l_id, "I": i_id, "T": t_id, "seed_id": "S00", "status": status, "reason": reason}
+                        row = {"experiment_id": exp, "branch": "raw_range", "A": a_id, "R": r_id, "L": l_id, "I": i_id, "T": t_id, "seed_id": _SEED_ID, "status": status, "reason": reason}
                         manifest.append(row)
                         if status == "runnable":
                             raw_jobs.append((len(raw_jobs), a_id, r_id, l_id, i_id, t_id))
@@ -329,7 +334,7 @@ def build_full_manifest() -> tuple[list[dict], list[dict], list[tuple], list[tup
             for i_id in I_IDS:
                 for t_id in IMU_T_IDS:
                     exp = f"X_{a_id}_{l_id}_{i_id}_{t_id}"
-                    row = {"experiment_id": exp, "branch": "imu_only", "A": a_id, "L": l_id, "I": i_id, "T": t_id, "seed_id": "S00", "status": "runnable", "reason": ""}
+                    row = {"experiment_id": exp, "branch": "imu_only", "A": a_id, "L": l_id, "I": i_id, "T": t_id, "seed_id": _SEED_ID, "status": "runnable", "reason": ""}
                     manifest.append(row)
                     imu_jobs.append((len(imu_jobs), a_id, l_id, i_id, t_id))
 
@@ -339,9 +344,9 @@ def build_full_manifest() -> tuple[list[dict], list[dict], list[tuple], list[tup
 def summarize(samples: pd.DataFrame, exp: str, deployability: str, description: str, labels: dict) -> tuple[list[dict], dict]:
     tracks, summary = S1.summarize_experiment(samples, exp, deployability, description, labels)
     for row in tracks:
-        row["seed_id"] = "S00"
-    summary["seed_id"] = "S00"
-    summary["experiment_uid"] = f"{exp}__S00"
+        row["seed_id"] = _SEED_ID
+    summary["seed_id"] = _SEED_ID
+    summary["experiment_uid"] = f"{exp}__{_SEED_ID}"
     return tracks, summary
 
 
@@ -380,15 +385,15 @@ def imu_worker(job: tuple[int, str, str, str, str]) -> dict:
     job_index, a_id, l_id, i_id, t_id = job
     t0 = time.perf_counter()
     base = _STREAMS[(a_id, "U4", "P0")]
-    imu = S1.simulate_imu_for_li(base, f"phase4_l2_full_S00_{a_id}", l_id, i_id)
+    imu = S1.simulate_imu_for_li(base, f"phase4_{l_id.lower()}_full_{_SEED_ID}_{a_id}", l_id, i_id)
     if t_id == "T12":
         imu = session_smooth_samples(imu, 0.82)
     exp = f"X_{a_id}_{l_id}_{i_id}_{t_id}"
     imu["experiment_id"] = exp
     imu["deployability"] = "imu_only_diagnostic_screening"
-    imu["description"] = f"Phase4 L2 single-I {t_id} IMU-only diagnostic."
-    tracks, summary = summarize(imu, exp, "imu_only_diagnostic_screening", f"Phase4 L2 single-I {t_id}.", {"A": a_id, "L": l_id, "I": i_id, "T": t_id, "kind": "imu_only"})
-    return {"job_index": job_index, "key": (a_id, i_id, t_id), "samples": imu, "tracks": tracks, "summary": summary, "timing": {"experiment_id": exp, "seed_id": "S00", "wall_time_s": time.perf_counter() - t0, "status": "ok"}}
+    imu["description"] = f"Phase4 {l_id} single-I {t_id} IMU-only diagnostic."
+    tracks, summary = summarize(imu, exp, "imu_only_diagnostic_screening", f"Phase4 {l_id} single-I {t_id}.", {"A": a_id, "L": l_id, "I": i_id, "T": t_id, "kind": "imu_only"})
+    return {"job_index": job_index, "key": (a_id, i_id, t_id), "samples": imu, "tracks": tracks, "summary": summary, "timing": {"experiment_id": exp, "seed_id": _SEED_ID, "wall_time_s": time.perf_counter() - t0, "status": "ok"}}
 
 
 def position_worker(job: tuple[int, str, str, str, str, str, str]) -> dict:
@@ -411,13 +416,13 @@ def position_worker(job: tuple[int, str, str, str, str, str, str]) -> dict:
             prior,
             exp,
             str(params["deployability"]),
-            f"Phase4 L2 single-I position-side {t_id}.",
+            f"Phase4 {l_id} single-I position-side {t_id}.",
             float(params["prior_sigma_base"]) * process,
             float(params["measurement_sigma"]),
         )
         deployability = str(params["deployability"])
-    tracks, summary = summarize(samples, exp, deployability, "Phase4 L2 single-I position row.", {"A": a_id, "U": u_id, "P": p_id, "L": l_id, "I": i_id, "T": t_id, "kind": "position_fusion" if t_id != "T1" else "uwb_only"})
-    return {"job_index": job_index, "tracks": tracks, "summary": summary, "timing": {"experiment_id": exp, "seed_id": "S00", "wall_time_s": time.perf_counter() - t0, "status": "ok"}}
+    tracks, summary = summarize(samples, exp, deployability, f"Phase4 {l_id} single-I position row.", {"A": a_id, "U": u_id, "P": p_id, "L": l_id, "I": i_id, "T": t_id, "kind": "position_fusion" if t_id != "T1" else "uwb_only"})
+    return {"job_index": job_index, "tracks": tracks, "summary": summary, "timing": {"experiment_id": exp, "seed_id": _SEED_ID, "wall_time_s": time.perf_counter() - t0, "status": "ok"}}
 
 
 def raw_policy(r_id: str) -> tuple[np.ndarray, np.ndarray, float, bool]:
@@ -451,7 +456,7 @@ def raw_worker(job: tuple[int, str, str, str, str, str]) -> dict:
         prior,
         exp,
         str(params["deployability"]),
-        f"Phase4 L2 single-I raw-range {t_id}/{r_id}.",
+        f"Phase4 {l_id} single-I raw-range {t_id}/{r_id}.",
         float(params["prior_sigma_base"]) * process,
         scale,
         bool(r_robust or t_id in {"T8", "T9", "T10"}),
@@ -464,9 +469,9 @@ def raw_worker(job: tuple[int, str, str, str, str, str]) -> dict:
     samples = session_smooth_samples(samples, float(params.get("smooth_alpha", 1.0)))
     samples["experiment_id"] = exp
     samples["deployability"] = str(params["deployability"])
-    samples["description"] = f"Phase4 L2 single-I raw-range {t_id}/{r_id}."
-    tracks, summary = summarize(samples, exp, str(params["deployability"]), "Phase4 L2 single-I raw-range row.", {"A": a_id, "R": r_id, "L": l_id, "I": i_id, "T": t_id, "kind": "range_fusion"})
-    return {"job_index": job_index, "tracks": tracks, "summary": summary, "timing": {"experiment_id": exp, "seed_id": "S00", "wall_time_s": time.perf_counter() - t0, "status": "ok"}}
+    samples["description"] = f"Phase4 {l_id} single-I raw-range {t_id}/{r_id}."
+    tracks, summary = summarize(samples, exp, str(params["deployability"]), f"Phase4 {l_id} single-I raw-range row.", {"A": a_id, "R": r_id, "L": l_id, "I": i_id, "T": t_id, "kind": "range_fusion"})
+    return {"job_index": job_index, "tracks": tracks, "summary": summary, "timing": {"experiment_id": exp, "seed_id": _SEED_ID, "wall_time_s": time.perf_counter() - t0, "status": "ok"}}
 
 
 def collect(label: str, jobs: list[tuple], worker, workers: int, initializer, initargs: tuple) -> list[dict]:
@@ -498,15 +503,24 @@ def aggregate(summary_rows: list[dict]) -> list[dict]:
 
 
 def run(args: argparse.Namespace) -> dict:
-    run_id = args.run_id or f"phase4_L2_singleI_FULL_seed0_1080ti_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}"
+    global _SEED_ID, _SENSOR_ID
+    _SEED_ID = str(args.seed_id).upper()
+    if not re.match(r"^S\d{2}$", _SEED_ID):
+        raise ValueError(f"--seed-id must look like S00/S01/...; got {_SEED_ID!r}")
+    _SENSOR_ID = str(args.sensor_id).upper()
+    if not re.match(r"^L\d+$", _SENSOR_ID):
+        raise ValueError(f"--sensor-id must look like L2/L16/L20; got {_SENSOR_ID!r}")
+    L_IDS[:] = [_SENSOR_ID]
+    run_id = args.run_id or f"phase4_{_SENSOR_ID}_singleI_TRUEFULL_{_SEED_ID}_1080ti_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}"
     run_dir = SIM_ROOT / "runs" / "phase4_algorithm_factory" / run_id
     for d in [run_dir / "logs", run_dir / "tables", run_dir / "reports", run_dir / "manifests"]:
         d.mkdir(parents=True, exist_ok=True)
 
     start = time.perf_counter()
     workers = max(1, min(int(args.workers), os.cpu_count() or 1))
-    l_props, sensor_meta = install_l2_props()
-    print(f"[phase4-full] run_id={run_id} L=L2 I=I0-I8 seed=S00 workers={workers}", flush=True)
+    l_props, sensor_meta = install_sensor_props(_SENSOR_ID)
+    sensor_name = str(sensor_meta[_SENSOR_ID].get("name", _SENSOR_ID))
+    print(f"[phase4-full] run_id={run_id} L={_SENSOR_ID} ({sensor_name}) I=I0-I8 seed={_SEED_ID} workers={workers}", flush=True)
 
     full_manifest, exclusions, pos_jobs, raw_jobs, imu_jobs = build_full_manifest()
     write_csv(run_dir / "tables" / "phase4_full_manifest.csv", full_manifest)
@@ -516,10 +530,10 @@ def run(args: argparse.Namespace) -> dict:
         {
             "run_id": run_id,
             "phase_status": "running",
-            "phase": "phase4_L2_singleI_FULL_seed0",
+            "phase": "phase4_singleI_TRUEFULL",
             "created_utc": datetime.now(UTC).isoformat(),
             "seed_count": 1,
-            "seed_id": "S00",
+            "seed_id": _SEED_ID,
             "L_ids": L_IDS,
             "I_ids": I_IDS,
             "declared_full_rows": len(full_manifest),
@@ -575,7 +589,7 @@ def run(args: argparse.Namespace) -> dict:
     write_csv(run_dir / "tables" / "phase4_timing.csv", timing_rows)
     write_csv(run_dir / "tables" / "phase4_full_ranking.csv", ranked)
     report = [
-        "# Phase4 L2 Single-I FULL Seed0",
+        f"# Phase4 {_SENSOR_ID} Single-I TRUEFULL {_SEED_ID}",
         "",
         f"Generated: {datetime.now(UTC).isoformat()}",
         f"Run ID: `{run_id}`",
@@ -590,17 +604,18 @@ def run(args: argparse.Namespace) -> dict:
         S1.markdown_table(ranked[:30], ["rank", "experiment_id", "kind", "A", "U", "P", "R", "L", "I", "T", "screening_score", "trackmedian_err3d_p50_mm", "trackmedian_err3d_p95_mm", "legacy_deltaR_error_rms_mm"]),
         "",
     ]
-    (run_dir / "reports" / "PHASE4_L2_SINGLEI_FULL_SEED0.md").write_text("\n".join(report), encoding="utf-8")
+    report_name = f"PHASE4_{_SENSOR_ID}_SINGLEI_TRUEFULL_{_SEED_ID}.md"
+    (run_dir / "reports" / report_name).write_text("\n".join(report), encoding="utf-8")
     write_json(
         run_dir / "manifest.json",
         {
             "run_id": run_id,
             "phase_status": "complete",
-            "phase": "phase4_L2_singleI_FULL_seed0",
+            "phase": "phase4_singleI_TRUEFULL",
             "created_utc": datetime.now(UTC).isoformat(),
             "elapsed_s": elapsed,
             "seed_count": 1,
-            "seed_id": "S00",
+            "seed_id": _SEED_ID,
             "L_ids": L_IDS,
             "I_ids": I_IDS,
             "declared_full_rows": len(full_manifest),
@@ -614,7 +629,7 @@ def run(args: argparse.Namespace) -> dict:
                 "summary": "tables/phase4_summary.csv",
                 "track_metrics": "tables/phase4_track_metrics.csv",
                 "exclusions": "tables/phase4_exclusion_reasons.csv",
-                "report": "reports/PHASE4_L2_SINGLEI_FULL_SEED0.md",
+                "report": f"reports/{report_name}",
             },
             "host": {"platform": platform.platform(), "cpu_count": os.cpu_count(), "gpu": torch_cuda_info()},
             "git": git_status(),
@@ -624,10 +639,12 @@ def run(args: argparse.Namespace) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run Phase4 L2 single-I seed0 full factory.")
+    parser = argparse.ArgumentParser(description="Run Phase4 single-sensor single-I truefull factory.")
     parser.add_argument("--run-id", default="")
     parser.add_argument("--phase2-run", default="20260604T163422Z")
     parser.add_argument("--workers", type=int, default=4)
+    parser.add_argument("--seed-id", default="S00", help="Noise seed label, e.g. S00, S01, S02.")
+    parser.add_argument("--sensor-id", default="L2", help="Sensor model from configs/sensors.yaml, e.g. L2, L16, L20.")
     args = parser.parse_args()
     result = run(args)
     print(json.dumps(result, indent=2), flush=True)

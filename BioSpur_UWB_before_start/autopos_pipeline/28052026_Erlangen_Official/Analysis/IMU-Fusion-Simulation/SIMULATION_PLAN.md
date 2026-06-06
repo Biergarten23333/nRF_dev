@@ -1783,6 +1783,103 @@ R5: GPU acceleration may not help if implemented as many tiny Python loops
     Mitigation: batch rows by solver family and profile Phase 2 before scaling.
 ```
 
+## Phase 4 L Replacement Follow-Up
+
+After the current L2 MPU6050/JY61P-like TRUEFULL run completes, run the same
+single-I TRUEFULL factory without changing the A/U/R/P/I/T search space, and
+replace only the IMU sensor model:
+
+```text
+primary realistic baseline:
+  L2  = MPU6050-like / JY61P-like 6-axis IMU
+
+high-end chip candidate:
+  L16 = TDK InvenSense ICM-45686 premium 6-axis IMU
+
+industrial lab/reference module:
+  L20 = Xsens/Movella MTi-3-5A-T AHRS module, simulated as accel+gyro only
+```
+
+The runner supports this with:
+
+```bash
+python3 scripts/run_phase4_l2_singleI_full_factory.py --sensor-id L16 --seed-id S00 --workers <N>
+python3 scripts/run_phase4_l2_singleI_full_factory.py --sensor-id L20 --seed-id S00 --workers <N>
+```
+
+Comparison rule:
+
+```text
+Do not compare L16/L20 by changing solvers or metrics.
+Keep A/U/R/P/I/T fixed, evaluate each row against Opti truth, and then compare
+the best L2 row against the matching L16/L20 replacement rows.
+```
+
+`L16` remains inside the <=100 EUR chip-class candidate set. `L20` is outside
+that chip-only price gate and is a calibrated industrial module/lab reference
+candidate in the 300-500 EUR module class.
+
+## Phase 4 L2/L16/L20 Stress Follow-Up
+
+After the five-seed L2/L16/L20 TRUEFULL replacement analysis, run named stress
+tests against Opti truth to check whether the apparent winner remains stable
+when IMU residuals get worse.
+
+Stress cases:
+
+```text
+ST0_nominal       = unchanged sensor residual parameters
+ST1_vibration_3x  = vibration sensitivity multiplied by 3
+ST2_bias_rw_2x    = accel bias and accel bias random-walk multiplied by 2
+ST3_extrinsic_4x  = IMU/body mounting residual multiplied by 4
+ST4_harsh_combo   = bias 2.5x + noise 1.5x + random-walk 3x + vibration 4x + extrinsic 4x
+```
+
+Evaluation rule:
+
+```text
+truth = Opti/Vicon
+pure UWB and UWB+IMU are both evaluated against Opti
+fusion improvement is computed against the same-P pure UWB baseline
+```
+
+Coordinate note:
+
+```text
+The official aligned ROTO tables use:
+  uwb_x_mm
+  uwb_y_vertical_mm
+  uwb_z_mm
+  opti_x_mm
+  opti_y_vertical_mm
+  opti_z_mm
+
+Reports therefore name the split as horizontal_xz and vertical_y.
+Do not reinterpret these labels as raw device-frame XY/Z.
+```
+
+Current overnight run sequence:
+
+```text
+candidate stress:
+  L2/L16/L20 x S00-S04 x ST0-ST4 x I3/I5 x P0/P4/P5 x T2/T4
+  run: runs/phase4_stress/phase4_L2_L16_L20_stress_candidates_2x1080ti_20260605T224001Z
+
+broad overnight stress:
+  L2/L16/L20 x S00-S04 x ST0-ST4 x I3/I5 x P0-P5 x T2-T5
+  run: runs/phase4_stress/phase4_L2_L16_L20_stress_broad_overnight_2x1080ti_20260605T224150Z
+
+all-I overnight stress:
+  L2/L16/L20 x S00-S04 x ST0-ST4 x I0-I8 x P0-P5 x T2-T5
+  run: runs/phase4_stress/phase4_L2_L16_L20_stress_allI_overnight_2x1080ti_20260605T224304Z
+```
+
+Primary report path inside each run:
+
+```text
+reports/PHASE4_L2_L16_L20_STRESS_CANDIDATES.md
+```
+
 ## Immediate Next Step
 
 Implement and run the official Phase 2 runner.

@@ -122,6 +122,7 @@ L16 = InvenSense ICM-45686 premium 6-axis IMU
 L17 = Bosch BMI270 low-power consumer 6-axis IMU
 L18 = Bosch BMI088 drone/robotics vibration-robust 6-axis IMU
 L19 = ST LSM6DSV16X high-end consumer 6-axis IMU
+L20 = Xsens/Movella MTi-3-5A-T industrial AHRS module, simulated as accel+gyro
 ```
 
 The exact noise, bias, vibration, drift, sampling, and extrinsic parameters live
@@ -131,6 +132,11 @@ in `configs/sensors.yaml`.
 price gate of <= 100 EUR per chip. The simulation must use their recorded
 datasheet noise/offset/temperature fields to derive drift-producing residual
 parameters; do not tune their drift manually after looking at fusion results.
+
+`L20+` may be calibrated industrial IMU/AHRS modules used as lab/reference
+candidates outside the <=100 EUR chip-only price gate. They must still be backed
+by vendor/distributor specifications and must not be tuned after looking at
+fusion results.
 
 ## I: IMU Preprocessing/Filter
 

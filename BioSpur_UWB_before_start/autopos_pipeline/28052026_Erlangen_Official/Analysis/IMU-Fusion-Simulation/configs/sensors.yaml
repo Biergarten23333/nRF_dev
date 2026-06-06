@@ -10,6 +10,8 @@
 # Datasheet fields keep the raw device-level source values. Simulation fields are
 # post-calibration residuals used to generate synthetic drift from Vicon pose.
 # Price gate for L10-L19: consumer/drone-grade, at least 6-axis, <=100 EUR/chip.
+# L20+ may include calibrated industrial IMU/AHRS modules outside the chip-only
+# price gate when they are used as lab/reference candidates.
 
 L0:
   name: perfect_vicon_imu
@@ -431,3 +433,35 @@ L19:
   vibration_sensitivity_mg: 0.09
   extrinsic_mg: 0.018
   calibration_model: high_end_static_bias_calibration_with_low_noise_and_temp_residual
+
+L20:
+  name: xsens_mti3_5a_ahrs_module_as_6axis
+  description: Xsens/Movella MTi-3-5A-T industrial AHRS module, simulated as accel+gyro only
+  manufacturer: Xsens / Movella
+  part_number: MTi-3-5A-T
+  axes: 9
+  simulated_axes: 6
+  market_class: industrial_ahrs_module_lab_reference
+  price_target_eur_per_module: 300-500
+  price_source: https://www.spezial.com/en/mti-3-5a-t-p10212/
+  alternate_price_source: https://www.mouser.com/ProductDetail/Xsens/MTi-3-5A-T
+  datasheet_or_dist_source: https://www.xsens.com/sensor-modules/xsens-mti-3-ahrs
+  datasheet_accel_noise_ug_sqrt_hz: 70
+  datasheet_gyro_noise_mdps_sqrt_hz: 3.0
+  datasheet_accel_inrun_bias_stability_ug: 40
+  datasheet_gyro_inrun_bias_stability_deg_h: 6.0
+  datasheet_accel_full_range_g: 16
+  datasheet_gyro_full_range_dps: 2000
+  datasheet_output_frequency_hz_max: 1000
+  accel_noise_mg: 0.54
+  gyro_noise_dps: 0.023
+  residual_accel_bias_mg: 0.050
+  residual_gyro_bias_dps: 0.003
+  accel_bias_random_walk_mg_sqrt_s: 0.007
+  gyro_bias_random_walk_dps_sqrt_s: 0.00045
+  timestamp_jitter_ms: 0.15
+  quantization_mg: 0.25
+  odr_hz: 120.0
+  vibration_sensitivity_mg: 0.06
+  extrinsic_mg: 0.012
+  calibration_model: factory_calibrated_industrial_module_with_low_bias_and_good_timestamping

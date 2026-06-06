@@ -13,6 +13,11 @@ maximum chip price: 100 EUR/chip
 source requirement: datasheet or distributor page linked in sensors.yaml
 ```
 
+`L20+` may be calibrated industrial IMU/AHRS modules used as lab/reference
+candidates. These rows are not constrained by the <=100 EUR chip-only gate, but
+they still require vendor/distributor specification links and recorded
+datasheet-level parameters.
+
 ## Datasheet Versus Simulation Fields
 
 Datasheets usually provide:
@@ -80,6 +85,9 @@ Datasheet-backed consumer/drone IMUs:
   L17 Bosch BMI270
   L18 Bosch BMI088
   L19 ST LSM6DSV16X
+
+Industrial/lab reference modules:
+  L20 Xsens/Movella MTi-3-5A-T AHRS module, simulated as accel+gyro only
 ```
 
 The Phase 3 runner must load sensor properties from `configs/sensors.yaml`.
