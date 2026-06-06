@@ -21,15 +21,16 @@
 \newcommand{\case}[1]{\texttt{\detokenize{#1}}}
 
 \title{\textbf{AutoPos UWB 场地实验报告}\\
-\large 基于 OptiTrack 真值的自定位、静态定位与动态 ROTO 验证}
+\large 基于 Vicon Motion Capture System Ground Truth 的 AutoPos 参数验证}
 \author{Zekai Xiao}
-\date{Erlangen official dataset, 2026-05-28}
+\date{2026年5月28日，Erlangen：Vicon Motion Capture System 对 AutoPos 系统的 Ground Truth 测量}
 
 \begin{document}
+\pagestyle{plain}
 \maketitle
 
 \begin{abstract}
-本报告整理 2026 年 5 月 28 日 Erlangen 官方实验数据中的 OptiTrack--UWB 主线结果。报告的核心问题不是单纯追求某一个最小误差数值，而是回答三个实验问题：第一，AutoPos 仅依赖 UWB 测距时能否恢复出足够可用的锚点布局；第二，在 OptiTrack 真值坐标下，部署级 UWB 静态定位能达到什么精度；第三，动态 ROTO 误差到底来自几何布局、时序、滤波，还是更深层的动态测距偏差。当前最稳妥的主结论是：使用生产配置 \case{v4-io/T4} 时，静态部署级定位达到 $72.7\mm$ median、$171.5\mm$ P95、$109.8\mm$ RMSE；动态 ROTO 原始绝对误差为 $105.8\mm$ median、$231.8\mm$ P95、$141.3\mm$ sample RMSE。OptiTrack 锚点、AutoPos 锚点与 delay calibration 的对照表明，延迟和布局是耦合问题，不能把锚点几何误差和测距延迟误差简单分开。Monte Carlo、墙体 NLOS 仿真和 IMU 融合实验适合作为稳健性与未来工作，而不是替代这条 OptiTrack--UWB 主证据链。
+本报告整理 2026年5月28日于 Erlangen 进行的 Vicon Motion Capture System 对 AutoPos 系统的 Ground Truth 测量结果，用于验证 AutoPos anchor self-localization、AutoPos Solver 与 UWB-Tag solver 组合、静态 UWB-Tag 定位以及动态 RotoArm UWB-Tag 测量表现。核心问题包括：第一，AutoPos 仅依赖 UWB 测距时能否恢复出足够可用的锚点布局；第二，在 Vicon Motion Capture System 真值坐标下，UWB-Tag 静态定位能达到什么精度；第三，动态 RotoArm UWB-Tag 误差到底来自几何布局、时序、滤波，还是更深层的动态测距偏差。当前最稳妥的主结论是：使用 AutoPos Solver 与 UWB-Tag solver 组合 \case{v4-io/T4} 时，静态 UWB-Tag 定位达到 $72.7\mm$ median、$171.5\mm$ P95、$109.8\mm$ RMSE；动态 RotoArm UWB-Tag 原始绝对误差为 $105.8\mm$ median、$231.8\mm$ P95、$141.3\mm$ sample RMSE。Vicon Motion Capture System 锚点、AutoPos 锚点与 delay calibration 的对照表明，延迟和布局是耦合问题，不能把锚点几何误差和测距延迟误差简单分开。Monte Carlo、墙体 NLOS 仿真、FULL/COMPACT CIR 和 Phase 4 UWB+IMU 结果用于解释误差来源、动态鲁棒性和下一步工程路径，但不替代 Vicon Motion Capture System--UWB 主证据链。
 \end{abstract}
 
 \section{结论摘要}
@@ -41,47 +42,47 @@
 \toprule
 实验块 & 配置 & Median & P95 & RMSE & 解读 \\
 \midrule
-静态部署级 tag 定位 & \case{v4-io/T4} & 72.7 & 171.5 & 109.8 & 这是推荐作为主 headline 的结果。 \\
-静态 median-estimator 消融 & \case{v4-io/T4} & 69.7 & 173.9 & -- & 不能写成 deployed headline，只能作为估计器消融。 \\
-锚点布局 SE(3) 刚体对齐 & \case{v4-io} vs OptiTrack & -- & -- & 105.4 & 只允许旋转和平移，不允许整体缩放；该误差仍包含尺度偏差。 \\
-锚点布局 Sim(3) 尺度对齐 & \case{v4-io} vs OptiTrack & -- & -- & 67.1 & 允许全局尺度因子 $s$ 后的残差；估计 scale bias 约为 $-4.17\%$。 \\
-动态 ROTO 原始绝对误差 & \case{v4-io/T4} & 105.8 & 231.8 & 141.3 & 动态误差高于静态，主要不是简单布局替换能解决。 \\
-ROTO 后处理滤波 & F5 & 83.3 & 148.6 & -- & 可以降低展示轨迹噪声，但不是 calibration 结果。 \\
+静态 UWB-Tag 定位 & \case{v4-io/T4} & 72.7 & 171.5 & 109.8 & 推荐作为 AutoPos Solver 与 UWB-Tag solver 组合的主结果。 \\
+静态 median-estimator 消融 & \case{v4-io/T4} & 69.7 & 173.9 & -- & 不能写成主结果，只能作为估计器消融。 \\
+锚点布局 SE(3) 刚体对齐 & \case{v4-io} vs Vicon Motion Capture System & -- & -- & 105.4 & 只允许旋转和平移，不允许整体缩放；该误差仍包含尺度偏差。 \\
+锚点布局 Sim(3) 尺度对齐 & \case{v4-io} vs Vicon Motion Capture System & -- & -- & 67.1 & 允许全局尺度因子 $s$ 后的残差；估计 scale bias 约为 $-4.17\%$。 \\
+动态 RotoArm UWB-Tag 原始绝对误差 & \case{v4-io/T4} & 105.8 & 231.8 & 141.3 & 动态误差高于静态，主要不是简单布局替换能解决。 \\
+RotoArm UWB-Tag 后处理滤波 & F5 & 83.3 & 148.6 & -- & 可以降低展示轨迹噪声，但不是 calibration 结果。 \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-建议报告主线写成：\textbf{AutoPos 在真实 UWB 测距中已经能给出可用的空间布局和厘米级到十厘米级定位表现，但真实部署误差由布局、延迟、NLOS/multipath、动态运动状态共同决定。} 因此，论文或实验报告中不应该只报告最小数字，而应说明哪些数字是 deployed pipeline，哪些数字是 ablation、oracle 或 simulation。
+建议报告主线写成：\textbf{AutoPos 在真实 UWB 测距中已经能给出可用的空间布局和厘米级到十厘米级定位表现，但测量系统误差由布局、延迟、NLOS/multipath、动态运动状态共同决定。} 因此，论文或实验报告中不应该只报告最小数字，而应说明哪些数字来自 AutoPos Solver 与 UWB-Tag solver 主组合，哪些数字是 ablation、oracle 或 simulation。
 
 \section{实验数据与评价对象}
 
 本报告关注三类坐标或轨迹：
 \begin{enumerate}
-\item \textbf{OptiTrack 真值：}用于提供锚点、tag 静态位置和动态轨迹参考。它是评价坐标系，不是部署时可用输入。
+\item \textbf{Vicon Motion Capture System 真值：}用于提供锚点、tag 静态位置和动态轨迹参考。它是评价坐标系，不是部署时可用输入。
 \item \textbf{AutoPos UWB 自定位布局：}由 UWB anchor-anchor 或相关测距数据估计锚点几何，代表系统自部署能力。
-\item \textbf{UWB tag 定位与 ROTO 轨迹：}使用估计或真值布局、不同 solver、不同 delay 处理方式重放 tag 数据，评价静态和动态定位误差。
+\item \textbf{UWB tag 定位与 RotoArm UWB-Tag 轨迹：}使用估计或真值布局、不同 solver、不同 delay 处理方式重放 tag 数据，评价静态和动态定位误差。
 \end{enumerate}
 
-本报告的主配置使用 \case{v4-io} 作为 AutoPos 布局，使用 \case{T4} 作为生产级 tag solver。其它 solver、滤波、Monte Carlo、仿真 NLOS 和 Phase 4 UWB+IMU 结果作为对照、稳健性或动态扩展讨论。
+本报告的主配置使用 \case{v4-io} 作为 AutoPos Solver 布局结果，使用 \case{T4} 作为 UWB-Tag solver。其它 solver、滤波、Monte Carlo、仿真 NLOS 和 Phase 4 UWB+IMU 结果作为对照、稳健性或动态扩展讨论。
 
-\section{锚点布局：AutoPos 与 OptiTrack 的差异}
+\section{锚点布局：AutoPos 与 Vicon Motion Capture System 的差异}
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.78\textwidth]{layout_opti_vs_autopos_3d.png}
-\caption{OptiTrack anchor layout 与 AutoPos \case{v4-io} layout 的三维比较。该图用于说明 AutoPos 不是完全随机地恢复锚点结构，而是在真实坐标系下有可解释的刚体误差和尺度偏差。}
+\caption{Vicon Motion Capture System anchor layout 与 AutoPos \case{v4-io} layout 的三维比较。该图用于说明 AutoPos 不是完全随机地恢复锚点结构，而是在真实坐标系下有可解释的刚体误差和尺度偏差。}
 \end{figure}
 
-AutoPos \case{v4-io} 布局相对于 OptiTrack 锚点的刚体 SE(3) RMSE 为 $105.4\mm$。如果允许 Sim(3) 尺度校正，残差降到 $67.1\mm$，对应约 $-4.17\%$ 的 scale bias。这说明布局误差包含两层：一层是整体尺度或延迟造成的系统性偏差，另一层才是锚点相对形状的残差。
+AutoPos \case{v4-io} 布局相对于 Vicon Motion Capture System 锚点的刚体 SE(3) RMSE 为 $105.4\mm$。如果允许 Sim(3) 尺度校正，残差降到 $67.1\mm$，对应约 $-4.17\%$ 的 scale bias。这说明布局误差包含两层：一层是整体尺度或延迟造成的系统性偏差，另一层才是锚点相对形状的残差。
 
-这个结果的写法要谨慎。不能说 AutoPos ``完全等于'' OptiTrack，也不能说它失败。更准确的表述是：AutoPos 在真实测距条件下恢复出了可用拓扑和近似几何，但 UWB 测距延迟和布局尺度互相耦合，使得绝对尺度仍需要 calibration 或更强约束。
+这个结果的写法要谨慎。不能说 AutoPos ``完全等于'' Vicon Motion Capture System，也不能说它失败。更准确的表述是：AutoPos 在真实测距条件下恢复出了可用拓扑和近似几何，但 UWB 测距延迟和布局尺度互相耦合，使得绝对尺度仍需要 calibration 或更强约束。
 
 \section{Delay-layout coupling：本报告最重要的机制证据}
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.78\textwidth]{delay_layout_coupling.png}
-\caption{锚点布局与 delay calibration 的耦合关系。仅替换 OptiTrack 锚点而不重新估计 delay，并不会自动得到好结果。}
+\caption{锚点布局与 delay calibration 的耦合关系。仅替换 Vicon Motion Capture System 锚点而不重新估计 delay，并不会自动得到好结果。}
 \end{figure}
 
 \begin{table}[H]
@@ -99,7 +100,7 @@ AutoPos \case{v4-io}，co-fitted delay & 108.9 & 自定位布局和 delay 一起
 \end{tabular}
 \end{table}
 
-这组对照应该作为报告的机制核心。它说明真实系统中有一个三角关系：锚点布局、测距延迟、tag solver 是一起工作的。OptiTrack 锚点虽然几何更准，但如果 delay model 没有跟着重新估计，结果反而可能很差。因此主报告不能只展示 ``AutoPos vs OptiTrack layout''，还必须解释 delay-layout coupling。
+这组对照应该作为报告的机制核心。它说明真实系统中有一个三角关系：锚点布局、测距延迟、tag solver 是一起工作的。Vicon Motion Capture System 锚点虽然几何更准，但如果 delay model 没有跟着重新估计，结果反而可能很差。因此主报告不能只展示 ``AutoPos vs Vicon Motion Capture System layout''，还必须解释 delay-layout coupling。
 
 \section{静态 tag 定位结果}
 
@@ -112,23 +113,23 @@ AutoPos \case{v4-io}，co-fitted delay & 108.9 & 自定位布局和 delay 一起
 \end{subfigure}
 \begin{subfigure}{0.49\textwidth}
 \centering
-\includegraphics[width=\textwidth]{production_tag_error_by_position.png}
-\caption{生产配置按位置分解}
+\includegraphics[width=\textwidth]{static_tag_error_by_position.png}
+\caption{AutoPos Solver 与 UWB-Tag solver 组合按位置分解}
 \end{subfigure}
-\caption{静态 tag 定位的主结果视图。建议正文优先报告 \case{v4-io/T4} deployed pipeline，而不是把估计器消融的更低 median 当作主结果。}
+\caption{静态 UWB-Tag 定位的主结果视图。建议正文优先报告 \case{v4-io/T4} 这个 AutoPos Solver 与 UWB-Tag solver 组合，而不是把估计器消融的更低 median 当作主结果。}
 \end{figure}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.72\textwidth]{production_tag_error_vs_distance.png}
-\caption{生产配置下误差与 tag-anchor 距离关系。该图适合用于讨论几何条件、距离相关 bias 和边缘点误差。}
+\includegraphics[width=0.72\textwidth]{static_tag_error_vs_distance.png}
+\caption{AutoPos Solver 与 UWB-Tag solver 组合下误差与 tag-anchor 距离关系。该图适合用于讨论几何条件、距离相关 bias 和边缘点误差。}
 \end{figure}
 
 静态定位的推荐 headline 是：
 \[
 \case{v4-io/T4}: \quad \mathrm{median}=72.7\mm,\quad \mathrm{P95}=171.5\mm,\quad \mathrm{RMSE}=109.8\mm.
 \]
-这个数字代表部署级 pipeline，应作为摘要、结论和表格中的主结果。之前分析中出现的 $69.7\mm$ median、$173.9\mm$ P95 是 median-estimator 消融结果，不能写成 deployed headline。正确写法是：估计器选择会轻微改变 median，但系统级 deployed result 仍应以生产方法 probe 中的 $72.7/171.5/109.8\mm$ 为准。
+这个数字代表 AutoPos Solver 与 UWB-Tag solver 组合 \case{v4-io/T4} 的主结果，应作为摘要、结论和表格中的主结果。之前分析中出现的 $69.7\mm$ median、$173.9\mm$ P95 是 median-estimator 消融结果，不能写成主结果。正确写法是：估计器选择会轻微改变 median，但系统级结果仍应以 $72.7/171.5/109.8\mm$ 为准。
 
 \subsection{静态滤波的意义}
 
@@ -140,21 +141,21 @@ AutoPos \case{v4-io}，co-fitted delay & 108.9 & 自定位布局和 delay 一起
 
 静态 lock/filter F5 将 repeatability spread 从 $67.4\mm$ 降到 $18.7\mm$。这说明滤波非常适合提高静态读数稳定性，例如展示界面、长期占位、慢速更新。但这个结果不应被解释为锚点布局或 delay calibration 被修正；它主要降低随机波动，对固定 bias 的影响有限。
 
-\section{动态 ROTO：为什么比静态更难}
+\section{动态 RotoArm UWB-Tag：为什么比静态更难}
 
 \begin{figure}[H]
 \centering
 \begin{subfigure}{0.49\textwidth}
 \centering
 \includegraphics[width=\textwidth]{roto_abs_cdf_v4io_T4.png}
-\caption{ROTO 绝对误差 CDF}
+\caption{RotoArm UWB-Tag 绝对误差 CDF}
 \end{subfigure}
 \begin{subfigure}{0.49\textwidth}
 \centering
 \includegraphics[width=\textwidth]{roto_solver_matrix_median3d.png}
-\caption{ROTO solver 矩阵}
+\caption{RotoArm UWB-Tag solver 矩阵}
 \end{subfigure}
-\caption{动态 ROTO 结果。ROTO 误差高于静态结果，说明动态轨迹中存在额外误差源。}
+\caption{动态 RotoArm UWB-Tag 结果。RotoArm UWB-Tag 误差高于静态结果，说明动态轨迹中存在额外误差源。}
 \end{figure}
 
 \begin{figure}[H]
@@ -169,14 +170,14 @@ AutoPos \case{v4-io}，co-fitted delay & 108.9 & 自定位布局和 delay 一起
 \includegraphics[width=\textwidth]{roto_error_by_phase.png}
 \caption{按运动 phase 分解}
 \end{subfigure}
-\caption{ROTO 动态诊断图。它们适合支持 ``动态误差不是简单静态 bias'' 这一判断。}
+\caption{RotoArm UWB-Tag 动态诊断图。它们适合支持 ``动态误差不是简单静态 bias'' 这一判断。}
 \end{figure}
 
-\case{v4-io/T4} 的 ROTO 原始绝对误差为 $105.8\mm$ median、$231.8\mm$ P95、$141.3\mm$ sample RMSE。即使使用 Vicon anchors 并重新估计 delay，ROTO 仍约为 $105.6\mm$ median、$200.4\mm$ P95。这是非常关键的负结果：动态 ROTO 的主要问题不能只靠换成 OptiTrack anchor layout 解决。
+\case{v4-io/T4} 的 RotoArm UWB-Tag 原始绝对误差为 $105.8\mm$ median、$231.8\mm$ P95、$141.3\mm$ sample RMSE。即使使用 Vicon anchors 并重新估计 delay，RotoArm UWB-Tag 仍约为 $105.6\mm$ median、$200.4\mm$ P95。这是非常关键的负结果：动态 RotoArm UWB-Tag 的主要问题不能只靠换成 Vicon Motion Capture System anchor layout 解决。
 
-时间相关检查同样支持这个判断。时钟 skew 对 pooled P50 的影响约 $0.11\mm$，而 $0.8\mathrm{ms}$ protocol window 按当前运动速度只对应约 $0.5$--$0.7\mm$ 位移。因此，ROTO 的百毫米级误差不太可能由简单时间窗解释。更合理的解释是动态条件下的 range bias、人体遮挡、天线朝向、multipath/NLOS 和 solver 动态假设共同作用。
+时间相关检查同样支持这个判断。时钟 skew 对 pooled P50 的影响约 $0.11\mm$，而 $0.8\mathrm{ms}$ protocol window 按当前运动速度只对应约 $0.5$--$0.7\mm$ 位移。因此，RotoArm UWB-Tag 的百毫米级误差不太可能由简单时间窗解释。更合理的解释是动态条件下的 range bias、人体遮挡、天线朝向、multipath/NLOS 和 solver 动态假设共同作用。
 
-ROTO 的 F4/F5 滤波结果可以作为工程展示：F4 约 $86.3\mm$ median、$158.2\mm$ P95，F5 约 $83.3\mm$ median、$148.6\mm$ P95。但正文中要强调它们是 post-solve smoother，不是 calibration。它们能让轨迹更平滑，却不能证明原始测距物理误差已经被消除。
+RotoArm UWB-Tag 的 F4/F5 滤波结果可以作为工程展示：F4 约 $86.3\mm$ median、$158.2\mm$ P95，F5 约 $83.3\mm$ median、$148.6\mm$ P95。但正文中要强调它们是 post-solve smoother，不是 calibration。它们能让轨迹更平滑，却不能证明原始测距物理误差已经被消除。
 
 \section{Monte Carlo keep-k：锚点缺失稳健性}
 
@@ -190,7 +191,7 @@ ROTO 的 F4/F5 滤波结果可以作为工程展示：F4 约 $86.3\mm$ median、
 \begin{subfigure}{0.49\textwidth}
 \centering
 \includegraphics[width=\textwidth]{mc_keepk_roto_curves.png}
-\caption{ROTO keep-k}
+\caption{RotoArm UWB-Tag keep-k}
 \end{subfigure}
 \caption{Monte Carlo anchor availability stress test。它应该作为 robustness 章节，而不是主精度 headline。}
 \end{figure}
@@ -201,7 +202,7 @@ ROTO 的 F4/F5 滤波结果可以作为工程展示：F4 约 $86.3\mm$ median、
 \caption{按 upper/lower anchor drop 分层后的 keep-k 结果。低位锚点被移除时，静态结果明显更差。}
 \end{figure}
 
-Monte Carlo keep-k 结果说明锚点数量和空间分布对系统稳定性很重要。对于 \case{v4-io/T4}，静态 repeatability $d_3$ std median 从 keep8 的 $61.7\mm$ 上升到 keep7 的 $83.2\mm$、keep6 的 $107.3\mm$、keep5 的 $149.1\mm$ 和 keep4 的 $196.4\mm$。ROTO turn-center RMS median 也从 keep8 的 $12.1\mm$ 上升到 keep4 的 $63.9\mm$。
+Monte Carlo keep-k 结果说明锚点数量和空间分布对系统稳定性很重要。对于 \case{v4-io/T4}，静态 repeatability $d_3$ std median 从 keep8 的 $61.7\mm$ 上升到 keep7 的 $83.2\mm$、keep6 的 $107.3\mm$、keep5 的 $149.1\mm$ 和 keep4 的 $196.4\mm$。RotoArm UWB-Tag turn-center RMS median 也从 keep8 的 $12.1\mm$ 上升到 keep4 的 $63.9\mm$。
 
 分层结果更有解释力：静态 keep5 lower-heavy drop 为 $96.0\mm$，upper-heavy drop 为 $65.1\mm$；keep4 lower-heavy 为 $117.3\mm$，upper-heavy 为 $57.2\mm$。这说明不是 ``少几个 anchor'' 这么简单，而是哪些空间层的 anchor 被移除会改变可观测性。报告中建议把这部分写成部署建议：保持上下层 anchor 覆盖，避免只剩单一高度平面的几何。
 
@@ -224,7 +225,7 @@ Monte Carlo keep-k 结果说明锚点数量和空间分布对系统稳定性很�
 
 \case{AutoPos_simulation} 是测量完成后的仿真研究，适合放在 discussion 或 supplementary。墙体 NLOS 仿真给出的趋势很清楚：clear LOS P95 约 $0.062\m$；4-wall default 在 0 cm、40 cm、100 cm 的 P95 分别约 $0.764\m$、$0.287\m$、$0.088\m$；4-wall+metal 分别约 $0.892\m$、$0.405\m$、$0.123\m$。extended convergence 结果显示 default wall 约 $115$ cm 才接近 LOS+25\%，wall+metal 约 $145$ cm。
 
-这部分的写法应是：仿真支持一个物理解释，即靠近墙体、金属和遮挡环境时，range bias 可能显著放大定位尾部误差。因此它可以帮助解释 ROTO 和边缘位置的高 P95，也能自然引出 CIR/NLOS 检测的未来工作。但它不是同一套真实测量的独立验证，不能和 OptiTrack-UWB 主结果混在同一个 headline 表里。
+这部分的写法应是：仿真支持一个物理解释，即靠近墙体、金属和遮挡环境时，range bias 可能显著放大定位尾部误差。因此它可以帮助解释 RotoArm UWB-Tag 和边缘位置的高 P95，也能自然引出 CIR/NLOS 检测的未来工作。但它不是同一套真实测量的独立验证，不能和 Vicon Motion Capture System-UWB 主结果混在同一个 headline 表里。
 
 \section{Phase 4 UWB+IMU：L2/L16/L20 三类 IMU 对比}
 
@@ -240,10 +241,10 @@ Monte Carlo keep-k 结果说明锚点数量和空间分布对系统稳定性很�
 \includegraphics[width=\textwidth]{phase4_t2_pi_heatmap_by_sensor.png}
 \caption{\case{T2} 分支下的 P/I heatmap}
 \end{subfigure}
-\caption{Phase 4 L2/L16/L20 TRUEFULL 5-seed Opti-truth analysis。这里的 L 是 IMU sensor model，不是算法名称。}
+\caption{Phase 4 L2/L16/L20 TRUEFULL 5-seed Vicon-truth analysis。这里的 L 是 IMU sensor model，不是算法名称。}
 \end{figure}
 
-这里需要纠正一个容易写错的点：这一节不应该用早期 real 6-axis vertical slice 作为主结果。真正应该进入报告的是 2026-06-05 生成的 Phase 4 L2/L16/L20 TRUEFULL 5-seed Opti-truth analysis。该实验覆盖 L2、L16、L20 三类 IMU sensor model，每个 sensor 使用 S00--S04 五个 seed；每个 seed 有 1377 个 runnable rows、5292 个 declared rows，并用 official ROTO sample table 中的 Opti/Vicon trajectory 作为真值。主范围是 A0 production，A1/A2/A3 属于 control 或 oracle layout，不用于 production recommendation。
+这里需要纠正一个容易写错的点：这一节不应该用早期 real 6-axis vertical slice 作为主结果。真正应该进入报告的是 2026年6月5日 生成的 Phase 4 L2/L16/L20 TRUEFULL 5-seed Vicon-truth analysis。该实验覆盖 L2、L16、L20 三类 IMU sensor model，每个 sensor 使用 S00--S04 五个 seed；每个 seed 有 1377 个 runnable rows、5292 个 declared rows，并用 RotoArm UWB-Tag Vicon trajectory 作为真值。主范围是 A0 分支，A1/A2/A3 属于 control 或 oracle layout，不用于 AutoPos 主结果推荐。
 
 三个 sensor model 的含义如下：
 \begin{itemize}
@@ -252,7 +253,7 @@ Monte Carlo keep-k 结果说明锚点数量和空间分布对系统稳定性很�
 \item \case{L20}：Xsens/Movella MTi-3-5A-T industrial AHRS module，但在当前仿真中仍按 accel+gyro 使用，代表工业级 IMU 质量。
 \end{itemize}
 
-Phase 4 的主 headline 是：最佳 production accuracy row 为 \case{X_A0_U4_P4_L20_I5_T2}，五个 seed 的 mean track-median 3D P50/P95/RMSE 为 $68.4/112.1/75.7\mm$。对应 same-P UWB P95 为 $138.9\mm$，因此 same-P P95 improvement 为 $26.8\mm$；相对于 B0 P0 的 P95 improvement 为 $119.7\mm$；ROTO radius abs / band P95 为 $16.6/105.1\mm$。这一结果说明：在已经有 P4 UWB smoothing 或 position branch 的条件下，IMU fusion 不是把系统从失败变成功，而是进一步压低动态轨迹尾部误差和 ROTO 形状误差。
+Phase 4 的主 headline 是：最佳 A0 accuracy row 为 \case{X_A0_U4_P4_L20_I5_T2}，五个 seed 的 mean track-median 3D P50/P95/RMSE 为 $68.4/112.1/75.7\mm$。对应 same-P UWB P95 为 $138.9\mm$，因此 same-P P95 improvement 为 $26.8\mm$；相对于 B0 P0 的 P95 improvement 为 $119.7\mm$；RotoArm UWB-Tag radius abs / band P95 为 $16.6/105.1\mm$。这一结果说明：在已经有 P4 UWB smoothing 或 position branch 的条件下，IMU fusion 不是把系统从失败变成功，而是进一步压低动态轨迹尾部误差和 RotoArm UWB-Tag 形状误差。
 
 \begin{table}[H]
 \centering
@@ -270,9 +271,9 @@ L2 & \case{X_A0_U4_P4_L2_I5_T2} & 83.9 & 146.2 & 94.2 & -7.3 & 20.1 & 129.6 \\
 
 这个表给出很清楚的排序：L20 最好，L16 非常接近，L2 明显弱一些。特别要注意 L2 的 matched row 在 same-P $\Delta$P95 上是 $-7.3\mm$，也就是在这个 matched combo 下相对 same-P UWB baseline 没有改善；但这不代表 L2 完全无用，因为 L2 在其它 T3/T4 row 和 spiky-track rescue 中仍有明显的去 spike 能力。
 
-\subsection{Production A0 baseline 与 IMU 改善空间}
+\subsection{A0 baseline 与 IMU 改善空间}
 
-Phase 4 报告中还给出 A0/U4 production UWB baselines by P。P4 baseline 本身已经是最强 UWB 分支，P50/P95/RMSE 为 $78.2/138.9/86.2\mm$；P0 原始 UWB 分支为 $105.8/231.8/132.8\mm$。因此，UWB+IMU 有两种不同意义的改善：
+Phase 4 报告中还给出 A0/U4 UWB baselines by P。P4 baseline 本身已经是最强 UWB 分支，P50/P95/RMSE 为 $78.2/138.9/86.2\mm$；P0 原始 UWB 分支为 $105.8/231.8/132.8\mm$。因此，UWB+IMU 有两种不同意义的改善：
 \begin{enumerate}
 \item \textbf{在强 UWB baseline 上继续改进：}例如 L20 best row 把 P4 的 P95 从 $138.9\mm$ 降到 $112.1\mm$，改善 $26.8\mm$。
 \item \textbf{从 raw 或弱 UWB 分支 rescue：}例如 \case{X_A0_U4_P0_L20_I5_T2} 的 5-seed mean P95 为 $133.9\mm$，相对 same-P P0 UWB 的 $231.8\mm$ 改善 $97.9\mm$。
@@ -285,7 +286,7 @@ Phase 4 报告中还给出 A0/U4 production UWB baselines by P。P4 baseline 本
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.82\textwidth]{phase4_spiky_track_xz_l2_l16_l20.png}
-\caption{教授视角 spiky track：同一条 \case{R01/BS2DCE} 轨迹上 L2/L16/L20 的 X-Z 平面对比。该 track 被选择是因为 B0 pure UWB 在 ROTO set 中有最多 X-Z jump spikes。}
+\caption{教授视角 spiky track：同一条 \case{R01/BS2DCE} 轨迹上 L2/L16/L20 的 X-Z 平面对比。该 track 被选择是因为 B0 pure UWB 在 RotoArm UWB-Tag set 中有最多 X-Z jump spikes。}
 \end{figure}
 
 \begin{figure}[H]
@@ -310,7 +311,7 @@ Phase 4 报告中还给出 A0/U4 production UWB baselines by P。P4 baseline 本
 \item \case{L20}: \case{X_A0_U4_P4_L20_I3_T2}，Fusion 3D P95 为 $169.4\mm$，相对 B0 改善 $426.0\mm$，Vertical Z P95 为 $159.3\mm$。
 \end{itemize}
 
-这部分建议在报告里写得更强一些：IMU fusion 的最大价值不是把每一个静态点变准，而是在动态 ROTO 中抑制 UWB-only 的离散跳变和 vertical spike。即使 L2 在 aggregate matched-best 表里不如 L16/L20，它在这条 spiky track 上仍能把大跳变全部压掉，说明低成本 IMU 对动态鲁棒性仍有工程价值。
+这部分建议在报告里写得更强一些：IMU fusion 的最大价值不是把每一个静态点变准，而是在动态 RotoArm UWB-Tag 中抑制 UWB-only 的离散跳变和 vertical spike。即使 L2 在 aggregate matched-best 表里不如 L16/L20，它在这条 spiky track 上仍能把大跳变全部压掉，说明低成本 IMU 对动态鲁棒性仍有工程价值。
 
 \subsection{Stress test：稳健性排序}
 
@@ -339,30 +340,109 @@ Phase 4 还测试了 raw-range branch，但报告中必须写清楚当前 proxy 
 
 \subsection{IMU 结论与边界}
 
-IMU 现在不应该只写成 future work。更准确的写法是：\textbf{UWB+IMU 已经有 Phase 4 级别的仿真/重放证据，能够降低 ROTO P95、抑制 spiky jumps，并在 stress test 中区分不同 IMU sensor model 的工程价值。} 但它仍不应抢走 OptiTrack--UWB 主报告的中心位置，因为当前 Phase 4 仍是 Opti-truth evaluation 和 simulated sensor model sweep，不等同于完全实时、完全嵌入式闭环的 Ghost IMU deployment。主报告可以把 IMU 放在动态扩展结果或 discussion 的后半部分，明确说它是下一阶段最有希望进入系统的方向。
+IMU 现在不应该只写成 future work。更准确的写法是：\textbf{UWB+IMU 已经有 Phase 4 级别的仿真/重放证据，能够降低 RotoArm UWB-Tag P95、抑制 spiky jumps，并在 stress test 中区分不同 IMU sensor model 的工程价值。} 但它仍不应抢走 Vicon Motion Capture System--UWB 主报告的中心位置，因为当前 Phase 4 仍是 Vicon-truth evaluation 和 simulated sensor model sweep，不等同于完全实时、完全嵌入式闭环的 Ghost IMU 系统实测。主报告可以把 IMU 放在动态扩展结果或 discussion 的后半部分，明确说它是下一阶段最有希望进入系统的方向。
 
-\section{CIR：当前只适合写成未来工作}
+\section{CIR：clear LOS 下仍存在 multipath 证据}
 
-CIR 当前不建议作为结果章节。原因是目前没有看到完整对齐的 CIR/NLOS label 表和可复现实验指标。CIR 最适合写成 future work：用 CIR 特征进行 LOS/NLOS 判别、动态 range weighting、wall/multipath 场景下的异常测距剔除，并与 IMU motion prior 结合。
+CIR 不应只写成 future work。更准确的定位是：\textbf{CIR 目前不是完整的 LOS/NLOS 分类器结果，但已经能作为真实传播现象的证据，解释为什么看起来 clear LOS 的 anchor self-calibration 仍可能出现 multipath、tail energy 和链路质量差异。} 这部分应该作为误差来源分析章节，而不是作为主定位精度 headline。
+
+本报告使用两类 CIR 结果：
+\begin{itemize}
+\item \textbf{FULL CIR Sweep10：}目录为 \case{CIRRAW_AUTOPOS_SWEEP10_20260602_225118}。该实验在 AutoPos Sweep10 中采集 full accumulator，重建 958 个完整 full-CIR frames，预期约 1120 个，覆盖率为 85.5\%。每个 accumulator 为 4064 bytes，即 1016 complex samples。
+\item \textbf{F/H 8 小时 FULL CIR baseline：}目录为 \case{CIRRAW_BSF66F_20260602_020301}。该实验只采 F/H priority full CIR，持续 8.00 h，共 31,514 frames，用于观察稳定链路在长时间 clear/static 条件下的 waveform 和 tail/main 分布。
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}{0.49\textwidth}
+\centering
+\includegraphics[width=\textwidth]{cir_full_frame_count_heatmap.png}
+\caption{FULL CIR frame count}
+\end{subfigure}
+\begin{subfigure}{0.49\textwidth}
+\centering
+\includegraphics[width=\textwidth]{cir_full_snr_proxy_heatmap.png}
+\caption{SNR proxy}
+\end{subfigure}
+\caption{FULL CIR Sweep10 的覆盖和 SNR proxy。该结果说明 full accumulator over USB 可以工作，但全锚点 full-CIR 对 USB/CDC 带宽压力很大，不能直接当成 Sweep1000 的默认采集模式。}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}{0.49\textwidth}
+\centering
+\includegraphics[width=\textwidth]{cir_full_tail_ratio_heatmap.png}
+\caption{Tail/main proxy by directed link}
+\end{subfigure}
+\begin{subfigure}{0.49\textwidth}
+\centering
+\includegraphics[width=\textwidth]{cir_full_receiver_envelope_overview.png}
+\caption{Receiver envelope overview}
+\end{subfigure}
+\caption{FULL CIR 的 multipath-tail 证据。即使实验环境中多数 anchor 之间视觉上接近 clear LOS，不同 directed links 的 tail/main proxy 仍有明显差异。}
+\end{figure}
+
+FULL CIR Sweep10 的主要事实是：8/8 masters 成功，每个 master 完成 $10/10$ sweep lines，普通 ranging 本身正常；但 full-CIR 的 link-level 质量并不均匀。最高 multipath-tail proxy 的 directed links 包括 \case{C<-G}、\case{G<-C}、\case{F<-G}、\case{E<-H}、\case{G<-F}、\case{H<-E} 等，tail/main proxy 约为 0.2。弱 SNR-proxy links 也集中在部分 pair 上，例如 \case{F<-G}、\case{H<-E}、\case{E<-H}、\case{E<-F}、\case{G<-F}、\case{G<-C}。这说明 anchor self-calibration 里所谓 ``clear LOS'' 不能简化成 ``每条 range 都是单径、无偏、同方差''。
+
+从物理上看，clear LOS 只表示直达路径存在，并不表示反射路径不存在。UWB 接收端仍会看到地面、墙面、金属结构、支架、人体或设备外壳引起的延迟能量。对于 anchor-anchor self-calibration，这些 multipath/tail 能量会表现为链路特定的 range bias 或 variance difference。它不会一定导致某条链路完全失效，但会让不同 pair 对 layout scale、delay fitting 和 residual distribution 的贡献不同。
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}{0.49\textwidth}
+\centering
+\includegraphics[width=\textwidth]{cir_fh_mean_waveforms.png}
+\caption{F/H mean full-CIR waveforms}
+\end{subfigure}
+\begin{subfigure}{0.49\textwidth}
+\centering
+\includegraphics[width=\textwidth]{cir_fh_tail_ratio_timeseries.png}
+\caption{F/H tail/main time series}
+\end{subfigure}
+\caption{F/H 8 小时 full-CIR baseline。该实验不是全锚点 sweep，而是为了避免 DW1000 single-accumulator overwrite/timing limit，只对 F/H priority link 做稳定长时间采集。}
+\end{figure}
+
+F/H 8 小时实验进一步说明，即使是稳定 priority-only capture，full-CIR waveform 中也有可测的 tail energy。F anchor 的 tail/main median 为 0.137，P95 为 0.215；H anchor 的 tail/main median 为 0.132，P95 为 0.186。两者的 peak index median 都约为 750，IQR 为 4，说明主峰位置稳定，但主峰后的 tail energy 仍长期存在。这个现象适合直接写进报告：\textbf{clear LOS 并不等价于理想单径；CIR 证据显示在 anchor self-calibration 中仍应考虑 multipath-tail 和链路质量权重。}
+
+\subsection{COMPACT CIR：从现象证据到 pair weighting}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}{0.49\textwidth}
+\centering
+\includegraphics[width=\textwidth]{cir_compact_suspicion_score_heatmap.png}
+\caption{Compact CIR suspicion score}
+\end{subfigure}
+\begin{subfigure}{0.49\textwidth}
+\centering
+\includegraphics[width=\textwidth]{cir_compact_suspicious_links.png}
+\caption{Top suspicious directed links}
+\end{subfigure}
+\caption{COMPACT CIR 不能重建 full waveform，但可以用 first-path amplitude、peak/fp、noise 和 raw-distance stability 形成 pair-level 质量特征。}
+\end{figure}
+
+COMPACT CIR sweep 记录了 952 个 compact ACRX samples，覆盖 56 个 directed links。它无法画出 full accumulator waveform，但可以生成 pair quality features。最高 suspicious directed links 包括 \case{A<-C}、\case{C<-A}、\case{C<-G}、\case{G<-C}、\case{A<-B}、\case{E<-H}、\case{H<-E}。这些结果和 FULL CIR 中的高 tail/弱 SNR links 有部分一致性，说明 compact features 可以作为工程上更轻量的 link-quality proxy。
+
+已有的 CIR-weighted layout smoke test 只证明了 solver 可以消费 CIR-derived pair weights；它尚未证明定位精度已经改善。该 smoke test 中 baseline RMS edges 为 $79.437\mm$，CIR-weighted 为 $82.467\mm$，说明当前权重公式不是最终结果。报告中应明确写成：CIR 目前最有价值的是解释现象和提供未来 weighting/filtering 接口；真正要成为系统结果，还需要把 CIR weight 与静态 tag、RotoArm UWB-Tag、Vicon Motion Capture System truth 做闭环验证。
 
 \section{建议报告结构}
 
 如果最终要写成正式实验报告，建议采用如下结构：
 \begin{enumerate}
 \item Introduction：说明目标是验证 AutoPos UWB 自部署和 tag localization，不是只优化单一 solver 数字。
-\item Dataset and Coordinate Systems：解释 OptiTrack、AutoPos layout、tag replay、ROTO。
+\item Dataset and Coordinate Systems：解释 Vicon Motion Capture System、AutoPos layout、tag replay、RotoArm UWB-Tag。
 \item AutoPos Anchor Layout：报告 SE(3) 和 Sim(3) layout error。
 \item Delay-layout Coupling：用四组对照说明 delay calibration 不能脱离 layout。
-\item Static Tag Localization：使用 \case{v4-io/T4} 的 $72.7/171.5/109.8\mm$ 作为主结果。
-\item Dynamic ROTO Evaluation：报告 $105.8/231.8/141.3\mm$，并解释为什么不是简单时序误差。
+\item Static Tag Localization：使用 AutoPos Solver 与 UWB-Tag solver 组合 \case{v4-io/T4} 的 $72.7/171.5/109.8\mm$ 作为主结果。
+\item Dynamic RotoArm UWB-Tag Evaluation：报告 $105.8/231.8/141.3\mm$，并解释为什么不是简单时序误差。
 \item Robustness and Simulation：放 Monte Carlo keep-k、wall NLOS simulation。
-\item Phase 4 UWB+IMU and Future CIR：详细讨论 L2/L16/L20 三类 IMU 的动态融合证据，并把 CIR 放入后续计划。
-\item Limitations：OptiTrack 依赖、单场地、NLOS label 缺失、IMU 尚未完全实机闭环。
+\item CIR Multipath Evidence：用 FULL/COMPACT CIR 展示 clear LOS 下仍存在 tail energy、link-quality difference 和 pair weighting 潜力。
+\item Phase 4 UWB+IMU：详细讨论 L2/L16/L20 三类 IMU 的动态融合证据。
+\item Limitations：Vicon Motion Capture System 依赖、单场地、CIR weight 尚未闭环验证、IMU 尚未完全实机闭环。
 \item Conclusion：重申系统可用性、主要误差机制、下一步路线。
 \end{enumerate}
 
 \section{结论}
 
-本次实验最强的科学结论是：AutoPos UWB 自定位在真实场地中已经能够形成可用 anchor geometry，并支持约 $7$--$11$ cm 级的静态 tag 定位表现；但 UWB 系统的最终精度不是布局一个变量决定的，而是 layout、delay、solver、动态运动和环境传播共同决定的。静态生产配置 \case{v4-io/T4} 应作为主结果；ROTO 应作为动态挑战展示；Monte Carlo 和 wall NLOS simulation 应作为稳健性与误差来源分析；IMU 和 CIR 应作为后续改进方向，其中 IMU 已有初步证据，CIR 仍需要明确 label 和可复现指标。
+本次实验最强的科学结论是：AutoPos UWB 自定位在真实场地中已经能够形成可用 anchor geometry，并支持约 $7$--$11$ cm 级的静态 UWB-Tag 定位表现；但 UWB 系统的最终精度不是布局一个变量决定的，而是 layout、delay、solver、动态运动和环境传播共同决定的。AutoPos Solver 与 UWB-Tag solver 组合 \case{v4-io/T4} 应作为静态主结果；RotoArm UWB-Tag 应作为动态挑战展示；Monte Carlo 和 wall NLOS simulation 应作为稳健性与误差来源分析；FULL/COMPACT CIR 应作为 clear LOS 下仍存在 multipath 和 link-quality difference 的物理证据；Phase 4 UWB+IMU 则是当前最明确的动态鲁棒性扩展方向。
 
 \end{document}

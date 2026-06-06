@@ -1,0 +1,9 @@
+layout,delay_or_bias,tag_rmse_mm,tag_median_mm,tag_p95_mm,anchor_or_pair_residual_rms_mm,tag_solver_residual_median_mm,interpretation
+AutoPos v4-io rigid,solver residual corrections,108.93074979421444,69.62400691469796,174.06635331236225,48.16875882105271,79.59724289805987,current self-cal co-fit output; geometry and layout-level residual delay corrections are coupled
+AutoPos v4-io Sim(3)-scaled,solver residual corrections,227.61062914413355,192.02393497456185,384.9390354164096,48.16875882105271,127.67911836504312,shows AutoPos residual corrections are not transferable after changing layout scale
+AutoPos v4-io Sim(3)-scaled,re-estimated inter-anchor residual corrections,81.61088129796764,67.05420723538964,132.61209744798188,59.93653208582359,88.73609051835382,separates global scale correction from residual delay re-estimation
+Vicon/OptiTrack truth anchors,none,311.31901004962606,307.27071843000545,453.44791445260194,221.0805339322485,134.48895635391017,optical geometry alone is not enough; endpoint delays dominate
+Vicon/OptiTrack truth anchors,AutoPos solver residual corrections,252.1653717333593,254.87759093675305,394.57139638447234,221.0805339322485,118.42642913249408,tests delay transferability; poor result means solver residual corrections are layout-conditioned
+Vicon/OptiTrack truth anchors,re-estimated inter-anchor residual corrections,77.67175013600712,64.09048082988876,128.3843598352106,59.93653208582359,91.30708111727937,"known-anchor + re-estimated-delay control; best static control and better than self-cal, not a lower bound on achievable error"
+One-baseline E-H v4-io,re-estimated inter-anchor residual corrections,78.41099137601653,58.11815566026716,130.2241090849534,nan,85.32102501373926,practical field-measurable one-baseline scale/delay correction
+PANS/manual,corresponding delay,nan,nan,nan,nan,nan,not found in current FULL dataset; add if a practical manual/PANS baseline exists

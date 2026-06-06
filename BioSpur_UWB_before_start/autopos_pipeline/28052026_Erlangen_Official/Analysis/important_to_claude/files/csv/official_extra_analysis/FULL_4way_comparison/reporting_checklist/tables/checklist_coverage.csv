@@ -1,0 +1,23 @@
+domain,check,status,evidence,note
+Anchor,Inter-anchor range residual,covered,checklist_anchor_layout_absolute.csv + checklist_ablation.csv,AutoPos internal residual and Vicon delaycal residual are reported.
+Anchor,Inter-anchor distance error,covered,checklist_anchor_layout_absolute.csv,Pairwise distance MAE/RMSE and relative MAE are included.
+Anchor,SE(3)-aligned anchor error,covered,checklist_anchor_layout_absolute.csv,Frame-normalized rigid/reflection alignment is used; note explains handedness.
+Anchor,Axis-wise SE(3) anchor error,covered,checklist_anchor_layout_absolute.csv,X/Y/Z RMSE columns included.
+Anchor,Sim(3)-aligned residual and scale bias,covered,checklist_anchor_layout_absolute.csv,"Sim(3) scale factor, scale bias %, and Sim(3) RMSE included."
+Anchor,Per-anchor error ranking,partial,layout_abs_errors_all8.csv + checklist_anchor_layout_absolute.csv,Worst anchor is summarized; full per-anchor table already exists.
+Anchor,Per-axis scale / anisotropy,partial,checklist_anchor_layout_absolute.csv,"Horizontal vs vertical-sensitive pairwise RMSE proxy included, not a full anisotropic scale fit."
+Anchor,Repeatability of layout,not_measured,checklist_anchor_repeatability.csv,"Independent repeated AutoPos deployments/splits are not present. Raw-pair bootstrap is reported separately as numerical precision, not repeatability."
+Anchor,Delay/bias repeatability,numerical_precision,resilience_gap_audit/tables/bootstrap_delay_sd.csv + checklist_anchor_repeatability.csv,"Delay rel_A bootstrap SD is within-campaign median sampling SE, not independent repeated-run delay repeatability; absolute/common-mode delay remains gauge-coupled."
+Anchor,Delay-layout coupling,covered,checklist_ablation.csv,Vicon solver-delay vs Vicon delaycal and scale-to-Vicon solver-delay rows show non-transferability.
+Anchor,Baseline comparison,partial,checklist_ablation.csv,AutoPos/Vicon/one-baseline covered; PANS/manual missing.
+Tag,Static tag repeatability,covered,checklist_tag_static.csv,Per-position d3_std median included.
+Tag,Static tag absolute error,covered,checklist_tag_static.csv,RMSE/median/P95 included.
+Tag,Axis-wise static error,covered,checklist_tag_static.csv,X/Y/Z RMSE included.
+Tag,Moving tag trajectory error,covered,checklist_tag_dynamic.csv,ATE RMSE/median/P95 included from ROTO OptiTrack truth.
+Tag,Relative trajectory error,covered,checklist_tag_dynamic.csv,Frame-to-frame RPE RMSE included.
+Tag,Rigid wand / RotoArm consistency,covered,FULL_4WAY_BIG_COMPARISON.md + reviewer audit WHY #2/#10/#11,"Radius, dR, turn-center repeatability already reported."
+Tag,Layout-to-tag propagation,covered,checklist_ablation.csv + static/dynamic tables,Same tag data compared across AutoPos/Vicon/scale/one-baseline layouts.
+Tag,Anchor dropout robustness,covered,mc_keepk_combined_summary.csv + stratified_keepk_category_summary.csv,Monte Carlo keep-k/dropout tables exist; not expanded into checklist core tables.
+Tag,LOS/NLOS or quality robustness,partial,tag_error_by_facing.csv + pair_raw_scatter.csv + worstpoint_range_residuals.csv,Quality/facing/range diagnostics exist; explicit CIR/NLOS labels not found.
+Tag,Update-rate / packet-loss robustness,covered_synthetic,resilience_gap_audit/tables/static_dropout_stress_summary.csv + resilience_gap_audit/tables/roto_sample_dropout_stress_summary.csv,"Static raw frames are re-solved under synthetic packet/dropout stress; ROTO coverage is solved-sample thinning, not raw range re-solving."
+Tag,Long-term stability,partial,temporal_drift_anchor_summary.csv,Anchor range drift exists; long moving/tag drift stress table not found.

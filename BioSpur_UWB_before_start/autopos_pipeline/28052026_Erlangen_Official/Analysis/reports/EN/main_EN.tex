@@ -21,15 +21,16 @@
 \newcommand{\case}[1]{\texttt{\detokenize{#1}}}
 
 \title{\textbf{AutoPos UWB Field Experiment Report}\\
-\large OptiTrack-referenced self-localization, static tag localization, and dynamic ROTO validation}
+\large AutoPos parameter validation using Vicon Motion Capture System ground truth}
 \author{Zekai Xiao}
-\date{Erlangen official dataset, 2026-05-28}
+\date{28 May 2026, Erlangen: Vicon Motion Capture System ground-truth measurement of the AutoPos system}
 
 \begin{document}
+\pagestyle{plain}
 \maketitle
 
 \begin{abstract}
-This report summarizes the OptiTrack-referenced UWB results from the Erlangen official dataset collected on 2026-05-28. The main purpose is not to report the smallest number found in the analysis tree, but to identify which result corresponds to the deployable pipeline and which results are ablations, oracle controls, simulations, or future-work evidence. The recommended static deployment headline is the production \case{v4-io/T4} result: $72.7\mm$ median, $171.5\mm$ P95, and $109.8\mm$ RMSE. The dynamic ROTO result for the same original UWB-only configuration is $105.8\mm$ median, $231.8\mm$ P95, and $141.3\mm$ sample RMSE. The most important mechanism result is the delay-layout coupling: OptiTrack anchors without matched delay calibration do not automatically improve localization, while OptiTrack anchors with re-estimated delay reach $77.7\mm$ RMSE. Monte Carlo anchor-dropout tests, wall/NLOS simulations, and preliminary UWB+IMU results are useful for robustness and discussion, but they should not replace the OptiTrack-UWB validation chain as the main experimental claim.
+This report summarizes the Vicon Motion Capture System ground-truth measurement of the AutoPos system performed in Erlangen on 28 May 2026. The experiment validates AutoPos anchor self-localization, AutoPos Solver and UWB-Tag solver combinations, static UWB-Tag localization, and dynamic RotoArm UWB-Tag measurement. With the AutoPos Solver and UWB-Tag solver combination \case{v4-io/T4}, static UWB-Tag localization reaches $72.7\mm$ median, $171.5\mm$ P95, and $109.8\mm$ RMSE. The dynamic RotoArm UWB-Tag result for the same original UWB-only configuration is $105.8\mm$ median, $231.8\mm$ P95, and $141.3\mm$ sample RMSE. The key mechanism result is delay-layout coupling: Vicon Motion Capture System anchors without matched delay calibration do not automatically improve localization, while Vicon Motion Capture System anchors with re-estimated delay reach $77.7\mm$ RMSE. Monte Carlo anchor-dropout tests, wall/NLOS simulations, FULL/COMPACT CIR, and Phase 4 UWB+IMU results are used to explain error sources, dynamic robustness, and the next engineering path, but they do not replace the Vicon Motion Capture System-UWB validation chain as the main experimental claim.
 \end{abstract}
 
 \section{Executive Summary}
@@ -41,47 +42,47 @@ This report summarizes the OptiTrack-referenced UWB results from the Erlangen of
 \toprule
 Block & Configuration & Median & P95 & RMSE & Interpretation \\
 \midrule
-Static deployed tag localization & \case{v4-io/T4} & 72.7 & 171.5 & 109.8 & Recommended main headline. \\
-Static median-estimator ablation & \case{v4-io/T4} & 69.7 & 173.9 & -- & Useful ablation, not the deployed headline. \\
-Anchor layout SE(3) rigid alignment & \case{v4-io} vs OptiTrack & -- & -- & 105.4 & Rotation and translation only; this error still includes global scale bias. \\
-Anchor layout Sim(3) scale alignment & \case{v4-io} vs OptiTrack & -- & -- & 67.1 & Residual after allowing a global scale factor $s$; estimated scale bias is about $-4.17\%$. \\
-Dynamic ROTO original absolute error & \case{v4-io/T4} & 105.8 & 231.8 & 141.3 & Dynamic motion introduces additional error beyond the static case. \\
-ROTO post-solve smoothing & F5 & 83.3 & 148.6 & -- & Useful for trajectory presentation, not a calibration result. \\
+Static UWB-Tag localization & \case{v4-io/T4} & 72.7 & 171.5 & 109.8 & Recommended main result for the AutoPos Solver and UWB-Tag solver combination. \\
+Static median-estimator ablation & \case{v4-io/T4} & 69.7 & 173.9 & -- & Useful ablation, not the main result. \\
+Anchor layout SE(3) rigid alignment & \case{v4-io} vs Vicon Motion Capture System & -- & -- & 105.4 & Rotation and translation only; this error still includes global scale bias. \\
+Anchor layout Sim(3) scale alignment & \case{v4-io} vs Vicon Motion Capture System & -- & -- & 67.1 & Residual after allowing a global scale factor $s$; estimated scale bias is about $-4.17\%$. \\
+Dynamic RotoArm UWB-Tag original absolute error & \case{v4-io/T4} & 105.8 & 231.8 & 141.3 & Dynamic motion introduces additional error beyond the static case. \\
+RotoArm UWB-Tag post-solve smoothing & F5 & 83.3 & 148.6 & -- & Useful for trajectory presentation, not a calibration result. \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-The report should make one central claim: \textbf{AutoPos recovers a usable UWB anchor geometry and supports centimeter-to-decimeter tag localization in the measured field setup, but the deployed error is governed jointly by anchor layout, delay calibration, solver choice, dynamic motion, and propagation effects.} This framing avoids overstating ablations or oracle experiments while still showing the strength of the measured system.
+The report should make one central claim: \textbf{AutoPos recovers a usable UWB anchor geometry and supports centimeter-to-decimeter tag localization in the measured field setup, but the measured system error is governed jointly by anchor layout, delay calibration, solver choice, dynamic motion, and propagation effects.} This framing avoids overstating ablations or oracle experiments while still showing the strength of the measured system.
 
 \section{Dataset and Evaluation Objects}
 
 The analysis compares three related coordinate or trajectory sources:
 \begin{enumerate}
-\item \textbf{OptiTrack truth:} reference anchor positions, static tag positions, and dynamic trajectories. It is the evaluation coordinate system, not a deployable input.
-\item \textbf{AutoPos UWB self-localized layout:} anchor geometry estimated from UWB measurements. This is the self-deployment capability under test.
-\item \textbf{UWB tag localization and ROTO trajectory replay:} tag measurements replayed with different layouts, solvers, delay settings, and filters.
+\item \textbf{Vicon Motion Capture System truth:} reference anchor positions, static tag positions, and dynamic trajectories. It is the evaluation coordinate system, not a deployable input.
+\item \textbf{AutoPos UWB self-localized layout:} anchor geometry estimated from UWB measurements. This is the AutoPos self-localization capability under test.
+\item \textbf{UWB tag localization and RotoArm UWB-Tag trajectory replay:} tag measurements replayed with different layouts, solvers, delay settings, and filters.
 \end{enumerate}
 
-The main deployed configuration in this report is \case{v4-io} for the AutoPos layout and \case{T4} for the production tag solver. Other solvers, filters, Monte Carlo tests, simulated NLOS studies, and Phase 4 UWB+IMU results are treated as controls, robustness evidence, or dynamic-extension material.
+The main configuration in this report is \case{v4-io} for the AutoPos Solver layout result and \case{T4} for the UWB-Tag solver. Other solvers, filters, Monte Carlo tests, simulated NLOS studies, and Phase 4 UWB+IMU results are treated as controls, robustness evidence, or dynamic-extension material.
 
-\section{Anchor Layout: AutoPos vs OptiTrack}
+\section{Anchor Layout: AutoPos vs Vicon Motion Capture System}
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.78\textwidth]{layout_opti_vs_autopos_3d.png}
-\caption{Three-dimensional comparison between the OptiTrack anchor layout and the AutoPos \case{v4-io} layout.}
+\caption{Three-dimensional comparison between the Vicon Motion Capture System anchor layout and the AutoPos \case{v4-io} layout.}
 \end{figure}
 
-The AutoPos \case{v4-io} layout reaches $105.4\mm$ RMSE after rigid SE(3) alignment to the OptiTrack anchor layout. If a Sim(3) scale correction is allowed, the residual drops to $67.1\mm$, with an estimated scale bias of approximately $-4.17\%$. This separation is important: part of the layout discrepancy behaves like global scale or delay-induced bias, while the remaining component is closer to relative anchor-shape error.
+The AutoPos \case{v4-io} layout reaches $105.4\mm$ RMSE after rigid SE(3) alignment to the Vicon Motion Capture System anchor layout. If a Sim(3) scale correction is allowed, the residual drops to $67.1\mm$, with an estimated scale bias of approximately $-4.17\%$. This separation is important: part of the layout discrepancy behaves like global scale or delay-induced bias, while the remaining component is closer to relative anchor-shape error.
 
-The correct interpretation is therefore balanced. AutoPos does not reproduce the OptiTrack layout perfectly, but it does recover a usable spatial structure from real UWB measurements. The absolute scale is coupled to the UWB range-delay model and should be discussed together with delay calibration rather than as a pure geometry error.
+The correct interpretation is therefore balanced. AutoPos does not reproduce the Vicon Motion Capture System layout perfectly, but it does recover a usable spatial structure from real UWB measurements. The absolute scale is coupled to the UWB range-delay model and should be discussed together with delay calibration rather than as a pure geometry error.
 
 \section{Delay-layout Coupling}
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.78\textwidth]{delay_layout_coupling.png}
-\caption{Delay-layout coupling control. Replacing the anchor layout with OptiTrack anchors does not automatically improve localization unless the delay model is also matched to that layout.}
+\caption{Delay-layout coupling control. Replacing the anchor layout with Vicon Motion Capture System anchors does not automatically improve localization unless the delay model is also matched to that layout.}
 \end{figure}
 
 \begin{table}[H]
@@ -99,7 +100,7 @@ AutoPos \case{v4-io}, co-fitted delay & 108.9 & Self-localized layout plus co-fi
 \end{tabular}
 \end{table}
 
-This is the most important mechanism evidence in the report. It shows that anchor layout, UWB delay, and tag solving form a coupled system. The OptiTrack anchor layout is geometrically more accurate, but it can perform poorly if the delay model is not re-estimated for that geometry. Therefore, the main text should not present ``AutoPos versus OptiTrack anchors'' as a one-variable comparison. The proper comparison is layout plus its compatible delay calibration.
+This is the most important mechanism evidence in the report. It shows that anchor layout, UWB delay, and tag solving form a coupled system. The Vicon Motion Capture System anchor layout is geometrically more accurate, but it can perform poorly if the delay model is not re-estimated for that geometry. Therefore, the main text should not present ``AutoPos versus Vicon Motion Capture System anchors'' as a one-variable comparison. The proper comparison is layout plus its compatible delay calibration.
 
 \section{Static Tag Localization}
 
@@ -112,49 +113,49 @@ This is the most important mechanism evidence in the report. It shows that ancho
 \end{subfigure}
 \begin{subfigure}{0.49\textwidth}
 \centering
-\includegraphics[width=\textwidth]{production_tag_error_by_position.png}
-\caption{Production result by position}
+\includegraphics[width=\textwidth]{static_tag_error_by_position.png}
+\caption{AutoPos Solver and UWB-Tag solver combination result by position}
 \end{subfigure}
-\caption{Static tag localization results. The production \case{v4-io/T4} pipeline should be used for the main headline.}
+\caption{Static UWB-Tag localization results. The \case{v4-io/T4} AutoPos Solver and UWB-Tag solver combination should be used for the main result.}
 \end{figure}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.72\textwidth]{production_tag_error_vs_distance.png}
-\caption{Static production error versus tag-anchor distance. This view is useful for discussing geometry, range-dependent bias, and edge cases.}
+\includegraphics[width=0.72\textwidth]{static_tag_error_vs_distance.png}
+\caption{Static error versus tag-anchor distance for the AutoPos Solver and UWB-Tag solver combination. This view is useful for discussing geometry, range-dependent bias, and edge cases.}
 \end{figure}
 
 The recommended static localization headline is:
 \[
 \case{v4-io/T4}: \quad \mathrm{median}=72.7\mm,\quad \mathrm{P95}=171.5\mm,\quad \mathrm{RMSE}=109.8\mm.
 \]
-This is the deployed production pipeline result and should appear in the abstract, conclusion, and summary table. The smaller $69.7\mm$ median with $173.9\mm$ P95 comes from a median-estimator ablation. It is worth mentioning as an estimator sensitivity result, but it should not be used as the deployed headline.
+This is the main result for the AutoPos Solver and UWB-Tag solver combination \case{v4-io/T4}, and it should appear in the abstract, conclusion, and summary table. The smaller $69.7\mm$ median with $173.9\mm$ P95 comes from a median-estimator ablation. It is worth mentioning as an estimator sensitivity result, but it should not be used as the main result.
 
 \subsection{Static Filtering}
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.75\textwidth]{filtered_static_cdf_v4io_all8.png}
-\caption{Static filtered deployment CDF for \case{v4-io}. F5 improves repeatability but does not remove systematic bias.}
+\caption{Static filtered UWB-Tag CDF for \case{v4-io}. F5 improves repeatability but does not remove systematic bias.}
 \end{figure}
 
 Static lock/filter F5 reduces repeatability spread from $67.4\mm$ to $18.7\mm$. This is useful for steady displays or slow-updating static use cases, but it should not be presented as a correction of anchor layout or delay calibration. Filtering mainly suppresses random variation; fixed bias remains a separate issue.
 
-\section{Dynamic ROTO Evaluation}
+\section{Dynamic RotoArm UWB-Tag Evaluation}
 
 \begin{figure}[H]
 \centering
 \begin{subfigure}{0.49\textwidth}
 \centering
 \includegraphics[width=\textwidth]{roto_abs_cdf_v4io_T4.png}
-\caption{ROTO absolute error CDF}
+\caption{RotoArm UWB-Tag absolute error CDF}
 \end{subfigure}
 \begin{subfigure}{0.49\textwidth}
 \centering
 \includegraphics[width=\textwidth]{roto_solver_matrix_median3d.png}
-\caption{ROTO solver matrix}
+\caption{RotoArm UWB-Tag solver matrix}
 \end{subfigure}
-\caption{Dynamic ROTO results. The dynamic error is higher than the static deployed result, indicating additional motion-dependent error sources.}
+\caption{Dynamic RotoArm UWB-Tag results. The dynamic error is higher than the static UWB-Tag result, indicating additional motion-dependent error sources.}
 \end{figure}
 
 \begin{figure}[H]
@@ -169,14 +170,14 @@ Static lock/filter F5 reduces repeatability spread from $67.4\mm$ to $18.7\mm$. 
 \includegraphics[width=\textwidth]{roto_error_by_phase.png}
 \caption{Error by motion phase}
 \end{subfigure}
-\caption{ROTO diagnostics. These figures support the interpretation that dynamic ROTO error is not just a static layout bias.}
+\caption{RotoArm UWB-Tag diagnostics. These figures support the interpretation that dynamic RotoArm UWB-Tag error is not just a static layout bias.}
 \end{figure}
 
-For the original UWB-only \case{v4-io/T4} configuration, ROTO reaches $105.8\mm$ median, $231.8\mm$ P95, and $141.3\mm$ sample RMSE. Even after replacing the layout with Vicon anchors and re-estimating delay, the ROTO result remains about $105.6\mm$ median and $200.4\mm$ P95. This negative result is scientifically useful: the dynamic error is not solved by anchor-layout replacement alone.
+For the original UWB-only \case{v4-io/T4} configuration, RotoArm UWB-Tag reaches $105.8\mm$ median, $231.8\mm$ P95, and $141.3\mm$ sample RMSE. Even after replacing the layout with Vicon anchors and re-estimating delay, the RotoArm UWB-Tag result remains about $105.6\mm$ median and $200.4\mm$ P95. This negative result is scientifically useful: the dynamic error is not solved by anchor-layout replacement alone.
 
-Timing checks point in the same direction. Clock skew changes pooled P50 by only about $0.11\mm$, and a $0.8\mathrm{ms}$ protocol window corresponds to only about $0.5$--$0.7\mm$ of motion in the measured setup. The hundred-millimeter ROTO tail is therefore more plausibly caused by dynamic range bias, body shadowing, antenna orientation, multipath/NLOS, and solver motion assumptions.
+Timing checks point in the same direction. Clock skew changes pooled P50 by only about $0.11\mm$, and a $0.8\mathrm{ms}$ protocol window corresponds to only about $0.5$--$0.7\mm$ of motion in the measured setup. The hundred-millimeter RotoArm UWB-Tag tail is therefore more plausibly caused by dynamic range bias, body shadowing, antenna orientation, multipath/NLOS, and solver motion assumptions.
 
-Post-solve ROTO filters can improve visual smoothness and final trajectory metrics: F4 reaches about $86.3\mm$ median and $158.2\mm$ P95, while F5 reaches about $83.3\mm$ median and $148.6\mm$ P95. These should be described as smoothers, not as calibration results.
+Post-solve RotoArm UWB-Tag filters can improve visual smoothness and final trajectory metrics: F4 reaches about $86.3\mm$ median and $158.2\mm$ P95, while F5 reaches about $83.3\mm$ median and $148.6\mm$ P95. These should be described as smoothers, not as calibration results.
 
 \section{Monte Carlo Keep-k Robustness}
 
@@ -190,7 +191,7 @@ Post-solve ROTO filters can improve visual smoothness and final trajectory metri
 \begin{subfigure}{0.49\textwidth}
 \centering
 \includegraphics[width=\textwidth]{mc_keepk_roto_curves.png}
-\caption{ROTO keep-k}
+\caption{RotoArm UWB-Tag keep-k}
 \end{subfigure}
 \caption{Monte Carlo anchor-availability stress test. This belongs in a robustness section, not in the main accuracy headline.}
 \end{figure}
@@ -201,9 +202,9 @@ Post-solve ROTO filters can improve visual smoothness and final trajectory metri
 \caption{Stratified upper/lower anchor removal. Removing lower-layer anchors is more damaging for the static metric.}
 \end{figure}
 
-For \case{v4-io/T4}, static repeatability $d_3$ standard-deviation median increases from $61.7\mm$ at keep8 to $83.2\mm$ at keep7, $107.3\mm$ at keep6, $149.1\mm$ at keep5, and $196.4\mm$ at keep4. ROTO turn-center RMS median increases from $12.1\mm$ at keep8 to $63.9\mm$ at keep4.
+For \case{v4-io/T4}, static repeatability $d_3$ standard-deviation median increases from $61.7\mm$ at keep8 to $83.2\mm$ at keep7, $107.3\mm$ at keep6, $149.1\mm$ at keep5, and $196.4\mm$ at keep4. RotoArm UWB-Tag turn-center RMS median increases from $12.1\mm$ at keep8 to $63.9\mm$ at keep4.
 
-The stratified result is more informative than the aggregate curve alone. For static keep5, lower-heavy anchor drops reach $96.0\mm$ while upper-heavy drops reach $65.1\mm$; for keep4, lower-heavy drops reach $117.3\mm$ while upper-heavy drops are $57.2\mm$. The deployment lesson is that anchor count matters, but vertical and spatial coverage matter at least as much.
+The stratified result is more informative than the aggregate curve alone. For static keep5, lower-heavy anchor drops reach $96.0\mm$ while upper-heavy drops reach $65.1\mm$; for keep4, lower-heavy drops reach $117.3\mm$ while upper-heavy drops are $57.2\mm$. The practical lesson is that anchor count matters, but vertical and spatial coverage matter at least as much.
 
 \section{Simulation and NLOS Discussion}
 
@@ -219,7 +220,7 @@ The stratified result is more informative than the aggregate curve alone. For st
 \includegraphics[width=\textwidth]{wall_nlos_convergence.png}
 \caption{Convergence distance by material}
 \end{subfigure}
-\caption{Wall/NLOS simulation from \case{AutoPos_simulation}. It is useful for interpreting propagation risk, but it is not a substitute for the OptiTrack-referenced measurements.}
+\caption{Wall/NLOS simulation from \case{AutoPos_simulation}. It is useful for interpreting propagation risk, but it is not a substitute for the Vicon Motion Capture System-referenced measurements.}
 \end{figure}
 
 \case{AutoPos_simulation} was produced after the measurement campaign and should be included as discussion or supplementary analysis. The wall/NLOS simulation shows a clear physical trend: clear LOS has about $0.062\m$ P95 error; the four-wall default case reaches about $0.764\m$, $0.287\m$, and $0.088\m$ at 0 cm, 40 cm, and 100 cm; the four-wall plus metal case reaches about $0.892\m$, $0.405\m$, and $0.123\m$ at the same distances. The extended convergence study suggests that the default wall needs about 115 cm to approach LOS+25\%, while wall plus metal needs about 145 cm.
@@ -240,10 +241,10 @@ This simulation supports the interpretation that wall proximity, metal, and obst
 \includegraphics[width=\textwidth]{phase4_t2_pi_heatmap_by_sensor.png}
 \caption{\case{T2} P/I heatmap by sensor}
 \end{subfigure}
-\caption{Phase 4 L2/L16/L20 TRUEFULL 5-seed Opti-truth analysis. Here L denotes the IMU sensor model, not the fusion algorithm.}
+\caption{Phase 4 L2/L16/L20 TRUEFULL 5-seed Vicon-truth analysis. Here L denotes the IMU sensor model, not the fusion algorithm.}
 \end{figure}
 
-This section should be based on the Phase 4 L2/L16/L20 TRUEFULL 5-seed Opti-truth analysis generated on 2026-06-05, not on the earlier real 6-axis vertical-slice smoke run. The Phase 4 run evaluates three IMU sensor models, L2, L16, and L20, with five seeds S00--S04 per sensor. Each seed contains 1377 runnable rows and is evaluated against the official ROTO Opti/Vicon trajectory tables. The production scope is A0; A1/A2/A3 are control or oracle layouts and should not be used for production recommendations.
+This section should be based on the Phase 4 L2/L16/L20 TRUEFULL 5-seed Vicon-truth analysis generated on 5 June 2026, not on the earlier real 6-axis vertical-slice smoke run. The Phase 4 run evaluates three IMU sensor models, L2, L16, and L20, with five seeds S00--S04 per sensor. Each seed contains 1377 runnable rows and is evaluated against the RotoArm UWB-Tag Vicon trajectory tables. The A0 branch is the relevant branch for AutoPos main-result discussion; A1/A2/A3 are control or oracle layouts and should not be used for main-result recommendations.
 
 The three sensor models are:
 \begin{itemize}
@@ -252,7 +253,7 @@ The three sensor models are:
 \item \case{L20}: Xsens/Movella MTi-3-5A-T industrial AHRS module, simulated here as accel+gyro, representing an industrial-quality IMU candidate.
 \end{itemize}
 
-The Phase 4 headline row is \case{X_A0_U4_P4_L20_I5_T2}. Its 5-seed mean track-median 3D P50/P95/RMSE is $68.4/112.1/75.7\mm$. The same-P UWB P95 is $138.9\mm$, so the same-P P95 improvement is $26.8\mm$; the improvement over B0 P0 is $119.7\mm$; and the ROTO radius abs / band P95 is $16.6/105.1\mm$. This means the IMU is not only rescuing a failed system. On top of a strong P4 UWB branch, it still reduces the dynamic tail and improves ROTO shape metrics.
+The Phase 4 headline row is \case{X_A0_U4_P4_L20_I5_T2}. Its 5-seed mean track-median 3D P50/P95/RMSE is $68.4/112.1/75.7\mm$. The same-P UWB P95 is $138.9\mm$, so the same-P P95 improvement is $26.8\mm$; the improvement over B0 P0 is $119.7\mm$; and the RotoArm UWB-Tag radius abs / band P95 is $16.6/105.1\mm$. This means the IMU is not only rescuing a failed system. On top of a strong P4 UWB branch, it still reduces the dynamic tail and improves RotoArm UWB-Tag shape metrics.
 
 \begin{table}[H]
 \centering
@@ -270,9 +271,9 @@ L2 & \case{X_A0_U4_P4_L2_I5_T2} & 83.9 & 146.2 & 94.2 & -7.3 & 20.1 & 129.6 \\
 
 The ranking is clear: L20 is best, L16 is very close, and L2 is weaker in aggregate precision. The L2 matched row even has a negative same-P P95 delta of $-7.3\mm$. This should not be interpreted as ``L2 is useless.'' It means that the matched-best L2 row is not a good incremental improvement over the strong P4 baseline. Other L2 rows and the spiky-track rescue still show that a low-cost IMU can remove large dynamic jumps.
 
-\subsection{Production A0 Baseline and IMU Improvement Modes}
+\subsection{A0 Baseline and IMU Improvement Modes}
 
-The Phase 4 report also gives production A0/U4 UWB baselines by P. The P4 baseline is already strong, with P50/P95/RMSE of $78.2/138.9/86.2\mm$. The P0 raw UWB branch is much worse at $105.8/231.8/132.8\mm$. Therefore, UWB+IMU has two distinct improvement modes:
+The Phase 4 report also gives A0/U4 UWB baselines by P. The P4 baseline is already strong, with P50/P95/RMSE of $78.2/138.9/86.2\mm$. The P0 raw UWB branch is much worse at $105.8/231.8/132.8\mm$. Therefore, UWB+IMU has two distinct improvement modes:
 \begin{enumerate}
 \item \textbf{Incremental improvement over a strong UWB baseline:} the best L20 row reduces P4 P95 from $138.9\mm$ to $112.1\mm$, an improvement of $26.8\mm$.
 \item \textbf{Rescue from raw or weak UWB:} \case{X_A0_U4_P0_L20_I5_T2} reaches $133.9\mm$ P95, improving over same-P P0 UWB by $97.9\mm$.
@@ -285,7 +286,7 @@ These two claims should remain separate. The first is about raising the ceiling 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.82\textwidth]{phase4_spiky_track_xz_l2_l16_l20.png}
-\caption{Professor-view spiky track comparison on \case{R01/BS2DCE}. This track was selected because B0 pure UWB has the most X-Z jump spikes in the ROTO set.}
+\caption{Professor-view spiky track comparison on \case{R01/BS2DCE}. This track was selected because B0 pure UWB has the most X-Z jump spikes in the RotoArm UWB-Tag set.}
 \end{figure}
 
 \begin{figure}[H]
@@ -310,7 +311,7 @@ The spiky-track comparison is especially useful for the report because it shows 
 \item \case{L20}: \case{X_A0_U4_P4_L20_I3_T2}, fusion 3D P95 $169.4\mm$, improvement over B0 $426.0\mm$, vertical Z P95 $159.3\mm$.
 \end{itemize}
 
-This should be written as a strong dynamic-result claim: the primary value of IMU fusion is not only improving static point accuracy; it suppresses discrete UWB-only jumps and vertical spikes in dynamic ROTO. Even L2, although weaker in the aggregate matched-best table, removes all large X-Z jumps on the selected spiky track.
+This should be written as a strong dynamic-result claim: the primary value of IMU fusion is not only improving static point accuracy; it suppresses discrete UWB-only jumps and vertical spikes in dynamic RotoArm UWB-Tag. Even L2, although weaker in the aggregate matched-best table, removes all large X-Z jumps on the selected spiky track.
 
 \subsection{Stress Test Robustness}
 
@@ -339,30 +340,109 @@ The Phase 4 raw-range branch should be reported as a negative control. The best 
 
 \subsection{IMU Claim and Boundary}
 
-IMU should no longer be described only as future work. A better statement is: \textbf{Phase 4 replay/simulation evidence shows that UWB+IMU can reduce ROTO P95, suppress spiky jumps, and distinguish sensor-model value across L2/L16/L20.} At the same time, this is still an Opti-truth evaluated simulation/replay sweep, not a fully embedded real-time Ghost IMU deployment. The main report should keep UWB-only OptiTrack validation as the primary result, then present IMU as the strongest next dynamic-extension result.
+IMU should no longer be described only as future work. A better statement is: \textbf{Phase 4 replay/simulation evidence shows that UWB+IMU can reduce RotoArm UWB-Tag P95, suppress spiky jumps, and distinguish sensor-model value across L2/L16/L20.} At the same time, this is still a Vicon-truth evaluated simulation/replay sweep, not a fully embedded real-time Ghost IMU system measurement. The main report should keep UWB-only Vicon Motion Capture System validation as the primary result, then present IMU as the strongest next dynamic-extension result.
 
-\section{CIR: Future Work Only For Now}
+\section{CIR: Multipath Evidence Even Under Clear LOS}
 
-CIR should not be presented as a result section yet. At the moment, there is no complete aligned CIR/NLOS label table or reproducible CIR metric in the main analysis chain. CIR is best framed as future work: LOS/NLOS classification, dynamic range weighting, multipath rejection near walls and metal, and fusion with an IMU motion prior.
+CIR should not be treated only as future work. The more accurate position is: \textbf{CIR is not yet a complete LOS/NLOS classifier in this report, but it already provides physical evidence that visually clear LOS anchor self-calibration can still contain multipath tail energy and link-quality differences.} Therefore, CIR belongs in the error-source analysis, not in the main positioning headline.
+
+This report uses two CIR result blocks:
+\begin{itemize}
+\item \textbf{FULL CIR Sweep10:} \case{CIRRAW_AUTOPOS_SWEEP10_20260602_225118}. This AutoPos Sweep10 run reconstructed 958 complete full-CIR frames out of about 1120 expected frames, or 85.5\% coverage. Each accumulator is 4064 bytes, corresponding to 1016 complex samples.
+\item \textbf{F/H 8-hour FULL CIR baseline:} \case{CIRRAW_BSF66F_20260602_020301}. This priority-only F/H capture runs for 8.00 h and contains 31,514 frames. It is used to inspect stable-link waveform and tail/main behavior over time.
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}{0.49\textwidth}
+\centering
+\includegraphics[width=\textwidth]{cir_full_frame_count_heatmap.png}
+\caption{FULL CIR frame count}
+\end{subfigure}
+\begin{subfigure}{0.49\textwidth}
+\centering
+\includegraphics[width=\textwidth]{cir_full_snr_proxy_heatmap.png}
+\caption{SNR proxy}
+\end{subfigure}
+\caption{FULL CIR Sweep10 coverage and SNR proxy. Full accumulator capture over USB works, but all-anchor full-CIR is bandwidth-heavy and should not be the default Sweep1000 acquisition mode.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}{0.49\textwidth}
+\centering
+\includegraphics[width=\textwidth]{cir_full_tail_ratio_heatmap.png}
+\caption{Tail/main proxy by directed link}
+\end{subfigure}
+\begin{subfigure}{0.49\textwidth}
+\centering
+\includegraphics[width=\textwidth]{cir_full_receiver_envelope_overview.png}
+\caption{Receiver envelope overview}
+\end{subfigure}
+\caption{FULL CIR multipath-tail evidence. Even when the anchor setup is visually close to clear LOS, different directed links show different tail/main behavior.}
+\end{figure}
+
+The FULL CIR Sweep10 facts are clear. All 8 masters were successful, and every master completed $10/10$ sweep lines, so ordinary ranging was functional. However, link-level full-CIR quality is not uniform. The highest multipath-tail proxy links include \case{C<-G}, \case{G<-C}, \case{F<-G}, \case{E<-H}, \case{G<-F}, and \case{H<-E}, with tail/main proxy around 0.2. Weak SNR-proxy links also concentrate on a subset of pairs, including \case{F<-G}, \case{H<-E}, \case{E<-H}, \case{E<-F}, \case{G<-F}, and \case{G<-C}. This means that clear LOS cannot be modeled as single-path, unbiased, equal-variance ranging for every anchor pair.
+
+Physically, clear LOS only means that the direct path exists. It does not imply that reflected paths are absent. The receiver can still observe delayed energy from the floor, walls, metal structures, mounting hardware, body reflections, or device enclosures. In anchor-anchor self-calibration, this becomes link-specific range bias or variance differences. The link may still be usable, but it should not necessarily have the same weight as a cleaner link.
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}{0.49\textwidth}
+\centering
+\includegraphics[width=\textwidth]{cir_fh_mean_waveforms.png}
+\caption{F/H mean full-CIR waveforms}
+\end{subfigure}
+\begin{subfigure}{0.49\textwidth}
+\centering
+\includegraphics[width=\textwidth]{cir_fh_tail_ratio_timeseries.png}
+\caption{F/H tail/main time series}
+\end{subfigure}
+\caption{F/H 8-hour full-CIR baseline. This run captures only priority F/H full CIR to avoid the DW1000 single-accumulator overwrite/timing limitation.}
+\end{figure}
+
+The F/H 8-hour baseline reinforces the same point. Even in a stable priority-only capture, measurable tail energy remains in the full-CIR waveform. Anchor F has tail/main median 0.137 and P95 0.215; anchor H has tail/main median 0.132 and P95 0.186. Both have a peak-index median of about 750 with IQR 4, meaning the main peak location is stable while the post-peak tail energy persists. The report should state this directly: \textbf{clear LOS is not ideal single-path; CIR shows that anchor self-calibration should account for multipath tail and link-quality weighting.}
+
+\subsection{COMPACT CIR: From Evidence to Pair Weighting}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}{0.49\textwidth}
+\centering
+\includegraphics[width=\textwidth]{cir_compact_suspicion_score_heatmap.png}
+\caption{Compact CIR suspicion score}
+\end{subfigure}
+\begin{subfigure}{0.49\textwidth}
+\centering
+\includegraphics[width=\textwidth]{cir_compact_suspicious_links.png}
+\caption{Top suspicious directed links}
+\end{subfigure}
+\caption{COMPACT CIR cannot reconstruct the full waveform, but it can produce pair-level quality features from first-path amplitude, peak/fp, noise, and raw-distance stability.}
+\end{figure}
+
+The COMPACT CIR sweep contains 952 compact ACRX samples across 56 directed links. It cannot generate full accumulator waveforms, but it does produce pair-quality features. The highest suspicious directed links include \case{A<-C}, \case{C<-A}, \case{C<-G}, \case{G<-C}, \case{A<-B}, \case{E<-H}, and \case{H<-E}. This partially agrees with the FULL CIR high-tail and weak-SNR links, suggesting that compact features can be a lightweight link-quality proxy.
+
+The existing CIR-weighted layout smoke test only proves that the solver can consume CIR-derived pair weights; it does not prove improved localization accuracy yet. In that smoke test, the baseline RMS edges are $79.437\mm$, while the CIR-weighted version is $82.467\mm$. This means the current weight formula is not a final result. The correct claim is that CIR currently explains propagation phenomena and provides an interface for future weighting/filtering; a final CIR-assisted system result still requires closed-loop validation against static tag, RotoArm UWB-Tag, and Vicon Motion Capture System truth.
 
 \section{Recommended Report Structure}
 
 A final written report can follow this structure:
 \begin{enumerate}
-\item Introduction: validate AutoPos UWB self-deployment and tag localization, not just one solver number.
-\item Dataset and Coordinate Systems: OptiTrack, AutoPos layout, static replay, and ROTO.
+\item Introduction: validate AutoPos UWB self-localization and tag localization, not just one solver number.
+\item Dataset and Coordinate Systems: Vicon Motion Capture System, AutoPos layout, static replay, and RotoArm UWB-Tag.
 \item AutoPos Anchor Layout: SE(3) and Sim(3) layout error.
 \item Delay-layout Coupling: the four control cases showing why delay must match layout.
-\item Static Tag Localization: production \case{v4-io/T4} at $72.7/171.5/109.8\mm$.
-\item Dynamic ROTO Evaluation: \case{v4-io/T4} at $105.8/231.8/141.3\mm$ and why timing alone cannot explain the error.
+\item Static Tag Localization: AutoPos Solver and UWB-Tag solver combination \case{v4-io/T4} at $72.7/171.5/109.8\mm$.
+\item Dynamic RotoArm UWB-Tag Evaluation: \case{v4-io/T4} at $105.8/231.8/141.3\mm$ and why timing alone cannot explain the error.
 \item Robustness and Simulation: Monte Carlo keep-k and wall/NLOS simulation.
-\item Phase 4 UWB+IMU and Future CIR: detailed L2/L16/L20 dynamic-fusion evidence, with CIR kept as future work.
-\item Limitations: single site, OptiTrack dependence, missing CIR/NLOS labels, and IMU not yet fully closed-loop.
+\item CIR Multipath Evidence: use FULL/COMPACT CIR to show tail energy, link-quality differences, and pair-weighting potential under clear LOS.
+\item Phase 4 UWB+IMU: detailed L2/L16/L20 dynamic-fusion evidence.
+\item Limitations: single site, Vicon Motion Capture System dependence, CIR weights not yet closed-loop validated, and IMU not yet fully embedded.
 \item Conclusion: usable self-localization, delay-layout coupling, dynamic propagation challenges, and next-step roadmap.
 \end{enumerate}
 
 \section{Conclusion}
 
-The strongest conclusion from the Erlangen official dataset is that AutoPos UWB self-localization provides a usable anchor geometry and enables approximately 7--11 cm-level static tag localization in a real measured field setup. However, deployed UWB accuracy is not determined by geometry alone. Layout, delay calibration, solver choice, motion state, and propagation environment must be treated together. The production \case{v4-io/T4} static result should be the headline; ROTO should be presented as the dynamic challenge; Monte Carlo and wall/NLOS simulation should support robustness and error-source discussion; IMU and CIR should be framed as the next engineering path, with IMU already showing preliminary promise and CIR still requiring aligned labels and metrics.
+The strongest conclusion from the Vicon Motion Capture System ground-truth measurement in Erlangen on 28 May 2026 is that AutoPos UWB self-localization provides a usable anchor geometry and enables approximately 7--11 cm-level static UWB-Tag localization in a real measured field setup. However, UWB accuracy is not determined by geometry alone. Layout, delay calibration, solver choice, motion state, and propagation environment must be treated together. The AutoPos Solver and UWB-Tag solver combination \case{v4-io/T4} should be the static main result; RotoArm UWB-Tag should be presented as the dynamic challenge; Monte Carlo and wall/NLOS simulation should support robustness and error-source discussion; FULL/COMPACT CIR should be presented as physical evidence that clear LOS can still contain multipath and link-quality differences; Phase 4 UWB+IMU is the clearest current path for dynamic robustness improvement.
 
 \end{document}
