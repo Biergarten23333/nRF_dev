@@ -372,12 +372,15 @@ def load_range_policy(run_dir: Path) -> tuple[np.ndarray, np.ndarray]:
 
 def load_raw_frames(b0: pd.DataFrame) -> dict[tuple[str, str], pd.DataFrame]:
     pairing = P1.build_pairing_manifest()
-    beta_by_capture = {str(r["capture_id"]): float(r["beta_s"]) for r in pairing if r.get("pairing_ok")}
+    raw_ready = [
+        r
+        for r in pairing
+        if int(r.get("uwb_capture_count", 0)) == 1 and str(r.get("alignment_status")) == "ok"
+    ]
+    beta_by_capture = {str(r["capture_id"]): float(r["beta_s"]) for r in raw_ready}
     b0_by_track = {k: g.sort_values("opti_time_s") for k, g in b0.groupby(["capture_id", "tag"], sort=True)}
     out: dict[tuple[str, str], pd.DataFrame] = {}
-    for pair in pairing:
-        if not pair.get("pairing_ok"):
-            continue
+    for pair in raw_ready:
         cap_id = str(pair["capture_id"])
         cap_dir = OFFICIAL_ROOT / str(pair["uwb_capture_path"])
         tr = sorted(cap_dir.glob("tag_capture*/tr_all.csv"))[0]

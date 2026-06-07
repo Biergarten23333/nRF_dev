@@ -518,6 +518,7 @@ def run_chunk(
     run_dir: Path,
     phase2_run: str,
     seed_id: str,
+    cache_root: str,
     timeout_s: int,
 ) -> tuple[bool, str]:
     child_run_id = f"{run_id}_{chunk['chunk_id']}_{gpu_device.replace(':', '')}"
@@ -529,6 +530,8 @@ def run_chunk(
         phase2_run,
         "--run-id",
         child_run_id,
+        "--prior-run-id",
+        run_id,
         "--seed-id",
         seed_id,
         "--device",
@@ -537,6 +540,12 @@ def run_chunk(
         "float32",
         "--torch-threads",
         "1",
+        "--agreement-mode",
+        "full" if str(chunk.get("stage")) == "agreement" else "none",
+        "--cache-mode",
+        "readwrite",
+        "--cache-root",
+        cache_root,
         "--max-tracks",
         str(chunk["max_tracks"]),
         "--max-frames",
@@ -596,8 +605,9 @@ def run(args: argparse.Namespace) -> dict:
         "generated_utc": utc_now(),
         "phase": "phase4_algorithm_factory_bootstrap",
         "seed_id": args.seed_id,
-        "phase2_run": args.phase2_run,
-        "devices": args.devices,
+            "phase2_run": args.phase2_run,
+            "cache_root": args.cache_root,
+            "devices": args.devices,
         "workers_per_device": args.workers_per_device,
         "l_ids": l_ids,
         "i_ids": I_IDS,
@@ -663,7 +673,10 @@ def run(args: argparse.Namespace) -> dict:
             ok = False
             message = "not_run"
             try:
-                ok, message = run_chunk(chunk, gpu_device, run_id, run_dir, args.phase2_run, args.seed_id, args.chunk_timeout_s)
+                timeout_s = int(args.chunk_timeout_s)
+                if deadline is not None:
+                    timeout_s = min(timeout_s, max(1, int(deadline - time.time())))
+                ok, message = run_chunk(chunk, gpu_device, run_id, run_dir, args.phase2_run, args.seed_id, args.cache_root, timeout_s)
             except subprocess.TimeoutExpired:
                 ok, message = False, "timeout"
             except Exception as exc:
@@ -725,6 +738,7 @@ def main() -> None:
     parser.add_argument("--stop-at-local-time", default="", help="Stop dispatching new chunks at local HH:MM.")
     parser.add_argument("--chunk-timeout-s", type=int, default=3600, help="Per-chunk timeout.")
     parser.add_argument("--monitor-interval", type=float, default=60.0, help="Resource sampling interval in seconds.")
+    parser.add_argument("--cache-root", default=str(SIM_ROOT / "cache" / "phase4_gpu_pilot"), help="Cache root passed to GPU pilot children.")
     args = parser.parse_args()
     result = run(args)
     print(json.dumps(result, indent=2), flush=True)

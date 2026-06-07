@@ -22,7 +22,7 @@ import re
 import subprocess
 import sys
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -37,6 +37,7 @@ ANALYSIS_ROOT = SIM_ROOT.parent
 OFFICIAL_ROOT = ANALYSIS_ROOT.parent
 EXTRA_ROOT = ANALYSIS_ROOT / "official_extra_analysis"
 STAGE1_SCRIPT = SIM_ROOT / "scripts" / "run_phase2_stage1_screening.py"
+GPU_PILOT_SCRIPT = SIM_ROOT / "scripts" / "run_phase4_gpu_pilot.py"
 SENSORS_YAML = SIM_ROOT / "configs" / "sensors.yaml"
 
 A_CASES = {
@@ -106,6 +107,7 @@ def load_module(path: Path, name: str):
 
 S1 = load_module(STAGE1_SCRIPT, "phase2_stage1_for_phase4_l2_full")
 P1 = S1.P1
+G = load_module(GPU_PILOT_SCRIPT, "phase4_gpu_backend_for_phase4_full")
 
 _STREAMS: dict[tuple[str, str, str], pd.DataFrame] = {}
 _IMU: dict[tuple[str, str, str], pd.DataFrame] = {}
@@ -441,6 +443,20 @@ def raw_policy(r_id: str) -> tuple[np.ndarray, np.ndarray, float, bool]:
     raise ValueError(r_id)
 
 
+def raw_policy_from_arrays(r_id: str, range_bias: np.ndarray, range_sigma: np.ndarray) -> tuple[np.ndarray, np.ndarray, float, bool]:
+    if r_id == "R0":
+        return np.zeros_like(range_bias), np.full_like(range_sigma, 320.0), 1.25, False
+    if r_id == "R1":
+        return np.zeros_like(range_bias), np.maximum(range_sigma, 260.0), 1.10, False
+    if r_id == "R2":
+        return range_bias, range_sigma, 1.00, False
+    if r_id == "R3":
+        return range_bias, range_sigma, 1.05, True
+    if r_id == "R4":
+        return range_bias, range_sigma, 1.35, True
+    raise ValueError(r_id)
+
+
 def raw_worker(job: tuple[int, str, str, str, str, str]) -> dict:
     job_index, a_id, r_id, l_id, i_id, t_id = job
     t0 = time.perf_counter()
@@ -472,6 +488,149 @@ def raw_worker(job: tuple[int, str, str, str, str, str]) -> dict:
     samples["description"] = f"Phase4 {l_id} single-I raw-range {t_id}/{r_id}."
     tracks, summary = summarize(samples, exp, str(params["deployability"]), f"Phase4 {l_id} single-I raw-range row.", {"A": a_id, "R": r_id, "L": l_id, "I": i_id, "T": t_id, "kind": "range_fusion"})
     return {"job_index": job_index, "tracks": tracks, "summary": summary, "timing": {"experiment_id": exp, "seed_id": _SEED_ID, "wall_time_s": time.perf_counter() - t0, "status": "ok"}}
+
+
+def gpu_range_samples(tensors: dict[str, object], gpu: dict[str, object], experiment_id: str, deployability: str, description: str) -> pd.DataFrame:
+    xyz = np.asarray(gpu["xyz"], dtype=float)
+    nis = np.asarray(gpu["nis"], dtype=float)
+    accept = np.asarray(gpu["accept"], dtype=float)
+    frame_mask = np.asarray(tensors["frame_mask"], dtype=bool)
+    raw_time = np.asarray(tensors["raw_time"], dtype=float)
+    opti_time = np.asarray(tensors["opti_time"], dtype=float)
+    opti_xyz = np.asarray(tensors["opti_xyz"], dtype=float)
+    uwb_xyz = np.asarray(tensors["uwb_xyz"], dtype=float)
+    range_mask = np.asarray(tensors["range_mask"], dtype=bool)
+    rows: list[pd.DataFrame] = []
+    for bidx, key in enumerate(tensors["keys"]):
+        valid = frame_mask[bidx]
+        if not np.any(valid):
+            continue
+        n = int(np.sum(valid))
+        acc = accept[bidx, valid]
+        track_nis = nis[bidx, valid]
+        full8 = np.sum(range_mask[bidx, valid, :], axis=1) >= 8
+        df = pd.DataFrame(
+            {
+                "capture_id": str(key[0]),
+                "tag": str(key[1]),
+                "time_s": raw_time[bidx, valid],
+                "opti_time_s": opti_time[bidx, valid],
+                "x_mm": xyz[bidx, valid, 0],
+                "y_mm": xyz[bidx, valid, 1],
+                "z_mm": xyz[bidx, valid, 2],
+                "uwb_x_mm": uwb_xyz[bidx, valid, 0],
+                "uwb_y_mm": uwb_xyz[bidx, valid, 1],
+                "uwb_z_mm": uwb_xyz[bidx, valid, 2],
+                "opti_x_mm": opti_xyz[bidx, valid, 0],
+                "opti_y_mm": opti_xyz[bidx, valid, 1],
+                "opti_z_mm": opti_xyz[bidx, valid, 2],
+                "uwb_update_accept_rate": float(np.mean(acc)) if n else float("nan"),
+                "uwb_innovation_nis_median": S1.pct(track_nis, 50),
+                "uwb_innovation_nis_p95": S1.pct(track_nis, 95),
+                "raw_range_ge4_ratio": float(np.mean(acc)) if n else float("nan"),
+                "raw_range_full8_ratio": float(np.mean(full8)) if n else float("nan"),
+                "filter_divergence_count": 0,
+            }
+        )
+        P1.add_errors(df)
+        rows.append(df)
+    if not rows:
+        return pd.DataFrame()
+    out = pd.concat(rows, ignore_index=True)
+    out["experiment_id"] = experiment_id
+    out["deployability"] = deployability
+    out["description"] = description
+    return out
+
+
+def collect_raw_gpu(
+    jobs: list[tuple],
+    raw_by_track: dict[tuple[str, str], pd.DataFrame],
+    imu_samples: dict[tuple[str, str, str], pd.DataFrame],
+    anchor_xyz: np.ndarray,
+    anchor_delay: np.ndarray,
+    tag_delay: float,
+    range_bias: np.ndarray,
+    range_sigma: np.ndarray,
+    device: str,
+    gpu_workers: int,
+) -> list[dict]:
+    if not jobs:
+        return []
+    import torch
+
+    if not torch.cuda.is_available() and device.startswith("cuda"):
+        raise RuntimeError("CUDA raw backend requested, but torch.cuda.is_available() is false")
+    started = time.perf_counter()
+    gpu_workers = max(1, min(int(gpu_workers), len(jobs), 16))
+    print(f"[phase4-full] raw_range_branch_gpu: {len(jobs)} rows on {device} with {gpu_workers} feeders", flush=True)
+    tensor_cache: dict[tuple[str, str], dict[str, object]] = {}
+    tensor_jobs = []
+    seen_tensor_keys: set[tuple[str, str]] = set()
+    for job in jobs:
+        _, a_id, _r_id, _l_id, i_id, _t_id = job
+        cache_key = (a_id, i_id)
+        if cache_key not in seen_tensor_keys:
+            seen_tensor_keys.add(cache_key)
+            tensor_jobs.append((cache_key, a_id, i_id))
+    tensor_started = time.perf_counter()
+    for idx, (cache_key, a_id, i_id) in enumerate(tensor_jobs, start=1):
+        t0 = time.perf_counter()
+        tensor_cache[cache_key] = G.build_track_tensors(raw_by_track, imu_samples[(a_id, i_id, "T11")], 0, 0)
+        print(
+            f"[phase4-full] raw_range_branch_gpu: tensor_build {idx}/{len(tensor_jobs)} {a_id}/{i_id} "
+            f"done ({fmt(time.perf_counter() - t0, 2)} s, total {fmt(time.perf_counter() - tensor_started, 2)} s)",
+            flush=True,
+        )
+
+    def run_one(job: tuple) -> dict:
+        job_index, a_id, r_id, l_id, i_id, t_id = job
+        t0 = time.perf_counter()
+        params = RAW_T_PARAMS[t_id]
+        process = S1.li_process_factor(l_id, i_id)
+        prior_sigma = float(params["prior_sigma_base"]) * process
+        bias, sigma_base, scale, r_robust = raw_policy_from_arrays(r_id, range_bias, range_sigma)
+        robust = bool(r_robust or t_id in {"T8", "T9", "T10"})
+        exp = f"X_{a_id}_{r_id}_{l_id}_{i_id}_{t_id}"
+        cache_key = (a_id, i_id)
+        tensors = tensor_cache[cache_key]
+        gpu = G.torch_range_ekf(
+            tensors,
+            anchor_xyz,
+            anchor_delay,
+            tag_delay,
+            bias,
+            sigma_base,
+            prior_sigma,
+            scale,
+            robust,
+            device,
+            "float32",
+        )
+        samples = gpu_range_samples(
+            tensors,
+            gpu,
+            exp,
+            str(params["deployability"]),
+            f"Phase4 {l_id} single-I raw-range {t_id}/{r_id}.",
+        )
+        samples = session_smooth_samples(samples, float(params.get("smooth_alpha", 1.0)))
+        samples["experiment_id"] = exp
+        samples["deployability"] = str(params["deployability"])
+        samples["description"] = f"Phase4 {l_id} single-I raw-range {t_id}/{r_id}."
+        tracks, summary = summarize(samples, exp, str(params["deployability"]), f"Phase4 {l_id} single-I raw-range row.", {"A": a_id, "R": r_id, "L": l_id, "I": i_id, "T": t_id, "kind": "range_fusion"})
+        return {"job_index": job_index, "tracks": tracks, "summary": summary, "timing": {"experiment_id": exp, "seed_id": _SEED_ID, "wall_time_s": time.perf_counter() - t0, "status": "ok", "backend": "cuda", "device": device}}
+
+    rows: list[dict] = []
+    with ThreadPoolExecutor(max_workers=gpu_workers) as pool:
+        futures = [pool.submit(run_one, job) for job in jobs]
+        for done_count, future in enumerate(as_completed(futures), start=1):
+            rows.append(future.result())
+            if done_count == 1 or done_count % 25 == 0 or done_count == len(jobs):
+                elapsed = time.perf_counter() - started
+                rate = done_count / elapsed if elapsed > 0 else float("nan")
+                print(f"[phase4-full] raw_range_branch_gpu: {done_count}/{len(jobs)} done ({fmt(rate, 3)} rows/s)", flush=True)
+    return sorted(rows, key=lambda r: int(r["job_index"]))
 
 
 def collect(label: str, jobs: list[tuple], worker, workers: int, initializer, initargs: tuple) -> list[dict]:
@@ -540,6 +699,9 @@ def run(args: argparse.Namespace) -> dict:
             "runnable_rows": len(pos_jobs) + len(raw_jobs) + len(imu_jobs),
             "excluded_rows": len(exclusions),
             "workers": workers,
+            "raw_backend": args.raw_backend,
+            "raw_device": args.raw_device,
+            "raw_gpu_workers": int(args.raw_gpu_workers),
             "host": {"platform": platform.platform(), "cpu_count": os.cpu_count(), "gpu": torch_cuda_info()},
             "git": git_status(),
         },
@@ -573,7 +735,23 @@ def run(args: argparse.Namespace) -> dict:
             write_csv(run_dir / "tables" / "phase4_summary_partial.csv", summary_rows)
             write_csv(run_dir / "tables" / "phase4_timing_partial.csv", timing_rows)
 
-    for result in collect("raw_range_branch", raw_jobs, raw_worker, workers, init_raw_worker, (raw_by_track, imu_samples, anchor_xyz, anchor_delay, tag_delay, range_bias, range_sigma, l_props)):
+    use_gpu_raw = False
+    if args.raw_backend in {"auto", "cuda"}:
+        try:
+            import torch
+
+            use_gpu_raw = bool(torch.cuda.is_available() and str(args.raw_device).startswith("cuda"))
+        except Exception:
+            use_gpu_raw = False
+        if args.raw_backend == "cuda" and not use_gpu_raw:
+            raise RuntimeError("--raw-backend cuda requested, but CUDA is not available")
+
+    if use_gpu_raw:
+        raw_results = collect_raw_gpu(raw_jobs, raw_by_track, imu_samples, anchor_xyz, anchor_delay, tag_delay, range_bias, range_sigma, str(args.raw_device), int(args.raw_gpu_workers))
+    else:
+        raw_results = collect("raw_range_branch", raw_jobs, raw_worker, workers, init_raw_worker, (raw_by_track, imu_samples, anchor_xyz, anchor_delay, tag_delay, range_bias, range_sigma, l_props))
+
+    for result in raw_results:
         summary_rows.append(result["summary"])
         track_rows.extend(result["tracks"])
         timing_rows.append(result["timing"])
@@ -622,6 +800,9 @@ def run(args: argparse.Namespace) -> dict:
             "runnable_rows_completed": len(summary_rows),
             "excluded_rows": len(exclusions),
             "workers": workers,
+            "raw_backend": "cuda" if use_gpu_raw else "cpu",
+            "raw_device": str(args.raw_device),
+            "raw_gpu_workers": int(args.raw_gpu_workers),
             "sensor_metadata": sensor_meta,
             "outputs": {
                 "manifest": "tables/phase4_full_manifest.csv",
@@ -645,6 +826,9 @@ def main() -> None:
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--seed-id", default="S00", help="Noise seed label, e.g. S00, S01, S02.")
     parser.add_argument("--sensor-id", default="L2", help="Sensor model from configs/sensors.yaml, e.g. L2, L16, L20.")
+    parser.add_argument("--raw-backend", choices=["auto", "cpu", "cuda"], default="auto", help="Use CUDA for TRUEFULL raw_range_branch when available.")
+    parser.add_argument("--raw-device", default="cuda:0", help="Torch device for --raw-backend cuda/auto.")
+    parser.add_argument("--raw-gpu-workers", type=int, default=16, help="Concurrent CUDA feeders for TRUEFULL raw_range_branch.")
     args = parser.parse_args()
     result = run(args)
     print(json.dumps(result, indent=2), flush=True)

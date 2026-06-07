@@ -13,7 +13,10 @@ import csv
 import importlib.util
 import json
 import math
+import os
+import re
 import sys
+import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -27,11 +30,81 @@ THIS = Path(__file__).resolve()
 SIM_ROOT = THIS.parents[1]
 STAGE1_SCRIPT = SIM_ROOT / "scripts" / "run_phase2_stage1_screening.py"
 SENSORS_YAML = SIM_ROOT / "configs" / "sensors.yaml"
+CACHE_ROOT = SIM_ROOT / "cache" / "phase4_gpu_pilot"
 
 DEFAULT_ROWS = [
     "R2:L0:I0:T6",
     "R4:L8:I1+I2+I3+I8:T8",
 ]
+
+
+def safe_id(value: object) -> str:
+    return re.sub(r"[^A-Za-z0-9_.+-]+", "_", str(value))
+
+
+def prior_cache_path(cache_root: Path, prior_run_id: str, l_id: str, i_id: str) -> Path:
+    return cache_root / "priors" / f"prior_{safe_id(prior_run_id)}_{safe_id(l_id)}_{safe_id(i_id)}.pkl"
+
+
+def tensor_cache_path(cache_root: Path, prior_run_id: str, l_id: str, i_id: str, max_tracks: int, max_frames: int) -> Path:
+    return cache_root / "tensors" / f"tensors_{safe_id(prior_run_id)}_{safe_id(l_id)}_{safe_id(i_id)}_tracks{int(max_tracks)}_frames{int(max_frames)}.npz"
+
+
+def load_tensor_cache(path: Path) -> dict[str, object] | None:
+    if not path.exists():
+        return None
+    data = np.load(path, allow_pickle=False)
+    captures = data["key_capture"].astype(str).tolist()
+    tags = data["key_tag"].astype(str).tolist()
+    return {
+        "keys": list(zip(captures, tags)),
+        "raw_by_track": {},
+        "ranges": data["ranges"],
+        "range_mask": data["range_mask"].astype(bool),
+        "frame_mask": data["frame_mask"].astype(bool),
+        "raw_time": data["raw_time"],
+        "opti_time": data["opti_time"],
+        "opti_xyz": data["opti_xyz"],
+        "uwb_xyz": data["uwb_xyz"],
+        "prior_xyz": data["prior_xyz"],
+    }
+
+
+def save_tensor_cache(path: Path, tensors: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    keys = list(tensors["keys"])
+    fd, tmp_name = tempfile.mkstemp(prefix=f"{path.name}.", suffix=".tmp.npz", dir=path.parent)
+    os.close(fd)
+    try:
+        np.savez(
+            tmp_name,
+            key_capture=np.asarray([k[0] for k in keys], dtype=str),
+            key_tag=np.asarray([k[1] for k in keys], dtype=str),
+            ranges=np.asarray(tensors["ranges"]),
+            range_mask=np.asarray(tensors["range_mask"], dtype=bool),
+            frame_mask=np.asarray(tensors["frame_mask"], dtype=bool),
+            raw_time=np.asarray(tensors["raw_time"]),
+            opti_time=np.asarray(tensors["opti_time"]),
+            opti_xyz=np.asarray(tensors["opti_xyz"]),
+            uwb_xyz=np.asarray(tensors["uwb_xyz"]),
+            prior_xyz=np.asarray(tensors["prior_xyz"]),
+        )
+        os.replace(tmp_name, path)
+    finally:
+        if os.path.exists(tmp_name):
+            os.unlink(tmp_name)
+
+
+def save_pickle_cache(path: Path, obj: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=f"{path.name}.", suffix=".tmp", dir=path.parent)
+    os.close(fd)
+    try:
+        pd.to_pickle(obj, tmp_name)
+        os.replace(tmp_name, path)
+    finally:
+        if os.path.exists(tmp_name):
+            os.unlink(tmp_name)
 
 
 def load_module(path: Path, name: str):
@@ -152,12 +225,15 @@ def load_raw_frames_limited(b0: pd.DataFrame, max_tracks: int) -> dict[tuple[str
     if max_tracks <= 0:
         return S1.load_raw_frames(b0)
     pairing = S1.P1.build_pairing_manifest()
-    beta_by_capture = {str(r["capture_id"]): float(r["beta_s"]) for r in pairing if r.get("pairing_ok")}
+    raw_ready = [
+        r
+        for r in pairing
+        if int(r.get("uwb_capture_count", 0)) == 1 and str(r.get("alignment_status")) == "ok"
+    ]
+    beta_by_capture = {str(r["capture_id"]): float(r["beta_s"]) for r in raw_ready}
     b0_by_track = {k: g.sort_values("opti_time_s") for k, g in b0.groupby(["capture_id", "tag"], sort=True)}
     out: dict[tuple[str, str], pd.DataFrame] = {}
-    for pair in pairing:
-        if not pair.get("pairing_ok"):
-            continue
+    for pair in raw_ready:
         cap_id = str(pair["capture_id"])
         cap_dir = S1.OFFICIAL_ROOT / str(pair["uwb_capture_path"])
         tr_files = sorted(cap_dir.glob("tag_capture*/tr_all.csv"))
@@ -470,6 +546,8 @@ def run(args: argparse.Namespace) -> dict:
     phase2_run = args.phase2_run or find_latest_phase2_run()
     phase2_dir = SIM_ROOT / "runs" / "phase2_screening" / phase2_run
     run_id = args.run_id or datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    prior_run_id = str(args.prior_run_id or run_id)
+    cache_root = Path(args.cache_root).resolve()
     run_dir = SIM_ROOT / "runs" / "phase4_gpu_pilot" / run_id
     for d in [run_dir / "tables", run_dir / "reports"]:
         d.mkdir(parents=True, exist_ok=True)
@@ -481,12 +559,17 @@ def run(args: argparse.Namespace) -> dict:
     seed_id = str(getattr(args, "seed_id", "") or "")
     manifest = {
         "run_id": run_id,
+        "prior_run_id": prior_run_id,
         "seed_id": seed_id,
         "phase2_run": phase2_run,
         "generated_utc": datetime.now(UTC).isoformat(),
         "device": args.device,
         "dtype": args.dtype,
         "torch_threads": int(args.torch_threads),
+        "agreement_mode": args.agreement_mode,
+        "agreement_sample_rows": int(args.agreement_sample_rows),
+        "cache_mode": args.cache_mode,
+        "cache_root": str(cache_root),
         "max_tracks": args.max_tracks,
         "max_frames": args.max_frames,
         "rows": args.rows,
@@ -503,7 +586,9 @@ def run(args: argparse.Namespace) -> dict:
 
     result_rows: list[dict] = []
     timing_rows: list[dict] = []
-    for row_spec in args.rows:
+    prior_cache: dict[tuple[str, str], pd.DataFrame] = {}
+    tensor_cache: dict[tuple[str, str], dict[str, object]] = {}
+    for row_idx, row_spec in enumerate(args.rows):
         r_id, l_id, i_id, t_id = parse_row_spec(row_spec)
         if t_id not in S1.T_PARAMS:
             raise ValueError(f"{t_id} is not implemented by current CPU golden")
@@ -517,16 +602,43 @@ def run(args: argparse.Namespace) -> dict:
         range_sigma_scale = 1.0 if r_id == "R2" else 1.35
         robust = t_id == "T8" or r_id == "R4"
         range_sigma = range_sigma_base * range_sigma_scale
+        should_compare = args.agreement_mode == "full" or (args.agreement_mode == "sample" and row_idx < max(1, int(args.agreement_sample_rows)))
 
-        t0 = time.perf_counter()
-        prior = S1.simulate_imu_for_li(b0, run_id, l_id, i_id)
-        timing_rows.append({"row_spec": row_spec, "seed_id": seed_id, "stage": "simulate_imu_prior", "wall_time_s": time.perf_counter() - t0})
+        cache_key = (l_id, i_id)
+        if cache_key not in prior_cache:
+            p_cache = prior_cache_path(cache_root, prior_run_id, l_id, i_id)
+            if args.cache_mode != "off" and p_cache.exists():
+                t0 = time.perf_counter()
+                prior_cache[cache_key] = pd.read_pickle(p_cache)
+                timing_rows.append({"row_spec": row_spec, "seed_id": seed_id, "stage": "load_imu_prior_cache", "cache_key": f"{l_id}:{i_id}", "wall_time_s": time.perf_counter() - t0})
+            else:
+                t0 = time.perf_counter()
+                prior_cache[cache_key] = S1.simulate_imu_for_li(b0, prior_run_id, l_id, i_id)
+                timing_rows.append({"row_spec": row_spec, "seed_id": seed_id, "stage": "simulate_imu_prior", "cache_key": f"{l_id}:{i_id}", "wall_time_s": time.perf_counter() - t0})
+                if args.cache_mode != "off":
+                    save_pickle_cache(p_cache, prior_cache[cache_key])
 
-        tensors = build_track_tensors(raw_by_track, prior, args.max_tracks, args.max_frames)
+        prior = prior_cache[cache_key]
+        if cache_key not in tensor_cache:
+            t_cache = tensor_cache_path(cache_root, prior_run_id, l_id, i_id, args.max_tracks, args.max_frames)
+            cached_tensors = load_tensor_cache(t_cache) if args.cache_mode != "off" and not should_compare else None
+            if cached_tensors is not None:
+                t0 = time.perf_counter()
+                tensor_cache[cache_key] = cached_tensors
+                timing_rows.append({"row_spec": row_spec, "seed_id": seed_id, "stage": "load_track_tensors_cache", "cache_key": f"{l_id}:{i_id}", "wall_time_s": time.perf_counter() - t0})
+            else:
+                t0 = time.perf_counter()
+                tensor_cache[cache_key] = build_track_tensors(raw_by_track, prior, args.max_tracks, args.max_frames)
+                timing_rows.append({"row_spec": row_spec, "seed_id": seed_id, "stage": "build_track_tensors", "cache_key": f"{l_id}:{i_id}", "wall_time_s": time.perf_counter() - t0})
+                if args.cache_mode != "off" and not should_compare:
+                    save_tensor_cache(t_cache, tensor_cache[cache_key])
+        tensors = tensor_cache[cache_key]
 
-        t0 = time.perf_counter()
-        cpu = run_cpu_row(tensors, prior, anchor_xyz, anchor_delay, tag_delay, range_bias, range_sigma, prior_sigma, robust)
-        timing_rows.append({"row_spec": row_spec, "seed_id": seed_id, "stage": "cpu_golden", "wall_time_s": time.perf_counter() - t0})
+        cpu = None
+        if should_compare:
+            t0 = time.perf_counter()
+            cpu = run_cpu_row(tensors, prior, anchor_xyz, anchor_delay, tag_delay, range_bias, range_sigma, prior_sigma, robust)
+            timing_rows.append({"row_spec": row_spec, "seed_id": seed_id, "stage": "cpu_golden", "wall_time_s": time.perf_counter() - t0})
 
         gpu = None
         for _ in range(max(0, int(args.gpu_warmup))):
@@ -567,21 +679,22 @@ def run(args: argparse.Namespace) -> dict:
         if gpu is None:
             raise RuntimeError("GPU pilot did not produce an output")
 
-        for row in compare_cpu_gpu(cpu, gpu, tensors):
-            row.update(
-                {
-                    "row_spec": row_spec,
-                    "seed_id": seed_id,
-                    "R": r_id,
-                    "L": l_id,
-                    "I": i_id,
-                    "T": t_id,
-                    "prior_sigma_mm": prior_sigma,
-                    "range_sigma_scale": range_sigma_scale,
-                    "robust": robust,
-                }
-            )
-            result_rows.append(row)
+        if cpu is not None:
+            for row in compare_cpu_gpu(cpu, gpu, tensors):
+                row.update(
+                    {
+                        "row_spec": row_spec,
+                        "seed_id": seed_id,
+                        "R": r_id,
+                        "L": l_id,
+                        "I": i_id,
+                        "T": t_id,
+                        "prior_sigma_mm": prior_sigma,
+                        "range_sigma_scale": range_sigma_scale,
+                        "robust": robust,
+                    }
+                )
+                result_rows.append(row)
 
     write_csv(run_dir / "tables" / "phase4_gpu_pilot_agreement.csv", result_rows)
     write_csv(run_dir / "tables" / "phase4_gpu_pilot_timing.csv", timing_rows)
@@ -605,6 +718,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--phase2-run", default="", help="Phase 2 run containing G3 range-bias policy. Defaults to latest.")
     parser.add_argument("--run-id", default="", help="Output run id. Defaults to current UTC timestamp.")
+    parser.add_argument("--prior-run-id", default="", help="Stable id used for IMU prior random seeds. Defaults to --run-id.")
     parser.add_argument("--seed-id", default="", help="Seed label written to manifest/tables, e.g. S00.")
     parser.add_argument("--rows", nargs="+", default=DEFAULT_ROWS, help="Pilot row specs formatted as R:L:I:T.")
     parser.add_argument("--max-tracks", type=int, default=2, help="Maximum ROTO/tag tracks for the tiny pilot.")
@@ -612,6 +726,10 @@ def main() -> None:
     parser.add_argument("--device", default="cuda:0", help="Torch device, e.g. cuda:0, cuda:1, or cpu.")
     parser.add_argument("--dtype", choices=["float32", "float64"], default="float32", help="Torch dtype for GPU pilot.")
     parser.add_argument("--torch-threads", type=int, default=1, help="CPU threads used by torch feeder/reference helpers.")
+    parser.add_argument("--agreement-mode", choices=["full", "sample", "none"], default="full", help="CPU/GPU comparison policy. Use none for throughput chunks after agreement smoke passes.")
+    parser.add_argument("--agreement-sample-rows", type=int, default=1, help="Rows compared when --agreement-mode sample is used.")
+    parser.add_argument("--cache-mode", choices=["off", "readwrite"], default="readwrite", help="Reuse IMU prior and GPU tensor caches to turn RAM/page cache into throughput.")
+    parser.add_argument("--cache-root", default=str(CACHE_ROOT), help="Cache directory for prior pickle files and tensor npz files.")
     parser.add_argument("--gpu-warmup", type=int, default=0, help="Untimed GPU warmup repeats.")
     parser.add_argument("--gpu-repeat", type=int, default=1, help="Timed GPU repeats; median is reported.")
     args = parser.parse_args()
