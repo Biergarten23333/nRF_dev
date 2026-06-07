@@ -40,6 +40,8 @@ def count_processes():
             counts["gpu_pilot"] += 1
         if "run_phase4_l2_singleI_full_factory.py" in line:
             counts["truefull"] += 1
+        if "run_phase4_truefull_all_sensors_all_seeds_5090d.py" in line:
+            counts["truefull"] += 1
         if "run_phase4_lx_stress_candidates.py" in line:
             counts["stress"] += 1
     return counts
@@ -56,7 +58,7 @@ def sample(run_dir, log_path):
     shm = run_text(["df", "-h", "/dev/shm"])
     counts = count_processes()
 
-    truefull_log = latest(os.path.join(run_dir, "logs", "phase4_L*_TRUEFULL*_DUALLANE_*.log"))
+    truefull_log = latest(os.path.join(run_dir, "logs", "phase4_L*_TRUEFULL_*.log"))
     gpu_log = latest(os.path.join(run_dir, "logs", "phase4_GPU_RAW_ALLL*_DUALLANE_*.log"))
     stress_log = os.path.join(
         run_dir,

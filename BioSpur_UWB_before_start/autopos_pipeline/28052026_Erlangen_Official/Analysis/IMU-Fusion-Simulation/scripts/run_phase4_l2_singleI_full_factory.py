@@ -65,6 +65,7 @@ A_CASES = {
 
 A_IDS = list(A_CASES)
 U_IDS = [f"U{i}" for i in range(1, 5)]
+CORRECTED_IMU_U_IDS = ["U4"]
 P_IDS = [f"P{i}" for i in range(0, 6)]
 R_IDS = [f"R{i}" for i in range(0, 5)]
 I_IDS = [f"I{i}" for i in range(0, 9)]
@@ -130,6 +131,14 @@ def fmt(value: object, digits: int = 1) -> str:
     if not math.isfinite(f):
         return "nan"
     return f"{f:.{digits}f}"
+
+
+def rms(values: object) -> float:
+    arr = np.asarray(values, dtype=float)
+    arr = arr[np.isfinite(arr)]
+    if arr.size == 0:
+        return float("nan")
+    return float(np.sqrt(np.mean(arr * arr)))
 
 
 def write_csv(path: Path, rows: list[dict]) -> None:
@@ -200,6 +209,9 @@ def install_sensor_props(sensor_id: str) -> tuple[dict[str, dict], dict[str, dic
             "rw_mg": float(row["accel_bias_random_walk_mg_sqrt_s"]),
             "vib_mg": float(row["vibration_sensitivity_mg"]),
             "extrinsic_mg": float(row["extrinsic_mg"]),
+            "gyro_bias_dps": float(row["residual_gyro_bias_dps"]),
+            "gyro_noise_dps": float(row["gyro_noise_dps"]),
+            "gyro_rw_dps_sqrt_s": float(row["gyro_bias_random_walk_dps_sqrt_s"]),
         }
     }
     S1.L_PROPS = props
@@ -661,6 +673,141 @@ def aggregate(summary_rows: list[dict]) -> list[dict]:
     return out
 
 
+def write_imu_stream_exports(run_dir: Path, imu_samples: dict[tuple[str, str, str], pd.DataFrame]) -> list[dict]:
+    out_dir = run_dir / "imu_streams"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    manifest: list[dict] = []
+    for (a_id, i_id, t_id), df in sorted(imu_samples.items()):
+        file_name = f"phase4_imu_stream_{a_id}_{_SENSOR_ID}_{i_id}_{t_id}_{_SEED_ID}.csv.gz"
+        rel_path = Path("imu_streams") / file_name
+        export = df.copy()
+        labels = [("seed_id", _SEED_ID), ("A", a_id), ("L", _SENSOR_ID), ("I", i_id), ("T", t_id)]
+        for idx, (col, value) in enumerate(labels):
+            if col in export.columns:
+                export[col] = value
+            else:
+                export.insert(min(idx, len(export.columns)), col, value)
+        export.to_csv(run_dir / rel_path, index=False, compression="gzip")
+        manifest.append(
+            {
+                "seed_id": _SEED_ID,
+                "A": a_id,
+                "L": _SENSOR_ID,
+                "I": i_id,
+                "T": t_id,
+                "rows": len(export),
+                "capture_tags": int(export[["capture_id", "tag"]].drop_duplicates().shape[0]),
+                "file": str(rel_path),
+                "export_type": "imu_only_stream_with_raw_meas_bias_noise_vibration",
+            }
+        )
+    write_csv(run_dir / "tables" / "phase4_imu_stream_manifest.csv", manifest)
+    return manifest
+
+
+def parse_corrected_imu_rows(spec: str) -> list[tuple[str, str, str, str, str]]:
+    rows: list[tuple[str, str, str, str, str]] = []
+    for raw in str(spec).split(","):
+        item = raw.strip().upper()
+        if not item:
+            continue
+        parts = item.split(":")
+        if len(parts) != 5:
+            raise ValueError(f"--corrected-imu-rows entries must look like A0:U4:P4:I5:T5; got {raw!r}")
+        a_id, u_id, p_id, i_id, t_id = parts
+        if a_id not in A_IDS or u_id not in U_IDS or p_id not in P_IDS or i_id not in I_IDS or t_id not in POS_T_IDS:
+            raise ValueError(f"unknown corrected IMU row selector {raw!r}")
+        if u_id not in CORRECTED_IMU_U_IDS:
+            supported = ",".join(CORRECTED_IMU_U_IDS)
+            raise ValueError(f"unsupported corrected IMU U selector {u_id!r}; supported: {supported}")
+        rows.append((a_id, u_id, p_id, i_id, t_id))
+    return rows
+
+
+def summarize_corrected_imu(export: pd.DataFrame, labels: dict[str, str], rel_path: Path) -> dict:
+    row = {
+        **labels,
+        "seed_id": _SEED_ID,
+        "rows": len(export),
+        "capture_tags": int(export[["capture_id", "tag"]].drop_duplicates().shape[0]),
+        "file": str(rel_path),
+        "export_type": "corrected_imu_proxy_capture_stream",
+    }
+    metrics = [
+        "fused_err3d_mm",
+        "imu_prior_err3d_mm",
+        "correction_from_imu_prior_norm_mm",
+        "imu_acc_correction_norm_proxy_mm_s2",
+        "imu_acc_correction_ratio_proxy",
+        "imu_gyro_correction_norm_proxy_dps",
+        "imu_gyro_correction_ratio_proxy",
+    ]
+    for col in metrics:
+        if col in export.columns:
+            values = export[col].to_numpy(float)
+            row[f"{col}_p50"] = S1.pct(values, 50)
+            row[f"{col}_p95"] = S1.pct(values, 95)
+            row[f"{col}_rms"] = rms(values)
+    return row
+
+
+def write_corrected_imu_exports(
+    run_dir: Path,
+    streams: dict[tuple[str, str, str], pd.DataFrame],
+    imu_samples: dict[tuple[str, str, str], pd.DataFrame],
+    row_spec: str,
+) -> list[dict]:
+    out_dir = run_dir / "corrected_imu_exports"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    manifest: list[dict] = []
+    for a_id, u_id, p_id, i_id, t_id in parse_corrected_imu_rows(row_spec):
+        if t_id == "T1":
+            continue
+        stream = streams[(a_id, u_id, p_id)]
+        prior = imu_samples[(a_id, i_id, "T11")]
+        params = POSITION_T_PARAMS[t_id]
+        process = S1.li_process_factor(_SENSOR_ID, i_id)
+        exp = f"X_{a_id}_{u_id}_{p_id}_{_SENSOR_ID}_{i_id}_{t_id}"
+        fused = S1.position_fusion_samples(
+            stream,
+            prior,
+            exp,
+            str(params["deployability"]),
+            f"Phase4 corrected IMU export {_SENSOR_ID}/{i_id}/{p_id}/{t_id}.",
+            float(params["prior_sigma_base"]) * process,
+            float(params["measurement_sigma"]),
+        )
+        keys = ["capture_id", "tag", "time_s"]
+        prior_cols = keys + ["x_mm", "y_mm", "z_mm", "err3d_mm", "imu_only_endpoint_drift_3d_mm", "imu_only_drift_rate_3d_mm_s"]
+        prior_view = prior[prior_cols].rename(
+            columns={
+                "x_mm": "imu_prior_x_mm",
+                "y_mm": "imu_prior_y_mm",
+                "z_mm": "imu_prior_z_mm",
+                "err3d_mm": "imu_prior_err3d_mm",
+            }
+        )
+        export = fused.merge(prior_view, on=keys, how="left")
+        labels = [("seed_id", _SEED_ID), ("solver_row", exp), ("A", a_id), ("U", u_id), ("P", p_id), ("L", _SENSOR_ID), ("I", i_id), ("T", t_id)]
+        for idx, (col, value) in enumerate(labels):
+            if col in export.columns:
+                export[col] = value
+            else:
+                export.insert(min(idx, len(export.columns)), col, value)
+        export = export.rename(columns={"x_mm": "fused_x_mm", "y_mm": "fused_y_mm", "z_mm": "fused_z_mm", "err3d_mm": "fused_err3d_mm"})
+        for axis in ["x", "y", "z"]:
+            export[f"correction_from_imu_prior_{axis}_mm"] = export[f"fused_{axis}_mm"] - export[f"imu_prior_{axis}_mm"]
+            export[f"correction_from_uwb_{axis}_mm"] = export[f"fused_{axis}_mm"] - export[f"uwb_{axis}_mm"]
+        export["correction_from_imu_prior_norm_mm"] = np.linalg.norm(export[[f"correction_from_imu_prior_{a}_mm" for a in ["x", "y", "z"]]].to_numpy(float), axis=1)
+        export["correction_from_uwb_norm_mm"] = np.linalg.norm(export[[f"correction_from_uwb_{a}_mm" for a in ["x", "y", "z"]]].to_numpy(float), axis=1)
+        file_name = f"phase4_corrected_imu_{a_id}_{u_id}_{p_id}_{_SENSOR_ID}_{i_id}_{t_id}_{_SEED_ID}.csv.gz"
+        rel_path = Path("corrected_imu_exports") / file_name
+        export.to_csv(run_dir / rel_path, index=False, compression="gzip")
+        manifest.append(summarize_corrected_imu(export, {"A": a_id, "U": u_id, "P": p_id, "L": _SENSOR_ID, "I": i_id, "T": t_id, "solver_row": exp}, rel_path))
+    write_csv(run_dir / "tables" / "phase4_corrected_imu_export_manifest.csv", manifest)
+    return manifest
+
+
 def run(args: argparse.Namespace) -> dict:
     global _SEED_ID, _SENSOR_ID
     _SEED_ID = str(args.seed_id).upper()
@@ -672,7 +819,7 @@ def run(args: argparse.Namespace) -> dict:
     L_IDS[:] = [_SENSOR_ID]
     run_id = args.run_id or f"phase4_{_SENSOR_ID}_singleI_TRUEFULL_{_SEED_ID}_1080ti_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}"
     run_dir = SIM_ROOT / "runs" / "phase4_algorithm_factory" / run_id
-    for d in [run_dir / "logs", run_dir / "tables", run_dir / "reports", run_dir / "manifests"]:
+    for d in [run_dir / "logs", run_dir / "tables", run_dir / "reports", run_dir / "manifests", run_dir / "imu_streams", run_dir / "corrected_imu_exports"]:
         d.mkdir(parents=True, exist_ok=True)
 
     start = time.perf_counter()
@@ -702,6 +849,9 @@ def run(args: argparse.Namespace) -> dict:
             "raw_backend": args.raw_backend,
             "raw_device": args.raw_device,
             "raw_gpu_workers": int(args.raw_gpu_workers),
+            "export_imu_streams": bool(args.export_imu_streams),
+            "export_corrected_imu": bool(args.export_corrected_imu),
+            "corrected_imu_rows": str(args.corrected_imu_rows),
             "host": {"platform": platform.platform(), "cpu_count": os.cpu_count(), "gpu": torch_cuda_info()},
             "git": git_status(),
         },
@@ -759,6 +909,13 @@ def run(args: argparse.Namespace) -> dict:
             write_csv(run_dir / "tables" / "phase4_summary_partial.csv", summary_rows)
             write_csv(run_dir / "tables" / "phase4_timing_partial.csv", timing_rows)
 
+    imu_stream_manifest: list[dict] = []
+    corrected_imu_manifest: list[dict] = []
+    if args.export_imu_streams:
+        imu_stream_manifest = write_imu_stream_exports(run_dir, imu_samples)
+    if args.export_corrected_imu:
+        corrected_imu_manifest = write_corrected_imu_exports(run_dir, streams, imu_samples, str(args.corrected_imu_rows))
+
     P1.add_baseline_deltas(summary_rows)
     ranked = aggregate(summary_rows)
     elapsed = time.perf_counter() - start
@@ -803,6 +960,11 @@ def run(args: argparse.Namespace) -> dict:
             "raw_backend": "cuda" if use_gpu_raw else "cpu",
             "raw_device": str(args.raw_device),
             "raw_gpu_workers": int(args.raw_gpu_workers),
+            "export_imu_streams": bool(args.export_imu_streams),
+            "export_corrected_imu": bool(args.export_corrected_imu),
+            "corrected_imu_rows": str(args.corrected_imu_rows),
+            "imu_stream_exports": len(imu_stream_manifest),
+            "corrected_imu_exports": len(corrected_imu_manifest),
             "sensor_metadata": sensor_meta,
             "outputs": {
                 "manifest": "tables/phase4_full_manifest.csv",
@@ -810,6 +972,8 @@ def run(args: argparse.Namespace) -> dict:
                 "summary": "tables/phase4_summary.csv",
                 "track_metrics": "tables/phase4_track_metrics.csv",
                 "exclusions": "tables/phase4_exclusion_reasons.csv",
+                "imu_stream_manifest": "tables/phase4_imu_stream_manifest.csv" if args.export_imu_streams else "",
+                "corrected_imu_export_manifest": "tables/phase4_corrected_imu_export_manifest.csv" if args.export_corrected_imu else "",
                 "report": f"reports/{report_name}",
             },
             "host": {"platform": platform.platform(), "cpu_count": os.cpu_count(), "gpu": torch_cuda_info()},
@@ -829,6 +993,9 @@ def main() -> None:
     parser.add_argument("--raw-backend", choices=["auto", "cpu", "cuda"], default="auto", help="Use CUDA for TRUEFULL raw_range_branch when available.")
     parser.add_argument("--raw-device", default="cuda:0", help="Torch device for --raw-backend cuda/auto.")
     parser.add_argument("--raw-gpu-workers", type=int, default=16, help="Concurrent CUDA feeders for TRUEFULL raw_range_branch.")
+    parser.add_argument("--export-imu-streams", action=argparse.BooleanOptionalAction, default=True, help="Persist IMU-only streams with measured acc/gyro and simulated bias/noise/vibration channels.")
+    parser.add_argument("--export-corrected-imu", action=argparse.BooleanOptionalAction, default=True, help="Persist selected capture-level corrected IMU proxy streams.")
+    parser.add_argument("--corrected-imu-rows", default="A0:U4:P4:I5:T5", help="Comma-separated corrected export selectors, e.g. A0:U4:P4:I5:T5,A0:U4:P4:I6:T5.")
     args = parser.parse_args()
     result = run(args)
     print(json.dumps(result, indent=2), flush=True)

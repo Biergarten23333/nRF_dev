@@ -116,6 +116,25 @@ def rms(values) -> float:
     return float(math.sqrt(float(np.mean(arr * arr))))
 
 
+def finite_difference_kinematics(time_s: np.ndarray, xyz_mm: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    t = np.asarray(time_s, dtype=float)
+    xyz = np.asarray(xyz_mm, dtype=float)
+    vel = np.full_like(xyz, np.nan, dtype=float)
+    acc = np.full_like(xyz, np.nan, dtype=float)
+    good = np.isfinite(t) & np.isfinite(xyz).all(axis=1)
+    if int(np.sum(good)) < 3:
+        return vel, acc
+    idx = np.where(good)[0]
+    tg = t[idx]
+    if np.any(np.diff(tg) <= 0):
+        return vel, acc
+    vel_good = np.column_stack([np.gradient(xyz[idx, axis], tg, edge_order=1) for axis in range(3)])
+    acc_good = np.column_stack([np.gradient(vel_good[:, axis], tg, edge_order=1) for axis in range(3)])
+    vel[idx] = vel_good
+    acc[idx] = acc_good
+    return vel, acc
+
+
 def fmt(value: object, digits: int = 1) -> str:
     try:
         f = float(value)
@@ -251,6 +270,16 @@ def simulate_imu_for_li(b0: pd.DataFrame, run_id: str, l_id: str, i_id: str) -> 
         truth = g[["opti_x_mm", "opti_y_mm", "opti_z_mm"]].to_numpy(float)
         times = g["time_s"].to_numpy(float)
         drift = np.zeros_like(truth)
+        truth_vel, truth_acc = finite_difference_kinematics(times, truth)
+        acc_meas = truth_acc.copy()
+        acc_bias_true = np.zeros_like(truth)
+        acc_noise = np.zeros_like(truth)
+        acc_vibration = np.zeros_like(truth)
+        gyro_true = np.zeros_like(truth)
+        gyro_meas = np.zeros_like(truth)
+        gyro_bias_true = np.zeros_like(truth)
+        gyro_noise = np.zeros_like(truth)
+        gyro_vibration = np.zeros_like(truth)
         if l_id != "L0":
             seed = stable_seed(run_id, "stage1", l_id, i_id, capture_id, tag)
             rng = np.random.default_rng(seed)
@@ -262,6 +291,11 @@ def simulate_imu_for_li(b0: pd.DataFrame, run_id: str, l_id: str, i_id: str) -> 
             vib_amp = prop["vib_mg"] * mod["vib"] * G_MM_S2 / 1000.0
             extrinsic = prop["extrinsic_mg"] * G_MM_S2 / 1000.0 * rng.normal(0.0, 1.0, size=3)
             bias = rng.normal(0.0, bias_sigma, size=3) + extrinsic
+            gyro_bias_sigma = prop.get("gyro_bias_dps", prop["bias_mg"] * 0.08) * mod["bias"]
+            gyro_noise_sigma = prop.get("gyro_noise_dps", prop["noise_mg"] * 0.04) * mod["noise"]
+            gyro_rw_base = prop.get("gyro_rw_dps_sqrt_s", prop["rw_mg"] * 0.04) * mod["rw"]
+            gyro_vib_amp = prop["vib_mg"] * mod["vib"] * 0.018
+            gyro_bias = rng.normal(0.0, gyro_bias_sigma, size=3)
             phase = rng.uniform(0.0, 2.0 * math.pi, size=3)
             freq = rng.uniform(6.0, 15.0, size=3)
             for i in range(1, len(times)):
@@ -271,10 +305,22 @@ def simulate_imu_for_li(b0: pd.DataFrame, run_id: str, l_id: str, i_id: str) -> 
                 dt = min(max(dt, 1e-3), 0.25)
                 bias = bias + rng.normal(0.0, rw_base * math.sqrt(dt), size=3)
                 vib = vib_amp * np.sin(2.0 * math.pi * freq * times[i] + phase)
-                acc_err = bias + rng.normal(0.0, noise_sigma, size=3) + vib
+                noise = rng.normal(0.0, noise_sigma, size=3)
+                acc_err = bias + noise + vib
+                gyro_bias = gyro_bias + rng.normal(0.0, gyro_rw_base * math.sqrt(dt), size=3)
+                gyro_vib = gyro_vib_amp * np.sin(2.0 * math.pi * freq * times[i] + phase)
+                gyro_err = gyro_bias + rng.normal(0.0, gyro_noise_sigma, size=3) + gyro_vib
                 pos = pos + vel * dt + 0.5 * acc_err * dt * dt
                 vel = vel + acc_err * dt
                 drift[i] = pos
+                acc_bias_true[i] = bias
+                acc_noise[i] = noise
+                acc_vibration[i] = vib
+                gyro_bias_true[i] = gyro_bias
+                gyro_noise[i] = gyro_err - gyro_bias - gyro_vib
+                gyro_vibration[i] = gyro_vib
+                gyro_meas[i] = gyro_true[i] + gyro_err
+            acc_meas = truth_acc + acc_bias_true + acc_noise + acc_vibration
         out = g.copy()
         out["experiment_id"] = f"X_A0_{l_id}_{i_id}_T11"
         out["deployability"] = "imu_only_diagnostic_oracle" if l_id == "L0" else "imu_only_diagnostic_screening"
@@ -284,6 +330,39 @@ def simulate_imu_for_li(b0: pd.DataFrame, run_id: str, l_id: str, i_id: str) -> 
         out["x_mm"] = truth[:, 0] + drift[:, 0]
         out["y_mm"] = truth[:, 1] + drift[:, 1]
         out["z_mm"] = truth[:, 2] + drift[:, 2]
+        out["imu_truth_vel_x_mm_s"] = truth_vel[:, 0]
+        out["imu_truth_vel_y_mm_s"] = truth_vel[:, 1]
+        out["imu_truth_vel_z_mm_s"] = truth_vel[:, 2]
+        out["imu_truth_acc_x_mm_s2"] = truth_acc[:, 0]
+        out["imu_truth_acc_y_mm_s2"] = truth_acc[:, 1]
+        out["imu_truth_acc_z_mm_s2"] = truth_acc[:, 2]
+        out["imu_meas_acc_x_mm_s2"] = acc_meas[:, 0]
+        out["imu_meas_acc_y_mm_s2"] = acc_meas[:, 1]
+        out["imu_meas_acc_z_mm_s2"] = acc_meas[:, 2]
+        out["imu_acc_bias_true_x_mm_s2"] = acc_bias_true[:, 0]
+        out["imu_acc_bias_true_y_mm_s2"] = acc_bias_true[:, 1]
+        out["imu_acc_bias_true_z_mm_s2"] = acc_bias_true[:, 2]
+        out["imu_acc_noise_x_mm_s2"] = acc_noise[:, 0]
+        out["imu_acc_noise_y_mm_s2"] = acc_noise[:, 1]
+        out["imu_acc_noise_z_mm_s2"] = acc_noise[:, 2]
+        out["imu_acc_vibration_x_mm_s2"] = acc_vibration[:, 0]
+        out["imu_acc_vibration_y_mm_s2"] = acc_vibration[:, 1]
+        out["imu_acc_vibration_z_mm_s2"] = acc_vibration[:, 2]
+        out["imu_truth_gyro_x_dps"] = gyro_true[:, 0]
+        out["imu_truth_gyro_y_dps"] = gyro_true[:, 1]
+        out["imu_truth_gyro_z_dps"] = gyro_true[:, 2]
+        out["imu_meas_gyro_x_dps"] = gyro_meas[:, 0]
+        out["imu_meas_gyro_y_dps"] = gyro_meas[:, 1]
+        out["imu_meas_gyro_z_dps"] = gyro_meas[:, 2]
+        out["imu_gyro_bias_true_x_dps"] = gyro_bias_true[:, 0]
+        out["imu_gyro_bias_true_y_dps"] = gyro_bias_true[:, 1]
+        out["imu_gyro_bias_true_z_dps"] = gyro_bias_true[:, 2]
+        out["imu_gyro_noise_x_dps"] = gyro_noise[:, 0]
+        out["imu_gyro_noise_y_dps"] = gyro_noise[:, 1]
+        out["imu_gyro_noise_z_dps"] = gyro_noise[:, 2]
+        out["imu_gyro_vibration_x_dps"] = gyro_vibration[:, 0]
+        out["imu_gyro_vibration_y_dps"] = gyro_vibration[:, 1]
+        out["imu_gyro_vibration_z_dps"] = gyro_vibration[:, 2]
         endpoint = drift[-1] if len(drift) else np.full(3, np.nan)
         endpoint_3d = float(np.linalg.norm(endpoint))
         duration = float(times[-1] - times[0]) if len(times) > 1 else float("nan")
@@ -344,6 +423,41 @@ def position_fusion_samples(
         out["uwb_innovation_nis_p95"] = pct(nis, 95)
         out["prior_missing_samples"] = prior_missing
         out["filter_divergence_count"] = 0
+        imu_cols = [c for c in pg.columns if c.startswith("imu_")]
+        if imu_cols:
+            aligned = pg[["capture_id", "tag", "time_s", *imu_cols]].drop_duplicates(["capture_id", "tag", "time_s"])
+            out = out.merge(aligned, on=["capture_id", "tag", "time_s"], how="left")
+            fused_vel, fused_acc = finite_difference_kinematics(out["time_s"].to_numpy(float), fused)
+            for axis, name in enumerate(["x", "y", "z"]):
+                out[f"fused_vel_{name}_mm_s"] = fused_vel[:, axis]
+                out[f"fused_acc_{name}_mm_s2"] = fused_acc[:, axis]
+                meas_col = f"imu_meas_acc_{name}_mm_s2"
+                if meas_col in out.columns:
+                    out[f"imu_acc_correction_proxy_{name}_mm_s2"] = out[f"fused_acc_{name}_mm_s2"] - out[meas_col]
+                    out[f"imu_corrected_acc_proxy_{name}_mm_s2"] = out[f"fused_acc_{name}_mm_s2"]
+                gyro_col = f"imu_meas_gyro_{name}_dps"
+                if gyro_col in out.columns:
+                    bias_est = out.groupby(["capture_id", "tag"], sort=False)[gyro_col].transform(
+                        lambda s: s.rolling(window=121, center=True, min_periods=1).median()
+                    )
+                    out[f"imu_gyro_bias_est_proxy_{name}_dps"] = bias_est
+                    out[f"imu_corrected_gyro_proxy_{name}_dps"] = out[gyro_col] - bias_est
+            acc_corr_cols = [f"imu_acc_correction_proxy_{a}_mm_s2" for a in ["x", "y", "z"]]
+            acc_raw_cols = [f"imu_meas_acc_{a}_mm_s2" for a in ["x", "y", "z"]]
+            if all(c in out.columns for c in acc_corr_cols + acc_raw_cols):
+                acc_corr = out[acc_corr_cols].to_numpy(float)
+                acc_raw = out[acc_raw_cols].to_numpy(float)
+                out["imu_acc_correction_norm_proxy_mm_s2"] = np.linalg.norm(acc_corr, axis=1)
+                out["imu_raw_acc_norm_mm_s2"] = np.linalg.norm(acc_raw, axis=1)
+                out["imu_acc_correction_ratio_proxy"] = out["imu_acc_correction_norm_proxy_mm_s2"] / np.maximum(out["imu_raw_acc_norm_mm_s2"], 1e-9)
+            gyro_corr_cols = [f"imu_gyro_bias_est_proxy_{a}_dps" for a in ["x", "y", "z"]]
+            gyro_raw_cols = [f"imu_meas_gyro_{a}_dps" for a in ["x", "y", "z"]]
+            if all(c in out.columns for c in gyro_corr_cols + gyro_raw_cols):
+                gyro_corr = out[gyro_corr_cols].to_numpy(float)
+                gyro_raw = out[gyro_raw_cols].to_numpy(float)
+                out["imu_gyro_correction_norm_proxy_dps"] = np.linalg.norm(gyro_corr, axis=1)
+                out["imu_raw_gyro_norm_dps"] = np.linalg.norm(gyro_raw, axis=1)
+                out["imu_gyro_correction_ratio_proxy"] = out["imu_gyro_correction_norm_proxy_dps"] / np.maximum(out["imu_raw_gyro_norm_dps"], 1e-9)
         P1.add_errors(out)
         chunks.append(out)
     return pd.concat(chunks, ignore_index=True)
