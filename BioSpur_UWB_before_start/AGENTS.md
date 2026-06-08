@@ -10,6 +10,24 @@
 - Use `scripts/build_master_control_b120_m1_internal_osc.sh` or `scripts/build_master_control_b120_m1.sh`; the latter defaults to LFRC if no explicit oscillator config is provided.
 - Before any B120 flash, verify the build with `scripts/assert_b120_internal_osc_build.sh <build-dir-or-image>`.
 - Never use `nrfjprog`; use the repository J-Link scripts with explicit SNR.
+- UWB Tags are OTA-first devices. Do **not** directly J-Link flash a Tag unless
+  zekaixiao explicitly authorizes that specific direct flash for recovery,
+  restore-to-OTA-capable firmware, or another named exception. Routine Tag image
+  deployment must be done through BLE OTA via the Tag Master. Before any Tag OTA,
+  verify the candidate image keeps OTA capability enabled:
+  - `APP_TAG_BLE_ENABLE=1`
+  - `APP_TAG_MCUBOOT_ENABLE=1`
+  - `APP_TAG_BLE_OTA_ENABLE=1`
+  - `CONFIG_BT=y`
+  - `CONFIG_BOOTLOADER_MCUBOOT=y`
+  Full raw CIR USB-only Tag builds are not OTA-capable unless these are present;
+  do not deploy such builds as normal Tag firmware.
+- UWB Anchors are also OTA-only for routine image updates. Do **not** directly
+  J-Link flash an Anchor body for normal firmware changes. Anchor image updates
+  must be delivered by BLE OTA via the Anchor Master. Flashing the Anchor Master
+  itself is allowed when explicitly needed to embed or transmit the new Anchor
+  OTA image, but that authorization does not extend to direct flashing of the
+  deployed Anchor devices.
 - Dual-master naming:
   - SNR `960148546` is `Master_Anchor`.
   - SNR `1050070698` is `Master_Tag`.

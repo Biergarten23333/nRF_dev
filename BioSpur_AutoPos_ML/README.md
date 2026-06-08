@@ -51,6 +51,23 @@ Outputs:
 - `DATASETS/processed/capture_manifest.json`
 - `outputs/reports/raw_inventory.md`
 
+Generate capture-level metadata and label-quality gates:
+
+```bash
+python3 scripts/build_capture_metadata.py
+```
+
+Manual capture semantics live in:
+
+- `DATASETS/processed/capture_metadata_overrides.csv`
+
+Generated outputs:
+
+- `DATASETS/processed/capture_metadata.csv`
+- `DATASETS/processed/capture_metadata.json`
+- `outputs/reports/capture_metadata.md`
+- `outputs/reports/multipath_no_tag_intake.md`
+
 Run the current CPU-only evaluation pipeline:
 
 ```bash
@@ -59,10 +76,13 @@ python3 scripts/run_cpu_pipeline.py
 
 This runs inventory, layout DB generation, feature extraction, OptiTrack
 correlation validation, stratified OptiTrack analysis, DOP binding, baseline
-ranking, Score v2, score sensitivity analysis, ML candidate table generation,
-and the Bewertung plots/report. It explicitly disables CUDA for the process.
+ranking, Score v2, score sensitivity analysis, capture metadata, ML candidate
+table generation, deployment recommendation refresh when dense axis-DOP inputs
+exist, and the Bewertung plots/report. It explicitly disables CUDA for the
+process.
 
 See:
 
 - `docs/data_assumptions.md`
+- `docs/capture_metadata_schema.md`
 - `docs/gpu_policy.md`

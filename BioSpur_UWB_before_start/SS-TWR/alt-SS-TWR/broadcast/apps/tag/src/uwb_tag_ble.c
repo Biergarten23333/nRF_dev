@@ -562,9 +562,9 @@ static uint8_t uwb_tag_ble_normalize_positioning_mode(uint8_t positioning_mode)
 	case UWB_TAG_MODE_SOLVE:
 	case UWB_TAG_MODE_DEBUG:
 	case UWB_TAG_MODE_AOTA:
-		return positioning_mode;
 	case UWB_TAG_MODE_RESERVED_4:
 	case UWB_TAG_MODE_RESERVED_5:
+		return positioning_mode;
 	case UWB_TAG_MODE_RANGE:
 	default:
 		return UWB_TAG_MODE_RANGE;
@@ -722,6 +722,10 @@ static const char *uwb_tag_ble_mode_label(uint8_t positioning_mode)
 		return "DEBUG";
 	case UWB_TAG_MODE_AOTA:
 		return "AOTA";
+	case UWB_TAG_MODE_RESERVED_4:
+		return "CAL_STATIC";
+	case UWB_TAG_MODE_RESERVED_5:
+		return "CAL_ROTO";
 	default:
 		return "RANGE";
 	}
@@ -729,8 +733,8 @@ static const char *uwb_tag_ble_mode_label(uint8_t positioning_mode)
 
 static bool uwb_tag_ble_mode_is_calibration(uint8_t positioning_mode)
 {
-	ARG_UNUSED(positioning_mode);
-	return false;
+	return positioning_mode == UWB_TAG_MODE_RESERVED_4 ||
+	       positioning_mode == UWB_TAG_MODE_RESERVED_5;
 }
 
 static bool uwb_tag_ble_mode_is_anchor_ota(uint8_t positioning_mode)
@@ -1026,7 +1030,9 @@ static int uwb_tag_ble_parse_cfg_command(
 	    (positioning_mode != UWB_TAG_MODE_RANGE &&
 	     positioning_mode != UWB_TAG_MODE_SOLVE &&
 	     positioning_mode != UWB_TAG_MODE_DEBUG &&
-	     positioning_mode != UWB_TAG_MODE_AOTA) ||
+	     positioning_mode != UWB_TAG_MODE_AOTA &&
+	     positioning_mode != UWB_TAG_MODE_RESERVED_4 &&
+	     positioning_mode != UWB_TAG_MODE_RESERVED_5) ||
 	    anchor_mode > UWB_TAG_ANCHOR_SELECTION_FIXED_SUBSET) {
 		return -ERANGE;
 	}

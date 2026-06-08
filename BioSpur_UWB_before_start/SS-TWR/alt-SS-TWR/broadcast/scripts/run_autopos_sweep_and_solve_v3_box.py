@@ -68,6 +68,12 @@ def main() -> int:
     ap.add_argument("--timeout-s", type=int, default=3600, help="Sweep timeout seconds")
     ap.add_argument("--warmup-min-quality", type=int, default=0, help="Sweep warmup quality threshold")
     ap.add_argument("--quiet-tag-name", default="-", help="Passed through to sweep script; default disables heavy Tag quarantine")
+    ap.add_argument(
+        "--matrix-cir-mode",
+        choices=["0", "compact", "full"],
+        default="0",
+        help="Runtime CIR output mode passed through to the AutoPos matrix sweep.",
+    )
     ap.add_argument("--capture-tag115", action="store_true", help="Capture a fresh Tag115 CM session after sweep and use it as floating reference")
     ap.add_argument("--tag-name", default="BSF66F", help="Tag115 BLE target name for fresh CM capture")
     ap.add_argument("--cm-lines", type=int, default=80, help="Required CM notify lines for fresh Tag115 capture")
@@ -132,6 +138,8 @@ def main() -> int:
             str(args.warmup_min_quality),
             "--quiet-tag-name",
             args.quiet_tag_name,
+            "--matrix-cir-mode",
+            args.matrix_cir_mode,
             "--out-dir",
             str(sweep_dir),
         ]

@@ -150,7 +150,7 @@ def fit_circle_3d(points_xyz_mm: np.ndarray) -> dict[str, Any]:
     }
 
 
-def load_cm_rows(path: Path) -> dict[int, dict[int, dict[str, Any]]]:
+def load_range_rows(path: Path) -> dict[int, dict[int, dict[str, Any]]]:
     by_sweep: dict[int, dict[int, dict[str, Any]]] = defaultdict(dict)
     with path.open(encoding="utf-8", newline="") as f:
         for row in csv.DictReader(f):
@@ -158,21 +158,36 @@ def load_cm_rows(path: Path) -> dict[int, dict[int, dict[str, Any]]]:
                 sweep = int(row["sweep"])
                 aid = int(row["anchor_id"])
                 quality = int(row["quality_percent"])
-                filt_mm = float(row["filt_mm"])
+                if "filt_mm" in row and row["filt_mm"] != "":
+                    filt_mm = float(row["filt_mm"])
+                else:
+                    filt_mm = float(row["range_mm"])
             except Exception:
                 continue
-            if row.get("status", "").strip().lower() != "ok":
+            status = row.get("status", "").strip()
+            valid = row.get("valid", "")
+            ok_status = status.lower() == "ok" or status.upper() == "O"
+            ok_valid = valid == "" or str(valid).strip() == "1"
+            if not ok_status or not ok_valid:
                 continue
             if filt_mm <= 0:
                 continue
+            row = dict(row)
+            row["filt_mm"] = filt_mm
+            row["quality_percent"] = quality
             prev = by_sweep[sweep].get(aid)
             if prev is None or quality > int(prev["quality_percent"]):
                 by_sweep[sweep][aid] = row
     return by_sweep
 
 
-def analyze_tag(cm_csv: Path, layout_mm: dict[int, np.ndarray], mode: str) -> dict[str, Any]:
-    grouped = load_cm_rows(cm_csv)
+def analyze_tag(
+    range_csv: Path,
+    layout_mm: dict[int, np.ndarray],
+    mode: str,
+    static_min_anchors: int = 4,
+) -> dict[str, Any]:
+    grouped = load_range_rows(range_csv)
     solved = []
     per_sample_rms = []
     per_sample_max = []
@@ -198,13 +213,14 @@ def analyze_tag(cm_csv: Path, layout_mm: dict[int, np.ndarray], mode: str) -> di
         used_anchor_counts.append(len(aids))
 
     if mode == "static":
+        static_min_anchors = max(4, int(static_min_anchors))
         acc: dict[int, dict[str, Any]] = {}
         start_sweep = None
         last_sweep = None
         for sweep, rows_by_anchor in sorted(grouped.items()):
             if start_sweep is None:
                 start_sweep = sweep
-            if last_sweep is not None and (sweep - last_sweep) > 8 and len(acc) >= 4:
+            if last_sweep is not None and (sweep - last_sweep) > 8 and len(acc) >= static_min_anchors:
                 append_solution(start_sweep, acc)
                 acc = {}
                 start_sweep = sweep
@@ -212,21 +228,22 @@ def analyze_tag(cm_csv: Path, layout_mm: dict[int, np.ndarray], mode: str) -> di
                 prev = acc.get(aid)
                 if prev is None or int(row["quality_percent"]) >= int(prev["quality_percent"]):
                     acc[aid] = row
-            if len(acc) >= 4:
+            if len(acc) >= static_min_anchors:
                 append_solution(start_sweep, acc)
                 acc = {}
                 start_sweep = None
             last_sweep = sweep
-        if len(acc) >= 4 and start_sweep is not None:
+        if len(acc) >= static_min_anchors and start_sweep is not None:
             append_solution(start_sweep, acc)
     else:
         for sweep, rows_by_anchor in sorted(grouped.items()):
             append_solution(sweep, rows_by_anchor)
 
     out: dict[str, Any] = {
-        "cm_csv": str(cm_csv.resolve()),
+        "range_csv": str(range_csv.resolve()),
         "mode": mode,
-        "cm_sweeps_total": len(grouped),
+        "static_min_anchors": int(static_min_anchors) if mode == "static" else None,
+        "range_sweeps_total": len(grouped),
         "position_samples": len(solved),
     }
     if not solved:
@@ -276,6 +293,7 @@ def main() -> int:
     ap.add_argument("--layout-json", required=True)
     ap.add_argument("--static-tag", default="BSF66F")
     ap.add_argument("--roto-tag", action="append", default=[])
+    ap.add_argument("--static-min-anchors", type=int, default=4)
     ap.add_argument("--out-json", required=True)
     ap.add_argument("--out-md", required=True)
     args = ap.parse_args()
@@ -289,11 +307,13 @@ def main() -> int:
 
     results: dict[str, Any] = {}
     for tag, mode in targets:
-        cm_csv = session_dir / tag / "cm.csv"
-        if not cm_csv.exists():
-            results[tag] = {"error": f"missing {cm_csv}"}
+        range_csv = session_dir / tag / "cm.csv"
+        if not range_csv.exists():
+            range_csv = session_dir / tag / "tr.csv"
+        if not range_csv.exists():
+            results[tag] = {"error": f"missing {session_dir / tag / 'cm.csv'} or {session_dir / tag / 'tr.csv'}"}
             continue
-        results[tag] = analyze_tag(cm_csv, layout_mm, mode)
+        results[tag] = analyze_tag(range_csv, layout_mm, mode, static_min_anchors=args.static_min_anchors)
 
     payload = {
         "session_dir": str(session_dir.resolve()),

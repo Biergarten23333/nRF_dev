@@ -19,6 +19,7 @@ LAYOUT_FEATURES = Path("DATASETS/features/layout_features.csv")
 SCORES_V2 = Path("DATASETS/features/layout_scores_v2.csv")
 DOP_SUMMARY = Path("DATASETS/features/dop_summary_by_layout.csv")
 OPTI_VALIDATION = Path("DATASETS/features/optitrack_layout_validation.csv")
+CAPTURE_METADATA = Path("DATASETS/processed/capture_metadata.csv")
 FEATURE_DIR = Path("DATASETS/features")
 REPORT_DIR = Path("outputs/reports")
 
@@ -29,6 +30,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--scores-v2", type=Path, default=SCORES_V2)
     parser.add_argument("--dop-summary", type=Path, default=DOP_SUMMARY)
     parser.add_argument("--opti-validation", type=Path, default=OPTI_VALIDATION)
+    parser.add_argument("--capture-metadata", type=Path, default=CAPTURE_METADATA)
     parser.add_argument("--feature-dir", type=Path, default=FEATURE_DIR)
     parser.add_argument("--report-dir", type=Path, default=REPORT_DIR)
     return parser.parse_args()
@@ -66,19 +68,28 @@ def choose_dop(rows: list[dict[str, str]]) -> dict[str, dict[str, str]]:
     return out
 
 
-def build_table(features: list[dict[str, str]], scores: list[dict[str, str]], dop_rows: list[dict[str, str]], opti_rows: list[dict[str, str]]) -> list[dict[str, Any]]:
+def build_table(
+    features: list[dict[str, str]],
+    scores: list[dict[str, str]],
+    dop_rows: list[dict[str, str]],
+    opti_rows: list[dict[str, str]],
+    capture_rows: list[dict[str, str]],
+) -> list[dict[str, Any]]:
     score_by_layout = {row["layout_id"]: row for row in scores}
     dop_by_layout = choose_dop(dop_rows)
     opti_all8 = {row["layout_id"]: row for row in opti_rows if row.get("eval_set") == "all8" and row.get("layout_id")}
     opti_noG = {row["layout_id"]: row for row in opti_rows if row.get("eval_set") == "noG" and row.get("layout_id")}
+    capture_by_id = {row["capture_id"]: row for row in capture_rows if row.get("capture_id")}
 
     rows: list[dict[str, Any]] = []
     for feat in features:
         layout_id = feat["layout_id"]
+        capture_id = feat.get("capture_id", "")
         score = score_by_layout.get(layout_id, {})
         dop = dop_by_layout.get(layout_id, {})
         opti = opti_all8.get(layout_id, {})
         opti_drop = opti_noG.get(layout_id, {})
+        capture = capture_by_id.get(capture_id, {})
 
         has_real_label = bool(opti)
         has_proxy_label = bool(feat.get("eval_match") == "True")
@@ -93,6 +104,11 @@ def build_table(features: list[dict[str, str]], scores: list[dict[str, str]], do
             train_allowed = "false"
             validation_allowed = "false"
             recommended_use = "ranking_and_proxy_analysis"
+        elif capture.get("label_quality") == "multipath_unlabeled_no_tag":
+            label_quality = "multipath_unlabeled_no_tag"
+            train_allowed = "false"
+            validation_allowed = "false"
+            recommended_use = "multipath_risk_analysis"
         else:
             label_quality = "unlabeled_geometry_only"
             train_allowed = "false"
@@ -102,7 +118,13 @@ def build_table(features: list[dict[str, str]], scores: list[dict[str, str]], do
         rows.append(
             {
                 "layout_id": layout_id,
-                "capture_id": feat.get("capture_id", ""),
+                "capture_id": capture_id,
+                "capture_environment_type": capture.get("environment_type", ""),
+                "capture_condition": capture.get("condition", ""),
+                "capture_label_quality": capture.get("label_quality", ""),
+                "capture_has_tag_capture": capture.get("has_tag_capture", ""),
+                "capture_has_ground_truth": capture.get("has_ground_truth", ""),
+                "capture_no_tag_multipath_usable": capture.get("no_tag_multipath_usable", ""),
                 "source_group": feat.get("source_group", ""),
                 "solver_version": feat.get("solver_version", ""),
                 "layout_variant": feat.get("layout_variant", ""),
@@ -155,6 +177,7 @@ def write_report(path: Path, rows: list[dict[str, Any]]) -> None:
     for row in rows:
         counts[row["label_quality"]] += 1
     real = [row for row in rows if row["has_real_optitrack_label"] == "true"]
+    no_tag_multipath = [row for row in rows if row["label_quality"] == "multipath_unlabeled_no_tag"]
     train_allowed = [row for row in rows if row["train_allowed"] == "true"]
     lines = [
         "# ML Candidate Table Readiness",
@@ -165,6 +188,7 @@ def write_report(path: Path, rows: list[dict[str, Any]]) -> None:
         "",
         f"- Candidate rows: `{len(rows)}`",
         f"- Real OptiTrack labeled layouts: `{len(real)}`",
+        f"- No-tag multipath layout rows: `{len(no_tag_multipath)}`",
         f"- Train-allowed rows: `{len(train_allowed)}`",
         "",
         "## Label Quality Counts",
@@ -175,6 +199,7 @@ def write_report(path: Path, rows: list[dict[str, Any]]) -> None:
     lines.extend(["", "## Bewertung", ""])
     lines.append("- The table is ML-ready in schema, but not training-ready in data volume.")
     lines.append("- Real labels are only 5 layouts from one OptiTrack environment, so they are validation/calibration only.")
+    lines.append("- No-tag multipath rows are usable for risk analysis, not supervised error labels.")
     lines.append("- Proxy labels from field summaries can support ranking analysis, not supervised generalization claims.")
     lines.append("- GPU training is not justified yet; collect more real labeled captures first or use CPU-only exploratory models.")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -189,6 +214,7 @@ def main() -> int:
         read_csv(args.scores_v2),
         read_csv(args.dop_summary),
         read_csv(args.opti_validation),
+        read_csv(args.capture_metadata),
     )
     write_csv(args.feature_dir / "ml_candidate_table.csv", rows)
     write_report(args.report_dir / "ml_candidate_table_readiness.md", rows)

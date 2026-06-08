@@ -699,6 +699,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="TDMA CFG apply/check attempts before capture starts.",
     )
     parser.add_argument(
+        "--tdma-profile",
+        choices=["motion", "static", "roto"],
+        default="motion",
+        help="Master TDMA profile for the target roster. Use static for CAL_STATIC coverage.",
+    )
+    parser.add_argument(
         "--allow-legacy-tdma-show-only",
         action="store_true",
         help=(
@@ -734,18 +740,20 @@ def effective_tr_hz(args) -> int:
 
 def expected_tdma_maps(args, targets: list[str]) -> tuple[dict[str, int], dict[str, int]]:
     tr_hz = effective_tr_hz(args)
-    expected_pmode_by_target = {target: 0 for target in targets}
+    profile = tdma_roster_profile(args)
+    expected_pmode = {"motion": 0, "static": 4, "roto": 5}.get(profile, 0)
+    expected_pmode_by_target = {target: expected_pmode for target in targets}
     expected_freq_by_target = {target: tr_hz for target in targets}
     for target in targets:
         for alias in target_aliases(target):
-            expected_pmode_by_target[alias] = 0
+            expected_pmode_by_target[alias] = expected_pmode
             expected_freq_by_target[alias] = tr_hz
     return expected_pmode_by_target, expected_freq_by_target
 
 
-def tdma_roster_profile() -> str:
-    # Current Master firmware still calls the high-rate TR TDMA bucket "motion".
-    # This string is only a wire-compatibility shim; script semantics are TR-only.
+def tdma_roster_profile(args: argparse.Namespace | None = None) -> str:
+    if args is not None:
+        return str(getattr(args, "tdma_profile", "motion") or "motion").strip().lower()
     return "motion"
 
 
@@ -1212,9 +1220,9 @@ def configure_recv_capture_session(
         ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
         ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
         tr_hz = effective_tr_hz(args)
-        ser = send_cmd(ser, logf, f"tdma freq motion {tr_hz}", 0.5)
+        ser = send_cmd(ser, logf, f"tdma freq {tdma_roster_profile(args)} {tr_hz}", 0.5)
         for target in targets:
-            ser = send_cmd(ser, logf, f"tdma roster {target_bs_name(target)} {tdma_roster_profile()}", 0.5)
+            ser = send_cmd(ser, logf, f"tdma roster {target_bs_name(target)} {tdma_roster_profile(args)}", 0.5)
         if single_target:
             print(
                 f"[CAPTURE] configure: restrict tag discovery to {single_target}",
@@ -1263,9 +1271,9 @@ def configure_recv_capture_session(
     # Tag links is useful for speed, but stale TDMA identities from a previous
     # multi-tag run can otherwise survive and put two targets on the same slot.
     ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
-    ser = send_cmd(ser, logf, f"tdma freq motion {tr_hz}", 0.5)
+    ser = send_cmd(ser, logf, f"tdma freq {tdma_roster_profile(args)} {tr_hz}", 0.5)
     for target in targets:
-        ser = send_cmd(ser, logf, f"tdma roster {target_bs_name(target)} {tdma_roster_profile()}", 0.5)
+        ser = send_cmd(ser, logf, f"tdma roster {target_bs_name(target)} {tdma_roster_profile(args)}", 0.5)
     # Keep discovery broad, but make Master_Tag's profile allow-list equal to
     # this run's requested roster before link setup.  Otherwise new Tags that
     # are not in the firmware boot allow-list can be silently ignored until a
@@ -1296,9 +1304,9 @@ def configure_recv_capture_session(
             f"[CAPTURE] configure: TDMA CFG apply/check attempt {attempt}/{config_retries}",
             flush=True,
         )
-        ser = send_cmd(ser, logf, f"tdma freq motion {tr_hz}", 0.5)
+        ser = send_cmd(ser, logf, f"tdma freq {tdma_roster_profile(args)} {tr_hz}", 0.5)
         for target in targets:
-            ser = send_cmd(ser, logf, f"tdma roster {target_bs_name(target)} {tdma_roster_profile()}", 0.5)
+            ser = send_cmd(ser, logf, f"tdma roster {target_bs_name(target)} {tdma_roster_profile(args)}", 0.5)
         ser = send_cmd(ser, logf, "tdma rebalance", 1.0)
         ser, _ = send_cmd_collect(ser, logf, "tdma show", 1.0)
         ser, _ = send_cmd_collect(ser, logf, "status", 0.8)
@@ -1345,8 +1353,8 @@ def configure_recv_capture_session(
             discovery_prefix_override=link_setup_prefix if wand_mode else "",
         )
         for target in targets:
-            ser = send_cmd(ser, logf, f"tdma roster {target_bs_name(target)} {tdma_roster_profile()}", 0.5)
-        ser = send_cmd(ser, logf, f"tdma freq motion {tr_hz}", 0.5)
+            ser = send_cmd(ser, logf, f"tdma roster {target_bs_name(target)} {tdma_roster_profile(args)}", 0.5)
+        ser = send_cmd(ser, logf, f"tdma freq {tdma_roster_profile(args)} {tr_hz}", 0.5)
         ser = send_cmd(ser, logf, "tdma hold 0", 1.0)
 
     if last_check is not None and not last_check.get("match", False):
@@ -1355,6 +1363,7 @@ def configure_recv_capture_session(
                 raw_log,
                 targets,
                 expected_freq_by_target,
+                tdma_roster_profile(args),
             )
             if legacy_check.get("match", False):
                 print(
@@ -1686,6 +1695,7 @@ def build_legacy_tdma_show_check(
     raw_log_path: Path,
     targets: list[str],
     expected_freq_by_target: dict[str, int] | None = None,
+    expected_profile: str = "motion",
 ) -> dict:
     show_by_bs: dict[str, dict] = {}
 
@@ -1713,7 +1723,7 @@ def build_legacy_tdma_show_check(
         if show is None:
             mismatches.append("missing_tdma_show_profile")
         else:
-            if show.get("profile") != tdma_roster_profile():
+            if show.get("profile") != expected_profile:
                 mismatches.append("profile")
             if expected_hz is not None and show.get("target_hz") != expected_hz:
                 mismatches.append("target_hz")
