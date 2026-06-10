@@ -1024,15 +1024,17 @@ At the algorithmic level, the common structure is a weighted trajectory-estimati
 Let $\mathbf{x}_k$ denote the local motion state at sample $k$ (position, velocity, and possible IMU bias states), let $\mathbf{z}^{\mathrm{UWB}}_k$ be the UWB-derived position observation, and let $\mathbf{u}^{\mathrm{IMU}}_k$ be the IMU increment or preintegrated motion constraint.
 A generic UWB+IMU fusion objective can be written as
 \begin{equation}
+  \begin{aligned}
   \min_{\mathbf{x}_{1:N},\,\mathbf{b}_{1:N}}
-  \sum_k
+  \quad
+  &\sum_k
   \rho_{\mathrm{UWB}}
   \!\left(
     \left\lVert
       \mathbf{h}(\mathbf{x}_k) - \mathbf{z}^{\mathrm{UWB}}_k
     \right\rVert^2_{\mathbf{R}_k^{-1}}
-  \right)
-  +
+  \right) \\
+  &+
   \sum_{k=2}^{N}
   \rho_{\mathrm{IMU}}
   \!\left(
@@ -1040,10 +1042,11 @@ A generic UWB+IMU fusion objective can be written as
       \mathbf{x}_k -
       \mathbf{f}(\mathbf{x}_{k-1}, \mathbf{u}^{\mathrm{IMU}}_k, \mathbf{b}_{k-1})
     \right\rVert^2_{\mathbf{Q}_k^{-1}}
-  \right)
-  +
+  \right) \\
+  &+
   \sum_{k=2}^{N}
   \left\lVert \mathbf{b}_k - \mathbf{b}_{k-1} \right\rVert^2_{\mathbf{S}^{-1}} .
+  \end{aligned}
 \end{equation}
 The first term is the UWB absolute-position constraint; it prevents the inertial solution from drifting away.
 The second term is the IMU kinetic constraint; it penalises motion that is inconsistent with the short-term inertial measurement.
