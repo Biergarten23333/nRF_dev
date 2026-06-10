@@ -222,26 +222,67 @@ def plot_upper_lower(category_rows: list[dict], out: Path) -> None:
     sub = df[(df["layout"] == "v4-io") & (df["tag_method"] == "T4")]
     if sub.empty:
         return
-    fig, axs = plt.subplots(1, 2, figsize=(12, 4.6), constrained_layout=True)
-    for ax, kind, metric, title in [
-        (axs[0], "static", "d3_std_mm_median", "Static repeatability by dropped layer"),
-        (axs[1], "roto", "turn_center_rms_3d_mm_median", "Roto stability by dropped layer"),
-    ]:
-        g = sub[sub["kind"] == kind]
-        for cat, style in [("upper_heavy", "o-"), ("lower_heavy", "s-"), ("balanced", "^-")]:
-            h = g[g["drop_category"] == cat].sort_values("keep_k")
-            if h.empty or metric not in h:
-                continue
-            ax.plot(h["keep_k"], h[metric], style, label=cat)
-        ax.set_title(title)
-        ax.set_xlabel("kept anchors")
-        ax.set_ylabel(metric.replace("_", " "))
-        ax.set_xticks([4, 5, 6, 7])
-        ax.invert_xaxis()
-        ax.grid(alpha=0.25)
-        ax.legend(fontsize=8)
-    fig.savefig(out, dpi=150)
-    plt.close(fig)
+    with plt.rc_context(
+        {
+            "font.size": 16,
+            "axes.titlesize": 18,
+            "axes.labelsize": 17,
+            "xtick.labelsize": 15,
+            "ytick.labelsize": 15,
+            "legend.fontsize": 14,
+        }
+    ):
+        fig, axs = plt.subplots(1, 2, figsize=(13.2, 5.4))
+        fig.subplots_adjust(left=0.08, right=0.98, bottom=0.16, top=0.78, wspace=0.28)
+        styles = [
+            ("upper_heavy", "More upper E-H removed", "#0072B2", "o"),
+            ("lower_heavy", "More lower A-D removed", "#D55E00", "s"),
+            ("balanced", "Balanced drop", "#009E73", "^"),
+        ]
+        handles = []
+        labels = []
+        for ax, kind, metric, title, ylabel in [
+            (
+                axs[0],
+                "static",
+                "d3_std_mm_median",
+                "Static repeatability",
+                r"Median $\sigma_{3D}$ [mm]",
+            ),
+            (
+                axs[1],
+                "roto",
+                "turn_center_rms_3d_mm_median",
+                "RotoArm geometric consistency",
+                "Median turn-centre RMS [mm]",
+            ),
+        ]:
+            g = sub[sub["kind"] == kind]
+            for cat, label, color, marker in styles:
+                h = g[g["drop_category"] == cat].sort_values("keep_k", ascending=False)
+                if h.empty or metric not in h:
+                    continue
+                (line,) = ax.plot(
+                    h["keep_k"],
+                    h[metric],
+                    marker=marker,
+                    color=color,
+                    linewidth=2.8,
+                    markersize=7,
+                    label=label,
+                )
+                if label not in labels:
+                    handles.append(line)
+                    labels.append(label)
+            ax.set_title(title)
+            ax.set_xlabel("Number of anchors kept $k$")
+            ax.set_ylabel(ylabel)
+            ax.set_xticks([7, 6, 5, 4])
+            ax.set_xlim(7.25, 3.75)
+            ax.grid(alpha=0.25, linewidth=0.8)
+        fig.legend(handles, labels, loc="upper center", ncol=3, frameon=True, bbox_to_anchor=(0.5, 0.98))
+        fig.savefig(out, dpi=220, bbox_inches="tight")
+        plt.close(fig)
 
 
 def write_summary_md(path: Path, summary_rows: list[dict], detail_rows: list[dict], category_rows: list[dict]) -> None:

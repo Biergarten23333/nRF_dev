@@ -839,21 +839,68 @@ def plot_solver_matrix(summary_rows: list[dict], out_png: Path) -> None:
     for r in summary_rows:
         if r["layout"] in layouts and r["tag_method"] in methods:
             mat[layouts.index(r["layout"]), methods.index(r["tag_method"])] = float(r["err3d_p50_track_median_mm"])
-    fig, ax = plt.subplots(figsize=(7.2, 4.8), constrained_layout=True)
-    im = ax.imshow(mat, cmap="viridis")
+    fig, ax = plt.subplots(figsize=(5.7, 3.9), constrained_layout=True)
+    ax.imshow(np.ones_like(mat), cmap="gray", vmin=0, vmax=1, aspect="auto")
     ax.set_xticks(np.arange(len(methods)))
     ax.set_xticklabels(methods)
     ax.set_yticks(np.arange(len(layouts)))
     ax.set_yticklabels(layouts)
-    ax.set_title("ROTO absolute median 3D by solver matrix")
+    ax.set_xlabel("Tag-position solver")
+    ax.set_ylabel("Anchor-layout solver")
+    ax.set_title("RotoArm solver matrix: P50 error and delta to best")
+    best = float(np.nanmin(mat))
     for i in range(mat.shape[0]):
         for j in range(mat.shape[1]):
             if math.isfinite(mat[i, j]):
-                ax.text(j, i, f"{mat[i, j]:.0f}", ha="center", va="center", color="white" if mat[i, j] > np.nanmedian(mat) else "black")
-    cbar = fig.colorbar(im, ax=ax)
-    cbar.set_label("track-median 3D P50 (mm)")
+                is_best = abs(mat[i, j] - best) < 0.05
+                if layouts[i] == PRIMARY_LAYOUT:
+                    ax.add_patch(
+                        plt.Rectangle(
+                            (j - 0.5, i - 0.5),
+                            1.0,
+                            1.0,
+                            facecolor="#e8f2ff",
+                            edgecolor="none",
+                            zorder=0,
+                        )
+                    )
+                ax.text(
+                    j,
+                    i - 0.08,
+                    f"{mat[i, j]:.1f}",
+                    ha="center",
+                    va="center",
+                    color="black",
+                    fontsize=12,
+                    fontweight="bold" if is_best else "normal",
+                )
+                ax.text(
+                    j,
+                    i + 0.22,
+                    "best" if is_best else f"+{mat[i, j] - best:.1f}",
+                    ha="center",
+                    va="center",
+                    color="#0072B2" if is_best or layouts[i] == PRIMARY_LAYOUT else "#555555",
+                    fontsize=9,
+                    fontweight="bold" if is_best else "normal",
+                )
+                if is_best:
+                    ax.add_patch(
+                        plt.Rectangle(
+                            (j - 0.5, i - 0.5),
+                            1.0,
+                            1.0,
+                            fill=False,
+                            edgecolor="#0072B2",
+                            linewidth=2.5,
+                        )
+                    )
+    ax.set_xticks(np.arange(-0.5, len(methods), 1), minor=True)
+    ax.set_yticks(np.arange(-0.5, len(layouts), 1), minor=True)
+    ax.grid(which="minor", color="#666666", linewidth=0.8)
+    ax.tick_params(which="minor", bottom=False, left=False)
     out_png.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_png, dpi=220)
+    fig.savefig(out_png, dpi=240, bbox_inches="tight", pad_inches=0.05)
     plt.close(fig)
 
 

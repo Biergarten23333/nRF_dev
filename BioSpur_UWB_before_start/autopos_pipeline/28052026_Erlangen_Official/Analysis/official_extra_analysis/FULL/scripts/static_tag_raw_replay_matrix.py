@@ -3,8 +3,9 @@
 
 This is the report-grade replacement for the earlier production-output-only
 static tag absolute analysis.  It replays each raw static `tr_all.csv` through
-the C-core T-series solver, then maps the solved tag point into OptiTrack using
-an anchor-locked, reflection-allowed, no-scale transform.
+the C-core T-series solver, then maps the solved tag point into Vicon using
+the deployed UWB+US height-preserving anchor lock: 2D horizontal rigid alignment
+plus one vertical shift fixed by US-height anchors F/G/H.
 """
 
 from __future__ import annotations
@@ -152,8 +153,41 @@ def fit_similarity(src: np.ndarray, dst: np.ndarray, *, allow_reflection=True, a
     return r, t, scale, float(np.linalg.det(r))
 
 
+def fit_2d_rigid(src_xy: np.ndarray, dst_xy: np.ndarray) -> tuple[np.ndarray, np.ndarray, float]:
+    src_c = src_xy.mean(axis=0)
+    dst_c = dst_xy.mean(axis=0)
+    x = src_xy - src_c
+    y = dst_xy - dst_c
+    u, _s, vt = np.linalg.svd(x.T @ y)
+    d = np.ones(2)
+    if np.linalg.det(u @ vt) < 0:
+        d[-1] = -1.0
+    r = u @ np.diag(d) @ vt
+    t = dst_c - src_c @ r
+    return r, t, float(np.linalg.det(r))
+
+
+def fit_height_preserving(src: np.ndarray, dst: np.ndarray, labels: list[str]) -> tuple[np.ndarray, np.ndarray, float, float]:
+    """Return 2D horizontal rigid transform plus F/G/H-defined vertical shift.
+
+    AutoPos layout/tag coordinates use x/y as horizontal and z as vertical.
+    Vicon truth uses X/Z as horizontal and Y as vertical.
+    """
+    r2, t2, det2 = fit_2d_rigid(src[:, :2], dst[:, [0, 2]])
+    ref_idx = [labels.index(a) for a in ("F", "G", "H") if a in labels]
+    if not ref_idx:
+        ref_idx = list(range(src.shape[0]))
+    z_shift = float(np.mean(dst[ref_idx, 1] - src[ref_idx, 2]))
+    return r2, t2, z_shift, det2
+
+
 def apply_transform(points: np.ndarray, r: np.ndarray, t: np.ndarray, scale: float) -> np.ndarray:
     return scale * points @ r + t
+
+
+def apply_height_preserving(points: np.ndarray, r2: np.ndarray, t2: np.ndarray, z_shift: float) -> np.ndarray:
+    xy = points[:, :2] @ r2 + t2
+    return np.column_stack([xy[:, 0], points[:, 2] + z_shift, xy[:, 1]])
 
 
 def random_orthogonal_matrices(n: int, rng: np.random.Generator) -> np.ndarray:
@@ -368,7 +402,7 @@ def add_alignment_rows(rows: list[dict], version: str, tag_method: str, eval_set
             "range_p95_max_mm": "",
             "det": "",
             "scale": 1.0,
-            "note": "CORRECT: transform fitted from anchors only, reflection allowed, no scale.",
+            "note": "CORRECT: transform fitted from anchors only; height-preserving 2D horizontal alignment plus F/G/H vertical shift, no scale.",
         }
     )
 
@@ -466,7 +500,7 @@ def write_summary_md(path: Path, summary_rows: list[dict]) -> None:
     df = pd.DataFrame(summary_rows)
     lines = ["# Static Tag Raw Replay Absolute Matrix\n\n"]
     lines.append("Source: raw static `tr_all.csv` captures replayed through the C-core T-series solver.\n\n")
-    lines.append("Official frame lock: anchor-derived reflection-allowed rigid transform, no scale. Tag truth is not used for fitting.\n\n")
+    lines.append("Official frame lock: anchor-derived height-preserving transform: 2D horizontal rigid alignment plus F/G/H vertical shift, no scale. Tag truth is not used for fitting.\n\n")
     lines.append("Tag truth source: corrected static OptiTrack `Iantenna`. ID01 and ID05 use deterministic I1..I5 relabeling plus a rebuilt ball-local consensus antenna; all other captures use Motive `Iantenna` as exported.\n\n")
     lines.append("Eval sets:\n\n")
     lines.append("- `all8`: solve with all available anchors and align with all 8 anchors.\n")
@@ -587,7 +621,8 @@ def main() -> int:
                 idx = [labels.index(a) for a in anchor_labels]
                 src = coords[idx]
                 dst = np.array([anchor_truth[a] for a in anchor_labels], dtype=float)
-                r, t, scale, det = fit_similarity(src, dst, allow_reflection=True, allow_scale=False)
+                r2, t2, z_shift, det = fit_height_preserving(src, dst, anchor_labels)
+                r, t, scale, _det_3d = fit_similarity(src, dst, allow_reflection=True, allow_scale=False)
                 _, _, scale_diag, _ = fit_similarity(src, dst, allow_reflection=True, allow_scale=True)
                 anchor_centroid = dst.mean(axis=0)
                 solved_for_alignment = []
@@ -606,7 +641,7 @@ def main() -> int:
                     if truth is None or summary["status"] != "ok":
                         continue
                     point = np.array([[summary["x_mm"], summary["y_mm"], summary["z_mm"]]], dtype=float)
-                    aligned = apply_transform(point, r, t, scale)[0]
+                    aligned = apply_height_preserving(point, r2, t2, z_shift)[0]
                     diff = aligned - truth
                     solved_for_alignment.append(point[0])
                     truth_for_alignment.append(truth)
@@ -649,7 +684,9 @@ def main() -> int:
                             "err_vertical_mm": float(abs(diff[1])),
                             "err_3d_mm": float(np.linalg.norm(diff)),
                             "anchor_fit_det": det,
-                            "anchor_fit_scale": scale,
+                            "anchor_fit_scale": 1.0,
+                            "anchor_fit_vertical_shift_mm": z_shift,
+                            "anchor_fit_method": "height_preserving_2d_horizontal_FGH_vertical_shift",
                             "anchor_similarity_scale_diagnostic": scale_diag,
                             "distance_to_array_centroid_mm": distance_to_array,
                             "scale_bias_expected_mm": abs(1.0 - scale_diag) * distance_to_array,
@@ -660,7 +697,7 @@ def main() -> int:
                 if solved_for_alignment:
                     solved_arr = np.vstack(solved_for_alignment)
                     truth_arr = np.vstack(truth_for_alignment)
-                    official = tag_error_summary(apply_transform(solved_arr, r, t, scale), truth_arr)
+                    official = tag_error_summary(apply_height_preserving(solved_arr, r2, t2, z_shift), truth_arr)
                     add_alignment_rows(alignment_rows, version, tag_method, eval_set, solved_arr, truth_arr, official, orthogonal_samples)
 
     summary_rows = summarize_abs(session_rows)
