@@ -1,20 +1,74 @@
 # Phase 2.14 P95 Tail Decomposition + Hard Link Rejection
 
-- Generated: `2026-06-10T12:11:17`
+- Generated: `2026-06-10T12:16:30`
 - Ground-truth terminology: `Vicon`
 - Scope: offline diagnostic replay only; no production files were modified.
 
 ## Part A -- Tail Decomposition
 The oracle analysis is physically separated from the implementable selectors. It uses Vicon truth only to choose the best subset and is therefore a non-deployable upper bound.
 
+Worst-6 per-link decomposition from the corrected headline row:
+
+| position | anchor | range_minus_vicon_mm | range_minus_solved_distance_mm | link_noise_std_mm | in_top12_abs_bias |
+| --- | --- | --- | --- | --- | --- |
+| ID01 | E | 176.643 | 116.935 | 22.913 | False |
+| ID01 | H | -77.811 | -71.185 | 144.003 | False |
+| ID01 | C | -76.937 | -8.577 | 27.914 | False |
+| ID01 | A | -69.735 | -155.649 | 24.855 | False |
+| ID01 | F | 30.316 | -5.957 | 63.629 | False |
+| ID01 | D | -27.910 | 20.551 | 22.388 | False |
+| ID01 | G | -12.636 | -6.009 | 118.407 | False |
+| ID01 | B | -3.023 | -14.218 | 21.294 | False |
+| ID03 | D | 344.384 | 288.728 | 23.073 | True |
+| ID03 | B | 271.502 | 218.775 | 22.951 | True |
+| ID03 | F | -106.487 | -42.703 | 84.655 | False |
+| ID03 | C | -63.257 | -82.201 | 22.270 | False |
+| ID03 | E | -59.560 | -119.282 | 24.702 | False |
+| ID03 | A | -30.997 | -118.134 | 31.917 | False |
+| ID03 | G | -26.235 | -48.053 | 104.284 | False |
+| ID03 | H | -17.590 | -1.352 | 33.946 | False |
+| ID04 | F | 261.923 | 142.343 | 83.982 | True |
+| ID04 | H | 150.754 | 109.300 | 31.774 | False |
+| ID04 | C | -72.090 | -39.511 | 19.409 | False |
+| ID04 | B | 38.193 | -16.105 | 24.608 | False |
+| ID04 | G | -23.911 | -113.980 | 103.773 | False |
+| ID04 | E | -8.887 | -81.730 | 25.409 | False |
+| ID04 | D | -8.110 | 20.501 | 21.551 | False |
+| ID04 | A | -0.945 | -45.538 | 18.263 | False |
+| ID07 | G | 155.516 | 43.339 | 118.176 | False |
+| ID07 | E | 154.859 | 164.229 | 21.965 | False |
+| ID07 | C | -110.864 | -171.872 | 24.488 | False |
+| ID07 | B | -104.185 | -52.723 | 30.543 | False |
+| ID07 | A | -69.719 | -29.218 | 25.186 | False |
+| ID07 | D | -55.332 | -74.023 | 20.202 | False |
+| ID07 | F | -51.118 | -42.647 | 93.595 | False |
+| ID07 | H | 33.642 | -43.632 | 43.390 | False |
+| ID14 | B | -90.288 | -58.526 | 21.050 | False |
+| ID14 | D | -68.835 | -34.474 | 27.769 | False |
+| ID14 | E | -65.123 | -129.177 | 30.467 | False |
+| ID14 | G | -64.983 | -99.229 | 114.130 | False |
+| ID14 | C | -58.538 | 4.153 | 21.961 | False |
+| ID14 | H | 9.449 | -6.869 | 27.768 | False |
+| ID14 | F | -8.993 | 0.421 | 72.706 | False |
+| ID14 | A | 5.830 | 4.897 | 22.125 | False |
+| ID18 | A | -142.842 | -125.445 | 19.284 | False |
+| ID18 | E | -102.070 | -18.393 | 31.741 | False |
+| ID18 | G | -53.693 | -76.924 | 104.803 | False |
+| ID18 | B | -50.107 | -52.293 | 23.368 | False |
+| ID18 | D | -46.876 | -46.433 | 30.799 | False |
+| ID18 | F | -28.541 | 16.039 | 78.621 | False |
+| ID18 | C | 25.732 | -18.556 | 23.728 | False |
+| ID18 | H | 8.451 | 47.686 | 45.774 | False |
+
+
 | position | headline_err_3d_mm | oracle_best_err_3d_mm | oracle_improvement_mm | oracle_dropped_links | verdict |
 | --- | --- | --- | --- | --- | --- |
-| ID04 | 127.174 | 25.236 | 101.938 | C,F | dominated by 2 bad link(s) |
-| ID07 | 119.710 | 40.457 | 79.252 | B,G | dominated by 2 bad link(s) |
-| ID14 | 92.202 | 46.713 | 45.489 | B,D | dominated by 2 bad link(s) |
-| ID01 | 89.088 | 30.713 | 58.375 | C,G | dominated by 2 bad link(s) |
-| ID03 | 82.991 | 40.043 | 42.947 | D,G | dominated by 2 bad link(s) |
-| ID18 | 78.658 | 46.867 | 31.791 | C,E | dominated by 2 bad link(s) |
+| ID04 | 127.174 | 25.236 | 101.938 | C,F | oracle improves after dropping 2 link(s) |
+| ID07 | 119.710 | 40.457 | 79.252 | B,G | oracle improves after dropping 2 link(s) |
+| ID14 | 92.202 | 46.713 | 45.489 | B,D | oracle improves after dropping 2 link(s) |
+| ID01 | 89.088 | 30.713 | 58.375 | C,G | oracle improves after dropping 2 link(s) |
+| ID03 | 82.991 | 40.043 | 42.947 | D,G | oracle improves after dropping 2 link(s) |
+| ID18 | 78.658 | 46.867 | 31.791 | C,E | oracle improves after dropping 2 link(s) |
 
 
 ## Part B/C -- Deployable Selector Evaluation

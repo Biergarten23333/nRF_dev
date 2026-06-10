@@ -374,6 +374,12 @@ def build_report(
     lines.append("")
     lines.append(markdown_table(common_summary, ["positions", "links", "c_p_median_mm", "c_p_p05_mm", "c_p_p95_mm", "abs_c_p_median_mm", "abs_c_p_max_mm", "common_mode_energy_fraction", "common_mode_centered_r2", "headline_err_vs_abs_c_p_corr"]))
     lines.append("")
+    lines.append(
+        "Verdict: the coherent additive-only tail is not dominated by a single per-position common-mode offset. "
+        "Subtracting `c_p` does not reduce the global residual energy (`common_mode_centered_r2` is negative), "
+        "and the correlation between static 3D error and `|c_p|` is only weak."
+    )
+    lines.append("")
     lines.append("Largest absolute `c_p` positions:")
     lines.append(markdown_table(top_cp_rows, ["position", "facing", "height", "location", "headline_err_3d_mm", "c_p_median_mm", "abs_c_p_rank", "after_common_mode_rms_mm"]))
     lines.append("")
@@ -392,6 +398,11 @@ def build_report(
     )
     lines.append("")
     lines.append(markdown_table(replay_summary, ["mode", "positions", "median_3d_mm", "p95_3d_mm", "rmse_3d_mm", "median_horizontal_mm", "median_vertical_mm"]))
+    lines.append("")
+    lines.append(
+        "The per-facing tag-delay refit is not a new headline result: it changes the median by less than 2 mm, leaves P95 essentially unchanged, and slightly worsens RMSE. "
+        "The Vicon-derived position-common-offset oracle also fails to improve the tail, so the remaining P95 structure is not explained by a simple facing-indexed or position-common tag delay."
+    )
     lines.append("")
     lines.append("Fit summary:")
     lines.append(markdown_table(fit_summary, ["fit", "positions", "delta_tag_for_position_median_mm", "delta_tag_for_position_min_mm", "delta_tag_for_position_max_mm", "train_rms_median_mm", "rank_median"]))

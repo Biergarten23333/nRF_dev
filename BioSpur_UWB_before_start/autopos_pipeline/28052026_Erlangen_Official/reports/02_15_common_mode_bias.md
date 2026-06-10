@@ -1,6 +1,6 @@
 # Phase 2.15 Common-Mode Bias Structure Test
 
-- Generated: `2026-06-10T12:06:32`
+- Generated: `2026-06-10T12:14:19`
 - Ground-truth terminology: `Vicon`
 - Scope: common-mode residual structure and exploratory per-facing tag-delay refit; no production files were modified.
 
@@ -11,6 +11,8 @@ The scalar `c_p` is the per-position median of corrected median range minus Vico
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 24 | 192 | -26.971 | -60.443 | 4.681 | 26.971 | 76.725 | -0.059 | -0.059 | 0.144 |
 
+
+Verdict: the coherent additive-only tail is not dominated by a single per-position common-mode offset. Subtracting `c_p` does not reduce the global residual energy (`common_mode_centered_r2` is negative), and the correlation between static 3D error and `|c_p|` is only weak.
 
 Largest absolute `c_p` positions:
 | position | facing | height | location | headline_err_3d_mm | c_p_median_mm | abs_c_p_rank | after_common_mode_rms_mm |
@@ -72,6 +74,8 @@ The per-facing row is exploratory because each LOO fold leaves only five trainin
 | tagfit_per_facing_delta_tag | 24 | 47.555 | 115.176 | 65.701 | 28.609 | 38.661 |
 | position_common_offset_oracle | 24 | 45.654 | 130.629 | 70.708 | 28.411 | 37.955 |
 
+
+The per-facing tag-delay refit is not a new headline result: it changes the median by less than 2 mm, leaves P95 essentially unchanged, and slightly worsens RMSE. The Vicon-derived position-common-offset oracle also fails to improve the tail, so the remaining P95 structure is not explained by a simple facing-indexed or position-common tag delay.
 
 Fit summary:
 | fit | positions | delta_tag_for_position_median_mm | delta_tag_for_position_min_mm | delta_tag_for_position_max_mm | train_rms_median_mm | rank_median |

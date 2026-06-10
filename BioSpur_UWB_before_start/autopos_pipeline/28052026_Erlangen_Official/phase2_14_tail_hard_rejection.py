@@ -962,7 +962,7 @@ def worst6_verdict_rows(headline_rows: list[dict], oracle_best_rows: list[dict])
         dropped = [ch for ch in str(best.get("dropped_links", "")).replace(",", "") if ch in ANCHOR_LABELS]
         improvement = headline[pos] - float(best["err_3d_mm"])
         if dropped and improvement > 20.0:
-            verdict = f"dominated by {len(dropped)} bad link(s)"
+            verdict = f"oracle improves after dropping {len(dropped)} link(s)"
         else:
             verdict = "broad degradation / no clear removable-link tail"
         rows.append(
@@ -983,6 +983,7 @@ def build_report(
     main_rows: list[dict],
     selector_best_rows: list[dict],
     verdict_rows: list[dict],
+    per_link_rows: list[dict],
     improvement_summary: list[dict],
     worse_rows: list[dict],
     audit_summary: list[dict],
@@ -1001,6 +1002,11 @@ def build_report(
         "It uses Vicon truth only to choose the best subset and is therefore a non-deployable upper bound."
     )
     lines.append("")
+    if per_link_rows:
+        lines.append("Worst-6 per-link decomposition from the corrected headline row:")
+        lines.append("")
+        lines.append(markdown_table(per_link_rows, ["position", "anchor", "range_minus_vicon_mm", "range_minus_solved_distance_mm", "link_noise_std_mm", "in_top12_abs_bias"]))
+        lines.append("")
     lines.append(markdown_table(verdict_rows, ["position", "headline_err_3d_mm", "oracle_best_err_3d_mm", "oracle_improvement_mm", "oracle_dropped_links", "verdict"]))
     lines.append("")
     lines.append("## Part B/C -- Deployable Selector Evaluation")
@@ -1186,6 +1192,7 @@ def main() -> int:
         main_rows,
         selector_best_rows,
         verdict_rows,
+        per_link_rows,
         improvement_summary_rows,
         worse_rows,
         audit_summary,
