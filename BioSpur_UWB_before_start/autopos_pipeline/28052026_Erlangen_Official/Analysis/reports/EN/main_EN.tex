@@ -113,12 +113,25 @@ All inter-anchor ranging and anchor self-localisation are performed exclusively 
 These sensors are part of the deployed BioSpur AutoPos system and provide a vertical-gauge input after UWB-only inter-anchor geometry recovery.
 
 \begin{center}
-\begin{minipage}{0.72\textwidth}
-\includegraphics[width=\textwidth]{fig/anchor_g_us_vicon_marker.png}
-\captionof{figure}{Example upper-layer anchor assembly: Anchor~G with UWB anchor housing, ultrasound height-sensor assembly, and Vicon marker holder.}
+\begin{minipage}{0.96\textwidth}
+\begin{minipage}[t]{0.58\textwidth}
+  \includegraphics[width=\textwidth]{fig/anchor_g_us_vicon_marker.png}\\[-3pt]
+  \footnotesize (a) Example upper-layer anchor assembly with UWB housing and ultrasound height sensor.
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.35\textwidth}
+  \includegraphics[width=\textwidth]{fig/anchor_g_vicon_marker_holder_axes.png}\\[-3pt]
+  \footnotesize (b) Reflective Vicon marker holder mounted on the anchor housing.
+\end{minipage}
+\captionof{figure}{Anchor-side hardware used by AutoPos and Vicon.
+Panel (a) shows Anchor~G as an example upper-layer anchor assembly with the ultrasound height sensor.
+Panel (b) shows the Vicon reflective-marker holder used to define the rigid-body pose.}
 \label{fig:anchor_g_us}
 \end{minipage}
 \end{center}
+
+For the tag assemblies, Vicon therefore provides a rigid-body pose first, not the final UWB point directly.
+The reported tag ground-truth coordinate is the reconstructed antenna centre obtained from the five-marker rigid body and the measured pivot-to-antenna offset.
 
 Unlike sensor-fusion-based anchor calibration methods that incorporate inertial measurements~\cite{shi2019anchor}, auxiliary calibration modules~\cite{krapez2020anchor}, or explicit height priors and odometry constraints~\cite{nguyen2025coordinate} directly into the anchor-position estimation, AutoPos uses the ultrasound measurements \textbf{\emph{only}} as a post-calibration gauge input after UWB-only inter-anchor geometry recovery.
 The ultrasound observations do not enter the self-calibration cost function; they act as a post-calibration spatial alignment constraint.
@@ -153,7 +166,7 @@ Throughout this report:
         \textbf{T4} (current production solver) applies adaptive branching:
         in full 8-anchor frames it uses the memory-free T1 path to avoid temporal-history bias;
         under anchor dropout it activates T3-like quality/residual-history weighting and the temporal prior.
-        All outlier handling is \emph{soft down-weighting}, not hard NLOS link rejection.
+        All outlier handling is \emph{soft down-weighting}, not hard link rejection.
         See \cref{app:tag} for full definitions.
   \item \textbf{F0\,--\,F5}: External position filters applied \emph{after} the tag solver on the solved 3D position stream.
         They do not re-process ranges, modify the anchor layout, or change delay calibration.
@@ -178,6 +191,7 @@ Complete mathematical definitions of all solver components are given in \cref{ap
 
 The Vicon Motion Capture System provides the primary evaluation reference.
 Retro-reflective markers attached to each anchor's DWM1001C module define the anchor phase-centre truth coordinates.
+For tag measurements, the Vicon marker holder first defines a rigid-body pivot; the reported tag truth is the UWB antenna centre obtained by applying the measured pivot-to-antenna offset.
 The Vicon-derived 3D positions serve as ground truth throughout this report unless explicitly stated otherwise.
 
 \subsection{Coordinate-Axis Convention}
@@ -713,7 +727,7 @@ This is a key negative finding: the $\sim$\SI{100}{\milli\metre}--\SI{200}{\mill
 More plausible causes include:
 dynamic range bias (Doppler-like effects on the UWB pulse),
 antenna radiation pattern and orientation changes during rotation,
-body/wand obstruction creating transient NLOS conditions,
+body/wand shadowing and antenna-orientation effects,
 multipath from the rotating assembly,
 and solver assumptions that do not account for motion state.
 
@@ -896,12 +910,12 @@ This has direct deployment implications: maintaining vertical anchor spread is c
 
 
 % ============================================================
-\section{Wall/NLOS Simulation}
+\section{Near-Wall Multipath Simulation}
 \label{sec:wall}
 % ============================================================
 
-To contextualise the propagation environment's role in UWB accuracy, a Monte Carlo ray-tracing simulation was conducted.
-This simulation models the effect of nearby walls and metallic objects on UWB ranging and self-calibration accuracy.
+To contextualise the propagation environment's role in UWB accuracy under visually clear LOS conditions, a Monte Carlo propagation-risk simulation was conducted.
+This simulation models the effect of nearby reflective walls and metallic objects on UWB ranging and self-calibration accuracy.
 It is presented as discussion evidence, not as direct validation.
 
 \subsection{Simulation Methodology}
@@ -914,9 +928,10 @@ The reported P95 values are therefore distributional predictions over the simula
 
 The baseline clear-LOS model uses zero-mean Gaussian range noise with \SI{3}{\centi\metre} standard deviation.
 Wall cases add a positive range-bias component and extra variance that increase when either the tag or anchor is close to a wall and when the link is near-grazing to the wall surface.
-The biased links also receive a positive-tailed random component to represent NLOS/multipath error tails.
+The biased links also receive a positive-tailed random component to represent multipath-like range-error tails.
 Phase~2 adds a coarse local-reflector model: six random metal/equipment boxes are placed near the layout boundary, based on photographs of the 28 May 2026 FAD Lab Erlangen test setup, and these boxes add additional proximity-dependent range bias and variance.
-Only side walls are modelled as NLOS sources; the nominal ceiling height is \SI{2.5}{\metre}, but ceiling reflections are not included.
+Side walls are modelled as reflective boundaries, not as path-blocking obstacles; true blocked-path NLOS is not simulated.
+The nominal ceiling height is \SI{2.5}{\metre}, but ceiling reflections are not included.
 
 The study sweeps anchor-to-wall distance from \SI{0}{\centi\metre} to \SI{300}{\centi\metre} for a 4-wall room enclosure.
 Three material phases are compared:
@@ -927,12 +942,11 @@ Three material phases are compared:
 \end{itemize}
 Phase~1 and Phase~3 use 128 range-noise trials per tag point; Phase~2 uses 96 range-noise trials per tag point and 12 independent metal-box seeds.
 
-\clearpage
 \subsection{Results}
 
 \begin{table}[H]
 \centering
-\caption{Wall/NLOS simulation P95 positioning error at selected wall distances (4-wall enclosure).}
+\caption{Near-wall multipath simulation P95 positioning error at selected wall distances (4-wall enclosure).}
 \label{tab:wall}
 \begin{tabular}{c c c c}
 \toprule
@@ -956,16 +970,15 @@ Phase~1 and Phase~3 use 128 range-noise trials per tag point; Phase~2 uses 96 ra
   \includegraphics[width=\textwidth]{fig/wall_nlos_convergence.png}
   \caption{Extended convergence to clear LOS.}
 \end{subfigure}
-\caption{Wall/NLOS simulation results for the main curves reported in \cref{tab:wall}.}
+\caption{Near-wall multipath simulation results for the main curves reported in \cref{tab:wall}.}
 \label{fig:wall}
 \end{figure}
 
-\newpage
 The P95 converges to within 25\% of the clear-LOS baseline at approximately \SI{115}{\centi\metre} for the default wall model and \SI{145}{\centi\metre} for wall-plus-metal.
-This supports the physical expectation that walls, metal, and nearby obstruction can strongly inflate the error tail, and that maintaining $\geq$\SI{1}{\metre} clearance from reflective surfaces is important for stable UWB performance.
+This supports the physical expectation that walls, metal, and nearby reflectors can strongly inflate the error tail, and that maintaining $\geq$\SI{1}{\metre} clearance from reflective surfaces is important for stable UWB performance.
 
 The Erlangen measurement was conducted in a large open lab space with the nearest wall at approximately \SI{1}{\metre} from the closest anchor.
-The simulation predicts that at this clearance, wall-induced error can still contribute to the error tail, but should be much smaller than in the near-wall cases below \SI{40}{\centi\metre}; this is consistent with the observed clear-LOS CIR profiles (\cref{sec:cir}).
+The simulation predicts that at this clearance, wall-reflection-induced range error can still contribute to the error tail, but should be much smaller than in the near-wall cases below \SI{40}{\centi\metre}; this is consistent with the observed clear-LOS CIR profiles (\cref{sec:cir}).
 
 
 % ============================================================
@@ -976,15 +989,94 @@ The simulation predicts that at this clearance, wall-induced error can still con
 \textbf{Important caveat:} The results are based on \emph{offline replay/simulation} of the Erlangen UWB data with synthetic IMU fusion, not a closed-loop embedded measurement.
 They are presented as evidence of dynamic-extension capability, not as direct Vicon-validated IMU results.
 
-\subsection{Simulation Design}
+\subsection{Simulation Methodology and Design}
 
-Recorded UWB range data from the Erlangen RotoArm captures is replayed through a position-level fusion pipeline that integrates UWB positions with simulated IMU sensor models at three quality tiers:
+The fusion study is an offline replay simulation.
+The recorded RotoArm UWB data are replayed through the same computer-side analysis pipeline used for the dynamic UWB evaluation, while the IMU stream is generated synthetically.
+No physical IMU was mounted on the tag during this Vicon test; therefore the results in this section are not hardware-IMU validation results.
+The configuration IDs in this section follow the IMU-fusion codebook in \cref{app:imu_codebook}; for example, A0/U4/P4/L20/I5/T2 denotes the v4-io anchor layout, the old T4 pure-UWB solver renamed as U4, a UWB position post-filter P4, the L20 IMU model, IMU preprocessing I5, and the final PC-side fusion solver T2.
+
+The synthetic IMU reference is derived from the Vicon marker reconstruction of the moving tag assembly.
+For each RotoArm capture, the five Vicon markers mounted on the UWB DWM1001C-Dev tag holder define one rigid body.
+There is no additional antenna marker in this conversion.
+The Vicon rigid-body pivot obtained from these five markers is shifted by the measured pivot-to-antenna offset to obtain the UWB antenna-centre trajectory.
+The synthetic IMU is then simulated at this antenna-centre point.
+This step matters because the UWB solver localises the antenna centre, not the arbitrary pivot or centroid of the Vicon marker set.
+A separate rigid-body reconstruction sanity check gives residual medians of \SI{0.6}{\milli\metre} (P50-of-P50 across tracks) and \SI{1.5}{\milli\metre} (P50-of-P95), so the synthetic inertial prior is applied to the correct physical point.
+
+The Vicon-derived antenna-centre trajectory is first treated as a perfect motion source: no drift, no bias, and no sensor noise.
+Nominal acceleration and angular-rate packets are then generated on the 120~Hz simulation grid from the reconstructed motion and the report frame convention.
+The sensor model is applied afterwards.
+For each L-series IMU row, the simulation injects datasheet-informed accelerometer and gyroscope noise, residual bias after static calibration, bias random walk, timestamp jitter, quantisation, vibration sensitivity, and IMU-to-body extrinsic residuals.
+The raw datasheet offset is not used directly as drift, because a deployable system would perform at least a simple static bias calibration before fusion.
+
+The central motivation for the BioSpur UWB+IMU architecture is the complementarity between global position and kinetic motion information.
+The UWB trajectory provides the global, absolute-position information, but can contain spikes or short-duration drift, while the IMU provides kinetic information that UWB alone cannot provide: short-term velocity, acceleration, and locally smooth motion.
+Conversely, the IMU is not globally stable by itself because bias and drift accumulate over time.
+Consequently, useful fusion is not a one-way ``IMU corrects UWB'' operation.
+The IMU constrains the UWB trajectory by suppressing motion-inconsistent spikes, while UWB constrains the IMU by providing absolute position information that limits inertial drift and bias accumulation.
+The full simulation sweep therefore includes several fusion families around this same principle.
+Some rows use UWB positions to correct inertial drift, some use IMU relative motion to smooth or constrain UWB position jumps, some use bidirectional offline smoothing, and some tightly couple raw UWB ranges with IMU states.
+Dedicated diagnostic rows also verify that the synthetic IMU stream itself is generated at the correct antenna-centre point before it is used as a motion prior.
+The complete notation for these U-, P-, I-, and T-series variants is given in \cref{app:imu_codebook}.
+
+At the algorithmic level, the common structure is a weighted trajectory-estimation problem.
+Let $\mathbf{x}_k$ denote the local motion state at sample $k$ (position, velocity, and possible IMU bias states), let $\mathbf{z}^{\mathrm{UWB}}_k$ be the UWB-derived position observation, and let $\mathbf{u}^{\mathrm{IMU}}_k$ be the IMU increment or preintegrated motion constraint.
+A generic UWB+IMU fusion objective can be written as
+\begin{equation}
+  \min_{\mathbf{x}_{1:N},\,\mathbf{b}_{1:N}}
+  \sum_k
+  \rho_{\mathrm{UWB}}
+  \!\left(
+    \left\lVert
+      \mathbf{h}(\mathbf{x}_k) - \mathbf{z}^{\mathrm{UWB}}_k
+    \right\rVert^2_{\mathbf{R}_k^{-1}}
+  \right)
+  +
+  \sum_{k=2}^{N}
+  \rho_{\mathrm{IMU}}
+  \!\left(
+    \left\lVert
+      \mathbf{x}_k -
+      \mathbf{f}(\mathbf{x}_{k-1}, \mathbf{u}^{\mathrm{IMU}}_k, \mathbf{b}_{k-1})
+    \right\rVert^2_{\mathbf{Q}_k^{-1}}
+  \right)
+  +
+  \sum_{k=2}^{N}
+  \left\lVert \mathbf{b}_k - \mathbf{b}_{k-1} \right\rVert^2_{\mathbf{S}^{-1}} .
+\end{equation}
+The first term is the UWB absolute-position constraint; it prevents the inertial solution from drifting away.
+The second term is the IMU kinetic constraint; it penalises motion that is inconsistent with the short-term inertial measurement.
+The third term models slow IMU bias evolution.
+The robust losses $\rho_{\mathrm{UWB}}$ and $\rho_{\mathrm{IMU}}$ represent the gating or robust weighting used by the different solver families.
+
+The matched rows reported in \cref{tab:imu} focus on one representative reduction of this idea: the T2 loose-coupled, position-domain fusion solver.
+This choice keeps the sensor-tier comparison controlled, because L2, L16, and L20 are compared under the same UWB post-filter, IMU preprocessing, and final trajectory solver.
+In this family, the UWB side first produces a solved antenna-position sequence $\mathbf{z}^{\mathrm{UWB}}_k$ from the recorded ranges, while the synthetic IMU side provides a short-term relative-motion increment $\Delta\mathbf{p}^{\mathrm{IMU}}_k$ between neighbouring samples.
+The final trajectory $\mathbf{p}_{1:N}$ is then estimated by balancing global UWB position residuals against IMU relative-motion residuals.
+The T2 objective is the position-only special case
+\begin{equation}
+  \min_{\mathbf{p}_{1:N}}
+  \sum_k \left\lVert \mathbf{p}_k - \mathbf{z}^{\mathrm{UWB}}_k \right\rVert^2_{\mathbf{R}^{-1}}
+  +
+  \sum_{k=2}^{N}
+  \left\lVert
+    (\mathbf{p}_k - \mathbf{p}_{k-1}) - \Delta\mathbf{p}^{\mathrm{IMU}}_k
+	  \right\rVert^2_{\mathbf{Q}^{-1}} .
+\end{equation}
+In this T2 formulation, UWB anchors the trajectory in the Vicon-aligned global frame and limits inertial drift, while the IMU term suppresses short-duration UWB jumps and enforces locally plausible motion.
+The second equation is included only to make the headline T2 family interpretable; it is not the common objective for the entire IMU sweep.
+The tightly coupled, bidirectional, UWB-corrects-IMU, IMU-corrects-UWB, and IMU-diagnostic variants use different update structures and remain part of the wider sweep rather than the compact sensor-tier table.
+
+The wider simulation sweep covers the available L-series IMU models, including perfect and control rows, low-cost stress rows, datasheet-backed consumer or drone-grade chips, and an industrial reference module.
+The main report shows three representative sensors because they are the most interpretable design points:
 \begin{itemize}[nosep]
-  \item \textbf{L2} (MPU6050/JY61P-like): consumer-grade 6-axis IMU.
-  \item \textbf{L16} (ICM-45686): automotive/industrial-grade 6-axis IMU.
-  \item \textbf{L20} (Xsens MTi-3): high-grade MEMS IMU.
+  \item \textbf{L2} (MPU6050/JY61P-like): a low-cost consumer 6-axis IMU model and practical lower-bound candidate.
+  \item \textbf{L16} (ICM-45686): a premium consumer/drone/robotics 6-axis chip candidate within the sub-100~EUR chip-class design space.
+  \item \textbf{L20} (Xsens MTi-3): an industrial AHRS module simulated as accel+gyro only, used as a high-grade MEMS reference rather than a low-cost chip candidate.
 \end{itemize}
-Each configuration is swept over a grid of fusion parameters (process noise, measurement noise, innovation gating) with 5~random seeds, evaluated against Vicon truth.
+Each selected sensor is evaluated over the same fusion-family sweep: process noise, measurement noise, innovation gating, IMU preprocessing choice, and final trajectory solver are varied, with 5~random seeds per configuration.
+All reported errors are evaluated against Vicon truth after the same dynamic alignment convention used in \cref{sec:roto}.
 
 \subsection{Matched Fusion-Family Results}
 
@@ -1157,7 +1249,7 @@ No supervised ML accuracy or generalisation claim is made from the current table
   \item \textbf{Single measurement site.}
         All data comes from one lab environment in Erlangen.
         The propagation conditions (large open space, approximately \SI{1}{\metre} to the nearest wall, limited nearby metal clutter) are comparatively favourable.
-        Performance in cluttered, NLOS-rich, or multi-room environments may differ substantially.
+        Performance in cluttered, obstructed, or multi-room environments may differ substantially.
 
   \item \textbf{Static tag positions are discrete.}
         The 24 tag positions provide spatial coverage but not continuous spatial sampling.
@@ -1202,7 +1294,7 @@ No supervised ML accuracy or generalisation claim is made from the current table
   \item Hardware-synchronised Vicon--UWB validation for unambiguous dynamic error attribution.
   \item Closed-loop embedded IMU fusion measurement with physical IMU sensors, not replay or simulation.
   \item Expand real Vicon-labeled layouts before supervised ML training; the current ML/DOP analysis is useful only for deployment-risk screening.
-  \item Ecological validation: multi-room, NLOS-rich environment with $N \geq 10$ participants for BioSpur full-body tracking.
+  \item Ecological validation: cluttered and multi-room environments with $N \geq 10$ participants for BioSpur full-body tracking.
 \end{itemize}
 
 
@@ -1236,7 +1328,7 @@ The key results are:
         Relative to the B0/P0 UWB baseline, the improvement is \SI{119.7}{\milli\metre}; on the spiky R01/BS2DCE track, all three tested IMU tiers eliminate $>$\SI{200}{\milli\metre} jump events.
 
   \item \textbf{Propagation environment:}
-        CIR analysis confirms that clear LOS does not imply ideal single-path UWB, and wall/NLOS simulation quantifies the safe clearance distance ($\geq$\SI{1}{\metre}).
+        CIR analysis confirms that clear LOS does not imply ideal single-path UWB, and the near-wall multipath simulation quantifies the safe clearance distance ($\geq$\SI{1}{\metre}).
 
   \item \textbf{Deployment-risk screening:}
         Preliminary ML/DOP screening is not yet training-ready, but it identifies surviving-4 height-axis risk as an operational concern for high-reliability deployments.
@@ -1264,8 +1356,8 @@ The author also thanks Sophie for coordinating the measurement sessions and for 
 \label{app:solvers}
 % ============================================================
 
-This appendix provides the complete mathematical definitions of the three solver layers referenced throughout this report:
-the anchor layout solver (V-series), the per-frame tag position solver (T-series), and the external position filter (F-series).
+This appendix provides the component definitions referenced throughout this report:
+the anchor layout solver (V-series), the per-frame pure-UWB tag position solver (T-series in the main UWB sections), the external position filter (F-series), and the separate IMU-fusion experiment codebook used in \cref{sec:imu}.
 The production pipeline is \textbf{v4-io/T4/F0}.
 
 % ------------------------------------------------------------
@@ -1477,6 +1569,128 @@ Full-sequence forward Kalman filtering followed by a backward smoothing pass:
 where superscripts $f$, $s$, $-$ denote filtered, smoothed, and predicted estimates.
 F5 uses future samples and \emph{cannot} be deployed in real time.
 It serves as a diagnostic upper bound on achievable accuracy for a given tag solver.
+
+% ------------------------------------------------------------
+\subsection{IMU-Fusion Experiment Codebook (A/U/R/P/L/I/T)}
+\label{app:imu_codebook}
+% ------------------------------------------------------------
+
+The IMU-fusion section uses an additional experiment-ID codebook.
+This codebook is separate from the main pure-UWB notation used in the rest of the report.
+In the main UWB sections, T1--T4 denote pure-UWB tag position solvers.
+Inside the IMU-fusion experiment IDs, those pure-UWB solvers are renamed U1--U4, and T denotes the final PC-side trajectory or fusion solver.
+This avoids using the same letter T for both the old pure-UWB solver and the later UWB+IMU fusion solver.
+
+\begin{table}[H]
+\centering
+\caption{IMU-fusion experiment-ID codebook.}
+\label{tab:app_imu_codebook_families}
+\small
+\begin{tabularx}{\textwidth}{c >{\raggedright\arraybackslash}p{3.1cm} X}
+\toprule
+{Symbol} & {Family} & {Definition} \\
+\midrule
+A & Anchor/layout source & A0 is the AutoPos v4-io rigid no-scale layout used as the production baseline; A1--A3 are ablation or oracle layout controls. \\
+U & Pure-UWB solver output & U1--U4 are the old pure-UWB T1--T4 solvers renamed for the IMU simulation line. Thus U4 is the same pure-UWB solver as the main-text T4. \\
+R & Raw UWB range stream & R0--R4 denote raw anchor-tag range inputs and range-preprocessing variants for tightly coupled fusion rows. \\
+P & UWB position post-filter & P0--P5 denote post-filters applied after a pure-UWB position solve. P0 means no post-filter; P4 is a session-window fixed-lag smoother; P5 is a full-session offline upper-bound smoother. \\
+L & IMU sensor model & L0--L20 denote IMU hardware or synthetic sensor models. The exact noise, bias, random-walk, timestamp, vibration, and extrinsic parameters are stored in \texttt{configs/sensors.yaml}. \\
+I & IMU preprocessing & I0--I8 denote IMU-side preprocessing or filtering, such as low-pass filtering, bias modelling, preintegration, or adaptive noise handling. \\
+T & Final PC-side trajectory solver & In the IMU simulation line, T0--T12 denote final offline trajectory solvers. These can be UWB-only controls, loose-coupled UWB+IMU fusion, tightly coupled raw-range fusion, factor-graph smoothers, or IMU-only drift diagnostics. \\
+B & Named baseline row & B0 is the main UWB-only dynamic baseline: A0/U4/P0/T1. B1 and B2 are layout-control baselines. \\
+X & Full experiment ID & Loose-coupled fusion rows use the form \texttt{X\_<A>\_<U>\_<P>\_<L>\_<I>\_<T>}; tightly coupled raw-range rows use \texttt{X\_<A>\_<R>\_<L>\_<I>\_<T>}. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{L-series IMU sensor-model definitions used by the simulation codebook. Some labels are controls or reserved stress cases; populated numerical parameters are taken from \texttt{configs/sensors.yaml}.}
+\label{tab:app_imu_l_models}
+\scriptsize
+\begin{tabularx}{\textwidth}{c X c X}
+\toprule
+{Code} & {Definition} & {Code} & {Definition} \\
+\midrule
+L0  & Perfect Vicon-derived IMU control. &
+L11 & InvenSense ICM-20948 9-axis IMU, simulated as accel+gyro only. \\
+L1  & Perfect sampled IMU with ODR/timestamp effects only. &
+L12 & InvenSense ICM-20602 FPV/drone 6-axis IMU. \\
+L2  & MPU6050/JY61P-like low-cost 6-axis IMU model. &
+L13 & InvenSense ICM-42605 modern 6-axis IMU. \\
+L3  & MPU9250/ICM20948-like 9-axis IMU, simulated as accel+gyro only. &
+L14 & InvenSense ICM-42670-P drone/robotics 6-axis IMU. \\
+L4  & LIS2DH12 accel-only proxy / negative-control model. &
+L15 & InvenSense ICM-42688-P high-precision 6-axis IMU. \\
+L5  & BMI270/LSM6DSO-like modern 6-axis IMU. &
+L16 & InvenSense ICM-45686 premium 6-axis IMU. \\
+L6  & Reserved industrial high-grade IMU label. &
+L17 & Bosch BMI270 low-power consumer 6-axis IMU. \\
+L7  & Pessimistic cheap-clone / high-bias stress model. &
+L18 & Bosch BMI088 drone/robotics vibration-robust 6-axis IMU. \\
+L8  & Mis-mounted IMU / large extrinsic-error stress model. &
+L19 & ST LSM6DSV16X high-end consumer 6-axis IMU. \\
+L9  & Reserved future real-tag IMU replay label. &
+L20 & Xsens/Movella MTi-3 AHRS module, simulated as accel+gyro only. \\
+L10 & InvenSense MPU-6050 legacy cheap 6-axis IMU. &
+     &  \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{U-, P-, I-, and T-series definitions for the IMU-fusion experiment IDs.}
+\label{tab:app_imu_solver_codes}
+\scriptsize
+\begin{tabularx}{\textwidth}{c X c X}
+\toprule
+{Code} & {Definition} & {Code} & {Definition} \\
+\midrule
+U1 & Old pure-UWB T1 solver output. &
+P0 & No UWB position post-filter. \\
+U2 & Old pure-UWB T2 solver output. &
+P1 & Hampel/median spike filter. \\
+U3 & Old pure-UWB T3 solver output. &
+P2 & Constant-velocity Kalman filter. \\
+U4 & Old pure-UWB T4 solver output; this is the main-text T4. &
+P3 & Robust innovation gate. \\
+R0 & Raw ranges with selected A-layout anchors. &
+P4 & Session-window fixed-lag smoother. \\
+R1 & Raw ranges with sanity gate. &
+P5 & Full-session RTS upper-bound smoother. \\
+R2 & Raw ranges with tag/anchor bias correction. &
+I0 & No IMU filter. \\
+R3 & Raw ranges with residual robust weighting. &
+I1 & Low-pass/FIR filtering. \\
+R4 & Raw ranges with robust multipath/dropout mixture weighting. &
+I2 & Notch vibration filtering. \\
+I3 & Bias calibration plus bias random-walk model. &
+T0 & No final solver / passthrough diagnostic. \\
+I4 & Mahony/Madgwick attitude filter. &
+T1 & UWB-only baseline using U4 positions. \\
+I5 & Error-state preintegration. &
+T2 & Position-domain IMU relative-motion prior. \\
+I6 & ZUPT/ZARU low-motion constraint. &
+T3 & Loose-coupled EKF: IMU prediction plus UWB position update. \\
+I7 & Hampel/median IMU spike rejection. &
+T4 & Loose-coupled UKF. \\
+I8 & Adaptive IMU noise filter. &
+T5 & Error-state EKF with IMU bias states. \\
+T6 & Tightly coupled raw-range EKF. &
+T10 & Full-session batch/RTS upper-bound solver. \\
+T7 & Tightly coupled raw-range UKF. &
+T11 & IMU-only strapdown/dead-reckoning diagnostic. \\
+T8 & Robust tight EKF with multipath/dropout mixture. &
+T12 & IMU-only diagnostic with ZUPT/ZARU or pseudo-reset. \\
+T9 & Session-window fixed-lag factor graph. &
+    &  \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The baseline shorthand used in \cref{sec:imu} is B0 = A0/U4/P0/T1, i.e. the AutoPos v4-io layout, the old T4 pure-UWB solver output, no UWB position post-filter, and the UWB-only final trajectory-control row.
+The matched fusion rows in \cref{tab:imu} compare UWB+IMU configurations against the same A0/U4/P4 pure-UWB family so that the IMU effect is not mixed with a different UWB post-filter choice.
 
 
 % ============================================================
