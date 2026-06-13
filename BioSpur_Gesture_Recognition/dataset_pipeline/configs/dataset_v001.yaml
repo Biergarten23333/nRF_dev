@@ -1,0 +1,67 @@
+dataset_version: v001
+dataset_root: /mnt/DatenBankHDD/datasets/BioSpur_GR
+
+subjects:
+  default: subject_zkx
+
+ports:
+  b120_by_id: /dev/serial/by-id/usb-BioSpur-GR_BioSpur-GR_51D4A5716A4C5551-if00
+  glove_hint: /dev/ttyUSB0
+  glove_vid_pid: "1A86:7523"
+
+emg:
+  source: BioSpur-GR
+  sample_rate_sps: 1000
+  channels_total: 8
+  samples_per_frame: 4
+  expected_frame_type: A
+
+glove:
+  source: ACEBOTT_QD023_ESP32
+  sample_rate_hz: 100
+  columns:
+    - host_time_ns
+    - t_us
+    - thumb_adc
+    - index_adc
+    - middle_adc
+    - ring_adc
+    - pinky_adc
+    - ax_ms2
+    - ay_ms2
+    - az_ms2
+    - gx_rads
+    - gy_rads
+    - gz_rads
+    - temp_c
+
+sync:
+  first_pass: pc_host_time_ns
+  later_pass: device_clock_fit
+
+labels:
+  bend_norm_method: session_open_closed_calibration
+  bend_min: 0.0
+  bend_max: 1.0
+  state_flexed_threshold: 0.5
+  motion_abs_velocity_threshold_per_s: 0.8
+
+windowing:
+  sample_rate_sps: 1000
+  window_ms: 200
+  stride_ms: 20
+  emg_channels: 8
+
+splits:
+  rule: session_level
+  random_window_split_allowed: false
+
+models:
+  baseline_features:
+    - rms
+    - mav
+    - waveform_length
+    - zero_crossing
+    - slope_sign_changes
+    - variance
+  neural_first_model: small_1d_cnn_or_tcn

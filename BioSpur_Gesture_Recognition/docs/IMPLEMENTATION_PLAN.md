@@ -307,8 +307,7 @@ Exit criteria:
 
 Important:
 
-- The first MCUboot-capable image still needs initial flashing by J-Link/TC2030
-  or factory method.
+- The first MCUboot-capable image was flashed by J-Link/TC2030 on 2026-06-12.
 - After that, normal ADS1298/JY61P firmware updates should use OTA.
 - The old UWB `tag_ota` project is used as the reference for DFU mechanics only.
   Its old static layout ends at `0x80000`, which is a 512 KB-style boundary.
@@ -387,38 +386,42 @@ The first bring-up images are:
 - `gr_module`: B306/nRF52840 BLE Peripheral advertising as `GRXXXX`.
 - `central_b120`: B120/nRF5340 BLE Central + USB CDC bridge named `GR-Master`.
 
-Initial flashing should be done by J-Link. After the OTA-capable GR module image is
-integrated and flashed once, normal B306 updates should move to BLE OTA.
+The GR module has already received its initial J-Link flash. Normal GR module
+updates are now OTA-only through the BioSpur-GR/B120 bridge. Direct J-Link
+flashing of the GR module is emergency recovery only.
 
 Build commands:
 
 ```sh
 cd /home/zekaixiao/Documents/nRF_dev/BioSpur_Gesture_Recognition
-source /home/zekaixiao/ncs/v2.8.0/zephyr/zephyr-env.sh
-
-PYTHONPATH=/usr/lib/python3/dist-packages west build -b nrf52840dk/nrf52840 gr_module -d build/gr_module -p always
-PYTHONPATH=/usr/lib/python3/dist-packages west build -b nrf5340dk/nrf5340/cpuapp central_b120 -d build/central_b120 -p always
+scripts/build_gr_module.sh
+scripts/embed_gr_ota_image.sh
+scripts/build_biospur_gr_b120.sh
 ```
 
-Flash commands, after the J-Link probe is connected:
+Probe discovery:
 
 ```sh
 cd /home/zekaixiao/Documents/nRF_dev/BioSpur_Gesture_Recognition
-source /home/zekaixiao/ncs/v2.8.0/zephyr/zephyr-env.sh
-
-# Flash B306 / nRF52840 GR module.
-west flash -d build/gr_module
-
-# Flash B120 / NORA-B120 GR-Master.
-# This sysbuild image includes both CPUAPP and CPUNET/ipc_radio.
-west flash -d build/central_b120
+scripts/jlink_show_emulators.sh
 ```
 
-If more than one J-Link probe is connected, list them first and then pass the
-serial number to `west flash`:
+Before flashing B120, check that the internal LFRC build settings are present:
 
 ```sh
-nrfjprog --ids
-west flash -d build/gr_module --dev-id <B306_JLINK_SERIAL>
-west flash -d build/central_b120 --dev-id <B120_JLINK_SERIAL>
+scripts/assert_b120_internal_osc_build.sh build/central_b120
+```
+
+B120 flash must use the repository J-Link script with an explicit SNR, not
+`west flash` or `nrfjprog`:
+
+```sh
+GR_JLINK_SNR=1050070698
+scripts/jlink_flash_nrf5340_dualcore_by_snr.sh "$GR_JLINK_SNR" build/central_b120 1000
+```
+
+Then trigger GR module OTA over the BioSpur-GR USB CDC bridge:
+
+```sh
+scripts/ota_gr_module_via_b120.py
 ```

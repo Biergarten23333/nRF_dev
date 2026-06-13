@@ -1,5 +1,27 @@
 # Agent notes — nRF_dev
 
+## BioSpur Gesture Recognition port map
+
+For `/home/zekaixiao/Documents/nRF_dev/BioSpur_Gesture_Recognition`, the current
+computer-facing B120 central is the native USB CDC device:
+
+- Port: `/dev/ttyACM3`
+- USB product/description: `GR-Master`
+- VID:PID: `2FE3:10F2`
+- Serial: `51D4A5716A4C5551`
+
+Do **not** confuse this with the other BioSpur ports:
+
+- `/dev/ttyACM0` and `/dev/ttyACM12` are `BioSpur_BLE_Control`
+  (`VID:PID=2FE3:1002`) and may belong to the UWB/older BioSpur setup.
+- `/dev/ttyACM1`, `/dev/ttyACM2`, `/dev/ttyACM8`, `/dev/ttyACM9`, and
+  `/dev/ttyACM10` are SEGGER/J-Link CDC ports.
+
+When testing the Gesture Recognition B120 path, identify the device by
+`Description: GR-Master` and `VID:PID=2FE3:10F2`, not by the generic
+`BioSpur` manufacturer string. The B120 command port accepts line commands such
+as `status`, `scan`, and `stop`.
+
 ## ⚠️ The `.git` directory is RELOCATED (read before any git operation)
 
 This repo's git directory does **not** live in this folder. On 2026-06-07 it was

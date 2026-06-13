@@ -5,6 +5,7 @@ project(biospur_gr_module)
 
 target_sources(app PRIVATE
   src/main.c
+  src/ads1298.c
   src/device_id.c
 )
 
@@ -12,4 +13,3 @@ target_include_directories(app PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/../shared/include
 )
-

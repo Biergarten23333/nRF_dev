@@ -1,0 +1,126 @@
+{
+  "elapsed_s": 7.103605815995252,
+  "generated_at": "2026-06-11T23:33:04+0200",
+  "item0": {
+    "note": "Production v4-io tag_delay_mm is 0, so Phase-1 relaxed static comparisons were not affected by the hardcoded 0.0 tag_delay.",
+    "phase1_item3_static_numbers_superseded": false,
+    "phase1_relaxed_layouts_tag_delay_mm": 0.0,
+    "production_layout_json": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/solver/outputs/v1_to_v4_io_field_check/v4-io/layout.json",
+    "production_tag_delay_mm": 0.0,
+    "tag_delay_parity_ok": true
+  },
+  "item1_oracle": {
+    "all_oracle_d_positive": true,
+    "dtu_convention": "1 DTU ~= 4.69 mm one-way range equivalent",
+    "largest_anchor": "A",
+    "largest_oracle_d_mm": 148.21526428758088,
+    "mean_oracle_d_dtu_one_way_equiv": 20.175285973226593,
+    "mean_oracle_d_mm": 94.62209121443273,
+    "median_oracle_d_mm": 91.23749142072478,
+    "n": 28,
+    "n_params": 8,
+    "residual_mean_mm": 1.6240976817373718e-14,
+    "residual_p95_abs_mm": 81.40492137208369,
+    "rmse_mm": 43.99135677555064,
+    "sse": 54186.705186705985,
+    "sum_oracle_d_mm": 756.9767297154618
+  },
+  "item2_common_mode": {
+    "c_mm": 111.98479117186592,
+    "case": "v4io_common_mode",
+    "cost": 81.6191702669079,
+    "current_rigid_anchor_median_mm": 92.77084899701543,
+    "current_rigid_anchor_rmse_mm": 105.41990950811795,
+    "current_sim3_scale_autopos_to_vicon": 0.9582672713308588,
+    "current_static_t4_mean_median_mm": 72.69137167036669,
+    "current_static_t4_mean_p95_mm": 171.49267582290037,
+    "current_static_t4_mean_rmse_mm": 109.84289856781552,
+    "layout_json": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/Analysis/official_extra_analysis/FULL/audit_phase1c/layouts/v4io_common_mode/layout.json",
+    "max_abs_e_mm": 15.352958619571629,
+    "mean_e_mm": -1.8719785943588363e-07,
+    "pair_rmse_mm": 38.29106455940091,
+    "residual_l2": 416.0343636378512,
+    "rigid_anchor_median_mm": 59.452407827891854,
+    "rigid_anchor_p95_mm": 93.31651795465073,
+    "rigid_anchor_rmse_mm": 62.99190234655526,
+    "sim3_scale_autopos_to_vicon": 1.0097822800764373,
+    "static_t4_mean_median_mm": 109.51538194751674,
+    "static_t4_mean_p95_mm": 223.8592378045819,
+    "static_t4_mean_rmse_mm": 140.52524928793653
+  },
+  "item3_identifiability": {
+    "clamped_rows": [
+      {
+        "c_fixed_mm": 0.0,
+        "case": "v4io_common_mode_cfixed_0p000",
+        "cost": 138.0915601718911,
+        "cost_delta_vs_free": 56.4723899049832,
+        "layout_json": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/Analysis/official_extra_analysis/FULL/audit_phase1c/layouts/v4io_common_mode_cfixed_0p000/layout.json",
+        "max_abs_e_mm": 16.692158598902797,
+        "mean_e_mm": 0.7941888451924779,
+        "pair_rmse_mm": 63.83809272042777,
+        "residual_l2": 781.3849447382665,
+        "rigid_anchor_median_mm": 130.83963313651674,
+        "rigid_anchor_p95_mm": 186.21641032478234,
+        "rigid_anchor_rmse_mm": 142.68064087368884,
+        "sim3_scale_autopos_to_vicon": 0.9371438864089914
+      },
+      {
+        "c_fixed_mm": 111.98479117186592,
+        "case": "v4io_common_mode_cfixed_111p985",
+        "cost": 81.61917026580362,
+        "cost_delta_vs_free": -1.104282887354202e-09,
+        "layout_json": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/Analysis/official_extra_analysis/FULL/audit_phase1c/layouts/v4io_common_mode_cfixed_111p985/layout.json",
+        "max_abs_e_mm": 15.352834408000895,
+        "mean_e_mm": 1.6996276137604127e-06,
+        "pair_rmse_mm": 38.29106162712117,
+        "residual_l2": 416.0343113789547,
+        "rigid_anchor_median_mm": 59.452346041510914,
+        "rigid_anchor_p95_mm": 93.31685984142405,
+        "rigid_anchor_rmse_mm": 62.99194235052056,
+        "sim3_scale_autopos_to_vicon": 1.0097822750708638
+      }
+    ],
+    "free_c_mm": 111.98479117186592,
+    "free_cost": 81.6191702669079,
+    "perturbed_c_max_mm": 111.98513387588582,
+    "perturbed_c_min_mm": 111.98471481327644,
+    "perturbed_c_std_mm": 0.00015257397367623784,
+    "perturbed_init_n": 5,
+    "perturbed_scale_max": 1.0097825014421808,
+    "perturbed_scale_min": 1.0097822326921018,
+    "perturbed_scale_std": 9.70265772136818e-08,
+    "valley_note": "Compare c=0 and c=fitted costs, plus perturbed-init spread. Small differences would indicate weak c/scale identifiability."
+  },
+  "item4_verdict": {
+    "additive_vs_constant": {
+      "F": 3.4701150781588015,
+      "df_den": 20,
+      "df_num": 7,
+      "p": 0.01344247293849211
+    },
+    "additive_vs_ols": {
+      "F": 3.6248951377676373,
+      "df_den": 20,
+      "df_num": 6,
+      "p": 0.013453098915903624
+    },
+    "c_near_oracle_mean_within_20mm": true,
+    "ols_b1_ci95_high_mm_per_m": 55.09499028398773,
+    "ols_b1_ci95_low_mm_per_m": -13.25951965394546,
+    "ols_b1_mm_per_m": 20.917735315021133,
+    "pure_scale_slope_inside_ols_ci": true,
+    "pure_scale_slope_mm_per_m": 43.55019723378639,
+    "recommendation": "Use recommendations only; do not replace production layout from this diagnostic run.",
+    "scale_collapsed_within_1pct": true,
+    "supported_verdict": "a_common_mode_recoverable",
+    "valley_flat_flag": false
+  },
+  "paths": {
+    "current_layout": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/solver/outputs/v1_to_v4_io_field_check/v4-io/layout.json",
+    "layouts_dir": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/Analysis/official_extra_analysis/FULL/audit_phase1c/layouts",
+    "summary_json": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/Analysis/official_extra_analysis/FULL/audit_phase1c/tables/audit_phase1c_summary.json",
+    "tables_dir": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/Analysis/official_extra_analysis/FULL/audit_phase1c/tables"
+  },
+  "script": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/Analysis/official_extra_analysis/FULL/scripts/audit_phase1c_common_mode.py"
+}

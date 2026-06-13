@@ -1,0 +1,274 @@
+{
+  "dop_metric_definition": {
+    "flag": "No n=2 P95 issue for radial_p95 itself; the outer aggregation is a median over two per-session P95 values.",
+    "outer_median": "dop_facing_height_summary groups the 24 static sessions by facing x height and reports the median of those per-session radial_p95 values; each cell has n=2 sessions.",
+    "p95_level": "per-frame within one 120 s static session; not position-level over n=2",
+    "radial_definition": "For each static session, radial_p95 is computed from per-frame 3D distances between each solved UWB point and that session's own point estimate.",
+    "raw_replay_script_contains_radial": true,
+    "source": "static_all_captures.csv copied by vdop_map.py",
+    "static_script_contains_radial": false
+  },
+  "geometry": {
+    "layer_gap_m": 1.3952516237500001,
+    "layer_gap_mm": 1395.2516237500001,
+    "lower_layer_vertical_mean_mm": 245.47512625,
+    "static_tag_vertical_coverage_m": 1.5027887599999998,
+    "static_tag_vertical_coverage_mm": 1502.78876,
+    "static_tag_vertical_max_mm": 1684.95255,
+    "static_tag_vertical_min_mm": 182.16379,
+    "upper_layer_vertical_mean_mm": 1640.72675
+  },
+  "keepk_k8_deviation_from_headline_72p7_mm": 0.7205008042323726,
+  "keepk_k8_gate_pass": true,
+  "keepk_mc_rows": [
+    {
+      "accuracy_iqr_high_mm": 73.42050080423238,
+      "accuracy_iqr_low_mm": 73.42050080423238,
+      "accuracy_median_mm": 73.42050080423238,
+      "elapsed_s": 6.379500369999732,
+      "frame_gating": "same as cuda_t4_keepk_replay.make_keep_mask; k=8 requires all 8 anchors in frame",
+      "horizontal_median_mm": 37.06802286819647,
+      "keep_k": 8,
+      "kind": "static",
+      "layout": "v4-io",
+      "mc_mask_note": "per-frame random keep-k masks; no persisted subset list exists in the previous MC replay",
+      "repeats": 1,
+      "seed_base": 20260528,
+      "tag_method": "T4",
+      "vertical_median_mm": 62.58441534287613
+    },
+    {
+      "accuracy_iqr_high_mm": 74.05801541408307,
+      "accuracy_iqr_low_mm": 72.96922697011459,
+      "accuracy_median_mm": 73.52284255397066,
+      "elapsed_s": 167.46801573599805,
+      "frame_gating": "same as cuda_t4_keepk_replay.make_keep_mask; k=8 requires all 8 anchors in frame",
+      "horizontal_median_mm": 45.69443943357668,
+      "keep_k": 7,
+      "kind": "static",
+      "layout": "v4-io",
+      "mc_mask_note": "per-frame random keep-k masks; no persisted subset list exists in the previous MC replay",
+      "repeats": 5000,
+      "seed_base": 20260528,
+      "tag_method": "T4",
+      "vertical_median_mm": 59.81660787679968
+    },
+    {
+      "accuracy_iqr_high_mm": 67.21537194129354,
+      "accuracy_iqr_low_mm": 65.3105854413841,
+      "accuracy_median_mm": 66.29776108113666,
+      "elapsed_s": 161.20234352999978,
+      "frame_gating": "same as cuda_t4_keepk_replay.make_keep_mask; k=8 requires all 8 anchors in frame",
+      "horizontal_median_mm": 41.38577301352748,
+      "keep_k": 6,
+      "kind": "static",
+      "layout": "v4-io",
+      "mc_mask_note": "per-frame random keep-k masks; no persisted subset list exists in the previous MC replay",
+      "repeats": 5000,
+      "seed_base": 20260528,
+      "tag_method": "T4",
+      "vertical_median_mm": 58.244547689329615
+    },
+    {
+      "accuracy_iqr_high_mm": 73.39704368812582,
+      "accuracy_iqr_low_mm": 69.78134411882341,
+      "accuracy_median_mm": 71.53318934337607,
+      "elapsed_s": 172.8350609179979,
+      "frame_gating": "same as cuda_t4_keepk_replay.make_keep_mask; k=8 requires all 8 anchors in frame",
+      "horizontal_median_mm": 37.89352828630192,
+      "keep_k": 5,
+      "kind": "static",
+      "layout": "v4-io",
+      "mc_mask_note": "per-frame random keep-k masks; no persisted subset list exists in the previous MC replay",
+      "repeats": 5000,
+      "seed_base": 20260528,
+      "tag_method": "T4",
+      "vertical_median_mm": 63.349085471587614
+    },
+    {
+      "accuracy_iqr_high_mm": 107.77223962984404,
+      "accuracy_iqr_low_mm": 102.81977114456195,
+      "accuracy_median_mm": 105.20594591241894,
+      "elapsed_s": 169.47543250000308,
+      "frame_gating": "same as cuda_t4_keepk_replay.make_keep_mask; k=8 requires all 8 anchors in frame",
+      "horizontal_median_mm": 44.6774946584889,
+      "keep_k": 4,
+      "kind": "static",
+      "layout": "v4-io",
+      "mc_mask_note": "per-frame random keep-k masks; no persisted subset list exists in the previous MC replay",
+      "repeats": 5000,
+      "seed_base": 20260528,
+      "tag_method": "T4",
+      "vertical_median_mm": 81.41616983929555
+    }
+  ],
+  "keepk_stratified_rows": [
+    {
+      "accuracy_iqr_high_mm": 105.9987218123658,
+      "accuracy_iqr_low_mm": 83.40682423457189,
+      "accuracy_median_mm": 93.45596290086388,
+      "drop_category": "lower_heavy",
+      "drop_sets": 4,
+      "horizontal_median_mm": 42.75153198068038,
+      "keep_k": 7,
+      "vertical_median_mm": 71.27987576399761
+    },
+    {
+      "accuracy_iqr_high_mm": 90.25856317108854,
+      "accuracy_iqr_low_mm": 68.99825907704468,
+      "accuracy_median_mm": 81.18777564470254,
+      "drop_category": "upper_heavy",
+      "drop_sets": 4,
+      "horizontal_median_mm": 51.880018486281315,
+      "keep_k": 7,
+      "vertical_median_mm": 52.31929972798582
+    },
+    {
+      "accuracy_iqr_high_mm": 121.85122630669261,
+      "accuracy_iqr_low_mm": 92.16626932378301,
+      "accuracy_median_mm": 101.88702896678546,
+      "drop_category": "balanced",
+      "drop_sets": 16,
+      "horizontal_median_mm": 58.82076651069947,
+      "keep_k": 6,
+      "vertical_median_mm": 68.47698978426037
+    },
+    {
+      "accuracy_iqr_high_mm": 136.27521995791878,
+      "accuracy_iqr_low_mm": 125.60361815333488,
+      "accuracy_median_mm": 131.70875897942196,
+      "drop_category": "lower_heavy",
+      "drop_sets": 6,
+      "horizontal_median_mm": 56.910209309794226,
+      "keep_k": 6,
+      "vertical_median_mm": 101.67505172943305
+    },
+    {
+      "accuracy_iqr_high_mm": 98.99955893803428,
+      "accuracy_iqr_low_mm": 74.25380370756696,
+      "accuracy_median_mm": 88.52661502450822,
+      "drop_category": "upper_heavy",
+      "drop_sets": 6,
+      "horizontal_median_mm": 51.84732818015492,
+      "keep_k": 6,
+      "vertical_median_mm": 52.39743874865017
+    },
+    {
+      "accuracy_iqr_high_mm": 148.08556993187284,
+      "accuracy_iqr_low_mm": 120.6064883480348,
+      "accuracy_median_mm": 131.1487181993744,
+      "drop_category": "lower_heavy",
+      "drop_sets": 28,
+      "horizontal_median_mm": 71.41825324945347,
+      "keep_k": 5,
+      "vertical_median_mm": 96.34456519959045
+    },
+    {
+      "accuracy_iqr_high_mm": 137.21733133953416,
+      "accuracy_iqr_low_mm": 100.12262144349721,
+      "accuracy_median_mm": 121.08016428274108,
+      "drop_category": "upper_heavy",
+      "drop_sets": 28,
+      "horizontal_median_mm": 68.37564108597991,
+      "keep_k": 5,
+      "vertical_median_mm": 77.80166556212133
+    },
+    {
+      "accuracy_iqr_high_mm": 224.79630674430075,
+      "accuracy_iqr_low_mm": 125.26718851656466,
+      "accuracy_median_mm": 175.26736133409008,
+      "drop_category": "balanced",
+      "drop_sets": 36,
+      "horizontal_median_mm": 100.48625144450301,
+      "keep_k": 4,
+      "vertical_median_mm": 103.31283904471653
+    },
+    {
+      "accuracy_iqr_high_mm": 191.1319781290294,
+      "accuracy_iqr_low_mm": 150.09239913152152,
+      "accuracy_median_mm": 165.04651977266047,
+      "drop_category": "lower_heavy",
+      "drop_sets": 17,
+      "horizontal_median_mm": 80.88628613958973,
+      "keep_k": 4,
+      "vertical_median_mm": 128.54066320534156
+    },
+    {
+      "accuracy_iqr_high_mm": 194.37456499977253,
+      "accuracy_iqr_low_mm": 123.4993586730979,
+      "accuracy_median_mm": 172.61085938621744,
+      "drop_category": "upper_heavy",
+      "drop_sets": 17,
+      "horizontal_median_mm": 84.40833375512277,
+      "keep_k": 4,
+      "vertical_median_mm": 103.43902117806279
+    }
+  ],
+  "sim3_gate_matches_67p1": true,
+  "sim3_v4_rmse_mm": 67.12130071807093,
+  "wall_material_rows": [
+    {
+      "material": "light_drywall",
+      "p95_m": 0.0660666823387146,
+      "p95_mm": 66.0666823387146,
+      "representative_wall_distance_cm": 100,
+      "safe_distance_cm_p95lt0p15": 15,
+      "safe_distance_cm_p95lt0p25": 0,
+      "wall_count": 4
+    },
+    {
+      "material": "gypsum_block",
+      "p95_m": 0.0695926547050476,
+      "p95_mm": 69.5926547050476,
+      "representative_wall_distance_cm": 100,
+      "safe_distance_cm_p95lt0p15": 35,
+      "safe_distance_cm_p95lt0p25": 15,
+      "wall_count": 4
+    },
+    {
+      "material": "aerated_concrete",
+      "p95_m": 0.0729024186730384,
+      "p95_mm": 72.9024186730384,
+      "representative_wall_distance_cm": 100,
+      "safe_distance_cm_p95lt0p15": 50,
+      "safe_distance_cm_p95lt0p25": 25,
+      "wall_count": 4
+    },
+    {
+      "material": "sand_lime_brick",
+      "p95_m": 0.0799520015716552,
+      "p95_mm": 79.9520015716552,
+      "representative_wall_distance_cm": 100,
+      "safe_distance_cm_p95lt0p15": 60,
+      "safe_distance_cm_p95lt0p25": 35,
+      "wall_count": 4
+    },
+    {
+      "material": "reinforced_concrete_C25_30",
+      "p95_m": 0.090849220752716,
+      "p95_mm": 90.849220752716,
+      "representative_wall_distance_cm": 100,
+      "safe_distance_cm_p95lt0p15": 80,
+      "safe_distance_cm_p95lt0p25": 50,
+      "wall_count": 4
+    },
+    {
+      "material": "reinforced_concrete_C30_37",
+      "p95_m": 0.0990954414010047,
+      "p95_mm": 99.09544140100469,
+      "representative_wall_distance_cm": 100,
+      "safe_distance_cm_p95lt0p15": 80,
+      "safe_distance_cm_p95lt0p25": 60,
+      "wall_count": 4
+    },
+    {
+      "material": "reinforced_concrete_C40_50",
+      "p95_m": 0.1090830117464065,
+      "p95_mm": 109.0830117464065,
+      "representative_wall_distance_cm": 100,
+      "safe_distance_cm_p95lt0p15": 90,
+      "safe_distance_cm_p95lt0p25": 70,
+      "wall_count": 4
+    }
+  ]
+}

@@ -22,6 +22,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+plt.rcParams.update(
+    {
+        "font.size": 17,
+        "axes.titlesize": 18,
+        "axes.labelsize": 17,
+        "xtick.labelsize": 14,
+        "ytick.labelsize": 14,
+        "legend.fontsize": 14,
+        "figure.titlesize": 20,
+        "lines.linewidth": 2.2,
+    }
+)
+
 
 THIS = Path(__file__).resolve()
 SIM_ROOT = THIS.parents[1]
@@ -89,6 +102,22 @@ def jump_xz(df: pd.DataFrame) -> np.ndarray:
     return np.linalg.norm(np.diff(xz, axis=0), axis=1)
 
 
+def plane_projection_basis(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    opt = df[["opti_x_mm", "opti_y_mm", "opti_z_mm"]].to_numpy(float)
+    centre = np.nanmean(opt, axis=0)
+    centered = opt - centre
+    _u, _s, vh = np.linalg.svd(centered, full_matrices=False)
+    e1 = vh[0]
+    e2 = vh[1]
+    return centre, e1, e2
+
+
+def project_to_plane(df: pd.DataFrame, centre: np.ndarray, e1: np.ndarray, e2: np.ndarray, prefix: str = "") -> tuple[np.ndarray, np.ndarray]:
+    cols = [f"{prefix}x_mm", f"{prefix}y_mm", f"{prefix}z_mm"] if prefix else ["x_mm", "y_mm", "z_mm"]
+    xyz = df[cols].to_numpy(float) - centre
+    return xyz @ e1, xyz @ e2
+
+
 def reconstruct(exp: str, streams: dict[tuple[str, str, str], pd.DataFrame], b0: pd.DataFrame) -> pd.DataFrame:
     parts = parse_experiment(exp)
     F._SEED_ID = SEED_ID
@@ -122,6 +151,73 @@ def main() -> None:
     fusions: dict[str, pd.DataFrame] = {}
     for label, exp in EXPERIMENTS.items():
         fusions[label] = pick_track(reconstruct(exp, streams, b0_all))
+
+    tilt_tracks = [
+        ("Almost planar", "R01", "BS2DCE"),
+        ("Mid tilt", "R08", "BS2DCE"),
+        ("Almost vertical", "R16", "BS2DCE"),
+    ]
+    tilt_fusions: dict[str, pd.DataFrame] = {}
+    for imu_label, exp in EXPERIMENTS.items():
+        tilt_fusions[imu_label] = reconstruct(exp, streams, b0_all)
+
+    fig, axes = plt.subplots(
+        len(tilt_tracks),
+        len(EXPERIMENTS),
+        figsize=(17.6, 15.0),
+        constrained_layout=True,
+    )
+    for row_idx, (tilt_label, cap, tag) in enumerate(tilt_tracks):
+        track_b0 = b0_all[(b0_all["capture_id"].astype(str) == cap) & (b0_all["tag"].astype(str) == tag)].sort_values("time_s").copy()
+        if track_b0.empty:
+            continue
+        centre, e1, e2 = plane_projection_basis(track_b0)
+        opt_u, opt_v = project_to_plane(track_b0, centre, e1, e2, "opti_")
+        b0_u, b0_v = project_to_plane(track_b0, centre, e1, e2)
+        all_u = [opt_u, b0_u]
+        all_v = [opt_v, b0_v]
+        projected: dict[str, tuple[np.ndarray, np.ndarray, float]] = {}
+        for imu_label, track_all in tilt_fusions.items():
+            track_fusion = track_all[(track_all["capture_id"].astype(str) == cap) & (track_all["tag"].astype(str) == tag)].sort_values("time_s").copy()
+            fu_u, fu_v = project_to_plane(track_fusion, centre, e1, e2)
+            projected[imu_label] = (fu_u, fu_v, pct(err3d(track_fusion), 95))
+            all_u.append(fu_u)
+            all_v.append(fu_v)
+        umin, umax = float(np.nanmin(np.concatenate(all_u))), float(np.nanmax(np.concatenate(all_u)))
+        vmin, vmax = float(np.nanmin(np.concatenate(all_v))), float(np.nanmax(np.concatenate(all_v)))
+        span = max(umax - umin, vmax - vmin)
+        upad = (span - (umax - umin)) / 2 + 80.0
+        vpad = (span - (vmax - vmin)) / 2 + 80.0
+
+        for col_idx, (imu_label, _exp) in enumerate(EXPERIMENTS.items()):
+            ax = axes[row_idx, col_idx]
+            fu_u, fu_v, p95 = projected[imu_label]
+            ax.plot(opt_u, opt_v, color="black", linewidth=2.6, label="Vicon truth")
+            ax.plot(b0_u, b0_v, color="#8cc8ef", linewidth=1.1, alpha=0.45, label="Pure UWB")
+            ax.plot(fu_u, fu_v, color="#8b4cc2", linewidth=2.2, alpha=0.95, label="UWB+IMU")
+            if row_idx == 0:
+                ax.set_title(imu_label, pad=9)
+            if col_idx == 0:
+                ax.set_ylabel(f"{tilt_label}\n{cap}/{tag}\n[mm]")
+            if row_idx == len(tilt_tracks) - 1:
+                ax.set_xlabel("[mm]")
+            ax.text(
+                0.03,
+                0.97,
+                f"P95 {p95:.0f} mm",
+                transform=ax.transAxes,
+                ha="left",
+                va="top",
+                bbox=dict(facecolor="white", edgecolor="0.75", alpha=0.88, boxstyle="round,pad=0.22"),
+            )
+            ax.set_aspect("equal", adjustable="box")
+            ax.set_xlim(umin - upad, umax + upad)
+            ax.set_ylim(vmin - vpad, vmax + vpad)
+            ax.grid(alpha=0.25)
+            if row_idx == 0 and col_idx == 0:
+                ax.legend(loc="lower left", fontsize=12)
+    fig.savefig(OUT_DIR / "01_roto_tilt_by_imu_3x3_plane_projection.png", dpi=230, bbox_inches="tight")
+    plt.close(fig)
 
     rows: list[dict] = []
     for label, exp in EXPERIMENTS.items():
@@ -167,46 +263,56 @@ def main() -> None:
     xlim = (float(np.nanmin(xs) - pad), float(np.nanmax(xs) + pad))
     zlim = (float(np.nanmin(zs) - pad), float(np.nanmax(zs) + pad))
 
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6), sharex=True, sharey=True)
+    fig, axes = plt.subplots(
+        1,
+        3,
+        figsize=(15.8, 6.9),
+        sharex=True,
+        sharey=True,
+        gridspec_kw={"wspace": 0.08},
+    )
     for ax, (label, exp) in zip(axes, EXPERIMENTS.items()):
         fusion = fusions[label]
         row = metrics[metrics["label"] == label].iloc[0]
-        ax.plot(b0["opti_x_mm"], b0["opti_z_mm"], color="black", linewidth=2.0, label="Opti truth")
-        ax.plot(b0["x_mm"], b0["z_mm"], color="#8cc8ef", linewidth=0.8, alpha=0.42, label="B0 pure UWB")
-        ax.plot(fusion["x_mm"], fusion["z_mm"], color="#8b4cc2", linewidth=1.5, alpha=0.95, label="UWB+IMU fusion")
+        ax.plot(b0["opti_x_mm"], b0["opti_z_mm"], color="black", linewidth=2.7, label="Vicon truth")
+        ax.plot(b0["x_mm"], b0["z_mm"], color="#8cc8ef", linewidth=1.3, alpha=0.45, label="Pure UWB")
+        ax.plot(fusion["x_mm"], fusion["z_mm"], color="#8b4cc2", linewidth=2.4, alpha=0.95, label="UWB+IMU")
         ax.set_title(
-            f"{label}\n{exp}\nB0 P95={row.b0_err3d_p95_mm:.0f} mm -> Fusion P95={row.fusion_err3d_p95_mm:.0f} mm",
-            fontsize=10,
+            f"{label}\n3D P95: {row.b0_err3d_p95_mm:.0f} -> {row.fusion_err3d_p95_mm:.0f} mm",
+            fontsize=18,
+            pad=8,
         )
-        ax.grid(alpha=0.25)
+        ax.grid(alpha=0.28)
         ax.set_aspect("equal", adjustable="box")
         ax.set_xlim(*xlim)
         ax.set_ylim(*zlim)
-        ax.set_xlabel("X position (mm)")
-    axes[0].set_ylabel("Z position (mm)")
-    axes[0].legend(loc="best", fontsize=9)
+        ax.set_xlabel("X position [mm]", labelpad=6)
+    axes[0].set_ylabel("Z position [mm]", labelpad=6)
+    axes[0].legend(loc="best", fontsize=14)
     fig.suptitle(
-        f"Same spiky ROTO track: {CAPTURE_ID}/{TAG} | B0 has {int(np.sum(b0_jump > 200))} X-Z jumps >200 mm",
-        fontsize=14,
+        f"Spiky RotoArm track {CAPTURE_ID}/{TAG}: pure UWB has {int(np.sum(b0_jump > 200))} XZ jumps >200 mm",
+        fontsize=20,
+        y=0.985,
     )
-    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.tight_layout(rect=(0.01, 0.02, 0.995, 0.92), w_pad=0.6)
     fig.savefig(OUT_DIR / "01_R01_BS2DCE_same_track_XZ_L2_L16_L20.png", dpi=220)
     plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(14, 6))
+    fig, ax = plt.subplots(figsize=(15, 6.2))
     t = b0["time_s"].to_numpy(float) - float(b0["time_s"].iloc[0])
-    ax.plot(t, b0_err, color="#8cc8ef", alpha=0.55, linewidth=0.8, label=f"B0 pure UWB P95={pct(b0_err, 95):.0f} mm")
+    ax.plot(t, b0_err, color="#8cc8ef", alpha=0.55, linewidth=1.2, label=f"Pure UWB P95={pct(b0_err, 95):.0f} mm")
     colors = ["#5877c8", "#9c66cc", "#16a085"]
     for color, (label, _exp) in zip(colors, EXPERIMENTS.items()):
         fusion = fusions[label]
         tt = fusion["time_s"].to_numpy(float) - float(fusion["time_s"].iloc[0])
         fusion_err = err3d(fusion)
-        ax.plot(tt, fusion_err, color=color, linewidth=1.2, alpha=0.95, label=f"{label} fusion P95={pct(fusion_err, 95):.0f} mm")
-    ax.set_title(f"3D error over time: {CAPTURE_ID}/{TAG}")
+        ax.plot(tt, fusion_err, color=color, linewidth=2.2, alpha=0.95, label=f"{label} P95={pct(fusion_err, 95):.0f} mm")
+    ax.axhline(200.0, color="#c0392b", linestyle="--", linewidth=2.0, alpha=0.95, label="200 mm threshold")
+    ax.set_title(f"3D error over time: {CAPTURE_ID}/{TAG}", fontsize=20)
     ax.set_xlabel("time in capture (s)")
-    ax.set_ylabel("3D error vs Opti (mm)")
-    ax.grid(alpha=0.25)
-    ax.legend(fontsize=9, ncols=2)
+    ax.set_ylabel("3D error to Vicon [mm]")
+    ax.grid(alpha=0.28)
+    ax.legend(fontsize=14, ncols=2)
     fig.tight_layout()
     fig.savefig(OUT_DIR / "02_R01_BS2DCE_err3d_time_L2_L16_L20.png", dpi=220)
     plt.close(fig)

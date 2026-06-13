@@ -1,6 +1,6 @@
 # Professor L2/L16/L20 Spiky Track Comparison
 
-Generated UTC: `2026-06-06T09:13:13.742618+00:00`
+Generated UTC: `2026-06-11T10:00:02.168219+00:00`
 
 Selected track: `R01/BS2DCE` because B0 pure UWB has the most X-Z jump spikes in the ROTO set.
 
@@ -18,25 +18,25 @@ Presentation convention: this report labels the height axis as `Vertical Z`; int
 
 - IMU: L2 MPU6050/JY61P-like
 - Fusion 3D P95: `188.4 mm`
-- P95 improvement vs B0: `407.0 mm`
+- P95 improvement vs B0: `407.1 mm`
 - Fusion X-Z jump >200mm count: `0`
-- Fusion vertical Z P95: `175.4 mm`
+- Fusion vertical Z P95: `174.8 mm`
 
 ### `X_A0_U4_P4_L16_I6_T4`
 
 - IMU: L16 ICM-45686
-- Fusion 3D P95: `185.1 mm`
-- P95 improvement vs B0: `410.4 mm`
+- Fusion 3D P95: `183.3 mm`
+- P95 improvement vs B0: `412.2 mm`
 - Fusion X-Z jump >200mm count: `0`
-- Fusion vertical Z P95: `175.1 mm`
+- Fusion vertical Z P95: `174.0 mm`
 
 ### `X_A0_U4_P4_L20_I3_T2`
 
 - IMU: L20 Xsens MTi-3
-- Fusion 3D P95: `169.4 mm`
-- P95 improvement vs B0: `426.0 mm`
+- Fusion 3D P95: `166.6 mm`
+- P95 improvement vs B0: `428.9 mm`
 - Fusion X-Z jump >200mm count: `0`
-- Fusion vertical Z P95: `159.3 mm`
+- Fusion vertical Z P95: `157.0 mm`
 
 ## Figures
 

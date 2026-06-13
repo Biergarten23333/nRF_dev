@@ -351,8 +351,8 @@ def plot_v4_3d(out_path: Path, truth: dict[str, np.ndarray], layout_dir: Path) -
     }
     label_offsets_2d = {
         **label_offsets,
-        "C": (42, 58),
-        "G": (50, 74),
+        "C": (-70, 85),
+        "G": (88, 38),
         "H": (38, -120),
     }
     label_box = dict(boxstyle="round,pad=0.18", fc="white", ec="#666666", lw=0.6, alpha=0.88)
