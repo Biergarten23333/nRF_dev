@@ -60,6 +60,24 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def parse_tag_delay_by_tag(spec: str | None) -> dict[str, float]:
+    if not spec:
+        return {}
+    out: dict[str, float] = {}
+    for item in spec.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if "=" not in item:
+            raise ValueError(f"bad --tag-delay-by-tag item {item!r}; expected TAG=delay_mm")
+        tag, value = item.split("=", 1)
+        tag = tag.strip().upper()
+        if not tag:
+            raise ValueError(f"bad --tag-delay-by-tag item {item!r}; empty tag")
+        out[tag] = float(value)
+    return out
+
+
 def append_run_meta(out_dir: Path, entry: dict) -> None:
     meta_path = out_dir / "run_meta.json"
     lock_path = out_dir / "run_meta.json.lock"
@@ -263,8 +281,8 @@ def filter_frames(frames: list[Frame], allowed_anchor_ids: set[int], min_anchors
     return out
 
 
-def solve_frames(layout: Layout, method: str, frames: list[Frame]) -> list:
-    solver = TagPositionSolver(layout, SolverConfig(method=method))  # type: ignore[arg-type]
+def solve_frames(layout: Layout, method: str, frames: list[Frame], tag_delay_by_tag: dict[str, float] | None = None) -> list:
+    solver = TagPositionSolver(layout, SolverConfig(method=method), tag_delay_by_tag=tag_delay_by_tag)  # type: ignore[arg-type]
     results = []
     for frame in frames:
         result = solver.solve_frame(frame)
@@ -435,7 +453,16 @@ def summarize_abs(rows: list[dict]) -> list[dict]:
                 "median_scale_bias_expected_mm": float(np.nanmedian(g["scale_bias_expected_mm"].to_numpy(dtype=float))),
             }
         )
-    return sorted(out, key=lambda r: (r["eval_set"], LAYOUT_VERSIONS.index(r["version"]), TAG_METHODS.index(r["tag_method"])))
+    layout_order = {version: i for i, version in enumerate(LAYOUT_VERSIONS)}
+    method_order = {method: i for i, method in enumerate(TAG_METHODS)}
+    return sorted(
+        out,
+        key=lambda r: (
+            r["eval_set"],
+            layout_order.get(r["version"], len(layout_order)),
+            method_order.get(r["tag_method"], len(method_order)),
+        ),
+    )
 
 
 def plot_matrix(summary_rows: list[dict], out: Path) -> None:
@@ -449,18 +476,20 @@ def plot_matrix(summary_rows: list[dict], out: Path) -> None:
     im = None
     for ax, eval_set in zip(axs[0], eval_sets):
         sub = df[df["eval_set"] == eval_set]
-        mat = np.full((len(LAYOUT_VERSIONS), len(TAG_METHODS)), np.nan)
-        for i, version in enumerate(LAYOUT_VERSIONS):
-            for j, method in enumerate(TAG_METHODS):
+        versions = list(dict.fromkeys(sub["version"].astype(str).tolist()))
+        methods = list(dict.fromkeys(sub["tag_method"].astype(str).tolist()))
+        mat = np.full((len(versions), len(methods)), np.nan)
+        for i, version in enumerate(versions):
+            for j, method in enumerate(methods):
                 vals = sub[(sub["version"] == version) & (sub["tag_method"] == method)]["err_3d_median_mm"].to_numpy()
                 if vals.size:
                     mat[i, j] = vals[0]
         im = ax.imshow(mat, cmap="viridis", vmin=vmin, vmax=vmax)
         ax.set_title(f"{eval_set}: median 3D absolute error")
-        ax.set_xticks(np.arange(len(TAG_METHODS)))
-        ax.set_xticklabels(TAG_METHODS)
-        ax.set_yticks(np.arange(len(LAYOUT_VERSIONS)))
-        ax.set_yticklabels(LAYOUT_VERSIONS)
+        ax.set_xticks(np.arange(len(methods)))
+        ax.set_xticklabels(methods)
+        ax.set_yticks(np.arange(len(versions)))
+        ax.set_yticklabels(versions)
         for i in range(mat.shape[0]):
             for j in range(mat.shape[1]):
                 if np.isfinite(mat[i, j]):
@@ -555,6 +584,11 @@ def main() -> int:
     parser.add_argument("--tag-methods", default="all", help="comma list or all")
     parser.add_argument("--eval-sets", default="all8")
     parser.add_argument("--point-estimator", choices=["median", "mean"], default="median")
+    parser.add_argument(
+        "--tag-delay-by-tag",
+        default="",
+        help="comma list of TAG=delay_mm overrides passed to the C-core wrapper, e.g. BSF66F=91.153",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-frames", type=int, default=0)
     parser.add_argument("--centroid-sweep-samples", type=int, default=720)
@@ -586,6 +620,7 @@ def main() -> int:
         tag_methods = TAG_METHODS
     else:
         tag_methods = [v.strip().upper() for v in args.tag_methods.split(",") if v.strip()]
+    tag_delay_by_tag = parse_tag_delay_by_tag(args.tag_delay_by_tag)
     eval_sets = [v.strip() for v in args.eval_sets.split(",") if v.strip()]
     allowed_by_eval = {
         "all8": set(range(8)),
@@ -633,7 +668,7 @@ def main() -> int:
                     cap = capture_name_from_path(path)
                     frames_in = raw_frames[str(path)]
                     frames = filter_frames(frames_in, allowed, min_anchors=4)
-                    results = solve_frames(layout, tag_method, frames)
+                    results = solve_frames(layout, tag_method, frames, tag_delay_by_tag=tag_delay_by_tag)
                     summary = summarize_results(results, args.point_estimator)
                     truth = tag_truth.get(sid)
                     meta = metadata.get(sid, {})
@@ -667,6 +702,8 @@ def main() -> int:
                                 "tag_ball_fingerprint_corrected_max_abs_dev_mm", np.nan
                             ),
                             "point_estimator": args.point_estimator,
+                            "tag_delay_by_tag_mm": json.dumps(tag_delay_by_tag, sort_keys=True),
+                            "effective_tag_delay_mm": tag_delay_by_tag.get("BSF66F", float(layout.tag_delay_mm)),
                             "frames_input": int(len(frames)),
                             "frames_solved": int(summary["frames_solved"]),
                             "solve_fraction": float(summary["frames_solved"] / len(frames)) if frames else 0.0,
@@ -731,6 +768,8 @@ def main() -> int:
             "static_files": [str(p) for p in static_files],
             "static_file_sha256": {str(p): sha256_file(p) for p in static_files},
             "point_estimator": args.point_estimator,
+            "tag_delay_by_tag_mm": tag_delay_by_tag,
+            "tag_delay_by_tag_note": "91.153 mm, when used, is an ORACLE STAND-IN replay override for the static tag and is not a measured calibration.",
             "tag_truth_marker": "corrected_Iantenna",
             "tag_truth_corrections": {
                 sid: ",".join(str(i) for i in perm) for sid, perm in TAG_BALL_LABEL_PERMUTATIONS.items()

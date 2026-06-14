@@ -468,6 +468,56 @@ def solve_v4(pair_dists, anchor_ids, x_init=None):
     return gauge_align_local(x), dly, result
 
 
+def solve_v4_common_mode(pair_dists, anchor_ids, x_init=None, *, c_init=0.0, e_init=None, max_nfev=5000):
+    lp, _g2l, _l2g = local_pairs(pair_dists, anchor_ids)
+    n = len(anchor_ids)
+    if x_init is None:
+        x_init = mds_init(lp, n)
+    pmap = pos_param_map(n)
+    x_start = np.asarray(x_init, dtype=float).copy()
+    e0 = np.zeros(n, dtype=float) if e_init is None else np.asarray(e_init, dtype=float)
+    e0 = np.clip(e0 - np.mean(e0), -80.0, 80.0)
+    x0 = np.r_[pack_pos(x_start), float(c_init), e0]
+    lo = np.r_[np.full(len(pmap), -np.inf), -150.0, np.full(n, -100.0)]
+    hi = np.r_[np.full(len(pmap), np.inf), 150.0, np.full(n, 100.0)]
+
+    def unpack(v):
+        x = unpack_pos(v[:len(pmap)], n)
+        c = float(v[len(pmap)])
+        e = np.asarray(v[len(pmap) + 1:len(pmap) + 1 + n], dtype=float)
+        return x, c, e
+
+    def residual(v):
+        x, c, e = unpack(v)
+        dly = c + e
+        out = [
+            (np.linalg.norm(x[i] - x[j]) + dly[i] + dly[j] - dist) / 15.0
+            for (i, j), dist in lp.items()
+        ]
+        out.extend((e / 20.0).tolist())
+        out.append(float(np.mean(e) / 1.0))
+        out.extend(physical_layout_prior_residuals(x, anchor_ids))
+        return np.asarray(out, dtype=float)
+
+    result = least_squares(residual, x0, loss="huber", f_scale=2.0, bounds=(lo, hi), max_nfev=max_nfev)
+    x, c, e = unpack(result.x)
+    x = gauge_align_local(x)
+    dly = c + e
+    pair_resid = [
+        float(np.linalg.norm(x[i] - x[j]) + dly[i] + dly[j] - dist)
+        for (i, j), dist in lp.items()
+    ]
+    result.physical_diagnostics = layout_physical_diagnostics(x, anchor_ids)
+    result.common_mode_mm = float(c)
+    result.differential_delay_mm = np.asarray(e, dtype=float)
+    result.absolute_delay_mm = np.asarray(dly, dtype=float)
+    result.mean_e_mm = float(np.mean(e))
+    result.max_abs_e_mm = float(np.max(np.abs(e)))
+    result.pair_rmse_mm = float(np.sqrt(np.mean(np.asarray(pair_resid) ** 2)))
+    result.pair_residuals_mm = pair_resid
+    return x, dly, result
+
+
 def inter_rms_local(x, dly, pair_dists, anchor_ids):
     lp, _g2l, _l2g = local_pairs(pair_dists, anchor_ids)
     errs = [np.linalg.norm(x[i] - x[j]) + dly[i] + dly[j] - dist for (i, j), dist in lp.items()]

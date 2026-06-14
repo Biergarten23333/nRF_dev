@@ -53,6 +53,7 @@ VERSIONS = [
     ("v3-lite", "V3-lite", "MAD/MVUE no-delay"),
     ("v3-full", "V3-full", "Tukey + delay"),
     ("v4-io", "V4-io", "Huber bounded-delay inter-anchor"),
+    ("v4-io-commonmode", "V4-io common-mode", "V4-io with d_i = c + e_i common-mode anchor delays"),
     ("v4-io-td", "V4-io-td", "V4-io + static common tag-delay scan"),
     ("v4-io-roto", "V4-io-roto", "V4-io + RotoArm soft constraints"),
     ("v4-io-wand", "V4-io-wand", "V4-io + W01-W04 wand soft constraints"),
@@ -283,6 +284,26 @@ def solve_version(mod, version: str, fused, anchor_ids, extra_data=None) -> Layo
         x, d, res, extra = mod.solve_v3_full(fused["v3"], anchor_ids)
         extra["success"] = bool(getattr(res, "success", False))
         return Layout(version, "V3-full", x, d, extra)
+    if version == "v4-io-commonmode":
+        init, _ = mod.solve_autopos_v1(fused["v3"], anchor_ids)
+        x, d, res = mod.solve_v4_common_mode(fused["v3"], anchor_ids, init)
+        extra = {
+            "success": bool(getattr(res, "success", False)),
+            "based_on": "v4-io",
+            "delay_parameterization": "d_i = c + e_i for all anchors; no d_A=0 gauge",
+            "common_mode_mm": float(getattr(res, "common_mode_mm", float("nan"))),
+            "differential_delay_mm": [
+                float(v) for v in np.asarray(getattr(res, "differential_delay_mm", []), dtype=float).tolist()
+            ],
+            "mean_e_mm": float(getattr(res, "mean_e_mm", float("nan"))),
+            "max_abs_e_mm": float(getattr(res, "max_abs_e_mm", float("nan"))),
+            "pair_rmse_mm": float(getattr(res, "pair_rmse_mm", float("nan"))),
+            "tag_delay_note": "layout tag_delay_mm remains 0. Fixed tag-side delay cases, including 91.153 mm, are ORACLE STAND-IN replay overrides and are not measured calibration.",
+        }
+        physical = getattr(res, "physical_diagnostics", None)
+        if physical:
+            extra.update(physical)
+        return Layout(version, "V4-io common-mode", x, d, extra, 0.0)
     if version in {"v4-io", "v5"}:
         init, _ = mod.solve_autopos_v1(fused["v3"], anchor_ids)
         x, d, res = mod.solve_v4(fused["v3"], anchor_ids, init)
