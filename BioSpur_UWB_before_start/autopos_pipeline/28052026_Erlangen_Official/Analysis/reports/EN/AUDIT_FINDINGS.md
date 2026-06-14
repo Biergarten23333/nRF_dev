@@ -703,3 +703,38 @@ Phase 2.2 follow-up:
 
 Stop status: Phase 2 paper-text edits are applied and compiled. Await review
 before any further paper changes.
+
+## Solver-line backlog
+
+Date: 2026-06-14.
+
+### Two-layer vertical prior: helps nominal, distorts off-nominal
+
+Finding: synthetic-layout evidence from `AutoPos_simulation` over 1000 layouts
+shows that v4-io's soft two-layer vertical prior reconstructs
+off-nominal/irregular anchor geometries markedly worse than the prior-free
+v3-lite. In the synthetic solver sweep, v4-io has coordinate RMS median
+7.58 mm, while v3-lite has coordinate RMS median 0.98 mm. This is not
+real-accuracy validation; it is solver-line synthetic-layout evidence. The
+prior bakes in two-layer structure, so unusual geometries get pulled toward it.
+
+Mechanism: `Phi_prior` in
+`outdoor_20260513/analysis_20260513_182053/run_full_evaluation_same_pipeline_20260513.py`
+uses lower-layer z sigma 180 mm, upper-layer z sigma 220 mm, and a layer-gap
+bound of 450--2600 mm through `physical_layout_prior_residuals(...)`. This
+helps when the real layout is two-layer, as in Erlangen and most clinical-room
+deployments, but it penalizes legitimate off-nominal placements.
+
+Trigger / priority: this is not a problem for nominal two-layer deployments;
+there the prior helps and no immediate action is required. It only becomes
+relevant if a deployment uses non-two-layer or irregular geometry. It sits
+behind the common-mode plus tag-delay work.
+
+Candidate future fix: make the prior adaptive or conditional. Detect layer
+structure, relax the sigma values or drop the layer-gap bound when the layout is
+off-nominal, or fall back to prior-free reconstruction in the v3-lite style for
+unusual layouts and recover metric scale separately.
+
+To confirm before implementation: `solve_v4_common_mode(...)` currently carries
+the same `physical_layout_prior_residuals(...)` call, so this caveat likely
+applies to it too. That caveat is orthogonal to the delay re-parameterization.
