@@ -289,8 +289,7 @@ def plot_v4_3d(out_path: Path, truth: dict[str, np.ndarray], layout_dir: Path) -
     idx = [labels.index(a) for a in ANCHOR_LABELS]
     src = coords[idx]
     dst = np.array([truth[a] for a in ANCHOR_LABELS])
-    vertical_ref_idx = [ANCHOR_LABELS.index(a) for a in ("F", "G", "H")]
-    fit = fit_height_preserving(src, dst, vertical_ref_idx=vertical_ref_idx)
+    fit = fit_similarity(src, dst, allow_reflection=True, allow_scale=False)
     aligned = fit.aligned
 
     # Display in the AutoPos/BioSpur report convention: X/Y horizontal, Z vertical.
@@ -438,7 +437,7 @@ def plot_v4_3d(out_path: Path, truth: dict[str, np.ndarray], layout_dir: Path) -
 
     plot_projection(ax_xy, (0, 1), "Top view: anchor ID map", "X [mm]", "Y horizontal [mm]", show_anchor_labels=True)
 
-    fig.suptitle("AutoPos v4-io UWB+US layout aligned to Vicon ground truth", fontsize=15)
+    fig.suptitle("AutoPos v4-io layout aligned to Vicon ground truth (rigid, reflection allowed, no scale)", fontsize=15)
     fig.savefig(out_path, dpi=150)
     plt.close(fig)
 
@@ -707,17 +706,17 @@ def main() -> int:
             all_summary.append(row)
 
             if eval_set == "all8":
-                diff = fit_height.aligned - dst
+                diff = fit_ref.aligned - dst
                 err3 = np.linalg.norm(diff, axis=1)
                 horiz = np.sqrt(diff[:, 0] ** 2 + diff[:, 2] ** 2)
                 vert = np.abs(diff[:, 1])
-                for a, d, e3, eh, ev, aligned in zip(anchors, diff, err3, horiz, vert, fit_height.aligned):
+                for a, d, e3, eh, ev, aligned in zip(anchors, diff, err3, horiz, vert, fit_ref.aligned):
                     all_error_rows[eval_set].append(
                         {
                             "version": version,
                             "eval_set": eval_set,
                             "anchor": a,
-                            "alignment": "US height-preserving: 2D horizontal rigid + vertical shift, no pitch/roll or 3D scale",
+                            "alignment": "3D rigid orthogonal registration, reflection allowed, no scale",
                             "err_x_mm": d[0],
                             "err_y_vertical_mm": d[1],
                             "err_z_mm": d[2],
@@ -756,8 +755,8 @@ def main() -> int:
     ]
     md = ["# Task 1 Layout Absolute Comparison\n"]
     md.append("Primary OptiTrack truth uses median antenna marker positions from: " + ", ".join(primary_ids) + "\n\n")
-    md.append("Headline deployed UWB+US layout accuracy uses height-preserving alignment: 2D horizontal rigid transform plus one vertical shift, with no pitch/roll and no 3D scale.\n")
-    md.append("Full 3D rigid and Sim(3) similarity alignments are diagnostic only and must not be used as deployed-system absolute-accuracy claims.\n\n")
+    md.append("Primary Vicon evaluation uses anchor-locked 3D rigid orthogonal registration with reflection allowed and no scale correction.\n")
+    md.append("Sim(3) similarity alignment is diagnostic only and must not be used as the primary deployed-system absolute-accuracy claim.\n\n")
     md.append(
         "Corrected FULL OptiTrack export is treated as authoritative; Anchor G is retained in the canonical all8 headline.\n\n"
     )
@@ -765,9 +764,9 @@ def main() -> int:
     if v4_all8:
         r = v4_all8[0]
         md.append(
-            f"Headline sanity: v4-io all8 height-preserving RMS {r['height_preserving_rms_3d_mm']:.1f} mm "
-            f"(horizontal {r['height_preserving_horizontal_rms_mm']:.1f} mm, "
-            f"vertical {r['height_preserving_vertical_rms_mm']:.1f} mm); "
+            f"Headline sanity: v4-io all8 rigid reflection-allowed RMS {r['reflection_allowed_rms_3d_mm']:.1f} mm "
+            f"(horizontal {r['reflection_allowed_horizontal_rms_mm']:.1f} mm, "
+            f"vertical {r['reflection_allowed_vertical_rms_mm']:.1f} mm); "
             f"similarity scale {r['similarity_scale']:.3f} diagnostic only.\n\n"
         )
     md.append("## Summary\n\n")

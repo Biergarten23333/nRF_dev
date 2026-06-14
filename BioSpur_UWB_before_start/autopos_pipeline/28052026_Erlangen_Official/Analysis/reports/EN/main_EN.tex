@@ -58,6 +58,7 @@
 \captionsetup{hypcap=false}
 
 \graphicspath{{fig/}}
+\input{../../official_extra_analysis/FULL/vertical_consistency_stretch_20260613/report_numbers.tex}
 
 \title{%
   Vicon Motion Capture System Ground-Truth Measurement\\
@@ -86,6 +87,7 @@ Using the headline v4-io/T4/F0 pipeline under anchor-locked Vicon rigid registra
 Each reported static point is one \SI{120}{\second} session-averaged UWB coordinate compared against the corresponding Vicon ground-truth coordinate.
 The same evaluation gives \SI{37.4}{\milli\metre} median horizontal error and \SI{61.9}{\milli\metre} median vertical error, with P95 errors of \SI{73.6}{\milli\metre} horizontally and \SI{170.0}{\milli\metre} vertically.
 This supports a dataset-specific claim of sub-decimetre median static localisation under this external anchor-locked alignment and \SI{37.4}{\milli\metre} median horizontal error in this lab geometry; it is not a universal UWB specification, because anchor layout, tag placement, vertical aperture, residual calibration, and propagation conditions all affect the measured accuracy.
+Two qualifications are central: in the delay--layout ablation, the self-calibrated configuration gives \SI{\DelayAblationSelfCalibratedRmseMm}{\milli\metre} RMSE, whereas Vicon-surveyed anchors with frame-matched re-estimated residual corrections give \SI{\DelayAblationSurveyedReestimatedRmseMm}{\milli\metre}; and the \SI{72.7}{\milli\metre} headline partly benefits from the expanded production layout compensating an uncorrected tag-side delay, so the clean metric-corrected layout gives \SI{\CommonModeNoTagDelayStaticMedianMm}{\milli\metre} median error when tag-side delay is left at zero.
 \end{quote}
 
 Dynamic RotoArm accuracy, UWB-internal repeatability, residual delay/range-bias coupling, and offline UWB+IMU fusion are evaluated separately in the later sections.
@@ -213,6 +215,7 @@ The Vicon-derived 3D positions serve as ground truth throughout this report unle
 
 The Vicon reference was recorded with 12 Vicon Vero v2.2 cameras in Nexus 2.16.
 A single WandWave calibration was performed on the morning of the measurement and is embedded identically in all 50 capture files.
+These 50 files include the 24 analysed static captures and 17 analysed RotoArm captures, plus nine calibration, void/test, wand-only, or otherwise unanalysed provenance captures.
 The per-camera calibration evidence gives a median image error of 0.085\,px, a median per-camera mean world error of 0.18\,mm, and a maximum per-camera mean world error of 0.42\,mm.
 
 All TRC trajectory exports use \SI{120}{\hertz} in the \texttt{DataRate}, \texttt{CameraRate}, and \texttt{OrigDataRate} header fields.\footnote{The integer \texttt{MeasuredFrameRate} field in the \texttt{.system} files reads 121 for two RotoArm captures; this is integer rounding of the measured rate, and those captures are not outliers in the temporal-alignment analysis of \cref{sec:roto_temporal}, so no timebase correction is applied.}
@@ -248,6 +251,7 @@ The raw AutoPos anchor coordinates are internally self-consistent but live in an
 Because the F/G/H ultrasound-height calibration in this dataset is treated as a deployment-gauge input rather than an independently validated Vicon reference (see \cref{sec:us_height}), the primary Vicon evaluation uses an anchor-locked rigid registration.
 The rigid registration removes the arbitrary global coordinate frame while preserving the AutoPos layout shape and scale.
 The mirror ambiguity inherent in range-only self-calibration is resolved by choosing the handedness with the lower anchor residual against Vicon.
+This handedness choice is a validation-time convenience enabled by Vicon; in deployment, where no Vicon residual exists, chirality is resolved by operator or UI input before the layout is used.
 
 The primary spatial transform is therefore
 \[
@@ -528,9 +532,9 @@ Anchor~A is largest at \SI{148.2}{\milli\metre}.
 As a cross-check, the layout-based additive term for anchor~A in \cref{sec:anchor} is \SI{145.6}{\milli\metre}, agreeing with the oracle estimate within \SI{2.6}{\milli\metre}.
 
 The error budget closes arithmetically.
-The oracle mean implies a raw per-link bias of $2\times\SI{94.62}{\milli\metre}=\SI{189.2}{\milli\metre}$.
+The oracle mean implies a raw per-link bias of $2\times\SI{94.6}{\milli\metre}=\SI{189.2}{\milli\metre}$.
 The production v4-io fitted anchor delays sum to \SI{275.3}{\milli\metre}; on a complete eight-anchor graph, the corresponding per-link absorption is $\sum_i d_i/4=\SI{68.8}{\milli\metre}$.
-The residual \SI{120.4}{\milli\metre} matches the measured mean pairwise excess of \SI{120.5}{\milli\metre} within \SI{0.11}{\milli\metre}.
+Using the full-precision audit values, the residual \SI{120.42}{\milli\metre} matches the measured mean pairwise excess of \SI{120.53}{\milli\metre} within \SI{0.11}{\milli\metre}.
 Absorption is limited by three solver choices acting together: anchor~A is fixed as the delay reference ($d_A=0$), the fitted delays are bounded by $|d_i|\leq\SI{60}{\milli\metre}$ with anchors~C and~D saturating at the positive bound, and the $\left(d_i/\SI{20}{\milli\metre}\right)^2$ regulariser penalises the common positive offset.
 The unabsorbed range bias is therefore pushed into the layout geometry and appears in the rigid evaluation as expansion.
 
@@ -539,7 +543,7 @@ In this rerun the anchor delays are written as $d_i=c+e_i$ for all eight anchors
 The fitted common mode is \SI{112.0}{\milli\metre}.
 Under this diagnostic layout, the AutoPos-to-Vicon Sim(3) scale moves from 0.9583 to 1.0098, and the rigid anchor RMSE improves from \SI{105.4}{\milli\metre} to \SI{63.0}{\milli\metre}.
 The zero-mean differential terms remain compressed by the same \SI{20}{\milli\metre} regularisation scale, so per-anchor structure, most visibly anchor~A's excess, is still under-represented in the common-mode fit and reappears as anchor~A's position residual; this is consistent with anchor~A retaining the largest rigid-registration residual and with the rigid RMSE stopping near \SI{63}{\milli\metre} rather than lower.
-The separation is not perfectly sharp: clamping $c=0$ raises the solver cost from 81.62 to 138.09, while five perturbed initialisations converge to the same common mode and the same Sim(3) scale to within numerical precision.
+The separation is not perfectly sharp: clamping $c=0$ raises the optimizer cost by roughly 70\% (from 81.62 to 138.09 in arbitrary cost units), while five perturbed initialisations converge to the same common mode and the same Sim(3) scale to within numerical precision.
 Thus the common-mode parameterisation recovers metric scale to about the one-percent level from these ranges alone, but sub-percent scale still needs an independent constraint or bench delay calibration.
 A relaxed-bound rerun that retains the $d_A=0$ gauge and the same regularisation does not collapse the scale, confirming that the gauge and regulariser choices matter, not only the bound.
 
@@ -568,7 +572,8 @@ This is a bounding check on the optical reference, not a competing explanation f
 \begin{table}[H]
 \centering
 \caption{Per-anchor range-bias decomposition.
-All entries are millimetres and are diagnostic quantities, not changes to the production layout.}
+All entries are millimetres and are diagnostic quantities, not changes to the production layout.
+The displayed entries are rounded to one decimal place; the text uses the full-precision production-delay sum.}
 \label{tab:delay_decomposition_per_anchor}
 \scriptsize
 \setlength{\tabcolsep}{4.4pt}
@@ -593,7 +598,7 @@ H & \SI{85.2}{\milli\metre}  & \SI{46.2}{\milli\metre}  & \SI{109.7}{\milli\metr
 \end{table}
 
 These diagnostics do not change the headline pipeline.
-They identify the mechanism behind the scale signature in \cref{sec:anchor} and explain why the four-way ablation in \cref{sec:delay} found the residual corrections to be frame-conditioned: geometry and delay/range-bias terms are not interchangeable across coordinate frames.
+They identify the mechanism behind the scale signature in \cref{sec:anchor} and explain why the four-way ablation above found the residual corrections to be frame-conditioned: geometry and delay/range-bias terms are not interchangeable across coordinate frames.
 
 
 % ============================================================
@@ -636,7 +641,8 @@ The anchor array spans approximately \SI{2.4}{\metre}$\times$\SI{2.8}{\metre} ho
 The range-only DOP analysis in \cref{sec:dop_geometry} shows, however, that this vertical dominance is not a simple geometric-observability effect: the full 8-anchor layout yields VDOP comparable to HDOP over the measured volume, so unbiased range noise would not produce a vertically dominated error.
 Consistent with this, the UWB-internal repeatability in \cref{tab:static_repeatability_headline} is not vertically dominated (\SI{27.4}{\milli\metre} vs.\ \SI{56.1}{\milli\metre} median spread), whereas the Vicon-referenced accuracy is.
 The vertical accuracy deficit therefore behaves as a systematic bias rather than amplified random noise, consistent with the residual delay/range-bias coupling of \cref{sec:anchor,sec:delay} projecting coherently onto the vertical axis.
-The decomposition in \cref{sec:delay_decomposition} identifies the concrete bias sources as per-device range bias on the anchor side, with anchor~A largest, together with uncorrected tag-side device delay.
+The height-driver audit in \cref{sec:dop_geometry} identifies uncorrected tag-side device delay as the dominant height-dependent vertical lever.
+The anchor-side per-device range bias, with anchor~A largest in \cref{sec:delay_decomposition}, manifests as the expanded layout that partially masks that tag-side effect rather than causing it.
 
 \subsection{Headline Internal-Repeatability Result}
 \label{sec:static_repeatability_headline}
@@ -883,7 +889,7 @@ For each capture, the Vicon trajectory was fitted with a circle plane; the tilt 
 \setlength{\tabcolsep}{4.5pt}
 \begin{tabular}{>{\raggedright\arraybackslash}p{3.4cm} l c c c c c}
 \toprule
-{Tilt group} & {Captures} & {Tilt [deg]} & {Tracks} & {P50 [\si{\milli\metre}]} & {P95 [\si{\milli\metre}]} & {RMSE [\si{\milli\metre}]} \\
+{Tilt group} & {Capture IDs} & {Tilt [deg]} & {Tracks} & {P50 [\si{\milli\metre}]} & {P95 [\si{\milli\metre}]} & {RMSE [\si{\milli\metre}]} \\
 \midrule
 Planar          & R01       &  1 & 2 & 107.2 & 438.3 & 198.4 \\
 Low tilt (facing different anchors)  & R02--R05  & 22 & 8 & 109.5 & 282.3 & 151.9 \\
@@ -918,6 +924,7 @@ The same RotoArm replay was evaluated for each anchor-layout solver and tag-posi
 \Cref{fig:roto_solver_matrix} shows that v4-io is consistently best or tied for best, but the gain over v2/v3-lite is small: the v4-io row is about \SIrange{106}{110}{\milli\metre}, while v2 and v3-lite are about \SIrange{110}{114}{\milli\metre}.
 The old v1 layout is clearly worse, but none of the solver combinations removes the $\sim$\SI{100}{\milli\metre} dynamic floor.
 The remaining RotoArm error is therefore not explained by solver selection or anchor-layout quality alone.
+Because the temporal offset $\beta$ was selected using the primary v4-io/T4 trajectory and then frozen for all other solver combinations, this solver matrix should be read as a practical replay comparison rather than a per-solver timing-refitted comparison.
 
 
 % ============================================================
@@ -939,7 +946,7 @@ The input trajectory is the v4-io/T4 dynamic output from \cref{sec:roto_headline
 \setlength{\tabcolsep}{3.8pt}
 \begin{tabular}{c c c c c c c}
 \toprule
-{Configuration} & {Filter mode} & {Track P50} & {Track P95} & {Sample RMSE} & {Centre RMS} & {Radius RMS} \\
+{Configuration} & {Filter mode} & {Track P50} & {Track P95} & {Sample RMSE} & {\shortstack{Turn-centre\\error vs Vicon}} & {Radius RMS} \\
 \midrule
 T4 + F0 & Unfiltered & 105.8 & 231.8 & 141.3 & 72.1 & 25.9 \\
 T4 + F1 & Causal     & 116.0 & 219.0 & 137.5 & 74.8 & 20.3 \\
@@ -1009,7 +1016,7 @@ The first two static columns separate UWB-internal repeatability from Vicon-refe
 The RotoArm column is not an absolute Vicon trajectory-accuracy metric; it is a geometric self-consistency metric computed from the fitted turn centre.
 The $k=8$ repeatability value (\SI{61.7}{\milli\metre}) is lower than the headline repeatability value in \cref{tab:static_repeatability_headline} (\SI{67.1}{\milli\metre}) because it is recomputed inside the keep-$k$ replay.
 For $k=8$, the replay path keeps only frames where all 8 anchors are available, solves those frames again, computes the per-session $\sigma_{3D}$, and then takes the median over the 24 static sessions.
-The corresponding $k=8$ absolute-accuracy value is \SI{73.4}{\milli\metre}, within \SI{0.8}{\milli\metre} of the \SI{72.7}{\milli\metre} headline median in \cref{tab:static_headline}; the small difference comes from the same replay frame gating and re-solve path.
+The corresponding $k=8$ absolute-accuracy value is \SI{73.4}{\milli\metre}, within about \SI{0.8}{\milli\metre} of the \SI{72.7}{\milli\metre} headline median in \cref{tab:static_headline}; the small difference comes from the same replay frame gating and re-solve path.
 The table should therefore be read as a dropout sensitivity curve normalised to its own full-anchor replay baseline, not as a replacement for the headline static results.
 
 The per-frame random-mask stress test is intentionally harsher for repeatability: for $k=7,6,5,4$, the static $\sigma_{3D}$ medians are \SI{83.2}{\milli\metre}, \SI{107.3}{\milli\metre}, \SI{149.1}{\milli\metre}, and \SI{196.4}{\milli\metre}, respectively.
@@ -1201,8 +1208,8 @@ The resulting per-link biases were propagated through the same local range-to-po
 \centering
 \caption{Ground-reflection consistency check on the real 24 static Vicon tag positions.
          Ranges give the minimum--maximum predicted median absolute vertical error over the $|\Gamma| \times r_{\mathrm{res}}$ sweep at each floor plane.
-         The measured vertical-error medians for the low/mid/high tiers are \SI{112.6}{\milli\metre}, \SI{33.3}{\milli\metre}, and \SI{62.6}{\milli\metre}, respectively.
-         The sign comparison uses the measured signed vertical residual UWB minus Vicon.}
+         The measured session-mean vertical-error medians use the same headline static reduction as \cref{tab:static_headline}: \SI{\StaticLowOfficialAbsVerticalMedianMm}{\milli\metre}, \SI{\StaticMidOfficialAbsVerticalMedianMm}{\milli\metre}, and \SI{\StaticHighOfficialAbsVerticalMedianMm}{\milli\metre} for the low/mid/high tiers, respectively.
+         The sign comparison uses the same measured signed vertical residual, UWB minus Vicon.}
 \label{tab:ground_reflection_check}
 \small
 \setlength{\tabcolsep}{4.5pt}
@@ -1228,7 +1235,7 @@ The result is mixed in a useful way.
 The model produces vertical dominance for every swept parameter combination, so floor reflection remains physically capable of projecting range bias into the vertical axis.
 However, it fails the stronger tests that matter for the measured dominant error mode.
 Across the full sweep, the model never reproduces the measured low $>$ high $>$ mid vertical-error ordering, and it never matches the signed vertical residuals across all height tiers.
-The measured signed medians are negative at low height (\SI{-135.0}{\milli\metre}), negative at mid height (\SI{-32.5}{\milli\metre}), and positive at high height (\SI{85.4}{\milli\metre}), whereas the two-ray model predicts a positive median vertical shift for the mid and high tiers throughout the reported sweep and only conditionally predicts the low-height sign.
+The measured session-mean signed medians are negative at low height (\SI{\StaticLowOfficialSignedVerticalMedianMm}{\milli\metre}), negative at mid height (\SI{\StaticMidOfficialSignedVerticalMedianMm}{\milli\metre}), and positive at high height (\SI{\StaticHighOfficialSignedVerticalMedianMm}{\milli\metre}), whereas the two-ray model predicts a positive median vertical shift for the mid and high tiers throughout the reported sweep and only conditionally predicts the low-height sign.
 This sign failure rules out this unresolved positive-delay two-ray ground-reflection model as the dominant mechanism behind the measured vertical bias, regardless of whether selected parameter combinations can approach one of the absolute magnitudes.
 It does not rule out all floor-related propagation effects, and a ground interaction and an antenna-elevation-angle or phase-centre effect remain experimentally confounded in this dataset.
 The separating experiment is to repeat the static measurement while independently varying tag floor clearance or adding a floor absorber at fixed tag height.
@@ -1248,7 +1255,7 @@ They are presented as simulation evidence for potential dynamic tail suppression
 The fusion study is an offline replay simulation.
 The recorded RotoArm UWB data are replayed through the same computer-side analysis pipeline used for the dynamic UWB evaluation, while the IMU stream is generated synthetically.
 No physical IMU was mounted on the tag during this Vicon test; therefore the results in this section are not hardware-IMU validation results.
-The configuration IDs in this section follow the IMU-fusion codebook in \cref{app:imu_codebook}; for example, A0/U4/P4/L20/I5/T2 denotes the v4-io anchor layout, the old T4 pure-UWB solver renamed as U4, a UWB position post-filter P4, the L20 IMU model, IMU preprocessing I5, and the final PC-side fusion solver T2.
+The configuration IDs in this section follow the IMU-fusion codebook in \cref{app:imu_codebook}; for example, A0/U4/P4/L20/I5/T2 denotes the v4-io anchor layout, the production T4 pure-UWB solver denoted U4 in the fusion codebook, a UWB position post-filter P4, the L20 IMU model, IMU preprocessing I5, and the final PC-side fusion solver T2.
 
 The synthetic IMU reference is derived from the Vicon marker reconstruction of the moving tag assembly.
 For each RotoArm capture, four to five physical markers mounted on the UWB DWM1001C-Dev tag holder define one rigid body; one wand-B marker detached after the first dynamic capture.
@@ -1470,7 +1477,7 @@ The remaining \SIrange{157.0}{174.8}{\milli\metre} vertical P95 shows that fusio
 \centering
 \includegraphics[width=\textwidth]{fig/phase4_spiky_track_err3d_l2_l16_l20.png}
 \caption{Spiky track R01/BS2DCE: 3D error time series for pure UWB versus L2/L16/L20 IMU fusion.
-         The red dashed line marks the \SI{200}{\milli\metre} event threshold used for the in-plane jump count in \cref{tab:spiky}.}
+         The red dashed line is a \SI{200}{\milli\metre} 3D-error visual reference; the in-plane jump count in \cref{tab:spiky} is computed separately from consecutive samples in the fitted rotation plane.}
 \label{fig:spiky_error}
 \end{figure}
 
@@ -1516,16 +1523,28 @@ The same calculation was also evaluated directly at the 24 measured Vicon static
 At those points, the v4-io layout gives medians of GDOP = 1.140, HDOP = 0.804, and VDOP = 0.808.
 HDOP and VDOP are therefore effectively equal at the measured positions.
 Using the Vicon-measured anchor layout instead of the aligned v4-io layout changes the three medians by less than 0.2\%, so this conclusion is not an artefact of the self-calibrated layout.
-Across the 24 positions, Spearman correlation between per-session $\sigma_{3D}$ and GDOP is $\rho=-0.02$ ($p=0.92$), and correlation between vertical Vicon-referenced error and VDOP is $\rho=-0.56$ ($p=0.005$).
+Across the 24 positions, Spearman correlation between per-session $\sigma_{3D}$ and GDOP is $\rho=-0.02$ ($p=0.92$), and correlation between the official session-mean vertical Vicon-referenced error and VDOP is $\rho=\OfficialVerticalErrorVdopDopRho$ ($p=\OfficialVerticalErrorVdopDopP$).
 The sign of the VDOP correlation is opposite to the simple noise-amplification prediction: lower VDOP is associated with larger measured vertical error.
 A height-tier decomposition explains why.
-Across the low, mid, and high static positions, the median VDOP values are 0.781, 0.902, and 0.808, while the corresponding median vertical errors are \SI{112.6}{\milli\metre}, \SI{33.3}{\milli\metre}, and \SI{62.6}{\milli\metre}.
+Across the low, mid, and high static positions, the median VDOP values are 0.781, 0.902, and 0.808, while the corresponding official session-mean median vertical errors are \SI{\StaticLowOfficialAbsVerticalMedianMm}{\milli\metre}, \SI{\StaticMidOfficialAbsVerticalMedianMm}{\milli\metre}, and \SI{\StaticHighOfficialAbsVerticalMedianMm}{\milli\metre}.
 The median internal $\sigma_{3D}$ values are \SI{65.8}{\milli\metre}, \SI{60.9}{\milli\metre}, and \SI{73.1}{\milli\metre}.
 Thus, in the measured 24-point set, VDOP is partly a height proxy rather than a causal predictor of vertical error.
 The low-height positions have better vertical geometry but larger vertical bias, which points to a height-dependent systematic effect rather than to weak vertical observability.
 This motivated the ground-reflection consistency check in \cref{sec:ground_reflection_check}.
 That check rules out the simple unresolved positive-delay two-ray floor model as the dominant measured mechanism because it fails the signed-residual and height-ordering tests.
-The remaining height-dependent bias could still involve more complex floor interactions or antenna elevation-angle and phase-centre effects, but the present dataset is too small ($n=24$) to isolate those mechanisms by DOP alone.
+The anchor layout does show a related vertical stretch: for the v4-io anchor residuals, the lower layer A--D has mean vertical residual \SI{\AnchorLowerVerticalResidualMeanMm}{\milli\metre}, while the upper layer E--H has mean vertical residual \SI{\AnchorUpperVerticalResidualMeanMm}{\milli\metre}.
+This is a \SI{\AnchorLayerVerticalResidualDifferenceMm}{\milli\metre} layer-to-layer stretch over a \SI{\AnchorTruthVerticalLayerGapMm}{\milli\metre} Vicon layer gap, i.e.\ an apparent vertical expansion of \AnchorVerticalExpansionPercent\% about the anchor vertical centroid at \SI{\AnchorTruthVerticalCentroidMm}{\milli\metre}.
+That stretch is a symptom of the per-anchor range bias quantified in \cref{sec:anchor,sec:delay_decomposition}, not the dominant cause of the static tag vertical error.
+The production tag residuals have a signed vertical-error slope of \SI{\TagVerticalRegressionSlopeMmPerM}{\milli\metre\per\metre} with $R^2=\TagVerticalRegressionRtwo$ over the 24 official session-mean static positions.
+When the layout expansion is removed while tag delay is still fixed at zero, the vertical error worsens to \SI{\CommonModeNoTagDelayVerticalMedianMm}{\milli\metre} median on the common-mode layout and \SI{\ViconDelaycalNoTagDelayVerticalMedianMm}{\milli\metre} median with Vicon anchor coordinates and re-estimated anchor delays; the corresponding signed height slopes are \SI{\CommonModeNoTagDelaySlopeMmPerM}{\milli\metre\per\metre} and \SI{\ViconDelaycalNoTagDelaySlopeMmPerM}{\milli\metre\per\metre}.
+Thus, the production layout expansion partially masks a tag-side delay effect rather than creating the observed height dependence.
+
+As a diagnostic upper-bound correction, a fixed tag delay equal to the median endpoint delay from the Vicon-frame inter-anchor calibration, \SI{\TagDelayProxyMm}{\milli\metre}, was applied as a same-hardware tag proxy.
+This value is independent of the 24 scored static tag positions, but it relies on Vicon anchor truth and on the assumption that the tag delay is represented by the anchor endpoint-delay median; it is not a measured tag calibration.
+Under this oracle/proxy tag-delay correction, the signed height slope collapses to \SI{\CommonModeTagDelayProxySlopeMmPerM}{\milli\metre\per\metre} ($R^2=\CommonModeTagDelayProxyRtwo$) on the common-mode layout and \SI{\ViconDelaycalTagDelayProxySlopeMmPerM}{\milli\metre\per\metre} ($R^2=\ViconDelaycalTagDelayProxyRtwo$) in the Vicon-anchor control.
+The projected median vertical errors are \SI{\CommonModeTagDelayProxyVerticalMedianMm}{\milli\metre} and \SI{\ViconDelaycalTagDelayProxyVerticalMedianMm}{\milli\metre}, with projected median 3D errors of \SI{\CommonModeTagDelayProxyThreeDMedianMm}{\milli\metre} and \SI{\ViconDelaycalTagDelayProxyThreeDMedianMm}{\milli\metre}, respectively.
+These values are oracle projections for mechanism isolation and do not replace the uncorrected v4-io/T4/F0 headline result.
+The remaining vertical floor after this correction has little height structure and is more plausibly attributable to residual phase-centre, multipath, noise, and registration effects.
 
 \begin{figure}[H]
 \centering
@@ -1647,7 +1666,10 @@ The remaining error must be interpreted together with the delay--layout coupling
         The audit traces the $+4.36\%$ apparent scale primarily to
         common-mode per-device range bias, an antenna-delay
         miscalibration class, rather than to a true geometric scale
-        distortion. A re-parameterised solver with $d_i=c+e_i$ for all
+        distortion. The vertical-driver audit shows that this layout
+        expansion partially masks the dominant tag-side delay effect rather
+        than causing the measured static height dependence. A
+        re-parameterised solver with $d_i=c+e_i$ for all
         anchors and a free common mode recovers metric scale to within
         about 1\% from the UWB ranges alone, so the remaining
         scale--common-delay separation is weakly identified rather than
@@ -1655,7 +1677,8 @@ The remaining error must be interpreted together with the delay--layout coupling
         threefold: per-device antenna-delay bench calibration, or an
         independent metric constraint, for sub-percent accuracy;
         tag-side delay handling through one-time constant calibration or
-        windowed estimation; and production validation of the solver
+        windowed estimation as the dominant vertical-error lever; and
+        production validation of the solver
         re-parameterisation, including delay-gauge removal and
         bound/regulariser redesign, before adoption, because the
         corrected diagnostic layout currently degrades the end-to-end
@@ -1700,7 +1723,11 @@ the production v4-io/T4/F0 pipeline achieves 72.7\,mm median 3D error,
 37.4\,mm median horizontal error. The error budget is vertically dominated;
 the DOP analysis shows this is not explained by geometric observability,
 and the repeatability/accuracy split identifies it as systematic bias
-consistent with residual delay/range-bias coupling.
+consistent with residual delay/range-bias coupling. This headline partly
+depends on the expanded production layout compensating an uncorrected
+tag-side delay; the clean metric-corrected layout gives
+\SI{\CommonModeNoTagDelayStaticMedianMm}{\milli\metre} median error when
+tag-side delay is left at zero.
 
 \textbf{Anchor self-calibration.} The v4-io layout reproduces the Vicon
 anchor geometry with 92.8\,mm median residual. The dominant layout error
@@ -1708,14 +1735,20 @@ mode is a coherent apparent $+4.36\%$ scale signature rather than random
 shape distortion. The decomposition in \cref{sec:delay_decomposition}
 traces this signature to common-mode per-device range bias that is
 under-absorbed by the constrained production delay terms and therefore
-expressed geometrically as expansion.
+expressed geometrically as expansion. In the static tag results, this
+expanded layout partially masks the height-dependent error from
+uncorrected tag-side delay rather than explaining it as a layout-only
+effect.
 
 \textbf{Delay--layout coupling.} The four-way ablation showed that
 Vicon-measured anchor coordinates \emph{degrade} tag localisation unless
 the residual delay/range-bias corrections are re-estimated in the same
 coordinate frame; with re-estimation they outperform the self-calibrated
-configuration (78\,mm vs.\ 109\,mm RMSE in the ablation estimator). The
-practical reading is twofold: fitted residual corrections are
+configuration (\SI{\DelayAblationSurveyedReestimatedRmseMm}{\milli\metre}
+vs.\ \SI{\DelayAblationSelfCalibratedRmseMm}{\milli\metre} RMSE in the
+ablation estimator). This
+gap is the main cost of not using external survey infrastructure in this dataset.
+The practical reading is twofold: fitted residual corrections are
 frame-conditioned quantities that cannot be transplanted, and the value
 of self-calibration lies in reaching comparable median accuracy without
 external measurement infrastructure.
@@ -1747,7 +1780,8 @@ primarily as tail control, suppressing motion-inconsistent outliers
 row), while UWB absolute positions are required to bound inertial drift.
 
 Within the measured envelope, the results support sub-decimetre median
-static localisation from a fully self-calibrated UWB anchor array in a
+static localisation from a UWB anchor array that is self-calibrated up to
+a manually-resolved chirality in a
 favourable open-lab environment, and they identify the two concrete
 obstacles on the path to clinical full-body motion capture: the apparent
 scale bias, which the audit traces to per-device range bias and shows to

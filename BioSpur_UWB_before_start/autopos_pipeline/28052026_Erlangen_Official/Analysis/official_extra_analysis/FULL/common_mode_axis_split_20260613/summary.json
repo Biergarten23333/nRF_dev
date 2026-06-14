@@ -1,0 +1,89 @@
+{
+  "common_mode_summary": {
+    "err3d_median_mm": 109.51538194751673,
+    "err3d_p95_mm": 223.8592378045819,
+    "err3d_rmse_mm": 140.52524928793653,
+    "horizontal_median_mm": 45.21830372733815,
+    "horizontal_p95_mm": 75.96229646685205,
+    "horizontal_rmse_mm": 49.709725976733516,
+    "n": 24,
+    "vertical_median_mm": 89.42072844017994,
+    "vertical_p95_mm": 222.158724199241,
+    "vertical_rmse_mm": 131.43929713276304
+  },
+  "common_mode_vertical_regression": {
+    "intercept_mm": -208.47017285849617,
+    "n": 24,
+    "pivot_error_mm": -16.07140130050837,
+    "pivot_height_mm": 979.4517123809857,
+    "r2": 0.7693476326585723,
+    "slope_mm_per_m": 196.43517809599663
+  },
+  "comparison_table5_vs_common_mode": [
+    {
+      "err3d_median_mm": 72.7,
+      "err3d_p95_mm": 171.5,
+      "err3d_rmse_mm": 109.8,
+      "horizontal_median_mm": 37.4,
+      "horizontal_p95_mm": 73.6,
+      "horizontal_rmse_mm": 47.9,
+      "layout": "production_v4io_tag_delay_0_Table5",
+      "n": NaN,
+      "source": "existing main_EN.tex Table 5 / tab:static_headline",
+      "vertical_median_mm": 61.9,
+      "vertical_p95_mm": 170.0,
+      "vertical_rmse_mm": 98.8
+    },
+    {
+      "err3d_median_mm": 109.51538194751673,
+      "err3d_p95_mm": 223.8592378045819,
+      "err3d_rmse_mm": 140.52524928793653,
+      "horizontal_median_mm": 45.21830372733815,
+      "horizontal_p95_mm": 75.96229646685205,
+      "horizontal_rmse_mm": 49.709725976733516,
+      "layout": "common_mode_metric_corrected_tag_delay_0",
+      "n": 24.0,
+      "source": "autopos_pipeline/28052026_Erlangen_Official/Analysis/official_extra_analysis/FULL/audit_phase1d/tables/item1_item2_static_per_session.csv",
+      "vertical_median_mm": 89.42072844017994,
+      "vertical_p95_mm": 222.158724199241,
+      "vertical_rmse_mm": 131.43929713276304
+    }
+  ],
+  "hypothesis_checks": {
+    "common_3d_median_reproduces_109p5": true,
+    "horizontal_median_worsens_vs_table5_37p4": true,
+    "vertical_median_improves_vs_table5_61p9": false,
+    "vertical_slope_drops_vs_production_170p8": false,
+    "vertical_slope_near_80_mm_per_m": false
+  },
+  "production_regression_recomputed_for_check": {
+    "intercept_mm": -153.1613086579908,
+    "n": 24,
+    "pivot_error_mm": -26.48641395784078,
+    "pivot_height_mm": 979.4517123809857,
+    "r2": 0.6260179974314946,
+    "slope_mm_per_m": 129.33245518782266
+  },
+  "production_regression_report_reference": {
+    "r2": 0.595,
+    "slope_mm_per_m": 170.8,
+    "source": "existing section 12 macros/report"
+  },
+  "sanity": {
+    "common_layout_json_unique": [
+      "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/Analysis/official_extra_analysis/FULL/audit_phase1c/layouts/v4io_common_mode/layout.json"
+    ],
+    "common_point_estimators": [
+      "mean"
+    ],
+    "common_rows": 24,
+    "common_statuses": [
+      "ok"
+    ],
+    "common_tag_methods": [
+      "T4_fixed_dtag"
+    ],
+    "input_csv": "autopos_pipeline/28052026_Erlangen_Official/Analysis/official_extra_analysis/FULL/audit_phase1d/tables/item1_item2_static_per_session.csv",
+    "production_rows": 24
+  }
+}

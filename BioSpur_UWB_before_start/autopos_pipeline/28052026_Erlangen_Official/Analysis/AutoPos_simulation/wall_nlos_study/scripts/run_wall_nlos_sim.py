@@ -34,11 +34,7 @@ GROUND_GAMMA_MAGNITUDES = [0.5, 0.7, 0.9]
 GROUND_RESOLUTION_CM = [15.0, 30.0, 60.0]
 GROUND_Z_FLOOR_MM = [0.0, -100.0, -200.0, -300.0]
 LOWEST_TRACKED_MARKER_Y_MM = 105.58
-MEASURED_TIER_VERTICAL_ABS_MM = {
-    "low": 112.647,
-    "mid": 33.251,
-    "high": 62.638,
-}
+MEASURED_STATIC_CASE_ID = "production_v4io_fixed_0mm"
 
 
 def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -110,18 +106,29 @@ def load_real_static_geometry(campaign_root: Path) -> tuple[list[str], np.ndarra
     return anchor_labels, anchors_m, tag_rows, np.asarray(tag_coords, dtype=np.float64)
 
 
-def load_measured_signed_vertical(campaign_root: Path) -> tuple[dict[str, float], dict[str, int]]:
-    path = campaign_root / "Analysis" / "official_extra_analysis" / "FULL" / "tables" / "tag_abs_errors_per_session.csv"
+def load_measured_vertical_targets(
+    campaign_root: Path,
+) -> tuple[dict[str, float], dict[str, float], dict[str, int], str]:
+    path = (
+        campaign_root
+        / "Analysis"
+        / "official_extra_analysis"
+        / "FULL"
+        / "audit_phase1d"
+        / "tables"
+        / "item1_item2_static_per_session.csv"
+    )
     by_height: dict[str, list[float]] = {"low": [], "mid": [], "high": []}
     with path.open(newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
-            if row["version"] == "v4-io" and row["eval_set"] == "all8" and row["method"] == "C_anchor_locked_OFFICIAL":
+            if row["case_id"] == MEASURED_STATIC_CASE_ID:
                 by_height[row["height"]].append(float(row["err_y_vertical_mm"]))
     med = {h: float(np.median(v)) for h, v in by_height.items()}
+    abs_med = {h: float(np.median(np.abs(v))) for h, v in by_height.items()}
     n = {h: len(v) for h, v in by_height.items()}
     if any(count != 8 for count in n.values()):
         raise ValueError(f"expected 8 signed vertical rows per height, got {n}")
-    return med, n
+    return med, abs_med, n, f"{path} case_id={MEASURED_STATIC_CASE_ID}"
 
 
 def geometry_projection(anchors_m: np.ndarray, tags_m: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -198,7 +205,9 @@ def run_ground_reflection_real_static(
         )
 
     anchor_labels, anchors_m, tag_rows, tags_m = load_real_static_geometry(campaign_root)
-    measured_signed_median, measured_counts = load_measured_signed_vertical(campaign_root)
+    measured_signed_median, measured_abs_median, measured_counts, measured_source = (
+        load_measured_vertical_targets(campaign_root)
+    )
     _, _, gt = geometry_projection(anchors_m, tags_m)
 
     summary_rows: list[dict[str, Any]] = []
@@ -209,7 +218,7 @@ def run_ground_reflection_real_static(
             "n": measured_counts[height],
             "measured_signed_vertical_median_mm": measured_signed_median[height],
             "measured_signed_vertical_sign": sign_label(measured_signed_median[height]),
-            "measured_abs_vertical_target_mm": MEASURED_TIER_VERTICAL_ABS_MM[height],
+            "measured_abs_vertical_target_mm": measured_abs_median[height],
         }
         for height in ("low", "mid", "high")
     ]
@@ -281,7 +290,7 @@ def run_ground_reflection_real_static(
                 for height in ("low", "mid", "high"):
                     for key, value in tier_stats[height].items():
                         row[f"{height}_{key}"] = value
-                    row[f"{height}_measured_abs_vertical_target_mm"] = MEASURED_TIER_VERTICAL_ABS_MM[height]
+                    row[f"{height}_measured_abs_vertical_target_mm"] = measured_abs_median[height]
                     row[f"{height}_measured_signed_vertical_median_mm"] = measured_signed_median[height]
                     row[f"{height}_pred_signed_sign"] = sign_label(tier_stats[height]["pred_vertical_signed_median_mm"])
                     row[f"{height}_measured_signed_sign"] = sign_label(measured_signed_median[height])
@@ -342,7 +351,7 @@ def run_ground_reflection_real_static(
             row[f"{height}_pred_vertical_abs_min_mm"] = float(np.min(vals))
             row[f"{height}_pred_vertical_abs_median_over_sweep_mm"] = float(np.median(vals))
             row[f"{height}_pred_vertical_abs_max_mm"] = float(np.max(vals))
-            row[f"{height}_measured_abs_vertical_target_mm"] = MEASURED_TIER_VERTICAL_ABS_MM[height]
+            row[f"{height}_measured_abs_vertical_target_mm"] = measured_abs_median[height]
         z_floor_rows.append(row)
     write_csv(out_root / "robust_verdict.csv", robust_rows)
     write_csv(out_root / "z_floor_magnitude_summary.csv", z_floor_rows)
@@ -353,7 +362,7 @@ def run_ground_reflection_real_static(
         "campaign_root": str(campaign_root),
         "layout_source": "Analysis/official_extra_analysis/FULL/tables/layout_abs_errors_all8.csv truth_x/truth_y/truth_z rows",
         "static_tag_source": "Analysis/official_extra_analysis/FULL/tables/revision2_dop_at_static_vicon_positions.csv",
-        "signed_vertical_source": "Analysis/official_extra_analysis/FULL/tables/tag_abs_errors_per_session.csv v4-io/all8/C_anchor_locked_OFFICIAL",
+        "measured_vertical_source": measured_source,
         "coordinate_convention": "sim columns are horizontal X, horizontal Z, vertical raw Vicon Y",
         "z_floor_mm": z_floor_mm,
         "z_floor_certainty": "swept; z_floor=0 follows operator procedure but is not file-proven",
@@ -362,7 +371,7 @@ def run_ground_reflection_real_static(
         "gamma_sign_convention": "Gamma = -|Gamma| for vertically polarised grazing-incidence ground reflection",
         "resolution_cm": resolution_cm,
         "range_bias_model": "bias_m = |Gamma| * resolution_m * exp(-(excess_path_m / resolution_m)^2), positive by threshold-delay assumption",
-        "measured_tier_vertical_abs_targets_mm": MEASURED_TIER_VERTICAL_ABS_MM,
+        "measured_tier_vertical_abs_targets_mm": measured_abs_median,
         "measured_signed_vertical_median_mm": measured_signed_median,
         "robust_verdict_flags": robust,
         "anchor_labels": anchor_labels,

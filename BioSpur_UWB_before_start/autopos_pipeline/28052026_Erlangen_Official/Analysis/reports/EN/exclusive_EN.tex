@@ -1,0 +1,96 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=22mm]{geometry}
+\usepackage{amsmath,amssymb}
+\IfFileExists{siunitx.sty}{%
+  \usepackage{siunitx}
+}{%
+  \newcommand{\sisetup}[1]{}
+  \newcommand{\si}[1]{\textnormal{##1}}
+  \newcommand{\SI}[2]{##1\,\textnormal{##2}}
+  \newcommand{\SIrange}[3]{##1--##2\,\textnormal{##3}}
+  \newcommand{\milli}{m}
+  \newcommand{\centi}{c}
+  \newcommand{\metre}{m}
+  \newcommand{\second}{s}
+  \newcommand{\hertz}{Hz}
+  \newcommand{\per}{/}
+}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xr-hyper}   % MUST be before hyperref
+\usepackage{hyperref}
+\sisetup{
+  round-mode = places,
+  round-precision = 1,
+  detect-weight = true,
+  detect-family = true,
+}
+\hypersetup{colorlinks=true, linkcolor=blue!60!black, citecolor=green!50!black, urlcolor=blue!70!black}
+\externaldocument[main-]{main_EN}
+\input{../../official_extra_analysis/FULL/vertical_consistency_stretch_20260613/report_numbers.tex}
+
+\begin{document}
+
+\begin{center}
+{\large\bfseries Executive Summary}\\[2pt]
+{\bfseries Vicon Ground-Truth Validation of the AutoPos UWB Self-Localisation System}\\[2pt]
+{Erlangen, 28~May~2026 \quad|\quad Zekai Xiao}\\[5pt]
+{\footnotesize All ``\S'' and ``Table'' references link to the full report \texttt{main\_EN.pdf}; numbers are shared with it.}
+\end{center}
+\vspace{2pt}
+
+This report presents the first external ground-truth validation of the AutoPos UWB anchor self-localisation system against a Vicon motion-capture reference (28~May~2026, MaD~Lab, FAU Erlangen-N\"urnberg; \S\ref{main-sec:intro}). Eight DWM1001C-Dev anchors run broadcast SS-TWR with UWB-only inter-anchor self-calibration; a 12-camera Vicon system (sub-millimetre, \SI{0.18}{\milli\metre} median world error) provides truth. The evaluation covers 24 static tag positions, 17 dynamic RotoArm captures, and an offline UWB+IMU fusion replay. All claims are dataset-bound to this measurement.
+
+\vspace{4pt}
+\begin{center}
+{\small\bfseries Key results at a glance}\\[3pt]
+\small
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.45\textwidth} l l@{}}
+\toprule
+\textbf{Quantity} & \textbf{Result} & \textbf{Full report} \\
+\midrule
+Static 3D accuracy --- median / P95 / RMSE & 72.7 / 171.5 / 109.8\,mm & \S\ref{main-sec:static_headline}, Table~\ref{main-tab:static_headline} \\
+Static horizontal / vertical median & 37.4 / 61.9\,mm & Table~\ref{main-tab:static_headline} \\
+Internal repeatability $\sigma_{3D}$ --- unfiltered $\to$ filtered & 67.1 $\to$ 18.6\,mm & Table~\ref{main-tab:static_repeatability_headline}, \S\ref{main-sec:filter} \\
+Anchor self-cal.\ residual / apparent scale & 92.8\,mm / $+4.36\%$ & \S\ref{main-sec:anchor}, \S\ref{main-sec:delay_decomposition} \\
+Dynamic RotoArm floor --- track P50, persists & 105.8\,mm & \S\ref{main-sec:roto}, Table~\ref{main-tab:roto_headline} \\
+Best UWB+IMU fusion --- track P95 & 231.8 $\to$ 112.1\,mm & \S\ref{main-sec:imu}, Table~\ref{main-tab:imu} \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{2pt}
+
+\paragraph{Headline static accuracy.}
+Under anchor-locked rigid Vicon registration, the production v4-io/T4/F0 pipeline achieves \textbf{\SI{72.7}{\milli\metre} median 3D error} over 24 static positions (full breakdown in the table above; \S\ref{main-sec:static_headline}, Table~\ref{main-tab:static_headline}). This is sub-decimetre median static localisation from a range-only self-calibrated array in this geometry --- not a universal UWB specification, since layout, tag placement, vertical aperture, and propagation all affect it.
+
+\paragraph{Anchor self-calibration and the apparent scale bias.}
+The v4-io layout reproduces the Vicon anchor geometry to \SI{92.8}{\milli\metre} median residual (\S\ref{main-sec:anchor}, Table~\ref{main-tab:layout}). The dominant layout-error mode is not random shape distortion but a coherent \textbf{$+4.36\%$ apparent scale} (mean inter-anchor excess \SI{120.5}{\milli\metre}/pair). A per-anchor decomposition (\S\ref{main-sec:delay_decomposition}, Table~\ref{main-tab:delay_decomposition_per_anchor}) traces this to common-mode per-device range bias (mean \SI{94.6}{\milli\metre}/device, all eight terms positive) that the bounded production delay terms under-absorb, so the residual appears geometrically as layout expansion. A re-parameterised solver with a free common mode recovers metric scale to ${\approx}1\%$ from UWB ranges alone, leaving sub-percent scale for bench delay calibration.
+
+\paragraph{Key scientific finding --- delay--layout coupling.}
+A four-way ablation (layout source $\times$ residual-correction treatment; \S\ref{main-sec:delay}, Table~\ref{main-tab:delay_coupling}) shows that optically surveyed Vicon anchor coordinates \emph{degrade} tag localisation unless the residual delay/range-bias corrections are re-estimated in the Vicon coordinate frame (\SI{\DelayAblationSurveyedReestimatedRmseMm}{\milli\metre} vs.\ \SI{\DelayAblationSelfCalibratedRmseMm}{\milli\metre} RMSE in the ablation estimator). The fitted corrections are \textbf{frame-conditioned} and cannot be transplanted across coordinate frames. To our knowledge this is the first explicit four-way ablation showing that externally measured ground-truth coordinates cannot simply replace a self-calibrated UWB layout --- the most transferable result of the campaign and the intended core of a methods publication.
+
+\paragraph{Vertical error is systematic, not geometric.}
+The static error is vertically dominated (\SI{61.9}{\milli\metre} vertical vs.\ \SI{37.4}{\milli\metre} horizontal median). A range-only DOP analysis rules out geometric observability: VDOP ${\approx}$ HDOP over the measured volume (\S\ref{main-sec:dop_geometry}, Table~\ref{main-tab:dop_grid_summary}), and repeatability is \emph{not} vertically dominated whereas accuracy is, so the deficit is systematic bias, not amplified noise. A height-driver audit identifies the uncorrected \textbf{tag-side delay} as the dominant height-dependent lever; the expanded anchor layout partially \emph{masks} it. The \SI{72.7}{\milli\metre} headline therefore benefits in part from this cancellation: holding tag delay at zero on the clean metric-corrected layout gives \SI{\CommonModeNoTagDelayStaticMedianMm}{\milli\metre} median, while an oracle same-hardware tag-delay correction projects a 3D median near \SI{\ViconDelaycalTagDelayProxyThreeDMedianMm}{\milli\metre} (\SI{\CommonModeTagDelayProxyThreeDMedianMm}{\milli\metre} on the common-mode diagnostic layout). The headline is reported as-measured; these are mechanism-isolation diagnostics, not competing claims.
+
+\paragraph{Two deployment lessons.}
+\emph{Filtering is not calibration} --- external position filters cut per-session spread from \SI{67.1}{\milli\metre} to \SI{18.6}{\milli\metre} (\S\ref{main-sec:filter}, Table~\ref{main-tab:filter}) but leave absolute accuracy essentially unchanged; they remove jitter, not bias. \emph{The dynamic floor is UWB-intrinsic} --- RotoArm trajectories show a ${\sim}\SI{100}{\milli\metre}$ median floor (\S\ref{main-sec:roto}, Table~\ref{main-tab:roto_headline}) that persists across every layout and tag-solver combination and is not removed by substituting Vicon-measured anchor coordinates, pointing to motion-dependent range bias, antenna orientation, and shadowing rather than layout quality.
+
+\paragraph{UWB + IMU fusion (offline replay).}
+With a synthetic IMU derived from the Vicon antenna-centre trajectory, fusion acts primarily as tail control: the best production row reduces track-level P95 from \SI{231.8}{\milli\metre} to \SI{112.1}{\milli\metre} (\S\ref{main-sec:imu}, Table~\ref{main-tab:imu}), while UWB absolute positions are required to bound inertial drift. This is replay evidence under datasheet-informed sensor models, not hardware-in-the-loop validation.
+
+\paragraph{Limitations (\S\ref{main-sec:limitations}).}
+No hardware time synchronisation (dynamic error is best-fit post-processed, not clock-referenced); a single favourable open-lab site; discrete static positions; constrained circular RotoArm motion; simulated rather than embedded IMU.
+
+\paragraph{Next steps (\S\ref{main-sec:limitations}).}
+(1)~GPIO/event hardware time-sync; (2)~per-device antenna-delay bench calibration plus a one-time or windowed tag-side delay correction, as the dominant vertical-error lever; (3)~DOP-aware runtime confidence conditioned on the surviving anchor geometry; (4)~closed-loop hardware IMU (ICM-45686 class); (5)~unconstrained 3D motion and ${\geq}1$ cluttered environment; (6)~independent ultrasound height-gauge verification.
+
+\paragraph{Bottom line (\S\ref{main-sec:conclusion}).}
+Within this dataset, AutoPos delivers sub-decimetre median static localisation from a self-calibrated anchor array (up to a manually resolved chirality) in a favourable environment. Two concrete obstacles remain on the path to clinical full-body capture: the apparent scale bias (traced to per-device range bias, largely recoverable by solver re-parameterisation plus delay calibration) and the ${\sim}\SI{100}{\milli\metre}$ dynamic floor (addressed by time-sync and hardware IMU). Neither is resolved by this dataset.
+
+\end{document}

@@ -534,7 +534,7 @@ def plot_fixed_sweep(rows: list[dict], out_png: Path) -> None:
     for layout_name, g in sub.groupby("layout_name"):
         g = g.sort_values("fixed_tag_delay_mm")
         ax.plot(g["fixed_tag_delay_mm"], g["err_3d_median_mm"], marker="o", label=layout_name)
-    ax.axvline(94.62, color="#666666", linestyle="--", linewidth=1.0, label="oracle mean 94.62 mm")
+    ax.axvline(94.62, color="#666666", linestyle="--", linewidth=1.0, label="oracle mean 94.6 mm")
     ax.set_xlabel("fixed tag_delay_mm")
     ax.set_ylabel("static T4 mean 3D median error (mm)")
     ax.set_title("Fixed tag-delay sweep")
