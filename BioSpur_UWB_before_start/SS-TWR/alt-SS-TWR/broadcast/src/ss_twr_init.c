@@ -656,9 +656,7 @@ static void ss_twr_init_publish_cir_features(uint8_t anchor_id,
 #define SS_TWR_INIT_CIR_ACC_READ_LEN (ACC_MEM_LEN + 1U)
 #define SS_TWR_INIT_CIR_ACC_SPI_CHUNK_BYTES 512U
 
-static uint8_t
-    ss_twr_init_cir_full_acc_by_anchor[UWB_MAX_ANCHORS]
-                                      [SS_TWR_INIT_CIR_ACC_READ_LEN];
+static uint8_t ss_twr_init_cir_full_acc[SS_TWR_INIT_CIR_ACC_READ_LEN];
 static uint8_t ss_twr_init_cir_full_target_cursor;
 static uint8_t ss_twr_init_cir_full_priority_cursor;
 
@@ -5241,8 +5239,7 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             rx_diag_valid[anchor_id] = true;
 #if APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U
             if (anchor_id == cir_full_target_anchor_id && !cir_full_captured) {
-                ss_twr_init_read_full_cir(
-                    ss_twr_init_cir_full_acc_by_anchor[anchor_id]);
+                ss_twr_init_read_full_cir(ss_twr_init_cir_full_acc);
                 cir_full_valid[anchor_id] = true;
                 cir_full_captured = true;
             }
@@ -5372,8 +5369,7 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             rx_diag_valid[anchor_id] = true;
 #if APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U
             if (anchor_id == cir_full_target_anchor_id && !cir_full_captured) {
-                ss_twr_init_read_full_cir(
-                    ss_twr_init_cir_full_acc_by_anchor[anchor_id]);
+                ss_twr_init_read_full_cir(ss_twr_init_cir_full_acc);
                 cir_full_valid[anchor_id] = true;
                 cir_full_captured = true;
             }
@@ -5452,7 +5448,7 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
                         resp_rx_ts_by_anchor[anchor_id],
                         carrier_integrator_by_anchor[anchor_id],
                         &rx_diag_by_anchor[anchor_id],
-                        ss_twr_init_cir_full_acc_by_anchor[anchor_id]);
+                        ss_twr_init_cir_full_acc);
                 }
 #endif
             }

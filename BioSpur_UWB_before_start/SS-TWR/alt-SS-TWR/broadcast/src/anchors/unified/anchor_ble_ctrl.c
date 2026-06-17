@@ -39,6 +39,11 @@ static bool g_state_notify_enabled;
 #define ANCHOR_BLE_CTRL_STATE_ATTR_INDEX 2U
 #define ANCHOR_BLE_CTRL_RESULT_ATTR_INDEX 11U
 
+static bool full_cir_quiet(void)
+{
+    return anchor_cir_output_get_mode() == ANCHOR_CIR_OUTPUT_FULL;
+}
+
 /* 2f2b8f40-84e0-4be6-b6bf-2fd95f39d3f0 */
 static struct bt_uuid_128 g_svc_uuid =
     BT_UUID_INIT_128(0xf0, 0xd3, 0x39, 0x5f, 0xd9, 0x2f, 0xbf, 0xb6,
@@ -731,7 +736,7 @@ static void notify_result_if_possible(void)
                         &anchor_ble_ctrl_svc.attrs[ANCHOR_BLE_CTRL_RESULT_ATTR_INDEX],
                         g_result_text,
                         strlen(g_result_text));
-    if (rc != 0) {
+    if (rc != 0 && !full_cir_quiet()) {
         printk("anchor BLE ctrl result notify failed: %d\n", rc);
     }
 }
@@ -740,7 +745,9 @@ static void connected_cb(struct bt_conn *conn, uint8_t err)
 {
     if (err == 0U) {
         g_last_conn = bt_conn_ref(conn);
-        printk("anchor BLE ctrl connected\n");
+        if (!full_cir_quiet()) {
+            printk("anchor BLE ctrl connected\n");
+        }
     }
 }
 
@@ -751,7 +758,9 @@ static void disconnected_cb(struct bt_conn *conn, uint8_t reason)
         bt_conn_unref(g_last_conn);
         g_last_conn = NULL;
     }
-    printk("anchor BLE ctrl disconnected\n");
+    if (!full_cir_quiet()) {
+        printk("anchor BLE ctrl disconnected\n");
+    }
 }
 
 BT_CONN_CB_DEFINE(anchor_ble_ctrl_conn_cb) = {

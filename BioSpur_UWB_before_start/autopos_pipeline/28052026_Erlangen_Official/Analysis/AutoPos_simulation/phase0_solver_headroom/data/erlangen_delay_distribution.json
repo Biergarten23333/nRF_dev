@@ -1,0 +1,62 @@
+{
+  "notes": [
+    "Phase 0 PER-DEVICE antenna-delay injection input is delaycal_endpoint_delay_mm, derived from OptiTrack inter-anchor delay calibration.",
+    "selfcal_residual_delay_mm carries autopos_delay_mm separately. It is not an injection input; it is an absorption-validation target for later.",
+    "The additive pair model is pair_bias(i,j) = delay_i + delay_j.",
+    "The roughly 95..294 mm scale belongs to pair-level sums/biases, not per-device antenna delay. Do not sample it as a per-device distribution."
+  ],
+  "pair_level_cross_check": {
+    "delaycal_pair_sum_max_mm": 275.59566418020097,
+    "delaycal_pair_sum_median_mm": 189.95012442934288,
+    "delaycal_pair_sum_min_mm": 99.74143046317923,
+    "observed_pair_bias_max_mm": 303.89149806798423,
+    "observed_pair_bias_median_mm": 187.14560889040558,
+    "observed_pair_bias_min_mm": 79.15506970781962
+  },
+  "per_anchor": {
+    "A": {
+      "delaycal_endpoint_delay_mm": 148.39313595124503,
+      "selfcal_residual_delay_mm": 0.0
+    },
+    "B": {
+      "delaycal_endpoint_delay_mm": 96.4405030150194,
+      "selfcal_residual_delay_mm": 37.127097197321255
+    },
+    "C": {
+      "delaycal_endpoint_delay_mm": 127.20252822895591,
+      "selfcal_residual_delay_mm": 59.99999999999338
+    },
+    "D": {
+      "delaycal_endpoint_delay_mm": 114.72759806555277,
+      "selfcal_residual_delay_mm": 59.999999999999986
+    },
+    "E": {
+      "delaycal_endpoint_delay_mm": 49.200731188950904,
+      "selfcal_residual_delay_mm": 31.143226774707873
+    },
+    "F": {
+      "delaycal_endpoint_delay_mm": 50.54069927422832,
+      "selfcal_residual_delay_mm": 27.042519801587616
+    },
+    "G": {
+      "delaycal_endpoint_delay_mm": 85.86587870347041,
+      "selfcal_residual_delay_mm": 27.558723285689375
+    },
+    "H": {
+      "delaycal_endpoint_delay_mm": 85.49194777285027,
+      "selfcal_residual_delay_mm": 32.41907674793188
+    }
+  },
+  "sources": {
+    "pair_level_cross_check": "autopos_pipeline/28052026_Erlangen_Official/Analysis/official_extra_analysis/FULL/tables/surveyed_anchor_delaycal_diagnostics.csv",
+    "per_anchor_delay": "autopos_pipeline/28052026_Erlangen_Official/Analysis/official_extra_analysis/FULL/tables/delay_common_differential.csv"
+  },
+  "summary": {
+    "delaycal_endpoint_delay_mm": {
+      "max_mm": 148.39313595124503,
+      "median_mm": 91.15319085924492,
+      "min_mm": 49.200731188950904
+    }
+  },
+  "units": "mm"
+}

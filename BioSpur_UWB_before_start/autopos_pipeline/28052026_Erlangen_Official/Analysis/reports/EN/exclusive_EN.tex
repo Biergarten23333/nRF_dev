@@ -38,7 +38,7 @@
 \begin{center}
 {\large\bfseries Executive Summary}\\[2pt]
 {\bfseries Vicon Ground-Truth Validation of the AutoPos UWB Self-Localisation System}\\[2pt]
-{Erlangen, 28~May~2026 \quad|\quad Zekai Xiao}\\[5pt]
+{15~June~2026 \quad|\quad Zekai Xiao}\\[5pt]
 {\footnotesize All ``\S'' and ``Table'' references link to the full report \texttt{main\_EN.pdf}; numbers are shared with it.}
 \end{center}
 \vspace{2pt}
@@ -89,8 +89,12 @@ No hardware time synchronisation (dynamic error is best-fit post-processed, not 
 
 \paragraph{Next steps (\S\ref{main-sec:limitations}).}
 (1)~GPIO/event hardware time-sync; (2)~per-device antenna-delay bench calibration plus a one-time or windowed tag-side delay correction, as the dominant vertical-error lever; (3)~DOP-aware runtime confidence conditioned on the surviving anchor geometry; (4)~closed-loop hardware IMU (ICM-45686 class); (5)~unconstrained 3D motion and ${\geq}1$ cluttered environment; (6)~independent ultrasound height-gauge verification.
+Channel-level diagnostics are also a key open direction: this validation captured ranges only, so the residual error tail and the ${\sim}\SI{100}{\milli\metre}$ dynamic floor could not be characterised at the channel level; per-link CIR capture (firmware under development) for line-of-sight/non-line-of-sight classification and NLOS-aware range weighting is the planned lever beyond constant per-device delay calibration (see \S\ref{main-sec:limitations}).
 
 \paragraph{Bottom line (\S\ref{main-sec:conclusion}).}
 Within this dataset, AutoPos delivers sub-decimetre median static localisation from a self-calibrated anchor array (up to a manually resolved chirality) in a favourable environment. Two concrete obstacles remain on the path to clinical full-body capture: the apparent scale bias (traced to per-device range bias, largely recoverable by solver re-parameterisation plus delay calibration) and the ${\sim}\SI{100}{\milli\metre}$ dynamic floor (addressed by time-sync and hardware IMU). Neither is resolved by this dataset.
+
+\paragraph{Acknowledgements.}
+The author thanks Prof.\ Dr.\ Bj\"orn Eskofier for providing access to the Vicon Motion Capture System at the Machine Learning and Data Analytics Lab (MaD Lab), FAU Erlangen-N\"urnberg, and for his continued supervision and guidance throughout this PhD project. The author also thanks Sophie Fleischmann, M.~Sc., for coordinating the measurement sessions and for her support with the Vicon system operation during the data collection on 28~May~2026.
 
 \end{document}

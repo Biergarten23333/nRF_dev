@@ -1629,6 +1629,10 @@ The remaining error must be interpreted together with the delay--layout coupling
         Second, the antenna geometric centre is not exactly the RF phase centre; compact UWB phase centres can vary with incidence angle and frequency at the millimetre-to-centimetre level~\cite{pco2022}.
         The constant radial part of this offset is largely absorbed by delay/range-bias calibration, but angle-dependent phase-centre variation is not.
         Relative to the \SI{72.7}{\milli\metre} median static tag error reported here, this registration floor is small (on the order of 10\%), but it bounds the accuracy that this experimental design can support.
+
+  \item \textbf{No channel-impulse-response capture.}
+        This validation logged range estimates only; the DW1000 channel impulse response (CIR) was not recorded, since CIR readout is a low-rate offline operation incompatible with the \SI{10}{\hertz} ranging used here.
+        The per-link multipath and line-of-sight/non-line-of-sight conditions that underlie the residual error tail and the $\sim$\SI{100}{\milli\metre} dynamic floor therefore could not be characterised at the channel level from this dataset, and their attribution to UWB-intrinsic factors is inferential rather than CIR-supported.
 \end{enumerate}
 
 \subsection{Identified Error Sources}
@@ -1705,6 +1709,9 @@ The remaining error must be interpreted together with the delay--layout coupling
         and validate the ultrasound height inputs against an independent
         reference so that the deployable US-gauge path can be evaluated
         as a ground-truth-supported claim rather than a gauge input only.
+  \item \textbf{Channel-level (CIR) capture and NLOS-aware processing.}
+        Capture per-device channel impulse responses alongside the range stream---a CIR-capable firmware path is under development---to classify line-of-sight versus non-line-of-sight per link, relate the residual error tail and the $\sim$\SI{100}{\milli\metre} dynamic floor to first-path detection under multipath, and evaluate CIR-feature-based outlier rejection and NLOS-aware range weighting.
+        This targets the error component that layout choice and constant per-device delay re-calibration do not reduce, and complements the per-device bench delay calibration above with a per-link, condition-dependent correction.
 \end{enumerate}
 
 % ============================================================

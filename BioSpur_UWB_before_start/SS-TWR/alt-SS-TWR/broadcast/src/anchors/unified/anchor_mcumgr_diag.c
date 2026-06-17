@@ -1,4 +1,5 @@
 #include "anchor_mcumgr_diag.h"
+#include "anchor_cir_output.h"
 
 #include <errno.h>
 
@@ -23,6 +24,11 @@ static char g_last_peer[BT_ADDR_LE_STR_LEN];
 static uint32_t g_req_seq;
 static uint32_t g_done_seq;
 
+static bool full_cir_quiet(void)
+{
+    return anchor_cir_output_get_mode() == ANCHOR_CIR_OUTPUT_FULL;
+}
+
 static void diag_peer_set(struct bt_conn *conn)
 {
     if (conn == NULL) {
@@ -39,7 +45,9 @@ static void diag_conn_cb(struct bt_conn *conn, uint8_t err)
 {
     if (err == 0U) {
         diag_peer_set(conn);
-        printk("ANCHOR_SMP_CONN connected conn=%p peer=%s\n", conn, g_last_peer);
+        if (!full_cir_quiet()) {
+            printk("ANCHOR_SMP_CONN connected conn=%p peer=%s\n", conn, g_last_peer);
+        }
     }
 }
 
@@ -48,8 +56,10 @@ static void diag_disconn_cb(struct bt_conn *conn, uint8_t reason)
     char peer[BT_ADDR_LE_STR_LEN];
 
     bt_addr_le_to_str(bt_conn_get_dst(conn), peer, sizeof(peer));
-    printk("ANCHOR_SMP_CONN disconnected conn=%p peer=%s reason=0x%02x\n",
-           conn, peer, (unsigned int)reason);
+    if (!full_cir_quiet()) {
+        printk("ANCHOR_SMP_CONN disconnected conn=%p peer=%s reason=0x%02x\n",
+               conn, peer, (unsigned int)reason);
+    }
     if (conn == g_last_conn) {
         diag_peer_set(NULL);
     }
@@ -87,6 +97,10 @@ static enum mgmt_cb_return smp_cb(uint32_t event, enum mgmt_cb_return prev_statu
     ARG_UNUSED(group);
     ARG_UNUSED(abort_more);
     ARG_UNUSED(data_size);
+
+    if (full_cir_quiet()) {
+        return MGMT_CB_OK;
+    }
 
     if (arg != NULL) {
         if (event == MGMT_EVT_OP_CMD_RECV) {
@@ -178,6 +192,10 @@ static enum mgmt_cb_return img_cb(uint32_t event, enum mgmt_cb_return prev_statu
         g_anchor_ota_active = false;
     }
 
+    if (full_cir_quiet()) {
+        return MGMT_CB_OK;
+    }
+
     if (event == MGMT_EVT_OP_IMG_MGMT_IMAGE_SLOT_STATE) {
         printk("ANCHOR_IMG_HANDLER_SLOT_STATE emitted\n");
     }
@@ -210,12 +228,16 @@ int anchor_mcumgr_diag_init(void)
     g_done_seq = 0U;
     diag_peer_set(NULL);
     bt_conn_cb_register(&g_diag_conn_cb);
-    printk("ANCHOR_SMP_DIAG note: handle/seq/raw_len are not exposed by mcumgr callback API; use transport DBG logs for raw SMP frame details\n");
+    if (!full_cir_quiet()) {
+        printk("ANCHOR_SMP_DIAG note: handle/seq/raw_len are not exposed by mcumgr callback API; use transport DBG logs for raw SMP frame details\n");
+    }
     mgmt_callback_register(&smp_evt_cb);
 #if defined(CONFIG_MCUMGR_GRP_IMG_STATUS_HOOKS)
     mgmt_callback_register(&img_evt_cb);
 #endif
-    printk("anchor mcumgr diag callbacks registered\n");
+    if (!full_cir_quiet()) {
+        printk("anchor mcumgr diag callbacks registered\n");
+    }
     return 0;
 #endif
 }

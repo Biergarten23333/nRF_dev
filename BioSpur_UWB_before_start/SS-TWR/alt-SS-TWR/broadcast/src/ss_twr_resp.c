@@ -144,20 +144,37 @@ static bool ss_twr_resp_matrix_poll_matches(const uint8_t *frame,
 
 typedef unsigned long long dwtime_u64_t;
 
+static inline bool ss_twr_resp_full_cir_quiet(void)
+{
+    return anchor_cir_output_get_mode() == ANCHOR_CIR_OUTPUT_FULL;
+}
+
 #if APP_ANCHOR_RESPONDER_PRINTK_ENABLE
-#define RESP_PRINTK(...) printk(__VA_ARGS__)
+#define RESP_PRINTK(...) do { \
+        if (!ss_twr_resp_full_cir_quiet()) { \
+            printk(__VA_ARGS__); \
+        } \
+    } while (0)
 #else
 #define RESP_PRINTK(...) do { } while (0)
 #endif
 
 #if APP_ANCHOR_RESPONDER_PROFILE_ENABLE
-#define RESP_PROF_PRINTK(...) printk(__VA_ARGS__)
+#define RESP_PROF_PRINTK(...) do { \
+        if (!ss_twr_resp_full_cir_quiet()) { \
+            printk(__VA_ARGS__); \
+        } \
+    } while (0)
 #else
 #define RESP_PROF_PRINTK(...) do { } while (0)
 #endif
 
 #if APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE
-#define RESP_FRAME_PRINTK(...) printk(__VA_ARGS__)
+#define RESP_FRAME_PRINTK(...) do { \
+        if (!ss_twr_resp_full_cir_quiet()) { \
+            printk(__VA_ARGS__); \
+        } \
+    } while (0)
 #else
 #define RESP_FRAME_PRINTK(...) do { } while (0)
 #endif

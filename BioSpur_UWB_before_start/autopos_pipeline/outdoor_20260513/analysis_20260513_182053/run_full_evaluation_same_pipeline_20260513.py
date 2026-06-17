@@ -468,7 +468,9 @@ def solve_v4(pair_dists, anchor_ids, x_init=None):
     return gauge_align_local(x), dly, result
 
 
-def solve_v4_common_mode(pair_dists, anchor_ids, x_init=None, *, c_init=0.0, e_init=None, max_nfev=5000):
+def solve_v4_common_mode(pair_dists, anchor_ids, x_init=None, *, c_init=0.0, e_init=None, e_reg_scale_mm=20.0, max_nfev=5000):
+    if not np.isfinite(e_reg_scale_mm) or e_reg_scale_mm <= 0.0:
+        raise ValueError(f"e_reg_scale_mm must be positive, got {e_reg_scale_mm!r}")
     lp, _g2l, _l2g = local_pairs(pair_dists, anchor_ids)
     n = len(anchor_ids)
     if x_init is None:
@@ -494,7 +496,7 @@ def solve_v4_common_mode(pair_dists, anchor_ids, x_init=None, *, c_init=0.0, e_i
             (np.linalg.norm(x[i] - x[j]) + dly[i] + dly[j] - dist) / 15.0
             for (i, j), dist in lp.items()
         ]
-        out.extend((e / 20.0).tolist())
+        out.extend((e / float(e_reg_scale_mm)).tolist())
         out.append(float(np.mean(e) / 1.0))
         out.extend(physical_layout_prior_residuals(x, anchor_ids))
         return np.asarray(out, dtype=float)
@@ -511,6 +513,7 @@ def solve_v4_common_mode(pair_dists, anchor_ids, x_init=None, *, c_init=0.0, e_i
     result.common_mode_mm = float(c)
     result.differential_delay_mm = np.asarray(e, dtype=float)
     result.absolute_delay_mm = np.asarray(dly, dtype=float)
+    result.e_reg_scale_mm = float(e_reg_scale_mm)
     result.mean_e_mm = float(np.mean(e))
     result.max_abs_e_mm = float(np.max(np.abs(e)))
     result.pair_rmse_mm = float(np.sqrt(np.mean(np.asarray(pair_resid) ** 2)))

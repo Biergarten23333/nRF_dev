@@ -1,4 +1,5 @@
 #include "anchor_ble_id.h"
+#include "anchor_cir_output.h"
 
 #include <errno.h>
 #include <stddef.h>
@@ -46,6 +47,11 @@ static struct bt_data g_sd[] = {
 };
 static bool g_adv_started;
 static bool g_adv_responder_low_noise;
+
+static inline bool anchor_ble_id_full_cir_quiet(void)
+{
+    return anchor_cir_output_get_mode() == ANCHOR_CIR_OUTPUT_FULL;
+}
 
 static const struct bt_le_adv_param g_adv_param_normal =
     BT_LE_ADV_PARAM_INIT(BT_LE_ADV_OPT_CONNECTABLE,
@@ -141,7 +147,9 @@ int anchor_ble_id_update_role(uint8_t role)
     g_mfg_payload[23] = role;
     err = bt_le_adv_update_data(g_ad, ARRAY_SIZE(g_ad), g_sd, ARRAY_SIZE(g_sd));
     if (err) {
-        printk("anchor BLE id adv role update failed: %d\n", err);
+        if (!anchor_ble_id_full_cir_quiet()) {
+            printk("anchor BLE id adv role update failed: %d\n", err);
+        }
         return err;
     }
 
@@ -151,8 +159,10 @@ int anchor_ble_id_update_role(uint8_t role)
             g_adv_started = false;
             err = anchor_ble_id_start_adv_for_role(role);
             if (err) {
-                printk("anchor BLE id adv restart failed role=%u err=%d\n",
-                       (unsigned int)role, err);
+                if (!anchor_ble_id_full_cir_quiet()) {
+                    printk("anchor BLE id adv restart failed role=%u err=%d\n",
+                           (unsigned int)role, err);
+                }
                 return err;
             }
         } else {
@@ -161,12 +171,16 @@ int anchor_ble_id_update_role(uint8_t role)
              * Keep the manufacturer role update; advertising will use the right
              * interval after the next boot/start path.
              */
-            printk("anchor BLE id adv interval change deferred role=%u err=%d\n",
-                   (unsigned int)role, err);
+            if (!anchor_ble_id_full_cir_quiet()) {
+                printk("anchor BLE id adv interval change deferred role=%u err=%d\n",
+                       (unsigned int)role, err);
+            }
         }
     }
 
-    printk("anchor BLE id adv role updated role=%u low_noise=%u\n",
-           (unsigned int)role, (unsigned int)(role == ANCHOR_ROLE_RESPONDER));
+    if (!anchor_ble_id_full_cir_quiet()) {
+        printk("anchor BLE id adv role updated role=%u low_noise=%u\n",
+               (unsigned int)role, (unsigned int)(role == ANCHOR_ROLE_RESPONDER));
+    }
     return 0;
 }

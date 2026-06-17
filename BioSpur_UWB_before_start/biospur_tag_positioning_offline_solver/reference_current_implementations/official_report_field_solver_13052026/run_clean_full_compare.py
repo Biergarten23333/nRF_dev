@@ -54,6 +54,7 @@ VERSIONS = [
     ("v3-full", "V3-full", "Tukey + delay"),
     ("v4-io", "V4-io", "Huber bounded-delay inter-anchor"),
     ("v4-io-commonmode", "V4-io common-mode", "V4-io with d_i = c + e_i common-mode anchor delays"),
+    ("v5-commonmode", "V5 common-mode", "V4-io common-mode headline path with audited e_i regularization"),
     ("v4-io-td", "V4-io-td", "V4-io + static common tag-delay scan"),
     ("v4-io-roto", "V4-io-roto", "V4-io + RotoArm soft constraints"),
     ("v4-io-wand", "V4-io-wand", "V4-io + W01-W04 wand soft constraints"),
@@ -284,12 +285,14 @@ def solve_version(mod, version: str, fused, anchor_ids, extra_data=None) -> Layo
         x, d, res, extra = mod.solve_v3_full(fused["v3"], anchor_ids)
         extra["success"] = bool(getattr(res, "success", False))
         return Layout(version, "V3-full", x, d, extra)
-    if version == "v4-io-commonmode":
+    if version in {"v4-io-commonmode", "v5-commonmode"}:
         init, _ = mod.solve_autopos_v1(fused["v3"], anchor_ids)
-        x, d, res = mod.solve_v4_common_mode(fused["v3"], anchor_ids, init)
+        e_reg_scale_mm = 20.0
+        x, d, res = mod.solve_v4_common_mode(fused["v3"], anchor_ids, init, e_reg_scale_mm=e_reg_scale_mm)
         extra = {
             "success": bool(getattr(res, "success", False)),
             "based_on": "v4-io",
+            "e_reg_scale_mm": float(e_reg_scale_mm),
             "delay_parameterization": "d_i = c + e_i for all anchors; no d_A=0 gauge",
             "common_mode_mm": float(getattr(res, "common_mode_mm", float("nan"))),
             "differential_delay_mm": [
@@ -303,7 +306,7 @@ def solve_version(mod, version: str, fused, anchor_ids, extra_data=None) -> Layo
         physical = getattr(res, "physical_diagnostics", None)
         if physical:
             extra.update(physical)
-        return Layout(version, "V4-io common-mode", x, d, extra, 0.0)
+        return Layout(version, "V5 common-mode" if version == "v5-commonmode" else "V4-io common-mode", x, d, extra, 0.0)
     if version in {"v4-io", "v5"}:
         init, _ = mod.solve_autopos_v1(fused["v3"], anchor_ids)
         x, d, res = mod.solve_v4(fused["v3"], anchor_ids, init)

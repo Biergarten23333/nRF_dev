@@ -65,6 +65,11 @@ static size_t ss_twr_anchor_init_peer_index;
 static size_t ss_twr_anchor_init_sweep_count;
 static struct uwb_anchor_matrix ss_twr_anchor_init_matrix;
 
+static inline bool ss_twr_anchor_init_full_cir_quiet(void)
+{
+    return anchor_cir_output_get_mode() == ANCHOR_CIR_OUTPUT_FULL;
+}
+
 static inline void ss_twr_anchor_init_range_delay(void)
 {
     if (SS_TWR_ANCHOR_INIT_RNG_DELAY_MS > 0U) {
@@ -102,7 +107,9 @@ static void ss_twr_anchor_init_publish_sweep_summary(void)
         }
     }
 
-    printk("Anchor sweep summary prepared: %s\n", line);
+    if (!ss_twr_anchor_init_full_cir_quiet()) {
+        printk("Anchor sweep summary prepared: %s\n", line);
+    }
     (void)anchor_ble_ctrl_publish_result_line(line);
 }
 
@@ -148,8 +155,10 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
 {
     if (anchor_id >= UWB_MAX_ANCHORS || peer_ids == NULL || peer_count == 0U ||
         peer_count > UWB_MAX_ANCHORS) {
-        printk("Invalid anchor master config anchor=%u peers=%u\n", anchor_id,
-               (unsigned int)peer_count);
+        if (!ss_twr_anchor_init_full_cir_quiet()) {
+            printk("Invalid anchor master config anchor=%u peers=%u\n", anchor_id,
+                   (unsigned int)peer_count);
+        }
         return -1;
     }
 
@@ -163,7 +172,9 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
 
     for (size_t i = 0; i < peer_count; ++i) {
         if (peer_ids[i] >= UWB_MAX_ANCHORS || peer_ids[i] == anchor_id) {
-            printk("Invalid peer anchor id: %u\n", (unsigned int)peer_ids[i]);
+            if (!ss_twr_anchor_init_full_cir_quiet()) {
+                printk("Invalid peer anchor id: %u\n", (unsigned int)peer_ids[i]);
+            }
             return -1;
         }
 
@@ -172,15 +183,19 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
                                uwb_anchor_short_addr(peer_ids[i]));
     }
 
-    printk("Anchor master ready anchor=%c(%u) addr=0x%04x peer_count=%u\n",
-           uwb_anchor_label(ss_twr_anchor_init_local_id),
-           (unsigned int)ss_twr_anchor_init_local_id,
-           (unsigned int)ss_twr_anchor_init_local_addr,
-           (unsigned int)ss_twr_anchor_init_peer_count);
-    if (max_sweeps != 0U) {
-        printk("Anchor master finite sweep limit %c sets=%lu\n",
+    if (!ss_twr_anchor_init_full_cir_quiet()) {
+        printk("Anchor master ready anchor=%c(%u) addr=0x%04x peer_count=%u\n",
                uwb_anchor_label(ss_twr_anchor_init_local_id),
-               (unsigned long)max_sweeps);
+               (unsigned int)ss_twr_anchor_init_local_id,
+               (unsigned int)ss_twr_anchor_init_local_addr,
+               (unsigned int)ss_twr_anchor_init_peer_count);
+    }
+    if (max_sweeps != 0U) {
+        if (!ss_twr_anchor_init_full_cir_quiet()) {
+            printk("Anchor master finite sweep limit %c sets=%lu\n",
+                   uwb_anchor_label(ss_twr_anchor_init_local_id),
+                   (unsigned long)max_sweeps);
+        }
     }
     ss_twr_anchor_init_configure_radio();
 
@@ -195,8 +210,10 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
         if (anchor_runtime_stop_requested()) {
             dwt_forcetrxoff();
             dwt_rxreset();
-            printk("Anchor master stop requested for %c\n",
-                   uwb_anchor_label(ss_twr_anchor_init_local_id));
+            if (!ss_twr_anchor_init_full_cir_quiet()) {
+                printk("Anchor master stop requested for %c\n",
+                       uwb_anchor_label(ss_twr_anchor_init_local_id));
+            }
             return 0;
         }
 
@@ -209,7 +226,9 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
 
         if (dwt_writetxdata(sizeof(ss_twr_anchor_init_tx_poll_msg),
                             ss_twr_anchor_init_tx_poll_msg, 0) != DWT_SUCCESS) {
-            printk("Anchor master TX buffer write failed\n");
+            if (!ss_twr_anchor_init_full_cir_quiet()) {
+                printk("Anchor master TX buffer write failed\n");
+            }
             ss_twr_anchor_init_range_delay();
             continue;
         }
@@ -218,8 +237,10 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
 
         if (dwt_starttx(DWT_START_TX_IMMEDIATE | DWT_RESPONSE_EXPECTED) !=
             DWT_SUCCESS) {
-            printk("Anchor master TX start failed peer=%u\n",
-                   (unsigned int)current_peer_id);
+            if (!ss_twr_anchor_init_full_cir_quiet()) {
+                printk("Anchor master TX start failed peer=%u\n",
+                       (unsigned int)current_peer_id);
+            }
             dwt_forcetrxoff();
             ss_twr_anchor_init_range_delay();
             continue;
@@ -230,8 +251,10 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
             if (anchor_runtime_stop_requested()) {
                 dwt_forcetrxoff();
                 dwt_rxreset();
-                printk("Anchor master stop requested during RX wait for %c\n",
-                       uwb_anchor_label(ss_twr_anchor_init_local_id));
+                if (!ss_twr_anchor_init_full_cir_quiet()) {
+                    printk("Anchor master stop requested during RX wait for %c\n",
+                           uwb_anchor_label(ss_twr_anchor_init_local_id));
+                }
                 return 0;
             }
         } while ((status_reg & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO |
@@ -275,12 +298,14 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
                                          ss_twr_anchor_init_local_addr,
                                          current_peer_addr)) {
 #if APP_TAG_VERBOSE_MEASUREMENTS
-                printk("Anchor master unexpected frame src=0x%04x dst=0x%04x code=0x%02x\n",
-                       (unsigned int)uwb_frame_get_src_addr(
-                           ss_twr_anchor_init_rx_buffer),
-                       (unsigned int)uwb_frame_get_dst_addr(
-                           ss_twr_anchor_init_rx_buffer),
-                       (unsigned int)ss_twr_anchor_init_rx_buffer[UWB_MSG_CODE_IDX]);
+                if (!ss_twr_anchor_init_full_cir_quiet()) {
+                    printk("Anchor master unexpected frame src=0x%04x dst=0x%04x code=0x%02x\n",
+                           (unsigned int)uwb_frame_get_src_addr(
+                               ss_twr_anchor_init_rx_buffer),
+                           (unsigned int)uwb_frame_get_dst_addr(
+                               ss_twr_anchor_init_rx_buffer),
+                           (unsigned int)ss_twr_anchor_init_rx_buffer[UWB_MSG_CODE_IDX]);
+                }
 #endif
                 ss_twr_anchor_init_range_delay();
                 continue;
@@ -319,14 +344,16 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
                 if (tracker->filtered_valid) {
                     uwb_range_tracker_record_failure(tracker);
                 }
-                printk("Anchor master reject peer=%u addr=0x%04x raw=%ld mm last=%lu mm ok=%lu fail=%lu q=%u%%\n",
-                       (unsigned int)current_peer_id,
-                       (unsigned int)current_peer_addr,
-                       raw_distance_mm,
-                       (unsigned long)tracker->last_raw_mm,
-                       (unsigned long)tracker->success_count,
-                       (unsigned long)tracker->failure_count,
-                       (unsigned int)uwb_range_tracker_quality_percent(tracker));
+                if (!ss_twr_anchor_init_full_cir_quiet()) {
+                    printk("Anchor master reject peer=%u addr=0x%04x raw=%ld mm last=%lu mm ok=%lu fail=%lu q=%u%%\n",
+                           (unsigned int)current_peer_id,
+                           (unsigned int)current_peer_addr,
+                           raw_distance_mm,
+                           (unsigned long)tracker->last_raw_mm,
+                           (unsigned long)tracker->success_count,
+                           (unsigned long)tracker->failure_count,
+                           (unsigned int)uwb_range_tracker_quality_percent(tracker));
+                }
                 ss_twr_anchor_init_range_delay();
                 continue;
             }
@@ -339,14 +366,16 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
                 &ss_twr_anchor_init_matrix, ss_twr_anchor_init_local_id,
                 uwb_anchor_id_from_addr(resp_src_addr), tracker);
 
-            printk("Matrix %c-%c addr=0x%04x raw=%ld mm last=%lu mm ok=%lu fail=%lu q=%u%%\n",
-                   uwb_anchor_label(ss_twr_anchor_init_local_id),
-                   uwb_anchor_label(uwb_anchor_id_from_addr(resp_src_addr)),
-                   (unsigned int)resp_src_addr, raw_distance_mm,
-                   (unsigned long)filtered_mm,
-                   (unsigned long)tracker->success_count,
-                   (unsigned long)tracker->failure_count,
-                   (unsigned int)uwb_range_tracker_quality_percent(tracker));
+            if (!ss_twr_anchor_init_full_cir_quiet()) {
+                printk("Matrix %c-%c addr=0x%04x raw=%ld mm last=%lu mm ok=%lu fail=%lu q=%u%%\n",
+                       uwb_anchor_label(ss_twr_anchor_init_local_id),
+                       uwb_anchor_label(uwb_anchor_id_from_addr(resp_src_addr)),
+                       (unsigned int)resp_src_addr, raw_distance_mm,
+                       (unsigned long)filtered_mm,
+                       (unsigned long)tracker->success_count,
+                       (unsigned long)tracker->failure_count,
+                       (unsigned int)uwb_range_tracker_quality_percent(tracker));
+            }
             anchor_cir_output_publish_feature(
                 (uint32_t)ss_twr_anchor_init_sweep_count,
                 ss_twr_anchor_init_local_id, resp_src_addr, raw_distance_mm,
@@ -359,12 +388,15 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
             if (tracker->filtered_valid) {
                 uwb_range_tracker_record_failure(tracker);
             }
-            printk("Anchor master timeout peer=%u addr=0x%04x status=0x%08lx ok=%lu fail=%lu q=%u%%\n",
-                   (unsigned int)current_peer_id, (unsigned int)current_peer_addr,
-                   (unsigned long)status_reg,
-                   (unsigned long)tracker->success_count,
-                   (unsigned long)tracker->failure_count,
-                   (unsigned int)uwb_range_tracker_quality_percent(tracker));
+            if (!ss_twr_anchor_init_full_cir_quiet()) {
+                printk("Anchor master timeout peer=%u addr=0x%04x status=0x%08lx ok=%lu fail=%lu q=%u%%\n",
+                       (unsigned int)current_peer_id,
+                       (unsigned int)current_peer_addr,
+                       (unsigned long)status_reg,
+                       (unsigned long)tracker->success_count,
+                       (unsigned long)tracker->failure_count,
+                       (unsigned int)uwb_range_tracker_quality_percent(tracker));
+            }
             dwt_write32bitreg(SYS_STATUS_ID,
                               SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR);
             dwt_rxreset();
@@ -374,12 +406,14 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
             (ss_twr_anchor_init_peer_index + 1U) % ss_twr_anchor_init_peer_count;
         if (ss_twr_anchor_init_peer_index == 0U) {
             ss_twr_anchor_init_sweep_count++;
-            printk("Anchor sweep %u complete for %c\n",
-                   (unsigned int)ss_twr_anchor_init_sweep_count,
-                   uwb_anchor_label(ss_twr_anchor_init_local_id));
-            uwb_anchor_matrix_print_row(&ss_twr_anchor_init_matrix,
-                                        ss_twr_anchor_init_local_id);
-            uwb_anchor_matrix_print_valid_edges(&ss_twr_anchor_init_matrix);
+            if (!ss_twr_anchor_init_full_cir_quiet()) {
+                printk("Anchor sweep %u complete for %c\n",
+                       (unsigned int)ss_twr_anchor_init_sweep_count,
+                       uwb_anchor_label(ss_twr_anchor_init_local_id));
+                uwb_anchor_matrix_print_row(&ss_twr_anchor_init_matrix,
+                                            ss_twr_anchor_init_local_id);
+                uwb_anchor_matrix_print_valid_edges(&ss_twr_anchor_init_matrix);
+            }
             ss_twr_anchor_init_publish_sweep_summary();
             if (max_sweeps != 0U &&
                 ss_twr_anchor_init_sweep_count >= (size_t)max_sweeps) {
@@ -391,7 +425,9 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
                          "SWEEP_DONE master=%c sets=%lu role=matrix",
                          uwb_anchor_label(ss_twr_anchor_init_local_id),
                          (unsigned long)ss_twr_anchor_init_sweep_count);
-                printk("Anchor master finite sweep complete: %s\n", done_line);
+                if (!ss_twr_anchor_init_full_cir_quiet()) {
+                    printk("Anchor master finite sweep complete: %s\n", done_line);
+                }
                 (void)anchor_ble_ctrl_publish_result_line(done_line);
                 return 0;
             }

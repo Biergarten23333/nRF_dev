@@ -271,6 +271,95 @@ def summarize_results(results: list, estimator: str) -> dict:
     }
 
 
+def static_error_row_from_results(
+    path: Path,
+    results: list,
+    *,
+    tag_truth: dict[str, np.ndarray],
+    tag_truth_meta: dict[str, dict],
+    metadata_by_id: dict[str, dict],
+    metadata: dict,
+    tag_method: str,
+    point_estimator: str,
+    frames_input: int,
+) -> dict | None:
+    sid = session_id_from_path(path)
+    summary = summarize_results(results, point_estimator)
+    truth = tag_truth.get(sid)
+    if truth is None or summary["status"] != "ok":
+        return None
+    solved = np.asarray([summary["x_mm"], summary["y_mm"], summary["z_mm"]], dtype=float)
+    diff = solved - truth
+    meta = metadata_by_id.get(sid, {})
+    truth_info = tag_truth_meta.get(sid, {})
+    return {
+        **metadata,
+        "tag_method": tag_method,
+        "ID": sid,
+        "capture": capture_name_from_path(path),
+        "location": meta.get("location", ""),
+        "height": meta.get("height", ""),
+        "facing": meta.get("facing", ""),
+        "frames_input": int(frames_input),
+        "frames_solved": int(summary["frames_solved"]),
+        "solve_fraction": float(summary["frames_solved"] / frames_input) if frames_input else 0.0,
+        "point_estimator": point_estimator,
+        "solved_x_mm": float(solved[0]),
+        "solved_y_vertical_mm": float(solved[1]),
+        "solved_z_mm": float(solved[2]),
+        "truth_x_mm": float(truth[0]),
+        "truth_y_vertical_mm": float(truth[1]),
+        "truth_z_mm": float(truth[2]),
+        "err_x_mm": float(diff[0]),
+        "err_y_vertical_mm": float(diff[1]),
+        "err_z_mm": float(diff[2]),
+        "err_3d_mm": float(np.linalg.norm(diff)),
+        "err_horizontal_xz_mm": float(math.sqrt(diff[0] * diff[0] + diff[2] * diff[2])),
+        "err_vertical_y_mm": float(abs(diff[1])),
+        "tag_truth_source": truth_info.get("tag_truth_source", ""),
+        "tag_truth_corrected": truth_info.get("tag_truth_corrected", False),
+        **{k: v for k, v in summary.items() if k not in {"x_mm", "y_mm", "z_mm", "status"}},
+    }
+
+
+def solve_static_file_with_layout(
+    path: Path,
+    *,
+    layout: Layout,
+    solver: TagPositionSolver,
+    tag_truth: dict[str, np.ndarray],
+    tag_truth_meta: dict[str, dict],
+    metadata_by_id: dict[str, dict],
+    metadata: dict,
+    tag_method: str,
+    point_estimator: str,
+    max_frames: int = 0,
+    allowed_anchor_ids: set[int] | None = None,
+    tag: str = "BSF66F",
+) -> dict | None:
+    sid = session_id_from_path(path)
+    frames = read_tr_all_frames(path, tags={tag}, min_anchors=4)
+    if max_frames > 0:
+        frames = frames[: int(max_frames)]
+    frames = filter_frames(frames, allowed_anchor_ids or set(range(8)))
+    results = []
+    for frame in frames:
+        result = solver.solve_frame(frame)
+        if result is not None and result.status == "ok":
+            results.append(result)
+    return static_error_row_from_results(
+        path,
+        results,
+        tag_truth=tag_truth,
+        tag_truth_meta=tag_truth_meta,
+        metadata_by_id=metadata_by_id,
+        metadata=metadata,
+        tag_method=tag_method,
+        point_estimator=point_estimator,
+        frames_input=len(frames),
+    )
+
+
 def solve_one_job(job: dict) -> dict:
     layout = build_layout(
         name=job["layout_name"],
@@ -288,56 +377,20 @@ def solve_one_job(job: dict) -> dict:
     rows: list[dict] = []
     for path_s in job["static_files"]:
         path = Path(path_s)
-        sid = session_id_from_path(path)
-        frames = read_tr_all_frames(path, tags={"BSF66F"}, min_anchors=4)
-        if job["max_frames"] > 0:
-            frames = frames[: int(job["max_frames"])]
-        frames = filter_frames(frames, set(range(8)))
-        results = []
-        for frame in frames:
-            result = solver.solve_frame(frame)
-            if result is not None and result.status == "ok":
-                results.append(result)
-        summary = summarize_results(results, job["point_estimator"])
-        truth = tag_truth.get(sid)
-        if truth is None or summary["status"] != "ok":
-            continue
-        solved = np.asarray([summary["x_mm"], summary["y_mm"], summary["z_mm"]], dtype=float)
-        diff = solved - truth
-        e3 = float(np.linalg.norm(diff))
-        horiz = float(math.sqrt(diff[0] * diff[0] + diff[2] * diff[2]))
-        vert = float(abs(diff[1]))
-        meta = metadata_by_id.get(sid, {})
-        truth_info = tag_truth_meta.get(sid, {})
-        row = {
-            **job["metadata"],
-            "tag_method": job["tag_method"],
-            "ID": sid,
-            "capture": capture_name_from_path(path),
-            "location": meta.get("location", ""),
-            "height": meta.get("height", ""),
-            "facing": meta.get("facing", ""),
-            "frames_input": int(len(frames)),
-            "frames_solved": int(summary["frames_solved"]),
-            "solve_fraction": float(summary["frames_solved"] / len(frames)) if frames else 0.0,
-            "point_estimator": job["point_estimator"],
-            "solved_x_mm": float(solved[0]),
-            "solved_y_vertical_mm": float(solved[1]),
-            "solved_z_mm": float(solved[2]),
-            "truth_x_mm": float(truth[0]),
-            "truth_y_vertical_mm": float(truth[1]),
-            "truth_z_mm": float(truth[2]),
-            "err_x_mm": float(diff[0]),
-            "err_y_vertical_mm": float(diff[1]),
-            "err_z_mm": float(diff[2]),
-            "err_3d_mm": e3,
-            "err_horizontal_xz_mm": horiz,
-            "err_vertical_y_mm": vert,
-            "tag_truth_source": truth_info.get("tag_truth_source", ""),
-            "tag_truth_corrected": truth_info.get("tag_truth_corrected", False),
-            **{k: v for k, v in summary.items() if k not in {"x_mm", "y_mm", "z_mm", "status"}},
-        }
-        rows.append(row)
+        row = solve_static_file_with_layout(
+            path,
+            layout=layout,
+            solver=solver,
+            tag_truth=tag_truth,
+            tag_truth_meta=tag_truth_meta,
+            metadata_by_id=metadata_by_id,
+            metadata=job["metadata"],
+            tag_method=job["tag_method"],
+            point_estimator=job["point_estimator"],
+            max_frames=job["max_frames"],
+        )
+        if row is not None:
+            rows.append(row)
     return {"experiment": job["experiment"], "rows": rows}
 
 

@@ -7,6 +7,7 @@
 #include "anchor_config.h"
 #include "anchor_ble_id.h"
 #include "anchor_ble_ctrl.h"
+#include "anchor_cir_output.h"
 #include "anchor_mcumgr_diag.h"
 #include "anchor_runtime_control.h"
 #include "uart_role_switch.h"
@@ -95,6 +96,11 @@ static const char *anchor_role_name(uint8_t role)
     default:
         return "unset";
     }
+}
+
+static inline bool anchor_app_full_cir_quiet(void)
+{
+    return anchor_cir_output_get_mode() == ANCHOR_CIR_OUTPUT_FULL;
 }
 
 static uint8_t persistent_role_normalize(uint8_t role)
@@ -200,7 +206,9 @@ static int anchor_run_runtime_role(uint8_t anchor_id_runtime, uint8_t anchor_id_
 
     ret = anchor_role_runtime_flags(role, &effective_master, &effective_allow_tag_polls);
     if (ret != 0) {
-        printk("Invalid runtime role=%u\n", (unsigned int)role);
+        if (!anchor_app_full_cir_quiet()) {
+            printk("Invalid runtime role=%u\n", (unsigned int)role);
+        }
         return ret;
     }
 
@@ -222,10 +230,12 @@ static int anchor_run_runtime_role(uint8_t anchor_id_runtime, uint8_t anchor_id_
             }
             anchor_peer_ids_ptr = anchor_peer_ids;
 
-            printk("Anchor master auto schedule %c mode=%u peer_count=%u\n",
-                   uwb_anchor_label(anchor_id_runtime),
-                   (unsigned int)APP_ANCHOR_SCHEDULE_MODE,
-                   (unsigned int)peer_count);
+            if (!anchor_app_full_cir_quiet()) {
+                printk("Anchor master auto schedule %c mode=%u peer_count=%u\n",
+                       uwb_anchor_label(anchor_id_runtime),
+                       (unsigned int)APP_ANCHOR_SCHEDULE_MODE,
+                       (unsigned int)peer_count);
+            }
         }
 
         ret = ss_twr_anchor_init_start(anchor_id_runtime, anchor_peer_ids_ptr, peer_count,
@@ -233,16 +243,22 @@ static int anchor_run_runtime_role(uint8_t anchor_id_runtime, uint8_t anchor_id_
         uart_role_switch_set_ranging_active(false);
         anchor_ble_ctrl_set_busy(false);
         if (ret != 0) {
-            printk("ss_twr_anchor_init_start failed: %d\n", ret);
+            if (!anchor_app_full_cir_quiet()) {
+                printk("ss_twr_anchor_init_start failed: %d\n", ret);
+            }
             return ret;
         }
         if (master_sweep_limit != 0U &&
             anchor_runtime_requested_role() == ANCHOR_ROLE_UNSET) {
-            printk("Anchor master finite sweep auto-return to matrix after %lu sets\n",
-                   (unsigned long)master_sweep_limit);
+            if (!anchor_app_full_cir_quiet()) {
+                printk("Anchor master finite sweep auto-return to matrix after %lu sets\n",
+                       (unsigned long)master_sweep_limit);
+            }
             anchor_runtime_request_role_switch(ANCHOR_ROLE_MATRIX, 0U);
         }
-        printk("Anchor master ranging stopped; control plane remains active\n");
+        if (!anchor_app_full_cir_quiet()) {
+            printk("Anchor master ranging stopped; control plane remains active\n");
+        }
         return 0;
     }
 
@@ -250,10 +266,14 @@ static int anchor_run_runtime_role(uint8_t anchor_id_runtime, uint8_t anchor_id_
     uart_role_switch_set_ranging_active(false);
     anchor_ble_ctrl_set_busy(false);
     if (ret != 0) {
-        printk("ss_twr_resp_start failed: %d\n", ret);
+        if (!anchor_app_full_cir_quiet()) {
+            printk("ss_twr_resp_start failed: %d\n", ret);
+        }
         return ret;
     }
-    printk("Anchor responder ranging stopped; control plane remains active\n");
+    if (!anchor_app_full_cir_quiet()) {
+        printk("Anchor responder ranging stopped; control plane remains active\n");
+    }
     return 0;
 }
 
@@ -478,8 +498,10 @@ int anchor_app_run(void)
 
         next_role = anchor_runtime_requested_role();
         if (next_role == ANCHOR_ROLE_UNSET) {
-            printk("Anchor runtime role %s stopped without new role; restarting same role\n",
-                   anchor_role_name(effective_role));
+            if (!anchor_app_full_cir_quiet()) {
+                printk("Anchor runtime role %s stopped without new role; restarting same role\n",
+                       anchor_role_name(effective_role));
+            }
             k_msleep(50);
             continue;
         }
@@ -490,14 +512,20 @@ int anchor_app_run(void)
         ret = anchor_role_runtime_flags(effective_role, &effective_master,
                                         &effective_allow_tag_polls);
         if (ret != 0) {
-            printk("Runtime role switch invalid role=%u\n", (unsigned int)effective_role);
+            if (!anchor_app_full_cir_quiet()) {
+                printk("Runtime role switch invalid role=%u\n", (unsigned int)effective_role);
+            }
             return ret;
         }
-        printk("Anchor runtime role switch applied: anchor=%c role=%s\n",
-               anchor_config_label_char(anchor_id_cfg), anchor_role_name(effective_role));
+        if (!anchor_app_full_cir_quiet()) {
+            printk("Anchor runtime role switch applied: anchor=%c role=%s\n",
+                   anchor_config_label_char(anchor_id_cfg), anchor_role_name(effective_role));
+        }
         ret = anchor_ble_id_update_role(effective_role);
         if (ret != 0 && ret != -EAGAIN) {
-            printk("anchor_ble_id_update_role failed after runtime switch: %d\n", ret);
+            if (!anchor_app_full_cir_quiet()) {
+                printk("anchor_ble_id_update_role failed after runtime switch: %d\n", ret);
+            }
         }
     }
 }
