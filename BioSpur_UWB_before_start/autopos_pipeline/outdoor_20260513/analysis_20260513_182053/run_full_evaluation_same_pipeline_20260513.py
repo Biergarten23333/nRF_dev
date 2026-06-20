@@ -468,9 +468,32 @@ def solve_v4(pair_dists, anchor_ids, x_init=None):
     return gauge_align_local(x), dly, result
 
 
-def solve_v4_common_mode(pair_dists, anchor_ids, x_init=None, *, c_init=0.0, e_init=None, e_reg_scale_mm=20.0, max_nfev=5000):
-    if not np.isfinite(e_reg_scale_mm) or e_reg_scale_mm <= 0.0:
-        raise ValueError(f"e_reg_scale_mm must be positive, got {e_reg_scale_mm!r}")
+def solve_v4_common_mode(
+    pair_dists,
+    anchor_ids,
+    x_init=None,
+    *,
+    c_init=0.0,
+    e_init=None,
+    e_reg_scale_mm=0.0,
+    use_per_anchor_ei=None,
+    loss="huber",
+    f_scale_mm=30.0,
+    residual_sigma_mm=15.0,
+    max_nfev=5000,
+):
+    """Solve common-mode anchor delays.
+
+    Default is now one shared common-mode delay (e_i=0). Set
+    use_per_anchor_ei=True with e_reg_scale_mm>0 to recover the old c + e_i
+    behavior. Huber downweights NLOS-positive inter-anchor range outliers.
+    """
+    if use_per_anchor_ei is None:
+        use_per_anchor_ei = bool(e_init is not None or (np.isfinite(e_reg_scale_mm) and e_reg_scale_mm > 0.0))
+    if use_per_anchor_ei and (not np.isfinite(e_reg_scale_mm) or e_reg_scale_mm <= 0.0):
+        raise ValueError(f"e_reg_scale_mm must be positive when use_per_anchor_ei=True, got {e_reg_scale_mm!r}")
+    if not np.isfinite(residual_sigma_mm) or residual_sigma_mm <= 0.0:
+        raise ValueError(f"residual_sigma_mm must be positive, got {residual_sigma_mm!r}")
     lp, _g2l, _l2g = local_pairs(pair_dists, anchor_ids)
     n = len(anchor_ids)
     if x_init is None:
@@ -479,29 +502,39 @@ def solve_v4_common_mode(pair_dists, anchor_ids, x_init=None, *, c_init=0.0, e_i
     x_start = np.asarray(x_init, dtype=float).copy()
     e0 = np.zeros(n, dtype=float) if e_init is None else np.asarray(e_init, dtype=float)
     e0 = np.clip(e0 - np.mean(e0), -80.0, 80.0)
-    x0 = np.r_[pack_pos(x_start), float(c_init), e0]
-    lo = np.r_[np.full(len(pmap), -np.inf), -150.0, np.full(n, -100.0)]
-    hi = np.r_[np.full(len(pmap), np.inf), 150.0, np.full(n, 100.0)]
+    if use_per_anchor_ei:
+        x0 = np.r_[pack_pos(x_start), float(c_init), e0]
+        lo = np.r_[np.full(len(pmap), -np.inf), -150.0, np.full(n, -100.0)]
+        hi = np.r_[np.full(len(pmap), np.inf), 150.0, np.full(n, 100.0)]
+    else:
+        x0 = np.r_[pack_pos(x_start), float(c_init)]
+        lo = np.r_[np.full(len(pmap), -np.inf), -150.0]
+        hi = np.r_[np.full(len(pmap), np.inf), 150.0]
 
     def unpack(v):
         x = unpack_pos(v[:len(pmap)], n)
         c = float(v[len(pmap)])
-        e = np.asarray(v[len(pmap) + 1:len(pmap) + 1 + n], dtype=float)
+        if use_per_anchor_ei:
+            e = np.asarray(v[len(pmap) + 1:len(pmap) + 1 + n], dtype=float)
+        else:
+            e = np.zeros(n, dtype=float)
         return x, c, e
 
     def residual(v):
         x, c, e = unpack(v)
         dly = c + e
         out = [
-            (np.linalg.norm(x[i] - x[j]) + dly[i] + dly[j] - dist) / 15.0
+            (np.linalg.norm(x[i] - x[j]) + dly[i] + dly[j] - dist) / float(residual_sigma_mm)
             for (i, j), dist in lp.items()
         ]
-        out.extend((e / float(e_reg_scale_mm)).tolist())
-        out.append(float(np.mean(e) / 1.0))
+        if use_per_anchor_ei:
+            out.extend((e / float(e_reg_scale_mm)).tolist())
+            out.append(float(np.mean(e) / 1.0))
         out.extend(physical_layout_prior_residuals(x, anchor_ids))
         return np.asarray(out, dtype=float)
 
-    result = least_squares(residual, x0, loss="huber", f_scale=2.0, bounds=(lo, hi), max_nfev=max_nfev)
+    normalized_f_scale = max(float(f_scale_mm) / float(residual_sigma_mm), 1e-9)
+    result = least_squares(residual, x0, loss=loss, f_scale=normalized_f_scale, bounds=(lo, hi), max_nfev=max_nfev)
     x, c, e = unpack(result.x)
     x = gauge_align_local(x)
     dly = c + e
@@ -514,6 +547,10 @@ def solve_v4_common_mode(pair_dists, anchor_ids, x_init=None, *, c_init=0.0, e_i
     result.differential_delay_mm = np.asarray(e, dtype=float)
     result.absolute_delay_mm = np.asarray(dly, dtype=float)
     result.e_reg_scale_mm = float(e_reg_scale_mm)
+    result.use_per_anchor_ei = bool(use_per_anchor_ei)
+    result.loss = str(loss)
+    result.f_scale_mm = float(f_scale_mm)
+    result.residual_sigma_mm = float(residual_sigma_mm)
     result.mean_e_mm = float(np.mean(e))
     result.max_abs_e_mm = float(np.max(np.abs(e)))
     result.pair_rmse_mm = float(np.sqrt(np.mean(np.asarray(pair_resid) ** 2)))

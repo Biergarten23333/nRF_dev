@@ -21,6 +21,13 @@ def main() -> int:
     ap.add_argument("--anchor-sigma")
     ap.add_argument("--tag-delay-json", help="Optional JSON file mapping tag BSXXXX to calibrated delay mm.")
     ap.add_argument("--tags", help="Comma-separated tag allow-list, for example BSF66F,BS2DCE")
+    ap.add_argument("--solver-loss", choices=["linear", "huber", "tukey"], default="huber")
+    ap.add_argument(
+        "--solver-f-scale-mm",
+        type=float,
+        default=30.0,
+        help="Huber transition in mm. Huber downweights positively biased NLOS range outliers.",
+    )
     ap.add_argument("--max-frames", type=int, default=0)
     ap.add_argument("--tail-rows", type=int, default=0)
     args = ap.parse_args()
@@ -39,6 +46,8 @@ def main() -> int:
         anchor_sigma_path=args.anchor_sigma,
         tags=tags,
         tag_delay_by_tag=tag_delay_by_tag,
+        solver_loss=args.solver_loss,
+        solver_f_scale_mm=args.solver_f_scale_mm,
         max_frames=args.max_frames,
         tail_rows=args.tail_rows,
     )

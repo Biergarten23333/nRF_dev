@@ -1,0 +1,1000 @@
+Received 28 February 2023, accepted 13 March 2023, date of publication 24 March 2023, date of current version 29 March 2023.
+Digital Object Identifier 10.1109/ACCESS.2023.3261567
+
+
+
+
+Self-Localization of Ultra-Wideband Anchors:
+From Theory to Practice
+PABLO CORBALÁN 1 , (Member, IEEE), GIAN PIETRO PICCO 1 , (Senior Member, IEEE),
+MARTIN COORS 2 , AND VIVEK JAIN 2 , (Senior Member, IEEE)
+1 Department of Information Engineering and Computer Science, University of Trento, 38122 Trento, Italy
+2 Bosch Research, Sunnyvale, CA 94085, USA
+
+Corresponding author: Gian Pietro Picco (gianpietro.picco@unitn.it)
+This work was supported in part by the Italian Government via the NG-UWB Project (MIUR PRIN 2017).
+
+
+
+
+  ABSTRACT Ultra-wideband (UWB) radios are increasingly exploited for localization in complex
+  deployments with tens or even hundreds of anchor nodes, whose position must be measured accurately: a long
+  and error-prone manual chore. Self-localization techniques can estimate anchor positions automatically,
+  from relative distances acquired via UWB, but are often evaluated i) only with a handful of anchors all
+  in range, a far cry from the large, multi-hop setups above, and ii) in simulation, therefore neglecting
+  system aspects and undermining immediate use in real contexts. We tackle the problem from a different,
+  practical viewpoint. First, we exploit three real-world, large-scale, multi-hop UWB testbeds, a unique asset
+  in the literature. Second, we build upon state-of-the-art multidimensional scaling (MDS) that, unlike recent
+  UWB-based techniques, is not limited to a specific type of localization or infrastructure, is computationally
+  lightweight, and does not require training. Third, we integrate MDS with in-field distance estimation,
+  yielding a complete, immediately usable self-localization system. Our evaluation, both in simulation and
+  in the testbeds above, analyzes extensively the parameter space (e.g., the impact of ranging errors or anchor
+  connectivity) and shows that anchor positions are determined quickly and accurately, minimizing manual
+  labor without significant detriment to the accuracy of the localization system relying on them.
+
+
+  INDEX TERMS Anchor positioning, localization, multidimensional scaling, ranging, ultra-wideband.
+
+
+I. INTRODUCTION                                                                                is crucial to its performance. This measurement, typically
+The accuracy and reliability of localization systems based                                     performed manually via specialized equipment (e.g., a laser
+on ultra-wideband (UWB) radios is gradually fostering their                                    meter), is tedious and effort-demanding, especially with
+adoption in a plethora of sectors [1], [2], [3], [4]. As these                                 many anchors across large areas. Worse, it is error-prone;
+systems become part of the fabric of our daily lives, prac-                                    even with expert personnel, human errors may still occur
+tical issues concerned with their deployment in big num-                                       that lead to degraded localization performance, thus requiring
+bers and over large areas arise. Covering an area of interest                                  debugging sessions further increasing effort.
+(e.g., a factory, a mall, an office floor) involves tens or even                                  To offer a concrete example, we had first-hand experience
+hundreds of nodes, whose fast and reliable deployment is key                                   with Leica 3D Disto [6] which is a cross between a surveyor’s
+to contain the operational costs associated with this technol-                                 robotic total station and a handheld precision Laser Distance
+ogy and boost its acceptance [3], [4], [5].                                                    Meter (LDM). We used Leica 3D Disto to obtain ground truth
+                                                                                               positions in our industrial plant testing facility, described
+A. MANUAL ANCHOR LOCALIZATION                                                                  later; similar alternatives exist on the market. Although these
+Knowing the accurate positions of the deployed anchors, i.e.,                                  specialized tools are a significant leap forward compared to
+the reference nodes w.r.t. which target localization occurs,                                   LDM, they are still expensive, labor intensive, and require
+                                                                                               training. Further, they require the station and the deployed
+   The associate editor coordinating the review of this manuscript and                         anchors to be in complete line of sight (LOS). In a large
+approving it for publication was Mohamed Kheir              .                                  installation, this cannot be guaranteed from a single point
+
+                     This work is licensed under a Creative Commons Attribution 4.0 License. For more information, see https://creativecommons.org/licenses/by/4.0/
+VOLUME 11, 2023                                                                                                                                                       29711
+                                                             P. Corbalán et al.: Self-Localization of Ultra-Wideband Anchors: From Theory to Practice
+
+
+
+
+towards all anchors. Therefore, to localize all anchors, the
+station must be moved to several points in the target area; this
+requires recalibration of ground truth along with expertise to
+convert all positions to a common coordinate system.
+
+B. ANCHOR SELF-LOCALIZATION
+An alternative approach is to automatically compute the
+                                                                      FIGURE 1. Anchor self-localization system architecture. After deploying
+anchor positions via the distance estimation (ranging)                the wireless nodes, a distance acquisition system (e.g., UWB TWR)
+obtained with the on-board UWB radio, enabling the sys-               measures the distance di ,j between neighboring nodes, optionally
+tem to perform anchor self-localization. This approach is             storing received (RX) signal diagnostics. The distance estimates d̂i ,j
+very appealing, as it minimizes the manual effort involved            together with the known node positions Xa are used in a weighted MDS
+                                                                      solver to determine the unknown anchor positions Xu .
+in the measurement of anchor positions. For instance, the
+Leica 3D Disto above could be used to localize a few anchors
+                                                                      and two indoor areas of the University of Trento
+from a single point, and delegate the remaining ones to
+                                                                      (DEPARTMENT, RECEPTION). They contain up to 36 anchors over
+the self-localization system. Further, the latter would enable
+                                                                      ∼3000 m2 and have very different geometries and non-line-
+localization even in scenarios where human intervention is
+                                                                      of-sight (NLoS) conditions. The size and realism of any of
+impractical or even impossible [7]. Actually, it was precisely
+                                                                      these testbeds, representative of many use cases, is already
+these observations, grounded in industrial use cases and expe-
+                                                                      significantly higher than what commonly reported in the
+riences, that motivated us to investigate the in-field, practi-
+                                                                      UWB literature. The availability of three of them enables
+cal feasibility of self-localization to support, or completely
+                                                                      us to explore real-world setups with different environmental
+replace, existing manual methods.
+                                                                      conditions and geometries, significantly affecting distance
+                                                                      estimation and, ultimately, localization.
+C. DOES IT WORK OVER LARGE-SCALE,                                        Second, unlike the aforementioned studies, we do not
+MULTI-HOP AREAS?                                                      propose yet another novel technique to solve the problem
+This approach is of practical interest only if the anchor             of self-localization we formalize in §III, and rely instead
+positions automatically estimated are accurate enough,                on multidimensional scaling (MDS). This well-known and
+and errors are not detrimental to the overall localization            general technique has been successfully applied to different
+performance.                                                          localization technologies, including UWB. The reason of
+   Several techniques exist that tackle this goal (§II). Unfor-       our choice is that, in comparison with many UWB-specific
+tunately, they are evaluated, often via simulation, only in a         approaches (§II), MDS does not pose requirements on the
+small-scale, single-hop scenario with a handful of anchors in         localization technique or infrastructure used, is computation-
+range of each other. For instance, a recent work [8, Table 1]         ally lightweight, and does not require training.
+reports 8 self-localization solutions for UWB. In all cases,             Specifically, we rely on a weighted version of MDS [9].
+the anchors are always in range of each other. Two solu-              In contrast to the classical one, which requires full-mesh con-
+tions are evaluated only in simulation; the remaining rely on         nectivity among anchors, this weighted variant does not and
+experiments using at most 8 anchors, and covering at most a           is therefore applicable to the large-scale, multi-hop scenarios
+16 × 16 m2 area (with 5 anchors). In the same paper [8], the          we target where many anchors are not in range with each
+authors offer a slightly larger evaluation with 15 anchors over       other. Further, this variant exploits knowledge of a few anchor
+an area of 41 × 26 m2 .                                               positions to estimate the unknown ones, removing the need
+   These setups are a valid means to evaluate the techniques at       for the rigid body transformations required by other common
+hand, but are a far cry from the large-scale, multi-hop UWB           approaches.
+scenarios increasingly targeted by industry where, in contrast,          Third, we integrate the MDS algorithm with the mechan-
+a manual approach is clearly impractical or even prohibitive          ics of acquiring in-field ranging estimates, yielding a
+and self-localization essentially becomes a must. Therefore,          full-fledged, immediately usable self-localization UWB
+the question above remains open.                                      system whose high-level operation is shown in Fig. 1.
+   Further, by focusing on evaluating their novel tech-               Self-localization begins by measuring the distance di,j
+niques, these studies often neglect the self-localization sys-        between each anchor and its neighbors, via two-way ranging
+tem enabling their use, undermining immediate applicability           (TWR) [10], [11], [12]. This first step populates a distance
+(and repeatability) in real contexts.                                 matrix, input to the chosen state-of-the-art MDS algorithm
+                                                                      (§IV) that performs the actual computation of unknown
+D. SEEKING AN ANSWER FROM A PRACTICAL VIEWPOINT                       positions.
+In this paper, we approach the problem from an opposite per-
+spective that, however, is of immediate practical relevance.          E. A REAL-WORLD SYSTEM EVALUATION
+   First, we exploit three real-world, large-scale, multi-            After describing in more detail the system implementation
+hop testbeds deployed in an industrial setting (PLANT)                (§V), we evaluate its performance in our testbeds (§VI).
+
+29712                                                                                                                               VOLUME 11, 2023
+P. Corbalán et al.: Self-Localization of Ultra-Wideband Anchors: From Theory to Practice
+
+
+
+
+The combination of these two elements, and the resulting                             matrix is input to an MDS solver yielding only a rough
+findings, are the main contribution of this paper. To the best                       position estimate, due to the inaccuracy of distance estima-
+of our knowledge, this is the first study that ascertains the                        tion. The distributed MDS approach in [18] computes the
+performance of a full-fledged self-localization UWB system                           relative positions of neighbors as local maps that are then
+in-field and across different testbeds in large, multi-hop areas                     stitched together into a global one. The latter can be aligned
+with many anchors.                                                                   to a known coordinate system by applying a translation,
+   Self-localization is affected by several parameters, deter-                       a rotation, and possibly a reflection to the estimated positions.
+mined by deployment and configuration choices as well                                The work in [15] proposes an alternate distributed approach
+as environmental conditions. Therefore, before the actual                            encompassing known anchor positions in the computation,
+testbed experiments, we exploit the geometric layout of our                          to reduce the computational load and improve accuracy, and
+testbeds in simulation to understand the sensitivity of the                          exploiting non-binary weighting functions, e.g., to down-
+algorithm to these parameters and the conditions under which                         weight measurements based on their confidence.
+it works at its best, deriving the insights and guidelines driv-                        More recently, Franco et al. [9] reformulated the MDS
+ing the in-field experimental campaign.                                              minimization problem to directly take into account known
+   Results indicate that, across all three real-world testbeds,                      anchor positions in a centralized approach. As a result, in each
+our system can estimate the position of all anchors with a                           iteration only unknown positions are computed. This simpli-
+mean error well below 50 cm despite the presence of ranging                          fies the problem and removes the need for roto-translations,
+errors of higher magnitude. Further, we analyze the perfor-                          as estimated positions can potentially be aligned with known
+mance of a localization system tracking a mobile target, and                         ones in the target coordinate system directly during the min-
+demonstrate that the error in estimating the anchor positions                        imization process. This reformulation, however, has been
+yields only a minor increase in the target positioning error                         tested only in simulation and a small setup with a handful
+w.r.t. a configuration in which the position of anchors is                           of UWB nodes.
+manually determined.
+   Our findings show how self-localization provides an effec-                        B. MULTI-LATERATION
+tive and practically-relevant means to significantly reduce the
+                                                                                     Other recent approaches targeting UWB, e.g., the auto-
+human effort in the deployment of UWB systems. Specif-
+                                                                                     positioning feature offered by Decawave [19] and the works
+ically, the quantitative evidence we report from real-world,
+                                                                                     in [7], [20], and [21] are based on multi-lateration. After
+large-scale, multi-hop areas, enables a concrete understand-
+                                                                                     measuring the distance between nodes, these approaches iter-
+ing, largely missing in the literature, of the benefits and
+                                                                                     atively build a coordinate system by assigning a 1st node
+limitations of self-localization in these contexts.
+                                                                                     to the origin (0, 0, 0) and placing a 2nd one on the positive
+   Of course, these are biased by our specific choice of
+                                                                                     x-axis at (d1,2 , 0, 0). The coordinates of the 3rd and 4th nodes,
+techniques, systems details, and environments. Further, there
+                                                                                     derived in closed form, set the positive direction of the
+is also margin for improvements and future work on the
+                                                                                     y- and z-axis. The remaining node positions are determined
+topic. We encourage both repeatability of our results and
+                                                                                     based on these 4 nodes and available distance information,
+follow-up research by publicly releasing1 our system and
+                                                                                     e.g., using a non-linear least squares solver. In comparison,
+datasets. We outline these opportunities (§VII) before con-
+                                                                                     MDS provides a more elegant and efficient formulation of
+cluding remarks (§VIII).
+                                                                                     the problem, simultaneously computing the position of all
+                                                                                     nodes. Moreover, including known anchor positions in MDS
+II. RELATED WORK
+                                                                                     removes the need for a rigid body transformation to align the
+The problem of determining the positions of wireless nodes
+                                                                                     built coordinate system to the desired one, generally yielding
+received attention since the early days of wireless sensor
+                                                                                     more accurate estimates.
+networks [13]. Most approaches first measure the distance
+between neighbors, then estimate all node positions with an
+algorithm based either on MDS or multi-lateration. In gen-                           C. OTHER APPROACHES
+eral, distance estimates are obtained using UWB two-way                              Another set of UWB-specific approaches tackles the prob-
+ranging (TWR) exchanges [11], [12], [14] or, in the case of                          lem by introducing additional system and/or operational con-
+narrowband radios (e.g., WiFi, Bluetooth, IEEE 802.15.4),                            straints. The solution in [22], evaluated experimentally with
+from significantly less accurate received signal strength                            only 2 unknown anchors, relies on a variant of time-difference
+(RSS) measurements [15], [16].                                                       of arrival (TDoA) to self-localize anchors, posing additional
+                                                                                     synchronization and infrastructure constraints that may not
+A. MULTIDIMENSIONAL SCALING                                                          be necessary if alternative techniques are used for the actual
+Early approaches exploited mere connectivity information,                            localization. Other works rely on a mobile tag to acquire
+estimating the distance between nodes as the number of com-                          ranging measurements from the deployment area, increasing
+munication hops between them [17]. The resulting distance                            their number and diversity. In [23], the fusion of inertial
+                                                                                     measurement unit (IMU) and UWB data from a free-roaming
+  1 https://github.com/d3s-trento/selfloc                                            tag enables simultaneous localization and mapping (SLAM),
+
+VOLUME 11, 2023                                                                                                                                  29713
+                                                              P. Corbalán et al.: Self-Localization of Ultra-Wideband Anchors: From Theory to Practice
+
+
+
+
+yielding anchor localization as a necessary by-product; how-             The unknown anchor positions Xu can be determined with
+ever, the system is demonstrated only in simulation. Instead,          overall knowledge of the Euclidean distance between all
+in [24] the mobile tag is constrained to move on a known               anchors, i.e., in 2D:
+path and its data matched against accurate ground truth; the                                    q
+latter is provided by RTK GPS and generally difficult to                       di,j = xi − xj = (xi − xj )2 + (yi − yj )2   (1)
+achieve indoor. Finally, the work in [8] extends the multi-            The di,j distances are typically estimated manually with spe-
+lateration approach in [20] by focusing specifically on the            cialized equipment, e.g., laser meters. In contrast, our auto-
+NLoS problem and analyzing the channel impulse response                matic, in-band approach estimates them directly via the UWB
+(CIR) associated to the UWB signal via machine learning.               radio (§V) by using two-way ranging [10], [25], [26].
+As such, this approach is computationally heavy, requires                 The corresponding d̂i,j estimates can be arranged as
+extensive training, and is difficult to transfer to different                                                        
+environments.                                                                                     0 d̂1,2 · · · d̂1,N
+                                                                                               d̂2,1 0 · · · d̂2,N 
+                                                                                        D̂ =  .       .. . .      ..            (2)
+                                                                                                                     
+D. IMPACT ON THIS PAPER
+                                                                                               ..      .     .     . 
+Unlike these studies, we are not proposing our own self-                                             d̂N ,1 d̂N ,2 · · · 0
+localization technique. Instead, our goal is to ascertain              where D̂ is a square and symmetric distance matrix of size
+whether existing ones, hitherto evaluated only in simulation           N × N whose main diagonal elements d̂i,i = di,i = 0.
+or small, single-hop scenarios, are applicable to the large-              Although ideally d̂i,j = d̂j,i , this does not hold in practice.
+scale, multi-hop ones increasingly targeted by UWB appli-
+                                                                       Each measurement d̂i,j = di,j + η is affected by a noise η that
+cations and exemplified by our three real-world testbeds (§I).
+                                                                       depends on a variety of system and environmental factors,
+   Nevertheless, comparing in-field and on multiple testbed
+                                                                       e.g., NLoS conditions. However, the matrix can be easily
+all the techniques above, would be a daunting and some-
+                                                                       made symmetric by setting d̂i,j = d̂j,i to the median of the
+what unreasonable task, given that their implementation is
+                                                                       distribution resulting from multiple measurements. Further
+often not available and/or limited to simulation and there-
+                                                                       improvements are enabled by techniques that, e.g., reject out-
+fore glossing over details of practical relevance. Indeed, our
+                                                                       liers, weight measurements, and perform NLoS identification
+other stated goal is to provide a full-fledged, immediately
+                                                                       and mitigation based on RX diagnostics [27], [28] (Fig. 1).
+usable self-localization UWB system, along with qualitative
+                                                                          On the other hand, not all distances in (2) can be measured.
+guidelines informing its use and quantitative evidence of the
+                                                                       In large deployments, anchors are separated by multiple
+performance that can be attained in-field. Together, these
+                                                                       wireless hops, beyond the communication range enabling
+considerations forced us to select a single technique.
+                                                                       pairwise distance estimation. In practice, this limits the d̂i,j
+   Our choice landed on the MDS-based approach by
+                                                                       measurements available, a crucial aspect to be accounted for
+Franco et al. [9], due to the following reasons. As mentioned,
+                                                                       in determining the unknown positions Xu .
+MDS is a well-known and general technique, success-
+                                                                          Finally, the distance between the m known anchors can be
+fully applied in several contexts and with different tech-
+                                                                       directly computed as di,j = xi − xj . This reduces the over-
+nologies, and more efficient and flexible than approaches
+                                                                       head of acquiring distance estimates and the computational
+based on multi-lateration. Further, unlike the last set of
+                                                                       load of the self-localization algorithm, described next.
+approaches above, it does not pose additional system con-
+straints, is computationally lightweight, and does not require
+                                                                       IV. ANCHOR SELF-LOCALIZATION
+training. Finally, the specific weighted variant in [9] lifts
+                                                                       We illustrate the salient aspects of the state-of-the-art MDS
+the constraint of classical MDS that all anchors must be in
+                                                                       algorithm [9] we use to determine the unknown anchor posi-
+range, therefore directly addressing large-scale, multi-hop
+                                                                       tions Xu via the known m positions Xa and the distance
+scenarios, despite having been evaluated only in simulation
+                                                                       matrix D̂. The algorithm is based on a weighted variant
+and small-scale, single-hop ones.
+                                                                       of MDS. We first introduce classical MDS and how it can
+   We describe next the self-localization problem and the
+                                                                       be used towards self-localization. We then discuss its main
+techniques we employ to solve it.
+                                                                       drawback, i.e., the need for a complete distance matrix D̂, not
+                                                                       available in our context (§III), and how the weighted variant
+III. PROBLEM STATEMENT                                                 overcomes this problem. We add the possibility to account for
+Consider a network deployment of N nodes in an                         known anchor positions, enabling the algorithm to directly
+M -dimensional space, M ∈ {2, 3}, and position coordi-                 estimate only the n unknowns. Finally, we discuss the impact
+nates X = [x1 , x2 , . . . , xN ]T ∈ RN ×M . We arrange X so that      of the initial estimate input to the algorithm in relation to local
+X = [Xu , Xa ]T , where Xu denote the n unknown coordinates            minima.
+in X and Xa the m anchor positions known a priori. Our
+goal is to determine the unknown Xu positions that satisfy             A. MULTIDIMENSIONAL SCALING
+the measurable distance di,j between nodes i and j, ∀i, j ∈            MDS is a technique that, given a set of objects, aims at find-
+{1 . . . N }, and respect the known Xa coordinates.                    ing a low-dimensional representation in which their distance
+
+29714                                                                                                                                VOLUME 11, 2023
+P. Corbalán et al.: Self-Localization of Ultra-Wideband Anchors: From Theory to Practice
+
+
+
+
+closely matches the measured pairwise ‘‘dissimilarity’’ in the                       d̂i,j and/or their number is small, due to a low density of
+original high-dimensional representation [15], [29]. In our                          anchors. To deal with this issue, iterative solvers consider
+context, MDS can determine the Cartesian coordinates of                              multiple random initial estimates X0 , computing each corre-
+anchors given the pairwise distances between them. If dis-                           sponding solution and reporting as the final output the one
+tance measurements are error-free and all pairwise distances                         with the lowest residual cost from (4). This does not guar-
+are available, classical MDS provides a closed-form solution                         antee convergence to the optimal solution but increases the
+to determine the anchor coordinates. In practice, this is not                        likelihood to find it. Increasing the number of initial estimates
+the case and techniques based on non-linear least squares                            also increases the computational cost, which is acceptable if
+(NLLS) via majorizing functions like SMACOF [30], [31]                               the algorithm is run sparingly, e.g., only after deploying the
+are typically used to solve the problem. An MDS algorithm                            nodes.
+essentially tries to find the representation X that minimizes
+the mismatch between the measured dissimilarity d̂i,j and the                        V. SYSTEM IMPLEMENTATION
+distances in X as follows                                                            We offer details of our full-fledged, immediately usable self-
+                               X                    2                              localization system (Fig. 1) combining in-field acquisition of
+           min S(X) = min            d̂i,j − di,j (X)      (3)                       ranging estimates with the techniques described above. The
+                X                X
+                                     i<j≤N                                           system, used in our experimental campaign (§VI), targets the
+                                                                                     Decawave DW1000 UWB transceiver [32] and is developed
+B. WEIGHTED MDS
+                                                                                     atop Contiki OS [33].
+The equation above requires the all-to-all pairwise distance
+estimates d̂i,j between nodes, unfeasible when they are not                          A. ACQUIRING AND REPORTING DISTANCE ESTIMATES
+within communication range. In other words, classical MDS                            The in-band acquisition of distance estimates via UWB is
+cannot cope with missing data (i.e., links) and requires full                        performed via two-way ranging, which comes in several
+connectivity among anchors. To overcome this, a weight wi,j                          variants. SS-TWR is the simplest, with the lowest overhead
+can be associated to each di,j measurement, leading to [15]                          but also lowest accuracy [11]. In PLANT, we used asymmetric
+and [18]                                                                             DS-TWR [12], a classic scheme achieving higher accuracy
+                                                     2
+                                                                                     at the cost of higher message overhead, and therefore latency
+                           X        
+         min S(X) = min         wi,j d̂i,j − di,j (X)     (4)
+            X                X                                                       and energy consumption. Instead, in our latest deployments
+                                 i<j≤N
+                                                                                     in DEPARTMENT and RECEPTION we use SS-TWR with a clock
+Missing links have zero weight and do not affect the cost                            drift compensation based on carrier frequency offset (CFO)
+function, while available and measured links have wi,j = 1.                          estimation [26], a recent technique yielding accuracy akin
+This is the weighting function used in our experiments (§VI).                        to DS-TWR and the same overhead as SS-TWR. Concurrent
+Alternatively, if information on the noise on distance esti-                         ranging [14], also recently proposed, could be another viable
+mates is available, less accurate measurements can be down-                          option. However, its significant improvements in latency,
+weighted [15]. Similarly, if multiple measurements are taken                         update rate, and energy consumption, are largely irrelevant
+per distance di,j , the weight could be set based, e.g., on their                    in common scenarios where anchors are mains-powered and
+variance.                                                                            their distance acquired only sporadically. Further, these ben-
+                                                                                     efits come at the cost of a slightly lower ranging accuracy,
+C. ACCOUNTING FOR KNOWN ANCHORS                                                      crucial in self-localization.
+The MDS algorithm determines the low-dimensional coor-                                  We exploit the out-of-band network, present in all of our
+dinates of X in a new relative coordinate system. The new                            testbeds, to schedule tests and collect the d̂i,j distance esti-
+coordinates must then be transformed to the desired coor-                            mates. First, we determine the neighborhood of each anchor
+dinate system via a rigid body transformation including a                            via a connectivity assessment and discard links with a packet
+rotation, translation, and possibly a reflection. To this end,                       reception rate PRR < 25%. Based on the resulting con-
+at least 3 points (4 in 3D) must be measured in both coordinate                      nectivity graph among anchors, we then instruct each one,
+systems. If we have m known positions (Xa ), we can directly                         in sequence, to range against a given set of neighbors. This
+include their coordinates in the MDS minimization problem                            simple solution schedules ranging exchanges, and in general
+as in [9], removing the need for these transformations and                           UWB communication, to guarantee the absence of collisions.
+facilitating the accurate estimation of the unknown node                                The reliance on an out-of-band network is not an issue
+coordinates.                                                                         for most UWB applications, where it is already present.
+                                                                                     For instance, in time-difference of arrival (TDoA) schemes
+D. LOCAL MINIMA                                                                      [34], [35] a wired or wireless network enables the collection
+As many other NLLS algorithms, MDS suffers from local                                of the time information acquired by anchors, necessary to
+minima. Iterative MDS solvers require as input an initial                            compute the target position at a central server. In situations
+estimate X0 = [X0u , Xa ]T . For the algorithm to converge to                        where this out-of-band infrastructure is impractical or impos-
+the desired minimum, X0u must be well-positioned, especially                         sible to deploy, the scheduling of ranging exchanges must
+if there are significant errors in the distance measurements                         be performed in-band, over the UWB network. In this case,
+
+VOLUME 11, 2023                                                                                                                                 29715
+                                                                 P. Corbalán et al.: Self-Localization of Ultra-Wideband Anchors: From Theory to Practice
+
+
+
+
+a multi-hop routing protocol, e.g., the RPL standard [36],                an inaccurate input affects the quality of the self-localization
+can be used to support i)the downward traffic necessary to                output. The latter is directly captured by the anchor posi-
+instruct each anchor to perform ranging, and ii) the upward               tioning error, computed as the difference x̂i − xi between
+traffic to collect the d̂i,j values. We exploited this approach in        the estimated position and the ground-truth one. Moreover,
+the PLaNS project [7]; however, its detailed description and              in §VI-C we report the target positioning error, quantify-
+evaluation is outside the scope of this paper.                            ing the impact anchor positioning errors induced by self-
+                                                                          localization bear on the accuracy of the overall localization
+B. COMPUTING THE ANCHOR POSITIONS                                         system.
+The distance estimates collected at the server are used to                   Outline: We first analyze via simulation, exploiting the
+populate the distance matrix D̂ (§III). We mitigate the effect            geometric layout of our testbeds, the impact of key environ-
+of noise by setting d̂i,j = d̂j,i to the median of the distribution       mental, system, and configuration parameters on the resulting
+yielded by the multiple measurements available. Further, we               anchor positioning accuracy (§VI-A). This step is necessary
+compute the distance between known anchors as xi − xj                     to understand what are the tradeoffs at stake, and to inform the
+and set the corresponding elements in D̂.                                 configuration and setup of the self-localization system when
+   This distance matrix is then input to the algorithm in §IV,            actually used in our three testbeds (§VI-B). The experimental
+developed atop the Python implementation of MDS in                        campaigns i) offer a validation of our simulation results, and
+scikit-learn [37]. We extend the original source code                     ii) concretely demonstrate the accuracy of self-localization
+with the possibility to add i) weights to each distance esti-             one can expect in real-world, large-scale scenarios; both
+mate, coping with missing data due to limited network con-                aspects are rarely found in the related literature, let apart
+nectivity, and ii) known node positions in each SMACOF                    in combination (§II). Along the same lines, we close the
+step. The algorithm runs on a personal computer, which                    circle by ascertaining the impact of the inaccuracies in anchor
+receives the in-field measured distance estimates as input and            position induced by self-localization on the overall accuracy
+computes offline the estimated anchor positions.                          of the localization system (§VI-C). This provides researchers
+                                                                          and practitioners with a concrete understanding, again largely
+                                                                          missing in the literature, of the benefits and limitations of
+VI. FROM THEORY TO PRACTICE
+                                                                          self-localization, albeit inevitably biased by the techniques,
+We now turn our attention to the performance of self-
+                                                                          systems, and environments we use.
+localization in our real-world settings.
+  UWB Testbeds: We exploit the following large-scale,
+                                                                          A. UNDERSTANDING THE PARAMETER SPACE
+multi-hop deployments representative of many UWB use
+                                                                          The performance of the self-localization algorithm depends
+cases:
+                                                                          on several parameters, of different nature. The choice
+  • PLANT: A 28-anchor deployment in a large industrial                   of which and how many anchors should have a known,
+    plant, covering a rectangular area of ∼3000 m2 . It is                manually-determined position, and the density of all anchors
+    characterized by the presence of metallic objects and                 throughout the target area (§VI-A2–§VI-A3) are determined
+    NLoS conditions, typical of industrial settings.                      in-field at deployment time. The amount of noise on ranging
+  • DEPARTMENT: A 36-anchor deployment spanning an                        errors (§VI-A4) is instead primarily determined by the envi-
+    entire floor at the University of Trento. The anchors                 ronment. Finally, accuracy directly descends from the initial
+    cover an area of 80 m × 40 m, but are deployed mostly                 estimate passed as input to the self-localization algorithm
+    along corridors, which are very narrow (2.7 m) and                    (§VI-A5). In this section, we exploit simulation to analyze the
+    long (Fig. 10). This yields a very challenging geome-                 impact of each parameter separately and quickly, deriving the
+    try for localization, yet representative of many indoor               insights and guidelines we apply in our real-world evaluation
+    applications.                                                         in §VI-B.
+  • RECEPTION: A 19-anchor deployment covering a total
+    of 720 m2 in the reception floor of the University of                 1) EXPERIMENTAL SETUP
+    Trento. The area is L-shaped (Fig. 11a), with two nearly-             We report simulations based on the geometric characteristics
+    separated areas connected only by a few NLoS links.                   of PLANT, to keep presentation concise. This testbed is a
+Anchors are always placed on the ceiling of the target area.              system operational in an industrial context, whose anchor
+   Metrics: Our assessment revolves around the following                  placement is significantly more irregular than the other two.
+error metrics, for which we report the mean µ and standard                Our real-world results (§VI-B) are based on the 28 anchors
+deviation σ , along with percentiles of absolute errors. The              available during the limited period of time when we were
+ranging error between anchors enables us to characterize the              allowed to perform measurements without disrupting the
+input to the self-localization algorithm. It is computed for              facility operation. Here, we use instead the 38-anchor place-
+each link as d̂i,j − di,j , where d̂i,j is the distance estimate and      ment originally planned, as it enables us to explore in simu-
+di,j = xi − xj is computed from ground-truth anchor coor-                 lation the parameter space in a larger setup.
+dinates. This metric informs us of the discrepancies one can                 The simulations exploit the very same implementation
+expect in the real world, and therefore of the extent to which            of the self-localization algorithm we described in §V.
+
+29716                                                                                                                                   VOLUME 11, 2023
+P. Corbalán et al.: Self-Localization of Ultra-Wideband Anchors: From Theory to Practice
+
+
+
+
+                                                                                     FIGURE 3. Average node degree (i.e., number of links per node) and
+                                                                                     standard deviation as a function of the communication range in PLANT.
+
+
+
+                                                                                        In Fig. 2a, the bottom half of the area contains only one
+                                                                                     known position (anchor 8); the algorithm is unable to distin-
+                                                                                     guish whether its neighbors should be located on its right or
+                                                                                     left, leading to very large errors. A similar behavior occurs
+                                                                                     in the top half despite the presence of three known anchors
+FIGURE 2. Positioning performance with 4 known anchor positions
+                                                                                     (14, 15, 35), due to their placement and, more generally,
+(green circles) selected randomly (2a and 2b) and on the boundary of the             sparse connectivity. For instance, some unknown anchors
+area (2c). Grey lines denote available wireless links, blue circles unknown
+anchors, orange crosses estimated anchor positions, and red lines the
+                                                                                     (11, 18, 21, 22) are to the left of all three known ones
+distance of the latter from ground-truth anchor positions.                           above; therefore, MDS can comply with the input distance
+                                                                                     matrix D̂ by placing these unknowns correctly to the left but
+The difference is in the input provided to it, and specifi-                          also incorrectly below the known anchors, yielding the large
+cally the distance matrix D̂, which is synthetically generated.                      errors. A denser connectivity would yield more elements in
+To determine the neighborhood of each anchor, we assume                              D̂, further constraining the MDS algorithm, and ultimately
+a UWB communication range of 15 m, which achieves a                                  improving estimates, as analyzed later (Fig. 4).
+connectivity similar to what observed in the real-world rang-                           In Fig. 2b, all randomly-selected known anchors are in the
+ing traces in PLANT (Fig. 8). We then populate D̂ with the                           bottom half, yielding accurate estimates for the anchors in
+computed distance between anchors, and account for noise                             this area. In contrast, the estimates in the top half exhibit
+by adding a ranging error from a zero-mean Gaussian distri-                          large errors, despite the fact that they satisfy the distance mea-
+bution N (0, σ 2 ) with σ = 15 cm. This simple model controls                        surements d̂i,j available. Indeed, recall that missing distance
+noise with a single parameter, simplifying both the interpre-                        estimates are assigned a zero weight in the cost function.
+tation of simulation results and their computation. However,                         As a result, the algorithm may position these anchors in areas
+it does not account for the distance between anchors, their                          whose connectivity, while satisfying the input constraints,
+antenna orientations, or the presence of NLoS; these aspects                         would be quite different from the real one.
+are nonetheless investigated in our real-world testbed exper-                           In contrast, in Fig. 2c the 4 known anchor positions are
+iments (§VI-B–§VI-C). Finally, as the performance of MDS                             selected on the boundary of the deployment. In this case, the
+is affected by local minima (§IV), we execute the algorithm                          algorithm accurately estimates the position of all unknown
+with 128 different random initialization coordinates X0u .                           anchors with a mean error µ = 10 cm, standard deviation
+   We use all these defaults unless otherwise specified, when                        σ = 4 cm, and a maximum error of only 20 cm. Setting the
+we change them to analyze specific configuration or environ-                         known positions at the boundary of the deployment encloses
+mental conditions.                                                                   the unknown anchors to a confined area, making it easier for
+                                                                                     the algorithm to correctly determine the unknown positions
+2) IMPACT OF THE POSITION OF KNOWN ANCHORS                                           and limiting the likelihood to suffer from large errors as
+The performance of the anchor self-localization algorithm                            observed in Fig. 2a and 2b. These anchors are also typically
+depends on which anchors have a known position (§IV).                                the easiest to visually identify on-site, therefore helping the
+We analyze the impact of their number and placement, useful                          personnel in charge of measuring the actual anchor positions,
+to the personnel in charge of deployment. There are two main                         e.g., using a map and a laser meter.
+attributes to consider for anchor selection: i) anchor position
+and ii) connectivity. We start our evaluation by looking at the                      3) IMPACT OF ANCHOR DENSITY AND NUMBER
+impact of the former on the estimation of Xu .                                       OF KNOWN POSITIONS
+   Fig. 2 compares the estimated and true anchor coordinates                         The self-localization algorithm (§IV) is sensitive to the over-
+in PLANT, considering 4 known positions. In Fig. 2a–2b the                           all density of anchors, both unknown or known. Moreover,
+selection is completely random; this is somewhat unrealistic                         concerning the latter, it is sensitive not only to the position
+but allows us to analyze the algorithm behavior and elicit how                       (§VI-A2), but also to the number of known anchors.
+poorly-placed known anchors prevent correct estimation of                               To investigate the former issue, we change the communi-
+the unknown positions.                                                               cation range from the default of 15 m to 30.5 m, in steps
+
+VOLUME 11, 2023                                                                                                                                        29717
+                                                                        P. Corbalán et al.: Self-Localization of Ultra-Wideband Anchors: From Theory to Practice
+
+
+
+
+FIGURE 4. Maximum positioning error as a function of the
+communication range and the number of known anchors across
+15 iterations per configuration with a random (4a) and boundary (4b)
+                                                                                 FIGURE 5. Anchor positioning error boxplots as a function of the ranging
+selection of known anchors. Note the different scale of the right colorbar.
+                                                                                 standard deviation σ . Small dots represent samples outside the 1.5×
+                                                                                 inter-quartile range of the distribution.
+of 0.5 m. This changes the density of anchors and there-
+fore the number of their neighbors (Fig. 3). Increasing den-
+sity increases the information available to self-localization,                   common case where most links are LoS and relatively few
+improving the estimation of the unknown anchor coordinates.                      are NLoS, we can generally expect a ranging precision with
+   To investigate the latter issue, we change the number of                      σ ≤ 25 cm, resulting in a positioning error ≤50 cm. This
+known anchors from 4 to 15, in steps of 1, for each com-                         is usually acceptable and bears limited impact on the overall
+munication range tested. Increasing the number of known                          localization accuracy, as we demonstrate in §VI-C, while our
+positions decreases the unknowns to determine, simplifying                       automated self-localization toolchain dramatically decreases
+the localization problem and increasing accuracy.                                the deployment setup time and effort.
+   We consider both i) a random anchor selection to further
+                                                                                 5) IMPACT OF INITIAL ESTIMATES
+illustrate the impact of a poor anchor choice, and ii) a selec-
+tion with all known anchors on the boundary. We run each                         As mentioned in §IV, MDS suffers from local minima; the
+configuration 15 times, changing the ranging errors intro-                       initial position X0 is crucial in ensuring convergence. There-
+duced in the distance matrix D̂.                                                 fore, we cannot rely on a single random X0 , rather we must
+   Fig. 4 shows two heatmaps with the maximum positioning                        compute the solution with several and select as the final
+error obtained per configuration considering the random (4a)                     output the one that provides the lowest cost. This, however,
+and boundary (4b) anchor selection cases. Using a random                         increases the computational overhead of the approach.
+selection, self-localization requires at least 6 known anchor                       We analyze these issues by changing the number of ini-
+positions (16% of all anchors in Fig. 2) and a high den-                         tial positions #X0 from 1 to 256 with a power-of-two step.
+sity of >11 neighbors (Fig. 3) to reliably and accurately                        We execute 15 iterations per configuration, and report the
+determine the unknown anchor positions. Interestingly, with                      mean, standard deviation, and maximum values of execution
+an average density of ≈8 neighbors, the algorithm can-                           time and positioning error, itself aggregated across all esti-
+not determine all unknown positions accurately even with                         mated unknowns. We use default settings (§VI-A1) and the
+15 known positions (40%), reasserting the importance of                          same 4 known anchor positions of Fig. 2c.
+sufficient connectivity—at least with a random selection.                           Table 1 shows the results as a function of the number of
+Indeed, selecting the known anchors on the boundary of the                       initial estimates. As expected, the execution time increases
+deployment area improves performance dramatically, yield-                        with #X0 , while the positioning error decreases. Neverthe-
+ing a maximum error ≤45 cm in all configurations tested                          less, these results allow us to identify the minimum number
+(Fig. 4b). Further, the number of known anchors bears only                       of iterations required to obtain a reasonable error, which
+a marginal impact, suggesting that the dominating factor is                      is key to verify the practical applicability of the approach,
+their selection on the boundary and their connectivity.                          and a precious indication at deployment time. Under the
+                                                                                 conditions evaluated, to obtain a mean error <50 cm we
+4) IMPACT OF RANGING ERRORS                                                      need #X0 ≥16 initial estimates. Nevertheless, the maximum
+To examine how ranging errors affect the anchor positioning                      positioning error can be much higher; to limit it to <1 m,
+accuracy, we change the default ranging error distribution                       we need at least 64 iterations. Interestingly, the correspond-
+N (0, σ 2 ) in §VI-A1 by increasing σ from 5 cm to 1 m in                        ing execution time is only a handful of seconds; even with
+steps of 5 cm. For each value of σ , we run 30 iterations                        256 iterations, the worst-case execution time is 20.22 s on the
+producing different Gaussian distance errors. We select the                      rather old laptop model (MacBook Pro 2013) we used.
+same 4 known anchor positions as in Fig. 2c.                                        These values confirm the practical applicability of the
+   Fig. 5 shows that, as expected, the anchor positioning                        technique, as embodied in our system. The computational
+error increases with the ranging error. When NLoS or                             overhead is entirely acceptable in absolute terms, especially
+otherwise noisy links are predominant, the anchor positioning                    considering that the self-localization computation is likely to
+accuracy decreases significantly and rapidly. However, in the                    be run only during the anchor deployment.
+
+29718                                                                                                                                          VOLUME 11, 2023
+P. Corbalán et al.: Self-Localization of Ultra-Wideband Anchors: From Theory to Practice
+
+
+
+
+FIGURE 6. Normalized histogram and CDF of the ranging error across all measurements in the three studied deployments.
+
+TABLE 1. Execution time and positioning error as a function of the                   a J-Link programmer. The UWB radios use channel 7 with
+number of initial X0 values considered in the algorithm using a ranging
+error distribution with σ = 15 cm, 15 iterations with different random
+                                                                                     fc = 6489.6 MHz and 900 MHz bandwidth.
+errors, and the 4 known anchor positions in Fig. 2c.                                    All experiments use the highest 6.8 Mbps data rate.
+
+                                                                                     2) ANALYSIS OF RANGING ERRORS
+                                                                                     To appreciate the quality of the output of self-localization,
+                                                                                     an analysis of the quality of the input is necessary. We report
+                                                                                     the ranging errors present in our real-world testbeds, and
+                                                                                     investigate whether their presence can be inferred from the
+                                                                                     PHY-level indicators available on the UWB radio.
+
+                                                                                     a: ACCURACY AND PRECISION
+                                                                                     Fig. 6 shows the normalized histogram and cumulative dis-
+                                                                                     tribution function (CDF) of the ranging error distributions
+                                                                                     across more than 1.2k, 163k, and 111k estimates covering all
+                                                                                     available links (PRR ≥ 25%, §V) in PLANT, DEPARTMENT, and
+B. REAL-WORLD ANCHOR SELF-LOCALIZATION                                               RECEPTION, respectively.
+We now quantify the performance of self-localization in our                             The best ranging performance is obtained in RECEPTION
+three real-world, large-scale, multi-hop testbeds. We begin                          with µ = 4 cm and σ = 20 cm and percentiles of the
+by characterizing the quality of ranging estimates, inevitably                       absolute error of 95th = 29 cm and 99th = 61 cm. This
+affected by errors induced by the environment (§VI-B2).                              testbed spans two open areas where most anchors enjoy LoS
+As these estimates are collected by our system and provided                          conditions, except for the few connecting the two areas. At the
+as input to the MDS algorithm (§IV), they crucially affect the                       other extreme, in DEPARTMENT anchors are placed in long
+accuracy of the anchor positions returned as output, analyzed                        and narrow corridors, with corners and ceiling half-walls
+next (§VI-B3).                                                                       causing several NLoS links, responsible for a long-tailed error
+                                                                                     distribution where 99th = 1.94 m and the error is ≥ 87 cm in
+                                                                                     5% of the estimates. As a consequence, the overall accuracy
+1) EXPERIMENTAL SETUP                                                                (µ = 20 cm) and precision (σ = 57 cm) are also significantly
+In all testbeds, each anchor is composed of a UWB                                    worse. PLANT shows a similar long tail of errors ≥ 1 m in
+node paired with an embedded PC; the latter enables                                  5% of the estimates, this time caused by the complexity of
+communication access to a central server via Ethernet.                               the industrial environment, despite obtaining slightly better
+In PLANT, an anchor consists of a custom Linux computer                              performance with µ = 8 cm and σ = 44 cm.
+interfaced with a UWB platform designed by the company
+owning the deployment, based on the Decawave DW1000                                  b: CAN WE IDENTIFY ERRORS?
+UWB transceiver [32]. Anchors use channel 2 with center                              These long-tailed error distributions are a challenge for the
+frequency fc = 3993.6 MHz and 499.2 MHz bandwidth.                                   self-localization algorithm, ultimately preventing accurate
+   In DEPARTMENT and RECEPTION, anchors consists of an                               positioning of all anchors (§VI-B3). Therefore, based on
+EVB1000 board [38] attached to a Raspberry Pi v3 (RPi) and                           our extensive datasets, we investigate whether a correlation
+
+VOLUME 11, 2023                                                                                                                               29719
+                                                                        P. Corbalán et al.: Self-Localization of Ultra-Wideband Anchors: From Theory to Practice
+
+
+
+
+     FIGURE 7. Ranging error vs. distance, CFO, FPPL, RSS, and |RSS − FPPL| across more than 163k and 111k ranging estimates in DEPARTMENT and
+     RECEPTION, respectively. Errors do not exhibit a clear correlation with these measured radio features.
+
+
+                                                                                 low values yield very accurate ranging estimates. Finally,
+                                                                                 the NLoS indicator suggested by Decawave is similarly
+                                                                                 unreliable, given that the largest errors in our dataset have
+                                                                                 |RSS − FPPL| < 10 dBm.
+                                                                                    We conclude that these simple radio features cannot be
+                                                                                 used to identify errors, at least in our testbeds, and therefore
+                                                                                 are not included as part of the ranging computation. More
+                                                                                 sophisticated techniques are the subject of active research,
+                                                                                 as briefly discussed later (§VII), and could in principle be
+                                                                                 used to improve the ranging accuracy; however, they are
+                                                                                 outside the scope of this work.
+                                                                                    Instead, we investigate next whether the self-localization
+                                                                                 algorithm is robust enough to yield accurate anchor positions
+                                                                                 even in the presence of these long-tailed error distributions.
+
+                                                                                 3) PERFORMANCE OF ANCHOR POSITIONING
+FIGURE 8. Positioning performance with 4, 6, and 8 known anchor                  We now investigate the performance of the self-localization
+positions (green circles) in the boundary of PLANT. Grey lines denote
+available wireless links, blue circles unknown anchors, and orange               algorithm (§IV) in determining the positions of the unknown
+crosses estimated anchor positions.                                              anchors based on the ranging traces previously analyzed.
+                                                                                    We first consider PLANT, as this was the focus of our
+exists between these errors and PHY-level indicators avail-                      simulation-based analysis (§VI-A). Fig. 8 shows the esti-
+able on the radio. A positive answer would enable us to reli-                    mated vs. ground-truth anchor coordinates with 4, 6, and
+ably discard faulty estimates, increasing the self-localization                  8 known anchor positions on the boundary, respectively 14%,
+accuracy.                                                                        21%, and 28% of the total. Overall, the performance is quite
+   We consider the relation between ranging errors and i) the                    good despite the long-tailed errors in Fig. 6a; the maximum
+ground-truth distance, ii) the carrier frequency offset (CFO)                    error is ≈1 m in all cases, even if 5% of the ranging estimates
+between the ranging initiator and responder, iii) the first                      are affected by errors ≥ 1 m, confirming the robustness of the
+path power level (FPPL), iv) the received signal strength                        system. With only 4 known anchors, the positioning error has
+(RSS), and v) their difference |RSS − FPPL|. Concerning                          µ = 44 cm, σ = 23 cm, and 90th = 72 cm. Results improve
+the latter indicator, according to Decawave [39] links with                      with 6 anchors (µ = 33 cm, σ = 24 cm, 90th = 68 cm) and
+|RSS − FPPL| > 10 dBm are generally in NLoS, while links                         8 anchors (µ = 32 cm, σ = 25 cm, 90th = 63 cm) albeit
+with |RSS − FPPL| < 6 dBm are in LOS.                                            only marginally, as suggested by the heatmap in Fig. 4b.
+   The scatter plots in Fig. 7 report results for DEPARTMENT and                    We now switch our attention to the results in DEPARTMENT
+RECEPTION, our largest datasets. We observe no direct relation                   and RECEPTION, where we have a larger ranging dataset and
+between the ranging errors and the ground-truth distance or                      more freedom in performing additional tests, due to logistics.
+the CFO. Instead, large errors often have lower RSS and                          Specifically, and before delving into the positioning perfor-
+FPPL values; however, many other links with comparably                           mance, we investigate in more depth the connectivity in these
+
+29720                                                                                                                                          VOLUME 11, 2023
+P. Corbalán et al.: Self-Localization of Ultra-Wideband Anchors: From Theory to Practice
+
+
+
+
+                                                                                     C. SELF-LOCALIZATION ERRORS: DO THEY MATTER?
+                                                                                     To ascertain whether the self-localization techniques and sys-
+                                                                                     tem evaluated here are ultimately of practical interest for real-
+                                                                                     world applications, we assess the impact of the above inaccu-
+                                                                                     racies in estimating anchor positions on the accuracy of the
+                                                                                     localization system exploiting them. To this end, we compare
+                                                                                     the accuracy of tracking a mobile target in RECEPTION using
+                                                                                     the true, manually-measured anchor coordinates vs. using
+                                                                                     those estimated by our self-localization approach (§VI-B3).
+                                                                                     We focus on RECEPTION because its L-shaped geometry offers
+FIGURE 9. Network connectivity heatmap in DEPARTMENT and RECEPTION.                  an interesting mix of deployment conditions. The bottom area
+In the former, nodes are deployed in long, narrow corridors where each
+node generally has 3 to 12 good neighbors. In RECEPTION, we have two                 (Fig. 11, y < 16 m) is long, narrow, and with an irregu-
+clearly distinguished open areas, poorly connected between them.                     lar anchor placement, overall yielding a more challenging
+                                                                                     setup w.r.t. the top area, wider and with anchors regularly
+testbeds because, as seen in §VI-A3, it is key for the correct                       and more densely placed. These two areas, hereafter NARROW
+operation of the algorithm.                                                          and REGULAR, are representative of corresponding real-world
+   Fig. 9 depicts connectivity using a heatmap whose colors                          situations; we therefore analyze their separate impact on
+represent PRR values. In DEPARTMENT, anchors are deployed                            performance in addition to the aggregate one over RECEPTION.
+across 4 long and narrow corridors, severely constraining                               Nevertheless, acquiring ground-truth trajectories of mobile
+connectivity. Anchors generally have at most 3 to 6 good                             targets over the wide area covered by RECEPTION is very chal-
+neighbors, except for anchors 1–7 that are deployed in                               lenging. Therefore, we resort to the following methodology.
+a small open area and enjoy higher connectivity. Instead,                            We first generate the trajectories in simulation, which enables
+in RECEPTION there are two large open areas; anchors in the                          us to easily define ground truth to compare against and ascer-
+same area are highly connected. On the other hand, anchors                           tain the absolute impact of self-localization on localization
+across the two areas are poorly connected via few NLoS links,                        accuracy. Moreover, we determine the distance between the
+as the key anchors (50 and 65) have an obstacle in front that                        target positions determined with true vs. estimated anchor
+severely impacts the PRR with nodes 70–77.                                           coordinates, as a measure of the relative impact induced by
+   Fig. 10 and 11a compare the estimated vs. true anchor                             the latter. This is actually a very important metric because,
+positions in DEPARTMENT and RECEPTION, respectively. In both                         in real applications, ground truth is not known a priori
+cases, we select only 4 known anchor positions (11%                                  and therefore not available for comparison. In other words,
+and 21%, respectively) on the boundary of the target                                 we answer the question: What would be the difference in tar-
+area.                                                                                get positioning by using true vs. estimated anchor positions?
+   In DEPARTMENT, the placement of anchors along corridors                           If the difference is small enough, choosing one over the other
+severely constrains the spatial resolution along one of the                          should not really matter in practice. Interestingly, this latter
+coordinate axis. Moreover, there are several NLoS links                              metric does not require ground truth, and we can therefore
+(e.g., anchor 8 with 1–6 or anchor 21 with 22–28), ham-                              measure it with relative ease based on real trajectories in our
+pering correct estimation of the anchor positions. Nonethe-                          testbed.
+less, we observe that the main dimension in the corridor is
+estimated accurately, e.g., the x-axis coordinates of anchors                        1) SIMULATED TRAJECTORY
+8–16 and 22–29. The other dimension, affected by poor spa-                           We define the ground-truth trajectory as a round-trip along
+tial resolution, could be improved in a post-processing step                         the L-shaped area, spanning both NARROW and REGULAR.
+or with manual validation. On the other hand, the position of                        We simulate 3200 positions; however, due to the geometry
+the unknowns in the small open area comprising anchors 1–7                           of RECEPTION and the simulated trajectory, only 661 (∼20%)
+is estimated with an error ≤71 cm, despite we provided the                           are in REGULAR. For each ground-truth position, we select the
+algorithm with only one known anchor in the area.                                    4 closest anchors and simulate 4 ranging estimates with zero-
+   In RECEPTION, performance is significantly better, arguably                       mean Gaussian error N (0, σ 2 ) and the default σ = 15 cm
+due to higher connectivity between anchors and more reason-                          (§VI-A1). Then, we use an NLLS solver to compute the target
+able geometry. Across the unknown anchors, the positioning                           positions P̂T , based on the true anchor coordinates X, and P̂E ,
+error has µ = 24 cm, σ = 18 cm with a minimum error                                  based on the estimated ones X̂.
+of 3 cm and a maximum of only 58 cm, despite the large                                  Fig. 11a visually compares both trajectories against the
+size of the target area. The largest errors are for anchors 51,                      ground-truth one. The latter is actually not visible, as it is
+62, 64 (slightly above the true positions) and 65 (slightly to                       accurately captured by both P̂T and P̂E ; both these trajectories
+the right), probably due to the large ranging error of 1.22 m                        are actually very close to each other. The largest differences
+between anchors 65 and 70 and the 30 cm overestimation                               are found near anchors 62–64, whose estimated positions are
+between 65 and the known anchor 50, due to obstacles and                             slightly above the true ones, and therefore alters the trajectory
+walls yielding NLoS.                                                                 P̂E accordingly.
+
+VOLUME 11, 2023                                                                                                                                 29721
+                                                                        P. Corbalán et al.: Self-Localization of Ultra-Wideband Anchors: From Theory to Practice
+
+
+
+
+                          FIGURE 10. Anchor self-localization in DEPARTMENT. Grey lines denote available wireless links for
+                          ranging.
+
+
+
+
+FIGURE 11. Ascertaining the impact of self-localization errors on the overall localization accuracy of target position tracking in RECEPTION.
+
+
+                                                                                 tance (8 cm) between location samples and very small vari-
+                                                                                 ations overall (99th ≤ 15 cm). In NARROW, the irregular
+                                                                                 placement of anchors 50–65 in the longer, narrower area
+                                                                                 yields higher average distance (23 cm) and variations (99th ≤
+                                                                                 50 cm). The CDF aggregated over both areas is dominated by
+                                                                                 NARROW, due to the larger number of samples. Next, we inves-
+                                                                                 tigate to what extent these results hold in practice.
+
+                                                                                 2) REAL TRAJECTORY
+FIGURE 12. CDF of the target positioning error w.r.t. ground truth
+in Fig. 11.                                                                      We run experiments where a person carrying a DW1000-
+                                                                                 equipped platform walks in RECEPTION along a path similar to
+    The CDF of the positioning error (Fig. 12) offers an alter-                  the simulated one (Fig. 11a). The target position is acquired
+nate, quantitative view. Using true anchor positions achieves                    by TALLA, a system enabling TDoA localization across large,
+a mean error µ = 17 cm with σ = 10 cm, yielding                                  multi-hop anchor deployments. The difference 1ti in the RX
+50th = 16 cm and 95th = 35 cm. As expected, the                                  timestamps of packets, sent by the target, at a given anchor i
+error increases using estimated anchor positions. However,                       w.r.t. a reference one represents the equation of a hyperbola.
+it remains ≤51 cm for 95% of the 3200 location samples, with                     The actual position is determined by solving a NLLS problem
+50th = 25 cm, µ = 26 cm, and σ = 14 cm.                                          minimizing the squared difference between the measured and
+    Instead, Fig. 13 analyzes the distance ||P̂E − P̂T || between                theoretical 1ti estimates. Details about the TDoA solver and
+the target position in P̂T and P̂E , highlighting the impact of                  the overall system design are in [34]. We obtain P̂T and P̂E
+geometry and anchor placement. In REGULAR, anchors 70–77                         by running the TALLA solver with true and estimated anchor
+provide very good coverage, yielding a small average dis-                        positions on the same experiment traces.
+
+29722                                                                                                                                           VOLUME 11, 2023
+P. Corbalán et al.: Self-Localization of Ultra-Wideband Anchors: From Theory to Practice
+
+
+
+
+                                                                                     FIGURE 14. TALLA: CDF of the distance between the estimated positions
+FIGURE 13. Simulation: CDF of the distance between the estimated
+                                                                                     P̂T and P̂E of a mobile node using X and X̂, respectively, in RECEPTION.
+positions P̂T and P̂E in Fig. 11 using X and X̂, respectively, in RECEPTION.
+
+                                                                                     that, in practice, the latter accuracy can be worse depending
+   Fig. 11b visually compares the resulting trajectories.
+                                                                                     on the environment (§VI-A4). Second, even with the extra
+As mentioned, we do not have accurate ground truth for
+                                                                                     bias induced by self-localization, the overall, absolute error
+the mobile target and therefore analyze only the distance
+                                                                                     remains in line with the requirements of many applications
+between the target positions in P̂T and P̂E , whose CDF is
+                                                                                     exploiting localization [1], [2], [3], [4], for which sub-meter
+shown in Fig. 14. Similar to our simulation results, P̂E follows
+                                                                                     accuracy is enough, in contrast with the coarse, meter-level
+P̂T closely and with a slight difference in the two areas.
+                                                                                     one offered by other RF-based localization technologies [4].
+In REGULAR, the average of the distance ||P̂E − P̂T || (8 cm)
+                                                                                        For these applications, the findings in this paper reassert
+and its variability (99th ≤ 18 cm) are nearly the same as in
+                                                                                     the role of self-localization as a practical tool to facilitate
+simulation. In NARROW, the average distance (26 cm) and its
+                                                                                     the deployment of UWB-based localization systems by dra-
+variability (99th ≤ 84 cm) are slightly higher, arguably due to
+                                                                                     matically reducing the time and effort to setup the anchor
+the impact of real-world conditions exacerbated by geometry
+                                                                                     infrastructure, specifically focusing on the large-scale, multi-
+and the high sensitivity to measurement errors of TDoA local-
+                                                                                     hop settings that require an automated approach.
+ization. As in the simulated case, the CDF aggregated over
+                                                                                        On the other hand, the errors above, however small, may be
+the whole RECEPTION is dominated by the more challenging
+                                                                                     unacceptable in applications that demand the highest accu-
+NARROW area; REGULAR accounts for only 104 (∼10%) of the
+                                                                                     racy possible enabled by UWB, e.g., drone navigation [40]
+1079 total samples.
+                                                                                     or detection of fine-grained human mobility patterns [41], for
+   Overall, our results with real trajectories (Fig. 14) are
+                                                                                     which manual anchor localization may remain the only viable
+in good agreement with those in simulation (Fig. 13).
+                                                                                     option.
+This points to the fact that, were target mobility ground truth
+available in the former, one could expect very good accuracy,                        B. SELF-LOCALIZATION IN 3D
+similar to Fig. 12.
+                                                                                     In this study, we considered only 2D localization, common
+                                                                                     to many applications including those typically run in our
+VII. DISCUSSION                                                                      testbeds, whose anchors are consequently all placed on the
+We summarize our findings, reflect on their immediate appli-                         ceiling at the same or very similar height. In contrast, 3D
+cability, and concisely highlight lessons learned and limita-                        localization requires diversity in the positioning of anchors
+tions that may orient future work on the topic.                                      along the z-axis.
+                                                                                        If a proper anchor configuration is deployed, the algorithm
+A. MAIN FINDINGS AND APPLICABILITY                                                   in §IV can directly output the 3D coordinates of the unknown
+Our quantitative analysis in multiple real-world, large-                             positions based on the distance matrix D̂. Still, its ability
+scale, multi-hop deployments shows that the self-localization                        to accurately estimate the height of the unknown anchors
+approach we considered and embodied in our system                                    depends on the z-axis resolution, generally poor due to the
+introduces only a relatively small anchor positioning error                          low spread of anchors along that axis compared to the (x, y)
+(§VI-B). Moreover, our analysis of the impact of this error on                       plane. Nonetheless, we observe that the true height of each
+localization (§VI-C) shows that the difference between target                        anchor can be easily, reliably, and independently measured,
+positions acquired with true and estimated anchor positions                          e.g., with a LDM. These true heights can also be incorporated
+is similarly small. In both cases, the error magnitude depends                       in the MDS algorithm as in [9].
+on the geometry of the target area, the connectivity among
+anchors, and the environmental conditions affecting the accu-                        C. ROLE OF KNOWN ANCHORS
+racy of the ranging estimates among anchors used as input.                           The selection of anchors whose positions Xa are known is
+For instance, Fig. 14 shows that, even in the same RECEPTION                         key for accurate self-localization (§VI-A); a poor selection
+testbed, different areas (top vs. bottom) introduce a different                      may result in large positioning errors (Fig. 2). Known anchors
+bias on the resulting trajectory (8 vs. 26 cm on average).                           should be at the boundary of the target area, enclosing
+   At first sight, these values may seem high, relative to the                       unknown positions. In our testbeds, a minimum of 4 known
+decimeter-level ranging accuracy typically associated with                           anchors at the boundary are required for acceptable accu-
+UWB. However, two observations hold. First, we showed                                racy; a higher number, which increases manual effort, yields
+
+VOLUME 11, 2023                                                                                                                                        29723
+                                                             P. Corbalán et al.: Self-Localization of Ultra-Wideband Anchors: From Theory to Practice
+
+
+
+
+only marginal improvements. However, deployments with                 self-localization (e.g., ranging errors and anchor connectiv-
+different geometries and/or across even larger areas may              ity) on the accuracy of the output anchor position estimates.
+benefit from more known anchor positions. Moreover, known                Our results show that manual estimation of only a handful
+anchors should also be well-connected (i.e., with several             of anchor positions is sufficient to estimate large numbers of
+neighbors), providing enough distance d̂i,j estimates as input        unknown ones quickly and accurately, minimizing manual
+to the algorithm.                                                     labor without significant detriment to the accuracy of the
+   Finally, their selection should privilege anchors that enjoy       localization system relying on them. We argue that the latter
+LoS connectivity. For instance, our initial experiments in            accuracy is in line with the requirements of many UWB-based
+RECEPTION relied on anchor 65 as a known one, chosen purely           localization systems, for which the significant reduction in
+from geometrical considerations on the map (Fig. 11), and             human labor is a crucial factor currently hampering their
+achieved very poor results. Visual inspection evidenced that          adoption in large-scale settings.
+this anchor is placed on an area of the ceiling hampering LoS            Finally, to enable researchers and practitioners to immedi-
+with all neighbors; selecting it as a known anchor forces the         ately build upon, improve, or replicate our results, we pub-
+algorithm to treat inaccurate NLoS distance information as            licly release our system implementation as open source,
+reliable, with detriment to accuracy.                                 along with the datasets of the experimental campaigns we
+                                                                      described.
+D. NLoS DETECTION AND ERROR MITIGATION
+More generally, we have shown in §VI-A4 and §VI-B3 that               REFERENCES
+the performance of self-localization strongly depends on the           [1] UWB Alliance. Applications. Accessed: Feb. 27, 2023. [Online]. Avail-
+                                                                           able: https://uwballiance.org/applications/
+ranging error. In the TWR variants we used, this is caused             [2] FiRa Consortium. UWB Use Cases. Accessed: Feb. 27, 2023. [Online].
+mainly by an incorrect time-of-arrival (ToA) estimation,                   Available: https://www.firaconsortium.org/discover/use-cases
+which adds a significant offset to ranging estimates in NLoS           [3] I. V. Bourne, ‘‘The rise of indoor positioning: A 2016 global research
+conditions. We have shown that these cannot be detected                    report on the indoor positioning market,’’ IndoorAtlas, Oulu, Finland,
+                                                                           Tech. Rep., 2016. [Online]. Available: https://www.indooratlas.com/wp-
+based on simple indicators of the UWB transceiver. How-                    content/uploads/2016/09/A-2016-Global-Research-Report-On-The-
+ever, the latter also provides sophisticated RX information in             Indoor-Positioning-Market.pdf
+the form of the measured channel impulse response (CIR).               [4] F. Zafari, A. Gkelias, and K. K. Leung, ‘‘A survey of indoor localization
+                                                                           systems and technologies,’’ IEEE Commun. Surveys Tuts., vol. 21, no. 3,
+Existing works [27], [28] exploit CIR information combined                 pp. 2568–2599, 3rd Quart., 2017.
+with machine learning and deep learning techniques to detect           [5] D. Lymberopoulos and J. Liu, ‘‘The Microsoft indoor localization com-
+whether a link is in NLoS and even estimate and mitigate the               petition: Experiences and lessons learned,’’ IEEE Signal Process. Mag.,
+resulting errors. Enhancing our system with NLoS detection                 vol. 34, no. 5, pp. 125–140, Sep. 2017.
+                                                                       [6] Leica 3D Disto. Accessed: Feb. 27, 2023. [Online]. Available: https://
+and mitigation is outside the scope of this paper, although part           shop.leica-geosystems.com/learn/laser-distance-measuring/3d-disto
+of our future work. On the other hand, in-field inspection of          [7] E. Varriale, P. Corbalán, T. Istomin, and G. P. Picco, ‘‘PLaNS: An
+the target area in many cases can help identify NLoS links                 autonomous local navigation system,’’ in Proc. 31st Int. Tech. Meeting
+                                                                           Satell. Division Inst. Navigat. (ION GNSS), Oct. 2018, pp. 1722–1727.
+between anchors and down-weight or discard the correspond-
+                                                                       [8] M. Ridolfi, J. Fontaine, B. V. Herbruggen, W. Joseph, J. Hoebeke, and
+ing measurements.                                                          E. D. Poorter, ‘‘UWB anchor nodes self-calibration in NLOS conditions: A
+                                                                           machine learning and adaptive PHY error correction approach,’’ Wireless
+                                                                           Netw., vol. 27, no. 4, pp. 3007–3023, May 2021.
+VIII. CONCLUSION                                                       [9] C. Di Franco, M. Marinoni, E. Bini, and G. C. Buttazzo, ‘‘Dynamic
+The widespread adoption of UWB-based localization sys-                     multidimensional scaling with anchors and height constraints for indoor
+                                                                           localization of mobile nodes,’’ Robot. Auto. Syst., vol. 108, pp. 28–37,
+tems hinges on the ease of deploying them quickly and
+                                                                           Oct. 2018.
+reliably. This clashes with the current practice of carefully         [10] IEEE Standard for Local and Metropolitan Area Networks–Part 15.4:
+positioning localization anchors via manual measurements,                  Low-Rate Wireless Personal Area Networks (LR-WPANs), Standard IEEE
+a labor-intensive and error-prone process whose drawbacks                  802.15.4-2011, 2011. [Online]. Available: https://ieeexplore.ieee.org/
+                                                                           document/6012487
+are exacerbated when many anchors must be deployed across             [11] Y. Jiang and V. C. M. Leung, ‘‘An asymmetric double sided two-way
+large and complex areas.                                                   ranging for crystal offset,’’ in Proc. Int. Symp. Signals, Syst. Electron.,
+   This paper concretely and quantitatively shows that                     Jul. 2007, pp. 525–528.
+an alternate, automated approach in which the system                  [12] D. Neirynck, E. Luk, and M. McLaughlin, ‘‘An alternative double-sided
+                                                                           two-way ranging method,’’ in Proc. 13th Workshop Positioning, Navigat.
+self-localizes anchors is practically applicable to these large-           Commun. (WPNC), Oct. 2016, pp. 1–4.
+scale, multi-hop scenarios. To this end, we i) integrate state-       [13] L. Doherty, K. S. J. Pister, and L. El Ghaoui, ‘‘Convex position estimation
+of-the-art techniques hitherto evaluated only via simulation               in wireless sensor networks,’’ in Proc. IEEE Conf. Comput. Commun.
+                                                                           (INFOCOM), Apr. 2001, pp. 1655–1663.
+or small-scale setups into a full-fledged system that covers
+                                                                      [14] P. Corbalán and G. P. Picco, ‘‘Ultra-wideband concurrent ranging,’’ ACM
+the entire gamut from in-field, in-band acquisition of distance            Trans. Sensor Netw., vol. 16, no. 4, pp. 1–41, 2020.
+information via UWB to the output of estimated anchor                 [15] J. A. Costa, N. Patwari, and A. O. Hero III, ‘‘Distributed weighted-
+positions, and ii) evaluate the resulting system in three large,           multidimensional scaling for node localization in sensor networks,’’ ACM
+                                                                           Trans. Sensor Netw., vol. 2, no. 1, pp. 39–64, Feb. 2006.
+multi-hop real-world testbeds with different characteristics,         [16] Z. Yang, Z. Zhou, and Y. Liu, ‘‘From RSSI to CSI: Indoor localization via
+eliciting quantitatively the impact of the information input to            channel response,’’ ACM Comput. Surv., vol. 46, no. 2, p. 25, Dec. 2013.
+
+29724                                                                                                                                VOLUME 11, 2023
+P. Corbalán et al.: Self-Localization of Ultra-Wideband Anchors: From Theory to Practice
+
+
+
+
+[17] Y. Shang, W. Ruml, Y. Zhang, and M. P. J. Fromherz, ‘‘Localization from                                    PABLO CORBALÁN (Member, IEEE) received
+     mere connectivity,’’ in Proc. 4th ACM Int. Symp. Mobile Ad Hoc Netw.                                       the M.Eng. degree in telecommunication engi-
+     Comput., Jun. 2003, pp. 201–212.                                                                           neering from the Miguel Hernández University of
+[18] X. Ji and H. Zha, ‘‘Sensor positioning in wireless ad-hoc sensor networks                                  Elche, Spain, in 2014, and the Ph.D. degree in
+     using multidimensional scaling,’’ in Proc. IEEE INFOCOM, Mar. 2004,                                        information and communication technology from
+     pp. 2652–2661.                                                                                             the University of Trento, Italy, in 2020. He is
+[19] MDEK1001 Kit User Manual Module Development & Evaluation Kit for
+                                                                                                                currently a Software System Engineer with NXP
+     the DWM1001, Decawave, Dublin, Ireland, 2017.
+[20] M. Hamer and R. D’Andrea, ‘‘Self-calibrating ultra-wideband                                                Semiconductors, where he works on the design of
+     network supporting multi-robot localization,’’ IEEE Access, vol. 6,                                        UWB solutions for mobile systems and actively
+     pp. 22292–22304, 2018.                                                                                     contributes to UWB standardization efforts. His
+[21] C. M. Almansa, W. Shule, J. P. Queralta, and T. Westerlund, ‘‘Autocalibra-       research interests include low-power wireless communications and local-
+     tion of a mobile UWB localization system for ad-hoc multi-robot deploy-          ization. His research has received several awards, including the Best Paper
+     ments in GNSS-denied environments,’’ in Proc. Int. Conf. Localization            Award from EWSN, in 2018, and IPIN, in 2019; and the Best Poster Award
+     GNSS (ICL-GNSS), 2020, pp. 1–11.                                                 from EWSN, in 2016.
+[22] A. Vashistha, A. Gupta, and C. L. Law, ‘‘Self calibration of the anchor
+     nodes for UWB-IR TDOA based indoor positioning system,’’ in Proc.
+     IEEE 4th World Forum Internet Things (WF-IoT), Feb. 2018, pp. 688–693.                                     GIAN PIETRO PICCO (Senior Member, IEEE) is
+[23] Q. Shi, S. Zhao, X. Cui, M. Lu, and M. Jia, ‘‘Anchor self-localization                                     currently a Professor with the Department of Infor-
+     algorithm based on UWB ranging and inertial measurements,’’ Tsinghua                                       mation Engineering and Computer Science (DISI),
+     Sci. Technol., vol. 24, no. 6, pp. 728–737, Dec. 2019.                                                     University of Trento, Italy. His research interests
+[24] A. D. Preter, G. Goysens, J. Anthonis, J. Swevers, and G. Pipeleers, ‘‘Range                               include software engineering, middleware, and
+     bias modeling and autocalibration of an UWB positioning system,’’ in                                       networking, and currently oriented toward wire-
+     Proc. Int. Conf. Indoor Positioning Indoor Navigat. (IPIN), Sep. 2019,                                     less sensor networks, the Internet of Things and
+     pp. 1–8.
+                                                                                                                cyber-physical systems, mobile computing, and
+[25] M. McLaughlin and B. Verso, ‘‘Asymmetric double-sided two-way
+                                                                                                                large-scale distributed systems. The research per-
+     ranging in an ultrawideband communication system,’’ U.S. Patent
+     15 500 633, Mar. 1, 2018. [Online]. Available: https://patents.google.com/                                 formed in his group combines theoretical study
+     patent/US10488509B2/en                                                           and in-field validation in real-world applications, and has led to several
+[26] I. Dotlic, A. Connell, and M. McLaughlin, ‘‘Ranging methods utilizing            awards, including the Most Influential Paper from ICSE’07 (for a paper
+     carrier frequency offset estimation,’’ in Proc. 15th Workshop Positioning,       published a decade earlier) and the Best Paper Awards from IPSN, in 2009,
+     Navigat. Commun. (WPNC), Oct. 2018, pp. 1–6.                                     2011, and 2015; PerCom, in 2012; EWSN, in 2018; and IPIN, in 2019. He is
+[27] I. Güvenc, C.-C. Chong, F. Watanabe, and H. Inamura, ‘‘NLOS identi-              an Associate Editor of ACM Transactions on Sensor Networks (TOSN), IEEE
+     fication and weighted least-squares localization for UWB systems using           TRANSACTIONS ON SOFTWARE ENGINEERING (TSE), and the Pervasive and Mobile
+     multipath channel statistics,’’ EURASIP J. Adv. Signal Process., vol. 2008,      Computing Journal. He is also the founding Co-Editor-in-Chief of the ACM
+     no. 1, Dec. 2007, Art. no. 271984.                                               Transactions on Internet of Things (TIOT).
+[28] K. Bregar and M. Mohorčič, ‘‘Improving indoor localization using con-
+     volutional neural networks on computationally restricted devices,’’ IEEE
+     Access, vol. 6, pp. 17429–17441, 2018.                                                                     MARTIN COORS received the Diploma degree
+[29] Scikit-learn.     Multi-Dimensional        Scaling     (MDS).      Accessed:                               in electrical engineering from RWTH Aachen,
+     Nov. 21, 2019. [Online]. Available: https://scikit-learn.org/stable/modules/                               Germany, in 1997, and the Ph.D. degree in elec-
+     manifold.html#multidimensional-scaling                                                                     trical engineering, in 2004. From 1997 to 2002,
+[30] J. De Leeuw, ‘‘Applications of convex analysis to multidimensional scal-                                   he was a Research Assistant with RTWH Aachen.
+     ing,’’ in Recent Developments in Statistics, J. R. Barra, F. Brodeau,
+                                                                                                                In 2002, he joined Bosch Engineering GmbH,
+     G. Romier, and B. Van Cutsem, Eds. North Holland Publishing Company,
+                                                                                                                Abstatt, Germany. He is currently with the Bosch
+     1977, pp. 133–146.
+[31] J. D. Leeuw and P. Mair, ‘‘Multidimensional scaling using majorization:                                    Research and Technology Center, Sunnyvale,
+     SMACOF in R,’’ J. Stat. Softw., vol. 31, no. 3, pp. 1–30, 2009.                                            USA, in the area of wireless systems research and
+[32] DW1000 Data Sheet, Decawave, Dublin, Ireland, 2016.                                                        UWB indoor localization.
+[33] P. Corbalán, T. Istomin, and G. P. Picco, ‘‘Poster: Enabling Contiki on ultra-
+     wideband radios,’’ in Proc. 15th Int. Conf. Embedded Wireless Syst. Netw.
+     (EWSN), 2018, pp. 171–172.                                                                                  VIVEK JAIN (Senior Member, IEEE) received the
+[34] D. Vecchia, P. Corbalan, T. Istomin, and G. P. Picco, ‘‘TALLA: Large-scale                                  bachelor’s degree in electronics and communica-
+     TDoA localization with ultra-wideband radios,’’ in Proc. Int. Conf. Indoor                                  tion engineering from the Indian Institute of Tech-
+     Positioning Indoor Navigat. (IPIN), Sep. 2019, pp. 1–8.                                                     nology Roorkee, in 2002, and the Ph.D. degree in
+[35] J. Tiemann, F. Eckermann, and C. Wietfeld, ‘‘ATLAS—An open-source                                           computer science and engineering from the Uni-
+     TDOA-based ultra-wideband localization system,’’ in Proc. Int. Conf.                                        versity of Cincinnati, in 2007. In 2006, he joined
+     Indoor Positioning Indoor Navigat. (IPIN), Oct. 2016, pp. 1–6.                                              Bosch and brings in extensive domain knowledge
+[36] T. Winter, RPL: IPv6 Routing Protocol for Low-Power and Lossy Net-                                          and research experience in automotive, indus-
+     works, document RFC 6550, Mar. 2012.                                                                        trial, building, and residential networking applica-
+[37] F. Pedregosa, ‘‘Scikit-learn: Machine learning in Python,’’ J. Mach. Learn.
+                                                                                                                 tions. He is currently an Lead Expert with Bosch
+     Res., vol. 12, no. 10, pp. 2825–2830, Jul. 2017.
+[38] Decawave ScenSor EVB1000 Evaluation Board, Decawave, Dublin,                     Research, where he leads research on ML/AI models for wireless, RF local-
+     Ireland, 2013.                                                                   ization and sensing, intelligent connectivity, cooperative wireless networks,
+[39] DW1000 User Manual—Version 2.18, Decawave, Dublin, Ireland, 2017.                and lightweight implementation. He has created and led several innovations
+[40] J. Tiemann and C. Wietfeld, ‘‘Scalable and precise multi-UAV indoor              with Bosch, including the perfectly keyless product for which he received the
+     navigation using TDOA-based UWB localization,’’ in Proc. Int. Conf.              Robert Bosch Innovation Award, in 2019. He was served as a reviewer/TPC
+     Indoor Positioning Indoor Navigat. (IPIN), Sep. 2017, pp. 1–7.                   for more than 40 diverse international journals and conferences. He has also
+[41] F. Hachem, D. Vecchia, M. L. Damiani, and G. P. Picco, ‘‘Fine-grained            served as a Judge for CES 2022 Innovation Awards and ‘‘Create the Future’’
+     stop-move detection in UWB-based trajectories,’’ in Proc. IEEE Int. Conf.        design contest by SAE Media Group, from 2020 to 2022.
+     Pervasive Comput. Commun. (PerCom), Mar. 2022, pp. 111–118.
+
+
+              Open Access funding provided by ‘Università degli Studi di Trento’ within the CRUI CARE Agreement
+
+
+VOLUME 11, 2023                                                                                                                                               29725
+

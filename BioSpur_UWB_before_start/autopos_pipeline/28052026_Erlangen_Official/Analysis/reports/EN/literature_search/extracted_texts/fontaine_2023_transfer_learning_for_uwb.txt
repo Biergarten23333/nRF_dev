@@ -1,0 +1,1088 @@
+                                                                                                                                    1
+
+
+
+
+    Transfer Learning for UWB error correction and
+     (N)LOS classification in multiple environments
+           Jaron Fontaine∗ , Fuhu Che† , Adnan Shahid∗ , Ben Van Herbruggen∗ , Qasim Zeeshan Ahmed† ,
+                                        Waqas Bin Abbas† , Eli De Poorter∗ .
+                ∗ IDLab, Department of Information Technology at Ghent University - imec, Belgium
+               † School of Computing and Engineering, University of Huddersfield, Huddersfield, UK
+
+                                          Email: jaron.fontaine@ugent.be
+
+
+
+   Abstract—Ultra Wideband (UWB) is a popular technology to          diversity is achieved which makes the UWB signal resistant
+address the need for high precision indoor positioning systems       to phenomena such as severe multipath fading, propagation
+in challenging industry 4.0 use cases. In line-of-sight (LOS)        penetrating through different types of materials and interfer-
+environments, UWB positioning errors in the order of 1 − 10
+cm can be achieved. However, in non-line-of-sight (NLOS) con-        ence [14], [15]. However, in the indoor environments, the high
+ditions, this precision drops significantly, with errors typically   accuracy performance of UWB is still not always guaranteed
+> 30 cm. Machine learning has been proposed to improve the           due to the presence of a) non-line-of-sight (NLOS) and b) mul-
+precision in such NLOS conditions, but is typically environment-     tipath conditions, which are usually considered as important
+specific and lacks generalization to new environments and UWB        factors affecting the positioning accuracy of any IPS [16]–
+configurations. As such, it is necessary to collect large datasets
+to train a neural network for each new environment or UWB            [18]. UWB suffers in NLOS conditions as its direct path is
+configuration. To remedy this, this paper proposes automatic         blocked which introduces a positive bias in the range estimates
+optimizations for transfer learning (TL) deep neural networks        between the transceivers [19]. In indoor environments, NLOS
+towards new environments and UWB configurations. We analyze          is very common with propagating signals easily blocked by
+error correction and (non)-line-of-sight ((N)LOS) classification     walls (drywalls or concrete), pedestrians, industrial equipment,
+models, using either feature- or channel impulse response-based
+(CIR) input data. Our TL solutions show a 50% error improve-         robots, etc [20]. In addition, multipath conditions in UWB also
+ment and 15% (N)LOS classification accuracy improvement (for         play a key role in deteriorating the positioning performance.
+both feature- and CIR-based approaches) compared to a model          In such conditions, signals are reflected by the wall and might
+trained in a different environment. We also analyze the impact       be stronger than the (attenuated) direct path or arrive shortly
+on TL using a limited number of samples (25 to 400 samples).         after each other. Therefore, it is important to minimize the
+The highest accuracy is typically achieved by the CIR-based
+approach, where with only 50 samples from the new mixed              impact of NLOS and multipath conditions for improving the
+(N)LOS environment, we show ±10 cm precision after error             accuracy of UWB IPS.
+correction with 93% (N)LOS detection. The presented results             There has been an ongoing research addressing error cor-
+demonstrate high precision UWB localization (from 643 mm to          rection and NLOS detection to improve the performance of
+245 mm) through ML with minimal data collection effort in            UWB IPS [17], [18], [21], [22]. In brief, most works focus
+challenging NLOS environments.
+                                                                     on machine learning (ML) techniques, which can use either
+   Index Terms—Transfer learning, UWB, localization systems,         raw physical data or use a feature-based method [15], [23].
+error correction, (N)LOS classification
+                                                                     For raw channel impulse response (CIR)-based ML, typical
+                                                                     techniques are based on using the CIR signal, logged by the
+                       I. I NTRODUCTION                              UWB receiver, and train a ML model to identify NLOS and
+   High precision positioning has been extensively researched        ranging errors. These raw-CIR-based techniques can become
+in recent years as it is a core technology to support multiple       computationally complex. Instead, less complex feature-based
+Internet of things (IoT) use cases such as forklifts control         methods are proposed and rely on calculating the relevant
+[1], [2], assistive healthcare systems [3], automated guided         features (e.g., the amplitude of the signal, power difference,
+vehicles [4], positioning systems in industrial environments         power ratio, etc.) which can be extracted from the CIR or
+[5]–[8] and to maintain the social distancing as observed in         directly registered by the UWB hardware. NLOS can then be
+the COVID-19 scenario [9]–[11]. According to this trend, the         classified by ML approaches such as support vector machine
+Ultra Wideband (UWB)-based indoor positioning system (IPS)           (SVM), decision tree, neural network (NN), convolutional
+is one of the most promising techniques in comparison with           neural network (CNN) and so on [24]–[27].
+several other technologies (e.g. RFID, Wi-Fi- and Bluetooth-            It is worth noticing that both raw CIR- and feature-
+based positioning using received signal strength, etc.). UWB         based approaches show high error correction performance
+IPS can achieve centimeter-level positioning accuracy due to         and (N)LOS classification accuracy in known environments.
+its capability of transmitting an extremely narrow pulse with        However, the performance of the proposed approaches is
+extremely wide bandwidth (≥ 500 MHz) and very fine time              often not evaluated in an unseen environment that the NN
+resolution (around 1 ns) [12], [13]. In addition, due to the         is not trained for [24]–[27]. Some works have addressed the
+large bandwidth of the transmitted signal, very high frequency       performance from anchors not present in the training dataset
+                                                                                                                                   2
+
+
+
+and NLOS generalization towards one new environment [7],           detailed discussion on the dataset description and collection
+where good generalization is achieved. Very recently, in [28]      in Section IV. In Section V, we present the proposed TL
+the authors have noted generalization issues with CNNs in          feature- and raw CIR-based approaches for error correction
+unseen NLOS detection datasets, while using transfer learning      and (N)LOS detection. Section VI presents the results. Finally,
+with 20%-70% of this dataset improves the performance. Such        the conclusions and future work are presented in Section VII.
+unseen environments correspond to different UWB device
+topologies, size of the room, and presence of objects, etc.                             II. R ELATED WORK
+as compared to seen environments of the trained models.
+These differences deteriorate the localization performance of         In this section, we provide an overview of several related
+the UWB IPS because of two main reasons. Firstly, the UWB          papers in the literature as shown in Table I. Firstly, we cate-
+collected signals in various environments could be different       gorize existing UWB research into (i) error correction and (ii)
+due to diverse obstacles and differently sized rooms. Secondly,    (N)LOS detection approaches. For each of the related papers,
+the UWB devices used, configurations and deployment of             we discuss if their approaches are feature- or raw CIR-based
+the UWB devices, together with the data collection process         and discuss TL in terms of automatic hyperparameter tuning,
+will depend upon the trained UWB setup. This will result           number of samples analysis, new environments, and UWB
+in unsatisfactory performance of the previously-trained ML         configurations in different domains. (iii) Next, we discuss other
+models in unseen environments. However, collecting data            UWB related domains, i.e. fingerprinting and elaborate that TL
+and training different models for each unique environment          is currently underexplored even in these domains.
+and UWB configuration requires considerable work and time
+(i.e. setting up the devices, perform large data collections
+and labeling, and execute the training model process). Even        A. UWB Error Correction
+then, the environment could already have changed as time              UWB error correction based on raw CIR-based are men-
+progresses, requiring to update the models frequently. There-      tioned in [29]–[31]. Similar to the (N)LOS approaches, some
+fore, conventional techniques requiring new big datasets and       research papers have focused on extracting features from the
+completely new models are limited in their versatility to          CIR data. The authors of [29] extracted the features based
+unseen and changing environments with or without different         on distance measurement and received signal strength. Then
+UWB configurations.                                                the authors proposed local spatial feature extraction, temporal
+   To address this shortcoming, we propose a transfer learning     feature extraction and position prediction to improve the
+(TL) framework for UWB error correction and (non)-line-of-         positioning accuracy. [30] main focus is on UWB measured
+sight ((N)LOS) detection using feature- and CIR-based NNs.         ranging associated with NLOS and multipath. A large dataset
+In the context of deep learning, TL typically requires careful     comprising of the measured distance and 7 different signal
+consideration of updating specific NN layers and finetuning the    features was trained by a NN to perform error prediction.
+model with data from a new environment. To reduce the effort       The focus of [14] is on UWB feature-based error correction.
+needed to perform TL, in the proposed TL framework we              Two classes of non-parametric regression techniques include
+consider these variables as hyperparameters and use Bayesian       a SVM and the Gaussian process and were applied by the
+optimization for automatic tuning of these hyperparameters.        authors to directly mitigate the ranging error in the physical
+   As such, the main contributions of this paper are as follows.   layer, based on 6 signal features from the received waveform
+                                                                   and the estimated distance. The fraction of residual errors
+  • We propose a TL framework for UWB error correction             less than 1m have increased from 63% to around 90% by
+    and (N)LOS detection using feature- and raw CIR-based          using SVM- and Gaussian process-based mitigation. Finally, in
+    approaches.                                                    paper [31], a semi-supervised autoencoder-based ML approach
+  • We construct various TL-based hyperparameters includ-
+                                                                   is proposed by the authors, based on raw CIR data, to achieve
+    ing frozen layers, unfrozen finetuning and training with       high IPS accuracy for low-cost edge devices. The results
+    small datasets in different environments and UWB con-          achieved 29% higher localization accuracy than state-of-the-
+    figurations.                                                   art deep neural networks (DNNs) in complex environments.
+  • We propose an automatic hyperparameter tuning strategy
+                                                                      Several papers have also explored both error correction
+    for TL using Bayesian optimization.                            and NLOS detection [7], [32]–[35]. The authors in [32] put
+  • We analyze the performance of both feature- and raw
+                                                                   forward a bagging-based ensembled tree classifier for NLOS
+    CIR-based approaches towards various unseen environ-           classification and treebagger regression for NLOS error miti-
+    ments and configurations for UWB error correction and          gation. The result showed an accuracy of 95.65% for NLOS
+    (N)LOS detection. In addition, we investigate different        classification and a root mean square error of 0.4790 m for
+    number of training samples required from new environ-          error correction. In [33], the authors presented a fuzzy logic
+    ments. The complexity of the proposed TL raw CIR- and          control decision method to identify the NLOS in multiple
+    feature-based approaches is also presented.                    classes (LOS, soft NLOS and hard NLOS). Similarly, in [34],
+The remainder of this paper is organized as follows. The           the authors collected 9 signal features of the data in terms
+related work is described in Section II. Next, we present          of LOS, weak LOS and NLOS. A SVM classifier is used
+the system description and problem statement of error cor-         for detecting NLOS conditions as well as error correction in
+rection and (N)LOS detection in Section III, followed by a         different combination of features. In paper [35], the authors
+                                                                                                                                         3
+
+
+
+TABLE I: Comparison of the proposed TL approach and analysis performed in this paper with related work. If TL was used,
+the table mentions: (i) if automatic hyperparameter tuning was applied (auto.), (ii) the number of considered TL samples that
+are used as input for TL, (iii) if multiple configurations (conf.) and (iv) environments (env.) were used.
+                                                                                                    Transfer learning
+          Paper              Domain and problem                      Feature-   Raw-
+                                                                     based      based   Auto.   # Samples   > 1 Conf.   > 1 Env.
+          [14], [29], [30]   Error Correction                        ✓
+          [31]               Error Correction                                   ✓
+          [32]–[34]          Error correction and (N)LOS detection   ✓
+          [7], [35]          Error correction and (N)LOS detection              ✓
+          [36]–[38]          (N)LOS detection                        ✓
+          [39]–[42]          (N)LOS detection                                   ✓
+          [43]               (N)LOS detection                                   ✓               100                     ✓
+          [28]               (N)LOS detection                                   ✓               10000                   ✓
+          [44]               Fingerprinting (UWB)                               ✓               4-225                   ✓
+          [45]               Fingerprinting (WiFi)                              ✓               28-250
+          [46]               Fingerprinting (WiFi)                              ✓               200-600
+          Our work           Error correction and (N)LOS detection   ✓          ✓       ✓       25-100      ✓           ✓
+
+
+
+investigated subsets of anchor pairs selection with 1 tag and            network for NLOS classification which showed an accuracy of
+8 anchors for a time difference of arrival (TDOA) position               82.14%. Compared to the feature based methods, the above
+algorithm. Using ML-based error correction and detection, the            mentioned papers based on raw CIR measurements provide a
+positioning error can be reduced by 75% on top of selecting              superior performance for NLOS detection.
+the best combination of the anchors. In [7], the authors                    However, the aforementioned papers did not evaluate the
+trained three CNN based architectures (Residual network,                 performance of the approaches in an unseen environment
+Encoder and Fully convolutional network) to detect NLOS                  which limits their suitability in practical settings. To the best
+conditions directly from the raw CIR data. However, all the              of our knowledge, until now only two research papers address
+aforementioned papers also did not evaluate their approaches             paper TL for UWB (N)LOS detection. In [43], the authors
+in unseen environments. Therefore, the applicability of the              proposed TL based on NN and CNNs to identify UWB NLOS
+approaches in unseen environments cannot be justified.                   signals in unseen environments. 100 training samples were
+                                                                         selected for TL. The accuracy was improved approximately
+B. UWB NLOS Detection                                                    10% higher accuracy and achieved approximately five times
+    Finally, the following papers did only consider NLOS clas-           faster training time by using the TL approach. However, the
+sification. Although these papers retain a high classification           paper does not consider a) feature based NN, b) the impact of
+accuracy, they do not investigate the improvement of UWB                 different UWB configurations and c) evaluating the impact of
+error correction.                                                        different training samples. Finally, in [28] the authors propose
+   UWB feature based methods are mentioned in [36]–[38].                 a Stockwell transform-based CNN (ST-CNN) method for
+In [36], the authors address three ML approaches to classify             predicted (N)LOS conditions. This method is different from
+NLOS in multiple classes (LOS, NLOS and multipath). 12                   most CIR-based models and uses both frequency and time
+features were extracted and the overall accuracy reaches up to           domain information as an input to the ST-CNN. The authors
+91.9% in the best case. Similarly, the authors in [37] proposed          note a 7-10% performance increase over more traditional
+Gaussian distribution and generalized Gaussian distribution              CNN-based approaches. However, when presenting the ST-
+algorithms to identify NLOS components in an imbalanced                  CNN data captured in a different environment, the accuracy
+dataset with 10 features. The NLOS classification accuracy               drops severely, to below 50% accuracy. To overcome this
+reached 96% and 98% respectively. Furthermore, [38] applied              generalization problem, the authors use a transfer learning
+a genetic algorithm to find the best combination of 18 features          method with 20-40% of the dataset captured in the new
+in an office environment.                                                environment. As a result, accuracies above 97% are obtained
+   In contrast, the authors in [39]–[42] focused on UWB raw              with a smaller training time. However, the paper does not
+CIR-based NLOS detection. Specifically, in [39], the authors             consider a) feature based NN, b) the impact of different UWB
+apply a CNN to identify the NLOS signal after denoising                  configurations and c) evaluating the impact of a very small
+the raw CIR data using a reversible transformation method.               TL dataset, as the results are still using up to 10000 training
+The evaluation results show an averaged accuracy increase of             samples.
+27.9% for NLOS classification accuracy. Similarly, the authors
+of [40] also apply a CNN to classify the NLOS after using a              C. TL based on Fingerprinting
+Gate Recurrent Unit to extract spatial features of raw CIR data.             Although, TL for UWB error correction and (N)LOS
+Moreover, an unsupervised ML approach based on Gaussian                  detection has rarely been researched, multiple papers have
+mixture models to identify the NLOS links from the unlabelled            adopted TL to increase the accuracy of IPS using fingerprint-
+data is proposed in [41]. The authors of [42] proposed a CNN             ing approaches.
+to extract non-temporal features from UWB raw CIR data, and                In [44]–[46], the authors proposed TL based on the fin-
+then, the features were fed into the Long-Short Term Memory              gerprinting samples. The authors in [44] proposed a NN
+                                                                                                                                                  4
+
+
+
+to learn precise fingerprinting of UWB access points in an         TABLE II: Mathematical symbols used throughout this paper
+environment, then apply TL by updating the NN in a new                 Symbols       Description
+environment. Only 7% of fingerprinting samples is needed                    ref      Localization system reference point
+                                                                             aq      UWB anchor
+for a new environment. Similar work was conducted in [45]                     Q      Number of UWB anchors
+where the authors also used a NN based TL approach. But                       tr     UWB tag
+they combine 15 different WiFi datasets to train the model.                   R      Number of UWB tags
+                                                                         ∆aq tr      Euclidean distance between aq and tr
+The positioning error was reduced to 25% in most cases.               T oFaq tr      Time of flight between aq and tr
+Finally, the authors in [46] proposed TL to efficiently transfer    CIRaq tr (t)     Channel impulse response provided by the UWB chip
+the knowledge between source domains and the single target            T
+                                                                      [ oF aq tr     The estimated T oF by the UWB chip
+domain for WiFi fingerprinting-based target positioning. They             eaq tr     The distance error between aq and tr
+applied the proposed approach with multiple sources jointly              ∆a
+                                                                         b q tr      The estimated range between aq and tr
+                                                                         Xbase       The base dataset, with samples from existing samples and
+when the datasets lacks of partial access point data or geo-                         environments (in this paper from the IIoT testbed)
+magnetic data. In conclusion, throughout the literature, none                 P      Number of samples in Xbase
+of the aforementioned work on UWB discusses the stability                     N      Number of different environments
+                                                                              L      Number of different configurations
+of TL models to an unseen environment when the devices                 M Lbase       The ML model trained on Xbase
+and configurations of devices are different. To the best of our             M        Number of samples in a new environment and UWB
+knowledge no previous work has been done on the comparison                           configuration
+                                                                              K      Number of TL samples from the new environment and
+of using both feature- and raw-based using TL. Moreover,                             UWB configuration
+hyperparameter tuning is often manually executed which is               X́new,k      New small dataset intended for TL with K samples
+another drawback in the existing approaches.                            M´Lnew       New model trained from X́new,k
+   To overcome these shortcoming, we fill these gaps and pro-               XO       OfficeLab dataset, collected in a real office testbed
+                                                                            XU       University dataset, collected in a university setting [34]
+pose a TL framework for UWB error correction and (N)LOS                      lr      Learning rate of the ML model optimizer
+detection using both raw CIR-based and feature-based data.                   H       The collection of chosen trainable layers during TL
+Moreover, we identify TL variables as hyperparameters and                   H′       Represents the H hyperparameter chosen by the Bayesian
+                                                                                     optimizer
+propose an automatic hyperparameter tuning strategy for TL          δf inetuning     This Boolean parameter decides to perform additional
+using Bayesian optimization. We also compare the evaluation                          finetuning epochs including the previously untrainable
+results in various environments and UWB configurations for                           layers during the TL process
+                                                                    δf′ inetuning    Represents the δf inetuning hyperparameter chosen by
+both feature- and raw CIR-based approaches. Furthermore, we                          the Bayesian optimizer
+investigate different number of training samples required from
+new environments and the complexity of the proposed raw
+CIR-based and feature-based approaches.
+                                                                                          aqpos = (aqx , aqy , aqz ),                        (3)
+  III. S YSTEM DESCRIPTION AND PROBLEM STATEMENT
+    To give a better understanding of the problem we try to                                trpos = (trx , try , trz ),                       (4)
+solve in this paper, we first present the UWB localization
+                                                                   where x, y, and z are the Cartesian coordinates relative to the
+system and its challenges in a detailed manner. As such, in
+                                                                   reference point ref , respectively.
+this section we mathematically formulate (i) UWB localization
+                                                                      To calculate trpos , the r-th tag tr will measure it’s range
+systems (as shown in Figure 1 (a)) and (ii) different envi-
+                                                                   with each anchor aq in the localization system. The ground
+ronments and UWB configurations and their impact on the
+                                                                   truth range ∆aq tr between aq and tr can be represented by
+UWB localization performance (as shown in Figure 1 (b)).
+                                                                   the Euclidean distance formula as follows.
+For improved readability, Table II gives an overview of all
+mathematical symbols used throughout this paper.                                q
+                                                                    ∆aq tr =        (aqx − trx )2 + (aqy − try )2 + (aqz − trz )2 . (5)
+A. UWB Localization Systems                                           As the goal is to find the position of tr , the x, y, and z
+   UWB IPS need a coordinate system with a reference point         coordinates are not available to the UWB systems, while the
+ref = (0, 0, 0) to offer relative 3-dimensional (3D) positions     x, y, and z coordinates of each anchor aq are known. In UWB
+for both anchors aq and tags tr ,                                  systems, ∆aq tr is determined by measuring the time of flight
+                                                                   between anchor aq and tag tr . Specifically, in this paper, we
+                   aq ∈ {a1 , a2 , · · · , aQ },             (1)   focus on two way ranging (TWR), more specific DS-TWR
+                                                                   (double sided - two way ranging) which calculates the time
+                                                                   of flight with three packets (there exists also variants from
+                    tr ∈ {t1 , t2 , · · · , tR },            (2)
+                                                                   TWR with only 2 packets). Two packets are send from tag
+where Q is the total number of anchors (fixed node with known      tr to aq and one vice versa, which eliminates any processing
+coordinates) and R is the total number of tags (mobile node        time differences due to the influence of crystal inaccuracies,
+with unknown coordinates) in the UWB IPS.                          timings offsets or processing delays. More details on TWR
+   The position of an anchor and a tag within the UWB              can be found in [47]. The result is a time of flight which can
+localization system can be represented in (3) and (4).             be used to calculate ∆aq tr in LOS conditions as follows
+                                                                                                                                   5
+
+
+
+                 (a) ML for UWB improvements                                   (b) ML solutions in multiple environments
+
+
+
+
+Fig. 1: Illustration of the mathematical system description. (a) ML when applied to localization systems for error correction
+and/or (N)LOS detection. (b) Using the ML models for different UWB radio configurations and/or environments.
+
+
+
+                                 ∆aq tr
+                        T oFaq tr =     ,                  (6)          The distance error (in meters) between aq and tr thus
+                                    c                                 becomes
+where c is the speed of light of value 3 x 108 m/s.
+   In NLOS conditions, the time of flight might be longer                                 eaq tr = τf p′ −f p × c.             (10)
+due to the presence of multipath components in the environ-
+ment [48], [49]. Before calculating this error, the received
+UWB signal needs to be determined. The CIR, logged by                 where c is the speed of light and the calculated range between
+the UWB receiver, represents information about the first- and         aq and tr is
+multipath signal propagation between aq and tr and can be
+represented as follows [50].                                                            ∆a
+                                                                                        b q tr = ∆aq tr + ea t .
+                                                                                                            q r
+                                                                                                                               (11)
+
+                               S                                         The goal of UWB error correction ML model is to predict
+                                                                      the distance eaq tr accurately. To collect a dataset for the
+                               X
+              CIRaq tr (t) =         αs δ(t − τs ) + n(t),     (7)
+                               s=1                                    training process, ground truth of ∆aq tr is required, together
+where t indicates the timestamp for each value within the             with the UWB estimated ranges ∆a   b q tr . Alternatively, ML
+CIR (there are 1016 values, each corresponding to 10−9 s);            models can also be used to predict whether the received
+δ is the Dirac delta function; S is the number of multipath           CIRaq tr was LOS or NLOS and avoid ∆a      b q tr in the UWB
+components; αs and τs are the amplitude and the time delay of         IPS. The ground truth of (N)LOS is typically based on a
+the s-th multipath components, respectively; and n represents         topology of the environment or based on visual indicators
+the additive white Gaussian noise present in the channel. In          during the data measurement campaign.
+LOS, the first path (FP) component in the CIR corresponds
+to T oFaq tr and is typically estimated by a leading edge             B. UWB ML in Different Environments and Configurations
+algorithm, as used by the popular Qorvo DW1000 UWB                       ML models make their predictions based on the first- and
+chip [51]. This leading edge algorithm detects the position           multipath components in the received CIR signals. Such
+in time where the arriving signal, from the accumulated UWB           signals are collected in dataset Xbase , where a ML model
+pulses, first rises above the noise floor (the position of the FP).   M Lbase is trained using P samples from Xbase :
+However, when the true first path, denoted by f p, is severely                            training
+attenuated in NLOS conditions, the detected first path (f p′ ) by               M Lbase ←−−−− Xbase = {1, 2, · · · , P }.      (12)
+the UWB receiver is degraded. As a result in NLOS conditions,
+                                                                      In different environments these multipath components s
+the calculated Td  oF aq tr can be inaccurate,
+                                                                      change severely, and depend on various factors including
+                                                                      walls, objects, ∆at, presence of humans, etc. The model
+                 Td
+                  oF aq tr = T oFaq tr + τf p′ −f p ,          (8)
+                                                                      M Lbase trained in thus specifically trained for N environ-
+          ′                                                           ments collected in Xbase . Moreover, we distinguish various
+where f p is the first detected path above the noise floor
+n(f p − 1) where earlier multipaths are not detected and              UWB hardware-level configurations: (i) different UWB plat-
+τf p′ −f p is the time difference between the detected first path     forms with different transceivers and antennas (which can be
+(f p′ ) and the true first path (f p). The amplitude of CIRaq tr      (omni)directional and have different form factors, gain levels
+at τf p′ is thus:                                                     and radiation patterns), which can impact the received signal
+                                                                      strength of the first and multipath components, (ii) different
+                  CIRaq tr (f p′ ) > n(f p − 1).               (9)    UWB configurable settings that can include TX power, UWB
+                                                                                                                                                6
+
+
+
+channels, the UWB pulse repetition frequency, the UWB                          A. Dataset environments
+preamble length, etc. As these configurations impact the UWB
+signals, they will influence the UWB packet propagation, and                      1) Large Industrial Environment Xbase : The first environ-
+therefore the CIR of the deployed UWB IPS system. These                        ment is part of the IIoT testbed [52], which mimics industrial
+factors can consist of different noise levels n(t), first- and                 (warehouse) locations. In total, 18 measurement points were
+multipath amplitudes αs and timings τs . A model M Lbase                       used in this environment, where an UWB tag performed TWR
+trained in thus specifically trained for L configurations col-                 with all reachable 21 anchors. The IIoT testbed, illustrated
+lected in Xbase .                                                              in Figure 2a, contains a variation of open space and metal
+                                                                               racks, which act as LOS and NLOS signal conditions. Out
+   Thus, building a rich base dataset that targets N environ-
+                                                                               of the 18 measurement positions, four were located relatively
+ments and L configurations requires the dataset collection
+                                                                               close to the wall (10 cm) which can influence the first path
+Xbase .
+                                                                               of the CIR, but represents a realistic setup. The total size of
+                                                                             this environment is approximately 30 m × 10 m. A fixed set
+                             X11    X12      ···    X1N                        with small variation of UWB settings was used in Xbase ,
+                                            ..         
+                                                                               i.e. UWB channel 1, 2 and 3, a data rate of 110 kb/s, a
+                       X21         X22         .   X2N 
+              Xbase = 
+                       .                            ..  .
+                                                                     (13)     pulse repetition frequency (PRF) of 64 MHz and a preamble
+                       ..          ..       ..
+                                       .        .     .                       length of 1024 and 1536 symbols. The presence of multiple
+                           XL1      XL2      ···    XLN                        setting combinations act as a variety factor in the dataset, while
+                                                                               mutually not diverging too much from a signal perspective.
+   These environments and UWB configurations reliant influ-                    Although for the TWR method the CIR data is available on
+ences make it difficult for a model M Lbase trained on Xbase                   both anchor and tag, for this dataset we recorded the CIR
+to generalize to a new and unseen environment and UWB                          locally at the tag. The outcome of this data capture is a total
+configuration. As a result, a model M Lbase can show poor                      of 21,085 ranging measurements, of which 8,947 are LOS
+performance on an entirely new dataset Xnew . To capture M                     and 12,138 NLOS. Ground truth measurements were achieved
+samples in any new environment and UWB configuration will                      using a laser Leica Disto D2 measuring tool, a precise floor
+result in creating a new large dataset Xnew :                                  plan to measure the distance to the walls and known central
+                                                                               zero-point to determine the coordinates in a Cartesian system.
+                      Xnew,m = {1,2, · · · ,M }.                      (14)     In addition, we visually noted (N)LOS labels at each position
+                                                                               and between each anchor-tag range on a best effort basis.
+                                                                               The mean absolute error (MAE) without error correction in
+Training M Lnew from scratch and collecting Xnew is time
+                                                                               this dataset is 203 mm, while the MAE for LOS and NLOS
+consuming and often not feasible. It is therefore desirable to
+                                                                               measurements are 109 mm and 273 mm, respectively.
+train a model M´Lnew using a X́new dataset with K samples
+where                                                                             2) Office Environment XO : The second environment char-
+                                                                               acterizes an office environment, which is significantly different
+                                                                               than the environments in Xbase . Specifically, the data was
+                 X́new,k = {1,2, · · · , K} ∈ Xnew ,                  (15)     captured in the OfficeLab testbed [53]. This testbed contains
+                                                                               15 anchors across different rooms and corridors, which contain
+so that,                                                                       less metal but more concrete and drywall than in the industrial
+                                K ≪ M,                                (16)     environment. Because of this, the dataset contains signals with
+                                                                               a lot of multipath components and NLOS. All anchors were
+resulting in a selection of K samples, which is much smaller                   configured to range with each other (for the combinations that
+than collecting a new large dataset with M samples.                            can reach each other) and ground truth was obtained similar to
+                                                                               the Xbase dataset, using a laser measurement tool and precise
+                                                                               floor plan. The UWB devices were configured with the same
+                      IV. DATA DESCRIPTION                                     settings as the Xbase dataset. In total, 44,894 UWB signals
+                                                                               were captured in the office environment, of which 9946 were
+                                                                               LOS and 35448 were NLOS. The (N)LOS label for each
+   In this section, the datasets are described, which are col-                 anchor combination was determined using the floor-plan of
+lected from three different environments (industrial, office,                  the office environment, as illustrated in figure 2b. The resulting
+and university). The datasets from the industrial and office                   MAE of the dataset without error correction is 306 mm, while
+environments are in-house measurements, while the dataset                      the MAE for LOS and NLOS measurements are 155 mm and
+from university measurements is from [34]. As part of our                      346 mm, respectively.
+contribution, we make our used dataset publicly available1 to                     3) University Environment XU : The university datasets
+researchers, which allows the comparison of future algorithms                  originates from a publicly available dataset [34], which was
+and solutions with the proposed solution in this paper.                        collected in multiple (sub)environments in a university build-
+                                                                               ing and consists of ranges between different types of en-
+  1 Dataset available at: https://github.com/JaronFontaine/UWB-dataset-from-   vironments such as laboratories, hallways and offices. In
+an-office-industrial-and-university-environment                                total, 733 unique ranging positions consist of 15,208 UWB
+                                                                                                                                      7
+
+
+
+
+                                                                                  (b) The office environment XO
+
+
+
+                  (a) The industrial environment (Xbase )
+
+
+
+
+Fig. 2: (a) The industrial environment consists of a large industrial environment with metal racks as obstacles where anchors
+are deployed both in open and NLOS locations. (b) The office environment consists of multiple rooms divided by different
+wall types (brick, plywood and reinforced concrete).
+
+            TABLE III: Overview of datasets from different environments showing heterogeneous characteristics.
+ Dataset                 Positions           Samples                 MAE (mm)           UWB Transceiver                     Samples
+                                     Total    LOS NLOS       Total    LOS NLOS                                               / CIR
+ Industrial (Xbase )     18          21085    8947   12138   203      109   273         Wi-PoS [54] (Qorvo DW1000)          300
+ Office (XO )            15          44894    9946   35448   306      155   346         Wi-PoS [54] (Qorvo DW1000)          300
+ University (XU ) [34]   733         15208    8735   6473    419      71    961         DWM1001-DEV (Qorvo DW1000)          1015
+
+
+ranges, of which 8,735 are LOS and 6,473 are NLOS. In                other useful metadata, e.g. first path index, peak path index,
+different sub-environments, both LOS and NLOS signals were           rx power, first path power, etc., was collected and stored
+present (generated by large walls), as well as weak LOS              for further data pre-processing. The CIR is a complex-valued
+measurements, due to obstructions from smaller office devices        array of 1016 samples, which is the result of the used PRF
+and equipment. Not only this dataset acts as an extra evaluation     setting at 64 MHz. [51] The majority of the reported first
+measure for TL towards different environments, it also serves        paths is between index 740 and 750. By limiting the CIR
+as an assessment of TL towards different UWB configurations.         collection to 300 samples (from 650 untill 950), at least 90 ns
+Indeed, both the hardware and UWB settings were different            before the detected first path was collected and around 200 ns
+from our in-house captured dataset. The DWM1001-DEV                  after the detected path, the complexity is reduced, while the
+UWB platform configuration uses channel 5, which has a               ranging rate and throughput is increased. This way, the device
+higher center frequency of 6489.6 MHz compared to the                collects all signals from paths up to 27 m longer than the
+previous datasets at channel 1, 2 and 3 with a center frequency      direct path. Samples before 650 can usually contain noise and
+of 3494.4 MHz, 3993.6 MHz and 4492.8 MHz, respectively.              can be ignored. The publicly available dataset XU [34] was
+All these channels use the same bandwidth of 500 MHz. A              captured using the DWM1001-DEV UWB platform, which
+short preamble length of 128 symbols and a high data rate of         consists of the same DW1000 UWB transceiver with a differ-
+6.8 Mbps was used. Together with the different nature of the         ent omnidirectional antenna compared to the Wi-PoS devices,
+environments and UWB configurations, the resulting ranging           with a smaller form factor, different gain levels and radiation
+errors have a wider range. The total MAE of the dataset is           pattern, impacting the CIR. The dataset accommodates all CIR
+419 mm, while the MAE for LOS and NLOS measurements                  samples, although we use only a small portion (see Section
+are 71 mm and 961 mm, respectively.                                  IV-C). Although most research focuses on Qorvo’s DW1000
+                                                                     or DW3000 chips, the proposed solution should still be useful
+B. Dataset Measurement Campaigns                                     for performance improvements on other UWB chips, as long
+                                                                     as sufficient CIR samples around the first path index, or similar
+   A general overview of the collected datasets can be found         features are logged. As investigated in [55], some CIRs from
+in Table III. Multiple datasets were captured across three het-      different UWB chips can have higher amplitude multipath
+erogeneous environments, each with different characteristics.        components and or shorter CIR lengths. In these conditions,
+Moreover, the datasets were captured using different hardware        transfer learning or training from scratch with different CIR
+types and configurations. The in-house captured datasets Xbase       segment lengths may be the only viable method.
+and XO in this research were collected with Wi-PoS devices
+[54] which include UWB Decawave (now Qorvo) DW1000
+transceivers with a sub-GHz backbone for MAC scheduling
+and omnidirectional antennas. CIR information together with
+                                                                                                                                           8
+
+
+
+TABLE IV: List of features extracted from the UWB                                                (CIR−min(CIR))
+                                                                           0 (CIRnorm = (max(CIR)−min(CIR))         ). Data normalization
+transceiver                                                                resulting in smaller numerical values can be beneficial for
+ Features    Description                                                   the training optimization of NNs and their generalization
+ F1          The signal amplitude of third sample after the FP             capabilities. It also ensures that the model learns more SNR
+ F2          The signal amplitude of second sample after the FP
+ F3          The signal amplitude of first sample after the FP             and peak features of the signals instead of absolute signal
+ CIR pwr     The CIR power (scaled with 217 to fit 16-bit register [51])   strength features, which can vary by a significant factor for
+ Std noise   σ of the noise reported in the CIR accumulator
+ RXP ACC     The number of preamble symbols accumulated in the receiver
+                                                                           different settings and environments (average distance between
+ f pindex    The index of the detected FP, reported in the register        tag and anchor) and do not necessarily indicate larger errors
+             The estimated FP power level andcan be calculated
+                                                              as          or (N)LOS signal propagation.
+                                               F12 +F22 +F32
+ F P pwr     F P pwr (in dBm) = 10 log10            N2
+                                                               −A             In contrast to solutions that include CIR compression in
+             where A is 113.77 for PRF = 16 MHz and 121.74 for             the raw data pre-processing [56], in this paper we focused
+             PRF = 64 MHz, N is the preamble accumulation count            on reducing the length and rescaling the CIR samples. This
+             The estimated RX power level and
+                                             can be calculated
+                                                            as
+ RX pwr                                                                    ensures exploring all available information around the first
+                                              CIRpwr ×217
+             RX pwr (in dBm) = 10 log10           N2
+                                                               −A
+                                                                           path, as it is used by the leading edge algorithm to estimate
+             The power difference between the RX pwr and FP pwr
+ PD
+             and can be calculated as PD = RX pwr − F P pwr
+                                                                           the time of flight and where most errors occur.
+             The power ratio between the RX pwr and FP pwr
+ PR
+             and can be calculated as PR = RX pwr/F P pwr
+                                                b q tr = τ × c               V. M ACHINE - AND TRANSFER LEARNING APPROACHES
+             The estimated range calculated as ∆a
+ ∆a
+ b q tr      where c represents the speed of light in m/s and τ is            In this section, first we compare two ML-based approaches:
+             the signal propagation time from tag ti to anchor aq .
+                                                                           feature-based and (raw) CIR-based ML for UWB positioning
+                                                                           improvements. We expect both approaches to have a clear
+C. Data Pre-processing                                                     trade-off between model (and data) complexity, accuracy and
+                                                                           TL capabilities. In the results section, we will analyze and try
+   1) Feature calculation: In addition to CIR feature based                to quantify this trade-off for both error correction and (N)LOS
+approaches for UWB error correction and NLOS detection,                    detection. Next, we propose TL steps to adapt the UWB
+which are widely used [23], [36]–[38], we also propose a TL                models towards new environments using new, but limited in-
+framework for UWB error correction and (N)LOS detection                    formation. Finally, in the experimental evaluation methodology
+using UWB features. For signal features, the conventional                  we present the implementation details of the evaluation results.
+features used mainly rely on the statistical condition of the
+received signals (e.g., maximum amplitude, mean excess delay,
+and rise time). However, in most cases, the FP is the strongest            A. UWB ML models
+under LOS. Therefore, the power difference method have                        For each ML approach, we investigate two methods for
+attracted larger body of work in different current research for            UWB improvements: error correction and (N)LOS detection.
+featured based UWB error correction and NLOS detection.                    The goal of error correction is to estimate the error on the
+This feature is based on taking the Power Difference (PD)                  UWB ranges. This error is a direct result of the leading
+between the estimated Received signal (RX) power and FP                    edge algorithm implemented on-chip failing to correctly and
+power which can be used to decide whether the signal is LOS                precisely identify the first path. This occurs due to number
+or NLOS. Specifically, if the PD between RX power and FP                   of factors including the received signal strength and used
+power is less than 6 dB, then the channel is likely to be LOS,             bandwidth (impacting the width of the first peak) [57], low
+while if the PD is greater than 10 dB the channel is likely to             SNR (< 6 dB) [58] and due to the presence of humans or other
+be NLOS [51] (page-46). In total 12 features, as considered                obstructions (NLOS) [59]. With ML, the goal is to identify
+in [23], are extracted from UWB sensors for our evaluation.                this error (output data) using precise ground truth and the
+The brief description of each feature is shown in Table IV.                associated CIR data (input data). Maximizing this correction
+   2) Raw CIR data: Before we feed the CIR data into the                   performance will have a positive impact on the localization
+NN, proposed in Section V, we first process the raw CIR                    accuracy, which uses multiple ranges to triangulate the position
+data in the pre-processing phase. The raw CIR pre-processing               as illustrated in Figure 1. N(LOS) detection permits further
+step is three-fold. (i) Firstly, we convertp
+                                           the IQ-sampled array            UWB localization improvements with intelligent anchor se-
+into a RSSI-sampled array (RSSI = I 2 + Q2 ). The real                     lection. More specifically, given at least 4 anchors, an anchor
+and imaginary components of the complex IQ-samples can                     selection algorithm can mitigate one or more ranges based
+be represented by the Cartesian coordinate system. Next,                   on their (N)LOS information before providing the ranges to
+using the Euclidean distance from the origin in the com-                   the localization algorithm. The following describes the model
+plex plane and the found Cartesian coordinates gives us the                architecture for feature-based and raw CIR-based models for
+absolute value of the complex IQ sample, corresponding to                  error prediction and (N)LOS classification.
+the amplitude of the signal (RSSI). (ii) Secondly, the RSSI-                  1) Feature-based machine learning: Feature-based ML for
+sampled array is trimmed further to 150 samples, with 50                   error correction and (N)LOS detection typically uses DNNs
+samples before the FP index and 100 afterwards (including                  to make predictions based on previously extracted features.
+the first path). (iii) Lastly, min-max normalization is applied            In this paper, we employ a DNN architecture, as presented in
+to each CIR of the dataset. Min-max normalization scales                   Table V. The first layer of the NN is the input layer and expects
+each CIR, so that the highest value is 1 and the lowest is                 an array of 12 values (features). Next, four dense layers are
+                                                                                                                                       9
+
+
+
+TABLE V: NN architecture for error correction and (N)LOS detection. Both UWB model architectures (feature-based and
+CIR-based) use the same Dense layers (blue), while the CIR-based CNN consists of 7 additional layers (purple) on top of this
+to automatically discover and learn features from the raw CIR data.
+                   Layer name            Activation Output size         Layer name          Activation   Output size
+                   CIR-based (454,259 parameters and 4,443,552 FLOPs)
+                   Input                              (150x1x1)
+                   Conv2D (128x(16x1)) ReLu           150x1x128
+                   MaxPoo2D (2x1)                     75x1x128
+                   Conv2D (64x(8x1))     ReLu         75x1x64
+                   Conv2D (32x(2x1))     ReLu         75x1x32
+                   BatchNorm                          75x1x32
+                   Dropout 25%                        75x1x32           Feature-based (23,401 parameters and 23,081 FLOPs)
+                   Flatten                            2400              Input                             12
+                   Dense (150)           ReLu         150               Dense (150)           ReLu        150
+                   BatchNorm                          150               BatchNorm                         150
+                   Dropout 20%                        150               Dropout 20%                       150
+                   Dense (100)           ReLu         100               Dense (100)           ReLu        100
+                   Dropout 20%                        100               Dropout 20%                       100
+                   Dense (50)            ReLu         50                Dense (50)            ReLu        50
+                   Dropout 10%                        50                Dropout 10%                       50
+                   Dense (25)            Sigmoid      25                Dense (25)            Sigmoid     25
+                   Dense (1) (Error) or  Linear or     1 or             Dense (1) (Error) or Linear or     1 or
+                   Dense (2) ((N)LOS)    Softmax       2                Dense (2) ((N)LOS)    Softmax      2
+
+
+
+attached followed by the final dense output layer. In between,          and XU . In this subsection, we describe the (automatic) TL
+BatchNormalization and Dropout layers are added, which both             optimization strategy, which acts as a general framework for
+try to mitigate overfitting of the training dataset. Each dense         a broader scope of use-cases with unseen environments.
+layer uses a ReLu layer as a non-linear activation function                Step 1 base model training: The first step combines existing
+to introduce non-linearity into the training and enables more           datasets and trains a base model NN. Best practices in training
+effective deep learning. The output layer has a linear activation       such as dropout, (batch)normalization, large train-test splits,
+function for the UWB error prediction task (with one output             etc., ensure steps towards best-effort generalization. In this
+neuron, corresponding to the floating point precision error)            paper, the base models architecture will differ for the feature-
+or a Softmax activation function for the (N)LOS classification          based and non-feature based models. Convolutional layers in
+task (with two output neurons, one for LOS and one for NLOS             the non-feature based model learn high-level features, e.g.
+classification).                                                        temporal features, from the raw CIR data, while the feature-
+   2) Raw CIR-based machine learning: The RAW CIR-based                 based model assumes high-level features are already extracted.
+model uses a CNN architecture, as presented in Table V.                 Once the convolutional layers extract high-level features from
+The architecture was inspired from the CNN published in                 the raw data, fully connected layers follow in the NN. To
+[31], with the DNN portion further fine-tuned for optimal               increase model capability fairness, both models share the same
+performance for the feature-based approach. As the input here           fully connected layer architecture. Table V presents more
+considers an even smaller input size (150 in this research vs           details of the NNs for both feature and non-feature based
+500 samples in [31]), the convolutional layers were further             methods.
+optimized, resulting in a slightly different overall architecture.
+                                                                           Step 2 training with frozen layers: With the M Lbase
+At the input layer, the model expects 150 signal strength
+                                                                        trained, the next step makes some trainable layers (H) (i.e.
+samples, with 50 samples before the first path index, and 100
+                                                                        convolutional layers and dense layers) untrainable and cre-
+after (including the first path index). Next, 3 convolutional
+                                                                        ates (conf igure) a partially frozen model. The remaining
+layers are trained to extract local time series features from each
+                                                                        trainable layers can be either randomly initialized or they
+CIR. These layers include kernel regularization, to reduce the
+                                                                        can preserve the weights from the base model. In this paper,
+size of the weights, ReLU activation functions, zero padding,
+                                                                        we utilized weight preservation which can enhance model
+and one max-pooling layer in between. Afterwards, a flatten
+                                                                        convergence significantly by providing a good starting point
+layer reshapes the activations from the convolutional layer to
+                                                                        for the optimization process and preventing overfitting during
+1D, and lets the data flow towards the fully connected layers.
+                                                                        training. The decision on which layers to freeze is made by
+These last layers have the same architecture as the feature-
+                                                                        based on a trial-and-error or consider these layer options as
+based ML model to have a symmetric comparison between
+                                                                        hyperparameters and optimize them in an iterative manner. The
+the two ML approaches.
+                                                                        main expected benefit from this step is reduced training time
+                                                                        and a decreased required training samples to meet an expected
+B. Transfer Learning Optimization Strategy                              accuracy. DNN models working with manual extracted feature
+   As generalization towards multiple environments remains              can freeze fully connected layers, while CNN models trained
+challenging, training models in new environments is important           using raw data can additionally freeze convolutional layers.
+to boost accuracy. TL is a ML approach that can help with this            Step 3 Fine-tuning with unfrozen layers: This step of the
+task, by transferring the knowledge already learned on Xbase ,          TL framework is optional and follows either after the base
+e.g. time series features of the CIR, to data captured in XO            model training step or after the frozen layer training step.
+                                                                                                                                 10
+
+
+
+Although (latent) features represented in the frozen layers       Algorithm 1 Transfer learning optimization algorithm
+should ideally be transferable, it is, however, possible for a    Input:
+model to achieve higher accuracy when these features still          Xbase (Features or CIR)                          ▷ Base-dataset
+need to be slightly adapted to the new environment. Reducing        [M Lbase ]                        ▷ Optional pre-trained model
+the learning rate (lr) and epochs in this step ensures earlier         ´
+                                                                    Xnew                                ▷ Dataset new environment
+learned features are not neglected completely.                      nb                     ▷ Number of Bayesian optimization steps
+   Deciding how to finetune the aforementioned hyperparame-       Output: M Lnew
+ters of steps 2 and 3 can be challenging and requires expertise     if M Lbase then
+of the developer. Furthermore, blindly trying all different              while M Lbase not converged do                    ▷ Step 1
+combinations (in this paper 256) is computationally expensive                 loss ← M Lbase (Xbase )
+and becomes infeasible quickly. In our TL framework, we                       optimize(M Lbase , loss)
+include automatic hyperparameter finetuning with Bayesian                end while
+optimization using the Gaussian process to mitigate manual          end if
+hyperparameter tuning and reduce the computational overhead.        M Lnew ← M Lbase
+In this paper, the hyperparameters are the optimal combination      H ← M Lnew .get trainable layers()
+of which frozen layers (H) to use (step 2) and whether to per-      δf inetuning ← T rue
+form step 3, configurable with Boolean parameter δf inetuning .     i←0
+The finetuning process is configured as an extra set of (50)        while i ̸= nb do
+epochs with a low learning rate (lr) of 0.0001, after the first          H ′ , δf′ inetuning =
+round of 500 TL epochs have been executed at a higher lr                 Bayesian opt(M Lnew , H, δf inetuning )               ▷ 4)
+of 0.001. The input of this optimizer is the current state (H            conf igure(M Lnew , H ′ , lr = 0.001)
+and δf inetuning ) together with the model accuracy using these          while M Lnew not converged do                     ▷ Step 2
+hyperparameters. We configured the optimizer to start with                    loss ← M Lnew (X́e1 )
+15 random initialization hyperparameters configurations and                   optimize(M Lnew , loss)
+further explore and exploit more accurate configurations in              end while
+additional 15 steps, which are experimentally derived values             if δf′ inetuning == T rue then
+based on an accuracy and training time trade-off. More details                conf igure(M Lnew , [T rue, ...], lr = 0.0001)
+of this optimizer can be found in [60]. The output of the                     while M Lnew not converged do                ▷ Step 3
+optimizer is the hyperparameters H ′ and δf′ inetuning during                       loss ← M Lnew (X́e1 )
+the automatic discovery phase which are estimated to increase                       optimize(M Lnew , loss)
+accuracy. We propose the integration of the Bayesian optimizer                end while
+for UWB TL models in Algorithm 1.                                        end if
+                                                                         keep best model(M Lnew )
+                                                                         i←i+1
+C. Experimental Evaluation Methodology
+                                                                    end while
+   In this paper we intentionally focus on the performance          return get best model()
+improvements for (ranging) error correction and (N)LOS de-
+tection, which are the most predominant parameters impacting
+the positioning accuracy [31].                                    loss didn’t decrease for more than 10 epochs. To aim for the
+   The TL steps outlined in the optimization strategy can be      highest accuracy in the unseen environment, the TL samples
+performed with a small number of samples from a new unseen        were split into a training (70%) and validation sets (30%). The
+environment. As such, in this paper, we assume it is possible     remaining data of the unseen environment is then considered
+to collect CIRs from a few known positions. It is important to    as a test set, of which the results are shown in Section VI. The
+analyze the number of samples we need to capture to allow         Adam optimizer was used to train the models for 300 epochs
+effective model TL. Obviously, the best results are achievable    with a dynamic learning rate starting from 0.001, together with
+when the model uses a large and varied (spread across the         a MAE loss function. To construct the MAE loss each training
+environment) amount of samples. However, this is often not        step, a batch size of 1024 was used, while a smaller batch size
+a realistic assumption and diminishes the potential of TL. In     of 16 can help the NN effectively learn the variation during
+this paper, we evaluate sample selection from random positions    TL with limited samples. All models were trained using the
+spread out in the unseen environment, obtaining a high spatial    TensorFlow framework on a high-end NVIDIA V 100 GPU,
+diversity. Although this can require many measurement points      available in our in-house Virtual Wall [61].
+(depending on the size of the environment), we will only
+investigate a range of few samples K << M . Specifically,
+the evaluation analyzes TL with K samples ranging between                VI. A NALYSIS AND E XPERIMENTAL R ESULTS
+25 and 400.
+   To mitigate overfitting, we applied early stopping when           In this section, we evaluate the performance of error cor-
+the validation loss didn’t decrease for more than 30 epochs.      rection and (N)LOS detection ML models with feature-based
+Additionally, the learning rate automatically reduced when the    and raw CIR-based input data. First, we discuss the optimal
+                                                                                                                                               11
+
+
+
+TABLE VI: This table presents optimal found configuration                         configurations indicate the need for an automatic optimization
+by the Bayesian optimizer for each dataset, ML task and data                      strategy. Generally, we noticed that locking the convolutional
+type. The ’+’ symbol indicates that the layer was selected                        layers is a good idea, as this consistently provides good
+trainable (unlocked), while the ’-’ symbol indicates a locked                     results, even if they are not the global optimal solution.
+layer. There are no clear TL hyperparameter optimizations that                    For most configurations the accuracy diverged only a few
+can be derived for a specific use case. Manually determining                      percent, using an automatic hyperparameter optimizer like
+the optimal configurations requires trial-and-error which can                     a Bayesian optimization approach is required for reaching
+be challenging and time-consuming. Some patterns can be                           optimal accuracy.
+found, such as unlocked (+) and locked (-) convolutional
+layers for error correction and NLOS detection, respectively.
+Nonetheless, the optimal found hyperparameter configurations                      B. Generalization Towards Multiple Environments
+indicate the need for an automatic optimization strategy.                            1) Same UWB configuration: To assess the TL performance
+ Dataset     ML task   Data type   Fine-    Trainable Conv.   Trainable FC        of the proposed approach, we first analyze error correction and
+                                   tuning   I   II   III      I   II III     IV
+ XO          Error     Features    ✓                          -   +    +     +    (N)LOS detection in XO , which is a different environment
+                       CIR         ✗        +   +    -        + +      +     +    compared to Xbase , but uses the same radio configurations.
+             (N)LOS    Features    ✓                          -   +    +     -
+                       CIR         ✓        -   -    +        + -      -     +    In Figure 3a, we compare the UWB - no correction, which
+ XU          Error     Features    ✓                          -   +    +     +
+ Hallway               CIR         ✗        +   +    -        + +      -     +
+                                                                                  is the MAE of UWB ranging in XO , without any optimiza-
+             (N)LOS    Features    ✗                          -   +    +     +    tion algorithms applied. Next, ML generalization shows the
+                       CIR         ✓        -   -    +        + -      +     +
+ Hallway     Error     Features    ✗                          + +      -     +    performance of models trained on Xbase , validated on XO .
+ 1st floor             CIR         ✗        +   -    -        + +      +     +    ML from scratch and TL both uses 50 samples of XO to
+             (N)LOS    Features    ✗                          + +      +     +
+                       CIR         ✓        -   -    +        + +      +     +    improve the ML performance. The ML from scratch approach
+ Lab room    Error     Features    ✓                          + +      +     +
+                       CIR         ✗        +   +    -        + +      -     +    does not use any previously acquired knowledge, and starts
+             (N)LOS    Features    ✓                          + -      -     +    training a model from scratch with only these 50 samples,
+                       CIR         ✓        -   -    +        + -      +     +
+                                                                                  while the proposed TL approach uses M Lbase and further
+                                                                                  applies TL techniques as described in Section V-B. Figure
+hyperparameter configurations found for each experiment us-                       3a illustrates the shortcomings of the ML generalization,
+ing the Bayesian optimizer. Next, we analyze the performance                      where the error after correction is worse than the UWB -
+of the ML models on datasets XO and XU . We compare the                           no correction performance using the feature-based approach.
+(i) UWB - no correction base ranging accuracy (with no error                      The CIR-based approach, where neural networks have the
+mitigation algorithms applied), (ii) ML generalization (using                     ability to extract more (generalizable) features, does improve
+M Lbase ), (iii) ML from scratch (M Lnew ) with k = 50 and                        the accuracy. However, it does not reach performance gains
+(iv) TL performance (M´Lnew ) in considered new environment                       when it would be applied in a similar environment. A model
+(XO or XU ). In the rest of the paper, we use ’ML from scratch’                   trained from scratch with 50 samples measured in the new
+and ’training from scratch’ interchangeably. Next, we perform                     environment does offer significant improvements for both
+an identical evaluation, but on a publicly available dataset, cap-                the feature-based and CIR-based approaches compared to the
+tured in different environments with different UWB hardware                       UWB - no correction MAE. However, most performance gains
+and UWB configurations. After that, the impact on the TL                          can be seen when applying the proposed TL strategy. We
+accuracy with the number of chosen TL samples is illustrated,                     see more than 2× the performance increase for feature-based
+and finally followed by a complexity analysis between feature                     error correction and almost 3× for the CIR-based approach.
+and raw CIR-based solutions.                                                      Compared to generalization, TL with only 50 samples offers
+                                                                                  an increase of 56.9% and 54.0% over the ML generalization
+A. Automatic Hyperparameter Optimization                                          performance.
+   Various ways to perform TL can be seen as hyperparameters                         Figure 4 presents a CDF to further analyze error correction
+of the knowledge transferring process. In this paper, we                          at different percentiles. At the 95th percentile, both feature-
+explore trainable (or locked) layers of the models as hyperpa-                    based and CIR-based approaches have a large relative im-
+rameters, together with the finetuning process (δf inetuning).                    provement of 57.8% and 48.5% when applying TL compared
+Trainable layers (H) are the collection of (three) convolutional                  to the ML generalization performance of the base model. For
+layers and (four) fully connected layers, which contain many                      95% of the samples, with TL we achieved an error of less
+trainable parameters. For the experiments using feature-based                     than 300 mm, which is a significant accuracy improvement
+data, only the fully connected layers are chosen, as the                          over the UWB - no correction 800 mm error. Together with
+convolutional layers are typically used for feature extraction                    a median error of only a few centimeters, a reliable target
+of raw data. Table VI presents the optimal configurations                         accuracy of a few decimeters can be achieved, even in harsh
+found by the Bayesian optimizer for each dataset, ML task                         NLOS environments.
+and data type. These configurations are then further used                            Figure 3b shows similar improvements for the (N)LOS
+throughout the remainder of the evaluation in this paper. Some                    classification results. Both feature- and CIR-based approaches
+patterns can be found, such as unlocked (+) and locked (-)                        using ML generalization fail to provide satisfactory results
+convolutional layers for error correction and NLOS detection,                     with detection accuracies of 64.9% and 78.1%, respectively.
+respectively. Nonetheless, the optimal found hyperparameter                       Again, training the model from scratch does offer higher
+                                                                                                                              12
+
+
+
+
+                              (a)
+                                                                                              (b)
+
+
+
+
+Fig. 3: Performance of the feature- and raw-based ML models in XO for (a) error prediction models and (b) (N)LOS detection.
+The following data volume parameters are used: K=50, M=44894, K/M=0.11%.
+
+
+                              (a)                                                             (b)
+
+
+
+
+Fig. 4: The cumulative distribution function (CDF) for the office dataset XO shows a large precision improvement. The base
+(generalization) model M Lbase is trained on the industrial datasets Xbase and further transferred using 50 samples of XO .
+
+
+accuracy than the generalization model, but is outperformed      Interestingly, we also see that when training from scratch the
+by applying TL. Here, the accuracy improved significantly,       model offers similar performance, and even leads to higher
+where the CIR-based approach reaches with 92.8% a rela-          improvements for some feature-based cases. The base model
+tively high accuracy. Although this NLOS accuracy of 92.8%       that is used for TL is trained on the IIoT dataset with a
+is not perfect, a significant improvement can be found by        different configuration. As a result, transferring the learned
+applying transfer learning versus generalization. As shown       knowledge in the from the base model towards a different
+in [10], NLOS can effectively improve the accuracy of the        environment with also a different configuration is less ideal
+UWB positioning by applying anchor selection, even when the      than only changing the environment. As such, the features
+accuracy is not 100%. For both error correction and (N)LOS       learned in one dataset, which contains signals subject to
+detection, it is clear that the CIR-based approach outperforms   different channels and antennas from one type of device, are
+the feature-based approach. Although the CIR-based general-      not ideal to use on different devices. Moreover, the error
+ization appears more robust in new environment, the relative     made by different UWB systems can vary a lot depending
+performance gains (±50%) compared to the feature-based           on the settings, while this is not always reflected in the CIR
+approach is similar and results in an overall higher accuracy.   and available and extracted features. In contrast, the features
+   2) Different UWB radio configurations: Not every UWB          learned in one environment do seem useful knowledge when
+localization deployment will be similar in terms of settings,    only the environment changes. The 90th percentile results of
+UWB chip, antenna’s used, etc. To this end, the first three      error correction in Figure 6 further confirms this conclusion
+figures in Figure 5 shows the TL performance on the pub-         with relative improvements between 2.7% and 27.4% between
+licly available dataset of [34]. In this dataset, we selected    model generalization and TL, which is far smaller than the
+three environments with sufficient samples for evaluation.       results on XO . In the lab environment, the feature-based
+Although the error correction improvements using TL are          approach achieves a higher performance improvement than
+still significant, the relative improvement is much smaller.
+                                                                                                                                   13
+
+
+
+                                                                        Method                       Localization accuracy (XO )
+the CIR-based approach. Despite achieving only small error              UWB - no correction                   642.9 mm
+correction improvements in different configurations, the last                                        Feature-based          Raw
+three figures in Figure 5 show large a large improvement in             ML generalization                638.3 mm      482.5 mm
+(N)LOS detection accuracy. The difference between feature-              ML from scratch (K = 50)         424.3 mm      392.6 mm
+                                                                        Transfer learning (K = 50)       294.7 mm      245.1 mm
+and CIR-based models is small for the TL approach, however,
+the generalization performance of the CIR-based model is          TABLE VII: Localization accuracy of XO with ranging error
+higher. The (N)LOS label does not depend on the UWB               correction shows large gains using TL
+configuration, but rather on the topology and physical lay-
+out of the environment. To this end, regardless of different
+configurations, TL improvements for (N)LOS detection can          E. Complexity Analysis
+be expected in new environments.                                     Not only is it interesting to compare the accuracy of two
+                                                                  different ML approaches (feature- and CIR-based), they also
+C. Impact of Changing the Number of Samples for TL
+                                                                  have different characteristics regarding the complexity. Addi-
+   Up to now we have considered using K = 50 samples              tionally, TL can add complexity on top of training M Lbase ,
+from the new environment to enable TL. Ideally, we want           but it can also reduce the convergence time when accuracy
+to keep this number small to limit the overhead of manual         in a new environment is sub-optimal. In this subsection we
+data collection and labeling. In Figure 7, we investigate the     further analyze the complexity of the proposed solution.
+impact of using K = 25 to K = 400 samples. A downwards               1) Model complexity: As shown in Table V, the complexity
+trend can be observed for error correction of both feature-       of feature-based models used in this paper are lower compared
+based and raw CIR-based models. Compared to collecting only       to the CIR-based models due to two reasons: (i) the dimen-
+25 samples, an increase up to 51.6 mm and 100.4 mm can            sionality of the input layer is smaller and (ii) the amount of
+be seen when collecting K = 400 samples for the feature-          fully connected neurons is smaller. The feature-based model
+based and raw CIR-based models, respectively. Similarly, an       has less trainable parameters (23,401 vs 454,259) and FLOPs
+upward trend exists for (N)LOS detection of both feature- and     (23,081 vs 4,443,552) as compared to the CIR-based model.
+CIR-based models. Both types of models benefit from more          On the other side, the calculation of some features requires
+TL samples and achieve an additional 7.8% and 9.5% for            additional calculations, which is not the case for the raw CIR
+feature- and CIR-based models, respectively, as compared to       data. Typically, these features are calculated from raw data by
+no TL. Additionally, building on top of the best results from     applying (expert) rule-based algorithms. However, the Qorvo
+the previous subsections (CIR-based ML), Figure 7 shows           DW1000 UWB chip already provides most of the diagnostics
+the performance of traditional ML using CIR data, where a         features (see Table IV), which can directly be read from the
+model is trained from scratch using the data available in a new   radio chip registers for each UWB range, thus limiting the
+environment. For a small K, CIR-based TL outperforms the          calculation overhead to a negligible amount.
+ML from scratch method. To reach the same error prediction           2) Transfer learning complexity: The TL process first re-
+accuracy of the traditional ML ML from scratch method using       quires the training of a base model. This model can either be
+K=200 samples, with transfer learning only K=25 samples are       provided, or trained with a existing dataset, where this com-
+needed, a difference of 8x. For a larger K, this difference       plexity was discussed above. Next, the model is transferred
+becomes smaller as training from scratch becomes more effec-      with a small dataset X́new with K samples, which already will
+tive. Nonetheless, depending on the required effort, choosing     significantly reduce the complexity as compared to training
+only a few samples can still be the desired choice, and offers    a model from scratch with Xnew with M samples, where
+significant performance gains compared to no TL (K = 0            K << M (a varying number of K was illustrated in Figure
+samples) or not applying any ML approaches (UWB - no              7). However, searching for the optimal TL methodology can
+correction performance).                                          require O(H ×K) operations, with H the number of Bayesian
+                                                                  optimization search steps as compared to only O(M ) with a
+D. Impact of ranging error correction on localization accu-
+                                                                  fixed TL configuration. Depending on the dataset reduction
+racy
+                                                                  factor MK , TL can result in a lower computational complexity
+   Finally, we analyze the impact of improved ranging errors      than training a model with Xnew . Moreover, TL only happens
+on the UWB localization accuracy, calculated using the least      once in each new environment, where the computational effort
+square method. Table VII shows the UWB localization ac-           of the trained model remains unaltered. Requiring significantly
+curacy in XO when no correction has been applied, as well         less training samples in each new environment will reduce
+as the corrected ranges using ML generalization, ML from          manual data collection and labeling effort.
+scratch (K = 50) and the proposed transfer learning method
+(K = 50). The improvements to the localization accuracy
+follow a similar trend as for the ranging error improvements.               VII. C ONCLUSIONS AND FUTURE WORK
+Clearly, the proposed raw transfer learning method outper-           To enable high precision indoor positioning systems (1 − 10
+forms the feature-based methods, generalization and ML from       cm) using UWB in both (N)LOS environments, ML algorithms
+scratch. As such, it can effectively improve the localization     have been proposed to improve the errors of UWB localization
+accuracy in challenging NLOS environments from 643 mm to          systems. However, these models lack generalization capa-
+245 mm.                                                           bilities towards new environments and UWB configurations.
+                                                                                                                                   14
+
+
+
+
+                   (a)                                            (b)                                          (c)
+
+
+
+
+                   (d)                                            (e)                                          (f)
+
+
+
+
+Fig. 5: Error prediction for both feature-based and raw-based TL in XU in (a) the hallway environment, (b) the hallway
+environment on another floor and (c) the lab room environment. Additionally, the accuracy of the (N)LOS detection performance
+is shown in the same respective environments in (d), (e) and (f). The following data volume parameters are used for (a) and (d):
+K=50, M=5345, K/M=0.94%, for (b) and (e): K=50, M=5509, K/M=0.91% and for (c) and (f): K=50, M=2871, K/M=1.74%.
+                   (a)                                            (b)                                          (c)
+
+
+
+
+                   (d)                                            (e)                                          (f)
+
+
+
+
+Fig. 6: Cumulative distribution function shows a smaller increase of the UWB ranging precision after applying TL on dataset
+XU , which was captured in a different environment with a different configuration.
+
+As such, enabling these models in new environments and                  15% (N)LOS classification accuracy improvements (for both
+UWB configurations is a challenging and expensive manual                feature- and CIR-based approaches) over a model which was
+process requiring the collection of large training datasets             trained only in a different environment. We also showed the
+for each environment. In this paper, we proposed automatic              expected gains for both approaches from using 25 until 400
+optimizations for TL DNNs towards new environments and                  transfer learning samples. The highest absolute accuracy was
+UWB configurations. While keeping the complexity small due              typically achieved by the CIR-based approach, where with
+to a limited number of training samples, the optimization               as few as 50 samples from the new NLOS environment,
+steps include an Bayesian optimizer which selects which                 we showed ±10 cm precision after error correction with
+layers to freeze during TL and whether to apply a final                 93% (N)LOS detection. The presented results demonstrate
+finetuning step with all layers unfrozen and a smaller learning         high precision UWB localization (from 643 mm to 245 mm)
+rate. Our results demonstrated 50% error improvements and               through ML with minimal data collection effort in challenging
+                                                                                                                                                         15
+
+
+
+                                                                               [4] S. Sun, J. Hu, J. Li, R. Liu, M. Shu, and Y. Yang, “An ins-uwb based
+                      (a) UWB error correction.                                    collision avoidance system for agv,” Algorithms, vol. 12, no. 2, p. 40,
+                                                                                   2019.
+                                                                               [5] S. Krishnan, R. X. M. Santos, E. R. Yap, and M. T. Zin, “Improv-
+                                                                                   ing uwb based indoor positioning in industrial environments through
+                                                                                   machine learning,” in 2018 15th International Conference on Control,
+                                                                                   Automation, Robotics and Vision (ICARCV). IEEE, 2018, pp. 1484–
+                                                                                   1488.
+                                                                               [6] M. Stahlke, S. Kram, T. Mumme, and J. Seitz, “Discrete positioning
+                                                                                   using uwb channel impulse responses and machine learning,” in 2019 In-
+                                                                                   ternational Conference on Localization and GNSS (ICL-GNSS). IEEE,
+                                                                                   2019, pp. 1–6.
+                                                                               [7] M. Stahlke, S. Kram, C. Mutschler, and T. Mahr, “NLOS detection using
+                                                                                   UWB channel impulse responses and convolutional neural networks,” in
+                                                                                   2020 International Conference on Localization and GNSS (ICL-GNSS).
+                                                                                   IEEE, 2020, pp. 1–6.
+                                                                               [8] Y. Xianjia, L. Qingqing, J. P. Queralta, J. Heikkonen, and T. Westerlund,
+                                                                                   “Applications of uwb networks and positioning to autonomous robots
+                                                                                   and industrial systems,” in 2021 10th Mediterranean Conference on
+                                                                                   Embedded Computing (MECO). IEEE, 2021, pp. 1–6.
+                    (b) UWB (N)LOS detection.                                  [9] C. L. Sang, M. Adams, T. Korthals, T. Hörmann, M. Hesse, and
+                                                                                   U. Rückert, “A bidirectional object tracking and navigation system using
+                                                                                   a true-range multilateration method,” in 2019 International Conference
+                                                                                   on Indoor Positioning and Indoor Navigation (IPIN). IEEE, 2019, pp.
+                                                                                   1–8.
+                                                                              [10] K. Yu, K. Wen, Y. Li, S. Zhang, and K. Zhang, “A novel NLOS
+                                                                                   mitigation algorithm for uwb localization in harsh indoor environments,”
+                                                                                   IEEE Transactions on Vehicular Technology, vol. 68, no. 1, pp. 686–699,
+                                                                                   2018.
+                                                                              [11] W. Wang, D. Marelli, and M. Fu, “Multiple-vehicle localization using
+                                                                                   maximum likelihood kalman filtering and ultra-wideband signals,” IEEE
+                                                                                   Sensors Journal, vol. 21, no. 4, pp. 4949–4956, 2020.
+                                                                              [12] A. A. Momtaz, F. Behnia, R. Amiri, and F. Marvasti, “NLOS identi-
+                                                                                   fication in range-based source localization: Statistical approach,” IEEE
+                                                                                   Sensors Journal, vol. 18, no. 9, pp. 3745–3751, 2018.
+                                                                              [13] Q. Z. Ahmed, K.-H. Park, and M.-S. Alouini, “Ultrawide bandwidth
+                                                                                   receiver based on a multivariate generalized gaussian distribution,” IEEE
+                                                                                   Transactions on Wireless Communications, vol. 14, no. 4, pp. 1800–
+                                                                                   1810, 2015.
+Fig. 7: Impact of using different number of samples from the                  [14] H. Wymeersch, S. Marano, W. M. Gifford, and M. Z. Win, “A machine
+                                                                                   learning approach to ranging error mitigation for UWB localization,”
+new (unseen) environment XO used for TL.                                           IEEE Transactions on Communications, vol. 60, no. 6, pp. 1719–1728,
+                                                                                   2012.
+                                                                              [15] F. Che, A. Ahmed, Q. Z. Ahmed, S. A. R. Zaidi, and M. Z. Shakir,
+NLOS environments. In future work, we foresee sampling                             “Machine learning based approach for indoor localization using ultra-
+selection strategies in new environments and configurations                        wide bandwidth (UWB) system for industrial internet of things (IIoT),”
+(e.g. selecting only LOS samples or samples with a low                             in 2020 International Conference on UK-China Emerging Technologies
+                                                                                   (UCET). IEEE, 2020, pp. 1–4.
+or high standard deviation at a position) to further limit                    [16] W. M. Gifford, D. Dardari, and M. Z. Win, “The impact of multipath
+the overhead of manual data collection. Additionally, manual                       information on time-of-arrival estimation,” IEEE Transactions on Signal
+labeling effort can be alleviated with the use of unsupervised                     Processing, vol. 70, pp. 31–46, 2022.
+                                                                              [17] B. Cao, S. Wang, S. Ge, and W. Liu, “Improving the positioning accu-
+transfer learning, self-labeling and online learning techniques                    racy of UWB system for complicated underground nlos environments,”
+to quickly adapt a pre-trained NN to any new condition.                            IEEE Systems Journal, vol. 16, no. 2, pp. 1808–1819, 2022.
+                                                                              [18] L. Nosrati, M. S. Fazel, and M. Ghavami, “Improving indoor localization
+                                                                                   using mobile UWB sensor and deep neural networks,” IEEE Access,
+                      ACKNOWLEDGMENTS                                              vol. 10, pp. 20 420–20 431, 2022.
+  This work was supported by the Fund for Scientific Re-                      [19] Q. Tian, I. Kevin, K. Wang, and Z. Salcic, “An INS and UWB fusion
+                                                                                   approach with adaptive ranging error mitigation for pedestrian tracking,”
+search Flanders, Belgium, FWO-Vlaanderen, FWO-SB, under                            IEEE Sensors Journal, vol. 20, no. 8, pp. 4372–4381, 2020.
+Grant 1SB7619N.                                                               [20] L. Flueratoru, S. Wehrli, M. Magno, E. S. Lohan, and D. Niculescu,
+                                                                                   “High-accuracy ranging and localization with ultrawideband commu-
+                            R EFERENCES                                            nications for energy-constrained devices,” IEEE Internet of Things
+                                                                                   Journal, vol. 9, no. 10, pp. 7463–7480, 2022.
+[1] L. Cheng, A. Zhao, K. Wang, H. Li, Y. Wang, and R. Chang, “Activity       [21] J. Jia, K. Guo, W. Li, X. Yu, and L. Guo, “Composite filtering for
+    recognition and localization based on uwb indoor positioning system and        UWB-based localization of quadrotor UAV with skewed measurements
+    machine learning,” in 2020 11th IEEE Annual Information Technology,            and uncertain dynamics,” IEEE Transactions on Instrumentation and
+    Electronics and Mobile Communication Conference (IEMCON). IEEE,                Measurement, vol. 71, pp. 1–13, 2022.
+    2020, pp. 0528–0533.                                                      [22] K. Zhao, M. Zhu, B. Xiao, X. Yang, C. Gong, and J. Wu, “Joint rfid and
+[2] H.-B. Li, R. Miura, H. Nishikawa, T. Kagawa, and F. Kojima, “Tracking          uwb technologies in intelligent warehousing management system,” IEEE
+    of warehouse forklifts using an indoor positioning system based on             Internet of Things Journal, vol. 7, no. 12, pp. 11 640–11 655, 2020.
+    ir-uwb,” in Proceedings of the International Conference on indoor         [23] A. G. Ferreira, D. Fernandes, S. Branco, A. P. Catarino, and J. L.
+    positioning and navigation (IPIN 2016), Madrid, Spain, 2016, pp. 4–7.          Monteiro, “Feature selection for real-time NLOS identification and
+[3] R. Bazo, C. A. da Costa, L. A. Seewald, L. G. da Silveira, R. S.               mitigation for body-mounted UWB transceivers,” IEEE Transactions on
+    Antunes, R. d. R. Righi, and V. F. Rodrigues, “A survey about real-            Instrumentation and Measurement, vol. 70, pp. 1–10, 2021.
+    time location systems in healthcare environments,” Journal of Medical     [24] J. B. Kristensen, M. M. Ginard, O. K. Jensen, and M. Shen, “Non-
+    Systems, vol. 45, no. 3, pp. 1–13, 2021.                                       line-of-sight identification for UWB indoor positioning systems using
+                                                                                                                                                             16
+
+
+
+     support vector machines,” in 2019 IEEE MTT-S International Wireless        [45] R. Klus, L. Klus, J. Talvitie, J. Pihlajasalo, J. Torres-Sospedra, and
+     Symposium (IWS). IEEE, 2019, pp. 1–3.                                           M. Valkama, “Transfer learning for convolutional indoor positioning
+[25] A. Musa, G. D. Nugraha, H. Han, D. Choi, S. Seo, and J. Kim,                    systems,” in 2021 International Conference on Indoor Positioning and
+     “A decision tree-based NLOS detection method for the UWB indoor                 Indoor Navigation (IPIN). IEEE, 2022, pp. 1–8.
+     location tracking accuracy improvement,” International Journal of Com-     [46] L. H. Yong and M. Zhao, “Indoor positioning based on hybrid domain
+     munication Systems, vol. 32, no. 13, p. e3997, 2019.                            transfer learning,” IEEE Access, vol. 8, pp. 130 527–130 539, 2020.
+[26] B. Li, K. Zhao, and E. B. Sandoval, “A UWB-based indoor positioning        [47] Y. Jiang and V. C. Leung, “An asymmetric double sided two-way ranging
+     system employing neural networks,” Journal of Geovisualization and              for crystal offset,” in 2007 International Symposium on Signals, Systems
+     Spatial Analysis, vol. 4, no. 2, pp. 1–9, 2020.                                 and Electronics, 2007, pp. 525–528.
+[27] P. A. ShirinAbadi and A. Abbasi, “UWB channel classification using         [48] J. Karedal, S. Wyne, P. Almers, F. Tufvesson, and A. F. Molisch,
+     convolutional neural networks,” in 2019 IEEE 10th Annual Ubiquitous             “A measurement-based statistical model for industrial ultra-wideband
+     Computing, Electronics & Mobile Communication Conference (UEM-                  channels,” IEEE Transactions on Wireless Communications, vol. 6, no. 8,
+     CON). IEEE, 2019, pp. 1064–1068.                                                pp. 3028–3037, 2007.
+[28] Z. Sun, K. Wang, R. Sun, and Z. Chen, “Channel state identification in     [49] Q. Z. Ahmed and L.-L. Yang, “Reduced-rank adaptive multiuser de-
+     complex indoor environments with st-cnn and transfer learning,” IEEE            tection in hybrid direct-sequence time-hopping ultrawide bandwidth
+     Communications Letters, pp. 1–1, 2022.                                          systems,” IEEE Transactions on Wireless Communications, vol. 9, no. 1,
+[29] B. Yang, J. Li, Z. Shao, and H. Zhang, “Robust UWB indoor localization          pp. 156–167, 2010.
+     for NLOS scenes via learning spatial-temporal features,” IEEE Sensors      [50] B. Großwindhager, C. A. Boano, M. Rath, and K. Römer, “Concurrent
+     Journal, vol. 22, no. 8, pp. 7990–8000, 2022.                                   ranging with ultra-wideband radios: From experimental evidence to a
+[30] L. Schmid, D. Salido-Monzú, and A. Wieser, “Accuracy assessment and            practical solution,” in 2018 IEEE 38th International Conference on
+     learned error mitigation of UWB ToF ranging,” in 2019 International             Distributed Computing Systems (ICDCS), 2018, pp. 1460–1467.
+     Conference on Indoor Positioning and Indoor Navigation (IPIN). IEEE,       [51] “Dw1000 user manual,” https://www.qorvo.com/products/d/da007967,
+     2019, pp. 1–8.                                                                  (accessed on 03/02/2023).
+[31] J. Fontaine, M. Ridolfi, B. Van Herbruggen, A. Shahid, and                 [52] “Iiot    testbed,”     https://www.ugent.be/ea/idlab/en/research/research-
+     E. De Poorter, “Edge inference for UWB ranging error correction using           infrastructure/industrial-iot-lab.htm/, (Accessed on 2022-02-04).
+     autoencoders,” IEEE access, vol. 8, pp. 139 143–139 155, 2020.             [53] “Officelab testbed,” https://www.ugent.be/ea/idlab/en/research/research-
+[32] V. Rayavarapu and A. Mahapatro, “NLOS identification and mitigation             infrastructure/officelab.htm, (Accessed on 2022-02-04).
+     in uwb positioning with bagging-based ensembled classifiers,” Annals       [54] B. Van Herbruggen, B. Jooris, J. Rossey, M. Ridolfi, N. Macoir,
+     of Telecommunications, pp. 1–14, 2021.                                          Q. Van den Brande, S. Lemey, and E. De Poorter, “Wi-pos: A low-cost,
+[33] A. Albaidhani and A. Alsudani, “Fuzzy logic control for NLOS identi-            open source ultra-wideband (UWB) hardware platform with long range
+     fication method in an indoor environment using UWB technology,” Int.            sub-ghz backbone,” Sensors, vol. 19, no. 7, 2019. [Online]. Available:
+     J. Intell. Syst., vol. 13, no. 1, pp. 270–281, 2020.                            https://www.mdpi.com/1424-8220/19/7/1548
+[34] M. Stocker, M. Gallacher, C. A. Boano, and K. Römer, “Performance         [55] L. Flueratoru, E. S. Lohan, and D. Niculescu, “Challenges in platform-
+     of support vector regression in correcting UWB ranging measurements             independent uwb ranging and localization systems,” in Proceedings of
+     under LOS/NLOS conditions,” in Proceedings of the Workshop                      the 16th ACM Workshop on Wireless Network Testbeds, Experimental
+     on Benchmarking Cyber-Physical Systems and Internet of Things,                  evaluation & CHaracterization, 2022, pp. 9–15.
+     ser. CPS-IoTBench ’21.            New York, NY, USA: Association           [56] V. B. Vales, T. Domı́nguez-Bolaño, C. J. Escudero, and J. A. Garcia-
+     for Computing Machinery, 2021, p. 6–11. [Online]. Available:                    Naya, “Using the power delay profile to accelerate the training of
+     https://doi.org/10.1145/3458473.3458820                                         neural network-based classifiers for the identification of los and nlos
+[35] B. Van Herbruggen, J. Fontaine, and E. De Poorter, “Anchor pair                 uwb propagation conditions,” IEEE Access, vol. 8, pp. 220 205–220 214,
+     selection for error correction in time difference of arrival (TDoA)             2020.
+     ultra wideband (UWB) positioning systems,” in 2021 International           [57] J. Sidorenko, V. Schatz, N. Scherer-Negenborn, M. Arens, and
+     Conference on Indoor Positioning and Indoor Navigation (IPIN). IEEE,            U. Hugentobler, “Decawave ultra-wideband warm-up error correction,”
+     2021, pp. 1–8.                                                                  IEEE Transactions on Aerospace and Electronic Systems, vol. 57, no. 1,
+[36] C. L. Sang, B. Steinhagen, J. D. Homburg, M. Adams, M. Hesse, and               pp. 751–760, 2020.
+     U. Rückert, “Identification of NLOS and multi-path conditions in UWB      [58] S. Pala, S. Jayan, and D. G. Kurup, “An accurate uwb based localization
+     localization using machine learning methods,” Applied Sciences, vol. 10,        system using modified leading edge detection algorithm,” Ad Hoc
+     no. 11, p. 3980, 2020.                                                          Networks, vol. 97, p. 102017, 2020.
+[37] F. Che, Q. Z. Ahmed, F. A. Khan, and P. I. Lazaridis, “Anomaly             [59] S. Coene, C. De Cock, E. Tanghe, D. Plets, L. Martens, and W. Joseph,
+     detection based on generalized gaussian distribution approach for ultra-        “Using sage on cots uwb signals for toa estimation and body shadowing
+     wideband (UWB) indoor positioning system,” in 2021 26th International           effect quantification,” in 2021 International Conference on Indoor
+     Conference on Automation and Computing (ICAC). IEEE, 2021, pp.                  Positioning and Indoor Navigation (IPIN). IEEE, 2021, pp. 1–8.
+     1–5.                                                                       [60] F. Nogueira, “Bayesian Optimization: Open source constrained
+[38] Z. Zeng, S. Liu, and L. Wang, “UWB NLOS identification with feature             global optimization tool for Python,” 2014–. [Online]. Available:
+     combination selection based on genetic algorithm,” in 2019 IEEE                 https://github.com/fmfn/BayesianOptimization
+     International Conference on Consumer Electronics (ICCE).          IEEE,    [61] “imec virtualwall,” https://doc.ilabt.imec.be/ilabt/virtualwall/, (Accessed
+     2019, pp. 1–5.                                                                  on 2022-02-04).
+[39] C. Jiang, S. Chen, Y. Chen, D. Liu, and Y. Bo, “An UWB channel
+     impulse response de-noising method for NLOS/LOS classification boost-
+     ing,” IEEE Communications Letters, vol. 24, no. 11, pp. 2513–2517,
+     2020.
+[40] Q. Liu, Z. Yin, Y. Zhao, Z. Wu, and M. Wu, “UWB LOS/NLOS identi-
+     fication in multiple indoor environments using deep learning methods,”
+     Physical Communication, vol. 52, p. 101695, 2022.
+[41] J. Fan and A. S. Awan, “Non-line-of-sight identification based on
+     unsupervised machine learning in ultra wideband systems,” IEEE Access,
+     vol. 7, pp. 32 464–32 471, 2019.
+[42] C. Jiang, J. Shen, S. Chen, Y. Chen, D. Liu, and Y. Bo, “UWB
+     NLOS/LOS classification using deep learning method,” IEEE Commu-
+     nications Letters, vol. 24, no. 10, pp. 2226–2230, 2020.
+[43] J. Park, S. Nam, H. Choi, Y. Ko, and Y.-B. Ko, “Improving deep
+     learning-based UWB LOS/NLOS identification with transfer learning:
+     An empirical approach,” Electronics, vol. 9, no. 10, p. 1714, 2020.
+[44] K. Adamkiewicz, P. Koch, B. Morawska, P. Lipiński, K. Lichy, and
+     M. Leplawy, “Improving UWB indoor localization accuracy using sparse
+     fingerprinting and transfer learning,” in International Conference on
+     Computational Science. Springer, 2021, pp. 291–302.
+

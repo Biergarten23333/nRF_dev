@@ -1,0 +1,732 @@
+Received April 4, 2021, accepted April 21, 2021, date of publication April 26, 2021, date of current version May 3, 2021.
+Digital Object Identifier 10.1109/ACCESS.2021.3075448
+
+
+
+
+Antenna Delay Calibration of UWB Nodes
+SHASHI SHAH 1 , KRIT CHAIWONG2 , LA-OR KOVAVISARUCH1 , (Member, IEEE),
+KAMOL KAEMARUNGSI 1 , (Senior Member, IEEE), AND TANEE DEMEECHAI 1
+1 National Electronics and Computer Technology Center, National Science and Technology Development Agency, Pathumthani 12120, Thailand
+2 Faculty of Engineering and Industrial Technology, Phetchaburi Rajabhat University, Phetchaburi 76000, Thailand
+
+Corresponding author: Tanee Demeechai (tanee.demeechai@nectec.or.th)
+This work was supported in part by the National Electronics and Computer Technology Center (NECTEC), and in part by the National
+Science and Technology Development Agency (NSTDA).
+
+
+
+
+  ABSTRACT Impulse-radio ultra-wideband (IR-UWB) networks are gaining wide acceptance in short-
+  to-medium range wireless sensing and positioning applications that require high accuracy. It is achieved
+  generally via signal message exchange between ultra-wideband (UWB) transceiver nodes, where the signal
+  propagating through their analog circuitry suffers transmitting and receiving antenna delays. Such delays,
+  unless measured and properly corrected for, may induce an error in range estimation between UWB nodes
+  and eventually affect the accuracy of real-time location systems (RTLSs) based on the IR-UWB. This paper
+  presents a system to measure the antenna delays of UWB nodes. It provides comprehensive mathematical
+  modeling, design, and implementation of the proposed antenna delay measurement system. Experimental
+  evaluation in a line-of-sight (LOS) environment shows its effectiveness for maintaining the accuracy of the
+  range measurement between UWB nodes by taking into consideration the antenna delays measured by the
+  proposed system.
+
+
+  INDEX TERMS Air time occupancy, antenna delay, time-of-flight, two-way ranging, ultra-wideband.
+
+
+I. INTRODUCTION                                                                                 for which the transmission timestamp is determined to the
+In a RTLS based on an IR-UWB principle, the location of a                                       antenna and from the antenna to the point for which the
+UWB node is computed from range-based measures relative                                         reception timestamp is determined suffers delays, referred to
+to other UWB nodes in its vicinity [1]. A commonly used met-                                    as transmitting and receiving antenna delays [10]. The times-
+ric is the time-of-flight (TOF), with nanosecond accuracy [2].                                  tamp values reported by the UWB nodes without knowing
+The TOF between two UWB nodes is usually estimated by                                           the antenna delay values are usually different from the correct
+two-way ranging (TWR) methods [3]–[6], which typically                                          timestamp values. This may lead to an error in the calculated
+rely on the exchange of UWB signal messages between the                                         range unless the reported timestamps are corrected by taking
+two nodes.                                                                                      into account the UWB nodes’ antenna delays. The antenna
+   The TWR methods available in the literature [3]–[6] pro-                                     delay depends on the specific device and is caused mainly by
+vide the basis for other variants of TWR methods [7], where                                     the underlying analog circuitry [10]. Although it is very small
+they mainly focus on minimizing the TOF error due to the                                        and varies slightly from device to device, these variations
+clock offsets that exist between the UWB nodes due to                                           can affect the accuracy of UWB-based RTLSs by tens of
+imperfections of the clock oscillators in physical environ-                                     centimeters since we are measuring radio signals moving at
+ments [8], [9]. However, TOF accuracy is also affected by                                       the speed of light. It may not be favorable for indoor RTLS
+delays introduced while acquiring timestamp information of                                      applications with stringent localization accuracy [11].
+the transmitting and receiving signals by the UWB nodes.                                           To obtain more accurate UWB-based RTLSs, Decawave
+Here, the precise timestamp values of events, when a trans-                                     Ltd. has recently proposed using an iterative TWR based
+mitting signal exits the antenna and a receiving signal enters                                  antenna delay measurement method [10] that determines the
+the antenna, are required and vital for the accuracy of the                                     aggregate antenna delays of the UWB nodes, which can then
+TOF. However, the propagation of a signal from the point                                        be used to correct the computed TOF values. In this method,
+                                                                                                TWR was performed consecutively between each pair of
+   The associate editor coordinating the review of this manuscript and                          UWB nodes placed with fixed known distances, where can-
+approving it for publication was Matti Hämäläinen              .                                didate values for the antenna delay are uniformly randomly
+
+                     This work is licensed under a Creative Commons Attribution 4.0 License. For more information, see https://creativecommons.org/licenses/by/4.0/
+63294                                                                                                                                                                 VOLUME 9, 2021
+S. Shah et al.: Antenna Delay Calibration of UWB Nodes
+
+
+
+
+generated and altered at each iteration to find a local optimum   each other. Each node employs a UWB signal with nanosec-
+that produces the least difference between the actual and         ond accuracy for sample-based timestamps as they leave from
+measured distances. The authors in [12] proposed a method         and arrive at the transceiver. Hence, based on its clock, each
+to measure the antenna delay of a UWB node with the help          node can determine the transmission or reception timestamp
+of two other UWB nodes, whose antenna delays do not need          value of a transmitted or received packet with nanosecond
+to be known or measured, based on the principle of symmet-        accuracy. Also, it can align the transmission time of a packet
+ric double-sided TWR (SDS-TWR) [3], [5]. It requires that         with a pre-specified timestamp value.
+the UWB nodes should have the same reply-delay times of              Let M and A transmit the first and second packets of
+packet transmission, which may not be feasible for practical      a sensing session, called sensing packets. Denote the time
+implementation with two separate UWB nodes. Aiming to             difference of reception of the two packets at node V ∈
+achieve high accuracy, [13] proposed an antenna delay mea-        {M, A, B} by PV . Then, for any nodes X ∈ {M, A, B} and
+surement based on the principle of alternative double-sided       Y ∈ {M, A, B}, it can be shown that [19]
+TWR (AltDS-TWR) [6]. The two methods introduced in [10]
+                                                                  PX − PY = (TP(A,X ) −TP(A,Y ) )−(TP(M,X ) −TP(M,Y ) ),     (1)
+and [13] require measurement of the to-and-fro distances
+between a pair of UWB nodes by performing two separate            where TP(X ,Y ) is the TOF from node X to node Y . Now sup-
+sessions of TWR between them. This would result in an             pose PX is to be computed as if it was measured by a preferred
+additional TWR session for each pair of UWB nodes and a           clock, and the clock of M is selected as the preferred clock.
+relatively longer antenna delay measurement process.              To facilitate the computation, let M transmits another packet,
+   In this paper, we present a novel antenna delay measure-       i.e., the third packet of the sensing session. Note that the
+ment system that measures the antenna delays of a set of          transmission time difference between the two sensing packets
+two UWB nodes based on UWB communication between                  transmitted by M may be pre-specified. Then, the ratio of the
+them. During the measurement process, the UWB network             clock-speed of M over the clock-speed of X is given by
+is set to comprise three nodes and only one TWR session is                            
+performed between a pair of nodes to estimate their aggre-                            1,
+                                                                                                         if X = M
+                                                                                M       t M    − t M
+gate antenna delays. We also evaluate the proposed sys-                        rX =      Tx(3)    Tx(1)                      (2)
+                                                                                      
+                                                                                       X          X
+                                                                                                        , otherwise,
+tem by an experiment, considering application environments                              tRx(3) − tRx(1)
+where long-range LOS conditions are not easily obtained, for              X         X
+                                                                  where tTx(n) and tRx(n) denotes respectively the transmission
+example, tracking or navigating people in an indoor office.
+In the experiment, each UWB node is based on Decawave’s           and reception timestamp values read by X for the nth packet.
+DW1000 UWB transceiver [14], compliant with the IEEE              In addition,
+802.15.4-2011 UWB standard [5]. Note that Decawave’s                                 M         M        M
+                                                                               PM = tRx(2) − (tTx(1) + dM )
+products have been commercially available for a long time.
+                                                                                   = PM,U
+                                                                                      M − dM ,
+                                                                                           M
+                                                                                                                             (3)
+They are widely used in academia [7], [15] and industry [16],
+                                                                                       A
+since they provide rich product documentation [17] and user-                   PA = {(tTx(2) + dAA ) − tRx(1)
+                                                                                                         A
+                                                                                                              }rAM
+community discussion forums [18]. The experimental results                            A
+                                                                                  = {tTx(2)    A
+                                                                                            − tRx(1) }rAM + dAA rAM
+show that antenna delay-calibrated nodes, which use the val-
+ues of the antenna delay measured by the proposed system,                         = PM,U
+                                                                                      A    + dAM ,                           (4)
+make more accurate range measurements, with the accuracy          and
+being within the same order of magnitude as that obtained                                  B        B
+from Decawave’s method [10] with a lesser number of pack-                           PB = {tRx(2) − tRx(1) }rBM
+ets over the air. The main features of the proposed system are                          = PM,U
+                                                                                           B ,                               (5)
+summarized below:
+                                                                  where dXY is the aggregate antenna delay (the sum of the
+   • no requirement for prior knowledge of the antenna
+                                                                  transmitting and receiving antenna delays) of X as if it was
+      delays of any of the UWB nodes involved in the mea-
+                                                                  measured with the clock of Y , and PYX ,U is the antenna delay-
+      surement process,
+                                                                  uncalibrated time difference of reception of X as if it was
+   • no requirement of clock synchronization between the
+                                                                  measured with the clock of Y .
+      UWB nodes involved in the measurement process,
+                                                                     After the time difference of reception for each node has
+   • limited air time occupancy with a relatively faster mea-
+                                                                  been computed, the obtained values from all the three relevant
+      surement process, and
+                                                                  nodes can be collected into a computing unit. With the three
+   • a single measurement process provides the antenna
+                                                                  numerical values obtained from the three nodes, two indepen-
+      delays of two UWB nodes.
+                                                                  dent equations based on (1) can be constructed:
+II. ANTENNA DELAY MEASUREMENT SYSTEM                              PM − PB = (TP(A,M) −TP(A,B) )−(TP(M,M) −TP(M,B) ),         (6)
+A. PROPOSED METHOD
+                                                                  and
+Consider a wireless network of three UWB nodes: M, A,
+and B, placed at fixed known positions ensuring LOS with          PA − PB = (TP(A,A) −TP(A,B) )−(TP(M,A) − TP(M,B) ).        (7)
+
+VOLUME 9, 2021                                                                                                             63295
+                                                                                       S. Shah et al.: Antenna Delay Calibration of UWB Nodes
+
+
+
+
+  Since the three nodes are placed at fixed known positions,            • Step 6: Node A transmits the second sensing packet
+the range between each of them can be pre-measured with                   while the other nodes are in receiver mode.
+high accuracy, and subsequently, the TOF values in (6) and (7)          • Step 7: Upon completion of transmission and reception,
+can also be measured. Then, substituting the corresponding                A retrieves and stores the corresponding transmission
+values of the time difference of reception of nodes M, A,                 timestamp, while the other nodes retrieve and store the
+and B from (3), (4), and (5), the above two equations can be              corresponding reception timestamps. Then M computes
+reordered to express the antenna delays of nodes M and A as               its sensing information, transmission/reception times-
+                                                                          tamp difference values about the first sensing packet
+   M
+  dM = PM,U  M,U
+        M − PB   + TP(A,B) − TP(M,A) − TP(M,B)                 (8)        respecting the second and third sensing packets, i.e.,
+                                                                           M
+                                                                          tRx(2)      M
+                                                                                 − tTx(1)       M
+                                                                                          and tTx(3)     M , and prepares for the
+                                                                                                     − tTx(1)
+and
+                                                                          transmission of the third packet that will carry its sensing
+  dAM = PM,U
+         B   − PM,U
+                A   − TP(A,B) − TP(M,A) + TP(M,B) ,            (9)        information, while the other nodes enter the receiver
+                                                                          mode.
+where
+                                                                        • Step 8: Node M transmits the third sensing packet at the
+    PM,U   M        M
+      M = tRx(2) − tTx(1) ,                                               determined time while the other nodes are in receiver
+                                   M −t M
+                                tTx(3)       
+      PM,U    A
+           = tTx(2)    A
+                    − tRx(1)             Tx(1)
+                                               , and                      mode.
+       A                           A
+                                  tRx(3)   A
+                                         −tRx(1)                        • Step 9: Upon completion of transmission and reception,
+                                  M −t M
+                               tTx(3)                                   all nodes except M retrieve and store the corresponding
+                                              
+      PM,U
+       B   = t B
+               Rx(2) − t B
+                        Rx(1)     B
+                                        Tx(1)
+                                        B       .
+                                  tRx(3) −tRx(1)                          reception timestamps. Node A also retrieves and stores
+                                                                          the sensing information of M from the received third
+B. SYSTEM DESIGN AND IMPLEMENTATION                                       sensing packet.
+The system is designed to estimate the antenna delays of two            • Step 10: Nodes A and B compute their sensing informa-
+UWB nodes, according to (8) and (9), after a single measure-                                       A
+                                                                          tion, i.e., A computes tTx(2)     A
+                                                                                                        − tRx(1)       A
+                                                                                                                  and tRx(3)     A
+                                                                                                                             − tRx(1) ,
+ment process. It is set to operate as follows. It includes three                             B        B          B        B
+                                                                          and B computes tRx(2) − tRx(1) and tRx(3) − tRx(1) .
+UWB nodes configured to act as nodes M, A, and B during                 • Step 11: Upon an information request by the master
+the sensing sessions. These three nodes are fully wireless,               node, nodes A and B send all the sensing information,
+i.e., the transmission and reception of packets to and from               i.e., A sends the sensing information of itself and that of
+the nodes are over the air. They are set to be placed at fixed            M, while B sends the sensing information of itself.
+known positions ensuring LOS and the actual ranges between              • Step 12: The PC receives and stores the sensing infor-
+all of them are pre-measured. The system also includes two                mation of the sensing session, hereinafter referred as
+complementary entities: another UWB node, designated as                   session-data, from the master node.
+a master node, and a computer (PC). The master node is                  • Step 13: The process of Step 1 to Step 12 is repeated until
+used to request the initiation of a sensing session, receive the          100 sets of session-data have been stored in the PC.
+necessary information from the other UWB nodes, and log                 • Step 14: The PC computes the antenna delays for
+the data to the PC via a serial UART.                                     each set of session-data using (8) and (9), which gives
+   The antenna delay measurement process follows the fol-                 100 estimated antenna delays of M and A, and then
+lowing sequence.                                                          averages them to obtain the final antenna delay values
+   • Step 1: The PC requests the start of the process to the              for M and A.
+       master node.
+   • Step 2: The master node sends an initiation request for
+                                                                        Each entity in the system is implemented according to the
+       a sensing session, where it assigns M to transmit the          cooperation mentioned above. The UWB nodes are based
+       first and third sensing packets; A to transmit the second      on Decawave’s DW1000 UWB transceiver [14], and their
+       sensing packet; and B to listen to the three sensing           operations are implemented in C programming using Segger
+       packets.                                                       Embedded Studio [20] as an integrated development environ-
+   • Step 3: Node M determines the transmission timestamps
+                                                                      ment. The operation of the PC is implemented using Python
+       for the first and third sensing packets based on its current   programming.
+       timestamp value and a properly pre-specified transmis-
+       sion time difference between the two packets.                  III. NUMERICAL RESULTS
+   • Step 4: Node M transmits the first sensing packet at the         A. AIR TIME OCCUPANCY
+       determined time while the other nodes are in receiver          In this section, we analyze and compare the air time occu-
+       mode.                                                          pancy of the proposed system in terms of the number of
+   • Step 5: Upon completion of transmission and reception,           packets required over the air during a sensing session for
+       all nodes except M retrieve and store the corresponding        obtaining the session-data to estimate the antenna delay of
+       reception timestamps. Then A prepares for the transmis-        a node. According to the measurement process detailed in
+       sion of the second sensing packet, while the other nodes       Section II-B, the proposed system requires setting up three
+       enter the receiver mode.                                       nodes, involving the transmission/reception of five packets
+
+63296                                                                                                                         VOLUME 9, 2021
+S. Shah et al.: Antenna Delay Calibration of UWB Nodes
+
+
+
+
+for a sensing session: three sensing packets and two session-     This is to ensure that a TOF from NLOS conditions is only
+data carrying packets. Here, after a single measurement pro-      infrequently used in the position estimation. Namely, when
+cess, the proposed system estimates the antenna delays of         a tag sees LOSs to a sufficient number of nearby anchors,
+two nodes. Thus, the proposed system observes an average of       the position-estimation process with a LOS/NLOS identifica-
+2.5 packets over the air to measure the antenna delay of a        tion technique [21]–[23] can simply ignore the other nearby
+single node.                                                      NLOS anchors to avoid significant performance impairment.
+   For the antenna delay measurement method [10] proposed         Then, based on our current office building, it seems to be dif-
+by Decawave Ltd., a set-up of at least three nodes is required    ficult to have LOS over a range greater than 12 m. Therefore,
+to perform to-and-fro TWR sessions between each possible          based on the assumed rule of anchor placement, we assume
+pair of nodes. Assume that N nodes are present in the set-        that TOFs of range less than 12 m are typically used by the
+up, where N ≥ 3, and to-only TWR sessions are performed           RTLS in our considered application.
+between each pair of nodes (to minimize the number of                Antenna delay calibration relies on a pre-measurement
+packets over the air). Then each of the N (N2−1) possible pair    of the antenna delay, which can then be used in operating
+of nodes incurs the transmission/reception of four packets        applications to correct the TWR bias caused by the antenna
+during a sensing session: three sensing packets and one packet    delay itself. Such bias correction is considered to be useful
+carrying
+         the session-data.
+                           Thus, it would observe an average     only when the LOS condition is the case because the NLOS
+of   4 × N (N2−1) /N = 2(N − 1) packets over the air to           condition adds a variable bias that needs specific techniques
+                                                                  [21]–[23] to deal with. In addition, we do not have a ground
+measure the antenna delay of a single node. Notably, the air      truth of the antenna delay of any UWB node. Therefore,
+time occupancy for Decawave’s method is dependent on the          we evaluate the accuracy of the proposed system by using it
+number of nodes involved during the set-up of the measure-        to measure antenna delays of four nodes and then comparing
+ment process.                                                     the results of TWR [6] between those nodes for three cases:
+   To compare the proposed system with Decawave’s                 antenna delay-uncalibrated case, where the antenna delays of
+method [10], assume N = 3 in Decawave’s method for                the nodes are assumed to be poorly guessed; antenna delay-
+its maximum air-time efficiency. Thus, it would observe an        calibrated (Proposed) case, where the antenna delays of the
+average of 2(N − 1) = 4 packets over the air to measure the       nodes are measured from the proposed system; and antenna
+antenna delay of a single node. Hence, we can conclude that       delay-calibrated (Decawave) case, where the antenna delays
+the proposed system is approximately 60% more air efficient       of the nodes are measured using Decawave’s method [10].
+for a similar configuration set-up. This may result in a faster   Each UWB node is based on the DW1000 device as men-
+measurement process when large samples of session-data are        tioned. In addition, since the antenna delay also varies with
+required to be collected to estimate the antenna delays of        temperature [10], the variation of the ambient temperature is
+several nodes.                                                    kept minimal during the experiment to minimize its effect
+                                                                  on the numerical results. Note that antenna delays have
+B. EXPERIMENTAL EVALUATION                                        been reported to vary by 2.15 mm/Celsius per device for
+In this section, we evaluate the proposed system considering      DW1000 devices [10]. Therefore, a measured antenna delay
+a TWR-based RTLS application in an indoor office, e.g.,           should be recorded with the corresponding temperature of
+tracking or navigating people in the office. A TWR-based          measurement, so that the value may be adjusted with respect
+RTLS consists of several anchors placed at fixed positions.       to the operating ambient temperature when the RTLS is under
+To estimate the position of a tag, TWR is used to estimate        operation.
+the TOFs from the tag to a number of nearby anchors. In this         Let n1, n2, n3, and n4 be address identifications of the four
+regard, to estimate a three-dimensional position, at least four   nodes whose antenna delays are to be measured. We also take
+nearby anchors those are not on the same plane are required.      a fifth node with address identification n5 to complement the
+Hence, anchor placement plays a very important role in the        measurement process. To determine the antenna delays of n1
+system design, affecting its cost and performance. An impor-      and n2, we assign n1 to act as M, n2 to act as A, and n5 to
+tant consideration for anchor placement is to avoid non-          act as B during the proposed process of measuring antenna
+line-of-sight (NLOS) conditions between a tag and nearby          delays. Also, for comparison between methods, Decawave’s
+anchors. This is because such a condition would produce a         method with N = 3 is executed for n1, n2, and n5, and
+positive bias on the estimated TOF that can vary dynamically      only the results for n1 and n2 are recorded. To determine the
+and significantly as the tag moves around. This source of error   antenna delays of n3 and n4, we assign n3 to act as M, n4 to
+is contrasted to antenna delay, which produces a rather quasi-    act as A, and n5 to act as B during another implementation
+static bias. Currently, although there are available NLOS-        of the proposed process of measuring antenna delays. Also,
+mitigation techniques [21]–[23] that can be useful to some        for comparison between methods, Decawave’s method with
+extent, a TOF estimated from NLOS conditions cannot be            N = 3 is executed for n3, n4, and n5, and only the results
+remedied to have LOS-equivalent quality. Hence, we assume         for n3 and n4 are recorded. The three nodes in each mea-
+a rule of anchor placement such that a tag in the coverage area   surement process were placed at ground level in an indoor
+should typically find LOSs to at least three nearby anchors.      LOS environment with coordinates (unit: cm): M = (0, 0),
+
+VOLUME 9, 2021                                                                                                              63297
+                                                                                                     S. Shah et al.: Antenna Delay Calibration of UWB Nodes
+
+
+
+
+  FIGURE 1. (a) Experimental layout (unit: cm; on the floor of an indoor stadium). The positions of the three nodes during the antenna delay
+  measurement process. (b) Measurement environment.
+
+
+
+
+  FIGURE 2. (a) Experimental layout (unit: cm; on the floor of an indoor stadium). The test points for positioning of the two nodes in a pair of nodes
+  during the TWR process. (b) Test environment.
+
+
+
+
+A = (513.6, 398), and B = (513.6, 0), as shown in Fig. 1. The                   values by the estimated values from that measurement
+three positions were selected keeping in mind that the ranges                   method.
+between the three nodes are to represent typical ranges in the                     For comparison and analysis, each possible pair of the
+applications discussed above. The measurement results from                      four nodes whose antenna delays were measured, here-
+the proposed method state that the measured antenna delay                       inafter referred to as a node-pair, was set to perform AltDS-
+values (unit: DWT_TIME_UNITS [24]; 15.65 picoseconds                            TWR [6] for the three cases: antenna delay-uncalibrated
+ticks) of n1 = 69, n2 = 20.2, n3 = 57.4, and n4 = 15.5.                         case, antenna delay-calibrated (Proposed) case, and antenna
+Multiplying these antenna delays by the speed-of-light×                         delay-calibrated (Decawave) case. The two nodes in a node-
+15.65e-12, we obtain the corresponding estimated lengths                        pair were placed at two test points ensuring LOS for each
+(unit: cm) as Ln1 = 32.4, Ln2 = 9.48, Ln3 = 26.94,                              actual range (unit: cm) from {300, 600, 900, 1200} as shown
+and Ln4 = 7.28, where LX denotes the antenna delay-                             in Fig. 2. For each case, 100-sample values of the range
+induced length of node X . Considering a single-sided TWR                       were obtained for each node-pair placed at the actual ranges,
+(SS-TWR) [5] with an ideal clock, an actual range from node                     and then the values of the mean and root-mean-square-error
+X to node Y obtained from the antenna delay-calibrated case,                    (RMSE) were computed for analysis.
+denoted by R(X ,Y ) , can be related to the range obtained from                    The 100-sample means of the ranges estimated by AltDS-
+the antenna delay-uncalibrated case, denoted by RU    (X ,Y ) , and             TWR for the antenna delay-uncalibrated case and the two
+the actual antenna delay-induced lengths of X and Y as                          antenna delay-calibrated cases are given in Table 1. For all the
+                                     
+                                       LX + LY
+                                                                               node-pairs, the results show significant improvement of both
+              R(X ,Y ) = RU(X ,Y ) −            .              (10)             the antenna delay-calibrated cases over the antenna delay-
+                                          2
+                                                                                uncalibrated case. From the experimental data, the standard
+Hence (10) can be applied for any related measurement meth-                     deviation (SD) of the estimated ranges at the actual ranges
+ods as an approximation by substituting the corresponding                       for all three cases were within 4 cm. Also, note that the
+
+63298                                                                                                                                       VOLUME 9, 2021
+S. Shah et al.: Antenna Delay Calibration of UWB Nodes
+
+
+
+
+TABLE 1. Comparison of mean estimated ranges from AltDS-TWR for antenna delay-uncalibrated and antenna delay-calibrated node-pairs at the actual
+ranges.
+
+
+
+
+relation between the ranges for all possible node-pairs for
+the antenna delay-uncalibrated case and the antenna delay-
+calibrated (Proposed) case may be verified using (10). As an
+example, consider the range estimated by AltDS-TWR for the
+node-pair (n1, n2) at an actual range of 300 cm in Table 1,
+provided that the measured lengths due to antenna delays of
+the two nodes are Ln1 = 32.4 cm and Ln2 = 9.48 cm, and
+the measured range for the antenna delay-uncalibrated case
+is RU(n1,n2) = 322.3 cm. Then the range for the antenna delay-
+calibrated (Proposed) case is given by R(n1,n2) = RU  (n1,n2) −
+                                    
+   Ln1 +Ln2                  32.4+9.48
+       2      = 322.3 −          2       ≈ 301.3 cm. Simi-
+larly, the ranges of all the node-pairs at each actual range
+for the antenna delay-calibrated (Proposed) case in Table 1
+may be obtained by simply following the above relationship
+shown in (10).                                                             FIGURE 4. Mean of RMSEs from AltDS-TWR respecting all possible
+                                                                           node-pairs vs. actual range.
+
+
+
+
+                                                                           600 cm, 900 cm, and 1200 cm. As seen in Fig. 3, the mean
+                                                                           of the estimated ranges respecting all possible node-pairs for
+                                                                           the two antenna delay-calibrated cases are close to the actual
+                                                                           range (referred to as Ideal). From an analysis of these results,
+                                                                           the performances of the antenna delay-calibrated (Proposed)
+                                                                           case and antenna delay-calibrated (Decawave) case are sim-
+                                                                           ilar. In addition, the average improvements over the antenna
+                                                                           delay-uncalibrated case in the estimations are approximately
+                                                                           19.02 cm and 18.47 cm.
+                                                                              The values of the RMSE of the ranges estimated using
+                                                                           AltDS-TWR for the antenna delay-uncalibrated case and
+                                                                           the two antenna delay-calibrated cases of node-pairs are
+                                                                           given in Table 2. For all the node-pairs, the RMSEs
+FIGURE 3. Mean of estimated ranges from AltDS-TWR respecting all           for the two antenna delay-calibrated cases are signifi-
+possible node-pairs vs. actual range.                                      cantly improved compared to the antenna delay-uncalibrated
+                                                                           case. The RMSEs for the antenna delay-uncalibrated case,
+   To compare the estimates of the ranges, Fig. 3 plots the per-           antenna delay-calibrated (Proposed) case, and antenna delay-
+formance of the antenna delay-uncalibrated case and the two                calibrated (Decawave) case are around 24 cm, 7 cm, and 7 cm,
+antenna delay-calibrated cases at the actual ranges of 300 cm,             respectively. These performance improvements for the two
+
+VOLUME 9, 2021                                                                                                                              63299
+                                                                                                S. Shah et al.: Antenna Delay Calibration of UWB Nodes
+
+
+
+
+TABLE 2. Comparison of RMSEs from AltDS-TWR for antenna delay-uncalibrated and antenna delay-calibrated node-pairs at the actual ranges.
+
+
+
+
+TABLE 3. Estimated antenna delay bias for antenna delay-uncalibrated and antenna delay-calibrated node-pairs.
+
+
+
+
+antenna delay-calibrated cases are noticeable in the plots of               error, that is, a so-called bias. Here, we consider that the
+Fig. 4. Here, the mean of the RMSEs respecting all possible                 clock-speed offset is well compensated for the AltDS-TWR
+node-pairs are plotted against the actual range. The results                method. Therefore, the bias defined as the mean estimated
+of averaging the RMSEs in Fig. 4 for all the actual ranges of               range minus the actual range may be approximated by ba +br ,
+the antenna delay-uncalibrated case, antenna delay-calibrated               where ba is the bias due to antenna delay, and br is the power-
+(Proposed) case, and antenna delay-calibrated (Decawave)                    dependent range bias [25]. Note that both biases depend on
+case are 23.86 cm, 6.44 cm, and 6.4 cm, respectively. From                  analog-circuit variation, i.e., the node-pair. In addition, ba
+the results in Table 2 and the plots in Fig. 4, it is clear that            does not depend on the actual range, and it should be small in
+the performance improvements of the two antenna delay-                      the two antenna delay-calibrated cases. On the other hand,
+calibrated cases over the antenna delay-uncalibrated case are               br does not depend on the calibration case, but it depends
+within the same order of magnitude.                                         on the actual range. Here, we estimate ba and br as follows.
+   A deeper analysis may be required to explain the varia-                  Note that (10) implies that ba for a node-pair (X , Y ) in the
+tion in RMSE in more detail. We have observed from the                      antenna delay-uncalibrated case may be approximated by
+experimental data that the SD of estimated ranges associ-                   (LX + LY )/2. Therefore, for each node-pair (X , Y ) in the
+ated with each RMSE value in Table 2 is small and does                      antenna delay-uncalibrated case, ba is computed by averaging
+not depend considerably on node-pair and calibration case.                  (LX + LY )/2 across the two measurement methods. Then
+In other words, for each numerical column of Table 2, the six               ba for the two antenna delay-calibrated cases and br for all
+associated values of the SD are approximately the same:                     actual ranges are estimated by a linear least-squares method.
+approximately 1.5 cm, 1.73 cm, 2.18 cm, and 3.24 cm for                     In this way, for each node-pair, the required six bias values
+actual ranges of 300 cm, 600 cm, 900 cm, and 1200 cm,                       are determined from 12 equations, constructed taking the
+respectively. Obviously, the SD increases with the actual                   mean estimated range minus the actual range to be ba + br
+range, as a manifestation of receiver noise. In addition, since             using the data in the corresponding row of Table 1. The
+the SDs are relatively small, we see that the variation of the              results are shown in Tables 3 and 4, where the associated sum
+RMSE in Table 2 is due primarily to a variation in the mean                 of squared errors from the linear least-squares method are
+
+63300                                                                                                                                  VOLUME 9, 2021
+S. Shah et al.: Antenna Delay Calibration of UWB Nodes
+
+
+
+
+TABLE 4. Estimated range bias for the node-pairs at the actual ranges.   APPENDIX A
+                                                                         EVALUATION OF THE PROPOSED ANTENNA DELAY
+                                                                         MEASUREMENT SYSTEM FOR OTHER
+                                                                         TWR METHODS
+                                                                         The obtained antenna delays of the four nodes were also
+                                                                         tested with other well-known TWR methods. For each of the
+                                                                         three calibration cases, 100 samples of ranges were obtained
+                                                                         for each node-pair placed at an actual range (unit:cm) from
+                                                                         {300, 600, 900, 1200} as shown in Fig. 2 for two TWR meth-
+                                                                         ods: SS-TWR [5] and SDS-TWR [3], [5]. Then, the means
+                                                                         and RMSEs were computed for performance analysis. Note
+                                                                         that the two TWR methods use the same experimental data,
+                                                                         i.e., the timestamp values for computing the ranges, as that
+                                                                         of the test for AltDS-TWR in Section III-B. This is pos-
+                                                                         sible because the three methods differ only on what and
+0.005, 0.005, 0.005, 0.0067, 0.005, and 0.0083 respectively
+                                                                         how timestamp values are used in the range estimation [7]
+for node-pairs (n1, n2), (n3, n4), (n1, n3), (n1, n4), (n2, n3),
+                                                                         and all timestamp values required by the two methods are
+and (n2, n4). The results in Table 3 confirm that the two
+                                                                         available in that experimental data. In addition, for both TWR
+calibration methods successfully do their specific duties,
+                                                                         methods, (10) can also be applied as the relation between
+i.e., reduce the values of ba . The results in Table 4 show
+                                                                         R(X ,Y ) and RU
+                                                                                       (X ,Y ) .
+that the estimated range bias depends considerably on the
+node-pair, as expected. In addition, the range bias for a node-
+pair increases with the actual range. This is relevant to the            A. NUMERICAL RESULTS FOR SS-TWR
+results in [25], which reports that the range bias decreases             The 100-sample means and RMSEs of the ranges estimated
+with received signal power.                                              by SS-TWR for the antenna delay-uncalibrated case and the
+   From these analyses, we can conclude that the performance             two antenna delay-calibrated cases of node-pairs are given
+of the proposed antenna delay measurement system is compa-               in Tables 5 and 6 respectively. While we may expect to see
+rable to Decawave’s method [10], and can effectively handle              a similarity, the results are very much different from those
+the bias originating from antenna delays in UWB nodes so                 in Tables 1 and 2. We consider that the difference is due
+that the antenna delay-calibrated UWB nodes provide a more               solely to the effect of the clock-speed offset, which severely
+accurate range measurement.                                              corrupts the estimated ranges. Fortunately, in the experi-
+   The obtained values of the antenna delays are expected to             mental data, we recorded the clock-speed offset data based
+be applicable when other sources of bias are well managed.               on the dwt_readcarrierintegrator() function [24], enabling us
+Otherwise, the unmanaged bias due to a source may dominate               to investigate such corruption. In this regard, for each of
+and severely corrupt the TWR results. Experimental results               100 × 12 × 6 estimated ranges that were used to com-
+on the use of the obtained delays where the clock-speed                  pute Tables 5 and 6, we obtain a range difference as the
+offset, which causes a quasi-static bias, is not well managed            SS-TWR estimated range minus the AltDS-TWR estimated
+are presented in Appendix A.                                             range, and a normalized clock-speed offset as an estimation of
+                                                                         (fTx − fRx )/fRx , where fTx and fRx are respectively the clock
+IV. CONCLUSION                                                           speeds of the transmitting and receiving TWR nodes for the
+This paper has presented a system to measure the antenna                 reception of the first sensing packet. The results are then
+delays of nodes in IR-UWB networks. During the measure-                  shown as a scatter plot in Fig. 5, from which we see that
+ment process, the system performs a session of TWR and                   the range difference is clearly proportional to the normal-
+measures the aggregate antenna delays of two UWB nodes.                  ized clock-speed offset. This confirms that the corruption in
+The proposed system requires a lesser number of signaling                the estimated ranges is specifically due to the clock-speed
+messages during the process of measuring the antenna delays              offset. Also, the large variation in the range difference shown
+when compared to Decawave’s method, while still achieving                in Fig. 5 suggests that the clock-speed offset can be the most
+a similar level of effectiveness in the accuracy of the mea-             dominant source of ranging error in SS-TWR.
+surement of the range. Based on an experiment comparing                     Fig. 6 plots the mean of the RMSEs of the ranges estimated
+the ranging in an LOS environment between the UWB nodes                  by SS-TWR, for the antenna delay-uncalibrated case and the
+that take the antenna delay values measured by the pro-                  two antenna delay-calibrated cases, respecting all possible
+posed system into consideration, the antenna delay-calibrated            node-pairs. From the plots in Fig. 6, we can see performance
+nodes provide a more accurate range measurement by effec-                improvements of the two antenna delay-calibrated cases com-
+tively handling the range estimation error due to the antenna            pared to the antenna delay-uncalibrated case. The results of
+delays.                                                                  averaging the RMSEs in Fig. 6 for all the actual ranges of
+
+
+VOLUME 9, 2021                                                                                                                    63301
+                                                                                               S. Shah et al.: Antenna Delay Calibration of UWB Nodes
+
+
+
+
+TABLE 5. Comparison of mean estimated ranges from SS-TWR for antenna delay-uncalibrated and antenna delay-calibrated node-pairs at the actual
+ranges.
+
+
+
+
+TABLE 6. Comparison of RMSEs from SS-TWR for antenna delay-uncalibrated and antenna delay-calibrated node-pairs at the actual ranges.
+
+
+
+
+FIGURE 5. Scatter plot of range difference between SS-TWR and               FIGURE 6. Mean of RMSEs from SS-TWR respecting all possible
+AltDS-TWR methods vs. normalized clock-speed offset.                        node-pairs vs. actual range.
+
+
+the antenna delay-uncalibrated case, antenna delay-calibrated               B. NUMERICAL RESULTS FOR SDS-TWR
+(Proposed) case, and antenna delay-calibrated (Decawave)                    The 100-sample means and RMSEs of the ranges estimated
+case are 42 cm, 29.31 cm, and 29.84 cm, respectively. This                  by SDS-TWR for the antenna delay-uncalibrated case and
+shows that although the range results in SS-TWR are severely                the two antenna delay-calibrated cases of node-pairs are
+corrupted by the clock-speed offset, an antenna delay calibra-              given in Tables 7 and 8 respectively. The results are different
+tion still leads to performance improvements on average.                    from those in Tables 1 and 2, and such differences can be
+
+63302                                                                                                                                   VOLUME 9, 2021
+S. Shah et al.: Antenna Delay Calibration of UWB Nodes
+
+
+
+
+TABLE 7. Comparison of mean estimated ranges from SDS-TWR for antenna delay-uncalibrated and antenna delay-calibrated node-pairs at the actual
+ranges.
+
+
+
+
+TABLE 8. Comparison of RMSEs from SDS-TWR for antenna delay-uncalibrated and antenna delay-calibrated node-pairs at the actual ranges.
+
+
+
+
+considered as due solely to the effect of clock-speed off-
+set, which corrupts the estimated ranges. In this regard, for
+each of 100 × 12 × 6 estimated ranges that were used to
+compute Tables 7 and 8, we obtain a range difference as the
+SDS-TWR estimated range minus the AltDS-TWR estimated
+range, and a normalized clock-speed offset as an estimation
+of (fTx − fRx )/fRx . The results are then shown as a scatter
+plot in Fig. 7, from which we see that the range difference
+is clearly proportional to the normalized clock-speed offset.
+This confirms that the corruption in the estimated ranges is
+specifically due to the clock-speed offset. The variation in the
+range difference is relatively small when compared to Fig. 5.
+This suggests that the ranging error from the clock-speed
+offset is much less severe in SDS-TWR than in SS-TWR.
+Moreover, compared to Tables 3 and 4, the range difference
+results also show that the clock-speed offset is still a dominant          FIGURE 7. Scatter plot of range difference between SDS-TWR and
+                                                                           AltDS-TWR methods vs. normalized clock-speed offset.
+source of ranging error. However, SDS-TWR should also
+have well-compensated the clock-speed offset [6], and in such
+a case, the range difference should be considerably smaller.               ranges estimated by SDS-TWR. Such timestamp values were
+The conflicting results are because we have used the times-                not obtained based on the design principles of SDS-TWR.
+tamp values available in the experimental data to compute the              For an actual implementation of SDS-TWR, we can expect
+
+
+VOLUME 9, 2021                                                                                                                              63303
+                                                                                                          S. Shah et al.: Antenna Delay Calibration of UWB Nodes
+
+
+
+
+                                                                                     [6] D. Neirynck, E. Luk, and M. McLaughlin, ‘‘An alternative double-
+                                                                                         sided two-way ranging method,’’ in Proc. 13th Workshop Position-
+                                                                                         ing, Navigat. Commun. (WPNC), Oct. 2016, pp. 1–4. https://ieeexplore.
+                                                                                         ieee.org/document/7822844
+                                                                                     [7] C. Lian Sang, M. Adams, T. Hörmann, M. Hesse, M. Porrmann, and
+                                                                                         U. Ràckert, ‘‘Numerical and experimental evaluation of error estima-
+                                                                                         tion for two-way ranging methods,’’ Sensors, vol. 19, no. 3, p. 616,
+                                                                                         Feb. 2019. [Online]. Available: https://www.mdpi.com/1424-8220/19/
+                                                                                         3/616
+                                                                                     [8] S. He and X. Dong, ‘‘High-accuracy localization platform using asyn-
+                                                                                         chronous time difference of arrival technology,’’ IEEE Trans. Instrum.
+                                                                                         Meas., vol. 66, no. 7, pp. 1728–1742, Jul. 2017. [Online]. Available:
+                                                                                         https://ieeexplore.ieee.org/document/7869397
+                                                                                     [9] Y.-C. Wu, Q. Chaudhari, and E. Serpedin, ‘‘Clock synchronization
+                                                                                         of wireless sensor networks,’’ IEEE Signal Process. Mag., vol. 28,
+                                                                                         no. 1, pp. 124–138, Jan. 2011. [Online]. Available: https://ieeexplore.ieee.
+                                                                                         org/document/5670639
+                                                                                    [10] APS014 Application Note, Antenna Delay Calibration of DW1000-Based
+                                                                                         Products and Systems, Decawave, Dublin, Ireland, 2018. [Online]. Avail-
+FIGURE 8. Mean of RMSEs from SDS-TWR respecting all possible                             able: https://www.decawave.com/application-notes/
+node-pairs vs. actual range.                                                        [11] A. Basiri, E. S. Lohan, T. Moore, A. Winstanley, P. Peltola,
+                                                                                         C. Hill, P. Amirian, and P. F. Silva, ‘‘Indoor location based services
+                                                                                         challenges, requirements and usability of current solutions,’’ Comput.
+results for the ranges and conclusions similar to that of                                Sci. Rev., vol. 24, pp.         1–12, May 2017. [Online]. Available:
+AltDS-TWR.                                                                               http://www.sciencedirect.com/science/article/pii/S1574013716301782
+                                                                                    [12] K. A. Horvath, G. Ill, and A. Milankovich, ‘‘Calibration method of antenna
+   Fig. 8 plots the mean of the RMSEs of the ranges estimated                            delays for UWB-based localization systems,’’ in Proc. IEEE 17th Int. Conf.
+by SDS-TWR, for the antenna delay-uncalibrated and the two                               Ubiquitous Wireless Broadband (ICUWB), Sep. 2017, pp. 1–5. [Online].
+antenna delay-calibrated cases, respecting all possible node-                            Available: https://ieeexplore.ieee.org/document/8250969
+                                                                                    [13] X. Gui, S. Guo, Q. Chen, and L. Han, ‘‘A new calibration method of
+pairs. The plots of Fig. 8 show that the performance of the                              UWB antenna delay based on the ADS-TWR,’’ in Proc. 37th Chin.
+two antenna delay-calibrated cases is better than the antenna                            Control Conf. (CCC), Jul. 2018, pp. 7364–7369. [Online]. Available:
+delay-uncalibrated case. Here, the results of averaging the                              https://ieeexplore.ieee.org/document/8483104
+RMSEs in Fig. 8 for all the actual ranges of the antenna delay-                     [14] Decawave DWM1001 Datasheet, Decawave, Dublin, Ireland,
+                                                                                         2017. [Online]. Available: https://www.decawave.com/sites/default/
+uncalibrated case, antenna delay-calibrated (Proposed) case,                             files/dwm1001_datasheet.pdf
+and antenna delay-calibrated (Decawave) case are 22.42 cm,                          [15] A. R. Jimenez Ruiz and F. Seco Granja, ‘‘Comparing ubisense, BeSpoon,
+9.96 cm, and 9.9 cm, respectively. This shows that although                              and DecaWave UWB location systems: Indoor performance analysis,’’
+                                                                                         IEEE Trans. Instrum. Meas., vol. 66, no. 8, pp. 2106–2117, Aug. 2017.
+the range results in SDS-TWR are corrupted by the clock-                                 [Online]. Available: https://ieeexplore.ieee.org/document/7891540
+speed offset, antenna delay calibration still yields perfor-                        [16] Decawave Partners. Accessed: Jan. 6., 2021. [Online]. Available:
+mance improvements on average.                                                           https://www.decawave.com/partners/
+                                                                                    [17] Decawave Product Documentation. Accessed: Jan. 6, 2021. [Online].
+                                                                                         Available: https://www.decawave.com/product-documentation/
+ACKNOWLEDGMENT                                                                      [18] Decawave Forum. Accessed: Jan. 6, 2021. [Online]. Available:
+The authors express their sincere gratitude to Mr. Witsarawat                            https://decaforum.decawave.com/
+Chantaweesomboon and Sirindhorn Science Home (SSH) for                              [19] S. Shah and T. Demeechai, ‘‘Multiple simultaneous ranging in IR-UWB
+                                                                                         networks,’’ Sensors, vol. 19, no. 24, p. 5415, Dec. 2019. [Online]. Avail-
+assisting and providing space to conduct the experiment.                                 able: https://www.mdpi.com/1424-8220/19/24/5415
+                                                                                    [20] S. Microcontroller. Segger Embedded Studio. Accessed: Oct. 4, 2020.
+REFERENCES                                                                               [Online]. Available: https://www.segger.com/products/development-
+ [1] F. Zafari, A. Gkelias, and K. K. Leung, ‘‘A survey of indoor local-                 tools/embedded-studio/
+     ization systems and technologies,’’ IEEE Commun. Surveys Tuts.,                [21] S. Marano, W. Gifford, H. Wymeersch, and M. Win, ‘‘NLOS iden-
+     vol. 21, no. 3, pp. 2568–2599, 3rd Quart., 2019. [Online]. Available:               tification and mitigation for localization based on UWB experimental
+     https://ieeexplore.ieee.org/document/8692423                                        data,’’ IEEE J. Sel. Areas Commun., vol. 28, no. 7, pp. 1026–1035,
+ [2] H. Liu, H. Darabi, P. Banerjee, and J. Liu, ‘‘Survey of wireless indoor             Sep. 2010. [Online]. Available: https://ieeexplore.ieee.org/document/
+     positioning techniques and systems,’’ IEEE Trans. Syst., Man, Cybern. C,            5555901
+     Appl. Rev., vol. 37, no. 6, pp. 1067–1080, Nov. 2007. Online]. Available:      [22] K. Yu, K. Wen, Y. Li, S. Zhang, and K. Zhang, ‘‘A novel NLOS mitigation
+     https://ieeexplore.ieee.org/document/4343996                                        algorithm for UWB localization in harsh indoor environments,’’ IEEE
+ [3] R. Hach, ‘‘Symmetric double side two way ranging,’’ in Proc. IEEE                   Trans. Veh. Technol., vol. 68, no. 1, pp. 686–699, Jan. 2019. [Online].
+     Comput. Soc., Oct. 2005.                                                            Available: https://ieeexplore.ieee.org/document/8550815
+ [4] Y. Jiang and V. C. M. Leung, ‘‘An asymmetric double sided two-way              [23] J. Park, S. Nam, H. Choi, Y. Ko, and Y.-B. Ko, ‘‘Improving deep learning-
+     ranging for crystal offset,’’ in Proc. Int. Symp. Signals, Syst. Elec-              based UWB LOS/NLOS identification with transfer learning: An empir-
+     tron., Jul. 2007, pp. 525–528. [Online]. Available: https://ieeexplore.ieee.        ical approach,’’ Electronics, vol. 9, no. 10, p. 1714, Oct. 2020. [Online].
+     org/document/4294528                                                                Available: https://www.mdpi.com/2079-9292/9/10/1714
+ [5] IEEE Standard for Local and Metropolitan Area Networks—Part                    [24] DW1000 Device Driver Application Programming Interface (API) Guide,
+     15.4: Low-Rate Wireless Personal Area Networks LR-WPANs,                            Decawave, Dublin, Ireland, 2016.
+     Standard 802.15.4-2011 Revision IEEE Std 802.15.4-2006, 2011,                  [25] APS011 Application Nodes, Sources of Error in DW1000 Based Two-
+     pp. 1–314. [Online]. Available: https://ieeexplore.ieee.org/document/               Way Ranging (TWR) Schemes, Decawave, Dublin, Ireland, 2014. [Online].
+     6012487                                                                             Available: https://www.decawave.com/application-notes/
+
+
+
+
+63304                                                                                                                                                VOLUME 9, 2021
+S. Shah et al.: Antenna Delay Calibration of UWB Nodes
+
+
+
+
+                          SHASHI SHAH received the B.Eng. degree in                                       KAMOL KAEMARUNGSI (Senior Member,
+                          electrical and electronics (communications) from                                IEEE) received the bachelor’s degree in electronics
+                          Kathmandu University, Nepal, in 2009, the M.Eng.                                engineering from the King Mongkut’s Institute
+                          degree in telecommunications from the Asian                                     of Technology Ladkrabang (KMITL), Thailand,
+                          Institute of Technology, Thailand, in 2012, and                                 in 1994, the M.Sc. degree in interdisciplinary
+                          the Ph.D. degree in information science from the                                telecommunications program (ITP) from the Uni-
+                          Japan Advanced Institute of Science and Technol-                                versity of Colorado at Boulder, in 1999, and the
+                          ogy (JAIST), Japan, in 2018, and in information,                                Ph.D. degree in information science from the
+                          computer, and communication technology from                                     University of Pittsburgh, in 2005. Formerly, he
+                          the Sirindhorn International Institute of Technol-                              was the Head of the Location and Automatic
+ogy (SIIT), Thammasat University, Thailand, in 2019, under the SIIT-JAIST        Identification (LAI) Laboratory, under the National Electronics and Com-
+Doctoral Dual-Degree Program. He is currently a Postdoctoral Researcher          puter Technology Center (NECTEC). He is currently the Research Director
+with the Location and Automatic Identification (LAI) Laboratory, under the       of the Communications and Network Research Group (CNWRG) under
+National Electronics and Computer Technology Center (NECTEC), National           NECTEC, Thailand. His research interests include ground penetrating radar,
+Science and Technology Development Agency (NSTDA), Thailand. His                 ultrawideband sensors, wireless sensor networks, and indoor positioning
+research interests include heterogeneous wireless networks, game theory,         systems. From 2012 to 2016, he was serving as the Thailand Chapter Chair
+resource allocations, self-organizing networks, and real time localization       of the IEEE Communications Society, Asia/Pacific Region 10.
+systems.
+
+
+                          KRIT CHAIWONG received the bachelor’s
+                          degree in telecommunication engineering from the
+                          Mahanakorn University of Technology, Thailand,
+                          in 2003, and the M.S. degree from the King
+                          Mongkut’s Institute of Technology Ladkrabang,
+                          Thailand, in 2008, where he is currently pursuing
+                          the Ph.D. degree in telecommunication engineer-
+                          ing. His current research interest includes telecom-
+                          munication networks.
+
+
+
+                          LA-OR KOVAVISARUCH (Member, IEEE)
+                          received the B.S. degree from the King Mongkut’s                                  TANEE DEMEECHAI received the B.Eng. degree
+                          Institute of Technology Ladkrabang, in 1993,                                      in electrical engineering from Chulalongkorn
+                          the M.Sc. degree in electrical engineering from                                   University, Bangkok, Thailand, in 1991, and
+                          Imperial College London, London, U.K., in 1995,                                   the M.Eng. and D.Eng. degrees from the Asian
+                          and the University of Southern California, in 2001,                               Institute of Technology, Pathumthani, Thailand,
+                          and the Ph.D. degree in electrical engineer-                                      in 1994 and 2000, respectively. In 1995, he was
+                          ing from the University of Missouri-Columbia,                                     with the Department of Telecommunication Engi-
+                          in 2005, with sponsorship from the Government of                                  neering, Mahanakorn University of Technology,
+                          Thailand. From 1993 to 1994, she was a Switch-                                    Bangkok, as an Assistant Professor. In 2008,
+ing Engineer with TelecomAsia Corporation, Thailand. From 1996 to                                           he was with Chung-Ang University, Seoul,
+1998, she was a Switching Engineer with Siemens Ltd., Thailand, where            South Korea, as a Distinguished Visiting Professor, under the support
+she was working for a wireless telecommunication client in Thailand.             program of IITA. He is currently with the National Electronics and Computer
+She is currently working as a Researcher with the Department of                  Technology Center (NECTEC), Thailand. His research and technological
+Telecommunication, National Electronics and Computer Technology Center,          interests include wireless communications, software-defined radio, and real
+Thailand. Her research interests include passive localization and short-range    time localization systems.
+communications.
+
+
+
+
+VOLUME 9, 2021                                                                                                                                        63305
+

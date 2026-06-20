@@ -1,0 +1,441 @@
+                      A Robot Self-Localization System using One-Way
+                             Ultra-Wideband Communication
+                                Anton Ledergerber, Michael Hamer and Raffaello D’Andrea
+
+
+   Abstract— A robot localization system is presented that                affecting the update rate of the system. This is in contrast
+enables a robot to estimate its position within some space by             to systems such as [5] and [6], which show how UWB
+passively receiving ultra-wideband radio signals from fixed-              measurements can be fused in an estimator, but wherein the
+position modules. Communication from the fixed-position mod-
+ules is one-way, allowing the system to scale to multiple robots.         robot plays an active role in the communication.
+Furthermore, the system’s high position update rate makes it                 Our intention is that this paper serves as a basis for others
+suitable to be used in a feedback control system, and enables             interested in constructing such a localization system. To this
+the robot to track and perform high-speed, dynamic motions.               effect, this paper will outline and summarize the theoretical
+   This paper describes the algorithmic underpinnings of the              underpinnings of the system and discuss algorithmic and
+system, discusses design decisions and their impact on the per-
+formance of the resulting localization, and highlights challenges         implementation challenges. This paper is therefore structured
+faced during implementation. Performance of the localization              as follows: In Section II, two schemes for localization, TOA
+system is experimentally verified through comparison with data            and TDOA, are compared and contrasted in the context
+from a motion-capture system. Finally, the system’s application           of robot self-localization. In Section III, the algorithmic
+to robot self-localization is demonstrated through integration            underpinnings of the system are presented and challenges
+with a quadrocopter.
+                                                                          relating to the synchronization of anchor clocks are presented
+                        I. I NTRODUCTION                                  and addressed. The performance of the system is quantified
+   Several systems for robot localization currently exist.                in Section IV through comparison with motion-capture data.
+These are often based on acoustic, optical or radio mea-                  Finally, in Section V, the system’s applicability to robot
+surements and vary in cost, accuracy and update frequency.                self-localization is demonstrated through integration with a
+Global Navigation Satellite Systems, for example the Global               quadrocopter system, enabling the quadrocopter to fly stable,
+Positioning System (GPS) [1], and on-board SLAM algo-                     repeatable and dynamic trajectories.
+rithms [2] offer decentralized navigation, in which each                            II. M ETHODS OF ROBOT L OCALIZATION
+robot is capable of localizing itself (self-localizing) within
+some environment. Off-board systems, such as motion-                         Existing results, for example in [6], [7], demonstrate that a
+capture systems [3] or ultra-wideband localization (UWB)                  robot can use two-way communication with a set of anchors
+systems [4], may also be used for localization and allow                  in order to self-localize. As presented in [8], it is also possi-
+the robot’s position to be computed centrally by collecting               ble for a robot to be localized using one-way communication.
+measurements from a set of wired sensors.                                 However in these cases, the robot transmits a signal, which is
+   This paper presents a localization system that enables a               received by a set of fixed-position receivers. By comparing
+robot to self-localize based on the reception of UWB radio                reception times of each receiver, it is possible to compute
+signals from fixed-position, wirelessly-connected modules
+(hereinafter referred as anchors). These anchors are placed at
+known locations, and periodically transmit UWB signals. By
+passively receiving these signals and recording their arrival
+times, the robot is able to self-localize relative to the anchors
+by using either time-of-arrival (TOA) or time-difference-of-
+arrival (TDOA) measurements. The system layout is illus-
+trated in Fig. 1, and shares many architectural similarities to
+GNSS systems (e.g. GPS).
+   Since the robot is not active in the communication process
+and is able to self-localize, its position is not centrally tracked
+and anonymous operation is enabled. Furthermore, since the
+robot localizes itself passively, the system allows multiple
+robots to operate simultaneously within the space, without            Fig. 1. The architecture of the localization system presented in this paper
+                                                                      is shown in this figure. A robot receives UWB radio signals from fixed-
+  The authors are with the Institute for Dynamic Systems and Control, position anchors. These anchors periodically transmit UWB signals which
+ETH Zurich, Switzerland {antonl,hamerm,rdandrea}@ethz.ch. are recorded by the robot and used to localize itself relative to the anchors.
+  This research was supported by the NCCR Digital Fabrication, funded Since the robot is not active in the communication process, the system
+by the Swiss National Science Foundation. (NCCR Digital Fabrication   allows multiple robots to operate simultaneously and anonymously within
+Agreement #51NF40-141853)                                             the space.
+the robot’s location centrally using TDOA measurements.
+Such an architecture is often used for asset tracking [9],
+[10], where it is desirable to know the location of each asset
+centrally. This architecture was also employed in [11] to
+centrally track and control a swarm of lightweight robots,
+each with limited computational power.
+   In contrast to the research discussed above, the localization
+system presented in this paper has an architecture similar to
+GPS (refer Fig. 1), whereby a set of fixed-position anchors
+transmit signals that are received by robots within the space.     Fig. 2. Geometric solution sets for a given error tolerance. Left: TDOA
+By comparing the arrival time of each signal, a robot is           and TOA localization with unsynchronized clocks. Right: TOA localization
+                                                                   with a synchronized clock.
+able to self-localize. Since the robot is not active in this
+communication and is able to self-localize based on the
+received measurements, the system scales to support multiple
+robots simultaneously and anonymously utilizing the space.         simplifies to calculating the intersection of spheres – a solu-
+   Two different methods of localization – TOA and TDOA            tion which is more robust to noise [12], [13]. The reduced
+– are supported by the presented system, and are compared          sensitivity to noise afforded by clock synchronization is
+in the remainder of this section.                                  shown in the next section and, in particular, in Fig. 3.
+
+A. Time Difference of Arrival vs Time of Arrival                   B. Sensitivity of TOA and TDOA methods
+   Localization algorithms based on signal propagation time
+                                                                      In order to analyze the variance of the position estimate
+can be categorized into those which use the arrival time
+                                                                   due to measurement noise for a two-dimensional setup, we
+of each signal (TOA algorithms), and those which use
+                                                                   linearize (2) around the state x = [Θ, x, y]T for a set of
+the difference between the arrival times of signals (TDOA
+                                                                   TOA measurements from N anchors. Assuming that the
+algorithms).
+                                                                   localization algorithm provides an unbiased estimate, the
+   A TOA measurement fi is related to the position p of the        following first-order approximation between the deviations
+robot and the position pi of the transmitting anchor i by:         in its state estimate x̂ and the measurement and transmission
+                                                                   noise n = [n0 , n1 , . . . , nN−1 ]T can be made:
+                          kp − pi k
+                      fi =           − Θ + ni               (1)
+                               c                                                              M (x̂ − x) = n,                          (4)
+                        = hi (p, Θ, ni )                    (2)
+                                                                   where
+where c is the speed of light, Θ is the robot’s clock offset                                 ∂ [h0 , h1 , . . . , hN−1 ]T
+and ni is the measurement and transmission noise. Note                                 M=                                 .            (5)
+                                                                                                         ∂x
+that, since TOA algorithms calculate time of flight (and
+hence distance) using the arrival time at the robot and the        If least squares is used to solve for the deviation of the state
+transmission time from the anchor, the robot’s clock must be       estimate, which is optimal in the case of Gaussian noise [14],
+synchronized to the anchor’s clock.                                the variance on the state estimate x̂ can be shown to be:
+   On the other hand, a TDOA measurement di, j between the                                     −1
+robot and anchors i and j is given by                                     Var(x̂) = σ 2f M T M                                    (6)
+                                                                                                                           −1
+                   kp − pi k − kp − pj k                                                           1
+                                                                                                          cos(αi ) sin(αi )
+            di, j =                      + ni − n j .     (3)                            N−1               c         c
+                             c                                                                              2
+                                                                                                                             
+                                                                                  = σ 2f  ∑  cos(α i ) cos (αi ) sin(2αi )    (7)
+                                                                                                                           
+Note that TDOA algorithms use the difference between the                                  i=0  c          c2        2c2 
+                                                                                                                      2
+                                                                                                   sin(αi ) sin(2αi ) sin (αi )
+arrival times of two signals, and as such, the offset of the                                          c        2c2       c2
+robot’s clock is canceled. Therefore, the robot’s clock does
+not need to be synchronized with the anchors’ clocks. While        where σ 2f is the variance of the uncorrelated measurement
+this leads to a simpler implementation, care must be taken         noise, and αi is the angle from anchor i to the robot, such that
+to correctly handle the correlated noise of different TDOA         cos(αi ) = (xi − x)/kp − pi k and sin(αi ) = (yi − y)/kp − pi k.
+measurements.                                                         The covariance matrix (7) of the state estimate equals the
+   As illustrated in Fig. 2, localization using TDOA mea-          Cramér-Rao Lower Bound (CRLB) for TOA measurements
+surements or TOA measurements with an unsynchronized               with an unknown clock offset and Gaussian measurement
+clock, requires calculation of the intersection of hyperbola       noise as calculated in [15]. The equivalence of the CRLB on
+[12], a solution which is quite sensitive to measurement           the position for TDOA and TOA localization methods, under
+noise. However, in the case of TOA algorithms, if the robot’s      the assumption of an unknown clock offset, was shown in
+clock is synchronized to the anchors’ clocks or if two-way         [16]. Further results from [15] suggest that both methods of
+communication is used to omit synchronization, localization        localization have a similar computational complexity.
+  We take the approach of [15] and divide the inverted                    and over a large number of measurements sets M such that
+covariance matrix (7) into four sub-blocks, such that                     JΘ = MN/σ 2f becomes large. It could then rely on its clock
+                                             T
+                                                    −1                   model when moving through areas showing a poorer CRLB
+             Var(Θ̂)     Cov(Θ̂, p̂)     J     JΘ,p                       for the static scene and a similar performance to a two-way
+ Var(x̂) =                           = Θ                , (8)
+            Cov(p̂, Θ̂)    Var(p̂)      JΘ,p Jp                           communication system could be achieved with a one-way
+where JΘ contains information of the clock-offset, Jp the                 communication system. Such a scenario is shown in Fig. 3
+position information and where JΘ,p are the cross-correlation             where the robot orbits one anchor. Starting with the azimuth
+terms.                                                                    angle φ = 0 (placing the robot within the convex hull of the
+   If the variance on the position is calculated by a block-              anchors, and hence in a region with low CRLB), it is able to
+wise matrix inversion:                                                    initialize its estimator with accurate position and clock offset
+                                             −1                          values. However, the worse the clock and its model, the less
+               Var(p̂) = Jp − JΘ,p JΘ−1 JΘ,p
+                                         T
+                                                 ,        (9)             of an advantage it is to track the offset.
+it is clearly visible how the uncertainty of the clock offset                                    III. A LGORITHM
+influences the variance of the position. Hence, under equal
+measurement noise, systems with synchronized clocks or                       Having compared TOA and TDOA algorithms in terms of
+systems which omit clock synchronization by using two-                    their theoretical performance bounds (Fig. 3) and measure-
+way communication are more accurate than one-way com-                     ment equations in (1) and (3), we now present an algorithm
+munication localization systems, since with perfect offset                that enables these measurements. We begin the development
+information (JΘ → ∞) the position estimate variance is given              by discussing the clock model and requirement for synchro-
+as Var(p̂) = Jp−1 . Therefore, only in the case where JΘ,p = 0            nized anchor clocks, before presenting the algorithm in its
+does the uncertainty of the clock offset not increase the                 entirety.
+variance of the position estimate. This is the case if the sen-           A. Clock Model
+sor configuration is first moment balanced (∑N−1 i=0 cos(αi ) =
+  N−1                                                                        Using the terminology of [18], the local time of UWB
+∑i=0   sin(αi ) = 0), i.e. if the anchors are distributed about
+                                                                          module i (e.g. an anchor or robot) is denoted as Ci (t), where
+the robot in an average sense; this is one criteria for optimal
+                                                                          Ci (t) = t in the case of a perfect clock. However, since
+sensor placement as discussed in [17]. The variance for
+                                                                          an imperfect crystal oscillator drives the clock, the clock
+a setup with three anchors is shown in Fig. 3, where
+                                                                          skew dCi (t)/dt −1 = ρi (t) is not constant, particularly during
+it is visible that a similar performance between one-way
+                                                                          warm-up [19]. We therefore define
+and two-way communication scheme can be achieved only
+inside the convex hull spanned by the anchors. However,                                          Ci (t) = t + Θi (t),                 (10)
+this performance is equal for TDOA and for TOA with an
+unknown clock offset.                                                     where Θi (t) = Ci (t) − t is the offset of the module’s local
+                                                                          clock to real time. It is calculated to be
+C. Dynamic Setup                                                                                                 Z t
+   If the robot is not stationary, but rather moving through                               Θi (t) = Θi (t0 ) +         ρi (τ)dτ,      (11)
+                                                                                                                  t0
+the space, TOA systems with recursive clock and position
+offset estimation have a potential advantage in comparison                where Θi (t0 ) is the offset at time t0 and where the skew ρi (t)
+to TDOA systems with only recursive position estimation.                  is assumed to be a random walk process driven by zero-mean
+In the extreme case of a perfectly known clock model, the                 noise wρ 0 [20]:
+robot would only have to synchronize its clock once to                                              ρi0 (t) = wρ 0 (t).              (12)
+the anchors’ clocks, best at the position where JΘ,p = 0                  B. Clock Synchronization Protocol
+                                                                             The anchors’ clocks must be synchronized in order to al-
+                                                                          low transmission timestamps to be compared. To synchronize
+                                                                          the anchor clocks, the time interval between a signal being
+                                                                          transmitted from anchor 0, and being received at anchor i
+                                                                          must be known. This timespan ζ0,i is
+                                                                                                ζ0,i = ∆0 + f0,i + ∆i                 (13)
+                                                                          with f0,i the time of flight and ∆0 and ∆i the transmission
+                                                                          and reception delay, respectively. It is measured using the
+                                                                          two-way communication protocol presented in [6].
+                                                                             After each anchor i has measured ζ0,i , the anchors tran-
+                                                                          sition to using a one-way communication protocol. This
+Fig. 3. The variance for an estimator using TDOA or TOA measurements
+with unknown clock offset (left) and for an estimator using               protocol is shown in Fig. 4 and begins with anchor 0 sending
+                                                          pTOA measure-
+ments with known clock offset (right). Both plots show tr(Var(p̂))) for   two subsequent signals, delayed by δpulse pair , containing
+measurement noise with standard deviation σ f .                           their respective transmission times. Using the time-difference
+                                                                                                    IV. E VALUATION
+                                                                               To evaluate the performance of the anchor algorithm
+                                                                             presented in Section III for localization in two dimensions,
+                                                                             measurements generated using the system were compared
+                                                                             with ground-truth measurements from a motion-capture sys-
+                                                                             tem and post-processed.
+                                                                             A. Setup
+                                                                                The anchor algorithm was implemented in C++ on
+                                                                             STM32F4DiscoveryBoards, which served as host microcon-
+                                                                             trollers to the Decawave DWM1000 UWB modules. The
+                                                                             motion capture system in the Flying Machine Arena [21]
+                                                                             provided the ground truth for these measurements, providing
+                                                                             position measurements with sub-centimeter accuracy at a
+                                                                             frequency of 200 Hz.
+                                                                                Anchor 0 was programmed to send two subsequent signals
+                                                                             delayed by δpulse pair = 1 ms every 10 ms. All the other
+Fig. 4. The one-way communication protocol described in Subsection III-B     anchors delayed their signal by δi = i ms, hence a complete
+with the transmission and reception timestamps T T x , T Rx of the signals
+                                                                             set of TOA or TDOA measurements was obtained every
+                                                                             10 ms. Note that a minimum of two TDOA measurements
+                                                                             or three TOA measurements with unknown clock offset are
+between the arrival of these two messages, anchor i is able
+                                                                             required for localization in two dimensions.
+to calculate its relative skew to anchor 0 as
+                                Tx − T Tx                                    B. Measurement Quality
+                            0T      0 −1
+                      ρ0,i = 0Rx       Rx
+                                          − 1,                        (14)      Measurements were gathered while orbiting anchor 1 as
+                             i T0 − i T−1                                    shown in Fig. 3 and Fig. 5. The upper plot of Fig. 6 shows
+                                                                             TDOA measurement errors. It can be seen that although
+with i TkT x the transmission time of signal k as expressed in
+                                                                             the error variance remains constant across azimuth angle
+the time of anchor i. Knowing ζ0,i and ρ0,i anchor i can
+                                                                             φ , the mean of the TDOA error is angle dependent. Given
+synchronize its clock to anchor 0.
+                                                                             line-of-sight conditions present during the experiment, this
+   After receiving the second signal from anchor 0, anchor i                 dependence on measurement angle is most likely caused
+waits a predefined time δi after which its sends a signal                    by the radiation pattern of the UWB antennas, which is
+containing the transmission timestamps expressed in the time                 not isotropic [22]. The resulting varying signal delays cause
+of anchor 0. Once all anchors have sent such a signal, the                   biased measurements [19]. Additionally, the combined error
+one-way protocol is repeated.
+   This light-weight clock synchronization protocol enables
+TOA and TDOA measurements at a high frequency, however,
+does not scale to large anchor networks, since multihopping
+is not possible and as it relies on a reference anchor to syn-
+chronize the network. Synchronization protocols for larger
+networks are discussed, for example, in [13], [18].
+
+C. Measurements
+  The one-way communication algorithm presented above
+enables the robot to localize itself using either TOA or TDOA
+measurements, assuming anchor positions are known.
+  The algorithm enables TOA measurements (1) to be cal-
+culated as
+                           fi = r TiRx − 0 TiT x ,                    (15)
+
+and TDOA measurements (3) to be calculated as
+
+     di, j = (ρ0,r + 1)(r TiRx − r T jRx ) − (0 TiT x − 0 T jT x ).   (16)
+                                                                             Fig. 5. This figure shows the position estimates generated by an EKF
+Note that inherent in the reception timestamps r TiRx and r T jRx            using TOA measurements (blue) and by an EKF using TDOA measurements
+are measurement and transmission noise terms ni and n j .                    (green). In both cases, a random-walk model was assumed.
+Fig. 6. Upper plot: TDOA measurement error between anchor 0 and anchor 1 (e(cd1,0 )) for the setup shown in Fig. 3 and Fig. 5 for different values of
+φ . Lower plot: Combined error of clock estimate of the TOA EKF described in section IV-C and the TOA measurements of anchor 0 (e(cΘ + c f0 ))
+
+
+
+of the TOA measurements and the estimated clock offset of                   due to the unmodeled measurement bias and imperfect clock
+the filter discussed in the following subsection is shown in                synchronization. Both EKF were updated with a complete
+the lower plot of Fig. 6.                                                   set of measurements to deal with the correlated noise of the
+                                                                            TDOA measurements.
+C. Random Walk TOA and TDOA Extended Kalman Filters                             Fig. 5 shows the position estimates of the two filters.
+   In order to verify whether these measurements are accu-                  As expected, given the CRLB analysis in Section II, both
+rate enough for localization, measurement data was post-                    filters perform well inside the convex hull of the anchors;
+processed for both TOA and TDOA measurements, using                         however, as the robot leaves the convex hull, the position
+an extended Kalman filter (EKF) and the assumption of a                     estimates deteriorates significantly, since the sensitivity to
+random-walk model for both position and clock skew. To                      measurement errors is large. Since the TOA EKF additionally
+be insensitive to modeling errors, the process noise on the                 tracks the clock offset, it performs slightly better outside the
+position was assumed to be zero-mean noise wx,y with a large                convex hull. However, the performance is heavily dependent
+                          w
+standard deviation of SD( ∆tx,y ) = 20 m s−1 and the sampling               on the variance assumptions: if the process noise on the skew
+time ∆t = 10 ms. The standard deviation of the zero-mean                    is insufficient to capture not only the measurement noise, but
+                                                       w
+driving noise on the skew wρ was set to be SD( ∆tρ ) =                      also the angle-dependent measurement bias (non-zero-mean
+0.1 ppm/s. In normal operation this value is lower, however                 measurement noise), both clock offset and position estimates
+during warm-up the crystal oscillators show substantial drift               can drift off for the TOA EKF as is visible in the lower plot
+[19].                                                                       of Fig. 6 and in Fig. 5 at φ ≈ 3.9 rad. In such cases, it is
+   In the case of TDOA measurements, clock offset was                       advantageous not to track the clock.
+not tracked (since it does not appear in the measurement
+equation). Therefore, the system equations for the TDOA                                    V. Q UADROCOPTER I NTEGRATION
+EKF are:                                                                       In the previous section, post-processing of TOA and
+                                                                            TDOA measurements showed good results inside the convex
+                     x(t + ∆t) = x(t) + wx (t)                     (17)     hull. To demonstrate that the localization system is also
+                     y(t + ∆t) = y(t) + wy (t)                     (18)     applicable to real-time, dynamic systems, it was integrated
+                     ρ(t + ∆t) = ρ(t) + wρ (t).                    (19)     with a quadrocopter. TDOA measurements were provided
+                                                                            to the quadrocopter’s onboard state estimator. The TDOA
+In the case of TOA measurements, the EKF additionally                       approach was chosen since the quadrocopter flew only within
+includes clock offset Θ as a state, enabling clock syn-                     the convex hull of the anchors (which differ in location
+chronization. The system equations (17)-(19) are therefore                  from pervious experiments, as described in Subsection V-C).
+extended by:                                                                Clock skew was estimated independently.
+                    Θ(t + ∆t) = Θ(t) + ρ(t)∆t.                     (20)     A. Setup
+  The measurement equations for the TOA update are given                      The quadrocopter’s onboard estimator is described in [6]
+by (1) and the one for the TDOA update by (3). Skew was                     and uses the accelerometer to update the airspeed estimate. It
+measured directly using (14).                                               was adapted to use TDOA measurements by linearizing the
+  The noise n acting on the reception timestamps was                        TDOA measurement equation (3) around the quadrocopter’s
+assumed to have a standard deviation of σ f = 0.8 ns. This                  current state estimate. In addition to TDOA measurements,
+value is an order of magnitude larger than expected (σ f =                  and the measurements required by the estimator [6], a
+0.06 ns [6]); however, this noise assumption was necessary                  barometer was used to reduce estimation variance in the
+vertical direction. For the relation between the pressure p
+and the robot’s altitude z, the isothermic barometric formula
+was used [23]:
+                                                 
+                                    MG
+             p(z) = p(zref ) exp −     (z − zref ) ,     (21)
+                                    RT
+with M = 28.97 g mol−1 the molar mass of air,
+G = 9.81 m s−1          the     gravitational    acceleration,
+R = 8.314 J mol−1 K the universal gas constant for air,
+T = 295 K the absolute temperature of the air which
+is assumed constant, and zre f the altitude at which the
+estimator was initialized.
+   This estimator was implemented in C++ and was run at
+1000 Hz on a Pixhawk PX4 flight management unit [24]. In
+addition to the estimator and localization system, an onboard
+state controller was used to track a position setpoint, which
+was sent via a radio command from a ground station. This
+flight management unit and a DWM1000 module connected
+to it over SPI were mounted on a Hummingbird quadrocopter
+[25].
+                                                                 Fig. 7. The position setpoint for the quadrocopter was moved with 1 m s−1
+B. Estimator Settings                                            along the reference trajectory (black). The actual (red) and the estimated
+                                                                 (blue) position of the quadrocopter are shown during this maneuverer. See
+   The parameters of the extended Kalman filter were left        Table I for the anchor coordinates.
+unchanged from the values described in [6], with the excep-
+tion of the acceleration process noise, which was set to have
+a standard deviation of 5 m s−2 because of the higher UWB        position is significantly smaller than the RMS error of the
+update rate. In addition, the barometer measurement noise        overall position (when z is included). The former has a mean
+was set to have a standard deviation of 0.15 mbar which          of 0.14 m, whereas the latter has a mean of 0.28 m. One
+equals an altitude difference of about 1.3 m for ambient         explanation for the poor vertical tracking could be the anchor
+conditions.                                                      setup, which showed the least variance in the z positions
+   To facilitate a smooth quadrocopter flight in the presence    of the anchors and only approximated the optimal anchor
+of biased TDOA measurements, their standard deviation was        placement criteria outlined in [17]. Another possible cause
+set to 3 m. This value was tuned by hand.                        could be the airspeed estimation in the thrust direction being
+                                                                 more sensitive to errors.
+C. Experiment
+   The quadrocopter was commanded to fly a horizontal                                     VI. C ONCLUSION
+square ten times by moving the position setpoint with a             This paper presented a localization system that enables
+speed of 1 m s−1 . The square had a length of 3.4 m and          robot localization within some space. By receiving one-way
+its center coincided with the center of the cuboid spanned       communication from a set of fixed-position anchors, a robot
+by eight anchors with side-length ∆x ≈ 9 m, ∆y ≈ 5.5 m and       is able to self-localize using either TOA or TDOA measure-
+∆z ≈ 5 m (see Table I for coordinates). This square is shown     ments. Since robots are not active in the communication
+in Fig. 7 whereas the (x, y, z) position and the RMS error of    process and are able to self-localize, the system supports
+the estimator are shown in Fig. 8.                               multiple robots operating simultaneously and anonymously
+D. Discussion and Interpretation                                 within the space.
+                                                                    In its current embodiment, the localization system is exper-
+   Fig. 7 shows the trajectory tracking for x and y position.    imentally shown to perform well enough for a quadrocopter
+Due to the proportional position control, the quadrocoptor       to repeatably track a reference trajectory over an extended
+lagged the setpoint and did not accurately track the square’s    period of time with a RMS error of 0.28 m. However, ex-
+vertices. Fig. 8 shows that the RMS error of the x and y         perimental results show that systematic measurement biases
+                                                                 exist and vary throughout the space. Since these biases are
+                          TABLE I                                location-dependent, unknown and thus not compensated for
+    A NCHOR COORDINATES FOR THE QUADROCOPTER MANEUVER            in the state estimation, they cause noticeable degradation
+                                                                 in localization performance, biasing TOA measurements by
+  Nr.     0     1      2      3      4     5      6      7       up to 0.3 m. A non-isotropic antenna radiation pattern is
+ x [m]   -4.3   4.0   -4.7   4.0    3.8    3.8   -5.8   -5.8     hypothesized to be the cause of these biases.
+ y [m]   -4.7   1.7   1.2    -4.2   -4.7   1.3   -2.2   1.5         In addition to systematic errors, the TDOA measurement
+ z [m]   0.3     5    0.3     5     0.3    0.3   6.1    6.1      standard deviation was 0.075 m – larger than the expected
+                                                                                   [4] H. Liu, H. Darabi, P. Banerjee, and J. Liu, “Survey of Wireless Indoor
+                                                                                       Positioning Techniques and Systems,” IEEE Transactions on Systems,
+                                                                                       Man, and Cybernetics, Part C: Applications and Reviews, vol. 37,
+                                                                                       no. 6, pp. 1067–1080, Nov. 2007.
+                                                                                   [5] J. L. Rullan-Lara, G. Sanahuja, R. Lozano, S. Salazar, R. Garcia-
+                                                                                       Hernandez, and J. A. Ruz-Hernandez, “Indoor Localization of a
+                                                                                       Quadrotor Based on WSN: A Real-Time Application,” International
+                                                                                       Journal of Advanced Robotic Systems, 2013.
+                                                                                   [6] M. W. Mueller, M. Hamer, and R. D’Andrea, “Fusing ultra-wideband
+                                                                                       range measurements with accelerometers and rate gyroscopes for
+                                                                                       quadrocopter state estimation,” in IEEE International Conference on
+                                                                                       Robotics and Automation (ICRA), May 2015, pp. 1730–1736.
+                                                                                   [7] R. Dalce, A. van den Bossche, and T. Val, “Indoor self-localization in
+                                                                                       a WSN, based on Time Of Flight: Propositions and demonstrator,” in
+                                                                                       International Conference on Indoor Positioning and Indoor Navigation
+                                                                                       (IPIN), Oct. 2013.
+                                                                                   [8] S. Krishnan, P. Sharma, Z. Guoping, and O. H. Woon, “A UWB
+                                                                                       based Localization System for Indoor Robot Navigation,” in IEEE
+                                                                                       International Conference on Ultra-Wideband (ICUWB), Sep. 2007, pp.
+                                                                                       77–82.
+                                                                                   [9] Y. K. Cho, J. H. Youn, and D. Martinez, “Error modeling for
+                                                                                       an untethered ultra-wideband system for construction indoor asset
+                                                                                       tracking,” Automation in Construction, vol. 19, no. 1, pp. 43–54, Jan.
+                                                                                       2010.
+                                                                                  [10] R. Fontana, E. Richley, and J. Barney, “Commercialization of an ultra
+                                                                                       wideband precision asset location system,” in IEEE Conference on
+                                                                                       Ultra Wideband Systems and Technologies, Nov. 2003, pp. 369–373.
+                                                                                  [11] A. Prorok and A. Martinoli, “Accurate indoor localization with ultra-
+                                                                                       wideband using spatial models and collaboration,” The International
+Fig. 8.    The actual (red) and estimated (blue) (x, y, z) position during             Journal of Robotics Research, vol. 33, no. 4, pp. 547–568, Apr. 2014.
+the quadrocopter maneuver. Lowest plot: In blue, the RMS error between            [12] K. Yu, I. Sharp, and Y. J. Guo, Ground-based wireless positioning, ser.
+estimated (x̂, ŷ, ẑ) position and actual (x, y, z) position. In green the RMS        IEEE Press series on digital & mobile communication. Chichester,
+error between the estimated (x̂, ŷ) position and the actual (x, y) position.          West Sussex, UK: Wiley, 2009.
+This plot shows that the localization system accurately estimates position in     [13] M. Y. M. Mah, “Time-based Location Techniques Using Inexpensive,
+the xy-plane (with a mean horizontal position RMS error: 0.14 m), but less             Unsynchronized Clocks in Wireless Networks,” 2011. [Online].
+well when the vertical direction is also considered (with a mean position              Available: http://drum.lib.umd.edu/handle/1903/11695
+RMS error: 0.28 m).                                                               [14] M. Frederik Michel Dekking, A modern introduction to probability
+                                                                                       and statistics : understanding why and how, ser. Springer texts in
+                                                                                       statistics. London: Springer, 2005.
+ √                                                                                [15] R. Kaune, “Accuracy studies for TDOA and TOA localization,” in
+c 2σ f = 0.025 m. This is most likely due to imperfect                                 15th International Conference on Information Fusion (FUSION), Jul.
+anchor clock synchronization. It is suggested that alternative                         2012, pp. 408–415.
+algorithms for clock synchronization be investigated in order                     [16] T. Sathyan, M. Hedley, and M. Mallick, “An analysis of the error
+                                                                                       characteristics of two time of arrival localization techniques,” in 13th
+to reduce this variance.                                                               Conference on Information Fusion (FUSION), Jul. 2010, pp. 1–7.
+   With the low computational cost of onboard self-                               [17] J. T. Isaacs, D. J. Klein, and J. P. Hespanha, “Optimal sensor placement
+localization, the good scalability and the high update fre-                            for time difference of arrival localization,” in IEEE Conference on
+                                                                                       Decision and Control (CDC). IEEE, Dec. 2009, pp. 7878–7884.
+quency, this system appears to be suited to investigate swarm                     [18] B. Sundararaman, U. Buy, and A. D. Kshemkalyani, “Clock synchro-
+robotics or to serve as a cheap and flexible alternative to                            nization for wireless sensor networks: A Survey,” Ad Hoc Networks
+motion capture systems if sub-decimeter position accuracy                              (Elsevier, vol. 3, pp. 281–323, 2005.
+                                                                                  [19] “APS011 Application Note Sources of Error in DW1000 Based
+is not required.                                                                       Two-Way Ranging (TWR) Schemes,” 2014. [Online]. Avail-
+                                                                                       able: http://www.decawave.com/sites/default/files/resources/aps011
+                        ACKNOWLEDGMENTS                                                sources of error in twr.pdf
+                                                                                  [20] Y. Bar-Shalom, X.-R. Li, and T. Kirubarajan, Estimation with appli-
+  The authors would like to thank Mark W. Mueller for his                              cations to tracking and navigation. New York: Wiley-Interscience,
+advice concerning integration with the quadrocopter system.                            2001.
+                                                                                  [21] S. Lupashin, M. Hehn, M. W. Mueller, A. P. Schoellig, M. Sherback,
+Aspects of this paper were only possible due to the work                               and R. DAndrea, “A platform for aerial robotics research and demon-
+of numerous collaborators in the Flying Machine Arena                                  stration: The Flying Machine Arena,” Mechatronics, vol. 24, no. 1,
+project [21].                                                                          pp. 41–54, Feb. 2014.
+                                                                                  [22] “DWM1000 Datasheet,” 2014. [Online]. Available: http://www.
+                                                                                       decawave.com/sites/default/files/resources/dwm1000-datasheet-v1.01.
+                              R EFERENCES                                              pdf
+                                                                                  [23] C. Johannes Karl Fink, Physical chemistry in depth. Berlin: Springer,
+ [1] N. Samama, Global positioning : technologies and performance, ser.                2009.
+     Wiley survival guides in engineering and science. Hoboken, NJ:               [24] L. Meier, P. Tanskanen, L. Heng, G. H. Lee, F. Fraundorfer, and
+     Wiley-Interscience, 2008.                                                         M. Pollefeys, “PIXHAWK: A micro aerial vehicle design for au-
+ [2] J.-A. Fernndez-Madrigal and J. L. Blanco Claraco, Simultaneous lo-                tonomous flight using onboard computer vision,” Autonomous Robots,
+     calization and mapping for mobile robots : introduction and methods,              vol. 33, no. 1-2, pp. 21–39, Feb. 2012.
+     ser. Premier reference source. Hershey, PA: Information Science              [25] D. Gurdan, J. Stumpf, M. Achtelik, K.-M. Doth, G. Hirzinger, and
+     Reference, 2013.                                                                  D. Rus, “Energy-efficient Autonomous Four-rotor Flying Robot Con-
+ [3] M. Field, D. Stirling, F. Naghdy, and Z. Pan, “Motion capture in                  trolled at 1 kHz,” in 2007 IEEE International Conference on Robotics
+     robotics review,” in IEEE International Conference on Control and                 and Automation, Apr. 2007, pp. 361–366.
+     Automation (ICCA), Dec. 2009, pp. 1697–1702.
+

@@ -1,0 +1,1200 @@
+Article
+
+NLOS Identification- and Correction-Focused Fusion of UWB
+and LiDAR-SLAM Based on Factor Graph Optimization for
+High-Precision Positioning with Reduced Drift
+Zhijian Chen, Aigong Xu *, Xin Sui, Yuting Hao, Cong Zhang and Zhengxu Shi
+
+                                             School of Geomatics, Liaoning Technical University, Fuxin 123000, China
+                                             * Correspondence: xuaigong@lntu.edu.cn; Tel.: +86-137-9509-2995
+
+
+                                             Abstract: In this study, we propose a tightly coupled integrated method of ultrawideband (UWB)
+                                             and light detection and ranging (LiDAR)-based simultaneous localization and mapping (SLAM) for
+                                             global navigation satellite system (GNSS)-denied environments to achieve high-precision
+                                             positioning with reduced drift. Specifically, we focus on non-line-of-sight (NLOS) identification and
+                                             correction. In previous work, we utilized laser point cloud maps to identify and exclude NLOS
+                                             measurements in real time to attenuate their severe effects on the integrated system. However, the
+                                             complete exclusion of NLOS measurements will likely lead to deterioration in the dilution of
+                                             precision (DOP) for the remaining line-of-sight (LOS) anchors, counterproductively introducing
+                                             large positioning errors into the integrated system. Therefore, this study considers the ranging
+                                             accuracy and geometric distribution of UWB anchors and innovatively proposes an NLOS
+Citation: Chen, Z.; Xu, A.; Sui, X.;
+Hao, Y.; Zhang, C.; Shi, Z. NLOS
+                                             correction method using a grey prediction model. For a poor line-of-sight (LOS) anchor geometric
+Identification- and                          distribution, the grey prediction model is used to fill in the gaps by predicting the NLOS
+Correction-Focused Fusion of UWB             measurements based on historical measurements. Including the corrected measurements effectively
+and LiDAR-SLAM Based on Factor               improves the original poor geometric configuration, improving the system positioning accuracy.
+Graph Optimization for                       Since conventional filtering-based fusion methods are exceedingly sensitive to measurement
+High-Precision Positioning with              outliers, we use state-of-the-art factor graph optimization (FGO) to tightly integrate the UWB
+Reduced Drift. Remote Sens. 2022, 14,        measurements (LOS and corrected measurements) with LiDAR-SLAM. The temporal correlation
+4258. https://doi.org/10.3390/               between measurements and the redundant system measurements effectively enhance the
+rs14174258
+                                             robustness of the integrated system. Experimental results show that the tightly coupled integrated
+Academic Editor: Joaquín Martínez-           method combining NLOS correction and FGO improves the positioning accuracy under a poor
+Sánchez                                      geometric distribution, increases the system availability, and achieves better positioning than
+                                             filtering-based fusion methods with a root-mean-square error of 0.086 m in the plane direction,
+Received: 22 July 2022
+Accepted: 24 August 2022
+                                             achieving subdecimeter indoor high-precision positioning.
+Published: 29 August 2022
+                                             Keywords: integrated positioning; UWB; LiDAR-SLAM; NLOS correction; grey prediction model;
+Publisher’s     Note:      MDPI      stays
+                                             tightly coupled; FGO
+neutral with regard to jurisdictional
+claims    in   published      maps    and
+institutional affiliations.
+
+                                             1. Introduction
+                                                  Reliable and stable positioning and navigation technology is a necessary foundation
+Copyright: © 2022 by the authors.            and important guarantee for mobile robotics. With the booming development of robotics,
+Licensee MDPI, Basel, Switzerland.           highly intelligent robots have assisted or replaced humans in some of their work (e.g.,
+This article is an open access article       warehouse logistics robots or inspection robots), and mobile robot work scenarios are
+distributed under the terms and              undergoing increasingly challenging transformations from known to unknown, from
+conditions of the Creative Commons           simple to complex, from static to dynamic, and from short-term to long-term positioning
+Attribution      (CC     BY)      license    [1]. To precisely locate robots in global navigation satellite system (GNSS)-denied
+(https://creativecommons.org/license
+                                             scenarios, where system reliability is critical, simultaneous localization and mapping
+s/by/4.0/).
+                                             based on light detection and ranging (LiDAR-SLAM) technology is more widely used
+
+
+
+
+Remote Sens. 2022, 14, 4258. https://doi.org/10.3390/rs14174258                                                   www.mdpi.com/journal/remotesensing
+Remote Sens. 2022, 14, 4258                                                                                         2 of 22
+
+
+
+
+                              than other positioning and sensing methods due to its long detection range, high accuracy,
+                              and high robustness to light and weather [2,3].
+                                    As an active sensing method, LiDAR-SLAM obtains a six-degree-of-freedom (6-DoF)
+                              pose by matching scanned environmental features with a feature map while updating the
+                              map for self-motion estimation. Laser point cloud-based pose estimation algorithms can
+                              be divided into two categories [4,5], namely, matching-based [6–9] and feature-based [10–
+                              12] algorithms. Iterative closest point (ICP)-based and normal distributions transform
+                              (NDT)-based algorithms are the best-known matching-based methods. They provide
+                              relative pose estimation by directly using a large volume of streaming raw scans in the
+                              form of unorganized point clouds from the light detection and ranging (LiDAR) output,
+                              therefore making them more costly in time and less computationally efficient. Feature-
+                              based methods have attracted extensive attention to improve the performance of LiDAR-
+                              SLAM with limited computational resources. As the most well-known feature-based
+                              method, LiDAR odometry and mapping (LOAM) distinguishes between geometric
+                              primitives (e.g., line segments and planes) by evaluating the smoothness of local regions
+                              to associate consistency among successive frames with the global map [13]. Lightweight
+                              and ground-optimized LOAM (LeGO-LOAM) adds segmentation processing to refine
+                              different features based on LOAM, which effectively improves the quality of feature
+                              extraction while reducing the number of geometric primitives, further enhancing the
+                              accuracy and stability of LOAM positioning. These feature-based methods have relatively
+                              low power consumption and allow for real-time applications. However, as a recursive
+                              navigation technology, its positioning errors accumulate as the distance traveled increases
+                              [14]. In long-distance positioning using only LiDAR-SLAM, such recursion errors cannot
+                              be ignored, and a closed-loop correction method is usually adopted to reduce its effects
+                              [15]. However, real-time closed-loop detection is frequently computationally expensive
+                              and susceptible to outliers, and the closed-loop conditions are difficult to satisfy in some
+                              unknown and large-scale scenarios. Therefore, absolute positioning becomes an
+                              indispensable auxiliary solution to reduce the dependence of LiDAR-SLAM on a closed-
+                              loop correction.
+                                    Common absolute positioning methods can be divided into two categories, namely,
+                              active beacons (e.g., Wi-Fi [16], Bluetooth [17], active radio-frequency identification
+                              (RFID) [18], and ultrawideband (UWB)) and passive beacons (e.g., passive RFID [19] and
+                              near field communication (NFC) [20]). Among them, UWB, with its superior spatial
+                              resolution, immunity to multipath errors, and strong signal penetration, makes it widely
+                              used for high-precision positioning in GNSS-denied environments. However, realistic
+                              scenarios are frequently dynamic and complex. Non-line-of-sight (NLOS) environments
+                              such as fixed interior walls and moving objects (e.g., moving vehicles and pedestrians)
+                              can interfere with or even interrupt the direct transmission of UWB signals to some extent,
+                              resulting in excessive path delay in distance measurements. This positive bias is known
+                              as NLOS error [21,22], which is the main error source for UWB ranging and positioning
+                              errors. To improve spatial positioning accuracy, effectively and precisely addressing
+                              NLOS errors has become a hot issue in the field of UWB positioning. At present, methods
+                              to improve UWB positioning performance under NLOS conditions can be divided into
+                              two categories: NLOS identification and NLOS mitigation [23,24]. NLOS identification is
+                              mainly performed using distance estimation-based methods [25], channel statistics-based
+                              methods [26], and position estimation-based methods [27] to distinguish between line-of-
+                              sight (LOS) and NLOS conditions. After NLOS identification, the differentiated UWB
+                              measurements need to be applied to NLOS mitigation for corresponding processing to
+                              reduce the negative impact of NLOS errors on position estimation and obtain higher
+                              positioning accuracy. There are typically two strategies. The first is to correct the ranging
+                              values, that is, estimate the ranging errors and subtract them from the raw measurements,
+                              and then use the corrected ranging values for positioning [28–31]. However, carefully
+                              isolating and studying each parameter affecting the ranging errors is very challenging and
+                              error-prone [32]. The second strategy is to use different residual formulas to adjust the
+Remote Sens. 2022, 14, 4258                                                                                       3 of 22
+
+
+
+
+                              weight of the NLOS measurements in the positioning module to achieve robustness to
+                              NLOS errors [33], but its positioning performance may vary in different scenarios.
+                                    Currently, the fusion of UWB and LiDAR-SLAM measurements at the system level
+                              falls into two main categories: filtering-based [27] and graph optimization-based [34,35]
+                              methods. Zhou et al. [34] estimated the sensor state by minimizing the sum of the
+                              Mahalanobis norms of the UWB and LiDAR measurement residuals while automatically
+                              adjusting the weights of the measurement residuals in the state estimation in accordance
+                              with the degradation degree of sensor measurements as a way to mitigate the effect of
+                              degradation. Liu et al. [35] proposed utilizing a two-step graph optimization framework
+                              to fuse odometry, UWB, and LiDAR information for positioning and mapping in
+                              unknown and featureless environments. Even though both abovementioned schemes can
+                              achieve better positioning results in a favorable environment, the effect of UWB NLOS
+                              errors on the integrated system is not sufficiently considered. In our previous work [27],
+                              we innovatively proposed an NLOS identification method with less environmental
+                              dependence and prior information. By combining a laser point cloud map generated by
+                              LiDAR-SLAM and the position information of UWB anchors, the LOS and NLOS
+                              receptions were distinguished in real-time. Subsequently, using the identified UWB LOS
+                              measurements and LiDAR-SLAM solution results, a UWB/LiDAR-SLAM tightly coupled
+                              positioning system based on a robust extended Kalman filter (REKF) was constructed.
+                              Nevertheless, we found that the positioning accuracy of the integrated system is affected
+                              not only by the UWB ranging accuracy but also by the geometric distribution of the UWB
+                              anchors. Completely excluding NLOS measurements from the positioning is most likely
+                              to result in a poorer dilution of precision (DOP), which in turn introduces a large
+                              positioning error into the positioning system, which is seriously inconsistent with our
+                              expectations. Meanwhile, as a scheme for multisensor data fusion, an extended Kalman
+                              filter (EKF) cannot provide high robustness because it only considers the estimated value
+                              of the last epoch and the measured value of the current epoch, ignoring a large amount of
+                              historical measurement information. Therefore, based on this work, we further propose a
+                              factor graph optimization (FGO)-based UWB/LiDAR-SLAM tightly coupled integrated
+                              system with NLOS identification and correction using a grey prediction model. The main
+                              contributions of this study are as follows.
+                              •   To prevent the effect of a poor geometric distribution on the integrated system and
+                                  to improve the utilization of UWB measurements, we propose and implement an
+                                  NLOS correction method using a grey prediction model. First, LOS and NLOS
+                                  anchors are distinguished in real-time by the NLOS identification algorithm using a
+                                  laser point cloud. Then, the DOP value of the remaining LOS anchors after excluding
+                                  the NLOS anchors is calculated. If the DOP value is higher than a threshold, the
+                                  exclusion of the NLOS anchors is considered to have a great effect on the geometric
+                                  distribution of the UWB anchors and discarding these NLOS measurements will
+                                  result in compromised accuracy. At this point, we use the grey prediction model to
+                                  predict the NLOS measurements based on historical measurements to fill in the gaps
+                                  of UWB measurements and subsequently use the LOS and corrected measurements
+                                  as the inputs to the integrated system to maintain a highly accurate and robust
+                                  navigation state. Conversely, if the DOP value is less than the threshold, the LOS
+                                  measurements are directly used as the inputs to the integrated system. Experimental
+                                  results show that the NLOS correction method using the grey prediction model is
+                                  reasonable and effective, and it significantly improves the positioning accuracy of the
+                                  system under a poor geometric distribution.
+                              •   To make full use of historical measurement information to provide more accurate
+                                  and robust positioning results, we adopt an FGO-based fusion method instead of a
+                                  conventional filtering-based fusion method during the UWB and LiDAR data fusion
+                                  phase. In contrast to the filtering-based method, the FGO-based fusion method
+                                  connects all historical measurements via LiDAR-SLAM factors and further
+                                  establishes a global cost function to jointly optimize all historical and current
+Remote Sens. 2022, 14, 4258                                                                                         4 of 22
+
+
+
+
+                                   information. The temporal correlation between measurements and the redundant
+                                   measurements of the system enhance the robustness of the integrated system to
+                                   outliers, multiple iterations effectively help the system approach the optimal state
+                                   estimation, and the introduction of a sliding window significantly reduces the scale
+                                   of the solution and solves the problem of real-time solution of the factor graph. A
+                                   dynamic positioning experiment demonstrates the superiority and accuracy of the
+                                   FGO-based UWB/LiDAR-SLAM integrated system.
+                                  The rest of this work is structured as follows. Section 2.1 provides an overview of the
+                              overall system framework and details of the key components. Section 2.2 describes the
+                              coordinate systems involved in the integrated system and carefully designs the external
+                              parameter calibration scheme for the two types of sensors. The details of the proposed
+                              UWB/LiDAR-SLAM tightly coupled integrated method combining NLOS correction and
+                              FGO are described in Sections 2.3–2.6. Section 3 provides the experimental setup while
+                              reporting and analyzing the results of the system performance tests. Finally, the work is
+                              summarized, and future work is discussed in Section 4.
+
+                              2. Methodology
+                              2.1. Software Framework
+                                   The framework of the proposed FGO-based UWB/LiDAR-SLAM tightly coupled
+                              integrated system with NLOS identification and correction using a grey prediction model
+                              is shown in Figure 1. First, the temporal and spatial datums of both the UWB and LiDAR
+                              sensors are unified by the robot operating system (ROS) and the calibrated external
+                              parameter matrix (purple blocks in Figure 1). Second, the NLOS identification algorithm
+                              using the laser point cloud in our previous work is adopted to distinguish the LOS
+                              measurements from NLOS measurements in real-time (green blocks in Figure 1). Then,
+                              the DOP value of the remaining LOS anchors is calculated and compared with a threshold.
+                              Suppose this DOP value is higher than the threshold. In that case, the geometric
+                              distribution of the remaining LOS anchors is considered poor, the NLOS measurements
+                              need to be predicted using the grey prediction model, and the LOS and corrected
+                              measurements are used as the inputs to the integrated system (yellow blocks in Figure 1).
+                              Alternatively, only the LOS measurements are used for integrated navigation (blue blocks
+                              in Figure 1), effectively controlling the geometric distribution on the effect of positioning
+                              accuracy. Finally, considering that UWB measurements are also affected by signal
+                              multipath effects, intensity fading, and other factors, an FGO-based UWB/LiDAR-SLAM
+                              integrated system is designed, effectively enhancing the robustness of the integrated
+                              system to outliers by using the strong correlation of historical measurements within a
+                              sliding window in the time dimension while reducing the possibility of LiDAR-SLAM
+                              divergence (orange blocks in Figure 1). The red dashed block in Figure 1 represents the
+                              contribution of this work.
+Remote Sens. 2022, 14, 4258                                                                                      5 of 22
+
+
+
+
+                              Figure 1. Framework of the proposed UWB/LiDAR-SLAM integrated system with NLOS
+                              identification and correction using a grey prediction model.
+
+                              2.2. Coordinate Frame
+                                   A reference datum (coordinate system) is a crucial concept in the study of navigation
+                              systems. Sensor measurements, such as position, velocity, and attitude, are based on a
+                              description of a reference frame, and the description varies in different frames. The
+                              proposed integrated system has two different types of sensors, UWB and LiDAR. It is
+                              essential to unify the sensor measurements based on a common coordinate system and
+                              establish a functional relationship between the sensor measurements and navigation state
+                              information to fuse the measurements of these two types of sensors (as shown in Figure
+                              2).
+
+
+
+
+                              Figure 2. Coordinate systems.
+
+                              •    w-frame: the UWB coordinate system, with the indoor control point as the origin, x-
+                                   axis pointing right, y-axis pointing forward, and z-axis forming a right-handed
+                                   cartesian coordinate system with x-axis and y-axis.
+                              •    l-frame: the LiDAR coordinate system, moving with the vehicle [15], with the LiDAR
+                                   measurement center as the origin, x-axis pointing forward, y-axis pointing left, and
+                                   z-axis forming a right-handed cartesian coordinate system with x-axis and y-axis.
+Remote Sens. 2022, 14, 4258                                                                                                 6 of 22
+
+
+
+
+                              •    g-frame: the LiDAR-SLAM coordinate system, with the initial LiDAR-SLAM position
+                                   as the origin, whose axes coincide exactly with the l-frame at the initial LiDAR-SLAM
+                                   time.
+                                   Considering the computational efficiency of the subsequent NLOS identification
+                              algorithm using the laser point cloud, the g-frame is used as the fusion coordinate system
+                                                                                               g
+                              in this study. Therefore, the transformation matrix Tw from the w-frame to the g-frame
+                              needs to be accurately obtained to unify the measurements. As shown in Figure 2, the
+                              LiDAR sensor can provide precise point cloud data of the surrounding environment in
+                              the g-frame, and the total station can also accurately observe the edges (lines or points) of
+                              buildings in the w-frame. Accordingly, based on the common-view method, this study
+                              takes the building edge points as the calibration objects and obtains the UWB anchor
+                                                       (
+                              coordinates xanchor = xanchor , yanchor , zanchor   ) in the g-frame and the lever-arm vector l     l
+
+
+                              with the laser center pointing to the UWB mobile tag center in the l-frame by solving the
+                                                               g
+                              transformation matrix Tw through the observed multiple corresponding feature point
+                              pairs    p , p  .
+                                          w   g
+
+
+
+
+                              2.3. UWB NLOS Identification Using a Laser Point Cloud Map
+                                   As an active sensor, LiDAR can take long-range, high-precision three-dimensional
+                              (3-D) measurements of the surrounding environment. LiDAR visually represents objects
+                              in the environment in the form of accurate, dense 3-D point clouds while using SLAM 6-
+                              DoF pose estimation to register raw laser point clouds into the SLAM coordinate system
+                              to obtain a globally consistent map.
+                                   Consequently, when positioning is performed in GNSS-denied scenarios, obstacles
+                              (fixed interior walls or moving objects) in the NLOS region that are prone to UWB ranging
+                              errors are known in the laser point cloud map in terms of their location and size, which is
+                              reflected as many point-cloud clusters of varying sizes. Based on this NLOS assumption,
+                              the UWB LOS and NLOS measurements can be effectively distinguished by combining
+                              the UWB anchor coordinates in the SLAM coordinate system. The NLOS identification
+                              algorithm using the laser point cloud consists of three modules: identification
+                              preprocessing, point cloud search, and collision detection.
+                              •    Identification preprocessing module: LiDAR-SLAM is used to deduce the UWB
+                                                                       (
+                                   mobile tag coordinate x tag = xtag , y tag , z tag   ) in accordance with the lever-arm vector
+                                      l and the UWB anchor set ua = ua1 , ua2 ,
+                                      l                                    all
+                                                                                             , uan  iterated through to obtain the
+                                   coordinates of the UWB anchor to be identified for determining the NLOS
+                                   identification search direction. According to the distance, vertical azimuth, and
+                                   horizontal azimuth between the mobile tag and anchor, the search center points, and
+                                   search times are calculated in steps of 1 m.
+                              •    Point cloud search module: The global map is converted into a k-dimensional tree
+                                   (KD-tree) structure, and point clouds are searched for in the neighborhood with a
+                                   radius of 1 m. When the number of point clouds exceeds the set threshold, there may
+                                   be obstacle occlusion in the line-of-sight direction (i.e., the search direction for NLOS
+                                   identification); that is, the anchor may be an NLOS anchor.
+                              •    Collision detection module: To avoid misjudgment and improve the accuracy of
+                                   NLOS identification, whether the line-of-sight direction intersects with the searched
+                                   neighboring point cloud cluster is evaluated to distinguish between true and false
+                                   obstacles and further obtain the LOS anchor set ualos = ua1 , ua2 ,          , uas  and NLOS
+                                   anchor set ua       nlos
+                                                              = ua1 , ua2 , , uar  . More details of the NLOS identification
+                                   algorithm using the laser point cloud can be found in [27].
+Remote Sens. 2022, 14, 4258                                                                                                    7 of 22
+
+
+
+
+                              2.4. Calculation of the HDOP Value for the UWB LOS Anchor
+                                   To achieve satisfactory positioning performance of the UWB/LiDAR-SLAM
+                              integrated system, in our previous work, the UWB LOS measurements filtered by NLOS
+                              identification and the LiDAR-SLAM 6-DoF pose estimation were used as the
+                              measurement inputs to the integrated system in a tightly coupled form. Unfortunately,
+                              we found that the positioning accuracy of the integrated system is affected not only by the
+                              accuracy of the UWB measurements but also by the geometric distribution of the UWB
+                              anchors. Using only the LOS measurements can counterproductively introduce a large
+                              positioning error to the integrated system when the geometric distribution of the
+                              remaining LOS anchors is poor.
+                                   Consequently, this study draws on the concept of the DOP value in a GNSS to
+                              analyze the goodness of the geometric distribution of the remaining LOS anchors when
+                              all NLOS anchors are excluded. The DOP value includes the following parameters: the
+                              geometric dilution of precision (GDOP), position dilution of precision (PDOP), horizontal
+                              dilution of precision (HDOP), vertical dilution of precision (VDOP), and time dilution of
+                              precision (TDOP) [36]. Since the ground in GNSS-denied environments is mostly flat, this
+                              study focuses on the positioning of the integrated system in a two-dimensional (2-D)
+                              plane. Figure 3 shows the effect of different geometric distributions on the 2-D positioning
+                              errors. The thicker solid line represents the true ranging value, and the two nearby dashed
+                              lines indicate the possible ranging errors. The intersection of the thick solid lines is the
+                              true position of the mobile tag. The purple part represents the possible positioning area
+                              of the system due to the presence of ranging errors. With the same ranging errors, a
+                              smaller HDOP value represents a more uniform geometric distribution of the anchors
+                              (Figure 3a), better positioning performance, and smaller positioning errors. Conversely, a
+                              larger HDOP value represents a poorer geometric distribution of the anchors (Figure 3b),
+                              which significantly expands the possible positioning area and increases the positioning
+                              error.
+
+
+
+
+                                                          (a)                                           (b)
+                              Figure 3. Geometric distributions of the UWB anchors: (a) good geometric distribution and (b) poor
+                              geometric distribution.
+
+                                   The true distance ri between the UWB mobile tag ( x, y ) and the i-th LOS anchor
+
+                              (xanchor
+                                i
+                                         , yianchor   ) can be expressed as follows:
+                                                                        (x − x        ) + (y − y            ) , i = 1,2, , s
+                                                                                      2                     2
+                                                                 ri =        anchor
+                                                                             i
+                                                                                                   anchor
+                                                                                                   i
+                                                                                                                                   (1)
+
+                                   Using a Taylor series expansion of the observation equation at the approximate
+                              position of the mobile tag ( x0 , y0 ) and neglecting components above the second order,
+                              we can obtain:
+Remote Sens. 2022, 14, 4258                                                                                                              8 of 22
+
+
+
+
+                                                                              r1       r1 
+                                                               r1 − r0 ,1   x        y 
+                                                                                             
+                                                                                             x − x0 
+                                                                          =                                                            (2)
+                                                               rs − r0 ,s   rs            y − y0 
+                                                                                      rs  
+                                                                              x        y 
+                                                                             
+                              where
+
+                                                              ri                   xi − x0
+                                                               =
+                                                               x      (x − x ) + (y − y )
+                                                                                         2              2
+                                                                            i        0         i    0
+                                                                                                                                            (3)
+                                                                ri =               yi − y0
+                                                                y
+                                                                         (x − x ) + (y − y )
+                                                                                         2              2
+                                                                          i        0         i    0
+
+
+                              where ei = 
+                                          ri x, ri y denotes the directional cosine from an unknown point to a
+                                                                                                                       T
+                              known point in both the x and y directions, and J = e1T ,                   , esT        denotes the Jacobian
+                              matrix of the distance equation.
+                                  The error covariance matrix Q and the HDOP value can be obtained as follows:
+
+                                                                            q11 q12 
+                                                                     ( )
+                                                                       −1
+                                                              Q = J J = 
+                                                                     T
+                                                                                      
+                                                                            q21 q22                                                       (4)
+                                                               
+                                                               HDOP = tr (Q ) = q11 + q22
+
+                              where q ij denotes the covariance of the i-th measurement with the j-th measurement. The
+                              HDOP value is only related to the relative position of the mobile tag and the LOS anchors,
+                              independent of the selected coordinates. This positional relationship is the geometric
+                              distribution of the UWB system.
+
+                              2.5. UWB NLOS Correction Using the Grey Prediction Model
+                                   If the HDOP value of the remaining LOS anchors fluctuates less and is lower than a
+                              threshold, subsequently, when fusing the data with LiDAR-SLAM, all NLOS
+                              measurements can be excluded, and only the filtered LOS measurements will be used as
+                              the measurement input. Otherwise, considering that the NLOS anchors have a great effect
+                              on the geometric distribution of the UWB anchors, excluding the NLOS anchors will lead
+                              to a poorer geometric distribution, which will impact the positioning accuracy.
+                                   This study proposes an NLOS correction method using a grey prediction model to
+                              improve the reliability of the positioning system [37]. When the HDOP value of the
+                              remaining LOS anchors is higher than a threshold, all existing NLOS measurements are
+                              discarded, and the NLOS measurements are instead predicted using a grey prediction
+                              model based on a small number of historical measurements to obtain the corrected
+                              measurements, which are used together with the LOS measurements as the inputs to the
+                              integrated system. The inclusion of the corrected measurements better improves the
+                              geometric configuration of the original LOS anchors and minimizes the HDOP value of
+                              the positioning system, thereby effectively improving the positioning accuracy and
+                              robustness of the system. The NLOS correction method process using the grey prediction
+                              model is as follows.
+                              1.   The UWB measurements are organized into the following matrix form:
+Remote Sens. 2022, 14, 4258                                                                                              9 of 22
+
+
+
+
+                                                                                r1,1
+                                                                                    (0)          (0)
+                                                                                               r1,2          r1,(0)m 
+                                                                                 (0)            (0)                 
+                                                                                  r            r2,2          r2,(0)m 
+                                                                         R(0) =  2,1                                        (5)
+                                                                                                                    
+                                                                                 (0)                                
+                                                                                rn ,1        rn(0)
+                                                                                                  ,2
+                                                                                                              (0)
+                                                                                                             rn ,m 
+
+                              where R(0) denotes the nonnegative original time series; the subscripts n and m denote
+                                                                                                (0)
+                              the number of UWB anchors and measurements, respectively; ri ,u denotes the u-th
+                              historical measurement of the i-th UWB anchor; and this study uses m = 6 .
+                              2.    A first-order accumulated generation operation on the original data is performed to
+                                    obtain a new data sequence with an approximate exponential law, aiming to reduce
+                                    the impact of randomness and volatility on the data:
+
+                                                                                r1,1
+                                                                                    (1)          (1)
+                                                                                               r1,2          r1,(1)m 
+                                                                                 (1)            (1)                 
+                                                                                  r            r2,2          r2,(1)m 
+                                                                         R(1) =  2,1                                        (6)
+                                                                                                                    
+                                                                                 (1)                                
+                                                                                rn ,1        rn(1),2        (1)
+                                                                                                             rn ,m 
+
+                                                u
+                              where ri(1)
+                                      ,u
+                                          =  ri(0)
+                                                ,v
+                                                    .
+                                               v =1
+
+                              3.    The consecutive neighborhood sequence C(1) of sequence R(1) is as follows:
+
+                                                                                  c1,2
+                                                                                     (1)        (1)
+                                                                                               c1,3          c1,(1)m 
+                                                                                  (1)          (1)                  
+                                                                                   c           c2,3          c(1)
+                                                                         C (1) =  2,2                        2,m 
+                                                                                                                             (7)
+                                                                                                                    
+                                                                                  (1)                               
+                                                                                 cn ,2       cn(1),3        (1)
+                                                                                                             cn ,m 
+
+                              where ci(1)
+                                       ,v
+                                          =  ri(1)
+                                                ,v
+                                                    + (1 −  ) ri(1)
+                                                                 ,v−1
+                                                                      , and  = 0.5 .
+                              4.    The grey differential equation of the GM(1,1) model is established according to the
+                                    approximate exponential law:
+
+                                                                                   ri(0)
+                                                                                     ,v
+                                                                                         +  ci(1),v =                      (8)
+
+                              where c i ,v denotes the background value of the grey differential equation and  and
+                                         (1)
+
+
+                               denote the development coefficient and the grey action quantity, respectively, which
+                              can be solved for using the least squares (LS) method:
+
+                                                                                
+                                                                                           (             )
+                                                                                       −1
+                                                                                = B B B Y
+                                                                                     T    T
+                                                                                                                             (9)
+                                                                                
+                                                                                
+                              where
+
+                                                                              ri(0)       −ci(1)             1
+                                                                               (0)        (1)                 
+                                                                                   ,2             ,2
+
+                                                                                r             − c               1
+                                                                          Y =  i ,3  B =  i ,3                          (10)
+                                                                                                              
+                                                                               (0)        (1)                 
+                                                                              ri ,m     −ci ,m            1
+
+                              where Y denotes the historical measurement vector, and B denotes the sequence matrix.
+                              5.    The whitening function for the differential equation is constructed using the solution
+                                    to the above equation:
+Remote Sens. 2022, 14, 4258                                                                                               10 of 22
+
+
+
+
+                                                                           dr (1)
+                                                                                  +  r (1) =                               (11)
+                                                                            dt
+                                   Thereby, the time response sequence of the grey differential equation is obtained as:
+
+                                                                           −  v−1 
+                                                         ri(1) =  ri(0) −  e ( ) + , v = 2,3,        ,m + 1                (12)
+                                                           ,v
+                                                                 
+                                                                     ,1
+                                                                                    
+
+                              6.   Finally, the inverse transformation operation of Equation (12) is performed to obtain
+                                   the prediction function of the original sequence of the i-th UWB anchor as follows:
+
+                                                                                            −  v−1
+                                                ri(0)
+                                                  ,v
+                                                      = ri(1)
+                                                          ,v
+                                                              − ri(1)(
+                                                                  ,v −1      )
+                                                                        = 1 − e   ri(0)
+                                                                                  
+                                                                                      ,1
+                                                                                          −  e ( ) , v = 2,3,
+                                                                                           
+                                                                                                                 ,m + 1      (13)
+
+                                   The GM(1,1) model established by the UWB historical measurements (epoch 1 to
+                              epoch m) can be used to predict the NLOS measurement (epoch m + 1) when the HDOP
+                              value of the remaining LOS anchors is higher than the threshold. Meanwhile, after
+                              obtaining the corrected measurement (epoch m + 1), the initial measurement of the original
+                              sequence is discarded, and the remaining measurements (epoch 2 to epoch m) and the
+                              new measurement (epoch m + 1) are formed into a new sequence. The relevant parameters
+                              of the grey prediction model are recalculated to better accommodate the volatility of the
+                              measurements.
+
+                              2.6. UWB/LiDAR-SLAM Integrated Model Based on Factor Graph Optimization
+                                   Filtering [38–40] and graph optimization [41–43] are the two main schemes for
+                              multisensor data fusion. A Bayesian filtering-based method finds the best estimate of the
+                              current state through prediction-measurement-correction, which has the advantages of
+                              low computational complexity and high accuracy. As an information transfer model, the
+                              optimization methods represented by factor graphs model the observed data as a kind of
+                              factor graph network with data association. Unlike the former, which only considers the
+                              state information of the last epoch and the measurements of the current epoch, the factor
+                              graph performs nonlinear optimization of the overall or partial state data set based on all
+                              or part of the historical measurements and the current measurements. Due to the temporal
+                              correlation between measurements and the redundant measurements of the system, the
+                              integrated system tends to achieve more accurate and robust state estimations.
+                                   The framework of the FGO-based UWB/LiDAR-SLAM integrated system is shown
+                              in Figure 4, where both the UWB LOS and corrected measurements are tightly coupled to
+                              LiDAR-SLAM without loop closure using FGO. The navigation system states are
+                              represented by the variable nodes (hollow circles), and the a priori information, state
+                              transitions, and measurement processes are represented by the factor nodes (solid circles).
+                              As seen, the graphical representation makes the system highly versatile and extensible,
+                              allowing for the flexible combination of sensor information with different measurement
+                              frequencies and effectively coping with sensor failure or the introduction of new sensor
+                              information.
+Remote Sens. 2022, 14, 4258                                                                                                     11 of 22
+
+
+
+
+                              Figure 4. Framework of the FGO-based UWB/LiDAR-SLAM tightly coupled integrated system.
+
+                                   The goal of multisensor data fusion is to find the optimal posterior state of the system
+                              given the sensor measurements, which is a typical maximum a posteriori (MAP)
+                              estimation problem [41,44]. In this study, the measurements include UWB and LiDAR-
+                              SLAM measurements. Assuming that the UWB and LiDAR-SLAM measurements are
+                              independent of each other, the state estimation problem of the UWB/LiDAR-SLAM
+                              integrated system can be formulated as the following MAP problem:
+
+
+                                                                               χ
+                                                                                       ( )
+                                                                     χ  = arg max  P z x                                         (14)
+
+                                                                                                                      T
+                              where χ denotes the set of system states to be estimated; x =  plg           qlg          denotes the
+                                                                                                                      61
+                                                g           g
+                              state vector; p   l   and q   l   denote the 3-D translation and rotation (denoted by a
+                              quaternion) between the l-frame and g-frame, respectively; χ  denotes the set of system
+                              optimal states; z denotes the sensor measurements associated with state x.
+                                    For any factor graph, the MAP problem can be reduced to maximizing the product
+                              of all factor graph potentials [45]:
+
+                                                                      χ  = arg max  ( x )                                       (15)
+                                                                                   χ
+
+
+                              where  ( x ) denotes the factor associated with the measurements.
+                                   In an FGO-based integrated model, the sensor measurements are all considered as
+                              factors  ( x ) associated with the particular state x, each of which represents an error
+                              function that should be minimized. Supposing that all sensor measurements are disturbed
+                              by Gaussian noise with a zero mean, the negative logarithm of  ( x ) is proportional to
+                              the error function associated with the measurement and is defined as follows:
+
+                                                                                1          2 
+                                                                   ( x )  exp  −h( x) − z                                      (16)
+                                                                                2          Λ
+                                                                                              
+
+                              where h ( x ) and z denote the observation functions and actual measurements of different
+
+                                                                                                         = ( ) Λ−1 ( ) = Λ−1 2
+                                                                                                     2       T                       2
+                              positioning systems, respectively; the Mahalanobis norm is             Λ
+                                                                                                                                         ,
+                                                                                                                                     2
+
+                              which takes into account the effect of the observation accuracy; Λ denotes the
+                              covariance matrix of the observation process, in which the UWB and LiDAR-SLAM
+                              uncertainties are determined based on the ranging accuracy and the degree of matching,
+                              respectively; and      2
+                                                         denotes the Euclidean norm of the vector.
+                                   Taking the negative logarithm of Equation (15) and discarding the coefficient terms,
+                              the MAP problem can be transformed into a nonlinear least squares (NLS) problem:
+Remote Sens. 2022, 14, 4258                                                                                                                              12 of 22
+
+
+
+
+                                                            n                                                                                    
+                                                                           (              )                    h ( x k −1 , x k ) − zklidar
+                                                                                               2
+                                           χ  = arg min   h x j , xianchor − zuwb                 
+                                                                                                                                             2
+                                                                                      j ,i
+                                                                                                     +                                  −1,k lidar 
+                                                                                                                                                    
+                                                                                               
+                                                           j =1 i =1                                                                               
+                                                                                                 uwb
+                                                     χ                                                 k =2
+
+                                                                                                                                                          (17)
+                                                           n                                                                    
+                                               = arg min   e j ,i uwb +  ek −1,k lidar ,p +  ek −1,k lidar ,q 
+                                                                              2                  2                           2
+                                                                       uwb           lidar , p                     lidar ,q
+
+                                                     χ    j =1 i =1          
+                                                                                k =2
+                                                                                                 
+                                                                                                           k =2
+                                                                                                                             
+                                                                                                                                    
+                                                                                                                                   
+                                                                  UWB factor                  LiDAR-SLAM factor                    
+                              where the superscripts  and  denote the number of UWB measurement residuals
+                              and LiDAR-SLAM measurement residuals; the superscript n denotes the number of UWB
+                              anchors; the subscripts j and k denote the indexes of UWB factors and LiDAR-SLAM
+                                                                                                               anchor
+                              factors in the factor graph; the subscript i denotes the index of UWB anchors; x i
+                              denotes the UWB anchor coordinates;                             e uwb
+                                                                                                j ,i
+                                                                                                     denotes the measurement residuals
+                                                                                                                       lidar , p           lidar ,q
+                              associated with the UWB sensor (residuals of ranging); and e k −1,k                                  and e k −1,k       denote the
+                              measurement residuals associated with the LiDAR sensor (residuals of translation and
+                              rotation). The error functions with UWB and LiDAR-SLAM factors are as follows:
+
+                                                                     e uwb = p g + l l − x anchor − r meas
+                                                                      j ,i          lj
+                                                                                                     2
+                                                                      lidar ,p
+                                                                                  ( ) (   )
+                                                                                           −1
+                                                                      e k −1,k = qlk−1  plk − plk−1 − p
+                                                                                        g          g   g       meas
+                                                                                                                                                            (18)
+                                                                      
+                                                                                  ( )   ( )
+                                                                                           −1               −1
+                                                                      e klidar ,q
+                                                                                   = qlgk−1  qlgk  q meas
+                                                                          −1,k
+
+
+
+                              where  denotes the multiplication operator of the quaternion; r meas denotes the actual
+                              UWB measurements; and p meas and q meas denote the actual LiDAR-SLAM
+                              measurements.
+                                   By minimizing the above objective function, the maximum a posteriori solution  
+                              of the state set can be obtained, and thus, multisensor data fusion can be realized.
+                              Considering that the computation amount will increase significantly with the increase in
+                              the factor graph scale as new measurement information is continuously added over time,
+                              this study adopts a sliding window method [46] to maintain the relative stability of the
+                              number of optimized variables by discarding the earliest historical variables in the
+                              window while adding new variables.
+
+                              3. System Performance Testing and Analysis
+                              3.1. Platform Description and Experimental Setup
+                                   We build an integrated positioning experimental platform to test the proposed NLOS
+                              correction method using the grey prediction model and the FGO-based UWB/LiDAR-
+                              SLAM integrated system. All algorithms are implemented and evaluated on a computer
+                              with an Intel(R) Core(TM) 2.30 GHz i7-10875H central processing unit (CPU), 32 GB of
+                              RAM, and an Nvidia GeForce RTX 2060 graphics card, running a 64-bit Linux (Ubuntu
+                              18.04) operating system. As shown in Figure 5, a Velodyne VLP-16 scanner is installed in
+                              the center of the experimental platform, and a Time Domain UWB PulsON440 module
+                              and 360° total reflection prism are installed above the laser scanner. The centers of all three
+                              are on the same plumb line; therefore, the effect of the lever-arm on the integrated
+                              navigation in the 2-D plane can be ignored. The specifications of the UWB and LiDAR
+                              sensors are shown in Table 1. Considering the high-precision performance of the Leica
+                              TS50 automatic tracking total station, it is assumed that its measured UWB anchor 3-D
+                              coordinates and the starting coordinates of the UWB mobile tag and LiDAR sensor when
+                              the experimental platform is stationary are error-free. In the dynamic test, the total station
+                              automatically tracks the total reflection prism and provides the reference with an accuracy
+                              of 0.6 mm  1 ppm every 0.1 s.
+Remote Sens. 2022, 14, 4258                                                                                        13 of 22
+
+
+
+
+                              Figure 5. Experimental platform.
+
+                              Table 1. Specifications of the UWB and LiDAR sensors. The mark—means without this property.
+
+                                                Parameter                        UWB                      LiDAR
+                                            Ranging principle                   TW-TOF                     TOF
+                                                Wave band                     3.1–4.8 GHz               c/905 nm 1
+                                               Range ability                     <80 m                    <100 m
+                                                              LOS               5  1 cm
+                                  Ranging accuracy                                                        3 cm
+                                                             NLOS              uncertain
+                                                          Horizontal                                        360°
+                                    Field of view                                   —
+                                                            Vertical                                        15
+                                                          Horizontal                                        0.2°
+                                  Angular resolution                                —
+                                                            Vertical                                         2°
+                                           Sampling frequency                     2 Hz                     10 Hz
+                              1   c denotes the speed of light.
+
+                                   A dynamic experiment is conducted in an underground parking lot of a shopping
+                              mall, and the experimental scenario and layout are shown in Figure 6. We deploy six UWB
+                              anchors in a 40 m × 40 m area to better demonstrate the UWB positioning accuracy
+                              fluctuation under a poor geometric distribution. The presence of many moving objects
+                              (passing pedestrians and vehicles) and stationary objects (wall pillars (70 cm × 70 cm) and
+                              stationary vehicles) in the underground parking lot makes the environment very
+                              challenging. For the total station to effectively track the experimental platform and
+                              provide an accurate reference trajectory, an evaluation dataset is obtained using ROS by
+                              an experimenter pushing the experimental vehicle along a travel lane (purple route) at a
+                              speed of 0.5 m/s. The parking space areas are not planned into the travel route considering
+                              the continuity of the reference trajectory.
+Remote Sens. 2022, 14, 4258                                                                                        14 of 22
+
+
+
+
+                              Figure 6. Experimental layout.
+
+                              3.2. Evaluation of the UWB NLOS Identification and Correction Algorithm
+                                   To evaluate the effectiveness of the proposed NLOS correction method using the grey
+                              prediction model, the time-synchronized UWB raw, LOS, and corrected measurements
+                              are all variously used as the inputs to the LS positioning method, and the following three
+                              methods are obtained for comparison:
+                              •    LS positioning using the raw measurements (LS);
+                              •    LS positioning using the LOS measurements (NLOS identification + LS, NI-LS);
+                              •    LS positioning using the LOS and corrected measurements (NLOS identification +
+                                   NLOS correction + LS, NINC-LS).
+                                   Figure 7 shows a comparison of the three UWB measurements with the reference
+                              measurement. The error curves between the measurements after discarding the zero value
+                              and the reference value are shown in Figure 8 (the subgraphs above the figures are
+                              enlarged details of the error curves). Table 2 reports the statistical results of the ranging
+                              errors for the three measurements. ‘RMSE’ in the table stands for the root mean square
+                              error, and ‘Max’ stands for the maximum error. Figure 9 shows the UWB positioning
+                              trajectories solved using the LS, NI-LS, and NINC-LS methods. Figure 10 shows the
+                              positioning errors of these three methods in the X, Y, and plane directions and the
+                              cumulative distribution function (CDF) of the plane errors. The specific evaluations are
+                              shown in Table 3. ‘Availability’ in the table is calculated by dividing the number of solved
+                              positions by the total number of measurements.
+Remote Sens. 2022, 14, 4258                                                                                               15 of 22
+
+
+
+
+                              Figure 7. Time series of the reference measurements (black), UWB raw measurements (green), LOS
+                              measurements (blue) and corrected measurements (red) for different anchors: (a) anchor 1, (b)
+                              anchor 2, (c) anchor 3, (d) anchor 4, (e) anchor 5, and (f) anchor 6.
+
+
+
+
+                              Figure 8. Ranging errors of the UWB raw measurements (green), LOS measurements (blue) and
+                              pseudo measurements (red) for different anchors: (a) anchor 1, (b) anchor 2, (c) anchor 3, (d) anchor
+                              4, (e) anchor 5, and (f) anchor 6.
+Remote Sens. 2022, 14, 4258                                                                                              16 of 22
+
+
+
+
+                              Table 2. Performance of different UWB measurements. Four decimal places are given to better
+                              compare the difference between the LOS and corrected measurements.
+
+                                                   Anchor 1 Anchor 2 Anchor 3 Anchor 4 Anchor 5 Anchor 6
+                                  Raw     RMSE (m) 0.8178    1.3146   0.5012   0.4089   0.4225    1.2918
+                              measurements Max (m) 14.9990 36.5315 13.7858     6.4413   7.1004   10.6643
+                                  LOS     RMSE (m) 0.0582    0.0529   0.0578   0.0849   0.0915    0.0796
+                              measurements Max (m) 0.3179    0.2901   0.3291   0.2933   0.3656    0.2948
+                               Corrected RMSE (m) 0.0584     0.0551   0.0568   0.0852   0.0912    0.0809
+                              measurements Max (m) 0.3179    0.2901   0.3291   0.2933   0.3656    0.3156
+
+
+
+
+                              Figure 9. Trajectories of the three methods: LS (green), NI-LS (blue) and NINC-LS (red).
+
+
+
+
+                              Figure 10. Positioning errors of the LS (green), NI-LS (blue) and NINC-LS (red) methods: (a) X
+                              direction, (b) Y direction, (c) plane direction, and (d) CDF of the positioning errors.
+
+                              Table 3. Accuracy evaluation of the LS, NI-LS, and NINC-LS methods.
+
+                                                                             LS                NI-LS             NINC-LS
+                                                          X                 0.635               0.095              0.079
+                                  RMSE (m)                Y                 0.721               0.171              0.106
+                                                        Plane               0.961               0.196              0.132
+                                                          X                 6.165               0.444              0.444
+                                   Max (m)                Y                12.131               0.965              0.825
+                                                        Plane              12.903               1.001              0.846
+                                 Availability                              99.65%              96.84%             100%
+
+                                   It can be observed that the experimental scenario of the underground parking lot is
+                              challenging for the UWB positioning system. During the travel process, there are many
+Remote Sens. 2022, 14, 4258                                                                                         17 of 22
+
+
+
+
+                              measurement outliers in the UWB raw measurements due to obstacle occlusion. Anchors
+                              1, 2, and 6 have lower ranging accuracy due to their poor surrounding environments (all
+                              are located near wall columns), with RMSEs of 0.8178 m, 1.3146 m, and 1.2918 m,
+                              respectively. Anchor 2 astonishingly has a maximum ranging error of 36.5315 m.
+                              Although the placements of anchors 3, 4, and 5 are more ideal, the RMSEs also reach 0.5012
+                              m, 0.4089 m, and 0.4225 m, which are far below the accuracy level under the UWB line-of-
+                              sight. After filtering using the NLOS identification algorithm, the data quality of LOS
+                              measurements is significantly improved. Compared with the raw measurements, the
+                              ranging accuracy of UWB anchors is improved by 92.88%, 95.98%, 88.47%, 79.24%, 78.34%,
+                              and 93.84%. Correspondingly, the NI-LS method using LOS measurements has been
+                              considerably improved. Compared with the LS method, the RMSEs of the positioning
+                              errors in the X, Y and plane directions are reduced by 85.04%, 76.28%, and 79.60%,
+                              respectively, and the maximum errors are reduced by 92.80%, 92.05%, and 92.24%,
+                              respectively.
+                                    Nevertheless, we find that the solved trajectory of NI-LS still partially deviates from
+                              the reference trajectory, as shown in the purple dashed region in Figure 9. Taking the cyan
+                              point as an example, when the experimental platform moves to the current position, it
+                              receives the measurement from anchors 1, 2, 3, 5, and 6, of which anchor 2 is identified as
+                              an NLOS anchor. Interestingly, although the ranging accuracy of the remaining LOS
+                              anchors generally reaches the subdecimeter level (0.138 m, 0.110 m, 0.136 m, and 0.020 m),
+                              the plane error of its solved position still reaches 0.487 m. This result indicates that using
+                              only the filtered LOS measurements as the input to the positioning system may still fail to
+                              meet the needs for indoor high-precision positioning. This is because the excessive
+                              rejection worsens the geometric distribution of the system, and the complete exclusion of
+                              the NLOS measurements reduces the system’s availability by 2.81%. Figure 11 shows a
+                              comparison between the HDOP value and the NI-LS method error. After effective data
+                              quality control, the positioning error of the system is approximately positively correlated
+                              with the HDOP value, and variances within different intervals (e.g., 0–50 s) are caused by
+                              different levels of ranging accuracy. Therefore, to ensure the robustness of the system,
+                              considering the geometric distribution of the remaining LOS anchors during the
+                              positioning solution is essential.
+
+
+
+
+                              Figure 11. Time series of the HDOP value (blue) and the NI-LS method error (red).
+
+                                    The corrected ranging values obtained using the proposed method are shown in
+                              Figure 9. Based on the threshold judgment principle, the method corrects some of the
+                              NLOS measurements to obtain the corrected measurements. Table 2 shows that the
+                              corrected measurements maintain almost the same ranging accuracy as the LOS
+                              measurements, and the NINC-LS method using the LOS and corrected measurements
+                              subsequently achieves a corresponding improvement. In the purple dashed region where
+                              the NI-LS solution is worse, the NINC-LS method significantly improves the overall
+                              performance of the system under the poor geometric distribution, making it more closely
+                              fit the reference trajectory. Compared with the LS and NI-LS methods, the RMSEs of the
+                              positioning errors in the X, Y, and plane directions are reduced by 87.56%, 85.30%, and
+Remote Sens. 2022, 14, 4258                                                                                          18 of 22
+
+
+
+
+                              86.26% and 16.84%, 38.01%, and 32.65% for the NINC-LS method, respectively. The RMSE
+                              in the plane direction is reduced to 0.132 m, which provides solid evidence for the
+                              rationality and effectiveness of the proposed method. However, the maximum error
+                              improvement is not obvious. Figure 12 shows the number of NLOS measurements for the
+                              NI-LS and NINC-LS methods. After correction using the proposed method, the number
+                              of NLOS measurements is less than or equal to 3. While outputting high-precision
+                              positioning results, the system’s availability reaches 100%, even better than the raw
+                              measurement value (99.65%).
+
+
+
+
+                              Figure 12. Number of NLOS measurements for the NI-LS (blue) and NINC-LS (red) methods.
+
+                              3.3. Evaluation of the UWB/LiDAR-SLAM Integrated Positioning Algorithm
+                                   The solved trajectories are compared with those of the single sensor, and five other
+                              UWB/LiDAR-SLAM integrated positioning methods to test the effectiveness of the
+                              proposed FGO-based UWB/LiDAR-SLAM tightly coupled integrated system with NLOS
+                              identification and correction using the grey prediction model (NLOS identification +
+                              NLOS correction + tightly coupled + FGO, NINC-FGO).
+                              •    NINC-LS;
+                              •    LeGO-LOAM without loop closure;
+                              •    Tightly coupled + REKF (REKF);
+                              •    NLOS identification + tightly coupled + REKF (NI-REKF) [27];
+                              •    NLOS identification + NLOS correction + tightly coupled + REKF (NINC-REKF);
+                              •    Tightly coupled + FGO (FGO);
+                              •    NLOS identification + tightly coupled + FGO (NI-FGO).
+                                   Figure 13 shows a comparison of the trajectories estimated using the different
+                              methods with the reference trajectory. The positioning errors of these eight methods in
+                              the X, Y, and plane directions and the CDF of the plane errors are shown in Figure 14.
+                              Table 4 reports the positioning performance of each method. In the table, the red, blue,
+                              and green results represent the best, second-best, and third-best accuracies, respectively.
+
+
+
+
+                              Figure 13. Trajectories of the eight methods: NINC-LS (yellow), LeGO-LOAM (green), REKF (grey),
+                              NI-REKF (cyan), NINC-REKF (magenta), FGO (orange), NI-FGO (blue) and NINC-FGO (red).
+Remote Sens. 2022, 14, 4258                                                                                            19 of 22
+
+
+
+
+                                 Figure 14. Positioning errors of the NINC-LS (yellow), LeGO-LOAM (green), REKF (grey), NI-REKF
+                                 (cyan), NINC-REKF (magenta), FGO (orange), NI-FGO (blue) and NINC-FGO (red) methods: (a) X
+                                 direction, (b) Y direction, (c) plane direction, and (d) CDF of the positioning errors.
+
+                                 Table 4. Accuracy evaluation of the NINC-LS, LeGO-LOAM, REKF, NI-REKF, NINC-REKF, FGO,
+                                 NI-FGO and NINC-FGO methods.
+
+                                          LeGO-                                NINC-                                 NINC-
+                              NINC-LS                  REKF       NI-REKF                    FGO       NI-FGO
+                                          LOAM                                 REKF                                   FGO
+                      X        0.079       0.097       0.081        0.080       0.071        0.111       0.068        0.062
+ RMSE (m)             Y        0.106       0.091       0.085        0.073       0.069        0.101       0.063        0.060
+                    Plane      0.132       0.133       0.117        0.108       0.099        0.150       0.092        0.086
+                      X        0.444       0.239       0.383        0.299       0.262        2.584       0.294        0.259
+  Max (m)             Y        0.825       0.343       0.578        0.295       0.295        1.955       0.297        0.270
+                    Plane      0.846       0.419       0.595        0.361       0.358        2.645       0.327        0.303
+Availability                   100%        100%        100%         100%       100%          100%        100%        100%
+   CDF
+                               60.31%     24.47%       57.36%      58.60%      63.44%       74.95%      75.23%       77.93%
+ (<0.1 m)
+
+                                      As seen in Table 4, the REKF method significantly improves the positioning
+                                 performance of the integrated system by adjusting the measurement noise covariance
+                                 matrix to reduce the contribution of abnormal measurements to parameter estimation
+                                 when the UWB raw measurements polluted from NLOS errors are used directly as the
+                                 input to the integrated system. It outperforms the NI-LS method (RMSEs in the X, Y, and
+                                 plane directions are reduced by −2.53%, 19.81%, and 11.36%, respectively) and LeGO-
+                                 LOAM (RMSEs in the X, Y, and plane directions are reduced by 16.49%, 6.59%, and
+                                 12.03%, respectively). However, the FGO method, which assigns the same weights to
+                                 measurements of different qualities, achieves a positioning accuracy inferior to that of a
+                                 single sensor (NINC-LS or LeGO-LOAM methods). Furthermore, if we define the
+                                 availability as the error below 0.1 m due to the temporal correlation between
+                                 measurements and the redundant system measurements, the FGO method (74.95%) is far
+                                 superior to the REKF method (57.36%).
+                                      The advantages of the integrated positioning methods are manifested when the raw
+                                 measurements are filtered once using the NLOS identification method. Both the NI-REKF
+                                 and the NI-FGO methods achieve better accuracy than that of a single sensor. Compared
+                                 with the conventional integrated model (REKF or FGO methods), the RMSEs of the
+                                 positioning errors in the X, Y, and plane directions are reduced by 1.23%, 14.12%, and
+                                 7.69% and 38.74%, 37.62%, and 38.67%, respectively. Meanwhile, the NI-FGO method
+                                 outperforms the NI-REKF method, reducing the RMSEs of the positioning errors in the X,
+                                 Y, and plane directions by 15.00%, 13.70%, and 14.81%, respectively.
+                                      Comparing the six UWB/LiDAR-SLAM integrated positioning methods, whether the
+                                 REKF-based integrated framework or the FGO-based integrated framework, the proposed
+Remote Sens. 2022, 14, 4258                                                                                       20 of 22
+
+
+
+
+                              methods (NINC-REKF and NINC-FGO methods), which use the LOS and corrected
+                              measurements as the inputs to the integrated system, achieve optimal results in their
+                              respective frameworks. Such improvements illustrate that the proposed methods for
+                              controlling the sensor data quality (NLOS identification + NLOS correction) can
+                              effectively improve the positioning performance of the UWB/LiDAR-SLAM integrated
+                              system. Compared with the REKF and NI-REKF methods, the RMSEs of the NINC-REKF
+                              method in the X, Y, and plane directions are reduced to 0.071 m, 0.069 m, and 0.099 m,
+                              respectively. Compared with the FGO and NI-FGO methods, the RMSEs of the NINC-
+                              FGO method in the X, Y, and plane directions are reduced to 0.062 m, 0.060 m, and 0.086
+                              m, respectively. Similarly, the NINC-FGO method achieves better results than the NINC-
+                              REKF method (RMSEs in the X, Y, and plane directions are reduced by 12.68%, 13.04%,
+                              and 13.13%, respectively), and even the NI-FGO method outperforms the NINC-REKF
+                              method (RMSEs in the X, Y, and plane directions are reduced by 4.23%, 8.70%, and 7.07%,
+                              respectively), which fully demonstrates the superiority of the FGO-based UWB/LiDAR-
+                              SLAM integrated model.
+                                   Since the system models are designed based on a tightly coupled model, the
+                              availability of the six integrated methods is 100%. Similarly, if we define the availability
+                              as the error below 0.1 m, then it can be seen from Figure 14d that the FGO-based integrated
+                              models all outperform the REKF-based integrated models. The availability of the NINC-
+                              FGO method is as high as 77.93%, which is better than that of any other method. In
+                              summary, the NINC-FGO method performs best when both accuracy and availability are
+                              considered, which fully verifies the superiority and accuracy of the proposed
+                              UWB/LiDAR-SLAM integrated system.
+
+                              4. Conclusions
+                                    A UWB/LiDAR-SLAM integrated system is an effective solution to address the
+                              difficulty of precise positioning in GNSS-denied environments. However, the existence of
+                              UWB NLOS errors will affect the accuracy and effectiveness of the integrated system to
+                              varying degrees. For better fusion, we do the following. First, we use our previous work
+                              on UWB NLOS identification and exclusion to strictly control the data quality of the
+                              system input. Second, considering that the system positioning accuracy is affected not
+                              only by the ranging accuracy but also by the geometric distribution of UWB anchors, we
+                              calculate the HDOP value of the remaining LOS anchors to evaluate the layout accuracy.
+                              Then, for a poor geometric distribution, we propose an NLOS correction method using a
+                              grey prediction model. The high accuracy and robustness of the integrated system are
+                              effectively maintained by increasing the measurements. Finally, an FGO-based
+                              UWB/LiDAR-SLAM tightly coupled integrated system is designed. The evaluations of the
+                              dynamic positioning experiment show the following. (1) The corrected measurements
+                              constructed using the grey prediction model maintain almost the same ranging accuracy
+                              as the LOS measurements. The NINC-LS method using the LOS and corrected
+                              measurements as the system inputs also achieves satisfactory results, with the RMSE in
+                              the plane direction reduced to 0.132 m and the availability of errors below 0.1 m reaching
+                              60.31%, proving the effectiveness of the proposed NLOS correction method. (2) The
+                              proposed FGO-based integrated models are all superior to the REKF-based integrated
+                              models. The NINC-FGO method takes the optimal positioning effect and robustness, with
+                              an RMSE of 0.086 m in the plane direction and 77.93% availability of errors below 0.1 m,
+                              thus fully demonstrating the superiority of the proposed method. In the future, our work
+                              will include the integration of the existing integrated system with low-cost inertial
+                              measurement units (IMUs) to enhance the accuracy and robustness of the positioning
+                              system in highly dynamic and degrading environments.
+Remote Sens. 2022, 14, 4258                                                                                                        21 of 22
+
+
+
+
+                                   Author Contributions: Conceptualization, Z.C. and A.X.; data curation, Z.C., Y.H. and C.Z.; formal
+                                   analysis, Z.C., X.S. and Z.S.; funding acquisition, A.X.; investigation, Z.C.; methodology, Z.C. and
+                                   X.S.; software, Z.C.; validation, Z.C., Y.H. and C.Z.; writing—original draft preparation, Z.C.;
+                                   writing—review and editing, Z.C., A.X., X.S., Y.H., C.Z. and Z.S. All authors have read and agreed
+                                   to the published version of the manuscript.
+                                   Funding: This research was funded in part by the National Natural Science Foundation of China
+                                   (No.42074012), in part by the Liaoning Key Research and Development Program (No.
+                                   2020JH2/10100044), in part by the Liaoning Revitalization Talents Program (Nos. XLYC2002101;
+                                   XLYC2008034), and in part by the Fundamental Research Program of the Liaoning Education
+                                   Department (No. LJ2020JCL016).
+                                   Data Availability Statement: Not applicable.
+                                   Conflicts of Interest: The authors declare no conflict of interest.
+
+References
+1.    Wang, H.; Wang, C.; Xie, L. Intensity-slam: Intensity assisted localization and mapping for large scale environment. IEEE Robot.
+      Autom. Lett. 2021, 6, 1715–1721.
+2.    Zhen, W.; Scherer, S. Estimating the localizability in tunnel-like environments using LiDAR and UWB. In Proceedings of the
+      2019 International Conference on Robotics and Automation (ICRA), Montreal, QC, Canada, 20–24 May 2019.
+3.    Xu, W.; Cai, Y.; He, D.; Lin, J.; Zhang, F. Fast-lio2: Fast direct lidar-inertial odometry. IEEE Trans. Robot. 2022, 38, 2053–2073.
+4.    Yokozuka, M.; Koide, K.; Oishi, S.; Banno, A. LiTAMIN: LiDAR-based Tracking and Mapping by Stabilized ICP for Geometry
+      Approximation with Normal Distributions. In Proceedings of the 2020 IEEE/RSJ International Conference on Intelligent Robots
+      and Systems (IROS), Las Vegas, NV, USA, 24 October–24 January 2021.
+5.    Yokozuka, M.; Koide, K.; Oishi, S.; Banno, A. LiTAMIN2: Ultra light lidar-based slam using geometric approximation applied
+      with KL-divergence. In Proceedings of the 2021 IEEE International Conference on Robotics and Automation (ICRA), Xi’an,
+      China, 30 May–5 June 2021.
+6.    Hong, S.; Ko, H.; Kim, J. VICP: Velocity updating iterative closest point algorithm. In Proceedings of the 2010 IEEE International
+      Conference on Robotics and Automation, Anchorage, AK, USA, 3–7 May 2010.
+7.    Yang, J.; Li, H.; Jia, Y. Go-icp: Solving 3d registration efficiently and globally optimally. In Proceedings of the IEEE International
+      Conference on Computer Vision, Sydney, NSW, Australia, 1–8 December 2013.
+8.    Stoyanov, T.; Magnusson, M.; Andreasson, H.; Lilienthal, A.J. Fast and accurate scan registration through minimization of the
+      distance between compact 3D NDT representations. Int. J. Robot. Res. 2012, 31, 1377–1393.
+9.    Zhou, Z.; Zhao, C.; Adolfsson, D.; Su, S.; Gao, Y.; Duckett, T.; Sun, L. Ndt-transformer: Large-scale 3d point cloud localisation
+      using the normal distribution transform representation. In Proceedings of the 2021 IEEE International Conference on Robotics
+      and Automation (ICRA), Xi’an, China, 30 May–5 June 2021.
+10.   Zhang, J.; Singh, S. Low-drift and real-time lidar odometry and mapping. Auton. Robot. 2017, 41, 401–416.
+11.   Shan, T.; Englot, B. Lego-loam: Lightweight and ground-optimized lidar odometry and mapping on variable terrain. In
+      Proceedings of the 2018 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), Madrid, Spain, 1–5
+      October 2018.
+12.   Pan, Y.; Xiao, P.; He, Y.; Shao, Z.; Li, Z. MULLS: Versatile LiDAR SLAM via multi-metric linear least square. In Proceedings of
+      the 2021 IEEE International Conference on Robotics and Automation (ICRA), Xi’an, China, 30 May–5 June 2021.
+13.   Wen, C.; Tan, J.; Li, F.; Wu, C.; Lin, Y.; Wang, Z.; Wang, C. Cooperative indoor 3D mapping and modeling using LiDAR data.
+      Inf. Sci. 2021, 574, 192–209.
+14.   Droeschel, D.; Behnke, S. Efficient continuous-time SLAM for 3D lidar-based online mapping. In Proceedings of the 2018 IEEE
+      International Conference on Robotics and Automation (ICRA), Brisbane, QLD, Australia, 21–25 May 2018.
+15.   Chang, L.; Niu, X.; Liu, T.; Tang, J.; Qian, C. GNSS/INS/LiDAR-SLAM integrated navigation system based on graph
+      optimization. Remote Sens. 2019, 11, 1009.
+16.   Sun, W.; Xue, M.; Yu, H.; Tang, H.; Lin, A. Augmentation of fingerprints for indoor WiFi localization based on Gaussian process
+      regression. IEEE Trans. Veh. Technol. 2018, 67, 10896–10905.
+17.   Chen, J.; Zhou, B.; Bao, S.; Liu, X.; Gu, Z.; Li, L.; Zhao, Y.; Zhu, J.; Li, Q. A data-driven inertial navigation/Bluetooth fusion
+      algorithm for indoor localization. IEEE Sens. J. 2021, 22, 5288–5301.
+18.   Achroufene, A.; Amirat, Y.; Chibani, A. RSS-based indoor localization using belief function theory. IEEE Trans. Autom. Sci. Eng.
+      2018, 16, 1163–1180.
+19.   Yang, P.; Wu, W.; Moniri, M.; Chibelushi, C.C. Efficient object localization using sparsely distributed passive RFID tags. IEEE
+      Trans. Ind. Electron. 2012, 60, 5914–5924.
+20.   Ozdenizci, B.; Coskun, V.; Ok, K. NFC internal: An indoor navigation system. Sensors 2015, 15, 7571–7595.
+21.   Silva, B.; Hancke, G.P. Ranging error mitigation for through-the-wall non-line-of-sight conditions. IEEE Trans. Ind. Inform. 2020,
+      16, 6903–6911.
+Remote Sens. 2022, 14, 4258                                                                                                    22 of 22
+
+
+
+
+22.   Yang, X.; Wang, J.; Song, D.; Feng, B.; Ye, H. A novel NLOS error compensation method based IMU for UWB indoor positioning
+      system. IEEE Sens. J. 2021, 21, 11203–11212.
+23.   Xiao, Z.; Wen, H.; Markham, A.; Trigoni, N.; Blunsom, P.; Frolik, J. Non-line-of-sight identification and mitigation using
+      received signal strength. IEEE Trans. Wirel. Commun. 2014, 14, 1689–1702.
+24.   Dong, M. A low-cost NLOS identification and mitigation method for UWB ranging in static and dynamic environments. IEEE
+      Commun. Lett. 2021, 25, 2420–2424.
+25.   Schroeder, J.; Galler, S.; Kyamakya, K.; Jobmann, K. NLOS detection algorithms for ultra-wideband localization. In Proceedings
+      of the 2007 4th Workshop on Positioning, Navigation and Communication, Hannover, Germany, 22 March 2007.
+26.   Wei, J.; Wang, H.; Su, S.; Tang, Y.; Guo, X.; Sun, X. NLOS identification using parallel deep learning model and time-frequency
+      information in UWB-based positioning system. Measurement 2022, 195, 111191.
+27.   Chen, Z.; Xu, A.; Sui, X.; Wang, C.; Wang, S.; Gao, J.; Shi, Z. Improved-UWB/LiDAR-SLAM Tightly Coupled Positioning System
+      with NLOS Identification Using a LiDAR Point Cloud in GNSS-Denied Environments. Remote Sens. 2022, 14, 1380.
+28.   Wymeersch, H.; Maranò, S.; Gifford, W.M.; Win, M.Z. A machine learning approach to ranging error mitigation for UWB
+      localization. IEEE Trans. Commun. 2012, 60, 1719–1728.
+29.   Savic, V.; Ferrer-Coll, J.; Ängskog, P.; Chilo, J.; Stenumgaard, P.; Larsson, E.G. Measurement analysis and channel modeling for
+      TOA-based ranging in tunnels. IEEE Trans. Wirel. Commun. 2014, 14, 456–467.
+30.   Van Nguyen, T.; Jeong, Y.; Shin, H.; Win, M.Z. Machine learning for wideband localization. IEEE J. Sel. Area. Commun. 2015, 33,
+      1357–1380.
+31.   Tian, Q.; Kevin, I.; Wang, K.; Salcic, Z. Human body shadowing effect on UWB-based ranging system for pedestrian tracking.
+      IEEE Trans. Instrum. Meas. 2018, 68, 4028–4037.
+32.   Ferreira, A.G.; Fernandes, D.; Branco, S.; Catarino, A.P.; Monteiro, J.L. Feature Selection for Real-Time NLOS Identification and
+      Mitigation for Body-Mounted UWB Transceivers. IEEE Trans. Instrum. Meas. 2021, 70, 1–10.
+33.   Venkatesh, S.; Buehrer, R.M. NLOS mitigation using linear programming in ultrawideband location-aware networks. IEEE
+      Trans. Veh. Technol. 2007, 56, 3182–3198.
+34.   Zhou, H.; Yao, Z.; Lu, M. Lidar/UWB fusion based SLAM with anti-degeneration capability. IEEE Trans. Veh. Technol. 2020, 70,
+      820–830.
+35.   Liu, R.; He, Y.; Yuen, C.; Lau, B.P.L.; Ali, R.; Fu, W.; Cao, Z. Cost-effective mapping of mobile robot based on the fusion of uwb
+      and short-range 2-d lidar. IEEE-ASME Trans. Mech. 2021, 27, 1321–1331.
+36.   Feng, D.; Wang, C.; He, C.; Zhuang, Y.; Xia, X.G. Kalman-filter-based integration of IMU and UWB for high-accuracy indoor
+      positioning and navigation. IEEE Internet Things 2020, 7, 3133–3146.
+37.   Lian, R.J. Grey-prediction self-organizing fuzzy controller for robotic motion control. Inf. Sci. 2012, 202, 73–89.
+38.   Qin, H.; Yue, S.; Cong, L.; Jin, T. A state-constrained tracking approach for Kalman filter-based ultra-tightly coupled GPS/INS
+      integration. GPS Solut. 2019, 23, 1–13.
+39.   Abosekeen, A.; Iqbal, U.; Noureldin, A.; Korenberg, M.J. A novel multi-level integrated navigation system for challenging GNSS
+      environments. IEEE Trans. Intell. Transp. 2020, 22, 4838–4852.
+40.   Li, W.; Liu, G.; Cui, X.; Lu, M. Feature-Aided RTK/LiDAR/INS Integrated Positioning System with Parallel Filters in the
+      Ambiguity-Position-Joint Domain for Urban Environments. Remote Sens. 2021, 13, 2013.
+41.   Wen, W.; Kan, Y.C.; Hsu, L.T. Performance comparison of GNSS/INS integrations based on EKF and factor graph optimization.
+      In Proceedings of the 32nd International Technical Meeting of the Satellite Division of The Institute of Navigation (ION GNSS+
+      2019), Miami, FL, USA, 16–20 September 2019.
+42.   Li, S.; Li, G.; Wang, L.; Qin, Y. SLAM integrated mobile mapping system in complex urban environments. ISPRS J. Photogramm.
+      Remote Sens. 2020, 166, 316–332.
+43.   Song, Y.; Hsu, L.T. Tightly coupled integrated navigation system via factor graph for UAV indoor localization. Aerosp. Sci.
+      Technol. 2021, 108, 106370.
+44.   Barfoot, T.D. State Estimation for Robotics; Cambridge University Press: Cambridge, UK, 2017.
+45.   Kaess, M.; Johannsson, H.; Roberts, R.; Ila, V.; Leonard, J.J.; Dellaert, F. iSAM2: Incremental smoothing and mapping using the
+      Bayes tree. Int. J. Robot. Res. 2012, 31, 216–235.
+46.   Sibley, G.; Matthies, L.; Sukhatme, G. Sliding window filter with application to planetary landing. J. Field Robot. 2010, 27, 587–
+      608.
+

@@ -1,0 +1,926 @@
+320                 W. WANG, J. HUANG, S. CAI, J. YANG, DESIGN AND IMPLEMENTATION OF SYNCHRONIZATION-FREE TDOA . . .
+
+
+
+
+       Design and Implementation of Synchronization-free
+           TDOA Localization System Based on UWB
+                         Wei WANG 1,2 , Junjie HUANG 2 , Shaobin CAI 1 , Junjie YANG 2
+      1 College of Computer Science and Technology, HuaQiao University, No.668, Jimei Street, Xiamen,361021,China
+          2 College of Automation, Harbin Engineering University, No.145, Nantong Street, Harbin,150001, China
+
+
+                                    chinaww2006@126.com, huangjunjie291@hrbeu.edu.cn
+
+                                         Submitted September 4, 2018 / Accepted December 2, 2018
+
+
+
+Abstract. At present, indoor localization system based on                    There are many methods for positioning, such as Re-
+ultra-wideband (UWB) has attracted more and more atten-                ceived Signal Strength (RSS), Angle of Arrival (AOA), Time
+tion. In UWB system, Time Difference of Arrival (TDOA)                 of Arrival (TOA), Time Difference of Arrival (TDOA), Two-
+and Two-Way Ranging (TWR) are widely used. However,                    Way Ranging (TWR). RSS has limited accuracy due to the
+TDOA requires high-accuracy time synchronization between               difficulty in precisely modelling the relationship between the
+all anchor nodes and even slight noise can cause large lo-             received signal strength and the actual distance [12]. In
+calization error. In TWR, although two-way communication               some positioning scenes, such as large shopping malls and
+between anchor nodes with known location and blind nodes               hospitals, the accuracy provided by RSS can meet the re-
+to be located can avoid the time synchronization issue effec-          quirements of personnel positioning, but may not satisfy the
+tively, the clock drift and the number of blind nodes will affect      requirement of precise positioning in the robot room. AOA
+the system performance. To overcome these problems, a new              is not suitable for UWB because a large number of signal
+synchronization-free TDOA location algorithm is proposed.              paths [13]. TOA requires high-accuracy time synchroniza-
+Firstly,the clock model is established and the influence of            tion for all the nodes [14], which is difficult to achieve in prac-
+antenna delay is considered. Then, the system signal ex-               tice. TDOA and TWR are the most popular methods in UWB
+change mechanism and localization model are proposed. In               system. In normal TDOA localization scheme, the location
+the system, the blind nodes just receive the ranging signals           of the blind node can be estimated by calculating the dis-
+from anchor nodes so that the system has no limit on the               tance difference between anchor nodes and blind node [15].
+number of blind nodes. Finally,the major factor affecting              So TDOA requires high-accuracy time synchronization be-
+the accuracy of ranging - clock drift, is discussed, and then          tween all anchor nodes. To solve time synchronization is-
+a clock frequency offset compensation algorithm is proposed.           sue, a synchronization-free TDOA scheme (called Whistle)
+The indoor localization experiment results show that the in-           in [16] is proposed to achieve high time resolution and ac-
+door localization system designed in this paper can achieve            quire the positioning accuracy of 10–20 cm, but blind nodes
+3-D localization.                                                      are required to transmit signal. J. X. Lee, et al. [17] proposed
+                                                                       a new method that does not require the time synchroniza-
+                                                                       tion initially and can realize sub-meters ranging error. The
+Keywords                                                               Sequential-TDOA method in [18] is proposed to reduce the
+                                                                       requirement of time synchronization, but the clock drift is
+      Indoor localization, Two-Way Ranging (TWR), Time                 not considered and the positioning accuracy is nearly 1 m.
+      Difference of Arrival (TDOA), time synchronization               In [19], the clock offset is estimated by symmetrical double-
+                                                                       sided two way ranging (SDS-TWR) but used as a constant
+                                                                       value. TWR, also called Round Trip Time (RTT) [20], can
+1. Introduction                                                        avoid the time synchronization issue effectively with two-
+                                                                       way communication between anchor nodes and blind nodes.
+      At present, the location-based service (LBS) in the in-          However, TWR is hard to maintain signal exchange if the
+door environment is of great importance in many applica-               system contains many blind nodes, so it not flexible and has
+tions [1], [2]. Common solutions used for indoor localization          the limit on the number of users.
+include Zigbee [3], RFID [4], WiFi [5], Bluetooth [6], indoor
+landmark reference system [7] and UWB [8]. Compared to                       To solve the above issues, a new synchronization-free
+other solutions, UWB can provide the fine time resolution              TDOA localization scheme is proposed. Firstly, the clock
+and have the ability to resist multi-path interference [9], [10].      system is modelled with starting time and clock frequency,
+So the indoor localization system based on UWB can usually             the time synchronization can be achieved in the algorithm.
+provide higher localization accuracy than other methods [11].          Then, in order to eliminate the difference of starting time of
+
+
+DOI: 10.13164/re.2019.0320                                                                                                    SYSTEMS
+RADIOENGINEERING, VOL. 28, NO. 1, APRIL 2019                                                                                              321
+
+
+
+
+all nodes, two-way communication is adopted to design the             It is known from the DW1000 chip manual "IC Calibration-
+signals exchange. Unlike normal TWR, the blind nodes in               Antenna Delay" section [21] that such delays need to be
+this system are passive and just receive the ranging signals          handled in order to measure the distance accurately. Suppose
+from anchor nodes, so that the system can break the limit on          that nodei transmits a ranging signal and the transmitting
+                                                                                     nodei
+the number of users. What’s more, Kalman Filter algorithm             time stamp is tDS    . After some time delay, the signal leaves
+is applied to compensate the relative clock drift between the                         nodei    nodei       nodei
+                                                                      the antenna at tTS . t¯DS      and t¯TS    are the references time
+blind node and the master station. Finally, the localization                               nodei       nodei
+                                                                      corresponding to tDS and tTS . The time delay can be
+experiments verified the effectiveness and feasibility of the         expressed as
+proposed scheme.
+                                                                                        nodei     nodei
+                                                                                      t¯TS    − t¯DS    = ∆tSnodei + εSnodei .            (2)
+      This paper is organized as follows. In Sec. 2, the clock
+model is established and the influence of antenna delay is                 In (2), ∆tSnodei is a constant and represents the transmit
+considered. Based on this, the ranging model is determined.           time delay of nodei . εSnodei is the noise with zero mean. Then,
+In Sec. 3, one of the major factors affecting the accuracy            the transmitting time stamp can be expressed as
+of ranging - clock drift, is discussed, and then a method of
+clock frequency offset compensation is introduced. In Sec. 4,
+                                                                                             ∫ t̄ nodei
+some experiments are carried out to prove the feasibility and                      nodei           DS
+                                                                                  tDS    =                 λ   (t)dt
+                                                                                                            nodei
+positioning accuracy of the scheme. Finally, conclusions are                                      node
+                                                                                               t̄start i
+drawn in Sec. 5.                                                                                     node    node  node
+                                                                                                                                          (3)
+                                                                                             ∫     t̄TS i −∆tS i −εS i
+                                                                                         =       node
+                                                                                                                          λnodei (t)dt.
+                                                                                               t̄start i
+2. The Localization Principle                                              The process of receiving signal is shown in the Fig. 2.
+                                                                      Similar to the transmission process described above. Sup-
+2.1 The Clock Model                                                   pose that a signal arrives at the antenna of nodei at tTR    nodei
+                                                                                                                                         .
+      In the localization system, each node has a set of clock        After some time delay, the nodei receives the signal and the
+                                                                                               nodei     nodei       nodei
+system which is independent of each other. The continuous             receiving time stamp is tDR    . t¯DR    and t¯TR    are the refer-
+                                                                                                     nodei       nodei
+and homogeneous reference time can be chosen as the system            ences time corresponding to tDR and tTR . The time delay
+clock to establish a unified clock system for time synchro-           can be expressed as
+nization. The clock of nodes is one-to-one correspondence
+with the reference time, and we can model the relationship                              nodei
+                                                                                      t¯DR        nodei
+                                                                                              − t¯TR    = ∆tRnodei + εRnodei .            (4)
+between clock frequency and reference time of nodes. Take
+the nodei for example. Assume that the starting time and              In (4), ∆tRnodei is a constant and represents the receive time
+                                    nodei
+the clock frequency of nodei are t¯start  and λnodei (t) respec-      delay of nodei . εRnodei is the noise with zero mean. The
+tively. For clock frequency λnodei (t) , it is used to convert        receiving time stamp can be expressed as
+the reference time into local time in numerical terms. In this
+paper, DW1000 is used in the system. DW1000 is a fully                                       ∫ t̄ nodei
+integrated low power, single chip CMOS radio transceiver                           nodei           DR
+                                                                                  tDR    =                 λ   (t)dt
+                                                                                                            nodei
+IC compliant with the IEEE 802.15.4-2011 ultra-wideband                                           node
+                                                                                               t̄start i
+(UWB) standard. It spans 6 RF bands from 3.5 GHz to                                                  node    node  node
+                                                                                                                                          (5)
+                                                                                             ∫     t̄TR i +∆tR i +εR i
+6.5 GHz and facilitates proximity detection to an accuracy                               =                                λnodei (t)dt.
+                                                                                                 node
+of +/- 10 cm using two-way ranging time-of-flight measure-                                     t̄start i
+ments [21]. The sampling frequency of DW1000 is about
+64 GHz, then λnodei (t) = 6.4 × 1010 , so one second (refer-
+ence time) corresponds to the local time value is 6.4 × 1010 .
+The relationship between the local time of nodei and the
+reference time can be expressed as
+
+                              ∫ t̄ nodei
+                  t nodei =       node
+                                            λnodei (t)dt.      (1)          Fig. 1. The process of transmitting signal.
+                                t̄start i
+
+In (1), t nodei is the local time of nodei and t¯ nodei is the ref-
+erence time corresponding to t nodei . It is worth mentioning
+that the clock frequency is a constant value, but there will be
+drift due to temperature variation.
+      The process of transmitting signal is shown in the Fig. 1.
+The time from the signal generating unit to the antenna
+is the transmission signal delay and designated as ∆tSnodei .               Fig. 2. The process of receiving signal.
+322                    W. WANG, J. HUANG, S. CAI, J. YANG, DESIGN AND IMPLEMENTATION OF SYNCHRONIZATION-FREE TDOA . . .
+
+
+
+
+2.2 The System Signal Exchange Mechanism
+      The localization system contains a master station (MS),
+L (L ≥ 3) slave stations (SS), and N (N > 0) blind nodes
+(also called tags (T)). MS and SS are anchor nodes whose
+positions are known and fixed. They are transceivers. And
+blind nodes are receivers. MS coordinates the order of infor-
+mation transmission between nodes in the system. We call it           Fig. 4. The i th group of signal exchange.
+a signal exchange mechanism. As is shown in Fig. 3, the sys-
+tem signal exchange mechanism is achieved by L groups of
+signal exchange. First of all, MS transmits a ranging signal,
+                                                                                T
+                                                                  For example, tTR      indicates the time when the received sig-
+and the slave station 1 (SS1 ) and all the blind nodes receive                     i ,1
+this signal. After some time delay, (SS1 ) transmits another      nal reaches the blind node antenna for the first time in i th
+ranging signal, MS and all the blind nodes receive this signal    group information exchange. Assume that c represents the
+to complete the first group of signal exchange. The other         light speed. According to TOA [14]
+groups are similar. The L groups of signal exchange form
+a cycle of system signal exchange mechanism. In the system,
+the blind nodes just receive the ranging signal from MS and
+SS and never transmit signals. Therefore, the system can sup-           d T = c(t¯TR
+                                                                                    T            MS )
+                                                                                            − t¯TS
+                                                                       MS             i ,1
+                                                                      
+port unlimited blind nodes at the same time. What’s more,             
+                                                                           SSi                  SS
+                                                                                                    i
+                                                                         dMS = c(t¯TMS
+                                                                      
+                                                                                            − ¯TS i )
+                                                                                              t
+the number of blind nodes does not affect the signal exchange                         R  i
+                                                                           T = c(t¯T            ¯SSi
+                                                                      
+                                                                                    TRi ,2 − tTS )
+between MS and SS. So the system is flexible and practical.            dSS
+                                                                      
+                                                                             i
+                                                                      ⇒
+                                                                          T − dT
+                                                                        dMS
+2.3 The TDOA Localization Model                                                 SSi
+                                                                                                                  SSi
+                                                                      = c(t¯TR
+                                                                            T
+                                                                               i ,1
+                                                                                    MS ) − c(t¯T
+                                                                                − t¯TS        i    TR  i ,2
+                                                                                                              − t¯TS  )
+      In the system, the localization process of blind nodes is                                                   SSi     SSi    SSi
+                                                                      = c(t¯TR
+                                                                            T
+                                                                               i ,1
+                                                                                        MS ) − c(t¯T
+                                                                                    − t¯TS         TRi ,2     − t¯TS ) + dMS  − dMS
+similar to each other. Take the blind node j (Tj ) for example                             i
+
+to introduce the localization model. For convenience of rep-          = c(t¯TR
+                                                                            T           MS ) − c(t¯T
+                                                                                    − t¯TS                ¯SSi
+                                                                                                   TR − tTS )
+                                                                               i ,1           i        i ,2
+                                                                             MS − t¯SSi ) − d SSi
+                                                                       +c(t¯TR
+resentation, only one blind node location method will be dis-                    i   TS      MS
+                                                                                                                    SSi
+cussed below, with the subscript j omitted and denoted as T.          = c(t¯TR
+                                                                            MS − t¯MS ) − c(t¯T
+                                                                               i    TSi
+                                                                                                       ¯T
+                                                                                              TRi ,2 − tTRi ,1 ) − dMS
+All blind nodes are located in the same way and do not inter-         ⇒
+fere with each other.The i th (i ≤ L) group of signal exchange           T − dT
+                                                                        dMS        SSi
+is shown in Fig. 4. In fact, a cycle of signal exchange mech-                                                        SSi
+                                                                      = c(t¯DR
+                                                                            MS − t¯MS ) − c(t¯T
+                                                                                     DS        DR − tDR ) − dMS − ∆d + ηi .
+                                                                                                        ¯T
+                                                                                                      i ,2         i ,1
+anism is quite short, and the moving speed of blind node is                    i          i
+
+generally slow. So we can consider that blind node is station-                                                                         (6)
+                                   SSi    T and d T represent
+ary in one cycle. Assume that dMS      , dMS      SSi
+the distance from MS to SSi , from MS to T and from SSi to T
+respectively. To facilitate reading, the symbol mark in Fig. 4    In formula (6)
+is hereby declared. Superscript denotes node, subscript D de-
+notes information at signal processing unit, T denotes signal
+at antenna, S denotes transmission, and R denotes reception.
+                                                                                      ∆d = c(∆tRMS + ∆tSMS )
+                                                                               
+                                                                                                                               ,       (7)
+                                                                                      ηi = c(εRTi ,2 − εRTi ,1 − εRMS
+                                                                                                                    i
+                                                                                                                      − εSMS
+                                                                                                                           i
+                                                                                                                             )
+
+
+
+                                                                  ∆d represents a distance constant caused by receiving time
+                                                                  delay and transmitting time delay of MS. Wherein the values
+                                                                  of ∆tRMS and ∆tSMS represent receive time delay and trans-
+                                                                  mit time delay of MS, respectively. ηi represents the Gauss
+                                                                                                                             SSi
+                                                                  white noise with zero mean.In the formula (6), dMS             is the
+                                                                                                                          th
+                                                                  distance from the master base station MS to the i slave base
+                                                                  station, and they are fixed at a known position and therefore
+                                                                  are known quantities. However, (t¯DR  MS − t¯MS ) can only be ob-
+                                                                                                           i      DSi
+                                                                                             T          T
+                                                                  tained from MS’s clock, (t¯DRi ,2 − t¯DR      ) can only be obtained
+                                                                                                           i ,1
+                                                                  from T’s clock, SS does not participate in the calculation,
+                                                                  so there is no need for anchor node clock synchronization.
+      Fig. 3. The system signal exchange mechanism.               According to Sec. 2.1, Fig. 4 can be expressed as
+RADIOENGINEERING, VOL. 28, NO. 1, APRIL 2019                                                                                                                323
+
+
+
+
+                                                                                      similar process of each group in one cycle, here we will not
+                               MS
+                          ∫ t̄DS                                                      repeat. So the localization scheme for T can be expressed
+                     MS =            λMS (t)dt
+                 
+                 
+                  t               i                                                  as
+                  DSi
+                 
+                 
+                            MS
+                           t̄start
+
+                            ∫ t̄DRMS
+                      MS =
+                                 MS λMS (t)dt
+                                      i
+                  tDR
+                 
+                                                                                        T − d T = ck MS ∆t MS − ck T ∆t T − d SS1 − ∆d + η ,
+                                                                                        dMS
+                       i      t̄start                                                         SS1            1         1       MS          1
+                 ⇒                                                                       T − d T = ck MS ∆t MS − ck T ∆t T − d SS2 − ∆d + η ,
+                                                                                        dMS    SS2            2         2       MS          2
+                                          MS                                    (8)
+                  MS − t MS =
+                 tDR
+                                      ∫ t̄DR
+                                             i
+                                               λMS (t)dt                                                   ..
+                     i    DS i           MS
+                                          t̄DS                                                              .
+                                                 i
+                                                                                                                                SS L
+                                      = λMS (ξiMS )(t¯DR
+                                                      MS − t¯MS )
+                                                             DSi
+                                                                                        dMS − dSS L = ck ∆t LMS − ck T ∆t LT − dMS
+                                                                                         T     T        MS                           − ∆d + η L .
+                                                         i
+                 ⇒                                                                                                                             (12)
+                                         t MS −t MS
+                   MS − t¯MS = DRi DSi ,
+                 t¯DR                                                                       A further application of equation (12) will be described
+                      i   DSi  λ (ξ MS )   MS        i                                in detail below.
+
+                               T
+                          ∫ t̄DR   i ,1
+                        =               λT (t)dt
+                  T
+               
+               
+               
+               
+               
+                 t
+                DRi ,1      T
+                           t̄start                                                    3. Compensation for Clock Frequency
+                                       T
+                                                                                            In (12), the clock frequency of blind nodes has a great
+               
+                                ∫ t̄DR    i ,2
+                    T          =                  λT (t)dt                            effect on localization. On the one hand, it is hard to know
+               
+                tDR
+               
+                        i ,2         T
+                                   t̄start
+                                                                                     each blind node’s clock frequency if a large number of blind
+               ⇒
+                                              ∫ t̄DRT                           (9)   nodes need to be positioned. On the other hand, the local-
+                                                      i ,2
+                T
+               tDR i ,2
+                        −    t T
+                               DRi ,1   =       t̄ T
+                                                           λT (t)dt                   ization system is not flexible and practical if blind node’s
+                                             DRi ,1
+                                                                                      clock frequency must be known for localization. So, here we
+                                         = λT (ξiT )(t¯DR
+                                                       T
+                                                          i ,2
+                                                                   T
+                                                               − t¯DR i ,1
+                                                                           )          introduce a method to compensate the effect of blind node’s
+               ⇒                                                                      clock frequency drift.
+                                      DR   tT   DR       −t T
+                 T
+               t¯DR i ,2
+                             T
+                         − t¯DR i ,1
+                                     = λi ,2 (ξ T ) i ,1 .
+                                                     T       i
+                                                                                      3.1 Compensation Coefficient of
+In (8) (9), ξiMS and ξiT represent a constant in the period of                            Clock Frequency
+   MS , t¯MS ) and (t¯T
+                      DRi ,1 , tDRi ,2 ) respectively. In addition, a crys-
+(t¯DS                          ¯T
+      i DRi
+tal oscillator of NX2016AB -38.4 MHz ST4 [22] is used in                                    Assume that x = k T /k MS and x represents the com-
+this system, the stability of the crystal oscillator is 20 ppm,                       pensation coefficient. We can estimate the value of x by the
+and the time required for sub-cycle communication is about                            observed time stamp in real time to compensate the difference
+8 ms, so it can meet the requirements of the system clock                             of clock frequency between MS and T. The system signal ex-
+stability. So in one cycle it can be assumed that λMS (t) is                          change mechanism is shown in Fig. 5. The time stamp of
+constant and the value inside the interval(t¯DS MS , t¯MS ) equals                    the MS is transmitted to the blind node to calculate the clock
+                                                   i DRi
+to λMS (ξiMS ). Similarly, it can be assumed that λT (t) is con-                      compensation coefficient. The Fig. 5 can be expressed as
+stant and equals to λT (ξiT ) between the interval (t¯DR
+                                                      T      , t¯T ).
+                                                         i ,1 DRi ,2
+k MS (k MS = 1/λMS (ξiMS )) and k T (k T = 1/λT (ξiT )) represent                             T = c(t¯T
+                                                                                                        TRi ,1 − tTSi ) = c(tTRi+1,1 − tTSi+1 )
+                                                                                           dMS                    ¯MS        ¯T         ¯MS
+time resolution of MS and T respectively in one cycle. Ac-
+                                                                                           ⇒
+cording to (6), (8), (9)                                                                     MS − t¯MS = t¯T
+                                                                                           t¯TS        TSi
+                                                                                                                          ¯T
+                                                                                                                TRi+1,1 − tTRi ,1
+                                                                                                i+1
+                                                                                           ⇒
+                                                                                                    MS − t MS ) = k T (t T                                  (13)
+        T − dT
+       dMS       SSi
+                                                                                            k MS (tTS i+1     TSi
+                                                                                                                                      T
+                                                                                                                           TRi+1,1 − tTRi ,1 )
+     = λ (ξc        MS      MS        c        T         T
+             MS ) (tDR i − tDSi ) − λ (ξ T ) (tDRi ,2 − tDRi ,1 )
+                                                                                           ⇒
+                                                         T
+          MS
+         SSi
+                 i                                               i             (10)                T
+                                                                                                            MS
+                                                                                                           tTS        MS
+                                                                                                                    −tTS          MS
+                                                                                                                                 tDS        MS
+                                                                                                                                          −tDS
+       −dMS  − ∆d + ηi                                                                     x = kkMS = t T     i+1
+                                                                                                                    T
+                                                                                                                      i
+                                                                                                                             = tT   i+1
+                                                                                                                                          T
+                                                                                                                                            i
+                                                                                                                                                   + ϕi .
+                               SSi                                                                        TRi+1,1 −tTRi ,1      DRi+1,1 −tDRi ,1
+     = ck ∆tiMS − ck T ∆tiT − dMS
+         MS                        − ∆d + ηi .
+In formula (10)
+                           (
+                               ∆tiMS = tDR
+                                        MS − t MS
+                                            i   DSi
+                                                        .                      (11)
+                               ∆ti = tDRi ,2 − tDR
+                                  T   T         T
+                                                   i ,1
+
+In this system, the local time count value of 1 corresponds
+to the reference time of 1/(6.4 × 1010 ) second. This value
+changes due to clock drift, which will be addressed by the
+following clock offset compensation algorithm. Due to the                                  Fig. 5. Signal exchange for compensation coefficient.
+324                   W. WANG, J. HUANG, S. CAI, J. YANG, DESIGN AND IMPLEMENTATION OF SYNCHRONIZATION-FREE TDOA . . .
+
+
+
+
+        There is a small error between the time difference                 such as pressure and temperature. Usually, the random vari-
+ MS −t MS and t MS − t MS due to the influence of the circuit
+tTS                                                                        ables can be modelled as white Gaussian noise when the
+    i+1   TSi         DSi+1     DSi
+transmission noise. Similarly, there is a small error between              clock system of MS is in fully stable operation. Assume that
+ T
+tTR i+1,1
+             T
+          − tTR i ,1
+                     and tDRT
+                              i+1,1
+                                       T
+                                    − tDR i ,1
+                                               , ϕi is the ratio between     MS and η MS represent the expected value of MS’ clock
+                                                                           kmean
+these two small error terms.                                               frequency and random variable respectively. The k MS can be
+                                                                           expressed as
+Suppose that w represents the measured value of x in one
+cycle. w can be expressed as
+                                                                                                k MS = kmean
+                                                                                                        MS
+                                                                                                             + ηMS .                 (20)
+                              L−1MS − t MS
+                                tDS
+                      1       Õ             DSi
+                 w=            T
+                                    i+1
+                                            T
+                                                   .               (14)
+                    L − 1 i=1 tDR       − t DRi ,1                         3.4 The TDOA Localization
+                                  i+1,1
+
+     In (14), L is the number of SS. The relationship between                  According to (12), (19), (20), the TDOA localization
+x and w can be expressed as                                                model for T can be expressed as
+
+                             w = x + ϕ.                            (15)
+                                                                              T − d T = ck MS (∆t MS − x̂∆t T ) − d SS1 − ∆d + γ ,
+                                                                             dMS    SS1       mean  1        1        MS           1
+     In (15), ϕ can be treated as Gauss white noise with zero                       T         MS    MS        T       SS2
+                                                                             dMS − dSS2 = ckmean (∆t2 − x̂∆t2 ) − dMS − ∆d + γ2,
+                                                                              T
+means. ϕ is the cumulative average of ϕi . Here Kalman filter                              ..
+algorithm is used to estimate the optimal value of x.                                       .
+                                                                              T     T         MS (∆t MS − x̂∆t T ) − d SS L − ∆d + γ .
+                                                                             dMS − dSS L = ckmean    L         L      MS             L
+                                                                                                                                     (21)
+3.2 Application of Kalman Filter Algorithm
+                                                                           In (21), γ1 , γ2 , γ L represent the white Gaussian noise with
+     The value of x is usually stable and affected by the
+                                                                           zero mean. Suppose
+Gauss white noise in a very short time interval. Assume
+that xn and xn+1 represent the compensation coefficient in
+nth and (n + 1)th cycle respectively. The state equation can                                         r = ck mean
+                                                                                                            MS
+                                                                                                                 ,                   (22)
+be expressed as
+                                                                                                           SSi
+                                                                                       di = dMS
+                                                                                             T     T
+                                                                                                − dSS i
+                                                                                                        + dMS  (i = 1, 2....L),      (23)
+                           xn+1 = xn + φ.                          (16)
+
+In(16), φ is additive white Gaussian noise with zero mean.                                ti = ∆tiMS − x̂∆tiT (i = 1, 2....L),       (24)
+Assume that wn represents the measured value of xn in nth
+cycle. The measurement equation can be expressed as                              r and ∆d are determined by the clock frequency and
+                                                                           time delay of MS, so the value of the two parameters don’t
+                            wn = xn + ϕ.                           (17)    change with the localization of different blind nodes. ti rep-
+                                                                           resent the time data of T, which can be calculated by the
+According to (16) and (17), the Kalman filter algorithm can                available time stamp in one cycle. Placing the MS and SSs at
+be expressed as                                                            the determined coordinate position, recording the time stamp
+                                                                           information of the MS transmission signal and the time stamp
+                   x̂n+1 = x̂n + G n (wn+1 − x̂n ),                        information of the reception signal, calculating ∆tiMS by (11),
+                                                                   (18)
+                   x̂1 = E(x1 ).                                           simultaneously recording the time stamp information of the
+                                                                           blind node reception signal, calculating ∆tiT . Then ti can
+In (18), G n represents the Kalman gain coefficient. E(x1 )                                                    SSi
+                                                                           be calculated by (24). In (23), dMS     represents the constant
+represents the expected value of x1 . The filter system is                                                                      T − dT
+a linear time-invariant system. The limiting Kalman filter al-             distance from MS to the slave station i (SSi ), dMS         SSi
+gorithm [23] can be applied to this system. It can be proved               represents the distance difference from T to MS and SSi .
+that {G n } is convergent on the condition that the linear sys-            Since the location of MS and SSs are known, di can be mea-
+tem changes very smoothly. Suppose that G = lim G n . So                   sured. r and ∆d can be obtained by collecting multiple sets
+                                                  n→∞                      of data and performing linear fitting by using the least square
+the limiting Kalman filter algorithm can be expressed as
+                                                                           method. The location of blind nodes can be estimated by cal-
+                                                                           culating a series of distance difference according to (21). In
+                    x̂n+1 = x̂n + G(wn+1 − x̂n ),                          this paper, Taylor iterative algorithm is adopted to calculate
+                                                                   (19)
+                    x̂1 = E(x1 ).                                          the location of blind nodes because it produces high accuracy
+                                                                           with proper computational complexity.
+3.3 The Clock Frequency of MS
+                                                                                 Taking one MS and three SSs as examples, the location
+      In a practical design, there exists the clock frequency              process of a blind node is briefly introduced. Since the po-
+                                                                                                                        SSi
+drift in MS because the variety of surrounding environment                 sitions of all the base stations are known, dMS  is a known
+RADIOENGINEERING, VOL. 28, NO. 1, APRIL 2019                                                                                                           325
+
+
+
+
+value, and the value of dSST − d T can be obtained from                                 4.1 Experimental Condition
+                             i    MS
+(21). To simplify the expression, use subscript 1 represents
+                                                                                              In the experiment, the localization system contains
+MS, 2/3/4 are SSs, and 5 represents blind node. For example,
+                                                                                        a master station, three slave stations, and a blind node.
+d15 means the distance between MS and blind node.
+                                                                                        The hardware is UWB indoor localization module based
+                                                                                        on DWM1000 chip. The chip has the function of trans-
+                               Ra = d15 − d25,                                          mitting and receiving signals, and the high-frequency clock
+                               Rb = d15 − d35,                                   (25)   is integrated into the chip, which can provide the receiving
+                               Rc = d15 − d45 .                                         time stamp and the transmitting time stamp. The circuit
+       Assume that the base station coordinates are                                     board is shown in Fig. 6. The specific experimental proce-
+Pi (xi , yi , zi ), i = 1, 2, 3, 4 and the initial value of blind node                  dure is as follows.
+position is P̂0 ( x̂0, ŷ0, ẑ0 ), then, the nth times of iteration posi-
+                                                                                         1) Select the appropriate experimental site. Fix MS and 3
+tion is P̂n ( x̂n, ŷn, ẑn ).
+                                                                                        SSs in the suitable position, so that their spatial distribution
+                                                                                        can obtain good GDOP(Geometric Dilution Precision) value
+                               x̂n+1 = x̂n +∆ x̂n,                                      which represents the distance vector amplification factor be-
+                               ŷn+1 = ŷn +∆ ŷn,                               (26)   tween the receiver and the base station caused by the ranging
+                               ẑn+1 = ẑn +∆ ẑn,                                      error. In order to realize 3-dimensional positioning, at least
+                                                        T                              4 base stations are needed. 1 MS and 3 SSs is the simplest
+                     P̂n =                                   ,
+                                
+                                    x̂n   ŷn     ẑn                            (27)   case, which is easy to realize and convenient to discuss.
+                                                                                             The calculation method of GDOP is as follows, as-
+                 P̂n+1 =
+                           
+                                x̂n+1     ŷn+1      ẑn+1
+                                                                 T
+                                                                      .          (28)   suming that four base stations are used for positioning,
+                                                                                        the coordinates of these four base stations are recorded
+      Accord to Taylor iteration algorithm [24],                                        as (Xs1,Ys1, Zs1 ),(Xs2,Ys2, Zs2 ),(Xs3,Ys3, Zs3 ),(Xs4,Ys4, Zs4 ),
+                                                                                        and the coordinates of the estimated point A be (X A,YA, Z A).
+                                                                                        Its GDOP value is
+              P̂n+1 = P̂n +(ATn Q−1
+                                 t An ) An Q t rn .
+                                       −1 T −1
+                                                                                 (29)
+                                                                                                                                              1
+      In (29),                                                                                         GDOP A = {trace({GTAG A }−1 )} 2               (33)
+
+                             Ra − d15 + d25                                           where trace(·) represents the trace of the matrix, T is the
+                      rn =  Rb − d15 + d35  ,                                       transpose of the matrix. And G A is
+                                             
+                                                                                 (30)
+                             Rc − d15 + d45 
+                                                                                                            cos α A1     cos β A1     cos γ A1 
+                                             
+                                                                                                            cos α A2     cos β A2     cos γ A2 
+                                                                                                            
+       x̂n −x1 − x̂n −x2           ŷn −y1 ŷn −y2          ẑ n −z1 ẑ n −z2                       G A =                                          (34)
+                                      d15 − d25                 d15 − d25                                   cos α A3     cos β A3     cos γ A3 
+                                                                                  
+       d15           d25
+                                                                                                            cos α A4     cos β A4     cos γ A4 
+                                                                                  
+                   x̂ n −x3         ŷn −y1 ŷn −y3                   ẑ n −z3
+ An =  x̂nd−x 1
+                 −                    d15 − d35
+                                                             ẑ n −z1
+                                                                d15 − d35          ,
+                                                                                 
+            15        d35                                                                                   
+       x̂n −x 1   x̂ n −x4         ŷn −y1 ŷn −y4          ẑ n −z1 ẑ n −z4    
+      
+       d15      −    d45             d15 − d45                 d15 − d45
+                                                                                       where
+                                                                                                                 cos α Ai = XsiD−X
+                                                                                                                                  A
+                                                                                 (31)
+                                                                                                               
+                                                                                                               
+                                                                                                                               Ai
+                                                                                                                            Ysi −YA
+                                                                                                                 cos β Ai = D Ai
+                                                                                                               
+                                                                                                               
+      Q t is the covariance matrix of the reference time. Ra ,                                                                                        (35)
+                                                                                                                cos γ Ai = ZsiD−Z A
+                                                                                                               
+                                                                                                               
+Rb , Rc are measured by system and d15 , d25 , d35 , d45 are                                                                   Ai
+calculated from the estimated coordinates. The iteration is                                         p
+                                                                                        and D Ai = (Xsi − X A)2 + (Ysi − YA)2 + (Zsi − Z A)2 is the
+performed until the position increment satisfies
+                                                                                        distance from base station i to point A.
+
+                     ∆ x̂n2 + ∆ ŷn2 + ∆ ẑn2 < ε 2 .                            (32)
+
+     Then, the real position of the blind node can be obtained.
+In (32), ε is the default threshold value.
+
+
+4. Experiment in LOS Environment
+      In this paper, the TDOA ranging scheme is established
+with a linear model, and the experiment has been carried
+out in LOS environment to verify the feasibility of the pro-
+posed scheme. What’s more, the value of r and ∆d has been
+estimated with least square estimation algorithm.                                          Fig. 6. UWB indoor localization circuit board.
+326                 W. WANG, J. HUANG, S. CAI, J. YANG, DESIGN AND IMPLEMENTATION OF SYNCHRONIZATION-FREE TDOA . . .
+
+
+
+
+ 2) Let all the nodes work for a period of time, so that their             without frequency offset compensation are shown in Tab. 2.
+clock system are in fully stable operation.                                Three distances can be obtained for each point,and definition
+                                                                           R1 = d15 +d12 −d25 , R2 = d15 +d13 −d35 , R3 = d15 +d14 −d45 .
+ 3) Fix the blind node in a test point. Measure and record the
+                                                                           Take two test points for analysis. From table 2, we can see
+distance from the blind node to MS and 3 SSs.
+                                                                           that the ranging error is effectively reduced with frequency
+ 4) Make the system work for a period of time, and record                  offset compensation. The ranging error is shown in Fig. 8,
+the time stamp of MS and the blind node.                                   and the error is 229 mm (RMS).
+ 5) Select 15 test points, and repeat step (3), (4) for each test
+point.
+      The true distances between 15 test points and the base
+stations are shown in Tab. 1.
+
+4.2 The Results of Ranging
+       A total of 15 groups of experiments were carried out to
+verify the feasibility of the proposed scheme. Generally, the
+smaller value of G, the better filtering performance, but the
+higher delay. In this paper, the value of G is chosen as 0.01.
+As is shown in Fig. 7, the clock offset compensation coeffi-
+cient w fluctuates slightly before filtering at each sampling
+point due to noise interference, by using Kalman filtering
+algorithm, it can be seen that the noise can be effectively
+filtered out and the optimal value of the compensation coeffi-
+cient can be estimated in real time. In order to show the influ-
+ence of frequency offset compensation coefficient on rang-                     Fig. 7. The compensation coefficient. a) Original, b) Partial am-
+ing more intuitively, the ranging results obtained with and                            plification.
+
+
+                   Test point     d12 [mm]      d13 [mm]      d14 [mm]     d15 [mm]      d25 [mm]      d35 [mm]        d45 [mm]
+                        1           6676         10294          7850         1598          5694          8746            6844
+                        2           6676         10294          7850         2498          4602          8084            7104
+                        3           6676         10294          7850         3532          3520          7504            7502
+                        4           6676         10294          7850         4600          2490          7116            8110
+                        5           6676         10294          7850         5666          1624          6834            8739
+                        6           6676         10294          7850         6470          3544          4661            7158
+                        7           6676         10294          7850         5636          4062          4990            6374
+                        8           6676         10294          7850         4758          4789          5580            5598
+                        9           6676         10294          7850         4028          5609          6335            5049
+                       10           6676         10294          7850         3586          6560          7169            4662
+                       11           6676         10294          7850         5712          7929          6020            2548
+                       12           6676         10294          7850         6006          7218          5063            3208
+                       13           6676         10294          7850         6506          6568          4048            4054
+                       14           6676         10294          7850         7162          6098          3175            4996
+                       15           6676         10294          7850         7892          5768          2546            6026
+                                        Tab. 1. The distances between 15 test points and each base station.
+
+                                                                Test point1                         Test point2
+                      Distance                          R1          R2            R3        R1          R2              R3
+                      Real distance                    2580        3146          2604      4572        4708            3244
+                      Ranging average with
+                      compensation coefficient         2440         2948         2401      4301         5146           3080
+                      Ranging error with
+                      compensation coefficient         −140         −198         −203      −271          438           −164
+                      Ranging average without
+                      compensation coefficient         3910         4389         3830      5767         6524           4549
+                      Ranging error without
+                      compensation coefficient         1330         1243         1226      1195         1816           1305
+
+                                Tab. 2. Influence of frequency offset compensation coefficient on ranging (unit:mm).
+RADIOENGINEERING, VOL. 28, NO. 1, APRIL 2019                                                                                                  327
+
+
+
+
+                                                                               In the indoor dynamic localization experiment, four key
+                                                                          points are selected, the motion track starts from the first point,
+                                                                          sequentially passes through the other key points and finally
+                                                                          returns to the first point, the location results at the key points
+                                                                          are shown in Tab. 4. The trajectory of the blind node in the
+                                                                          XY plane is shown in Fig. 13. The coordinates of the blind
+                                                                          node are shown in Fig. 14.
+   Fig. 8. The difference between calculated distance and measured              The results of the indoor static and dynamic localiza-
+           distance.
+                                                                          tion experiment demonstrates that the localization scheme
+                                                                          designed in this paper can achieve 3-D localization with high
+4.3 Indoor Location Experiment                                            accuracy. Due to the limitation of the experimental envi-
+                                                                          ronment, the height difference between the base stations is
+      In order to verify the performance of indoor localiza-              not large, VDOP(Vertical dilution precision) is large, so the
+tion, the indoor static and dynamic localization experiments              positioning error of Z-axis is higher than that of X-axis and
+have been carried out. Space rectangular coordinate system is             Y-axis. Improving the spatial distribution of base stations
+established, the MS and SSs are fixed in the appropriate posi-            can improve the positioning accuracy [30].
+tions in the laboratory. The specific layout is shown in Fig. 9.
+      In the indoor static localization experiment, 15 posi-
+tions are chosen as the experimental site and fix the blind
+node with 1500 mm height. The schematic diagram of the
+test points is shown in Fig. 10. The localization results of the
+static localization experiment are shown in Fig. 11.
+      As is shown in Fig. 11, the position coordinate values of
+the X-axis and Y-axis are highly stable when the blind node is
+in a stationary state. The CDF function of the positioning er-
+ror of each axis and the total error is shown in Fig. 12, and the
+localization error in X-axis and in Y-axis is 166 mm (RMS)
+and 119 mm √ (RMS) respectively. The 2D positioning ac-
+curacy is 1662 + 1192 = 204 mm (RMS). The localization
+error in Z axis is 483 mm (RMS). The positioning solution is
+inversely proportional to GDOP. The smaller GDOP value,
+the higher positioning accuracy obtained. Table 3 summa-                        Fig. 9. The installation layout.
+rizes the experimental results of UWB positioning system
+published in recent years.
+
+
+       Ref            Technique             Architecture         Accuracy(2D)       Feature
+       [18]        sequential-TDOA          Tiny TriSOS              1m             Low precision, low cost, no limit on the number of
+                                                                                    blind nodes.No need global clock synchronization, but
+                                                                                    no clock drift compensation.
+       [25]              TDOA               Ubisense                 13–23 cm       High precision, medium cost, good robustness. Blind
+                                                                                    nodes need actively transmit signals. Use time syn-
+                                                                                    chronization line.
+       [26]               TOA               Pulse generator           7.4 cm        High precision, high cost, wired connection restriction
+                                            Oscilloscope                            layout. Using pulse synchronization generator.
+       [27]          Two-way TOA            WLAN RFIC                 50 cm         Low precision, low cost, blind nodes need actively
+                                                                                    transmit signals. No need for global clock synchro-
+                                                                                    nization.
+       [28]          Two-way TOA            Pulse generator           29 cm         Medium precision, low cost, blind nodes need actively
+                                            Energy detector                         transmit signals. No need for global clock synchro-
+                                                                                    nization.
+       [29]      asynchronous-TDOA          Pulse generator          15.2 cm        High precision, low cost, blind nodes need actively
+                                            Energy detector                         transmit signals.No need for global clock synchroniza-
+                                                                                    tion.
+    This work       sync-free TDOA          DW1000                   20.4 cm        High precision, low cost, blind nodes passively receive
+                                                                                    the signal. No need for global clock synchronization.
+                                                                                    Automatic compensation of clock drift.
+                                                   Tab. 3. Comparison with the exiting systems.
+328                      W. WANG, J. HUANG, S. CAI, J. YANG, DESIGN AND IMPLEMENTATION OF SYNCHRONIZATION-FREE TDOA . . .
+
+
+
+
+                                                   Key point coordinates           Location results         Positioning
+                                     Number
+                                                    X       Y       Z             X       Y       Z           error
+                                         1          0       0       0            233    −186 −258               394
+                                         2          0     4806     1500           48    4736    1278            238
+                                         3         1140 4806       1500         1328 4767       1706            282
+                                         4         1140     0      1500         1193    -108    1204            320
+                                                  Tab. 4. Indoor dynamic positioning experiment data (unit:mm).
+
+
+
+
+      Fig. 10. The position of the test points.                                         Fig. 13. The experimental trajectory of blind node in XY plane.
+
+
+
+
+      Fig. 11. The location coordinates of test points.       a) X-axis,                Fig. 14. The dynamic location coordinates. a) X-axis, b) Y-axis,
+               b) Y-axis, c) Z-axis.                                                             c) Z-axis.
+RADIOENGINEERING, VOL. 28, NO. 1, APRIL 2019                                                                                                            329
+
+
+
+
+     Fig. 12. The CDF function of the location error of each axis and the total error. a)X-axis, b) Y-axis, c) Z-axis, d) total.
+
+
+
+
+5. Conclusion                                                                      [2] LI, D., ZHANG, B., LI, C. A feature-scaling-based k-nearest neigh-
+                                                                                       bour algorithm for indoor positioning systems. IEEE Internet of
+      A new synchronization-free TDOA localization system                              Things Journal, 2016, vol. 3, no. 4, p. 590–597. ISSN: 2327–4662.
+based on UWB is proposed in this paper. First of all, the                              DOI: 10.1109/JIOT.2015.2495229
+clock is modelled with starting time and clock frequency to
+                                                                                   [3] MARDENI, R., OTHMAN, S. Efficient mobile asset tracking and
+establish a unified clock system for time synchronization.                             localization in ZigBee wireless network. Journal of Advances in
+Then, the system signal exchange mechanism is proposed to                              Computer Networks, 2015, vol. 3, no. 1, p. 1–6. ISSN: 1793-8244.
+establish the linear TDOA localization model. In order to                              DOI: 10.7763/JACN.2015.V3.132
+compensate the difference of clock frequency, the Kalman
+                                                                                   [4] XU, H., DING, Y., LI, P., et al. An RFID indoor positioning algorithm
+Filter algorithm is applied to estimate the compensation co-                           based on bayesian probability and K-nearest neighbor. Sensors, 2017,
+efficient of clock frequency. Finally, the coordinates of the                          vol. 17, no. 8, 17 p. ISSN: 1424-8220. DOI: 10.3390/s17081806
+blind nodes is obtained by the Taylor iterative algorithm.
+The indoor localization experiment shows that the indoor                           [5] YANG, C., SHAO, H. WiFi-based indoor positioning. IEEE
+                                                                                       Communications Magazine, 2015, vol. 53, no. 3, p. 150–157.
+localization system designed in this paper can achieve 3-D                             ISSN: 0163-6804. DOI: 10.1109/MCOM.2015.7060497
+localization with high localization accuracy.
+                                                                                   [6] HUH, J.H., SEO, K. An indoor location-based control system using
+                                                                                       Bluetooth beacons for IoT systems. Sensors, 2017, vol. 17, no. 12,
+                                                                                       22 p. ISSN: 1424-8220. DOI: 10.3390/s17122917
+
+Acknowledgments                                                                    [7] WANG, Y.K., FAN, H., CHEN, R.Z., et al. Positioning local-
+                                                                                       ity using cognitive directions based on indoor landmark reference
+     This work is supported by the National Natural Science                            system. Sensors, 2018, vol. 18, no. 4, 20 p. ISSN: 1424-8220.
+Foundation (No. 61571148, No. 61871143), Fundamental                                   DOI: 10.3390/s18041049
+Research for the Central University (No. HEUCFG201823,
+No. HEUCFP201836), Research and Development Project of                             [8] NARDIS, L., FIORINA, J., PANAITOPOL, D., BENEDETT, M.
+                                                                                       Combining UWB with time reversal for improved communication
+Application Technology in Harbin (No. 2017R-AQXJ095).                                  and positioning. Telecommunication Systems, 2013, vol. 52, no. 2,
+                                                                                       p. 1145–1158. ISSN: 1018-4864. DOI: 10.1007/s11235-011-9630-1
+
+                                                                                   [9] MEISSNER, P., LEITINGER, E., WITRISAL, K. UWB for robust
+                                                                                       indoor tracking: Weighting of multipath components for efficient es-
+References                                                                             timation. IEEE Wireless Communications Letters, 2014, vol. 3, no. 5,
+                                                                                       p. 501–504. ISSN: 2162-2337. DOI: 10.1109/LWC.2014.2341636
+
+ [1] SHEN, J., MOLISCH, A., SALMI, J. Accurate passive loca-                      [10] SILVA, B., HANCKE, G. IR-UWB-based non-line-of-sight identifi-
+     tion estimation using TOA measurements. IEEE Transactions on                      cation in harsh environments: principles and challenges. IEEE Trans-
+     Wireless Communications, 2012, vol. 11, no. 6, p. 2182–2192.                      actions on Industrial Informatics, 2016, vol. 12, no. 3, p. 1188–1195.
+     ISSN: 1536-1276. DOI: 10.1109/TWC.2012.040412.110697                              ISSN: 1551-3203. DOI: 10.1109/TII.2016.2554522
+330                   W. WANG, J. HUANG, S. CAI, J. YANG, DESIGN AND IMPLEMENTATION OF SYNCHRONIZATION-FREE TDOA . . .
+
+
+
+
+[11] GARCIA, E., POUDEREUX, P., et al. A robust UWB indoor posi-              [25] PROROK, A., ARIFIRE, A., BAHR, A., et al. Indoor naviga-
+     tioning system for highly complex environments. In Proceedings of             tion research with the Khepera III mobile robot: An experimen-
+     the IEEE International Conference on Industrial Technology (ICIT).            tal baseline with a case-study on ultra-wideband positioning. In
+     Seville (Spain), 2015, p. 3386–3391. ISBN: 978-1-4799-7800-7.                 Proceedings of the International Conference on Indoor Positioning
+     DOI: 10.1109/ICIT.2015.7125601                                                and Indoor Navigation (IPIN). Zurich (Switzerland), 2010, p. 1–9.
+                                                                                   ISBN: 9781424458646. DOI: 10.1109/IPIN.2010.5647880
+[12] SHEN, Y., WIN, M. Fundamental limits of wideband localiza-
+     tion:Part I: A general framework. IEEE Transactions on Informa-
+     tion Theory, 2010, vol. 56, no. 10, p. 4956–4980. ISSN: 0018-9448.       [26] CETIN, O., et al. An experimental study of high precision TOA based
+     DOI: 10.1109/TIT.2010.2060110                                                 UWB positioning systems. In Proceedings of the IEEE International
+                                                                                   Conference on Ultra-Wideband (ICUWB). Syracuse (USA), 2012,
+[13] BOGDANI, E., VOUYIOUKAS, D., NOMIKOS, N. Localization er-                     p. 357–361. ISSN: 21626588. DOI: 10.1109/ICUWB.2012.6340508
+     ror modelling of hybrid fingerprint-based techniques for indoor ultra-
+     wideband systems. Telecommunication Systems, 2016, vol. 63, no. 2,       [27] SATHYAN, T., HUMPHREY, D., HEDLEY, M. WASP: A sys-
+     p. 223–241. ISSN: 1018-4864. DOI: 10.1007/s11235-015-0116-4                   tem and algorithms for accurate radio localization using low-
+[14] MEGHANI, S., ASIF, M. Localization of WSN node based on                       cost hardware. IEEE Transactions on Systems, Man, and Cy-
+     RTT ToA using ultra wide band 802.15.4a channel. In Pro-                      bernetics, 2011, vol. 41, no. 2, p. 211–222. ISSN: 1094-6977.
+     ceedings of the IEEE International Conference on Network-                     DOI: 10.1109/TSMCC.2010.2051027
+     ing, Sensing and Control. Miami (USA), 2014, p. 380–385.
+     DOI: 10.1109/ICNSC.2014.6819656                                          [28] DE ANELIS, A., DWIVEDI, S., HANDEL, P. Characterization of
+                                                                                   a flexible UWB sensor for indoor localization. IEEE Transactions on
+[15] WANG, T., CHENT, X., GE, N., PEI, Y. Error analysis and ex-                   Instrumentation and Measurement, 2013, vol. 62, no. 5, p. 905–913.
+     perimental study on indoor UWB TDoA localization with refer-                  ISSN: 0018-9456. DOI: 10.1109/TIM.2013.2243501
+     ence tag. In Proceedings of the Asia-Pacific Conference on Com-
+     munications (APCC). Denpasar (Indonesia), 2013, p. 505–508.
+     DOI: 10.1109/APCC.2013.6766000                                           [29] HE, S., DONG, X. High-accuracy localization platform using asyn-
+                                                                                   chronous time difference of arrival technology. IEEE Transac-
+[16] BIN, X., RAN, Y. et al. Whistle: Synchronization-free TDOA for                tions on Instrumentation and Measurement, 2017, vol. 66, no. 7,
+     localization. In Proceedings of the International Conference on Dis-          p. 1728–1742. ISSN: 0018-9456. DOI: 10.1109/TIM.2017.2666278
+     tributed Computing Systems. Minneapolis (USA), 2011, p. 760–769.
+     ISBN: 978-0-7695-4364-2. DOI: 10.1109/ICDCS.2011.30                      [30] CHEN, Y., FRANCISCO, J.A., TRAPPE, W., et al. A prac-
+[17] LEE, J.X., LIN, Z.W., et al. A scheme to compensate time drift                tical approach to landmark deployment for indoor localiza-
+     in time difference of arrival localization among non-synchronized             tion. In Annual IEEE Communications Society on Sensor
+     sensor nodes. In Proceedings of the IEEE Vehicular Technology                 and Ad Hoc Communications and Networks (SECON). Re-
+     Conference. Barcelona (Spain), 2009, p. 1–4. ISSN: 15502252.                  ston (USA), 2006, vol. 1, p. 365–373. ISBN: 9781424406265.
+     DOI: 10.1109/VETECS.2009.5073339                                              DOI: 10.1109/SAHCN.2006.288441
+
+[18] MATHIAS, P., HORST, H. S-TDoA-Sequential time difference of
+     arrival a scalable and synchronization free approach for position-
+     ing. In Proceedings of the IEEE Wireless Communications and Net-
+     working Conference. Doha (Qatar), 2016, p. 1–6. ISSN: 15253511.                        About the Authors . . .
+     DOI: 10.1109/WCNC.2016.7565024
+
+[19] NAM, Y.-S., et al. Wirelessly synchronized one-way ranging algo-         Wei WANG received PhD in Navigation, Guidance and Con-
+     rithm with active mobile nodes. ETRI Journal, 2009, vol. 31, no. 4,
+     p. 466–468. ISSN: 1225-6463. DOI: 10.4218/etrij.09.0208.0305
+                                                                              trol from Harbin Engineering University, China, 2005. Post-
+                                                                              doctoral research associate at Harbin Institute of Technol-
+[20] ANGELIS, G., MOSCHITTA, A., CARBONE, P. Positioning tech-                ogy, China (July 2006 to April 2009). Associate Professor
+     niques in indoor environments based on stochastic modelling of
+     UWB Round-Trip-Time measurements. IEEE Transactions on In-               at Harbin Engineering University (August 2008 - August
+     telligent Transportation Systems, 2016, vol. 17, no. 8, p. 2272–2281.    2010) and Academic Visitor at Loughborough University,
+     ISSN: 1524-9050. DOI: 10.1109/TITS.2016.2516822                          UK (January 2010 - December 2010). Professor at Harbin
+[21] DW1000        USER     MANUAL       (datasheet).     p.    206–          Engineering University (September, 2011 to now). He has
+     208.     [Online]  Cited    Version    2.12      Available   at:         published about more than 80 referred journal and conference
+     https://www.decawave.com/product-documentation                           papers. He is a Senior Member of the Institution of Electri-
+[22] NX2016AB-38.4MHZ         ST4     (datasheet). Available            at:   cal and Electronic Engineers. His current research interests
+     http://www.21icsearch.com/datasheet/NX2016AB-38-4MHZ-                    include Signal Processing for Wireless Navigation Systems
+     ST4/ZGtpb2mUYQ==.html                                                    and MIMO Radar.
+[23] CHUI, C. K., CHEN, G. Kalman Filtering with Real-Time Appli-             Junjie HUANG received his bachelor degree from Tianjin
+     cations. 4th ed. Springer-Verlag Berlin Heidelberg, 2009. p. 77–96.
+     ISBN: 9783540878483. DOI: 10.1007/978-3-540-87849-0                      Chengjian University (TCU) in 2017, Tianjin, China. He is
+                                                                              currently working on his Master degree for Navigation, Guid-
+[24] FOY, W. H. Position-location solutions by Taylor-series esti-
+     mation. IEEE Transactions on Aerospace and Electronic Sys-
+                                                                              ance and Control in the Department of Automation, Harbin
+     tems, 1976, vol. AES-12, no. 2, p. 187–194. ISSN: 00189251.              Engineering University (HEU). His general research interests
+     DOI: 10.1109/TAES.1976.308294                                            lie in the areas of wireless navigation system.
+

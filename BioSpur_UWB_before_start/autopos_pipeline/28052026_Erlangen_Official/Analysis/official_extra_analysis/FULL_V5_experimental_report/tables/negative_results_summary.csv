@@ -1,0 +1,10 @@
+experiment,result,why_failed,source
+MLP learned range correction,MLP residual median 118.0 mm versus scalar 98.5 mm,24 static positions were too few for a learned correction model,FULL_V5_GPU_discovery/reports/OVERNIGHT_COMPLETION.md
+GNN attention correction,attention residual median 121.1 mm,graph model overfit or lacked enough independent data,FULL_V5_GPU_discovery/reports/OVERNIGHT_COMPLETION.md
+Solver search,best 82.7 mm in GPU discovery; fixed search still about 82.6 mm,no candidate beat V4/V5 baselines after proper D_tag LOO handling,FULL_V5_overnight_batch2/tables/n2_solver_search_fixed.csv
+Layout optimization,best optimized median 78.3 mm with mean anchor move 88.0 mm,optimized layout remained worse than baseline static results,FULL_V5_GPU_discovery/reports/OVERNIGHT_COMPLETION.md
+Bayesian Gaussian posterior,95% coverage 0.33; Student-t increased it to 0.46,posterior remained under-calibrated,FULL_V5_final_gate/tables/g2_unified_noise_models.csv
+NLOS detector generalization,random PR-AUC 0.949 collapsed to 0.42-0.55 in hard splits,model memorized anchor identity and campaign-specific structure,FULL_V5_batch3_falsification/tables/f5_nlos_splits.csv
+Rigid two-tag ROTO solver,joint range-level solver 261.8-264.2 mm versus independent 101.1 mm,tested constraint forced geometry but did not solve dynamic range bias,FULL_V5_final_gate/tables/g5_joint_solver_summary.csv
+p30 dynamic transfer,ROTO p30 best 283.9 mm versus raw/p50 101.5 mm,static percentile aggregation did not transfer to single-frame dynamic ranges,FULL_V5_followup_validation/reports/FOLLOWUP_VALIDATION_SUMMARY.md
+Dynamic NLOS weighting,soft NLOS weighting 104.2 mm versus approximately 104.9 mm baseline in that diagnostic,sliding-window features did not materially change the dynamic floor,FULL_V5_roto_deepdive/tables/r5_nlos_dynamic_results.csv

@@ -1,0 +1,11 @@
+claim_id,claim_text,supporting_tasks,supporting_numbers,contradicting_evidence,confidence
+1,V5 fixes scale,v4-io scale=0.958; v5-commonmode scale=1.010,v4-io scale=0.958; v5-commonmode scale=1.010,,strong
+2,V4 wins on this dataset,V4+C_V4 LOO 57.9 mm vs V5+C_V5 LOO 67.8 mm,V4+C_V4 LOO 57.9 mm vs V5+C_V5 LOO 67.8 mm,p30 fixed-delay can be lower but is not same deployable calibration,strong
+3,Cancellation valley exists,"mechanism C, extended item06/item07, M9 Fisher projections","mechanism C, extended item06/item07, M9 Fisher projections",,strong
+4,D/F are NLOS-heavy but geometrically essential,FULL_V5 rho table + GPU Shapley table,FULL_V5 rho table + GPU Shapley table,M4 tests whether e_i absorbs NLOS,moderate
+5,p30 improvement is cancellation-sensitive,follow-up/overnight N4 and item21; fixed p30 vs recalibrated p30 differ,follow-up/overnight N4 and item21; fixed p30 vs recalibrated p30 differ,,moderate
+6,NLOS detectable from range statistics,GPU task6 PR-AUC=0.946,GPU task6 PR-AUC=0.946,feature leakage checks required,moderate
+7,Student-t is correct noise model,GPU task11 BIC winner M2_student_t,GPU task11 BIC winner M2_student_t,,moderate
+8,AA-AT asymmetry is small,GPU task4 mean asymmetry about -4.7 mm,GPU task4 mean asymmetry about -4.7 mm,,moderate
+9,Per-tag D_tag varies materially,ROTO deep-dive Dtag estimates differ by about 45.7 mm,ROTO deep-dive Dtag estimates differ by about 45.7 mm,static mechanism previously estimated smaller delta,moderate
+10,V5 transferability supported by MC,Batch2 N1 corrected/adversarial simulation; use report for P(V5<V4),Batch2 N1 corrected/adversarial simulation; use report for P(V5<V4),original P=1.00 was questionable,moderate

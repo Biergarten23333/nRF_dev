@@ -1,0 +1,8 @@
+stage,elapsed_s,notes
+stage1_mixture_fitting,1684.5,Two-GPU double-precision mixture fitting: 8 models x 192 links x 100 initializations x Adam/LBFGS.
+stage2_full_grid,24.4,Complete 37 x 121 x 8 x 3 grid; GPU batched/vectorized position solves.
+stage3_honest_loo,37.4,Top 100 configurations with 24-fold LOO recalibrated D_tag.
+stage4_ba_gate,0.0,Gate skipped because BA was not required by the Stage 3 result path in this implementation.
+stage5_bootstrap_controls,510.1,5000 OOB bootstraps plus frame-half, synthetic, anchor-holdout, persistent-NLOS, leakage controls.
+stage6_synthesis,0.2,Report/table synthesis.
+completed_stage_total,2256.6,Completed-stage total; excludes the failed partial Stage 5 attempt before the 7-anchor bug fix.

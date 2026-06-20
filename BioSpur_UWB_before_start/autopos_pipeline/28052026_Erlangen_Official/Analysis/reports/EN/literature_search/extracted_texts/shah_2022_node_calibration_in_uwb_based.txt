@@ -1,0 +1,727 @@
+               sensors
+Article
+Node Calibration in UWB-Based RTLSs Using Multiple
+Simultaneous Ranging
+Shashi Shah * , La-or Kovavisaruch, Kamol Kaemarungsi                            and Tanee Demeechai
+
+
+                                          National Electronics and Computer Technology Center, National Science and Technology Development Agency,
+                                          Phahonyothin Road, Pathumthani 12120, Thailand; la-or.kovavisaruch@nectec.or.th (L.-o.K.);
+                                          kamol.kaemarungsi@nectec.or.th (K.K.); tanee.demeechai@nectec.or.th (T.D.)
+                                          * Correspondence: shashi.sha@ncr.nstda.or.th
+
+
+                                          Abstract: Ultra-wideband (UWB) networks are gaining wide acceptance in short- to medium-range
+                                          wireless sensing and positioning applications in indoor environments due to their capability of
+                                          providing high-ranging accuracy. However, the performance is highly related to the accuracy of
+                                          measured position and antenna delay of anchor nodes, which form a reference positioning system of
+                                          fixed infrastructure nodes. Usually, the position and antenna delay of the anchor nodes are measured
+                                          separately as a standard initial procedure. Such separate measurement procedures require relatively
+                                          more time and manual interventions. This paper presents a system that simultaneously measures the
+                                          position and antenna delay of the anchor nodes. It provides comprehensive mathematical modeling,
+                                          design, and implementation of the proposed system. An experimental evaluation in a line-of-sight
+                                          (LOS) environment shows the effectiveness of the anchor nodes, whose position and antenna delay
+                                          values are measured by the proposed system, in localizing a mobile node.
+
+                                          Keywords: antenna delay; localization; node calibration; two-way ranging; ultra-wideband
+
+         
+         
+Citation: Shah, S.; Kovavisaruch,
+                                          1. Introduction
+L.-o.; Kaemarungsi, K.; Demeechai, T.
+Node Calibration in UWB-Based                  The use-case applications of real-time localization systems (RTLSs) are essential across
+RTLSs Using Multiple Simultaneous         various fields, such as in healthcare, industries, surveillance, crisis management, and
+Ranging. Sensors 2022, 22, 864.           so on [1–3]. Global positioning system (GPS)-based RTLSs are used in a wide range of
+https://doi.org/10.3390/s22030864         applications; for example, they are commonly used for automobile navigation, as they
+                                          provide global coverage and an average accuracy of 1–5 m when using consumer-grade
+Academic Editor: Jari Nurmi
+                                          devices [4,5]. However, their applicability is limited to outdoor RTLSs, since they require
+Received: 19 December 2021                LOS with GPS satellites [1,5]. The advent of wireless technology and the large-scale
+Accepted: 19 January 2022                 proliferation of wireless communication devices have opened doors for several indoor
+Published: 23 January 2022                RTLS applications in recent years [6,7]. For such indoor RTLS applications, the global
+Publisher’s Note: MDPI stays neutral
+                                          navigation satellite system is, in general, not suitable due to the stringent requirement of
+with regard to jurisdictional claims in
+                                          high localization accuracy [8].
+published maps and institutional affil-        An indoor RTLS facilitates localization of mobile assets in an indoor environment [9], where
+iations.                                  a reference positioning system of fixed infrastructure nodes, known as anchor nodes, is
+                                          needed, and it is to be used to localize other mobile nodes within its coverage area. Usually,
+                                          calibration of these anchor nodes is performed as a standard initial procedure to determine
+                                          their positions [10]. This can be obtained by external measurement equipment (such as
+Copyright: © 2022 by the authors.         a laser or surveyor) or by the system itself, i.e., auto-calibration. The former procedure
+Licensee MDPI, Basel, Switzerland.        can be expensive and is often time-consuming. However, auto-calibration can automate
+This article is an open access article    and simplify the calibration procedure with no requirement of additional measurement
+distributed under the terms and           equipment, thus making it far less tedious.
+conditions of the Creative Commons             Most indoor RTLSs are based on radio communication technologies, such as wireless
+Attribution (CC BY) license (https://
+                                          local area networks (WLANs), Bluetooth, radio-frequency identification, infrared, and
+creativecommons.org/licenses/by/
+                                          UWB [7,11]. WLANs and Bluetooth do not require any dedicated infrastructure, while
+4.0/).
+
+
+
+
+Sensors 2022, 22, 864. https://doi.org/10.3390/s22030864                                                  https://www.mdpi.com/journal/sensors
+Sensors 2022, 22, 864                                                                                            2 of 13
+
+
+
+
+                        the other three technologies require dedicated infrastructure for their operations. This
+                        characteristic of WLANs and Bluetooth makes them common and popular candidates for
+                        indoor localization because of their use of off-the-shelf mobile devices and relatively low
+                        additional infrastructural cost [12–14]. However, they are less accurate and insufficient for
+                        applications with high accuracy requirements. As an example, a WLAN-based localization
+                        method presented by Yang et al. [15] achieves an accuracy of roughly 70 cm. As shown
+                        by the comparisons carried out on indoor positioning technologies in [11,16], UWB is
+                        particularly interesting due to its capability of providing high accuracy, material penetrabil-
+                        ity, coverage, and scalability. These capabilities were introduced and supported in IEEE
+                        802.15.4a as UWB physical layer (PHY) [17,18] and were later integrated into the IEEE
+                        802.15.4 standard as UWB PHY [19]. Recently, in 2020, the IEEE 802.15.4z-2020 standard [20]
+                        was introduced, which aims to introduce new capabilities and enhance the already-existing
+                        standards for UWB technology. Some of the notable features of the standard are improved
+                        ranging, reduction to on-air transmissions, the introduction of simultaneous ranging, and
+                        improved timestamp robustness and security.
+                              In this regard, UWB networks are widely used in indoor RTLSs, since they have the
+                        advantage of providing accurate timestamp information of the transmitting and receiving
+                        signals by the UWB nodes in scenarios satisfying LOS conditions, while complex techniques
+                        are needed for non-line-of-sight (NLOS) conditions to obtain accurate results [6]. The
+                        timestamp information is, in turn, used to compute the time of flight (TOF) between two
+                        UWB nodes, which is usually estimated with two-way ranging (TWR) methods [19,21–24].
+                        These TWR methods usually focus on minimizing the TOF error between the UWB nodes
+                        due to the clock offsets that exist due to imperfections in clock oscillators in physical
+                        environments [25,26]. Although the technology estimates the distance between two nodes
+                        with centimeter-level accuracy, the correctness of the position of the anchor nodes is crucial
+                        for a highly effective UWB-based RTLS. Moreover, another significant aspect that affects
+                        the accuracy of the UWB-based RTLSs is the antenna delay of the UWB nodes [27]. It is
+                        device-specific and is mainly caused by the underlying analog circuitry that produces a
+                        quasistatic bias in the reported timestamp values [27]. The timestamp values reported
+                        by the UWB nodes are usually different from the correct timestamp values if the antenna
+                        delay values of the UWB nodes are not considered. This leads to an error in the computed
+                        TOF and compromises the accuracy of the calculated range unless the reported timestamp
+                        values are corrected by taking into account the antenna delay values of the UWB nodes.
+                        Hence, to obtain a more accurate UWB-based RTLS, it is necessary to effectively determine
+                        the position and antenna delay of the anchor nodes during the calibration process.
+                              The auto-calibration methods present in the literature [28–30] require a reference
+                        system of predefined coordinates for placement coordination among a fixed number of
+                        anchor nodes, which is either done by manually setting their positions or by constraining
+                        their placement. Then, other anchor nodes are placed arbitrarily at their specific locations.
+                        Hence, these methods rely on strict assumptions on the placement of a set of anchor nodes
+                        in the reference positioning system in a predefined order to determine the relative positions
+                        of all other anchor nodes within the coverage area. Moreover, although essential, none of
+                        these methods comply with the measurement of the antenna delays of the anchor nodes.
+                        Several methods specifically dedicated to the measurement of antenna delays of UWB
+                        nodes are available in the literature [27,31–33]. These methods usually differ in the adopted
+                        TWR principles [19,21,23] and the number of TWR sessions performed between a pair of
+                        UWB nodes. The overall calibration process of the anchor nodes is relatively long, since
+                        the measurements of their position and antenna delay are performed separately in the
+                        existing literature. Hence, to exploit the plug-and-play features of an ideal UWB-based
+                        RTLS, the calibration process should comply with collectively measuring the position and
+                        antenna delay of the anchor nodes as a standard initial procedure. This would simplify
+                        the calibration process by making it less time-consuming and requiring fewer manual
+                        interventions.
+Sensors 2022, 22, 864                                                                                          3 of 13
+
+
+
+
+                              In this paper, we present a novel node calibration system that simultaneously mea-
+                        sures the position and antenna delay of anchor nodes in a UWB-based RTLS. During the
+                        measurement process, the UWB network is set to comprise anchor nodes located at fixed
+                        unknown locations whose position and antenna delay values are to be measured, as well
+                        as a mobile node that is placed at predetermined known positions. Then, the position and
+                        antenna delay of the anchor nodes are estimated based on the TWR sessions performed
+                        between each pair of mobile and anchor nodes. Finally, we evaluate the effectiveness of the
+                        proposed system with an experiment that considers RTLS applications such as tracking
+                        assets in an indoor office. The results show that the post-calibrated anchor nodes whose po-
+                        sition and antenna delay values are measured by the proposed system make more accurate
+                        localization of a mobile node. The key attributes of the proposed system are as follows.
+                        •    It simultaneously measures the position and antenna delay values of anchor nodes in
+                             a UWB-based RTLS.
+                        •    It does not require a reference system of predefined coordinates for placement coordi-
+                             nation among anchor nodes.
+                        •    The measurement process does not require clock synchronization of the UWB nodes.
+
+                        2. Node Calibration System
+                             In this section, we provide the comprehensive mathematical modeling, design, and
+                        implementation of the proposed system. Based on the principle of multiple simultaneous
+                        ranging (MSR) [34] and the property of time difference of reception of two packets transmit-
+                        ted from different sources, we formulate the proposed system to simultaneously measure
+                        the position and antenna delay values of anchor nodes in a UWB-based RTLS.
+
+                        2.1. Principle
+                             Suppose that a wireless network comprises UWB nodes, where a mobile node M and
+                        an anchor node A transmit the first and second packets of a sensing session, called sensing
+                        packets. Let Pi denote the time difference of reception of the two sensing packets at node i.
+                        Then, for any receptor nodes i and j, it can be shown that [34]
+
+                                             Pi − Pj = ( TP(A,i) − TP(A,j) ) − ( TP(M,i) − TP(M,j) ),             (1)
+
+                        where TP(i,j) is the TOF from node i to node j. Now, suppose that Pi is to be computed as if
+                        it was measured by a preferred clock, and the clock of M is selected as the preferred clock.
+                        To facilitate this computation, let M transmit a third packet of the sensing session. Then,
+                        the ratio of the clock speed of M over the clock speed of i is given by
+                                                              
+                                                              1,                     if i = M
+                                                      riM =     tM
+                                                                 Tx(3)
+                                                                       − tM
+                                                                          Tx(1)                                   (2)
+                                                               i        i        ,   otherwise,
+                                                                tRx(3) −tRx (1)
+
+                               i
+                        where tTx          i
+                                      and tRx     denote, respectively, the transmission and reception timestamp
+                                  (n)         (n)
+                        values read by node i for the nth packet. In addition, for nodes M, A, and any receptor
+                        anchor node X, the corresponding time difference of reception can be computed by
+
+                                                         PM = tM          M        M
+                                                               Rx(2) − ( tTx(1) + dM )
+                                                                                                                  (3)
+                                                                 M,U
+                                                              = PM   − dM
+                                                                        M,
+
+                                                      PA = {(tA        A      A       M
+                                                              Tx(2) + dA ) − tRx(1) }rA
+
+                                                          = { tA        A       M    A M
+                                                               Tx(2) − tRx(1) }rA + dA rA                         (4)
+                                                          = PAM,U + dM
+                                                                     A,
+Sensors 2022, 22, 864                                                                                          4 of 13
+
+
+
+
+                        and
+                                                                 X         X        M
+                                                          PX = {tRx (2) − tRx(1) }r X
+                                                                                                                  (5)
+                                                                = PXM,U ,
+                                 j
+                        where di is the aggregate transmitting and receiving antenna delays of node i measured
+                                                          j,U
+                        with the clock of node j, and Pi is the antenna-delay-uncalibrated time difference of
+                        reception of node i measured with the clock of node j.
+                             Now, given PM and PA , the TOF from node M to node A can be obtained from (1) as
+
+
+                                                                            ( PM − PA )
+                                                            TP(M,A) =                   .                         (6)
+                                                                                 2
+                             In addition, for any receptor anchor node X, an independent equation can be con-
+                        structed based on (1) such that
+
+                                           PM − PX = ( TP(A,M) − TP(A,X ) ) − ( TP(M,M) − TP(M,X ) ).             (7)
+
+                              Substituting (6) into (7) and rearranging the terms, we obtain
+
+                                                                                            ( PM − PA )
+                                                TP(M,X ) − TP(A,X ) = ( PM − PX ) −                     .         (8)
+                                                                                                 2
+                            Now, if X = A, substituting the corresponding time difference of reception values
+                        from (3) and (4) into (8), we get
+
+                                                                dM
+                                                                 M  dM  ( PM,U − PAM,U )
+                                                   TP(M,A) +       + A = M               .                        (9)
+                                                                 2   2         2
+                            Similarly, if X 6= A, substituting the corresponding time difference of reception values
+                        from (3), (4), and (5) into (8), we get
+                                                                            M,U
+                                                               dM   dM   ( PM   + PAM,U )
+                                         TP(M,X ) − TP(A,X ) +  M
+                                                                  −  A
+                                                                       =                  − PXM,U .
+                                                                2    2          2
+                                                                                                                 (10)
+
+                             Multiplying both sides of (9) and (10) by the speed of light, c, the corresponding range
+                        between a pair of nodes i and j, denoted as R(i, j), and the antenna-delay-induced length
+                        of node i, denoted as Li , is given by
+
+                                                                     LM  L
+                                                       R(M, A) +        + A = β A,A,M                            (11)
+                                                                      2   2
+                        and
+                                                                              LM  L
+                                                  R(M, X ) − R(A, X ) +          − A = β A,X,M                   (12)
+                                                                               2   2
+                        respectively, where
+                                                             M,U M,U 
+                                                              ( PM − PA )
+                                                        c ×               ,        if X = A
+                                                        
+                                                        
+                                                                   2
+                                              β A,X,M =       M,U M,U                                          (13)
+                                                              ( PM + PA )
+                                                        c ×              − PXM,U , if X 6= A,
+                                                        
+                                                        
+                                                                   2
+
+
+                        is the value computed from the antenna-delay-uncalibrated time difference of receptions of
+                        the respective nodes, hereinafter referred to as sensing information.
+Sensors 2022, 22, 864                                                                                                              5 of 13
+
+
+
+
+                        2.2. Linearization via Taylor Series
+                             Consider a set of anchor nodes A = {A1 , A2 , . . . , A I } located at I fixed unknown
+                        locations and K known positions of a mobile node M with a fixed z−coordinate. Let
+                        pi = [ xi , yi , zi ], ∀i ∈ {1, . . . , I} and qk = [ xk , yk , zk ], ∀k ∈ {1, . . . , K } be the three-dimensional
+                        vectors of xyz-coordinates of the positions of the anchor and mobile nodes, respectively.
+                        Then, (11) and (12) can be written, respectively, as
+
+                                                                                  LM  LA
+                                                               R ( q k , pi ) +      + i = β i,i,k                                   (14)
+                                                                                   2   2
+                        and
+                                                                           LM  LA
+                                                                              − i = β i,j,k ,
+                                                      R ( q k , p j ) − R ( pi , p j ) +                      (15)
+                                                                            2   2
+                        where i 6= j, 1 ≤ i ≤ I, 1 ≤ j ≤ I, and 1 ≤ k ≤ K.
+                             Equations (14) and (15) are non-linear with I 2 K independent equations and 4I + 1
+                        unknown variables, i.e., the xyz-coordinates of unknown positions of the anchor nodes and
+                        the antenna-delay-induced length of the anchor nodes and the mobile node. They can be
+                        expressed as a general form
+                                                                   f (x) = B,                                 (16)
+                        where x is a vector of the unknown variables and B is the sensing information. Now, we
+                        use Taylor series expansion of (16) to linearize the function and obtain the Taylor series
+                        least-squares (TSLS) solutions by iteration. The Taylor series expansion of (16) is given by
+
+                                                                                    ∂f
+                                                            f (x ) ≃ f (xn ) +              ∆xn = B,                                 (17)
+                                                                                    ∂x x=xn
+
+                        where xn is a vector of approximate values of the variables at the nth iteration, and ∆xn is a
+                        vector of corrections to the approximate values of the variables at the nth iteration. TSLS
+                        finds the least-squares solutions of (16) by iterating
+
+                                                                        xn+1 = xn + ∆xn ,                                            (18)
+
+                        where ∆xn is the linear least-squares solution of (17).
+
+                        2.3. System Design and Implementation
+                             The system for node calibration is designed to estimate the position and antenna delay
+                        values of UWB anchor nodes that are located at fixed unknown locations. The system is set
+                        to operate as follows. The setup includes a set of UWB anchor nodes A = {A1 , A2 , . . . , A I }
+                        that are located at I fixed unknown locations and a UWB mobile node M that is moved
+                        around and placed at K known positions that ensure LOS with the anchor nodes. The
+                        transmission and reception of packets to and from the anchor and mobile nodes are over
+                        the air, i.e., these nodes are fully wireless. The system further includes two complementary
+                        entities: a UWB-based master node and a computer (PC). The master node operates to
+                        request initiation of a sensing session, collect components of the sensing information from
+                        the other UWB nodes, i.e., the antenna-delay-uncalibrated time difference of receptions of
+                        respective nodes, and log the data to the PC via a serial UART. At each of the K known
+                        positions, the mobile node performs TWR sessions based on MSR [34], where the mobile
+                        node is the selected node of the preferred clock and the transmitter of the first and third
+                        packets during a sensing session, with all the anchor nodes. Hence, each sensing session
+                        yields one sensing information based on (11) and ( I − 1) number of sensing information
+                        based on (12). The components of the sensing information are hereinafter referred to as
+                        session-data. After completion of a predefined number of sensing sessions, the collected
+                        sets of session-data are processed at the PC, where the position and antenna delay values
+                        of the anchor nodes are estimated as the TSLS solutions.
+                             The node calibration measurement process follows the following sequence.
+Sensors 2022, 22, 864                                                                                              6 of 13
+
+
+
+
+                        Step 1: Place each of the anchor nodes (powered) at their respective locations, pi =
+                             [ xi , yi , zi ], ∀i ∈ {1, . . . , I }.
+                        Step 2: Identify the known positions of mobile nodes, qk = [ xk , yk , zk ], ∀k ∈ {1, . . . , K },
+                             such that they have a clear LOS with the anchor nodes and K ≥ 4II+2 1 .
+                        Step 3: Session-data collection at mobile node positions, k = (1, . . . , K).
+                            Step 3.1: Place the mobile node M at the k-th position.
+                            Step 3.2: The PC requests the start of sensing sessions from the master node.
+                            Step 3.3: The master node initiates a sensing session based on MSR, where it assigns
+                             M to transmit the first and third sensing packets, Ai to transmit the second sensing
+                             packet, and A \ Ai to listen to the three sensing packets. The master node then collects
+                             the session-data from each respective node after a successful sensing session. The
+                             process of Step 3.3 is repeated for i = (1, . . . , I ) sensing sessions, and the sets of
+                             session-data are stored in the PC as a log file.
+                            Step 3.4: The process of Step 3.2 to Step 3.3 is repeated until 1000 sets of log files have
+                             been stored in the PC.
+                        Step 4: The processing of the session-data is performed at the PC, where the xyz-coordinates
+                             of unknown positions of the anchor nodes and the antenna-delay-induced length of
+                             the anchor nodes and the mobile node are estimated as the TSLS solutions of (17).
+                             The implementation of each entity in the system was based on the cooperation men-
+                        tioned above. The UWB nodes were Decawave’s DW1000 UWB transceiver [35], which
+                        complies with the IEEE 802.15.4-2011 standard [19]. The operation of the UWB nodes
+                        was implemented in the C programming language using Segger Embedded Studio [36]
+                        as an integrated development environment, and the PC was implemented using Python
+                        programming.
+
+                        3. Numerical Results
+                        3.1. Experimental Evaluation
+                              In this section, we present an experimental evaluation of the proposed system. Con-
+                        sidering a TWR-based RTLS application in an indoor environment, at least four nearby
+                        anchors, those not on the same plane, are considered to estimate a three-dimensional
+                        position of a mobile node. A crucial consideration for anchor placement is to avoid NLOS
+                        conditions between mobile and nearby anchors, since they would induce positive biases
+                        on the estimated TOFs that may vary dynamically and significantly as the mobile moves
+                        around. Several NLOS mitigation techniques are present in the literature [37–39]. However,
+                        a TOF estimated from NLOS conditions cannot have LOS-equivalent results. Hence, to
+                        ensure that a TOF estimated from NLOS conditions is rarely used for position estimation,
+                        we assume a rule of anchor placement where a mobile node in the coverage area should
+                        typically find LOSs to at least four nearby anchors.
+                              In this regard, the experimental setup included a master node, four anchor nodes,
+                        a mobile node, and a PC. Each of these nodes was based on Decawave’s DW1000 UWB
+                        transceiver [35]. The four anchor nodes to be calibrated were mounted on pillars in an indoor
+                        hallway, as shown in Figure 1. Let the address identification of the four anchor nodes be
+                        A1 , A2 , A3 , and A4 . In addition, two points were identified at ground level to be the known
+                        positions of the mobile node M such that they had a clear LOS with the four anchor nodes.
+                        The coordinates (unit: cm) of the known positions of the mobile node were identified as
+                        q1 = (320, 0, 0) and q2 = (0, 400, 0), as shown in Figure 1. Then, based on the above experi-
+                        mental setup and following the measurement process detailed in Section 2.3, we performed the
+                        calibration of the anchor nodes. The measurement results show that the positions (unit: cm)
+                        of the four anchor nodes were A1 = (444.99, 541.36, 224.57), A2 = (448.98, −78.8, 216.44),
+                        A3 = (−132.42, −118.46, 195.31), and A4 = (−143.76, 546.57, 206.83), and the antenna-
+                        delay-induced lengths (unit: cm) of the four anchor nodes and the mobile node were
+                        LA1 = −12.92, LA2 = 14.77, LA3 = −21.59, LA4 = −48.66, and LM = 12.32, respectively.
+Sensors 2022, 22, 864                                                                                                 7 of 13
+
+
+
+
+                          (a)                                                       (b)
+
+                        Figure 1. (a) Experimental layout (unit: cm). The positions of the anchor nodes, the known positions
+                        of the mobile node, and the test points for the mobile node. (b) Measurement and test environment.
+
+                              Then, the accuracy of the proposed system was evaluated by using it to localize a
+                        mobile node at a number of test points in LOS coverage with the four anchor nodes. Here,
+                        we considered three calibration cases of anchor nodes: a pre-calibrated case where both
+                        the position and antenna delay values of the anchor nodes were roughly guessed; a post-
+                        calibrated (with antenna delay) case where both the position and antenna delay values
+                        of the anchor nodes were obtained from the measurement process; and a post-calibrated
+                        (without antenna delay) case where only the position values of the anchor nodes were
+                        obtained from the measurement process while the antenna delay values were roughly
+                        guessed. A set of 20 test points were identified in the indoor hallway, denoted as T1, T2, . . . ,
+                        and T20, as shown in Figure 1a, where the mobile node was to be localized. The mobile
+                        node was placed at each test point, where 1000-sample ranges were obtained for each
+                        possible pair of the mobile and anchor nodes for two existing state-of-the-art TWR methods:
+                        alternative double-sided TWR (AltDS-TWR) [23] and MSR [34], where the mobile node was
+                        the selected node of the preferred clock and the transmitter of the first and third packets
+                        during a sensing session. Finally, the positions of the mobile node were estimated at each
+                        test point as the TSLS solutions, and root-mean-square errors (RMSEs) were computed to
+                        analyze the accuracy of the three calibration cases.
+
+                        3.1.1. Numerical Results for AltDS-TWR
+                              Figure 2 shows the mean of the estimated positions of the mobile node at each test point
+                        from AltDS-TWR for the three calibration cases of anchor nodes. As seen in Figure 2b,c,
+                        the means of the estimated positions for the two post-calibrated cases were closer to the
+                        ground-truths (indicating the test points) compared to the pre-calibrated case in Figure 2a.
+                        Moreover, from the plots in Figure 2b, we can see that the estimated positions were
+                        approximately superimposed over the ground-truths. This suggests the effectiveness of
+                        the post-calibrated (with antenna delay) case over the pre-calibrated and post-calibrated
+                        (without antenna delay) cases. The localization errors for the three calibration cases of
+                        anchor nodes are summarized in Table 1.
+                              The RMSEs (unit: cm) of the estimated xyz-coordinates and positions of the mobile
+                        node at each test point from AltDS-TWR for the three calibration cases of anchor nodes
+                        are given in Table 1. For the pre-calibrated case, the average RMSEs of the estimated xyz-
+                        coordinates for all of the test points were 16.56, 10.6, and 20.75, respectively. For the post-
+                        calibrated (with antenna delay) case, the average RMSEs of the estimated xyz-coordinates
+                        for all of the test points were 2.9, 2.58, and 3.92, respectively. For the post-calibrated (without
+Sensors 2022, 22, 864                                                                                                               8 of 13
+
+
+
+
+                                      antenna delay) case, the average RMSEs of the estimated xyz-coordinates for all of the
+                                      test points were 3.26, 3.53, and 12.53, respectively. From these analyses of the estimated
+                                      results of the xyz-coordinates in Table 1, we may conclude that the post-calibrated (with
+                                      antenna delay) case showed a desirable performance improvement in estimating all three
+                                      coordinates of the mobile node at the test points. For the estimated positions in Table 1, the
+                                      maximum RMSEs were 36.76, 8.2, and 25.59, while the minimum RMSEs were 20.12, 2.64,
+                                      and 8.81 for the pre-calibrated, post-calibrated (with antenna delay), and post-calibrated
+                                      (without antenna delay) cases, respectively. For all of the test points, the RMSEs for the two
+                                      post-calibrated cases were significantly reduced compared to those of the pre-calibrated
+                                      case. The averages of the RMSEs for all of the test points were 29.78, 5.94, and 13.78
+                                      for the pre-calibrated, post-calibrated (with antenna delay), and post-calibrated (without
+                                      antenna delay) cases, respectively. Here, the post-calibrated (with antenna delay) case had
+                                      RMSE reductions of approximately 80.05% and 56.89% compared to the pre-calibrated and
+                                      post-calibrated (without antenna delay) cases, respectively. This further signifies that the
+                                      post-calibrated (with antenna delay) case of anchor nodes was effective in localizing the
+                                      mobile node at each of the test points.
+
+                                      Table 1. Comparison of the RMSEs (unit: cm) of the estimated xyz-coordinates and positions of the
+                                      mobile node at each test point from AltDS-TWR for the pre-calibrated, post-calibrated (with antenna
+                                      delay), and post-calibrated (without antenna delay) cases of anchor nodes.
+
+                                                                      RMSE (cm)
+                                                                    Post-Calibrated                            Post-Calibrated
+   Test                    Pre-Calibrated
+                                                                 (with Antenna Delay)                     (without Antenna Delay)
+  Point
+                        Coordinates                              Coordinates                               Coordinates
+                                               Position                                 Position                                 Position
+                x-          y-         z-                   x-        y-        z-                  x-          y-        z-
+   T1           6.19       15.27      18.19     24.54     1.68       6.48      3.03      7.35      1.51        2.91       9.08    9.65
+   T2          14.35       13.34      22.47     29.81     4.47       4.18      2.19       6.5       3.1        2.66      10.01   10.81
+   T3          19.34        9.75      25.47     33.43     1.78       1.05      7.07      7.37      2.17        4.31       7.37    8.81
+   T4          26.08        7.41      23.36     35.79     1.45       1.16      4.11      4.51      1.18        7.53      13.75   15.72
+   T5          28.58        6.35      18.55     34.66      3.6       1.17       2.3      4.44      2.12        5.22      15.94   16.91
+   T6           8.01       15.37      19.86     26.36     4.71       1.52      5.26      7.23      5.91        2.08       6.33     8.9
+   T7           7.49       10.98      21.36     25.16     2.52       1.26      5.68      6.34      1.73        2.16       8.72    9.15
+   T8          15.19          8       24.82     30.18     1.24       3.38      6.06      7.05      2.61        2.03      11.89   12.34
+   T9          21.72        9.08      28.24     36.76     1.46       1.36      3.07      3.66      4.46        8.03      23.89   25.59
+   T10         26.84        7.76      20.36     34.57     2.59       0.98      4.44      5.23      1.62        3.08      17.87    18.2
+   T11          2.03        16.4      11.49     20.12     1.76       1.26       1.5      2.64      1.75        1.14      13.04   13.21
+   T12          7.43       13.88      17.63     23.64     4.39       3.23      5.94      8.06      1.18        1.18      12.34   12.45
+   T13         17.27        9.51      17.98     26.68     4.49       2.24      3.48      6.11      3.82        3.11       12.8   13.71
+   T14         19.85        8.66      20.75     29.99     1.18       2.31       5.5      6.08      2.23        2.37      14.34   14.71
+   T15         26.47        7.84      18.95     33.49     1.28       1.55      3.43      3.98       4.7        2.32      13.24   14.24
+   T16          6.55        16.7      21.68     28.14     4.72       1.34      4.59      6.72      2.44        1.67      11.06   11.45
+   T17           8.6       10.17      16.75     21.39     3.51       6.73      3.03      8.17       2.1        5.66      14.29   15.51
+   T18         19.06        8.99      26.67     33.99     5.63       4.73      3.63       8.2      7.73         5.6      10.01   13.83
+   T19         23.31        8.03      23.56      34.1     4.04        3.9      2.33      6.07      8.96        5.98       8.26   13.57
+   T20         26.93        8.52      16.86     32.89     1.63       1.84      1.82      3.06       3.8        1.62      16.29   16.81
+Sensors 2022, 22, 864                                                                                                   9 of 13
+
+
+
+
+                        Figure 2. Means of the estimated positions of the mobile node at each test point from AltDS-TWR for
+                        the three calibration cases of anchor nodes: (a) pre-calibrated case, (b) post-calibrated (with antenna
+                        delay) case, and (c) post-calibrated (without antenna delay) case.
+
+                        3.1.2. Numerical Results for MSR
+                             Figure 3 shows the means of the estimated positions of the mobile node at each test
+                        point from MSR for the three calibration cases of anchor nodes. Similarly to the plots in
+                        Figure 2, the means of the estimated positions for the two post-calibrated cases, as seen in
+                        Figure 3b,c, were closer to the ground-truths compared to those of the pre-calibrated case
+                        in Figure 3a. In addition, as shown in the plots in Figure 3b, the estimated positions were
+                        approximately superimposed over the ground-truths. This suggests the effectiveness of
+                        the post-calibrated (with antenna delay) case over the pre-calibrated and post-calibrated
+                        (without antenna delay) cases. The localization errors for the three calibration cases of
+                        anchor nodes are summarized in Table 2.
+                             The RMSEs (unit: cm) of the estimated xyz-coordinates and positions of the mobile
+                        node at each test point from MSR for the three calibration cases of anchor nodes are given
+                        in Table 2. For the pre-calibrated case, the average RMSEs of the estimated xyz-coordinates
+                        for all of the test points were 16.85, 26.86, and 14.44, respectively. For the post-calibrated
+                        (with antenna delay) case, the average RMSEs of the estimated xyz-coordinates for all
+                        of the test points were 3.49, 3.18, and 8.31, respectively. For the post-calibrated (without
+                        antenna delay) case, the average RMSEs of the estimated xyz-coordinates for all of the
+                        test points were 9.43, 8.85, and 20.43, respectively. From these analyses of the estimated
+                        results of the xyz-coordinates in Table 2, we may conclude that the post-calibrated (with
+                        antenna delay) case showed a desirable performance improvement in estimating all three
+                        coordinates of the mobile node at the test points. For the estimated positions in Table 2, the
+                        maximum RMSEs were 53.48, 16.66, and 29.91, while the minimum RMSEs were 26.38, 5.91,
+                        and 16.59 for the pre-calibrated, post-calibrated (with antenna delay), and post-calibrated
+                        (without antenna delay) cases, respectively. For all of the test points, the RMSEs for the
+                        two post-calibrated cases were significantly reduced compared to that of the pre-calibrated
+                        case. The averages of the RMSEs for all the test points were 35.53, 9.74, and 24.64 for the
+                        pre-calibrated, post-calibrated (with antenna delay), and post-calibrated (without antenna
+                        delay) cases, respectively. Here, the post-calibrated (with antenna delay) case had RMSE
+                        reductions of approximately 72.59% and 60.47% with respect to the pre-calibrated and
+                        post-calibrated (without antenna delay) cases, respectively. This further signifies that the
+                        post-calibrated (with antenna delay) case of anchor nodes was effective in localizing the
+                        mobile node at each of the test points for MSR as well.
+Sensors 2022, 22, 864                                                                                                               10 of 13
+
+
+
+
+                                      Figure 3. Mean of the estimated positions of the mobile node at each test point from MSR for the
+                                      three calibration cases of anchor nodes: (a) pre-calibrated case, (b) post-calibrated (with antenna
+                                      delay) case, and (c) post-calibrated (without antenna delay) case.
+
+                                      Table 2. Comparison of RMSEs (unit: cm) of the estimated xyz-coordinates and positions of the
+                                      mobile node at each test point from MSR for the pre-calibrated, post-calibrated (with antenna delay),
+                                      and post-calibrated (without antenna delay) cases of anchor nodes.
+
+                                                                      RMSE (cm)
+                                                                     Post-Calibrated                           Post-Calibrated
+   Test                    Pre-Calibrated
+                                                                  (with Antenna Delay)                    (without Antenna Delay)
+  Point
+                        Coordinates                               Coordinates                               Coordinates
+                                               Position                                  Position                                 Position
+                x-          y-         z-                   x-        y-         z-                  x-         y-         z-
+   T1          21.26        26.2      18.79     38.62      3.23      3.85        10.3    11.47       6.99      15.32      17.38    24.2
+   T2          14.97       26.36      10.18     31.98      3.49      4.19        9.99    11.38       9.96      15.44      13.94   23.07
+   T3          12.19       24.29       5.04     27.64      2.59      2.75        8.16     8.99       10.6      13.06      16.19   23.35
+   T4           9.33       23.31       8.07     26.38       2.3      2.55        5.26     6.28      11.69      12.22      15.31   22.82
+   T5           9.93       22.96       13.7     28.52      4.64      2.62        5.16     7.42       9.34      12.71      17.57   23.61
+   T6          21.63       29.13      19.56     41.22      4.91      2.83        5.91     8.19      10.35      11.11      23.39   27.89
+   T7          23.07       25.13      11.47     35.99      3.58      2.83        9.22    10.29       6.15       7.77      18.47   20.96
+   T8          17.77       23.13       5.27     29.65      2.99      3.83        6.76     8.33       8.57       7.05      19.05   22.04
+   T9          14.23       24.92      14.84      32.3      3.18      2.94        5.82     7.25        9.8      10.13      23.27   27.21
+   T10         11.33       24.25       19.8     33.29      3.99      2.59        6.51     8.07      10.52      11.46      23.69   28.34
+   T11         30.55       32.62      29.37     53.48       3.6      2.23       14.79    15.38       4.41       6.98      17.73   19.55
+   T12         24.88       30.97      12.06     41.51      3.15      2.29       13.85    14.38       5.79        7.3      18.14   20.39
+   T13         15.52       27.11       5.14     31.66      3.88      3.08       13.05    13.96      11.77       6.44       17.2   21.82
+   T14         14.82       26.05      14.42     33.26      3.14      3.09        7.46     8.66      10.21       8.02       22.5   25.98
+   T15         11.28       24.86      21.99     35.05      3.16      2.64        7.21     8.31      11.52       9.47      25.93   29.91
+   T16          25.7       36.78      12.42     46.55      5.01      2.14        7.31     9.12       7.77       4.21      25.26   26.77
+   T17          23.7       29.51       10.5     39.28      2.92      6.04       15.25    16.66       5.89       3.04      15.21   16.59
+   T18         14.81       28.27      14.66     35.12      4.37      4.63        4.97     8.08      11.31       3.49      26.33   28.87
+   T19         11.12       26.02      19.62     34.43       3.2      3.68        4.67     6.75      12.73       4.62      26.38   29.65
+   T20          8.93       25.31      21.91     34.65       2.5       2.7        4.62     5.91      13.32       7.08      25.75   29.84
+
+
+                                           From these analyses of the test results for the two TWR methods, we can conclude
+                                      that the proposed system can effectively estimate the position and antenna delay values
+                                      of anchor nodes, where the post-calibrated (with antenna delay) case of anchor nodes
+                                      can provide more accurate localization of a mobile node. For the post-calibrated (with
+                                      antenna delay) anchor nodes, the RMSEs of the estimated xyz-coordinates and positions
+                                      of the mobile node for both TWR methods were within the same order of magnitude
+                                      and with centimeter-level accuracy. Hence, the proposed system should be applicable
+                                      for the calibration of anchor nodes in the current accuracy-demanding UWB-based RTLS
+                                      applications. Finally, in Table 3, we summarize by comparing our results with those of other
+                                      state-of-the-art auto-calibration methods, which mainly differ in providing simultaneous
+Sensors 2022, 22, 864                                                                                                                 11 of 13
+
+
+
+
+                                   measurement of the position and antenna delay values of the anchor nodes during the
+                                   calibration process.
+
+                                   Table 3. Comparison of auto-calibration methods for UWB-based anchor nodes.
+
+           Method               Result                Clock                  Reference              Calibration            RMSE (cm)
+                                                  Synchronization             System
+      Hamer et al. [28]       Experiment             Required               Required                 Position                   9.7
+     Vashistha et al. [29]    Experiment             Required               Required                 Position                   30
+     Almansa et al. [30]      Simulation            Not required           Not required              Position                  135
+         Proposed             Experiment            Not required           Not required            Position and                5.94
+                                                                                                  antenna delay
+
+
+                                   4. Conclusions
+                                        This paper presented a novel node calibration system that simultaneously measures
+                                   the position and antenna delay values of the anchor nodes in UWB-based RTLSs. Based
+                                   on an experiment comparing the accuracy when localizing a mobile node at a number
+                                   of test points satisfying LOS conditions, the post-calibrated (with antenna delay) case of
+                                   anchor nodes whose position and antenna delay values were measured by the proposed
+                                   system provided more accurate location estimations. The results show the significance of
+                                   the proposed system in maintaining a highly effective UWB-based RTLS.
+
+                                   Author Contributions: Conceptualization, S.S. and T.D.; methodology, S.S. and T.D.; software,
+                                   S.S. and T.D.; validation, S.S. and T.D.; formal analysis, S.S.; investigation, S.S.; resources, S.S.;
+                                   data curation, S.S.; writing—original draft preparation, S.S.; writing—review and editing, S.S.;
+                                   visualization, S.S.; supervision, L.-o.K., K.K., and T.D.; project administration, L.-o.K., K.K., and T.D.;
+                                   funding acquisition, L.-o.K., K.K., and T.D. All authors have read and agreed to the published version
+                                   of the manuscript.
+                                   Funding: This research was supported by the National Electronics and Computer Technology Center
+                                   (NECTEC) and National Science and Technology Development Agency (NSTDA).
+                                   Institutional Review Board Statement: Not applicable.
+                                   Informed Consent Statement: Not applicable.
+                                   Data Availability Statement: Not applicable.
+                                   Acknowledgments: The authors would like to thank the reviewers for providing their feedback for
+                                   improving the manuscript.
+                                   Conflicts of Interest: The authors declare no conflict of interest.
+
+References
+1.      Ferreira, A.F.G.; Fernandes, D.M.A.; Catarino, A.P.; Monteiro, J.L. Localization and Positioning Systems for Emergency Respon-
+        ders: A Survey. IEEE Commun. Surv. Tutor. 2017, 19, 2836–2870. [CrossRef]
+2.      Liu, Z.; Cheng, L.; Liu, A.; Zhang, L.; He, X.; Zimmermann, R. Multiview and Multimodal Pervasive Indoor Localization. In
+        Proceedings of the 25th ACM International Conference on Multimedia (MM’17), New York, NY, USA, 19 October 2017; pp.
+        109–117.
+3.      Wan, S.; Wen, L.; Han, J.; Song, L.; Zhang, Q.; Li, K.; Li, Z.; Zhang, W.; Zhang, B.; You, X.; et al. An Automated Real-Time
+        Localization System in Highway and Tunnel Using UWB DL-TDoA Technology. Wirel. Commun. Mob. Comput. 2020, 2020, 8877654.
+        [CrossRef]
+4.      Gandhi, G.M.; Rama, P. GPS based Multi-hop Communication with Localization in Subterranean Wireless Sensor Networks.
+        Procedia Comput. Sci. 2015, 57, 1189–1198. [CrossRef]
+5.      Du, H.; Zhang, C.; Ye, Q.; Xu, W.; Kibenge, P.L.; Yao, K. A hybrid outdoor localization scheme with high-position accuracy and
+        low-power consumption. EURASIP J. Wirel. Commun. Netw. 2018, 2018, 4. [CrossRef]
+6.      Yassin, A.; Nasser, Y.; Awad, M.; Al-Dubai, A.; Liu, R.; Yuen, C.; Raulefs, R.; Aboutanios, E. Recent Advances in Indoor
+        Localization: A Survey on Theoretical Approaches and Applications. IEEE Commun. Surv. Tutor. 2017, 19, 1327–1346. [CrossRef]
+7.      Zafari, F.; Gkelias, A.; Leung, K.K. A Survey of Indoor Localization Systems and Technologies. IEEE Commun. Surv. Tutor. 2019,
+        21, 2568–2599. [CrossRef]
+Sensors 2022, 22, 864                                                                                                           12 of 13
+
+
+
+
+8.    Queralta, J.P.; Almansa, C.M.; Schiano, F.; Floreano, D.; Westerlund, T. UWB-based system for UAV Localization in GNSS-Denied
+      Environments: Characterization and Dataset. CoRR 2020. [CrossRef]
+9.    Seco, F.; Jimenez, A.R.; Prieto, C.; Roa, J.; Koutsou, K. A survey of mathematical methods for indoor localization. In Proceedings
+      of the 2009 IEEE International Symposium on Intelligent Signal Processing, Budapest, Hungary, 26–28 August 2009; pp. 9–14.
+      [CrossRef]
+10.   Xiao, J.; Zhou, Z.; Yi, Y.; Ni, L.M. A Survey on Wireless Indoor Localization from the Device Perspective. ACM Comput. Surv.
+      2016, 49, 1–31. [CrossRef]
+11.   Alarifi, A.; Al-Salman, A.; Alsaleh, M.; Alnafessah, A.; Al-Hadhrami, S.; Al-Ammar, M.A.; Al-Khalifa, H.S. Ultra Wideband
+      Indoor Positioning Technologies: Analysis and Recent Advances. Sensors 2016, 16, 707. [CrossRef]
+12.   Chintalapudi, K.; Padmanabha Iyer, A.; Padmanabhan, V.N. Indoor localization without the pain. In Proceedings of the 16th
+      Annual International Conference on Mobile Computing and Networking, MOBICOM 2010, Chicago, IL, USA, 20–24 September
+      2010; pp. 173–184.
+13.   Faragher, R.; Harle, R. Location Fingerprinting with Bluetooth Low Energy Beacons. IEEE J. Sel. Areas Commun. 2015,
+      33, 2418–2428. [CrossRef]
+14.   Kumar, S.; Gil, S.; Rus, D.; Katabi, D. Accurate Indoor Localization with Zero Startup Cost. In Proceedings of the ACM Conference
+      on Mobile Computing and Networking (MobiCom’14), New York, NY, USA, 7 September 2014; pp 483–494.
+15.   Yang, J.; Chen, Y. Indoor Localization Using Improved RSS-Based Lateration Methods. In Proceedings of the GLOBECOM 2009—
+      2009 IEEE Global Telecommunications Conference, Honolulu, HI, USA, 30 November–4 December 2009; pp. 1–6. [CrossRef]
+16.   Dalce, R.; Val, T.; Van Den Bossche, A. Comparison of Indoor Localization Systems Based on Wireless Communications. Wirel.
+      Eng. Technol. 2011, 2. [CrossRef]
+17.   IEEE 802.15.4a. IEEE Standard for Information technology– Local and metropolitan area networks—Specific requirements—Part
+      15.4: Wireless Medium Access Control (MAC) and Physical Layer (PHY) Specifications for Low-Rate Wireless Personal Area
+      Networks (WPANs): Amendment 1: Add Alternate PHYs. Technical Report. 2007. Available online: https://standards.ieee.org/
+      standard/802_15_4a-2007.html (accessed on 9 January 2022).
+18.   Karapistoli, E.; Pavlidou, F.; Gragopoulos, I.; Tsetsinas, I. An overview of the IEEE 802.15.4a Standard. IEEE Commun. Mag. 2010,
+      48, 47–53. [CrossRef]
+19.   IEEE Standard for Local and metropolitan area networks—Part 15.4: Low-Rate Wireless Personal Area Networks (LR-WPANs).
+      In IEEE Std 802.15.4-2011 (Revision of IEEE Std 802.15.4-2006); IEEE, Piscataway, NJ, USA, 2011; pp. 1–314. [CrossRef]
+20.   IEEE 802.15.4z-2020. IEEE 802.15.4z-2020—IEEE Standard for Low-Rate Wireless Networks—Amendment 1: Enhanced Ultra
+      Wideband (UWB) Physical Layers (PHYs) and Associated Ranging Techniques. Technical Report. 2020. Available online:
+      https://standards.ieee.org/standard/802_15_4z-2020.html (accessed on 9 January 2022).
+21.   Hach, R. Symmetric double side two way ranging. In Proceedings of IEEE Computer Society, Washington, DC, USA, 17–20
+      October 2005.
+22.   Jiang, Y.; Leung, V.C.M. An Asymmetric Double Sided Two-Way Ranging for Crystal Offset. In Proceedings of the 2007
+      International Symposium on Signals, Systems and Electronics, Montreal, QC, Canada, 30 July–2 August 2007; pp. 525–528.
+      [CrossRef]
+23.   Neirynck, D.; Luk, E.; McLaughlin, M. An alternative double-sided two-way ranging method. In Proceedings of the 2016 13th
+      Workshop on Positioning, Navigation and Communications (WPNC), Bremen, Germany, 19–20 October 2016; pp. 1–4. [CrossRef]
+24.   Lian Sang, C.; Adams, M.; Hörmann, T.; Hesse, M.; Porrmann, M. Numerical and Experimental Evaluation of Error Estimation
+      for Two-Way Ranging Methods. Sensors 2019, 19, 616. [CrossRef]
+25.   Wu, Y.; Chaudhari, Q.; Serpedin, E. Clock Synchronization of Wireless Sensor Networks. IEEE Signal Process. Mag. 2011,
+      28, 124–138. [CrossRef]
+26.   He, S.; Dong, X. High-Accuracy Localization Platform Using Asynchronous Time Difference of Arrival Technology. IEEE Trans.
+      Instrum. Meas. 2017, 66, 1728–1742. [CrossRef]
+27.   Decawave Limited. APS014 Application Note, Antenna Delay Calibration of DW1000-Based Products and Systems. 2018.
+      Available online: https://www.decawave.com/wp-content/uploads/2018/10/APS014_Antennna-Delay-Calibration_V1.2.pdf
+      (accessed on 9 January 2022).
+28.   Hamer, M.; D́Andrea, R. Self-Calibrating Ultra-Wideband Network Supporting Multi-Robot Localization. IEEE Access 2018,
+      6, 22292–22304. [CrossRef]
+29.   Vashistha, A.; Gupta, A.; Law, C.L. Self calibration of the anchor nodes for UWB-IR TDOA based indoor positioning system.
+      In Proceedings of the 2018 IEEE 4th World Forum on Internet of Things (WF-IoT), Singapore, 5–8 February 2018; pp. 688–693.
+      [CrossRef]
+30.   Almansa, C.M.; Shule, W.; Queralta, J.P.; Westerlund, T. Autocalibration of a Mobile UWB Localization System for Ad-Hoc
+      Multi-Robot Deployments in GNSS-Denied Environments. CoRR 2020. [CrossRef]
+31.   Horváth, K.A.; Ill, G.; Milánkovich, Á. Calibration method of antenna delays for UWB-based localization systems. In Proceedings
+      of the 2017 IEEE 17th International Conference on Ubiquitous Wireless Broadband (ICUWB), Salamanca, Spain, 12–15 September
+      2017; pp. 1–5.
+32.   Gui, X.; Guo, S.; Chen, Q.; Han, L. A New Calibration Method of UWB Antenna Delay Based on the ADS-TWR. In Proceedings
+      of the 2018 37th Chinese Control Conference (CCC), Wuhan, China, 25–27 July 2018; pp. 7364–7369.
+Sensors 2022, 22, 864                                                                                                      13 of 13
+
+
+
+
+33.   Shah, S.; Chaiwong, K.; Kovavisaruch, L.O.; Kaemarungsi, K.; Demeechai, T. Antenna Delay Calibration of UWB Nodes. IEEE
+      Access 2021, 9, 63294–63305. [CrossRef]
+34.   Shah, S.; Demeechai, T.             Multiple Simultaneous Ranging in IR-UWB Networks.              Sensors 2019, 19, 5415.
+      [CrossRef]
+35.   Decawave Limited. Decawave DWM1001 Datasheet. 2017. Available online: https://www.decawave.com/dwm1001dev/
+      datasheet/ (accessed on 9 January 2022).
+36.   Segger Microcontroller. Segger Embedded Studio. Available online: https://www.segger.com/products/development-tools/
+      embedded-studio/ (accessed on 9 January 2022).
+37.   Maranò, S.; Gifford, W.M.; Wymeersch, H.; Win, M.Z. NLOS identification and mitigation for localization based on UWB
+      experimental data. IEEE J. Sel. Areas Commun. 2010, 28, 1026–1035. [CrossRef]
+38.   Yu, K.; Wen, K.; Li, Y.; Zhang, S.; Zhang, K. A Novel NLOS Mitigation Algorithm for UWB Localization in Harsh Indoor
+      Environments. IEEE Trans. Veh. Technol. 2019, 68, 686–699. [CrossRef]
+39.   Park, J.; Nam, S.; Choi, H.; Ko, Y.; Ko, Y. Improving Deep Learning-Based UWB LOS/NLOS Identification with Transfer Learning:
+      An Empirical Approach. Electronics 2020, 9, 1714. [CrossRef]
+

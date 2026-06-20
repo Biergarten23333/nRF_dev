@@ -1,0 +1,919 @@
+                       2017 16th ACM/IEEE International Conference on Information Processing in Sensor Networks
+
+
+
+ Calibration-Free Network Localization using Non-Line-of-Sight
+                 Ultra-Wideband Measurements
+                Carmelo Di Franco                                               Amanda Prorok                                        Nikolay Atanasov
+                  ReTiS Laboratory                                            GRASP Laboratory                                       GRASP Laboratory
+            Scuola Superiore Sant’Anna                                   University of Pennsylvania                             University of Pennsylvania
+                     Pisa, Italy                                         Philadelphia, PA 19104, USA                            Philadelphia, PA 19104, USA
+            c.difranco@santannapisa.it                                     prorok@seas.upenn.edu                                 atanasov@seas.upenn.edu
+
+                Benjamin Kempke                                                    Prabal Dutta                                         Vijay Kumar
+               EECS Department                                               EECS Department                                         GRASP Laboratory
+             University of Michigan                                        University of Michigan                               University of Pennsylvania
+            Ann Arbor, MI 48109, USA                                      Ann Arbor, MI 48109, USA                              Philadelphia, PA 19104, USA
+             bpkempke@umich.edu                                              prabal@umich.edu                                     kumar@seas.upenn.edu
+
+                                                                               George J. Pappas
+                                                                              GRASP Laboratory
+                                                                         University of Pennsylvania
+                                                                         Philadelphia, PA 19104, USA
+                                                                          pappasg@seas.upenn.edu
+
+ABSTRACT                                                                                            CCS CONCEPTS
+We present a method for calibration-free, infrastructure-free lo-                                   •Mathematics of computing →Maximum likelihood estima-
+calization in sensor networks. Our strategy is to estimate node                                     tion; •Information systems →Location based services; Sen-
+positions and noise distributions of all links in the network simul-                                sor networks; •Hardware →Modeling and parameter extraction;
+taneously — a strategy that has not been attempted thus far. In
+particular, we account for biased, non-line-of-sight (NLOS) range                                   KEYWORDS
+measurements from ultra-wideband (UWB) devices that lead to                                         sensor networks, localization, range measurement, non-line-of-
+multi-modal noise distributions, for which few solutions exist to                                   sight, Gaussian mixture model, multidimensional scaling, expecta-
+date. Our approach circumvents cumbersome a-priori calibration,                                     tion maximization, ultra-wideband radio
+allows for rapid deployment in unknown environments, and fa-
+                                                                                                    ACM Reference format:
+cilitates adaptation to changing conditions. Our first contribution
+                                                                                                    Carmelo Di Franco, Amanda Prorok, Nikolay Atanasov, Benjamin Kempke,
+is a generalization of the classical multidimensional scaling algo-
+                                                                                                    Prabal Dutta, Vijay Kumar, and George J. Pappas. 2017. Calibration-Free
+rithm to account for measurements that have multi-modal error                                       Network Localization using Non-Line-of-Sight Ultra-Wideband Measure-
+distributions. Our second contribution is an online approach that                                   ments. In Proceedings of The 16th ACM/IEEE International Conference on
+iterates between node localization and noise parameter estimation.                                  Information Processing in Sensor Networks, Pittsburgh, PA USA, April 2017
+We validate our method in 3-dimensional networks, (i) through                                       (IPSN 2017), 12 pages.
+simulation to test the sensitivity of the algorithm on its design                                   DOI: http://dx.doi.org/10.1145/3055031.3055091
+parameters, and (ii) through physical experimentation in a NLOS
+environment. Our setup uses UWB devices that provide time-of-
+flight measurements, which can lead to positively biased distance
+                                                                                                    1    INTRODUCTION
+measurements in NLOS conditions. We show that our algorithm                                         Localizing the nodes of a sensor network is an essential technology
+converges to accurate position estimates, even when initial position                                with applications spanning the commercial, public, and military
+estimates are very uncertain, initial error models are unknown, and                                 sectors. The success of such technologies, however, hinges on
+a significant proportion of the network links are in NLOS.                                          the robustness of the underlying localization algorithm to arbi-
+                                                                                                    trary measurement noise distributions. Indeed, while we aim at
+                                                                                                    engineering localization hardware with predictable measurement
+Permission to make digital or hard copies of all or part of this work for personal or               uncertainty, external environmental factors can have significant
+classroom use is granted without fee provided that copies are not made or distributed               impact on signal propagation and, thus, affect measurement char-
+for profit or commercial advantage and that copies bear this notice and the full citation           acteristics. Since these external factors are very hard to model, our
+on the first page. Copyrights for components of this work owned by others than ACM
+must be honored. Abstracting with credit is permitted. To copy otherwise, or republish,             goal is to develop methods that can handle arbitrary error distri-
+to post on servers or to redistribute to lists, requires prior specific permission and/or a         butions. In particular, we focus on time-of-flight based range-only
+fee. Request permissions from permissions@acm.org.
+                                                                                                    localization in multi-path environments. In spite of sophisticated
+IPSN 2017, Pittsburgh, PA USA
+© 2017 ACM. 978-1-4503-4890-4/17/04. . . $$15.00                                                    signal processing methods, the resolution of multi-path signals is
+DOI: http://dx.doi.org/10.1145/3055031.3055091                                                      still a hard problem [34]: when hardware-level algorithms fail to
+
+
+
+                                                                                              235
+                                                                                              232
+IPSN 2017, April 2017, Pittsburgh, PA USA                                                                                        C. Di Franco et al.
+
+
+                                                                                          6
+                                                     Ground Truth                                                              Data
+                                                     GMMDS                                5                                    Estimated
+
+                                                                                          4
+            15
+
+
+
+
+                                                                                    PDF
+                                                                                          3
+   meters
+
+
+
+
+            10
+                                                                                          2
+
+             5
+                                                                                          1
+
+
+                                                                                          0
+            20                                                                             1   0.5      0       0.5      1        1.5    2
+                 15
+                                                       15                                                     Range error [m]
+                      10                        10
+                                                                          Figure 2: Range error between two SurePoint [21] devices based on
+                             5            5                               a total of 303 time-of-flight measurements, collected inside a room
+                                                                          with NLOS conditions. We superimposed the density of a multi-modal
+Figure 1: Actual and estimated node coordinates for a network with        Gaussian (fitted on the underlying data).
+20 nodes, 50% NLOS links (dashed lines) and average node degree 9.
+
+
+detect first signal paths, overestimated (positively biased) distance         2     RELATED WORK
+measures are returned. When aggregated, these biased range mea-               The literature on network localization algorithms is vast — compre-
+surements lead to multi-modal error distributions. This is clearly            hensive, recent summaries can be found in [19, 24]. Here, we only
+seen in Fig. 2, which shows an example of experimental data. Con-             review selected methods that are most closely related to our work.
+sequently, we leverage statistical models that are able to capture
+NLOS measurements, allowing us to compute accurate and precise
+position estimates.                                                           2.1     Graph Realization
+   Formally, we consider the problem as an r -dimensional graph               The problem of finding Euclidean positions for the vertices of a
+realization problem in a network of n sensors whose positions                 graph given a set of edge lengths is known as the graph realization
+are unknown. Communication links are established bidirectionally              problem. This is a difficult problem for two main reasons: (i) the
+between selected nodes, for which pairwise distance measurements,             existence of a unique realization depends on the topology of the
+characterized by unique, unknown error distributions, are obtained            graph [16], and (ii) noise on the distance measurements compounds
+(see Fig. 1). The problem of simultaneously estimating the node               the difficulty of finding a correct realization. In range-based mul-
+positions (and finding the unique graph realization), as well as              tilateration, the Euclidean distances between pairs of nodes are
+estimating the parameters of the underlying error distributions is            used to estimate the node coordinates. Aspen et al. [3] provide a
+challenging — recent approaches assume either (i) knowledge of                theoretical foundation for network localization in terms of graph
+the underlying statistical data model, to then successfully localize          rigidity theory. The authors show that the network has a unique
+the nodes [27, 30], or (ii) knowledge of the node positions to then           localization if and only if it is generically globally rigid. However,
+successfully estimate the model parameters [20, 31]. Moreover, the            under the presence of noise in the range measurements, certain
+joint localization and parameter estimation problem is compounded             ambiguities cannot be resolved, which means that even when the
+by distance measurements that are biased and have multi-modal                 graph is rigid, alternative incorrect realizations may result. Moore
+error distributions.                                                          et al. [30] propose an algorithm that addresses this problem, and
+   This paper is the first to propose an approach that tackles net-           is capable of localizing a sensor network in the presence of range
+work localization in absence of both (i) and (ii), and, as a result,          measurement noise. The authors assume an unbiased Gaussian
+allows for rapid deployments in unknown and changing environ-                 noise distribution with known variance that is uniform all links
+ments. Moreover, by considering multi-modal error models, we                  in the network. They introduce the probabilistic notion of robust
+are capable of capturing NLOS behavior. This implicitly allows us             quadrilaterals as a way to avoid ambiguities that would otherwise
+to distinguish between line-of-sight (LOS) and NLOS links in our              corrupt localization computations. Similarly, several works present
+localization algorithm. Overall, our strategy is to progressively             methods that exploit geometric relations between node-to-node-
+reduce the error on both the node coordinates and the noise distri-           distances [8, 15, 23, 24]. Finally, the work in [38] proposes a method
+bution parameters for all links in the network by alternating online          to jointly estimate target locations and received signal strength in-
+between the two estimation sub-problems, ultimately returning                 dicator (RSSI) model parameters. The approach differs from our
+accurate node coordinates.                                                    work, however, since it makes use of fixed anchor nodes to estimate
+                                                                              both locations and channel parameters, and refers to the specific
+                                                                              case of RSSI.
+
+
+
+                                                                        236
+                                                                        233
+Calibration-Free Network Localization using NLOS UWB Measurements                                         IPSN 2017, April 2017, Pittsburgh, PA USA
+
+
+   In contrast to these methods, our approach is anchor-free, does               e.g. by weighting or scaling those measurements. Our approach
+not assume a-priori knowledge of the error distributions and allows              belongs to the second group, allowing us to take advantage of a
+different multi-modal distributions for each link in the network.                larger amount of information, in particular when the majority of
+Also, it is unclear how prior methods deal with biased, multi-modal              links in the network is in NLOS. Yet, we differ from the latter ap-
+error distributions that add ambiguities to their geometric assump-              proaches in terms of our underlying assumptions. Whereas Chen et
+tions. Many existing approaches model range errors as having a                   al. [10] assume that NLOS measurements are always significantly
+Gaussian distribution, whereas in practice ranging errors do not                 larger in magnitude than LOS measurements, we do not. In fact,
+follow this behavior. In order to achieve accurate localization, we              our model captures arbitrary error behavior, and uses the estimated
+use a multi-modal distribution to capture the measurement charac-                distribution parameters to scale the importance of network links.
+teristics accurately.                                                            Venkatraman et al. [37] assume knowledge of the geometric layout
+                                                                                 of certain base station nodes, to infer bounds on the NLOS range
+2.2    Multi-Dimensional Scaling                                                 errors that are obtained. This can be troublesome when the material
+                                                                                 properties of the nearby environment has non-negligible affects on
+An alternative centralized distance-based approach builds on the
+                                                                                 the signal propagation. Similarly, in [26], the multi-path reflections
+theory of Multidimensional Scaling (MDS) [25] and formulates net-
+                                                                                 of the signals are computed geometrically by knowing the loca-
+work localization as a least squares problem. MDS is a general
+                                                                                 tions of the anchors nodes and the floor plans of the building. In
+technique that represents a set of elements in r -dimensional space
+                                                                                 contrast to the latter approach, we assume no a-priori knowledge
+using a similarity measure between pairs of elements. When used
+                                                                                 of the layout of the sensor nodes nor of the floor plan. We are, thus,
+for localization, similarity is measured via the Euclidean distance [7].
+                                                                                 capable of rapidly deploying sensor networks in unknown envi-
+There exist several implementations of MDS, such as classical MDS,
+                                                                                 ronments. Moreover, we fully rely on our procedures to perform
+metric MDS, non-metric MDS, depending on the characteristics of
+                                                                                 system identification and calibration in real-time.
+the distance information. Variations consider a weighted version
+                                                                                     Previous work analyzes UWB error characteristics in indoor
+of distributed MDS, termed distributed weighted Multidimensional
+                                                                                 environments, and indicates that (i) the error behavior is multi-
+Scaling (dwMDS) [12], and a version that accounts for missing dis-
+                                                                                 modal, (ii) the multi-modal characteristic is preserved over different
+tances and local information [35, 36]. Overall, the collection of cited
+                                                                                 spatial scales, and (iii) the error behavior is different at different
+works operate under the assumption that the range measurements
+                                                                                 locations in space (and depends on the embedding of the UWB
+are sampled from unbiased Gaussian distributions with known vari-
+                                                                                 devices in a given environment) [32]. In spite of the complexity of
+ance. This can be problematic in environments that induce biased
+                                                                                 the error patterns, past work discusses the suitability of a variety
+measurements; furthermore, even if the methods were to account
+                                                                                 of statistical models with exponential behavior, supported on the
+for biased measurements, the problem of accurately calibrating
+                                                                                 semi-infinite interval (0, ∞) [1, 33]. In particular, it was shown in
+the error models as a function of the underlying data is not only
+                                                                                 several comprehensive measurement campaigns that error char-
+cumbersome, but near to impossible in changing environments. We
+                                                                                 acteristics are well captured by a log-normal distribution [1, 31].
+tackle this problem by proposing an online method that improves
+                                                                                 The proposed models are compact and efficient, as they capture
+nodes estimates while autonomously reducing the uncertainty of
+                                                                                 the entirety of NLOS measurements in one statistical mode with a
+the error model parameters.
+                                                                                 heavy tail. In [32], a real-time calibration of the error distribution
+                                                                                 parameters is performed. The approach uses the knowledge of the
+2.3    Ultrawideband Localization                                                node and anchor locations to estimate a Gaussian-Lognormal mix-
+UWB is an attractive sensing modality for distance-based localiza-               ture model. The latter work focuses on the calibration procedure,
+tion. The main difference between UWB and other radio frequency                  and does not address the real-time estimation of node positions.
+signals is that UWB transmits its signal over multiple bands of                  Furthermore, the disadvantage of the Gaussian-Lognormal mix-
+frequencies simultaneously, in the interval of 3.1 to 10.6 GHz, ex-              ture model is that it fails to capture multiple precise NLOS modes,
+ceeding a bandwidth of 500 MHz or 20% of the center frequency. In                when present. Building on this insight, we propose a more general
+the time-domain, this is typically achieved through the transmis-                approach that does not depend on a-priori information, and that
+sion of short pulses (with a duration on the order of nanoseconds)               performs a joint estimation of the node locations and error distribu-
+which have large characteristics. Additionally, UWB systems typi-                tions. Indeed, in this work, we make use of a mixture of Gaussians
+cally run on very low duty cycles, and, thus, are very low power.                to model the error distributions, which can effectively capture mul-
+In the context of localization, UWB features high positioning ac-                tiple, potentially narrow modes over biased NLOS measurements
+curacy (due to the fine time resolution of the emitted signals) and              (representing multi-path propagation). Later, in Section 6.2, we
+high material penetrability (due to the large bandwidth). However,               show how Gaussian mixtures are well-suited models, producing
+despite these desirable traits, UWB localization is challenged by                good fits on experimental data (cf. Fig. 9).
+NLOS scenarios that induce multi-path signal components [31, 34].
+   Methods that handle NLOS measurements can be classified into
+two groups: those that detect and discard NLOS measurements,                     2.4    Contributions
+using only LOS measurements [9, 11], and those that use NLOS                     The novelty of our approach is summarized as follows: (i) we as-
+measurements in addition to the LOS measurements [10, 37]. The                   sume no prior knowledge of the noise characteristics of the UWB
+approaches in the second group employ means of identifying which                 measurements (beyond the fact that NLOS measurements have posi-
+measurements are NLOS, and adapt the computations accordingly,                   tive bias), (ii) we estimate statistical noise models on a per link basis
+
+
+
+                                                                           237
+                                                                           234
+IPSN 2017, April 2017, Pittsburgh, PA USA                                                                                                                             C. Di Franco et al.
+
+
+(since NLOS errors are location dependent [11]), (iii) we assume no
+prior knowledge of the layout of the nodes in our network, and fi-
+nally, (iv) we use all collected measurements (NLOS as well as LOS),
+and assume no upper bound on the ratio of NLOS to LOS links. In
+light of the aforementioned characteristics, our work makes the
+following contributions: (i) a generalization of Multidimensional
+Scaling (MDS) that enables localization with Gaussian-mixture-
+distributed range measurements, typical in NLOS settings, (ii) an
+online algorithm that iterates between node localization and model
+parameter estimation and hence enables rapid calibration-free net-
+work deployment, and (iii) experimentation on a setup composed
+of 13 UWB radio nodes in an indoor environment with multipath
+and NLOS characteristics.                                                                               Figure 3:      Uni-dimensional illustration of the SMACOF algo-
+                                                                                                        rithm [7].
+3     PROBLEM FORMULATION
+Consider a collection of n sensors with positions X = [x1 , · · · , xn ] ∈
+Rn×r . Suppose that the sensors can communicate with one another                                        locations can be recovered only up to an unknown translation,
+and represent the communication network by an undirected graph                                          rotation, and reflection. To remove this ambiguity in practice, it is
+G = (V, E) with vertices V := {1, . . . , n} and |E | = m edges. An                                     necessary to deploy r + 1 anchors (nodes with known positions) in
+edge (i, j) ∈ E from sensor i to sensor j exists if the two sensors                                     r -dimensions. In the rest of the paper, we do not explicitly assume
+can communicate. Let di j (X) = x i − x j  be the distance between                                    the presence of anchors and instead evaluate our estimation results
+nodes i and j. We consider the problem of estimating X using noisy                                      via a scale-free orthogonal Procrustes analysis (e.g., via the Kabsch
+distance measurements:                                                                                  algorithm [17, 18]). Besides needing r + 1 anchors to fix a global
+                      dˆi j (t ) := di j (X) + vi j (t )               (1)                              coordinate frame, we make no assumptions on the dimensionality of
+                                                                                                        the problem and hence the approach we present below is applicable
+collected at discrete times t = 1, . . . ,T between pairs (i, j) of nodes                               in arbitrary r dimensions.
+that are in communication. The measurement noise is modeled
+using a random variable vi j (t ) with a Gaussian-mixture probability                                   4     GENERALIZATION OF
+density function (pdf) with K mixture components (see Fig. 2):
+                                                                                                              MULTIDIMENSIONAL SCALING
+                                         
+                                         K                                    
+               p(vi j (t ); θ i j ) :=          α ikj ϕ vi j (t ); μ ikj , σikj ,           (2)         In this section, we begin with the simpler localization-only case in
+                                                                                                        which the noise distribution parameters θ are known. We present
+                                         k =1
+                                                                                                      a non-trivial generalization of the classical MDS technique [7] for
+where α ikj are the mixture weights and ϕ · ; μ ikj , σikj                          is a Gauss-         range-only network localization for the case of Gaussian-mixture-
+ian pdf with mean μ ikj and standard deviation σikj .                        We denote                  distributed noise as in (2). Rewriting (3) using the noise distribution
+                                                                                                        in (2) and known θ results in:
+the whole
+                set of parameters associated                   with node pair (i, j) by
+θ i j = α i1j · · · α iKj , μ i1j · · · μ iKj , σi1j · · · σiKj and assume that the mea-                                            
+                                                                                                                  T                   K                                               
+surement noise vi j is independent for any pair of times and across                                         max                 log         α ikj ϕ dˆi j (t ) − di j (X); μ ikj , σikj . (4)
+different sensors. To avoid any calibration steps needed to deter-                                           X
+                                                                                                                  t =1 (i, j ) ∈E     k=1
+mine the noise parameters during network deployment, especially
+in unknown environments, the goal is to estimate the parameters                                           Note that with only one measurement per edge (T = 1), error
+θ := {θ i j }i j ∈ E online, concurrently with the sensor positions.                                    modeled as a Gaussian distribution (K = 1) with zero mean (μ iKj = 0),
+   Problem (Joint Localization and Parameter Estimation).                                               and measurement weight defined as w i j := (2σiKj σiKj ) −1 , the above
+Given range measurements {dˆi j (t ) | ij ∈ E, t = 1, . . . ,T }, determine                             is equivalent to the problem considered by weighted MDS:
+the maximum likelihood estimates:                                                                                                                            2
+                                                                                                                     min S(X) :=         w i j dˆi j − di j (X) .            (5)
+                           
+                           T                                                                                            X
+                                                                                                                                            (i, j ) ∈ E
+    X̂, θˆ = arg max                            log p dˆi j (t ) | di j (X), θ i j (3)
+                 X,θ       t =1 (i, j ) ∈E                                                              In other words, (4) is a generalization of the MDS objective that
+                                                                                                        captures multi-modal noise.
+of the sensor positions X and noise parameters θ .
+   The goal of the above optimization is to determine the sensor                                        4.1      Review of Multidimensional Scaling
+positions X and noise parameters θ that maximize the likelihood of                                      MDS is a general technique that estimates the coordinates of a set
+the given noisy measurements using the noise model in (2). Note                                         of elements in r -dimensional space by minimizing the mismatch be-
+that once a graph realization is found (i.e., a solution to (3)), the                                   tween measured distances and the distances corresponding with the
+network still needs to be embedded into a global coordinate system.                                     coordinate estimates. The mismatch is measured using a square er-
+In other words, the solution X̂ is isometry-invariant, and the node                                     ror function (Eq. (5)), which is also called the stress function. Among
+
+
+
+                                                                                                  238
+                                                                                                  235
+Calibration-Free Network Localization using NLOS UWB Measurements                                                                    IPSN 2017, April 2017, Pittsburgh, PA USA
+
+
+the most successful approaches in terms of guarantees and conver-                                          The main utility of the majorizing function T (X, Z) in Prop. 4.2
+gence rate for optimizing (5) is an iterative method called Scaling                                    is that it allows us to apply the SMACOF algorithm to the multi-
+by MAjorizing a COmplicated Function (SMACOF) [13]. Instead of                                         modal range-only localization problem in (4). The ability to han-
+minimizing the non-convex objective S(X) in (5), SMACOF mini-                                          dle multi-modal noise enables applications in much more general
+mizes a convex function T (X, Z) that majorizes the stress function                                    settings than those amenable to the classical MDS algorithm. In
+S(X) (T bounds S from above and touches its surface at a support-                                      particular, as we demonstrate in Sec. 6, the new Gaussian mixture
+ing point Z ). The SMACOF algorithm is shown in Alg. 1 below and                                       algorithm allows us to address UWB radio localization, in which
+illustrated in the scalar case in Fig. 3. The following proposition                                    LOS measurements have (uni-modal) Gaussian noise while NLOS
+                                                                                                       measurements may have multi-modal noise [31]. Note that the
+Algorithm 1 SMACOF
+                                                                                                       derivative of the majorizing function T , which is provided in Ap-
+                                                                                                       pendix C, can be used to optimize the GM-MDS objective via an
+  input: initial position estimate X (0)                                                               existing MDS implementation.
+         stress function S
+         majorizing function T                                                                         5    JOINT LOCALIZATION AND PARAMETER
+  repeat                                                                                                    ESTIMATION
+     Xk ← min T (X, Xk −1 )
+                X                                                                                      Before returning to the general problem in (3), we consider the other
+  until S(Xk−1 ) − S(Xk ) < ϵ                                                                          subproblem – that of estimating the parameters θ when the sensor
+                                                                                                       node positions X are known. As commonly done in Gaussian-
+                                                                                                       mixture parameter estimation, our idea is to introduce a discrete
+establishes a majorizing function for the stress function S(X).                                        latent variable that specifies which of the mixture components
+                                                                                                       k = 1, . . . , K generated a given range measurement dˆi j (t ) between
+  Proposition 4.1 ([7, Ch.8]). For X, Z ∈ Rn×r , the function:
+                                                                                                       nodes (i, j). The probability mass function qi j (t, k ) of this latent
+                                                      (xi − xj )T (zi − zj )                          variable specifies the likelihood that measurement dˆi j (t ) came from
+T (X, Z) :=           w i j dˆi2j + di2j (X) − 2dˆi j                                                mixture component k and is commonly refereed to as the mem-
+                                                           zi  − z j       
+            (i, j ) ∈E                                                                                 bership probability qi j (t, k ). The expectation-maximization (EM)
+                                                                                                       algorithm [5, 14] is an efficient way to estimate the parameters
+is quadratic in X and S(X) ≤ T (X, Z) for any Z.
+                                                                                                       θ i j by iteratively computing the membership probabilities qi j (t, k )
+                                                                                                       and updating the parameter estimates based on qi j (t, k ). More pre-
+  Proof. See Appendix A.                                                                   
+                                                                                                       cisely, starting from an initial guess θˆi j , the EM algorithm iterates
+4.2   Gaussian Mixture MDS                                                                             the following two steps for each node pair:
+Now, consider the more general problem in (4) whose stress func-                                       (1) E step: compute the membership probabilities:
+                                                                                                                                                                                    
+tion is not convex:                                                                                                                   α̂ ikj ϕ dˆi j (t ) − di j (X); μ̂ ikj , σ̂ikj
+                                                                                                                      qi j (t, k ) =                                                  (7)
+               
+               T                      
+                                       K                                                                                                          ˆ
+                                                                                                                                       l α̂ i j ϕ di j (t ) − di j (X); μ̂ i j , σ̂i j
+                                                                                                                                             l                               l       l
+  F (X) := −                     log         α ikj ϕ dˆi j (t ) − di j (X); μ ikj , σikj . (6)
+               t =1 (i, j ) ∈E         k=1                                                             (2) M step: update the parameter estimates using the soft mixture
+                                                                                                           component assignments qi j (t, k ):
+Similarly to SMACOF, we want to find a convex majorizing function
+which can be used to optimize the non-convex stress function F in                                                            1
+                                                                                                                                 T
+(6) iteratively. The following proposition establishes a majorizing                                                 α̂ ikj ←        qi j (t, k )
+                                                                                                                             T t =1
+function for the Gaussian-mixture stress function above.                                                                     T  ˆ                         
+                                                                                                                               t =1 di j (t ) − di j (X) qi j (t, k )
+  Proposition 4.2. For X, Z ∈ Rn×r , the function:                                                                     k
+                                                                                                                    μ̂ i j ←             T                                             (8)
+                                                                                                                                            t =1 qi j (t, k )
+               
+               T  
+                   K                         α ikj                     2                                                  T                                   2
+T (X, Z) :=                                              dˆi j (t ) − μ k + d 2 (X)                                            t =1  dˆi j (t ) − di j (X) − μ̂ ikj qi j (t, k )
+                                     k k                                ij          ij                              σ̂ikj ←                    T
+               t =1 (i, j ) ∈E k=1 2σi j σi j
+                                                                                                                                                 t =1 qi j (t, k )
+                                                       (xi − xj )T (zi − zj )                           The iterations in (7) and (8) allow us to refine an initial parameter
+                                 −2 dˆi j (t ) − μ ikj                                                estimate θ i j and determine an accurate model fit to a measurement
+                                                              zi − zj                               set that may contain biased, NLOS measurements. Returning to
+                                                                                                    the original problem in (3), we note that the multi-variable objec-
+                   T   K                               √ 
+               +                             α ikj log σikj 2π                                         tive function in X and θ can be optimized via coordinate descent,
+                   t =1 (i, j ) ∈E k=1                                                                 which maximizes it along a single direction at a time. More pre-
+                                                                                                       cisely, starting with initial estimates X (0) , θ (0) , we can fix X (0) and
+is quadratic in X and F (X) ≤ T (X, Z) for any Z.                                                      optimize over θ and then fix θ (1) and optimize over X and so on.
+                                                                                                       The first step results in the the parameter estimation problem that
+  Proof. See Appendix B.                                                                              can be addressed via EM as discussed above, while the second step
+
+
+
+                                                                                                 239
+                                                                                                 236
+IPSN 2017, April 2017, Pittsburgh, PA USA                                                                                                             C. Di Franco et al.
+
+Algorithm 2 Coordinate descent for joint localization and parameter esti-                percentage of links in LOS ). Second, we present experimental re-
+mation                                                                                   sults obtained using range measurements from UWB devices in an
+    input: measurements {dˆi j (t )} for ij ∈ E, t = 1, . . . ,T                         indoor environment.
+              initial estimates X (0)
+              number of mixture components K                                             6.1      Simulations
+              number of iterations L                                                     Our approach does not rely on prior knowledge of the node coordi-
+    for l = 0, . . . , L − 1 do                                                        nates, nor of the error distributions for any links in the network.
+       θ (l ) ← InitEM {dˆi j (t )}, X (l ) , K                   via [4, 6, 29]         We ran simulations to test its sensitivity to: (i) the number of nodes
+                                              
+       θ  (l +1)             ˆ       (l )
+                  ← EM {di j (t )}, X , θ (l )                       via (7),(8)         n, (ii) the average degree of connectivity of the network D̄, and (iii)
+                                                                                       the percentage of links in LOS, p LO S .
+        X  (l +1)                  ˆ       (l
+                  ← GM-MDS {di j (t )}, X , θ  ) (l +1)  via Alg.1
+                                                                                              For each simulation, we iterate over a collection of random 3-D
+                                                                 and Prop.4.2            networks with n nodes, for which the connectivity is defined by the
+                  (L)
+    return {X , θ }      (L)
+                                                                                         average edge degree D̄. Each edge (i, j) samples T range measure-
+                                                                                         ments from a unique tri-modal distribution with true parameters
+                                                                                         θ i j (unknown to our algorithm except that K = 3 is known), which
+                                                                                         are assigned as follows. First, we define a fixed percentage of LOS
+                                                                                         links, p LO S . The true distribution for LOS edges was generated
+results in the localization problem in (4), which we can address                         according the following values:
+via the Gaussian mixture MDS algorithm developed in Sec. 4. This
+procedure is summarized in Alg. 2.                                                                     α i j = [1, 0, 0], μ i j = [0, 0, 0], σi j = [0.2, 0, 0],
+   One aspect that we left vague is the initialization phase of Alg. 2.                  whose choice was motivated by the empirical distribution of real
+Since both the GM-MDS and the EM algorithms provide only local                           UWB range measurements. We assumed that distributions of all
+convergence guarantees, the choice of X (0) and θ (0) determines the                     the LOS links in the network are the same. For NLOS edges, the
+performance of Alg. 2. There exist several reliable approaches for                       mean values were sampled uniformly at random in a neighborhood
+initializing the EM algorithm [4, 6, 29]. We adopted the method                          of ±0.5 of μ i j = [0, 2, 2.4]. The standard deviations were sampled
+proposed by Blömer and Bujna [6], which first selects candidate                         uniformly at random in the interval [0,1], and are then additionally
+means via the k-means++ algorithm [2] and then converts them                             biased by σi j = [0.2, 0.5, 0.6]. The mixture weights were sampled
+into Gaussian mixture parameters via [6, Alg.1]. Note that in Alg. 2,                    uniformly at random in the interval [0,1], and normalized such
+the EM is re-initialized at each coordinate descent step. After a                        that the sum equals 1. The choice of standard deviations for the
+GM-MDS step, the optimal parameter choice might be significantly                         components of the NLOS edge noise was based on average values
+different from the previous iteration and hence to avoid getting                         observed in real UWB data, while the bias μ i j introduced by the
+stuck in a local minimum in parameter space, we reinitialize the EM                      different noise modes was inflated compared to real data1 to test
+algorithm. If the GM-MDS step did not change the position estimate                       the robustness of our algorithm.
+X̂ by much, this reinitialization of EM will cause a temporary worse                        We evaluated the performance of our approach by computing
+estimate but will be optimized by the subsequent EM steps (see                           the the Root Mean Square Error (RMSE) between true and estimated
+Fig. 5(c) for an example). However, if the GM-MDS changes the                            node positions,
+position estimate X̂ significantly, the re-initialization of EM may                                                          
+                                                                                                                              n
+improve the performance.                                                                                                      1
+                                                                                                          RMSE X, X̂ :=               xi − x̂i  2 .      (9)
+   Besides reinitializing the EM algorithm, it is also important to                                                             n i=1
+try several choices of X (0) . Fig. 4 illustrates this. If any prior
+information about the network deployment is available, it should                         We also evaluated the accuracy of our estimated model parameters
+be used to select a reasonable guess for X (0) . Otherwise, one could                    θˆ by comparing them to the true parameters θ using the Kullback-
+repeat the whole coordinate descent (Alg. 2) several times with                          Leibler Divergence,
+                                                                                                             
+different random initializations of X (0) and select the the final                                     1                     p(v; θ i j )
+estimate that obtains the minimum value of the stress function                             D KL θ θˆ :=        p(v; θ i j ) log              dv, (10)
+                                                                                                        |E |                    p(v; θˆi j )
+in (6). A slightly more efficient approach of re-initialization would                                                  (i, j ) ∈ E
+be to repeat the GM-MDS algorithm several times only in the first                        where the probability densities p(·; θ i j ) are defined in (2). Unless
+coordinate descent step (l = 0 in Alg. 2) and to choose the estimate                     otherwise specified, our default simulation setup employs 30 nodes
+X (1) with the minimum value of the stress function F .                                  located in a 3-D work-space of dimension 30 × 30 × 30 m3 , with av-
+                                                                                         erage connectivity D̄ = 15, T = 200 measurements, and p LOS = 0.5.
+6     EVALUATION                                                                         Initial node coordinates X (0) were sampled randomly from within
+                                                                                         this work-space. For each simulation case, the coordinate descent
+To evaluate the practical feasibility of the proposed approach, we
+                                                                                         (Alg. 2) was run 20 times with different initial X (0) and, among
+implemented it on an UWB system that relies on time-of-flight
+                                                                                         those, the final position estimate that minimizes the stress function
+measurements to return distance values. First, we present simula-
+tions that test the performance of our algorithm and its sensitivity                     1 We observed 2 to 3 modes in real UWB distributions with biases around 0, 0.5, and 1
+to varying conditions (network connectivity, sample size T, and                          meters, respectively. See Fig. 9 for details.
+
+
+
+
+                                                                                   240
+                                                                                   237
+Calibration-Free Network Localization using NLOS UWB Measurements                                                             IPSN 2017, April 2017, Pittsburgh, PA USA
+
+
+
+
+                            (a)                                            (b)                                                             (c)
+
+
+Figure 4: An example showing how multiple initialization points for the GM-MDS algorithm lead to different local minima: (a) shows a
+network of n = 10 nodes with average connectivity D̄ = 5 and LOS percentage 0.5, (b) shows the trajectories (gray) taken by the GM-MDS
+node estimates for an initial condition that leads to accurate localization, (c) shows an unlucky initialization of GM-MDS that leads to a local
+minimum.
+
+
+                                                                                                                    3.5
+                                                                                                                                                      10% LOS Links
+                                                                                                                      3                               50% LOS Links
+                                                                                                                                                      80% LOS Links
+                                                                                                                    2.5                               GM-MDS Iterations
+
+
+
+
+                                                                                                    KL Divergence
+                                                                                                                      2
+
+                                                                                                                    1.5
+
+                                                                                                                      1
+
+                                                                                                                    0.5
+
+                                                                                                                      0
+                                                                                                                          0          50        100         150            200
+                                                                                                                                          EM Iterations
+                           (a)                                             (b)                                                              (c)
+
+
+Figure 5: Performance of GM-MDS, for a varying percentage of links in LOS, p LO S ∈ {10%, 50%, 80%}. Panels (a) and (b) show the root-mean-
+square displacement between true and estimated positions (after application of the Procrustes transformation). The results are averaged over
+50 random networks, with the standard deviation shown by the shaded area. (a) Results as a function of GM-MDS iterations. (b) Results as
+a function of average node degree. The RMSE demonstrates low sensitivity of our approach to varying numbers of NLOS edges and robust
+performance even for low network connectivities. Panel (c) shows the Kullback-Leibler divergence between estimated and true error distri-
+butions, for a single run (one random network). The spikes at every 50 iterations are caused by the re-initialization of EM (see Sec. 5 for
+details).
+
+
+F in (6) was chosen. Note that, since our approach is calibration-               quality of the different initializations. To bound the computation
+free, it does not require an initial estimate of the parameters θ (l ) .         time of our algorithm we used a maximum number of 400 GM-MDS
+However, since only local convergence is guaranteed by GM-MDS                    iterations and 50 EM iterations.
+for the node positions, better initializations X (0) will lead to better            Fig. 5 shows the performance of our algorithm for a varying pro-
+overall performance. This is illustrated in Fig. 4 where two different           portion of links in LOS. Fig. 5(a) shows the convergence properties
+starting points were used to perform localization in a network with              over 3 iterations of the coordinate descent algorithm. The error
+n = 10 nodes, average connectivty of D̄ = 5, and LOS percentage of               is shown as a function of GM-MDS iterations (with executions of
+0.5. In Fig 4 (c), the initial location estimates lead the GM-MDS al-            EM at iterations 0, 400, 800, and 1200). The RMSE demonstrates
+gorithm to a local minimum, while a luckier choice in Fig 4 (b) leads            successful localization, despite initially high uncertainty and signif-
+to more accurate estimates. For this reason, localization techniques             icant NLOS — for 50% of links in LOS, and considering a modest
+with local convergence guarantees such as MDS and GM-MDS rely                    connectivity of D̄ = 15, our algorithm performs robustly, with a
+on repeated initializations with different starting points to achieve            mean error below 1 m. Fig. 5(b) evaluates the sensitivity of our
+a better estimate. The stress function in (6) can be used to judge the
+
+
+
+                                                                           241
+                                                                           238
+IPSN 2017, April 2017, Pittsburgh, PA USA                                                                                            C. Di Franco et al.
+
+
+                                                                                in conjunction with multiple antennas and RF channels to achieve
+                                                                                high ranging accuracy in the presence of heavy multi-path inter-
+                                                                                ference. Prior work [21] has shown that 50% of ranging estimates
+                                                                                are within 8 cm and 95% of ranging estimates are within 31 cm
+                                                                                in predominantly-LOS environments. All SurePoint devices are
+                                                                                equivalent in terms of their hardware and can execute the role of
+                                                                                either an anchor or a tag, where ‘tag’ is defined as those nodes
+                                                                                which initiate ranging operations with nearby anchors. One ‘coor-
+                                                                                dinator’ node provides global time synchronization and scheduling
+                                                                                functionality through the use of UWB floods. In order to produce
+                                                                                range measurements between all nodes of the system, we program
+                                                                                each node to request a time-slot for ranging operations, effectively
+                                                                                rotating tag functionality through each node participating in the
+                                                                                network.
+Figure 6: Performance of GM-MDS for varying percentage of LOS                      Experiment 1. Our first experiment was conducted in an ap-
+nodes, p LO S ∈ {10%, 50%, 80%}, and varying measurement sample                 proximately rectangular 4.6 × 7.2 × 2.7 m3 room in a commercial
+size T . The improvement in performance due to increasing sample                building. Ground truth node positions were measured using a laser
+size becomes less evident after 100 samples.                                    rangefinder 3 . We deployed 8 UWB devices, as shown in Fig. 7, and
+                                                                                schematized in Fig. 8(a), considering only the subset of nodes that
+                                                                                are placed in the closed space.
+approach to average node connectivity2 . As expected, the higher                   Experiment 2. Our second experiment was an extension of Ex-
+the connectivity, the lower the error. This is due to the reduction             periment 1, with a total of 13 UWB devices. The additional 4 nodes
+of ambiguities present when the graphs are not rigid. It is note-               were installed in locations with heavy multi-path characteristics,
+worthy that the proportion of LOS links only has a marginal affect              causing NLOS signal propagation. The average node degree of the
+on performance. Finally, Fig. 5(c) demonstrates the ability of the              network was D̄ = 8. The layout is schematized in Fig. 8(a), where
+EM algorithm to produce good parameter estimates. The Kullback-                 we see that additional nodes are placed on the opposite wall of the
+Leibler divergence is shown as a function of EM iterations, for four            hallway, as well as on the far left wall of the office space (additional
+executions of GM-MDS (at iterations 50, 100, 150). Its performance              node IDs are 37, 1F, 38, and 2C).
+is affected by the LOS proportion — less NLOS allows for better                    Fig. 8(b) shows the quantitative localization performance after
+initial positioning, which subsequently allows EM to more accu-                 3 coordinate descent iterations with 50 EM and 400 GM-MDS iter-
+rately calibrate the noise models. The initial ripple at every group            ations, respectively, per coordinate descent step. The final RMSE
+of 50 iterations is caused by the re-initialization of the distribution         of our approach, GM-MDS, in Experiment 1 and 2 is 0.32 m and
+parameters, as suggested in Alg. 2 and discussed in Sec. 5.                     0.34 m, respectively. We compared the performance against a stan-
+   The simulations were implemented in MATLAB® on a Core-I7-                    dard weighted MDS approach (eq. (5) and Alg. 1 using a (uni-modal)
+4770K at 3.50GHz. The complete localization procedure (Alg. 2)                  Gaussian distribution), whose weights were computed based on
+with 3 coordinate descent steps, each involving 400 GM-MDS and                  the empirical variance of the range measurements, i.e., w i j :=
+50 EM iterations, takes on the order of a few seconds to compute the            (2var({dˆi j })) −1 . Although this weighted MDS approach does not
+node positions and estimate the noise parameters. In detail, the 1200           employ accurate parameter estimation, its choice of weights dis-
+GM-MDS iterations take approximately 30 milliseconds per node,                  counts the effect of NLOS edges with large measurement variance.
+while the 150 EM iterations take approximately 10 milliseconds per                 The weighted MDS algorithm performs as well as our coordinate
+edge. For instance, in a network with 50 nodes and average node                 descent approach in Experiment 1 due to the prevalence of LOS
+connectivity of D̄ = 5, the complete localization procedure takes               links. However, notice that its performance degrades significantly
+about 2.2 sec. of which half is due to the GM-MDS iterations and                in Experiment 2 due to the presence of the NLOS measurements.
+the other half to the EM iterations.                                            This highlights the benefit of using careful parameter estimation and
+   Finally, we ran a simulation to understand the effect of the mea-            hence taking advantage of biased NLOS measurements in environ-
+surement sample size T on the accuracy of the localization system.              ments that are prone to induce multi-path fading. Both experiments
+The results are summarized in Fig. 6 and suggest that networks with             demonstrate the ability of our method to localize nodes accurately,
+networks with larger percentages of NLOS links benefit from larger              with no overhead in terms of a-priori system identification and
+measurement sample sizes. However, in all scenarios the improve-                calibration. To illustrate the effect of lower network connectivity
+ment in performance due to an increasing number of measurements                 on the localization accuracy, experiment 2 was repeated for several
+becomes less evident after about 100 samples.                                   choices of average node degree. Fig. 8(c) shows that the perfor-
+                                                                                mance of weighted MDS degrades significantly as the average node
+6.2     Experiments                                                             degree decreases, while GM-MDS remains robust due to its ability
+Our experimental setup uses SurePoint localization devices [21].                to incorporate information from NLOS measurements.
+SurePoint nodes leverage the DecaWave DW1000 UWB transceiver
+                                                                                3 https://www.boschtools.com/us/en/boschtools-ocs/
+2 This experiment was performed on random 2-D networks.                         measuring-tools-and-surveying-equipment-23413-c/
+
+
+
+
+                                                                          242
+                                                                          239
+Calibration-Free Network Localization using NLOS UWB Measurements                                                                                      IPSN 2017, April 2017, Pittsburgh, PA USA
+
+
+
+
+                                                                                              (a)                                                                            (b)
+
+
+Figure 7: (a) Photo of experimental space with UWB devices. (b) SurePoint Hardware includes a DW1000 UWB transceiver and 3 antennas. It
+is composed of a TriPoint module (that implements the SurePoint system) and a Tritag Carrier Board that includes a BLE interface.
+
+
+                                                              Ground Truth                                                       GM-MDS Experiment 1
+                                                                                                         2.5                     MDS Experiment 1
+                                                              GM-MDS
+                                                                                                                                 GM-MDS Experiment 2
+                                                                                                          2                      MDS Experiment 2
+                                                    3E
+                                                                                                                                 EM Iterations
+                                                                                              RMSE [m]
+
+
+
+
+                                               2
+                                               2B
+                                               38
+                                               3
+                                          23                                                             1.5
+                         37            2C                31
+           3                  1F        3F
+                                       27                     26 2E                                       1
+  meters
+
+
+
+
+           2
+           1                                 22
+                                                                                          0
+           0                                                                         -2                  0.5
+
+               -4                                                               -4
+                    -2                                                                                    0
+                         0                                                 -6                                  0   500           1000           1500
+                                   2
+                                               4                      -8
+                                                         6                                                           GM-MDS Iterations
+
+                                       (a)                                                                              (b)                                            (c)
+
+
+Figure 8: Experiment 2: We deployed 13 UWB SurePoint devices in an indoor environment with heavy multi-path characteristics. The nodes
+covered the space of one office and a partial hallway area. (a) Illustration of localization performance. The red lines indicate data associations
+between ground truth and estimates. (b) RMSE for Experiment 1 and Experiment 2, implemented with our approach, GM-MDS, and classical
+MDS as a benchmark. The final RMSE of GM-MDS (Alg. 2) in Experiment 1 and 2 is 0.32 m and 0.34 m, respectively. The final RMSE of weighted
+MDS in Experiment 1 and 2 is 0.3 m and 0.55 m, respectively. The cusps in the GM-MDS RMSE curve are due to the EM iterations altering the
+noise parameter estimates. (c) Performance as a function of average node degree. The performance of weighted MDS degrades significantly
+as the average node degree decreases, while GM-MDS remains robust due to its ability to incorporate information from NLOS measurements.
+
+
+
+   Finally, Fig. 9 shows actual data gathered during Experiment 2.                                                         in (4) only over the available edges E. Another possibility is to
+We superimposed the density of a multi-modal Gaussian estimated                                                            obtain a rough estimate for the missing measurements, e.g., by
+by Expectation Maximization. The modes of the empirical distribu-                                                          using the topology of the network or the number of hops. A more
+tion are captured well by this error model. In fact, the high fidelity                                                     complex approach is map stitching [35, 36], which builds a local
+of this representation is key to refining the position estimates of                                                        map at each node of the immediate neighbors and then merges
+nodes providing NLOS measurements. In contrast, unbiased uni-                                                              maps together to form a global map. Finally, we note that our ap-
+modal models will tend to overestimate the inter-node distances,                                                           proach is compatible with variant MDS solutions that allow the
+ultimately leading to alternate (and incorrect) graph realizations.                                                        integration of the majorizing function we derived in Prop. 4.2. In
+                                                                                                                           particular, we can integrate our method with the decentralized
+7 DISCUSSION                                                                                                               dwMDS algorithm [12] to produce a fully-distributed solution for
+                                                                                                                           the localization problem with Gaussian mixture noise.
+7.1 Partial Connectivity & Decentralization
+An important question is how to implement the Gaussian mixture
+MDS in networks that are not fully-connected, or in a distributed                                                          7.2      Number of Mixture Components
+setting, where sensor nodes receive range measurements from their                                                          Although Gaussian mixtures allow arbitrary modeling precision, us-
+one-hop neighbors only. Partial connectivity arises in networks                                                            ing large values for the number of modes, K, may lead to a number
+for which (i) distance measurements dˆi j are not available for some                                                       of pitfalls. Firstly, models with large K are prone to over-fitting. Pre-
+node pairs (i, j), or (ii) in strongly connected topologies with uni-                                                      vious results compare the performance of localization algorithms
+directional links (e.g., a node i may receive measurements for the                                                         using (i) histogram distributions and (ii) bi-modal distributions, and
+link (i, j), but not node j). The basic solution, as presented here, is                                                    show that the former model leads to poor performance due to over-
+to simply ignore the missing distances and sum the log-likelihood                                                          fitting [32]. Secondly, models with large K require more data to
+
+
+
+                                                                                                                     243
+                                                                                                                     240
+IPSN 2017, April 2017, Pittsburgh, PA USA                                                                                                                                      C. Di Franco et al.
+
+      3.5                                               1.4                                               physical experiments with UWB radios that the proposed approach
+       3                                                1.2                                               provides robust calibration-free network localization in the pres-
+      2.5                                                1                                                ence of partial connectivity and NLOS measurements. We compare
+       2                                                0.8                                               our approach to an alternative implementation of our coordinate
+PDF
+
+
+
+
+                                                  PDF
+      1.5                                               0.6                                               descent algorithm that employs simple Gaussian error models, and
+       1                                                0.4                                               hence, does not capture the multi-modality of error distributions.
+      0.5                                               0.2                                               Our results highlight the benefit of our approach in environments
+       0                                                  1   0.5   0         0.5   1   1.5   2
+                                                                                                          with heavy multi-path characteristics. In summary, our method
+       1    0.5   0         0.5   1   1.5   2
+                    Range error [m]                                   Range error [m]                     allows for rapid deployment of network nodes in environments
+                        (a)                                               (b)                             that are unknown a-priori and that do not necessarily guarantee
+                                                                                                          LOS conditions.
+Figure 9: Selected error distributions from Experiment 2. Gaussian                                           In future work, we plan on applying our algorithms to the track-
+mixture probability densities estimated by EM algorithm are super-                                        ing of multiple mobile targets in potentially dense, cluttered and
+imposed onto gathered data, represented by histograms. (a) Range                                          dynamic environments, extending the results presented in [22].
+between devices 2C and 38, based on a total of 352 measurements.                                          We also plan on evaluating the applicability of our method to Re-
+(b) Range error between devices 27 and 2B, based on a total of 333                                        ceived Signal Strength (RSS) based measurement techniques, such
+measurements. (c) Range error between devices 23 and 27, based on                                         as in [28].
+a total of 303 measurements. These data clearly demonstrate that
+using a single Gaussian distribution to model UWB range measure-                                          ACKNOWLEDGMENTS
+ments might not accurately capture the noise characteristics and
+will tend to overestimate the inter-node distances, ultimately lead-                                      We are grateful to Gian Pietro Picco for helping us improve the
+ing to inaccurate localization results.                                                                   readability and quality of this manuscript.
+                                                                                                             This work was supported in part by the TerraSwarm Research
+                                                                                                          Center, one of six centers supported by the STARnet phase of the
+ensure that the model captures true environmental traits. Generally,                                      Focus Center Research Program (FCRP) a Semiconductor Research
+the value of K depends on the environment’s multipath conditions                                          Corporation program sponsored by MARCO and DARPA.
+and the amount of available measurement data, and hence, must
+be determined by in-field measurements. One approach is to start                                          APPENDIX A: PROOF OF PROPOSITION 4.1
+with a small number of modes K, and to gradually increase this                                            Expanding the stress function as follows:
+number until over-fitting becomes apparent. For instance, from                                                                                                          
+the data collected in our experiments (See Fig. 9, as an example) it                                              S(X) =          w i j dˆi2j + di2j (X) − 2dˆi j di j (X) ,
+is possible to see that UWB measurements can be modeled with                                                                      (i, j ) ∈ E
+enough precision with K = 3.                                                                              we notice that the first term is constant and the second term is
+                                                                                                          quadratic in X. For any Z ∈ Rn×r , the problematic non-convex
+7.3          Dynamic Environments                                                                         third term can be bounded via the Cauchy-Schwarz inequality as
+The validity of our model still needs to be investigated for highly                                       follows:
+dynamic environments. On the one hand, one could assume that                                                                           zi − zj           (xi − xj )T (zi − zj )
+moderately busy environments would only produce very sporadic                                                        2dˆi j di j (X)              ≥ 2dˆi j
+                                                                                                                                       zi − zj                zi − zj 
+anomalies, and that the overall localization quality would be main-
+tained for infrequent model updates. On the other hand, since our                                         APPENDIX B: PROOF OF PROPOSITION 4.2
+iterative solution is capable of calibrating the measurement model                                        To find a convex function that majorizes the Gaussian-mixture
+continuously, we can readily produce a dynamic sequence of models                                         stress function in (6), we exploit the concavity of log to exchange
+so that the network remains faithful to time-varying error statistics.                                    the summation over the mixture components and the log function:
+Moreover, the initialization of subsequent coordinate descent runs
+can be bootstrapped by using the final parameter estimates of the                                                        T  
+                                                                                                                              K                                               
+current coordinate descent run.                                                                                 F (X) ≤ −       α ikj log ϕ dˆi j (t ) −di j (X); μ ikj , σikj
+                                                                                                                             t =1 (i, j ) ∈ E k =1
+
+8           CONCLUSION                                                                                                      
+                                                                                                                            T         
+                                                                                                                                       K                α ikj                                 2
+                                                                                                                        =                                        dˆi j (t ) − μ ikj − di j (X)
+In this work, we introduced an approach for network localization                                                                                    k k
+                                                                                                                            t =1 (i, j ) ∈ E k =1 2σi j σi j
+that uses UWB range measurements to simultaneously estimate
+the node positions and the parameters of the measurement distri-                                                                
+                                                                                                                                T  
+                                                                                                                                    K                             √ 
+butions. In order to account for biased, NLOS measurements, we                                                              +                           α ikj log σikj 2π .
+                                                                                                                                t =1 (i, j ) ∈ E k =1
+modeled the noise distributions via Gaussian mixtures and gen-
+eralized the classical MDS algorithm to handle such distributions.                                        The above transformation results in a simpler function that upper-
+Coordinate descent was used to combine the resulting GM-MDS lo-                                           bounds F but is unfortunately still non-convex. Fortunately, the
+calization algorithm with an EM algorithm for online estimation of                                        problematic non-convex term is exactly the same as in the case of
+the mixture parameters. We demonstrated through simulations and                                           the MDS stress function majorization in Prop. 4.1. Proceeding as in
+
+
+
+                                                                                                    244
+                                                                                                    241
+Calibration-Free Network Localization using NLOS UWB Measurements                                                         IPSN 2017, April 2017, Pittsburgh, PA USA
+
+
+the proof of Prop. 4.1, we expand the term:                                                 [4] Christophe Biernacki, Gilles Celeux, and Gerard Govaert. 2003. Choosing starting
+                                     2                  2                                   values for the EM algorithm for getting the highest likelihood in multivariate
+         dˆi j (t ) − μ ikj − di j (X) = dˆi j (t ) − μ ikj + di2j (X)                          Gaussian mixture models. Computational Statistics and Data Analysis 41, 3-4
+                                                                                              (2003), 561–575. DOI:http://dx.doi.org/10.1016/S0167-9473(02)00163-9
+                                         − 2 dˆi j (t ) − μ ikj di j (X)                    [5] Jeff Bilmes. 1998. A gentle tutorial of the EM algorithm and its application to
+                                                                                                parameter estimation for Gaussian mixture and hidden Markov models. Interna-
+and notice that the first term is constant in X, the second term                                tional Computer Science Institute 4, 510 (1998), 126.
+                                                                                            [6] Johannes Blömer and Kathrin Bujna. 2016. Adaptive Seeding for Gaussian
+is quadratic in X, and the third term is a problematic non-convex                               Mixture Models. In Advances in Knowledge Discovery and Data Mining: Pacific-
+term. For any Z ∈ Rn×r , the third term can be bounded via the                                  Asia Conference. Springer International Publishing, 296–308. DOI:http://dx.doi.
+Cauchy-Schwarz inequality as before:                                                            org/10.1007/978-3-319-31750-2 24
+                                                                                            [7] I. Borg and P.J.F. Groenen. 2005. Modern Multidimensional Scaling: Theory and
+                                       (xi − xj )T (zi − zj )                                   Applications. Springer.
+                        di j (X) ≥                                                          [8] Ming Cao, Brian DO Anderson, and A Stephen Morse. 2006. Sensor network
+                                            zi − zj                                           localization with imprecise distances. Systems & control letters 55, 11 (2006),
+                                                                                                887–893.
+which establishes the upper bound in Prop. 4.2.                                             [9] Yiu-Tong Chan, Wing-Yue Tsui, Hing-Cheung So, and Pak-chung Ching. 2006.
+                                                                                                Time-of-arrival based localization under NLOS conditions. IEEE Transactions on
+APPENDIX C: DERIVATIVE OF THE GM-MDS                                                            Vehicular Technology 55, 1 (2006), 17–24.
+                                                                                           [10] Hongyang Chen, Gang Wang, Zizhuo Wang, Hing-Cheung So, and H Vincent
+MAJORIZING FUNCTION                                                                             Poor. 2012. Non-line-of-sight node localization based on semi-definite program-
+                                                                                                ming in wireless sensor networks. IEEE Transactions on Wireless Communications
+The Gaussian-mixture majorizing function in Prop. 4.2 can be writ-                              11, 1 (2012), 108–116.
+ten in matrix form as follows:                                                             [11] Li Cong and Weihua Zhuang. 2005. Nonline-of-sight error mitigation in mobile
+                                                                                            location. IEEE Transactions on Wireless Communications 4, 2 (2005), 560–573.
+           T (X, Z) = tr XT V X − 2 tr XT B(Z)Z + η                                        [12] Jose Costa, Neal Patwari, and Alfred Hero III. 2006. Distributed weighted-
+                                                                                                multidimensional scaling for node localization in sensor networks. ACM Trans-
+where:                                                                                          actions on Sensor Networks (TOSN) 2, 1 (2006), 39–64.
+                    ⎧
+                    ⎪  K −α k T                                                           [13] Jan De Leeuw. 2005. Applications of convex analysis to multidimensional scaling.
+                    ⎪
+                    ⎪
+                    ⎪
+                                   ij
+                                 k k ,          (i, j) ∈ E                                      Department of Statistics, UCLA (2005).
+                    ⎪
+                    ⎪
+                    ⎪ k=1 2σi j σi j                                                       [14] Arthur Dempster, Nan Laird, and Donald Rubin. 1977. Maximum likelihood from
+                    ⎨
+            Vi j := ⎪ 0,                        (i, j)  E, i  j                               incomplete data via the EM algorithm. Journal of the Royal Statistical Society.
+                    ⎪
+                    ⎪
+                    ⎪                                                                          Series B (1977), 1–38.
+                    ⎪
+                    ⎪
+                    ⎪ −        V ij   ,         i =j                                       [15] Y. Diao, Z. Lin, and M. Fu. 2014. A Barycentric Coordinate Based Distributed
+                    ⎩ ji                                                                       Localization Algorithm for Sensor Networks. IEEE Trans. on Signal Processing
+                                                                                              62, 18 (2014), 4760–4771. DOI:http://dx.doi.org/10.1109/TSP.2014.2339797
+                    ⎧
+                    ⎪  
+                       T    K −α k dˆi j (t )−μ k
+                    ⎪
+                    ⎪
+                    ⎪
+                                         ij             ij
+                                                             , (i, j) ∈ E                  [16] Bruce Hendrickson. 1992. Conditions for unique graph realizations. SIAM journal
+                    ⎪
+                    ⎪
+                    ⎪
+                                            k k
+                      t =1 k =1 2σi j σi j d i j (Z)                                            on computing 21, 1 (1992), 65–84.
+       Bi j (Z) := ⎨⎪ 0,                                         (i, j)  E, i  j
+                                                                                           [17] W. Kabsch. 1976. A solution for the best rotation to relate two sets of vectors.
+                    ⎪
+                    ⎪
+                    ⎪    
+                                                                                                Acta Crystallographica Section A 32 (1976), 922–923. DOI:http://dx.doi.org/10.
+                    ⎪
+                    ⎪
+                    ⎪ −        B  i j  (Z),                     i  =j                           1107/S0567739476001873
+                    ⎩ ji                                                                  [18] W. Kabsch. 1978. A discussion of the solution for the best rotation to relate
+                                                                                                two sets of vectors. Acta Crystallographica Section A 34 (1978), 827–828. DOI:
+                                                  k
+                                               α i j dˆ (t ) − μ k  2
+                     T                  K                                                       http://dx.doi.org/10.1107/S0567739478001680
+              η :=                                            ij                           [19] Anushiya Kannan, Baris Fidan, Guoqiang Mao, and Brian Anderson. 2007. Anal-
+                                                    k k                   ij                    ysis of flip ambiguities in distributed network localization. Information, Decision
+                    t =1 (i, j ) ∈ E k =1  2σi j σi j                                          and Control (IDC) (2007), 193–198.
+                                                                                           [20] Soummya Kar, J. Moura, and Kavita Ramanan. 2012. Distributed Parameter
+                                                 √ 
+                                     + α ikj log σikj 2π  .
+                                                                                                Estimation in Sensor Networks: Nonlinear Observation Models and Imperfect
+                                                                                                Communication. Trans. on Information Theory 58, 6 (2012), 3575–3605. DOI:
+                                                                                               http://dx.doi.org/10.1109/TIT.2012.2191450
+                                                                                           [21] Benjamin Kempke, Pat Pannuto, Bradford Campbell, and Prabal Dutta. 2016.
+Relying on the linearity of the trace operator, the gradient of                                 SurePoint: Exploiting Ultra Wideband Flooding and Diversity to Provide Ro-
+T (X, Z), necessary to implement Alg. 1 (SMACOF), can be com-                                   bust, Scalable, High-Fidelity Indoor Localization. In Proceedings of the 14th ACM
+                                                                                                Conference on Embedded Network Sensor Systems CD-ROM. ACM, 137–149.
+puted as follows:                                                                          [22] Benjamin Kempke, Pat Pannuto, and Prabal Dutta. 2016. Harmonium: Asymmet-
+                                                                                                ric, Bandstitched UWB for Fast, Accurate, and Robust Indoor Localization. In
+                 ∇X T (X, Z) = 2V X − 2B(Z)Z                                                    2016 15th ACM/IEEE International Conference on Information Processing in Sensor
+and vanishes at X := V † B(Z)Z, where
+                 ∗                                                                              Networks (IPSN). IEEE, 1–12.
+                                                                                           [23] U. Khan, S. Kar, and J. Moura. 2010. DILAND: An Algorithm for Distributed
+                                −1    1
+                  V † = V + 11T
+                                                                                                Sensor Localization With Noisy Distance Measurements. IEEE Transactions on
+                                     − 2 11T                                                    Signal Processing 58, 3 (2010), 1940–1947. DOI:http://dx.doi.org/10.1109/TSP.
+                                       n                                                        2009.2038423
+is the Moore-Penrose pseudoinverse of V .                                                  [24] Usman A Khan, Soummya Kar, and José MF Moura. 2009. Distributed sensor
+                                                                                                localization in random environments using minimal number of anchor nodes.
+                                                                                                IEEE Transactions on Signal Processing 57, 5 (2009), 2000–2016.
+REFERENCES                                                                                 [25] Joseph B Kruskal. 1964. Multidimensional scaling by optimizing goodness of fit
+ [1] Nayef A Alsindi, Bardia Alavi, and Kaveh Pahlavan. 2009. Measurement and mod-              to a nonmetric hypothesis. Psychometrika 29, 1 (1964), 1–27.
+     eling of ultrawideband TOA-based ranging in indoor multipath environments.            [26] Josef Kulmer, Erik Leitinger, Paul Meissner, and Klaus Witrisal. 2015. Cooperative
+     IEEE Transactions on Vehicular Technology 58, 3 (2009), 1046–1058.                         Multipath-assisted Navigation and Tracking: A Low-Complexity Approach. In
+ [2] David Arthur and Sergei Vassilvitskii. 2007. k-means++: The Advantages of                  Future Access Enablers of Ubiquitous and Intelligent Infrastructures. Springer,
+     Careful Seeding. In ACM-SIAM Symposium on Discrete Algorithms. 1027–1035.                  159–165.
+ [3] James Aspnes, Tolga Eren, David K Goldenberg, A Stephen Morse, Walter White-          [27] Duke Lee. 2005. Localization using multidimensional scaling (LMDS). Ph.D.
+     ley, Y Richard Yang, Brian Anderson, and Peter N Belhumeur. 2006. A theory                 Dissertation. UNIVERSITY OF CALIFORNIA.
+     of network localization. Mobile Computing, IEEE Transactions on 5, 12 (2006),         [28] Julia Letchner, Dieter Fox, and Anthony LaMarca. 2005. Large-scale Localization
+     1663–1678.                                                                                 from Wireless Signal Strength. In National Conference on Artificial Intelligence,
+                                                                                                Vol. 1. AAAI Press, 15–20.
+
+
+
+
+                                                                                     245
+                                                                                     242
+IPSN 2017, April 2017, Pittsburgh, PA USA                                                                                                                 C. Di Franco et al.
+
+
+[29] Volodymyr Melnykov and Igor Melnykov. 2012. Initializing the EM algo-                     [34] Zafer Sahinoglu, Sinan Gezici, and Ismail Guvenc. 2008. Ultra-wideband posi-
+     rithm in Gaussian mixture models with an unknown number of components.                         tioning systems. Cambridge, New York (2008).
+     Computational Statistics and Data Analysis 56, 6 (2012), 1381–1395. DOI:                  [35] Yi Shang, W Rumi, Ying Zhang, and Markus Fromherz. 2004. Localization
+     http://dx.doi.org/10.1016/j.csda.2011.11.002                                                   from connectivity in sensor networks. Parallel and Distributed Systems, IEEE
+[30] David Moore, John Leonard, Daniela Rus, and Seth Teller. 2004. Robust distributed              Transactions on 15, 11 (2004), 961–974.
+     network localization with noisy range measurements. In Proceedings of the 2nd             [36] Yi Shang and Wheeler Ruml. 2004. Improved MDS-based localization. In IN-
+     ACM International Conference on Embedded Networked Sensor Systems. 50–61.                      FOCOM 2004. Twenty-third AnnualJoint Conference of the IEEE Computer and
+[31] Amanda Prorok. 2013. Models and Algorithms for Ultra-Wideband Localization                     Communications Societies, Vol. 4. IEEE, 2640–2651.
+     in Single- and Multi-Robot Systems. Ph.D. Dissertation. École Polytechnique              [37] Saipradeep Venkatraman, James Caffery, and Heung-Ryeol You. 2004. A novel
+     Fédérale de Lausanne.                                                                        TOA location algorithm using LOS range estimation for NLOS environments.
+[32] Amanda Prorok and Alcherio Martinoli. 2014. Accurate indoor localization with                  IEEE Transactions on Vehicular Technology 53, 5 (2004), 1515–1524.
+     ultra-wideband using spatial models and collaboration. The International Journal          [38] Radim Zemek, Shinsuke Hara, Kentaro Yanagihara, and Ken-ichi Kitayama. 2007.
+     of Robotics Research 33, 4 (2014), 547–568.                                                    A joint estimation of target location and channel model parameters in an IEEE
+[33] Yihong Qi. 2003. Wireless geolocation in a non-line-of-sight environment. Ph.D.                802.15. 4-based wireless sensor network. In IEEE Int. Symposium on Personal,
+     Dissertation. Ph. D. dissertation, Princeton Univ., Princeton, NJ.                             Indoor and Mobile Radio Communications (PIMRC). 1–5.
+
+
+
+
+                                                                                         246
+                                                                                         243
+

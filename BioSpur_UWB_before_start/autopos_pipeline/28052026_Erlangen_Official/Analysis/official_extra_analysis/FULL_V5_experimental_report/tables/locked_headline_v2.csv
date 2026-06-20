@@ -1,0 +1,19 @@
+Row,Variant,Median 3D mm,P95 mm,RMSE mm,Evaluation,New,Source
+A,V4 production,71.9,176.0,110.4,"in-sample, all 24",,FULL_V5_followup_validation/tables/f6_final_comparison.csv
+B,V4 + D_LOO,57.9,110.6,74.4,LOO-CV,,FULL_transfer_matrix/tables/transfer_matrix_48cells.csv
+C,V5 baseline,67.8,160.5,86.4,LOO-CV,,FULL_V5_followup_validation/tables/f6_final_comparison.csv
+D,V5 apparent best,56.0,143.1,79.5,in-sample post-selected,,FULL_V5_followup_validation/tables/f6_final_comparison.csv
+E,V4 apparent best,54.9,154.8,79.6,in-sample post-selected,,FULL_V5_followup_validation/tables/f6_final_comparison.csv
+F,V5 corrected,65.6,,,OOB-bootstrap,,FULL_V5_batch3_falsification/tables/f2_optimism_summary.csv
+G,V4 corrected,64.5,,,OOB-bootstrap,,FULL_V5_batch3_falsification/tables/f2_optimism_summary.csv
+H,V5 bootstrap CI,"[54.3, 63.7]",,,bootstrap 95% CI,,FULL_V5_overnight_batch2/tables/n6_bootstrap_ci.csv
+I,Nested CV (height),82.9,,,held-out test,,FULL_V5_batch3_falsification/tables/f1_nested_cv_summary.csv
+J,Nested CV (quadrant),88.0,,,held-out test,,FULL_V5_batch3_falsification/tables/f1_nested_cv_summary.csv
+K,Nested CV (spatial6),94.2,,,held-out test,,FULL_V5_batch3_falsification/tables/f1_nested_cv_summary.csv
+L,ROTO V5 per-frame,101.5,214.4,126.2,BEST-FIT-ALIGNED,,FULL_V5_roto_deepdive/tables/r2_alignment_summary.csv
+M,ROTO SE(3) aligned,82.5,185.2,103.7,diagnostic,,FULL_V5_roto_deepdive/tables/r2_alignment_summary.csv
+N,ROTO Sim3 aligned,74.3,160.8,94.8,diagnostic only,,FULL_V5_roto_deepdive/tables/r2_alignment_summary.csv
+O,lower_trim_20 + Huber30 + V5,44.5,164.1,81.5,LOO-CV,YES,FULL_V5_rawframe_bruteforce_v3/tables/s3_honest_ranking.csv
+P,lower_trim_20 + Huber30 + V5(e_i=0 anchor refit),43.2,163.1,81.8,LOO-CV; anchor refit diagnostic,YES,FULL_V5_anchor_lower_trim/tables/l3_master_comparison.csv
+Q,Oracle lower bound,44.6,,,oracle,YES,FULL_V5_rawframe_bruteforce_v3/tables/s6_master_ladder.csv
+R,Bootstrap CI (lower_trim_20),"[33.4, 82.8]",,,bootstrap 95% CI,YES,FULL_V5_rawframe_bruteforce_v3/tables/s5_bootstrap_summary.csv

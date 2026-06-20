@@ -1,0 +1,3 @@
+# Internal Rebuttal
+
+The scale-fix claim is directly supported by layout/Vicon comparisons and does not depend on the p30 post-processing choice. The positioning headline is weaker: V4 and V5 trade places depending on percentile, weighting, and validation split, so it should be worded as campaign-specific. The cancellation-valley evidence is strengthened by the profile-likelihood and nullspace tests, but it does not exclude phase-center/NLOS mechanisms. The NLOS detector should be described as an exploratory diagnostic unless leave-one-anchor performance remains high. Dynamic ROTO analysis should stay framed as best-fit-aligned and not hardware-time-synchronized.

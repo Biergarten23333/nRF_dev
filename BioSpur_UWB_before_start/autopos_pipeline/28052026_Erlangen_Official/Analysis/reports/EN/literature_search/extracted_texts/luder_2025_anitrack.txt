@@ -1,0 +1,432 @@
+                                                                        This article has been accepted for publication in the conference of
+                                                                  the 10th IEEE International Workshop on Advances in Sensors and Interfaces.
+
+
+
+                                               AniTrack: A Power-Efficient, Time-Slotted and
+                                               Robust UWB Localization System for Animal
+                                                     Tracking in a Controlled Setting
+                                                  Victor Luder1 , Lukas Schulthess1 , Silvano Cortesi1 , Leyla Rivero Davis2 , Michele Magno1
+                                                         1 Department of Information Technology and Electrical Engineering, ETH Zurich, Switzerland
+                                                                     2 Zoo Zurich, Dept. for Research and Species Conservation, Switzerland
+
+
+
+
+                                            Abstract—Accurate localization is essential for a wide range of    but has high energy requirements and struggles to provide
+arXiv:2506.00216v1 [cs.RO] 30 May 2025
+
+
+
+
+                                         applications, including asset tracking, smart agriculture, and an-    reliable localization in dense urban areas or indoor applications
+                                         imal monitoring. While traditional localization methods, such as      due to signal degradation [6]. On the other hand, Wi-Fi and
+                                         Global Navigation Satellite System (GNSS), Wi-Fi, and Bluetooth
+                                         Low Energy (BLE), offer varying levels of accuracy and coverage,      BLE are more suitable mainly for indoor real-time locating
+                                         they have drawbacks regarding power consumption, infrastruc-          system (RTLS), where the installation of anchor infrastructure
+                                         ture requirements, and deployment flexibility. Ultra-Wideband         is feasible [7], [8]. Moreover, their localization accuracy
+                                         (UWB) is emerging as an alternative, offering centimeter-level        remains limited to a range of meters. More precisely, Wi-Fi
+                                         accuracy and energy efficiency, especially suitable for medium        has been shown to achieve 2.4 m accuracy [9], while BLE
+                                         to large field monitoring with capabilities to work indoors and
+                                         outdoors. However, existing UWB localization systems require          reaches accuracies around 0.5 m in controlled environments
+                                         infrastructure with mains power to supply the anchors, which          [10].
+                                         impedes their scalability and ease of deployment. This under-            To address these limitations, the IEEE standard for Ultra-
+                                         scores the need for a fully battery-powered and energy-efficient      Wideband (UWB), IEEE 802.15.4z [11], is emerging as a
+                                         localization system.
+                                            This paper presents an energy-optimized, battery-operated
+                                                                                                               promising alternative. UWB offers sub 20 cm accuracy [12],
+                                         UWB localization system that leverages Long Range Wide Area           high robustness against interference, and reliable performance
+                                         Network (LoRaWAN) for data transmission to a server backend.          in complex environments, making it significantly more accu-
+                                         By employing single-sided two-way ranging (SS-TWR) in a time-         rate than Wi-Fi- or BLE-based solutions.
+                                         slotted localization approach, the power consumption both on             To perform UWB localization, various approaches can
+                                         the anchor and the tag is reduced, while maintaining high
+                                         accuracy. With a low average power consumption of 20.44 mW            be implemented, such as localization through Angle of Ar-
+                                         per anchor and 7.19 mW per tag, the system allows fully battery-      rival (AoA) measurements [13], time difference of arrival
+                                         powered operation for up to 25 days, achieving average accuracy       (TDOA) [14], Time of Flight (ToF)-based methods using
+                                         of 13.96 cm with self-localizing anchors on a 600 m2 testing          either single-sided two-way ranging (SS-TWR) or double-
+                                         ground.                                                               sided two-way ranging (DS-TWR) [15], or any combination
+                                            To validate its effectiveness and ease of installation in a
+                                         challenging application scenario, ten anchors and two tags were       of those [16]. However, TDOA techniques require precise
+                                         successfully deployed in a tropical zoological biome where they       time synchronization among anchors, which adds complexity
+                                         could be used to track Aldabra Giant Tortoises (Aldabrachelys         to the system. Similarly, AoA-based localization demands
+                                         gigantea).                                                            sophisticated antenna arrays and calibration, while still re-
+                                            Index Terms—Animal tracking, tracking, self-localizing, time-      lying on fixed anchor infrastructure. In contrast, SS-TWR
+                                         slotted, LoRaWAN, battery-powered, low power
+                                                                                                               and DS-TWR offer a more straightforward implementation
+                                                                                                               without precise anchor synchronization. Independent of the
+                                                               I. I NTRODUCTION                                chosen approach, UWB localization systems rely on a net-
+                                            Monitoring animal behavior is essential for understanding          work of anchors, typically involving a time-intensive manual
+                                         their social dynamics, habitat preferences, and daily activity        deployment process. While different solutions focused on
+                                         patterns [1]. Not only do such findings advance scientific            lowering the power consumption of tags [17], the anchors
+                                         knowledge, but they also help to improve animal welfare [2] –         typically remain continuously active to handle localization
+                                         especially in controlled habitats like zoos [3]. Precise localiza-    requests from mobile tags. This high power demand on the
+                                         tion plays a key role in supporting these monitoring efforts [4],     anchor’s side requires a constant power supply and represents
+                                         providing detailed data on their positions and interactions over      a fundamental limitation for system deployment.
+                                         time.                                                                    Additionally, the system must be integrated into a commu-
+                                            Currently, a variety of localization technologies exist, such      nication network, allowing tags and anchors to upload position
+                                         as satellite-based Global Navigation Satellite System (GNSS),         data to a server efficiently. As a result, communication plays
+                                         Wi-Fi, and Bluetooth Low Energy (BLE) localization [5].               a key role in power consumption. With the rise of Internet of
+                                         Although each system offers specific advantages, they also            Things (IoT), Long Range Wide Area Network (LoRaWAN)
+                                         exhibit inherent limitations. GNSS offers wide-area coverage          has been proven to bridge this gap, allowing power-efficient,
+
+
+
+                                           © 2025 IEEE. Personal use of this material is permitted. Permission from IEEE must be obtained for all other uses, in any current or
+                                          future media, including reprinting/republishing this material for advertising or promotional purposes, creating new collective works, for
+                                                      resale or redistribution to servers or lists, or reuse of any copyrighted component of this work in other works.
+reliable, and scalable data collection [6].                         interval with estimated packet collisions below 11.3%. The
+   This paper presents the design and implementation of             overall localization error in static conditions was 0.3 m.
+a power-optimized and self-localizing UWB RTLS system,                 With UL OC, Zhao et al. presented in [17] an UWB-
+based on SS-TWR. The tag initiates the localization and             based localization system capable of providing cm-accurate
+follows a time-slotted approach, enabling positioning updates       localization using three-dimensional (3D)-AoA. The system
+at intervals as short as 10 s with a two-dimensional (2D)           consists of eight Q ORVO DW1000 per anchor and a single one
+average accuracy of 13.96 cm. To ensure fast availability of        per tag. Similar to [24] UL-TDOA is implemented, shifting
+localization data, the system integrates LoRaWAN for energy-        the computational complexity to the infrastructure and thus
+efficient data transmission. In particular, this article presents   reducing power consumption on the tag. UL OC achieves a
+the following contributions:                                        static localization accuracy of 3.6 cm and 10 cm in a mobile
+  • Design and implementation of a hardware and software-           tracking application.
+    based, power-optimized UWB localization system with a              In [19], Ledergerber et al. present a robot self-localization
+    2D average accuracy of 13.96 cm combined with real-             system similar to GNSS. Fixed anchors (with known loca-
+    time data upload through LoRaWAN.                               tion) broadcast UWB signals, which are picked up by the
+  • Introduction of a time-slotted localization schedule that       robots to estimate their location. Using TDOA, the quadcopter
+    reduces power consumption of our system to just                 accomplishes localization by exploiting the time difference
+    20.44 mW for anchors and 7.19 mW for tags at a lo-              of (almost) simultaneously transmitted signals of multiple
+    calization interval of 40 s, enabling fully battery-powered     anchors to the robot. This passive approach makes the system
+    operation for 25 days.                                          intrinsically scalable, enabling several robots to localize simul-
+  • A scalable system architecture, tested and characterized        taneously without central coordination. The system achieved a
+    over an area of 600 m2 using five anchors.                      2D root mean square error (RMSE) of 14 cm and a 3D RMSE
+  • Successful field deployment, monitoring the real-time           of 0.28 cm when tracking a quadcopters’ trajectory.
+    location of tags in a zoological setting.
+                                                                       In [20], Patru et al. introduced F LEX TDOA, a scal-
+                                                                    able RTLS based on downlink time difference of arrival
+                     II. R ELATED W ORK                             (DL-TDOA). In contrast to traditional TDOA, F LEX TDOA
+   The majority of UWB-based localization techniques depend         allocates a time-division multiple-access (TDMA) schedule in
+on its capability to measure time precisely. An overview of         which a distinct anchor initiates localization during each time
+such systems is provided in Table I. The two primary and most       slot, making the system scalable in the number of anchors.
+widely adopted [18] methods for determining position exploit-       An experimental evaluation based on five anchors shows a
+ing time-of-flight information are two-way ranging (TWR) and        3D localization accuracy of 9 cm with a standard deviation of
+TDOA.                                                               5 cm. The passive nature of the tags enables scalability without
+   In TWR [22], the distance between two UWB devices                augmenting system complexity.
+(typically a mobile tag and a fixed anchor) is estimated by            Bach et al. [21] present the GLOBAL UWB SYSTEM (GUS),
+exchanging time-stamped messages. By measuring the round-           a localization system intended for high-accuracy positioning
+trip time (RTT) of these messages, the system can derive            of autonomous mobile robots. The system estimates heading
+the signal’s ToF and thus compute the distance. Since TWR           angle and position by using two UWB tags on the robot.
+does not need device synchronization, it is computationally         This method aims to prevent error accumulation by integrat-
+efficient and simple to implement. However, as the number of        ing information from Intertial Measurement Units (IMUs).
+tags increases, energy consumption rises due to the increased       To achieve this, they propose a tightly coupled Extended
+amount of exchanged messages.                                       Kalman Filter (EKF) fusion algorithm, which combines the
+   TDOA [23], on the other hand, estimates the position of the      fixed baseline constraint between the two tags with distance
+tag by looking at the variations in arrival times of transmitted    measurements using DS-TWR. The system improved the base-
+messages from multiple synchronized anchors to a single             line RMSE of 8.6 cm using trilateration by 17.0% down to
+tag. Because the anchors are time-synchronized and their            7.14 cm.
+positions are known, the differences in ToF form a system of           In our work, A NI T RACK introduces a significant leap
+hyperbolic equations. TDOA enables more scalable systems,           forward by combining the efficient SS-TWR [22] with self-
+as the tag transmits only once and is passive in the localization   localization concepts from [25], where anchors autonomously
+process. However, it requires sub-nanosecond synchronization        determine their positions, and the TDMA-based access scheme
+accuracy between anchors and involves solving a non-linear          from F LEX TDOA [20]. This innovative combination not only
+least squares problem, making both implementation and com-          simplifies the system architecture but also reduces power
+putation more complex compared to TWR.                              consumption, enabling a battery-powered deployment of up to
+   In [24], Hindermann et al. developed and evaluated an            25 days for the anchors and tags with a localization interval
+UWB-based localization system for cows and sows tracking            of 40 s. By integrating LoRaWAN for data transmission,
+in a real-world barn environment. Their proposed RTLS is            A NI T RACK ensures low-power operation while maintaining
+based on the Q ORVO DW1000 and uses an ALOHA random                 fast availability of real-time location data, thus pushing the
+access protocol. Together with uplink time difference of arrival    boundaries of scalable, battery-operated, and efficient local-
+(UL-TDOA), it can support up to 100 tags at a 1 s localization      ization systems for animal tracking in controlled settings.
+                                                                        TABLE I
+                                          C OMPARISON OF STATE - OF - THE - ART UWB LOCALIZATION SCHEMES .
+
+                                UL OC [17]                    IROS’15 [19]            F LEX TDOA [20]           GUS [21]                      This work
+
+ Anchor setup                      Manual                           Manual                    Self-Loc             Manual                       Self-Loc
+ Loc. method                    UL-TDOA                          DL-TDOA                    DL-TDOA              DS-TWR                         SS-TWR
+ Tag access scheme                 TDMA                       Simultaneous                Simultaneous           Randoma                         TDMA
+ Anchor power supply                mains                                –                      battery                 –                         battery
+                                         –                               –            400 mW@50 Hz                      –          20.44 mW@0.025 Hz
+ Tag power supply                  battery                               –                      battery                 –                         battery
+                                   31 µJb                                –            400 mW@50 Hz                      –           7.19 mW@0.025 Hz
+ Accuracy                     3.6 cm (3D)           14 cm (2D), 28 cm (3D)                 17 cm (3D)        7.14 cm (2D)                 13.96 cm (2D)
+ a no information on handling multiple tags.
+ b per localization. Sleep consumption is not presented.
+
+
+                           III. A NI T RACK                                    measuring temperature in harsh environments, an HTS211TR
+   The proposed system, as shown in Fig. 1, consists of                        humidity sensor, a LIS3MDL magnetometer for orientation
+custom hardware for anchor and tag, firmware for localization                  measurement, and the LSM6DSV16BX IMU for movement
+and sensor processing, which is complemented with a data                       recognition.
+collection setup and a database.
+   In the first step, anchors and tags determine their distances
+relative to each other using UWB and transmit this data over
+LoRaWAN to a centralized database. The Long Range (LoRa)
+device is configured as a Class A device, enabling uplinks
+at any time. To maximize transmission range, the Spreading
+Factor (SF) is set to 12. Once the data is stored in the database,
+it can be accessed over a web interface while the positions are
+calculated on the server side. This enables real-time position
+monitoring, as sampled data is instantly available.
+
+
+
+
+                                                                               Fig. 2. The hardware setup includes sensors, a UWB transceiver, and a power
+                                                                               management subsystem. The PMIC supplies 1.8 V and 3.3 V, both voltages
+                                                                               controlled by a load switch (LS).
+
+                                                                               B. Localization Principle
+
+Fig. 1. A NI T RACK involves self-localizing anchors and tags which transmit
+                                                                                  To do a 2D localization, the distance between the tag and
+their measured distances via LoRaWAN to a database where coordinate            at least 3 anchors is measured using the RTT of a SS-TWR
+calculations are performed.                                                    exchange as described in [22]. The protocol is initiated by
+A. Hardware                                                                    the tag, which utilizes the anchors’ responses to compute
+                                                                               the carrier-frequency-offset-corrected time-of-flight and finally
+   The anchors and tags share the same hardware and are
+                                                                               estimate its distance to the anchors. Due to inevitable mea-
+built around the ISP4520 System in Package (SiP), hosting
+                                                                               surement inaccuracies, gathering data from as many anchors
+an N RF52832 Microcontroller (MCU), a SX126 X LoRa
+                                                                               as possible is crucial. The final position of the tag is then
+transmitter, and an integrated antenna, see Fig. 2. An external
+                                                                               evaluated by solving the least squares estimate of Eq. (1) for
+DWM3000 UWB transceiver is used to handle the UWB com-
+                                                                               N anchors.
+munication. To optimize power consumption, the N PM1300
+Power Management IC (PMIC) manages the battery, generates                                                       N
+the system voltages, and controls power domains using the
+                                                                                                                X                         2
+                                                                                                 p∗ = arg min         (∥p − ai ∥ − di )                (1)
+integrated load switches. In our setup, all sensors operate at                                              p
+                                                                                                                i=1
+1.8 V, allowing them to be switched off when not in use.
+The DWM3000 is powered by a separate 3.3 V domain                                where:
+that can also be turned off. The device is equipped with                          •    p = (x, y) is the estimated position of the tag,
+various sensors, including an IP67-certified thermistor for                       •    ai = (xi , yi ) is the known position of the i-th anchor,
+   • di is the measured distance from the tag to the i-th
+     anchor,
+   • ∥p − ai ∥ Euclidean distance between tag and anchor i,
+   • N is the number of anchors.
+
+C. Time-Slotted Localization
+   SS-TWR localization scheme relies on responsive anchors,
+ready to respond whenever a tag initiates a measurement
+request. Consequently, traditional approaches always have
+their anchors on, making this approach power-intensive. Since
+our anchors are battery-powered, continuous operation signif-
+icantly reduces runtime and increases maintenance efforts due
+to frequent battery replacements. To solve this issue, a time-
+slotted localization protocol is introduced. It schedules specific                 Fig. 4. Accuracy evaluation in a test setup with five anchors and tag positions
+                                                                                   distributed across a 600 m2 area.
+time intervals when anchors are awake and ready to respond
+to tags, reducing overall power consumption. The duration of                       ables the system to continuously collect distance data between
+these time slots depends on the number of anchors and tags                         anchors. By designating one anchor as the origin together with
+in the system. For a setup with ten anchors and up to ten                          an axis to a second anchor, a local 2D coordinate system can
+tags, a total active time of 3900 ms is proposed. This period                      be established, determining all anchors’ positions as described
+is divided into two phases: Each anchor is allocated 200 ms for                    in Section III-B. A key advantage of this method is its reliance
+self-localization, while a tag has 100 ms for its localization.                    on a large number of measurements. Since self-localization is
+These time slots are illustrated in Fig. 3 with dedicated slots                    performed during every active phase, each anchor regularly
+for anchor self-localization and tag localization.                                 updates its position. This continuous monitoring allows the
+                                                                                   system to detect changes in anchor placement and automati-
+                                                                                   cally update their positions.
+  (1)
+                                                                                               IV. S YSTEM C HARACTERIZATION
+                                                                                     The proposed system has been evaluated based on the key
+                                                                                   performance indicators (KPIs) localization accuracy and power
+                                                                                   consumption.
+
+  (2)                                                                              A. Localization Accuracy
+                                                                                      The localization accuracy of the system is examined with
+                                                                                   a single tag (at seven different positions) and five anchors
+                                                                                   deployed on an open field (600 m2 ) according to Fig. 4. The
+                                                                                   ground truth positions were determined using a laser distance
+                                                                                   measurement device (B OSCH GLM150-27C).
+Fig. 3. The localization phase, for anchors (1) and tags (2), is divided into         To estimate the tags’ location, we used the anchors’ ground
+synchronization (a & d), anchor self-localization (b), and tag localization (c).
+Localization happens sequentially depending on the given ID.
+                                                                                   truth position and the anchors’ self-localized position. With
+                                                                                   the ground truth position, an average accuracy of 16.57 cm
+   To achieve a reliable anchor synchronization, the anchors                       and a standard deviation of 7.86 cm was achieved. As shown
+are categorized into master, relay, and passive anchors. The                       in Table II, the estimations based on self-localized anchors
+master anchor initiates the time slots by broadcasting a                           were more accurate, achieving an accuracy of 13.96 cm and a
+synchronization message. All other anchors use this to start                       standard deviation of 6.77 cm.
+and synchronize their timers. To enhance reliability, a second
+                                                                                                                TABLE II
+synchronization message is sent by the master 200 ms after                         S TATISTICS OF THE LOCALIZATION EXPERIMENTS , WITH GROUND TRUTH
+the first. This allows already synchronized anchors to verify                         ANCHOR POSITIONS (GT) AND SELF - LOCALIZED ANCHOR POSITIONS
+correct alignment, even if they missed the first message due                                             (SL). VALUES ARE IN cm.
+to wake-up timing differences. Finally, a third synchronization
+message is broadcast 100 ms before the end of the active                                              GT A NCHORS                    SL A NCHORS
+phase. These messages are uniquely labeled, enabling passive                                         x         y      2D             x        y       2D
+anchors to verify the order of reception and ensure they remain
+                                                                                          avg     9.19    13.25     16.57          8.4    10.68     13.96
+in sync. Additionally, relay anchors extend the synchroniza-
+                                                                                          md      7.71     12.8     14.62          7.9     7.92     10.98
+tion range by retransmitting these sync messages, ensuring
+                                                                                          σ(·)    5.82     6.73      7.86         5.12      5.6      6.77
+scalability even outside of the master anchor’s communication
+range.
+                                                                                   B. Power Evaluation
+D. Anchor Self-Localization                                                           To assess the power consumption of the battery-powered
+   The self-localization principle leverages the anchors’ ability                  tag and anchors, the individual system states – including low-
+to measure distances between each other. This approach en-                         power idle mode, anchor self-localization, tag localization,
+and LoRa transmission – were measured using a P OWER                               power consumption is as low as 13.38 mW. This extends the
+P ROFILER K IT II from N ORDIC S EMICONDUCTORS.                                    battery runtime to 29.96 days for the anchors and 25.7 days
+                                                                                   for the tags, given a Lithium-Polymer (LiPo) battery size of
+                                                                                   2600 mAh for the anchors and 1200 mAh for the tag.
+
+                                                                                   C. System Evaluation
+                                                                                      To evaluate the system’s performance, including backend
+                                                                                   data collection, the setup concept described was tested in a
+                                                                                   real-world application by deploying a temporary sensor that
+                                                                                   could be used for Aldabra Giant Tortoises in the semi-natural
+                                                                                   Masoala rainforest enclosure at Zoo Zurich.
+                                                                                      The described system was installed with a position collect-
+                                                                                   ing interval of 40 s, acquiring data for a two-hour period. To
+                                                                                   ensure a flexible localization setup, the anchors are mounted
+                                                                                   on 1.5 m wooden poles for easy positioning, as shown in
+                                                                                   Fig. 7. Additionally, two tags are moved within the tropical
+Fig. 5. Power consumption of the tag during each phase: localization (light        biome, simulating the tortoises moving. The final setup of how
+gray), LoRa transmission (blue), and sleep mode.                                   it could be installed on the animals is illustrated in Fig. 7,
+                                                                                   while Fig. 8 presents a selection of the collected position data.
+                                                                                   The monitored enclosure covers a total area of approximately
+                                                                                   126 m2 .
+
+
+
+
+Fig. 6. Power consumption of the anchor during each phase: self-localization
+(gray), tag-localization (light gray), LoRa transmission (blue), and sleep mode.
+   These measurements showed an average power consumption
+of 81.6 mW for the anchors and 28.6 mW for the tag. This                           Fig. 7. Possible real-world application; monitoring the location of Aldabra
+                                                                                   Giant Tortoises.
+assumes a high localization interval of 10 s. The individual
+states and their current draw are shown in Fig. 6 and Fig. 5.
+With a lower localization period of 40 s, the average power
+consumption can be lowered to 20.44 mW for the anchors
+and 7.19 mW for the tag. If the anchors stop to upload
+data through LoRa once they have localized themselves, their
+
+
+                          TABLE III
+ P OWER CONSUMPTION OF THE WHOLE SYSTEM RUNNING AT 3.7 V FOR
+      DIFFERENT SYSTEM STATES AND AVERAGE CONSUMPTION FOR A
+                    LOCALIZATION PERIOD OF 10 s
+
+
+                                            Power Consumption        Duration
+
+Anchor      Sleep Mode                                43.66 µW              –
+            Anchor Transceiver On                   140.93 mW          3.74 s
+            Self-Localizing of Anchors               40.55 mW         156 ms
+            LoRa Transmission                        67.82 mW          4.17 s      Fig. 8. Tracking position within the enclosure by simulating the behavior of
+                                                                                   an Aldabra Giant Tortoise during the two-hour trial period.
+            Average (10 s period)                    81.6 mW            10 s
+
+Tag         Sleep Mode                                43.66 µW              –                                 V. C ONCLUSION
+            Tag Localization                         52.32 mW          63 ms         While conventional localization systems setups may provide
+            LoRa Transmission                        67.82 mW          4.17 s      precise localizations, they often come with specific require-
+            Average (10 s period)                    28.6 mW            10 s       ments such as time-consuming anchor installation, manual
+calibration, and a mains power connection. To address this                         [11] I. SA, “Ieee standard for low-rate wireless networks–amendment 1:
+challenge, this paper presents a power-efficient and fully                              Enhanced ultra wideband (uwb) physical layers (phys) and associated
+                                                                                        ranging techniques,” IEEE Std 802.15.4z-2020 (Amendment to IEEE Std
+battery-powered UWB localization system that enables pre-                               802.15.4-2020), pp. 1–174, 2020.
+cise localization with minimal setup overhead. A time-slotted                      [12] A. Heinrich, S. Krollmann, F. Putz, and M. Hollick, “Smartphones
+UWB TWR localization approach reduces the power con-                                    with uwb: Evaluating the accuracy and reliability of uwb ranging,”
+                                                                                        2023. [Online]. Available: https://arxiv.org/abs/2303.11220
+sumption while preserving the flexibility of a battery-powered                     [13] T. Margiani, S. Cortesi, M. Keller, C. Vogt, T. Polonelli, and
+setup. The suggested approach achieves an average 2D local-                             M. Magno, “Angle of arrival and centimeter distance estimation on
+ization accuracy of 13.96 cm on 600 m2 . When setting the                               a smart uwb sensor node,” IEEE Transactions on Instrumentation
+                                                                                        and Measurement, vol. 72, pp. 1–10, 2023. [Online]. Available:
+localization interval to 40 s, the system achieves an average                           http://dx.doi.org/10.1109/TIM.2023.3282289
+power consumption of 7.19 mW for tags and 20.44 mW                                 [14] S. Mohanty, A. Tripathy, and B. Das, “Uwb based indoor localization
+for anchors, enabling a battery runtime of 25 days for the                              techniques,” 05 2023.
+                                                                                   [15] S. Fakhoury and K. Ismail, “Ultra-wideband-based time occupancy
+entire system. Furthermore, the full end-to-end implementation                          analysis for safety studies,” Sensors, vol. 23, no. 17, 2023. [Online].
+allows for transmitting collected data over LoRaWAN to the                              Available: https://www.mdpi.com/1424-8220/23/17/7551
+server backend and a directly accessible web interface. A                          [16] S. Cortesi, C. Vogt, and M. Magno, “Wakeloc: an ultra-low power,
+                                                                                        accurate and scalable on-demand rtls using wake-up radios,” 2025.
+semi-permanent deployment in a zoological setting proved the                            [Online]. Available: https://arxiv.org/abs/2504.20545
+system’s functionality and robustness. Future work will focus                      [17] M. Zhao, T. Chang, A. Arun, R. Ayyalasomayajula, C. Zhang,
+on extended long-term testing, expanding data collection, and                           and D. Bharadia, “Uloc: Low-power, scalable and cm-accurate uwb-
+                                                                                        tag localization and tracking for indoor applications,” Proceedings
+further exploration of the system’s capabilities.                                       of the ACM on Interactive, Mobile, Wearable and Ubiquitous
+                                                                                        Technologies, vol. 5, no. 3, pp. 1–31, 2021. [Online]. Available:
+                  VI. ACKNOWLEDGMENTS                                                   http://dx.doi.org/10.1145/3478124
+   We extend thanks for support of Zoo Zurich’s Masoala Rain-                      [18] D. Coppens, A. Shahid, S. Lemey, B. V. Herbruggen, C. Marshall,
+                                                                                        and E. D. Poorter, “An overview of uwb standards and organizations
+forest team: Basil von Ah, Angus Sünner, Francesco Biondi,                             (ieee 802.15.4, fira, apple): Interoperability aspects and future research
+and Daniela Kollmuss, as well as EWZ (Elektrizitätswerk der                            directions,” IEEE Access, vol. 10, pp. 70 219–70 241, 2022. [Online].
+Stadt Zürich) for providing LoRaWAN infrastructure and to                              Available: http://dx.doi.org/10.1109/ACCESS.2022.3187410
+                                                                                   [19] A. Ledergerber, M. Hamer, and R. D’Andrea, “A robot self-localization
+Marcus Cathomen for his generous support and collaboration                              system using one-way ultra-wideband communication,” in 2015
+initiation.                                                                             IEEE/RSJ International Conference on Intelligent Robots and Systems
+                                                                                        (IROS), 9 2015. [Online]. Available: http://dx.doi.org/10.1109/IROS.
+                               R EFERENCES                                              2015.7353810
+                                                                                   [20] G.-C. Pătru, L. Flueratoru, I. Vasilescu, D. Niculescu, and D. Rosner,
+ [1] M. Liptovszky, “Advancing zoo animal welfare through data science:
+                                                                                        “Flextdoa: Robust and scalable time-difference of arrival localization
+     scaling up continuous improvement efforts,” Frontiers in Veterinary
+                                                                                        using ultra-wideband devices,” IEEE Access, vol. 11, pp. 28 610–
+     Science, vol. Volume 11 - 2024, 2024. [Online]. Available: http:
+                                                                                        28 627, 2023. [Online]. Available: http://dx.doi.org/10.1109/ACCESS.
+     //dx.doi.org/10.3389/fvets.2024.1313182
+                                                                                        2023.3259320
+ [2] S. Binding, H. Farmer, L. Krusin, and K. Cronin, “Status of animal
+                                                                                   [21] S.-H. Bach, P.-B. Khoi, and S.-Y. Yi, “Global uwb system: a
+     welfare research in zoos and aquariums: Where are we, where to next?”
+                                                                                        high-accuracy mobile robot localization system with tightly coupled
+     Journal of Zoo and Aquarium Research, vol. 8, no. 3, p. 166–174, Jul.
+                                                                                        integration,” IEEE Internet of Things Journal, vol. 11, no. 9, pp.
+     2020. [Online]. Available: http://dx.doi.org/10.19227/jzar.v8i3.505
+                                                                                        16 618–16 626, 2024. [Online]. Available: http://dx.doi.org/10.1109/
+ [3] J. Peter, V. Luder, L. R. Davis, L. Schulthess, and M. Magno, “Smart
+                                                                                        JIOT.2024.3354786
+     feeding station: Non-invasive, automated iot monitoring of goodman’s
+                                                                                   [22] I. Dotlic, A. Connell, and M. McLaughlin, “Ranging methods utilizing
+     mouse lemurs in a semi-natural rainforest habitat,” 2025. [Online].
+                                                                                        carrier frequency offset estimation,” in 2018 15th Workshop on
+     Available: https://doi.org/10.48550/arXiv.2503.09238
+                                                                                        Positioning, Navigation and Communications (WPNC), 10 2018, p. nil.
+ [4] K. A. C. Shannon L O’Brien, Spencer Koenig, “Moving toward
+                                                                                        [Online]. Available: http://dx.doi.org/10.1109/WPNC.2018.8555809
+     evidence-based care: Measuring preferences in zoo-housed aquatic
+                                                                                   [23] F. Gustafsson and F. Gunnarsson, “Positioning using time-difference
+     turtles using 24-h remote monitoring.” Zoo Biology, vol. 43, pp. 491–
+                                                                                        of arrival measurements,” in 2003 IEEE International Conference on
+     498, 10 2024. [Online]. Available: https://doi.org/10.1002/zoo.21856
+                                                                                        Acoustics, Speech, and Signal Processing, 2003. Proceedings. (ICASSP
+ [5] H. Obeidat, W. Shuaieb, O. Obeidat, and R. Abd-Alhameed, “A review
+                                                                                        ’03)., - 2003. [Online]. Available: http://dx.doi.org/10.1109/ICASSP.
+     of indoor localization techniques and wireless technologies,” Wireless
+                                                                                        2003.1201741
+     Personal Communications, vol. 119, 07 2021. [Online]. Available:
+                                                                                   [24] P. Hindermann, S. Nüesch, D. Früh, A. Rüst, and L. Gygax, “High
+     https://link.springer.com/article/10.1007/s11277-021-08209-5
+                                                                                        precision real-time location estimates in a real-life barn environment
+ [6] L. Schulthess, T. Salzmann, C. Vogt, and M. Magno, “A lora-
+                                                                                        using a commercial ultra wideband chip,” Computers and Electronics
+     based energy-efficient sensing system for urban data collection,”
+                                                                                        in Agriculture, vol. 170, p. 105250, 2020. [Online]. Available:
+     in 2023 9th International Workshop on Advances in Sensors and
+                                                                                        http://dx.doi.org/10.1016/j.compag.2020.105250
+     Interfaces (IWASI). IEEE, 2023, pp. 69–74. [Online]. Available:
+                                                                                   [25] P. Corbalán, G. P. Picco, M. Coors, and V. Jain, “Self-localization
+     https://ieeexplore.ieee.org/document/10164426
+                                                                                        of ultra-wideband anchors: From theory to practice,” IEEE Access,
+ [7] J. Dai, M. Wang, B. Wu, J. Shen, and X. Wang, “A survey of
+                                                                                        vol. 11, pp. 29 711–29 725, 2023. [Online]. Available: http://dx.doi.org/
+     latest wi-fi assisted indoor positioning on different principles,” Sensors,
+                                                                                        10.1109/ACCESS.2023.3261567
+     vol. 23, no. 18, 2023. [Online]. Available: https://www.mdpi.com/
+     1424-8220/23/18/7961
+ [8] F. Milano, H. da Rocha, M. Laracca, L. Ferrigno, A. Espı́rito Santo,
+     J. Salvado, and V. Paciello, “Ble-based indoor localization: Analysis of
+     some solutions for performance improvement,” Sensors, vol. 24, no. 2,
+     2024. [Online]. Available: https://www.mdpi.com/1424-8220/24/2/376
+ [9] J. Shen, B. Huang, Y. Tian, and L. Zhao, “On the reliable localization
+     of wifi access points,” IEEE Access, vol. 7, pp. 90 931–90 940, 2019.
+     [Online]. Available: https://ieeexplore.ieee.org/document/8759043
+[10] S. Cortesi, M. Crabolu, P.-V. Mekikis, G. Bellusci, C. Vogt, and
+     M. Magno, “A proximity-based approach for dynamically matching
+     industrial assets and their operators using low-power iot devices,”
+     IEEE Internet of Things Journal, vol. 12, no. 3, pp. 3350–3362, 2025.
+     [Online]. Available: http://dx.doi.org/10.1109/JIOT.2024.3479458
+

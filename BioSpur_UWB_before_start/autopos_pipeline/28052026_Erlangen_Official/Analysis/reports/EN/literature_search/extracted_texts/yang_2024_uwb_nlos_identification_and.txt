@@ -1,0 +1,367 @@
+UWB NLOS Identification and Mitigation based on
+  Bidirectional Encoder Representations from
+      Transformer(BERT) Deep Learning
+                              1st Hongchao Yang                                                  2nd Yunjia Wang
+               School of Environment and Spatial Informatics                      School of Environment and Spatial Informatics
+                 China University of Mining and Technology                          China University of Mining and Technology
+                              Xuzhou, China                                                      Xuzhou, China
+                        hongchao yang@cumt.edu.cn                                               wyjc411@163.com
+
+     3rd CheeKiat Seow                               4th Meng Sun                                    5th David Plets
+School of Computing Science         School of Environment and Spatial Informatics         Information Technology imec-Waves
+   University of Glasgow              China University of Mining and Technology                     Ghent University
+       Glasgow, U.K                                Xuzhou, China                                    Ghent, Belgium
+CheeKiat.Seow@glasgow.ac.uk                      msun@cumt.edu.cn                                david.plets@ugent.be
+
+
+
+
+   Abstract—The Non-Line-of-Sight (NLOS) phenomenon can             Ultra-wideband (UWB) [3] is considered one of the most
+hinder signal propagation and significantly reduce the accuracy     promising indoor positioning technologies due to its high
+of UWB for indoor positioning and navigation. The Channel           precision time resolution, resistance to multipath interference,
+Impulse Response (CIR) sequence generated during UWB rang-
+ing is widely used for channel identification. However, existing    and low power consumption, making it highly suitable for
+deep learning algorithms struggle to balance the local and global   complex indoor environments. However UWB ranging and
+features of the CIR sequence effectively. To address this, this     positioning technology, which is based on time-of-flight (ToF)
+paper constructs a Bidirectional Encoder Representations from       [4], faces interference from the Non-Line-of-Sight (NLOS) [5]
+Transformers (BERT) channel identification model using the          phenomenon when the device’s visibility path is obstructed.
+self-attention mechanism to improve the NLOS identification.
+The identification Accuracy, LOS recall, and F2 scores in           NLOS phenomenon can cause forward bias ranging errors,
+multiple scenarios are 96.65%, 97.13%, and 0.9703 respectively.     adversely affecting positioning accuracy. This phenomenon
+Comparing to state-of-art algorithms such as LS-SVM, CNN,           occurs frequently due to the complex and variable indoor
+and LSTM, our algorithm outperformed by 17.9%, 11.86%, and          layout, with numerous fixed and moving obstacles. Therefore,
+10.80% respectively. For NLOS ranging errors, a fine-grained        identifying and mitigating NLOS phenomena is crucial for
+classification model is constructed with error correction model
+based on BERT. In multiple scenarios, the average NLOS ranging      improving UWB localization performance.
+error is reduced by 41.97% and outperforms LS-SVM, CNN,                UWB NLOS identification involves two main components:
+and LSTM by 34.04%, 31.99%, and 16.81% respectively. In             channel features and classification algorithms. The sources of
+the overall positioning experiment, our algorithm achieves better   channel features include ranging information, location infor-
+performance than the existing algorithms by 32.13%.                 mation, and channel impulse response (CIR). NLOS channel
+   Index Terms—Ultra-wideband (UWB), non-line-of sight
+(NLOS),deep Learning, Transformer                                   identification can be achieved by using a pre-trained threshold
+                                                                    comparison classification algorithm, based on the variance
+                                                                    of ranging results in different channel environments [6]. Al-
+                      I. I NTRODUCTION
+                                                                    though simple in principle, the accuracy of this algorithm
+   With the advent of the artificial intelligence era, the de-      is suboptimal. Location information can be obtained from
+mand for location information services has surged in tech-          either UWB location results [7] or other techniques [8],
+nologies such as the Internet of Things [1], virtual reality,       with the former requiring optimized UWB layout density
+and human-computer interaction. Outdoor location services           and the latter introducing system complexity and additional
+rely on mature GNSS [2] satellite navigation systems, which         constraints.The CIR sequence is recorded by hardware based
+meet the needs of most application scenarios and have been          on time information, capturing environmental noise, the direct
+successfully commercialized. However, there is currently no         signal from the LOS path, and multipath signal fluctuations
+universal commercial solution for indoor positioning. Given         from reflected paths. CIR features include manually extracted
+that indoor activities account for a higher proportion of overall   features and intelligent features derived from classification
+activities compared to outdoor activities, the potential for in-    algorithms. Manually extracted CIR features are mainly statis-
+door positioning applications and market growth is significant.     tical, including timing and energy characteristics, and are often
+used with machine learning algorithms such as support vector                                 II. BACKGROUND
+machines (SVM) and decision trees. However, the recognition         A. UWB ToF Ranging and Location
+accuracy of a single manually extracted CIR feature combined
+                                                                       UWB signal is emitted from the transmitter and traverse
+with SVM [9] is only 60%. Combining different CIR features
+                                                                    through various paths to reach the receiver and recorded as
+to form multi-dimensional feature vectors improve recognition
+                                                                    CIR. It represents the sum of multiple attenuated and delayed
+accuracy. Deep learning algorithms such as convolutional
+                                                                    copies of the UWB pulse and expressed as [11]:
+neural networks (CNN) and long short-term memory (LSTM)
+can intelligently extract channel recognition features from CIR                                 J
+                                                                                                X
+sequences, achieving accuracy higher than 80%. CNNs with                               r(t) =         αj p(t − τj ) + η(t)                (1)
+CIR input sequences achieved an average NLOS identification                                     j=1
+
+accuracy of 90% across various scenarios. [10]. However,            where αj and τj are the amplitude and time delay of the
+CNNs primarily focus on local features and struggle to capture      j th path, respectively; p(·) denotes the received UWB pulse;
+channel characteristics in long CIR sequences.LSTM [11] is          η(t) is the Additive White Gaussian Noise with zero mean.
+suited for processing time-series information, and increasing       The UWB hardware employs the Leading Edge Detection
+the number of hidden layers from one to two improved                (LDE) algorithm [13] to calculate the real-time environment
+accuracy by 18.5%. However, LSTM’s gradual data processing          noise level. When the CIR exceeds the dynamic threshold
+cannot avoid redundant information, leading to slow training        (LDEthre ), the corresponding time is considered the reported
+speeds and gradient anomalies. In general, existing deep            arrival time of the F PR . The average flight time(t) of UWB
+learning algorithms using CIR sequences face problems in the        signals between devices is calculated by measuring the timeof
+flow of information, such as over-emphasis on local features,       F PR to reach different devices, resulting in the corresponding
+inefficient boost processing, and gradient descent issue.           ranging results. To reduce system errors and the impact of
+   The NLOS identification algorithm labels ranging results         clock drift, this paper adopts the double-sided two-way rang-
+as either LOS or NLOS.The ranging results of high-precision         ing (DS-TWR) method, which records round-trips of signal
+LOS-labeled can be directly used for positioning. In contrast,      propagation times. The ranging(d) formula for DS-TWR is
+the ranging results of NLOS-labeled, which exhibit larger           given by d = c ∗ t where c is the speed of light.
+errors, must be mitigated before utilized for positioning.The          In LOS conditions, the first path (FP) signal corresponding
+main reason for ranging error is that obstacles interfere with      to the true ranging results and propagated through a direct
+true first path (F PT ) signal propagation, causing UWB’s           visual path can be accurately captured. Theoretically, its signal
+reported first path signal (F PR )to be delayed and produce a       arrival time (F PT ) is the same as F PR . In NLOS conditions,
+positive bias error.Therefore, the core of range error mitigation   the propagation of UWB signals can be interfered with by
+is identifying the F PT . The CIR sequence contains the F PT ,      obstacles. Due to energy attenuation by obstacles, F PT may
+making it useful for range error mitigation. By combining           not meet the dynamic LDEthre , causing UWB to mistakenly
+manually extracted timing and energy CIR features, machine          use subsequent multipath signals as F PR to calculate the
+learning algorithms can map the CIR feature vector to the           ranging results. This forward delay (∆d) between F PT and
+ranging error. For example, using SVM inputs from ranging           F PR causes a forward bias error, affecting subsequent posi-
+results and CIR feature vectors (maximum CIR, average excess        tioning accuracy. Therefore, it is crucial for UWB positioning
+delay) reduced the mean UWB ranging error by 59.8% and              to retain LOS ranging results and enhance the accuracy of
+the root mean square error by 49.3% in [12]. Range error            NLOS ranging results through effective NLOS identification.
+mitigation algorithms improve accuracy by addressing errors
+but their effectiveness is limited to NLOS data. Thus their per-    B. Bidirectional Encoder Representations from Transformers
+formance is highly dependent on the accuracy of NLOS identi-           As shown in Fig. 1, the input data for BERT [14] is
+fication algorithm. Additionally, existing range error mitigation   encoded using WordPiece, Position and Segment Embedding.
+algorithms struggle to combine CIR energy feature. This             BERT inserts a special symbol ’CLS’ before each indepen-
+paper address aforementioned problems with a deep learning          dent input and uses the special symbol ’SEP’ to separate
+model based on Bidirectional Encoder Representations from           different sequences within the same input. WordPiece Em-
+Transformers (BERT) for channel identification and ranging          bedding assigns a unique integer to each input based on the
+error mitigation. BERT automatically extract key features from      corpus, expanding each integer into a vector of dimensions
+CIR, and its multi-head self-attention mechanism simultane-         (demd = 768). Segment Embedding provides information
+ously focuses on multiple features to improve classification        about the sequence to which each input belongs, with values
+accuracy. BERT’s bidirectional learning capability captures         in the same sequence being identical. Position Embedding
+long-term dependencies within and between sequences. The            allows the network to determine the position of each data
+original CIR sequence is first combined with BERT for NLOS          point and the distance between different data points in the
+identification, with optimized model and input parameters.          sequence. For input X comprising two independent sequences,
+                                                                                                      ′    ′            ′
+Based on BERT identification results, we further establish          A (x1 , x2 , . . . , xn ) and B (x1 , x2 , . . . , xm ), its encoder input
+another fine-grained range error classification system with a       Y is constructed by summing the corresponding token, seg-
+BERT model to perform range error mitigation.                       ment, and positional embeddings, resulting in a dimension of
+L(n + m + 2) × demd . The encoder comprises C identical
+stacks, each containing two sub-layers: a multi-head self-
+attention [15] mechanism (M ultiHead) and a position-wise
+fully connected feed-forward network (F F N ). The multi-head
+attention has D = 12 Scaled Dot-Product Attention units. Its
+inputs are Queries (Q), Keys (K), and Values (V ) given as:
+            Qd = Y ∗ WdQ                Qd ∈ RL×dk            (2a)
+           Kd = Y ∗ WdK                 Kd ∈ R   L×dk
+                                                              (2b)
+           Vd = Y ∗ WdV                 Vd ∈ R   L×dv
+                                                              (2c)
+where d = 1 . . . D, and the projections are parameter matrices
+WdQ ∈ Rdemd ×dk , WdK ∈ Rdemd ×dk and WdV ∈ Rdemd ×dv ,
+dk = dv = demd /C = 64. Scaled dot product attention is:                             Fig. 1. Flowchart of BERT Framework.
+
+                                            Qd × KdT
+   Attentiond (Qd , Kd , Vd ) = sof tmax(      √        )Vd    (3)
+                                                   dk                and ranging error classification and mitigation. UWB tag
+   The MatMul operation of Qd and Kd forms an attention              obtains its ranging distance from multiple anchors and the
+map matrix of size L × L. The Mask (optional) operation              corresponding CIR sequences. Based on the CIR sequence, a
+eliminates the weight information from the upper right corner        BERT-based NLOS channel identification model that classifies
+of the attention map matrix. This ensures that each piece of         data as identified LOS(I-LOS) and identified NLOS (I-NLOS)
+data is only aware of its own attention weight and that of           is proposed. A fine-grained classification model for ranging
+the                                                                  errors is then designed to categorize the ranging results into
+√ preceding data. The scaling operation divides the data by
+  dk to prevent subsequent SoftMax function from entering            high accuracy and low accuracy based on BERT channel
+the region of minimal gradients. SoftMax operation normalizes        identification result. High precision ranging results are directly
+the weights with their sum equals 1. The normalized attention        used for positioning, while low precision ranging results are
+weight matrix with Qd and Kd is then combined with Vd to             optimized before being used for positioning. Finally, based
+produce the final matrix Attentiond ∈ RL×dv . M ultiHead             on the optimized ranging results, positioning coordinates are
+which consists of 12 Attention units, is given as:                   calculated using the least squares algorithm.
+
+ M ultiHeadc (Q, K, V ) = Concat(head1 , . . . , head12 )WcO
+                                                          (4a)
+          where    headd = Attentiond (Qd , Kd , Vd )         (4b)
+where WcO ∈ R(D×dv )×demd is the parameter matrix of the cth
+Encoder where c = 1 . . . C, and the M ultiHeadc ∈ RL×demd .
+The subsequent layer after Multi-Head Attention is a layer nor-
+malization (Add&&Norm) with residual connection. In the cth
+Encoder, the output of first Add&&Norm is LayerN orm1c =
+N orm(Y + M ultiHeadc (Q, K, V )). This output is fetched
+to the next sub-layer of Encoder which is a fully connected              Fig. 2. Flowchart of NLOS identification and ranging mitigation.
+feed-forward neural network (F N N ) that consists of two
+linear transformations connected by ReLU activation.The next
+layer after FNN is the second Add&&Norm with the output              A. NLOS Identification Based on BERT
+LayerN orm2c = N orm(F F Nc + LayerN orm1c ). After the                 NLOS channel identification separates high-precision LOS
+input vector Y passes through C encoders, we obtain the              and NLOS ranging results to ensure optimal positioning per-
+transformed vector Z ∈ RL×demd , which includes a special            formance. Besides F PR , another key feature in the CIR se-
+token ZCLS . The ZCLS token is pivotal, serving not only as          quence generated during distance measurement is the strongest
+a marker for the entire input data but also as a representative of   path (SP ), which generates the maximum CIR amplitude.In
+the entire input’s information. Consequently, the vector of the      previous studies, we divided the CIR sequence into three
+ZCLS token ∈ R1×demd encapsulates the feature information            stages: 1) Environment Noise Stage (ENS): CIR samples from
+of the entire Z sequence, and NLOS identification can be             the first index to the index of F PR ; 2) CIR Steep Rise Stage
+achieved by combining the classification layer.                      (SRS): CIR samples from the index of F PR + 1 to the index
+                                                                     of SP ; 3) CIR Slow Descent Stage (SDS): CIR samples from
+                   III. P ROPOSED M ETHOD                            the index of SP + 1 to the end index. As shown in Fig.
+   Fig. 2 illustrates the proposed UWB positioning strategy.         3, the ENS stage of LOS includes only natural fluctuations in
+It includes two main parts: NLOS channel identification              environmental noise. With the arrival of UWB signals, the CIR
+increases and rapidly reaches its highest value due to weak          stage. I-NLOS is proposed to classify into: NLOS with LOS
+multipath effects. As multipath signals reach the receiving          ENS feature (N LOSEN S ), theoretical NLOS (N LOStheory ),
+end through longer paths of reflection or refraction, the CIR        and soft NLOS (N LOSsof t ). We categorizes NLOS data
+slowly decreases. In the NLOS channel environment, UWB               with F CN = 0 as N LOSEN S since CIR data has no
+signals are attenuated and cannot be detected by the LDE             energy anomalies in the ENS. It conforms to LOS waveform
+algorithm in a timely manner. F PR does not correspond to            characteristics, allowing it to be used for localization without
+F PT , but rather to a subsequent multipath signal of F PR .         correction.The remaining F CN values are greater than or
+Therefore, the ENS stage of NLOS will have additional high-          equal to 1, indicating presence of energy anomaly CIR in ENS,
+energy abnormal CIR from UWB signals. Obstacles in NLOS              and require full correction. We further classifies these NLOS
+conditions exacerbate multipath effects, preventing the CIR          data with energy characteristic erise . It is known that when
+from quickly reaching its maximum value during the SRS               erise ≤ 6, the impact of obstacles on UWB signals has a low
+stage. Under NLOS conditions, pronounced multipath effects           effect on ranging accuracy [16]. NLOS data with F CN ≥ 1
+delay the peak of the SP , resulting in higher fluctuations in the   and erise ≤ 6 will be classifies as N LOSsof t and data with
+CIR during the subsequent SDS compared to LOS situations.            F CN ≥ 1 and erise > 6 as N LOStheory .
+BERT’s self-attention mechanism allows the model to focus on            We employ BERT algorithm for ranging errors that need
+these differnt stage differences, while bidirectional encoding       correction. The output of the BERT is to produce ∆d to
+simultaneously considers local and global features. The multi-       identify the hidden F PT in the CIR sequence corresponding
+head attention mechanism can focus on multiple features              to the true distance. However, the complete CIR sequence
+simultaneously. Using BERT with raw CIR sequence values              contains redundant data and limited energy information related
+can achieve channel identification and avoid the limitations         to the real first path signal, which cannot provide evaluation
+and low generalizability of manually extracted CIR features.         data for the existing LDE algorithm on the F PT . Traditional
+                                                                     machine learning algorithms can only use CIR features, while
+                                                                     deep learning algorithms can only use CIR sequences. Our
+                                                                     BERT can focus on both CIR features and CIR sequences and
+                                                                     fully exploit the hidden temporal and energy-related features to
+                                                                     enhance the identification of the F PT for distance mitigation.
+                                                                     For N LOStheory with F CN ≥ 1 and erise > 6, we propose
+                                                                     to use First Path Error (F P E) [3] to provide time and
+                                                                     related energy information about the F PT . FPE represents the
+                                                                     difference in time between the first path signal after optimizing
+                                                                     the threshold and F PR . Due to the presence of abnormal
+                                                                     CIR data in ENS from multipath, root mean square delay
+       Fig. 3. CIR waveforms in different channel environments.      extension (τrms ) is also used to evaluate the multipath energy.
+                                                                     For N LOSsof t , due to light obstacle attenuation, only F P E
+                                                                     is suffice as an input feature. In summary, we input CIR
+B. Ranging Error Classification and Mitigation                       sequences and these features (F P E for N LOSsof t and F P E
+   Positioning algorithms handle I-NLOS data by either delet-        with τrms for N LOStheory ) as BERT input vectors to obtain
+ing or correcting all I-NLOS data. Deleting I-NLOS data may          ∆d.The mitigation distance dˆ = d − ∆d.
+cause high anchor density to ensure continuous positioning.
+Correcting I-NLOS data with a single model is generally inef-                              IV. E XPERIMENT
+fective. We propose a fine-grained classification and mitigation         To verify the performance of the proposed NLOS iden-
+of I-NLOS ranging results with CIR features and BERT.                tification and ranging mitigation algorithms, the Decawave
+   Vast majority of I-NLOS are true NLOS ranging results with        DW1000 UWB module system based on IEEE802.15.4-2011
+high errors, but some of these NLOS ranging results can meet         has been used. Its effective communication distance is 50 m
+positioning requirements. Deleting them would result in loss of      at communication rate of 110 kb/s. The transmission power
+high-precision ranging results, while correcting them may lead       is -41.3dBm/MHz at operating center frequency of 3.5GHz.
+to an increase in error. These I-NLOS primarily have abnormal        Experimental campaign is at laboratory of University Ghent
+CIR in the ENS and the attenuation of the F PT energy                (UGent). As depicted in Fig. 4, the right side illustrates a
+by obstacles. The degree of UWB F PT attenuation varies              typical office environment with office chairs, while the left
+with physical characteristics of obstacles, leading to varying       side displays a more open area. In the open space, there
+magnitudes of ranging errors. Therefore, this paper selects          are three sets of obstacles (green parallel stripes). Each set
+False Crests Number (F CN ) and the difference between first         composes of physical walls, electronic devices (monitors,
+path power and received power (erise ) [16] as classification        computer towers), and miscellaneous items, defined as mixed
+threshold features, reflecting the degree of first path signal       obstacles. In three sets of static experiments, mixed and human
+attenuation. FCN [3] is a CIR threshold feature that indicates       bodies were used as obstacles, and LOS and NLOS data were
+whether there is a high-energy abnormal CIR in the ENS               collected simultaneously during the movement process. Real
+positions are obtained from visual localization [17]. For each
+environment, the collected data is split into training (70) and
+testing (30) ratio.
+
+
+
+
+                                                                       Fig. 5. The original and mitigation I-NLOS error distribution.
+
+
+
+
+   Fig. 4. Static and dynamic experimental equipment devices layout.
+
+
+A. Performance of BERT NLOS identification
+   We evaluate the performance of the algorithm using three
+indicators: accuracy, recall of LOS (RecallLOS ), and F2 score.
+                             LOST + N LOST
+   Accuracy =                                               (5)
+                 LOST + LOSF + N LOST + N LOSF
+                                    LOST
+                RecallLOS =                                 (6)
+                                LOST + LOSF
+                              Accuracy ∗ RecallLOS
+       F 2 = (1 + 22 ) ∗ 2                                  (7)                  Fig. 6. Dynamic positioning experiment.
+                          (2 ∗ Accuracy) + RecallLOS
+where LOST and LOSF refer to data correctly or falsely
+                                                                                             TABLE I
+identified as the LOS, respectively; N LOST and N LOSF                       T HE P ERFORMANCE OF NLOS IDENTIFICATION
+refer to data correctly or falsely identified as the NLOS, re-
+spectively. The standard BERT includes 12 layers of encoders,           Scene     Method        Accuracy     RecallLOS        F2
+but having too many encoders not only increases runtime                 STA-1      BERT          96.46%       97.15%        0.9701
+                                                                                  LS-SVM         80.75%       81.09%        0.8102
+but also affects accuracy. As the number of encoder layers                         CNN           85.91%       84.93%        0.8512
+increases, BERT’s recognition accuracy improves because it                         LSTM          87.59%       86.37%        0.8661
+can fully extract effective channel information from sequence           STA-2      BERT          96.65%       95.58%        0.9579
+                                                                                  LS-SVM         82.13%       80.09%        0.8049
+data. However, with further increases in the number of encoder                     CNN           86.19%       85.63%        0.8574
+layers, the recognition accuracy decreases. This decline is                        LSTM          89.61%       89.09%        0.8919
+due to overfitting and the merging of complex information,              STA-3      BERT          96.84%       98.67%        0.9830
+                                                                                  LS-SVM         78.94%       81.22%        0.8075
+which results in the loss of some effective features. The                          CNN           84.98%       85.49%        0.8539
+optimal number of encoder layers is 5 with maximum runtime                         LSTM          86.04%       88.26%        0.8781
+reduction of 51.77%. As shown in the Table I, compared with
+LS-SVM [12], CNN [10] and LSTM [11] with CIR sequences,
+our BERT outperform by 17.09%, 11.85%, and 10.80% re-                                         TABLE II
+spectively in terms of Accuracy with average as 96.65%.                  P OSITIONING P ERFORMANCE IN DIFFERENT SCENARIOS
+In terms of LOS recall(RecallLOS ), our BERT outperforms                  Scene                   Mean(m)     Std(m)    Rmse(m)
+by 16.06%, 17.18%, and 10.78% respectively with average                   DYN-1      Original      0.3067     0.4276     0.5101
+recall as 97.13%. In terms of F 2, our BERT also outperform                           BERT         0.1623     0.2296     0.2715
+the three existing algorithms by 19.73%, 19.64% and 11.95%                           LS-SVM        0.2225     0.3455     0.4223
+                                                                                      CNN          0.2128     0.3388     0.4245
+respectively with average as 0.9703.                                                  LSTM         0.1998     0.3309     0.4148
+                                                                          DYN-2      Original      0.3532     0.5461     0.7975
+B. Performance of Ranging Mitigation                                                  BERT         0.1444     0.2194     0.3869
+  Our proposed ranging error mitigation algorithm exhibits                           LS-SVM        0.2006     0.3640     0.6431
+superior performance than existing algorithms, resulting in a                         CNN          0.1943     0.3366     0.6350
+                                                                                      LSTM         0.1902     0.3513     0.6323
+reduction of 41.97% in mean, 46.06% in STD, and 45.31% in
+RMSE. Fig.5 illustrates the improvement in ranging error over
+LS-SVM, CNN, and LSTM by 34.04%, 31.99%, and 16.81%.
+C. Positioning Experiment                                            RMSE by 41.97%, 46.06%, and 45.31% respectively . The
+   To verify the improvement in positioning accuracy achieved        proposed BERT outperforms LS-SVM, CNN, and LSTM
+by the BERT NLOS identification algorithm and ranging                by 34.04%, 31.99%, and 16.81% respectively. Finally, in
+error mitigation algorithm, we conducted two dynamic ex-             the dynamic positioning experiment campaign, the average
+periment (DYN) with two types of obstacles (human body               positioning error, STD, and RMSE were improved by 53.10%,
+and mixed). As shown in Fig. 6(a), the motion trajectory             53.06%, and 49.13%. The 90% and 95% positioning errors
+consists of five consecutive instances of P1-P6-P5-P2-P1 in          were also reduced by an average of 67.71% and 68.81%, re-
+Fig. 4. The experimenter held the tag at chest level to ensure       spectively. Compared with existing algorithms, our algorithms
+the presence of NLOS distance measurements. During the               demonstrates performance over LS-SVM,CNN and LSTM by
+experiment, random movements of personnel within the scene           19.64%, 27.09%, and 32.13% respectively.
+will introduce interference to the UWB signals. As shown in                                        R EFERENCES
+Fig. 6, the black dot triangle represents the reference trajectory
+                                                                      [1] N. BniLam, G. Ergeerts, D. Subotic, J. Steckel, and M. Weyn, “Adaptive
+(RT) obtained through visual positioning while the red dot                probabilistic model using angle of arrival estimation for iot indoor
+represents the original trajectory (OT) obtained from UWB.                localization,” in 2017 International Conference on Indoor Positioning
+The blue cross represents the mitigated trajectory (MT) after             and Indoor Navigation (IPIN), 2017, pp. 1–7.
+                                                                      [2] T. Zhang, L. Zhou, X. Feng, J. Shi, Q. Zhang, and X. Niu, “Ins-aided
+BERT NLOS identification and ranging mitigation. Compared                 gnss pseudo-range error prediction using machine learning for urban
+to the OT, the MT is closer to the RT. The proposed BERTs                 vehicle navigation,” IEEE Sensors Journal, vol. 24, no. 6, pp. 9135–
+have successfully reduced the mean localization error from                9147, 2024.
+                                                                      [3] H. Yang, Y. Wang, C. K. Seow, M. Sun, M. Si, and L. Huang, “Uwb
+0.3067m to 0.1623m with a significant performance improve-                sensor-based indoor los/nlos localization with support vector machine
+ment of 47.08%. Additionally, it reduces the STD localization             learning,” IEEE Sensors Journal, vol. 23, no. 3, pp. 2988–3004, 2023.
+error by 46.31% and RMSE localization error by 46.78%.                [4] T. Otim, A. Bahillo, L. E. Dı́ez, P. Lopez-Iturri, and F. Falcone, “Fdtd
+                                                                          and empirical exploration of human body and uwb radiation interaction
+The percentage of having less than 1 cm localization error                on tof ranging,” IEEE Antennas and Wireless Propagation Letters,
+increased from 32.22% to 57.37% with 25.15% improvement.                  vol. 18, no. 6, pp. 1119–1123, 2019.
+As shown in Fig. 6(b), the motion trajectory consists of five         [5] R. Zandian and U. Witkowski, “Nlos detection and mitigation in
+                                                                          differential localization topologies based on uwb devices,” in 2018
+distinct actions of P2-P3-P4-P5 in Fig. 4. The tag was mounted            International Conference on Indoor Positioning and Indoor Navigation
+on a tripod and positioned higher than the experimenter, who              (IPIN), 2018, pp. 1–8.
+moved the tripod to conduct the positioning experiment. Our           [6] J. Khodjaev, Y. Park, and A. Saeed Malik, “Survey of nlos identification
+                                                                          and error mitigation problems in uwb-based positioning algorithms
+algorithms reduces the mean positioning error to 0.1444m with             for dense environments,” annals of telecommunications-annales des
+a remarkable 59.12% reduction.Furthermore, the STD and                    télécommunications, vol. 65, pp. 301–311, 2010.
+RMSE of the positioning error were reduced by 59.82% and              [7] P.-C. Chen, “A non-line-of-sight error mitigation algorithm in location
+                                                                          estimation,” in WCNC. 1999 IEEE Wireless Communications and
+51.49%, respectively. As shown in Fig. 6(c), The 90% (95%)                Networking Conference (Cat. No. 99TH8466), vol. 1. IEEE, 1999,
+positioning error has been reduced from 0.731m (0.802m) to                pp. 316–320.
+0.309m (0.349m), with reductions of 57.73% (56.48%). As               [8] S. Guo, Y. Zhang, X. Gui, and L. Han, “An improved pdr/uwb inte-
+                                                                          grated system for indoor navigation applications,” IEEE Sensors Journal,
+shown in Table II, as compared to LS-SVM, CNN, and LSTM,                  vol. 20, no. 14, pp. 8046–8061, 2020.
+our algorithms outperform in positioning accuracy, STD, and           [9] B. Silva and G. P. Hancke, “Ir-uwb-based non-line-of-sight identification
+RMSE by 19.64%, 27.09%, and 30.33% respectively in DYN1.                  in harsh environments: Principles and challenges,” IEEE Transactions on
+                                                                          Industrial Informatics, vol. 12, no. 3, pp. 1188–1195, 2016.
+In DYN2, our algorithms outperform LS-SVM, CNN, and                  [10] M. Si, Y. Wang, H. Siljak, C. Seow, and H. Yang, “A lightweight cir-
+LSTM in positioning accuracy, STD, and RMSE by 15.91%,                    based cnn with mlp for nlos/los identification in a uwb positioning
+26.48%, and 32.13% respectively.                                          system,” IEEE Communications Letters, vol. 27, no. 5, pp. 1332–1336,
+                                                                          2023.
+                       V. C ONCLUSION                                [11] D.-H. Kim, A. Farhad, and J.-Y. Pyun, “Uwb positioning system based
+                                                                          on lstm classification with mitigated nlos effects,” IEEE Internet of
+   This paper proposes a UWB NLOS channel identifica-                     Things Journal, vol. 10, no. 2, pp. 1822–1835, 2023.
+tion and ranging error mitigation using BERT. In terms of            [12] K. Yu, K. Wen, Y. Li, S. Zhang, and K. Zhang, “A novel nlos mitigation
+                                                                          algorithm for uwb localization in harsh indoor environments,” IEEE
+Accuracy in multiple scenarios, our BERT algorithm outper-                Transactions on Vehicular Technology, vol. 68, no. 1, pp. 686–699, 2019.
+forms existing algorithms such as LS-SVM, CNN, and LSTM              [13] M. J. Kuhn, J. Turnmire, M. R. Mahfouz, and A. E. Fathy, “Adaptive
+by 17.90%, 11.86%, and 10.80% respectively. In terms of                   leading-edge detection in uwb indoor localization,” in 2010 IEEE Radio
+                                                                          and Wireless Symposium (RWS). IEEE, 2010, pp. 268–271.
+RecallLOS , our BERT outperforms these existing by 16.06%,           [14] J. Devlin, M.-W. Chang, K. Lee, and K. Toutanova, “Bert: Pre-training
+17.18% and 10.78% respectively. Finally in terms of F 2,                  of deep bidirectional transformers for language understanding,” arXiv
+our BERT outperforms by 19.73%, 19.64% and 11.95% re-                     preprint arXiv:1810.04805, 2018.
+                                                                     [15] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. Gomez,
+spectively. Based on the BERT NLOS channel recognition                    and I. Polosukhin, “Attention is all you need. paper presented at:
+results, we further classify ranging errors into fine-grained             Advances in neural information processing systems,” in 30 (nips 2017),
+categories using existing CIR features. We obtain the ranging             2017.
+                                                                     [16] D. Ltd., “Dw1000 user manual,” 2015.
+error with a proposed BERT-based ranging error correction            [17] B. Yang, J. Li, and H. Zhang, “Resilient indoor localization system
+model with these fine-grained classified CIR sequences and                based on uwb and visual–inertial sensors for complex environments,”
+CIR features.The proposed BERT algorithm corrected the I-                 IEEE Transactions on Instrumentation and Measurement, vol. 70, pp.
+                                                                          1–14, 2021.
+NLOS ranging error with a reduction in mean, STD and
+

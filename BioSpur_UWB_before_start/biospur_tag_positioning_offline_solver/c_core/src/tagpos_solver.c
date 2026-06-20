@@ -76,6 +76,7 @@ void biospur_tagpos_default_config(BiospurTagposConfig *cfg, int method) {
     cfg->temporal_prior_sigma_mm = 180.0;
     cfg->robust_loss = BIOSPUR_TAGPOS_LOSS_HUBER;
     cfg->tukey_c = 4.685;
+    cfg->huber_delta_mm = 30.0;
 }
 
 const char *biospur_tagpos_method_name(int method) {
@@ -150,7 +151,11 @@ static double effective_sigma(
     return sigma;
 }
 
-static double robust_weight(const BiospurTagposConfig *cfg, double rn) {
+static double robust_weight(const BiospurTagposConfig *cfg, double residual_mm, double sigma_mm) {
+    if (cfg->robust_loss == BIOSPUR_TAGPOS_LOSS_LINEAR) {
+        return 1.0;
+    }
+    double rn = residual_mm / fmax(sigma_mm, 1e-12);
     double abs_rn = fabs(rn);
     if (cfg->robust_loss == BIOSPUR_TAGPOS_LOSS_TUKEY) {
         double c = cfg->tukey_c > 0.0 ? cfg->tukey_c : 4.685;
@@ -158,6 +163,13 @@ static double robust_weight(const BiospurTagposConfig *cfg, double rn) {
         double u = rn / c;
         double a = 1.0 - u * u;
         return a * a;
+    }
+    if (cfg->huber_delta_mm > 0.0) {
+        double abs_r = fabs(residual_mm);
+        if (abs_r > cfg->huber_delta_mm) {
+            return cfg->huber_delta_mm / fmax(abs_r, 1e-12);
+        }
+        return 1.0;
     }
     if (abs_rn > cfg->huber_k) {
         return cfg->huber_k / fmax(abs_rn, 1e-12);
@@ -250,7 +262,7 @@ static int solve_once(
             double residual = pred - ranges[i];
             double sigma = effective_sigma(cfg->method, cfg, anchor_sigma, quality, quality_ema, residual_ema, i);
             double rn = residual / sigma;
-            double weight = robust_weight(cfg, rn);
+            double weight = robust_weight(cfg, residual, sigma);
             if (weight <= 0.0) continue;
             double sqrt_weight = sqrt(weight);
             double scale = sqrt_weight / sigma;

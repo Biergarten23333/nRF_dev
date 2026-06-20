@@ -1,0 +1,9 @@
+Pipeline,LOO Median mm,P95 mm,RMSE mm,Notes
+V5 p50 baseline,67.8,160.5,86.4,existing locked result
+V4 p50 LOO,57.9,110.6,74.4,existing locked result
+lower_trim_20 + V5 + Huber30,44.485154905540796,164.13531468752078,81.53684273071075,recomputed exact raw-frame V3 LOO convention
++ residual-gated anchor exclusion,53.79415508737393,118.63114584929035,68.91965745125113,exclude largest truth residual per position; diagnostic/oracle rule
+clean_window + V5,62.05986377210085,173.29980532085767,84.68671306445066,"K=50, MAD<30 mm, lowest stable median"
+changepoint LOS-only + V5,64.14306882330591,175.41616629223492,85.00976432207396,"local binary segmentation, LOS-like segment median"
+quality_weighted + V5,63.92709931880232,176.74602714077366,88.69535806567133,quality_percent weighted mean range
+quality_filtered + lower_trim + V5,44.23837520600645,164.60454282695792,81.64754016981317,quality_percent>80 then lower_trim_20

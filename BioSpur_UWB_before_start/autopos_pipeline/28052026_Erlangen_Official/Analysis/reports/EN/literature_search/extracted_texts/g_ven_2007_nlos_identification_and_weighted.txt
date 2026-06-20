@@ -1,0 +1,1145 @@
+Hindawi Publishing Corporation
+EURASIP Journal on Advances in Signal Processing
+Volume 2008, Article ID 271984, 14 pages
+doi:10.1155/2008/271984
+
+
+
+
+Research Article
+NLOS Identification and Weighted Least-Squares Localization
+for UWB Systems Using Multipath Channel Statistics
+
+          İsmail Güvenç, Chia-Chin Chong, Fujio Watanabe, and Hiroshi Inamura
+
+          DoCoMo Communications Laboratories USA, Inc., 3240 Hillview Avenue, Palo Alto, CA 94304, USA
+
+          Correspondence should be addressed to İsmail Güvenç, iguvenc@docomolabs-usa.com
+
+          Received 30 March 2007; Revised 6 July 2007; Accepted 21 July 2007
+
+          Recommended by Richard J. Barton
+
+          Non-line-of-sight (NLOS) identification and mitigation carry significant importance in wireless localization systems. In this paper,
+          we propose a novel NLOS identification technique based on the multipath channel statistics such as the kurtosis, the mean excess
+          delay spread, and the root-mean-square delay spread. In particular, the IEEE 802.15.4a ultrawideband channel models are used as
+          examples and the above statistics are found to be well modeled by log-normal random variables. Subsequently, a joint likelihood
+          ratio test is developed for line-of-sight (LOS) or NLOS identification. Three diﬀerent weighted least-squares (WLSs) localization
+          techniques that exploit the statistics of multipath components (MPCs) are analyzed. The basic idea behind the proposed WLS
+          approaches is that smaller weights are given to the measurements which are likely to be biased (based on the MPC information),
+          as opposed to variance-based WLS techniques in the literature. Accuracy gains with respect to the conventional least-squares
+          algorithm are demonstrated via Monte-Carlo simulations and verified by theoretical derivations.
+
+          Copyright © 2008 İsmail Güvenç et al. This is an open access article distributed under the Creative Commons Attribution License,
+          which permits unrestricted use, distribution, and reproduction in any medium, provided the original work is properly cited.
+
+
+
+
+1.   INTRODUCTION                                                            The NLOS identification and mitigation techniques have
+                                                                         been discussed extensively in the literature, but mainly
+The location of a mobile terminal (MT) can be estimated                  within the cellular network framework [12–14]. For exam-
+using diﬀerent parameters of a received signal, such as the              ple, in [12], the standard deviation of the range measure-
+time-of-arrival (TOA), angle-of-arrival (AOA), and/or the                ments are compared with the threshold for NLOS identifi-
+received signal strength (RSS). Ultrawideband (UWB) ra-                  cation, where the measurement noise variance is assumed to
+dio has a great potential for accurate ranging and localiza-             be known. In [13], a decision-theoretic NLOS identification
+tion systems due to its very wide bandwidth and capability               framework is presented, where various hypothesis tests are
+in resolving individual multipath components (MPCs) [1–                  developed for known and unknown probability density func-
+7]. Therefore, the TOA of the received signal can be esti-               tions (PDFs) of the TOA measurements. A nonparametric
+mated with high accuracy for UWB systems if the first ar-                NLOS identification approach is discussed in [14, 15], where
+riving path has been identified precisely [8–11]. One of the             a suitable distance metric is used between the known mea-
+major challenges for localization systems is the mitigation              surement error distribution and the nonparametrically esti-
+of non-line-of-sight (NLOS) eﬀects. If the direct path be-               mated distance measurement distribution in order to deter-
+tween a fixed terminal (FT) (An FT is usually a base sta-                mine if a given FT is line-of-sight (LOS) or NLOS. Note that
+tion in a cellular network or an anchor node in a sensor                 such techniques usually assume that the MT is moving and
+network.) and the MT is being obstructed, the TOA of the                 the number/density of obstructions between the MT and the
+signal to the FT will be delayed, which introduces a pos-                FT vary. This implies that the bias for the NLOS range mea-
+itive bias. Using such NLOS TOA estimates during the lo-                 surements change over time and have larger variances. On
+calization of the MT position may significantly degrade the              the other hand, when the MT is static, the variance of the
+positioning accuracy. Hence, FTs that are under the NLOS                 NLOS range measurements may not show as much deviation
+condition have to be identified and their eﬀects have to be              from the variance of the LOS range measurements [16]. In
+mitigated.                                                               such situations, the multipath characteristics of the received
+2                                                                                      EURASIP Journal on Advances in Signal Processing
+
+signal may provide some insight regarding the LOS/NLOS                        by the first arriving path. If τ 1 can be accurately estimated,
+identification. For example, in [17], the NLOS identification                 the true distance d between the FT and the MT can be easily
+for UWB systems was briefly addressed by comparing the                        calculated for LOS scenarios. However, for NLOS scenarios,
+normalized strongest path with a fixed threshold. However,                    the distance estimate may typically include a positive NLOS
+for such a scheme, optimal selection of certain parameters                    bias. There may be two major reasons for the existence of
+such as the threshold and the time interval are essential.                    such a bias: while the first path may be completely blocked
+    As an alternative to identify the NLOS scenarios from the                 and cannot be detected at the receiver, it may also be the case
+received multipath signal, it is also possible to use the infor-              that it is being delayed due to experiencing a diﬀerent prop-
+mation from the overall mobile network for NLOS mitiga-                       agation speed through the obstacles [28, 29]. For the second
+tion, provided that there are suﬃcient number of LOS FTs.                     scenario, the delay of the first arriving path may be negligible
+For example, in [18], a residual-based algorithm was pro-                     for certain NLOS channels, which implies close to zero bias.
+posed for NLOS mitigation by assuming that the number of                      In this paper, we assume that NLOS channels introduce con-
+available FTs are more than three.1 Diﬀerent combinations                     siderable bias to the first arriving path. In other words, we
+of FTs with at least three FTs in each combination are con-                   have
+sidered in order to evaluate the MT location and the corre-
+sponding residual error. The location estimates with smaller                                            H0 : d = cτ 1 ,
+                                                                                                                                            (2)
+residuals have larger chances of corresponding to the correct                                           H1 : d < cτ 1 ,
+MT location. Hence, the proposed technique weights diﬀer-
+ent location estimates with the inverses of their residual er-                where c denotes the speed of light, H0 is the LOS hypothesis,
+rors. Some other NLOS mitigation techniques using the mo-                     and H1 is the NLOS hypothesis. Hence, for NLOS situations,
+bile network are reported in [19–27].                                         even if the first arriving path is correctly identified, the es-
+    The objectives of this paper are three-fold. First, to model              timated distance is larger than the actual distance between
+and characterize the amplitude and delay statistics of IEEE                   the FT and the MT due to the always present positive bias.
+802.15.4a channels. Second, to propose NLOS identification                    Therefore, if NLOS FTs are used in localization, they will de-
+techniques based on the amplitude and delay statistics of                     grade the localization accuracy, and it is essential to identify
+the UWB channels. The amplitude statistics are captured us-                   the NLOS FTs and mitigate their eﬀects for accurate localiza-
+ing the kurtosis, and the delay statistics are evaluated using                tion.
+the mean excess delay and the root mean square (rms) de-                           The impact of NLOS bias may be diﬀerent for a mov-
+lay spread of the received MPCs. And third, to analyze dif-                   ing MT and a stationary MT as illustrated in Figure 1. As the
+ferent weighted least-squares (WLS) localization techniques                   MT-1 moves through the network, the LOS and NLOS con-
+and evaluate their performance via Monte-Carlo simulations                    dition changes intermittently. For example, at t1 , MT-1 is un-
+using the IEEE 802.15.4a channel model. The paper is orga-                    der LOS condition with FT1 , FT4 , and FT5 while it is under
+nized as follows. In Section 2, the UWB channel model and                     NLOS condition with other FTs. Similarly, at other time in-
+associated channel statistics to be used in NLOS identifica-                  stants MT-1 will be under LOS and NLOS with some other
+tion are outlined, and the localization system model is briefly               FTs. As the MT-1 moves through the network, the intensity
+reviewed. Section 3 introduces three diﬀerent NLOS identi-                    of obstacles for a NLOS FT will change which will eﬀectively
+fication techniques based the statistics of the MPCs, while                   vary the NLOS bias. Hence, for a moving MT, the variance of
+Section 4 introduces three diﬀerent WLS localization tech-                    the distance estimate to a NLOS FT will be larger due to the
+niques. Simulation results are presented in Section 5 and fi-                 changes in the NLOS bias. On the other hand, for a station-
+nally Section 6 provides some concluding remarks.                             ary MT such as the MT-2, the NLOS bias is fixed over time
+                                                                              as opposed to a moving MT. Hence, observing the variance
+2.     CHANNEL AND SYSTEM MODELS                                              of distance estimates may not provide suﬃcient information
+                                                                              whether a stationary MT is under LOS or NLOS condition.
+2.1. Multipath channel statistics                                             Moreover, for indoor scenarios, the MT may move signifi-
+                                                                              cantly prior to detecting if it is under LOS or NLOS scenario,
+Let the channel impulse response (CIR) of the received signal                 and hence, a NLOS mitigation/localization based on the vari-
+be represented as                                                             ance of the distance estimate may become quite complicated.
+                                                                                   In this paper, we distinguish between the LOS or NLOS
+                                                                              scenarios by exploiting the statistics of the received MPCs.
+                                   
+                                   L
+                                                   
+                          h(t) =         αl δ t − τ l ,                 (1)   The kurtosis, the mean excess delay, and the rms delay spread
+                                   l=1                                        are used in order to capture the amplitude and delay statistics
+                                                                              for the LOS and NLOS scenarios, respectively. The kurtosis of
+where L is the total number of MPCs, and αl and τ l are the                   a certain data is defined as the ratio of the fourth-order mo-
+amplitude and delay of the lth MPC, respectively. The TOA                     ment of the data to the square of the second-order moment
+of the received signal is given by τ toa = τ 1 , which is identified          (i.e., the variance) of the data. As stated in [30], the “kurtosis
+                                                                              characterizes how peaky” a sample data. Thus, it may be used
+                                                                              as a tool to characterize the level of LOS condition of a cer-
+1 When all the FTs are LOS, three FTs are suﬃcient for two-dimensional        tain channel. This implies that for a CIR with high kurtosis
+    (2D) localization, and four FTs are suﬃcient for 3D localization.         values, it is more likely that the received signal is under LOS
+İsmail Güvenç et al.                                                                                                                               3
+
+
+  FT-1                    FT-2                                  FT-3
+                                                                             For NLOS FTs, the bias term ψ i was modeled in diﬀer-
+                                                                             ent ways in the literature such as exponentially distributed
+     MT-1
+                                                                             [18, 32], uniformly distributed [27, 33], Gaussian distributed
+                      MT-2                                                   [34], constant along a time window [21], or based on an
+                                   FT-4                                      empirical model from measurements [29, 35]. Typically, the
+     t1                                                         t3           model depends on the wireless propagation channel and the
+                                                                             specific technology under consideration (e.g., cellular net-
+                                                                             works, wireless sensor networks, etc.). In this paper, we will
+                             t2
+                                                                             model the term bi as an exponentially distributed random
+    FT-5                                                                     variable with mean λi based on [18, 32].
+                                                         FT-6
+                                                                                 Once all the distance estimates in (5) are available, the
+                                                                             noisy measurements and NLOS bias at diﬀerent FTs yield cir-
+Figure 1: A simple scenario where there are six FTs (denoted with            cles which do not intersect at the same point, resulting in the
+stars) and two MTs (denoted with circles). The environment is oc-            following inconsistent equations:
+cupied with some obstructions (e.g., buildings, foliage, etc.). The
+MT-1 moves through the network while the MT-2 is stationary.                                    2             2
+                                                                                        x − xi        + y − yi        = di2 , i = 1, 2, . . . , N.   (7)
+
+scenario. Given a certain channel realization h(t), kurtosis of              3.     LOS/NLOS IDENTIFICATION
+|h(t)| can be calculated as [30]
+                        4            4                           3.1.    Kurtosis of the multipath channel
+            E h(t) − μ|h|    E h(t) − μ|h|
+    κ =            2 2 =                      ,                  (3)
+       E h(t) − μ|h|               σ 4|h|                                  The PDF of the kurtosis of the multipath channel κ can be
+                                                                             obtained for both LOS and NLOS scenarios using sample
+where μ|h| and σ |h| are the mean and standard deviation of                  channel realizations from both scenarios. Here, we used sam-
+the |h(t)|, respectively.                                                    ple channel realizations of the IEEE 802.15.4a standard chan-
+    While the kurtosis provides information about the am-                    nel models in order to obtain the histograms of κ for eight
+plitude statistics of the received MPCs, it does not provide                 diﬀerent channel models (i.e., CM1 through CM8) as defined
+any information regarding the delay properties of the re-                    in [7]. It is found that the histograms can be well modeled by
+ceived MPCs. Two important statistics that characterize the                  a log-normal distribution given as follows:
+delay information of the multipath channel are the mean ex-
+cess delay τ m and the rms delay spread τ rms , which are given                                                                           2
+by [31]                                                                                             1          In(κ) − μκ
+                                                                                           p(κ) = √      exp −                                  ,    (8)
+                         ∞        2                                                           κ 2πσ κ           2σ 2κ
+                             t h(t) dt
+                   τ m = −∞
+                           ∞            ,
+                                    2
+                           −∞ h(t) dt                                        where μκ is the mean and σ κ is the standard deviation of
+                         ∞          2                             (4)
+                                         h(t)2 dt                          In(κ). The corresponding parameters for the eight diﬀerent
+                          −∞ t − τ m
+                 τ rms =      ∞                  .                        channel models are tabulated in Table 1. We also used the
+                                   h(t)2 dt
+                                   −∞
+                                                                             Kolmogorov-Smirnov (K-S) goodness-of-fit hypothesis test
+                                                                             at 5% significance level to analyze how well the log-normal
+2.2. Localization system model                                               PDF characterizes the data. Table 1 also shows the passing
+For the localization system model, we consider a wireless net-               rates of the K-S test for all the channel models. From the ta-
+                                        T                                    ble, it shows that the log-normal distribution fits well to the
+work where there are N FTs, x = [x y] is the estimate of the
+                                                                             kurtosis of the data for all channel models with more than
+MT location, xi = [xi yi ]T is the position of the ith FT, di is             90% of passing rates.
+the measured distance between the MT and the ith FT com-                         The log-normal PDFs of the kurtosis for the eight chan-
+monly modeled as                                                             nel models are depicted in Figure 2. It can be seen that for in-
+                                                                             door residential, indoor oﬃce, and industrial environments,
+             di = di + bi + ni = cτ i , i = 1, 2, . . . , N,           (5)   kurtosis can provide good information regarding if the re-
+                                                                             ceived signal is LOS or NLOS. However, for outdoor environ-
+where τ i is the TOA of the signal at the ith FT, di is the actual
+                                                                             ment, the PDFs are not distinct, and interestingly, the mean
+distance between the MT and the ith FT, ni ∼N (0, σ 2i ) is the
+                                                                             of the NLOS case is larger then the mean of the LOS case. A
+additive white Gaussian noise (AWGN) with variance σ 2i , and
+                                                                             possible reason why the amplitude statistics is insuﬃcient to
+bi is a positive distance bias introduced due to LOS blockage,
+                                                                             identify the LOS/NLOS scenarios might be due to the highly
+given by
+                                                                             dispersive characteristics of the outdoor environments [7].
+                                                                             Therefore, in order to have a more robust identifier, the de-
+                            0     if ith FT is LOS,
+                  bi =                                                 (6)   lay statistics must be taken into consideration as will be dis-
+                            ψi    if ith FT is NLOS.                         cussed in the next section.
+4                                                                                             EURASIP Journal on Advances in Signal Processing
+
+          Table 1: The mean and the standard deviation of the log-normal PDF for the kurtosis of the IEEE 802.15.4a channels.
+
+Channel model                                                  μκ                                         σκ                              K-Sκ
+CM1 (residential LOS)                                        4.6631                                     0.5770                           95.4%
+CM2 (residential NLOS)                                       3.6697                                     0.4886                           94.6%
+CM3 (indoor oﬃce LOS)                                        4.4744                                     0.4579                           95.7%
+CM4 (indoor oﬃce NLOS)                                       2.8154                                     0.3459                           95.5%
+CM5 (outdoor LOS)                                            4.4509                                     0.5163                           95.5%
+CM6 (outdoor NLOS)                                           4.8886                                     0.4497                           95.5%
+CM7 (industrial LOS)                                         4.2637                                     0.7447                           95.6%
+CM8 (industrial NLOS)                                        2.1141                                     0.1487                           95.4%
+
+
+              0.025                                                                0.08
+
+
+               0.02
+                                                                                   0.06
+
+              0.015
+        PDF
+
+
+
+
+                                                                            PDF
+                                                                                   0.04
+               0.01
+
+                                                                                   0.02
+              0.005
+
+
+                 0                                                                   0
+                      0        100      200       300     400      500                    0              100               200     300
+                                           Kurtosis                                                             Kurtosis
+
+                             CM1                                                                 CM3
+                             CM2                                                                 CM4
+                                         (a)                                                                   (b)
+
+               0.01                                                                0.3
+
+
+              0.008
+
+                                                                                   0.2
+              0.006
+        PDF
+
+
+
+
+                                                                             PDF
+
+
+
+
+              0.004
+                                                                                   0.1
+
+              0.002
+
+
+                  0                                                                  0
+                      0         100      200       300     400        500                0              100                200     300
+                                            Kurtosis                                                           Kurtosis
+
+                             CM5                                                                 CM7
+                             CM6                                                                 CM8
+                                          (c)                                                                  (d)
+
+                          Figure 2: Log-normal PDFs of the kurtosis for CM1 to CM8 of the IEEE 802.15.4a channel models.
+
+
+
+3.2. Mean excess delay and rms delay spread of                              the IEEE 802.15.4a channels. We also found that the log-
+the multipath channel                                                       normal distribution fits to the histograms well. This obser-
+                                                                            vation was further verified using the K-S hypothesis test with
+Similar to the kurtosis analysis as discussed in the previous               5% of significance level. The mean and standard deviation of
+section, we obtained the histograms of the mean excess delay                In(τ m ) and In(τ rms ) as well as the K-S passing rates are tab-
+and rms delay spread for eight diﬀerent channel models from                 ulated in Table 2, and their corresponding PDFs are depicted
+İsmail Güvenç et al.                                                                                                                                      5
+
+in Figures 3 and 4. We observe that as opposed to residential                       (normalized with the total received energy) and each of the
+and indoor-oﬃce environments, the LOS and NLOS PDFs                                 κ, τ m , and τ rms for comparison purposes. While the corre-
+in outdoor and industrial environments are quite distinct,                          lation coeﬃcients are usually low for most channel models,
+which implies reliability of the LOS/NLOS identification.                           relatively larger values of ρτ m ,τ rms and ρsp,κ for certain chan-
+                                                                                    nel models are noticeable. Results in Table 3 imply that while
+3.3. Likelihood-ratio test                                                          there is some correlation between some of these parame-
+                                                                                    ters, a suboptimal detector that considers these parameters
+If the a priori knowledge of the statistics of κ, τ m , and τ rms                   independently may still improve the NLOS detection perfor-
+are available under the LOS and NLOS scenarios in a cer-                            mance since the correlation tends to be smaller than 0.5 for
+tain environment, likelihood ratio tests can be performed                           most of the channel models. Then, (12) can be simplified to
+                                          kurt        kurt       med
+for hypothesis selection. Let Plos             (κ), Pnlos  (κ), Plos (τ m ),
+  med          rms−ds                rms−ds
+Pnlos (τ m ), Plos    (τ rms ), and Pnlos   (τ rms ) be the PDFs of the                                                         H0
+kurtosis, the mean excess delay spread, and the rms delay                                                      J κ, τ m , τ rms ≷ 1,                     (13)
+                                                                                                                                  H1
+spread corresponding to LOS and NLOS conditions, respec-
+tively. Then, given a channel realization h(t), we may con-
+sider the following three likelihood ratio tests for LOS/NLOS                       where
+identification of h(t):                                                                                                                               
+                                                                                                             kurt
+                                                                                                              Plos       med
+                                                                                                                    (κ) Plos  τm  P rms−ds τ rms
+  (1) kurtosis test:                                                                     J κ, τ m , τ rms =    kurt    × med   × los
+                                                                                                                                    rms−ds        .
+                                                                                                              Pnlos (κ) Pnlos τ m Pnlos      τ rms
+                                kurt
+                               Plos  (κ) H0                                                                                                        (14)
+                                kurt     ≷ 1,                               (9)
+                               Pnlos (κ) H1
+                                                                                    The histogram of the logarithm of J(κ, τ m , τ rms ) is depicted
+  (2) mean excess delay test:                                                       in Figure 5(a) for CM3 and CM4 of the IEEE 802.15.4a
+                                                                                  channels, and Figure 5(b) shows the histogram of log 10 (1 +
+                                med
+                               Plos  τ m H0                                         J(κ, τ m , τ rms )). While J(κ, τ m , τ rms ) can be used to make a
+                                med     ≷ 1,                             (10)
+                               Pnlos τ m H1                                         hard decision to decide if a received signal is LOS or NLOS, it
+                                                                                    may also be used as a soft information in the WLS algorithm
+  (3) rms delay spread test:                                                        as will be discussed in the next section.
+
+                            rms−ds          
+                           Plos      τ rms H0                                       4.     WLS LOCALIZATION TECHNIQUES
+                            rms−ds        ≷ 1,                           (11)
+                           Pnlos     τ rms H1
+                                                                                    The NLOS information as discussed in the previous section
+where, if the likelihood ratio is larger than 1, we choose the                      can be used in numerous ways to improve the localization
+LOS hypothesis (H0 ), and if otherwise, we choose the NLOS                          accuracy. In this section, we will present diﬀerent WLS tech-
+hypothesis (H1 ).                                                                   niques in order to mitigate the NLOS eﬀects. By considering
+    Rather than using only the PDFs of individual parame-                           the localization model presented in Section 2.2, a WLS esti-
+ters, a better approach would be to consider the joint PDF of                       mate of the MT location using all the FTs can be expressed as
+these parameters, which will yield                                                  [32, 36]
+                          joint                  
+                        Plos     κ, τ m , τ rms       H0                                                                                         
+                                             ≷ 1.                                                                   
+                                                                                                                     N
+                                                                                                                                           2
+                         joint                                            (12)
+                                                                                                   x = arg min             βi di − x − xi        ,       (15)
+                        Pnlos κ, τ m , τ rms H1                                                                x
+                                                                                                                     i=1
+Since in practice it is very diﬃcult to obtain the joint PDFs
+as given in (12), a suboptimal approach is proposed by con-                         where the weights βi can be chosen to reflect the reliability of
+sidering κ, τ m , and τ rms as independent to each other. Note                      the signal received at ith FT.
+that in practice, there is some correlation between these ran-                           Minimizing (15) requires numerical search methods
+dom variables, and independence assumption will not usu-                            such as steepest descent or Gauss-Newton techniques, which
+ally hold. In order to assess the amount of correlation be-                         require good initialization in order to avoid converging to
+tween these random variables, we calculated the correlation                         the local minima of the loss function [37]. Alternatively, it
+coeﬃcients2 between the pairs of random variables as tabu-                          is possible to use the techniques as proposed in [27, 38] in
+lated in Table 3 for 1000 channel realizations from each of the                     order to obtain a linear set of equations from the nonlinear
+IEEE 802.15.4a channel models. We also obtained the cor-                            least-squares model in (15). If the nonlinear set of equations
+relation coeﬃcient between the strongest path (SP) energy                           is given as in (7), by fixing one of the expressions for a partic-
+                                                                                    ular FT and after some mathematical manipulation, we have
+                                                                                    the following linear model:
+2 Correlation coeﬃcient between two random variables R and R is given
+                                                      1     2
+  by ρR1 ,R2 = (E(R1 R2 ) − E(R1 )E(R2 ))/σ R1 σ R2 , where σ R1 and σ R2 are the
+  standard deviations of R1 and R2 , respectively.                                                                  WAx = Wp,                            (16)
+6                                                                                                           EURASIP Journal on Advances in Signal Processing
+
+
+            Table 2: The log-normal pdf parameters for the mean excess delay and the rms delay spread of the IEEE 802.15.4a channels.
+
+                                                     Maximum excess delay                                                                 rms delay spread
+Channel model                         μm [ns]             σ m [ns]                   K-Sm                             μrms [ns]               σ rms [ns]                K-Srms
+CM1 (LOS)                             2.6685              0.4837                     95.7%                             2.7676                  0.3129                   94.8%
+CM2 (NLOS)                            3.3003              0.3843                     95.8%                             2.9278                  0.1772                   95.2%
+CM3 (LOS)                             2.0993              0.3931                     96.2%                             2.2491                  0.3597                   96.2%
+CM4 (NLOS)                            2.7756              0.1770                     95.3%                             2.5665                  0.1099                   95.4%
+CM5 (LOS)                             3.0864              0.4433                     94.6%                             3.3063                  0.2838                   94.6%
+CM6 (NLOS)                            4.6695              0.4185                     94.9%                             4.2967                  0.3742                   95.7%
+CM7 (LOS)                             1.3845              0.9830                     98.9%                             1.9409                  0.7305                   93.9%
+CM8 (NLOS)                            4.7356              0.0225                     94.7%                             4.4872                  0.0164                   95.9%
+
+
+
+                                                                                              0.25
+           0.1                                                                                 0.2
+    PDF
+
+
+
+
+                                                                                        PDF
+                                                                                              0.15
+          0.05                                                                                 0.1
+                                                                                              0.05
+             0                                                                                   0
+                 0   10          20     30      40     50       60        70   80                       0             10             20          30          40            50
+                                  Mean excess delay spread (ns)                                                                   rms delay spread (ns)
+
+                     CM1                               CM3                                                      CM1                               CM3
+                     CM2                               CM4                                                      CM2                               CM4
+                           (a) Mean excess delay spread (ns)                                                               (b) rms delay spread (ns )
+
+             Figure 3: Log-normal PDFs of the mean excess delay and rms delay spread of CM1–CM4 of the IEEE 802.15.4a channels.
+
+
+
+          0.15                                                                                0.25
+                                                                                               0.2
+           0.1
+    PDF
+
+
+
+
+                                                                                        PDF
+
+
+
+
+                                                                                              0.15
+          0.05                                                                                 0.1
+                                                                                              0.05
+            0                                                                                       0
+                 0          50           100          150          200         250                          0    20         40      60      80     100    120     140     160
+                                  Mean excess delay spread (ns)                                                                   rms delay spread (ns)
+
+                     CM5                              CM7                                                       CM5                               CM7
+                     CM6                              CM8                                                       CM6                               CM8
+                          (a) Mean excess delay spread (ns)                                                                 (b) rms delay spread (ns)
+
+             Figure 4: Log-normal PDFs of the mean excess delay and rms delay spread of CM5–CM8 of the IEEE 802.15.4a channels.
+
+
+
+                                                Table 3: Correlation coeﬃcients of diﬀerent channel parameters.
+
+Channel model                          ρκ,τ m                  ρκ,τ rms               ρτ m ,τ rms                       ρsp,τ m                  ρsp,τm                 ρsp,τ rms
+CM1 (LOS)                              −0.45                  −0.06                     0.70                               0.96                  −0.42                  −0.02
+CM2 (NLOS)                             −0.34                  −0.20                     0.37                               0.95                  −0.33                  −0.17
+CM3 (LOS)                              −0.33                  −0.02                     0.71                               0.91                  −0.32                  −0.04
+CM4 (NLOS)                             −0.35                  0.03                      0.50                               0.93                  −0.29                   0.01
+CM5 (LOS)                              −0.31                  0.06                      0.57                               0.94                  −0.27                   0.05
+CM6 (NLOS)                             −0.21                  −0.04                     0.39                               0.93                  −0.20                  −0.05
+CM7 (LOS)                              −0.53                  −0.26                     0.72                               0.95                  −0.54                  −0.25
+CM8 (NLOS)                             −0.30                  −0.26                     0.40                               0.90                  −0.23                  −0.21
+İsmail Güvenç et al.                                                                                                                                                                            7
+
+                60                                                                                                    60
+
+
+
+
+                                                                                                          Histogram
+    Histogram
+
+
+                40                                                                                                    40
+
+                20                                                                                                    20
+
+                 0                                                                                                      0
+                −10        0        10       20     30    40       50    60    70       80     90                           0      10       20   30      40      50      60     70       80   90
+                                                  log10 J(κ, τm , τrms )                                                                         log10 (1 + J(κ, τm , τrms ))
+
+                           CM3                                                                                                     CM3
+
+
+                60                                                                                              1000
+                                                                                                                      800
+
+
+
+
+                                                                                                    Histogram
+    Histogram
+
+
+
+
+                40                                                                                                    600
+                                                                                                                      400
+                20
+                                                                                                                      200
+                 0                                                                                                      0
+                 −8            −6        −4           −2         0         2        4          6                            0           1         2          3            4          5        6
+                                                  log10 J(κ, τm , τrms )                                                                         log10 (1 + J(κ, τm , τrms ))
+
+                           CM4                                                                                                     CM4
+    (a) The logarithm of the likelihood metric J(κ, τ m , τ rms ) for CM3 and                                           (b) SWS weights obtained upon modifying J(κ, τ m , τ rms )
+    CM4 of the IEEE 802.15.4a channels
+
+                                                                   Figure 5: LOS/NLOS metrics used for WLS algorithms.
+
+
+
+where                                                                                                           For the mitigation of NLOS eﬀects, it is critical to select βi
+                      ⎡                                    ⎤                                               appropriately. In [32, 36], the authors use the inverse of the
+                 x1 − xr                       y1 − yr                                                     measured distances variance as a reliability metric for the ith
+               ⎢ x −x                          y2 − yr ⎥
+               ⎢ 2     r                               ⎥                                                   FT, which corresponds to the maximum likelihood solution
+          A = 2⎢
+               ⎢    ..                            ..   ⎥,
+                                                       ⎥                                     (17)          for Gaussian distributed and independent noise terms. How-
+               ⎣     .                             .   ⎦
+                                                                                                           ever, for a static MT, the variance of the TOA measurements
+                          xN −1 − xr yN −1 − yr
+                      ⎡                                                        ⎤                           may not be significantly diﬀerent for LOS and NLOS FTs as
+                                d12 − dr2 − x12 + xr2 − y12 + yr2                                          discussed in Section 2. Still, due to the biased observations
+                ⎢                                                              ⎥
+                ⎢               d22 − dr2 − x22 + xr2 − y22 + yr2              ⎥                           at the NLOS FTs, the localization accuracy degrades when
+                ⎢                                                              ⎥
+           p = −⎢
+                ⎢                               ..                             ⎥,
+                                                                               ⎥
+                                                                                             (18)          the conventional LS technique is used. As discussed in previ-
+                ⎣                                .                             ⎦                           ous section, the MPCs of the received signal carries impor-
+                          dN2 −1 − dr2 − xN2 −1 + xr2 − yN2 −1 + yr2                                       tant information regarding the LOS/NLOS characteristics. In
+                                                                                                           this paper, we deploy such information to develop diﬀerent
+with W = diag(β1 , β2 , . . . , βN −1 ) being a diagonal matrix of                                         alternative WLS localization techniques. Comparison of the
+size (N − 1), and r is the FT chosen in order to obtain the                                                prior art WLS and proposed WLS techniques are summa-
+linear model.3 Therefore, the WLS solution is given by                                                     rized in Figure 6. Note that optimization of the weights βi
+                                                                                                           conditioned on the NLOS bias statistics and the LOS/NLOS
+                                                      −1                                                 likelihood functions is nontrivial in closed-form and is not
+                                x = AT W 2 A                 AT W2 p.                        (19)
+                                                                                                           part of the work to be discussed in this paper. Instead, we
+The mean square error (MSE) of the WLS solution in                                                         propose three diﬀerent heuristic techniques for the selection
+(19) is derived for LOS and NLOS FTs in Appendix A and                                                     of these weights, and show via simulations that the LS local-
+Appendix B, respectively. Note that the WLS solution corre-                                                ization accuracy can be improved under NLOS scenario by
+sponds to the minimization of the following cost function:                                                 deploying the information in the MPCs of the received sig-
+                                                                                                           nal.
+                                    
+                                    N −1
+ Wp − WAx2 =                               βi [di2 − dr2 − xi2 + xr2 − yi2 + yr2                         4.1.                 Identify-and-discard
+                                     i=1                                                     (20)
+                                                                                    2
+                                              + 2 xi − xr x + 2 yi − yr y] .                               As discussed in [39], if no prior knowledge regarding the
+                                                                                                           NLOS bias bi is available, the Cramer-Rao lower bound
+                                                                                                           (CRLB) is minimized by discarding the NLOS FTs (assum-
+3 Note that it is important to assure that FT r is selected appropriately be-                              ing perfect identification of LOS/NLOS measurements). In
+  cause otherwise it will introduce bias in all the equations.                                             here, we refer this technique as identify-and-discard (IAD),
+8                                                                                   EURASIP Journal on Advances in Signal Processing
+
+                              r1 (t)       Distance estimate
+                                                at FT-1
+                                                                    Variance
+                                                                   estimation
+                                            J1 (κ, τm , τrms )
+
+                              r2 (t)       Distance estimate
+                                                at FT-2
+                                                                    Variance                              Location
+                                                                   estimation                             estimate
+                                            J2 (κ, τm , τrms )                                   WLS
+
+                                                    .
+                                                    .
+                                                    .
+
+                              rN (t)       Distance estimate
+                                                at FT-N
+                                                                    Variance
+                                                                   estimation
+                                            JN (κ, τm , τrms )
+
+                                                                                            Known FT
+                                                                                             locations
+
+Figure 6: Comparison between the commonly used prior art (distance variance estimation) and proposed WLS techniques for NLOS
+mitigation.
+
+
+
+and the weights βi for the ith measurement are given as fol-             which penalizes the NLOS nodes by typically assigning them
+lows:                                                                    weights between 0 and 1 (see Figure 5(b)). The drawback of
+                                                                     such an approach is that for LOS nodes, the dynamic range
+                    0 if log 10 Ji κ, τ m , τ rms ≤ 0,                   of weights may become very large as evident in Figure 5. This
+         β(IAD)
+          i     =                                            (21)    unnecessarily favors some of the LOS measurements with re-
+                    1 if log 10 Ji κ, τ m , τ rms > 0.
+                                                                         spect to others which may degrade the positioning accuracy.
+The drawback of IAD is that there is always the chance of
+misidentification (i.e., selecting an LOS FT as NLOS, or vice            4.3.    Hard weight selection
+versa). Hence, in certain cases, there may be insuﬃcient
+number of identified LOS FTs to estimate the MT location,                We may improve the performance of SWS by assigning fixed
+which may considerably degrade the location accuracy. For                weights to LOS and NLOS measurements, that is, by using
+example, if there are only two LOS FTs, this corresponds to              hard weight selection (HWS). Based on this approach, βi can
+two circles which intersect at two diﬀerent points, resulting            be set as
+in an ambiguity of the MT location. In this paper, we ran-                                 ⎧                                         
+domly select one of the two intersection points for resolving                              ⎪
+                                                                                           ⎨k1
+                                                                                              (1)
+                                                                                                       if log 10 Ji κ, τ m , τ rms          ≤ 0,
+                                                                                 (HW S1)
+the ambiguity for the two LOS FT case. On the other hand,                       βi       =                                                     (23)
+                                                                                           ⎪ (1)
+                                                                                           ⎩
+if only one LOS FT can be identified, the best case with IAD                                 k2        if log 10 Ji κ, τ m , τ rms          > 0,
+would be to select the location of the LOS FT as the MT lo-
+cation.                                                                  where k1(1) < k2(1) . In other words, the identified NLOS FTs
+                                                                         have limited impact on the WLS solution. When k1(1) =
+4.2. Soft weight selection                                               0, k2(1) = 1, HWS1 becomes identical to the IAD.
+                                                                               Note that there exists an ambiguity region for the likeli-
+While IAD minimizes the CRLB in ideal scenarios, in prac-                hood functions as shown in Figure 5(a) where a given likeli-
+tice, discarding the NLOS measurements requires perfect                  hood value may correspond to both LOS or NLOS FT. Hence,
+knowledge of the LOS/NLOS situation. Moreover, it has been               an alternative HWS technique that partitions the likelihood
+well reported in the literature that exploiting the NLOS infor-          space into three diﬀerent regions can be obtained as follows:
+mation may improve the localization accuracy in more prac-
+tical estimators such as the LS estimator [27]. Thus, instead                           ⎧                                       
+                                                                                        ⎪
+                                                                                        ⎪
+                                                                                          (2)
+                                                                                                                                 ≤ Δ1 ,
+of discarding the NLOS measurements, the likelihood func-                               ⎪k1
+                                                                                        ⎪
+                                                                                                    if log 10 Ji κ, τ m , τ rms
+                                                                                        ⎪
+                                                                                        ⎨                                         
+tions given in Section 3.3 can be used to minimize the contri-              β(HW S2)    (2)
+                                                                                     = k2           if Δ1 < log 10 Ji κ, τ m , τ rms ≤ Δ2 ,
+                                                                             i        ⎪ ⎪
+bution of NLOS FTs to the residual error as given in (15). We                           ⎪
+                                                                                        ⎪                                 
+                                                                                        ⎪
+                                                                                        ⎩k (2)
+may use a modified version of the likelihood ratios in (13)                                3        if log 10 Ji κ, τ m , τ rms        > Δ2 ,
+for a soft weight selection (SWS) where the weights for the                                                                                        (24)
+ith measurement is given as follows:
+                                                                     where k1(2) < k2(2) < k3(2) , the parameters k1(2) and k3(2) are the
+             β(SW
+              i
+                  S)
+                     = log 10 1 + Ji κ, τ m , τ rms ,            (22)    weights for the NLOS and LOS measurements, respectively,
+İsmail Güvenç et al.                                                                                                                          9
+
+and k2(2) is the weight for the ambiguity region when the like-                      30
+lihood value falls in between Δ1 and Δ2 . For the special case
+when Δ1 = Δ2 = 0, HWS2 is equivalent to HWS1.                                        20
+
+5.   SIMULATION RESULTS                                                                                 FT3   FT5
+                                                                                     10                             FT6   FT6 FT4
+
+
+
+
+                                                                       y (meters)
+Monte-Carlo simulations are performed to validate the pro-                                              FT3         x
+                                                                                      0                             o           FT4
+posed LOS/NLOS identification technique and the WLS al-
+gorithms using the IEEE 802.15.4a channel models. For each                                                                      FT2
+                                                                                    −10                 FT1   FT1    FT5 FT2
+of the CM1 to CM8 channels, 1000 channel realizations are
+generated with channel separation of 494 MHz, central and
+sampling frequencies of 3.952 GHz, with an over-sampling                            −20
+factor of 8.
+                                                                                    −30
+5.1. LOS/NLOS identification results                                                  −40   −30   −20     −10       0      10         20   30   40
+                                                                                                                x (meters)
+For each channel realization, we apply the likelihood ra-
+tio tests given in (9)–(13) and calculate the percentage of           Figure 7: Simulation scenario for the LS and WLS algorithms
+                                                                      (σ 2 = 3 and FT1 has 3-meter NLOS bias). Actual MT location is
+correctly identified cases. Table 4 tabulates both LOS and
+                                                                      denoted by o while its LS estimate is denoted by x. Locations of the
+NLOS identification percentages using the four diﬀerent               FTs for both topology-1 (indicated in black) and topology-2 (indi-
+techniques. It can be seen that using individual metrics may          cated in red) are given, while only the position circles corresponding
+yield high identification percentage only for certain channel         to topology-1 are drawn.
+models (depending on the amplitude and delay characteris-
+tics of the channel under consideration), while the joint ap-
+proach achieves high identification percentage for most of
+the channel models.
+     For comparison purposes, we also included the simula-            models and prefix an exponentially distributed4 NLOS bias
+tion results for the technique introduced in [17], which we           bi with a mean of λi = 2 nanoseconds. For each LOS channel
+refer here as strongest-path threshold-comparison (SP-TC).            realization, we use CM3 of IEEE 802.15.4a channel models
+In summary, the NLOS identification is achieved by                    and assume that first path correctly characterizes the distance
+                                                                      between the MT and the FT. For simplicity, we assume that
+                                 2                                  σ 2i = σ 2 is identical for all the FTs and does not change with
+                           max h(t) H0
+                          ∞      2 ≷ ξ,                    (25)    distance. The results are averaged over 100 NLOS bias real-
+                                  
+                           −∞ h(t) dt H1                              izations, 100 noise realizations, and 100 channel realizations
+where 0 ≤ ξ ≤ 1 is a threshold set on the normalized                  (i.e., over 106 diﬀerent observations), which are assigned ran-
+strongest path. As shown in Table 4, the selection of the             domly to diﬀerent FTs. The simulation scenario is depicted in
+threshold is critical for balanced identification rates for the       Figure 7 along with the circles given by (7) representing the
+LOS and NLOS channels. Even with a reasonable threshold               possible MT positions for each FT in topology-1, where FT1
+setting (e.g., ξ = 0.1), identification rates for the joint ap-       has an NLOS bias of 3 m. For all the HWS algorithms, we use
+proach are better than the SP-TC for most channel realiza-            k1(1) = 0.1, k2(1) = 1, k1(2) = 0.1, k2(2) = 0.2, k3(2) = 1, Δ1 = −3,
+tions.                                                                and Δ2 = 3.
+                                                                           In Figures 8 and 9, simulation results for the average lo-
+                                                                      calization error using conventional LS and diﬀerent WLS al-
+5.2. WLS localization results
+                                                                      gorithms are presented for σ 2 ∈ {0.3, 1} and for diﬀerent sets
+In order to test the performance of the WLS algorithm, we             of NLOS FTs. We also simulated the performance of residual
+consider a rectangular room of size 30 m × 20 m. The MT is            weighting (RWGH) algorithm reported in [18] which aims
+centered at the middle of the room at [x, y] = (0, 0) m, and          to mitigate the NLOS bias by weighting the location estimates
+two topologies for the placement of the FTs are considered.           (for diﬀerent topologies) with the inverses of the correspond-
+For topology-1, six FTs are placed at the borders of the room         ing residual location errors.5 For the conventional LS esti-
+with x1 = [−16, −10], x2 = [14, −9], x3 = [−15.5, 11], x4 =           mator, the average localization error increases with increas-
+[15, 9.5], x5 = [0.5, −11], and x6 = [−0.5, 10] (all in               ing number of NLOS FTs. Also, location accuracy degrades
+meters). For topology-2, FTs are placed in a hexagon-like             slightly when the noise variance increases. While RWGH can
+structure with x1 = [−7.5, −10.5], x2 = [7, −10], x3 =                mitigate the NLOS bias eﬀects in certain settings, HWS-WLS
+[−15.5, 0.5], x4 = [15, 0], x5 = [−8, 11], and x6 = [7.5, 10.5]
+(all in meters). We use the LS model in (19) with r = 6 to
+                                                                      4 Note that exponential distribution is taken as an example, and some other
+estimate the MT location, and consider the cases when there
+                                                                           bias models may as well be used.
+are zero, one (only FT1 ), two (FT1 , FT2 ), and three (FT1 , FT2 ,   5 Reader is referred to [18] for details of RWGH algorithm. Note that dif-
+FT3 ) NLOS FTs. For each NLOS channel realization, we use                  ferent from the original RWGH algorithm in [18] which uses nonlinear
+a channel realization from CM4 of IEEE 802.15.4a channel                   LS, we used the linear LS in our simulations.
+10                                                                                                                               EURASIP Journal on Advances in Signal Processing
+
+                                                                 Table 4: LOS/NLOS identification percentages.
+
+Channel model                           κ            τm         τ rms       Joint (κ, τ m , τ rms )                    SP-TC (ξ = 0.05)             SP-TC (ξ = 0.1)        SP-TC (ξ = 0.2)
+CM1 (LOS)                             78.6%        74.3%       61.7%              81.8%                                    99.6%                        75.5%                  24.9%
+CM2 (NLOS)                            83.2%        77.9%       76.1%              84.3%                                    25.3%                        78.1%                  99.1%
+CM3 (LOS)                             99.0%        88.5%       73.6%              97.9%                                    98.7%                        63.9%                  11.5%
+CM4 (NLOS)                            96.7%        86.3%       89.0%              95.9%                                    56.2%                         96%                   99.9%
+CM5 (LOS)                             66.3%        98.2%       93.9%              98.9%                                    95.5%                        48.2%                   9.1%
+CM6 (NLOS)                            71.4%        95.2%       92.7%              97.8%                                    20.1%                        80.7%                  98.3%
+CM7 (LOS)                             98.3%        88.3%       98.3%              88.2%                                    95.9%                         79%                    37%
+CM8 (NLOS)                            98.4%        100%        100%               99.9%                                     100%                        100%                   100%
+
+
+                        4                                                                                                    4
+ Average localization
+
+
+
+
+                                                                                                      Average localization
+   error (meters)
+
+
+
+
+                                                                                                        error (meters)
+                        3                                                                                                    3
+                        2                                                                                                    2
+                        1                                                                                                    1
+                        0                                                                                                    0
+                            No NLOS FTs       FT1          FT1 , FT2   FT1 , FT2 , FT3                                           No NLOS FTs       FT1          FT1 , FT2   FT1 , FT2 , FT3
+                                     The FTs which are in NLOS (σ 2 = 0.3)                                                                The FTs which are in NLOS (σ 2 = 0.3)
+
+                        4                                                                                                    4
+ Average localization
+
+
+
+
+                                                                                                      Average localization
+   error (meters)
+
+
+
+
+                                                                                                        error (meters)
+                        3                                                                                                    3
+                        2                                                                                                    2
+
+                        1                                                                                                    1
+
+                        0                                                                                                    0
+                            No NLOS FTs       FT1          FT1 , FT2   FT1 , FT2 , FT3                                           No NLOS FTs       FT1          FT1 , FT2   FT1 , FT2 , FT3
+                                     The FTs which are in NLOS (σ 2 = 1)                                                                  The FTs which are in NLOS (σ 2 = 1)
+
+                                LS                                HWS1-WLS                                                           LS                                HWS1-WLS
+                                SWS-WLS                           HWS2-WLS                                                           SWS-WLS                           HWS2-WLS
+                                IAD-WLS                           RWGH                                                               IAD-WLS                           RWGH
+
+Figure 8: The average localization error of diﬀerent WLS algo-                                    Figure 9: The average localization error of diﬀerent WLS algo-
+rithms with respect to diﬀerent number of NLOS FTs for σ 2 = 0.3                                  rithms with respect to diﬀerent number of NLOS FTs for σ 2 = 0.3
+and σ 2 = 1 (topology-1).                                                                         and σ 2 = 1 (topology-2).
+
+
+
+techniques outperform all other approaches for all the sce-                                       more significant impact on the localization accuracy espe-
+narios.                                                                                           cially for IAD and SWS. For example, when FT1 and FT5 are
+    Note that for topology-1, the accuracies of SWS-WLS and                                       both in NLOS, discarding these measurements shows to sig-
+IAD-WLS improve when the number of NLOS FTs increases                                             nificantly degrade the accuracy compared to other NLOS FT
+from 2 to 3 for σ 2 = 1. This shows that the localization accu-                                   configurations. Again, WLS approaches are ineﬀective when
+racy depends not only on the number of NLOS FTs, but also                                         the reference FT is in NLOS.
+on their locations. In particular, NLOS biases of some FTs                                             In order to further clarify the NLOS bias cancelation, we
+which are symmetric with respect to the MT (e.g., FT2 and                                         consider a simple topology (topology-3) composed of four
+FT3 ) may cancel out each other. In order to better evaluate                                      FTs as shown in Figure 11, where the FT locations are given
+the impact of NLOS FTs’ locations, we simulated the localiza-                                     by x1 = [−20, −20], x2 = [−20, 20], x3 = [20, −20], and
+tion algorithms with same number of NLOS FTs in Figure 10.                                        x4 = [20, 20] (all in meters). The FT1 is used as the refer-
+For a single NLOS FT, the localization accuracies do not de-                                      ence FT, and the true position of the MT is at [0, 0] m. The
+grade significantly with the location of the NLOS FT. Excep-                                      theoretical (based on Appendix B) and the simulation results
+tion to this is when the NLOS FT is the reference FT, in which                                    for the NLOS FT scenarios are presented in Figure 11. As ex-
+the localization accuracy will degrade significantly. The WLS                                     pected, the MSE increases if the LOS is obstructed for any
+methods are no longer eﬀective in such a scenario, since, as                                      of the FTs. Moreover, the position of the NLOS FT(s) with
+apparent from (B.1) in Appendix B, all equations become bi-                                       respect to the reference FT aﬀects the MSE. For example, if
+ased due to bias term br . On the other hand, when there are                                      the NLOS FT is the reference FT itself (i.e., b = [2 0 0 0] m),
+two NLOS FTs, the location of the NLOS FTs may have a                                             the MSE becomes worst. If the NLOS FT is far away from the
+İsmail Güvenç et al.                                                                                                                                                 11
+
+                        4                                                                                      3.5
+ Average localization
+   error (meters)
+
+                        3
+                                                                                                                3
+                        2
+                                                                                                               2.5
+                        1
+
+                        0                                                                                       2
+
+
+
+
+                                                                                                         MSE
+                                  FT2                FT3                FT5              FT6
+                                              The FTs which are in NLOS                                        1.5
+                        4
+ Average localization
+
+
+
+
+                                                                                                                1
+   error (meters)
+
+
+
+
+                        3
+
+                        2                                                                                      0.5
+
+                        1
+                                                                                                                0
+                                                                                                                     0        0.5           1        1.5          2
+                        0
+                               FT1 , FT3        FT1 , FT4      FT1 , FT5               FT1 , FT6                                            σ2
+                                              The FTs which are in NLOS
+                                                                                                                         LS (sim.)                   SWS-LS (sim.)
+                                                                                                                         LS (theo.)                  SWS-LS (theo.)
+                                 LS                                       HWS1-WLS
+                                                                                                                         HWS1-WLS (sim.)             CRLB
+                                 SWS-WLS                                  HWS2-WLS
+                                                                                                                         HWS1-WLS (theo.)
+                                 IAD-WLS                                  RWGH
+
+Figure 10: The average localization error of diﬀerent WLS algo-                                        Figure 12: The theoretical (markers) and simulated (dashed lines)
+rithms with respect to diﬀerent FTs being in NLOS for σ 2 = 0.3                                        MSEs of the linear LS, HWS1-WLS, and SWS-LS estimators in
+(Topology-1).                                                                                          topology-1 when all the FTs are in LOS, with FT6 taken as the refer-
+                                                                                                       ence FT.
+
+
+                 3.5                                                                                   the simulation results well for both the LS and WLS algo-
+                            b = [2 0 0 0] m                                                            rithms. Compared to the LS estimator, the MSE of the SWS-
+                        3                                                                              WLS gets considerably worse as σ 2 increases when there are
+                                                                                                       no NLOS FTs. On the other hand, the degradation in the ac-
+                 2.5
+                                                                                                       curacy of HWS1-WLS is negligible. In Figure 13, simulation
+                                b = [0 0 2 0] m                                                        and theoretical MSE results of the LS and HWS1-WLS al-
+                        2
+                                                                                                       gorithms are plotted for diﬀerent fixed NLOS bias scenarios.
+   MSE
+
+
+
+
+                                              b = [0 2 2 0] m                                          When NLOS bias is larger than 1 m, HWS1-WLS performs
+                 1.5
+                                                                                                       always better than the LS for all the σ 2 values. However, when
+                                                                              b = [0 0 0 2] m          FT1 has 1 m NLOS bias, we observe that HWS1-WLS perfor-
+                        1
+                                                                                                       mance becomes worse than LS as σ 2 increases. This may be
+                 0.5                                                                                   due to the fact that we fixed k1(1) = 0.1 and k2(1) = 1 for all the
+                                                                          b = [0 0 0 0] m              simulations, and accuracy might possibly be improved by op-
+                                                             CRLB
+                        0                                                                              timizing the weights with respect to some other parameters.
+                         0.1    0.2     0.3    0.4     0.5        0.6   0.7      0.8    0.9        1
+                                                             σ2
+                                                                                                       6.      CONCLUSION
+Figure 11: Theoretical (markers) and simulated (dashed lines) MSE
+versus σ 2 for an MT located at x = [0, 0] for diﬀerent NLOS bias                                      In this paper, we proposed a novel NLOS identification tech-
+scenarios in topology-3 with FT1 taken as the reference FT.
+                                                                                                       nique that does not require a time history of range mea-
+                                                                                                       surements as opposed to prior art techniques. The tech-
+                                                                                                       nique requires only the amplitude and delay statistics of the
+reference FT (e.g., b = [0 0 0 2] m), the MSE becomes better.                                          multipath channel in order to perform NLOS identification.
+Another interesting observation is that if two NLOS FTs are                                            Therefore, it is relatively simple as compared to previous re-
+symmetric with respect to the MT location and have similar                                             ported works. Furthermore, this technique does not assume
+NLOS biases, the NLOS biases tend to cancel each other; for                                            that the MT has to be in motion, which was commonly as-
+example, the MSE for b = [0 2 2 0] m is better than the MSE                                            sumed in the literature. Hence, such a technique is especially
+for b = [0 0 2 0] m.                                                                                   suitable for indoor wireless personal area networks appli-
+    In Figure 12, the simulated MSEs of the LS, HWS1-WLS,                                              cations where most MT are either in static or in nomadic
+and SWS-WLS algorithms are plotted when all the FTs are                                                conditions. Simulation results show that correct LOS/NLOS
+in LOS scenario along with the theoretical MSEs derived in                                             identification can be achieved with over 90% of the realiza-
+the Appendix A. For comparison purposes, the CRLB of the                                               tions for most channel models. Here, the kurtosis, mean ex-
+location estimate is also included. Theoretical results capture                                        cess delay, and rms delay spread of the multipath channel
+12                                                                                                 EURASIP Journal on Advances in Signal Processing
+
+           7                                                                           where
+                                                 HWS1-WLS                                                        ⎡                          ⎤
+                                             (all bias scenarios)                                             dr2 − d12 − kr + k1
+           6                                                                                                ⎢ d2 − d2 − k + k ⎥
+                   LS, b = [3 0 0 0 0 0] m                                                                  ⎢ r      2     r    2⎥
+                                                                                                       pc = ⎢
+                                                                                                            ⎢           ..        ⎥,
+                                                                                                                                  ⎥                                        (A.4)
+           5
+                                LS, b = [2 0 0 0 0 0] m LS, b = [1 0 0 0 0 0] m                             ⎣            .        ⎦
+                                                                                                                     dr2 − dN2 − kr + kN
+           4                                                                                                     ⎡                                   ⎤
+                                                                                                              2dr nr − 2d1 n1 + n2r − n21
+     MSE
+
+
+
+
+                                                                                                            ⎢ 2d n − 2d n + n2 − n2 ⎥
+           3                                                                                                ⎢ r r        2 2      r     2 ⎥
+                                                                                                       pn = ⎢
+                                                                                                            ⎢             ..              ⎥,
+                                                                                                                                          ⎥                                (A.5)
+                                                                                                            ⎣              .              ⎦
+           2
+                                                                                                                     2dr nr − 2dN nN + n2r − n2N
+           1                                                                           with ki = xi2 + yi2 .
+                                                                    CRLB                  Using (17) and (A.3), the MSE of the estimator in (19)
+           0                                                                           can be derived as follows. We may calculate the covariance
+               0              0.5              1             1.5           2
+                                                                                       matrix of x as
+                                                σ2
+                                                                                                                                               T
+                                                                                                            Cov(x) = E (x − x)(x − x) ,                                  (A.6)
+Figure 13: The theoretical (markers) and simulated (dashed lines)
+MSE of the linear LS and HWS1-WLS estimators in topology-1 for                         where x is the true location of the MT which can be obtained
+diﬀerent NLOS configurations, with FT6 taken as the reference FT.                      as
+                                                                                                                1       −1
+                                                                                                           x = ATw Aw ATw pc,w .              (A.7)
+                                                                                                                2
+                                                                                       Plugging (19) and (A.7) into (A.6) yields
+were obtained by assuming knowledge of the first path ar-
+                                                                                                           1  T −1 T                    −1
+rival. As a future work, sensitivity of the proposed NLOS                                  Cov(x) =           Aw Aw Aw E pn,w pTn,w Aw ATw Aw ,
+detectors to the errors in the first path arrival can be inves-                                            4
+                                                                                                                                                                           (A.8)
+tigated. Furthermore, we also analyzed diﬀerent WLS algo-
+rithms (e.g., IAD, SWS, HWS) which deploy the likelihood                               where E{pn,w pTn,w } is an (N − 1) × (N − 1) matrix. Let
+functions obtained from the MPCs of the received signal.                               E{pn,w pTn,w }i j denote the term corresponding to the ith row
+Through Monte-Carlo simulations using the IEEE 802.15.4a                               and jth column of E{pn,w pTn,w }. If i= j, we have
+channel models, HWS-WLS was proven to outperform the                                                                                                  
+conventional LS algorithm under NLOS scenarios. Future                                     E pn,w pTn,w i j = E{βi 2dr nr − 2di ni + n2r − n2i
+work includes optimization of the NLOS weights using a                                                                                                   
+                                                                                                                       × β j 2dr nr − 2d j n j + n2r − n2j },
+priori information regarding the distribution of the NLOS
+bias.                                                                                                                                                                      (A.9)
+                                                                                       which after some manipulation simplifies to
+                                                                                                                                                                          
+APPENDICES                                                                               E pn,w pTn,w i j = βi β j E 4dr2 n2r + n4r − n2r n2j − n2r n2i + n2i n2j
+                                                                                                                                      
+                                                                                                               = βi β j 4dr2 σ 2 + 2σ 4 .
+A.                                                                                                                                                                        (A.10)
+                                                                                       On the other hand, if i = j, we have
+Let Aw = WA and pw = Wp. Then, by replacing (5) in (18)                                                                                                          
+and assuming that bias terms are zero, we may write                                                                                                       2
+                                                                                            E pn,w pTn,w ii = E β2i 2dr nr − 2di ni + n2r − n2i                       ,
+                                                                                                                                                                          (A.11)
+                                    pw = pc,w + pn,w ,                         (A.1)   which after some manipulation simplifies to
+                                                                                                                                                                                
+                                                                                       E{pn,w pTn,w }ii = β2i E 4dr2 n2r + 4di2 n2i + n4r − n2r n2j − n2r n2i + n4i
+where the constant and noisy6 components of pw are given                                                   2                     
+                                                                                                        = βi 4σ 2 di2 + dr2 + 4σ 4
+by                                                                                                                          2               
+                                                                                                        = E pn,w pTn,w i j + βi 4σ 2 di2 + 2σ 4 .
+                                                                                                                                                                          (A.12)
+                                      pc,w = Wpc ,                             (A.2)   Note that when σ 2 →0, E{pn,w pTn,w }→0, and pw →pc,w .
+                                      pn,w = Wpn ,                             (A.3)       After calculating Cov(x) from (A.8), the mean square lo-
+                                                                                       calization error can then be computed as follows:
+
+6 If p →0, all the lines will intersect at a single point, and the solution of
+                                                                                                                     MSE = Tr{Cov(x)},                                    (A.13)
+      n
+  the estimator in (19) is exact.                                                      where Tr(X) is the trace of matrix X.
+İsmail Güvenç et al.                                                                                                                           13
+
+B.                                                                        Then, proceeding similarly as in Appendix A, we may derive
+                                                                                        
+In the presence of NLOS biases at diﬀerent FTs, extra bias-                   E pn pTn i j =⇒ derived in Appendix A,
+dependent terms are introduced in (A.5). Then we have                                                                          
+                                                                                 bT         2    2    2    2
+                                                                               E b    i j = b r − bi × br − b j ,
+                                                                                                                                       
+                              ⎡                           ⎤                     E ccT i j = 4 dr br − di bi dr br − d j b j
+                             γ + n1 + b1 + c1
+                           ⎢ 1           2 + c2 ⎥                                                + 4br2 σ 2 + I(i, j)4bi2 σ 2 ,
+                           ⎢ γ                    ⎥
+                           ⎢ 2 + n2 + b         ⎥                                                           2         
+                      n = ⎢
+                      p               .           ⎥,              (B.1)            
+                           ⎢          .           ⎥                           E pn b    T
+                                                                                              i j = 2σ
+                                                                                                           2
+                                                                                                                br + bi2 ,
+                           ⎣          .           ⎦
+                                                                                                                                            (B.9)
+                                  γN + nN + bN + cN                           T
+                                                                               E bp            T
+                                                                                    n i j = E bpn ji ,
+                                                                                        
+                                n.w = Wp
+                               p        n .                      (B.2)       E pn cT i j = 8dr br σ 2 + 4d j b j σ 2 + I(i, j)4di bi σ 2 ,
+                                                                                                                  
+                                                                               E cpTn i j = E pncT ji ,
+      where                                                                                                                        
+                                                                                 cT          2    2
+                                                                               E b    i j = 2 br − bi dr br − d j b j ,
+                                                                                                            
+                                                                                   T
+                                                                               E cb           cT ji.
+                 γi = 2 dr nr − di ni ,                                              i j = E b
+                 ni = n2r − n2i ,
+                                                                  (B.3)   REFERENCES
+                 bi = br2 − bi2 ,
+                                                             
+                  ci = 2 dr br − di bi + br nr − bi ni .                  [1] M. Z. Win and R. A. Scholtz, “On the robustness of ultra-wide
+                                                                               bandwidth signals in dense multipath environments,” IEEE
+                                                                               Communications Letters, vol. 2, no. 2, pp. 51–53, 1998.
+      Comparing (B.1) with (A.5), we can easily deduce that                [2] M. Z. Win and R. A. Scholtz, “On the energy capture of ul-
+                                                                               trawide bandwidth signals in densemultipath environments,”
+                                                                               IEEE Communications Letters, vol. 2, no. 9, pp. 245–247, 1998.
+                              p           + c,
+                               n = pn + b                        (B.4)    [3] M. Z. Win and R. A. Scholtz, “Characterization of ultra-
+                                                                               wide bandwidth wireless indoor channels: a communication-
+                                                                               theoretic view,” IEEE Journal on Selected Areas in Communica-
+where the bias dependent vectors b    and c are obtained by                  tions, vol. 20, no. 9, pp. 1613–1627, 2002.
+         
+stacking bi and ci into (N − 1)1 vectors, respectively.                   [4] D. Cassioli, M. Z. Win, and A. F. Molisch, “The ultra-wide
+    For a given bias vector b, we may derive the covariance                    bandwidth indoor channel: from statistical model to simu-
+matrix as in (A.8) as follows:                                                 lations,” IEEE Journal on Selected Areas in Communications,
+                                                                               vol. 20, no. 6, pp. 1247–1257, 2002.
+                                                                           [5] C.-C. Chong and S. K. Yong, “A generic statistical-based UWB
+                1  T −1 T                   −1                           channel model for high-rise apartments,” IEEE Transactions on
+  Cov(x) =         A Aw Aw E pn,w pTn,w Aw ATw Aw , (B.5)
+                4 w                                                            Antennas and Propagation, vol. 53, no. 8, pp. 2389–2399, 2005.
+                1  T −1 T                       −1                   [6] C.-C. Chong, Y.-E. Kim, S. K. Yong, and S.-S. Lee, “Statistical
+              =    A Aw Aw WE p     Tn WT Aw ATw Aw
+                                n p                     ,
+                4 w                                                            characterization of the UWB propagation channel in indoor
+                                                        (B.6)                  residential environment,” Wireless Communications and Mo-
+                                                                               bile Computing, vol. 5, no. 5, pp. 503–512, 2005.
+                                                                           [7] A. F. Molisch, D. Cassioli, C.-C. Chong, et al., “A comprehen-
+where                                                                          sive standardized model for ultrawideband propagation chan-
+                                                                               nels,” IEEE Transactions on Antennas and Propagation, vol. 54,
+                                           T                           no. 11, pp. 3151–3166, 2006.
+                    + c pn + b
+      Tn = E pn + b
+  n p
+E p                             + c
+                                                                           [8] B. Alavi and K. Pahlavan, “Analysis of undetected direct path
+                                             T
+              = E pn pTn + E pn b                  
+                                 T + E pn cT + E bp                          in time of arrival based UWB indoor geolocation,” in Proceed-
+                                                      n
+                    T  T  T                T                         ings of the 62nd IEEE Vehicular Technology Conference (VTC
+                                              
+                +E bb +E bc +E cpn + E cb + E ccT .                       ’05), vol. 4, pp. 2627–2631, Dallas, Tex, USA, September 2005.
+                                                                  (B.7)    [9] I. Guvenc, Z. Sahinoglu, A. F. Molisch, and P. Orlik, “Non-
+                                                                               coherent TOA estimation in IR-UWB systems with diﬀerent
+                                                                               signal waveforms,” in Proceedings of the 2nd International Con-
+Note that comparing (B.6) with (A.8) implies that bias de-                     ference on Broadband Networks (BROADNETS ’05), pp. 245–
+pendent noise terms will increase the MSE in an NLOS con-                      251, Boston, Mass, USA, October 2005.
+dition.                                                                   [10] D. Dardari, C.-C. Chong, and M. Z. Win, “Improved lower
+    Expectation in (B.7) may further be derived as follows.                    bounds on time-of-arrival estimation error in realistic UWB
+Let I(i, j) be an indicator function defined as                                channels,” in Proceedings of IEEE International Conference on
+                                                                               Ultra-Wideband (ICUWB ’06), pp. 531–537, Waltham, Mass,
+                                                                               USA, September 2006.
+                                        1 if i = j,                       [11] D. Dardari, C.-C. Chong, and M. Z. Win, “Threshold-based
+                         I(i, j) =                                (B.8)        time-of-arrival estimators in UWB dense multipath channels,”
+                                        0 if i= j.                             to appear in IEEE Transactions on Communications.
+14                                                                                  EURASIP Journal on Advances in Signal Processing
+
+[12] M. P. Wylie and J. Holtzman, “The non-line of sight prob-                 Mobile & Wireless Communications Summit, Myconos, Greece,
+     lem in mobile location estimation,” in Proceedings of the 5th             June 2006.
+     IEEE International Conference on Universal Personal Commu-           [27] S. Venkatesh and R. M. Buehrer, “A linear programming ap-
+     nications (ICUPC ’96), vol. 2, pp. 827–831, Cambridge, Mass,              proach to NLOS error mitigation in sensor networks,” in Pro-
+     USA, September-October 1996.                                              ceedings of the 5th International Conference on Information Pro-
+[13] J. Borras, P. Hatrack, and N. B. Mandayam, “Decision theo-                cessing in Sensor Networks (IPSN ’06), pp. 301–308, Nashville,
+     retic framework for NLOS identification,” in Proceedings of the           Tenn, USA, April 2006.
+     48th IEEE Vehicular Technology Conference (VTC ’98), vol. 2,         [28] B. Allen, M. Dohler, E. Okon, W. Malik, A. Brown, and D.
+     pp. 1583–1587, Ottawa, Canada, May 1998.                                  Edwards, Eds., Ultra Wideband Antennas and Propagation for
+[14] S. Gezici, H. Kobayashi, and H. V. Poor, “Nonparametric                   Communications, Radar, and Imaging, John Wiley & Sons,
+     nonline-of-sight identification,” in Proceedings of the 58th              West Sussex, UK, 2007.
+     IEEE Vehicular Technology Conference (VTC ’03), vol. 4, pp.          [29] D. B. Jourdan, D. Dardari, and M. Z. Win, “Position er-
+     2544–2548, Orlando, Fla, USA, October 2004.                               ror bound for UWB localization in dense cluttered environ-
+[15] S. Gezici, Z. Tian, G. B. Giannakis, et al., “Localization via            ments,” in Proceedings of IEEE International Conference on
+     ultra-wideband radios: a look at positioning aspects of future            Communications (ICC ’06), vol. 8, pp. 3705–3710, Istanbul,
+     sensor networks,” IEEE Signal Processing Magazine, vol. 22,               Turkey, June 2006.
+     no. 4, pp. 70–84, 2005.                                              [30] “Nist/sematech e-handbook of statistical methods,” http://
+[16] S. Al-Jazzar, Algorithms and parameter estimation for radiolo-            www.6sigma.us/handbook/eda/section3/eda35b.htm, 2006.
+     cation in NLOS environments, Ph.D. dissertation, University of       [31] T. S. Rappaport, Wireless Communications: Principles and Prac-
+     Cincinnati, Cincinnati, Ohio, USA, 2004.                                  tice, Prentice Hall, Indianapolis, Ind, USA, 2002.
+[17] A. Rabbachin, I. Oppermann, and B. Denis, “ML time-of-               [32] S. Gezici and Z. Sahinoglu, “UWB geolocation techniques for
+     arrival estimation based on low complexity UWB energy de-                 IEEE 802.15.4a personal area networks,” Tech. Rep., MERL,
+     tection,” in Proceedings of IEEE International Conference on              Cambridge, Mass, USA, August 2004.
+     Ultra-Wideband (ICUWB ’06), pp. 598–604, Waltham, Mass,              [33] D. B. Jourdan and N. Roy, “Optimal sensor placement for
+     USA, September 2006.                                                      agent localization,” in Proceedings of IEEE Position, Location,
+[18] P. C. Chen, “A non-line-of-sight error mitigation algorithm in            and Navigation Symposium (PLANS ’06), pp. 128–139, San
+     location estimation,” in Proceedings of IEEE Wireless Commu-              Diego, Calif, USA, April 2006.
+     nications and Networking Conference (WCNC ’99), vol. 1, pp.          [34] V. Dizdarevic and K. Witrisal, “On impact of topology and
+     316–320, New Orleans, La, USA, September 1999.                            cost function on LSE position determination in wireless net-
+[19] X. Wang, Z. Wang, and B. O’Dea, “A TOA-based loca-                        works,” in Proceedings of Workshop on Positioning, Navigation,
+     tion algorithm reducing the errors due to non-line-of-sight               and Communication (WPNC ’06), pp. 129–138, Hannover,
+     (NLOS) propagation,” IEEE Transactions on Vehicular Technol-              Germany, March 2006.
+     ogy, vol. 52, no. 1, pp. 112–116, 2003.                              [35] B. Denis, J.-B. Pierrot, and C. Abou-Rjeily, “Joint distributed
+[20] L. Cong and W. Zhuang, “Nonline-of-sight error mitigation                 synchronization and positioning in UWB ad hoc networks us-
+     in mobile location,” in Proceedings of the 23rd Annual Joint              ing TOA,” IEEE Transactions on Microwave Theory and Tech-
+     Conference of the IEEE Computer and Communications Soci-                  niques, vol. 54, no. 4, pp. 1896–1910, 2006.
+     eties (INFOCOM ’04), vol. 1, p. 659, Hong Kong, March 2004.          [36] J. J. Caﬀery Jr. and G. L. Stüber, “Overview of radiolocation
+[21] J. Riba and A. Urruela, “A non-line-of-sight mitigation tech-             in CDMA cellular systems,” IEEE Communications Magazine,
+     nique based on ML-detection,” in Proceedings of IEEE Inter-               vol. 36, no. 4, pp. 38–45, 1998.
+     national Conference on Acoustics, Speech, and Signal Processing      [37] F. Gustafsson and F. Gunnarsson, “Mobile positioning using
+     (ICASSP ’04), vol. 2, pp. 153–156, Montreal, Quebec, Canada,              wireless networks: possibilites and fundamental limitations
+     May 2004.                                                                 based on available wireless network measurements,” IEEE Sig-
+[22] C.-L. Chen and K.-T. Feng, “An eﬃcient geometry-                          nal Processing Magazine, vol. 22, no. 4, pp. 41–53, 2005.
+     constrained location estimation algorithm for NLOS                   [38] J. J. Caﬀery Jr., “A new approach to the geometry of TOA lo-
+     environments,” in Proceedings of the International Conference             cation,” in Proceedings of the 52nd Vehicular Technology Con-
+     on Wireless Networks, Communications and Mobile Computing                 ference (VTC ’00), vol. 4, pp. 1943–1949, Boston, Mass, USA,
+     (WIRLES ’04), vol. 1, pp. 244–249, Maui, Hawaii, USA, June                September 2000.
+     2005.                                                                [39] Y. Qi, H. Kobayashi, and H. Suda, “Analysis of wireless geolo-
+[23] R. Casas, A. Marco, J. J. Guerrero, and J. Falcó, “Robust estima-        cation in a non-line-of-sight environment,” IEEE Transactions
+     tor for non-line-of-sight error mitigation in indoor localiza-            on Wireless Communications, vol. 5, no. 2, pp. 672–681, 2006.
+     tion,” EURASIP Journal on Applied Signal Processing, vol. 2006,
+     Article ID 43429, 8 pages, 2006.
+[24] Y.-T. Chan, H. Y. C. Hang, and P.-C. Ching, “Exact and ap-
+     proximate maximum likelihood localization algorithms,” IEEE
+     Transactions on Vehicular Technology, vol. 55, no. 1, pp. 10–16,
+     2006.
+[25] B. Li, A. G. Dempster, C. Rizos, and H. K. Lee, “A database
+     method to mitigate the NLOS error in mobile phone position-
+     ing,” in Proceedings of IEEE Position, Location, and Navigation
+     Symposium (PLANS ’06), pp. 173–178, San Diego, Calif, USA,
+     April 2006.
+[26] X. Li, “An iterative NLOS mitigation algorithm for location
+     estimation in sensor networks,” in Proceedings of the 15th IST
+

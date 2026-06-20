@@ -1,0 +1,989 @@
+                                                                          I. INTRODUCTION
+
+                                                                              Since the Global Positioning System (GPS)
+Position Error Bound for                                                  became widely accessible [1], localization in the
+                                                                          absolute frame (or geolocation) has found application
+UWB Localization in Dense                                                 in many different fields. In areas where there is
+                                                                          a good line-of-sight (LOS) to GPS satellites, this
+Cluttered Environments                                                    technique provides a good estimate (within a few
+                                                                          meters) of the user’s location on the Earth. However,
+DAMIEN B. JOURDAN, Member, IEEE                                           in indoor and dense urban environments, geolocation
+Athena Technologies, Inc.                                                 has always been a more challenging problem for
+DAVIDE DARDARI, Member, IEEE                                              several reasons. The GPS signal is, for example, not
+University of Bologna at Cesena                                           strong enough to penetrate through most materials.
+Italy                                                                     As soon as an object hides the GPS satellite from the
+MOE Z. WIN, Fellow, IEEE                                                  user’s view, the signal is corrupted. This constrains
+Massachusetts Institute of Technology                                     the usefulness of GPS to open environments, and
+                                                                          limits its performance in forests or in dense urban
+    For most outdoor applications, systems such as Global Positioning
+System (GPS) provide users with accurate location estimates.              environments, as retaining a lock on the GPS signals
+However, similar range-only localization techniques in dense cluttered    becomes more difficult. GPS typically becomes
+environments typically lack accuracy and reliability due, notably, to
+dense multipath, line-of-sight (LOS) blockage and excess propagation      completely useless inside buildings. However there
+delays through materials. In particular, range measurements between       is an increasing need for accurate geolocation in
+a receiver and a transmitter are often positively biased. Furthermore,    cluttered environments, in addition to open spaces.
+the quality of the range measurement degrades with distance, and the
+geometric configuration of the beacons also affects the localization      In commercial applications for example, the tracking
+accuracy.                                                                 of inventory in warehouses or cargo ships is an
+    In this paper we derive a fundamental limit of localization
+accuracy for an ultrawide bandwidth (UWB) system operating in             emerging need. In military applications the problem
+such environments, which we call the position error bound (PEB).          of “blue force tracking,” i.e., knowing where friendly
+The impact of different ranging estimation errors due to beacons
+distance and biases on the best positioning accuracy is investigated.
+                                                                          forces are, is of vital importance, especially in urban
+The statistical characterization of biases coming from measurement        scenarios.
+campaigns can easily be incorporated into this analysis. We show              To address the problem of geolocation in
+that the relative importance of information coming from different
+beacons varies depending on the propagation conditions, such as           cluttered environments, we consider a network of
+whether the beacon is LOS or non-line-of-sight (NLOS). We show,           fixed beacons (or anchor nodes) emitting ultrawide
+in particular, that any a priori information knowledge on NLOS
+beacons can significantly improve the localization accuracy, especially
+                                                                          bandwidth (UWB) signals for ranging purposes. UWB
+in dense cluttered environments. Finally we put forth the concept of      technology potentially provides high ranging accuracy
+localization outage probability and ²-localization accuracy outage, and   in cluttered environments [2—7] owing to its inherent
+use them to characterize the quality of localization throughout the
+area.                                                                     delay resolution and ability to penetrate obstacles
+                                                                          [8—13]. Further information on the fundamentals of
+Manuscript received March 3, 2006; revised September 1, 2006; released
+for publication April 12, 2007.
+                                                                          UWB can be found in [14]—[18] and the references
+                                                                          therein. We assume that the location of these beacons
+IEEE Log No. T-AES/44/2/926546.
+                                                                          is known, for example because they are placed outside
+Refereeing of this contribution was handled by T. F. Roome.               and can rely on GPS. The agent (or unknown node)
+This research was supported, in part, by the Ministero dell’Istruzione,
+                                                                          estimates the ranges to these beacons to determine
+Universitàe della Ricerca Scientifica (MIUR) under the Virtual           its position. These ranges are often obtained by
+Immersive Communications (VICom) project, the Institute of Advanced       estimating the time-of-arrival of the signal, for which
+Study Natural Science & Technology Fellowship, the Charles Stark          several techniques exist [2, 3, 6, 19, 20].
+Draper Laboratory Robust Distributed Sensor Networks Program, the
+                                                                              The accuracy of range-only localization systems
+Office of Naval Research Young Investigator Award N00014-03-1-0489,
+and the National Science Foundation under Grant ANI-0335256.
+                                                                          depends mainly on two factors. The first is the
+                                                                          geometric configuration of the system, i.e., how
+Part of the results of this research were presented at the IEEE
+                                                                          the beacons are placed relative to the agent. The
+International Conference on Communications, Istanbul, Turkey, June
+2006.
+                                                                          second is the quality of the range measurements
+                                                                          themselves. If the range estimates to the beacons were
+Authors' current addresses: D. B. Jourdan, Athena Technologies,
+                                                                          perfect, then three beacons, placed at any (but distinct)
+Inc., 6876 Watson Court Warrenton, VA 20187, Email:
+(jourdan@alum.mit.edu); D. Dardari, WiLAB-DEIS, University
+                                                                          locations would be sufficient to determine the agent
+of Bologna at Cesena, via Venezia 52, Cesena (FC), Italy, E-mail:         position unambiguously in 2D, using any triangulation
+(ddardari@ieee.org); M. Z. Win, Laboratory for Information and            technique. In practice, however, these measurements
+Decision Systems, Massachusetts Institute of Technology, 77               are corrupted due to the propagation properties of
+Massachusetts Ave, Cambridge, MA, E-mail: (moewin@mit.edu).
+                                                                          the environment. Partial and complete LOS blockage
+                                                                          (see Section II) lead, for example, to biased range
+0018-9251/08/$25.00 °
+                    c 2008 IEEE                                           estimates. Furthermore, the measurement variance
+
+IEEE TRANSACTIONS ON AEROSPACE AND ELECTRONIC SYSTEMS VOL. 44, NO. 2                             APRIL 2008                     613
+increases as the received signal-to-noise ratio (SNR)            The structure of the PEB shows explicitely that the
+decreases, which is in general related to an increase        contribution in localization accuracy from each beacon
+in distance between agent and beacon [3]. All these          is weighted by a factor reflecting the propagation
+factors will affect the localization accuracy to different   environment, thereby providing insights into the
+degrees.                                                     importance of information coming from each beacon.
+    A measure of the localization performance used           In particular, it is shown that LOS beacons contribute
+extensively in the GPS community is the geometric            with a larger weight than NLOS ones (at equal
+dilution of precision (GDOP) [1]. The GDOP provides          distance).
+a systematic way to compare geometric configurations             We quantify the importance of information
+of beacons. Bounds on the GDOP have also been                from NLOS beacons to show that NLOS beacons
+derived in [21]. It turns out that there is a close          can significantly improve the localization accuracy
+relationship between the GDOP and the Cramér-Rao            (provided some minimum a priori statistical
+bound (CRB) from estimation theory [22, 23]. Along           knowledge of the biases) compared to the case where
+this line, estimation bounds for localization of sensors     only LOS beacons are considered, especially in dense
+in a sensor network, either with or without anchor           cluttered environments characterized by a low number
+nodes, have been derived in [24]. The effect of              of LOS beacons. Although most theoretical results are
+geometric configurations and node density on the             generalized to 3D, we restrict our numerical analysis
+localization accuracy has been investigated in [25].         to the 2D case.
+It has been shown numerically that collaborative                 The results derived thereafter are not limited to
+localization, where sensors use range information not        UWB ranging, however this technique is the only
+only from the anchor nodes but also from each other,         one able to guarantee high localization accuracy in
+is superior to localization relying solely on the anchor     cluttered environments. Knowing such limit can guide
+nodes [26].                                                  engineering decisions. It can also serve to map the
+    Biases in bearing measurements are treated               area in terms of localization accuracy, so that the
+as additional noise with particular known a priori           agent does not venture in locations with unsatisfactory
+statistics in [27]. In [28], [29] the biases on range        coverage.
+measurements are treated as additional parameters to             Finally we put forth the concept of localization
+be estimated for a range-only localization system. It        accuracy outage to characterize the quality of
+was shown that in the absence of prior information           localization throughout the area. It can be used to
+about the biases, the non-line-of-sight (NLOS)               design the localization network in deciding how many
+beacons do not improve the geolocation accuracy              sensors to deploy and where to place them, or when
+[28], whereas if some prior information (such as             additional sensor deployment is needed [32].
+their probability density function (pdf)) is available,          The paper is organized as follows. In Section II we
+NLOS beacons can improve it [29]. In [30], the               derive the bound for our system of UWB beacons,
+authors investigate the improvement in positioning           while in Section III we use this bound to conduct
+accuracy if all multipath delays, instead of simply the      several numerical case studies. We conclude this paper
+first path, are processed. It is shown that using the        in Section IV.
+first arrival only is sufficient for optimal localization
+when no prior information is known about the NLOS            II.   DERIVATION OF A LOWER BOUND ON THE
+delays, whereas when such prior information is                     LOCALIZATION ACCURACY
+available, then the multipath delays can improve the
+accuracy (with the drawback of a more complex                    We consider a system of nB UWB beacons used to
+receiver). These papers are restricted to particular         localize a single target, or agent. We start by modeling
+bias models, and they do not take into account the           the UWB range measurements, and then proceed to
+dependence on distance of the variance of the range          derive a lower bound on the position error for this
+measurements. This dependence was addressed by               system.
+numerical simulations in [26] and briefly discussed
+in [24]. We note that another bound was suggested in         A. Modeling of Range Measurements
+[31], and analyzed via simulations.
+    In this paper we derive the position error bound             Let us first define a few terms. We refer to a range
+(PEB), a fundamental limit of localization accuracy          measurement between a transmitter and a receiver
+using the information inequality [22] for the UWB            as a direct path (DP) measurement if the range is
+localization system. This bound accounts for the             obtained from the signal traveling along a straight
+dependence on distance of the range measurements             line between the two points. A measurement can be
+and the presence of positive biases. The PEB can             non-DP if the DP signal is completely obstructed. In
+easily incorporate any statistical characterization          this case, the first signal to arrive at the receiver may
+of the biases, e.g., coming from measurement                 come from reflected paths only. An LOS measurement
+campaigns.                                                   is one obtained when the signal travels along an
+
+614                    IEEE TRANSACTIONS ON AEROSPACE AND ELECTRONIC SYSTEMS VOL. 44, NO. 2 APRIL 2008
+unobstructed DP, while an NLOS measurement can                    variance at 1 m. The pdf of ²i is therefore:
+come from complete DP blockage or DP excess delay
+                                                                                             1         2   2
+(in the latter case the DP is partially obstructed so that                      f²i (²) = p         e¡² =2¾ (di ) :             (2)
+the signal has to traverse different materials, which                                      2¼¾(di )
+results in additional delays).                                        Let us now model the statistics of the bias.
+    In the case of radio-based localization, range                    In most applications it is unrealistic to assume a
+measurements are typically corrupted by four sources:             perfect knowledge of the bias; in that case it could
+multipath fading, thermal noise, DP blockage, and DP              be simply subtracted from the range measurement.
+excess delay. Multipath fading is due to destructive              A more realistic option is to consider some a priori
+and constructive interference of signals arriving at the          statistical characterization derived from measurements
+receiver via different propagation paths. This makes              or induced from the environment configuration.
+the detection of DP, if present, challenging. However                 Let us start by making some general observations
+UWB signals have the capability to resolve multipath              about the biases using real data from UWB range
+components, which greatly reduce multipath fading                 measurements. From the results presented in [33]
+[8—11]. The presence of thermal noise also limits the             it can be concluded that the bias will always be
+ability to accurately determine ranges as the distance            nonnegative. Its actual value, however, will largely
+increases, i.e., as the SNR decreases. We account                 depend on the environment. We expect it to take a
+for this effect by introducing a suitable model for               wider range of values in a cluttered environment
+the variance of the range measurements error as a                 with many walls, machines, and furniture (such as a
+function of the beacons distance [6, 3].                          typical office building), than in an open space. Indeed
+    The third difficulty is due to DP blockage. In                actual UWB range measurements performed in an
+some areas of the environment the DP to certain                   office environment in [33], [2] show that the bias
+beacons may be completely obstructed, so that the                 jumps from one value to another as the transmitter
+only received signals are from reflections, resulting             is moved through the building. In [33] the bias is seen
+                                                                  to vary between 0 and 1.5 m, depending on the room
+in measured ranges larger than the true distances.
+                                                                  in which the measurements were taken. Note finally
+The fourth difficulty is due to DP excess delay
+                                                                  that the bias cannot grow infinitely large, regardless of
+incurred by propagation of the partially obstructed
+                                                                  the propagation environment.
+DP through different materials, such as walls. When
+                                                                      Although a detailed map of the environment
+such a partially obstructed DP signal is observed                 may not be available, most of the time we will be
+as first arrival, the propagation time depends not                able to classify the environment in broad terms,
+only upon the traveled distance, but also upon the                such as “concrete office building,” or “wooden
+materials it encountered. Because the propagation of              warehouse” (which we call an environment class).
+electromagnetic signals is slower in some materials               By performing range measurements in typical
+than in the air, the signal arrives with excess delay,            buildings of different classes beforehand, we can
+yielding again a range estimate larger than the true              build a library of frequency histograms valid for
+one. An important observation is that the effect of               different environments classes. We can then use these
+DP blockage and DP excess delay is the same: they                 histograms to approximate the pdf of the biases in the
+both add a positive bias to the true range between                building of interest. An example of such histogram
+agent and beacon, so that the measured range is                   is derived from [33], where range measurements
+larger than the true value (from now on we therefore              were performed at different locations in the corridor
+refer to such measurements as NLOS). This positive                of an office building. The corresponding frequency
+error has been identified as a limiting factor in                 histogram of the bias is plotted on Fig. 1(a). Such
+UWB ranging performance [7, 3], so it must be                     histograms account for the positivity of the biases, as
+accounted for.                                                    well as an approximate distribution of their expected
+    In our system, the range measurements r̃i between             value throughout the building. From Fig. 1 a we can
+the agent and the ith beacon can therefore be                     see that biases around 0.5 m are most common, while
+positively biased due to NLOS propagation. If we                  they were never larger than 1.1 m.
+denote by di the true distance, the measured range r̃i                Let us assume such frequency histograms are
+can be expressed as                                               available for each beacon. They may differ from
+                                                                  beacon to beacon, so we index them by the beacon
+                       r̃i = di + bi + ²i                   (1)   number i. The ith histogram has K (i) bars, where
+                                                                                             (i)
+                                                                  the kth bar goes from ¯k¡1     to ¯k(i) and has frequency
+where bi is the bias added to the ith beacon and ²i
+is a random Gaussian noise, independent of bi , with              (height) p(i)
+                                                                              k , as shown on Fig. 1(a). We can therefore
+zero-mean and variance ¾i2 . Following the analysis               associate to the frequency histogram the pdf of bi as
+found in [6], [10], we model the dependence of the                                          K
+                                                                                            X
+                                                                                             (i)
+
+variance of ²i on the distance di as ¾i2 ´ ¾2 (di ) = ¾02 di® ,                 fbi (b) =          wk(i) uf¯ (i) ,¯ (i) g (b)   (3)
+where ® is the path-loss exponent and ¾02 is the                                            k=1
+                                                                                                             k¡1    k
+
+
+
+
+JOURDAN ET AL.: POSITION ERROR BOUND FOR UWB LOCALIZATION IN DENSE CLUTTERED ENVIRONMENTS                                       615
+Fig. 1. (a) Frequency histogram of bias from range measurements performed in office building [33]. (b) Corresponding pdf of error in
+                             range measurements r̃i ¡ di from beacon i, for di = 15 m and ¾0 = 10¡3 m.
+
+
+where wk(i) = p(i)  (i)  (i)
+               k =(¯k ¡ ¯k¡1 ), ufa,a0 g (b) = 1 if a · b ·
+                                                                                        mean of º̃i is denoted mi , and in order to obtain an
+                                                                                        unbiased estimator we subtract mi from the ith range
+a0 , 0 otherwise, and ¯0(i) = 0. We note that if beacon i
+                                                                                        measurement. This is equivalent to replace º̃i by
+is LOS (i.e., it has no bias), then fbi (b) = ±(b) where                                   ¢
+±(b) is the Dirac pseudo function. In any case, even in                                 ºi = º̃i ¡ mi . Let pA = (xA , yA ) be the vector of the
+absence of measured data, given a fixed scenario we                                     agent’s coordinates so that
+can always determine the maximum expected bias ¯m                                                            q
+and, in absence of other a priori information, assume                                              di (pA ) = (xA ¡ xi )2 + (yA ¡ yi )2 ,
+a uniform distribution in [0, ¯m ], i.e., K = 1, ¯1 = ¯m ,
+and w1 = 1=¯m .                                                                                                                                 i = 1, : : : , nB   (7)
+     In [29] the biases are treated as additional                                       where (xi , yi ) are the coordinates of the ith beacon,
+parameters to be estimated. However it can be shown                                     assumed to be known. The unbiased range
+that if the biases are modeled as described above,                                      measurements are therefore modeled as
+this approach fails to yield a bound lower than that
+when the NLOS beacons are ignored. In this paper                                                                           ri = di (pA ) + ºi                       (8)
+we instead treat the biases as additional noise terms
+on the range estimate, and we show that a better                                        with pdf given by
+performance limit can be obtained, as the information                                       fi (ri j pA )
+from NLOS beacons can help improve the accuracy                                                                           " Ã                          !
+                                                                                                            (i)
+bound.                                                                                                 K
+                                                                                                       X                    ri ¡ di (pA ) + mi ¡ ¯k(i)
+     Let us then lump the bias term with the Gaussian                                              =              wk(i)   Q
+                                                                                                                                    ¾(di (pA ))
+measurement noise º̃i = bi + ²i and obtain the                                                         k=1
+                                                                                                                             Ã                             !#
+corresponding pdf:                                                                                                                                     (i)
+                                                                                                                               ri ¡ di (pA ) + mi ¡ ¯k¡1
+                  Z 1                                                                                                     ¡Q                                  :
+                                                                                                                                        ¾(di (pA ))
+    fº̃i (º̃i ) =     fbi (x)f²i (º̃i ¡ x)dx            (4)
+               ¡1                                                                                                                                                   (9)
+              K (i)
+              X               Z ¯ (i)
+                                    k
+          =           wk(i)             f²i (º̃i ¡ x)dx                           (5)   The pdf corresponding to the bias profile of Fig. 1(a)
+              k=1
+                                (i)
+                               ¯k¡1                                                     is plotted on Fig. 1(b) as a function of the error in
+                (i)           " Ã                     !        Ã                 !#     range measurement r̃i ¡ di for di = 15 m and ¾0 =
+              K
+              X                                                            (i)
+                                        º̃i ¡ ¯k(i)                º̃i ¡ ¯k¡1           10¡3 m.
+          =           wk(i)     Q                         ¡Q
+                                          ¾(di )                       ¾(di )
+              k=1
+
+                                                                                  (6)   B. Position Error Bound
+                   p    R +1 2
+where Q(x) = (1= 2¼) x e¡t =2 dt is the Gaussian Q                                          A lower bound on the covariance of any position
+function. If the ith beacon is LOS, then ºi is Gaussian                                 estimator p̂A = (x̂A , ŷA ) based on r = [r1 , r2 , : : : , rnB ],
+distributed with zero mean and variance ¾ 2 (di ). The                                  the vector of nB range measurements, is given by
+
+616                                 IEEE TRANSACTIONS ON AEROSPACE AND ELECTRONIC SYSTEMS VOL. 44, NO. 2 APRIL 2008
+the information inequality (or the Cramér-Rao lower                            We show in the Appendix that all the terms in (16) for
+bound) [22]1 :                                                                  which i 6= j are 0. We therefore have
+                                                                                        (n
+                Er f(pA ¡ p̂A )(pA ¡ p̂A )T g ¸ J¡1                      (10)             X B
+                                                                                                  1
+                                                                                 J = Er               2  fi (ri j pA )
+                                                                                                 i=1
+where J is the Fisher information matrix (FIM) given                                               μ                        ¶2
+                                                                                         2             @fi (ri j pA )
+                                                                                                                                                                      39
+                                                                                                                                         @fi (ri j pA ) @fi (ri j pA ) >
+by
+                                                                                                                                                                       >
+                                                                                         6                 @xA                               @xA            @yA       7=
+     J = Er f[rpA ln(f(r j pA ))][rpA ln(f(r j pA ))]T g                              £6
+                                                                                       4                                                    μ                    ¶2   7 :
+                                                                                                                                                                      5>
+                                                                                             @fi (ri j pA ) @fi (ri j pA )                      @fi (ri j pA )         >
+                                                                                                                                                                       ;
+                                                                         (11)                    @yA            @xA                                 @yA
+and f(r j pA ) is the pdf of the vector r conditioned on                                                                                                               (17)
+pA , and rpA f:g denotes the gradient of a scalar with
+respect to pA . Note that we have                                               After a few algebraic manipulations we obtain
+       q                                    q                                                                @fi (ri j pA )
+                                                                                                                            = gi (ºi ) cos μi                          (18)
+         Er f(xA ¡ x̂A )2 + (yA ¡ ŷA )2 g ¸ TfJ¡1 g (12)                                                        @xA
+                                                                                                             @fi (ri j pA )
+for any estimator of the position pA = (xA , yA ), where                                                                    = gi (ºi ) sin μi                          (19)
+Tf:g is the trace of a square matrix. In the remaining                                                           @yA
+we refer to this expression as the PEB:                                         where μi is the angle between the agent and the ith
+                                q                                               beacon measured with respect to the horizontal,
+                              ¢
+                PEB(xA , yA ) = TfJ¡1 g:             (13)                       ºi = ri ¡ di , and gi (ºi ) is given by
+                                                                                                                     (i)
+The PEB is a fundamental limit on the accuracy of                                       ¢            1          X
+                                                                                                                K
+
+                                                                                gi (ºi ) =               p                 wk(i)
+any localization method.                                                                     ¾0 di
+                                                                                                   ®=2
+                                                                                                             2¼ k=1
+                                                                                                 "μ                                         ¶
+                                                                                                               ®                               (i) 2  2 ®
+C. Derivation of FIM                                                                         £         1+        (º + mi ¡ ¯k(i) ) e¡(ºi +mi ¡¯k ) =2¾0 di
+                                                                                                              2di i
+
+   We now seek to calculate the FIM for our                                                            μ                                        ¶                       #
+                                                                                                         ®                              (i) 2    2 ®
+system. Because the measurements are assumed to be                                                 ¡ 1+               (i)
+                                                                                                           (º + mi ¡ ¯k¡1 ) e¡(ºi +mi ¡¯k¡1 ) =2¾0 di :
+                                                                                                        2di i
+independent we have
+                                        nB
+                                        Y                                                                                                                              (20)
+                                                                                We finally obtain
+                     f(r j pA ) =             fi (ri j pA )              (14)
+                                                                                                                       nB
+                                                                                                                       X
+                                        i=1
+                                                                                                              J=                 A(¯ (i) , di )M(μi )                  (21)
+where fi (ri j pA ) is given by (9). We have                                                                               i=1
+                                          2 @f (r j p ) 3                                      ¢
+                           XnB
+                                              i i    A
+                                                                                with ¯ (i) =f¯1(i) , : : : , ¯K(i)(i) g,
+                                    1     6 @xA         7
+     rpA ln(f(r j pA )) =                 4             5                                                            ·                                     ¸
+                               f (r j p )
+                                        i     i    A    @fi (ri j pA )                                                       cos2 μ         cos μ sin μ
+                                  i=1                                                                           ¢
+                                                            @yA                                      M(μ) =                                                            (22)
+                                                                                                                           cos μ sin μ          sin2 μ
+                                                                         (15)
+so that                                                                         and                                                Z 1
+       (n n                                                                                                    (i)           ¢          gi (ºi )2
+        XB XB
+                           1             1                                                               A(¯ , di ) =                               dºi :              (23)
+J = Er                                                                                                                             ¡1 fi (ri j pA )
+                     fi (ri j pA ) fj (rj j pA )
+           i=1 j=1
+                                                                                The expression (21) provides us with some useful
+    2 @f (r j p ) @fj (rj j pA )            @fi (ri j pA ) @fj (rj j pA ) 39    insights. First, note that M(μi ) contains geometric
+        i i    A
+                     ¢                                    ¢                >
+                                                                           =
+    6       @xA             @xA                 @xA            @yA        7     information about the relative position of the agent
+  £4                                                                     5 :    with respect to the ith beacon. The FIM is therefore a
+        @fi (ri j pA ) @fj (rj j pA )       @fi (ri j pA ) @fj (rj j pA ) >
+                                                                          ;
+                      ¢                                   ¢                     weighted sum of this geometric information, where
+            @yA            @xA                  @yA            @yA
+                                                                                the weights A(¯ (i) , di ) depend on ¯ (i) and di . We
+                                                                         (16)   show in Section IID that these weights correspond
+                                                                                to the importance of the information coming from the
+1 The notation E f:g denotes the expectation operator with respect to           corresponding beacon, in the sense of how much new
+                r
+the random variable r, the notation V ¸ W means that the matrix                 information is brought by this beacon.
+V ¡ W is positive semi-definite, and superscript T denotes the                      We also note that our analysis can easily be
+transpose.                                                                      extended to 3D. If the position vector pA is a 3D
+
+JOURDAN ET AL.: POSITION ERROR BOUND FOR UWB LOCALIZATION IN DENSE CLUTTERED ENVIRONMENTS                                                                               617
+                                                                                                                               P
+vector, we define ¸ as its longitude (angle between the                                      where we have used the fact that K k=1 wk (¯k ¡ ¯k¡1 )
+x axis and the projection of pA on the x-y plane) and                                        = 1. The pdf of the range measurements converges to
+Á as its latitude (angle between the projection of pA                                        a zero-mean Gaussian of variance ¾2 (d), as expected.
+on the x-y plane and pA ). Then (18) and (19) become                                         We now look at the limit of g(º). We have
+                  @fi (ri j pA )                                                                   ³                ´
+                                 = gi (ºi ) cos ¸i cos Ái                             (24)             ®                     2  2
+                      @xA                                                                     lim      1+           (º + m ¡ ¯) e¡(º+m¡¯) =2¾
+                                                                                             m¡¯!0             2d
+                  @fi (ri j pA )                                                                                             μ                              μ                         ¶¶
+                                 = gi (ºi ) sin ¸i cos Ái                             (25)             2       2                         ®                      ®   º  ®º 2
+                      @yA                                                                      = e¡º =2¾            lim          1+         º + (m ¡ ¯)           ¡ 2¡
+                                                                                                                   m¡¯!0                 2d                     2d ¾   2d¾2
+                  @fi (ri j pA )
+                                 = gi (ºi ) sin Ái                                    (26)                                                                                           (34)
+                       @zA                                                                   so that
+where gi (ºi ) is given by (20). The only change from                                          lim g(º)
+(21), (22), and (23) is in the matrix M(μ) which now                                          m¡¯!0
+becomes                                                                                                                            K
+                                                                                                              1     2   2
+                                                                                                                                  X
+M(¸, Á) =                                                                                            =         p e¡º =2¾ (d) lim      wk
+      2                                                                                3                   ¾(d) 2¼          m¡¯!0
+                                                                                                                                  k=1
+           cos2 ¸ cos2 Á                cos ¸ sin ¸ cos2 Á cos ¸ cos Á sin Á
+                                                                                                               ·μ                      ¶              ¸
+      6                                                                                7                            ®    º      ®º 2
+      4 cos ¸ sin ¸ cos2 Á                  sin2 ¸ cos2 Á        sin ¸ cos Á sin Á 5 :                     £          ¡      ¡           (¯k¡1 ¡ ¯k )
+                                                                                                                    2d ¾2 (d) 2d¾2 (d)
+          cos ¸ cos Á sin Á              sin ¸ cos Á sin Á                   sin2 Á
+                                                                                                                                                                                     (35)
+                                                                                      (27)
+                                                                                                                                μ                                        ¶
+                                                                                                              1                       ®º 2    º    ®    2   2
+D. Analysis of Weights A(¯, d)                                                                       =         p                       2
+                                                                                                                                           + 2   ¡   e¡º =2¾ (d) :
+                                                                                                           ¾(d) 2¼                  2d¾ (d) ¾ (d) 2d
+    Let us investigate the behavior of A(¯, d) as a
+                                                                                                                                                                                     (36)
+function of ¯ and d. As a sanity check let us first
+consider the case when all the biases go to 0, with                                          We can³then calculate A(¯, d) when ¯ is 0. If we let
+d fixed. This implies that the ¯k tend to 0 for all k,                                                  p ´
+                                                                                             y = º= ¾(d) 2 , we obtain
+and that the mean of the corresponding measurement
+noise m also goes to 0, according to (6). We write this                                                                 Z 1μ              p          ¶2
+as m ¡ ¯ ! 0. We then have the following first-order                                           A(0, d) = p
+                                                                                                          1                         ® 2
+                                                                                                                                      y +
+                                                                                                                                            2
+                                                                                                                                               y¡
+                                                                                                                                                  ®        2
+                                                                                                                                                        e¡y dy                       (37)
+approximation for small m ¡ ¯k :                                                                           ¼                ¡1
+                                                                                                                                    d     ¾(d)    2d
+   μ            ¶      ³º ´ m¡¯                                                                                         ·        Z 1                    μ                    ¶
+     º m¡¯                             2  2
+                                                                                                             1 ®2                                             2   ®2
+ Q        +            k
+                               =Q             ¡   p     k
+                                                            e¡º =2¾ + o(m ¡ ¯k )                           =p
+                                                                                                                                                  2
+                                                                                                                                         y 4 e¡y dy +            ¡ 2
+      ¾        ¾                        ¾         ¾ 2¼                                                        ¼ d2                                           2
+                                                                                                                                                            ¾ (d) d
+                                                                                                                                    ¡1
+                                                                                      (28)                                      Z 1                          Z 1                 ¸
+                                   ³                     ´                                                                               2 ¡y 2       ®2             ¡y 2
+                   2       2                           º         2       2                                                  £         y e         dy + 2             e      dy       (38)
+      e¡(º+m¡¯k ) =2¾ = 1 ¡ (m ¡ ¯k )                        e¡º =2¾ + o(m ¡ ¯k ):                                               ¡1                   4d        ¡1
+                                                       ¾2
+                                                                                                               ·   p    μ            ¶p           ¸
+                                                                                      (29)                   1 ®2 3 ¼       2     ®2    ¼   ®2 p
+                                                                                                           =p         +         ¡         +     ¼
+We use these to calculate the limit of (9) when                                                               ¼ d2 4      ¾2 (d) d 2   2    4d2
+m ¡ ¯ ! 0:
+                                                                                                                                                                                     (39)
+ lim f(r j pA )
+m¡¯!0                                                                                                               1            ®2
+                                                                                                           =                +        :                                               (40)
+                  X
+                  K            · μ                     ¶         μ                     ¶¸                      ¾2 (d)            2d2
+                                         º + m ¡ ¯k                  º + m ¡ ¯k¡1
+      = lim                wk Q                             ¡Q
+          m¡¯!0                             ¾(d)                         ¾(d)                    In the following we consider the particular case
+                   k=1
+                                                                                             where the biases are uniformly distributed between 0
+                                                                                      (30)   and ¯m , with the purpose of emphasizing in a simple
+                  X
+                  K            ·                                     ¸                       way the role played by the NLOS beacons when
+                                        m ¡ ¯k m ¡ ¯k¡1 ¡º 2 =2¾2 (d)
+      = lim                wk ¡            p +     p    e                                    the biases grow. As already mentioned, it can also
+          m¡¯!0                        ¾(d) 2¼ ¾(d) 2¼
+                   k=1                                                                       model the case where all that is known about the
+                                                                                      (31)   environment is that the bias cannot be greater than
+             1     2   2
+                                 X                 K                                         ¯m . The corresponding pdf (9) is plotted on Fig. 2. In
+      =       p e¡º =2¾ (d) lim      wk (¯k ¡ ¯k¡1 )                                  (32)   this case the weights A(¯m , d) are equal to
+          ¾(d) 2¼          m¡¯!0
+                                 k=1
+                                                                                                                             Z 1
+             1                                                                                                        1
+      =
+                   2   2
+              p e¡º =2¾ (d)                                                           (33)           A(¯m , d) =         p        h(y, ¯m , d)dy (41)
+          ¾(d) 2¼                                                                                                ¯m ¾(d)¼ 2 ¡1
+
+618                                    IEEE TRANSACTIONS ON AEROSPACE AND ELECTRONIC SYSTEMS VOL. 44, NO. 2 APRIL 2008
+          Fig. 2. Pdf of error in range measurements r̃i ¡ di when K (i) = 1, given true distance di = 15 m and ¯ (i) = ¯m = 2 m.
+
+
+
+
+                               Fig. 3. A(¯m , d) for several values of d in the case where ¾0 = 0:001 m and ® = 3.
+
+
+where                                                                         For a given d, A(¯m , d) therefore approaches 0
+                                                                              as ¯m goes to infinity. From (40) we see that the
+h(y, ¯, d) =                                                                  same is true when d goes to infinity (so that the
+                                                                              range estimation variance goes to infinity). This is
+·μ             ¡             ¢ ¶³          ´         ¡            ¢2 ¸2
+      2
+                      p
+           ¡ y+(¯=¾(d) 2)
+                          2
+                                 ®¾(d)     ®¯ ¡ y+(¯=¾(d) 2)
+                                                              p               consistent with our intuition that the larger the bias
+  e¡y ¡ e                          p y ¡
+                                  1+           e                              or the range estimation variance, the less valuable
+                                 d 2        2d
+                        ¡p ¢     ³p           ´                           :   the corresponding range information will be in
+                                          ¯
+                      Q   2y ¡ Q    2y +                                      determining the agent’s position: the corresponding
+                                         ¾(d)
+                                                                  (42)        M(μ) in (21) will receive a low weight and the
+                                                                              contribution from the ith beacon will be small. The
+   We now turn our attention to the case when the                             weights A(¯ (i) , di ) therefore quantify the importance
+biases grow to infinity. When ¯m ! +1 for a                                   of the information coming from the ith beacon. This
+given d, the integral in (41) tends to a constant so that                     implies that the information from beacons that are
+we have                                                                       far away (large range measurement variance) or
+                                                                              that are in highly cluttered areas (large bias) will
+                              1                                               not contribute much to the FIM. This behavior is
+               A(¯m , d) »             when ¯m ! +1:              (43)
+                             ¯m                                               illustrated on Fig. 3, where we used (41) to plot
+
+JOURDAN ET AL.: POSITION ERROR BOUND FOR UWB LOCALIZATION IN DENSE CLUTTERED ENVIRONMENTS                                            619
+A(¯m , d) as a function of ¯m , for several values of d.             We stress that the limit on the localization accuracy
+It can be seen that when d is small, the weights are                 given in (45) and (46) depends on the distance
+sensitive to changes in ¯m . Indeed at short distances               between the agent and the beacons, as well as on the
+the variance ¾2 (d) of the Gaussian noise is small,                  presence of biases. If the variance were not dependent
+and therefore the dominating term in measurement                     on the distance (® = 0) and if no bias were present
+inaccuracy is the bias value. However as the                         (¯ (i) = 0 for all i), then according to (40) Ai = 1=¾02 for
+distance increases, the value of ¯m is less significant              all i and the PEB is equal to
+since the large ¾2 (d) tends to dominate the error. In                                     s
+any case, as d or ¯m increase, the importance of the                                                           nB
+information coming from the corresponding beacon                      PEB(xA , yA ) = ¾0 ¡Pn            ¢ ¡PnB 2 ¢ ¡PnB          ¢2
+                                                                                                      2
+                                                                                                            i=1 si ¡
+                                                                                                  B
+                                                                                                 i=1 ci                i=1 ci si
+decreases.
+                                             (LOS)
+    Consider a mix of LOS (for which ¯m            = 0) and                                                                   (47)
+NLOS beacons with no a priori knowledge of their
+                                                                     which is the product of the measurement standard
+biases (the biases can take any nonnegative value
+                                      (NLOS)                         deviation ¾0 and the GDOP. This is the case most
+so they have no upper bound, or ¯m            ! +1).
+Then the information from the NLOS beacons is                        commonly treated in the literature for range-only
+not used at all in the calculation of the PEB since                  localization [28, 25, 23].
+lim¯m !+1 A(¯m , d) = 0. This observation is consistent
+with [28], in which it was shown that in the presence
+of a mix of LOS and NLOS beacons (with no                            III. NUMERICAL CASE STUDIES
+a priori knowledge about the NLOS statistics), the
+performance depends only on the LOS beacons. Our                         We consider a set of nB beacons where nLOS of
+result shows however that in the case where a priori                 them are LOS, while the remaining nNLOS = nB ¡ nLOS
+knowledge of the NLOS beacon biases is available                     are NLOS. For the sake of these case studies we
+(which is always the case since biases cannot be                     assume we know whether a beacon is LOS or NLOS
+infinitely large), the NLOS beacons should indeed be                 (if a map of the environment is available, channel
+taken into account since they contribute to the PEB. In              modeling tools can be used [34], otherwise NLOS
+Section III it will be shown that the contribution from
+                                                                     identification techniques exist [35—37]). We note that
+NLOS beacons can be quite significant.
+                                                                     in practical applications it may be more realistic to
+                                                                     assign each beacon with a probability of being LOS
+E. Analytical Expression for PEB                                     and NLOS. Our analysis can be easily extended to this
+                                                                     case.
+    We now use the analytical expression for the FIM
+                                                                         We call ½ the fraction of LOS beacons, that is
+to obtain the PEB in (13). Recall from (21) that the
+                                                                     ½ = nLOS =nB . Typically LOS beacons have no bias
+FIM is a 2 £ 2 matrix, so its inverse is easily obtained
+                                                                     so ¯ (i) = 0 for i = 1, : : : , nLOS . We assume that LOS
+as
+                   2 X  nB              nB          3                beacons are placed such that they are visible from any
+                                       X
+                                2
+                            Ai si    ¡     Ai ci si 7                location in the area. On the other hand we assume that
+                   6
+              1 6      i=1             i=1          7                all the biases related to NLOS beacons are uniformly
+       ¡1
+      J =          6                                7 (44)
+                   6
+             det J 4 X  n B           Xn B          7                distributed between 0 and ¯m , i.e., ¯ (i) = ¯m for
+                                               2 5
+                     ¡      Ai ci si       Ai ci                     i = nLOS + 1, : : : , nb . This value will vary from building
+                        i=1              i=1                         to building depending on whether the environment is
+                 (i)
+where Ai = A(¯ , di ), ci = cos μi , and si = sin μi . The           highly cluttered or not.
+PEB is then equal to                                                     We acknowledge that assuming that beacons
+                                                                     remain LOS or NLOS irrespective of the agent’s
+  PEB(xA , yA )                                                      position is not quite realistic, but our goal in the
+        v                         PnB                                following case studies is to understand the general
+        u
+        u                            i=1 Ai
+      = t ¡Pn                ¢ ¡PnB         ¢ ¡PnB           ¢2 :    behavior of the PEB as we vary some key parameters
+                B        2                 2 ¡
+                 i=1 Ai ci       i=1 A i si     i=1 Ai ci si         in a simple scenario. The analysis of the previous
+                                                                     sections is perfectly amenable to cases where beacons
+                                                              (45)   are LOS and NLOS depending on the agent’s
+We can also expand the denominator to obtain the                     location.
+alternate expression:                                                    The following case studies are carried out with
+                       s       PnB                                   ® = 3 (a typical value for UWB indoor environments
+                                  i=1 Ai                             [10]) and ¾0 = 10¡3 m (derived from the experimental
+        PEB(xA , yA ) = P             2
+                                                  : (46)
+                         i<j Ai Aj sin (μj ¡ μi )                    data described in [33]).
+
+620                      IEEE TRANSACTIONS ON AEROSPACE AND ELECTRONIC SYSTEMS VOL. 44, NO. 2 APRIL 2008
+Fig. 4. Case 1 when d = 5 m (left), and d = 20 m: PEB as function of ¯m (solid), bounded below by PEB when all 6 sensors are LOS
+ (dotted), and above by PEB when only the 3 LOS beacons are considered (dashed). Lower values of PEB indicate a better localization
+                                                            accuracy.
+
+
+A. Case Study 1: Importance of NLOS Beacons                        an area. Let us map the value of the PEB throughout
+                                                                   a square area for 6 LOS beacons placed at the vertices
+    We first consider 6 beacons placed at the vertices             of a polygon of radius d = 10 m (Fig. 5). This contour
+of a polygon of radius d = 5 m and 20 m, and we
+                                                                   plot reveals that the center of the polygon is no longer
+assume that 3 beacons are LOS, while the 3 others are
+NLOS (therefore ½ = 0:5) with a common maximum                     the location with minimum PEB, contrary to the
+bias ¯m . We plot PEB at the center of the polygon as              common conclusions in the literature based on a
+a function of d and varying ¯m from 0 to 2 m (solid                model where the range measurement variance does not
+curve on Fig. 4). Also shown on the figure are the                 depend on distance between agent and corresponding
+PEB values if all beacons were LOS (lower dotted                   beacons [38]. In other words, when the beacons are so
+line) and if the NLOS beacons were ignored (upper                  arranged, the agent should not expect to have optimal
+dashed line).                                                      localization accuracy in the center of the polygon.
+    It can be seen that when ¯m goes to 0, PEB                     The situation becomes all the more complicated when
+converges to the PEB when all beacons are LOS, as                  NLOS beacons are included.
+expected since ¯m = 0 corresponds to all beacons                       Suppose that we desire the PEB to be below a
+being LOS. On the other hand when ¯m goes to                       certain threshold ¿ for all points in the area. If at some
+infinity PEB converges to the upper line. This is                  location we have PEB > ¿ , then whatever position
+also expected since the information from the NLOS                  estimator is used, the localization accuracy will be
+beacons reduces as ¯m grows larger: for ¯m ! +1                    above the required threshold (since the PEB is a lower
+their contribution is altogether ignored (as shown                 bound on the estimator accuracy). In this case we
+in Section IID). However it is interesting to note
+                                                                   say that the localization system is in outage at this
+that the NLOS beacons can help significantly in
+                                                                   location, and we define the outage probability for a
+reducing the PEB, especially when ¯m is small (NLOS
+measurements have small biases) or when d is large                 given ¿ as
+                                                                                              ¢
+(the standard deviation of the range measurements is                                  pout (¿ ) = PfPEB > ¿ g:                (48)
+large compared to the biases). Therefore the range
+information from NLOS beacons should not be                        The outage probability tells us that as the agent moves
+dismissed, as it can greatly improve the localization
+                                                                   through the area, with probability pout (¿ ) the PEB will
+accuracy. In particular, if there is an incentive in using
+                                                                   exceed the required threshold so that the localization
+as few beacons as possible to estimate the agent’s
+position (e.g. minimization of the number of beacons               accuracy will be unsatisfactory. If the threshold ¿ is
+deployed, energy conservation in communication, or                 chosen large enough, then the outage probability will
+computational complexity), these results can be used               approach 0, otherwise it will grow as more locations
+to decide which beacons to involve in the localization             in the area will not meet the accuracy requirement.
+process.                                                           We illustrate this on Fig. 6 where we plot the relative
+                                                                   frequency diagram of the PEB over a 20 m by 20 m
+B. Case Study 2: Mapping PEB Throughout an Area                    area where 10 beacons are placed at the vertices
+                                                                   of a polygon, with ¯m = 2 m and ½ = 0:3. The area
+   For a practical system we may be interested in the              covered for PEB > ¿ represents the outage probability.
+quality of localization not just at one point, but over            Note that in most practical cases beacons will not
+
+JOURDAN ET AL.: POSITION ERROR BOUND FOR UWB LOCALIZATION IN DENSE CLUTTERED ENVIRONMENTS                                      621
+            Fig. 5. Case 2: Contour map of PEB when 6 LOS beacons are placed at vertices of polygon with d = 10 m.
+
+
+
+
+  Fig. 6. Case 2: Frequency histogram of PEB over area for 10 beacons placed at vertices of polygon, where ¯m = 2 m and ½ = 0:3.
+                                         Area to right of ¿ represents outage probability.
+
+
+remain LOS or NLOS for all possible target positions              addition, we can observe that for low ¿ the sensitivity
+(exception made for particular cases). However, we                of the outage probability to ¯m becomes larger. If a
+assume here that this is the case in order to show the            certain accuracy threshold is desired, these curves
+importance of the outage probability and the impact               can help determine whether more beacons should be
+of NLOS beacons. Our approach remains valid in the                deployed. In Table I we show the outage probability
+more general case.                                                for different values of the threshold ¿ and ¯m .
+    On Fig. 7 we plot the outage probability as a
+function of the threshold ¿ for ½ = 0:3 and different             C.   Case Study 3: Results with ²-Localization Accuracy
+values of ¯m . We also show pout (¿ ) for the extreme                  Outage
+cases when only the LOS beacons are taken into
+account (¯m ! +1, rightmost curve) or when all the                   In order to capture with a single number the
+beacons are LOS (¯m = 0, leftmost curve). The curves              quality of localization throughout the area, we
+for positive values of ¯m lie between these two. In               define PEB1¡² , the ²-localization accuracy outage,
+
+622                      IEEE TRANSACTIONS ON AEROSPACE AND ELECTRONIC SYSTEMS VOL. 44, NO. 2 APRIL 2008
+    Fig. 7. Case 2: Outage probability over area of 10 beacons of Fig. 6 for ¯m = 0, 0:1, 0.5, 1, 2, 10 m, and limit as ¯m ! +1.
+
+
+                            TABLE I                                    We now investigate the benefit of taking NLOS
+  Outage Probability for Different Values of ¿ [m] and ¯m [m]      information into account, compared with the case
+                                                                   where we neglect it. On Fig. 9 we plot the ratio
+              ¯m = 0:1 m   ¯m = 1 m     ¯m = 2 m    ¯m ! +1
+                                                                   between PEB90 (+1) obtained by using only the LOS
+ ¿ = 0:05 m    0.025         0.4          0.57         0.9         beacons and PEB90 (¯m ), obtained with both LOS and
+  ¿ = 0:1 m    < 10¡3       0.012         0.04         0.33        NLOS beacons. Large values of this ratio indicate that
+ ¿ = 0:15 m    < 10¡3       < 10¡3       < 10¡3        0.09
+                                                                   the use of NLOS beacons yields a large reduction in
+                                                                   the PEB compared with using only the LOS ones.
+                                                                   The results show that the information from NLOS
+as the value of the threshold ¿ for which the outage
+                                                                   beacons can lower the PEB by several factors. This
+probability is ², that is
+                                                                   is especially true when the number of LOS beacons
+                  ² = PfPEB > PEB1¡² g:                    (49)    is relatively small. Also, lower uncertainty in the bias
+                                                                   provides larger improvements in the PEB, indicating
+In the remainder of this paper we consider ² = 0:1, so             that the information from NLOS beacons is more
+that PEB90 gives a good indication of the performance              useful when ¯m is small.
+we can expect 90% of the time as we move through
+the area. We plot PEB90 as a function of ¯m for
+different values of ½ on Fig. 8, when 10 beacons are               IV. CONCLUSION
+placed randomly in a 20 m by 20 m area. Since the
+beacons are placed randomly, results are averaged                      We determined the PEB that describes the limit
+over 100 trials to form the curves of Fig. 8. It can be            on the accuracy of localization using UWB beacons.
+seen that the proportion of LOS and NLOS beacons                   We considered the dense cluttered environment in
+has a significant impact on the PEB. If we have                    which range measurements can be positively biased,
+control over ½, then we should try to increase it                  and where their variance depends on the distance
+especially when ¯m is large and the number of LOS                  between agent and corresponding beacons. The PEB
+is relatively small. In other words, increasing the                derived is easy to compute and accounts for the
+proportion of LOS beacons in cluttered environments                geometric configuration of the system, the increase
+(if it is possible) will significantly improve the                 of measurement variance with distance, and the
+PEB throughout the area. This plot also tells us                   presence of positive biases with general statistical
+the performance loss if a beacon initially thought                 characterization.
+to be LOS turns out to be NLOS. For example                            We then investigated properties of this bound. We
+notice the large increase in PEB between ½ = 0:5                   found that, contrary to results where the measurement
+and ½ = 0:4. This penalty grows for larger ¯m and                  variance is treated as constant [38], when the beacons
+smaller ½.                                                         are at the vertices of a regular polygon the minimum
+
+JOURDAN ET AL.: POSITION ERROR BOUND FOR UWB LOCALIZATION IN DENSE CLUTTERED ENVIRONMENTS                                          623
+              Fig. 8. Case 3: Average PEB90 (¯m ) for 10 beacons randomly placed for different values of ½ = nLOS =nB .
+
+
+
+
+  Fig. 9. Case 3: Average PEB90 (+1)=PEB90 (¯m ). Large values indicate large reduction in PEB when NLOS beacons are taken into
+                                                            account.
+
+
+value of the PEB is not found at the center. We also                ACKNOWLEDGMENTS
+found that, in the case of a mix of LOS and NLOS
+                                                                        The authors would like to thank H. Wymeersch, P.
+beacons, the information from the NLOS beacons
+                                                                    Pinto, and I. Keliher for their comments and careful
+can be very valuable: taking the NLOS beacons into
+                                                                    reading of the manuscript. D. Dardari would also like
+account often yields a significantly lower localization             to thank Prof. M. Chiani and O. Andrisano for their
+bound, especially in cluttered environments. We                     precious support.
+finally put forth the concept of localization accuracy
+outage, which can guide in making design decisions
+                                                                    APPENDIX
+about the network such as the number and placement
+of the beacons, or whether to deploy additional                        Referring to (16), let us examine the generic
+beacons [32].                                                       element in the sum of the upper left element of J. For
+
+624                      IEEE TRANSACTIONS ON AEROSPACE AND ELECTRONIC SYSTEMS VOL. 44, NO. 2 APRIL 2008
+i 6= j we have                                                                 [5]   Dardari, D., Chong, C.-C., and Win, M. Z.
+                                                                                        Improved lower bounds on time-of-arrival estimation
+        (                                                           )                   error in realistic UWB channels.
+                1              1      @fi (ri j pA ) @fj (rj j pA )                     In Proceedings of the IEEE International Conference on
+     Er
+          fi (ri j pA ) fj (rj j pA )       @xA          @xA                            Ultra-Wideband (ICUWB 2006), Waltham, MA, Sept.
+                   ½                              ¾                                     2006.
+                           1       @fi (ri j pA )                              [6]   Gezici, S., Tian, Z., Giannakis, G., Kobayashi, H., Molisch,
+          = Er                                                                       A., Poor, H., and Sahinoglu, Z.
+                     fi (ri j pA )     @xA
+                                                                                        Localization via ultra-wideband radios: A look at
+                    (                               )
+                                    @fj (rj j pA )                                      positioning aspects for future sensor networks.
+                             1
+              ¢ Er                                                   (50)               IEEE Signal Processing Magazine, 22 (July 2005), 70—84.
+                      fj (rj j pA )       @xA                                  [7]   Lee, J.-Y., and Scholtz, R. A.
+                                                                                        Ranging in a dense multipath environment using an UWB
+since the measurements from beacons i and j are                                         radio link.
+independent. We can write                                                               IEEE Journal on Selected Areas of Communications, 20, 9
+                                                                                        (Dec. 2002), 1677—1683.
+        ½                              ¾                                       [8]   Win, M. Z., and Scholtz, R. A.
+                1       @fi (ri j pA )                                                  On the robustness of ultra-wide bandwidth signals in
+     Er
+          fi (ri j pA )     @xA                                                         dense multipath environments.
+              Z +1                                                                      IEEE Communications Letters, 2, 2 (Feb. 1998), 51—53.
+                            1        @fi (ri j pA )                            [9]   Win, M. Z., and Scholtz, R. A.
+          =                                         fi (ri j pA )dri
+                 ¡1   f  (r
+                        i i  j p A )     @xA                                            On the energy capture of ultra-wide bandwidth signals in
+                                                                                        dense multipath environments.
+                                                                       (51)             IEEE Communications Letters, 2, 9 (Sept. 1998), 245—247.
+                 Z +1                                                         [10]   Cassioli, D., Win, M. Z., and Molisch, A. F.
+                        @fi (ri j pA )                                                  The ultra-wide bandwidth indoor channel: From statistical
+             =                         dri :                           (52)
+                  ¡1        @xA                                                         model to simulations.
+                                                                                        IEEE Journal on Selected Areas of Communication, 20, 6
+We know that fi (ri j pA ) is a continuous function                                     (Aug. 2002), 1247—1257.
+of (ri , xA ). It is also easy to show that its derivative                    [11]   Win, M. Z., and Scholtz, R. A.
+                                                                                        Characterization of ultra-wide bandwidth wireless indoor
+@fi (ri j pA )=@xA (see equation (18)) is also continuous,
+                                                                                        communications channel: A communication theoretic
+and that its absolute value is integrable in ri for all                                 view.
+xA . We can therefore exchange the integral with the                                    IEEE Journal on Selected Areas of Communication, 20, 9
+derivative so that                                                                      (Dec. 2002), 1613—1627.
+     Z +1                            Z +1                                     [12]   Chong, C.-C., and Yong, S. K.
+             @fi (ri j pA )        @                                                    A generic statistical-based UWB channel model for
+                            dri =         f (r j p )dr = 0                              high-rise apartments.
+       ¡1         @xA             @xA ¡1 i i A i
+                                                                                        IEEE Transactions on Antennas Propagation, 53, 8 (Aug.
+                                                                       (53)             2005), 2389—2399.
+       R +1                                                                   [13]   Chong, C.-C., Kim, Y.-E., Yong, S. K., and Lee, S.-S.
+since ¡1 fi (ri j pA )dri = 1. The same holds for the                                   Statistical characterization of the UWB propagation
+derivative with respect to yA .                                                         channel in indoor residential environment.
+                                                                                        Wireless Communications and Mobile Computing, 5, 5
+                                                                                        (Aug. 2005), 503—512.
+REFERENCES                                                                    [14]   Win, M. Z., and Scholtz, R. A.
+                                                                                        Impulse radio: How it works.
+                                                                                        IEEE Communications Letters, 2, 2 (Feb. 1998), 36—38.
+ [1]    Spilker, J. J., Jr.
+                                                                              [15]   Win, M. Z., and Scholtz, R. A.
+          GPS signal structure and performance characteristics.
+                                                                                        Ultra-wide bandwidth time-hopping spread-spectrum
+          Journal of the Institute of Navigation, 25, 2 (Summer
+                                                                                        impulse radio for wireless multiple-access
+          1978), 121—146.
+                                                                                        communications.
+ [2]    Low, Z. N., Cheong, J. H., Law, C. L., Ng, W. T., and Lee,                      IEEE Transactions on Communication, 48, 4 (Apr. 2000),
+        Y. J.                                                                           679—691.
+           Pulse detection algorithm for line-of-sight (LOS) UWB              [16]   Win, M. Z.
+           ranging applications.                                                        A unified spectral analysis of generalized time-hopping
+           IEEE Antennas and Wireless Propagation Letters, 4 (2005),                    spread-spectrum signals in the presence of timing jitter.
+           63—67.                                                                       IEEE Journal on Selected Areas of Communication, 20, 9
+ [3]    Falsi, C., Dardari, D., Mucchi, L., and Win, M. Z.                              (Dec. 2002), 1664—1676.
+          Time of arrival estimation for UWB localizers in realistic          [17]   Ridolfi, A., and Win, M. Z.
+          environments.                                                                 Ultrawide bandwidth signals as shot-noise: A unifying
+          EURASIP Journal of Applied Signal Processing                                  approach.
+          (special issue on Wireless Location Technologies and                          IEEE Journal on Selected Areas of Communication, (2006),
+          Applications), 2006 (2006).                                                   to be published.
+ [4]    Dardari, D., Chong, C.-C., and Win, M. Z.                             [18]   Suwansantisuk, W., Win, M. Z., and Shepp, L. A.
+          Analysis of threshold-based toa estimators in UWB                             On the performance of wide-bandwidth signal acquisition
+          channels.                                                                     in dense multipath channels.
+          In Proceedings of the European Signal Processing                              IEEE Transactions on Vehicle Technology, 54, 5 (Sept.
+          Conference (EUSIPCO 2006), Florence, Italy, Sept. 2006.                       2005).
+
+
+JOURDAN ET AL.: POSITION ERROR BOUND FOR UWB LOCALIZATION IN DENSE CLUTTERED ENVIRONMENTS                                                    625
+[19]   Zhang, Z., Law, C. L., and Guan, Y. L.                          [30]   Qi, Y., Suda, H., and Kobayashi, H.
+          BA-POC-Based ranging method with multipath                            On time-of-arrival positioning in a multipath environment.
+          mitigation.                                                           In Proceedings of the 60th IEEE Vehicular Technology
+          IEEE Antennas Wireless Propagation Letters, 4 (2005),                 Conference (VTC 2004-Fall), Los Angeles, CA, Sept.
+          492—495.                                                              26—29, 2004.
+[20]   Zhang, Z., Law, C. L., and Guan, Y. L.                          [31]   Wang, H., Yip, L., Yao, K., and Estrin, D.
+          BA-POC-Based ranging method with multipath mitigation                 Lower bounds of localization uncertainty in sensor
+          in the NLOS environment.                                              networks.
+          Microwave and Optical Technology Letters, 47, 4 (Nov.                 In Proceedings of the International Conference on
+          2005), 318—320.                                                       Acoustics, Speech, and Signal Processing, Montreal,
+[21]   Yarlagadda, R., Ali, I., Al-Dhahir, N., and Hershey, J.                  Canada, May 2004, 917—920.
+          GPS GDOP metric.                                             [32]   Jourdan, D. B., and Roy, N.
+          IEE Proceedings–Radar, Sonar Navigation, 147, 5 (May                  Optimal sensor placement for agent localization.
+          2000), 259—264.                                                       In Proceedings of the IEEE/ION Conference on Position,
+[22]   Bickel, P. J., and Doksum, K.                                            Location, and Navigation (PLANS), San Diego, CA, Apr.
+          Mathematical Statistics: Basic Ideas and Selected Topics              2006.
+          (2nd ed.), vol. 1.                                           [33]   Jourdan, D. B., Deyst, J. J., Win, M. Z., and Roy, N.
+          Upper Saddle River, NJ: Prentice-Hall, 2001.                          Monte-Carlo localization in dense multipath environments
+[23]   Chaffee, J., and Abel, J.                                                using UWB ranging.
+          GDOP and the Cramer-Rao bound.                                        In Proceedings of IEEE International Conference on
+          In Proceedings of the Position, Location and Navigation               Ultra-Wideband, Zurich, Switzerland, Sept. 2005,
+          Symposium (PLANS), Las Vegas, NV, Apr. 1994,                          314—319.
+          663—668.                                                     [34]   Tehoffo-Talom, F., Uguen, B., Plouhinec, E., and
+[24]   Chang, C., and Sahai, A.                                               Chassay, G.
+          Estimation bounds for localization.                                   A site-specific tool for UWB channel modeling.
+          In Proceedings of the IEEE Conference on Sensor and Ad                In 2004 International Workshop on Ultra Wideband
+          Hoc Communications and Networks, Santa Clara, CA, Oct.                Systems, Kyoto, Japan, May 2004, 61—65.
+          2004, 415—424.                                               [35]   Borras, J., Hatrack, P., and Mandayam, N. B.
+[25]   Savvides, A., Garber, W., Adlakha, S., Moses, R., and                    Decision theoritic framework for NLOS identification.
+       Srivastava, M.                                                           In Proceedings of the IEEE Vehicular Technology
+          On the error characteristics of multihop node localization            Conference, vol. 2, Ottawa, Canada, May 1998,
+          in ad-hoc sensor networks.                                            1583—1587.
+          In Proceedings of the Second International Workshop on       [36]   Venkatraman, S., and Caffery, J.
+          Information Processing in Sensor Networks (IPSN’03),                  A statistical approach to non-line-of-sight BS
+          Palo Alto, CA, Apr. 2003, 317—332.                                    identification.
+[26]   Larsson, E. G.                                                           In Proceedings of the IEEE 5th International Symposium
+          Cramér-Rao bound analysis of distributed positioning in              on Wireless Personal Multimedia Communications, vol. 1,
+          sensor networks.                                                      Honolulu, HI, Oct. 2002, 296—300.
+          IEEE Signal Processing Letters, 11, 3 (Mar. 2004),           [37]   Gezici, S., Kobayashi, H., and Poor, H.
+          334—337.                                                              Non-parametric non-line-of-sight identification.
+[27]   Gavish, M., and Fogel, E.                                                In Proc. IEEE Vehicular Technology Conference, vol. 4,
+          Effect of bias on bearing-only target location.                       Orlando, FL, Oct. 1998, 2544—2548.
+          IEEE Transactions on Aerospace and Electronic                [38]   Levanon, N.
+          Systems, 26 (1990), 22—26.                                            Lowest GDOP in 2-D scenarios.
+[28]   Qi, Y., and Kobayashi, H.                                                IEE Proceedings–Radar, Sonar Navigation, 147, 3 (Mar.
+          Cramér-Rao lower bound for geolocation in                            2000), 149—155.
+          non-line-of-sight environment.
+          In Proceedings of the International Conference on
+          Acoustics, Speech, and Signal Processing, Orlando, FL,
+          May 2002, 2473—2476.
+[29]   Qi, Y., and Kobayashi, H.
+          On geolocation accuracy with prior information in
+          non-line-of-sight environment.
+          In Proceedings of the IEEE Vehicular Technology
+          Conference (VTC 2002), Vancouver, BC, Sept. 2002,
+          285—288.
+
+
+
+
+626                          IEEE TRANSACTIONS ON AEROSPACE AND ELECTRONIC SYSTEMS VOL. 44, NO. 2 APRIL 2008
+                          Damien B. Jourdan (S’05–M’07) received an Engineering degree from the
+                          Ecole Centrale Paris in France, and went on to receive M.S. (2003) and Ph.D.
+                          (2006) degrees from the Massachusetts Institute of Technology in the Department
+                          of Aeronautics and Astronautics.
+                              He is currently the senior research engineer at Athena Technologies,
+                          in Warrenton, VA. His interests lie in estimation, navigation, controls, and
+                          optimization.
+                              Dr. Jourdan received the Best Student Paper award at the 2006 ION/IEEE
+                          Position, Location and Navigation Symposium (PLANS). He is a guest editor
+                          for the special issue of the EURASIP Journal on Applied Signal Processing,
+                          “Cooperative Localization in Wireless Ad hoc and Sensor Networks,” to be
+                          published in 2008.
+
+
+                          Davide Dardari received the Laurea degree in electronic engineering (summa
+                          cum laude) and the PhD degree in electronic engineering and computer science
+                          from the University of Bologna, Italy, in 1993 and 1998, respectively. In 1998, he
+                          joined the Dipartimento di Elettronica, Informatica e Sistemistica to develop his
+                          research activities in the area of digital communications.
+                              Since 2005, he has been a Research Affiliate at Massachusetts Institute of
+                          Technology (MIT), Cambridge, USA. Now, he is an Associate Professor at
+                          the University of Bologna at Cesena, Italy, where he participates with WiLAB
+                          (Wireless Communications Laboratory). Recently, he has focused his activity
+                          on ultra-wide bandwidth (UWB) systems, ranging and localization techniques,
+                          as well as wireless sensor networks. He is Senior Member of the IEEE where
+                          he is the current secretary for the Radio Communications Committee of the
+                          IEEE Communication Society. He was co-chair of the Wireless Communications
+                          Symposium of the 2007 IEEE International Conference on Communications and
+                          of the 2006 IEEE International Conference on Ultra-Wideband.
+                              Dr. Dardari currently serves as an Editor for IEEE Transactions On Wireless
+                          Communications and Lead Editor for the EURASIP Journal on Advances in Signal
+                          Processing (Special Issue on Cooperative Localization in Wireless Ad Hoc and
+                          Sensor Networks). He also serves as a reviewer for Transactions/Journals and
+                          Conferences, and as a TPC member for numerous international conferences.
+
+JOURDAN ET AL.: POSITION ERROR BOUND FOR UWB LOCALIZATION IN DENSE CLUTTERED ENVIRONMENTS                627
+             Moe Z. Win (S’85–M’87–SM’97–F’04) received the B.S. degree (magna
+             cum laude) from Texas A&M University, College Station, in 1987, and the M.S.
+             degree from the University of Southern California (USC), Los Angeles, in 1989,
+             both in Electrical Engineering. As a Presidential Fellow at USC, he received
+             both an M.S. degree in Applied Mathematics and the Ph.D. degree in Electrical
+             Engineering in 1998. Dr. Win is an Associate Professor at the Laboratory for
+             Information & Decision Systems (LIDS), Massachusetts Institute of Technology
+             (MIT). Prior to joining MIT, he spent five years at AT&T Research Laboratories
+             and seven years at the Jet Propulsion Laboratory. His main research interests
+             are the applications of mathematical and statistical theories to communication,
+             detection, and estimation problems. Specific current research topics include
+             location-aware networks, measurement and modeling of time-varying channels,
+             design and analysis of multiple antenna systems, ultra-wide bandwidth (UWB)
+             systems, optical transmission systems, and space communications systems.
+                 Professor Win has been actively involved in organizing and chairing a number
+             of international conferences. He served as the Technical Program Chair for the
+             IEEE Conference on Ultra Wideband in 2006, the IEEE Communication Theory
+             Symposia of ICC-2004 and Globecom-2000, and the IEEE Conference on Ultra
+             Wideband Systems and Technologies in 2002; Technical Program Vice-Chair
+             for the IEEE International Conference on Communications in 2002; and the
+             Tutorial Chair for ICC-2009 and the IEEE Semiannual International Vehicular
+             Technology Conference in Fall 2001. He served as the chair (2004-2006) and
+             secretary (2002-2004) for the Radio Communications Committee of the IEEE
+             Communications Society. Dr. Win is currently an Editor for IEEE Transactions
+             on Wireless Communications. He served as Area Editor for Modulation and Signal
+             Design (2003-2006), Editor for Wideband Wireless and Diversity (2003-2006), and
+             Editor for Equalization and Diversity (1998-2003), all for the IEEE Transactions
+             on Communications. He was Guest-Editor for the 2002 IEEE Journal on Selected
+             Areas in Communications (Special Issue on Ultra-Wideband Radio in Multiaccess
+             Wireless Communications).
+                 Professor Win's recognitions include the Office of Naval Research Young
+             Investigator Award (2003), the U.S. Presidential Early Career Award for
+             Scientists and Engineers (2004), and the Laurea Honoris Causa from the
+             University of Ferrara, Italy (2008). His papers have received numerous awards
+             including the IEEE Antennas and Propagation Society's Sergei A. Schelkunoff
+             Transactions Prize Paper Award (2003), the IEEE Wireless Communications
+             and Networking Conference Best Paper Award (2007), the IEEE Vehicular
+             Technology Conference Best Paper Award (2008), and the IEEE Communications
+             Society's Guglielmo Marconi Best Paper Award (2008). In 2004, Professor Win
+             was named Young Aerospace Engineer of the Year by the AIAA, and he received
+             a Fulbright Foundation Senior Scholar Lecturing and Research Fellowship, and
+             an Institute of Advanced Study Natural Sciences and Technology Fellowship.
+             Of particular significance, he was honored with the IEEE Eric E. Sumner
+             Award (2006), an IEEE Technical Field Award, for “pioneering contributions
+             to ultra-wide band communications science and technology.” Professor Win is
+             an IEEE Distinguished Lecturer and an elected Fellow of the IEEE, cited for
+             “contributions to wideband wireless transmission.”
+
+628   IEEE TRANSACTIONS ON AEROSPACE AND ELECTRONIC SYSTEMS VOL. 44, NO. 2 APRIL 2008
+

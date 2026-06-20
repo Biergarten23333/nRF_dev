@@ -1,0 +1,728 @@
+                                                          Online Spatio-temporal Calibration of Tightly-coupled
+                                                                Ultrawideband-aided Inertial Localization
+                                                                                     Abhishek Goudar and Angela P. Schoellig
+
+
+                                             Abstract— The combination of ultrawideband (UWB) radios                                z
+                                         and inertial measurement units (IMU) can provide accurate                          y           x
+                                         positioning in environments where the Global Positioning Sys-
+                                         tem (GPS) service is either unavailable or has unsatisfactory                    {Aj }
+                                         performance. The two sensors, IMU and UWB radio, are                                               rj
+                                         often not co-located on a moving system. The UWB radio                                                                    z
+arXiv:2108.00133v1 [cs.RO] 31 Jul 2021
+
+
+
+
+                                         is typically located at the extremities of the system to ensure                                           z           y       x
+                                         reliable communication, whereas the IMUs are located closer                                        y          x pIU
+                                         to its center of gravity. Furthermore, without hardware or                    pW
+                                                                                                                        j                                          {I}
+                                         software synchronization, data from heterogeneous sensors can                                      {U }
+                                         arrive at different time instants resulting in temporal offsets.
+                                         If uncalibrated, these spatial and temporal offsets can degrade
+                                         the positioning performance. In this paper, using observability              z
+                                         and identifiability criteria, we derive the conditions required                        y
+                                         for successfully calibrating the spatial and the temporal offset                                   {pW    W
+                                                                                                                                              I , qI }
+                                         parameters of a tightly-coupled UWB-IMU system. We also
+                                         present an online method for jointly calibrating these offsets.
+                                         The results show that our calibration approach results in                  {W }                x
+                                         improved positioning accuracy while simultaneously estimating
+                                                                                                                 Fig. 1: The setup considered consists of an IMU (frame {I}) and an
+                                         (i) the spatial offset parameters to millimeter precision and (ii)      UWB radio (frame {U }) mounted in a non-collocated manner on a mobile
+                                         the temporal offset parameter to millisecond precision.                 robot. Localization is performed by measuring the distance between the
+                                                                                                                 radio and the UWB anchors. Frame {W } corresponds to a gravity-aligned
+                                                              I. INTRODUCTION                                    world reference frame. The position of the j th anchor (frame {Aj }) in the
+                                                                                                                 world frame is pWj and the measured distance between the radio and the
+                                            Global Positioning System (GPS) is the de facto standard             j th anchor is denoted by rj . The pose of the IMU in the world frame is
+                                         for positioning in outdoor environments. However, an equiv-             {pW     W                         I
+                                                                                                                    I , qI }. The spatial offset, pU , is the position of the radio in the IMU
+                                         alently powerful localization scheme for indoor environ-                frame.
+                                         ments is missing and GPS performance can be significantly
+                                         degraded in urban canyons. With the shrinking costs of                  portable, easy to install, rely on less expensive infrastructure,
+                                         high-quality inertial measurement units (IMUs) and cameras,             and provide higher accuracy (2-10 cm).
+                                         camera-IMU-based localization systems have gained popu-                    We refer to localization solutions that (i) compute position
+                                         larity for GPS-denied navigation. Yet, the reliable operation           from range measurements first (as done in GPS) and then
+                                         of such systems requires good illumination, persistent and              (ii) use that value in a state estimator as loosely-coupled.
+                                         distinguishable features, loop closures, and the dominant part          Such a system can be restrictive; for example, for GPS,
+                                         of the scene to be static and occlusion-free. In highly dy-             no position estimate is available whenever less than four
+                                         namic environments such as warehouses, factories, hospitals             satellites are visible [4]. We refer to a system that directly
+                                         and shopping malls, these requirements can be restrictive.              uses the range measurements as inputs to a state estimator as
+                                            Ultrawideband (UWB) radio technology is a promising                  tightly-coupled. Such a system can update its internal state
+                                         sensor alternative; it is immune to illumination changes, it            even when a single anchor is available. UWB radios can be
+                                         does not require loop closures or persistent features, and it           used in two-way time-of-flight (TW-ToF) mode—in which
+                                         can operate in visually challenging conditions. As such, there          the range measurements between an anchor and a radio are
+                                         has been extensive work on UWB-aided localization [1]–[3].              obtained by sending a signal from the radio to the anchor and
+                                         A typical UWB-based positioning system consists of radios,              back. In this paper, we implement a tightly-coupled UWB-
+                                         known as anchors, installed in the periphery of an area of              based localization system which operates by the measuring
+                                         interest, as shown in Fig. 1. A mobile agent equipped with              the TW-ToF to one anchor at a time.
+                                         a UWB radio calculates its position by measuring the time-                 A mobile system equipped with a UWB radio, however,
+                                         of-flight (ToF) between its radio and the anchors. This setup           can estimate only 3D position. To obtain a 6 degree-of-
+                                         is similar to GPS, where a receiver calculates its position by          freedom pose, IMUs are used in conjunction [1]. Generally,
+                                         measuring the ToF to multiple satellites. However, UWB-                 IMUs and UWB radios are not co-located and there is a
+                                         based positioning systems have several advantages: they are             spatial offset between the two sensors, also referred to as
+                                                                                                                 sensor extrinsic parameters. Current calibration techniques
+                                            The authors are with the Dynamic Systems Lab, Institute for          involve measuring the spatial offset manually, using survey
+                                         Aerospace Studies, University of Toronto, Canada, and affiliated with
+                                         the Vector Institute for Artificial Intelligence in Toronto. E-mails:   equipment or additional sensors. These methods are prone to
+                                         {firstname.lastname}@robotics.utias.utoronto.ca                         error and expensive. While computer-aided diagrams provide
+                                                                                      UWB-IMU system;
+                                                                                   4) we evaluate the proposed method on simulated and real
+                                                                                      data to validate our theory and show the efficacy of the
+                                                                                      recommended approach.
+                                                                                                       II. R ELATED WORK
+                                                                                    The use of UWB radios for positioning in indoor and
+                                                                                 outdoor environments has been demonstrated extensively in
+                                                                                 the literature. Localization approaches ranging from paramet-
+                                                                                 ric [1], [3] and non-parametric [2], [7] to graph-optimization-
+                                                                                 based [8] methods have been proposed. Estimation of the
+Fig. 2: Sensor latency in the UWB radio (∆r ) and the IMU (∆I ) causes           UWB-IMU spatial offset with the aid of GPS and cameras
+data generated at the different time instants to arrive at the same time tr at   was shown in [9]. However, most of the previous works either
+the estimator. By estimating the temporal offset td = ∆I − ∆r , UWB and
+IMU data can be realigned on a common time scale.                                assume known spatial offset parameters or calibrate only the
+                                                                                 spatial offset using additional hardware.
+the mechanical specifications of a radio, the exact position                        Spatio-temporal calibration of camera-IMU systems has
+of the phase center1 is generally not known.                                     been studied extensively [10]–[14]. Estimation of IMU pose,
+   Our setup requires the IMU and the UWB data to have                           velocity, biases, visual landmark positions, scale factor, and
+accurate timestamps with respect to a single source of clock.                    camera-IMU spatial and temporal offsets has been conducted
+This is generally achieved through hardware synchronization                      in [13]. However, the measurement of a tightly-coupled
+using a common clock signal. The next best choice is                             UWB-IMU system is a distance measurement and not a pose.
+software synchronization with a clock server running on a                        The calibration methods proposed for camera-IMU systems
+destination computer and a client on the sensor hardware.                        are not applicable to the system considered in this paper.
+However, many off-the-shelf components do not support                               GPS-based positioning schemes are similarly affected by
+either of these methods. Hence, due to sensor latency and                        spatial and temporal offsets. In [15], estimation of the spatial
+different clock sources, there is a temporal offset between                      offset for a loosely-coupled GPS-IMU system is achieved
+data from heterogeneous sensors as shown in Fig. 2. Estimat-                     with an extended Kalman filter (EKF). Time synchronization
+ing the state without compensating for the spatio-temporal                       error calibration for a loosely-coupled GPS-aided inertial
+offsets can result in poor positioning accuracy, particularly                    navigation system is shown in [16]. Each of the previously
+when these offsets are large. In this paper, we propose an                       mentioned works calibrate either the spatial offset or the
+online calibration procedure that uses the available sensors                     temporal offset, but not both. Additionally, as alluded to
+only for estimating the spatial and the temporal offsets.                        earlier, loosely-coupled systems have limitations. To the best
+   An important aspect of calibration is the observability                       of the authors’ knowledge, joint spatio-temporal calibration
+and identifiability of the relevant states. Observability and                    for a tightly-coupled UWB-IMU system has not been done.
+identifiability are measures to determine if the internal states                    The observability of the state is crucial for reliable es-
+of a system can be inferred from its external output (i.e.,                      timation. Previous research has addressed the observability
+measurements). In this paper, we perform an observability                        analysis of various sensor combinations; analysis of the
+analysis to derive conditions for the local weak observability                   observability of camera-IMU systems, including spatial and
+[5] of the internal states and the spatial offset. Using a related               temporal offsets, has been shown in [10], [13]. Since the
+property, local identifiability [6], we derive the conditions                    observation model of a tightly-coupled UWB-IMU system
+under which the temporal offset is locally identifiable. Ob-                     is different from that of a camera-IMU system, the analysis
+servability analysis helps us answer the question of whether a                   presented in [10], [13] is not directly applicable here. In [15],
+particular system and its state is observable or not. However,                   the observability of a linear approximation of a loosely-
+it does not lend itself to the design of a suitable estimator,                   coupled GPS-IMU system, with the spatial offset only, is
+especially in the presence of noise. In this work, we propose                    shown. In contrast, we derive conditions for the local weak
+an online approach, based on the error state Kalman filter                       observability of the system state and the spatial offset of a
+(ESKF), to jointly estimate the state, and the spatial and tem-                  tightly-coupled UWB-IMU system without any approxima-
+poral offset parameters. In summary, our main contributions                      tions. We also derive the conditions under which the temporal
+are as follows:                                                                  offset of such a system is locally identifiable.
+   1) we derive the conditions under which the temporal                                         III. P ROBLEM FORMULATION
+       offset is locally identifiable;                                             Consider the setup shown in Fig. 1 wherein a system
+   2) we derive the conditions under which the state of                          equipped with an IMU and a UWB radio localizes itself by
+       a tightly-coupled UWB-IMU system, including the                           measuring the TW-ToF between its radio and the anchors.
+       spatial sensor offset, is locally weakly observable;                      The following assumptions are made:
+   3) we provide a unified approach for estimating the IMU
+                                                                                   (A1) The spatial offset and the temporal offset are con-
+       position, orientation, velocity, IMU biases, the spatial
+                                                                                          stant and do not change over time.
+       offset and the temporal offset of a tightly-coupled
+                                                                                   (A2) The UWB radio is considered a point source.
+   1 In antenna design theory, the phase center is the point from which the               Hence, its orientation is not considered.
+electromagnetic radiation spreads spherically outward.                             Under these assumptions, the calibration objectives are to:
+  (O1) formulate the conditions under which the tightly-              ments are used as control inputs:
+       coupled UWB-IMU system with the spatial offset                                                          1
+       is locally weakly observable and the temporal offset                ṗW    W
+                                                                             I = vI ,                   q̇W
+                                                                                                          I =    Ω(ωt )qW
+                                                                                                                        I ,          (2)
+                                                                                                               2
+       is locally identifiable;
+  (O2) improve positioning accuracy by jointly estimating                  v̇IW = RW       W
+                                                                                   I at − g ,           ḃa = nba ,                  (3)
+       (i) the IMU position, orientation, and velocity, (ii)               ḃg = nbω ,                  ṗIU = 03 ,                  (4)
+       the IMU biases, (iii) the UWB-IMU spatial offset                    ṫd = 0,                                                  (5)
+       and (iv) the UWB-IMU temporal offset.                                                         
+                                                                                           0 −ω T
+                                                                      where Ω(ω) =                      , gW = [0, 0, 9.8]T m/s2
+                  IV. S YSTEM M ODELLING                                                   ω −[ω]×
+                                                                      represents the acceleration due to gravity in the world frame,
+  We define the following coordinate frames for the setup             RW    := R{qW
+                                                                        I            I } is the direction cosine matrix, and [·]×
+shown in Fig. 1:                                                      denotes the skew-symmetric cross-product matrix.
+  1) world frame {W }, a gravity-aligned absolute refer-
+     ence frame, in which the pose of the IMU and the                 D. Observation model
+     positions of individual anchors are expressed;                      In a tightly-coupled system, the observation model is
+  2) mobile radio frame {U }, a frame affixed to the phase            the distance between an anchor and the mobile radio. The
+     center of the mobile radio antenna;                              measured distance to the ith anchor at time tr is a function
+  3) IMU frame {I}, a frame corresponding to the IMU                  of the anchor position pW
+                                                                                              i and the state x(tr ):
+     body center, in which the body accelerations and
+     angular velocities are measured;                                         h(pW               W    W
+                                                                                 i , x(tr )) = kpi − pU (tr )k2 + nr (tr ),          (6)
+  4) anchor frame {Ai }, a frame affixed to the phase                 where pW               W       I      W
+                                                                                U (tr ) = RI (tr )pU + pI (tr ) is the position of
+     center of the ith anchor.                                        the mobile radio in the world frame and k.k2 denotes the `2
+                                                                      norm. The position of the anchor pW      i is determined using
+A. System parameterization                                            the procedure outlined in Section VII-B. The measurement
+  The system in Fig. 1 is described by the following 20-              noise nr (tr ) is assumed to be a zero-mean AWGN process,
+dimensional state vector:                                             with covariance Qr , i.e. nr (tr ) ∼ N (0, Qr ). In this paper,
+                                                                      we use UWB timestamps as the reference time. Calculating
+  x(t) = (pW       W       W                       I
+           I (t), vI (t), qI (t), ba (t), bω (t), pU , td ), (1)      (6) requires the value of the state (1) at time tr . Let tr also be
+                                                                      the timestamp of the latest IMU measurement. Note that due
+where, {pW         W       W
+           I (t), vI (t), qI (t)} denote the position, transla-       to the temporal offset td , the IMU measurement is actually
+tional velocity and orientation of the IMU frame with respect         generated at time tI = tr − td with respect to the UWB
+to the world frame. A unit quaternion parameterization is             timestamp (see Fig. 2). To calculate the state at time tr ,
+used for representing orientations. In this paper, we follow          we propagate the state at time tI for td seconds using the
+the convention: q = q0 + qx i + qy j + qz k, where q0 is the          motion model (2)-(5) and the IMU measurement(s) starting
+scalar part and qv = (qx , qy , qz ) is the vector part. We use       at tI . Note that td can be positive or negative.
+quaternions for their singularity-free orientation representa-
+tion. Accelerometer and gyroscope biases are denoted by                  V. O BSERVABILITY AND I DENTIFIABILITY ANALYSIS
+ba (t) and bg (t). The UWB-IMU spatial offset is denoted                 The goal of the observability analysis is to check if
+by pIU and td is the temporal offset (see Fig. 2).                    the state of a system can be determined uniquely given
+                                                                      the outputs of a system. We decompose the problem of
+B. Gyroscope and accelerometer model                                  observability of the state (1) into (i) local identifiability of
+                                                                      td [6] and (ii) local weak observability [5] of the part of the
+   The measured angular rate by a triaxial gyroscope ωm =
+                                                                      state excluding td . The motivation and justification for this
+(ωx , ωy , ωz ) is related to the true angular rate ωt as: ωm =
+                                                                      two-step process is provided below.
+ωt + bω + nω , where bω is the time-varying bias and
+                                                                         In [6], it is shown that the identifiability of a single
+nbω is a zero-mean additive white Gaussian noise (AWGN)
+                                                                      unknown constant time-delay can be analyzed independent
+process with covariance Qω , i.e. nω ∼ N (0, Qω ). The bias
+                                                                      of the observability of the state. The authors show that the
+is modelled as driven by another AWGN process nbω ∼
+                                                                      identifiability of time-delay in a nonlinear system is not
+N (0, Qbω ): ḃω = nbω .
+                                                                      directly related to the observability of other system states
+   The measured linear acceleration by a triaxial accelerome-
+                                                                      or parameters. Specifically, the time-delay parameter can be
+ter am = (ax , ay , az ) is related to the true linear acceleration
+                                                                      determined directly from the input-output representation [6]
+at as: am = at + ba + na , where ba is the time-varying
+                                                                      of the system, which solely depends on the systems inputs,
+bias and na is an AWGN processes of covariance Qa , i.e.
+                                                                      outputs, and their time-derivatives. Thus, local identifiability
+na ∼ N (0, Qa ). The bias is driven by another AWGN noise
+                                                                      of the time-delay is equivalent to determining if an input-
+process nba ∼ N (0, Qba ): ḃa = nba .
+                                                                      output representation exists. Finding such an input-output
+                                                                      representation for a general nonlinear system is difficult.
+C. Motion model
+                                                                      However, a necessary and sufficient condition for the exis-
+ The motion model in this work is a 3D kinematic motion               tence of an input-output representation for a nonlinear system
+model, where the accelerometer and gyroscope measure-                 is the occurrence of the delayed input variables (in our case
+am and ωm ) in the output (6) (Theorem 2 in [6]). We use                   delayed inputs am (tr − td ) or ωm (tr − td ) is non-zero:
+this approach to analyze the local identifiability of td .                                                                
+    As noted in [6], identifiability of the time-delay does not                ∂h pW i , x(tr )           ∂h pW i , x(tr )
+                                                                                                 6= 0,                       6= 0.
+imply observability of the state. After proving the local iden-                 ∂am (tr − td )             ∂ωm (tr − td )
+tifiability of td , we analyze the observability of the part of
+                              e = (pW
+the state excluding td , i.e. x            W    W              I
+                                      I , vI , qI , ba , bω , pU ).
+For this, we use the method outlined in [5], which involves              Condition T3 is a sufficient condition to handle all
+determining the rank of the observability matrix O [5]. The           pathological cases with a single anchor (see supplementary
+methods outlined in [6] and [5] consider the case of noise-           material2 ). With multiple non-collinear anchors, excitation
+free nonlinear systems. Hence, for this analysis, we neglect          of two of ωx , ωy , or ωz is sufficient. A requirement for local
+the effect of noise parameters in the following sections.             identifiability of td is that a change in the input causes a
+                                                                      change in the measured range. Condition T3 reflects the fact
+A. Local identifiability of the temporal offset                       that if the mobile radio and the IMU are co-located, then the
+   Following [6], the local identifiablility of td depends on         measured range is constant for pure rotational motion.
+whether it is present in the input-output representation of           B. Observability of a tightly-coupled UWB-IMU system
+the system (2)-(5) and (6), that is, the presence of delayed
+input variable(s) in the output function. In our case, it is              Now we analyze the observability of x     e. The system
+sufficient to show that am (tr − td ) or ωm (tr − td ) appear         dynamics (2)-(5) are rearranged into a control affine form [5]:
+in the measurement model. Without loss of generality, the                   
+                                                                                    vIW
+                                                                                              
+                                                                                                   03×3
+                                                                                                                
+                                                                                                                     03×3
+                                                                                                                              
+measurement model (6) can be written as:                                    −RW ba − gW   RW                  03×3 
+                                                                                 I            I                          
+                             1 W                                             − 1 Ξ{qW }b  0                   1 Ξ{qW }
+            h(pW
+               i , x(tr )) =   kp − pW            2
+                                          U (tr )k2 .       (7)        ˙x
+                                                                       e=
+                                                                             2        I   ω 
+                                                                                             +
+                                                                                                   3×4 
+                                                                                                         am + 
+                                                                                                                 2       I
+                                                                                                                               ωm ,
+                                                                                                                              
+                             2 i                                                   03        03×3             03×3 
+                                                                                                                         
+We consider a single anchor as the analysis is identical for                       03        03×3             03×3 
+multiple anchors. The factor 1/2 is introduced for simplifying                      03             03×3               03×3
+the analysis. Since there are two inputs, td can be locally                |        {z        }   | {z }          |    {z      }
+identified if am or ωm is excited. In the following theorem,                        f0                f1                f2
+we state the conditions under which td is locally identifiable.                                                                 (8)
+                                                                                                     
+Theorem 1. The temporal offset parameter td ∈ (0, T ), for                                 −qTv
+                                                                      with Ξ{qW
+                                                                              I }=                     . Without loss of generality,
+some T ∈ R, is locally identifiable from the observation                              q0 I3 − [qv ]×
+model (7) if:                                                         the measurement model (6) can be rewritten as:
+  (T1) the mobile radio is not co-located with the anchor;                                   1 W
+                                                                                h(pW
+                                                                                   i ,x
+                                                                                      e) =     kp − RW       I    W 2
+                                                                                                         I pU − pI k2 ,
+         and either (T2) or (T3) is satisfied:                                               2 i
+  (T2) at least one of ax , ay , or az is excited; or                 where we remove the dependency on time for brevity and
+  (T3) the mobile radio is not co-located with the IMU                expand pW         W        W I        W
+                                                                                U as pU = RI pU + pI . The factor 1/2 is
+         and all three of ωx , ωy , and ωz are excited.               introduced for simplifying the analysis. Measurements from
+Proof. We provide a proof sketch here. The full proof can             a single anchor are not sufficient to constrain the entire
+be found in the supplementary material2 . We approach the             state. Hence, we consider measurements using three anchors
+proof as follows:                                                     pW        W    W     W
+                                                                        a = (pi , pj , pk ):
+
+S1. As alluded to in Section IV-D, we calculate pW
+                                                                                                                     
+                                                    U (tr )                                    kpW       W I      W 2
+                                                                                                  i − RI pU − pI k2
+     by propagating the state (1) for td seconds using the                                 1
+                                                                              h(pW   e) = kpW
+                                                                                  a ,x
+                                                                                                         W I      W 2
+                                                                                                  j − RI pU − pI k2  .       (9)
+     IMU measurement at time tI = tr − td . We perform                                     2      W      W I      W 2
+     an Euler integration step by assuming am and ωm are                                       kpk − RI pU − pI k2
+     constant for td seconds. The measurement model (7) is               To prove the state is locally observable, we need to
+     then given by:                                                   determine the rank of the observability matrix O [5] asso-
+                            1 W                                       ciated with the system (8)-(9). The matrix O is constructed
+         h(pW
+            i , x(tr )) =    kp − g1 (ωm ) − g2 (am )k22 ,            by taking the Lie derivatives [5] of (9) along the system
+                            2 i
+                                                                      dynamics (8). Informally, a Lie derivative computes the
+     where,                                                           change in the system output for a change in the system state.
+         g1 (ωm ) = RW        I     I
+                                                                     Thus, O maps changes in state to changes in output. If the
+                     I (tI ) pU + [pU ]× bω (tI )td
+                                                                      matrix O has a full column rank, then it can be inverted and
+                   − RW        I
+                      I (tI )[pU ]× ωm (tr − td )td ,                 used to map changes in the output to changes in the state. In
+         g2 (am ) = pW           W
+                      I (tI ) + vI (tI )td
+                                                                      the following theorem, we state the conditions under which
+                    1                                                 the system (8)-(9) is locally weakly observable.
+                  + RW    (tI )(am (tr − td ) − ba (tI ))t2d .
+                    2 I                                               Theorem 2. The system with motion model (8) and obser-
+S2. We then identify the conditions for which the derivative          vation model (9) is locally weakly observable if:
+    of the expanded measurement model with respect to the               (C1) at least three non-collinear anchors are available;
+  (C2) the mobile radio is non-coplanar with the three
+       non-collinear anchors;
+  (C3) all three of ax , ay , and az are excited; and                    Ref        TR-C1          TR-C2         TR-C3             TR-N
+  (C4) all three of ωx , ωy , and ωz are excited.
+                                                                                                                                    1.8
+Proof. Due to space constraints, we provide a sketch of the
+                                                                                                                                   1.4
+proof here. The full proof can be found in our supplementary
+
+
+
+
+                                                                                                                                          z (m)
+material2 . We follow these steps in the proof:                                                                                    1.0
+S1. Calculate the gradients of increasing order Lie deriva-                                                                        0.6
+     tives of (9) along f0 , f1 and, f2 ;                                                                                          0.2
+S2. stack the gradients to construct the matrix O;
+S3. perform elementary row and column operations to en-                                                                        0
+                                                                               0                                         −1
+     sure parts of O are block-diagonal;                                              1                             −2        m)
+S4. perform block Gaussian elimination and identify the
+                                                                                      x (m)
+                                                                                              2
+                                                                                                      3        −3         y(
+     conditions needed for each block to have a full rank.
+                                                                 Fig. 3: Position estimation results for multiple scenarios: in TR-C1, two
+   Note that these conditions are sufficient conditions. Due     anchors are used; in TR-C2 height of mobile UWB radio is at the same level
+                                                                 as that of the anchor; in TR-C3, a constant velocity trajectory is commanded;
+to the nonlinear nature of the measurement model (9), the        in TR-N, all conditions of Theorem 2 are satisfied. In all of the experiments,
+matrix O is dense. Step S3 ensures that parts of the matrix      the quadrotor was controlled using ground truth data, the plots show the
+are sparse, thereby facilitating block Gaussian elimination.     position output from the estimator. The corresponding RMSE values are
+                                                                 provided in Table I.
+A key observation in performing step S4 is that the matrix:
+                                             T                 are represented by δba , δbω , δpIU , and δtd respectively.
+                     (pW         W I
+                        i − RI pU − pI )
+                                          W T
+                                                                 For a vector-valued parameter such as pIU ∈ R3 , the error
+          ∆pijk = (pW           W I      W T
+                        j − RI pU − pI )  ,             (10)
+                    
+                                                                 δpIU corresponds to error in individual components: δpIU =
+                     (pWk   −  R W I
+                                 I pU − p W T
+                                          I )                    [δpIU x , δpIU y , δpIU z ]T . The local angular error δθIW is related
+                                                                                                                as: δq = 1, 12 δθ ,
+                                                                                                                                      
+is a multiplicative factor of many blocks in O. Hence,           to small differential rotations δqW        I
+ensuring ∆pijk is full-rank is crucial in our analysis. The      |δθ|  1. Since the accelerometer and gyroscope measure-
+matrix ∆pijk is full-rank when conditions C1 and C2 are          ments are used as inputs, the process noise covariance matrix
+satisfied. Conditions C3 and C4 ensure that the effect of        Qp for the prediction step is composed of the covariances of
+control inputs on the system output is captured in the matrix    the noise and bias terms as defined in Section IV-B: Qp ,
+O via f1 and f2 , respectively.                                  diag ([Qa , Qω , Qba , Qbω ]). The correction step estimates the
+                                                                 error between the dead reckoned state and the state consistent
+                      VI. E STIMATION                            with the measurements. The measurement model for the
+   The analysis in the previous section shows that, under        correction phase of the ESKF is given by (6). The estimated
+certain conditions, the state (1) can be reliably estimated.     error (11) is then composed with the state to compensate
+However, the design or choice of a suitable state estimator      for the accumulated drift: x = x ⊕ δx, where ⊕ is a
+cannot be derived from such an analysis. In this section, we     generic composition operator which represents (i) quaternion
+present an approach that can be used for spatio-temporal         multiplication for the orientation error, qW        I   = qWI ⊗ δq,
+calibration of a tightly-coupled UWB-IMU system. The             and (ii) the addition operation for the remaining states,
+choice of the estimator is motivated by its applicability to     pWI    = pW                W
+                                                                               I + δpI . We refer the reader to [18] for a
+nonlinear systems, computational efficiency, and ability to      description of the prediction and correction step of the ESKF.
+operate with sparse sensor data.                                 Covariance values for the process noise matrix Qp and the
+   To simultaneously estimate the state and calibrate the        measurement noise matrix Qr were determined using the
+spatio-temporal offset parameters, we use the ESKF [17]. In      procedure outlined in Section VII-B.
+this formulation, inertial dead reckoning is used to propagate
+the state (1) forward in time using the model (8) and the                            VII. E XPERIMENTS
+IMU measurements as inputs. The uncertainty associated              In this section, we present results from simulation and
+with dead reckoning is estimated in the prediction step.         real-world experiments that motivate the need for cali-
+In the correction step, the error and its uncertainty are        bration, validate the theory presented in Section V, and
+estimated by fusing the dead reckoned state and the UWB          show the stability and accuracy of the estimation approach
+measurements using their respective uncertainties. The error     presented in Section VI. To evaluate the accuracy of the
+state corresponding to the state (1) is:                         proposed approach, position and rotation root-mean-square
+                                                                 errors (RMSE) are used as metrics. The rotation RMSE is
+      δx = (δpW     W     W                 I
+              I , δvI , δθI , δba , δbω , δpU , δtd ),   (11)    the Euclidean distance between the Euler angles as defined
+where δpW           W                                            in [19].
+          I and δvI represent the error in IMU position and
+translational velocity, respectively. The errors in accelerom-   A. Simulation experiments
+eter bias, gyroscope bias, spatial offset and temporal offset
+                                                                   Our simulation environment is based on Gazebo [20] and
+  2 http://tiny.cc/observability                                 uses the Astec Firefly quadrotor from the RotorS simulator
+TABLE I: Estimation performance for the experiments associated with Fig.
+3. The position and the rotation RMSE are calculated by comparing the                                  Spatial offset = 0.02 m        Spatial offset = 0.2 m
+estimated state with the ground truth state. kδpIU k2 and kδtd k2 denote the
+
+
+
+
+                                                                                     Pos. RMSE
+                                                                                    % increasae
+RMSE error in spatial and temporal offset, respectively.
+                                                                                                  20
+           Pos. RMSE (m) Rot. RMSE (rad) kδpIU k2 (cm) kδtd k2 (ms)
+ TR-C1              0.37                0.03              6.0               3                      0
+ TR-C2              0.27                0.06              1.6              48
+
+
+
+
+                                                                                    Rot. RMSE
+                                                                                    % increase
+ TR-C3              0.25                0.75              2.0              21
+ TR-N               0.05                0.03              0.9              1                      25
+
+
+[21] as its mobile system. The quadrotor is equipped with                                          0
+a UWB radio and an IMU. Anchors are simulated by fixed                                         0.00          0.01          0.02 0                  20
+radios. Range measurements from UWB radios are perturbed                                           Spatial offset error (m)      Temporal offset error (ms)
+with zero-mean AWGN having a 2 cm standard deviation.                             Fig. 5: Effect of error in spatial and temporal offset on position and rotation
+The choice of noise parameters is based on the precision of                       RMSE. The impact of error in spatial and temporal offset is generally more
+                                                                                  prominent for larger spatial offset (kpIU k2 = 0.2 m) compared to smaller
+the UWB radios available on the market [22].                                      spatial offset (kpIU k2 = 0.02 m).
+   To validate the observability and the identifiability condi-
+tions outlined in Section V, we performed multiple simula-                        of TR-N from Fig. 3. The results from the MC experiments
+tion experiments where we varied (i) the number of anchors,                       are provided in Table II.
+(ii) the heights of the anchors, and (iii) the velocity profiles                     The temporal offset may be different from start up to
+of the trajectories commanded to the quadrotor. In all of the                     start up of the mobile system or over the duration of its
+experiments, ground truth data was used for the control of                        operation. Such situations can be accommodated by using a
+the quadrotor. The position estimated by the state estimator                      random walk model: ṫd = nd , nd ∼ N (0, Qd ), where Qd
+is plotted in Fig. 3 and the corresponding error metrics are                      can be determined empirically from Allan plots [23] of the
+provided in Table I. Each experiment violates one condition                       estimated temporal offset. For this experiment, the setup was
+from Theorem 2; experiment TR-C1 violates condition C1,                           identical to that of TR-N from Fig. 3. The value of td was
+that is, two anchors are used for estimation; in TR-C2,                           changed dynamically during the simulation. The proposed
+the anchor heights are adjusted so that the trajectory of                         model manages to estimate varying td as shown in Fig. 4.
+the mobile radio is coplanar with the anchors; in TR-C3,                             To generally quantify the impact of errors in spatial and
+a constant velocity trajectory with insufficient excitation of                    temporal offset on the position and the rotation RMSE, we
+accelerometer and gyroscope axes is commanded; in TR-N,                           performed multiple experiments by perturbing the parameters
+all the conditions outlined in Theorem 2 are satisfied. In                        and recording the corresponding RMSE values without esti-
+TR-C1, due to insufficient anchors, the positioning diverges                      mating the spatio-temporal offsets. The results are shown in
+gradually (see Fig. 3); in TR-C2, the third column in the                         Fig. 5: the influence of parametric errors is more prominent
+matrix (10) is zero, which results in poor position estimates                     for larger spatial offsets. For instance, a 50% error in the
+along the z-axis; in TR-C3, the estimated yaw diverges,                           spatial offset increases the position RMSE by 7% for the
+which results in poor positioning in the xy-plane; in TR-N,                       smaller baseline (kpIU k2 = 0.02m), whereas a 5% error in
+the estimated trajectory is close to the commanded trajectory                     the spatial offset for the larger baseline (kpIU k2 = 0.2m)
+(see Table I).                                                                    increases the position RMSE by 4%. The effect of the
+   To test the stability of the proposed estimation approach,                     temporal offset is more prominent on the rotation RMSE: an
+we performed Monte Carlo (MC) simulations varying the                             error of 20ms in the temporal offset increases the rotation
+magnitude of the UWB-IMU spatial offset between -0.5 m                            RMSE by 10% for the smaller baseline compared to 23%
+to 0.5 m and the temporal offset between -25 ms to 25 ms.                         for the larger baseline. In addition to quantifying the effect
+In all of the MC experiments, the setup was identical to that                     of errors in spatio-temporal parameters, these experiments
+                                                                                  also quantify the expected reduction in position and rotation
+                                                                     t̂d
+                                                                                  RMSE after calibration, which supports our discussion of the
+                                                                                  results from the real-world experiments (see Section VIII).
+       td (ms)
+
+
+
+
+                 −0.01                                               td
+
+                                                                                  B. Real-world experiments
+                 −0.02                                                               1) Setup: Our setup consists of a sensor wand (see Fig. 6),
+                           0     25        50      75        100   125
+                                                                                  a constellation of 6 anchors, and a motion capture system.
+                                               Time (s)                           Next, we describe the calibration of the anchor positions,
+Fig. 4: By including a white noise-on-velocity motion model, the estimated        followed by a description of the sensor wand.
+temporal offset t̂d tracks the changing temporal offset td reliably.
+                                                                                     A benefit of UWB localization systems is that the calibra-
+                                                                                  tion of anchor positions can be done independently of the
+TABLE II: Average RMSE from Monte Carlo simulation experiments for
+different values of spatial and temporal offsets. kδpIU k2 and kδtd k2 denote     mobile system (or wand in our case). Inter-anchor distances
+the RMSE error in spatial and temporal offset, respectively.                      can be acquired by configuring one anchor as a receiver
+  Pos. RMSE (m)            Rot. RMSE (rad)       kδpIU k2 (cm)     kδtd k2 (ms)   and the remaining as transmitters. By choosing one of the
+                                                                                  anchor’s frame as the origin, the positions of the rest of the
+       0.027                    0.033                 1.11               1.26
+                                                                                  anchors can be determined using the inter-anchor distances
+                                Right mobile
+
+
+
+
+                                                                                 Position RMSE (m)
+                                   radio                                                             0.3                     HM             SC
+
+              Left mobile
+
+
+
+
+                                                                                                                                     %
+                                                                                                                %
+
+
+
+
+                                                                                                                                                         %
+                                                                                                     0.2
+
+
+
+
+                                                                                                                                             -9%
+                                                                                                                                   -38
+                                                                                                             -14
+                 radio
+
+
+
+
+                                                                                                                       -9%
+
+
+
+
+                                                                                                                                                      -15
+                                                                                                     0.1
+                                         Xsens
+                                        MTi-1 IMU                                                    0.0
+                                                                                                            TR-1     TR-2      TR-3        TR-4      TR-5
+                                                                                                                               Trial
+                                                                         Fig. 7: Position RMSE for self-calibrated (SC) and hand-measured (HM)
+Fig. 6: The sensor apparatus consists of a wand equipped with an Xsens   values of the spatial offset and the temporal offset parameters.
+MTi 1 IMU and two UWB mobile radios mounted on the left and right
+
+
+
+
+                                                                            Rotation RMSE (rad)
+side of the IMU. Reflective markers are mounted to obtain ground truth                               0.20
+measurements.                                                                                                                 HM            SC
+                                                                                                     0.15
+
+
+
+
+                                                                                                                                                          %
+[24], [25]. The approach followed here is similar to that of
+
+
+
+
+                                                                                                                                                 %
+
+
+                                                                                                                                                       -26
+                                                                                                     0.10
+
+
+
+
+                                                                                                                                       %
+                                                                                                                          %
+                                                                                                                 %
+
+
+
+
+                                                                                                                                             -36
+[25].
+
+
+
+
+                                                                                                                                    -41
+                                                                                                                       -41
+                                                                                                              -47
+   The sensor wand is equipped with an Xsens IMU and                                                 0.05
+two Decawave UWB radios mounted as shown in Figure 6.
+The IMU yields linear accelerations and angular velocities at                                        0.00
+                                                                                                            TR-1     TR-2         TR-3     TR-4      TR-5
+100Hz. The UWB radios operate in TW-ToF mode. Range
+                                                                                                                                  Trial
+measurements are acquired at 20Hz by communicating with
+                                                                         Fig. 8: Rotation RMSE for self-calibrated (SC) and hand-measured (HM)
+the anchors in a round-robin fashion. Ground truth pose                  values of the spatial offset and the temporal offset parameters.
+information is acquired from a motion capture system. Pa-
+rameters for the accelerometer and gyroscope noise models                (SC) values of the offsets. The HM values for the spatial
+outlined in Section IV-B were determined using Allan plots               offsets were obtained by manually measuring the position
+[23]. The Decawave UWB radios used in this experiment                    offset between the IMU and the UWB radio using a ruler.
+claim a precision of ±10 cm. However, different UWB                      The temporal offset parameter was initialized to zero. For
+sensors can exhibit different noise characteristics. To estimate         each experiment (TR-1 to TR-5) the sensor wand was moved
+Qr , we collected UWB measurements for every mobile-                     manually along a different trajectory. The calibration results
+anchor pair by holding the sensor wand static at multiple                are shown in Table III. Error in the estimated position and
+locations in the operating area. The error in the measured               rotation was calculated by comparing the estimated pose
+distance was computed by comparing with the ground truth                 from the ESKF with the ground truth pose from the motion
+and the variance of the error was used as Qr in (6).                     capture system. The position and rotation error plots for SC
+   2) Experimental procedure: At the start of each experi-               parameter values for TR-1, along with the 3σ covariance
+ment, the sensor wand was held static for 60s to generate                envelopes, are shown in Fig. 9. The reduction in the position
+initial estimates for the gyroscope and accelerometer biases.            and the rotation RMSE for SC offset values compared to HM
+Additionally, the static data were used to generate an initial           values is shown in Fig. 7 and Fig. 8, respectively. To quantify
+estimate for roll and pitch values by averaging the gravity              the drift in the temporal offset over time, experiments TR-
+vector reported by the accelerometer. The position of the                3 to TR-5 were performed after the sensor wand had been
+IMU was initialized by placing the wand at the origin of                 operating for 4 hours. Table III shows that the temporal offset
+the world frame. Note that this is not a precise initialization          drifts by ∼9 ms after 4 hours of operation. These results
+routine and the representative uncertainty in the initial pose           are promising, especially because the precision of the UWB
+was captured by the initial covariance. The sensor wand                  measurements (±10 cm) is similar in magnitude to the spatial
+was moved manually through various rotation and translation              offset being estimated (∼20 cm). Furthermore, the reduction
+maneuvers in an attempt to simulate sufficient conditions for            in RMSE values agrees with the results from simulation
+the state to be locally weakly observable, as per Section V.             experiments. For a 20 cm baseline, Fig. 5 shows that a 2 cm
+                                                                         error in spatial offset increases the position RMSE by 18%
+              VIII. R ESULTS AND D ISCUSSION
+                                                                         and a 30 ms error in temporal offset increases rotation RMSE
+   We performed multiple experiments to show that joint cal-             by 40%. The results from Fig. 7 and Fig. 8 show an average
+ibration of spatial and temporal offsets, while simultaneously           reduction of ∼17% in position RMSE for an improvement of
+localizing, is possible when the sufficient conditions outlined          2 cm in the spatial offset and an average ∼43% reduction in
+in Theorem 1 and Theorem 2 are met. Spatial offsets for                  rotation RMSE for an improvement of 35 ms in the temporal
+both the left and right mobile radio were estimated, due to              offset.
+space constraints, only the results for the left mobile radio
+are presented here. Results for the right mobile radio are                          IX. C ONCLUSION AND F UTURE W ORK
+similar. Since the ground truth values for the spatial and the              In this paper, we derived the conditions for (i) the local
+temporal offset were not available, we evaluated the accuracy            weak observability of the spatial offset and (ii) the local
+of the proposed approach by computing the position and                   identifiability of the temporal offset of a tightly-coupled
+rotation RMSE for hand-measured (HM) and self-calibrated                 UWB-IMU system. An online calibration approach, based
+  δx (m)                                                             0.5
+
+
+
+
+                                                        δy (m)
+
+
+
+
+                                                                                                               δψ (rad) δz (m)
+              0.5                                                                                                                  1
+              0.0                                                    0.0                                                           0
+             −0.5                                                  −0.5                                                           −1
+  δφ (rad)
+
+
+
+
+                                                        δθ (rad)
+          0.25                                                  0.25                                                         0.25
+          0.00                                                                                                               0.00
+                                                                0.00
+         −0.25                                                                                                              −0.25
+                                                               −0.25
+                    0            50         100                              0       50           100                                   0         50         100
+                                                                                     Time (s)
+Fig. 9: Position error (δx, δy and δz) plots from experiment TR-1 for SC values of spatial and temporal offset parameters, along with the 3σ bounds,
+are shown in the top row. The corresponding rotation error plots in terms of roll (δφ), pitch (δθ) and yaw (δψ) error are shown in the bottom row. The
+position and the rotation errors were calculated by comparing the estimated pose from the ESKF with the pose from the motion capture system. Note that
+the estimation is consistent.
+
+TABLE III: Estimated values of spatial and temporal offset parameters from 5 experiments (TR-1 to TR-5) along with the 3σ uncertainty values. For each
+experiment, the sensor wand was moved along a different trajectory, ensuring all of the accelerometer and the gyroscope axes were excited. To quantify
+the drift in the temporal offset over time, experiments TR-3 to TR-5 were performed after the sensor wand had been operating for 4 hours. The temporal
+offset drifts by ∼9 ms after 4 hours of operation.
+                          Parameter          HM                       TR-1          TR-2             TR-3                           TR-4          TR-5
+                        pIU x ± 3σ (cm)    2.0 ± 6.0                2.3 ± 3.4      1.6 ± 3.3       1.9 ± 3.3                      2.1 ± 3.5     1.6 ± 3.4
+                        pIU y ± 3σ (cm)   19.0 ± 15.0              20.3 ± 4.2     20.1 ± 3.9     20.7 ± 4.0                      20.1 ± 4.7     20.4 ± 4.1
+                        pIU z ± 3σ (cm)   0.0 ± 0.15                -0.3 ± 1.4    -0.1 ± 1.4      -0.2 ± 1.4                      0.3 ± 1.4     -0.2 ± 1.4
+                         td ± 3σ (ms)      0.0 ± 300               36.9 ± 23.9   32.9 ± 24.1     44.8 ± 24.7                     44.0 ± 26.4   42.4 ± 28.5
+
+
+
+on ESKF was proposed. The results from both simulation                                 [10] Jonathan Kelly and Gaurav S. Sukhatme. Visual-Inertial Sensor
+and real-world experiments show that if the observability                                   Fusion: Localization, Mapping and Sensor-to-Sensor Self-calibration.
+                                                                                            The International Journal of Robotics Research, 30(1):56–79, 2011.
+and the identifiability conditions are met, it is possible                             [11] Stephan M Weiss. Vision based navigation for micro helicopters. PhD
+to accurately calibrate the spatial offset and the temporal                                 thesis, ETH Zurich, 2012.
+offset while simultaneously localizing—without additional                              [12] Joel A. Hesch, Dimitrios G. Kottas, Sean L. Bowman, and Stergios I.
+sensors or hardware—thus precluding the need for a separate                                 Roumeliotis. Camera-IMU-based localization: observability analysis
+                                                                                            and consistency improvement. The International Journal of Robotics
+calibration procedure. The addition of a camera to the UWB-                                 Research, 33(1):182–201, 2014.
+IMU system may offer many advantages, as UWB radios                                    [13] Mingyang Li and Anastasios I. Mourikis. Online temporal calibration
+and cameras have complementary characteristics. The spatio-                                 for camera–IMU systems: Theory and algorithms. The International
+                                                                                            Journal of Robotics Research, 33(7):947–964, 2014.
+temporal calibration of such a system can be seen as a natural                         [14] P. Furgale, J. Rehder, and R. Siegwart. Unified temporal and spatial
+extension of the work presented in this paper.                                              calibration for multi-sensor systems. In Proc. of the IEEE/RSJ
+                                                                                            International Conference on Intelligent Robots and Systems (IROS),
+                                  R EFERENCES                                               pages 1280–1286, 2013.
+                                                                                       [15] Sinpyo Hong, Man Hyung Lee, Ho-Hwan Chun, Sun-Hong Kwon,
+ [1] J. D. Hol, F. Dijkstra, H. Luinge, and T. B. Schon. Tightly coupled                    and J. L. Speyer. Observability of error states in GPS/INS integration.
+     UWB/IMU pose estimation. In Proc. of the IEEE International                            IEEE Transactions on Vehicular Technology, 54(2):731–743, March
+     Conference on Ultra-Wideband, pages 688–692, 2009.                                     2005.
+ [2] Amanda Prorok and Alcherio Martinoli. Accurate indoor localization                [16] I. Skog and P. Handel. Time synchronization errors in loosely coupled
+     with ultra-wideband using spatial models and collaboration. The                        gps-aided inertial navigation systems. IEEE Transactions on Intelligent
+     International Journal of Robotics Research, 33(4):547–568, 2014.                       Transportation Systems, 12(4):1014–1023, 2011.
+ [3] Mark W. Mueller, Michael Hamer, and Raffaello D’Andrea. Fusing                    [17] Stergios I. Roumeliotis, Gaurav S. Sukhatme, and George A.
+     ultra-wideband range measurements with accelerometers and rate                         Bekey. Circumventing dynamic modeling: evaluation of the error-state
+     gyroscopes for quadrocopter state estimation. In Proc. of the IEEE                     Kalman filter applied to mobile robot localization. In Proc. of the IEEE
+     International Conference on Robotics and Automation (ICRA), pages                      International Conference on Robotics and Automation (ICRA), pages
+     1–6, 2015.                                                                             1656–1663 vol.2, 1999.
+ [4] C. Hegarty and E. Kaplan. Understanding GPS Principles and                        [18] J. Solà. Quaternion kinematics for the error-state Kalman filter. ArXiv,
+     Applications, Second Edition. 2005.                                                    abs/1711.02508, 2017.
+ [5] Robert Hermann and Arthur J Krener. Nonlinear controllability and                 [19] D. Huynh. Metrics for 3D rotations: comparison and analysis. Journal
+     observability. IEEE Transactions on Automatic Control, (5), 1977.                      of Mathematical Imaging and Vision, 35:155–164, 2009.
+ [6] Milena Anguelova and Bernt Wennberg. State elimination and iden-
+                                                                                       [20] N. Koenig and A. Howard. Design and use paradigms for Gazebo, an
+     tifiability of the delay parameter for nonlinear time-delay systems.
+                                                                                            open-source multi-robot simulator. In 2004 IEEE/RSJ International
+     Automatica, 44(5):1373–1378, 2008.
+                                                                                            Conference on Intelligent Robots and Systems (IROS) (IEEE Cat.
+ [7] Amanda Prorok, Phillip Tomé, and Alcherio Martinoli. Accommo-
+                                                                                            No.04CH37566), volume 3, pages 2149–2154 vol.3, 2004.
+     dation of NLOS for ultra-wideband TDoA localization in single- and
+     multi-robot systems. International Conference on Indoor Positioning               [21] Fadri Furrer, Michael Burri, Markus Achtelik, and Roland Siegwart.
+     and Indoor Navigation (IPIN), 2011.                                                    Robot Operating System (ROS): The Complete Reference (Volume
+ [8] Xu Fang, Chen Wang, Thien-Minh Nguyen, and Lihua Xie. Graph                            1), chapter RotorS—A Modular Gazebo MAV Simulator Framework,
+     optimization approach to localization with range measurements. arXiv                   pages 595–625. Springer International Publishing, Cham, 2016.
+     preprint arXiv:1802.10276, 2018.                                                  [22] Humatics Rail Navigation System datasheet. https://humatics.com/wp-
+ [9] K. Hausman, S. Weiss, R. Brockers, L. Matthies, and G. S. Sukhatme.                    content/uploads/2020/07/Humatics RailNav Datasheet 072020.pdf.
+     Self-calibrating multi-sensor fusion with probabilistic measurement               [23] IEEE Std 627-2006 IEEE Standard Specification Format Guide and
+     validation for seamless sensor switching on a UAV. In Proc. of the                     Test Procedure for Single-Axis Laser Gyros, Annex C. IEEE,. 2006.
+     IEEE International Conference on Robotics and Automation (ICRA),                  [24] K. Batstone, M. Oskarsson, and K. Åström. Robust time-of-arrival self
+     pages 4289–4296, 2016.                                                                 calibration and indoor localization using wi-fi round-trip time measure-
+     ments. In 2016 IEEE International Conference on Communications
+     Workshops (ICC), pages 26–31, 2016.
+[25] M. Hamer and R. D’Andrea. Self-calibrating ultra-wideband network
+     supporting multi-robot localization. IEEE Access, 6:22292–22304,
+     2018.
+

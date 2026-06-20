@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 MethodName = Literal["T1", "T2", "T3", "T4", "T4_V6_IMU_GATE"]
+SolverLossName = Literal["linear", "huber", "tukey"]
 
 
 @dataclass(frozen=True)
@@ -67,6 +68,11 @@ class Frame:
 class SolverConfig:
     method: MethodName = "T1"
     max_iters: int = 8
+    # Huber is the default because NLOS range errors are usually positive
+    # outliers; this keeps LOS-like links quadratic while downweighting tails.
+    solver_loss: SolverLossName = "huber"
+    solver_f_scale_mm: float = 30.0
+    # Legacy normalized Huber threshold. Used only when solver_f_scale_mm <= 0.
     huber_k: float = 2.0
     min_sigma_mm: float = 5.0
     convergence_mm: float = 0.02

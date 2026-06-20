@@ -1,0 +1,764 @@
+                                                 IEEE JOURNAL OF INDOOR AND SEAMLESS POSITIONING AND NAVIGATION, VOL. 1, 2023                    1
+
+
+
+
+      Multihop Self-Calibration Algorithm for
+Ultra-Wideband (UWB) Anchor Node Positioning
+                  Ben Van Herbruggen , Stijn Luchie , Jaron Fontaine , and Eli De Poorter
+
+   Abstract—Ultra-wideband (UWB) is an emerging technology for indoor localization systems with high accuracy and ex-
+cellent resilience against multipath fading and interference from other technologies. However, UWB localization systems
+require the installation of infrastructure devices (anchor nodes) with known positions to serve as reference points. These
+coordinates are of utmost importance for the performance of the indoor localization system as the position of the mobile
+tag(s) will be calculated based on this information. Currently most large-scale systems require manual measurement
+of the anchor coordinates, which is a time-consuming and error-prone process. Therefore, we propose an algorithmic
+approach whereby based on measurements of the position of a small random chosen subset of anchors, the position of
+all other anchors is calculated automatically by collecting distances between all anchors with two-way-ranging UWB. In
+this article we present a three stage algorithm which contains: 1) an initialization phase; 2) a global optimization phase;
+and 3) an optional extra calibration phase with a mobile node. In contrast to related work, our approach also works in
+multihop environments with severe non-line-of-sight effects. In a real world multihop Industry 4.0 environment with metal
+racks as obstacles and 18 UWB nodes, the algorithm is able to localize the anchors with an mean absolute error of only
+21.6 cm.
+  Index Terms—Infrastructure, localization, ultrawideband (UWB), UWB self-calibration.
+
+                        I. INTRODUCTION                                  measuring their coordinates is an expensive and time-consuming
+                                                                         task. It is one of the main drawbacks of any UWB infrastructure-
+    NDOOR localization systems are installed and used in vari-
+I   ous scenarios, e.g., for warehouse management tasks, drone
+navigation and sport tracking. A technology that has emerged
+                                                                         based ILS. Therefore, solutions to simplify and improve the
+                                                                         estimation of the positions of the fixed anchor nodes are one
+                                                                         of the top priorities in the transition of UWB into everyday
+as one of the most flexible standards and that can be used
+                                                                         life [6].
+in most indoor environments is ultra-wideband (UWB). UWB
+                                                                            To reduce the installation costs, self-calibration mechanisms
+is a radio frequency (RF) technology that estimates distances
+                                                                         are designed. By adopting these techniques, the anchors can de-
+between devices with cm-level accuracy [1]. By combining these
+                                                                         rive their positions in an automated manner, without any human
+estimated distances, the system can derive the exact position of a
+                                                                         intervention. Typically, the anchors first determine the distance
+generic asset, also called a tag [2]. In most infrastructure-based
+                                                                         between each other (e.g., using UWB measurements [1]) and
+cases [3], the predicted position is relative to the infrastructure
+                                                                         use this information to calculate their most likely positions.
+nodes, which are called anchors. If the system uses fixed anchor
+                                                                         However, most scientific solutions assume all anchors can reach
+nodes to derive the position of the mobile tags, the accuracy of
+                                                                         each other, i.e., they are in direct line-of-sight (LOS) and dis-
+this process is highly dependent on the accuracy with which the
+                                                                         tance estimation is at decimeter level accurate. However, this
+positions of the anchors are known. In literature, the procedure
+                                                                         is not the case in large deployments, such as offices which
+to calculate the location of the anchors is called calibration [4].
+                                                                         consist of multiple open areas separated by walls. In these
+High accuracy in calibration can be achieved by means of
+                                                                         conditions, not all anchors are within range of each other, and
+dedicated hardware and meticulous measurements [5], for ex-
+                                                                         those that are in range often suffer from degraded accuracy
+ample using laser measurement tools by professional surveyors.
+                                                                         due to non-line-of-sight (NLOS) conditions between the an-
+However, as the interest in UWB indoor localization systems
+                                                                         chor nodes. As such, current state-of-the-art (SOTA) solutions
+(ILS) grows, diverse application requirements tend to increase
+                                                                         from scientific literature cannot be used in realistic large-scale
+the complexity of the calibration procedure. This is typically
+                                                                         deployments.
+due to the amount of hardware that is installed as well as the
+                                                                            Anchor topologies are often divided in two main categories:
+specific locations, e.g., on high ceilings in a warehouse or on
+                                                                         1) single; and 2) multihop environments. In single-hop envi-
+steep rocks down in a cave. Installing anchor nodes and manually
+                                                                         ronments all possible anchor combinations can range with each
+                                                                         other. On the other hand, in multihop environments some pairs of
+  Manuscript received 9 February 2023; revised 28 April 2023; ac-        anchors are unable to reach each other. These anchor pairs need
+cepted 5 May 2023. Date of publication 16 May 2023; date of current
+version 16 June 2023. (Corresponding author: Ben Van Herbruggen.)
+                                                                         intermediate relay nodes to communicate with each other. This
+  The authors are with the IDLab, Department of Information              article proposes a self-calibration algorithm suitable for multi-
+Technology, Ghent University-imec, 9000 Ghent, Belgium (e-mail: ben.     hop networks with multiple nodes. We designed a three stage
+vanherbruggen@ugent.be; stijn.luchie@ugent.be; jaron.fontaine@
+ugent.be; eli.depoorter@ugent.be).
+                                                                         solution to solve self-calibration in a large multihop network
+  Digital Object Identifier 10.1109/JISPIN.2023.3276826                  with anchors operating in NLOS conditions.
+
+
+ This work is licensed under a Creative Commons Attribution 4.0 License. For more information, see http://creativecommons.org/licenses/by/4.0/
+2                                                              IEEE JOURNAL OF INDOOR AND SEAMLESS POSITIONING AND NAVIGATION, VOL. 1, 2023
+
+
+
+   The main contributions of the article are as follows.                     sampling paradigm (RANSAC) and minimal solvers. Their so-
+    1) Design of a self-calibration algorithm that is suitable               lution is computationally light as it sequentially merges interme-
+        for deployments with both 1) multihop UWB condi-                     diate solutions applied to smaller datasets. The article includes
+        tions whereby not all anchor nodes are in range with                 experiments conducted with their Loco-positioning UWB sys-
+        each other and 2) NLOS conditions between the an-                    tem. Anchors were installed in a 3 × 2 × 2-m3 volume space and
+        chor nodes due to obstacles or walls with a ran-                     results show an average accuracy of 15 cm. Moreover, 6 anchors
+        dom subset of anchor nodes defining the coordinate                   were used in these experiments. Vashistha et al. [8] evaluated a
+        system.                                                              self-calibration solution based on differential time-difference-
+    2) Simulations on different anchor constellations to analyze             of-arrival (DTDOA) using 2 anchors only and showed a root
+        the influence of multihop topologies and the scalability             mean square error (RMSE) between 20 and 30 cm. As this solu-
+        of the algorithms.                                                   tion uses a time-difference-of-arrival (TDOA)-based approach,
+    3) Experimental evaluation of the algorithm in a large-scale             the synchronization between nodes becomes crucial [9]. This
+        UWB testbed with 18 nodes in an industrial environment               aspect is also relevant in Hamer et al. [10]. The authors exploit
+        of 25 × 11 m2 with metallic blocking objects.                        the network synchronization to combine the self-calibration pro-
+    4) Analysis of the performance of the algorithm in relation              cess with the actual mobile nodes’ localization, i.e., by sniffing
+        to the number of initially known anchor node positions               the self-calibration messages exchanged among the anchors.
+        and their layout on the overall accuracy.                            The actual self-calibration happens using distributed gradient
+    5) Publishing the dataset as open-source data promoting                  descent. The reported RMSE is 97 mm, in this case. Another
+        future research.1                                                    solution that is built on gradient descent approach, is described in
+   The rest of this article is organized as follows. Section II de-          Ridolfi et al. [11]. This article differs from the others for mainly
+scribes SOTA approaches used for anchor node self-calibration.               two reasons, i.e., the experiments are conducted in realistic
+Next, Section III describes the self-calibration algorithm.                  NLOS conditions and UWB-specific features are exploited with
+The evaluation environment and hardware are described in                     machine learning and adaptive physical layer (PHY) settings to
+Section IV. Afterward, the performance of our algorithm is ana-              improve the self-calibration performance. This solution allows
+lyzed in Section V, followed by future directions to improve the             the anchors to derive their own location with 2.4-cm error only,
+performance in Section VI. Finally, Section VII concludes this               when machine learning is used on the channel impulse response
+article.                                                                     (CIR) signals. Work on improving the UWB signal model is
+                                                                             done in [12]. The authors use a bias correction model, which
+                         II. RELATED WORK                                    considers factors, such as power levels and antenna orientation,
+                                                                             to improve the actual UWB ranging estimations. Their solution
+   A wide range of different approaches to realize self-                     has an accuracy less than 10 cm on average for 4 anchors in
+calibration-alike problems exists in scientific literature [6]. To           a 16 × 6 m2 area. A combination of multiple technologies is
+date, most of these studies focus on Wi-Fi or BLE technologies,              presented [13]. In this article, UWB is used in combination with
+often using simulation studies rather than large-scale realis-               data from low-cost inertial measurements unit (IMU) sensors.
+tic deployments. Solutions to (self-)calibrate the anchors in                Self-calibration is performed by applying a simultaneous local-
+UWB ILS are not yet abundant. The few existing UWB self-                     ization and mapping (SLAM) technique and using error-state
+calibration solutions focus mainly on single-hop localization                Kalman filter (ESKF) to fuse UWB and IMU inputs. The only
+rather than multihop localization. In this related work section,             requirement for the correct functioning of the mechanism is to
+we will first discuss UWB self-calibration single-hop solutions,             let a mobile node freely move in the space of interest to collect
+followed by giving an overview of multihop self-calibration                  enough data for the calibration itself. In this case, the validation
+solutions.                                                                   uses computer simulations, which show RMSEs of around 5 cm
+                                                                             for each space component. Yu et al. [14] introduced an algorithm
+A. UWB Single Hop Self-Calibration                                           called SELF-CAL. It combines Markov state transition equation
+                                                                             (MSTE) to calculate the state vectors of all coordinates of the
+   The UWB solutions that are presented in this paragraph all                anchors and an iterative trilateral localization technique. The
+share two important aspects, i.e., they are designed for LOS                 error is on average around 10 cm to (self-)position 4 anchors in
+conditions and evaluated in a single-hop setup. Typically, the               a 12 × 8 m2 room. Finally, in [15], Almanasa et al. proposed
+number of anchors is very limited, between 4 and 8 in a single-              a collaborative algorithm for online auto calibration. The 4
+hop scenario. Whenever experimentally evaluated, the evalua-                 anchors used for validation are in LOS and use least squares
+tion scenario is relatively small, i.e., anchors are maximum 20-m            estimator (LSE) to combine the derived distances. Interestingly,
+apart. What differs in each solution is the approach to derive the           the calibration process is simulated and reported errors are based
+location of the anchor nodes. Batstone et al. [7] used random                on the size of the covered area. The average accuracy goes from
+                                                                             4 cm for 1 m2 room, up to 135 cm if anchors are deployed in a
+                                                                             144 m2 area. In Table I, we summarize the most relevant papers
+   1 Dataset available at https://github.com/BenVanHerbruggen/UWB-dataset-   on UWB single-hop self-calibration, and we show how our
+for-industrial-self-calibration.                                             work differs from prior scientific publications. Most notably our
+HERBRUGGEN et al.: MULTIHOP SELF-CALIBRATION ALGORITHM FOR ALGORITHM FOR UWB ANCHOR NODE POSITIONING                                     3
+
+
+
+                                                               TABLE I
+                                    OVERVIEW OF SELF-CALIBRATION SOLUTIONS FOR UWB ANCHOR NODES
+
+
+
+
+                           TABLE II                                    The approach is to convert the nonconvex quadratic distance
+          OVERVIEW OF MULTIHOP LOCALIZATION SOLUTIONS
+                                                                       constraints into linear constraints. Their simulations with over
+                                                                       200 nodes show that very few anchors are required to estimate
+                                                                       the position of the mobile tags. Moreover, this seems to work
+                                                                       well even when anchors are not placed in the optimal locations
+                                                                       within the network.
+                                                                           Authors in [20] designed a distributed, infrastructure-free
+                                                                       positioning algorithm that only uses distances between nodes
+                                                                       to build a relative coordinate system. It is referred to as self-
+                                                                       positioning algorithm (SPA). A location reference group is cho-
+algorithm can operate in NLOS conditions and in large multihop         sen and maintained over time. The system exploits the awareness
+environments.                                                          of the location of the nodes to make sure that messages are sent
+                                                                       out in the right direction. As previous papers, simulations with
+                                                                       400 nodes show that it is possible to build a coordinate system
+B. Multihop Localization
+                                                                       without a centralized knowledge of the network topology. How-
+   The solutions presented in the previous paragraph are vali-         ever, further work to improve accuracy and enable this solution
+dated and designed for small-scale networks. As UWB is gaining         in real-world applications must follow.
+popularity and aims to be used in many different scenarios, a              In [21], the estimation of the position of the nodes is done
+more appropriate study on large-scale UWB self-calibration is          with a generalization of a particle filter (PF), i.e., nonparametric
+needed. However, in scientific literature there are no solutions       belief propagation (NBP). An advantage of this approach is
+where many UWB anchors need to be calibrated in large environ-         the fact that it is relatively easy to implement and can adopt
+ments. Nevertheless, multihop localization is a well-researched        many statistical models. Moreover, it can represent multimodal
+topic [16], [17]. Thus, in this section we comment on some of          uncertainty. The authors applied a graphical model framework
+the most common techniques. An overview of these solutions is          to solve the problem. They concluded that the method is robust
+given in Table II.                                                     and can keep the computational load low, e.g., by appropriate
+   In previous single-hop solutions, the common assumption was         message scheduling. However, the authors highlighted that this
+that all the nodes in the networks are in reach of each other or at    powerful tool still needs to prove its potential when it comes to
+least all the anchors can communicate with a subset of anchors         large ad-hoc networks.
+with known positions. Scaling up this approach means to over-              Kannan et al. [22] defined a simulated annealing (SA)-based
+come this limitation. Hence, multihop algorithms deal with sets        algorithm to deal with erroneous and noisy data that is used in
+of anchors that are out-of-reach from the known anchors, if any.       positioning systems. The cost function represents the quantita-
+   In [18], the authors design a distributed positioning method        tive measure of the quality of the coordinate estimates. The goal
+based on multidimensional scaling (MDS) technique. More                is to minimize this function. Similarly, to previous solutions, 200
+specifically, MDS is used to calculate the relative positions of the   nodes were used in their simulations. They show that their SA
+nodes. To deal with missing distances, which happens frequently        solution performs better than others, such as SDP. A common
+in realistic indoor conditions, the authors propose an iterative       problem that arises with SA is flip ambiguities and the authors
+version of MDS. Their solution is simulated in MATLAB using            highlight how this concern must be tackled in future research.
+400 nodes. Results show that the iterative nature of their method      To summarize, the above solutions have been designed mainly
+allows accurate position estimates while eliminating the accu-         for simulations, and do not consider UWB specific communi-
+mulation of the measurement error.                                     cation features nor do they evaluate the solution on a real-life
+   Biswas et al. [19] tackled the localization problem using           large-scale deployment. Both limitations have been tackled in
+a semidefinite programming (SDP) relaxation-based method.              this article.
+4                                                          IEEE JOURNAL OF INDOOR AND SEAMLESS POSITIONING AND NAVIGATION, VOL. 1, 2023
+
+
+
+              III. SELF-CALIBRATION ALGORITHM
+                                                                          Algorithm 1: Stage 1: Geometric Initialization Approach.
+   The proposed algorithm will be executed in three different                 Input: Sm , dˆ
+stages. In the first stage, an initial position for each anchor is de-        Output: Sm
+termined. Next, these found positions are improved in the second           1: while size(Sm ) < #nodes do
+stage. Finally, a mobile node is guided between the anchors to             2:     for node n not in Sm do
+further tune the anchor position and remove inaccuracies of the            3:       scoren = count (dˆSm ,n )
+algorithm due to bad NLOS links.                                           4:     Select node n with highest scoren
+                                                                           5:     for i < 10 do
+A. Stage 1: Initialization of an Initial Solution                          6:       assign n random position
+   The first stage utilizes a heuristic approach to solve the anchor       7:       xi , yi = LLS(n, Sm )
+localization problem stated before. As input for stage 1 of the            8:       costi = f (xi , yi )
+algorithm, the following input is required.                                9:     pick solution i with lowest cost
+    1) A set of foreknown anchor coordinates Sm : At least three          10:     add n = (xi , yi ) to Sm
+         anchor coordinates need to be available for the algorithm.
+         By assuming that at least three coordinates are known, all
+         other coordinates can be approximated in the same coor-         B. Stage 2: Optimization of the Initial Solution
+         dinate system as the surrounding building. In this way of          Stage 1 initialized all positions sequentially (one by one). This
+         working, no mapping between the algorithms coordinate           means that at timestamp t, only the anchors that have already
+         system and the environments coordinate system has to be         been positioned by the algorithm can be used to position a node
+         made. To evaluate the proposed algorithm ten different          with unknown position. After stage 1, all anchor nodes now
+         sets of initial nodes are selected. An out-of-the-box sys-      have been given a preliminary position. Stage 2 of the algorithm
+         tem should work with any combination of initial anchor          aims to correct any multihop errors that accumulated through
+         sets.                                                           stage 1. Since all nodes now have a preliminary estimated
+    2) The distance between all anchors: To obtain the distance          position, stage 2 can use the full topology of the network to
+         between the anchor nodes, all anchors are initially pro-        try to improve the accuracy of the self-calibration.
+         grammed to range 100 times to the other anchors. The               The constraints for solving the topology are inspired by a
+         mean of the measured distances is used for the algorithm        physical interpretation, namely, that the measured distances be-
+         together with the standard deviation on the found dis-          tween different anchor pairs can be represented by springs. These
+         tances.                                                         springs exert a force along the direction they are pulled on, which
+   Next, the anchors with unknown positions are added sequen-            is proportional to the extension or compression of the spring.
+tially to the set of known anchor coordinates Sm . We prioritize         The relation between the displacement and the executed force is
+the anchors with the highest number of connections to anchors            presented in (2). This extension or compression force k will be
+in Sm . Once an anchor is selected to be added to the set, its           larger in case the initial anchor node position was incorrect (e.g.,
+position is calculated based on the current set of known anchors         in case the anchor node position does not adequately match the
+Sm . An algorithmic representation of this method is given in            actual distance measurements between anchor nodes)
+Algorithm 1.
+   When adding new anchors, stage 1 optimizes a cost function                                      F = k ∗ Δd.                           (2)
+f (xi , yi ). The cost function chosen for stage 1 is inspired by
+                                                                            In a physical context, this k depends on the spring’s material
+geometry and is given by (1). The cost of choosing a partic-
+                                                                         and construction. In our algorithm, the displacement variable k
+ular position (xi , yi ) for anchor i is the difference between
+                                                                         represents the level of suspected error of an UWB link. We as-
+the measured distance dˆim and the calculated distance di,m              sume that the most trustworthy links will have small variations in
+between a positioned anchor and anchor i, summed over all                the measured distances and these links will hence be considered
+fixed anchors that range with this anchor i. The optimal point           as more reliable measurements in the self-calibration algorithm.
+for the new anchor is determined by a linear least squares (LLS)         For every link, the reciprocal of the standard deviation of the
+approach [23]                                                            UWB signal will be employed as the value of k. The total energy
+                                                             
+   f (xi , yi ) =            (xm − xi )2 + (ym − yi )2 − dˆi,m           of the system will be minimized and is given as follows:
+
+                                                                                                   1  1
+                 m∈Sm                                                                                 N
+                                                                                            E=     ∗       ∗ Δd2n .                     (3)
+             =          (di,m − dˆi,m )                           (1)                              2 n=1 σn
+                 m∈Sm
+                                                                           Our solver implements the limited-memory Broyden–
+    with:                                                                Fletcher–Goldfarb–Shanno (L-BFGS-B) gradient descent al-
+     1) (xm , ym ): coordinate of a positioned anchor m;                 gorithm [24] to find an optimal solution for this network by
+     2) (xi , yi ): coordinate of anchor i;                              minimizing the defined cost function.
+     3) dˆi,m : measured distance between anchors m and i;                 BFGS tries to eliminate the adverse effects of the Newton
+     4) di,m : calculated distance between anchors m and i.              method by approximating the inverse of the Hessian Hk . BFGS
+HERBRUGGEN et al.: MULTIHOP SELF-CALIBRATION ALGORITHM FOR ALGORITHM FOR UWB ANCHOR NODE POSITIONING                                           5
+
+
+
+can be placed between gradient descent (GD) and the Newton                 Matrix R denotes the uncertainty in the movement of the an-
+method and as such acts as a quasi-Newton method. The time              chors and tag. The anchors are static and do not move, therefore
+complexity of BFGS is O(n2 ). Optimizations of this algorithm           this part of the matrix will be zero.
+exist to get the time complexity lower. Like BFGS, L-BFGS
+uses an estimate of Hk to steer its search through variable space.                   R1 0                               σx       0
+However, L-BFGS only stores some vectors which represent the                  R=          with          R1 = G ·                    · GT     (5)
+                                                                                     0 0                                0      σy
+implicit approximation. L-BFGS maintains a history of the past
+                                                                                                               ⎡ dT 2             ⎤
+i updates of the state x and gradient ∇f (x), where generally,                                                   2          0
+the history size i can be small (often i < 10). These updates are                                          ⎢ 0               dT 2 ⎥
+                                                                                                           ⎢                  2 ⎥.
+used to perform operations where Hk is required implicitly.                                    and       G=⎢                      ⎥          (6)
+                                                                                                           ⎣ dT               0 ⎦
+                                                                                                              0              dT
+C. Stage 3: Improving the Locations by Applying an
+                                                                        Q depicts the uncertainty from the measurements. This uncer-
+Kalman Filter
+                                                                        tainty influences all parameters. This implies a diagonal matrix
+    It is possible that in some regions anchor nodes are deployed       of size (4 + 2n) × (4 + 2n) with the elements on the diagonal
+too sparsely and unable to reach sufficient other anchor nodes to       equal to σUWB
+be calibrated with high accuracy. To improve the calibration of                                       
+these isolated anchor nodes, stage 3 of the algorithm introduces                        Q = σUWB · 1                                 (7)
+a mobile tag that can be moved to regions with high anchor node                                           [(4+2n)×(4+2n)].
+positioning uncertainty. The moving tag is manually walked
+                                                                        The second part of the Kalman filter is the update step. For the
+throughout the area of uncertainty and ranges with all locally
+                                                                        update step a new state transition matrix C is defined, which
+available anchors. The position of the tag is estimated, and
+                                                                        updates the position of the anchor as well if the algorithm
+position outliers can thus be linked with incorrectly positioned
+                                                                        processes a range with this anchor. First, the distance between
+nearby anchor nodes. Stage 3 will update the coordinates of
+                                                                        anchor i and the tag is calculated based on the current state of
+these anchor nodes using a Kalman filter. Kalman filters exist
+                                                                        the Kalman filter (KF). Next, the contributions along both axes
+in many variants depending on the nature of the input data.
+                                                                        are calculated, as described by (8) based on the coordinates of
+The filter models all probabilistic distributions as Gaussian
+                                                                        the tag (xt , y t ) and anchor i (xai , yia )
+distributions defined by a mean and covariance matrix. The
+filter updates these parameters over time when new data are
+                                                                               xt − xai              y t − yia
+processed.                                                              xcontr =        ,   ycontr =                                         (8)
+    The Kalman procedure is outlined in Algorithm 2. The filter                 dt,ai                  dt,ai
+                                                                                                                                             
+tracks the estimated state of the tag’s position and speed on both         C = xcontr ycontr 0 0 . . . −xcontr                 −ycontr     ... .
+the x and y-axis, as well as the positions of the anchors and the
+uncertainty of the estimate. In total, there are 4 + 2n parameters                                                                           (9)
+to predict, where n represents the number of anchors. The filter
+                                                                        Finally, the measurement yt that will be used at time t in the
+operates in two steps: 1) prediction; and 2) update. During each
+                                                                        update step of the KF can be calculated by distracting the
+iteration, the prediction step is performed first. The new state is
+                                                                        distance between the anchor and the current state of the filter
+predicted based on the previous state and the uncertainty of the                                             ˆ between tag and anchor
+                                                                        dt,ai from the distance measurement (d)
+prediction, which is estimated based on various process noises
+in the system. In the update step, measurements from UWB
+sensors are incorporated. The difference between the predicted                                 yt = dˆt,ai − dt,ai .                        (10)
+and measured values is used to calculate the Kalman gain, which
+                                                                        The Kalman filter is evaluated in the lab environment and there-
+represents the certainty of the measurement. This is then used
+                                                                        fore its parameters are determined based on previous research in
+to calculate the updated state. Every new UWB measurement
+                                                                        the same environment. The measurement variance of the UWB
+triggers both steps, resulting in an adjusted state for the Kalman
+                                                                        ranges is 25 cm. It is a rather conservative estimation of the
+filter.
+                                                                        noise on the UWB ranges as the technology can reach cm-level
+    First, for the prediction step in the Kalman filter we define the
+                                                                        accuracy in clear LOS conditions. The process variance is 0
+state transition matrix A
+                                                                        for all variables corresponding to the anchor nodes as they are at
+                  ⎡                                    ⎤                fixed positions. The process variance of the parameters of the tag
+                 1         0    dT     0     0    ...                   is chosen high (10 000) for both coordinates as we do not know
+              ⎢                                        ⎥                the initial position of the tag and we assume that the velocity of
+              ⎢0           1     0    dT     0    . . .⎥
+              ⎢                                        ⎥                the tag is almost zero (0.001) when starting the Kalman filter.
+              ⎢0           0     1     0     0    . . .⎥
+            A=⎢
+              ⎢0
+                                                       ⎥.        (4)       The final KF of stage 3 is given in Algorithm 2. The total time
+              ⎢            0     0     1     0    . . .⎥
+                                                       ⎥
+              ⎢                                        ⎥                complexity of the algorithm is O(k ∗ (4 + 2n)2.376 ) with k the
+              ⎣0           0     0     0     1    . . .⎦                number of measurements taken during the run and n the number
+                ...       ...   ...   ...   ...   ...                   of anchors in the network [25].
+6                                                         IEEE JOURNAL OF INDOOR AND SEAMLESS POSITIONING AND NAVIGATION, VOL. 1, 2023
+
+
+
+
+    Algorithm 2: Stage 3: Kalman Filter.
+                         
+       Input: μ   t−1 ,  t−1 , yt
+       Output: μ    t, t
+       Prediction step
+          t = At μ
+         μ
+                     t−1
+                       
+            t = At        t−1 At + Rt
+                                 T
+
+       Update step             
+         Kt = t CTt (Ct t CTt + Qt )−1
+         t = μ
+         μ
+                 t + Kt (yt −Ct μ   t)
+            t = (I − Kt Ct )        t
+       with:
+         • t : state of anchors and tag at time t
+           μ
+         • t : covariance matrix of the state at time t
+         • yt : measurement at time t
+         • At : State Transition Matrix
+         • Rt : uncertainty on movement of the tag
+         • Ct : State Transition Matrix
+         • Qt : uncertainty on measurements
+                                                                      Fig. 1. Different anchor constellations are simulated to evaluate the
+                                                                      functionality of the first two stages of the proposed algorithm. (a) Sim 1
+        IV. MEASUREMENT SETUP AND DATA COLLECTION                     and (b) Sim 2 contain 12 nodes, while (c) Sim 3 and (d) Sim 4 have
+                                                                      36 nodes. The simulations contain both single (a+c) and multihop (b+d)
+   This section describes the two evaluation environments that        scenarios.
+are used: 1) simulation; and 2) an industrial testbed environment.
+
+                                                                      cap the range of the simulated data at a maximum distance of
+A. Simulation Environment                                             d which is the same for all anchors. Restricting the range of a
+   Four simulated scenarios are used to evaluate the algorithm        simulated UWB sensor ensures that multihop environments can
+as follows: 1) LOS versus NLOS; 2) single versus multihop;            be simulated. Using this method, a wide range of environments
+3) dense versus sparse networks; 4) low versus high dilution          can be created. For example, a grid-like UWB system is depicted
+of precision (DOP). As explained in Section III, the distance         in Fig. 1.
+between two nodes is used as input in the self-calibration algo-         Simulations can create a very diverse set of environments.
+rithm. One measurement, representing one UWB link, contains           Therefore, careful consideration should be taken on which envi-
+the addresses of both anchors, the mean and the standard devi-        ronments to test the different stages. First, the algorithm should
+ation of the simulated distances. Errors occur on these ranges        be able to work in the simplest environments. Hence a simulation
+and can be divided into two parts. First, errors occur due to         was created where all nodes can range with one another, are
+propagation faults when traveling from sender to receiver, which      ordered in a symmetrical optimal constellation, and the number
+are called environment dependent errors in the remainder of this      of nodes is limited to 12. Second, the algorithm should perform
+work. Second, hardware dependent errors can be introduced:            reasonably well when not all nodes are in range with each other.
+a bias can be added due to the internal configuration in the          Simulation 2 has the same anchor constellation as simulation
+chips which process the signal; whether or not caused by the          1 but range is limited to create a multihop scenario. Third,
+receive power level [26]. Therefore, when generating the mea-         an environment is needed where there are a larger number of
+surements between anchor nodes, the next steps are taken as           nodes available, and all of these nodes can range with each
+follows.                                                              other. This environment can be considered as a larger version of
+    1) For each measurement, an offset is added, which can be         simulation 1 with much denser anchor node deployment. Finally,
+       both negative and positive, from a Gaussian distribution       a large-scale scenario where not all nodes can range with each
+       with variance σa , to simulate propagation faults (environ-    other is defined. After the two stages, the algorithm should be
+       ment dependent error).                                         able to position all anchor nodes reasonably well for all four
+    2) Set a bias on the actual measurement. This bias is drawn       simulations. The set of initial nodes Sm will be exactly the same
+       from a Gaussian distribution with variance σb which            for all scenarios, selected in one of the corners of the anchor
+       can be altered to simulate different hardware statistics       topology to investigate the effects of multihop behavior in the
+       (hardware dependent error).                                    setup. The different simulation environments and their settings
+    3) 100 samples are drawn and the mean and standard devi-          are depicted in Table III.
+       ation are calculated.                                             NLOS environments are difficult to simulate using this
+   The range for UWB packets to propagate is limited and              method, except when a significant variance is used in the second
+reaches 5–100 m, depending on the PHY settings that were used.        step of the simulation. Consequently, the algorithms must be
+As the scale of the network is limited, the choice was made to        tested in true-to-life environments as well.
+HERBRUGGEN et al.: MULTIHOP SELF-CALIBRATION ALGORITHM FOR ALGORITHM FOR UWB ANCHOR NODE POSITIONING                                  7
+
+
+
+                           TABLE III                                                            TABLE IV
+         SETTINGS OF THE FOUR SIMULATION ENVIRONMENTS                 MEAN ABSOLUTE ERROR FOR THE FOUR SIMULATION SCENARIOS AND THE
+                                                                         ACCURACY FOR DIFFERENT SIZES OF PREDEFINED ANCHOR SETS
+
+
+
+
+                                                                      use as backbone network for synchronization and data reporting.
+                                                                      The UWB devices are programmed to transmit at channel 5
+                                                                      (center frequency of 6489.6-GHz and 499.2-MHz bandwidth),
+                                                                      a preamble length of 1024 symbols, a pulse repetition frequency
+                                                                      (PRF) of 64 MHz, and the default transmit gain as proposed
+Fig. 2. UWB data are collected in a real world industry environment   by the manufacturers user manual [26]. Ten different sets of
+containing 18 anchors which are mainly installed between the racks.
+Many of the UWB links are failing in this environment, making it a    predefined anchor sets will be considered in this challenging
+multihop environment.                                                 industrial environment. Every anchor will be in one or two initial
+                                                                      sets to generalize the results.
+
+                                                                                              V. DISCUSSION
+                                                                      A. Simulation
+                                                                         To have a clear assessment of the performance of the al-
+                                                                      gorithm, it is run in simulated anchor constellations. Three
+                                                                      randomly chosen anchor nodes are initially added to Sm , the
+                                                                      set of known anchors and the coordinates of the other anchors
+                                                                      are calibrated in the same reference coordinate system. An
+                                                                      initial set of 3 anchor nodes corresponds to 25% of the nodes
+Fig. 3. Industrial environment is created with multiple UWB anchors
+between the metal racks.                                              in the smaller constellations (Sim 1 and Sim 2) and 8.3% for
+                                                                      the larger constellations (Sim 3 and Sim 4). All other anchors
+                                                                      are evaluated toward their simulated position. The simulations
+                                                                      were run with a hardware-dependent bias of 10 cm and the
+B. Industrial Warehouse Environment                                   environment-dependent error has a variance of 30 cm. Both
+   The real-world environment that is used to perform self-           values are experimentally validated in a lab environment and
+calibration is the IIoT lab located at the iGent building [27].       comply with the standard industry performance of ILS. The
+This environment is specifically used for UWB experiments             results for both stages are summarized in Table IV.
+and partially uses a motion capture (MOCAP) system to cap-                1) Stage 1: When all nodes are added sequentially to the
+ture ground truth. The IIoT lab has an area of approximately          network, we see that the mean absolute error (MAE) on the
+25 × 11 m2 . It houses two sections, one open space, and one          anchor locations is the smallest in the simplest scenario Sim1. In
+space were metal racks are placed. In total, 18 anchors will          a single hop network with 12 nodes, the anchors can be localized
+be used in the IIoT lab. The placement and connectivity of            in stage 1 up to 20.1-cm accurate. When multihop is introduced
+the anchors and warehouse racks are shown in Fig. 2. The              in the same network, the MAE of the anchors positions increases
+anchors are densely installed in the lab and remotely accessible      to 30.4 cm. Errors are thus propagating through the network. For
+to emulate different possible scenarios. The anchors are placed       scenarios Sim 3 and Sim 4, with larger amounts of anchors, the
+between the racks so that in every aisle at least 2 anchors           MAE is 27.1 cm for the single hop variant. The error is higher
+are present on top of the racks and one anchor at the end of          than in small networks as the already localized anchors are also
+the aisle. The wider left aisle has more anchors to evaluate          used for adding the new node to the network and therefore earlier
+more detailed warehouse localization scenarios. The environ-          deviations are propagating through the network. In multihop
+ment of the anchors is shown in Fig. 3. The UWB anchors               variants, the furthest points are localized purely on previously
+are Wi-Pos nodes [28] and contain the Decawave DW1000                 localized anchors and are therefore less accurate than points
+UWB transceiver, a Zolertia remote with sub-GHz radio for             localized on the fixed anchors. Scenario Sim4 has an MAE
+creating a wireless backbone and a flexible antenna interface.        of 44.6 cm, which is the highest of all scenarios. The total
+A second radio technology is desirable in large deployments to        cumulative error distribution for stage 1 is shown in Fig. 4.
+8                                                              IEEE JOURNAL OF INDOOR AND SEAMLESS POSITIONING AND NAVIGATION, VOL. 1, 2023
+
+
+
+
+                                                                              Fig. 5. Results in the IIoT lab with three initial nodes. Stage 2 in-
+                                                                              creases the accuracy of the anchor self-calibration problem in the IIoT
+                                                                              lab compared to stage 1. Stage 3 is added robustness to the procedure
+                                                                              by lowering the error of the higher percentiles.
+
+
+
+
+Fig. 4. Cumulative distribution functions of the different scenarios
+show a high increase in accuracy of the second stage of the algorithm
+with 3 anchors in the initial anchor set. (a) In smaller networks with only
+12 anchors, the two-stage algorithm in multihop environment is as good
+as the single hop stage 1 for the majority of the nodes. (b) In larger
+networks, much more variation on the error is present.
+                                                                              Fig. 6. Localized points of the mobile node when collecting data for
+                                                                              stage 3. In the open space area (without racks) the points are better
+                                                                              cluttered to straight lines showing better ranging performance there. All
+   2) Stage 2: The second stage is designed to improve the                    corridors in the warehouse were walked and data are collected near all
+global network as one system. It takes as input the anchor                    anchor nodes.
+locations that were found after stage 1 and tries to minimize
+the total cost energy of the network. For all four scenarios
+the MAE of the anchor position is lower after executing stage
+                                                                              enhancing the accuracy. For every new anchor, stage 1 requires
+2. For scenario Sim 1, the MAE is dropped by 10 cm down
+                                                                              three ranges to already positioned anchors. Stage 1 is thus highly
+to a value of 10.1 cm. For Sim 2, the improvement is even
+                                                                              dependent on the order of adding anchors to the self-calibrated
+higher: stage 2 succeeds in lowering the error with 11.1 cm
+                                                                              solution. Stage 2 is specifically designed to overcome this effect.
+down to 19.3 cm. This multihop variant is still more difficult
+                                                                                  2) Stage 2: The median absolute error is now 22.0 cm, 23%
+to localize than the single hop variant. The constellation with
+                                                                              lower than after stage 1. The mean absolute error is 28.2 cm.
+more anchor nodes has a very high improvement for the single
+                                                                              Compared to stage 1, better results are obtained for every con-
+hop scenario. After stage 2 the MAE is only 13.0 cm, almost
+                                                                              figuration of predefined anchors. This is expected as all available
+14.1 cm better than the anchor locations after stage 1. The
+                                                                              data are used by stage 2; generally, more (good) data leads
+multihop variant has the smallest decrease in MAE of the anchor
+                                                                              to better results. The standard deviation of the anchor errors
+positions from 44.6 cm after stage 1 down to 35.1 cm after stage
+                                                                              is 15.0 cm, showing a higher robustness of the results after
+2. The multihop character clearly influences the localization
+                                                                              the execution of both stages. The 75th and 95th percentile are
+accuracy of the self-calibration algorithm. The total cumulative
+                                                                              24.5 and 57.5 cm, respectively. All metrics show that executing
+error distribution for the stage 2 is shown in Fig. 4. The first
+                                                                              stage 2 is beneficial to the self-calibration algorithm in both
+stage of a single-hop scenario is similar (for the small network)
+                                                                              accuracy and robustness of the final solution. Both stages have
+or even better (for the larger network) than the second stage of
+                                                                              the same input data and computation complexity is low. Another
+the multihop network.
+                                                                              perspective of analysis can be obtained by looking at the CDFs
+                                                                              of stage 2, then comparing them to the CDFs of stage 1, as shown
+B. Industrial Environment                                                     in Fig. 5. For all anchor nodes, stage 2 improves the accuracy of
+   1) Stage 1: Running stage 1 on the 10 configurations with                  the self-calibration.
+predefined anchors at the IIoT lab yields the following results:                  3) Stage 3: Stage 3 uses a mobile tag to collect additional
+The median absolute error is 28.7 cm while the MAE is 40.8 cm.                data. A trajectory between the racks has been executed, but no
+There are a few configuration that result in high outlier values.             ground truth positions of the mobile tag trajectory are used. The
+75% of the anchors are approximated within 59 cm of their                     positions that were estimated by the KF used in stage 3 are
+actual position and 95% of the anchors within 83.0 cm. After                  shown in Fig. 6, together with a moving average showing the
+stage 1, the standard deviation of the absolute anchor localization           path. The median difference between the calibrated anchors and
+is 25.5 cm. Fig. 5 shows the cumulative distribution functions                their actual position is now lowered to 19.1 cm. The mean is
+(CDFs) for this stage compared to the stages executed afterward.              slightly higher than the median at 21.6 cm. When looking at
+The range of mean error observed during the first stage 1 at the              the CDFs for the different anchor configurations after stage 3,
+IIoT lab, which falls between 41.7 to 38.2 cm for the total 30                it can be observed that the 95 percentile is 35.4 cm and also a
+configurations, indicates that there is considerable potential for            7.6 cm standard deviation between the anchor errors, which both
+HERBRUGGEN et al.: MULTIHOP SELF-CALIBRATION ALGORITHM FOR ALGORITHM FOR UWB ANCHOR NODE POSITIONING                                         9
+
+
+
+shows robust self-calibration. The majority of the anchors was                                    TABLE V
+                                                                      ABSOLUTE ERROR FOR DIFFERENT SIZES OF PREDEFINED ANCHOR SETS
+calibrated accurately but in stages 1 and 2 some outlier values      IN THE IIOT LAB. AN IMPROVEMENT IS NOTICEABLE WHEN MORE ANCHORS
+occur and one anchor can be in the order of 1 m off. This can be               ARE KNOWN AT THE INITIALIZATION OF THE ALGORITHM
+explained by one bad range and limited ranges with this anchor.
+For example anchor node 15 has only three successful links in
+the dataset and is often wrongly calibrated after the first two
+stages. Stage 3 is able to resolve this problem. This situation
+demonstrates the purpose and the usefulness of having a mobile
+tag be used in the self-calibration process.
+
+C. Influence of UWB Settings
+   The self-calibration algorithm takes the measured ranges be-
+tween the anchor nodes as input. In literature, many authors
+mention that the quality and range from an UWB link is depen-
+dent on the used PHY settings. The self-calibration algorithm
+was executed on a second dataset that was collected with a more
+conservative PHY layer that is used as control scenario to vali-     Fig. 7. Three times ten different known subsets are chosen. Us-
+date the algorithm. A lower center frequency at channel 3 lowers     ing more anchors and/or more stages results in a more robust self-
+                                                                     calibration of the anchor nodes and decreases the influence of the initial
+the path loss and attenuation on the link, expanding the range.      set.
+A longer preamble increases the changes for correctly receiving
+a packet with a lower receive power. With these settings, we
+see the number of links in the IIoT lab increasing from 80 up        3 anchors were known. However, the median and 75th percentile
+to 141 out of the total 153 anchor combinations present in the       are still improving by a few centimeters. The MAE is at 26.1
+lab. The multihop environment has been transformed in a quasi        and 22.4 cm after stage 1 and stage 2, respectively, when starting
+single-hop environment, with only a few missing links (only          with five known nodes. If using four anchors (22.2% of the nodes
+8% of the links failed). The UWB packets are received with           in the lab) in the predefined set, the mean of stage 1 is high
+higher signal strengths and this results in a decrease of the mean   (41.7 cm), caused by some wrongly located nodes, but when
+absolute ranging error between the anchors of 69%. With these        applying stage 2 and stage 3, the accuracy with four predefined
+PHY settings and three known initial nodes, the three stages can     anchor nodes is already better than the 3 anchor nodes cases.
+reach mean accuracies of 23.3, 18.1, and 20.6 cm, respectively.
+Using the same environment with more available links closes in
+                                                                     E. Influence of the Selected Measured Anchors
+on the single-hop scenario and improves anchor self-calibration
+significantly which confirms the conclusions of the simulations         The proposed algorithm assumes that 3 anchor coordinates
+and the challenging PHY settings used in the evaluation.             are known. However, depending on which anchor node positions
+                                                                     are initially measured, the performance of the algorithm might
+D. Influence of the Number of Measured Anchors                       be influenced. Ideally, the outcomes are as independent of the
+                                                                     initial choice of anchor nodes as possible. A good representation
+   The previous results assumed three anchor nodes to be mea-
+                                                                     of this impact is the variation of the MAE in case different
+sured by the system installer. Some infrastructure installations
+                                                                     initial anchor nodes are selected. In Fig. 7, the MAE value for
+might permit easy and accurate determination of more of these
+                                                                     every configuration is given depending on each stage and on
+nodes. During this evaluation no assumptions were made on the
+                                                                     the number of predefined anchor nodes. When three nodes are
+selection of these initial node and the installer can chose which
+                                                                     chosen, the MAE is around 21.6 cm after the three stages but on
+are best suited to measure by hand. In this paragraph we will
+                                                                     the graph we also find predefined anchor sets with higher errors
+investigate the performance of the self-calibration algorithm if
+                                                                     up to 133 cm, more than ten times the error of the best chosen
+more anchors are initially known. The subsets of fixed anchors
+                                                                     anchor set. The variation on the final MAE in the anchor position
+are expanded with each time one or two additional anchors and
+                                                                     decreases when more stages are used and when more anchors
+are based on the same anchor combinations.
+                                                                     are predefined in the lab settings. Depending on the requirement
+   1) Simulations: In the simulations, there is a small improve-
+                                                                     of the indoor localization system, the installer might choose to
+ment in the MAE when adding more nodes to the predefined
+                                                                     measure more anchors. If less accuracy is required, stage 3 can
+set of anchor nodes Sm after stage 2. In Table IV, an overview
+                                                                     be left out for faster self-calibration.
+is presented and it can be concluded that adding more anchors
+will definitely increase the robustness of the system and using
+                                                                     F. Influence of Cost Function
+a predefined set Sm with 5 anchor nodes still results in the best
+performance for the anchor localization.                                Choosing the spring constant k to be dependent on the stan-
+   2) IIoT lab: In the IIoT lab the same behavior is observed        dard deviation of the range measurements proved to be a good
+(Table V). When 5 anchors (27.8% of the nodes in the lab)            choice. If the spring constant is kept constant over all links, the
+are measured initially, the anchor nodes can be localized up to      error of the IIoT lab self-calibration is almost 34.3-cm higher
+21.9-cm accurate, an accuracy decrease of 0.3 cm than when only      after stage 2 and 1.5-cm higher after stage 3. During stage 3
+10                                                       IEEE JOURNAL OF INDOOR AND SEAMLESS POSITIONING AND NAVIGATION, VOL. 1, 2023
+
+
+
+                          TABLE VI                                     through the entire space wherever physically possible. However,
+ AFTER APPLYING GAUSSIAN NOISE TO THE ANCHOR COORDINATES THE
+                 SYSTEM GETS LESS ACCURATE
+                                                                       path optimizations can include: 1) focusing on regions of high
+                                                                       uncertainty (e.g., close to anchor nodes with large remaining
+                                                                       spring force) and/or; 2) avoiding NLOS environments as much as
+                                                                       possible to avoid using less accurate measured distances and/or;
+                                                                       3) optimization of the PHY UWB properties for optimal input for
+                                                                       the Kalman filter. Future work can investigate the best guidelines
+more measurements are available and not weighted, making               for the path of the tag for each type of environment and on the
+the influence smaller. With a constant k, the errors are almost        selection of the initial chosen nodes.
+doubled compared to a variable cost function per link. Nonethe-
+less, an open question remains whether the standard deviation
+is the best parameter for this purpose. In future work, it could                                  VII. CONCLUSION
+be investigated whether the estimate of the error of the ranges            Anchor self-calibration is a game changer in the deployment
+could be used instead of the standard deviations. In literature,       of UWB ILS. The tasks of the system installer are limited to
+machine learning is used for LOS/NLOS detection [29] and               mount all anchors and measure a minimal subset of 3 anchors
+error mitigation [30] of the links. This estimated ranging error       to define the coordinate system. In simulations, the presented
+information could be used as as an alternative indicator of the        algorithm reached an MAE of 30.5 cm after the initialization
+trustworthiness of the measurement during phase 1 and 2 of the         phase (stage 1) which was decreased to 19.4 cm with the opti-
+self-calibration.                                                      mization stage 2. In addition to the simulations, the algorithm
+                                                                       is also validated in an experimental testbed, where 18 anchors
+G. Influence of Anchor Accuracy on Systems Accuracy                    are installed with metal racks occluding the direct path of many
+                                                                       links. With three predefined anchors, we found an accuracy of
+   The required accuracy of the anchors depends on the intended
+                                                                       40.8 cm after stage 1, a 28.2 cm after stage 2, and 21.6 cm
+system performance. To evaluate the influence of the anchor co-
+                                                                       after stage 3. In the proposed algorithm, standard deviation was
+ordinates accuracy on the actual positioning, an extra simulation
+                                                                       introduced as quality metric of the link. Without this quality
+is done. First, 50 points are randomly selected in the IIoT lab and
+                                                                       metric to weight the individual links during self-calibration, the
+the UWB links to the anchor nodes are simulated. Next, Gaussian
+                                                                       accuracy is almost 34-cm less accurate after the two first stages.
+noise is added to the anchor coordinates. Finally, the selected
+                                                                       If the known set of anchors is expanded to five anchor nodes, the
+points are estimated based on the noisy anchor coordinates and
+                                                                       three-stage algorithm is capable to increase the robustness of the
+the simulated UWB links. In Table VI, the standard deviation
+                                                                       anchor self-calibration. This result is still higher than the manual
+of the noise on the anchor coordinates and corresponding MAE
+                                                                       laser meter accuracy levels, but our algorithm lowers the manual
+of the selected points is given. When the noise added to the
+                                                                       effort of measuring the nodes and permits easy recalibration
+anchor coordinates is increased, the positioning of the selected
+                                                                       when anchors are moved. Executing the algorithm periodically
+points is less accurate. A Gaussian distribution with σ equal
+                                                                       could expose unexpected changes in anchor locations (when
+to 20 cm, the order that our self-calibration algorithm was
+                                                                       batteries are switched or during cleaning of the building).
+able to reach, shifts the MAE of the system with only 7.6 cm.
+Therefore the proposed algorithm can be adopted in many UWB
+applications.                                                                                   ACKNOWLEDGMENT
+                                                                          The authors would like to thank Dr. Matteo Ridolfi for his
+                       VI. FUTURE WORK                                 technical support and UWB self-calibration expertise during the
+   This work has presented an innovative method for anchor             design of the algorithm.
+calibration with limiting the manual effort for the installer of the
+UWB ILS and during the discussion potential future research
+                                                                                                    REFERENCES
+determined. To start with stage 1, we expect better results if not
+only the number of links to already positioned nodes (Sm ) is           [1] K. Witrisal, S. Hinteregger, J. Kulmer, E. Leitinger, and P. Meissner,
+                                                                            “High-accuracy positioning for indoor applications: RFID, UWB, 5G, and
+considered but also the DOP value of the anchor combination.                beyond,” in Proc. IEEE Int. Conf. RFID, 2016, pp. 1–7.
+If the neighbors are geometrically better positioned, the new           [2] M. Ridolfi et al., “Experimental evaluation of UWB indoor positioning for
+anchors are more likely to be accurately localized. Second,                 sport postures,” Sensors, vol. 18, no. 1, 2018, Art. no. 168.
+                                                                        [3] N. Macoir et al., “UWB localization with battery-powered wireless back-
+in stage 2 further investigation can be performed on the opti-              bone for drone-based inventory management,” Sensors, vol. 19, no. 3,
+mal value of the spring constant k. Up to now, the standard                 2019, Art. no. 467.
+deviation has been a good candidate for estimating the link             [4] G. Shi and Y. Ming, “Survey of indoor positioning systems based on ultra-
+                                                                            wideband (UWB) technology,” in Wireless Communications, Networking
+quality but more advanced metrics based on other parameters,                and Applications. New Delhi, Delhi, India: Springer, 2016, pp. 1269–1278.
+such as receive and first path power could probably boost the           [5] P. R. Wolf, “Surveying and mapping: History, current status, and future
+algorithm by better selecting the links and based on the estimated          projections,” J. Surveying Eng., vol. 128, no. 3, pp. 79–107, 2002.
+                                                                        [6] M. Ridolfi, A. Kaya, R. Berkvens, M. Weyn, W. Joseph, and E. D. Poorter,
+quality of the links, the algorithm could also assess the final             “Self-calibration and collaborative localization for UWB positioning sys-
+anchor accuracy. Also, in stage 3, the path taken by the tag                tems: A survey and future research directions,” ACM Comput. Surv.,
+impacts the accuracy improvements. The authors chose to walk                vol. 54, no. 4, pp. 1–27, 2021.
+HERBRUGGEN et al.: MULTIHOP SELF-CALIBRATION ALGORITHM FOR ALGORITHM FOR UWB ANCHOR NODE POSITIONING                                                           11
+
+
+
+ [7] K. Batstone, M. Oskarsson, and K. Åström, “Towards real-time time-of-        [19] P. Biswas and Y. Ye, “Semidefinite programming for ad hoc wireless sensor
+     arrival self-calibration using ultra-wideband anchors,” in Proc. Int. Conf.        network localization,” in Proc. 3rd Int. Symp. Inf. Process. Sensor Netw.,
+     Indoor Positioning Indoor Navigation, 2017, pp. 1–8.                               2004, pp. 46–54.
+ [8] A. Vashistha, A. Gupta, and C. L. Law, “Self calibration of the anchor        [20] S. Čapkun, M. Hamdi, and J.-P. Hubaux, “GPS-free positioning in mobile
+     nodes for UWB-IR TDOA based indoor positioning system,” in Proc.                   ad hoc networks,” Cluster Comput., vol. 5, no. 2, pp. 157–167, 2002.
+     IEEE 4th World Forum on Internet of Things, 2018, pp. 688–693.                [21] A. T. Ihler, J. W. Fisher, R. L. Moses, and A. S. Willsky, “Nonparametric
+ [9] V. Djaja-Josko and J. Kolakowski, “A new method for wireless synchro-              belief propagation for self-localization of sensor networks,” IEEE J. Sel.
+     nization and TDOA error reduction in UWB positioning system,” in Proc.             Areas Commun., vol. 23, no. 4, pp. 809–819, Apr. 2005.
+     21st Int. Conf. Microw., Radar Wireless Commun., 2016, pp. 1–4.               [22] A. A. Kannan, G. Mao, and B. Vucetic, “Simulated annealing based local-
+[10] M. Hamer and R D’Andrea, “Self-calibrating ultra-wideband network sup-             ization in wireless sensor network,” in Proc. IEEE Conf. Local Comput.
+     porting multi-robot localization,” IEEE Access, vol. 6, pp. 22292–22304,           Netw. 30th Anniversary, 2005, pp. 513–514.
+     2018.                                                                         [23] Y. Wang, “Linear least squares localization in sensor networks,” EURASIP
+[11] M. Ridolfi, J. Fontaine, B. Van Herbruggen, W. Joseph, J. Hoebeke, and             J. Wireless Commun. Netw., vol. 2015, pp. 1–7, 2015.
+     E. De Poorter, “UWB anchor nodes self-calibration in NLOS conditions:         [24] C. Zhu, R. H. Byrd, P. Lu, and J. Nocedal, “Algorithm 778: L-BFGS-B:
+     A machine learning and adaptive PHY error correction approach,” Wireless           Fortran subroutines for large-scale bound-constrained optimization,” ACM
+     Netw., vol. 27, pp. 1–17, 2021.                                                    Trans. Math. Softw., vol. 23, pp. 550–560, 1997.
+[12] A. D. Preter, G. Goysens, J. Anthonis, J. Swevers, and G. Pipeleers, “Range   [25] C. Montella, “The Kalman filter and related algorithms: A literature
+     bias modeling and autocalibration of an UWB positioning system,” in Proc.          review,” Lehigh Univ., Bethlehem, PA, USA, Tech. Rep., 2011. [On-
+     Int. Conf. Indoor Positioning Indoor Navigation, 2019, pp. 1–8.                    line]. Available: https://www.researchgate.net/publication/236897001_
+[13] Q. Shi, S. Zhao, X. Oui, M. Lu, and M. Jia, “Anchor self-localization              The_Kalman_Filter_and_Related_Algorithms_A_Literature_Review
+     algorithm based on UWB ranging and inertial measurements,” Tsinghua           [26] Decawave Ltd., “Dw1000 user manual,” Version 2.18, 2017. Accessed:
+     Sci. Technol., vol. 24, no. 6, pp. 728–737, 2019.                                  May 1, 2023. [Online]. Available: https://www.qorvo.com/products/d/
+[14] W. Yu, X. Zhao, and G. Sun, “Self-calibration of anchor positions for              da007967
+     indoor localization,” in Proc. IEEE Int. Conf. Robot. Biomimetics, 2017,      [27] IDLab, Ghent Univ., Ghent, Belgium, “IIoT testbed,” 2017, Accessed: Oct.
+     pp. 581–586.                                                                       25, 2022. [Online]. Available: https://www.ugent.be/ea/idlab/en/research/
+[15] C. M. Almansa, W. Shule, J. P. Queralta, and T. Westerlund, “Autocal-              research-infrastructure/industrial-iot-lab.htm/
+     ibration of a mobile UWB localization system for ad-hoc multi-robot           [28] B. Van Herbruggen et al., “Wi-PoS: A low-cost, open source ultra-
+     deployments in GNSS-denied environments,” 2020. [Online]. Available:               wideband (UWB) hardware platform with long range sub-GHZ backbone,”
+     https://arxiv.org/abs/2004.06762                                                   Sensors, vol. 19, no. 7, 2019, Art. no. 1548.
+[16] G. Mao, B. Fidan, and B. D. Anderson, “Wireless sensor network local-         [29] F. Che et al., “Feature-based generalized Gaussian distribution method for
+     ization techniques,” Comput. Netw., vol. 51, no. 10, pp. 2529–2553, 2007.          NLOS detection in ultra-wideband (UWB) indoor positioning system,”
+[17] S. Severi, G. Abreu, and D. Dardari, “A quantitative comparison of                 IEEE Sensors J., vol. 22, no. 19, pp. 18726–18739, Oct. 2022.
+     multihop localization algorithms,” in Proc. 7th Workshop Positioning,         [30] J. Fontaine, M. Ridolfi, B. Van Herbruggen, A. Shahid, and E. De Poorter,
+     Navigation Commun., 2010, pp. 200–205.                                             “Edge inference for UWB ranging error correction using autoencoders,”
+[18] X. Ji and H. Zha, “Sensor positioning in wireless ad-hoc sensor networks           IEEE Access, vol. 8, pp. 139143–139155, 2020.
+     using multidimensional scaling,” in Proc. IEEE INFOCOM, 2004, vol. 4,
+     pp. 2652–2661.
+

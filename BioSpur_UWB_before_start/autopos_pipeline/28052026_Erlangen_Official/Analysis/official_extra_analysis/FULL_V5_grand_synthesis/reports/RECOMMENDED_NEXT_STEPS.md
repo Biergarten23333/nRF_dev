@@ -1,0 +1,5 @@
+# Recommended Next Steps
+
+The next must-have step is an independent validation capture in a second room. The current campaign is internally rich, but the strongest remaining claims, especially V5 transferability and learned NLOS generalization, are still limited by the 24-position Erlangen dataset. The second priority is a physical antenna phase-centre measurement for anchors and tags, because it would separate Vicon-marker offsets from real calibration errors. The third priority is a controlled CIR-labeled NLOS dataset, which would turn the range-statistics detector from an exploratory model into a deployable quality gate.
+
+For the paper, use the corrected headline table rather than the in-sample best table. Present V5 scale correction as the central Level A result, present V4's lower static median as a campaign-specific cancellation effect, and keep p30 as a validated static batch-processing hypothesis rather than a general ranging rule. ROTO should be reported separately and explicitly labeled BEST-FIT-ALIGNED.

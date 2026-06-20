@@ -11,6 +11,8 @@ from pathlib import Path
 from statistics import median
 from typing import Any
 
+import numpy as np
+
 
 ANCHORS = "ABCDEFGH"
 
@@ -21,6 +23,48 @@ def robust_sigma_mm(vals: list[float], floor: float) -> float:
     m = median(vals)
     mad = median([abs(v - m) for v in vals])
     return max(floor, 1.4826 * mad)
+
+
+def aggregate_ranges(
+    raw_ranges: list[float] | np.ndarray,
+    method: str = "lower_trim_20",
+    trim_fraction: float = 0.20,
+    min_frames: int = 50,
+) -> float:
+    """Aggregate raw range frames into one pair distance estimate.
+
+    lower_trim_20 extracts the LOS-like component from links with NLOS positive
+    tails. Reflections lengthen ranges, so the lowest stable fraction is closest
+    to the direct path. If too few frames are available, fall back to p50.
+    """
+    raw = np.asarray(raw_ranges, dtype=float)
+    raw = raw[np.isfinite(raw)]
+    if raw.size == 0:
+        return float("nan")
+    method = (method or "lower_trim_20").strip().lower()
+    if method in {"median", "p50"} or raw.size < int(min_frames):
+        return float(np.median(raw))
+    if method.startswith("lower_trim"):
+        frac = trim_fraction
+        parts = method.split("_")
+        if len(parts) >= 3:
+            try:
+                frac = float(parts[-1]) / 100.0
+            except ValueError:
+                frac = trim_fraction
+        frac = min(max(float(frac), 0.0), 1.0)
+        n_keep = max(1, int(math.ceil(raw.size * frac)))
+        if n_keep >= raw.size:
+            return float(np.mean(raw))
+        partitioned = np.partition(raw, n_keep - 1)
+        return float(np.mean(partitioned[:n_keep]))
+    if method.startswith("p"):
+        try:
+            pct = float(method[1:])
+        except ValueError:
+            return float(np.median(raw))
+        return float(np.percentile(raw, pct))
+    return float(np.median(raw))
 
 
 def anchor_id(value: str | int) -> int | None:
@@ -38,7 +82,14 @@ def anchor_id(value: str | int) -> int | None:
     return i if 0 <= i < 8 else None
 
 
-def read_inter_anchor_pairs(path: Path, sigma_floor_mm: float, min_quality: float, aggregate: str) -> list[dict[str, Any]]:
+def read_inter_anchor_pairs(
+    path: Path,
+    sigma_floor_mm: float,
+    min_quality: float,
+    aggregate: str,
+    trim_fraction: float = 0.20,
+    min_frames_for_trim: int = 50,
+) -> list[dict[str, Any]]:
     groups: dict[tuple[int, int], list[dict[str, float]]] = defaultdict(list)
     raw_rows: list[dict[str, Any]] = []
     with path.open(encoding="utf-8") as f:
@@ -77,15 +128,22 @@ def read_inter_anchor_pairs(path: Path, sigma_floor_mm: float, min_quality: floa
     for (i, j), rows in sorted(groups.items()):
         vals = [r["range_mm"] for r in rows]
         qs = [r["quality"] for r in rows]
+        aggregated_range = aggregate_ranges(
+            vals,
+            method=aggregate,
+            trim_fraction=trim_fraction,
+            min_frames=min_frames_for_trim,
+        )
         out.append(
             {
                 "i": i,
                 "j": j,
-                "range_mm": float(median(vals)),
+                "range_mm": float(aggregated_range),
                 "sigma_mm": robust_sigma_mm(vals, sigma_floor_mm),
                 "quality": float(median(qs)),
                 "n": len(vals),
                 "source": str(path),
+                "aggregation": aggregate,
             }
         )
     return out
@@ -273,7 +331,24 @@ def main() -> int:
     ap.add_argument("--tag-capture", action="append", default=[], help="Broadcast recv dir/log root containing cm_all.csv.")
     ap.add_argument("--out", required=True, help="Output JSON path.")
     ap.add_argument("--inter-sigma-floor-mm", type=float, default=30.0)
-    ap.add_argument("--inter-aggregate", choices=("median", "raw"), default="median")
+    ap.add_argument(
+        "--inter-aggregate",
+        choices=(
+            "raw",
+            "median",
+            "p50",
+            "p30",
+            "p20",
+            "p10",
+            "lower_trim_5",
+            "lower_trim_10",
+            "lower_trim_20",
+            "lower_trim_30",
+        ),
+        default="lower_trim_20",
+    )
+    ap.add_argument("--inter-trim-fraction", type=float, default=0.20)
+    ap.add_argument("--inter-min-frames-for-trim", type=int, default=50)
     ap.add_argument("--inter-min-quality", type=float, default=80.0)
     ap.add_argument("--tag-sigma-mm", type=float, default=80.0)
     ap.add_argument("--tag-min-quality", type=float, default=0.0)
@@ -284,7 +359,14 @@ def main() -> int:
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    inter = read_inter_anchor_pairs(pairs_csv, args.inter_sigma_floor_mm, args.inter_min_quality, args.inter_aggregate)
+    inter = read_inter_anchor_pairs(
+        pairs_csv,
+        args.inter_sigma_floor_mm,
+        args.inter_min_quality,
+        args.inter_aggregate,
+        trim_fraction=args.inter_trim_fraction,
+        min_frames_for_trim=args.inter_min_frames_for_trim,
+    )
     recv_dirs = find_recv_dirs([Path(p) for p in args.tag_capture])
 
     tag_ranges: list[dict[str, Any]] = []
@@ -311,6 +393,8 @@ def main() -> int:
         "stats": {
             "inter_anchor_ranges": len(inter),
             "inter_aggregate": args.inter_aggregate,
+            "inter_trim_fraction": args.inter_trim_fraction,
+            "inter_min_frames_for_trim": args.inter_min_frames_for_trim,
             "tag_anchor_ranges": len(tag_ranges),
             "tag_position_initializers": len(tag_position_inits),
             "warning": (

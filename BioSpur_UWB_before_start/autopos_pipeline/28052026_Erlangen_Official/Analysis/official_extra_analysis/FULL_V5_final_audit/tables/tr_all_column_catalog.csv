@@ -1,0 +1,32 @@
+column,dtype,nulls,unique_count,sample_values,used_before_final_audit,analysis_reference_count,how_used_or_checked,potential_unexploited_value,numeric_min,numeric_max,numeric_mean,numeric_std
+host_elapsed_s,float64,0,28799,8.6e-05; 8.6e-05; 8.6e-05; 8.6e-05; 8.6e-05,yes,35,time base for temporal/time-sync diagnostics,absolute epoch has little value for static positioning,5.4e-05,119.994958,59.99551273783746,34.66426142697786
+host_epoch_s,float64,0,28818,1779959236.226124; 1779959236.226124; 1779959236.226124; 1779959236.226124; 1779959236.226124,yes,28,time base for temporal/time-sync diagnostics,absolute epoch has little value for static positioning,1779959236.226124,1779964803.786346,1779962049.73732,1683.8438163513213
+sweep,int64,0,28818,2833; 2833; 2833; 2833; 2833,no,208,final audit sweep count and early-vs-late drift,"minor temporal diagnostic, already superseded by raw-frame temporal analysis",2833.0,32303.0,17569.446005968493,8515.743644364142
+conn_id,float64,230544,0,,no,1,final audit null-field check,none if all null,,,,
+peer_name,str,0,1,BSF66F; BSF66F; BSF66F; BSF66F; BSF66F,no,4,schema/anomaly audit,low,,,,
+tag_id,float64,230544,0,,no,2,final audit null-field check,none if all null,,,,
+plan,str,0,1,f; f; f; f; f,no,70,schema/anomaly audit,low,,,,
+pmode,int64,0,1,0; 0; 0; 0; 0,no,1,schema/anomaly audit,low,0.0,0.0,0.0,0.0
+anchor_id,int64,0,8,0; 1; 2; 3; 4,yes,164,grouping dimension for all range aggregation and solvers,none,0.0,7.0,3.5,2.291292816801133
+raw_mm,int64,0,2163,1523; 1745; 2156; 2144; 2309,no,19,final audit compares exactly to range_mm,none if equal,0.0,3662.0,2123.0143833715038,452.5103536962724
+range_mm,int64,0,2162,1523; 1745; 2156; 2144; 2309,yes,54,primary raw range used by p50/lower_trim/raw-frame pipelines,already central,494.0,3662.0,2144.3372935318203,401.69129366538857
+quality_percent,int64,0,36,100; 100; 100; 100; 100,yes,24,quality analysis T9-T11 and final audit saturation check,limited; 94.9% of static rows are 100,62.0,100.0,99.19980567700743,3.871032529643957
+valid,int64,0,2,1; 1; 1; 1; 1,yes,125,filter for valid raw frames,invalid rows audited for count only,0.0,1.0,0.9901146852661531,0.0989324908257757
+status,str,0,2,O; O; O; O; O,no,361,schema/anomaly audit,low,,,,
+quality_flag_percent,int64,0,1,0; 0; 0; 0; 0,no,2,final audit constant-field check,none if constant zero,0.0,0.0,0.0,0.0
+first_to_last_us,int64,0,1,0; 0; 0; 0; 0,no,2,final audit constant-field check,none if constant zero,0.0,0.0,0.0,0.0
+frame_us,int64,0,1,0; 0; 0; 0; 0,no,1,final audit constant-field check,none if constant zero,0.0,0.0,0.0,0.0
+poll_count,int64,0,1,0; 0; 0; 0; 0,no,1,final audit constant-field check,none if constant zero,0.0,0.0,0.0,0.0
+tr_version,int64,0,1,2; 2; 2; 2; 2,no,1,schema/anomaly audit,low,2.0,2.0,2.0,0.0
+rx_mask,float64,230544,0,,no,1,final audit null-field check,none if all null,,,,
+air_us,float64,230544,0,,no,1,final audit null-field check,none if all null,,,,
+post_us,float64,230544,0,,no,1,final audit null-field check,none if all null,,,,
+cycle_us,float64,230544,0,,no,1,final audit null-field check,none if all null,,,,
+rx_seen,float64,230544,0,,no,1,final audit null-field check,none if all null,,,,
+imu_valid,int64,0,1,0; 0; 0; 0; 0,no,1,final audit checks for movement/bump signal,none if IMU fields are empty/invalid,0.0,0.0,0.0,0.0
+imu_n,int64,0,1,0; 0; 0; 0; 0,no,1,final audit checks for movement/bump signal,none if IMU fields are empty/invalid,0.0,0.0,0.0,0.0
+acc_norm_mean_mg,float64,230544,0,,no,3,final audit checks for movement/bump signal,none if IMU fields are empty/invalid,,,,
+acc_norm_std_mg,float64,230544,0,,no,6,final audit checks for movement/bump signal,none if IMU fields are empty/invalid,,,,
+acc_norm_min_mg,float64,230544,0,,no,1,final audit checks for movement/bump signal,none if IMU fields are empty/invalid,,,,
+acc_norm_max_mg,float64,230544,0,,no,1,final audit checks for movement/bump signal,none if IMU fields are empty/invalid,,,,
+imu_skip_count,int64,0,1,0; 0; 0; 0; 0,no,1,final audit checks for movement/bump signal,none if IMU fields are empty/invalid,0.0,0.0,0.0,0.0

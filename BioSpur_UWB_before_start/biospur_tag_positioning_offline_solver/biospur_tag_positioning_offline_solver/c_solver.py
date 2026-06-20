@@ -20,6 +20,11 @@ METHOD_TO_INT: dict[MethodName, int] = {
     "T4": 4,
     "T4_V6_IMU_GATE": 4,
 }
+LOSS_TO_INT = {
+    "linear": 0,
+    "huber": 1,
+    "tukey": 2,
+}
 
 
 class CConfig(ctypes.Structure):
@@ -41,6 +46,7 @@ class CConfig(ctypes.Structure):
         ("temporal_prior_sigma_mm", ctypes.c_double),
         ("robust_loss", ctypes.c_int),
         ("tukey_c", ctypes.c_double),
+        ("huber_delta_mm", ctypes.c_double),
     ]
 
 
@@ -139,6 +145,8 @@ def make_c_config(config: SolverConfig) -> CConfig:
     cfg.min_sigma_mm = float(config.min_sigma_mm)
     cfg.convergence_mm = float(config.convergence_mm)
     cfg.max_step_mm = float(config.max_step_mm)
+    cfg.robust_loss = int(LOSS_TO_INT.get(config.solver_loss, 1))
+    cfg.huber_delta_mm = float(config.solver_f_scale_mm)
     cfg.reject_abs_threshold_mm = float(config.reject_abs_threshold_mm)
     cfg.reject_min_improvement_mm = float(config.reject_min_improvement_mm)
     cfg.reject_improvement_ratio = float(config.reject_improvement_ratio)

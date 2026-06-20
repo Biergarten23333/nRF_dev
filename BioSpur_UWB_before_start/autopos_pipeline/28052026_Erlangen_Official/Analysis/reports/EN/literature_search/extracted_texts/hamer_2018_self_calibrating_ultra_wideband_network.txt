@@ -1,0 +1,898 @@
+Received December 29, 2017, accepted March 30, 2018, date of publication April 20, 2018, date of current version May 9, 2018.
+Digital Object Identifier 10.1109/ACCESS.2018.2829020
+
+
+
+
+Self-Calibrating Ultra-Wideband Network
+Supporting Multi-Robot Localization
+MICHAEL HAMER , (Member, IEEE), AND RAFFAELLO D’ANDREA, (Fellow, IEEE)
+Institute for Dynamic Systems and Control, ETH Zurich, 8092 Zürich, Switzerland
+Corresponding author: Michael Hamer (hamerm@ethz.ch)
+
+
+
+
+  ABSTRACT In this paper, we concern ourselves with the development of a localization system that permits
+  multiple robots to localize themselves simultaneously within a given area, which has been outfitted with a
+  network of stationary radio modules. We derive a clock synchronization scheme for the radio modules, show
+  how each module is able to compute its position within the network, and finally demonstrate how multiple
+  robots are able to operate simultaneously within the space by using time-difference-of-arrival measurements
+  to localize themselves. Since robots are passive receivers in this system and are able to compute their position
+  based only on received and local information, multiple robots can operate simultaneously and without the
+  need for central coordination or centralized localization infrastructure. All results presented in this paper are
+  supported by experimental results, and the functionality of the system is demonstrated by multiple micro-
+  quadrocopters localizing and flying simultaneously within a space.
+
+
+  INDEX TERMS Clock synchronization, robot localization, robot sensing systems, state estimation, ultra
+  wideband technology.
+
+I. INTRODUCTION
+In this paper we concern ourselves with the development of a
+localization system that permits multiple robots to localize
+themselves simultaneously within an area, which has been
+outfitted with stationary radio modules, hereinafter referred
+to as anchors. Each anchor transmits packets according to a
+given transmission schedule and robots operating in the area
+record the reception time of these packets. The difference in
+reception times of two subsequent packets is proportional to
+the difference in the robot’s distance to the two transmitting
+anchors. By calculating this difference for multiple pairs of
+measurements, a robot is able to localize itself—this is often
+referred to as time-difference of arrival (TDOA) localization,
+multilateration, or hyperbolic localization. Since the robot is
+not active in the communication (only receiving, akin to GPS-
+receiver operation), multiple robots can operate and localize
+                                                                                                FIGURE 1. A network of anchors communicate, allowing them to
+simultaneously. Furthermore, since each robot computes its                                      synchronize their clocks, measure their pair-wise distances, and construct
+location independently and based only on local information,                                     a coordinate system. Through passive reception of these communications,
+                                                                                                multiple robots are able to localize themselves, and to operate
+localization is anonymous—no central infrastructure is aware                                    simultaneously in the space.
+of the robot’s presence or necessary to facilitate localization.
+The layout and interaction of this system is depicted in Fig. 1
+   After reviewing related literature in Section II, this paper                                       allows each anchor to adhere to a transmission
+presents the development of such a localization system in                                             schedule.
+three stages:                                                                                      2) In Section IV we discuss self-localization of the anchor
+   1) In Section III we derive a distributed clock syn-                                               network, that is, how each anchor within the net-
+      chronization algorithm for the anchor network, which                                            work is able to compute its position with respect to
+                                            2169-3536 2018 IEEE. Translations and content mining are permitted for academic research only.
+22292                                             Personal use is also permitted, but republication/redistribution requires IEEE permission.                VOLUME 6, 2018
+                                           See http://www.ieee.org/publications_standards/publications/rights/index.html for more information.
+M. Hamer, R. D’Andrea: Self-Calibrating Ultra-Wideband Network Supporting Multi-Robot Localization
+
+
+
+
+                                                                                 A. CLOCK SYNCHRONIZATION
+                                                                                 Clock synchronization of networked devices is a thoroughly-
+                                                                                 studied problem with many robust algorithms having been
+                                                                                 proposed; for example, the Network Time Protocol [1]
+                                                                                 is deployed world-wide and has proven robust in the
+                                                                                 context of the internet. Synchronization of wireless sen-
+                                                                                 sors can pose additional difficulties such as limited band-
+                                                                                 width, energy, memory, and computation; potential motion
+                                                                                 of the sensors; and signal interference/multi-path. Tailored
+                                                                                 approaches to the synchronization of wireless sensor net-
+                                                                                 works have therefore been a target of more recent research,
+                                                                                 with early results summarized, for example, in the survey
+                                                                                 papers [2], [3].
+                                                                                    Of particular relevance is research focused on the gradient
+                                                                                 clock synchronization property. Proposed in [4] and with
+                                                                                 algorithms suggested in, for example, [5]–[8], the gradient
+                                                                                 clock synchronization property requires that the logical clock
+                                                                                 skew between two nodes in a network be bounded by a non-
+                                                                                 decreasing function of their distance; that is, closer nodes are
+                                                                                 more closely synchronized. This is in contrast to standard
+FIGURE 2. A network of eight such anchors was used for experimental              clock synchronization algorithms, which aim to minimize
+validation. Each anchor consists of a STM32F4 microprocessor (32-bit,            global skew and thus often require maintaining or optimizing
+168MHz, single-precision floating-point unit, based on the ARM Cortex
+M4F) connected to a Decawave DWM1000 UWB radio module.                           global state, rather than relying only on local information.
+                                                                                 In [6] it is shown that a simple approach based on distributed
+                                                                                 averaging performs well in the context of gradient clock
+      the anchor network’s coordinate system. This self-
+                                                                                 synchronization, while requiring minimal computation and
+      localization allows the anchor network to be setup
+                                                                                 storage, and remaining robust to changes in network topol-
+      quickly and dynamically, since anchor positions are
+                                                                                 ogy. For these reasons the approach of [6] was adapted for
+      computed as a byproduct of operation and must not be
+                                                                                 this paper.
+      manually measured or otherwise known beforehand.
+                                                                                    This approach to network synchronization relies on accu-
+   3) In Section V we describe how TDOA measurements
+                                                                                 rate pairwise clock synchronization. We opt to track this
+      can be used for robot localization and demonstrate
+                                                                                 pairwise clock behavior using a Kalman filter, an approach
+      the simultaneous localization and control of multiple
+                                                                                 similar to, for example [9]–[11], as well as similar to [12],
+      Crazyflie 2.0 micro-quadrocopters.
+                                                                                 who additionally note the effectiveness of a Kalman filter
+   Sections are interspersed with the presentation of pertinent                  at compensating for packet loss. Similar to [12], we base
+experimental results. These results are based on a network                       our clock model on a system identification of the pairwise
+of eight anchors. As shown in Fig. 2, each anchor con-                           clock behavior; however, our implementation differs in that
+sists of a STM32F4 microprocessor (32-bit, 168MHz, single-                       we use this system identification to determine parameters for
+precision floating-point unit, based on the ARM Cortex                           a continuous-time clock model and use exact discretization to
+M4F) connected to a Decawave DWM1000 ultra-wideband                              arrive at the discrete time dynamics and process noise covari-
+(UWB) radio module. The DWM1000 UWB module has a                                 ance, thus allowing the model to correctly handle varying
+timestamping precision of 15.65 ps, in which time a radio                        reception periods, as is encountered during clock synchro-
+pulse propagates 4.7 mm in air. The paper is concluded in                        nization or due to packet loss.
+Section VI, where the current limitations of the system are
+discussed and directions for future research are proposed.
+                                                                                 B. UWB-BASED ROBOT LOCALIZATION
+II. RELATED WORK                                                                 The usage of UWB radio for data transmission and local-
+This paper finds itself at the intersection of two broad research                ization has gained significant interest since the legalization
+fields: clock modeling and synchronization in wireless net-                      of its unlicensed usage by the U.S. Federal Communications
+works and UWB-radio-based localization. Although many                            Commission in 2002 [13]. Development of a communication
+of the concepts and methods presented in this paper are                          and localization standard by the IEEE [14], [15] has further
+related to proposals in existing literature, the core novelty                    paved the way toward the technology’s commercialization.
+and contribution of this paper lies in their adaptation and                         An overview of UWB radio as a method of localization,
+combination for the context in which they are applied. In this                   the positioning schemes it enables, as well as a discussion
+section, we review relevant and related literature and place                     of the schemes’ fundamental limitations is presented in the
+this paper in a broader context.                                                 review paper [16], and later in the book [17].
+
+VOLUME 6, 2018                                                                                                                             22293
+                                                M. Hamer, R. D’Andrea: Self-Calibrating Ultra-Wideband Network Supporting Multi-Robot Localization
+
+
+
+
+   Early results using a UWB radio network as a means of              Reference [36] address a similar issue by developing an
+localization include [18], who use centralized TDOA to local-         antenna bias model to compensate for timestamping inaccu-
+ize a transmitting agent; [19], who suggest using a particle          racies, which they show are partially influenced by antenna
+filter to combine a dynamics model, IMU measurements, and             orientation as well as distance.
+UWB range measurements in order to facilitate agent track-               The fusion of UWB localization with other sensors has also
+ing; and [20], who extend this particle-filter based approach         been investigated as a way to mitigate UWB biases. In partic-
+to the case of mobile-robot tracking, while also presenting an        ular, vision sensors have received significant attention. Ref-
+analysis of tracking performance in line-of-sight (LOS) and           erence [37] show that by augmenting UWB localization with
+non-line-of-sight (NLOS) environments.                                visual odometry, local maneuver accuracy can be improved.
+   A similar analysis of UWB performance in NLOS envi-                Reference [38] tackle the inverse problem, augmenting a
+ronments is presented in [21], and further expanded upon in           visual SLAM system with UWB localization to reduce the
+the subsequent work [22]–[24]. In these works, small robots           computational overhead of vision-based localization, assist
+use UWB to localize themselves within an area. Accurate               with visual loop closure, and to mitigate problems with visual
+localization is facilitated by a UWB measurement model                localization in feature-sparse environments or environments
+incorporating the probability of both LOS and NLOS mea-               with many specular reflections.
+surements, as well as by robots measuring and sharing their              In this paper we extend existing literature in the space of
+pair-wise distances and bearings.                                     UWB-based localization by
+   Many of these early results employ custom electronics to              1) developing a synchronization algorithm for wireless,
+transmit and receive UWB signals. Further examples of early                 stationary UWB anchors, allowing them to synchronize
+UWB localization systems can be found in, for example [25],                 with enough accuracy to facilitate accurate distance
+who demonstrate that robots receiving measurements from                     measurement (keeping in mind that a 1ns synchroniza-
+externally-synchronized, actively-transmitting anchors are                  tion bias is equivalent to a 300mm bias in distance
+able to self-localize using a TDOA approach; and [26], who                  measurement);
+demonstrate the feasibility of the inverse approach (active              2) leveraging this synchronization to allow anchors to
+robots, passive anchors), while also analyzing the importance               localize themselves and construct a coordinate system;
+of anchor placement for TDOA-localization.                                  and
+   In more recent years, the advent of small, low-power                  3) enabling robots operating within the space to local-
+UWB ICs (for example, the Decawave DW1000 [27], used                        ize themselves based only on passive reception of
+in this paper) has simplified the integration of UWB local-                 the anchors’ communications, thus allowing multiple
+ization with more-standard robotic systems. Combined with                   robots to operate simultaneously within the space.
+increases in the performance of embedded processors, UWB
+                                                                      As has been presented in this section, existing research has
+localization has become a promising solution for real-time,
+                                                                      tackled each one of these points to some extent; the novelty of
+on-board localization and control. This is demonstrated
+                                                                      this paper lies in the adaptation, extension, and combination
+in [28] who augment a standard quadrocopter with a UWB
+module and, by using two-way ranging for range measure-               of these into a functioning system.
+ment and an extended Kalman filter for state estimation,
+demonstrate trajectory flight using only on-board measure-             III. CLOCK SYNCHRONIZATION
+ments and control. A similar approach is used by [29] who             To enable a receiver (for example, a robot) to localize itself
+demonstrate controlled trajectory tracking in a multitude of          using TDOA measurements, the network of anchors must
+indoor and outdoor environments; and by [30] who demon-               be synchronized to a common timescale, such that they can
+strate the flight of multiple quadrocopters by coordinating           maintain a time division multiple access (TDMA) trans-
+their ranging requests using TDMA. Reference [31] demon-              mission schedule. Synchronization in the proposed network
+strate similar results using TDOA localization, where a               architecture follows four distinct phases:
+quadrocopter localizes itself through passive observation of             1) Upon startup, an anchor listens for incoming packets.
+anchor transmissions; [32] tackle the inverse problem of                    If no packets are received within a specified time-
+localizing an actively-transmitting ground robot using a pas-               interval, the anchor will begin transmitting. If packets
+sive network of anchors.                                                    are received, the anchor first synchronizes individually
+   One of the largest issues with UWB localization, as identi-              to each transmitting anchor, as described in Section III-
+fied by many of the aforementioned papers are time-stamping                 B.
+inaccuracies leading to biased range measurements. Recent                2) Once the receiving anchor is synchronized with each
+work in [33] and [34] suggests that multiplexing antennas                   transmitting anchor, it then synchronizes to the net-
+(each mounted in a different orientation) and transmission                  work’s consensus-based logical clock, as described in
+channels can be used to generate a diversity of ranging mea-                Section III-C.
+surements and improve measurement accuracy and precision.                3) Once synchronized to the network’s logical clock,
+Related work in [35] considers a frequency-domain band-                     the receiving anchor begins transmitting in accordance
+stitching approach to improve the accuracy of timestamping.                 with the network’s TDMA schedule. Other anchors
+
+22294                                                                                                                              VOLUME 6, 2018
+M. Hamer, R. D’Andrea: Self-Calibrating Ultra-Wideband Network Supporting Multi-Robot Localization
+
+
+
+
+      in the network then begin synchronizing to the new
+      anchor (as in Section III-B), and its clock rate is
+      incorporated into the network’s consensus-based log-
+      ical clock (as in Section III-C).
+   4) Finally, the network synchronization can be improved
+      by each anchor sharing the times at which it has
+      received packets from other anchors, allowing the
+      packet propagation time between pairs of anchors to
+      be measured and accounted for in the synchronization,
+      as discussed in Section III-D.
+After the network is synchronized and all anchors are trans-
+mitting in accordance with the TDMA schedule, anchors
+are able to self-localize (Section IV) within the network,
+and robots are able to localize themselves based on TDOA
+measurements (Section V).                                                        FIGURE 3. In order for anchor D to synchronize to anchor A, it timestamps
+                                                                                 the arrival of packets from anchor A. By assuming the inter-clock
+                                                                                 behavior has third-order dynamics, a Kalman filter was developed and
+A. NOTATION                                                                      tuned to allow anchor D to track the value, rate and acceleration of its
+                                                                                 clock relative to the clock of anchor A. Synchronizing each pair of clocks
+We use A to denote a connected network of anchors. For pur-                      is the first step towards achieving network synchronization.
+poses of explanation and without loss of generality, we denote
+anchors using capital letters. Let I and J refer to arbitrary
+anchors within A, and let AI be the set of anchors capable                       rate of anchor I’s clock: dh J    dhI        dhJ
+                                                                                                            dt []/ dt [] = dhI []. For future
+of bi-directional communication with anchor I. Let anchors                       notational simplicity, we denote this rate as
+I and J be separated by a distance of dIJ = dJI meters,                                                                   dhJ
+and let packets sent between these anchors be delayed by a                                                ḣ(I)J [] :=       [].                     (1)
+                                                                                                                          dhI
+propagation time of δIJ = δJI seconds.
+                                                                                 It follows that
+   We denote a packet sent from an anchor using the trans-
+mitting anchor’s lowercased ID, and use a subscript to denote                                                           d 2 hJ
+                                                                                                        ḧ(I)J [] :=          [], and                (2)
+the packet’s index; for example ik denotes the kth packet                                                               dh2I
+transmitted from anchor I. If it is clear from context, we will                                        ...(I)     d 3 hJ
+omit this subscript when referring to the most recent packet.                                          h J [] :=        [],                          (3)
+                                                                                                                  dh3I
+   We refer to the transmission or reception of a packet as an
+event, and use a superscript T or R to denote transmission and                   denote the relative acceleration and jerk of anchor J’s clock
+reception events, respectively. Using this notation iTk refers to                with respect to anchor I’s clock.
+the transmission of packet ik from anchor I, and iT to the most
+recent transmission event from anchor I.                                         B. MODELING, IDENTIFICATION AND TRACKING OF
+   Each UWB anchor I ∈ A possesses a hardware clock,                             RELATIVE CLOCKS
+whose value can be read exactly, which can be used to sched-                     We now consider a network of four anchors, which we label
+ule the transmission of packets to occur at an exact time, and                   A, B, C and D; noting, however, that these algorithms are
+which can timestamp the reception of packets (with a degree                      extendable to an unlimited number of anchors. We start by
+of uncertainty caused by the noisy transmission channel).                        considering the case where anchors A, B and C are syn-
+We denote the measurement of this hardware clock at real-                        chronized and transmitting, and where anchor D wishes to
+time t as hI (t).                                                                begin transmitting, needing first to synchronize itself to the
+   For future notational simplicity, we define f [] := f (t ) to               network. The first step in the synchronization process is syn-
+be a sample of the continuous-time process f (·) at the real-                    chronizing individually to each anchor in AD . We explicitly
+time instant corresponding to the occurrence of the discrete                     and without loss of generality discuss the case of anchor D
+event . Using this notation, hJ [iR ] is the value of anchor J’s                synchronizing to anchor A and note that this method is per-
+clock at the real-time instant of the reception event iR , cor-                  formed independently for each transmitting anchor in AD .
+responding to the reception of the most recent packet from                          Fig. 3 shows the case where anchor A transmits packet ak
+anchor I.                                                                        at its hardware clock time hA [aTk ], and anchor D receives this
+   We can further write ḣJ [] := dh J
+                                    dt [] to mean the real-time                 packet at time hD [aRk ], measured in its hardware clock. Note
+clock rate of anchor J’s clock at the occurrence of event .                     that the propagation delay δAD is not observable in the case of
+Since there is no real-time reference in the system, this rate                   uni-directional communication, and as such the inter-anchor
+cannot be measured; however, for purposes of network syn-                        synchronization implicitly includes this delay, which is then
+chronization we are only concerned with tracking relative                        compensated for when synchronizing to the network’s logical
+rates, for example the rate of anchor J’s clock relative to the                  clock (Section III-C).
+
+VOLUME 6, 2018                                                                                                                                      22295
+                                                    M. Hamer, R. D’Andrea: Self-Calibrating Ultra-Wideband Network Supporting Multi-Robot Localization
+
+
+
+
+   We choose to model the behavior of anchor D’s clock with               align with the network’s consensus-based logical clock (as
+respect to anchor A’s clock as a third-order linear system                discussed in Section III-C).
+driven by noise:                                                             Since the inter-clock behavior has been modeled using a
+                     ...(A)                                               linear system with the assumption of white Gaussian noise,
+                     h D (t) = ν(t),                    (4)               anchor D implements a discrete-time Kalman filter to track
+where ν(t) ∼ N (0, σ 2 ) is the continuous-time process noise             its hardware clock relative to the hardware clock of anchor A
+driving the inter-clock relationship. This third-order model              using the standard equations for an autonomous linear system
+assumption allows the value, relative rate and relative accel-            with Gaussian noises:
+eration of anchor D’s clock with respect to anchor A’s clock                 Prediction Step:
+to be tracked. Tracking relative acceleration is particularly                       q(A)    R           (A)    R
+                                                                                      D,p [ak ] = F(1) q D,m [ak−1 ]
+important in the first few minutes of network operation as
+                                                                                     D,p [ak ] = F(1) P D,p [ak−1 ] F (1) + 6(1)
+                                                                                           R                  R      |
+the clocks of both radios warm from room temperature to a                          P(A)                (A)
+                                                                                                                                                  (9)
+more steady state, causing significant changes in the clocks’                Measurement Update:
+rates.                                                                                                                               −1
+   We note that exact transmission scheduling allows trans-
+                                                                               (A)
+                                                                              KD   [aRk ] = P(A)
+                                                                                              D,p [aR
+                                                                                                    k ] H |
+                                                                                                             H P (A)
+                                                                                                                  D,p [aR
+                                                                                                                        k ] H |
+                                                                                                                                + ς 2
+
+mission timestamps hA [aTk ] to be known exactly and allows                 P(A)    R              (A)  R         (A)     R
+                                                                              D,m [ak ] = (I − K D [ak ] H )P D,p [ak ]
+the noise to be modelled as only affecting the reception times-                                                                                 
+                                                                                                                                        D,p k .
+                                                                                    R             R              R           R               R
+tamps hD [aRk ]. The above system can therefore be considered               q(A)  [a
+                                                                              D,m k   ] = q (A)
+                                                                                                [a
+                                                                                             D,p k  ]  + K (A)
+                                                                                                           D k [a  ]    zD [ak ] − H q (A)
+                                                                                                                                           [a  ]
+a standard third-order linear system, where anchor A’s clock                                                                                    (10)
+forms the time-basis of the system and measurements hD [aRk ]
+are corrupted by noise, which is a function of the transmission              Note that the dependence of the discrete-time model on
+channel and timestamping algorithm.                                       the sampling period 1 allows the Kalman filter to correctly
+   Since measurements hD [aRk ] only occur at the reception of a          handle packets arriving at a non-constant rate. The reader is
+packet, we exactly discretize (4) at the reception of packet ak ,         referred to, for example, [39] for further background on the
+for the discrete sampling time 1 := hA [aTk ] − hA [aTk−1 ]:              Kalman filter.
+   Letting                                                                   Since the behavior of a Kalman filter is determined by
+                                                                          the ratio of process and measurement noises, it remains to
+                                                  R |
+                                              D [ak ] ,
+              R
+                         R            R
+                                                     
+        q(A)
+          D [ak ] := hD [ak ]   ḣ(A)
+                                   D [ak ] ḧ(A)             (5)          determine the constants σ and ς : the standard deviation of
+                                                                          the process and measurement noise respectively.
+this exact discretization results in the discrete-time state-
+                                                                             This was achieved experimentally by placing pairs of
+space model
+                                                                          anchors at the network’s approximate operational dis-
+                 D [ak ] = F q D [ak−1 ] + ω[ak ]
+                     R             R            R
+               q(A)           (A)
+                                                                          tance (10m), and instructing one anchor of the pair to transmit
+                zD [ak ] = H q D [ak ] + ξ [ak ],
+                     R         (A) R         R
+                                                                (6)       periodically at the network’s operational frequency (2ms),
+                                                                          while the other anchor recorded receptions. Measurements
+with                                                                      were then used to update the Kalman filter as in (10). Since
+                        1 2                                             the ratio of σ and ς determines the Kalman filter’s behavior,
+             1     1      1                                               σ was fixed at 1, and ς was adjusted such that the resulting
+        F = 0
+                        2 ,         
+                                    H= 1        0     0,
+                                                       
+                                                                (7)
+                   1      1                                              measurement noise was maximally white. Finally, from the
+              0    0      1                                               standard deviation of the resulting white measurement noise,
+                                                                          the real value of ς could be determined and the real value of
+where zD [aRk ] is a measurement of anchor D’s clock at the               σ derived.
+reception of packet ak , where ξ [·] ∼ N (0, ς 2 ) is an addi-               On the experimental platform, this tuning resulted in a
+tive measurement noise corrupting reception timestamps, and               measurement noise with standard deviation ς = 0.13ns
+where ω[·] ∼ N (0, 6) with                                                (equivalent to a distance measurement error of 40mm),
+                                              
+                         1 5      1 4     1 3                             as shown in Fig. 4, and a process noise with standard devi-
+                       20 1      8
+                                    1       1
+                                          6                              ation of σ = 51ns s−3 .
+                      1          1 3     1 2
+                                              
+             6 = σ 2  14           1       1             (8)
+                      8          3       2                               C. NETWORK CLOCK SYNCHRONIZATION
+                      1          1 2          
+                           13       1       1                             In order to mitigate problems with transmissions interfering,
+                         6        2                                       all anchors in A must synchronize to a logical clock, and their
+is the discretized process noise driving the system.                      packet transmissions must adhere to a TDMA transmission
+   Modeling the inter-clock behavior in continuous-time and               schedule. Having synchronized to each anchor individually
+discretizing upon packet reception allows the synchronization             (discussed in Section III-B), anchor D is now required to syn-
+algorithm to implicitly and correctly account for packet loss,            chronize to the network’s logical clock. This is accomplished
+for variation in hardware clock rates (e.g. due to temperature            using a consensus-based approach and in a manner similar to
+changes), and for varying transmission periods required to                the gradient clock synchronization algorithm presented in [6].
+
+22296                                                                                                                                  VOLUME 6, 2018
+M. Hamer, R. D’Andrea: Self-Calibrating Ultra-Wideband Network Supporting Multi-Robot Localization
+
+
+
+
+                                                                                 that hI [pR ] = hI [iT ] + 1I . Finally anchor D computes
+
+                                                                                                     ḣ(I)D [pR ] = ḣ(I)D [iR ] + 1I ḧ(I)D [iR ],   (13)
+
+                                                                                 to arrive at the relative rate of the two clocks at the current
+                                                                                 time.
+                                                                                    Having predicted the synchronization of its neighbors for-
+                                                                                 ward, anchor D can now update its synchronization parame-
+                                                                                 ters using a consensus-based approach. We begin by convert-
+                                                                                 ing the synchronization parameters of an arbitrary anchor I
+                                                                                 into anchor D’s hardware clock, firstly by equating the rates:
+
+                                                                                           φD (hD [pR ] + θD − δID ) = φi (hI [pR ] + θI )
+                                                                                        d                                   d
+                                                                                           φD (hD [pR ] + θD − δID ) =           φI (hI [pR ] + θI )
+                                                                                       dhI                                 dhI
+                                                                                                           dhD R               dhI R
+                                                                                                        φD         [p ] = φI       [p ]
+                                                                                                           dhI                 dhI
+                                                                                                         φD ḣ(I)D [pR ] = φI
+                                                                                                                               φI
+                                                                                                                    φD = (I) R ;                     (14)
+                                                                                                                           ḣ D [p ]
+                                                                                 and then by equating the offsets
+
+                                                                                        φD (hD [pR ] + θD − δID ) = φI (hI [pR ] + θI )
+                                                                                                                    φI
+                                                                                             hD [pR ] + θD − δID =         (hI [pR ] + θI )
+                                                                                                                    φD
+FIGURE 4. Anchor A tracks its clock relative to the clock of anchor B using                                   θD = ḣ(I)D [pR ](hI [pR ] + θI ) (15)
+a Kalman filter, based on the assumption of third-order random-walk
+clock dynamics. The Kalman filter’s noise characteristics were tuned to                                                      − hD [pR ] + δID . (16)
+maximize the whiteness of the measurement noise after filtering,
+resulting in measurement noise with a standard deviation of 0.13ns
+(equivalent to a distance measurement error of 40mm).                            Note that although this synchronization compensates for the
+(a) Autocorrelation of the resulting measurement noise. (b) Distribution         propagation time δID between anchors, this value is not
+of the resulting measurement noise.
+                                                                                 observable until anchor D has begun transmitting. Due to the
+                                                                                 relatively small magnitude of this value in comparison to the
+                                                                                 network’s transmission period (nanoseconds compared with
+   Each anchor I ∈ A models its relationship to the network’s                    milliseconds), anchor D computes an initial synchronization
+logical clock (denoted l(t)) as an affine function with parame-                  under the assumption that δID = 0 for all I ∈ AD , such that
+ters φI and θI , such that at a given time instant t the network’s               it can begin transmitting, thus rendering the true value of δID
+logical clock can be expressed as a function of the anchor’s                     observable.
+hardware clock as:                                                                  Averaging the synchronization parameters of all anchors
+                                                                                 results in the consensus solution
+                       lI (t) = φI (hI (t) + θI ).                    (11)                                                    
+                                                                                               1              X         φ I
+Synchronization with the network’s logical clock at time t is                       φD∗ =            φD +
+                                                                                                                     (I)    R]
+                                                                                                                                , and         (17)
+therefore achieved by calculating an appropriate φI and θI ,                               |AD | + 1               ḣ    [p
+                                                                                                             I∈AD D
+herein referred to as synchronization parameters.                                                                                           !
+                                                                                               1              X ḣ(I) [pR ](hI [pR ] + θI )
+   Considering now the case of anchor D synchronizing to                            θD∗ =            θD +               D                    ,
+the network’s logical clock, we let hD [pR ] be the timestamp                              |AD | + 1                         −hD [pR ] + δID
+                                                                                                                       I∈AD
+of the most recently received packet p from any other anchor.                                                                                         (18)
+Upon reception of p, anchor D predicts its synchronization to
+each anchor I ∈ AD forward to the time of the most recent                        where φI and θI are communicated to anchor D by anchor I
+reception event hD [pR ]. Referring to (6), this is accomplished                 in the contents of each packet. This update rule resembles the
+by solving                                                                       gradient clock synchronization update from [6], which was
+                                                                                 shown to provide accurate clock synchronization between
+                                               1
+         hD [pR ] = hD [iR ] + ḣ(I)D [iR ]1I + ḧ(I)D [iR ]12I       (12)       neighboring anchors, to scale to connected networks with-
+                                               2                                 out requiring complete connectivity, and to converge. Con-
+for 1I , the time progression of anchor I’s clock corresponding                  vergence was shown by noting the row-stochasticity of the
+to a progression of anchor D’s clock by hD [pR ]−hD [iR ], such                  update matrix.
+
+VOLUME 6, 2018                                                                                                                                        22297
+                                                     M. Hamer, R. D’Andrea: Self-Calibrating Ultra-Wideband Network Supporting Multi-Robot Localization
+
+
+
+
+               FIGURE 5. After synchronizing to the network’s logical clock all anchors are able to transmit in accordance with a
+               known TDMA schedule. Propagation delays between all anchors are rendered observable by each anchor
+               communicating the reception times of each received packet. The dashed red transmissions exemplify this: by anchor D
+               communicating both the reception timestamp hD [aR ] and transmission timestamp hD [d T ] to anchor A, anchor A is
+               able to compute the propagation delay δAD . By knowing the packet propagation delays between each pair of anchors,
+               network synchronization can be improved, and the physical distance between anchors can be estimated, allowing for
+               network self-localization.
+
+
+
+
+D. SYNCHRONIZATION REFINEMENT                                                 On the experimental system, the performance of the net-
+After anchor D has computed an initial synchronization,                    work synchronization is judged by anchor A estimating the
+it is able to begin transmitting in accordance with an                     reception time of the next packet based its current network
+agreed-upon TDMA schedule. In this paper, we implement                     synchronization parameters and the known TDMA schedule.
+a simple, round-robin TDMA scheme, where anchors are                       Upon arrival of the packet, anchor A computes the error
+allocated a predefined time-slice for transmission; more com-              between the actual and the expected reception time, which
+plex schemes would be possible to implement, however are                   was found to be normally distributed with a mean of 0.77ps
+beyond the scope of this paper.                                            (0.23mm) and standard deviation of 50ps (15mm). This is
+   After anchor D begins transmitting, by sharing the trans-               shown in Fig. 6. It should be noted that the mean is significant
+mission and reception timestamps in the contents of each                   less than the 15.65 ps precision at which the DWM1000 UWB
+packet, propagation times between each anchor become                       radio can timestamp incoming packets.
+observable. Consider the red, dashed transmissions shown
+in Fig. 5: by anchor D communicating the reception time                     IV. NETWORK SELF-LOCALIZATION
+hD [aR ] and transmission time hD [d T ] to anchor A, anchor A             As discussed in Section III-D and shown in Fig. 5 each anchor
+is able to estimate the propagation time δAD from a single pair            can measure the propagation delay to every other anchor
+of measurements as                                                         by sharing transmission and reception timestamps. By relat-
+                                                                           ing inter-anchor distance to propagation delay, the distance
+ 2δAD = hA [d R ] − hA [aT ]
+                                 
+                                                                           between each pair of anchors in the localization network can
+               1                                                           be determined, facilitating the localization of each anchor in
+                                 A [a ] hD [d ] − hD [a ] , (19)
+                     [d R ] + ḣ(D)  T       T         R
+                                                        
+           − ḣ(D)                                                         the network.
+               2 A
+where the relative clock rate ḣ(D)
+                                 A (t) is tracked by anchor A               A. RELATING DISTANCE TO PROPAGATION DELAY
+as discussed in Section III-B. After computing the propa-                  In this paper, we make the simplifying assumption that
+gation delay to each anchor, anchor A incorporates these
+                                                                                      dIJ = c δIJ − β̄,      for all anchors I, J ∈ A            (20)
+delays into the network synchronization (Section III-C).
+Since anchors are known to be stationary, measurements of                  where c is the speed of light and β̄ is the pre-
+propagation delay can be low-pass filtered to further reduce               calibrated average bias encountered when processing and
+noise.                                                                     timestamping the reception of a packet. Initial observations
+
+22298                                                                                                                                   VOLUME 6, 2018
+M. Hamer, R. D’Andrea: Self-Calibrating Ultra-Wideband Network Supporting Multi-Robot Localization
+
+
+
+
+                                                                                    We begin by initializing the position of anchors A, B and C
+                                                                                 in closed-form as:
+
+                                                                                  (xA , yA , zA ) = (0, 0, 0)                                  (22)
+                                                                                  (xB , yB , zB ) = (dBA , 0, 0)                               (23)
+                                                                                                                                        !
+                                                                                                        xB2 + d2CA − d2CB q 2
+                                                                                  (xC , yC , zC ) =                      , dCA − xC2 , 0 . (24)
+                                                                                                               2xB
+
+                                                                                 The position of each other anchor can then be initialized with
+                                                                                 respect to these anchors as:
+
+                                                                                                      d2IA − d2IB + xB2
+FIGURE 6. Anchor A estimates the reception time of the next packet,                              xI =                                          (25)
+based on its synchronization to the network’s logical clock. Upon                                           2xB
+reception of the packet, anchor A computes the error between actual and
+estimated arrival time, which is normally distributed with a mean                                     d − d2IC + xC2 + y2C
+                                                                                                       2
+                                                                                                                             xC xI
+of 0.77ps (0.23mm) and standard deviation of 50ps (15mm). This provides
+                                                                                                 yI = IA                   −                   (26)
+                                                                                                                2yC           yC
+a metric to assess the quality of network synchronization.                                               q
+                                                                                                 zI = ± d2IA − xI2 − y2I ,                     (27)
+
+on the Decawave DW1000 [28], [31] show that a distance                           noting that anchor D is constrained to have zD > 0, and where
+measurement can be biased by up to ±300mm, and that                              the z-ambiguity of other anchors is resolved by observation of
+the bias depends primarily on the received signal strength,                      their distance to anchor D.
+which is a function of the transmitting and receiving anten-                        After initialization, this position estimate is further refined
+nas’ relative radiation patterns as well as depending on                         using distributed gradient descent, where each anchor updates
+the distance between anchors [36]. If the relative position                      its position in an iterative manner by calculating and descend-
+and orientation of each pair of anchors I, J ∈ A remains                         ing the cost gradients ∂∂xJI , ∂∂yJI , and ∂∂zJI . Each anchor com-
+constant, the measurement bias βIJ also appears to remain                        municates its position periodically to all other anchors in the
+constant. In our experimental setup with stationary anchors,                     network, facilitating the minimization of (21) in a distributed
+this implies that dIJ = c δIJ − βIJ . Unfortunately, however, βIJ                fashion.
+is not observable given the measurements available from the                         It should be noted that the above method of initializa-
+localization network [40], since a change in bias is indistin-                   tion is dependent on each anchor being able to communi-
+guishable from a change in distance between the anchors. For                     cate with (and thus measure distance to) anchors A, B, C
+this reason, we compensate all distance measurements using                       and D. Furthermore, since the initial positions are computed
+the pre-calibrated average bias β̄.                                              in closed-form from the locations of anchors A, B and C,
+                                                                                 the initialization is both heavily affected by errors in these
+B. ESTIMATING ANCHOR POSITIONS FROM                                              positions and is sensitive to their placement. This sensitivity is
+INTER-ANCHOR DISTANCES                                                           investigated using the Cramér-Rao lower bound in, e.g. [16],
+In order for anchors to localize themselves within the local-                    [36], [41]. To mitigate both these issues, initialization could
+ization network, a coordinate system must be defined. This                       be computed based on three neighboring anchors, selected
+can be done by, e.g. manually setting the positions of four                      such that the available Fisher information is maximized.
+anchors, or by constraining their placement.                                        Further improvements on the above algorithm are possible
+   In this paper, we assume that the z-axis is perpendicular                     by exploiting known structure in anchor placement. In many
+to the plane spanned by the first three anchors, and that                        situations, anchor placement may be semi-structured; for
+anchor A lies at the origin, anchor B along the positive x-axis,                 example, it may be known that a subset of anchors share
+anchor C in the positive y-direction, and anchor D in the pos-                   the same x, y or z coordinate, perhaps being placed along a
+itive z-direction. All other anchors can be placed arbitrarily                   wall or ceiling; as a further example, it might be known that
+within the space. These assumptions define the coordinate                        a subset of anchors lie within a specific half-space. The for-
+system of the network, and allow the positions of anchors                        mulation in (21) allows anchor positions to be constrained to
+in the network to be determined by minimizing the global                         known coordinates, or for additional penalties to be included
+cost                                                                             in the cost function to model inequality or equality constraints
+                   XX                                                            on anchor coordinates or inter-anchor distances.
+             J :=            (dIJ − kpI − pJ k2 )2 ,       (21)
+                     I∈A J∈AI                                                    C. EXPERIMENTAL VALIDATION
+where pI := (xI , yI , zI ) is the position of anchor I. Since each              In our experimental setup, eight anchors were placed in a
+anchor runs on an embedded system, we favor a distributed                        roughly-rectangular setup with side-dimensions of approx-
+and iterative approach to minimizing this cost, rather than a                    imately 6m × 7m × 3.5m. The ground-truth position of
+centralized global optimization.                                                 each anchor was measured by hand. The anchor network
+
+VOLUME 6, 2018                                                                                                                                22299
+                                                              M. Hamer, R. D’Andrea: Self-Calibrating Ultra-Wideband Network Supporting Multi-Robot Localization
+
+
+
+
+TABLE 1. Position errors after network self localization. A network of              TABLE 2. Distance measurement and estimation errors relative to anchor
+eight anchors were placed in a roughly-rectangular setup, and positions             C. Anchor positions were measured by hand and a ground truth Euclidean
+were measured by hand. The network was reinitialized ten times and the              distance between each pair of anchors was calculated. The network was
+results of self-localization were recorded. Errors were calculated as the           reinitialized ten times and the results of distance measurement and
+difference between the hand-measured position and the estimated                     estimation were recorded. Measurement errors are calculated as the
+position. Errors are shown as mean±standard deviation, where mean and               difference between the ground truth distance to anchor C and the
+standard deviation are computed across the ten trials. Constrained                  pair-wise distance measurement, as derived from the time-of-flight
+positions are denoted by a *. Note that anchors D, F, G and H were placed           measurement (20). Estimation errors are calculated based on the
+on the ceiling, making hand measurement of their absolute positions                 difference between the ground truth distance to anchor C and the
+difficult; this is reflected in their relatively high errors. Since anchor E was    Euclidean distance between the anchors’ estimated positions. Errors are
+placed on the floor, it was constrained to have z = 0.                              shown as mean±standard deviation, where mean and standard deviation
+                                                                                    are computed across the ten trials. Note that the DWM1000 is able to
+                                                                                    measure distances with a precision of 4.7 mm.
+
+
+
+
+was reinitialized ten times, and positions resulting from self-
+localization were recorded. Across all ten trials, the syn-                         A. MEASURING THE DISTANCE DIFFERENCE
+chronization and anchor localization algorithms presented                           BETWEEN ANCHORS
+thus far enabled anchors within the network to self-localize                        With reference to Fig. 5, let hR [aR ] and hR [d R ] be the times
+with a position root mean squared error of 97mm, resulting                          at which the robot receives the latest packets from anchors
+from an x-position error of −30 ± 54mm, y-position error                            A and D respectively. We assume that each packet contains
+of 19 ± 46mm, and z-position error of −34 ± 45mm; and                               the position of its transmitting anchor, as well as the trans-
+an inter-anchor distance estimation error of −12 ± 76mm.                            mission time expressed in the synchronized network time.
+Note that these errors are within the tolerances of manually                        This additionally provides the robot with times lA [aT ] and
+measuring the anchor’s actual positions, and are far less than                      lD [d T ], as well as the positions of both anchors involved in the
+the inter-anchor distance measurement bias of ±300 mm.                              communication. Letting φR denote the robot’s UWB clock
+Given the structured placement of anchors it was possible                           rate relative to the anchor network’s logical clock rate, and
+to further constrain the anchor coordinates that are known to                       x := (x, y, z) its position within the anchor coordinate system,
+be equal. Given the already accurate localization, we did not                       we have that
+impose additional constraints on anchor positions, with the
+                                                                                                 lA [aT ] + δAR = φR (hR [aR ] + θR ), and
+exception of anchor E, which was placed on the floor and
+thus constrained to have z = 0.                                                                  lD [d T ] + δDR = φR (hR [d R ] + θR ).
+   Table 2 shows a summary of range measurements upon                               By computing the time difference of arrival, we arrive at
+which the self-localization is based, while Table 1 shows
+the results of the self-localization procedure discussed in this                    (lD [d T ] − lA [aT ]) + (δDR − δAR ) = φR (hR [d R ] − hR [aR ])
+section. Comparing measured and estimated distances gives                           c(lD [d T ] − lA [aT ]) = c · φR (hR [d R ]−hR [aR ])−(dDR −dAR )
+an idea of the influence and variation of measurement bias                          c(lD [d T ] − lA [aT ]) = c · φR (hR [d R ] − hR [aR ])
+within the space. Each measurement received by a robot will
+be corrupted by a measurement bias within this range.                                                          + kpA − xk2 − kpD − xk2 .          (28)
+                                                                                       By including φR as an additional state in the state estimator,
+V. (MULTI-)ROBOT LOCALIZATION                                                       time difference of arrival measurements can be incorporated
+Having now synchronized and self-localized, the anchor net-                         into the state estimate based on (28). The process noise
+work can support the operation of multiple robots within the                        affecting the φR state was set in accordance with the identified
+space. By passively listening to the network traffic (Fig. 5)                       clock model (6).
+and recording the reception time of measurements, a robot is                           As discussed in Section IV-A we found that range measure-
+able to compute the time-difference of arrival of two packets.                      ments were affected by a systematic bias. As also observed in,
+This time difference is proportional to the difference in the                       for example, [28] and [31], this bias was found to be relatively
+robot’s distance to the transmitting anchors. By collecting                         constant for a given position and orientation, but varied as
+multiple of these measurements, a robot is able to localize                         the robot moved around the space. Due to the sensitivity of
+itself.                                                                             time-difference of arrival methods to measurement noise and
+
+22300                                                                                                                                            VOLUME 6, 2018
+M. Hamer, R. D’Andrea: Self-Calibrating Ultra-Wideband Network Supporting Multi-Robot Localization
+
+
+
+
+FIGURE 7. One of the Crazyflie micro-quadrocopters used for these
+experiments. A Decawave DWM1000 UWB radio is mounted on the
+quadrocopter, allowing it to eavesdrop on UWB communications between
+anchors. Improved control was achieved by controlling the speed of the
+motors using an infra-red sensor, seen mounted below each propeller.
+A battery holder mounted underneath the quadrocopter ensures
+consistent placement and in-flight stability of the battery.
+
+
+
+
+bias (discussed in detail in [31]), we were required to set
+                                                                                 FIGURE 8. This figure shows two trials of an experiment, whereby a
+an artificially-high standard deviation of 800mm for these                       quadrocopter flew a circle 20 times before landing. Trials were performed
+measurements.                                                                    a day apart, and the anchor network reset before each trial. The error
+                                                                                 between the actual and estimated x, y and z positions was calculated as
+                                                                                 function of the quadrocopter’s location on the circle. These plots show
+B. EXPERIMENTAL RESULTS                                                          the mean and standard deviation (shaded region) of these errors. Note
+                                                                                 that errors vary with the quadrocopter’s position, and are repeatable. This
+The following experiments were conducted using a Bitcraze                        variation as a function of position is likely caused by UWB measurement
+Crazyflie 2.0 micro-quadrocopter [42] (shown in Fig. 7),                         biases varying throughout the space, as also noted in [28], [31], and [36].
+
+flying within the eight-anchor setup described in Section IV-
+C and with anchor positions given in Table 1. The presented
+method of localization is, however, applicable to any number                     tem identification experiments [47]. Motor speeds were
+of robots operating within a space spanned by at least four                      controlled based on feedback from an infrared reflectance
+anchors. This minimum of four is required to define the coor-                    sensor mounted below each propeller (since direct speed
+dinate system. Due to the sensitivity of the time difference                     control of the quadrocopter’s brushed DC motors is not pos-
+of arrival localization method to noise (see, e.g. [31]), it is                  sible). Localization was enabled by connecting a Decawave
+recommended that robots operate within the convex hull of                        DWM1000 UWB radio module to the quadrocopter’s micro-
+the anchors.                                                                     processor, allowing it to eavesdrop on UWB communications
+                                                                                 between anchors.
+1) QUADROCOPTER EXPERIMENTAL PLATFORM
+All quadrocopter control and estimation software ran on the                      2) SINGLE QUADROCOPTER
+quadrocopter’s 168 MHz, ARM Cortex-M4F microprocessor                            To verify the performance of the system, a quadrocopter was
+(STM32F405, single-precision floating point unit, 196 kB                         commanded to fly a circle of radius r = 1 m with a period
+RAM, 1 MB flash). State estimates were sent at 30 Hz from                        of T = 4 s (corresponding to the quadrocopter flying with a
+the robot to a laptop computer for logging purposes only. The                    linear velocity of 2πr             −1
+                                                                                                      T ≈ 1.57 m s ). The quadrocopter flew
+laptop did not communicate with the quadrocopters, nor was                       the circle 20 times in succession before landing. The error
+it required for their flight, since trajectory planning, control,                between the quadrocopter’s estimated and actual position (as
+localization, and state estimation were all performed onboard.                   measured by a motion capture system) was calculated for
+    We model the quadrocopter as a rigid body using the                          each location on the circle (parameterized using the angle θ)
+standard equations of motion [43]. An extended Kalman filter                     and error statistics were calculated over the 20 runs. In order
+based on the attitude-error approach of [28] and [44] was used                   to investigate the variation of these statistics over time, this
+for state estimation. Trajectory tracking was achieved by a                      experiment was repeated on a different day, with a reinitial-
+high-level controller as in [45], which generates an attitude                    ized localization network. Fig. 8 shows the estimation error
+reference signal for a quaternion-based attitude controller                      mean and standard deviation (shaded region) for both trials.
+based on [46]. Control of thrusts and body-rates employed                        This analysis shows that estimation error appears to contain
+a thrust-speed-map, determined empirically through sys-                          position-dependent effects on the order of ±100 mm, and
+
+VOLUME 6, 2018                                                                                                                                       22301
+                                                 M. Hamer, R. D’Andrea: Self-Calibrating Ultra-Wideband Network Supporting Multi-Robot Localization
+
+
+
+
+that these effects are relatively constant in the short-term (as
+indicated by the standard deviation) as well as over the longer-
+term (as indicated by a comparison of the two trials).
+   Both the magnitude of these effects and their position
+dependence corroborate the observations of [28] and [31]
+and can be explained by UWB measurement biases being
+affected by the quadrocopter’s position and orientation rel-
+ative to each anchor antenna. We expect future revisions of
+the UWB ranging hardware to decrease these measurement
+biases in both magnitude and variance. Machine-learning-
+based approaches could also be used to compensate for these
+biases, as investigated in [36] and discussed in Section VI.
+   Variation in these biases observed between trials is likely
+due to slight variation in the placement and orientation of the
+anchors, and variation in their calculated positions (on the
+order of ±40 mm per axis for each anchor, see Section IV-C).
+The offset in the z-axis can be explained by accelerometer
+biases and discrepancies between expected and actual thrust,
+whose effects on the state estimate are amplified by the
+artificially-high TDOA measurement noise.
+
+3) MULTIPLE QUADROCOPTERS
+Since quadrocopters localize themselves based only on
+received UWB signals the network supports the simultane-
+ous operation of many quadrocopters. To demonstrate this,
+the previous experiment was repeated using three quadro-
+copters flying the same circle simultaneously. Since the
+anchor network maintains a network time, and since each
+quadrocopter knows its ID, quadrocopters were able to com-
+pute their reference position as a function of network time
+and thus avoid collisions with other quadrocopters. A video of
+this experiment can be viewed at http://mikehamer.info/uwb-
+system.
+   As in the previous experiment, errors between each quadro-
+copter’s actual and estimated position were computed as a
+function of its position on the circle. The mean and standard
+deviation of these errors are shown in Fig. 9. As previously
+discussed, these estimation errors exhibit a dependence on
+quadrocopter position; furthermore, similarities can be seen
+between the quadrocopters.
+
+VI. FUTURE WORK
+A. ADAPTIVE TRANSMISSION SCHEDULING
+Pairwise synchronization between anchors in the network
+                                                                       FIGURE 9. To demonstrate the system’s ability to support the operation of
+(Section III) is achieved by modeling the anchors’ clocks as           multiple robots, three quadrocopters were commanded to simultaneously
+third-order linear systems and using a Kalman filter to track          fly a circle. Estimation errors were calculated as a function of each
+                                                                       quadrocopter’s position on the circle. These errors show a dependence on
+the anchors’ relative clock offsets, rates, and accelerations.         position, and display similarities between quadrocopters. (a) Three
+Once synchronized, anchors adhere to a TDMA transmission               quadrocopters simultaneously fly a circle with a radius of 1m, centered at
+schedule, expressed in the network’s logical clock.                    (0, 0). (b) Estimation errors are repeatable and position dependent.
+
+   In our work, we used a fixed transmission schedule,
+with 2 ms between transmissions. This transmission rate was
+manually tuned to trade off between a) distance measure-               improved by allowing more spacing between transmissions
+ment accuracy and the accuracy of robot localization, which            to avoid interference between poorly synchronized anchors.
+is improved by using a faster transmission rate; and b)                   In practice, with anchors experiencing only minor
+robustness to variations in synchronization quality, which is          packet loss, this fixed schedule worked well; however,
+
+22302                                                                                                                               VOLUME 6, 2018
+M. Hamer, R. D’Andrea: Self-Calibrating Ultra-Wideband Network Supporting Multi-Robot Localization
+
+
+
+
+we occasionally experienced a few seconds of high packet                          [10] F. Kirsch and M. Vossiek, ‘‘Distributed Kalman filter for precise and robust
+loss (the cause of which seems to be RF interference), which                           clock synchronization in wireless networks,’’ in Proc. IEEE Radio Wireless
+                                                                                       Symp. (RWS), Jan. 2009, pp. 482–485.
+leads to a decrease in synchronization quality and thus less                      [11] B. R. Hamilton, X. Ma, Q. Zhao, and J. Xu, ‘‘ACES: Adaptive clock
+accuracy in transmission scheduling, resulting in interference                         estimation and synchronization using Kalman filtering,’’ in Proc. 14th
+between transmissions, further packet loss, and eventually,                            ACM Int. Conf. Mobile Comput. Netw. (MobiCom), New York, NY, USA,
+                                                                                       2008, pp. 152–162.
+a complete loss of synchronization.                                               [12] H. Abubakari and S. Sastry, ‘‘IEEE 1588 style synchronization over wire-
+   We suggest that system performance could be improved                                less link,’’ in Proc. IEEE Int. Symp. Precis. Clock Synchronization Meas.
+by using an adaptive transmission schedule, leveraging the                             Control Commun., Sep. 2008, pp. 127–130.
+ability of each anchor to compute the quality of its synchro-                     [13] First Report and Order 02–48, Fed. Commun. Commission, Washington,
+                                                                                       DC, USA, Apr. 2002.
+nization to the network’s logical clock based on its Kalman                       [14] IEEE Standard for Information Technology, IEEE Standard 802.15.4a,
+filters’ state variances. By each anchor broadcasting its cur-                         2007.
+rent synchronization quality to the network, the network’s                        [15] Z. Sahinoglu and S. Gezici, ‘‘Ranging in the IEEE 802.15.4a standard,’’ in
+                                                                                       Proc. Wireless Microw. Technol. Conf., Dec. 2006, pp. 1–5.
+transmission rate and inter-transmission spacing could be
+                                                                                  [16] S. Gezici et al., ‘‘Localization via ultra-wideband radios: A look at posi-
+adjusted to maintain the highest possible rate while remaining                         tioning aspects for future sensor networks,’’ IEEE Signal Process. Mag.,
+robust to interference.                                                                vol. 22, no. 4, pp. 70–84, Jul. 2005.
+                                                                                  [17] Z. Sahinoglu, S. Gezici, and I. Güvenc, Ultra-Wideband Positioning Sys-
+                                                                                       tems: Theoretical Limits, Ranging Algorithms, and Protocols. New York,
+B. COMPENSATION FOR SYSTEMATIC BIASES                                                  NY, USA: Cambridge Univ. Press, 2011.
+Our experimental results (Section V) demonstrate that mul-                        [18] J. Schroeder, S. Galler, and K. Kyamakya, ‘‘A low-cost experimental ultra-
+tiple robots are capable of operating simultaneously within                            wideband positioning system,’’ in Proc. IEEE Int. Conf. Ultra-Wideband,
+                                                                                       Sep. 2005, pp. 632–637.
+a space. These results also show that each robot is similarly                     [19] D. B. Jourdan, J. J. Deyst, M. Z. Win, and N. Roy, ‘‘Monte Carlo localiza-
+affected by a systematic, position-dependent bias, resulting                           tion in dense multipath environments using UWB ranging,’’ in Proc. IEEE
+in a position-dependent offset between the robot’s estimated                           Int. Conf. Ultra-Wideband, Sep. 2005, pp. 314–319.
+                                                                                  [20] J. González, J. L. Blanco, C. Galindo, A. Ortiz-de-Galisteo,
+and actual position.                                                                   J. A. Fernández-Madrigal, F. A. Moreno, and J. L. Martínez, ‘‘Mobile
+   Since the robot is equipped with an inertial measurement                            robot localization based on ultra-wide-band ranging: A particle filter
+unit, short-term changes its position can be estimated by                              approach,’’ Robot. Auto. Syst., vol. 57, no. 5, pp. 496–507, May 2009.
+integrating accelerometer measurements. By observing the                          [21] A. Prorok, A. Arfire, A. Bahr, J. Farserotu, and A. Martinoli, ‘‘Indoor
+                                                                                       navigation research with the Khepera III mobile robot: An experimental
+deviation between this integration, and the position change as                         baseline with a case-study on ultra-wideband positioning,’’ in Proc. Int.
+estimated from TDOA measurements, systematic, position-                                Conf. Indoor Positioning Indoor Navigat. (IPIN), Sep. 2010, pp. 1–9.
+dependent biases may be rendered observable and could                             [22] A. Prorok, P. Tomé, and A. Martinoli, ‘‘Accommodation of NLOS for ultra-
+                                                                                       wideband TDOA localization in single- and multi-robot systems,’’ in Proc.
+potentially be compensated.                                                            Int. Conf. Indoor Positioning Indoor Navigat. (IPIN), Sep. 2011, pp. 1–9.
+                                                                                  [23] A. Prorok, L. Gonon, and A. Martinoli, ‘‘Online model estimation of ultra-
+ACKNOWLEDGMENT                                                                         wideband TDOA measurements for mobile robot localization,’’ in Proc.
+                                                                                       IEEE Int. Conf. Robot. Autom. (ICRA), May 2012, pp. 807–814.
+The authors would like to thank the institute’s technical staff,                  [24] A. Prorok and A. Martinoli, ‘‘Accurate indoor localization with ultra-
+Marc-Andre Corzillius and Michael Egli, for their work in                              wideband using spatial models and collaboration,’’ Int. J. Robot. Res.,
+developing the hardware modifications used in this research.                           pp. 547–568, Apr. 2014.
+                                                                                  [25] M. Segura, H. Hashemi, C. Sisterna, and V. Mut, ‘‘Experimental demon-
+                                                                                       stration of self-localized ultra wideband indoor mobile robot navigation
+REFERENCES                                                                             system,’’ in Proc. Int. Conf. Indoor Positioning Indoor Navigat. (IPIN),
+ [1] D. L. Mills, ‘‘Internet time synchronization: The network time protocol,’’        Sep. 2010, pp. 1–9.
+     IEEE Trans. Commun., vol. 39, no. 10, pp. 1482–1493, Oct. 1991.              [26] L. Zwirello, T. Schipper, M. Harter, and T. Zwick, ‘‘UWB localization
+ [2] J. Elson and K. Römer, ‘‘Wireless sensor networks: A new regime for               system for indoor applications: Concept, realization and analysis,’’ J. Elect.
+     time synchronization,’’ SIGCOMM Comput. Commun. Rev., vol. 33, no. 1,             Comput. Eng., vol. 2012, May 2012, Art. no. e849638.
+     pp. 149–154, Jan. 2003.                                                      [27] T. Ye, M. Walsh, P. Haigh, J. Barton, and B. O’Flynn, ‘‘Experimental
+ [3] F. Sivrikaya and B. Yener, ‘‘Time synchronization in sensor networks:             impulse radio IEEE 802.15.4a UWB based wireless sensor localization
+     A survey,’’ IEEE Netw., vol. 18, no. 4, pp. 45–50, Jul. 2004.                     technology: Characterization, reliability and ranging,’’ in Proc. 22nd IET
+ [4] R. Fan and N. Lynch, ‘‘Gradient clock synchronization,’’ Distrib. Comput.,        Irish Signals Syst. Conf. (ISSC), Dublin, Ireland, Jun. 2011, pp. 1–6.
+     vol. 18, no. 4, pp. 255–266, Mar. 2006, doi: 10.1007/s00446-005-0135-6.      [28] M. W. Mueller, M. Hamer, and R. D’Andrea, ‘‘Fusing ultra-wideband
+ [5] T. Locher and R. Wattenhofer, ‘‘Oblivious gradient clock synchro-                 range measurements with accelerometers and rate gyroscopes for quadro-
+     nization,’’ in Proc. 20th Int. Symp. Distrib. Comput. (DISC), 2006,               copter state estimation,’’ in Proc. IEEE Int. Conf. Robot. Autom. (ICRA),
+     pp. 520–533.                                                                      May 2015, pp. 1730–1736.
+ [6] P. Sommer and R. Wattenhofer, ‘‘Gradient clock synchronization in wire-      [29] K. Guo et al., ‘‘Ultra-wideband-based localization for quadcopter naviga-
+     less sensor networks,’’ in Proc. Int. Conf. Inf. Process. Sensor Netw.,           tion,’’ Unmanned Syst., vol. 4, no. 1, pp. 23–34, Jan. 2016.
+     Apr. 2009, pp. 37–48.                                                        [30] T. M. Nguyen, A. H. B. Zaini, K. Guo, and L. Xie, ‘‘An ultra-wideband-
+ [7] C. Lenzen, T. Locher, and R. Wattenhofer, ‘‘Tight bounds for clock syn-           based multi-UAV localization system in GPS-denied environments,’’ in
+     chronization,’’ J. ACM, vol. 57, no. 2, pp. 8:1–8:42, Feb. 2010.                  Proc. Int. Micro Air Vehicle Conf. Competition, 2016, pp. 1–6.
+ [8] F. Kuhn, T. Locher, and R. Oshman, ‘‘Gradient clock synchronization in       [31] A. Ledergerber, M. Hamer, and R. D’Andrea, ‘‘A robot self-localization
+     dynamic networks,’’ Theory Comput. Syst., vol. 49, no. 4, pp. 781–816,            system using one-way ultra-wideband communication,’’ in Proc.
+     Nov. 2011.                                                                        IEEE/RSJ Int. Conf. Intell. Robots Syst. (IROS), Sep./Oct. 2015,
+ [9] G. Giorgi and C. Narduzzi, ‘‘Performance analysis of Kalman filter-based          pp. 3131–3137.
+     clock synchronization in IEEE 1588 networks,’’ in Proc. Int. Symp. Preci-    [32] J. Tiemann, F. Eckermann, and C. Wietfeld, ‘‘ATLAS—An open-source
+     sion Clock Synchronization Meas., Control Commun. (ISPCS), Oct. 2009,             TDOA-based Ultra-wideband localization system,’’ in Proc. Int. Conf.
+     pp. 1–6.                                                                          Indoor Positioning Indoor Navigat. (IPIN), Oct. 2016, pp. 1–6.
+
+VOLUME 6, 2018                                                                                                                                               22303
+                                                              M. Hamer, R. D’Andrea: Self-Calibrating Ultra-Wideband Network Supporting Multi-Robot Localization
+
+
+
+
+[33] B. Kempke, P. Pannuto, and P. Dutta, ‘‘PolyPoint: Guiding indoor quadro-       [46] D. Brescianini, M. Hehn, and R. D’Andrea, ‘‘Nonlinear quadrocopter
+     tors with ultra-wideband localization,’’ in Proc. 2nd Int. Workshop Hot             attitude control,’’ ETH Zurich, Zürich, Switzerland, Tech. Rep., 2013, doi:
+     Topics Wireless, New York, NY, USA, 2015, pp. 16–20.                                https://doi.org/10.3929/ethz-a-009970340
+[34] B. Kempke, P. Pannuto, B. Campbell, and P. Dutta, ‘‘SurePoint: Exploiting      [47] J. Förster, M. Hamer, and R. D’Andrea, ‘‘System identification of the
+     ultra wideband flooding and diversity to provide robust, scalable, high-            crazyflie 2.0 nano quadrocopter,’’ B.S. thesis, ETH Zurich, Zürich,
+     fidelity indoor localization,’’ in Proc. 14th ACM Conf. Embedded Netw.              Switzerland, 2015.
+     Sensor Syst. CD-ROM (SenSys), New York, NY, USA, 2016, pp. 137–149,
+     doi: http://doi.acm.org/10.1145/2994551.2994570                                                            MICHAEL HAMER received the B.Eng. degree
+[35] B. Kempke, P. Pannuto, and P. Dutta, ‘‘Harmonium: Asymmetric, band-                                        in computer engineering and the B.Sc. degree in
+     stitched UWB for fast, accurate, and robust indoor localization,’’ in Proc.                                computer science from Curtin University, Perth,
+     15th Int. Conf. Inf. Process. Sensor Netw., Apr. 2016, p. 1–12.                                            WA, Australia, in 2009, and the M.Sc. degree in
+[36] A. Ledergerber and R. D’Andrea, ‘‘Ultra-wideband range measurement                                         robotics, systems, and control from ETH Zurich,
+     model with Gaussian processes,’’ in Proc. IEEE Conf. Control Technol.                                      Zurich, Switzerland, in 2013, where he is cur-
+     Appl., Aug. 2017, pp. 1929–1934.                                                                           rently pursuing the Ph.D. degree with the Institute
+[37] D. Hoeller, A. Ledergerber, M. Hamer, and R. D’Andrea, ‘‘Augmenting
+                                                                                                                for Dynamic Systems and Control. His research
+     ultra-wideband localization with computer vision for accurate flight,’’ in
+                                                                                                                focuses on robot localization and the application
+     Proc. 20th IFAC World Congr., 2017, pp. 12734–12740.
+[38] C. Wang, H. Zhang, T.-M. Nguyen, and L. Xie. (Sep. 2017). ‘‘Ultra-                                         of machine learning to physical systems.
+     wideband aided fast localization and mapping system.’’ [Online]. Avail-           While at the Institute for Dynamic Systems and Control, ETH Zurich, he
+     able: https://arxiv.org/abs/1710.00156                                         has developed various public quadrocopter exhibitions, including quadro-
+[39] Y. Bar-Shalom, X.-R. Li, and T. Kirubarajan, Estimation with Applications      copter task scheduling for the Flight Assembled Architecture installation,
+     to Tracking and Navigation: Theory, Algorithms and Software. Hoboken,          in 2011, and an artistic quadrocopter exhibit for TEDGlobal, in 2013. He
+     NJ, USA: Wiley, 2001.                                                          is an active contributor to the Crazyflie open-source project, with major
+[40] N. M. Freris, S. R. Graham, and P. R. Kumar, ‘‘Fundamental limits on           contributions made to the control, estimation, and localization systems.
+     synchronizing clocks over networks,’’ IEEE Trans. Autom. Control, vol. 56,
+     no. 6, pp. 1352–1364, Jun. 2011.                                                                         RAFFAELLO          D’ANDREA        received    the
+[41] N. Patwari, J. N. Ash, S. Kyperountas, A. O. Hero, R. L. Moses, and                                      B.Sc. degree in engineering science from the Uni-
+     N. S. Correal, ‘‘Locating the nodes: Cooperative localization in wireless                                versity of Toronto, Toronto, ON, Canada, in 1991,
+     sensor networks,’’ IEEE Signal Process. Mag., vol. 22, no. 4, pp. 54–69,                                 and the M.Sc. and Ph.D. degrees in electrical
+     Jul. 2005.                                                                                               engineering from the California Institute of Tech-
+[42] Bitcraze. (2017). Crazyflie 2.0. [Online]. Available: https://www.                                       nology, Pasadena, CA, USA, in 1992 and 1997,
+     bitcraze.io/                                                                                             respectively.
+[43] R. Mahony, V. Kumar, and P. Corke, ‘‘Multirotor aerial vehicles: Modeling,
+                                                                                                                 He was an Assistant and then an Associate
+     estimation, and control of quadrotor,’’ IEEE Robot. Autom. Mag., vol. 19,
+                                                                                                              Professor with Cornell University, Ithaca, NY,
+     no. 3, pp. 20–32, Sep. 2012.
+[44] M. W. Mueller, M. Hehn, and R. D’Andrea, ‘‘Covariance correction step                                    USA, from 1997 to 2007. From 2003 to 2007,
+     for Kalman filtering with an attitude,’’ J. Guid., Control, Dyn., vol. 40,     he co-founded Kiva Systems, North Reading, MA, USA, where he led the
+     no. 9, pp. 2301–2306, Jan. 2017.                                               systems architecture, robot design, robot navigation and coordination, and
+[45] S. Lupashin, M. Hehn, M. W. Mueller, A. P. Schoellig, M. Sherback, and         control algorithms efforts. He is currently a Professor of Dynamic Systems
+     R. D’Andrea, ‘‘A platform for aerial robotics research and demonstration:      and Control with ETH Zurich, Zurich, Switzerland, and the Chairman of the
+     The flying machine arena,’’ Mechatronics, vol. 24, no. 1, pp. 41–54,           Board at Verity Studios AG, Zurich.
+     Feb. 2014.
+
+
+
+
+22304                                                                                                                                               VOLUME 6, 2018
+

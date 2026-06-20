@@ -1,0 +1,43 @@
+severity,check,scope,affected_rows,detail,matters
+PASS,static_total_rows,static_tr_all,230544.0,"expected 230544, observed 230544",Confirms row-count basis for raw-frame campaign.
+PASS,static_valid_rows,static_tr_all,228265.0,"expected 228265, observed 228265",Confirms valid-frame basis used in quality/raw-frame analyses.
+PASS,negative_ranges,static_all_rows,0.0,0 rows with range_mm < 0,Negative ranges would invalidate aggregation.
+PASS,zero_ranges,static_all_rows,0.0,0 rows with range_mm == 0,Zero ranges are expected only as invalid rows.
+PASS,huge_ranges_gt_20m,static_all_rows,0.0,0 rows with range_mm > 20000,Huge ranges would indicate parsing/device errors.
+PASS,quality_outside_0_100,static_all_rows,0.0,"0 rows outside [0,100]",Quality filter assumptions require bounded quality.
+PASS,negative_ranges,all_capture_rows,0.0,0 rows with range_mm < 0,Negative ranges would invalidate aggregation.
+WARN,zero_ranges,all_capture_rows,15860.0,15860 rows with range_mm == 0,Zero ranges are expected only as invalid rows.
+PASS,huge_ranges_gt_20m,all_capture_rows,0.0,0 rows with range_mm > 20000,Huge ranges would indicate parsing/device errors.
+PASS,quality_outside_0_100,all_capture_rows,0.0,"0 rows outside [0,100]",Quality filter assumptions require bounded quality.
+INFO,invalid_rows,static_tr_all,2279.0,2279 invalid rows; status counts {'T': 2279},Invalid rows are excluded by existing valid filtering.
+INFO,non_ok_status,static_tr_all,2279.0,"status counts {'O': 228265, 'T': 2279}",Non-O status is already represented by valid/status filtering; no valid non-O rows should enter analysis.
+PASS,duplicate_timestamps_same_anchor,static_tr_all,0.0,"0 duplicate (capture, anchor_id, host_elapsed_s) rows",Duplicate same-anchor timestamps could overweight frames if present.
+PASS,missing_anchor_ids,static_tr_all,0.0,all static captures contain anchors 0-7,Missing anchors would alter solver geometry.
+PASS,uneven_anchor_counts,static_tr_all,0.0,max count CV=0.0000 in static_ID01_BSF66F_120s_20260528_110629,High count variation could bias simple pooling; current pipelines aggregate per link.
+INFO,all_null_column,static_tr_all,230544.0,conn_id,All-null columns cannot carry signal.
+INFO,constant_column,static_tr_all,230544.0,peer_name = BSF66F,Constant columns cannot explain variance.
+INFO,all_null_column,static_tr_all,230544.0,tag_id,All-null columns cannot carry signal.
+INFO,constant_column,static_tr_all,230544.0,plan = f,Constant columns cannot explain variance.
+INFO,constant_column,static_tr_all,230544.0,pmode = 0,Constant columns cannot explain variance.
+INFO,constant_column,static_tr_all,230544.0,quality_flag_percent = 0,Constant columns cannot explain variance.
+INFO,constant_column,static_tr_all,230544.0,first_to_last_us = 0,Constant columns cannot explain variance.
+INFO,constant_column,static_tr_all,230544.0,frame_us = 0,Constant columns cannot explain variance.
+INFO,constant_column,static_tr_all,230544.0,poll_count = 0,Constant columns cannot explain variance.
+INFO,constant_column,static_tr_all,230544.0,tr_version = 2,Constant columns cannot explain variance.
+INFO,all_null_column,static_tr_all,230544.0,rx_mask,All-null columns cannot carry signal.
+INFO,all_null_column,static_tr_all,230544.0,air_us,All-null columns cannot carry signal.
+INFO,all_null_column,static_tr_all,230544.0,post_us,All-null columns cannot carry signal.
+INFO,all_null_column,static_tr_all,230544.0,cycle_us,All-null columns cannot carry signal.
+INFO,all_null_column,static_tr_all,230544.0,rx_seen,All-null columns cannot carry signal.
+INFO,constant_column,static_tr_all,230544.0,imu_valid = 0,Constant columns cannot explain variance.
+INFO,constant_column,static_tr_all,230544.0,imu_n = 0,Constant columns cannot explain variance.
+INFO,all_null_column,static_tr_all,230544.0,acc_norm_mean_mg,All-null columns cannot carry signal.
+INFO,all_null_column,static_tr_all,230544.0,acc_norm_std_mg,All-null columns cannot carry signal.
+INFO,all_null_column,static_tr_all,230544.0,acc_norm_min_mg,All-null columns cannot carry signal.
+INFO,all_null_column,static_tr_all,230544.0,acc_norm_max_mg,All-null columns cannot carry signal.
+INFO,constant_column,static_tr_all,230544.0,imu_skip_count = 0,Constant columns cannot explain variance.
+PASS,raw_mm_vs_range_mm_valid,static_valid_rows,0.0,"mean=0.000, std=0.000, min=0.000, max=0.000",Valid rows are the rows used by positioning; equality means raw_mm is not an independent valid range channel.
+PASS,raw_mm_vs_range_mm_valid,all_capture_valid_rows,0.0,"mean=0.000, std=0.000, min=0.000, max=0.000",Valid rows are the rows used by positioning; equality means raw_mm is not an independent valid range channel.
+INFO,raw_mm_vs_range_mm_invalid,static_invalid_rows,2279.0,"invalid nonzero differences are T-status rows; mean=2157.029, max=3430.000",Invalid T rows are already excluded by valid filtering.
+PASS,imu_static_signal,static_tr_all,0.0,"imu_valid_sum=0.0, imu_n_sum=0.0, acc_nonnull=0","If populated, IMU variance could indicate bumped/moved captures."
+PASS,sweep_early_late_drift,static_tr_all,30.0,max abs first20-vs-last20 median drift=30.0 mm; p95=8.2 mm,Sweep drift is a temporal diagnostic; prior temporal pipelines did not improve conclusions.

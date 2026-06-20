@@ -1,0 +1,41 @@
+\section{Introduction}
+Ultra-wideband ranging can support accurate indoor localization, but that promise depends on anchor geometry and delay calibration being known at the same metric scale as the tracking volume. In practical deployments this is rarely true. Anchor coordinates are often measured by hand, antenna phase centres do not coincide exactly with markers or enclosures, and cable, antenna, and timestamp biases appear in the same range equation as the distance itself. A self-calibration procedure that estimates the anchor layout directly from inter-anchor ranges is therefore attractive, because it can be run in the target room without a surveying step. The difficulty is identifiability: a change in geometric scale can be partially hidden by a change in range delay, and the resulting layout may give good empirical positioning on one dataset while being physically wrong.
+
+This work studies that tradeoff in an eight-anchor UWB system with independent Vicon ground truth. The earlier V4 calibration used bounded independent anchor delays with a gauge constraint. It produced strong static positioning results, but the recovered anchor layout was compressed relative to the Vicon frame. The V5 calibration replaces that parameterization with a common-mode anchor delay plus regularized per-anchor residuals. This separates the bulk delay from the metric geometry and brings the self-calibrated layout back to near-unity scale. The main finding is intentionally nuanced: correcting the physical scale does not automatically win every static accuracy metric on this particular campaign, because the V4 scale error partly cancels positive NLOS range bias. The analysis therefore separates physical correctness, empirical accuracy, transferability, and deployment robustness.
+
+The contributions are threefold. First, we introduce and evaluate a common-mode delay parameterization for anchor self-calibration. Second, we quantify the remaining tag-delay and NLOS mechanisms using static, dynamic, and synthetic ablations. Third, we identify practical deployment improvements, including lower-percentile range aggregation and quality-aware calibration. The results are reported with both the original production baseline and oracle Vicon-anchor controls, so that each gain can be assigned to anchor geometry, delay modeling, tag calibration, or range quality rather than to a single aggregate error number.
+
+\section{System Description}
+The platform uses Decawave DWM1001C-class UWB hardware, consisting of an nRF52 microcontroller and a DW1000 UWB transceiver, with custom firmware rather than the vendor PANS/DRTLS stack \cite{dw1000_datasheet,decawave_appnotes}. The ranging protocol is a broadcast alternative single-sided two-way ranging scheme. Anchors collect range observations to tags and to other anchors; the offline solver then estimates anchor geometry, anchor delay corrections, tag delay, and tag position depending on the experiment.
+
+The Erlangen campaign used eight anchors arranged in a dual-layer geometry. Four anchors are in the lower layer and four in the upper layer. This vertical aperture is important because a single-height layout gives poor observability of the vertical tag coordinate and worsens the coupling between scale, common delay, and tag height. Ground truth for anchor markers and tag trajectories was provided by an OptiTrack/Vicon system. The static evaluation consists of 24 tag positions distributed through the room, and the dynamic evaluation uses ROTO captures with two tags mounted at different radii on a rotating arm. Dynamic results are explicitly reported as best-fit aligned because the UWB and Vicon systems were not hardware time synchronized.
+
+\section{Method}
+\subsection{Anchor Self-Calibration}
+\subsubsection{V4: Bounded Independent Delays}
+The V4 calibration estimates anchor coordinates and per-anchor delay corrections \(d_i\) from inter-anchor ranges. A gauge constraint fixes one delay, conventionally \(d_A=0\), and the remaining delays are bounded to a plausible interval. This formulation is simple, but it leaves the solver with a scale-delay ambiguity. A uniform compression of the anchor coordinates can be compensated by shifting the fitted delays, especially when the available inter-anchor constraints are only weakly redundant. In the range equation
+\[
+  r_{ij} = \|a_i-a_j\| + d_i + d_j + \epsilon_{ij},
+\]
+the geometric term and the delay terms both enter in millimetres. Without a separate common-mode delay variable, the solver can use geometry to absorb bias that is actually delay-like or NLOS-like. This is why V4 can be empirically accurate while recovering a layout whose Sim3 scale is below one.
+
+\subsubsection{V5: Common-Mode Parameterization}
+The V5 calibration writes the anchor delay as
+\[
+  d_i = c + e_i,
+\]
+where \(c\) is a global common-mode delay and \(e_i\) is a regularized per-anchor residual. The common-mode term absorbs the bulk hardware/ranging delay that is shared across anchors, while the residuals account for smaller anchor-specific deviations. We regularize \(e_i\) with a scale of 20 mm in the reported calibration. This prior is not a claim that every anchor residual is physical; rather, it prevents the residual terms from becoming an unconstrained sink for NLOS and geometry errors. The important effect is that the calibration no longer needs to shrink the whole room to explain a positive common range bias. The resulting V5 layout has near-unity Sim3 scale against Vicon and much lower rigid anchor RMSE than V4.
+
+\subsection{Tag Delay Calibration}
+Tag delay \(D_{\mathrm{tag}}\) is calibrated separately from anchor self-calibration. The deployable value is obtained by leave-one-position-out range-residual calibration on the 24 static positions:
+\[
+  D_{\mathrm{tag}} = \mathrm{median}_{p,i}\left(r_{p,i} - \|x_p-a_i\| - d_i\right).
+\]
+This range-residual criterion is distinct from choosing the tag delay that minimizes position error on the same data. The latter is useful as an oracle diagnostic, but it can exploit cancellation between NLOS, geometry, and vertical bias. We therefore report in-sample sweep optima separately from cross-validated or deployable tag-delay values.
+
+\subsection{Position Solving}
+Given an anchor layout, anchor delays, and a tag delay, each tag position is estimated by nonlinear least squares over the measured ranges:
+\[
+  \min_x \sum_i \rho\left(r_i - \|x-a_i\| - d_i - D_{\mathrm{tag}}\right),
+\]
+where \(\rho\) is a robust loss. The production analysis uses the existing C-backed trajectory solver where available, and the paper-preparation sweeps use the same range model with a Huber least-squares proxy for small deployment ablations. Dynamic ROTO results additionally include a best-fit spatial and temporal alignment step, and are therefore interpreted as a dynamic error floor rather than as an absolute synchronized tracking metric \cite{ss_twr_reference,selfcal_xxx}.

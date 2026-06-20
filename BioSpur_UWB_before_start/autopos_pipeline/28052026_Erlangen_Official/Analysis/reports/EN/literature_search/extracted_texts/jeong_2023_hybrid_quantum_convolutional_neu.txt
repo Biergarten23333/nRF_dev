@@ -1,0 +1,1246 @@
+                       This article has been accepted for publication in IEEE Access. This is the author's version which has not been fully edited and
+                                                  content may change prior to final publication. Citation information: DOI 10.1109/ACCESS.2023.3323019
+
+
+
+
+Date of publication xxxx 00, 0000, date of current version xxxx 00, 0000.
+Digital Object Identifier 10.1109/ACCESS.2023.0322000
+
+
+
+
+Hybrid Quantum Convolutional Neural
+Networks for UWB Signal Classification
+SEON-GEUN JEONG1 , QUANG-VINH DO2 , HAE-JI HWANG1 , MIKIO HASEGAWA3 ,
+(MEMBER, IEEE), HIROO SEKIYA4 , (SENIOR MEMBER, IEEE), AND WON-JOO HWANG1, 5 ,
+(SENIOR MEMBER, IEEE)
+1
+  Department of Information Convergence Engineering, Pusan National University, Yangsan 50612, Korea (e-mail: wjdtjsrms11@pusan.ac.kr,
+hjihwang@pusan.ac.kr)
+2
+  Artificial Intelligence Research Center, Pusan National University, Busan, Korea (e-mail: quangdv@pusan.ac.kr)
+3
+  Department of Electrical Engineering, Tokyo University of Science, Tokyo, Japan (e-mail: hasegawa@haselab.ee.kagu.tus.ac.jp)
+4
+  Graduate School of Engineering, Chiba University, Chiba, Japan (e-mail: sekiya@faculty.chiba-u.jp)
+5
+  Department of Biomedical Convergence Engineering, Pusan National University, Yangsan 50612, Korea (e-mail: wjhwang@pusan.ac.kr)
+Corresponding authors: Won-Joo Hwang (e-mail: wjhwang@pusan.ac.kr).
+This work was supported by a National Research Foundation of Korea (NRF) Grant funded by the Korean Government (MSIT) under
+Grants NRF-2019R1I1A3A01060518. This work was supported by Institute of Information & communications Technology Planning &
+Evaluation (IITP) grant funded by the Korea government(MSIT) (No.RS-2023-00254177, Artificial Intelligence Convergence Innovation
+Human Resources Development (Pusan National University)). This research was supported by the MSIT(Ministry of Science and ICT),
+Korea, under the ITRC(Information Technology Research Center) support program(IITP-2023-RS-2023-00260098) supervised by the
+IITP(Institute for Information & Communications Technology Planning & Evaluation).
+
+
+
+
+    ABSTRACT With the increasing requirements for location-based services for Internet of things (IoT)
+    applications, ultrawideband (UWB) technology provides accurate indoor positioning capabilities. However,
+    indoor environments contain various obstacles leading to significant signal propagation effects. This results
+    in errors in the time-of-arrival-based UWB positioning system. Specifically, a non-line-of-sight (NLOS)
+    signal induces additional distance and position errors owing to the path delay compared to a line-of-
+    sight (LOS) signal. Therefore, UWB signal classification is essential for improving positioning accuracy.
+    Recently, various approaches have successfully classified UWB signals, including machine-learning-based
+    methods such as convolutional neural networks (CNNs) and long short-term memory (LSTM). This study
+    proposes a hybrid quantum CNN (HQCNN) inspired by a CNN for UWB signal classification. HQCNN
+    employs a classical layer before a quantum embedding circuit and variational quantum circuits for the
+    convolutional filter. These structures enable efficient training and implementation. We used UWB channel
+    impulse response data to demonstrate the performance of the proposed algorithm and compared the
+    benchmarks with HQCNN using the evaluation metrics. The results showed that the HQCNN outperformed
+    the others.
+
+    INDEX TERMS Hybrid quantum convolutional neural network, quantum convolutional neural network,
+    signal classification, ultrawideband, variational quantum circuit
+
+I. INTRODUCTION                                                                                    sion bandwidths, which can achieve precise distance mea-
+                                                                                                   surement. In a UWB positioning system, the distances are
+        ITH the rapid advance of the Internet of things (IoT)
+W       technologies, location demand services with an RF-
+based positioning system such as ultra-wide-band (UWB)
+                                                                                                   estimated by the time of arrival (TOA) and observed by
+                                                                                                   performing a two-way ranging (TWR) message exchange be-
+                                                                                                   tween devices [10]. A line-of-sight (LOS) channel is required
+[1], Wi-Fi [2], and RFID [3] for modern daily life have                                            to observe TOA accurately. Although the UWB baseband
+emerged. For example, there are applications like smart                                            pulse has ultrahigh time resolution, the indoor environment
+homes for IoT-enabled location-based services (LBS), effi-                                         is very complex owing to obstacles such as desks and people.
+cient supply chain management, healthcare systems, wear-                                           Therefore, UWB signals may experience significant signal
+ables, and fitness [4]–[9]. The UWB-based positioning sys-                                         propagation effects like absorption, diffraction, and scatter-
+tem meets the requirements of each application with its                                            ing. This induces a longer transmission time and additional
+unique time-stamping based on the high time resolution                                             time-varying bias in the position estimation. Classification of
+of impulse radio technology owing to the vast transmis-
+
+VOLUME 4, 2016                                                                                                                                                                       1
+
+                       This work is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 License. For more information, see https://creativecommons.org/licenses/by-nc-nd/4
+               This article has been accepted for publication in IEEE Access. This is the author's version which has not been fully edited and
+                                         content may change prior to final publication. Citation information: DOI 10.1109/ACCESS.2023.3323019
+
+
+                                                                                         Author et al.: Preparation of papers for IEEE TRANSACTIONS and JOURNALS
+
+
+
+non-line-of-sight (NLOS) and LOS signals is essential before                               ever, this study had some limitations. The number of qubits
+the position-estimation phase [11].                                                        depends on the size of the classical input data. Additional
+   A channel impulse response (CIR) waveform is commonly                                   processing, such as zero padding, is required for embedding
+used for LOS/NLOS classification with apparent signal char-                                and image resizing. Moreover, in the output layer, there is
+acteristics differences. For instance, the NLOS signal usually                             a representation limit owing to the lack of qubits in the
+has a lower energy than the LOS signal owing to signal                                     case of QCNN. This is because the number of qubits in a
+propagation effects. Approaches like machine learning (ML)                                 conventional QCNN decreases as each layer passes.
+methods, support vector machine (SVM), decision tree, ran-                                    This study proposes a hybrid quantum CNN (HQCNN)-
+dom forest, generative adversarial network (GAN), neural                                   based UWB LOS/NLOS classification. We applied a clas-
+networks (NN), and multi-layer perception (MLP) classify                                   sical input layer with angle embedding to overcome this
+the LOS/NLOS signal [12]–[17]. Advanced ML approaches,                                     dependence on the input data size. This allows the use
+such as deep learning (DL) with convolutional neural net-                                  of a flexible number of qubits. Our HQCNN algorithm
+works (CNNs) and long short-term memory (LSTM) using                                       employs a QCNN structure in the hidden layer. This ad-
+raw CIR sequences, have an accuracy above 80% [18]. In                                     dresses the issue of training time regarding computational
+particular, a CNN is a promising ML model that has the                                     complexity. Applying a classical fully connected layer in
+advantage of utilizing the features and patterns between data.                             the output layer overcomes this representation limit. We
+However, CNNs generally require large amounts of data for                                  evaluated the classification performance using benchmarks
+model training [19]. This means that as the data dimensions                                for CNN, LSTM, CNN-LSTM, CNN-bidirectional-LSTM,
+and complexity increase, the model’s size requires significant                             CNN-stacked-LSTM, and QCNN to demonstrate the perfor-
+time for training to increase.                                                             mance of the proposed algorithm. In our simulation, we used
+   With the rapid growth of quantum computers, research                                    CIR data collected from seven different sites.
+on quantum ML (QML), which applies quantum comput-                                            The remainder of this paper is organized as follows. In
+ing to machine learning, has become increasingly popular.                                  Section II, we present a UWB signal model using the CIR
+QML has emerged as a potential solution offering speed-                                    signal of UWB. Section III describes the background of the
+ups over its classical counterparts [20], [21]. Quantum CNNs                               quantum circuit, quantum data encoding, and VQC of the
+(QCNNs) are expected to address the issue of training time                                 hybrid approach. Section IV introduces a quantum circuit
+in terms of computational complexity compared to CNN                                       for the quantum convolutional and pooling layers. Section V
+algorithms [22]. Despite a small number of free parameters,                                describes the training of the HQCNN for the UWB signal
+ranging from 12 to 51, QCNN produced high classification                                   classification algorithm. Simulation results are presented in
+accuracy, with the best case being approximately 99% for                                   Section VI. Finally, we conclude the paper in Section VII.
+MNIST and approximately 94% for Fashion MNIST. In re-
+cent years, classical quantum hybrid QML algorithms using
+variational quantum circuits (VQC) have been studied for                                   II. PROBLEM STATEMENT
+noisy intermediate-scale quantum (NISQ) devices [23], [24].                                A TOA-based UWB positioning system estimates the dis-
+QNNs often suffer from the barren plateau phenomenon,                                      tance between a tag and each anchor to determine the target
+wherein the loss landscape is perilously flat, and param-                                  position. TOA was observed by performing TWR between
+eter optimization is exceptionally challenging [25]. There-                                the tag and each anchor. TWR is a message exchange pro-
+fore, hardware noise makes it difficult to train a quantum                                 cedure for the observation of TOA, which is the propagation
+model. VQC-based algorithms avoid the barren plateau phe-                                  time of UWB signal on a direct path between the tag and
+nomenon, thereby guaranteeing trainability [26]. QML using                                 anchor. The signal propagation time between the tag and
+VQC shows excellent promise in surpassing the performance                                  the anchor was accurately observed in the LOS channel.
+of classical machine learning.                                                             However, it is difficult to estimate the precise distance owing
+   Classical input data are encoded into quantum states using                              to NLOS conditions in a practical environment. Therefore,
+an embedding technique. This is because quantum problems                                   the distance between UWB devices has a positive bias with
+in the many-body Hilbert space require converting quantum                                  additive white Gaussian noise (AWGN) and zero mean in
+states into classical input data to apply ML. Many classical                               a multipath propagation environment [10], [31]. The UWB
+ML methods transform the original input data into a different                              channel must be classified for better TWR measurements.
+space using a feature map to make it easier to work because                                The primary goal of this study is to classify NLOS/LOS
+of the convenient properties of the new space. Quantum                                     channel conditions based on time-series CIR data to avoid
+embedding represents classical data as quantum states in                                   these distance estimation errors.
+a Hilbert space via a quantum feature map using unitary                                       A transmitted UWB signal model with AWGN was pre-
+transformation, typically a VQC whose parameters depend                                    sented in [32]
+on the input data [27]–[30]. In addition, there are various
+embedding techniques, such as amplitude, angle, squeezing,                                                                c −1
+                                                                                                                       ∞ NX
+displacement, and Hamiltonian embedding. After encoding
+                                                                                                                       X
+                                                                                                           s(t) =                       αj q(t − iTs − jTc ),             (1)
+the input data, it is followed by the quantum layers. How-                                                            i=−∞ j=0
+
+2                                                                                                                                                            VOLUME 4, 2016
+
+
+               This work is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 License. For more information, see https://creativecommons.org/licenses/by-nc-nd/4
+                          This article has been accepted for publication in IEEE Access. This is the author's version which has not been fully edited and
+                                                    content may change prior to final publication. Citation information: DOI 10.1109/ACCESS.2023.3323019
+
+
+Author et al.: Preparation of papers for IEEE TRANSACTIONS and JOURNALS
+
+
+
+
+            20000                                                          CIR-LOS
+                                                                           CIR-NLOS
+            15000
+Magnitude
+
+
+
+
+            10000
+
+             5000
+
+                0
+                 600    650     700       750      800      850      900      950 1000
+                                                Time (ns)                                                                           FIGURE 2. Bloch Sphere.
+
+                    FIGURE 1. The NLOS and LOS CIR signals of UWB.
+
+                                                                                                      a bit is the basic unit of information. However, in quantum
+                                                                                                      computing, a qubit depicts information by exploiting the
+where q(t) denotes a single Gaussian pulse with repetition                                            quantum-mechanical phenomena of superposition and entan-
+time Tc , symbol duration Ts consists of Nc pulses, αj ∈                                              glement, which are two-level systems. The state of a single
+{−1, +1} denotes the polarization sequence for spectrum                                               qubit can be represented as
+shaping.
+   The UWB CIR of the transmitted signals [18] can be                                                                                |ψ⟩ = α|0⟩ + β|1⟩,                              (4)
+represented as
+                                                                                                      where the special states |0⟩ and |1⟩, the computational
+                                          K
+                                          X                                                           basis states, are the orthonormal basis states in the two-
+                              h(t) =            βk δ(t − τk ),                            (2)         dimensional Hilbert space C2 . α and β are the probability
+                                          l=k
+                                                                                                      amplitudes and complex numbers, respectively. According to
+where τk is the time delay of the kth path, and βk is the fading                                      the second axiom of probability theory, |α|2 + |β|2 = 1,
+coefficient. The received UWB signal can be modeled as the                                            the absolute squares of the amplitudes are equal to the
+summation of multiple attenuated and delayed replicas of (1)                                          probabilities. Therefore, quantum information can store ’0’
+[10], which is represented as                                                                         and ’1” information and have a state where ’0’ and ’1’ exist
+                                   K                                                                  simultaneously. In other words, qubits are represented in a
+                                   X
+                         r(t) =           βk s(t − τk ) + η(t),                           (3)         superposition of two states in a system that two states can
+                                    l=k                                                               represent.
+                                                                                                         As shown in Fig. 2, the geometric representation of a qubit
+where η(t) is the AWGN with a zero mean. Fig. 1 shows
+                                                                                                      is defined as a unit vector on a three-dimensional sphere.
+the CIRs of NLOS and LOS. The data had been collected
+from low-cost and low-power IEEE 802.15.4-2011 enabled                                                                               θ             θ
+                                                                                                                            |ψ⟩ = cos |0⟩ + eiϕ sin |1⟩,                             (5)
+UWB radios from DecaWave in the real-world environment                                                                               2             2
+[33]. In the NLOS channel, the magnitude of the CIR is
+                                                                                                      where 0 ≤ θ ≤ π and 0 ≤ ϕ ≤ 2π. This sphere provides
+much smaller than that of LOS owing to propagation effects.
+                                                                                                      a valuable means for visualizing the state of a single qubit.
+We can observe multipath effects from approximately 750
+                                                                                                      In a three-dimensional vector space, a vector with a size of
+ns to 850 ns. CIR data can be regarded as time-series data.
+                                                                                                      "1" can be represented as any point present on the surface
+These characteristics enable us to classify the LOS/NLOS
+                                                                                                      of a sphere with a radius of "1,” which is called the Bloch
+classification using advanced ML approaches such as CNN
+                                                                                                      sphere [34]. Numerous operations on single qubits have been
+and LSTM. However, with complex architectures for high
+                                                                                                      described within the Bloch sphere.
+classification performance in CNN and LSTM, more parame-
+                                                                                                         When considering a system of multi-qubits, the state of
+ters lead to increased computational complexity and training
+                                                                                                      the multi-qubit is given by the tensor product of all N single-
+time with more training data. In the following section, we
+                                                                                                      qubit states:
+describe the background of qubits, quantum gates, quantum
+data encoding, and variational quantum circuit architecture to                                                              N
+                                                                                                                            O
+help us understand the proposed HQCNN.                                                                           |Ψ⟩ =            |ψi ⟩ = |ψ1 ⟩ ⊗ |ψ2 ⟩ ⊗ · · · ⊗ |ψN ⟩.             (6)
+                                                                                                                            i=1
+ III. BACKGROUND                                                                                        The quantum state is measured by taking the expected
+ A. QUBITS                                                                                            value of the Pauli operator, which is represented as follows:
+In a classical computer, a binary digit denotes information
+representing up to one bit of Shannon information, where                                                                             M = ⟨ψ|σx,y,z |ψ⟩.                              (7)
+VOLUME 4, 2016                                                                                                                                                                          3
+
+
+                          This work is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 License. For more information, see https://creativecommons.org/licenses/by-nc-nd/4
+                This article has been accepted for publication in IEEE Access. This is the author's version which has not been fully edited and
+                                            content may change prior to final publication. Citation information: DOI 10.1109/ACCESS.2023.3323019
+
+
+                                                                                          Author et al.: Preparation of papers for IEEE TRANSACTIONS and JOURNALS
+
+
+
+               Pauli-X           Pauli-Y             Pauli-Z
+
+
+
+             Hardamard           Identity         Controlled Not
+
+
+
+             Phase shift          Swap                 Toffoli
+
+
+
+                                                                                                          Quantum Embedding              Quantum Variational        Measurement
+                                                                                                                Layer                       circuit Layer              Layer
+              FIGURE 3. Common quantum logic gates.
+                                                                                            FIGURE 4. A general variational quantum circuit architecture. Uϕ (x)
+                                                                                            represents quantum embedding operations for converting classical input data
+                                                                                            x ∈ R into quantum data |ϕ(x)⟩. Vθ represents variational quantum circuit
+                                                                                            layer composed of parameterized quantum circuits with trainable parameter θ.
+B. QUANTUM GATE                                                                             Finally, a measurement is performed whose outcome
+                                                                                            |ψ⟩ = (|ψout,1 ⟩, |ψout,2 ⟩, ..., |ψout,n ⟩) can be used to classical
+A quantum gate is a fundamental quantum circuit that op-                                    post-processing.
+erates on some qubits and is used to implement VQCs.
+Typically, classical logic gates are irreversible. By contrast,
+quantum logic gates are reversible. Classical computing can                                 datapoint:
+only be performed using reversible gates. Quantum gates are                                                                     N            x                 x       
+unitary operators that are represented by unitary matrices. A                                                                                     i                  i
+                                                                                                                                O
+                                                                                            Uϕ (x) : x → |ϕ(x)⟩ =                       cos           |0⟩ + sin          |1⟩ ,
+gate acting on n qubits is represented by a 2n × 2n unitary                                                                     i=1
+                                                                                                                                                  2                 2
+matrix. The set of all such gates with the group operation of                                                                                           (8)
+matrix multiplication is the symmetry group U(2n ). Fig. 3                                  where xi ∈ [0, π) for all i. The unitary operator Uϕ
+illustrates standard quantum logic gates [34]. An infinite                                  can be performed on the Bloch sphere’s x, y or z axes.
+number of gates exist, for example, the identity gate, Pauli                                Conventionally, this angle embedding requires a one-to-one
+gate (X, Y, Z), controlled gates (CNOT, controlled-Y, and                                   correspondence between qubits and input features. However,
+controlled-Z), phase shift gates, Hadamard gate, swap gate,                                 applying this method to high-dimensional datasets is imprac-
+and Toffoli gate.                                                                           tical because of the required number of qubits. The proposed
+                                                                                            HQCNN introduces a classical input layer before a quantum
+                                                                                            embedding circuit to address this issue. This structure allows
+C. QUANTUM DATA ENCODING
+                                                                                            for a flexible number of qubits regardless of the input data
+Classical ML methods exploit feature maps that transform                                    dimension.
+input data into different spaces to achieve convenient proper-
+ties. Quantum embedding is a technique for encoding clas-                                   D. VARIATIONAL QUANTUM CIRCUITS FOR HYBRID
+sical data into quantum states and is crucial for operating                                 APPROACH
+quantum algorithms. Quantum embedding represents classi-                                    VQC is a hybrid quantum-classical approach that leverages
+cal input data as quantum states in a Hilbert space using a                                 the strengths of quantum and classical computations. It is a
+quantum feature map [28], [29]. It uses a classical data point                              quantum circuit with trainable parameters optimized accord-
+x and translates it into a set of gate parameters in a quantum                              ing to an objective function in an iterative manner using a
+circuit to create a quantum state |ψx ⟩. A quantum feature                                  classical algorithm.
+map ϕ → H is a feature map, where the vector space H is a                                      In classical ML, the general deep neural network architec-
+Hilbert space and the feature vectors are quantum states. The                               ture consists of three main components: input, hidden, and
+quantum feature map transforms x → |ϕ(x)⟩ ∈ H using a                                       output layers. Similarly, as shown in Fig. 4, the general VQC
+unitary transformation Uϕ (x) into the initial quantum state                                architecture comprises three major components: a quantum
+|0⟩⊗n to transform Uϕ(x) |0⟩⊗n = |ϕ(x)⟩, where n is the                                     embedding layer (QEL), a variational quantum circuit layer
+number of qubits.                                                                           (VQCL), and a measurement layer. Conventionally, the input
+   Numerous encoding schemes exist for transforming clas-                                   data of VQC are classical, and the QEL converts classical
+sical input data x into quantum states [22], [35], [36].                                    data x into quantum data |ϕ(x)⟩. QEL can be composed in
+We exploited angle embedding, which is a novel quantum-                                     various ways, as mentioned in III-C. The outcome |ϕ(x)⟩
+embedding technique [35].                                                                   of the QEL passes the VQCL, and ansatz Vθ is applied to
+   Angle embedding uses an embedding circuit with O(N )                                     the variational quantum circuit layer, which is a learnable
+number of qubits. The classical N -dimensional datapoint x                                  part and contains parameterized gate operations that are
+becomes the angle of rotation in the angle embedding in the                                 optimized for an iterative task using classical optimization
+range of 0 and π. Specifically, each datapoint   xi is encoded                              techniques. Typically, quantum circuits are composed of
+as a single qubit as |ϕ(xi )⟩ = cos x2i |0⟩ + sin x2i |1⟩,
+                                                         
+                                                                                            single- and two-qubit gates. The final output |ψ⟩ of the VQC
+which can be expressed as follows considering all classical                                 was observed from the measurement layer, which was con-
+4                                                                                                                                                                 VOLUME 4, 2016
+
+
+                This work is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 License. For more information, see https://creativecommons.org/licenses/by-nc-nd/4
+                 This article has been accepted for publication in IEEE Access. This is the author's version which has not been fully edited and
+                                           content may change prior to final publication. Citation information: DOI 10.1109/ACCESS.2023.3323019
+
+
+Author et al.: Preparation of papers for IEEE TRANSACTIONS and JOURNALS
+
+
+
+ducted using Pauli operators. These measurements are used                                       QCNN usually requires additional padding to satisfy a
+to compute the cost function, which often requires classical                                 power of two or input image resizing. This sometimes leads
+post-processing before being passed to a cost function.                                      to high computational costs and poor performance. We added
+   The following section presents the HQCNN algorithm                                        a classical input layer before the quantum embedding layer
+used for the UWB signal classification. This topology con-                                   to overcome this problem without additional input data. The
+sists of input, hidden, and output components. In the input                                  main advantage of HQCNN is using a flexible number of
+part, a classical layer and quantum embedding are applied.                                   qubits and overcoming the representation limit in the output.
+A reduced version of QCNN is used for feature extraction
+and dimensional reduction in the hidden layer, composed of                                   A. INPUT LAYER OF HQCNN
+a classical fully connected layer that transforms the quantum                                The input layer of the proposed HQCNN consists of a classi-
+expectation value into classical output with additional com-                                 cal input layer and a quantum embedding layer. As shown in
+putation.                                                                                    Fig. 6, the quantum embedding layer comprises VQCs. The
+                                                                                             classical N -dimensional input vector x = [x1 , ..., xN ]T to
+IV. DESIGN OF HQCNN MODEL                                                                    the HQCNN is converted to the rotation angle of the quantum
+Classical CNNs generally consist of alternating convolu-                                     embedding circuits from the output of the classical input
+tional and pooling layers. The convolutional layer determines                                layer activations [h1 , ..., hn ]T , where nth rotation angle can
+the input features and patterns. By contrast, the pooling layer                              be represented as follows:
+reduces the dimensionality of the outcome of the convolu-
+tional layer, thereby reducing the computational cost. QCNN                                                     hn = σ (ωn1 x1 + · · · + ωnN xN ) ,                         (9)
+is motivated by this architecture and comprises alternating
+                                                                                             where σ(·) is the activation function. This changes the initial
+quantum convolutional and pooling layers. Quantum convo-
+                                                                                             states |ψn,1 ⟩ of the nth qubits as follows:
+lutional layers can capture the essence of information from
+data in a better manner than classical CNN, owing to the                                                                |ψn,2 ⟩ = Rx (hn ) |ψn,1 ⟩.                       (10)
+presence of quantum mechanical principles like quantum
+parallelism and entanglement.                                                                These encoded quantum states can be used as inputs for the
+   The proposed HQCNN introduced QCNN as a hidden                                            following QCNN.
+layer to leverage its strength. Fig. 5 shows the HQCNN
+framework for UWB signal classification. In data engineer-                                   B. QUANTUM CIRCUIT DESIGN FOR QUANTUM
+ing, the acquired data are subjected to preprocessing and                                    CONVOLUTIONAL LAYER
+labeling. We divided the dataset into training, validation,                                  The quantum convolutional layer extracts the features or pat-
+and test datasets to train the model. HQCNN consists of the                                  terns of qubits, and arbitrary two-qubit unitary gates can be
+input layer for assigning classical data to each quantum state,                              used to construct a quantum convolutional layer. The general
+QCNN for feature extraction and dimensional reduction in                                     VQCs for quantum convolutional layers in an HQCNN are
+the hidden layer, and an output layer for transforming the                                   summarized in [22].
+expectation values of QCNN into classical data to evaluate                                      Fig. 7 shows the two-qubit unitary proposed in [38]. We
+the cost function.                                                                           benchmark this as a novel type of VQC for composing a
+   A set of classical input data is a divided dataset of data                                quantum convolutional layer. The benchmark VQC is based
+engineering parts. It is transformed into quantum data as                                    on constructing an optimal circuit for computing N (α, β, γ)
+an input of the QCNN, defined in the Hilbert space. A                                        to realize a two-qubit VQC from U (4). Every unitary matrix
+quantum convolutional layer typically comprises a series of                                  in U ∈ U(4) is decomposed as follows:
+unitary operators that extract and determine the relationships
+between qubits. For the quantum pooling layer, the number                                                 U = (A1 ⊗ A2 ) · N (α, β, γ) · (A3 ⊗ A4 ),                      (11)
+of qubits, or the outcome of the quantum convolutional layer,                                where Aj ∈ U(2), ⊗ is the tensor product, and N (α, β, γ) =
+is reduced by performing operations at the quantum pooling                                   exp(i[ασx ⊗ σx + βσy ⊗ σy + γσz ⊗ σz ]), α, β, γ ∈ R are
+layer. Specific qubits are disregarded in this layer, where                                  the parameters. The parameters are defined as α = π2 − 2θ,
+disregarded qubits stop performing operations in the fol-                                    β = 2ϕ − π2 , and γ = π2 − 2λ. Using the circuit shown in
+lowing layers. A QCNN ensures nonlinearities and achieves                                    Fig. 7 and the canonical decomposition (11), VQC can be
+dimensionality reduction effects [37] by reducing the number                                 realized for the operation U ∈ U (4). It is known that VQC
+of degrees of freedom. The measurement result is the input                                   is optimal [38]. The outcome of lth quantum convolutional
+of the output layer |ψout ⟩. It is obtained by measuring the                                 layer can be expressed as follows [22]:
+expectation value of the final qubit using the Pauli Z operator
+σz . The classical fully connected output layer converts the                                     |ψi (θi )⟩⟨ψi (θi )| = TrGi (Ui (θi )|ψi−1 ⟩⟨ψi−1 |Ui (θi )† ),
+data extracted by the last quantum-pooling layer to form the                                                                                                   (12)
+final output. Finally, we evaluate the cost function based on a                              where TrGi (·) denotes the partial trace operation over the
+classical optimizer. The parameters were iteratively updated                                 subsystem Gi , Ui is the VQC operation (i.e., quantum convo-
+until optimization.                                                                          lution), and θi is the parameters of the VQC of ith quantum
+VOLUME 4, 2016                                                                                                                                                                 5
+
+
+                 This work is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 License. For more information, see https://creativecommons.org/licenses/by-nc-nd/4
+                      This article has been accepted for publication in IEEE Access. This is the author's version which has not been fully edited and
+                                                content may change prior to final publication. Citation information: DOI 10.1109/ACCESS.2023.3323019
+
+
+                                                                                                           Author et al.: Preparation of papers for IEEE TRANSACTIONS and JOURNALS
+
+
+
+                                                                                                Evaluate Gradient & Update Parameters
+
+
+        Data Engineering                 Input Layer                                     Hidden Layer                                                    Output Layer              Evaluate Cost function
+                                                                               Quantum Convolutional Neural Network
+                                                                  Feature Extraction                                     Dimensionality
+                                                                                                                                           Measurement
+         Acquire data                                                                                                      Reduction
+
+
+
+
+                                                                                                                                                                             80%
+
+
+
+
+    Preprocessing / Labeling
+                                                                                                                                                                             20%
+
+
+
+                                                                      Quantum
+                                                                                         Quantum
+                                                                     Convolutional
+                                                                                       Pooling Layer 1
+                                                                       Layer 1                            Quantum
+                                                                                                                           Quantum
+    Train / Validation / Test                                                                            Convolutional
+                                                                                                           Layer 2
+                                                                                                                         Pooling Layer 2
+              Data                Classical Input  Quantum
+                                      layer     Embedding Layer                                                                                                                     Classical Optimizer
+                                Hybrid Quantum Convolutional Neural Network Framework for UWB signal classification
+
+
+FIGURE 5. A schematic illustration of the hybrid quantum convolutional neural network framework for UWB signal classification.
+
+
+
+
+                                                                                                                                                     (a) Pooling circuit 1
+
+
+
+
+             Classical Input                Quantum
+                 layer                   Embedding Layer
+                                                                                                                                                     (b) Pooling circuit 2
+FIGURE 6. An illustration of a hybrid input layer composed of the classical
+input layer and quantum embedding circuit.                                                                   FIGURE 8. Parameterized two-qubit unitary circuit for pooling layer. The
+                                                                                                             pooling circuit 1 (a) is introduced in [22], comprising two controlled rotations
+                                                                                                             Rz and Rx . Controlled Rz rotation is activated if the control qubit is at state 1
+                                                                                                             (filled circle), while the controlled Rx rotation is used when the control quit is
+                                                                                                             at state 0 (open circle). The pooling circuit 2 (b) is the proposed novel type  of
+                                                                                                             the pooling circuit, which is the structure eliminated CNOT and Rz π
+                                                                                                                                                                                        
+                                                                                                                                                                                      2 in
+                                                                                                             Fig. 5. (c)
+
+
+
+
+                                                                                                             C. QUANTUM CIRCUIT DESIGN FOR QUANTUM
+FIGURE 7. The proposed parameterized two-qubit unitary circuit for
+implementing N (α, β, γ) = exp(i[ασx ⊗ σx + βσy ⊗ σy + γσz ⊗ σz ]),                                          POOLING LAYER
+where Rx (θi ), Ry (θi ), and Rz (θi ) are x, y, and z rotation operator gates,
+respectively, each rotation θi about the Bloch sphere’s x, y, z axes are
+                                                                                                             The purpose of a quantum pooling layer is to reduce the
+represented by these rotation operator gates.                                                                dimensions of a quantum circuit or the number of qubits
+                                                                                                             while retaining as much information as the previous quantum
+                                                                                                             convolution layer. However, no standard method exists for
+convolutional layer. We restricted our parameterized quan-                                                   reducing the number of qubits in each pooling layer. We as-
+tum circuit to a particular subspace of the Hilbert space                                                    sume that the quantum pooling layer reduces the dimensions
+because numerous parameters would lead to long training                                                      of the N qubit quantum circuit to N2 qubit quantum circuit
+times. An HQCNN can also be composed of different con-                                                       to reduce the number of qubits in each quantum pooling
+figurations of two-qubit gate operations. The performance of                                                 layer. Thus, the quantum-pooling layer ignores one qubit
+each circuit is almost equal [22]. We compared it with the                                                   from each pair of qubits, which is neglected in future layers.
+best-performing convolutional circuit [22] using numerical                                                   In this process, disregarded qubits are not considered for
+simulations to demonstrate the effectiveness of the proposed                                                 any calculations or measurements of the rest of the quantum
+convolutional circuit. We refer to the proposed convolutional                                                circuit. Additionally, the quantum-pooling layer combines
+and benchmark convolutional circuits as VQC3 and VQC10,                                                      the information of the two-qubits into one qubit.
+respectively.                                                                                                   Each two-qubit quantum circuit block is applied to differ-
+                                                                                                             ent pairs of qubits to combine information from the previous
+6                                                                                                                                                                                          VOLUME 4, 2016
+
+
+                      This work is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 License. For more information, see https://creativecommons.org/licenses/by-nc-nd/4
+                 This article has been accepted for publication in IEEE Access. This is the author's version which has not been fully edited and
+                                             content may change prior to final publication. Citation information: DOI 10.1109/ACCESS.2023.3323019
+
+
+Author et al.: Preparation of papers for IEEE TRANSACTIONS and JOURNALS
+
+
+
+quantum convolution layer. This study used VQC to construct                                  Note that in (17), the unit of a given variational parameter can
+a quantum pooling layer. Fig. 8 shows the VQC of the                                         be decomposed as the product of the exponentials of Pauli
+pooling layers. Pooling circuit 1 Fig. 8 (a) consists of two                                 terms, which can express the layer as follows:
+controlled rotations Rz and Rx [38], [39]. The target qubit                                                  Y
+is affected by the control qubit state. We introduced a novel                                   Wjl (θjl ) =     [cos(θjl βjlk )I − i sin(θjl βjlk )Pk ] . (18)
+                                                                                                                     k
+pooling circuit called pooling circuit 2 UP C (θ) Fig. 8 (b),
+similar to the VQC of the quantum convolutional layer in                                        Qubit measurements are conducted on an appropriate basis
+terms of structure. From (12), the outcome of lth pooling                                    prior to the classical output layer. The quantum information
+layer with pooling circuit 2 can be expressed as follows:                                    stored in the two qubits is transformed from the measurement
+                                                                                             into classical information, given by h1 and h2 . The informa-
+ |ψi (θi )⟩⟨ψi (θi )| = TrGi (UP C (θi )|ψi−1 ⟩⟨ψi−1 |UP C (θi )† ),                         tion in h1 and h2 produces the final predicted output ŷ as
+                                                               (13)                          follows:
+where UP C is the VQC operation or quantum pooling, and θi                                                       ŷ = σ (h1 ω1 + h2 ω2 ) .             (19)
+are the parameters of the VQC of ith quantum-pooling layer.
+                                                                                             Fig. 10 illustrates the interface between QCNN and classical
+                                                                                             output layers.
+V. TRAINING HQCNN FOR UWB SIGNAL
+                                                                                                The expected values of the measured observables were as
+CLASSIFICATION
+                                                                                             follows:
+We proposed an HQCNN-based UWB signal classification
+                                                                                                              ⟨B̂i ⟩ = ⟨x|U (θ)† Bi U (θ)|x⟩,       (20)
+algorithm. Our proposed HQCNN algorithm conducts quan-
+tum encoding, feature extraction, dimension reduction, and                                   where the observables B̂i are typically Pauli-Z operators for
+measurement to achieve this. This is summarized in Algo-                                     one or more qubits. ⟨B̂i ⟩ can be used as input to the following
+rithm 1. As shown in Fig. 9, the QCNN model consists of a                                    classical output layer:
+quantum convolutional layer, a quantum pooling layer, and                                       For QCNN training, a simple parameter shift rule was used
+measurements. The QCNN ansatz can generally be written                                       to evaluate the gradients [42]. First, we define a loss function
+as a product of multiple quantum convolutional and pooling                                   to train the variational parameters. This study utilized the
+ansatz:                                                                                      cross-entropy loss, widely used in classical CNN training.
+                                                                                             The cross-entropy loss for the ith training data set is ex-
+                                      L
+                                      Y                                                      pressed as follows:
+                        U (Θ) =             V l (θl ),                         (14)
+                                                                                                                                                   N
+                                      l=1                                                                                                          X
+                                                                                                                LCE (h(⃗x; θ), y) = −                    yi log(ti ),     (21)
+where U (Θ) is the QCNN ansatz with variational parameters                                                                                         i=1
+Θ, V l (θl ) denotes a unit with variational parameters of lth                               where yi ≡ (y1 , · · · , yn ) is the class label of the input
+layer. The lth quantum convolutional and pooling ansatz                                      data ⃗x, h denotes the hypothesis function determined by the
+V l (Θl ) generally comprises multiple quantum circuit blocks                                QCNN, θ is a variational parameter, and t ≡ (Pr[ψi (θ) =
+Wjl :                                                                                        yi ], · · · , Pr[ψi (θ) = yn ]) = diag(ρout ) presents all the prob-
+                                                                                             abilities of measuring the computation basis state |yi ⟩ from
+                                    Ml
+                                    O                                                        the QCNN circuit with ρout denting the output state. This
+                     V l (θl ) ≡            Wjl (θjl ),                        (15)          study’s goal was LOS/NLOS signal classification, a binary
+                                    j=1                                                      classification. Therefore, t = (Pr[ψi (θ) = 0], Pr[ψi (θ) = 1].
+                                                                                                 The gradient of the loss function L is calculated with
+where θjl denotes the variational parameters of jth VQC in                                   respect to the trainable parameters denoted collectively as Θ
+lth layer. Each VQC Wjl can be expressed as an exponential                                   in step t. With a gradient-based strategy, the update of the
+with a nonparametric unitary gjl , which can be any Hermitian                                trainable parameters can be expressed as follows:
+operator on n qubits [40].
+                                                                                                                          θt+1 = θt − η▽L(θt ),                           (22)
+                                                      Kjl
+                                                      X                                      where η denotes the learning rate.
+          Wjl (θjl ) = e−iθjl gjl ,          gjl =          βjlk Pk ,          (16)
+                                                                                                The gradient with respect to a particular trainable parame-
+                                                      k=1
+                                                                                             ter θ can be expressed as follows:
+where Pk is a string of Pauli matrices on n qubits, and βjlk is                                             ∂L(h(⃗x; θ), y)      X yi ∂ti
+a constant for all j, k, l. Therefore, we can express the VQC                                                               =−               .          (23)
+                                                                                                                  ∂θ               i
+                                                                                                                                      ti ∂θ
+as the product of the exponentials of each term [41]:
+                                                                                                From the parameter shift rule [43], [44] and central-
+                  Wjl (θjl ) =
+                                    Y
+                                         e  −iθjl βjlk Pk
+                                                            .                  (17)          difference approximation for the first derivative, the param-
+                                                                                             eter θ is encoded as a product of exponentials (18). The
+                                     k
+VOLUME 4, 2016                                                                                                                                                                 7
+
+
+                 This work is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 License. For more information, see https://creativecommons.org/licenses/by-nc-nd/4
+                    This article has been accepted for publication in IEEE Access. This is the author's version which has not been fully edited and
+                                              content may change prior to final publication. Citation information: DOI 10.1109/ACCESS.2023.3323019
+
+
+                                                                                              Author et al.: Preparation of papers for IEEE TRANSACTIONS and JOURNALS
+
+
+
+                                                                                                                                  Quantum Convolutional Neural Network
+
+
+
+
+            Quantum
+                                    Quantum
+           Convolutional
+                                  Pooling Layer 1
+             Layer 1
+                                                             Quantum
+                                                                                      Quantum
+                                                            Convolutional
+                                                                                    Pooling Layer 2            Quantum
+                                                              Layer 2                                                                  Quantum
+                                                                                                              Convolutional
+                                                                                                                                     Pooling Layer 3
+                                                                                                                Layer 3
+
+
+
+
+        Parameterized Quantum Circuit
+
+                                                                           1st Quantum Convolutional Layer                                     2nd Quantum Pooling Layer
+
+
+FIGURE 9. A schematic illustration of the Quantum Convolutional Neural Network.
+
+
+
+                                                                                                  When adding a classical output layer to QCNN, the cross-
+                                                                                                entropy loss for the ith training data is equal to (21), where h
+                                                                                                denotes the hypothesis function determined by the HQCNN,
+           Quantum
+                                                                                                θ are the variational trainable parameters and weights, and
+                                Quantum
+          Convolutional
+                              Pooling Layer                                                     t ≡ (Pr[ti (θ) = yi ], · · · , Pr[ti (θ) = yn ]) represents the
+             Layer
+                                                                                                softmax probability. Conventionally, we can calculate the
+                                                                                                gradient of the loss function (23) and update the trainable pa-
+                                                                                                rameters as in the classical neural network parameter update
+                                                                                                scheme.
+    Quantum Convolutional Neural Network                            Output layer
+
+FIGURE 10. An illustration of the interface between QCNN and classical
+                                                                                                VI. SIMULATION RESULTS
+output layers.                                                                                  This section presents the simulation results demonstrating the
+                                                                                                proposed HQCNN algorithm’s effectiveness for UWB signal
+                                                                                                classification. The following subsection briefly describes the
+derivative of the expectation value with respect to a parameter                                 datasets, experimental settings, and evaluation metrics used
+θ can be expressed as follows:                                                                  in the UWB LOS/NLOS signal classification experiments.
+                                                                                                The classification performances of various benchmarks are
+           ∂ti   ∂hi   hi (θ + sej ) − hi (θ − sej )                                            compared and analyzed to verify the advantages of the pro-
+               =     =                               ,                            (24)
+           ∂θ    ∂θ              2 sin(s)                                                       posed HQCNN.
+where ej is the unit vector along the θj axis, and s can                                        A. DATASETS
+approximate sin(s) in the limit s → 0. The parameter rule                                       Our simulation uses the UWB LOS and NLOS datasets [33].
+provides the gradient analytically by evaluating the circuit-                                   Specifically, the datasets were collected from seven different
+fixed sides of s = π2 in the variational parameter θ. Therefore,                                indoor locations:1) office1, 2) office2, 3) small apartment, 4)
+Equation (24) can be represented as follows:                                                    small workshop, 5) kitchen with a living room, 6) bedroom,
+∂ti    1                                                                                        and 7) boiler room. Each indoor location was chosen to avoid
+           ⟨x|U (θ+ )† Bi U (θ+ )|x⟩ − ⟨|U (θ− )† Bi U (θ− )|x⟩ ,
+                                                               
+    =                                                                                           building location-specific models. At each location, 3000
+∂θ     2
+                                                            (25)                                LOS and 3000 NLOS measurements were collected. There-
+where θ+ and θ− denote θ + π2 and θ − π2 , respectively. The                                    fore, the dataset consists of 42000 samples. Each sample was
+gradient (23) can be calculated following the chain rule.                                       1016 raw data with 1 nanosecond resolution.
+8                                                                                                                                                                 VOLUME 4, 2016
+
+
+                    This work is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 License. For more information, see https://creativecommons.org/licenses/by-nc-nd/4
+                 This article has been accepted for publication in IEEE Access. This is the author's version which has not been fully edited and
+                                           content may change prior to final publication. Citation information: DOI 10.1109/ACCESS.2023.3323019
+
+
+Author et al.: Preparation of papers for IEEE TRANSACTIONS and JOURNALS
+
+
+
+Algorithm 1 A HQCNN-based UWB signal classification                                          dataset consisted of size (1 × 1016) CIR data. For the QCNN
+algorithm                                                                                    algorithm, we used zero padding in the CIR data to create a
+Input: CIR training, validation, and test dataset x, xv, xt ∈                                (1 × 1024) size for the 10 qubit QCNN model input.
+    X , label y, yv, yt ∈ Y, number of qubit N , number of                                       2) Training model Settings: UWB LOS and NLOS datasets
+    layer L, variational parameters θ, learning rate η                                       were selected as source data to demonstrate the proposed
+Output: LOS/NLOS classification result                                                       HQCNN algorithm’s effectiveness. For the classical algo-
+ 1: Define      two-qubit unitary convolutional circuit                                      rithm, we adopted LSTM, CNN, CNN + LSTM, CNN+
+    U (|ψi ⟩, |ψi+1 ⟩, θ)                                                                    bidirectional LSTM (CNN + BLSTM), and CNN+ stacked
+ 2: Define        two-qubit      unitary     pooling       circuit                           LSTM (CNN + SLSTM) [18]. In contrast, for the QML al-
+    UP C (|ψi ⟩, |ψi+1 ⟩, θ)                                                                 gorithm, we adopted the QCNN algorithm [37]. These algo-
+ 3: Define quantum convolutional and pooling layer                                           rithms were used as benchmarks. The models, including the
+ 4: for l = 1 to L do                                                                        CNN algorithm, were implemented with two convolutional
+ 5:    lth Quantum convolutional layer construction                                          layers and one max-pooling layer. The first one-dimensional
+ 6:    d ← 2l                                                                                convolutional layer consisted of ten filters and four kernel
+ 7:    for i = 1 to f loor( Nd ) ∈ Z do                                                      sizes, while the second comprised 20 filters and four kernel
+ 8:       i ← 2i − 1                                                                         sizes. Max-pooling was conducted with two pooling sizes
+ 9:       p=1                                                                                and two strides. The batch size was set to 64, and the number
+10:       Append U (|ψi ⟩, |ψi+1 ⟩, θ[p : p + 3])                                            of neurons in the fully connected layer was set to 128.
+11:       p←p+3                                                                              Dropout regularization was added after the convolutional
+12:    end for                                                                               layer, and the dropout regularization rate was set to 0.5.
+13:    for i = 1 to f loor( Nd ) ∈ Z do                                                      The models included an LSTM algorithm, and the number
+14:       i ← 2i                                                                             of LSTM hidden layers was set to 32. These structures
+15:       Append U (|ψi ⟩, |ψi+1 ⟩, θ[p : p + 3])                                            were demonstrated to be suitable for the target tasks in
+16:       p←p+3                                                                              previous research, and more detailed information on classical
+17:    end for                                                                               benchmarks is provided in [18]. The 10-qubit QCNN model
+18:    lth Quantum pooling layer construction                                                had three quantum convolutional and four pooling layers
+19:    for i = 1 to f loor( Nd ) ∈ Z do                                                      using the construction method in Algorithm 1. We adopted
+20:       Append UP C (|ψi ⟩, |ψi+f loor( N ) ⟩, θ[p : p + 3])                               the proposed VQC3 to construct the quantum convolutional
+                                          d
+21:       p←p+3                                                                              filter. The first quantum convolutional layer consists of two-
+22:    end for                                                                               qubit VQCs corresponding to {1, 2}, {3, 4}, {5, 6}, {7, 8},
+23: end for                                                                                  {9, 10}, {2, 3}, {4, 5}, {6, 7}, {8, 9}, and{10, 1}, where
+24: Define the classical input and output layer                                              {a, b} means the two-qubit VQC for the ath qubit and
+25: Build Sequential model                                                                   bth qubit. The first quantum pooling layer consists of two-
+26: Add in Sequential model [input layer, QCNN, output                                       qubit VQCs for {1, 2}, {3, 4}, {5, 6}, {7, 8}, and {9, 10},
+    layer]                                                                                   and pooling circuit 2 is used to construct the pooling layer
+27: Train HQCNN                                                                              shown in Fig. 8 (b). The second quantum convolutional
+28: for x, xv ∈ X , y, yv ∈ Y do                                                             layer consists of two-qubit VQCs connected to {2, 4}, {6, 8},
+29:    HQCNN Model(x, y)                                                                     {4, 6}, {8, 10}, and {10, 2}. The second quantum-pooling
+30:    Calculate loss function P(21)                                                         layer was built with two-qubit VQCs connected to {2, 4},
+                                  N
+       LCE (h(⃗x; θ), y) = − i=1 yi log(ti )                                                 {4, 6}, {6, 8}, and {8, 10}. The third quantum convolutional
+31:    Calculate the gradientP yiof∂tithe loss function (23)                                 layer consists of two-qubit VQCs for {4, 6}, {6, 8}, {8, 10},
+       ∂LCE (h(⃗ x;θ),y)
+               ∂θ        = −    i ti ∂θ                                                      and {10, 6}. The third quantum-pooling layer is constructed
+32:    Update the variational parameters                                                     using two-qubit VQCs connected by {4, 6} and {8, 10}.
+       θt+1 = θt − η▽LCE (θt )                                                               The fourth quantum pooling layer was installed with a two-
+33: end for                                                                                  qubit VQC corresponding to {6, 10}, where the pooling layer
+34: Test the trained HQCNN (xt, yt)                                                          traced out only one qubit. To measure the qubit state of 10th
+35: return NLOS identification result                                                        qubit, we used the Pauli-Z operator. The proposed HQCNN
+                                                                                             model consists of an eight-qubit QCNN and a classical layer.
+                                                                                             The size of the input vector was 1 × 1016. Therefore, the
+B. EXPERIMENTAL SETTINGS                                                                     neurons of the fully connected layer with a linear activation
+1) Data settings: We split the dataset into 33600 training,                                  function were set to 1016, and the outcome of the layer
+4200 validation, and 4200 test datasets. Each training and                                   was eight, which was used as the rotation angle of the
+validation dataset from randomly shuffled 42000 samples                                      angle-embedding circuits. The QCNN model consists of a
+was selected, and the remaining 4200 samples were treated                                    quantum convolutional layer and a quantum pooling layer in
+as the test dataset. This means that 80% of the datasets were                                the hidden layer. In the quantum convolutional layer, VQC3
+used for training and the rest for testing. The input vector                                 and VQC10 are adopted. The quantum convolutional layer
+VOLUME 4, 2016                                                                                                                                                                 9
+
+
+                 This work is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 License. For more information, see https://creativecommons.org/licenses/by-nc-nd/4
+                This article has been accepted for publication in IEEE Access. This is the author's version which has not been fully edited and
+                                          content may change prior to final publication. Citation information: DOI 10.1109/ACCESS.2023.3323019
+
+
+                                                                                          Author et al.: Preparation of papers for IEEE TRANSACTIONS and JOURNALS
+
+
+
+consists of two-qubit VQCs {1, 2}, {3, 4}, {5, 6}, {7, 8},                                  TABLE 1. Accuracies and Standard Deviations (%) of the Proposed HQCNN
+                                                                                            and Benchmarks on the UWB Dataset
+{2, 3}, {4, 5}, {6, 7}, and {8, 1}. The quantum-pooling layer
+comprises two-qubit VQCs corresponding to {1, 2}, {3, 4},
+{5, 6}, and {7, 8}. We used the Pauli-Z operator correspond-                                                           Models                   OA (%)
+                                                                                                                       LSTM                   72.21 ± 7.39
+ing to qubit wires to measure the qubit states of 2th, 4th,                                                             CNN                   79.86 ± 0.78
+6th, and 8th qubit. The neurons of the fully connected layer                                                         CNN+LSTM                 78.55 ± 3.15
+with a linear activation function were set to four, and the                                                          CNN+BLSTM                75.56 ± 2.74
+                                                                                                                     CNN+SLSTM                79.18 ± 4.02
+outcome of the layer was set to two, which was used as the                                                             QCNN                   75.39 ± 0.73
+input for a two-neuron fully connected layer with a softmax                                                         HQCNN-VQC10               84.05 ± 0.37
+activation function. This study refers to the HQCNN using                                                           HQCNN-VQC3                84.25 ± 0.32
+quantum convolutional VQC3 as HQCNN-VQC3. Similarly,
+an HQCNN using quantum convolutional VQC10 is defined
+as HQCNN-VQC10.                                                                             versus the false positive rate (FPR) for different classification
+   3) Training Setting: All models, including the benchmarks,                               thresholds. AUC measures the binary classification model’s
+were trained for 10 epochs. The batch size is 64. The                                       overall performance. These are popular metrics for evaluat-
+Adam optimizer was used with a learning rate of 10−2 or                                     ing the performance of binary classifiers. A greater value of
+10−3 , and cross-entropy was used as a loss function. All                                   AUC denotes better model performance.
+experiments were performed on a PC with an AMD EPYC
+7262 8-core processor CPU, 188 GB of RAM, 1T SSD,                                           D. RESULTS AND ANALYSIS
+and GPU NVIDIA GeForce RTX-3080. The experiments                                            This section presents and analyzes the proposed HQCNN
+are implemented using the PyTorch open-source framework,                                    algorithm’s performance on the UWB LOS and NLOS
+Keras libraries, TensorFlow libraries, Python programming                                   datasets. We compared the evaluation metrics for the pro-
+language, and PennyLane [45].                                                               posed algorithm with several benchmarks to demonstrate its
+                                                                                            effectiveness. Several simulations were conducted to ensure
+C. EVALUATION METRICS                                                                       reasonable results.
+We introduced widely used evaluation metrics such as overall                                   The accuracy values and their standard deviations are
+accuracy (OA), precision, recall, specificity, and F1 score to                              summarized in Table 1. All the tested models’ performances
+measure the performance of the algorithms. These are defined                                are acceptable, whereas HQCNN-VQC3 achieves the best
+as                                                                                          performance on the test dataset. Specifically, compared
+                                     TP + TN                                                to the benchmarks, the OA values achieved by HQCNN-
+         Overall Accuracy =                          ,    (26)
+                               TP + FP + FN + TN                                            VQC3 outperformed the other models by 12.04 (LSTM),
+                                    TP                                                      4.39 (CNN), 5.7 (CNN+LSTM), 8.69 (CNN+BLSTM), 5.07
+                    Precision =            ,              (27)
+                                 TP + FP                                                    (CNN+SLSTM), 8.86 (QCNN), and 0.2 (HQCNN-VQC10)
+                                   TP                                                       percentages. Notably, even if we follow the structure of the
+                     Recall =            ,                (28)                              benchmarks of reference [18], the benchmark’s performance
+                                TP + FN
+                                                                                            is different compared to the reference. However, the highest
+                                     TN
+                   Specificity =             ,            (29)                              accuracy was similar to that reported previously. Although
+                                  FP + TN
+                                                                                            LSTM combined algorithms achieve high top-one accuracy,
+                             Recall · Precision                                             we can observe a high standard deviation. In addition, the
+               F1 Score = 2                     ,         (30)
+                             Recall + Precision                                             HQCNN model and QCNN have considerably minor varia-
+where TP, TN, FP, and FN are true-positive, true-negative,                                  tions than the classical algorithms on average. This means
+false-positive, and false-negative cases. This study assumes                                that quantum-based algorithms are less sensitive to the ran-
+that NLOS was a positive and LOS was a negative class.                                      dom initialization of the free parameters and randomly shuf-
+Therefore, TP is an outcome in which the model correctly                                    fled datasets.
+predicts a positive class. Similarly, TN is an outcome in                                      In Fig. 11, the confusion matrices for the algorithms are
+which the model correctly predicts the negative class. FP is                                shown, where the confusion matrices were chosen for the top
+an outcome in which a model incorrectly predicts a positive                                 F1 score. HQCNN is effective for UWB signal classification
+class. FN is an outcome in which the model incorrectly                                      as this proposed algorithm yielded the best confusion matrix.
+predicts the negative class. The confusion matrix shows                                        Table 2 shows the performances of the proposed HQCNN
+the binary classifier’s TP, TN, FP, and FN values. It was                                   and benchmarks. The HQCNN-VQC3 reached an overall
+acquired by counting the correct and incorrect classifications                              precision of 81%, an overall recall of 92%, an overall speci-
+of each type of test dataset while accumulating the results                                 ficity of 79%, and an overall F1 score of 86%. The QCNN
+in the table. Conventionally, receiver operating characteristic                             exhibited a lower performance than the proposed HQCNN.
+(ROC) curves and the area under the ROC curve (AUC)                                         For the benchmarks, LSTM exhibited the lowest performance
+are graphical representations of the binary classification’s                                among the benchmarks. CNN+SLSTM achieved good per-
+effectiveness. ROC curve plots the true positive rate (TPR)                                 formance, compared to the other method in Table 2, im-
+10                                                                                                                                                            VOLUME 4, 2016
+
+
+                This work is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 License. For more information, see https://creativecommons.org/licenses/by-nc-nd/4
+                                      This article has been accepted for publication in IEEE Access. This is the author's version which has not been fully edited and
+                                                                   content may change prior to final publication. Citation information: DOI 10.1109/ACCESS.2023.3323019
+
+
+Author et al.: Preparation of papers for IEEE TRANSACTIONS and JOURNALS
+
+
+
+
+                                                          0.9                                                                                                                            0.9
+                                                                                                                                                                                                                                                      0.9
+                                                          0.8                                                              0.8                                                           0.8                                                          0.8
+         Negative
+
+
+
+
+                                                                           Negative
+
+
+
+
+                                                                                                                                          Negative
+
+
+
+
+                                                                                                                                                                                                         Negative
+                     0.70                    0.30         0.7                          0.74                    0.26        0.7                         0.73                    0.27      0.7                          0.64                    0.36    0.7
+                                                          0.6                                                              0.6                                                           0.6                                                          0.6
+Actual NLOS
+
+
+
+
+                                                                  Actual NLOS
+
+
+
+
+                                                                                                                                 Actual NLOS
+
+
+
+
+                                                                                                                                                                                                Actual NLOS
+                                                          0.5                                                              0.5                                                           0.5                                                          0.5
+                                                          0.4                                                              0.4                                                           0.4                                                          0.4
+         Positive
+
+
+
+
+                                                                           Positive
+
+
+
+
+                                                                                                                                          Positive
+
+
+
+
+                                                                                                                                                                                                         Positive
+                     0.09                    0.91         0.3                          0.12                    0.88        0.3                         0.10                    0.90      0.3                          0.06                    0.94    0.3
+                                                          0.2                                                                                                                            0.2                                                          0.2
+                                                                                                                           0.2
+                                                          0.1                                                                                                                                                                                         0.1
+                    Negative             Positive                                     Negative             Positive                                   Negative             Positive      0.1                         Negative             Positive
+                            Predicted NLOS                                                    Predicted NLOS                                                  Predicted NLOS                                                 Predicted NLOS
+
+              (a) Confusion matrix for LSTM                                       (b) Confusion matrix for CNN                   (c) Confusion matrix for CNN+LSTM (d) Confusion matrix for CNN+BLSTM
+
+
+                                                          0.9                                                                                                                            0.9                                                          0.9
+                                                                                                                           0.8
+                                                          0.8                                                                                                                            0.8                                                          0.8
+         Negative
+
+
+
+
+                                                                           Negative
+
+
+
+
+                                                                                                                                          Negative
+
+
+
+
+                                                                                                                                                                                                         Negative
+                     0.75                    0.25         0.7                          0.65                    0.35        0.7                         0.78                    0.22      0.7                          0.79                    0.21    0.7
+                                                          0.6                                                              0.6                                                           0.6                                                          0.6
+Actual NLOS
+
+
+
+
+                                                                  Actual NLOS
+
+
+
+
+                                                                                                                                 Actual NLOS
+
+
+
+
+                                                                                                                                                                                                Actual NLOS
+                                                          0.5                                                              0.5                                                           0.5                                                          0.5
+                                                          0.4                                                              0.4                                                           0.4                                                          0.4
+         Positive
+
+
+
+
+                                                                           Positive
+
+
+
+
+                                                                                                                                          Positive
+
+
+
+
+                                                                                                                                                                                                         Positive
+                     0.08                    0.92         0.3                          0.13                    0.87        0.3                         0.09                    0.91      0.3                          0.08                    0.92    0.3
+                                                          0.2                                                                                                                            0.2                                                          0.2
+                                                                                                                           0.2
+                                                          0.1                                                                                                                            0.1                                                          0.1
+                    Negative             Positive                                     Negative             Positive                                   Negative             Positive                                  Negative             Positive
+                            Predicted NLOS                                                    Predicted NLOS                                                  Predicted NLOS                                                 Predicted NLOS
+
+(e) Confusion matrix for CNN+SLSTM                                              (f) Confusion matrix for QCNN                    (g) Confusion matrix for HQCNN-(h) Confusion matrix for HQCNN-
+                                                                                                                                 VQC10                          VQC3
+
+
+                                                                           FIGURE 11. Confusion matrix for the proposed HQCNN and benchmarks.
+
+
+
+TABLE 2. Precision, recall, specificity, and F1 of the Proposed HQCNN and                                                           TABLE 3. AUC of the Proposed HQCNN and Benchmarks on the UWB
+Benchmarks on the UWB Dataset                                                                                                       Dataset
+
+
+                 Models                             Precision   Recall                Specificity               F1 Score                                                                 Models                     AUC
+                 LSTM                                 0.75      0.91                    0.70                      0.82                                                                   LSTM                       0.86
+                  CNN                                 0.78      0.88                    0.74                      0.83                                                                    CNN                       0.88
+               CNN+LSTM                               0.77      0.90                    0.73                      0.83                                                                 CNN+LSTM                     0.88
+               CNN+BLSTM                              0.73      0.94                    0.64                      0.82                                                                 CNN+BLSTM                    0.87
+               CNN+SLSTM                              0.79      0.92                    0.75                      0.85                                                                 CNN+SLSTM                    0.91
+                 QCNN                                 0.72      0.87                    0.65                      0.79                                                                   QCNN                       0.84
+              HQCNN-VQC10                             0.81      0.91                    0.78                      0.86                                                                HQCNN-VQC10                   0.91
+              HQCNN-VQC3                              0.81      0.92                    0.79                      0.86                                                                HQCNN-VQC3                    0.92
+
+
+                                                                                                                                    TABLE 4. Comprehensive Comparison with Computational Costs of the
+proving precision, specificity, and F1 score over the highest                                                                       Proposed HQCNN and Benchmarks on the UWB Dataset
+
+benchmark (CNN+SLSTM) by 2%, 4%, and 1%, respec-
+tively.                                                                                                                                                 Models                        OA(%)    F1 Score                   AUC            Parameters
+   In addition, misclassification occurs between LOS and                                                                                                LSTM                           72.21     0.82                     0.86              8705
+                                                                                                                                                         CNN                           79.86     0.83                     0.88              1091
+NLOS. This means there are very similar signals in signal                                                                                             CNN+LSTM                         78.55     0.83                     0.88              7887
+shape or level. We provide example results for the confusion                                                                                          CNN+BLSTM                        75.56     0.82                     0.87             14703
+matrix for the correctly and incorrectly predicted classes in                                                                                         CNN+SLSTM                        79.18     0.85                     0.91             16207
+                                                                                                                                                        QCNN                           75.39     0.79                     0.84            53 + 10Q
+Fig. 12. We observed typical LOS and NLOS for the TP and                                                                                             HQCNN-VQC10                       84.05     0.86                     0.91           8164 + 8Q
+TN labels. In contrast, although the signal is labeled as NLOS                                                                                       HQCNN-VQC3                        84.25     0.86                     0.92           8152 + 8Q
+or LOS in the dataset, there are LOS signals with NLOS
+characteristics and NLOS signals with LOS characteristics.
+   Fig. 13 depicts the top ROC curves for the proposed                                                                              and the complexity of each model regarding the number of
+HQCNN and the benchmarks. The ROC curve of HQCNN-                                                                                   parameters are reported. Although the benchmarks, except
+VQC3 exhibited an AUC of approximately 0.92. By contrast,                                                                           QCNN, achieve similar performance as Table 4 depicts, it
+the ROC-AUC of the other benchmarks reached approx-                                                                                 is worth noting that QCNN is much less complex and has
+imately 0.84–0.91. Detailed information on ROC-AUC is                                                                               the smallest number of parameters. For OA, F1 score, and
+listed in Table 3. HQCNN-VQC3 has better model perfor-                                                                              AUC, HQCNN outperformed the other benchmarks. More
+mance than the other benchmarks.                                                                                                    convolutional layers were introduced for the benchmarks,
+   The comparisons are highlighted in Table 4, where the                                                                            leading to more convolution operations. A fully connected
+OA, F1 score, AUC of the classical and quantum models,                                                                              operation also increases computational cost. Our proposed
+VOLUME 4, 2016                                                                                                                                                                                                                                              11
+
+
+                                      This work is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 License. For more information, see https://creativecommons.org/licenses/by-nc-nd/4
+                                  This article has been accepted for publication in IEEE Access. This is the author's version which has not been fully edited and
+                                                            content may change prior to final publication. Citation information: DOI 10.1109/ACCESS.2023.3323019
+
+
+                                                                                                            Author et al.: Preparation of papers for IEEE TRANSACTIONS and JOURNALS
+
+
+
+                           True Positive Label                         False Positive Label                               True Negative Label                       False Negative Label
+
+
+
+
+                                                                FIGURE 12. Example Results of the Proposed HQCNN-VQC3 Model.
+
+
+
+
+                     1.0
+                                                ROC Curve 2D                                                              1.0
+                                                                                                                          0.9      LSTM
+                                                                                                                          0.8      CNN
+                                                                                                               Accuracy
+
+
+
+
+                                                                                                                                   CNN+LSTM
+                     0.8                                                                                                  0.7      CNN+BLSTM
+                                                                                                                          0.6      CNN+SLSTM
+True-Positive-Rate
+
+
+
+
+                                                                                                                          0.5      QCNN
+                     0.6                                                                                                  0.4      HQCNN-VQC10
+                                                                                                                          0.3      HQCNN-VQC3
+                                                                            LSTM                                              0   1     2    3         4      5      6   7    8      9    10
+                                                                            CNN                                           1.0
+                     0.4                                                    CNN+LSTM                                      0.9
+                                                                            CNN+BLSTM                                     0.8
+                                                                            CNN+SLSTM                                     0.7
+                                                                                                               Loss
+
+
+
+
+                     0.2                                                    QCNN                                          0.6
+                                                                            HQCNN-VQC10
+                                                                            HQCNN-VQC3                                    0.5
+                                                                            Random Classifier                             0.4
+                     0.0                                                                                                  0.3
+                        0.0        0.2            0.4            0.6            0.8             1.0                           0   1     2      3       4      5      6   7    8      9    10
+                                            False-Positive-Rate                                                                                            Epoch
+                                                                                                              FIGURE 14. Cross-entropy loss and accuracy as a function of the number of
+            FIGURE 13. ROC curves for the proposed HQCNN and benchmarks.
+                                                                                                              training epochs.
+
+
+
+
+HQCNN also includes a fully connected layer with more                                                         is trained faster than the other benchmarks, except for the
+parameters than the CNN. Specifically, HQCNN-VQC3 has                                                         QCNN model, owing to the lower computational complexity
+8146 classical and 6 quantum trainable parameters. HQCNN-                                                     of QCNN.
+VQC10 has 8146 classical and 18 quantum-trainable param-
+eters.                                                                                                        VII. CONCLUSION
+   To verify this advantage concerning training time, we                                                      This study investigated the HQCNN framework for UWB
+present representative examples of cross-entropy loss and                                                     signal classification. Typically, the dimensions and size of
+accuracy as functions of the number of training epochs in                                                     the input data limit the number of qubits in a QCNN model.
+Fig. 14, where each value was calculated using the average of                                                 We introduced a classical input layer before the quantum
+several experiments. Although HQCNN has more parameters                                                       embedding layer to address this issue. It also allows the
+than the CNN and CNN-LSTM models, the HQCNN model                                                             use of a flexible number of qubits. In addition, we applied
+12                                                                                                                                                                                VOLUME 4, 2016
+
+
+                                  This work is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 License. For more information, see https://creativecommons.org/licenses/by-nc-nd/4
+                    This article has been accepted for publication in IEEE Access. This is the author's version which has not been fully edited and
+                                              content may change prior to final publication. Citation information: DOI 10.1109/ACCESS.2023.3323019
+
+
+Author et al.: Preparation of papers for IEEE TRANSACTIONS and JOURNALS
+
+
+
+a classical fully connected layer after the measurement to                                      [13] A. Musa, G. D. Nugraha, H. Han, D. Choi, S. Seo, and J. Kim, “A decision
+utilize the outcome of the QCNN. The proposed HQCNN                                                  tree-based NLOS detection method for the UWB indoor location tracking
+                                                                                                     accuracy improvement,” International Journal of Communication Systems,
+model is applied to UWB signal classification tasks. HQCNN                                           vol. 32, no. 13, p. e3997, Jun. 2019.
+has proven effective in classification performance and com-                                     [14] Y. Yang, L. Zhang, J. Xu, D. Li, J. Bao, and J. Tan, “Cooperative indoor
+puting efficiency through comparative and critical analyses.                                         localization system based UWB and random forest algorithm in compli-
+                                                                                                     cated underground NLOS scenario,” in 2022 9th International Conference
+The HQCNN model outperformed the classical algorithm                                                 on Digital Home (ICDH), 2022, pp. 271–276.
+regarding the training time, as shown in Fig. 14, because                                       [15] D. H. Tran, B. Chung, and Y. M. Jang, “GAN-based data augmentation for
+of its lower computational complexity. Our future work will                                          UWB NLOS identification using machine learning,” in 2022 International
+                                                                                                     Conference on Artificial Intelligence in Information and Communication
+focus on achieving high accuracy. For example, we com-                                               (ICAIIC), 2022, pp. 417–420.
+bine the LSTM method with HQCNN. This is because the                                            [16] B. Li, K. Zhao, and E. B. Sandoval, “A UWB-based indoor positioning
+CNN+SLSTM method exhibited a performance similar to                                                  system employing neural networks,” Journal of Geovisualization and
+                                                                                                     Spatial Analysis, vol. 4, pp. 1–9, Jul. 2020.
+that of the HQCNN. In addition, we applied this method to
+                                                                                                [17] E. Çakan, A. Şahin, M. Nakip, and V. Rodoplu, “Multi-layer perceptron
+address multiclassification and regression problems in vari-                                         decomposition architecture for mobile iot indoor positioning,” in 2021
+ous applications. We predict that the classical output layer is                                      IEEE 7th World Forum on Internet of Things (WF-IoT), 2021, pp. 253–
+                                                                                                     257.
+suitable for the target tasks. In addition, for the current ca-
+                                                                                                [18] C. Jiang, J. Shen, S. Chen, Y. Chen, D. Liu, and Y. Bo, “UWB NLOS/LOS
+pacity of NISQ devices, a hybrid quantum machine-learning                                            classification using deep learning method,” IEEE Communications Letters,
+structure is robust, such as our proposed HQCNN using a                                              vol. 24, no. 10, pp. 2226–2230, Oct. 2020.
+flexible number of qubits. We will explore various hybrid                                       [19] L. Alzubaidi, J. Zhang, A. J. Humaidi, A. Al-Dujaili, Y. Duan, O. Al-
+                                                                                                     Shamma, J. Santamaría, M. A. Fadhel, M. Al-Amidie, and L. Farhan,
+quantum ML structures.                                                                               “Review of deep learning: Concepts, CNN architectures, challenges, ap-
+                                                                                                     plications, future directions,” Journal of big Data, vol. 8, pp. 1–74, Mar.
+                                                                                                     2021.
+REFERENCES                                                                                      [20] S. Lloyd, M. Mohseni, and P. Rebentrost, “Quantum principal component
+ [1] J. Wei, H. Wang, S. Su, Y. Tang, X. Guo, and X. Sun, “NLOS identification                       analysis,” Nature Physics, vol. 10, no. 9, pp. 631–633, Jul. 2014.
+     using parallel deep learning model and time-frequency information in                       [21] C. Blank, D. K. Park, J.-K. K. Rhee, and F. Petruccione, “Quantum
+     UWB-based positioning system,” Measurement, vol. 195, p. 111191, May.                           classifier with tailored quantum kernel,” npj Quantum Information, vol. 6,
+     2022.                                                                                           no. 1, p. 41, May. 2020.
+ [2] F. Liu, J. Liu, Y. Yin, W. Wang, D. Hu, P. Chen, and Q. Niu, “Survey on                    [22] T. Hur, L. Kim, and D. K. Park, “Quantum convolutional neural network
+     WiFi-based indoor positioning techniques,” IET communications, vol. 14,                         for classical data classification,” Quantum Machine Intelligence, vol. 4,
+     no. 9, pp. 1372–1383, Jun. 2020.                                                                no. 1, p. 3, Feb. 2022.
+ [3] Z. Li, K. Xu, H. Wang, Y. Zhao, X. Wang, and M. Shen, “Machine-                            [23] K. Mitarai, M. Negoro, M. Kitagawa, and K. Fujii, “Quantum circuit
+     learning-based positioning: A survey and future directions,” IEEE Net-                          learning,” Phys. Rev. A, vol. 98, p. 032309, Sep. 2018.
+     work, vol. 33, no. 3, pp. 96–101, May. 2019.                                               [24] A. Sebastianelli, D. A. Zaidenberg, D. Spiller, B. L. Saux, and S. L. Ullo,
+ [4] W. Wu, Z. Zhao, L. Shen, X. T. Kong, D. Guo, R. Y. Zhong, and                                   “On circuit-based hybrid quantum neural networks for remote sensing
+     G. Q. Huang, “Just Trolley: Implementation of industrial IoT and digital                        imagery classification,” IEEE Journal of Selected Topics in Applied Earth
+     twin-enabled spatial-temporal traceability and visibility for finished goods                    Observations and Remote Sensing, vol. 15, pp. 565–580, Dec. 2022.
+     logistics,” Advanced Engineering Informatics, vol. 52, p. 101571, Apr.                     [25] Y. Liang, W. Peng, Z.-J. Zheng, O. Silvén, and G. Zhao, “A hybrid
+     2022.                                                                                           quantum–classical neural network with deep residual learning,” Neural
+ [5] Y. Zhai, K. Chen, J. X. Zhou, J. Cao, Z. Lyu, X. Jin, G. Q. Shen,                               Networks, vol. 143, pp. 133–147, Nov. 2021.
+     W. Lu, and G. Q. Huang, “An internet of things-enabled BIM platform for                    [26] J. R. McClean, S. Boixo, V. N. Smelyanskiy, R. Babbush, and H. Neven,
+     modular integrated construction: A case study in Hong Kong,” Advanced                           “Barren plateaus in quantum neural network training landscapes,” Nature
+     Engineering Informatics, vol. 42, p. 100997, Oct. 2019.                                         communications, vol. 9, no. 1, p. 4812, Nov. 2018.
+ [6] S. Yadav, S. Luthra, and D. Garg, “Internet of things (IoT) based coor-                    [27] M. Schuld and F. Petruccione, Supervised learning with quantum comput-
+     dination system in Agri-food supply chain: development of an efficient                          ers. Springer, 2018, vol. 17.
+     framework using DEMATEL-ISM,” Operations management research,                              [28] V. Havlíček, A. D. Córcoles, K. Temme, A. W. Harrow, A. Kandala, J. M.
+     vol. 15, pp. 1–27, Sep. 2020.                                                                   Chow, and J. M. Gambetta, “Supervised learning with quantum-enhanced
+ [7] S. Aich, S. Chakraborty, M. Sain, H.-i. Lee, and H.-C. Kim, “A review                           feature spaces,” Nature, vol. 567, no. 7747, pp. 209–212, Mar. 2019.
+     on benefits of IoT integrated blockchain based supply chain management                     [29] M. Schuld and N. Killoran, “Quantum machine learning in feature Hilbert
+     implementations across different sectors with case study,” in 2019 21st in-                     spaces,” Physical review letters, vol. 122, no. 4, p. 040504, Feb. 2019.
+     ternational conference on advanced communication technology (ICACT).                       [30] S. Lloyd, M. Schuld, A. Ijaz, J. Izaac, and N. Killoran, “Quantum
+     IEEE, 2019, pp. 138–141.                                                                        embeddings for machine learning,” arXiv, 2020. [Online]. Available:
+ [8] F. John Dian, R. Vahidnia, and A. Rahmati, “Wearables and the internet of                       https://doi.org/10.48550/arXiv.2001.03622
+     things (IoT), applications, opportunities, and challenges: A survey,” IEEE                 [31] X. Yang, J. Wang, D. Song, B. Feng, and H. Ye, “A novel NLOS error
+     Access, vol. 8, pp. 69 200–69 211, Apr. 2020.                                                   compensation method based IMU for UWB indoor positioning system,”
+ [9] V. Bianchi, M. Bassoli, G. Lombardo, P. Fornacciari, M. Mordonini, and                          IEEE Sensors Journal, vol. 21, no. 9, pp. 11 203–11 212, May. 2021.
+     I. De Munari, “IoT wearable sensor and deep learning: An integrated                        [32] X. Yang, “NLOS mitigation for UWB localization based on sparse pseudo-
+     approach for personalized human activity recognition in a smart home                            input Gaussian process,” IEEE Sensors Journal, vol. 18, no. 10, pp. 4311–
+     environment,” IEEE Internet of Things Journal, vol. 6, no. 5, pp. 8553–                         4316, May. 2018.
+     8562, Oct. 2019.                                                                           [33] K. Bregar, A. Hrovat, and M. Mohorcic, “NLOS channel detection with
+[10] D.-H. Kim, A. Farhad, and J.-Y. Pyun, “UWB positioning system based                             multilayer perceptron in low-rate personal area networks for indoor lo-
+     on LSTM classification with mitigated NLOS effects,” IEEE Internet of                           calization accuracy improvement,” in Proceedings of the 8th Jožef Ste-
+     Things Journal, vol. 10, no. 2, pp. 1822–1835, Jan. 2023.                                       fan International Postgraduate School Students’ Conference, Ljubljana,
+[11] C. Jiang, S. Chen, Y. Chen, D. Liu, and Y. Bo, “An uwb channel impulse                          Slovenia, vol. 31, May. 2016, pp. 1–8.
+     response de-noising method for nlos/los classification boosting,” IEEE                     [34] M. A. Nielsen and I. L. Chuang, Quantum computation and quantum
+     Communications Letters, vol. 24, no. 11, pp. 2513–2517, Nov. 2020.                              information. Cambridge university press, 2010.
+[12] H. Yang, Y. Wang, C. K. Seow, M. Sun, M. Si, and L. Huang, “UWB                            [35] E. Stoudenmire and D. J. Schwab, “Supervised learning with tensor
+     sensor-based indoor LOS/NLOS localization with support vector machine                           networks,” Advances in neural information processing systems, vol. 29,
+     learning,” IEEE Sensors Journal, vol. 23, no. 3, pp. 2988–3004, Feb. 2023.                      2016.
+
+VOLUME 4, 2016                                                                                                                                                                  13
+
+
+                    This work is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 License. For more information, see https://creativecommons.org/licenses/by-nc-nd/4
+                    This article has been accepted for publication in IEEE Access. This is the author's version which has not been fully edited and
+                                              content may change prior to final publication. Citation information: DOI 10.1109/ACCESS.2023.3323019
+
+
+                                                                                              Author et al.: Preparation of papers for IEEE TRANSACTIONS and JOURNALS
+
+
+
+[36] R. LaRose and B. Coyle, “Robust data encodings for quantum classifiers,”                                                  HAE-JI HWANG received a B.S. degree in elec-
+     Phys. Rev. A, vol. 102, p. 032420, Sep. 2020.                                                                             trical engineering from Pusan National University,
+[37] I. Cong, S. Choi, and M. D. Lukin, “Quantum convolutional neural                                                          Busan, Korea, in 2021, where she is currently pur-
+     networks,” Nature Physics, vol. 15, no. 12, pp. 1273–1278, Aug. 2019.                                                     suing an integrated Ph.D. program at the Depart-
+[38] F. Vatan and C. Williams, “Optimal quantum circuits for general two-qubit                                                 ment of Information Convergence Engineering,
+     gates,” Physical Review A, vol. 69, no. 3, p. 032315, Mar. 2004.                                                          Pusan National University, Busan, Korea. Her cur-
+[39] D. Bokhan, A. S. Mastiukova, A. S. Boev, D. N. Trubnikov, and A. K.                                                       rent research interests include wireless networks
+     Fedorov, “Multiclass classification using quantum convolutional neural
+                                                                                                                               and machine learning.
+     networks with hybrid quantum-classical learning,” Frontiers in Physics,
+     vol. 10, p. 1173, Nov. 2022.
+[40] M. Broughton, G. Verdon, T. McCourt, A. J. Martinez, J. H. Yoo, S. V.
+     Isakov, P. Massey, R. Halavati, M. Y. Niu, A. Zlokapa et al., “Tensorflow
+     quantum: A software framework for quantum machine learning,” arXiv,
+     2020. [Online]. Available: https://doi.org/10.48550/arXiv.2003.02989
+[41] J. Romero, R. Babbush, J. R. McClean, C. Hempel, P. J. Love, and
+     A. Aspuru-Guzik, “Strategies for quantum computing molecular energies                                                 MIKIO HASEGAWA (Member, IEEE) received
+     using the unitary coupled cluster ansatz,” Quantum Science and Technol-
+                                                                                                                           the B.Eng., M.Eng., and Dr.Eng. degrees from
+     ogy, vol. 4, no. 1, p. 014008, Oct. 2018.
+                                                                                                                           the Tokyo University of Science, Japan, in 1995,
+[42] A. Mari, T. R. Bromley, and N. Killoran, “Estimating the gradient and
+     higher-order derivatives on quantum hardware,” Physical Review A, vol.                                                1997, and 2000, respectively. From 1997 to 2000,
+     103, no. 1, p. 012405, Jan. 2021.                                                                                     he was a Research Fellow with the Japan Society
+[43] M. Schuld, V. Bergholm, C. Gogolin, J. Izaac, and N. Killoran, “Evaluating                                            for the Promotion of Science (JSPS). From 2000
+     analytic gradients on quantum hardware,” Physical Review A, vol. 99,                                                  to 2007, he was with the Communications Re-
+     no. 3, p. 032331, Mar. 2019.                                                                                          search Laboratory (CRL), Ministry of Posts and
+[44] K. Mitarai, M. Negoro, M. Kitagawa, and K. Fujii, “Quantum circuit                                                    Telecommunications, which was reorganized as
+     learning,” Physical Review A, vol. 98, no. 3, p. 032309, Sep 2018.                                                    the National Institute of Information and Commu-
+[45] V. Bergholm, J. Izaac, M. Schuld, C. Gogolin, S. Ahmed,                                    nications Technology (NICT), in 2004. He is currently a Professor with the
+     V. Ajith, M. S. Alam, G. Alonso-Linaje, B. AkashNarayanan,                                 Department of Electrical Engineering, Faculty of Engineering, Tokyo Uni-
+     A. Asadi et al., “Pennylane: Automatic differentiation of hybrid                           versity of Science. His research interests include mobile networks, cognitive
+     quantum-classical computations,” arXiv, 2022. [Online]. Available:                         radio, neural networks, machine learning, and optimization techniques. He
+     https://doi.org/10.48550/arXiv.1811.04968                                                  is a Senior Member of IEICE.
+
+
+
+
+                                                                                                                          HIROO SEKIYA (Senior Member, IEEE) re-
+                                                                                                                          ceived B.E., M.E., and Ph.D. degrees in electri-
+                           SEON-GEUN JEONG received a B.S. degree in
+                                                                                                                          cal engineering from Keio University, Yokohama,
+                           electrical engineering from Pusan National Uni-
+                                                                                                                          Japan, in 1996, 1998, and 2001, respectively. Since
+                           versity, Busan, Korea, in 2017, where he is cur-
+                                                                                                                          April 2001, he has been with Chiba University,
+                           rently pursuing an integrated Ph.D. program at
+                                                                                                                          Chiba, Japan, where he is currently a Professor
+                           the Department of Information Convergence Engi-
+                                                                                                                          with the Graduate School of Engineering.
+                           neering, Pusan National University, Busan, Korea.
+                                                                                                                            His research interests include high-frequency
+                           His current research interests include wireless net-
+                                                                                                                          high-efficiency tuned power amplifiers, resonant
+                           works, quantum computing, quantum annealing,
+                                                                                                                          dc/dc power converters, wireless power transfer,
+                           quantum machine learning, and quantum informa-
+                                                                                                and digital signal processing for wireless communications. He has served
+                           tion.
+                                                                                                as a BoG member of IEEE CASS (2020-2025), AE of IEEE JESTPE, IEEE
+                                                                                                TCAS-II, IET CDS, and so on.
+
+
+
+
+                            QUANG VINH DO received his Bachelor’s de-                                                   WON-JOO HWANG (Senior Member, IEEE) re-
+                            gree in Electrical Engineering from Ho Chi Minh                                             ceived B.S. and M.S. degrees in Computer Engi-
+                            City University of Technology, Vietnam, in 2009,                                            neering from Pusan National University, Busan,
+                            his Master’s degree in Electronic and Computer                                              South Korea, in 1998 and 2000, respectively, and a
+                            Engineering from RMIT University, Australia, in                                             Ph.D. degree in Information Systems Engineering
+                            2013, and his PhD in Electrical Engineering from                                            from Osaka University, Osaka, Japan, in 2002.
+                            the University of Ulsan, South Korea in 2020. I                                             From 2002 to 2019, he was employed as a full-
+                            was a postdoctoral researcher at the University                                             time professor at Inje University, Gimhae, South
+                            of Ulsan, South Korea, from Sept. 2020 to Feb.                                              Korea. He is currently working as a full-time pro-
+                            2021. Since Mar. 2021, I have been a postdoctoral                                           fessor in the Biomedical Convergence Engineer-
+research fellow at the Artificial Intelligence Research Center, Pusan National                  ing Department, Pusan National University. His research interests include
+University, South Korea. His research interests are developing and applying                     optimization theory, game theory, machine learning, and data science for
+artificial intelligence techniques to wireless communication networks.                          wireless communications and networking.
+
+
+
+
+14                                                                                                                                                                VOLUME 4, 2016
+
+
+                    This work is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 License. For more information, see https://creativecommons.org/licenses/by-nc-nd/4
+

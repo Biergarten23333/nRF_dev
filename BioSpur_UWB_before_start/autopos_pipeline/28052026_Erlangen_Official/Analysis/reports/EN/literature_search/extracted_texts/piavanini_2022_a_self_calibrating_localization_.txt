@@ -1,0 +1,1261 @@
+               sensors
+Article
+A Self-Calibrating Localization Solution for Sport Applications
+with UWB Technology
+Marco Piavanini 1, *, Luca Barbieri 1 , Mattia Brambilla 1 , Mattia Cerutti 2 , Simone Ercoli 3 , Andrea Agili 3
+and Monica Nicoli 2
+                                          1   Dipartimento di Elettronica, Informazione e Bioingegneria, Politecnico di Milano, Via Ponzio 34/5,
+                                              20133 Milan, Italy
+                                          2   Department of Management, Economics and Industrial Engineering, Politecnico di Milano,
+                                              Via Lambruschini 4/B, 20156 Milan, Italy
+                                          3   Tracking4Fun S.r.l., Via delle Panche 140, 50141 Florence, Italy
+                                          *   Correspondence: marco.piavanini@polimi.it
+
+
+                                          Abstract: This study addressed the problem of localization in an ultrawide-band (UWB) network,
+                                          where the positions of both the access points and the tags needed to be estimated. We considered
+                                          a fully wireless UWB localization system, comprising both software and hardware, featuring easy
+                                          plug-and-play usability for the consumer, primarily targeting sport and leisure applications. Anchor
+                                          self-localization was addressed by two-way ranging, also embedding a Gauss–Newton algorithm
+                                          for the estimation and compensation of antenna delays, and a modified isolation forest algorithm
+                                          working with low-dimensional set of measurements for outlier identification and removal. This
+                                          approach avoids time-consuming calibration procedures, and it enables accurate tag localization by
+                                          the multilateration of time difference of arrival measurements. For the assessment of performance
+                                          and the comparison of different algorithms, we considered an experimental campaign with data
+                                          gathered by a proprietary UWB localization system.
+         
+         
+                                          Keywords: UWB; localization; antenna delay; anchor self-localization; outlier detection; Isolation
+Citation: Piavanini, M.; Barbieri, L.;
+                                          forest; Gauss–Newton algorithm; Levenberg–Marquardt algorithm
+Brambilla, M.; Cerutti, M.; Ercoli, S.;
+Agili, A.; Nicoli, M. A Self-
+Calibrating Localization Solution for
+Sport Applications with UWB
+Technology. Sensors 2022, 22, 9363.
+                                          1. Introduction
+https://doi.org/10.3390/s22239363              Owing to the integration of low power networking, microsensing, and data analytics
+                                          tools (e.g., cloud based), the Internet of Things (IoT) is nowadays becoming a reality in
+Academic Editor: Antonio Lázaro
+                                          everyday applications, such as smart industries [1], healthcare [2,3], and smart homes [4].
+Received: 2 November 2022                 An emerging field of application is related to sport and leisure activities owing to the
+Accepted: 25 November 2022                increasing availability of smart wearables [5], where sensors’ data collection and analysis
+Published: 1 December 2022                allow the monitoring of biological and kinematic parameters of athletes, developing smart
+Publisher’s Note: MDPI stays neutral
+                                          solutions for injuries prevention, activity recognition and tactics. Therein, accurate local-
+with regard to jurisdictional claims in
+                                          ization [6,7] is a critical requirement, and the commonly used Global Navigation Satellite
+published maps and institutional affil-   Systems (GNSSs) are no longer enough or may even be unavailable, such as in indoor
+iations.                                  environments. In sports applications, localization with submeter accuracy is mandatory
+                                          as multiple players fit within a restricted area and are often close each other. For example,
+                                          most game sports typically require accurate positioning, in the order of 15–20 cm, while also
+                                          demanding frequent location updates (e.g., 10–15 Hz) [8]. Furthermore, seamless solutions
+Copyright: © 2022 by the authors.         should be developed so as to provide reliable position estimates in outdoor, indoor, or
+Licensee MDPI, Basel, Switzerland.        mixed scenarios. Such stringent requirements call for novel signal-processing tools and/or
+This article is an open access article    specific positioning technologies. A promising possibility is represented by the employ-
+distributed under the terms and           ment of dedicated Wireless Sensor Networks (WSNs), where a set of sensor nodes equipped
+conditions of the Creative Commons
+                                          with wireless devices is able to detect signals and communicate with each other [9,10].
+Attribution (CC BY) license (https://
+                                          WSNs exploit radio signals to extract location-dependent measurements that characterize
+creativecommons.org/licenses/by/
+                                          the distance and/or the angle, typically, among any two connected devices. Depending on
+4.0/).
+
+
+
+
+Sensors 2022, 22, 9363. https://doi.org/10.3390/s22239363                                                      https://www.mdpi.com/journal/sensors
+Sensors 2022, 22, 9363                                                                                            2 of 22
+
+
+
+
+                         the required localization accuracy of the considered application, several technologies and
+                         methodologies can be used [11]. Among all the available solutions, Ultrawide-Band (UWB)
+                         technology [12–15] is one of the most promising. UWB positioning networks provide
+                         accurate ranging, reaching decimeter-level accuracy thanks to the large bandwidth [16,17].
+                         Moreover, UWB signals easily penetrate through many materials [18] and have a very short
+                         duration of pulses that makes them more robust against interference and less sensitive to
+                         multipath propagation effects [19–21].
+                              In UWB localization, a network of connected nodes, called anchors or Access Points
+                         (APs), is used to monitor an area of interest and localize users equipped with tags. In fixed
+                         deployments, the exact position of each AP is calculated within a preliminary calibration phase
+                         and then used as an input parameter by a localization algorithm. In temporary deployments,
+                         instead, a Self-Localization (SL) procedure to estimate the APs position is required, where
+                         each anchor node exchanges ranging messages with the neighbors to reconstruct the network
+                         geometry. Then, the tag localization can take place, where all anchors collect measurements
+                         for estimating the tag position, such as Time of Arrival (TOA), Angle of Arrival (AOA), Time
+                         Difference of Arrival (TDOA), and Received Signal Strength (RSS) [22–25]. In this study, we
+                         focused on a UWB localization system for sport applications, where SL is performed with
+                         periodic exchange of TOA measurements, and the tags are localized via multilateration over
+                         TDOA measurements.
+
+                         1.1. Related Works
+                               The available SL approaches use ranging [26], angle [27], or inertial measurements [28].
+                         Fusion algorithms are required to integrate such measurement [29], like multidimensional
+                         scaling [30], semidefinite programming [31], or trilateration approaches [32,33].
+                               The anchors’ SL is affected by the errors generated by the electronic components
+                         of UWB devices as well as of non-ideal propagation conditions. In particular, delays
+                         are introduced by the receiving and/or transmitting antennas, called antenna delays.
+                         Compensation procedures have been devised to correct such delays. Examples are Particle
+                         Swarm Optimization (PSO) [34] and nonparametric method taking into account the antenna
+                         delay statistics [35]. Other procedures rely on genetic-like algorithms [36] or customized
+                         ranging message schemes [37]. The aforementioned compensation methods target the
+                         estimation of the overall antenna delay among any pair of UWB nodes. Nevertheless,
+                         isolating the specific transmitting and/or receiving contribution on the antenna delay of
+                         UWB nodes is required when dealing with one-way measurement procedures (such as
+                         TDOA), as the same UWB nodes are used for SL and tag localization. Algebraic solutions
+                         were proposed in [38], while a semidefinite programming framework was devised in [39].
+                         Other methods rely on supervised learning techniques [40] that aim to learn them with a
+                         data-driven approach.
+                               UWB systems can also be affected by outliers, due to inaccuracies in ranging esti-
+                         mation, synchronization issues, and packet decoding errors. Outlier identification and
+                         removal are other crucial steps for obtaining precise ranging measurements. Supervised
+                         learning techniques relying on recurrent neural networks and support vector machines
+                         were proposed by [41,42], respectively. Unsupervised methods have also been developed,
+                         focusing on k-nearest neighbor [43], local outlier factor [44], and Isolation Forest Algo-
+                         rithm (IFA) [45] approaches. Maximum likelihood estimation was considered in [46] to
+                         filter out outliers and improve the localization accuracy.
+                               Concerning tag localization, Least Square (LS) solutions [47] have been successfully
+                         applied for position estimation exploiting Gauss–Newton (GN) or Levenberg–Marquardt
+                         (LM) algorithms. Other popular solutions for localization are RSS-based fingerprinting
+                         techniques [48,49]. Lastly, Bayesian approaches are also common [15], as they integrate
+                         side information such as environment conditions [50], map information [51,52], sensor
+                         fusion [53,54], or channel impulse response [55].
+Sensors 2022, 22, 9363                                                                                               3 of 22
+
+
+
+
+                         1.2. Study Contributions
+                               We designed a fully wireless (i.e., not requiring any cabling) UWB localization system
+                         that relies on Decawave DW1000 devices and integrates augmentation algorithms to improve
+                         positioning accuracy. The new platform (both software and hardware) provides a friendly
+                         interface and installation is easy (i.e., without tedious calibration procedures) such that non-
+                         expert and non-trained users can easily deploy this system anytime and anywhere. These
+                         features allow the system to be positioned for sports markets as a main target. The proposed
+                         system was designed accounting for the main sources of errors degrading the localization
+                         accuracy and integrating novel countermeasures as detailed below:
+                         •    Time of Flight (TOF) measurements among APs are used to reconstruct the network
+                              geometry in the SL procedure. An algorithm based on GN is used to handle the
+                              errors due to antenna delays in the TOF estimate. The algorithm relies on an iterative
+                              procedure for estimating the antenna delay by minimizing the difference between
+                              the true and estimated TOF at each UWB node. Compared with other methods such
+                              as [34], the proposed method converges to the optimal solution and can be applied to
+                              conventional ranging schemes, avoiding the definition of custom messages as in [37].
+                         •    Outlier identification and removal is here addressed by proposing a modified IFA. Com-
+                              pared with the standard IFA [45], the proposed algorithm can tackle a very-low-dimensional
+                              set of measurements while achieving high accuracy in detecting outliers. This method was
+                              designed due to the low number of TOF measurements available for anchors’ SL.
+                         •    For anchors’ SL, we developed an iterative algorithm that exploits the filtered TOF
+                              measurements to reconstruct the system geometry. The algorithm, inspired by [26],
+                              iteratively searches for an AP configuration that minimizes the residual error between
+                              the TOF measurements provided by the UWB system and the distances extracted from
+                              the positioned anchors. Rather than relying on complex optimization procedures, such
+                              as the ones proposed in [31], the developed algorithm relies on GN algorithm which is
+                              computationally efficient.
+                         •    Tag localization is achieved by multilateration of TDOA measurements. To compen-
+                              sate for the TDOA antenna delay at the anchors, we statistically modeled the TDOA
+                              measurements and extracted the corresponding delay through an inversion operation.
+                              Compared with the other approaches available in the literature, the proposed approach
+                              does not require any training procedure, as opposed to [40] or complex optimization
+                              procedures as in [39].
+                               An experimental campaign was conducted at the IoTLab facility of the Politecnico
+                         di Milano to extract raw UWB data and assess all the developed techniques. The aim
+                         of the analysis was to evaluate the benefits of using algorithms for outlier identification
+                         as well as for antenna delay calibration. The experimental results indicated that the
+                         developed techniques are particularly effective in enhancing the positioning accuracy of the
+                         anchors, especially when the antenna delay and the outliers are properly handled. Then,
+                         we evaluated the tag localization performance considering the GN and LM algorithms. The
+                         numerical results showed that when combining all the proposed compensation procedures,
+                         the accuracy in tag positioning using the anchors’ SL algorithm is comparable to that when
+                         knowing the true positions of the AP in advance.
+                               Part of this study was presented in [56], where the problem of Asymmetric Double-
+                         Sided Two-Way Ranging (ADS-TWR) antenna delay calibration and its impact on the
+                         anchor SL were studied. Here, we further detail the calibration for SL, also including
+                         outlier identification and removal. Moreover, we assessed the impact of accurate SL on tag
+                         SL, analyzing both the position error and the availability of the estimate.
+                              The remainder of this paper is structured as follow: Section 2 outlines the ranging methods;
+                         Section 3 describes the impact of antenna delay and compensation methodologies. Section 4
+                         describes the modified IFA for outlier detection; Section 5 describes the anchors’ SL and tag
+                         localization LS methods. In Section 6, we discuss the experimental setup and define the
+                         performance metrics. Section 7 presents the results of the experimental campaign; lastly, Section 8
+                         discusses the conclusions and objectives for future work.
+Sensors 2022, 22, 9363                                                                                               4 of 22
+
+
+
+
+                         2. System and Measurement Models
+                              We considered an UWB network with N static APs, placed at the same height and at
+                         positions pi = [ pi,x pi,y ]T ∈ R2 , ∀i ∈ {1, . . . , N }, and monitoring a three-dimensional (3D)
+                         area U ∈ R3 . The APs had to localize a set of UWB user tags by multilateration of TDOA
+                         measurements. An SL procedure was carried out during the installation phase to allow the
+                         APs to estimate their positions by the exchange of ranging messages. The measurements
+                         used for anchors’ SL are discussed in Section 2.1, followed by details on the measurement
+                         model for tag localization in Section 2.2.
+
+                         2.1. Measurements for AP Network Localization
+                               To estimate the positions of APs (i.e., for network SL), we considered the ADS-TWR
+                         algorithm [57] as it offers more resilient capabilities for synchronization issues compared
+                         with one-way ranging procedures [58]. It uses TOF estimates between anchor pairs to
+                         retrieve the distance by the exchange of ad hoc ranging messages. Furthermore, compared
+                         with symmetric double-sided schemes, ADS-TWR reduces the overall number of messages
+                         exchanged between anchor pairs, limiting the impact of clock offsets [58].
+                               ADS-TWR relies on the exchange of three messages between two APs for TOF esti-
+                         mation, as depicted in Figure 1. Let us suppose the pair (APi, APj) of anchors, with i 6= j,
+                         involved in the ADS-TWR message exchange. At time t1 , APi sends a ranging message to
+                         APj, which receives it at time t2 and replies back at time t3 , after waiting for a fixed time
+                         τreply,j . Once APi receives the message from APj at time t4 , it waits for a fixed time τreply,i
+                         and then sends another message at time t5 . The procedure ends up with the reception of
+                         the message by APj at time t6 . The goal of the ADS-TWR procedure is to estimate the TOF
+                         τij between the two APs, which amounts to [59]
+
+                                                                   τround,i τround,j − τreply,i τreply,j
+                                                       τ̂ij =                                             ,             (1)
+                                                                τreply,i + τreply,j + τround,i + τround,j
+
+                         where τround,i = t4 − t1 = 2τij + τreply,j and τreply,i are the Round Trip Time (RTT) and reply
+                         time of anchor i, respectively. Similarly, τround,j = t6 − t3 = 2τij + τreply,i and τreply,j are
+                         the RTT and reply time of anchor j, respectively. From the TOF, the estimated distance
+                         between a pair of anchors is dˆij = c τ̂ij , where c is the speed of light.
+                                t1          τround,i               t4    τreply,i   t5
+
+                                                                                                               t
+                          APi        τi,j                        τi,j                    τi,j
+
+
+
+                                            τreply,j                    τround,j                               t
+                                       t2                t3                                t6
+                          APj
+
+                         Figure 1. Message exchange with ADS-TWR procedure.
+                                                                                            1
+
+                                The TOF in (1) does not take into account the additional errors that may be introduced
+                         during range estimation. The radio signals used to exchange ranging messages are subject to
+                         the undesired delays introduced by the radio transceivers. These delays, referred to as antenna
+                         delays [34], need to be properly characterized and estimated to minimize their degradation
+                         impact. The impact of antenna delays on the ADS-TWR message scheme is depicted in
+                         Figure 2, where we highlight the contributions of the antenna delay at anchor i, i.e., τTX,i and
+                         τRX,i , and at anchor j, i.e., τTX,j and τRX,j . Note that we decomposed the antenna delay into
+                         transmitter (TX) and receiver (RX) contributions as physical antenna implementations may be
+                         subject to manufacturing imperfections leading to different antenna delays at TX and RX. The
+                         RTT introduced in (1) was reformulated to take into account these delays as
+Sensors 2022, 22, 9363                                                                                                                  5 of 22
+
+
+
+
+                                                           τround,i =t4 − t1 = 2τij + τreply,j + τAD,ij                                    (2)
+                                                           τround,j =t6 − t3 = 2τij + τreply,i + τAD,ij                                    (3)
+
+                         with
+                                                                  τAD,ij = τTX,i + τRX,i + τTX,j + τRX,j ,                                 (4)
+                                                                           |     {z   } |        {z   }
+                                                                                 τD,i                      τD,j
+
+                         where τAD,ij is the total antenna delay introduced by the anchor pair i and j; τD,i and τD,j
+                         are the individual antenna delay contributions of anchors i and j, respectively. If we do not
+                         take into account effect of the antenna delays in (1), the TOF estimation would be
+                                                                                                    τAD,ij
+                                                                         ∆τij = τ̂ij − τij =               .                               (5)
+                                                                                                      2
+                              By accounting for the antenna delays, the estimated TOF in (1) transforms into the
+                         following estimate:
+                                                                                                                            2
+                                                    τround,i τround,j − τreply,i τreply,j − (τreply,i + τreply,j )τAD,ij − τAD,ij
+                                 τ̂ij (τAD,ij ) =                                                                                   .      (6)
+                                                                    τreply,i + τreply,i + τround,i + τround,j + 2τAD,ij
+
+                              Then, the distance between the two APs is dˆij = c τ̂ij (τAD,ij ). By knowing the antenna
+                         delays and using (6), it is possible to eliminate the positive bias in the TOF estimate
+                         introduced by the UWB modules.
+                                 U1                   ⌧ˆround,i                   U4    ⌧ˆreply,i     U5
+
+                                                                                                                          t
+                                 ⌧TX,i                                         ⌧RX,i                  ⌧TX,i
+                          APi
+                                            ⌧RX,j                   ⌧TX,j                                         ⌧RX,j
+
+
+                                               U2     ⌧ˆreply,j     U3                  ⌧ˆround,j                    U6   t
+                          APj
+                                                                       1
+                         Figure 2. Message exchange with ADS-TWR procedure in presence of antenna delays.
+
+                         2.2. Measurements for Tag Localization
+                               TDOAs are estimated as the difference between pseudo ranges gathered at the reference
+                         station (i.e., the master anchor AP1) and any other APi, for i = 2, . . . , N. The procedure
+                         for estimating the TDOA among anchor pair {1, i } is depicted in Figure 3, considering the
+                         contribution of the antenna delays. At time t1 , the tag sends a message that carries the
+                         transmission antenna delay τTX,tag . This message is received by both APi and AP1 at times t2
+                         and t3 , respectively. After the successful reception of the message, APi can extract the TOF as
+
+                                                                   τ̂i = t2 − t1 = τi + τTX,tag + τRX,i ,                                  (7)
+
+                         where τTX,tag is the transmitting antenna delay of the tag, and τRX,i is the receiving antenna
+                         delay of APi. Similarly, the master obtains the TOF as
+
+                                                                  τ̂1 = t3 − t1 = τ1 + τTX,tag + τRX,1 .                                   (8)
+
+                                At this point, the TDOA measurement between the AP pair {1, i } can be computed as
+
+                           ρi,1 = c (τ̂i − τ̂1 ) = c (τi + τTX,tag + τRX,i − τ1 − τTX,tag − τRX,1 ) = di − d1 + bi − b1 ,                  (9)
+
+                         where di = c τi and d1 = c τ1 are the true ranges between the ith AP and the tag and between
+                         the master and the tag, respectively. It should be noted that the TDOA error originates
+                         only from the receiving antenna delay of the anchors, as the transmitting antenna delay of
+Sensors 2022, 22, 9363                                                                                                 6 of 22
+
+
+
+
+                         the tag is eliminated. The overall set of TDOA measurements ρ = [ρ2,1 · · · ρ N,1 ]T can be
+                         expressed in compact notation as
+
+                                                                       ρ = h(u) + ∆b ,                                   (10)
+
+                         where u = [u x uy uz ]T is the 3D tag position, h(u) = [h2,1 (u) · · · h N,1 (u)]T with
+                         hi,1 (u) = di − d1 being the measurement model, and ∆b = [∆b2 · · · ∆b N ]T with
+                         ∆bi = bi − b1 and bi = cτRX,i the antenna delay’s bias vector.
+
+                                         t1            τi
+                                                                       τ1
+                                                                                                        t
+                                         τTX,tag
+                             Tag
+
+                                                            τRX,i
+
+
+                                                              t2                                        t
+                            APi
+
+                                                                                             τRX,1
+
+
+                                                                                               t3       t
+                         Master AP
+                                                                       1
+                         Figure 3. TDOA estimation procedure between AP i and master AP in presence of antenna delays.
+
+                         3. Antenna Delay Calibration
+                              In this section, we detail the proposed methodology to compensate for the antenna
+                         delays described in Section 2. Specifically, we address the problem of Antenna Delay
+                         Calibration (ADC) of ADS-TWR in Section 3.1, whereas Section 3.2 focuses on the calibration
+                         of the TDOA antenna delay.
+
+                         3.1. ADS-TWR Antenna Delay Calibration
+                              Rather than relying on PSO, we use a GN algorithm for AD compensation, which is
+                         more computationally efficient and provides optimal solutions, as it does not randomly
+                         search in the solution space. The goal of ADC is to estimate the total antenna delay
+                         introduced by each APi, ∀i ∈ {1, . . . , N }. By combining all the total antenna delays into the
+                         vector τ AD = [τAD,12 · · · τAD,1N τAD,21 · · · τAD,( N −1) N ]T and the total individual antenna
+                         delays into τ D = [τD,1 · · · τD,N ]T , it is possible to rewrite (4) as
+
+                                                                            τ AD = Mτ D ,                                (11)
+                                                  
+                         where M = mij with mij ∈ {0, 1} is a transformation matrix encoding the relations
+                         τAD,ij = τD,i + τD,j . Then, the antenna delays of each anchor are estimated according to
+
+                                                                    τ D = (MT M)−1 Mτ AD .                               (12)
+
+                              Solving (12) requires the knowledge of τ AD , whose elements can be extracted using
+                         GN methods as detailed in the following.
+                              The ADC process considers a generic deployment of N APs in a given area, in which
+                         the ADS-TWR procedure is used to measure the TOF in (6) and to estimate the distances
+                         between all the anchor pairs. It consists of exchanging multiple successive ranging messages
+                                                            (m)
+                         carrying TOF information. Let τbij denote a single TOF estimate between APi and APj,
+                                   (m)         (m)                                          (m) M
+                         with dbij       = c τbij , the associated range; and with Dij = {dbij }m=ij 1 , the whole set of Mij
+Sensors 2022, 22, 9363                                                                                                          7 of 22
+
+
+
+
+                         distance measurements collected at AP pair {i, j}. The total contribution of the antenna
+                         delay for APi and APj, i.e., τAD,ij , is obtained solving the following optimization problem:
+
+                                                    Mij                           2                 Mij                 2
+                                                                    (m)                                        (m)
+                            τbAD,ij = arg min ∑             dij − dbij (τAD,ij )        = arg min ∑ c2 τij − τbij (τAD,ij ) .    (13)
+                                           τAD,ij                                             τAD,ij
+                                                    m =1                                               m =1
+
+                             Let us suppose a solution τ AD,ij for (13) is available from a previous time step. The
+                         updated estimate is computed according to the LS criterion as
+                                                                                                     T
+                                                                                         h τ AD,ij      ∆τ
+                                                               τbAD,ij ← τ AD,ij +                      2 ,                     (14)
+                                                                                           h τ AD,ij
+
+                                                   (1)                  ( Mij )                              (1)             ( Mij )
+                                                                                /∂τAD,ij ]T and ∆τ = [τij − b               τij ]T.
+                                          
+                         where h τAD,ij = [∂b     τij /∂τAD,ij · · · ∂bτij                                  τij · · · τij − b
+                         The algorithm starts from a random guess at time t = 0, and then, at each iteration, generates
+                         a new solution using (14): it stops after reaching a maximum number of iterations or when the
+                         residual |∆τAD,ij | = |bτAD,ij − τ AD,ij | becomes lower than a certain threshold. This procedure
+                         is iterated over all possible anchor pairs to populate the vector τ AD . Thus, from τ AD , it is
+                         possible to estimate τ D using (12). The entries of τ D are then saved in the corresponding UWB
+                         module memory of the anchors. Every time APi and APj perform an ADS-TWR procedure, APi
+                         includes τD,i into the payload of the first message. Upon completion of the message scheme, APj
+                         reconstructs τAD,ij from its antenna delay τD,j and the one received from APi, i.e., τD,i , using (4)
+                         to calculate the TOF according to (6).
+
+                         3.2. TDOA Antenna Delay Calibration
+                               To use more accurate TDOA measurement for tag localization, the antenna delay must be
+                         compensated, as discussed in Section 2.2. The compensation procedure requires to estimate only
+                         the receiving antenna delay contribution at the AP as the antenna delay of the tag is eliminated
+                         when the TDOA is computed. The algorithm for ADS-TWR proposed in Section 3.1 is able to
+                         estimate the total antenna delay τD,i introduced by each AP, but it cannot isolate the TX and RX
+                         contributions, i.e., τTX,i and τRX,i . To overcome this limitation, we designed a novel procedure to
+                         extract the RX contribution τRX,i and compensate for the TDOA measurement. Suppose that Nt
+                                                        N
+                         TDOA measurements {ρt }t=k1 are estimated using tag with known positions {ut }tN=t 1. We can
+                         use the Nt TDOA measurements to calculate the vector ∆b using the sample mean estimator as
+
+                                                                            1 Nt
+                                                                            Nt t∑
+                                                                    ∆b =           (ρ t − h(ut )) .                              (15)
+                                                                                =1
+
+                              We can then write the vector ∆b as a linear system
+
+                                                                             ∆b = F b,                                           (16)
+
+                         where the elements of matrix F ∈ R( N −1)xN are constructed as
+                                                      
+                                                      −1 j = 1 ∧ ∀i = 1, . . . , N
+                                                      
+                                                Fij =     1 ∀ j = 2, . . . , N ∧ i = j − 1                     .                 (17)
+                                                      
+                                                          0 otherwise
+                                                      
+
+                              Because the system in (16) is overdetermined, we propose solving it according to the
+                         LS criterion, which leads to
+                                                             b = (FT F)−1 FT ∆b .                             (18)
+                              Each value bi of vector b, for i = 1, . . . , N, is stored in the corresponding anchor,
+                         and it is sent to the master anchor at the beginning of the localization phase. The master
+Sensors 2022, 22, 9363                                                                                                 8 of 22
+
+
+
+
+                         anchor uses the received values to compute the vector ∆b, which is subtracted from (10) to
+                         compensate for the antenna delay bias.
+
+                         4. Modified 1D IFA for Outlier Removal
+                              Data acquired from real-world systems are usually affected by skewed or out-of-
+                         distribution samples. These samples, commonly called outliers, need to be properly
+                         handled to avoid a drastic reduction in localization performance. In this section, we
+                         describe a method to detect and filter such outliers from the ADS-TWR measurements.
+                         To tackle this problem, we applied a monodimensional (1-D) IFA [45], an unsupervised
+                         learning algorithm for anomaly detection. In the following, we first describe how the 1D
+                         IFA works, then we show how we adapted it to our specific settings.
+                              Let us consider the problem of detecting outliers and separate them from a set
+                         S = {s1 , . . . , s Ns } of 1D data with cardinality |S| = Ns . The 1D IFA algorithm requires
+                         the definition of the following structures:
+                         •     Isolation Tree (iTree): It is a binary tree, where each node has either zero or two child
+                               nodes. Nodes can be either external or internal depending on their position into the tree.
+                               An internal node is denoted as intNode(CL , CR , α), where CL and CR are the left and right
+                               child nodes, respectively; and α is the split value that defines the separation between CL
+                               data and CR data. An external node is denoted as extNode(set, size), being thus defined
+                               on the set of data points belonging to the extNode and its cardinality.
+                         •     Path length is denoted as P(sm ); it measures the depth of the data point sm in the iTree.
+                               Outliers typically have shorter path lengths because they are more likely to be isolated.
+                         •     Isolation forest: It is a set composed by a fixed number NF of iTrees that are generated
+                               on the same set of data S .
+                              A recursive procedure is used to generate an iTree. It splits the set S into CL and CR
+                         upon a random selection of the value α, and it is repeated until either |S| = 1 or the depth
+                         of the node has reached a maximum length LMAX . The pseudo-code for the algorithm is
+                         shown in Algorithm 1. The isolation forest is then created by generating NF iTrees from
+                         the same input set S . The overall process for generating the Isolation forest is sketched in
+                         Figure 4.
+
+                             Algorithm 1: iTree(S , n, LMAX )
+                               Result: Isolation Tree
+                               Input input set S , current edge size n, max edge size LMAX
+                               if |S| = 1 or n ≥ LMAX then
+                                   return extNode(set = S , size = |S|)
+                               else
+                                   α ∼ U (min{S}, max{S)}
+                                   CL = {sm | sm < α ∀sm ∈ S}
+                                   CR = {sm | sm ≥ α ∀sm ∈ S}
+                                   return intNode(left = iTree(CL , n + 1, LMAX ), right = iTree(CR , n + 1, LMAX ),
+                                    split = α)
+                               end
+
+
+                               After the generation of the isolation forest, the score of each data point sm is computed as
+
+                                                                              E{ P(sm )}
+                                                                             −
+                                                          score(sm , |S|) = 2  c(|S|) ,                                 (19)
+
+                         where E{ P(sm )} is the expected value of the path length P(sm ); thus, it is the aver-
+                         age length of each external node containing sm , and c( x ) = 2C ( x − 1) − 2( x − 1)/x,
+                         with C (n) = ln(n) + 0.5772156649 is the estimated value of the harmonic number. In-
+                         tuitively, if score(sm , |S|) is close to one, the corresponding data can be confidently marked
+                         as an anomaly. As a last step, it is necessary to define a threshold τsh such that a data point
+Sensors 2022, 22, 9363                                                                                                     9 of 22
+
+
+
+
+                         with score(sm , |S|) ≥ τsh is considered as potential outlier. The choice of τsh is important
+                         for the performance of the outlier detection. In [45], τsh = 0.6 was suggested. We tested
+                         different values of τsh and finally selected τsh = 0.53 as the the best one. We highlight that
+                         this value can be different if other scenarios are considered.
+                                                                     Isolation tree                Isolation forest
+
+
+                                          α
+                         Step 1                                       s1
+                                   s1           s2 s3       s4
+                                                        α
+                         Step 2                                            s4
+                                                s2 s3       s4
+                                                  α
+                         Step 3                                                 s3    s2
+                                                s2 s3
+                                                                 1
+                         Figure 4. Isolation forest example with |D| = 4.
+
+                              To adapt the IFA scheme to our case characterized by few UWB ranging measurements
+                                                                                                          (m) Mij
+                         for each anchor pair, let us define the IFA input set as S , Dij , where Dij = {b
+                                                                                                         d }      is  ij   m=1
+                         the set of distance measurements between APi and APj defined in Section 3.1. The number
+                         of iTrees per isolation forest is NF = 100, while the maximum tree length LMAX depends on
+                         the size of the input set Dij , and it is calculated as LMAX = log2 ( Mij ). The cardinality of the
+                         distance measurements set may impact on the performance for outlier removal. When |Dij | ≤ 3,
+                         it is unreliable to discriminate whether a data point is an outlier. Considering that the UWB
+                         system exchanges few ranging measurements for each anchor pair and many of them may be
+                         unsuccessful, we propose a modification of the original algorithm to tackle sets with very few
+                         data points.
+                                In the modified IFA, we first calculate the cardinality |Dij | of the input set. If |Dij | > 3,
+                         we execute the normal IFA described before; otherwise, we measure the range of the set by
+                         making the difference between the maximum and the minimum value of the set Dij as
+
+                                                                 β = max{Dij } − min{Dij } .                                (20)
+
+                              If β ≤ 1 m, we left the set unchanged. Otherwise, the algorithm starts an iterative procedure
+                         by generating a uniform random number α ∼ U (min{Dij }, max{Dij }) and separates Dij
+                         into two clusters, counting which data point is isolated. Because we have only three data
+                         points, the isolated one could be either max{Dij } or min{Dij }. This separation is repeated
+                         for NF = 100 times, counting if the maximum value is isolated at each iteration, obtaining the
+                         number Ncm . We eliminate max{Dij } if Ncm ≥ 90 or min{S} if ( NF − Ncm ) ≥ 90.
+                              To illustrate the process of 1D IFA for outlier detection, we report an example of
+                         raw ADS-TWR measurements in Figure 5a, where outliers are marked with red crosses;
+                         in Figure 5b, we report the same ADS-TWR measurements after the outlier correction.
+                         Figure 5b highlights how the data points that are considered as outliers are removed by 1D
+                         IFA. Further analysis of the performance of the outlier detection algorithm is provided in
+                         Section 7.
+Sensors 2022, 22, 9363                                                                                                            10 of 22
+
+
+
+
+                                         (a) without IFA                                     (b) with IFA
+
+                         Figure 5. Outlier filtering by the proposed 1D IFA: (a) range measurements before outlier filtering
+                         and (b) after outlier filtering.
+
+                         5. Localization Methods
+                              In this section, we detail the localization algorithms used for both anchors’ SL
+                         (Section 5.1) and tag localization (Section 5.2). Obtaining precise information on the
+                         AP locations is fundamental as they not only influence the tag position estimate but
+                         also the time-synchronization procedures. For this reason, despite being independent,
+                         the two localization algorithms are strongly paired, as the poor accuracy of anchors’ SL
+                         unavoidably prevents accurate tag positioning.
+
+                         5.1. Anchors Self-Localization
+                                We propose a SL procedure to estimate the AP positions. The automatization of this
+                         process avoids the need to manually measure each anchor-to-anchor distance to retrieve
+                         the overall anchor geometry, which is not only time consuming but also prone to human
+                         errors. SL is here performed using the ADS-TWR measurements estimated by the UWB
+                         system.
+                                We propose an iterative algorithm, inspired by [26], to estimate the AP position
+                         pi , ∀i ∈ {1, . . . , N }. We denote the estimate of pi as p
+                                                                                    b i . The procedure assumes that the first
+                         two anchors are placed on the same line, and it exploits the estimated anchor-to-anchor distance
+                                                                                                                  Mij    (m)
+                         averaged over all available measurements between APi and APj, i.e., d¯ij = 1/Mij ∑            db .   m=1 ij
+                               The proposed approach, summarized in the pseudo code of Algorithm 2, works as
+                         follows: At first, two anchors, out of the total N available, are assumed to be positioned
+                                             b 2 = [d¯1,2 0]T (note that one could choose to deploy the two initial APs
+                            b 1 = [0 0]T and p
+                         at p
+                         along the orthogonal axis, i.e., p  b 1 = [0 0]T and p̄2 = [0 d¯1,2 ]T , obtaining an equivalently
+                         valid final solution). We then iteratively search for the position of the remaining anchors by
+                         applying the GN algorithm. For the ith AP, with i = 3, . . . , N, we initialize its estimate pb i in
+                         a random location within a square area of dimension max(D)        b × max(D)    b and origin (0, 0),
+                         with D̄ = {d¯ij : 1 ≤ i ≤ N, 1 ≤ j ≤ N, i 6= j}. We then iteratively update the estimate p    b i as
+
+                                                           p    b i + ( G T G ) −1 G T ( r − g ( p
+                                                           bi = p                                b i )) ,                            (21)
+
+                         where r = [d¯i,1 · · · d¯i,i−1 ]T collects the ADS-TWR measurements of preceding APs (i.e., up to
+                         index i − 1), g(pb i ) = [kp  bi − pb 1 k · · · kp    b i−1 k]T and G = [∂g(p
+                                                                          bi − p                     b i )/∂b
+                                                                                                            p1 · · · ∂g(p      p i −1 ] T .
+                                                                                                                        b i )/∂b
+                         This procedure is repeated until convergence, i.e., when the improvement
+                         |∆p| = |(GT G)−1 GT (r − g(p          b i ))| over the previous iteration is below a threshold δ or
+                         a maximum number of iterations Imax is reached. Once a first position estimate is obtained
+                         for all anchors, the algorithm is run a second time to improve the localization accuracy.
+                         Now, each anchor is estimated taking into account all other anchors rather than considering
+                         only the preceding ones. More specifically, if we consider anchor APi to be currently posi-
+                         tioned, in the first iteration, it is updated considering the anchors up to APi −1, while now
+                         it is estimated considering all other anchors except APi. This improves the performances of
+Sensors 2022, 22, 9363                                                                                                                      11 of 22
+
+
+
+
+                         the SL procedure, especially for the first anchors, i.e., for i  N. In the second iteration,
+                         the updated AP position estimate is still performed using (21), but now with variables
+                         r = [d¯i,1 · · · d¯i,i−1 d¯i,i+1 · · · d¯i,N ]T , g(p
+                                                                             b i ) = [kp
+                                                                                       bi − p
+                                                                                            b 1 k · · · kp
+                                                                                                         bi − pb i −1 k k pbi − p
+                                                                                                                                b i +1 k · · · k p
+                                                                                                                                                 bi −
+                         b N k]T and G = [∂g(p
+                         p                              b i )/∂b p1 · · · ∂g(pb i )/∂b
+                                                                                     pi−1 ∂g(p  b i )/∂b pi+1 · · · ∂g(p       p N ]T . A metric
+                                                                                                                        b i )/∂b
+                         is introduced to evaluate how close the distances, extracted from the newly positioned
+                         anchors, are to the available TOA measurements. Formally, it is computed as
+
+                                                                           N   N       (kp
+                                                                                         bi − pb j k − d¯ij )2
+                                                                   e= ∑∑                                       .                               (22)
+                                                                          i =1 j 6 = i
+                                                                                           N ( N − 1)
+
+                              The final AP positions pb i , ∀i ∈ {3, . . . , N } are obtained once e < emin or when the
+                         maximum number of iterations Imax is reached. It should be noted that (22) assesses only
+                         how close or far the relative distances of the anchors are with respect to the TOAs. Thus,
+                         obtaining precise TOA measurements among APs is of fundamental importance. This
+                         aspect is further analyzed in Section 7 to show how the performance varies when directly
+                         estimating the anchors’ positions from uncorrected TOAs, after applying the ADS-TWR
+                         antenna delay procedure and after removing any outlier from the ranging measurements.
+
+                            Algorithm 2: Autolocalization(D̄ , emin , Imax , δ)
+                              Result: Anchors positions p           bi
+                              Input: D̄ , emin , Imax , δ
+                                  b 2 = [d¯1,2 0]T , p
+                              set p                   b i = [0 0]T ∀i = 1, 3, . . . , N
+                              for i = 3, · · · , N do
+                                  set k = 1, |∆p| = ∞, p       b i = [U (0, max(D̄) U (0, max(D̄)]T
+                                  while |∆p| > δ and k < Imax do
+                                      g(pb i ) = [kp bi − p  b 1 k · · · kp    b i−1 k]T
+                                                                          bi − p
+                                      r = [d¯i,1 · · · d¯i,i−1 ]T
+                                         G = [∂g(p
+                                                 b i )/∂b
+                                                        p1 · · · ∂g(p      p i −1 ] T
+                                                                    b i )/∂b
+                                         ∆p = (GT G)−1 GT (r − g(p
+                                                                 b i ))
+                                              b i + ∆p
+                                         bi = p
+                                         p
+                                       k = k+1
+                                   end
+                               end
+                               set l = 1, e = ∞
+                               while e > emin and l < Imax do
+                                   for i = 3, . . . , N do
+                                       set k = 1, |∆p| = ∞, p       b i = [U (0, max(D̄) U (0, max(D̄)]T
+                                       while |∆p| > δ and k < Imax do
+                                           g(p
+                                             b i ) = [kp  bi − p  b 1 k · · · kp
+                                                                               bi − p b i −1 k k p
+                                                                                                 bi − p
+                                                                                                      b i +1 k · · · k p    b N k]T
+                                                                                                                       bi − p
+                                           r = [d¯i,1 · · · d¯i,i−1 d¯i,i+1 · · · d¯i,N ]T
+                                              G = [∂g(p
+                                                      b i )/∂b
+                                                             p1 · · · ∂g(p
+                                                                         b i )/∂b
+                                                                                pi−1 ∂g(p
+                                                                                        b i )/∂b
+                                                                                               pi+1 · · · ∂g(p      p N ]T
+                                                                                                             b i )/∂b
+                                              ∆p = (GT G)−1 GT (r − g(p
+                                                                      b i ))
+                                                   b i + ∆p
+                                              bi = p
+                                              p
+                                          k = k+1
+                                       end
+                                    end
+                                                        (kp    b j k−d̄ij )2
+                                                          b i −p
+                                  e = ∑iN=1 ∑ N
+                                              j 6 =i         N ( N −1)
+                                  l = l+1
+                               end
+Sensors 2022, 22, 9363                                                                                             12 of 22
+
+
+
+
+                         5.2. Tag Localization
+                              Tag localization follows a LS approach, with GN and LM implementations. Given the tag
+                         position u ∈ R3 , its estimate u
+                                                        b is computed by minimizing the sum of squared residuals as
+                                                                                     2
+                                                             b = arg min ρ − h(u)
+                                                             u                           ,                            (23)
+                                                                       u
+
+                         and the solution of (23) can be obtained iteratively (an iteration is indicated with subscript k)
+                         through both GN and LM algorithms as described in the following. First, let us suppose that
+                         a previous solution uk−1 is available, then the position using the GN algorithm is updated as
+
+                                        b k = uk−1 + (H(uk−1 )T H(uk−1 ))−1 H(uk−1 )T (ρ − h(uk−1 )) ,
+                                        u                                                                             (24)
+
+                         where
+                                                 H(uk−1 ) = [∂h1 (u)/∂u · · · ∂h N (u)/∂u]T                .          (25)
+                                                                                              u = u k −1
+
+                               The algorithm starts from a random initial solution and stops after reaching a max-
+                         imum number of iterations IMAX,GN or when the residual u       b k−1 − uk−1 is lower than a
+                         certain threshold.
+                               The GN algorithm, however, has poor convergence properties, especially when the
+                         Hessian matrix H(uk−1 )T H(uk−1 ) is close to singular or ill-conditioned. In these cases,
+                         the update is not defined, and the algorithm diverges from the optimal solution. This problem
+                         is overcome by the use of LM algorithm [47], which amounts to adding a damping term λI3
+                         to the Hessian matrix, which guarantees the existence of its inverse and allows us to rewrite
+                         (24) as
+
+                            b k = uk−1 + ∆u = uk−1 + (H(uk−1 )T H(uk−1 ) + λI3 )−1 H(uk−1 )T (ρ − h(uk−1 )) .
+                            u                                                                                         (26)
+
+                              The damping parameter influences how the algorithm updates the location estimate.
+                         Specifically, when λ is small, the algorithm is roughly identical to the GN; when λ is large,
+                         it behaves as the gradient descent algorithm [60]. The LM method tries to combine the
+                         strengths of both approaches: it has a faster convergence with respect to the gradient descent
+                         algorithm, while not suffering from the divergence problems of the GN. The damping
+                         parameter is adapted at each iteration using an auxiliary factor ν, so as to steer convergence.
+                         More specifically, the algorithm evaluates the update step ∆u in (26) and computes
+
+                                                        kρ − h(uk−1 )k2 − kρ − h(uk−1 + ∆u)k2
+                                                 γ=                                                ,                  (27)
+                                                      0.5 ∆uT (λk−1 ∆u + H(uk−1 )T (ρ − h(uk−1 )))
+
+                         where λk−1 is the damping parameter at the previous iteration. Depending on the value of
+                         γ the position is updated. In particular, the step ∆u is considered valid if γ > 0, because
+                         kρ − h(uk−1 )k2 decreases compared with the last iteration; otherwise, the position is not
+                         updated. Thus, for strictly positive values of γ, the new position is computed from (26),
+                         and the damping factor is updated as
+                                                                                        
+                                                                       1               3
+                                                     λk = λk−1 max       , 1 − (2γ − 1) .                        (28)
+                                                                       3
+
+                              On the other hand, if γ < 0, ub n = uk−1 , λ= λk−1 νk and ν = 2 νk−1 , with νk−1 being the
+                         factor at the previous iteration. At the first iteration, λ0 = τ max{diag(H(u0 )}, with τ = 5
+                         and ν0 = 2 [47]. The LM procedure starts with a random guess and iteratively updates
+                         the estimated position until a prefixed number of iterations IMAX,LM has been reached or
+                         the step |∆u| is below a threshold. For sport applications, the tag localization is usually
+                         performed in 2D; however, we performed the tag localization also considering the z axis.
+                         The reason for the estimation of the z coordinate is that anchors and tags do not lie on the
+                         same plane, so the height differences between a tag and an anchor can introduce a bias in
+Sensors 2022, 22, 9363                                                                                                13 of 22
+
+
+
+
+                         the position estimation if it is not considered. This effect is particularly evident when a tag
+                         is very close to the anchor position. If we consider the z axis, this problem can be avoided.
+
+                         6. Experimental Setup and Performance Metrics
+                               In this section, we describe the technical features of the UWB devices used in the
+                         experiments, followed by the definition of performance metrics.
+                              We used a proprietary UWB system composed of anchors and tags, as depicted
+                         in Figure 6a. The UWB system was engineered by Tracking4Fun S.r.l., Florence, Italy. Anchors
+                         are equipped with the Decawave DWM1000 module, which provides ranging estimation
+                         capabilities. The DWM1000 module is an integrated circuit composed of a DW1000 wireless
+                         transceiver, an antenna, and a printed circuit board. The radio transceiver is designed as
+                         a single CMOS chip, and it is compliant with the IEEE 802.15.4-2011 UWB standard [59].
+                         It supports six channel bands ranging from 3.5 GHz to 6 GHz with a bandwidth of either
+                         499.2 or 1331.2 MHz, and providing three data rates: 110 kb/s, 850 kb/s, and 6.8 Mb/s.
+                         The module could be configured to support Two-Way Ranging (TWR) procedures via TOF
+                         estimation or TDOA with a nominal coverage of 60 m. APs were configured to use channel 4,
+                         with 1331.2 MHz bandwidth, a central frequency of 3993.3 Mhz, and a bit rate of 850 kb/s.
+                         On the other hand, tags were equipped with a Decawave DWM1001 module, also based on
+                         the DW1000 wireless transceiver. In contrast to DWM1000, DWM1001 supports only channel
+                         5 with a 6489.2 MHz central frequency, 499.2 MHz bandwidth, and bit rate of 6.8 Mb/s.
+                         The module integrates also a Nordic microprocessor nRF52832 Bluetooth antenna and a
+                         STMicroelectronics LIS2DH12TR triaxial accelerometer. The achievable TDOA refresh rate
+                         and, consequently, the location rate depend on the number of active tags: the channel access
+                         used a Time Division Multiple Access (TDMA) scheme limiting the location rate changes from
+                         0.01667 to 10 Hz, corresponding to a number of active tags of 9000 and 15, respectively. As for
+                         the anchors, the module could be configured to support TWR procedures via TOF estimation
+                         or TDOA estimation. Additionally, tags had a nominal coverage of 60 m.
+
+
+
+
+                                 (a) T4F anchors and tags                      (b) T4F application
+
+                         Figure 6. (a) T4F UWB modules (anchors and tags). (b) T4F application running on a tablet.
+
+                              An experimental campaign was carried out at the IoTLab of Politecnico di Milano
+                         to assess the performance of the UWB system. Figure 7a depicts the selected area for the
+                         experiments. Eight anchors were deployed at a height of 1.9 m, and their relative distances
+                         were measured with a laser meter to ensure highly accurate ground truth information. The
+                         ground-truth positions of tags were selected according to the grid reported in Figure 7b,
+                         which had a horizontal spacing of 1 m and a vertical one of 1.5 m, for an overall number of
+                         23 × 11 evaluation points.
+Sensors 2022, 22, 9363                                                                                                 14 of 22
+
+
+
+
+                                  (a) IoTLab experiment area                    (b) Ground-truth positions
+
+                         Figure 7. Experimental area: (a) picture of the area; (b) ground-truth positions of tags and anchors.
+
+                               The UWB localization experiment was conducted as follows. For each vertical line in
+                         the grid, we deployed 2 tags at each position and recorded raw UWB data for 45 s, resulting
+                         in 220 TDOA measurements for each tag, on average. The 22 tags were divided into two
+                         groups: 12 tags (first group) were attached to cardboard boxes at a height of 1.3 m, while the
+                         remaining 10 were worn by people. During the registration, people changed their orientation
+                         by 90 degrees counterclockwise every 15 s to avoid any biases due to the human posture, while
+                         cardboard boxes did not rotate. Once the registration for a single vertical line was terminated,
+                         we moved to the adjacent line and started a new recording. Each simulation was independent
+                         from the others and, at the end, all the Nr = 23 registrations were aggregated for a more robust
+                         statistical analysis.
+                               We evaluated the performance of the proposed algorithms with the following metrics.
+                         Regarding outlier detection, we assessed it as a binary classification problem, thus mea-
+                         suring the algorithm capability to successfully identify an outlier or a failure. Considering
+                         the error ed = dbij − dij of a ranging measurement computed as the difference between the
+                         real distance and the measurement between APi and APj, we discriminated the outliers by
+                         computing the lower and upper adjacent defined as
+
+                                                               ql = LQ − 1.5 (UQ − LQ)                                    (29)
+
+                                                               qu = UQ + 1.5 (UQ − LQ)                                    (30)
+                         where UQ and UQ are the first and third quartile, respectively, evaluated as
+
+                                                                 Pr(ed ≤ LQ) = 0.25                                       (31)
+
+                                                                 Pr(ed ≤ UQ) = 0.75 .                                     (32)
+                              We then marked a measurement as an outlier if the error was either smaller than the lower
+                         adjacent or higher than the upper adjacent. Framing the outlier detection as a classification
+                         problem, we used the widely adopted metrics of sensitivity, specificity, and accuracy to
+                         evaluate the performance. The sensitivity Sv measures the ratio between the correctly detected
+                         positive values (true positive (TP)) and the total number of positive values, and it is computed
+                         as
+                                                                            TP
+                                                                 Sv =            ,                                   (33)
+                                                                        TP + FN
+                         where FN is false negative. The specificity S p measures the ratio of the number of correctly
+                         detected negative values (true negative (TN)) and the total number of negative values,
+                         and it is computed as
+                                                                         TN
+                                                              Sp =             ,                                  (34)
+                                                                     TN + FP
+Sensors 2022, 22, 9363                                                                                                       15 of 22
+
+
+
+
+                         where FP is false positive. The accuracy Acc measures the number of correctly classified
+                         measurements and is computed as
+
+                                                                              TN + TP
+                                                             Acc =                          .                                   (35)
+                                                                          TN + TP + FN + FP
+                              The evaluation of SL considers the 2D AP position error. Given the true AP position
+                                             b i , the position error e p,i is
+                         pi and its estimate p
+                                                                   q
+                                                        e p,i =        ( p̂i,x − pi,x )2 + ( p̂i,y − pi,y )2 .                  (36)
+
+                              Similarly, tag localization was evaluated with the 2D positioning error eu , computed
+                         as                                 q
+                                                        eu = (ubx − u x )2 + (uby − uy )2 .                     (37)
+
+                             Average performance was computed by aggregating data from Nr registrations in
+                         terms of Root Mean Square Error (RMSE), Circular Error Probable (CEP) at 95% of confi-
+                         dence (CEP 95), and mean error.
+
+                         7. Results and Discussion
+                              In this section, we discuss the performance assessment and validation of all the
+                         proposed methods, for both SL and tag localization. As a first analysis, we evaluated
+                         the performance of the proposed outlier detection algorithm employed for filtering out
+                         anomalies in ranging data. We report in Figure 8a the raw ADS-TWR measurements
+                         gathered during the experimental campaign, indicating the outliers with red crosses. We
+                         found that a high number of outliers needed to be filtered to limit the impact on SL. The
+                         application of the proposed 1D IFA method allowed us to significantly reduce the number
+                         of anomalies in the ranging data, as highlighted by the result in Figure 8b.
+
+
+
+
+                                   (a) without outlier detection                                (b) with outlier detection
+
+                         Figure 8. Performance of outlier detection algorithm for ranging measurements: (a) without outlier
+                         detection; (b) with outlier detection.
+
+                              The validation analysis had a sensitivity of Sv = 0.9231, a specificity of S p = 0.9995,
+                         and an accuracy of Acc = 0.9982. The values of sensitivity and specificity indicated that the
+                         proposed method was able to correctly discriminate the outliers from data, and detecting
+                         almost all of them. The accuracy provides a more general view on the designed method
+                         performance, showing that the algorithm provided correct predictions for over 99% of
+                         the data. Overall, the detection algorithm was able to eliminate most of outliers without
+                         removing correct data, allowing for a precise estimation of the TOA measurements and,
+                         consequently, leading to better anchor and tag localization.
+                              In the analysis of the SL algorithms, we considered the following three cases: a first
+                         one where the antenna delay bias was not corrected and the outlier detection algorithm
+                         was absent (SL); a second one where the antenna delay bias was not corrected but the
+Sensors 2022, 22, 9363                                                                                                16 of 22
+
+
+
+
+                         outlier detection algorithm was applied (SL + IFA); a third one where both corrections
+                         were applied (SL + ADS-TWR ADC + IFA). This allowed us to separately analyze the
+                         performance improvement introduced by the calibration step and by the anomaly detection.
+                         For all considered cases, we computed the anchor position error e p and the associated
+                         RMSE, CEP, and mean error. Table 1 reports the achieved value for the three cases, while
+                         Figure 9 focuses on the Cumulative Distribution Function (CDF) of e p . Comparing the
+                         results, the implementation of 1D IFA for outlier detection alone considerably improved
+                         the localization performances compared with the plain SL algorithm with no corrections
+                         applied. The RMSE reduced by approximately 30 cm, the mean error by 16 cm, and
+                         the CEP 95 by 80 cm. This definitely proved the importance of the anomaly detection
+                         process. An additional improvement was observed when the outlier detection algorithm
+                         was combined with the ADC: the RMSE, mean error, and CEP 95 were further reduced by
+                         17 cm, 15 cm and 30 cm, respectively. The combination of the ADC and IFA outlier removal
+                         algorithm was able to provide highly accurate anchors positions, which are necessary for
+                         implementing a precise positioning system.
+
+                         Table 1. Performance metrics of SL with/without outlier and ADS-TWR antenna delay corrections.
+
+                                                               RMSE (m)             CEP 95 (m)          Mean Error (m)
+                          SL                                     0.6154                1.3068                0.4708
+                          SL + IFA                               0.3365                0.5223                0.3056
+                          SL + ADS-TWR ADC + IFA                 0.1626                0.2482                0.1463
+
+
+
+
+                         Figure 9. CDF of the anchors’ SL position error considering different levels of correction. Dashed
+                         lines highlight the CEP 95 values.
+
+                               After analyzing the performance of SL, we focused on tag localization. The analysis
+                         aimed to highlight the impact of applying the ADC, as well as the effect of the SL algorithm
+                         on the position accuracy, and the performance improvement obtained by applying the
+                         ADS-TWR ADC.
+                               We first considered the TDOA bias correction on both GN and LM algorithms; the
+                         effect of error corrections on tag localization is shown in Figure 10a for the GN algorithm
+                         and in Figure 10b for the LM one, where we provide the CDF of the tag localization error
+                         eu . Comparing the results, it followed that by correcting the TDOA bias, it was possible
+                         to reduce the tag localization error and increase the accuracy of the system. In particular,
+Sensors 2022, 22, 9363                                                                                                     17 of 22
+
+
+
+
+                         the CEP 95 reduced from 68 cm to 49 cm for the GN algorithm, and from 72 cm to 50 cm
+                         for the LM one. All the metric values are reported in Table 2.
+
+
+
+
+                                         (a) GN algorithm                                 (b) LM algorithm
+
+                         Figure 10. CDF of the tag localization error eu for GM and LM algorithms with and without TDOA
+                         bias correction. Dashed lines indicate the CEP 95 values.
+
+                         Table 2. Performance metrics of tag localization for GN and LM algorithms with real AP positions
+                         and with/without TDOA antenna delay correction.
+
+                                                                           RMSE (m)         CEP 95 (m)       Mean Error (m)
+                          GN with true AP positions                           0.3509           0.6887             0.2817
+                          GN with true AP position + TDOA ADC                 0.2817           0.4875             0.2181
+                          LM with true AP positions                           0.3654           0.7208             0.2959
+                          LM with true AP positions + TDOA ADC                0.2617           0.4965             0.2176
+
+
+                               To show the impact of the SL algorithm on the localization accuracy, we assessed
+                         the performance of the LS solution with and without the ADS-TWR delay correction.
+                         Furthermore, the effect of ADS-TWR outliers on localization was addressed. We used a
+                         baseline approach to benchmark the performance, where the true positions of the APs were
+                         used. We also considered the TDOA bias correction on these data.
+                               In Figure 11a,b, we report the CDF of the tag location error eu for the GN algorithm and
+                         the LM algorithm, respectively, showing the improvement in the proposed corrections with
+                         respect to the baseline case (i.e., SL). The outlier detection (SL + IFA) improved the system
+                         performance, and further enhancements are obtained when the ADS-TWR ADC is used
+                         (SL + ADS-TWR ADC + IFA). The achievable tag localization error of both algorithms with
+                         bias compensation are very close to the case of using the true AP positions, highlighting again
+                         the importance of the calibration step. The metrics of all algorithms are reported in Table 3.
+
+
+
+
+                                        (a) GN algorithm                                 (b) LM algorithm
+
+                         Figure 11. CDF of the localization error eu for GN and LM algorithms considering different corrections.
+Sensors 2022, 22, 9363                                                                                               18 of 22
+
+
+
+
+                         Table 3. Comparison of GN and LM algorithms for tag localization with/without outlier and antenna
+                         delay corrections.
+
+                                                                        RMSE (m)        CEP 95 (m)      Mean Error (m)
+                             GN with true AP positions                     0.2817         0.4875            0.2181
+                             GN with SL                                    0.6316         1.4089            0.4842
+                             GN with SL + IFA                              0.3447         0.6381            0.2660
+                             GN with SL + ADS-TWR ADC + IFA                0.3072         0.5584            0.2487
+                             LM with true AP positions                     0.2617         0.4965            0.2176
+                             LM with SL                                    0.6606         1.3991            0.4635
+                             LM with SL + IFA                              0.3447         0.6887            0.2770
+                             LM with SL + ADS-TWR ADC + IFA                0.2993         0.5335            0.2494
+
+
+                              As a last analysis, we compared the GN and LM algorithms in terms of availability
+                         in providing positioning estimates. The availability is expressed as the number of times
+                         the LS algorithm (either GN or LM) converged with respect to the total number of runs of
+                         the algorithm. For this experiment, we set IMAX,GN = IMAX,LM = 100. We depict the bar
+                         plot of the availability for both GN and LM in Figure 12, considering all the correction
+                         strategies for antenna delay and outliers. The availability for the GN algorithm was
+                         lower than 30% in all conditions, indicating that more than the 70% of the time the
+                         algorithm did not converge. This was due to the fact that the Hessian matrix H ( u )T H ( u )
+                         in (24) was singular most of the time. The problem was easily solved using LM algorithm,
+                         which showed an availability that was always higher than 80%.
+                         Availability [%]
+
+
+
+
+                         Figure 12. Availability of the GN and LM algorithms.
+
+                         8. Conclusions and Future Studies
+                               In this paper, we presented a localization system based on UWB technology, mainly
+                         targeting sport applications or other use cases characterized by temporary installations. We
+                         developed several techniques aimed at increasing the positioning performance of the system,
+                         both for anchors’ self-localization and real-time tag positioning. Specifically, we developed a
+                         GN method to compensate for the antenna delay at the anchors, an improved version of the iso-
+                         lation forest algorithm targeting the removal of the outliers from low-dimensional ADS-TWR
+                         sets, as well as a novel self-localization algorithm for accurate anchors’ position calibration.
+                               The proposed techniques were validated considering an outdoor experimental cam-
+                         paign at IoTLab, Politecnico di Milano, where raw UWB data were collected. The results
+                         showed that the combination of the aforementioned techniques substantially improved
+                         the positioning accuracy compared with a conventional system that did not employ any
+Sensors 2022, 22, 9363                                                                                                           19 of 22
+
+
+
+
+                                ADC and outlier removal operation. By sequentially integrating ADC and outlier removal
+                                into the localization framework, the error reduced from 1.3 m to 25 cm for self-localization
+                                positioning, whereas from 1.4 m to 55 cm for tag positioning, indicating that a proper
+                                handling of the outliers and the compensation of the antenna delay are required to obtain
+                                high-accuracy location estimates. We managed to achieve localization performance compa-
+                                rable to that of exactly knowing the anchors positions (i.e., when the deployment is fixed),
+                                minimizing the errors introduced by the self-localization.
+                                     In future studies, we will consider the use of Bayesian filtering for further performance
+                                enhancement of tag localization by leveraging well-calibrated motion models for each specific
+                                use case. Moreover, different use cases and experimental campaigns may be needed to fully
+                                characterize the robustness of the localizing system considering challenging indoor scenarios
+                                characterized by harsh propagation conditions as well as unfavorable AP geometries.
+
+                                 Author Contributions: Conceptualization, M.B., S.E., A.A. and M.N.; methodology, M.P., L.B. and M.B.;
+                                 resources, M.C., S.E., A.A.; software, M.P. and L.B.; writing—original draft preparation, M.P., L.B. and
+                                 M.B.; writing—review and editing, M.B. and M.N. All authors have read and agreed to the published
+                                 version of the manuscript.
+                                 Funding: This research was supported by Tracking4Fun S.r.l. under private funding.
+                                 Data Availability Statement: Not applicable.
+                                 Conflicts of Interest: The authors declare no conflicts of interest.
+
+                                Abbreviations
+                                 The following abbreviations are used in this manuscript:
+
+                                 Abbreviation     Definition
+                                 ADC              Antenna Delay Calibration
+                                 ADS-TWR          Asymmetric Double-Sided Two-Way Ranging
+                                 AOA              Angle of Arrival
+                                 AP               Access Point
+                                 CEP              Circular Error Probable
+                                 CDF              Cumulative Distribution Function
+                                 GN               Gauss–Newton
+                                 GNSS             Global Navigation Satellite System
+                                 IFA              Isolation Forest Algorithm
+                                 IoT              Internet of Things
+                                 LM               Levenberg–Marquardt
+                                 LS               Least Square
+                                 PSO              Particle Swarm Optimization
+                                 RMSE             Root Mean Square Error
+                                 RSS              Received Signal Strength
+                                 RTT              Round Trip Time
+                                 SL               Self-Localization
+                                 TDMA             Time Division Multiple Access
+                                 TDOA             Time Difference of Arrival
+                                 TOA              Time of Arrival
+                                 TOF              Time of Flight
+                                 TWR              Two-Way Ranging
+                                 UWB              Ultrawide-Band
+                                 WSN              Wireless Sensor Network
+
+References
+1.    Xu, L.D.; He, W.; Li, S. Internet of Things in Industries: A Survey. IEEE Trans. Ind. Inform. 2014, 10, 2233–2243. [CrossRef]
+2.    Islam, S.M.R.; Kwak, D.; Kabir, M.H.; Hossain, M.; Kwak, K.S. The Internet of Things for Health Care: A Comprehensive Survey.
+      IEEE Access 2015, 3, 678–708. [CrossRef]
+3.    Qadri, Y.A.; Nauman, A.; Zikria, Y.B.; Vasilakos, A.V.; Kim, S.W. The Future of Healthcare Internet of Things: A Survey of
+      Emerging Technologies. IEEE Commun. Surv. Tutor. 2020, 22, 1121–1167. [CrossRef]
+Sensors 2022, 22, 9363                                                                                                           20 of 22
+
+
+
+
+4.    Gaikwad, P.P.; Gabhane, J.P.; Golait, S.S. A Survey Based on Smart Homes System Using Internet-of-Things. In Proceedings of the
+      2015 International Conference on Computation of Power, Energy, Information and Communication (ICCPEIC), Melmaruvathur,
+      India, 22–23 April 2015; pp. 0330–0335. [CrossRef]
+5.    Dian, F.J.; Vahidnia, R.; Rahmati, A. Wearables and the Internet of Things (IoT), Applications, Opportunities, and Challenges:
+      A Survey. IEEE Access 2020, 8, 69200–69211. [CrossRef]
+6.    Zafari, F.; Gkelias, A.; Leung, K.K. A Survey of Indoor Localization Systems and Technologies. IEEE Commun. Surv. Tutor. 2019,
+      21, 2568–2599. [CrossRef]
+7.    Farahsari, P.S.; Farahzadi, A.; Rezazadeh, J.; Bagheri, A. A Survey on Indoor Positioning Systems for IoT-Based Applications.
+      IEEE Internet Things J. 2022, 9, 7680–7699. [CrossRef]
+8.    Leser, R.; Baca, A.; Ogris, G. Local Positioning Systems in (Game) Sports. Sensors 2011, 11, 9778–9797. [CrossRef]
+9.    Gustafsson, F.; Gunnarsson, F. Mobile Positioning Using Wireless Networks: Possibilities and Fundamental Limitations Based on
+      Available Wireless Network Measurements. IEEE Signal Process. Mag. 2005, 22, 41–53. [CrossRef]
+10.   Gu, Y.; Lo, A.; Niemegeers, I. A Survey of Indoor Positioning Systems for Wireless Personal Networks. IEEE Commun. Surv. Tutor.
+      2009, 11, 13–32. [CrossRef]
+11.   Khelifi, F.; Bradai, A.; Benslimane, A.; Rawat, P.; Atri, M. A Survey of Localization Systems in Internet of Things. Mob. Netw.
+      Appl. 2019, 24, 761–785. [CrossRef]
+12.   Win, M.Z.; Scholtz, R.A. Impulse Radio: How it Works. IEEE Commun. Lett. 1998, 2, 36–38. [CrossRef]
+13.   Porcino, D.; Hirt, W. Ultra-Wideband Radio Technology: Potential and Challenges Ahead. IEEE Commun. Mag. 2003, 41, 66–74.
+      [CrossRef]
+14.   Gungor, V.C.; Hancke, G.P. Industrial Wireless Sensor Networks: Challenges, Design Principles, and Technical Approaches.
+      IEEE Trans. Ind. Electron. 2009, 56, 4258–4265. [CrossRef]
+15.   Barbieri, L.; Brambilla, M.; Pitic, R.; Trabattoni, A.; Mervic, S.; Nicoli, M. UWB Real-Time Location Systems for Smart Factory:
+      Augmentation Methods and Experiments. In Proceedings of the 2020 IEEE 31st Annual International Symposium on Personal,
+      Indoor and Mobile Radio Communications, London, UK, 31 August–3 September 2020; pp. 1–7. [CrossRef]
+16.   Malajner, M.; Planinšič, P.; Gleich, D. UWB Ranging Accuracy. In Proceedings of the 2015 International Conference on Systems,
+      Signals and Image Processing (IWSSIP), London, UK, 10–12 September 2015; pp. 61–64. [CrossRef]
+17.   Zhang, F.; Yang, L.; Liu, Y.; Ding, Y.; Yang, S.H.; Li, H. Design and Implementation of Real-Time Localization System (RTLS)
+      Based on UWB and TDoA Algorithm. Sensors 2022, 22, 4353. [CrossRef] [PubMed]
+18.   Buccella, C.; Feliziani, M.; Manzi, G. Penetration of Ultra-WideBand (UWB) Communication Signals through Walls. In
+      Ultra-Wideband, Short-Pulse Electromagnetics 7; Springer: New York, NY, USA, 2007; p. 784; ISBN 978-0-387-37728-5. [CrossRef]
+19.   Win, M.; Scholtz, R. On the Energy Capture of Ultrawide Bandwidth Signals in Dense Multipath Environments. IEEE Commun.
+      Lett. 1998, 2, 245–247. [CrossRef]
+20.   Win, M.; Scholtz, R. On the Robustness of Ultra-wide Bandwidth Signals in Dense Multipath Environments. IEEE Commun. Lett.
+      1998, 2, 51–53. [CrossRef]
+21.   Dardari, D.; Conti, A.; Ferner, U.; Giorgetti, A.; Win, M.Z. Ranging with Ultrawide Bandwidth Signals in Multipath Environments.
+      Proc. IEEE 2009, 97, 404–426. [CrossRef]
+22.   Gezici, S.; Tian, Z.; Giannakis, G.B.; Kobayashi, H.; Molisch, A.F.; Poor, H.V.; Sahinoglu, Z. Localization via Ultra-Wideband
+      radios: A Look at Positioning Aspects for Future Sensor Networks. IEEE Signal Process. Mag. 2005, 22, 70–84. [CrossRef]
+23.   Alarifi, A.; Al-Salman, A.; Alsaleh, M.; Alnafessah, A.; Alhadhrami, S.; Al-Ammar, M.; Al-Khalifa, H. Ultra Wideband Indoor
+      Positioning Technologies: Analysis and Recent Advances. Sensors 2016, 16, 707. [CrossRef]
+24.   Zhang, J.; Wang, W.; She, X.; Li, X. 2-D Indoor Passive Real-Time Location System Based on Ultrawideband Technology.
+      IEEE Trans. Instrum. Meas. 2022, 71, 9510017. [CrossRef]
+25.   Laadung, T.; Ulp, S.; Alam, M.M.; Moullec, Y.L. Novel Active-Passive Two-Way Ranging Protocols for UWB Positioning Systems.
+      IEEE Sens. J. 2022, 22, 5223–5237. [CrossRef]
+26.   Pelka, M.; Goronzy, G.; Hellbrück, H. Iterative Approach for Anchor Configuration of Positioning Systems. ICT Express 2016,
+      2, 1–4. [CrossRef]
+27.   Niculescu, D.; Nath, B. Ad Hoc Positioning System APS Using AOA. In Proceedings of the IEEE INFOCOM 2003. Twenty-Second
+      Annual Joint Conference of the IEEE Computer and Communications Societies, San Francisco, CA, USA, 30 March–3 April 2003;
+      Volume 3, pp. 1734–1743. [CrossRef]
+28.   Shi, Q.; Zhao, S.; Cui, X.; Lu, M.; Jia, M. Anchor Self-localization Algorithm Based on UWB Ranging and Inertial Measurements.
+      Tsinghua Sci. Technol. 2019, 24, 728–737. [CrossRef]
+29.   Krapež, P.; Munih, M. Anchor Calibration for Real-Time-Measurement Localization Systems. IEEE Trans. Instrum. Meas. 2020,
+      69, 9907–9917. [CrossRef]
+30.   Shang, Y.; Rumi, W.; Zhang, Y.; Fromherz, M. Localization from Connectivity in Sensor Networks. IEEE Trans. Parallel Distrib. Syst.
+      2004, 15, 961–974. [CrossRef]
+31.   Drusvyatskiy, D.; Krislock, N.; Voronin, Y.L.; Wolkowicz, H. Noisy Euclidean Distance Realization: Robust Facial Reduction and
+      the Pareto Frontier. SIAM J. Optim. 2017, 27, 2301–2331. [CrossRef]
+Sensors 2022, 22, 9363                                                                                                            21 of 22
+
+
+
+
+32.   Goldenberg, D.K.; Bihler, P.; Cao, M.; Fang, J.; Anderson, B.D.O.; Morse, A.S.; Yang, Y.R. Localization in Sparse Networks
+      Using Sweeps. In Proceedings of the MobiCom ’06, Los Angeles, CA, USA, 23–29 September 2006; Association for Computing
+      Machinery: New York, NY, USA, 2006. [CrossRef]
+33.   Müller, M.; Lategahn, J.; Telle, L.; Röhrig, C. Automatic Anchor Calibration in IEEE 802.15.4a Networks. In Proceedings of the
+      2011 8th Workshop on Positioning, Navigation and Communication, Dresden, Germany, 7–8 April 2011; pp. 67–71. [CrossRef]
+34.   Gui, X.; Guo, S.; Chen, Q.; Han, L. A New Calibration Method of UWB Antenna Delay Based on the ADS-TWR. In Proceedings
+      of the 2018 37th Chinese Control Conference (CCC), Wuhan, China, 25–27 July 2018; pp. 7364–7369. [CrossRef]
+35.   Haggenmiller, A.; Krogius, M.; Olson, E. Non-parametric Error Modeling for Ultra-wideband Localization Networks. In
+      Proceedings of the 2019 International Conference on Robotics and Automation (ICRA), Montreal, QC, Canada, 20–24 May 2019;
+      pp. 2568–2574. [CrossRef]
+36.   Decawave. APS014 Application Notes: Antenna Delay Calibration of DW1000-Based Products and Systems; Decawave: Dublin, Ireland, 2018.
+37.   Shah, S.; Chaiwong, K.; Kovavisaruch, L.O.; Kaemarungsi, K.; Demeechai, T. Antenna Delay Calibration of UWB Nodes.
+      IEEE Access 2021, 9, 63294–63305. [CrossRef]
+38.   Wang, Y.; Ho, K.C. TDOA Source Localization in the Presence of Synchronization Clock Bias and Sensor Position Errors.
+      IEEE Trans. Signal Process. 2013, 61, 4532–4544. [CrossRef]
+39.   Zou, Y.; Liu, H. Semidefinite Programming Methods for Alleviating Clock Synchronization Bias and Sensor Position Errors in
+      TDOA Localization. IEEE Signal Process. Lett. 2020, 27, 241–245. [CrossRef]
+40.   Zhao, W.; Panerati, J.; Schoellig, A.P. Learning-Based Bias Correction for Time Difference of Arrival Ultra-Wideband Localization
+      of Resource-Constrained Mobile Robots. IEEE Robot. Autom. Lett. 2021, 6, 3639–3646. [CrossRef]
+41.   Hawkins, S.; He, H.; Williams, G.; Baxter, R. Outlier Detection Using Replicator Neural Networks. In Data Warehousing
+      and Knowledge Discovery; Kambayashi, Y., Winiwarter, W., Arikawa, M., Eds.; Springer: Berlin/Heidelberg, Germany, 2002;
+      pp. 170–180. [CrossRef]
+42.   Lamrini, B.; Gjini, A.; Daudin, S.; Armando, F.; Pratmarty, P.; Travé-Massuyès, L. Anomaly Detection Using Similarity-based
+      One-Class SVM for Network Traffic Characterization. In Proceedings of the 29th International Workshop on Principles of
+      Diagnosis, Warsaw, Poland, 27–30 August 2018.
+43.   Dang, T.T.; Ngan, H.Y.; Liu, W. Distance-Based K-Nearest Neighbors Outlier Detection Method in Large-Scale Traffic Data. In
+      Proceedings of the 2015 IEEE International Conference on Digital Signal Processing (DSP), Singapore, 21–24 July 2015; pp. 507–510.
+      [CrossRef]
+44.   Breunig, M.M.; Kriegel, H.P.; Ng, R.T.; Sander, J. LOF: Identifying Density-Based Local Outliers. SIGMOD Rec. 2000, 29, 93–104.
+      [CrossRef]
+45.   Liu, F.T.; Ting, K.M.; Zhou, Z.H. Isolation Forest. In Proceedings of the 2008 Eighth IEEE International Conference on Data
+      Mining, Pisa, Italy, 15–19 December 2008; pp. 413–422. [CrossRef]
+46.   Qinghua, L.; Sicheng, L.; Yipeng, Y.; Chunyu, J.; Xiaozhen, Y. An Accurate Maximum Likelihood Location Method Based on
+      UWB Platform. In Proceedings of the 2019 14th IEEE International Conference on Electronic Measurement Instruments (ICEMI),
+      Changsha, China, 1–3 November 2019; pp. 515–521. [CrossRef]
+47.   Mensing, C.; Plass, S. Positioning Algorithms for Cellular Networks Using TDOA. In Proceedings of the 2006 IEEE International
+      Conference on Acoustics Speech and Signal Processing, Toulouse, France, 14–19 May 2006; Volume 4, p. IV. [CrossRef]
+48.   Alraih, S.; Alhammadi, A.; Shayea, I.; Al-Samman, A.M. Improving Accuracy in Indoor Localization System Using Fingerprinting
+      Technique. In Proceedings of the 2017 International Conference on Information and Communication Technology Convergence
+      (ICTC), Jeju, Republic of Korea, 18–20 October 2017; pp. 274–277. [CrossRef]
+49.   Alhammadi, A.; Alraih, S.; Hashim, F.; Rasid, M.F.A. Robust 3D Indoor Positioning System Based on Radio Map Using Bayesian
+      Network. In Proceedings of the 2019 IEEE 5th World Forum on Internet of Things (WF-IoT), Limerick, Ireland, 15–18 April 2019;
+      pp. 107–110. [CrossRef]
+50.   Barbieri, L.; Brambilla, M.; Trabattoni, A.; Mervic, S.; Nicoli, M. UWB Localization in a Smart Factory: Augmentation Methods
+      and Experimental Assessment. IEEE Trans. Instrum. Meas. 2021, 70, 1–18. [CrossRef]
+51.   Suski, W.; Banerjee, S.; Hoover, A. Using a Map of Measurement Noise to Improve UWB Indoor Position Tracking. IEEE Trans. In-
+      strum. Meas. 2013, 62, 2228–2236. [CrossRef]
+52.   Zhu, X.; Yi, J.; Cheng, J.; He, L. Adapted Error Map Based Mobile Robot UWB Indoor Positioning. IEEE Trans. Instrum. Meas.
+      2020, 69, 6336–6350. [CrossRef]
+53.   Tian, Q.; Wang, K.I.; Salcic, Z. A Resetting Approach for INS and UWB Sensor Fusion Using Particle Filter for Pedestrian Tracking.
+      IEEE Trans. Instrum. Meas. 2020, 69, 5914–5921. [CrossRef]
+54.   Hol, J.D.; Dijkstra, F.; Luinge, H.; Schon, T.B. Tightly Coupled UWB/IMU Pose Estimation. In Proceedings of the 2009 IEEE
+      International Conference on Ultra-Wideband, Vancouver, BC, Canada, 9–1 September 2009; pp. 688–692. [CrossRef]
+55.   Kim, D.H.; Farhad, A.; Pyun, J.Y. UWB Positioning System Based on LSTM Classification with Mitigated NLOS Effects.
+      IEEE Internet Things J. 2022, 1. [CrossRef]
+56.   Piavanini, M.; Barbieri, L.; Brambilla, M.; Cerutti, M.; Ercoli, S.; Agili, A.; Nicoli, M. A Calibration Method for Antenna Delay
+      Estimation and Anchor Self-Localization in UWB Systems. In Proceedings of the 2022 IEEE International Workshop on Metrology
+      for Industry 4.0 & IoT (MetroInd4.0&IoT), Trento, Italy, 7–9 June 2022; pp. 173–177. [CrossRef]
+57.   Decawave. APS013 Application Notes: The Implementation of Two-Way Ranging with DW1000; Decawave: Dublin, Ireland 2014.
+Sensors 2022, 22, 9363                                                                                                      22 of 22
+
+
+
+
+58.   Jiang, Y.; Leung, V.C. An Asymmetric Double Sided Two-Way Ranging for Crystal Offset. In Proceedings of the 2007 International
+      Symposium on Signals, Systems and Electronics, Montreal, QC, Canada, 30 July–2 August 2007; pp. 525–528. [CrossRef]
+59.   IEEE Std 802.15.4-2011; IEEE Standard for Local and Metropolitan Area Networks–Part 15.4: Low-Rate Wireless Personal Area
+      Networks (LR-WPANs). (Revision of IEEE Std 802.15.4-2006); Institute of Electrical and Electronics Engineers IEEE: Piscataway,
+      NJ, USA, 2011; pp. 1–314.
+60.   Ranganathan, A. The Levenberg-Marquardt Algorithm. Tutor. LM Algorithm 2004, 11, 101–110.
+

@@ -1,0 +1,29 @@
+# Claim Evidence Matrix
+
+| claim_id | claim_text | level | supporting_tasks | contradicting_evidence | recommended_paper_wording |
+| --- | --- | --- | --- | --- | --- |
+| 1 | V5 fixes V4's scale leak (0.958 -> 1.010) | A | V4/V5 Sim3 scale and rigid RMSE | No independent room yet | V5 corrects the anchor-side scale defect on this campaign. |
+| 2 | V5 has more stable per-height D_tag | B | range-residual tier spreads and hard-CV degradation | Position-optimal D_tag criteria remain ambiguous | V5 reduces some geometry-induced tag-delay aliasing, but stability depends on the criterion. |
+| 3 | V4 gives better single-dataset positioning than V5 | A | V4+LOO 57.9 mm vs V5+LOO 67.8 mm; improved 54.9 vs 56.0 mm | Does not imply better transfer | V4 is the empirical static median winner on this 24-position campaign. |
+| 4 | The reason is scale-delay-NLOS cancellation | B | morph/profile valleys, Vicon/self-cal gap, p30 cancellation | radial signed error is not decisive | The lower V4 error is consistent with beneficial cancellation rather than proven by one statistic. |
+| 5 | Vicon oracle worse than self-cal proves cancellation | C | Vicon oracle underperforms some self-cal cells | phase-center offset alternative remains plausible | The Vicon result is compatible with cancellation but not uniquely diagnostic. |
+| 6 | Vicon worse could be phase-center offset | B | phase-center and e_i/NLOS checks | needs physical antenna offset measurement | Phase-center mismatch is a plausible alternative and should be stated. |
+| 7 | p30 improvement is another cancellation | B | fixed p30 47.5 mm vs recalibrated/weighted 56.0 mm | no independent static capture | p30 is a strong batch-processing hypothesis, not a universal correction. |
+| 8 | Every post-processing improvement benefits V4 more than V5 | D | V4 improved slightly beats V5 improved | not every method was exhaustively retested | Do not claim universal superiority; report the tested comparison. |
+| 9 | Fisher eigenvalue 1e-6 proves weak identifiability | A | GPU Fisher and nullspace perturbation | gauge/model simplifications | The calibration has a measurable weak direction. |
+| 10 | D/F are NLOS-heavy but geometrically essential | A | Shapley D/F high; residual spikes | Shapley values close across anchors | D/F are not simply removable outliers. |
+| 11 | NLOS detectable from range statistics without CIR | B | random split PR-AUC ~0.95 | leakage tests much lower | Range statistics contain NLOS signal, but deployment generalization is unproven. |
+| 12 | NLOS detector generalizes across positions/anchors | D | leave-anchor/height split weak | PR-AUC collapses in hard splits | Do not claim generalization yet. |
+| 13 | Student-t is the correct noise model | B | BIC winner M2_student_t | only one campaign | Student-t best describes this residual distribution. |
+| 14 | V5 transfers better to new rooms | C | physical scale correction; corrected MC/adversarial tests | no real new room | V5 is expected to transfer better, but this needs direct validation. |
+| 15 | MC transfer result has V4 solver fidelity caveat | A | N1 solver verification and adversarial rooms |  | State the caveat explicitly. |
+| 16 | D_tag is device-specific | C | ROTO per-tag estimates suggest spread | dynamic geometry/time sync confounded | Treat per-device D_tag as likely, not proven. |
+| 17 | p30 does not transfer to dynamic | B | ROTO p30/follow-up dynamic results | dynamic labels are best-fit aligned | p30 helped static batch ranges but not ROTO enough to change the dynamic floor. |
+| 18 | ROTO accuracy is ~101 mm best-fit aligned | A | R2 current bridge 101.5 mm | alignment convention matters | Report as BEST-FIT-ALIGNED only. |
+| 19 | Static-dynamic gap is ~40 mm | A | 101.5 - 56.0 = 45.5 mm | component estimates not orthogonal | The dynamic floor remains about 45 mm above static best. |
+| 20 | 24 positions insufficient for learned methods | B | winner's curse, leakage, nested CV instability | more data not tested | The current campaign is too small for strong learned-method claims. |
+| 21 | AA-AT asymmetry is small | A | -4.7 mm, p not significant |  | AA/AT asymmetry is small in this dataset. |
+| 22 | Rigid body constraint improves ROTO | D | joint_projection worsened to 280.6 mm | better solver may be needed | Do not claim improvement from the tested rigid projection. |
+| 23 | Headline numbers survive nested CV | C | nested CV medians 82.9-94.2 mm | hard splits degrade | Hard nested CV weakens, rather than confirms, aggressive headline claims. |
+| 24 | Winner's curse gap is < X mm | B | mean optimism gap 9.6 mm | std 29.6 mm | Use corrected medians for paper headline sensitivity. |
+| 25 | Cancellation valley has specific radial mechanism | C | signed radial V4 -7.8 vs V5 -4.8 mm, not decisive | p-value not significant | Radial decomposition is suggestive but not a stand-alone proof. |

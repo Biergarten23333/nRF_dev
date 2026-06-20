@@ -1,0 +1,543 @@
+                                              Calibration and Uncertainty Characterization for Ultra-Wideband
+                                                              Two-Way-Ranging Measurements
+                                                  Mohammed Ayman Shalaby, Charles Champagne Cossette, James Richard Forbes, Jerome Le Ny
+
+                                                                                                                                                                    Tag i      Tag j
+                                            Abstract— Ultra-Wideband (UWB) systems are becoming
+                                         increasingly popular for indoor localization, where range mea-
+                                         surements are obtained by measuring the time-of-flight of                                                                  t1
+                                                                                                                                                                                  t2
+                                         radio signals. However, the range measurements typically suffer
+                                         from a systematic error or bias that must be corrected for                             Tag i      Tag j            ∆t41                       ∆t32
+arXiv:2210.05888v3 [cs.RO] 16 Feb 2023
+
+
+
+
+                                         high-accuracy localization. In this paper, a ranging protocol
+                                         is proposed alongside a robust and scalable antenna-delay                                                                                t3
+                                                                                                                                t1                                  t4
+                                         calibration procedure to accurately and efficiently calibrate                                        t2
+                                         antenna delays for many UWB tags. Additionally, the bias and                                                                                  ∆t53
+                                                                                                                        ∆t41                       ∆t32     ∆t64
+                                         uncertainty of the measurements are modelled as a function
+                                         of the received-signal power. The full calibration procedure                                         t3                                  t5
+                                         is presented using experimental training data of 3 aerial                              t4                                  t6
+                                         robots fitted with 2 UWB tags each, and then evaluated
+                                         on 2 test experiments. A localization problem is then for-
+                                         mulated on the experimental test data, and the calibrated                               (a) SS-TWR.                    (b) Proposed DS-TWR.
+                                         measurements and their modelled uncertainty are fed into an                 Fig. 1: Timeline schematics for two tags i and j representing the different
+                                         extended Kalman filter (EKF). The proposed calibration is                   TWR ranging protocols, where t` represents the `th timestamp for a TWR
+                                         shown to yield an average of 46% improvement in localiza-                   instance and ∆t`k , t` − tk .
+                                         tion accuracy. Lastly, the paper is accompanied by an open-
+                                         source UWB-calibration Python library, which can be found at                of change of the clock offset is referred to as the clock
+                                         https://github.com/decargroup/uwb calibration.                              skew. In order to negate the effect of the clock offset during
+                                                                 I. I NTRODUCTION                                    ranging, different ranging protocols have been proposed,
+                                                                                                                     with the choice being dependent on the specific application
+                                            Robotic localization and mapping applications typically                  and availability of tags [7], [8, Section 7.1.4]. A commonly
+                                         require a means of acquiring position information relative                  used protocol is two-way ranging (TWR), which relies on
+                                         to a reference point with known location. Global Naviga-                    averaging out the measured ToF between two signals to
+                                         tion Satellite System (GNSS) provides accurate and pre-                     negate the clock offset. This form of TWR is referred to
+                                         cise positioning information outdoors; however, localization                as single-sided TWR (SS-TWR), and is shown in Figure 1a.
+                                         performance degrades significantly in obstructed or indoor                     Nonetheless, even after correcting for clock offsets, UWB
+                                         environments [1, 2]. An attractive indoor localization option               range measurements typically suffer from a systematic error
+                                         that has been increasingly gaining traction is the use of                   or bias. A significant contributor to this error is the skew
+                                         ultra-wideband (UWB) radio signals between transceivers,                    between the clocks of the two ranging tags, as the different
+                                         or tags, as a means of ranging. UWB transceivers, such as the               tags measure the passage of time in different units [9, 10].
+                                         DWM1000 module provided by Decawave [3], are typically                      This additional bias can be corrected by estimating the clock
+                                         inexpensive, consume little power, and provide a means for                  skew between the tags and embedding a skew-dependent
+                                         data transfer between robots, thus deeming them particularly                correction factor when computing the range measurement,
+                                         useful for a variety of robotic applications [4–6].                         as proposed in [9]. However, this necessitates estimating
+                                            UWB-based ranging typically relies on measuring the                      the clock skew between all tags involved in ranging. Al-
+                                         time-of-flight (ToF) of radio signals from one tag to another.              ternatively, [10] proposes a form of computing the range
+                                         This requires estimating the offset between the clock on each               measurement utilizing double-sided TWR (DS-TWR), which
+                                         tag. Furthermore, the clocks often run at different rates due               is shown to mitigate clock-skew-dependent bias.
+                                         to physical imperfections in the individual clock’s crystal                    Another source of ranging bias stems from relative-pose-
+                                         oscillator, causing the offset to be time-varying. The rate                 dependent antenna radiation pattern [11], where pose refers
+                                                                                                                     to both position and attitude. The varying signal strength
+                                           This work was supported by the NSERC Alliance Grant program, by the
+                                         CFI JELF program, and by the FRQNT.                                         can cause timestamping errors, and this effect is typically
+                                           M. A. Shalaby, C. C. Cossette, and J. R. Forbes are with the department   addressed using data-driven models. In [12], a simple ex-
+                                         of Mechanical Engineering, McGill University, Montreal, QC H3A              periment with pre-localized fixed tags or anchors is used to
+                                         0C3,    Canada.    {mohammed.shalaby@mail.mcgill.ca,                        determine a relation between bias and the distance between
+                                         charles.cossette@mail.mcgill.ca,
+                                         james.richard.forbes@mcgill.ca}. J. Le Ny is with the                       ranging tags, while in [13], models are trained using the
+                                         department of Electrical Engineering, Polytechnique Montreal, Montreal,     distance between the tags and 7 features extracted from the
+                                         QC H3T 1J4, Canada. {jerome.le-ny@polymtl.ca}.                              channel impulse response (CIR). In [14] and [15], a robot
+is flown around in a room with UWB anchors to learn a                              II. T HE R ANGING P ROTOCOL
+model of the range bias as a function of the robot’s pose.           UWB ranging relies on the time-of-flight (ToF) of signals
+The main drawback of these methods is that the learned            between two tags in order to compute range measurements.
+model is dependent on the relative poses of the ranging tags,     The simplest way to do this is using SS-TWR, shown in
+which are typically unknown in real-time without the bias-        Figure 1a, where the ToF measurement can be computed as
+corrected measurements in the first place. Additionally, the                                 1
+learnt models are trained and tested on the same anchor                                tf = (∆t41 − ∆t32 ).                    (1)
+                                                                                             2
+formations and are therefore not necessarily generalizable;
+                                                                  However, different UWB tags have differrent clocks that
+calibration must occur for every new anchor formation. In
+                                                                  are typically running at different rates, and this clock skew
+[9], the former issue is addressed by finding a relation
+                                                                  results in additional bias in the computed ToF measurement.
+between the bias and the received first-path power (FPP)
+                                                                  In [10], an alternative DS-TWR-based ranging protocol is
+in line-of-sight (LOS) conditions with 2D motion.
+                                                                  proposed to mitigate clock-skew-dependent bias. In this
+   Delays in communication between the embedded mi-
+                                                                  paper, the DS-TWR protocol shown in Figure 1b is proposed,
+crochip and the UWB antenna are another source of bias
+                                                                  which differs from [10] by having the responding tag instead
+[16]. This antenna delay is roughly the same for different
+                                                                  of the initiating tag transmit the third signal. The ToF
+UWB tags with the same physical design and is at least a
+                                                                  measurement can then be computed as
+few hundreds of nanoseconds [16], but can vary tenths of a                                                    
+nanosecond or more from tag to tag due to manufacturing                                  1            ∆t64
+                                                                                   tf =      ∆t41 −        ∆t32 .              (2)
+inaccuracies. Given that a one-nanosecond timestamping                                   2            ∆t53
+error corresponds to 30 cm in ranging error, the need to          This protocol is motivated by the intuitive understanding that
+perform antenna-delay calibration for every tag is critical. In   the additional correcting factor in (2) transforms ∆t32 from
+[16], a basic TWR-based calibration procedure is suggested        time units of the receiver tag’s clock to time units of the ini-
+for calibrating antenna delays. However, the lack of motion       tiator tag’s clock. Additionally, the proposed ranging protocol
+introduces a risk of learning the aforementioned relative-        allows the initiating tag to process the range measurement
+pose-dependent bias as antenna delays. In [9], experiments        by computing (2), without requiring additional signals for
+involving a pair of tags at a time ranging with each other is     the responding tag to send ∆t32 and ∆t53 .
+used to fit what is referred to as a “pair-dependent constant”.
+                                                                  A. Analytical Bias Model
+Therefore, the calibration procedure involves calibrating the
+relative delay between one pair at a time, which does not             To demonstrate clock-skew-dependent bias, consider in
+scale well to systems with many UWB tags.                         SS-TWR the clock-skew-corrupted ToF measurement,
+   This paper addresses the problem of calibrating UWB tags,              1
+                                                                    t̃ss
+                                                                      f =   ((1 + γi )(∆t41 + η41 ) − (1 + γj )(∆t32 + η32 )) ,
+and the main contributions are as follows.                                2
+                                                                                                                             (3)
+  • An alternative DS-TWR protocol is proposed and is             where γi is the skew of Tag i’s clock relative to real
+    shown to mitigate the clock-skew-induced bias.                time, ηk` = ηk − η` , and ηk , η` ∼ N (0, R) are mutually-
+  • A scalable antenna-delay calibration algorithm is pre-        independent timestamping white noise associated with times-
+    sented that is robust to outliers and pose-dependent bias.    tamps tk and t` , respectively. The ToF error is thus
+  • The bias-versus-FPP fit presented in [9] is extended to
+                                                                   ess , t̃ss
+                                                                           f − tf
+    also address the uncertainty of the measurements as a
+    function of FPP, and DS-TWR is utilized to overcome                   1
+                                                                       = (γi ∆t41 + (1 + γi )η41 − γj ∆t32 − (1 + γj )η32 ) ,
+    the need to estimate the clock skew.                                  2
+                                                                                                                          (4)
+  • The proposed antenna-delay and bias-FPP calibration
+    are evaluated on an aerial experiment with no anchors,        and the expected value of ess is
+    where all the tags are fitted to moving robots.                                        1
+                                                                              E [ess ] = (γi ∆t41 − γj ∆t32 )
+  • The     code for the full calibration procedure                                        2
+    is attached to this paper as an open-access                                        (1) 1
+                                                                                       = (γi (2tf + ∆t32 ) − γj ∆t32 )
+    online repository, which can be found at                                               2
+    https://github.com/decargroup/uwb calibration.                                               1
+                                                                                       = γi tf + (γi − γj ) ∆t32 .          (5)
+                                                                                                 2
+   The remainder of this paper is organized as follows. The
+                                                                     The first component of (5) is negligible as skew is in the
+proposed DS-TWR is discussed in Section II, alongside a
+                                                                  order of parts-per-million and ToF in nanoseconds. However,
+theoretical analysis of the clock-skew-dependent bias. In
+                                                                  ∆t32 is typically in hundreds of microseconds, meaning that
+Section III, a robust antenna-delay calibration algorithm is
+                                                                  clock-skew-dependent bias is not negligible.
+presented, followed by the bias and uncertainty calibration
+                                                                     Negating the second component of (5) is the motivation
+as a function of FPP in Section IV. The calibration methods
+                                                                  behind the proposed ranging protocol. Rewriting (2) as
+presented in Sections III and IV are introduced on the same
+experimental training data, and are then evaluated on 2                                    ∆t41 ∆t53 − ∆t64 ∆t32
+                                                                                   tf =                          ,
+testing experiments in Section V.                                                                  2∆t53
+and following the same steps as in (3)-(4), the ToF error for
+the proposed DS-TWR can be derived to be approximately
+  eds , t̃ds
+          f − tf
+                                                          
+                 1           ∆t32
+      ≈ γi tf + (1 + γi )         (η53 − η64 ) + η41 − η32 ,
+                 2           ∆t53
+                                                            (6)
+                                                                   (a) Quadcopter equipped with     (b) Snapshot from training experiment.
+where t̃ds
+         f   is the clock-skew-corrupted   time-of-flight mea-     two UWB tags.
+surement. Deriving (6) relies on the assumptions that               Fig. 2: Experimental set-up for antenna-delay and bias-FPP calibration.
+∆t53  kη53 k, ∆t32  kη32 k. This is expected since the
+timestamping error is typically in the order of nanoseconds        another antenna-delay calibration procedure is necessary to
+or less, and the delay intervals are in the order of hundreds      solve for dti and dri separately.
+of microseconds. The expected value of the error is therefore         In the presence of n tags to be calibrated, let P denote
+                                                                 the ordered set of tuples representing all ranging pairs of
+                        E eds = γi tf ,
+                                                                   tags. Consequently, the antenna delays are calibrated by
+which suffers from less bias when compared to the error of         formulating a linear least-squares problem as
+                                                                                                     mij
+the SS-TWR protocol.                                                                            X X                
+                                                                                 d̂ = arg minn           g ekij (d) ,     (10)
+                                                                                           d∈R
+           III. A NTENNA -D ELAY C ALIBRATION                                                     (i,j)∈P k=1
+
+   The delay between a chip timestamping transmission and          where the error ekij is defined from (9) as
+the antenna actually transmitting the signal is referred to as                    1                      1
+                                                                       ekij (d) = (di + K k dj ) − tkf + (∆t̃k41 − K k ∆t̃k32 ),
+the antenna transmission delay dt , while the delay between                       2                      2
+an antenna receiving a signal and the chip timestamping            mij is the number of range measurements between Tags i
+                                                                                           T
+reception is the antenna reception delay dr . Looking back         and j, d = d1 · · · dn , the superscript k denotes the k th
+at Figure 1b, the measured time-stamps are therefore               measurement, and K k , ∆t̃k64 /∆t̃k53 . Moreover, g is the loss
+                                                                   function, and the choice of g is discussed in Section III-B.
+               t̃k = tk + dt ,    k ∈ {1, 3, 5},            (7)
+                                                                      If n = 2, the formulated least-squares problem would have
+                             r
+               t̃` = t` + d ,     ` ∈ {2, 4, 6}.            (8)    2 unknowns and only 1 pair of ranging tags, which results
+   In this section, a scalable antenna-delay calibration proce-    in non-uniqueness of the solution. Therefore, the calibration
+dure is presented that addresses the need for incorporating        procedure should involve at least 3 tags, yielding 3 unknowns
+motion. In particular, a linear least-squares approach is          and 3 pairs of ranging tags.
+presented utilizing DS-TWR, which is solved using robust           B. Experimental Results on Training Data
+least squares to accommodate for outliers [17, Section 5.3.2].        To evaluate the proposed antenna-delay calibration pro-
+Both the antenna delays and the presented approach are             cedure experimentally, three Uvify IFO-S quadcopters are
+environment independent, and therefore the antenna-delay           equipped with 2 UWB tags each as shown in Figure 2a, for
+calibration only needs to be performed once for new un-            a total of 6 tags. In order to compute the theoretical ToF
+calibrated transceivers.                                           tf for any measurement to formulate a similar problem to
+A. Least Squares Formulation                                       (10), a motion-capture system is used to get the ground truth
+                                                                   distances between the ranging tags. A motion-capture system
+   The goal of antenna-delay calibration is to find the best-      is chosen for its mm-accuracy, but any other localization
+fit delays based on some collected data. In order to perform       approach would suffice, with the accuracy of the calibration
+this calibration procedure, the tags to be calibrated must be      depending on the accuracy of the localization algorithm.
+capable of DS-TWR. The effect of antenna delays on the             Unlike the static experiments suggested in [16], this allows a
+DS-TWR ToF measurements is shown by substituting (7)               dynamic experiment where the quadcopters fly randomly in
+and (8) into (2), thus yielding                                    3-dimensional space as shown in Figure 2b, which reduces
+          1                     ∆t̃64                           the proneness to learning relative-pose-dependent biases.
+    tf =     ∆t̃41 + dti − dri −       ∆t̃32 −dtj + drj    (9)
+          2          | {z } ∆t̃53            | {z }                This dataset consists of 4 minutes of flight time and a total
+                        di                     −dj                 of 38000 range measurements. The calibration procedure can
+when Tag i initiates with Tag j, where dti and dri are the         be done by fitting each drone with one tag, but it is common
+antenna transmission and reception delays of Tag i, respec-        in localization problems to fit two tags to overcome the lack
+tively. In this case, transmission and reception delays can        of bearing information [5, 18, 19]. Nonetheless, the ranging
+be combined into one delay variable di to be estimated for         schedule does not directly involve TWR measurements be-
+every tag, where di = dti − dri . This is sufficient for systems   tween any two tags on the same drone. Therefore, there are
+where only TWR is utilized, which is the focus of this paper.      6 unknown delays and 12 pairs of ranging tags.
+When other ranging protocols are implemented such as                  Typically, problems of the form (10) are solved by finding
+time-difference-of-arrival (TDoA) or time-of-arrival (ToA),        d that minimizes the squared error (i.e., choosing g to be
+                       Normal-Loss Least Squares                               11]. In this section, the experiments in [9] are extended in
+       5                                                                       the following ways.
+       4                                              Raw
+       3                                              Delay Calibrated            1) The proposed DS-TWR is used rather than SS-TWR,
+       2
+       1
+                                                                                      which overcomes the need to estimate the skew be-
+       0                                                                              tween all pairs of tags.
+                       Cauchy-Loss Least Squares                                  2) The results are shown to hold for experiments in three-
+       5
+       4                                                                              dimensional space.
+       3                                                                          3) The results are shown to hold for experiments with
+       2
+       1                                                                              some non-LOS measurements due to occlusions from
+       0                                                                              the quadcopters’ bodies.
+              −0.4    −0.2     0.0        0.2   0.4      0.6       0.8
+                                     Bias [m]                                     4) The individual measurements are used in the data-
+Fig. 3: Histograms showing the effect on the ranging bias post-antenna-delay          fitting process rather than averaging out measurements
+calibration. (Top) Using L2 loss. (Bottom) Using Cauchy loss.                         from a discrete number of relative poses.
+                                                                               The last point is particularly important as it overcomes the
+L2 loss), which is derived from an assumption that the                         need to remain static during data collection, which allows the
+underlying distribution of the noise is Gaussian. However,                     calibration procedure to be a simple experiment of robots
+UWB measurements suffer from positive outliers due to                          moving randomly and covering as many relative poses as
+multipath propagation and other sources of error, and are                      possible in a relatively short period of time. Another advan-
+better modelled using Cauchy distributions [20]. It is there-                  tage of using all the data in the calibration process is that
+fore proposed for this particular application
+                                              to minimize the                 there is no loss of variance information through averaging out
+Cauchy loss g(x) = log 0.5x2 + 1 instead to solve (10)                         similar measurements. Consequently, the relation between
+while reducing the effect of outliers [17, Section 5.3.2].                     the variance of the measurements and the received signal
+   The use of the Cauchy loss is found to be useful for                        power can then be analyzed.
+mitigating the effect of positive outliers as the mode of the
+bias distribution becomes 0, as shown in Figure 3. Moreover,                   A. Bias Calibration
+the precision of the proposed approach is evaluated by                             The bias calibration procedure is similar to the one pre-
+comparing antenna-delay solutions derived from 2 datasets                      sented in [9]. The reception timestamp at Tag i is usually
+collected one month apart, and the delays converge to the                      corrupted by an unknown function ρi (·) of the received FPP
+same result within 0.03 ns of accuracy, which corresponds                      pf ; therefore, from (2),
+to less than 1 cm of ranging error.
+                                                                                       1                 
+C. Using Calibrated Tags to Calibrate New Tags                                  tf =       ∆t̃41 + ρi pf4
+                                                                                       2
+   In [9], the sum of the antenna delays for every pair of                                                ∆t̃64                          
+                                                                                            −                f
+                                                                                                                    f
+                                                                                                                        ∆t̃64 − ρj pf2
+tags (i, j) is calibrated as one constant cij , which for the                                  ∆t̃53 + ρi p6 − ρi p4
+DS-TWR protocol would be of the form cij = di + Kdj .                                                           
+                                                                                    (a) 1            ∆t̃64         1                  
+This approach requires that calibration is done for every pair                       ≈      ∆t̃41 −        ∆t̃64 +     ρi pf4 + ρj pf2
+                                                                                        2            ∆t̃53         2
+of tags, which is tedious and not scalable. That is due to the                                                      f          
+fact that lumping the delay terms into one constant fails to                           1            ∆t̃64                 p4 + pf2
+                                                                                    ,      ∆t̃41 −        ∆t̃64 + f Ψ                  , (11)
+utilize the constant delay terms that appear in different pairs.                       2            ∆t̃53                      2
+   By solving for the aggregate antenna delays di and dj indi-                 where pfi is the FPP associated with timestamp ti , and
+vidually, this allows calibrating a new tag without collecting                 Ψ(x) , 10(x−α)/10 is the lifting function suggested in [9]
+data between the new tag and all previously calibrated tags.                   with α as a normalization parameter. Moreover, f (·) is an
+In order to calibrate a new tag Tag j, only one calibrated tag                 unknown function to be learned from data, defined based
+Tag i is required, which then allows solving for dj from (9),                  on an experimentally-motivated assumption that the effects
+                      2tf − ∆t̃41 − dˆi                                        of power-correlated bias due to the individual tags can be
+               dˆj =                    + ∆t̃32 .                              aggregated into one function of the average received FPP that
+                            K
+                                                                               is common to all tags of similar design. The step  (a) in the
+However, it is still recommended to collect more data using                    derivation involves the assumptions that ρi pf6 = ρi pf4
+a dynamic experiment with the two tags in order to improve                                                
+                                                                               and ∆  t̃64
+                                                                                    ∆t̃53 j
+                                                                                           ρ pf2 ≈ ρj pf2 . The former assumption is due
+robustness to noise and pose-dependent bias.
+                                                                               to the fact that the motion of the robots is negligible in the
+           IV. P OWER -C ORRELATED C ALIBRATION                                time window ∆t64 and therefore the relative-pose between
+   Another source of error in UWB-based ranging is irreg-                      the two tags  is similar, while the later assumption is due
+ularities in the antenna radiation pattern and system design                   to ρj pf2 being in the order of tenths of nanoseconds, and
+                                                                                                ∆t̃64
+elements, such as PCB-induced losses. Typically, such losses                   therefore 1 − ∆t̃       ρj pf2 ≈ 0.
+                                                                                                   53
+introduce biases in the measurements that are pose-dependent                      Referring back to the experiment mentioned in Section III,
+and that are correlated with the received signal power [9,                     the function f is learned by simply fitting a spline to the
+                                             Individual Pairs          Average                             Raw          Antenna-Delay Calibrated         Fully Calibrated
+               10                                                                                      6
+                5
+  Bias [cm]
+
+                                                                                                       4
+                0
+               −5                                                                                      2
+              −10
+                                                                                                       0
+                              0.00   0.25   0.50     0.75       1.00   1.25      1.50   1.75
+                                                                                                       6
+         Bias Std [cm]
+
+
+
+
+                         20                                                                            4
+
+                         10                                                                            2
+
+                          0                                                                            0
+                                                                                                              −0.2        0.0        0.2           0.4      0.6
+                              0.00   0.25   0.50    0.75
+                                                            1.00  1.25         1.50   1.75                                    Range Bias [m]
+                                                   Ψ 0.5(pf4 + pf2)
+                                                                                               Fig. 5: Distribution of the testing-data range bias pre- and post-calibration,
+Fig. 4: The fitted bias and standard deviation curves as a function of the                     with collection bins indicating the amount of outliers beyond the axes.
+lifted average FPP, using a 4-minute long training experiment.
+
+                                                                                               and at some FPP values there is not enough data points
+post-antenna-delay-calibration range bias as a function of the
+                                                                                               to accurately compute the standard deviation. Additionally,
+lifted average FPP. The result is shown at the top of Figure 4
+                                                                                               despite the curve seeming to slope downwards at lower FPP
+for all individual pairs as well as for all the data, where
+                                                                                               values, it is expected that at some point as the received
+the ToF bias is converted to range bias. As expected, when
+                                                                                               FPP value decreases beyond the lower detection threshold
+the antenna delay is corrected first, the bias-power curve is
+                                                                                               the variance will increase drastically. However, the lower
+similar for all pairs as they all use the same antenna and
+                                                                                               detection threshold is chosen to be higher than the point
+PCB-board design. In this case, this additional calibration
+                                                                                               where random meaningless signals would be detected, and
+procedure can remove up to 10 cm of bias, but even though
+                                                                                               therefore the point where the variance increases significantly
+this calibration procedure is environment independent [9],
+                                                                                               does not appear in the recorded experiment.
+this would vary for different tag designs and this process
+must be done separately for different antenna/board designs.                                         V. E XPERIMENTAL R ESULTS ON T ESTING DATA
+B. Variance Calibration                                                                           The proposed calibration procedure from Sections III and
+                                                                                               IV is evaluated on 2 testing experiments with the same set-up
+  The variance of the measurements is also expected to vary                                    as the training experiment presented in Section III-B. While
+as a function of the received-signal power, that is,                                           in the training experiment the quadcopters follow a more
+                                  f        2                                               structured trajectory, the testing experiments involve the
+                                    p4 + pf2
+            E[(t̃f − tf )2 ] , σ Ψ               .                                             quadcopters flying around the 3-dimensional space randomly.
+                                       2
+                                                                                               Each testing experiment consists of 60 seconds of flight time
+Intuitively, it is expected that the receiver should be able to                                and 10000 range measurements between the 12 pairs.
+detect and timestamp the direct-path signal more accurately
+when the FPP is high as this indicates a high signal-to-noise                                  A. Bias Correction
+ratio (SNR). Additionally, multipath and obstacle-attenuated                                      The distributions of the resulting biases in the testing data
+signals typically have lower FPP, and therefore not a lot of                                   pre- and post-calibration are shown in Figure 5. The mean of
+variance is expected at higher received FPP. At lower re-                                      the bias of the raw measurements is reduced by 36% through
+ceived FPP, the SNR is lower, and the received measurements                                    antenna-delay calibration only and by a further 20% by fully
+might have been corrupted with equally-powerful multipath                                      calibrating the measurements, bringing the mean from 11.11
+and body-attenuated signals.                                                                   cm to 5.91 cm. The standard deviation of the measurements
+   In order to analyze this experimentally using the training                                  is barely affected by antenna-delay calibration, but is reduced
+data, a similar procedure to the power-bias calibration step                                   approximately 6% through power-correlated calibration from
+is proposed. The standard-deviation samples are generated                                      18.95 cm to 17.82 cm. Both the mean and standard deviation
+by computing the standard deviation of the range bias of                                       are affected by positive outliers potentially resulting from
+the measurements in a window of FPP. A spline is fitted to                                     non-LOS and multipath propagation.
+the standard-deviation samples, and the resulting curves are                                      In order to reject outliers, the underlying distribution must
+shown at the bottom of Figure 4. As expected, the lowest                                       be known. Through the variance calibration procedure, the
+standard deviation is at the highest FPP, where the standard                                   range measurements are assumed to be corrupted with zero-
+deviation of the range bias is as low as 2.5 cm. Additionally,                                 mean Gaussian noise with a standard deviation given by (12).
+the highest standard deviation of approximately 17 cm is in                                    An outlier can be rejected if it does not satisfy the underlying
+the mid-FPP region. This is potentially due to reflections off                                 distribution with a certain degree of confidence. For each
+the ground being primarly in this region.                                                      individual measurement k with ground-truth-computed bias
+   Even though there is a clear trend, the standard deviation                                  bk and power-correlated standard deviation σk from (12),
+curves appear to somewhat vary between different pairs. This                                   this can be done by performing the chi-squared test [21,
+is partly due to the training experiment being relatively short,                               Section 1.4.17]. Any measurement that does not satisfy the
+                                                                                                              3.5
+                            Inliers         Outliers           95% confidence interval                                                                   Raw
+                                                                                                              3.0                                        Calibrated
+                             Inliers: 94.81%, Mean: 0.817 [cm], Std.: 6.337 [cm]                                                                         Calibrated w/ Variance
+             1.0                                                                                              2.5
+ Bias [m]
+
+
+             0.5
+
+
+
+
+                                                                                                   RMSE [m]
+                                                                                                              2.0
+             0.0
+                                                                                                              1.5
+            −0.5
+                             Inliers: 92.49%, Mean: 4.021 [cm], Std.: 8.097 [cm]                              1.0
+             1.0
+ Bias [m]
+
+
+
+
+             0.5                                                                                              0.5
+
+             0.0                                                                                              0.0
+                                                                                                                    0   10        20                30          40
+                                                                                                                                       Time [s]
+            −0.5
+                   0                  20             40              60                  80
+                                                  Time [s]                                    Fig. 7: Comparison of the position-estimate RMSE using raw and calibrated
+                                                                                              data for one testing-data scenario.
+Fig. 6: The range bias for 2 ranging pairs in one testing experiment after
+                                                                                              TABLE I: RMSE comparison for the raw and calibrated measurements in
+calibration, with some statistical information.
+                                                                                              all 6 testing-data scenarios.
+                       b2                                                                                                                          RMSE [m]
+inequality σk2 ≤ γ indicates that it is not from the underlying
+             k
+                                                                                                                        Robot                                    Calibrated
+distribution to a certain degree of confidence. The threshold γ                                                          no.
+                                                                                                                                  Raw             Calibrated
+                                                                                                                                                                 w/ Variance
+depends on the chosen degree of confidence, typically 95%.
+   The results of this standard outlier-rejection algorithm are                                                              1   0.9245             0.5122            0.4243
+                                                                                                  Experiment 1               2   0.7577             0.5095            0.4437
+shown in Figure 6. An indication of the calibrated variance                                                                  3   0.6731             0.3872            0.3467
+being close to the actual underlying distribution would be
+                                                                                                                             1   0.8664             0.4879            0.4932
+that exactly 5% of measurements are rejected; however, due                                        Experiment 2               2   0.8174             0.5854            0.3980
+to other factors such as non-LOS and multipath propagation,                                                                  3   0.7837             0.5167            0.4788
+more than 5% of measurements are rejected for some pairs.
+Even in this non-ideal scenario with non-LOS and multipath,                                   experimental run and summarized in Table I for 6 different
+the mean of the measurements after outlier rejection among                                    scenarios using 1) the raw measurements and fixed variance,
+all pairs reduces to a maximum of roughly 4 cm and a                                          2) the calibrated measurements and fixed variance, and 3) the
+maximum standard deviation of approximately 8 cm.                                             calibrated measurements and the calibrated variance-power
+                                                                                              curve. The 6 scenarios represent a variation of which of
+B. Position Estimator
+                                                                                              the three robots is the one with an unknown position to
+   In real-world applications, the ground truth distance be-                                  be estimated, and doing so in two different experimental
+tween tags is usually not known but is rather estimated,                                      runs. The choice of fixed measurement variance is decided
+and the outlier rejection method is usually done using                                        experimentally based on what consistently yields the best
+the normalized-innovation-squared (NIS) test [21, Section                                     performance. On average for the 6 different scenarios, the
+5.4.2]. The NIS test is similar to the chi-squared test men-                                  antenna-delay and bias-calibration procedures alone yield
+tioned in Section V-A, but additionally accommodates for                                      a 38% improvement in localization accuracy, while addi-
+uncertainty in the state estimates.                                                           tionally utilizing the power-correlated variance calibration
+   To evaluate the variance calibration using the NIS test, the                               results in an average of 46% reduction in the RMSE, thus
+following simple localization problem is formulated using                                     emphasizing the importance of calibrating UWB sensors and
+the testing data. Consider the problem of estimating r1wa , the                               the added benefit of using the received FPP as an indication
+position of Robot 1 relative to some arbitrary reference point                                of the uncertainty of measurements.
+w, resolved in some inertial frame Fa . There are two tags on
+the robot, and ri1                                                                                                           VI. C ONCLUSION
+                 1 represents the position of Tag i relative to
+the robot’s reference point in the robot’s own body frame F1 ,                                   In this paper, the problem of calibrating UWB bias is
+which can be measured manually. Additionally, assume that                                     addressed. To eliminate the need for estimating the clock
+the orientation of the robot given by a direction cosine matrix                               states, a DS-TWR-based ranging protocol is presented and
+C1a ∈ SO(3) is known, and that velocity measurements                                          shown to theoretically mitigate the effect of clock-skew-
+v1w
+  a are available from the motion-capture system. Assuming                                    dependent bias. Furthermore, a robust and scalable antenna-
+that poses and tag positions of the neighbouring robots n ∈                                   delay calibration procedure is presented and trained on data
+{2, 3} are known, an extended Kalman filter (EKF) is used                                     from an aerial experiment. A model is then learnt on the
+to estimate r1w
+              a , where the measurements are modelled as                                      experimental data to find the relation between the remaining
+                                                                                              bias and the uncertainty of the measurements as a function
+                   y = r1w   T i1     nw   T jn
+                        a + C1a r1 − ra − Cna rn +ν
+                                                                                              of the received-signal power. The delays and models learnt
+for the range measurement between Tag i on Robot 1 and                                        are then applied to two testing experiments to evaluate the
+Tag j on Robot n, and ν ∼ N (0, R) is white Gaussian noise.                                   calibration procedure. A localization problem is then formu-
+The NIS test is used in the filter for outlier rejection.                                     lated using an EKF, and it is shown that an average of 46%
+   The performance of the filter is shown based on the root-                                  improvement in localization accuracy can be achieved by
+mean-squared-error (RMSE) metric in Figure 7 for one                                          using the corrected measurements and the modelled variance.
+                         R EFERENCES                                          Automation Letters (RA-L), vol. 6, no. 3, pp. 4955–4961,
+ [1]   P. D. Groves, “Shadow matching: A new GNSS position-                   2021, ISSN: 23773766.
+       ing technique for urban canyons,” Journal of Navigation,        [20]   M. Kok, J. D. Hol, and T. B. Schon, “Indoor positioning us-
+       vol. 64, no. 3, pp. 417–430, 2011.                                     ing ultrawideband and inertial measurements,” IEEE Trans.
+ [2]   A. T. Irish, J. T. Isaacs, F. Quitin, J. P. Hespanha, and U.           on Vehicular Technology, vol. 64, no. 4, pp. 1293–1303,
+       Madhow, “Probabilistic 3D mapping based on GNSS SNR                    2015, ISSN: 00189545.
+       measurements,” IEEE Int. Conf. on Acoustics, Speech and         [21]   Y. Bar-Shalom, T. Kirubarajan, and X.-R. Li, Estimation
+       Signal Processing (ICASSP), pp. 2390–2394, 2014.                       with Applications to Tracking and Navigation. USA: John
+ [3]   Decawave,              DW1000              Radio          IC.          Wiley & Sons, Inc., 2002.
+       https://www.decawave.com/product/dw1000-radio-ic/.
+ [4]   M. W. Mueller, M. Hamer, and R. D’Andrea, “Fusing ultra-
+       wideband range measurements with accelerometers and rate
+       gyroscopes for quadrocopter state estimation,” IEEE Int.
+       Conf. on Robotics and Automation (ICRA), pp. 1730–1736,
+       2015.
+ [5]   B. Hepp, T. Nägeli, and O. Hilliges, “Omni-directional per-
+       son tracking on a flying robot using occlusion-robust ultra-
+       wideband signals,” IEEE Int. Conf. on Intelligent Robots and
+       Systems (IROS), vol. 2016-November, pp. 189–194, 2016.
+ [6]   Y. Cao, C. Yang, R. Li, A. Knoll, and G. Beltrame, “Accurate
+       position tracking with a single UWB anchor,” IEEE Int.
+       Conf. on Robotics and Automation (ICRA), pp. 2344–2350,
+       2020.
+ [7]   Z. Sahinoglu, S. Gezici, and I. Güvenc, Ultra-wideband Po-
+       sitioning Systems: Theoretical Limits, Ranging Algorithms,
+       and Protocols. Cambridge University Press, 2008.
+ [8]   P. Groves, Principles of GNSS, Inertial, and Multisensor In-
+       tegrated Navigation Systems, Second Edition. Artech House
+       Publishers, 2013.
+ [9]   J. Cano, G. Pages, E. Chaumette, and J. Le Ny, “Clock and
+       Power-Induced Bias Correction for UWB Time-of-Flight
+       Measurements,” IEEE Robotics and Automation Letters (RA-
+       L), vol. 7, no. 2, pp. 2431–2438, 2022, ISSN: 23773766.
+[10]   D. Neirynck, E. Luk, and M. McLaughlin, “An alternative
+       double-sided two-way ranging method,” 13th Workshop on
+       Positioning, Navigation and Communication, WPNC 2016,
+       pp. 16–19, 2017.
+[11]   Decawave, “Sources of error in DW1000 based two-way
+       ranging (TWR) schemes,” pp. 1–21, 2014.
+[12]   J. González, J. L. Blanco, C. Galindo, A. Ortiz-de Galisteo,
+       J. A. Fernández-Madrigal, F. A. Moreno, and J. L. Martı́nez,
+       “Mobile robot localization based on Ultra-Wide-Band rang-
+       ing: A particle filter approach,” Robotics and Autonomous
+       Systems, vol. 57, no. 5, pp. 496–507, 2009.
+[13]   H. Wymeersch, S. Maranò, W. M. Gifford, and M. Z. Win,
+       “A machine learning approach to ranging error mitigation
+       for UWB localization,” IEEE Trans. on Communications,
+       vol. 60, no. 6, pp. 1719–1728, 2012.
+[14]   A. Ledergerber and R. D’Andrea, “Calibrating Away In-
+       accuracies in Ultra Wideband Range Measurements: A
+       Maximum Likelihood Approach,” IEEE Access, vol. 6,
+       pp. 78 719–78 730, 2018.
+[15]   J. Zhu and S. S. Kia, “Bias Compensation for UWB Ranging
+       for Pedestrian Geolocation Applications,” IEEE Sensors
+       Letters, vol. 3, no. 9, pp. 7–10, 2019.
+[16]   Decawave, “APS014: DW1000 Antenna Delay Calibration
+       Version 1.2,” 2018.
+[17]   T. Barfoot, State estimation for Robotics. Cambridge Uni-
+       versity Press, 2017.
+[18]   T. M. Nguyen, A. H. Zaini, C. Wang, K. Guo, and L. Xie,
+       “Robust Target-Relative Localization with Ultra-Wideband
+       Ranging and Communication,” IEEE Int. Conf. on Robotics
+       and Automation (ICRA), pp. 2312–2319, 2018.
+[19]   M. Shalaby, C. C. Cossette, J. R. Forbes, and J. Le Ny,
+       “Relative Position Estimation in Multi-Agent Systems Using
+       Attitude-Coupled Range Measurements,” IEEE Robotics and
+

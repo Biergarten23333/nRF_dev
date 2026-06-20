@@ -1,0 +1,699 @@
+IEEE TRANSACTIONS ON INSTRUMENTATION AND MEASUREMENT, VOL. 73, 2024                                                                     9504211
+
+
+
+
+   Data-Driven Antenna Delay Calibration for UWB
+           Devices for Network Positioning
+       Zuoya Liu , Teemu Hakala , Juha Hyyppä , Antero Kukko , Harri Kaartinen , and Ruizhi Chen
+
+
+
+
+   Abstract— This study presents a real-time and fully automatic                                     I. I NTRODUCTION
+antenna delay calibration approach for ultrawideband (UWB)
+devices, which can be utilized to evaluate the combined delay of
+each UWB device used in the positioning system. Two estimators,
+a coarse estimator and a fine-tuning estimator, operate closely
+                                                                               T     IME-OF-FLIGHT (ToF) measurement-based high-
+                                                                                     accuracy and high-precision ranging technologies are
+                                                                               the basis and core of indoor and outdoor positioning and
+together in the calibration. The coarse estimator can determine a
+common coarse value for all devices involved in the calibration;               navigation systems due to their advantages of low complexity,
+the fine-tuning estimator continuously determines the optimal                  high robustness, high extensibility, and adaptability compared
+value for each device. More than three UWB devices can be                      with received signal strength indication (RSSI)-, angle-,
+calibrated simultaneously in real-time in the developed approach,              fingerprint-, and inertial measurement unit (IMU)-based
+making it a suitable solution for positioning applications with
+a large number of UWB devices. To evaluate the calibration
+                                                                               solutions [1], [2], [3], [4], [5], [6]. Based on this technique,
+accuracy of the proposed approach and verify the ranging                       positioning, navigation, and tracking services for mobile
+accuracy and precision at different distances, experiments were                targets [2], such as robotics and pedestrians, in indoor and
+conducted in an indoor office space and outdoors in an open space              outdoor environments can easily be achieved with excellent
+using universal UWB devices (DWM1001 from Decawave). The                       performance in terms of positioning accuracy, scalability,
+experimental results show that the proposed approach achieves
+a ranging precision of better than ±0.01 m within a base UWB
+                                                                               real-time performance, and reliability [6].
+network for each pair of devices and achieves a ranging accuracy                  Ultrawideband (UWB) communication, an outstanding rep-
+and precision of better than ±0.05 m in a distance range from 1 to             resentative of ToF technologies, has become increasingly
+25 m after calibration and bias correction for a remote/moving                 popular in recent decades and has emerged as the most promis-
+UWB device. Therefore, the developed approach is sufficient for                ing candidate for ubiquitous location-related applications [7].
+UWB-based applications in which each UWB device must remain
+in a stationary state at the horizontal plane spanned by the                   It can achieve decimeter-level or even centimeter-level rang-
+devices in space to ensure the performance of the positioning                  ing, positioning, and tracking in line-of-sight (LoS) conditions
+system.                                                                        by measuring the ToF of wideband pulse signals traveling
+  Index Terms— Antenna delay, calibration, high accuracy,                      between a transmitter and a receiver with subnanosecond
+network positioning, real-time and automatic, ultrawideband                    resolution [8]. However, for UWB devices without antenna
+(UWB).                                                                         calibration, even in LoS conditions, ToF measurements are
+                                                                               subject to ranging offsets caused by inaccurate transmis-
+                                                                               sion (Tx) and reception (Rx) antenna delays of the devices
+                                                                               [9]. These offsets can severely disrupt the ranging precision
+  Manuscript received 13 September 2023; revised 11 December 2023;             between the transmitter and the receiver, thereby reducing the
+accepted 14 December 2023. Date of publication 1 January 2024; date of         positioning accuracy of the system, necessitating a calibration
+current version 12 January 2024. This work was supported in part by the        procedure before deploying and implementing a positioning
+Academy of Finland through the UNITE Flagship under Grant 337656,
+through the “Capturing Structural and Functional Diversity of Trees and        system. Moreover, the Tx and Rx antenna delays are par-
+Tree Communities for Supporting Sustainable Use of Forests/Consortium:         ticularly dependent on the specific devices [9], and slight
+Diversity4Forests” Project under Grant 338644, and through the “Feasibility    differences exist from device to device [11]. These variations
+of Inside-Canopy UAV Laser Scanning for Automated Tree Quality Survey-
+ing/Consortium: Quality4Trees” Project under Grant 334002; and in part by      affect the final positioning accuracy of such systems by
+the Ministry of Agriculture and Forestry of Finland and European Union         tens of centimeters, which hinders their use, especially for
+NextGenerationEU through the project IlmoStar under Grant VN/27353/2022.       high-accuracy applications [12].
+The Associate Editor coordinating the review process was Dr. Yulong Huang.
+(Corresponding author: Zuoya Liu.)                                                Many efforts have been made to calibrate the antenna delays
+  Zuoya Liu, Teemu Hakala, Juha Hyyppä, Antero Kukko, and Harri Kaarti-        of UWB devices. Decawave Ltd., presented an approach
+nen are with the Department of Remote Sensing and Photogrammetry,              using an iterative two-way ranging (TWR)-based measurement
+Finish Geospatial Research Institute, National Land Survey of Finland, 02150
+Espoo, Finland (e-mail: zliu@maanmittauslaitos.fi; teemu.hakala@nls.fi;        method to determine the combined antenna delays of UWB
+juha.coelasr@gmail.com; antero.kukko@nls.fi; harri.kaartinen@nls.fi).          devices [9], which can then be used to correct the Tx and
+  Ruizhi Chen is with the Department of State Key Laboratory of Information    Rx timestamps. Three UWB devices placed at fixed known
+Engineering in Surveying, Mapping and Remote Sensing, Wuhan University,
+Wuhan 430079, China (e-mail: ruizhi.chen@whu.edu.cn).                          distances were used in this approach, and TWR was performed
+  Digital Object Identifier 10.1109/TIM.2023.3348891                           consecutively between each pair of UWB devices.
+                             © 2024 The Authors. This work is licensed under a Creative Commons Attribution 4.0 License.
+                                        For more information, see https://creativecommons.org/licenses/by/4.0/
+9504211                                                         IEEE TRANSACTIONS ON INSTRUMENTATION AND MEASUREMENT, VOL. 73, 2024
+
+
+
+   Based on the mean of these obtained TWR measurements,
+the optimal delays of the three devices are determined by
+producing uniformly distributed candidates and altering each
+iteration to find a local optimum that produces the least differ-
+ence between the actual and measured distances. Gui et al. [14]
+presented a least squares-based calibration method, which is
+very similar to the calibration method presented by Decawave.        Fig. 1.   ToF algorithm principle.
+These two methods depend strongly on the ranging accuracy
+and the estimation algorithm, and any ranging errors are fed
+back into the calibration, resulting in inaccurate antenna Tx        frequency inconsistencies of devices [10]. It is necessary to
+and Rx delays.                                                       eliminate or mitigate these errors before implementing the
+   Horvath et al. [13] introduced a method to determine the          calibration. A short overview of the theory of the TWR
+antenna delay of a UWB device with the help of two other             protocol and the sources of error are introduced in detail in
+UWB devices, whose antenna delays do not need to be known.           this section.
+This method requires strict reply delay times to implement
+symmetric double-side TWRs, which may not be feasible for            A. TWR Protocol
+two separate UWB devices. To improve the calibration accu-
+                                                                        Two separated asynchronous devices can achieve ToF or
+racy, Shah et al. [15] introduced a distance-based calibration
+                                                                     distance measurement between each other by sending multiple
+method using three modules, and one of these modules acts
+                                                                     communication messages and recording the corresponding
+as auxiliary equipment to listen to the messages transmitted
+                                                                     timestamps (see Fig. 1). This method is also called single-side
+by the other two modules. However, this method can only
+                                                                     TWR (SS-TWR) [16].
+evaluate two nodes’ antenna delays one time, which is not
+                                                                        t1 , t4 , t3 , and t2 denote the recorded Tx and Rx times-
+very efficient, especially for large-scale applications.
+                                                                     tamps of these messages at the tag/initiator side and the
+   Motivated by current shortcomings and the potential
+                                                                     anchor/responder side, respectively. The ToF measurement can
+demand for high-accuracy UWB-based positioning systems,
+                                                                     be determined by
+this study introduces a real-time, reliable, and fully automatic
+calibration approach to evaluate the antenna delay of each                             ToF = 0.5 · [(t4 − t1 )-(t3 − t2 )].       (1)
+UWB device of a positioning system. Two estimators, a coarse
+                                                                        Then, the distance between the tag and the anchor can be
+evaluator and a fine-tuning evaluator, work together and
+                                                                     calculated by multiplying the speed of the radio signal in the
+closely in the proposed approach. The coarse evaluator deter-
+                                                                     air.
+mines the same coarse delay for all UWB devices involved
+in the calibration by searching for the optimal delay with a
+binary search algorithm. The fine-tuning evaluator determines        B. Sources of Error of TWR
+the best delay for each device by adjusting the Tx and Rx delay         Based on official application notes provided by Decawave
+of each device continuously with a minimum scale of two units        [17], the main sources of error of TWR that affect the ranging
+of time of the UWB chip. The fundamental unit of time in the         accuracy and precision are the following: antenna Tx and
+UWB chip is a tick. For both evaluators, the delay set with          Rx delays, clock drifts and frequency inconsistencies of the
+minimum ranging errors is determined as the optimal value of         devices, and the received signal power level (RSL).
+the delay of the devices. Three UWB devices are necessary for           1) Antenna Tx and Rx Delays: Antenna Tx and Rx delays
+the approach to construct a stable equilateral triangle; thus, the   are internal to the UWB chip and are not included in the actual
+approach can calibrate three devices simultaneously, which is        ToF measurement but in the propagation delay from the Tx
+significant for actual applications with a large number of UWB       timestamp to the Rx timestamp, as shown in Fig. 2(a). Then,
+devices.                                                             the actual ToF between the tag and the anchor can be obtained
+   The outline of this work can be summarized as follows.            by
+Section II describes the ToF measurement algorithm and
+possible sources of ranging error. Section III describes the                         ToFmeasured = tTX + ToFactual + tRX .        (2)
+proposed approach in detail. Section IV reports the experiment          Fig. 2(b) shows an example of the measured ranging results
+and presents a comparison of the results. Section V presents         of two DWM1001 modules at a distance of 0.5 m with
+a discussion, and Section VI highlights the conclusion of this       respect to tTX = 0 and tRX = 0 for both devices. An
+work and discusses future research.                                  offset of approximately 153.98 m is included in almost all
+                                                                     the measurements, which cannot be neglected and accepted
+          II. T O F M EASUREMENT A LGORITHM AND                      by any UWB-based applications.
+                      S OURCES OF E RROR                                Although the internal Tx and Rx delays of UWB chips vary
+   TWR-based ToF measurement is the most accurate ranging            slightly from chip to chip, the total delays in the propagation
+algorithm for UWB, which is why it can be used as the basis          can vary for each device due to the distinctions of the external
+for antenna delay calibration of UWB devices [9]. However,           components between the UWB chip and the antenna. These
+there are a number of sources of error that affect TWR’s             variations cause differences in ranging measurements in the
+accuracy and precision in ranging, such as clock drifts and          tens of centimeters, which is not acceptable, especially for
+LIU et al.: DATA-DRIVEN ANTENNA DELAY CALIBRATION FOR UWB DEVICES FOR NETWORK POSITIONING                                                        9504211
+
+
+
+
+Fig. 2. Influence of the antenna delays of the tag and the anchor node on
+the measured ToF: (a) signals are not immediately transmitted and received at   Fig. 3. Example of the difference between the reply times of the tag and
+timestamping and (b) example of the measured ranging results at a distance      the anchor for AltDS-TWR.
+of 0.5 m between the tag and the anchor without considering antenna delays;
+1600 measured statistical results are included in (b).
+
+                                                                                be linear, it is not practical to implement this approach in
+                                                                                real environments because of the multipath effect of the radio
+high-accuracy UWB-based positioning systems. Therefore,                         frequency signals.
+antenna delay calibration is necessary for each UWB device                         Based on the results presented in [18] and [21], although
+to remove these variations.                                                     a highly nonlinear relationship may exist between the ToF
+   2) Clock Drift and Frequency Errors of the Devices: For                      measurement and the received signal level, especially the first
+SS-TWR, a slight clock difference between the tag and the                       path power level (FPL), it is difficult to fit it because any
+anchor can cause erroneous estimation of timestamps, resulting                  environmental noise, multipath or change in the environment
+in inaccurate ToF measurements. The frequency errors of the                     affects the RSL and the correction accuracy. Some efforts have
+crystal oscillator from its reference value on each device give                 been made to address this case by applying machine learning
+rise to clock drift and therefore directly affect the accuracy of               or regression-based methods to predict distance errors, such
+the timestamping process [17]. The effect of clock drifts on the                as the Gaussian process regression-based method presented
+ranging accuracy and precision can be mitigated by using an                     in [21]. However, complexity calculations in the training
+alternative double-side TWR (AltDS-TWR) algorithm since                         process heavily limit these methods from being used in
+the ranging errors caused by clock drifts are dominated by                      actual applications, especially in applications with a large
+the difference between the replay times of the tag and the                      number of UWB devices. RSL-dependent distance errors are
+anchor for AltDS-TWR [16]. For the DW1000 chip, we can                          an interesting research topic but are outside the scope of
+precisely maintain the difference within 8 ns (one clock of                     this study, which is why we focus on the errors caused
+the chip) using the integrated delay Tx function of the chip                    by the antenna delay and clock drift of the devices (trying
+and the developed ranging method (see Section III), as shown                    to find easy methods to correct them to provide guidelines
+in Fig. 3. Hence, the ranging errors caused by clock drifts                     for actual UWB applications). The order of magnitude of
+could theoretically be less than 0.0015 cm considering a                        the error due to the RSL could be larger than 10 cm,
+20 ppm frequency error between the tag and the anchor                           as shown by [17].
+[17]. The ranging errors caused by the frequency errors are                        As mentioned above, RSL is another main factor that affects
+dependent upon the replay time and the frequency drift of                       the ranging precision, resulting in an unexpected ranging bias
+the ranging initiator for AltDS-TWR. The frequency drift of                     in the measurements. This bias is caused by the inaccurate Rx
+a room-temperature crystal oscillator is typically less than                    timestamps estimated by the leading edge (LDE) algorithm
+0.05 ppm after the oscillator stabilizes, which corresponds                     [19] integrated into the UWB chips, which finds the “LDE”
+to a ranging error of 0.75 cm with a reply time of 2 ms.                        of the channel impulse response (CIR) of the received signals.
+Therefore, the total ranging errors caused by clock drifts                      The effect has been described and verified in [17] and [23].
+and frequency errors could theoretically be less than 1 cm                      Cano et al. [18] modeled these biases as a linear function of the
+for AltDS-TWR. However, inaccurate timestamps recorded                          FPL of the received signals. Although FPL is less sensitive to
+by UWB chips introduce extra random distance errors into                        disturbances of multipath propagation than RSL, it is also less
+the results, which is why AltDS-TWR can only achieve a                          robust to the environment, even in LoS conditions, and can be
+ranging accuracy of less than approximately ±5 cm in actual                     easily affected by the environment. For example, the variation
+measurements for the DW1000 chip, even in LoS conditions.                       in FPL can be ±5 dBm when FPL is approximately −90 dBm
+   3) Received Signal Power Level: According to [17], a bias                    based on the results of our experiments. Sidorenko et al. [20]
+that varies with the RSL can be observed in the reported times-                 tried to find the best signal power correction curves between
+tamp of the received UWB signal, introducing a ranging bias                     the bias and the RSL by sending multimessages between the
+in the evaluated ToF measurement. This bias can be ignored                      tag and the anchor. However, the correction curve is difficult
+for most applications; however, higher precision ranging and                    to use in different scenarios due to the different multipath
+positioning applications must correct it to ensure the perfor-                  effects of the environments. Therefore, RSL- or FPL-based
+mance of the applications. Although Decawave suggested a                        methods are not very suitable for actual applications. To avoid
+curve and an empirical lookup table in [17] where the bias                      dependence on the RSL or FPL, Ledergerber and D’Andrea
+corresponds to a specific RSL, and the relationship tends to                    [21] and [22] proposed two effective methods to model and
+9504211                                                          IEEE TRANSACTIONS ON INSTRUMENTATION AND MEASUREMENT, VOL. 73, 2024
+
+
+
+                                                                      A. Message-Based Ranging Algorithm
+                                                                         Similarly, for the proposed approach, all the data used
+                                                                      during the calibration are distance measurements. Therefore,
+                                                                      a high-accuracy ranging algorithm is necessary to reduce
+                                                                      the effect of distance errors on the calibration accuracy. As
+                                                                      mentioned previously, AltDS-TWR is an optimal ranging
+                                                                      method to address this case. It is an extension of the basic
+                                                                      SS-TWR algorithm but is more accurate. Usually, the deviation
+                                                                      of AltDS-TWR is less than 3 cm for UWBs in LoS conditions,
+                                                                      which is sufficient for antenna delay calibration when we
+                                                                      expect the calibration accuracy to be less than 10 cm or
+Fig. 4.   Schematic of the proposed calibration.                      even 5 cm.
+                                                                         In addition, considering the actual case in which each
+                                                                      UWB device has two independent Tx and Rx delays, each
+correct the ranging biases using sparse pseudo-input Gaussian         introduces bias into the ToF measurements. Although it is
+processes and a maximum likelihood approach. However,                 better to evaluate Tx and Rx delays independently, especially
+these methods strongly depend on the anchor setup and an              for high-accuracy applications, it is difficult to do so because
+extra angle measurement sensor is necessary for each UWB              both delays have equivalent effects on the ranking results. In
+module. The distance pseudo measurements are deduced from             addition, two pairs of unknown Tx and Rx delays exist for
+the ToF measurements between the transceivers and depend              two UWB chips, but only two distance measurements can be
+on the accuracy of the angle sensor, thus consequently any            obtained between them. There are not enough equations that
+measurement errors in the distance and angle estimations are          can be constructed to evaluate them. To address this issue,
+fed back into the correction.                                         a combined antenna delay T∗ consisting of the Tx and Rx delay
+   An optional method to correct the biases caused by RSL was         is typically used in the calibration, assuming the same Tx and
+presented by Flueratoru et al. [11]. A simple linear function         Rx delay for each device. In this way, it is possible to evaluate
+was assumed between the measured distance and the true                all combined delays of the devices based on only the distance
+distance, which can be found by minimizing the squared error          measurements among them. This method effectively reduces
+                          N                                           the complexity of the calibration without loss of accuracy
+                                                                      based on the application notes provided by Decawave [9].
+                          X
+                    E=          |xn · ρ0 + ρ1 − yn |2          (3)
+                          n=0
+                                                                         However, to realize this approach, it is necessary to ensure
+                                                                      an equal number of Tx and Rx delays for each UWB device
+where N , xn , and yn are the total number of measurements, the
+                                                                      to reduce the effect of independent Tx and Rx delays on
+true distance, and the measured distance for all n = 1, . . . , N ,
+                                                                      calibration accuracy. Although SS-TWR can address this case,
+respectively. ρ0 and ρ1 are the polynomial coefficients to be
+                                                                      the ranging accuracy of SS-TWR, usually ±10 cm in LoS
+evaluated. Although several caveats exist for the approach,
+                                                                      conditions, is not sufficient to ensure calibration accuracy.
+as listed by Flueratoru et al. [11], this approach is efficient
+                                                                      Instead, a four-message-based AltDS-TWR ranging algorithm
+for correcting these ranging biases. Combined with the pro-
+                                                                      (4M-AltDS-TWR) is implemented to measure the distance
+posed antenna calibration method, it is possible to achieve
+                                                                      between the tag and anchor (see Fig. 5). There are two
+a ranging accuracy within ±5 cm for all distances and all
+                                                                      complete combined antenna delays for both the tag and anchor,
+anchor-tag pairs when all devices have the same hardware and
+                                                                      thus; the effect of independent Tx and Rx delays on the
+configurations, and are calibrated at the same distance. Using
+                                                                      calibration can be mitigated effectively. In addition, a request
+a heterogeneous set of devices may have a detrimental impact
+                                                                      communication packet is also introduced into the ranging
+on performance, and remains a quest for the future to achieve
+                                                                      algorithm, as shown in Fig. 5. It can be used to ensure
+generality for the UWB positioning.
+                                                                      that the tag and the anchor have the same electrical status
+                                                                      transforming from Tx to Rx or from Rx to Tx during the
+                         III. M ETHODOLOGY                            ranging process, reducing the random errors caused by the
+   Fig. 4 shows an overview of the proposed calibration, which        transformation. Similar to AltDS-TWR, 4M-AltDS-TWR can
+is composed of four devices: three uncalibrated devices placed        mitigate the ranging errors caused by the clock and frequency
+at the same distance and one control terminal. The control            drifts of the devices based on the derivation presented in [16].
+terminal is utilized to trigger the ranging between the devices       The measured ToF of 4M-AltDS-TWR can be obtained by
+and then estimate a new antenna delay set for the three devices                                 Ra Rb − Da Db
+based on the measured distances; thus the optimal delays for                           Tf =                                       (4a)
+                                                                                             Ra + Da + Rb + Db
+the three devices can be determined.
+   In addition, the calibration can be extended to N devices                           Ra = t4 − t1 , Da = t7 − t6
+once the calibration for the first three devices is completed.                         Rb = t8 − t5 ,   D b = t3 − t2 .           (4b)
+The optimal delay of device N can be determined by averag-
+                                                                        The error included in (4a) can be modeled as
+ing the estimated delays from the distances between device N
+and the three devices in the original set.                                    T f − T f∼ = −e1 · T f or T f − T f∼ = −e2 · T f     (5)
+LIU et al.: DATA-DRIVEN ANTENNA DELAY CALIBRATION FOR UWB DEVICES FOR NETWORK POSITIONING                                       9504211
+
+
+
+
+Fig. 5. Message communicates in the 4M-AltDS-TWR method used for
+distance measurement between the tag and the anchor in this study.
+
+
+
+where T f∼ is the true ToF and e1 and e2 are the clock shift
+errors of the tag and the anchor, respectively. The detailed
+                                                                     Fig. 6.   Flowchart of the approach.
+derivation process of (4) and (5) is given in the Appendix.
+   Using this scheme, the typical ranging errors caused by
+clock drifts could theoretically be in the low picosecond range      median bounds will be obtained. The median bounds were set
+even with a ±20 ppm crystal oscillator within a distance of          to ±5 cm according to the ranging accuracy of the developed
+100 m. As a result, the error caused by clock shifts should          4M-AltDS-TWR algorithm. The median of all the effective
+be less than ±0.3 cm. Therefore, the inaccurate timestamps           DSs is taken as the final value of the measurement between
+recorded by the UWB chips are the main factor affecting the          the tag and the anchor. All the distance measurements between
+ranging accuracy.                                                    each pair of the three devices within the initialization, coarse
+                                                                     estimation, and fine-tuning estimation were implemented with
+B. Antenna Delay Calibration                                         this strategy to improve the ranging accuracy and thus improve
+   For UWB devices, the Tx and Rx delays change only                 the calibration accuracy.
+slightly once the components between the UWB chip and
+the antenna have been soldered correctly in the devices [17].        Algorithm 1 DS
+Although changes in temperature introduce random errors to             1: Set expected number N of the effective ToF
+the measurements as well, these errors are extremely small.               measurements;
+Therefore, the antenna delay is considered constant for each           2: Obtain N 4M-AltDS-TWR measurements;
+device. In this case, we can adjust the antenna delay of each          3: Sort the measurements and obtain the median dmean ;
+UWB device within a certain range to determine the optimal             4: Filter out all the distances that are out of the median
+value of the device by comparing the measured distance with               bounds and record the effective number M;
+the actual distance.                                                   5: While M < N
+   Fig. 6 shows an overview of the developed approach, which           6:    Obtain one 4M-AltDS-TWR measurement d;
+is composed of three major parts: initialization, coarse estima-       7:    If ∥d − dmean ∥ ≤ 0.05 m do
+tion, and fine-tuning estimation. Initialization is designed to        8:      M = M + 1;
+determine inaccurate initial values for the three UWB devices          9:      Record d as an effective measurement;
+involved in the calibration. Coarse estimation determines the         10:    End
+same combined delay for three devices and ensures that the            11: End
+distance measurements between each pair of the three devices          12: Set distance to be the median of the samplings;
+are within the expected tolerance. A two-way search-based
+approach (TWS) is developed to determine the optimal com-               1) Initialization: In the initialization, first, we set all
+bined delay by dynamically adjusting the combined delays of          antenna delays of the three devices to zero. Then, we perform
+the three UWB devices simultaneously and then determining            DS for each pair of the three devices and obtain the distance
+the next possible candidate of the combined delay to be tested       errors δi j , where i ̸ = j and i, j = 1, 2, 3. Two dynamic
+based on the measured distance and evaluated errors. Fine-           variables are then set up to determine the upper-limit Tup and
+tuning estimation determines the actual delay for each device        lower-limit Tdown of the actual antenna delay Tactual of the three
+by adjusting the antenna delays of the three devices slightly        devices, which can be obtained by
+until the measured distances between each pair of the three
+devices match the actual distance as closely as possible.                                         Tup = δd · ξ + 1t               (6a)
+   Unexpected outliers may still appear in the results even                                    Tdown = δd · ξ − 1t                (6b)
+with the developed 4M-AltDS-TWR algorithm. To remove the
+effect of outliers on the final calibration accuracy, a strategy     where ξ is a factor used to transform the measured distance
+that integrates a median filter is designed to detect and elim-      to the UWB chip time, δd denotes the maximum value of δi j ,
+inate values that are larger than the specified median bounds        and 1t is a constant used to determine the search scope of
+during distance sampling (DS). The details of this strategy          the coarse estimation. The difference in the combined antenna
+are described in Algorithm 1. By implementing this strategy,         delays between different UWB devices is typically less than
+a certain amount of effective ToF measurements within the            10 ns or 3 m in distance, especially for devices composed
+9504211                                                       IEEE TRANSACTIONS ON INSTRUMENTATION AND MEASUREMENT, VOL. 73, 2024
+
+
+
+of the same UWB chip and the same external components
+based on our tests. In this case, we set 1t = 500, which
+corresponds to an adjustment range of approximately 4.7 m.
+This is definitely sufficient for the calibration. Finally, the
+combined delay is set to be the mean Tmean of the two limits
+for each device.
+   2) Coarse Estimation: As mentioned previously, coarse
+estimation was implemented to determine the same combined
+antenna delay for the three devices, and TWS was applied to        Fig. 7.   Example of the variation in the factor δ in the coarse estimation.
+determine the new values of the upper limit Tup and lower
+limit Tdown and thus the final combined delay of the three
+devices. The details of TWS are presented in Algorithm 2.          where α = 0.2 is a fixed factor used to obtain Tft . α can
+First, DS is performed for each pair of the three devices;         also be set to other values to increase or decrease the coarse
+thus, six measured distances di j , where i ̸ = j, can be          estimation. Then, the new upper limit and lower limit can
+obtained. Based on these measurements, a score factor used         be determined by the factor Tft , as shown in Algorithm 2.
+to determine the adjustment direction of the two limits can be     The complexity of TWS is approximately equal to 2(log2 n)
+calculated by                                                      because its core is based on a binary search algorithm, where
+                                                                   n is the search scope of the initialized upper limit and lower
+                  (
+                   δ + 1, if di j − dactual < 0
+             δ=                                             (7)    limit. The corresponding time consumption of TWS for the
+                   δ − 1, if di j − dactual > 0.                   UWB device is 2(log2 n) · tDS , where tDS is the total sampling
+                                                                   time of DS.
+Algorithm 2 TWS                                                       3) Fine-Tuning Estimation: After the coarse estimation, the
+  1: While Tdown < Tup                                             combined delay should be the same for all three devices, but
+  2:    Set delays to T = (Tup + Tdown )/2 for each device;        the actual delay can vary for each device due to the distinctions
+  3:    Do DS for each pair of devices and obtain the              of the external components between the UWB chip and the
+   ranging errors δi j ;                                           antenna, such as the balun, as well as the difference in the
+  4:    Obtain direction factor δ by solving Formula (7);          power system of the device. For high-accuracy applications,
+  5:    Set new value for Tup or Tdown ;                           these variations must be calibrated carefully for each UWB
+  6:      ′
+        Tup   = T, i f δ > 0 or Tdown
+                                  ′
+                                      = T, i f δ < 0;              device to ensure the performance of the positioning system.
+  7:    If δ = 0 do                                                   To determine the actual value of these variations for each
+  8:      Obtain the fine-tuning factor by solving Formula         UWB device, an iterative-based fine-tuning (IFE) estimation
+          (8);                                                     algorithm is introduced, as shown in Algorithm 3. Fig. 8
+  9:      Obtain new values for Tup and Tdown ;                    describes the structure of the IFE. The combined antenna
+ 10:        ′
+          Tup                   ′
+               = Tup − T f t , Tdown = Tdown + T f t ;             delays of the three devices are adjusted one by one in the
+ 11:    End                                                        IFE, and the best values with the minimum distance errors are
+ 12:    δ = 0;                                                     recorded during the estimation. In this way, the optimal set
+ 13:    Update Tup and Tdown ;                                     of delays can be found once all the expected steps have been
+ 14: End                                                           implemented by the three devices. Two factors are designed to
+ 15: Set combined delay to T = (Tup + Tdown )/2 for each           determine the distance errors, as shown in (9). One is based
+      device;                                                      on the errors between the measured distance and the actual
+                                                                   distance, and the other is based on the errors between all the
+    In the early stages of the coarse estimation, the evaluated    measured distances
+combined delay is always too far from the actual value; thus,                            i̸= j
+                                                                                         X
+the factor δ is always larger or smaller than zero. In these                      σ1 =           di j − d                                   (9a)
+cases, the new values of the upper limit and lower limit                                  i, j
+can be determined easily with Tup    ′
+                                        = Tmean , ifδ < 0 and                            i̸= j
+                                                                                         X
+Tdown = Tmean , ifδ < 0, where Tmean denotes the median of the
+  ′                                                                               σ2 =           di j − R ,   R = {di j }|i ̸ = j .         (9b)
+old upper limit and lower limit. However, the evaluated com-                              i, j
+bined delay will approach the actual value, as the adjustment         These two errors should be as close as possible to zero
+proceeds smoothly. As a result, the score factor δ becomes         because all the measured distances should theoretically be
+more random especially in the later process of the estimation,     equal to the designed calibration distance. In this case, the
+due to the ranging errors of the 4M-AltDS-TWR algorithm,           best set of delays of the three devices can be determined by
+as shown in Fig. 7. In this case, it is inaccurate to determine    recording the minimum of the two errors
+the new upper limit and lower limit only with Tmean and δ.
+To address this issue, a fine-tuning factor Tft is introduced to                         [T1 , T2 , T3 ] = min{σ1 , σ2 }.                   (10)
+decelerate the estimation process, which can be obtained by
+                                                                     In addition, we used undulating steps with a uniform distri-
+                   Tft = (Tup − Tdown ) · α                  (8)   bution to conduct the adjustment set, as shown in Algorithm 3,
+LIU et al.: DATA-DRIVEN ANTENNA DELAY CALIBRATION FOR UWB DEVICES FOR NETWORK POSITIONING                                                    9504211
+
+
+
+                                                                                               TABLE I
+                                                                       PARAMETERS OF THE DW1000 C HIP U SED IN A LL THE E XPERIMENTS
+
+
+
+
+Fig. 8.   Structure of IFE.
+
+Algorithm 3 IFE
+  1: If combined delay T of coarse estimation is an odd               Fig. 9. Experimental layout of antenna delay calibration. Three uncalibrated
+     number do                                                        UWB devices were placed at the same known distance from each other. During
+                                                                      the calibration process, LoS conditions were maintained for the three devices
+  2:                      Set       adjustment        set        to   at all times. An equilateral triangle was used in these experiments so that the
+     Tstep = [2, 4, 6, 8, 10, 12, 2, 4, 6, 8, 10, 12] · TU W B ;      treatment of the range bias in the calculation is simplified because the range
+  3: else                                                             bias should be the same for the three devices with the same distance between
+                                                                      each other [9].
+  4:                      Set       adjustment        set        to
+     Tstep = [1, 3, 5, 7, 9, 11, 1, 3, 5, 7, 9, 11] · TU W B ;
+  5: End                                                              the devices, and the sampling number was set to 10 to
+  6: repeat                                                           accelerate the estimation for both TWS and IFE. The total time
+  7:    for T1 ± Tstep,i , T2 ± Tstep,i and T3 ± Tstep,i do           consumption of DS was approximately 0.1 s, which can be
+  8:     Set antenna delays;                                          obtained by t = 6M · t4M-AltDS-TWR , where M and t4M-AltDS-TWR
+  9:     Perform DS for each pair of the three devices;               are the sampling number of DS and the time consumption of
+ 10:     Calculate ranging errors σ1 and σ2 by solving                each 4M-AltDS-TWR range, respectively. One of the three
+         Formula (9);                                                 devices was connected to a PC to collect the raw measured
+ 11:     Record T1 , T2 and T3 with minimum σ1 and σ2 ;               distances, debug information, and the final calibrated delays.
+ 12:    End                                                           The calibrated combined delays were also recorded in the
+ 13: until all the steps have been implemented by the three           OTP memory of the UWB chip and the flash memory of
+     devices;                                                         the microprocessor; thus, the devices can use them directly
+                                                                      in actual applications. Therefore, the calibration was real-time
+                                                                      and automatic, which is significant for practical applications.
+which is beneficial for improving the estimation accuracy.               In addition, multiple tests, marked as Test-1–Test-3, were
+Different sets composed of odd numbers or even numbers were           implemented to verify the reliability of TWS and IFE, in which
+applied for different results of coarse estimation to ensure that     the test configuration remains the same, e.g., set tTX and tRX
+all new values of Tx and Rx antenna delay to be evaluated             to zero for all the devices at the start of the calibration.
+could be different from the old measured value. TUWB denotes          Furthermore, an extra test, marked as Test-4, was implemented
+the unit time of the UWB chip. For DW1000, it corresponds             to verify the robustness of the TWS and IFE by exchanging
+to a distance of approximately 0.0047 m. Therefore, IFE               the device number between Devices 2 and 3.
+can fulfill an adjustment range of approximately 0.17 m for              Table II shows the evaluated combined delays of the three
+three devices, which is sufficient for fine-tuning calibration.       devices in different tests, as well as Decawave’s measured
+Moreover, the time consumption of IFE is N 3 · tDS , where N          results. Fig. 10 shows a comparison of the distribution of the
+and tDS are the number of steps and the total sampling time           distance errors of TWS and IFE of Test-1, computed as
+of DS, respectively.
+                                                                                                    ed = d ′ − d                               (11)
+                    IV. E XPERIMENTAL R ESULTS                        where d ′ is the measured distance and d is the true distance.
+   To verify the performance of TWS and IFE, enrichment               The results of Test-2, Test-3, and Test-4 are very close to those
+experiments were implemented in a typical office space                of Test-1 because there is little difference between the obtained
+of 7 × 9 × 2.6 m at the Finnish Geospatial Research Institute         combined delays. Thus, the distributions of the distance errors
+(FGI), as shown in Fig. 9. Three MDEK1001 kits containing             of these tests are not presented in this section. Fig. 11 shows
+DW1000 chips were used in these experiments, and Table I              the corresponding cumulative distribution function (cdf) of the
+shows the parameters used. The target distance and the power          total distance errors of the IFE in different tests.
+at the received input were set to 5.01 m and −104 dBm/MHz,               Based on the results in Table II, Figs. 10 and 11, it can be
+respectively, based on the recommended value of the DW1000            seen that TWS and ISE achieve calibration accuracies of better
+manual. LoS conditions were maintained for the three devices          than approximately ± 0.06 m and even better than ±0.01 m for
+at all times. DS was implemented to perform a range between           each device, respectively. Although slight differences exist for
+9504211                                                                   IEEE TRANSACTIONS ON INSTRUMENTATION AND MEASUREMENT, VOL. 73, 2024
+
+
+
+                               TABLE II
+                  C OMBINED D ELAYS OF T HREE D EVICES
+
+
+
+
+                                                                               Fig. 11.     CDF of the total distance errors of different tests. (a) Test-1.
+                                                                               (b) Test-2. (c) Test-3. (d) Test-4.
+
+
+                                                                                                               TABLE III
+                                                                                                 S TATISTICS OF THE D ISTANCE E RRORS
+
+
+
+
+                                                                               ranging tests in the same office space. Four test points with
+                                                                               different distances, 1, 3, 7, and 9 m, were selected. A total
+                                                                               of 2000 distance measurements were obtained for each test
+                                                                               point. Table III shows the mean, standard deviation, maximum
+                                                                               and interquartile range (IQR) of the errors, computed based
+                                                                               on (11). The results for the test point at a distance of 1 m
+                                                                               are listed individually, considering the case that a larger
+                                                                               received signal level will be included at both the transmitter
+                                                                               and receiver sides, resulting in a larger ranging bias. Fig. 12
+                                                                               compares the individual distribution of the distance errors of
+                                                                               the proposed TWS-IFE and Decawave’s method, and Fig. 13
+                                                                               shows a histogram of the absolute errors, as well as the
+                                                                               corresponding cdf.
+                                                                                  The results show that TWS-IFE has a smaller bias and
+Fig. 10.   Distribution of distance errors of (a) TWS and (b) IFE in Test-1.   better-ranging precision than Decawave’s method because
+                                                                               most of the results of TWS-IFE are less than ±0.05 m when
+                                                                               the distance is greater than 3 m. In addition, for TWS-IFE, the
+different tests, especially in the final combined delays, TWS                  mean and standard deviation of the distance errors even reach
+and ISE demonstrate extreme reliability and robustness. The                    0.01 m when the distance is larger than 1 m. All these results
+differences in the final combined delays from Test-1 to Test-3                 show that TWS-IFE has excellent accuracy and precision
+are almost within 10 units of the UWB time or a distance of                    compared to Decawave’s benchmark method. In addition, the
+approximately 5 cm. They are exactly the ranging precision of                  distance errors at 1 m, approximately 0.1 m for TWS-IFE
+the 4M-AltDS-TWR method. Therefore, more precise ranging                       and 0.24 m for Decawave’s benchmark method, are obviously
+methods can be developed to further improve the calibration                    larger than other tested distances for both methods, which is
+accuracy, which is one of the main research points for future                  caused mainly by the extreme RSL and FPL of the UWB pulse
+work.                                                                          at a close distance, resulting in a larger negative ranging bias.
+   To verify the ranging accuracy and precision of the devel-                  Therefore, antenna calibration should be implemented with a
+oped antenna delay calibration method at different distances,                  correct parameter setup in terms of the distance and the signal
+we used two of the calibrated devices to further perform                       power level.
+LIU et al.: DATA-DRIVEN ANTENNA DELAY CALIBRATION FOR UWB DEVICES FOR NETWORK POSITIONING                                                         9504211
+
+
+
+
+                                                                                      Fig. 15.   Ranging errors of the calibrated measurements.
+
+
+
+                                                                                      was achieved by the proposed calibration for all the tested
+                                                                                      distance ranges. Furthermore, the ranging precision increased
+                                                                                      to approximately 12 cm when the tested distance exceeded
+Fig. 12.    Comparison of the distribution of aggregated distance errors.             12 m, and different biases are included for these distances,
+(a) Distance at 1 m. (b) Distance at 3 m. (c) Distance at 7 m. (d) Distance           which are mainly caused by different RSLs, as mentioned in
+at 9 m.
+                                                                                      Section II. This effect can be corrected further by modeling the
+                                                                                      relationship between the bias and the distance, as presented in
+                                                                                      Section II. Fig. 15 shows the corresponding results after the
+                                                                                      correction. The average ranging precision decreases to less
+                                                                                      than ±5 cm, improving by 58.3%.
+
+                                                                                                                 V. C ONCLUSION
+                                                                                         This article developed a real-time and fully automatic
+                                                                                      antenna delay calibration approach that can easily be utilized
+                                                                                      to evaluate the combined antenna delay of each individ-
+Fig. 13. Statistical results of the distance errors, (a) individual distribution of
+the distance errors of different tested points, and (b) cdf of the total distance
+                                                                                      ual/single UWB device used in a positioning system. In
+errors.                                                                               contrast to traditional approaches, more precise calibration
+                                                                                      results and more efficient implementation are obtained. When
+                                                                                      implementing the TWS-based coarse estimation, the same
+                                                                                      combined delay is obtained for all three devices. Then, more
+                                                                                      accurate estimation values are obtained for each device by
+                                                                                      continuously implementing the IFE-based fine-tuning estima-
+                                                                                      tion. The developed approach was verified to achieve a ranging
+                                                                                      precision of better than ±0.01 m within a base UWB network
+                                                                                      for each pair of devices and achieves a ranging accuracy and
+                                                                                      precision of better than ±0.05 m in a distance range from 1 to
+                                                                                      25 m after calibration and bias correction for a remote/moving
+                                                                                      UWB, making it an optimal solution for UWB positioning
+                                                                                      applications. In addition, all parts of the approach can be
+Fig. 14. Outdoor scenarios, keeping LoS conditions between the tag and the            performed in real-time, making it extremely useful for UWB
+anchor at all times during the tests.                                                 applications in the real world.
+                                                                                         For UWB-based positioning systems, in addition to antenna
+                                                                                      delay, RSL is a major factor affecting ToF estimation accuracy
+   In addition, an outdoor test was performed to verify the                           and thus the system positioning accuracy. It is worth looking
+ranging accuracy and precision for a larger distance range                            into in the future. Meanwhile, how determining the Tx and Rx
+from 1 to 25 m. Two calibrated devices (one tag and one                               delay of each device independently would be a significant feat
+anchor) deployed on a tripod with a height of approximately                           to achieve more precise ranging and positioning with UWB.
+1.4 m to the ground were used to perform the test. LoS
+conditions were maintained between the tag and the anchor at
+all times during the test. Five hundred distance measurements                                                     A PPENDIX
+were obtained at the tag side for each tested distance. Fig. 14                                                 4M-A LT DS-TWR
+shows the estimated ranging errors. The results show that an                             Let T f denotes the actual ToF of the wideband pulse signals
+average ranging precision of less than approximately ±12 cm                           traveling between a tag and an anchor, Ra and Da denote the
+9504211                                                       IEEE TRANSACTIONS ON INSTRUMENTATION AND MEASUREMENT, VOL. 73, 2024
+
+
+
+replay time and delay time of the anchor in the 4M-AltDS-                                  ACKNOWLEDGMENT
+TWR, and Rb and Db denote the replay time and delay time          Author Contributions
+of the tag in the 4M-AltDS-TWR, respectively. It is clear that
+                                                                     Zuoya Liu, Teemu Hakala, Juha Hyyppä, Antero Kukko,
+with ideal time references, Ra and Rb can be obtained by
+                                                                  and Harri Kaartinen designed the concept of the method and
+                                                                  Zuoya Liu developed the method. The hardware platforms
+                  Ra = t4 − t1 = 2T f + Db               (12a)
+                                                                  used in this article were created by Zuoya Liu and Teemu
+                  Rb = t8 − t5 = 2T f + Da               (12b)    Hakala. The experimental design and data collection were
+                                                                  performed by Zuoya Liu. Teemu Hakala and Harri Kaartinen
+where Da = t7 − t6 and Db = t3 − t2 .                             provided other resources required for the experiment. This
+  Multiplying both equations in (12), we can get                  article was mainly written by Zuoya Liu, reviewed by Antero
+                                                                  Kukko, and assisted by Harri Kaartinen, Teemu Hakala, Juha
+              Ra Rb = (2T f + Db )(2T f + Da )            (13)    Hyyppä, and Ruizhi Chen. All authors contributed to the
+                                                                  finalization of the manuscript and have read and agreed to
+which can easily be expanded and rearranged to obtain             the published version of the manuscript.
+          Ra Rb − Da Db = 2T f (2T f + Da + Db ).         (14)
+                                                                  Declaration of Competing Interests
+  From (12) and (14), we can rewrite (14) as (15a) and (15b)         The authors declare that they have no known competing
+by replacing the appropriate terms                                financial interests or personal relationships that could have
+                                                                  appeared to influence the work reported in this article.
+              Ra Rb − Da Db = 2T f (Ra + Da )            (15a)
+              Ra Rb − Da Db = 2T f (Rb + Db ).           (15b)                                  R EFERENCES
+                                                                   [1] J. Wang, R. K. Ghosh, and S. K. Das, “A survey on sensor localization,”
+  Finally, T f can be obtained by                                      J. Control Theory Appl., vol. 8, no. 1, pp. 2–11, 2010.
+                                                                   [2] R. Mautz, “Indoor positioning technologies,” Habilitation thesis, Dept.
+                 Ra Rb − Da Db   Ra Rb − Da Db                         Civil, Environ. Geomatic Eng., Inst. Geodesy Photogramm., ETH
+          Tf =                 =               .          (16)         Zürich, Zürich, Switzerland, 2012.
+                  2(Ra + Da )     2(Rb + Db )                      [3] W. Sakpere, M. A. Oshin, and N. B. Mlitwa, “A state-of-the-art survey
+                                                                       of indoor positioning and navigation systems and technologies,” South
+  Based on [16], (12) and (15) imply that Ra + Da equals               Afr. Comput. J., vol. 29, no. 3, pp. 145–197, Dec. 2017.
+Rb + Db , and it is easy to achieve this in 4M-AltDS-TWR,          [4] R. Chen et al., “Precise indoor positioning based on acoustic ranging in
+                                                                       smartphone,” IEEE Trans. Instrum. Meas., vol. 70, pp. 1–12, 2021.
+thus (16) could also be written as                                 [5] Z. Liu, R. Chen, F. Ye, G. Guo, Z. Li, and L. Qian, “Improved TOA
+                                                                       estimation method for acoustic ranging in a reverberant environment,”
+                           Ra Rb − Da Db                               IEEE Sensors J., vol. 22, no. 6, pp. 4844–4852, Mar. 2022.
+                 Tf =                     .               (17)     [6] J. Tiemann and C. Wietfeld, “Scalability, real-time capabilities, and
+                        Ra + Da + Rb + Db
+                                                                       energy efficiency in ultra-wideband localization,” IEEE Trans. Ind.
+                                                                       Informat., vol. 15, no. 12, pp. 6313–6321, Dec. 2019.
+   Here, we assume that the clock drift of the device is the       [7] F. Mazhar, M. G. Khan, and B. Sällberg, “Precise indoor positioning
+dominant source of errors affecting the ToF measurement, the           using UWB: A review of methods, algorithms and implementations,”
+clock drift of Ra , Da , Rb , and Db can then be modeled as            Wireless Pers. Commun., vol. 97, no. 3, pp. 4467–4491, Dec. 2017.
+                                                                   [8] D. Yang, A. E. Fathy, H. Li, M. Mahfouz, and G. D. Peterson,
+                                                                       “Millimeter accuracy UWB positioning system using sequential sub-
+   Ra∼ = (1 + ea )Ra = ka Ra ,    Da∼ = (1 + ea )Da = ka Da            sampler and time difference estimation algorithm,” in Proc. IEEE Radio
+                                                         (18a)         Wireless Symp. (RWS), Jan. 2010, pp. 539–542.
+                                                                   [9] (2018). APS014 Application Note, Antenna Delay Calibration of
+   Rb∼ = (1 + eb )Rb = kb Rb ,    Db∼ = (1 + eb )Db = kb Db            DW1000-Based Products and Systems. Decawave, Dublin, Ireland.
+                                                                       [Online]. Available: https://www.decawave.com/application-notes/
+                                                         (18b)    [10] C. Lian Sang, M. Adams, T. Hörmann, M. Hesse, M. Porrmann, and
+                                                                       U. Rückert, “Numerical and experimental evaluation of error estimation
+where ea and eb are the clock shift errors of the anchor and           for two-way ranging methods,” Sensors, vol. 19, no. 3, p. 616, Feb. 2019.
+tag.                                                              [11] L. Flueratoru, S. Wehrli, M. Magno, E. S. Lohan, and D. Niculescu,
+                                                                       “High-accuracy ranging and localization with ultrawideband communi-
+   Combining (16) and (18), the true value of T f can be               cations for energy-constrained devices,” IEEE Internet Things J., vol. 9,
+obtained by                                                            no. 10, pp. 7463–7480, May 2022.
+                                                                  [12] A. Basiri et al., “Indoor location based services challenges, requirements
+                   ka kb Ra Rb − Da Db                                 and usability of current solutions,” Comput. Sci. Rev., vol. 24, pp. 1–12,
+             T f∼ =                    = kb T f                        May 2017.
+                    ka 2(Ra + Da )                                [13] K. A. Horváth, G. Ill, and Á. Milánkovich, “Calibration method of
+                   ka kb Ra Rb − Da Db                                 antenna delays for UWB-based localization systems,” in Proc. IEEE
+                 =                     = ka T f .         (19)         17th Int. Conf. Ubiquitous Wireless Broadband (ICUWB), Sep. 2017,
+                    kb 2(Rb + Db )                                     pp. 1–5.
+                                                                  [14] X. Gui, S. Guo, Q. Chen, and L. Han, “A new calibration method of
+  Therefore, the ToF error is                                          UWB antenna delay based on the ADS-TWR,” in Proc. 37th Chin.
+                                                                       Control Conf. (CCC), Jul. 2018, pp. 7364–7369.
+              T f − T f∼ = T f − ka T f = −ea T f                 [15] S. Shah, K. Chaiwong, L.-O. Kovavisaruch, K. Kaemarungsi, and
+                                                                       T. Demeechai, “Antenna delay calibration of UWB nodes,” IEEE Access,
+                         = T f − kb T f = −eb T f .       (20)         vol. 9, pp. 63294–63305, 2021.
+LIU et al.: DATA-DRIVEN ANTENNA DELAY CALIBRATION FOR UWB DEVICES FOR NETWORK POSITIONING                                                                 9504211
+
+
+
+[16] D. Neirynck, E. Luk, and M. McLaughlin, “An alternative double-sided        Juha Hyyppä is currently a Professor and the Director of the Department of
+     two-way ranging method,” in Proc. 13th Workshop Positioning, Navigat.       Remote Sensing and Photogrammetry, Finnish Geospatial Research Institute,
+     Commun. (WPNC), Oct. 2016, pp. 1–4.                                         Espoo, Finland. His research interests include laser scanning systems, their
+[17] Decawave, Sources of Error in DW1000 Based Two-Way Ranging (TWR)            performance, and new applications, especially related to mobile and ubiqui-
+     Schemes, Application Note, Version 1.1, Decawave, Dublin, Ireland,          tous laser scanning systems including autonomous driving, and point cloud
+     2014.                                                                       processing.
+[18] J. Cano, G. Pagès, É. Chaumette, and J. LeNy, “Clock and power-
+     induced bias correction for UWB time-of-flight measurements,” IEEE
+     Robot. Autom. Lett., vol. 7, no. 2, pp. 2431–2438, Apr. 2022.
+[19] I. Sharp, K. Yu, and Y. J. Guo, “Peak and leading-edge detection
+     for time-of-arrival estimation in band-limited positioning systems,” IET
+     Commun., vol. 3, no. 10, pp. 1616–1627, 2009.
+[20] J. Sidorenko, V. Schatz, N. Scherer-Negenborn, M. Arens, and                Antero Kukko is currently a Professor at the Department of Remote Sensing
+     U. Hugentobler, “Decawave UWB clock drift correction and power self-        and Photogrammetry, Finnish Geospatial Research Institute, Espoo, Finland.
+     calibration,” Sensors, vol. 19, no. 13, p. 2942, Jul. 2019.                 His expertise comprises a variety of aspects of laser scanning and image
+[21] A. Ledergerber and R. D’Andrea, “Ultra-wideband range measurement           data, including both system developments and data processing for mobile and
+     model with Gaussian processes,” in Proc. IEEE Conf. Control Technol.        airborne laser scanning, and research and development of automatic image
+     Appl. (CCTA), Kohala Coast, HI, USA, Aug. 2017, pp. 1929–1934.              registration methods.
+[22] A. Ledergerber and R. D’andrea, “Calibrating away inaccuracies in ultra
+     wideband range measurements: A maximum likelihood approach,” IEEE
+     Access, vol. 6, pp. 78719–78730, 2018.
+[23] F. Che et al., “Feature-based generalized Gaussian distribution method
+     for NLoS detection in ultra-wideband (UWB) indoor positioning sys-
+     tem,” IEEE Sensors J., vol. 22, no. 19, pp. 18726–18739, Oct. 2022.         Harri Kaartinen is currently a Research Professor at the Department of
+                                                                                 Remote Sensing and Photogrammetry, Finnish Geospatial Research Institute,
+                                                                                 Espoo, Finland. He coordinates and conducts research on performance and
+                                                                                 quality issues related to laser scanning sensors, systems, and applications, with
+                                                                                 abundant skills and expertise in GNSS, geomatic, laser scanning, mapping,
+Zuoya Liu is currently a Post-Doctoral Researcher at the Department of
+                                                                                 and remote sensing.
+Remote Sensing and Photogrammetry, Finnish Geospatial Research Institute,
+Espoo, Finland. His research interests include positioning and navigation
+technologies, wireless networks, multisensor cooperative control, signal pro-
+cessing, the Internet of Things, and forest surveying.
+
+
+                                                                                 Ruizhi Chen is currently a Professor of the State Key Laboratory of
+Teemu Hakala is currently an Academic Researcher at the Department of            Information Engineering in Surveying, Mapping and Remote Sensing, Wuhan
+Remote Sensing and Photogrammetry, Finnish Geospatial Research Institute,        University, Wuhan, China, and an Academician of the Finnish Academy of
+Espoo, Finland. He has contributed to research in topics: terrestrial, mobile,   Science and Letters, Helsinki, Finland. He is committed to theoretical research
+and airborne laser scanning, spectrometry, hyperspectral imaging and lidar,      and core technology development for seamless indoor/outdoor positioning
+drone, and forest health.                                                        using smartphones.
+

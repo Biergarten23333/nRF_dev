@@ -1,0 +1,16 @@
+# Task F6 - Reviewer Attack Simulation
+
+Generated: 2026-06-18T01:39:32
+
+Hostile-review memo and internal rebuttal generated from batch evidence.
+
+| claim_id | claim_text | level | supporting_evidence | missing_evidence | paper_wording |
+| --- | --- | --- | --- | --- | --- |
+| 1 | V5 fixes V4 scale leak | A | Sim3/rigid anchor comparisons and V5 scale near unity. | Independent room replication. | V5 corrects the anchor-side scale defect observed in V4 on this campaign. |
+| 2 | V4 wins positioning due to cancellation | B | Transfer/profile valley and Vicon/self-cal gap support cancellation. | Direct independent perturbation experiment with new rooms. | V4's lower static error is consistent with beneficial cancellation, not proof of a generally better geometry. |
+| 3 | Vicon oracle worse proves cancellation | C | Oracle underperformance is suggestive. | Phase-center and NLOS controlled experiment. | The Vicon-oracle result is compatible with cancellation but not uniquely diagnostic. |
+| 4 | p30 improves static accuracy | B | Follow-up and batch2 p30 sweeps improve median error. | Independent validation capture. | Lower percentiles improve this campaign's static ranges; treat as a deployable hypothesis. |
+| 5 | NLOS detector is deployable | D | Random split PR-AUC is high but leakage risk exists. | Leave-anchor/leave-room validation with real labels. | Use only as an exploratory diagnostic. |
+| 6 | V5 transfers better to new rooms | C | Mechanistic scale correctness supports transfer, adversarial rooms weaken universal claim. | New-room experiment. | V5 is expected to transfer better because it fixes scale, but this is not yet proven. |
+| 7 | D_tag is device-specific | C | ROTO/static differences hint at per-tag behavior. | Independent per-device calibration dataset. | Scalar D_tag absorbs device, percentile, and NLOS effects in this dataset. |
+| 8 | 24 positions insufficient for learned methods | B | Winner's curse/NLOS leakage tests show instability risk. | Learning curve with more positions. | The current 24-position campaign is too small for strong learned-method claims. |

@@ -1,0 +1,739 @@
+ Chalmers Publication Library
+
+
+
+
+                              Copyright Notice
+
+
+
+
+©2012 IEEE. Personal use of this material is permitted. However, permission to
+reprint/republish this material for advertising or promotional purposes or for creating new
+collective works for resale or redistribution to servers or lists, or to reuse any copyrighted
+component of this work in other works must be obtained from the IEEE.
+
+
+
+
+  This document was downloaded from Chalmers Publication Library (http://publications.lib.chalmers.se/),
+ where it is available in accordance with the IEEE PSPB Operations Manual, amended 19 Nov. 2010, Sec.
+8.1.9 (http://www.ieee.org/documents/opsmanual.pdf)
+
+
+                                    (Article begins on next page)
+                                                                                                                                             1
+
+
+
+
+    A Machine Learning Approach to Ranging Error
+          Mitigation for UWB Localization
+                         Henk Wymeersch, Member, IEEE, Stefano Maranò, Student Member, IEEE,
+                          Wesley M. Gifford, Student Member, IEEE, Moe Z. Win, Fellow, IEEE
+
+
+
+   Abstract—Location-awareness is becoming increasingly impor-                a number of technical challenges, including signal acquisition
+tant in wireless networks. Indoor localization can be enabled                 [22], multi-user interference [23], [24], multipath effects [25]–
+through wideband or ultra-wide bandwidth (UWB) transmission,                  [27], and non-line-of-sight (NLOS) propagation [27]–[29].This
+due to its fine delay resolution and obstacle-penetration capabil-
+ities. A major hurdle is the presence of obstacles that block                 latter issue is critical for high-resolution localization systems
+the line-of-sight (LOS) path between devices, affecting ranging               [11], [12], [15], [20], [21], since NLOS propagation results in
+performance and, in turn, localization accuracy. Many techniques              positively biased range estimates [29], which in turn degrade
+have been proposed to address this issue, most of which make                  localization performance. NLOS conditions occur frequently
+modifications to the localization algorithm. Since many localiza-             in many practical harsh environments, including indoors, in ur-
+tion algorithms work with distance or angle estimates, rather
+than received waveforms, information inherent in the wideband                 ban canyons or under tree canopies. Therefore, it is imperative
+waveform is lost, leading to sub-optimal ranging error mitigation.            to understand the impact of NLOS conditions on localization
+To avoid this information loss, we present a novel approach to                systems, and to develop techniques that mitigate their effects.
+mitigate ranging errors directly in the physical layer. In contrast              Different approaches to address the NLOS problem have
+to existing techniques, which detect the non-line-of-sight (NLOS)             been proposed, which we classify coarsely as NLOS identifi-
+condition, our approach directly mitigates the bias incurred in
+both LOS and non-LOS conditions. In particular, we apply                      cation [30]–[34] and NLOS mitigation [34]–[42]. In NLOS
+two classes of non-parametric regressors to form an estimate                  identification, the goal is to detect when a range estimate
+of the ranging error. Our work is based on, and validated by,                 corresponds to a NLOS condition. This can be achieved by
+an extensive indoor measurement campaign with FCC-compliant                   analyzing received waveforms [30], [34], or a collection of
+UWB radios. The results show that the proposed regressors pro-                range estimates from a single source [31]–[33]. In NLOS
+vide significant performance improvements in various practical
+localization scenarios, compared to conventional approaches.                  mitigation, the goal is to reduce the effect of the ranging error
+                                                                              in NLOS conditions. NLOS mitigation can be combined with
+  Index Terms—Localization, UWB, Ranging Error Mitigation,                    explicit NLOS identification by assigning different weights to
+Support Vector Machine, Gaussian Processes, Bayesian Learning.
+                                                                              LOS and NLOS signals [34], or by only using NLOS estimates
+                                                                              to constrain the set of possible location solutions [35]. Alter-
+                                                                              natively, NLOS identification can be omitted by performing an
+                         I. I NTRODUCTION                                     exhaustive search over subsets of range measurements, to find
+     HE ability to locate people and assets, to navigate beyond
+T    GPS coverage, and to tag sensor data with geographical
+information will enable a myriad of applications, in both
+                                                                              a set of consistent LOS ranges [36]–[38], or by considering the
+                                                                              LOS/NLOS condition to be a random parameter to be averaged
+                                                                              over [39], or by explicitly accounting for the geometry of the
+the commercial and the military sectors [1]–[4]. Ultra-wide                   environment [40]–[42]. An overview of NLOS identification
+bandwidth (UWB) transmission [5]–[8] represents a promis-                     and mitigation techniques can be found in [43], [44], and
+ing technology for localization in harsh environments and                     references therein. In our recent contribution [45], we have
+accuracy-critical applications [9]–[15], due to its robust signal-            evaluated a non-parametric approach to NLOS identification,
+ing [16], [17], as well as through-wall propagation [18], [19],               followed by NLOS mitigation, based directly on measured
+and high-resolution ranging capabilities [20], [21]. However,                 UWB waveforms. This approach performs identification and
+practical deployment of UWB systems has been impeded by                       mitigation under a common framework, without requiring
+                                                                              a statistical characterization of waveforms under LOS and
+   Manuscript received XX. This research was supported, in part, by the
+Belgian American Education Foundation, the Charles Stark Draper Laboratory    NLOS conditions. We found that first classifying waveforms
+Robust Distributed Sensor Networks Program, the Office of Naval Research      as LOS or NLOS is a crude way to deal with ranging errors,
+Young Investigator Award N00014-03-1-0489, and the National Science           since the ranging bias introduced by obstacles depends on the
+Foundation under Grants ANI-0335256 and ECCS-0636519.
+   Henk Wymeersch was with the Laboratory for Information and Decision        materials and the physical environment. Our goal is to develop
+Systems (LIDS), Massachusetts Institute of Technology (MIT), and is now       a more general approach, without relying on the distinction
+with the Department for Signals and Systems, Chalmers University of           between LOS and NLOS conditions.
+Technology, Sweden (e-mail: henk.wymeersch@ieee.org). Stefano Maranò
+was with LIDS, MIT, and is now with the Swiss Seismological Ser-                 In this paper, we consider the general problem of ranging
+vice, ETH Zürich, Zürich, Switzerland (e-mail: stefano.marano@sed.ethz.ch).   error mitigation without explicit NLOS identification. Build-
+Wesley M. Gifford was with LIDS, MIT and is now with the IBM                  ing on tools from machine learning, we propose two non-
+Thomas J. Watson Research Center, Hawthorne, NY, USA (e-mail: wgif-
+ford@ieee.org). Moe Z. Win is with LIDS, MIT, Cambridge, MA, USA (e-          parametric regression techniques to estimate the ranging error,
+mail: moewin@mit.edu).                                                        based solely on the received waveform and the estimated
+                                                                                                                                                                               2
+
+
+            140
+                                                            LOS                                            5
+                                                            NLOS
+                                                                                                          2.5
+            120
+                                                                                                           0
+Frequency
+
+
+
+
+                                                                           Amplitude [ADC counts/1000]
+                                                                                                         −2.5
+            100
+                                                                                                          −5
+
+                                                                                                           −30   −20   −10   0    10    20      30       40   50   60   70    80
+             80
+                                                                                                                                             Time [ns]
+
+             60
+                                                                                                           5
+
+                                                                                                          2.5
+             40
+                                                                                                           0
+
+                                                                                                         −2.5
+             20
+                                                                                                          −5
+
+
+              0                                                                                            −30   −20   −10   0    10    20      30       40   50   60   70    80
+                  0          5                     10                15                                                                      Time [ns]
+                             Ranging error ∆ [m]
+                                                                           Figure 2. In some situations there is a clear difference between LOS (upper
+Figure 1. Histogram of the ranging error for the LOS and NLOS condition.   waveform) and NLOS (lower waveform) signals.
+
+
+distance. The first technique employs support vector machine
+                                                                           agents are nodes with unknown positions. We focus on the
+(SVM) regression to find a hyperplane that approximates the
+                                                                           setting where a single agent with unknown position p is
+ranging error as a function of the training data. The second
+                                                                           surrounded by Nb anchors with known positions, pi , i =
+technique employs a Gaussian process (GP) to determine the
+                                                                           1, . . . , Nb . We denote the distance between the agent and
+a posteriori distribution of the ranging error, based on training
+                                                                           anchor i by di (p, pi ) = kp − pi k2 and the agent’s estimate
+data. The estimated ranging error, in combination with a
+                                                                           of this distance by dˆi . We further introduce
+measure of certainty, can be passed to a localization algorithm.
+Our regression techniques have the added benefit that they can                                           d(p, p1:Nb ) = [d1 (p, p1 ), d2 (p, p2 ), . . . , dNb (p, pNb )]T
+be applied even when training data is not labeled with LOS
+or NLOS information. To the best of our knowledge, no other                and d̂ = [dˆ1 , dˆ2 , . . . , dˆNb ]T , as well as the ranging error ∆i =
+technique exists that performs ranging error mitigation based              dˆi − di (p, pi ).
+on features extracted directly from received waveforms, with-                  In the absence of side-information regarding LOS or NLOS
+out relying on multiple range estimates or side-information                conditions and any statistical information regarding the dis-
+regarding the environment. Our findings are validated using                tance estimates, a robust estimator of p is obtained by mini-
+a database of UWB waveforms, obtained from an extensive                    mizing an appropriate norm:
+measurement campaign in a typical office environment using                                                             p̂ = arg min d(p, p1:Nb ) − d̂ α .                    (1)
+FCC-compliant UWB radios.                                                                                                        p
+   The remainder of the paper is organized as follows. Section             The ℓ1 -norm is known to be more robust against outliers
+II describes the problem statement, and Section III provides               than the ℓ2 -norm, as those outliers incur only a linear cost
+background information on the regression techniques used                   in ℓ1 , whereas their cost is quadratic in ℓ2 [46, Sec. 6.1.2].
+later in this paper. These regression techniques are employed              When statistical information regarding the distance estimates
+in Section IV to perform ranging error mitigation. The impact              is available, a common estimator is the maximum likelihood
+of ranging error mitigation on localization performance is                 (ML) estimator:
+evaluated in Section V. Finally, conclusions are given in
+Section VI.                                                                                                                  p̂ = arg max p(d̂|p).                           (2)
+                                                                                                                                         p
+   Notation: kxkα denotes the ℓα -norm of the vector x, defined
+as                                                                         Note that if the ranging errors are independent and iden-
+                             X           1/α                             tically distributed with a zero-mean Gaussian distribution
+                    kxkα =         |xi |α      ;                           (resp. Laplacian distribution), the ML estimator (2) reverts to
+                                   i                                       ℓ2 -norm (resp. ℓ1 -norm) minimization.
+       T
+x is the transpose of the vector x; x  y means xi ≥ yi , ∀i;
+N (m, K) represents a real multi-variate Gaussian distribution             B. Ranging Errors
+with mean m and covariance matrix K.                                         In practice, range estimates are subject to different error
+                                                                           sources, due to the environment, signal blockage, thermal
+                 II. P ROBLEM S TATEMENT
+                                                                           noise, or algorithm artifacts. While there are many different
+A. Localization Setup                                                      models with varying complexity, it is difficult to capture all
+  A location-aware network consists of two types of nodes:                 of these effects with a simple model. Rather than working
+anchors (or beacons) are nodes with known positions, while                 with a complex theoretical model of these ranging errors, we
+                                                                                                                                                      3
+
+
+
+have performed an extensive ranging measurement campaign                         approaches and leads to (i) performance improvements; and
+on the MIT campus, using FCC-compliant UWB radios [45].                          (ii) reduction in complexity.
+From this campaign, we created a database, including 1024
+measurements: 512 in LOS and 512 in NLOS. Here, the                                   III. R EGRESSION : M ATHEMATICAL F RAMEWORK
+term LOS is used to denote the existence of a visual LOS.
+Specifically, a measurement is labeled as LOS when the                           A. Introduction
+straight line between the transmitting and receiving antenna                       In regression, the goal is to infer an unobserved scalar (y ∈
+is unobstructed. Each waveform r(t), which is affected by                        R), which depends on set of observed variables (x ∈ Rn ). In
+thermal noise, is sampled every Tsample = 41.3 ps over                           particular, we assume a linear relationship of the form
+an observation window of 190 ns. The range estimate was
+obtained by a round-trip time-of-arrival (RTOA) protocol,1                                                  y (x) = wT ϕ (x)                        (3)
+embedded on the radio. The actual position of the radio during                   where ϕ(·) is a predetermined function,2 and w represents
+each measurement was manually recorded, and the ranging                          the unknown parameter of the regressor. The parameter w
+error was calculated with the help of computer-aided design                      can be considered a deterministic unknown which is to be
+(CAD) software. The collected waveforms were then aligned                                                                 N
+                                                                                 estimated from a training set {xk, yk }k=1 . Alternatively, the
+in the delay domain using a simple threshold-based method                        parameter w can be considered a random variable with a
+for leading edge detection.                                                      certain a priori distribution, for which we can then determine
+   From the measured data, we can gain more insight into                         the a posteriori distribution from the training set. These two
+the effects of LOS and NLOS conditions on a received                             different viewpoints are taken by support vector machines and
+waveform. Fig. 1 shows histograms of the ensemble of range                       Gaussian processes, respectively.
+measurements under LOS and NLOS conditions. Two typical
+waveforms under LOS and NLOS conditions are depicted in
+Fig. 2. Based on the measurement data and Figs. 1–2, we can                      B. Regression with Support Vector Machines
+make a number of observations:                                                      A SVM is a supervised machine learning technique used
+   1) The ranging error, considered over the entire ensemble                     for classification and regression [47]–[50]. The regressor is
+      of measurements, does not exhibit a Gaussian distri-                       a function y : Rn → R, written as in (3), which can
+      bution. The ranging errors we observed were all non-                       be interpreted as a hyperplane. Suppose that there exists a
+      negative (i.e., dˆ ≥ d). This is due to the leading edge                   hyperplane such that |yk − y (xk )| ≤ ε for some ε > 0, for
+      detection (LED) algorithm, which determines the time                       all elements in the training set. Then the distance between the
+      of arrival of the first path. LED is based on a simple                     two bounding hyperplanes
+                                                                                                       q      y (x) − ε = 0 and y (x) + ε = 0
+      threshold that is set so as to avoid false alarms (i.e.,                                                      2
+                                                                                 is given by d = 2ε/ kwk2 + 1. Hence, the hyperplane that
+      detecting noise spikes as a signal path). Hence, the                       maximizes the distance between the bounding hyperplanes can
+      ranging errors are due to missed detection of the first                    be found as
+      path, thus leading to a positive bias.
+   2) The ranging errors in LOS and NLOS conditions have                                         minimize kwk22                                     (4)
+      different properties. We observed that, for LOS condi-                                         s.t.        yk − wT ϕ (xk ) ≤ ε
+      tions, 98% of the measurements have a ranging error
+                                                                                                                 yk − wT ϕ (xk ) ≥ −ε.
+      less than 1 meter, while for NLOS conditions, only 28%
+      have a ranging error less than 1 meter.                                    In general, when ε is too small, the optimization problem
+   3) The received waveforms in LOS and NLOS conditions                          becomes infeasible. To make the problem feasible, we penal-
+      tend to have different characteristics (as is apparent from                ize errors away from the hyperplane described in (3). The
+      Fig. 2). These characteristics can be exploited to identify                way in which errors are penalized impacts the computational
+      NLOS waveforms and to compensate for the positive                          complexity of determining w, as well as the sparseness of
+      ranging bias.                                                              the solution (see further). The optimization problem can be
+   4) The ranging error not only depends on the LOS or NLOS                      written as
+      condition, but also on material properties, as well as the                                                        N
+      presence and positions of scatterers. This implies that the                                     2
+                                                                                                                        X
+                                                                                          minimize kwk2 + γ                   L(yk − wT ϕ (xk )),   (5)
+      distinction between LOS and NLOS conditions provided                                                              k=1
+      NLOS identification techniques is rather coarse.
+                                                                                 where γ controls the trade-off between minimizing training
+Based on these observations, we propose to not classify a
+                                                                                 errors and model complexity. The loss-function L(·) can take
+waveform as LOS or NLOS, but rather to quantify the ranging
+                                                                                 a number of forms. Popular examples include:
+error based on features extracted directly from the received
+waveform. This represents a departure from conventional                                       Lsquared (e) = e2                                     (6)
+                                                                                                             (
+   1 In an RTOA protocol, one radio (A) sends a request to a second radio (B).                                 0                     |e| − ε < 0
+Radio B responds to the request by sending back a packet to radio A, which
+                                                                                               Lεtube (e) =                                         (7)
+                                                                                                               |e| − ε               otherwise
+contains the processing time of radio B. Radio A then estimates the arrival
+time in its own time reference and determines the distance between A and B,
+assuming a known signal propagation speed.                                        2 E.g., ϕ (x) = [x 1]T   for a linear regressor.
+                                                                                                                                                  4
+
+
+                                                                                                             Table I
+In either case, the solution (called the SVM regressor) can be                                        E XTRACTED F EATURES
+expressed as                                                                               Name                        Equation
+                            XN
+                   y (x) =      αk Φ (x, xk ) ,            (8)                                                     Er = T |r(t)|2 dt
+                                                                                                                        R
+                                                                                          Energy
+                             k=1                                                    Maximum amplitude             rmax = maxt |r (t)|
+where                                                                                    Rise timea                 trise = tH − tL
+                                          T
+                    Φ (x, x′ ) = ϕ (x) ϕ (x′ )                                       Mean excess delayb
+                                                                                                                           R
+                                                                                                                  τMED = T tψ(t)dt
+is the so-called kernel function. The values of αk , k = 1 . . . N ,                 RMS delay spreadc       τRMS = T (t − τm )2 ψ(t)dt
+                                                                                                                      R
+                                                                                                                                     ´4
+can be found using well-developed toolboxes for convex                                    Kurtosisd        κ = σ 41 T T |r(t)| − µ|r| dt
+                                                                                                                       R `
+                                                                                                                  |r|
+optimization. Generally, for the Lεtube loss, couples (xk , yk )
+                                                                                     Estimated distance                    dˆ
+within the tube incur no cost, leading to the corresponding
+                                                                                    a t = min {t : |r(t)| ≥ ασ } and
+αk = 0 and thus to a sparse solution. Given a test point xtest ,                       L                       n
+                                                                                      tH = min {t : |r(t)| ≥ βrmax } , where σn is the standard
+we can now predict the corresponding value for y as y (xtest ).                        deviation of the thermal noise. The values of α > 0 and
+                                                                                       0 < β ≤ 1 are chosen empirically; in our case, we used
+                                                                                       α = 6 and β = 0.6 so as to minimize the false alarm
+C. Regression with Gaussian Processes                                                  probability.
+                                                                                    b, c ψ(t) = |r (t)|2 /E .
+   Gaussian processes have recently gained interest from the                        d µ         1
+                                                                                                  R        r
+                                                                                                                   2     1
+                                                                                                                           R               2
+                                                                                         |r| = T T |r(t)|dt and σ|r| = T T (|r(t)| − µ|r| ) dt.
+machine learning community, as they form an elegant frame-
+work to perform regression [51]. For our situation, let y
+be a random variable such that, for a fixed input x, the
+output is given by y = wT ϕ(x) + n, where n ∼ N (0, σn2 )                      •   A popular choice for the kernel is
+represents measurement noise and w ∼ N (0, Σw ). Rather
+                                                                                                                       
+                                                                                                           θ1         2
+than estimating w, as in the previous section, here we average                      Φ(x, x′ ) = θ0 exp − kx − x′ k2 + θ2 xT x′ , (13)
+                                                              N
+                                                                                                           2
+over all possible w. Given N training points {xk, yk }k=1 , we
+find that                                                                        where the hyperparameters θ = [θ0 , θ1 , θ2 ] are usually
+                     y ∼ N (0, K + σn2 IN )                       (9)            estimated from the training data. Note that the choice
+                                      .                                          θ = [1, 0, 1] corresponds to conventional linear regres-
+where [K]k,l = ϕ(xk )T Σw ϕ(xl ) = Φ(xk , xl ). The function                     sion, with ϕ (x) = [x 1]T .
+Φ(x, x′ ) is, similar to SVM, known as the kernel. Now,                        • The SVM with the squared loss function (6) can be shown
+suppose we have a test point xtest , and would like to determine                 to be equivalent to the solution of a GP [52]. For that
+the a posteriori distribution of the corresponding noise-free                    reason, we will only consider SVM with loss function
+ytest . Under the stated assumptions, y and ytest are jointly                    (7) in Sections IV–V.
+Gaussian, with [51]
+                                                           
+         y                K + σn2 IN             k                                        IV. R ANGING E RROR M ITIGATION
+              ∼ N 0,                                       
+        ytest                kT        Φ(xtest , xtest ) + σn2                  In this section, we will describe how SVM and GP can
+                                                                             be applied to perform ranging error mitigation, based on fea-
+where [k]k = Φ(xtest , xk ). The a posteriori distribution                   tures extracted from the received waveform, without requiring
+p (ytest |y ) of ytest is Gaussian with mean                                 knowledge of the ranging error distribution. The features will
+                                              −1                            serve as the observed input x, while the ranging error will
+                E {ytest |y } = kT K + σn2 IN     y   (10)
+                                                                             be the unobserved output y. We first explain the features we
+and variance                                                                 consider, and then provide implementation details of the SVM
+   n
+                          2
+                              o                                              and GP regression techniques.
+ E (ytest − E {ytest |y }) |y                                         (11)
+                                                           −1
+           = Φ(xtest , xtest ) + σn2 − kT K + σn2 IN             k.          A. Feature Selection
+We make the following comments:                                                 As in our related work on obstruction detection [45], we
+ • The a posteriori variance in (11) is smaller than the a                   have selected features based on the following observations.
+   priori variance Φ(xtest , xtest ), because of the training data.          Due to reflections or obstructions, NLOS signals are consid-
+   Also, note that neither variance depends on the training                  erably more attenuated and present smaller energy than LOS
+   outputs. The a posteriori mean can be expressed as                        signals. In the LOS case, the strongest path corresponds to
+                                                                             the first path and the received signal exhibits a short rise time.
+                                    N
+                                    X                                        In the NLOS case, some weak multipath components precede
+                  E {ytest |y } =         αk Φ(xtest , xk ),          (12)
+                                                                             the strongest path, as a result the rise time is longer. The root-
+                                    k=1
+                                                          −1                mean-square (RMS) delay spread, which captures the temporal
+     where αk is the k th entry in the vector K + σn2 IN      y.             dispersion of the signal energy due to the multipath channel,
+     Note that (12) bears close resemblance to (8). However,                 is larger in NLOS signals. We also include features that have
+     in the case of GP, the solution is generally not sparse, as             been considered in the literature. Taking these considerations
+     the cost function is not insensitive to small errors.                   into account, the features we extract from a received signal
+                                                                                                                                                           5
+
+
+                                                                     Table II
+                                                      S UMMARY OF THE MITIGATION PROCEDURE
+
+               Name                       Features                            Output                   Parameters                   Software
+                                h                                       iT
+               SVM       x = log Er , rmax , trise , τMED , τRMS , κ, dˆ      y=∆          ε = 0.5, γ = 10−7 , θ0 = 1, θ1 = 1         [53]
+                                h                                       iT
+                GP       x = log Er , rmax , trise , τMED , τRMS , κ, dˆ      y=∆                 maximum likelihood                  [51]
+                                h                                       iT
+             SVM–log     x = log Er , rmax , trise , τMED , τRMS , κ, dˆ     y = log ∆     ε = 0.1, γ = 10−7 , θ0 = 1, θ1 = 1         [53]
+                                h                                       iT
+              GP–log     x = log Er , rmax , trise , τMED , τRMS , κ, dˆ     y = log ∆            maximum likelihood                  [51]
+
+
+
+                                                                                      1
+r(t), observed for a duration T , are as follows: (i) the energy                            Unmitigated
+Er ; (ii) the maximum amplitude rmax ; (iii) the rise time trise ;                          SVM
+                                                                                     0.9    SVM–log
+(iv) the mean excess delay τMED ; (v) the RMS delay spread                                  GP
+                                                                                            GP–log
+τRMS ; (vi) the kurtosis κ; and (vii) the estimated distance d.ˆ                     0.8
+
+
+We provide the analytical expression of each feature in Table I.                     0.7
+
+
+                                                                                     0.6
+
+
+
+
+                                                                               CDF
+B. Mitigation Procedure                                                              0.5
+
+
+   The database S consists of 1024 training samples. Every                           0.4
+
+training sample is a vector consisting of 7 elements (the
+                                                                                     0.3
+features), as described above in Section IV-A, along with the
+corresponding ranging error (the unobserved output). Our goal                        0.2
+is to learn a function of the form (8), that maps the features
+                                                                                     0.1
+to a ranging error. When determining the function-value for
+a specific input xk , care must be taken to avoid training the                        0
+                                                                                           −4             −2    −1      0     1       2             4
+SVM or the GP with that same input. For this reason, we use                                                Residual ranging error ∆ [m]
+10-fold cross-validation [51], and divide up the database into
+ten disjoint parts: S = S1 ∪ . . . ∪ S10 , with Si ∩ Sj = ∅, for               Figure 3. CDF of residual ranging error without mitigation, and using SVM
+                                                                               and GP-based mitigation.
+i 6= j. In the nth fold, we determine the functions (8) for SVM
+or (10)–(11) for GP, based on the training set S \ Sn . Then,
+the resulting function is applied to the test set Sn , giving the                     V. L OCALIZATION : S TRATEGIES AND P ERFORMANCE
+predicted outputs for Sn . For numerical reasons, the inputs xk
+are converted to the logarithmic domain prior to training. We                     In this section, we will evaluate the localization performance
+will consider four cases, two for SVM and two for GP. The                      for a fixed number of anchors Nb = 5 and a varying
+details are listed in Table II. In all cases we use the kernel                 probability of NLOS condition 0 ≤ PNLOS ≤ 1. We place an
+described in (13), with θ2 = 0. The output y of the mitigation                 agent at position p = (0, 0). For every anchor i (1 ≤ i ≤ Nb ),
+procedure is either the ranging error ∆ or its logarithm log ∆.                we draw a measured waveform from the experimental database
+In the latter case, the mitigation procedure will be denoted by                (described in Section II-B): with probability PNLOS we draw
+GP–log or SVM–log. Note that log ∆ is well-defined, since                      from the NLOS database and with probability 1 − PNLOS from
+all ranging errors are non-negative (see Fig. 1). Moreover, this               the LOS database. The ith anchor is placed at position
+approach will ensure that estimates of the ranging errors will
+                                                                                 pi = di (p, pi )(sin(2π(i − 1)/Nb ), cos(2π(i − 1)/Nb)), (14)
+also be non-negative.
+                                                                               where di (p, pi ) is the true distance corresponding to that
+                                                                               waveform. The estimate of the distance between the agent and
+C. Mitigation Performance                                                      the ith anchor (dˆi ), is determined by the agent using the RTOA
+                                                                               protocol.3 The agent then estimates its position using one of
+   In Fig. 3 we show the CDF of the residual ranging error, i.e.,
+                                                                               the localization strategies to be described below, yielding a
+the remaining error after mitigation. For the SVM (resp. SVM–
+                                                                               position estimate p̂.
+log), these residuals have a mean of -3 cm (resp. 12 cm),
+                                                                                  To capture the accuracy and availability of localization,
+and a standard deviation of 1.09 m (resp. 1.07 m). For the
+                                                                               we introduce the notion of outage probability. For a certain
+GP (resp. GP–log), the mean is 3 cm (resp. 17 cm), and
+                                                                               scenario (say, a fixed Nb and PNLOS , and a given localization
+the standard deviation 1.12 m (resp. 1.06 m). The fraction of
+                                                                               strategy) and an allowable error eth (say, 1 meter), the agent
+residual errors less than one meter have increased from 63%
+                                                                               is said to be in outage when its position error kp − p̂k
+(without mitigation) to around 90% (with mitigation). Note
+                                                                               exceeds eth . The outage probability is then given by the
+that the residual ranging errors can be negative, as they are
+defined as dˆ− ∆,
+                ˆ where ∆ ˆ is the estimate of the ranging error                  3 As our focus is on ranging error mitigation, rather than the placement of
+output by the regressor. For GP–log and SVM–log, ∆     ˆ ≥ 0.                  the anchors, we assume sufficient angular separation among anchors.
+                                                                                                                                                                                      6
+
+
+           0                                                                                              0
+       10                                                                                             10
+                                                                         ℓ1
+                                                                         Const. ℓ1
+                                                                         ℓ2
+                                                                         Const. ℓ2
+                                                                         GP, ℓ1
+                                                                         GP–log, ℓ1
+                                                                         GP, ℓ2
+                                                                         GP–log, ℓ2
+
+
+           −1                                                                                             −1
+       10                                                                                             10
+
+
+
+
+                                                                                               Pout
+Pout
+
+
+
+
+                                                                                                                      ℓ1
+                                                                                                                      Const. ℓ1
+                                                                                                                      ℓ2
+                                                                                                                      Const. ℓ2
+       10
+           −2
+                                                                                                      10
+                                                                                                          −2          GP, ℓ1
+                                                                                                                      GP–log, ℓ1
+                                                                                                                      GP, ℓ2
+                                                                                                                      GP–log, ℓ2
+                0    0.5       1     1.5       2      2.5      3   3.5       4    4.5     5                    0     0.5    1      1.5       2   2.5       3   3.5       4   4.5     5
+                                                     eth [m]                                                                                     eth [m]
+
+Figure 4.           Outage probability for Nb = 5 anchors, with PNLOS = 0.2.                   Figure 5.             Outage probability for Nb = 5 anchors, with PNLOS = 0.8.
+
+
+
+complementary CDF of the localization error:                                                          •        Log-domain mitigation followed by norm minimiza-
+                                                                                                               tion: Using either SVM–log or GP–log, we can       obtain
+                           Pout (eth ) = Prob {kp − p̂k2 > eth } .                      (15)
+                                                                                                               an estimate of li (p, pi ) = log dˆi − di (p, pi ) . Norm
+The outage probability is determined through Monte Carlo                                                       minimization can be performed as follows
+simulation, by generating 5000 networks for every scenario.
+                                                                                                                                arg min kl(p, p1:Nb ) − ykα ,                      (19)
+                                                                                                                                         p
+A. Localization Strategies                                                                                     for α ∈ {1, 2}, where
+  We consider four different localization strategies that do not
+require knowledge of the statistics of the ranging error, or the                                                     l(p, p1:Nb ) = [l1 (p, p1 ), . . . , lNb (p, pNb )]T          (20)
+LOS/NLOS condition. Given the Nb anchor’s positions and a
+                                                                                                               and
+vector d̂ of Nb distance estimates, the estimate of p is found
+by solving one of the following four optimization problems.                                                                     y = [y1 (x1 ), . . . , yNb (xNb )]
+                                                                                                                                                                     T
+                                                                                                                                                                                   (21)
+  • Norm minimization: A standard approach is to simply
+     minimize the norm of the residuals:                                                                       is the vector of outputs from the regressor. Note that there
+                                                                                                               is an implicit constraint in (19), as the logarithm can only
+                                   arg min         d(p, p1:Nb ) − d̂ α                  (16)                   be applied to positive arguments.
+                                           p
+
+                for α ∈ {1, 2}.
+       •        Constrained norm minimization: We can exploit the                              B. Localization Performance
+                knowledge that the distance estimates (see Fig. 1) are                            Overall, based on our investigations, we found that GP and
+                positively biased, i.e., dˆi ≥ di (p, pi ), through an addi-                   SVM perform similarly, with GP performing slightly better
+                tional constraint:                                                             than SVM. In the remainder of this section, we will focus on
+                                                                                               GP.
+                                   arg min         d(p, p1:Nb ) − d̂ α                  (17)
+                                           p                                                      We first consider the outage performance for PNLOS = 0.2
+                                           s.t. d̂ − d(p, p1:Nb )  0,                         in Fig. 4 and PNLOS = 0.8 in Fig. 5. In low PNLOS , Fig. 4
+                                                                                               indicates that, except for very small allowable errors eth , ℓ1 -
+                for α ∈ {1, 2}.                                                                norm minimization outperforms ℓ2 -norm minimization. This
+       •        Mitigation followed by norm minimization: Using                                is because the ℓ1 -norm is more robust against outliers, caused
+                either SVM or GP, we can obtain an estimate ∆    ˆ i of the
+                                                                                               by NLOS conditions. Additionally, we observe that for any
+                ranging error ∆i , which we can subtract from the esti-                        eth , constrained ℓ1 - or ℓ2 -norm minimization uniformly out-
+                mated range, leading to a mitigated range, d˜i = dˆi − ∆ˆ i.
+                                                                                               performs unconstrained minimization, as we would expect.
+                Using the vector of mitigated ranges, d̃, we can minimize                      The performance difference is especially significant for ℓ2 -
+                the norm of the residuals:                                                     norm minimization, as adding the constraints can counteract
+                                   arg min         d(p, p1:Nb ) − d̃ α .                (18)   the effect of outliers. For very small eth , ℓ1 -norm minimiza-
+                                           p                                                   tion exhibits poor performance since it will attempt to find
+                Note that now we cannot perform constrained optimiza-                          sparse solutions by driving some components of the ranging
+                tion, since d̃  d(p, p1:Nb ) cannot be guaranteed (see                        error vector d̂ − d(p, p1:Nb ) to zero, at the cost of larger
+                also Fig. 3).                                                                  errors in the remaining components. We see a performance
+                                                                                                                                                                7
+
+
+        0                                                                                0
+       10                                                                               10
+                                                                                                   ℓ1
+                                                                                                   const. ℓ1
+                                                                                                   ℓ2
+                                                                                                   const. ℓ2
+                                                                                                   GP, ℓ1
+                                                                                                   GP–log, ℓ1
+                                                                                                   GP, ℓ2
+                                                                                                   GP–log, ℓ2
+
+
+        −1                                                                               −1
+       10                                                                               10
+Pout
+
+
+
+
+                                                                                 Pout
+                                                              ℓ1
+                                                              Const. ℓ1
+                                                              ℓ2
+                                                              Const. ℓ2
+        −2
+       10                                                     GP, ℓ1                     −2
+                                                                                        10
+                                                              GP–log, ℓ1
+                                                              GP, ℓ2
+                                                              GP–log, ℓ2
+             0   0.1   0.2    0.3   0.4    0.5    0.6   0.7      0.8   0.9   1                0   0.1   0.2     0.3   0.4   0.5     0.6   0.7   0.8   0.9   1
+                                          PNLOS                                                                             PNLOS
+
+Figure 6.        Outage probability for Nb = 5 anchors, with eth = 50 cm.        Figure 7.        Outage probability for Nb = 5 anchors, with eth = 2 m.
+
+
+
+improvement when using GP error mitigation with ℓ1 - or ℓ2 -                     realizations. Constrained ℓ2 -norm minimization achieves better
+norm minimization (18), compared to when no mitigation is                        performance, but is still consistently outperformed by ℓ1 -
+applied. For GP error mitigation with the ℓ1 -norm, this gain is                 norm minimization (both constrained and unconstrained). GP
+particularly visible for small eth , while for the ℓ2 -norm, order-              error mitigation has good performance, with outages remaining
+of-magnitude gains are achievable for eth > 50 cm. Overall,                      below 10% for all PNLOS . Again, GP error mitigation with
+GP error mitigation with ℓ1 -norm minimization outperforms                       ℓ1 -norm minimization turns out to be better than ℓ2 -norm
+GP error mitigation ℓ2 -norm minimization. For all considered                    minimization. Finally, GP–log error mitigation again exhibits
+values of eth , GP–log (19) error mitigation achieves the best                   the best performance for all PNLOS . In the higher eth regime,
+performance for both ℓ1 - and ℓ2 -norm minimization. In high                     GP–log error mitigation with ℓ1 norm minimization wins out
+PNLOS , we see from Fig. 5 that without mitigation, the situation                due to its robustness.
+is similar, with ℓ1 -norm minimization outperforming ℓ2 -norm
+minimization, and constrained minimization reducing Pout
+                                                                                                                 VI. C ONCLUSION
+compared to unconstrained minimization. When mitigation is
+employed, significant performance gains are visible in this                         Conventional approaches to deal with the challenge of
+high PNLOS scenario. The strategy (19) again yields the best                     localization in cluttered environments typically involve first
+performance, with the ℓ1 -norm outperforming the ℓ2 -norm for                    detecting the NLOS condition, and then taking appropriate
+all considered values of eth .                                                   measures to account for the NLOS condition. However, the
+   Let us now evaluate the outage probability as a function of                   wide variety of materials and diverse operating environments
+PNLOS for a fixed eth . Figs. 6–7 show Pout for eth = 50 cm                      can impact ranging performance in unique ways, indicating
+and eth = 2 m, respectively. For eth = 50 cm, Fig. 6 shows                       that the coarse distinction between LOS and NLOS is not
+how ℓ1 -norm minimization performs better than ℓ2 -norm min-                     always meaningful. Based on this observation, we have taken
+imization, except for very small PNLOS . When PNLOS → 0, ℓ2 -                    a different approach in this paper. Our approach employs non-
+norm minimization yields excellent performance, since all the                    parametric machine learning techniques (SVM and GP) to
+distance estimates have almost no error (see also Fig. 1) in pure                estimate the ranging error directly from the received wave-
+LOS conditions. On the other hand, ℓ1 -norm minimization,                        form, without any a priori or a posteriori knowledge of the
+tries to find a sparse solution. This means ℓ1 -norm minimiza-                   NLOS condition. Based on an extensive indoor measurement
+tion will try to set some errors to zero, while the other errors                 campaign with FCC-compliant UWB radios, we evaluated the
+remain large (i.e., a solution p̂ that lies on the intersection of               localization performance in terms of outage probability for
+two or more circles, and far away from the remaining circles),                   different localization strategies.
+thus leading to poorer outage performance. GP error mitigation                      Our results revealed that: (i) ℓ1 -norm minimization is more
+with ℓ1 -norm minimization exhibits good performance, outper-                    robust in coping with outliers than ℓ2 -norm minimization, for
+forming ℓ1 -norm minimization for all PNLOS . Finally, GP–log                    localization without mitigation; (ii) constraints can provide
+error mitigation yields the best performance, with the ℓ2 -norm                  significant gains, especially when localization requirements
+slightly outperforming ℓ1 -norm. When relaxing the value of                      are not too stringent; (iii) SVM or GP regression techniques
+eth to 2 m, outage probabilities for all localization strategies                 provide additional performance gains for all considered sce-
+will drop, as observed in Fig. 7. Again, ℓ2 -norm minimization                   narios; (iv) SVM or GP regression techniques, combined with
+has the poorest performance, except when PNLOS → 0, in                           knowledge of constraints on the ranging error, provide the best
+which case no outages were observed for 5000 network                             performance for the scenarios under consideration.
+                                                                                                                                                            8
+
+
+
+   The strategy of combining SVM or GP regression tech-                         [18] A. Attiya, A. Bayram, A. Safaai-Jazi, and S. Riad, “UWB applications
+niques with knowledge of constraints on the ranging error                            for through-wall detection,” in Proc. IEEE Antennas and Propagation
+                                                                                     Society International Symposium, vol. 3, 2004, pp. 3079–3082.
+provides orders of magnitude performance improvements com-                      [19] Y. Yang, Y. Wang, and A. Fathy, “Design of compact Vivaldi antenna
+pared to traditional approaches. This highlights the fact that                       arrays for UWB see through wall applications,” Progress In Electromag-
+non-parametric ranging error mitigation has the potential to                         netics Research, vol. 82, pp. 401–418, 2008.
+                                                                                [20] J.-Y. Lee and R. A. Scholtz, “Ranging in a dense multipath environment
+significantly improve localization performance.                                      using an UWB radio link,” IEEE J. Sel. Areas Commun., vol. 20, no. 9,
+                                                                                     pp. 1677–1683, Dec. 2002.
+                                                                                [21] D. Dardari, A. Conti, U. J. Ferner, A. Giorgetti, and M. Z. Win, “Ranging
+                     VII. ACKNOWLEDGMENT                                             with ultrawide bandwidth signals in multipath environments,” Proc.
+                                                                                     IEEE, vol. 97, no. 2, pp. 404–426, Feb. 2009, special issue on Ultra-
+  The authors wish to thank A. Globerson for helpful dis-                            Wide Bandwidth (UWB) Technology & Emerging Applications.
+cussions. The authors also wish to thank the editor and the                     [22] W. Suwansantisuk and M. Z. Win, “Multipath aided rapid acquisition:
+anonymous reviewers for helpful comments which greatly                               Optimal search strategies,” IEEE Trans. Inf. Theory, vol. 53, no. 1, pp.
+                                                                                     174–193, Jan. 2007.
+improved the manuscript.                                                        [23] M. Z. Win, P. C. Pinto, and L. A. Shepp, “A mathematical theory of
+                                                                                     network interference and its applications,” Proc. IEEE, vol. 97, no. 2,
+                                                                                     pp. 205–230, Feb. 2009, special issue on Ultra-Wide Bandwidth (UWB)
+                             R EFERENCES                                             Technology & Emerging Applications.
+ [1] M. Z. Win, A. Conti, S. Mazuelas, Y. Shen, W. M. Gifford, D. Dardari,      [24] N. C. Beaulieu and D. J. Young, “Designing time-hopping ultrawide
+     and M. Chiani, “Network localization and navigation via cooperation,”           bandwidth receivers for multiuser interference environments,” Proc.
+     IEEE Commun. Mag., vol. 49, no. 5, pp. 56–62, May 2011.                         IEEE, vol. 97, no. 2, pp. 255–284, Feb. 2009, special issue on Ultra-
+ [2] H. Wymeersch, J. Lien, and M. Z. Win, “Cooperative localization in              Wide Bandwidth (UWB) Technology & Emerging Applications.
+     wireless networks,” Proc. IEEE, vol. 97, no. 2, pp. 427–450, Feb. 2009,    [25] M. Z. Win, G. Chrisikos, and A. F. Molisch, “Wideband diversity in
+     special issue on Ultra-Wide Bandwidth (UWB) Technology & Emerging               multipath channels with nonuniform power dispersion profiles,” IEEE
+     Applications.                                                                   Trans. Wireless Commun., vol. 5, no. 5, pp. 1014–1022, May 2006.
+ [3] N. Patwari, J. N. Ash, S. Kyperountas, A. O. Hero, III, R. L. Moses, and   [26] M. Z. Win, G. Chrisikos, and N. R. Sollenberger, “Performance of
+     N. S. Correal, “Locating the nodes: cooperative localization in wireless        Rake reception in dense multipath channels: Implications of spreading
+     sensor networks,” IEEE Signal Process. Mag., vol. 22, no. 4, pp. 54–69,         bandwidth and selection diversity order,” IEEE J. Sel. Areas Commun.,
+     Jul. 2005.                                                                      vol. 18, no. 8, pp. 1516–1525, Aug. 2000.
+ [4] U. A. Khan, S. Kar, and J. M. F. Moura, “DILAND: An algorithm for          [27] J. Karedal, S. Wyne, P. Almers, F. Tufvesson, and A. F. Molisch,
+     distributed sensor localization with noisy distance measurements,” IEEE         “A measurement-based statistical model for ultra-wideband industrial
+     Trans. Signal Process., vol. 58, no. 3, pp. 1940–1947, Mar. 2010.               channels,” IEEE Trans. Wireless Commun., vol. 6, no. 8, pp. 3028–3037,
+ [5] M. Z. Win and R. A. Scholtz, “Impulse radio: How it works,” IEEE                Aug. 2007.
+     Commun. Lett., vol. 2, no. 2, pp. 36–38, Feb. 1998.                        [28] A. F. Molisch, “Ultrawideband propagation channels-theory, measure-
+ [6] ——, “Ultra-wide bandwidth time-hopping spread-spectrum impulse                  ments, and modeling,” IEEE Trans. Veh. Technol., vol. 54, no. 5, pp.
+     radio for wireless multiple-access communications,” IEEE Trans. Com-            1528–1545, Sep. 2005.
+     mun., vol. 48, no. 4, pp. 679–691, Apr. 2000.                              [29] I. Güvenç, C.-C. Chong, F. Watanabe, and H. Inamura, “NLOS identifi-
+ [7] A. F. Molisch, “Ultra-wide-band propagation channels,” Proc. IEEE,              cation and weighted least-squares localization for UWB systems using
+     vol. 97, no. 2, pp. 353–371, Feb. 2009.                                         multipath channel statistics,” EURASIP J. Adv. in Signal Process., vol.
+ [8] L. Yang and G. B. Giannakis, “Ultra-wideband communications: An                 2008, pp. 1–14, 2008.
+     idea whose time has come,” IEEE Signal Process. Mag., vol. 21, no. 6,      [30] F. Benedetto, G. Giunta, A. Toscano, and L. Vegni, “Dynamic
+     pp. 26–54, Nov. 2004.                                                           LOS/NLOS statistical discrimination of wireless mobile channels,” in
+ [9] D. Dardari, A. Conti, J. Lien, and M. Z. Win, “The effect of cooperation        Proc. IEEE Semiannual Veh. Technol. Conf., Los Angeles, CA, Apr.
+     on localization systems using UWB experimental data,” EURASIP J.                2007, pp. 3071–3075.
+     Appl. Signal Process., vol. 2008, pp. Article ID 513 873, 1–11, 2008,      [31] J. Borras, P. Hatrack, and N. B. Mandayam, “Decision theoretic frame-
+     special issue on Cooperative Localization in Wireless Ad Hoc and Sensor         work for NLOS identification,” in Proc. 48th Annual Int. Veh. Technol.
+     Networks.                                                                       Conf., vol. 2, Ottawa, Canada, May 1998, pp. 1583–1587.
+[10] H. Wymeersch, U. Ferner, and M. Z. Win, “Cooperative Bayesian self-        [32] J. Schroeder, S. Galler, K. Kyamakya, and K. Jobmann, “NLOS de-
+     tracking for wireless networks,” IEEE Commun. Lett., vol. 12, no. 7, pp.        tection algorithms for ultra-wideband localization,” in Workshop on
+     505–507, Jul. 2008.                                                             Positioning, Navigation and Commun. (WPNC), Mar. 2007, pp. 159–
+[11] D. B. Jourdan, D. Dardari, and M. Z. Win, “Position error bound for             166.
+     UWB localization in dense cluttered environments,” IEEE Trans. Aerosp.     [33] S. Gezici, H. Kobayashi, and H. V. Poor, “Non-parametric non-line-
+     Electron. Syst., vol. 44, no. 2, pp. 613–628, Apr. 2008.                        of-sight identification,” in Proc. IEEE Semiannual Veh. Technol. Conf.,
+[12] Y. Shen and M. Z. Win, “On the accuracy of localization systems using           vol. 4, Orlando, FL, Oct. 2003, pp. 2544–2548.
+     wideband antenna arrays,” IEEE Trans. Commun., vol. 58, no. 1, pp.         [34] I. Guvenc, C.-C. Chong, and F. Watanabe, “NLOS identification and
+     270–280, Jan. 2010.                                                             mitigation for UWB localization systems,” in Proc. IEEE Wireless
+[13] ——, “Fundamental limits of wideband localization – Part I: A general            Commun. and Networking Conf., Kowloon, China, Mar. 2007, pp. 1571–
+     framework,” IEEE Trans. Inf. Theory, vol. 56, no. 10, pp. 4956–4980,            1576.
+     Oct. 2010. [Online]. Available: http://arxiv.org/abs/1006.0888v1           [35] S. Venkatesh and R. M. Buehrer, “A linear programming approach
+[14] Y. Shen, H. Wymeersch, and M. Z. Win, “Fundamental limits of                    to NLOS error mitigation in sensor networks,” in Proc. IEEE IPSN,
+     wideband localization – Part II: Cooperative networks,” IEEE Trans.             Nashville, Tennessee, Apr. 2006.
+     Inf. Theory, vol. 56, no. 10, pp. 4981–5000, Oct. 2010. [Online].          [36] P.-C. Chen, “A non-line-of-sight error mitigation algorithm in location
+     Available: http://arxiv.org/abs/1006.0890v1                                     estimation,” in Proc. IEEE Wireless Commun. and Networking Conf.,
+[15] S. Gezici, Z. Tian, G. B. Giannakis, H. Kobayashi, A. F. Molisch, H. V.         vol. 1, Sep. 1999, pp. 316–320.
+     Poor, and Z. Sahinoglu, “Localization via ultra-wideband radios: a look    [37] R. Casas, A. Marco, J. J. Guerrero, and J. Falcó, “Robust estimator for
+     at positioning aspects for future sensor networks,” IEEE Signal Process.        non-line-of-sight error mitigation in indoor localization,” EURASIP J.
+     Mag., vol. 22, pp. 70–84, Jul. 2005.                                            Appl. Signal Process., no. 1, pp. 156–156, 2006.
+[16] M. Z. Win and R. A. Scholtz, “Characterization of ultra-wide bandwidth     [38] M. Tuchler and A. Huber, “An improved algorithm for UWB-based po-
+     wireless indoor communications channel: A communication theoretic               sitioning in a multi-path environment,” in International Zurich Seminar
+     view,” IEEE J. Sel. Areas Commun., vol. 20, no. 9, pp. 1613–1627,               on Communications, Zurich, 2006, pp. 206–209.
+     Dec. 2002.                                                                 [39] B. Denis and N. Daniele, “NLOS ranging error mitigation in a dis-
+[17] ——, “On the robustness of ultra-wide bandwidth signals in dense                 tributed positioning algorithm for indoor UWB ad-hoc networks,” in
+     multipath environments,” IEEE Commun. Lett., vol. 2, no. 2, pp. 51–             International Workshop on Wireless Ad-Hoc Networks, May/Jun. 2004,
+     53, Feb. 1998.                                                                  pp. 356–360.
+                                                                                 9
+
+
+
+[40] S. Venkatraman, J. Caffery, Jr., and H. R. You, “Location using LOS
+     range estimation in NLOS environments,” in Proc. IEEE Semiannual
+     Veh. Technol. Conf., vol. 2, Birmingham, AL, May 2002, pp. 856–860.
+[41] A. Sayed, A. Tarighat, and N. Khajehnouri, “Network-based wireless
+     location: challenges faced in developing techniques for accurate wireless
+     location information,” IEEE Signal Process. Mag., vol. 22, no. 4, pp.
+     24–40, 2005.
+[42] S. Al-Jazzar and J. Caffery, Jr., “NLOS mitigation method for urban
+     environments,” in Proc. IEEE Semiannual Veh. Technol. Conf., vol. 7,
+     Sep. 2004, pp. 5112–5115.
+[43] J. Khodjaev, Y. Park, and A. S. Malik, “Survey of NLOS identification
+     and error mitigation problems in UWB-based positioning algorithms for
+     dense environments,” Annals of Telecommunications, 2009.
+[44] J. Schroeder, S. Galler, K. Kyamakya, and T. Kaiser, “Three-dimensional
+     indoor localization in non line of sight UWB channels,” in Proc. IEEE
+     Int. Conf. on Ultra-Wideband (ICUWB), Singapore, Sep. 2007.
+[45] S. Maranò, W. M. Gifford, H. Wymeersch, and M. Z. Win, “NLOS
+     identification and mitigation for localization based on UWB experimen-
+     tal data,” IEEE J. Sel. Areas Commun., vol. 28, no. 7, pp. 1026–1035,
+     Sep. 2010.
+[46] S. Boyd and L. Vandenberghe, Convex Optimization. Cambridge, UK:
+     Cambridge University Press, 2004.
+[47] C. Cortes and V. Vapnik, “Support-vector networks,” Machine Learning,
+     vol. 20, no. 3, pp. 273–297, 1995.
+[48] J. A. K. Suykens, T. Van Gestel, J. De Brabanter, B. De Moor,
+     and J. Vandewalle, Least Squares Support Vector Machines. World
+     Scientific, 2002.
+[49] J. A. K. Suykens and J. Vandewalle, “Least squares support vector
+     machine classifiers,” Neural Processing Letters, vol. 9, no. 3, pp. 293–
+     300, Jun. 1999.
+[50] B. Schölkopf and A. Smola, Learning with kernels: Support vector
+     machines, regularization, optimization, and beyond. MIT Press, 2002.
+[51] C. Rasmussen and C. Williams, Gaussian Processes for Machine Learn-
+     ing. Springer, 2006.
+[52] T. Gestel, J. Suykens, G. Lanckriet, A. Lambrechts, B. Moor, and
+     J. Vandewalle, “Bayesian framework for least-squares support vector
+     machine classifiers, Gaussian processes, and kernel Fisher discriminant
+     analysis,” Neural Computation, vol. 14, no. 5, pp. 1115–1147, 2002.
+[53] S. Canu, Y. Grandvalet, V. Guigue, and A. Rakotomamonjy, “SVM and
+     kernel methods Matlab toolbox,” Perception Systemes et Information,
+     INSA de Rouen, Rouen, France, 2005.
+

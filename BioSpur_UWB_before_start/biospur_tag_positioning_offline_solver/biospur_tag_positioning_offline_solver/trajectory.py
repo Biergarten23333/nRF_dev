@@ -16,10 +16,12 @@ def solve_capture_trajectory(
     anchor_sigma_path: str | Path | None = None,
     tags: set[str] | None = None,
     tag_delay_by_tag: dict[str, float] | None = None,
+    solver_loss: str = "huber",
+    solver_f_scale_mm: float = 30.0,
     max_frames: int = 0,
     tail_rows: int = 0,
 ) -> TrajectoryResult:
-    config = SolverConfig(method=method)  # type: ignore[arg-type]
+    config = SolverConfig(method=method, solver_loss=solver_loss, solver_f_scale_mm=solver_f_scale_mm)  # type: ignore[arg-type]
     layout = load_layout_json(layout_path, anchor_sigma_path)
     frames = read_tr_all_frames(capture_path, tags=tags, min_anchors=config.min_anchors, tail_rows=tail_rows)
     if max_frames > 0:
@@ -41,6 +43,8 @@ def solve_capture_trajectory(
             "capture_path": str(capture_path),
             "anchor_sigma_path": str(anchor_sigma_path) if anchor_sigma_path else "",
             "tag_delay_by_tag": tag_delay_by_tag or {},
+            "solver_loss": config.solver_loss,
+            "solver_f_scale_mm": config.solver_f_scale_mm,
             "anchor_count_distribution": summarize_anchor_counts(frames),
             "imu_frames_valid": len(imu_frames),
             "imu_frames_total": len(frames),

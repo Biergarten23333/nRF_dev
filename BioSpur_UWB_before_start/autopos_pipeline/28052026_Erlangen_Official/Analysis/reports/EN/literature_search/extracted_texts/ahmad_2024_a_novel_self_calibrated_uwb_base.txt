@@ -1,0 +1,1256 @@
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021                                                                                  1
+
+
+
+
+     A Novel Self-Calibrated UWB based indoor
+  localization systems for context-aware applications
+  Tanveer Ahmad Member, IEEE, A.C.M Muhammad Usman, Marryam Murtaza, Ian B. Benitez, Asim Anwar,
+        Vasos Vassiliou Senior Member, IEEE, A.C.M, Azeem Irshad, Xue Jun Li, Essam A. Al-Ammar
+
+
+
+   Abstract—Location information is the most crucial information       potential in many context-aware applications [3]. UWB per-
+used in context-aware applications, e-commerce and IoT-based           forms better for short-range communications even in presence
+consumer applications. Traditional methods doesn’t focus on            of multipath and dense environment due to its fine-delay
+network coverage, accuracy, hardware cost, and noise in dense
+environment. To defeat these issues, this paper presents a novel       resolution features. Over a huge bandwidth of (> 500M Hz)
+localization algorithm for UWB nodes adopting self-calibration         an ultra short-pulses are transmitted in < 1 nanosecond of time
+and ToA measurement for context-aware applications. The Link           period with frequency range of 3.1GHz to 10.6GHz, which
+quality induction values are used instead of RSSI for distance         reduce the power consumption. UWB low power utilization
+estimation by costing technique. A calibration factor (CF) is fur-     and immunization to interference from other signals (different
+ther introduce to automatically update the location information
+in mobility. As the signal strength can be distorted heavily due to    radio spectrum and signal type), secure ranging, high preci-
+shadowing and multi-path fading, the localization is estimated in      sion, and signal penetration, made this a striking technology
+noisy condition and extended Kalman filtering (EKF) is applied         for 3d and mobile-aware indoor localization [4].
+to refine the node coordinates. Simulation results shows that the
+positioning error is decreased with an overall accuracy of 0.23m
+and standard-deviation of 0.76m.                                       A. Background
+  Index Terms—Ultra-wide band (UWB), link-quality induction                     A growing interest on precise indoor localization has been
+(LQI), wireless sensor network (WSN), context-awareness.                     greatly observed in recent years. In the era of e-commerce
+                                                                             and consumer electronics, the demand for precise and effi-
+                           I. I NTRODUCTION
+                                                                             cient localization in sensor networks has become increasingly
+
+T      HE concept of Ambient Intelligence emerge the new pronounced. The integration of location-aware technologies
+       ways and advancement in sensing and communication employing in different applications investigated enhancing
+through context-awareness. The wireless personal network [1] user experience, enabling location-based services, and sup-
+and future home networks [2] , are the key examples of porting a myriad of applications in the e-commerce and
+context-aware European projects with mobility. The context- consumer electronics domains such as optical, acoustic, and
+aware solutions utilize geographical locations, hardware and radio frequency (RF) methods. The techniques based on RF
+device information, and keep the historical record of us- may adopted continuous waves (CW) and impulse signals.
+age along with environmental information. Ultra wide-band The methods and technologies using CW are highly affected
+(UWB) based on IEEE 802.15.4z-2020 HRP ERDEV (en- due to low accuracy, large network, and multipath scenario.
+hanced ranging devices), gain much interest because of its Therefore, UWB technology became commercially available
+   T. Ahmad is with University of Cyprus, Nicosia Cyprus. He is also         in late 1990’s is a promising solution for indoor environment.
+with Innovation Education and Research Center for On-Device AI Software,     The three main applications: 1) Sensors and communication;
+Department of CS&E , Chungnam National University, Republic of Korea,        2) tracking, navigation and localization; and 3) radar’s are
+Corresponding author (e-mail: tahmad01@ucy.ac.cy)
+   M. Usman is with Department of Computer Science, Edge Hill University,    using the UWB because of real-time high precision [5].
+Ormskirk, United Kingdom, (e-mail: usmanm@edgehill.ac.uk)                       UWB use time of flight (ToF) rather than received signal
+   M. Murtaza is with Department of Computer Science, COMSATS Univer-        strength (RSSI) to compute distance. The well-known ToF
+sity, Wah Cantt, Pakistan, (e-mail: marryam murtaza@ciitwah.edu.pk)
+   Ian B. Benitez is with Electrical Engineering Department, College of      based estimation methods includes angle of arrival (AoA),
+Engineering, FEU Institute of Technology, Manila 1015, Philippines ibben-    time of arrival (ToA), time difference of arrival (TDoA),
+itez@feutech.edu.ph                                                          RSSI, and received signal strength difference (RSSD) [6]. ToA
+   A. Anwar is with Department of Technology, The University of Lahore,
+Pakistan, (e-mail: asim.anwar@tech.uol.edu.pk)                               and TDoA techniques requires accurate clock synchronization
+   V. Vassiliou is with Department of Computer Science, University of Cyprus whereas AoA-based techniques necessitate precise antenna
+& CYENS Centre of Excellence, Cyprus (e-mail: vasosv@ucy.ac.cy)              array. While the low cost and low complex techniques RSS
+   A. Irshad is with Department of CS&SE, International Islamic University
+Islamabad, Pakistan, (e-mail: azeemirshad@gpgcam.edu.pk)                     and RSSD utilize signal strength for positioning estimation.
+   X. j.Li is with Department of Electrical and Electronic Engineering,      ToA based techniques are more popular in many static and
+Auckland University of Technology, Auckland 1010, New Zealand, (e-mail:      mobile based techniques which adopted the transmit time
+xuejun.li@aut.ac.nz)
+   E. A. Al-Ammar is with Department of Electrical Engineering, College      between transmitter and receiver for distance computation.
+of Engineering, King Saud University, P.O. Box 800 Riyadh 11421, Saudi       The distance estimation in ToA can be affected by noise,
+Arabia, (e-mail: essam@ksu.edu.sa)                                           multipath components (MPC’s), propagation velocity between
+                                                                             obstacles.
+                                                            0000–0000/00$00.00          NLOS localization error’s (LE) are higher than those
+                                                                               © 2021 IEEE
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021                                                                           2
+
+
+
+affected by Gaussian, or Naive noise intensity, because NLOS        (distance, LQI), within its range. The major contributions of
+paths and errors can’t be computed in time-varying scenario         this work is as follows.
+resulting in high localization error with low network coverage.        1) We proposed the idea of context-aware localization in
+The idea in [7] based on channel modeling and peak-detection              LOS and NLOS environment, where interference doesn’t
+is a best way to identify NLOS path in dense condition. In                taken into account.
+localization a trusted node transmit data packet with a ratio          2) For positioning LQI values are used in order to measure
+of transmission to received packets. The minimum acceptable               the node position precisely.
+packets are threshold. The node rating is computed by E-               3) The CF along with weight expression is introduced, so
+commerce formula commonly known as Sporas formula [8].                    the nodes can calibrate their changes automatically.
+                                                                       4) LE is computed by using the values of distance affected
+B. Motivation and Contribution                                            by the noise, with the help of centroid formula.
+                                                                       5) The positioning accuracy is being compared with the
+   Motivated by the dense features of consumer electronics and
+                                                                          well-known existing algorithm from literature.
+e-commerce, this research enhance the sensor localization, en-
+visioning a future where seamless integration enhances supply       The rest of the paper is organized as follows. A state-of-the-
+chain, logistics, and customer experience on IoT/ consumer          art UWB based techniques is presented in Section II. Problem
+electronics devices. We analyzed wide range of UWB posi-            statement and system model is presented in Section III, while
+tioning systems confirming that the tagged nodes are localize       proposed design is presented in Section IV followed by the
+able in LOS conditions with decimeter (dm) level accuracy           numerical and analytical analysis in Section V. The Section
+but the accuracy falls in case of NLOS environment. The             VI conclude the proposed technique.
+poor findings in distance measurements in NLOS environment
+motivate us to further work on this area to proposed a better                           II. R ELATED W ORK
+solution which even works on NLOS conditions. Furthermore,             The triangle of sensor positioning, consumer electronic, and
+the level of precision can enhance context-awareness through        e-commerce is a dynamic research area with multiple impli-
+real-time and complete location information.                        cation. In order to engage UWB technology for indoor posi-
+   After conducting a detailed survey on context-aware and          tioning, several localization techniques have been presented,
+UWB based localization it has been observed that in most            for IoT/ consumer electronic devices where information of
+techniques a proper node deployment has not been considered.        the known positions is extracted through radio signals drifting
+Also for mobile based solution where context-awareness is           among reference points (anchor or beacons) and target nodes
+crucial RSS is not a best choice because of weak signal and         (unknown). UWB based positioning algorithms are classified
+node failure. Therefore, we are using the LQI values for local-     into AoA, ToA, TDoA, RSS and RSSD; the localization
+ization measurement. In the context of UWB technology, the          techniques, further classified into range-free and range-based
+adoption of LQI over RSSI holds significant importance. UWB         techniques as shown in Fig. 1.
+systems, classified by their ability of data transmission over
+a broad spectrum with low power consumption, benefit from
+LQI’s focus on assessing link quality comprehensively. Unlike
+RSSI, LQI considers factors such as interference, signal-to-
+                                                                                            "    $
+noise ratio, and provides an accurate insight of the commu-                                     %                       %
+nication channel’s reliability. The stability of LQI values, its
+standardization, and its resilience to environmental fluctuations                                         #
+                                                                                                                  (             #
+in wireless sensor networks, including those utilizing UWB
+                                                                                                                  )#
+protocols, make it a preferred metric. To the best of our                                                                       +
+
+knowledge it is the first analytical and state-of-the art work                                       & $          $         *)(
+for UWB based localization which combine the measurement
+                                                                                                     '        (                 #
+of CF and then compute the UWB node localization using
+LQI values. We also differentiate between collaborative posi-                                             !       *)(       )#
+tioning and self-calibration which are only discussed for other                                       !                     "
+technologies like wi-fi, Zigbee and Bluetooth. A set of nodes,                                       "
+                                                                                                                  #
+beacons and gateways is deployed in this work based on UWB
+                          ˙
+standard, with ṅ˙ nodes, ḃ number of beacons, and ġ˙ gateways,          Fig. 1: Classification of localization algorithms.
+              ˙
+where ṅ˙ ≫ [ḃ & ġ].
+                   ˙ The accuracy is depended on the beacons
+and gateways density, floor-plan and UWB tags. Beacons                 In AoA techniques, signal reception angles is computed
+and gateways are fixed at the known positions while UWB             from signal amplitude or carrier phase over various antennas,
+sensors with unknown position and mobility. Nowadays sensor         then the location is estimated from junction point of the
+nodes also gain power through renewable or harvesting energy,       angle line. Localization algorithms based on AoA are highly
+e.g. from solar or vibrations, and radio waves, may having          sensitive to noise, fading, and NLOS resulting in low accuracy
+single radio. Beacons and gateways with line power supply,          and high complexity. The geometry of antenna has a main
+high performance CPUs, and capable to perform computation           role in positioning computation of AoA based algorithms, so
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021                                                                                     3
+
+
+
+the increase in distance between transmitter and receiver may    control system. The first signal was detected by a dynamic
+further decrease accuracy. In [9], localization is performed     threshold crossing technique which utilize hybrid mixture of
+for centimeter distance estimation on smart UWB nodes. The       ToA and TDoa for location computation.
+work presents the in-depth study of AoA UWB measurement
+using low-power, compact solution integrating a novel module                                III. S YSTEM MODEL
+with phase difference of arrival (PDoA). Simulation shows           The integration of e-commerce, consumer electronics, and
+the achievement of cm level accuracy along with 2.4° average     sensor localization introduces unique opportunities and chal-
+angular accuracy.                                                lenges. The proposed system consider those challenges so that
+   A ToA based method, considering empirical approach based      the system must be useful for customized applications. Our
+on machine learning is presented in [10], which classify         model provide a novel solution, meeting the requirements of
+channel condition (LOS and NLOS) in which information            IoT based consumer applications and e-commerce industry. A
+coming from LOS paths and estimates the mobile terminal’s        list of acronyms used in this paper is presented in Table I.
+location. The work is compared with other state-of-the art       Assuming that the receiver and transmitter are synchronized;
+methods and shows 83% improvment in localization accuracy.
+The author’s in [11] design a positioning algorithm for coal                           TABLE I: List of Acronyms.
+mine which locate the workers in case of emergency using
+                                                                 Abbrevation        Defination
+UWB technology. A monolithic chip set for UWB for indoor
+localization has been presented in [12] for LOS scenario with    ℶi                 Channel attenuation
+                                                                 Ψ(t)               IR-WSB signal
+an accuracy of 8.3cm. The positioning accuracy was examined      ρ                  Number of multipath components
+in [13] for UWB tags and improved localization accuracy          ζ(t)               Gaussian noise
+in multipath environment with short transmitted pulses. [14],    η                  Path loss exponent
+                                                                 ϱ                  Distance from anchor to unknown node
+reduce the NLOS error with maximum likelihood estimation         ℘                  Error reduction factor for ToA computation
+(MLE) and biased kalman filtering (BKF). On the other-side,      ˙
+                                                                 ḃ 7→ ϱi           Distance from a beacon to a node
+a large scale LPS-LOS system based on ToA were presented         ˙′
+                                                                 ḃk 7→ ġ˙ j       Distance from a beacon to gateway
+in [15] with high precision and network coverage.                ṅ˙ 7→ ϱi          Distance from a node to node
+   TDoA is also a promising method which is a time difference    v(t)               Waveform of a broadcasted pulse p(t)
+                                                                 ⋇                  band-pass code defined by the IEEE 802.15.4a protocol
+technique between sender and three or more receiver to form a    ⊎m                 Factor including the energy and path in vector form
+triangulation. In [16], author proposed FlexTDoA using UWB       ω̂                 UWB tag estimated location
+radios in which user devices are remain passive and measure      [U ]               Decomposition matrix
+                                                                 ℜi,j               Calibration factor
+localization by listening to the communication among fixed       κ                  Node density
+anchors nodes using flexible time-division multiple-access       ϖ                  Unidirectional frequency [constant]
+(TDMA) scheme where time is divided in slots. The effect
+of physical speed is simulated against FlexTDoA and classic        thus, the impulse radio IR-WSB signal at the receiving end
+TDoa apprach. The results reflects that FlexTDoA gain high       can be modeled under NLOS, multipath environment, and
+accuracy of upto 38% reduction in error as compared to classic   channel attenuation. The ranging model is defined by:
+approach. The author’s in [17], presents one-dimensional sys-
+tem having one tag and two sensors and use traditional TDoA                                             ρ
+                                                                                                        X
+method for position computation. For collision avoidance on-                              Ψ(t) =              ℶi p(t − Υi ),                (1)
+off keying (OOK) was used for tag synchronization, which                                                i=1
+
+improve the localization accuracy and power consumption.         where ρ represents the number of multipath components,
+Similarly, another method proposed in [18], developed a multi-   p(t) is the first signal, ℶi represents channel attenuation. For
+tag UWB network modulation that used minimum-shift keying        ToA measurement, Υ1 = ΥT oA for further analysis. Adding
+(MSK) having range of 100m, (1 − 20)Hz refresh-rate, and         Gaussian noise, Eq. (1) can be further expressed as:
+frequency range of (2.4 − 2.48)GHz-(5.4 − 10.6)GHz. A                                             ρ
+                                                                                                  X
+detailed study were presented in [19], about UWB localization                         Ψ(t) =            ℶi p(t − Υi ) + ζ(t),               (2)
+with different complexities and accuracy requirements. A                                          i=1
+’cm’ accuracy were recorded in 3D environment that uses          where ζ(t) is a noise. Beacons and UWB tags are close to
+TDoA technique and four receivers for triangulation’s. Path      gateways, with longer LOS distance that affect ToA estimation.
+overlapping and angle dependent signal distortion is a main
+challenge for this technique.                                               p
+   A UAV landing mobile platform along with GPS is pre-                         (x − x̂i )2 + (y − ŷi )2 + (z − ẑi )2 = ϱi − ηi,j         (3)
+sented in [20]. Four UWB anchor nodes are deploed on the             where:                   (
+region of (0.8 × 1.4)m rectangular UVs landing platform. The                                      ζi.j                 LOS;
+coordinates are measured using linear least square (LLSs). The                       ηi,j =                                                 (4)
+                                                                                                  ζi.j + ℘ρN LOS       N LOS;
+method provides an overall improvement of 61% as compared
+to other methods adopting least squares for error reduction.     Here, ℘ is for the simulation for error and ϱ is a distance.
+   A novel UWB indoor tracking system was presented in [21],     Due to complexities in AWGN the probability density function
+                                                                                                               x2
+having two sandwich systems; a mobile robot (MR) and a           (PDF) with Rayleigh fading f (x) = σx2 exp(− 2σ 2 ) is:
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021                                                                                                          4
+
+
+
+
+                                                         2
+                                      1                 ηi,j
+                    𭟋LOS
+                                                                                                             ⋇
+                     ηi,j = q                 exp(        2 )                      (5)                       Y
+                                                                                                   (l)
+                                       2
+                                    2πσi,j             2σi,j                               s(t, θ ) =                F (argmax(ℶi ).⊎m , Ψ(t), ϱ 7→ ζ(t)        (14)
+                                                                                                            m=0
+
+                 1           (ηi,j − µb )2                                                                           F (argmax(ℶi )f◦
+                                                                                                                                               ℶ ⊎
+                                                                                                                                         lv/2 ( icdm )
+       𭟋N LOS
+        ηi,j  =q       exp(−        2      ) ⇛ Ψ(t)                                (6)         ln s(t, θ(l) ) = ln                    ln               + ζ(t)   (15)
+                   2             2σi,j                                                                                     s(t)               ⊎m
+                2πσi,j
+                                                                                                                                       ⊎m
+                                                                                                                             lv/2 ( ℶicd  )
+                   1
+                           
+                               ηi,j − nmax
+                                                       
+                                                               ηi,j − nmin
+                                                                                                         ln s(t, θ(l) ) = ln               + ζ(t)              (16)
+      𭟋N LOS
+       ηi,j  =       ⌈Υi                         − Υi                      ⌉       (7)                                          s(t).⊎m
+                   β                σi,j                            σi,j
+                                                                                                                                    ⊎m      Pn
+                                                                                                                          lv/2 ( ℶicd  )           ℶi
+   where ϱi is a distance, NLOS fractional complex noise                                              ln s(t, θ(l) ) = ln                − m=0                  (17)
+β computed by the max and min of normalized distance                                                                        s(t).⊎m          f◦ s(t)
+with a commulative distribution function (CDF) of channel                                where ℶi denotes channel attenuation with time interval F ,
+                                                          2
+attenuation, where noise factor ζ(t) satisfy ζi,j ∼ η(0, σi,j ).                         ⊎m is a factor having energy and path in vector form. The
+                                                                                         derived function has small fraction, either positive or negative.
+                                             χ2 σi,j
+                                                 2
+                                                       !
+                                                                χ2 σi,j
+                                                                    2
+                                                                          !
+                      χ                                                                  In presence of multiple MPCs, the MLE may yield negative
+         ρN LOS
+          ηi,j  =       exp[−χ      ηi,j −                 ð    p         ]        (8)
+                      2                          2               2σi,j                   values, which is incorrect computation of ToA, and can be
+where χ is a positive constant, and ð is the positioning error                           fixed using the MLE stabilization explained in Algorithm 1.
+distribution. The distance in coordinate form will be:
+                                                                                         Algorithm 1 Time of Arrival Estimation.
+   ˙
+                       q                                                                  1: Initializing a signal Ψ(t) with noise ζ(t)
+  b˙ 7→ ϱi =∥ ω − ωi ∥= (xω − x̂i )2 + (yω − ŷi )2 + (zω − ẑi )2                 (9)
+                                                                                             (
+                                                                                               ζi.j                  LOS;
+                                                                                          2:               ρ                   : decomposition to distance
+             ˙                                                                                 ζi.j + ℘N LOS N LOS;
+where ḃ 7→ ϱi is a distance from beacon to a node, and
+(x̂i , ŷi , ẑi ) and (xω , yω , zω ) is a beacon and UWB tag position,                  3:      Peak signal: Determine the estimated distance from
+respectively. Simplifying for the least square modeling,                                     the UWB tag to the gateway.
+                                                                                                  ˙
+                                                                                          4:      ḃ 7→ ϱ2i , ṅ˙ 7→ ϱ2i + Ψ(t)
+  ˙                                                                                       5:      𭟋LOSηi,j for direct path
+ b˙ 7→ ϱ2i = x2ω + x̂2i − 2xω x̂i + yω
+                                     2
+                                       + ŷi2 − 2yω ŷi + zω
+                                                           2
+                                                             + ẑi2 − 2zω ẑi (10)                                           ˙
+                                                                                          6:      𭟋N    LOS
+                                                                                                      ηi,j     for MPC ⇒ ḃ 7→ ϱ2i
+Similarly the distance between nodes and anchor node will be:                             7:       s(t, θ(l) ) ⇒ [⊎ṅ˙ , s(t)] MLE components in vector
+                                                                                             form
+ ṅ˙ 7→ ϱ2i = x2N + x̂2i −2xN x̂i +yN
+                                    2
+                                      + ŷi2 −2yN ŷi +zN
+                                                        2
+                                                          + ẑi2 −2zN ẑi (11)            8:      ML estimate from Eq. 43
+                                                                                          9:     return Ψ(t) [Maximum likelihood]
+                                                                                         10: PREDICT(Ψ(t), M L)
+    = 2(xN − xi )xω + 2(yN − yi )yω + 2(zN − zi )zω                               (12)   11:     return ϱi,j ⇒ Estimated Ψ
+
+which can be written using a matrix relation in the form k =
+T ω, and modeled in the algorithm design section.                                          V. UWB-L OCALIZATION USING C ALIBRATION FACTOR
+                                                                                            In this section, we presents a novel localization algorithm,
+      IV. T OA ESTIMATION WITH TWO - STEP RANGING                                        which use LQI and use CF under mobility. The presented
+                                                                                         analytical structure varying levels of shadowing, including
+    A two-step range was adopted for the ToA estimation.                                 both correlated and independent shadowing environments,
+Initially, the first signal path is detected using a bandpass                            and also take inaccuracy factor while introducing calibration
+filter (BPF), with bandwidth B and frequency f◦ . The RSS,                                                                               ˙
+                                                                                         factor. In weighted centroid (WCL), beacons ḃ(x, y, z) with a
+followed by the energy detector (Eq. (2) can be written as:
+                                                                                         known position broadcast their ID and position coordinates
+                        ⋇                                                                to all UWB nodes ṅ(x, ˙     y, z) in the neighbor using mere
+                        Y
+              s(t) =                  ˙ ◦ − mT ⋇) + ζ(t),
+                               v(t − ṅ.f                                         (13)   communication. WCL have many challenges including high
+                       m=0                                                               maintenance cost, time consumption and system failure if there
+where v(t) is the waveform of a broadcasted pulse p(t) and                               is no node in a particular region. In this case CF fails to
+⋇ is a band-pass code. Additionally, s(t) denotes the received                           execute further and therefore, its not energy-efficient. In a real
+signal with the channel impulse response. By adopting maxi-                              scenario, weightings are introduced to scale the importance of
+mum likelihood estimation (MLE) there are ṅ˙ − 1 parameters                             beacons according to their distances from the nodes.
+to measure, that is, the energy of each signal (described in                                                Pn
+                                                                                                                  hi,j ġ˙                 1
+Eq. (42) in Section VI-A) and the value of each path on a                                            ˙ṅi = Pi=1
+                                                                                                              n            · Ψ(t) ; h =               (18)
+                                                                                                              j=1 hi,j                  (ϱi,j )l
+successful signal transmitter. These factors described in vector
+form θ(l) = [⊎ṅ˙ , ⊎ṅ+1
+                      ˙   , ..., ⊎ṅ+m
+                                   ˙   , s(t)], with noise. The PDF                      where h is a weight. IEEE 802.15.4 specifies LQI values
+is used as an argument in the MLE equation as follows:                                   for packet error calculations via M gmtLqi , in matrix form.
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021                                                                                                        5
+
+
+
+Because of similar nature of RSSI and LQI, the distance
+                                                                                                                                 a
+between node and gateways will be computed the same way.                                                                   h=                                (28)
+                                                                                                                                Qi,j
+                                                                 LQIi,j                        Qi,j has already been derived from Eqs. (19). The path loss
+            ϱi,j = S0 10−S1 .Qi,j               ; Qi,j =                                (19)
+                                                                LQImax                         and distance are now eliminated, leaving a constant ’a’ derived
+Eq. (19) is unsuitable under extreme conditions when LQI=0;                                    from the LQI [22]. The estimated position of the tag can be
+thus, using the third-order polynomial LQIi,j = S3 .ϱ3i,j +                                    calculated using the relationship k = T ω: Let T be a square
+S2 .ϱ2i,j + ... + S0 , we have                                                                 matrix obtained from Eq. (24), the UWB tag location is
+
+                                     a                                                                                    ω̂ = T −1 k
+                                  r
+                                                                                                                                                             (29)
+                           ϱi,j = n                    (20)
+                                    Qi,j
+                                                                                               where ω̂ denotes a UWB tag estimated location of the UWB
+where a is a constant initial CF and n is a path loss component                                tag. The least-squares estimation (LSE) is applied to Eq. (29):
+                         P◦ −PRX+E
+                                   σ
+computed by ϱ = ϱ◦ .10        10n    , which lies between 2 and
+                                                                                                                               −1
+4 in our case. In a multipath environment, the signals obtained                                                          ω̂ = TLSE k,                        (30)
+from Eq. (1) can be expressed as                                                                 By substituting the LSE and inverse matrices, the power of
+                                                                                               ρ becomes ω̂ ≈ [U ]T −1 [U ]k, where [U ] is the decomposition
+                               e(t) = Ψ(t) + +ζ(t)                                      (21)   matrix. The number of LOS components is smaller than the
+                                                                                               number of NLOS components, so the contents of LOS are:
+                                        ρ
+                                        X
+                               p
+                h(t) =             Ep         ℶi p(t − Υi ) + ζ(t)                      (22)                       ω̂ = arg max1≤ρ≤P Tρ2 .                   (31)
+                                        i=1
+                                                                                                 Lemma 5.1: If fewer LQIs are missing, the estimated
+where Υρ1 , Υρ2 , Υρ3 , ...., Υρf , ℶρ1 , ℶρ2 , , ℶρ3 , ..., ℶρf is an array of                position cannot be computed using square of the matrix T :
+parameters with a delay of Υρf and a ℶρf path. Ep is a standard                                which is obvious if fewer LQIs are missing, and the desired
+deviational error factor. The channel attenuation, distance, and                               numbers of rows and columns are insufficient to take the
+LQIs are stored in a matrix as, which satisfies k = T ω.                                       square of the matrix. In this case, a pseudo-inverse methodol-
+                                                                                               ogy is used to estimate the nodes.
+            ϱ21 − x21 − y12 − z12 − ϱ2N − x2N − yN2 − z2
+                                                               
+                                                       N
+              2     2     2     2      2    2     2
+            ϱ 2 − x2 − y2 − z 2 − ϱ N − xN − yN − z N  2
+                                                                                                                     ω̂ = (T T .T )T T k                   (32)
+ k=
+                                   ..                           (23)
+                                                                
+                                    ..                                                                             ˙
+                                                                                                  Considering that ḃ and ṅ˙ are similar in terms of transmission
+                                                               
+     ϱ2N −1 − x2N −1 − yN 2
+                            −1 −  z 2
+                                    N −1 − ϱ 2 + x2 + y 2 + z 2
+                                             N     N    N    N
+                                                                                               power and losses, this constant remains the same for all
+        x1 − xN
+           
+                                     y1 − yN            z1 − zN
+                                                                                              devices within a sensing region. The constant factor a is
+                                                                                               eliminated by inserting the weight h = Qai,j into Eq. (25).
+                                                                           
+       x2 − xN                      y2 − yN            z2 − zN           x
+ T =2×     ..                           ..                 ..     ; ω = y  (24)
+                                                                 
+           ..                           ..                 ..            z                                                  Pn    ġ˙ j
+       xN −1 − xN                   yN −1 − yN         zN −1 − zN                                                ˙′      ˙     j=1 Qk,j
+                                                                                                                 ḃk 7→ ġj = Pn      1 .Ψ(t)                (33)
+                                             ˙′                                                                                 j=1 Qk,j
+  Now, the estimated position of the beacons ḃk are compared
+                                                                                                       ˙′
+with known locations along with ToA estimates.                                                 where ḃk 7→ ġ˙ j is a distance from the beacon to gateway.
+                                                                                               Variations in the node position due to antenna direction,
+                    Pn
+                                ˙       ρ                                                      node failure, or radio changes lead to erroneous weighting
+      ˙′             j=1 hj,k .ġj p
+                                       X
+      ḃk 7→ ġ˙ j = Pn           . Ep     ℶi p(t − Υi )                                (25)   measurements and low accuracy. Therefore, to update these
+                       j=1 hj,k                                                                                                              ˙′   ˙
+                                       i=1                                                     changes, we define a CF ℜi,j that minimizes ḃk − ḃk :
+                        Pn                         ρ
+     ˙′                     j=1   hj,k .ṅ˙ r p X                                                                              Pn ℜi,j ġ˙ j
+     ḃk 7→ ṅ˙ r =         Pn               . Ep     ℶi p(t − Υi )                     (26)      ˙              ˙′    ˙        j=1 Q
+                                j=1 hj,k          i=1
+                                                                                                  ḃk [Error] =∥ ḃk − ḃk ∥⇒∥ Pn ℜk,ji,j
+                                                                                                                                             ∥ .Ψ(t),        (34)
+                                                                                                                                        j=1 Qk,j
+   Next phase is to measure the approximate position of the
+          ˙′                                                                                   which is used to calculate the CF. We need to analyze how the
+beacons ḃk . The difference in the estimated values further
+                                                                                               CF can be implemented at the nodes. For this, a UWB node
+helps to introduce a threshold known as the CF. The beacon-
+                                                                                               can be part of at least two beacons and a gateway to form a
+estimated error can be computed using the CL as follows:
+                                                                                               triangulation. For a node, we can rewrite Eq. (34) with CF:
+                        r                                                                                             Pn ℜi,j ṅ˙ j
+   ˙              ˙′          ˙′      ˙           ˙′      ˙           ˙′      ˙
+  b˙ k [Error] = b˙ k       (b˙ xk − b˙ xk )2 + (b˙ yk − b˙ yk )2 + (b˙ zk − b˙ zk )2   (27)                     ˙ ′    j=1 Qi,j
+                                                                                                                Ṅj =∥ Pn ℜi,j      ∥ .Ψ(t)                  (35)
+   The beacon-positioning error is proportional to the error in                                                              j=1 Qi,j
+
+the node position, and we can now combine Eq. (20) and a                                         AWGN is added to the distance equation. In the first ToA
+                                                                                                                  2
+part of Eq. (18) to obtain a simplified weight function, i.e.,                                 path, ζi,j ∼ η(0, σi,j ),
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021                                                                                       6
+
+
+
+
+                                                           2
+                                                                              a normalized threshold, is set to 0.2, and for a false alarm,
+             Vn = ϱi .ζ(t)(1 − ϱi .ζ(t))η(T oA+n,σi,j )               (36)    the rate is between 2.0 − 2.5 as per the CF requirement.
+                                                                              After applying bandpass filtering to Eq. (2), the signal received
+                                             n−1
+                                             Y                                comprises different pulses (extracted using an energy detector).
+               Vn = ϱi (1 − ζ(t))ηT oA              (1 − ϱi )         (37)
+                                                                                                                         b
+                                              i=1                                                          (eρn − 1)e−ρ a
+                                                                                               ⊎ṅ,
+                                                                                                 ˙ ḃ˙ =                  Ψ(t)               (42)
+                                                                                                           en /ρ(eρ−1 ) a
+                                       ˙
+                       n−1
+                                      ( ′
+                       Y               ḃ 7→ ġ˙ j
+    P DF | ηT oA = 1 −     (1 − ϱi ) ⇒ ˙ k′                           (38)
+                       i=1             ḃ 7→ ṅ˙ r     k                                             2          1        ˆ − (ϱi − ηi,j ))
+                                                                                    ∴ M L estimate σ̂⊎ =               (Ψ(t)                 (43)
+                                                                                                              2⊎ṅ,
+                                                                                                                 ˙ ḃ˙
+                           Ni
+                           X
+𭟋{(Υ̂i − Υi ) | ηT oA} =        𭟋(Υ̂i − Υi ) |max +𭟋(Υ̂i − Υi ) |min .Ψ(t)
+                           n
+                                                                       (39)
+                                                                              Algorithm 2 Localization and UWB data fusion using CF.
+where Vn is an estimated distance between the nodes and
+                                                                               1: Deployment ← office/ factory environment with LOS and
+gateways. The maximum and minimum LQI values are used
+                                                                                  NLOC components.
+in the centroid formula to measure the localization error (LE).                                                    ˙
+                                                                               2:       n number of nodes ṅ,
+                                             n                                                                       ˙
+                      ℜi,j             X ℜj,k                                  3:       b number of beacons ḃ,
+                              = Ψ(t) ×                                (40)     4:       g number of gateways ġ,       ˙
+                     ϱi [avg]            ϱi,k
+                                            k=1
+                                                                               5:       noise ζ(t), which is a part of the distance,
+          q                                                                    6: Receive signal strength in the form of LQI. ← M gmtLqi .
+                       ˙′                    ˙′                    ˙′
+ lϱi,k =    (Ṅ˙ i.x − ḃk.x )2 + (Ṅ˙ i.y − ḃk.y )2 + (Ṅ˙ i.z − ḃk.z )2    7: RSS ← LQImax
+                                                                                               LQIi,j
+
+                                                                       (41)    8: if LQI = 0.
+Here, lϱi,k denotes the average LE. Algorithm 2 describes the                  9:       LQIi,j = S3 .ϱ3i,j +S2 .ϱ2i,j +...+S◦ including distance
+procedure for node localization and the derivation of the CF.                 10:      . k = T ω matrix of all LQI values.
+   The proposed solution is novel in several aspects: First                   11: Else return RSS.
+                                                                                                                 ˙
+the adoption of LQI values. Second, the proposed technique                    12: Broadcast signal from ḃ to ġ˙ and ṅ.       ˙
+assumes that the CF used to minimize the beacon-positioning                   13: First path signal and ToA from Algorithm 1.
+error are identical for all nodes. Therefore, if the CF changes                                                         ˙
+                                                                                                  q position ḃk [Error].
+                                                                              14: Estimated beacons
+for the beacons, it changes for the nodes in the same manner.                     ˙                   ˙′                ˙
+                                                                              15: ḃk [Error] =      (ḃ(x,y,z)k − ḃ(x,y,z)k )2 .
+Third, there is no direct communication between the beacons
+                                                                              16: weight function a/Qi,j pathloss eliminated.
+and nodes. Everything passes through the gateways. This
+                                                                              17:       Consider LQI matrix: if T a square matrix.
+implies that the gateways perform almost all the work, which
+                                                                              18:       ω̂ = T −1 k for LOS states.
+save considerable energy for the nodes. This is another area in
+                                                                              19:       ω̂ = (T T .T )T T k in case T not a square matrix.
+which the proposed algorithm is superior. In practical scenar-                    ˙′               Pn        ġ˙ j     Pn
+ios, depending on the system administrator and requirements,                  20: ḃk 7→ ġ˙ j = [ j=1 Q ]/[ j=1 Q1 ].Ψ(t) weight and
+                                                                                                               k,j                k,j
+
+recalibration can be performed every 15 min, every 60 min,                        PL is a part of transmission: Eq: 33.
+                  ˙′    ˙                                                     21:      return h[weight], distance].
+or whenever ∥ ḃk − ḃk ∥ exceeds a certain threshold.
+                                                                              22: [find a maximum and minimum point from LQI matrix ].
+                                                                              23: [Computation of region for network coverage].
+                 VI. R ESULTS AND D ISCUSSION
+                                                                              24: [Nodes with higher/ repetitive RSS are selected as LQI].
+   In this section, we describe the performance of the proposed                                            Pn ℜi,j ġ˙ j Pn ℜi,j
+                                                                              25: derivation of CF. ∥ [ j=1 Q                 ]/[ j=1 Qk,j ] ∥
+technique. We attempt to simulate as realistic a case as                                                                  k,j
+                                                                                                                          2
+                                                                              26:       distance ← ζi,j ∼ η(0, σi,j         ) + ϱi
+possible, that is, one representative of a typical office or factory
+                                                                              27:       [Node positioning is the same as beacon positioning].
+environment. We assume an area of 150m × 70m with 7
+                                                                              28: [CF included in distance q equation], Eq 40.
+beacons, 10 UWB nodes, and 7 gateways, with a reference                                                                           ˙′
+node in the right corner along with the NLOS placement, as                    29: [Localization error:         ((Ṅ˙ i.[x,y,z] − ḃk.[x,y,z] )2 .
+shown in Fig. 2. The realization was achieved with a sample                   30: [Estimated node [ṅ]  ˙ position].
+rate of 10 GHz and a bandwidth of 4-12 GHz, with a uniform
+distance of [1 − 4]m.
+                                                                                 Following the acquisition of ToA, a part of Ψ(t) with a time
+                                                                              interval [p(t) + iΥi p(t), (i + 1)υi p(t + 1)] is derived, along
+A. RMSE to SNR                                                                with the first path detection and the next interval when the
+   The root mean square error (RMSE) was compared with                        beacon again transmits its packets, illustrated in Fig. 3. The
+those of a few other well-known techniques, including the                     energy detector output was extracted using p(t)[fp(t=1)
+                                                                                                                                irst path] . The
+maximum probability of detection and constant false alarm                     RMSE for different channels in LOS and NLOS environments
+rate for the radar theory presented in [23]. The fixed threshold              were compared for different SNRs, as shown in Fig. 4, and
+was adopted [24], with the strongest path having the highest                  was determined based on the means of 5000 trials. The
+repetitive LQI values. The design parameter, which is used as                 proposed ToA method obtained better results when we receive
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021                                                                                                                                                                                7
+
+
+
+a relative number of LQI values. The constant-rate alarm and               and efficient implementation compared to other range-
+maximum probability methods achieved worse performances                    based systems.”
+when SN R < 0dB. Thus, having a fixed calibration factor,
+which is a constant a in our algorithm, will help effectively         C. Localization Error (LE) (Numerical Results)
+measure the ToA under LOS and NLOS conditions.                          The proposed algorithm was first tested numerically using
+                                                                      a CL algorithm. We observed that in the CL, the nodes
+B. Implementation of Calibration Factor                               could compute their estimated locations based on the neighbor
+                                                                      beacon nodes. The average LQI is recorded using distance
+   The implementation of the CF and LE computation begins
+                                                                      function as shown in Table II.
+after ToA measurement with centroid determination. In CF                                                                                                                                  LQI
+implementation, we have ṅ˙ nodes with unknown positions, a                                                                                ϱi = 210.10−3.96 255                                                                       (46)
+number of gateways with known positions ġ˙ j , and a number
+                                     ˙
+of beacons with known positions ḃ. The gateways should be
+placed so that the angular differences between the nodes and                             
+
+beacons in the measurements are not very narrow. Steps for                                                       8                                                                         1234526 7
+                                                                                                                                                                                                           
+                                                                             78
+real-world implementation of the proposed solution are:                                                                                                  2
+                                                                              1234526                                                                                                                                      1234526
+   1) The system computes the LQI from each beacon to the                                                                          7                                       
+
+
+
+
+                                                                                                                                                                                                                           434
+                                                                                                                                   1234526                                               7
+      gateway in sensing region. The relative Qk,j can be                     9
+                                                                                                                                                                 7                           
+                                                                                                                                                                                                                2
+                                                                                                                           2                        7            1234526
+      obtained from LQIi,j = S3 .ϱ3i,j + S2 .ϱ2i,j + ... + S◦ .                                                                                                                                                      8
+                                              ˙                                                                                                     
+   2) The initial beacon position error ḃk [Error] can be                                                                                                                                                                 1234526
+      computed using the self-calibration parameter, ℜi,j = 1.                         79                                                                                                       7
+                           ˙                                                                                            1234526                                                          1234526
+   3) We now minimize ḃk [Error] by tuning the CF.
+   4) Amplified UWB systems can have a range of 200 m,                      Fig. 2: Simulation area of 150m × 70m is size.
+      whereas non-amplified, attenuated systems might have a
+      range of 1 − 50 m. Following are the steps to minimize
+      calibration equation to decrease complexity.
+                                         ˙
+                                       ˙ ḃ,     ˙′
+        a) Instantiate an array of ġ,       and ḃk . In addition,
+            initialize the matrix of Qk,j and ℜi,j , which goes
+            from Q11 → Qij and ℜ11 → ℜij .
+        b) Assuming that, B1 is at LOS to all gateways, the
+            LQI values close to each gateway are obtained.
+                                 Pg 1×ġ˙ j
+                          ˙′      j=1 Q1j                             Fig. 3: Comparing RMSE-SNR with diferent ToAs in LOS
+                          ḃ1 =∥ Pg    1    ∥ .Ψ(t)           (44)
+                                     j=1 Q1j                          and NLOS scenarios.
+        c) Subsequently, all data are known, and thus the error
+           is finally computed through Eq. (34).
+        d) Compute ℜi,j for an error reduction by Eq. (40).
+                                                                                  ToA RMSE (m), LOS Condition
+
+
+
+
+                                                                                                                                                                                 Constant false alarm rate
+                                                                                                                  2                                                              Maximum probability of detection
+           This applied in a loop in which the calibration                                                                                                                       Proposed ToA with calibration
+                                                                                                                 1.5
+                                                    ˙
+           equation is recalculated and every new ḃk [Error]                                                     1
+           is compared with the previous one. For each CF,                                                       0.5
+                                              ˙
+           the adjustment that gives a lower ḃk is kept.                                                         0
+                                                                                                                  -10             -5            0            5             10            15         20          25
+        e) AWGN ζ(t) is added to the distance. Despite                                                                                                  Signal-to-Noise Ration (SNR) dB
+
+           knowing the beacon’s position, we have added this
+                                                                                  ToA RMSE (m), NLOS Condition
+
+
+
+
+                                                                                                                  2                                                              Constant false alarm rate
+           step to check to authenticate the proposed CF.                                                        1.5
+                                                                                                                                                                                 Maximum probability of detection
+                                                                                                                                                                                 Proposed ToA with calibration
+        f) After estimating node positions, we can now esti-                                                      1
+           mate the distance using Eq. (41). If there is only
+                                                                                                                 0.5
+           one or no UWB nodes, the CF will set in same
+                                                                                                                  0
+           manner as for the beacon and nodes to gateway.                                                         -10             -5            0            5              10           15         20          25
+                                                                                                                                                        Signal-to-Noise Ration (SNR) dB
+
+
+
+                        ˙
+                       ( ′
+                        ḃ 7→ ġ˙ j                                   Fig. 4: Comparing RMSE-SNR with different ToAs under
+             ∴    ℜij ⇔ ˙ k′               same constant value        LOS and NLOS scenarios.
+                        ḃ 7→ ṅ˙ r
+                              k
+                                                            (45)
+                                                                        To calculate the error in changing environment, a distortion
+      The proposed scheme ensures minimal computational
+                                                                      function is added similar to one proposed by [25].
+      burden on nodes and beacons, enabling them to be small                                                                                                         LQI
+      and battery-driven. This flexibility leads to an improved                                                        ϱi = 210.10−3.96 255 .(1+a◦ .sin(π.t))                                                                         (47)
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021                                                                              8
+
+
+
+   Initially, LQI are not considered for CL implementation                                       qP
+                                                                                                      M
+thus, a fixed RSS value was applied. From Fig. 4, N1 can be                                                        2
+                                                                                                      1 E(ϱi,k − µ) × 100
+seen by three beacons, B1 , B2 , and B3 , resulting in different                σ(%) = ℜij .             PM                         (51)
+LQI values. The LE was computed for average, LOS, and                                                      1 ϱi,k
+NLOS, as shown in Table III. An overall mean error of
+                                                                      D. Transmission range vs localization error
+2.64 m for the average condition and 2.59m, and 3.2m under
+LOS and NLOS environments, respectively, were recorded.                 The UWB nodes have one-way transmission, and the beacon
+To overcome the absence of nodes and network coverage,                nodes have two-way transmission [26], [27]. The outer and
+the weight was used as a distance mark, providing a precise           inner area of region must be same in two-level transmission,
+localization. The same LQI values were used to verify the             and beacon nodes must satisfy the following relation.
+robustness of the weighted algorithms. With a fixed path loss                                   s
+                                                                                                     ˙
+exponent of 2, we obtained the smallest LE, as shown in Table                                        ḃpl        ˙      ˙
+                                                                                     T r(dist) = P          ϱ̇i [ḃ 7→ ṅ]    (52)
+IV. In [22], an improved accuracy metric was used that is                                             ∀[pl]
+normalized through the transmission range R. The MLE for
+                                                                      where T r(dist) is the total transmission distance, pl is the
+the average condition was 1.28m and is 1.22m, and 1.54m for                                                ˙
+LOS and NLOS, respectively. The MLE was 1.31m for the                 total number of power levels, and ḃpl is the power sequence
+                                                                                                                                ˙
+WCL, as shown in Fig. 5.                                                                                          Pis 50m, then ḃ 7→
+                                                                      of each beacon node. If T r(dist) of a beacon
+   For LE with CF, a threshold of [−100 to 100] was selected          ṅ˙ = 50m therefore, the transmitted signal   ∀[pl] = 2 within
+                                                       ˙′ ˙           a range of 36.2 m and 45 m respectively. The transmission
+as the CF. The selected CF must satisfy the relation ∥ ḃk −ḃk ∥.
+With the CF having favorable properties, such as in (1), if           range is not considered without path loss, that is
+there is no beacon or node failure, the CF is CF = 0, (2)                                                                   λ 2
+                                                                                    PRX = PT X .GRX .GT X (                     )   (53)
+the network coverage, and (3) the accuracy of the proposed                                                                 4πϱi
+system directly affected the beacon and node positions. The           where PRX and PT X are the received and transmitted powers,
+                                              ˙
+calculated CF ℜi,j for nodes ṅ˙ and beacons ḃ computed from         whereas GRX and GT X are the gains of the receiver and
+Eq. (40) are listed in Table V. Owing to symmetry, these new          transmitter. Most power loss at higher frequencies, optimal
+values are used in the node-calibrated relation in Eq. (38), to       energy transfer at specified antenna gains at lower frequencies.
+compute the estimated locations of the unknown nodes. To test         The maximum power of the transmitted beacon is:
+this phenomenon, we deploy 5000 nodes in the 3D area. The
+estimated node locations and plotted diagrams are presented                                              ϖ.PT.max
+                                                                                         PR.max =                   ,               (54)
+in Table VI and Fig. 5(a). The mean error using the CF in the                                           (ϱi [max])η
+presence of noise even decreases to 0.49 m, 0.33 m, and 0.59                                      ˙
+m for the average, LOS, and NLOS conditions, respectively,              The power computation for ḃpl is modeled as follows:
+which shows the high precision accuracy for UWB nodes                                                   ϖ.PT.max η1
+localization where the transmission range is minimal. The total                         ϱi [max] = (            )                   (55)
+                                                                                                         PR.max
+area of consideration was 150 m × 70 m, with 5000 trials;
+thus, the total distance covered in the simulation is:                            (ϱi [max])η     ϖ
+                                                                                              =        ⇌ Ψ(t)[T oA]                 (56)
+                      p                                                             PT.max      PR.max
+                      3
+               ϱi =       (1158 × 103 ) + (5 × 103 )          (48)                                   ϖ.PT.ḃ˙
+                                                                                                                pl    1
+
+   Through increasing node density, we noted that LE decrease                           ϱi.ḃ˙ = (                   ) η Ψ(t)       (57)
+                                                                                           pl        PR.max
+instantly, even in presence of noise. The beacon node density
+              ˙ ˙ ˙                                                                                     ϖ.PT.ḃ˙
+is defined by ḃ/(ṅ+ ḃ). If we divide the whole area in a region,
+                                                                                       (ϱi.ḃ˙ )η = (                pl
+                                                                                                                          )Ψ(t)     (58)
+then the % density is computed by the following relation.                                   pl    PR.max
+                                                                        from Eq. 56 and 58 we get:
+                                       Γ
+                      κ(%) =                                  (49)                                      ϱḃ˙
+                                   ˙ ˙ ˙
+                                 R.ḃ/(ṅ + ḃ)                                         PT.max = (   pl
+                                                                                                        ).PT.max            (59)
+                                                                                                   ϱmax
+   where κ is a node density in %, Γ is a communication
+radius. If the total number of κ is less than the number of              To compute the RMSE, a total distance of 60 × 80m with
+gateways in a region, the LE can’t obtained LQI values in             25% beacons were considered. DUe to fixed LQI the accuracy
+several areas. It can be observed from Fig. 5(b) that in case of      increased in CL as shown in Fig. 6. The accuracy becomes
+10% beacons the localization error lies between (1.2 − 2.9)m          stables at ∼1.2 m over a transmission range of 70 m.
+with higher % standard deviation because the data elements
+are scattered around the region. By increasing beacon nodes           E. Accuracy improvement of noisy data using EKF
+density the error falls between (0.2 − 0.89)m.                          The noisy distance coordinates are refined by EKF. To
+                               PN √                                   overcome noise in RSS distribution, [28] presented a novel
+                                       ϱi,k                           idea using quadrilaterals and clusters. In our system, we use
+                   Panalysis = PNi=1                          (50)
+                                     max                              EKF to linearize LQI values from nonlinear data observations.
+                                i=1 |Ni R
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021                                                                                                                                                                                                                              9
+
+
+
+                                                                                TABLE II: Average LQI values from beacons to each nodes.
+                                                                           LQIs            B1                  B2                 B3                           B4                            B5         B6              B7
+                                                                           N1              117034              87.92              100.23                       83.16                         80.15      85.97           92.5
+                                                                           N2              97.13               133.10             107.07                       97.56                         90.27      89.60           96.52
+                                                                           N3              78.40               94.84              102.63                       146.42                        149.63     104.96          102.52
+                                                                           N4              89.59               92.85              116.79                       108.93                        109.55     133.06          125.36
+                                                                           N5              111.2               98.3               108.36                       116.93                        99.63      102.25          85.63
+
+
+                                                          TABLE III: Estimated position with Centroid localization with fixed LQI as threshold
+                            Actual Node Position                                                    Average Condition                                                                   LOS Condition                                     NLOS Condition
+                         Nodes    x      y         z                                        x           y      z    Error                                                     x           y     z     Error                        x         y     z     Error
+                          N1    3.00   11.00     9.00                                      3.00       8.00   7.00     3.00                                                  3.00         8.00 6.00     3.46                       0.00     10.0  6.0      3.16
+                          N2    2.00    3.8       4.0                                      4.0         3.8   2.9      2.01                                                  4.00         4.88  4.7     3.27                       2.6      2.99  3.5       2.8
+                          N3     9.0    3.0       4.0                                      8.75        3.7   4.9      2.64                                                   7.4         3.3   0.9     1.9                        9.0       1.5  2.8       2.4
+                          N4    9.20    5.60     8.75                                      8.6        3.63   4.5      2.09                                                   7.5         3.3   2.5     1.72                       8.5      5.75  4.36     2.92
+                          N5     7.6    6.5       4.9                                      6.9        4.63   5.9      1.99                                                   6.9         4.3   5.9     1.63                       7.6      6.75  3.96     2.96
+
+
+                                                          TABLE IV: Estimated position with weighted localization in LOS and NLOS condition
+                                         Actual Node Position                                        Average Condition                                                                  LOS Condition                                     NLOS Condition
+                                      Nodes    x       y        z                             x          y      z    Error                                                       x         y    z     Error                      x          y      z     Error
+                                       N1    3.00   11.00     9.00                          1.36       5.30   7.00     2.9                                                      2.9       6.9  3.6      2.6                     1.6        3.2    3.0     1.6
+                                       N2    2.00     3.8      4.0                           2.5        4.3    2.9     1.5                                                      2.6       3.6  3.3      2.8                     1.2        1.9    2.6     2.2
+                                       N3     9.0     3.0      4.0                          1.68        6.3    4.9     1.6                                                      7.4       2.8  2.2      1.6                     3.6        1.5   2.80     1.9
+                                       N4    9.20    5.60     8.75                           1.9        1.6    3.6     2.55                                                     3.69     2.69  1.9     1.99                     3.6        2.65   2.9     2.3
+                                       N5     7.6     6.5      4.9                           2.3        1.9    4.2     1.6                                                      3.2       4.3  3.6      1.5                    3.65        4.3    1.9     1.9
+
+
+                                                                                                                            ˙             ˙
+                                                                                TABLE V: Calibration factor ℜi,j for beacon ḃ and nodes ṅ.
+                                                                                           G1                          G2                  G3                                               G4                  G5
+                                                                                     B1          N1            B2           N2      B3                                    N3            B4     N4           B5     N5
+                                                                                     4.9         9.6           0.8          1.1     -6.9                                  -2.3          0.0    9.3          0.0    1.1
+                                                                                     4.0         2.3           4.0          1.3     0.2                                   -2.3          0.0    2.0          0.0    0.8
+                                                                                     2.2         3.6           2.5          2.1     2.2                                   2.4           3.6    0.0          2.1    0.0
+                                                                                     0.0         2.3           3.1          2.3     0.3                                   1.6           1.6    0.0          9.6    0.0
+                                                                                     0.0         1.6           1.9          1.2     -9.3                                  1.9           4.3    0.3          4.6    3.0
+                                                                                     0.0         -2.6          5.6          1.3     2.5                                   1.3           -0.5   0.2          -4.3   1.1
+
+
+  TABLE VI: Estimated position with proposed localization algorithm with calibration factor in LOS and NLOS condition
+                            Actual Node Position                                                    Average Condition                                                                   LOS Condition                                     NLOS Condition
+                         Nodes    x      y         z                                        x           y      z    Error                                                     x           y     z     Error                        x         y     z     Error
+                          N1    3.00   11.00     9.00                                      0.22        5.6   6.00      1.9                                                   2.1         6.2  0.98     1.6                        1.3       2.3  2.3      0.36
+                          N2    2.00    3.8       4.0                                      2.11        6.3   2.94      1.5                                                   2.5         5.2  1.63     0.65                       1.25     0.63  1.63     0.99
+                          N3     9.0    3.0       4.0                                      7.5         4.3   1.63      0.9                                                   6.3         1.96  2.3     1.21                       2.52     1.63  1.2       1.2
+                          N4    9.20    5.60     8.75                                      1.9        4.33   2.6      0.63                                                  1.63         2.3  1.44     0.69                       2.5       2.6  1.3       0.9
+                          N5     7.6    6.5       4.9                                      2.1         1.4   1.36     1.98                                                   2.6         3.6  3.62     1.1                        2.36     1.36  0.95     0.63
+
+
+                                                                                                                                                                                                                         (b)
+                                                                          (a)
+                                           3.5                                                                                                                             3
+                                                                          Traditional Centroid method with fixed LQI                                                                                                                              Beacons nodes density = 10%
+                                                                          Weighted centroid algorithm                                                                      2
+                                                                          Proposed algorithm with calibration factor
+                                            3
+                                                                                                                                                                           1
+         Localization distance error (m)
+
+
+
+
+                                                                                                                                                                           0
+                                           2.5                                                                                                                                 0       100     200    300     400       500        600      700         800        900          1000
+                                                                                                                                            Localization Error in meter
+
+
+
+
+                                                                                                                                                                           3
+                                                                                                                                                                                                                                                  Beacons nodes density = 25%
+                                            2                                                                                                                              2
+
+                                                                                                                                                                           1
+                                           1.5
+                                                                                                                                                                           0
+                                                                                                                                                                               0       100     200    300     400       500         600     700         800        900          1000
+
+                                            1                                                                                                                             1.5
+                                                                                                                                                                                                                                                  Beacons nodes density = 50%
+
+                                                                                                                                                                           1
+                                           0.5
+                                                                                                                                                                          0.5
+
+                                            0                                                                                                                                   0      100     200    300     400       500         600     700         800        900          1000
+                                                 0   10    20   30        40         50        60        70            80
+                                                                                                                                                                                                               No of Iterations
+                                                                     No of beacons
+
+
+ Fig. 5: (a): Comparing RMSE-SNR with diferent ToA in LOS & NLOS situation. (b): LE in varying beacon nodes density
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021                                                                                                                                                       10
+
+
+
+
+                                              3
+                                                                                                                                        Initialization State: A KF is initialized without any assump-
+                                                                                                                                        tions regarding the initial state.
+                                             2.5
+                                                                                                                                                     
+           Localization distance error (m)
+                                                                                                                                                     
+                                                                                                                                                      xk = f (xk+1 ) + ∅k−1
+                                              2                                                                                                      
+                                                                                                                                                                 k+1 ◦ αk + ∅k−1 .αk−1
+                                                                                                                                                     x = f (x
+                                                                                                                                                         k
+                                                                                                                                                                                                  (68)
+                                             1.5                                                                                                     
+                                                                                                                                                     
+                                                                                                                                                      zk  = h(x k ) + Ⅎk
+                                                                                                                                                       zk = h(xk ).αk + Ⅎk .αk
+                                                                                                                                                     
+                                              1
+
+
+                                                                                                                                        where ∅k−1 denotes the noise factor of the covariance matrix
+                                             0.5        Centroid
+                                                        Weighted Centroid
+                                                        Proposed algorithm
+                                                                                                                                        from Eqs. (23) and (24).
+                                              0
+                                                   30            40          50    60         70           80   90   100   110
+                                                                                                                                        Prediction State: The reference distance from UWB nodes to
+                                                                                  Transmission range (m)                                a tag is considered, with the prediction that LQI and ToA are
+                                                                                                                                        initially recorded in a matrix, that is, k = f (T ω) + Wk−1 .
+   Fig. 6: Transmission range versus localization accuracy.
+                                                                                                                                        Update State: After having all variables, a node vector is
+                                                                                                                                        obtained from Eq. (68).
+  1) EKF modelling: The noise under LOS and NLOS sce-
+narios was modeled using Eqs. (4)–(7):
+                                                                                                                                                     
+                                                                                                                                                     k̂k = zk − h(x̂k ).ζ(t)
+                                                                                                                                                     
+                                                                                                                                                                            T      T
+                                                                                                                                                     
+                                                                                                                                                     ℧ = H .P
+                                                                                                                                                         k      k k|k−1 .Hk + RK .ζ(t)
+         ηi,j − ηLOS = (0, ∥ ϱi ∥ .κ(%)) f or LOS                                                                                (60)                                                             (69)
+                                                                                                                                                     x̂k|k−1 = x̂k|k−1 .Hk .k̂k
+                                                                                                                                                     
+                                                                                                                                                     
+                                                                                                                                                        Pk = (lϱi,j − P DF | ηT oA
+                                                                                                                                                     
+   ηi,j − ηN LOS = (∥ [ϱi ]min , [ϱi ]max ∥ .κ(%)) f or N LOS                                                                    (61)
+                                                                                                                                           The noisy distribution, distance, and LQI values are now
+rand function is used to add noise in distance. EKF is an                                                                               part of the update state. Here k̂k can be computed through
+efficient framework that define localization problem by lin-                                                                            the distance observations and LQI values, that is, k̂k =
+earizing nonlinear distance estimation using first-order Taylor                                                                         [ϱḃ1,ζ(t)
+                                                                                                                                          ˙        , ϱḃ2,ζ(t)
+                                                                                                                                                      ˙        , ..., ϱḃn,ζ(t)
+                                                                                                                                                                       ˙        ].
+series consisting of a time and a measurement update.                                                                                                                             ˙˙ 
+Time update:                                                                                                                                                          ζ(t), k̂k1 b1
+                                                                                                                                                                   
+                                                                                                                                                                    ζ(t), k̂k2 b2  ˙˙     
+                                                                                                                                                                                         Ψ(t)  (70)
+                                                            X̂k|k−1 = FX̂k−1|k−1 + uk                                            (62)
+                                                                                                                                                                   
+                                                                                                                                                                    ...                
+                                                                                                                                                                                     ˙˙
+                                                                                                                                                                      ζ(t), k̂kn bn
+                                                   Pk|k−1 = FPk−1|k−1 FT + Qk−1                                                  (63)                                                                    
+Measurement update:                                                                                                                                ϱi,j [ ∂h(xk),ζ(t),
+                                                                                                                                                               k̂k1 xk1
+                                                                                                                                                                        k̂k1
+                                                                                                                                                                             ] ϱ i,j [ ∂h(yk),ζ(t),k̂k2
+                                                                                                                                                                                           k̂k2 yk2
+                                                                                                                                                                                                        ]
+                                                                                                                                                                                                         
+                                                                                                                                           ∴ Hk = 
+                                                                                                                                                               ..                          ..            
+                                                                                                                                                                                                             (71)
+           Kk = Pk|k−1 HTk (Hk Pk|k−1 HTk + Rk )−1                                                                               (64)               ϱi,j [ ∂h(xk),ζ(t),k̂kl
+                                                                                                                                                                             ] ϱ i,j [ ∂h(yk),ζ(t),k̂kl
+                                                                                                                                                                                                        ]
+                                                                                                                                                                k̂ x
+                                                                                                                                                                   kl kl                    k̂ y
+                                                                                                                                                                                             kl kl
+
+
+
+                                                                                                                                             Hk .σx2          0          0            0             0
+                                                                                                                                                                                                         
+      X̂k|k = X̂k|k−1 + Kk [zk − h(X̂k|k−1 , xrk , ykr )]                                                                        (65)        0             Hk .σy2      0            0             0 
+                                                                                                                                                                       Hk .σz2
+                                                                                                                                                                                                         
+                                                                                                                                             0
+                                                                                                                                         T =                 0                       0
+                                                                                                                                                                                       2
+                                                                                                                                                                                                    0     (72)
+                                                        Pk|k = Pk|k−1 − Kk Hk Pk|k−1                                             (66)        0               0          0        Hk .σ∅ k−1
+                                                                                                                                                                                                    0 
+                                                                                                                                               0              0          0            0          Hk .σk̂2
+                                                                                                                                                                                                         k
+   where X̂k|k−1 and Pk|k−1 are the prediction state vector
+and prediction error for a noisy matrix; (...)−1 represents an                                                                          Noise is reduced, and the matrix in Eq. (24) is updated. A
+inverse matrix operation; X̂k|k and Pk|k are the state vector                                                                           flow diagram of the EKF framework is shown in Fig. 7.
+and error, respectively; and Kk and Hk is the Kalman gain
+and Jacobian matrix of the distance measured through
+
+                                               ∂h(xk), xrk , ykr
+                                                                 |xk =x̂k|k−1
+                                                                Hk =
+                                                     ∂xk
+                                               x̂k|k−1 − xrk
+                                  = [p                                      ,                                                    (67)
+                                      (x̂k|k−1 − xrk )2 + ŷk|k−1 − ykr )2
+                                                                                                                                          Fig. 7: EKF structure for proposed localization scheme.
+                                                ŷk|k−1 − ykr
+                                     p                                      ]
+                                      (x̂k|k−1 − xrk )2 + ŷk|k−1 − ykr )2
+                                                                                                                                          To analyzed the accuracy of EKF and LE, 10 beacons and
+   The derivation of the measured distance is in the form of                                                                            15 nodes are deployed on 150m × 70m area, with 5000 trials,
+a nonlinear optimization. The coordinates of UWB nodes are                                                                              covering a total area of 5000×(150×70)m with 5000 beacons
+refined usinf EKF in three phases as follows.                                                                                           and 5000 × 15 nodes. During simulation, an overall error of
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021                                                                                                                                                                         11
+
+
+
+0.2m is recorded. The LE decreased with EKF framework after                         the presence of a “Dumb” node in a certain region. Another
+multiple iterations, as shown in Fig. 8. By combining EKF                           method of self-calibrated UWB localization was proposed in
+with naı̈ve noise, the CF weight becomes constant, leads to                         [30], which computes the number of anchor nodes, accuracy in
+high LE. With 15 beacons and 10 UWB nodes, the Gaussian                             NLOS environment, and design system precision. Therefore,
+noise provides an error of 0.23m. The CF is compared with                           the error at a certain point is difficult to manage and is higher
+diverse noises using EKF in the table VII and Fig. 9.                               than 6.9 m. The overall localization accuracy and simulation
+                                                                                    results are presented in Table VIII and Figures 10.
+F. Lower Bound (LB) of the Location Error
+  Consider the following relationship:                                                                                         1.5
+                                                                                                                                            Localization error in noisy data
+
+                           ˙          ϱi,j                                                                                     1.4          Node refinement using EKF
+
+
+                    ˙ ˙ = ḃ0 − η. ln
+                  lbḃ,                    + ζ(t),                           (73)                                              1.3
+                        ṅ            ϱ0
+
+
+
+
+                                                                                             Localization distance error (m)
+                                                                                                                               1.2
+where ϱ0 ̸= 0, we set ϱ0 = ℜij . From the above relation,                                                                      1.1
+the n number of LQI measurements obtained from the four                                                                         1
+                  ˙          ˙
+reference points [ḃ0 , ..., ḃn ] can be expressed as:                                                                        0.9
+
+                                                                                                                               0.8
+                        ˙          ˙
+                  lbn = ḃ0 .1 − η ḃx,y,z + zeta(t)                         (74)                                              0.7
+
+                                                                                                                               0.6
+     For the node position, the LB distribution is obtained by
+                                                                                                                               0.5
+ṅ˙ n = [ṅ˙ 1,n , ..., ṅ˙ 4,n ]T with a Gaussian noise vector distribu-                                                            0          1000       2000        3000         4000      5000
+                                                                                                                                                                               No of Iterations
+                                                                                                                                                                                                     6000      7000    8000
+
+
+tion ζ⃗x,y,z = [ϱ1 , ..., ϱ4 ]T . All four unknown parameters were
+transformed into a vector θ = [(x, y, z)0 , σ 2 ]T and the Fisher                    Fig. 8: Localization error accuracy using EKF framework.
+information matrix (FIM) for each obtained LQI was modeled.
+
+                                ˙               ˙              ˙
+                                                                                       TABLE VII: Localization error (m) + AWGN and EKF.
+                                                                         
+                             ∂ ḃ            ∂ ḃ           ∂ ḃ
+                               ˙           ˙      ˙       ˙      ˙     0 0
+            η2              ∂ ḃ0       ∂ ḃ0 ,∂ ḃ1   ∂ ḃ1 ,∂ ḃ2                                                                                                                                       ˙          ˙
+  G(F IM ) = 2                .              .              .         0 0
+                                                                           (75)      Nature of Experiment                                                                                                  ḃ = 15    ḃ = 25
+            σ                   ˙T             ˙T             ˙T                     Classic proposed Algorithm                                                                                            0.59       0.33
+                             ∂˙ b           ∂˙ b           ∂˙ b
+                            ˙       ˙      ˙       ˙      ˙       ˙    0 0            Proposed Algorithm + Naive weighting noise                                                                            2.62       2.15
+                          ∂ ḃ0 ,∂ ḃ1   ∂ ḃ1 ,∂ ḃ2   ∂ ḃ2 ,∂ ḃ0
+                                                                                      Proposed Algorithm + Intelligent weighting noise                                                                      2.66       2.5
+which can deviate easily from Eq. (72). Thus, the cramer-rao                          Proposed Algorithm + Gaussian noise                                                                                   1.98       1.38
+bounds of the EKF coordinates of the estimated positions are                          Proposed + EKF + Naive noise                                                                                          1.32       0.98
+                                                                                      Proposed + EKF + Intelligent noise                                                                                    1.18       0.66
+                               1                                                      Proposed Algorithm + EKF + Gaussian Noise                                                                             1.12       0.23
+             CRBx0 =              ∥ G(F IM )−1 ∥ [0, y, z]                   (76)
+                              Ṅ˙
+                               1
+             CRBy0 =             ∥ G(F IM )−1 ∥ [x, 0, z]                    (77)
+                               ˙
+                              Ṅ
+                               1
+             CRBz0 =              ∥ G(F IM )−1 ∥ [x, y, 0]                   (78)
+                              Ṅ˙
+                  ˙
+                 ˆ˙ b˙˙ ∥2 ] = ϱ ≥ [CRB +CRB +CRB ] (79)
+ ∴⇒ Eq.41 : ϱ[ ∥ b−             i,k    x0   y0   z0
+
+where [CRBx0 + CRBy0 + CRBz0 ] is LB of the LE.
+
+G. Comparison with state-of-the-art techniques
+   A performance comparison of the proposed technique with
+state-of-the-art results. A self-calibrated localization solution
+for sports applications implemented using UWB technology
+                                                                                    Fig. 9: MSE of proposed algorithm in different types of noises.
+was presented by [29]. This technique relies on Decawave
+DW1000 devices that measure the ToF, outlier identification,
+and anchor position through multilateration, which also sup-
+ports a two-way ranging system with a communication radius                             Ref                                               Year                                        Title
+                                                                                                                                                                                                                      Localization Error
+                                                                                                                                                                                                                             (m)
+of 60 m. For experimental purposes, eight anchor nodes were
+deployed at 1.9 m along with their known relative distances.                        [32]                                                 2022      Self-Calibrated localization for sport application                 ∼1.9-3
+                                                                                    [33]                                                 2022      Indoor positioning with modified LLS                               ∼6.9
+The CDF of the tag localization error even exceeded 3 m                             Proposed                                             -         Self-calibration localization under NLOS                           ∼0.23-0.4
+after calibration. In the proposed technique, it was only 0.6                         TABLE VIII: Comparison of the proposed technique with
+cm initially, and reduced to 0.23cm with sufficient beacon.                                         state-of-the-art methods
+The CF also helps to overcome localization errors, even in
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021                                                                                                                                       12
+
+
+
+
+                                               7
+                                                                                                                    [10] Miramá, Vı́ctor, Alfonso Bahillo, Vı́ctor Quintero, and Luis Enrique
+                                                                                                                        Dı́ez. ”NLOS detection generated by body shadowing in a 6.5 GHz
+                                               6
+                                                                                                                        UWB localization system using machine learning.” IEEE Sensors Journal
+                                                                                                    [28]
+                                                                                                                        (2023).
+             Localization distance error (m)
+                                               5
+                                                                                                    [29]
+                                                                                                    Proposed
+                                                                                                                    [11] Cheng, G. (2012). Accurate TOA-based UWB localization system in
+                                                                                                                        coal mine based on WSN. Physics Procedia, 24, 534-540.
+                                               4                                                                    [12] G. Fischer, O. Klymenko, D. Martynenko and H. Luediger, ”An impulse
+                                                                                                                        radio UWB transceiver with high-precision TOA measurement unit,” 2010
+                                               3                                                                        International Conference on Indoor Positioning and Indoor Navigation,
+                                                                                                                        2010, pp. 1-8, doi: 10.1109/IPIN.2010.5647785.
+                                               2
+                                                                                                                    [13] M. Tuchler, V. Schwarz and A. Huber, ”Location accuracy of an
+                                                                                                                        UWB localization system in a multi-path environment,” 2005 IEEE
+                                               1
+                                                                                                                        International Conference on Ultra-Wideband, 2005, pp. 414-419, doi:
+                                               0
+                                                                                                                        10.1109/ICU.2005.1570023.
+                                                   0   2   4     6        8          10   12   14              16
+                                                                     No of beacons
+                                                                                                                    [14] Jiang, X. Y., Zhang, H. S., & Wei, W. A. N. G. (2012). NLOS error
+                                                                                                                        mitigation with information fusion algorithm for UWB ranging systems.
+                                                                                                                        The Journal of China Universities of Posts and Telecommunications,
+     Fig. 10: Comparison of LE with existing techniques.                                                                19(2), 22-29
+                                                                                                                    [15] P. Tomé, C. Robert, R. Merz, C. Botteron, A. Blatter and P. -. Farine,
+                       VII. C ONCLUSION                                                                                 ”UWB-based Local Positioning System: From a small-scale experimental
+                                                                                                                        platform to a large-scale deployable system,” 2010 International Confer-
+   A novel UWB localization using self-calibration is proposed                                                          ence on Indoor Positioning and Indoor Navigation, 2010, pp. 1-10, doi:
+that utilize LQI instead of RSSI for context-aware applications.                                                        10.1109/IPIN.2010.5647454.
+                                                                                                                    [16] Pătru, George-Cristian, Laura Flueratoru, Iuliu Vasilescu, Dragoş
+Our approach employs ML estimators for ToA based on first                                                               Niculescu, and Daniel Rosner. ”FlexTDOA: Robust and Scalable Time-
+signal path detection, prioritizing accuracy and network cov-                                                           Difference of Arrival Localization Using Ultra-Wideband Devices.” IEEE
+erage in challenging conditions. Proposed solution addresses                                                            Access 11 (2023): 28610-28627.
+                                                                                                                    [17] N. C. Rowe, A. E. Fathy, M. J. Kuhn and M. R. Mahfouz, ”A
+the calibration challenges in weighted-based localization tech-                                                         UWB transmit-only based scheme for multi-tag support in a millimeter
+niques during link failure. The algorithm measures LQI values                                                           accuracy localization system,” 2013 IEEE Topical Conference on Wireless
+at gateways, relieving nodes from processor and battery-                                                                Sensors and Sensor Networks (WiSNet), 2013, pp. 7-9, doi: 10.1109/WiS-
+                                                                                                                        Net.2013.6488616.
+intensive tasks. The presence of noise and MPCs affect ToA                                                          [18] M. J. Kuhn, M. R. Mahfouz, J. Turnmire, Y. Wang and A. E. Fathy,
+estimation and LE. Our algorithm, tested with various noise                                                             ”A multi-tag access scheme for indoor UWB localization systems used
+types, showed improved accuracy with EKF, refining node co-                                                             in medical environments,” 2011 IEEE Topical Conference on Biomedical
+                                                                                                                        Wireless Technologies, Networks, and Sensing Systems, 2011, pp. 75-78,
+ordinates. Numerically, our research demonstrates remarkable                                                            doi: 10.1109/BIOWIRELESS.2011.5724352.
+results. In full network coverage and noisy environments, the                                                       [19] Ye, R. Ultra-wideband Indoor Localization Systems. Ph.D. Thesis,
+proposed solution achieves a 0.23m error reduction, enhancing                                                           Oegon State University, Corvallis, OR, USA, 2012.
+                                                                                                                    [20] Zeng, Qingxi, Yu Jin, Haonan Yu, and Xia You. ”A UAV Localization
+overall accuracy and resilience to environmental changes                                                                System Based on Double UWB Tags and IMU for Landing Platform.”
+                                                                                                                        IEEE Sensors Journal (2023).
+                ACKNOWLEDGMENTS                                                                                     [21] Segura, M., Mut, V., & Sisterna, C. (2012). Ultra wideband indoor
+                                                                                                                        navigation system. IET Radar, Sonar & Navigation, 6(5), 402-411.
+  The work was supported by Research Project number                                                                 [22] T. Ahmad, X. J. Li and B. Seet, ”A self-calibrated centroid localization
+(RSP2024R492), King Saud University, Riyadh, Saudi Arabia                                                               algorithm for indoor ZigBee WSNs,” 2016 8th IEEE International Con-
+                                                                                                                        ference on Communication Software and Networks (ICCSN), 2016, pp.
+                                                               R EFERENCES                                              455-461, doi: 10.1109/ICCSN.2016.7587200.
+                                                                                                                    [23] Chen, Xiaolong, Ningyuan Su, Yong Huang, and Jian Guan. ”False-
+[1] Niemegeers IGMM, Heemstra de Groot SM. Researchissues in ad-                                                        alarm-controllable radar detection for marine target based on multi
+    hoc distributed personal networking. Wireless Personal Communications                                               features fusion via CNNs.” IEEE Sensors Journal 21, no. 7 (2021): 9099-
+    2003;26(2–3):149–167                                                                                                9111.
+[2] Dutch IOP GenGom, Future Home Network project,‘The Project Plan’.                                               [24] Chen, Changwei, Chi-Shih Jao, Andrei M. Shkel, and Solmaz S. Kia.
+    2005                                                                                                                ”UWB sensor placement for foot-to-foot ranging in dual-foot-mounted
+[3] S. Choi, C. Im and C. Lee, ”Robust First Path Detection Based on Two-                                               ZUPT-aided INS.” IEEE Sensors Letters 6, no. 2 (2022): 1-4.
+    Stage CNN for Unspecified UWB Pulse Shape,” 2022 IEEE 19th Annual                                               [25] Falsi, C., Dardari, D., Mucchi, L., & Win, M. Z. (2006). Time of
+    Consumer Communications & Networking Conference (CCNC), 2022,                                                       arrival estimation for UWB localizers in realistic environments. EURASIP
+    pp. 519-520, doi: 10.1109/CCNC49033.2022.9700527.                                                                   Journal on Advances in Signal Processing, 2006, 1-13.
+[4] W. S. Jeon, H. S. Oh and D. G. Jeong, ”Decision of Ranging Inter-                                               [26] Yang, Jeonggi, and Soojeon Lee. ”Ultrawideband coupled relative posi-
+    val for IEEE 802.15.4z UWB Ranging Devices,” in IEEE Internet of                                                    tioning algorithm applicable to flight controller for multidrone collabora-
+    Things Journal, vol. 8, no. 20, pp. 15628-15638, 15 Oct.15, 2021, doi:                                              tion.” ETRI Journal 45, no. 5 (2023): 758-767.
+    10.1109/JIOT.2021.3074571.                                                                                      [27] Ullah, Muhammad Habib, Giacinto Gelli, and Francesco Verde. ”Visible
+[5] Sahinoglu, Z., Gezici, S., & Guvenc, I. (2008). Ultra-wideband position-                                            light backscattering with applications to communication and localization
+    ing systems. Cambridge, New York.                                                                                   in healthcare: A survey.” Procedia Computer Science 203 (2022): 745-
+[6] Ahmad, T., Li, X. J., & Seet, B. C. (2017). Parametric loop division for                                            752.
+    3D localization in wireless sensor networks. Sensors, 17(7), 1697.                                              [28] Alagha, Ahmed, Shakti Singh, Rabeb Mizouni, Jamal Bentahar, and
+[7] Zhang, Jing Lun, Qing Dong, Wei Wang, Liang Hua Ye, Jian-Feng Li,                                                   Hadi Otrok. ”Target localization using multi-agent deep reinforcement
+    and Xiu Yin Zhang. ”An Ultrawideband Vertically Polarized Omnidirec-                                                learning with proximal policy optimization.” Future Generation Computer
+    tional Patch Antenna with Low Profile.” IEEE Antennas and Wireless                                                  Systems 136 (2022): 342-357.
+    Propagation Letters (2023).                                                                                     [29] Piavanini, Marco, Luca Barbieri, Mattia Brambilla, Mattia Cerutti,
+[8] H. Chen, H. Wu, J. Hu, and C. Gao., “Agent-based Trust Management                                                   Simone Ercoli, Andrea Agili, and Monica Nicoli. ”A self-calibrating lo-
+    Model for Wireless Sensor Networks”, International Conference on                                                    calization solution for sport applications with UWB technology.” Sensors
+    Multimedia and Ubiquitous Engineering, 2008                                                                         22, no. 23 (2022): 9363.
+[9] Margiani, T., Cortesi, S., Keller, M., Vogt, C., Polonelli, T., & Magno,                                        [30] Jumaah, A. N. K., Hashim, W., & Alami, A. K. (2023). An effective
+    M. (2023). Angle of Arrival and Centimeter Distance Estimation on a                                                 indoor positioning system by modified linearized least square approach
+    Smart UWB Sensor Node. IEEE Transactions on Instrumentation and                                                     using UWB technology. Applied Geomatics, 1-12.
+    Measurement.
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021                                                                                                      13
+
+
+
+                         Tanveer Ahmad received Ph.D. (Auckland Univer-                                      Asim Anwar received his PhD degree from Auck-
+                         sity of Technology, New Zealand, 2019), an MS(EE)                                   land University of Technology, New Zealand, in
+                         (Lanzhou Jiaotong University, China, 2014) and a                                    2018, and MPhil in Electronics from Quaid-i-Azam
+                         BS (CS) (COMSATS University Pakistan 2006).                                         University, Islamabad, Pakistan in 2010. Since Feb
+                         He worked as a Research Engineer and Fellow at                                      2019, he is working as an Assistant Professor/HOD
+                         Oracle University, Pearson VUE, from Nov 2006                                       at the Department of Technology, The University of
+                         to Jul 2010. He was a Research Associate at the                                     Lahore, Pakistan. He has served as a reviewer for
+                         Shenzhen Institute of Advanced Technology, Chi-                                     many renowned publishers, including IEEE, MDPI,
+                         nese University of Hong Kong (2014-2015, and                                        and Elsevier. His research interests include machine
+                         a Senior Lecturer at AIS in New Zealand (2019-                                      learning for wireless communications, performance
+                         2021). He was a research professor in Chungnam                                      analysis, physical layer design of wireless networks,
+National University, South Korea (2022-2023), and currently affiliated with         interference modeling, stochastic geometry and signal processing for commu-
+the University of Cyprus. His research interests include wireless sensor            nications
+network localization, self-driven autonomous vehicles, VANET, RFID, IoT
+based healthcare system, networking protocols, and system optimizations.
+
+
+
+
+                          Muhammad Usman received M.S. degree, with
+                          first class. He completed the Ph.D. degree with
+                          specialisation in Cyber Security from the School of
+                          ICT, Griffith University, Brisbane, Australia. He was                              Vasos Vassiliou (Senior Member, IEEE) is cur-
+                          a Research Fellow (Postdoctoral) in cyber security                                 rently an Associate Professor with the Department
+                          and machine learning with the University of Surrey,                                of Computer Science, University of Cyprus, and the
+                          Guildford, U.K. He is leading a research group,                                    Co-Director of the Networks Research Laboratory
+                          namely, Human Centred Intelligent and Secure Sys-                                  (NetRL), UCY (founded by Prof. A. Pitsillides).
+                          tems. His research interests include interdisciplinary                             Since November 2017, he has been the Group
+                          areas around AI-driven complex systems; human-                                     Leader with the Smart Networked Systems Research
+                          centred systems; digital twins; Agritech; Healthtech;                              Group, RISE Center of Excellence on Interactive
+community tech; consumer electronics; drones, electrical and autonomous                                      Media, Smart Systems and Emerging Technologies,
+vehicles; cognitive computing; digital forensics; cyber security, trust & pri-                               Nicosia, Cyprus. He has also been appointed as the
+vacy; and formal and statistical modelling. He has more than 50 research                                     Senate of the University of Cyprus; and the Board of
+publications in international journals and conferences, and a book focused on       Director of CYNET, the National Research and Educational Network, where
+mobile agent-based anomaly detection and verification system for smart home         he has serving as the Chair, since November 2016. He has more than 75
+sensor networks. He has led and acted as a Guest Editor for special issues in       publications in academic journals, books, and international conferences, with
+several IEEE transactions and other journals. He has served in different leading    more than 1300 citations. His research interests include protocol design and
+capacities, such as a focal person, publication Chair, organizing committee         performance aspects of networks (fixed, mobile, and wireless), in particular
+member and/or TPC member of several IEEE conferences. He has been a                 mobility management, QoS adaptation and control, resource allocation tech-
+member of COVID 19 Outbreak Expert Database of UK Parliament.                       niques, wireless sensor networks, and the Internet of Things.
+
+
+
+
+                        Marryam Murtaza received her BS and MS degree
+                        from COMSATS University Islamabad, Wah Cam-
+                        pus, Pakistan, in 2008 and 2011, respectively. She
+                        received her PhD degree from COMSATS Univer-
+                        sity, Islamabad in 2023. Her research interests in-
+                        clude computer vision, pattern recognition, artificial                               Azeem Irshad received master’s degree from Arid
+                        intelligence, medical image processing, and machine                                  Agriculture University, Rawalpindi, Pakistan. Then
+                        learning/ deep learning.She has so far 12 research                                   he completed his PhD from International Islamic
+                        publications in reputed international journals with                                  University, Islamabad,Pakistan. He has authored
+                        high impact factor. She got three research produc-                                   more than 90 international journal and conference
+                        tivity awards from COMSATS University. She was                                       publications, including 50 SCI-E journal publica-
+also engaged as a Lecturer in different universities from 2011 to 2021. She                                  tions. His research work has been cited over 1786
+has supervised more than 30 undergraduate students.                                                          times with 22h-index and 44 i-10-index. He received
+                                                                                                             Top Peer-Reviewer Award from Publons in 2018
+                                                                                                             with 126 verified reviews. He is serving as Aca-
+                                                                                                             demic editor for SCN and MPE journals (Hindawi).
+                                                                                    Moreover, he is serving as guest editor for SCN, JHE (Hindawi) and CMC
+                           Ian B, Benitez is currently a research faculty mem-      (Techscience)-based special issues. Recently, he has co-edited a book on
+                           ber at the FEU Institute of Technology. He have          “IoT and Smart Devices for Sustainable Environment” published by Springer.
+                           BS(EEE) degree from Cavite State University, and         He has served as a reviewer for more than 40 reputed journals including
+                           M.S. Energy Engineering degree from the University       IEEE Systems Journal, IEEE Communications Magazine, IEEE TII, IEEE
+                           of the Philippines Diliman under the Department          Consumer Electronics Magazine, IEEE Sensors Journal, IEEE TVT, IEEE
+                           of Science and Technology—Engineering Research           IAS, Computer Networks, Information Sciences, CAEE, Cluster Computing,
+                           under Development for Technology (DOST-ERDT)             AIHC, JNCA and FGCS, notably. His research interests include strengthening
+                           Scholarship. He is currently pursuing his PhD in         of authenticated key agreements in Cloud-IoT, smart grid, pervasive edge
+                           Sustainable Energy Transition at the Asian Insti-        computing, CPS, 5G networks, WSN, Ad hoc Networks, e-health clouds, SIP
+                           tute of Technology. His current research interests       and multi-server architectures. Biography text here.
+                           includes AI/ ML, data science and analytics, energy
+resource assessment, techno-economic assessment, renewable energy, fore-
+casting, and environmental impact assessment. He published and presented
+several papers in different local and international publications and conferences,
+focusing on his research interests.
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021                                                                                                14
+
+
+
+                          Xue Jun Li (M’06–SM’14) received his B.Eng                                      Essam A. Al-Ammar worked as a Power/Software
+                          (First Class Honors) and Ph.D degrees from                                      Engineer at Lucent Technologies in Riyadh for two
+                          Nanyang Technological University (NTU), Singa-                                  years. In 2003, he received his MS degree from
+                          pore, in 2004, and 2008, respectively. From 2008 to                             University of Alabama, Tuscaloosa, AL, and Ph.D.
+                          2011, he was an academic staff with the School of                               degree from Arizona State University in 2007. In
+                          Electrical and Electronic Engineering, NTU. From                                2021, he obtained MBA from York St. John Uni-
+                          2011 to 2013, he worked as a Research Scien-                                    versity, UK, and Post-Graduate Diploma in Digital
+                          tist at the Institute for Infocomm Research, Singa-                             Business from Emeritus institute of Management in
+                          pore. Since 2013, he has been with the Department                               collaboration with MIT Sloan Business School and
+                          of Electrical and Electronic Engineering, Auckland                              Columbia Business School. He is Professor of Elec-
+                          University of Technology, New Zealand, as a Senior                              trical Energy, Electrical Engineering Department,
+Lecturer. His research areas include wireless communication, networking and     King Saud University, Riyadh, Saudi Arabia. His current interests include
+radio frequency integrated circuits.                                            electricity market, high voltage engineering, power system transmission and
+                                                                                distribution as well as renewable energy and smart grid. He is a Senior
+                                                                                Member of IEEE since 2007 and Saudi Engineering Committee since 1997.
+                                                                                He published nearly 195 papers and 20 patents in Energy and Water..
+

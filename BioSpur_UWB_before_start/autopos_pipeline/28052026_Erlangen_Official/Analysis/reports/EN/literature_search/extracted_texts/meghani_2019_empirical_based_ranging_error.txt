@@ -1,0 +1,724 @@
+Received February 11, 2019, accepted February 28, 2019, date of publication March 11, 2019, date of current version March 29, 2019.
+Digital Object Identifier 10.1109/ACCESS.2019.2904201
+
+
+
+
+Empirical Based Ranging Error Mitigation in
+IR-UWB: A Fuzzy Approach
+SUNIL K. MEGHANI                     1 , MUHAMMAD ASIF2 , FAROQ AWIN                                  1,3 , AND KEMAL TEPE                 1
+1 WiCIP Lab, University of Windsor, Windsor, ON N9G 3B2, Canada
+2 Electrical Engineering Department, Faculty of Engineering Science and Technology, Ziauddin University, Karachi 74600, Pakistan
+3 Electrical and Electronic Engineering Department, Faculty of Engineering, University of Tripoli, Tripoli 13555, Libya
+
+Corresponding author: Sunil K. Meghani (kumar11d@uwindsor.ca)
+
+
+
+
+  ABSTRACT Indoor tracking and navigation (ITN) mainly depend on indoor localization. An impulse radio
+  ultra-wideband (IR-UWB) is the most advanced technology for precision indoor localization. Besides its
+  precision, the IR-UWB also has low complex hardware, low power consumption, and a flexible data rate that
+  makes it the ideal candidate for ITN. However, two significant challenges impede the achievement of high-
+  resolution accuracy and optimum performance: non-line-of-sight (NLOS) channel condition and multipath
+  propagation (MPP). To enhance the performance under these conditions, the ranging error is estimated and
+  corrected using parameters’ uncertainties. The uncertainties in the channel’s parameters have a relationship
+  with the error, and these uncertainties are induced due to the NLOS and MPP propagation conditions. The
+  parameters are collected in real-time experimental setups in two different environments. A proposed fuzzy
+  inference model utilizes these uncertainties and the relationship to estimate ranging errors. The model is
+  evaluated, and its performance is gauged in terms of residual ranging error cumulative distribution, root
+  mean square error, and outage probability parameters using experimental measurements and compared with
+  the state-of-the-art work. Moreover, the proposed fuzzy model is evaluated for computational complexity
+  in terms of execution time and compared with the state-of-the-art work. The time is estimated on the
+  targeted embedded system. The experimental and simulated results show that the proposed model effectively
+  minimizes the ranging errors and computational burden. Moreover, the model does not induce a delay in
+  estimating ranging error due to the non-statistical based solution.
+
+
+  INDEX TERMS Fuzzy logic, indoor tracking and navigation, impulse radio ultrawide band, localization,
+  computational complexity.
+
+
+I. INTRODUCTION                                                                                   sensors support dead reckoning based tracking and naviga-
+In recent years, indoor tracking and navigation (ITN) sys-                                        tion [4], [5]. However, the IMU sensors-based tracking and
+tem has been attracting the attention of the research com-                                        navigation alone is not suitable for precise ITN [5]. Therefore,
+munity due to the proliferation of unmanned vehicles and                                          there are wireless standards that enable and support ITN
+drones within civilian and military applications [1], [2].                                        due to enabled localization feature, such as Wi-Fi, Blue-
+ITN also enhances the functionality and expands the capa-                                         tooth, ZigBee, Impulse Radio Ultra-Wideband (IR-UWB),
+bilities of applications in mobile wireless sensor networks,                                      and radio frequency identification RFID [3], [6]–[8]. Among
+infrastructure monitoring, healthcare, mining, and military                                       those standards, IR-UWB is the leading technology for pro-
+domains [2]–[4]. Legacy Global Navigation Satellite System                                        viding high-resolution localization [9]–[11]. Besides preci-
+(GNSS) provides a satisfactory performance that supports                                          sion ranging, IR-UWB’s salient features include through-wall
+tracking and navigation in open space. However, the perfor-                                       propagation, low power consumption, and size form factor
+mance of GNSS depends on the reception of satellite signals                                       bode well for mobile devices [9]–[13]. However, multipath
+[1], [2]. In the case of the indoor environment, the reception                                    propagation (MPP) and non-line-of-sight (NLOS) conditions,
+of the signals is so weak, which significantly inhibits GNSS                                      which frequently occur in indoor environments, are impeding
+performance [2]. Moreover, inertial measurement unit (IMU)                                        in the achievement of sub-centimeter resolution and degrad-
+                                                                                                  ing the performance of ITN systems [7], [11], [13]. There are
+   The associate editor coordinating the review of this manuscript and                            limited existing studies [11], [14]–[21] which provide
+approving it for publication was Giovanni Pau.
+
+                                             2169-3536 2019 IEEE. Translations and content mining are permitted for academic research only.
+33686                                              Personal use is also permitted, but republication/redistribution requires IEEE permission.        VOLUME 7, 2019
+                                            See http://www.ieee.org/publications_standards/publications/rights/index.html for more information.
+S. K. Meghani et al.: Empirical-Based Ranging Error Mitigation in IR-UWB
+
+
+
+
+solutions to mitigate ranging errors. A comprehensive review               Section VI. Localization performance evaluation is dis-
+of those studies is provided in Section II. However, due                   cussed in Section VII. Finally, the conclusion is drawn
+to limited computational resources of mobile devices and                   in Section VII.
+ITN’s stringent delay requirement, those studies have some
+deficiencies which are as follows:
+   • The range statistical based solutions induce delay.                   II. LITERATURE REVIEW
+   • The CIR parametric statistical based solutions induce                 The current literature includes some studies that provide
+       delay.                                                              solutions to mitigate ranging errors bias due to NLOS con-
+   • The machine learning based solutions are cumber-                      ditions within the IR-UWB domain. The mitigation solutions
+       some to implement on a real-time embedded system                    are mainly based on better detection of edges (i.e., leading
+       due to limited computational resources. Furthermore,                edge detection algorithm) and system level soft computing
+       machine learning methodology requires mandatory                     CIR parametric approach [11], [14]–[21]. The parametric
+       training phase which incurs an extra overhead (i.e., time           mitigation methodology is mostly based on five key factors:
+       and memory).                                                        range statistics, CIR parameters’ statistics, CIR parameters’
+   • The full-length channel impulse response (CIR) data                   energy (or power) levels, machine learning methods based on
+       based Fuzzy model slows down the ranging procedure                  waveforms’ (or CIR) parameters, and fuzzy-based model for
+       and adds latency [22].                                              obstruction detection. Yousefi et al. [15] propose derivation
+   Those deficiencies motivated us to propose a fuzzy logic-               of weights from range statistics. The weights are proportional
+based model to estimate and correct the range bias error; since            to the severity of NLOS conditions and utilize in an extended
+such a non-statistical approach aligns with the strict bound               Kalman filter (EKF) for correcting the position estimation in
+on computational complexity and ranging acquisition delay.                 NLOS conditions. However, estimating range variation for a
+Moreover, the uncertainties in the measurements, which are                 moving target is not feasible particularly in NLOS conditions
+induced due to MPP and NLOS, are covered optimally by                      and introduces latency in range estimation [17]. The CIR
+the fuzzy approach. The range bias error is estimated in one               parameters’ statistics-based identification of LOS/NLOS and
+step rather than in two steps (i.e., first, identification of line-        mitigation of range error bias in NLOS conditions study
+of-sight (LOS)/NLOS; second, mitigation of ranging errors).                in [16]. The parameters’ statistics for this technique are based
+We start by analyzing the uncertainties in the CIR’s param-                on kurtosis and mean root mean square (RMS) delay. The
+eters (i.e., received power, received first path power and rise            technique identifies the LOS/NLOS conditions and mitigates
+time). Then, we propose a fuzzy inference system (FIS) based               the range error in NLOS conditions based on the deriva-
+model which is based on the uncertainties in the parameters                tion of weights that are related to the severity of the NLOS
+and their correlation to ranging error. In addition to NLOS                conditions. Moreover, the proposed technique has been eval-
+errors, we consider the error in LOS conditions due to MPP in              uated based on simulated 802.15.4a (IEEE standard for
+the proposed model. Finally, we evaluate the proposed model                IR-UWB) channel models. Besides, Silva and Hancke [11]
+using real-time experimental data in two different environ-                employ a similar technique to [16]; however, they assess
+ments and compare the ranging error mitigation performance                 their technique using real-time measurements in an indus-
+with the existing fuzzy logic-based obstruction identification             trial environment for the identification of LOS/NLOS
+and mitigation method [14] and machine learning methods                    conditions.
+for error mitigation [18]. In addition, the proposed model                    On the other hand, the CIR parametric statistic technique
+is evaluated and compared with the works mentioned above                   also introduces latency, since it is a statistical-based solu-
+(i.e., [14] and [18]) in terms of computational time. The time             tion. Marano et al. [17] propose least square support vec-
+is a key parameter for computational complexity estimation                 tor machine (LS-SVM), a machine learning based model,
+and system resources utilization [23], [24]. The main con-                 to identify the LOS/NLOS conditions and to mitigate the
+tribution of this work is to propose a range error mitigation              ranging error bias in NLOS conditions. The authors evaluate
+model using the fuzzy logic approach with parameters that                  the performance of their model using real-time experimen-
+do not incur a delay in estimating and correcting the errors               tal data. Moreover, Wymeersch et al. [18] suggest range
+and reduced computational complexity in IR-UWB domain.                     errors bias mitigation technique as a one-step procedure
+To the best of authors’ knowledge, the approach was not                    using machine learning methodology (i.e., directly estimating
+employed in the domain.                                                    ranging error) instead of performing two-steps procedure
+   The rest of the paper is organized as follows: Section II               (i.e., identification of LOS/NLOS and range error mitiga-
+presents a comprehensive review of the existing work.                      tion) which increases the complexity. The technique uses two
+Section III defines the problem statement. Section IV presents             machine learning methods (i.e., SVM and gaussian regres-
+the uncertainties analysis, concerning the severity of the                 sions) and the residual ranging error is used to evaluate
+NLOS condition and MPP in LOS condition in the CIR’s                       the technique’s performance. Furthermore, the work in [19]
+parameters and their relationship with ranging errors. The                 proposes to employ a support vector data description (SVDD)
+detailed proposed FIS model is presented in Section V.                     machine learning based regression methodology for ranging
+Experimental setups and scenarios are presented in                         error mitigation, which is also a one-step procedure. The work
+
+VOLUME 7, 2019                                                                                                                       33687
+                                                                             S. K. Meghani et al.: Empirical-Based Ranging Error Mitigation in IR-UWB
+
+
+
+
+analyzes the percentage of training data and its impact on the           ranging algorithm. Let d̂i be the estimated distance between
+ranging error mitigation accuracy.                                       the ith anchor and the agent. In the 2D space, using position
+   The above-mentioned machine learning-based techniques                 algorithm, minimum three estimated distances are required
+were employed to identify the NLOS conditions and to miti-               to determine the agent position. A typical solution to this
+gate the range error bias; however, they are not feasible in a           problem is to use the least square (LS) algorithm, which is
+practical real-time system because they dramatically incur a             provided by:
+computational complexity [20]. Moreover, machine learning                                                                                 2
+                                                                                                X
+based methods are time-consuming due to the mandatory                            P̂ = argmin                            d̂i − kT − Aik             (1)
+                                                                                         T               Ai ,d̂i ∈O
+training phases and highly dependent on the uncertainties
+of the environments. In [20], after the identification phase,
+                                                                         where O is the number of agent-anchor pairs in the vicinity.
+the authors have derived weights for the severity of the NLOS
+                                                                         For the 2D space, minimum O = 3. The agent can estimate its
+conditions based on statistics of propagation time compared
+                                                                         position by minimizing (1), which is determined numerically
+to LOS time of flight (ToF). You et al. [21] empirically
+                                                                         by solving (1) using linearization methods such as pseudo
+identify the LOS/NLOS conditions based on first path power
+                                                                         inverse [27]. However, LS algorithm does not consider rang-
+(or energy) and overall received power.
+                                                                         ing errors.
+   The FIS based classification has been studied in gen-
+eral and particularly in a wireless system and position-
+ing for various problems [14], [25], [26]. Wen et al. [14]               B. RANGING ERROR
+purpose obstruction identification based NLOS range error                In practice, the ranging errors are introduced by a ranging pro-
+mitigation based on a fuzzy mapping between signal char-                 tocol, MPP and NLOS channel conditions between an agent
+acteristics (inputs) and likely obstruction (output). There are          and anchors. The NLOS channel condition induces a signifi-
+four signal characteristics: signal-to-noise ratio (SNR), RMS            cant ranging error mainly due to obstructions between anchor
+delay spread, kurtosis and skewness for identification of                and agent nodes which results in position errors when using
+predefined obstructions (propagations). After identification             (1) to estimate a position. The ranging errors are induced by
+of LOS/NLOS conditions, the range error is compensated                   either an attenuated first path or a complete blockage of the
+using a predefined range error for the obstruction. The authors          first path because of having obstructions. Moreover, in NLOS
+validate and evaluate their empirical fuzzy logic model in               condition, overall received power is attenuated compared to
+predefined propagation scenarios. On the other hand, the CIR             LOS condition. The ranging error is given by εi = d̂i − di .
+frame length data is required for estimating the signal char-            Based on our experimental studies, we note the following
+acteristics. However, acquiring the CIR frame length data in             observations:
+runtime slows down the ranging process, and adds a delay in                 1. The ranging errors in LOS and NLOS conditions are
+estimating range between anchor and agent nodes [22].                           exhibit differently. In case of LOS, the ranging errors
+                                                                                are confined to 10 cm. However, in NLOS conditions,
+III. PROBLEM STATEMENT                                                          the ranging errors are expanded up to 110 cm.
+In this section, ranging errors that inhibit localization perfor-           2. The enabling of full-length CIR data slows down the
+mance are discussed. First, the localization procedure and the                  ranging process.
+algorithm are described. Second, the source of ranging errors               3. Collecting multiple ranges increases acquisition time.
+and its impact are considered.                                              4. Implementing machine learning methods increases
+                                                                                computational complexity.
+A. AGENT LOCALIZATION                                                       Therefore, to reduce the errors along with a reduction in
+In the localization network, nodes are classified as an                  computational complexity and an improvement in the local-
+anchor or an agent. An anchor is a node with the known                   ization performance, we propose a non-statistical based FIS
+position while an agent is a node with the unknown position.             based model to mitigate ranging errors.
+A typical single node localization requires three or more
+anchor nodes as well as a single agent node whose position               IV. PARAMETERS UNCERTAINTIES
+needs to be determined. To describe a scenario, let an agent be          In this section, the uncertainties in the CIR parameters
+at an unknown position denoted by P. The agent is surrounded             are considered, and the relationship between parameters’
+by Na anchor nodes with known positions denoted by Ai ,                  uncertainties and ranging errors is defined. The relationship
+where i = 1, 2, . . . Na and Na is the maximum number                    is employed as expert-based knowledge for the proposed
+of anchors. The coordinates of the agent and the anchors                 FIS model. In general, the uncertainties may occur due to
+are labelled as (xP , yP ) and (xAi , yAi ) for 2-dimensional (2D)       LOS/NLOS conditions, multipath, measurement noise, and
+space or (xP , yP , zP ) and (xAi , yAi , zAi ) for 3-dimensional (3D)   unknown dynamics. However, most of those uncertainties
+space respectively. The true distance between the agent and              are induced by NLOS conditions. The uncertainties can be
+the ith anchor is given by di = kP − Ai k.                               lumped into one single block 1.
+   To localize the agent, the distances between the agent and               Considering the uncertainties, the CIR measurement model
+the anchors within the vicinity need to be estimated, using the          can be partitioned into a nominal part and an uncertain
+
+33688                                                                                                                                      VOLUME 7, 2019
+S. K. Meghani et al.: Empirical-Based Ranging Error Mitigation in IR-UWB
+
+
+
+
+           FIGURE 1. Relationship between the received signal strength (RSS) and line-of-sight (LOS) or non-line-of-sight (NLOS) condition.
+
+
+
+
+part as:                                                                         RSS varies due to MPCs, and the LOS/NLOS condition can
+                                                                                 be modeled as follows:
+                   CIR(t) = CIRN (t) + CIR1 (t)                            (2)                   (
+                                                                                                   RSS mean + L     N = 0(LOS)
+where CIRN (t) is the nominal value and CIR1 (t) is the                              RSS inst. =                                     (3)
+                                                                                                   RSS mean + L + N N < 0(NLOS)
+uncertain part and satisfy the condition CIR1 (t) ≤ η, ∀t ≥ 0,
+where η is a positive variable [28]. This measurement model                      where L is the MPP factor in dBs and N is the attenua-
+enables relaxing to determine the requirement of exact knowl-                    tion factor due to NLOS conditions in dBs. The constants
+edge of CIR (t) and uncertainties and their correlation to                       (i.e., L and N ) show uncertainties induced due to MPP and
+range error at any given instant. The CIR parameters: received                   NLOS conditions, respectively. Note that N is proportional
+signal strength (RSS), first path power strength (FPPS) and                      to the severity of NLOS conditions. For less severe NLOS
+rise time (RT).                                                                  condition, N is low and causes less uncertainty in RSS mean
+                                                                                 magnitude. However, for severe NLOS condition, N is high
+A. RECEIVED SIGNAL STRENGTH (RSS)                                                and more RSS mean is attenuated. For the LOS condition,
+There is a correlation between RSS, transmitted power, and                       RSS inst. is close to RSS mean and MPP induces a very low
+the distance between transmitter and receiver as computed                        uncertainty. The RSS inst. is estimated in Decawave devices
+using the Friis equation [29]. The RSS estimated using the                       using received CIR magnitudes [22].
+equation is labeled as RSS mean . In addition, RSS is affected
+by multipath propagation components (MPCs) and condition                         B. FIRST PATH POWER STRENGTH (FPPS)
+of the channel (LOS or NLOS) as illustrated in Fig. 1 For the                    In IR-UWB, the FPPS (instantaneous) is estimated using
+scenario illustrated in Fig. 1, it is assumed that three receivers               CIR leading edge MPC (F1 ) followed by two MPCs in CIR
+(RXs) are placed at equidistance from the transmitter (TX).                      (F2 and F3 ) [22] as illustrated in Fig. 2. For ranging estima-
+The RX1 received instantaneous power close to RSS mean                           tion, leading edge detection (LED) algorithm is employed to
+power level while power levels received by RX2 and RX3                           detect F1 based on time of arrival (ToA) technique. Therefore,
+are attenuated due to NLOS conditions. The RX3 power is                          detection of FPPS is vital for correct ranging estimation in
+primarily attenuated by multiple obstructions and RX3 is                         IR-UWB. Like RSS inst. , instantaneous FPPS varies due to
+categorized as in severe NLOS condition. The instantaneous                       MPCs and the channel condition. Therefore, the FPPS can
+
+
+VOLUME 7, 2019                                                                                                                                33689
+                                                                        S. K. Meghani et al.: Empirical-Based Ranging Error Mitigation in IR-UWB
+
+
+
+
+be modelled as follows:                                             between the TX and the RX is estimated as:
+            (
+              FPPS mean + LFP                   NFP = 0 (LOS)                               TOF = TF1 − Tsyn                                (6)
+FPPS inst =
+              FPPS mean + LFP + NFP             NFP < 0(NLOS)                                    d̂ = TOF.C                                 (7)
+                                                              (4)
+                                                                    where C is the speed of light; TOF is the time of flight; Tsyn is
+where LFP is the MPP factor in dB and NFP is the first              the time at which TX and RX are synchronized; and TF1 is
+path NLOS attenuation factor in dB. The magnitude of                the time at which F1 (leading edge magnitude) detected,
+NFP depends on the obstruction material and the number of           provided:
+obstructions in NLOS conditions. As RSS inst. and FPPS inst.                                         F1 > δ                                 (8)
+are estimated using CIR magnitude. Hence, they are corre-
+lated with each other.                                              where δ is the threshold level for ToA based estimator
+                                                                    (i.e., the receiver). However, F1 depends on the received
+C. RISE TIME (RT)                                                   power and the channel condition as provided in (4). In addi-
+RT is defined as the difference between the time occurrence         tion, the ranging error depends on detection scenarios of F1 ,
+of F1 , denoted as TF1 , and time occurrence of maximum MPC         such as early detection and post detection.
+(Fmax ), denoted as TFmax , and can be modeled as:                     Case I (Early Detection): This case is commonly observed
+                                                                    in LOS conditions due to MPP. Assume that the leading edge
+                       RT = TFmax − TF1                       (5)   is detected earlier than the true F1 , as shown in Fig. 2(a),
+   RT varies according to the condition as demonstrated             (i.e., F10 ). The new time-of-flight (i.e., TOF 0 ) is computed as:
+                                                                                                 0
+in Fig. 2. The figure shows that RT, in LOS condition, is low                              TOF = TF10 − Tsyn                                (9)
+while it is high in NLOS condition respectively. The RT
+magnitude also depends on the severity of NLOS.                       such that:
+                                                                                             TF10 < TF1                                   (10)
+                                                                                             1T = TF10 − TF1                              (11)
+                                                                      Error in the distance is given by:
+                                                                                                 e = 1T .C                                (12)
+                                                                       From (11), the estimated distance is shorter than the true
+                                                                    distance and the ranging error is negative. From (3), (4)
+                                                                    and (12), the ranging error depends on the RSS inst. and
+                                                                    FPPS inst. power levels in LOS conditions.
+                                                                       Case II (Post Detection): It is the case where an NLOS
+                                                                    condition is present. In this case, the leading edge is detected
+                                                                    after the true F1 , as shown in Fig. 2(b), (i.e., F100 ). The time-
+                                                                    of-flight, TOF 00 , is estimated using (6). However,
+                                                                                                 TF100 > TF1                              (13)
+                                                                       using (11), 1T is positive. Hence, the error is positive,
+                                                                    thus, the error magnitude is correlated with the received
+                                                                    RSS inst. and FPPS inst. magnitudes. Further, the magnitudes
+                                                                    of RSS inst. and FPPS inst. are related to NLOS severity as
+                                                                    in (3) and (4).
+
+                                                                    V. FUZZY INFERENCE SYSTEM (FIS) MODEL
+                                                                    The parameters’ uncertainties and their correlation to the
+                                                                    ranging error are indicators to the channel condition
+                                                                    (i.e., LOS or NLOS) and the severity of the NLOS condition,
+                                                                    as shown in the preceding section. To overcome the ranging
+FIGURE 2. Channel impulse responses. (a) LOS. (b) NLOS.             error due to these uncertainties, the FIS model is presented in
+                                                                    this section.
+                                                                       There are three types of FIS: Mamdani, Surgeno, and
+D. RANGING ERROR AND FPPS                                           Takagi–Sugeno–Kang (TSK) [30]. However, Mamdani FIS
+For the LED algorithm, the first MPC above the threshold            is widely used for its analogy to human interpretation and
+is considered as the first path. Based on that, the distance        easiness of design [30]. In this work, we employ the Mamdani
+
+33690                                                                                                                            VOLUME 7, 2019
+S. K. Meghani et al.: Empirical-Based Ranging Error Mitigation in IR-UWB
+
+
+
+
+FIS for estimating ranging error. The particular Mamdani                            Step 3: Implication step
+multiple input single output (MISO) FIS can be written as                                                              
+follows:                                                                                              S3,i = βi ◦ µY i yi ,                   (19)
+
+                         ϕ (ri ) = β (ri ) + y,                            (14)   where i = 1, · · · m. In this instance, the implication operator
+                                                                                  (i.e., ‘◦’)
+                                                                                            is a product. Like antecedent MF, consequent MF
+where ϕ is the fuzzified weight of a particular rule ri , β (ri )                 (µY i yi ) is also Gaussian function:
+is the firing strength of the rule, and y is the area of the                                                     (            2 )
+consequent membership function (MF) of ri .
+                                                                                                                     yi − αi
+                                                                                                µY i y = exp −
+                                                                                                      i
+                                                                                                                                    ,         (20)
+                                                                                                                          ρi
+                            µY (y) ydy
+                          R
+                     Z= R              ,                   (15)
+                            µY (y) dy                                             where αi and ρi are the parameters referred to as output
+                                                                                  premise (Gaussian) parameters.
+where µY (y) is the output membership function (MF) of                              Step 4: Aggregation step
+output y.                                                                                             Xm               
+                                                                                                 S4 =        βi ◦ µY i yi ,           (21)
+                                                                                                             i=1
+                                                                                    Step 5: Defuzzification step
+                                                                                                       S5 = 1e = Z ◦ S4 ,                     (22)
+                                                                                    The crisp output 1e is estimated with the defuzzification
+                                                                                  method (Z ) centroid [30].
+
+                                                                                  VI. EXPERIMENTAL EVALUATION
+                                                                                  The purpose of the experimental study is twofold. In the first
+                                                                                  stage, we empirically analyze the measured parameters and
+                                                                                  compare as well as verify with theoretical analysis of the CIR
+                                                                                  parameters’ uncertainties presented in Section-IV. The analy-
+                                                                                  ses are supportive in designing the FIS model parameters and
+                                                                                  rules. In the second stage, we evaluate the performance of the
+FIGURE 3. Fuzzy inference system model.
+                                                                                  proposed FIS model in real-time environments. During our
+                                                                                  measurements, waveforms, estimated distance, channel data,
+                                                                                  overall received power, and first path received powers for
+   The employed Mamdani MISO FIS model is depicted
+                                                                                  LOS and NLOS conditions are collected in different scenarios
+in Fig. 3. From the figure, n is the number of inputs, n ∈
+                                                                                  and environments as described below.
+{1, 2, 3}, i is the total number of MFs, and m is the number
+of rules, while Xni and Y m are input and output fuzzy sets,
+                                                                                  A. ENVIRONMENTS & SCENARIOS
+respectively. The ranging error estimation process using the
+                                                                                  We collect the measurements in two different environments:
+Mamdani FIS model is performed in five steps as follows:
+                                                                                  Office and a Warehouse. The covered area of the office
+   Step 1: Fuzzification step
+                                                                                  and the warehouse are 4.88 × 9.06 and 3.6 × 8.34-meter
+                          S1,a,b = µXab (xa )                              (16)   square (m2 ), respectively. These are located inside the engi-
+                                                                                  neering building of the University of Windsor. The charac-
+where a = 1, · · · , n and b = 1, . . . , i are associated with                   teristics of the two environments are different. In the office,
+each input. The antecedent MF is a Gaussian function as                           cubical spaces having wooden wall separation, and con-
+it gives the best performance among different membership                          crete pillars are utilized to create NLOS scenarios as shown
+functions [30].                                                                   in Fig. 4(a). In each cubical space, a desk, a chair, and a metal
+                            (                 )                                 cabinet are placed. There are also glass walls that enclose the
+                                xa − γab 2
+            µXab (xa ) = exp −                             (17)                   area and are utilized to create NLOS conditions. In the ware-
+                                    ϑab                                           house, the area is designated as research and development for
+                                                                                  automobile engines and parts. It has metal pillars. The area
+where γab and ϑab are the parameters referred to as input
+                                                                                  is semi-open space with metal parts that mimic an industrial
+premise (Gaussian) parameters.
+                                                                                  environment as shown in Fig. 4(b).
+  Step 2: Inference or rule step
+                                                                                     In both environments, the nodes are placed on trapezoids
+       S2,i = βi = µX i (x1 ) × µX i (x2 ) × · · · µXai (xa )              (18)   to collect measurements as shown in Fig. 4. The LOS and
+                           1             2
+                                                                                  NLOS scenarios are created by placing TX and RX nodes at
+where i = 1, · · · m. Firing strength βi of the rule is generated                 different intervals between 1.92 m and 11.31 m. The NLOS
+using the product (AND) method [30].                                              scenarios are emulated using the single wall, multiple walls,
+
+VOLUME 7, 2019                                                                                                                               33691
+                                                                         S. K. Meghani et al.: Empirical-Based Ranging Error Mitigation in IR-UWB
+
+
+
+
+     FIGURE 4. Scenarios. (a) Office. (b) Warehouse.
+
+
+
+
+concrete and metal pillars, glass wall, a human body, and            medium, low, and very low as shown in Fig. 5. Based on
+different objects such as chairs and metallic parts. In all, there   the observations, we find that RSS inst. and FPPS inst levels
+are 30 scenarios where 700 measurements of the parameters            are very high in LOS scenarios and attenuate gradually as
+are collected.                                                       the NLOS severity increases. Those observations prove the
+                                                                     veracity of the uncertainty model in (3) and (4).
+B. EQUIPMENT SETUP                                                      Similarly, we observe that for all the scenarios in LOS
+For the experimental measurements, Decawave R EVB-                   condition, the RT is in the range of 3-4 ns. and is labeled as
+1000 IR-UWB kit, based on DW-1000, is employed. The kit              very low. For mild NLOS condition, the RT is in the range of
+provides CIRs (or waveforms), range estimations, RSS inst. ,         5-10 ns. and is labeled as low. As the NLOS severity
+FPPS inst. and other parameters as outputs from received sig-        increases, the RT increases, and the ranges are labeled as
+nal through software. The algorithm used for range estimation        medium, high, and very high, accordingly, as illustrated
+in the kit is based on LED-ToA algorithm given in IEEE               in Fig. 5.
+802.15.4a framework. During the measurements, Channel 2,                For LOS condition, we find that the ranging errors are in
+having 500MHz bandwidth, 6.8 Mbps data rate and center               the range of −15 to −2 cm: thus, the range is labeled as
+frequency of 3.5 GHz, is utilized. More details of the kit,          negative (NE), as shown in Fig. 5. The errors can be negative,
+operating channels and MAC parameters, and datasheets can            as discussed in Case 1 in Section IV. However, for mild NLOS
+be found in [22]. Moreover, Beaglebone R Black Rev. C with           conditions, the ranging errors are in the range of 2 to 12 cm
+A8 ARM cortex processor having 1 GHz clock is employed               and labeled as very low (V. Low). Moreover, as the severity
+for code profiling. More details of the board can be                 of the NLOS condition increases, the ranging error magnitude
+found in [31].                                                       increases and the ranges are labeled as low medium and high,
+                                                                     as shown in Fig. 5.
+C. EMPIRICAL PARAMETERS ANALYSIS
+The empirical analysis of the uncertainties in the parameters
+                                                                     D. MITIGATION PROCEDURE
+is supportive in designing the input and output MFs using
+(15) and (18), respectively as shown in Fig. 5. We analyze           The proposed FIS model is blindly (i.e., without a priori
+the measured parameters (i.e., RSS inst. and FPPS inst levels,       knowledge of LOS or NLOS condition) applied to the exper-
+RT and ranging errors) based on the theoretical uncertainties        imentally collected CIR parameters (i.e., RSS inst. , FPPS inst ,
+analysis of the parameters presented in Section-IV. From             and RT) to estimate ranging errors. The inference mecha-
+the measurements, we observe that for LOS condition in all           nism estimates the fuzzified ranging error based on the fuzzy
+scenarios, the RSS inst. is in the range of −78 to −80 dBm,          inputs. The fuzzified ranging error is defuzzified to determine
+while FPPS inst is in the range of −80 to −82 dBm. Therefore,        an estimated crisp value (±1e ). The 1e is subtracted from the
+in order to design the MFs and convert the ranges into linguis-      reported corresponding measured range to correct the range.
+tic variables, the ranges are labeled as very high, as illustrated   The corrected range is called a fuzzy range.
+in Fig. 5. For mild NLOS condition, the RSS inst. is in the
+range of −80 to −82 dBm, while FPPS inst is in the range             E. PROFILING PROCEDURE
+of −82 to −86 dBm and labeled as high. Subsequently,                 The proposed FIS model, Fuzzy-CIR model [14], and
+as the NLOS severity increases, the RSS inst. and FPPS inst          machine learning regression models [18] are implemented
+levels consequently attenuate and the ranges are labelled as         in Simulink and run on Beaglebone R Black platform using
+
+33692                                                                                                                             VOLUME 7, 2019
+S. K. Meghani et al.: Empirical-Based Ranging Error Mitigation in IR-UWB
+
+
+
+
+                 FIGURE 5. Inputs & outputs memberships and linguistic variables for the fuzzy inference system.
+
+
+
+
+FIGURE 6. System block diagram for code profiling.
+
+
+
+
+the processor-in-loop (PIL) procedure for estimating task
+execution time as shown in Fig. 6. The time is estimated using
+Monte Carlo simulations for 5000 executions.
+
+F. PERFORMANCE ANALYSIS
+The fuzzy mitigation ranging performance is quantified in
+terms of both the residual ranging errors (ε), (i.e., errors
+remaining after mitigation), and the root mean square error                    FIGURE 7. Residual ranging errors cumulative distribution function.
+(RMSE) as shown in Fig. 7 and provided in Table I, respec-
+tively. Moreover, a quantitative comparison of computa-                        TABLE 1. Quantitative comparison between the proposed model and
+tional performance in terms of execution time is provided                      existing works.
+
+in Table 1. The RMSE is estimated using the actual error
+and the predicted error. The figure demonstrates the cumu-
+lative distribution function (CDF) of the residual errors for
+the proposed fuzzy model along with existing works from
+[14] and [18], and unmitigated LOS and NLOS errors. The
+proposed model is compared with Fuzzy-CIR model [14],
+Machine-SVM model [18] and Machine-gaussian regres-
+sion (GR) model [18]. The parameters used for Fuzzy-CIR                        errors exceed up to −20 cm, as shown in Fig. 7. This is also
+are SNR, RMS delay spread, kurtosis, and skewness which                        observed for some soft NLOS (SNLOS) cases in which TX
+are estimated using our experimentally collected CIR data.                     and RX are obstructed and the strongest path is the first path
+In Decawave R devices, for the suggested optimum threshold                     followed by weak MPCs in CIR.
+level (δ) [22], ranging errors in LOS conditions are more on                      We consider the ranging errors in LOS and SNLOS condi-
+the negative side within −10 cm for most of the readings.                      tions and estimate ranging errors using the proposed model
+Moreover, in some experimental setups, in LOS conditions,                      based on RSS inst. , FPPS inst , and RT levels in those condi-
+where the estimated distance is more than 10 m, the ranging                    tions. The machine learning based regression models are also
+
+VOLUME 7, 2019                                                                                                                                   33693
+                                                                                  S. K. Meghani et al.: Empirical-Based Ranging Error Mitigation in IR-UWB
+
+
+
+
+ FIGURE 8. Outage probability versus the number of Anchor nodes (Na ) with varying PNLOS in: (a) Warehouse; (b) Office.
+
+
+
+
+trained to predict errors in these conditions using RSS inst. ,              comes at the expense of a huge increase of computational bur-
+FPPS inst , and RT. However, Fuzzy-CIR does not consider                     den as 600 times increase in task execution time comparing
+LOS and SNLOS ranging errors. For the proposed fuzzy                         to the proposed model.
+model, most of the residual errors are confined between                         Therefore, we consider the proposed FIS based mitigated
+upper and lower bounds (i.e., between ±10 cm) as illustrated                 ranges and unmitigated ranges for evaluating the localization
+in Fig. 7. Moreover, the figure shows an evidence that the                   performance.
+errors are confined within the bounds with the estimated
+CDF of 90.97%. Whereas, in the case of unmitigated NLOS                      VII. LOCALIZATION PERFORMANCE
+ranging errors in which the estimated CDF is 64.62%. In the                  The performance of localization is evaluated using fuzzy mit-
+case of using the Fuzzy-CIR model, the CDF is 79.87% for                     igated ranges and compared with unmitigated ranges. To eval-
+±10 cm. We observe that the Fuzzy-CIR model’s perfor-                        uate the performance, we simulate the localization network
+mance, in predicting the errors, decreases in lower ranging                  using the following settings: ANs 3 ≤ Na ≤ 6 with varying
+errors due to higher estimated RMS delay spread. This phe-                   probability of NLOS: 0.2 ≤ PNLOS < 1. The ANs are placed
+nomena in NLOS conditions occur due to the presence of                       around an agent with the agent’s true position P = (0, 0). For
+metal obstructions and ranging errors in the conditions are                  every AN 1 ≤ i ≤ Na , the true distance (di ) is selected from
+in the range of 20-40 cm. However, when using the proposed                   the pool of scenarios associated with the ith scenario and the
+fuzzy model, the uncertainties based on RSS inst. , FPPS inst ,              ith AN’s position around the agent is estimated as:
+and RT are optimally covered by the model; hence the error
+                                                                                                  2π (i − 1)           2π (i − 1)
+                                                                                                                              
+prediction is close to the actual error in the conditions. For                    Ai = di cos                  , sin                    (23)
+higher errors, the performance of both the proposed fuzzy                                             Na                  Na
+and Fuzzy-CIR models are identical. In comparison with
+                                                                                From the ranges’ measurements, the estimated distances
+the proposed model, Fuzzy-CIR’s RMSE is increased by
+                                                                             between the agent and ANs are used to estimate the position
+around 2 cm and the computational time is also increased by
+                                                                             of the agent using (1). The ith estimated distance (d̂i ) is
+around 6%. For Machine-SVM case, we observe that the error
+                                                                             drawn from NLOS pool with PNLOS and from LOS pool using
+prediction performance is identical to the proposed system
+                                                                             (1 − PNLOS ). Likewise, based on the fuzzy mitigated ranges,
+performance except in some (NLOS) conditions where chan-
+                                                                             the estimated agent position is determined using (1), and the
+nel dynamics are changing more often due to high occupancy
+                                                                             ith fuzzy range (d̃i ) associated with the ith scenario is selected
+and the distance between TX and RX is more. Moreover, the
+                                                                             for the ith AN.
+Machine-SVM’s CDF is 84.5% for the bound. However, the
+                                                                                The reliability of the localization is measured in terms of
+computational time of the Machine-SVM model is increased
+                                                                             outage probability (Pout ). The Pout is defined as the probabil-
+by approximately 42% comparing to the proposed model.
+                                                                             ity that the position error is greater than the threshold error
+In the case of Machine-GR model, the error prediction per-
+                                                                             and computed as:
+formance is better than our proposed model as can be gauged
+from Machine-GR’s estimated CDF of 95.04% and RMSE is
+                                                                                                           n                  o
+                                                                                            Pout (eth ) = P − P̂ > eth                      (24)
+of around 5 cm. However, the improvement in error prediction                                                               2
+
+
+33694                                                                                                                                      VOLUME 7, 2019
+S. K. Meghani et al.: Empirical-Based Ranging Error Mitigation in IR-UWB
+
+
+
+
+where P̂ is the estimated position. In this context, we also               add a delay in position updates and computational burden in
+consider threshold error (i.e., eth = 15 cm). The Pout                     indoor tracking and navigation systems. Moreover, machine
+is determined using Monte Carlo simulation for 5000 net-                   learning based models are cumbersome to train and specific
+works implemented using (23) and the target agent for each                 to the trained scenarios. In this paper, we have proposed to
+set of Na .                                                                employ fuzzy logic to estimate the ranging error and to
+   The Pout for networks with ANs from 3 to 6 with varying                 enhance the localization accuracy. In addition, the fuzzy
+PNLOS for both the environments, namely, warehouse and                     mechanism is employed to cope with the errors present in
+office, are illustrated in Fig. 8. In the figure, the Pout using           the LOS conditions due to MPP. The ranging errors are esti-
+unmitigated ranges and fuzzy mitigated ranges are labelled                 mated blindly. In other words, prior or posterior knowledge
+as V1 and V2 , respectively. As shown in the figure, the Pout is           of LOS or NLOS conditions is not required. The ranging
+less than 10% with low PNLOS (i.e. 0.2) for both V1 and V2 .               correction and the localization performance are evaluated in
+However, as the PNLOS increases, the Pout increases. In the                terms of the CDF of the residual errors, RMSE and the out-
+case of V2 , Pout is relatively low as it is consistently below            age probability with extensive experimental measurements
+10% even for high PNLOS in both the environments. It is                    in indoor environments using IR-UWB devices. Moreover,
+also observed that as PNLOS increases, Pout does not decrease              computational time is estimated to gauge the computational
+even with increasing Na . This is due to high ranging errors               burden using the targeted embedded system. The experimen-
+in the unmitigated ranges, particularly observed in the office             tal results have shown that the residual errors after the fuzzy
+environment as illustrated in Fig. 8(b).                                   correction are concentrated around ideal LOS performance,
+                                                                           specifically those which have minimal errors. Furthermore,
+                                                                           for the proposed model, the attained error convergence for
+                                                                           ±10 cm is improved by 27%, 12%, and 7% compared to
+                                                                           the unmitigated NLOS errors, using Fuzzy-CIR scheme and
+                                                                           Machine-SVM method, respectively. In addition, the pro-
+                                                                           posed fuzzy model reduces the computational complexity
+                                                                           (in terms of execution time) by 42% and around 600 times
+                                                                           when compared with Machine-SVM and Machine-GR mod-
+                                                                           els, respectively.
+                                                                              Likewise, when using the fuzzy corrected ranges, the simu-
+                                                                           lated localization system has shown more robustness against
+                                                                           the position errors and has increased the localization relia-
+                                                                           bility when compared with a system using the unmitigated
+                                                                           ranges. In case of system reliability with 15 cm position
+                                                                           error threshold, on average, the proposed model has shown
+                                                                           system’s availability of more than 90% while the system’s
+                                                                           availability for the model using unmitigated ranges is only
+FIGURE 9. Outage probability versus PNLOS in the worst scenarios with
+number of anchor nodes (Na = 3).                                           about 66%. Finally, the result facts have demonstrated the
+                                                                           effectiveness of employing the proposed fuzzy logic model
+   Consider Na = 3 for the worst-case scenarios for both the               for mitigating the ranging errors while reducing the compu-
+environments, as shown in Fig. 9. The worst-case scenarios                 tational burden in IR-UWB.
+are defined as the ranging errors are in the range of 40-100 cm
+under NLOS conditions. According to the figure, the Pout                   REFERENCES
+is consistently high for every PNLOS using the unmitigated                 [1] D. Dardari, P. Closas, and D. M. Djuric, ‘‘Indoor tracking: Theory,
+                                                                               methods, and technologies,’’ IEEE Trans. Veh. Technol., vol. 64, no. 4,
+ranges. However, Pout is considerably low as it is consistently                pp. 1263–1278, Apr. 2015.
+less than 10% for the system when using the fuzzy ranges (V2 )             [2] C. Fuchs, N. Aschenbruck, P. Martini, and M. Wieneke, ‘‘Indoor tracking
+compared to V1 . For instance, for equal probability of AN in                  for mission critical scenarios: A survey,’’ Pervasive Mobile Comput., vol. 7,
+LOS/NLOS (i.e., PNLOS = 0.6), the system’s availability is                     pp. 1–15, Feb. 2011.
+                                                                           [3] M. M. Atia, S. Liu, H. Nematallah, T. B. Karamat, and A. Noureldin,
+more than 95% (i.e., 1−Pout ) when using the fuzzy mitigated                   ‘‘Integrated indoor navigation system for ground vehicles with automatic
+ranges. In contrast, the system’s availability reduces to around               3-D alignment and position initialization,’’ IEEE Trans. Veh. Technol.,
+66% when using the unmitigated ranges. This is because of a                    vol. 64, no. 4, pp. 1279–1292, Apr. 2015.
+                                                                           [4] J. Park, Y. K. Cho, and D. Martinez, ‘‘A BIM and UWB integrated
+considerable reduction of ranging errors in the case of fuzzy                  mobile robot navigation system for indoor position tracking applications,’’
+mitigated ranges.                                                              J. Construct. Eng. Project Manage., vol. 6, no. 2, pp. 30–39, 2016.
+                                                                           [5] A. Vale, R. Ventura, P. Lopes, and I. Ribeiro, ‘‘Assessment of navigation
+VIII. CONCLUSION                                                               technologies for automated guided vehicle in nuclear fusion facilities,’’
+                                                                               Robot. Auto. Syst., vol. 97, pp. 153–170, Nov. 2017.
+Traditionally, statistical and machine-learned methods are
+                                                                           [6] M. Zhou, Y. Wei, Z. Tian, X. Yang, and L. Li, ‘‘Achieving cost-efficient
+employed to tackle ranging errors and to enhance the accu-                     indoor fingerprint localization on WLAN platform: A hypothetical test
+racy of localization in IR-UWB. However, those methods                         approach,’’ IEEE Access, vol. 5, pp. 15865–15874, 2017.
+
+VOLUME 7, 2019                                                                                                                                       33695
+                                                                                          S. K. Meghani et al.: Empirical-Based Ranging Error Mitigation in IR-UWB
+
+
+
+
+ [7] Q. Li, W. Li, W. Sun, J. Li, and Z. Liu, ‘‘Fingerprint and assistant nodes      [29] H. Mazar, ‘‘The main radio regulated services,’’ in Radio Spectrum
+     based Wi-Fi localization in complex indoor environment,’’ IEEE Access,               Management: Policies, Regulations and Techniques, 1st ed. Hoboken, NJ,
+     vol. 4, pp. 2993–3004, 2016.                                                         USA: Wiley, 2016. [Online]. Available: https://books.google.ca/books?hl=
+ [8] L. Luoh, ‘‘ZigBee-based intelligent indoor positioning system soft com-              en&lr=&id=ysqOCQAAQBAJ&oifnd&pg=PA13&dq=Radio+Spectrum+
+     puting,’’ Soft Comput., vol. 18, pp. 443–456, Mar. 2014.                             Management:+Policies,+Regulations+and+Techniques&ots=6aC9WNW
+ [9] Z. Daixian and Y. Kechu, ‘‘Particle filter localization in underground               xHS&sig=smjAvg29847J2VCo6rTwzAVMZmg#v=onepage&q=Radio
+     mines using UWB ranging,’’ presented at the Intell. Comput. Technol.                 %20Spectrum%20Management%3A%20Policies%2C%20Regulations
+     Automat. (ICICTA), 2011. [Online]. Available: https://ieeexplore.ieee.org/           %20and%20Techniques&f=false
+     abstract/document/5750971/citations#citations                                   [30] A. Celikyilmaz and I. B. Türksen, ‘‘Modeling Uncertainty with Fuzzy
+[10] Y. Xu, Y. S. Shmaliy, Y. Li, and X. Chen, ‘‘UWB-based indoor human                   Logic With Recent Theory and Applications’’ (Studies in Fuzziness and
+     localization with time-delayed data using EFIR filtering,’’ IEEE Access,             Soft Computing). Springer, vol. 240. 2009, pp. 149–215. [Online]. Avail-
+     vol. 5, pp. 16676–16683, 2017.                                                       able: https://link.springer.com/book/10.1007%2F978-3-540-89924-2
+[11] B. Silva and G. P. Hancke, ‘‘IR-UWB-based non-line-of-sight identifica-         [31] Beaglebone Black. [Online]. Available: https://beagleboard.org/black
+     tion in harsh environments: Principles and challenges,’’ IEEE Trans. Ind.
+     Informat., vol. 12, no. 3, pp. 1188–1195, Jun. 2016.
+[12] V.-H. Nguyen and J.-Y. Pyun, ‘‘Location detection and tracking of mov-
+     ing targets by a 2D IR-UWB radar system,’’ Sensors, vol. 15, no. 3,
+     pp. 6740–6762, 2015.
+[13] D. Dardari, A. Conti, U. Ferner, A. Giorgetti, and M. Z. Win, ‘‘Ranging
+     with ultrawide bandwidth signals in multipath environments,’’ Proc. IEEE,
+     vol. 97, no. 2, pp. 404–426, Feb. 2009.
+[14] K. Wen, K. Yu, and Y. Li, ‘‘NLOS identification and compensation for
+     UWB ranging based on obstruction classification,’’ presented at the 25th
+     Eur. Signal Process. Conf. (EUSIPCO), 2017. [Online]. Available: https://
+     ieeexplore.ieee.org/abstract/ document/8081702                                                            SUNIL K. MEGHANI received the B.S. degree
+[15] S. Yousefi, X. W. Chang, and B. Champagne, ‘‘An improved extended                                         in electronic engineering from the Sir Syed Uni-
+     Kalman filter for localization of a mobile node with NLOS anchors,’’                                      versity of Engineering and Technology, Karachi,
+     presented at the 9th Int. Conf. Wireless Mobile Commun., 2013. [Online].                                  Pakistan, in 2002, the M.Sc. degree in modern
+     Available:          http://www.ece.mcgill.ca/~bchamp/Papers/Conference/                                   digital radio frequency and wireless communica-
+     ICWMC2013b.pdf                                                                                            tion from the University of Leeds, Leeds, U.K.,
+[16] I. Güvenç et al., ‘‘NLOS identification and weighted least-squares local-                                 in 2007, and the Ph.D. degree in electrical engi-
+     ization for UWB systems using multipath channel statistics,’’ EURASIP J.                                  neering from the University of Windsor, Canada,
+     Adv. Signal Process., vol. 2008, pp. 1–14, Dec. 2007.                                                     in 2018. He was a Network Engineer with Electro
+[17] S. Marano et al., ‘‘NLOS identification and mitigation for localization                                   International Pakistan, from 2003 to 2005. From
+     based on UWB experimental data,’’ IEEE J. Sel. Areas Commun., vol. 28,          2008 to 2014, he was with the Sir Syed University of Engineering and
+     no. 7, pp. 1026–1035, Sep. 2010.                                                Technology, Pakistan, as an Assistant Professor. From 2014 to 2018, he
+[18] H. Wymeersch, S. Maranó, W. M. Gifford, and M. Z. Win, ‘‘A machine              was a Research Assistant and a Ph.D. candidate with the Wireless Commu-
+     learning approach to ranging error mitigation for UWB localization,’’ IEEE      nication and Information Processing (WiCIP) Lab, University of Windsor,
+     Trans. Commun., vol. 60, no. 6, pp. 1719–1728, Jun. 2012.                       Canada, where he is currently a Research Associate. His current research
+[19] S. Tian, L. Zhao, and G. Li, ‘‘A support vector data description approach       interests are focused on autonomous vehicles, indoor localization, wireless
+     to NLOS identification in UWB positioning,’’ Math. Problems Eng.,               sensor networks (WSN), fuzzy logic and machine learning-based classifiers,
+     vol. 2014, May 2014, Art. no. 963418.
+                                                                                     IR-UWB, and wireless personal area networks (WPAN).
+[20] M. Kolakowski and J. Modelski, ‘‘First path component power based
+     NLOS mitigation in UWB positioning system,’’ presented at the Telecom-
+     mun. Forum (TELFOR), 2017. [Online]. Available: https://ieeexplore.ieee.
+     org/abstract/document/8249313
+[21] B. You, X. Li, X. Zhao, and Y. Gao, ‘‘A novel robust algorithm attenuating
+     non-line-of-sight errors in indoor localization,’’ presented at the IEEE Int.
+     Conf. Commun. Softw. Netw. (ICCSN), 2015. [Online]. Available: https://
+     ieeexplore.ieee.org/abstract/document/7296117
+[22] Decawave. [Online]. Available: www.decawave.com
+[23] Y.-H. Wang, C.-H. Yeh, H.-W. V. Young, K. Hu, and M.-T. Lo,
+     ‘‘On the computational complexity of the empirical mode decomposition
+     algorithm,’’ Phys. A, Stat. Mech. Appl., vol. 400, pp. 159–167, Apr. 2014.                                 MUHAMMAD ASIF received the B.S. degree in
+[24] T. Velmurugan and T. Santhanam, ‘‘Computational complexity between                                         biomedical engineering from the Sir Syed Uni-
+     K-means and K-medoids clustering algorithms for normal and uniform                                         versity of Engineering and Technology, Karachi,
+     distributions of data points,’’ J. Comput. Sci., vol. 6, no. 3, pp. 363–368,                               Pakistan, in 2002, the M.S. degree in electri-
+     2014.                                                                                                      cal engineering from University Sains Malaysia
+[25] P. Melin and O. Castillo, ‘‘A review on type-2 fuzzy logic applications                                    (USM), Malaysia, in 2007, and the Ph.D. degree
+     in clustering, classification and pattern recognition,’’ Appl. Soft Comput.,                               in electrical engineering from the National Univer-
+     vol. 21, pp. 568–577, Aug. 2014.
+                                                                                                                sity of Sciences and Technology (NUST), Karachi,
+[26] P. Torteeka and X. Chundi, ‘‘Indoor positioning based on Wi-Fi fingerprint
+                                                                                                                in 2015. In USM, he was with the USM Robotics
+     technique using fuzzy K-nearest neighbor,’’ presented at the 11th Int.
+                                                                                                                Research Group on various underwater robotics
+     Bhurban Conf. Appl. Sci. Technol. (IBCAST), 2014. [Online]. Available:
+     https://ieeexplore.ieee.org/abstract/document/6778188                           and vision systems. After completing his M.S. degree from USM Malaysia,
+[27] S. K. Meghani and M. Asif, ‘‘Localization of WSN node based on RTT              he is currently pursuing the Ph.D. degree with NUST. During his Ph.D., he
+     ToA using ultra wide band & 802.15.4a channel,’’ presented at the IEEE          worked on robotics and control engineering. He has organized and partici-
+     11th Int. Conf. Netw., Sens. Control (ICNSC), 2014. [Online]. Available:        pated in various robotics competitions on national and international levels
+     https://ieeexplore.ieee.org/abstract/document/6819656                           like ROBOCON, ROBOCOM, and NERC. He has more than 45 research
+[28] Y. Touati, R. Merzouki, and B. O. Bouamama, ‘‘Robust diagnosis to               publications in international and national journals and conferences. His
+     measurement uncertainties using bond graph approach: Application to             research interests include fuzzy systems, adaptive and nonlinear control and
+     intelligent autonomous vehicle,’’ Mechatronics, vol. 22, pp. 1148–1160,         vision algorithms design for robotics, and vision applications; moreover,
+     Dec. 2012.                                                                      embedded systems design for medical and the IoT applications.
+
+33696                                                                                                                                               VOLUME 7, 2019
+S. K. Meghani et al.: Empirical-Based Ranging Error Mitigation in IR-UWB
+
+
+
+
+                           FAROQ AWIN received the B.Sc. degree in elec-                                     KEMAL TEPE received the M.A.Sc. and Ph.D.
+                           trical and electronic engineering from the Univer-                                degrees from the Rensselaer Polytechnic Institute,
+                           sity of Tripoli, Libya, in 1996, the M.Sc. degree                                 Troy, NY, USA, in 1996 and 2001, respectively,
+                           in precision instruments and machinery from Bei-                                  and the B.Sc. degree from Hacettepe University,
+                           hang University, Beijing, China, in 2004, and the                                 Ankara, Turkey, in 1992, all in the electrical engi-
+                           Ph.D. degree from the University of Windsor,                                      neering. He worked as a Research Scientist with
+                           Canada, in 2016. He was a Researcher with the                                     Telcordia Technologies, Red Bank, NJ, USA, and
+                           Electronic Research Center, Tripoli, Libya, from                                  a Postdoctoral Researcher with Rutgers Univer-
+                           1997 to 2008. From 2008 to 2010, he was a Lec-                                    sity, from 2001 to 2002. He joined the Univer-
+                           turer with the Electrical and Electrical Engineering                              sity of Windsor, in 2002, and has founded the
+Department, University of Tripoli. From 2011 to 2016, he was a Research           Wireless Communication and Information Processing Research Laboratory.
+Assistant and a Ph.D. candidate with the University of Windsor, where             His research area focuses on wireless communication systems, vehicle-to-
+he is currently a Post-Doctoral Fellow with the Wireless Communication            vehicle (V2V) communications, wireless sensor networking, and network
+and Information Processing (WiCIP) Laboratory. He has published several           protocols. He is particularly interested in real-time wireless communication
+articles in well-known journals and international conferences. His research       protocols in sensor networks, application of sensor networking in smart grid
+interests include cognitive radio networks, spectrum sensing, wireless com-       applications, vehicular networks, vehicular networks for safety/emergency
+munications, cognitive radio-based IoT and indoor tracking. Moreover, he is       messaging, vehicular internet access protocols, the Internet of Things (IoT),
+serving as a Peer Reviewer for a couple of referred international journal and     autonomous vehicles, and machine-to-machine communications.
+conferences.
+
+
+
+
+VOLUME 7, 2019                                                                                                                                            33697
+

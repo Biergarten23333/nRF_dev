@@ -1,0 +1,1312 @@
+Received April 1, 2020, accepted April 27, 2020, date of publication May 7, 2020, date of current version May 21, 2020.
+Digital Object Identifier 10.1109/ACCESS.2020.2993197
+
+
+
+
+Single-Anchor Positioning: Multipath Processing
+With Non-Coherent Directional Measurements
+MICHAEL RATH , (Student Member, IEEE), JOSEF KULMER, (Student Member, IEEE),
+ERIK LEITINGER , (Member, IEEE), AND KLAUS WITRISAL , (Member, IEEE)
+Signal Processing and Speech Communication Laboratory, Graz University of Technology, 8010 Graz, Austria
+Corresponding author: Michael Rath (mrath@tugraz.at)
+This work was supported in part by the LEAD-Project Dependable Internet of Things in Adverse Environments, funded by the Graz
+University of Technology, and in part by the Austrian Science Fund (FWF) under Grant J 4027-N33.
+
+
+
+
+  ABSTRACT High-accuracy indoor radio positioning can be achieved by using (ultra) wideband (UWB)
+  radio signals. Multiple fixed anchor nodes are needed to compute the position or alternatively, specular
+  multipath components (SMCs) extracted from radio signals can be exploited. In this work, we study a
+  multipath-based, single-anchor positioning system that acquires directional measurements non-coherently.
+  These non-coherent measurements can be obtained, e.g., from a single-chain mm-wave transceiver with
+  analog beam steering or from a low-complexity ultra-wideband transceiver with switched directional
+  antennas. The directional antennas support the separation of SMCs and the suppression of the undesired
+  diffuse multipath component (DMC) with the benefit that the required signal bandwidth can be drastically
+  reduced. The paper analyzes the Cramér-Rao lower bound (CRLB) on the position estimation error to gain
+  insight in the influence of the system design parameters as well as the impact of the DMC on the position
+  error. The CRLB is compared between the non-coherent antenna setup, a conventional array with coherent
+  processing, and a single-antenna setup. A maximum-likelihood position estimation algorithm is formulated.
+  Its performance is evaluated with synthetically generated data as well as with UWB measurements.
+  We show that the accuracy and robustness are significantly improved due to the processing of angular
+  information. Analyzing the measured data for a line-of-sight link, the median error decreases from 22 down
+  to 7 cm, the measurements better than 20 cm increase from 46 to 95 %, and outliers above 50 cm reduce
+  from 12 to 0 %.
+
+  INDEX TERMS Radio positioning, single-anchor, Fisher information, position error bound, directional
+  antenna, multipath component, non-coherent array processing.
+
+
+I. INTRODUCTION                                                                                resolution by exploiting array processing [8]–[14]. This con-
+A. MOTIVATION AND STATE OF THE ART                                                             clusion has been drawn from the analysis of the Cramér-Rao
+Fifth generation (5G) radio networks are expected to                                           lower bound (CRLB) on the position (and orientation) esti-
+employ massive multiple-input multiple-output (MIMO)                                           mation error(s). The CRLB is a powerful tool to ana-
+array antenna systems [1], [2] due to the dramatic increase in                                 lyze the performance of positioning systems with regards
+energy efficiency and capacity, achieved by aggressive spa-                                    to the impact of system parameters, such as bandwidth,
+tial multiplexing [3], [4]. Array antennas in MIMO systems                                     carrier frequency, and antenna configuration. Additionally,
+also open the gate to use millimeter-wave (mm-wave) based                                      the analysis of the CRLB gives insights about the impact of
+systems, since the array gain with a high number of antennas                                   model-dependent multipath component (MPC) parameters,
+compensates the high pathloss present in these frequency                                       i.e., specular multipath component (SMC) and dense multi-
+bands (30-300 GHz) [5]–[7].                                                                    path component (DMC) parameters [10]–[15]. An increased
+   For positioning, large bandwidth enables good time res-                                     signal bandwidth improves the delay resolution of SMCs and
+olution, whereas MIMO processing enables good angle                                            also the capability to suppress the DMC [10], [12], [14], [15],
+                                                                                               and therefore it improves the delay information that can be
+   The associate editor coordinating the review of this manuscript and                         extracted from received radio signals. Similarly, the angular
+approving it for publication was Vittorio Degli-Esposti            .                           information is enhanced by increasing the array aperture,
+
+                     This work is licensed under a Creative Commons Attribution 4.0 License. For more information, see https://creativecommons.org/licenses/by/4.0/
+VOLUME 8, 2020                                                                                                                                                        88115
+                                                 M. Rath et al.: Single-Anchor Positioning: Multipath Processing With Non-Coherent Directional Measurements
+
+
+
+
+                                                                               However, their common drawback is the increased hardware
+                                                                               complexity and the resulting (peak) power consumption.
+                                                                               Each additional transceiver chain multiplies the hardware
+                                                                               needed for the signal acquisition/generation and the corre-
+                                                                               sponding frontend signal processing steps. This makes the use
+                                                                               of parallel, coherent processing of all the antenna signals very
+                                                                               expensive, in particular for ultra-wide bandwidth (UWB)
+                                                                               signals with sampling frequencies in the GHz-range. Hybrid
+                                                                               analog-digital architectures have been proposed as an alter-
+                                                                               native for massive-MIMO mm-wave base-stations aiming at
+                                                                               very high antenna directivities [26]–[28]. In this architecture,
+                                                                               the number of radio frequency chains is much smaller than
+                                                                               the number of antennas [29]; potentially only one transceiver
+                                                                               chain is implemented. The main idea is to use analog beam-
+                                                                               forming (e.g. phase shifters or directive antenna elements) to
+                                                                               gain directivity and only process one or a few received signals
+                                                                               coherently [30].
+                                                                                  A similar principle has been employed in [31], where a
+FIGURE 1. Exemplary environment in a room corner. There is one physical        single-anchor, multipath-based positioning system has been
+anchor at position a1 , either equipped with a conventional coherent array
+indicated by red boxes (top right) or with directional antennas, each          described for high-accuracy (indoor) positioning for low-cost
+covering one sector of the azimuth plane (top left). Empty blue circles        Internet-of-Things applications. A switched antenna system
+outside the room at a2 , a3 indicate virtual anchors obtained by mirroring
+the anchor position a1 at reflective wall surfaces. The mobile agent at        with four directive antenna elements is used, pointing in the
+position p is indicated by a green filled box.                                 four cardinal directions, in order to facilitate the reliable
+                                                                               separation of MPCs [32]. As an example, the top left of Fig. 1
+                                                                               illustrates the antenna configuration from [31], [32], where
+as analyzed in detail in [11]. Here, the number of antenna                     UWB radios are used according to the IEEE802.15.4 stan-
+elements is also related to a diversity gain in (dense) multipath              dard.
+channels [12]–[14], which reduces the bandwidth needed for                        With the newly proposed ‘‘phase-based ranging’’ exten-
+a targeted performance.                                                        sion [33], accurate delay and angle estimation also becomes
+   Recent works [8], [15]–[18] build on leveraging SMCs                        applicable to Bluetooth Low Energy signals. However,
+for positioning if a sufficient signal bandwidth and/or num-                   it remains to be investigated if a multipath-based position-
+ber of antennas is accessible to enable high time and angle                    ing system can be realized with this technology. Further-
+resolution. Each SMC carries position-related information                      more, switched directive antennas were also proposed for
+stemming from its delay only [15] or from its delay, angle-                    RSS-based indoor positioning [34], [35]. In [36], the CRLB
+of-departure (AoD), and angle-of-arrival (AoA) [16], [17],                     was derived for RSS-based indoor positioning using switched
+leading to a reduced need for infrastructure (number of fixed                  directive antennas.
+anchors) and/or an increased redundancy (robustness). How-                        Both analog/hybrid beamforming as well as switched
+ever, to exploit this information, it is necessary to model the                antenna systems are not capable of acquiring coherent mea-
+relationship between parameters that characterize the SMCs                     surements for conventional phase-based array processing,
+and the position/orientation of a mobile agent. A geometric                    because signals from multiple antennas are measured consec-
+model of the environment can serve for this purpose. In the                    utively rather than in parallel. Phase coherence between such
+most simple case, this model consists of a set of virtual                      consecutive measurements is very hard to achieve, given the
+anchors (VAs) — mirror images of the physical anchor at flat                   high demands on radio-frequency oscillators and the poten-
+surfaces [8], [19] — as illustrated in Fig. 1. Multipath-based                 tial dynamics of the environment, especially with mm-wave
+positioning systems face the challenge of acquiring such                       radios [28].
+maps of environment features. The works in [16], [17] con-
+sider the impact of estimating these map features on the                        B. CONTRIBUTIONS OF THE PAPER
+Fisher information of the position and orientation error.                      In this work, we analyze a single-anchor positioning sys-
+In [20]–[24], simultaneous localization and mapping algo-                      tem exploiting SMCs, which is capable of acquiring chan-
+rithms are presented that estimate the environment map from                    nel impulse response measurements with a set of different
+consecutive measurements, achieving accurate and robust                        directive antennas. Potentially, these measurements are not
+position tracking of a mobile agent in challenging indoor                      phase-coherent with respect to one another. We derive the
+environments. In [8], [25], the use of mm-wave antenna                         CRLB on the position error to evaluate the theoretical per-
+arrays was discussed for multipath-based indoor positioning.                   formance limit of this positioning system, in comparison to
+   All these references show that coherent antenna array sys-                  a conventional antenna-array system and a single-antenna
+tems are advantageous for robust high-accuracy positioning.                    setup. An illustration of both antenna setups is shown
+
+88116                                                                                                                                       VOLUME 8, 2020
+M. Rath et al.: Single-Anchor Positioning: Multipath Processing With Non-Coherent Directional Measurements
+
+
+
+
+in Fig. 1. For conventional coherent processing, the anchor                      where δ(·) denotes the Dirac delta function. This equation
+is equipped with an array of antennas of known geometry                          describes the superposition of MPCs that originate from
+radiating in an isotropic manner (shown on the right for                         reflections in the environment. For the sake of simplicity,
+a rectangular constellation). For so-called ‘‘non-coherent’’                     we assume a two-dimensional scenario with horizontal-only
+processing, a set of directional antennas is used with known                     propagation (in the azimuth plane).1 The rational behind the
+beampatterns (as shown on the left). We also consider the                        selection of the model in (1) is that for radio measurements
+DMC to model the interference effect of non-specular mul-                        conducted with a finite observation aperture in space and
+tipath components in a more realistic form in contrast to an                     frequency, not all MPCs can be resolved in distinct SMCs.
+AWGN model.                                                                      Therefore, we assume that separated MPCs are collected
+   We significantly extend our initial error bound analy-                        into a set of k = 1 . . . K SMCs and all unresolvable MPCs
+sis provided in [32], in particular, a detailed analysis of                      originating for example from diffuse scattering are described
+AoA information has been included yielding guidelines                            by a DMC [39], [40]. Each SMC is described by amplitude
+for the design of antenna radiation patterns. Furthermore,                       αk , phase ζk , AoA φk and delay τk . The latter two parameters
+we describe a positioning algorithm based on our previous                        can be related to the agent position via the geometry of the
+work in [31], [37], [38] and analyze its performance in com-                     environment as exemplified in Fig. 1 (for the delay, the cor-
+parison to the CRLB, using synthetically generated data as                       responding path length dk is shown). This will be described
+well as measured data. Our specific contributions are:                           in detail in Sec. II-D. The DMC ν(φ, τ ) ∈ C is modeled as
+   • We analyze the CRLB for a multipath signal model, con-
+                                                                                 a complex circular (i.e. zero-mean) Gaussian random pro-
+     sidering non-coherent antenna arrays with directional                       cess [40], [41]. Assuming uncorrelated scattering (US) in the
+     beampatterns in comparison to conventional coherently                       delay and angular domains, the auto-correlation function of
+     processed antenna arrays (Sections III & IV).                               ν(φ, τ ) is given by
+   • We quantify the contributions of delay and angle infor-                            Rνν (φ, φ 0 ; τ, τ 0 ) = Sν (φ, τ ) δ(φ − φ 0 ) δ(τ − τ 0 )       (2)
+     mation of SMCs to the position information, taking into
+                                                                                 where Sν (φ, τ ) describes the azimuth-delay power spec-
+     account self-interference by the DMC (Section V).
+                                                                                 trum [39] at the anchor position.
+   • We develop and analyze positioning algorithms for the
+     non-coherent directional antenna array (Section VI).
+                                                                                 B. RECEIVED SIGNAL MODEL
+C. NOTATIONS                                                                     The anchor node employs an antenna array which consists of
+Boldface upper case letters represent matrices. Boldface                         M antennas, each of which exhibits a beampattern bm (f , φ).
+lower case letters denote column vectors. Superscripts T , ∗                     When referring to the general anchor position, we use a1
+and H denote matrix transpose, complex conjugation and                           which is defined to be the mass point of the antenna array.
+Hermitian transpose, respectively. The Kronecker product is                      On the other hand, the position of the mth antenna ele-
+denoted with ⊗. k·k is the Euclidean norm. | · | represents the                                                       (m)
+                                                                                 ment at the anchor is denoted by a1 . The agent transmits
+absolute value. Â denotes an estimate of A. I [ · ] represents the              a lowpass-equivalent signal s(t) modulated by carrier fre-
+identity
+        matrix with dimension denoted in the subscript [ · ].                   quency fc and the anchor receives signal rm (t) using antenna
+E · denotes the expectation operator.                                            m.2 We aim for a compact description and introduce the
+                                                                                 following assumptions.
+II. PROBLEM FORMULATION                                                             • For the antennas at the anchor, in frequency domain,
+We consider the task of finding the position p of an agent                            we assume identical beampatterns over all relevant
+node using radio signal measurements from one anchor node                             frequencies, i.e., we use bm (f , φ) = bm (φ) for the
+located at known position a1 . We first examine the complete                          complex-valued azimuth antenna gains.
+channel model and extract an approximation that contains                            • For the time-domain description of radio waves imping-
+position-related parameters. Then, we consider the received                           ing at the antenna elements, we make use of the far-field
+signal model to describe the recorded observations that will                          plane-wave assumption, i.e., we assume planar wave
+be used to determine the agent position. Finally, we describe                         fronts instead of spherical ones.
+how the channel parameters are related to the geometry of the                       • Introduced time delays at antenna elements in relation
+environment.                                                                          to the mass point will be only considered in terms of
+                                                                                      a phase change, i.e., the time delay of the signal enve-
+A. CHANNEL MODEL                                                                      lope will be neglected. This is usually referred to as
+The radio channel between the agent at position p and the                           1 An extension to three dimensional scenarios with horizontal and vertical
+anchor at position a1 is described with the spreading func-                      propagation is straightforward, but it would lead to cumbersome notations
+tion [39] according to                                                           without bringing significant additional insights.
+                                                                                    2 Note that we assume that the anchor and the agent are synchronized. This
+                                                                                 can be achieved by using a two-way transmission protocol [42]. However,
+                 K
+                 X                                                               the proposed model can be extended to non-synchronized anchor-agent
+    h(φ, τ ) =         αk ejζk δ(φ − φk ) δ(τ − τk ) + ν(φ, τ )        (1)       links along the lines of [15] (based on the fact that the relevant geometric
+                 k=1                                                             information is also contained in the time differences of the SMCs).
+
+VOLUME 8, 2020                                                                                                                                         88117
+                                                            M. Rath et al.: Single-Anchor Positioning: Multipath Processing With Non-Coherent Directional Measurements
+
+
+
+
+      the narrowband/wideband assumption3 and it is fair to                               where we applied the US assumption from (2). It should
+      use since the envelope information is negligible with                               be noted that this assumption also allows us to use the
+      respect to the phase information, especially in practical                           same stochastic process ν(φ, τ ) for all antenna elements,
+      situations [11], [13], [14].                                                        because the assumption implies homogeneity in the spatial
+   We apply these assumptions to obtain the received sig-                                 domain [44, Ch. 2.4].
+nal at antenna m via convolution of the spreading function
+in (1) with the transmitted signal s(t) and antenna response                               C. DISCRETE-TIME SIGNAL MODEL
+          (m)
+bm (φ)ejζ (φ) resulting in                                                                In a practical system, the anchor acquires N samples of the
+           ZZ                                                                             received signal sampled with frequency fs = 1/Ts such that
+                         (m)
+                bm (φ)ejζ (φ) s t − τ h(φ, τ ) dφ dτ + wm (t)                             [rm ]i = rm ( [i − 1] · Ts ), i = 1 . . . N and stacks them into the
+                                     
+  rm (t) =
+                                                                                          observation vector r = [rT1 , . . . , rTM ]T ∈ CMN ×1 , given as
+            K
+            X
+        =         bm (φk )αk ejζk,m s(t − τk )+rmDM (t)+wm (t)                  (3)                                   r = x(θ ) + n.                              (7)
+            k=1                                                                           Here, we have on the one hand the SMC-related term x(θ) as
+which can be separated in three distinct parts: The first                                 a function of the SMC parameters θ , and on the other hand
+part contains the position-related SMC parameters {φk } and                               the DMC and noise related term n. In the following, we will
+{τk } which shift and scale the transmitted signal. The sec-                              describe these two terms in detail.
+ond part rmDM (t) is a stochastic process characterizing
+the self-interference due to the DMC. Finally, measure-                                   1) SMCs
+ment noise wm (t) is modeled as additive white Gaussian                                   The SMC part of the observation in (7) is described by
+noise (AWGN) with double-sided power spectral density of                                           x(θ ) = [b(φ1 ) ⊗ s(τ1 ), . . . , b(φK ) ⊗ s(τK )] α           (8)
+N0
+ 2 . The SMC-related phase shifts are given as
+                                                                                          with
+                          ζk,m = ζ (m) (φk ) + ζk                               (4)
+                                                                                            s(τk ) = [s( 0 · Ts −τk ), . . . , s( [N − 1] · Ts −τk )]T ∈ RN ×1
+where ζ (m) (φ) captures the antenna related phase shift and ζ                     k           α = [α1 , . . . αK ]T ∈ RK ×1
+the radio channel related one.                                                                      h                                       iT
+   In the case of coherent array processing, only the K radio                               b(φk ) = b1 (φk )ejζk,1 , . . . , bM (φk )ejζk,M ∈ CM ×1 .
+channel related phase shifts ζk are unknown in (4) and the sys-                           The parameter vector θ contains the SMC parameters
+tematic phase-offset introduced by the placement of antenna                                                    h               iT
+m w.r.t. reference position a1 is given as                                                                θ = φT, τ T, αT, ζ T                                    (9)
+                  ζ (m) (φ) = 2π fc τ (m) (φ)                                             where its components are of dimension RK ×1 . Of special
+                                         d (m)
+                               = 2π λ cos φ − φ                (m)                        mention is the phase parameter ζ , which is only of the same
+                                                                   
+                                                                                (5)
+                                                                                          dimension if coherent processing is performed, i.e., if the
+where τ (m) (φ) is the time delay due to the distance of the                              antenna phases are determined by (5). However, our focus
+                                   (m)
+antenna elements (situated at a1 ) relative to the phase center                           will be on the non-coherent case where ζ ∈ R(KM )×1 contains
+at a1 , d (m) and φ (m) denote the distance and angle of the mth                          all phase shifts ζk,m , since they are all unknowns. Hence,
+antenna w.r.t. a1 (cf. Fig. 1), and λ is the wavelength at fc .                           in this case, the stacked parameter vector θ is of dimension
+In the case of non-coherent processing, all measurements at                               R(3K +KM )×1 .
+the M antennas have unknown phase-offsets meaning that all
+K · M phase shifts ζk,m given by (4) are unknown.                                         2) DMC AND NOISE
+   The second part of (3) characterizes self-interference                                 The vector n = nν + w ∈ CMN ×1 represents the DMC pro-
+caused by the DMC and it is given as                                                      cess and the measurement noise as a Gaussian process with
+                 ZZ
+                               (m)                                                        covariance matrices
+    rmDM (t) =        bm (φ)ejζ (φ) s(t − τ ) ν(φ, τ ) dφ dτ.
+                                                                                                          Cn = C v + σw2 I MN ∈ CMN ×MN                         (10)
+We look at correlation properties of this signal for a pair of                            where σw2 = N0 /Ts is the measurement noise variance and
+antennas                                                                                  C v is the DMC covariance matrix. For the DMC covariance
+                                                                                          matrix we need to take correlations between antenna elements
+     E rmDM (t)(rmDM    0 ∗
+       
+                   0 (t ))
+          ZZ                                                                              into account. To this end, we can separate C v into blocks
+       =      Sν (φ, τ )bm (φ) b∗m0 (φ)                                                   of size N × N , each describing the correlations between one
+                                                                                          pair of antennas indexed as, e.g., (m, m0 ). We may use (6) to
+                      (m) (φ)−ζ (m0 ) (φ 0 ))
+             × ej(ζ                             s(t − τ ) s(t 0 − τ ) dφ dτ     (6)       write one block of the DMC covariance matrix as
+                                                                                                      ZZ
+                                                                                                 0)                                      (m)   (m0 )
+  3 With the narrowband/wideband model, it is assumed that delay and angle                 C (m,m
+                                                                                             v      =     Sν (φ, τ ) bm (φ) b∗m0 (φ) ej(ζ (φ)−ζ (φ))
+domains are separated, i.e., space-frequency cross-product terms are zero
+[43, Ch. 4.2].                                                                                                                       × s(τ )s(τ )H dφ dτ.       (11)
+
+88118                                                                                                                                                  VOLUME 8, 2020
+M. Rath et al.: Single-Anchor Positioning: Multipath Processing With Non-Coherent Directional Measurements
+
+
+
+
+D. RELATING SMCs TO GEOMETRY                                                     The CRLB provides a lower bound on the variance of any
+We describe the SMC parameters contained in θ in more                            unbiased estimator for the model parameters. The FIM, con-
+detail, considering their relation to the agent position. It                     sidering the Gaussian model with known covariance matrix
+should be emphasized that we will use the environment                            Cn , is defined as [47, Chapter 15.7]
+geometry, that is, we assume that each SMC involves the
+                                                                                                              n           o
+                                                                                                     Iθ = 2 < JH     −1
+                                                                                                                 θ Cn J θ              (15)
+reflection on flat surfaces such as wall segments, as shown
+in Fig. 1. These segments can be described by a surface                          where J θ denotes the Jacobian of the signal model with
+normal, or rather in the case of azimuth plane operation, by a                   respect to the elements of a length-Lθ parameter vector
+single segment angle as will be described later. We aim for a                                 h                          i
+compact and efficient computation of the parameters when                              J θ = ∂θ∂ 1 x(θ ) , . . . , ∂θ∂L x(θ ) ∈ RMN ×Lθ . (16)
+                                                                                                                    θ
+anchor and surface positions are known. The SMC delay                            In our case, using non-coherent processing, the number
+(time-of-flight) τk is related to the path length dk by                          of parameters is Lθ = K (3 + M ). We define sub-matrices
+                     τk = 1c dk = 1c kak − pk                         (12)       I ϑϑ 0 [15], where ϑ, ϑ 0 ∈ {φ, τ , α, ζ }. These sub-matrices
+                                                                                 cover all combinations of parameter types to assemble the full
+where c is the propagation velocity. Here, ak is the position                    FIM from (15). The structure of the full FIM I θ using these
+of a VA [8], [45] that results from mirroring the anchor                         sub-matrices can be found in (49), whereas one element [·]k,k 0
+position on a known reflective surface in the environment,                       of I ϑϑ 0 is outlined in (50), both shown in Appendix A.
+as exemplified in Fig. 1 by a2 and a3 . Note that Fig. 7.10 in
+[19, Chapter 7.5] provides a detailed description of this                        B. TOWARDS CRLB: EQUIVALENT FIM
+operation called the image-source principle. For higher-order
+                                                                                 Our main interest concerns the lower bound on the estima-
+reflections, the mirroring process is repeated in the sequence
+                                                                                 tion of the delays τk and AoAs φk , and the resulting posi-
+of reflecting surfaces along the propagation path.
+                                                                                 tion estimation performance. Hence, we want to determine
+   Considering the angle domain, the AoD ϕk at the agent is
+                                                                                 sub-matrices of the inverse FIM, in particular the respective
+given by ϕk = ](ak − p). Using the angles of all involved
+                                                                                 block matrices on the main diagonal related to one type of
+wall segments, the AoD ϕk at the agent can be related to the
+                                                                                 parameter. For this purpose, it is beneficial to define the
+AoA at the anchor node by
+                                                                                 equivalent FIM (EFIM) [10] as
+                                  O (k)
+                                                                                                    fϑ = I ϑϑ − I I −1 I H
+                                                                                                    I                                       (17)
+         φk = (−1)O(k) ϕk − π − 2
+                                  X
+                                       (−1)j φseg
+                                              (k)
+                             
+                                                                      (13)                                       ϑϑ      ϑϑ
+                                                                                                                        ϑϑ
+                                                  j
+                                             j=1                                 where ϑ stacks the vectors of all remaining parameters, i.e.
+where O(k) denotes the order of the reflection associated with                   ϑ = θ \ ϑ. The CRLB on the corresponding parameter can be
+               (k)
+MPC k, and φsegj denotes the angle of the jth involved reflec-                   obtained by computing the inverse of the respective EFIM. It
+tive segment in the propagation path with j = 1, . . . , O(k)                    should be noted that we rearrange the sub-matrices in (49)
+ordered according to the sequence of bounced surfaces. As an                     such that any desired parameter type is in the top left to
+example, see Fig. 1 for the segment angle related to VA a3 .                     make use of this inversion lemma. Numeric evaluation of (17)
+   What remains is the amplitude αk and phase ζk,m . The                         will allow for the evaluation of the CRLB for the respective
+amplitude incorporates effects such as path-loss and reflec-                     parameter vector. The benefit of the EFIM definition is that
+tion losses, whereas the phase incorporates the influence                        the cross-dependence of the estimation of the parameters in ϑ
+of reflections depending on the involved materials. These                        on any other parameters, described by the matrix I ϑϑ , turns
+parameters are not easily related to the geometry and are                        approximately to 0 in many cases. Thus, it becomes sufficient
+thus treated as nuisance parameters in the position estimation                   to derive the inverse of the sub-matrix I ϑϑ , yielding far more
+problem.                                                                         insightful formulations. In the following, we will present the
+                                                                                 derivations of the EFIM for the SMC delay and angle estima-
+III. FISHER INFORMATION OF CHANNEL PARAMETERS                                    tion using the assumptions given in Appendix B that allow
+On the basis of the signal model in (7) and (8), we can exam-                    further insightful discussions in terms of contributions to
+ine the useful information present in observed signals. To this                  position information. Note that in general (17) can be used to
+end, we will determine the Fisher information matrix (FIM).                      compute the CRLB on the position error numerically without
+The elements of this matrix quantify the amount of informa-                      using the assumptions given in (64), (65) and (68). However,
+tion that the observable vector r carries about the unknown                      to gain more insights into the structure of the CRLB, we use
+parameters θ .                                                                   these assumptions in what follows.
+
+A. FISHER INFORMATION MATRIX                                                     C. EFIM FOR SMC DELAY ESTIMATION
+The FIM I θ on the parameter vector θ is used to obtain the                      Based on the assumptions (64), (65) and (68) in Appendix B,
+Cramér-Rao lower bound (CRLB) [46], [47] for an estimated                        the EFIM for delay estimation can be derived as (61) given
+parameter vector of θ̂ via                                                       in Appendix A. It can be rearranged in the following form
+                                     
+               E kθ − θ̂ k2 ≥ tr I −1   .                                                                                       delay
+                 
+                                                                                                  = 8 π 2 βk2 kb(φk )k2 SINRk ξk
+                                                                                         
+                                    θ                  (14)                               I
+                                                                                          fτ                                             (18)
+                                                                                              k,k
+
+VOLUME 8, 2020                                                                                                                             88119
+                                               M. Rath et al.: Single-Anchor Positioning: Multipath Processing With Non-Coherent Directional Measurements
+
+
+
+
+where                                                                        the non-coherent normalized square array aperture
+                               kṡ(τk )k2H                                                                      1 X
+                                                                                                                           M
+                      βk2 =                                       (19)                          D2b (φ) =            |ḃm (φ)|2                        (23)
+                            4 π 2 ks(τk )k2H                                                                  4π 2 M
+                                                                                                                       m=1
+is the (mean-square) bandwidth of the whitened signal s(τk )                 the EFIM for AoA estimation in (22) can be rewritten as
+and ṡ(τ ) = ∂s/∂τ denotes the derivative of the signal s(τ )
+                                                                                                = 8 π 2 SINRk M D2b (φk ) .
+                                                                                         
+w.r.t. the delay τ , and                                                                 I
+                                                                                         fφ
+                                                                                            k,k
+                                                                                                                                    (24)
+
+                             |αk |2                                           E. COMPARISON TO COHERENT PROCESSING
+                   SINRk =          ks(τk )k2H Ts                 (20)
+                              N0                                             For a conventional antenna array with coherent processing,
+                                                                             we obtain (cf. [11], [13])
+is the signal-to-interference-plus-noise-ratio (SINR), quanti-
+fying the level of DMC plus noise interference in one SMC.                                          = 8π 2 SINRk M D2λ (φk )
+                                                                                           
+                                                                                            I
+                                                                                            fφ
+                                                                                                k,k
+                                                                                                                                   (25)
+We use k · k2H to denote the squared weighted norm (taking
+the noise model into account) which is described by (67) in                  with
+                            delay
+Appendix B. The factor ξk         ∈ [0, 1] can be interpreted as                                    1 X
+                                                                                                          M    
+                                                                                                                   d (m)
+                                                                                                                           2
+                                                                                        D2λ (φ) =                               sin2 φ − φ (m)
+                                                                                                                                                 
+the information loss on the SMC delay estimation induced by                                                                                            (26)
+                                                                                                    M                λ
+the complex amplitude estimation in the DMC [12], [15], and                                              m=1
+it is given in (61) in Appendix A. We introduce the whiten-                  which will serve as a reference result. The factor (26) has been
+ing gain γk = βk2 /β02 , where β02 = kṡ(τ )k2 /(4π 2 ks(τ )k2 ) is          interpreted as a coherent normalized squared aperture that
+the mean-square bandwidth of signal s(τ ), and the effective                 scales the amount of angle information available. (Note the
+         ] k = SINRk γk ξ delay . Then, the EFIM for delay
+SINR, SINR                                                                   similarity to the scaling of delay information by the squared
+                              k
+estimation in (18) can be rewritten as                                       bandwidth.) The accompanying array response beampattern
+                                  M                                          using (5) is given by
+                                  X
+                           π  β
+                             2 2
+                                    |bm (φk )|2 SINR
+                
+              I
+              fτ
+                   k,k
+                       = 8      0
+                                                ]k                (21)                          1 X
+                                                                                                     M                      
+                                                                                                              (m)
+                                m=1                                                  bλ (φ) =       exp j2π d λ cos φ − φ (m) .                        (27)
+                                                                                                M
+                                                                                                    m=1
+which is equivalent to what was shown in [12], with the dif-
+ference that there is a weighting by the squared beampattern                 For a numeric comparison of the squared apertures from (23)
+values, hence a gain dependent on the directionality.                        and (26), it is convenient to write the beampattern of antenna
+                                                                             m as a Fourier series,
+D. EFIM FOR SMC AoA ESTIMATION                                                                                              ∞
+                                                                                                                            X             2π
+We follow an analogous approach for the EFIM of the AoA                                bm (φ) = b(φ + m 2π
+                                                                                                        M)=                        c` ej`m M ej`φ      (28)
+estimation, i.e., we use the assumptions (64), (65) and (68)                                                               `=−∞
+in Appendix B. The EFIM for AoA estimation in (62),                          where coefficients c` describe the generic beam pattern b(φ)
+in Appendix A, can be rearranged in the following form                       which is rotated by m 2π M for antenna m. For non-coherent
+                                           angle                             processing, a real-valued beampattern is assumed, hence
+                    = 2 SINRk kḃ(φk )k2 ξk
+          
+           I
+           fφ
+                k,k                                                          c` = c∗−` . Straightforward manipulations yield
+                                            M
+                                    angle
+                                            X                                                                 ∞       ∞
+                      = 2 SINRk ξk                |ḃm (φk )|2    (22)
+                                                                                                                                c` c∗`−ηM ejηM φ
+                                                                                                              X       X
+                                                                                        kb(φ)k2 = M                                                    (29)
+                                            m=1
+                                                                                                          η=−∞ `=−∞
+where ḃ(φ) = ∂b/∂φ with ḃm (φ) = ∂b/∂φ denoting the                        where the inner sum is the autocorrelation of the Fourier
+derivative of the mth antenna’s beampattern w.r.t. φ. The                    coefficients, c` , at lags ηM . For η = 0, this expression cor-
+         angle
+factor ξk       ∈ [0, 1] can be interpreted as the information               responds to a constant squared norm, whereas for |η| ≥ 1,
+loss on the SMC AoA estimation induced by the complex                        deviations from this constant are quantified. The deviations
+amplitude estimation in the DMC, and it is given in (62) in                  have a periodicity of 2π M , obviously.
+Appendix A.                                                                     We can use this insight to design antenna patterns that
+   A common property of antenna characteristics is an                        minimize or avoid fluctuations of kb(φ)k2 as a function
+approximately symmetric beampattern, i.e., the beampattern                   of φ, which is important to yield uniform delay infor-
+can be described by an even function. In this case, due to                   mation, independent of φk , cf. (18). Such constant delay
+the property of even functions exhibiting an odd function                    information will be obtained when only coefficients     c` 6 = 0
+as derivative, there is orthogonality between the function                   for |`| ≤ (M − 1)/2, yielding kb(φ)k2 = M ` |c` |2 . Nor-
+                                                                                                                             P
+and its derivative amounting to ḃ(φk ), b(φk ) ≈ 0. Therefore,              malizing the
+             angle                                                                       P energy of the beam pattern to one, i.e.
+we have ξk         ≈ 1 in (62) neglecting the information loss               kb(φ)k2 = ` |c` |2 = 1, we get kb(φ)k2 = M . It is seen that
+related to the angles in the upcoming derivations. Introducing               an SINR gain by a factor of M is obtained, which is identical
+
+88120                                                                                                                                          VOLUME 8, 2020
+M. Rath et al.: Single-Anchor Positioning: Multipath Processing With Non-Coherent Directional Measurements
+
+
+
+
+to the SINR gain obtained with conventional coherent pro-
+cessing [12], [13].
+   To gain insight in the equivalent aperture value of the
+non-coherent antenna configuration, we analyze the expres-
+sion (23). We re-use the Fourier series representation of bm (φ)
+from (28), to reformulate (23) as
+                     ∞  ∞
+               1 X X
+  D2b (φ) =               `c` (` − ηM )c∗`−ηM ejηM φ                  (30)
+              4π 2 η=−∞
+                              `=−∞
+
+where the inner sum is the autocorrelation of the Fourier
+coefficients of the beampattern derivative, `c` , at lags ηM .
+   Again, this expression corresponds to a constant for η = 0,
+whereas for |η| ≥ 1, deviations from this constant are quan-
+tified, which are periodic with 2πM.
+   We can use this insight to design antenna patterns that
+minimize or avoid fluctuations of the angle information as a
+function of φ. In particular, constant angle information will be
+obtained when only coefficients c` 6 = 0 for |`| ≤ (M − 1)/2,
+yielding                                                                         FIGURE 2. Beampattern design using M = 4 antennas to generate (a) a
+                                                                                 Dirichlet shape and (b) a raised-cosine shape. The left plots show the
+                                                                                 choice of Fourier coefficients c` for (a) ` = {−1.5, −0.5, 0.5, 1.5} and
+                                      (MX
+                                        −1)/2                                    (b) ` = −2 . . . 2 (where c` = 0 for |`| > 2); the right plots show the
+                               1
+                 fb 2 (φ) =
+                 D                                 `2 |c` |2 .        (31)       resulting beampatterns and the equivalent apertures obtained
+                              4π 2                                               via (28)-(30).
+                                     `=−(M −1)/2
+                            √
+Choice of a constant c` = 1/ M for |`| ≤ (M − 1)/2 yields
+a Dirichlet kernel for the beam pattern with normalized
+energy kb(φ)k = 1. It will have an equivalent squared aper-
+ture
+                                      1 M2 − 1
+                      fb 2 (φ) =
+                      D                                               (32)
+                                     4π 2 12
+which scales quadratically in the number of array elements.
+Fig. 2 exemplifies beampattern designs for a setup of M = 4
+antennas. On the one hand, we have the previously described
+choice of uniform Fourier coefficients, shown on the left of
+Fig. 2a and the accompanying shape shown on the right,
+where a constant equivalent aperture is achieved. For compar-
+ison, in Fig. 2b we show a choice of coefficients that results
+in a raised-cosine shape, which means reduced sidelobes for
+the beampattern shape at the cost of a ripple in the equivalent
+aperture, i.e., varying delay and AoA information for differ-
+ent directions.
+   Comparison to a uniform linear array with coherent pro-                       FIGURE 3. Array responses of coherent antenna arrays using M = 4
+cessing and λ/2-spacing [13, Eq. (33)] reveals the same                          antennas, steered towards an angle of π2 for (a) a uniform linear array
+                                                                                 and (b) a rectangular array. The left plots show the array geometry
+scaling with M and an increase by a factor of π 2 in broad-                      (anchor antenna positions) and the right plots show the resulting array
+side direction. The improvement is apparently at the cost                        responses and equivalent apertures obtained via (26) and (27).
+
+of information in end-fire direction. In a uniform circu-                                        √
+lar array, a constant D2λ (φ) ≈ M 2 /(16π 2 ) is obtained (for                   by a factor of 3 for the non-coherent case. We will fur-
+M  1) which differs from (32) by a factor of 3. Fig. 3 shows                    ther evaluate and compare the two antenna configurations in
+illustrations of these array geometries with accompanying                        Section V by means of numerical results.
+array responses (see [48, Sec.3]) and information gains for
+a steering in direction π2 . These results demonstrate the close                 IV. ERROR BOUND FOR POSITIONING
+correspondence between the angle information retrieved from                      This far, we derived the full FIM and EFIMs for our param-
+the non-coherent antenna setup and a conventional, coherent                      eter vector θ . In the following, we evaluate the obtain-
+array. The root-EFIM of the angle parameter will be reduced                      able position accuracy for our measurement model. For that
+
+VOLUME 8, 2020                                                                                                                                       88121
+                                            M. Rath et al.: Single-Anchor Positioning: Multipath Processing With Non-Coherent Directional Measurements
+
+
+
+
+matter, we determine the CRLB for the agent position, termed               C. PEB USING EFIM
+position error bound (PEB) [10]. The PEB acts as a compre-                We use the EFIMs (21) and (24) to get a closed-form solution
+hensible quality measure that can be used as a benchmark for              for (37), in order to obtain an insightful formulation. To
+practical estimators.                                                     make use of the EFIMs, it is beneficial to define subsets of
+                                                                          the Jacobian from (35) that contain only the position-related
+A. GENERAL PEB                                                            parameters described by
+When the FIM is available for the observation model param-
+                                                                                          J τ = ∂p∂ T τ , J φ = ∂p∂ T φ ∈ RK ×2 .
+eters, we can relate it to the PEB via a parameter transforma-
+tion [10]. As a first step, we introduce a new parameter vector           The parameter transformation (36) enables the use of the
+                      h            iT                                     inversion lemma (17) to compactly obtain the EFIM for the
+               ψ = pT , α T , ζ T ∈ RLψ ×1 .               (33)           agent position via
+Here, we have the actual desired quantity, the agent posi-                                        = J Tτ I          φ φJφ.
+                                                                                                         fτ J τ + J T I
+                                                                                           
+                                                                                    I
+                                                                                    fp = I ψ
+                                                                                              2×2
+                                                                                                                      f
+tion p, but we still have to include the SMC amplitudes
+and phases as nuisance parameters. Since we have D = 2                    With this, the full EFIM for the agent position is described by
+dimensional positions and again phases ζk,m , we obtain                                 K
+                                                                                        X βk2
+Lψ = D + K (M + 1) for the respective number of parame-                    fp = 8π 2
+                                                                           I                            ] k Dr (ϕk )
+                                                                                              kb(φk )k2 SINR
+ters. We relate the original parameter vector to the new one                              c2
+                                                                                        k=1
+via the Jacobian
+                                                                                                                                          !
+                                                                                                      D2b (φk )
+                                                                                                                  M SINRk Dr ϕk − π2
+                                                                                                                                         
+                       
+                              02K ×K (M +1)
+                                                                                                 +                                             (38)
+                Jψ = Jp                                 (34)                                            dk2
+                                I K (M +1)
+where matrix J p describes the spatial gradients defined by               where Dr (ϕ) = e(ϕ)eT (ϕ) is the ranging direction
+                   h                      i                           matrix [10]. For each SMC, we can see an information gain
+    J p = ∂p∂ T θ = ∂p∂ 1 θ , . . . , ∂p∂D θ    ∈ RLθ ×D . (35)           in radial direction via delay information (quantified by the
+                                                                          squared bandwidth and the speed of light, i.e., βk2 /c2 ) and
+Together with the parameter FIM from (49), we obtain the                  in tangential direction via angle information (quantified by
+FIM for the new parameters                                                the non-coherent squared antenna aperture and the SMC
+                I ψ = J Tψ I θ J ψ ∈ RLψ ×Lψ .                 (36)       distance, i.e., D2b (φk )/dk2 ).
+
+The CRLB for ψ is related to the inverse of this matrix                    V. NUMERICAL RESULTS
+(cf. (14)). However, we are interested in the positions only,             This section aims at a numeric validation of the potential of
+hence we look at the trace of the top left of the inverse that            the beampattern-enhanced, non-coherent positioning system.
+defines the PEB with                                                      We evaluate the PEB for specific scenarios in indoor envi-
+                        s 
+                              h     i                                    ronments. Three setups are used to compare the performance
+               PEBp = tr I ψ     −1
+                                           .             (37)             obtained by the proposed non-coherent array with a con-
+                                        D×D
+                                                                          ventional coherent array and a reference setup with a single
+Taking the square of the right-hand side results in what is               antenna.
+commonly known as the squared PEB, which quantifies the
+lower bound on the variance of the absolute position error.                A. EVALUATION SETUP
+                                                                          We assume given wall segments that form rooms with simple
+B. SPATIAL GRADIENTS                                                      geometries and a given anchor position a1 . The number of
+For the spatial gradients (35), we apply the derivative with              dedicated wall segments is denoted by Kseg . The anchor posi-
+respect to the agent position to the parameter definitions                tion is used together with the wall segments to determine VAs
+in (12) and (13), resulting in                                            via mirroring operations, as described in Section II-D. With
+                ∂         1                                               the VA positions, the parameters τk and φk are determined as
+               ∂p (τk ) = c e(ϕk )                                        described by (12) and (13), respectively. We consider up to
+               ∂           1
+               ∂p (φk ) = dk (−1)
+                                   O(k)
+                                        e(ϕk − π2 )                       second-order reflections, which means the number of consid-
+               ∂               ∂                                          ered SMCs is given by K ≤ Kseg (Kseg − 1) + 1. Note that for
+               ∂p (αk ) = 0 ; ∂p (ζk,m ) = 0                              each agent position, VA visibility tests are performed, which
+where e(ϕ) denotes a unit vector pointing in the direction of             may reduce this number on an individual basis [49]. The
+the AoD ϕ. Furthermore, we assume that the amplitudes α do                real-valued amplitudes αk are simulated using the free space
+not depend on the agent position p. Since the phases ζ stem               path-loss model, whereas each reflection results in a loss
+from reflection properties and the measurement device, it is              of 3 dB. Additionally, phases are applied to the amplitudes
+evident that they are also unrelated to the agent position. With          according to ej2πfc τk . For the agent positions, a uniformly
+this, we can assemble the Jacobian from (34) and follow the               sampled grid is spanned over the floorplan of the room with
+derivations until (37) to obtain the PEB.                                 a spacing of 2 cm.
+
+88122                                                                                                                                  VOLUME 8, 2020
+M. Rath et al.: Single-Anchor Positioning: Multipath Processing With Non-Coherent Directional Measurements
+
+
+
+
+                                                                                 which relates the received LOS component energy at a dis-
+                                                                                 tance of 1 m from the anchor to the noise power spectral
+                                                                                 density. Additionally, we define the receiver SNR as
+                                                                                                             PK               2
+                                                                                                              k=1 αk s(τk )       Ts
+                                                                                                   SNRr =                                  (40)
+                                                                                                                   N0
+                                                                                 where the parameters αk and τk are determined for a specific
+                                                                                 agent (‘‘receiver’’) position. This quantity takes distance and
+                                                                                 visibility conditions of the SMCs into account (e.g., K might
+                                                                                 be reduced due to non-visible SMCs) and thus relates to the
+                                                                                 impact of the propagation channel for a selected measurement
+                                                                                 noise level.
+                                                                                    Fig. 4 illustrates the channel parameters (SMC and DMC)
+                                                                                 for two example agent positions, in Fig. 4a for an agent posi-
+                                                                                 tion where the LOS and four SMCs are visible, and in Fig. 4b
+                                                                                 for an agent position where the LOS is blocked and only two
+                                                                                 SMCs are visible. For visualization purposes, only first-order
+                                                                                 SMCs are considered, i.e., we have K ≤ 7. The AWGN level
+                                                                                 is shown for two N0 values where SNR(1m) = 30 dB and
+                                                                                 SNR(1m) = 50 dB. In Sec. VI, a positioning algorithm will
+                                                                                 be presented and evaluated on these simulated data.
+
+                                                                                 B. PEB RESULTS FOR DIFFERENT SETUPS
+                                                                                 We evaluate the PEB described in (37) for each agent posi-
+FIGURE 4. Visualization of the synthetic data: the power of used SMCs,           tion, where we use both the full FIM, whose elements were
+DMC and AWGN is illustrated in log-scale (dB) for (a) a LOS case at agent
+position p = [6, 6]T and (b) a non-LOS case at agent position                    computed using (49) (the respective sub-matrices are given
+p = [3.7, 1.8]T . Two reference AWGN levels are shown using (39) with the        in (51)-(56)), as well as the simplified, canonical EFIM
+given SNR(1m) values. The respective SNRr values obtained using (40) are         from (38). We also select representative agent positions
+(a) SNRr = 20 dB / 40 dB; and (b) SNRr = 9 dB / 29 dB.
+                                                                                 to show the respective scaled error ellipses that illustrate
+                                                                                 the components of the PEB in 2D-space. Throughout this
+   To provide a context to previous work, we consider an                         section, we choose N0 (and in turn σw2 ) such that we get
+‘‘L-shaped’’ room, as shown in Fig. 5, which was also                            SNR(1m) = 29.5 dB as a reference value.
+used in [15]. Hence, with Kseg = 6 wall segments present,                           Setup 1: Single omni. First, we recreate the results
+the number of usable SMCs amounts to K ≤ 31. We also                             from [15], examining the PEB for the multipath model con-
+consider the same pulse signal for s(t) as in [15], using a root-                sidering only a single omni-directional antenna at the anchor.
+raised-cosine waveform with roll-off β = 0.6 and bandwidth                       Hence, we set M = 1 and bm (φ) = √1 . The resulting PEB
+                                                                                                                        2π
+1/Tp = 1 GHz at a carrier frequency of fc = 7 GHz. For the                       values are shown in Fig. 5a. While the setup allows for overall
+DMC, we use the assumptions in (64) and (68), resulting in                       low PEB values due to the good resolution in delay domain,
+a block diagonal covariance matrix Cn with identical blocks                      we can clearly see regions where the bound sharply decreases,
+for each antenna. We use a delay power spectrum Sν (τ ) which                    caused by non-resolvable SMC path overlap.
+exhibits a double-exponential shape as defined in [41] by                           Fig. 8 shows the cumulative frequency of PEB values over
+Eq. (9) and illustrated in Figs. 4a and 4b. The used parameters                  the agent positions to quantitatively compare the positioning
+are γ1 = 20 ns, γrise = 5 ns and χ = 0.98, representing the                      performance for the results illustrated in Fig. 5. The degra-
+decay and rise exponents and the relative power at excess                        dation in positioning accuracy due to path overlap is visible
+delay zero, respectively. The power parameter 1 is chosen                       when considering the 90 percentile and above, where the error
+                                             (1m)
+such that we reach a Ricean K-factor of |α1 |2 / 1 = 10 dB                      increases to multiple decimeter.
+                                                          (1m)                      Setup 2: Array processing (coherent). We increase the
+for the line-of-sight (LOS) component energy, where α1 is
+                                                                                 antenna number to M = 4 and assume a conventional array
+the complex amplitude of the LOS component at a distance
+                                                                                 with coherent phase processing. The antennas are on a cir-
+of 1 m from the anchor. The power spectrum was aligned
+                                                                                 cle with a constant radius d (m) and φ (m) = π2 · m, such that
+in time with the LOS component, i.e., it was shifted by τ1 .
+                                                                                 an inter-antenna spacing of λ/2 is achieved, as illustrated
+To define the signal-to-noise ratio (SNR) of the synthetically
+                                                                                 in Fig. 3b. To use phase coherent processing, this setup
+generated measurements, we introduce the SNR at 1 m, i.e.,
+                                                                                 requires the antenna phases ζm (φ) to be determined by the
+                                         (1m)
+                                       |α1 |2                                    respective AoA φ. Hence, for this setup, we change the vector
+                       SNR(1m) =                                      (39)       ζ to only include the K random SMC phases ζk , cf. (1).
+                                         N0
+VOLUME 8, 2020                                                                                                                            88123
+                                                  M. Rath et al.: Single-Anchor Positioning: Multipath Processing With Non-Coherent Directional Measurements
+
+
+
+
+                                                                                Non-resolvable path overlap remains only in a few regions,
+                                                                                due to a smaller set of visible SMCs.
+                                                                                   These performance improvements compared to the single
+                                                                                omni setup are quantified in the cumulative frequency plot
+                                                                                shown in Fig. 8, specifically when regarding the 90 percentile
+                                                                                where sub-decimeter levels are achieved.
+                                                                                   Setup 3: Directional beampatterns (non-coherent). Finally,
+                                                                                we apply the proposed non-coherent array of M = 4 direc-
+                                                                                tional antennas. We use a Dirichlet kernel as defined in (28),
+                                                                                                                                           √
+                                                                                described with M non-zero Fourier coefficients c` = 1/ M
+                                                                                for ` ∈ {−1.5, −0.5, 0.5, 1.5}, which is illustrated in Fig. 2a.
+                                                                                Each antenna uses the same pattern but is pointed towards
+                                                                                one of the four cardinal directions. For this setup we consider
+                                                                                the full vector of K · M unknown phases ζk,m . The resulting
+                                                                                PEB is shown in Fig. 5c. The achieved accuracy comes
+                                                                                close to Setup 2, i.e., directional antennas show a similar
+                                                                                capability of resolving the path overlap, only slightly worse
+                                                                                than the coherent omni-array setup. This observation is also
+                                                                                confirmed when regarding the quantitative evaluation shown
+                                                                                in Fig. 8, where we note the resemblance between the results
+                                                                                of the coherent and non-coherent setups.
+                                                                                   Additionally, in Fig. 5d, the PEB is shown for the simpli-
+                                                                                fied, canonical EFIM (38). It can be seen that the simplified
+                                                                                PEB follows closely the full form, justifying the assump-
+                                                                                tion in (65). The only significant differences are present in
+                                                                                selected regions where SMC path overlap occurs. For the
+                                                                                top left position, it is shown how the Fisher information
+                                                                                from (38) affects both the radial and tangential position error
+                                                                                via the information gains from delay and angle information,
+                                                                                respectively.
+                                                                                   Time vs. angle information. With the good achievable accu-
+                                                                                racy of the non-coherent setup, we want to determine the
+                                                                                main contributor to the bounds in terms of position-related
+                                                                                parameters. Specifically, we aim to show how much infor-
+                                                                                mation the SMC delays add compared to the SMC angles.
+                                                                                Also, we are interested in the effect of an increased number
+                                                                                of antennas at the anchor, which puts the system in the context
+                                                                                of mm-wave pencil-beam setups. We use the full FIM of the
+                                                                                non-coherent model with M = 4 and M = 16 antennas to
+                                                                                evaluate the PEB using only delays or angles, respectively,
+                                                                                where the respective unused parameter (either τk or φk ) is
+                                                                                treated as another nuisance parameter.
+                                                                                   The PEB results, considering delay information only, are
+                                                                                shown in Fig. 6. From Fig. 6a, it is evident that the SMC
+                                                                                delays carry the main contribution to the achieved accuracy,
+                                                                                because the results come close to what was achieved with
+                                                                                the full parameter set (cf. Fig 5c). Fig. 6b shows the same
+FIGURE 5. Position error bound using (a) M = 1 omni-directional antenna
+coherently, (b) M = 4 omni-directional antennas (spaced by λ/2)
+                                                                                evaluation using M = 16 antennas, which achieves over-
+coherently, (c) M = 4 directional antennas non-coherently, and (d) M = 4        all slightly better results, however the improvement is not
+directional antennas non-coherently with the canonical FIM according            significant.
+to (38). At sample positions, 20-fold standard deviation error ellipses are
+shown.                                                                             In contrast, Fig. 7 shows the PEB results considering
+                                                                                angle information only. Please note that the PEB is now
+   The PEB for this constellation is shown in Fig. 5b.                          shown in meter, due to the significanty higher error values
+This time, the angle information helps resolving SMC path                       compared to the delay information case. The error ellipses
+overlap while also increasing the overall accuracy, leading                     show that, predominantly, tangential information is provided.
+to a PEB that is dominated by SMC visibility properties.                        Furthermore, a large degradation is evident with an increased
+
+88124                                                                                                                                        VOLUME 8, 2020
+M. Rath et al.: Single-Anchor Positioning: Multipath Processing With Non-Coherent Directional Measurements
+
+
+
+
+FIGURE 6. Position error bound for the non-coherent case using only              FIGURE 7. Position error bound for the non-coherent case using only
+delay information with (a) M = 4 and (b) M = 16 antennas. At sample              angle information with (a) M = 4 and (b) M = 16 antennas. At sample
+positions, 20-fold standard deviation error ellipses are shown.                  positions, standard deviation error ellipses are shown, 1-fold in (a) and
+                                                                                 3-fold in (b).
+
+
+
+distance from the anchor. This is a well-known drawback of                       VI. POSITIONING ALGORITHM
+angle measurements, which can be seen mathematically from                        In this section, we leverage the gained insights and present
+the inverse distance-scaling of the angle term in (38). Using                    a positioning algorithm capable of estimating the agent posi-
+M = 16 antennas greatly increases the positioning perfor-                        tion p given a measurement r. We derive the algorithm based
+mance, which stands in stark contrast to the delay information                   on the received signal model (7) where we identify τ , φ, α
+improvements. The 3-fold standard deviation ellipses show                        and ζ as unknown variables. While τ and φ can be expressed
+that, for positions in LOS conditions, the tangential deviation                  as function of p (see Section II-D), we need to estimate
+is minimized. Note that, for visualization purposes, these                       the nuisance parameters α̂ ≡ α̂(r, p) and ζ̂ ≡ ζ̂ (r, p) jointly
+ellipses are scaled by a larger factor for M = 16, due to the                    with p̂.
+significantly lower PEB values.                                                     The positioning is performed by a maximum likeli-
+   Fig. 9 shows again a quantitative evaluation in terms of                      hood (ML) approach, on the basis of the log likelihood func-
+cumulative frequency for the PEB values of the described                         tion L(r|p, α, ζ ) derived from (7), which will be formulated
+setups using delay and angle information respectively                            later. Two algorithm variants will be given that vary in the
+(cf. Figs. 6 and 7). With delay information, a significantly                     noise model. The ML optimization problem can be formu-
+better performance is achieved. This confirms the observa-                       lated as
+tions from the qualitative PEB analysis, which identifies the
+delay information as the main contributor to accurate position                                        p̂ = argmax L(r|p̄, α̂, ζ̂ )                     (41)
+estimates, justified by the large bandwidth. Increasing the                                                   p̄∈P
+
+number of used antennas to M = 16 decreases the error con-                       where the estimates (α̂, ζ̂ ) result from
+sistently. For the delay information case the accuracy scales
+by a factor of about 2. Considering the angle information                                           (α̂, ζ̂ ) = argmax L(r|p̄, α, ζ )                  (42)
+                                                                                                                 (α,ζ )
+case, the number of antennas has a higher impact. Here, using
+M = 16, the error decreases by a factor of 10. It is expected                    evaluated for one specific position p̄. The non-linear
+that the angle information will surpass the delay information                    relations in (41) prevent a closed-form solution for p̂.
+when M is increased by a factor of 8 to M = 128. However,                        Moreover, an independent estimation of α̂, ζ̂ is infeasible
+this result also depends on the room geometry, since angle                       which sacrifices computational efficiency. As a remedy,
+information drops with dk2 .                                                     we propose to evaluate the log likelihood function in (41)
+
+VOLUME 8, 2020                                                                                                                                        88125
+                                                 M. Rath et al.: Single-Anchor Positioning: Multipath Processing With Non-Coherent Directional Measurements
+
+
+
+
+                                                                               The covariance Cn (m) of the mth antenna is defined in (64)
+                                                                               and the vector xm (p, α, ζ ) ∈ CN is
+                                                                                                                K
+                                                                                                                X
+                                                                                              xm (p, α, ζ ) =         αk,m bm (φk )s(τk )            (45)
+                                                                                                                k=1
+
+                                                                               where we introduced an auxiliary variable αk,m = αk ejζk,m .
+                                                                                   For an independent estimate of the parameters in α and
+                                                                               ζ , we assume that specular reflections do not overlap in the
+                                                                               delay domain as stated in assumption (65). Then, maximiz-
+FIGURE 8. Cumulative frequency of the PEB values evaluated over the
+                                                                               ing (44) w.r.t. αk,m yields
+agent position grid for different antenna setups at the anchor                                                1 hs(τk ), rm iHm
+(quantifying the results shown in Fig. 5).                                                       α̂k,m =                        .                    (46)
+                                                                                                           bm (φk ) ks(τk )kHm
+                                                                               Subsequently, we maximize (43) w.r.t. ζ̂k,m , contained in ζ̂ ,
+                                                                               and the results can be expressed as
+                                                                                                           ζ̂k,m = 6 α̂k,m                           (47)
+                                                                               using α̂k,m obtained from (46). The SMC amplitudes α̂k result
+                                                                               from maximizing (43) w.r.t αk . Again, we assume no SMC
+                                                                               path overlap, and obtain after some derivations
+                                                                                                     PM
+                                                                                                           |bm (φk )|2 |α̂k,m |
+                                                                                              α̂k = m=1PM                       .       (48)
+                                                                                                                          2
+                                                                                                          m=1 |bm (φk )|
+FIGURE 9. Cumulative frequency of the PEB values evaluated over the
+agent position grid for the non-coherent antenna setup at the anchor with      The steps performed by the position estimator can be sum-
+varying number of antennas M, considering only information gained from         marized as follows. To evaluate L(r|p̄, α̂, ζ̂ ) from (41) for a
+the angles φ or delays τ (quantifying the results shown in Figs. 6 and 7).
+                                                                               specific p̄ ∈ P, first, SMC parameters τ and φ are calculated
+                                                                               using (12) and (13) respectively, followed by estimating α̂k,m
+                                                                               via (46). Subsequently, ζ̂ and α̂ result from (47) and (48),
+numerically for positions p̄ ∈ P within the communication                      respectively. Finally, these estimates are plugged into (43)
+range. A straight-forward choice for the set of evaluation                     to calculate L(r|p̄, α̂, ζ̂ ). This procedure is repeated for all
+positions P is a reasonably dense position grid spanned over                   p̄ ∈ P and p̄ with the highest associated likelihood is chosen
+the floorplan of the considered environment, whereas the                       as position estimate p̂ (cf. (41)).
+granularity of this grid poses a lower limit on the position
+error. Alternatively, prior range estimates can be used to                      B. EVALUATION OF THE POSITIONING ALGORITHM
+reduce the set to a sphere around the anchor as proposed
+                                                                               We assess the performance of the presented positioning algo-
+in [37] and evaluated in [31]. Then, to obtain the position
+                                                                               rithm by comparing the mean-squared error (MSE)
+estimate via (41), the likelihood is evaluated for all the chosen                                  v
+agent positions. To further enhance the feasibility of the                                         u 1 NX
+                                                                                                   u        MC
+algorithm, we relax the joint estimation in (42), as shown in                                  =t             kp̂i − pk2
+the following.                                                                                       NMC
+                                                                                                                    i=1
+
+                                                                               between the true p and estimated position p̂i , on the basis of
+A. DERIVATION OF THE POSITIONING ALGORITHM
+                                                                               observation data taken from NMC realizations of rm , where
+An independent estimation of α and ζ is intractable for                        we use both synthetically created data and measurement data.
+the original optimization problem, but possible by assuming                    We compare the performance using two kinds of estima-
+that the measurements rm are independent across m and by                       tors which vary depending on the used noised model: First,
+assuming the absence of overlapping SMCs. Following the                        we follow the derivations in Section VI-A where we assumed
+derivations from [38], we start by factorizing L(r|p, α, ζ )                   knowledge regarding the noise covariance, described by
+using assumption (63), resulting in                                            Cn (m) (see (44)), resulting in an algorithm that makes use
+                                                                               of the DMC statistics, hence we refer to this algorithm as
+                             X
+             L(r|p, α, ζ ) =    Lm (rm |p, α, ζ )       (43)
+                                   m                                           DMC-based (note that the AWGN is also included in the
+                                                                               covariance matrix).4 Second, as a simpler alternative, we use
+with
+                                                                               an estimator with non-accessible Cn (m) where no DMC is
+    Lm (rm |p, α, ζ ) = −det{Cn (m) }                                            4 The proposed DMC-based algorithm can be extended in line with [40],
+                          − σw−2 krm − xm (p, α, ζ )k2Hm .          (44)       [50] to jointly estimate the DMC statistics.
+
+88126                                                                                                                                       VOLUME 8, 2020
+M. Rath et al.: Single-Anchor Positioning: Multipath Processing With Non-Coherent Directional Measurements
+
+
+
+
+FIGURE 10. Mean-squared error  achieved by the proposed position                FIGURE 11. Impact of number of antennas M to the proposed position
+estimators in LOS (indicated by    ) and non-LOS (indicated by     )             estimators in LOS (indicated by     ) and non-LOS (indicated by    )
+conditions using M = 3 antennas. The position error bounds considering           conditions in comparison to PEBp . The AWGN level N0 was set such that
+                                                             AWGN
+dense multipath and AWGN (PEBp ) as well as AWGN only (PEBp       ) are          SNR(1m) = 40 dB.
+shown for comparison. The AWGN level N0 is set using the SNR(1m)
+values from the x-axis in (39). SNRr values obtained using (40) are shown
+for both the LOS and non-LOS case at representative points.                      and diverges from the PEB. At these high SNR(1m) values,
+                                                                                 the AWGN level is very low, hence the DMC is clearly the
+used (this follows the algorithm described in [38]), which can                   limiting factor and only the DMC-based estimator is able to
+be accomplished by replacing Cn (m) in (44) and (46) with an                     approach the PEB.
+identity matrix IN . We refer to this variant of the algorithm as                   To illustrate the impact of the DMC on the achievable
+AWGN-based.                                                                      performance, we calculate a position error bound PEBAWGN     p
+                                                                                 assuming presence of AWGN only (replacing Cn (m) in (64)
+                                                                                 with σw2 I N ). Fig. 10 presents PEBAWGN p      (gray) showing that
+1) SYNTHETICALLY GENERATED DATA
+                                                                                 at low SNR(1m) values both PEBp and PEBAWGN         p     approach
+In the first evaluation, we obtain observations by performing
+NMC = 1000 Monte-Carlo runs. We focus on the potential to                        similar values. Increasing SNR(1m) (and thus SNRr ), both
+estimate positions in LOS as well as in non-LOS conditions,                      PEBs decrease but PEBp saturates due to the constant DMC
+located in the L-shaped room from Section V where agent                          power. This saturation demonstrates again that dense multi-
+positions [6, 6]T and [3.7, 1.8]T correspond to the LOS and                      path effectively limits the achievable accuracy regardless of
+non-LOS case. The signal parameters and beampatterns are                         the AWGN levels of the observations. It has to be emphasized
+identical to Section V. For the SMCs, we use only first-order                    that this unavoidable effect of the radio channel itself cannot
+reflections, hence, we have K ≤ 7. The observations are cre-                     be reduced by increasing SNR(1m) . However, the insight from
+ated using (7). In the first experiment, we keep the DMC                         the theoretical results shows how it can be eased by increasing
+power constant. The experiment is performed for varying                          the signal bandwidth and the number of the antennas or by
+AWGN levels, whereas the noise variance σw2 = N0 /Ts is set                      using directional antennas.
+using (39) such that SNR(1m) values in the range of 10 to                           In the second experiment, we evaluate the impact of num-
+60 dB are obtained. Fig. 4a illustrates the used SMCs in com-                    ber of antennas M . The beampattern is obtained √        using (28)
+parison with DMC and AWGN for the two agent positions                            with M non-zero Fourier-coefficients c` = 1/ M with
+and two AWGN levels.                                                             ` ∈ [− M2−1 , . . . , M2−1 ]. Fig. 11 illustrates the MSE for LOS
+   Fig. 10 presents the MSE achieved comparing the                               and non-LOS conditions achieved by the DMC-based (solid
+DMC-based (solid blue) and AWGN-based (dashed cyan)                              blue) and AWGN-based (dashed cyan) estimators. For the
+estimators using M = 3 antennas for various AWGN lev-                            AWGN, we set N0 such that SNR(1m) = 40 dB, whereas the
+els. The corresponding PEB (black) from (37) is shown for                        remaining parameters are equal to the first experiment. In
+comparison. In general, we can observe that the PEB for                          general, we can observe that the PEB is less sensitive to M ,
+the LOS case is lower, showing the vital position informa-                       e.g. increasing M by a factor of four accompanies with a
+tion contained in the LOS component. In non-LOS condi-                           reduction of the PEB by a factor of two, as anticipated in
+tions the achievable accuracy is decreased and moreover,                         Section III. However, at large M the position estimator has
+the PEB is approached at a higher SNR(1m) value of 45 dB                         more independent observations which enhances the suppres-
+(SNRr = 24 dB) in comparison to LOS conditions where the                         sion of the DMC, as demonstrated in the non-LOS case.
+PEB is approached at SNR(1m) = 25 dB (SNRr = 15 dB).
+   A comparison between the two proposed estimators illus-                       2) MEASURED DATA
+trates the importance of considering the DMC power in                            The second evaluation is performed on the basis of a measure-
+the estimation procedure. At SNR(1m) values above 50 dB,                         ment campaign described in [32] and [38], which was con-
+the position error of the AWGN-based estimator saturates                         ducted in a 6 × 8 m laboratory room with a single anchor at
+
+VOLUME 8, 2020                                                                                                                                    88127
+                                                   M. Rath et al.: Single-Anchor Positioning: Multipath Processing With Non-Coherent Directional Measurements
+
+
+
+
+                                                                                 FIGURE 13. Cumulative frequency of the position error kp − p̂k for the
+                                                                                 algorithms described in Sec. VI-A evaluated over grid agent positions with
+                                                                                 measurement data from the environment shown in Fig. 12.
+
+                                                                                 TABLE 1. |bm (φk )|2 SINRk in dB of the respective SMCs and the four used
+                                                                                 antennas (cf. Fig. 12) obtained using (20) with the estimated amplitudes
+FIGURE 12. Floorplan of the used laboratory environment where the                from (48). The column added contains the sum over all antennas,
+measurement campaign was conducted. The four reflective surfaces that            whereas the entry omni contains the results from [32] using an
+yield specular reflections used by the algorithms are shown as well as the       omni-directional antenna in the same setup.
+beampatterns of the antennas at the anchor, labelled according to the
+four cardinal directions by north (N), west (W), south (S) and east (E). The
+gray rectangles indicate tables and cupboards, which have negligible
+effect onto the azimuth propagation of the SMCs.
+
+
+
+
+position a1 and an agent at position p as illustrated in Fig. 12.
+We consider again first-order reflections only, hence, for this
+room we have K ≤ 5. Four directive antennas were used at                         where we use the amplitude estimates obtained by (48).
+the anchor, whereas the complex-valued beampatterns bm (φ)                       As seen in (38), these quantities indicate the quality of SMCs
+were available as a codebook with a resolution of 10◦ . Mea-                     and highlight how each antenna can be used to focus on par-
+surements to the agent were performed using an Ilmsens                           ticular SMCs from different directions. E.g., we see that the
+Correlative Channel Sounder [51]. Each measurement was                           SMC from the plasterboard east wall achieves a high SINR
+convolved by a raised cosine pulse with a pulse width of                         value from the east antenna measurement. For comparison,
+Tp = 2.4 ns, a roll-off factor of β = 0.9, and a carrier fre-                    we include a sum of the weighted SINRs (similar to what is
+quency of fc = 5.4 GHz. The agent was placed at positions                        used in (38) to quantify the total information collected from
+p on a 15 × 14 grid with 5 cm spacing as shown in Fig. 12,                       each SMC with the multi-antenna system), as well as the
+resulting in 210 measurements in (unobstructed) LOS con-                         SINRs of SMCs using a single omni-directional antenna at
+dition. Both, anchor and agent, were placed at a height of                       the anchor from [32] (the latter were obtained by method-
+1.5 m, leading to reduced floor and ceiling reflections, since                   of-moments estimation). The information gain of specific
+all involved antennas exhibit narrow elevation patterns. For                     directional antennas is highlighted and the overall higher
+the DMC-based algorithm, we estimated Cˆn(m) individually                        performance is justified. A variant of the AWGN-based algo-
+for each antenna using the 210 measurements to estimate the                      rithm was implemented on low-cost devices based on the
+         (m)
+DPS Sˆν (τ ).                                                                    DecaWave DWM1000 module as described in [31]. The sys-
+   For each grid position, the algorithms are used analogously                   tem was evaluated in a field test and put in context with other
+to the synthetic setup and the resulting cumulative frequency                    indoor localization systems in terms of accuracy and required
+of the position error over the grid agent positions is shown                     infrastructure.
+in Fig. 13. For comparison, we include our previous results
+from [32], where this evaluation was performed using an                           VII. CONCLUSIONS
+omni-directional antenna at the anchor. We identify a signif-                    In this article, we investigated a multipath-based, single-
+icant improvement, especially regarding estimation outliers                      anchor positioning system for indoor environments, which
+(i.e. errors of more than half a meter). By consideration of the                 exploits non-coherent angular measurements from a set of
+DMC via Cˆn(m) in the DMC-based method, the result can be                        directive antennas. Such measurements can be obtained
+improved even further. Specifically, the 80 % error is almost                    for example from a mm-wave radio system with analog
+halved from 20 cm for the AWGN-based method down to                              beamforming or a UWB transceiver with switched directive
+12 cm, and the amount of estimates to achieve an error of                        antennas. We derived and analyzed the position error bound
+less than 10 cm goes up from 50 % to 72 %.                                       (PEB), the Cramér-Rao lower bound (CRLB) on the position
+   To gain further insight in the information provided by the                    estimation error, for the proposed measurement system to
+SMCs and the beampatterns, we analyze |bm (φk )|2 SINRk ,                        gain insight about the achievable performance in comparison
+which is shown in Table 1. To obtain the SINRs, we apply (20)                    to a conventional antenna array requiring fully coherent
+
+88128                                                                                                                                         VOLUME 8, 2020
+M. Rath et al.: Single-Anchor Positioning: Multipath Processing With Non-Coherent Directional Measurements
+
+
+
+
+processing of the antenna signals. Analysis of the PEB                           statistics for each antenna, cf. (68), leading to the matrix
+showed that the main contribution to high-accuracy                               elements
+(centimeter-level) positioning lies in the delays of specu-
+lar multipath components (SMCs), whereas the directional                           [I τ τ ]k,k = 2 |αk |2 kb(φk )k2 kṡ(τk )k2H                      (51)
+                                                                                    I φφ k,k = 2 |αk |2 kḃ(φk )k2 ks(τk )k2H
+                                                                                         
+antennas allow overlapping SMCs to be resolved, enhancing                                                                                            (52)
+the robustness of the system. It was shown that non-coherent                                                   2
+                                                                                   [I αα ]k,k = 2 kb(φk )k ks(τk )kH      2
+                                                                                                                                                     (53)
+processing of directional measurements achieves a very sim-                                                n                                  o
+                                                                                     I τ φ k,k = 2 |αk |2 < ḃ(φk ), b(φk ) ṡ(τk ), s(τk ) H
+                                                                                         
+ilar performance compared to a fully coherent antenna array.                                                                                         (54)
+Specifically, the bound on√ the RMS angle estimation error
+                                                                                                                  n                  o
+reduces by a factor of 3 when using the same number                                [I τ α ]k,k = 2 αk kb(φk )k2 < ṡ(τk ), s(τk ) H                  (55)
+                                                                                                         n              o
+of antenna elements, whereas the delay estimation bound                            
+                                                                                     I φα k,k = 2 αk < ḃ(φk ), b(φk ) ks(τk )k2H
+                                                                                          
+                                                                                                                                                     (56)
+remains identical. This is a promising result, indicating that a
+high-accuracy, single-anchor positioning system exploiting                       where ṡ(τ ) = ∂s/∂τ and ḃ(φ) = ∂b/∂φ. We omit the phase
+angle information could be implemented efficiently with                          related matrices, because each I ζ ζ turns zero on the main
+non-coherent (consecutive) measurements. Such measure-                           diagonal due to the inner derivative of the phasor making the
+ments can be conducted with an adaptive, low-power analog                        elements purely imaginary, which removes them via the <{·}
+antenna frontend, reducing the required number of radio                          operator. Only on the off-diagonals there can be non-zero
+chains to a minimum. In this regard, a position estimation                       values, hence the phase influences the estimation of other
+algorithm was derived, showing the achievability of the PEB.                     parameters only when the SMC orthogonality from (65) does
+Indeed, the performance is limited by dense multipath as self-                   not hold.
+interference, not by measurement noise.                                             We observe that there is only an information loss due
+                                                                                 to the estimation of the amplitudes. More specifically, via
+APPENDIX A
+                                                                                 the inversion lemma from (17), we obtain the full EFIM of
+DERIVATION OF EFIM
+                                                                                 position related parameters ϑ ∈ {φ, τ } as
+GENERAL FIM
+The FIM for signal model (7) can be assembled by                                                             I
+                                                                                                             fϑ = I ϑϑ − ILϑ                         (57)
+sub-matrices I ϑϑ 0 with ϑ, ϑ 0 ∈ {φ, τ , α, ζ } as
+                                                                               where the second term can be interpreted as the information
+                   Iττ    Iτφ Iτα Iτζ                                            loss due to the estimation of the nuisance parameter given as
+                I H      I φφ I φα I φζ 
+          I θ =  τHφ                             . (49)                                                             αα I ϑα .
+                                                                                                         ILϑ = I ϑα I −1   H
+                                                 
+                            H
+                I τ α I φα I αα I αζ                                                                                                               (58)
+                   IHτζ   IH φζ    IHαζ     Iζζ                                  Using the FIM sub-matrices (53) and (55), the information
+The main contributors to position information are the                            loss for the delay is given as
+sub-matrices I τ τ and I φφ , which are described in detail in                                                                            2
+                                                                                                     |αk |2 kb(φk )k2 < ṡ(τk ), s(τk ) H
+                                                                                                                       
+Sec. III. In contrast, to characterize position information loss                                                                            . (59)
+                                                                                        
+                                                                                        ILτ k,k = 2 2
+due to nuisance parameters, we examine the sub-matrices                                               σw              ks(τk )k2H
+of the FIM describing the cross-dependencies between the                         Using the FIM sub-matrices (53) and (56), the information
+useful parameters and the nuisance parameters. The generic                       loss for the angle is given as
+form of the sub-matrices I ϑϑ 0 is described by
+                                                                                                                              2
+                                                                                                     |αk |2 < ḃ(φk ), b(φk ) ks(τk )k2H
+                    n                                                                                        
+  I ϑϑ 0 k,k 0 = 2 < ∂ϑ∂ k (αk b(φk ) ⊗ s(τk ))H Cn −1
+       
+                                                                                                                                         . (60)
+                                                                                        
+                                                                                        ILφ k,k = 2 2
+                                                              o                                        σw            kb(φk )k2
+                            × ∂ϑ∂ 0 (αk 0 b(φk 0 ) ⊗ s(τk 0 )) . (50)
+                                   k0                                            Inserting (59), and (51) into (57), results in the EFIM for
+                                                                                 delay estimation, given as
+EFIM FOR SMC DELAY AND ANGLE ESTIMATION
+In the following derivations, we use the setup employing                                                    |αk |2
+                                                                                                         = 2 2 kb(φk )k2 kṡ(τk )k2H
+                                                                                                  
+                                                                                                I
+                                                                                                fτ
+directional antennas with non-coherent processing, i.e., we                                          k,k     σw
+use the parameters from (9), where we consider that all phase                                                       
+                                                                                                                   < ṡ(τk ), s(τk ) H
+                                                                                                                                         2!
+shifts ζk,m are unknown. In contrast, the FIM and resulting                                                × 1−
+error bounds for a setup of coherent antenna arrays, including                                                     kṡ(τk )k2H ks(τk )k2H
+multipath resolved models, is well described in [11] in terms                                                 |αk |2                         delay
+                                                                                                        =2           kb(φk )k2 kṡ(τk )k2H ξk        (61)
+of array constellations and in [13] for models including a                                                     σw2
+statistical description of the DMC.
+                                                                                            delay
+   To obtain more insightful expressions, we assume that the                     where ξk     ∈ [0, 1] can be interpreted as the information
+SMCs are orthogonal to each other, cf. (65), that the DMC                        loss on the SMC delay estimation induced by the estimation
+is uncorrelated between antennas, cf. (64), and equal DMC                        of the complex amplitude αk in the DMC. Inserting (60),
+
+VOLUME 8, 2020                                                                                                                                       88129
+                                              M. Rath et al.: Single-Anchor Positioning: Multipath Processing With Non-Coherent Directional Measurements
+
+
+
+
+and (52) into (57), results in the EFIM for AoA estimation,                    where
+given as                                                                                                                           −1
+                                                                                                  hx, yiHm = σw2 xH Cn (m)                y            (66)
+                     |αk |2                                                                              2
+                            kḃ(φk )k2 ks(τk )k2H                                                   kxkHm = hx, xiHm                                   (67)
+          
+          I
+          fφ     = 2
+             k,k      σw2
+                                                 2
+                                                    !                         are the weighted inner product and weighted norm, respec-
+                               < ḃ(φk ), b(φk )                              tively, accounting for the inverse of Cn (m) which is a
+                   × 1−
+                               kḃ(φk )k2 kb(φk )k2                           whitening operation [12], [46]. Specifically, the left-hand
+                       |αk |2                                                 side expression of (65) is always close to zero, except for
+                                                      angle
+                  =2          kḃ(φk )k2 ks(τk )k2H ξk           (62)         the rare case of two SMCs that arrive at the same time while
+                        σw2
+                                                                              also having the same AoA.
+         angle
+where ξk     ∈ [0, 1] can be interpreted as the information                 • We further simplify the DMC statistics by saying that each
+loss on the SMC AoA estimation induced by the estimation                      antenna at the anchor exhibits the same DMC statistics, i.e.,
+of the complex amplitude αk in the DMC.                                                       Sν (τ ) = Sν(1) (τ ) = · · · = Sν(M ) (τ )               (68)
+APPENDIX B
+                                                                               resulting in
+ASSUMPTIONS
+In the following, we will introduce assumptions for the SMC                                 hx, yiH = hx, yiH1 = · · · = hx, yiHM                      (69)
+and DMC model that allow further insightful discussion in                                     kxkH = kxkH1 = · · · = kxkHM .
+                                                                                                   2            2                     2
+                                                                                                                                                       (70)
+terms of contributions to position information.
+• The DMC is uncorrelated between antennas, i.e., C v is                     REFERENCES
+  block-diagonal (cf. (11)) with                                             [1] W. Chin, Z. Fan, and R. Haines, ‘‘Emerging technologies and research
+                          0                                                      challenges for 5G wireless networks,’’ IEEE Wireless Commun., vol. 21,
+                   C v(m,m ) = 0 ∀m 6 = m0 .                                     no. 2, pp. 106–112, Apr. 2014.
+                                                                             [2] J. G. Andrews, S. Buzzi, W. Choi, S. V. Hanly, A. Lozano, A. C. K. Soong,
+  For different antenna setups, there are different arguments                    and J. C. Zhang, ‘‘What will 5G be?’’ IEEE J. Sel. Areas Commun., vol. 32,
+  supporting this assumption: For a conventional array con-                      no. 6, pp. 1065–1082, Jun. 2014.
+  sisting of omni-directional antennas, the DMC becomes                      [3] F. Rusek, D. Persson, B. Kiong Lau, E. G. Larsson, T. L. Marzetta, and
+                                                                                 F. Tufvesson, ‘‘Scaling up MIMO: Opportunities and challenges with very
+  approximately uncorrelated for an antenna-spacing of λ/2                       large arrays,’’ IEEE Signal Process. Mag., vol. 30, no. 1, pp. 40–60,
+  and a uniform angular power spectrum [44].                                     Jan. 2013.
+  In our considered case using directional antennas, it can be               [4] E. G. Larsson, O. Edfors, F. Tufvesson, and T. L. Marzetta, ‘‘Massive
+                                                                                 MIMO for next generation wireless systems,’’ IEEE Commun. Mag.,
+  argued that each antenna at the anchor covers one sector                       vol. 52, no. 2, pp. 186–195, Feb. 2014.
+  in the azimuth plane with differently aligned main beam                    [5] E. Torkildson, U. Madhow, and M. Rodwell, ‘‘Indoor millimeter wave
+  directions. As a result, the shapes of the beampatterns are                    MIMO: Feasibility and performance,’’ IEEE Trans. Wireless Commun.,
+                                                                                 vol. 10, no. 12, pp. 4150–4160, Dec. 2011.
+  approximately
+   Z                orthogonal such that                                     [6] T. S. Rappaport, S. Sun, R. Mayzus, H. Zhao, Y. Azar, K. Wang,
+       Sν (φ, τ ) bm (φ) b∗m0 (φ) dφ  Sν (φ, τ ) |bm (φ)|2 dφ.                  G. N. Wong, J. K. Schulz, M. Samimi, and F. Gutierrez, ‘‘Millimeter wave
+                                      R
+                                                                                 mobile communications for 5G cellular: It will work!’’ IEEE Access, vol. 1,
+                                                                                 pp. 335–349, 2013.
+                                                                 (63)        [7] S. Rangan, T. S. Rappaport, and E. Erkip, ‘‘Millimeter-wave cellular
+                                                                                 wireless networks: Potentials and challenges,’’ Proc. IEEE, vol. 102, no. 3,
+  With this, we may reduce the noise covariance matrix                           pp. 366–385, Mar. 2014.
+  in (10) to block matrices on the main diagonal for which                   [8] K. Witrisal, P. Meissner, E. Leitinger, Y. Shen, C. Gustafson, F. Tufvesson,
+  the mth matrix is Zgiven as                                                    K. Haneda, D. Dardari, A. F. Molisch, A. Conti, and M. Z. Win, ‘‘High-
+                                                                                 accuracy localization for assisted living: 5G systems will turn multipath
+          Cn (m) =     Sν(m) (τ ) s(τ )s(τ )H dτ + σw2 I N       (64)            channels from foe to friend,’’ IEEE Signal Process. Mag., vol. 33, no. 2,
+                                                                                 pp. 59–70, Mar. 2016.
+            (m)                                                              [9] H. Wymeersch, G. Seco-Granados, G. Destino, D. Dardari, and
+  where Sν (τ ) = Sν (φ, τ )|bm (φ)|2 dφ is the delay power
+                         R
+                                                                                 F. Tufvesson, ‘‘5G mmWave positioning for vehicular networks,’’ IEEE
+  spectrum (DPS) considering the mth antenna beampattern                         Wireless Commun., vol. 24, no. 6, pp. 80–86, Dec. 2017.
+                                                                            [10] Y. Shen and M. Z. Win, ‘‘Fundamental limits of wideband Localization—
+  of the antenna array at the anchor node.                                       Part I: A general framework,’’ IEEE Trans. Inf. Theory, vol. 56, no. 10,
+• We assume that SMCs are orthogonal to each other,                              pp. 4956–4980, Oct. 2010.
+  i.e., there is no path-overlap in the resolvable angle and                [11] Y. Han, Y. Shen, X.-P. Zhang, M. Z. Win, and H. Meng, ‘‘Performance
+                                                                                 limits and geometric properties of array localization,’’ IEEE Trans. Inf.
+  delay domain. Analogously to the previous assumption,                          Theory, vol. 62, no. 2, pp. 1054–1075, Feb. 2016.
+  this can be justified due to the directional antennas at the              [12] K. Witrisal, E. Leitinger, S. Hinteregger, and P. Meissner, ‘‘Bandwidth
+  anchor which cover non-overlapping sectors in the azimuth                      scaling and diversity gain for ranging and positioning in dense multipath
+                                                                                 channels,’’ IEEE Wireless Commun. Lett., vol. 5, no. 4, pp. 396–399,
+  plane. This means that for any two SMCs k and k 0 , we have                    Aug. 2016.
+ XM                                                                         [13] T. Wilding, S. Grebien, U. Mühlmann, and K. Witrisal, ‘‘Accuracy bounds
+      b∗m (φk )bm (φk 0 )hs(τk ), s(τk 0 )iHm                                    for array-based positioning in dense multipath channels,’’ Sensors, vol. 18,
+ m=1                                                                             no. 12, p. 4249, 2018.
+                                                                            [14] T. Wilding, S. Grebien, E. Leitinger, U. Muhlmann, and K. Witrisal,
+                                 M
+                                 X                                               ‘‘Single-anchor, multipath-assisted indoor positioning with aliased antenna
+                                      |bm (φk )|2 ks(τk )kHm (65)               arrays,’’ in Proc. 52nd Asilomar Conf. Signals, Syst., Comput., Pacifc
+                                 m=1                                             Grove, CA, USA, Oct. 2018, pp. 525–531.
+
+88130                                                                                                                                         VOLUME 8, 2020
+M. Rath et al.: Single-Anchor Positioning: Multipath Processing With Non-Coherent Directional Measurements
+
+
+
+
+[15] E. Leitinger, P. Meissner, C. Rudisser, G. Dumphart, and K. Witrisal,          [37] J. Kulmer, S. Hinteregger, B. Grosswindhager, M. Rath, M. S. Bakr,
+     ‘‘Evaluation of position-related information in multipath components                E. Leitinger, and K. Witrisal, ‘‘Using DecaWave UWB transceivers for
+     for indoor positioning,’’ IEEE J. Sel. Areas Commun., vol. 33, no. 11,              high-accuracy multipath-assisted indoor positioning,’’ in Proc. IEEE Int.
+     pp. 2313–2328, Nov. 2015.                                                           Conf. Commun. Workshops (ICC Workshops), Paris, France, May 2017,
+[16] A. Shahmansoori, G. E. Garcia, G. Destino, G. Seco-Granados, and                    pp. 1239–1245.
+     H. Wymeersch, ‘‘Position and orientation estimation through millimeter-        [38] J. Kulmer, S. Grebien, M. Rath, and K. Witrisal, ‘‘On the unimportance
+     wave MIMO in 5G systems,’’ IEEE Trans. Wireless Commun., vol. 17,                   of phase-coherent measurements for beampattern-assisted positioning,’’ in
+     no. 3, pp. 1822–1835, Mar. 2018.                                                    Proc. IEEE Wireless Commun. Netw. Conf. (WCNC), Apr. 2018, pp. 1–6.
+[17] R. Mendrzik, H. Wymeersch, G. Bauch, and Z. Abu-Shaban, ‘‘Harnessing           [39] B. H. Fleury, ‘‘First- and second-order characterization of direction disper-
+     NLOS components for position and orientation estimation in 5G millimeter            sion and space selectivity in the radio channel,’’ IEEE Trans. Inf. Theory,
+     wave MIMO,’’ IEEE Trans. Wireless Commun., vol. 18, no. 1, pp. 93–107,              vol. 46, no. 6, pp. 2027–2044, Sep. 2000.
+     Jan. 2019.                                                                     [40] A. Richter, ‘‘Estimation of radio channel parameters: Models and algo-
+[18] Z. Abu-Shaban, X. Zhou, T. Abhayapala, G. Seco-Granados, and                        rithms,’’ Ph.D. dissertation, Ilmenau Univ. Technol., Ilmenau, Germany,
+     H. Wymeersch, ‘‘Error bounds for uplink and downlink 3D localization                2005.
+     in 5G millimeter wave systems,’’ IEEE Trans. Wireless Commun., vol. 17,        [41] J. Karedal, S. Wyne, P. Almers, F. Tufvesson, and A. Molisch,
+     no. 8, pp. 4939–4954, Aug. 2018.                                                    ‘‘A measurement-based statistical model for industrial ultra-wideband
+[19] A. Molisch, Wireless Communications. Hoboken, NJ, USA: Wiley, 2005.                 channels,’’ IEEE Trans. Wireless Commun., vol. 6, no. 8, pp. 3028–3037,
+[20] E. Leitinger, F. Meyer, F. Hlawatsch, K. Witrisal, F. Tufvesson, and                Aug. 2007.
+     M. Z. Win, ‘‘A belief propagation algorithm for multipath-based SLAM,’’        [42] H. Kim, ‘‘Double-sided two-way ranging algorithm to reduce ranging
+     IEEE Trans. Wireless Commun., vol. 18, no. 12, pp. 5613–5629, Dec. 2019.            time,’’ IEEE Commun. Lett., vol. 13, no. 7, pp. 486–488, Jul. 2009.
+[21] E. Leitinger, F. Meyer, F. Tufvesson, and K. Witrisal, ‘‘Factor graph based    [43] G. Durgin, Space-time Wireless Channels, 1st ed. Upper Saddle River, NJ,
+     simultaneous localization and mapping using multipath channel informa-              USA: Prentice-Hall, 2002.
+     tion,’’ in Proc. IEEE Int. Conf. Commun. Workshops (ICC Workshops),            [44] A. Paulraj, R. Nabar, and D. Gore, Introduction to Space-Time Wireless
+     Paris, France, May 2017, pp. 652–658.                                               Communications. Cambridge, U.K.: Cambridge Univ. Press, 2003.
+[22] C. Gentner, T. Jost, W. Wang, S. Zhang, A. Dammann, and U.-C. Fiebig,          [45] J. Kunisch and J. Pamp, ‘‘An ultra-wideband space-variant multipath
+     ‘‘Multipath assisted positioning with simultaneous localization and map-            indoor radio channel model,’’ in Proc. IEEE Conf. Ultra Wideband Syst.
+     ping,’’ IEEE Trans. Wireless Commun., vol. 15, no. 9, pp. 6104–6117,                Technol., 2003, pp. 290–294.
+     Sep. 2016.                                                                     [46] H. L. Van Trees, Detection Estimation and Modulation Theory. Hoboken,
+[23] Y. Kuang, K. Astrom, and F. Tufvesson, ‘‘Single antenna anchor-free UWB             NJ, USA: Wiley 1968.
+     positioning based on multipath propagation,’’ in Proc. IEEE Int. Conf.         [47] S. Kay, Fundamentals of Statistical Signal Processing: Estimation Theory
+     Commun. (ICC), Budapest, Hungary, Jun. 2013, pp. 5814–5818.                         (Signal Processing Series). Upper Saddle River, NJ, USA: Prentice-Hall,
+[24] R. Mendrzik, F. Meyer, G. Bauch, and M. Z. Win, ‘‘Enabling situational              1993.
+     awareness in millimeter wave massive MIMO systems,’’ IEEE J. Sel.              [48] H. L. Van Trees, Optimum Array Processing: Part IV of Detection, Esti-
+     Topics Signal Process., vol. 13, no. 5, pp. 1196–1211, Sep. 2019.                   mation, and Modulation Theory. Hoboken, NJ, USA: Wiley, 2004.
+[25] A. Guerra, F. Guidi, and D. Dardari, ‘‘Single-anchor localization and orien-   [49] P. Meissner, E. Leitinger, and K. Witrisal, ‘‘UWB for robust indoor track-
+     tation performance limits using massive arrays: MIMO vs. Beamforming,’’             ing: Weighting of multipath components for efficient estimation,’’ IEEE
+     IEEE Trans. Wireless Commun., vol. 17, no. 8, pp. 5241–5255, Aug. 2018.             Wireless Commun. Lett., vol. 3, no. 5, pp. 501–504, Oct. 2014.
+[26] V. V. Ratnam, A. F. Molisch, O. Y. Bursalioglu, and H. C. Papadopou-           [50] J. Kulmer, S. Grebien, E. Leitinger, and K. Witrisal, ‘‘Delay estimation in
+     los, ‘‘Hybrid beamforming with selection for multiuser massive MIMO                 presence of dense multipath,’’ IEEE Wireless Commun. Lett., vol. 8, no. 5,
+     systems,’’ IEEE Trans. Signal Process., vol. 66, no. 15, pp. 4105–4120,             pp. 1481–1484, Oct. 2019.
+     Aug. 2018.                                                                     [51] R. Zetik, J. Sachs, and R. Thoma, ‘‘UWB short-range radar sensing—
+[27] S. Stein Ioushua and Y. C. Eldar, ‘‘A family of hybrid analog–digital               The architecture of a baseband, pseudo-noise UWB radar sensor,’’ IEEE
+     beamforming methods for massive MIMO systems,’’ IEEE Trans. Signal                  Instrum. Meas. Mag., vol. 10, no. 2, pp. 39–45, Apr. 2007.
+     Process., vol. 67, no. 12, pp. 3243–3257, Jun. 2019.
+[28] A. Fascista, A. Coluccia, H. Wymeersch, and G. Seco-Granados,
+     ‘‘Millimeter-wave downlink positioning with a single-antenna receiver,’’
+     IEEE Trans. Wireless Commun., vol. 18, no. 9, pp. 4479–4490, Sep. 2019.
+[29] N. Garcia, H. Wymeersch, and E. G. Larsson, ‘‘MIMO with more users
+     than RF chains,’’ Sep. 2017, arXiv:1709.05200. [Online]. Available:                                       MICHAEL RATH (Student Member, IEEE)
+     https://arxiv.org/abs/1709.05200                                                                          received the Dipl.-Ing. (M.Sc.) degree in informa-
+[30] J. Chen, D. Steinmetzer, J. Classen, E. Knightly, and M. Hollick, ‘‘Pseudo                                tion and computer engineering from the Graz Uni-
+     lateration: Millimeter-wave localization using a single RF chain,’’ in Proc.                              versity of Technology, Austria, in 2015, where he
+     IEEE Wireless Commun. Netw. Conf. (WCNC), Mar. 2017, pp. 1–6.                                             is currently pursuing the Ph.D. degree in electrical
+[31] B. Großwindhager, M. Rath, J. Kulmer, M. S. Bakr, C. A. Boano,                                            engineering with the Signal Processing and Speech
+     K. Witrisal, and K. Römer, ‘‘SALMA: UWB-based single-anchor local-                                        Communication Laboratory (SPSC). His research
+     ization system using multipath assistance,’’ in Proc. 16th ACM Conf.
+                                                                                                               interests include wireless signal processing and
+     Embedded Netw. Sensor Syst. New York, NY, USA: ACM, Nov. 2018,
+                                                                                                               radio environment maps.
+     pp. 132–144, doi: 10.1145/3274783.3274844.
+[32] M. Rath, J. Kulmer, M. S. Bakr, B. Grosswindhager, and K. Witrisal,
+     ‘‘Multipath-assisted indoor positioning enabled by directional UWB sector
+     antennas,’’ in Proc. IEEE 18th Int. Workshop Signal Process. Adv. Wireless
+     Commun. (SPAWC), Jul. 2017, pp. 1–5.
+[33] P. Zand, J. Romme, J. Govers, F. Pasveer, and G. Dolmans, ‘‘A high-
+     accuracy phase-based ranging solution with Bluetooth low energy (BLE),’’
+     in Proc. IEEE Wireless Commun. Netw. Conf. (WCNC), Apr. 2019, pp. 1–8.                                    JOSEF KULMER (Student Member, IEEE)
+[34] G. Giorgetti, A. Cidronali, S. Gupta, and G. Manes, ‘‘Single-anchor                                       received the M.Sc. degree in electrical engineering
+     indoor localization using a switched-beam antenna,’’ IEEE Commun. Lett.,                                  and audio engineering from the University of
+     vol. 13, no. 1, pp. 58–60, Jan. 2009.                                                                     Music and Performing Arts, Graz, in 2014, and the
+[35] A. Cidronali, S. Maddio, G. Giorgetti, and G. Manes, ‘‘Analysis and perfor-                               Ph.D. degree in electrical engineering from Graz
+     mance of a smart antenna for 2.45-GHz single-anchor indoor positioning,’’                                 University of Technology, in 2019.
+     IEEE Trans. Microw. Theory Techn., vol. 58, no. 1, pp. 21–31, Jan. 2010.                                     His current research interests include linear
+[36] G. Giorgetti, S. Maddio, A. Cidronali, S. K. S. Gupta, and G. Manes,                                      algebra, exploration of space, and microwaves.
+     ‘‘Switched beam antenna design principles for angle of arrival estimation,’’
+     in Proc. Eur. Wireless Technol. Conf., Sep. 2009, pp. 5–8.
+
+VOLUME 8, 2020                                                                                                                                                 88131
+                                                    M. Rath et al.: Single-Anchor Positioning: Multipath Processing With Non-Coherent Directional Measurements
+
+
+
+
+                          ERIK LEITINGER (Member, IEEE) received the                                         KLAUS WITRISAL (Member, IEEE) received the
+                          Dipl.-Ing. (M.Sc.) and Ph.D. degrees (Hons.) in                                    Ph.D. degree (cum laude) from the Delft Uni-
+                          electrical engineering from the Graz University of                                 versity of Technology, Delft, The Netherlands,
+                          Technology, Austria, in 2012 and 2016, respec-                                     in 2002, and the Habilitation degree from the
+                          tively. He was Postdoctoral Researcher with the                                    Graz University of Technology, in 2009. He is
+                          Department of Electrical and Information Tech-                                     currently an Associate Professor with the Signal
+                          nology, Lund University, from 2016 to 2018.                                        Processing and Speech Communication Labora-
+                          He is currently a Postdoctoral Researcher with the                                 tory (SPSC), Graz University of Technology, and
+                          Graz University of Technology. His research inter-                                 the Head of the Christian Doppler Laboratory for
+                          ests include localization and navigation, stochastic                               Location-Aware Electronic Systems. His research
+modeling and estimation of radio channels, factor graphs and iterative mes-       interests are in signal processing for wireless communications, propagation
+sage passing algorithms, and estimation/detection theory. He is an Erwin          channel modeling, and positioning. He has served as an Associate Editor of
+Schrödinger Fellow. He has served as a TPC Member of several IEEE                 the IEEE COMMUNICATIONS LETTERS, the Co-Chair of the TWG Indoor of the
+conferences. He received the Award of Excellence from the Federal Ministry        COST Action IC1004, the Co-Chair of the EWG Localization and Tracking
+of Science, Research and Economy (BMWFW) for his Ph.D. Thesis.                    of the COST Action CA15104, the leading Chair of the IEEE Workshop on
+                                                                                  Advances in Network Localization and Navigation (ANLN), and the TPC
+                                                                                  (Co)-Chair of the Workshop on Positioning, Navigation, and Communication
+                                                                                  (WPNC).
+
+
+
+
+88132                                                                                                                                          VOLUME 8, 2020
+

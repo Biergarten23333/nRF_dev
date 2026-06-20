@@ -1,0 +1,748 @@
+ IEEE Copyright Notice
+© 2019 IEEE. Personal use of this material is permitted. Permission from
+IEEE must be obtained for all other uses, in any current or future media,
+including reprinting/republishing this material for advertising or promotional
+purposes, creating new collective works, for resale or redistribution to servers
+or lists, or reuse of any copyrighted component of this work in other works.
+Accepted to be Published in: Proceedings of the 2019 IEEE International
+Conference on Advanced Robotics, December 2-6, 2019, Belo Horizonte,
+Brazil.
+978-1-5386-2880-5/17/$31.00 © 2019 IEEE
+https://ieeexplore.ieee.org/search/searchresult.jsp?
+newsearch=true&queryText=Visual-inertial%20SLAM%
+20aided%20estimation%20of%20anchor%20poses%20and%
+20sensor%20error%20model%20Parameters%20of%20UWB%
+20Radio%20modules
+     Visual-inertial SLAM aided estimation of anchor poses and sensor
+               error model parameters of UWB radio modules
+                                   Philipp Lutz1∗ , Martin J. Schuster1 , Florian Steidle1
+
+
+   Abstract— Local positioning technologies based on ultra-
+wideband (UWB) ranging have become broadly available and
+accurate enough for various robotic applications. In an infras-
+tructure setup with static anchor radio modules one common
+problem is to determine their global positions within the world
+coordinate frame. Furthermore, issues like the complex radio-
+                                                                                                    Z
+frequency wave propagation properties make it difficult to                                              X
+design a consistent sensor error model which generalizes well
+across different anchor setups and environments. Combining                                    Y
+
+radio based local positioning systems with a visual-inertial
+navigation system (VINS) can provide very accurate pose
+estimates for calibration of the radio based localization modules
+and at the same time alleviate the inherent drift in visual-
+inertial navigation. We propose an approach to utilize a visual-
+inertial SLAM system using fish-eye stereo cameras and an IMU
+to estimate the anchor 6D poses as well as the parameters of
+an UWB module sensor error model on a micro-aerial-vehicle            Fig. 1. The multicopter ’Ardea’ equipped with its two pairs of fisheye
+(MAV). Fiducial markers on all anchor radio modules are used          stereo cameras, an IMU and a UWB radio ranging module with its antenna
+as artificial landmarks within the SLAM system to get accurate        coordinate frame visualized.
+anchor module pose estimates. Index Terms— MAVs, mobile
+robots, SLAM, UWB, radio localization, sensor calibration"
+
+                      I. I NTRODUCTION                                accuracy. With a LPS one can spread out static beacons
+                                                                      (anchor nodes) at arbitrary locations and therefore actively
+   Visual-inertial navigation has been employed successfully          influence the node network geometry to ensure line-of-
+on mobile robots and specifically on micro-aerial-vehicles            sight (LOS) conditions and optimize the geometry dependent
+(MAVs) to navigate in both indoor and outdoor environments            dilution of precision (DOP) quality metric [4] for the required
+[1], [2]. However, the integration of relative position and           localization accuracy. There are three common ranging meth-
+orientation estimation from a progressive stream of noisy             ods: using received signal level (RSL), signal time-of-flight
+sensor data leads to an unavoidable drift. State-of-the-art           (ToF) and angle-of-arrival (AoA) utilizing antenna arrays.
+visual-inertial navigation system show a promising absolute           ToF based ranging is a good trade-off between achievable
+trajectory error (ATE) of lower than 0.5 % in typical scenar-         accuracy and equipment complexity, because it requires only
+ios [3]. Coupling an VINS with an absolute sensor based on            one antenna [5]. After all pair-wise ranging measurements
+radio localization such as global-navigation-satellite-systems        between the tag and all anchor nodes are obtained, the
+(GNSS) or local positioning systems (LPS) helps to com-               set of non-linear equations - the so-called multilateration
+pensate long-range drifts, whereas the VINS provides short-           equations - have to be solved in order to locate the moving
+range accuracy.                                                       robot carrying the tag module. Applying a non-linear least-
+   In this work we use an VINS together with a LPS and                squares (NLLS) solver to those equations is a straight-
+show how our SLAM backend helps to calibrate both a UWB               forward method to solve the multilateration problem. How-
+sensor measurement error model as well as the static anchor           ever, also sophisticated algebraic closed-form solutions for
+module positions and orientations.                                    both time-of-arrival [6] as well as hyperbolic time-difference-
+                                                                      of-arrival [7] measurements have been studied. A comparison
+A. UWB radio based localization
+                                                                      between a weighted iterative NLLS solver and common
+   The use of local-positioning-systems (LPS) contrary to             closed-form solutions is also investigated [6]. Moreover,
+GNSS for navigation of mobile robots is attractive because            various parametric and non-parametric bayesian estimators
+they do not have to rely on satellite communication which             such as Kalman and Particle filters have been successfully
+can be problematic in scenarios where signal reflections              used for localization [8]. As for Kalman filters, due to the
+and shading can severely corrupt position measurements and            highly nonlinear and non-gaussian nature of radio wave
+hence render them unsuitable for the required application             propagation, the linearization used in EKFs as well as the
+  1 Institute of Robotics and Mechatronics, German Aerospace Center
+                                                                      gaussian error assumption usually lead to higher localization
+(DLR), Germany                                                        errors compared to particle filter or NLLS approaches [8]. In
+  ∗ Corresponding author: philipp.lutz@dlr.de                         Section III-C we briefly discuss our NLLS based localization
+approach using double-sided two-way-ranging (DS-TWR).              • UWB sensor measurement error model, focused on
+                                                                     errors induced by antenna and immediate antenna envi-
+B. UWB radio module measurement error sources and cal-               ronment properties originating from module mount and
+ibration                                                             close objects (Section II).
+   Theoretically UWB localization has the potential to pro-        • Joint calibration of a UWB radio sensor error model and
+vide centimeter-level accuracy [9], however in practice so-          estimating anchor module poses with a SLAM system
+phisticated sensor error models are required to mitigate the         using fiducial markers (Section II-D).
+effect of biases caused by non-deterministic signal propa-
+                                                                                 II. R ANGING ERROR MODEL
+gation, most notably non-line-of-sight (NLOS) conditions.
+Typical error sources for UWB radio module based ToF             A. Considered error sources
+ranging include                                                     As introduced in Section I-B we would like to focus on
+   • NLOS conditions due to occlusions between tag and           the following sources of error: antenna directivity, antenna
+      anchors,                                                   delay bias and environment influence around antennas which
+   • poor anchor geometry, which is reflected in the DOP         leads to NLOS or multipath effects. Influences like deviation
+      metric [4],                                                between tag and anchor clock frequency are not explicitly
+   • strongly anisotropic antenna characteristics of small and   considered, because they are mostly mitigated already by
+      cheap antennas [10] and their immediate environment,       using a double-sided two-way ranging scheme [15]. Another
+   • antenna delay due to radio wave propagation through         well understood error source is the temperature depended
+      circuitry (PCB) and antenna before propagating through     frequency drift in clock oscillators. The oscillator in the
+      air,                                                       DWM1000 modules is temperature compensated [11], we
+   • receiver specifics such as ranging biases depending on      nevertheless measured tag and anchor module temperatures
+      received signal level.                                     during several experiments but couldn’t find any significant
+                                                                 influence on the range measurements when all sensors were
+Reliably detecting NLOS ranging conditions and compen-
+                                                                 exposed to the same ambient temperature. Therefore tem-
+sating for NLOS induced errors is very tricky and involves
+                                                                 perature is not considered in the error model. Small man-
+detailed knowledge about the underlying radio module’s
+                                                                 ufacturing and assembly variances can cause deviations in
+physical layer and therefore is not considered within this
+                                                                 internal propagation delays, resulting in range measurement
+manuscript, only simple outlier checks are performed. One
+                                                                 offsets. These offsets can vary from module to module and
+of the other dominant errors is caused by the anisotropic
+                                                                 are generally identified in a separate calibration routine as
+(i.e. directional) properties of small and cheap antennas used
+                                                                 outlined in [16]. Antenna related ranging errors are most
+on common UWB based ranging modules, for example the
+                                                                 likely caused by non-isotropic radiation patterns [11] influ-
+used Decawave DWM1000 modules [11]. A model based
+                                                                 encing gain and group-delay [17]. Ideal antennas are not
+approach using the LOS signal entrance and exit angles
+                                                                 directional and therefore exhibit the same properties in all
+between communicating pairs of ranging module antennas as
+                                                                 directions. On our experimental hexacopter platform Ardea
+parameters was presented in [12]. In [10], [13], [14] antenna
+                                                                 we have components, such as carbon fiber tubes, cameras,
+orientation dependent errors and errors caused by objects
+                                                                 PCBs and motors in the immediate vicinity of the UWB
+in the antenna vicinity are estimated without an explicit
+                                                                 antenna, see Fig. 1 and Section IV. This leads to strong
+model utilizing Gaussian Processes. However assumptions
+                                                                 directional antenna characteristics for incoming as well as
+regarding the anchor orientations have been made because
+                                                                 outgoing radio waves at the tag module in case the LOS
+they were not observable. Hence we would like to motivate
+                                                                 between the tag and its current communication partner is
+a method for jointly estimating the 6D pose of all anchors as
+                                                                 obscured by robot components. Anchor modules are usually
+well as the sensor error model parameters for all tag-anchor
+                                                                 free-standing, without objects in the direct vicinity of their
+pairs in one calibration run. The estimation of all anchor
+                                                                 antennas, at least one has more control over the anchor
+antenna poses is done by incorporating our visual-inertial
+                                                                 placement compared to mounting the tag module on a robotic
+SLAM system with fiducial markers as artificial landmarks
+                                                                 platform, far away from other components.
+on all anchor modules, which is briefly described in Sec-
+tion III. More emphasis is put on considering aforementioned     B. Exploration of real data
+error sources for an sensor error model and the error model         The setup shown on the left of Fig. 2 is used for ex-
+which was derived empirically based on our findings, see         ploration of typical ranging errors of the used Decawave
+Section II.                                                      DWM1000 UWB modules (see Fig. 8) in a simple exper-
+C. Contributions                                                 iment where the robot - which carries the tag - is moved
+                                                                 randomly in between 4 anchor modules. Anchors as well as
+  The contributions of this paper are:                           the robot are equipped with visual markers and are tracked
+  • Introduction to our novel visual navigation pipeline         via a Vicon visual tracking system to provide a ground-truth
+    coupled with Decawave DWM1000 UWB radio mod-                 for calculating ranging errors.
+    ules (Section III) on our experimental MAV platform             In Fig. 3 we show how the aforementioned errors are
+    (Section IV).                                                distributed and that they do not follow a gaussian distribution,
+                                                                           6
+                                                                                                                                    which µi will be predicted by the error model for each tag-
+                                                                                                                                    anchor pair and σ = 0.35 m is considered to be a fixed
+                                                                           4
+                                                                                                                                    ranging measurement noise variance. This value is based on
+                            Anchor 2
+                                                                                                                                    the ranging statistics found from several test runs, such as
+
+
+
+
+                                                      ranging error [m]
+       Anchor 1
+                                                                           2                                                        provided in Fig. 3.
+                               Tag
+                                                                                                                                    C. Sensor error model
+                                                                           0
+                                 Anchor 3                                                                                              The objective is to design a model which predicts sensor
+     Anchor 4                                                                                                                       ranging errors originating from the aforementioned error
+                                                                          −2
+                                                                                                                                    sources by taking into account the tag pose pt (t), anchor
+                                                                                 Anchor1        Anchor2   Anchor3         Anchor4
+                                                                                                                                    poses Pa and ranging measurements r(t) as inputs. Direc-
+                                                                                                                                    tional antenna properties can be described by the antenna
+Fig. 2. Ranging test setup with 4 anchors for measurements with a moving
+tag and the respective ranging errors boxplots with whiskers at percentile 2
+                                                                                                                                    orientation and the LOS angles between tag and anchor
+and 98.                                                                                                                             positions using spherical coordinates, ϕ for the azimuth
+                                                                                                                                    angle and θ for the inclination angle against the z-axis of
+    0.07                             µ = 0.377m
+                                     σ = 0.522m
+                                                                               0.06                              µ = 0.548m
+                                                                                                                 σ = 0.492m
+                                                                                                                                    the antenna frame (see Fig. 4). Because anchor antenna
+                                     median = 0.271m                                                             median = 0.460m
+    0.06                                                                       0.05
+    0.05
+                                                                               0.04
+                                                                                                                                                                z               Anchor
+    0.04
+p
+
+
+
+
+                                                                          p
+
+
+
+
+                                                                               0.03
+    0.03
+                                                                               0.02
+    0.02
+
+    0.01                                                                       0.01
+
+    0.00
+      −0.25   0.00   0.25     0.50     0.75    1.00
+                                                                               0.00
+                                                                                 −0.25   0.00     0.25    0.50     0.75    1.00                                             r
+                 Anchor 1 ranging error [m]                                                 Anchor 2 ranging error [m]                                                  θ
+                                     µ = 0.399m                                0.12                              µ = 0.291m
+    0.05                             σ = 0.386m                                                                  σ = 0.375m                                   Tag
+                                     median = 0.278m                           0.10                              median = 0.219m
+                                                                                                                                                                                         y
+    0.04
+                                                                               0.08                                                                                 φ
+    0.03
+p
+
+
+
+
+                                                                          p
+
+
+
+
+                                                                               0.06
+                                                                                                                                                     x
+    0.02                                                                       0.04
+
+    0.01                                                                       0.02
+                                                                                                                                    Fig. 4.    Spherical coordinate parameterization of antenna LOS angles
+                                                                                                                                    azimuth ϕt , inclination θt and range r between tag and anchor antenna
+    0.00
+      −0.25   0.00   0.25     0.50     0.75    1.00
+                                                                               0.00
+                                                                                 −0.25   0.00     0.25    0.50     0.75    1.00     coordinate frames, at the tag.
+                 Anchor 3 ranging error [m]                                                 Anchor 4 ranging error [m]
+
+                                                                                                                                    related errors are assumed to be constant and minimal for
+Fig. 3. Histogram of ranging errors for 4 anchors, also showing their mean
+µ, standard deviation σ and median.
+                                                                                                                                    a static anchor placement without nearby objects, only the
+                                                                                                                                    LOS angles ϕt and θt at the tag module are considered. In
+                                                                                                                                    Fig. 4 one could imagine having the robot in Fig. 1 oriented
+which makes radio based ranging hard for estimation meth-                                                                           towards an anchor in such a way that the LOS is blocked
+ods which assume gaussian noise. Errors are usually positive                                                                        by robot components. An angle parameterization requires the
+because radio waves can only get delayed by propagating                                                                             desired error model to be periodic in those features. Normal
+through a medium with a propagation velocity lower than                                                                             polynomial basis functions such as used in [12] have shown
+the speed of light or by traveling on a multipath when they                                                                         poor performance because implicitly modelling periodicity
+are subject to reflections. The high mean ranging error of                                                                          in a given interval is not intuitive and non-trivial. Modelling
+0.55 m for anchor 2 can be only explained by module specific                                                                        arbitrary periodic functions can be accomplished using spline
+manufacturing tolerances or strong environment influences                                                                           functions [19] with periodic boundary conditions. Another
+which lead to many NLOS measurements. Due to this                                                                                   common model choice for modelling periodic functions are
+asymmetry in the errors (especially for anchor 1, 3 and 4) a                                                                        Fourier basis functions or trigonometric polynomials [20]
+heavy-tailed distribution might be suitable.                                                                                        which can be seen as a finite real-valued Fourier series (1),
+   Another problem are outliers whose values can be orders                                                                          note that the bias term was removed in our notation.
+of magnitude higher than their real range value, on the                                                                                                       M
+                                                                                                                                                                                                      (1)
+                                                                                                                                                              X
+                                                                                                                                                    f (x) =         am fc (x, m) + bm fs (x, m)
+right side of Fig. 2 it is visible that many outliers fall
+                                                                                                                                                              m=1
+outside the 2 to 98 percentile range of the error distributions.                                                                                                 2πm
+                                                                                                                                                                      
+Those outliers are likely caused by multipath effects and                                                                                      fc (x, m) = cos       x                                (2)
+                                                                                                                                                                  T
+straight forward to filter out by employing a linear first or                                                                                                         
+                                                                                                                                                                 2πm
+second order Kalman filter and thresholding the measure-                                                                                       fs (x, m) = sin       x                                (3)
+                                                                                                                                                                  T
+ments against the current Mahalanobis distance [18]. For the
+                                                                                                                                                         with am , bm , T ∈ R
+sake of simplicity and the lack of additional scope we will
+still consider the measurement errors ei of anchor i to be                                                                            Here M denotes the amount of frequency components
+approximately gaussian distributed (ei ∼ N (µi , σ 2 )) , in                                                                        and T the period of the first harmonic. For our model
+                                                                                                                                                                                                                         Tag - Anchor 1
+we treat all components of this series as single features                                                                                                              150
+                                                                                                                                                                                                                                                                   training samples   0.6
+
+and hence provide them as seperate components in (2) and
+                                                                                                                                                                                                                                                                                      0.5
+                                                                                                                                                                       120                                                                                                            0.4
+
+(3). Additionally to the LOS angles, the measured distance                                                                                                                                                                                                                            0.3
+
+
+
+
+                                                                                                                                                   Inclination θ [◦]
+                                                                                                                                                                                                                                                                                      0.2
+
+r(t) and a bias term are used in the feature matrix Xf                                                                                                                  90
+                                                                                                                                                                                                                                                                                      0.1
+
+
+
+
+                                                                                                                                                                                                                                                                                            error [m]
+                                                                                                                                                                                                                                                                                      0.0
+in (5). To allow for higher order terms and interaction                                                                                                                 60
+                                                                                                                                                                                                                                                                                      -0.1
+                                                                                                                                                                                                                                                                                      -0.2
+features, Xf is then mapped by p : Xf → Xp into the                                                                                                                                                                                                                                   -0.3
+                                                                                                                                                                        30                                                                                                            -0.4
+polynomial feature matrix Xp , consisting of all polynomial                                                                                                                                                                                                                           -0.5
+
+combinations of the features with degree less than or equal
+                                                                                                                                                                                                                                                                                      -0.6
+                                                                                                                                                                         0
+                                                                                                                                                                             0   45   90   135       180   225   270   315    0    45     90   135   180   225   270     315
+                                                                                                                                                                                           Azimuth ϕ [◦]                                       Azimuth ϕ [◦]
+to P , e.g. mapping  [a, b] into
+                             degree-2 polynomial features
+would give a, b, a2 , ab, b2 . This function formulation leads
+            
+                                                                                                                                                   Fig. 6.    Fitted sensor error model for anchor 1. Left: Visualized by
+to the following linear regression problem (4):                                                                                                    evaluating it for 0 ≤ ϕ < 360 ◦ and 0 ≤ θ ≤ 150 ◦ . Right: Additionally
+                                                                                                                                                   overlayed with training samples. It is clearly visible that the training data
+                                                                                                                                                   only covers a small part of the model input range.
+                y =Xp β + e,                              β̂ = arg min ky − Xp βk                                                          (4)
+                                                                             β
+                  h
+             Xf = 1, r T ,
+                                                                                                                                                   D. Calibration routine
+                               fc (ϕt , 1; T = 2π)T , . . . , fc (ϕt , M ; T = 2π)T ,                                                                 During the calibration run only the visual navigation
+                               fs (ϕt , 1; T = 2π)T , . . . , fs (ϕt , M ; T = 2π)T ,                                                      (5)     component is being used for localization, UWB ranging
+                               fc (θt , 1; T = π)T , . . . , fc (θt , M ; T = π)T ,                                                                measurements are just logged away. Only after calibrating
+                                                                                  i                                                                the sensor error model and estimating the anchor poses in
+                               fs (θt , 1; T = π)T , . . . , fs (θt , M ; T = π)T                                                                  the first step, ranging measurements are used in the naviga-
+                                                                                                                                                   tion pipeline(Section III-C). The following steps outline our
+   Here y are the error values predicted by the sensor error                                                                                       calibration routine:
+model, Xp is the polynomial feature matrix and β the model                                                                                            1) Collect ranging measurements r(t) from tag module
+parameters. After cross-validating models with different M
+                                                                                                                                                                                                           T
+                                                                                                                                                          and pose estimates P (t) = ptxyz , qtwxyz            while
+                                                                                                                                                                                             
+and P values, the model with M = 2 and P = 2 gave                                                                                                          moving around in the area around the anchors making
+the best bias-variance trade-off. This model parameterization                                                                                              sure to cover many different tag poses for a well
+produces 55 feature columns in matrix Xp . The fitted sensor
+                                                                                                                                                          balanced dataset T and map the anchor poses Pa =
+                                                                                                                                                            paxyz , qawxyz      via AprilTag detections within the
+             1.5
+                                                                 measurements
+                                                                 fitted model
+                                                                                                                                                           SLAM graph.
+             1.0
+                                                                 RANSAC outliers
+                                                                                                                                                      2) Compute pseudo-ranges r̃(t) by calculating the Eu-
+                                                                                                                                                           clidean norm between estimated tag and anchor posi-
+error [m]
+
+
+
+
+             0.5
+                                                                                                                                                           tion estimate: r̃(t) = kptxyz − paxyz k.
+             0.0                                                                                                                                      3) Compute ranging error (6) and then select samples
+                                                                                                                                                           from r(t) into r 0 (t) by thresholding it by ∆r(t) < 1 m
+                                                                                      measurements
+                                                                                      fitted model
+            −0.5                                                                      RANSAC outliers
+
+                   0    50        100        150    200    250
+                                         Tag - Anchor 1 ϕ [◦]
+                                                                   300        350 0    50        100        150    200    250
+                                                                                                        Tag - Anchor 2 ϕ [◦]
+                                                                                                                                  300        350
+                                                                                                                                                           to filter out obvious outlier, see (7).
+             1.5
+                       measurements
+                       fitted model
+                                                                                                                                measurements
+                                                                                                                                fitted model
+                                                                                                                                                      4) Calculate tag antenna LOS angles ϕ and θ and assem-
+             1.0
+                       RANSAC outliers                                                                                          RANSAC outliers
+                                                                                                                                                           ble feature matrix Xp .
+                                                                                                                                                      5) Normalize feature matrix Xp and r 0 to have zero mean
+error [m]
+
+
+
+
+                                                                                                                                                           and unit variance to improve numerical stability and
+             0.5
+
+
+             0.0                                                                                                                                           convergence of least-square solver in next step.
+            −0.5
+                                                                                                                                                      6) Fit model using a well regularized iterative linear least-
+                   0    50        100        150    200    250
+                                         Tag - Anchor 3 ϕ [◦]
+                                                                   300        350 0    50        100        150    200    250
+                                                                                                        Tag - Anchor 4 ϕ [◦]
+                                                                                                                                  300        350           square solver to prevent overfitting and RANSAC to
+                                                                                                                                                           drastically reduce the remaining outliers which passed
+Fig. 5. Ranging errors and fitted sensor error model for 4 anchors in respect                                                                              the test in (7). We use ridge regression with an iterative
+to only ϕ after removing outliers by comparing ranging measurments with                                                                                    conjugate gradient solver and a RANSAC scheme
+estimated distances between tag and anchors by SLAM, according to (7).
+                                                                                                                                                           selecting at least 5 % samples for hypothesis testing
+                                                                                                                                                           to solve the linear regression problem in (4), where y
+error model for anchor 1 in Fig. 6 was evaluated between                                                                                                   equals r0 (t).
+0 and 360 ◦ for ϕ and between 0 and 150 ◦ for θ. The                                                                                               In Fig. 5 we show the final fitted error model with respect to
+left side shows only the function response, the right side                                                                                         ϕ, while θ and r were kept constant. RANSAC recognized
+has the ground-truth training data overlayed for comparison,                                                                                       most of the remaining outliers very well, reducing the
+it’s obvious that the covered training input range is narrow                                                                                       influence of outlier substantially.
+compared to possible values. However, values outside this
+range often are not applicable for most scenarios, where the                                                                                                                               ∆r(t) = |r(t) − r̃(t)|                                                                       (6)
+θ range is small due to motion constraints in the roll and                                                                                                                                       0
+                                                                                                                                                                                             r (t) = {r(ti ) | ∆r(ti ) < 1 m} , ∀ti                                                     (7)
+pitch axes which have the strongest influence on θ.
+                 III. NAVIGATION PIPELINE                          roll and tilt angles of the UWB coordinate system and the
+                                                                   filter coordinate system match and can be set to 0 in the
+   For local and global estimation, we use a loosely coupled
+                                                                   rotational part of n Tu . The only undetermined variable of
+SLAM system [21]. It is split into two parts: The first part
+                                                                   the transformation n Tu remains the rotation φ around the
+is a local reference filter to fuse high-frequency data for fast
+                                                                   gravitational vector. It can be continuously estimated in the
+robot state estimation. It is running at a frequency of 200 Hz
+                                                                   filter and extends the direct state x from [27] by the scalar
+to allow for attitude and position control under real-time
+                                                                   quantity n φu
+constraints as required by highly dynamic systems such as
+MAVs. The second part is a global graph-based optimization
+                                                                                                                           T
+                                                                                  x = nb p, nb v, nb q, b ba , b bω , n φu    (8)
+                                                                                      
+that runs online but at a lower frequency, integrating filter
+estimates and landmark observations. This decoupled system         where nb p ∈ R3 is the position of the body frame (b-
+allows to separate real-time critical estimation required for      frame) relative to an earth-fixed, inertial frame (n-frame),
+                                                                   b v ∈ R is the velocity, b q the orientation represented as a
+                                                                   n        3                 n
+control and stabilization of an aerial system from slower
+but online global optimization needed to compensate drift of       quaternion and ba and bω are the acceleration and angular
+                                                                                    b       b
+
+locally unobservable states. Our navigation pipeline receives      rate biases of the IMU. During the filter propagation the value
+                                                                   of n φu is not modified, but refined during the filter update.
+   • gyrometer and accelerometer measurements at 500 Hz,
+                                                                   To minimize the influence of outliers in the UWB position
+   • delta 6D poses from a keyframe based visual odometry
+                                                                   readings a test based on the Mahalanobis distance [28] is
+      [22], [23], using 3D features at approx. 8 Hz,
+                                                                   performed and only measurements that passed are used in
+   • UWB ranging measurements from all anchors at approx.
+                                                                   the filter.
+      30 Hz.
+                                                                   B. Global pose and map estimation
+A. Local navigation filter
+                                                                       We employ a graph SLAM system for global optimization
+    For high-frequency and jump-free state estimation suitable     of poses and 3D maps, which is based on the architecture
+for control, we fuse IMU readings and visual odometry              presented in [29], [30], [21]. The online 3D mapping of
+estimates in a local reference filter that is implemented as       the environment is based on the navigation filter estimates
+an error-state Extended Kalman Filter, described in detail         and dense depth data from Ardea’s fisheye camera system
+in [24], [25]. It provides time-delay compensation for the         described in [27]. Local maps of limited size and uncertainty,
+stereo-based visual odometry, which provides relative trans-       so-called submaps, are created by aggregating the merged
+formations between keyframes [22]. The filter itself consists      depth data computed from four virtual pinhole stereo camera
+of two main parts: First a strapdown algorithm, which              pairs along the trajectory estimated by the local reference
+integrates angular rates and accelerations from the IMU            filter. This is based on the assumption that the filter state
+and second the filter update step that processes the visual        estimates are locally stable but unobservable components
+odometry estimates. Both, IMU measurements and visual              such as position and the yaw angle can globally be subject to
+odometry estimates, suffer from translational and rotational       drift. The navigation filter being a local reference filter allows
+drift. The rotational drift can be partially compensated by        us to always switch its frame of reference into the origin
+stabilizing the roll and pitch angles. This is based on the        of the current submap. This helps to maintain numerical
+assumption that, at least in the long term, the measured           stability and long-term consistency in the filter even in
+acceleration is dominated by gravity. Therefore, in a visual-      case of globally unbounded drift. It further allows for a
+inertial odometry system, the translation and rotation around      better integration of the filter’s estimates into the overlying
+the gravitational vector are globally not observable and the       SLAM graph according to its estimated uncertainties and
+errors become unlimited over time [26]. This disadvantage          probabilistic dependency structure without exposing filter-
+can be compensated by adding sensors that perform an               internal states to the overlying SLAM graph [29]. Submap
+absolute measurement, such as UWB radio modules which              origins are represented as nodes in the SLAM graph and
+measure distances between each other. Those distances are          connect via filter estimates as edges weighted by their
+used in the non-linear multilateration equations (see Sec-         respective Gaussian uncertainty. Artificial landmarks, in our
+tion III-C) for drift-free position estimation in x, y and z       case AprilTag markers [31] are attached to UWB anchors
+direction relative to a UWB coordinate system (u-frame).           (see Fig. 8), constitute additional nodes. The detection and
+The reason this is not directly done in the Extended Kalman        pose estimation of such landmarks result in 6D loop closure
+filter is the high recursive linearization error when dealing      constraints, represented in the graph by edges between robot
+with ranging measurements [8]. The filter estimates the pose       poses and landmarks, as visualized in Fig. 7. We then use
+of a robot relative to a earth-fixed coordinate system (n-         incremental non-linear least-squares methods to compute
+frame). In order to use the position measurements in the filter,   global pose estimates for all nodes based on the sparse
+the 6-dimensional transformation n Tu must be determined.          optimization problem defined by the SLAM graph.
+We assume that at the beginning the UWB position values
+are accurate and we can directly set the translation of n Tu       C. UWB radio based localization
+to the mean of the initially read UWB position values, while         We employ the ToF based symmetric double-sided two-
+the system was static. Due to the chosen approach, the             way-ranging (SDS-TWR) [15] scheme in order to not have
+                A1                                         A2
+                                                                                                          maximum thrust of 3.6 kg. It is designed to carry two pairs
+                                                                                                          of fisheye stereo cameras without having any parts of the
+                                                                                        A3
+                                                                o4
+                     o2         o3                                            o5
+  Robot    o1                                                                                             MAV in the field-of-view [27], [33]. The individual cameras
+                                                                      x4                 o6
+   path
+          x1
+                          x2             x3                                                               have a field-of-view of approximately 80° horizontally and
+                     v1         v2                    v4
+                                                                                                          125° vertically. Together the stereo camera setups have a
+                                        v3
+                                                                                              x5          240° vertical field-of-view, which covers ground and ceiling
+                                                                 v5
+                                       map                                                                and make it suitable for indoor environments where feature
+                                                                                                          tracking on those surfaces provide a robust robot pose-
+        Robot
+      Trajectory
+                               Robot
+                               Pose
+                                              Landmark
+                                                Pose
+                                                                 Landmark
+                                                                Observation
+                                                                                      Robot
+                                                                                   Pose Estimate
+                                                                                                          estimate. The widely-used Decawave DWM1000 UWB mod-
+                                xxii             Ai                   oii                vi
+                                                                                                                                  TABLE I
+                                                                                                               D ECAWAVE DWM1000 UWB RANGING MODULE SETTINGS .
+
+Fig. 7. Simplified visualization of SLAM graph, omitting the submapping                                              Channel number                  2
+component for clarity. Measurements are represented on edges, nodes                                                  Channel bandwidth               500 MHz
+represent hidden states which are estimated by SLAM.                                                                 Pulse repetition frequency      64 MHz
+                                                                                                                     Preamble length                 1024 symbols
+                                                                                                                     Data rate                       6.8 Mbit/s
+to synchronize the clocks of all individual radio modules.                                                           Output power                    41.3 dBm/MHz
+Let d1 , · · · , dN be the measured distances with associated
+errors e1 , · · · , eN ∼ N (µ, σ 2 ) estimated within the sensor                                          ules [11] are used for all ranging experiments and configured
+error model in Section II. We are estimating the position                                                 as provided in Table I. The tag module is mounted between
+of the tag p̂t (t) at time t, given the previously measured                                               the cameras at the front of the MAV as shown in Fig. 1. All
+                                                  T
+static anchor positions PA = [pa1 , · · · , pa1 ] . Also those                                            anchor radio modules are equipped with AprilTag markers
+quantities are assumed to be Gaussian random variables. The                                               as shown in Fig. 8.
+multilateration equations are defined in (9) as
+                               d1 (t1 ) = kpa1 − p̂t (t1 )k + e1                                                                                                 X
+                                                                                                               Y                                                       Z
+                               d2 (t1 ) = kpa2 − p̂t (t1 )k + e2
+                                                                                                    (9)
+                                   ...        ..
+                                               .                                                                        X                                                  Y
+                           dN (t1 ) = kpaN − p̂t (t1 )k + eN                                               Z
+
+
+
+Those equations are non-linear in the distance calculation
+between the tag pt and the individual anchors pai using the
+Euclidean norm k · k2 . As already mentioned in Section I-
+A and for the sake of brevity within the scope of this                                                    Fig. 8.   UWB radio modules used by Bitcraze and coordinate frame
+                                                                                                          conventions of AprilTags and UWB module antennas. Left: Backside with
+paper, using a non-linear least-squares solver is used as                                                 AprilTag. Right: Coordinate frame in UWB antenna frame.
+a universal and simple approach for solving such a non-
+linear estimation problem. In (10) the non-linear optimization
+objective function is given. Because squaring error terms                                                                        V. E XPERIMENTS
+containing outlier measurements strongly emphasize their
+                                                                                                             In order to validate how well the anchor pose estimation
+influence on the optimization result, we use a loss function
+                                                                                                          and the sensor error model performs across different envi-
+ρ(z) which acts as a weighting function on the squared
+                                                                                                          ronment scenarios, experiments with two deviating anchor
+residuals to minimize the influence of outliers. We chose
+                                                                                                          setups are conducted, see Fig. 10. Especially in regard to
+ρ(z) to be the Cauchy loss function (11) which is considered
+                                                                                                          validating the sensor error model, those setups with different
+to cope well with outliers [32].
+                                                                                                          anchor positions and orientations were used as a means to
+                                               N                                                          provide different surroundings around the anchor antennas
+                                                                                                   (10)
+                                               X
+                                                       ρ (di − kpAi − pt k)2
+                                                                                              
+                     p̂t = arg min                                                                        which alter the incoming and outgoing signals in a different
+                                       pt
+                                               i=1
+                                                                                                          way. The sensor ranging error, predicted by the sensor error
+               ρ(z) = ln (z + 1)                                                                   (11)   model, and the anchor poses, estimated within the SLAM
+The estimated tag position pt and its uncertainty σpt (prop-                                              graph, are compared against ground-truth provided by a
+agated from constant σ = 0.35 m) is then used in the update                                               Vicon optical tracking system mounted on the ceiling of the
+step of the local reference filter, described in Section III-A.                                           lab. All anchor nodes as well as the multirotor platform are
+                                                                                                          equipped with markers, see Fig. 8 and Fig. 1 respectively.
+                   IV. E XPERIMENTAL SYSTEM SETUP                                                         Due to the complex experiment setup with the necessity to
+   Our experimental MAV platform Ardea (see Fig. 1) is                                                    get a high variation of robot pose across the environment,
+a hexacopter based on a triangular hexacopter frame con-                                                  the multirotor platform was carried around instead of putting
+struction propelled by 10 ” coaxial rotor pairs providing a                                               effort into the generation of suitable trajectories.
+   The following three experiments are conducted:                                                                                          Anchor 4
+
+   1) Setup A with N = 5 anchors and a random path for                                                Anchor 2
+
+      calibration of anchor poses and the error model.
+   2) Anchor setup A as in 1 but a different path for                                                                                                  Anchor 3
+      evaluation how good the sensor error model performs                                                                 Anchor 5
+
+      at different tag positions. Therefore the error model                                Anchor 1
+      parameters remain the same as in experiment 1.
+   3) Anchor setup B with N = 5 anchors, while only an-
+      chor poses are calibrated and updated again, the sensor
+      error model still remains the same as in experiment 1.                       Fig. 10. Estimated anchor poses of setup A in SLAM graph visualization.
+      This experiment should show how well the error model                         Coordinate frames represent ground-truth measurements by the optical
+      generalizes across different anchor setups.                                  tracking system, the error are listed in Table II. The short green lines
+                                                                                   visualize the 6D pose constraint edges between tag and landmark positions
+                                                                                   at tag positions where AprilTag detections were made. The remaining purple
+           Anchor4                                             Anchor3
+                                                                                   lines are SLAM graph edges connecting those tag positions with the current
+                           Anchor3
+                                           Anchor4
+                                                                         Anchor1   submap origin and also between submaps, all the way to the map world
+                                                                                   frame.
+                 Anchor5                                       Anchor5
+Anchor2
+                                 Anchor1             Anchor2                                                  TABLE II
+                                                                                   R ESULTING ERRORS OF ESTIMATED ANCHOR POSITIONS BY THE SLAM
+                                                                                            SYSTEM FOR 4 ANCHORS AND ALL 3 EXPERIMENTS .
+
+                                                                                                                          1           2           3
+Fig. 9. Left: Anchor setup A. Right: Anchor setup B. Note that not only
+the positions, but also orientations changed between both setups.                         Anchor 1         x [mm]        24           54         -58
+                                                                                                           y [mm]        -68          15        -140
+                                                                                                           z [mm]        -33         -47         -66
+After processing the logged dataset, the anchor poses esti-                               Anchor 2         x [mm]       -116          -4         -17
+mated by the SLAM system can be extracted instantly. In                                                    y [mm]       -106         146         -21
+                                                                                                           z [mm]        -50          -9         -14
+Fig. 10 the anchor mapping result for experiment 1 is shown                               Anchor 3         x [mm]       206           65         32
+and Table II lists the associated anchor position errors for all                                           y [mm]       133           91        -132
+3 experiments, in which anchor positions were re-calculated                                                z [mm]         3          -32         -68
+                                                                                          Anchor 4         x [mm]       120           56         92
+every time. Those errors are mainly caused by the inherent                                                 y [mm]       210           77        -125
+drift of the VINS, however due to regular occurring SLAM                                                   z [mm]        62          -39          2
+loop closures upon re-visiting AprilTag landmarks, this drift                             Total RMSE         [mm]       114           70         79
+is reduced substantially. The AprilTag pose estimation accu-
+racy itself as well as the complexity of the randomly chosen
+robot trajectories have an impact on this error too. Faster                        than in the other experiments, which might be an indicator
+robot movements might have lead to noticeable motion blur                          of robot and anchor poses which are not well captured by
+and therefore degraded accuracy in the feature tracking of                         the sensor error model. The sensor error model also shows
+the VINS. The trajectory in experiment 1 resulted in the                           good performance in experiment 2. In experiment 3, where
+highest anchor pose estimation error of 11.4 cm root-mean-                         the anchors have been placed in different locations the error
+square error (RMSE), which is however still below anchor                           model still makes reasonable predictions which proves that
+localization errors of 59.2 cm and 15.2 cm mentioned in                            the main influence on the total error seems to originate from
+[34] and [35] respectively, which are solely based on range                        the immediate environment of the tag antenna and less from
+measurements.                                                                      the anchor antennas.
+    Table III shows how the sensor error model performed
+across the experiments. For brevity only results for 4 anchors                                 VI. C ONCLUSION AND FUTURE WORK
+are shown. As result metrics we used the R2 score and                                 In our experiments we have shown an elegant workflow
+the RMSE. The R2 score, or also known as coefficient of                            how to jointly calibrate anchor poses as well as an efficient
+determination, which ranges from 0 to 1, 0 being the worst                         linear sensor error model in one calibration data collection
+and 1 indicating that the regression predictions perfectly fit                     run. The SLAM system estimates the anchor poses already
+the data. It is a suitable indicator of how well variance                          during the data collection online, in a second offline step
+is explained by the model and well it generalizes to new                           the sensor error model parameters are estimated. Because
+inputs. The RMSE is provided for the experiments without                           visual navigation is very accurate over short distances it
+applying the error model calibration and with the calibration                      proved to be suitable for anchor position and sensor error
+applied by subtracting the predicted error by the real error                       model calibration of UWB ranging modules which improved
+measured by the optical tracking system ground-truth. It is                        the ranging error substantially. Moreover, using AprilTags as
+not surprising that the first experiment, which was used for                       artificial landmarks on the UWB anchors helps getting many
+fitting the error model, showed the best results. Interestingly                    loop-closures, which reduces the drift in the VINS. In future
+the R2 score of anchor 1 in experiment 1 is slightly lower                         work we want to investigate and compare more elaborate
+                           TABLE III
+                                                                                    [9] L. Zwirello et al., “Uwb localization system for indoor applications:
+  S ENSOR ERROR MODEL RESIDUAL ERRORS FROM 4 ANCHORS AND 3                              Concept, realization and analysis,” JECE, 2012.
+   EXPERIMENTS . T HE RMSE VALUES ARE GIVEN WITHOUT SENSOR                         [10] A. Ledergerber and R. D’Andrea, “Ultra-wideband range measurement
+    ERROR MODEL CALIBRATION AND WITH CORRECTIONS APPLIED .                              model with gaussian processes,” in CCTA, Aug 2017, pp. 1929–1934.
+                                                                                   [11] Decawave, DWM1000 Datasheet version 1.7, Decawave, 2016, Ac-
+                                            1*             2          3                 cessed 12 Jan. 2019.
+                                                                                   [12] M. Stampa, M. Müller, D. Heß, and C. Röhrig, “Semi-automatic
+   Anchor 1      R2 score                  0.74          0.81        0.81               calibration of uwb range measurements for an autonomous mobile
+                 RMSE w/o [mm]             132           109         151                robot,” in ISR, June 2018.
+                 RMSE with [mm]             11            14          16           [13] H. Wymeersch, S. Marano, W. M. Gifford, and M. Z. Win, “A machine
+   Anchor 2      R2 score                  0.63          0.34        0.23               learning approach to ranging error mitigation for uwb localization,”
+                 RMSE w/o [mm]             307           315         332                IEEE Transactions on Communications, vol. 60, no. 6, pp. 1719–1728,
+                 RMSE with [mm]             33            54          55                June 2012.
+   Anchor 3      R2 score                  0.79          0.67        0.74          [14] A. Ledergerber and R. D’andrea, “Calibrating away inaccuracies in ul-
+                 RMSE w/o [mm]             143           240         139                tra wideband range measurements: A maximum likelihood approach,”
+                 RMSE with [mm]             14            24          17                IEEE Access, vol. 6, pp. 78 719–78 730, 2018.
+   Anchor 4      R2 score                  0.79          0.73        0.42          [15] R. Hach, Symmetric double side two way ranging, Contribution to
+                 RMSE w/o [mm]             143           127         204                IEEE 802.15.4A, IEEE P802.15 Working Group for Wireless Personal
+                 RMSE with [mm]             14            17          40                Area Networks (WPAN), IEEE Computer Society NY, USA Std.,
+              * dataset used for fitting the sensor error model                         2005.
+                                                                                   [16] Decawave, Antenna delay calibration of DW1000-based products and
+                                                                                        systems, version 1.2, Appl. Note APS014, Decawave, 2018, Accessed
+                                                                                        12 Jan. 2019.
+sensor error models which benefit from the estimated anchor                        [17] J. Volakis, Antenna Engineering Handbook, Fourth Edition. McGraw-
+orientations and also predict a meaningful error variance                               Hill Professional, 2007.
+                                                                                   [18] H. Wu, S. Chen, B. Yang, and K. Chen, “Feedback robust cubature
+for a complete uncertainty propagation into the navigation                              kalman filter for target tracking using an angle sensor,” Sensors,
+framework. It would also be beneficial to omit this additional                          vol. 16, no. 5, p. 629, 2016.
+calibration step and instead have an online joint estimation                       [19] C. De Boor, A practical guide to splines; rev. ed., ser. Applied
+                                                                                        mathematical sciences. Berlin: Springer, 2001.
+scheme for both, sensor error model as well as anchor poses,                       [20] M. Powell, Approximation Theory and Methods. Cambridge Univer-
+which then only activates ranging based localization once                               sity Press, 1981.
+anchor poses as well as sensor error models are considered                         [21] M. J. Schuster, K. Schmid, C. Brand, and M. Beetz, “Distributed stereo
+                                                                                        vision-based 6d localization and mapping for multi-robot teams,”
+sufficiently accurate by a calibration quality metric.                                  Journal of Field Robotics, Oct. 2018.
+                                                                                   [22] H. Hirschmüller, P. R. Innocent, and J. M. Garibaldi, “Fast, uncon-
+                     VII. ACKNOWLEDGMENT                                                strained camera motion estimation from stereo without tracking and
+                                                                                        robust statistics,” in ICARCV, 2002.
+   The authors would like to thank the whole DLR RMC                               [23] A. Stelzer, H. Hirschmüller, and M. Görner, “Stereo-vision-based
+XRotor group for the support with the Ardea multicopter                                 navigation of a six-legged walking robot in unknown rough terrain,”
+                                                                                        IJRR, vol. 31, no. 4, pp. 381–402, 2012.
+system and experiments conducted for this paper, Wolfgang                          [24] K. Schmid et al., “State estimation for highly dynamic flying systems
+Stürzl for bringing the idea of using Fourier basis functions                           using key frame sodometry with varying time delays,” in IROS, 2012.
+and spherical harmonics to our attention and Sebastian Riedel                      [25] K. Schmid, F. Ruess, and D. Burschka, “Local reference filter for
+                                                                                        life-long vision aided inertial navigation,” in 17th FUSION, 2014.
+for fruitful discussions about machine learning mumbo-                             [26] J. A. Hesch, D. G. Kottas, S. L. Bowman, and S. I. Roumeliotis,
+jumbo and data visualization.                                                           “Camera-imu-based localization: Observability analysis and consis-
+                                                                                        tency improvement,” The International Journal of Robotics Research,
+                                                                                        vol. 33, no. 1, pp. 182–201, 2014.
+                              R EFERENCES                                          [27] M. G. Müller et al., “Robust visual-inertial state estimation with
+                                                                                        multiple odometries and efficient mapping on an mav with ultra-wide
+ [1] T. Tomic et al., “Toward a fully autonomous UAV,” IEEE Robotics &
+                                                                                        fov stereo vision,” in IROS, 2018.
+     Automation Magazine, vol. 19, no. 3, pp. 46–56, 2012.
+                                                                                   [28] F. M. Mirzaei and S. I. Roumeliotis, “A kalman filter-based algorithm
+ [2] K. Schmid et al., “Autonomous vision-based micro air vehicle for
+                                                                                        for imu-camera calibration: Observability analysis and performance
+     indoor and outdoor navigation,” Journal of Field Robotics, vol. 31,
+                                                                                        evaluation,” IEEE transactions on robotics, 2008.
+     no. 4, pp. 537–570, Jul. 2014.
+                                                                                   [29] M. J. Schuster et al., “Multi-robot 6D graph SLAM connecting
+ [3] J. Delmerico and D. Scaramuzza, “A benchmark comparison of
+                                                                                        decoupled local reference filters,” in IROS, 2015.
+     monocular visual-inertial odometry algorithms for flying robots,” in
+                                                                                   [30] M. J. Schuster et al., “Towards autonomous planetary exploration,”
+     ICRA, May 2018.
+                                                                                        Journal of Intelligent & Robotic Systems, 2017.
+ [4] J. J. S. Jr., P. Axelrad, B. W. Parkinson, and P. Enge, “Satellite constel-   [31] E. Olson, “AprilTag: A robust and flexible visual fiducial system,” in
+     lation and geometric dilution of precision,” Global Positioning System:            IEEE International Conference on Robotics and Automation, 2011.
+     Theory and Applications, Progress in Astronautics and Aeronautics,            [32] J. T. Barron, “A more general robust loss function,” CoRR, vol.
+     vol. I, pp. 177–208, 1994.                                                         abs/1701.03077, 2017. [Online]. Available: http://arxiv.org/abs/1701.
+ [5] H. Liu, H. Darabi, P. Banerjee, and J. Liu, “Survey of wireless indoor             03077
+     positioning techniques and systems,” Systems, Man, and Cybernetics,           [33] P. Lutz et al., “ARDEA - An MAV with skills for future planetary
+     Part C: Applications and Reviews, IEEE Transactions on, vol. 37,                   missions,” Journal of Field Robotics, 2019, manuscript submitted for
+     no. 6, pp. 1067–1080, Nov 2007.                                                    publication.
+ [6] N. Sirola, “Closed-form algorithms in mobile positioning: Myths and           [34] K. Batstone, M. Oskarsson, and K. Astrom, “Robust time-of-arrival
+     misconceptions,” in 2010 7th Workshop on Positioning, Navigation                   self calibration and indoor localization using wi-fi round-trip time
+     and Communication, March 2010, pp. 38–44.                                          measurements,” in 2016 IEEE International Conference on Commu-
+ [7] J. A. J. Smith, “Closed-form least-squares source location estimation              nications Workshops (ICC), May 2016, pp. 26–31.
+     from range-difference measurements,” in IEEE Transactions on Acous-           [35] K. Batstone, M. Oskarsson, and K. Astrom, “Towards real-time time-
+     tics, Speech, and Signal Processing, 1987.                                         of-arrival self-calibration using ultra-wideband anchors,” in Procced-
+ [8] J. Choliz, A. Hernandez-Solana, and A. Valdovinos, “Evaluation of                  ings of the International Conference on Indoor Positioning and Indoor
+     algorithms for uwb indoor tracking,” in Positioning Navigation and                 Navigation (IPIN), 2017.
+     Communication (WPNC), 2011 8th Workshop on, April 2011.
+

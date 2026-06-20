@@ -1,0 +1,1030 @@
+Received 11 February 2023, accepted 22 February 2023, date of publication 27 February 2023, date of current version 2 March 2023.
+Digital Object Identifier 10.1109/ACCESS.2023.3250180
+
+
+
+
+Accurate Indoor Positioning for UWB-Based
+Personal Devices Using Deep Learning
+SANGMO SUNG , HOKEUN KIM , AND JAE-IL JUNG , (Member, IEEE)
+Department of Electronic Engineering, Hanyang University, Seoul 04763, South Korea
+Corresponding authors: Hokeun Kim (hokeun@hanyang.ac.kr) and Jae-Il Jung (jijung@hanyang.ac.kr)
+This work was supported in part by the Technology Innovation Program; in part by the Development of Industrial Intelligent Technology
+for Manufacturing, Process, and Logistics, funded by the Ministry of Trade, Industry & Energy (MOTIE), South Korea, under Grant
+20013726; in part by the National Research Foundation of Korea (NRF) funded by the Korean Government [Ministry of Science and ICT
+(MSIT)] under Grant NRF-2022R1F1A1065201; and in part by the Research Fund of Hanyang University under Grant
+HY-202100000002902.
+
+
+  ABSTRACT Recently, there has been a rapidly emerging demand for localization technologies to provide
+  various location-based services in indoor environments, such as smart buildings, smart factories, and parking
+  lots, as well as outdoor environments. Ultra-wideband (UWB), an emerging wireless technology, provides
+  opportunities for precise indoor positioning with sub-meter accuracy, much more accurate than WiFi or
+  BLE-based techniques, thanks to its signal and communication characteristics. UWB technology has recently
+  begun to be applied to personal devices such as smartphones and is expected to be used for indoor localization
+  of personal devices. However, personal devices often cause signal problems because they are worn on human
+  hands or bodies and move dynamically or are in a non-line-of-sight (NLoS) condition, such as pockets or
+  bags. Therefore, these challenges in the dynamic environment of personal devices must be addressed to
+  enable accurate indoor positioning services based on UWB. In this paper, we propose a novel UWB-based
+  indoor positioning approach that significantly improves localization accuracy under dynamic personal
+  device environments. Our proposed approach detects various NLoS conditions of personal environments
+  by leveraging channel impulse response (CIR) and deep learning. Based on the detected NLoS conditions,
+  the proposed approach adjusts the Kalman filter to adaptively estimate the position of the target UWB-based
+  personal device. Specifically, the distance measurement errors by NLoS are minimized by applying weights
+  determined by deep learning to the Kalman filter. Through experiments conducted in practical indoor
+  environments, we have shown that our proposed approach considerably improves the accuracy compared
+  to the traditional Kalman filter-based and trilateration approaches. According to our method of counting the
+  number of points relative to ground truth, the proposed positioning system improved positioning accuracy
+  significantly by 20.84% to 27.22% with an error tolerance of ±25 cm and by 7.78% to 22.78% with an error
+  tolerance of ±50 cm, compared to the traditional approaches.
+
+
+  INDEX TERMS UWB, personal device, indoor localization, TWR, ranging error compensation, deep
+  learning, LoS & NLoS classification, trilateration positioning algorithm, weight adaptive Kalman filter.
+
+
+I. INTRODUCTION                                                                                 for location-based services delivered in indoor environ-
+Various location-based technologies for indoor environments                                     ments, including buildings, department stores, airports, and
+have been emerging in response to the demand for indoor                                         museums.
+localization services. There is a particularly high demand                                         However, due to the limitations of conventional localiza-
+for high-precision indoor localization across industries [1].                                   tion methodology based on (1) wireless communication [2],
+This demand leads to the evolution of various applications                                      [3], [4], [5], [6] or (2) various sensor techniques [7], [8],
+                                                                                                [9], it has been difficult for the traditional approaches to
+   The associate editor coordinating the review of this manuscript and                          meet the high-precision requirements of applications, such as
+approving it for publication was Barbara Masini             .                                   navigation and robot positioning [10].
+                                           This work is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 License.
+VOLUME 11, 2023                                        For more information, see https://creativecommons.org/licenses/by-nc-nd/4.0/                    20095
+                                                       S. Sung et al.: Accurate Indoor Positioning for UWB-Based Personal Devices Using Deep Learning
+
+
+
+
+   Wireless communication technologies such as WiFi and                     However, when the UWB terminal dynamically moves,
+Bluetooth low energy (BLE) calculate locations leveraging                because the direct propagation path of the UWB signal can be
+the received signal strength indicator (RSSI). However, RSSI             obstructed, the additional delay will occur in the ToF, result-
+tends to fluctuate due to environmental obstacles such as                ing in biased range measurements. The dynamic circum-
+multipath fading, refraction, diffraction, and interference by           stances around UWB devices render high-precision ranging
+devices using similar frequency bands [11], [12], [13], [14],            challenging [21].
+[15]. As a result, positioning accuracy by inaccurate RSSI is               For example, personal devices, such as mobile phones,
+difficult to trust.                                                      move dynamically with the user in hand, resulting in incorrect
+   In addition, positioning based on sensors, such as vision             ToF calculations by indirect path signals due to the lack of
+and inertial measurement unit (IMU) sensors, makes it chal-              a direct path of UWB signal propagation by unpredictable
+lenging to achieve positioning with stable accuracy because              obstacles, which can lead to ranging errors and potentially
+of the physical limitations of the sensor in certain environ-            positioning errors [21].
+ments. Several sensor fusion techniques and data filtering                  Ranging errors are particularly noticeable in channel envi-
+techniques for indoor position tracking have been studied to             ronments where line-of-sight (LoS) is not secured [22], [23],
+overcome these accuracy degradation problems [7], [8].                   such as inside pockets and bags.
+   However, as sensor fusion technology requires multiple                   To address the challenges with the personal device envi-
+sensors, processing large amounts of sensor data increases               ronments, we propose an indoor positioning scheme using a
+hardware costs and computation time for filtering the data,              novel ranging error correction technique for high-accuracy
+which delays the positioning refresh cycle significantly.                indoor positioning systems for personal devices such as
+   The ultra-wideband (UWB) technology is now viewed                     mobile phones. The key idea of our approach is to estimate the
+as a game changer to overcome the aforementioned                         reliability of UWB ranging using channel impulse response
+challenges [16]. Following this trend, personal device                   (CIR) through deep learning.
+manufacturers are starting to include UWB capability in                     We use the Kalman filter to reduce errors in distance
+their personal devices by default because of the technolog-              data with the filter parameters based on CIR-based ranging
+ical advantages of UWB. Leading smartphone manufacturers                 measurements to improve correction efficiency. Based on the
+such as Google, Apple, and Samsung have launched their                   estimated reliability of the measured distance values through
+flagship smartphones with built-in UWB chipsets [17]. Also,              deep learning, we determine the estimates of the distance
+recently, Apple and Samsung started developing their own                 values by adjusting the weights for the measurement of the
+UWB chips.                                                               measurement model and the prediction of the system model
+   UWB uses ultra-wideband frequencies; thus, UWB has the                of the Kalman filter.
+advantage of being resistant to interference with other com-                The main contributions of our approach are as follows:
+munications thanks to its wide bandwidth, having a fading                   • We propose novel deep learning-based UWB two-way
+margin, and a high multi-path diversity gain [17]. UWB can                    ranging (TWR) error correction algorithms for the
+also provide a more accurate and stable positioning tech-                     high-accuracy localization of personal devices as UWB
+nology compared to RSSI-based positioning methods [18],                       tags. (Section III)
+which are heavily affected by radio signal attenuation due to               • We propose an optimal Kalman gain calculation logic
+obstacles, multipath fading, and signal interference because                  for the Kalman filter along with a non-line-of-sight
+UWB uses the time-of-flight (ToF) method for ranging or                       (NLoS) probability calculation model based on UWB
+positioning.                                                                  CIR using deep learning. (Section III-C)
+   UWB positioning methods are roughly threefold; (1) tri-                  • The proposed optimal model for Kalman gain and
+lateration, (2) multilateration, and (3) angle-of-arrival (AoA).              the logic for NLoS probability can readily incorporate
+The trilateration determines the position based on the distance               dynamic ranging errors and can be applied to UWB
+measured between the devices using a radius of the circle                     localization algorithms.
+(or sphere) from each device. The multilateration is similar                • Through realistic experiments, our approach signifi-
+to trilateration except that it uses hyperbolas (in 2D cases)                 cantly improves the localization accuracy by 20.84%
+or hyperboloids (in 3D cases) using TDoA (time difference                     to 27.22% with an error tolerance of B125 cm and
+of arrival) instead of circles or spheres using ToA (time of                  by 7.78% to 22.78% with an error tolerance of
+arrival). AoA positioning uses the distance data and the phase                B150 cm, compared to the traditional Kalman filter and
+angle of the arrival signal [16], [19]. In all three methods, dis-            trilateration-based approaches. (Section IV-C)
+tance data calculated through the signal transfer time between              The rest of this paper is organized as follows: Section II
+equipment is an important factor in determining the accuracy             presents a literature review of existing research on
+of the positioning [20].                                                 UWB-based ranging. In Section III, we propose a novel
+   Personal device location tracking using UWB is potentially            approach for distance error compensation in personal
+highly accurate compared to location tracking using other                device positioning environments. Section IV evaluates the
+wireless communications and does not require a separate                  performance of the proposed approach. Section V concludes
+device.                                                                  the paper.
+
+20096                                                                                                                                VOLUME 11, 2023
+S. Sung et al.: Accurate Indoor Positioning for UWB-Based Personal Devices Using Deep Learning
+
+
+
+
+FIGURE 1. Message exchange in Single-sided TWR.
+
+
+
+
+                                                                                 FIGURE 3. NLoS components included in the received UWB signals.
+
+
+                                                                                    Among other improved TWR methods, Sidorenko et al.
+                                                                                 [27] studied message exchange procedures in TWR in
+FIGURE 2. Process of UWB Single-sided TWR.
+                                                                                 other ways: asymmetric double-sided two-way ranging
+                                                                                 (ADS-TWR), alternative double-sided TWR (AltDS-TWR),
+II. RELATED WORK                                                                 and symmetrical double-sided TWR (SDS-TWR), which
+Since the advent of UWB wireless communication technol-                          demonstrate the effect of smaller ranging measurement errors
+ogy, recent advancements in research on indoor positioning                       compared to commonly used SS-TWR methods [28], [29].
+systems using UWB have drawn considerable interest from                          However, the complexity of the message exchange method
+researchers. In particular, in UWB TWR-based trilateration                       itself increases the channel resources required for ranging,
+positioning, one of the main research streams has been a tech-                   and there is still a problem that ranging speed is greatly
+nique for correcting ranging errors to enable high-precision                     reduced in communication between multiple nodes.
+position estimation in an indoor environment.
+   This section reviews the study of distance measure-                            B. LoS, NLoS CLASSIFICATION METHODS USING UWB CIR
+ment techniques using UWB, line-of-sight (LoS) and non-                          In the field of wireless communication technology, research
+line-of-sight (NLoS) classification studies using UWB                            has been actively conducted for channel state estimation
+channel impulse response (CIR), error correction of dis-                         through transmission and reception signals. In particular,
+tance data measured by TWR between two UWB nodes,                                since the UWB transmission signal is ideally close to the
+and UWB-based localization accuracy improvement studies                          pulse signal, it is possible to estimate the channel status with
+using deep learning.                                                             the received signal because the received signal reflects most
+                                                                                 of the channel status.
+A. UWB-BASED RANGING METHOD                                                         Propagation signals are divided into the direct path through
+Because the UWB characteristic is robust in multipath and                        the shortest path and multipath through diffraction, refraction,
+has a short pulse width, it has a high resolution, which                         reflection, etc. Naturally, multipath signals take longer to
+enables precise measurement of time-of-flight (ToF). UWB                         reach the receiver than the direct path signal. Thus, multipath
+uses TWR technology to calculate distance based on ToF.                          signals tend to be further attenuated in terms of power while
+TWR is commonly used to measure the distance between two                         the signal is propagated, as shown in FIGURE 3, making it
+wireless transceiver nodes.                                                      more difficult for the receiver to sense the reception time and
+   Although UWB can accurately measure ToF, but still con-                       reception strength of the signal.
+tains errors. Techniques for correcting errors for more accu-                       In order to distinguish the direct path signal and indi-
+rate positioning have been studied [24], [25], [26].                             rect path signals, it is necessary to determine whether the
+   FIGURE 1 provides a brief description of the single-sided                     received signals include multipath signals generated under
+TWR (SS-TWR) method, one of the representative TWR                               NLoS conditions [30], [31]. Channel impulse response (CIR)
+methods. SS-TWR is a method of ranging through one                               is a representative indicator for distinguishing the direct path
+message exchange between the initiator and the responder.                        signal and indirect path signals in UWB communication as
+FIGURE 2 illustrates the specific UWB SS-TWR process.                            illustrated in FIGURES 4 and 5.
+In SS-TWR, the initiator obtains information about Treply                           The CIR data indicate the characteristics of the channel,
+from the response message received from the responder. You                       such as skewness, kurtosis, and location of samples with
+can then calculate ToF, which is half the difference between                     the maximum size and the average over-delay, which allows
+the two, from the known Tround and Treply . This method is less                  reasonable classification of data with nonlinear features [32],
+accurate than other improved TWR methods but is often used                       [33], [34], [35].
+because it is suitable for low-performance embedded systems                         Below we illustrate the formula for obtaining the indicators
+due to low computation.                                                          of the CIR reflecting the channel characteristics. The received
+
+VOLUME 11, 2023                                                                                                                                    20097
+                                                           S. Sung et al.: Accurate Indoor Positioning for UWB-Based Personal Devices Using Deep Learning
+
+
+
+
+                                                                             C. MITIGATION OF UWB TWO-WAY RANGING
+                                                                             MEASUREMENT ERROR
+                                                                             Various studies have been conducted to mitigate the errors
+                                                                             contained in the TWR measurement data of the UWB. The
+                                                                             TWR measurement data includes errors due to the environ-
+                                                                             ment being measured, the device’s own fault, etc.
+                                                                                In particular, since errors according to the measurement
+                                                                             environment are inevitable errors that occur outside the
+                                                                             device, many studies are being conducted to classify environ-
+                                                                             ments that contain many errors as a way to solve this problem.
+                                                                             Among them, when calculating TWR using UWB, studies are
+FIGURE 4. Received UWB signals via various paths.                            active to reduce the ranging error using an indicator called
+                                                                             CIR that can identify channel states.
+                                                                                Channel impulse response (CIR) signals are used directly
+                                                                             to extract high semantic features to estimate LoS or NLoS
+                                                                             conditions [36]. Among several attempts to classify the envi-
+                                                                             ronment by analyzing CIR, a prominent approach in recent
+                                                                             studies is the use of artificial intelligence.
+                                                                                Wymeersch et al. [25] proposed a machine learning-based
+                                                                             ranging error mitigation technique. This is a strategy
+                                                                             that combines information about constraints on ranging
+FIGURE 5. Top view of received channel impulse responses of various          errors with SVM or regression techniques and significantly
+paths in UWB TWR shown in FIGURE 4.
+                                                                             improves performance over traditional approaches. Yu et al.
+                                                                             [37] proposed ways to identify and scope NLoS based
+signal from the UWB is formulated as follows:                                on low environmental dependence and prior knowledge
+                                                                             independent fuzzy comprehensive evaluation. Kim et al.
+                  r(t) = s(t) ∗ h(τ ; t) + n(t)                       (1)
+                                                                             [38]. proposed a method to estimate the error values
+  The energy of the received signal is as follows:                           included in UWB TWR measurements based on chan-
+                        Z ∞                                                  nel conditions through the LSTM model and correct them
+                   E=         |r(t)|2 dt                              (2)    through EKF.
+                              −∞
+
+   The maximum amplitude of the received signal is as                        D. UWB-BASED POSITIONING METHOD
+follows:                                                                     In the latest UWB standard, the IEEE 802.15.4z standard, the
+                                                                             ranging method introduces TWR, OWR (one-way ranging)
+                         rmax = maxr(t)                               (3)    for TDoA localization, as the recommended ranging tech-
+   The index of the maximal amplitude in the CIR represents                  nology used by devices applying the IEEE 802.15.4/4z stan-
+rise time:                                                                   dard [39]. The use cases of UWB technology can be extended
+                                                                             to the localization of tags through this ranging technology.
+                      Trise = arg min cmax                            (4)    This section briefly describes the two typical methods of
+                                   t                                         recommended localization technology.
+  The Mean excess delay is as follows:
+                       R∞                                                    1) OWR-BASED MULTILATERATION POSITIONING METHOD
+                             t|c(t)|2 dt
+                τm = −∞                                               (5)    The tag periodically sends a Blink signal to the anchor.
+                              E                                              Because each anchor is at a different distance from the
+  Kurtosis:                                                                  tag, the tag transmits a signal and arrives at all anchors
+                                                                             at different times. The difference in the time the signal
+                           E[(|c(t)| − µ)4 ]
+                      κ=                                              (6)    arrives at the two anchors can be used to calculate
+                                  σ4                                         hyperbolic [40], [41], [42], [43].
+  Skewness:                                                                     At least three hyperbolic intersect to provide the location of
+                                                                             the tag. This method does not require tags to be synchronized
+                            E[(|c(t)| − µ)3 ]
+                     γ =                                              (7)    with anchors, but anchors must be synchronized with each
+                                   σ3                                        other. The accuracy of this synchronization has a significant
+   We utilized the amplitude data of CIR of the received                     impact on location accuracy [44].
+signals as they are most commonly used for LoS and NLoS                         FIGURE 6 shows a conceptual diagram of an OWR-based
+classification.                                                              multilateration consisting of four anchors.
+
+20098                                                                                                                                    VOLUME 11, 2023
+S. Sung et al.: Accurate Indoor Positioning for UWB-Based Personal Devices Using Deep Learning
+
+
+
+
+                                                                                 positioning algorithms or directly ranging error mitigation
+                                                                                 techniques at the physical layer to minimize the ranging error.
+                                                                                    Kalman filter (KF), used in existing ranging error mit-
+                                                                                 igation techniques [48] and localization algorithms, have
+                                                                                 received widespread attention because they are classical
+                                                                                 methods for state estimation of dynamic systems [49], [50],
+                                                                                 [51]. However, this uses a fixed noise covariance matrix, mak-
+                                                                                 ing it difficult to reflect all the changing noise in a dynamic
+                                                                                 positioning environment. To address this problem, ranging
+                                                                                 error mitigation techniques using machine learning [25] and
+                                                                                 deep learning have recently been studied. There are also
+                                                                                 studies of applying deep learning directly to localization
+                                                                                 algorithms [52].
+                                                                                    However, in previous studies, deep learning-based rang-
+                                                                                 ing error mitigation techniques were studied in simulation
+FIGURE 6. UWB OWR-based multilateration Positioning.                             level [48] or required accurate LoS, NLoS classification
+                                                                                 because they corrected ranging errors through binary classi-
+                                                                                 fication for LoS, NLoS. In addition, modifications to deep
+                                                                                 learning-based localization algorithms require extensive data
+                                                                                 collection and a lot of data processing time, as models must
+                                                                                 be learned and used based on different types of data, such as
+                                                                                 ranging measurement, CIR, TDoA, and RSSI.
+                                                                                    In this study, UWB CIR ranging measurements are used to
+                                                                                 obtain deep learning-based NLoS probabilities and use them
+                                                                                 to determine the size of the noise matrix of the Kalman filter
+                                                                                 to immediately mitigate ranging errors that vary in real-time.
+                                                                                 In addition, by using the learning data limited to ranging mea-
+                                                                                 surements and CIR, the collection of learning data required
+                                                                                 for deep learning model learning can be simplified, and data
+                                                                                 processing time can be drastically reduced.
+
+                                                                                 III. PROPOSED APPROACH FOR UWB-BASED PERSONAL
+                                                                                 DEVICE POSITIONING
+                                                                                 The indoor positioning accuracy of a personal device such as
+                                                                                 a mobile phone using UWB changes its pose (e.g., angles) and
+FIGURE 7. UWB TWR-based trilateration Positioning.                               position dynamically depending on the characteristics of the
+                                                                                 personal device being tagged, so the direction of the antenna
+2) TWR-BASED TRILATERATION POSITIONING METHOD                                    and the presence or absence of obstacles to propagation vary
+The TWR-based trilateration positioning scheme is nei-                           from time to time. The effects of these characteristics of
+ther complicated nor requires time synchronization between                       personal devices behave the same as an obstacle to accurate
+anchors compared to the OWR-based method. This means                             positioning. Therefore, UWB-based indoor positioning sys-
+that configuring the positioning infrastructure can be sim-                      tems on personal devices require steps to minimize contextual
+pler [40], [45]. Because the location is calculated through                      distance errors and minimize errors in calculated positions.
+TWR, distance data using the propagation time of UWB                                However, dynamically changing postures and environ-
+signals inevitably contain errors due to errors in signal arrival                ments make it difficult to predict all errors that occur.
+time by multipath [18], [46], [47]. Therefore, achieving high                    We have developed a new indoor location estimation tech-
+positioning accuracy requires mitigating errors in TWR mea-                      nique for mobile phones based on deep learning to flexibly
+surements. For example, the approach proposed in this paper                      consider their pose and environment. UWB data measured in
+uses distance and UWB CIR analysis to mitigate and correct                       different environments can be used to classify the positioning
+measurement errors. FIGURE 7 shows a conceptual diagram                          environment and to update the parameters of the Kalman filter
+of a TWR-based trilateration.                                                    for specific environments to improve accuracy for distance
+                                                                                 predictions.
+E. UWB POSITIONING ACCURACY IMPROVEMENT BASED                                       Our proposed indoor positioning system for personal
+ON ARTIFICIAL INTELLIGENCE                                                       devices consists of three main elements.
+The accuracy of UWB TWR-based trilateration position-                               • Element 1: Deep learning-based propagation environ-
+ing techniques can be improved by modifying trilateration                             ment classifier
+
+VOLUME 11, 2023                                                                                                                           20099
+                                                    S. Sung et al.: Accurate Indoor Positioning for UWB-Based Personal Devices Using Deep Learning
+
+
+
+
+TABLE 1. Abbreviations and acronyms.                                     FIGURE 8 shows the proposed overall system structure.
+                                                                      In the first environment to obtain data, we assume that the
+                                                                      mobile phone positioning environment is divided into three
+                                                                      cases - two NLoS cases (Cases 1 and 2 in FIGURE 8) and
+                                                                      one LoS case (Case 3 in FIGURE 8). First, we obtained data
+                                                                      for Case 1: when a personal device is in a pocket and Case 2:
+                                                                      when a personal device is in a pocket. In addition, we obtained
+                                                                      data under LoS (Case 3) by assuming the situation personal
+                                                                      device in an open space.
+                                                                         Since the proportion of learning data is ultimately an
+                                                                      important factor in determining the classification propensity
+                                                                      of deep learning models, we obtain similar amounts in all
+                                                                      three cases. We performed experiments on the test environ-
+                                                                      ment with the tag in the pocket, bag, or hand in ranging sit-
+                                                                      uations between the anchor and the tag. The UWB data used
+                                                                      for learning consists of 1016 CIR and distance measurements
+                                                                      and labels for the case. After preprocessing the sample data,
+                                                                      we train the model and perform the task of classifying cases
+                                                                      through the learned model. The classification results are given
+  • Element 2: Kalman filter-based ranging measurement
+                                                                      as probability values between 0 and 1 for each LoS, pocket,
+    error correction algorithm
+                                                                      and bag used to determine the NLoS situation.
+  • Element 3: Trilateration positioning algorithm
+                                                                         There are three categories of typical examples of specific
+This section describes the abbreviated list, the overall sys-         NLoS: (1) Case where the personal device is in a person’s
+tem structure, the proposed deep learning-based classification        hand, (2) Case where the personal device is in the pocket, and
+model, Kalman filter-based distance error correction, and             (3) Case where the personal device is in the bag. In these three
+trilateration positioning algorithms.                                 cases, we train deep learning-based classifiers with measured
+   Before diving into the discussion on our proposed                  CIR and distance data. The learned classifier calculates the
+approach, we provide a list of abbreviations used to improve          probability of LoS and NLoS when new distance and CIR
+the readability of the paper is shown in TABLE 1, to be used          information are provided as input. The probabilities to NLoS
+throughout the rest of the paper because many abbreviations           of the measurement are determined by using it to calculate the
+are used in the field of UWB, positioning, and deep learning.         Kalman gain of the Kalman filter, which corrects the distance
+                                                                      data through the calculated probability. This can make the
+A. SYSTEM ARCHITECTURE                                                Kalman filter’s predictions more accurate by trusting the
+We propose a novel Kalman filter-based TWR error correc-              system’s predictions rather than trusting the measured data
+tion system for mobile phone positioning to take into account         under unfavorable measurement conditions.
+the environmental factors between UWB tags and anchors                   Our system consists of four main components, including
+that affect positioning results. The ultimate purpose of this         the learning stages of deep learning models. The first com-
+system is to increase the accuracy of location tracking with          ponent uses CIR and distance data to learn classification
+UWB CIR information when mobile phone positioning is                  models based on deep learning. Deep learning models can
+disadvantageous. UWB CIR is used as a key indicator for               use stochastic inferences by quantifying ambiguous chan-
+classifying situations in which the location of UWB mobile            nel situations by computing probabilities of LoS and NLoS
+phones is disadvantageous. Here, to increase the accuracy             through the application of the softmax function. The data used
+of CIR-based LoS and NLoS classification, we obtain data              for learning improves the performance of the classifier by
+by further segmenting NLoS situations rather than binary              collecting 1016 CIR data from the pocket and the bag for
+classification.                                                       a long time. Training data are collected from about 30,000
+   It takes advantage of the fact that the correlation between        pieces of data in each environment. Deep learning models
+the measured CIR values in the NLoS situation is higher than          learned in the second component obtain probabilities for LoS,
+in the LoS situation and that the NLoS situation in the per-          and NLoS when real UWB range data are input and pass
+sonal device can be determined by several typical situations          this probability information and distance data as input to the
+with high probability. Therefore, the model’s contextual clas-        third element, Kalman Filter-based distance error correction
+sification ability is also enhanced by learning deep learning         algorithm. The third component receives LoS and NLoS
+models by collecting data that can further specify the NLoS           probability information and distance data and adjusts the
+situation. For example, NLoS due to pockets is more similar           error matrix of contextual Q. The Kalman gain is determined
+to NLoS for bags and humans than to LoS. This can provide             based on the determined Q and R. This process can improve
+more evidence for classifiers to distinguish between NLoS             the distance error correction performance of the Kalman
+situations.                                                           filter. We calculated the position data using the trilateration
+
+20100                                                                                                                             VOLUME 11, 2023
+S. Sung et al.: Accurate Indoor Positioning for UWB-Based Personal Devices Using Deep Learning
+
+
+
+
+FIGURE 8. Proposed UWB-based positioning system architecture.
+
+
+
+
+positioning algorithm based on the distance data corrected in                    To use the DNN model, we divided it into learning stages and
+the fourth element.                                                              classification stages. During the learning phase, the learning
+   The proposed position estimation algorithm improves the                       data is used as 80% and 20% test data of the entire collec-
+accuracy of location estimation by reflecting the probability                    tion data. The data used for learning is the collection of NLoS
+inference that measurements have for NLoS when calculating                       data from the bag and pocket environment and the LoS data
+Kalman gain for distance data. FIGURE 9 shows the pro-                           from the open environment. The accuracy of mobile phone
+posed ranging measurement correction algorithm using the                         distance measurement depends on the distance between the
+deep learning model and weighted adaptive Kalman filter                          tag and the anchor measurement terminal.
+(WAKF). FIGURE 10 depicts the operation of the Kalman                               However, due to the nature of the mobile phone, there
+filter to calibrate the ranging measurement.                                     is a possibility that distance measurement accuracy may be
+                                                                                 compromised by dynamic movement and various obstacles,
+B. PROPOSED DEEP LEARNING MODEL                                                  so special environmental factors should be considered. For
+We use a DNN model as a classification model using deep                          example, there may be an NLoS path even if the distance
+learning to learn CIR data, which is used as a core in our                       is close, or there may be an LoS path even if it is further
+system. The DNN model can learn the properties of data                           away. Therefore, UWB learning data was acquired according
+regardless of continuous or categorical types, and the higher                    to distance and environment.
+the amount of data when extracting features of data, the                            The learning data collected 30,000 datasets in each of the
+higher the prediction accuracy generally compared to other                       two NLoS situations and 30,000 datasets in the LoS situa-
+machine learning techniques.                                                     tions to obtain specific characteristics of the NLoS situations,
+   It can also be used for applications that require rapid cal-                  consisting of 90,000 total datasets. This is a data acquisition
+culation because it can classify data quickly and accurately.                    environment assuming the two most likely NLoS situations
+
+VOLUME 11, 2023                                                                                                                            20101
+                                                         S. Sung et al.: Accurate Indoor Positioning for UWB-Based Personal Devices Using Deep Learning
+
+
+
+
+FIGURE 9. Proposed ranging measurement correction algorithm.
+
+
+
+
+  FIGURE 10. Ranging measurement correction process based on Kalman Filter.
+
+
+
+
+so that the location target characteristics of the mobile phone            close to 1:1:1 as possible for a bag, pocket, and open space,
+can be well considered. To prevent feature bias in the data,               but we have trained the model by increasing the proportion
+we learned by collecting data sets at a similar rate across all            of the data that we want in the deep learning model for better
+environments. The ratio of the learning data is collected as               classification.
+
+
+20102                                                                                                                                  VOLUME 11, 2023
+S. Sung et al.: Accurate Indoor Positioning for UWB-Based Personal Devices Using Deep Learning
+
+
+
+
+   During the classification phase that utilizes the deep learn-                 the determined Kalman gain and distance measurements,
+ing model, distance and CIR data are extracted from the actual                   and update the system state error covariance as shown
+positioning sites, and then the probability for the type of                      in (11), (12).
+propagation environment is calculated using the DNN clas-
+sification model. The activation function used in the model                                             x̂t = x̂t− + Kt (zt − x̂t− )          (11)
+used the softmax function, and the probability value for the                                           Pt = (I − Kt H )P−
+                                                                                                                        t                     (12)
+type of propagation environment is output. The prediction
+result of the model is defined as a real number between                             The predicted value of the system state variable is the
+0 and 1, and the sum of the total output data is 1.                              output of the Kalman filter and the corrected distance data
+                                                                                 we are trying to obtain.
+C. PROPOSED KALMAN FILTER-BASED DISTANCE                                            The state transition expression for the prediction phase is
+CORRECTION ALGORITHM                                                             as follows:
+                                                                                                         
+The UWB theoretically transmits a pulse signal and must                                                   s(t)
+                                                                                                  xt =                                    (13)
+receive a pulse signal, but the received signal arrives reflect-                                          v(t)
+ing the characteristics of the channel through which the signal                                                    1 1t
+                                                                                                                       
+                                                                                                  xt = Axt−1 =            x               (14)
+is propagated.                                                                                                     0 1 t−1
+   The received signal can be used to verify the reliability of
+                                                                                                   zt = Dt                                (15)
+the TWR measurement between the UWB anchor and the tag.
+This measurement reliability is used as a key parameter for                      where Dt is the UWB ranging measurement at time t.
+the Kalman filter.
+   The Kalman filter consists largely of prediction and update                   D. PROPOSED TRILATERATION-BASED POSITIONING
+phases. The prediction step defines a system model and pre-                      ALGORITHM
+dicts the following states based on the defined system model.                    We use the trilateration positioning algorithm to determine
+The update phase calculates the Kalman gain, weights the                         the final position through the corrected distance data. Each
+predicted state and measurements in the prediction phase, and                    of the measured distance data from the three anchors is cali-
+updates the state estimates. The system model was modeled                        brated and used as an input to the final positioning algorithm.
+assuming a constant velocity model.                                                 The trilateration-based positioning method is calculated
+   In the Kalman filter, it is determined by Kalman gain that                    by (16)-(29).
+the system prediction model or measurement model is more                            1. Define the equations of three circles
+reliable in predicting the following conditions. We used a
+DNN-based classification model to adjust the Kalman gain                                             (x − x1 )2 + (y − y1 )2 = r12            (16)
+according to the classified channel type.                                                            (x − x2 ) + (y − y2 ) = r22
+                                                                                                               2              2
+                                                                                                                                              (17)
+   This method can compensate for the distance error value
+of the environment by giving more weight to the system                                               (x − x3 )2 + (y − y3 )2 = r32            (18)
+prediction model of the Kalman filter in environments where                        2. l1 Equation of a straight line passing through the inter-
+accurate ranging is difficult.                                                   section of circles 1 and 2
+   Initialize Q and R in the behavior of the initial Kalman
+filter: system noise condition, and measurement noise con-                         2(x2 − x1 )x + 2(y2 − y1 ) = r12 − r22 − x12 + x22 − y21 + y22
+dition, respectively. It then initializes the predictive value of                                                                            (19)
+the system’s initial state and the state error covariance.                         2(x3 − x2 )x + 2(y3 − y2 ) = r22 − r32 − x22 + x32 − y22 + y23
+   From the next behavior of the Kalman filter, the system                                                                                   (20)
+model predicts the next state variable as shown in (8).
+                                                                                     3. Expression for x, y
+                         x̂t− = Ax̂t−1 + But                            (8)
+                                                                                                 A = 2(x2 − x1 )                              (21)
+   The results of the DNN-based classification model deter-
+                                                                                                 B = 2(y2 − y1 )                              (22)
+mine Q and R to obtain the process noise covariance, as shown
+in (9), (10).                                                                                    C = r12 − r2 2 − x1 2 + x2 2 − y1 2 + y2 2   (23)
+                                                                                                 D = 2(x3 − x2 )                              (24)
+                  P−          T
+                   t = APt−1 A + Q                                      (9)
+                                                                                                 E = 2(y3 − y2 )                              (25)
+                   Kt = P−  T   − T
+                         t H (HPt H + R)
+                                        −1
+                                                                      (10)
+                                                                                              F = r22 − r3 2 − x2 2 + x3 2 − y2 2 + y3 2      (26)
+   We can construct an error matrix that reflects different error                       Ax + By = C                                           (27)
+matrices depending on the channel state estimated in real
+time.                                                                                   Dx + Ey = F                                           (28)
+                                                                                                     −1  
+   The process noise covariance and R calculate the new                                      x      A B        C
+                                                                                                =                                             (29)
+Kalman gain, predict the system state variables from                                         y      DE         F
+
+VOLUME 11, 2023                                                                                                                               20103
+                                                     S. Sung et al.: Accurate Indoor Positioning for UWB-Based Personal Devices Using Deep Learning
+
+
+
+
+IV. EVALUATION
+This section describes the assessment of the proposed accu-
+rate positioning system. This section is described in the fol-
+lowing order: Description of experimental environment and
+equipment installation, setup of data sets for experiments,
+performance evaluation of classification models based on
+deep learning, evaluation of position from proposed distance
+correction algorithm, comparing experimental results with
+position from existing Kalman filter-based correction algo-
+rithm and calculated position.
+
+A. EXPERIMENTAL SETUP
+1) SETUP FOR ENVIRONMENTS
+The experiment was conducted in the lobby of the Fusion
+Tech Center building at Hanyang University’s Seoul Campus
+in South Korea. To experiment with UWB-based accurate                  FIGURE 11. DWM3000 and NUCLEO F429ZI Development kit.
+positioning algorithms, we use the SS-TWR method as UWB
+ranging method. The UWB device used in the experiment is
+Qorvo’s DWM3000.                                                         We selected three LoS, NLoS scenarios as an experiment
+   The DWM3000 equipment weighs 200g and is 7cm wide                   in which the proposed deep learning-based classification
+and 13.3cm long, similar to a regular mobile phone. The                model improves the positioning accuracy by reducing the
+applied UWB chipset is the DW3000 in Qorvo. The DW3000                 ranging error occurring in the NLoS situation of the personal
+is a fully integrated single chipset and complies with the IEEE        device: The scenario of moving with the tag on hand, the
+802.15.4z [39] standard. UWB Communication Channel 5                   scenario of moving the tag in the bag, the scenario of mov-
+(6.5 GHz) was used.                                                    ing the tag in the pocket. Three experimental scenarios for
+   For the positioning experiments, we used three anchors to           evaluating the proposed algorithmic settings are shown in
+cover a rectangular positioning area measuring 11 m wide and           FIGURES 13, 14, and 15.
+11 m long. In the experiment, the DWM3000 acts as both an
+anchor and a tag and consists of three anchors and one tag.            2) SETUP FOR DATASETS
+   Each anchor station consists of three fixed anchor stations,        The dataset used in the experiment is the amplitude data of the
+each serving as a responder for TWR communications. In the             CIR measured at the same time as the distance measurement.
+experiment, the tags communicate with the anchors to trans-            Distance measurements include errors due to design errors
+mit the measured CIR and distance data to the server running           in the equipment itself, the location of objects present in the
+the deep learning model and positioning engine.                        indoor environment, and the material of the objects.
+   Each anchor is installed in a fixed position 2.5 meters high           To obtain more accurate location data, a process of cor-
+relative to the antenna module, with anchor 1 at (0,0) (meters),       recting the errors contained in this distance measurement is
+anchor 2 at (11,0) (meters), and anchor 3 at (11,11) (meters).         required. The CIR data is an indicator of the quality of the
+Installing each anchor station at a constant height increases          UWB communication channel and can be used to compensate
+the accuracy of the positioning results.                               for errors in distance measurements.
+   For accurate CIR measurements, the module is installed                 Our CIR data acquisition environment is an environment in
+with the orientation facing the inside of the positioning area.        which tag and anchor act as initiators and responders, respec-
+Our positioning experiment is a square measuring 8.5 meters            tively, and communicate through SS-TWR. Here, TWR was
+by 9.5 meters, and the transceiver antenna is installed at             performed between the anchor and the tag with LoS path,
+45 degrees toward the center of the square. Antenna angles             as well as between the anchor and the tags in the pocket
+for each anchor station are configured arbitrarily and may             and the bag. In addition, we also extracted CIR through the
+contain errors. Fine setting of antenna angles is not an essen-        ranging measurement.
+tial factor to consider because this work aims to improve the             We have divided the NLoS path into two cases to allow
+accuracy of Kalman filter position estimation according to             deep learning models to learn specific features about the
+CIR analysis.                                                          NLoS path through multi-classification. Finally, We obtained
+   To establish a reference path for positioning, a person             CIR data assuming three scenarios. The three scenarios
+moved into a rectangular positioning area consisting of an             include the open space, the pocket, and the bag. And the
+anchor station with a mobile phone in three ways: inside a             distances between the tag and the anchor are 8, 9, and
+bag, inside a pocket, and in an open space estimated into a            10 meters, respectively. The proportions of CIR data collected
+hand. FIGURES 11 and 12 show the UWB DWM3000 equip-                    for distances of 8, 9, and 10 m for tags in the bag, the pocket,
+ment and installation environment used in the experimental             and the open space are shown in FIGURE 16 and are used as
+evaluation.                                                            learning data for deep learning.
+
+20104                                                                                                                              VOLUME 11, 2023
+S. Sung et al.: Accurate Indoor Positioning for UWB-Based Personal Devices Using Deep Learning
+
+
+
+
+                                                                                 FIGURE 14. Indoor positioning experimental environment for tags in
+                                                                                 pocket.
+
+
+
+
+FIGURE 12. Installation of UWB anchors in experimental environment.
+
+
+
+
+                                                                                 FIGURE 15. Indoor positioning experimental environment for tags in bag.
+
+
+                                                                                    FIGURE 17 shows a top view of the amplitude dis-
+                                                                                 tribution of real numbers and imaginary numbers in the
+                                                                                 CIR data in three propagation environments between the
+                                                                                 UWB transmitter and the UWB receiver. Since the actual
+                                                                                 positioning environment is a typical indoor environment
+                                                                                 rather than a chamber, there are many indirect path sig-
+                                                                                 nals due to the surrounding walls and multipath. To enable
+                                                                                 deep learning models to learn this better, the learning data
+                                                                                 acquisition environment has acquired CIR data in a more
+                                                                                 realistic environment as a laboratory environment, not an
+                                                                                 anechoic chamber. For example, the CIR amplitude near
+                                                                                 index 7500 is indented compared to other indexes, as shown
+FIGURE 13. Indoor positioning experimental environment for tags on               in FIGURE 17 (b), which can be seen as a signal degradation
+hand.                                                                            caused by multipath present in the environment.
+                                                                                    FIGURE 17 (a)-(c) shows the amplitude of the CIR that
+   The total number of learning data is 90,000, and each of                      appears when it is 8, 9, and 10 m away from the anchor
+the three wireless environments consists of 30,000 data. Deep                    fixed to the tag in the open space. In FIGURE 17 (a),
+learning-based propagation environment multi-classifiers use                     we can see that the peak is maintained without noise, but
+this CIR data to classify open space, bag, and pocket. We had                    in FIGURE 17 (b), we can see that noise is included due to
+1,016 CIR data in one TWR we acquired, but the data                              multipath from the surrounding environment as the distance
+meaningful for interpretation was after the first path, so we                    increases. Since these noises are so small that they can occur
+extracted CIR data from 850ns and later. Each plot shows the                     when the tag moves, we used the corresponding data contain-
+amplitude distribution of the CIR over the time axis for all                     ing noise in the learning as it is to enable the deep learning
+samples from which the learning data was obtained.                               model to learn efficiently.
+
+VOLUME 11, 2023                                                                                                                                   20105
+                                                              S. Sung et al.: Accurate Indoor Positioning for UWB-Based Personal Devices Using Deep Learning
+
+
+
+
+FIGURE 16. Ratio of CIR data obtained in three scenarios.
+
+
+
+
+FIGURE 17. The top view of the learning data (CIR amplitude) distribution: (a)-(c) CIR amplitude measured at the tag in open space 8 m (a), 9 m (b), 10 m
+(c) away from the anchor, respectively; (d)-(f) CIR amplitude measured at the tag in pocket 8 m (a), 9 m (b), 10 m (c) away from the anchor, respectively;
+(g)-(i) CIR amplitude measured at the tag in bag 8 m (a), 9 m (b), 10 m (c) away from the anchor, respectively.
+
+
+
+
+   FIGURE 17 (d)-(f) shows the amplitude of the CIR that                        we can see that the peak of the CIR decreases as the distance
+appears when it is 8, 9, and 10 m away from the anchor                          between the tag and the anchor increases. The propagation
+fixed to the tag in the pocket. Compared to other distances,                    path between the anchor and the tag in FIGURE 17 (e) is
+
+20106                                                                                                                                       VOLUME 11, 2023
+S. Sung et al.: Accurate Indoor Positioning for UWB-Based Personal Devices Using Deep Learning
+
+
+
+
+NLoS, and the amplitude of the CIR is unevenly distributed as
+the distance increases, as there is an obstruction to the signal
+from the tag in the pocket. We can see that the maximum
+amplitude of the CIR has also decreased as moves to 10 m.
+   FIGURE 17 (g)-(i) shows the CIR amplitude at 8, 9, and
+10 m from the anchor in the bag in the fixed anchor and
+NLoS path. Like tags in pockets, there is no LoS path between
+anchors, so the amplitude of the CIR is unevenly distributed
+as the distance increases, but the signal is more disturbed by
+items in the bag, such as books and laptops, compared to tags
+in the pocket. Moving to 10 m, we can see that the maximum
+amplitude of the CIR is difficult to distinguish signals by
+multipath.
+   Compared with FIGURE 17 (f) and (i), we can see that                          FIGURE 18. Training and test accuracy of proposed DNN model.
+the CIR magnitude peak in FIGURE 17 (c) is constant and
+produces less noise. In addition, the maximum amplitude of
+the CIR measured at the same distance by the environment
+was most pronounced in the open space.
+B. DNN-BASED CLASSIFICATION RESULTS
+To improve the positioning accuracy of the position error
+correction algorithm, we trained a DNN-based deep learn-
+ing classification model using distance-specific CIR learn-
+ing data. The proposed deep learning model learns from a
+preprocessed dataset by assigning labels corresponding to
+propagation environments where tags were placed during a
+single TWR, simultaneously with 1016 amplitude data from
+CIR measured as learning data from deep learning models.
+   Depending on the characteristics of the mobile phone, the
+learning data are constructed by specifying the situation in                     FIGURE 19. Training and test loss of proposed DNN model.
+which the mobile phone may exist with high probability in the
+pocket and bag so that the contextual CIR characteristics can
+                                                                                 proposed trilateration-based positioning algorithm compares
+be learned better by the deep learning model. Deep learning
+                                                                                 the trilateration positioning calculated from UWB-based
+models can learn the propagation environment according to
+                                                                                 TWR measurement data with the positioning result calculated
+CIR amplitude distribution and distance.
+                                                                                 from ranging data corrected using the KF estimator and the
+   Experiments in the position error correction algorithm per-
+                                                                                 positioning result of our proposed WAKF.
+form SS-TWR between the UWB tag and the anchor and
+                                                                                    In our experiments, we possess UWB in two represen-
+use the obtained CIR and distance data as inputs to the
+                                                                                 tative ways since we cannot obtain accurate knowledge of
+pre-trained deep learning model. The deep learning model
+                                                                                 the various environmental-specific UWB TWR measurement
+uses the acquired data to classify which class the propagation
+                                                                                 errors of mobile phones in multiple positions. The situation
+environment of the current tag belongs to and outputs it
+                                                                                 of having a mobile phone is divided into the case of putting a
+as probability data. The softmax-based activation function
+                                                                                 mobile phone in a bag, putting it in a pocket, and carrying it
+then obtains the sum of all class probabilities as 1 with a
+                                                                                 in hand, just like how learned learning data.
+probability between 0 and 1 by weighing the Kalman filter’s
+                                                                                    Positioning is performed using TWR-based trilateration
+measurement model and the system prediction model using
+                                                                                 positioning with 5 position calculations per second.
+the output from the deep learning model.
+                                                                                    It is judged that it is difficult to trust the measured value if
+   FIGURES 18 and 19 show graphs for classification
+                                                                                 the output value classified by the tag of the pocket and bag is
+accuracy and loss of deep learning models, respectively.
+                                                                                 close to 1, so increase the value of the process noise covari-
+In FIGURE 18, the model accuracy reached stable 0.99 after
+                                                                                 ance and reduce the value of the measured noise covariance of
+40 epochs. Also, FIGURE 19 shows the model loss appears
+                                                                                 the measured noise. When the noise matrix is set, the Kalman
+to be less than 0.1 after 40 epochs. We see that the proposed
+                                                                                 filter adjusts the Kalman gain for the data in that input to
+model achieves a higher classification of accuracy as the
+                                                                                 output a calibrated distance prediction.
+epoch of learning continues.
+                                                                                    We compared location data calculated from TWR distance
+C. POSITIONING RESULTS                                                           data obtained from human travel paths to trilateration-based
+This section tests the proposed positioning system for indoor                    locations, Kalman Filter-based locations to Kalman Filter-
+UWB personal devices. To verify the correction level, the                        based locations, and WAKF, calculated from distance data
+
+VOLUME 11, 2023                                                                                                                                 20107
+                                                            S. Sung et al.: Accurate Indoor Positioning for UWB-Based Personal Devices Using Deep Learning
+
+
+
+
+FIGURE 20. Estimated positions of the tag on hand. Red dots are               FIGURE 21. Estimated positions of the tag in the pocket. Red dots are
+positioned by the trilateration algorithm, blue points are positioned by      positioned by the trilateration algorithm, blue dots are positioned by the
+the normal Kalman filter, and green dots are positioned by the proposed       normal Kalman filter, and green dots are positioned by the proposed
+WAKF. The orange area is an area extending by ±50 cm in width based on        WAKF. The orange area is an area extending by ±50 cm in width based on
+ground truth.                                                                 ground truth.
+
+
+
+
+corrected by the proposed deep learning-based distance error                     FIGURE 21 shows experimental results when the UWB
+correction algorithm.                                                         terminal moved with the UWB terminal in its pocket. The
+   The comparison method thickens the path with a constant                    location data based on trilateration shows that the value
+ratio of error for ground truth, which is determined to be                    is more unstable than when moved on hand. We can
+8.5 meters × 9.5 meters in size, and compares how much                        see the TWR-based distance measurement data contained
+location data is contained inside.                                            more errors from NLoS and Multipath. As illustrated
+   FIGURE 20 shows the results of an experiment in which                      in FIGURE 21, the location estimated by our proposed
+the UWB terminal moved along a specified path with the                        algorithm was closer to the black ground truth; 344
+UWB terminal on hand. The red dots represent where the                        WAKF-based location data, 292 KF-based location data, and
+distance measurement data were calculated by the trilat-                      262 trilateration-based location data were observed in the
+eration positioning algorithm. The blue dots represent the                    orange area.
+positions where the trilateration positioning algorithm is cal-                  FIGURE 22 shows the results of an experiment in which
+culated from distance data calibrated with a typical Kalman                   the UWB terminal moved with the UWB terminal in the
+filter. The green dots mark where the trilateration position-                 bag. We can see that the error in the location data is greater
+ing algorithm is calculated from distance data applied with                   compared to the experiments of the hands and pockets. This is
+the proposed correction algorithm. We can see the esti-                       because interference factors such as laptops and books in bags
+mated results of applying our proposed algorithm close to                     that contain terminals have a greater impact on UWB signal
+the ground truth in black. This shows the distance error                      propagation, resulting in ranging errors. In the orange area,
+occurring in the NLoS situation was accurately classified and                 342 WAKF-based location data, 262 KF-based location data,
+estimated.                                                                    and 262 trilateration-based location data were included. The
+   The orange area in FIGURE 20 has an error tolerance of                     experimental results with ±25 cm and ±100 cm, including
+±50 cm for ground truth. Within this area, 347 WAKF-based                     ±50 cm, are shown in TABLE 2.
+location data, 315 KF-based location data, and 319 general                       According to TABLE 2, the proposed positioning system
+trilateration-based location data were observed. We can see                   improved positioning accuracy by up to 27.22% and at least
+that the proposed algorithm estimated its location more accu-                 20.84% in the ±25 cm of error tolerance, by up to 22.78%
+rately than other algorithms.                                                 and at least 7.78% in the ±50 cm of error tolerance, by up to
+
+20108                                                                                                                                     VOLUME 11, 2023
+S. Sung et al.: Accurate Indoor Positioning for UWB-Based Personal Devices Using Deep Learning
+
+
+
+
+                                                                                 FIGURE 23. Amplitudes of CIR measured at the tag in open space and the
+                                                                                 anchor at a distance of 8 m.
+
+
+
+
+FIGURE 22. Estimated positions of the tag in the bag. Red dots are
+positioned by the trilateration algorithm, blue dots are positioned by the
+normal Kalman filter, and green dots are positioned by the proposed
+WAKF. The orange area is an area extending by ±50 cm in width based on
+ground truth.
+
+
+TABLE 2. Accuracy comparison between the proposed approach (WAKF)                FIGURE 24. Amplitudes of CIR measured at the tag in open space and the
+and traditional approaches (Kalman Filter and Trilateration) for three           anchor at a distance of 9 m.
+scenarios with different error tolerances. (Raw data are available upon
+request*.)
+
+
+
+
+                                                                                 FIGURE 25. Amplitudes of CIR measured at the tag in open space and the
+                                                                                 anchor at a distance of 10 m.
+
+
+                                                                                 between UWB terminals, we applied a deep learning-based
+8.33% and at least 0.27% in the ±100 cm of error tolerance.                      propagation environment classification model to classify
+A notable result is that the proposed method has nearly 100%                     NLoS conditions through UWB CIR and device-to-device
+accuracy for ±100 cm of error tolerance to the ground truth.                     distances and perform error correction through the Kalman
+                                                                                 filter.
+V. CONCLUSION                                                                       At this time, to improve the classification accuracy of the
+In this study, we applied UWB technology to provide accurate                     deep learning model, the NLoS conditions were subdivided
+indoor positioning of personal devices such as mobile phones.                    into consideration of the representative portable method of
+Since TWR measurement errors occur in NLoS conditions                            the mobile phone to collect the learning data.
+
+VOLUME 11, 2023                                                                                                                                  20109
+                                                           S. Sung et al.: Accurate Indoor Positioning for UWB-Based Personal Devices Using Deep Learning
+
+
+
+
+FIGURE 26. Amplitudes of CIR measured at the tag in the pocket and the       FIGURE 29. Amplitudes of CIR measured at the tag in the bag and the
+anchor at a distance of 8 m.                                                 anchor at a distance of 8 m.
+
+
+
+
+FIGURE 27. Amplitudes of CIR measured at the tag in the pocket and the       FIGURE 30. Amplitudes of CIR measured at the tag in the bag and the
+anchor at a distance of 9 m.                                                 anchor at a distance of 9 m.
+
+
+
+
+FIGURE 28. Amplitudes of CIR measured at the tag in the pocket and the       FIGURE 31. Amplitudes of CIR measured at the tag in the bag and the
+anchor at a distance of 10 m.                                                anchor at a distance of 10 m.
+
+
+                                                                                Overall, our proposed WAKF-based algorithms for per-
+   As a result, we developed an indoor precision localiza-                   sonal devices localization enhances positional accuracy by up
+tion scheme for UWB trilateration-based mobile phones.                       to 27.22% with ±25 cm of error tolerance over an unfiltered
+To reduce the environmental TWR measurement error,                           positioning algorithm and by up to 23.89% with ±25 cm of
+WAKF was used as the main estimator, and Kalman gain was                     error tolerance over a typical Kalman filter-based positioning
+adjusted by applying the propagation environment classifica-                 algorithm.
+tion results. Experimental results show that the WAKF esti-                     Our approach can be applied to environments where learn-
+mator has been able to significantly reduce errors occurring                 ing data for deep learning has been acquired, and in new and
+in typical mobile phone-carrying situations.                                 expanded environments, additional learning data and deep
+
+20110                                                                                                                                    VOLUME 11, 2023
+S. Sung et al.: Accurate Indoor Positioning for UWB-Based Personal Devices Using Deep Learning
+
+
+
+
+                                                                                 FIGURE 34. Estimated positions of the tag in a bag. The orange cover area
+FIGURE 32. Estimated positions of the tag on hand. The orange cover
+                                                                                 is an area extending by ±25 cm in width based on ground truth.
+area is an area extending by ±25 cm in width based on ground truth.
+
+
+
+
+                                                                                 FIGURE 35. Estimated positions of the tag on hand. The orange cover
+FIGURE 33. Estimated positions of the tag in a pocket. The orange cover
+                                                                                 area is an area extending by ±100 cm in width based on ground truth.
+area is an area extending by ±25 cm in width based on ground truth.
+
+
+learning models need to be improved. In future research,                          APPENDIX
+we will study adaptive deep learning models according to                         FIGURES 23-31 illustrate amplitudes of CIR measured under
+changes in the positioning environment, data learning that                       different environments (an open space, a pocket, and a bag)
+does not require improvement of deep learning models, and                        at different distances (8 m, 9 m, and 10 m).
+feedback learning methods that can automatically calculate                          FIGURES 32-37 demonstrate estimated positions of the
+system errors/measurement errors of the Kalman filter.                           tag under different environments (a hand, a pocket, and
+
+VOLUME 11, 2023                                                                                                                                    20111
+                                                                  S. Sung et al.: Accurate Indoor Positioning for UWB-Based Personal Devices Using Deep Learning
+
+
+
+
+                                                                                     [2] C. Yang and H.-R. Shao, ‘‘WiFi-based indoor positioning,’’ IEEE Com-
+                                                                                         mun. Mag., vol. 53, no. 3, pp. 150–157, Mar. 2015.
+                                                                                     [3] Y. Tao and L. Zhao, ‘‘A novel system for WiFi radio map automatic
+                                                                                         adaptation and indoor positioning,’’ IEEE Trans. Veh. Technol., vol. 67,
+                                                                                         no. 11, pp. 10683–10692, Nov. 2018.
+                                                                                     [4] L. Bai, F. Ciravegna, R. Bond, and M. Mulvenna, ‘‘A low cost indoor
+                                                                                         positioning system using Bluetooth low energy,’’ IEEE Access, vol. 8,
+                                                                                         pp. 136858–136871, 2020.
+                                                                                     [5] T.-M.-T. Dinh, N.-S. Duong, and K. Sandrasegaran, ‘‘Smartphone-based
+                                                                                         indoor positioning using BLE iBeacon and reliable lightweight fingerprint
+                                                                                         map,’’ IEEE Sensors J., vol. 20, no. 17, pp. 10283–10294, Sep. 2020.
+                                                                                     [6] J. Larranaga, L. Muguira, J.-M. Lopez-Garde, and J.-I. Vazquez, ‘‘An envi-
+                                                                                         ronment adaptive ZigBee-based indoor positioning algorithm,’’ in Proc.
+                                                                                         Int. Conf. Indoor Positioning Indoor Navigat., Sep. 2010, pp. 1–8.
+                                                                                     [7] Y. You and C. Wu, ‘‘Hybrid indoor positioning system for pedestrians with
+                                                                                         swinging arms based on smartphone IMU and RSSI of BLE,’’ IEEE Trans.
+                                                                                         Instrum. Meas., vol. 70, pp. 1–15, 2021.
+                                                                                     [8] Y. Xu, Y. S. Shmaliy, Y. Li, X. Chen, and H. Guo, ‘‘Indoor INS/LiDAR-
+                                                                                         based robot localization with improved robustness using cascaded FIR
+                                                                                         filter,’’ IEEE Access, vol. 7, pp. 34189–34197, 2019.
+                                                                                     [9] Q. Zou, Q. Sun, L. Chen, B. Nie, and Q. Li, ‘‘A comparative analysis of
+                                                                                         LiDAR SLAM-based indoor navigation for autonomous vehicles,’’ IEEE
+                                                                                         Trans. Intell. Transp. Syst., vol. 23, no. 7, pp. 6907–6921, Jul. 2022.
+                                                                                    [10] H. Liu, H. Darabi, P. Banerjee, and J. Liu, ‘‘Survey of wireless indoor
+                                                                                         positioning techniques and systems,’’ IEEE Trans. Syst., Man, Cybern. C,
+                                                                                         Appl. Rev., vol. 37, no. 6, pp. 1067–1080, Nov. 2007.
+                                                                                    [11] J. Wisanmongkol, L. Klinkusoom, T. Sanpechuda, L.-O. Kovavisaruch,
+                                                                                         and K. Kaemarungsi, ‘‘Multipath mitigation for RSSI-based Bluetooth
+FIGURE 36. Estimated positions of the tag in a pocket. The orange cover                  low energy localization,’’ in Proc. 19th Int. Symp. Commun. Inf. Technol.
+area is an area extending by ±100 cm in width based on ground truth.                     (ISCIT), Sep. 2019, pp. 47–51.
+                                                                                    [12] W. Xue, W. Qiu, X. Hua, and K. Yu, ‘‘Improved Wi-Fi RSSI measurement
+                                                                                         for indoor localization,’’ IEEE Sensors J., vol. 17, no. 7, pp. 2224–2230,
+                                                                                         Apr. 2017.
+                                                                                    [13] J. Neburka, Z. Tlamsa, V. Benes, L. Polak, O. Kaller, L. Bolecek,
+                                                                                         J. Sebesta, and T. Kratochvil, ‘‘Study of the performance of RSSI based
+                                                                                         Bluetooth smart indoor positioning,’’ in Proc. 26th Int. Conf. Radioelek-
+                                                                                         tronika (RADIOELEKTRONIKA), Apr. 2016, pp. 121–125.
+                                                                                    [14] C. C. Pu and W. Y. Chung, ‘‘Mitigation of multipath fading effects to
+                                                                                         improve indoor RSSI performance,’’ IEEE Sensors J., vol. 8, no. 11,
+                                                                                         pp. 1884–1886, Nov. 2008.
+                                                                                    [15] R. D. Ainul, S. Wibowo, and M. Siswanto, ‘‘An improved indoor RSSI
+                                                                                         based positioning system using Kalman filter and MultiQuad algorithm,’’
+                                                                                         in Proc. Int. Electron. Symp. (IES), Sep. 2021, pp. 558–564.
+                                                                                    [16] F. Zafari, A. Gkelias, and K. K. Leung, ‘‘A survey of indoor localization
+                                                                                         systems and technologies,’’ IEEE Commun. Surveys Tuts., vol. 21, no. 3,
+                                                                                         pp. 2568–2599, 3rd Quart., 2017.
+                                                                                    [17] D. Coppens, A. Shahid, S. Lemey, B. Van Herbruggen, C. Marshall,
+                                                                                         and E. De Poorter, ‘‘An overview of UWB standards and organizations
+                                                                                         (IEEE 802.15.4, FiRa, Apple): Interoperability aspects and future research
+                                                                                         directions,’’ IEEE Access, vol. 10, pp. 70219–70241, 2022.
+                                                                                    [18] Y. Cheng and T. Zhou, ‘‘UWB indoor positioning algorithm based on
+                                                                                         TDOA technology,’’ in Proc. 10th Int. Conf. Inf. Technol. Med. Educ.
+                                                                                         (ITME), Aug. 2019, pp. 777–782.
+                                                                                    [19] S. Bottigliero, D. Milanesio, M. Saccani, and R. Maggiora, ‘‘A low-cost
+                                                                                         indoor real-time locating system based on TDOA estimation of UWB pulse
+                                                                                         sequences,’’ IEEE Trans. Instrum. Meas., vol. 70, pp. 1–11, 2021.
+                                                                                    [20] I. Guvenc, C.-C. Chong, and F. Watanabe, ‘‘NLOS identification and mit-
+                                                                                         igation for UWB localization systems,’’ in Proc. IEEE Wireless Commun.
+                                                                                         Netw. Conf., 2007, pp. 1571–1576.
+FIGURE 37. Estimated positions of the tag in a bag. The orange cover area           [21] Q. Tian, K. I. Wang, and Z. Salcic, ‘‘Human body shadowing effect on
+is an area extending by ±100 cm in width based on ground truth.                          UWB-based ranging system for pedestrian tracking,’’ IEEE Trans. Instrum.
+                                                                                         Meas., vol. 68, no. 10, pp. 4028–4037, Oct. 2019.
+a bag) and different error tolerances (from ± 25 cm to                              [22] B. Denis, J. Keigmart, and N. Daniele, ‘‘Impact of NLOS propagation upon
+                                                                                         ranging precision in UWB systems,’’ in Proc. IEEE Conf. Ultra Wideband
+± 100 cm).                                                                               Syst. Technol., Nov. 2003, pp. 379–383.
+                                                                                    [23] B. Silva and G. P. Hancke, ‘‘Ranging error mitigation for through-the-wall
+REFERENCES                                                                               non-line-of-sight conditions,’’ IEEE Trans. Ind. Informat., vol. 16, no. 11,
+ [1] Y. Cai, W. Guan, Y. Wu, C. Xie, Y. Chen, and L. Fang, ‘‘Indoor high                 pp. 6903–6911, Nov. 2020.
+     precision three-dimensional positioning system based on visible light com-     [24] S. K. Meghani, M. Asif, F. Awin, and K. Tepe, ‘‘Empirical based ranging
+     munication using particle swarm optimization,’’ IEEE Photon. J., vol. 9,            error mitigation in IR-UWB: A fuzzy approach,’’ IEEE Access, vol. 7,
+     no. 6, pp. 1–20, Dec. 2017.                                                         pp. 33686–33697, 2019.
+
+20112                                                                                                                                               VOLUME 11, 2023
+S. Sung et al.: Accurate Indoor Positioning for UWB-Based Personal Devices Using Deep Learning
+
+
+
+
+[25] H. Wymeersch, S. Marano, W. M. Gifford, and M. Z. Win, ‘‘A machine               [48] C.-D. Wann and C.-S. Hsueh, ‘‘NLOS mitigation with biased Kalman
+     learning approach to ranging error mitigation for UWB localization,’’ IEEE            filters for range estimation in UWB systems,’’ in Proc. TENCON IEEE
+     Trans. Commun., vol. 60, no. 6, pp. 1719–1728, Jun. 2012.                             Region Conf., Oct. 2007, pp. 1–4.
+[26] L. Schmid, D. Salido-Monzu, and A. Wieser, ‘‘Accuracy assessment and             [49] S. R. Jondhale, R. Maheswar, and J. Lloret, Received Signal Strength Based
+     learned error mitigation of UWB ToF ranging,’’ in Proc. Int. Conf. Indoor             Target Localization and Tracking Using Wireless Sensor Networks. Berlin,
+     Positioning Indoor Navigat. (IPIN), Sep. 2019, pp. 1–8.                               Germany: Springer, 2022.
+[27] J. Sidorenko, V. Schatz, N. Scherer-Negenborn, M. Arens, and U. Hugento-         [50] S. R. Jondhale and R. S. Deshpande, ‘‘Tracking target with constant accel-
+     bler, ‘‘Error corrections for ultrawideband ranging,’’ IEEE Trans. Instrum.           eration motion using Kalman filtering,’’ in Proc. Int. Conf. Adv. Commun.
+     Meas., vol. 69, no. 11, pp. 9037–9047, Nov. 2020.                                     Comput. Technol. (ICACCT), Feb. 2018, pp. 581–587.
+[28] J. Zhang, W. Wang, X. She, and X. Li, ‘‘2-D indoor passive real-time loca-       [51] C. Zhang, X. Bao, Q. Wei, Q. Ma, Y. Yang, and Q. Wang, ‘‘A Kalman
+     tion system based on ultrawideband technology,’’ IEEE Trans. Instrum.                 filter for UWB positioning in LOS/NLOS scenarios,’’ in Proc. 4th Int.
+     Meas., vol. 71, pp. 1–17, 2022.                                                       Conf. Ubiquitous Positioning, Indoor Navigat. Location Based Services
+[29] S. Chen, D. Yin, and Y. Niu, ‘‘Research and implementation of improved                (UPINLBS), Nov. 2016, pp. 73–78.
+     SS-TWR TOA positioning method based on UWB,’’ in Proc. Int. Conf.                [52] Y.-M. Lu, J.-P. Sheu, and Y.-C. Kuo, ‘‘Deep learning for ultra-wideband
+     Auto. Unmanned Syst. (ICAUS), 2021, pp. 3424–3434.                                    indoor positioning,’’ in Proc. IEEE 32nd Annu. Int. Symp. Pers., Indoor
+[30] D.-H. Kim, G.-R. Kwon, J.-Y. Pyun, and J.-W. Kim, ‘‘NLOS identifica-                  Mobile Radio Commun. (PIMRC), Sep. 2021, pp. 1260–1266.
+     tion in UWB channel for indoor positioning,’’ in Proc. 15th IEEE Annu.
+     Consum. Commun. Netw. Conf. (CCNC), Jan. 2018, pp. 1–4.
+[31] C. Jiang, J. Shen, S. Chen, Y. Chen, D. Liu, and Y. Bo, ‘‘UWB NLOS/LOS
+     classification using deep learning method,’’ IEEE Commun. Lett., vol. 24,
+     no. 10, pp. 2226–2230, Oct. 2020.
+[32] Z. Zeng, S. Liu, and L. Wang, ‘‘NLOS identification for UWB based                                          SANGMO SUNG received the M.S. degree
+     on channel impulse response,’’ in Proc. 12th Int. Conf. Signal Process.                                    from the Department of Electronic Engineering,
+     Commun. Syst. (ICSPCS), Dec. 2018, pp. 1–6.                                                                Hanyang University, South Korea, in 2020, where
+[33] K. Wen, K. Yu, and Y. Li, ‘‘NLOS identification and compensation for                                       he is currently pursuing the Ph.D. degree under
+     UWB ranging based on obstruction classification,’’ in Proc. 25th Eur.                                      the supervision of Prof. Jae-Il Jung. His research
+     Signal Process. Conf. (EUSIPCO), Aug. 2017, pp. 2704–2708.                                                 interests include modeling and performance
+[34] Z. Zeng, S. Liu, and L. Wang, ‘‘UWB NLOS identification with feature                                       enhancement of vehicular networks, throughput
+     combination selection based on genetic algorithm,’’ in Proc. IEEE Int.                                     enhancement in vehicle communication, artificial
+     Conf. Consum. Electron. (ICCE), Jan. 2019, pp. 1–5.
+                                                                                                                intelligence algorithms, UWB-based data com-
+[35] Z. Zeng, R. Bai, L. Wang, and S. Liu, ‘‘NLOS identification and mitigation
+                                                                                                                munication, indoor positioning, and UWB-based
+     based on CIR with particle filter,’’ in Proc. IEEE Wireless Commun. Netw.
+     Conf. (WCNC), Apr. 2019, pp. 1–6.
+                                                                                                                localization technologies.
+[36] S. Angarano, V. Mazzia, F. Salvetti, G. Fantin, and M. Chiaberge, ‘‘Robust
+     ultra-wideband range error mitigation with deep learning at the edge,’’ Eng.
+     Appl. Artif. Intell., vol. 102, Jun. 2021, Art. no. 104278.
+[37] K. Yu, K. Wen, Y. Li, S. Zhang, and K. Zhang, ‘‘A novel NLOS mitigation
+     algorithm for UWB localization in harsh indoor environments,’’ IEEE
+     Trans. Veh. Technol., vol. 68, no. 1, pp. 686–699, Jan. 2019.                                              HOKEUN KIM received the Ph.D. degree in
+[38] D.-H. Kim, A. Farhad, and J.-Y. Pyun, ‘‘UWB positioning system based on                                    EECS from UC Berkeley, in 2017, with a focus
+     LSTM classification with mitigated NLOS effects,’’ IEEE Internet Things                                    on IoT security. He is currently an Assistant
+     J., vol. 10, no. 2, pp. 1822–1835, Jan. 2023.                                                              Professor with the Department of Electronic Engi-
+[39] IEEE Standard for Low-Rate Wireless Networks–Amendment 1: Enhanced                                         neering, Hanyang University, Seoul, South Korea,
+     Ultra Wideband (UWB) Physical Layers (PHYs) and Associated Ranging                                         and a Researcher with the Department of EECS,
+     Techniques, IEEE Standard 802.15.4z-2020 (Amendment to IEEE Stan-                                          UC Berkeley. Before joining Hanyang University,
+     dard 802.15.4-2020), pp. 1–174, 2020.                                                                      he spent four years in the industry with Silicon
+[40] S. Monta, S. Promwong, and V. Kingsakda, ‘‘Evaluation of ultra wideband                                    Valley and continued research on the internet and
+     indoor localization with trilateration and min-max techniques,’’ in Proc.                                  cloud security with Google. His research interests
+     13th Int. Conf. Electr. Eng./Electron., Comput., Telecommun. Inf. Technol.       include computer security, the IoT, real-time systems, cyber-physical sys-
+     (ECTI-CON), Jun. 2016, pp. 1–4.                                                  tems, and computer architecture. He received the ACM/IEEE Best Paper
+[41] W.      Chantaweesomboon,          C.     Suwatthikul,    S.      Manatrinon,    Award and the IEEE Micro Top Picks Honorable Mention for his research
+     K. Athikulwongse, K. Kaemarungsi, R. Ranron, and P. Suksompong,                  contributions to IoT and computer architecture.
+     ‘‘On performance study of UWB real time locating system,’’ in Proc. 7th
+     Int. Conf. Inf. Commun. Technol. Embedded Syst. (IC-ICTES), Mar. 2016,
+     pp. 19–24.
+[42] H. Yin, W. Xia, Y. Zhang, and L. Shen, ‘‘UWB-based indoor high precision
+     localization system with robust unscented Kalman filter,’’ in Proc. IEEE
+     Int. Conf. Commun. Syst. (ICCS), Dec. 2016, pp. 1–6.                                                       JAE-IL JUNG (Member, IEEE) received the B.S.
+[43] A. Duru, E. Sehirli, and I. Kabalci, ‘‘Ultra-wideband positioning system                                   degree in electronic engineering from Hanyang
+     using TWR and lateration methods,’’ in Proc. 4th Int. Conf. Eng. MIS,                                      University, Seoul, South Korea, in 1981, the M.S.
+     2018, pp. 1–4.
+                                                                                                                degree in electrical and electronic engineering
+[44] J. J. Pérez-Solano, S. Ezpeleta, and J. M. Claver, ‘‘Indoor localization using
+                                                                                                                from the Korea Advanced Institute of Science
+     time difference of arrival with UWB signals and unsynchronized devices,’’
+     Ad Hoc Netw., vol. 99, Mar. 2020, Art. no. 102067.
+                                                                                                                and Technology (KAIST), Seoul, in 1984, and the
+[45] N. Wang, X. Yuan, L. Ma, and X. Tian, ‘‘Research on indoor positioning                                     Ph.D. degree in computer science and networks
+     technology based on UWB,’’ in Proc. Chin. Control Decis. Conf. (CCDC),                                     from the Ecole Nationale Superieure des Telecom-
+     Aug. 2020, pp. 2317–2322.                                                                                  munications (ENST), Paris, France, in 1993.
+[46] B. Yan and L. Xiaochun, ‘‘Research on UWB indoor positioning based                                         After receiving his M.S. degree, he was with
+     on TDOA technique,’’ in Proc. 9th Int. Conf. Electron. Meas. Instrum.,           the Telecommunication Network Research Laboratories, Korea Telecom,
+     Aug. 2009, pp. 1–167.                                                            from 1984 to 1997. He is currently a Professor with Hanyang University.
+[47] T. Zhou and Y. Cheng, ‘‘Positioning algorithm of UWB based on TDOA               His research interests include wireless networks and autonomous vehicle
+     technology in indoor environment,’’ in Proc. 11th Int. Conf. Inf. Technol.       technology.
+     Med. Educ. (ITME), Nov. 2021, pp. 261–266.
+
+VOLUME 11, 2023                                                                                                                                               20113
+

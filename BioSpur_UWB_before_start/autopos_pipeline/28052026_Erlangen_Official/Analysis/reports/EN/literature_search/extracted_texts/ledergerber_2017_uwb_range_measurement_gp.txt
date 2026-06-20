@@ -1,0 +1,383 @@
+  Ultra-Wideband Range Measurement Model with Gaussian Processes
+                                          Anton Ledergerber and Raffaello D’Andrea
+
+
+   Abstract— This paper presents an ultra-wideband range mea-           the keys towards more accurate low-cost, small-size, off-the-
+surement model based on Gaussian processes. An analysis of              shelf localization systems. The main contributions are the
+the range measurement error with off-the-shelf ultra-wideband           analysis of the ranging error, the suggested UWB measure-
+radio modules reveals a strong correlation between the reported
+error and the relative pose of the two ranging modules. A               ment model, and an experimental evaluation. The paper is
+Gaussian process is trained for capturing this correlation and          structured as follows: Section II discusses the error of range
+is included in the measurement model. Its effectiveness and             measurements obtained with off-the-shelf UWB modules.
+real-time applicability are experimentally demonstrated on a            Section III suggests a framework to obtain an error model
+quadrocopter platform.                                                  for UWB range measurements which can be used for state
+                                                                        estimation as described in Section IV. Finally, Section V
+                       I. I NTRODUCTION                                 shows the experimental evaluation of the suggested UWB
+                                                                        measurement model and its real-time application.
+   With its recent commercialization, the usage of ultra-
+wideband (UWB) radio technology for localization has                             II. R ANGE M EASUREMENT A NALYSIS
+gained momentum [1]. With companies such as Decawave                      In this section the ranging error of the UWB system
+and BeSpoon offering low-cost, low-power and small-size                 presented in [12] is studied to warrant the error model
+UWB chips, a vast range of new applications became pos-                 suggested in Section III.
+sible. Apart from providing a communication link between
+two modules, the UWB technology also enables range mea-                 A. UWB System and Setup
+surement at the same time as messages are exchanged.                       To measure the distance between two UWB antennas
+This enables the usage of UWB technology for indoor                     connected to a Decawave DW1000 module, the two-way
+localization.                                                           ranging algorithm with repeated reply (presented in [12])
+   While subcentimeter accuracies of UWB range measure-                 is used. Ground truth for the range measurements and the
+ments are reported in research and development [2], [3],                relative poses of the antennas to each other are obtained
+[4], commercially available low-cost UWB systems have                   by a motion capture system. Note that these motion capture
+not yet achieved these accuracies in real-world applications.           measurements are only used for purposes of analysis and
+Non-line-of-sight conditions, multipath arrival times, and the          training; they are not required for live operation of the trained
+influence of the UWB antenna design are just a few of the               model described in Section III and Section IV.
+factors influencing the UWB signal propagation channel and              B. Influence of Antenna Design
+hence also the range measured [1]. In [5], [6], the space
+                                                                           For analyzing the systematic error reported by [12], [13],
+was tessellated and each area was associated with a unique
+                                                                        [14], [15], range measurements with line-of-sight conditions
+UWB measurement model to cope with non-line-of-sight
+                                                                        and no immediate antenna surroundings were taken using
+conditions. Instead of modifying the localization algorithm,
+                                                                        different antenna types in an effort to qualitatively asses their
+machine learning techniques can be used to identify and
+                                                                        influence on the error. Two Partron Dielectric Chip antennas
+compensate for non-line-of-sight conditions when analyzing
+                                                                        on DWM1000 modules [16] were placed 1.7 m apart. One
+the received UWB waveform [7], [8]. The effect of angle-
+                                                                        antenna was then rotated around its x-axis (see Fig. 1 for axis
+dependent UWB pulse distortion as well as the effect of path
+                                                                        labeling), then around its z-axis while range measurements
+overlap on range accuracy are studied in [9], and a modified
+                                                                        zrange were taken. The procedure was repeated with two
+leading-edge detection algorithm is suggested to eliminate
+                                                                        BroadSpec antennas [17] connected to DW1000 modules.
+bias caused by path overlaps. Multiple antennas and multiple
+                                                                        With krk denoting the length of the vector r connecting
+carrier frequencies are used in [10] to mitigate the effects of
+                                                                        the two antennas, Fig. 1 shows the error e = krk − zrange
+channel and angle-dependent range bias. Lookup tables are
+                                                                        of the range measurements over the different rotations.
+used in [11] to compensate for both angle-dependent and
+                                                                        Clearly, the BroadSpec antenna seems to influence the signal
+signal strength-dependent range bias.
+                                                                        propagation channel more evenly when it is rotated around
+   Motivated by the systematic range error reported by [12],
+                                                                        its x-axis than the Partron antenna, which might be due to
+[13], [14], [15], who all used off-the-shelf UWB modules,
+                                                                        its omnidirectionality in the y − z plane. However, its larger
+this paper identifies the range error estimation as one of
+                                                                        size and its low radiation gain along its x-axis also make it
+                                                                        unsuitable for certain applications such as 3D localization for
+  The authors are with the Institute for Dynamic Systems and Control,
+ETH Zurich, Switzerland. The contact author is Anton Ledergerber        wearables. A more thorough discussion about the influence
+antonl@ethz.ch.                                                         of the antennas on the UWB transmission is given in [18].
+C. Influence of Antenna Surroundings and Manufacturing
+Differences
+   While line-of-sight conditions were ensured for the previ-
+ous measurements, a UWB antenna used in a wearable or on
+a mobile robot cannot always be placed so that its immediate
+surrounding space is free from obstacles, and thus guarantee
+line-of-sight conditions for all attitudes. Additionally, man-
+ufacturing differences even for the same antenna type might
+also influence the signal propagation channel. Therefore,
+more range measurements using DWM1000 modules were
+taken. While one module was at a fixed place on the
+ground (hereafter known as anchor), the other module was
+attached to a quadrocopter, and range measurements over
+different poses of the two antennas relative to each other                        Fig. 2. Representation of the coordinate frames used in this paper: The
+                                                                                  inertial frame I, the anchor antenna fixed frame A, the quadrocopter antenna
+were taken. This procedure was then repeated using different                      fixed frame Q and the IMU fixed frame B. The vector from the quadrocopter
+pairs of DWM1000 modules. Fig. 3 shows measurements                               antenna to the anchor antenna is denoted with r and the α, β angles denote
+at selected poses for three different pairs of DWM1000                            the azimuth and the elevation angles in their respective frames.
+modules, representative of all measurements taken. The
+different DWM1000 pairs seem to have a similar error in
+most regions. However, in a few regions the mean of the                           conditions are given the error varies considerably. This is the
+error differs slightly, and in regions where no line-of-sight                     case for 140◦ < αQ < 220◦ in the upper plot of Fig. 3, as
+                                                                                  these measurements required the UWB signal to traverse the
+                                                                                  quadrocopter electronics (see Fig. 2 for the variable definition
+                                                                                  and setup).
+
+                                                                                                     III. R ANGE E RROR M ODEL
+                                                                                     As seen in the previous section, a significant factor in-
+                                                                                  fluencing the error in range measurements is the pose of
+
+
+
+
+Fig. 1. The figure shows the error of the range measurements obtained with
+the Partron (blue) and BroadSpec (red) antennas over different incidence
+angles. The setups for the measurements are illustrated on top of the plots for   Fig. 3. Range measurement errors for three different antenna pairs (blue,
+the Partron antennas on DWM1000 modules. Analogous setups were used               green, red) and over different relative poses with eAz = −eQ
+                                                                                                                                             z (see Fig. 2 for
+for the measurements with the BroadSpec antennas connected to DW1000              definitions).
+modules.
+the two antennas relative to each other. It was further shown                      and the number of pseudo-input points was chosen to be
+that there are relative poses with non-line-of-sight conditions,                   M = 15. It is clearly visible how the SPGP can capture the
+resulting in strong variations of the error.                                       lack of confidence when predicting the range measurement
+   Ideally, a range error model can correctly predict the rel-                     error without line-of-sight conditions (140◦ < αQ < 220◦ ) by
+ative pose-dependent error and provide a confidence interval                       moving its pseudo-input points away from that region.
+for its prediction such that it can be used in a Kalman filter
+framework. This is provided by a model based on Gaussian                           B. Suitable Covariance Functions
+processes [19] presented in this section.
+                                                                                      Assuming that the error in the range measurements, as
+A. Sparse Gaussian Processes                                                       discussed in Section II, depends on the complete relative
+   It is computationally expensive to train a standard Gaus-                       pose of the two antennas, the input x to the SPGP should
+sian process on the error and the pose of the two antennas                         be a parametrization of SE(3). Furthermore, the covariance
+relative to each other. In addition, the resulting model is not                    function k (x, x0 ) should define the proximity or similarity of
+suitable for real-time usage on a platform with limited com-                       two such input points and is therefore of great importance
+putational power. Finally, it would be difficult to construct                      [19]. However, often in self-localizing UWB anchor net-
+a non-stationary covariance function which could capture                           works, only the positions but not the attitudes of the anchors
+the input-dependent confidence level of the prediction. In                         are known. In such scenarios, an SPGP with both the robot
+contrast, the sparse pseudo-input Gaussian process (SPGP)                          and the anchor antenna’s attitude as input cannot be used. By
+[20] is well-suited to this problem. As its authors noted, it                      assuming that the anchors of such a UWB system are placed
+can also model non-stationarity by changing the location of                        with random attitudes and that their number approaches
+the pseudo-input points.                                                           infinity, one can show that a bias in the robot’s position
+   A complete introduction to SPGP is beyond the scope of                          estimate is solely caused by its relative pose to the network.
+this paper; therefore, only the necessary preliminaries for the                    An input point x1 and a covariance function k1 (x1 , x01 ) not
+further discussion are provided and the reader is referred to                      containing the anchor antenna’s attitude are given by
+[20], [21] for more details. Assuming that the relationship
+between an input point x, the process f (x) and the observed                                 x1 = Q r                                                       (4)
+                                                                                                                          T 0
+                                                                                                                                                          
+noisy target y is given by                                                                                             Qr Qr
+                                                                                                                 1−   kQ rkkQ r0 k       (kQ rk − kQ r0 k)2 
+                                                                                    k1 (x1 , x01 ) = θ0 exp −                       −                      ,
+                                                                                                            
+                               y = f (x) + ε,                               (1)                                        θ1                       θ2
+where ε is zero mean additive Gaussian noise with variance
+                                                                                                                                                            (5)
+σ 2 , an SPGP defines a posterior distribution over y∗ at
+test location x∗ . This distribution is defined by the SPGP’s                      where Q r denotes the vector r from the quadrocopter antenna
+pseudo-input points X̄ = [x̄0 , x̄1 , . . . , x̄M−1 ]T , its training data         to the anchor antenna expressed in the quadrocopter antenna
+X = [x0 , x1 , . . . , xN−1 ]T , y = [y0 , y1 , . . . , yN−1 ]T , its mean func-   fixed coordinate frame Q (see Fig. 2). The first term in the
+tion (which is assumed to be zero in this case), and its covari-                   exponent correlates with the angle between two input points,
+ance function k(x, x0 ) with corresponding hyperparameters                         whereas the second term correlates with the difference of
+θ . In the following we denote the mean and the variance of                        their magnitudes.
+this predicted distribution with SPGPµ (x∗ ) and SPGPΣ (x∗ ),                         If the anchor antenna’s attitude is also known, the input
+respectively.
+   The location of the pseudo-input points and the hyper-
+parameters are found by maximizing the likelihood of the
+training data
+                 X̄ ∗ , θ ∗ = arg max p(y|X, X̄, θ , σ 2 ),                 (2)
+                                 X̄,θ
+
+which tends to move the pseudo-input points to locations
+with low output variance. Hence, the SPGP can capture
+input-dependent confidence levels to a certain extent.
+   This is demonstrated in Fig. 4, where the predictive
+distribution of an SPGP trained on the data from the upper
+plot of Fig. 3 is shown. The angle of incidence was chosen
+as the input to the SPGP x = αQ and the error of the range
+measurements was the target y = e. The covariance function
+was given by the standard periodic kernel function
+                                                                                  Fig. 4. The mean (black line) and twice the standard deviation (gray lines)
+                                                    !2                            predicted by a SPGP trained with the data shown with red, green and blue
+              0              1 sin( 12 (αQ − αQ0 ))                                dots. The black dots show the location of the pseudo-input points after
+        k(x, x ) = θ0 exp −                           , (3)                      optimization.
+                             2           θ1
+and covariance function can be extended to                                                V. E XPERIMENTAL R ESULTS
+                                 T                                           This section describes the implementation details and the
+                x2 = Q rT , A rT
+                      
+                                                                     (6)
+                             
+                                         rT r0
+                                                                           experiments performed to assess the ranging error model and
+                                                        rT r0
+                                  2 − k QrkkQ r0 k − k ArkkA r0 k          its application in a Kalman filter for a quadrocopter.
+                0                      Q    Q         A    A
+      k2 (x2 , x2 ) = θ0 exp −
+                             
+                                               θ1                          A. Implementation
+                                           #                                   The two-way ranging algorithm with repeated reply was
+                      (kQ rk − kQ r0 k)2
+                    −                    ,                           (7)   run on the DW1000 modules such that every 5 ms a range
+                             θ2                                            measurement was recorded or used to update the Kalman
+where x2 parametrizes the relative pose of the two antennas                filter, as described in Section IV. During the ranging exper-
+except for the rotation around the connecting axis. For lin-               iments a motion capture system measured the position and
+early polarized waves, this degree of freedom should be taken              attitude with an accuracy on the order of millimeters and
+into consideration. However, including this angle did not lead             milliradians at 200 Hz. The data hereby obtained was used
+to improvements and was therefore discarded. This might be                 to train and test the SPGPs with the GPFlow library [24].
+due to overfitting and neglecting depolarizing effects, which              To test the real-time applicability of the proposed method,
+in addition to the attitude of the transmitting antenna, also              the SPGP were reprogrammed with Eigen and run on the
+have an influence on the polarization [22]. SPGPs using                    Snapdragon Flight computer mounted to a modified Ascend-
+the former and latter input points and kernel functions are                ing Technology Hummingbird quadrocopter. The number of
+hereafter denoted by SPGP1 and SPGP2 , respectively.                       inducing points was set to M = 50 for all experiments to
+                                                                           keep the computational cost low, since an SPGP prediction
+  IV. I NTEGRATION IN A K ALMAN FILTER FRAMEWORK                           of the mean costs O(M) and of the variance costs O(M 2 )
+   This section elaborates on how the SPGPs described in                   for a single test input point [20].
+Section III can be used to increase the accuracy of a rigid-               B. Range Error Model Evaluation
+body Kalman filter which uses UWB range measurements
+                                                                              In the experiments described in Section II, range mea-
+and inertial measurements to update and predict its state
+                                                                           surements over different relative antenna poses were taken.
+estimate. The first-principles underlying the Kalman filter
+                                                                           Although there was a large correlation between the error of
+are hereby enhanced with a data-driven SPGP.
+                                                                           range measurements obtained with different antenna pairs,
+A. Prediction Equations                                                    poses of the antennas relative to each other exist in which the
+   By taking acceleration and angular rate measurements (de-               correlation was smaller. To quantify the effect of these local
+noted by a and ω, respectively) of the inertial measurement                differences, SPGPs trained on different antenna pairs were
+unit as inputs to the rigid-body system, the estimated position            applied to the same data set and the standard deviation of
+p, velocity v, and orientation with respect to the inertial                the remaining ranging error after correction was calculated.
+frame RIB ∈ SO(3) evolve as follows:                                       These numbers are shown in Table I for test data collected
+                                                                           with the antenna pair (0, 1) and a standard deviation of
+                            I ṗ = I v                               (8)   0.133 m for the range measurement error before correction
+                            I v̇ = RIB a + I g                       (9)   (stdDev(e) = 0.133 m). Up to 50% of the ranging error
+                           ṘIB = RIB [[ω]]× ,                      (10)   standard deviation could be explained, if the same antenna
+                                                                           pair was used for training and for testing using a SPGP2 .
+where g is the gravitational acceleration and [[ω]]× is the                A general antenna model trained with data from multiple
+matrix form of the cross product, defined such that [[ω]]× b =             antenna pairs could explain up to 35% of the standard
+ω×b for all b ∈ R3 . The noise of the acceleration and angular             deviation. A histogram of the original and the residual error
+rate measurements can be encoded as process noise using                    using such a general model is shown in Fig. 5. If the SPGP
+the standard Kalman filter formulation. This is a similar                  represented perfectly the process f (x) of (1), the standard
+formulation as in [12].                                                    deviation of the residual error should match the standard
+                                                                           deviation of the additive process noise ε. However, the
+B. Range Measurement Update Equation
+                                                                           standard deviation of the process noise was calculated to
+   Denoting the location of the anchor antenna with pA and                 be σ = 0.03 m using static measurements. While part of
+the position of the quadrocopter antenna with pQ , the range               the discrepancy between standard deviation of the residual
+measurement is given by                                                    error and the standard deviation of the process noise is
+                                       p                                   due to model imperfections, part of it is due to the non-
+    zrange = ||pQ − pA || − SPGPµ (x) + SPGPΣ (x)η, (11)
+                                                                           line-of-sight measurements accounting for about 15% of all
+where η is zero mean additive Gaussian noise with unit vari-               measurements.
+ance. Expressing pQ and x as a function of the state variables                To analyze whether the confidence level given by an SPGP
+p and RIB , this equation can be used in a measurement update              coincides with the one seen in the evaluation of the test
+step of the rigid-body Kalman filter by means of one of the                data, all measurements with a certain confidence level in
+methods described in [23].                                                 their prediction were collected in bins, and the standard
+                                                                               anchors, three of them were placed on the ground in a
+                                 TABLE I
+                                                                               circle of radius 4 m, and two were placed at a height of
+   S TANDARD D EVIATION OF THE R ESIDUAL M EASUREMENT E RROR
+                                                                               approximately 2 m. Table II shows the root-mean-square er-
+           Train antenna pairs       (0, 1)   (2, 1)    (2, 3), (4, 5)         ror of the position estimate (denoted with RMSE(b     p)) and the
+        stdDev(e − SPGP1,µ ) [m]     0.088     0.93        0.100               standard deviations of the error before and after correction
+        stdDev(e − SPGP2,µ ) [m]     0.067    0.080       0.086 ∗
+                                                                               for two experiments. A reduction in the standard deviation
+                                                                               of the range measurements seems to lead to a significant
+                                                                               reduction of the RMSE of the position estimate. However,
+deviation of the residual measurement error after correction                   more experiments using different anchor placements and
+was calculated. Fig. 6 shows such an evaluation for the case                   different commanded trajectories are needed to quantify the
+denoted with ∗ in Table I. As the confidence level given by                    improvement. Fig. 7 shows the estimated positions over four
+the SPGP is quite accurately reflected in the data, it can be                  flown circles. It is visible that the vertical estimation error is
+used to weight or to reject measurement data. For example,                     reduced most. This might be due to the anchor setup, which
+by rejecting measurement data belonging to the last two bins                   made the estimated height most sensitive to measurement
+in Fig. 6, i.e. 12 % of the data from this experiment, the                     errors.
+standard deviation of the residual measurement error could                                                      TABLE II
+be reduced from 0.086 m to 0.077 m. Especially for filter                                                      RMS ERROR
+initialization, when outlier rejection is more difficult, it might
+be of interest to consider only measurements with a high                                               Experiment                    1       2
+confidence level.
+                                                                                                p) without error model [m]
+                                                                                           RMSE(b                                  0.22     0.19
+C. Kalman Filter Evaluation                                                                      p) with error model [m]
+                                                                                            RMSE(b                                 0.12     0.10
+                                                                                                      stdDev(e) [m]                0.13     0.13
+    To assess the real-world applicability of the proposed
+                                                                                                stdDev(e − SPGP1,µ ) [m]           0.08     0.10
+method, a range measurement model using a previously
+trained SPGP1 was integrated in a Kalman filter, as outlined
+in Section IV. The input x1 to the SPGP1 was calculated
+using the Kalman filter’s state estimate. While the prediction                                           VI. C ONCLUSION
+step was performed using an extended Kalman filter update                         The ultra-wideband range measurement model presented
+step, the measurement update step was performed using                          in this paper utilizes a sparse pseudo-input Gaussian process
+the spherical unscented transform [25]. A second Kalman                        to predict the pose-dependent error and noise level. It was
+filter not using the error model was run simultaneously for                    demonstrated that such a measurement model can improve
+comparison. Both filters were run with 200 Hz and used                         the localization accuracy especially in applications in which
+the same measurements to predict and update their state                        UWB antennas are placed on robots and are therefore par-
+estimates.                                                                     tially shielded and strongly influenced by their surrounding.
+    The quadrocopter was commanded to fly a circle while                          The achievable improvements by such a measurement
+constantly turning around its body z-axis. During that ma-                     model strongly depend on the anchor setup, the choice of
+neuverer it received range measurements from five different
+
+
+
+
+                                                                               Fig. 6. The data shown in Fig. 5 and denoted with ∗ in Table I is assigned to
+Fig. 5. This figure compares the distribution of the ranging measurement       four different bins based on the confidence level of the error prediction. The
+error e (left) with the residual error after correction for the case denoted   confidence level versus the standard deviation of the residual measurement
+with ∗ in Table I.                                                             error for each bin is plotted.
+covariance function, the number of pseudo-input points, the                    [3] J. C. Adams, W. Gregorwich, L. Capots, and D. Liccardo, “Ultra-
+training data and the optimization routine used. A rigorous                        wideband for navigation and communications,” Proceedings of the
+                                                                                   IEEE Aerospace Conference, pp. 2785–2791, Mar. 2001.
+discussion of these aspects is future work.                                    [4] D. Yang, A. E. Fathy, H. Li, M. Mahfouz, and G. D. Peterson,
+                                                                                   “Millimeter accuracy UWB positioning system using sequential sub-
+                  ACKNOWLEDGMENTS                                                  sampler and time difference estimation algorithm,” in 2010 IEEE
+   Aspects of this paper were only possible due to the                             Radio and Wireless Symposium (RWS), Jan. 2010, pp. 539–542.
+                                                                               [5] A. Prorok and A. Martinoli, “Accurate indoor localization with ultra-
+work of numerous collaborators in the Flying Machine                               wideband using spatial models and collaboration,” The International
+Arena project. A list of these collaborators can be found                          Journal of Robotics Research, pp. 547–568, Nov. 2013.
+at: http://flyingmachinearena.org.                                             [6] D. Hoeller, A. Ledergerber, M. Hamer, and R. D’Andrea, “Augmenting
+                                                                                   ultra-wideband localization with computer vision for accurate flight,”
+   This work was supported by the Swiss National Science                           in To appear in: Proceedings of the 20th IFAC World Congress, 2017.
+Foundation (SNSF).                                                             [7] H. Wymeersch, “A Machine Learning Approach to Ranging Error Mit-
+                                                                                   igation for UWB Localization,” IEEE transactions on communications,
+                            R EFERENCES                                            vol. 60, no. 6, pp. 1719–1728, 2012.
+                                                                               [8] V. Savic, E. G. Larsson, J. Ferrer-Coll, and P. Stenumgaard, “Kernel
+ [1] M. Ghavami, L. B. Michael, and R. Kohno, Ultra Wideband Signals
+                                                                                   Methods for Accurate UWB-Based Ranging With Reduced Complex-
+     and Systems in Communication Engineering. John Wiley & Sons,
+                                                                                   ity,” IEEE Transactions on Wireless Communications, vol. 15, no. 3,
+     Feb. 2007.
+                                                                                   pp. 1783–1793, Mar. 2016.
+ [2] C. Zhang, M. Kuhn, A. E. Fathy, and M. Mahfouz, “Real-time
+                                                                               [9] R. Ye, S. Redfield, and H. Liu, “High-precision indoor UWB localiza-
+     noncoherent UWB positioning radar with millimeter range accuracy
+                                                                                   tion: Technical challenges and method,” in 2010 IEEE International
+     in a 3d indoor environment,” in Microwave Symposium Digest, 2009.
+                                                                                   Conference on Ultra-Wideband, vol. 2, Sep. 2010, pp. 1–4.
+     MTT ’09. IEEE MTT-S International, Jun. 2009, pp. 1413–1416.
+                                                                              [10] B. Kempke, P. Pannuto, and P. Dutta, “PolyPoint: Guiding Indoor
+                                                                                   Quadrotors with Ultra-Wideband Localization,” in Proceedings of the
+                                                                                   2Nd International Workshop on Hot Topics in Wireless. ACM, 2015,
+                                                                                   pp. 16–20.
+                                                                              [11] L. Zwirello, T. Schipper, M. Harter, and T. Zwick, “UWB Localization
+                                                                                   System for Indoor Applications: Concept, Realization and Analysis,”
+                                                                                   Journal of Electrical and Computer Engineering, vol. 2012, p. 4, May
+                                                                                   2012.
+                                                                              [12] M. W. Mueller, M. Hamer, and R. D’Andrea, “Fusing ultra-wideband
+                                                                                   range measurements with accelerometers and rate gyroscopes for
+                                                                                   quadrocopter state estimation,” in 2015 IEEE International Conference
+                                                                                   on Robotics and Automation (ICRA), May 2015, pp. 1730–1736.
+                                                                              [13] J. Tiemann, F. Eckermann, and C. Wietfeld, “ATLAS - an open-
+                                                                                   source TDOA-based Ultra-wideband localization system,” in 2016
+                                                                                   International Conference on Indoor Positioning and Indoor Navigation
+                                                                                   (IPIN), Oct. 2016, pp. 1–6.
+                                                                              [14] V. Barral, P. Surez-Casal, C. J. Escudero, and J. A. Garca-Naya,
+                                                                                   “Assessment of UWB Ranging Bias in Multipath Environments.”
+                                                                                   [Online]. Available: http://www3.uah.es/ipin2016/usb/app/descargas/
+                                                                                   191 WIP.pdf
+                                                                              [15] K. Caluwaerts, J. Bruce, J. M. Friesen, and V. SunSpiral, “State esti-
+                                                                                   mation for tensegrity robots,” in 2016 IEEE International Conference
+                                                                                   on Robotics and Automation (ICRA), May 2016, pp. 1860–1865.
+                                                                              [16] “Decawave DWM1000 Datasheet.” [Online]. Available: www.
+                                                                                   decawave.com
+                                                                              [17] “Broadspec Antenna.” [Online]. Available: http://www.timedomain.
+                                                                                   com/datasheets/TD Broadspec Antenna.pdf
+                                                                              [18] W. Srgel and W. Wiesbeck, “Influence of the Antennas on the Ultra-
+                                                                                   Wideband Transmission,” EURASIP Journal on Advances in Signal
+                                                                                   Processing, vol. 2005, no. 3, pp. 296–305, Mar. 2005.
+                                                                              [19] C. E. Rasmussen and C. K. I. Williams, Gaussian Processes for
+                                                                                   Machine Learning. MIT Press, 2006.
+                                                                              [20] E. Snelson and Z. Ghahramani, “Sparse Gaussian Processes using
+                                                                                   Pseudo-inputs,” in Advances in Neural Information Processing Systems
+                                                                                   18. MIT Press, 2006, pp. 1257–1264.
+                                                                              [21] J. Quionero-Candela and C. E. Rasmussen, “A Unifying View of
+                                                                                   Sparse Approximate Gaussian Process Regression,” Journal of Ma-
+                                                                                   chine Learning Research, vol. 6, pp. 1939–1959, Dec. 2005.
+                                                                              [22] John L. Volakis, Antenna engineering handbook. McGraw-Hill, 2007.
+                                                                              [23] J. Ko and D. Fox, “GP-BayesFilters: Bayesian filtering using Gaussian
+                                                                                   process prediction and observation models,” Autonomous Robots,
+                                                                                   vol. 27, no. 1, pp. 75–90, Jul. 2009.
+                                                                              [24] A. G. d. G. Matthews, M. van der Wilk, T. Nickson, K. Fujii,
+                                                                                   A. Boukouvalas, P. León-Villagrá, Z. Ghahramani, and J. Hens-
+                                                                                   man, “GPflow: A Gaussian process library using TensorFlow,” arXiv
+                                                                                   preprint 1610.08733, Oct. 2016.
+Fig. 7. The top plot shows the estimated position using an error model in     [25] S. J. Julier, “The spherical simplex unscented transformation,” in
+dashed green, the estimated position without using an error model in dotted        Proceedings of the 2003 American Control Conference, 2003., vol. 3,
+blue and the position measured by the motion capture system in solid red.          Jun. 2003, pp. 2430–2434 vol.3.
+The bottom three plots show the error of the position estimates for each
+axis over time (dashed green: with error model, dotted blue: without error
+model).
+

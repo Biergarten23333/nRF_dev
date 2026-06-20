@@ -1,0 +1,747 @@
+Received November 12, 2018, accepted November 28, 2018, date of publication December 5, 2018,
+date of current version December 31, 2018.
+Digital Object Identifier 10.1109/ACCESS.2018.2885195
+
+
+
+
+Calibrating Away Inaccuracies in Ultra
+Wideband Range Measurements:
+A Maximum Likelihood Approach
+ANTON LEDERGERBER , (Member, IEEE), AND RAFFAELLO D’ANDREA , (Fellow, IEEE)
+Institute for Dynamic Systems and Control, ETH Zürich, 8092 Zürich, Switzerland
+Corresponding author: Anton Ledergerber (antonl@ethz.ch)
+This work was supported by the Swiss National Science Foundation.
+
+
+  ABSTRACT A calibration framework for an ultra-wideband localization system employing inertial measure-
+  ment units is presented. No external motion capture system or other sensors are required for the calibration
+  procedure. Given a covariance function for the error in the range measurements, a range measurement model
+  based on a Gaussian process is obtained by maximizing the joint likelihood of angular rate, acceleration,
+  and range measurements. The framework is experimentally evaluated, and it is shown how the resulting
+  measurement model, integrated in a standard Kalman filter, can be used for real-time localization on
+  a platform with limited computational resources. The calibration significantly improves the localization
+  accuracy for randomly generated trajectories and different localization system setups.
+
+
+  INDEX TERMS Gaussian processes, maximum likelihood estimation, sensor fusion, ultra wideband
+  technology.
+
+I. INTRODUCTION                                                                                     •  how to calibrate UWB module-dependent delays,
+Ultra Wideband (UWB) technology enables low-cost and                                                •  how parameter choices impact the performance of the
+low-power communication and localization with centimeter                                               framework.
+accuracy using the same radio transceiver chip [1]. These                                           The paper is structured as follows: Section II reviews
+properties make UWB a potential key technology for the                                           related work. A Gaussian process model for the UWB range
+Internet of Things. However, integrating or attaching a UWB                                      measurement error is introduced in Section III. A maximum
+transceiver to a device poses many challenges for the tech-                                      likelihood approach to train this model with inertial mea-
+nology to achieve the aforementioned accuracy. Often UWB                                         surement unit (IMU) and UWB data only is presented in
+antennas with a small form factor, ideally integrated in a                                       Section IV. Implementation details of the framework are
+printed circuit board, are required for portable devices. These                                  given in Section V, where it is also explained how the result-
+specifications make omnidirectional antenna design a chal-                                       ing model can be integrated in a Kalman filter framework.
+lenging task for wide bandwidth. Furthermore, these antennas                                     An experimental evaluation of the proposed framework is
+are often mounted on structures or devices that reflect the                                      presented in Section VI and remarks on future work are made
+UWB pulses back towards the antenna, causing the reflected                                       in Section VII. Note that while the symbols and notation are
+signal to overlap and interfere with the line-of-sight pulse.                                    introduced with their first appearance, there is also a overview
+Although UWB systems feature certain inherent robustness                                         in .the Appendix A.
+to multipath effects thanks to their short pulse duration, they
+are not immune to them when pulses overlap [2].
+                                                                                                 II. RELATED WORK
+   In our previous work [3] we showed that these effects
+                                                                                                 The error in the range measurements acquired by a UWB
+can be partially learned and compensated for using a range
+                                                                                                 localization system depends on many factors. Errors in
+measurement model based on Gaussian processes. This paper
+                                                                                                 clock synchronization, errors in estimating the arrival time
+extends our previous work providing more detailed analytical
+                                                                                                 of an incoming signal, uncompensated internal propagation
+and experimental results, showing
+                                                                                                 delays, multipath propagation and non-line-of sight condi-
+   •   how to calibrate such a range measurement model                                           tions (NLOS) can all affect the accuracy of a range estimate.
+       without ground truth data,                                                                Although significant amount of research has investigated the
+                                             2169-3536 2018 IEEE. Translations and content mining are permitted for academic research only.
+VOLUME 6, 2018                                     Personal use is also permitted, but republication/redistribution requires IEEE permission.              78719
+                                            See http://www.ieee.org/publications_standards/publications/rights/index.html for more information.
+                                                                    A. Ledergerber, R. D’Andrea: Calibrating Away Inaccuracies in UWB Range Measurements
+
+
+
+
+            FIGURE 1. A schematical drawing of the setup used for data collection is shown in (a). The coordinate systems of the tag
+            and the anchor are denoted by T and A, respectively; and the azimuth and elevation angles are denoted by αA , αT and
+            βA , βT , respectively. The quadcopter platform is pictured in (b). It is visible that UWB pulses from certain directions need to
+            pass the quadcopter body before arriving at the UWB antenna.
+
+
+
+
+effects of obstacles in the far field of the transmitting and                   III. RANGE MEASUREMENT MODEL
+receiving antenna (summarized in, for example, [4]), less                      The most often used, simple range measurement model
+research has been directed at mitigating the effects of the                    assumes that the measured range zr between a mobile UWB
+immediate antenna surrounding, which can cause multipath                       module (hereafter known as the tag) and a fixed UWB mod-
+overlays in the UWB pulse from the direct path in line-of-                     ule (hereafter known as an anchor) is the exact distance,
+sight conditions [5]. Additionally, since objects in the near-                 corrupted by zero mean, normally distributed measurement
+field of antennas change the antennas’ radiation patterns [6],                 noise ηr with variance σr2 . In the following, let the range
+it is generally recommended to keep the near-field free of                     vector pointing from the tag antenna to the anchor antenna
+obstacles. However, this is often not possible in small form-                  be denoted by r (see Fig. I). Furthermore, let Zr denote
+factor, mobile or portable devices [2].                                        the set of all range measurements and let the values of the
+   Previous work addressing these real-world problems                          measured range, the range vector and the noise for a specific
+include [7]–[10]. The effects of angle dependent waveform                      range measurement i ∈ Zr be denoted by zr,i , ri and ηr,i ,
+distortion due to non-ideal antenna design and UWB pulse                       respectively. Hence, the standard range measurement model
+overlaps on timing estimation are studied in [7], and a new                    is given as
+leading edge detection algorithm is proposed that is less
+sensitive to these effects. If the same antenna in the same                                               zr,i = kri k + ηr,i ,                           (1)
+immediate surrounding is used, these variations can be com-                    where k · k denotes the Euclidean norm.
+pensated for by building a model for the resulting range
+measurement error. This is done in [8] where a lookup table                     A. RANGE MEASUREMENT ANALYSIS
+is used to correct for angle and signal strength-dependent
+                                                                               To assess the suitability of such a measurement model for
+ranging errors. More recently, machine learning techniques
+                                                                               a real-world application, in which a small UWB-antenna is
+have been used to model the correlation between the received
+                                                                               integrated in a mobile device or robot, the following measure-
+UWB pulse waveform and the resulting error in the range
+                                                                               ments were taken. A UWB module integrated on a quadcopter
+measurement. Both [9] and [10] use properties of the received
+                                                                               platform serving as the tag constantly ranged to an anchor
+waveform, such as the pulse rise time or the signal strength as
+                                                                               module at a fixed position on the ground. By commanding
+features for machine learning algorithms modeling the range
+                                                                               the quadcopter to yaw around its thrust axis while hovering
+measurement error.
+                                                                               at different positions, range measurements over different rel-
+   However, to build and verify such models for the range
+                                                                               ative poses of the two antennas to each other were collected
+measurement error, labeled training data is often required
+                                                                               along with ground truth data provided by a motion capture
+which may not always be available. The work presented here
+                                                                               system. This procedure was repeated three times employing
+shows how such a model can be obtained without ground
+                                                                               different UWB modules. More details on this setup, depicted
+truth data. Instead it adapts a calibration procedure shown
+                                                                               in Fig. I, are provided in Section V.
+to work well for combined camera and IMU parameter esti-
+                                                                                  The range measurement error e, i.e. the difference between
+mation [11] and extends it to a more complex UWB range
+                                                                               the exact distance and the measured range
+model with correlated measurement errors and varying noise
+variance (heteroscedastic noise [12, p. 273]).                                                              e = krk − zr ,                                (2)
+
+78720                                                                                                                                           VOLUME 6, 2018
+A. Ledergerber, R. D’Andrea: Calibrating Away Inaccuracies in UWB Range Measurements
+
+
+
+
+         FIGURE 2. The error in range measurements taken over different relative poses is shown (see Fig. I for a definition of the angles).
+         Measurements using different UWB module pairs are shown in different colors.
+
+
+
+
+is shown in Fig. 2 for selected relative poses. Since the                        The covariance function is chosen to be
+ranging antennas’ z-axes were aligned during the experi-                                          1 − rT r0                  !2 
+                                                                                                         krkkr0 k    krk − r0
+ments, the relative poses are fully described by the range krk,                 k(r, r ) = θ0 exp −
+                                                                                      0
+                                                                                                                  −               , (7)
+the azimuth αT and elevation βT angles of the tag, and the                                              θ                θ2
+                                                                                                    | {z1 } |
+azimuth αA and elevation βA angles of the anchor. It is evident
+                                                                                                                         {z    }
+                                                                                                             angle term
+                                                                                                                                 distance term
+that the error in the range measurement is systematic and
+                                                                               where θ0 , θ1 , θ2 are adjustable parameters. Given two range
+should not be modelled as white noise. The figure further
+                                                                               measurements i, j ∈ Zr , this covariance function models the
+reveals that the error is correlated with the relative pose of
+                                                                               similarity of ranging errors ei and ej as a function of the angle
+the two ranging modules. This correlation is attributed to the
+                                                                               between the incoming UWB pulses to the tag (angle term) and
+non-omnidirectional radiation pattern of the UWB antenna
+                                                                               the difference in the distance the UWB pulses have to travel
+and to the fact that reflected UWB pulses from the antenna’s
+                                                                               (distance term), i.e.
+immediate surrounding might overlap with the UWB pulse
+from the direct signal path. Given a UWB pulse width of                                                     ei = kri k − zr,i                      (8)
+roughly 2 ns [13], such overlaps exist if the indirect path is                                    cov(ei , ej ) = k(ri , rj ) + δij σr2 ,          (9)
+less than 0.6 m longer than the direct path. With the antenna
+fixed on a mobile device or robot, these reflections are a                     where δij is the Kronecker delta which is one iff i = j
+functions of the direction of the incoming UWB pulse.                          and zero otherwise. Hence, if range measurements i, j were
+                                                                               made in roughly the same direction, the angle term of (7)
+B. RANGE MEASUREMENT MODELING WITH A                                           would be small. If they were also made over roughly the
+GAUSSIAN PROCESS                                                               same distances, the distance term of (7) would also be small,
+The previously described correlation between the relative                      resulting in k(ri , rj ) ≈ θ0 . To the contrary, if either the
+pose of the two ranging antennas and the error in the range                    directions or the distances of the two measurements were
+measurement can be captured by a Gaussian process which                        very different, the covariance function value would only be
+assumes that the measured ranges are noisy observations of                     a fraction of θ0 . This behavior is defined by the values of
+a unknown function f (r) having the range vector r expressed                   θ1 and θ2 , and is visualized in Fig. 3. We show in Appendix B
+in the tag frame T (see Fig. I) as input argument, i.e.                        that k(r, r0 ) is a valid covariance function.
+                                                                                  Note that the range vector r is not a full parameteriza-
+                        zr,i = f (ri ) + ηr, i .                     (3)       tion of the relative pose. Nonetheless the previously defined
+                                                                               Gaussian process for the function f (r) is able to describe the
+A Gaussian process for this function is completely specified                   measured range well, as shown in Section VI. Other Gaussian
+by its mean m(r) and covariance function k(r, r0 ) [14, p. 13],                processes for functions having the complete relative pose as
+i.e.                                                                           input arguments, or for functions describing the ranging error
+                                                                               with properties of the received waveform as used in [10],
+            m(r) = E [f (r)]                                         (4)
+                                                                               are not investigated in this work. Nonetheless, the framework
+          k(r, r0 ) = E (f (r) − m(r)) f (r0 ) − m(r0 ) .
+                                                      
+                                                                     (5)       presented hereafter is applicable to any Gaussian process
+                                                                               describing the range measurement model.
+   The mean function is chosen to be the expected value of
+                                                                                  The application of a standard Gaussian process can
+the standard range measurement model
+                                                                               be computationally demanding when using many training
+                            m(r) = krk .                             (6)       points. To lower the computational demand, the sparse
+                                                                               Gaussian process using pseudo input points (SPGP)
+We later discuss in Section III-C how to adapt the mean                        is employed. This sparse approximation to a Gaussian
+function in case of constant, UWB module specific offsets.                     Process was first presented in [15] and is now termed
+
+VOLUME 6, 2018                                                                                                                                   78721
+                                                                         A. Ledergerber, R. D’Andrea: Calibrating Away Inaccuracies in UWB Range Measurements
+
+
+
+
+                      FIGURE 3. The value of the covariance function k(r, r0 ) given in (7) is shown as a function of r ∈ span(nTx , nTy )
+                      while keeping r0 fixed. For example, for r as explicitly shown in the first plot, it evaluates to k(r, r0 ) = 21 θ0 .
+                      For purpose of comparison, the three plots were made with different values of the kernel parameters θ1
+                      and θ2 — in the framework described in Section IV, these parameters are optimized to maximize the data
+                      likelihood.
+
+
+fully-independent training conditional sparse Gaussian pro-                         respect to the parameters 2 moves the location of the pseudo
+cess [16]. A complete introduction to the SPGP is beyond                            input points 0̄ outside regions with high variance, hence to a
+the scope of this paper; therefore, only the necessary prelim-                      certain extent it can model input dependent noise.
+inaries for further discussion are provided and the reader is
+referred to [15] and [16] for more details. While a standard                         C. EXTENSION FOR MODULE SPECIFIC OFFSETS
+Gaussian process model directly uses its N training data to                         Small manufacturing and assembly differences of the UWB
+infer the posterior distribution over the measured range zr, test                   modules can cause differences in internal propagation delays,
+for the test range vector rtest , the SPGP performs the inference                   resulting in offsets in the range measurements. These offsets
+via M latent variables (where M  N ), termed pseudo                                can vary from module to module and are generally identified
+input points. In the following we denote the mean and the                           in a separate calibration routine as outlined in [17]. For
+variance of this posterior distribution given by the SPGP with                      example, in Fig. 2 the range measurement error shown in
+SPGPm (rtest ) and SPGPσ 2 (rtest ), respectively. This distribu-                   orange appears to have a constant offset to the error of the
+tion is fully defined by the SPGP’s mean and covariance func-                       other two datasets obtained with different UWB module pairs.
+tion with parameters θ0 , θ1 and θ2 , its training data, which                      To accommodate these module specific offsets when working
+consist of N range vectors 0 = [r0 , r1 , . . . , rN −1 ] and the                  with multiple anchors, the mean function of the Gaussian
+corresponding measured ranges zr = zr,0 , zr,1 , . . . , zr,N −1 ,
+                                                                       
+                                                                                    Process given in (6) can be replaced by
+and the location of its M pseudo input points 0̄ =
+[r̄0 , r̄1 , . . . , r̄M −1 ]. A nice property of the SPGP is that input-                                        m(r) = krk − o,                       (11)
+dependent noise can be modeled by altering the location of
+the pseudo input points.                                                            where o denotes the constant offset associated to the tag-
+    When comparing the error characteristics in Fig. 2 for line-                    anchor module pair with which a range measurement is taken.
+of-sight and non-line-of-sight conditions (non-line-of-sight:                       The offsets for all module pairs o are included in the param-
+βT = 10 deg and αT 6 ∈ [−140 deg, 140 deg]), it is visible                          eter set of the SPGP, 2 := (0̄, θ0 , θ1 , θ2 , o).
+that the error is less repeatable for range measurements in
+non-line-of sight conditions. The lack of confidence in pre-                         IV. MODEL LEARNING
+dicting the measured range for such regions can be mod-                             To train the range measurement model based on a Gaussian
+eled by input-dependent noise when employing the SPGP as                            process presented in Section III-B, labeled training data
+previously mentioned.                                                               (0, zr ) is necessary. Historically, this required UWB localiza-
+    The parameters of the SPGP 2 := (0̄, θ0 , θ1 , θ2 ) are found                   tion system developers to collect ground truth data using a
+by maximizing the likelihood of the training data. In the                           more accurate system, such as a infrared motion capture sys-
+following, we denote with K00 , K0̄ 0̄ , and K0 0̄ the covariance                   tem. However, UWB localization technology aims to replace
+matrices, whose entries are given by evaluating the covari-                         other more expensive systems. Using these other systems
+ance function for all pairs of training points, pseudo input                        in a calibration routine is therefore undesirable. In contrast,
+points, and combinations of training and pseudo input points,                       consumer grade inertial measurement units (IMUs) are cheap
+respectively. Denoting with m the vector of stacked mean                            and can be found in most mobile devices. Furthermore, they
+function evaluations for the training range vectors, the likeli-                    are often integrated with tag devices.
+hood of the range measurements is given as [15]                                        This section shows how calibration of a UWB range mea-
+        p2 (zr |0) = N (zr |m, K0 0̄ K0̄−1 K T + 3 + σr2 I ),           (10)        surement model can be performed using only UWB range and
+                                         0̄ 0 0̄                                    inertial measurements adapting the continuous-time batch
+where 3 = diag(K00 − K0 0̄ K0̄−1   K T ) and where I is the
+                                 0̄ 0 0̄
+                                                                                    optimization framework presented in [18] and used in [11]
+identity matrix of size N . Maximizing this likelihood with                         to calibrate a camera-IMU setup.
+
+78722                                                                                                                                          VOLUME 6, 2018
+A. Ledergerber, R. D’Andrea: Calibrating Away Inaccuracies in UWB Range Measurements
+
+
+
+
+A. THE MAXIMUM A POSTERIORI ESTIMATE                                              The range measurements Zr are not conditionally indepen-
+Consider a tag equipped with an IMU and a UWB module                           dent given x(t), but are correlated according to the covariance
+moving through a space equipped with anchors at known                          function given in Section III-B. In order to find their like-
+locations while collecting accelerometer, angular rate and                     lihood given x(t), the range vectors ri , i ∈ Zr need to be
+UWB range measurements. The sets of these measure-                             expressed as function of the state x(t), i.e.
+ments are denoted by Zacc , Zgyr and Zr , respectively. Let
+x(t) = (p(t), R(t), bacc (t), bgyr (t)) denote the tag’s state over                      ri (x(ti )) = RT (ti ) (ai − p(ti ))       ∀i ∈ Zr ,           (17)
+the entire experiment, described by the position trajectory
+of the tag antenna p(t) given in the inertial frame, the rota-                 where p(ti ) and R(ti ) denote the position and the attitude
+tion R(t) from the inertial to tag frame T , and the trajectories              of the tag when the range measurement i is obtained, and
+of the accelerometer bacc (t) and gyroscope bgyr (t) biases.                   where ai denotes the position of the anchor module with
+   Using Bayes’ rule, the maximum a posteriori estimate of                     which the range measurement i is taken. According to (10),
+the trajectory is written as                                                   the likelihood of the range measurements is then given as
+  p2 x(t)|Zacc , Zgyr , Zr
+                                                                                                                                   
+                                                                                p2 (Zr |x(t)) = N zr |m, K0 0̄ K0̄−1 K T + 3 + σr2 I   (18)
+                      p2 (Zacc , Zgyr , Zr |x(t))p2 (x(t))                                                         0̄ 0 0̄
+                   =                                       .   (12)
+                              p2 (Zacc , Zgyr , Zr )                           where m, K0,0̄ and 3 are all calculated as a function of the
+Assuming that the sensor measurements are conditionally                        state x(t) via (17), and where zr is the vector of stacked
+independent given x(t), and assuming that only the range                       measured ranges zr,i , i ∈ Zr .
+measurements are dependent on the parameters 2, the pos-
+terior is rewritten as                                                         C. THE PRIOR
+ p2 x(t)|Zacc , Zgyr , Zr
+                                                                              As outlined in [18], if a model for the tag’s state evolution is
+                                                                               at hand, it can be used to specify a prior on the state trajectory.
+            p(Zgyr |x(t))p(Zacc |x(t))p2 (Zr |x(t))p(x(t))
+        =                                                  . (13)              Given the evolution function 8(x(t)) and continuous-time,
+                          p(Zacc , Zgyr , Zr )                                 additive, Gaussian process noise with covariance Q, the tag’s
+The maximum a posteriori estimate of the state trajectory x(t)                 state evolves as follows:
+and the parameters 2 can be found by minimizing the nega-
+tive logarithm of the posterior                                                                    ẋ(t) = 8(x(t)) + w(t).                              (19)
+   x (t), 2∗
+  ∗
+                                                                               Using this model, the prior on the state trajectory is given as
+     = arg min ( − log (p(Zacc |x(t))) − log p(Zgyr |x(t))
+                                                          
+         x(t),2                                                                                                     Z tend                         
+                                                                                                               1                T
+        − log (p(Zr |x(t), 2)) − log (p(x(t)))),       (14)                      p(x(t)) ∝ p(x(tstart )) exp −                 d (τ )Q   −1
+                                                                                                                                              d(τ )dτ ,
+                                                                                                               2      tstart
+where the term log p Zacc , Zgyr , Zr was not considered
+                                       
+                                                                                                                                                        (20)
+as it does not influence the optimized values. All terms on
+the right hand side of (14) are specified in the following                     where d(t) = ẋ(t) − 8(x(t)) and where p(x(tstart )) denotes
+two subsections.                                                               the prior belief of the initial state which is assumed to be
+                                                                               Gaussian-distributed. If the ratio of the number of optimiza-
+B. THE MEASUREMENT LIKELIHOODS                                                 tion variables to the number of measurements is large, such
+Assuming that the accelerometer measurements are                               a prior becomes important as it can serve as a regularizer [18].
+conditionally independent given x(t) and have a Gaussian
+distribution, their likelihood is given by                                     D. THE POSTERIOR RANGE MEASUREMENT MODEL
+                             Y                                                 Given the optimized parameters 2∗ , the measured ranges
+           p(Zacc |x(t)) =         p(zacc,k |x(tk )) (15)
+                                                                               zr,i , i ∈ Zr and the range vectors calculated with the max-
+                              k∈Zacc
+                                                                               imum a posteriori state estimate ri (x∗ (ti )), i ∈ Zr , the SPGP
+         p(zacc, k |x(tk )) = N (zacc, k |hacc (x(tk )), 6acc ),    (16)
+                                                                               defines a posterior distribution over the function f (r) as men-
+where zacc,k denotes the value of the accelerometer measure-                   tioned in Section III-B. Hence the range measurement model
+ment k ∈ Zacc and where x(tk ) is used to denote the tag’s                     using this SPGP is given as
+state at the time measurement k was taken. The covariance
+                                                                                                                        SPGPσ 2 (ri )η1 ,
+                                                                                                                    p
+matrix of the accelerometer measurement noise is denoted                                   zr,i = SPGPm (ri ) +                                         (21)
+by 6acc , and hacc is used to denote the deterministic part
+of the accelerometer measurement model which is further                        where η1 is zero mean additive Gaussian noise with unit
+specified in Appendix C. The likelihood of the angular rate                    variance. The computational cost to evaluate this range mea-
+measurements can be calculated similarly and their measure-                    surement model is O(M ) for the mean and O(M 2 ) for the
+ment model is also given in Appendix C.                                        variance using an SPGP with M pseudo input points [15].
+
+VOLUME 6, 2018                                                                                                                                       78723
+                                                                 A. Ledergerber, R. D’Andrea: Calibrating Away Inaccuracies in UWB Range Measurements
+
+
+
+
+V. IMPLEMENTATION AND INTEGRATION IN A                                     range measurements. On platforms with limited computa-
+KALMAN FILTER FRAMEWORK                                                    tional power such as wearables, this optimization cannot be
+The previously described framework to calibrate an UWB                     performed in real-time. However, using one of the methods
+range measurement model was implemented and experimen-                     outlined in [24], the range measurement model obtained
+tally evaluated. This section provides implementation details              through the batch optimization given in (21) can be integrated
+and shows how the extracted range measurement model can                    in a Kalman filter which recursively estimates the state.
+be integrated in a Kalman filter framework, which can be run                  To investigate the gain in localization accuracy when
+in real-time on a device with limited computational power.                 employing the calibrated range measurement model, it is used
+                                                                           to update a Kalman filter which estimates the tag’s position p,
+A. B-SPLINE REPRESENTATION OF THE CONTINUOUS                               its velocity v, both expressed in the inertial frame, and its
+TIME STATE TRAJECTORY                                                      orientation with respect to the inertial frame R ∈ SO(3).
+The continuous-time state trajectory x(t) is expressed using               By using the acceleration zacc and the angular rate zgyr mea-
+standard, uniform cubic B-splines for the position trajec-                 sured with the IMU as inputs to the filter, its state evolves as
+tory p(t) expressed in the inertial frame and using cumulative,
+uniform cubic B-splines [19], [20] for the quaternion q(t)                                             ṗ = v                                  (22)
+describing the rotation R(t) from the inertial frame to the                                            v̇ = Rzacc + g                          (23)
+tag frame T . The biases of the accelerometer bacc (t) and the                                         Ṙ = RJzgyr K× ,                        (24)
+gyroscope bgyr (t) are both modelled using standard, uniform
+cubic B-splines.                                                           where g is the gravitational acceleration expressed in the
+   The spacing of the knots for the position and quaternion                inertial frame and where Jzgyr K× denotes the matrix form of
+splines is set to 50 ms and the splines describing the biases of           the cross product, defined such that Jzgyr K× b = zgyr ×b for all
+the IMU have a spacing of 5 s.                                             b ∈ R3 . The measurement noise of the IMU is encoded as the
+                                                                           process noise using the standard Kalman filter formulation.
+B. SOFTWARE AND HARDWARE                                                   While the prediction step of this filter is performed using an
+The optimization routine is implemented in Tensorflow [21].                extended Kalman filter update step, the measurement update
+This permits easy use of the computational power of the                    step is performed using the unscented transform [24].
+GPU and Tenserflow’s automatic differentiation facilitated
+the implementation.                                                        VI. EXPERIMENTAL RESULTS
+   The UWB modules used on the tag and the anchors were                    All experiments were performed in the Flying Machine Arena
+DWM 1000 modules [22] configured with the settings given                   of ETH Zurich [25]. This arena is equipped with a motion
+in Table 1. The anchor microcontroller is a STM32f4 and                    capture system providing ground truth data for all exper-
+the tag microcontroller is a Snapdragon flight board. The                  iments with an accuracy of the order of millimeters and
+tag module ranges with the anchors at 200 Hz by employing                  milliradians at 200 Hz.
+the two-way ranging algorithm with repeated reply described
+in [23].                                                                   A. DATA COLLECTION
+                                                                           A quadcopter equipped with an IMU and a UWB mod-
+TABLE 1. The settings of the DWM1000 modules used for ranging.             ule autonomously flew random trajectories while constantly
+                                                                           logging data. It was fusing the measurements in the state
+                                                                           estimator presented in Section V-C, but used the standard
+                                                                           UWB range measurement model given in (1). Its state esti-
+                                                                           mate served as an initial guess for the optimization routine
+
+
+   The MPU9250 IMU module, integrated on the snapdragon
+flight board, provides angular rate and acceleration measure-
+ments with a frequency of 1 kHz.
+   The quadcopter platform serving as the tag uses the frame,
+motors and motor controllers of an Ascending Technology
+Hummingbird and is equipped with the DWM 1000 module
+and the Snapdragon flight board. The frame is made of carbon
+fiber and some magnesium rods which both reflect UWB
+pulses to a certain extent.
+
+C. INTEGRATION IN A KALMAN FILTER FRAMEWORK                                FIGURE 4. The anchors’ coordinate systems and the random trajectory
+                                                                           flown during data collection are shown. Note that the quadcopter was
+The optimization procedure given in (14) allows us to esti-                yawing around its thrust axis while taking range measurements to all
+mate the state of a rigid body given a batch of IMU and                    depicted anchors.
+
+
+78724                                                                                                                                  VOLUME 6, 2018
+A. Ledergerber, R. D’Andrea: Calibrating Away Inaccuracies in UWB Range Measurements
+
+
+
+
+FIGURE 5. A selection of the measured (blue) and the fitted (orange) quantities for the trajectory visualized in Fig. 4 are shown in plots (a) to (d); (a) the
+x-axis value of zacc and hacc (x∗ (t )), (b) the z-axis value of zgyr and       ∗                            ∗
+                                                                       q hgyr (x (t )), (c) zr and SPGPm (r(x (t )) obtained with one anchor, (d) e and
+eSPGP (r(x (t ))) along with the predicted uncertainty bounds ±2 SPGP 2 (r(x (t ))) for one anchor. Plot (e) shows the position error p(t ) − p∗ (t ) of the
+          ∗                                                                          ∗
+                                                                             σ
+trajectory optimized with the proposed range measurement model (solid orange) and of the trajectory optimized with the standard range measurement
+model (green dash-dotted).
+
+
+
+
+given in (14) and was logged in addition to the IMU and                              The number of pseudo input points was M = 30 and
+range measurements. The anchor placement and the random                           all initial values for the parameters 0̄, θ0 , θ1 and θ2 were
+trajectory flown are depicted in Fig. 4. The flight time was                      randomly initialized as further discussed in Section VI-D.
+approximately 130 s resulting in about 130000 IMU measure-                        The standard deviation of the range measurement was fixed
+ments and 25000 range measurements.                                               at σr = 0.05 m and all anchor-tag module specific biases o
+                                                                                  were initialized with zero.
+B. MODEL FIT                                                                         Figure 5 shows the fit of the acceleration along the
+The optimization of (14) was performed with the collected                         x-axis in plot (a) and the fit of the angular rate around the
+data. The tag’s state trajectory x(t) was initialized with the                    z-axis in plot (b). The fit of the other axes look similar.
+state estimated during data collection. No prior as outlined                      Even though the accelerometer measurements are very noisy
+in Section IV-C was given on this state trajectory, except for                    due to the vibrations induced by the spinning motors, these
+the bias states for which a first order random walk model was                     IMU measurements prove to be sufficient to learn a range
+assumed.                                                                          measurement model. The fit of the predicted measured range
+
+VOLUME 6, 2018                                                                                                                                          78725
+                                                                   A. Ledergerber, R. D’Andrea: Calibrating Away Inaccuracies in UWB Range Measurements
+
+
+
+
+             FIGURE 6. The left plot shows the the range measurement error e calculated with the ground truth measurements of the
+             motion capture system for the experiment shown in Fig. 4. The error is plotted over the azimuth αT and elevation βT of the
+             tag antenna (see Fig. I for a definition of these angles). The right plot shows the range measurement error predicted by the
+             model eSPGP (r), which was obtained using only inertial and UWB range measurements. Note that the range and the
+             module biases also influence the predicted error aside from the azimuth αT and elevation βT angle. This explains the
+             discontinuities visible in the right plot.
+
+
+
+
+            FIGURE 7. The variance of the residual range measurement error eres (left), calculated by binning the measurements based
+            on the azimuth and elevation angle, and the predicted variance (right) plotted over the azimuth αT and elevation βT of the
+            tag antenna (see Fig. I for a definition of these angles). The white dots are the locations of the pseudo input points 0̄
+            projected into the azimuth-elevation plane. The NLOS regions clearly show a higher variance.
+
+
+given by this model, i.e. SPGPm (r), is shown in plot (c) for                 arise from the different distances over which the range mea-
+one anchor. Plot (d) shows the fit of the associated predicted                surements were taken which also influence the range mea-
+error in the measured range eSPGP given as                                    surement error along with the direction of the incoming UWB
+                                                                              signal. It is visible that the optimization procedure given
+                 eSPGP = krk − SPGPm (r)                          (25)
+                                                                              in (14) was able to extract an accurate range measurement
+to the errors e calculated                                                    error model without using ground truth data.
+                        p with the ground truth data. The
+uncertainty bounds ±2 SPGPσ 2 (r) are shown in gray. The                         Looking at the predicted variance and the location of the
+standard deviation of the error in the range measurements e                   pseudo input points in Fig. 7, it is visible how the SPGP
+to all anchors is 0.13 m while the standard deviation of the                  can model heteroscedastic noise by moving the pseudo input
+residual error eSPGP                                                          points away from regions with a lot of noise or model
+                                                                              uncertainty. The left plot in this figure shows the variance
+                       eres = e − eSPGP                           (26)        of binned range measurements based on their azimuth and
+is 0.11 m. The last plot (e) in Fig. 5 shows the error in                     elevation angle. The region with non-line-of-sight conditions
+the optimized position trajectory kp(t) − p∗ (t)k. The root                   clearly shows a higher predicted and measured variance. Also
+mean squared error (RMSE) of this trajectory is 0.08 m.                       the region along the antenna x-axis, where the antenna gain is
+For comparison, the error in the position of a trajectory                     smallest [22], shows a higher variance. The model obtained
+optimized with the standard range measurement model as                        from the optimization procedure also seems to capture these
+given in (1) is shown in green. The RMSE of this second                       regions.
+trajectory is 0.14 m. Hence, the rather modest reduction of the
+standard deviation of the range measurement error by a factor                 C. MODEL APPLICATION TO OTHER DATASETS
+of 0.11/0.13 = 0.8 concurs with a reduction in the RMSE of                    To see how well the obtained range measurement model
+the position by a factor of 0.08/0.14 = 0.6. Given Gaussian                   generalizes to other trajectories and setups, it was applied
+range error distributions, one would expect these factors to be               to the following four datasets including the dataset used for
+equal [26]. However, as described in Section III-A, the range                 training to investigate over fitting.
+error does not show a Gaussian distribution, instead it is                       • Dataset 1: The training dataset of the UWB range mea-
+correlated and has outliers in certain regions. This might                         surement model
+explain the larger improvement in the RMSE of the position                       • Dataset 2: A dataset recorded with the same anchor
+with the range measurement model given in (3).                                     setup, but with a different trajectory
+   The actual and the predicted error for all range measure-                     • Dataset 3: A dataset recorded with the same anchor
+ments is plotted over the azimuth αT and elevation angle βT                        setup, but with a different trajectory and a different
+in Fig. 6. Note that the discontinuities in the predicted error                    DWM1000 tag module
+
+78726                                                                                                                                       VOLUME 6, 2018
+A. Ledergerber, R. D’Andrea: Calibrating Away Inaccuracies in UWB Range Measurements
+
+
+
+
+   •  Dataset 4: A dataset recorded with a different anchor                    the old and the new tag module to a specific anchor, this
+      setup, with a different trajectory but with the same                     constant value can be determined and the offsets can be
+      DWM1000 tag module                                                       updated. Using the updated offsets, the RMSE of the KF
+The standard deviation of the range measurement error and                      employing the proposed range measurement model could be
+the standard deviation of the residual range measurement                       further reduced while the the RMSE of the KF employing
+error of all datasets is given in Table 2. Independent of the                  the standard range measurement model stayed approximately
+trajectory flown, the tag’s DWM1000 module or the anchor                       the same. The values obtained with the updated offsets are
+setup, the standard deviation could be reduced by 2 cm. The                    marked with an asterisk ∗ in Table 2.
+model obtained was further integrated in a Kalman filter
+as outlined in Section V-C and tested on the datasets. For                     D. GAUSSIAN PROCESS PARAMETER INITIALIZATION
+comparison, a Kalman filter employing the standard range                       The optimization of the parameters for Gaussian processes,
+measurement model as given in (1) was also run on the                          i.e. θ0 , θ1 , θ2 , 0̄ and o in our case, is usually not a convex
+datasets. The RMSE of their position estimates, denoted by                     problem [27]. A common approach to tackle this issue is to
+RMSE(p̂KF, prop. ) and RMSE(p̂KF, std. ), respectively, are also               run the optimization with multiple starting points sampled
+shown in the table. Note that the standard deviation of the                    from a prior distribution, and choosing the optimized values
+range measurement noise for the Kalman filter employing                        with the smallest loss at the end.
+the standard model had to be increased from σr = 0.05 m                           To investigate how sensitive the optimization procedure
+to σr = 0.13 m to compensate for the unmodelled error char-                    was to the number of pseudo input points M , their initial val-
+acteristics. Without this measure, the estimate would diverge.                 ues and the initial values of parameters θ0 , θ1 and θ2 , the opti-
+                                                                               mization was run multiple times using different initial values
+TABLE 2. Performance on datasets (1 training, 2 different trajectory,          for a given number of pseudo input points M . The pseudo
+3 different tag module and trajectory, 4 different anchor setup and
+trajectory), all values are given in meters.                                   input points were randomly sampled from the unit sphere and
+                                                                               then multiplied by a sample drawn from the uniform distri-
+                                                                               bution Ukr̄k (1, 7). The parameters θ0 , θ1 and θ2 were sam-
+                                                                               pled from the uniform distributions Uθ0 (0.1, 1), Uθ1 (0.1, 3)
+                                                                               and Uθ2 (1, 10). The anchor-tag module specific offsets were
+                                                                               always initialized with zero.
+   Comparing the RMSE of the position estimate obtained                           Using the optimized models the standard deviation of
+with the Kalman filters with the one obtained from the                         the residual range measurement error, stdDev(eres ), and the
+batch optimization for dataset 1 given in Section VI-B, i.e.                   RMSE of the position estimate of a KF employing these
+0.16 m vs. 0.14 m for the standard model and 0.10 m vs.                        models, RMSE(p̂KF, prop ), were calculated. The values for
+0.08 m for the proposed model, it is visible that the batch                    datasets 1 and 4 are shown in Fig. 8. While the initial values of
+optimization approach outperforms the recursive Kalman fil-                    the parameters do not seem to play a major role, the number of
+ter approach.                                                                  pseudo input points should not be too large or too small. It is
+   As Dataset 3 was recorded with a different DWM1000 tag                      apparent that about M = 30 pseudo input points are needed to
+module, showing a different module specific delay, the off-                    capture the error characteristics. More points only lead to an
+sets o for tag-anchor module pairs (as discussed in                            improvement in the training data set, but not to an improve-
+Section III-C) were off by a constant value, which explains                    ment in a dataset obtained with a different anchor setup and
+the smaller reduction in the RMSE of the position estimate                     trajectory. When using less than M = 30 pseudo input points,
+in Dataset 3. However, by comparing the reported range of                      there is still an improvement in the standard deviation of the
+
+
+
+
+         FIGURE 8. The figure shows the effect of random parameter initialization and different number of pseudo input points M on the
+         standard deviation of the residual ranging error and the the RMSE of the position estimate obtained by the Kalman filter employing the
+         model. The black lines show the standard deviation of the range measurement error and the RMSE of the position estimate obtained
+         by a Kalman filter run with the standard range measurement update. (a) Dataset 1. (b) Dataset 4.
+
+
+VOLUME 6, 2018                                                                                                                                    78727
+                                                           A. Ledergerber, R. D’Andrea: Calibrating Away Inaccuracies in UWB Range Measurements
+
+
+
+
+residual error, but the position estimate of the Kalman filter       VII. OUTLOOK
+sometimes diverges. Looking at these cases, it was visible that      A framework was presented for improving real-world UWB
+the parameters converged to values resulting in a too small          localization accuracy by compensating for biases and other
+predicted variance for regions with a lot of model uncertainty.      effects caused by non-idealities in the antennas and other
+Hence for the proposed kernel and application, M should be           environmental influences.
+chosen to be between 30 and 70.                                         The measured range was modeled assuming only a depen-
+                                                                     dence on the relative pose of two ranging modules. Other
+                                                                     dependencies, such as a dependence on the received wave-
+TABLE 3. Mathematical symbols in alphabetical order.                 form or the received signal strength, and other kernels
+                                                                     should be investigated as well and might lead to a further
+                                                                     improvement in the localization accuracy, as only part of
+                                                                     the range measurement error could be captured by the range
+                                                                     measurement model presented. Parametric models not based
+                                                                     on Gaussian processes should also be tested as they could
+                                                                     lead to simpler, more accessible models.
+                                                                        The model obtained could also be improved by increasing
+                                                                     the signal to noise ratio of the IMU measurements. This
+                                                                     could be done by better damping the IMU or by flying more
+                                                                     aggressive maneuvers during data collection.
+                                                                        Finally, it would also be interesting to apply the presented
+                                                                     framework to other sensors with only partially known mea-
+                                                                     surement functions and heteroscedastic noise.
+
+                                                                     APPENDIX A
+                                                                     NOTATION
+                                                                     Generally, scalars and vectors are denoted by small, standard
+                                                                     font and small, bold font letters, respectively. Matrices are
+                                                                     written with capitalized Latin or Greek letters. Table 3 lists
+                                                                     the symbols in alphabetical order. The subscripts i, j ∈ Zr ,
+                                                                     k ∈ Zacc , and l ∈ Zgyr denote the values of variables
+                                                                     for specific measurements. E.g., for a specific range mea-
+                                                                     surement i ∈ Zr , we denote the measured range as zr,i ,
+                                                                     the vector connecting the two ranging antennas as ri , and the
+                                                                     measurement time as ti .
+
+                                                                     APPENDIX B
+                                                                     VALID COVARIANCE FUNCTION
+                                                                     The function k(r, r0 ) given in (7) must be positive semi-
+                                                                     definite to be a valid covariance function [14, p. 79]. Instead
+                                                                     of showing the positive semi-definiteness directly, we show
+                                                                     that the function k(r, r0 ) is a multiplication of two valid
+                                                                     covariance functions, which also results in a valid covariance
+                                                                     function [12, p. 296]. The proposed covariance function can
+                                                                     be decomposed into two factors
+                                                                                                                               !2 
+                                                                                                      rT r0                   0
+                                                                                                1 − krkkr   0k       krk −  r
+                                                                         k(r, r0 ) = θ0 exp −                   −                 
+                                                                                                    θ1                   θ2
+                                                                                                                  
+                                                                                                          rT r0
+                                                                                     p            1 − krkkr     0k
+                                                                                   = θ0 exp −                     
+                                                                                                       θ1
+                                                                                                                     !2 
+                                                                                       p              krk − r0
+                                                                                     × θ0 exp −                         .         (27)
+                                                                                                               θ2
+
+                                                                     While the second factor is the standard squared exponential
+                                                                     covariance function for the inputs krk , r0 , the first factor
+
+78728                                                                                                                            VOLUME 6, 2018
+A. Ledergerber, R. D’Andrea: Calibrating Away Inaccuracies in UWB Range Measurements
+
+
+
+
+can be rewritten in the following form                                              [2] D. Porcino and W. Hirt, ‘‘Ultra-wideband radio technology: Potential
+                                                                                      and challenges ahead,’’ IEEE Commun. Mag., vol. 41, no. 7, pp. 66–74,
+                                                                                        Jul. 2003.
+                         
+                    rT r0
+p            1 − krkkr0 k                     T                                     [3] A. Ledergerber and R. D’Andrea, ‘‘Ultra-wideband range measurement
+  θ0 exp −                          c2 φ(r)
+                           = c1 exp           φ(r0 ) ,                    (28)
+                                                     
+                                                                                        model with Gaussian processes,’’ in Proc. IEEE Conf. Control Technol.
+                  θ1                     | {z } |{z} 
+                                                                                        Appl. (CCTA), Aug. 2017, pp. 1929–1934.
+                                                             xT   x0
+                                                                                    [4] J. Khodjaev, Y. Park, and A. S. Malik, ‘‘Survey of NLOS identification and
+with                                                                                    error mitigation problems in UWB-based positioning algorithms for dense
+                                                                                      environments,’’ Ann. Telecommun., vol. 65, nos. 5–6, pp. 301–311, 2010.
+                                     p                  −1                          [5] Y. Shen and M. Z. Win, ‘‘Effect of path-overlap on localization accuracy
+                            c1 =         θ0 exp                             (29)        in dense multipath environments,’’ in Proc. IEEE Int. Conf. Commun.,
+                                                        θ1                              May 2008, pp. 4197–4202.
+                                1                                                   [6] A. Dumoulin, ‘‘A study of integrated UWB antennas optimised for time
+                            c2 =                                            (30)        domain performance,’’ Ph.D. dissertation, Dublin Inst. Technol., Dublin,
+                                θ1                                                      Ireland, 2012.
+                                 r
+                     φ(r) : r →     .                                       (31)    [7] R. Ye, S. Redfield, and H. Liu, ‘‘High-precision indoor UWB localiza-
+                                krk                                                     tion: Technical challenges and method,’’ in Proc. IEEE Int. Conf. Ultra-
+                                                                                        Wideband, vol. 2, Sep. 2010, pp. 1–4.
+Starting from the valid linear covariance function                                  [8] L. Zwirello, T. Schipper, M. Harter, and T. Zwick, ‘‘UWB localiza-
+k(x, x0 ) = xT x0 , and using the techniques for constructing                           tion system for indoor applications: Concept, realization and analysis,’’
+                                                                                        J. Elect. Comput. Eng., vol. 2012, May 2012, Art. no. 849638, doi:
+new valid covariance functions [12, p. 296], it can be shown                            10.1155/2012/849638.
+that also the second factor is a valid covariance function.                         [9] H. Wymeersch, S. Marano, W. M. Gifford, and M. Z. Win, ‘‘A machine
+                                                                                        learning approach to ranging error mitigation for UWB localization,’’ IEEE
+                                                                                        Trans. Commun., vol. 60, no. 6, pp. 1719–1728, Jun. 2012.
+APPENDIX C
+                                                                                   [10] V. Savic, E. G. Larsson, J. Ferrer-Coll, and P. Stenumgaard, ‘‘Kernel meth-
+IMU MEASUREMENT MODELS                                                                  ods for accurate UWB-based ranging with reduced complexity,’’ IEEE
+Given the continuous state trajectory x(t) of the tag with                              Trans. Wireless Commun., vol. 15, no. 3, pp. 1783–1793, Mar. 2016.
+                                                                                   [11] P. Furgale, J. Rehder, and R. Siegwart, ‘‘Unified temporal and spatial
+p(t) the position expressed in the inertial frame, q(t) the unit
+                                                                                        calibration for multi-sensor systems,’’ in Proc. IEEE/RSJ Int. Conf. Intell.
+quaternion describing the rotation R(t) from the inertial frame                         Robots Syst. (IROS), Nov. 2013, pp. 1280–1286.
+to the tag frame, and bacc (t) the bias of the accelerometer,                      [12] C. M. Bishop, Pattern Recognition and Machine Learning (Information
+the measured acceleration of measurement k ∈ Zacc is                                    Science and Statistics), 8th ed. New York, NY, USA: Springer, 2009.
+                                                                                   [13] P. Corbalán and G. P. Picco, ‘‘Concurrent ranging in ultra-wideband radios:
+                                                                                        Experimental evidence, challenges, and opportunities,’’ in Proc. Int. Conf.
+       zacc, k = R(q(tk ))T (p̈(tk ) − g) + bacc (tk ) +ηacc, k ,           (32)        Embedded Wireless Syst. Netw., Feb. 2018, pp. 55–66.
+                 |                 {z               }
+                                 hacc (x(tk ))                                     [14] C. E. Rasmussen and C. K. I. Williams, ‘‘Gaussian processes in machine
+                                                                                        learning,’’ in Advanced Lectures on Machine Learning. Cambridge, MA,
+where R(q(tk )) denotes the rotation matrix corresponding to                            USA: MIT Press, 2006.
+                                                                                   [15] E. Snelson and Z. Ghahramani, ‘‘Sparse Gaussian processes using pseudo-
+the rotation given by the unit quaternion q(tk ), g denotes                             inputs,’’ in Advances in Neural Information Processing Systems 18.
+the gravitational acceleration expressed in the inertial frame                          Cambridge, MA, USA: MIT Press, 2006, pp. 1257–1264.
+and ηacc,k is measurement noise sampled from a Gaussian                            [16] J. Quiñonero-Candela and C. E. Rasmussen, ‘‘A unifying view of sparse
+distribution N (ηacc, k |0, 6acc ).                                                     approximate Gaussian process regression,’’ J. Mach. Learn. Res., vol. 6,
+                                                                                        pp. 1939–1959, Dec. 2005.
+   Denoting with bgyr (t) the bias of the gyroscope, with q̃(t)                    [17] ‘‘Antenna delay calibration of DW1000-based products and systems, ver-
+the vector part and with qw (t) the scalar part of the unit                             sion 1.2,’’ DecaWave, Appl. Note APS014. Accessed: Dec. 9, 2018.
+quaternion q(t), the measured angular rate of measurement                               [Online]. Available: https://www.decawave.com/application-notes/
+                                                                                   [18] P. Furgale, C. H. Tong, T. D. Barfoot, and G. Sibley, ‘‘Continuous-time
+l ∈ Zgyr can be written as [28, eq. (322)]                                              batch trajectory estimation using temporal basis functions,’’ Int. J. Robot.
+                                                                                      Res., vol. 34, no. 14, pp. 1688–1710, Dec. 2015.
+                    ˙ l ) − q̇w (tl )q̃(tl ) + q̃(tl ) × q̃(t
+zgyr, l = 2 qw (tl )q̃(t                                 ˙ l)                      [19] M.-J. Kim, M.-S. Kim, and S. Y. Shin, ‘‘A general construction scheme
+                                                                                        for unit quaternion curves with simple high order derivatives,’’ in Proc.
+                                                 + bgyr (tl ) + ηgyr, l ,   (33)        22nd Annu. Conf. Comput. Graph. Interact. Techn. (SIGGRAPH), 1995,
+                                                                                        pp. 369–376.
+where ηgyr (tl ) denotes measurement noise from a Gaussian                         [20] H. Sommer, J. R. Forbes, R. Siegwart, and P. Furgale, ‘‘Continuous-time
+                                                                                        estimation of attitude using B-splines on lie groups,’’ J. Guid., Control,
+distribution N (ηgyr, l |0, 6gyr ).                                                     Dyn., vol. 39, no. 2, pp. 242–261, 2016.
+                                                                                   [21] M. Abadi et al. TensorFlow: Large-Scale Machine Learning on Heteroge-
+ACKNOWLEDGMENT                                                                          neous Distributed Systems. Accessed: Dec. 9, 2018. [Online]. Available:
+                                                                                        http://download.tensorflow.org/paper/whitepaper2015.pdf
+The authors would like to thank Michael Hamer for his                              [22] DecaWave. DWM 1000 Datasheed, Version 1.7. Accessed: Dec. 9, 2018
+advice concerning the setup of the optimization routine in                              [Online]. Available: https://www.decawave.com/product-documentation
+Tensorflow. Many people have contributed to the Flying                             [23] M. W. Mueller, M. Hamer, and R. D’Andrea, ‘‘Fusing ultra-wideband
+Machine Arena in which this research was conducted. A list                              range measurements with accelerometers and rate gyroscopes for quadro-
+                                                                                        copter state estimation,’’ in Proc. IEEE Int. Conf. Robot. Automat. (ICRA),
+of these people can be found at: http://flyingmachinearena.                             May 2015, pp. 1730–1736.
+org/people.                                                                        [24] J. Ko and D. Fox, ‘‘GP-BayesFilters: Bayesian filtering using Gaussian
+                                                                                        process prediction and observation models,’’ Auto. Robots, vol. 27, no. 1,
+                                                                                        pp. 75–90, Jul. 2009.
+REFERENCES                                                                         [25] S. Lupashin, M. Hehn, M. W. Mueller, A. P. Schoellig, M. Sherback, and
+ [1] A. Alarifi et al., ‘‘Ultra wideband indoor positioning technologies: Analy-        R. D’Andrea, ‘‘A platform for aerial robotics research and demonstration:
+     sis and recent advances,’’ Sensors, vol. 16, no. 5, p. 707, May 2016.              The flying machine arena,’’ Mechatronics, vol. 24, no. 1, pp. 41–54, 2014.
+
+VOLUME 6, 2018                                                                                                                                               78729
+                                                                               A. Ledergerber, R. D’Andrea: Calibrating Away Inaccuracies in UWB Range Measurements
+
+
+
+
+[26] A. Ledergerber, M. Hamer, and R. D’Andrea, ‘‘A robot self-localization                                        RAFFAELLO D’ANDREA received the B.Sc.
+     system using one-way ultra-wideband communication,’’ in Proc.                                                 degree in engineering science from the University
+     IEEE/RSJ Int. Conf. Intell. Robots Syst. (IROS), Sep. 2015, pp. 3131–3137.                                    of Toronto in 1991 and the M.S. and Ph.D. degrees
+[27] Z. Chen and B. Wang, ‘‘How priors of initial hyperparameters                                                  in electrical engineering from the California Insti-
+     affect Gaussian process regression models,’’ Neurocomputing, vol. 275,                                        tute of Technology in 1992 and 1997, respectively.
+     pp. 1702–1710, Jan. 2018.                                                                                     He was an Assistant Professor and, then an
+[28] M. D. Shuster, ‘‘Survey of attitude representations,’’ J. Astron. Sci., vol. 41,                              Associate Professor, at Cornell University from
+     pp. 439–517, Oct. 1993.
+                                                                                                                   1997 to 2007. While on leave from Cornell Uni-
+                                                                                                                   versity, from 2003 to 2007, he co-founded Kiva
+                                                                                                                   Systems (now Amazon Robotics), where he led
+                                                                                         the systems architecture, robot design, robot navigation and coordination,
+                          ANTON LEDERGERBER received the B.Sc. and
+                                                                                         and control algorithms development. He is currently a Professor of dynamic
+                          M.Sc. degrees in mechanical engineering from
+                                                                                         systems and control at ETH Zürich and also the Chairman of the Board at
+                          ETH Zürich, in 2012 and 2015, respectively.
+                                                                                         Verity Studios AG.
+                          During his studies, he also completed a business
+                          oriented Unitech degree and coordinated the con-
+                          trol framework development for the unmanned
+                          blimp Skye. He is currently pursuing the Ph.D.
+                          degree with the Institute for Dynamic Systems and
+                          Control. His research is focused on estimation,
+                          ultra-wideband localization, and applications of
+machine learning techniques to describe physical effects which are hard to
+model using first principles.
+
+
+
+
+78730                                                                                                                                                   VOLUME 6, 2018
+

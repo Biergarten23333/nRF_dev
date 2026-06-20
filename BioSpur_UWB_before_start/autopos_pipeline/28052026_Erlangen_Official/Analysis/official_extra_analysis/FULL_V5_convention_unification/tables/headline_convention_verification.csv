@@ -1,0 +1,19 @@
+Row,Variant,old_convention,new_convention,action,notes
+A,V4 production,scalar_p50_fixed_D0_saved_f6,scalar_p50_t4_fixed_d0,regenerated,"same scalar convention, regenerated because f6 is stale"
+B,V4 + D_LOO,raw_frame_mean_position,scalar_p50_t4_dtag_loo_per_fold,regenerated,"transfer-matrix static cell uses 28,818 frame mean-position evaluator"
+C,V5 baseline,scalar_p50_fixed_Dtag_saved_f6_or_raw_frame_when_using_FULL_V5,scalar_p50_t4_dtag_loo_per_fold,regenerated,new row uses per-fold D_tag LOO and valid=True p50 links
+D,V5 apparent best,scalar_p30_inverse_rms_saved_f6,scalar_p30_inverse_rms_t4_dtag_loo_per_fold,regenerated,post-selected scalar row retained but regenerated
+E,V4 apparent best,scalar_p30_inverse_rms_saved_f6,scalar_p30_inverse_rms_t4_dtag_loo_per_fold,regenerated,post-selected scalar row retained but regenerated
+F,V5 corrected,scalar_bootstrap_optimism,scalar_optimism_corrected_median,recomputed,existing optimism gap added to regenerated D median
+G,V4 corrected,scalar_bootstrap_optimism,scalar_optimism_corrected_median,recomputed,existing optimism gap added to regenerated E median
+H,V5 bootstrap CI,scalar_bootstrap_existing,scalar_bootstrap_ci_existing,verified,existing scalar bootstrap retained
+I,Nested CV (height),scalar_nested_cv,scalar_nested_cv_existing,verified,batch3 uses scalar percentile matrices and train/eval splits
+J,Nested CV (quadrant),scalar_nested_cv,scalar_nested_cv_existing,verified,batch3 uses scalar percentile matrices and train/eval splits
+K,Nested CV (spatial6),scalar_nested_cv,scalar_nested_cv_existing,verified,batch3 uses scalar percentile matrices and train/eval splits
+L,ROTO V5 per-frame,per_frame_dynamic,per_frame_dynamic,kept,ROTO is dynamic/per-frame by nature
+M,ROTO SE(3) aligned,per_frame_dynamic,per_frame_dynamic,kept,ROTO is dynamic/per-frame by nature
+N,ROTO Sim3 aligned,per_frame_dynamic,per_frame_dynamic,kept,ROTO is dynamic/per-frame by nature
+O,lower_trim_20 + Huber30 + V5,scalar_lower_trim_20_huber30_loo,scalar_lower_trim_20_huber30_loo,verified,rawframe v3 Stage 3 builds scalar estimator matrix then 24-fold LOO
+P,lower_trim_20 + Huber30 + V5(e_i=0 anchor refit),scalar_p50_anchor_refit,scalar_p50_anchor_ezero_huber30_loo,verified,anchor lower trim l3 row is scalar per-position LOO
+Q,Oracle lower bound,scalar_oracle,scalar_oracle_lower_bound,verified,rawframe v3 scalar oracle ceiling
+R,Bootstrap CI (lower_trim_20),scalar_lower_trim_bootstrap,scalar_lower_trim_20_bootstrap_ci,verified,bootstrap over scalar lower_trim_20 held-out/OOB medians

@@ -1,0 +1,856 @@
+Received 26 November 2023, accepted 15 December 2023, date of publication 18 December 2023,
+date of current version 27 December 2023.
+Digital Object Identifier 10.1109/ACCESS.2023.3344640
+
+
+
+
+NLOS Identification for UWB Positioning Based
+on IDBO and Convolutional Neural Networks
+QIANKUN KONG
+Wuxi River Water Diversion Project Management Center, Quzhou 324000, China
+e-mail: sjnmmbrnhk@yeah.net
+
+
+
+
+  ABSTRACT Ultra-wideband (UWB) is regarded as the technology with the most potential for precise indoor
+  location due to its centimeter-level ranging capabilities, good time resolution, and low power consumption.
+  However, Because of the presence of non-line-of-sight (NLOS) error, the accuracy of UWB localization
+  deteriorates significantly in harsh and volatile indoor conditions. Therefore, identifying NLOS conditions
+  is crucial to enhancing the accuracy of UWB location. This paper proposes a convolutional neural network
+  (CNN) classification method based on an improved Dung Beetle Optimizer (DBO). Firstly, based on the
+  standard DBO, the Circle chaotic mapping, non-uniform Gaussian variational strategy, and multi-stage
+  perturbation strategy are used to optimize the exploration capability and enhance the performance of original
+  DBO method, the superiority-seeking ability of IDBO is demonstrated by testing 23 benchmark functions.
+  In addition, based on the IDBO algorithm, we propose an IDBO-CNN classification model, with the help
+  of IDBO, the accuracy of NLOS identification is improved by adjusting the hyperparameters of CNN
+  to be closer to the optimal solution. Experiments conducted on the open-source dataset demonstrate that
+  IDBO-CNN is capable of achieve the desired effect. In comparison to the conventional CNN approach, the
+  F1-score achieved by IDBO-CNN is enhanced by 3.31%, which demonstrates that IDBO-CNN has superior
+  identification accuracy.
+
+
+  INDEX TERMS UWB localization, NLOS identification, IDBO, circle chaotic mapping, non-uniform
+  Gaussian variation, multi-stage dynamic disturbance, CNN.
+
+I. INTRODUCTION                                                                                  As a time of arrival (TOA) based approach, the
+The advancement of the Internet of Things technology has                                      UWB-based positioning system has centimeter-level posi-
+revolutionized the way we live, more and more people are                                      tioning accuracy, however, its positioning performance
+becoming interested in location-based services in indoor                                      deteriorates sharply under indoor non-line-of-sight (NLOS)
+environments, this is because most of the human activi-                                       propagation conditions [6]. NLOS is a common phenomenon
+ties take place indoors. UWB, acoustic [1], ZigBee [2],                                       in wireless signal transmission, as shown in Fig. 1, where
+infrared [3], visible light communication (VLC) [4], radio                                    the direct signal transmission path between anchor and tag is
+frequency identification (RFID) [5], and hybrid positioning                                   obstructed or blocked by the barriers (furniture, wall, goods,
+systems employing multiple technologies are the most popu-                                    glass window, e.g.). In this situation, the signal between
+lar indoor positioning methods at the moment. It is generally                                 the transmitter and the receiver may be propagated through
+agreed that the UWB technology is the most promising tech-                                    multiple paths, such as diffraction, reflection, refraction, and
+nique for accurate location among these several technologies                                  penetration [7], consequently, the distance estimated based
+due to its good time resolution, centi-meter-level ranging                                    on whether TOA or received signal strength indicator (RSSI)
+capabilities, low power consumption, great penetration, and                                   is biased. NLOS propagation can be observed in a variety of
+good anti-multipath effect, and other advantages.                                             positioning situations in production and daily life, such as
+                                                                                              indoor navigation, asset tracking, etc. It is worth mentioning
+                                                                                              that UWB positioning is usually located by range-based
+   The associate editor coordinating the review of this manuscript and                        methods such as TOA or time difference of arrival (TDOA),
+approving it for publication was Yafei Hou              .                                     which has high-ranging accuracy, so NLOS propagation has
+                                  2023 The Authors. This work is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 License.
+VOLUME 11, 2023                                      For more information, see https://creativecommons.org/licenses/by-nc-nd/4.0/                         144705
+                                                                    Q. Kong: NLOS Identification for UWB Positioning Based on IDBO and CNN
+
+
+
+
+                                                                  IDBO. In Section IV, the validity of the suggested IDBO
+                                                                  is tested and assessed by benchmark functions. Section V
+                                                                  utilizes open-source data sets to verify and test the validity
+                                                                  and feasibility of NLOS identification based IDBO-CNN.
+                                                                  Finally, we wrap up the study and talk about further research
+                                                                  in Section VI.
+
+                                                                  II. RELATED WORK
+                                                                  A. NLOS IDENTIFICATION
+                                                                  To enhance indoor location accuracy, many scholars have dis-
+FIGURE 1. LOS and NLOS propagation in the UWB-based system.
+                                                                  cussed several NLOS identification methods from different
+                                                                  perspectives, and current NLOS identification can be split
+a more serious impact on the UWB positioning system.              into three categories according to the basic algorithm used:
+Therefore, high-precision positioning technology must find        traditional methods, machine learning-based methods, and
+a solution to the crucial issue of how to identify and correct    deep learning-based methods [8].
+NLOS errors.                                                         Traditional NLOS identification methods can be divided
+   In recent years, researchers have proposed many methods        into three categories, namely statistics-based methods [7],
+to NLOS identification and mitigation, these methods are          [9], range-based methods [10], location-based methods [11].
+mainly divided into traditional methods, machine learning-        Statistics-based methods use the probability density function
+based methods, and deep learning-based methods. Tradi-            (PDF) or the statistical features of CIR, such as the Rice
+tional LOS/NLOS identification method using characteristic        factor, kurtosis, skewness, MED for NLOS identification.
+parameters of transmission channel, such as the Rice fac-         This method usually needs to extract UWB signal features
+tor, kurtosis, skewness, mean excess delay (MED), etc. this       and set a reasonable threshold, but the appropriate threshold
+method accuracy is not high and is only suitable for static       is difficult to determine [12] and easy to be affected by the
+environment. The method based on machine learning requires        environment [8]. Range-based methods use variance of range
+manual extraction of useful information from UWB signals,         estimates or PDF of the received signal to identify NLOS, this
+which require much human labor. The methods based on              method requires a lot of distance measurements, therefore not
+deep learning generally adopt convolutional neural networks       suitable for application in real-time UWB positioning sys-
+(CNN), residual network (ResNet) and its combination with         tem. Location-based methods identify NLOS by comparing
+other technologies, current research mainly focuses on the        external environment information (maps, geometric location,
+CNN network structure, ignoring the influence of model            path continuity) [11] with different subsets of actual ranging
+parameters on the recognition rate. To solve the above prob-      estimates, which are not suitable for indoor scenes with large
+lems, this paper proposes a CNN identification method based       changes. In summary, traditional methods are limited by prior
+on an improved Dung Beetle Optimizer (IDBO), IDBO was             knowledge or the existence of time delays, or it is difficult to
+used to optimize CNN parameters and improve recognition           determine the appropriate distribution function or additional
+rate. In summary, this paper makes following contributions:       constraints are required.
+   (1) Aiming at the shortcoming of standard DBO, the circle         Machine learning includes random forests (RF) [13], deci-
+sequence, non-uniform Gaussian mutation and multi-stage           sion trees (DT) [14], and other methods, these methods need
+dynamic perturbation strategy are used to increase the search     to manually extract UWB CIR characteristics and estab-
+space of the algorithm and avoid local optimality.                lish the relationship between signal features and LOS/NLOS
+   (2) The benchmark function of CEC2017 is used as the           propagation through supervised learning. In Reference [15],
+fitness function, including unimodal, multimodal, separable       an NLOS identification method with fuzzy credibility-based
+and indivisible. Through Wilcoxon rank sum test and sensi-        support vector machines (FC-SVM) and dynamic threshold
+tivity analysis, it is proved that IDBO has strong optimization   comparison (DTC) is proposed, this is done in two steps,
+ability and fast convergence speed.                               starting with a coarse-grained NLOS classification using the
+   (3) Simulations using channel impulse response (CIR) data      DTC approach, then moving on to a fine-grained result using
+sets show that the IDBO-CNN model does a better job of            FC-SVM. A UWB positioning system based on RF is pro-
+identifying NLOS, the identification performance of the sug-      posed in Reference [16], the RF algorithm is innovatively
+gested IDBO-CNN model is compared with the existing CNN           applied to Kalman filter measurement update, and the Taylor
+model, which shows that the proposed IDBO-CNN model has           algorithm is adopted to improve the estimation accuracy.
+better feature extraction and identification abilities for NLOS   To address the performance degradation caused by the dispro-
+signals.                                                          portionate number of LOS and NLOS signals, Che et al. [17]
+   The structure of this paper are as follows: The various        proposed the Weighted Naive Bayes algorithm to reduce the
+related works pertaining to NLOS classification are discussed     impact of the limited number of NLOS components on the
+in Section II. The fundamental concepts of CNN and DBO            train the model. The recognition effect of the method based on
+are introduced in Section III, and elaborates the model of        machine learning largely depends on offline data collecting
+
+144706                                                                                                                     VOLUME 11, 2023
+Q. Kong: NLOS Identification for UWB Positioning Based on IDBO and CNN
+
+
+
+
+and labeling, and selection of channel statistical character-            fast convergence speed, which can optimize CNN param-
+istics. However, some deep-level features are unknown to                 eters more effectively. Some scholars have begun to study
+human beings, the collection and labeling of offline data                using DBO to optimize CNN parameters. Yuan et al. [27]
+consume a lot of manpower and are not suitable for dynamic               introduced a new water-body detection method, which estab-
+indoor environment, which limits the further improvement of              lished a DBO-CNN model and used the DBO algorithm to
+recognition performance of machine learning methods.                     optimize hyperparameter of CNN model to improve detec-
+   In recent years, deep learning has developed rapidly in               tion performance. Guo et al. [29] proposed a DBO-CNN
+image processing, natural language processing, etc. Deep                 model, which automatically adjusts CNN hyperparameters
+learning techniques are capable of learning complicated,                 to identify speakers. By testing the data set of 50 people,
+non-linear and high-dimensional features from massive CIR                it is proved that the average recognition rate of this method
+data, it has been introduced into NLOS identification by                 is improved by 1.22∼4.39%. Zhao et al. [30] proposed a
+researchers and has achieved promising results. The research             combined traffic flow prediction model. Firstly, an improved
+mainly focuses on CNN [18], temporal convolutional net-                  IDBO algorithm is used to optimize LSTM parameters, then
+works (TCN) [19], Long Short-Term Memory (LSTM)                          the predicted value of the subsequence is recombined to get
+[20], and the combination of different technologies [21].                the final result, indicating that IDBO-LSTM improves the
+Cui et al. [22] presents a LOS/NLOS classification technique             accuracy of prediction. Zhang and Zhu [31] improved the
+based on CNN and Morlet wave transformation, which can                   DBO algorithm with three strategies, and then optimized a
+identify NLOS scenarios in time-frequency domain, but this               back-propagation (BP) neural network with IDBO algorithm,
+technique is more suitable for deployment in static scenes.              proving that IDBO-BP has a superior performance in pre-
+In Reference [23], a network that combines the TCN and                   dicting the parameters of heat treated larch sawed timber.
+attention mechanisms with the CIR as its input is proposed               By using DBO algorithm to automatically iteratively search
+to be used to detect NLOS propagation. The particle swarm                the optimal LSTM parameters, Zhang et al. [32] proposed
+optimization (PSO) method is utilized choose the network’s               a short-term power load combination prediction model of
+main parameters, resulting in improved accuracy and a faster             DBO-LSTM, the average prediction error was reduced by
+processing speed. The UWB positioning system described                   25.13%. However, every meta-heuristic algorithm has its lim-
+in Reference [20] employs LSTM and uses the CIR of                       itations and cannot solve all problems. Due to the randomness
+the UWB signal received to differentiate between LOS and                 of DBO algorithm, it may lead to local optimization, so there
+NLOS conditions. Generative Adversarial Networks (GAN)                   is still room for improvement.
+are used in Reference [24] to produce diagnostic information                To resolve the problems above, a new IDBO algorithm
+for frame transmission under NLOS circumstances, then,                   is proposed to optimize CNN parameters by using several
+NLOS situations are identified using CNN. In Reference [25],             strategies. Simulation results show that the CNN classifier
+the LSTM is used to identify LOS/NLOS situations using                   with optimized parameters can identify NLOS conditions
+the combined channel features, which are made up of four                 more accurately in complex indoor environments, compared
+characteristics of channel state information (CSI) and CIR.              with existing state-of-the-art algorithms.
+A reliable approach for identify NLOS utilize fuzzy deci-
+sion tree (FDT) that is based on Bayesian optimization                   III. MODELS AND ALGORITHMS
+is presented in Reference [26], this technique extracts the              A. CONVOLUTIONAL NEURAL NETWORK
+classification characteristics from CIR, generates FDT with              The main feature of CNN is convolutional operation, the main
+Bayesian optimization, and detects the propagation circum-               steps of CNN are as follows: (1) extraction of initial features
+stances of the UWB signal. Deep learning technology has                  by the convolutional layer; (2) extraction of main features by
+developed rapidly in NLOS identification, but it also has                the pooling layer; (3) aggregation of various features by the
+some shortcomings. The current research focuses on the                   fully connected layer; and finally, classification prediction.
+adjustment and optimization of the CNN model structure,                     (1) Convolutional layer: Convolution in CNN is to calcu-
+ignoring the influence of the model hyperparameters on the               late the product of each element point in the input data matrix
+identification performance, which is one of the key factors              with the corresponding element point in the coverage of the
+affecting the model performance.                                         convolution kernel matrix and add up all the products, the
+                                                                         cumulative sum is the output obtained from each convolution
+                                                                         operation (feature graph).
+B. PARAMETER OPTIMIZATION                                                   (2) Pooling layer: The purpose of the pooling layer is to
+Before the CNN model is applied to NLOS recognition, the                 decrease the dimensionality of the data while preserving the
+internal hyperparameters must be set, which is one of the                characteristics of the resulting feature graph. In essence, the
+key factors affecting the performance of the model [27].                 pooling layer divides the feature graph generated by convo-
+Although genetic algorithm (GA) and PSO have some effects                lution into multiple non-overlapping n×n regions, and uses
+in parameter optimization, their search in hyperparameter                the sliding window to slide through each region successively
+space is often inefficient. In contrast, DBO [28] is a new               and pool the elements within the region. This paper adopts
+meta-heuristic algorithm and has strong search ability and               maximum pooling.
+
+VOLUME 11, 2023                                                                                                                  144707
+                                                                        Q. Kong: NLOS Identification for UWB Positioning Based on IDBO and CNN
+
+
+
+
+                     FIGURE 2. CNN structure.
+
+
+
+   (3) Fully connected layer: Operations such as the con-             where, θ represents the deflection angle and [0, π] indicates
+volution layer and pooling layer in CNN are equivalent to             the value of the variable.
+mapping the input data to the feature space, while the full
+                                                                      2) SPAWNING
+connection layer is equivalent to mapping the previously
+obtained features to the sample space. The fully connected            Female dung beetles hide dung balls in a safe area to lay
+layer concatenates all the features of the input data into a          their eggs in nature. Motivated by this action, the following
+one-dimensional feature space. A weighted summation of the            methodology of selecting boundaries is used to imitate the
+fully connected layer inputs and an activation function can           dung beetle oviposition area:
+obtain the corresponding output.                                                     Lb∗ = max X ∗ × (1 − R), Lb
+                                                                                                                    
+
+                                                                                     Ub∗ = min X ∗ × (1 + R), Ub
+                                                                                                                    
+                                                                                                                                (3)
+B. DBO ALGORITHM
+The DBO was suggested based on the behavior of dung                   where X ∗ indicates the location that is currently the most
+beetles, which roll, dance, forage, steal, and breed [28]. This       optimal, the lower and upper boundaries of the oviposition
+algorithm introduces certain techniques, such as identify-            area are denoted by Lb∗ and Ub∗ , R = 1 − t/Tmax , Tmax rep-
+ing the direction of advancement based on dance behavior.             resents the maximum number of iterations, the optimization
+With respect to convergence time and solution accuracy,               problem’s upper bounds and lower bounds are denoted by Lb
+this algorithm is competitive with existing optimization              and Ub.
+techniques. The four DBO behaviors are listed below:                      The female beetle will choose an egg to lay in the desig-
+                                                                      nated oviposition area once it has been identified. According
+1) ROLLING BALL                                                       to Equation (3), the value of R will primarily determine how
+Dung beetles roll huge dung balls, they make the ball trav-           dynamically the oviposition area’s boundary range changes.
+elling in a line by using the sun as a guide. As it rolls, the        During iteration, the egg’s position dynamically changes,
+rolling dung beetle alters its position in accordance with the        as specified as:
+equation:                                                              Xi (t + 1) = X ∗ + b1 × Xi (t) − Lb∗ + b2 × Xi (t) − Ub∗
+                                                                                                                                 
+
+         xi (t + 1) = xi (t) + α × k × xi (t − 1) + b × 1x                                                                      (4)
+              1x = xi (t) − X w                                 (1)   where the location of the i-th egg in the t-th iteration is
+where, the iteration count is denoted by t, the location of the       indicated by Xi (t), the two stochastic vectors b1 and b2 not
+i-th beetle during the t-th iteration is represented by xi (t).       connected with one another and have dimensions of 1 D. The
+a constant parameter denoting the deviation factor is k ∈             optimization problem’s size is D.
+(0, 0.2], b ∈ (0, 1) is a fixed constant, the value of α is 1 or
+−1, X w and 1x are the worst location and light brightness            3) FORAGING
+variation, respectively.                                              Female beetle eggs hatch and expand throughout time,
+   Dung beetles encounter obstacles, they must dance to               in search of food, some grown small beetles will emerge from
+reposition themselves and find another way. To imitate this           the soil, the optimum foraging habitat for small beetles is
+dancing action, a tangent function is employed. The ball is           depicted below:
+kept rolling backwards until the dung beetle decides on a new
+                                                                                                                  
+                                                                                     Lbb = max X b × (1 − R), Lb
+direction. the following is the dung beetle’s position formula:                                                   
+           xi (t + 1) = xi (t) + tan(θ) |xi (t) − xi (t − 1)|   (2)                  Ubb = min X b × (1 + R), Ub                (5)
+
+144708                                                                                                                         VOLUME 11, 2023
+Q. Kong: NLOS Identification for UWB Positioning Based on IDBO and CNN
+
+
+
+
+                                                                           C. IMPROVED DBO
+                                                                           The traditional DBO algorithm has several drawbacks,
+                                                                           including limited global searchability and the tendency to fall
+                                                                           into local optimality, this research suggests a more effective
+                                                                           dung beetle optimizer to overcome these shortcomings.
+
+                                                                           1) CIRCLE CHAOTIC MAPPING
+                                                                           In the original DBO algorithm, random population initializa-
+                                                                           tion is adopted, which may lead to insufficient population
+                                                                           diversity and excessive convergence in subsequent itera-
+                                                                           tions. A metaheuristic algorithm’s population diversity can
+                                                                           be increased by using chaotic sequences because of their
+                                                                           randomness and ergodicity [33]. The fundamental strategy
+                                                                           utilizes chaos models to map chaotic sequences into individ-
+                                                                           ual search areas, such as Kent [34], Tent [35] or Logistic [36]
+                                                                           chaos mapping.
+                                                                              When choosing a chaotic map, two important properties
+                                                                           must be considered: simplicity and ergodicity. Due to its
+                                                                           uniform phase distribution and straightforward Equations,
+                                                                           piecewise linear chaotic mapping satisfies these require-
+                                                                           ments. In this paper, a random sequence is produced via circle
+                                                                           chaotic mapping, the following is the formula:
+                                                                                                                                
+                                                                                                              0.5
+                                                                                  xi+1 = mod xi + 0.2 −             sin (2πxi ) , 1    (8)
+                                                                                                              2π
+                                                                              Particle distribution using Circle mapping in (a) is more
+                                                                           uniform than random distribution in (b), avoiding the sit-
+                                                                           uation where there are fewer dung beetle populations near
+FIGURE 3. Comparison of random generation method and circle chaotic
+mapping method (a) Circle chaotic mapping initialization; (b) Random
+                                                                           the optimal solution. The initial position distribution of the
+initialization.                                                            improved population was more uniform, which expanded
+                                                                           the search scope of dung beetle groups in space, increased the
+X b is the global optimal position, the lower and upper bound-             diversity of group positions, and fixed the algorithm’s flaw of
+aries of the ideal foraging area are denoted by Lbb and Ubb ,              being susceptible to local extreme values, thus enhance the
+as a result, The following is an updated description of the little         optimization efficiency of the DBO algorithm.
+dung beetle’s location.
+                                                                         2) MULTI-STAGE DYNAMIC DISTURBANCE STRATEGY
+             xi (t + 1) = xi (t) + C1 × xi (t) − Lbb                       The rolling ball process can enhance the search randomness
+                                                                           and the population diversity, but the solution of the new
+                                               
+                          + C2 × xi (t) − Ubb                 (6)
+                                                                           individual dung beetle may not be accurate and may be prone
+where xi (t) denotes the little dung beetle’s location at the t-th         to noise, which may negatively affect the search effect of
+iteration. C1 stands for normal-distributed random variable,               the DBO algorithm. In this article, a multi-stage dynamic
+C2 is a random vector that ranges from 0 to 1.                             perturbation strategy is proposed for the rolling ball process
+                                                                           to update the optimal solution position by stage dynamic
+4) STEALING                                                                perturbation to avoid falling into local optimal. Its formula
+Some beetles are known as thieves because they take other                  is shown in (9):
+beetles’ dung balls. Since X b is the ideal food supply accord-                               xi (t + 1) = N (xi (t), σ )              (9)
+ing to Equation (5), it follows that the location around X b
+is the best area for competitive food. The thief’s location is             where σ represents the uncertainty relative to xi (t + 1) and is
+updated as follows during the iteration process:                           non-increasing function with t iterations, this is its modified
+                                                                         formula:
+   xi (t + 1) = X b + S × g × xi (t) − X ∗ + xi (t) − X b
+                                                                                     σ1                            , t < α1 T
+                                                                                  
+                                                                                  
+                                                                                          (σ1 − σ2 ) (t − α1 T )
+                                                                                  
+                                                                     (7)          
+                                                                              σ = σ1 −                             α1 T < t < α2 T
+where xi (t) denotes the thief’s position at the t-th iteration.                  
+                                                                                            (α2 T − α1 T )
+                                                                                     σ2                            , t > α2 T
+                                                                                  
+the value of s is fixed constant, while g is a 1-dimensional
+random vector that follows a normal distribution.                                                                                     (10)
+
+VOLUME 11, 2023                                                                                                                     144709
+                                                                   Q. Kong: NLOS Identification for UWB Positioning Based on IDBO and CNN
+
+
+
+
+TABLE 1. Major notations used in this paper.                     calculations, values for b = 2; F is the target position; The
+                                                                 Gaussian distribution has a standard deviation denoted by σ .
+                                                                    The non-uniform Gaussian variation strategy has the fol-
+                                                                 lowing characteristics: 1) The update object is the dung
+                                                                 beetle with the worst fitness in the population, instead of
+                                                                 all the individuals in the current population, which reduces
+                                                                 the complexity; 2) As can be seen from Equation (9), the
+                                                                 update formula takes the individual itself as the basis, selects
+                                                                 the information merging object and the current individual
+                                                                 for Gaussian distribution, and adaptively adjusts the learning
+                                                                 strategy of variation step length. This approach to updating
+                                                                 is helpful for sustaining population variety and enhancing the
+                                                                 global search capability of the algorithm.
+
+                                                                 D. IDBO ALGORITHM FRAMEWORK AND COMPLEXITY
+                                                                 ANALYSIS
+                                                                 Assuming that N , M , D represents the population size, the
+                                                                 problem dimension and the maximum number of iterations,
+                                                                 respectively. The time complexity of the initial phase is C1 =
+                                                                 O (N ∗ D) and the complexity during iteration is C2 = O
+                                                                 (M ∗ N ∗ D), so the complexity of the DBO is C1 + C2
+                                                                 which is O(N ). IDBO does not use greedy strategies, reverse
+where, α represents the radius parameter of the normal dis-      learning, etc., which would add complexity, the complexity
+turbance to the original optimal dung beetle position, and       of IDBO algorithm is O(N ) in both the initialization stage
+σ1 < σ2 ; in this paper, α1 = 0.000001, σ2 = 0.9; α1 , α2 are    and the rolling stage. Assuming that spawning dung beetles
+the control parameters of the change of radius; and α1 < α2 ,    account for P%, so the complexity of the spawning stage is O
+in this paper, α1 = 0.4, α2 = 0.7; the iterations number is t,   (P ∗ M ∗ N ∗ D), The total complexity is O(N ), so the IDBO
+and the maximum iterations number is T .                         has the same complexity as the DBO algorithm [37].
+
+3) NON-UNIFORM GAUSSIAN VARIATION STRATEGY                       Algorithm IDBO Algorithm
+The spawning process refers to the iterative process of the      Require: The maximum iteration , the size of the particle’s popula-
+algorithm, in which dung beetles exchange information and        tion N . Obtain an initialized population using circle chaotic mapping
+                                                                 strategy.
+merge updates to speed up the search speed and expand the        Ensure: Optimal position X b and its fitness value .
+search space. This process can be separated into two steps:         1: Initialize the particle’s population i ← 1,2,. . . , N and define
+information exchange and information merging. Information               its relevant parameters
+merging may result in multiple dung beetles merging with            2: while ≤ do
+each other, but the resulting individual solution may not be        3:     for i = 1 to Number of rolling dung beetles do
+as good or worse than the original one. This may cause the          4:        α = rand (1)
+                                                                    5:        if ≤ 0.9 then
+solution set of the algorithm to shrink and the search effi-        6:           Update Rolling Dung Beetle Location by Eq. (1).
+ciency to decrease. In this paper, we propose a non-uniform         7:        else
+Gaussian variation strategy for the reproduction process,           8:           Rolling the ball in the encounter of obstacles by Eq. (9)
+namely:                                                                 and Eq. (10) to update.
+                                                                    9:        end if
+                                          
+                                                j
+                                                                  10:     end for
+                 xi (t + 1) = xi (t) + 1 t, GDt          (11)      11:     The value of the nonlinear convergence factor is calculated
+                                           b !                        by R = 1 − t/Tmax .
+                                               1−t
+                                                                   12:     for i = 1 to Number of Spawning dung beetles do
+                   1(t, y) = y 1 − r Tmax                (12)      13:     Updating of Spawning dung beetles by Eq. (10), Eq. (11)
+                                                                    and Eq. (12).
+                      GDit = N      F − xji , σ          (13)      14:     end for
+                                                                   15:     for i = 1 to Number of Foraging dung beetles do
+                                                                 16:     Updating of foraging dung beetles by Eq. (5) and Eq. (6).
+                 j                                                 17:     end for
+where, 1 t, GDt is the step size of non-uniform varia-
+                                                                   18:     for i = 1 to Number of Stealing dung beetles do
+tion, it is a mutation operator that
+                                   adaptively
+                                              adjusts the         19:        Updating of stealing dung beetle by Eq. (7).
+                                      j
+step size by Gaussian distribution GDt ; r is a uniformly          20:     end for
+generated random number within the range of 0 to 1; b is           21: end while
+                                                                   22: Return X b and its fitness value fb ;
+a system parameter, determines the uniformity of variation
+
+144710                                                                                                                     VOLUME 11, 2023
+Q. Kong: NLOS Identification for UWB Positioning Based on IDBO and CNN
+
+
+
+
+                    FIGURE 4. Optimization process of CNN parameters using IDBO algorithm.
+
+
+
+
+E. CNN METHOD BASED ON IDBO OPTIMIZATION                                   the formula:
+The NLOS identification model is established in this research                                            n
+                                                                                                   1X
+using the CNN approach, however, it is challenging to deter-                                 MSE =    (b
+                                                                                                       yi − yi )2                   (14)
+                                                                                                   n
+mine the ideal hyperparameter combination for a given task                                                i
+because CNN has many hyperparameters. Using past empiri-                      (4) Update each dung beetle’s location as follows: for the
+cal methods to replicate the parameter values used in other                rolling dung beetle, move it in obstacle-free mode or dance in
+problems, or to find the best value through trial and error                obstacle mode using Equations (1) or Equations (2); for the
+will consume a lot of cost and time, and may not be the                    breeding dung beetle, calculate its location Equations (11),
+optimal solution. Therefore, the IDBO-CNN is suggested                     Equations (12), and Equations (13); for a foraging dung
+in this paper, the essence of IDBO-CNN is to adjust the                    beetle, calculate its location using Equations (5) and
+hyperparameters of CNN to the optimal solution by using                    Equations (6); for the thieving dung beetle, calculate its
+the fast convergence rate and accurate global search ability               location using Equation (7).
+of IDBO, so as to enhance identification accuracy. Fig. 4                     (5) After the update, check whether each dung beetle’s
+shows the IDBO-CNN procedure, the following is the major                   location surpasses Lb and Ub. If so, repeat step 3. Otherwise,
+procedures:                                                                continue to execute.
+   (1) IDBO algorithm initialization, including the population                (6) Updated optimal solution and value.
+size, the percentage of dung beetles’ four behaviors, variable                (7) Repeating Steps 3, 4, 5, and 6 until the maximum
+parameter dimension, maximum iterations (Tmax ), and upper                 iteration count is reached, and then feed the parameters into
+and lower bounds (Lb, Ub).                                                 the CNN model.
+   (2) Initialize each dung beetle’s location.
+   (3) Record the global optimum position after the fitness                 IV. RESULTS ANALYSIS
+values are calculated. In this research, we develop the fitness            In this section, through a set of simulation experiments
+function by computing the disparity between the true and                   employing benchmark functions, the efficacy of the IDBO
+forecasted values using Mean Square Error, the following is                method is evaluated.
+
+
+VOLUME 11, 2023                                                                                                                   144711
+                                                                           Q. Kong: NLOS Identification for UWB Positioning Based on IDBO and CNN
+
+
+
+
+TABLE 2. Benchmark function.
+
+
+
+
+                      FIGURE 5. 3D view of partial unimodal functions.
+
+
+
+A. BENCHMARK FUNCTIONS FOR OPTIMIZATION                                  were selected. We evaluated the convergence time and
+To evaluate the IDBO optimization algorithms, twenty-                    accuracy of the method using the unimodal test functions
+three test functions, previously published in [38] and [39],             F1–F7, which possess a unique global optimal solution.
+
+144712                                                                                                                            VOLUME 11, 2023
+Q. Kong: NLOS Identification for UWB Positioning Based on IDBO and CNN
+
+
+
+
+                         FIGURE 6. 3D view of partial multimodal functions.
+
+
+
+
+                          FIGURE 7. 3D view of partial multimodal functions with fix dimension.
+
+
+TABLE 3. Benchmark function.
+
+
+
+
+The global search of the method was evaluated using                           and their optimum solution easier to understand, some
+the multimodal test functions F8–F14, which have one                          of these functions are seen in three-dimensional form in
+global optimum solution and many local optimal solu-                          Figs. 5, 6, and 7.
+tions. Multimodal test functions for the functions F14–F23
+with fixed dimensions. The dimensions, search ranges, and                     B. PARAMETER SETTINGS
+theoretical optimum solutions of these benchmark test func-                   Since the DBO algorithm has fewer variants, to assess its
+tions are listed in Table 2. To make these test functions                     reliability, we compare IDBO with five other fundamental
+
+VOLUME 11, 2023                                                                                                                  144713
+                                                    Q. Kong: NLOS Identification for UWB Positioning Based on IDBO and CNN
+
+
+
+
+TABLE 4. Benchmark function optimization results.
+
+
+
+
+144714                                                                                                     VOLUME 11, 2023
+Q. Kong: NLOS Identification for UWB Positioning Based on IDBO and CNN
+
+
+
+
+TABLE 4. (Continued.) Benchmark function optimization results.
+
+
+
+
+    FIGURE 8. The IDBO method and other optimizers’ convergence curves.
+
+
+
+meta-heuristics methods: Elephant Herding Optimization                    Whale Optimization Algorithm (WOA) [43] and DBO [28].
+(EHO) [40], Comprehensive Learning Particle Swarm Opti-                   The details parameter settings of these optimization
+mizer (CLPSO) [41], Grey Wolf Optimization (GWO) [42],                    algorithms are shown in Table 3.
+
+VOLUME 11, 2023                                                                                                          144715
+                                                                     Q. Kong: NLOS Identification for UWB Positioning Based on IDBO and CNN
+
+
+
+
+TABLE 5. Wilcoxon rank sum test.
+
+
+
+
+   Maximum iterations are set at 200 and a uniform popula-         and optimal value are all optimal. It is apparent that the
+tion size of 50 so that the IDBO method and its comparison         effectiveness of the IDBO is superior to that of the DBO,
+algorithms can be evaluated more accurately. Moreover, each        demonstrating that the suggested algorithm presented in this
+model was run independently twenty times, the dimensions           paper can enhance the search capability.
+were defined as 2, 4, 10, 30 and 50. So as to mitigate the            For more intuitive observation and comparison of the con-
+impact of the random factor on the experiment, the most            vergence speed, accuracy, and capacity to avoid local optima
+optimal values, standard deviations, averages, and of the          of each algorithm, Fig. 8 shows the convergence curves of
+optimization algorithm were recorded one by one for each           IDBO and five basic meta-heuristics methods. The number of
+simulation experiment.                                             iterations is shown on the horizontal axis, and the magnitude
+   MatlabR2022b was used to simulate the experiment on             of adaptation value is represented on the vertical axis. The
+a Windows 10 operating system with an i7-13700 proces-             adaptation value is expressed as a logarithm in base 10 to
+sor. IDBO and other classical optimization algorithms were         better illustrate the convergence trend.
+tested in a standard test function to illustrate the validity by      According to Fig. 8, IDBO demonstrates the quickest con-
+comparing the best value, mean value and standard errors of        vergence as well as the highest accuracy in the functions
+fitness.                                                           F1-F12, F15-F18, and F20-F23, this suggests that IDBO is
+                                                                   more likely to find and converge to the global optimum,
+C. ANALYSIS OF CONVERGENCE CURVES                                  which is due to the circle chaotic mapping in population
+Unimodal functions are very suitable for verifying the devel-      initialization stage, so that the distribution of dung beetles
+opment abilities of algorithms in exploring optimal solutions.     is more uniform than random distribution. For function F13,
+Meanwhile, multimodal functions can be used to evalu-              although IDBO is not the optimal solution, it has little differ-
+ate IDBO’s ability to evade local optimal solutions during         ence from the results of other algorithms, it may be that noise
+exploration. The final results of the optimization method          is generated in the mutation process. For function F14, the
+are presented in Table 4. The optimal solution is shown            performance is unstable, most of the time IDBO converges
+in boldface. Except for F13 and F19, IDBO is superior to           quickly at the inflection point and reaches optimal accu-
+other algorithms, and its Standard deviation, average value,       racy after iteration, and occasionally the result is the worst,
+
+144716                                                                                                                      VOLUME 11, 2023
+Q. Kong: NLOS Identification for UWB Positioning Based on IDBO and CNN
+
+
+
+
+this is because the dynamic disturbance makes the IDBO                   TABLE 6. IDBO and other formats run results.
+algorithm exhibit strong ability in F14, F18 and some other
+functions. For function F19, DBO obtains the optimal value
+after convergence, followed by WOA and IDBO, probably
+because it is trapped in a local optimum. In conclusion,
+the circle sequence, non-uniform Gaussian variation strat-
+egy, and multi-stage perturbation strategy effectively improve
+the IDBO algorithm’s global and local optimization capa-
+bilities, indicating that the improved strategy suggested in
+this paper effectively enhances the convergence speed and
+accuracy.
+
+D. WILCOXON RANK SUM TEST
+To verify the effectiveness of IDBO, it is not enough to
+compare the convergence analysis, standard deviation and
+mean, we need to compare algorithm effectiveness at the
+statistical level such as the Wilcoxon statistical test [44], [45].
+The Wilcoxon rank sum test is a nonparametric statistical test
+used to determine whether there are significant differences
+between IDBO and different algorithms, therefore, we tested
+each of the six algorithms 50 times independently on 23 test
+functions. The Wilcoxon rank sum test was performed at the
+significance level of 0.05 to determine the significant differ-
+ence between the six compared algorithms and the solution
+results of IDBO. As shown in Tables 5, when the comparison
+result of the IDBO with other algorithms is less than 5%,
+it indicates that there is a noticeable variation. Conversely,
+when the comparison result is greater than 5%, the difference
+between the two algorithms is not noticeable. From Tables 4,
+it can be seen that the IDBO algorithm is different from
+the other algorithms. In summary, IDBO has a significant                 convergence accuracy than IDBO1, probably non-uniform
+advantage over DBO, GWO, WOA, CLPSO, and EHO, so the                     Gaussian variational maintains population diversity and
+superiority of the IDBO algorithm proposed in this paper is              enhances the global search ability of the algorithm. There is
+statistically significant.                                               little difference in convergence between IDBO2 and IDBO3,
+                                                                         probably multi-stage dynamic disturbance strategy in rolling
+E. SENSITIVITY ANALYSIS                                                  ball may be prone to noise while updating the position of the
+This section illustrates the effect of different IDBO improve-           optimal solution. This demonstrate that the effect of different
+ment strategies through sensitivity analysis. each function              strategies on algorithm performance improvement is also dif-
+was run 20 times independently, and the average value was                ferent, but if the three strategies are used at the same time, not
+used to analyze the impact of not adopting the improvement               only the accuracy is improved, but also improve the stability
+strategy on IDBO. Specifically, IDBO1 does not use the circle            of the algorithm, proving that the improvement strategy has
+chaotic mapping strategy in population initialization and will           authenticity and effectiveness.
+adopt the traditional population random deployment setup.
+In IDBO2, the proposed non-uniform Gaussian variational                  V. NLOS IDENTIFICATION EXPERIMENTAL RESEARCH
+strategy is no longer used to perform mutation operations                To verify the effectiveness of our proposed IDBO-CNN
+on the dung beetle with the worst fitness in the population,             for NLOS identification, this section leverages UWB
+random selection is performed according to the original DBO.             data collected from real-world environments to set up
+In IDBO3, the multi-stage dynamic disturbance strategy for               simulation experiments to evaluate NLOS identification
+each iteration is no longer used, and the resulting tests are            performance.
+shown in Table 6.
+   It can be seen from Table 6 that the performances in IDBO1            A. DATA PRESENTATION AND PREPROCESSING
+significantly decreases if the circle chaotic mapping strategy           The dataset used in this paper comes from the elastic
+in population initialization is removed, which indicates that            Wireless Networking Experimentation (eWINE) project,
+the circle chaotic mapping strategy serves a critical part               which uses a DWM1000 RF transceiver to collect indoor
+in the features of the IDBO. While the IDBO2 has better                  UWB signals. UWB signals in seven different environments,
+
+VOLUME 11, 2023                                                                                                                     144717
+                                                                       Q. Kong: NLOS Identification for UWB Positioning Based on IDBO and CNN
+
+
+
+
+                                                                     find the best values through repeated trials, and you may not
+                                                                     obtain the optimal solution. Therefore, this paper proposes
+                                                                     to IDBO based on circle sequence, non-uniform Gaussian
+                                                                     variation strategy, and multi-stage perturbation strategy, and
+                                                                     then optimize the parameters of CNN. The hyperparameter
+                                                                     this study focuses on are as follows:
+                                                                         (1) BatchSize. The larger the BatchSize, the faster the
+                                                                     training, the larger the memory usage, but the slower
+                                                                     the convergence. Smaller batch sizes help to general-
+                                                                     ize performance, while larger ones can improve accuracy,
+                                                                     speed.
+                                                                         (2) L2 Regularization. Larger values of L2 regulariza-
+                                                                     tion parameter make the model more generalized, but set-
+                                                                     ting the parameter too high will reduce the model fitting
+                                                                     ability.
+FIGURE 9. The proposed CNN structure and parameters in this paper.       (3) Learning rate. If the learning rate is too low, it is easy
+                                                                     for the model to fall into a local optimum, and if it is too high,
+                                                                     it is easy to miss the global optimum and fail to complete the
+collected 3000 LOS data and 3000 NLOS data for each                  training.
+scene. The dataset collected a total of 42000 data, includ-              The essence of IDBO-CNN is to adjust the hyperparam-
+ing 21000 LOS and 21000 NLOS, more information can be                eters of CNN near the optimal solution by using the faster
+found at https://www.ewine-project.eu/. The dataset consists         convergence rate of IDBO and accurate global optimization
+of 7 CSV format files, each of which stores 6000 UWB                 ability. Thus, it can reduce the time of model construction
+data collected in different scenarios. Each dataset file has         and improve the accuracy of prediction. The position of
+1024 columns of data, including whether it is an NLOS                each beetle is represented by a 3-dimensional vector Pi (pi1 ,
+signal, 1016 CIR data from CIR0 to CIR1015, time of flight,          pi2, pi3 ), whose dimension is equal to the number of hyper-
+noise standard deviation, length of leading code, and other          parameters to be optimized. Specific optimization methods
+characteristic data.                                                 are as follows: the hyperparameter of the CNN model is
+   According to the tips of the eWINE project, the CIR data          used as the beetle’s location parameter, the recognition rate
+needs to be divided by the number of obtained leading code           of the CNN model is regarded as the fitness of the beetle
+samples. In this paper, 7 data set files are processed by CIR        at the current position. Then, let each beetle move to a new
+data according to the tips of the eWINE project, and then the        position according to the strategy in Section III-C. The beetle
+unused data is deleted, leaving only 1016 columns of data that       population is set to 50, and the number of searches is set to
+need to be used. The CIR data is normalized to increase the          30. After all searches are done, the beetle with the greatest
+training speed of the model, and the dataset in this paper was       fitness is selected, and its positional parameters represent the
+obtained through the above operations.                               best hyperparameters.
+
+B. NETWORK STRUCTURE                                                 C. ANALYSIS OF EXPERIMENTAL RESULTS
+When the input CIR signal is more complex, that is, more             In this paper, six environments in the dataset (one of two
+sample data are included in the CIR to be identified, in order       office environments is selected) are selected for experiments,
+to improve the recognition rate of NLOS, convolutional neu-          the dataset for each environment is separated into training and
+ral networks generally need to gain a deeper understanding           test sets, with 80% of the data assigned to the former and
+of the input data by analyzing its more abstract and complex         20% to the latter. After IDBO optimization, the optimal initial
+characteristics. In order to enable the CNN to learn more            learning rate is 0.2, the optimal L2 regularization coefficient
+feature parameters, more layers are usually set reasonably in        is 0.1, the minimum batch size is set to 16, iterations are
+practice. This research utilized a CNN with an output layer,         limited to 2000, the random gradient descent optimizer is
+two fully-connected layers, three pooling layers, and three          used, and the contribution of update parameters from the
+convolutional layers. Fig. 9 shows the proposed convolutional        previous iteration to the current iteration’s random gradient
+neural network topology in this paper.                               descent is set to 0.9.
+   The hierarchical distribution determines that CNN has                According to the parameters and model evaluation indexes
+many hyperparameters, and the hyperparameter optimization            set above, IDBO-CNN models belonging to 6 kinds of indoor
+problem is to select an optimal hyperparameter collocation in        scenes are trained, respectively. The training accuracy of
+the network model. For a given problem, it is difficult to know      scene 6 (the boiler room) is illustrated by the change curve
+the best combination scheme of hyperparameters, it will cost         in Fig. 10, which is progressively increasing over iterations.
+many experimental and time to reproduce the values used              It can be seen that there is no overfitting phenomenon in the
+in other problems by the previous empirical method or to             scenario 6 model, and the final F1 value is 90.96%.
+
+144718                                                                                                                        VOLUME 11, 2023
+Q. Kong: NLOS Identification for UWB Positioning Based on IDBO and CNN
+
+
+
+
+TABLE 7. NLOS identification performance of IDBO-CNN in different scenarios.
+
+
+
+
+TABLE 8. Hyperparameter setting.
+
+
+
+
+TABLE 9. Comparison of NLOS identification performance between the suggested method and existing CNN methods.
+
+
+
+
+                                                                               six scenes reached more than 86%, from the overall clas-
+                                                                               sification performance, bedroom scene and office scene are
+                                                                               better than other scenes, the workshop scene model has the
+                                                                               worst classification performance. A rough estimate is that this
+                                                                               dataset is affected by the multipath effect and NLOS during
+                                                                               measurement, and the dataset lacks generalization ability,
+                                                                               resulting in lower classification performance than other
+                                                                               scenes.
+                                                                                  To assess the NLOS classification performance of the
+                                                                               IDBO-CNN model more accurately, a comparison test of
+                                                                               the CNN classification model was set up. The experimental
+                                                                               data set of scenario1(office scene) is selected, Table 8 and
+                                                                               Table 9 show the parameter Settings and experimental results
+                                                                               respectively.
+                                                                                  Table 9 shows that the accuracy the proposed method in
+                                                                               scenario 6 is 90.91%, which performs better than traditional
+                                                                               CNN method with 89.32% and 88.73% accuracy, it is also
+                                                                               higher than the method proposed by Jiang et al. [46]. There-
+                                                                               fore, in the same scene, by using the IDBO to optimize the
+                                                                               parameters of CNN, the feature extraction ability and identi-
+                                                                               fication ability of the model for NLOS signals are improved,
+                                                                               and the overall performance is better than the existing con-
+                                                                               volutional neural network recognition method with manually
+FIGURE 10. The curve of the training process: (a) Accuracy curve; (b) Loss
+curve.
+                                                                               set parameters.
+
+                                                                               VI. CONCLUSION
+  Each of the six environments in the dataset has specific                     The indoor positioning accuracy of UWB decreases in
+multipath propagation characteristics, thus increasing the                     NLOS scenarios, and identifying NLOS can achieve bet-
+robustness of the identification model. In this paper, the                     ter positioning accuracy. Aiming at the problem of NLOS
+performance of six scene classification models was tested.                     identification in UWB positioning, this paper proposes
+Table 7 shows that the NLOS classification accuracy of all                     a CNN classification algorithm based on multi-strategy
+
+VOLUME 11, 2023                                                                                                                        144719
+                                                                                        Q. Kong: NLOS Identification for UWB Positioning Based on IDBO and CNN
+
+
+
+
+improved DBO. Firstly, based on the standard DBO, the                                [12] X. Shi, Y. H. Chew, C. Yuen, and Z. Yang, ‘‘A RSS-EKF localization
+Circle chaotic mapping, non-uniform Gaussian variational                                  method using HMM-based LOS/NLOS channel identification,’’ in Proc.
+                                                                                          IEEE Int. Conf. Commun. (ICC), Jun. 2014, pp. 160–165.
+strategy, and multi-stage perturbation strategy are used to                          [13] M. Mallik, A. K. Panja, and C. Chowdhury, ‘‘Paving the way with machine
+enhance the optimization performance of the DBO method,                                   learning for seamless indoor–outdoor positioning: A survey,’’ Inf. Fusion,
+the superiority-seeking ability of IDBO is demonstrated by                                vol. 94, pp. 126–151, Jun. 2023.
+                                                                                     [14] A. Musa, G. D. Nugraha, H. Han, D. Choi, S. Seo, and J. Kim, ‘‘A decision
+testing 23 different types of benchmark functions. In addition,                           tree-based NLOS detection method for the UWB indoor location tracking
+based on the IDBO algorithm, we suggested an IDBO-CNN                                     accuracy improvement,’’ Int. J. Commun. Syst., vol. 32, no. 13, p. e3997,
+model to improve the NLOS identification effectiveness.                                   2019.
+                                                                                     [15] H. Yang, Y. Wang, C. K. Seow, M. Sun, M. Si, and L. Huang,
+Through the utilization of IDBO’s quicker convergence time                                ‘‘UWB sensor-based indoor LOS/NLOS localization with support vec-
+and more accurate global optimization capability, the hyper-                              tor machine learning,’’ IEEE Sensors J., vol. 23, no. 3, pp. 2988–3004,
+parameters of CNN are tuned to reach the optimal solution,                                Feb. 2023.
+                                                                                     [16] Y. Yang, L. Zhang, J. Xu, D. Li, J. Bao, and J. Tan, ‘‘Cooperative indoor
+thereby enhance the precision of NLOS identification. The                                 localization system based UWB and random forest algorithm in compli-
+results of the simulation experiment show that IDBO-CNN                                   cated underground NLOS scenario,’’ in Proc. 9th Int. Conf. Digit. Home
+achieves the expected effect in 6 different indoor scenes,                                (ICDH), Oct. 2022, pp. 271–276.
+and the F1 score is enhanced by 3.31% compared with the                              [17] F. Che, W. B. Abbas, Q. Z. Ahmed, B. Amjad, F. A. Khan, and
+                                                                                          P. I. Lazaridis, ‘‘Weighted naive Bayes approach for imbalanced indoor
+traditional CNN method, which proves that IDBO-CNN has                                    positioning system using UWB,’’ in Proc. IEEE Int. Black Sea Conf.
+better identification accuracy and robustness.                                            Commun. Netw. (BlackSeaCom), Jun. 2022, pp. 72–76.
+   IDBO-CNN still has some shortcomings because the pro-                             [18] M. Stahlke, S. Kram, C. Mutschler, and T. Mahr, ‘‘NLOS detection
+                                                                                          using UWB channel impulse responses and convolutional neural net-
+posed algorithm in this paper is to train the respective                                  works,’’ in Proc. Int. Conf. Localization GNSS (ICL-GNSS), Jun. 2020,
+signal identification models in different scenarios, and when                             pp. 1–6.
+one identification model is applied to another scenario, the                         [19] P. Li, Y. Yan, Y. Tan, and H. Wang, ‘‘A novel temporal convolutional
+                                                                                          network for NLOS identification of UWB signal,’’ in Proc. 9th Int. Forum
+NLOS signal identification effect is not ideal, in future work,                           Electr. Eng. Autom. (IFEEA), 2022, pp. 373–376.
+we hope to realize an UWB NLOS signal identification model                           [20] D.-H. Kim, A. Farhad, and J.-Y. Pyun, ‘‘UWB positioning system based on
+suitable for different scenarios and to enhance the model’s                               LSTM classification with mitigated NLOS effects,’’ IEEE Internet Things
+                                                                                          J., vol. 10, no. 2, pp. 1822–1835, Jan. 2023.
+robustness and identification accuracy.                                              [21] V.-H. Nguyen, M.-T. Nguyen, J. Choi, and Y.-H. Kim, ‘‘NLOS identifica-
+                                                                                          tion in WLANs using deep LSTM with CNN features,’’ Sensors, vol. 18,
+REFERENCES                                                                                no. 11, p. 4057, Nov. 2018.
+                                                                                     [22] Z. Cui, Y. Gao, J. Hu, S. Tian, and J. Cheng, ‘‘LOS/NLOS identification for
+ [1] R. Chen, Z. Li, F. Ye, G. Guo, S. Xu, L. Qian, Z. Liu, and L. Huang,                 indoor UWB positioning based on Morlet wavelet transform and convolu-
+     ‘‘Precise indoor positioning based on acoustic ranging in smartphone,’’              tional neural networks,’’ IEEE Commun. Lett., vol. 25, no. 3, pp. 879–882,
+     IEEE Trans. Instrum. Meas., vol. 70, pp. 1–12, 2021.                                 Mar. 2021.
+ [2] L. Hai, Z. Yang, Z. Cao, and M. Yaug, ‘‘An improved weighted centroid           [23] H. Wang, Y. Tan, and P. Li, ‘‘A NLOS identification algorithm of UWB sig-
+     localization algorithm based on Zigbee,’’ in Proc. 5th Int. Conf. Adv.               nal via temporal convolutional neural network and attention mechanism,’’
+     Electron. Mater., Comput. Softw. Eng. (AEMCSE), Apr. 2022, pp. 634–637.              Res. Square, Tech. Rep., 2022.
+ [3] A. LaMarca and E. De Lara, Location Systems: An Introduction to the             [24] Y. Zhao and M. Wang, ‘‘The LOS/NLOS classification method based on
+     Technology Behind Location Awareness. Springer, 2022.                                deep learning for the UWB localization system in coal mines,’’ Appl. Sci.,
+ [4] D. Vuong, T. Son, D. Ai, T.-H. Do, C. Huynh, H. N. Tan, N. Quang, and                vol. 12, no. 13, p. 6484, Jun. 2022.
+     Tttvinh, ‘‘A novel integrated model for positioning indoor MISO VLC             [25] T. Chang, S. Jiang, Y. Sun, A. Jia, and W. Wang, ‘‘Multi-bandwidth NLOS
+     exploiting non-light-of-sight communication,’’ in Proc. 16th Int. Conf.              identification based on deep learning method,’’ in Proc. 15th Eur. Conf.
+     Ubiquitous Inf. Manage. Commun. (IMCOM), Jan. 2022, pp. 1–5.                         Antennas Propag. (EuCAP), Mar. 2021, pp. 1–5.
+ [5] J. Xu, Z. Li, K. Zhang, J. Yang, N. Gao, Z. Zhang, and Z. Meng,                 [26] D. H. Tran, B. Chung, and Y. M. Jang, ‘‘GAN-based data aug-
+     ‘‘The principle, methods and recent progress in RFID positioning                     mentation for UWB NLOS identification using machine learning,’’
+     techniques: A review,’’ IEEE J. Radio Freq. Identificat., vol. 7,                    in Proc. Int. Conf. Artif. Intell. Inf. Commun. (ICAIIC), Feb. 2022,
+     pp. 50–63, 2023.                                                                     pp. 417–420.
+                                                                                     [27] Q. Yuan, L. Wu, Y. Huang, Z. Guo, and N. Li, ‘‘Water-body detection from
+ [6] Z. Niu, H. Yang, L. Zhou, M. F. Taha, Y. He, and Z. Qiu, ‘‘Deep
+                                                                                          spaceborne SAR images with DBO-CNN,’’ IEEE Geosci. Remote Sens.
+     learning-based ranging error mitigation method for UWB localization
+                                                                                          Lett., vol. 20, pp. 1–5, 2023.
+     system in greenhouse,’’ Comput. Electron. Agricult., vol. 205, Feb. 2023,
+                                                                                     [28] J. Xue and B. Shen, ‘‘Dung beetle optimizer: A new meta-heuristic
+     Art. no. 107573.
+                                                                                          algorithm for global optimization,’’ J. Supercomput., vol. 79, no. 7,
+ [7] K. Yu, K. Wen, Y. Li, S. Zhang, and K. Zhang, ‘‘A novel NLOS mitigation              pp. 7305–7336, May 2023.
+     algorithm for UWB localization in harsh indoor environments,’’ IEEE
+                                                                                     [29] X. Guo, X. Qin, Q. Zhang, Y. Zhang, P. Wang, and Z. Fan, ‘‘Speaker
+     Trans. Veh. Technol., vol. 68, no. 1, pp. 686–699, Jan. 2019.
+                                                                                          recognition based on dung beetle optimized CNN,’’ Appl. Sci., vol. 13,
+ [8] F. Zhu, K. Yu, Y. Lin, C. Wang, J. Wang, and M. Chao, ‘‘Robust                       no. 17, p. 9787, Aug. 2023.
+     LOS/NLOS identification for UWB signals using improved fuzzy decision           [30] K. Zhao, D. Guo, M. Sun, C. Zhao, and H. Shuai, ‘‘Short-term traffic
+     tree under volatile indoor conditions,’’ IEEE Trans. Instrum. Meas., vol. 72,        flow prediction based on VMD and IDBO-LSTM,’’ IEEE Access, vol. 11,
+     pp. 1–11, 2023.                                                                      pp. 97072–97088, 2023.
+ [9] Z. Fan, H. Chu, F. Wang, and J. Lu, ‘‘A new non-line-of-sight localization      [31] R. Zhang and Y. Zhu, ‘‘Predicting the mechanical properties of heat-treated
+     algorithm for wireless sensor network,’’ in Proc. IEEE 6th Int. Conf.                woods using optimization-algorithm-based BPNN,’’ Forests, vol. 14, no. 5,
+     Comput. Commun. (ICCC), Dec. 2020, pp. 858–862.                                      p. 935, May 2023.
+[10] M. Dong, ‘‘A low-cost NLOS identification and mitigation method for             [32] Y. Zhang, T. Ma, T. Li, and Y. Wang, ‘‘Short-term load forecasting based
+     UWB ranging in static and dynamic environments,’’ IEEE Commun. Lett.,                on DBO-LSTM model,’’ in Proc. 3rd Int. Conf. Energy Eng. Power Syst.
+     vol. 25, no. 7, pp. 2420–2424, Jul. 2021.                                            (EEPS), Jul. 2023, pp. 972–977.
+[11] Y. Wang, K. Gu, Y. Wu, W. Dai, and Y. Shen, ‘‘NLOS effect mitigation            [33] Y. Yan, M. Hongzhong, and L. Zhendong, ‘‘An improved grasshopper
+     via spatial geometry exploitation in cooperative localization,’’ IEEE Trans.         optimization algorithm for global optimization,’’ Chin. J. Electron., vol. 30,
+     Wireless Commun., vol. 19, no. 9, pp. 6037–6049, Sep. 2020.                          no. 3, pp. 451–459, May 2021.
+
+144720                                                                                                                                                 VOLUME 11, 2023
+Q. Kong: NLOS Identification for UWB Positioning Based on IDBO and CNN
+
+
+
+
+[34] Y. Wang, S. Chen, and Y. Wang, ‘‘Chaos encryption algorithm based on          [44] J. Carrasco, S. García, M. M. Rueda, S. Das, and F. Herrera,
+     Kent mapping and AES combination,’’ in Proc. Int. Conf. Netw., Commun.,            ‘‘Recent trends in the use of statistical tests for comparing swarm and
+     Comput. Eng. (NCCE), 2018, pp. 588–592.                                            evolutionary computing algorithms: Practical guidelines and a critical
+[35] N. Li and W. Wang, ‘‘Prediction of mechanical properties of thermally              review,’’ Swarm Evol. Comput., vol. 54, May 2020, Art. no. 100665.
+     modified wood based on TSSA-BP model,’’ Forests, vol. 13, no. 2, p. 160,      [45] L. Li, L. Liu, Y. Shao, X. Zhang, Y. Chen, C. Guo, and H. Nian,
+     Jan. 2022.                                                                         ‘‘Enhancing swarm intelligence for obstacle avoidance with multi-strategy
+[36] Q. Wu, ‘‘A self-adaptive embedded chaotic particle swarm optimization              and improved dung beetle optimization algorithm in mobile robot naviga-
+     for parameters selection of Wv-SVM,’’ Expert Syst. Appl., vol. 38, no. 1,          tion,’’ Electronics, vol. 12, no. 21, p. 4462, 2023.
+     pp. 184–192, Jan. 2011.                                                       [46] C. Jiang, J. Shen, S. Chen, Y. Chen, D. Liu, and Y. Bo, ‘‘UWB NLOS/LOS
+[37] F. Zhu, G. Li, H. Tang, Y. Li, X. Lv, and X. Wang, ‘‘Dung beetle optimiza-         classification using deep learning method,’’ IEEE Commun. Lett., vol. 24,
+     tion algorithm based on quantum computing and multi-strategy fusion for            no. 10, pp. 2226–2230, Oct. 2020.
+     solving engineering problems,’’ Expert Syst. Appl., vol. 236, Feb. 2024,
+     Art. no. 121219.
+[38] X. Song, M. Zhao, Q. Yan, and S. Xing, ‘‘A high-efficiency adaptive
+     artificial bee colony algorithm using two strategies for continuous opti-
+     mization,’’ Swarm Evol. Comput., vol. 50, Nov. 2019, Art. no. 100549.
+[39] X.-S. He, W.-J. Ding, and X.-S. Yang, ‘‘Bat algorithm based on simulated                                QIANKUN KONG was born in Shangqiu, Henan,
+     annealing and Gaussian perturbations,’’ Neural Comput. Appl., vol. 25,
+                                                                                                             China, in June 1993. He received the M.Sc. degree
+     no. 2, pp. 459–468, Aug. 2014.
+                                                                                                             in electronics and communication engineering
+[40] G.-G. Wang, S. Deb, and L. d. S. Coelho, ‘‘Elephant herding optimization,’’
+                                                                                                             from the School of Communication Engineering,
+     in Proc. 3rd Int. Symp. Comput. Bus. Intell. (ISCBI), Dec. 2015, pp. 1–5.
+[41] J. J. Liang, A. K. Qin, P. N. Suganthan, and S. Baskar, ‘‘Comprehensive
+                                                                                                             Chongqing University, in 2019. He is currently
+     learning particle swarm optimizer for global optimization of multimodal                                 an Engineer with the Wuxi River Water Diversion
+     functions,’’ IEEE Trans. Evol. Comput., vol. 10, no. 3, pp. 281–295,                                    Project Management Center. Indoor positioning
+     Jun. 2006.                                                                                              is one of his study focuses. He was awarded the
+[42] S. Mirjalili, S. M. Mirjalili, and A. Lewis, ‘‘Grey wolf optimizer,’’ Adv.                              Qualification of Senior Engineer of Computer and
+     Eng. Softw., vol. 69, pp. 46–61, Mar. 2014.                                                             Software Professional Technology by the Ministry
+[43] S. Mirjalili and A. Lewis, ‘‘The whale optimization algorithm,’’ Adv. Eng.                              of Industry and Information Technology of China.
+     Softw., vol. 95, pp. 51–67, Feb. 2016.
+
+
+
+
+VOLUME 11, 2023                                                                                                                                          144721
+

@@ -1,0 +1,590 @@
+TSINGHUA SCIENCE AND TECHNOLOGY
+ISSNll1007-0214 08/10 pp728–737
+DOI: 1 0 . 2 6 5 9 9 / T S T . 2 0 1 8 . 9 0 1 0 1 0 2
+Volume 24, Number 6, December 2019
+
+
+
+            Anchor Self-Localization Algorithm Based on UWB Ranging
+                           and Inertial Measurements
+
+                              Qin Shi, Sihao Zhao, Xiaowei Cui , Mingquan Lu, and Mengdi Jia
+
+     Abstract: Localization systems utilizing Ultra-WideBand (UWB) have been widely used in dense urban and indoor
+     environments. A moving UWB tag can be located by ranging to fixed UWB anchors whose positions are surveyed
+     in advance. However, manually surveying the anchors is typically a dull and time-consuming process and prone
+     to artificial errors. In this paper, we present an accurate and easy-to-use method for UWB anchor self-localization,
+     using the UWB ranging measurements and readings from a low-cost Inertial Measurement Unit (IMU). The locations
+     of the anchors are automatically estimated by freely moving the tag in the environment. The method is inspired by
+     the Simultaneous Localization And Mapping (SLAM) technique used by the robotics community. A tightly-coupled
+     Error-State Kalman Filter (ESKF) is utilized to fuse UWB and inertial measurements, producing UWB anchor
+     position estimates and six Degrees of Freedom (6DoF) tag pose estimates. Simulated experiments demonstrate
+     that our proposed method enables accurate self-localization for UWB anchors and smooth tracking of the tag.
+
+
+     Key words: anchor self-localization; error-state Kalman filter; sensor fusion; simultaneous localization and mapping
+
+
+
+
+1     Introduction                                                (namely anchors) are rigidly fixed at static known
+                                                                  locations receiving the radio wave signals. The location
+Indoor location awareness is key to a number of
+                                                                  of the tag can then be obtained by processing
+applications. Many indoor localization technologies
+                                                                  measurements such as Time Of Flight (TOF)[4] , Time
+have been developed in recent years for research
+                                                                  Of Arrival (TOA)[8] , Time Difference Of Arrival
+and commercialization[1] . Among these technologies,
+                                                                  (TDOA)[9, 10] , etc.[1] A UWB localization accuracy to
+the relatively new Ultra-WideBand (UWB) method
+                                                                  the order of decimeters is achieved[11] .
+has gained extensive attention due to its high-ranging
+                                                                    However, in UWB localization systems, the position
+accuracy[2] . Short-pulse radio waveforms are utilized
+                                                                  of the UWB anchors is assumed to be pre-calibrated
+in UWB, leading to an accurate determination of
+                                                                  and known. Pre-calibration by manually surveying the
+transceiving timestamps of the UWB signal between
+                                                                  anchors is always a part of the deployment of an
+a transmitter and a corresponding receiver. Emerging
+                                                                  UWB localization system. Nevertheless, surveying the
+applications of UWB localization systems have been
+                                                                  anchors requires additional equipment, such as a laser
+presented in Refs. [3–7]. In a typical localization
+                                                                  rangefinder, and is typically a grueling, time-consuming
+scenario using the UWB characteristic, a transmitter
+                                                                  process that is prone to artificial errors. Furthermore,
+(namely a tag) is to be located, and several receivers
+                                                                  the pre-calibration process cannot be conducted in areas
+ Qin Shi, Sihao Zhao, Xiaowei Cui, Mingquan Lu, and              unreachable or dangerous for mankind, such as narrow
+  Mengdi Jia are with the Department of Electronic Engineering,   spaces or high-radiation areas. Therefore, an anchor
+  Tsinghua University, Beijing 100084, China. E-mail: cxw2005
+                                                                  self-localization method is desirable to automate the
+  @mail.tsinghua.edu.cn.
+                                                                  process that determines the physical location of the
+ To whom correspondence should be addressed.
+  Manuscript received: 2018-04-16; revised: 2018-04-24;           anchors, thus reducing time and labor costs.
+  accepted: 2018-04-25                                              For UWB systems, the direct ranges from anchors
+ Qin Shi et al.: Anchor Self-Localization Algorithm Based on UWB Ranging and Inertial Measurements                 729
+
+to a tag can be measured. By setting the tag at               estimate of the anchor positions. Furthermore, the IMU
+known positions, the anchor self-localization problem         measurements are incorporated into the UWB self-
+becomes an inverted localization problem and the              localization algorithm as constraints and are capable of
+positions of the anchors can be determined by solving         improving system robustness in signal multipath and
+multilateration equations. However, this still presents       NLOS situations. The anchor self-localization method
+challenges for unreachable or dangerous areas when            is based on the tightly coupled fusion of the raw IMU
+setting the tag. Additionally, obtaining the tag positions    measurements and UWB ranging measurements, which
+is typically a chicken and egg problem, as the                permits simultaneous localization of the tag and self-
+UWB localization system is not available. Inspired            localization of the anchors. We do not require a known
+by the cooperative sensor localization algorithms             displacement trajectory of the tag or any related action
+in Wireless Sensor Networks (WSN)[12] , the UWB               to obtain a priori, but instead let the tag move freely
+anchor self-localization problem can be addressed             in the environment, thereby enabling an automatic
+with the underlying assumption that communication             deployment of a UWB localization system.
+between UWB anchor pairs is available. However,                  In the remainder of this paper, we first give a detailed
+this significantly complicates the UWB transmission           formulation of our UWB anchor self-localization
+scheme design and raises power costs.                         problem in Section 2, followed by the formulation of
+   An accurate anchor self-localization solution was          the sensor models in Section 3. We then solve the
+presented in Ref. [13]. Firstly, a tag at the known           UWB anchor self-localization problem using UWB and
+location was rigidly attached to each anchor, thus            inertial measurements in Section 4. Finally, we provide
+obtaining its pairwise relative position as a constraint to   the experimental results and conclusion in Sections 5
+a maximum-likelihood optimization problem. Gaussian           and 6, respectively.
+noise modeled TOA measurements were utilized in
+formulating this optimization problem, the solution           2   Problem Formulation
+to which allowed for the estimation of the initial            In this section, we will address the UWB anchor self-
+anchor positions. Secondly, a data set was collected          localization problem with a detailed formulation. We
+by freely moving a single tag in the measurement              start by introducing a typical application.
+volume, and the initial position estimations of the tag          Considering localization for construction teams
+were optimized using the previous estimated initial           in underground construction tasks, UWB anchors
+anchor positions. Finally, a complete parameter vector,       embedded in mobile stands can be incrementally placed
+including the tag and the anchor positions, was               as the construction areas become larger. It is convenient
+estimated on the same data set. This optimization began       to use the anchor self-localization method for a quick
+from the initial estimation results derived in the first      and accurate determination of the current anchor
+two steps. To handle the UWB measurement outliers,            positions, by freely moving an IMU mounted UWB tag
+this calibration solution was enhanced in Ref. [14]           in the new construction area. Figure 1 illustrates this
+by modeling the UWB measurements using heavy-
+tailed asymmetric distribution. However, due to the
+nature of UWB, the calibration accuracy of this solution
+degrades in multipath propagation and Non-Line-Of-
+Sight (NLOS) situations. Further, the initialization steps
+are complicated, considering the numbers of tags that
+need to be attached and detached.
+   In this paper, we present an accurate and easy-to-use
+UWB anchor self-localization method by introducing
+an additional low-cost Inertial Measurement Unit
+(IMU) consisting of a 3-axis rate gyroscope and a 3-
+axis accelerometer. By additionally attaching an IMU
+                                                              Fig. 1 A typical anchor self-localization scenario: when
+to the tag, an accurate position estimate can be obtained
+                                                              UWB anchors are newly deployed, they are self-localized
+in a short period of time after system startup, which         by freely moving an IMU mounted UWB tag in the
+we use as a constraint to derive a reliable initial           measurement volume.
+  730                                                     Tsinghua Science and Technology, December 2019, 24(6): 728–737
+
+typical application scenario. Here we note that the IMU           A variety of literature estimates the state of the
+is rigidly connected to the UWB tag with known relative         tag using inertial and UWB measurements with UWB
+positions. This setup shares a common clock, which              anchor positions known, in which case the state xN is
+enables timestamped UWB and inertial measurements               typically defined as Refs. [22–24]:
+                                                                                 h              iT
+and thus simplifies processing.                                          xN WD pt T vt T qtb T 2 R6  S 3         (2)
+   Several coordinate frames are introduced: the body
+                                                                where pt is the position of the tag in the tangent frame,
+frame which is fixed with the IMU sensor is denoted
+                                                                vt is the tag velocity, the superscipt t indicates tag,
+as ./b , the tangent frame whose origin is fixed on
+                                                                qtb is the body orientation which is observable due to
+the earth is denoted as ./t , the Earth-Centered Inertial
+                                                                the benefit of IMU. In our work, following the above-
+(ECI) frame is an inertial frame denoted as ./i , and the
+                                                                mentioned literature, we additionally render the IMU
+Earth-Centered Earth-fixed Frame (ECEF) is denoted
+                                                                biases observable and derive the state
+                                                                                                     i as
+as ./e . In this work, the tangent frame is selected                    h                             T
+as the reference computational frame. Notations that             xN WD pt T vt T qtb T xa T xg T         2 R6  S 3  R6
+are employed throughout the work are as follows. The                                                                    (3)
+three-dimensional vector r expressed in a reference             where xa ; xg are inertial biases explained in Section 3.1.
+frame k is written as rk or alternatively as rAB   k
+                                                      , with      Thus, our goal is the estimation of the full state vector
+A and B as start and end points, respectively. The              consisting of the positions of anchors xU and the state
+instantaneous angular velocity of frame j with respect          of the tag xN :
+                                                                                h         iT
+to frame i expressed in a reference frame k is written                  xS WD xTN xTU 2 R6  S 3  R6C3M                (4)
+as ! kij . Rki is the rotation matrix, representing rotation       The raw IMU and UWB measurements are inputs
+from frame i to frame k. The corresponding quaternion           into our method. Instead of the loosely-coupled
+is written as qki in S 3 , which relates a 3-sphere S 3 to      method, in which the measurements are preprocessed
+rotations of R3 . A comprehensive overview of rotation          as independent quantities like position or orientation,
+representation is given in Ref. [15]. The matrix Œ!     !     we advocate the direct use of the raw measurements
+represents the skew symmetric form of vector ! .                for a tightly-coupled fusion. This permits maximal
+   The aim of our work is to develop a self-localization        exploitation of sensing cues, thus leading to a robust
+method that estimates the positions of the anchors              system. For instance, when there are not enough UWB
+expressed in the tangent frame:                                 measurements to obtain a triangulation result in a
+                       h              iT
+               xU WD pT1    pM  T     2 R3M           (1)    loosely-coupled method, the UWB information will
+                                                                be ignored. A tightly-coupled method will directly
+where p1 ; : : : ; pM are the corresponding positions of        use every raw measurement without information loss.
+anchors a1 ; : : : ; aM , M is the total number of anchors.     Furthermore, the tightly-coupled method is capable
+The dimension of the state to be estimated is then              of suppressing the outliers, especially the UWB
+3M . We have omitted the superscript t of position and          measurement outliers that are due to multipath effects
+velocity for simple representation in this paper.               or NLOS situations. These benefits illustrate the
+   Considering that we have no predetermined                    motivation for adding an IMU as an aid.
+knowledge of the tag position, the self-localization               Our fusion strategy relies on the Error-State Kalman
+problem becomes a Simultaneous Localization And                 Filter (ESKF)[25] , which has been successfully used
+Mapping (SLAM) problem, which has been widely                   in estimation and data fusion problems. To derive the
+researched in the robotics community[16–19] . SLAM              ESKF, we provide a detailed state model of the inertial
+is the algorithm by which a robot can simultaneously            and UWB sensors in the next section.
+build a consistent map of the environment and estimate
+its location within this same map. A seminal solution to        3     Sensor Modeling
+the SLAM problem utilizes an Extended Kalman Filter             In this section, we model the IMU and UWB
+(EKF)[20, 21] . Based on the idea of the SLAM scheme,           measurements and formulate the error-state equations
+the map in our self-localization problem refers to the          of the kinematics of the system.
+positions of anchors. In this way, our self-localization
+                                                                3.1   IMU kinematics
+algorithm aims to simultaneously recover the positions
+of all unknown anchors xU , and estimate the state of           IMU has been utilized as a valuable sensor in many
+the tag (namely a robot) xN .                                   applications. An IMU commonly measures the sensor’s
+ Qin Shi et al.: Anchor Self-Localization Algorithm Based on UWB Ranging and Inertial Measurements                           731
+
+specific force f b and angular rate ! bib with respect to an      where  is a 3-dimensional vector representing the
+inertial frame, such as an ECI frame, which is resolved           small-angle rotations to rotate from the tangent frame
+in the body-fixed frame, using a 3-axis accelerometer             to align with the estimated tangent frame with respect
+and a 3-axis gyroscope. The sensor’s specific force f b           to the tangent frame and I3 is 3  3 identity matrix.
+is a combination of earth gravity field vector gt1 and the           Therefore the error-state of the tag is derived:
+sensor’s acceleration ˛ tt b :                                              h                                 iT
+                                                                   •xN D •pt T •vt T  T •xa T •xg T 2 R15 (13)
+                     f b D Rbt .˛˛ tt b gt1 /               (5)
+         t
+where g1 D gN     t         t
+                        ! i e  .!    t         t
+                                  ! i e  r/, ! i e denotes the      The continuous-time linearized dynamics of error-
+Earth’s rotation vector with respect to the i-frame, r            state take the form as
+is the geocentric position vector, gN t is the gravitational                •PxN .t / D F.t /•xN .t / C G.t /w.t /       (14)
+vector, and ! tie .!! ti e r/ is the centripetal acceleration                 h                     iT
+                                                                  where w WD vTa vTg ! Ta ! Tg is the collection of
+due to the Earth’s rotation around its axis.
+   The raw measurements from the accelerometer and                uncorrelated Gaussian white noise processes, and
+                                                                        2                                              3
+gyroscope, namely ˛N and !N :                                             0        I3           0         0        0
+                                                                                             t 
+                     ˛N D f b C xa C va                     (6)
+                                                                        60
+                                                                        6       2 ! ti e        f         Rtb      0 7 7
+                                                                                                    
+                                                                                                  t
+                                                                                                                   Rtb 7 (15)
+                                                                                              
+                              b                                    F D 60           0          ! ie       0
+                                                                        6                                              7
+                    !N D ! i b C xg C vg                    (7)         6                                              7
+                                                                        40          0           0        Fa        0 5
+where ˛N and !N are affected by acceleration bias xa ,
+gyroscope bias xg , and addictive noise. The addictive                    0         0           0         0        0
+noise in acceleration and gyroscope measurements is
+                                                                                      2                      3
+                                                                                         0      0      0 0
+assumed to be Gaussian white noise, va  N .0;  2va /,                               6 Rt
+                                                                                      6 b       0      0 07
+vg  N .0;  2vg /. The acceleration bias xa is modeled as
+                                                                                                             7
+                                                                               GD6 0            Rtb 0 0 7                (16)
+                                                                                      6                      7
+Brownian motion, whose derivative is first order Gauss-                               6
+                                                                                      4 0
+                                                                                                             7
+                                                                                                0      I3 0 5
+Markov process:
+                                                                                         0      0      0 I3
+                        xP a D Fa xa C ! a             (8)
+where ! a is the driving Gaussian white noise, ! a                 For practical system implementation, we use the
+N .0;  !2 a ). Fa corresponds to the correlation time of         discrete-time dynamics of error-state:
+3-axis acceleration2bias:                                                          •xkC1
+                                                                                     N   D ˚ kC1
+                                                                                             k
+                                                                                                 •xkN C wk                    (17)
+                               1
+                                               3
+                             Tax
+                                      0    0                      where the index k denotes the k-th IMU measurement,
+                                       1
+                Fa D 4 0                   0 5         (9)
+                        6                      7
+                                      Tay                         and wk is zero-mean white noise process with
+                                            1
+                             0        0    Taz                    covariance Q WD diag.    2va ;  2vg ;  !2 a ;  !2 g /, whose
+  The gyroscope bias xg is simply modeled as random               diagonal elements are covariances of va ; vg ; ! a ; and
+walk, whose derivative is Gaussian white noise, ! g              ! g . We use the Euler numerical integration method over
+N .0;  !2 g /.                                                   the time interval •t between two IMU measurements
+                              xP g D ! g              (10)
+                                                                  to approximate the discrete-time error-state transition
+  Therefore, we can write the IMU kinematics
+                                                                  matrix as
+equations combined with dynamic bias models as
+                 pP t D vt ;                                             ˚ kC1
+                                                                           k
+                                                                               D exp.F.tk /•t / I15 C F.tk /•t               (18)
+                                                                  And the discrete-time magnitude of the white noise
+              vP t D Rtb f b C gt      ! ti e  vt ;
+                                     2Œ!
+                                                                  sequence is derived as
+              P tb D Rt .Œ! b 
+                                      ! bie  /;
+              R       b !ib         Œ!
+                                                                                     Qk  G.tk /QG.tk /T •t                   (19)
+              xP a D Fa xa C ! a ;
+                                                                  Thus, we obtain the covariance propagation equation as
+             xP g D ! g                            (11)                         PkC1 D ˚ kC1 PkN ˚ kC1 C Qk
+                                                                                                            T
+                                                                                                                              (20)
+                                                                                 N       k         k
+  To arrive at the error-state covariance propagation
+equation, we adapt the formulation from Ref. [26],                3.2   UWB ranging measurement
+in which the error term of the over-parameterized                 There are various existing ranging schemes making
+9-dimensional rotation matrix is defined as a small               use of UWB technology, such as TOF, TOA, and
+perturbation around the estimated rotation matrix:                TDOA. Among these techniques, TOF was preferred
+                                      O tb
+                   Rt D .I3 C Œ  /R            (12)           in our work due to the fact that it is capable of
+                     b
+  732                                                     Tsinghua Science and Technology, December 2019, 24(6): 728–737
+
+eliminating the need for anchor clock synchronization.                                  @kpm pt k
+                                                                                Jt D              D       eT          (23)
+Thus, unlike the work presented in Ref. [14], which                                        @•pt
+determines both the anchor positions and clock offsets,                                       pm   pt
+we only need to localize the anchor positions during the                                eD                            (24)
+                                                                                             kpm   pt k
+deployment of UWB setup. For the UWB setup, the
+tag ranges with m D 1; : : : ; M anchors in a round-            Here, e is the unit vector pointing from the anchor to the
+robin scheme. A very precise clock is implemented in            tag. The Jacobian Jm with respect to •pm is
+the UWB modules, thus an accurate transmission and                                      @kpm pt k
+                                                                                 Jm D                 D eT            (25)
+reception time of the UWB signal was recorded. A                                            @•pm
+double-sided Two Way Ranging (TWR) method[27] is                4     Anchor Self-Localization Algorithm
+used to measure the TOF. Figure 2 shows the core
+of a double-sided TWR exchange. The vertical lines              In this section, we arrive at the solution to the anchor
+represent time measurements by an anchor and tag,               self-localization problem. The goal is to simultaneously
+with their clocks independent and unsynchronized. It            estimate the positions of all unknown anchors and track
+starts with a normal TWR exchange made up of a                  the state of the tag. To derive a convergent and stable
+poll message and a response message. Upon receiving             self-localization result, we need proper initialization.
+the response message, the tag sends a final message             4.1    Initialization
+back to the anchor. The reply delays Da and Db are
+                                                                For proper initialization, the tag begins with a static
+pre-defined constants; the round-trip times Ra and Rb
+                                                                state. Without loss of generality, the tangent frame
+are calculated by the measured message timestamps.
+                                                                origin is then set to be the position of the static
+Hence, the time of flight Tf is derived as
+                                                                tag, and the tangent frame axes coincide with the 3-
+                       Ra Rb Da Db
+             Tf D                                   (21)        dimensional accelerometer axes. We adopt a loosely-
+                    Ra C Da C Rb C Db                           coupled fusion method to make initial guesses of the
+   Once the TOF Tf is measured, the ranging                     positions of anchors. Since the propagated positions of
+measurement r m between the tag and an anchor m is              the tag by IMU measurements suffers little cumulative
+calculated and modeled as                                       error for some time after system startup, accompanied
+             r m D Tf  c D kpm     pt k C vr           (22)    by the UWB ranging measurements, we can calculate
+where pm is the position of the anchor m in the tangent         the initial values of the anchor positions using the
+frame, c the speed of radio wave, assumed to be equal to        multilateration equations.
+light speed, and vr the ranging noise with a zero mean             Considering anchor m, we obtain the ranging
+Gaussian distribution, vr  N .0; v2r /.                       measurements rkm and corresponding IMU propagated
+   Finally, the Jacobians with respect to error terms           tag position ptk at timepoint k. Note that the UWB
+•pm and •pt are needed for our self-localization                message contains the unique identity m of the
+solution. The Jacobian J t with respect to •pt at pO t is       communicating anchor. The initial anchor position
+straightforwardly obtained as                                   pm;0 is then obtained by minimizing the objective
+                                                                function:
+                                                                                         X N
+                                                                         pm;0 D arg min      krkm h.pm ; ptk /k    (26)
+                                                                                   pm 2R3 kD1
+
+                                                                where h.pm ; ptk / D kpm ptk k. Iterative Least-Squares
+                                                                (ILS) is utilized to solve this optimization. Note that,
+                                                                for a reliable initialization result, at least N D 3
+                                                                UWB ranging measurements are needed while the tag
+                                                                is moving.
+                                                                4.2    Tightly-coupled anchor self-localization
+                                                                After initialization, we proceed with a tightly-coupled
+                                                                fusion of UWB ranging and inertial measurements
+                                                                for full state vector estimation. Figure 3 shows the
+    Fig. 2   A double-sided two-way ranging exchange.           proposed tightly-coupled fusion algorithm, where the
+    Qin Shi et al.: Anchor Self-Localization Algorithm Based on UWB Ranging and Inertial Measurements                     733
+
+                                                                 space, approximately 20 m  20 m  10 m in size.
+                                                                 Five unsynchronized anchors are randomly placed at
+                                                                 unknown locations. The inertial UWB tag has been
+                                                                 mounted on an Unmanned Aerial Vehicle (UAV), which
+                                                                 moves around the measurement volume for 30 seconds
+                                                                 with high dynamics. The trajectory of the UAV follows
+                                                                 a spiral pattern. Figure 4 shows the simulated ground
+                                                                 truth of the anchor positions and the trajectory of the
+                                                                 UAV.
+                                                                    The 50 Hz UWB ranging measurements and 100 Hz
+Fig. 3 Tightly-coupled fusion algorithm. Low rate UWB            accelerometer and gyroscope measurements are then
+ranging measurements and high rate inertial measurements         simulated using the ground truth with noise. As UWB
+are directly used for simultaneous anchor self-localization      ranging performs in a round-robin scheme, for each
+and tag state estimation.
+                                                                 anchor the ranging measurement rate is 10 Hz which is
+high-precision self-localization of anchors and the              relatively low. The UWB and IMU noise characteristics
+tracking of the tag are simultaneously performed. The            used for simulation are shown as follows: The
+low rate UWB ranging measurements and high rate                  standard deviation of the noise in the UWB ranging
+inertial measurements are directly fed into the sensor           measurements is set as vr D 0:01 m, and the standard
+fusion algorithm.                                                deviations of the white noise processes vg ; ! g ; va ; and
+    The fusion strategy is based on ESKF, which runs             ! a in the IMU measurements are correspondingly set as
+at the high rate of IMU to make full state predictions            vg D 6  10 4  I3 rad/s,  ! g D 2  10 4  I3 rad=s2 ,
+xO S by IMU measurements and to propagate the error-              va D 210 3 I3 m=s2 , and  ! a D 810 4 I3 m=s3 ,
+state covariance matrix P. At the arrival of low rate            respectively.
+UWB measurement r m emitting from the m-th anchor,                  The simulated measurements are fed into our method
+which renders the errors observable, the filter correction       to simultaneously locate the anchors and track the states
+is performed[28] :                                               of the UAV. We evaluate the performance of our method
+              K D PHT .HPHT C  2vr / 1 ;                        in terms of the accuracy of the anchor self-localization
+                                                                 and UAV state estimation.
+                •OxS D K.r m    h.OxS //;              (27)
+                                                                 5.2   Anchor self-localization results
+                P    .I    KH/P
+                                                                 Figure 5 shows the self-localization results of UWB
+where h.OxS / D h.Opm ; pO tk /. The Jacobian matrix H
+                                                                 anchors. The results are obtained from the last corrected
+with respect to the error-state •xS is straightforwardly
+                                                                 state of ESKF and aligned with ground truth. We
+obtained as ˇ
+          @h ˇˇ
+   HD              D
+         @•xS ˇxS
+          Œ J t 0112 013.m 1/ Jm 013.M m/          (28)
+  By injecting the estimated error-state mean ı xO S into
+the prediction, the state estimate is updated using
+the appropriate compositions (quaternion products or
+sums):
+                                  OS
+                   xO S D xO S ˚ ıx                  (29)
+
+5     Experimental Results
+In this section we report on simulation experiments
+carried out to evaluate the performance of our proposed
+anchor self-localization method.
+                                                                 Fig. 4 Ground truth of positions of anchors and trajectory
+5.1     Simulation setup
+                                                                 of the UAV. The red line is the simulated spiral trajectory and
+In our simulation, the UWB setup is deployed in a large          the blue six-pointed stars are positions of anchors.
+  734                                                      Tsinghua Science and Technology, December 2019, 24(6): 728–737
+
+
+
+
+                                                                              (a) Estimated trajectory and the ground truth
+
+
+Fig. 5 Self-localization results of UWB anchors. The
+estimated anchor positions are depicted in green.
+
+can see that the green dots indicating the results of
+our method are approximately superimposed over
+the blue indicating the ground truth. This suggests
+the effectiveness of our proposed self-localization
+method. The localization errors of each anchor are
+summarized in Table 1. The Root Mean Square Error
+(RMSE) for the anchors is 4.48 cm. The RMSE is
+given by                v
+                        u
+                        u1 X  N
+               ERMSE D  t        kei k           (30)
+                           N
+                                  i D1
+
+  Figure 6 reflects the change of the anchor self-
+localization results over time. Without loss of
+         Table 1   Anchor self-localization errors.      (cm)
+                        x              y              z
+    Anchor 1          5.60           2.78           0.17                     (b) Estimated orientation and the ground truth
+
+    Anchor 2          3.52           1.51           0.22
+    Anchor 3          0.09           0.38           0.88
+    Anchor 4          1.92           5.32           1.00
+    Anchor 5          2.90           1.92           0.70
+
+
+
+
+                                                                                 (c) Estimated speed and ground truth
+
+Fig. 6 Self-localization results of the 5-th anchor and its      Fig. 7 UAV state estimates and their comparison against the
+comparison against the ground truth.                             ground truth.
+ Qin Shi et al.: Anchor Self-Localization Algorithm Based on UWB Ranging and Inertial Measurements                     735
+
+generality, we only show the results of the 5-th              Though the covariance of the ranging measurements
+anchor. The results converge quickly and the errors in        reached 0.15, a satisfying result can be obtained with
+three coordinate axes remain low after approximately          0.0905 m RMSE for anchors and 0.1273 m RMSE for
+5 seconds. Notably, a good initial guess of the               the tag. This indicates the robustness of our method.
+anchor position by our initialization method aids in
+convergence.                                                  6     Conclusion
+5.3   Tag state estimation                                    In this work, we have presented an accurate and
+                                                              easy-to-use UWB anchor self-localization method,
+Our method simultaneously localizes the anchors and
+                                                              using the UWB TOF measurements and inertial
+estimates the UAV states. Figure 7 shows the state
+                                                              measurements. Inspired by the SLAM technique, our
+estimation results of our method and compares them
+                                                              method simultaneously localizes the UWB anchor and
+against ground truth, wherein Fig. 7a shows the
+                                                              estimates the state of the moving tag, thus enabling
+estimated UAV trajectory, Fig. 7b shows the estimated
+                                                              automatic deployment of UWB setup while freely
+UAV orientation expressed by Euler angles, and Fig.
+                                                              moving the tag in the environment. Experiments show
+7c shows the estimated UAV speed. It can be seen
+                                                              that the method permits accurate and robust UWB
+that using our method the estimated positions of the
+                                                              anchor self-localization within a few seconds, and is
+UAV form a smooth trajectory, and that very smooth
+                                                              capable of drift-free localization of the moving tag.
+orientation and speed estimates are derived. From these
+results, we can conclude that our method enables              References
+accurate and smooth state estimates for the tag mounted
+UAV at the high output frequency. In support, the             [1]   H. Liu, H. Darabi, P. Banerjee, and J. Liu, Survey of
+                                                                    wireless indoor positioning techniques and systems, IEEE
+method achieves 5:59 cm RMSE for position and
+                                                                    Trans. Syst., Man, Cybern. C: Appl. Rev., vol. 37, no. 6,
+0:1465ı RMSE for orientation when comparing against                 pp. 1067–1080, 2007.
+the ground truth.                                             [2]   S. Gezici, Z. Tian, G. B. Giannakis, H. Kobayashi, A. F.
+5.4   Performance under different ranging noise                     Molisch, H. V. Poor, and Z. Sahinoglu, Localization via
+                                                                    ultra-wideband radios: A look at positioning aspects for
+To analyze the effect of ranging noise level on the                 future sensor networks, IEEE Signal Proc. Mag., vol. 22,
+performance of our method, we add varying noise                     no. 4, pp. 70–84, 2005.
+on the UWB ranging measurements and evaluate the              [3]   L. Zwirello, M. Janson, C. Ascher, U. Schwesinger, G. F.
+simulation results.                                                 Trommer, and T. Zwick, Localization in industrial halls
+                                                                    via ultra-wideband signals, in Proc. 2010 7 th Workshop
+  Figure 8 shows the results of the RMSE for anchor
+                                                                    on Positioning, Navigation and Communication, Dresden,
+self-localization and tag positioning with respect to the           Germany, 2010, pp. 144–149.
+ranging noise level. It can be seen that the RMSE grows       [4]   Y. Q. Qin, F. Wang, and C. J. Zhou, A distributed UWB-
+approximately linearly as ranging noise increases.                  based localization system in underground mines, J. Net.,
+                                                                    vol. 10, no. 3, pp. 134–140, 2015.
+                                                              [5]   T. M. Nguyen, A. H. Zaini, K. X. Guo, and L. H. Xie,
+                                                                    An ultra-wideband-based multi-UAV localization system
+                                                                    in GPS-denied environments, in Int. Micro Air Vehicle
+                                                                    Conf. Competition, Beijing, China, 2016.
+                                                              [6]   R. Bharadwaj, S. Swaisaenyakorn, C. G. Parini, J. C.
+                                                                    Batchelor, and A. Alomainy, Impulse radio ultra-wideband
+                                                                    communications for localization and tracking of human
+                                                                    body and limbs movement for healthcare applications,
+                                                                    IEEE Trans. Anten. Propag., vol. 65, no. 12, pp. 7298–
+                                                                    7309, 2017.
+                                                              [7]   K. X. Guo, Z. R. Qiu, C. X. Miao, A. H. Zaini, C. L.
+                                                                    Chen, W. Meng, and L. H. Xie, Ultra-wideband-based
+                                                                    localization for quadcopter navigation, Unmanned Syst.,
+                                                                    vol. 4, no. 1, pp. 23–34, 2016.
+                                                              [8]   I. Guvenc, C. C. Chong, and F. Watanabe, Joint TOA
+Fig. 8 Performance of our method with respect to UWB                estimation and localization technique for UWB sensor
+ranging noise.                                                      network applications, in Proc. 2007 IEEE 65th Vehicular
+  736                                                            Tsinghua Science and Technology, December 2019, 24(6): 728–737
+
+       Technology Conf. VTC2007-Spring, Dublin, Ireland, 2007,         [19] C. Cadena, L. Carlone, H. Carrillo, Y. Latif, D.
+       pp. 1574–1578.                                                       Scaramuzza, J. Neira, I. Reid, and J. J. Leonard, Past,
+[9]    C. Zhang, M. Kuhn, B. Merkl, A. E. Fathy, and M.                     present, and future of simultaneous localization and
+       Mahfouz, Accurate UWB indoor localization system                     mapping: Toward the robust-perception age, IEEE Trans.
+       utilizing time difference of arrival approach, in Proc. 2006         Robot., vol. 32, no. 6, pp. 1309–1332, 2016.
+       IEEE Radio and Wireless Symp., San Diego, CA, USA,              [20] R. Smith, M. Self, and P. Cheeseman, A stochastic map
+       2006, pp. 515–518.                                                   for uncertain spatial relationships, in Proc. 4th Int. Symp.
+[10]   J. Xu, M. D. Ma, and C. L. Law, Position estimation using            Robotics Research, Santa Clara, CA, USA, 1987, pp. 467–
+       UWB TDOA measurements, in Proc. 2006 IEEE Int. Conf.                 474.
+       Ultra-WideBand (ICUWB), Waltham, MA, USA, 2006, pp.             [21] J. Solà, Simulataneous localization and mapping with the
+       605–610.                                                             extended Kalman filter, http://www.iri.upc.edu/people/
+[11]   J. Tiemann, F. Schweikowski, and C. Wietfeld, Design of              jsola/JoanSola/objectes/curs SLAM/SLAM2D/SLAM%20
+       an UWB indoor-positioning system for UAV navigation                  course.pdf, 2013.
+       in GNSS-denied environments, in Proc. 2015 Int. Conf.           [22] J. D. Hol, F. Dijkstra, H. Luinge, and T. B. Schön, Tightly
+       Indoor Positioning Indoor Navigation (IPIN), Banff,                  coupled UWB/IMU pose estimation, in Proc. 2009 IEEE
+       Canada, 2015, pp. 1–7.                                               Int. Conf. Ultra-Wideband (ICUWB), Vancouver, Canada,
+[12]   J. Wang, R. K. Ghosh, and S. K. Das, A survey on sensor              2009, pp. 688–692.
+       localization, J. Control Theory Appl., vol. 8, no. 1, pp.       [23] L. Zwirello, X. Y. Li, T. Zwick, C. Ascher, S. Werling,
+       2–11, 2010.                                                          and G. F. Trommer, Sensor data fusion in UWB-supported
+[13]   J. D. Hol, T. B. Schön, and F. Gustafsson, Ultra-wideband           inertial navigation systems for indoor navigation, in 2013
+       calibration for indoor positioning, in Proc. 2010 IEEE Int.          IEEE Int. Conf. Robotics and Automation, Karlsruhe,
+       Conf. Ultra-WideBand (ICUWB), Nanjing, China, 2010,                  Germany, 2013, pp. 3154–3159.
+       pp. 1–4.                                                        [24] M. W. Mueller, M. Hamer, and R. D’Andrea, Fusing ultra-
+[14]   M. Kok, J. D. Hol, and T. B. Schön, Indoor positioning              wideband range measurements with accelerometers and
+       using ultrawideband and inertial measurements, IEEE                  rate gyroscopes for quadrocopter state estimation, in 2015
+       Trans. Veh. Technol., vol. 64, no. 4, pp. 1293–1303, 2015.           IEEE Int. Conf. Robotics and Automation (ICRA), Seattle,
+[15]   D. M. Henderson, Euler angles, quaternions, and                      WA, USA, 2015, pp. 1730–1736.
+       transformation matrices for space shuttle analysis, https://    [25] P. S. Maybeck and G. M. Siouris, Stochastic models,
+       ntrs.nasa.gov/search.jsp?R=19770019231, 1977.                        estimation, and control, IEEE Trans. Syst. Man Cybern.,
+[16]   M. W. M. G. Dissanayake, P. Newman, S. Clark, H.                     vol. 10, no. 5, p. 282, 1980.
+       F. Durrant-Whyte, and M. Csorba, A solution to the              [26] J. A. Farrell, Aided Navigation: GPS with High Rate
+       simultaneous localization and map building (SLAM)                    Sensors. New York, NY, USA: McGraw-Hill, 2008, pp.
+       problem, IEEE Trans. Rob. Autom., vol. 17, no. 3, pp. 229–           354–377.
+       241, 2001.                                                      [27] D. Neirynck, E. Luk, and M. McLaughlin, An alternative
+[17]   H. Durrant-Whyte and T. Bailey, Simultaneous                         double-sided two-way ranging method, in 2016 13th
+       localization and mapping: Part I, IEEE Robot. Autom.                 Workshop on Positioning, Navigation and Communicatins
+       Mag., vol. 13, no. 2, pp. 99–110, 2006.                              (WPNC), Bremen, Germany, 2016, pp. 1–4.
+[18]   T. Bailey and H. Durrant-Whyte, Simultaneous                    [28] J. Solà, Quaternion kinematics for the error-state Kalman
+       localization and mapping: Part II, IEEE Robot. Autom.                filter, arXiv preprint arXiv: 1711.02508, 2017.
+       Mag., vol. 13, no. 3, pp. 108–117, 2006.
+
+
+                      Xiaowei Cui is an associate professor in                              Qin Shi is a PhD candidate in the
+                      the Department of Electronic Engineering,                             Department of Electronic Engineering at
+                      Tsinghua University, China. He obtained                               Tsinghua University, China. He received
+                      the BS and PhD degrees in electronic                                  the BS degree from Tsinghua University
+                      engineering from Tsinghua University in                               in 2015. His current research focuses on
+                      1999 and 2004, respectively. He is a                                  indoor localization, sensor fusion, and
+                      member of the Expert Group of China                                   simultaneous localization and mapping.
+                      BeiDou Navigation Satellite System. His
+research interests include robust GNSS signal processing,
+multipath mitigation techniques, and high-precision positioning.
+ Qin Shi et al.: Anchor Self-Localization Algorithm Based on UWB Ranging and Inertial Measurements                      737
+
+                    Sihao Zhao is a lecturer in the Department                       Mingquan Lu is a professor of the
+                    of Electronic Engineering, Tsinghua                              Department of Electronic Engineering,
+                    University. He received the BS and PhD                           Tsinghua University, China. He is the
+                    degrees from Tsinghua University in 2005                         director of Tsinghua Position, Navigation
+                    and 2011, respectively.       His research                       and Timing Center, and a member of the
+                    interests include GNSS signal processing                         Expert Group of China BeiDou Navigation
+                    algorithms, high-precision positioning                           Satellite System. His current research
+                    techniques, indoor navigation systems as                         interests include GNSS signal design and
+well as telecommunication systems design and verification.       analysis, GNSS signal processing and receiver development,
+                                                                 and GNSS system modeling and simulation. He received the
+                                                                 MS and PhD degrees from University of Electronic Science and
+                    Mengdi Jia is an assistant engineer in
+                                                                 Technology of China in 1993 and 1999, respectively.
+                    Beijing Electric Power Company of State
+                    Grid Corporation of China. She received
+                    the MS degree from Tsinghua University,
+                    China in 2017. Her research interests
+                    include INS and integrated navigation.
+

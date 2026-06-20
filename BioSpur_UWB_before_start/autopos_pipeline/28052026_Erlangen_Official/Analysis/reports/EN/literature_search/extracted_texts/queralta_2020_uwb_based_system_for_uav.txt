@@ -1,0 +1,670 @@
+                                                 UWB-based system for UAV Localization in
+                                            GNSS-Denied Environments: Characterization and Dataset
+                                            Jorge Peña Queralta∗ , Carmen Martı́nez Almansa∗ , Fabrizio Schiano† , Dario Floreano† , Tomi Westerlund∗
+
+
+                                                    ∗ Turku Intelligent Embedded and Robotic Systems (TIERS) Lab, University of Turku, Turku, Finland.
+                                         † Laboratory of Intelligent Systems (LIS), École Polytechnique Fédérale de Lausanne (EPFL), 1015 Lausanne, Switzerland.
+
+                                                            Emails: ∗ {jopequ, camart, tovewe}@utu.fi, † {fabrizio.schiano, dario.floreano}@epfl.ch
+arXiv:2003.04380v2 [cs.RO] 2 Aug 2020
+
+
+
+
+                                           Abstract—Small unmanned aerial vehicles (UAV) have pene-         a UAV. These type of system can complement existing motion
+                                        trated multiple domains over the past years. In GNSS-denied or      capture (MOCAP) systems providing more flexible and mobile
+                                        indoor environments, aerial robots require a robust and stable      deployments.
+                                        localization system, often with external feedback, in order to
+                                        fly safely. Motion capture systems are typically utilized indoors      Some commercial UAVs already utilize UWB for indoor lo-
+                                        when accurate localization is needed. However, these systems are    calization. For instance, Bitcraze’s Crazyflie [7], with its Loco
+                                        expensive and most require a fixed setup. In this paper, we study   positioning deck, utilizes a UWB tag for indoor positioning.
+                                        and characterize an ultra-wideband (UWB) system for navigation      The Loco add-on relies on Decawave’s DWM1000. In this
+                                        and localization of aerial robots indoors based on Decawave’s       paper, we work with the latest generation of UWB transceivers,
+                                        DWM1001 UWB node. The system is portable, inexpensive and
+                                        can be battery powered in its totality. We show the viability of    the DWM1001, that provide improved localization accuracy.
+                                        this system for autonomous flight of UAVs, and provide open-        Another company that utilizes a similar, but undisclosed,
+                                        source methods and data that enable its widespread application      technology, is Verity Studios [8]. Verity develops multi-UAV
+                                        even with movable anchor systems. We characterize the accuracy      systems for light shows indoors. In terms of UWB localization
+                                        based on the position of the UAV with respect to the anchors, its   systems, higher-end solutions integrated within ready-to-use
+                                        altitude and speed, and the distribution of the anchors in space.
+                                        Finally, we analyze the accuracy of the self-calibration of the     systems are available from vendors other than Decawave, such
+                                        anchors’ positions.                                                 as Pozyx [9], Sewio and OpenRTLS [10].
+                                           Index Terms—Robotics; UWB; UAV; Localization; Aerial                UWB wireless localization technologies have gained in-
+                                        Robotics; Unmanned Aerial Vehicles; UWB Positioning;                creasing attention in mobile robot applications in the past
+                                                                                                            few years. UWB is a mature technology that has been stud-
+                                                              I. I NTRODUCTION                              ied for over two decades [11], with the IEEE 802.15.4a
+                                           Autonomous unmanned aerial vehicles (UAVs) have gained           standard including specifications for UWB over a decade
+                                        increasing traction over the past years. The autonomous op-         ago. UWB systems can be utilized for communication and
+                                        eration of these vehicles outdoors is mainly based on GNSS          localization [12], or as short-range radar systems [13]. UWB
+                                        sensors [1]. Nonetheless, many applications require the robots      systems enable localization of a mobile tag from distance-
+                                        to operate in GNSS-denied environments, from factories or           only measurements between the tag and fixed anchor nodes
+                                        warehouses [2] to post-disaster and emergency scenarios [3].        with known position. The distance can be estimated via either
+                                        We study a wireless positioning system that requires active         time-of-flight (ToF) or time difference of arrival (TDoA). In
+                                        beacons both onboard the robots and in known positions in           the former case, the tag can calculate the distance to each of
+                                        the operational environment. While the positions of a subset        the anchors separately, while the latter estimation requires all
+                                        of the beacons, or anchors, must be known, we analyze the           anchors to be either connected in a local network or have a
+                                        accuracy of their autopositioning. Having accurate localization     very accurate clock synchronization [14].
+                                        has additional benefits in multi-robot systems, wither for col-        More recently, with increased accuracy and more commer-
+                                        laborative mapping [4], or pattern configuration [5] purposes.      cially available radios, UWB has been applied for indoor
+                                           We investigate the properties of a mobile and inexpensive        positioning and navigation in the field of mobile robotics [15],
+                                        ultra-wideband (UWB) wireless positioning system that can           [16]. UWB-based positioning has been applied in mobile
+                                        be quickly deployed in GNSS-denied emergency scenarios,             robots to aid navigation as part of multi-modal simultaneous
+                                        or in general for indoor environments. Compared with other          localization and mapping (SLAM) algorithms [17], or for
+                                        indoor localization systems such as motion captures [6], a          aiding odometry [18]. In the field of aerial robotics, it can
+                                        drastic decrease in both system complexity and price only           aid vision sensors during the approximation for docking in a
+                                        has a relatively small impact on positioning accuracy. More         moving platform [19], or for navigation in warehouses [20].
+                                        importantly, even if the accuracy is reduced, the localization         Several datasets and analysis reports exist for indoor local-
+                                        estimation is stable and does not threaten the smooth flight of     ization of mobile robots based on UWB [21], [22], including
+                                                                                            II. R ELATED W ORKS
+                                                                           There are some previous works which have already charac-
+                                                                        terized UWB localization systems [24], including in the field
+                                                                        of aerial robots [20]. However, to the best of our knowledge,
+                                                                        previous analysis of the localization accuracy were done based
+                                                                        on a fixed and well-calibrated anchor system. Moreover, exist-
+         (a) UWB Node.            (b) Quadrotor in the MOCAP system.    ing datasets are small and very specific. Therefore, we believe
+Fig. 1. (a) The DWM1001 DEV board with and without case. (b) The F450   there is a need for a more comprehensive understanding
+quadrotor used in the experiments in the Optitrack MOCAP arena.         of the advantages and limitations of UWB-based flight for
+                                                                        autonomous UAVs, in particular with fast ad-hoc deployments
+                                                                        and movable anchor systems where the relative position of the
+UAVs [23]. However, we have found that all previous stud-               anchors can also change over time. Through the rest of this
+ies involving the localization of UAVs are based on TDoA                section, we explore recent works in UWB-based or UWB-
+measurements which are more accurate but limit significantly            aided localization for mobile robots and, in particular, UAVs.
+the mobility of the system as a whole. Instead, we rely on              This covers use cases in both industry and academia. Then,
+ToF distance estimation only and analyze the self-calibration           we analyze existing datasets for UWB-based localization of
+of anchor positions for a mobile setting. Finally, we study the         mobile robots and compare then with ours.
+localization accuracy as a function of the UAVs speed, height
+and position with respect to the anchors, both within and               A. UWB in Mobile and Aerial Robots
+outside the convex envelope defined by the anchor positions.               UWB ranging has been used in multiple mobile robots to
+This type of characterization based on the operational details          air localization or navigation, often when fused with data from
+of the UAV does not exist in previous works. In this paper,             other sensors. For instance, UWB has been utilized to bypass
+we utilize Decawave DWM1001 UWB modules, the latest                     the complexity of visual loop closure detection in [15]. In
+generation with an advertised accuracy of up to 5 cm. The data          lidar-based SLAM, UWB ranging has been utilized to avoid
+is acquired using the Robot Operating System (ROS). Custom              laser range limitations of inexpensive 2D scanners in tunnel-
+ROS packages have been written for interfacing with the                 like environments [16], where the UWB measurements are not
+DWM1001 modules depending on their configuration (anchor,               utilized for positioning but as part of range-only SLAM. This
+active tag, passive tag) and made publicly available, while             simplifies the installation, as the position of the UWB anchors
+the position information is given by Decawave’s UART API,               can be unknown.
+which is closed source.                                                    In multi-robot systems, having multiple UWB nodes in each
+   The main contributions of this paper are the following.              robot enables robust relative localization, both in position and
+First, the introduction of a novel dataset that relies on ToF           orientation [25]. In the case of multi-robot coordination with
+measurements of UWB signals for positioning of UAVs, meant              an anchor-based positioning system, UWB distance measure-
+for fast and mobile deployments with ground robots acting as            ments can be utilized in formation control algorithms [26],
+anchors. This includes an accuracy and latency analysis of the          also fusing them with odometry estimation [27]. Finally, the
+auto-positioning of the anchors. Second, the characterization           positioning system can also be decentralized with individual
+of the UAV positioning accuracy as a function of the spatial            node-to-node distance measurements in a cooperative multi-
+distribution of the anchors, the distance of the UAV to the             agent system [28].
+center of mass of the anchors, and its speed and height.                   Multiple works have utilized UWB-based localization sys-
+Moreover, initial experiments show the feasibility of stable            tems to enable indoor UAV flights. In one of the earliest
+autonomous flight based on the proposed localization system.            implementations of such system, Tiemann et al. study the
+We also provide open-source code for the automatic calibration          robustness of a predefined UAV flight that relies on UWB
+of anchor positions, as well as the ROS nodes used for                  ranging [2]. This has potential applications in the logistics
+interfacing with the UWB devices in different modes.                    sector. For instance, in [2] the authors rely on UWB-based
+   The rest of this paper is organized as follows. Section II           UAV navigation for fast and flexible automated stocktaking
+reviews the state-of-the-art in UWB localization for mobile             in a warehouse by scanning the good’s QR-codes. A similar
+robots, comparing our approach with existing datasets for               study for UWB-based autonomous flight in warehouses was
+UWB-based positioning in GNSS-denied environments. In                   carried out in [29]. When mapping with UAVs, accurate UWB-
+Section III, we introduce our dataset, with ToF measurements            based positioning allows to shift the focus from odometry and
+and location estimations for different anchor configurations            position estimation to sensing, enabling high-fidelity three-
+and varying number of mobile tags. Section IV then intro-               dimensional reconstruction with RGB-D cameras [17].
+duces initial experiments for UWB-based autonomous flight,                 A more complex experiment was carried out in [30], where
+together with a characterization of the localization accuracy for       the authors show how UWB-based localization can be com-
+different anchor distributions (separation and height) in terms         bined with vision position estimation for docking UAVs on a
+of the UAV state (position, height, speed). Finally, Section V          ground vehicle. The work is extended in [19] with a focus on
+concludes the work and outlines future research directions.             GNSS-denied environments. In their setting, four UWB anchor
+nodes are placed in the ground robot while one UWB tad is
+                                                                               UWB Anchor                                    Optitrack
+placed on the drone. However, the ground robot is relatively                                        UWB Active Tag
+                                                                                 System                                    Motion Capture
+large, 2 m long and 1.5 m wide. In our dataset, we experiment
+with different anchor configurations, including a setting that
+can be installed on a small ground robot of about 0.6 m by                                             Relative
+                                                                               TFMini Lidar                               Error Estimation
+0.6 m, and a case where all four anchors are near to the ground.                                      Localization
+
+
+B. UWB Localization Datasets
+                                                                               Flight Control       Onboard Local          Onboard Global
+   Raza et al. introduced a dataset for indoor localization with                (PX4 stack)        Navigation Control     Navigation Control
+narrow-band and ultra-wideband systems [21]. The dataset
+includes data from both a walking subject and a remotely
+operated radio control car. This dataset only one specific                       UAV                                       Predefined flight
+anchor position, and the UWB tag in the remotely operated                     Motor Control                                   program
+car is at a constant height. In consequence, the analysis of the
+data can only be partly extrapolated to other use cases, such          Fig. 2. Controller blocks in the UWB-aided autonomous flight. The boxes
+as aerial robots.                                                      with continuous border represent data acquisition ROS nodes, while dotted
+                                                                       lines represent the custom ROS nodes where the actual control happens. The
+   Barral et al. presented a dataset acquired using ROS and            PX4 stack has not been modified.
+Pozyx UWB devices [22]. This dataset only contains range
+information between two tags. It enables the characterization
+of inter-device distance estimation in both line of sight (LOS)        deployments. A more detailed comparison of our dataset with
+and non-line of sight (NLOS) conditions. A similar study was           existing ones is shown in Table I.
+carried out by Bregar et al. in [31] and [32] with Decawave’s
+                                                                                                III. M ETHODOLOGY
+DWM1000. In both cases, the distance between a single
+anchor and a tag was estimated in multiple locations, with               This section describes the data that is included in the dataset
+both LOS and NLOS ranging.                                             as well as the steps followed when recording the different
+   Regarding the utilization of UWB localization for UAVs,             subsets. All the data, ROS nodes and firmware for the UWB
+Li et al. published a dataset recorded over an indoor flight           devices is made publicly available in Github1 .
+of a UAV with UWB-aided navigation [23]. In their paper,               A. UWB Ranging with ToF measurements
+the authors also introduce an Extended Kalman Filter (EKF)
+                                                                          UWB-based ranging between two unsynchronized devices is
+that enables very accurate 3D localization by fusing UWB
+                                                                       typically estimated through single-sided or double-sided two-
+and IMU data. Their dataset, however, contains data from
+                                                                       way ranging (SS-TWR and DS-TWR, respectively), where the
+a single flight with a single anchor setting. In contrast, our
+                                                                       distance is calculated from the time of flight of an UWB signal
+objective is to analyze how different anchor configurations
+                                                                       query and its reply. In SS-TWR, the ToF is gien by (1):
+affect the accuracy of the localization. In particular, most of
+our subsets of data have been recorded with anchors situated
+                                                                                          T oF = 0.5 ∗ (Tround − Treply )                      (1)
+in a two-dimensional plane, so that it can mimic a more
+realistic and quick deployment in, for example, post-disaster             where Tround is the total time since the query signal is sent
+scenarios, where the anchors might be mounted on ground                by an initiator node and until the reply signal is received, and
+robots. As most drones have some type of accurate onboard              Treply is the time it takes for the replying node to process the
+altitude estimation (sonar, lidar, or infrared), it is enough if the   query and send the reply. This time is embedded on the reply
+UWB system provides position information in two dimensions             for the initiator. In DS-TWR, the ToF is given by (2):
+only. Moreover, we provide subsets of data were the quadrotor
+is equipped with one, two or four UWB tags, therefore                                     Tround1 ∗ Tround2 − Treply1 ∗ Treply2
+enabling orientation estimation as well. Finally, commercially                 T oF =                                                          (2)
+                                                                                          Tround1 + Tround2 + Treply1 + Treply2
+available UWB-based localization systems have significantly
+improved over the past two years since the previous dataset              where now the initiator sends a second reply and it is the
+was published [23]. In this paper, we report even smaller              replying node that can calculate more accurately the ToF.
+localization errors out of the box, without the EKF to fuse            B. Data Acquisition
+with IMU data. The device we have utilized, the DWM1001                  The dataset has been recorded using two different methods,
+from Decawave, is illustrated in Fig. 1 (a).                           with recordings on the UAV or at a ground station. The first
+   Another key difference of our dataset is that we rely on ToF        case includes data which has been acquired using an onboard
+measurements only for the UWB position estimation. While               computer on a quadrotor equipped with an active UWB tag
+this can reduce the accuracy when compared to TDoA, it does            and flying autonomously. The second case refers to data from a
+not require the anchors to be connected and synchronized.
+We believe this is an essential enabler of ad-hoc mobile                 1 https://github.com/TIERS/UWB DRONE DATASET
+                                                               TABLE I
+                          C OMPARISON OF EXISTING UWB- BASED LOCALIZATION AND POSITIONING DATASETS AND OURS .
+
+                             Distance         Height     Mobile     Mobile       Anchor     Subsets    Convex    Dims.       UWB
+                               Est.            Est.       tags      anchors      settings             Envelope               Node
+      Bregar [31] (2016)       ToF            -             -           -           -          -         -        1D      DWM1000
+      Bregar [32] (2018)       ToF            -             -           -           -          -         -        1D      DWM1000
+      Raza [21] (2019)        TDoA            -            4            -           1          1        IN        2D      DWM1001
+      Barral [22] (2019)       ToF            -             -           -           -          -         -        1D        Pozyx
+      Li [23] (2018)          TDoA           UWB           4            -           1          1        IN        3D     TimeDomain
+      Ours                     ToF         UWB+Lidar       4            4           4         12      IN/OUT      3D      DWM1001
+
+
+
+                               TABLE II                                     were located on the walls at different heights from the original
+ L ATENCY AND ACCURACY OF THE AUTOPOSITIONING METHOD FROM                   four. Then, the subset #6 was recorded with four anchors
+D ECAWAVE ’ S DRTLS LOCALIZATION SYSTEM COMPARED TO A CUSTOM
+              SELF - CALIBRATION METHOD FOR ANCHORS .                       in a single corner and near the ground, emulating a setting
+                                                                            that could be installed onboard a single ground robot. Finally,
+                               Latency        Distance   Max. Error         subset #7 was recorded with 4 anchors at a height of 10 cm
+RTLS Autopositioning          40 s ± 5 s        10 m       1.2 m            and a separation of about 1.8 m. This configuration can be
+                                                 4m        0.75 m           achieved with 4 small ground robots porting a UWB anchor
+Custom Calibration (x50)     2.5 s ± 0.1 s      10 m       0.4 m
+                                                 4m        0.25 m
+                                                                            each. While a bigger separation can result in better accuracy,
+Custom Calibration (x5)      0.9 s ± 0.05 s     10 m        0.5 m           our aim in this case was to test the localization estimation
+                                                 4m        0.3 m            robustness when flying both inside and outside the convex
+                                                                            envelope defined by the anchor positions.
+                                                                               Whenever more than one tag has been utilized, they were
+passive tag connected to a ground station, while the quadrotor              always part of a single rigid body. In subsets #3 and #4, two
+is being flown manually. In the second case, a delay exists                 tags separated 30 cm are mounted on top of the UAV, one in the
+between the ground truth data given by the motion capture                   front and one in the back. In the experiments with 4 tags, these
+system and the UWB data due to the passive nature of the tag                were forming a rectangle of 20 cm by 30 cm. The position
+being used for recording the positions.                                     of the anchors is calculated through triangulation, and the
+   The autonomous flight tests have been done with an F450                  measurements are taken at the maximum frequency allowed
+quadrotor equipped with a Pixhawk 2.4 running PX4, an Intel                 by the UWB module. This results in a higher frequency and
+Up Board as a companion computer running Ubuntu 16.04                       larger number of measurements when compared to Decawave’s
+with ROS Kinetic and MAVROS, and a TF Mini Lidar for                        solution, which is built to support a larger number of UWB
+height estimation. The quadrotor flying in the motion capture               nodes siultaneously.
+arena (Optitrack system) is shown in Figure 1 (b).                          D. Dynamic anchor reconfiguration
+C. Data Subsets                                                                The public dataset that we have made available con-
+                                                                            tains only data that has been acquired using Decawave’s
+   The dataset presented in this paper contains 7 subsets listed
+                                                                            RTLS system with their proprietary firmware flashed onto the
+in Table III. In all cases, the number of anchors in use was ei-
+                                                                            DWM1001 nodes. The product’s UART API has been utilized
+ther 3, 4 or 6. Four anchors is the minimum required for robust
+                                                                            as an interface to read distance and position information
+localization, as the position of a tag can still be calculated if the
+                                                                            of the different nodes. However, we have found the RTLS
+connection with one of the anchors is intermittent. However,
+                                                                            calibration of anchor positions to be slow, taking around 40 s,
+at some points we disconnected one of the anchors to emulate
+                                                                            and inaccurate, with errors exceeding 1 m in some cases.
+the situations in which not all four anchors are reachable and
+                                                                            Therefore, we also make available an initial implementation
+study the impact on accuracy. Besides, while a larger amount
+                                                                            of a custom anchor re-calibration system. Our system does
+of anchors can lead to an increase in accuracy, having ad-
+                                                                            between 5 and 50 measurements for each of the distances,
+hoc and movable anchor networks with very large numbers
+                                                                            with a total latency varying from just under 1 s to 2.5 s.
+might be impractical. In general, based on our experiments
+we believe that four anchors give enough accuracy to enable                 E. Energy Efficiency
+autonomous flight of an UAV, and therefore we find it the                      We have also analyzed the power consumption of the UWB
+most suitable solution. The only scenario with 6 anchors was                nodes in different modes. The power consumption has been
+set in order to analyze if the vertical accuracy would change               monitored with Monsoon’s High Voltage (HV) power monitor.
+significantly.                                                              While for UAVs the impact on total energy expenditure might
+   The first four subsets were recorded in a more traditional               be insignificant during flight, this can be a key aspect to take
+setting with all anchors located in the corners of the motion               into consideration in mobile settings. For instance, if ground
+capture arena. In the case of six anchors, the two extra ones               robots move only from time to time.
+                                                                                                                                                TABLE III
+                                                                                                                                    D ESCRIPTION OF THE DATA S UBSETS
+For each subset, we include the description of the anchor locations, the height at which the anchors are installed, the number of anchors and number of tags,
+ the number of flights recorded separately, the total number of individual distance measurements or position estimations at 10 Hz (#meas). In addition, we
+describe the platform where the data was recorded, whether at the companion computer connected to active tags, or at the base station via a passive tag, and
+                          whether the UAV flight happened inside or outside the convex envelope defined by the anchor positions.
+
+                                                     Anchor positions            Anchor           #Anchors                                         #Tags       #Meas          #Flights                 Recording                                                           UAV Position
+                                                                                 Height                                                                                                                (UAV/GS)                                                         (w.r.t. Convex Env.)
+                                        #1           Room corners              1.8 m                        4                                       1           1000                1          UAV (Autonomous)                                                               Always in
+                                        #2           Room corners              1.8 m                        4                                       2           1000                1              UAV/GS                                                                     Always in
+                                        #3           Room corners              1.8 m                       3–4                                      1           9000                3                 GS                                                                      Always in
+                                        #4           Room corners              1.8 m                       3–4                                      2           7000                9                 GS                                                                      Always in
+                                        #5           Room corners             0–2.4 m                       6                                       2           1000                1                UAV                                                                      Always in
+                                        #6           Single corner           0 – 0.5 m                      4                                       1           1700                1                 GS                                                                      Always out
+                                        #7           Room center               0.1 m                        4                                      1–4          2500                3                 GS                                                                       In & Out
+
+
+
+
+                                                                    Opti                    2                                                                                 2                                                                                                    Opti       UWB
+                                         1
+                                                                    UWB                                                                                                                                                                                             2              Obj        Lidar
+
+
+
+
+                                                                                                                                                                                                                                                       Height (m)
+       Y (m)
+
+
+
+
+                                                                                   X (m)
+
+
+
+
+                                                                                                                                                                     Y (m)
+                                         0
+                                                                                            0                                                                                 0
+                                                                                                           Opti                                                                                                                                                     1
+                                                                                                                                                                                        Opti
+                                       −1                                                                  UWB                                                                          UWB
+                                                                                                           Obj                                                                          Obj
+                                                                                           −2                                                                                −2                                                                                     0
+                                                     −1       0      1                           0                                     50             100                          0          50                              100                                        0           50         100
+                                                            X (m)                                                                    Time (s)                                               Time (s)                                                                               Time (s)
+                                             (a) UAV path in the XY plane                       (b) UAV position along X-axis                                                     (c) UAV position along Y-axis                                                              (d) UAV height over time
+
+
+
+
+                                      0.1                           0.1                                                              0.2                            0.2                                                                    0.2                                  0.2
+                                                                                                                                     0.1
+                                                                                                                                                                                                       Error (m)
+  Error (m)
+
+
+
+
+                                                                                                           Error (m)
+
+
+
+
+                                      0.0                             0                                                                                                                                                                    0.0
+                                                                                                                                     0.0
+                                      -0.1                                                                                                                              0                                                                  -0.2                                   0
+                                                                  −0.1                                                              -0.1
+                                      -0.2                                                                                          -0.2                                                                                                   -0.4
+                                                                  −0.2                                                              -0.3                          −0.2                                                                                                        −0.2
+                                      -0.3                                                                                                                                                                                                 -0.6
+                                             0         50     100−0.3                                                                          0     50 100                                                                                       0     50     100
+                                                     Time (s)            Distribution                                                              Time (s)           Distribution                                                                    Time (s)             Distribution
+                                                        (d) X-coordinate error                                                                        (e) Y-coordinate error                                                                                (f) Height error
+Fig. 3. Autonomous flight based on UWB for localization in the XY plane and a 1D lidar for height estimation. For the height error, only the lidar data was
+taken into account, and only while on flight for the boxplot. The Optitrack (Opti) system gives the ground truth reference, while the position is estimated
+based on the UWB system and 1D lidar. The position control input (Obj) utilizes the position estimation as well.
+
+
+
+
+                                       1.0                                                                                          1.0                                                                                                     1.0
+       Cumulative Error Probability
+
+
+
+
+                                                                                                     Cumulative Error Probability
+
+
+
+
+                                                                                                                                                                                                            Cumulative Error Probability
+
+
+
+
+                                                                                                                                    0.9
+                                       0.8                                                                                                                                                                                                  0.8
+                                                                                                                                    0.8
+                                       0.6                                                                                                                                                                                                  0.6
+                                                                                                                                    0.7
+                                       0.4                                                                                          0.6                                                                                                     0.4                          0–1 m/s          1–2 m/s
+                                                                    0–1 m        1–2 m
+                                                                    2–3 m        3–4 m                                              0.5                              0–1 m             1–2 m                                                                             2–3 m/s          3–4 m/s
+                                       0.2                                                                                                                                                                                                  0.2
+                                                                    4–5 m        5–6 m                                                                               2–3 m             3–4 m                                                                             4–5 m/s
+                                                                                                                                    0.4
+
+                                                 0            2              4                                                             0             1           2          3              4                                                  0                 0.5        1        1.5           2
+                                                            Position error (m)                                                                               Position error (m)                                                                                        Position error (m)
+                                                                     (a)                                                                                              (b)                                                                                                        (c)
+Fig. 4. Cumulative probability distribution of the positioning accuracy for (a) different distances to the center of mass of the anchor system, (b) different
+heights, (c) and different speeds of the UAV. The anchors are positioned in the room corners forming a square of 64 m2 .
+                                                                                                                                                       150                                       150
+
+
+
+
+                                                                                                                                                                                  Current (mA)
+                                                                                                                                     Current (mA)
+              6                                6                                                                                                       100                                       100
+ Error (m)
+
+
+
+
+                                                                Error (m)
+                                                                              0                                   0
+              4
+                                               4
+              2                                                              −5                                                                        50                                         50
+                                               2                                                               −5
+              0
+             −2                                0                            −10                                                                              0   50 100 150 200                        0   50 100 150 200
+                                                                                                −10
+                               0     50 100−2                                      0     50 100                                                                   Time (ms)                                 Time (ms)
+                                   Time (s)                                            Time (s)     Distribution
+                                                 Distribution                                                                                                (a) DRTLS Anchor                       (b) DRTLS Active Tag
+                               (a) X-coordinate error
+                                                                                  (b) Y-coordinate error                                                                                         150
+
+
+
+
+                                                                                                                                        Current (mA)
+
+
+
+
+                                                                                                                                                                                  Current (mA)
+Fig. 5. Localization error when all the four anchors are nearby, defining                                                                              40                                        100
+three faces of a cube. While the average error is small, and 50 % of the
+measurements are relatively accurate, the localization estimation is highly                                                                                                                       50
+                                                                                                                                                       20
+unstable. Further filtering is needed to enable accurate flight in this case.
+                                                                                                                                                             0   50 100 150 200                        0   50 100 150 200
+                                                                                                                                                                  Time (ms)                                 Time (ms)
+                              7.5
+             UWB Error (cm)
+
+
+
+
+                                                                                                       7.5                                               (c) DRTLS Passive Tag                    (d) Custom Calib. Anchor
+                              2.5                                                      UWB Error (m)
+                                                                                                       2.5                         Fig. 7. Power consumption of the UWB anchors and tags in different modes.
+                              -2.5                                                                                                 The tags were powered through USB in all these measurements. In the self-
+                                                                                                       -2.5                        reconfigurable anchor, the communication is constant while calculating and
+                              -7.5                                                                                                 therefore the power consumption is greater than in Decawave’s DRTL setup.
+                                                                                                       -7.5
+                                     0             10                   20
+                                                Distance (m)                                                  Distribution
+                                                                                                                                   B. Spatial distribution of anchors
+Fig. 6. Average distance estimation error between two DWM1001 nodes in
+line of sight. The nodes have been calibrated to take into account the antenna                                                        One of the novel analysis in this paper is the study of
+delay. The mean error is smaller than 1 mm while the standard deviation is                                                         different spatial anchor distributions. The accuracy recorded
+3.9 cm. The maximum error is 8.6 cm.
+                                                                                                                                   during the autonomous drone flight in Fig. 3 (d)-(f) relates
+                                                                                                                                   to a typical setting where the anchors are positioned in the
+                                                                                                                                   corners of a room. One thing to note in this case, nonetheless,
+                                     IV. E XPERIMENTATION AND R ESULTS
+                                                                                                                                   is the enhanced accuracy of the latest DWM1001 transceiver.
+  To test the feasibility of an autonomous flight based only on                                                                    Through our experiments, we have also noted that over 50 %
+UWB ToF measurements and a 1D lidar for height estimation,                                                                         of the samples acquired during the flight had an error under
+we show a simple circular trajectory.                                                                                              10 cm. In particular, the lower and upper quartiles in the case
+                                                                                                                                   of the x-coordinate error in Fig. 3 (d) reflect an error smaller
+                                                                                                                                   than 5 cm.
+A. Flight with UWB-based localization
+                                                                                                                                      An extreme case for the location of anchors would be when
+   Figure 3 shows the path and localization error recorded                                                                         these are located in a single robot or movable unit. This has
+over an autonomous flight using UWB for localization in the                                                                        been done, for instance, by Nguyen et al. in [19] for an UAV
+horizontal plane and a 1D lidar for height estimation. The                                                                         to dock on a moving platform. However, in that article, the
+control input, in green in the figure, given to the drone in the                                                                   authors report using a movable platform of 3 m2 , which is
+form of waypoints is described by (3):                                                                                             impractical in most situations, in particular in post-disaster
+                                                                                                                                   scenarios where access to the objective operation area might
+         pobj = (robj (t), θobj (t), zobj (t))                                                                                     be limited. In order to assess the viability of a more practical
+                (
+                   (r0 , θ0 , z0 )             if |kp(t)k − kp0 k| > ε                                                             usage, we have located four anchors in four corners of a cube,
+              =                                                                                                                    with one of them representing the origin of coordinates and
+                   (r0 , θ(t) + ∆θ, z0 ) otherwise                                                                                 each of the other three the axes. The separation between the
+                                                                                                                             (3)   anchor in the origin and each of the others was just 60 cm.
+                                                                                                                                   Fig. 5 shows the position estimation error in this case. We can
+where p(t) = (r(t), θ(t), z(t)) represents the current position                                                                    see that the position estimation is highly unstable. However,
+of the UAV, pobj is the waypoint given to the UAV as its                                                                           the lower and upper quartile in the boxplot relate to relatively
+objective position, p0 = (r0 , θ0 , z0 ) is the entry position to the                                                              low errors. With proper filtering and sensor fusion it might be
+circular path, ε is a threshold to consider that the UAV is within                                                                 possible to utilize such anchor settings when the error margin
+the predefined path, and ∆θ defines the angular speed when it                                                                      allows.
+is considered together with the waypoint update rate and the                                                                          The last anchor distribution included in the dataset rep-
+maximum linear speed of the UAV. In the experiment shown in                                                                        resents, to the best of our knowledge, the most usable for
+Figure 3, we have defined p0 = (1.23, 0, 1.23), ε = 0.3 m and                                                                      a moving platform, with four anchors near the ground and
+∆θ = 0.05 rad. All the positions are represented in cylindrical                                                                    separated only around 2 m. One of the flights recorded and the
+coordinates, and the radial distance and height are given in                                                                       corresponding errors are illustrated in Fig. 8. The localization
+meters.                                                                                                                            accuracy in this case doubles but still allows the possibility of
+autonomous flight.                                                                           TABLE IV
+                                                                           P OWER CONSSUMPTION OF UWB TAGS AND ANCHORS .
+
+C. Autopositioning of anchors                                                           Power @ 5V               Power @ 3.7V
+   The localization estimation provided by Decawave’s UART                         Avg. (mW)   Max. (mW)     Avg. (mW)   Max. (mW)
+API has given us better results than the utilization of raw        Anchor             171          699          129          545
+individual distance measurements applied to multiple open-         Active Tag         161          687          115          543
+source multilateration algorithms. The code to interface the       Passive Tag        155          189          114          503
+                                                                   Custom Init.       440          726          341          554
+API with ROS for both passive and active tags is made              Custom Resp.       523          731          358          557
+available, together with the data, in the Github repository.
+However, Decawave’s function to autoposition the anchors
+has not given good results in our experience. Moreover, the        D. Characterization of UWB localization accuracy
+calculation takes around 40 s, which is unassumable in some
+mobile settings. In order to tackle this issue, we have written       We have classified the accuracy of the UWB localization
+our own firmware for the anchors in order to recalculate           based on the distance to the center of mass of the anchor
+their position if they move. In our experiments, we utilize        system, the height of the UAV and its speed.
+separate UWB devices for the autopositioning. Each anchor             The dataset introduced in this paper includes data of an UAV
+location is equipped with one device flashed with our code         flying both inside and outside the convex envelope defined by
+for autopositioning only, and another one as an anchor for         the anchor positions. In general, the closer an UWB tag is
+the localization of the UWB tag, flashed with Decawave’s           to the center of mass of the anchor system, the higher the
+proprietary firmware. We utilize the UART API to set the           position estimation accuracy is. This is illustrated in Fig. 4 (a)
+anchor positions after the autopositioning. In a real scenario,    for the case where the anchors are in the corners of the room,
+a single device could be used as both but it would need to be      and in Fig. 9 (a) for the case in which the anchors are in the
+reprogrammed on the fly.                                           center and close to the floor.
+   Figure 6 shows the average error of the distance estimation        Based on the rest of the measurements in the same two
+between two anchors during the self-calibration process. The       figures, we can also see that the position estimation error is
+measurements are taken at over 35 different distances up to        smaller with lower speed, as illustrated in Fig. 4 (c). Regarding
+22 m, with 50 measurements for each distance. The standard         the height, when the anchors were all near the floor, we did not
+deviation for each particular distance ranged from 0 to 4 cm,      obtain significant differences, as sown in Fig. 9 (b). However,
+while the standard deviation of the error altogether was under     when the anchors were at the height of 1.8 m in the corners of
+3 cm in over 50 % of the cases, as shown in the boxplot in         the room, higher flight altitudes resulted in smaller errors, as
+Fig. 6. The comparison between Decawave’s autopositioning          Fig. 4 (b) shows. While LOS was always ensured during the
+and ours is shown in Table II.                                     experiments, the error was smallest near the constant z plane
+   In addition, we have measured the power consumption of          defined by the anchor positions.
+the UWB devices in different modes, as shown in Table IV              The conclusions from the above characterization of accuracy
+and Fig. 7. This includes anchors, active tags and passive tags,   based on speed, height and distance to the center of mass of the
+as well as the device running our autopositioning firmware. In     anchor system allow a more efficient control of autonomous
+the latter case, we provide an initial implementation with no      UAVs in a real deployment, where strategies can be defined
+power usage optimization, and during the autopositioning the       to adjust the error estimation based on these parameters.
+nodes are transmitting at high frequency. Therefore the power
+consumption is very high. We differentiate between responder                  V. C ONCLUSION AND F UTURE W ORK
+and initiator types. Each of the four anchors takes the role of       We have presented a novel dataset for UWB-based localiza-
+initiator one time, sending a message one by one to each of the    tion of aerial robots. We have focused on studying the localiza-
+other three (in responder mode), and calculating the distance      tion accuracy for ad-hoc deployments with fast self-calibration
+via two-way ranging. The distance between two nodes is thus        of anchor positions. Up to the authors’ knowledge, the dataset
+calculated twice during the autopositioning.                       presented in this paper is the largest and most complete to date.
+   During the autopositioning process, the first anchor to         The dataset includes multiple anchor configurations, as well
+become an initiator, which is activated via a start command        as data from UAVs equipped with a variable number of UWB
+through the UART interface, is considered the origin of            tags. The dataset includes data from an autonomous flight
+coordinates. Then, we assume that some information about the       with an UAV. The ground truth in all cases has been recorded
+position of the other anchors exists. The minimum information      using an Optitrack motion capture system. It is also the first
+required is to know the order of the anchors over the boundary     comprehensive analysis of the UWB localization accuracy
+of their convex envelope in a counter-clockwise direction. We      based on the UAVs speed, height and distance to the center
+also predefine the x axis to follow the direction of the vector    of mass of the anchor system. We believe that the dataset
+that is defined from the first to the second anchor following      presented in this paper will enable the research community
+the aforementioned order.                                          to further explore the possibilities of robust and accurate
+                  2                                                    4                                   2
+                                                                                                                                                                        0.5                    0.5                                                      0.5
+                                                                       2                                                                                                                                                         0.5
+
+
+
+
+                                                                                                                                       Error (m)
+
+
+
+
+                                                                                                                                                                                                                     Error (m)
+  Y (m)
+
+
+
+
+                                                               X (m)
+
+
+
+
+                                                                                                   Y (m)
+                  0                                                                                        0
+                                                                       0                                                                                                 0                      0                                 0                       0
+     −2                                                            −2                                 −2
+                                                                                                                                                    −0.5                                                                  −0.5
+                                                                   −4                                                                                                                       −0.5                                                       −0.5
+
+                                         −4 −2 0 2       4                 0        50       100               0        50       100                                          0     50 100                                              0     50 100
+                                                                                                                                                                                                     Distribution                                          Distribution
+                                                                                  Time (s)                            Time (s)                                                    Time (s)                                                  Time (s)
+                                              X (m)
+                                                                               (b) X-Coordinate                    (c) Y-coordinate                                           (a) X-coordinate error                                   (b) Y-coordinate error
+                                          (a) XY Pahts
+Fig. 8. Data recorded with 4 tags (single rigid body) and four anchors positioned in the center of the motion capture arena, separated 1.8 m only. The legend
+is not included due to lack of space. Blue represents the Optitrack ground truth, while the other four colors each represent one of the tags.
+
+
+                                         1.0                                                                                                                            1.0
+
+
+
+
+                                                                                                                                         Cumulative Error Probability
+          Cumulative Error Probability
+
+
+
+
+                                                                                                                                                                        0.8
+                                         0.8
+
+                                                                                                                                                                        0.6
+                                         0.6
+                                                                                             0–0.5 m               0.5–1 m
+                                                                                             1–1.5 m               1.5–2 m                                              0.4
+                                         0.4                                                 2–5.5 m               2.5–3 m
+                                                                                             3–3.5 m               3.5–4 m                                              0.2                                                            0.5–1 m         1–1.5 m
+                                         0.2                                                 4–4.5 m               4.5–5 m                                                                                                             1.5–2 m
+                                                                                                                                                                        0.0
+                                                             0.5                    1                          1.5                                                                       0.2              0.4           0.6                      0.8            1.0
+                                                                           Position error (m)                                                                                                              Position error (m)
+                                                                                  (a)                                                                                                                          (b)
+Fig. 9. Positioning error cumulative probability for different distances to the center of mass of the anchor system (a), and different heights (b). The anchor
+positions were (1.79, 0.58, 0.1), (0.01, 0.58, 0.1), (1.8, −1.2, 0.1), and (0, −1.21, 0.1).
+
+
+
+autonomous flight in GNSS-denied environments with ad-                                                                                  [4] J. P. Queralta, T. N. Gia, H. Tenhunen, and T. Westerlund, “Collaborative
+hoc localization networks via a combination of UAVs with                                                                                    mapping with ioe-based heterogeneous vehicles for enhanced situational
+                                                                                                                                            awareness,” in 2019 IEEE Sensors Applications Symposium (SAS).
+reference ground robots. In future work, our aim is to study                                                                                IEEE, 2019, pp. 1–6.
+further the viability of UWB for robust multi-UAV systems,                                                                              [5] C. McCord, J. P. Queralta, T. N. Gia, and T. Westerlund, “Distributed
+as well as a distributed localization system that does not rely                                                                             progressive formation control for multi-agent systems: 2d and 3d deploy-
+                                                                                                                                            ment of uavs in ros/gazebo with rotors,” in 2019 European Conference
+on anchors, but where a mesh network is built and relative                                                                                  on Mobile Robots (ECMR). IEEE, 2019, pp. 1–6.
+positions estimated. An emphasis will also be put on fusing                                                                             [6] J. S. Furtado, H. H. Liu, G. Lai, H. Lacheray, and J. Desouza-Coelho,
+UWB with inertial and visual odometry data.                                                                                                 “Comparative analysis of optitrack motion capture systems,” in Advances
+                                                                                                                                            in Motion Sensing and Control for Robotic Applications. Springer,
+                                                                                                                                            2019, pp. 15–31.
+                                                         ACKNOWLEDGEMENTS                                                               [7] W. Giernacki, M. Skwierczyński, W. Witwicki, P. Wroński, and
+                                                                                                                                            P. Kozierski, “Crazyflie 2.0 quadrotor as a platform for research and
+   This work was supported by the Academy of Finland’s Au-                                                                                  education in robotics and control engineering,” in 2017 22nd Interna-
+                                                                                                                                            tional Conference on Methods and Models in Automation and Robotics
+toSOS project with grant number 328755, the Swiss National                                                                                  (MMAR). IEEE, 2017, pp. 37–42.
+Science Foundation with grant number 200020 188457, and                                                                                 [8] C. du Soleil, “Zurich, and verity studios. sparked: A live interaction
+the European Union’s Horizon 2020 TERRINet project under                                                                                    between humans and quadcopters,” 2014.
+grant agreement No 730994.                                                                                                              [9] P. Labs, “Pozyx accurate positioning,” 2018.
+                                                                                                                                       [10] M. Contigiani, R. Pietrini, A. Mancini, and P. Zingaretti, “Imple-
+                                                                                                                                            mentation of a tracking system based on uwb technology in a retail
+                                                                   R EFERENCES                                                              environment,” in 2016 12th IEEE/ASME International Conference on
+                                                                                                                                            Mechatronic and Embedded Systems and Applications (MESA). IEEE,
+ [1] B. H. Y. Alsalam, K. Morton, D. Campbell, and F. Gonzalez, “Au-                                                                        2016, pp. 1–6.
+     tonomous uav with vision based on-board decision making for remote                                                                [11] R. J. Fontana, “Ultra wideband precision geolocation system,” Apr. 25
+     sensing and precision agriculture,” in 2017 IEEE Aerospace Conference.                                                                 2000, uS Patent 6,054,950.
+     IEEE, 2017, pp. 1–12.                                                                                                             [12] Z. Sahinoglu, Ultra-wideband positioning systems. Cambridge univer-
+ [2] J. Tiemann and C. Wietfeld, “Scalable and precise multi-uav indoor                                                                     sity press, 2008.
+     navigation using tdoa-based uwb localization,” in 2017 International                                                              [13] J. D. Taylor, Ultra-wideband radar technology. CRC press, 2018.
+     Conference on Indoor Positioning and Indoor Navigation (IPIN). IEEE,                                                              [14] R. Mazraani, M. Saez, L. Govoni, and D. Knobloch, “Experimental
+     2017, pp. 1–7.                                                                                                                         results of a combined tdoa/tof technique for uwb based localization
+ [3] J. Q. Cui, S. K. Phang, K. Z. Ang, F. Wang, X. Dong, Y. Ke, S. Lai,                                                                    systems,” in 2017 IEEE International Conference on Communications
+     K. Li, X. Li, F. Lin et al., “Drones for cooperative search and rescue                                                                 Workshops (ICC Workshops). IEEE, 2017, pp. 1043–1048.
+     in post-disaster situation,” in 2015 IEEE 7th International Conference                                                            [15] C. Wang, H. Zhang, T.-M. Nguyen, and L. Xie, “Ultra-wideband aided
+     on Cybernetics and Intelligent Systems (CIS) and IEEE Conference on                                                                    fast localization and mapping system,” in 2017 IEEE/RSJ International
+     Robotics, Automation and Mechatronics (RAM). IEEE, 2015, pp. 167–                                                                      Conference on Intelligent Robots and Systems (IROS). IEEE, 2017, pp.
+     174.                                                                                                                                   1602–1609.
+[16] Y. Song, M. Guan, W. P. Tay, C. L. Law, and C. Wen, “Uwb/lidar fusion        [25] T.-M. Nguyen, A. H. Zaini, C. Wang, K. Guo, and L. Xie, “Robust
+     for cooperative range-only slam,” in 2019 International Conference on             target-relative localization with ultra-wideband ranging and commu-
+     Robotics and Automation (ICRA). IEEE, 2019, pp. 6568–6574.                        nication,” in 2018 IEEE International Conference on Robotics and
+[17] F. J. Perez-Grau, F. Caballero, L. Merino, and A. Viguria, “Multi-                Automation (ICRA). IEEE, 2018, pp. 2312–2319.
+     modal mapping and localization of unmanned aerial robots based on            [26] L. Qiang, W. Heng, L. Huican, Q. Shuqi, D. Nanxun, and L. Bing,
+     ultra-wideband and rgb-d sensing,” in 2017 IEEE/RSJ International                 “Formation control of multi robot based on uwb distance measurement,”
+     Conference on Intelligent Robots and Systems (IROS). IEEE, 2017,                  in 2018 Chinese Control And Decision Conference (CCDC). IEEE,
+     pp. 3495–3502.                                                                    2018, pp. 2404–2408.
+[18] V. Magnago, P. Corbalán, G. P. Picco, L. Palopoli, and D. Fontanelli,
+     “Robot localization via odometry-assisted ultra-wideband ranging with        [27] K. Guo, X. Li, and L. Xie, “Ultra-wideband and odometry-based
+     stochastic guarantees.” in IROS, 2019, pp. 1607–1613.                             cooperative relative localization with application to multi-uav formation
+[19] T.-M. Nguyen, T. H. Nguyen, M. Cao, Z. Qiu, and L. Xie, “Integrated               control,” IEEE transactions on cybernetics, vol. 50, no. 6, pp. 2590–
+     uwb-vision approach for autonomous docking of uavs in gps-denied                  2603, 2019.
+     environments,” in 2019 International Conference on Robotics and Au-          [28] R. Liu, C. Yuen, T.-N. Do, D. Jiao, X. Liu, and U.-X. Tan, “Cooperative
+     tomation (ICRA). IEEE, 2019, pp. 9603–9609.                                       relative positioning of mobile users by fusing imu inertial and uwb rang-
+[20] N. Macoir, J. Bauwens, B. Jooris, B. Van Herbruggen, J. Rossey,                   ing information,” in 2017 IEEE International Conference on Robotics
+     J. Hoebeke, and E. De Poorter, “Uwb localization with battery-powered             and Automation (ICRA). IEEE, 2017, pp. 5623–5629.
+     wireless backbone for drone-based inventory management,” Sensors,            [29] J. Tiemann, A. Ramsey, and C. Wietfeld, “Enhanced uav indoor navi-
+     vol. 19, no. 3, p. 467, 2019.                                                     gation through slam-augmented uwb localization,” in 2018 IEEE Inter-
+[21] U. Raza, A. Khan, R. Kou, T. Farnham, T. Premalal, A. Stanoev, and                national Conference on Communications Workshops (ICC Workshops).
+     W. Thompson, “Dataset: Indoor localization with narrow-band, ultra-               IEEE, 2018, pp. 1–6.
+     wideband, and motion capture systems,” in Proceedings of the 2nd             [30] T.-M. Nguyen, Z. Qiu, M. Cao, T. H. Nguyen, and L. Xie, “An integrated
+     Workshop on Data Acquisition To Analysis, 2019, pp. 34–36.                        localization-navigation scheme for distance-based docking of uavs,” in
+[22] V. Barral, P. Suárez-Casal, C. J. Escudero, and J. A. Garcı́a-Naya,              2018 IEEE/RSJ International Conference on Intelligent Robots and
+     “Multi-sensor accurate forklift location and tracking simulation in in-           Systems (IROS). IEEE, 2018, pp. 5245–5250.
+     dustrial indoor environments,” Electronics, vol. 8, no. 10, p. 1152, 2019.
+[23] J. Li, Y. Bi, K. Li, K. Wang, F. Lin, and B. M. Chen, “Accurate 3d           [31] K. Bregar, A. Hrovat, and M. Mohorcic, “Nlos channel detection with
+     localization for mav swarms by uwb and imu fusion,” in 2018 IEEE 14th             multilayer perceptron in low-rate personal area networks for indoor
+     International Conference on Control and Automation (ICCA). IEEE,                  localization accuracy improvement,” in Proceedings of the 8th Jožef Ste-
+     2018, pp. 100–105.                                                                fan International Postgraduate School Students’ Conference, Ljubljana,
+[24] K.-M. Mimoune, I. Ahriz, and J. Guillory, “Evaluation and improvement             Slovenia, vol. 31, 2016.
+     of localization algorithms based on uwb pozyx system,” in 2019 Inter-        [32] K. Bregar and M. Mohorčič, “Improving indoor localization using
+     national Conference on Software, Telecommunications and Computer                  convolutional neural networks on computationally restricted devices,”
+     Networks (SoftCOM). IEEE, 2019, pp. 1–5.                                     IEEE Access, vol. 6, pp. 17 429–17 441, 2018.
+

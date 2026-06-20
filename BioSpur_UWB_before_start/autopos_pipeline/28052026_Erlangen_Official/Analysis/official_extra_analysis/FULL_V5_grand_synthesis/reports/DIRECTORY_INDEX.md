@@ -1,0 +1,27 @@
+# Directory Index
+
+| directory | script | n_tables | n_figures | n_reports | runtime_s | tasks_ok | tasks_fail |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| FULL | scripts/bidirectional_pair_symmetry.py;scripts/audit_phase1_delay_bound.py;scripts/static_drift_timeline_join.py | 78 | 0 | 0 |  | 0 | 0 |
+| FULL_4way_comparison | scripts/run_rotoarm_scale_delay_nlos.py;scripts/run_us_height_layout_source.py;scripts/run_v5_fixed_dtag_sweep.py | 14 | 0 | 4 |  | 0 | 0 |
+| FULL_AutoPos_align_to_Vicon |  | 3 | 0 | 1 |  | 0 | 0 |
+| FULL_AutoPos_one_baseline_scale_correction |  | 2 | 0 | 1 |  | 0 | 0 |
+| FULL_AutoPos_scale_to_vicon |  | 2 | 0 | 1 |  | 0 | 0 |
+| FULL_V4_vs_V5_final |  | 8 | 0 | 1 |  | 0 | 0 |
+| FULL_V5 | scripts/run_full_v5_ablation_pipeline.py | 16 | 0 | 1 |  | 0 | 0 |
+| FULL_V5_GPU_discovery | scripts/run_gpu_full_discovery.py | 49 | 15 | 19 |  | 17 | 0 |
+| FULL_V5_GPU_tier1 | scripts/run_gpu_tier1.py | 21 | 7 | 7 |  | 6 | 0 |
+| FULL_V5_align_to_Vicon | scripts/run_full_v5_ablation_pipeline.py | 5 | 0 | 1 |  | 0 | 0 |
+| FULL_V5_batch3_falsification | scripts/run_batch3_falsification.py | 18 | 8 | 9 | 233.500 | 6 | 0 |
+| FULL_V5_extended_mechanism_ablations | scripts/run_extended_mechanism_ablations.py | 34 | 3 | 1 |  | 0 | 0 |
+| FULL_V5_followup_validation | scripts/run_followup_validation.py | 15 | 0 | 7 |  | 0 | 0 |
+| FULL_V5_grand_synthesis | scripts/run_grand_synthesis.py | 7 | 0 | 9 |  | 0 | 0 |
+| FULL_V5_mechanism_ablations | scripts/run_v5_mechanism_ablations.py | 0 | 0 | 1 |  | 0 | 0 |
+| FULL_V5_mechanistic_deepdive | scripts/run_mechanistic_deepdive.py | 27 | 6 | 11 | 11.751 | 10 | 0 |
+| FULL_V5_one_baseline_scale_correction | scripts/run_full_v5_ablation_pipeline.py | 4 | 0 | 1 |  | 0 | 0 |
+| FULL_V5_overnight_batch2 | scripts/run_overnight_batch2.py | 21 | 10 | 11 | 52.358 | 9 | 0 |
+| FULL_V5_paper_strengthening | scripts/run_paper_strengthening.py | 17 | 10 | 12 | 5.678 | 10 | 0 |
+| FULL_V5_roto_deepdive | scripts/run_roto_deepdive.py | 18 | 7 | 7 | 175.968 | 6 | 0 |
+| FULL_V5_scale_to_vicon | scripts/run_full_v5_ablation_pipeline.py | 3 | 0 | 1 |  | 0 | 0 |
+| FULL_transfer_matrix | scripts/run_full_v5_ablation_pipeline.py | 8 | 0 | 1 |  | 0 | 0 |
+| old-G_DO_NOT_ANALYSE_ANYMORE | scripts/bootstrap_ci.py;scripts/static_tag_raw_replay_matrix.py;scripts/additional_diagnostics.py | 64 | 0 | 2 |  | 0 | 0 |

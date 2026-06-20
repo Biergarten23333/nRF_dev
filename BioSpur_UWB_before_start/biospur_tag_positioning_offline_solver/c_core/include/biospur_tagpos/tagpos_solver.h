@@ -10,6 +10,7 @@ extern "C" {
 #define BIOSPUR_TAGPOS_ERR_TOO_FEW_ANCHORS -2
 #define BIOSPUR_TAGPOS_ERR_SINGULAR -3
 
+#define BIOSPUR_TAGPOS_LOSS_LINEAR 0
 #define BIOSPUR_TAGPOS_LOSS_HUBER 1
 #define BIOSPUR_TAGPOS_LOSS_TUKEY 2
 
@@ -38,6 +39,7 @@ typedef struct BiospurTagposConfig {
     double temporal_prior_sigma_mm;
     int robust_loss;
     double tukey_c;
+    double huber_delta_mm;
 } BiospurTagposConfig;
 
 typedef struct BiospurTagposResult {
