@@ -50,7 +50,7 @@ These papers establish that delay and bias calibration matters, but they do not 
 
 The NLOS literature already shows that UWB ranges are often positively biased and that features from channel statistics, received signal properties, or learned models can mitigate those errors \cite{maran_2010_nlos_identification_and_mitigati,wymeersch_2012_a_machine_learning_approach,guven_2007_nlos_identification_and_weight,venkatesh_2007_non_line_of_sight_identification,meghani_2019_empirical_based_ranging_error,jeong_2023_hybrid_quantum_convolutional_neu,kong_2023_nlos_identification_for_uwb,sung_2023_accurate_indoor_positioning_for,yang_2024_uwb_nlos_identification_and}. Di Franco et al. are particularly relevant because they treat biased, multimodal NLOS UWB measurements in a calibration-free network-localization setting \cite{difranco_2017_calibration_free_network_localization_nlos_uwb}. However, these works aim to classify or correct NLOS, not to use NLOS reduction as a causal intervention that tests which calibration geometry is physically correct.
 
-The lower-tail Erlangen result should therefore not be framed as a new NLOS classifier. It is a probe. Under p50 ranges, the V4 layout wins despite its Sim3 scale of 0.958. When static tag-anchor positive tails are reduced by lower-quantile aggregation, V5 reaches 44.5 mm LOO while the best V4 raw-frame row is 53.9 mm. That ranking flip is the new evidence: reducing the bias that V4 was cancelling removes V4's empirical advantage.
+The lower-tail Erlangen result should therefore not be framed as a new NLOS classifier. It is a probe. Under scalar p50 ranges, the V4 layout barely wins despite its Sim3 scale of 0.958: 61.5~mm versus 63.5~mm for V5. When static tag-anchor positive tails are reduced by lower-quantile aggregation, V5 reaches 44.5~mm LOO while the best V4 raw-frame row is 53.9~mm. That ranking flip is the new evidence: the 2.0~mm baseline gap is small, but the 9.4~mm intervention effect removes V4's empirical advantage.
 
 \subsection{Identifiability and Observability}
 
@@ -193,8 +193,9 @@ show---for the first time in any ranging system---that this coupling interacts
 with structured NLOS positive bias to make a physically wrong geometry
 \emph{systematically outperform} the correct one on same-environment tag
 positioning. In the Erlangen campaign, V4 has Sim3 scale 0.958 while V5 has
-Sim3 scale 1.010, yet V4 wins the p50 static LOO comparison at 57.9~mm
-versus 67.8~mm for V5.
+Sim3 scale 1.010, yet V4 marginally wins the scalar p50 static LOO comparison
+at 61.5~mm versus 63.5~mm for V5. The 2.0~mm baseline gap is small; the
+9.4~mm ranking flip under NLOS reduction is proportionally large.
 
 The evidence chain is falsification-aware. The common-mode V5 parameterization
 absorbs bulk anchor delay and fixes scale. The Fisher analysis reports a weakest
@@ -285,7 +286,7 @@ Rank & Title \\
 
 \section{Risk Assessment}
 
-The strongest publication risk is overclaiming. The literature search confirms that UWB self-calibration, antenna-delay calibration, range-bias modeling, and NLOS mitigation are well studied. The manuscript must therefore emphasize the ranking paradox and the causal ranking flip, not the lower-tail statistic itself. The second risk is external validity. The Erlangen campaign is one room with 24 static positions, so V5 transfer should remain an expectation until frozen-pipeline second-room validation is complete. The third risk is tail behavior: lower-tail aggregation improves the median but leaves the P95 high, so the paper should separate mechanism evidence from deployable performance.
+The strongest publication risk is overclaiming. The literature search confirms that UWB self-calibration, antenna-delay calibration, range-bias modeling, and NLOS mitigation are well studied. The manuscript must therefore emphasize the ranking paradox and the causal ranking flip, not the lower-tail statistic itself. The second risk is external validity. The Erlangen campaign is one room with 24 static positions, so V5 transfer should remain an expectation until frozen-pipeline second-room validation is complete. The third risk is tail behavior: lower-tail aggregation improves the median and slightly improves P95 relative to scalar V5 p50, but the absolute P95 remains high, so the paper should separate mechanism evidence from deployable performance.
 
 A fourth risk is that a reviewer familiar with acoustic self-calibration or GNSS
 may view the scale--delay coupling as a known ambiguity class and dismiss the

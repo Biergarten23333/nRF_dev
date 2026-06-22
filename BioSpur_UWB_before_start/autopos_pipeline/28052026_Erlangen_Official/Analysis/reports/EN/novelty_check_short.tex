@@ -26,7 +26,7 @@
 
 \section{Thesis}
 
-UWB anchor self-calibration can trade antenna-delay parameters against layout scale, so same-environment tag accuracy is not a reliable proxy for physical calibration quality. In the Erlangen campaign, V4 is metrically distorted (Sim3 scale 0.958) and V5 is metric-correct (1.010), yet V4 wins under p50 static LOO positioning (57.9 vs 67.8~mm); after reducing static tag-anchor positive range bias, V5 wins (44.5 vs 53.9~mm). This ranking flip is the key evidence that the wrong geometry can win by cancelling structured NLOS bias.
+UWB anchor self-calibration can trade antenna-delay parameters against layout scale, so same-environment tag accuracy is not a reliable proxy for physical calibration quality. In the Erlangen campaign, V4 is metrically distorted (Sim3 scale 0.958) and V5 is metric-correct (1.010), yet V4 barely wins under scalar p50 static LOO positioning (61.5 vs 63.5~mm, a 2.0~mm gap); after reducing static tag-anchor positive range bias, V5 wins (44.5 vs 53.9~mm). This ranking flip is the key evidence that the wrong geometry can win by cancelling structured NLOS bias, because the intervention effect is proportionally larger than the baseline gap.
 
 \section{Literature Gap}
 
@@ -48,7 +48,7 @@ AniTrack observed that self-localized anchors outperformed surveyed anchors in t
 
 \section{Our Contribution}
 
-The first contribution is scientific: we quantitatively characterize delay--layout--NLOS coupling in UWB anchor self-calibration. The evidence chain combines the V4/V5 Sim3 split, Fisher information with weakest eigenvalue $10^{-6}$, profile-likelihood and morph-valley surfaces, phase-center robustness, and the raw-frame lower-tail intervention. The decisive result is the ranking flip: V4 wins when p50 tag-anchor positive bias is present, but V5 wins after that bias is reduced, showing that V4's p50 advantage came from cancellation rather than better physical calibration.
+The first contribution is scientific: we quantitatively characterize delay--layout--NLOS coupling in UWB anchor self-calibration. The evidence chain combines the V4/V5 Sim3 split, Fisher information with weakest eigenvalue $10^{-6}$, profile-likelihood and morph-valley surfaces, phase-center robustness, and the raw-frame lower-tail intervention. The decisive result is the ranking flip: V4 barely wins when p50 tag-anchor positive bias is present, but V5 wins after that bias is reduced, showing that V4's p50 advantage came from cancellation rather than better physical calibration.
 
 The second contribution is methodological: we provide a falsification protocol that separates metric correctness from same-environment positioning accuracy. It uses Sim3 anchor-scale validation, a layout/delay transfer matrix, winner's-curse correction, nested spatial CV, phase-center sensitivity, NLOS leakage auditing, and ROTO dynamic checks to prevent a single accuracy number from hiding the mechanism.
 

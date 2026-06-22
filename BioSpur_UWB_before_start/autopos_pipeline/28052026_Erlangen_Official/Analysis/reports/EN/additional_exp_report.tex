@@ -32,11 +32,11 @@
 
 \section{Context}
 
-This document supplements the original English Vicon validation report and records the experiments that were completed after that report was sent for review. The original campaign left a central paradox: the V5 common-mode anchor layout corrected the anchor-side metric scale, with Sim3 scale moving from 0.958 for V4 to 1.010 for V5, yet the older V4 layout still gave the lower p50 static median on the same 24-position Erlangen campaign. In the transfer matrix, V4+C\_V4+D\_LOO gives 57.9 mm median 3D error, while V5+C\_V5+D\_LOO gives 67.8 mm. Those values are reproduced from \texttt{FULL\_V5\_scale\_to\_vicon/tables/v5\_vs\_v4\_scale\_comparison.csv} and \texttt{FULL\_transfer\_matrix/tables/transfer\_matrix\_48cells.csv}.
+This document supplements the original English Vicon validation report and records the experiments that were completed after that report was sent for review. The original campaign left a central paradox: the V5 common-mode anchor layout corrected the anchor-side metric scale, with Sim3 scale moving from 0.958 for V4 to 1.010 for V5, yet the older V4 layout still gave the lower p50 static median on the same 24-position Erlangen campaign. Under the unified scalar convention, V4+C\_V4+D\_LOO gives 61.5 mm median 3D error, while V5+C\_V5+D\_LOO gives 63.5 mm. The gap is only 2.0 mm, so the baseline paradox is narrower than the earlier mixed-convention table implied. These values are reproduced from \texttt{FULL\_V5\_convention\_unification/tables/unified\_headline\_table.csv}.
 
 The additional experiments were designed to test whether this paradox is caused by delay--layout coupling rather than by a simple V4/V5 implementation error. The phase-center sensitivity analysis asks whether Vicon marker offsets can overturn the ranking. The raw-frame campaign uses the stored per-frame tag-anchor distributions to reduce positive NLOS tails. The anchor lower-trim blind experiment asks whether the same lower-tail statistic should also be used for inter-anchor self-calibration. The solver audit records which parts of the V1--V5 and T1--T4 solvers are actually algorithmic changes and which parts are preprocessing or policy changes.
 
-The main conclusion is narrower and stronger than an accuracy claim. V5 is the physically better anchor geometry by metric scale, while V4 is the p50 single-environment positioning winner. When the positive tag-anchor range tail is reduced in static batch mode, the empirical ranking flips: V5 reaches 44.5 mm LOO, whereas the best V4 geometry row in the same raw-frame ranking is 53.9 mm. This flip is the strongest causal evidence that V4's p50 advantage came from beneficial cancellation between a distorted layout and structured positive range bias.
+The main conclusion is narrower and stronger than an accuracy claim. V5 is the physically better anchor geometry by metric scale, while V4 is only the marginal p50 single-environment positioning winner. When the positive tag-anchor range tail is reduced in static batch mode, the empirical ranking flips: V5 reaches 44.5 mm LOO, whereas the best V4 geometry row in the same raw-frame ranking is 53.9 mm. The baseline gap is 2.0 mm, but the intervention gives V5 a 9.4 mm advantage, which is the strongest causal evidence that V4's p50 advantage came from beneficial cancellation between a distorted layout and structured positive range bias.
 
 \section{Phase Center Sensitivity Analysis}
 
@@ -54,7 +54,7 @@ The global shift sweep found that the V4-over-V5 p50 static ranking does not fli
 Conclusion & Baseline value & Flip threshold & Robustness \\
 \midrule
 V5 Sim3 scale $>$ 0.99 & 1.010 & $>$10 & robust \\
-V4+LOO beats V5+LOO & V4-V5=-23.0 mm & $>$10 & robust \\
+V4+LOO beats V5+LOO & V4-V5=-2.0 mm under scalar convention & $>$10 in prior sweep & robust ranking, small margin \\
 Vicon oracle rank/worst status & rank=2, worst=False & 2.0 & fragile \\
 D\_tag LOO approximately 49.6mm & 49.028 mm; sensitivity 0.190 mm/mm & not binary & stable \\
 D\_tag per-height spread V5 $<$ V4 & 7.4 $<$ 11.8 mm from prior mechanism audit & not directly flipped by global phase-center sweep & not directly tested here; use A4 as caveat \\
@@ -92,7 +92,7 @@ Bootstrap CI & [33.4, 82.8] & mm \\
 \end{tabular}
 \end{table}
 
-The important result is the ranking flip. Under p50 aggregation, V4 wins the static LOO comparison despite having the wrong metric scale. Under lower-quantile static batch aggregation, V5 becomes the best geometry: lower\_trim\_20 with V5 and Huber30 gives 44.5 mm median LOO, while the best V4 geometry row in the same honest raw-frame ranking is 53.9 mm and the best Vicon geometry row is 44.7 mm. The oracle lower bound in the v3 ladder is 44.6 mm, so the V5 lower-tail row nearly reaches the recoverable median implied by the available raw distributions.
+The important result is the ranking flip. Under scalar p50 aggregation, V4 barely wins the static LOO comparison despite having the wrong metric scale. Under lower-quantile static batch aggregation, V5 becomes the best geometry: lower\_trim\_20 with V5 and Huber30 gives 44.5 mm median LOO, while the best V4 geometry row in the same honest raw-frame ranking is 53.9 mm and the best Vicon geometry row is 44.7 mm. The oracle lower bound in the v3 ladder is 44.6 mm, so the V5 lower-tail row nearly reaches the recoverable median implied by the available raw distributions.
 
 This is not presented as a new NLOS detection method. The lower-tail statistic is deliberately simple. Its value is experimental: it reduces the positive tag-anchor tail enough to remove the cancellation condition under which V4 was winning. The intervention therefore supports the mechanism claim that single-environment positioning accuracy can prefer a physically wrong geometry when the wrong geometry cancels structured range bias.
 
@@ -103,7 +103,7 @@ This is not presented as a new NLOS detection method. The lower-tail statistic i
 \label{fig:raw_ladder}
 \end{figure}
 
-The caveat is the tail. The lower-quantile V5 row improves the median to 44.5 mm but keeps P95 at 164.1 mm and RMSE at 81.5 mm. By contrast, V4+C\_V4+D\_LOO under p50 has P95 110.6 mm. The lower-tail result therefore solves the typical static error better than it solves worst-case static positioning. The 5000-iteration bootstrap interval, 33.4--82.8 mm, also remains wide because the campaign has only 24 static positions.
+The caveat is the tail. Under the unified scalar convention, the lower-quantile V5 row improves the median to 44.5 mm and improves P95 from 175.1 mm for V5 scalar p50 to 164.1 mm, with RMSE 81.5 mm. This removes the old apparent V4 P95 advantage, which came from mixing evaluation conventions. The tail is still high in absolute terms, so the lower-tail result solves typical static error better than it solves worst-case static positioning. The 5000-iteration bootstrap interval, 33.4--82.8 mm, also remains wide because the campaign has only 24 static positions.
 
 \section{Anchor Lower-Trim Blind Experiment}
 
@@ -192,7 +192,7 @@ The current research configuration is V5 common-mode self-calibration with the e
 
 \section{Updated Headline Table}
 
-The headline table below is reproduced from \texttt{FULL\_V5\_experimental\_report/tables/locked\_headline\_v2.csv}. It should be read as a campaign registry rather than a single leaderboard, because rows differ in evaluation protocol. Rows labelled in-sample, diagnostic, Sim3, or oracle should not be used as deployment claims. Row O is the new raw-frame static batch result; its median is strong, but its P95 is not.
+The headline table below is reproduced from \texttt{FULL\_V5\_convention\_unification/tables/unified\_headline\_table.csv}. It should be read as a campaign registry rather than a single leaderboard, because rows differ in evaluation protocol. Rows labelled in-sample, diagnostic, Sim3, or oracle should not be used as deployment claims. Row O is the new raw-frame static batch result; its median is strong, and under the scalar convention its P95 is slightly better than the V5 p50 baseline, although still high in absolute terms.
 
 \begin{table}[H]
 \centering
@@ -203,13 +203,13 @@ The headline table below is reproduced from \texttt{FULL\_V5\_experimental\_repo
 \toprule
 Row & Variant & Median & P95 & RMSE & Evaluation & New \\
 \midrule
-A & V4 production & 71.9 & 176.0 & 110.4 & in-sample, all 24 &  \\
-B & V4 + D\_LOO & 57.9 & 110.6 & 74.4 & LOO-CV &  \\
-C & V5 baseline & 67.8 & 160.5 & 86.4 & LOO-CV &  \\
-D & V5 apparent best & 56.0 & 143.1 & 79.5 & in-sample post-selected &  \\
-E & V4 apparent best & 54.9 & 154.8 & 79.6 & in-sample post-selected &  \\
-F & V5 corrected & 65.6 &  &  & OOB-bootstrap &  \\
-G & V4 corrected & 64.5 &  &  & OOB-bootstrap &  \\
+A & V4 production & 81.6 & 189.4 & 114.3 & in-sample, all 24 &  \\
+B & V4 + D\_LOO & 61.5 & 157.0 & 87.5 & LOO-CV &  \\
+C & V5 baseline & 63.5 & 175.1 & 91.8 & LOO-CV &  \\
+D & V5 apparent best & 65.5 & 132.0 & 84.9 & in-sample post-selected &  \\
+E & V4 apparent best & 57.1 & 221.6 & 94.4 & in-sample post-selected &  \\
+F & V5 corrected & 75.1 &  &  & OOB-bootstrap &  \\
+G & V4 corrected & 66.7 &  &  & OOB-bootstrap &  \\
 H & V5 bootstrap CI & [54.3, 63.7] &  &  & bootstrap 95\% CI &  \\
 I & Nested CV (height) & 82.9 &  &  & held-out test &  \\
 J & Nested CV (quadrant) & 88.0 &  &  & held-out test &  \\
@@ -225,7 +225,7 @@ R & Bootstrap CI (lower\_trim\_20) & [33.4, 82.8] &  &  & bootstrap 95\% CI & YE
 \end{tabular}
 \end{table}
 
-The most important comparison is not Row O against every other row, but the ranking reversal under a controlled change in tag-anchor range bias. Under p50, V4 wins at 57.9 mm versus V5 at 67.8 mm. Under lower\_trim\_20 with Huber30, V5 reaches 44.5 mm and the best V4 raw-frame geometry row is 53.9 mm. That reversal is the evidence for delay--layout--NLOS coupling.
+The most important comparison is not Row O against every other row, but the ranking reversal under a controlled change in tag-anchor range bias. Under scalar p50, V4 wins only narrowly at 61.5 mm versus V5 at 63.5 mm. Under lower\_trim\_20 with Huber30, V5 reaches 44.5 mm and the best V4 raw-frame geometry row is 53.9 mm. That reversal is the evidence for delay--layout--NLOS coupling.
 
 \section{Updated Claim Matrix}
 
@@ -240,7 +240,7 @@ The V3 report reorganizes the claim matrix around delay--layout coupling. The ca
 \toprule
 ID & Level & Recommended wording \\
 \midrule
-26 & B & Lower-quantile tag-anchor aggregation improves static median when enough frames are accumulated, but the P95 remains high. \\
+26 & B & Lower-quantile tag-anchor aggregation improves static median and slightly improves P95 under scalar convention when enough frames are accumulated, but the absolute P95 remains high. \\
 27 & A & Inter-anchor raw ranges are nearly symmetric; lower-tail aggregation is inappropriate for anchor self-calibration here. \\
 28 & B & The e\_i=0 or low-e\_i V5 variant is slightly better for the raw-frame static estimator, but the bootstrap evidence is not decisive. \\
 29 & A & When tag-anchor positive bias is reduced, V4's cancellation advantage disappears and V5 becomes the better geometry. \\
@@ -262,7 +262,7 @@ For firmware and capture design, the priority is to keep saving raw per-frame ra
 
 \section{Open Questions}
 
-The first open question is tail reduction. The lower-quantile row improves the static median but leaves P95 around 164 mm. The next analysis should identify which positions and anchors cause this tail and whether per-anchor stability rules can reduce it without giving back the median gain.
+The first open question is tail reduction. The lower-quantile row improves the static median and improves P95 relative to scalar V5 p50, but P95 remains around 164 mm. The next analysis should identify which positions and anchors cause this tail and whether per-anchor stability rules can reduce it without giving back the median gain.
 
 The second open question is external validation. The current LOO and bootstrap results are still within one room and one 24-position campaign. A second-room run with a frozen pipeline should repeat p50 V4, p50 V5, lower-quantile V5, p50/e\_i=0 anchors, and the same hard validation splits.
 
