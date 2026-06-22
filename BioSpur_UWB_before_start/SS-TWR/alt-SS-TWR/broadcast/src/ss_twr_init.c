@@ -24,12 +24,14 @@ enum uwb_tag_ble_cal_status {
 #include <limits.h>
 #include <stdint.h>
 #include <string.h>
+#include <strings.h>
 
 #include <deca_device_api.h>
 #include <deca_regs.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
+#include <zephyr/sys/atomic.h>
 
 #define SS_TWR_INIT_TX_ANT_DLY 16436U
 #define SS_TWR_INIT_RX_ANT_DLY 16436U
@@ -540,6 +542,7 @@ static bool ss_twr_init_last_imu_indicates_motion;
 static struct uwb_tag_runtime_params ss_twr_init_runtime_params;
 static struct uwb_tag_runtime_params ss_twr_init_pending_runtime_params;
 static bool ss_twr_init_runtime_update_pending;
+static atomic_t ss_twr_init_cir_mode;
 static bool ss_twr_init_last_sweep_cut_short;
 static uint32_t ss_twr_init_last_tdma_wait_ms;
 static uint32_t ss_twr_init_last_slot_guard_log_ms;
@@ -590,6 +593,81 @@ static const char *ss_twr_init_solve_reason_label(void);
 static bool ss_twr_init_anchor_id_in_list(const uint8_t *anchor_ids, size_t count,
                                           uint8_t anchor_id);
 
+const char *ss_twr_init_cir_mode_label(enum uwb_tag_cir_mode mode)
+{
+    switch (mode) {
+    case UWB_TAG_CIR_MODE_COMPACT:
+        return "compact";
+    case UWB_TAG_CIR_MODE_FULL:
+        return "full";
+    case UWB_TAG_CIR_MODE_OFF:
+    default:
+        return "off";
+    }
+}
+
+enum uwb_tag_cir_mode ss_twr_init_cir_mode_get(void)
+{
+    atomic_val_t value = atomic_get(&ss_twr_init_cir_mode);
+
+    if (value == UWB_TAG_CIR_MODE_COMPACT ||
+        value == UWB_TAG_CIR_MODE_FULL) {
+        return (enum uwb_tag_cir_mode)value;
+    }
+    return UWB_TAG_CIR_MODE_OFF;
+}
+
+int ss_twr_init_cir_mode_set(enum uwb_tag_cir_mode mode)
+{
+    if (mode != UWB_TAG_CIR_MODE_COMPACT &&
+        mode != UWB_TAG_CIR_MODE_FULL) {
+        mode = UWB_TAG_CIR_MODE_OFF;
+    }
+    atomic_set(&ss_twr_init_cir_mode, (atomic_val_t)mode);
+    return 0;
+}
+
+int ss_twr_init_cir_mode_parse(const char *text, enum uwb_tag_cir_mode *mode)
+{
+    const char *value = text;
+
+    if (text == NULL || mode == NULL) {
+        return -EINVAL;
+    }
+    if (strncasecmp(value, "cir=", 4) == 0) {
+        value += 4;
+    }
+    if (strcasecmp(value, "0") == 0 ||
+        strcasecmp(value, "off") == 0 ||
+        strcasecmp(value, "none") == 0) {
+        *mode = UWB_TAG_CIR_MODE_OFF;
+        return 0;
+    }
+    if (strcasecmp(value, "1") == 0 ||
+        strcasecmp(value, "compact") == 0 ||
+        strcasecmp(value, "feature") == 0) {
+        *mode = UWB_TAG_CIR_MODE_COMPACT;
+        return 0;
+    }
+    if (strcasecmp(value, "2") == 0 ||
+        strcasecmp(value, "full") == 0 ||
+        strcasecmp(value, "raw") == 0) {
+        *mode = UWB_TAG_CIR_MODE_FULL;
+        return 0;
+    }
+    return -EINVAL;
+}
+
+static bool ss_twr_init_cir_compact_enabled(void)
+{
+    return ss_twr_init_cir_mode_get() == UWB_TAG_CIR_MODE_COMPACT;
+}
+
+static bool ss_twr_init_cir_full_enabled(void)
+{
+    return ss_twr_init_cir_mode_get() == UWB_TAG_CIR_MODE_FULL;
+}
+
 #define SS_TWR_INIT_SWEEP_ANCHOR_PENDING 0xffU
 
 enum ss_twr_init_cal_reason_code {
@@ -612,6 +690,9 @@ static void ss_twr_init_publish_cir_features(uint8_t anchor_id,
 {
     char line[192];
 
+    if (!ss_twr_init_cir_compact_enabled()) {
+        return;
+    }
     if (diag == NULL) {
         return;
     }
@@ -653,10 +734,7 @@ static void ss_twr_init_publish_cir_features(uint8_t anchor_id,
 
 #if APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U
 #define SS_TWR_INIT_CIR_ACC_DATA_LEN ACC_MEM_LEN
-#define SS_TWR_INIT_CIR_ACC_READ_LEN (ACC_MEM_LEN + 1U)
-#define SS_TWR_INIT_CIR_ACC_SPI_CHUNK_BYTES 512U
 
-static uint8_t ss_twr_init_cir_full_acc[SS_TWR_INIT_CIR_ACC_READ_LEN];
 static uint8_t ss_twr_init_cir_full_target_cursor;
 static uint8_t ss_twr_init_cir_full_priority_cursor;
 
@@ -724,44 +802,20 @@ static size_t ss_twr_init_cir_full_append_priority_anchors(uint8_t *dest_ids,
     return dest_count;
 }
 
-static void ss_twr_init_read_full_cir(uint8_t *acc_with_dummy)
-{
-    static uint8_t chunk[SS_TWR_INIT_CIR_ACC_SPI_CHUNK_BYTES + 1U];
-    uint16_t offset = 0U;
-
-    if (acc_with_dummy == NULL) {
-        return;
-    }
-
-    acc_with_dummy[0] = 0U;
-    while (offset < SS_TWR_INIT_CIR_ACC_DATA_LEN) {
-        uint16_t len =
-            MIN((uint16_t)SS_TWR_INIT_CIR_ACC_SPI_CHUNK_BYTES,
-                (uint16_t)(SS_TWR_INIT_CIR_ACC_DATA_LEN - offset));
-
-        memset(chunk, 0, (size_t)len + 1U);
-        dwt_readaccdata(chunk, (uint16)(len + 1U), offset);
-        memcpy(&acc_with_dummy[1U + offset], &chunk[1], len);
-        offset = (uint16_t)(offset + len);
-    }
-}
-
 static void ss_twr_init_publish_full_cir(uint8_t anchor_id,
                                          long raw_distance_mm,
                                          uint32_t resp_rx_ts,
                                          int32_t carrier_integrator,
-                                         const dwt_rxdiag_t *diag,
-                                         const uint8_t *acc_with_dummy)
+                                         const dwt_rxdiag_t *diag)
 {
 #if APP_TAG_CIR_FULL_OUTPUT_CDC_ENABLE != 0U
     static const char hex[] = "0123456789ABCDEF";
-    const uint8_t *acc;
+    uint8_t chunk[49];
     uint16_t offset = 0U;
     uint16_t chunk_bytes = APP_TAG_CIR_FULL_CHUNK_BYTES;
     uint16_t fp_amp_sum;
 
-    if (diag == NULL || acc_with_dummy == NULL ||
-        anchor_id >= UWB_MAX_ANCHORS) {
+    if (diag == NULL || anchor_id >= UWB_MAX_ANCHORS) {
         return;
     }
 
@@ -769,7 +823,6 @@ static void ss_twr_init_publish_full_cir(uint8_t anchor_id,
         chunk_bytes = 48U;
     }
 
-    acc = &acc_with_dummy[1];
     fp_amp_sum = (uint16_t)(diag->firstPathAmp1 + diag->firstPathAmp2 +
                             diag->firstPathAmp3);
 
@@ -787,13 +840,16 @@ static void ss_twr_init_publish_full_cir(uint8_t anchor_id,
         char line[144];
         size_t pos = 0U;
 
+        memset(chunk, 0, (size_t)len + 1U);
+        dwt_readaccdata(chunk, (uint16)(len + 1U), offset);
+
         pos += (size_t)snprintk(line + pos, sizeof(line) - pos,
                                 "CIRD;1;%lu;%u;%u;%u;",
                                 (unsigned long)ss_twr_init_sweep_count,
                                 (unsigned int)anchor_id,
                                 (unsigned int)offset, (unsigned int)len);
         for (uint16_t i = 0U; i < len && pos + 2U < sizeof(line); ++i) {
-            uint8_t b = acc[offset + i];
+            uint8_t b = chunk[1U + i];
             line[pos++] = hex[(b >> 4) & 0x0fU];
             line[pos++] = hex[b & 0x0fU];
         }
@@ -811,7 +867,6 @@ static void ss_twr_init_publish_full_cir(uint8_t anchor_id,
     ARG_UNUSED(resp_rx_ts);
     ARG_UNUSED(carrier_integrator);
     ARG_UNUSED(diag);
-    ARG_UNUSED(acc_with_dummy);
 #endif
 }
 #else
@@ -819,17 +874,34 @@ static void ss_twr_init_publish_full_cir(uint8_t anchor_id,
                                          long raw_distance_mm,
                                          uint32_t resp_rx_ts,
                                          int32_t carrier_integrator,
-                                         const dwt_rxdiag_t *diag,
-                                         const uint8_t *acc_with_dummy)
+                                         const dwt_rxdiag_t *diag)
 {
     ARG_UNUSED(anchor_id);
     ARG_UNUSED(raw_distance_mm);
     ARG_UNUSED(resp_rx_ts);
     ARG_UNUSED(carrier_integrator);
     ARG_UNUSED(diag);
-    ARG_UNUSED(acc_with_dummy);
 }
 #endif
+
+static long ss_twr_init_calc_raw_distance_mm(uint32_t poll_tx_ts,
+                                             uint32_t resp_rx_ts,
+                                             uint32_t poll_rx_ts,
+                                             uint32_t resp_tx_ts,
+                                             int32_t carrier_integrator)
+{
+    int32 rtd_init = (int32)(resp_rx_ts - poll_tx_ts);
+    int32 rtd_resp = (int32)(resp_tx_ts - poll_rx_ts);
+    double clock_offset_ratio =
+        (double)carrier_integrator *
+        (FREQ_OFFSET_MULTIPLIER * HERTZ_TO_PPM_MULTIPLIER_CHAN_5 / 1.0e6);
+    double tof =
+        ((rtd_init - rtd_resp * (1.0 - clock_offset_ratio)) / 2.0) *
+        DWT_TIME_UNITS;
+    long raw_mm = (long)(tof * SS_TWR_INIT_SPEED_OF_LIGHT * 1000.0);
+
+    return raw_mm < 0L ? 0L : raw_mm;
+}
 
 #if APP_TAG_BLE_ENABLE
 static void ss_twr_init_publish_cal_range(uint8_t anchor_id,
@@ -2944,17 +3016,19 @@ static void ss_twr_init_prepare_sweep_plan(void)
 
 #if APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U && \
     APP_TAG_CIR_FULL_PRIORITY_ONLY_SWEEP != 0U
-    active_count = ss_twr_init_cir_full_append_priority_anchors(
-        ss_twr_init_active_anchor_ids, active_count,
-        ARRAY_SIZE(ss_twr_init_active_anchor_ids));
-    if (active_count > 0U) {
-        ss_twr_init_current_sweep_full = true;
-        ss_twr_init_current_sweep_refresh = false;
-        ss_twr_init_active_anchor_count = active_count;
-        ss_twr_init_active_anchor_index = 0U;
-        ss_twr_init_current_sweep_start_ms = (uint32_t)k_uptime_get();
-        ss_twr_init_reset_sweep_anchor_state();
-        return;
+    if (ss_twr_init_cir_full_enabled()) {
+        active_count = ss_twr_init_cir_full_append_priority_anchors(
+            ss_twr_init_active_anchor_ids, active_count,
+            ARRAY_SIZE(ss_twr_init_active_anchor_ids));
+        if (active_count > 0U) {
+            ss_twr_init_current_sweep_full = true;
+            ss_twr_init_current_sweep_refresh = false;
+            ss_twr_init_active_anchor_count = active_count;
+            ss_twr_init_active_anchor_index = 0U;
+            ss_twr_init_current_sweep_start_ms = (uint32_t)k_uptime_get();
+            ss_twr_init_reset_sweep_anchor_state();
+            return;
+        }
     }
 #endif
 
@@ -4900,9 +4974,6 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
     int32_t carrier_integrator_by_anchor[UWB_MAX_ANCHORS] = {0};
     dwt_rxdiag_t rx_diag_by_anchor[UWB_MAX_ANCHORS];
     bool rx_diag_valid[UWB_MAX_ANCHORS] = {0};
-#if APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U
-    bool cir_full_valid[UWB_MAX_ANCHORS] = {0};
-#endif
     long raw_distance_mm[UWB_MAX_ANCHORS] = {0};
     bool received[UWB_MAX_ANCHORS] = {0};
     uint8_t responses = 0U;
@@ -4941,7 +5012,9 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
     response_window_us = ss_twr_init_alt_bcast_response_window_us(poll_count);
     response_window_cycles = k_us_to_cyc_floor32(response_window_us);
 #if APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U
-    cir_full_target_anchor_id = ss_twr_init_cir_full_select_target(poll_count);
+    if (ss_twr_init_cir_full_enabled()) {
+        cir_full_target_anchor_id = ss_twr_init_cir_full_select_target(poll_count);
+    }
 #endif
 #if APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST
     ss_twr_init_alt_set_rx_auto_reenable(false);
@@ -5237,13 +5310,6 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             }
             dwt_readdiagnostics(&rx_diag_by_anchor[anchor_id]);
             rx_diag_valid[anchor_id] = true;
-#if APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U
-            if (anchor_id == cir_full_target_anchor_id && !cir_full_captured) {
-                ss_twr_init_read_full_cir(ss_twr_init_cir_full_acc);
-                cir_full_valid[anchor_id] = true;
-                cir_full_captured = true;
-            }
-#endif
 
             ss_twr_init_read_ts(
                 &ss_twr_init_rx_buffer[SS_TWR_INIT_RESP_MSG_POLL_RX_TS_IDX],
@@ -5251,6 +5317,19 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             ss_twr_init_read_ts(
                 &ss_twr_init_rx_buffer[SS_TWR_INIT_RESP_MSG_RESP_TX_TS_IDX],
                 &resp_tx_ts);
+#if APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U
+            if (ss_twr_init_cir_full_enabled() &&
+                anchor_id == cir_full_target_anchor_id && !cir_full_captured) {
+                long cir_raw_mm = ss_twr_init_calc_raw_distance_mm(
+                    poll_tx_ts[anchor_id], resp_rx_ts, poll_rx_ts, resp_tx_ts,
+                    carrier_integrator);
+
+                ss_twr_init_publish_full_cir(anchor_id, cir_raw_mm,
+                                             resp_rx_ts, carrier_integrator,
+                                             &rx_diag_by_anchor[anchor_id]);
+                cir_full_captured = true;
+            }
+#endif
 
             resp_rx_ts_by_anchor[anchor_id] = resp_rx_ts;
             poll_rx_ts_by_anchor[anchor_id] = poll_rx_ts;
@@ -5367,19 +5446,25 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             carrier_integrator = dwt_readcarrierintegrator();
             dwt_readdiagnostics(&rx_diag_by_anchor[anchor_id]);
             rx_diag_valid[anchor_id] = true;
-#if APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U
-            if (anchor_id == cir_full_target_anchor_id && !cir_full_captured) {
-                ss_twr_init_read_full_cir(ss_twr_init_cir_full_acc);
-                cir_full_valid[anchor_id] = true;
-                cir_full_captured = true;
-            }
-#endif
             ss_twr_init_read_ts(
                 &ss_twr_init_rx_buffer[SS_TWR_INIT_RESP_MSG_POLL_RX_TS_IDX],
                 &poll_rx_ts);
             ss_twr_init_read_ts(
                 &ss_twr_init_rx_buffer[SS_TWR_INIT_RESP_MSG_RESP_TX_TS_IDX],
                 &resp_tx_ts);
+#if APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U
+            if (ss_twr_init_cir_full_enabled() &&
+                anchor_id == cir_full_target_anchor_id && !cir_full_captured) {
+                long cir_raw_mm = ss_twr_init_calc_raw_distance_mm(
+                    poll_tx_ts[anchor_id], resp_rx_ts, poll_rx_ts, resp_tx_ts,
+                    carrier_integrator);
+
+                ss_twr_init_publish_full_cir(anchor_id, cir_raw_mm,
+                                             resp_rx_ts, carrier_integrator,
+                                             &rx_diag_by_anchor[anchor_id]);
+                cir_full_captured = true;
+            }
+#endif
 
             resp_rx_ts_by_anchor[anchor_id] = resp_rx_ts;
             poll_rx_ts_by_anchor[anchor_id] = poll_rx_ts;
@@ -5441,16 +5526,6 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
                     resp_rx_ts_by_anchor[anchor_id],
                     carrier_integrator_by_anchor[anchor_id],
                     &rx_diag_by_anchor[anchor_id]);
-#if APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U
-                if (cir_full_valid[anchor_id]) {
-                    ss_twr_init_publish_full_cir(
-                        anchor_id, raw_distance_mm[anchor_id],
-                        resp_rx_ts_by_anchor[anchor_id],
-                        carrier_integrator_by_anchor[anchor_id],
-                        &rx_diag_by_anchor[anchor_id],
-                        ss_twr_init_cir_full_acc);
-                }
-#endif
             }
             ss_twr_init_alt_record_range(anchor_id, raw_distance_mm[anchor_id]);
         } else {
@@ -5917,6 +5992,13 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
             ss_twr_init_publish_cir_features(current_anchor_id, raw_distance_mm,
                                              resp_rx_ts, carrier_integrator,
                                              &rx_diag);
+#if APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U
+            if (ss_twr_init_cir_full_enabled()) {
+                ss_twr_init_publish_full_cir(current_anchor_id, raw_distance_mm,
+                                             resp_rx_ts, carrier_integrator,
+                                             &rx_diag);
+            }
+#endif
 
             if (tracker == NULL) {
                 ss_twr_init_sleep_between_ranges();

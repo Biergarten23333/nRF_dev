@@ -341,6 +341,7 @@ static void control_print_help(void)
 	printk("OTA runtime cmds: ota_reset | ota show | ota version\n");
 	printk("Runtime NUS cmds: cmd <raw> | cmd_all <raw> | oneshot <raw> | oneshot show | oneshot clear\n");
 	printk("Tag layout cmds: APOS <id> <x_mm> <y_mm> <z_mm> | APOS_TO <BSxxxx> APOS... | APOS_COMMIT | APOS_STATUS | APOS_RESET\n");
+	printk("Tag CIR cmds: tag cir <off|compact|full|status> | tag cir all <off|compact|full|status>\n");
 	printk("TDMA cmds: tdma show | tdma hold <0|1> | tdma roster <BSxxxx> <static|roto|motion> | tdma profile <BSxxxx> <static|roto|motion> | tdma freq <static|roto|motion> <hz> | tdma rebalance\n");
 	printk("Device model cmds: device show | device kind <anchor|tag>\n");
 	printk("OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->\n");
@@ -2404,6 +2405,60 @@ static void control_handle_uart_command(const char *line)
 		payload = line + 8;
 		rc = master_send_command_all_now(payload);
 		printk("cmd_all rc=%d payload=%s\n", rc, payload);
+		return;
+	}
+
+	if (strncasecmp(line, "tag cir ", 8) == 0) {
+		char mode[24] = { 0 };
+		bool send_all = false;
+		const char *cir_payload;
+
+		if (control_build_anchor_only()) {
+			printk("tag cir ignored: anchor-only build never targets BS tags\n");
+			control_force_anchor_runtime_target(control_mode == CONTROL_MODE_AUTOPOS);
+			return;
+		}
+
+		if (sscanf(line + 8, "%23s", mode) != 1) {
+			printk("tag cir usage: tag cir <off|compact|full|status> | tag cir all <off|compact|full|status>\n");
+			return;
+		}
+		for (char *p = mode; *p != '\0'; ++p) {
+			*p = (char)tolower((unsigned char)*p);
+		}
+		if (strcmp(mode, "all") == 0) {
+			send_all = true;
+			if (sscanf(line + 8, "%*s %23s", mode) != 1) {
+				printk("tag cir usage: missing mode after all\n");
+				return;
+			}
+			for (char *p = mode; *p != '\0'; ++p) {
+				*p = (char)tolower((unsigned char)*p);
+			}
+		}
+
+		if (strcmp(mode, "status") == 0 || strcmp(mode, "?") == 0) {
+			cir_payload = "CIR?";
+		} else if (strcmp(mode, "off") == 0 || strcmp(mode, "0") == 0) {
+			cir_payload = "CIR OFF";
+		} else if (strcmp(mode, "compact") == 0 || strcmp(mode, "1") == 0) {
+			cir_payload = "CIR COMPACT";
+		} else if (strcmp(mode, "full") == 0 || strcmp(mode, "2") == 0) {
+			cir_payload = "CIR FULL";
+		} else {
+			printk("tag cir invalid mode: %s\n", mode);
+			return;
+		}
+
+		system_target_set_kind(SYS_DEV_TAG);
+		master_set_runtime_target_kind(MASTER_TARGET_TAG);
+		if (send_all) {
+			rc = master_send_command_all_now(cir_payload);
+		} else {
+			rc = master_send_command_now(cir_payload);
+		}
+		printk("tag cir rc=%d all=%u payload=%s\n", rc,
+		       (unsigned int)(send_all ? 1U : 0U), cir_payload);
 		return;
 	}
 

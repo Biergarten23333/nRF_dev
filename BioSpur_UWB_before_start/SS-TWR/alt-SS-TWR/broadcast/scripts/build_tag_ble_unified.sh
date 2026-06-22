@@ -11,10 +11,18 @@ slot_count="${2:-10}"
 build_dir="${3:-build-tag-ble-unified-mode-switch}"
 
 # Unified BLE tag build:
-# - One image supports runtime mode switching through BLE commands:
-#   MODE CAL / MODE MOTION / MODE FIXED (plus MCAL/MMOT shortcuts).
-# - No separate calibration/motion firmware split is required.
-APP_TAG_FW_MARKER=unified-ble-mode-switch \
+# - One OTA-capable image keeps raw range output enabled.
+# - Capture workflow/profile remains runtime config; CIR is orthogonal runtime state.
+# - CIR defaults to OFF at boot and is enabled only through CIR OFF/COMPACT/FULL.
+APP_TAG_FW_MARKER="${APP_TAG_FW_MARKER:-unified-runtime-cir}" \
+APP_TAG_NORMAL_OUTPUT_ENABLE="${APP_TAG_NORMAL_OUTPUT_ENABLE:-1}" \
+APP_TAG_CIR_FEATURE_OUTPUT_ENABLE="${APP_TAG_CIR_FEATURE_OUTPUT_ENABLE:-1}" \
+APP_TAG_CIR_FEATURE_OUTPUT_BLE_ENABLE="${APP_TAG_CIR_FEATURE_OUTPUT_BLE_ENABLE:-1}" \
+APP_TAG_CIR_FULL_OUTPUT_ENABLE="${APP_TAG_CIR_FULL_OUTPUT_ENABLE:-1}" \
+APP_TAG_CIR_FULL_OUTPUT_CDC_ENABLE="${APP_TAG_CIR_FULL_OUTPUT_CDC_ENABLE:-1}" \
+APP_TAG_CIR_FULL_CHUNK_BYTES="${APP_TAG_CIR_FULL_CHUNK_BYTES:-48}" \
+APP_TAG_CIR_FULL_PRIORITY_MASK="${APP_TAG_CIR_FULL_PRIORITY_MASK:-0}" \
+APP_TAG_CIR_FULL_PRIORITY_ONLY_SWEEP="${APP_TAG_CIR_FULL_PRIORITY_ONLY_SWEEP:-0}" \
 ./scripts/build_tag_ble_motion.sh "${slot_index}" "${slot_count}" "${build_dir}"
 
 python3 scripts/write_build_source.py \
@@ -25,4 +33,4 @@ python3 scripts/write_build_source.py \
 echo
 echo "Built unified BLE tag image: ${build_dir}"
 echo "Hex: ${build_dir}/merged.hex"
-echo "Runtime BLE mode switch: MODE? | MODE CAL | MODE MOTION | MODE FIXED | MCAL | MMOT"
+echo "Runtime commands: MODE? | MODE CAL | MODE MOTION | MODE FIXED | CIR? | CIR OFF | CIR COMPACT | CIR FULL"

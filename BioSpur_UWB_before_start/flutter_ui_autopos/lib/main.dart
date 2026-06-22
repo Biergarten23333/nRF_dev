@@ -32,6 +32,8 @@ const captureTargetsByKind = {
   'wand': ['BS9336', 'BS955A', 'BSCCF4'],
 };
 String activeWorkspaceRoot = defaultWorkspaceRoot;
+String? selectedAnchorCdcPath;
+String? selectedTagCdcPath;
 String get capturesRoot => '$activeWorkspaceRoot/captures/$captureSession';
 String get activeCaptureRoot => '$activeWorkspaceRoot/captures';
 String get activeSolverRoot => '$activeWorkspaceRoot/solver';
@@ -40,8 +42,46 @@ String get activeStagedDataset =>
 String get activeSolverOutputs => '$activeWorkspaceRoot/solver/outputs';
 String get workspaceExport =>
     'export BIOSPUR_CAPTURE_ROOT=${shellQuote(activeCaptureRoot)}';
+String get portOverrideExport {
+  final exports = <String>[];
+  final anchorPath = selectedAnchorCdcPath?.trim();
+  if (anchorPath != null && anchorPath.isNotEmpty) {
+    exports.add('export BIOSPUR_ANCHOR_PORT=${shellQuote(anchorPath)}');
+    exports.add('export BIOSPUR_BASELINE_PORT=${shellQuote(anchorPath)}');
+  }
+  final tagPath = selectedTagCdcPath?.trim();
+  if (tagPath != null && tagPath.isNotEmpty) {
+    exports.add('export BIOSPUR_TAG_PORT=${shellQuote(tagPath)}');
+    exports.add('export BIOSPUR_1_PORT=${shellQuote(tagPath)}');
+  }
+  return exports.join(' && ');
+}
+
+String get autoDetectedPortExport {
+  final exports = <String>[];
+  if (_nonEmptyString(selectedAnchorCdcPath) == null) {
+    final fallback =
+        '/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Control_87EA2F4A526C5A02-if00';
+    exports.add(
+      'if [[ ! -e "\$BIOSPUR_ANCHOR_PORT" && -e ${shellQuote(fallback)} ]]; then '
+      'export BIOSPUR_ANCHOR_PORT=${shellQuote(fallback)}; '
+      'export BIOSPUR_BASELINE_PORT="\$BIOSPUR_ANCHOR_PORT"; '
+      'fi',
+    );
+  }
+  return exports.join(' && ');
+}
+
+String get repoAliasSetup {
+  final portExport = portOverrideExport;
+  final autoExport = autoDetectedPortExport;
+  return 'cd $repoRoot && source $aliases'
+      '${autoExport.isEmpty ? '' : ' && $autoExport'}'
+      '${portExport.isEmpty ? '' : ' && $portExport'}';
+}
+
 String get workspaceSetup =>
-    'cd $repoRoot && source $aliases && $workspaceExport && bio_setup $captureSession';
+    '$repoAliasSetup && $workspaceExport && bio_setup $captureSession';
 String get settingsPath {
   final home = Platform.environment['HOME'] ?? '/tmp';
   return '$home/.config/biospur-autopos/settings.json';
@@ -54,9 +94,9 @@ const biospurBlack = Color(0xFF050806);
 const panelLine = Color(0x33638A01);
 const tableLine = Color(0xAA638A01);
 const mutedText = Color(0xFFB6C7B3);
-const appVersion = '1.0.5';
-const appBuildStamp = '2026-05-27 15:20 CEST';
-const appBuildNote = 'layout/trajectory same-frame display fix';
+const appVersion = '1.0.8';
+const appBuildStamp = '2026-06-22 16:47 CEST';
+const appBuildNote = 'export auto-detected CDC fallback';
 
 class AutoPosFieldApp extends StatelessWidget {
   const AutoPosFieldApp({super.key});
@@ -169,12 +209,17 @@ class _FieldConsolePageState extends State<FieldConsolePage>
     try {
       final decoded = jsonDecode(await file.readAsString());
       if (decoded is! Map<String, dynamic>) return;
-      final path = decoded['workspace_root']?.toString();
-      if (path == null || path.isEmpty) return;
+      final path = _nonEmptyString(decoded['workspace_root']);
+      final anchorPath = _nonEmptyString(decoded['anchor_cdc_path']);
+      final tagPath = _nonEmptyString(decoded['tag_cdc_path']);
       if (!mounted) return;
       setState(() {
-        activeWorkspaceRoot = path;
-        _workspaceController.text = path;
+        if (path != null) {
+          activeWorkspaceRoot = path;
+          _workspaceController.text = path;
+        }
+        selectedAnchorCdcPath = anchorPath;
+        selectedTagCdcPath = tagPath;
       });
       await _refreshAll();
     } catch (_) {
@@ -226,15 +271,6 @@ class _FieldConsolePageState extends State<FieldConsolePage>
       }),
       encoding: utf8,
     );
-    final settings = File(settingsPath);
-    await settings.parent.create(recursive: true);
-    await settings.writeAsString(
-      const JsonEncoder.withIndent('  ').convert({
-        'workspace_root': expanded,
-        'updated_at': DateTime.now().toIso8601String(),
-      }),
-      encoding: utf8,
-    );
     if (!mounted) return;
     setState(() {
       activeWorkspaceRoot = expanded;
@@ -245,6 +281,8 @@ class _FieldConsolePageState extends State<FieldConsolePage>
       _selectedSolverSweep = null;
       _selectedSolverMode = 'v1-v4';
     });
+    await _saveUiSettings();
+    if (!mounted) return;
     await showBioSpurNotice(
       context,
       title: 'Workspace activated',
@@ -281,6 +319,71 @@ class _FieldConsolePageState extends State<FieldConsolePage>
         ),
       );
     }
+  }
+
+  Future<void> _saveUiSettings() async {
+    final settings = File(settingsPath);
+    await settings.parent.create(recursive: true);
+    final data = <String, Object?>{
+      'workspace_root': activeWorkspaceRoot,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    final anchorPath = selectedAnchorCdcPath?.trim();
+    if (anchorPath != null && anchorPath.isNotEmpty) {
+      data['anchor_cdc_path'] = anchorPath;
+    }
+    final tagPath = selectedTagCdcPath?.trim();
+    if (tagPath != null && tagPath.isNotEmpty) {
+      data['tag_cdc_path'] = tagPath;
+    }
+    await settings.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(data),
+      encoding: utf8,
+    );
+  }
+
+  Future<void> _pickAnchorCdcPort() async {
+    await _pickCdcPort(
+      title: 'Anchor CDC',
+      currentPath: selectedAnchorCdcPath,
+      suggestedPath: _ports.anchorPath,
+      onSelected: (path) => selectedAnchorCdcPath = path,
+    );
+  }
+
+  Future<void> _pickTagCdcPort() async {
+    await _pickCdcPort(
+      title: 'Tag CDC',
+      currentPath: selectedTagCdcPath,
+      suggestedPath: _ports.tagPath,
+      onSelected: (path) => selectedTagCdcPath = path,
+    );
+  }
+
+  Future<void> _pickCdcPort({
+    required String title,
+    required String? currentPath,
+    required String? suggestedPath,
+    required void Function(String? path) onSelected,
+  }) async {
+    if (_runner.isRunning) return;
+    final entries = await PortReader.listSerialPorts();
+    if (!mounted) return;
+    final result = await showDialog<CdcPortPickResult>(
+      context: context,
+      builder: (context) => CdcPortPickerDialog(
+        title: title,
+        entries: entries,
+        selectedPath: currentPath,
+        suggestedPath: suggestedPath,
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      onSelected(result.path);
+    });
+    await _saveUiSettings();
+    await _refreshAll();
   }
 
   Future<void> _refreshAll() async {
@@ -372,6 +475,8 @@ echo "[clear] done"
                 workspaceController: _workspaceController,
                 onApplyWorkspace: _applyWorkspace,
                 onBrowseWorkspace: _browseWorkspace,
+                onPickAnchorPort: _pickAnchorCdcPort,
+                onPickTagPort: _pickTagCdcPort,
               ),
               AnchorStatusBar(ports: _ports, sweep: _sweep, runner: _runner),
               Material(
@@ -617,6 +722,8 @@ class FieldHeader extends StatelessWidget {
     required this.workspaceController,
     required this.onApplyWorkspace,
     required this.onBrowseWorkspace,
+    required this.onPickAnchorPort,
+    required this.onPickTagPort,
   });
 
   final PortSnapshot ports;
@@ -625,6 +732,8 @@ class FieldHeader extends StatelessWidget {
   final TextEditingController workspaceController;
   final VoidCallback onApplyWorkspace;
   final VoidCallback onBrowseWorkspace;
+  final VoidCallback onPickAnchorPort;
+  final VoidCallback onPickTagPort;
 
   @override
   Widget build(BuildContext context) {
@@ -734,16 +843,22 @@ class FieldHeader extends StatelessWidget {
                 ],
               ),
             ),
-            StatusPill(
+            CdcStatusButton(
               label: 'Anchor CDC',
-              value: ports.masterAnchor ? 'OK' : 'missing',
-              tone: ports.masterAnchor ? PillTone.good : PillTone.bad,
+              online: ports.masterAnchor,
+              manual: ports.anchorManual,
+              path: ports.anchorPath,
+              enabled: !runner.isRunning,
+              onPressed: onPickAnchorPort,
             ),
             const SizedBox(width: 8),
-            StatusPill(
+            CdcStatusButton(
               label: 'Tag CDC',
-              value: ports.masterTag ? 'OK' : 'missing',
-              tone: ports.masterTag ? PillTone.good : PillTone.bad,
+              online: ports.masterTag,
+              manual: ports.tagManual,
+              path: ports.tagPath,
+              enabled: !runner.isRunning,
+              onPressed: onPickTagPort,
             ),
             const SizedBox(width: 8),
             StatusPill(
@@ -756,6 +871,154 @@ class FieldHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+class CdcStatusButton extends StatelessWidget {
+  const CdcStatusButton({
+    super.key,
+    required this.label,
+    required this.online,
+    required this.manual,
+    required this.path,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool online;
+  final bool manual;
+  final String? path;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = online ? PillTone.good : PillTone.bad;
+    final state = online ? 'OK' : 'missing';
+    final detail = [
+      '$label: $state${manual ? ' (manual)' : ''}',
+      if (path != null && path!.isNotEmpty) path!,
+    ].join('\n');
+    return Tooltip(
+      message: detail,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 128, maxWidth: 190),
+        child: OutlinedButton.icon(
+          onPressed: enabled ? onPressed : null,
+          icon: const Icon(Icons.usb, size: 18),
+          label: Text(
+            '$label: $state',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: toneColor(tone),
+            side: BorderSide(color: toneColor(tone).withValues(alpha: 0.42)),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            textStyle: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class CdcPortPickerDialog extends StatelessWidget {
+  const CdcPortPickerDialog({
+    super.key,
+    required this.title,
+    required this.entries,
+    required this.selectedPath,
+    required this.suggestedPath,
+  });
+
+  final String title;
+  final List<SerialPortEntry> entries;
+  final String? selectedPath;
+  final String? suggestedPath;
+
+  @override
+  Widget build(BuildContext context) {
+    final effectivePath = selectedPath ?? suggestedPath;
+    final size = MediaQuery.sizeOf(context);
+    return AlertDialog(
+      title: Text(title),
+      content: SizedBox(
+        width: math.min(size.width * 0.86, 760),
+        height: math.min(size.height * 0.62, 460),
+        child: entries.isEmpty
+            ? const Center(child: Text('No entries under /dev/serial/by-id'))
+            : ListView.separated(
+                itemCount: entries.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final entry = entries[index];
+                  final selected = entry.path == effectivePath;
+                  final manualSelected =
+                      selectedPath != null && entry.path == selectedPath;
+                  return ListTile(
+                    dense: true,
+                    selected: selected,
+                    leading: Icon(
+                      manualSelected
+                          ? Icons.check_circle
+                          : selected
+                          ? Icons.radio_button_checked
+                          : Icons.usb,
+                      color: selected ? controlGreen : mutedText,
+                    ),
+                    title: Text(
+                      entry.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontFamily: 'monospace'),
+                    ),
+                    subtitle: Text(
+                      entry.resolvedPath ?? entry.path,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontFamily: 'monospace'),
+                    ),
+                    trailing: manualSelected
+                        ? const Text(
+                            'manual',
+                            style: TextStyle(
+                              color: controlGreen,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          )
+                        : null,
+                    onTap: () {
+                      Navigator.of(context).pop(CdcPortPickResult(entry.path));
+                    },
+                  );
+                },
+              ),
+      ),
+      actions: [
+        TextButton.icon(
+          onPressed: () {
+            Navigator.of(context).pop(const CdcPortPickResult(null));
+          },
+          icon: const Icon(Icons.auto_mode),
+          label: const Text('Auto'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+      ],
+    );
+  }
+}
+
+class CdcPortPickResult {
+  const CdcPortPickResult(this.path);
+
+  final String? path;
 }
 
 class AnchorStatusBar extends StatelessWidget {
@@ -999,20 +1262,16 @@ class _AutoPosSweepTabState extends State<AutoPosSweepTab> {
   }
 
   Future<void> _connect() async {
-    await _runShell(
-      'Refresh ports',
-      'cd $repoRoot && source $aliases && bio_ports',
-    );
-    final ports = widget.ports.masterTag
-        ? widget.ports
-        : await PortReader.read();
+    await _runShell('Refresh ports', '$repoAliasSetup && bio_ports');
+    final ports = await PortReader.read();
     if (!mounted) return;
     if (!ports.anyMaster) {
       await showBioSpurNotice(
         context,
         title: 'Device not connected',
-        message:
-            'No Master_Anchor or Master_Tag CDC port is visible under /dev/serial/by-id.',
+        message: portOverrideExport.isEmpty
+            ? 'No Master_Anchor or Master_Tag CDC port is visible under /dev/serial/by-id.'
+            : 'The selected Anchor/Tag CDC path is not visible on this machine. Click Anchor CDC or Tag CDC and choose the current /dev/serial/by-id entry.',
       );
     }
   }
@@ -1029,10 +1288,7 @@ class _AutoPosSweepTabState extends State<AutoPosSweepTab> {
       );
       return;
     }
-    await _runShell(
-      'USB power on',
-      'cd $repoRoot && source $aliases && bio_usb_on',
-    );
+    await _runShell('USB power on', '$repoAliasSetup && bio_usb_on');
   }
 
   Future<void> _allAnchorResponder() async {
@@ -6658,31 +6914,128 @@ class ScriptRunner extends ChangeNotifier {
 }
 
 class PortReader {
+  static const _serialByIdRoot = '/dev/serial/by-id';
+  static const _anchorTokens = [
+    'Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02',
+    'BioSpur_BioSpur_BLE_Control_87EA2F4A526C5A02',
+  ];
+  static const _tagTokens = ['Master_Tag_BioSpur_BLE_Control_6918E0384172A49F'];
+
   static Future<PortSnapshot> read() async {
-    final dir = Directory('/dev/serial/by-id');
-    if (!dir.existsSync()) return PortSnapshot.empty();
-    final names = dir.listSync().map((e) => e.path.split('/').last).join('\n');
+    final entries = await listSerialPorts();
+    final anchorOverride = _nonEmptyString(selectedAnchorCdcPath);
+    final tagOverride = _nonEmptyString(selectedTagCdcPath);
+    final anchorPath = anchorOverride ?? _findByName(entries, _anchorTokens);
+    final tagPath = tagOverride ?? _findByName(entries, _tagTokens);
     return PortSnapshot(
-      masterAnchor:
-          names.contains('Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02') ||
-          names.contains('BioSpur_BioSpur_BLE_Control_87EA2F4A526C5A02'),
-      masterTag: names.contains(
-        'Master_Tag_BioSpur_BLE_Control_6918E0384172A49F',
-      ),
+      masterAnchor: anchorPath != null && _pathExists(anchorPath),
+      masterTag: tagPath != null && _pathExists(tagPath),
+      anchorPath: anchorPath,
+      tagPath: tagPath,
+      anchorManual: anchorOverride != null,
+      tagManual: tagOverride != null,
+      entries: entries,
     );
+  }
+
+  static Future<List<SerialPortEntry>> listSerialPorts() async {
+    final dir = Directory(_serialByIdRoot);
+    if (!dir.existsSync()) return const [];
+    final entries = <SerialPortEntry>[];
+    for (final entity in dir.listSync(followLinks: false)) {
+      final name = entity.path.split(Platform.pathSeparator).last;
+      String? resolvedPath;
+      try {
+        resolvedPath = File(entity.path).resolveSymbolicLinksSync();
+      } catch (_) {
+        resolvedPath = null;
+      }
+      entries.add(
+        SerialPortEntry(
+          path: entity.path,
+          name: name,
+          resolvedPath: resolvedPath,
+        ),
+      );
+    }
+    entries.sort((a, b) => a.name.compareTo(b.name));
+    return entries;
+  }
+
+  static String? _findByName(
+    List<SerialPortEntry> entries,
+    List<String> tokens,
+  ) {
+    for (final token in tokens) {
+      for (final entry in entries) {
+        if (entry.name.contains(token)) return entry.path;
+      }
+    }
+    return null;
+  }
+
+  static bool _pathExists(String path) {
+    try {
+      if (Process.runSync('/usr/bin/test', ['-e', path]).exitCode == 0) {
+        return true;
+      }
+    } catch (_) {
+      // Fall through to Dart filesystem checks.
+    }
+    try {
+      return Link(path).existsSync() ||
+          File(path).existsSync() ||
+          Directory(path).existsSync() ||
+          FileSystemEntity.typeSync(path, followLinks: false) !=
+              FileSystemEntityType.notFound;
+    } catch (_) {
+      return false;
+    }
   }
 }
 
+class SerialPortEntry {
+  const SerialPortEntry({
+    required this.path,
+    required this.name,
+    required this.resolvedPath,
+  });
+
+  final String path;
+  final String name;
+  final String? resolvedPath;
+}
+
 class PortSnapshot {
-  const PortSnapshot({required this.masterAnchor, required this.masterTag});
+  const PortSnapshot({
+    required this.masterAnchor,
+    required this.masterTag,
+    required this.anchorPath,
+    required this.tagPath,
+    required this.anchorManual,
+    required this.tagManual,
+    required this.entries,
+  });
 
   final bool masterAnchor;
   final bool masterTag;
+  final String? anchorPath;
+  final String? tagPath;
+  final bool anchorManual;
+  final bool tagManual;
+  final List<SerialPortEntry> entries;
 
   bool get anyMaster => masterAnchor || masterTag;
 
-  factory PortSnapshot.empty() =>
-      const PortSnapshot(masterAnchor: false, masterTag: false);
+  factory PortSnapshot.empty() => const PortSnapshot(
+    masterAnchor: false,
+    masterTag: false,
+    anchorPath: null,
+    tagPath: null,
+    anchorManual: false,
+    tagManual: false,
+    entries: [],
+  );
 }
 
 class SweepReader {
@@ -8663,3 +9016,9 @@ String? emptyToNull(String? value) {
 }
 
 String shellQuote(String value) => "'${value.replaceAll("'", "'\\''")}'";
+
+String? _nonEmptyString(Object? value) {
+  final text = value?.toString().trim();
+  if (text == null || text.isEmpty) return null;
+  return text;
+}

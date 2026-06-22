@@ -19,6 +19,22 @@
 #define BLE_CTRL_MAX_TEXT 256
 #define BLE_CTRL_MAX_CMD 128
 
+#ifndef APP_ANCHOR_CIR_FEATURE_OUTPUT_ENABLE
+#define APP_ANCHOR_CIR_FEATURE_OUTPUT_ENABLE 0U
+#endif
+
+#ifndef APP_ANCHOR_CIR_FEATURE_OUTPUT_BLE_ENABLE
+#define APP_ANCHOR_CIR_FEATURE_OUTPUT_BLE_ENABLE 1U
+#endif
+
+#ifndef APP_ANCHOR_CIR_FULL_OUTPUT_ENABLE
+#define APP_ANCHOR_CIR_FULL_OUTPUT_ENABLE 0U
+#endif
+
+#ifndef APP_ANCHOR_CIR_FULL_OUTPUT_CDC_ENABLE
+#define APP_ANCHOR_CIR_FULL_OUTPUT_CDC_ENABLE 1U
+#endif
+
 static struct anchor_ble_ctrl_boot_info g_info;
 static anchor_config_t g_pending_cfg;
 static bool g_pending_valid;
@@ -42,6 +58,19 @@ static bool g_state_notify_enabled;
 static bool full_cir_quiet(void)
 {
     return anchor_cir_output_get_mode() == ANCHOR_CIR_OUTPUT_FULL;
+}
+
+static const char *anchor_cir_mode_name(enum anchor_cir_output_mode mode)
+{
+    switch (mode) {
+    case ANCHOR_CIR_OUTPUT_COMPACT:
+        return "compact";
+    case ANCHOR_CIR_OUTPUT_FULL:
+        return "full";
+    case ANCHOR_CIR_OUTPUT_OFF:
+    default:
+        return "off";
+    }
 }
 
 /* 2f2b8f40-84e0-4be6-b6bf-2fd95f39d3f0 */
@@ -458,17 +487,26 @@ static void process_control_cmd_locked(char *line)
 
     if (strcmp(tok, "VERSION") == 0) {
         char uuid_hex[33];
+        enum anchor_cir_output_mode cir_mode = anchor_cir_output_get_mode();
 
         bytes_to_hex(g_info.device_uuid, sizeof(g_info.device_uuid), uuid_hex, sizeof(uuid_hex));
         snprintk(g_result_text, sizeof(g_result_text),
-                 "ANCHOR_FW fw=%s bs=%s uuid=%s label=%c role=%s cfg_valid=%u busy=%u",
+                 "ANCHOR_FW fw=%s bs=%s uuid=%s label=%c role=%s cir=%s cfg_valid=%u busy=%u caps=ota,range%s%s compact_ble=%u full_cdc=%u",
                  g_info.fw_marker,
                  g_info.bs_code,
                  uuid_hex,
                  anchor_config_label_char(g_info.runtime_anchor_id_cfg),
                  role_name(g_info.runtime_role),
+                 anchor_cir_mode_name(cir_mode),
                  g_info.active_cfg_valid ? 1U : 0U,
-                 g_busy ? 1U : 0U);
+                 g_busy ? 1U : 0U,
+                 (APP_ANCHOR_CIR_FEATURE_OUTPUT_ENABLE != 0U) ? ",cir_compact" : "",
+                 (APP_ANCHOR_CIR_FULL_OUTPUT_ENABLE != 0U &&
+                  APP_ANCHOR_CIR_FULL_OUTPUT_CDC_ENABLE != 0U) ? ",cir_full_usb" : "",
+                 (unsigned int)(APP_ANCHOR_CIR_FEATURE_OUTPUT_ENABLE != 0U &&
+                                APP_ANCHOR_CIR_FEATURE_OUTPUT_BLE_ENABLE != 0U),
+                 (unsigned int)(APP_ANCHOR_CIR_FULL_OUTPUT_ENABLE != 0U &&
+                                APP_ANCHOR_CIR_FULL_OUTPUT_CDC_ENABLE != 0U));
         return;
     }
 

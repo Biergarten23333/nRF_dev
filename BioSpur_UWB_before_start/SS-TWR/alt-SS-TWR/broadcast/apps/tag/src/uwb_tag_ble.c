@@ -77,6 +77,22 @@
 #define APP_TAG_WAND_MODE_ENABLE 0U
 #endif
 
+#ifndef APP_TAG_CIR_FEATURE_OUTPUT_ENABLE
+#define APP_TAG_CIR_FEATURE_OUTPUT_ENABLE 0U
+#endif
+
+#ifndef APP_TAG_CIR_FEATURE_OUTPUT_BLE_ENABLE
+#define APP_TAG_CIR_FEATURE_OUTPUT_BLE_ENABLE 1U
+#endif
+
+#ifndef APP_TAG_CIR_FULL_OUTPUT_ENABLE
+#define APP_TAG_CIR_FULL_OUTPUT_ENABLE 0U
+#endif
+
+#ifndef APP_TAG_CIR_FULL_OUTPUT_CDC_ENABLE
+#define APP_TAG_CIR_FULL_OUTPUT_CDC_ENABLE 1U
+#endif
+
 #define UWB_TAG_BLE_DEVICE_NAME_LEN 32U
 #define UWB_TAG_BLE_ADV_MFG_LEN 6U
 
@@ -255,6 +271,8 @@ static const char *uwb_tag_ble_mode_label(uint8_t positioning_mode);
 static bool uwb_tag_ble_mode_is_calibration(uint8_t positioning_mode);
 static bool uwb_tag_ble_parse_mode_value(const char *mode_text,
 					 uint8_t *positioning_mode_out);
+static void uwb_tag_ble_send_cir_status(void);
+static bool uwb_tag_ble_cir_mode_supported(enum uwb_tag_cir_mode mode);
 static void uwb_tag_ble_apply_mode_defaults(struct uwb_tag_runtime_params *params);
 static int uwb_tag_ble_apply_mode_policy(struct uwb_tag_runtime_params *params,
 					 bool require_fixed_list);
@@ -735,6 +753,39 @@ static bool uwb_tag_ble_mode_is_calibration(uint8_t positioning_mode)
 {
 	return positioning_mode == UWB_TAG_MODE_RESERVED_4 ||
 	       positioning_mode == UWB_TAG_MODE_RESERVED_5;
+}
+
+static bool uwb_tag_ble_cir_mode_supported(enum uwb_tag_cir_mode mode)
+{
+	switch (mode) {
+	case UWB_TAG_CIR_MODE_OFF:
+		return true;
+	case UWB_TAG_CIR_MODE_COMPACT:
+		return APP_TAG_CIR_FEATURE_OUTPUT_ENABLE != 0U;
+	case UWB_TAG_CIR_MODE_FULL:
+		return APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U &&
+		       APP_TAG_CIR_FULL_OUTPUT_CDC_ENABLE != 0U;
+	default:
+		return false;
+	}
+}
+
+static void uwb_tag_ble_send_cir_status(void)
+{
+	char resp[160];
+	enum uwb_tag_cir_mode mode = ss_twr_init_cir_mode_get();
+
+	snprintk(resp, sizeof(resp),
+		 "CIR MODE=%s CAPS=off%s%s RAW_RANGE=1 COMPACT_BLE=%u FULL_CDC=%u FULL_REQUIRES_USB=1",
+		 ss_twr_init_cir_mode_label(mode),
+		 (APP_TAG_CIR_FEATURE_OUTPUT_ENABLE != 0U) ? ",compact" : "",
+		 (APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U &&
+		  APP_TAG_CIR_FULL_OUTPUT_CDC_ENABLE != 0U) ? ",full" : "",
+		 (unsigned int)(APP_TAG_CIR_FEATURE_OUTPUT_ENABLE != 0U &&
+				APP_TAG_CIR_FEATURE_OUTPUT_BLE_ENABLE != 0U),
+		 (unsigned int)(APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U &&
+				APP_TAG_CIR_FULL_OUTPUT_CDC_ENABLE != 0U));
+	uwb_tag_ble_send_text(resp);
 }
 
 static bool uwb_tag_ble_mode_is_anchor_ota(uint8_t positioning_mode)
@@ -1884,6 +1935,49 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		return;
 	}
 
+	if (strcmp(cmd, "CIR?") == 0 || strcmp(cmd, "CIR_STATUS") == 0) {
+		uwb_tag_ble_send_cir_status();
+		return;
+	}
+
+	if (strncmp(cmd, "CIR ", 4) == 0 ||
+	    strncmp(cmd, "TAG CIR ", 8) == 0) {
+		const char *arg = (cmd[0] == 'C') ? cmd + 4 : cmd + 8;
+		enum uwb_tag_cir_mode cir_mode;
+		char resp[80];
+
+		while (*arg == ' ' || *arg == '\t') {
+			arg++;
+		}
+		if (ss_twr_init_cir_mode_parse(arg, &cir_mode) != 0) {
+			uwb_tag_ble_send_text("CIR_BAD MODE=OFF|COMPACT|FULL");
+			return;
+		}
+		if (!uwb_tag_ble_cir_mode_supported(cir_mode)) {
+			snprintk(resp, sizeof(resp), "CIR_UNSUPPORTED MODE=%s",
+				 ss_twr_init_cir_mode_label(cir_mode));
+			uwb_tag_ble_send_text(resp);
+			return;
+		}
+		if (uwb_tag_ble_ota_active()) {
+			uwb_tag_ble_send_text("ERR:BUSY_OTA");
+			return;
+		}
+
+		(void)ss_twr_init_cir_mode_set(cir_mode);
+		k_mutex_lock(&ble_mutex, K_FOREVER);
+		uwb_tag_ble_clear_pending_cal_locked();
+		uwb_tag_ble_clear_pending_samples_locked();
+		uwb_tag_ble_clear_pending_bundle_locked();
+		k_mutex_unlock(&ble_mutex);
+		uwb_tag_ble_cancel_bundle_flush();
+
+		snprintk(resp, sizeof(resp), "CIR_OK MODE=%s RAW_RANGE=1",
+			 ss_twr_init_cir_mode_label(cir_mode));
+		uwb_tag_ble_send_text(resp);
+		return;
+	}
+
 	if (strncmp(cmd, "APOS ", 5) == 0) {
 		const char *arg = cmd + 5;
 		char *end = NULL;
@@ -1975,17 +2069,22 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 	}
 
 	if (strcmp(cmd, "VERSION") == 0) {
-		char resp[128];
+		char resp[176];
 		struct uwb_tag_runtime_params params;
+		enum uwb_tag_cir_mode cir_mode = ss_twr_init_cir_mode_get();
 
 		(void)uwb_tag_ble_runtime_config_get(&params);
 		snprintk(resp, sizeof(resp),
-			 "VERSION fw=%s bs=BS%04X tag=%u pmode=%u amode=%u wand=%u",
+			 "VERSION fw=%s bs=BS%04X tag=%u pmode=%u amode=%u cir=%s caps=ota,range%s%s wand=%u",
 			 APP_TAG_FW_MARKER,
 			 (unsigned int)params.identity_code,
 			 (unsigned int)params.logical_tag_id,
 			 (unsigned int)params.positioning_mode,
 			 (unsigned int)params.anchor_selection_mode,
+			 ss_twr_init_cir_mode_label(cir_mode),
+			 (APP_TAG_CIR_FEATURE_OUTPUT_ENABLE != 0U) ? ",cir_compact" : "",
+			 (APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U &&
+			  APP_TAG_CIR_FULL_OUTPUT_CDC_ENABLE != 0U) ? ",cir_full_usb" : "",
 			 (unsigned int)(APP_TAG_WAND_MODE_ENABLE != 0U));
 		uwb_tag_ble_send_text(resp);
 		return;
@@ -2009,7 +2108,7 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 						(unsigned int)params.fixed_anchor_ids[i]);
 		}
 		snprintk(resp, sizeof(resp),
-			 "CFG tag=%u bs=BS%04X slot=%u/%u mask=0x%04X src=%s period=%u active=%u active_us=%u epoch=%lu gen=%u pmode=%u amode=%u fixed=%s",
+			 "CFG tag=%u bs=BS%04X slot=%u/%u mask=0x%04X src=%s period=%u active=%u active_us=%u epoch=%lu gen=%u pmode=%u amode=%u cir=%s fixed=%s",
 			 (unsigned int)params.logical_tag_id,
 			 (unsigned int)params.identity_code,
 			 (unsigned int)params.tdma.slot_index,
@@ -2023,6 +2122,7 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 			 (unsigned int)params.tdma.generation,
 			 (unsigned int)params.positioning_mode,
 			 (unsigned int)params.anchor_selection_mode,
+			 ss_twr_init_cir_mode_label(ss_twr_init_cir_mode_get()),
 			 fixed_buf[0] != '\0' ? fixed_buf : "-");
 		uwb_tag_ble_send_text(resp);
 		return;
@@ -2194,9 +2294,9 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 
 	if (strcmp(cmd, "HELP") == 0) {
 #if APP_TAG_BLE_OTA_ENABLE
-		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RANGE|SOLVE|DEBUG|AOTA>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|1|2|3>|CFG_RUN|CFG_STOP|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RANGE|SOLVE|DEBUG|AOTA>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|1|2|3>|CFG_RUN|CFG_STOP|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
 #else
-		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RANGE|SOLVE|DEBUG|AOTA>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|1|2|3>|CFG_RUN|CFG_STOP|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RANGE|SOLVE|DEBUG|AOTA>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|1|2|3>|CFG_RUN|CFG_STOP|REBOOT|HELP");
 #endif
 #if APP_TAG_WAND_MODE_ENABLE
 		uwb_tag_ble_send_text("WAND?|WAND START <A|B|C>|WAND PEERS <A> <B> <C>|WAND ROLE <IDLE|INIT|RESP>|WAND_SWEEP [n]|WAND STOP");
