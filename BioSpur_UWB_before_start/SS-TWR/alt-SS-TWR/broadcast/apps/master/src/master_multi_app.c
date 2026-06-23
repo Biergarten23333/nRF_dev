@@ -39,10 +39,10 @@
 #define MASTER_ANCHOR_CONNECT_UNREADY_LIMIT 1U
 #define MASTER_TDMA_SLOT_COUNT_MAX 12U
 #ifndef APP_MASTER_TDMA_SLOT_PERIOD_MS
-#define APP_MASTER_TDMA_SLOT_PERIOD_MS 40U
+#define APP_MASTER_TDMA_SLOT_PERIOD_MS 10U
 #endif
 #ifndef APP_MASTER_TDMA_SLOT_ACTIVE_MS
-#define APP_MASTER_TDMA_SLOT_ACTIVE_MS 24U
+#define APP_MASTER_TDMA_SLOT_ACTIVE_MS 9U
 #endif
 #ifndef APP_MASTER_TDMA_SLOT_ACTIVE_US
 #define APP_MASTER_TDMA_SLOT_ACTIVE_US 0U
@@ -52,17 +52,9 @@
 #define MASTER_TDMA_SLOT_ACTIVE_US APP_MASTER_TDMA_SLOT_ACTIVE_US
 #define MASTER_TDMA_EPOCH_LEAD_MS 3000U
 #define MASTER_TDMA_PROFILE_MAX MASTER_MAX_CONNECTIONS
-#ifndef APP_MASTER_TDMA_ROTO_DEFAULT_HZ
-#define APP_MASTER_TDMA_ROTO_DEFAULT_HZ 15U
-#endif
-#ifndef APP_MASTER_TDMA_STATIC_DEFAULT_HZ
-#define APP_MASTER_TDMA_STATIC_DEFAULT_HZ 5U
-#endif
 #ifndef APP_MASTER_TDMA_MOTION_DEFAULT_HZ
-#define APP_MASTER_TDMA_MOTION_DEFAULT_HZ 5U
+#define APP_MASTER_TDMA_MOTION_DEFAULT_HZ 10U
 #endif
-#define MASTER_TDMA_ROTO_DEFAULT_HZ APP_MASTER_TDMA_ROTO_DEFAULT_HZ
-#define MASTER_TDMA_STATIC_DEFAULT_HZ APP_MASTER_TDMA_STATIC_DEFAULT_HZ
 #define MASTER_TDMA_MOTION_DEFAULT_HZ APP_MASTER_TDMA_MOTION_DEFAULT_HZ
 #ifndef APP_MASTER_TAG_NAME_PREFIX
 #define APP_MASTER_TAG_NAME_PREFIX "BS"
@@ -167,8 +159,6 @@ static bool peer_matches_runtime_target(const struct master_peer *peer);
 
 enum master_tdma_profile_kind {
 	MASTER_TDMA_PROFILE_MOTION = 0,
-	MASTER_TDMA_PROFILE_STATIC = 1,
-	MASTER_TDMA_PROFILE_ROTO = 2,
 };
 
 struct master_tdma_profile_entry {
@@ -183,8 +173,6 @@ struct master_notify_print_msg {
 };
 
 static struct master_tdma_profile_entry tdma_profiles[MASTER_TDMA_PROFILE_MAX];
-static uint8_t tdma_roto_target_hz = MASTER_TDMA_ROTO_DEFAULT_HZ;
-static uint8_t tdma_static_target_hz = MASTER_TDMA_STATIC_DEFAULT_HZ;
 static uint8_t tdma_motion_target_hz = MASTER_TDMA_MOTION_DEFAULT_HZ;
 
 struct master_cal_record {
@@ -1078,41 +1066,20 @@ static size_t master_collect_ready_peers(struct master_peer **ordered,
 
 static const char *master_tdma_profile_label(enum master_tdma_profile_kind kind)
 {
-	switch (kind) {
-	case MASTER_TDMA_PROFILE_STATIC:
-		return "static";
-	case MASTER_TDMA_PROFILE_ROTO:
-		return "roto";
-	case MASTER_TDMA_PROFILE_MOTION:
-	default:
-		return "motion";
-	}
+	ARG_UNUSED(kind);
+	return "motion";
 }
 
 static uint8_t master_tdma_profile_pmode(enum master_tdma_profile_kind kind)
 {
-	switch (kind) {
-	case MASTER_TDMA_PROFILE_STATIC:
-		return UWB_TAG_POSITIONING_MODE_CAL_STATIC;
-	case MASTER_TDMA_PROFILE_ROTO:
-		return UWB_TAG_POSITIONING_MODE_CAL_ROTO;
-	case MASTER_TDMA_PROFILE_MOTION:
-	default:
-		return UWB_TAG_POSITIONING_MODE_DYNAMIC;
-	}
+	ARG_UNUSED(kind);
+	return UWB_TAG_POSITIONING_MODE_DYNAMIC;
 }
 
 static uint8_t master_tdma_profile_target_hz(enum master_tdma_profile_kind kind)
 {
-	switch (kind) {
-	case MASTER_TDMA_PROFILE_STATIC:
-		return tdma_static_target_hz;
-	case MASTER_TDMA_PROFILE_ROTO:
-		return tdma_roto_target_hz;
-	case MASTER_TDMA_PROFILE_MOTION:
-	default:
-		return tdma_motion_target_hz;
-	}
+	ARG_UNUSED(kind);
+	return tdma_motion_target_hz;
 }
 
 static bool master_tdma_parse_profile_kind(const char *profile,
@@ -1122,16 +1089,6 @@ static bool master_tdma_parse_profile_kind(const char *profile,
 		return false;
 	}
 
-	if (strcasecmp(profile, "static") == 0 ||
-	    strcasecmp(profile, "cal_static") == 0) {
-		*kind = MASTER_TDMA_PROFILE_STATIC;
-		return true;
-	}
-	if (strcasecmp(profile, "roto") == 0 ||
-	    strcasecmp(profile, "cal_roto") == 0) {
-		*kind = MASTER_TDMA_PROFILE_ROTO;
-		return true;
-	}
 	if (strcasecmp(profile, "motion") == 0 ||
 	    strcasecmp(profile, "mmot") == 0) {
 		*kind = MASTER_TDMA_PROFILE_MOTION;
@@ -1926,70 +1883,6 @@ static bool ble_decode_sample_packet(const uint8_t *data, uint16_t len,
 		}
 
 		offset += BLE_SAMPLE_RECORD_LEN;
-	}
-
-	return true;
-}
-
-static bool ble_decode_cal_packet(const uint8_t *data, uint16_t len,
-				  char *payload, size_t payload_len)
-{
-	uint8_t count;
-	uint8_t version;
-	size_t offset;
-	size_t used = 0U;
-
-	if (data == NULL || payload == NULL || payload_len == 0U ||
-	    len < BLE_CAL_HEADER_LEN) {
-		return false;
-	}
-
-	if (data[0] != BLE_CAL_MAGIC0 || data[1] != BLE_CAL_MAGIC1) {
-		return false;
-	}
-
-	version = data[2];
-	count = data[3];
-	if (version != BLE_CAL_VERSION) {
-		return false;
-	}
-
-	offset = BLE_CAL_HEADER_LEN;
-	if (count == 0U || len < offset + (size_t)count * BLE_CAL_RECORD_LEN) {
-		return false;
-	}
-
-	payload[0] = '\0';
-	for (uint8_t i = 0U; i < count; ++i) {
-		uint32_t sweep = sys_get_le32(&data[offset]);
-		uint8_t anchor_id = data[offset + 4U];
-		uint8_t status = data[offset + 5U];
-		uint8_t quality_percent = data[offset + 6U];
-		int32_t raw_mm = (int32_t)sys_get_le32(&data[offset + 8U]);
-		uint32_t filt_mm = sys_get_le32(&data[offset + 12U]);
-		uint32_t ok_count = sys_get_le32(&data[offset + 16U]);
-		uint32_t fail_count = sys_get_le32(&data[offset + 20U]);
-		int written;
-
-		written = snprintk(
-			&payload[used], payload_len - used,
-			"%sCM;%u;%u;%u;%s;%d;%u;%u;%u;%u",
-			(i == 0U) ? "" : "|",
-			(unsigned int)version,
-			(unsigned int)sweep,
-			(unsigned int)anchor_id,
-			sample_cal_status_label(status),
-			(int)raw_mm,
-			(unsigned int)filt_mm,
-			(unsigned int)quality_percent,
-			(unsigned int)ok_count,
-			(unsigned int)fail_count);
-		if (written < 0 || (size_t)written >= payload_len - used) {
-			return false;
-		}
-		used += (size_t)written;
-
-		offset += BLE_CAL_RECORD_LEN;
 	}
 
 	return true;
@@ -3921,18 +3814,7 @@ int master_tdma_set_profile_freq(const char *profile, uint8_t hz)
 		return -EINVAL;
 	}
 
-	switch (kind) {
-	case MASTER_TDMA_PROFILE_STATIC:
-		tdma_static_target_hz = hz;
-		break;
-	case MASTER_TDMA_PROFILE_ROTO:
-		tdma_roto_target_hz = hz;
-		break;
-	case MASTER_TDMA_PROFILE_MOTION:
-	default:
-		tdma_motion_target_hz = hz;
-		break;
-	}
+	tdma_motion_target_hz = hz;
 
 	printk("TDMA freq set: %s=%uHz\n",
 	       master_tdma_profile_label(kind),
@@ -3980,14 +3862,12 @@ int master_tdma_clear_profiles(void)
 
 void master_tdma_print_status(void)
 {
-	printk("TDMA weighted scheduler: period=%ums active=%ums active_us=%u max_slots=%u freq motion=%uHz static=%uHz roto=%uHz\n",
+	printk("TDMA weighted scheduler: period=%ums active=%ums active_us=%u max_slots=%u freq motion=%uHz\n",
 	       MASTER_TDMA_SLOT_PERIOD_MS,
 	       MASTER_TDMA_SLOT_ACTIVE_MS,
 	       MASTER_TDMA_SLOT_ACTIVE_US,
 	       MASTER_TDMA_SLOT_COUNT_MAX,
-	       (unsigned int)tdma_motion_target_hz,
-	       (unsigned int)tdma_static_target_hz,
-	       (unsigned int)tdma_roto_target_hz);
+	       (unsigned int)tdma_motion_target_hz);
 	for (size_t i = 0U; i < ARRAY_SIZE(tdma_profiles); ++i) {
 		if (!tdma_profiles[i].valid) {
 			continue;

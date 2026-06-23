@@ -106,6 +106,8 @@ def render_round_progress(
     eta_s: float | None,
     warmup_count: int = 0,
     warmup_target: int = 0,
+    progress_prefix: str = "SW",
+    count_label: str = "sw-set",
 ) -> str:
     if stage == "warmup" and warmup_target > 0:
         percent = max(0, min(99, int((warmup_count / warmup_target) * 100)))
@@ -123,11 +125,11 @@ def render_round_progress(
     if warmup_target > 0:
         warmup_part = f" warmup={warmup_count}/{warmup_target}"
     return (
-        f"[SW-{master} {round_idx}/{round_total}] [{bar}] {percent:3d}% "
-        f"sw-set={sw_count}/{sw_target} stage={stage:<10} "
+        f"[{progress_prefix}-{master} {round_idx}/{round_total}] [{bar}] {percent:3d}% "
+        f"{count_label}={sw_count}/{sw_target} stage={stage:<10} "
         f"{warmup_part}"
         f"elapsed={int(total_elapsed_s):4d}s round={int(round_elapsed_s):4d}s "
-        f"eta[SW-{master}]={format_eta_seconds(eta_s):>8}"
+        f"eta[{progress_prefix}-{master}]={format_eta_seconds(eta_s):>8}"
     )
 
 
@@ -200,6 +202,8 @@ def print_round_progress(
     eta_s: float | None,
     warmup_count: int = 0,
     warmup_target: int = 0,
+    progress_prefix: str = "SW",
+    count_label: str = "sw-set",
 ) -> None:
     _write_progress_line(
         render_round_progress(
@@ -214,6 +218,8 @@ def print_round_progress(
             eta_s,
             warmup_count,
             warmup_target,
+            progress_prefix,
+            count_label,
         )
     )
 
@@ -2431,7 +2437,7 @@ def quarantine_tag_for_sweep(
                 unsupported_hits += 1
         return cur_ser, False, merged_text, unsupported_hits == len(cmds)
 
-    # Fast path: STREAM OFF directly (no mode switch), then fallback to MODE AOTA.
+    # Fast path: STREAM OFF directly, then fallback to MODE IDLE.
     quarantine_mode = "unknown"
     ser, stream_ok, stream_text, stream_unsupported = try_stream_off_aliases(ser)
     if stream_ok:
@@ -2439,7 +2445,7 @@ def quarantine_tag_for_sweep(
     else:
         emit(
             logf,
-            f"PRECHECK INFO: STREAM OFF direct path not ready for {target_name}; fallback MODE AOTA\n",
+            f"PRECHECK INFO: STREAM OFF direct path not ready for {target_name}; fallback MODE IDLE\n",
             live_output,
             verbose,
         )
@@ -2448,47 +2454,48 @@ def quarantine_tag_for_sweep(
             ser,
             logf,
             port,
-            "cmd MODE AOTA",
+            "cmd MODE IDLE",
             1.0,
             live_output,
             verbose,
         )
-        mode_ok = "MODE_OK MODE=AOTA" in mode_text
+        mode_ok = "MODE_OK MODE=IDLE" in mode_text
         if not mode_ok:
             ser, mode_ok, more_mode_text = wait_for_patterns(
                 ser,
                 logf,
                 port,
-                ["MODE_OK MODE=AOTA"],
+                ["MODE_OK MODE="],
                 8.0,
                 live_output,
                 verbose,
             )
             mode_text += more_mode_text
+            mode_ok = "MODE_OK MODE=IDLE" in mode_text
         if not mode_ok:
             level = "FAIL" if strict else "WARN"
-            emit(logf, f"PRECHECK {level}: tag {target_name} did not enter AOTA\n", live_output, verbose)
+            emit(logf, f"PRECHECK {level}: tag {target_name} did not enter IDLE\n", live_output, verbose)
             if "MODE_BAD" in mode_text or "cmd rc=-128" in mode_text:
-                emit(logf, "PRECHECK DETAIL: Tag command path rejected MODE AOTA\n", live_output, verbose)
+                emit(logf, "PRECHECK DETAIL: Tag command path rejected MODE IDLE\n", live_output, verbose)
             return ser, False
 
-        # Retry STREAM OFF after MODE AOTA.
+        # Retry STREAM OFF after MODE IDLE.
         ser, stream_ok, stream_text, stream_unsupported = try_stream_off_aliases(ser)
         if not stream_ok:
             if stream_unsupported or "UNKNOWN_CMD" in stream_text or "cmd rc=-128" in stream_text:
                 emit(
                     logf,
-                    f"PRECHECK WARN: tag {target_name} did not support STREAM OFF; keeping MODE AOTA quarantine\n",
+                    f"PRECHECK WARN: tag {target_name} did not support STREAM OFF; keeping MODE IDLE quarantine\n",
                     live_output,
                     verbose,
                 )
-                quarantine_mode = "MODE_AOTA_ONLY"
+                quarantine_mode = "MODE_IDLE_ONLY"
             else:
                 level = "FAIL" if strict else "WARN"
                 emit(logf, f"PRECHECK {level}: tag {target_name} did not ack STREAM OFF\n", live_output, verbose)
                 return ser, False
         else:
-            quarantine_mode = "MODE_AOTA_PLUS_STREAM_OFF"
+            quarantine_mode = "MODE_IDLE_PLUS_STREAM_OFF"
 
     emit(
         logf,
@@ -2613,6 +2620,8 @@ def round_capture(
     live_output: bool = True,
     verbose: int = 2,
     matrix_cir_mode: str = "0",
+    progress_prefix: str = "SW",
+    count_label: str = "sw-set",
 ) -> dict:
     log_path = out_dir / "master.log"
     result = {
@@ -2631,6 +2640,8 @@ def round_capture(
         "warmup_sw_count": 0,
         "warmup_discarded_count": 0,
         "matrix_cir_mode": matrix_cir_mode,
+        "progress_prefix": progress_prefix,
+        "count_label": count_label,
         "min_quality_seen": None,
         "pairs_below_quality": {},
         "log_path": str(log_path),
@@ -2670,6 +2681,8 @@ def round_capture(
             eta_s,
             result["warmup_discarded_count"],
             round_capture.prewarm_sw_sets,
+            progress_prefix,
+            count_label,
         )
 
     try:
@@ -2830,9 +2843,9 @@ def round_capture(
                         if raw_sweep_started_at is None:
                             raw_sweep_started_at = time.time()
                         if (not result["apply_success_seen"] and
-                                "SW lines observed without AUTOPOS apply success" not in result["warnings"]):
+                                "samples observed without AUTOPOS apply success" not in result["warnings"]):
                             result.setdefault("warnings", []).append(
-                                "SW lines observed without AUTOPOS apply success"
+                                "samples observed without AUTOPOS apply success"
                             )
                         if not result["sweep_ready_seen"]:
                             result["sweep_ready_seen"] = True
@@ -3026,6 +3039,8 @@ def round_capture(
                     None,
                     result["warmup_discarded_count"],
                     round_capture.prewarm_sw_sets,
+                    progress_prefix,
+                    count_label,
                 )
                 ser, cmd_text = send_cmd_collect_text(
                     ser,
@@ -3063,6 +3078,8 @@ def round_capture(
                     eta_s,
                     result["warmup_discarded_count"],
                     round_capture.prewarm_sw_sets,
+                    progress_prefix,
+                    count_label,
                 )
                 if (not result["apply_success_seen"] and
                         elapsed in status_marks and elapsed not in sent_marks):
@@ -3105,7 +3122,7 @@ def round_capture(
                             stage = "finishing"
                             emit(
                                 logf,
-                                "ROUND: target SW count reached; waiting for finite-master SWEEP_DONE\n",
+                                f"ROUND: target {count_label} count reached; waiting for finite-master SWEEP_DONE\n",
                                 live_output,
                                 verbose,
                             )
@@ -3121,19 +3138,23 @@ def round_capture(
                 if post_target_deadline is not None and time.time() >= post_target_deadline:
                     result["success"] = True
                     stage = "done"
-                    result["warnings"].append("target SW count reached but SWEEP_DONE was not observed before handoff wait expired")
+                    result["warnings"].append(
+                        f"target {count_label} count reached but SWEEP_DONE was not observed before handoff wait expired"
+                    )
                     break
 
             result["verified_count"] = len(verified)
             if result["apply_success_seen"]:
                 result["warnings"] = [
                     w for w in result["warnings"]
-                    if w != "SW lines observed without AUTOPOS apply success"
+                    if w != "samples observed without AUTOPOS apply success"
                 ]
             if not result["success"] and result["sw_count"] < round_capture.target_sw_sets:
                 history_replayed = False
                 if result["sweep_done_seen"]:
-                    history_replayed = recover_sw_lines_from_result_history("SWEEP_DONE seen before target reached")
+                    history_replayed = recover_sw_lines_from_result_history(
+                        "SWEEP_DONE seen before target count reached"
+                    )
                 if not history_replayed:
                     ser, final_status_text = send_cmd_collect_text(
                         ser,
@@ -3163,7 +3184,7 @@ def round_capture(
                 elif not result["sw_seen"]:
                     result["error"] = "sw_not_seen"
                 else:
-                    result["error"] = f"insufficient_sw_sets:{result['sw_count']}/{round_capture.target_sw_sets}"
+                    result["error"] = f"insufficient_samples:{result['sw_count']}/{round_capture.target_sw_sets}"
                 stage = "failed"
             result["warnings"] = result["warnings"] + summarize_round_warnings(
                 master, result["sw_lines"], result["sw_seen"]
@@ -3195,6 +3216,8 @@ def round_capture(
                 0.0 if stage == "done" else None,
                 result["warmup_discarded_count"],
                 round_capture.prewarm_sw_sets,
+                progress_prefix,
+                count_label,
             )
             finish_round_progress()
             emit(logf, f"END={time.strftime('%Y-%m-%d %H:%M:%S')}\n", live_output, verbose)
@@ -3220,6 +3243,10 @@ def round_capture(
                     time.time() - command_started_at,
                     time.time() - round_started_at,
                     None,
+                    result["warmup_discarded_count"],
+                    round_capture.prewarm_sw_sets,
+                    progress_prefix,
+                    count_label,
                 )
                 finish_round_progress()
         except Exception:
@@ -3257,7 +3284,7 @@ def main() -> int:
     parser.add_argument(
         "--quiet-tag-name",
         default="-",
-        help="Legacy Tag quarantine control. Use - (default) to disable heavy quarantine. 'auto' or a list like 'BSF66F,BS2DCE' retains the old MODE AOTA + STREAM OFF flow.",
+        help="Tag idle control. Use - (default) to disable heavy quarantine. 'auto' or a list like 'BSF66F,BS2DCE' uses MODE IDLE + STREAM OFF.",
     )
     parser.add_argument(
         "--quiet-tag-retries",
@@ -3312,6 +3339,11 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--progress-prefix",
+        default=None,
+        help="Progress label prefix. Defaults to SW for normal sweeps and CIR when --matrix-cir-mode is not 0.",
+    )
+    parser.add_argument(
         "--no-final-responder",
         action="store_true",
         help="Skip switching all anchors to runtime responder after the full sweep succeeds.",
@@ -3333,6 +3365,17 @@ def main() -> int:
 
     if args.timeout_s is None:
         args.timeout_s = auto_timeout_for_sw_sets(args.sw_sets)
+
+    default_progress_prefix = {
+        "0": "SW",
+        "compact": "C-CIR",
+        "full": "F-CIR",
+    }[args.matrix_cir_mode]
+    progress_prefix = args.progress_prefix if args.progress_prefix else default_progress_prefix
+    progress_prefix = "".join(
+        ch for ch in progress_prefix.upper() if ch.isalnum() or ch == "-"
+    ).strip("-") or "SW"
+    progress_count_label = "cir-set" if "CIR" in progress_prefix else "sw-set"
 
     round_capture.target_sw_sets = args.sw_sets
     round_capture.prewarm_sw_sets = args.prewarm_sw_sets
@@ -3412,14 +3455,15 @@ def main() -> int:
     for idx, master in enumerate(args.order, start=1):
         round_dir = out_dir / f"round_{master}"
         round_dir.mkdir(parents=True, exist_ok=True)
-        print(f"=== AUTOPOS SWEEP {master} ===", flush=True)
+        round_label = progress_prefix if "CIR" in progress_prefix else "SWEEP"
+        print(f"=== AUTOPOS {round_label} {master} ===", flush=True)
         result = None
         attempt_count = max(0, int(args.round_retries)) + 1
         attempt_timeout_s = args.timeout_s
         for attempt in range(1, attempt_count + 1):
             if attempt > 1:
                 print(
-                    f"=== RETRY SWEEP {master} attempt={attempt}/{attempt_count} timeout_s={attempt_timeout_s} ===",
+                    f"=== RETRY {round_label} {master} attempt={attempt}/{attempt_count} timeout_s={attempt_timeout_s} ===",
                     flush=True,
                 )
                 time.sleep(2.0)
@@ -3440,6 +3484,8 @@ def main() -> int:
                     live_output=not args.no_live_output,
                     verbose=args.verbose,
                     matrix_cir_mode=args.matrix_cir_mode,
+                    progress_prefix=progress_prefix,
+                    count_label=progress_count_label,
                 )
             except Exception:
                 # Defensive: round_capture itself is hardened, but still ensure the outer loop

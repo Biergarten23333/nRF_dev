@@ -7,7 +7,7 @@ Implementation uses the existing master-control protocol:
 - switches to RECV if needed
 - device kind tag
 - ota_target name <BSxxxx>
-- cmd MODE AOTA
+- cmd MODE IDLE
 - cmd STREAM OFF (best-effort; older firmware may not support it)
 
 This script is intentionally non-interactive and prints progress to stdout.
@@ -19,7 +19,7 @@ import time
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Quarantine multiple Tag BLE targets (MODE AOTA + STREAM OFF best-effort).")
+    ap = argparse.ArgumentParser(description="Quarantine multiple Tag BLE targets (MODE IDLE + STREAM OFF best-effort).")
     ap.add_argument("--port", required=True, help="52840 CDC serial port (/dev/serial/by-id/...)")
     ap.add_argument(
         "--tags",

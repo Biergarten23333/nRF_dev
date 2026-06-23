@@ -563,26 +563,26 @@ def main() -> int:
 
                 # b61-era broadcast Tags may keep streaming TR/TS after
                 # OTA_PREPARE, which races the SMP subscribe gate.  Put the
-                # selected Tag into AOTA immediately before the Master reboots
+                # selected Tag into IDLE immediately before the Master reboots
                 # to OTA mode so no later RECV CFG can re-enable TDMA.  The
                 # target may not be the first ready peer when several BS* Tags
                 # are advertising, so keep trying until this specific command
                 # is actually sent/acknowledged.
-                aota_ok = False
-                aota_deadline = time.monotonic() + 14.0
+                idle_ok = False
+                idle_deadline = time.monotonic() + 14.0
                 send_cmd(ser, "conn", logf, t0)
                 consume_phase_a_lines(read_lines_for(ser, logf, t0, timeout_s=1.0))
-                while time.monotonic() < aota_deadline and not aota_ok:
-                    send_cmd(ser, "cmd MODE AOTA", logf, t0)
+                while time.monotonic() < idle_deadline and not idle_ok:
+                    send_cmd(ser, "cmd MODE IDLE", logf, t0)
                     for line in read_lines_for(ser, logf, t0, timeout_s=1.2):
                         consume_phase_a_lines([line])
-                        if "MODE_OK MODE=AOTA" in line or "BLE cmd sent" in line:
-                            aota_ok = True
-                    if not aota_ok:
+                        if "MODE_OK MODE=IDLE" in line or "BLE cmd sent" in line:
+                            idle_ok = True
+                    if not idle_ok:
                         time.sleep(0.4)
-                if not aota_ok:
+                if not idle_ok:
                     logf.write(
-                        f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A warn_aota_not_confirmed target={target_name}\n"
+                        f"[HOST_EVT {time.monotonic()-t0:7.2f}s] phase=A warn_idle_not_confirmed target={target_name}\n"
                     )
                     logf.flush()
 

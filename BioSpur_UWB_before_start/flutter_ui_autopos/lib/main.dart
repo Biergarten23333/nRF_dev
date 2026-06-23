@@ -31,6 +31,24 @@ const captureTargetsByKind = {
   'roto': ['BS2DCE', 'BSDC91'],
   'wand': ['BS9336', 'BS955A', 'BSCCF4'],
 };
+const cirFullUsbPorts = {
+  'TAG': '/dev/serial/by-id/usb-SEGGER_J-Link_000760186115-if00',
+  'A': '/dev/serial/by-id/usb-SEGGER_J-Link_000760184781-if00',
+  'B': '/dev/serial/by-id/usb-SEGGER_J-Link_000760185876-if00',
+  'C': '/dev/serial/by-id/usb-SEGGER_J-Link_000760185878-if00',
+  'D': '/dev/serial/by-id/usb-SEGGER_J-Link_000760184974-if00',
+  'E': '/dev/serial/by-id/usb-SEGGER_J-Link_000760185904-if00',
+  'F': '/dev/serial/by-id/usb-SEGGER_J-Link_000760186124-if00',
+  'G': '/dev/serial/by-id/usb-SEGGER_J-Link_000760185889-if00',
+  'H': '/dev/serial/by-id/usb-SEGGER_J-Link_000760184500-if00',
+};
+const cirModeOff = 'off';
+const cirModeCompact = 'compact';
+const cirModeFull = 'full';
+const runtimeCirControlScript =
+    '$repoRoot/flutter_ui_autopos/scripts/runtime_cir_control.py';
+const fullCirUsbCaptureScript =
+    '$repoRoot/flutter_ui_autopos/scripts/cir_full_usb_capture.py';
 String activeWorkspaceRoot = defaultWorkspaceRoot;
 String? selectedAnchorCdcPath;
 String? selectedTagCdcPath;
@@ -94,9 +112,9 @@ const biospurBlack = Color(0xFF050806);
 const panelLine = Color(0x33638A01);
 const tableLine = Color(0xAA638A01);
 const mutedText = Color(0xFFB6C7B3);
-const appVersion = '1.0.8';
-const appBuildStamp = '2026-06-22 16:47 CEST';
-const appBuildNote = 'export auto-detected CDC fallback';
+const appVersion = '1.0.19';
+const appBuildStamp = '2026-06-23 11:15 CEST';
+const appBuildNote = 'capture scenes use normal PMODE0';
 
 class AutoPosFieldApp extends StatelessWidget {
   const AutoPosFieldApp({super.key});
@@ -499,7 +517,7 @@ echo "[clear] done"
                     ),
                     const Tab(
                       icon: Icon(Icons.sensors_outlined),
-                      text: 'Static / Roto / Wand Capture',
+                      text: 'Tag Capture Scene',
                     ),
                   ],
                 ),
@@ -1247,12 +1265,22 @@ class _AutoPosSweepTabState extends State<AutoPosSweepTab> {
   final TextEditingController _prewarmController = TextEditingController(
     text: '10',
   );
+  final TextEditingController _cirIdController = TextEditingController(
+    text: 'CIR01',
+  );
+  final TextEditingController _cirSetsController = TextEditingController(
+    text: '100',
+  );
+  bool _includeCirCapture = false;
+  String _cirMode = cirModeFull;
 
   @override
   void dispose() {
     _idController.dispose();
     _setsController.dispose();
     _prewarmController.dispose();
+    _cirIdController.dispose();
+    _cirSetsController.dispose();
     super.dispose();
   }
 
@@ -1338,14 +1366,111 @@ class _AutoPosSweepTabState extends State<AutoPosSweepTab> {
       );
       return;
     }
+
+    final sweepCommand =
+        '$_baseSource && sweep -id ${shellQuote(id)} -n $swSets -p $prewarm';
+    var runnerName = 'Sweep $id';
+    var command = sweepCommand;
+
+    if (_includeCirCapture) {
+      if (_cirMode == cirModeFull &&
+          (!ports.masterTag || !ports.masterAnchor || !ports.cirFullUsbReady)) {
+        await showBioSpurNotice(
+          context,
+          title: 'Full CIR USB path missing',
+          message: fullCirUsbRequirementMessage(ports),
+        );
+        return;
+      }
+      final cirId = _cirIdController.text.trim().isEmpty
+          ? 'CIR01'
+          : _cirIdController.text.trim();
+      final cirSets = int.tryParse(_cirSetsController.text.trim()) ?? 100;
+      if (cirSets <= 0) {
+        await showBioSpurNotice(
+          context,
+          title: 'Invalid CIR sets',
+          message: 'CIR sets must be > 0.',
+        );
+        return;
+      }
+      runnerName = 'Sweep $id + CIR $cirId';
+      command =
+          '''
+set -euo pipefail
+$sweepCommand
+${_matrixCirCaptureCommand(id: cirId, cirSets: cirSets)}
+''';
+    }
+
     widget.onEnableSweepLoading(
       clear: true,
       minModified: DateTime.now().subtract(const Duration(seconds: 2)),
     );
-    await _runShell(
-      'Sweep $id',
-      '$_baseSource && sweep -id ${shellQuote(id)} -n $swSets -p $prewarm',
-    );
+    await _runShell(runnerName, command);
+  }
+
+  String _matrixCirCaptureCommand({required String id, required int cirSets}) {
+    final mode = _cirMode;
+    final modeArg = mode == cirModeFull ? 'full' : 'compact';
+    final progressPrefix = mode == cirModeFull ? 'F-CIR' : 'C-CIR';
+    final outName =
+        'cir_${id}_${modeArg}_${cirSets}set_\$(date +%Y%m%d_%H%M%S)';
+    final fullListener = mode != cirModeFull
+        ? ''
+        : '''
+FULL_CIR_PID=""
+python3 ${shellQuote(fullCirUsbCaptureScript)} \\
+  ${cirFullUsbPortArgs()} \\
+  --seconds 7200 \\
+  --preview-every 0 \\
+  --capture-root "\$BIOSPUR_SESSION_ROOT" \\
+  --target ${shellQuote('MATRIX_$id')} \\
+  --control-port "" &
+FULL_CIR_PID=\$!
+sleep 1
+''';
+    final cleanup = mode != cirModeFull
+        ? ''
+        : '''
+cleanup_full_cir_listener() {
+  local rc=\$?
+  trap - EXIT INT TERM
+  set +e
+  if [[ -n "\${FULL_CIR_PID:-}" ]] && kill -0 "\$FULL_CIR_PID" 2>/dev/null; then
+    kill "\$FULL_CIR_PID" 2>/dev/null || true
+    wait "\$FULL_CIR_PID" 2>/dev/null || true
+  fi
+  exit "\$rc"
+}
+trap cleanup_full_cir_listener EXIT INT TERM
+''';
+    return '''
+set -euo pipefail
+$workspaceSetup
+$cleanup
+echo "[$progressPrefix] mode=$modeArg"
+echo "[$progressPrefix] sets=$cirSets"
+OUT="\$BIOSPUR_SESSION_ROOT/$outName"
+mkdir -p "\$OUT"
+$fullListener
+(
+  cd "\$BIOSPUR_BCAST_DIR"
+  python3 scripts/run_autopos_sweep_loop.py \\
+    --port "\$BIOSPUR_ANCHOR_PORT" \\
+    --order ABCDEFGH \\
+    --sw-sets $cirSets \\
+    --prewarm-sw-sets 0 \\
+    --round-retries 0 \\
+    --matrix-cir-mode ${shellQuote(modeArg)} \\
+    --progress-prefix ${shellQuote(progressPrefix)} \\
+    --out-dir "\$OUT/sweep$cirSets" \\
+    --verbose 1 2>&1 | tee "\$OUT/sweep$cirSets.console.log"
+)
+RC=\${PIPESTATUS[0]}
+printf '%s,%s,cir_capture,%s,%s\\n' "\$(date -Is)" ${shellQuote(id)} "\$OUT" ${shellQuote('mode=$modeArg; sw_sets=$cirSets; rc=')}"\$RC" >> "\$BIOSPUR_SESSION_ROOT/session_notes.csv"
+exit "\$RC"
+''';
   }
 
   String get _baseSource => workspaceSetup;
@@ -1361,11 +1486,27 @@ class _AutoPosSweepTabState extends State<AutoPosSweepTab> {
           idController: _idController,
           setsController: _setsController,
           prewarmController: _prewarmController,
+          cirIdController: _cirIdController,
+          cirSetsController: _cirSetsController,
+          includeCirCapture: _includeCirCapture,
+          cirMode: _cirMode,
+          cirFullUsbReady: widget.ports.cirFullUsbReady,
+          cirFullUsbStatus: widget.ports.cirFullUsbStatus,
           onRefreshPorts: _connect,
           onUsbPower: _usbPowerOn,
           onAllAnchorResponder: _allAnchorResponder,
           onSystemReset: _systemReset,
           onStartSweep: _startSweep,
+          onIncludeCirCaptureChanged: (value) {
+            setState(() {
+              _includeCirCapture = value;
+            });
+          },
+          onCirModeChanged: (mode) {
+            setState(() {
+              _cirMode = mode;
+            });
+          },
           onReadLatest: () async {
             widget.onEnableSweepLoading();
             await widget.onRefresh();
@@ -1390,11 +1531,19 @@ class ControlPanel extends StatelessWidget {
     required this.idController,
     required this.setsController,
     required this.prewarmController,
+    required this.cirIdController,
+    required this.cirSetsController,
+    required this.includeCirCapture,
+    required this.cirMode,
+    required this.cirFullUsbReady,
+    required this.cirFullUsbStatus,
     required this.onRefreshPorts,
     required this.onUsbPower,
     required this.onAllAnchorResponder,
     required this.onSystemReset,
     required this.onStartSweep,
+    required this.onIncludeCirCaptureChanged,
+    required this.onCirModeChanged,
     required this.onReadLatest,
     required this.onClearExperimentData,
   });
@@ -1403,16 +1552,27 @@ class ControlPanel extends StatelessWidget {
   final TextEditingController idController;
   final TextEditingController setsController;
   final TextEditingController prewarmController;
+  final TextEditingController cirIdController;
+  final TextEditingController cirSetsController;
+  final bool includeCirCapture;
+  final String cirMode;
+  final bool cirFullUsbReady;
+  final String cirFullUsbStatus;
   final Future<void> Function() onRefreshPorts;
   final Future<void> Function() onUsbPower;
   final Future<void> Function() onAllAnchorResponder;
   final Future<void> Function() onSystemReset;
   final Future<void> Function() onStartSweep;
+  final ValueChanged<bool> onIncludeCirCaptureChanged;
+  final ValueChanged<String> onCirModeChanged;
   final Future<void> Function() onReadLatest;
   final Future<void> Function() onClearExperimentData;
 
   @override
   Widget build(BuildContext context) {
+    final fullUsbTone = includeCirCapture && cirMode == cirModeFull
+        ? (cirFullUsbReady ? PillTone.good : PillTone.warn)
+        : PillTone.neutral;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -1510,6 +1670,78 @@ class ControlPanel extends StatelessWidget {
                   onPressed: runner.isRunning ? runner.stop : null,
                   icon: const Icon(Icons.stop),
                   label: const Text('Stop'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 10,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(
+                      value: cirModeCompact,
+                      icon: Icon(Icons.compress),
+                      label: Text('Compact'),
+                    ),
+                    ButtonSegment(
+                      value: cirModeFull,
+                      icon: Icon(Icons.area_chart),
+                      label: Text('Full'),
+                    ),
+                  ],
+                  selected: {cirMode},
+                  onSelectionChanged: runner.isRunning || !includeCirCapture
+                      ? null
+                      : (selection) => onCirModeChanged(selection.first),
+                ),
+                SizedBox(
+                  width: 130,
+                  child: TextField(
+                    controller: cirIdController,
+                    enabled: !runner.isRunning && includeCirCapture,
+                    decoration: const InputDecoration(
+                      labelText: 'CIR ID',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 120,
+                  child: TextField(
+                    controller: cirSetsController,
+                    enabled: !runner.isRunning && includeCirCapture,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'CIR sets',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                FilterChip(
+                  selected: includeCirCapture,
+                  onSelected: runner.isRunning
+                      ? null
+                      : onIncludeCirCaptureChanged,
+                  avatar: Icon(
+                    includeCirCapture ? Icons.check : Icons.graphic_eq,
+                    size: 18,
+                  ),
+                  label: const Text('CIR Capture'),
+                ),
+                StatusPill(
+                  label: 'CIR after sweep',
+                  value: includeCirCapture ? cirModeLabel(cirMode) : 'NO',
+                  tone: includeCirCapture ? PillTone.active : PillTone.neutral,
+                ),
+                StatusPill(
+                  label: 'Full CIR USB',
+                  value: cirFullUsbStatus,
+                  tone: fullUsbTone,
                 ),
               ],
             ),
@@ -3398,6 +3630,7 @@ class _CaptureTabState extends State<CaptureTab>
   CaptureSessionInfo? _selectedSession;
   String? _selectedLayoutPath;
   String? _selectedTag;
+  String _cirMode = cirModeOff;
   Set<String> _visibleTags = {};
   final Map<String, Set<String>> _completedPlanIds = {
     'static': <String>{},
@@ -3480,6 +3713,15 @@ class _CaptureTabState extends State<CaptureTab>
     final targetArg = _kind == 'free'
         ? (_freeSelectedTags.toList()..sort())
         : [...?captureTargetsByKind[_kind]];
+    if (_cirMode == cirModeFull &&
+        (!ports.masterAnchor || !ports.masterTag || !ports.cirFullUsbReady)) {
+      await showBioSpurNotice(
+        context,
+        title: 'Full CIR USB path missing',
+        message: fullCirUsbRequirementMessage(ports),
+      );
+      return;
+    }
     if (_kind == 'free' && targetArg.isEmpty) {
       await showBioSpurNotice(
         context,
@@ -3492,15 +3734,145 @@ class _CaptureTabState extends State<CaptureTab>
     final targetSuffix = _kind == 'free'
         ? ' -targets ${shellQuote(targetArg.join(','))}'
         : '';
-    final preflightEnv = _anchorPreflightForCapture
-        ? 'BIOSPUR_SKIP_ANCHOR_PREFLIGHT_FOR_CAPTURE=0'
-        : 'BIOSPUR_SKIP_ANCHOR_PREFLIGHT_FOR_CAPTURE=1';
-    final command =
-        '$workspaceSetup && $preflightEnv $_kind -id ${shellQuote(id)} -s ${shellQuote(duration)}$targetSuffix';
+    final fullStaticCir = _kind == 'static' && _cirMode == cirModeFull;
+    String captureCommandFor(
+      String captureId, {
+      bool forceSkipAnchorPreflight = false,
+      bool disableControllerReset = false,
+      String cirModeArg = cirModeOff,
+    }) {
+      final skipPreflight =
+          forceSkipAnchorPreflight || !_anchorPreflightForCapture;
+      final env = <String>[
+        'BIOSPUR_SKIP_ANCHOR_PREFLIGHT_FOR_CAPTURE=${skipPreflight ? 1 : 0}',
+      ];
+      if (disableControllerReset) {
+        env.addAll(const [
+          'BIOSPUR_RESET_MASTERS_BEFORE_CAPTURE=0',
+          'BIOSPUR_RESET_TAG_BEFORE_CAPTURE=0',
+          'BIOSPUR_RESET_ANCHOR_BEFORE_CAPTURE=0',
+        ]);
+      }
+      return '$workspaceSetup && ${env.join(' ')} $_kind -id ${shellQuote(captureId)} -s ${shellQuote(duration)} -cir ${shellQuote(cirModeArg)}$targetSuffix';
+    }
+
+    final captureCommand = captureCommandFor(
+      id,
+      forceSkipAnchorPreflight: fullStaticCir,
+    );
+    final cirCaptureCommand = captureCommandFor(
+      _kind == 'static' ? '${id}_CIR' : id,
+      forceSkipAnchorPreflight: _cirMode != cirModeOff,
+      disableControllerReset: _cirMode != cirModeOff,
+      cirModeArg: _cirMode,
+    );
+    final command = _runtimeCirCaptureCommand(
+      ports: ports,
+      captureCommand: captureCommand,
+      cirCaptureCommand: cirCaptureCommand,
+      targets: targetArg,
+      seconds: int.tryParse(duration) ?? 120,
+    );
     setState(() {
       _activeExpectedTags = targetArg.toSet();
     });
-    await widget.runner.start('$_kind $id', command);
+    final runnerName = fullStaticCir ? '$_kind $id + Full CIR' : '$_kind $id';
+    await widget.runner.start(runnerName, command);
+  }
+
+  String _runtimeCirCaptureCommand({
+    required PortSnapshot ports,
+    required String captureCommand,
+    required String cirCaptureCommand,
+    required List<String> targets,
+    required int seconds,
+  }) {
+    final mode = _cirMode;
+    final target = cirCaptureTargetForKind(_kind, targets);
+    final cleanup = runtimeCirControlCommand(
+      ports: ports,
+      tagMode: cirModeOff,
+      anchorMode: cirModeOff,
+      anchorRole: 'responder',
+      bestEffort: true,
+      anchorWaitS: 18.0,
+    );
+    if (mode == cirModeOff) {
+      return '''
+set -euo pipefail
+($cleanup) || true
+$captureCommand
+''';
+    }
+    final setup = runtimeCirControlCommand(
+      ports: ports,
+      tagMode: mode,
+      anchorMode: mode,
+      anchorRole: 'responder',
+      anchorWaitS: 55.0,
+    );
+    final isPostStaticFullCir = _kind == 'static' && mode == cirModeFull;
+    final fullListener = mode != cirModeFull
+        ? ''
+        : '''
+FULL_CIR_PID=""
+python3 ${shellQuote(fullCirUsbCaptureScript)} \\
+  ${cirFullUsbPortArgs()} \\
+  --seconds ${math.max(60, seconds + 45)} \\
+  --preview-every 0 \\
+  --capture-root ${shellQuote(capturesRoot)} \\
+  --target ${shellQuote(target)} \\
+  --control-port "" &
+FULL_CIR_PID=\$!
+sleep 1
+''';
+    final fullCleanup = mode != cirModeFull
+        ? ''
+        : '''
+if [[ -n "\${FULL_CIR_PID:-}" ]] && kill -0 "\$FULL_CIR_PID" 2>/dev/null; then
+  kill "\$FULL_CIR_PID" 2>/dev/null || true
+  wait "\$FULL_CIR_PID" 2>/dev/null || true
+fi
+''';
+    if (isPostStaticFullCir) {
+      return '''
+set -euo pipefail
+cleanup_runtime_cir() {
+  local rc=\$?
+  trap - EXIT INT TERM
+  set +e
+  $fullCleanup
+  ($cleanup) || true
+  exit "\$rc"
+}
+trap cleanup_runtime_cir EXIT INT TERM
+echo "[cir] capture_kind=$_kind mode=$mode target=$target sequence=normal_static_then_full_cir"
+($cleanup) || true
+$captureCommand
+echo "[cir] normal static capture done; starting post-static full CIR"
+$setup
+echo "[cir] runtime full CIR settle 12s before capture"
+sleep 12
+$fullListener
+$cirCaptureCommand
+''';
+    }
+    return '''
+set -euo pipefail
+cleanup_runtime_cir() {
+  local rc=\$?
+  trap - EXIT INT TERM
+  set +e
+  $fullCleanup
+  ($cleanup) || true
+  exit "\$rc"
+}
+trap cleanup_runtime_cir EXIT INT TERM
+echo "[cir] capture_kind=$_kind mode=$mode target=$target"
+$setup
+$fullListener
+$cirCaptureCommand
+''';
   }
 
   Future<void> _refreshPlayback() async {
@@ -3564,6 +3936,12 @@ class _CaptureTabState extends State<CaptureTab>
   Widget build(BuildContext context) {
     super.build(context);
     _loadTrajectoryIfReady();
+    final cirFullUsbReady = widget.ports.cirFullUsbReady;
+    final cirStatusTone = _cirMode == cirModeOff
+        ? PillTone.neutral
+        : _cirMode == cirModeFull && !cirFullUsbReady
+        ? PillTone.warn
+        : PillTone.active;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -3574,7 +3952,7 @@ class _CaptureTabState extends State<CaptureTab>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Static / Roto / Wand Capture',
+                  'Tag Capture Scene',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 12),
@@ -3592,8 +3970,9 @@ class _CaptureTabState extends State<CaptureTab>
                       ],
                       selected: {_kind},
                       onSelectionChanged: (value) {
+                        final nextKind = value.first;
                         setState(() {
-                          _kind = value.first;
+                          _kind = nextKind;
                           _id.text = _kind == 'static'
                               ? 'ID01'
                               : _kind == 'roto'
@@ -3625,6 +4004,34 @@ class _CaptureTabState extends State<CaptureTab>
                           isDense: true,
                         ),
                       ),
+                    ),
+                    SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(
+                          value: cirModeOff,
+                          icon: Icon(Icons.block),
+                          label: Text('CIR Off'),
+                        ),
+                        ButtonSegment(
+                          value: cirModeCompact,
+                          icon: Icon(Icons.compress),
+                          label: Text('Compact'),
+                        ),
+                        ButtonSegment(
+                          value: cirModeFull,
+                          icon: Icon(Icons.area_chart),
+                          label: Text('Full'),
+                        ),
+                      ],
+                      selected: {_cirMode},
+                      onSelectionChanged: widget.runner.isRunning
+                          ? null
+                          : (selection) {
+                              final next = selection.first;
+                              setState(() {
+                                _cirMode = next;
+                              });
+                            },
                     ),
                     FilledButton.icon(
                       onPressed: widget.runner.isRunning ? null : _start,
@@ -3658,6 +4065,16 @@ class _CaptureTabState extends State<CaptureTab>
                             ? 'Anchor preflight: ON'
                             : 'Anchor preflight: OFF',
                       ),
+                    ),
+                    StatusPill(
+                      label: 'CIR',
+                      value: cirModeLabel(_cirMode),
+                      tone: cirStatusTone,
+                    ),
+                    StatusPill(
+                      label: 'Full CIR USB',
+                      value: widget.ports.cirFullUsbStatus,
+                      tone: cirFullUsbReady ? PillTone.good : PillTone.warn,
                     ),
                   ],
                 ),
@@ -6927,6 +7344,12 @@ class PortReader {
     final tagOverride = _nonEmptyString(selectedTagCdcPath);
     final anchorPath = anchorOverride ?? _findByName(entries, _anchorTokens);
     final tagPath = tagOverride ?? _findByName(entries, _tagTokens);
+    final cirOnline = <String, String>{};
+    for (final entry in cirFullUsbPorts.entries) {
+      if (_pathExists(entry.value)) {
+        cirOnline[entry.key] = entry.value;
+      }
+    }
     return PortSnapshot(
       masterAnchor: anchorPath != null && _pathExists(anchorPath),
       masterTag: tagPath != null && _pathExists(tagPath),
@@ -6935,6 +7358,7 @@ class PortReader {
       anchorManual: anchorOverride != null,
       tagManual: tagOverride != null,
       entries: entries,
+      cirFullUsbOnline: cirOnline,
     );
   }
 
@@ -7015,6 +7439,7 @@ class PortSnapshot {
     required this.anchorManual,
     required this.tagManual,
     required this.entries,
+    required this.cirFullUsbOnline,
   });
 
   final bool masterAnchor;
@@ -7024,8 +7449,16 @@ class PortSnapshot {
   final bool anchorManual;
   final bool tagManual;
   final List<SerialPortEntry> entries;
+  final Map<String, String> cirFullUsbOnline;
 
   bool get anyMaster => masterAnchor || masterTag;
+  bool get cirTagUsbOnline => cirFullUsbOnline.containsKey('TAG');
+  int get cirAnchorUsbCount =>
+      cirFullUsbOnline.keys.where((label) => label != 'TAG').length;
+  int get cirUsbCount => cirFullUsbOnline.length;
+  bool get cirFullUsbReady => cirTagUsbOnline && cirAnchorUsbCount > 0;
+  String get cirFullUsbStatus =>
+      'Tag USB: ${cirTagUsbOnline ? 'OK' : 'missing'} | Anchor USB: $cirAnchorUsbCount/8';
 
   factory PortSnapshot.empty() => const PortSnapshot(
     masterAnchor: false,
@@ -7035,6 +7468,7 @@ class PortSnapshot {
     anchorManual: false,
     tagManual: false,
     entries: [],
+    cirFullUsbOnline: {},
   );
 }
 
@@ -7679,10 +8113,19 @@ class LayoutSummary {
           z[item['label'].toString()] = (item['z_mm'] as num).toDouble();
         }
       }
+      final canonicalZ = _canonicalAnchorZMap(z);
       final lower =
-          anchors.take(4).map((a) => z[a] ?? 0).reduce((a, b) => a + b) / 4;
+          anchors
+              .take(4)
+              .map((a) => canonicalZ[a] ?? 0)
+              .reduce((a, b) => a + b) /
+          4;
       final upper =
-          anchors.skip(4).map((a) => z[a] ?? 0).reduce((a, b) => a + b) / 4;
+          anchors
+              .skip(4)
+              .map((a) => canonicalZ[a] ?? 0)
+              .reduce((a, b) => a + b) /
+          4;
       final meta = decoded['extra']?['ultrasound_height_alignment'];
       final metaMap = meta is Map<String, dynamic> ? meta : null;
       final usAll = metaMap?['ultrasound'] is Map<String, dynamic>
@@ -7727,7 +8170,7 @@ class LayoutSummary {
       return LayoutSummary(
         path: path.path,
         zConventionOk: lower < upper,
-        hZ: z['H'],
+        hZ: canonicalZ['H'],
         usOffset: null,
         usUsedAntCenter: usedMean,
         usUsedSource: usedSources.values.join(' ; '),
@@ -7744,6 +8187,26 @@ class LayoutSummary {
       return LayoutSummary.empty();
     }
   }
+}
+
+Map<String, double> _canonicalAnchorZMap(Map<String, double> rawZ) {
+  final z = <String, double>{
+    for (final entry in rawZ.entries) entry.key.toUpperCase(): entry.value,
+  };
+  final lowerLabels = anchors.take(4).toList();
+  final upperLabels = anchors.skip(4).toList();
+  if (!lowerLabels.every(z.containsKey) || !upperLabels.every(z.containsKey)) {
+    return rawZ;
+  }
+  final lower =
+      lowerLabels.map((label) => z[label]!).reduce((a, b) => a + b) /
+      lowerLabels.length;
+  final upper =
+      upperLabels.map((label) => z[label]!).reduce((a, b) => a + b) /
+      upperLabels.length;
+  if (lower < upper) return rawZ;
+
+  return {for (final entry in rawZ.entries) entry.key: -entry.value + lower};
 }
 
 class SolverAnalysis {
@@ -8097,11 +8560,18 @@ class AnchorLayoutData {
       }
       if (points.isEmpty) return null;
       final isUsHeightLayout = file.path.endsWith('/layout_us_height.json');
-      // Keep the layout coordinates exactly as written by the solver.
-      // Trajectory export uses the same layout file to solve tag positions, so
-      // applying display-only sign or mirror corrections here would overlay
-      // mirrored anchors with unmirrored tag coordinates.
-      final adjusted = points.toList();
+      final canonicalZ = _canonicalAnchorZMap({
+        for (final point in points) point.label: point.z,
+      });
+      final adjusted = [
+        for (final point in points)
+          AnchorPoint(
+            label: point.label,
+            x: point.x,
+            y: point.y,
+            z: canonicalZ[point.label] ?? point.z,
+          ),
+      ];
       adjusted.sort((a, b) => a.label.compareTo(b.label));
       final meta = decoded['extra']?['ultrasound_height_alignment'];
       final metaMap = meta is Map<String, dynamic> ? meta : null;
@@ -9016,6 +9486,70 @@ String? emptyToNull(String? value) {
 }
 
 String shellQuote(String value) => "'${value.replaceAll("'", "'\\''")}'";
+
+String cirModeLabel(String mode) {
+  switch (mode) {
+    case cirModeCompact:
+      return 'Compact';
+    case cirModeFull:
+      return 'Full';
+    case cirModeOff:
+    default:
+      return 'Off';
+  }
+}
+
+String cirCaptureTargetForKind(String kind, List<String> targets) {
+  if (targets.isEmpty) return kind.toUpperCase();
+  if (targets.length == 1) return targets.first;
+  return '${kind.toUpperCase()}_${targets.join('_')}';
+}
+
+String cirFullUsbPortArgs({
+  bool includeTag = true,
+  bool includeAnchors = true,
+}) {
+  final args = <String>[];
+  for (final entry in cirFullUsbPorts.entries) {
+    if (entry.key == 'TAG' && !includeTag) continue;
+    if (entry.key != 'TAG' && !includeAnchors) continue;
+    args.add('--port ${shellQuote('${entry.key}=${entry.value}')}');
+  }
+  return args.join(' ');
+}
+
+String runtimeCirControlCommand({
+  required PortSnapshot ports,
+  String tagMode = 'skip',
+  String anchorMode = 'skip',
+  String anchorRole = 'responder',
+  bool tagOneshot = false,
+  bool bestEffort = false,
+  double anchorWaitS = 50.0,
+}) {
+  final parts = <String>[
+    'python3 ${shellQuote(runtimeCirControlScript)}',
+    '--tag-port ${shellQuote(ports.tagPath ?? '')}',
+    '--tag-mode ${shellQuote(tagMode)}',
+    '--anchor-port ${shellQuote(ports.anchorPath ?? '')}',
+    '--anchor-mode ${shellQuote(anchorMode)}',
+    '--anchor-role ${shellQuote(anchorRole)}',
+    '--anchor-wait-s ${shellQuote(anchorWaitS.toStringAsFixed(1))}',
+  ];
+  if (tagOneshot) parts.add('--tag-oneshot');
+  if (bestEffort) parts.add('--best-effort');
+  return parts.join(' ');
+}
+
+String fullCirUsbRequirementMessage(PortSnapshot ports) {
+  final missing = <String>[];
+  if (!ports.masterTag) missing.add('Master_Tag CDC');
+  if (!ports.masterAnchor) missing.add('Master_Anchor CDC');
+  if (!ports.cirTagUsbOnline) missing.add('Tag USB/J-Link CDC');
+  if (ports.cirAnchorUsbCount <= 0) missing.add('Anchor USB/J-Link CDC');
+  if (missing.isEmpty) return 'Full CIR USB path is ready.';
+  return 'Full CIR requires: ${missing.join(', ')}. Current: ${ports.cirFullUsbStatus}.';
+}
 
 String? _nonEmptyString(Object? value) {
   final text = value?.toString().trim();

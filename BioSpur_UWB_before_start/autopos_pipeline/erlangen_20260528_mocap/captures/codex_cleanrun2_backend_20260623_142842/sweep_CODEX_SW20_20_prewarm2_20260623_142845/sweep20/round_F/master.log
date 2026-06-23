@@ -1,0 +1,71 @@
+PORT=/dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02-if00
+START=2026-06-23 14:30:29
+MASTER=F
+PRECHECK: BSxxxx tag quarantine disabled; master/matrix anchors ignore tag polls during sweep
+PRECHECK: context session_autopos_ready=1 autopos_initialized=1
+PRECHECK: reusing session AUTOPOS state from matrix guard
+PRECHECK: reusing existing AUTOPOS map
+>>> autopos cir 0
+[AUTOPOS] AUTOPOS cir mode set: 0
+>>> autopos round F 22
+[AUTOPOS] AUTOPOS round staged: master=F sets=22
+>>> autopos status
+[AUTOPOS] AUTOPOS: mode=AUTOPOS state=staged staged=F last_success=E sets=22 cir=0 error=-
+>>> autopos apply
+[AUTOPOS] AUTOPOS apply started
+[AUTOPOS] RECV_BG gate: SUPPRESS reason=autopos_detach
+[AUTOPOS] AUTOPOS detach skip STOP: finite master auto-returns to matrix sets=22
+[AUTOPOS] RECV_BG gate: ALLOW reason=autopos_detach_done
+[AUTOPOS] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=8 target=anchor prefix=ANCHOR-
+[AUTOPOS] Scanning for ANCHOR-*
+[AUTOPOS] AUTOPOS apply mode: incremental
+[AUTOPOS] AUTOPOS apply incremental: prev_master=E new_master=F
+[AUTOPOS] Master discovery mode: CONN & START
+[AUTOPOS] AUTOPOS wait anchor ready: uuid=A892AF05DD59CF0D0D3408AD74F364A1 reuse existing ready control link (discovery remains active)
+[AUTOPOS] AUTOPOS state: STATE fw=anchor-runtime-cir-20260622 bs=BS4B52 uuid=A892AF05DD59CF0D0D3408AD74F364A1 label=E role=matrix cfg_valid=1 busy=1 pending_valid=1 schema=2 gen=3 reboot_required=0
+[AUTOPOS] AUTOPOS state: STATE fw=anchor-runtime-cir-20260622 bs=BS4B52 uuid=A892AF05DD59CF0D0D3408AD74F364A1 label=E role=matrix cfg_valid=1 busy=1 pending_valid=1 schema=2 gen=3 reboot_required=0
+[AUTOPOS] AUTOPOS anchor E already active role=matrix cfg_valid=1; keeping current config
+[AUTOPOS] AUTOPOS anchor E role verified
+[AUTOPOS] Master discovery mode: CONN & START
+[AUTOPOS] AUTOPOS wait anchor ready: uuid=840C68591E90019821AACFF1B73AAA34 reuse existing ready control link (discovery remains active)
+[AUTOPOS] AUTOPOS state: STATE fw=anchor-cir-runtime-modes-202606 bs=BS928B uuid=840C68591E90019821AACFF1B73AAA34 label=F role=matrix cfg_valid=1 busy=1 pending_valid=1 schema=2 gen=3 reboot_required=0
+[AUTOPOS] AUTOPOS state: STATE fw=anchor-cir-runtime-modes-202606 bs=BS928B uuid=840C68591E90019821AACFF1B73AAA34 label=F role=matrix cfg_valid=1 busy=1 pending_valid=1 schema=2 gen=3 reboot_required=0
+[AUTOPOS] BLE cmd skip[0]: target mismatch kind=anchor target_name=- target_uuid=840C68591E90019821AACFF1B73AAA34 peer_name=- peer_bs=- peer_uuid=B2B5FA625534A8C617135DCAFC9E036A link=anchor-ctrl ready=1
+[AUTOPOS] BLE cmd skip[1]: target mismatch kind=anchor target_name=- target_uuid=840C68591E90019821AACFF1B73AAA34 peer_name=- peer_bs=- peer_uuid=B1E487C2B1FD740D1442206A1857DFA1 link=anchor-ctrl ready=1
+[AUTOPOS] BLE cmd skip[2]: target mismatch kind=anchor target_name=- target_uuid=840C68591E90019821AACFF1B73AAA34 peer_name=- peer_bs=- peer_uuid=B9179575C776C98F1CB132DD6EDC6223 link=anchor-ctrl ready=1
+[AUTOPOS] Anchor ctrl sent[3]: RUNTIME MASTER SWEEP 22 CIR=0 uuid=840C68591E90019821AACFF1B73AAA34
+[AUTOPOS] BLE cmd skip[4]: target mismatch kind=anchor target_name=- target_uuid=840C68591E90019821AACFF1B73AAA34 peer_name=- peer_bs=- peer_uuid=A892AF05DD59CF0D0D3408AD74F364A1 link=anchor-ctrl ready=1
+[AUTOPOS] BLE cmd skip[5]: target mismatch kind=anchor target_name=- target_uuid=840C68591E90019821AACFF1B73AAA34 peer_name=- peer_bs=- peer_uuid=F3BB7A04104F9CB8561DDDACB9E53714 link=anchor-ctrl ready=1
+[AUTOPOS] BLE cmd skip[6]: target mismatch kind=anchor target_name=- target_uuid=840C68591E90019821AACFF1B73AAA34 peer_name=- peer_bs=- peer_uuid=B3087BC3D87CCCD316AEDC6B71D6677F link=anchor-ctrl ready=1
+[AUTOPOS] BLE cmd skip[7]: target mismatch kind=anchor target_name=- target_uuid=840C68591E90019821AACFF1B73AAA34 peer_name=- peer_bs=- peer_uuid=CEE5A7EFCB35F8A56B430047629F5309 link=anchor-ctrl ready=1
+[AUTOPOS] ANCHOR_CTRL[3] notify: OK RUNTIME_SWITCH_REQUESTED SWEEP=22
+[AUTOPOS] AUTOPOS result: OK RUNTIME_SWITCH_REQUESTED SWEEP=22
+[AUTOPOS] AUTOPOS state: STATE fw=anchor-cir-runtime-modes-202606 bs=BS928B uuid=840C68591E90019821AACFF1B73AAA34 label=F role=master cfg_valid=1 busy=1 pending_valid=1 schema=2 gen=3 reboot_required=0
+[AUTOPOS] AUTOPOS anchor F role verified
+[AUTOPOS] AUTOPOS apply success: master=F
+[AUTOPOS] SW-F warmup discard 1/2 minq=100
+s=22; host waits for SWEEP_DONE
+[AUTOPOS] SW-F warmup discard 2/2 minq=100
+[AUTOPOS] SW-F,A,4686,100,B,1583,100,C,3624,100,D,5316,100,E,4254,100,G,3390,100,H,5109,100
+[AUTOPOS] SW-F,A,4708,100,B,1603,100,C,3589,100,D,5264,100,E,4258,100,G,3361,75,H,5112,100
+[AUTOPOS] SW-F,A,4649,100,B,1554,100,C,3596,100,D,5295,100,E,4226,100,G,3368,80,H,5106,100
+[AUTOPOS] SW-F,A,4711,100,B,1595,100,C,3573,100,D,5285,100,E,4182,100,G,3372,83,H,5103,100
+[AUTOPOS] SW-F,A,4662,100,B,1553,100,C,3578,100,D,5261,100,E,4251,100,G,3390,85,H,5092,100
+[AUTOPOS] SW-F,A,4691,100,B,1597,100,C,3602,100,D,5291,100,E,4265,100,G,3357,87,H,5126,100
+[AUTOPOS] SW-F,A,4735,100,B,1604,100,C,3606,100,D,5328,100,E,4258,100,G,3391,88,H,5073,100
+[AUTOPOS] SW-F,A,4655,100,B,1589,100,C,3564,100,D,5258,100,E,4210,100,G,3394,90,H,5090,100
+[AUTOPOS] SW-F,A,4662,100,B,1586,100,C,3600,100,D,5289,100,E,4209,100,G,3395,90,H,5102,100
+[AUTOPOS] SW-F,A,4695,100,B,1559,100,C,3568,100,D,5285,100,E,4200,100,G,3374,91,H,5071,100
+[AUTOPOS] SW-F,A,4689,100,B,1590,100,C,3591,100,D,5309,100,E,4243,100,G,3404,92,H,5130,100
+[AUTOPOS] SW-F,A,4721,100,B,1622,100,C,3642,100,D,5304,100,E,4275,100,G,3419,92,H,5144,100
+[AUTOPOS] SW-F,A,4691,100,B,1606,100,C,3594,100,D,5269,100,E,4242,100,G,3429,93,H,5079,100
+[AUTOPOS] SW-F,A,4639,100,B,1603,100,C,3587,100,D,5268,100,E,4205,100,G,3378,93,H,5095,100
+[AUTOPOS] SW-F,A,4657,100,B,1589,100,C,3597,100,D,5287,100,E,4257,100,G,3402,94,H,5150,100
+[AUTOPOS] SW-F,A,4669,100,B,1595,100,C,3605,100,D,5285,100,E,4218,100,G,3371,94,H,5093,100
+[AUTOPOS] SW-F,A,4661,100,B,1572,100,C,3586,100,D,5283,100,E,4233,100,G,3339,94,H,5112,100
+[AUTOPOS] SW-F,A,4632,100,B,1600,100,C,3586,100,D,5297,100,E,4250,100,G,3426,95,H,5114,100
+[AUTOPOS] SW-F,A,4624,100,B,1577,100,C,3599,100,D,5286,100,E,4215,100,G,3362,95,H,5098,100
+[AUTOPOS] SW-F,A,4657,100,B,1607,100,C,3599,100,D,5286,100,E,4196,100,G,3370,95,H,5115,100
+ROUND: target sw-set count reached; waiting for finite-master SWEEP_DONE
+[AUTOPOS] ANCHOR_CTRL[3] notify: SWEEP_DONE master=F sets=22 role=matrix
+END=2026-06-23 14:30:35

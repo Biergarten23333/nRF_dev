@@ -38,18 +38,14 @@ set(APP_MASTER_BOOT_PROFILE "neutral" CACHE STRING
     "Boot profile: neutral, anchor, or tag")
 set(APP_MASTER_BOOT_TAG_ALLOWLIST "" CACHE STRING
     "Comma-separated BS names accepted by the tag boot profile; empty accepts all BS*")
-set(APP_MASTER_TDMA_SLOT_PERIOD_MS "40" CACHE STRING
+set(APP_MASTER_TDMA_SLOT_PERIOD_MS "10" CACHE STRING
     "Master TDMA slot period in milliseconds")
-set(APP_MASTER_TDMA_SLOT_ACTIVE_MS "24" CACHE STRING
+set(APP_MASTER_TDMA_SLOT_ACTIVE_MS "9" CACHE STRING
     "Master TDMA slot active window in milliseconds")
 set(APP_MASTER_TDMA_SLOT_ACTIVE_US "0" CACHE STRING
     "Optional Master TDMA active window in microseconds; 0 sends ACTIVE_MS only")
-set(APP_MASTER_TDMA_MOTION_DEFAULT_HZ "5" CACHE STRING
+set(APP_MASTER_TDMA_MOTION_DEFAULT_HZ "10" CACHE STRING
     "Default TDMA target Hz for motion profile")
-set(APP_MASTER_TDMA_STATIC_DEFAULT_HZ "5" CACHE STRING
-    "Default TDMA target Hz for static profile")
-set(APP_MASTER_TDMA_ROTO_DEFAULT_HZ "15" CACHE STRING
-    "Default TDMA target Hz for roto profile")
 
 target_include_directories(app PRIVATE
     ${APP_ROOT}/include
@@ -73,8 +69,6 @@ target_compile_definitions(app PRIVATE
     APP_MASTER_TDMA_SLOT_ACTIVE_MS=${APP_MASTER_TDMA_SLOT_ACTIVE_MS}
     APP_MASTER_TDMA_SLOT_ACTIVE_US=${APP_MASTER_TDMA_SLOT_ACTIVE_US}
     APP_MASTER_TDMA_MOTION_DEFAULT_HZ=${APP_MASTER_TDMA_MOTION_DEFAULT_HZ}
-    APP_MASTER_TDMA_STATIC_DEFAULT_HZ=${APP_MASTER_TDMA_STATIC_DEFAULT_HZ}
-    APP_MASTER_TDMA_ROTO_DEFAULT_HZ=${APP_MASTER_TDMA_ROTO_DEFAULT_HZ}
 )
 
 set_source_files_properties(${APP_ROOT}/apps/master_ota/src/main.c PROPERTIES

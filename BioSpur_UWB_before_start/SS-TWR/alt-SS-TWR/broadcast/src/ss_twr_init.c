@@ -84,7 +84,7 @@ enum uwb_tag_ble_cal_status {
 #endif
 
 #ifndef APP_ALT_SS_TWR_BCAST_FORCE_FULL_SWEEP
-#define APP_ALT_SS_TWR_BCAST_FORCE_FULL_SWEEP 0U
+#define APP_ALT_SS_TWR_BCAST_FORCE_FULL_SWEEP 1U
 #endif
 
 #ifndef APP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE
@@ -117,30 +117,6 @@ enum uwb_tag_ble_cal_status {
 
 #ifndef APP_TAG_TR_BCAST_V2_ENABLE
 #define APP_TAG_TR_BCAST_V2_ENABLE 0U
-#endif
-
-#ifndef APP_TAG_WAND_MODE_ENABLE
-#define APP_TAG_WAND_MODE_ENABLE 0U
-#endif
-
-#ifndef APP_TAG_WAND_DEFAULT_A_ID
-#define APP_TAG_WAND_DEFAULT_A_ID 0xF4U
-#endif
-
-#ifndef APP_TAG_WAND_DEFAULT_B_ID
-#define APP_TAG_WAND_DEFAULT_B_ID 0x36U
-#endif
-
-#ifndef APP_TAG_WAND_DEFAULT_C_ID
-#define APP_TAG_WAND_DEFAULT_C_ID 0x5AU
-#endif
-
-#ifndef APP_TAG_WAND_RESP_RX_MS
-#define APP_TAG_WAND_RESP_RX_MS 20U
-#endif
-
-#ifndef APP_TAG_WAND_RESP_DELAY_UUS
-#define APP_TAG_WAND_RESP_DELAY_UUS 500U
 #endif
 
 #ifndef APP_TAG_TDMA_SLOT_PERIOD_MS
@@ -181,10 +157,6 @@ enum uwb_tag_ble_cal_status {
 
 #ifndef APP_TAG_PENDING_PRINT_PERIOD
 #define APP_TAG_PENDING_PRINT_PERIOD 20U
-#endif
-
-#ifndef APP_TAG_CALIBRATION_MODE
-#define APP_TAG_CALIBRATION_MODE 0U
 #endif
 
 #ifndef APP_TAG_IMU_SAMPLE_PERIOD
@@ -247,12 +219,8 @@ enum uwb_tag_ble_cal_status {
 #define APP_TAG_CONSOLE_SUMMARY_ENABLE 1U
 #endif
 
-#ifndef APP_TAG_CAL_ROTO_MIN_TETRA_VOLUME_M3
-#define APP_TAG_CAL_ROTO_MIN_TETRA_VOLUME_M3 0.1
-#endif
-
-#ifndef APP_TAG_CAL_ROTO_PREWARM_MS
-#define APP_TAG_CAL_ROTO_PREWARM_MS 5000U
+#ifndef APP_TAG_LEGACY_TETRA_VOLUME_MIN_M3
+#define APP_TAG_LEGACY_TETRA_VOLUME_MIN_M3 0.1
 #endif
 
 #ifndef APP_TAG_EKF_ENABLE
@@ -354,8 +322,8 @@ static void ss_twr_diag_write(const char *msg)
 #define APP_TAG_MOTION_RANGE_HARD_BONUS_MM 0U
 #endif
 
-#ifndef APP_TAG_CAL_STATIC_SLOT_DIVIDER
-#define APP_TAG_CAL_STATIC_SLOT_DIVIDER 1U
+#ifndef APP_TAG_LEGACY_STATIC_SLOT_DIVIDER
+#define APP_TAG_LEGACY_STATIC_SLOT_DIVIDER 1U
 #endif
 
 #ifndef APP_TAG_MOTION_EKF_MEAS_STD_MM
@@ -454,24 +422,8 @@ static uint8_t ss_twr_init_local_tag_id;
 static uint16_t ss_twr_init_identity_code;
 static bool ss_twr_init_radio_configured;
 static struct uwb_range_tracker ss_twr_init_trackers[UWB_MAX_ANCHORS];
-#if APP_TAG_WAND_MODE_ENABLE
-static volatile bool ss_twr_init_wand_enabled;
-static volatile enum ss_twr_init_wand_role ss_twr_init_wand_role =
-    SS_TWR_INIT_WAND_ROLE_IDLE;
-static volatile uint16_t ss_twr_init_wand_pending_sweeps;
-static char ss_twr_init_wand_label = '?';
-static uint8_t ss_twr_init_wand_tags[3] = {
-    APP_TAG_WAND_DEFAULT_A_ID,
-    APP_TAG_WAND_DEFAULT_B_ID,
-    APP_TAG_WAND_DEFAULT_C_ID,
-};
-static uint32_t ss_twr_init_wand_seq;
-#endif
 static uint8_t ss_twr_init_anchor_ids[UWB_MAX_ANCHORS];
 static size_t ss_twr_init_anchor_count;
-static bool ss_twr_init_fixed_anchor_mode;
-static uint8_t ss_twr_init_fixed_anchor_ids[UWB_TAG_FIXED_ANCHOR_MAX];
-static size_t ss_twr_init_fixed_anchor_count;
 static bool ss_twr_init_multitag_anchor_plan_mode;
 static uint8_t ss_twr_init_active_plan_ids[UWB_TAG_ACTIVE_ANCHOR_MAX];
 static size_t ss_twr_init_active_plan_count;
@@ -568,10 +520,6 @@ static uint32_t ss_twr_init_diag_out_done_cycles;
 static uint32_t ss_twr_init_diag_clean_done_cycles;
 static uint32_t ss_twr_init_diag_sweep_count;
 #endif
-static uint8_t ss_twr_init_static_cal_group_cursor;
-static uint8_t ss_twr_init_roto_cal_group_cursor;
-static uint32_t ss_twr_init_static_cal_slot_tick;
-static uint32_t ss_twr_init_roto_prewarm_deadline_ms;
 static uint8_t ss_twr_init_sweep_anchor_status[UWB_MAX_ANCHORS];
 static uint8_t ss_twr_init_sweep_anchor_quality[UWB_MAX_ANCHORS];
 static uint8_t ss_twr_init_sweep_anchor_reason[UWB_MAX_ANCHORS];
@@ -584,9 +532,6 @@ static bool ss_twr_init_sweep_anchor_diag_published[UWB_MAX_ANCHORS];
 
 static void ss_twr_init_prepare_sweep_plan(void);
 static bool ss_twr_init_runtime_any_calibration_mode(void);
-static bool ss_twr_init_runtime_static_calibration_mode(void);
-static bool ss_twr_init_runtime_roto_calibration_mode(void);
-static bool ss_twr_init_roto_prewarm_active(void);
 static const char *ss_twr_init_plan_label(void);
 static char ss_twr_init_plan_code(const char *plan_label);
 static const char *ss_twr_init_solve_reason_label(void);
@@ -737,69 +682,68 @@ static void ss_twr_init_publish_cir_features(uint8_t anchor_id,
 
 static uint8_t ss_twr_init_cir_full_target_cursor;
 static uint8_t ss_twr_init_cir_full_priority_cursor;
+static uint32_t ss_twr_init_cir_full_unicast_sweep;
+static bool ss_twr_init_cir_full_unicast_sweep_valid;
+static uint8_t ss_twr_init_cir_full_unicast_anchor = UWB_MAX_ANCHORS;
 
-static bool ss_twr_init_cir_full_anchor_is_active(uint8_t anchor_id,
-                                                  uint8_t poll_count)
+static bool ss_twr_init_cir_full_select_config_anchor(uint8_t *anchor_id_out)
 {
-    for (uint8_t i = 0U; i < poll_count; ++i) {
-        if (ss_twr_init_active_anchor_ids[i] == anchor_id) {
-            return true;
-        }
+    if (anchor_id_out == NULL) {
+        return false;
     }
-    return false;
-}
 
-static uint8_t ss_twr_init_cir_full_select_target(uint8_t poll_count)
-{
 #if APP_TAG_CIR_FULL_PRIORITY_MASK != 0U
     uint8_t priority_ids[UWB_MAX_ANCHORS];
     uint8_t priority_count = 0U;
 
     for (uint8_t anchor_id = 0U; anchor_id < UWB_MAX_ANCHORS; ++anchor_id) {
         if ((APP_TAG_CIR_FULL_PRIORITY_MASK & (1U << anchor_id)) != 0U &&
-            ss_twr_init_cir_full_anchor_is_active(anchor_id, poll_count)) {
+            ss_twr_init_anchor_id_in_list(ss_twr_init_anchor_ids,
+                                          ss_twr_init_anchor_count,
+                                          anchor_id)) {
             priority_ids[priority_count++] = anchor_id;
         }
     }
     if (priority_count > 0U) {
-        uint8_t anchor_id =
+        *anchor_id_out =
             priority_ids[ss_twr_init_cir_full_priority_cursor %
                          priority_count];
         ss_twr_init_cir_full_priority_cursor =
             (uint8_t)((ss_twr_init_cir_full_priority_cursor + 1U) %
                       priority_count);
-        return anchor_id;
+        return true;
     }
 #endif
-    uint8_t anchor_id =
-        ss_twr_init_active_anchor_ids[ss_twr_init_cir_full_target_cursor %
-                                      poll_count];
+
+    if (ss_twr_init_anchor_count == 0U) {
+        return false;
+    }
+
+    *anchor_id_out =
+        ss_twr_init_anchor_ids[ss_twr_init_cir_full_target_cursor %
+                               ss_twr_init_anchor_count];
     ss_twr_init_cir_full_target_cursor =
-        (uint8_t)((ss_twr_init_cir_full_target_cursor + 1U) % poll_count);
-    return anchor_id;
+        (uint8_t)((ss_twr_init_cir_full_target_cursor + 1U) %
+                  ss_twr_init_anchor_count);
+    return true;
 }
 
-static size_t ss_twr_init_cir_full_append_priority_anchors(uint8_t *dest_ids,
-                                                           size_t dest_count,
-                                                           size_t dest_capacity)
+static bool ss_twr_init_cir_full_should_publish_unicast(uint8_t anchor_id)
 {
-#if APP_TAG_CIR_FULL_PRIORITY_MASK != 0U
-    for (uint8_t anchor_id = 0U; anchor_id < UWB_MAX_ANCHORS &&
-                              dest_count < dest_capacity;
-         ++anchor_id) {
-        if ((APP_TAG_CIR_FULL_PRIORITY_MASK & (1U << anchor_id)) != 0U &&
-            ss_twr_init_anchor_id_in_list(ss_twr_init_anchor_ids,
-                                          ss_twr_init_anchor_count,
-                                          anchor_id) &&
-            !ss_twr_init_anchor_id_in_list(dest_ids, dest_count, anchor_id)) {
-            dest_ids[dest_count++] = anchor_id;
-        }
+    if (!ss_twr_init_cir_full_enabled() || anchor_id >= UWB_MAX_ANCHORS) {
+        return false;
     }
-#else
-    ARG_UNUSED(dest_ids);
-    ARG_UNUSED(dest_capacity);
-#endif
-    return dest_count;
+
+    if (!ss_twr_init_cir_full_unicast_sweep_valid ||
+        ss_twr_init_cir_full_unicast_sweep != ss_twr_init_sweep_count) {
+        ss_twr_init_cir_full_unicast_sweep = ss_twr_init_sweep_count;
+        ss_twr_init_cir_full_unicast_sweep_valid = true;
+        ss_twr_init_cir_full_unicast_anchor = UWB_MAX_ANCHORS;
+        (void)ss_twr_init_cir_full_select_config_anchor(
+            &ss_twr_init_cir_full_unicast_anchor);
+    }
+
+    return anchor_id == ss_twr_init_cir_full_unicast_anchor;
 }
 
 static void ss_twr_init_publish_full_cir(uint8_t anchor_id,
@@ -870,6 +814,12 @@ static void ss_twr_init_publish_full_cir(uint8_t anchor_id,
 #endif
 }
 #else
+static bool ss_twr_init_cir_full_should_publish_unicast(uint8_t anchor_id)
+{
+    ARG_UNUSED(anchor_id);
+    return false;
+}
+
 static void ss_twr_init_publish_full_cir(uint8_t anchor_id,
                                          long raw_distance_mm,
                                          uint32_t resp_rx_ts,
@@ -1116,17 +1066,17 @@ static void ss_twr_init_publish_tag_range_summary(
 #if APP_TAG_TR_BCAST_V2_ENABLE
     line_len = snprintk(
         line, sizeof(line),
-        "TR;2;%lu;%c;%u;%02lx;%02lx;%02lx;%s;%s;%s;%s;%u;%lu;%lu;%lu;%u",
+        "TR;2;%lu;%c;%u;%02lx;%02lx;%s;%s;%s;%s",
         (unsigned long)ss_twr_init_sweep_count,
         ss_twr_init_plan_code(ss_twr_init_plan_label()),
         (unsigned int)ss_twr_init_runtime_params.positioning_mode,
         (unsigned long)active_mask, (unsigned long)valid_mask,
-        (unsigned long)rx_mask, raw_csv, range_csv, quality_csv,
-        status_codes, (unsigned int)qf_percent,
-        (unsigned long)first_to_last_us,
-        (unsigned long)frame_us,
-        (unsigned long)cycle_us,
-        (unsigned int)ss_twr_init_sweep_poll_count);
+        raw_csv, range_csv, quality_csv, status_codes);
+    ARG_UNUSED(rx_mask);
+    ARG_UNUSED(qf_percent);
+    ARG_UNUSED(first_to_last_us);
+    ARG_UNUSED(frame_us);
+    ARG_UNUSED(cycle_us);
 #else
     line_len = snprintk(
         line, sizeof(line),
@@ -1300,7 +1250,7 @@ static void ss_twr_init_publish_cal_frame_summary(const char *plan_label,
     }
 
     /*
-     * In CAL_STATIC/CAL_ROTO the active target set is the contract. A failed
+     * In the legacy grouped capture path the active target set is the contract. A failed
      * leg must remain visible as timeout/reject in CS/CR/qf, not silently turn
      * the frame into a "3-anchor" record in CF.
      */
@@ -1368,7 +1318,7 @@ static void ss_twr_init_publish_solve_diag(char stage,
              (unsigned int)ss_twr_init_tdma_schedule.slot_index,
              (unsigned int)ss_twr_init_tdma_schedule.slot_count);
     printk("%s\n", line);
-#if APP_TAG_BLE_ENABLE
+#if APP_TAG_BLE_ENABLE && APP_TAG_ALT_RXG_BLE_DIAG_ENABLE != 0U
     (void)uwb_tag_ble_publish_status(line);
 #endif
 }
@@ -1431,7 +1381,7 @@ static void ss_twr_init_sweep_diag_maybe_print(void)
              (unsigned long)clean_us,
              (unsigned long)total_ms);
     printk("%s\n", line);
-#if APP_TAG_BLE_ENABLE
+#if APP_TAG_BLE_ENABLE && APP_TAG_ALT_RXG_BLE_DIAG_ENABLE != 0U
     (void)uwb_tag_ble_publish_status(line);
 #endif
 }
@@ -1532,16 +1482,6 @@ static char ss_twr_init_plan_code(const char *plan_label)
 	if (strcmp(plan_label, "refresh") == 0) {
 		return 'r';
 	}
-	if (strcmp(plan_label, "fixed") == 0) {
-		return 'x';
-	}
-	if (strcmp(plan_label, "cal_static") == 0) {
-		return 's';
-	}
-	if (strcmp(plan_label, "cal_roto") == 0) {
-		return 'o';
-	}
-
 	return 'x';
 }
 
@@ -1555,181 +1495,6 @@ static bool ss_twr_init_anchor_id_in_list(const uint8_t *anchor_ids, size_t coun
     }
 
 	return false;
-}
-
-static size_t ss_twr_init_append_anchor_if_present(uint8_t anchor_id,
-                                                   uint8_t *dest_ids,
-                                                   size_t dest_count,
-                                                   size_t dest_capacity)
-{
-    if (dest_ids == NULL || dest_count >= dest_capacity ||
-        !ss_twr_init_anchor_id_in_list(ss_twr_init_anchor_ids,
-                                       ss_twr_init_anchor_count, anchor_id) ||
-        ss_twr_init_anchor_id_in_list(dest_ids, dest_count, anchor_id)) {
-        return dest_count;
-    }
-
-    dest_ids[dest_count++] = anchor_id;
-    return dest_count;
-}
-
-static size_t ss_twr_init_append_static_cal_group(uint8_t *dest_ids,
-                                                  size_t dest_count,
-                                                  size_t dest_capacity)
-{
-    static const uint8_t groups[][4] = {
-        {0U, 1U, 2U, 3U},
-        {4U, 5U, 6U, 7U},
-    };
-    uint8_t group = (uint8_t)(ss_twr_init_static_cal_group_cursor % 2U);
-
-    for (size_t i = 0U; i < 4U && dest_count < dest_capacity; ++i) {
-        dest_count = ss_twr_init_append_anchor_if_present(
-            groups[group][i], dest_ids, dest_count, dest_capacity);
-    }
-
-    for (size_t i = 0U; i < ss_twr_init_anchor_count &&
-                       dest_count < dest_capacity;
-         ++i) {
-        dest_count = ss_twr_init_append_anchor_if_present(
-            ss_twr_init_anchor_ids[i], dest_ids, dest_count, dest_capacity);
-    }
-
-    ss_twr_init_static_cal_group_cursor =
-        (uint8_t)((ss_twr_init_static_cal_group_cursor + 1U) % 2U);
-
-    return dest_count;
-}
-
-static uint8_t ss_twr_init_anchor_quality(uint8_t anchor_id)
-{
-    if (anchor_id >= UWB_MAX_ANCHORS) {
-        return 0U;
-    }
-
-    return uwb_range_tracker_quality_percent(&ss_twr_init_trackers[anchor_id]);
-}
-
-static double ss_twr_init_tetra_volume_m3(uint8_t a_id, uint8_t b_id,
-                                          uint8_t c_id, uint8_t d_id)
-{
-    const struct uwb_anchor_pose_mm *a = uwb_anchor_layout_get(a_id);
-    const struct uwb_anchor_pose_mm *b = uwb_anchor_layout_get(b_id);
-    const struct uwb_anchor_pose_mm *c = uwb_anchor_layout_get(c_id);
-    const struct uwb_anchor_pose_mm *d = uwb_anchor_layout_get(d_id);
-    double abx, aby, abz;
-    double acx, acy, acz;
-    double adx, ady, adz;
-    double cx, cy, cz;
-    double det;
-
-    if (a == NULL || b == NULL || c == NULL || d == NULL) {
-        return 0.0;
-    }
-
-    abx = ((double)b->x_mm - (double)a->x_mm) / 1000.0;
-    aby = ((double)b->y_mm - (double)a->y_mm) / 1000.0;
-    abz = ((double)b->z_mm - (double)a->z_mm) / 1000.0;
-    acx = ((double)c->x_mm - (double)a->x_mm) / 1000.0;
-    acy = ((double)c->y_mm - (double)a->y_mm) / 1000.0;
-    acz = ((double)c->z_mm - (double)a->z_mm) / 1000.0;
-    adx = ((double)d->x_mm - (double)a->x_mm) / 1000.0;
-    ady = ((double)d->y_mm - (double)a->y_mm) / 1000.0;
-    adz = ((double)d->z_mm - (double)a->z_mm) / 1000.0;
-
-    cx = acy * adz - acz * ady;
-    cy = acz * adx - acx * adz;
-    cz = acx * ady - acy * adx;
-    det = abx * cx + aby * cy + abz * cz;
-
-    return fabs(det) / 6.0;
-}
-
-static size_t ss_twr_init_append_roto_balanced(uint8_t *dest_ids,
-                                               size_t dest_count,
-                                               size_t dest_capacity)
-{
-    uint8_t lower_ids[UWB_MAX_ANCHORS];
-    uint8_t upper_ids[UWB_MAX_ANCHORS];
-    size_t lower_count = 0U;
-    size_t upper_count = 0U;
-    bool found = false;
-    double best_volume = 0.0;
-    uint32_t best_quality_sum = 0U;
-    uint8_t best_min_quality = 0U;
-    uint8_t best_ids[4] = {0U};
-
-    if (dest_ids == NULL || dest_count >= dest_capacity || dest_capacity - dest_count < 4U) {
-        return dest_count;
-    }
-
-    for (size_t offset = 0U; offset < ss_twr_init_anchor_count; ++offset) {
-        size_t idx = (ss_twr_init_roto_cal_group_cursor + offset) %
-                     ss_twr_init_anchor_count;
-        uint8_t anchor_id = ss_twr_init_anchor_ids[idx];
-
-        if (uwb_anchor_layout_is_lower_plane(anchor_id)) {
-            lower_ids[lower_count++] = anchor_id;
-        } else if (uwb_anchor_layout_is_upper_plane(anchor_id)) {
-            upper_ids[upper_count++] = anchor_id;
-        }
-    }
-
-    if (lower_count < 2U || upper_count < 2U) {
-        return dest_count;
-    }
-
-    for (size_t i = 0U; i < lower_count; ++i) {
-        for (size_t j = i + 1U; j < lower_count; ++j) {
-            for (size_t k = 0U; k < upper_count; ++k) {
-                for (size_t l = k + 1U; l < upper_count; ++l) {
-                    uint8_t a = lower_ids[i];
-                    uint8_t b = lower_ids[j];
-                    uint8_t c = upper_ids[k];
-                    uint8_t d = upper_ids[l];
-                    uint8_t qa = ss_twr_init_anchor_quality(a);
-                    uint8_t qb = ss_twr_init_anchor_quality(b);
-                    uint8_t qc = ss_twr_init_anchor_quality(c);
-                    uint8_t qd = ss_twr_init_anchor_quality(d);
-                    uint8_t min_quality = MIN(MIN(qa, qb), MIN(qc, qd));
-                    uint32_t quality_sum =
-                        (uint32_t)qa + (uint32_t)qb + (uint32_t)qc + (uint32_t)qd;
-                    double volume = ss_twr_init_tetra_volume_m3(a, b, c, d);
-
-                    if (volume < APP_TAG_CAL_ROTO_MIN_TETRA_VOLUME_M3) {
-                        continue;
-                    }
-
-                    if (!found ||
-                        quality_sum > best_quality_sum ||
-                        (quality_sum == best_quality_sum &&
-                         min_quality > best_min_quality) ||
-                        (quality_sum == best_quality_sum &&
-                         min_quality == best_min_quality &&
-                         volume > best_volume)) {
-                        found = true;
-                        best_quality_sum = quality_sum;
-                        best_min_quality = min_quality;
-                        best_volume = volume;
-                        best_ids[0] = a;
-                        best_ids[1] = b;
-                        best_ids[2] = c;
-                        best_ids[3] = d;
-                    }
-                }
-            }
-        }
-    }
-
-    if (!found) {
-        return dest_count;
-    }
-
-    for (size_t i = 0U; i < 4U; ++i) {
-        dest_ids[dest_count++] = best_ids[i];
-    }
-
-    return dest_count;
 }
 
 static size_t ss_twr_init_append_interleaved_plane_anchors(
@@ -2141,18 +1906,6 @@ static bool ss_twr_init_raw_range_plausible(
         return true;
     }
 
-    /*
-     * CAL_ROTO after prewarm deliberately tracks fast-changing geometry.
-     * A fixed raw-vs-last-raw delta gate misclassifies real motion as an
-     * outlier and drops otherwise valid LOS anchors before the continuity
-     * gate or solver can score them. Keep the conservative gate for static
-     * and prewarm phases, but let mature CAL_ROTO frames flow downstream.
-     */
-    if (ss_twr_init_runtime_roto_calibration_mode() &&
-        !ss_twr_init_roto_prewarm_active()) {
-        return true;
-    }
-
     delta_mm = (raw_mm > tracker->filtered_mm)
                    ? (raw_mm - tracker->filtered_mm)
                    : (tracker->filtered_mm - raw_mm);
@@ -2356,7 +2109,7 @@ static void ss_twr_init_publish_filtered_position(
              plan_label,
              (unsigned int)location->used_anchor_count);
     printk("%s\n", line);
-#if APP_TAG_BLE_ENABLE
+#if APP_TAG_BLE_ENABLE && APP_TAG_ALT_RXG_BLE_DIAG_ENABLE != 0U
     (void)uwb_tag_ble_publish_status(line);
 #endif
 }
@@ -2419,30 +2172,11 @@ static void ss_twr_init_prepare_radio_for_poll(void)
 
 static bool ss_twr_init_should_retry_current_cal_anchor(void)
 {
-    if (!ss_twr_init_runtime_any_calibration_mode() ||
-        ss_twr_init_roto_prewarm_active() ||
-        ss_twr_init_active_anchor_count != 4U ||
-        ss_twr_init_current_anchor_retry_count >= 1U) {
-        return false;
-    }
-
-    return true;
+    return false;
 }
 
 static const char *ss_twr_init_plan_label(void)
 {
-    if (ss_twr_init_runtime_roto_calibration_mode()) {
-        return "cal_roto";
-    }
-
-    if (ss_twr_init_runtime_static_calibration_mode()) {
-        return "cal_static";
-    }
-
-    if (ss_twr_init_fixed_anchor_mode) {
-        return "fixed";
-    }
-
     if (ss_twr_init_current_sweep_refresh) {
         return "refresh";
     }
@@ -2566,12 +2300,7 @@ static bool ss_twr_init_tdma_exchange_can_start(void)
 
 static bool ss_twr_init_tdma_active_guard_enabled(void)
 {
-	/*
-	 * CAL_ROTO prewarm is a responder/link-state probe, not a positioning
-	 * frame.  It must be allowed to run the full 8-anchor handshake even when
-	 * the later fast 4-anchor positioning slot uses a shorter active window.
-	 */
-	return !ss_twr_init_roto_prewarm_active();
+	return true;
 }
 
 static void ss_twr_init_publish_tdma_diag(const char *reason,
@@ -2608,42 +2337,15 @@ static void ss_twr_init_publish_tdma_diag(const char *reason,
 	printk("%s\n", line);
 }
 
-static bool ss_twr_init_runtime_static_calibration_mode(void)
-{
-	if (APP_TAG_CALIBRATION_MODE != 0U) {
-		return true;
-	}
-
-	return ss_twr_init_runtime_params.positioning_mode ==
-	       UWB_TAG_POSITIONING_MODE_CAL_STATIC;
-}
-
-static bool ss_twr_init_runtime_roto_calibration_mode(void)
-{
-	return ss_twr_init_runtime_params.positioning_mode ==
-	       UWB_TAG_POSITIONING_MODE_CAL_ROTO;
-}
-
-static bool ss_twr_init_roto_prewarm_active(void)
-{
-	if (!ss_twr_init_runtime_roto_calibration_mode() ||
-	    ss_twr_init_roto_prewarm_deadline_ms == 0U) {
-		return false;
-	}
-
-	return (uint32_t)k_uptime_get() < ss_twr_init_roto_prewarm_deadline_ms;
-}
-
 static bool ss_twr_init_runtime_any_calibration_mode(void)
 {
-	return ss_twr_init_runtime_static_calibration_mode() ||
-	       ss_twr_init_runtime_roto_calibration_mode();
+	return false;
 }
 
-static bool ss_twr_init_runtime_anchor_ota_mode(void)
+static bool ss_twr_init_runtime_idle_mode(void)
 {
 	return ss_twr_init_runtime_params.positioning_mode ==
-	       UWB_TAG_POSITIONING_MODE_ANCHOR_OTA;
+	       UWB_TAG_POSITIONING_MODE_IDLE;
 }
 
 static bool ss_twr_init_tdma_exchange_can_start_if_needed(void)
@@ -2760,27 +2462,11 @@ static void ss_twr_init_apply_runtime_params(
 		       (unsigned int)ss_twr_init_local_addr);
 	}
 	ss_twr_init_tdma_schedule = params->tdma;
-	ss_twr_init_static_cal_group_cursor = 0U;
-	ss_twr_init_static_cal_slot_tick = 0U;
-	ss_twr_init_roto_cal_group_cursor = 0U;
-	ss_twr_init_roto_prewarm_deadline_ms =
-		(params->positioning_mode == UWB_TAG_POSITIONING_MODE_CAL_ROTO) ?
-			((uint32_t)k_uptime_get() + APP_TAG_CAL_ROTO_PREWARM_MS) :
-			0U;
-
-	if (params->anchor_selection_mode == UWB_TAG_ANCHOR_SELECTION_FIXED_SUBSET &&
-	    params->fixed_anchor_count >= 4U) {
-		ss_twr_init_fixed_anchor_mode = true;
-		ss_twr_init_fixed_anchor_count =
-			MIN((size_t)params->fixed_anchor_count,
-			    (size_t)UWB_TAG_FIXED_ANCHOR_MAX);
-		memcpy(ss_twr_init_fixed_anchor_ids, params->fixed_anchor_ids,
-		       sizeof(ss_twr_init_fixed_anchor_ids));
-	} else if (params->anchor_selection_mode ==
-		   UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2) {
-		ss_twr_init_fixed_anchor_mode = false;
-		ss_twr_init_fixed_anchor_count = 0U;
-	}
+	ss_twr_init_runtime_params.anchor_selection_mode =
+		UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
+	ss_twr_init_runtime_params.fixed_anchor_count = 0U;
+	memset(ss_twr_init_runtime_params.fixed_anchor_ids, 0,
+	       sizeof(ss_twr_init_runtime_params.fixed_anchor_ids));
 
 	if (reset_history) {
 		ss_twr_init_reset_tracking_history();
@@ -2802,7 +2488,7 @@ static void ss_twr_init_apply_pending_runtime_config_if_any(void)
 	ss_twr_init_runtime_update_pending = false;
 	ss_twr_init_active_anchor_index = 0U;
 	ss_twr_init_prepare_sweep_plan();
-	printk("Tag runtime config applied tag=%u slot=%u/%u period=%u active=%u active_us=%u source=%s gen=%u amode=%u\n",
+	printk("Tag runtime config applied tag=%u slot=%u/%u period=%u active=%u active_us=%u source=%s gen=%u anchor_plan=dynamic\n",
 	       (unsigned int)ss_twr_init_runtime_params.logical_tag_id,
 	       (unsigned int)ss_twr_init_tdma_schedule.slot_index,
 	       (unsigned int)ss_twr_init_tdma_schedule.slot_count,
@@ -2810,8 +2496,7 @@ static void ss_twr_init_apply_pending_runtime_config_if_any(void)
 	       (unsigned int)ss_twr_init_tdma_schedule.slot_active_ms,
 	       (unsigned int)ss_twr_init_tdma_schedule.slot_active_us,
 	       ss_twr_init_slot_source_label(ss_twr_init_runtime_params.slot_source),
-	       (unsigned int)ss_twr_init_tdma_schedule.generation,
-	       (unsigned int)ss_twr_init_runtime_params.anchor_selection_mode);
+	       (unsigned int)ss_twr_init_tdma_schedule.generation);
 }
 
 static void ss_twr_init_format_anchor_labels(const uint8_t *anchor_ids,
@@ -2994,100 +2679,6 @@ static void ss_twr_init_prepare_sweep_plan(void)
     bool full_sweep = true;
     bool refresh_sweep = false;
     size_t active_count = 0U;
-
-    if (ss_twr_init_runtime_static_calibration_mode()) {
-        /*
-         * CAL_STATIC is for calibration data coverage, not for a sticky
-         * last-solution tracking set. Alternate A/B/C/D and E/F/G/H so CM logs
-         * cover all anchors deterministically without collapsing to DEFH.
-         */
-        active_count = ss_twr_init_append_static_cal_group(
-            ss_twr_init_active_anchor_ids, active_count,
-            MIN((size_t)4U, ss_twr_init_anchor_count));
-
-        ss_twr_init_current_sweep_full = false;
-        ss_twr_init_current_sweep_refresh = false;
-        ss_twr_init_active_anchor_count = active_count;
-        ss_twr_init_active_anchor_index = 0U;
-        ss_twr_init_current_sweep_start_ms = (uint32_t)k_uptime_get();
-        ss_twr_init_reset_sweep_anchor_state();
-        return;
-    }
-
-#if APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U && \
-    APP_TAG_CIR_FULL_PRIORITY_ONLY_SWEEP != 0U
-    if (ss_twr_init_cir_full_enabled()) {
-        active_count = ss_twr_init_cir_full_append_priority_anchors(
-            ss_twr_init_active_anchor_ids, active_count,
-            ARRAY_SIZE(ss_twr_init_active_anchor_ids));
-        if (active_count > 0U) {
-            ss_twr_init_current_sweep_full = true;
-            ss_twr_init_current_sweep_refresh = false;
-            ss_twr_init_active_anchor_count = active_count;
-            ss_twr_init_active_anchor_index = 0U;
-            ss_twr_init_current_sweep_start_ms = (uint32_t)k_uptime_get();
-            ss_twr_init_reset_sweep_anchor_state();
-            return;
-        }
-    }
-#endif
-
-    if (ss_twr_init_fixed_anchor_mode) {
-        for (size_t i = 0; i < ss_twr_init_fixed_anchor_count; ++i) {
-            ss_twr_init_active_anchor_ids[active_count++] =
-                ss_twr_init_fixed_anchor_ids[i];
-        }
-
-        ss_twr_init_current_sweep_full = false;
-        ss_twr_init_current_sweep_refresh = false;
-        ss_twr_init_active_anchor_count = active_count;
-        ss_twr_init_active_anchor_index = 0U;
-        ss_twr_init_current_sweep_start_ms = (uint32_t)k_uptime_get();
-        ss_twr_init_reset_sweep_anchor_state();
-        return;
-    }
-
-    if (ss_twr_init_runtime_roto_calibration_mode()) {
-        if (ss_twr_init_roto_prewarm_active()) {
-            for (size_t i = 0U; i < ss_twr_init_anchor_count; ++i) {
-                ss_twr_init_active_anchor_ids[active_count++] =
-                    ss_twr_init_anchor_ids[i];
-            }
-
-            ss_twr_init_current_sweep_full = true;
-            ss_twr_init_current_sweep_refresh = false;
-            ss_twr_init_active_anchor_count = active_count;
-            ss_twr_init_active_anchor_index = 0U;
-            ss_twr_init_current_sweep_start_ms = (uint32_t)k_uptime_get();
-            ss_twr_init_reset_sweep_anchor_state();
-            return;
-        }
-
-        size_t desired_count = MIN((size_t)4U, ss_twr_init_anchor_count);
-
-        /*
-         * CAL_ROTO front-end selection is constrained before ranging:
-         * exactly 2 anchors from ids 0..3 and 2 anchors from ids 4..7.
-         * Among those balanced 2+2 candidates, choose the set with the best
-         * aggregate tracker quality, but reject geometrically weak tetrahedra.
-         */
-        active_count = ss_twr_init_append_roto_balanced(
-            ss_twr_init_active_anchor_ids, active_count, desired_count);
-
-        if (ss_twr_init_anchor_count != 0U) {
-            ss_twr_init_roto_cal_group_cursor =
-                (uint8_t)((ss_twr_init_roto_cal_group_cursor + 1U) %
-                          ss_twr_init_anchor_count);
-        }
-
-        ss_twr_init_current_sweep_full = false;
-        ss_twr_init_current_sweep_refresh = false;
-        ss_twr_init_active_anchor_count = active_count;
-        ss_twr_init_active_anchor_index = 0U;
-        ss_twr_init_current_sweep_start_ms = (uint32_t)k_uptime_get();
-        ss_twr_init_reset_sweep_anchor_state();
-        return;
-    }
 
     if (ss_twr_init_multitag_anchor_plan_mode) {
         uint16_t effective_full_interval =
@@ -3274,314 +2865,6 @@ static void ss_twr_init_configure_radio(void)
     ss_twr_init_radio_configured = true;
 }
 
-#if APP_TAG_WAND_MODE_ENABLE
-int ss_twr_init_wand_set_enabled(bool enabled, char label)
-{
-    if (label >= 'a' && label <= 'z') {
-        label = (char)(label - 'a' + 'A');
-    }
-    if (label != 'A' && label != 'B' && label != 'C' && label != '?') {
-        return -EINVAL;
-    }
-
-    ss_twr_init_wand_enabled = enabled;
-    ss_twr_init_wand_label = enabled ? label : '?';
-    if (!enabled) {
-        ss_twr_init_wand_role = SS_TWR_INIT_WAND_ROLE_IDLE;
-        ss_twr_init_wand_pending_sweeps = 0U;
-    }
-    return 0;
-}
-
-int ss_twr_init_wand_set_role(enum ss_twr_init_wand_role role)
-{
-    if (role != SS_TWR_INIT_WAND_ROLE_IDLE &&
-        role != SS_TWR_INIT_WAND_ROLE_INIT &&
-        role != SS_TWR_INIT_WAND_ROLE_RESP) {
-        return -EINVAL;
-    }
-    ss_twr_init_wand_role = role;
-    return 0;
-}
-
-int ss_twr_init_wand_set_peers(uint8_t tag_a, uint8_t tag_b, uint8_t tag_c)
-{
-    ss_twr_init_wand_tags[0] = tag_a;
-    ss_twr_init_wand_tags[1] = tag_b;
-    ss_twr_init_wand_tags[2] = tag_c;
-    return 0;
-}
-
-int ss_twr_init_wand_request_sweep(uint16_t count)
-{
-    if (!ss_twr_init_wand_enabled) {
-        return -EACCES;
-    }
-    if (count == 0U) {
-        count = 1U;
-    }
-    ss_twr_init_wand_role = SS_TWR_INIT_WAND_ROLE_INIT;
-    ss_twr_init_wand_pending_sweeps = count;
-    return 0;
-}
-
-static char ss_twr_init_wand_label_for_index(uint8_t index)
-{
-    return (char)('A' + index);
-}
-
-static void ss_twr_init_wand_publish(const char *line)
-{
-    printk("%s\n", line);
-#if APP_TAG_BLE_ENABLE
-    (void)uwb_tag_ble_publish_status(line);
-#else
-    ARG_UNUSED(line);
-#endif
-}
-
-static bool ss_twr_init_wand_range_peer(uint8_t peer_tag_id, long *raw_mm_out)
-{
-    uint16_t peer_addr = uwb_tag_short_addr(peer_tag_id);
-    uint32 status_reg;
-
-    if (raw_mm_out == NULL) {
-        return false;
-    }
-    *raw_mm_out = 0L;
-
-    ss_twr_init_configure_radio();
-    uwb_ss_twr_build_poll_frame(ss_twr_init_tx_poll_msg,
-                                ss_twr_init_frame_seq_nb,
-                                peer_addr,
-                                ss_twr_init_local_addr);
-    ss_twr_init_prepare_radio_for_poll();
-    if (dwt_writetxdata(SS_TWR_INIT_LEGACY_POLL_FRAME_LEN,
-                        ss_twr_init_tx_poll_msg, 0) != DWT_SUCCESS) {
-        return false;
-    }
-    dwt_writetxfctrl(SS_TWR_INIT_LEGACY_POLL_FRAME_LEN, 0, 1);
-    if (dwt_starttx(DWT_START_TX_IMMEDIATE | DWT_RESPONSE_EXPECTED) !=
-        DWT_SUCCESS) {
-        dwt_forcetrxoff();
-        return false;
-    }
-
-    do {
-        status_reg = dwt_read32bitreg(SYS_STATUS_ID);
-    } while ((status_reg & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO |
-                            SYS_STATUS_ALL_RX_ERR)) == 0U);
-
-    ss_twr_init_frame_seq_nb++;
-
-    if ((status_reg & SYS_STATUS_RXFCG) == 0U) {
-        dwt_write32bitreg(SYS_STATUS_ID,
-                          SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR);
-        dwt_rxreset();
-        return false;
-    }
-
-    uint32 frame_len = dwt_read32bitreg(RX_FINFO_ID) & RX_FINFO_RXFLEN_MASK;
-    if (frame_len > sizeof(ss_twr_init_rx_buffer)) {
-        dwt_forcetrxoff();
-        dwt_rxreset();
-        return false;
-    }
-
-    dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
-    memset(ss_twr_init_rx_buffer, 0, sizeof(ss_twr_init_rx_buffer));
-    dwt_readrxdata(ss_twr_init_rx_buffer, (uint16)frame_len, 0);
-    ss_twr_init_rx_buffer[SS_TWR_INIT_MSG_SN_IDX] = 0;
-
-    if (!uwb_ss_twr_resp_matches(ss_twr_init_rx_buffer,
-                                 ss_twr_init_local_addr, peer_addr)) {
-        return false;
-    }
-
-    uint32 poll_tx_ts = dwt_readtxtimestamplo32();
-    uint32 resp_rx_ts = dwt_readrxtimestamplo32();
-    uint32 poll_rx_ts;
-    uint32 resp_tx_ts;
-    ss_twr_init_read_ts(
-        &ss_twr_init_rx_buffer[SS_TWR_INIT_RESP_MSG_POLL_RX_TS_IDX],
-        &poll_rx_ts);
-    ss_twr_init_read_ts(
-        &ss_twr_init_rx_buffer[SS_TWR_INIT_RESP_MSG_RESP_TX_TS_IDX],
-        &resp_tx_ts);
-
-    double clock_offset_ratio =
-        (double)dwt_readcarrierintegrator() *
-        (FREQ_OFFSET_MULTIPLIER * HERTZ_TO_PPM_MULTIPLIER_CHAN_5 / 1.0e6);
-    int32 rtd_init = (int32)(resp_rx_ts - poll_tx_ts);
-    int32 rtd_resp = (int32)(resp_tx_ts - poll_rx_ts);
-    double tof = ((rtd_init - rtd_resp * (1.0 - clock_offset_ratio)) / 2.0) *
-                 DWT_TIME_UNITS;
-    long raw_mm = (long)(tof * SS_TWR_INIT_SPEED_OF_LIGHT * 1000.0);
-    if (raw_mm < 0L) {
-        raw_mm = 0L;
-    }
-    *raw_mm_out = raw_mm;
-    return true;
-}
-
-static void ss_twr_init_wand_responder_once(void)
-{
-    uint32_t start_ms = k_uptime_get_32();
-    uint32 status_reg;
-
-    ss_twr_init_configure_radio();
-    dwt_setrxtimeout(0);
-    dwt_rxenable(DWT_START_RX_IMMEDIATE);
-
-    while ((uint32_t)(k_uptime_get_32() - start_ms) < APP_TAG_WAND_RESP_RX_MS) {
-        status_reg = dwt_read32bitreg(SYS_STATUS_ID);
-        if ((status_reg & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_ERR)) != 0U) {
-            break;
-        }
-        k_yield();
-    }
-
-    status_reg = dwt_read32bitreg(SYS_STATUS_ID);
-    if ((status_reg & SYS_STATUS_RXFCG) == 0U) {
-        if ((status_reg & SYS_STATUS_ALL_RX_ERR) != 0U) {
-            dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_ERR);
-            dwt_rxreset();
-        }
-        dwt_forcetrxoff();
-        return;
-    }
-
-    uint32 frame_len = dwt_read32bitreg(RX_FINFO_ID) & RX_FINFO_RXFL_MASK_1023;
-    if (frame_len > sizeof(ss_twr_init_rx_buffer)) {
-        dwt_forcetrxoff();
-        dwt_rxreset();
-        return;
-    }
-    dwt_readrxdata(ss_twr_init_rx_buffer, (uint16)frame_len, 0);
-    dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
-    if (!uwb_ss_twr_poll_matches(ss_twr_init_rx_buffer,
-                                 ss_twr_init_local_addr)) {
-        return;
-    }
-
-    uint16_t poll_src_addr = uwb_frame_get_src_addr(ss_twr_init_rx_buffer);
-    if (!uwb_short_addr_is_tag(poll_src_addr)) {
-        return;
-    }
-
-    uint32 poll_rx_ts = dwt_readrxtimestamplo32();
-    uint32 resp_tx_time =
-        (uint32)(((uint64_t)poll_rx_ts +
-                  ((uint64_t)APP_TAG_WAND_RESP_DELAY_UUS *
-                   SS_TWR_INIT_UUS_TO_DWT_TIME)) >> 8);
-    uint32 resp_tx_ts =
-        ((resp_tx_time & 0xFFFFFFFEUL) << 8) + SS_TWR_INIT_TX_ANT_DLY;
-
-    uwb_ss_twr_build_resp_frame(ss_twr_init_tx_resp_msg,
-                                ss_twr_init_frame_seq_nb,
-                                poll_src_addr,
-                                ss_twr_init_local_addr);
-    ss_twr_init_write_ts(&ss_twr_init_tx_resp_msg
-                         [SS_TWR_INIT_RESP_MSG_POLL_RX_TS_IDX],
-                         poll_rx_ts);
-    ss_twr_init_write_ts(&ss_twr_init_tx_resp_msg
-                         [SS_TWR_INIT_RESP_MSG_RESP_TX_TS_IDX],
-                         resp_tx_ts);
-    if (dwt_writetxdata(sizeof(ss_twr_init_tx_resp_msg),
-                        ss_twr_init_tx_resp_msg, 0) != DWT_SUCCESS) {
-        return;
-    }
-    dwt_writetxfctrl(sizeof(ss_twr_init_tx_resp_msg), 0, 1);
-    dwt_setdelayedtrxtime(resp_tx_time);
-    if (dwt_starttx(DWT_START_TX_DELAYED) != DWT_SUCCESS) {
-        dwt_forcetrxoff();
-        dwt_rxreset();
-        return;
-    }
-    while ((dwt_read32bitreg(SYS_STATUS_ID) & SYS_STATUS_TXFRS) == 0U) {
-        k_yield();
-    }
-    dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_TXFRS);
-    ss_twr_init_frame_seq_nb++;
-}
-
-static void ss_twr_init_wand_sweep_once(void)
-{
-    char line[128];
-    uint8_t self_index = 0xffU;
-    uint8_t ok_count = 0U;
-
-    for (uint8_t i = 0U; i < 3U; ++i) {
-        if (ss_twr_init_wand_label == ss_twr_init_wand_label_for_index(i) ||
-            ss_twr_init_wand_tags[i] == ss_twr_init_local_tag_id) {
-            self_index = i;
-            break;
-        }
-    }
-
-    ss_twr_init_wand_seq++;
-    for (uint8_t i = 0U; i < 3U; ++i) {
-        long raw_mm = 0L;
-        bool ok;
-
-        if (i == self_index || ss_twr_init_wand_tags[i] == ss_twr_init_local_tag_id) {
-            continue;
-        }
-        ok = ss_twr_init_wand_range_peer(ss_twr_init_wand_tags[i], &raw_mm);
-        if (ok) {
-            ok_count++;
-        }
-        snprintk(line, sizeof(line),
-                 "WR;%lu;%c;%c;0x%02X;%ld;%u",
-                 (unsigned long)ss_twr_init_wand_seq,
-                 ss_twr_init_wand_label,
-                 ss_twr_init_wand_label_for_index(i),
-                 (unsigned int)ss_twr_init_wand_tags[i],
-                 raw_mm,
-                 (unsigned int)(ok ? 1U : 0U));
-        ss_twr_init_wand_publish(line);
-        k_msleep(5);
-    }
-
-    snprintk(line, sizeof(line),
-             "WS;%lu;%c;ok=%u;peers=%02X,%02X,%02X",
-             (unsigned long)ss_twr_init_wand_seq,
-             ss_twr_init_wand_label,
-             (unsigned int)ok_count,
-             (unsigned int)ss_twr_init_wand_tags[0],
-             (unsigned int)ss_twr_init_wand_tags[1],
-             (unsigned int)ss_twr_init_wand_tags[2]);
-    ss_twr_init_wand_publish(line);
-}
-#else
-int ss_twr_init_wand_set_enabled(bool enabled, char label)
-{
-    ARG_UNUSED(enabled);
-    ARG_UNUSED(label);
-    return -ENOTSUP;
-}
-
-int ss_twr_init_wand_set_role(enum ss_twr_init_wand_role role)
-{
-    ARG_UNUSED(role);
-    return -ENOTSUP;
-}
-
-int ss_twr_init_wand_set_peers(uint8_t tag_a, uint8_t tag_b, uint8_t tag_c)
-{
-    ARG_UNUSED(tag_a);
-    ARG_UNUSED(tag_b);
-    ARG_UNUSED(tag_c);
-    return -ENOTSUP;
-}
-
-int ss_twr_init_wand_request_sweep(uint16_t count)
-{
-    ARG_UNUSED(count);
-    return -ENOTSUP;
-}
-#endif
-
 static int ss_twr_init_load_runtime_config(
     const struct uwb_tag_runtime_config *config)
 {
@@ -3617,8 +2900,6 @@ static int ss_twr_init_load_runtime_config(
     ss_twr_init_refresh_anchor_cursor = 0U;
     ss_twr_init_current_sweep_full = true;
     ss_twr_init_current_sweep_start_ms = 0U;
-    ss_twr_init_fixed_anchor_mode = false;
-    ss_twr_init_fixed_anchor_count = 0U;
     ss_twr_init_multitag_anchor_plan_mode = false;
     ss_twr_init_active_plan_count = 0U;
     ss_twr_init_standby_plan_count = 0U;
@@ -3642,7 +2923,6 @@ static int ss_twr_init_load_runtime_config(
     ss_twr_init_last_solve_pending_log_ms = 0U;
     ss_twr_init_last_solve_diag_ms = 0U;
     ss_twr_init_last_solve_reason = SS_TWR_INIT_SOLVE_NONE;
-    ss_twr_init_roto_prewarm_deadline_ms = 0U;
     memset(&ss_twr_init_last_imu_sample, 0, sizeof(ss_twr_init_last_imu_sample));
 #if APP_TAG_TR_IMU_SUMMARY_ENABLE != 0U
     ss_twr_init_reset_imu_summary();
@@ -3667,37 +2947,6 @@ static int ss_twr_init_load_runtime_config(
         ss_twr_init_anchor_ids[i] = config->anchor_ids[i];
         uwb_range_tracker_init(&ss_twr_init_trackers[config->anchor_ids[i]],
                                uwb_anchor_short_addr(config->anchor_ids[i]));
-    }
-
-    if (config->anchor_selection_mode == UWB_TAG_ANCHOR_SELECTION_FIXED_SUBSET ||
-        config->fixed_anchor_mode) {
-        if (config->fixed_anchor_ids == NULL || config->fixed_anchor_count < 4U ||
-            config->fixed_anchor_count > UWB_TAG_FIXED_ANCHOR_MAX) {
-            printk("Invalid fixed-anchor config count=%u\n",
-                   (unsigned int)config->fixed_anchor_count);
-            return -1;
-        }
-
-        for (size_t i = 0; i < config->fixed_anchor_count; ++i) {
-            uint8_t anchor_id = config->fixed_anchor_ids[i];
-
-            if (anchor_id >= UWB_MAX_ANCHORS ||
-                !ss_twr_init_anchor_id_in_list(ss_twr_init_anchor_ids,
-                                               ss_twr_init_anchor_count,
-                                               anchor_id) ||
-                ss_twr_init_anchor_id_in_list(ss_twr_init_fixed_anchor_ids,
-                                              ss_twr_init_fixed_anchor_count,
-                                              anchor_id)) {
-                printk("Invalid fixed anchor id: %u\n",
-                       (unsigned int)anchor_id);
-                return -1;
-            }
-
-            ss_twr_init_fixed_anchor_ids[ss_twr_init_fixed_anchor_count++] =
-                anchor_id;
-        }
-
-        ss_twr_init_fixed_anchor_mode = true;
     }
 
     if (config->multitag_anchor_plan_mode) {
@@ -3795,16 +3044,10 @@ static int ss_twr_init_load_runtime_config(
     ss_twr_init_runtime_params.slot_source = config->slot_source;
     ss_twr_init_runtime_params.positioning_mode = config->positioning_mode;
     ss_twr_init_runtime_params.anchor_selection_mode =
-        config->anchor_selection_mode;
-    ss_twr_init_runtime_params.fixed_anchor_count =
-        (uint8_t)MIN(config->fixed_anchor_count, (size_t)UWB_TAG_FIXED_ANCHOR_MAX);
+        UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
+    ss_twr_init_runtime_params.fixed_anchor_count = 0U;
     memset(ss_twr_init_runtime_params.fixed_anchor_ids, 0,
            sizeof(ss_twr_init_runtime_params.fixed_anchor_ids));
-    if (config->fixed_anchor_ids != NULL) {
-        memcpy(ss_twr_init_runtime_params.fixed_anchor_ids,
-               config->fixed_anchor_ids,
-               sizeof(uint8_t) * ss_twr_init_runtime_params.fixed_anchor_count);
-    }
     ss_twr_init_runtime_params.tdma = ss_twr_init_tdma_schedule;
 
     return 0;
@@ -3875,11 +3118,32 @@ static void ss_twr_init_print_location_if_ready(void)
                    (unsigned int)measurements[i].quality_percent);
         }
 
-        if (measurements[i].valid &&
+    if (measurements[i].valid &&
             valid_anchor_count < UWB_MAX_ANCHORS) {
             valid_anchor_ids[valid_anchor_count++] = anchor_id;
         }
     }
+
+#if APP_TAG_POSITION_OUTPUT_ENABLE == 0U
+    if (!ss_twr_init_runtime_any_calibration_mode()) {
+        solution_quality_percent =
+            ss_twr_init_compute_target_quality_percent(measurements,
+                                                       ss_twr_init_anchor_count);
+        ss_twr_init_last_solve_reason =
+            (valid_anchor_count >= 4U) ? SS_TWR_INIT_SOLVE_SUCCESS :
+                                         SS_TWR_INIT_SOLVE_PENDING;
+        ss_twr_init_publish_tag_range_summary(measurements,
+                                              ss_twr_init_anchor_count,
+                                              solution_quality_percent);
+#if APP_TAG_SWEEP_DIAG_ENABLE != 0U
+        ss_twr_init_diag_solve_start_cycles = k_cycle_get_32();
+        ss_twr_init_diag_solve_done_cycles = ss_twr_init_diag_solve_start_cycles;
+        ss_twr_init_diag_out_start_cycles = ss_twr_init_diag_solve_done_cycles;
+        ss_twr_init_diag_out_done_cycles = ss_twr_init_diag_out_start_cycles;
+#endif
+        return;
+    }
+#endif
 
     enum uwb_tag_loc_subset_policy subset_policy =
         (ss_twr_init_current_sweep_full || ss_twr_init_current_sweep_refresh)
@@ -3965,35 +3229,27 @@ static void ss_twr_init_print_location_if_ready(void)
 
     raw_location = location;
     {
-        ss_twr_init_format_anchor_labels(location.anchor_ids,
-                                         location.used_anchor_count,
-                                         received_anchors,
-                                         sizeof(received_anchors));
-        if (location.used_anchor_count != 0U) {
-            if (ss_twr_init_runtime_roto_calibration_mode() &&
-                !ss_twr_init_roto_prewarm_active() &&
-                ss_twr_init_active_anchor_count != 0U) {
-                solution_quality_percent =
-                    ss_twr_init_compute_target_quality_percent(
-                        measurements, ss_twr_init_anchor_count);
-            } else {
-                uint32_t quality_sum = 0U;
-                uint8_t quality_count = 0U;
-                for (size_t i = 0U; i < location.used_anchor_count; ++i) {
-                    for (size_t j = 0U; j < ss_twr_init_anchor_count; ++j) {
-                        if (measurements[j].anchor_id == location.anchor_ids[i]) {
-                            quality_sum += measurements[j].quality_percent;
-                            quality_count++;
-                            break;
-                        }
-                    }
-                }
-                if (quality_count != 0U) {
-                    solution_quality_percent =
-                        (uint8_t)(quality_sum / quality_count);
-                }
-            }
-        }
+	        ss_twr_init_format_anchor_labels(location.anchor_ids,
+	                                         location.used_anchor_count,
+	                                         received_anchors,
+	                                         sizeof(received_anchors));
+	        if (location.used_anchor_count != 0U) {
+	            uint32_t quality_sum = 0U;
+	            uint8_t quality_count = 0U;
+	            for (size_t i = 0U; i < location.used_anchor_count; ++i) {
+	                for (size_t j = 0U; j < ss_twr_init_anchor_count; ++j) {
+	                    if (measurements[j].anchor_id == location.anchor_ids[i]) {
+	                        quality_sum += measurements[j].quality_percent;
+	                        quality_count++;
+	                        break;
+	                    }
+	                }
+	            }
+	            if (quality_count != 0U) {
+	                solution_quality_percent =
+	                    (uint8_t)(quality_sum / quality_count);
+	            }
+	        }
 
         struct uwb_ekf_runtime_params ekf_params = {
             .meas_std_mm = APP_TAG_EKF_MEAS_STD_MM,
@@ -4972,8 +4228,6 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
     uint32_t poll_rx_ts_by_anchor[UWB_MAX_ANCHORS] = {0};
     uint32_t resp_tx_ts_by_anchor[UWB_MAX_ANCHORS] = {0};
     int32_t carrier_integrator_by_anchor[UWB_MAX_ANCHORS] = {0};
-    dwt_rxdiag_t rx_diag_by_anchor[UWB_MAX_ANCHORS];
-    bool rx_diag_valid[UWB_MAX_ANCHORS] = {0};
     long raw_distance_mm[UWB_MAX_ANCHORS] = {0};
     bool received[UWB_MAX_ANCHORS] = {0};
     uint8_t responses = 0U;
@@ -4995,10 +4249,13 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
     uint32_t rx_enable_done_cycles = 0U;
     int rxenable_rc = 0;
     bool use_prearmed_tx = false;
-#if APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U
-    uint8_t cir_full_target_anchor_id = UWB_MAX_ANCHORS;
-    bool cir_full_captured = false;
-#endif
+    enum uwb_tag_cir_mode cir_mode = ss_twr_init_cir_mode_get();
+    bool cir_diag_requested = cir_mode == UWB_TAG_CIR_MODE_COMPACT ||
+                              cir_mode == UWB_TAG_CIR_MODE_FULL;
+    bool cir_diag_valid = false;
+    bool cir_diag_pending = false;
+    uint8_t cir_diag_anchor_id = UWB_MAX_ANCHORS;
+    dwt_rxdiag_t cir_rx_diag;
 
     if (poll_count == 0U || poll_count > UWB_MAX_ANCHORS) {
         return false;
@@ -5011,11 +4268,6 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
     anchor_mask = ss_twr_init_alt_active_anchor_mask(poll_count);
     response_window_us = ss_twr_init_alt_bcast_response_window_us(poll_count);
     response_window_cycles = k_us_to_cyc_floor32(response_window_us);
-#if APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U
-    if (ss_twr_init_cir_full_enabled()) {
-        cir_full_target_anchor_id = ss_twr_init_cir_full_select_target(poll_count);
-    }
-#endif
 #if APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST
     ss_twr_init_alt_set_rx_auto_reenable(false);
     dwt_setrxtimeout(0U);
@@ -5308,33 +4560,21 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
                 (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
                 continue;
             }
-            dwt_readdiagnostics(&rx_diag_by_anchor[anchor_id]);
-            rx_diag_valid[anchor_id] = true;
-
             ss_twr_init_read_ts(
                 &ss_twr_init_rx_buffer[SS_TWR_INIT_RESP_MSG_POLL_RX_TS_IDX],
                 &poll_rx_ts);
             ss_twr_init_read_ts(
                 &ss_twr_init_rx_buffer[SS_TWR_INIT_RESP_MSG_RESP_TX_TS_IDX],
                 &resp_tx_ts);
-#if APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U
-            if (ss_twr_init_cir_full_enabled() &&
-                anchor_id == cir_full_target_anchor_id && !cir_full_captured) {
-                long cir_raw_mm = ss_twr_init_calc_raw_distance_mm(
-                    poll_tx_ts[anchor_id], resp_rx_ts, poll_rx_ts, resp_tx_ts,
-                    carrier_integrator);
-
-                ss_twr_init_publish_full_cir(anchor_id, cir_raw_mm,
-                                             resp_rx_ts, carrier_integrator,
-                                             &rx_diag_by_anchor[anchor_id]);
-                cir_full_captured = true;
-            }
-#endif
 
             resp_rx_ts_by_anchor[anchor_id] = resp_rx_ts;
             poll_rx_ts_by_anchor[anchor_id] = poll_rx_ts;
             resp_tx_ts_by_anchor[anchor_id] = resp_tx_ts;
             carrier_integrator_by_anchor[anchor_id] = carrier_integrator;
+            if (cir_diag_requested) {
+                cir_diag_anchor_id = anchor_id;
+                cir_diag_pending = true;
+            }
             received[anchor_id] = true;
             responses++;
             dwt_write32bitreg(SYS_STATUS_ID,
@@ -5355,7 +4595,6 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
 #if APP_TAG_SWEEP_DIAG_ENABLE != 0U
     ss_twr_init_diag_rx_done_cycles = k_cycle_get_32();
 #endif
-    dwt_forcetrxoff();
     ss_twr_init_frame_seq_nb++;
     ss_twr_init_alt_mark_scheduled_poll_timing(poll_tx_done_cycles,
                                                poll_count);
@@ -5444,32 +4683,21 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
 
             resp_rx_ts = dwt_readrxtimestamplo32();
             carrier_integrator = dwt_readcarrierintegrator();
-            dwt_readdiagnostics(&rx_diag_by_anchor[anchor_id]);
-            rx_diag_valid[anchor_id] = true;
             ss_twr_init_read_ts(
                 &ss_twr_init_rx_buffer[SS_TWR_INIT_RESP_MSG_POLL_RX_TS_IDX],
                 &poll_rx_ts);
             ss_twr_init_read_ts(
                 &ss_twr_init_rx_buffer[SS_TWR_INIT_RESP_MSG_RESP_TX_TS_IDX],
                 &resp_tx_ts);
-#if APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U
-            if (ss_twr_init_cir_full_enabled() &&
-                anchor_id == cir_full_target_anchor_id && !cir_full_captured) {
-                long cir_raw_mm = ss_twr_init_calc_raw_distance_mm(
-                    poll_tx_ts[anchor_id], resp_rx_ts, poll_rx_ts, resp_tx_ts,
-                    carrier_integrator);
-
-                ss_twr_init_publish_full_cir(anchor_id, cir_raw_mm,
-                                             resp_rx_ts, carrier_integrator,
-                                             &rx_diag_by_anchor[anchor_id]);
-                cir_full_captured = true;
-            }
-#endif
 
             resp_rx_ts_by_anchor[anchor_id] = resp_rx_ts;
             poll_rx_ts_by_anchor[anchor_id] = poll_rx_ts;
             resp_tx_ts_by_anchor[anchor_id] = resp_tx_ts;
             carrier_integrator_by_anchor[anchor_id] = carrier_integrator;
+            if (cir_diag_requested) {
+                cir_diag_anchor_id = anchor_id;
+                cir_diag_pending = true;
+            }
             received[anchor_id] = true;
             responses++;
             dwt_write32bitreg(SYS_STATUS_ID,
@@ -5489,6 +4717,12 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
         break;
     }
 #endif
+
+    if (cir_diag_pending) {
+        dwt_readdiagnostics(&cir_rx_diag);
+        cir_diag_valid = true;
+    }
+    dwt_forcetrxoff();
 
     ss_twr_init_alt_publish_rx_diag(last_status_reg, last_rx_finfo,
                                     response_window_us, poll_count, anchor_mask,
@@ -5520,12 +4754,20 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             if (raw_distance_mm[anchor_id] < 0L) {
                 raw_distance_mm[anchor_id] = 0L;
             }
-            if (rx_diag_valid[anchor_id]) {
+            if (cir_diag_valid && anchor_id == cir_diag_anchor_id &&
+                cir_mode == UWB_TAG_CIR_MODE_COMPACT) {
                 ss_twr_init_publish_cir_features(
                     anchor_id, raw_distance_mm[anchor_id],
                     resp_rx_ts_by_anchor[anchor_id],
                     carrier_integrator_by_anchor[anchor_id],
-                    &rx_diag_by_anchor[anchor_id]);
+                    &cir_rx_diag);
+            } else if (cir_diag_valid && anchor_id == cir_diag_anchor_id &&
+                       cir_mode == UWB_TAG_CIR_MODE_FULL) {
+                ss_twr_init_publish_full_cir(
+                    anchor_id, raw_distance_mm[anchor_id],
+                    resp_rx_ts_by_anchor[anchor_id],
+                    carrier_integrator_by_anchor[anchor_id],
+                    &cir_rx_diag);
             }
             ss_twr_init_alt_record_range(anchor_id, raw_distance_mm[anchor_id]);
         } else {
@@ -5559,17 +4801,15 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
            (unsigned int)ss_twr_init_local_tag_id,
            (unsigned int)ss_twr_init_local_addr,
            (unsigned int)ss_twr_init_anchor_count);
-    printk("Tag motion mode rng_delay_ms=%u cal_settle_us=%u tx_to_rx_uus=%u resp_timeout_uus=%u fast_tracking=%u full_interval=%u track_count=%u fixed=%u fixed_count=%u tdma=%u slot=%u/%u period=%u active=%u source=%s epoch_valid=%u gen=%u\n",
-	           (unsigned int)SS_TWR_INIT_RNG_DELAY_MS,
-	           (unsigned int)SS_TWR_INIT_CAL_RNG_SETTLE_US,
-	           (unsigned int)SS_TWR_INIT_TX_TO_RX_DLY_UUS,
+    printk("Tag runtime rng_delay_ms=%u settle_us=%u tx_to_rx_uus=%u resp_timeout_uus=%u fast_tracking=%u full_interval=%u track_count=%u anchor_plan=dynamic tdma=%u slot=%u/%u period=%u active=%u source=%s epoch_valid=%u gen=%u\n",
+		           (unsigned int)SS_TWR_INIT_RNG_DELAY_MS,
+		           (unsigned int)SS_TWR_INIT_CAL_RNG_SETTLE_US,
+		           (unsigned int)SS_TWR_INIT_TX_TO_RX_DLY_UUS,
 	           (unsigned int)SS_TWR_INIT_RESP_RX_TIMEOUT_UUS,
-           (unsigned int)APP_TAG_FAST_TRACKING,
-           (unsigned int)APP_TAG_FULL_SWEEP_INTERVAL,
-           (unsigned int)APP_TAG_TRACK_ANCHOR_COUNT,
-           (unsigned int)ss_twr_init_fixed_anchor_mode,
-           (unsigned int)ss_twr_init_fixed_anchor_count,
-           (unsigned int)ss_twr_init_tdma_schedule.enabled,
+	           (unsigned int)APP_TAG_FAST_TRACKING,
+	           (unsigned int)APP_TAG_FULL_SWEEP_INTERVAL,
+	           (unsigned int)APP_TAG_TRACK_ANCHOR_COUNT,
+	           (unsigned int)ss_twr_init_tdma_schedule.enabled,
            (unsigned int)ss_twr_init_tdma_schedule.slot_index,
            (unsigned int)ss_twr_init_tdma_schedule.slot_count,
            (unsigned int)ss_twr_init_tdma_schedule.slot_period_ms,
@@ -5665,31 +4905,15 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
             continue;
         }
 #endif
-        ss_twr_init_apply_pending_runtime_config_if_any();
+	ss_twr_init_apply_pending_runtime_config_if_any();
 
-#if APP_TAG_WAND_MODE_ENABLE
-        if (ss_twr_init_wand_enabled) {
-            ss_twr_init_set_ble_tx_paused(false);
-            if (ss_twr_init_wand_role == SS_TWR_INIT_WAND_ROLE_RESP) {
-                ss_twr_init_wand_responder_once();
-                continue;
-            }
-            if (ss_twr_init_wand_pending_sweeps > 0U &&
-                ss_twr_init_wand_role == SS_TWR_INIT_WAND_ROLE_INIT) {
-                ss_twr_init_wand_pending_sweeps--;
-                ss_twr_init_wand_sweep_once();
-                continue;
-            }
-        }
-#endif
-
-        if (ss_twr_init_runtime_anchor_ota_mode()) {
-            ss_twr_init_publish_tdma_diag("anchor_ota", 0U, 0U);
-            ss_twr_init_set_ble_tx_paused(false);
-            dwt_forcetrxoff();
-            k_msleep(20);
-            continue;
-        }
+	if (ss_twr_init_runtime_idle_mode()) {
+	    ss_twr_init_publish_tdma_diag("idle", 0U, 0U);
+	    ss_twr_init_set_ble_tx_paused(false);
+	    dwt_forcetrxoff();
+	    k_msleep(20);
+	    continue;
+	}
 
 #if APP_ALT_SS_TWR_ENABLE && \
     APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST && \
@@ -5747,23 +4971,6 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
                            (unsigned int)ss_twr_init_tdma_schedule.generation);
                 }
             }
-            /*
-             * CAL_ROTO must preserve the selected 4-anchor intent even when a
-             * TDMA slot boundary lands mid-sweep. Do not finalize/replan a
-             * partial sweep; wait for the next slot and continue the same
-             * anchor group so output does not silently collapse to 2/3 anchors.
-             */
-            if (ss_twr_init_runtime_roto_calibration_mode() &&
-                !ss_twr_init_roto_prewarm_active() &&
-                ss_twr_init_active_anchor_index != 0U &&
-                ss_twr_init_active_anchor_count >= 4U) {
-                dwt_forcetrxoff();
-                ss_twr_init_release_ble_tx_after_active_slot();
-                ss_twr_init_last_tdma_wait_ms =
-                    ss_twr_init_wait_until_next_slot_if_needed();
-                continue;
-            }
-
             ss_twr_init_sweep_count++;
             ss_twr_init_release_ble_tx_after_active_slot();
             ss_twr_init_note_sweep_done();
@@ -5802,20 +5009,6 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
                     ss_twr_init_wait_until_next_slot_if_needed();
                 continue;
             }
-        }
-
-        if (ss_twr_init_runtime_static_calibration_mode() &&
-            APP_TAG_CAL_STATIC_SLOT_DIVIDER > 1U &&
-            ss_twr_init_active_anchor_index == 0U) {
-            uint32_t slot_tick = ss_twr_init_static_cal_slot_tick++;
-
-                    if ((slot_tick % APP_TAG_CAL_STATIC_SLOT_DIVIDER) != 0U) {
-                        dwt_forcetrxoff();
-                        ss_twr_init_release_ble_tx_after_active_slot();
-                        ss_twr_init_last_tdma_wait_ms =
-                    ss_twr_init_wait_until_next_slot_if_needed();
-                        continue;
-                    }
         }
 
 #if APP_ALT_SS_TWR_ENABLE
@@ -5907,6 +5100,7 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
             double clock_offset_ratio;
             int32_t carrier_integrator;
             dwt_rxdiag_t rx_diag;
+            bool rx_diag_valid = false;
             long raw_distance_mm;
             uint32 filtered_mm;
 
@@ -5967,7 +5161,11 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
             poll_tx_ts = dwt_readtxtimestamplo32();
             resp_rx_ts = dwt_readrxtimestamplo32();
             carrier_integrator = dwt_readcarrierintegrator();
-            dwt_readdiagnostics(&rx_diag);
+            if (ss_twr_init_cir_compact_enabled() ||
+                ss_twr_init_cir_full_enabled()) {
+                dwt_readdiagnostics(&rx_diag);
+                rx_diag_valid = true;
+            }
             clock_offset_ratio =
                 (double)carrier_integrator *
                 (FREQ_OFFSET_MULTIPLIER * HERTZ_TO_PPM_MULTIPLIER_CHAN_5 /
@@ -5989,11 +5187,16 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
             if (raw_distance_mm < 0L) {
                 raw_distance_mm = 0L;
             }
-            ss_twr_init_publish_cir_features(current_anchor_id, raw_distance_mm,
-                                             resp_rx_ts, carrier_integrator,
-                                             &rx_diag);
+            if (rx_diag_valid && ss_twr_init_cir_compact_enabled()) {
+                ss_twr_init_publish_cir_features(current_anchor_id,
+                                                 raw_distance_mm,
+                                                 resp_rx_ts,
+                                                 carrier_integrator,
+                                                 &rx_diag);
+            }
 #if APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U
-            if (ss_twr_init_cir_full_enabled()) {
+            if (rx_diag_valid &&
+                ss_twr_init_cir_full_should_publish_unicast(current_anchor_id)) {
                 ss_twr_init_publish_full_cir(current_anchor_id, raw_distance_mm,
                                              resp_rx_ts, carrier_integrator,
                                              &rx_diag);
@@ -6031,28 +5234,8 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
                            (unsigned long)tracker->failure_count,
                            (unsigned int)uwb_range_tracker_quality_percent(
                                tracker));
-                }
-	                if (ss_twr_init_runtime_any_calibration_mode()) {
-	                    /*
-	                     * In calibration mode, do not stall on one problematic anchor.
-	                     * Advance to the next anchor so coverage/throughput stays balanced.
-	                     */
-                    ss_twr_init_active_anchor_index =
-                        (ss_twr_init_active_anchor_index + 1U) %
-                        ss_twr_init_active_anchor_count;
-                    ss_twr_init_current_anchor_retry_count = 0U;
-		                    if (ss_twr_init_active_anchor_index == 0U) {
-		                        ss_twr_init_sweep_count++;
-		                        ss_twr_init_release_ble_tx_after_active_slot();
-		                        ss_twr_init_note_sweep_done();
-		                        ss_twr_init_print_location_if_ready();
-		                        ss_twr_init_apply_pending_runtime_config_if_any();
-	                        ss_twr_init_last_tdma_wait_ms =
-	                            ss_twr_init_wait_until_next_slot_if_needed();
-	                        ss_twr_init_prepare_sweep_plan();
-	                    }
-		                }
-                ss_twr_init_sleep_between_ranges();
+	                }
+	                ss_twr_init_sleep_between_ranges();
                 continue;
             }
 
@@ -6222,10 +5405,7 @@ int ss_twr_init_runtime_configure(const struct uwb_tag_runtime_params *params)
 	}
 
 	if (params->positioning_mode != UWB_TAG_POSITIONING_MODE_DYNAMIC &&
-	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_FIXED &&
-	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_ANCHOR_OTA &&
-	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_CAL_STATIC &&
-	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_CAL_ROTO) {
+	    params->positioning_mode != UWB_TAG_POSITIONING_MODE_IDLE) {
 		return -ERANGE;
 	}
 
@@ -6234,13 +5414,12 @@ int ss_twr_init_runtime_configure(const struct uwb_tag_runtime_params *params)
 		return -EINVAL;
 	}
 
-	if (params->anchor_selection_mode ==
-	    UWB_TAG_ANCHOR_SELECTION_FIXED_SUBSET &&
-	    params->fixed_anchor_count < 4U) {
-		return -EINVAL;
-	}
-
 	ss_twr_init_pending_runtime_params = *params;
+	ss_twr_init_pending_runtime_params.anchor_selection_mode =
+		UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
+	ss_twr_init_pending_runtime_params.fixed_anchor_count = 0U;
+	memset(ss_twr_init_pending_runtime_params.fixed_anchor_ids, 0,
+	       sizeof(ss_twr_init_pending_runtime_params.fixed_anchor_ids));
 	if (ss_twr_init_pending_runtime_params.tdma.epoch_valid) {
 		uwb_tdma_sync_schedule_epoch(&ss_twr_init_pending_runtime_params.tdma,
 					     ss_twr_init_pending_runtime_params.tdma.epoch_ms,

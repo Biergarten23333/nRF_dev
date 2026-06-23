@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
 from collections import defaultdict
 from datetime import datetime
@@ -77,6 +78,9 @@ TR_BCAST_RE = re.compile(
     r")?"
 )
 
+RANGE_ACTIVITY_RE = re.compile(r"\b(?:TR|CM|CR|CF|CS);")
+CIR_MODE_CHOICES = ("off", "compact", "full")
+
 # Backwards-compatible aliases for older helper code and text checks.
 TR_RE = TR_RANGE_RE
 TR2_RE = TR_RANGE_RE
@@ -125,16 +129,13 @@ TDMA_SHOW_PROFILE_RE = re.compile(
     r"TDMA profile: (?P<bs>BS[0-9A-F]{4}) -> (?P<profile>\w+) target=(?P<target_hz>\d+)Hz"
 )
 
-WAND_ROLE_BS_CODES = {
-    "A": "BSCCF4",
-    "B": "BS9336",
-    "C": "BS955A",
-}
-
-
 def extract_bs_name(text: str) -> str:
     match = re.search(r"\b(BS[0-9A-F]{4})\b", text)
     return match.group(1) if match else ""
+
+
+def line_has_range_activity(line: str) -> bool:
+    return bool(RANGE_ACTIVITY_RE.search(line))
 
 
 def iter_tr_matches(text: str):
@@ -253,9 +254,8 @@ def iter_tr_records(text: str):
             anchor_id = active_anchors[pos]
             status = statuses[pos]
             range_mm = ranges[pos]
-            # TR1/TR2 short records are legacy/debug output.  On Wand debug
-            # images the valid_mask is not always the final per-anchor
-            # validity; status=O is.
+            # TR1/TR2 short records are legacy/debug output.  Some older
+            # images did not keep valid_mask aligned with per-anchor status.
             effective_valid = (
                 (valid_mask & (1 << anchor_id)) != 0
                 or (tr_version in {1, 2} and status == "O" and range_mm > 100)
@@ -307,14 +307,6 @@ def normalize_target(name: str) -> str:
     value = raw.upper()
     if value.startswith("BS"):
         return value
-    parts = value.split("-")
-    if len(parts) == 3 and parts[0] == "WAND" and parts[1] in {"A", "B", "C"} and parts[2].startswith("BS"):
-        expected_bs = WAND_ROLE_BS_CODES[parts[1]]
-        if parts[2] != expected_bs:
-            raise ValueError(
-                f"Invalid Wand target: {name}; expected Wand-{parts[1]}-{expected_bs}"
-            )
-        return parts[2]
     raise ValueError(f"Invalid target name: {name}")
 
 
@@ -324,11 +316,7 @@ def target_aliases(name: str) -> set[str]:
 
 
 def target_bs_name(name: str) -> str:
-    value = name.strip().upper()
-    parts = value.split("-")
-    if len(parts) == 3 and parts[0] == "WAND" and parts[2].startswith("BS"):
-        return parts[2]
-    return value
+    return name.strip().upper()
 
 
 DEFAULT_KNOWN_BS_TAGS = [
@@ -339,6 +327,26 @@ DEFAULT_KNOWN_BS_TAGS = [
     "BS955A",
     "BSCCF4",
 ]
+
+
+def env_float(name: str, default: float) -> float:
+    raw = os.environ.get(name, "")
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def default_full_cir_script_path() -> str:
+    repo_root = Path(__file__).resolve().parents[4]
+    return str(repo_root / "flutter_ui_CIR" / "scripts" / "cir_full_usb_capture.py")
+
+
+def tag_cir_range_phase(requested_mode: str) -> str:
+    mode = str(requested_mode or "off").strip().lower()
+    return "off" if mode == "full" else mode
 
 
 def parse_bs_tag_csv(value: str) -> list[str]:
@@ -356,12 +364,6 @@ def parse_bs_tag_csv(value: str) -> list[str]:
 
 
 def target_discovery_prefix(targets: list[str]) -> str:
-    # Current field Wand tags advertise as plain BSxxxx. Wand-A/B/C aliases are
-    # accepted at the CLI, but runtime discovery and TDMA use the BS identity.
-    return "BS"
-
-
-def target_link_setup_prefix(targets: list[str]) -> str:
     return "BS"
 
 
@@ -663,22 +665,34 @@ def build_parser() -> argparse.ArgumentParser:
         default=",".join(DEFAULT_KNOWN_BS_TAGS),
         help=(
             "Comma-separated BS tag identities known in the field kit. Tags in this list "
-            "that are not in --targets are sent targeted MODE AOTA before capture."
+            "are used only for optional legacy non-target idle handling."
         ),
     )
     parser.add_argument(
         "--no-silence-non-target-tags",
+        dest="no_silence_non_target_tags",
         action="store_true",
+        default=True,
         help=(
-            "Disable targeted pre-capture MODE AOTA for known BS tags that are not in "
-            "the requested TDMA roster."
+            "Disable optional pre-capture MODE IDLE for known BS tags that are not in "
+            "the requested TDMA roster. This is the default because capture scenes "
+            "are not firmware positioning modes."
+        ),
+    )
+    parser.add_argument(
+        "--silence-non-target-tags",
+        dest="no_silence_non_target_tags",
+        action="store_false",
+        help=(
+            "Opt in to pre-capture non-target MODE IDLE. Use only when the "
+            "controller is known to have separate live links to non-target Tags."
         ),
     )
     parser.add_argument(
         "--non-target-silence-settle-s",
         type=float,
         default=1.0,
-        help="Seconds to drain serial after targeted non-target AOTA commands.",
+        help="Seconds to drain serial after targeted non-target idle commands.",
     )
     parser.add_argument(
         "--tag-link-timeout-s",
@@ -700,9 +714,36 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--tdma-profile",
-        choices=["motion", "static", "roto"],
+        choices=["motion"],
         default="motion",
-        help="Master TDMA profile for the target roster. Use static for CAL_STATIC coverage.",
+        help="Deprecated compatibility option. Capture scenes always use motion TDMA/PMODE=0.",
+    )
+    parser.add_argument(
+        "--tag-cir",
+        choices=CIR_MODE_CHOICES,
+        default="off",
+        help="Runtime CIR output requested from target Tags: off, compact, or full.",
+    )
+    parser.add_argument(
+        "--full-cir-duration-s",
+        type=float,
+        default=env_float("BIOSPUR_FULL_CIR_DURATION_S", 30.0),
+        help="Seconds to run the deferred full-CIR USB phase after range capture.",
+    )
+    parser.add_argument(
+        "--full-cir-ports",
+        default=os.environ.get("BIOSPUR_CIR_FULL_USB_PORTS", ""),
+        help="Comma-separated LABEL=/dev/... USB CDC ports for deferred full-CIR capture.",
+    )
+    parser.add_argument(
+        "--full-cir-script",
+        default=os.environ.get("BIOSPUR_CIR_FULL_SCRIPT", default_full_cir_script_path()),
+        help="USB full-CIR capture helper script.",
+    )
+    parser.add_argument(
+        "--full-cir-anchor-control-port",
+        default=os.environ.get("BIOSPUR_ANCHOR_PORT", ""),
+        help="Master_Anchor CDC used to switch anchor CIR during the deferred full-CIR phase.",
     )
     parser.add_argument(
         "--allow-legacy-tdma-show-only",
@@ -723,7 +764,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no-cleanup",
         action="store_true",
-        help="Leave tags running after capture. By default tags are returned to AOTA/idle mode.",
+        help="Leave tags running after capture. By default tags are returned to IDLE mode.",
     )
     parser.add_argument(
         "--no-tr-timeout-s",
@@ -740,8 +781,7 @@ def effective_tr_hz(args) -> int:
 
 def expected_tdma_maps(args, targets: list[str]) -> tuple[dict[str, int], dict[str, int]]:
     tr_hz = effective_tr_hz(args)
-    profile = tdma_roster_profile(args)
-    expected_pmode = {"motion": 0, "static": 4, "roto": 5}.get(profile, 0)
+    expected_pmode = 0
     expected_pmode_by_target = {target: expected_pmode for target in targets}
     expected_freq_by_target = {target: tr_hz for target in targets}
     for target in targets:
@@ -752,8 +792,7 @@ def expected_tdma_maps(args, targets: list[str]) -> tuple[dict[str, int], dict[s
 
 
 def tdma_roster_profile(args: argparse.Namespace | None = None) -> str:
-    if args is not None:
-        return str(getattr(args, "tdma_profile", "motion") or "motion").strip().lower()
+    _ = args
     return "motion"
 
 
@@ -1120,6 +1159,225 @@ def drain_serial_until_capture(ser: serial.Serial, logf, wait_s: float) -> str:
     return "".join(chunks)
 
 
+def apply_target_cir_mode(ser: serial.Serial, logf, args, targets: list[str]) -> serial.Serial:
+    requested_mode = str(getattr(args, "tag_cir", "off") or "off").strip().lower()
+    if requested_mode not in CIR_MODE_CHOICES:
+        raise RuntimeError(f"invalid_tag_cir:{requested_mode}")
+    mode = tag_cir_range_phase(requested_mode)
+
+    if requested_mode == "full":
+        print(
+            "[CAPTURE] configure: target CIR requested=full; range phase uses CIR off, "
+            "full CIR is deferred",
+            flush=True,
+        )
+    else:
+        print(f"[CAPTURE] configure: target CIR mode={mode}", flush=True)
+    logf.write(
+        f"[HOST_INFO {time.monotonic():.3f}] target_cir_requested={requested_mode} "
+        f"target_cir_range_phase={mode} "
+        f"targets={','.join(targets)}\n"
+    )
+    logf.flush()
+    ser, text = send_cmd_collect(ser, logf, f"cmd_all CIR {mode.upper()}", 1.5)
+    if "CIR_UNSUPPORTED" in text or "CIR_BAD" in text:
+        raise RuntimeError(f"tag_cir_rejected:{mode}")
+    text_upper = text.upper()
+    if f"CIR_OK MODE={mode.upper()}" not in text_upper and "BLE CMD SENT" not in text_upper:
+        logf.write(
+            f"[HOST_WARN {time.monotonic():.3f}] target_cir_ack_not_seen mode={mode}\n"
+        )
+        logf.flush()
+    return ser
+
+
+def parse_full_cir_ports(spec: str) -> list[str]:
+    ports: list[str] = []
+    for item in str(spec or "").split(","):
+        value = item.strip()
+        if value:
+            ports.append(value)
+    return ports
+
+
+def summarize_full_cir_capture_dir(capture_root: Path) -> dict:
+    dirs = [p for p in capture_root.glob("CIRRAW_*") if p.is_dir()]
+    if not dirs:
+        return {"capture_dir": "", "frames": 0, "ports": {}, "meta_csv": ""}
+    capture_dir = max(dirs, key=lambda p: p.stat().st_mtime)
+    meta_csv = capture_dir / "cir_full_meta.csv"
+    ports: dict[str, dict] = {}
+    frames = 0
+    if meta_csv.exists():
+        with meta_csv.open("r", encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                frames += 1
+                label = row.get("port_label", "") or "unknown"
+                stream = row.get("stream", "") or "unknown"
+                info = ports.setdefault(label, {"frames": 0, "streams": {}})
+                info["frames"] += 1
+                info["streams"][stream] = info["streams"].get(stream, 0) + 1
+    return {
+        "capture_dir": str(capture_dir),
+        "frames": frames,
+        "ports": ports,
+        "meta_csv": str(meta_csv) if meta_csv.exists() else "",
+        "raw_log": str(capture_dir / "cir_full_raw_serial.log"),
+    }
+
+
+def run_deferred_full_cir_phase(
+    ser: serial.Serial,
+    logf,
+    args,
+    session_dir: Path,
+    targets: list[str],
+) -> tuple[serial.Serial, dict]:
+    requested_mode = str(getattr(args, "tag_cir", "off") or "off").strip().lower()
+    if requested_mode != "full":
+        return ser, {
+            "requested": requested_mode,
+            "attempted": False,
+            "reason": "not_full",
+        }
+
+    duration_s = max(0.0, float(getattr(args, "full_cir_duration_s", 0.0) or 0.0))
+    ports = parse_full_cir_ports(getattr(args, "full_cir_ports", ""))
+    script_path = Path(str(getattr(args, "full_cir_script", ""))).expanduser()
+    capture_root = session_dir / "cir_full_usb"
+    result = {
+        "requested": "full",
+        "attempted": False,
+        "range_phase_cir": "off",
+        "duration_s": duration_s,
+        "ports_requested": ports,
+        "capture_root": str(capture_root),
+        "script": str(script_path),
+        "returncode": None,
+        "tag_full_sent": False,
+        "tag_full_ack_seen": False,
+        "tag_off_ack_seen": False,
+        "error": "",
+    }
+
+    if duration_s <= 0.0:
+        result["reason"] = "duration_zero"
+        return ser, result
+    if not ports:
+        result["reason"] = "no_full_cir_ports"
+        return ser, result
+    if not script_path.exists():
+        result["reason"] = "missing_full_cir_script"
+        result["error"] = str(script_path)
+        return ser, result
+
+    capture_root.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        sys.executable,
+        str(script_path),
+        "--seconds",
+        str(duration_s),
+        "--capture-root",
+        str(capture_root),
+        "--target",
+        ",".join(targets),
+        "--baud",
+        str(args.baud),
+    ]
+    for port in ports:
+        cmd.extend(["--port", port])
+    anchor_control_port = str(getattr(args, "full_cir_anchor_control_port", "") or "")
+    if anchor_control_port:
+        cmd.extend(["--control-port", anchor_control_port, "--control-role", "responder"])
+
+    result["attempted"] = True
+    result["command"] = cmd
+    print(
+        f"[CAPTURE] deferred full CIR: range is done; USB phase duration={duration_s:.0f}s",
+        flush=True,
+    )
+    logf.write(
+        f"[HOST_INFO {time.monotonic():.3f}] deferred_full_cir_start duration_s={duration_s:.3f} "
+        f"ports={len(ports)}\n"
+    )
+    logf.flush()
+
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    assert proc.stdout is not None
+    capture_started = threading.Event()
+
+    def stream_child_stdout() -> None:
+        for line in proc.stdout:
+            print(line, end="", flush=True)
+            logf.write(f"[CIRRAW_PROC] {line}")
+            if "[CIRRAW] capture start" in line:
+                capture_started.set()
+        logf.flush()
+
+    stdout_thread = threading.Thread(target=stream_child_stdout, daemon=True)
+    stdout_thread.start()
+
+    try:
+        wait_deadline = time.time() + 30.0
+        while proc.poll() is None and not capture_started.is_set() and time.time() < wait_deadline:
+            drain_serial_until(ser, logf, 0.2)
+
+        if proc.poll() is None and capture_started.is_set():
+            ser, text = send_cmd_collect(ser, logf, "cmd_all CIR FULL", 1.5)
+            result["tag_full_sent"] = True
+            text_upper = text.upper()
+            result["tag_full_ack_seen"] = (
+                "CIR_OK MODE=FULL" in text_upper or "BLE CMD SENT" in text_upper
+            )
+
+        while proc.poll() is None:
+            drain_serial_until(ser, logf, 0.5)
+
+        result["returncode"] = proc.wait()
+        stdout_thread.join(timeout=2.0)
+    finally:
+        if result["tag_full_sent"]:
+            try:
+                ser, text = send_cmd_collect(ser, logf, "cmd_all CIR OFF", 1.5)
+                text_upper = text.upper()
+                result["tag_off_ack_seen"] = (
+                    "CIR_OK MODE=OFF" in text_upper or "BLE CMD SENT" in text_upper
+                )
+            except Exception as exc:
+                result["error"] = f"tag_cir_off_failed:{exc}"
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5.0)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5.0)
+        result["returncode"] = proc.returncode
+
+    result.update(summarize_full_cir_capture_dir(capture_root))
+    result["success"] = result.get("returncode") == 0 and result.get("frames", 0) > 0
+    if not result["success"] and not result["error"]:
+        result["error"] = "full_cir_no_frames_or_helper_failed"
+    logf.write(
+        f"[HOST_INFO {time.monotonic():.3f}] deferred_full_cir_done "
+        + json.dumps(result, sort_keys=True)
+        + "\n"
+    )
+    logf.flush()
+    print(
+        f"[CAPTURE] deferred full CIR done: frames={result.get('frames', 0)} rc={result.get('returncode')}",
+        flush=True,
+    )
+    return ser, result
+
+
 def configure_recv_capture_session(
     ser: serial.Serial,
     logf,
@@ -1128,22 +1386,19 @@ def configure_recv_capture_session(
 ) -> serial.Serial:
     single_target = targets[0] if len(targets) == 1 else ""
     discovery_prefix = target_discovery_prefix(targets)
-    link_setup_prefix = target_link_setup_prefix(targets)
-    wand_mode = discovery_prefix.lower() == "wand"
     clear_text = ""
     status_text = ""
     device_text = ""
 
-    def restore_capture_filter(prefix_override: str = "") -> None:
+    def restore_capture_filter() -> None:
         nonlocal ser
-        prefix = prefix_override or discovery_prefix
         ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
         if single_target:
             ser = send_cmd(ser, logf, f"ota_target name {single_target}", 0.5)
             ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
         else:
             ser = send_cmd(ser, logf, "ota_target name -", 0.5)
-            ser = send_cmd(ser, logf, f"ota_target prefix {prefix}", 0.5)
+            ser = send_cmd(ser, logf, f"ota_target prefix {discovery_prefix}", 0.5)
         ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
 
     def ensure_config_tag_kind(reason: str) -> None:
@@ -1161,7 +1416,7 @@ def configure_recv_capture_session(
     def silence_non_target_tags() -> list[str]:
         nonlocal ser
         if getattr(args, "no_silence_non_target_tags", False):
-            print("[CAPTURE] configure: targeted non-target AOTA disabled", flush=True)
+            print("[CAPTURE] configure: targeted non-target idle disabled", flush=True)
             return []
 
         known_tags = parse_bs_tag_csv(getattr(args, "known_bs_tags", ""))
@@ -1172,12 +1427,12 @@ def configure_recv_capture_session(
             return []
 
         print(
-            "[CAPTURE] configure: targeted AOTA non-target tags="
+            "[CAPTURE] configure: targeted idle non-target tags="
             + ",".join(non_targets),
             flush=True,
         )
         logf.write(
-            f"[HOST_INFO {time.monotonic():.3f}] targeted_non_target_aota="
+            f"[HOST_INFO {time.monotonic():.3f}] targeted_non_target_idle="
             + ",".join(non_targets)
             + "\n"
         )
@@ -1187,7 +1442,7 @@ def configure_recv_capture_session(
             ser = send_cmd(ser, logf, f"ota_target name {tag}", 0.25)
             ser = send_cmd(ser, logf, "ota_target prefix -", 0.25)
             ser = send_cmd(ser, logf, "ota_target uuid -", 0.25)
-            ser = send_cmd(ser, logf, "cmd_all MODE AOTA", 0.8)
+            ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 0.8)
         settle_s = max(0.0, float(getattr(args, "non_target_silence_settle_s", 1.0)))
         if settle_s > 0:
             drain_serial_until(ser, logf, settle_s)
@@ -1232,37 +1487,19 @@ def configure_recv_capture_session(
             ser = send_cmd(ser, logf, f"ota_target name {single_target}", 0.5)
             ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
             ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
-        elif wand_mode:
-            print(
-                "[CAPTURE] configure: Wand mode uses BS prefix for live BLE; fixed Wand map + TDMA roster enforce admission",
-                flush=True,
-            )
-            ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
-            ser = send_cmd(ser, logf, "ota_target name -", 0.5)
-            ser = send_cmd(ser, logf, f"ota_target prefix {link_setup_prefix}", 0.5)
-            ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
         if "kind=tag" not in device_text.lower():
             ensure_config_tag_kind("preseed-discovery")
-    if wand_mode:
-        # Do not broadcast MODE AOTA in Wand mode. Wand devices advertise both
-        # Wand-X-BSxxxx and BSxxxx aliases, and MODE AOTA is persisted by the
-        # tag firmware as runtime_cfg. A broad BS/Wand AOTA command can leave
-        # the Wand in stale anchor_ota/old-TDMA state for the next run.
-        print(
-            "[CAPTURE] configure: Wand mode skips broad MODE AOTA; TDMA roster is the only admission filter",
-            flush=True,
-        )
-    restore_capture_filter(link_setup_prefix if wand_mode else "")
+    restore_capture_filter()
     silenced_non_targets = silence_non_target_tags()
-    restore_capture_filter(link_setup_prefix if wand_mode else "")
+    restore_capture_filter()
     print(
         "[CAPTURE] configure: silence resident Tag links for enrollment"
-        + (f" after non-target AOTA ({','.join(silenced_non_targets)})" if silenced_non_targets else ""),
+        + (f" after non-target idle ({','.join(silenced_non_targets)})" if silenced_non_targets else ""),
         flush=True,
     )
     ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
     print(
-        "[CAPTURE] configure: skip setup MODE AOTA; TDMA roster/hold controls admission",
+        "[CAPTURE] configure: skip setup MODE IDLE; TDMA roster/hold controls admission",
         flush=True,
     )
     print("[CAPTURE] configure: reassert TDMA target roster", flush=True)
@@ -1278,7 +1515,7 @@ def configure_recv_capture_session(
     # this run's requested roster before link setup.  Otherwise new Tags that
     # are not in the firmware boot allow-list can be silently ignored until a
     # per-name target is set, which does not scale to 10-tag stress tests.
-    restore_capture_filter(link_setup_prefix if wand_mode else "")
+    restore_capture_filter()
     ser = send_cmd(ser, logf, "conn", 0.5)
     print("[CAPTURE] configure: wait for target links", flush=True)
     ser = ensure_target_links_ready(
@@ -1289,8 +1526,9 @@ def configure_recv_capture_session(
         wait_per_target_s=args.tag_link_timeout_s,
         stable_s=args.tag_link_stable_s,
         initial_text=status_text + device_text + clear_text,
-        discovery_prefix_override=link_setup_prefix if wand_mode else "",
+        discovery_prefix_override="",
     )
+    ser = apply_target_cir_mode(ser, logf, args, targets)
     print("[CAPTURE] configure: release TDMA hold and verify TDMA CFG", flush=True)
     ser = send_cmd(ser, logf, "tdma hold 0", 1.0)
     # Runtime CFG can collide with link traffic right after hold release, and a
@@ -1340,7 +1578,7 @@ def configure_recv_capture_session(
         print("[CAPTURE] configure: refresh links and reassert roster before retry", flush=True)
         ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
         ser = send_cmd(ser, logf, "tdma clear", 1.2)
-        restore_capture_filter(link_setup_prefix if wand_mode else "")
+        restore_capture_filter()
         ser = send_cmd(ser, logf, "conn", 0.5)
         ser = ensure_target_links_ready(
             ser,
@@ -1350,7 +1588,7 @@ def configure_recv_capture_session(
             wait_per_target_s=args.tag_link_timeout_s,
             stable_s=args.tag_link_stable_s,
             initial_text="",
-            discovery_prefix_override=link_setup_prefix if wand_mode else "",
+            discovery_prefix_override="",
         )
         for target in targets:
             ser = send_cmd(ser, logf, f"tdma roster {target_bs_name(target)} {tdma_roster_profile(args)}", 0.5)
@@ -1398,32 +1636,10 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
     if args.no_cleanup:
         return ser, {"attempted": False, "reason": "disabled_by_flag"}
 
-    cleanup_targets = [
-        normalize_target(item)
-        for item in getattr(args, "targets", "").split(",")
-        if item.strip()
-    ]
-    if target_discovery_prefix(cleanup_targets).lower() == "wand":
-        print(
-            "[CAPTURE] cleanup: Wand mode skips MODE AOTA to avoid persisting stale runtime_cfg",
-            flush=True,
-        )
-        logf.write(
-            f"[HOST_CLEANUP {time.monotonic():.3f}] Wand mode skip cmd_all MODE AOTA; "
-            "leaving tags for next explicit CFG\n"
-        )
-        logf.flush()
-        return ser, {
-            "attempted": False,
-            "success": True,
-            "reason": "wand_mode_skip_aota_cleanup",
-            "command": "none",
-        }
-
     result = {
         "attempted": True,
         "success": False,
-        "command": "cmd_all MODE AOTA",
+        "command": "cmd_all MODE IDLE",
         "error": "",
         "stop_notify_rows": None,
         "stop_verify_s": 3.0,
@@ -1433,22 +1649,22 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
         text = drain_serial_until(ser, logf, result["stop_verify_s"])
         rows = 0
         for line in text.splitlines():
-            if TR_SINGLE_RE.search(line) or TR_RANGE_RE.search(line) or TR_BCAST_RE.search(line):
+            if line_has_range_activity(line):
                 rows += 1
         return rows
 
     try:
-        print("[CAPTURE] cleanup: stopping all tag ranging with cmd_all MODE AOTA", flush=True)
-        logf.write(f"[HOST_CLEANUP {time.monotonic():.3f}] stop all tag ranging via cmd_all MODE AOTA\n")
+        print("[CAPTURE] cleanup: stopping all tag ranging with cmd_all MODE IDLE", flush=True)
+        logf.write(f"[HOST_CLEANUP {time.monotonic():.3f}] stop all tag ranging via cmd_all MODE IDLE\n")
         logf.flush()
-        ser = send_cmd(ser, logf, "cmd_all MODE AOTA", 1.0)
+        ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 1.0)
         rows = verify_quiet()
         result["stop_notify_rows"] = rows
         result["success"] = rows == 0
         if result["success"]:
-            print("[CAPTURE] cleanup: all tags quiet after MODE AOTA", flush=True)
+            print("[CAPTURE] cleanup: all tags quiet after MODE IDLE", flush=True)
         else:
-            result["error"] = f"still saw {rows} TR rows after stop"
+            result["error"] = f"still saw {rows} range rows after stop"
             print(f"[CAPTURE] cleanup: stop verify failed: {result['error']}", flush=True)
     except (SerialException, OSError) as exc:
         result["error"] = str(exc)
@@ -1460,11 +1676,11 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
             ser = open_serial_with_retry(args.port, args.baud, retries=30)
             time.sleep(0.8)
             drain_serial_until(ser, logf, 0.8)
-            ser = send_cmd(ser, logf, "cmd_all MODE AOTA", 1.0)
+            ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 1.0)
             rows = verify_quiet()
             result["stop_notify_rows"] = rows
             result["success"] = rows == 0
-            result["error"] = "" if result["success"] else f"still saw {rows} TR rows after stop"
+            result["error"] = "" if result["success"] else f"still saw {rows} range rows after stop"
             if result["success"]:
                 print("[CAPTURE] cleanup: all tags quiet after serial reopen", flush=True)
             else:
@@ -1826,6 +2042,10 @@ def main() -> int:
         "expected_pmode": expected_pmode_by_target,
         "expected_freq_hz": expected_freq_by_target,
         "freq_hz": {"tr": tr_hz},
+        "tag_cir": args.tag_cir,
+        "tag_cir_range_phase": tag_cir_range_phase(args.tag_cir),
+        "full_cir_duration_s": args.full_cir_duration_s if args.tag_cir == "full" else 0.0,
+        "full_cir_ports": parse_full_cir_ports(args.full_cir_ports) if args.tag_cir == "full" else [],
         "duration_s": args.duration,
         "known_bs_tags": known_bs_tags,
         "silence_non_target_tags": not args.no_silence_non_target_tags,
@@ -1878,6 +2098,7 @@ def main() -> int:
     controller_recovery_attempts = 0
     controller_recovery_successes = 0
     cleanup_result: dict = {"attempted": False, "reason": "not_reached"}
+    cir_full_phase: dict = {"attempted": False, "reason": "not_reached"}
 
     with raw_log_path.open("w", encoding="utf-8") as logf:
         print(f"[CAPTURE] open serial: {args.port}", flush=True)
@@ -1979,11 +2200,11 @@ def main() -> int:
                         ):
                             no_tr_timeout = True
                             logf.write(
-                                f"[HOST_ERROR {time.monotonic():.3f}] no TR rows within {args.no_tr_timeout_s:.1f}s after TDMA release; abort capture early\n"
+                                f"[HOST_ERROR {time.monotonic():.3f}] no range rows within {args.no_tr_timeout_s:.1f}s after TDMA release; abort capture early\n"
                             )
                             logf.flush()
                             print(
-                                f"[CAPTURE] abort: no TR rows within {args.no_tr_timeout_s:.1f}s after TDMA release",
+                                f"[CAPTURE] abort: no range rows within {args.no_tr_timeout_s:.1f}s after TDMA release",
                                 flush=True,
                             )
                             break
@@ -2098,11 +2319,11 @@ def main() -> int:
                     ):
                         no_tr_timeout = True
                         logf.write(
-                            f"[HOST_ERROR {time.monotonic():.3f}] no TR rows within {args.no_tr_timeout_s:.1f}s after TDMA release; abort capture early\n"
+                            f"[HOST_ERROR {time.monotonic():.3f}] no range rows within {args.no_tr_timeout_s:.1f}s after TDMA release; abort capture early\n"
                         )
                         logf.flush()
                         print(
-                            f"[CAPTURE] abort: no TR rows within {args.no_tr_timeout_s:.1f}s after TDMA release",
+                            f"[CAPTURE] abort: no range rows within {args.no_tr_timeout_s:.1f}s after TDMA release",
                             flush=True,
                         )
                         break
@@ -2112,6 +2333,20 @@ def main() -> int:
 
             if pending.strip():
                 logf.write(pending.rstrip("\r") + "\n")
+            if not interrupted and not startup_failed and not controller_lost and not no_tr_timeout:
+                ser, cir_full_phase = run_deferred_full_cir_phase(
+                    ser,
+                    logf,
+                    args,
+                    session_dir,
+                    targets,
+                )
+            elif str(getattr(args, "tag_cir", "off")).strip().lower() == "full":
+                cir_full_phase = {
+                    "requested": "full",
+                    "attempted": False,
+                    "reason": "range_capture_failed_or_interrupted",
+                }
             ser, cleanup_result = cleanup_capture_session(ser, logf, args)
 
     tr_by_target: dict[str, list[dict]] = defaultdict(list)
@@ -2216,6 +2451,9 @@ def main() -> int:
         "tdma_config_check": tdma_config_check,
         "anchor_preflight": anchor_preflight,
         "cleanup": cleanup_result,
+        "tag_cir": args.tag_cir,
+        "tag_cir_range_phase": tag_cir_range_phase(args.tag_cir),
+        "cir_full_phase": cir_full_phase,
         "port": args.port,
         "duration_s": args.duration,
         "elapsed_s": time.time() - start_wall,

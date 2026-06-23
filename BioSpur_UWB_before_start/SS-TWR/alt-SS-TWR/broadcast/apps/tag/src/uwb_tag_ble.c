@@ -37,10 +37,6 @@
 #define APP_TAG_BLE_SETTINGS_ENABLE 1U
 #endif
 
-#ifndef APP_TAG_CALIBRATION_MODE
-#define APP_TAG_CALIBRATION_MODE 0U
-#endif
-
 #ifndef APP_TAG_STREAM_FORCE_OFF_AT_BOOT
 #define APP_TAG_STREAM_FORCE_OFF_AT_BOOT 0U
 #endif
@@ -73,10 +69,6 @@
 #define APP_TAG_BLE_NAME_PREFIX ""
 #endif
 
-#ifndef APP_TAG_WAND_MODE_ENABLE
-#define APP_TAG_WAND_MODE_ENABLE 0U
-#endif
-
 #ifndef APP_TAG_CIR_FEATURE_OUTPUT_ENABLE
 #define APP_TAG_CIR_FEATURE_OUTPUT_ENABLE 0U
 #endif
@@ -100,20 +92,6 @@
 /* Keep bundled NUS payloads below the common 247-byte ATT payload limit. */
 #define UWB_TAG_BLE_BUNDLE_PAYLOAD_CAP 220U
 #define UWB_TAG_BLE_MAX_CMD_LEN 192U
-
-static const char *uwb_tag_ble_wand_role_for_code(uint16_t code)
-{
-	switch (code) {
-	case 0xCCF4:
-		return "A";
-	case 0x9336:
-		return "B";
-	case 0x955A:
-		return "C";
-	default:
-		return NULL;
-	}
-}
 
 #define UWB_TAG_BLE_TX_THREAD_STACK 1536
 #define UWB_TAG_BLE_TX_THREAD_PRIO 7
@@ -203,11 +181,6 @@ static struct uwb_tag_ble_settings_record runtime_settings_record;
 static bool runtime_settings_record_loaded;
 static struct uwb_tag_runtime_params active_runtime_params;
 static bool runtime_stream_enabled = true;
-#if APP_TAG_WAND_MODE_ENABLE
-static bool wand_mode_enabled;
-static char wand_label = '?';
-static char wand_role[8] = "IDLE";
-#endif
 
 static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
@@ -261,21 +234,16 @@ static void uwb_tag_ble_runtime_params_apply_settings_locked(void);
 static const char *uwb_tag_ble_slot_source_label(uint8_t slot_source);
 static bool uwb_tag_ble_parse_u32_field(const char *cmd, const char *key,
 					uint32_t *value_out);
-static size_t uwb_tag_ble_parse_fixed_anchor_list(const char *cmd,
-						  uint8_t *anchors,
-						  size_t max_count);
 static int uwb_tag_ble_parse_cfg_command(
 	const char *cmd,
 	struct uwb_tag_runtime_params *params);
 static const char *uwb_tag_ble_mode_label(uint8_t positioning_mode);
-static bool uwb_tag_ble_mode_is_calibration(uint8_t positioning_mode);
 static bool uwb_tag_ble_parse_mode_value(const char *mode_text,
 					 uint8_t *positioning_mode_out);
 static void uwb_tag_ble_send_cir_status(void);
 static bool uwb_tag_ble_cir_mode_supported(enum uwb_tag_cir_mode mode);
 static void uwb_tag_ble_apply_mode_defaults(struct uwb_tag_runtime_params *params);
-static int uwb_tag_ble_apply_mode_policy(struct uwb_tag_runtime_params *params,
-					 bool require_fixed_list);
+static int uwb_tag_ble_apply_mode_policy(struct uwb_tag_runtime_params *params);
 static bool uwb_tag_ble_bundle_enabled(void);
 static bool uwb_tag_ble_line_is_bundle_candidate(const char *line);
 static void uwb_tag_ble_clear_pending_bundle_locked(void);
@@ -304,9 +272,6 @@ static bool uwb_tag_ble_snapshot_pending_cal_locked(
 static bool uwb_tag_ble_runtime_stream_blocked_locked(void);
 static bool uwb_tag_ble_parse_i32_token(const char *text, char **end_out,
 					int32_t *value_out);
-#if APP_TAG_WAND_MODE_ENABLE
-static bool uwb_tag_ble_handle_wand_command(const char *cmd);
-#endif
 
 static bool uwb_tag_ble_parse_i32_token(const char *text, char **end_out,
 					int32_t *value_out)
@@ -535,19 +500,8 @@ static void uwb_tag_ble_init_identity(void)
 	}
 	k_mutex_unlock(&ble_mutex);
 	if (APP_TAG_BLE_NAME_PREFIX[0] != '\0') {
-		const char *wand_role = NULL;
-
-		if (strcmp(APP_TAG_BLE_NAME_PREFIX, "Wand") == 0) {
-			wand_role = uwb_tag_ble_wand_role_for_code(code);
-		}
-		if (wand_role != NULL) {
-			len = snprintk(ble_device_name, sizeof(ble_device_name),
-				       "%s-%s-BS%04X", APP_TAG_BLE_NAME_PREFIX,
-				       wand_role, code);
-		} else {
-			len = snprintk(ble_device_name, sizeof(ble_device_name),
-				       "%s-BS%04X", APP_TAG_BLE_NAME_PREFIX, code);
-		}
+		len = snprintk(ble_device_name, sizeof(ble_device_name),
+			       "%s-BS%04X", APP_TAG_BLE_NAME_PREFIX, code);
 	} else {
 		len = snprintk(ble_device_name, sizeof(ble_device_name), "BS%04X", code);
 	}
@@ -577,15 +531,10 @@ uint8_t uwb_tag_ble_tag_id(void)
 static uint8_t uwb_tag_ble_normalize_positioning_mode(uint8_t positioning_mode)
 {
 	switch (positioning_mode) {
-	case UWB_TAG_MODE_SOLVE:
-	case UWB_TAG_MODE_DEBUG:
-	case UWB_TAG_MODE_AOTA:
-	case UWB_TAG_MODE_RESERVED_4:
-	case UWB_TAG_MODE_RESERVED_5:
+	case UWB_TAG_MODE_IDLE:
 		return positioning_mode;
-	case UWB_TAG_MODE_RANGE:
 	default:
-		return UWB_TAG_MODE_RANGE;
+		return UWB_TAG_MODE_RUN;
 	}
 }
 
@@ -602,7 +551,7 @@ static void uwb_tag_ble_runtime_params_reset_locked(void)
 		(ble_identity_code != 0U) ? (uint8_t)(ble_identity_code & 0xFFU) :
 					    ble_tag_id;
 	active_runtime_params.slot_source = UWB_TAG_SLOT_SOURCE_BUILD;
-	active_runtime_params.positioning_mode = UWB_TAG_MODE_RANGE;
+	active_runtime_params.positioning_mode = UWB_TAG_MODE_RUN;
 	active_runtime_params.anchor_selection_mode =
 		UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
 	active_runtime_params.tdma.enabled = (APP_TAG_TDMA_ENABLE != 0U);
@@ -646,12 +595,9 @@ static void uwb_tag_ble_runtime_params_apply_settings_locked(void)
 	active_runtime_params.positioning_mode =
 		uwb_tag_ble_normalize_positioning_mode(runtime_settings_record.positioning_mode);
 	active_runtime_params.anchor_selection_mode =
-		runtime_settings_record.anchor_selection_mode;
-	active_runtime_params.fixed_anchor_count =
-		MIN(runtime_settings_record.fixed_anchor_count,
-		    UWB_TAG_FIXED_ANCHOR_MAX);
-	memcpy(active_runtime_params.fixed_anchor_ids,
-	       runtime_settings_record.fixed_anchor_ids,
+		UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
+	active_runtime_params.fixed_anchor_count = 0U;
+	memset(active_runtime_params.fixed_anchor_ids, 0,
 	       sizeof(active_runtime_params.fixed_anchor_ids));
 
 	if (runtime_settings_record.slot_count != 0U &&
@@ -699,11 +645,9 @@ int uwb_tag_ble_runtime_config_store(const struct uwb_tag_runtime_params *params
 	record.logical_tag_id = params->logical_tag_id;
 	record.positioning_mode =
 		uwb_tag_ble_normalize_positioning_mode(params->positioning_mode);
-	record.anchor_selection_mode = params->anchor_selection_mode;
-	record.fixed_anchor_count =
-		MIN(params->fixed_anchor_count, UWB_TAG_FIXED_ANCHOR_MAX);
-	memcpy(record.fixed_anchor_ids, params->fixed_anchor_ids,
-	       sizeof(record.fixed_anchor_ids));
+	record.anchor_selection_mode = UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
+	record.fixed_anchor_count = 0U;
+	memset(record.fixed_anchor_ids, 0, sizeof(record.fixed_anchor_ids));
 	record.slot_index = params->tdma.slot_index;
 	record.slot_count = params->tdma.slot_count;
 	record.slot_mask = params->tdma.slot_mask;
@@ -734,25 +678,11 @@ int uwb_tag_ble_runtime_config_store(const struct uwb_tag_runtime_params *params
 static const char *uwb_tag_ble_mode_label(uint8_t positioning_mode)
 {
 	switch (positioning_mode) {
-	case UWB_TAG_MODE_SOLVE:
-		return "SOLVE";
-	case UWB_TAG_MODE_DEBUG:
-		return "DEBUG";
-	case UWB_TAG_MODE_AOTA:
-		return "AOTA";
-	case UWB_TAG_MODE_RESERVED_4:
-		return "CAL_STATIC";
-	case UWB_TAG_MODE_RESERVED_5:
-		return "CAL_ROTO";
+	case UWB_TAG_MODE_IDLE:
+		return "IDLE";
 	default:
-		return "RANGE";
+		return "RUN";
 	}
-}
-
-static bool uwb_tag_ble_mode_is_calibration(uint8_t positioning_mode)
-{
-	return positioning_mode == UWB_TAG_MODE_RESERVED_4 ||
-	       positioning_mode == UWB_TAG_MODE_RESERVED_5;
 }
 
 static bool uwb_tag_ble_cir_mode_supported(enum uwb_tag_cir_mode mode)
@@ -788,9 +718,9 @@ static void uwb_tag_ble_send_cir_status(void)
 	uwb_tag_ble_send_text(resp);
 }
 
-static bool uwb_tag_ble_mode_is_anchor_ota(uint8_t positioning_mode)
+static bool uwb_tag_ble_mode_is_idle(uint8_t positioning_mode)
 {
-	return positioning_mode == UWB_TAG_MODE_AOTA;
+	return positioning_mode == UWB_TAG_MODE_IDLE;
 }
 
 static bool uwb_tag_ble_parse_mode_value(const char *mode_text,
@@ -807,28 +737,24 @@ static bool uwb_tag_ble_parse_mode_value(const char *mode_text,
 	    strcasecmp(mode_text, "DYN") == 0 ||
 	    strcasecmp(mode_text, "DYNAMIC") == 0 ||
 	    strcasecmp(mode_text, "RUN") == 0) {
-		*positioning_mode_out = UWB_TAG_MODE_RANGE;
+		*positioning_mode_out = UWB_TAG_MODE_RUN;
+		return true;
+	}
+
+	if (strcasecmp(mode_text, "IDLE") == 0 ||
+	    strcasecmp(mode_text, "STOP") == 0 ||
+	    strcasecmp(mode_text, "HALT") == 0) {
+		*positioning_mode_out = UWB_TAG_MODE_IDLE;
 		return true;
 	}
 
 	if (strcasecmp(mode_text, "SOLVE") == 0 ||
 	    strcasecmp(mode_text, "TS") == 0 ||
-	    strcasecmp(mode_text, "TS_ENABLE") == 0) {
-		*positioning_mode_out = UWB_TAG_MODE_SOLVE;
-		return true;
-	}
-
-	if (strcasecmp(mode_text, "DEBUG") == 0 ||
+	    strcasecmp(mode_text, "TS_ENABLE") == 0 ||
+	    strcasecmp(mode_text, "DEBUG") == 0 ||
 	    strcasecmp(mode_text, "DIAG") == 0 ||
 	    strcasecmp(mode_text, "TX_TEST") == 0) {
-		*positioning_mode_out = UWB_TAG_MODE_DEBUG;
-		return true;
-	}
-
-	if (strcasecmp(mode_text, "AOTA") == 0 ||
-	    strcasecmp(mode_text, "ANCHOR_OTA") == 0 ||
-	    strcasecmp(mode_text, "OTA_IDLE") == 0) {
-		*positioning_mode_out = UWB_TAG_MODE_AOTA;
+		*positioning_mode_out = UWB_TAG_MODE_RUN;
 		return true;
 	}
 
@@ -841,7 +767,7 @@ static void uwb_tag_ble_apply_mode_defaults(struct uwb_tag_runtime_params *param
 		return;
 	}
 
-	if (uwb_tag_ble_mode_is_anchor_ota(params->positioning_mode)) {
+	if (uwb_tag_ble_mode_is_idle(params->positioning_mode)) {
 		params->slot_source = UWB_TAG_SLOT_SOURCE_BUILD;
 		params->tdma.enabled = false;
 		params->tdma.slot_index = 0U;
@@ -853,23 +779,6 @@ static void uwb_tag_ble_apply_mode_defaults(struct uwb_tag_runtime_params *param
 		params->tdma.epoch_valid = false;
 		params->tdma.epoch_ms = 0U;
 		params->tdma.generation = 0U;
-		return;
-	}
-
-	if (uwb_tag_ble_mode_is_calibration(params->positioning_mode)) {
-		if (params->tdma.slot_count == 0U || params->tdma.slot_period_ms == 0U ||
-		    params->tdma.slot_active_ms == 0U) {
-			params->tdma.enabled = (APP_TAG_TDMA_ENABLE != 0U);
-			params->tdma.slot_index = APP_TAG_TDMA_SLOT_INDEX;
-			params->tdma.slot_count = APP_TAG_TDMA_SLOT_COUNT;
-			params->tdma.slot_mask = 0U;
-			params->tdma.slot_period_ms = APP_TAG_TDMA_SLOT_PERIOD_MS;
-			params->tdma.slot_active_ms = APP_TAG_TDMA_SLOT_ACTIVE_MS;
-			params->tdma.slot_active_us = APP_TAG_TDMA_SLOT_ACTIVE_US;
-			params->tdma.epoch_valid = false;
-			params->tdma.epoch_ms = 0U;
-			params->tdma.generation = 0U;
-		}
 		return;
 	}
 
@@ -888,34 +797,15 @@ static void uwb_tag_ble_apply_mode_defaults(struct uwb_tag_runtime_params *param
 	}
 }
 
-static int uwb_tag_ble_apply_mode_policy(struct uwb_tag_runtime_params *params,
-					 bool require_fixed_list)
+static int uwb_tag_ble_apply_mode_policy(struct uwb_tag_runtime_params *params)
 {
 	if (params == NULL) {
 		return -EINVAL;
 	}
 
-	switch (params->positioning_mode) {
-	case UWB_TAG_MODE_AOTA:
-		/*
-		 * Anchor-OTA coordination mode:
-		 * - keep BLE control path alive
-		 * - force runtime into no-poll behavior on the UWB loop
-		 */
-		params->anchor_selection_mode = UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
-		params->fixed_anchor_count = 0U;
-		memset(params->fixed_anchor_ids, 0, sizeof(params->fixed_anchor_ids));
-		break;
-	case UWB_TAG_MODE_SOLVE:
-	case UWB_TAG_MODE_DEBUG:
-	case UWB_TAG_MODE_RANGE:
-	default:
-		params->anchor_selection_mode = UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
-		params->fixed_anchor_count = 0U;
-		memset(params->fixed_anchor_ids, 0, sizeof(params->fixed_anchor_ids));
-		break;
-	}
-
+	params->anchor_selection_mode = UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
+	params->fixed_anchor_count = 0U;
+	memset(params->fixed_anchor_ids, 0, sizeof(params->fixed_anchor_ids));
 	uwb_tag_ble_apply_mode_defaults(params);
 	return 0;
 }
@@ -997,41 +887,6 @@ static bool uwb_tag_ble_parse_u32_field(const char *cmd, const char *key,
 	return true;
 }
 
-static size_t uwb_tag_ble_parse_fixed_anchor_list(const char *cmd,
-						  uint8_t *anchors,
-						  size_t max_count)
-{
-	const char *pos;
-	size_t count = 0U;
-
-	if (cmd == NULL || anchors == NULL || max_count == 0U) {
-		return 0U;
-	}
-
-	pos = strstr(cmd, "FIXED=");
-	if (pos == NULL) {
-		return 0U;
-	}
-
-	pos += strlen("FIXED=");
-	while (*pos != '\0' && count < max_count) {
-		char *end = NULL;
-		unsigned long value = strtoul(pos, &end, 10);
-
-		if (end == pos || value > UINT8_MAX) {
-			break;
-		}
-
-		anchors[count++] = (uint8_t)value;
-		if (*end != ',') {
-			break;
-		}
-		pos = end + 1;
-	}
-
-	return count;
-}
-
 static int uwb_tag_ble_parse_cfg_command(
 	const char *cmd,
 	struct uwb_tag_runtime_params *params)
@@ -1046,10 +901,7 @@ static int uwb_tag_ble_parse_cfg_command(
 	uint32_t epoch = 0U;
 	uint32_t generation = 0U;
 	uint32_t run_enabled = 1U;
-	uint32_t positioning_mode = UWB_TAG_MODE_RANGE;
-	uint32_t anchor_mode = UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
-	uint8_t fixed_anchor_ids[UWB_TAG_FIXED_ANCHOR_MAX] = { 0U };
-	size_t fixed_count;
+	uint32_t positioning_mode = UWB_TAG_MODE_RUN;
 
 	if (cmd == NULL || params == NULL) {
 		return -EINVAL;
@@ -1069,22 +921,13 @@ static int uwb_tag_ble_parse_cfg_command(
 	(void)uwb_tag_ble_parse_u32_field(cmd, "ACTIVE_US=", &active_us);
 	(void)uwb_tag_ble_parse_u32_field(cmd, "RUN=", &run_enabled);
 	(void)uwb_tag_ble_parse_u32_field(cmd, "PMODE=", &positioning_mode);
-	(void)uwb_tag_ble_parse_u32_field(cmd, "AMODE=", &anchor_mode);
-	fixed_count = uwb_tag_ble_parse_fixed_anchor_list(cmd, fixed_anchor_ids,
-							  ARRAY_SIZE(fixed_anchor_ids));
 
 	if (tag_id >= UWB_MAX_TAGS || slot >= UINT8_MAX || count == 0U ||
 	    count > UINT8_MAX || period == 0U || period > UINT16_MAX ||
 	    active == 0U || active > UINT16_MAX || active > period ||
 	    active_us > UINT16_MAX || active_us > (period * 1000U) ||
 	    slot_mask > UINT16_MAX || run_enabled > 1U ||
-	    (positioning_mode != UWB_TAG_MODE_RANGE &&
-	     positioning_mode != UWB_TAG_MODE_SOLVE &&
-	     positioning_mode != UWB_TAG_MODE_DEBUG &&
-	     positioning_mode != UWB_TAG_MODE_AOTA &&
-	     positioning_mode != UWB_TAG_MODE_RESERVED_4 &&
-	     positioning_mode != UWB_TAG_MODE_RESERVED_5) ||
-	    anchor_mode > UWB_TAG_ANCHOR_SELECTION_FIXED_SUBSET) {
+	    positioning_mode > UWB_TAG_MODE_IDLE) {
 		return -ERANGE;
 	}
 
@@ -1093,11 +936,9 @@ static int uwb_tag_ble_parse_cfg_command(
 	params->slot_source = UWB_TAG_SLOT_SOURCE_MASTER;
 	params->positioning_mode =
 		uwb_tag_ble_normalize_positioning_mode((uint8_t)positioning_mode);
-	params->anchor_selection_mode = (uint8_t)anchor_mode;
-	params->fixed_anchor_count = MIN(fixed_count, UWB_TAG_FIXED_ANCHOR_MAX);
+	params->anchor_selection_mode = UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
+	params->fixed_anchor_count = 0U;
 	memset(params->fixed_anchor_ids, 0, sizeof(params->fixed_anchor_ids));
-	memcpy(params->fixed_anchor_ids, fixed_anchor_ids,
-	       sizeof(fixed_anchor_ids));
 	params->tdma.enabled = (run_enabled != 0U);
 	params->tdma.slot_index = (uint8_t)slot;
 	params->tdma.slot_count = (uint8_t)count;
@@ -1108,7 +949,7 @@ static int uwb_tag_ble_parse_cfg_command(
 	params->tdma.epoch_ms = epoch;
 	params->tdma.epoch_valid = true;
 	params->tdma.generation = (uint8_t)generation;
-	if (uwb_tag_ble_apply_mode_policy(params, false) != 0) {
+	if (uwb_tag_ble_apply_mode_policy(params) != 0) {
 		return -EINVAL;
 	}
 
@@ -1597,216 +1438,6 @@ void uwb_tag_ble_set_tx_paused(bool paused)
 	ble_tx_paused = paused;
 }
 
-#if APP_TAG_WAND_MODE_ENABLE
-static bool uwb_tag_ble_parse_wand_tag_token(const char *text, char **end_out,
-					     uint8_t *tag_id_out)
-{
-	char *end = NULL;
-	unsigned long value;
-
-	if (text == NULL || tag_id_out == NULL) {
-		return false;
-	}
-	while (*text == ' ' || *text == '\t') {
-		text++;
-	}
-	if ((text[0] == 'B' || text[0] == 'b') &&
-	    (text[1] == 'S' || text[1] == 's')) {
-		text += 2;
-		value = strtoul(text, &end, 16);
-	} else {
-		value = strtoul(text, &end, 0);
-	}
-	if (end == text || value > UINT16_MAX) {
-		return false;
-	}
-	*tag_id_out = (uint8_t)(value & 0xFFUL);
-	if (end_out != NULL) {
-		*end_out = end;
-	}
-	return true;
-}
-
-static bool uwb_tag_ble_handle_wand_command(const char *cmd)
-{
-	char resp[128];
-	const char *arg;
-
-	if (cmd == NULL) {
-		return false;
-	}
-
-	if (strcmp(cmd, "WAND?") == 0 || strcmp(cmd, "WAND_STATUS") == 0) {
-		bool enabled;
-		char label;
-		char role[sizeof(wand_role)];
-		struct uwb_tag_runtime_params params;
-
-		(void)uwb_tag_ble_runtime_config_get(&params);
-		k_mutex_lock(&ble_mutex, K_FOREVER);
-		enabled = wand_mode_enabled;
-		label = wand_label;
-		snprintk(role, sizeof(role), "%s", wand_role);
-		k_mutex_unlock(&ble_mutex);
-
-		snprintk(resp, sizeof(resp),
-			 "WAND_STATUS ENABLED=%u LABEL=%c ROLE=%s BS=BS%04X TAG=%u DIRECT_UWB=1",
-			 (unsigned int)(enabled ? 1U : 0U),
-			 label,
-			 role,
-			 (unsigned int)params.identity_code,
-			 (unsigned int)params.logical_tag_id);
-		uwb_tag_ble_send_text(resp);
-		return true;
-	}
-
-	if (strncmp(cmd, "WAND START", 10) == 0) {
-		char label = '?';
-
-		arg = cmd + 10;
-		while (*arg == ' ' || *arg == '\t') {
-			arg++;
-		}
-		if (*arg != '\0') {
-			label = *arg;
-			if (label >= 'a' && label <= 'z') {
-				label = (char)(label - 'a' + 'A');
-			}
-		}
-		if (label != 'A' && label != 'B' && label != 'C' && label != '?') {
-			uwb_tag_ble_send_text("WAND_BAD LABEL=A|B|C");
-			return true;
-		}
-
-		k_mutex_lock(&ble_mutex, K_FOREVER);
-		wand_mode_enabled = true;
-		wand_label = label;
-		snprintk(wand_role, sizeof(wand_role), "%s", "IDLE");
-		uwb_tag_ble_clear_pending_cal_locked();
-		uwb_tag_ble_clear_pending_samples_locked();
-		uwb_tag_ble_clear_pending_bundle_locked();
-		k_mutex_unlock(&ble_mutex);
-		uwb_tag_ble_cancel_bundle_flush();
-		(void)ss_twr_init_wand_set_enabled(true, label);
-		(void)ss_twr_init_wand_set_role(SS_TWR_INIT_WAND_ROLE_IDLE);
-
-		snprintk(resp, sizeof(resp),
-			 "WAND_OK ENABLED=1 LABEL=%c ROLE=IDLE STREAM=1 DIRECT_UWB=1",
-			 label);
-		uwb_tag_ble_send_text(resp);
-		return true;
-	}
-
-	if (strcmp(cmd, "WAND STOP") == 0) {
-		k_mutex_lock(&ble_mutex, K_FOREVER);
-		wand_mode_enabled = false;
-		wand_label = '?';
-		snprintk(wand_role, sizeof(wand_role), "%s", "IDLE");
-		runtime_stream_enabled = true;
-		uwb_tag_ble_clear_pending_cal_locked();
-		uwb_tag_ble_clear_pending_samples_locked();
-		uwb_tag_ble_clear_pending_bundle_locked();
-		k_mutex_unlock(&ble_mutex);
-		uwb_tag_ble_cancel_bundle_flush();
-		(void)ss_twr_init_wand_set_enabled(false, '?');
-		uwb_tag_ble_send_text("WAND_OK ENABLED=0 STREAM=1 DIRECT_UWB=1");
-		return true;
-	}
-
-	if (strncmp(cmd, "WAND ROLE ", 10) == 0) {
-		const char *role = cmd + 10;
-
-		while (*role == ' ' || *role == '\t') {
-			role++;
-		}
-		if (strcasecmp(role, "IDLE") != 0 &&
-		    strcasecmp(role, "INIT") != 0 &&
-		    strcasecmp(role, "RESP") != 0) {
-			uwb_tag_ble_send_text("WAND_ROLE_BAD ROLE=IDLE|INIT|RESP");
-			return true;
-		}
-
-		k_mutex_lock(&ble_mutex, K_FOREVER);
-		if (!wand_mode_enabled) {
-			k_mutex_unlock(&ble_mutex);
-			uwb_tag_ble_send_text("WAND_NOT_STARTED");
-			return true;
-		}
-		if (strcasecmp(role, "INIT") == 0) {
-			snprintk(wand_role, sizeof(wand_role), "%s", "INIT");
-			(void)ss_twr_init_wand_set_role(SS_TWR_INIT_WAND_ROLE_INIT);
-		} else if (strcasecmp(role, "RESP") == 0) {
-			snprintk(wand_role, sizeof(wand_role), "%s", "RESP");
-			(void)ss_twr_init_wand_set_role(SS_TWR_INIT_WAND_ROLE_RESP);
-		} else {
-			snprintk(wand_role, sizeof(wand_role), "%s", "IDLE");
-			(void)ss_twr_init_wand_set_role(SS_TWR_INIT_WAND_ROLE_IDLE);
-		}
-		k_mutex_unlock(&ble_mutex);
-
-		snprintk(resp, sizeof(resp),
-			 "WAND_OK ROLE=%s DIRECT_UWB=1",
-			 (strcasecmp(role, "INIT") == 0) ? "INIT" :
-			 (strcasecmp(role, "RESP") == 0) ? "RESP" : "IDLE");
-		uwb_tag_ble_send_text(resp);
-		return true;
-	}
-
-	if (strncmp(cmd, "WAND PEERS ", 11) == 0) {
-		char *end = NULL;
-		uint8_t a;
-		uint8_t b;
-		uint8_t c;
-
-		if (!uwb_tag_ble_parse_wand_tag_token(cmd + 11, &end, &a) ||
-		    !uwb_tag_ble_parse_wand_tag_token(end, &end, &b) ||
-		    !uwb_tag_ble_parse_wand_tag_token(end, &end, &c)) {
-			uwb_tag_ble_send_text("WAND_PEERS_BAD");
-			return true;
-		}
-		(void)ss_twr_init_wand_set_peers(a, b, c);
-		snprintk(resp, sizeof(resp), "WAND_PEERS_OK A=0x%02X B=0x%02X C=0x%02X",
-			 (unsigned int)a, (unsigned int)b, (unsigned int)c);
-		uwb_tag_ble_send_text(resp);
-		return true;
-	}
-
-	if (strncmp(cmd, "WAND_SWEEP", 10) == 0 ||
-	    strncmp(cmd, "WAND RANGE", 10) == 0) {
-		const char *count_arg = cmd + 10;
-		char *end = NULL;
-		unsigned long count = 1UL;
-		int err;
-
-		while (*count_arg == ' ' || *count_arg == '\t') {
-			count_arg++;
-		}
-		if (*count_arg != '\0') {
-			count = strtoul(count_arg, &end, 0);
-			if (end == count_arg || count > UINT16_MAX) {
-				uwb_tag_ble_send_text("WAND_SWEEP_BAD");
-				return true;
-			}
-		}
-		err = ss_twr_init_wand_request_sweep((uint16_t)count);
-		if (err) {
-			snprintk(resp, sizeof(resp), "WAND_SWEEP_FAIL RC=%d", err);
-		} else {
-			snprintk(resp, sizeof(resp), "WAND_SWEEP_QUEUED N=%lu", count);
-		}
-		uwb_tag_ble_send_text(resp);
-		return true;
-	}
-
-	if (strncmp(cmd, "WAND", 4) == 0) {
-		uwb_tag_ble_send_text("WAND_BAD");
-		return true;
-	}
-
-	return false;
-}
-#endif
-
 static void ble_notif_enabled(enum bt_nus_send_status status)
 {
 	printk("Tag BLE notifications %s\n",
@@ -1888,17 +1519,6 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		uwb_tag_ble_send_text("PONG");
 		return;
 	}
-
-#if APP_TAG_WAND_MODE_ENABLE
-	if (uwb_tag_ble_handle_wand_command(cmd)) {
-		return;
-	}
-#else
-	if (strncmp(cmd, "WAND", 4) == 0) {
-		uwb_tag_ble_send_text("WAND_DISABLED");
-		return;
-	}
-#endif
 
 	if (strcmp(cmd, "STATUS") == 0) {
 		k_mutex_lock(&ble_mutex, K_FOREVER);
@@ -2075,17 +1695,16 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 
 		(void)uwb_tag_ble_runtime_config_get(&params);
 		snprintk(resp, sizeof(resp),
-			 "VERSION fw=%s bs=BS%04X tag=%u pmode=%u amode=%u cir=%s caps=ota,range%s%s wand=%u",
+			 "VERSION fw=%s bs=BS%04X tag=%u mode=%s pmode=%u anchor_plan=dynamic cir=%s caps=ota,run%s%s",
 			 APP_TAG_FW_MARKER,
 			 (unsigned int)params.identity_code,
 			 (unsigned int)params.logical_tag_id,
+			 uwb_tag_ble_mode_label(params.positioning_mode),
 			 (unsigned int)params.positioning_mode,
-			 (unsigned int)params.anchor_selection_mode,
 			 ss_twr_init_cir_mode_label(cir_mode),
 			 (APP_TAG_CIR_FEATURE_OUTPUT_ENABLE != 0U) ? ",cir_compact" : "",
 			 (APP_TAG_CIR_FULL_OUTPUT_ENABLE != 0U &&
-			  APP_TAG_CIR_FULL_OUTPUT_CDC_ENABLE != 0U) ? ",cir_full_usb" : "",
-			 (unsigned int)(APP_TAG_WAND_MODE_ENABLE != 0U));
+			  APP_TAG_CIR_FULL_OUTPUT_CDC_ENABLE != 0U) ? ",cir_full_usb" : "");
 		uwb_tag_ble_send_text(resp);
 		return;
 	}
@@ -2093,22 +1712,10 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 	if (strcmp(cmd, "CFG_STATUS") == 0) {
 		char resp[192];
 		struct uwb_tag_runtime_params params;
-		char fixed_buf[32];
-		size_t pos = 0U;
 
 		(void)uwb_tag_ble_runtime_config_get(&params);
-		fixed_buf[0] = '\0';
-		for (size_t i = 0U; i < params.fixed_anchor_count &&
-				   pos + 4U < sizeof(fixed_buf);
-		     ++i) {
-			pos += (size_t)snprintk(fixed_buf + pos,
-						sizeof(fixed_buf) - pos,
-						"%s%u",
-						(i == 0U) ? "" : ",",
-						(unsigned int)params.fixed_anchor_ids[i]);
-		}
 		snprintk(resp, sizeof(resp),
-			 "CFG tag=%u bs=BS%04X slot=%u/%u mask=0x%04X src=%s period=%u active=%u active_us=%u epoch=%lu gen=%u pmode=%u amode=%u cir=%s fixed=%s",
+			 "CFG tag=%u bs=BS%04X slot=%u/%u mask=0x%04X src=%s period=%u active=%u active_us=%u epoch=%lu gen=%u mode=%s pmode=%u anchor_plan=dynamic cir=%s",
 			 (unsigned int)params.logical_tag_id,
 			 (unsigned int)params.identity_code,
 			 (unsigned int)params.tdma.slot_index,
@@ -2120,10 +1727,9 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 			 (unsigned int)params.tdma.slot_active_us,
 			 (unsigned long)params.tdma.epoch_ms,
 			 (unsigned int)params.tdma.generation,
+			 uwb_tag_ble_mode_label(params.positioning_mode),
 			 (unsigned int)params.positioning_mode,
-			 (unsigned int)params.anchor_selection_mode,
-			 ss_twr_init_cir_mode_label(ss_twr_init_cir_mode_get()),
-			 fixed_buf[0] != '\0' ? fixed_buf : "-");
+			 ss_twr_init_cir_mode_label(ss_twr_init_cir_mode_get()));
 		uwb_tag_ble_send_text(resp);
 		return;
 	}
@@ -2134,11 +1740,9 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 
 		(void)uwb_tag_ble_runtime_config_get(&params);
 		snprintk(resp, sizeof(resp),
-			 "MODE=%s PMODE=%u AMODE=%u FIXED_N=%u TDMA=%u SLOT=%u/%u MASK=0x%04X SRC=%s",
+			 "MODE=%s PMODE=%u ANCHOR_PLAN=dynamic TDMA=%u SLOT=%u/%u MASK=0x%04X SRC=%s",
 			 uwb_tag_ble_mode_label(params.positioning_mode),
 			 (unsigned int)params.positioning_mode,
-			 (unsigned int)params.anchor_selection_mode,
-			 (unsigned int)params.fixed_anchor_count,
 			 (unsigned int)params.tdma.enabled,
 			 (unsigned int)params.tdma.slot_index,
 			 (unsigned int)params.tdma.slot_count,
@@ -2150,7 +1754,7 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 
 	if (strncmp(cmd, "MODE ", 5) == 0 || strncmp(cmd, "MMOT", 4) == 0) {
 		struct uwb_tag_runtime_params params;
-		uint8_t requested_mode = UWB_TAG_MODE_RANGE;
+		uint8_t requested_mode = UWB_TAG_MODE_RUN;
 		const char *arg = cmd + 5;
 		int live_err;
 		int store_err;
@@ -2158,7 +1762,7 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		char resp[96];
 
 		if (strcmp(cmd, "MMOT") == 0) {
-			requested_mode = UWB_TAG_MODE_RANGE;
+			requested_mode = UWB_TAG_MODE_RUN;
 		} else {
 			while (*arg == ' ' || *arg == '\t') {
 				arg++;
@@ -2176,8 +1780,7 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 
 		(void)uwb_tag_ble_runtime_config_get(&params);
 		params.positioning_mode = requested_mode;
-		policy_err = uwb_tag_ble_apply_mode_policy(
-			&params, false);
+		policy_err = uwb_tag_ble_apply_mode_policy(&params);
 		if (policy_err == -EINVAL) {
 			uwb_tag_ble_send_text("ERR:MODE_POLICY");
 			return;
@@ -2294,12 +1897,9 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 
 	if (strcmp(cmd, "HELP") == 0) {
 #if APP_TAG_BLE_OTA_ENABLE
-		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RANGE|SOLVE|DEBUG|AOTA>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|1|2|3>|CFG_RUN|CFG_STOP|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
 #else
-		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RANGE|SOLVE|DEBUG|AOTA>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|1|2|3>|CFG_RUN|CFG_STOP|REBOOT|HELP");
-#endif
-#if APP_TAG_WAND_MODE_ENABLE
-		uwb_tag_ble_send_text("WAND?|WAND START <A|B|C>|WAND PEERS <A> <B> <C>|WAND ROLE <IDLE|INIT|RESP>|WAND_SWEEP [n]|WAND STOP");
+		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|REBOOT|HELP");
 #endif
 		return;
 	}
@@ -2529,11 +2129,6 @@ int uwb_tag_ble_publish_sample(const struct uwb_tag_ble_sample *sample)
 		return -EBUSY;
 	}
 
-	if (uwb_tag_ble_mode_is_calibration(active_runtime_params.positioning_mode)) {
-		k_mutex_unlock(&ble_mutex);
-		return 0;
-	}
-
 	if (pending_sample_count >= UWB_TAG_BLE_MAX_BINARY_RECORDS) {
 		if (uwb_tag_ble_snapshot_pending_samples_locked(packet,
 							 sizeof(packet),
@@ -2579,14 +2174,6 @@ int uwb_tag_ble_publish_calibration_range(
 		(APP_TAG_BLE_PACKET_BUNDLE_RECORDS >= 2U) ?
 		 APP_TAG_BLE_PACKET_BUNDLE_RECORDS :
 		 2U;
-
-#if APP_TAG_CALIBRATION_MODE
-	/*
-	 * Calibration CM stream should preserve per-sweep anchor coverage.
-	 * Prefer batching a full 8-anchor sweep per BLE notify when possible.
-	 */
-	target_records = UWB_TAG_BLE_MAX_CAL_RECORDS;
-#endif
 
 	if (sample == NULL) {
 		return -EINVAL;

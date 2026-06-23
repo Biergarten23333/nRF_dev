@@ -342,7 +342,7 @@ static void control_print_help(void)
 	printk("Runtime NUS cmds: cmd <raw> | cmd_all <raw> | oneshot <raw> | oneshot show | oneshot clear\n");
 	printk("Tag layout cmds: APOS <id> <x_mm> <y_mm> <z_mm> | APOS_TO <BSxxxx> APOS... | APOS_COMMIT | APOS_STATUS | APOS_RESET\n");
 	printk("Tag CIR cmds: tag cir <off|compact|full|status> | tag cir all <off|compact|full|status>\n");
-	printk("TDMA cmds: tdma show | tdma hold <0|1> | tdma roster <BSxxxx> <static|roto|motion> | tdma profile <BSxxxx> <static|roto|motion> | tdma freq <static|roto|motion> <hz> | tdma rebalance\n");
+	printk("TDMA cmds: tdma show | tdma hold <0|1> | tdma roster <BSxxxx> motion | tdma profile <BSxxxx> motion | tdma freq motion <hz> | tdma rebalance\n");
 	printk("Device model cmds: device show | device kind <anchor|tag>\n");
 	printk("OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->\n");
 	printk("Anchor cmds: anchor version <A..H|UUID32|all> | anchor role <A..H|UUID32|all> <master|matrix|responder> [cir <0|compact|full>] | anchor reset <A..H|UUID32|all> <autopos|responder>\n");

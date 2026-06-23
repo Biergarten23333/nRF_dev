@@ -352,7 +352,7 @@ def capture_port(port_label: str, port_path: str, state: CaptureState, end_time:
         print(f"[CIRRAW] port error {port_label}={port_path}: {exc}", flush=True)
 
 
-def control_anchor_cir_mode(control_port: str, mode: str, wait_s: float):
+def control_anchor_cir_mode(control_port: str, role: str, mode: str, wait_s: float):
     if not control_port:
         return
     if not Path(control_port).exists():
@@ -371,7 +371,7 @@ def control_anchor_cir_mode(control_port: str, mode: str, wait_s: float):
         else:
             print(f"[CIRRAW] control warning: missing Master_Anchor CDC {control_port}", flush=True)
             return
-    cmd = f"anchor role all matrix cir {mode}"
+    cmd = f"anchor role all {role} cir {mode}"
     try:
         with serial.Serial(control_port, 115200, timeout=0.2, write_timeout=2, exclusive=True) as ser:
             ser.reset_input_buffer()
@@ -402,6 +402,12 @@ def main():
     ap.add_argument("--target", default="BSF66F")
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--control-port", default="", help="Master_Anchor CDC control port used to switch anchors into CIR=FULL")
+    ap.add_argument(
+        "--control-role",
+        choices=["matrix", "responder"],
+        default="matrix",
+        help="Anchor runtime role to use while full CIR is enabled.",
+    )
     ap.add_argument("--control-wait-s", type=float, default=18.0)
     args = ap.parse_args()
 
@@ -451,7 +457,7 @@ def main():
     for label, path in port_specs:
         print(f"[CIRRAW] request port {label}={path}", flush=True)
 
-    control_anchor_cir_mode(args.control_port, "full", args.control_wait_s)
+    control_anchor_cir_mode(args.control_port, args.control_role, "full", args.control_wait_s)
     end_time = time.monotonic() + args.seconds
     try:
         with raw_log.open("a", encoding="utf-8") as raw_f, \
@@ -475,7 +481,7 @@ def main():
                 remaining = max(0.0, end_time - time.monotonic() + 1.0)
                 thread.join(timeout=remaining)
     finally:
-        control_anchor_cir_mode(args.control_port, "0", max(6.0, args.control_wait_s / 2.0))
+        control_anchor_cir_mode(args.control_port, args.control_role, "0", max(6.0, args.control_wait_s / 2.0))
 
     frame_count = state.frame_count if state is not None else 0
     append_session_note(notes_path, capture_id, capture_dir, args.target, args.seconds, frame_count)

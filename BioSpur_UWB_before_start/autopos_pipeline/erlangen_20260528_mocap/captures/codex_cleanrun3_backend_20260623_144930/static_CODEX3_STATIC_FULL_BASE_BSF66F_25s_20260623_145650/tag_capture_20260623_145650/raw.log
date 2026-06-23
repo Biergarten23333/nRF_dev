@@ -1,0 +1,465 @@
+*** Booting nRF Connect SDK v2.8.0-a2386bfc8401 ***
+*** Using Zephyr OS v3.7.99-0bc3393fb112 ***
+[RECV] LED map: 1=AUTOPOS 2=RECV 3=OTA 4=FLOW
+[RECV] Control mode loaded: RECV
+[RECV] UART control ready: type 'status' or 'mode recv'/'mode ota'/'mode autopos'
+OTA_STATE:target_configured detail=token
+OTA NUS stage: enabled
+[RECV] Boot profile neutral: no role-specific auto target
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] BioSpur BLE master control ready on nrf5340dk/nrf5340/cpuapp
+[RECV] BTN1 toggles RECV/OTA, BTN2 forces OTA mode, BTN3=SCAN, BTN4=CONN&START
+[RECV] Commands: status | mode recv | mode ota | mode autopos | scan | conn | initiate
+[RECV] OTA runtime cmds: ota_reset | ota show | ota version
+[RECV] Runtime NUS cmds: cmd <raw> | cmd_all <raw> | oneshot <raw> | oneshot show | oneshot clear
+[RECV] Tag layout cmds: APOS <id> <x_mm> <y_mm> <z_mm> | APOS_TO <BSxxxx> APOS... | APOS_COMMIT | APOS_STATUS | APOS_RESET
+[RECV] Tag CIR cmds: tag cir <off|compact|full|status> | tag c[HOST_CMD 485051.238] status
+[RECV] Control status: mode=RECV pending=0
+[RECV] SCAN hit: FC:9A:15:34:AB:20 (random) rssi=-67 name=- bs=BSF66F uuid=- target=unknown uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[RECV] CONNECT queue[0]: addr=FC:9A:15:34:AB:20 (random) link=nus uuid=- target=unknown
+[RECV] CONNECT pending[0]: addr_valid=1 link=nus uuid=- scan_running=1 conn_count=0
+[RECV] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[RECV] CONNECT pending[0] rc=0 conn=0x200048c0
+[RECV] Connected[0]: FC:9A:15:34:AB:20 (random) name=- bs=BSF66F
+[RECV] CONNECT state[0]: link=nus uuid=- ready=0 conn=0x200048c0
+SETUP[0] defer: waiting 335 ms before discovery start
+SETUP[0] defer: waiting 284 ms before discovery start
+[RECV] PHY updated[0]: tx=0x2 rx=0x2
+SETUP[0] defer: waiting 234 ms before discovery start
+SETUP[0] defer: waiting 184 ms before discovery start
+SETUP[0] defer: waiting 133 ms before discovery start
+S[HOST_CMD 485052.039] device show
+ETUP[0] defer: waiting 83 ms before discovery start
+[RECV] System target: kind=unknown caps=0x08 (config=0 ota=0 stream=0 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+SETUP[0] defer: waiting 33 ms before discovery start
+SETUP[0] begin: link=nus uuid=- conn=0x200048c0
+SETUP[0] mtu_exchange rc=0
+SETUP[0] phy_update rc=0
+SETUP[0] conn_param_update rc=0
+[RECV] DISC start[0]: link=nus uuid=- conn=0x200048c0
+[RECV] MTU exchange[0] done (498)
+[RECV] Conn param updated[0]: int=6 lat=0 to=400
+[RECV] PHY updated[0]: tx=0x2 rx=0x2
+[RECV] DISC complete[0]: link=nus discovered_service=2800 uuid=-
+[RECV] BLE[0] link ready
+[RECV] CFG assigned[0]: bs=BSF66F tag=1 slot=0/10 mask=0x0021 period=40 active=30 active_us=0 gen=1 pmode=0
+[RECV] TDMA weighted[0]: bs=BSF66F profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=1 target=unknown prefix=BS
+[RECV] Scanning for BS*
+[RECV] BSF66F notify: TR;3;1589;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2536,1863,0,0,2261;0,0,0,4,4,0,0,30;TTTTTTTT;4;0;9124;8
+[RECV] CFG confirmed[0]: tag=1 slot=0/10 mask=0x0021 period=40 active=30 gen=0 live=0
+[RECV] BSF66F notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0021 PERIOD=40 ACTIVE=30 ACTIVE_US=0 GEN=1 LIVE=1 RUN=1 STATE=RUNNING
+[RECV] BSF66F notify: TR;3;1590;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2536,1863,0,0,2261;0,0,0,4,4,0,0,29;TTTTTTTT;4;0;9307;8
+[HOST_CMD 485052.869] device show
+[RECV] System target: kind=unknown caps=0x08 (config=0 ota=0 stream=0 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[HOST_CMD 485053.672] device kind tag
+OTA NUS stage: enabled
+[RECV] One-shot NUS command cleared (runtime)
+[RECV] Master disconnecting peer[0]: bs=BSF66F
+[RECV] device kind set: tag (OTA target preserved)
+[RECV] Master discovery mode: CONN & START
+[RECV] Peer clear wait: waited=0 conn_count=1 ready_count=0
+[HOST_CMD 485055.677] device show
+[HOST_CMD 485056.478] ota_target token -1
+[RECV] Peer clear wait timeout: conn_count=1 ready_count=0
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=1 target=tag prefix=BS
+[RECV] Scanning for BS*
+[RECV] System target: kind=tag caps=0x0f (config=1 ota=1 stream=1 status=1)
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] ota_target token rc=0 value=-1
+OTA target filter: token=-1 name=- prefix=BS uuid=-
+[RECV] Disconnected[0]: FC:9A:15:34:AB:20 (random) reason=0x16 link=nus ready=1
+[RECV] SCAN hit: FC:9A:15:34:AB:20 (random) rssi=-81 name=- bs=BSF66F uuid=- target=tag uuid_ok=1 tag_name=0 anchor_name=0 nus=0 dfu=1 token=1 props=0x03
+[RECV] CONNECT queue[0]: addr=FC:9A:15:34:AB:20 (random) link=nus uuid=- target=tag
+[HOST_CMD 485057.086] ota_target name BSF66F
+[RECV] ota_target name rc=0 value=bsf66f
+OTA target filter: token=-1 name=bsf66f prefix=BS uuid=-
+[RECV] CONNECT pending[0]: addr_valid=1 link=nus uuid=- scan_running=1 conn_count=0
+[RECV] CONNECT pending[0]: bt_le_scan_stop rc=0 scan_running=1
+[RECV] CONNECT pending[0] rc=0 conn=0x200048c0
+[RECV] Connected[0]: FC:9A:15:34:AB:20 (random) name=- bs=BSF66F
+[RECV] CONNECT state[0]: link=nus uuid=- ready=0 conn=0x200048c0
+SETUP[0] defer: waiting 342 ms before discovery start
+SETUP[0] defer: waiting 291 ms before discovery start
+SETUP[0] defer: waiting 241 ms before discovery start
+[RECV] PHY updated[0]: tx=0x2 rx=0x2
+SETUP[0] defer: waiting 191 ms before discovery start
+SETUP[0] defer: waiting 140 ms before discovery start
+SETUP[0] defer: waiting 90 ms before discovery start
+S[HOST_CMD 485057.605] ota_target prefix -
+ETUP[0] defer: waiting 40 ms before discovery start
+[RECV] ota_target prefix rc=0 value=-
+OTA target filter: token=-1 name=bsf66f prefix=- uuid=-
+SETUP[0] begin: link=nus uuid=- conn=0x200048c0
+SETUP[0] mtu_exchange rc=0
+SETUP[0] phy_update rc=0
+SETUP[0] conn_param_update rc=0
+[RECV] DISC start[0]: link=nus uuid=- conn=0x200048c0
+[RECV] MTU exchange[0] done (498)
+[RECV] Conn param updated[0]: int=6 lat=0 to=400
+[RECV] PHY updated[0]: tx=0x2 rx=0x2
+[RECV] DISC complete[0]: link=nus discovered_service=2800 uuid=-
+[RECV] BLE[0] link ready
+[RECV] CFG assigned[0]: bs=BSF66F tag=1 slot=0/10 mask=0x0021 period=40 active=30 active_us=0 gen=2 pmode=0
+[RECV] TDMA weighted[0]: bs=BSF66F profile=motion target=5Hz mask=0x0021 slots=2/10 actual_x100=500 epoch_delay=3000
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=1 target=tag prefix=BS
+[RECV] Scanning for BS*
+[RECV] BSF66F notify: TR;3;1599;f;0;ff;80;0,0,0,0,0,0,0,2106;0,0,0,0,0,0,0,2106;0,0,0,0,0,0,0,44;TTTTTTTO;5;0;53558;8
+[RECV] CFG confirmed[0]: tag=1 slot=0/10 mask=0x0021 period=40 active=30 gen=0 live=0
+[RECV] BSF66F notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0021 PERIOD=40 ACTIVE=30 ACTIVE_US=0 GEN=2 LIVE=1 RUN=1 STATE=RUNNING
+[RECV] BSF66F notify: TR;3;1600;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2106;0,0,0,0,0,0,0,40;TTTTTTTT;5;0;9338;8
+[HOST_CMD 485058.264] ota_target uuid -
+[RECV] ota_target uuid rc=0 value=-
+OTA target filter: token=-1 name=bsf66f prefix=- uuid=-
+[HOST_CMD 485058.867] ota_target token -1
+[RECV] ota_target token rc=0 value=-1
+OTA target filter: token=-1 name=bsf66f prefix=- uuid=-
+[HOST_CMD 485059.473] ota_target name BSF66F
+[RECV] ota_target name rc=0 value=bsf66f
+OTA target filter: token=-1 name=bsf66f prefix=- uuid=-
+[HOST_CMD 485060.076] ota_target prefix -
+[RECV] ota_target prefix rc=0 value=-
+OTA target filter: token=-1 name=bsf66f prefix=- uuid=-
+[HOST_CMD 485060.679] ota_target uuid -
+[RECV] ota_target uuid rc=0 value=-
+OTA target filter: token=-1 name=bsf66f prefix=- uuid=-
+[RECV] BSF66F notify: RXG;1;1600;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: CD;1;1600;tag=1;local=0xb101;status=0x02800002;rxf=0x0756c814;win=8165;pc=8;mask=0xff;resp=1;unexp=0;last_len=20;last_src=0xa107;last_dst=0xb101;last_code=0xe1
+[RECV] BSF66F notify: SD;1;1601;p;full;8;1;0;12;0;0;0;H;0;10
+[HOST_CMD 485061.334] tdma hold 1
+[RECV] TDMA rebalance hold=1 deferred=0
+[RECV] tdma hold rc=0 hold=1
+[RECV] BSF66F notify: TR;3;1601;f;0;ff;80;0,0,0,0,0,0,0,2278;0,0,0,0,0,0,0,2278;0,0,0,0,0,0,0,100;TTTTTTTO;12;0;53436;8|TR;3;1602;f;0;ff;80;0,0,0,0,0,0,0,1623;0,0,0,0,0,0,0,1623;0,0,0,0,0,0,0,100;TTTTTTTO;12;0;9246;8
+[RECV] BSF66F notify: TR;3;1603;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1623;0,0,0,0,0,0,0,66;TTTTTTTT;8;0;9307;8|TR;3;1604;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1623;0,0,0,0,0,0,0,50;TTTTTTTT;6;0;9124;8
+[HOST_CMD 485062.024] tdma clear
+[RECV] TDMA profiles cleared
+[RECV] TDMA rebalance deferred: hold=1
+[RECV] tdma clear rc=0
+[RECV] BSF66F notify: RXG;1;1604;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: CD;1;1604;tag=1;local=0xb101;status=0x02800002;rxf=0x0756c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1605;p;full;8;0;0;5;0;0;0;;0;10
+[RECV] Conn param updated[0]: int=6 lat=0 to=400
+[RECV] BSF66F notify: TR;3;1605;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1623;0,0,0,0,0,0,0,40;TTTTTTTT;5;0;53405;8|TR;3;1606;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1623;0,0,0,0,0,0,0,33;TTTTTTTT;4;0;9063;8
+[RECV] BSF66F notify: TR;3;1607;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1623;0,0,0,0,0,0,0,28;TTTTTTTT;3;0;9246;8|TR;3;1608;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1623;0,0,0,0,0,0,0,25;TTTTTTTT;3;0;9185;8
+[RECV] BSF66F notify: RXG;1;1608;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: CD;1;1608;tag=1;local=0xb101;status=0x02800002;rxf=0x0786c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1609;p;full;8;0;0;2;0;0;0;;0;10
+[HOST_CMD 485063.329] tdma freq motion 10
+[RECV] TDMA freq set: motion=10Hz
+[RECV] TDMA rebalance deferred: hold=1
+[RECV] tdma freq rc=0 profile=motion hz=10
+[RECV] BSF66F notify: TR;3;1609;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1623;0,0,0,0,0,0,0,22;TTTTTTTT;2;0;53283;8|TR;3;1610;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1623;0,0,0,0,0,0,0,20;TTTTTTTT;2;0;9124;8
+[RECV] BSF66F notify: TR;3;1611;f;0;ff;80;0,0,0,0,0,0,0,2045;0,0,0,0,0,0,0,2045;0,0,0,0,0,0,0,27;TTTTTTTO;3;0;9460;8|TR;3;1612;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2045;0,0,0,0,0,0,0,25;TTTTTTTT;3;0;9063;8
+[HOST_CMD 485064.027] tdma roster BSF66F motion
+[RECV] TDMA roster set: BSF66F -> motion
+[RECV] tdma roster rc=0 target=BSF66F profile=motion
+[RECV] BSF66F notify: RXG;1;1612;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: TR;3;1613;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2045;0,0,0,0,0,0,0,23;TTTTTTTT;2;0;38879;8
+[RECV] BSF66F notify: CD;1;1613;tag=1;local=0xb101;status=0x02800002;rxf=0x0796c814;win=8165;pc=8;mask=0xff;resp=1;unexp=0;last_len=20;last_src=0xa107;last_dst=0xb101;last_code=0xe1
+[RECV] BSF66F notify: SD;1;1614;p;full;8;1;0;3;0;0;0;H;0;10
+[HOST_CMD 485064.547] ota_target token -1
+[RECV] ota_target token rc=0 value=-1
+OTA target filter: token=-1 name=bsf66f prefix=- uuid=-
+[RECV] BSF66F notify: TR;3;1614;f;0;ff;80;0,0,0,0,0,0,0,2370;0,0,0,0,0,0,0,2370;0,0,0,0,0,0,0,28;TTTTTTTO;3;0;23742;8|TR;3;1615;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2370;0,0,0,0,0,0,0,26;TTTTTTTT;3;0;9063;8
+[[HOST_CMD 485065.106] ota_target name BSF66F
+RECV] BSF66F notify: TR;3;1616;f;0;ff;80;0,0,0,0,0,0,0,1643;0,0,0,0,0,0,0,1643;0,0,0,0,0,0,0,31;TTTTTTTO;3;0;9307;8
+[RECV] ota_target name rc=0 value=bsf66f
+OTA target filter: token=-1 name=bsf66f prefix=- uuid=-
+[RECV] BSF66F notify: RXG;1;1616;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=213;slot_to_txdone_us=549;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: TR;3;1617;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1643;0,0,0,0,0,0,0,29;TTTTTTTT;3;0;39031;8
+[RECV] BSF66F notify: CD;1;1617;tag=1;local=0xb101;status=0x02800002;rxf=0x0796c814;win=8165;pc=8;mask=0xff;resp=1;unexp=0;last_len=20;last_src=0xa107;last_dst=0xb101;last_code=0xe1
+[RECV] BSF66F notify: SD;1;1618;p;full;8;1;0;4;0;0;0;H;0;10
+[RECV] BSF66F notify: TR;3;1618;f;0;ff;80;0,0,0,0,0,0,0,2214;0,0,0,0,0,0,0,2214;0,0,0,0,0,0,0,33;TTTTTTTO;4;0;23712;8|TR;3;1619;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2214;0,0,0,0,0,0,0,31;TTTTTTTT;3;0;9124;8
+[HOST_CMD 485065.804] ota_target prefix -
+[RECV] ota_target prefix rc=0 value=-
+OTA target filter: token=-1 name=bsf66f prefix=- uuid=-
+[RECV] BSF66F notify: TR;3;1620;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2214;0,0,0,0,0,0,0,30;TTTTTTTT;3;0;9399;8
+[RECV] BSF66F notify: RXG;1;1620;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=335;slot_to_txdone_us=671;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=152;rxenable_
+[HOST_CMD 485066.312] ota_target uuid -
+[RECV] ota_target uuid rc=0 value=-
+OTA target filter: token=-1 name=bsf66f prefix=- uuid=-
+[RECV] BSF66F notify: TR;3;1621;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2214;0,0,0,0,0,0,0,28;TTTTTTTT;3;0;38787;8
+[RECV] BSF66F notify: CD;1;1621;tag=1;local=0xb101;status=0x02800002;rxf=0x0796c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1622;p;full;8;0;0;3;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1622;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2214;0,0,0,0,0,0,0,27;TTTTTTTT;3;0;23651;8|TR;3;1623;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2214;0,0,0,0,0,0,0,26;TTTTTTTT;3;0;9124;8
+[HOST_CMD 485066.994] conn
+[RECV] Master discovery mode: CONN & START
+[RECV] SCAN start req: bt_ready=1 scan_running=0 connecting_slot=-1 conn_count=1 target=tag prefix=BS
+[RECV] Scanning for BS*
+[RECV] BSF66F notify: TR;3;1624;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2214;0,0,0,0,0,0,0,25;TTTTTTTT;3;0;9246;8
+[RECV] BSF66F notify: RXG;1;1624;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=244;slot_to_txdone_us=579;txcmd_to_txdone_us=335;txdone_to_rxstart_us=30;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1625;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2214;0,0,0,0,0,0,0,24;TTTTTTTT;3;0;38879;8
+[RECV] BSF66F notify: CD;1;1625;tag=1;local=0xb101;status=0x02800002;rxf=0x0796c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1626;p;full;8;0;0;2;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1626;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2214;0,0,0,0,0,0,0,23;TTTTTTTT;2;0;23620;8|TR;3;1627;f;0;ff;80;0,0,0,0,0,0,0,1662;0,0,0,0,0,0,0,1662;0,0,0,0,0,0,0,25;TTTTTTTO;3;0;9155;8
+[RECV] BSF66F notify: TR;3;1628;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1662;0,0,0,0,0,0,0,25;TTTTTTTT;3;0;9246;8
+[RECV] BSF66F notify: RXG;1;1628;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=213;slot_to_txdone_us=549;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: TR;3;1629;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1662;0,0,0,0,0,0,0,24;TTTTTTTT;3;0;39031;8
+[RECV] BSF66F notify: CD;1;1629;tag=1;local=0xb101;status=0x02800002;rxf=0x0796c814;win=8165;pc=8;mask=0xff;resp=1;unexp=0;last_len=20;last_src=0xa107;last_dst=0xb101;last_code=0xe1
+[RECV] BSF66F notify: SD;1;1630;p;full;8;1;0;3;0;0;0;H;0;10
+[RECV] BSF66F notify: TR;3;1630;f;0;ff;80;0,0,0,0,0,0,0,1721;0,0,0,0,0,0,0,1721;0,0,0,0,0,0,0,26;TTTTTTTO;3;0;23742;8|TR;3;1631;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1721;0,0,0,0,0,0,0,25;TTTTTTTT;3;0;9155;8
+[RECV] BSF66F notify: TR;3;1632;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1721;0,0,0,0,0,0,0,25;TTTTTTTT;3;0;9338;8
+[RECV] BSF66F notify: RXG;1;1632;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=396;slot_to_txdone_us=732;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: TR;3;1633;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1721;0,0,0,0,0,0,0,23;TTTTTTTT;2;0;38940;8
+[RECV] BSF66F notify: CD;1;1633;tag=1;local=0xb101;status=0x02800002;rxf=0x0796c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1634;p;full;8;0;0;2;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1634;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1721;0,0,0,0,0,0,0,22;TTTTTTTT;2;0;23620;8|TR;3;1635;f;0;ff;80;0,0,0,0,0,0,0,1811;0,0,0,0,0,0,0,1811;0,0,0,0,0,0,0,26;TTTTTTTO;3;0;9185;8
+[RECV] BSF66F notify: TR;3;1636;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1811;0,0,0,0,0,0,0,25;TTTTTTTT;3;0;9246;8
+[RECV] BSF66F notify: RXG;1;1636;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=244;slot_to_txdone_us=549;txcmd_to_txdone_us=305;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: TR;3;1637;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1811;0,0,0,0,0,0,0,23;TTTTTTTT;2;0;38848;8
+[RECV] BSF66F notify: CD;1;1637;tag=1;local=0xb101;status=0x02800002;rxf=0x0796c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1638;p;full;8;0;0;2;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1638;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1811;0,0,0,0,0,0,0,22;TTTTTTTT;2;0;23681;8|TR;3;1639;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1811;0,0,0,0,0,0,0,21;TTTTTTTT;2;0;9124;8
+[RECV] BSF66F notify: TR;3;1640;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1811;0,0,0,0,0,0,0,20;TTTTTTTT;2;0;9246;8
+[RECV] BSF66F notify: RXG;1;1640;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=213;slot_to_txdone_us=549;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: TR;3;1641;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1811;0,0,0,0,0,0,0,20;TTTTTTTT;2;0;39001;8
+[RECV] BSF66F notify: CD;1;1641;tag=1;local=0xb101;status=0x02800002;rxf=0x0776c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1642;p;full;8;0;0;2;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1642;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1811;0,0,0,0,0,0,0,19;TTTTTTTT;2;0;23681;8|TR;3;1643;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1811;0,0,0,0,0,0,0,18;TTTTTTTT;2;0;9094;8
+[RECV] BSF66F notify: TR;3;1644;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1811;0,0,0,0,0,0,0,17;TTTTTTTT;2;0;9277;8
+[RECV] BSF66F notify: RXG;1;1644;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=335;slot_to_txdone_us=671;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1645;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1811;0,0,0,0,0,0,0,17;TTTTTTTT;2;0;38787;8
+[RECV] BSF66F notify: CD;1;1645;tag=1;local=0xb101;status=0x02800002;rxf=0x0796c814;win=8165;pc=8;mask=0xff;resp=1;unexp=0;last_len=20;last_src=0xa107;last_dst=0xb101;last_code=0xe1
+[RECV] BSF66F notify: SD;1;1646;p;full;8;1;0;2;0;0;0;H;0;10
+[RECV] BSF66F notify: TR;3;1646;f;0;ff;80;0,0,0,0,0,0,0,2163;0,0,0,0,0,0,0,2163;0,0,0,0,0,0,0,20;TTTTTTTO;2;0;23681;8|TR;3;1647;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2163;0,0,0,0,0,0,0,19;TTTTTTTT;2;0;9155;8
+[RECV] BSF66F notify: TR;3;1648;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2163;0,0,0,0,0,0,0,18;TTTTTTTT;2;0;9246;8
+[RECV] BSF66F notify: RXG;1;1648;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=244;slot_to_txdone_us=549;txcmd_to_txdone_us=305;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: TR;3;1649;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2163;0,0,0,0,0,0,0,17;TTTTTTTT;2;0;38818;8
+[RECV] BSF66F notify: CD;1;1649;tag=1;local=0xb101;status=0x02800002;rxf=0x0796c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1650;p;full;8;0;0;2;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1650;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2163;0,0,0,0,0,0,0,16;TTTTTTTT;2;0;23712;8|TR;3;1651;f;0;ff;80;0,0,0,0,0,0,0,2180;0,0,0,0,0,0,0,2180;0,0,0,0,0,0,0,21;TTTTTTTO;2;0;9155;8
+[RECV] BSF66F notify: TR;3;1652;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2180;0,0,0,0,0,0,0,20;TTTTTTTT;2;0;9277;8
+[RECV] BSF66F notify: RXG;1;1652;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=213;slot_to_txdone_us=549;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: TR;3;1653;f;0;ff;80;0,0,0,0,0,0,0,1749;0,0,0,0,0,0,0,1749;0,0,0,0,0,0,0,23;TTTTTTTO;2;0;39031;8
+[RECV] BSF66F notify: CD;1;1653;tag=1;local=0xb101;status=0x02800002;rxf=0x0766c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1654;p;full;8;0;0;2;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1654;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1749;0,0,0,0,0,0,0,22;TTTTTTTT;2;0;23651;8|TR;3;1655;f;0;ff;80;0,0,0,0,0,0,0,1997;0,0,0,0,0,0,0,1997;0,0,0,0,0,0,0,26;TTTTTTTO;3;0;9155;8
+[RECV] BSF66F notify: TR;3;1656;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1997;0,0,0,0,0,0,0,25;TTTTTTTT;3;0;9277;8
+[RECV] BSF66F notify: RXG;1;1656;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=305;slot_to_txdone_us=762;txcmd_to_txdone_us=457;txdone_to_rxstart_us=30;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1657;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1997;0,0,0,0,0,0,0,24;TTTTTTTT;3;0;38879;8
+[RECV] BSF66F notify: CD;1;1657;tag=1;local=0xb101;status=0x02800002;rxf=0x0796c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1658;p;full;8;0;0;2;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1658;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1997;0,0,0,0,0,0,0,23;TTTTTTTT;2;0;23803;8|TR;3;1659;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1997;0,0,0,0,0,0,0,22;TTTTTTTT;2;0;9155;8
+[RECV] BSF66F notify: TR;3;1660;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1997;0,0,0,0,0,0,0,21;TTTTTTTT;2;0;9246;8
+[RECV] BSF66F notify: RXG;1;1660;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=213;slot_to_txdone_us=549;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1661;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1997;0,0,0,0,0,0,0,20;TTTTTTTT;2;0;38757;8
+[RECV] BSF66F notify: CD;1;1661;tag=1;local=0xb101;status=0x02800002;rxf=0x0796c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1662;p;full;8;0;0;2;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1662;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1997;0,0,0,0,0,0,0,20;TTTTTTTT;2;0;23712;8|TR;3;1663;f;0;ff;80;0,0,0,0,0,0,0,1705;0,0,0,0,0,0,0,1705;0,0,0,0,0,0,0,22;TTTTTTTO;2;0;9124;8
+[RECV] BSF66F notify: TR;3;1664;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1705;0,0,0,0,0,0,0,21;TTTTTTTT;2;0;9246;8
+[RECV] BSF66F notify: RXG;1;1664;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=244;slot_to_txdone_us=549;txcmd_to_txdone_us=305;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[HOST_INFO 485077.329] target_cir_mode=off targets=BSF66F
+[HOST_CMD 485077.329] cmd_all CIR OFF
+[RECV] BLE cmd_all sent[0]: CIR OFF
+[RECV] cmd_all rc=1 payload=CIR OFF
+[RECV] BSF66F notify: TR;3;1665;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1705;0,0,0,0,0,0,0,23;TTTTTTTT;2;0;38970;8
+[RECV] BSF66F notify: CD;1;1665;tag=1;local=0xb101;status=0x02800002;rxf=0x0756c814;win=8165;pc=8;mask=0xff;resp=1;unexp=0;last_len=20;last_src=0xa107;last_dst=0xb101;last_code=0xe1
+[RECV] BSF66F notify: SD;1;1666;p;full;8;1;0;3;0;0;0;H;0;10
+[RECV] BSF66F notify: CIR_OK MODE=off RAW_RANGE=1
+[RECV] BSF66F notify: TR;3;1667;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2028;0,0,0,0,0,0,0,26;TTTTTTTT;3;0;9246;8|TR;3;1668;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2028;0,0,0,0,0,0,0,25;TTTTTTTT;3;0;9155;8
+[RECV] BSF66F notify: RXG;1;1668;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=396;slot_to_txdone_us=762;txcmd_to_txdone_us=366;txdone_to_rxstart_us=91;txdone_to_rxend_us=213;rxenable_
+[RECV] BSF66F notify: TR;3;1669;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2028;0,0,0,0,0,0,0,23;TTTTTTTT;2;0;38879;8
+[RECV] BSF66F notify: CD;1;1669;tag=1;local=0xb101;status=0x02800002;rxf=0x0796c814;win=8165;pc=8;mask=0xff;resp=1;unexp=0;last_len=20;last_src=0xa107;last_dst=0xb101;last_code=0xe1
+[RECV] BSF66F notify: SD;1;1670;p;full;8;1;0;3;0;0;0;H;0;10
+[RECV] BSF66F notify: TR;3;1670;f;0;ff;80;0,0,0,0,0,0,0,1711;0,0,0,0,0,0,0,1711;0,0,0,0,0,0,0,27;TTTTTTTO;3;0;23803;8|TR;3;1671;f;0;ff;80;0,0,0,0,0,0,0,2227;0,0,0,0,0,0,0,2227;0,0,0,0,0,0,0,30;TTTTTTTO;3;0;9094;8
+[HOST_WARN 485079.001] target_cir_ack_not_seen mode=off
+[HOST_CMD 485079.001] tdma hold 0
+[RECV] TDMA rebalance hold=0 deferred=1
+[RECV] CFG assigned[0]: bs=BSF66F tag=1 slot=0/10 mask=0x0129 period=40 active=30 active_us=0 gen=3 pmode=0
+[RECV] TDMA weighted[0]: bs=BSF66F profile=motion target=10Hz mask=0x0129 slots=4/10 actual_x100=1000 epoch_delay=3000
+[RECV] tdma hold rc=0 hold=0
+[RECV] CFG confirmed[0]: tag=1 slot=0/10 mask=0x0129 period=40 active=30 gen=0 live=0
+[RECV] BSF66F notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0129 PERIOD=40 ACTIVE=30 ACTIVE_US=0 GEN=3 LIVE=1 RUN=1 STATE=RUNNING
+[RECV] BSF66F notify: TR;3;1672;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2227;0,0,0,0,0,0,0,29;TTTTTTTT;3;0;9246;8
+[RECV] BSF66F notify: RXG;1;1672;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=244;slot_to_txdone_us=549;txcmd_to_txdone_us=305;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: TR;3;1673;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2227;0,0,0,0,0,0,0,28;TTTTTTTT;3;0;38879;8
+[HOST_CMD 485080.157] tdma freq motion 10
+[RECV] TDMA freq set: motion=10Hz
+[RECV] CFG assigned[0]: bs=BSF66F tag=1 slot=0/10 mask=0x0129 period=40 active=30 active_us=0 gen=4 pmode=0
+[RECV] TDMA weighted[0]: bs=BSF66F profile=motion target=10Hz mask=0x0129 slots=4/10 actual_x100=1000 epoch_delay=3000
+[RECV] tdma freq rc=0 profile=motion hz=10
+[RECV] CFG confirmed[0]: tag=1 slot=0/10 mask=0x0129 period=40 active=30 gen=0 live=0
+[RECV] BSF66F notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0129 PERIOD=40 ACTIVE=30 ACTIVE_US=0 GEN=4 LIVE=1 RUN=1 STATE=RUNNING
+[HOST_CMD 485080.774] tdma roster BSF66F motion
+[RECV] TDMA roster set: BSF66F -> motion
+[RECV] tdma roster rc=0 target=BSF66F profile=motion
+[HOST_CMD 485081.377] tdma rebalance
+[RECV] CFG assigned[0]: bs=BSF66F tag=1 slot=0/10 mask=0x0129 period=40 active=30 active_us=0 gen=5 pmode=0
+[RECV] TDMA weighted[0]: bs=BSF66F profile=motion target=10Hz mask=0x0129 slots=4/10 actual_x100=1000 epoch_delay=3000
+[RECV] tdma rebalance rc=0
+[RECV] CFG confirmed[0]: tag=1 slot=0/10 mask=0x0129 period=40 active=30 gen=0 live=0
+[RECV] BSF66F notify: CFG_OK TAG=1 SLOT=0/10 MASK=0x0129 PERIOD=40 ACTIVE=30 ACTIVE_US=0 GEN=5 LIVE=1 RUN=1 STATE=RUNNING
+[RECV] BSF66F notify: RXG;1;1673;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: CD;1;1673;tag=1;local=0xb101;status=0x02800002;rxf=0x0776c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1674;p;full;8;0;0;0;0;0;0;;0;10
+[HOST_CMD 485082.565] tdma show
+[RECV] TDMA weighted scheduler: period=40ms active=30ms active_us=0 max_slots=12 freq motion=10Hz
+[RECV] TDMA profile: BSF66F -> motion target=10Hz
+[RECV] BSF66F notify: TR;3;1674;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT;0;0;53283;8
+[HOST_CMD 485083.589] status
+[RECV] Control status: mode=RECV pending=0
+[HOST_CMD 485084.392] device show
+[RECV] System target: kind=tag caps=0x0f (config=1 ota=1 stream=1 status=1)
+OTA target filter: token=-1 name=bsf66f prefix=- uuid=-
+[RECV] BSF66F notify: RXG;1;1674;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: CD;1;1674;tag=1;local=0xb101;status=0x02800002;rxf=0x0776c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1675;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1675;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;TTTTTTTT;0;0;53344;8|TR;3;1676;f;0;ff;80;0,0,0,0,0,0,0,2085;0,0,0,0,0,0,0,2085;0,0,0,0,0,0,0,50;TTTTTTTO;6;0;9185;8
+[RECV] BSF66F notify: TR;3;1677;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2085;0,0,0,0,0,0,0,33;TTTTTTTT;4;0;9277;8|TR;3;1678;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2085;0,0,0,0,0,0,0,25;TTTTTTTT;3;0;9124;8
+[RECV] BSF66F notify: RXG;1;1678;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=122;txdone_to_rxend_us=244;rxenable
+[RECV] BSF66F notify: CD;1;1678;tag=1;local=0xb101;status=0x02800002;rxf=0x07a6c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1679;p;full;8;0;0;2;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1679;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2085;0,0,0,0,0,0,0,20;TTTTTTTT;2;0;53649;8|TR;3;1680;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2085;0,0,0,0,0,0,0,16;TTTTTTTT;2;0;9124;8
+[RECV] BSF66F notify: TR;3;1681;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2085;0,0,0,0,0,0,0,14;TTTTTTTT;1;0;9277;8|TR;3;1682;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2085;0,0,0,0,0,0,0,12;TTTTTTTT;1;0;9185;8
+[RECV] BSF66F notify: RXG;1;1682;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=274;slot_to_txdone_us=610;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: TR;3;1683;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2085;0,0,0,0,0,0,0,11;TTTTTTTT;1;0;38879;8
+[RECV] BSF66F notify: CD;1;1683;tag=1;local=0xb101;status=0x02800002;rxf=0x0796c814;win=8165;pc=8;mask=0xff;resp=1;unexp=0;last_len=20;last_src=0xa107;last_dst=0xb101;last_code=0xe1
+[RECV] BSF66F notify: SD;1;1684;p;full;8;1;0;2;0;0;0;H;0;10
+[RECV] BSF66F notify: TR;3;1684;f;0;ff;80;0,0,0,0,0,0,0,2203;0,0,0,0,0,0,0,2203;0,0,0,0,0,0,0,20;TTTTTTTO;2;0;23803;8|TR;3;1685;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2203;0,0,0,0,0,0,0,18;TTTTTTTT;2;0;9124;8
+[RECV] BSF66F notify: TR;3;1686;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2203;0,0,0,0,0,0,0,16;TTTTTTTT;2;0;9246;8
+[RECV] BSF66F notify: RXG;1;1686;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=244;slot_to_txdone_us=579;txcmd_to_txdone_us=335;txdone_to_rxstart_us=30;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1687;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2203;0,0,0,0,0,0,0,15;TTTTTTTT;1;0;38909;8
+[RECV] BSF66F notify: CD;1;1687;tag=1;local=0xb101;status=0x02800002;rxf=0x0786c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1688;p;full;8;0;0;1;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1688;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2203;0,0,0,0,0,0,0,14;TTTTTTTT;1;0;23712;8|TR;3;1689;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2203;0,0,0,0,0,0,0,13;TTTTTTTT;1;0;9063;8
+[RECV] BSF66F notify: TR;3;1690;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2203;0,0,0,0,0,0,0,12;TTTTTTTT;1;0;9338;8
+[RECV] BSF66F notify: RXG;1;1690;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=213;slot_to_txdone_us=579;txcmd_to_txdone_us=366;txdone_to_rxstart_us=30;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1691;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2203;0,0,0,0,0,0,0,11;TTTTTTTT;1;0;39001;8
+[RECV] BSF66F notify: CD;1;1691;tag=1;local=0xb101;status=0x02800002;rxf=0x07b6c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1692;p;full;8;0;0;1;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1692;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2203;0,0,0,0,0,0,0,11;TTTTTTTT;1;0;23651;8|TR;3;1693;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2203;0,0,0,0,0,0,0,10;TTTTTTTT;1;0;9124;8
+[RECV] BSF66F notify: TR;3;1694;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2203;0,0,0,0,0,0,0,10;TTTTTTTT;1;0;9277;8
+[RECV] BSF66F notify: RXG;1;1694;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=244;slot_to_txdone_us=549;txcmd_to_txdone_us=305;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: TR;3;1695;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2203;0,0,0,0,0,0,0,9;TTTTTTTT;1;0;38879;8
+[RECV] BSF66F notify: CD;1;1695;tag=1;local=0xb101;status=0x02800002;rxf=0x07c6c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1696;p;full;8;0;0;1;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1696;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2203;0,0,0,0,0,0,0,9;TTTTTTTT;1;0;23651;8|TR;3;1697;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2203;0,0,0,0,0,0,0,8;TTTTTTTT;1;0;9094;8
+[RECV] BSF66F notify: TR;3;1698;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2203;0,0,0,0,0,0,0,8;TTTTTTTT;1;0;9307;8
+[RECV] BSF66F notify: RXG;1;1698;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=213;slot_to_txdone_us=549;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1699;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2203;0,0,0,0,0,0,0,8;TTTTTTTT;1;0;38726;8
+[RECV] BSF66F notify: CD;1;1699;tag=1;local=0xb101;status=0x02800002;rxf=0x07d6c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1700;p;full;8;0;0;0;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1700;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2203;0,0,0,0,0,0,0,7;TTTTTTTT;0;0;23803;8|TR;3;1701;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2203;0,0,0,0,0,0,0,7;TTTTTTTT;0;0;9124;8
+[RECV] BSF66F notify: TR;3;1702;f;0;ff;80;0,0,0,0,0,0,0,2208;0,0,0,0,0,0,0,2208;0,0,0,0,0,0,0,10;TTTTTTTO;1;0;9277;8
+[RECV] BSF66F notify: RXG;1;1702;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=244;slot_to_txdone_us=579;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1703;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2208;0,0,0,0,0,0,0,10;TTTTTTTT;1;0;39031;8
+[RECV] BSF66F notify: CD;1;1703;tag=1;local=0xb101;status=0x02800002;rxf=0x07d6c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1704;p;full;8;0;0;1;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1704;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2208;0,0,0,0,0,0,0,10;TTTTTTTT;1;0;23620;8|TR;3;1705;f;0;ff;80;0,0,0,0,0,0,0,2169;0,0,0,0,0,0,0,2169;0,0,0,0,0,0,0,12;TTTTTTTO;1;0;9124;8
+[RECV] BSF66F notify: TR;3;1706;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2169;0,0,0,0,0,0,0,12;TTTTTTTT;1;0;9338;8
+[RECV] BSF66F notify: RXG;1;1706;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=244;slot_to_txdone_us=549;txcmd_to_txdone_us=305;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: TR;3;1707;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2169;0,0,0,0,0,0,0,11;TTTTTTTT;1;0;39001;8
+[RECV] BSF66F notify: CD;1;1707;tag=1;local=0xb101;status=0x02800002;rxf=0x07b6c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1708;p;full;8;0;0;1;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1708;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2169;0,0,0,0,0,0,0,11;TTTTTTTT;1;0;23620;8|TR;3;1709;f;0;ff;80;0,0,0,0,0,0,0,1696;0,0,0,0,0,0,0,1696;0,0,0,0,0,0,0,15;TTTTTTTO;1;0;9246;8
+[RECV] BSF66F notify: TR;3;1710;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1696;0,0,0,0,0,0,0,15;TTTTTTTT;1;0;9307;8
+[RECV] BSF66F notify: RXG;1;1710;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=213;slot_to_txdone_us=549;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1711;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1696;0,0,0,0,0,0,0,14;TTTTTTTT;1;0;38757;8
+[RECV] BSF66F notify: CD;1;1711;tag=1;local=0xb101;status=0x02800002;rxf=0x07d6c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1712;p;full;8;0;0;1;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1712;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1696;0,0,0,0,0,0,0,13;TTTTTTTT;1;0;23925;8|TR;3;1713;f;0;ff;80;0,0,0,0,0,0,0,1058;0,0,0,0,0,0,0,1058;0,0,0,0,0,0,0,17;TTTTTTTO;2;0;9124;8
+[RECV] BSF66F notify: TR;3;1714;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1058;0,0,0,0,0,0,0,16;TTTTTTTT;2;0;9246;8
+[RECV] BSF66F notify: RXG;1;1714;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=244;slot_to_txdone_us=579;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1715;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1058;0,0,0,0,0,0,0,16;TTTTTTTT;2;0;39093;8
+[RECV] BSF66F notify: CD;1;1715;tag=1;local=0xb101;status=0x02800002;rxf=0x07b6c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1716;p;full;8;0;0;1;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1716;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1058;0,0,0,0,0,0,0,15;TTTTTTTT;1;0;23742;8|TR;3;1717;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1058;0,0,0,0,0,0,0,14;TTTTTTTT;1;0;9124;8
+[RECV] BSF66F notify: TR;3;1718;f;0;ff;80;0,0,0,0,0,0,0,1123;0,0,0,0,0,0,0,1123;0,0,0,0,0,0,0,17;TTTTTTTO;2;0;9429;8
+[RECV] BSF66F notify: RXG;1;1718;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=213;slot_to_txdone_us=549;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1719;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1123;0,0,0,0,0,0,0,17;TTTTTTTT;2;0;38787;8
+[RECV] BSF66F notify: CD;1;1719;tag=1;local=0xb101;status=0x02800002;rxf=0x07b6c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1720;p;full;8;0;0;2;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1720;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1123;0,0,0,0,0,0,0,16;TTTTTTTT;2;0;23651;8|TR;3;1721;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1123;0,0,0,0,0,0,0,16;TTTTTTTT;2;0;9216;8
+[RECV] BSF66F notify: TR;3;1722;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1123;0,0,0,0,0,0,0,15;TTTTTTTT;1;0;9307;8
+[RECV] BSF66F notify: RXG;1;1722;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=213;slot_to_txdone_us=549;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1723;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1123;0,0,0,0,0,0,0,17;TTTTTTTT;2;0;38726;8
+[RECV] BSF66F notify: CD;1;1723;tag=1;local=0xb101;status=0x02800002;rxf=0x07d6c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1724;p;full;8;0;0;2;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1724;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1123;0,0,0,0,0,0,0,16;TTTTTTTT;2;0;23834;8|TR;3;1725;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1123;0,0,0,0,0,0,0,15;TTTTTTTT;1;0;9094;8
+[RECV] BSF66F notify: TR;3;1726;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1123;0,0,0,0,0,0,0,15;TTTTTTTT;1;0;9246;8
+[RECV] BSF66F notify: RXG;1;1726;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=244;slot_to_txdone_us=579;txcmd_to_txdone_us=335;txdone_to_rxstart_us=30;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1727;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1123;0,0,0,0,0,0,0,14;TTTTTTTT;1;0;39215;8
+[RECV] BSF66F notify: CD;1;1727;tag=1;local=0xb101;status=0x02800002;rxf=0x07b6c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1728;p;full;8;0;0;1;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1728;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1123;0,0,0,0,0,0,0,13;TTTTTTTT;1;0;23712;8|TR;3;1729;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1123;0,0,0,0,0,0,0,13;TTTTTTTT;1;0;9094;8
+[RECV] BSF66F notify: TR;3;1730;f;0;ff;80;0,0,0,0,0,0,0,2170;0,0,0,0,0,0,0,2170;0,0,0,0,0,0,0,16;TTTTTTTO;2;0;9490;8
+[RECV] BSF66F notify: RXG;1;1730;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=244;slot_to_txdone_us=549;txcmd_to_txdone_us=305;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: TR;3;1731;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,2170;0,0,0,0,0,0,0,16;TTTTTTTT;2;0;38909;8
+[RECV] BSF66F notify: CD;1;1731;tag=1;local=0xb101;status=0x02800002;rxf=0x07b6c814;win=8165;pc=8;mask=0xff;resp=1;unexp=0;last_len=20;last_src=0xa107;last_dst=0xb101;last_code=0xe1
+[RECV] BSF66F notify: SD;1;1732;p;full;8;1;0;2;0;0;0;H;0;10
+[RECV] BSF66F notify: TR;3;1732;f;0;ff;80;0,0,0,0,0,0,0,2156;0,0,0,0,0,0,0,2156;0,0,0,0,0,0,0,19;TTTTTTTO;2;0;23803;8|TR;3;1733;f;0;ff;80;0,0,0,0,0,0,0,1476;0,0,0,0,0,0,0,1476;0,0,0,0,0,0,0,22;TTTTTTTO;2;0;9307;8
+[RECV] BSF66F notify: TR;3;1734;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1476;0,0,0,0,0,0,0,21;TTTTTTTT;2;0;9338;8
+[RECV] BSF66F notify: RXG;1;1734;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=213;slot_to_txdone_us=549;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1735;f;0;ff;80;0,0,0,0,0,0,0,2036;0,0,0,0,0,0,0,2036;0,0,0,0,0,0,0,24;TTTTTTTO;3;0;38787;8
+[RECV] BSF66F notify: CD;1;1735;tag=1;local=0xb101;status=0x02800002;rxf=0x07d6c814;win=8165;pc=8;mask=0xff;resp=1;unexp=0;last_len=20;last_src=0xa107;last_dst=0xb101;last_code=0xe1
+[RECV] BSF66F notify: SD;1;1736;p;full;8;1;0;3;0;0;0;H;0;10
+[RECV] BSF66F notify: TR;3;1736;f;0;ff;80;0,0,0,0,0,0,0,2088;0,0,0,0,0,0,0,2088;0,0,0,0,0,0,0,26;TTTTTTTO;3;0;24078;8|TR;3;1737;f;0;ff;08;0,0,0,2421,0,0,0,0;0,0,0,2421,0,0,0,2088;0,0,0,3,0,0,0,25;TTTOTTTT;3;0;9094;8
+[RECV] BSF66F notify: TR;3;1738;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,0,0,0,2088;0,0,0,3,0,0,0,25;TTTTTTTT;3;0;9338;8
+[RECV] BSF66F notify: RXG;1;1738;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=213;slot_to_txdone_us=549;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: TR;3;1739;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,0,0,0,2088;0,0,0,5,0,0,0,23;TTTTTTTT;3;0;39215;8
+[RECV] BSF66F notify: CD;1;1739;tag=1;local=0xb101;status=0x02800002;rxf=0x07b6c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1740;p;full;8;0;0;3;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1740;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,0,0,0,2088;0,0,0,5,0,0,0,22;TTTTTTTT;3;0;23651;8|TR;3;1741;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,0,0,0,2088;0,0,0,5,0,0,0,21;TTTTTTTT;3;0;9063;8
+[RECV] BSF66F notify: TR;3;1742;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,0,0,0,2088;0,0,0,5,0,0,0,20;TTTTTTTT;3;0;9460;8
+[RECV] BSF66F notify: RXG;1;1742;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=213;slot_to_txdone_us=549;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1743;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,0,0,0,2088;0,0,0,4,0,0,0,19;TTTTTTTT;2;0;38787;8
+[RECV] BSF66F notify: CD;1;1743;tag=1;local=0xb101;status=0x02800002;rxf=0x07b6c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1744;p;full;8;0;0;2;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1744;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,0,0,0,2088;0,0,0,4,0,0,0,18;TTTTTTTT;2;0;23681;8|TR;3;1745;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,0,0,0,2088;0,0,0,4,0,0,0,17;TTTTTTTT;2;0;9368;8
+[RECV] BSF66F notify: TR;3;1746;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,0,0,0,2088;0,0,0,4,0,0,0,16;TTTTTTTT;2;0;9307;8
+[RECV] BSF66F notify: RXG;1;1746;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=213;slot_to_txdone_us=549;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1747;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,0,0,0,2088;0,0,0,4,0,0,0,16;TTTTTTTT;2;0;38726;8
+[RECV] BSF66F notify: CD;1;1747;tag=1;local=0xb101;status=0x02800002;rxf=0x0756c814;win=8165;pc=8;mask=0xff;resp=1;unexp=0;last_len=20;last_src=0xa107;last_dst=0xb101;last_code=0xe1
+[RECV] BSF66F notify: SD;1;1748;p;full;8;1;0;2;0;0;0;H;0;10
+[RECV] BSF66F notify: TR;3;1748;f;0;ff;80;0,0,0,0,0,0,0,2073;0,0,0,2421,0,0,0,2073;0,0,0,3,0,0,0,19;TTTTTTTO;2;0;24078;8|TR;3;1749;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,0,0,0,2073;0,0,0,3,0,0,0,18;TTTTTTTT;2;0;9094;8
+[RECV] BSF66F notify: TR;3;1750;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,0,0,0,2073;0,0,0,3,0,0,0,17;TTTTTTTT;2;0;9307;8
+[RECV] BSF66F notify: RXG;1;1750;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=244;slot_to_txdone_us=579;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1751;f;0;ff;80;0,0,0,0,0,0,0,2014;0,0,0,2421,0,0,0,2014;0,0,0,3,0,0,0,20;TTTTTTTO;2;0;39154;8
+[RECV] BSF66F notify: CD;1;1751;tag=1;local=0xb101;status=0x02800002;rxf=0x07b6c814;win=8165;pc=8;mask=0xff;resp=1;unexp=0;last_len=20;last_src=0xa107;last_dst=0xb101;last_code=0xe1
+[RECV] BSF66F notify: SD;1;1752;p;full;8;1;0;3;0;0;0;H;0;10
+[RECV] BSF66F notify: TR;3;1752;f;0;ff;80;0,0,0,0,0,0,0,2172;0,0,0,2421,0,0,0,2172;0,0,0,3,0,0,0,23;TTTTTTTO;3;0;23742;8|TR;3;1753;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,0,0,0,2172;0,0,0,3,0,0,0,22;TTTTTTTT;3;0;9094;8
+[RECV] BSF66F notify: TR;3;1754;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,0,0,0,2172;0,0,0,3,0,0,0,21;TTTTTTTT;3;0;9490;8
+[RECV] BSF66F notify: RXG;1;1754;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=244;slot_to_txdone_us=549;txcmd_to_txdone_us=305;txdone_to_rxstart_us=61;txdone_to_rxend_us=183;rxenable_
+[RECV] BSF66F notify: TR;3;1755;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,0,0,0,2172;0,0,0,5,0,0,0,23;TTTTTTTT;3;0;38848;8
+[RECV] BSF66F notify: CD;1;1755;tag=1;local=0xb101;status=0x02800002;rxf=0x07b6c814;win=8165;pc=8;mask=0xff;resp=1;unexp=0;last_len=20;last_src=0xa104;last_dst=0xb101;last_code=0xe1
+[RECV] BSF66F notify: SD;1;1756;p;full;8;1;0;4;0;0;0;E;0;10
+[RECV] BSF66F notify: TR;3;1756;f;0;ff;10;0,0,0,0,1755,0,0,0;0,0,0,2421,1755,0,0,2172;0,0,0,5,5,0,0,22;TTTTOTTT;4;0;23834;8|TR;3;1757;f;0;ff;80;0,0,0,0,0,0,0,2232;0,0,0,2421,1755,0,0,2232;0,0,0,5,5,0,0,26;TTTTTTTO;4;0;9368;8
+[RECV] BSF66F notify: TR;3;1758;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,1755,0,0,2232;0,0,0,5,5,0,0,25;TTTTTTTT;4;0;9246;8
+[RECV] BSF66F notify: RXG;1;1758;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=213;slot_to_txdone_us=549;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1759;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,1755,0,0,2232;0,0,0,4,4,0,0,23;TTTTTTTT;3;0;38787;8
+[RECV] BSF66F notify: CD;1;1759;tag=1;local=0xb101;status=0x02800002;rxf=0x0776c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1760;p;full;8;0;0;3;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1760;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,1755,0,0,2232;0,0,0,4,4,0,0,22;TTTTTTTT;3;0;23895;8|TR;3;1761;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,1755,0,0,2232;0,0,0,4,4,0,0,21;TTTTTTTT;3;0;9094;8
+[RECV] BSF66F notify: TR;3;1762;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,1755,0,0,2232;0,0,0,4,4,0,0,20;TTTTTTTT;3;0;9307;8
+[RECV] BSF66F notify: RXG;1;1762;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=244;slot_to_txdone_us=579;txcmd_to_txdone_us=335;txdone_to_rxstart_us=30;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1763;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,1755,0,0,2232;0,0,0,4,4,0,0,20;TTTTTTTT;3;0;39306;8
+[RECV] BSF66F notify: CD;1;1763;tag=1;local=0xb101;status=0x02800002;rxf=0x07b6c814;win=8165;pc=8;mask=0xff;resp=1;unexp=0;last_len=20;last_src=0xa107;last_dst=0xb101;last_code=0xe1
+[RECV] BSF66F notify: SD;1;1764;p;full;8;1;0;3;0;0;0;H;0;10
+[RECV] BSF66F notify: TR;3;1764;f;0;ff;80;0,0,0,0,0,0,0,2147;0,0,0,2421,1755,0,0,2147;0,0,0,3,3,0,0,23;TTTTTTTO;3;0;23803;8|TR;3;1765;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,1755,0,0,2147;0,0,0,3,3,0,0,22;TTTTTTTT;3;0;9094;8
+[RECV] BSF66F notify: TR;3;1766;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,1755,0,0,2147;0,0,0,3,3,0,0,21;TTTTTTTT;3;0;9399;8
+[RECV] BSF66F notify: RXG;1;1766;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=213;slot_to_txdone_us=549;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1767;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,1755,0,0,2147;0,0,0,3,3,0,0,20;TTTTTTTT;3;0;38818;8
+[RECV] BSF66F notify: CD;1;1767;tag=1;local=0xb101;status=0x02800002;rxf=0x07c6c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1768;p;full;8;0;0;3;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1768;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,1755,0,0,2147;0,0,0,3,3,0,0,20;TTTTTTTT;3;0;23590;8|TR;3;1769;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,1755,0,0,2147;0,0,0,3,3,0,0,19;TTTTTTTT;3;0;9277;8
+[RECV] BSF66F notify: TR;3;1770;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,1755,0,0,2147;0,0,0,3,3,0,0,18;TTTTTTTT;3;0;9307;8
+[RECV] BSF66F notify: RXG;1;1770;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=213;slot_to_txdone_us=549;txcmd_to_txdone_us=335;txdone_to_rxstart_us=61;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1771;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,1755,0,0,2147;0,0,0,5,5,0,0,17;TTTTTTTT;3;0;38757;8
+[RECV] BSF66F notify: CD;1;1771;tag=1;local=0xb101;status=0x02800002;rxf=0x07d6c814;win=8165;pc=8;mask=0xff;resp=0;unexp=0;last_len=0;last_src=0x0000;last_dst=0x0000;last_code=0x00
+[RECV] BSF66F notify: SD;1;1772;p;full;8;0;0;3;0;0;0;;0;10
+[RECV] BSF66F notify: TR;3;1772;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,1755,0,0,2147;0,0,0,5,5,0,0,16;TTTTTTTT;3;0;23773;8|TR;3;1773;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,1755,0,0,2147;0,0,0,5,5,0,0,15;TTTTTTTT;3;0;9155;8
+[RECV] BSF66F notify: TR;3;1774;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,1755,0,0,2147;0,0,0,5,5,0,0,15;TTTTTTTT;3;0;9307;8
+[RECV] BSF66F notify: RXG;1;1774;tag=1;mask=0xff;pc=8;guard=1200;spacing=1000;win=8165;pre=1;slot_to_entry_us=0;slot_to_sched_us=0;slot_to_write_done_us=0;slot_to_txcmd_us=213;slot_to_txdone_us=579;txcmd_to_txdone_us=366;txdone_to_rxstart_us=30;txdone_to_rxend_us=152;rxenable_
+[RECV] BSF66F notify: TR;3;1775;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,1755,0,0,2147;0,0,0,4,4,0,0,14;TTTTTTTT;2;0;39245;8
+[RECV] BSF66F notify: CD;1;1775;tag=1;local=0xb101;status=0x02800002;rxf=0x07b6c814;win=8165;pc=8;mask=0xff;resp=1;unexp=0;last_len=20;last_src=0xa107;last_dst=0xb101;last_code=0xe1
+[RECV] BSF66F notify: SD;1;1776;p;full;8;1;0;3;0;0;0;H;0;10
+[RECV] BSF66F notify: TR;3;1776;f;0;ff;80;0,0,0,0,0,0,0,1924;0,0,0,2421,1755,0,0,1924;0,0,0,4,4,0,0,18;TTTTTTTO;3;0;23773;8|TR;3;1777;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,1755,0,0,1924;0,0,0,4,4,0,0,17;TTTTTTTT;3;0;9094;8
+[HOST_CLEANUP 485110.375] stop all tag ranging via cmd_all MODE IDLE
+[HOST_CMD 485110.375] cmd_all MODE IDLE
+[RECV] BLE cmd_all sent[0]: MODE IDLE
+[RECV] cmd_all rc=1 payload=MODE IDLE
+[RECV] BSF66F notify: MODE_OK MODE=IDLE LIVE=1
+[RECV] BSF66F notify: TR;3;1778;f;0;ff;00;0,0,0,0,0,0,0,0;0,0,0,2421,1755,0,0,1924;0,0,0,4,4,0,0,16;TTTTTTTT;3;0;10437;8
+[RECV] BSF66F notify: TD;1;1778;3;idle;0;0;1;0;25;0;0;0;8;0

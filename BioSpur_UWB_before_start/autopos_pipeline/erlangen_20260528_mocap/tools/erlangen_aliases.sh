@@ -42,6 +42,16 @@ export BIOSPUR_REUSE_TAG_LINKS_FOR_CAPTURE="${BIOSPUR_REUSE_TAG_LINKS_FOR_CAPTUR
 # `bio_ports` and override them if /dev/serial/by-id names differ.
 export BIOSPUR_ANCHOR_PORT="${BIOSPUR_ANCHOR_PORT:-/dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02-if00}"
 export BIOSPUR_TAG_PORT="${BIOSPUR_TAG_PORT:-/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00}"
+export BIOSPUR_CIR_TAG_USB_PORT="${BIOSPUR_CIR_TAG_USB_PORT:-/dev/serial/by-id/usb-SEGGER_J-Link_000760186115-if00}"
+export BIOSPUR_CIR_A_USB_PORT="${BIOSPUR_CIR_A_USB_PORT:-/dev/serial/by-id/usb-SEGGER_J-Link_000760184781-if00}"
+export BIOSPUR_CIR_B_USB_PORT="${BIOSPUR_CIR_B_USB_PORT:-/dev/serial/by-id/usb-SEGGER_J-Link_000760185876-if00}"
+export BIOSPUR_CIR_C_USB_PORT="${BIOSPUR_CIR_C_USB_PORT:-/dev/serial/by-id/usb-SEGGER_J-Link_000760185878-if00}"
+export BIOSPUR_CIR_D_USB_PORT="${BIOSPUR_CIR_D_USB_PORT:-/dev/serial/by-id/usb-SEGGER_J-Link_000760184974-if00}"
+export BIOSPUR_CIR_E_USB_PORT="${BIOSPUR_CIR_E_USB_PORT:-/dev/serial/by-id/usb-SEGGER_J-Link_000760185904-if00}"
+export BIOSPUR_CIR_F_USB_PORT="${BIOSPUR_CIR_F_USB_PORT:-/dev/serial/by-id/usb-SEGGER_J-Link_000760186124-if00}"
+export BIOSPUR_CIR_G_USB_PORT="${BIOSPUR_CIR_G_USB_PORT:-/dev/serial/by-id/usb-SEGGER_J-Link_000760185889-if00}"
+export BIOSPUR_CIR_H_USB_PORT="${BIOSPUR_CIR_H_USB_PORT:-/dev/serial/by-id/usb-SEGGER_J-Link_000760184500-if00}"
+export BIOSPUR_CIR_FULL_USB_PORTS="${BIOSPUR_CIR_FULL_USB_PORTS:-TAG=${BIOSPUR_CIR_TAG_USB_PORT},A=${BIOSPUR_CIR_A_USB_PORT},B=${BIOSPUR_CIR_B_USB_PORT},C=${BIOSPUR_CIR_C_USB_PORT},D=${BIOSPUR_CIR_D_USB_PORT},E=${BIOSPUR_CIR_E_USB_PORT},F=${BIOSPUR_CIR_F_USB_PORT},G=${BIOSPUR_CIR_G_USB_PORT},H=${BIOSPUR_CIR_H_USB_PORT}}"
 
 _bio_ts() {
   date +%Y%m%d_%H%M%S
@@ -54,16 +64,16 @@ BioSpur Erlangen helpers:
   bio_setup [session_name]
       Create/select a session under captures/.
 
-  static -id ID01 [-s 120]
+  static -id ID01 [-s 120] [-cir off|compact|full]
       Capture BSF66F for 120 s by default.
 
-  roto -id R01 [-s 120]
+  roto -id R01 [-s 120] [-cir off|compact|full]
       Capture BS2DCE,BSDC91 for 120 s by default.
 
-  wand -id W01 [-s 120]
+  wand -id W01 [-s 120] [-cir off|compact|full]
       Capture BS9336,BS955A,BSCCF4 for 120 s by default.
 
-  free -id F01 -targets BSF66F,BS2DCE [-s 120]
+  free -id F01 -targets BSF66F,BS2DCE [-s 120] [-cir off|compact|full]
       Capture an explicit comma-separated BS tag roster for 120 s by default.
 
   sweep -id SW01 [-n 1000] [-p 10]
@@ -94,7 +104,7 @@ BioSpur Erlangen helpers:
 
 Environment:
   BIOSPUR_RESET_MASTERS_BEFORE_CAPTURE=1
-      Reset selected master boards before static/roto/wand captures.
+      Reset selected master boards before capture-scene runs.
 
   BIOSPUR_RESET_ANCHOR_BEFORE_CAPTURE=0
       Do not reset Master_Anchor before tag capture by default. This avoids
@@ -123,6 +133,7 @@ help_erlangen() {
 bio_ports() {
   echo "[ports] BIOSPUR_ANCHOR_PORT=${BIOSPUR_ANCHOR_PORT}"
   echo "[ports] BIOSPUR_TAG_PORT=${BIOSPUR_TAG_PORT}"
+  echo "[ports] BIOSPUR_CIR_FULL_USB_PORTS=${BIOSPUR_CIR_FULL_USB_PORTS}"
   echo "[ports] BIOSPUR_ANCHOR_SNR=${BIOSPUR_ANCHOR_SNR}"
   echo "[ports] BIOSPUR_TAG_SNR=${BIOSPUR_TAG_SNR}"
   echo
@@ -336,6 +347,7 @@ bio_note() {
 _bio_parse_common_capture_args() {
   BIO_ID=""
   BIO_DURATION="120"
+  BIO_CIR="off"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       -id|--id)
@@ -344,6 +356,10 @@ _bio_parse_common_capture_args() {
         ;;
       -s|--seconds|--duration)
         BIO_DURATION="${2:-}"
+        shift 2
+        ;;
+      -cir|--cir|--tag-cir)
+        BIO_CIR="${2:-}"
         shift 2
         ;;
       -h|--help)
@@ -359,6 +375,13 @@ _bio_parse_common_capture_args() {
     echo "[ERR] Missing -id, for example: static -id ID01" >&2
     return 2
   fi
+  case "${BIO_CIR}" in
+    off|compact|full) ;;
+    *)
+      echo "[ERR] Invalid CIR mode: ${BIO_CIR} (expected off, compact, or full)" >&2
+      return 2
+      ;;
+  esac
 }
 
 _bio_run_capture() {
@@ -366,8 +389,10 @@ _bio_run_capture() {
   local id="$2"
   local duration="$3"
   local targets="$4"
+  local tag_cir="${5:-off}"
   local base="${kind}_${id}_${targets//,/_}_${duration}s"
   local out="${BIOSPUR_SESSION_ROOT}/${base}"
+  local tdma_profile="motion"
 
   if [[ -z "${BIOSPUR_SESSION_ROOT:-}" ]]; then
     echo "[ERR] Run bio_setup first." >&2
@@ -382,7 +407,8 @@ _bio_run_capture() {
   fi
   _bio_need_setup || return $?
   mkdir -p "${out}"
-  echo "[capture] kind=${kind} id=${id} duration=${duration}s targets=${targets}"
+  echo "[capture] kind=${kind} id=${id} duration=${duration}s targets=${targets} cir=${tag_cir}"
+  echo "[capture] tdma_profile=${tdma_profile} (capture scene does not change firmware PMODE)"
   echo "[capture] base_out=${out}"
 
   local preflight_args=()
@@ -413,6 +439,8 @@ _bio_run_capture() {
       --duration "${duration}" \
       --targets "${targets}" \
       --tr-hz 10 \
+      --tdma-profile "${tdma_profile}" \
+      --tag-cir "${tag_cir}" \
       --out-dir "${out}"
   )
   local rc=$?
@@ -429,7 +457,7 @@ _bio_run_capture() {
     printf ','
     _bio_csv_escape "${final_path}"
     printf ','
-    _bio_csv_escape "duration_s=${duration}; targets=${targets}; rc=${rc}"
+    _bio_csv_escape "duration_s=${duration}; targets=${targets}; cir=${tag_cir}; rc=${rc}"
     printf '\n'
   } >> "${BIOSPUR_SESSION_ROOT}/session_notes.csv"
 
@@ -440,32 +468,33 @@ _bio_run_capture() {
 
 static() {
   _bio_parse_common_capture_args "$@" || {
-    [[ $? -eq 9 ]] && echo "Usage: static -id ID01 [-s 120]"
+    [[ $? -eq 9 ]] && echo "Usage: static -id ID01 [-s 120] [-cir off|compact|full]"
     return 2
   }
-  _bio_run_capture "static" "${BIO_ID}" "${BIO_DURATION}" "BSF66F"
+  _bio_run_capture "static" "${BIO_ID}" "${BIO_DURATION}" "BSF66F" "${BIO_CIR}"
 }
 
 roto() {
   _bio_parse_common_capture_args "$@" || {
-    [[ $? -eq 9 ]] && echo "Usage: roto -id R01 [-s 120]"
+    [[ $? -eq 9 ]] && echo "Usage: roto -id R01 [-s 120] [-cir off|compact|full]"
     return 2
   }
-  _bio_run_capture "roto" "${BIO_ID}" "${BIO_DURATION}" "BS2DCE,BSDC91"
+  _bio_run_capture "roto" "${BIO_ID}" "${BIO_DURATION}" "BS2DCE,BSDC91" "${BIO_CIR}"
 }
 
 wand() {
   _bio_parse_common_capture_args "$@" || {
-    [[ $? -eq 9 ]] && echo "Usage: wand -id W01 [-s 120]"
+    [[ $? -eq 9 ]] && echo "Usage: wand -id W01 [-s 120] [-cir off|compact|full]"
     return 2
   }
-  _bio_run_capture "wand3" "${BIO_ID}" "${BIO_DURATION}" "BS9336,BS955A,BSCCF4"
+  _bio_run_capture "wand3" "${BIO_ID}" "${BIO_DURATION}" "BS9336,BS955A,BSCCF4" "${BIO_CIR}"
 }
 
 free() {
   local id=""
   local duration="120"
   local targets=""
+  local tag_cir="off"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       -id|--id)
@@ -480,8 +509,12 @@ free() {
         targets="${2:-}"
         shift 2
         ;;
+      -cir|--cir|--tag-cir)
+        tag_cir="${2:-}"
+        shift 2
+        ;;
       -h|--help)
-        echo "Usage: free -id F01 -targets BSF66F,BS2DCE [-s 120]"
+        echo "Usage: free -id F01 -targets BSF66F,BS2DCE [-s 120] [-cir off|compact|full]"
         return 2
         ;;
       *)
@@ -498,7 +531,14 @@ free() {
     echo "[ERR] Missing -targets, for example: free -id F01 -targets BSF66F,BS2DCE" >&2
     return 2
   fi
-  _bio_run_capture "free" "${id}" "${duration}" "${targets}"
+  case "${tag_cir}" in
+    off|compact|full) ;;
+    *)
+      echo "[ERR] Invalid CIR mode: ${tag_cir} (expected off, compact, or full)" >&2
+      return 2
+      ;;
+  esac
+  _bio_run_capture "free" "${id}" "${duration}" "${targets}" "${tag_cir}"
 }
 
 sweep() {

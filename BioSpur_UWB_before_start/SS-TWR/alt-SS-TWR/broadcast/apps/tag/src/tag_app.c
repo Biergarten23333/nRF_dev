@@ -64,30 +64,6 @@
 #define APP_TAG_ANCHOR_7_ID 7U
 #endif
 
-#ifndef APP_TAG_FIXED_MODE
-#define APP_TAG_FIXED_MODE 0U
-#endif
-
-#ifndef APP_TAG_FIXED_ANCHOR_COUNT
-#define APP_TAG_FIXED_ANCHOR_COUNT 4U
-#endif
-
-#ifndef APP_TAG_FIXED_ANCHOR_0_ID
-#define APP_TAG_FIXED_ANCHOR_0_ID 1U
-#endif
-
-#ifndef APP_TAG_FIXED_ANCHOR_1_ID
-#define APP_TAG_FIXED_ANCHOR_1_ID 2U
-#endif
-
-#ifndef APP_TAG_FIXED_ANCHOR_2_ID
-#define APP_TAG_FIXED_ANCHOR_2_ID 5U
-#endif
-
-#ifndef APP_TAG_FIXED_ANCHOR_3_ID
-#define APP_TAG_FIXED_ANCHOR_3_ID 6U
-#endif
-
 #ifndef APP_TAG_MULTITAG_PLAN_MODE
 #define APP_TAG_MULTITAG_PLAN_MODE 0U
 #endif
@@ -251,10 +227,6 @@ static void tag_diag_write(const char *msg)
 #define APP_TAG_FW_MARKER "unified-default"
 #endif
 
-#ifndef APP_TAG_CALIBRATION_MODE
-#define APP_TAG_CALIBRATION_MODE 0U
-#endif
-
 #ifndef APP_TAG_UWB_ENABLE
 #define APP_TAG_UWB_ENABLE 1U
 #endif
@@ -350,12 +322,6 @@ int tag_app_run(void)
         APP_TAG_ANCHOR_6_ID,
         APP_TAG_ANCHOR_7_ID,
     };
-    static uint8_t runtime_fixed_anchor_ids[] = {
-        APP_TAG_FIXED_ANCHOR_0_ID,
-        APP_TAG_FIXED_ANCHOR_1_ID,
-        APP_TAG_FIXED_ANCHOR_2_ID,
-        APP_TAG_FIXED_ANCHOR_3_ID,
-    };
     static const uint8_t active_anchor_ids[] = {
         APP_TAG_ACTIVE_ANCHOR_0_ID,
         APP_TAG_ACTIVE_ANCHOR_1_ID,
@@ -374,15 +340,13 @@ int tag_app_run(void)
         .identity_code = 0U,
         .tag_id = 0U,
         .slot_source = UWB_TAG_SLOT_SOURCE_BUILD,
-        .positioning_mode = UWB_TAG_MODE_RANGE,
-        .anchor_selection_mode = (APP_TAG_FIXED_MODE != 0U) ?
-            UWB_TAG_ANCHOR_SELECTION_FIXED_SUBSET :
-            UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2,
+        .positioning_mode = UWB_TAG_MODE_RUN,
+        .anchor_selection_mode = UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2,
         .anchor_ids = target_anchor_ids,
         .anchor_count = APP_TAG_ANCHOR_COUNT,
-        .fixed_anchor_mode = (APP_TAG_FIXED_MODE != 0U),
-        .fixed_anchor_ids = runtime_fixed_anchor_ids,
-        .fixed_anchor_count = APP_TAG_FIXED_ANCHOR_COUNT,
+        .fixed_anchor_mode = false,
+        .fixed_anchor_ids = NULL,
+        .fixed_anchor_count = 0U,
         .multitag_anchor_plan_mode = (APP_TAG_MULTITAG_PLAN_MODE != 0U),
         .active_anchor_ids = active_anchor_ids,
         .active_anchor_count = ARRAY_SIZE(active_anchor_ids),
@@ -441,48 +405,17 @@ int tag_app_run(void)
             runtime_config.slot_source = ble_params.slot_source;
             runtime_config.positioning_mode = ble_params.positioning_mode;
             runtime_config.anchor_selection_mode =
-                ble_params.anchor_selection_mode;
+                UWB_TAG_ANCHOR_SELECTION_DYNAMIC_2P2;
+            runtime_config.fixed_anchor_mode = false;
+            runtime_config.fixed_anchor_count = 0U;
 
             if (ble_params.tdma.slot_count != 0U &&
                 ble_params.tdma.slot_period_ms != 0U &&
                 ble_params.tdma.slot_active_ms != 0U) {
                 runtime_config.tdma = ble_params.tdma;
             }
-
-            if (ble_params.anchor_selection_mode ==
-                    UWB_TAG_ANCHOR_SELECTION_FIXED_SUBSET &&
-                ble_params.fixed_anchor_count >= 4U) {
-                runtime_config.fixed_anchor_mode = true;
-                runtime_config.fixed_anchor_count = ble_params.fixed_anchor_count;
-                for (size_t i = 0U; i < ble_params.fixed_anchor_count &&
-                                    i < ARRAY_SIZE(runtime_fixed_anchor_ids);
-                     ++i) {
-                    runtime_fixed_anchor_ids[i] = ble_params.fixed_anchor_ids[i];
-                }
-            } else {
-                runtime_config.fixed_anchor_mode = false;
-            }
         }
     }
-
-	if (APP_TAG_CALIBRATION_MODE) {
-		runtime_config.positioning_mode = UWB_TAG_MODE_RANGE;
-		runtime_config.slot_source = UWB_TAG_SLOT_SOURCE_BUILD;
-		if (runtime_config.tdma.slot_count == 0U ||
-		    runtime_config.tdma.slot_period_ms == 0U ||
-		    runtime_config.tdma.slot_active_ms == 0U) {
-			runtime_config.tdma.enabled = (APP_TAG_TDMA_ENABLE != 0U);
-			runtime_config.tdma.slot_index = APP_TAG_TDMA_SLOT_INDEX;
-			runtime_config.tdma.slot_count = APP_TAG_TDMA_SLOT_COUNT;
-			runtime_config.tdma.slot_period_ms = APP_TAG_TDMA_SLOT_PERIOD_MS;
-			runtime_config.tdma.slot_active_ms = APP_TAG_TDMA_SLOT_ACTIVE_MS;
-			runtime_config.tdma.slot_active_us = APP_TAG_TDMA_SLOT_ACTIVE_US;
-		}
-		runtime_config.tdma.epoch_valid = false;
-		runtime_config.tdma.epoch_ms = 0U;
-		runtime_config.tdma.generation = 0U;
-		printk("Tag calibration build flag ignored; broadcast TR mode remains enabled\n");
-	}
 
     if (runtime_config.tdma.enabled && runtime_config.tdma.slot_count != 0U) {
         printk("Tag TDMA runtime config: slot=%u/%u period=%u active=%u source=%u epoch_valid=%u gen=%u\n",
@@ -519,19 +452,17 @@ int tag_app_run(void)
     tag_diag_write("TAG_APP: handoff enter\n");
 #endif
     printk("Tag firmware marker: %s\n", APP_TAG_FW_MARKER);
-    printk("Tag app ready bs=BS%04X logical_tag=%u anchor_count=%u fixed=%u fixed_count=%u tdma=%u slot=%u/%u period=%u active=%u slot_src=%u pmode=%u amode=%u filter=%s meas_std=%u residual_gain=%u proc_accel=%u init_pos=%u init_vel=%u gate=%u motion_meas=%u motion_proc=%u motion_gate=%u speed_thr=%u imu_delta=%u imu_gerr=%u range_soft=%u range_hard=%u motion_soft=%u motion_hard=%u\n",
+    printk("Tag app ready bs=BS%04X logical_tag=%u anchor_count=%u tdma=%u slot=%u/%u period=%u active=%u slot_src=%u mode=%s pmode=%u anchor_plan=dynamic filter=%s meas_std=%u residual_gain=%u proc_accel=%u init_pos=%u init_vel=%u gate=%u motion_meas=%u motion_proc=%u motion_gate=%u speed_thr=%u imu_delta=%u imu_gerr=%u range_soft=%u range_hard=%u motion_soft=%u motion_hard=%u\n",
            (unsigned int)runtime_config.identity_code,
            runtime_config.tag_id, APP_TAG_ANCHOR_COUNT,
-           (unsigned int)runtime_config.fixed_anchor_mode,
-           (unsigned int)runtime_config.fixed_anchor_count,
            (unsigned int)runtime_config.tdma.enabled,
            (unsigned int)runtime_config.tdma.slot_index,
            (unsigned int)runtime_config.tdma.slot_count,
            (unsigned int)runtime_config.tdma.slot_period_ms,
            (unsigned int)runtime_config.tdma.slot_active_ms,
            (unsigned int)runtime_config.slot_source,
+           (runtime_config.positioning_mode == UWB_TAG_MODE_IDLE) ? "IDLE" : "RUN",
            (unsigned int)runtime_config.positioning_mode,
-           (unsigned int)runtime_config.anchor_selection_mode,
            (APP_TAG_EKF_ENABLE != 0U) ? "post_kf" : "raw",
            APP_TAG_EKF_MEAS_STD_MM, APP_TAG_EKF_RESIDUAL_GAIN_PCT,
            APP_TAG_EKF_PROC_ACCEL_MM_S2, APP_TAG_EKF_INIT_POS_STD_MM,
@@ -545,13 +476,11 @@ int tag_app_run(void)
            APP_TAG_RANGE_SOFT_RESIDUAL_MM, APP_TAG_RANGE_HARD_RESIDUAL_MM,
            APP_TAG_MOTION_RANGE_SOFT_BONUS_MM,
            APP_TAG_MOTION_RANGE_HARD_BONUS_MM);
-    printk("Tag app anchors=[%u,%u,%u,%u,%u,%u,%u,%u] fixed_anchors=[%u,%u,%u,%u] active=[%u,%u,%u,%u] standby=[%u,%u] reserve=[%u,%u] refresh=%u/%u full=%u motion_full=%u\n",
+    printk("Tag app anchors=[%u,%u,%u,%u,%u,%u,%u,%u] active=[%u,%u,%u,%u] standby=[%u,%u] reserve=[%u,%u] refresh=%u/%u full=%u motion_full=%u\n",
            APP_TAG_ANCHOR_0_ID,
            APP_TAG_ANCHOR_1_ID, APP_TAG_ANCHOR_2_ID, APP_TAG_ANCHOR_3_ID,
            APP_TAG_ANCHOR_4_ID, APP_TAG_ANCHOR_5_ID, APP_TAG_ANCHOR_6_ID,
            APP_TAG_ANCHOR_7_ID,
-           runtime_fixed_anchor_ids[0], runtime_fixed_anchor_ids[1],
-           runtime_fixed_anchor_ids[2], runtime_fixed_anchor_ids[3],
            APP_TAG_ACTIVE_ANCHOR_0_ID,
            APP_TAG_ACTIVE_ANCHOR_1_ID, APP_TAG_ACTIVE_ANCHOR_2_ID,
            APP_TAG_ACTIVE_ANCHOR_3_ID, APP_TAG_STANDBY_ANCHOR_0_ID,

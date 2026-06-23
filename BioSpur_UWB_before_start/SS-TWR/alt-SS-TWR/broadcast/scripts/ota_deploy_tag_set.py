@@ -12,7 +12,7 @@ import serial
 
 UPLOAD_PROGRESS_RE = re.compile(r"OTA upload progress:\s*(\d+)%")
 TAG_VERSION_RE = re.compile(
-    r"(?P<name>BS[0-9A-F]{4}) notify:\s+VERSION fw=(?P<fw>\S+)\s+bs=(?P<bs>BS[0-9A-F]{4})\s+tag=(?P<tag>\d+)\s+pmode=(?P<pmode>\d+)\s+amode=(?P<amode>\d+)",
+    r"(?P<name>BS[0-9A-F]{4}) notify:\s+VERSION fw=(?P<fw>\S+)\s+bs=(?P<bs>BS[0-9A-F]{4})\s+tag=(?P<tag>\d+)(?:\s+mode=(?P<mode>\S+))?\s+pmode=(?P<pmode>\d+)",
     re.IGNORECASE,
 )
 
@@ -292,8 +292,9 @@ def query_tag_versions(port: str, targets: list[str], out_root: Path) -> dict[st
                 "fw": match.group("fw"),
                 "bs": match.group("bs"),
                 "tag": int(match.group("tag")),
+                "mode": match.group("mode") or "",
                 "pmode": int(match.group("pmode")),
-                "amode": int(match.group("amode")),
+                "anchor_plan": "dynamic",
             }
         return versions
 

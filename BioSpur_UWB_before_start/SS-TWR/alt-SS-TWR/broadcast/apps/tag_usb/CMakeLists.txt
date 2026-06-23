@@ -26,7 +26,6 @@ set(APP_TAG_BLE_ENABLE "0" CACHE STRING "Disable BLE/NUS and OTA transport on th
 set(APP_TAG_MCUBOOT_ENABLE "0" CACHE STRING "Disable MCUboot confirm/OTA plumbing on the tag")
 set(APP_TAG_USB_DIAG_TRACE "0" CACHE STRING "Enable low-level console trace for pure USB bringup debugging")
 set(APP_TAG_OTP_DIAG "0" CACHE STRING "Print DW1000 OTP diagnostic words after UWB bringup")
-set(APP_TAG_CALIBRATION_MODE "0" CACHE STRING "Start tag in calibration default mode")
 
 if(NOT DEFINED APP_TAG_ID OR APP_TAG_ID STREQUAL "")
 set(APP_TAG_ID "0" CACHE STRING "Tag node ID")
@@ -141,7 +140,6 @@ target_compile_definitions(app PRIVATE
     APP_TAG_BLE_ENABLE=${APP_TAG_BLE_ENABLE}
     APP_TAG_USB_DIAG_TRACE=${APP_TAG_USB_DIAG_TRACE}
     APP_TAG_OTP_DIAG=${APP_TAG_OTP_DIAG}
-    APP_TAG_CALIBRATION_MODE=${APP_TAG_CALIBRATION_MODE}
     APP_TAG_ID=${APP_TAG_ID}
     APP_TAG_ANCHOR_COUNT=${APP_TAG_ANCHOR_COUNT}
     APP_TAG_ANCHOR_0_ID=${APP_TAG_ANCHOR_0_ID}

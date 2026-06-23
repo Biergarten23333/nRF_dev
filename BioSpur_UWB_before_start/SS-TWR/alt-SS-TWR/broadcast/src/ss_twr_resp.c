@@ -48,7 +48,7 @@ static bool ss_twr_resp_matrix_poll_matches(const uint8_t *frame,
 #define SS_TWR_RESP_RX_ANT_DLY 16436U
 
 #ifndef APP_ANCHOR_RESP_DELAY_UUS
-#define APP_ANCHOR_RESP_DELAY_UUS 500U
+#define APP_ANCHOR_RESP_DELAY_UUS 1200U
 #endif
 
 #ifndef APP_ANCHOR_MATRIX_RESP_DELAY_UUS
@@ -84,7 +84,7 @@ static bool ss_twr_resp_matrix_poll_matches(const uint8_t *frame,
 #endif
 
 #ifndef APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE
-#define APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE 0U
+#define APP_ANCHOR_RESPONDER_BLUE_LED_ENABLE 1U
 #endif
 
 #ifndef APP_ANCHOR_RESPONDER_BLUE_LED_PIN
@@ -100,7 +100,7 @@ static bool ss_twr_resp_matrix_poll_matches(const uint8_t *frame,
 #endif
 
 #ifndef APP_ALT_SS_TWR_ENABLE
-#define APP_ALT_SS_TWR_ENABLE 0U
+#define APP_ALT_SS_TWR_ENABLE 1U
 #endif
 
 #ifndef APP_ALT_SS_TWR_POLL_SPACING_US
@@ -108,11 +108,11 @@ static bool ss_twr_resp_matrix_poll_matches(const uint8_t *frame,
 #endif
 
 #ifndef APP_ALT_SS_TWR_GUARD_US
-#define APP_ALT_SS_TWR_GUARD_US 500U
+#define APP_ALT_SS_TWR_GUARD_US 1200U
 #endif
 
 #ifndef APP_ALT_SS_TWR_RESP_SPACING_US
-#define APP_ALT_SS_TWR_RESP_SPACING_US 800U
+#define APP_ALT_SS_TWR_RESP_SPACING_US 1000U
 #endif
 
 #ifndef APP_ALT_SS_TWR_TAIL_COMPRESS_ENABLE
@@ -1177,14 +1177,18 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         ss_twr_resp_led_off();
         replies_ok++;
         match_diag.tx_ok_count++;
-        dwt_rxdiag_t rx_diag;
-        dwt_readdiagnostics(&rx_diag);
-        anchor_cir_output_publish_feature(
-            replies_ok, ss_twr_resp_anchor_id, poll_src_addr, -1L,
-            (uint32_t)poll_rx_ts, rx_carrier_integrator, &rx_diag);
-        anchor_cir_output_publish_full(
-            replies_ok, ss_twr_resp_anchor_id, poll_src_addr, -1L,
-            (uint32_t)poll_rx_ts, rx_carrier_integrator, &rx_diag);
+        enum anchor_cir_output_mode cir_mode = anchor_cir_output_get_mode();
+        if (cir_mode != ANCHOR_CIR_OUTPUT_OFF) {
+            dwt_rxdiag_t rx_diag;
+
+            dwt_readdiagnostics(&rx_diag);
+            anchor_cir_output_publish_feature(
+                replies_ok, ss_twr_resp_anchor_id, poll_src_addr, -1L,
+                (uint32_t)poll_rx_ts, rx_carrier_integrator, &rx_diag);
+            anchor_cir_output_publish_full(
+                replies_ok, ss_twr_resp_anchor_id, poll_src_addr, -1L,
+                (uint32_t)poll_rx_ts, rx_carrier_integrator, &rx_diag);
+        }
         if (poll_src_is_tag && poll_tag_id < SS_TWR_RESP_DIAG_TAG_SLOTS) {
             tag_reply_count[poll_tag_id]++;
         }

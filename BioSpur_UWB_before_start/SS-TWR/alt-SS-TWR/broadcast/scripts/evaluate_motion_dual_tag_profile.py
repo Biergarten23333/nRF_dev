@@ -120,7 +120,6 @@ def motion_tag_args(tag_id: int, device_name: str) -> str:
         f'-DAPP_TAG_EKF_INIT_POS_STD_MM=200 '
         f'-DAPP_TAG_EKF_INIT_VEL_STD_MM=1200 '
         f'-DAPP_TAG_EKF_OUTLIER_GATE_MM=120 '
-        f'-DAPP_TAG_FIXED_MODE=0 '
         f'-DAPP_TAG_FAST_TRACKING=1 '
         f'-DAPP_TAG_FULL_SWEEP_INTERVAL=4 '
         f'-DAPP_TAG_TRACK_ANCHOR_COUNT=6 '

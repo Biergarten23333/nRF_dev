@@ -10,6 +10,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import serial
+
 
 def timestamped_out_dir(base: Path) -> Path:
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -45,6 +47,42 @@ def load_json(path: Path) -> dict:
         return {"error": f"failed_to_read_json:{exc}", "path": str(path)}
 
 
+def restore_anchor_responder_state(port: str, log_path: Path, timeout_s: float = 24.0) -> dict:
+    result = {
+        "attempted": True,
+        "success": False,
+        "port": port,
+        "command": "anchor role all responder cir 0",
+        "timeout_s": timeout_s,
+        "error": "",
+    }
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    print(f"[DUAL] anchor responder restore: {result['command']}", flush=True)
+    print(f"[DUAL] log: {log_path}", flush=True)
+    try:
+        with log_path.open("w", encoding="utf-8", buffering=1) as logf:
+            with serial.Serial(port, 115200, timeout=0.2, write_timeout=2, exclusive=True) as ser:
+                ser.reset_input_buffer()
+                ser.write((result["command"] + "\n").encode("utf-8"))
+                ser.flush()
+                deadline = time.monotonic() + timeout_s
+                while time.monotonic() < deadline:
+                    raw = ser.readline()
+                    if not raw:
+                        continue
+                    line = raw.decode("utf-8", "replace").rstrip()
+                    print(f"[ANCHOR_RESTORE] {line}", flush=True)
+                    logf.write(line + "\n")
+                    if "anchor role rc=0 target=all role=responder cir=0" in line:
+                        result["success"] = True
+                        return result
+                result["error"] = "timeout_waiting_for_anchor_role_rc"
+                return result
+    except Exception as exc:
+        result["error"] = f"{type(exc).__name__}: {exc}"
+        return result
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Dual-master capture: Master_Anchor handles anchors; Master_Tag handles tags."
@@ -56,13 +94,38 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--duration", type=float, default=180.0)
     parser.add_argument("--targets", default="BSF66F,BS2DCE,BSDC91")
     parser.add_argument("--tr-hz", type=int, default=10)
+    parser.add_argument(
+        "--tdma-profile",
+        choices=["motion"],
+        default="motion",
+        help="Deprecated compatibility option. Capture scenes always use motion TDMA/PMODE=0.",
+    )
+    parser.add_argument(
+        "--tag-cir",
+        choices=["off", "compact", "full"],
+        default="off",
+        help="Runtime CIR output requested from target Tags.",
+    )
+    parser.add_argument(
+        "--full-cir-duration-s",
+        type=float,
+        default=float(os.environ.get("BIOSPUR_FULL_CIR_DURATION_S", "30")),
+        help="Seconds for deferred USB full-CIR capture when --tag-cir full.",
+    )
+    parser.add_argument(
+        "--full-cir-ports",
+        default=os.environ.get("BIOSPUR_CIR_FULL_USB_PORTS", ""),
+        help="Comma-separated LABEL=/dev/... USB CDC ports for deferred full-CIR capture.",
+    )
     parser.add_argument("--profiles", default="", help="Deprecated compatibility option; ignored.")
-    parser.add_argument("--static-hz", type=int, default=5)
-    parser.add_argument("--roto-hz", type=int, default=10)
-    parser.add_argument("--motion-hz", type=int, default=5)
     parser.add_argument("--cm-probe-target", default="BSF66F")
     parser.add_argument("--out-dir", default="logs/dual_master_tdma_capture")
     parser.add_argument("--skip-anchor-preflight", action="store_true")
+    parser.add_argument(
+        "--skip-anchor-responder-restore",
+        action="store_true",
+        help="Do not force anchors to responder CIR=0 before Tag capture.",
+    )
     parser.add_argument("--anchor-preflight-timeout-s", type=float, default=30.0)
     parser.add_argument("--anchor-preflight-retries", type=int, default=3)
     parser.add_argument("--anchor-preflight-launch-retries", type=int, default=2)
@@ -72,7 +135,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--known-bs-tags",
         default="BSF66F,BS2DCE,BSDC91,BS9336,BS955A,BSCCF4",
-        help="Known BS tags used for targeted non-target AOTA before capture.",
+        help="Known BS tags used for optional targeted non-target idle before capture.",
     )
     parser.add_argument("--no-silence-non-target-tags", action="store_true")
     parser.add_argument("--non-target-silence-settle-s", type=float, default=1.0)
@@ -114,6 +177,8 @@ def main() -> int:
             "snr": args.tag_snr,
             "port": args.tag_port,
         },
+        "tdma_profile": args.tdma_profile,
+        "tr_hz": args.tr_hz,
         "out_dir": str(out_dir),
     }
 
@@ -165,6 +230,24 @@ def main() -> int:
                 print(json.dumps(summary, indent=2), flush=True)
                 return 2
 
+        if args.skip_anchor_responder_restore:
+            summary["anchor_responder_restore"] = {
+                "attempted": False,
+                "success": True,
+                "reason": "disabled_by_flag",
+            }
+        else:
+            restore = restore_anchor_responder_state(
+                args.anchor_port,
+                out_dir / "anchor_responder_restore.console.log",
+            )
+            summary["anchor_responder_restore"] = restore
+            if not restore.get("success"):
+                summary["error"] = "anchor_responder_restore_failed"
+                (out_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+                print(json.dumps(summary, indent=2), flush=True)
+                return 2
+
         recv_dir = out_dir / "tag_capture"
         tag_cmd = [
             sys.executable,
@@ -179,6 +262,16 @@ def main() -> int:
             args.targets,
             "--tr-hz",
             str(args.tr_hz),
+            "--tdma-profile",
+            args.tdma_profile,
+            "--tag-cir",
+            args.tag_cir,
+            "--full-cir-duration-s",
+            str(args.full_cir_duration_s),
+            "--full-cir-ports",
+            args.full_cir_ports,
+            "--full-cir-anchor-control-port",
+            args.anchor_port,
             "--skip-anchor-preflight",
             "--anchor-preflight-port",
             args.anchor_port,
