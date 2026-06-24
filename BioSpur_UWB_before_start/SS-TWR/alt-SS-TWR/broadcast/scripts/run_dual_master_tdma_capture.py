@@ -126,6 +126,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Do not force anchors to responder CIR=0 before Tag capture.",
     )
+    parser.add_argument(
+        "--anchor-restore-timeout-s",
+        type=float,
+        default=float(os.environ.get("BIOSPUR_ANCHOR_RESTORE_TIMEOUT_S", "75")),
+        help="Seconds to wait for anchor role all responder confirmation before tag capture.",
+    )
     parser.add_argument("--anchor-preflight-timeout-s", type=float, default=30.0)
     parser.add_argument("--anchor-preflight-retries", type=int, default=3)
     parser.add_argument("--anchor-preflight-launch-retries", type=int, default=2)
@@ -240,6 +246,7 @@ def main() -> int:
             restore = restore_anchor_responder_state(
                 args.anchor_port,
                 out_dir / "anchor_responder_restore.console.log",
+                timeout_s=args.anchor_restore_timeout_s,
             )
             summary["anchor_responder_restore"] = restore
             if not restore.get("success"):

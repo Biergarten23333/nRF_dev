@@ -110,10 +110,14 @@ void uwb_ss_twr_build_alt_broadcast_poll_frame(uint8_t *frame, uint8_t seq,
                                                uint16_t src_addr,
                                                uint8_t anchor_mask,
                                                uint8_t tag_id,
+                                               uint8_t rank_offset,
                                                uint64_t poll_tx_ts)
 {
     uwb_ss_twr_build_poll_frame(frame, seq, UWB_BROADCAST_SHORT_ADDR, src_addr);
-    frame[UWB_MSG_BCAST_POLL_TAG_ID_IDX] = tag_id;
+    frame[UWB_MSG_BCAST_POLL_TAG_ID_IDX] =
+        (uint8_t)((tag_id & UWB_MSG_BCAST_POLL_TAG_ID_MASK) |
+                  ((rank_offset << UWB_MSG_BCAST_POLL_RANK_OFFSET_SHIFT) &
+                   UWB_MSG_BCAST_POLL_RANK_OFFSET_MASK));
     frame[UWB_MSG_BCAST_POLL_ANCHOR_MASK_IDX] = anchor_mask;
     uwb_frame_write_u40(frame, UWB_MSG_BCAST_POLL_TX_TS_IDX, poll_tx_ts);
 }
@@ -176,10 +180,22 @@ uint8_t uwb_ss_twr_poll_anchor_mask(const uint8_t *frame)
 uint8_t uwb_ss_twr_poll_tag_id(const uint8_t *frame)
 {
     if (uwb_frame_get_dst_addr(frame) == UWB_BROADCAST_SHORT_ADDR) {
-        return frame[UWB_MSG_BCAST_POLL_TAG_ID_IDX];
+        return frame[UWB_MSG_BCAST_POLL_TAG_ID_IDX] &
+               UWB_MSG_BCAST_POLL_TAG_ID_MASK;
     }
 
     return uwb_tag_id_from_addr(uwb_frame_get_src_addr(frame));
+}
+
+uint8_t uwb_ss_twr_poll_rank_offset(const uint8_t *frame)
+{
+    if (uwb_frame_get_dst_addr(frame) == UWB_BROADCAST_SHORT_ADDR) {
+        return (uint8_t)((frame[UWB_MSG_BCAST_POLL_TAG_ID_IDX] &
+                          UWB_MSG_BCAST_POLL_RANK_OFFSET_MASK) >>
+                         UWB_MSG_BCAST_POLL_RANK_OFFSET_SHIFT);
+    }
+
+    return 0U;
 }
 
 uint64_t uwb_ss_twr_poll_tx_ts(const uint8_t *frame)

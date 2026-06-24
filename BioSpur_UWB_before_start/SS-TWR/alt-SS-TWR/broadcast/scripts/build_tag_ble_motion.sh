@@ -60,6 +60,7 @@ tag_cir_full_output_cdc_enable="${APP_TAG_CIR_FULL_OUTPUT_CDC_ENABLE:-1}"
 tag_cir_full_chunk_bytes="${APP_TAG_CIR_FULL_CHUNK_BYTES:-48}"
 tag_cir_full_priority_mask="${APP_TAG_CIR_FULL_PRIORITY_MASK:-0}"
 tag_cir_full_priority_only_sweep="${APP_TAG_CIR_FULL_PRIORITY_ONLY_SWEEP:-0}"
+tag_cir_compact_sample_period="${APP_TAG_CIR_COMPACT_SAMPLE_PERIOD:-8}"
 tag_ekf_enable="${APP_TAG_EKF_ENABLE:-0}"
 tag_loc_min_quality_percent="${APP_TAG_LOC_MIN_QUALITY_PERCENT:-20}"
 tag_motion_speed_threshold_mm_s="${APP_TAG_MOTION_SPEED_THRESHOLD_MM_S:-100}"
@@ -131,6 +132,7 @@ fi
   printf 'set(APP_TAG_CIR_FULL_CHUNK_BYTES %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_cir_full_chunk_bytes}"
   printf 'set(APP_TAG_CIR_FULL_PRIORITY_MASK %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_cir_full_priority_mask}"
   printf 'set(APP_TAG_CIR_FULL_PRIORITY_ONLY_SWEEP %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_cir_full_priority_only_sweep}"
+  printf 'set(APP_TAG_CIR_COMPACT_SAMPLE_PERIOD %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_cir_compact_sample_period}"
   printf 'set(APP_TAG_EKF_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_ekf_enable}"
   printf 'set(APP_TAG_LOC_MIN_QUALITY_PERCENT %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_loc_min_quality_percent}"
   printf 'set(APP_TAG_MOTION_SPEED_THRESHOLD_MM_S %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_motion_speed_threshold_mm_s}"
@@ -236,6 +238,7 @@ west build \
   -DAPP_TAG_CIR_FULL_CHUNK_BYTES="${tag_cir_full_chunk_bytes}" \
   -DAPP_TAG_CIR_FULL_PRIORITY_MASK="${tag_cir_full_priority_mask}" \
   -DAPP_TAG_CIR_FULL_PRIORITY_ONLY_SWEEP="${tag_cir_full_priority_only_sweep}" \
+  -DAPP_TAG_CIR_COMPACT_SAMPLE_PERIOD="${tag_cir_compact_sample_period}" \
   -DAPP_TAG_VERBOSE_RANGING=0 \
   -DAPP_TAG_VERBOSE_MEASUREMENTS=0 \
   -DAPP_TAG_EKF_ENABLE="${tag_ekf_enable}" \

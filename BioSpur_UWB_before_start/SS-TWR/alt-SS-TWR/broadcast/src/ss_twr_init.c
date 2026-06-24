@@ -207,6 +207,10 @@ enum uwb_tag_ble_cal_status {
 #define APP_TAG_CIR_FULL_PRIORITY_ONLY_SWEEP 0U
 #endif
 
+#ifndef APP_TAG_CIR_COMPACT_SAMPLE_PERIOD
+#define APP_TAG_CIR_COMPACT_SAMPLE_PERIOD 8U
+#endif
+
 #define SS_TWR_INIT_IMU_SUMMARY_MAX_WINDOW 16U
 
 #if APP_TAG_TR_IMU_SUMMARY_ENABLE != 0U || APP_TAG_TR_IMU_RAW_ENABLE != 0U
@@ -4173,6 +4177,51 @@ static uint8_t ss_twr_init_alt_active_anchor_mask(uint8_t poll_count)
     return anchor_mask;
 }
 
+static uint8_t ss_twr_init_compact_cir_target_anchor(uint8_t poll_count)
+{
+    uint32_t sample_index;
+
+    if (poll_count == 0U) {
+        return UWB_MAX_ANCHORS;
+    }
+
+#if APP_TAG_CIR_COMPACT_SAMPLE_PERIOD > 1U
+    sample_index = ss_twr_init_sweep_count / APP_TAG_CIR_COMPACT_SAMPLE_PERIOD;
+#else
+    sample_index = ss_twr_init_sweep_count;
+#endif
+    return ss_twr_init_active_anchor_ids[sample_index % poll_count];
+}
+
+static bool ss_twr_init_compact_cir_sample_due(void)
+{
+    if (ss_twr_init_cir_mode_get() != UWB_TAG_CIR_MODE_COMPACT) {
+        return false;
+    }
+
+#if APP_TAG_CIR_COMPACT_SAMPLE_PERIOD > 1U
+    return (ss_twr_init_sweep_count % APP_TAG_CIR_COMPACT_SAMPLE_PERIOD) == 0U;
+#else
+    return true;
+#endif
+}
+
+static uint8_t ss_twr_init_alt_bcast_rank_offset(uint8_t poll_count)
+{
+    uint8_t target_anchor_id;
+
+    if (!ss_twr_init_compact_cir_sample_due()) {
+        return 0U;
+    }
+
+    target_anchor_id = ss_twr_init_compact_cir_target_anchor(poll_count);
+    if (target_anchor_id >= UWB_MAX_ANCHORS) {
+        return 0U;
+    }
+
+    return (uint8_t)((target_anchor_id + 1U) % UWB_MAX_ANCHORS);
+}
+
 static bool ss_twr_init_alt_bcast_prewrite_tx(void)
 {
 #if APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST && \
@@ -4197,6 +4246,8 @@ static bool ss_twr_init_alt_bcast_prewrite_tx(void)
                                               ss_twr_init_local_addr,
                                               anchor_mask,
                                               ss_twr_init_local_tag_id,
+                                              ss_twr_init_alt_bcast_rank_offset(
+                                                  poll_count),
                                               0U);
     if (dwt_writetxdata(UWB_MSG_ALT_POLL_FRAME_LEN,
                         ss_twr_init_tx_poll_msg, 0) != DWT_SUCCESS) {
@@ -4250,8 +4301,6 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
     int rxenable_rc = 0;
     bool use_prearmed_tx = false;
     enum uwb_tag_cir_mode cir_mode = ss_twr_init_cir_mode_get();
-    bool cir_diag_requested = cir_mode == UWB_TAG_CIR_MODE_COMPACT ||
-                              cir_mode == UWB_TAG_CIR_MODE_FULL;
     bool cir_diag_valid = false;
     bool cir_diag_pending = false;
     uint8_t cir_diag_anchor_id = UWB_MAX_ANCHORS;
@@ -4378,6 +4427,8 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
                                                   ss_twr_init_local_addr,
                                                   anchor_mask,
                                                   ss_twr_init_local_tag_id,
+                                                  ss_twr_init_alt_bcast_rank_offset(
+                                                      poll_count),
                                                   0U);
         ss_twr_init_alt_print_poll_diag(poll_count, anchor_mask);
         if (dwt_writetxdata(UWB_MSG_ALT_POLL_FRAME_LEN,
@@ -4432,6 +4483,8 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
                                               ss_twr_init_local_addr,
                                               anchor_mask,
                                               ss_twr_init_local_tag_id,
+                                              ss_twr_init_alt_bcast_rank_offset(
+                                                  poll_count),
                                               scheduled_poll_tx_ts);
     ss_twr_init_alt_print_poll_diag(poll_count, anchor_mask);
 	    dwt_setdelayedtrxtime(first_tx_time_hi);
@@ -4571,7 +4624,9 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             poll_rx_ts_by_anchor[anchor_id] = poll_rx_ts;
             resp_tx_ts_by_anchor[anchor_id] = resp_tx_ts;
             carrier_integrator_by_anchor[anchor_id] = carrier_integrator;
-            if (cir_diag_requested) {
+            if ((cir_mode == UWB_TAG_CIR_MODE_COMPACT &&
+                 ss_twr_init_compact_cir_sample_due()) ||
+                cir_mode == UWB_TAG_CIR_MODE_FULL) {
                 cir_diag_anchor_id = anchor_id;
                 cir_diag_pending = true;
             }
@@ -4694,7 +4749,9 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             poll_rx_ts_by_anchor[anchor_id] = poll_rx_ts;
             resp_tx_ts_by_anchor[anchor_id] = resp_tx_ts;
             carrier_integrator_by_anchor[anchor_id] = carrier_integrator;
-            if (cir_diag_requested) {
+            if ((cir_mode == UWB_TAG_CIR_MODE_COMPACT &&
+                 ss_twr_init_compact_cir_sample_due()) ||
+                cir_mode == UWB_TAG_CIR_MODE_FULL) {
                 cir_diag_anchor_id = anchor_id;
                 cir_diag_pending = true;
             }

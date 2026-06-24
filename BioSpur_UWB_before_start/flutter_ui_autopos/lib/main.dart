@@ -112,9 +112,9 @@ const biospurBlack = Color(0xFF050806);
 const panelLine = Color(0x33638A01);
 const tableLine = Color(0xAA638A01);
 const mutedText = Color(0xFFB6C7B3);
-const appVersion = '1.0.19';
-const appBuildStamp = '2026-06-23 11:15 CEST';
-const appBuildNote = 'capture scenes use normal PMODE0';
+const appVersion = '1.0.20';
+const appBuildStamp = '2026-06-24 00:19 CEST';
+const appBuildNote = 'PMODE0 capture; Full CIR deferred by backend';
 
 class AutoPosFieldApp extends StatelessWidget {
   const AutoPosFieldApp({super.key});
@@ -3734,145 +3734,25 @@ class _CaptureTabState extends State<CaptureTab>
     final targetSuffix = _kind == 'free'
         ? ' -targets ${shellQuote(targetArg.join(','))}'
         : '';
-    final fullStaticCir = _kind == 'static' && _cirMode == cirModeFull;
     String captureCommandFor(
       String captureId, {
-      bool forceSkipAnchorPreflight = false,
-      bool disableControllerReset = false,
       String cirModeArg = cirModeOff,
     }) {
-      final skipPreflight =
-          forceSkipAnchorPreflight || !_anchorPreflightForCapture;
+      final skipPreflight = !_anchorPreflightForCapture;
       final env = <String>[
         'BIOSPUR_SKIP_ANCHOR_PREFLIGHT_FOR_CAPTURE=${skipPreflight ? 1 : 0}',
       ];
-      if (disableControllerReset) {
-        env.addAll(const [
-          'BIOSPUR_RESET_MASTERS_BEFORE_CAPTURE=0',
-          'BIOSPUR_RESET_TAG_BEFORE_CAPTURE=0',
-          'BIOSPUR_RESET_ANCHOR_BEFORE_CAPTURE=0',
-        ]);
-      }
       return '$workspaceSetup && ${env.join(' ')} $_kind -id ${shellQuote(captureId)} -s ${shellQuote(duration)} -cir ${shellQuote(cirModeArg)}$targetSuffix';
     }
 
-    final captureCommand = captureCommandFor(
-      id,
-      forceSkipAnchorPreflight: fullStaticCir,
-    );
-    final cirCaptureCommand = captureCommandFor(
-      _kind == 'static' ? '${id}_CIR' : id,
-      forceSkipAnchorPreflight: _cirMode != cirModeOff,
-      disableControllerReset: _cirMode != cirModeOff,
-      cirModeArg: _cirMode,
-    );
-    final command = _runtimeCirCaptureCommand(
-      ports: ports,
-      captureCommand: captureCommand,
-      cirCaptureCommand: cirCaptureCommand,
-      targets: targetArg,
-      seconds: int.tryParse(duration) ?? 120,
-    );
+    final command = captureCommandFor(id, cirModeArg: _cirMode);
     setState(() {
       _activeExpectedTags = targetArg.toSet();
     });
-    final runnerName = fullStaticCir ? '$_kind $id + Full CIR' : '$_kind $id';
+    final runnerName = _cirMode == cirModeOff
+        ? '$_kind $id'
+        : '$_kind $id + ${cirModeLabel(_cirMode)} CIR';
     await widget.runner.start(runnerName, command);
-  }
-
-  String _runtimeCirCaptureCommand({
-    required PortSnapshot ports,
-    required String captureCommand,
-    required String cirCaptureCommand,
-    required List<String> targets,
-    required int seconds,
-  }) {
-    final mode = _cirMode;
-    final target = cirCaptureTargetForKind(_kind, targets);
-    final cleanup = runtimeCirControlCommand(
-      ports: ports,
-      tagMode: cirModeOff,
-      anchorMode: cirModeOff,
-      anchorRole: 'responder',
-      bestEffort: true,
-      anchorWaitS: 18.0,
-    );
-    if (mode == cirModeOff) {
-      return '''
-set -euo pipefail
-($cleanup) || true
-$captureCommand
-''';
-    }
-    final setup = runtimeCirControlCommand(
-      ports: ports,
-      tagMode: mode,
-      anchorMode: mode,
-      anchorRole: 'responder',
-      anchorWaitS: 55.0,
-    );
-    final isPostStaticFullCir = _kind == 'static' && mode == cirModeFull;
-    final fullListener = mode != cirModeFull
-        ? ''
-        : '''
-FULL_CIR_PID=""
-python3 ${shellQuote(fullCirUsbCaptureScript)} \\
-  ${cirFullUsbPortArgs()} \\
-  --seconds ${math.max(60, seconds + 45)} \\
-  --preview-every 0 \\
-  --capture-root ${shellQuote(capturesRoot)} \\
-  --target ${shellQuote(target)} \\
-  --control-port "" &
-FULL_CIR_PID=\$!
-sleep 1
-''';
-    final fullCleanup = mode != cirModeFull
-        ? ''
-        : '''
-if [[ -n "\${FULL_CIR_PID:-}" ]] && kill -0 "\$FULL_CIR_PID" 2>/dev/null; then
-  kill "\$FULL_CIR_PID" 2>/dev/null || true
-  wait "\$FULL_CIR_PID" 2>/dev/null || true
-fi
-''';
-    if (isPostStaticFullCir) {
-      return '''
-set -euo pipefail
-cleanup_runtime_cir() {
-  local rc=\$?
-  trap - EXIT INT TERM
-  set +e
-  $fullCleanup
-  ($cleanup) || true
-  exit "\$rc"
-}
-trap cleanup_runtime_cir EXIT INT TERM
-echo "[cir] capture_kind=$_kind mode=$mode target=$target sequence=normal_static_then_full_cir"
-($cleanup) || true
-$captureCommand
-echo "[cir] normal static capture done; starting post-static full CIR"
-$setup
-echo "[cir] runtime full CIR settle 12s before capture"
-sleep 12
-$fullListener
-$cirCaptureCommand
-''';
-    }
-    return '''
-set -euo pipefail
-cleanup_runtime_cir() {
-  local rc=\$?
-  trap - EXIT INT TERM
-  set +e
-  $fullCleanup
-  ($cleanup) || true
-  exit "\$rc"
-}
-trap cleanup_runtime_cir EXIT INT TERM
-echo "[cir] capture_kind=$_kind mode=$mode target=$target"
-$setup
-$fullListener
-$cirCaptureCommand
-''';
   }
 
   Future<void> _refreshPlayback() async {
@@ -4062,8 +3942,8 @@ $cirCaptureCommand
                       ),
                       label: Text(
                         _anchorPreflightForCapture
-                            ? 'Anchor preflight: ON'
-                            : 'Anchor preflight: OFF',
+                            ? 'Extra preflight: ON'
+                            : 'Extra preflight: OFF',
                       ),
                     ),
                     StatusPill(
@@ -4081,8 +3961,8 @@ $cirCaptureCommand
                 const SizedBox(height: 8),
                 Text(
                   _anchorPreflightForCapture
-                      ? 'Capture will verify/set anchor responder state before TDMA.'
-                      : 'Fast capture: anchor preflight is skipped. Use only when anchors are already responders.',
+                      ? 'Runs full anchor responder verification before tag TDMA. Full CIR remains a backend post-range USB phase.'
+                      : 'Skips extra verification. Backend still restores anchors to responder CIR0 before tag TDMA.',
                   style: const TextStyle(color: mutedText, fontSize: 12),
                 ),
                 const SizedBox(height: 12),

@@ -47,10 +47,13 @@
 #ifndef APP_MASTER_TDMA_SLOT_ACTIVE_US
 #define APP_MASTER_TDMA_SLOT_ACTIVE_US 0U
 #endif
+#ifndef APP_MASTER_TDMA_EPOCH_LEAD_MS
+#define APP_MASTER_TDMA_EPOCH_LEAD_MS 5000U
+#endif
 #define MASTER_TDMA_SLOT_PERIOD_MS APP_MASTER_TDMA_SLOT_PERIOD_MS
 #define MASTER_TDMA_SLOT_ACTIVE_MS APP_MASTER_TDMA_SLOT_ACTIVE_MS
 #define MASTER_TDMA_SLOT_ACTIVE_US APP_MASTER_TDMA_SLOT_ACTIVE_US
-#define MASTER_TDMA_EPOCH_LEAD_MS 3000U
+#define MASTER_TDMA_EPOCH_LEAD_MS APP_MASTER_TDMA_EPOCH_LEAD_MS
 #define MASTER_TDMA_PROFILE_MAX MASTER_MAX_CONNECTIONS
 #ifndef APP_MASTER_TDMA_MOTION_DEFAULT_HZ
 #define APP_MASTER_TDMA_MOTION_DEFAULT_HZ 10U
@@ -174,6 +177,8 @@ struct master_notify_print_msg {
 
 static struct master_tdma_profile_entry tdma_profiles[MASTER_TDMA_PROFILE_MAX];
 static uint8_t tdma_motion_target_hz = MASTER_TDMA_MOTION_DEFAULT_HZ;
+static bool master_tdma_any_profile_defined(void);
+static bool master_tdma_profile_has_bs_code(uint16_t bs_code);
 
 struct master_cal_record {
 	bool present;
@@ -1041,9 +1046,14 @@ static size_t master_collect_ready_peers(struct master_peer **ordered,
 					 size_t ordered_len)
 {
 	size_t count = 0U;
+	bool roster_filter_active = master_tdma_any_profile_defined();
 
 	for (size_t i = 0U; i < ARRAY_SIZE(peers) && count < ordered_len; ++i) {
 		if (!(peers[i].connected && peers[i].ready && peers[i].bs_code_valid)) {
+			continue;
+		}
+		if (roster_filter_active &&
+		    !master_tdma_profile_has_bs_code(peers[i].bs_code)) {
 			continue;
 		}
 
@@ -2118,11 +2128,19 @@ static uint8_t ble_data_received(struct bt_nus_client *nus,
 		unsigned int active = 0U;
 		unsigned int generation = 0U;
 		unsigned int live = 0U;
+		int parsed;
 
-		if (sscanf(payload,
-			   "CFG_OK TAG=%u SLOT=%u/%u MASK=0x%X PERIOD=%u ACTIVE=%u GEN=%u LIVE=%u",
-			   &tag, &slot, &slot_count, &slot_mask, &period, &active,
-			   &generation, &live) >= 3) {
+		parsed = sscanf(payload,
+				"CFG_OK TAG=%u SLOT=%u/%u MASK=0x%X PERIOD=%u ACTIVE=%u ACTIVE_US=%*u GEN=%u LIVE=%u",
+				&tag, &slot, &slot_count, &slot_mask, &period, &active,
+				&generation, &live);
+		if (parsed < 3) {
+			parsed = sscanf(payload,
+					"CFG_OK TAG=%u SLOT=%u/%u MASK=0x%X PERIOD=%u ACTIVE=%u GEN=%u LIVE=%u",
+					&tag, &slot, &slot_count, &slot_mask, &period, &active,
+					&generation, &live);
+		}
+		if (parsed >= 3) {
 			peers[idx].logical_tag_id = (uint8_t)tag;
 			peers[idx].logical_tag_id_valid = true;
 			peers[idx].tdma_slot = (uint8_t)slot;

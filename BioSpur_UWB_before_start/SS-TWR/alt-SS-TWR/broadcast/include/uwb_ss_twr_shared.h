@@ -34,12 +34,20 @@
 #define UWB_MSG_POLL_ANCHOR_MASK_IDX 12U
 #define UWB_MSG_ALT_UNICAST_POLL_FRAME_LEN 15U
 
-/* Clean broadcast Alt poll fields. */
+/* Clean broadcast Alt poll fields.
+ * Byte 10 packs low nibble tag id and high nibble responder-rank offset.
+ * Normal/off/full CIR uses offset 0. Compact CIR rotates the offset so the
+ * diagnostic target becomes the final responder without reading diagnostics
+ * inside the RX window.
+ */
 #define UWB_MSG_BCAST_POLL_TAG_ID_IDX 10U
 #define UWB_MSG_BCAST_POLL_ANCHOR_MASK_IDX 11U
 #define UWB_MSG_BCAST_POLL_TX_TS_IDX 12U
 #define UWB_MSG_BCAST_POLL_TX_TS_LEN 5U
 #define UWB_MSG_ALT_BCAST_POLL_FRAME_LEN 17U
+#define UWB_MSG_BCAST_POLL_TAG_ID_MASK 0x0fU
+#define UWB_MSG_BCAST_POLL_RANK_OFFSET_SHIFT 4U
+#define UWB_MSG_BCAST_POLL_RANK_OFFSET_MASK 0xf0U
 
 #define UWB_MSG_ALT_POLL_FRAME_LEN UWB_MSG_ALT_BCAST_POLL_FRAME_LEN
 
@@ -64,6 +72,7 @@ void uwb_ss_twr_build_alt_broadcast_poll_frame(uint8_t *frame, uint8_t seq,
                                                uint16_t src_addr,
                                                uint8_t anchor_mask,
                                                uint8_t tag_id,
+                                               uint8_t rank_offset,
                                                uint64_t poll_tx_ts);
 void uwb_ss_twr_build_resp_frame(uint8_t *frame, uint8_t seq, uint16_t dst_addr,
                                  uint16_t src_addr);
@@ -74,6 +83,7 @@ uint8_t uwb_ss_twr_poll_index(const uint8_t *frame);
 uint8_t uwb_ss_twr_poll_count(const uint8_t *frame);
 uint8_t uwb_ss_twr_poll_anchor_mask(const uint8_t *frame);
 uint8_t uwb_ss_twr_poll_tag_id(const uint8_t *frame);
+uint8_t uwb_ss_twr_poll_rank_offset(const uint8_t *frame);
 uint64_t uwb_ss_twr_poll_tx_ts(const uint8_t *frame);
 bool uwb_ss_twr_poll_matches(const uint8_t *frame, uint16_t local_addr);
 bool uwb_ss_twr_resp_matches(const uint8_t *frame, uint16_t local_addr,

@@ -1,0 +1,730 @@
+[CAPTURE] session_dir=/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/erlangen_20260528_mocap/captures/validation_20260624_recovery/free_TAG4_40HZ_OFF_EPOCH5_CLEANSTART_BSF66F_BS9336_BS955A_BSCCF4_120s_20260624_164316/tag_capture_20260624_164335
+[CAPTURE] raw_log=/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/erlangen_20260528_mocap/captures/validation_20260624_recovery/free_TAG4_40HZ_OFF_EPOCH5_CLEANSTART_BSF66F_BS9336_BS955A_BSCCF4_120s_20260624_164316/tag_capture_20260624_164335/raw.log
+[CAPTURE] plan: targets=BSF66F,BS9336,BS955A,BSCCF4 tr=10Hz duration=120s
+[CAPTURE] open serial: /dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00
+[CAPTURE] drain boot/runtime output
+[HOST_CMD] status
+[HOST_CMD] device show
+[CAPTURE] configure: stop resident/stale Tag ranging before TDMA setup
+[HOST_CMD] cmd_all MODE IDLE
+[CAPTURE] configure: Master_Tag already RECV/tag; skip mode recv clean-slate
+[CAPTURE] configure: preseed TDMA allow-list before tag discovery
+[HOST_CMD] tdma hold 1
+[HOST_CMD] tdma clear
+[HOST_CMD] tdma freq motion 10
+[HOST_CMD] tdma roster BSF66F motion
+[HOST_CMD] tdma roster BS9336 motion
+[HOST_CMD] tdma roster BS955A motion
+[HOST_CMD] tdma roster BSCCF4 motion
+[HOST_CMD] ota_target token -1
+[HOST_CMD] ota_target name -
+[HOST_CMD] ota_target prefix BS
+[HOST_CMD] ota_target uuid -
+[CAPTURE] configure: targeted non-target idle disabled
+[HOST_CMD] ota_target token -1
+[HOST_CMD] ota_target name -
+[HOST_CMD] ota_target prefix BS
+[HOST_CMD] ota_target uuid -
+[CAPTURE] configure: silence resident Tag links for enrollment
+[HOST_CMD] tdma hold 1
+[CAPTURE] configure: skip setup MODE IDLE; TDMA roster/hold controls admission
+[CAPTURE] configure: reassert TDMA target roster
+[HOST_CMD] tdma clear
+[HOST_CMD] tdma freq motion 10
+[HOST_CMD] tdma roster BSF66F motion
+[HOST_CMD] tdma roster BS9336 motion
+[HOST_CMD] tdma roster BS955A motion
+[HOST_CMD] tdma roster BSCCF4 motion
+[HOST_CMD] ota_target token -1
+[HOST_CMD] ota_target name -
+[HOST_CMD] ota_target prefix BS
+[HOST_CMD] ota_target uuid -
+[HOST_CMD] conn
+[CAPTURE] configure: wait for target links
+[CAPTURE] link setup passive initial: wait up to 30s
+[CAPTURE] link setup passive: ready=BS9336,BS955A,BSCCF4,BSF66F (4/4)
+[CAPTURE] link setup passive: all 4/4 ready; settle 8.0s before TDMA release
+[CAPTURE] link setup passive: ready=BS9336,BS955A,BSCCF4,BSF66F (4/4)
+[CAPTURE] configure: stop target Tag ranging before final TDMA release
+[HOST_CMD] cmd_all MODE IDLE
+[CAPTURE] configure: target CIR mode=off
+[HOST_CMD] cmd_all CIR OFF
+[CAPTURE] configure: release TDMA hold and verify TDMA CFG
+[HOST_CMD] tdma hold 0
+[CAPTURE] configure: TDMA CFG apply/check attempt 1/3
+[HOST_CMD] tdma show
+[HOST_CMD] status
+[HOST_CMD] device show
+[CAPTURE] configure: TDMA CFG verified match=true
+[CAPTURE] configure: TDMA ready
+[CAPTURE] TDMA verified; start TR capture
+[CAPTURE] [....................]   0.2% elapsed=0s eta=120s rows=0 row_rate=0.0/s sw=0 ge7=0% ge8=0% BSF66F:rows=0,cfg=10Hz BS9336:rows=0,cfg=10Hz BS955A:rows=0,cfg=10Hz BSCCF4:rows=0,cfg=10Hz
+[CAPTURE] [....................]   1.0% elapsed=1s eta=119s rows=0 row_rate=0.0/s sw=0 ge7=0% ge8=0% BSF66F:rows=0,cfg=10Hz BS9336:rows=0,cfg=10Hz BS955A:rows=0,cfg=10Hz BSCCF4:rows=0,cfg=10Hz
+[CAPTURE] [....................]   1.9% elapsed=2s eta=118s rows=240 row_rate=107.6/s sw=30 ge7=70% ge8=53% BSF66F:rows=56,cfg=10Hz BS9336:rows=64,cfg=10Hz BS955A:rows=64,cfg=10Hz BSCCF4:rows=56,cfg=10Hz
+[CAPTURE] [#...................]   2.7% elapsed=3s eta=117s rows=568 row_rate=175.5/s sw=71 ge7=72% ge8=54% BSF66F:rows=136,cfg=10Hz BS9336:rows=152,cfg=10Hz BS955A:rows=144,cfg=10Hz BSCCF4:rows=136,cfg=10Hz
+[CAPTURE] [#...................]   3.6% elapsed=4s eta=116s rows=896 row_rate=209.8/s sw=112 ge7=75% ge8=55% BSF66F:rows=216,cfg=10Hz BS9336:rows=232,cfg=10Hz BS955A:rows=224,cfg=10Hz BSCCF4:rows=224,cfg=10Hz
+[CAPTURE] [#...................]   4.4% elapsed=5s eta=115s rows=1216 row_rate=229.5/s sw=152 ge7=78% ge8=55% BSF66F:rows=296,cfg=10Hz BS9336:rows=312,cfg=10Hz BS955A:rows=304,cfg=10Hz BSCCF4:rows=304,cfg=10Hz
+[CAPTURE] [#...................]   5.3% elapsed=6s eta=114s rows=1544 row_rate=244.4/s sw=193 ge7=79% ge8=55% BSF66F:rows=384,cfg=10Hz BS9336:rows=392,cfg=10Hz BS955A:rows=384,cfg=10Hz BSCCF4:rows=384,cfg=10Hz
+[CAPTURE] [#...................]   6.1% elapsed=7s eta=113s rows=1872 row_rate=255.0/s sw=234 ge7=79% ge8=57% BSF66F:rows=464,cfg=10Hz BS9336:rows=464,cfg=10Hz BS955A:rows=472,cfg=10Hz BSCCF4:rows=472,cfg=10Hz
+[CAPTURE] [#...................]   7.0% elapsed=8s eta=112s rows=2200 row_rate=263.7/s sw=275 ge7=78% ge8=57% BSF66F:rows=544,cfg=10Hz BS9336:rows=560,cfg=10Hz BS955A:rows=552,cfg=10Hz BSCCF4:rows=544,cfg=10Hz
+[CAPTURE] [##..................]   7.8% elapsed=9s eta=111s rows=2520 row_rate=269.2/s sw=315 ge7=78% ge8=55% BSF66F:rows=624,cfg=10Hz BS9336:rows=632,cfg=10Hz BS955A:rows=632,cfg=10Hz BSCCF4:rows=632,cfg=10Hz
+[CAPTURE] [##..................]   8.6% elapsed=10s eta=110s rows=2848 row_rate=274.5/s sw=356 ge7=78% ge8=55% BSF66F:rows=704,cfg=10Hz BS9336:rows=720,cfg=10Hz BS955A:rows=712,cfg=10Hz BSCCF4:rows=712,cfg=10Hz
+[CAPTURE] [##..................]   9.5% elapsed=11s eta=109s rows=3176 row_rate=278.3/s sw=397 ge7=77% ge8=56% BSF66F:rows=792,cfg=10Hz BS9336:rows=800,cfg=10Hz BS955A:rows=792,cfg=10Hz BSCCF4:rows=792,cfg=10Hz
+[CAPTURE] [##..................]  10.4% elapsed=12s eta=108s rows=3504 row_rate=282.1/s sw=438 ge7=77% ge8=55% BSF66F:rows=872,cfg=10Hz BS9336:rows=880,cfg=10Hz BS955A:rows=880,cfg=10Hz BSCCF4:rows=872,cfg=10Hz
+[CAPTURE] [##..................]  11.2% elapsed=13s eta=107s rows=3824 row_rate=284.5/s sw=478 ge7=77% ge8=55% BSF66F:rows=952,cfg=10Hz BS9336:rows=960,cfg=10Hz BS955A:rows=960,cfg=10Hz BSCCF4:rows=952,cfg=10Hz
+[CAPTURE] [##..................]  12.0% elapsed=14s eta=106s rows=4152 row_rate=287.4/s sw=519 ge7=77% ge8=55% BSF66F:rows=1032,cfg=10Hz BS9336:rows=1048,cfg=10Hz BS955A:rows=1040,cfg=10Hz BSCCF4:rows=1032,cfg=10Hz
+[CAPTURE] [###.................]  12.9% elapsed=15s eta=105s rows=4480 row_rate=289.4/s sw=560 ge7=77% ge8=55% BSF66F:rows=1112,cfg=10Hz BS9336:rows=1128,cfg=10Hz BS955A:rows=1120,cfg=10Hz BSCCF4:rows=1120,cfg=10Hz
+[CAPTURE] [###.................]  13.7% elapsed=16s eta=104s rows=4808 row_rate=291.5/s sw=601 ge7=77% ge8=55% BSF66F:rows=1200,cfg=10Hz BS9336:rows=1200,cfg=10Hz BS955A:rows=1208,cfg=10Hz BSCCF4:rows=1200,cfg=10Hz
+[CAPTURE] [###.................]  14.6% elapsed=18s eta=102s rows=5136 row_rate=293.1/s sw=642 ge7=77% ge8=55% BSF66F:rows=1280,cfg=10Hz BS9336:rows=1288,cfg=10Hz BS955A:rows=1288,cfg=10Hz BSCCF4:rows=1280,cfg=10Hz
+[CAPTURE] [###.................]  15.5% elapsed=19s eta=101s rows=5472 row_rate=294.7/s sw=684 ge7=77% ge8=55% BSF66F:rows=1360,cfg=10Hz BS9336:rows=1376,cfg=10Hz BS955A:rows=1368,cfg=10Hz BSCCF4:rows=1368,cfg=10Hz
+[CAPTURE] [###.................]  16.4% elapsed=20s eta=100s rows=5800 row_rate=295.6/s sw=725 ge7=77% ge8=56% BSF66F:rows=1448,cfg=10Hz BS9336:rows=1448,cfg=10Hz BS955A:rows=1456,cfg=10Hz BSCCF4:rows=1448,cfg=10Hz
+[CAPTURE] [###.................]  17.2% elapsed=21s eta=99s rows=6136 row_rate=297.3/s sw=767 ge7=77% ge8=56% BSF66F:rows=1528,cfg=10Hz BS9336:rows=1536,cfg=10Hz BS955A:rows=1536,cfg=10Hz BSCCF4:rows=1536,cfg=10Hz
+[CAPTURE] [####................]  18.0% elapsed=22s eta=98s rows=6464 row_rate=298.5/s sw=808 ge7=77% ge8=55% BSF66F:rows=1608,cfg=10Hz BS9336:rows=1624,cfg=10Hz BS955A:rows=1616,cfg=10Hz BSCCF4:rows=1616,cfg=10Hz
+[CAPTURE] [####................]  18.9% elapsed=23s eta=97s rows=6784 row_rate=299.1/s sw=848 ge7=77% ge8=56% BSF66F:rows=1688,cfg=10Hz BS9336:rows=1704,cfg=10Hz BS955A:rows=1696,cfg=10Hz BSCCF4:rows=1696,cfg=10Hz
+[CAPTURE] [####................]  19.8% elapsed=24s eta=96s rows=7120 row_rate=300.1/s sw=890 ge7=77% ge8=56% BSF66F:rows=1776,cfg=10Hz BS9336:rows=1784,cfg=10Hz BS955A:rows=1784,cfg=10Hz BSCCF4:rows=1776,cfg=10Hz
+[CAPTURE] [####................]  20.7% elapsed=25s eta=95s rows=7456 row_rate=300.9/s sw=932 ge7=77% ge8=56% BSF66F:rows=1856,cfg=10Hz BS9336:rows=1872,cfg=10Hz BS955A:rows=1864,cfg=10Hz BSCCF4:rows=1864,cfg=10Hz
+[CAPTURE] [####................]  21.5% elapsed=26s eta=94s rows=7784 row_rate=301.6/s sw=973 ge7=78% ge8=56% BSF66F:rows=1944,cfg=10Hz BS9336:rows=1952,cfg=10Hz BS955A:rows=1944,cfg=10Hz BSCCF4:rows=1944,cfg=10Hz
+[CAPTURE] [####................]  22.4% elapsed=27s eta=93s rows=8112 row_rate=302.2/s sw=1014 ge7=78% ge8=56% BSF66F:rows=2024,cfg=10Hz BS9336:rows=2032,cfg=10Hz BS955A:rows=2032,cfg=10Hz BSCCF4:rows=2024,cfg=10Hz
+[CAPTURE] [#####...............]  23.2% elapsed=28s eta=92s rows=8448 row_rate=303.3/s sw=1056 ge7=78% ge8=56% BSF66F:rows=2104,cfg=10Hz BS9336:rows=2120,cfg=10Hz BS955A:rows=2112,cfg=10Hz BSCCF4:rows=2112,cfg=10Hz
+[CAPTURE] [#####...............]  24.1% elapsed=29s eta=91s rows=8776 row_rate=303.7/s sw=1097 ge7=78% ge8=56% BSF66F:rows=2192,cfg=10Hz BS9336:rows=2200,cfg=10Hz BS955A:rows=2192,cfg=10Hz BSCCF4:rows=2192,cfg=10Hz
+[CAPTURE] [#####...............]  24.9% elapsed=30s eta=90s rows=9096 row_rate=303.9/s sw=1137 ge7=78% ge8=56% BSF66F:rows=2272,cfg=10Hz BS9336:rows=2280,cfg=10Hz BS955A:rows=2272,cfg=10Hz BSCCF4:rows=2272,cfg=10Hz
+[CAPTURE] [#####...............]  25.8% elapsed=31s eta=89s rows=9440 row_rate=304.8/s sw=1180 ge7=78% ge8=56% BSF66F:rows=2352,cfg=10Hz BS9336:rows=2368,cfg=10Hz BS955A:rows=2360,cfg=10Hz BSCCF4:rows=2360,cfg=10Hz
+[CAPTURE] [#####...............]  26.7% elapsed=32s eta=88s rows=9768 row_rate=305.4/s sw=1221 ge7=78% ge8=56% BSF66F:rows=2440,cfg=10Hz BS9336:rows=2448,cfg=10Hz BS955A:rows=2440,cfg=10Hz BSCCF4:rows=2440,cfg=10Hz
+[CAPTURE] [######..............]  27.5% elapsed=33s eta=87s rows=10088 row_rate=305.6/s sw=1261 ge7=78% ge8=56% BSF66F:rows=2520,cfg=10Hz BS9336:rows=2528,cfg=10Hz BS955A:rows=2520,cfg=10Hz BSCCF4:rows=2520,cfg=10Hz
+[CAPTURE] [######..............]  28.4% elapsed=34s eta=86s rows=10424 row_rate=305.8/s sw=1303 ge7=78% ge8=56% BSF66F:rows=2600,cfg=10Hz BS9336:rows=2616,cfg=10Hz BS955A:rows=2608,cfg=10Hz BSCCF4:rows=2600,cfg=10Hz
+[CAPTURE] [######..............]  29.3% elapsed=35s eta=85s rows=10760 row_rate=306.5/s sw=1345 ge7=78% ge8=56% BSF66F:rows=2688,cfg=10Hz BS9336:rows=2696,cfg=10Hz BS955A:rows=2688,cfg=10Hz BSCCF4:rows=2688,cfg=10Hz
+[CAPTURE] [######..............]  30.1% elapsed=36s eta=84s rows=11088 row_rate=307.0/s sw=1386 ge7=78% ge8=56% BSF66F:rows=2768,cfg=10Hz BS9336:rows=2776,cfg=10Hz BS955A:rows=2776,cfg=10Hz BSCCF4:rows=2768,cfg=10Hz
+[CAPTURE] [######..............]  30.9% elapsed=37s eta=83s rows=11408 row_rate=307.2/s sw=1426 ge7=77% ge8=56% BSF66F:rows=2848,cfg=10Hz BS9336:rows=2856,cfg=10Hz BS955A:rows=2856,cfg=10Hz BSCCF4:rows=2848,cfg=10Hz
+[CAPTURE] [######..............]  31.8% elapsed=38s eta=82s rows=11744 row_rate=307.6/s sw=1468 ge7=78% ge8=56% BSF66F:rows=2928,cfg=10Hz BS9336:rows=2944,cfg=10Hz BS955A:rows=2936,cfg=10Hz BSCCF4:rows=2936,cfg=10Hz
+[CAPTURE] [#######.............]  32.7% elapsed=39s eta=81s rows=12072 row_rate=308.0/s sw=1509 ge7=77% ge8=56% BSF66F:rows=3016,cfg=10Hz BS9336:rows=3024,cfg=10Hz BS955A:rows=3016,cfg=10Hz BSCCF4:rows=3016,cfg=10Hz
+[CAPTURE] [#######.............]  33.5% elapsed=40s eta=80s rows=12400 row_rate=308.3/s sw=1550 ge7=78% ge8=56% BSF66F:rows=3096,cfg=10Hz BS9336:rows=3104,cfg=10Hz BS955A:rows=3104,cfg=10Hz BSCCF4:rows=3096,cfg=10Hz
+[CAPTURE] [#######.............]  34.4% elapsed=41s eta=79s rows=12728 row_rate=308.3/s sw=1591 ge7=78% ge8=57% BSF66F:rows=3176,cfg=10Hz BS9336:rows=3192,cfg=10Hz BS955A:rows=3184,cfg=10Hz BSCCF4:rows=3176,cfg=10Hz
+[CAPTURE] [#######.............]  35.3% elapsed=42s eta=78s rows=13072 row_rate=308.9/s sw=1634 ge7=78% ge8=57% BSF66F:rows=3264,cfg=10Hz BS9336:rows=3272,cfg=10Hz BS955A:rows=3272,cfg=10Hz BSCCF4:rows=3264,cfg=10Hz
+[CAPTURE] [#######.............]  36.1% elapsed=43s eta=77s rows=13400 row_rate=309.2/s sw=1675 ge7=78% ge8=57% BSF66F:rows=3344,cfg=10Hz BS9336:rows=3352,cfg=10Hz BS955A:rows=3352,cfg=10Hz BSCCF4:rows=3352,cfg=10Hz
+[CAPTURE] [#######.............]  37.0% elapsed=44s eta=76s rows=13736 row_rate=309.4/s sw=1717 ge7=78% ge8=56% BSF66F:rows=3432,cfg=10Hz BS9336:rows=3440,cfg=10Hz BS955A:rows=3432,cfg=10Hz BSCCF4:rows=3432,cfg=10Hz
+[CAPTURE] [########............]  37.9% elapsed=45s eta=75s rows=14072 row_rate=309.7/s sw=1759 ge7=78% ge8=56% BSF66F:rows=3512,cfg=10Hz BS9336:rows=3528,cfg=10Hz BS955A:rows=3520,cfg=10Hz BSCCF4:rows=3512,cfg=10Hz
+[CAPTURE] [########............]  38.7% elapsed=46s eta=74s rows=14392 row_rate=309.8/s sw=1799 ge7=78% ge8=56% BSF66F:rows=3592,cfg=10Hz BS9336:rows=3608,cfg=10Hz BS955A:rows=3600,cfg=10Hz BSCCF4:rows=3592,cfg=10Hz
+[CAPTURE] [########............]  39.6% elapsed=48s eta=72s rows=14736 row_rate=310.1/s sw=1842 ge7=78% ge8=56% BSF66F:rows=3680,cfg=10Hz BS9336:rows=3688,cfg=10Hz BS955A:rows=3688,cfg=10Hz BSCCF4:rows=3680,cfg=10Hz
+[CAPTURE] [########............]  40.5% elapsed=49s eta=71s rows=15072 row_rate=310.4/s sw=1884 ge7=78% ge8=56% BSF66F:rows=3760,cfg=10Hz BS9336:rows=3776,cfg=10Hz BS955A:rows=3768,cfg=10Hz BSCCF4:rows=3768,cfg=10Hz
+[CAPTURE] [########............]  41.3% elapsed=50s eta=70s rows=15408 row_rate=310.6/s sw=1926 ge7=78% ge8=56% BSF66F:rows=3848,cfg=10Hz BS9336:rows=3856,cfg=10Hz BS955A:rows=3856,cfg=10Hz BSCCF4:rows=3848,cfg=10Hz
+[CAPTURE] [########............]  42.2% elapsed=51s eta=69s rows=15728 row_rate=310.6/s sw=1966 ge7=78% ge8=56% BSF66F:rows=3928,cfg=10Hz BS9336:rows=3936,cfg=10Hz BS955A:rows=3936,cfg=10Hz BSCCF4:rows=3928,cfg=10Hz
+[CAPTURE] [#########...........]  43.1% elapsed=52s eta=68s rows=16072 row_rate=310.7/s sw=2009 ge7=78% ge8=56% BSF66F:rows=4016,cfg=10Hz BS9336:rows=4024,cfg=10Hz BS955A:rows=4016,cfg=10Hz BSCCF4:rows=4016,cfg=10Hz
+[CAPTURE] [#########...........]  44.0% elapsed=53s eta=67s rows=16416 row_rate=310.9/s sw=2052 ge7=78% ge8=56% BSF66F:rows=4104,cfg=10Hz BS9336:rows=4112,cfg=10Hz BS955A:rows=4104,cfg=10Hz BSCCF4:rows=4096,cfg=10Hz
+[CAPTURE] [#########...........]  44.9% elapsed=54s eta=66s rows=16752 row_rate=311.2/s sw=2094 ge7=79% ge8=56% BSF66F:rows=4184,cfg=10Hz BS9336:rows=4192,cfg=10Hz BS955A:rows=4192,cfg=10Hz BSCCF4:rows=4184,cfg=10Hz
+[CAPTURE] [#########...........]  45.7% elapsed=55s eta=65s rows=17088 row_rate=311.4/s sw=2136 ge7=79% ge8=56% BSF66F:rows=4264,cfg=10Hz BS9336:rows=4280,cfg=10Hz BS955A:rows=4272,cfg=10Hz BSCCF4:rows=4272,cfg=10Hz
+[CAPTURE] [#########...........]  46.6% elapsed=56s eta=64s rows=17416 row_rate=311.5/s sw=2177 ge7=79% ge8=56% BSF66F:rows=4352,cfg=10Hz BS9336:rows=4360,cfg=10Hz BS955A:rows=4352,cfg=10Hz BSCCF4:rows=4352,cfg=10Hz
+[CAPTURE] [#########...........]  47.5% elapsed=57s eta=63s rows=17760 row_rate=311.8/s sw=2220 ge7=79% ge8=56% BSF66F:rows=4432,cfg=10Hz BS9336:rows=4448,cfg=10Hz BS955A:rows=4440,cfg=10Hz BSCCF4:rows=4440,cfg=10Hz
+[CAPTURE] [##########..........]  48.3% elapsed=58s eta=62s rows=18088 row_rate=311.8/s sw=2261 ge7=79% ge8=56% BSF66F:rows=4520,cfg=10Hz BS9336:rows=4528,cfg=10Hz BS955A:rows=4520,cfg=10Hz BSCCF4:rows=4520,cfg=10Hz
+[CAPTURE] [##########..........]  49.2% elapsed=59s eta=61s rows=18416 row_rate=312.0/s sw=2302 ge7=79% ge8=56% BSF66F:rows=4600,cfg=10Hz BS9336:rows=4608,cfg=10Hz BS955A:rows=4600,cfg=10Hz BSCCF4:rows=4608,cfg=10Hz
+[CAPTURE] [##########..........]  50.1% elapsed=60s eta=60s rows=18752 row_rate=312.0/s sw=2344 ge7=79% ge8=56% BSF66F:rows=4688,cfg=10Hz BS9336:rows=4688,cfg=10Hz BS955A:rows=4688,cfg=10Hz BSCCF4:rows=4688,cfg=10Hz
+[CAPTURE] [##########..........]  50.9% elapsed=61s eta=59s rows=19088 row_rate=312.2/s sw=2386 ge7=79% ge8=56% BSF66F:rows=4768,cfg=10Hz BS9336:rows=4776,cfg=10Hz BS955A:rows=4776,cfg=10Hz BSCCF4:rows=4768,cfg=10Hz
+[CAPTURE] [##########..........]  51.8% elapsed=62s eta=58s rows=19416 row_rate=312.3/s sw=2427 ge7=79% ge8=56% BSF66F:rows=4848,cfg=10Hz BS9336:rows=4864,cfg=10Hz BS955A:rows=4856,cfg=10Hz BSCCF4:rows=4848,cfg=10Hz
+[CAPTURE] [###########.........]  52.7% elapsed=63s eta=57s rows=19760 row_rate=312.4/s sw=2470 ge7=79% ge8=56% BSF66F:rows=4936,cfg=10Hz BS9336:rows=4944,cfg=10Hz BS955A:rows=4944,cfg=10Hz BSCCF4:rows=4936,cfg=10Hz
+[CAPTURE] [###########.........]  53.6% elapsed=64s eta=56s rows=20112 row_rate=312.7/s sw=2514 ge7=79% ge8=56% BSF66F:rows=5024,cfg=10Hz BS9336:rows=5032,cfg=10Hz BS955A:rows=5032,cfg=10Hz BSCCF4:rows=5024,cfg=10Hz
+[CAPTURE] [###########.........]  54.5% elapsed=65s eta=55s rows=20448 row_rate=312.7/s sw=2556 ge7=79% ge8=56% BSF66F:rows=5104,cfg=10Hz BS9336:rows=5120,cfg=10Hz BS955A:rows=5112,cfg=10Hz BSCCF4:rows=5112,cfg=10Hz
+[CAPTURE] [###########.........]  55.4% elapsed=66s eta=54s rows=20800 row_rate=313.1/s sw=2600 ge7=79% ge8=56% BSF66F:rows=5192,cfg=10Hz BS9336:rows=5208,cfg=10Hz BS955A:rows=5200,cfg=10Hz BSCCF4:rows=5200,cfg=10Hz
+[CAPTURE] [###########.........]  56.2% elapsed=67s eta=53s rows=21120 row_rate=312.9/s sw=2640 ge7=79% ge8=57% BSF66F:rows=5272,cfg=10Hz BS9336:rows=5288,cfg=10Hz BS955A:rows=5280,cfg=10Hz BSCCF4:rows=5280,cfg=10Hz
+[CAPTURE] [###########.........]  57.1% elapsed=69s eta=51s rows=21464 row_rate=313.2/s sw=2683 ge7=79% ge8=57% BSF66F:rows=5360,cfg=10Hz BS9336:rows=5368,cfg=10Hz BS955A:rows=5368,cfg=10Hz BSCCF4:rows=5368,cfg=10Hz
+[CAPTURE] [############........]  58.0% elapsed=70s eta=50s rows=21792 row_rate=313.2/s sw=2724 ge7=80% ge8=57% BSF66F:rows=5440,cfg=10Hz BS9336:rows=5456,cfg=10Hz BS955A:rows=5448,cfg=10Hz BSCCF4:rows=5448,cfg=10Hz
+[CAPTURE] [############........]  58.9% elapsed=71s eta=49s rows=22136 row_rate=313.3/s sw=2767 ge7=80% ge8=57% BSF66F:rows=5528,cfg=10Hz BS9336:rows=5536,cfg=10Hz BS955A:rows=5536,cfg=10Hz BSCCF4:rows=5536,cfg=10Hz
+[CAPTURE] [############........]  59.8% elapsed=72s eta=48s rows=22480 row_rate=313.4/s sw=2810 ge7=80% ge8=57% BSF66F:rows=5616,cfg=10Hz BS9336:rows=5624,cfg=10Hz BS955A:rows=5624,cfg=10Hz BSCCF4:rows=5616,cfg=10Hz
+[CAPTURE] [############........]  60.6% elapsed=73s eta=47s rows=22824 row_rate=313.6/s sw=2853 ge7=80% ge8=57% BSF66F:rows=5696,cfg=10Hz BS9336:rows=5720,cfg=10Hz BS955A:rows=5704,cfg=10Hz BSCCF4:rows=5704,cfg=10Hz
+[CAPTURE] [############........]  61.5% elapsed=74s eta=46s rows=23152 row_rate=313.7/s sw=2894 ge7=80% ge8=57% BSF66F:rows=5784,cfg=10Hz BS9336:rows=5792,cfg=10Hz BS955A:rows=5792,cfg=10Hz BSCCF4:rows=5784,cfg=10Hz
+[CAPTURE] [############........]  62.4% elapsed=75s eta=45s rows=23480 row_rate=313.7/s sw=2935 ge7=80% ge8=57% BSF66F:rows=5864,cfg=10Hz BS9336:rows=5880,cfg=10Hz BS955A:rows=5872,cfg=10Hz BSCCF4:rows=5864,cfg=10Hz
+[CAPTURE] [#############.......]  63.3% elapsed=76s eta=44s rows=23816 row_rate=313.8/s sw=2977 ge7=80% ge8=57% BSF66F:rows=5952,cfg=10Hz BS9336:rows=5960,cfg=10Hz BS955A:rows=5952,cfg=10Hz BSCCF4:rows=5952,cfg=10Hz
+[CAPTURE] [#############.......]  64.1% elapsed=77s eta=43s rows=24144 row_rate=313.8/s sw=3018 ge7=80% ge8=57% BSF66F:rows=6032,cfg=10Hz BS9336:rows=6040,cfg=10Hz BS955A:rows=6040,cfg=10Hz BSCCF4:rows=6032,cfg=10Hz
+[CAPTURE] [#############.......]  65.0% elapsed=78s eta=42s rows=24488 row_rate=313.9/s sw=3061 ge7=80% ge8=57% BSF66F:rows=6120,cfg=10Hz BS9336:rows=6128,cfg=10Hz BS955A:rows=6120,cfg=10Hz BSCCF4:rows=6120,cfg=10Hz
+[CAPTURE] [#############.......]  65.9% elapsed=79s eta=41s rows=24824 row_rate=313.9/s sw=3103 ge7=80% ge8=57% BSF66F:rows=6200,cfg=10Hz BS9336:rows=6208,cfg=10Hz BS955A:rows=6208,cfg=10Hz BSCCF4:rows=6208,cfg=10Hz
+[CAPTURE] [#############.......]  66.8% elapsed=80s eta=40s rows=25168 row_rate=314.1/s sw=3146 ge7=80% ge8=57% BSF66F:rows=6288,cfg=10Hz BS9336:rows=6296,cfg=10Hz BS955A:rows=6296,cfg=10Hz BSCCF4:rows=6288,cfg=10Hz
+[CAPTURE] [##############......]  67.6% elapsed=81s eta=39s rows=25504 row_rate=314.2/s sw=3188 ge7=80% ge8=57% BSF66F:rows=6368,cfg=10Hz BS9336:rows=6384,cfg=10Hz BS955A:rows=6376,cfg=10Hz BSCCF4:rows=6376,cfg=10Hz
+[CAPTURE] [##############......]  68.5% elapsed=82s eta=38s rows=25832 row_rate=314.2/s sw=3229 ge7=80% ge8=57% BSF66F:rows=6456,cfg=10Hz BS9336:rows=6464,cfg=10Hz BS955A:rows=6456,cfg=10Hz BSCCF4:rows=6456,cfg=10Hz
+[CAPTURE] [##############......]  69.4% elapsed=83s eta=37s rows=26168 row_rate=314.4/s sw=3271 ge7=81% ge8=57% BSF66F:rows=6536,cfg=10Hz BS9336:rows=6552,cfg=10Hz BS955A:rows=6544,cfg=10Hz BSCCF4:rows=6536,cfg=10Hz
+[CAPTURE] [##############......]  70.2% elapsed=84s eta=36s rows=26504 row_rate=314.4/s sw=3313 ge7=81% ge8=57% BSF66F:rows=6624,cfg=10Hz BS9336:rows=6632,cfg=10Hz BS955A:rows=6624,cfg=10Hz BSCCF4:rows=6624,cfg=10Hz
+[CAPTURE] [##############......]  71.1% elapsed=85s eta=35s rows=26840 row_rate=314.4/s sw=3355 ge7=81% ge8=57% BSF66F:rows=6704,cfg=10Hz BS9336:rows=6720,cfg=10Hz BS955A:rows=6712,cfg=10Hz BSCCF4:rows=6704,cfg=10Hz
+[CAPTURE] [##############......]  72.0% elapsed=86s eta=34s rows=27176 row_rate=314.6/s sw=3397 ge7=81% ge8=57% BSF66F:rows=6792,cfg=10Hz BS9336:rows=6800,cfg=10Hz BS955A:rows=6792,cfg=10Hz BSCCF4:rows=6792,cfg=10Hz
+[CAPTURE] [###############.....]  72.9% elapsed=87s eta=33s rows=27504 row_rate=314.6/s sw=3438 ge7=81% ge8=57% BSF66F:rows=6872,cfg=10Hz BS9336:rows=6880,cfg=10Hz BS955A:rows=6880,cfg=10Hz BSCCF4:rows=6872,cfg=10Hz
+[CAPTURE] [###############.....]  73.7% elapsed=88s eta=32s rows=27832 row_rate=314.6/s sw=3479 ge7=81% ge8=58% BSF66F:rows=6952,cfg=10Hz BS9336:rows=6960,cfg=10Hz BS955A:rows=6960,cfg=10Hz BSCCF4:rows=6960,cfg=10Hz
+[CAPTURE] [###############.....]  74.6% elapsed=90s eta=30s rows=28168 row_rate=314.7/s sw=3521 ge7=81% ge8=58% BSF66F:rows=7032,cfg=10Hz BS9336:rows=7048,cfg=10Hz BS955A:rows=7048,cfg=10Hz BSCCF4:rows=7040,cfg=10Hz
+[CAPTURE] [###############.....]  75.5% elapsed=91s eta=29s rows=28512 row_rate=314.8/s sw=3564 ge7=81% ge8=58% BSF66F:rows=7120,cfg=10Hz BS9336:rows=7136,cfg=10Hz BS955A:rows=7128,cfg=10Hz BSCCF4:rows=7128,cfg=10Hz
+[CAPTURE] [###############.....]  76.3% elapsed=92s eta=28s rows=28848 row_rate=314.9/s sw=3606 ge7=81% ge8=58% BSF66F:rows=7208,cfg=10Hz BS9336:rows=7216,cfg=10Hz BS955A:rows=7216,cfg=10Hz BSCCF4:rows=7208,cfg=10Hz
+[CAPTURE] [###############.....]  77.2% elapsed=93s eta=27s rows=29192 row_rate=314.9/s sw=3649 ge7=81% ge8=58% BSF66F:rows=7296,cfg=10Hz BS9336:rows=7304,cfg=10Hz BS955A:rows=7296,cfg=10Hz BSCCF4:rows=7296,cfg=10Hz
+[CAPTURE] [################....]  78.1% elapsed=94s eta=26s rows=29536 row_rate=315.0/s sw=3692 ge7=81% ge8=58% BSF66F:rows=7376,cfg=10Hz BS9336:rows=7392,cfg=10Hz BS955A:rows=7384,cfg=10Hz BSCCF4:rows=7384,cfg=10Hz
+[CAPTURE] [################....]  79.0% elapsed=95s eta=25s rows=29872 row_rate=315.1/s sw=3734 ge7=81% ge8=58% BSF66F:rows=7464,cfg=10Hz BS9336:rows=7472,cfg=10Hz BS955A:rows=7472,cfg=10Hz BSCCF4:rows=7464,cfg=10Hz
+[CAPTURE] [################....]  79.9% elapsed=96s eta=24s rows=30208 row_rate=315.1/s sw=3776 ge7=81% ge8=58% BSF66F:rows=7544,cfg=10Hz BS9336:rows=7560,cfg=10Hz BS955A:rows=7552,cfg=10Hz BSCCF4:rows=7552,cfg=10Hz
+[CAPTURE] [################....]  80.8% elapsed=97s eta=23s rows=30544 row_rate=315.1/s sw=3818 ge7=81% ge8=58% BSF66F:rows=7632,cfg=10Hz BS9336:rows=7640,cfg=10Hz BS955A:rows=7640,cfg=10Hz BSCCF4:rows=7632,cfg=10Hz
+[CAPTURE] [################....]  81.6% elapsed=98s eta=22s rows=30880 row_rate=315.2/s sw=3860 ge7=82% ge8=58% BSF66F:rows=7712,cfg=10Hz BS9336:rows=7728,cfg=10Hz BS955A:rows=7720,cfg=10Hz BSCCF4:rows=7720,cfg=10Hz
+[CAPTURE] [#################...]  82.5% elapsed=99s eta=21s rows=31224 row_rate=315.2/s sw=3903 ge7=82% ge8=58% BSF66F:rows=7800,cfg=10Hz BS9336:rows=7816,cfg=10Hz BS955A:rows=7808,cfg=10Hz BSCCF4:rows=7800,cfg=10Hz
+[CAPTURE] [#################...]  83.4% elapsed=100s eta=20s rows=31560 row_rate=315.3/s sw=3945 ge7=82% ge8=58% BSF66F:rows=7888,cfg=10Hz BS9336:rows=7896,cfg=10Hz BS955A:rows=7888,cfg=10Hz BSCCF4:rows=7888,cfg=10Hz
+[CAPTURE] [#################...]  84.3% elapsed=101s eta=19s rows=31904 row_rate=315.4/s sw=3988 ge7=82% ge8=58% BSF66F:rows=7968,cfg=10Hz BS9336:rows=7984,cfg=10Hz BS955A:rows=7976,cfg=10Hz BSCCF4:rows=7976,cfg=10Hz
+[CAPTURE] [#################...]  85.2% elapsed=102s eta=18s rows=32232 row_rate=315.4/s sw=4029 ge7=82% ge8=58% BSF66F:rows=8056,cfg=10Hz BS9336:rows=8064,cfg=10Hz BS955A:rows=8056,cfg=10Hz BSCCF4:rows=8056,cfg=10Hz
+[CAPTURE] [#################...]  86.1% elapsed=103s eta=17s rows=32576 row_rate=315.4/s sw=4072 ge7=82% ge8=58% BSF66F:rows=8136,cfg=10Hz BS9336:rows=8152,cfg=10Hz BS955A:rows=8144,cfg=10Hz BSCCF4:rows=8144,cfg=10Hz
+[CAPTURE] [#################...]  86.9% elapsed=104s eta=16s rows=32912 row_rate=315.5/s sw=4114 ge7=82% ge8=58% BSF66F:rows=8224,cfg=10Hz BS9336:rows=8232,cfg=10Hz BS955A:rows=8232,cfg=10Hz BSCCF4:rows=8224,cfg=10Hz
+[CAPTURE] [##################..]  87.8% elapsed=105s eta=15s rows=33256 row_rate=315.5/s sw=4157 ge7=82% ge8=58% BSF66F:rows=8312,cfg=10Hz BS9336:rows=8320,cfg=10Hz BS955A:rows=8320,cfg=10Hz BSCCF4:rows=8304,cfg=10Hz
+[CAPTURE] [##################..]  88.7% elapsed=106s eta=14s rows=33584 row_rate=315.5/s sw=4198 ge7=82% ge8=58% BSF66F:rows=8392,cfg=10Hz BS9336:rows=8400,cfg=10Hz BS955A:rows=8400,cfg=10Hz BSCCF4:rows=8392,cfg=10Hz
+[CAPTURE] [##################..]  89.6% elapsed=108s eta=12s rows=33928 row_rate=315.5/s sw=4241 ge7=82% ge8=57% BSF66F:rows=8480,cfg=10Hz BS9336:rows=8488,cfg=10Hz BS955A:rows=8480,cfg=10Hz BSCCF4:rows=8480,cfg=10Hz
+[CAPTURE] [##################..]  90.5% elapsed=109s eta=11s rows=34272 row_rate=315.6/s sw=4284 ge7=82% ge8=57% BSF66F:rows=8568,cfg=10Hz BS9336:rows=8568,cfg=10Hz BS955A:rows=8568,cfg=10Hz BSCCF4:rows=8568,cfg=10Hz
+[CAPTURE] [##################..]  91.4% elapsed=110s eta=10s rows=34616 row_rate=315.6/s sw=4327 ge7=82% ge8=57% BSF66F:rows=8648,cfg=10Hz BS9336:rows=8656,cfg=10Hz BS955A:rows=8656,cfg=10Hz BSCCF4:rows=8656,cfg=10Hz
+[CAPTURE] [##################..]  92.3% elapsed=111s eta=9s rows=34968 row_rate=315.7/s sw=4371 ge7=82% ge8=57% BSF66F:rows=8736,cfg=10Hz BS9336:rows=8744,cfg=10Hz BS955A:rows=8744,cfg=10Hz BSCCF4:rows=8744,cfg=10Hz
+[CAPTURE] [###################.]  93.2% elapsed=112s eta=8s rows=35312 row_rate=315.7/s sw=4414 ge7=82% ge8=57% BSF66F:rows=8824,cfg=10Hz BS9336:rows=8832,cfg=10Hz BS955A:rows=8832,cfg=10Hz BSCCF4:rows=8824,cfg=10Hz
+[CAPTURE] [###################.]  94.1% elapsed=113s eta=7s rows=35656 row_rate=315.7/s sw=4457 ge7=82% ge8=57% BSF66F:rows=8912,cfg=10Hz BS9336:rows=8920,cfg=10Hz BS955A:rows=8912,cfg=10Hz BSCCF4:rows=8912,cfg=10Hz
+[CAPTURE] [###################.]  95.0% elapsed=114s eta=6s rows=36000 row_rate=315.8/s sw=4500 ge7=82% ge8=57% BSF66F:rows=8992,cfg=10Hz BS9336:rows=9008,cfg=10Hz BS955A:rows=9000,cfg=10Hz BSCCF4:rows=9000,cfg=10Hz
+[CAPTURE] [###################.]  95.9% elapsed=115s eta=5s rows=36344 row_rate=315.8/s sw=4543 ge7=82% ge8=57% BSF66F:rows=9080,cfg=10Hz BS9336:rows=9088,cfg=10Hz BS955A:rows=9088,cfg=10Hz BSCCF4:rows=9088,cfg=10Hz
+[CAPTURE] [###################.]  96.8% elapsed=116s eta=4s rows=36688 row_rate=315.8/s sw=4586 ge7=82% ge8=57% BSF66F:rows=9168,cfg=10Hz BS9336:rows=9176,cfg=10Hz BS955A:rows=9176,cfg=10Hz BSCCF4:rows=9168,cfg=10Hz
+[CAPTURE] [####################]  97.7% elapsed=117s eta=3s rows=37040 row_rate=315.9/s sw=4630 ge7=82% ge8=57% BSF66F:rows=9256,cfg=10Hz BS9336:rows=9264,cfg=10Hz BS955A:rows=9264,cfg=10Hz BSCCF4:rows=9256,cfg=10Hz
+[CAPTURE] [####################]  98.6% elapsed=118s eta=2s rows=37392 row_rate=316.0/s sw=4674 ge7=82% ge8=57% BSF66F:rows=9344,cfg=10Hz BS9336:rows=9352,cfg=10Hz BS955A:rows=9352,cfg=10Hz BSCCF4:rows=9344,cfg=10Hz
+[CAPTURE] [####################]  99.5% elapsed=119s eta=1s rows=37736 row_rate=316.0/s sw=4717 ge7=83% ge8=58% BSF66F:rows=9432,cfg=10Hz BS9336:rows=9440,cfg=10Hz BS955A:rows=9432,cfg=10Hz BSCCF4:rows=9432,cfg=10Hz
+[CAPTURE] cleanup: stopping all tag ranging with cmd_all MODE IDLE
+[HOST_CMD] cmd_all MODE IDLE
+[CAPTURE] cleanup: all tags quiet after MODE IDLE
+{
+  "success": true,
+  "interrupted": false,
+  "startup_failed": false,
+  "startup_fail_targets": [],
+  "controller_lost": false,
+  "no_tr_timeout": false,
+  "controller_recovery_attempts": 0,
+  "controller_recovery_successes": 0,
+  "tdma_config_failed": false,
+  "tdma_config_check": {
+    "match": true,
+    "per_target": {
+      "BSF66F": {
+        "bs": "BSF66F",
+        "match": true,
+        "mismatches": [],
+        "warnings": [],
+        "expected": {
+          "tag_id": 4,
+          "slot": 3,
+          "count": 12,
+          "mask": 2184,
+          "mask_hex": "0x0888",
+          "period_ms": 25,
+          "active_ms": 25,
+          "active_us": 0,
+          "generation": 5,
+          "pmode": 0
+        },
+        "actual": {
+          "tag_id": 4,
+          "slot": 3,
+          "count": 12,
+          "mask": 2184,
+          "mask_hex": "0x0888",
+          "period_ms": 25,
+          "active_ms": 25,
+          "active_us": 0,
+          "generation": 5,
+          "live": 1
+        },
+        "actual_cfg_hz": 10.0,
+        "scheduler": {
+          "profile": "motion",
+          "target_hz": 10,
+          "mask": 2184,
+          "mask_hex": "0x0888",
+          "slots": 3,
+          "count": 12,
+          "actual_x100": 1000,
+          "actual_hz": 10.0
+        },
+        "expected_pmode": 0,
+        "expected_freq_hz": 10
+      },
+      "BS9336": {
+        "bs": "BS9336",
+        "match": true,
+        "mismatches": [],
+        "warnings": [],
+        "expected": {
+          "tag_id": 1,
+          "slot": 0,
+          "count": 12,
+          "mask": 273,
+          "mask_hex": "0x0111",
+          "period_ms": 25,
+          "active_ms": 25,
+          "active_us": 0,
+          "generation": 5,
+          "pmode": 0
+        },
+        "actual": {
+          "tag_id": 1,
+          "slot": 0,
+          "count": 12,
+          "mask": 273,
+          "mask_hex": "0x0111",
+          "period_ms": 25,
+          "active_ms": 25,
+          "active_us": 0,
+          "generation": 5,
+          "live": 1
+        },
+        "actual_cfg_hz": 10.0,
+        "scheduler": {
+          "profile": "motion",
+          "target_hz": 10,
+          "mask": 273,
+          "mask_hex": "0x0111",
+          "slots": 3,
+          "count": 12,
+          "actual_x100": 1000,
+          "actual_hz": 10.0
+        },
+        "expected_pmode": 0,
+        "expected_freq_hz": 10
+      },
+      "BS955A": {
+        "bs": "BS955A",
+        "match": true,
+        "mismatches": [],
+        "warnings": [],
+        "expected": {
+          "tag_id": 2,
+          "slot": 1,
+          "count": 12,
+          "mask": 546,
+          "mask_hex": "0x0222",
+          "period_ms": 25,
+          "active_ms": 25,
+          "active_us": 0,
+          "generation": 5,
+          "pmode": 0
+        },
+        "actual": {
+          "tag_id": 2,
+          "slot": 1,
+          "count": 12,
+          "mask": 546,
+          "mask_hex": "0x0222",
+          "period_ms": 25,
+          "active_ms": 25,
+          "active_us": 0,
+          "generation": 5,
+          "live": 1
+        },
+        "actual_cfg_hz": 10.0,
+        "scheduler": {
+          "profile": "motion",
+          "target_hz": 10,
+          "mask": 546,
+          "mask_hex": "0x0222",
+          "slots": 3,
+          "count": 12,
+          "actual_x100": 1000,
+          "actual_hz": 10.0
+        },
+        "expected_pmode": 0,
+        "expected_freq_hz": 10
+      },
+      "BSCCF4": {
+        "bs": "BSCCF4",
+        "match": true,
+        "mismatches": [],
+        "warnings": [],
+        "expected": {
+          "tag_id": 3,
+          "slot": 2,
+          "count": 12,
+          "mask": 1092,
+          "mask_hex": "0x0444",
+          "period_ms": 25,
+          "active_ms": 25,
+          "active_us": 0,
+          "generation": 5,
+          "pmode": 0
+        },
+        "actual": {
+          "tag_id": 3,
+          "slot": 2,
+          "count": 12,
+          "mask": 1092,
+          "mask_hex": "0x0444",
+          "period_ms": 25,
+          "active_ms": 25,
+          "active_us": 0,
+          "generation": 5,
+          "live": 1
+        },
+        "actual_cfg_hz": 10.0,
+        "scheduler": {
+          "profile": "motion",
+          "target_hz": 10,
+          "mask": 1092,
+          "mask_hex": "0x0444",
+          "slots": 3,
+          "count": 12,
+          "actual_x100": 1000,
+          "actual_hz": 10.0
+        },
+        "expected_pmode": 0,
+        "expected_freq_hz": 10
+      }
+    },
+    "duplicate_identities": []
+  },
+  "anchor_preflight": {
+    "skipped": true,
+    "success": true
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "command": "cmd_all MODE IDLE",
+    "error": "",
+    "stop_notify_rows": 0,
+    "stop_verify_s": 3.0
+  },
+  "tag_cir": "off",
+  "tag_cir_range_phase": "off",
+  "cir_full_phase": {
+    "requested": "off",
+    "attempted": false,
+    "reason": "not_full"
+  },
+  "port": "/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00",
+  "duration_s": 120.0,
+  "elapsed_s": 163.5344042778015,
+  "session_dir": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/erlangen_20260528_mocap/captures/validation_20260624_recovery/free_TAG4_40HZ_OFF_EPOCH5_CLEANSTART_BSF66F_BS9336_BS955A_BSCCF4_120s_20260624_164316/tag_capture_20260624_164335",
+  "targets": [
+    "BSF66F",
+    "BS9336",
+    "BS955A",
+    "BSCCF4"
+  ],
+  "expected_pmode": {
+    "BSF66F": 0,
+    "BS9336": 0,
+    "BS955A": 0,
+    "BSCCF4": 0
+  },
+  "expected_freq_hz": {
+    "BSF66F": 10,
+    "BS9336": 10,
+    "BS955A": 10,
+    "BSCCF4": 10
+  },
+  "skipped_before_target_pmode": 0,
+  "freq_hz": {
+    "tr": 10
+  },
+  "tr_all": 37936,
+  "tr_valid_all": 31963,
+  "sweep_validity_all": {
+    "sweeps_total": 4742,
+    "sweeps_with_any_valid": 4291,
+    "sweeps_ge4": 4222,
+    "sweeps_ge7": 3915,
+    "sweeps_ge8": 2729,
+    "ratio_ge4": 0.890342,
+    "ratio_ge7": 0.825601,
+    "ratio_ge8": 0.575496,
+    "valid_count_distribution": {
+      "0": 0,
+      "1": 41,
+      "2": 19,
+      "3": 9,
+      "4": 15,
+      "5": 89,
+      "6": 203,
+      "7": 1186,
+      "8": 2729
+    }
+  },
+  "connections": {},
+  "per_tag": {
+    "BSF66F": {
+      "tr_rows": 9480,
+      "tr_valid_rows": 9142,
+      "sweep_validity": {
+        "sweeps_total": 1185,
+        "sweeps_with_any_valid": 1161,
+        "sweeps_ge4": 1161,
+        "sweeps_ge7": 1160,
+        "sweeps_ge8": 1016,
+        "ratio_ge4": 0.979747,
+        "ratio_ge7": 0.978903,
+        "ratio_ge8": 0.857384,
+        "valid_count_distribution": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 1,
+          "7": 144,
+          "8": 1016
+        }
+      },
+      "latest_tr": {
+        "conn_id": null,
+        "host_elapsed_s": 119.946244,
+        "host_epoch_s": 1782312373.5784,
+        "peer_name": "BSF66F",
+        "tag_id": "",
+        "sweep": 6668,
+        "plan": "f",
+        "pmode": 0,
+        "anchor_id": 7,
+        "raw_mm": 0,
+        "range_mm": 1907,
+        "quality_percent": 88,
+        "valid": 0,
+        "status": "T",
+        "quality_flag_percent": 0,
+        "first_to_last_us": 0,
+        "frame_us": 0,
+        "poll_count": 0,
+        "tr_version": 2,
+        "rx_mask": "",
+        "air_us": "",
+        "post_us": "",
+        "cycle_us": "",
+        "rx_seen": "",
+        "imu_valid": 0,
+        "imu_n": 0,
+        "acc_norm_mean_mg": "",
+        "acc_norm_std_mg": "",
+        "acc_norm_min_mg": "",
+        "acc_norm_max_mg": "",
+        "imu_skip_count": 0
+      },
+      "anchors_seen": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "tr_status_counts": {
+        "O": 9142,
+        "T": 338
+      }
+    },
+    "BS9336": {
+      "tr_rows": 9488,
+      "tr_valid_rows": 4984,
+      "sweep_validity": {
+        "sweeps_total": 1186,
+        "sweeps_with_any_valid": 807,
+        "sweeps_ge4": 738,
+        "sweeps_ge7": 527,
+        "sweeps_ge8": 40,
+        "ratio_ge4": 0.62226,
+        "ratio_ge7": 0.444351,
+        "ratio_ge8": 0.033727,
+        "valid_count_distribution": {
+          "0": 0,
+          "1": 41,
+          "2": 19,
+          "3": 9,
+          "4": 15,
+          "5": 87,
+          "6": 109,
+          "7": 487,
+          "8": 40
+        }
+      },
+      "latest_tr": {
+        "conn_id": null,
+        "host_elapsed_s": 119.930732,
+        "host_epoch_s": 1782312373.562888,
+        "peer_name": "BS9336",
+        "tag_id": "",
+        "sweep": 2550,
+        "plan": "f",
+        "pmode": 0,
+        "anchor_id": 7,
+        "raw_mm": 0,
+        "range_mm": 3892,
+        "quality_percent": 5,
+        "valid": 0,
+        "status": "T",
+        "quality_flag_percent": 0,
+        "first_to_last_us": 0,
+        "frame_us": 0,
+        "poll_count": 0,
+        "tr_version": 2,
+        "rx_mask": "",
+        "air_us": "",
+        "post_us": "",
+        "cycle_us": "",
+        "rx_seen": "",
+        "imu_valid": 0,
+        "imu_n": 0,
+        "acc_norm_mean_mg": "",
+        "acc_norm_std_mg": "",
+        "acc_norm_min_mg": "",
+        "acc_norm_max_mg": "",
+        "imu_skip_count": 0
+      },
+      "anchors_seen": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "tr_status_counts": {
+        "O": 4984,
+        "R": 147,
+        "T": 4357
+      }
+    },
+    "BS955A": {
+      "tr_rows": 9488,
+      "tr_valid_rows": 9137,
+      "sweep_validity": {
+        "sweeps_total": 1186,
+        "sweeps_with_any_valid": 1162,
+        "sweeps_ge4": 1162,
+        "sweeps_ge7": 1158,
+        "sweeps_ge8": 1007,
+        "ratio_ge4": 0.979764,
+        "ratio_ge7": 0.976391,
+        "ratio_ge8": 0.849073,
+        "valid_count_distribution": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 4,
+          "7": 151,
+          "8": 1007
+        }
+      },
+      "latest_tr": {
+        "conn_id": null,
+        "host_elapsed_s": 119.991365,
+        "host_epoch_s": 1782312373.623521,
+        "peer_name": "BS955A",
+        "tag_id": "",
+        "sweep": 2230,
+        "plan": "f",
+        "pmode": 0,
+        "anchor_id": 7,
+        "raw_mm": 3943,
+        "range_mm": 3943,
+        "quality_percent": 83,
+        "valid": 1,
+        "status": "O",
+        "quality_flag_percent": 0,
+        "first_to_last_us": 0,
+        "frame_us": 0,
+        "poll_count": 0,
+        "tr_version": 2,
+        "rx_mask": "",
+        "air_us": "",
+        "post_us": "",
+        "cycle_us": "",
+        "rx_seen": "",
+        "imu_valid": 0,
+        "imu_n": 0,
+        "acc_norm_mean_mg": "",
+        "acc_norm_std_mg": "",
+        "acc_norm_min_mg": "",
+        "acc_norm_max_mg": "",
+        "imu_skip_count": 0
+      },
+      "anchors_seen": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "tr_status_counts": {
+        "O": 9137,
+        "T": 351
+      }
+    },
+    "BSCCF4": {
+      "tr_rows": 9480,
+      "tr_valid_rows": 8700,
+      "sweep_validity": {
+        "sweeps_total": 1185,
+        "sweeps_with_any_valid": 1161,
+        "sweeps_ge4": 1161,
+        "sweeps_ge7": 1070,
+        "sweeps_ge8": 666,
+        "ratio_ge4": 0.979747,
+        "ratio_ge7": 0.902954,
+        "ratio_ge8": 0.562025,
+        "valid_count_distribution": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 2,
+          "6": 89,
+          "7": 404,
+          "8": 666
+        }
+      },
+      "latest_tr": {
+        "conn_id": null,
+        "host_elapsed_s": 119.938798,
+        "host_epoch_s": 1782312373.570954,
+        "peer_name": "BSCCF4",
+        "tag_id": "",
+        "sweep": 1985,
+        "plan": "f",
+        "pmode": 0,
+        "anchor_id": 7,
+        "raw_mm": 3208,
+        "range_mm": 3208,
+        "quality_percent": 76,
+        "valid": 1,
+        "status": "O",
+        "quality_flag_percent": 0,
+        "first_to_last_us": 0,
+        "frame_us": 0,
+        "poll_count": 0,
+        "tr_version": 2,
+        "rx_mask": "",
+        "air_us": "",
+        "post_us": "",
+        "cycle_us": "",
+        "rx_seen": "",
+        "imu_valid": 0,
+        "imu_n": 0,
+        "acc_norm_mean_mg": "",
+        "acc_norm_std_mg": "",
+        "acc_norm_min_mg": "",
+        "acc_norm_max_mg": "",
+        "imu_skip_count": 0
+      },
+      "anchors_seen": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "tr_status_counts": {
+        "O": 8700,
+        "R": 32,
+        "T": 748
+      }
+    }
+  },
+  "raw_log": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/erlangen_20260528_mocap/captures/validation_20260624_recovery/free_TAG4_40HZ_OFF_EPOCH5_CLEANSTART_BSF66F_BS9336_BS955A_BSCCF4_120s_20260624_164316/tag_capture_20260624_164335/raw.log",
+  "tr_all_csv": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/erlangen_20260528_mocap/captures/validation_20260624_recovery/free_TAG4_40HZ_OFF_EPOCH5_CLEANSTART_BSF66F_BS9336_BS955A_BSCCF4_120s_20260624_164316/tag_capture_20260624_164335/tr_all.csv"
+}

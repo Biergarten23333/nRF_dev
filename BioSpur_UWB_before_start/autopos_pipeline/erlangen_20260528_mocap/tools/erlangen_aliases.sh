@@ -190,28 +190,36 @@ _bio_jlink_reset_snr() {
   local snr="$1"
   local label="$2"
   local cmdfile
+  local core
+  local rc
+  local overall=0
   if ! command -v JLinkExe >/dev/null 2>&1; then
     echo "[ERR] JLinkExe not found; cannot reset ${label} (${snr})." >&2
     return 2
   fi
-  cmdfile="$(mktemp)"
-  {
-    echo "r"
-    echo "g"
-    echo "q"
-  } > "${cmdfile}"
-  echo "[reset] ${label}: J-Link reset snr=${snr}"
-  timeout 25s JLinkExe \
-    -NoGui 1 \
-    -SelectEmuBySN "${snr}" \
-    -device NRF5340_XXAA_APP \
-    -if SWD \
-    -speed 4000 \
-    -autoconnect 1 \
-    -CommanderScript "${cmdfile}"
-  local rc=$?
-  rm -f "${cmdfile}"
-  return "${rc}"
+  for core in NET APP; do
+    cmdfile="$(mktemp)"
+    {
+      echo "r"
+      echo "g"
+      echo "q"
+    } > "${cmdfile}"
+    echo "[reset] ${label}: J-Link reset ${core} snr=${snr}"
+    timeout 25s JLinkExe \
+      -NoGui 1 \
+      -SelectEmuBySN "${snr}" \
+      -device "NRF5340_XXAA_${core}" \
+      -if SWD \
+      -speed 4000 \
+      -autoconnect 1 \
+      -CommanderScript "${cmdfile}"
+    rc=$?
+    rm -f "${cmdfile}"
+    if [[ "${rc}" -ne 0 ]]; then
+      overall="${rc}"
+    fi
+  done
+  return "${overall}"
 }
 
 _bio_wait_for_path() {

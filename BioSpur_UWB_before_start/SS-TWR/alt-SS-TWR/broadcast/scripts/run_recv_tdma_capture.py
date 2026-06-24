@@ -511,42 +511,49 @@ def reset_controller_via_jlink(logf, snr: str) -> bool:
     if not snr:
         return False
 
-    cmd_path = Path(f"/tmp/biospur_b120_reset_{snr}.jlink")
-    cmd_path.write_text(
-        "\n".join(
+    ok = True
+    for core in ("NET", "APP"):
+        cmd_path = Path(f"/tmp/biospur_b120_reset_{snr}_{core.lower()}.jlink")
+        cmd_path.write_text(
+            "\n".join(
+                [
+                    f"Device NRF5340_XXAA_{core}",
+                    "SI SWD",
+                    "Speed 4000",
+                    "r",
+                    "g",
+                    "q",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        logf.write(
+            f"[HOST_RECOVERY {time.monotonic():.3f}] J-Link reset B120 {core} snr={snr}\n"
+        )
+        logf.flush()
+        cp = subprocess.run(
             [
-                "Device NRF5340_XXAA_APP",
-                "SI SWD",
-                "Speed 4000",
-                "r",
-                "g",
-                "q",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
-    logf.write(f"[HOST_RECOVERY {time.monotonic():.3f}] J-Link reset B120 snr={snr}\n")
-    logf.flush()
-    cp = subprocess.run(
-        [
-            "JLinkExe",
-            "-NoGui",
-            "1",
-            "-SelectEmuBySN",
-            snr,
-            "-CommanderScript",
-            str(cmd_path),
-        ],
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        check=False,
-    )
-    logf.write(cp.stdout)
-    logf.write(f"[HOST_RECOVERY {time.monotonic():.3f}] J-Link reset rc={cp.returncode}\n")
-    logf.flush()
-    return cp.returncode == 0
+                "JLinkExe",
+                "-NoGui",
+                "1",
+                "-SelectEmuBySN",
+                snr,
+                "-CommanderScript",
+                str(cmd_path),
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+        logf.write(cp.stdout)
+        logf.write(
+            f"[HOST_RECOVERY {time.monotonic():.3f}] J-Link reset {core} rc={cp.returncode}\n"
+        )
+        logf.flush()
+        ok = ok and (cp.returncode == 0)
+    return ok
 
 
 def recover_controller_serial(args, logf, reason: str) -> serial.Serial | None:
@@ -1454,19 +1461,19 @@ def configure_recv_capture_session(
         "mode=RECV" in status_text
         and "kind=tag" in device_text.lower()
     )
+    print("[CAPTURE] configure: stop resident/stale Tag ranging before TDMA setup", flush=True)
+    ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 1.0)
+    drain_serial_until(ser, logf, 0.4)
 
-    if args.reuse_tag_links or already_recv_tag:
-        if already_recv_tag:
-            print(
-                "[CAPTURE] configure: Master_Tag already RECV/tag; skip mode recv clean-slate",
-                flush=True,
-            )
-        else:
-            print("[CAPTURE] configure: reuse Master_Tag resident links", flush=True)
-            ensure_config_tag_kind("reuse-tag-links")
+    if args.reuse_tag_links:
+        print("[CAPTURE] configure: reuse Master_Tag resident links", flush=True)
+        ensure_config_tag_kind("reuse-tag-links")
     else:
-        print("[CAPTURE] configure: enter RECV/tag mode", flush=True)
-        ser = send_cmd(ser, logf, "mode recv", 8.0)
+        print("[CAPTURE] configure: enter clean RECV/tag mode", flush=True)
+        if already_recv_tag:
+            ser = send_cmd(ser, logf, "device kind tag", 2.0)
+        else:
+            ser = send_cmd(ser, logf, "mode recv", 8.0)
         ser, status_text = send_cmd_collect(ser, logf, "status", 0.8)
         ser, device_text = send_cmd_collect(ser, logf, "device show", 0.8)
 
@@ -1528,6 +1535,9 @@ def configure_recv_capture_session(
         initial_text=status_text + device_text + clear_text,
         discovery_prefix_override="",
     )
+    print("[CAPTURE] configure: stop target Tag ranging before final TDMA release", flush=True)
+    ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 1.0)
+    drain_serial_until(ser, logf, 0.4)
     ser = apply_target_cir_mode(ser, logf, args, targets)
     print("[CAPTURE] configure: release TDMA hold and verify TDMA CFG", flush=True)
     ser = send_cmd(ser, logf, "tdma hold 0", 1.0)
@@ -1542,10 +1552,6 @@ def configure_recv_capture_session(
             f"[CAPTURE] configure: TDMA CFG apply/check attempt {attempt}/{config_retries}",
             flush=True,
         )
-        ser = send_cmd(ser, logf, f"tdma freq {tdma_roster_profile(args)} {tr_hz}", 0.5)
-        for target in targets:
-            ser = send_cmd(ser, logf, f"tdma roster {target_bs_name(target)} {tdma_roster_profile(args)}", 0.5)
-        ser = send_cmd(ser, logf, "tdma rebalance", 1.0)
         ser, _ = send_cmd_collect(ser, logf, "tdma show", 1.0)
         ser, _ = send_cmd_collect(ser, logf, "status", 0.8)
         ser, _ = send_cmd_collect(ser, logf, "device show", 0.8)
@@ -2109,17 +2115,10 @@ def main() -> int:
             print("[CAPTURE] drain boot/runtime output", flush=True)
             drain_serial_until(ser, logf, 1.0)
 
-            ser = configure_recv_capture_session(ser, logf, args, targets)
-            print("[CAPTURE] TDMA verified; start TR capture", flush=True)
-
             pending = ""
             capture_start_wall = time.time()
-            end_time = capture_start_wall + args.duration
-            no_tr_deadline = (
-                capture_start_wall + max(0.0, float(args.no_tr_timeout_s))
-                if float(args.no_tr_timeout_s) > 0.0
-                else None
-            )
+            end_time = capture_start_wall
+            no_tr_deadline = None
             last_status_at = 0.0
             tr_seen: dict[str, int] = defaultdict(int)
             skipped_before_target_pmode = 0
@@ -2130,6 +2129,35 @@ def main() -> int:
                 for name, pmode in expected_pmode_by_target.items()
                 if pmode is not None
             }
+            try:
+                ser = configure_recv_capture_session(ser, logf, args, targets)
+            except (SerialException, OSError, RuntimeError) as exc:
+                startup_failed = True
+                message = str(exc)
+                target_match = re.search(
+                    r"target_link_not_ready:([A-Za-z0-9_,.-]+)",
+                    message,
+                )
+                if target_match:
+                    startup_fail_targets = [
+                        item.strip()
+                        for item in target_match.group(1).split(",")
+                        if item.strip()
+                    ]
+                logf.write(
+                    f"[HOST_ERROR {time.monotonic():.3f}] startup configure failed: {message}\n"
+                )
+                logf.flush()
+                print(f"[CAPTURE] abort: startup configure failed: {message}", flush=True)
+            else:
+                print("[CAPTURE] TDMA verified; start TR capture", flush=True)
+                capture_start_wall = time.time()
+                end_time = capture_start_wall + args.duration
+                no_tr_deadline = (
+                    capture_start_wall + max(0.0, float(args.no_tr_timeout_s))
+                    if float(args.no_tr_timeout_s) > 0.0
+                    else None
+                )
             try:
                 while time.time() < end_time:
                     try:

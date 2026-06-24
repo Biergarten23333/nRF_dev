@@ -585,6 +585,34 @@ static uint32_t ss_twr_resp_alt_bcast_delay_uus(uint8_t resp_rank)
            ((uint32_t)resp_rank * APP_ALT_SS_TWR_RESP_SPACING_US);
 }
 
+static uint8_t ss_twr_resp_rank_from_offset(uint8_t anchor_mask,
+                                            uint8_t anchor_id,
+                                            uint8_t rank_offset)
+{
+    uint8_t rank = 0U;
+
+    if (anchor_id >= UWB_MAX_ANCHORS ||
+        (anchor_mask & (uint8_t)(1U << anchor_id)) == 0U) {
+        return 0xffU;
+    }
+
+    rank_offset %= UWB_MAX_ANCHORS;
+    for (uint8_t step = 0U; step < UWB_MAX_ANCHORS; ++step) {
+        uint8_t candidate =
+            (uint8_t)((rank_offset + step) % UWB_MAX_ANCHORS);
+
+        if ((anchor_mask & (uint8_t)(1U << candidate)) == 0U) {
+            continue;
+        }
+        if (candidate == anchor_id) {
+            return rank;
+        }
+        rank++;
+    }
+
+    return 0xffU;
+}
+
 static void ss_twr_resp_log_unexpected_frame(const uint8_t *frame,
                                              uint32_t frame_len,
                                              uint32_t ignored_nonpoll_frames)
@@ -1016,8 +1044,9 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             uint8_t alt_anchor_mask = uwb_ss_twr_poll_anchor_mask(ss_twr_resp_rx_buffer);
             if (alt_anchor_mask != 0U &&
                 (alt_anchor_mask & (uint8_t)(1U << ss_twr_resp_anchor_id)) != 0U) {
-                resp_rank = ss_twr_resp_count_mask_bits_before(
-                    alt_anchor_mask, ss_twr_resp_anchor_id);
+                resp_rank = ss_twr_resp_rank_from_offset(
+                    alt_anchor_mask, ss_twr_resp_anchor_id,
+                    uwb_ss_twr_poll_rank_offset(ss_twr_resp_rx_buffer));
                 resp_delay_uus = ss_twr_resp_alt_bcast_delay_uus(resp_rank);
             } else if (alt_poll_count > 0U && alt_poll_index < alt_poll_count) {
                 resp_rank = alt_poll_index;
