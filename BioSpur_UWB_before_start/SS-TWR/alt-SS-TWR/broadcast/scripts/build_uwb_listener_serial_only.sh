@@ -8,7 +8,7 @@ conf="$repo_root/configs/uwb_listener_serial_only.conf"
 
 west build \
   -b decawave_dwm1001_dev \
-  -s "$repo_root/UWB_listener" \
+  -s "$repo_root/UWB_listener_old" \
   -d "$repo_root/$build_dir" \
   --pristine=always \
   -- \

@@ -1226,6 +1226,37 @@ def main() -> int:
                     if args.pre_reset:
                         send_cmd(ser, "ota_reset", logf, t0)
                         reason = "ota_manual_pre_reset_requested"
+                        pre_reset_deadline = time.monotonic() + 12.0
+                        while time.monotonic() < pre_reset_deadline:
+                            try:
+                                reset_line = read_line(ser)
+                            except SerialException as e:
+                                serial_lost = True
+                                logf.write(
+                                    f"[HOST_EVT {time.monotonic()-t0:7.2f}s] "
+                                    f"pre_reset_serial_lost_after_ota_reset:{e}\n"
+                                )
+                                logf.flush()
+                                break
+                            if reset_line is None:
+                                continue
+                            logf.write(reset_line + "\n")
+                            logf.flush()
+                            if "OTA command issued" in reset_line:
+                                ota_cmd_issued_seen = True
+                                reason = "ota_manual_pre_reset_issued"
+                            if "OTA command wait failed" in reset_line or "OTA timeout context" in reset_line:
+                                ota_wait_fail_seen = True
+                                reason = "ota_manual_pre_reset_wait_failed"
+                                break
+                            if "OTA reset request" in reset_line:
+                                ota_reset_request_seen = True
+                                reason = "ota_manual_pre_reset_sent"
+                                break
+                            if "OTA failed" in reset_line or "upload failed" in reset_line:
+                                ota_later_fail_seen = True
+                                reason = "ota_manual_pre_reset_failed"
+                                break
                         break
 
                 if "OTA command issued" in line:

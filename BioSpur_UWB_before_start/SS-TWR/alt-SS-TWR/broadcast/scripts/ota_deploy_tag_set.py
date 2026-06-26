@@ -157,6 +157,20 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max-attempts", type=int, default=2)
     p.add_argument("--force-kill-port-owner", action="store_true")
     p.add_argument("--expected-fw-marker", default="", help="Expected tag fw marker. If omitted, auto-detect from manifest/build cache.")
+    p.add_argument(
+        "--force-redeploy-current",
+        action="store_true",
+        help="Do not skip a Tag whose preflight VERSION already matches the expected firmware marker.",
+    )
+    p.add_argument(
+        "--allow-missing-pre-version",
+        action="store_true",
+        help=(
+            "Proceed with OTA even if the preflight VERSION query did not see a target. "
+            "Use only for recovery cases where the target is known to be advertising "
+            "DFU but cannot answer runtime VERSION."
+        ),
+    )
     return p.parse_args()
 
 
@@ -408,6 +422,8 @@ def main() -> int:
 
     pre_version_summary = query_tag_versions(args.port, targets, out_root)
     deploy_summary["pre_version_query"] = pre_version_summary
+    missing_pre = [str(t).upper() for t in (pre_version_summary.get("missing_targets") or [])]
+    deploy_summary["pre_version_missing_targets"] = missing_pre
     (out_root / "deploy_summary.json").write_text(json.dumps(deploy_summary, indent=2) + "\n", encoding="utf-8")
 
     for target in targets:
@@ -417,6 +433,37 @@ def main() -> int:
         current_fw = str((pre_version_summary.get("versions") or {}).get(target, {}).get("fw", "-"))
         target_fw = expected_fw_marker or "-"
         print_version_banner(target, current_fw, target_fw)
+        if expected_fw_marker and current_fw == expected_fw_marker and not args.force_redeploy_current:
+            entry.update(
+                {
+                    "returncode": 0,
+                    "skipped": True,
+                    "reason": "already_at_expected_fw",
+                    "current_fw": current_fw,
+                    "expected_fw": expected_fw_marker,
+                }
+            )
+            deploy_summary["rounds"][target] = entry
+            (out_root / "deploy_summary.json").write_text(json.dumps(deploy_summary, indent=2) + "\n", encoding="utf-8")
+            print(f"=== SKIP {target}: already at expected fw {expected_fw_marker} ===", flush=True)
+            continue
+        if target.upper() in missing_pre and not args.allow_missing_pre_version:
+            entry.update(
+                {
+                    "returncode": 20,
+                    "skipped": True,
+                    "reason": "target_missing_pre_version_query",
+                    "detail": (
+                        "Preflight VERSION query did not see this target. "
+                        "Skipping OTA to avoid a full scan timeout against an invisible target. "
+                        "Pass --allow-missing-pre-version for explicit recovery attempts."
+                    ),
+                }
+            )
+            deploy_summary["rounds"][target] = entry
+            (out_root / "deploy_summary.json").write_text(json.dumps(deploy_summary, indent=2) + "\n", encoding="utf-8")
+            print(f"=== SKIP {target}: missing from preflight VERSION query ===", flush=True)
+            return 20
         for attempt in range(1, args.max_attempts + 1):
             stage_dir = round_dir / f"stage{attempt}"
             cmd = [

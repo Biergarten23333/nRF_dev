@@ -48,6 +48,33 @@ Rollout status:
 | D | `ANCHOR-D-BS20AC` | `760184974` | `B2B5FA625534A8C617135DCAFC9E036A` | `3` | `0xA103` | Replacement D; active AutoPos UUID as of 2026-05-08 |
 | H | `ANCHOR-H-BSB77F` | `760184753` | `CF12E703AC1A118F6AB440AB05B0BA23` | `7` | `0xA107` | Replacement H; active AutoPos UUID as of 2026-05-08 |
 
+## Known Co-Located Listeners
+
+These DWM1001C boards are intended as RX-only passive listeners placed near
+anchors. They are not anchor identities and should not be used as AutoPos
+anchors unless explicitly repurposed. The new listener firmware is generic:
+one build should support Listener A-H, with the near-anchor assignment supplied
+by runtime configuration or host inventory rather than by creating per-listener
+builds.
+
+| Listener | Near anchor | J-Link SNR | USB by-id path | Current note |
+|---|---|---:|---|---|
+| E | E | `760184767` | `/dev/serial/by-id/usb-SEGGER_J-Link_000760184767-if00` | Co-located listener beside Anchor E; observed online on 2026-06-24 |
+
+## Legacy Passive Listener
+
+The old passive air-monitor listener is kept separate from the co-located
+listener work:
+
+- Old app path: `SS-TWR/alt-SS-TWR/broadcast/UWB_listener_old/`
+- Historical board: J-Link SNR `760185886`
+- USB path: `/dev/serial/by-id/usb-SEGGER_J-Link_000760185886-if00`
+- Role: legacy UF/UL air monitor only; do not use it for co-located poll-CIR
+  experiments.
+
+The new `SS-TWR/alt-SS-TWR/broadcast/UWB_listener/` path is reserved for the
+generic co-located poll diagnostics / poll-CIR proxy firmware.
+
 ## Current Broadcast Tag Firmware
 
 Recommended direct-flash image for extra pressure-test Tags:

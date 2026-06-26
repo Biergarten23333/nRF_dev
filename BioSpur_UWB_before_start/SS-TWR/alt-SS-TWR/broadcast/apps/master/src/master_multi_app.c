@@ -218,6 +218,7 @@ static struct k_work_delayable led_flow_off_work;
 static uint8_t tdma_generation;
 static bool tdma_rebalance_hold;
 static bool tdma_rebalance_deferred;
+static bool tdma_auto_roster_enabled;
 static char runtime_one_shot_cmd[MASTER_RUNTIME_ONE_SHOT_CMD_LEN];
 static bool runtime_one_shot_cmd_set;
 static enum master_runtime_target_kind runtime_target_kind = MASTER_TARGET_UNKNOWN;
@@ -1046,13 +1047,12 @@ static size_t master_collect_ready_peers(struct master_peer **ordered,
 					 size_t ordered_len)
 {
 	size_t count = 0U;
-	bool roster_filter_active = master_tdma_any_profile_defined();
 
 	for (size_t i = 0U; i < ARRAY_SIZE(peers) && count < ordered_len; ++i) {
 		if (!(peers[i].connected && peers[i].ready && peers[i].bs_code_valid)) {
 			continue;
 		}
-		if (roster_filter_active &&
+		if (!tdma_auto_roster_enabled &&
 		    !master_tdma_profile_has_bs_code(peers[i].bs_code)) {
 			continue;
 		}
@@ -3841,6 +3841,14 @@ int master_tdma_set_profile_freq(const char *profile, uint8_t hz)
 	return 0;
 }
 
+int master_tdma_set_auto_roster(bool enable)
+{
+	tdma_auto_roster_enabled = enable;
+	printk("TDMA roster mode: %s\n", enable ? "auto-all-ready" : "explicit");
+	master_rebalance_tdma_slots();
+	return 0;
+}
+
 int master_tdma_set_rebalance_hold(bool hold)
 {
 	tdma_rebalance_hold = hold;
@@ -3872,20 +3880,22 @@ int master_tdma_clear_profiles(void)
 		tdma_profiles[i].bs_code = 0U;
 		tdma_profiles[i].kind = MASTER_TDMA_PROFILE_MOTION;
 	}
+	tdma_auto_roster_enabled = false;
 
-	printk("TDMA profiles cleared\n");
+	printk("TDMA explicit roster cleared\n");
 	master_rebalance_tdma_slots();
 	return 0;
 }
 
 void master_tdma_print_status(void)
 {
-	printk("TDMA weighted scheduler: period=%ums active=%ums active_us=%u max_slots=%u freq motion=%uHz\n",
+	printk("TDMA weighted scheduler: period=%ums active=%ums active_us=%u max_slots=%u freq motion=%uHz roster=%s\n",
 	       MASTER_TDMA_SLOT_PERIOD_MS,
 	       MASTER_TDMA_SLOT_ACTIVE_MS,
 	       MASTER_TDMA_SLOT_ACTIVE_US,
 	       MASTER_TDMA_SLOT_COUNT_MAX,
-	       (unsigned int)tdma_motion_target_hz);
+	       (unsigned int)tdma_motion_target_hz,
+	       tdma_auto_roster_enabled ? "auto" : "explicit");
 	for (size_t i = 0U; i < ARRAY_SIZE(tdma_profiles); ++i) {
 		if (!tdma_profiles[i].valid) {
 			continue;

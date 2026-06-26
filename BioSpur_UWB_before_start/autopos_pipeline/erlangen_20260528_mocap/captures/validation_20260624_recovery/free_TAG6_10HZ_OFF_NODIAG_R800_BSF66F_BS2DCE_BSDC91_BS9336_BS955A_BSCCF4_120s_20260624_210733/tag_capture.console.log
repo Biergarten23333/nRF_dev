@@ -1,0 +1,94 @@
+[CAPTURE] session_dir=/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/erlangen_20260528_mocap/captures/validation_20260624_recovery/free_TAG6_10HZ_OFF_NODIAG_R800_BSF66F_BS2DCE_BSDC91_BS9336_BS955A_BSCCF4_120s_20260624_210733/tag_capture_20260624_210824
+[CAPTURE] raw_log=/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/erlangen_20260528_mocap/captures/validation_20260624_recovery/free_TAG6_10HZ_OFF_NODIAG_R800_BSF66F_BS2DCE_BSDC91_BS9336_BS955A_BSCCF4_120s_20260624_210733/tag_capture_20260624_210824/raw.log
+[CAPTURE] plan: targets=BSF66F,BS2DCE,BSDC91,BS9336,BS955A,BSCCF4 tr=10Hz duration=120s
+[CAPTURE] open serial: /dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00
+[CAPTURE] drain boot/runtime output
+[HOST_CMD] status
+[HOST_CMD] device show
+[CAPTURE] configure: stop resident/stale Tag ranging before TDMA setup
+[HOST_CMD] cmd_all MODE IDLE
+[CAPTURE] configure: enter clean RECV/tag mode
+[HOST_CMD] device kind tag
+[HOST_CMD] status
+[HOST_CMD] device show
+[CAPTURE] configure: preseed TDMA allow-list before tag discovery
+[HOST_CMD] tdma hold 1
+[HOST_CMD] tdma clear
+[HOST_CMD] tdma freq motion 10
+[HOST_CMD] tdma roster BSF66F motion
+[HOST_CMD] tdma roster BS2DCE motion
+[HOST_CMD] tdma roster BSDC91 motion
+[HOST_CMD] tdma roster BS9336 motion
+[HOST_CMD] tdma roster BS955A motion
+[HOST_CMD] tdma roster BSCCF4 motion
+[HOST_CMD] ota_target token -1
+[HOST_CMD] ota_target name -
+[HOST_CMD] ota_target prefix BS
+[HOST_CMD] ota_target uuid -
+[CAPTURE] configure: targeted non-target idle disabled
+[HOST_CMD] ota_target token -1
+[HOST_CMD] ota_target name -
+[HOST_CMD] ota_target prefix BS
+[HOST_CMD] ota_target uuid -
+[CAPTURE] configure: silence resident Tag links for enrollment
+[HOST_CMD] tdma hold 1
+[CAPTURE] configure: skip setup MODE IDLE; TDMA roster/hold controls admission
+[CAPTURE] configure: reassert TDMA target roster
+[HOST_CMD] tdma clear
+[HOST_CMD] tdma freq motion 10
+[HOST_CMD] tdma roster BSF66F motion
+[HOST_CMD] tdma roster BS2DCE motion
+[HOST_CMD] tdma roster BSDC91 motion
+[HOST_CMD] tdma roster BS9336 motion
+[HOST_CMD] tdma roster BS955A motion
+[HOST_CMD] tdma roster BSCCF4 motion
+[HOST_CMD] ota_target token -1
+[HOST_CMD] ota_target name -
+[HOST_CMD] ota_target prefix BS
+[HOST_CMD] ota_target uuid -
+[HOST_CMD] conn
+[CAPTURE] configure: wait for target links
+[CAPTURE] link setup passive initial: wait up to 140s
+[CAPTURE] link setup passive: ready=BS2DCE,BS9336,BS955A,BSCCF4,BSDC91,BSF66F (6/6)
+[CAPTURE] link setup passive: all 6/6 ready; settle 8.0s before TDMA release
+[CAPTURE] link setup passive: ready=BS2DCE,BS9336,BS955A,BSCCF4,BSDC91,BSF66F (6/6)
+[CAPTURE] configure: stop target Tag ranging before final TDMA release
+[HOST_CMD] cmd_all MODE IDLE
+[CAPTURE] configure: target CIR mode=off
+[HOST_CMD] cmd_all CIR OFF
+[CAPTURE] configure: release TDMA hold and verify TDMA CFG
+[HOST_CMD] tdma hold 0
+[CAPTURE] configure: TDMA CFG apply/check attempt 1/3
+[HOST_CMD] tdma show
+[HOST_CMD] status
+[HOST_CMD] device show
+[CAPTURE] configure: TDMA CFG verified match=true
+[CAPTURE] configure: TDMA ready
+[CAPTURE] TDMA verified; start TR capture
+[CAPTURE] [....................]   0.2% elapsed=0s eta=120s rows=0 row_rate=0.0/s sw=0 ge7=0% ge8=0% BSF66F:rows=0,cfg=10Hz BS2DCE:rows=0,cfg=10Hz BSDC91:rows=0,cfg=10Hz BS9336:rows=0,cfg=10Hz BS955A:rows=0,cfg=10Hz BSCCF4:rows=0,cfg=10Hz
+[CAPTURE] [....................]   1.0% elapsed=1s eta=119s rows=0 row_rate=0.0/s sw=0 ge7=0% ge8=0% BSF66F:rows=0,cfg=10Hz BS2DCE:rows=0,cfg=10Hz BSDC91:rows=0,cfg=10Hz BS9336:rows=0,cfg=10Hz BS955A:rows=0,cfg=10Hz BSCCF4:rows=0,cfg=10Hz
+[CAPTURE] [....................]   1.8% elapsed=2s eta=118s rows=320 row_rate=144.5/s sw=40 ge7=85% ge8=60% BSF66F:rows=48,cfg=10Hz BS2DCE:rows=56,cfg=10Hz BSDC91:rows=48,cfg=10Hz BS9336:rows=48,cfg=10Hz BS955A:rows=64,cfg=10Hz BSCCF4:rows=56,cfg=10Hz
+[CAPTURE] [#...................]   2.7% elapsed=3s eta=117s rows=792 row_rate=243.8/s sw=99 ge7=93% ge8=60% BSF66F:rows=128,cfg=10Hz BS2DCE:rows=136,cfg=10Hz BSDC91:rows=128,cfg=10Hz BS9336:rows=120,cfg=10Hz BS955A:rows=144,cfg=10Hz BSCCF4:rows=136,cfg=10Hz
+[CAPTURE] [#...................]   3.5% elapsed=4s eta=116s rows=1248 row_rate=293.4/s sw=156 ge7=95% ge8=61% BSF66F:rows=200,cfg=10Hz BS2DCE:rows=216,cfg=10Hz BSDC91:rows=208,cfg=10Hz BS9336:rows=200,cfg=10Hz BS955A:rows=216,cfg=10Hz BSCCF4:rows=208,cfg=10Hz
+[CAPTURE] [#...................]   4.4% elapsed=5s eta=115s rows=1704 row_rate=324.0/s sw=213 ge7=96% ge8=61% BSF66F:rows=272,cfg=10Hz BS2DCE:rows=296,cfg=10Hz BSDC91:rows=288,cfg=10Hz BS9336:rows=280,cfg=10Hz BS955A:rows=296,cfg=10Hz BSCCF4:rows=272,cfg=10Hz
+[CAPTURE] [#...................]   5.3% elapsed=6s eta=114s rows=2136 row_rate=338.6/s sw=267 ge7=96% ge8=61% BSF66F:rows=336,cfg=10Hz BS2DCE:rows=368,cfg=10Hz BSDC91:rows=376,cfg=10Hz BS9336:rows=344,cfg=10Hz BS955A:rows=384,cfg=10Hz BSCCF4:rows=328,cfg=10Hz
+[CAPTURE] [#...................]   6.1% elapsed=7s eta=113s rows=2600 row_rate=355.1/s sw=325 ge7=95% ge8=59% BSF66F:rows=400,cfg=10Hz BS2DCE:rows=448,cfg=10Hz BSDC91:rows=456,cfg=10Hz BS9336:rows=432,cfg=10Hz BS955A:rows=464,cfg=10Hz BSCCF4:rows=400,cfg=10Hz
+[CAPTURE] [#...................]   6.9% elapsed=8s eta=112s rows=3016 row_rate=362.2/s sw=377 ge7=95% ge8=61% BSF66F:rows=480,cfg=10Hz BS2DCE:rows=520,cfg=10Hz BSDC91:rows=528,cfg=10Hz BS9336:rows=488,cfg=10Hz BS955A:rows=544,cfg=10Hz BSCCF4:rows=456,cfg=10Hz
+[CAPTURE] [##..................]   7.8% elapsed=9s eta=111s rows=3480 row_rate=372.3/s sw=435 ge7=96% ge8=60% BSF66F:rows=552,cfg=10Hz BS2DCE:rows=592,cfg=10Hz BSDC91:rows=608,cfg=10Hz BS9336:rows=560,cfg=10Hz BS955A:rows=624,cfg=10Hz BSCCF4:rows=544,cfg=10Hz
+[CAPTURE] [##..................]   8.6% elapsed=10s eta=110s rows=3936 row_rate=379.7/s sw=492 ge7=96% ge8=60% BSF66F:rows=640,cfg=10Hz BS2DCE:rows=656,cfg=10Hz BSDC91:rows=688,cfg=10Hz BS9336:rows=632,cfg=10Hz BS955A:rows=704,cfg=10Hz BSCCF4:rows=616,cfg=10Hz
+[CAPTURE] [##..................]   9.5% elapsed=11s eta=109s rows=4360 row_rate=383.4/s sw=545 ge7=97% ge8=60% BSF66F:rows=720,cfg=10Hz BS2DCE:rows=720,cfg=10Hz BSDC91:rows=752,cfg=10Hz BS9336:rows=704,cfg=10Hz BS955A:rows=776,cfg=10Hz BSCCF4:rows=688,cfg=10Hz
+[CAPTURE] [##..................]  10.4% elapsed=12s eta=108s rows=4840 row_rate=388.7/s sw=605 ge7=96% ge8=60% BSF66F:rows=800,cfg=10Hz BS2DCE:rows=800,cfg=10Hz BSDC91:rows=832,cfg=10Hz BS9336:rows=784,cfg=10Hz BS955A:rows=856,cfg=10Hz BSCCF4:rows=768,cfg=10Hz
+[CAPTURE] [##..................]  11.2% elapsed=13s eta=107s rows=5272 row_rate=391.4/s sw=659 ge7=96% ge8=58% BSF66F:rows=880,cfg=10Hz BS2DCE:rows=888,cfg=10Hz BSDC91:rows=888,cfg=10Hz BS9336:rows=872,cfg=10Hz BS955A:rows=912,cfg=10Hz BSCCF4:rows=832,cfg=10Hz
+[CAPTURE] [##..................]  12.1% elapsed=14s eta=106s rows=5736 row_rate=396.0/s sw=717 ge7=96% ge8=57% BSF66F:rows=960,cfg=10Hz BS2DCE:rows=976,cfg=10Hz BSDC91:rows=960,cfg=10Hz BS9336:rows=944,cfg=10Hz BS955A:rows=992,cfg=10Hz BSCCF4:rows=904,cfg=10Hz
+[CAPTURE] [###.................]  12.9% elapsed=15s eta=105s rows=6168 row_rate=398.0/s sw=771 ge7=96% ge8=57% BSF66F:rows=1016,cfg=10Hz BS2DCE:rows=1056,cfg=10Hz BSDC91:rows=1040,cfg=10Hz BS9336:rows=1008,cfg=10Hz BS955A:rows=1072,cfg=10Hz BSCCF4:rows=976,cfg=10Hz
+[CAPTURE] [###.................]  13.8% elapsed=17s eta=103s rows=6616 row_rate=400.8/s sw=827 ge7=96% ge8=56% BSF66F:rows=1088,cfg=10Hz BS2DCE:rows=1136,cfg=10Hz BSDC91:rows=1120,cfg=10Hz BS9336:rows=1088,cfg=10Hz BS955A:rows=1152,cfg=10Hz BSCCF4:rows=1032,cfg=10Hz
+[CAPTURE] [###.................]  14.6% elapsed=18s eta=102s rows=7088 row_rate=403.3/s sw=886 ge7=96% ge8=57% BSF66F:rows=1152,cfg=10Hz BS2DCE:rows=1216,cfg=10Hz BSDC91:rows=1208,cfg=10Hz BS9336:rows=1168,cfg=10Hz BS955A:rows=1232,cfg=10Hz BSCCF4:rows=1112,cfg=10Hz
+[CAPTURE] [###.................]  15.5% elapsed=19s eta=101s rows=7528 row_rate=405.0/s sw=941 ge7=96% ge8=56% BSF66F:rows=1232,cfg=10Hz BS2DCE:rows=1288,cfg=10Hz BSDC91:rows=1288,cfg=10Hz BS9336:rows=1248,cfg=10Hz BS955A:rows=1304,cfg=10Hz BSCCF4:rows=1168,cfg=10Hz
+[CAPTURE] [###.................]  16.4% elapsed=20s eta=100s rows=7976 row_rate=406.4/s sw=997 ge7=96% ge8=55% BSF66F:rows=1312,cfg=10Hz BS2DCE:rows=1360,cfg=10Hz BSDC91:rows=1368,cfg=10Hz BS9336:rows=1320,cfg=10Hz BS955A:rows=1368,cfg=10Hz BSCCF4:rows=1248,cfg=10Hz
+[CAPTURE] [###.................]  17.2% elapsed=21s eta=99s rows=8416 row_rate=407.7/s sw=1052 ge7=96% ge8=56% BSF66F:rows=1376,cfg=10Hz BS2DCE:rows=1432,cfg=10Hz BSDC91:rows=1448,cfg=10Hz BS9336:rows=1408,cfg=10Hz BS955A:rows=1440,cfg=10Hz BSCCF4:rows=1312,cfg=10Hz
+[CAPTURE] [####................]  18.0% elapsed=22s eta=98s rows=8872 row_rate=409.7/s sw=1109 ge7=96% ge8=55% BSF66F:rows=1448,cfg=10Hz BS2DCE:rows=1496,cfg=10Hz BSDC91:rows=1536,cfg=10Hz BS9336:rows=1488,cfg=10Hz BS955A:rows=1520,cfg=10Hz BSCCF4:rows=1384,cfg=10Hz
+[CAPTURE] [####................]  18.9% elapsed=23s eta=97s rows=9312 row_rate=410.7/s sw=1164 ge7=96% ge8=55% BSF66F:rows=1520,cfg=10Hz BS2DCE:rows=1576,cfg=10Hz BSDC91:rows=1608,cfg=10Hz BS9336:rows=1560,cfg=10Hz BS955A:rows=1600,cfg=10Hz BSCCF4:rows=1448,cfg=10Hz
+[CAPTURE] [####................]  19.8% elapsed=24s eta=96s rows=9760 row_rate=411.5/s sw=1220 ge7=96% ge8=55% BSF66F:rows=1600,cfg=10Hz BS2DCE:rows=1648,cfg=10Hz BSDC91:rows=1680,cfg=10Hz BS9336:rows=1640,cfg=10Hz BS955A:rows=1672,cfg=10Hz BSCCF4:rows=1520,cfg=10Hz
+[CAPTURE] [####................]  20.6% elapsed=25s eta=95s rows=10216 row_rate=412.9/s sw=1277 ge7=96% ge8=55% BSF66F:rows=1672,cfg=10Hz BS2DCE:rows=1736,cfg=10Hz BSDC91:rows=1752,cfg=10Hz BS9336:rows=1720,cfg=10Hz BS955A:rows=1736,cfg=10Hz BSCCF4:rows=1600,cfg=10Hz
+[CAPTURE] [####................]  21.5% elapsed=26s eta=94s rows=10672 row_rate=414.1/s sw=1334 ge7=97% ge8=54% BSF66F:rows=1744,cfg=10Hz BS2DCE:rows=1808,cfg=10Hz BSDC91:rows=1840,cfg=10Hz BS9336:rows=1800,cfg=10Hz BS955A:rows=1808,cfg=10Hz BSCCF4:rows=1672,cfg=10Hz
+[CAPTURE] [####................]  22.4% elapsed=27s eta=93s rows=11144 row_rate=415.0/s sw=1393 ge7=96% ge8=54% BSF66F:rows=1840,cfg=10Hz BS2DCE:rows=1872,cfg=10Hz BSDC91:rows=1920,cfg=10Hz BS9336:rows=1872,cfg=10Hz BS955A:rows=1888,cfg=10Hz BSCCF4:rows=1752,cfg=10Hz

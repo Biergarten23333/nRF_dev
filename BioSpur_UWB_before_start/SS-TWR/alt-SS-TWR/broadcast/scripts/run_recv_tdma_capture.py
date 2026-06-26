@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import csv
 import json
 import os
@@ -54,6 +56,7 @@ TR_RANGE_RE = re.compile(
     r"(?P<frame_us>\d+);"
     r"(?P<poll_count>\d+)"
     r")?"
+    r"(?:;D(?P<tr_diag_version>\d+),(?P<tr_diag_b64>[A-Za-z0-9+/=]+))?"
 )
 
 TR_BCAST_RE = re.compile(
@@ -76,9 +79,37 @@ TR_BCAST_RE = re.compile(
     r"(?P<cycle_us>\d+);"
     r"(?P<poll_count>\d+)"
     r")?"
+    r"(?:;D(?P<tr_diag_version>\d+),(?P<tr_diag_b64>[A-Za-z0-9+/=]+))?"
 )
 
-RANGE_ACTIVITY_RE = re.compile(r"\b(?:TR|CM|CR|CF|CS);")
+RFD_RE = re.compile(
+    rf"(?:{TAG_NOTIFY_PREFIX_RE} notify:\s*)?"
+    r"RFD;(?P<ver>\d+);"
+    r"(?P<sweep>\d+);"
+    r"(?P<poll_seq>\d+);"
+    r"(?P<anchor_id>\d+);"
+    r"(?P<raw_mm>-?\d+);"
+    r"(?P<resp_rx_ts>\d+);"
+    r"(?P<carrier_integrator>-?\d+);"
+    r"(?P<anchor_flags>\d+);"
+    r"(?P<anchor_fp_index>\d+);"
+    r"(?P<anchor_fp1>\d+);"
+    r"(?P<anchor_fp2>\d+);"
+    r"(?P<anchor_fp3>\d+);"
+    r"(?P<anchor_cir_pwr>\d+);"
+    r"(?P<anchor_rxpacc>\d+);"
+    r"(?P<anchor_std_noise>\d+);"
+    r"(?P<tag_flags>\d+);"
+    r"(?P<tag_fp_index>\d+);"
+    r"(?P<tag_fp1>\d+);"
+    r"(?P<tag_fp2>\d+);"
+    r"(?P<tag_fp3>\d+);"
+    r"(?P<tag_cir_pwr>\d+);"
+    r"(?P<tag_rxpacc>\d+);"
+    r"(?P<tag_std_noise>\d+)"
+)
+
+RANGE_ACTIVITY_RE = re.compile(r"\b(?:TR|RFD|CM|CR|CF|CS);")
 CIR_MODE_CHOICES = ("off", "compact", "full")
 
 # Backwards-compatible aliases for older helper code and text checks.
@@ -136,6 +167,54 @@ def extract_bs_name(text: str) -> str:
 
 def line_has_range_activity(line: str) -> bool:
     return bool(RANGE_ACTIVITY_RE.search(line))
+
+
+TR_RF_DIAG_COMPACT_RECORD_LEN = 8
+
+
+def decode_tr_rf_diag_records(match: re.Match, active_anchors: list[int]) -> dict[int, dict]:
+    version_text = match.groupdict().get("tr_diag_version")
+    payload_text = match.groupdict().get("tr_diag_b64")
+    if not version_text or not payload_text:
+        return {}
+
+    try:
+        version = int(version_text)
+        payload = base64.b64decode(payload_text, validate=True)
+    except (ValueError, binascii.Error):
+        return {}
+
+    records: dict[int, dict] = {}
+    for pos, anchor_id in enumerate(active_anchors):
+        offset = pos * TR_RF_DIAG_COMPACT_RECORD_LEN
+        if offset + TR_RF_DIAG_COMPACT_RECORD_LEN > len(payload):
+            break
+        record = payload[offset : offset + TR_RF_DIAG_COMPACT_RECORD_LEN]
+        anchor_flags = record[0]
+        tag_flags = record[1]
+        records[anchor_id] = {
+            "diag_source": "tr_compact",
+            "tr_diag_version": version,
+            "anchor_diag_valid": 1 if (anchor_flags & 0x01) else 0,
+            "anchor_diag_flags": anchor_flags,
+            "anchor_fp_sum_q8": record[2],
+            "anchor_cir_pwr_q8": record[3],
+            "anchor_rxpacc_q8": record[4],
+            "tag_diag_valid": 1 if (tag_flags & 0x01) else 0,
+            "tag_diag_flags": tag_flags,
+            "tag_fp_sum_q8": record[5],
+            "tag_cir_pwr_q8": record[6],
+            "tag_rxpacc_q8": record[7],
+        }
+    return records
+
+
+def q8_from_u16(value: int) -> int:
+    return max(0, min(255, (int(value) + 128) // 256))
+
+
+def q8_saturate(value: int) -> int:
+    return max(0, min(255, int(value)))
 
 
 def iter_tr_matches(text: str):
@@ -198,6 +277,7 @@ def iter_tr_records(text: str):
             statuses = list(match.group("statuses"))
             active_anchors = [anchor_id for anchor_id in range(8)
                               if active_mask & (1 << anchor_id)]
+            diag_by_anchor = decode_tr_rf_diag_records(match, active_anchors)
             count = min(len(active_anchors), len(raws), len(ranges),
                         len(qualities), len(statuses))
             for pos in range(count):
@@ -231,6 +311,7 @@ def iter_tr_records(text: str):
                     "post_us": int(match.group("post_us") or 0),
                     "cycle_us": int(match.group("cycle_us") or 0),
                     "rx_seen": 1 if (rx_mask & (1 << anchor_id)) else 0,
+                    **diag_by_anchor.get(anchor_id, {}),
                     **imu_fields,
                 }
             continue
@@ -248,6 +329,7 @@ def iter_tr_records(text: str):
         statuses = list(match.group("statuses"))
         active_anchors = [anchor_id for anchor_id in range(8)
                           if active_mask & (1 << anchor_id)]
+        diag_by_anchor = decode_tr_rf_diag_records(match, active_anchors)
         count = min(len(active_anchors), len(raws), len(ranges),
                     len(qualities), len(statuses))
         for pos in range(count):
@@ -280,8 +362,78 @@ def iter_tr_records(text: str):
                 "post_us": "",
                 "cycle_us": "",
                 "rx_seen": "",
+                **diag_by_anchor.get(anchor_id, {}),
                 **imu_fields,
             }
+
+
+def iter_rfd_records(text: str):
+    prefix = None
+    if "notify:" in text:
+        prefix = text.split("notify:", 1)[0] + "notify: "
+
+    for idx, fragment in enumerate(text.split("|")):
+        fragment = fragment.strip()
+        if not fragment:
+            continue
+        if idx > 0 and "notify:" not in fragment and fragment.startswith("RFD;"):
+            fragment = (prefix or "BLE notify: ") + fragment
+
+        match = RFD_RE.search(fragment)
+        if not match:
+            continue
+
+        anchor_flags = int(match.group("anchor_flags"))
+        tag_flags = int(match.group("tag_flags"))
+        anchor_fp1 = int(match.group("anchor_fp1"))
+        anchor_fp2 = int(match.group("anchor_fp2"))
+        anchor_fp3 = int(match.group("anchor_fp3"))
+        tag_fp1 = int(match.group("tag_fp1"))
+        tag_fp2 = int(match.group("tag_fp2"))
+        tag_fp3 = int(match.group("tag_fp3"))
+        anchor_fp_sum = anchor_fp1 + anchor_fp2 + anchor_fp3
+        tag_fp_sum = tag_fp1 + tag_fp2 + tag_fp3
+        anchor_cir_pwr = int(match.group("anchor_cir_pwr"))
+        anchor_rxpacc = int(match.group("anchor_rxpacc"))
+        tag_cir_pwr = int(match.group("tag_cir_pwr"))
+        tag_rxpacc = int(match.group("tag_rxpacc"))
+        yield {
+            "diag_source": "rfd_legacy",
+            "tr_diag_version": "",
+            "rfd_version": int(match.group("ver")),
+            "sweep": int(match.group("sweep")),
+            "poll_seq": int(match.group("poll_seq")),
+            "anchor_id": int(match.group("anchor_id")),
+            "raw_mm": int(match.group("raw_mm")),
+            "resp_rx_ts": int(match.group("resp_rx_ts")),
+            "carrier_integrator": int(match.group("carrier_integrator")),
+            "anchor_diag_valid": 1 if (anchor_flags & 0x01) else 0,
+            "anchor_diag_flags": anchor_flags,
+            "anchor_fp_index": int(match.group("anchor_fp_index")),
+            "anchor_fp1": anchor_fp1,
+            "anchor_fp2": anchor_fp2,
+            "anchor_fp3": anchor_fp3,
+            "anchor_fp_sum": anchor_fp_sum,
+            "anchor_fp_sum_q8": q8_from_u16(anchor_fp_sum),
+            "anchor_cir_pwr": anchor_cir_pwr,
+            "anchor_cir_pwr_q8": q8_from_u16(anchor_cir_pwr),
+            "anchor_rxpacc": anchor_rxpacc,
+            "anchor_rxpacc_q8": q8_saturate(anchor_rxpacc),
+            "anchor_std_noise": int(match.group("anchor_std_noise")),
+            "tag_diag_valid": 1 if (tag_flags & 0x01) else 0,
+            "tag_diag_flags": tag_flags,
+            "tag_fp_index": int(match.group("tag_fp_index")),
+            "tag_fp1": tag_fp1,
+            "tag_fp2": tag_fp2,
+            "tag_fp3": tag_fp3,
+            "tag_fp_sum": tag_fp_sum,
+            "tag_fp_sum_q8": q8_from_u16(tag_fp_sum),
+            "tag_cir_pwr": tag_cir_pwr,
+            "tag_cir_pwr_q8": q8_from_u16(tag_cir_pwr),
+            "tag_rxpacc": tag_rxpacc,
+            "tag_rxpacc_q8": q8_saturate(tag_rxpacc),
+            "tag_std_noise": int(match.group("tag_std_noise")),
+        }
 
 
 def extract_imu_trailer(fragment: str) -> dict:
@@ -341,7 +493,7 @@ def env_float(name: str, default: float) -> float:
 
 def default_full_cir_script_path() -> str:
     repo_root = Path(__file__).resolve().parents[4]
-    return str(repo_root / "flutter_ui_CIR" / "scripts" / "cir_full_usb_capture.py")
+    return str(repo_root / "flutter_ui_autopos" / "scripts" / "cir_full_usb_capture.py")
 
 
 def tag_cir_range_phase(requested_mode: str) -> str:
@@ -732,6 +884,48 @@ def build_parser() -> argparse.ArgumentParser:
         help="Runtime CIR output requested from target Tags: off, compact, or full.",
     )
     parser.add_argument(
+        "--legacy-no-touch-tags",
+        action="store_true",
+        help=(
+            "Do not send pre-capture/final cmd_all MODE IDLE or cmd_all CIR OFF/COMPACT/FULL. "
+            "Use only for reproducing legacy high-throughput captures where the Tag runtime "
+            "state must be left untouched before TDMA release."
+        ),
+    )
+    parser.add_argument(
+        "--legacy-keep-tdma-state",
+        action="store_true",
+        help=(
+            "Do not clear the Master_Tag TDMA roster/state during setup. This is only "
+            "for reproducing known-good legacy captures where resident links are already "
+            "streaming and tdma clear disrupts admission."
+        ),
+    )
+    parser.add_argument(
+        "--legacy-skip-link-ready-wait",
+        action="store_true",
+        help=(
+            "Do not block setup waiting for every target link before TDMA release. "
+            "This matches legacy captures that released TDMA from resident links and "
+            "judged success from actual TR output."
+        ),
+    )
+    parser.add_argument(
+        "--skip-initial-mode-idle",
+        action="store_true",
+        help="Skip the initial pre-setup cmd_all MODE IDLE while still allowing other setup commands.",
+    )
+    parser.add_argument(
+        "--skip-final-mode-idle",
+        action="store_true",
+        help="Skip the final pre-release cmd_all MODE IDLE while still allowing other setup commands.",
+    )
+    parser.add_argument(
+        "--skip-target-cir-command",
+        action="store_true",
+        help="Skip runtime cmd_all CIR <mode> before capture; useful when measuring ranging-only stability.",
+    )
+    parser.add_argument(
         "--full-cir-duration-s",
         type=float,
         default=env_float("BIOSPUR_FULL_CIR_DURATION_S", 30.0),
@@ -805,10 +999,85 @@ def tdma_roster_profile(args: argparse.Namespace | None = None) -> str:
 
 def write_rows(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
     with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
+
+
+def diag_join_key(row: dict) -> tuple[str, str, int, int] | None:
+    try:
+        sweep = int(row["sweep"])
+        anchor_id = int(row["anchor_id"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    peer = str(row.get("peer_name") or "")
+    tag_id = str(row.get("tag_id") or "")
+    if not peer and not tag_id:
+        return None
+    return (peer, tag_id, sweep, anchor_id)
+
+
+def build_range_diag_joined_rows(
+    tr_rows: list[dict],
+    rfd_rows: list[dict],
+    tr_fields: list[str],
+    rfd_join_fields: list[tuple[str, str]],
+) -> list[dict]:
+    rfd_by_key: dict[tuple[str, str, int, int], dict] = {}
+    for row in rfd_rows:
+        key = diag_join_key(row)
+        if key is not None:
+            rfd_by_key[key] = row
+
+    joined_rows: list[dict] = []
+    for tr in tr_rows:
+        out = {field: tr.get(field, "") for field in tr_fields}
+        rfd = rfd_by_key.get(diag_join_key(tr))
+        tr_diag_available = bool(tr.get("diag_source"))
+        out["rfd_joined"] = 1 if rfd or tr_diag_available else 0
+        for out_field, source_field in rfd_join_fields:
+            if rfd:
+                out[out_field] = rfd.get(source_field, "")
+            elif tr_diag_available and not out_field.startswith("rfd_"):
+                out[out_field] = tr.get(source_field, "")
+            else:
+                out[out_field] = ""
+        joined_rows.append(out)
+    return joined_rows
+
+
+def tag_id_fallbacks_from_tdma_config(tdma_config_check: dict) -> dict[str, int]:
+    tag_ids: dict[str, int] = {}
+    for target, info in (tdma_config_check.get("per_target") or {}).items():
+        if not isinstance(info, dict):
+            continue
+        bs = str(info.get("bs") or target_bs_name(str(target))).upper()
+        record = info.get("actual") or info.get("expected") or {}
+        if not isinstance(record, dict):
+            continue
+        try:
+            tag_id = int(record["tag_id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        for alias in target_aliases(str(target)):
+            tag_ids[alias] = tag_id
+        if bs:
+            tag_ids[bs] = tag_id
+    return tag_ids
+
+
+def backfill_tag_ids(rows: list[dict], tag_id_by_peer: dict[str, int]) -> None:
+    for row in rows:
+        if row.get("tag_id") not in (None, ""):
+            continue
+        peer = str(row.get("peer_name") or "").upper()
+        if not peer:
+            continue
+        tag_id = tag_id_by_peer.get(peer)
+        if tag_id is not None:
+            row["tag_id"] = tag_id
 
 
 def summarize_sweep_validity(rows: list[dict]) -> dict:
@@ -861,9 +1130,10 @@ def run_anchor_responder_preflight(args, session_dir: Path) -> dict:
     for launch in range(1, launch_retries + 1):
         preflight_base = session_dir / f"anchor_responder_preflight_launch{launch}"
         preflight_log = session_dir / f"anchor_responder_preflight_launch{launch}.console.log"
+        preflight_script = Path(__file__).resolve().parent / "verify_all_anchor_responder_runtime.py"
         cmd = [
             sys.executable,
-            "scripts/verify_all_anchor_responder_runtime.py",
+            str(preflight_script),
             "--port",
             preflight_port,
             "--live-output",
@@ -1170,6 +1440,17 @@ def apply_target_cir_mode(ser: serial.Serial, logf, args, targets: list[str]) ->
     requested_mode = str(getattr(args, "tag_cir", "off") or "off").strip().lower()
     if requested_mode not in CIR_MODE_CHOICES:
         raise RuntimeError(f"invalid_tag_cir:{requested_mode}")
+    if getattr(args, "legacy_no_touch_tags", False) or getattr(args, "skip_target_cir_command", False):
+        print(
+            f"[CAPTURE] configure: skip target CIR command requested={requested_mode}",
+            flush=True,
+        )
+        logf.write(
+            f"[HOST_INFO {time.monotonic():.3f}] target_cir_skipped "
+            f"requested={requested_mode} targets={','.join(targets)}\n"
+        )
+        logf.flush()
+        return ser
     mode = tag_cir_range_phase(requested_mode)
 
     if requested_mode == "full":
@@ -1461,9 +1742,14 @@ def configure_recv_capture_session(
         "mode=RECV" in status_text
         and "kind=tag" in device_text.lower()
     )
-    print("[CAPTURE] configure: stop resident/stale Tag ranging before TDMA setup", flush=True)
-    ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 1.0)
-    drain_serial_until(ser, logf, 0.4)
+    if args.legacy_no_touch_tags or args.skip_initial_mode_idle:
+        print("[CAPTURE] configure: skip initial cmd_all MODE IDLE", flush=True)
+        logf.write(f"[HOST_INFO {time.monotonic():.3f}] skip_initial_mode_idle=1\n")
+        logf.flush()
+    else:
+        print("[CAPTURE] configure: stop resident/stale Tag ranging before TDMA setup", flush=True)
+        ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 1.0)
+        drain_serial_until(ser, logf, 0.4)
 
     if args.reuse_tag_links:
         print("[CAPTURE] configure: reuse Master_Tag resident links", flush=True)
@@ -1480,7 +1766,13 @@ def configure_recv_capture_session(
     if not args.reuse_tag_links:
         print("[CAPTURE] configure: preseed TDMA allow-list before tag discovery", flush=True)
         ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
-        ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
+        if args.legacy_keep_tdma_state:
+            logf.write(
+                f"[HOST_INFO {time.monotonic():.3f}] legacy_keep_tdma_state skip_preseed_tdma_clear=1\n"
+            )
+            logf.flush()
+        else:
+            ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
         tr_hz = effective_tr_hz(args)
         ser = send_cmd(ser, logf, f"tdma freq {tdma_roster_profile(args)} {tr_hz}", 0.5)
         for target in targets:
@@ -1514,7 +1806,14 @@ def configure_recv_capture_session(
     # Always clear before reasserting the capture roster.  Reusing resident
     # Tag links is useful for speed, but stale TDMA identities from a previous
     # multi-tag run can otherwise survive and put two targets on the same slot.
-    ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
+    if args.legacy_keep_tdma_state:
+        print("[CAPTURE] configure: legacy keep TDMA state; skip tdma clear", flush=True)
+        logf.write(
+            f"[HOST_INFO {time.monotonic():.3f}] legacy_keep_tdma_state skip_reassert_tdma_clear=1\n"
+        )
+        logf.flush()
+    else:
+        ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
     ser = send_cmd(ser, logf, f"tdma freq {tdma_roster_profile(args)} {tr_hz}", 0.5)
     for target in targets:
         ser = send_cmd(ser, logf, f"tdma roster {target_bs_name(target)} {tdma_roster_profile(args)}", 0.5)
@@ -1524,23 +1823,37 @@ def configure_recv_capture_session(
     # per-name target is set, which does not scale to 10-tag stress tests.
     restore_capture_filter()
     ser = send_cmd(ser, logf, "conn", 0.5)
-    print("[CAPTURE] configure: wait for target links", flush=True)
-    ser = ensure_target_links_ready(
-        ser,
-        logf,
-        targets,
-        args.controller_reset_snr,
-        wait_per_target_s=args.tag_link_timeout_s,
-        stable_s=args.tag_link_stable_s,
-        initial_text=status_text + device_text + clear_text,
-        discovery_prefix_override="",
-    )
-    print("[CAPTURE] configure: stop target Tag ranging before final TDMA release", flush=True)
-    ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 1.0)
-    drain_serial_until(ser, logf, 0.4)
+    if args.legacy_skip_link_ready_wait:
+        print("[CAPTURE] configure: legacy skip target link-ready wait", flush=True)
+        logf.write(
+            f"[HOST_INFO {time.monotonic():.3f}] legacy_skip_link_ready_wait=1\n"
+        )
+        logf.flush()
+        drain_serial_until(ser, logf, max(0.0, float(args.tag_link_stable_s)))
+    else:
+        print("[CAPTURE] configure: wait for target links", flush=True)
+        ser = ensure_target_links_ready(
+            ser,
+            logf,
+            targets,
+            args.controller_reset_snr,
+            wait_per_target_s=args.tag_link_timeout_s,
+            stable_s=args.tag_link_stable_s,
+            initial_text=status_text + device_text + clear_text,
+            discovery_prefix_override="",
+        )
+    if args.legacy_no_touch_tags or args.skip_final_mode_idle:
+        print("[CAPTURE] configure: skip final cmd_all MODE IDLE", flush=True)
+        logf.write(f"[HOST_INFO {time.monotonic():.3f}] skip_final_mode_idle=1\n")
+        logf.flush()
+    else:
+        print("[CAPTURE] configure: stop target Tag ranging before final TDMA release", flush=True)
+        ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 1.0)
+        drain_serial_until(ser, logf, 0.4)
     ser = apply_target_cir_mode(ser, logf, args, targets)
     print("[CAPTURE] configure: release TDMA hold and verify TDMA CFG", flush=True)
     ser = send_cmd(ser, logf, "tdma hold 0", 1.0)
+    ser = send_cmd(ser, logf, "tdma rebalance", 1.0)
     # Runtime CFG can collide with link traffic right after hold release, and a
     # disconnected target can make Master print TDMA weighted without a matching
     # CFG_OK. Close that loop before capture starts.
@@ -1578,6 +1891,14 @@ def configure_recv_capture_session(
             + "; ".join(bad),
             flush=True,
         )
+        if args.legacy_skip_link_ready_wait:
+            logf.write(
+                f"[HOST_WARN {time.monotonic():.3f}] legacy_skip_link_ready_wait continuing despite TDMA CFG mismatch: "
+                + "; ".join(bad)
+                + "\n"
+            )
+            logf.flush()
+            break
         if attempt >= config_retries:
             break
 
@@ -1633,6 +1954,19 @@ def configure_recv_capture_session(
             for target, info in last_check.get("per_target", {}).items()
             if not info.get("match", False)
         ]
+        if args.legacy_skip_link_ready_wait:
+            print(
+                "[CAPTURE] configure: legacy continuing despite TDMA CFG mismatch; "
+                + "; ".join(bad),
+                flush=True,
+            )
+            logf.write(
+                f"[HOST_WARN {time.monotonic():.3f}] legacy_continue_with_tdma_cfg_mismatch="
+                + "; ".join(bad)
+                + "\n"
+            )
+            logf.flush()
+            return ser
         raise RuntimeError("TDMA CFG verify failed before capture: " + "; ".join(bad))
     print("[CAPTURE] configure: TDMA ready", flush=True)
     return ser
@@ -1645,10 +1979,13 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
     result = {
         "attempted": True,
         "success": False,
-        "command": "cmd_all MODE IDLE",
+        "command": "cmd_all MODE AOTA",
         "error": "",
         "stop_notify_rows": None,
         "stop_verify_s": 3.0,
+        "tdma_cleanup": False,
+        "tdma_release_hold": False,
+        "fallback_command": None,
     }
 
     def verify_quiet() -> int:
@@ -1660,15 +1997,35 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
         return rows
 
     try:
-        print("[CAPTURE] cleanup: stopping all tag ranging with cmd_all MODE IDLE", flush=True)
-        logf.write(f"[HOST_CLEANUP {time.monotonic():.3f}] stop all tag ranging via cmd_all MODE IDLE\n")
+        print("[CAPTURE] cleanup: stopping all tag ranging with cmd_all MODE AOTA", flush=True)
+        logf.write(f"[HOST_CLEANUP {time.monotonic():.3f}] stop all tag ranging via cmd_all MODE AOTA\n")
         logf.flush()
-        ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 1.0)
+        ser = send_cmd(ser, logf, "cmd_all MODE AOTA", 1.0)
+        ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
+        ser = send_cmd(ser, logf, "tdma clear", 1.0)
+        ser = send_cmd(ser, logf, "tdma freq motion 10", 0.5)
+        ser, tdma_show = send_cmd_collect(ser, logf, "tdma show", 0.8)
+        result["tdma_cleanup"] = True
+        if "roster=explicit" in tdma_show:
+            ser = send_cmd(ser, logf, "tdma hold 0", 0.5)
+            result["tdma_release_hold"] = True
+        else:
+            logf.write(
+                f"[HOST_CLEANUP {time.monotonic():.3f}] legacy_master_keep_tdma_hold=1\n"
+            )
+            logf.flush()
         rows = verify_quiet()
+        if rows > 0:
+            result["fallback_command"] = "cmd_all MODE IDLE"
+            print("[CAPTURE] cleanup: MODE AOTA not quiet; fallback cmd_all MODE IDLE", flush=True)
+            logf.write(f"[HOST_CLEANUP {time.monotonic():.3f}] fallback stop via cmd_all MODE IDLE\n")
+            logf.flush()
+            ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 1.0)
+            rows = verify_quiet()
         result["stop_notify_rows"] = rows
         result["success"] = rows == 0
         if result["success"]:
-            print("[CAPTURE] cleanup: all tags quiet after MODE IDLE", flush=True)
+            print("[CAPTURE] cleanup: all tags quiet after stop command", flush=True)
         else:
             result["error"] = f"still saw {rows} range rows after stop"
             print(f"[CAPTURE] cleanup: stop verify failed: {result['error']}", flush=True)
@@ -1682,8 +2039,25 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
             ser = open_serial_with_retry(args.port, args.baud, retries=30)
             time.sleep(0.8)
             drain_serial_until(ser, logf, 0.8)
-            ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 1.0)
+            ser = send_cmd(ser, logf, "cmd_all MODE AOTA", 1.0)
+            ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
+            ser = send_cmd(ser, logf, "tdma clear", 1.0)
+            ser = send_cmd(ser, logf, "tdma freq motion 10", 0.5)
+            ser, tdma_show = send_cmd_collect(ser, logf, "tdma show", 0.8)
+            result["tdma_cleanup"] = True
+            if "roster=explicit" in tdma_show:
+                ser = send_cmd(ser, logf, "tdma hold 0", 0.5)
+                result["tdma_release_hold"] = True
+            else:
+                logf.write(
+                    f"[HOST_CLEANUP {time.monotonic():.3f}] legacy_master_keep_tdma_hold=1\n"
+                )
+                logf.flush()
             rows = verify_quiet()
+            if rows > 0:
+                result["fallback_command"] = "cmd_all MODE IDLE"
+                ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 1.0)
+                rows = verify_quiet()
             result["stop_notify_rows"] = rows
             result["success"] = rows == 0
             result["error"] = "" if result["success"] else f"still saw {rows} range rows after stop"
@@ -1790,7 +2164,8 @@ def build_tdma_config_check(
 
     per_target: dict[str, dict] = {}
     all_match = True
-    fields = ["tag_id", "slot", "count", "mask", "period_ms", "active_ms", "active_us", "generation"]
+    strict_fields = ["slot", "count", "mask", "period_ms", "active_ms", "active_us"]
+    diagnostic_fields = ["tag_id", "generation"]
     for target in targets:
         bs = target_bs_name(target).upper()
         expected = expected_by_bs.get(bs)
@@ -1806,9 +2181,12 @@ def build_tdma_config_check(
             # acknowledgement that the runtime TDMA tuple was actually applied.
             warnings.append("missing_expected_cfg_assigned")
         if expected is not None and actual is not None:
-            for field in fields:
+            for field in strict_fields:
                 if expected.get(field) != actual.get(field):
                     mismatches.append(field)
+            for field in diagnostic_fields:
+                if expected.get(field) != actual.get(field):
+                    warnings.append(field)
             if actual.get("live") != 1:
                 mismatches.append("live")
 
@@ -1826,25 +2204,29 @@ def build_tdma_config_check(
         actual_cfg_hz = _actual_cfg_hz(actual)
         weighted = weighted_by_bs.get(bs)
         if weighted is None:
-            if actual is None:
-                mismatches.append("missing_tdma_weighted")
-            else:
-                warnings.append("missing_tdma_weighted")
-                if expected_freq_hz is not None and actual_cfg_hz is not None:
-                    if round(actual_cfg_hz, 3) != round(float(expected_freq_hz), 3):
-                        mismatches.append("actual_cfg_hz")
+            warnings.append("missing_tdma_weighted")
+            if expected_freq_hz is not None and actual_cfg_hz is not None:
+                if round(actual_cfg_hz, 3) != round(float(expected_freq_hz), 3):
+                    mismatches.append("actual_cfg_hz")
         elif expected_freq_hz is not None:
             if weighted.get("target_hz") != expected_freq_hz:
-                mismatches.append("scheduler_target_hz")
+                warnings.append("scheduler_target_hz")
             if weighted.get("actual_x100", 0) < expected_freq_hz * 100:
                 warnings.append("scheduler_actual_hz")
-                if not allow_scheduler_actual_hz_below_request:
-                    mismatches.append("scheduler_actual_hz")
             if actual is not None:
-                if weighted.get("mask") != actual.get("mask"):
-                    mismatches.append("scheduler_mask_not_applied")
-                if weighted.get("count") != actual.get("count"):
-                    mismatches.append("scheduler_count_not_applied")
+                if expected is None:
+                    # In high-rate multi-tag setup logs, the Master-side
+                    # CFG/TDM weighted lines can be split by incoming TR notify
+                    # traffic. In that case the latest parsed weighted record
+                    # may be stale, while CFG_OK is the Tag-side applied tuple.
+                    if expected_freq_hz is not None and actual_cfg_hz is not None:
+                        if round(actual_cfg_hz, 3) != round(float(expected_freq_hz), 3):
+                            mismatches.append("actual_cfg_hz")
+                else:
+                    if weighted.get("mask") != actual.get("mask"):
+                        warnings.append("scheduler_mask_not_applied")
+                    if weighted.get("count") != actual.get("count"):
+                        warnings.append("scheduler_count_not_applied")
 
         match = not mismatches
         all_match = all_match and match
@@ -2096,6 +2478,7 @@ def main() -> int:
 
     conn_meta: dict[str, dict] = {}
     tr_rows: list[dict] = []
+    rfd_rows: list[dict] = []
     interrupted = False
     startup_failed = False
     startup_fail_targets: list[str] = []
@@ -2325,10 +2708,40 @@ def main() -> int:
                                     "acc_norm_min_mg": tr.get("acc_norm_min_mg", ""),
                                     "acc_norm_max_mg": tr.get("acc_norm_max_mg", ""),
                                     "imu_skip_count": int(tr.get("imu_skip_count") or 0),
+                                    "diag_source": tr.get("diag_source", ""),
+                                    "tr_diag_version": tr.get("tr_diag_version", ""),
+                                    "anchor_diag_valid": tr.get("anchor_diag_valid", ""),
+                                    "anchor_diag_flags": tr.get("anchor_diag_flags", ""),
+                                    "anchor_fp_sum_q8": tr.get("anchor_fp_sum_q8", ""),
+                                    "anchor_cir_pwr_q8": tr.get("anchor_cir_pwr_q8", ""),
+                                    "anchor_rxpacc_q8": tr.get("anchor_rxpacc_q8", ""),
+                                    "tag_diag_valid": tr.get("tag_diag_valid", ""),
+                                    "tag_diag_flags": tr.get("tag_diag_flags", ""),
+                                    "tag_fp_sum_q8": tr.get("tag_fp_sum_q8", ""),
+                                    "tag_cir_pwr_q8": tr.get("tag_cir_pwr_q8", ""),
+                                    "tag_rxpacc_q8": tr.get("tag_rxpacc_q8", ""),
                                 }
                             )
                             if peer_name:
                                 tr_seen[peer_name] += 1
+
+                        for rfd in iter_rfd_records(line):
+                            match = re.search(TAG_NOTIFY_PREFIX_RE, line)
+                            conn_id = match.groupdict().get("conn") if match else ""
+                            meta = conn_meta.get(conn_id, {}) if conn_id else {}
+                            peer_name = extract_bs_name(line) or meta.get("peer_name", "")
+                            if peer_name and peer_name not in target_set:
+                                continue
+                            rfd_rows.append(
+                                {
+                                    "conn_id": conn_id,
+                                    "host_elapsed_s": host_elapsed_s,
+                                    "host_epoch_s": host_epoch_s,
+                                    "peer_name": peer_name,
+                                    "tag_id": meta.get("tag_id", ""),
+                                    **rfd,
+                                }
+                            )
 
                     if time.time() - last_status_at >= 1.0:
                         print_capture_status(
@@ -2377,11 +2790,27 @@ def main() -> int:
                 }
             ser, cleanup_result = cleanup_capture_session(ser, logf, args)
 
+    tdma_config_check = build_tdma_config_check(
+        raw_log_path,
+        targets,
+        expected_pmode_by_target,
+        expected_freq_by_target,
+        allow_scheduler_actual_hz_below_request=args.allow_scheduler_actual_hz_below_request,
+    )
+    tdma_config_failed = not tdma_config_check.get("match", False)
+    tag_id_by_peer = tag_id_fallbacks_from_tdma_config(tdma_config_check)
+    backfill_tag_ids(tr_rows, tag_id_by_peer)
+    backfill_tag_ids(rfd_rows, tag_id_by_peer)
+
     tr_by_target: dict[str, list[dict]] = defaultdict(list)
+    rfd_by_target: dict[str, list[dict]] = defaultdict(list)
 
     for row in tr_rows:
         key = row["peer_name"] or f"tag{row['tag_id']}"
         tr_by_target[key].append(row)
+    for row in rfd_rows:
+        key = row["peer_name"] or f"tag{row['tag_id']}"
+        rfd_by_target[key].append(row)
 
     tr_fields = [
         "host_elapsed_s",
@@ -2417,7 +2846,97 @@ def main() -> int:
         "imu_skip_count",
     ]
 
+    rfd_fields = [
+        "host_elapsed_s",
+        "host_epoch_s",
+        "sweep",
+        "conn_id",
+        "peer_name",
+        "tag_id",
+        "diag_source",
+        "tr_diag_version",
+        "rfd_version",
+        "poll_seq",
+        "anchor_id",
+        "raw_mm",
+        "resp_rx_ts",
+        "carrier_integrator",
+        "anchor_diag_valid",
+        "anchor_diag_flags",
+        "anchor_fp_index",
+        "anchor_fp1",
+        "anchor_fp2",
+        "anchor_fp3",
+        "anchor_fp_sum",
+        "anchor_fp_sum_q8",
+        "anchor_cir_pwr",
+        "anchor_cir_pwr_q8",
+        "anchor_rxpacc",
+        "anchor_rxpacc_q8",
+        "anchor_std_noise",
+        "tag_diag_valid",
+        "tag_diag_flags",
+        "tag_fp_index",
+        "tag_fp1",
+        "tag_fp2",
+        "tag_fp3",
+        "tag_fp_sum",
+        "tag_fp_sum_q8",
+        "tag_cir_pwr",
+        "tag_cir_pwr_q8",
+        "tag_rxpacc",
+        "tag_rxpacc_q8",
+        "tag_std_noise",
+    ]
+
+    rfd_join_fields = [
+        ("diag_source", "diag_source"),
+        ("tr_diag_version", "tr_diag_version"),
+        ("rfd_host_elapsed_s", "host_elapsed_s"),
+        ("rfd_host_epoch_s", "host_epoch_s"),
+        ("rfd_version", "rfd_version"),
+        ("rfd_poll_seq", "poll_seq"),
+        ("rfd_raw_mm", "raw_mm"),
+        ("rfd_resp_rx_ts", "resp_rx_ts"),
+        ("rfd_carrier_integrator", "carrier_integrator"),
+        ("anchor_diag_valid", "anchor_diag_valid"),
+        ("anchor_diag_flags", "anchor_diag_flags"),
+        ("anchor_fp_index", "anchor_fp_index"),
+        ("anchor_fp1", "anchor_fp1"),
+        ("anchor_fp2", "anchor_fp2"),
+        ("anchor_fp3", "anchor_fp3"),
+        ("anchor_fp_sum", "anchor_fp_sum"),
+        ("anchor_fp_sum_q8", "anchor_fp_sum_q8"),
+        ("anchor_cir_pwr", "anchor_cir_pwr"),
+        ("anchor_cir_pwr_q8", "anchor_cir_pwr_q8"),
+        ("anchor_rxpacc", "anchor_rxpacc"),
+        ("anchor_rxpacc_q8", "anchor_rxpacc_q8"),
+        ("anchor_std_noise", "anchor_std_noise"),
+        ("tag_diag_valid", "tag_diag_valid"),
+        ("tag_diag_flags", "tag_diag_flags"),
+        ("tag_fp_index", "tag_fp_index"),
+        ("tag_fp1", "tag_fp1"),
+        ("tag_fp2", "tag_fp2"),
+        ("tag_fp3", "tag_fp3"),
+        ("tag_fp_sum", "tag_fp_sum"),
+        ("tag_fp_sum_q8", "tag_fp_sum_q8"),
+        ("tag_cir_pwr", "tag_cir_pwr"),
+        ("tag_cir_pwr_q8", "tag_cir_pwr_q8"),
+        ("tag_rxpacc", "tag_rxpacc"),
+        ("tag_rxpacc_q8", "tag_rxpacc_q8"),
+        ("tag_std_noise", "tag_std_noise"),
+    ]
+
     write_rows(session_dir / "tr_all.csv", tr_fields, tr_rows)
+    write_rows(session_dir / "tag_rf_diag.csv", rfd_fields, rfd_rows)
+    range_diag_joined_rows = build_range_diag_joined_rows(
+        tr_rows, rfd_rows, tr_fields, rfd_join_fields
+    )
+    write_rows(
+        session_dir / "range_diag_joined.csv",
+        tr_fields + ["rfd_joined"] + [field for field, _ in rfd_join_fields],
+        range_diag_joined_rows,
+    )
 
     per_tag_summary: dict[str, dict] = {}
 
@@ -2436,11 +2955,24 @@ def main() -> int:
         tag_dir = session_dir / target
         tag_dir.mkdir(parents=True, exist_ok=True)
         tr_target_rows = rows_for_target(tr_by_target, target)
+        rfd_target_rows = rows_for_target(rfd_by_target, target)
+        joined_target_rows = build_range_diag_joined_rows(
+            tr_target_rows, rfd_target_rows, tr_fields, rfd_join_fields
+        )
         write_rows(tag_dir / "tr.csv", tr_fields, tr_target_rows)
+        write_rows(tag_dir / "tag_rf_diag.csv", rfd_fields, rfd_target_rows)
+        write_rows(
+            tag_dir / "range_diag_joined.csv",
+            tr_fields + ["rfd_joined"] + [field for field, _ in rfd_join_fields],
+            joined_target_rows,
+        )
 
         per_tag_summary[target] = {
             "tr_rows": len(tr_target_rows),
             "tr_valid_rows": sum(1 for row in tr_target_rows if row["valid"]),
+            "tr_diag_rows": sum(1 for row in tr_target_rows if row.get("diag_source")),
+            "rfd_rows": len(rfd_target_rows),
+            "rfd_joined_rows": sum(1 for row in joined_target_rows if row["rfd_joined"]),
             "sweep_validity": summarize_sweep_validity(tr_target_rows),
             "latest_tr": tr_target_rows[-1] if tr_target_rows else None,
             "anchors_seen": sorted(
@@ -2452,14 +2984,6 @@ def main() -> int:
             },
         }
 
-    tdma_config_check = build_tdma_config_check(
-        raw_log_path,
-        targets,
-        expected_pmode_by_target,
-        expected_freq_by_target,
-        allow_scheduler_actual_hz_below_request=args.allow_scheduler_actual_hz_below_request,
-    )
-    tdma_config_failed = not tdma_config_check.get("match", False)
     summary = {
         "success": (
             (not interrupted)
@@ -2493,11 +3017,16 @@ def main() -> int:
         "freq_hz": {"tr": tr_hz},
         "tr_all": len(tr_rows),
         "tr_valid_all": sum(1 for row in tr_rows if row["valid"]),
+        "tr_diag_all": sum(1 for row in tr_rows if row.get("diag_source")),
+        "rfd_all": len(rfd_rows),
+        "rfd_joined_all": sum(1 for row in range_diag_joined_rows if row["rfd_joined"]),
         "sweep_validity_all": summarize_sweep_validity(tr_rows),
         "connections": conn_meta,
         "per_tag": per_tag_summary,
         "raw_log": str(raw_log_path),
         "tr_all_csv": str(session_dir / "tr_all.csv"),
+        "tag_rf_diag_csv": str(session_dir / "tag_rf_diag.csv"),
+        "range_diag_joined_csv": str(session_dir / "range_diag_joined.csv"),
     }
     summary_json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2))

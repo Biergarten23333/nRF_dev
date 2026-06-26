@@ -342,7 +342,7 @@ static void control_print_help(void)
 	printk("Runtime NUS cmds: cmd <raw> | cmd_all <raw> | oneshot <raw> | oneshot show | oneshot clear\n");
 	printk("Tag layout cmds: APOS <id> <x_mm> <y_mm> <z_mm> | APOS_TO <BSxxxx> APOS... | APOS_COMMIT | APOS_STATUS | APOS_RESET\n");
 	printk("Tag CIR cmds: tag cir <off|compact|full|status> | tag cir all <off|compact|full|status>\n");
-	printk("TDMA cmds: tdma show | tdma hold <0|1> | tdma roster <BSxxxx> motion | tdma profile <BSxxxx> motion | tdma freq motion <hz> | tdma rebalance\n");
+	printk("TDMA cmds: tdma show | tdma hold <0|1> | tdma clear | tdma auto <0|1> | tdma roster <BSxxxx> motion | tdma profile <BSxxxx> motion | tdma freq motion <hz> | tdma rebalance\n");
 	printk("Device model cmds: device show | device kind <anchor|tag>\n");
 	printk("OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->\n");
 	printk("Anchor cmds: anchor version <A..H|UUID32|all> | anchor role <A..H|UUID32|all> <master|matrix|responder> [cir <0|compact|full>] | anchor reset <A..H|UUID32|all> <autopos|responder>\n");
@@ -2518,16 +2518,29 @@ static void control_handle_uart_command(const char *line)
 			printk("tdma hold rc=%d hold=%lu\n", rc, hold);
 			return;
 		}
-			if (n >= 3 && strcmp(sub, "profile") == 0) {
-				rc = master_tdma_set_profile(a, b);
-				printk("tdma profile rc=%d target=%s profile=%s\n", rc, a, b);
+		if (n >= 2 && strcmp(sub, "auto") == 0) {
+			unsigned long enable;
+			char *end = NULL;
+
+			enable = strtoul(a, &end, 10);
+			if (end == a || *end != '\0' || enable > 1UL) {
+				printk("tdma auto parse failed: %s\n", a);
 				return;
 			}
-			if (n >= 3 && strcmp(sub, "roster") == 0) {
-				rc = master_tdma_add_roster_target(a, b);
-				printk("tdma roster rc=%d target=%s profile=%s\n", rc, a, b);
-				return;
-			}
+			rc = master_tdma_set_auto_roster(enable != 0UL);
+			printk("tdma auto rc=%d enable=%lu\n", rc, enable);
+			return;
+		}
+		if (n >= 3 && strcmp(sub, "profile") == 0) {
+			rc = master_tdma_set_profile(a, b);
+			printk("tdma profile rc=%d target=%s profile=%s\n", rc, a, b);
+			return;
+		}
+		if (n >= 3 && strcmp(sub, "roster") == 0) {
+			rc = master_tdma_add_roster_target(a, b);
+			printk("tdma roster rc=%d target=%s profile=%s\n", rc, a, b);
+			return;
+		}
 		if (n >= 3 && strcmp(sub, "freq") == 0) {
 			unsigned long hz;
 			char *end = NULL;

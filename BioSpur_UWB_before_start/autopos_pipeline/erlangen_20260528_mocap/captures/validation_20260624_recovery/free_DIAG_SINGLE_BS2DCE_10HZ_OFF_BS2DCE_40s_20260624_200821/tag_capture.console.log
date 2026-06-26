@@ -1,0 +1,299 @@
+[CAPTURE] session_dir=/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/erlangen_20260528_mocap/captures/validation_20260624_recovery/free_DIAG_SINGLE_BS2DCE_10HZ_OFF_BS2DCE_40s_20260624_200821/tag_capture_20260624_200841
+[CAPTURE] raw_log=/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/erlangen_20260528_mocap/captures/validation_20260624_recovery/free_DIAG_SINGLE_BS2DCE_10HZ_OFF_BS2DCE_40s_20260624_200821/tag_capture_20260624_200841/raw.log
+[CAPTURE] plan: targets=BS2DCE tr=10Hz duration=40s
+[CAPTURE] open serial: /dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00
+[CAPTURE] drain boot/runtime output
+[HOST_CMD] status
+[HOST_CMD] device show
+[CAPTURE] configure: stop resident/stale Tag ranging before TDMA setup
+[HOST_CMD] cmd_all MODE IDLE
+[CAPTURE] configure: enter clean RECV/tag mode
+[HOST_CMD] mode recv
+[HOST_CMD] status
+[HOST_CMD] device show
+[CAPTURE] configure: preseed TDMA allow-list before tag discovery
+[HOST_CMD] tdma hold 1
+[HOST_CMD] tdma clear
+[HOST_CMD] tdma freq motion 10
+[HOST_CMD] tdma roster BS2DCE motion
+[CAPTURE] configure: restrict tag discovery to BS2DCE
+[HOST_CMD] ota_target token -1
+[HOST_CMD] ota_target name BS2DCE
+[HOST_CMD] ota_target prefix -
+[HOST_CMD] ota_target uuid -
+[HOST_CMD] ota_target token -1
+[HOST_CMD] ota_target name BS2DCE
+[HOST_CMD] ota_target prefix -
+[HOST_CMD] ota_target uuid -
+[CAPTURE] configure: targeted non-target idle disabled
+[HOST_CMD] ota_target token -1
+[HOST_CMD] ota_target name BS2DCE
+[HOST_CMD] ota_target prefix -
+[HOST_CMD] ota_target uuid -
+[CAPTURE] configure: silence resident Tag links for enrollment
+[HOST_CMD] tdma hold 1
+[CAPTURE] configure: skip setup MODE IDLE; TDMA roster/hold controls admission
+[CAPTURE] configure: reassert TDMA target roster
+[HOST_CMD] tdma clear
+[HOST_CMD] tdma freq motion 10
+[HOST_CMD] tdma roster BS2DCE motion
+[HOST_CMD] ota_target token -1
+[HOST_CMD] ota_target name BS2DCE
+[HOST_CMD] ota_target prefix -
+[HOST_CMD] ota_target uuid -
+[HOST_CMD] conn
+[CAPTURE] configure: wait for target links
+[CAPTURE] link setup passive initial: wait up to 30s
+[CAPTURE] link setup passive: ready=BS2DCE (1/1)
+[CAPTURE] link setup passive: all 1/1 ready; settle 8.0s before TDMA release
+[CAPTURE] link setup passive: ready=BS2DCE (1/1)
+[CAPTURE] configure: stop target Tag ranging before final TDMA release
+[HOST_CMD] cmd_all MODE IDLE
+[CAPTURE] configure: target CIR mode=off
+[HOST_CMD] cmd_all CIR OFF
+[CAPTURE] configure: release TDMA hold and verify TDMA CFG
+[HOST_CMD] tdma hold 0
+[CAPTURE] configure: TDMA CFG apply/check attempt 1/3
+[HOST_CMD] tdma show
+[HOST_CMD] status
+[HOST_CMD] device show
+[CAPTURE] configure: TDMA CFG verified match=true
+[CAPTURE] configure: TDMA ready
+[CAPTURE] TDMA verified; start TR capture
+[CAPTURE] [....................]   0.5% elapsed=0s eta=40s rows=0 row_rate=0.0/s sw=0 ge7=0% ge8=0% BS2DCE:rows=0,cfg=10Hz
+[CAPTURE] [#...................]   3.0% elapsed=1s eta=39s rows=0 row_rate=0.0/s sw=0 ge7=0% ge8=0% BS2DCE:rows=0,cfg=10Hz
+[CAPTURE] [#...................]   5.9% elapsed=2s eta=38s rows=72 row_rate=30.4/s sw=9 ge7=89% ge8=44% BS2DCE:rows=72,cfg=10Hz
+[CAPTURE] [##..................]   8.5% elapsed=3s eta=37s rows=144 row_rate=42.2/s sw=18 ge7=94% ge8=50% BS2DCE:rows=144,cfg=10Hz
+[CAPTURE] [##..................]  11.2% elapsed=4s eta=36s rows=224 row_rate=50.0/s sw=28 ge7=96% ge8=46% BS2DCE:rows=224,cfg=10Hz
+[CAPTURE] [###.................]  14.0% elapsed=6s eta=34s rows=288 row_rate=51.6/s sw=36 ge7=97% ge8=50% BS2DCE:rows=288,cfg=10Hz
+[CAPTURE] [###.................]  16.6% elapsed=7s eta=33s rows=360 row_rate=54.2/s sw=45 ge7=96% ge8=47% BS2DCE:rows=360,cfg=10Hz
+[CAPTURE] [####................]  19.1% elapsed=8s eta=32s rows=432 row_rate=56.5/s sw=54 ge7=96% ge8=50% BS2DCE:rows=432,cfg=10Hz
+[CAPTURE] [####................]  21.6% elapsed=9s eta=31s rows=512 row_rate=59.2/s sw=64 ge7=97% ge8=50% BS2DCE:rows=512,cfg=10Hz
+[CAPTURE] [#####...............]  24.2% elapsed=10s eta=30s rows=576 row_rate=59.4/s sw=72 ge7=97% ge8=49% BS2DCE:rows=576,cfg=10Hz
+[CAPTURE] [#####...............]  26.8% elapsed=11s eta=29s rows=656 row_rate=61.3/s sw=82 ge7=98% ge8=46% BS2DCE:rows=656,cfg=10Hz
+[CAPTURE] [######..............]  29.3% elapsed=12s eta=28s rows=728 row_rate=62.2/s sw=91 ge7=97% ge8=46% BS2DCE:rows=728,cfg=10Hz
+[CAPTURE] [######..............]  31.8% elapsed=13s eta=27s rows=792 row_rate=62.3/s sw=99 ge7=97% ge8=48% BS2DCE:rows=792,cfg=10Hz
+[CAPTURE] [#######.............]  34.7% elapsed=14s eta=26s rows=872 row_rate=62.9/s sw=109 ge7=97% ge8=50% BS2DCE:rows=872,cfg=10Hz
+[CAPTURE] [#######.............]  37.2% elapsed=15s eta=25s rows=952 row_rate=64.0/s sw=119 ge7=97% ge8=50% BS2DCE:rows=952,cfg=10Hz
+[CAPTURE] [########............]  39.7% elapsed=16s eta=24s rows=1008 row_rate=63.5/s sw=126 ge7=98% ge8=52% BS2DCE:rows=1008,cfg=10Hz
+[CAPTURE] [########............]  42.5% elapsed=17s eta=23s rows=1088 row_rate=64.1/s sw=136 ge7=97% ge8=54% BS2DCE:rows=1088,cfg=10Hz
+[CAPTURE] [#########...........]  45.0% elapsed=18s eta=22s rows=1168 row_rate=64.9/s sw=146 ge7=97% ge8=53% BS2DCE:rows=1168,cfg=10Hz
+[CAPTURE] [##########..........]  47.6% elapsed=19s eta=21s rows=1240 row_rate=65.1/s sw=155 ge7=97% ge8=55% BS2DCE:rows=1240,cfg=10Hz
+[CAPTURE] [##########..........]  50.3% elapsed=20s eta=20s rows=1312 row_rate=65.3/s sw=164 ge7=98% ge8=55% BS2DCE:rows=1312,cfg=10Hz
+[CAPTURE] [###########.........]  52.9% elapsed=21s eta=19s rows=1384 row_rate=65.4/s sw=173 ge7=98% ge8=55% BS2DCE:rows=1384,cfg=10Hz
+[CAPTURE] [###########.........]  55.4% elapsed=22s eta=18s rows=1472 row_rate=66.4/s sw=184 ge7=97% ge8=54% BS2DCE:rows=1472,cfg=10Hz
+[CAPTURE] [############........]  58.0% elapsed=23s eta=17s rows=1544 row_rate=66.5/s sw=193 ge7=97% ge8=54% BS2DCE:rows=1544,cfg=10Hz
+[CAPTURE] [############........]  60.9% elapsed=24s eta=16s rows=1616 row_rate=66.3/s sw=202 ge7=97% ge8=55% BS2DCE:rows=1616,cfg=10Hz
+[CAPTURE] [#############.......]  63.6% elapsed=25s eta=15s rows=1696 row_rate=66.7/s sw=212 ge7=97% ge8=56% BS2DCE:rows=1696,cfg=10Hz
+[CAPTURE] [#############.......]  66.2% elapsed=26s eta=14s rows=1768 row_rate=66.8/s sw=221 ge7=97% ge8=57% BS2DCE:rows=1768,cfg=10Hz
+[CAPTURE] [##############......]  68.8% elapsed=28s eta=12s rows=1832 row_rate=66.5/s sw=229 ge7=97% ge8=57% BS2DCE:rows=1832,cfg=10Hz
+[CAPTURE] [##############......]  71.5% elapsed=29s eta=11s rows=1920 row_rate=67.1/s sw=240 ge7=97% ge8=57% BS2DCE:rows=1920,cfg=10Hz
+[CAPTURE] [###############.....]  74.0% elapsed=30s eta=10s rows=2000 row_rate=67.6/s sw=250 ge7=97% ge8=58% BS2DCE:rows=2000,cfg=10Hz
+[CAPTURE] [###############.....]  76.8% elapsed=31s eta=9s rows=2072 row_rate=67.5/s sw=259 ge7=97% ge8=57% BS2DCE:rows=2072,cfg=10Hz
+[CAPTURE] [################....]  79.6% elapsed=32s eta=8s rows=2128 row_rate=66.8/s sw=266 ge7=97% ge8=56% BS2DCE:rows=2128,cfg=10Hz
+[CAPTURE] [################....]  82.3% elapsed=33s eta=7s rows=2208 row_rate=67.1/s sw=276 ge7=97% ge8=55% BS2DCE:rows=2208,cfg=10Hz
+[CAPTURE] [#################...]  85.0% elapsed=34s eta=6s rows=2280 row_rate=67.0/s sw=285 ge7=97% ge8=55% BS2DCE:rows=2280,cfg=10Hz
+[CAPTURE] [##################..]  87.5% elapsed=35s eta=5s rows=2352 row_rate=67.2/s sw=294 ge7=97% ge8=56% BS2DCE:rows=2352,cfg=10Hz
+[CAPTURE] [##################..]  90.4% elapsed=36s eta=4s rows=2424 row_rate=67.0/s sw=303 ge7=97% ge8=56% BS2DCE:rows=2424,cfg=10Hz
+[CAPTURE] [###################.]  93.0% elapsed=37s eta=3s rows=2488 row_rate=66.9/s sw=311 ge7=97% ge8=56% BS2DCE:rows=2488,cfg=10Hz
+[CAPTURE] [###################.]  95.7% elapsed=38s eta=2s rows=2568 row_rate=67.1/s sw=321 ge7=97% ge8=56% BS2DCE:rows=2568,cfg=10Hz
+[CAPTURE] [####################]  98.5% elapsed=39s eta=1s rows=2648 row_rate=67.2/s sw=331 ge7=97% ge8=56% BS2DCE:rows=2648,cfg=10Hz
+[CAPTURE] cleanup: stopping all tag ranging with cmd_all MODE IDLE
+[HOST_CMD] cmd_all MODE IDLE
+[CAPTURE] cleanup: all tags quiet after MODE IDLE
+{
+  "success": true,
+  "interrupted": false,
+  "startup_failed": false,
+  "startup_fail_targets": [],
+  "controller_lost": false,
+  "no_tr_timeout": false,
+  "controller_recovery_attempts": 0,
+  "controller_recovery_successes": 0,
+  "tdma_config_failed": false,
+  "tdma_config_check": {
+    "match": true,
+    "per_target": {
+      "BS2DCE": {
+        "bs": "BS2DCE",
+        "match": true,
+        "mismatches": [],
+        "warnings": [],
+        "expected": {
+          "tag_id": 1,
+          "slot": 0,
+          "count": 10,
+          "mask": 1,
+          "mask_hex": "0x0001",
+          "period_ms": 10,
+          "active_ms": 9,
+          "active_us": 0,
+          "generation": 9,
+          "pmode": 0
+        },
+        "actual": {
+          "tag_id": 1,
+          "slot": 0,
+          "count": 10,
+          "mask": 1,
+          "mask_hex": "0x0001",
+          "period_ms": 10,
+          "active_ms": 9,
+          "active_us": 0,
+          "generation": 9,
+          "live": 1
+        },
+        "actual_cfg_hz": 10.0,
+        "scheduler": {
+          "profile": "motion",
+          "target_hz": 10,
+          "mask": 1,
+          "mask_hex": "0x0001",
+          "slots": 1,
+          "count": 10,
+          "actual_x100": 1000,
+          "actual_hz": 10.0
+        },
+        "expected_pmode": 0,
+        "expected_freq_hz": 10
+      }
+    },
+    "duplicate_identities": []
+  },
+  "anchor_preflight": {
+    "skipped": true,
+    "success": true
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "command": "cmd_all MODE IDLE",
+    "error": "",
+    "stop_notify_rows": 0,
+    "stop_verify_s": 3.0
+  },
+  "tag_cir": "off",
+  "tag_cir_range_phase": "off",
+  "cir_full_phase": {
+    "requested": "off",
+    "attempted": false,
+    "reason": "not_full"
+  },
+  "port": "/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00",
+  "duration_s": 40.0,
+  "elapsed_s": 93.64006972312927,
+  "session_dir": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/erlangen_20260528_mocap/captures/validation_20260624_recovery/free_DIAG_SINGLE_BS2DCE_10HZ_OFF_BS2DCE_40s_20260624_200821/tag_capture_20260624_200841",
+  "targets": [
+    "BS2DCE"
+  ],
+  "expected_pmode": {
+    "BS2DCE": 0
+  },
+  "expected_freq_hz": {
+    "BS2DCE": 10
+  },
+  "skipped_before_target_pmode": 0,
+  "freq_hz": {
+    "tr": 10
+  },
+  "tr_all": 2696,
+  "tr_valid_all": 2488,
+  "sweep_validity_all": {
+    "sweeps_total": 337,
+    "sweeps_with_any_valid": 329,
+    "sweeps_ge4": 329,
+    "sweeps_ge7": 327,
+    "sweeps_ge8": 187,
+    "ratio_ge4": 0.976261,
+    "ratio_ge7": 0.970326,
+    "ratio_ge8": 0.554896,
+    "valid_count_distribution": {
+      "0": 0,
+      "1": 0,
+      "2": 0,
+      "3": 0,
+      "4": 0,
+      "5": 0,
+      "6": 2,
+      "7": 140,
+      "8": 187
+    }
+  },
+  "connections": {},
+  "per_tag": {
+    "BS2DCE": {
+      "tr_rows": 2696,
+      "tr_valid_rows": 2488,
+      "sweep_validity": {
+        "sweeps_total": 337,
+        "sweeps_with_any_valid": 329,
+        "sweeps_ge4": 329,
+        "sweeps_ge7": 327,
+        "sweeps_ge8": 187,
+        "ratio_ge4": 0.976261,
+        "ratio_ge7": 0.970326,
+        "ratio_ge8": 0.554896,
+        "valid_count_distribution": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 2,
+          "7": 140,
+          "8": 187
+        }
+      },
+      "latest_tr": {
+        "conn_id": null,
+        "host_elapsed_s": 39.992491,
+        "host_epoch_s": 1782324610.637516,
+        "peer_name": "BS2DCE",
+        "tag_id": "",
+        "sweep": 12124,
+        "plan": "f",
+        "pmode": 0,
+        "anchor_id": 7,
+        "raw_mm": 3374,
+        "range_mm": 3374,
+        "quality_percent": 82,
+        "valid": 1,
+        "status": "O",
+        "quality_flag_percent": 0,
+        "first_to_last_us": 0,
+        "frame_us": 0,
+        "poll_count": 0,
+        "tr_version": 2,
+        "rx_mask": "",
+        "air_us": "",
+        "post_us": "",
+        "cycle_us": "",
+        "rx_seen": "",
+        "imu_valid": 0,
+        "imu_n": 0,
+        "acc_norm_mean_mg": "",
+        "acc_norm_std_mg": "",
+        "acc_norm_min_mg": "",
+        "acc_norm_max_mg": "",
+        "imu_skip_count": 0
+      },
+      "anchors_seen": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "tr_status_counts": {
+        "O": 2488,
+        "T": 208
+      }
+    }
+  },
+  "raw_log": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/erlangen_20260528_mocap/captures/validation_20260624_recovery/free_DIAG_SINGLE_BS2DCE_10HZ_OFF_BS2DCE_40s_20260624_200821/tag_capture_20260624_200841/raw.log",
+  "tr_all_csv": "/home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/erlangen_20260528_mocap/captures/validation_20260624_recovery/free_DIAG_SINGLE_BS2DCE_10HZ_OFF_BS2DCE_40s_20260624_200821/tag_capture_20260624_200841/tr_all.csv"
+}

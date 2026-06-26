@@ -1,15 +1,6 @@
 /*
- * Listener-only hardware overlay.
+ * RX-only co-located listener overlay.
  *
- * J10 wiring used by this app:
- * - J10 pin 19 / SPIS_MOSI / nRF P0.06 -> 74HC595 SER
- * - J10 pin 23 / SPIS_CLK  / nRF P0.04 -> 74HC595 SRCLK
- * - J10 pin 24 / SPIS_CSn  / nRF P0.03 -> 74HC595 RCLK
- * - J10 pin 15 / READY     / nRF P0.26 -> button to GND
- *
- * The pins above are controlled as plain GPIOs here, so disable the board's
- * spi1 node that normally owns P0.03/P0.04/P0.06/P0.07.
+ * The DW1000 wiring is provided by the DWM1001 board definition and shared
+ * uwb_port implementation; this file is intentionally empty for now.
  */
-&spi1 {
-	status = "disabled";
-};

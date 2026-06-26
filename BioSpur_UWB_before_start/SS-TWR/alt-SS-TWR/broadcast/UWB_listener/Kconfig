@@ -1,17 +1,9 @@
 source "Kconfig.zephyr"
 
-menu "BioSpur UWB listener"
-
-config APP_LISTENER_UI_ENABLE
-	bool "Enable listener LED/button/buzzer UI"
-	default y
+menu "BioSpur co-located UWB listener"
 
 config APP_LISTENER_STATUS_PRINT_ENABLE
-	bool "Enable listener human-readable status prints"
-	default n
-
-config APP_LISTENER_DEBUG_PRINT_ENABLE
-	bool "Enable listener verbose debug prints"
-	default n
+	bool "Enable low-rate listener status prints"
+	default y
 
 endmenu

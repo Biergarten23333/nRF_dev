@@ -112,9 +112,9 @@ const biospurBlack = Color(0xFF050806);
 const panelLine = Color(0x33638A01);
 const tableLine = Color(0xAA638A01);
 const mutedText = Color(0xFFB6C7B3);
-const appVersion = '1.0.20';
-const appBuildStamp = '2026-06-24 00:19 CEST';
-const appBuildNote = 'PMODE0 capture; Full CIR deferred by backend';
+const appVersion = '1.0.26';
+const appBuildStamp = '2026-06-25 02:39 CEST';
+const appBuildNote = 'Tag capture Full CIR seconds control';
 
 class AutoPosFieldApp extends StatelessWidget {
   const AutoPosFieldApp({super.key});
@@ -196,6 +196,7 @@ class _FieldConsolePageState extends State<FieldConsolePage>
   final ScriptRunner _runner = ScriptRunner();
   late final TextEditingController _workspaceController;
   SweepSnapshot _sweep = SweepSnapshot.empty();
+  CirResultSnapshot _cirResult = CirResultSnapshot.empty();
   PortSnapshot _ports = PortSnapshot.empty();
   Timer? _splashTimer;
   bool _showSplash = true;
@@ -293,6 +294,7 @@ class _FieldConsolePageState extends State<FieldConsolePage>
     setState(() {
       activeWorkspaceRoot = expanded;
       _sweep = SweepSnapshot.empty();
+      _cirResult = CirResultSnapshot.empty();
       _sweepLoadingEnabled = false;
       _sweepReadSince = null;
       _selectedSolverLayoutPath = null;
@@ -412,9 +414,13 @@ class _FieldConsolePageState extends State<FieldConsolePage>
       final sweep = _sweepLoadingEnabled
           ? await SweepReader.readLatest(minModified: _sweepReadSince)
           : SweepSnapshot.empty();
+      final cirResult = _sweepLoadingEnabled
+          ? await CirResultReader.readLatest(minModified: _sweepReadSince)
+          : CirResultSnapshot.empty();
       if (!mounted) return;
       setState(() {
         _sweep = sweep;
+        _cirResult = cirResult;
         _ports = ports;
       });
     } finally {
@@ -428,6 +434,7 @@ class _FieldConsolePageState extends State<FieldConsolePage>
       _sweepReadSince = minModified;
       if (clear) {
         _sweep = SweepSnapshot.empty();
+        _cirResult = CirResultSnapshot.empty();
       }
     });
   }
@@ -451,6 +458,7 @@ class _FieldConsolePageState extends State<FieldConsolePage>
     if (!mounted || !confirmed) return;
     setState(() {
       _sweep = SweepSnapshot.empty();
+      _cirResult = CirResultSnapshot.empty();
       _sweepLoadingEnabled = false;
       _sweepReadSince = null;
       _selectedSolverLayoutPath = null;
@@ -528,6 +536,7 @@ echo "[clear] done"
                   children: [
                     AutoPosSweepTab(
                       sweep: _sweep,
+                      cirResult: _cirResult,
                       ports: _ports,
                       runner: _runner,
                       onRefresh: _refreshAll,
@@ -1237,6 +1246,7 @@ class AutoPosSweepTab extends StatefulWidget {
   const AutoPosSweepTab({
     super.key,
     required this.sweep,
+    required this.cirResult,
     required this.ports,
     required this.runner,
     required this.onRefresh,
@@ -1245,6 +1255,7 @@ class AutoPosSweepTab extends StatefulWidget {
   });
 
   final SweepSnapshot sweep;
+  final CirResultSnapshot cirResult;
   final PortSnapshot ports;
   final ScriptRunner runner;
   final Future<void> Function() onRefresh;
@@ -1423,7 +1434,7 @@ FULL_CIR_PID=""
 python3 ${shellQuote(fullCirUsbCaptureScript)} \\
   ${cirFullUsbPortArgs()} \\
   --seconds 7200 \\
-  --preview-every 0 \\
+  --preview-every 4 \\
   --capture-root "\$BIOSPUR_SESSION_ROOT" \\
   --target ${shellQuote('MATRIX_$id')} \\
   --control-port "" &
@@ -1441,7 +1452,7 @@ cleanup_full_cir_listener() {
     kill "\$FULL_CIR_PID" 2>/dev/null || true
     wait "\$FULL_CIR_PID" 2>/dev/null || true
   fi
-  exit "\$rc"
+  return "\$rc"
 }
 trap cleanup_full_cir_listener EXIT INT TERM
 ''';
@@ -1469,7 +1480,7 @@ $fullListener
 )
 RC=\${PIPESTATUS[0]}
 printf '%s,%s,cir_capture,%s,%s\\n' "\$(date -Is)" ${shellQuote(id)} "\$OUT" ${shellQuote('mode=$modeArg; sw_sets=$cirSets; rc=')}"\$RC" >> "\$BIOSPUR_SESSION_ROOT/session_notes.csv"
-exit "\$RC"
+return "\$RC" 2>/dev/null || exit "\$RC"
 ''';
   }
 
@@ -1519,6 +1530,12 @@ exit "\$RC"
         LiveSwRowCard(sweep: sweep),
         const SizedBox(height: 14),
         RoundStatusTable(sweep: sweep),
+        const SizedBox(height: 14),
+        CirResultCard(
+          cirResult: widget.cirResult,
+          ports: widget.ports,
+          livePreview: widget.runner.latestCirPreview,
+        ),
       ],
     );
   }
@@ -2069,6 +2086,653 @@ class RoundStatusTable extends StatelessWidget {
       ),
     );
   }
+}
+
+class CirResultCard extends StatelessWidget {
+  const CirResultCard({
+    super.key,
+    required this.cirResult,
+    required this.ports,
+    required this.livePreview,
+  });
+
+  final CirResultSnapshot cirResult;
+  final PortSnapshot ports;
+  final FullCirPreview? livePreview;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasResult = cirResult.hasResult;
+    final full = cirResult.full;
+    final compact = cirResult.compact;
+    final title = hasResult ? cirResult.displayName : 'No CIR result loaded';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.graphic_eq, size: 20, color: controlGreen),
+                const SizedBox(width: 8),
+                const Text(
+                  'CIR Capture Result',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                ),
+                const Spacer(),
+                StatusPill(
+                  label: 'Latest',
+                  value: hasResult ? cirResult.modeLabel : 'WAITING',
+                  tone: hasResult ? PillTone.active : PillTone.neutral,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, color: mutedText),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                StatusPill(
+                  label: 'Full CIR USB',
+                  value: ports.cirFullUsbStatus,
+                  tone: ports.cirFullUsbReady ? PillTone.good : PillTone.warn,
+                ),
+                StatusPill(
+                  label: 'Compact CRX',
+                  value: compact == null ? '-' : '${compact.totalFrames}',
+                  tone: compact == null
+                      ? PillTone.neutral
+                      : compact.totalFrames > 0
+                      ? PillTone.good
+                      : PillTone.warn,
+                ),
+                StatusPill(
+                  label: 'Full frames',
+                  value: full == null ? '-' : '${full.totalFrames}',
+                  tone: full == null
+                      ? PillTone.neutral
+                      : full.totalFrames > 0
+                      ? PillTone.good
+                      : PillTone.warn,
+                ),
+                StatusPill(
+                  label: 'Tag streams',
+                  value: full == null ? '-' : '${full.tagStreamCount}',
+                  tone: full == null
+                      ? PillTone.neutral
+                      : full.tagStreamCount > 0
+                      ? PillTone.good
+                      : PillTone.warn,
+                ),
+                StatusPill(
+                  label: 'Anchor streams',
+                  value: full == null ? '-' : '${full.anchorStreamCount}/8',
+                  tone: full == null
+                      ? PillTone.neutral
+                      : full.anchorStreamCount > 0
+                      ? PillTone.good
+                      : PillTone.warn,
+                ),
+              ],
+            ),
+            if (!hasResult) ...[
+              const SizedBox(height: 14),
+              const Text(
+                'Run Sweep with CIR Capture enabled. Full mode draws a USB boxplot after the deferred CIR phase writes cir_full_meta.csv.',
+                style: TextStyle(color: mutedText),
+              ),
+            ],
+            if (compact != null) ...[
+              const SizedBox(height: 16),
+              CompactCirBars(compact: compact),
+            ],
+            if (full != null) ...[
+              const SizedBox(height: 16),
+              FullCirSuspiciousLinks(full: full),
+              const SizedBox(height: 16),
+              FullCirBoxPlot(full: full),
+              const SizedBox(height: 16),
+              FullCirCoverage(full: full),
+            ],
+            if (livePreview != null) ...[
+              const SizedBox(height: 16),
+              FullCirLivePreview(preview: livePreview!),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class CompactCirBars extends StatelessWidget {
+  const CompactCirBars({super.key, required this.compact});
+
+  final CompactCirSnapshot compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxCount = compact.byAnchor.values.fold<int>(
+      1,
+      (maxValue, value) => math.max(maxValue, value),
+    );
+    final activeCounts = compact.byAnchor.values.where((v) => v > 0).toList();
+    final medianActive = activeCounts.isEmpty
+        ? 0.0
+        : percentile(
+                (activeCounts.map((v) => v.toDouble()).toList()..sort()),
+                0.50,
+              ) ??
+              0.0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Compact CIR A-H Coverage',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: anchors.map((anchor) {
+            final count = compact.byAnchor[anchor] ?? 0;
+            final fraction = count / maxCount;
+            final tone = compactAnchorTone(count, medianActive);
+            final color = toneColor(tone);
+            return SizedBox(
+              width: 92,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        anchor,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '$count',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                      value: fraction.clamp(0.0, 1.0),
+                      minHeight: 8,
+                      color: color,
+                      backgroundColor: color.withValues(alpha: 0.14),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ),
+        if (compact.byTag.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: compact.byTag.entries
+                .map(
+                  (entry) => StatusPill(
+                    label: entry.key,
+                    value: '${entry.value} CRX',
+                    tone: PillTone.neutral,
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+PillTone compactAnchorTone(int count, double medianActive) {
+  if (count <= 0) return PillTone.bad;
+  if (medianActive <= 0) return PillTone.good;
+  final ratio = count / medianActive;
+  if (ratio < 0.35) return PillTone.bad;
+  if (ratio < 0.70) return PillTone.warn;
+  return PillTone.good;
+}
+
+class FullCirSuspiciousLinks extends StatelessWidget {
+  const FullCirSuspiciousLinks({super.key, required this.full});
+
+  final FullCirSnapshot full;
+
+  @override
+  Widget build(BuildContext context) {
+    final stats = full.pairStats.where((s) => s.tone != PillTone.good).toList()
+      ..sort((a, b) {
+        final byTone = _toneRank(b.tone).compareTo(_toneRank(a.tone));
+        if (byTone != 0) return byTone;
+        return b.robustSpread.compareTo(a.robustSpread);
+      });
+    if (stats.isEmpty) {
+      return const Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(
+            'Full CIR Link Health',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          StatusPill(label: 'Links', value: 'all stable', tone: PillTone.good),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Full CIR Suspicious Links',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: stats.take(12).map((s) {
+            return StatusPill(
+              label: s.anchor,
+              value:
+                  '${s.tone == PillTone.bad ? 'severe' : 'wide'} | n=${s.count} | IQR=${s.iqr.toStringAsFixed(0)} | p95-p05=${s.robustSpread.toStringAsFixed(0)} | med=${s.median.toStringAsFixed(0)}',
+              tone: s.tone,
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+}
+
+int _toneRank(PillTone tone) {
+  switch (tone) {
+    case PillTone.bad:
+      return 3;
+    case PillTone.warn:
+      return 2;
+    case PillTone.good:
+      return 1;
+    case PillTone.active:
+    case PillTone.neutral:
+      return 0;
+  }
+}
+
+class FullCirLivePreview extends StatelessWidget {
+  const FullCirLivePreview({super.key, required this.preview});
+
+  final FullCirPreview preview;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              'Full CIR Live Waveform Preview',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(width: 10),
+            StatusPill(
+              label: 'USB',
+              value: '${preview.portLabel} ${preview.rxAnchor}',
+              tone: PillTone.active,
+            ),
+            const SizedBox(width: 8),
+            StatusPill(
+              label: 'Raw',
+              value: '${preview.rawDistanceMm} mm',
+              tone: PillTone.neutral,
+            ),
+            const SizedBox(width: 8),
+            StatusPill(
+              label: 'Noise',
+              value: '${preview.stdNoise}',
+              tone: PillTone.neutral,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          height: 130,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            border: Border.all(color: panelLine),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: CustomPaint(painter: CirWaveformPainter(preview.wave)),
+        ),
+      ],
+    );
+  }
+}
+
+class CirWaveformPainter extends CustomPainter {
+  const CirWaveformPainter(this.values);
+
+  final List<int> values;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final plot = Rect.fromLTWH(12, 10, size.width - 24, size.height - 24);
+    final axisPaint = Paint()
+      ..color = tableLine
+      ..strokeWidth = 1;
+    canvas.drawLine(plot.bottomLeft, plot.bottomRight, axisPaint);
+    if (values.length < 2) return;
+    final maxValue = values.fold<int>(1, math.max).toDouble();
+    final path = Path();
+    for (var i = 0; i < values.length; i++) {
+      final x = plot.left + plot.width * i / (values.length - 1);
+      final y =
+          plot.bottom - (values[i] / maxValue).clamp(0.0, 1.0) * plot.height;
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    final glow = Paint()
+      ..color = biospurGlow.withValues(alpha: 0.20)
+      ..strokeWidth = 6
+      ..style = PaintingStyle.stroke;
+    final line = Paint()
+      ..color = controlGreen
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+    canvas.drawPath(path, glow);
+    canvas.drawPath(path, line);
+  }
+
+  @override
+  bool shouldRepaint(covariant CirWaveformPainter oldDelegate) =>
+      oldDelegate.values != values;
+}
+
+class FullCirCoverage extends StatelessWidget {
+  const FullCirCoverage({super.key, required this.full});
+
+  final FullCirSnapshot full;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Full CIR USB Streams',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: full.byPort.entries.map((entry) {
+            final stream = full.streamByPort[entry.key] ?? '-';
+            return StatusPill(
+              label: 'USB ${entry.key}',
+              value: '$stream frames ${entry.value}',
+              tone: stream == 'tag' ? PillTone.good : PillTone.active,
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+}
+
+class FullCirBoxPlot extends StatelessWidget {
+  const FullCirBoxPlot({super.key, required this.full});
+
+  final FullCirSnapshot full;
+
+  @override
+  Widget build(BuildContext context) {
+    final pairStats = full.rawDistanceByPair.entries
+        .where((entry) => entry.value.isNotEmpty)
+        .map((entry) => CirBoxStats.fromValues(entry.key, entry.value))
+        .toList();
+    final anchorStats = full.rawDistanceByAnchor.entries
+        .where((entry) => entry.value.isNotEmpty)
+        .map((entry) => CirBoxStats.fromValues(entry.key, entry.value))
+        .toList();
+    final stats = pairStats.isNotEmpty ? pairStats : anchorStats;
+    if (stats.isEmpty) {
+      return const Text(
+        'Full CIR boxplot waits for raw_distance_mm values in cir_full_meta.csv.',
+        style: TextStyle(color: mutedText),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Full CIR Raw Distance Boxplot',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          pairStats.isNotEmpty
+              ? 'Grouped by receiver-source pair; Y axis shows residual from each pair median.'
+              : 'Grouped by receiver anchor; Y axis shows residual from each anchor median.',
+          style: const TextStyle(color: mutedText, fontSize: 12),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: const [
+            StatusPill(
+              label: 'Stable',
+              value: 'spread OK',
+              tone: PillTone.good,
+            ),
+            StatusPill(
+              label: 'Suspicious',
+              value: 'wide spread',
+              tone: PillTone.warn,
+            ),
+            StatusPill(label: 'Severe', value: 'very wide', tone: PillTone.bad),
+          ],
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: pairStats.length > 12 ? 320 : 280,
+          width: double.infinity,
+          child: CustomPaint(painter: CirBoxPlotPainter(stats)),
+        ),
+      ],
+    );
+  }
+}
+
+class CirBoxPlotPainter extends CustomPainter {
+  const CirBoxPlotPainter(this.stats);
+
+  final List<CirBoxStats> stats;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (stats.isEmpty || size.width <= 0 || size.height <= 0) return;
+    final plot = Rect.fromLTWH(64, 20, size.width - 82, size.height - 104);
+    final residuals = <double>[];
+    for (final s in stats) {
+      for (final value in s.values) {
+        residuals.add(value - s.median);
+      }
+    }
+    residuals.sort();
+    final robustMin = percentile(residuals, 0.05) ?? residuals.first;
+    final robustMax = percentile(residuals, 0.95) ?? residuals.last;
+    final minValue = residuals.first;
+    final maxValue = residuals.last;
+    final rawSpan = math.max(1.0, robustMax - robustMin);
+    final padding = math.max(20.0, rawSpan * 0.28);
+    var yMinValue = math.min(robustMin, 0.0) - padding;
+    var yMaxValue = math.max(robustMax, 0.0) + padding;
+    if ((yMaxValue - yMinValue) < 80.0) {
+      final mid = (yMaxValue + yMinValue) / 2.0;
+      yMinValue = mid - 40.0;
+      yMaxValue = mid + 40.0;
+    }
+    final span = math.max(1.0, yMaxValue - yMinValue);
+    double y(double value) {
+      final clipped = value.clamp(yMinValue, yMaxValue).toDouble();
+      return plot.bottom - ((clipped - yMinValue) / span) * plot.height;
+    }
+
+    final axisPaint = Paint()
+      ..color = tableLine
+      ..strokeWidth = 1;
+    final gridPaint = Paint()
+      ..color = tableLine.withValues(alpha: 0.42)
+      ..strokeWidth = 1;
+
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+    void label(String text, Offset at, {Color color = mutedText}) {
+      textPainter.text = TextSpan(
+        text: text,
+        style: TextStyle(color: color, fontSize: 10, fontFamily: 'monospace'),
+      );
+      textPainter.layout();
+      textPainter.paint(canvas, at);
+    }
+
+    for (var tick = 0; tick <= 6; tick++) {
+      final ty = plot.top + plot.height * tick / 6;
+      canvas.drawLine(Offset(plot.left, ty), Offset(plot.right, ty), gridPaint);
+      final value = yMaxValue - span * tick / 6;
+      label(value.toStringAsFixed(0), Offset(2, ty - 7));
+    }
+    final zeroY = y(0.0);
+    final zeroPaint = Paint()
+      ..color = biospurGlow.withValues(alpha: 0.55)
+      ..strokeWidth = 1.4;
+    canvas.drawLine(
+      Offset(plot.left, zeroY),
+      Offset(plot.right, zeroY),
+      zeroPaint,
+    );
+    canvas.drawLine(plot.bottomLeft, plot.bottomRight, axisPaint);
+    canvas.drawLine(plot.topLeft, plot.bottomLeft, axisPaint);
+    label('raw distance residual from group median (mm)', Offset(plot.left, 2));
+    label(
+      'raw span ${minValue.toStringAsFixed(0)}..${maxValue.toStringAsFixed(0)} mm',
+      Offset(plot.right - 210, 2),
+    );
+
+    final step = plot.width / stats.length;
+    for (var i = 0; i < stats.length; i++) {
+      final s = stats[i];
+      final tone = toneColor(s.tone);
+      final cx = plot.left + step * (i + 0.5);
+      final half = math.max(8.0, math.min(24.0, step * 0.30));
+      final values = s.values.map((value) => value - s.median).toList();
+      final yMin = y(s.min - s.median);
+      final yQ1 = y(s.q1 - s.median);
+      final yMed = y(0.0);
+      final yQ3 = y(s.q3 - s.median);
+      final yMax = y(s.max - s.median);
+      final xPaint = Paint()
+        ..color = tone.withValues(alpha: s.tone == PillTone.good ? 0.22 : 0.46)
+        ..strokeWidth = 1;
+      final boxPaint = Paint()
+        ..color = tone.withValues(alpha: 0.22)
+        ..style = PaintingStyle.fill;
+      final linePaint = Paint()
+        ..color = tone
+        ..strokeWidth = s.tone == PillTone.good ? 2 : 2.8;
+      final medianPaint = Paint()
+        ..color = s.tone == PillTone.good ? biospurGlow : tone
+        ..strokeWidth = 2.4;
+      final pointPaint = Paint()
+        ..color = tone.withValues(alpha: s.tone == PillTone.good ? 0.66 : 0.82)
+        ..style = PaintingStyle.fill;
+      canvas.drawLine(Offset(cx, plot.top), Offset(cx, plot.bottom), xPaint);
+      canvas.drawLine(Offset(cx, yMax), Offset(cx, yMin), linePaint);
+      canvas.drawLine(
+        Offset(cx - half * 0.6, yMax),
+        Offset(cx + half * 0.6, yMax),
+        linePaint,
+      );
+      canvas.drawLine(
+        Offset(cx - half * 0.6, yMin),
+        Offset(cx + half * 0.6, yMin),
+        linePaint,
+      );
+      final boxTop = math.min(yQ1, yQ3);
+      final boxBottom = math.max(yQ1, yQ3);
+      final box = Rect.fromLTRB(
+        cx - half,
+        boxTop,
+        cx + half,
+        math.max(boxTop + 8.0, boxBottom),
+      );
+      canvas.drawRect(box, boxPaint);
+      final boxStroke = Paint()
+        ..color = tone
+        ..strokeWidth = s.tone == PillTone.good ? 2 : 2.8
+        ..style = PaintingStyle.stroke;
+      canvas.drawRect(box, boxStroke);
+      canvas.drawLine(
+        Offset(cx - half, yMed),
+        Offset(cx + half, yMed),
+        medianPaint,
+      );
+      for (var j = 0; j < s.values.length; j++) {
+        final jitterSeed = ((i + 1) * 37 + (j + 3) * 17) % 23;
+        final jitter = ((jitterSeed / 22.0) - 0.5) * half * 1.65;
+        canvas.drawCircle(Offset(cx + jitter, y(values[j])), 2.8, pointPaint);
+      }
+      canvas.save();
+      canvas.translate(cx - 8, plot.bottom + 10);
+      if (stats.length > 12) {
+        canvas.rotate(-math.pi / 4);
+      }
+      label(s.anchor, Offset.zero, color: tone);
+      canvas.restore();
+      label('n=${s.count}', Offset(cx - 13, plot.bottom + 34));
+      label(
+        'med ${s.median.toStringAsFixed(0)}mm',
+        Offset(cx - 35, plot.bottom + 50),
+      );
+      if (s.tone != PillTone.good) {
+        label(
+          'IQR ${s.iqr.toStringAsFixed(0)}',
+          Offset(cx - 24, plot.bottom + 66),
+          color: tone,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CirBoxPlotPainter oldDelegate) =>
+      oldDelegate.stats != stats;
 }
 
 class TableText extends StatelessWidget {
@@ -3108,11 +3772,13 @@ class _AnchorHoverPopup extends StatelessWidget {
 class _TagHoverPopup extends StatelessWidget {
   const _TagHoverPopup({
     required this.frame,
+    required this.displayZ,
     required this.position,
     required this.size,
   });
 
   final TrajectoryFrame frame;
+  final double displayZ;
   final Offset position;
   final Size size;
 
@@ -3162,7 +3828,7 @@ class _TagHoverPopup extends StatelessWidget {
                   Text('t: ${frame.hostElapsedS.toStringAsFixed(2)} s'),
                   Text('X: ${fmtMm(frame.xMm)}'),
                   Text('Y: ${fmtMm(frame.yMm)}'),
-                  Text('Z: ${fmtMm(frame.zMm)}'),
+                  Text('Z: ${fmtMm(displayZ)}'),
                   Text(
                     'residual: ${fmtMm(frame.residualRmsMm)}  anchors: ${frame.anchorsUsed}',
                   ),
@@ -3179,11 +3845,13 @@ class _TagHoverPopup extends StatelessWidget {
 class _CenterHoverPopup extends StatelessWidget {
   const _CenterHoverPopup({
     required this.estimate,
+    required this.displayZ,
     required this.position,
     required this.size,
   });
 
   final RotoTrajectoryEstimate estimate;
+  final double displayZ;
   final Offset position;
   final Size size;
 
@@ -3232,7 +3900,7 @@ class _CenterHoverPopup extends StatelessWidget {
                   const SizedBox(height: 5),
                   Text('X: ${fmtMm(estimate.centerX)}'),
                   Text('Y: ${fmtMm(estimate.centerY)}'),
-                  Text('Z: ${fmtMm(estimate.centerZ)}'),
+                  Text('Z: ${fmtMm(displayZ)}'),
                   Text(
                     'R: ${fmtMm(estimate.radiusMm)}  rms: ${fmtMm(estimate.radiusRmsMm)}',
                   ),
@@ -3624,6 +4292,9 @@ class _CaptureTabState extends State<CaptureTab>
   String _kind = 'static';
   final TextEditingController _id = TextEditingController(text: 'ID01');
   final TextEditingController _duration = TextEditingController(text: '120');
+  final TextEditingController _fullCirDuration = TextEditingController(
+    text: '30',
+  );
   late Future<List<CaptureSessionInfo>> _sessionsFuture;
   late Future<SolverAnalysis> _analysisFuture;
   late Future<List<SolverSweepInfo>> _sweepsFuture;
@@ -3656,15 +4327,24 @@ class _CaptureTabState extends State<CaptureTab>
     _sessionsFuture = CaptureSessionInfo.scan();
     _analysisFuture = SolverAnalysis.read();
     _sweepsFuture = SolverSweepInfo.scan();
+    _duration.addListener(_captureSettingsChanged);
+    _fullCirDuration.addListener(_captureSettingsChanged);
     widget.runner.addListener(_runnerChanged);
   }
 
   @override
   void dispose() {
     widget.runner.removeListener(_runnerChanged);
+    _duration.removeListener(_captureSettingsChanged);
+    _fullCirDuration.removeListener(_captureSettingsChanged);
     _id.dispose();
     _duration.dispose();
+    _fullCirDuration.dispose();
     super.dispose();
+  }
+
+  void _captureSettingsChanged() {
+    if (mounted) setState(() {});
   }
 
   void _runnerChanged() {
@@ -3702,11 +4382,32 @@ class _CaptureTabState extends State<CaptureTab>
     }
     final id = _id.text.trim();
     final duration = _duration.text.trim();
+    final fullCirDuration = _fullCirDuration.text.trim();
     if (id.isEmpty || duration.isEmpty) {
       await showBioSpurNotice(
         context,
         title: 'Capture settings incomplete',
         message: 'Set a capture ID and duration before starting capture.',
+      );
+      return;
+    }
+    final durationSeconds = int.tryParse(duration);
+    if (durationSeconds == null || durationSeconds <= 0) {
+      await showBioSpurNotice(
+        context,
+        title: 'Invalid capture seconds',
+        message: 'Range capture seconds must be a positive whole number.',
+      );
+      return;
+    }
+    final fullCirSeconds = int.tryParse(fullCirDuration);
+    if (_cirMode == cirModeFull &&
+        (fullCirSeconds == null || fullCirSeconds <= 0)) {
+      await showBioSpurNotice(
+        context,
+        title: 'Invalid Full CIR seconds',
+        message:
+            'Full CIR mode runs a second USB capture phase after the range phase. Set Full CIR seconds to a positive whole number.',
       );
       return;
     }
@@ -3742,7 +4443,10 @@ class _CaptureTabState extends State<CaptureTab>
       final env = <String>[
         'BIOSPUR_SKIP_ANCHOR_PREFLIGHT_FOR_CAPTURE=${skipPreflight ? 1 : 0}',
       ];
-      return '$workspaceSetup && ${env.join(' ')} $_kind -id ${shellQuote(captureId)} -s ${shellQuote(duration)} -cir ${shellQuote(cirModeArg)}$targetSuffix';
+      final fullCirSuffix = cirModeArg == cirModeFull
+          ? ' -cir-s ${shellQuote(fullCirDuration)}'
+          : '';
+      return '$workspaceSetup && ${env.join(' ')} $_kind -id ${shellQuote(captureId)} -s ${shellQuote(duration)} -cir ${shellQuote(cirModeArg)}$fullCirSuffix$targetSuffix';
     }
 
     final command = captureCommandFor(id, cirModeArg: _cirMode);
@@ -3751,6 +4455,8 @@ class _CaptureTabState extends State<CaptureTab>
     });
     final runnerName = _cirMode == cirModeOff
         ? '$_kind $id'
+        : _cirMode == cirModeFull
+        ? '$_kind $id + Full CIR ${fullCirDuration}s'
         : '$_kind $id + ${cirModeLabel(_cirMode)} CIR';
     await widget.runner.start(runnerName, command);
   }
@@ -3878,8 +4584,24 @@ class _CaptureTabState extends State<CaptureTab>
                       width: 120,
                       child: TextField(
                         controller: _duration,
+                        enabled: !widget.runner.isRunning,
+                        keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
-                          labelText: 'Seconds',
+                          labelText: 'Range seconds',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 150,
+                      child: TextField(
+                        controller: _fullCirDuration,
+                        enabled:
+                            !widget.runner.isRunning && _cirMode == cirModeFull,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Full CIR seconds',
                           border: OutlineInputBorder(),
                           isDense: true,
                         ),
@@ -3960,9 +4682,11 @@ class _CaptureTabState extends State<CaptureTab>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _anchorPreflightForCapture
-                      ? 'Runs full anchor responder verification before tag TDMA. Full CIR remains a backend post-range USB phase.'
-                      : 'Skips extra verification. Backend still restores anchors to responder CIR0 before tag TDMA.',
+                  _cirMode == cirModeFull
+                      ? 'Run order: range capture ${_duration.text.trim()}s, then Full CIR USB capture ${_fullCirDuration.text.trim()}s. Extra preflight only controls the optional anchor verification before TDMA.'
+                      : _cirMode == cirModeCompact
+                      ? 'Run order: compact CIR is sampled during the ${_duration.text.trim()}s range capture; no second Full CIR phase runs.'
+                      : 'Run order: range capture ${_duration.text.trim()}s only; CIR is disabled.',
                   style: const TextStyle(color: mutedText, fontSize: 12),
                 ),
                 const SizedBox(height: 12),
@@ -6338,12 +7062,20 @@ class _Trajectory3DViewState extends State<Trajectory3DView> {
                     if (_hoveredFrame != null && _hoverPosition != null)
                       _TagHoverPopup(
                         frame: _hoveredFrame!,
+                        displayZ: widget.data.displayZ(
+                          _hoveredFrame!.zMm,
+                          widget.layout,
+                        ),
                         position: _hoverPosition!,
                         size: size,
                       ),
                     if (_hoveredCenter != null && _hoverPosition != null)
                       _CenterHoverPopup(
                         estimate: _hoveredCenter!,
+                        displayZ: widget.data.displayZ(
+                          _hoveredCenter!.centerZ,
+                          widget.layout,
+                        ),
                         position: _hoverPosition!,
                         size: size,
                       ),
@@ -6377,7 +7109,7 @@ class _Trajectory3DViewState extends State<Trajectory3DView> {
       final screen = _project3D(
         x: frame.xMm,
         y: frame.yMm,
-        z: frame.zMm,
+        z: widget.data.displayZ(frame.zMm, widget.layout),
         centerX: projection.centerX,
         centerY: projection.centerY,
         centerZ: projection.centerZ,
@@ -6416,7 +7148,7 @@ class _Trajectory3DViewState extends State<Trajectory3DView> {
       final screen = _project3D(
         x: estimate.centerX,
         y: estimate.centerY,
-        z: estimate.centerZ,
+        z: widget.data.displayZ(estimate.centerZ, widget.layout),
         centerX: projection.centerX,
         centerY: projection.centerY,
         centerZ: projection.centerZ,
@@ -6509,7 +7241,7 @@ class _Trajectory3DViewState extends State<Trajectory3DView> {
       if (layout != null) ...layout.points.map((p) => p.y),
     ];
     final allZ = [
-      ...points.map((p) => p.zMm),
+      ...points.map((p) => widget.data.displayZ(p.zMm, layout)),
       if (layout != null) ...layout.points.map((p) => p.z),
     ];
     final pad = 180.0;
@@ -6597,7 +7329,7 @@ class TrajectoryPainter extends CustomPainter {
       if (layout != null) ...layout!.points.map((p) => p.y),
     ];
     final allZ = [
-      ...points.map((p) => p.zMm),
+      ...points.map((p) => data.displayZ(p.zMm, layout)),
       if (layout != null) ...layout!.points.map((p) => p.z),
     ];
     final pad = 180.0;
@@ -6801,7 +7533,7 @@ class TrajectoryPainter extends CustomPainter {
       final centerPt = project(
         estimate.centerX,
         estimate.centerY,
-        estimate.centerZ,
+        data.displayZ(estimate.centerZ, layout),
       );
       final color =
           palette[data.tags.indexOf(estimate.tag).clamp(0, palette.length - 1)];
@@ -6851,7 +7583,7 @@ class TrajectoryPainter extends CustomPainter {
           final p = project(
             tagPoints[i].xMm,
             tagPoints[i].yMm,
-            tagPoints[i].zMm,
+            data.displayZ(tagPoints[i].zMm, layout),
           );
           if (i == 0) {
             path.moveTo(p.dx, p.dy);
@@ -6868,7 +7600,7 @@ class TrajectoryPainter extends CustomPainter {
           final p = project(
             tagPoints[i].xMm,
             tagPoints[i].yMm,
-            tagPoints[i].zMm,
+            data.displayZ(tagPoints[i].zMm, layout),
           );
           canvas.drawCircle(
             p,
@@ -6879,7 +7611,7 @@ class TrajectoryPainter extends CustomPainter {
       }
       final dot = nearestFor(tag);
       if (dot == null) continue;
-      final p = project(dot.xMm, dot.yMm, dot.zMm);
+      final p = project(dot.xMm, dot.yMm, data.displayZ(dot.zMm, layout));
       if (dot.tag == hoveredTag) {
         canvas.drawCircle(
           p,
@@ -7066,6 +7798,8 @@ class ScriptRunner extends ChangeNotifier {
   final List<String> logTail = [];
   String? activeName;
   int? lastExitCode;
+  bool lastCommandSucceeded = false;
+  FullCirPreview? latestCirPreview;
   double? progressValue;
   String? progressText;
 
@@ -7075,6 +7809,8 @@ class ScriptRunner extends ChangeNotifier {
     if (_process != null) return;
     activeName = name;
     lastExitCode = null;
+    lastCommandSucceeded = false;
+    latestCirPreview = null;
     progressValue = null;
     progressText = 'starting';
     logTail.clear();
@@ -7100,10 +7836,13 @@ class ScriptRunner extends ChangeNotifier {
         });
     process.exitCode.then((code) {
       lastExitCode = code;
+      lastCommandSucceeded = code == 0 || _hasSuccessfulCompletionEvidence();
       _append('[exit] $code');
       _process = null;
       progressValue = 1.0;
-      progressText = code == 0 ? 'complete' : 'failed: exit $code';
+      progressText = lastCommandSucceeded
+          ? (code == 0 ? 'complete' : 'complete: exit $code ignored')
+          : 'failed: exit $code';
       notifyListeners();
     });
   }
@@ -7153,6 +7892,7 @@ class ScriptRunner extends ChangeNotifier {
       logTail.removeRange(0, logTail.length - 240);
     }
     _updateProgressFromLine(line);
+    _updateCirPreviewFromLine(line);
     notifyListeners();
   }
 
@@ -7171,7 +7911,19 @@ class ScriptRunner extends ChangeNotifier {
 
   PillTone get progressTone {
     if (lastExitCode == null) return PillTone.active;
-    return lastExitCode == 0 ? PillTone.good : PillTone.bad;
+    return lastCommandSucceeded ? PillTone.good : PillTone.bad;
+  }
+
+  bool _hasSuccessfulCompletionEvidence() {
+    final text = logTail.join('\n');
+    final fullFrames = RegExp(
+      r'\[CIRRAW\]\s+capture done frames=([1-9][0-9]*)',
+    ).hasMatch(text);
+    final matrixFinished =
+        text.contains('Session guard: matrix ok') &&
+        text.contains('Session finalizer: responder ok');
+    final allRoundsFinished = text.contains('Reconnect retry rounds:');
+    return fullFrames || (matrixFinished && allRoundsFinished);
   }
 
   void _updateProgressFromLine(String line) {
@@ -7208,6 +7960,63 @@ class ScriptRunner extends ChangeNotifier {
       progressText = 'launching solver';
     }
   }
+
+  void _updateCirPreviewFromLine(String line) {
+    final idx = line.indexOf('CIRP;1;');
+    if (idx < 0) return;
+    final parts = line.substring(idx).trim().split(';');
+    if (parts.length < 11) return;
+    final portMatch = RegExp(r'port=([^\s]+)').firstMatch(line);
+    final rxMatch = RegExp(r'rx=([^\s]+)').firstMatch(line);
+    final wave = parts[10]
+        .split(',')
+        .map((value) => int.tryParse(value.trim()))
+        .whereType<int>()
+        .toList();
+    if (wave.isEmpty) return;
+    latestCirPreview = FullCirPreview(
+      portLabel: portMatch?.group(1) ?? '-',
+      rxAnchor:
+          rxMatch?.group(1) ?? anchorLabelFromId(int.tryParse(parts[3])) ?? '-',
+      seq: int.tryParse(parts[2]) ?? 0,
+      anchorId: int.tryParse(parts[3]) ?? -1,
+      rawDistanceMm: int.tryParse(parts[4]) ?? 0,
+      firstPath: int.tryParse(parts[5]) ?? 0,
+      fpAmpSum: int.tryParse(parts[6]) ?? 0,
+      maxGrowthCir: int.tryParse(parts[7]) ?? 0,
+      stdNoise: int.tryParse(parts[8]) ?? 0,
+      accLen: int.tryParse(parts[9]) ?? 0,
+      wave: wave,
+    );
+  }
+}
+
+class FullCirPreview {
+  const FullCirPreview({
+    required this.portLabel,
+    required this.rxAnchor,
+    required this.seq,
+    required this.anchorId,
+    required this.rawDistanceMm,
+    required this.firstPath,
+    required this.fpAmpSum,
+    required this.maxGrowthCir,
+    required this.stdNoise,
+    required this.accLen,
+    required this.wave,
+  });
+
+  final String portLabel;
+  final String rxAnchor;
+  final int seq;
+  final int anchorId;
+  final int rawDistanceMm;
+  final int firstPath;
+  final int fpAmpSum;
+  final int maxGrowthCir;
+  final int stdNoise;
+  final int accLen;
+  final List<int> wave;
 }
 
 class PortReader {
@@ -7350,6 +8159,296 @@ class PortSnapshot {
     entries: [],
     cirFullUsbOnline: {},
   );
+}
+
+class CirResultReader {
+  static Future<CirResultSnapshot> readLatest({DateTime? minModified}) async {
+    final root = Directory(capturesRoot);
+    if (!root.existsSync()) return CirResultSnapshot.empty();
+    final compactDirs =
+        root.listSync().whereType<Directory>().where((d) {
+          final name = d.path.split('/').last;
+          final possibleCompact =
+              name.startsWith('cir_') ||
+              name.startsWith('static_') ||
+              name.startsWith('roto_') ||
+              name.startsWith('wand_') ||
+              name.startsWith('free_');
+          if (!possibleCompact) return false;
+          if (minModified == null) return true;
+          return !d.statSync().modified.isBefore(minModified);
+        }).toList()..sort(
+          (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
+        );
+    Directory? compactDir;
+    CompactCirSnapshot? compact;
+    for (final dir in compactDirs.take(12)) {
+      final candidate = await _readCompact(dir);
+      if (candidate != null) {
+        compactDir = dir;
+        compact = candidate;
+        break;
+      }
+    }
+    final full = await _readFull(root, minModified: minModified);
+    if (compactDir == null && compact == null && full == null) {
+      return CirResultSnapshot.empty();
+    }
+    return CirResultSnapshot(
+      path: compactDir?.path ?? full?.path,
+      modified:
+          [
+            if (compactDir != null) compactDir.statSync().modified,
+            if (full != null) full.modified,
+          ].fold<DateTime?>(
+            null,
+            (latest, value) =>
+                latest == null || value.isAfter(latest) ? value : latest,
+          ),
+      compact: compact,
+      full: full,
+    );
+  }
+
+  static Future<CompactCirSnapshot?> _readCompact(Directory cirDir) async {
+    final files =
+        cirDir
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where(
+              (f) =>
+                  f.path.endsWith('/raw.log') ||
+                  f.path.endsWith('.console.log') ||
+                  f.path.endsWith('/master.log'),
+            )
+            .toList()
+          ..sort(
+            (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
+          );
+    final byAnchor = {for (final anchor in anchors) anchor: 0};
+    final byTag = <String, int>{};
+    var total = 0;
+    for (final file in files.take(24)) {
+      final lines = await file.readAsLines();
+      for (final line in lines) {
+        final idx = line.indexOf('CRX;1;');
+        if (idx < 0) continue;
+        final token = line.substring(idx).split(RegExp(r'\s+')).first;
+        final parts = token.split(';');
+        if (parts.length < 4) continue;
+        final anchorId = int.tryParse(parts[3]);
+        if (anchorId == null || anchorId < 0 || anchorId >= anchors.length) {
+          continue;
+        }
+        final tag = _extractNotifyTag(line);
+        byAnchor[anchors[anchorId]] = (byAnchor[anchors[anchorId]] ?? 0) + 1;
+        if (tag != null) byTag[tag] = (byTag[tag] ?? 0) + 1;
+        total += 1;
+      }
+    }
+    if (total == 0) return null;
+    return CompactCirSnapshot(
+      totalFrames: total,
+      byAnchor: byAnchor,
+      byTag: byTag,
+    );
+  }
+
+  static Future<FullCirSnapshot?> _readFull(
+    Directory root, {
+    DateTime? minModified,
+  }) async {
+    final dirs =
+        root.listSync().whereType<Directory>().where((d) {
+          final name = d.path.split('/').last;
+          if (!name.startsWith('CIRRAW_')) return false;
+          final meta = File('${d.path}/cir_full_meta.csv');
+          if (!meta.existsSync()) return false;
+          if (minModified == null) return true;
+          return !meta.statSync().modified.isBefore(minModified);
+        }).toList()..sort(
+          (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
+        );
+    if (dirs.isEmpty) return null;
+    final dir = dirs.first;
+    final meta = File('${dir.path}/cir_full_meta.csv');
+    final rows = await readCsvRows(meta);
+    if (rows.isEmpty) return null;
+    final byPort = <String, int>{};
+    final streamByPort = <String, String>{};
+    final rawByAnchor = {for (final anchor in anchors) anchor: <double>[]};
+    final rawByPair = <String, List<double>>{};
+    for (final row in rows) {
+      final port = row['port_label'] ?? 'USB';
+      final stream = row['stream'] ?? '-';
+      byPort[port] = (byPort[port] ?? 0) + 1;
+      streamByPort[port] = stream;
+      final anchor =
+          row['receiver_anchor'] ??
+          _anchorLabelFromId(int.tryParse(row['receiver_anchor_id'] ?? ''));
+      final sourceAnchor =
+          row['source_anchor'] ??
+          _anchorLabelFromId(int.tryParse(row['source_id'] ?? ''));
+      final raw = parseDouble(row['raw_distance_mm']);
+      if (anchor != null && raw != null && raw > 0) {
+        rawByAnchor.putIfAbsent(anchor, () => <double>[]).add(raw);
+        if (sourceAnchor != null && sourceAnchor != anchor) {
+          final pair = '$anchor-$sourceAnchor';
+          rawByPair.putIfAbsent(pair, () => <double>[]).add(raw);
+        }
+      }
+    }
+    return FullCirSnapshot(
+      path: dir.path,
+      modified: meta.statSync().modified,
+      totalFrames: rows.length,
+      byPort: byPort,
+      streamByPort: streamByPort,
+      rawDistanceByAnchor: rawByAnchor,
+      rawDistanceByPair: rawByPair,
+    );
+  }
+
+  static String? _extractNotifyTag(String line) {
+    final match = RegExp(
+      r'\[RECV\]\s+([A-Za-z0-9_.-]+)\s+notify:',
+    ).firstMatch(line);
+    return match?.group(1);
+  }
+
+  static String? _anchorLabelFromId(int? id) {
+    if (id == null || id < 0 || id >= anchors.length) return null;
+    return anchors[id];
+  }
+}
+
+class CirResultSnapshot {
+  const CirResultSnapshot({
+    required this.path,
+    required this.modified,
+    required this.compact,
+    required this.full,
+  });
+
+  final String? path;
+  final DateTime? modified;
+  final CompactCirSnapshot? compact;
+  final FullCirSnapshot? full;
+
+  factory CirResultSnapshot.empty() => const CirResultSnapshot(
+    path: null,
+    modified: null,
+    compact: null,
+    full: null,
+  );
+
+  bool get hasResult => compact != null || full != null;
+  String get displayName => path?.split('/').last ?? 'No CIR result loaded';
+  String get modeLabel {
+    if (full != null && compact != null) return 'Full + Compact';
+    if (full != null) return 'Full USB';
+    if (compact != null) return 'Compact';
+    return 'Waiting';
+  }
+}
+
+class CompactCirSnapshot {
+  const CompactCirSnapshot({
+    required this.totalFrames,
+    required this.byAnchor,
+    required this.byTag,
+  });
+
+  final int totalFrames;
+  final Map<String, int> byAnchor;
+  final Map<String, int> byTag;
+}
+
+class FullCirSnapshot {
+  const FullCirSnapshot({
+    required this.path,
+    required this.modified,
+    required this.totalFrames,
+    required this.byPort,
+    required this.streamByPort,
+    required this.rawDistanceByAnchor,
+    required this.rawDistanceByPair,
+  });
+
+  final String path;
+  final DateTime modified;
+  final int totalFrames;
+  final Map<String, int> byPort;
+  final Map<String, String> streamByPort;
+  final Map<String, List<double>> rawDistanceByAnchor;
+  final Map<String, List<double>> rawDistanceByPair;
+
+  int get tagStreamCount =>
+      streamByPort.values.where((stream) => stream == 'tag').length;
+  int get anchorStreamCount =>
+      streamByPort.values.where((stream) => stream == 'anchor').length;
+
+  List<CirBoxStats> get pairStats => rawDistanceByPair.entries
+      .where((entry) => entry.value.isNotEmpty)
+      .map((entry) => CirBoxStats.fromValues(entry.key, entry.value))
+      .toList();
+
+  List<CirBoxStats> get anchorStats => rawDistanceByAnchor.entries
+      .where((entry) => entry.value.isNotEmpty)
+      .map((entry) => CirBoxStats.fromValues(entry.key, entry.value))
+      .toList();
+}
+
+class CirBoxStats {
+  const CirBoxStats({
+    required this.anchor,
+    required this.count,
+    required this.values,
+    required this.min,
+    required this.q1,
+    required this.median,
+    required this.q3,
+    required this.max,
+    required this.p05,
+    required this.p95,
+  });
+
+  final String anchor;
+  final int count;
+  final List<double> values;
+  final double min;
+  final double q1;
+  final double median;
+  final double q3;
+  final double max;
+  final double p05;
+  final double p95;
+
+  double get iqr => q3 - q1;
+  double get robustSpread => p95 - p05;
+
+  PillTone get tone {
+    if (count < 4) return PillTone.warn;
+    if (iqr > 180.0 || robustSpread > 350.0) return PillTone.bad;
+    if (iqr > 80.0 || robustSpread > 180.0) return PillTone.warn;
+    return PillTone.good;
+  }
+
+  static CirBoxStats fromValues(String anchor, List<double> values) {
+    final sorted = [...values]..sort();
+    return CirBoxStats(
+      anchor: anchor,
+      count: sorted.length,
+      values: sorted,
+      min: sorted.first,
+      q1: percentile(sorted, 0.25) ?? sorted.first,
+      median: percentile(sorted, 0.50) ?? sorted.first,
+      q3: percentile(sorted, 0.75) ?? sorted.last,
+      max: sorted.last,
+      p05: percentile(sorted, 0.05) ?? sorted.first,
+      p95: percentile(sorted, 0.95) ?? sorted.last,
+    );
+  }
 }
 
 class SweepReader {
@@ -8070,13 +9169,17 @@ class LayoutSummary {
 }
 
 Map<String, double> _canonicalAnchorZMap(Map<String, double> rawZ) {
+  return _canonicalAnchorZTransform(rawZ).zByLabel;
+}
+
+CanonicalZTransform _canonicalAnchorZTransform(Map<String, double> rawZ) {
   final z = <String, double>{
     for (final entry in rawZ.entries) entry.key.toUpperCase(): entry.value,
   };
   final lowerLabels = anchors.take(4).toList();
   final upperLabels = anchors.skip(4).toList();
   if (!lowerLabels.every(z.containsKey) || !upperLabels.every(z.containsKey)) {
-    return rawZ;
+    return CanonicalZTransform(identity: true, origin: 0, zByLabel: rawZ);
   }
   final lower =
       lowerLabels.map((label) => z[label]!).reduce((a, b) => a + b) /
@@ -8084,9 +9187,31 @@ Map<String, double> _canonicalAnchorZMap(Map<String, double> rawZ) {
   final upper =
       upperLabels.map((label) => z[label]!).reduce((a, b) => a + b) /
       upperLabels.length;
-  if (lower < upper) return rawZ;
+  if (lower < upper) {
+    return CanonicalZTransform(identity: true, origin: 0, zByLabel: rawZ);
+  }
 
-  return {for (final entry in rawZ.entries) entry.key: -entry.value + lower};
+  return CanonicalZTransform(
+    identity: false,
+    origin: lower,
+    zByLabel: {
+      for (final entry in rawZ.entries) entry.key: -entry.value + lower,
+    },
+  );
+}
+
+class CanonicalZTransform {
+  const CanonicalZTransform({
+    required this.identity,
+    required this.origin,
+    required this.zByLabel,
+  });
+
+  final bool identity;
+  final double origin;
+  final Map<String, double> zByLabel;
+
+  double apply(double z) => identity ? z : -z + origin;
 }
 
 class SolverAnalysis {
@@ -8380,6 +9505,7 @@ class AnchorLayoutData {
     required this.version,
     required this.path,
     required this.points,
+    required this.zTransform,
     required this.isUsHeightLayout,
     required this.usStatus,
     required this.usRmsResidual,
@@ -8390,6 +9516,7 @@ class AnchorLayoutData {
   final String version;
   final String path;
   final List<AnchorPoint> points;
+  final CanonicalZTransform zTransform;
   final bool isUsHeightLayout;
   final String? usStatus;
   final double? usRmsResidual;
@@ -8409,6 +9536,8 @@ class AnchorLayoutData {
   double get centerX => (minX + maxX) / 2;
   double get centerY => (minY + maxY) / 2;
   double get centerZ => (minZ + maxZ) / 2;
+
+  double displayZ(double rawZ) => zTransform.apply(rawZ);
 
   String get usResidualLabel {
     if (usResiduals.isEmpty) return '-';
@@ -8440,7 +9569,7 @@ class AnchorLayoutData {
       }
       if (points.isEmpty) return null;
       final isUsHeightLayout = file.path.endsWith('/layout_us_height.json');
-      final canonicalZ = _canonicalAnchorZMap({
+      final canonicalZ = _canonicalAnchorZTransform({
         for (final point in points) point.label: point.z,
       });
       final adjusted = [
@@ -8449,7 +9578,7 @@ class AnchorLayoutData {
             label: point.label,
             x: point.x,
             y: point.y,
-            z: canonicalZ[point.label] ?? point.z,
+            z: canonicalZ.zByLabel[point.label] ?? point.z,
           ),
       ];
       adjusted.sort((a, b) => a.label.compareTo(b.label));
@@ -8469,6 +9598,7 @@ class AnchorLayoutData {
         version: version,
         path: file.path,
         points: adjusted,
+        zTransform: canonicalZ,
         isUsHeightLayout: isUsHeightLayout,
         usStatus: metaMap?['status']?.toString(),
         usRmsResidual: (metaMap?['rms_residual_mm'] as num?)?.toDouble(),
@@ -8876,6 +10006,7 @@ class StagedSweepInfo {
 class TrajectoryData {
   const TrajectoryData({
     required this.sourcePath,
+    required this.canonicalZ,
     required this.candidateFrames,
     required this.solvedFrames,
     required this.expectedTags,
@@ -8886,6 +10017,7 @@ class TrajectoryData {
   });
 
   final String sourcePath;
+  final bool canonicalZ;
   final int candidateFrames;
   final int solvedFrames;
   final List<String> expectedTags;
@@ -8919,6 +10051,11 @@ class TrajectoryData {
     return out;
   }
 
+  double displayZ(double rawZ, AnchorLayoutData? layout) {
+    if (canonicalZ) return rawZ;
+    return layout?.displayZ(rawZ) ?? rawZ;
+  }
+
   static Future<TrajectoryData> read(File file) async {
     final decoded =
         jsonDecode(await file.readAsString()) as Map<String, dynamic>;
@@ -8932,6 +10069,7 @@ class TrajectoryData {
         : <TrajectoryFrame>[];
     return TrajectoryData(
       sourcePath: decoded['tr_all_csv']?.toString() ?? file.path,
+      canonicalZ: decoded['coordinate_frame']?.toString() == 'canonical_z',
       candidateFrames:
           (decoded['candidate_frames'] as num?)?.toInt() ?? frames.length,
       solvedFrames:
@@ -9377,6 +10515,11 @@ String cirModeLabel(String mode) {
     default:
       return 'Off';
   }
+}
+
+String? anchorLabelFromId(int? id) {
+  if (id == null || id < 0 || id >= anchors.length) return null;
+  return anchors[id];
 }
 
 String cirCaptureTargetForKind(String kind, List<String> targets) {

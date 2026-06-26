@@ -1,0 +1,254 @@
+diff --git a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/apps/master/src/master_multi_app.c b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/apps/master/src/master_multi_app.c
+index 6b0fef3a4..0e0b79fea 100755
+--- a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/apps/master/src/master_multi_app.c
++++ b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/apps/master/src/master_multi_app.c
+@@ -218,6 +218,7 @@ static struct k_work_delayable led_flow_off_work;
+ static uint8_t tdma_generation;
+ static bool tdma_rebalance_hold;
+ static bool tdma_rebalance_deferred;
++static bool tdma_auto_roster_enabled;
+ static char runtime_one_shot_cmd[MASTER_RUNTIME_ONE_SHOT_CMD_LEN];
+ static bool runtime_one_shot_cmd_set;
+ static enum master_runtime_target_kind runtime_target_kind = MASTER_TARGET_UNKNOWN;
+@@ -1046,13 +1047,12 @@ static size_t master_collect_ready_peers(struct master_peer **ordered,
+ 					 size_t ordered_len)
+ {
+ 	size_t count = 0U;
+-	bool roster_filter_active = master_tdma_any_profile_defined();
+ 
+ 	for (size_t i = 0U; i < ARRAY_SIZE(peers) && count < ordered_len; ++i) {
+ 		if (!(peers[i].connected && peers[i].ready && peers[i].bs_code_valid)) {
+ 			continue;
+ 		}
+-		if (roster_filter_active &&
++		if (!tdma_auto_roster_enabled &&
+ 		    !master_tdma_profile_has_bs_code(peers[i].bs_code)) {
+ 			continue;
+ 		}
+@@ -3841,6 +3841,14 @@ int master_tdma_set_profile_freq(const char *profile, uint8_t hz)
+ 	return 0;
+ }
+ 
++int master_tdma_set_auto_roster(bool enable)
++{
++	tdma_auto_roster_enabled = enable;
++	printk("TDMA roster mode: %s\n", enable ? "auto-all-ready" : "explicit");
++	master_rebalance_tdma_slots();
++	return 0;
++}
++
+ int master_tdma_set_rebalance_hold(bool hold)
+ {
+ 	tdma_rebalance_hold = hold;
+@@ -3872,20 +3880,22 @@ int master_tdma_clear_profiles(void)
+ 		tdma_profiles[i].bs_code = 0U;
+ 		tdma_profiles[i].kind = MASTER_TDMA_PROFILE_MOTION;
+ 	}
++	tdma_auto_roster_enabled = false;
+ 
+-	printk("TDMA profiles cleared\n");
++	printk("TDMA explicit roster cleared\n");
+ 	master_rebalance_tdma_slots();
+ 	return 0;
+ }
+ 
+ void master_tdma_print_status(void)
+ {
+-	printk("TDMA weighted scheduler: period=%ums active=%ums active_us=%u max_slots=%u freq motion=%uHz\n",
++	printk("TDMA weighted scheduler: period=%ums active=%ums active_us=%u max_slots=%u freq motion=%uHz roster=%s\n",
+ 	       MASTER_TDMA_SLOT_PERIOD_MS,
+ 	       MASTER_TDMA_SLOT_ACTIVE_MS,
+ 	       MASTER_TDMA_SLOT_ACTIVE_US,
+ 	       MASTER_TDMA_SLOT_COUNT_MAX,
+-	       (unsigned int)tdma_motion_target_hz);
++	       (unsigned int)tdma_motion_target_hz,
++	       tdma_auto_roster_enabled ? "auto" : "explicit");
+ 	for (size_t i = 0U; i < ARRAY_SIZE(tdma_profiles); ++i) {
+ 		if (!tdma_profiles[i].valid) {
+ 			continue;
+diff --git a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/apps/master/src/master_multi_app.h b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/apps/master/src/master_multi_app.h
+index 84c65739d..bf3dd1733 100755
+--- a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/apps/master/src/master_multi_app.h
++++ b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/apps/master/src/master_multi_app.h
+@@ -52,6 +52,7 @@ void master_print_one_shot_command(void);
+ int master_tdma_set_profile(const char *bs_name, const char *profile);
+ int master_tdma_add_roster_target(const char *bs_name, const char *profile);
+ int master_tdma_set_profile_freq(const char *profile, uint8_t hz);
++int master_tdma_set_auto_roster(bool enable);
+ int master_tdma_set_rebalance_hold(bool hold);
+ int master_tdma_rebalance_now(void);
+ int master_tdma_clear_profiles(void);
+diff --git a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/apps/master_control/src/main.c b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/apps/master_control/src/main.c
+index 358d47747..a492c79bd 100755
+--- a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/apps/master_control/src/main.c
++++ b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/apps/master_control/src/main.c
+@@ -342,7 +342,7 @@ static void control_print_help(void)
+ 	printk("Runtime NUS cmds: cmd <raw> | cmd_all <raw> | oneshot <raw> | oneshot show | oneshot clear\n");
+ 	printk("Tag layout cmds: APOS <id> <x_mm> <y_mm> <z_mm> | APOS_TO <BSxxxx> APOS... | APOS_COMMIT | APOS_STATUS | APOS_RESET\n");
+ 	printk("Tag CIR cmds: tag cir <off|compact|full|status> | tag cir all <off|compact|full|status>\n");
+-	printk("TDMA cmds: tdma show | tdma hold <0|1> | tdma roster <BSxxxx> motion | tdma profile <BSxxxx> motion | tdma freq motion <hz> | tdma rebalance\n");
++	printk("TDMA cmds: tdma show | tdma hold <0|1> | tdma clear | tdma auto <0|1> | tdma roster <BSxxxx> motion | tdma profile <BSxxxx> motion | tdma freq motion <hz> | tdma rebalance\n");
+ 	printk("Device model cmds: device show | device kind <anchor|tag>\n");
+ 	printk("OTA target cmds: ota_target show | ota_target token <id|-1> | ota_target name <BSxxxx|-> | ota_target prefix <BS|-> | ota_target uuid <32hex|->\n");
+ 	printk("Anchor cmds: anchor version <A..H|UUID32|all> | anchor role <A..H|UUID32|all> <master|matrix|responder> [cir <0|compact|full>] | anchor reset <A..H|UUID32|all> <autopos|responder>\n");
+@@ -2518,16 +2518,29 @@ static void control_handle_uart_command(const char *line)
+ 			printk("tdma hold rc=%d hold=%lu\n", rc, hold);
+ 			return;
+ 		}
+-			if (n >= 3 && strcmp(sub, "profile") == 0) {
+-				rc = master_tdma_set_profile(a, b);
+-				printk("tdma profile rc=%d target=%s profile=%s\n", rc, a, b);
+-				return;
+-			}
+-			if (n >= 3 && strcmp(sub, "roster") == 0) {
+-				rc = master_tdma_add_roster_target(a, b);
+-				printk("tdma roster rc=%d target=%s profile=%s\n", rc, a, b);
++		if (n >= 2 && strcmp(sub, "auto") == 0) {
++			unsigned long enable;
++			char *end = NULL;
++
++			enable = strtoul(a, &end, 10);
++			if (end == a || *end != '\0' || enable > 1UL) {
++				printk("tdma auto parse failed: %s\n", a);
+ 				return;
+ 			}
++			rc = master_tdma_set_auto_roster(enable != 0UL);
++			printk("tdma auto rc=%d enable=%lu\n", rc, enable);
++			return;
++		}
++		if (n >= 3 && strcmp(sub, "profile") == 0) {
++			rc = master_tdma_set_profile(a, b);
++			printk("tdma profile rc=%d target=%s profile=%s\n", rc, a, b);
++			return;
++		}
++		if (n >= 3 && strcmp(sub, "roster") == 0) {
++			rc = master_tdma_add_roster_target(a, b);
++			printk("tdma roster rc=%d target=%s profile=%s\n", rc, a, b);
++			return;
++		}
+ 		if (n >= 3 && strcmp(sub, "freq") == 0) {
+ 			unsigned long hz;
+ 			char *end = NULL;
+diff --git a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/scripts/build_master_tag.sh b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/scripts/build_master_tag.sh
+index 33a1c92bf..0808a7ffe 100755
+--- a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/scripts/build_master_tag.sh
++++ b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/scripts/build_master_tag.sh
+@@ -8,8 +8,8 @@ conf="$repo_root/configs/b120_master_tag_lfrc.conf"
+ expected_marker="${APP_EXPECTED_TAG_FW_MARKER:-${APP_TAG_FW_MARKER:-}}"
+ protect_file="$repo_root/.protec/noflash960148546"
+ tag_allowlist="${APP_MASTER_BOOT_TAG_ALLOWLIST:-BSF66F,BS2DCE,BSDC91,BSCCF4,BS9336,BS955A}"
+-tdma_slot_period_ms="${APP_MASTER_TAG_TDMA_SLOT_PERIOD_MS:-${APP_MASTER_TDMA_SLOT_PERIOD_MS:-25}}"
+-tdma_slot_active_ms="${APP_MASTER_TAG_TDMA_SLOT_ACTIVE_MS:-${APP_MASTER_TDMA_SLOT_ACTIVE_MS:-25}}"
++tdma_slot_period_ms="${APP_MASTER_TAG_TDMA_SLOT_PERIOD_MS:-${APP_MASTER_TDMA_SLOT_PERIOD_MS:-10}}"
++tdma_slot_active_ms="${APP_MASTER_TAG_TDMA_SLOT_ACTIVE_MS:-${APP_MASTER_TDMA_SLOT_ACTIVE_MS:-9}}"
+ tdma_slot_active_us="${APP_MASTER_TAG_TDMA_SLOT_ACTIVE_US:-${APP_MASTER_TDMA_SLOT_ACTIVE_US:-0}}"
+ tdma_epoch_lead_ms="${APP_MASTER_TAG_TDMA_EPOCH_LEAD_MS:-${APP_MASTER_TDMA_EPOCH_LEAD_MS:-5000}}"
+ 
+diff --git a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/scripts/run_recv_tdma_capture.py b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/scripts/run_recv_tdma_capture.py
+index 891769ad7..1a7b10b04 100755
+--- a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/scripts/run_recv_tdma_capture.py
++++ b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/scripts/run_recv_tdma_capture.py
+@@ -1649,6 +1649,8 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
+         "error": "",
+         "stop_notify_rows": None,
+         "stop_verify_s": 3.0,
++        "tdma_cleanup": False,
++        "tdma_release_hold": False,
+     }
+ 
+     def verify_quiet() -> int:
+@@ -1664,6 +1666,19 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
+         logf.write(f"[HOST_CLEANUP {time.monotonic():.3f}] stop all tag ranging via cmd_all MODE IDLE\n")
+         logf.flush()
+         ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 1.0)
++        ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
++        ser = send_cmd(ser, logf, "tdma clear", 1.0)
++        ser = send_cmd(ser, logf, "tdma freq motion 10", 0.5)
++        ser, tdma_show = send_cmd_collect(ser, logf, "tdma show", 0.8)
++        result["tdma_cleanup"] = True
++        if "roster=explicit" in tdma_show:
++            ser = send_cmd(ser, logf, "tdma hold 0", 0.5)
++            result["tdma_release_hold"] = True
++        else:
++            logf.write(
++                f"[HOST_CLEANUP {time.monotonic():.3f}] legacy_master_keep_tdma_hold=1\n"
++            )
++            logf.flush()
+         rows = verify_quiet()
+         result["stop_notify_rows"] = rows
+         result["success"] = rows == 0
+@@ -1683,6 +1698,19 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
+             time.sleep(0.8)
+             drain_serial_until(ser, logf, 0.8)
+             ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 1.0)
++            ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
++            ser = send_cmd(ser, logf, "tdma clear", 1.0)
++            ser = send_cmd(ser, logf, "tdma freq motion 10", 0.5)
++            ser, tdma_show = send_cmd_collect(ser, logf, "tdma show", 0.8)
++            result["tdma_cleanup"] = True
++            if "roster=explicit" in tdma_show:
++                ser = send_cmd(ser, logf, "tdma hold 0", 0.5)
++                result["tdma_release_hold"] = True
++            else:
++                logf.write(
++                    f"[HOST_CLEANUP {time.monotonic():.3f}] legacy_master_keep_tdma_hold=1\n"
++                )
++                logf.flush()
+             rows = verify_quiet()
+             result["stop_notify_rows"] = rows
+             result["success"] = rows == 0
+@@ -1841,10 +1869,19 @@ def build_tdma_config_check(
+                 if not allow_scheduler_actual_hz_below_request:
+                     mismatches.append("scheduler_actual_hz")
+             if actual is not None:
+-                if weighted.get("mask") != actual.get("mask"):
+-                    mismatches.append("scheduler_mask_not_applied")
+-                if weighted.get("count") != actual.get("count"):
+-                    mismatches.append("scheduler_count_not_applied")
++                if expected is None:
++                    # In high-rate multi-tag setup logs, the Master-side
++                    # CFG/TDM weighted lines can be split by incoming TR notify
++                    # traffic. In that case the latest parsed weighted record
++                    # may be stale, while CFG_OK is the Tag-side applied tuple.
++                    if expected_freq_hz is not None and actual_cfg_hz is not None:
++                        if round(actual_cfg_hz, 3) != round(float(expected_freq_hz), 3):
++                            mismatches.append("actual_cfg_hz")
++                else:
++                    if weighted.get("mask") != actual.get("mask"):
++                        mismatches.append("scheduler_mask_not_applied")
++                    if weighted.get("count") != actual.get("count"):
++                        mismatches.append("scheduler_count_not_applied")
+ 
+         match = not mismatches
+         all_match = all_match and match
+diff --git a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/ss_twr_init.c b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/ss_twr_init.c
+index 9452673a2..0b3a4d2b9 100755
+--- a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/ss_twr_init.c
++++ b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/ss_twr_init.c
+@@ -3819,7 +3819,7 @@ static void ss_twr_init_alt_publish_rx_gap_diag(uint32_t tx_done_cycles,
+              (unsigned int)APP_TAG_TDMA_SLOT_PERIOD_MS,
+              (unsigned int)APP_TAG_TDMA_SLOT_COUNT);
+     printk("%s\n", line);
+-#if APP_TAG_BLE_ENABLE
++#if APP_TAG_BLE_ENABLE && APP_TAG_ALT_RXG_BLE_DIAG_ENABLE != 0U
+     (void)uwb_tag_ble_publish_status(line);
+ #endif
+ }
+@@ -3876,7 +3876,7 @@ static void ss_twr_init_alt_publish_rx_diag(uint32_t status_reg,
+              (unsigned int)last_dst_addr,
+              (unsigned int)last_code);
+     printk("%s\n", line);
+-#if APP_TAG_BLE_ENABLE
++#if APP_TAG_BLE_ENABLE && APP_TAG_ALT_RXG_BLE_DIAG_ENABLE != 0U
+     (void)uwb_tag_ble_publish_status(line);
+ #endif
+ }
+@@ -4019,7 +4019,7 @@ static void ss_twr_init_alt_print_unicast_timing_diag(
+              (long)lateness_us[2],
+              (long)lateness_us[3]);
+     printk("%s\n", line);
+-#if APP_TAG_BLE_ENABLE
++#if APP_TAG_BLE_ENABLE && APP_TAG_ALT_RXG_BLE_DIAG_ENABLE != 0U
+     (void)uwb_tag_ble_publish_status(line);
+ #endif
+ }

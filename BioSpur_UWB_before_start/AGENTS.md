@@ -32,6 +32,9 @@
   - SNR `960148546` is `Master_Anchor`.
   - SNR `1050070698` is `Master_Tag`.
   - Keep these CDC display names distinct to avoid selecting the wrong serial port.
+  - Do not rely on the USB product/by-id display name containing `Master_Anchor`;
+    the Anchor Master may still enumerate as a generic `BioSpur_BLE_Control`.
+    Prefer SNR/serial mapping when identifying the Anchor Master CDC.
 
 ## Workstation Resources
 

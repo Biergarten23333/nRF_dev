@@ -95,6 +95,30 @@ static bool ss_twr_resp_matrix_poll_matches(const uint8_t *frame,
 #define APP_ANCHOR_RESPONDER_BLUE_LED_ACTIVE_LOW 1U
 #endif
 
+#ifndef APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_ENABLE
+#define APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_ENABLE 0U
+#endif
+
+#ifndef APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_SKIP_RANK0_ENABLE
+#define APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_SKIP_RANK0_ENABLE 0U
+#endif
+
+#ifndef APP_ANCHOR_RESP_RANK0_FAST_TX_ENABLE
+#define APP_ANCHOR_RESP_RANK0_FAST_TX_ENABLE 0U
+#endif
+
+#ifndef APP_ANCHOR_RESP_POST_TX_DIAG_READ_ENABLE
+#define APP_ANCHOR_RESP_POST_TX_DIAG_READ_ENABLE 0U
+#endif
+
+#ifndef APP_ANCHOR_RESP_POST_TX_DIAG_PAYLOAD_DELAY_ENABLE
+#define APP_ANCHOR_RESP_POST_TX_DIAG_PAYLOAD_DELAY_ENABLE 0U
+#endif
+
+#ifndef APP_ANCHOR_RESP_POST_TX_DIAG_SIDECHANNEL_ENABLE
+#define APP_ANCHOR_RESP_POST_TX_DIAG_SIDECHANNEL_ENABLE 0U
+#endif
+
 #ifndef APP_UWB_HW_FRAME_FILTER_ENABLE
 #define APP_UWB_HW_FRAME_FILTER_ENABLE 1U
 #endif
@@ -134,9 +158,9 @@ static bool ss_twr_resp_matrix_poll_matches(const uint8_t *frame,
 #define SS_TWR_RESP_RX_BUF_LEN 127U
 #define SS_TWR_RESP_ALL_MSG_COMMON_LEN 10U
 #define SS_TWR_RESP_MSG_SN_IDX 2U
-#define SS_TWR_RESP_POLL_RX_TS_IDX 10U
-#define SS_TWR_RESP_RESP_TX_TS_IDX 14U
-#define SS_TWR_RESP_MSG_TS_LEN 4U
+#define SS_TWR_RESP_POLL_RX_TS_IDX UWB_MSG_RESP_POLL_RX_TS_IDX
+#define SS_TWR_RESP_RESP_TX_TS_IDX UWB_MSG_RESP_RESP_TX_TS_IDX
+#define SS_TWR_RESP_MSG_TS_LEN UWB_MSG_RESP_TS_LEN
 
 #define SS_TWR_RESP_UUS_TO_DWT_TIME 65536ULL
 #define SS_TWR_RESP_POLL_RX_TO_RESP_TX_DLY_UUS APP_ANCHOR_RESP_DELAY_UUS
@@ -224,7 +248,7 @@ static dwt_config_t ss_twr_resp_config = {
 
 static uint8_t ss_twr_resp_frame_seq_nb;
 static uint8_t ss_twr_resp_rx_buffer[SS_TWR_RESP_RX_BUF_LEN];
-static uint8_t ss_twr_resp_tx_resp_msg[20];
+static uint8_t ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_V2_FRAME_LEN];
 static uint16_t ss_twr_resp_local_addr;
 static uint8_t ss_twr_resp_anchor_id;
 static int ss_twr_resp_allow_tag_polls;
@@ -809,6 +833,67 @@ static void ss_twr_resp_write_u16(uint8_t *field, uint16_t value)
     field[1] = (uint8_t)(value >> 8);
 }
 
+#if APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_ENABLE != 0U
+static void ss_twr_resp_write_diag_v2(const dwt_rxdiag_t *diag, uint8_t flags)
+{
+    if (diag == NULL) {
+        ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_DIAG_VERSION_IDX] = 0U;
+        ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_DIAG_FLAGS_IDX] = 0U;
+        return;
+    }
+
+    ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_DIAG_VERSION_IDX] =
+        UWB_MSG_RESP_DIAG_VERSION;
+    ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_DIAG_FLAGS_IDX] =
+        (uint8_t)(flags | UWB_MSG_RESP_DIAG_FLAGS_VALID);
+    ss_twr_resp_write_u16(
+        &ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_DIAG_FP_INDEX_IDX],
+        diag->firstPath);
+    ss_twr_resp_write_u16(
+        &ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_DIAG_FP_AMPL1_IDX],
+        diag->firstPathAmp1);
+    ss_twr_resp_write_u16(
+        &ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_DIAG_FP_AMPL2_IDX],
+        diag->firstPathAmp2);
+    ss_twr_resp_write_u16(
+        &ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_DIAG_FP_AMPL3_IDX],
+        diag->firstPathAmp3);
+    ss_twr_resp_write_u16(
+        &ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_DIAG_CIR_PWR_IDX],
+        diag->maxGrowthCIR);
+    ss_twr_resp_write_u16(
+        &ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_DIAG_RXPACC_IDX],
+        diag->rxPreamCount);
+    ss_twr_resp_write_u16(
+        &ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_DIAG_STD_NOISE_IDX],
+        diag->stdNoise);
+}
+
+#if APP_ANCHOR_RESP_POST_TX_DIAG_SIDECHANNEL_ENABLE != 0U
+static void ss_twr_resp_print_post_tx_diag(uint8_t tag_id, uint8_t poll_seq,
+                                           uint32_t poll_rx_ts_low32,
+                                           const dwt_rxdiag_t *diag)
+{
+    if (diag == NULL) {
+        return;
+    }
+
+    RESP_FRAME_PRINTK("APD;1;%u;%u;%u;%lu;%u;%u;%u;%u;%u;%u;%u\n",
+                      (unsigned int)ss_twr_resp_anchor_id,
+                      (unsigned int)tag_id,
+                      (unsigned int)poll_seq,
+                      (unsigned long)poll_rx_ts_low32,
+                      (unsigned int)diag->firstPath,
+                      (unsigned int)diag->firstPathAmp1,
+                      (unsigned int)diag->firstPathAmp2,
+                      (unsigned int)diag->firstPathAmp3,
+                      (unsigned int)diag->maxGrowthCIR,
+                      (unsigned int)diag->rxPreamCount,
+                      (unsigned int)diag->stdNoise);
+}
+#endif
+#endif
+
 static void ss_twr_resp_prepare_resp_template(void)
 {
     uwb_ss_twr_build_resp_frame(ss_twr_resp_tx_resp_msg, 0U, 0U,
@@ -847,6 +932,11 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
     uint32 tag_poll_count[SS_TWR_RESP_DIAG_TAG_SLOTS] = {0U};
     uint32 tag_reply_count[SS_TWR_RESP_DIAG_TAG_SLOTS] = {0U};
     uint32 tag_tx_miss_count[SS_TWR_RESP_DIAG_TAG_SLOTS] = {0U};
+#if APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_ENABLE != 0U && \
+    APP_ANCHOR_RESP_POST_TX_DIAG_PAYLOAD_DELAY_ENABLE != 0U
+    dwt_rxdiag_t delayed_rank0_diag;
+    bool delayed_rank0_diag_valid = false;
+#endif
     uint32 wait_cycles = 0U;
     uint32 diag_last_ms = k_uptime_get_32();
     uint32_t prof_last_ms = k_uptime_get_32();
@@ -1022,7 +1112,13 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         }
 
         dwtime_u64_t poll_rx_ts = ss_twr_resp_get_rx_timestamp_u64();
-        int32_t rx_carrier_integrator = dwt_readcarrierintegrator();
+        int32_t rx_carrier_integrator = 0;
+        uint16_t resp_frame_len = UWB_MSG_RESP_V1_FRAME_LEN;
+#if APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_ENABLE != 0U
+        dwt_rxdiag_t poll_rx_diag;
+        bool poll_rx_diag_valid = false;
+        bool poll_rx_diag_delayed = false;
+#endif
         uint32_t prof_ts_cyc = k_cycle_get_32();
 
         uint32_t resp_delay_uus = poll_src_is_tag ?
@@ -1061,6 +1157,41 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             }
         }
 #endif
+#if APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_ENABLE != 0U
+        bool diag_v2_allowed = poll_src_is_tag;
+        bool diag_v2_frame = poll_src_is_tag;
+#if APP_ANCHOR_RESP_RANK0_FAST_TX_ENABLE != 0U
+        if (resp_rank == 0U) {
+            diag_v2_allowed = false;
+        }
+#endif
+#if APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_SKIP_RANK0_ENABLE != 0U
+        if (resp_rank == 0U) {
+            diag_v2_allowed = false;
+        }
+#endif
+        if (diag_v2_frame) {
+            resp_frame_len = UWB_MSG_RESP_V2_FRAME_LEN;
+        }
+        if (diag_v2_allowed) {
+            dwt_readdiagnostics(&poll_rx_diag);
+            poll_rx_diag_valid = true;
+        } else if (diag_v2_frame &&
+                   resp_rank == 0U
+#if APP_ANCHOR_RESP_POST_TX_DIAG_PAYLOAD_DELAY_ENABLE != 0U
+                   && delayed_rank0_diag_valid
+#else
+                   && false
+#endif
+                   ) {
+#if APP_ANCHOR_RESP_POST_TX_DIAG_PAYLOAD_DELAY_ENABLE != 0U
+            poll_rx_diag = delayed_rank0_diag;
+            poll_rx_diag_valid = true;
+            poll_rx_diag_delayed = true;
+            delayed_rank0_diag_valid = false;
+#endif
+        }
+#endif
         uint32 resp_tx_time =
             (uint32)((poll_rx_ts +
                       ((dwtime_u64_t)resp_delay_uus *
@@ -1083,8 +1214,23 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             &ss_twr_resp_tx_resp_msg[SS_TWR_RESP_POLL_RX_TS_IDX], poll_rx_ts);
         ss_twr_resp_write_ts(
             &ss_twr_resp_tx_resp_msg[SS_TWR_RESP_RESP_TX_TS_IDX], resp_tx_ts);
+#if APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_ENABLE != 0U
+        if (poll_rx_diag_valid) {
+            uint8_t diag_flags = UWB_MSG_RESP_DIAG_FLAGS_VALID;
+            if (poll_rx_diag_delayed) {
+                diag_flags |= UWB_MSG_RESP_DIAG_FLAGS_DELAYED;
+            }
+            ss_twr_resp_write_diag_v2(&poll_rx_diag, diag_flags);
+        } else if (diag_v2_frame) {
+            ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_DIAG_VERSION_IDX] = 0U;
+            ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_DIAG_FLAGS_IDX] = 0U;
+        }
+#else
+        memset(&ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_DIAG_VERSION_IDX], 0,
+               UWB_MSG_RESP_V2_FRAME_LEN - UWB_MSG_RESP_DIAG_VERSION_IDX);
+#endif
 
-        if (dwt_writetxdata(sizeof(ss_twr_resp_tx_resp_msg),
+        if (dwt_writetxdata(resp_frame_len,
                             ss_twr_resp_tx_resp_msg, 0) != DWT_SUCCESS) {
             if (APP_ANCHOR_VERBOSE_RESPONDER_ERRORS != 0U) {
                 RESP_PRINTK("Responder TX buffer write failed\n");
@@ -1096,7 +1242,7 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             continue;
         }
 
-        dwt_writetxfctrl(sizeof(ss_twr_resp_tx_resp_msg), 0, 1);
+        dwt_writetxfctrl(resp_frame_len, 0, 1);
         dwt_setdelayedtrxtime(resp_tx_time);
         uint32_t prof_txprog_cyc = k_cycle_get_32();
 #if APP_ANCHOR_RESPONDER_PROFILE_ENABLE || APP_ANCHOR_RESPONDER_FRAME_DIAG_ENABLE
@@ -1137,6 +1283,23 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         ss_twr_resp_match_diag_observe_tx_start(
             &match_diag, tx_status_before_clear, tx_status_after_clear,
             tx_status_after_start, tx_check_hi16, starttx_ok);
+#if APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_ENABLE != 0U && \
+    APP_ANCHOR_RESP_POST_TX_DIAG_READ_ENABLE != 0U
+        if (starttx_ok && poll_src_is_tag && resp_rank == 0U) {
+            dwt_rxdiag_t post_tx_diag;
+            dwt_readdiagnostics(&post_tx_diag);
+#if APP_ANCHOR_RESP_POST_TX_DIAG_PAYLOAD_DELAY_ENABLE != 0U
+            delayed_rank0_diag = post_tx_diag;
+            delayed_rank0_diag_valid = true;
+#endif
+#if APP_ANCHOR_RESP_POST_TX_DIAG_SIDECHANNEL_ENABLE != 0U
+            ss_twr_resp_print_post_tx_diag(poll_tag_id,
+                                           ss_twr_resp_rx_buffer[SS_TWR_RESP_MSG_SN_IDX],
+                                           (uint32_t)poll_rx_ts,
+                                           &post_tx_diag);
+#endif
+        }
+#endif
         ss_twr_resp_profile_observe(
             &prof_stats, prof_rx_cyc, prof_frame_cyc, prof_ts_cyc,
             prof_txprog_cyc, prof_start_done_cyc, prof_slack_uus,
@@ -1210,6 +1373,7 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         if (cir_mode != ANCHOR_CIR_OUTPUT_OFF) {
             dwt_rxdiag_t rx_diag;
 
+            rx_carrier_integrator = dwt_readcarrierintegrator();
             dwt_readdiagnostics(&rx_diag);
             anchor_cir_output_publish_feature(
                 replies_ok, ss_twr_resp_anchor_id, poll_src_addr, -1L,

@@ -56,6 +56,12 @@ set(APP_TAG_CIR_FULL_OUTPUT_CDC_ENABLE "1" CACHE STRING "Emit full CIR accumulat
 set(APP_TAG_CIR_FULL_CHUNK_BYTES "48" CACHE STRING "Payload bytes per full-CIR text chunk")
 set(APP_TAG_CIR_FULL_PRIORITY_MASK "0" CACHE STRING "Bit mask of anchors to prioritize for full CIR capture, or 0 for round robin")
 set(APP_TAG_CIR_COMPACT_SAMPLE_PERIOD "8" CACHE STRING "Compact CIR samples one sweep every N sweeps; 1 samples every sweep")
+set(APP_TAG_RF_DIAG_OUTPUT_ENABLE "0" CACHE STRING "Emit per-anchor RF diagnostics parsed from v2 responses and Tag RX diagnostics")
+set(APP_TAG_RF_DIAG_OUTPUT_BLE_ENABLE "1" CACHE STRING "Forward RF diagnostic lines over BLE/NUS when RF diag output is enabled")
+set(APP_TAG_RF_DIAG_OUTPUT_PERIOD "1" CACHE STRING "Emit one RF diagnostic row every N sweeps when enabled")
+set(APP_TAG_RF_DIAG_LEGACY_RFD_ENABLE "0" CACHE STRING "Emit legacy per-anchor RFD text rows; keep disabled for normal ranging captures")
+set(APP_TAG_TR_RF_DIAG_COMPACT_ENABLE "1" CACHE STRING "Append compact RF diagnostics to the normal TR range summary when RF diag is enabled")
+set(APP_TAG_RF_DIAG_TAG_RX_ENABLE "0" CACHE STRING "Read Tag-side RX diagnostics in the response hot path; disabled by default to protect ranging success")
 set(APP_TAG_CONSOLE_SUMMARY_ENABLE "0" CACHE STRING "Print motion summaries to the console")
 set(APP_TAG_VERBOSE_RANGING "0" CACHE STRING "Print per-anchor ranging logs")
 set(APP_TAG_VERBOSE_MEASUREMENTS "0" CACHE STRING "Print per-anchor measurement logs")
@@ -136,6 +142,7 @@ set(APP_ALT_SS_TWR_BCAST_FORCE_FULL_SWEEP "1" CACHE STRING "Force broadcast Alt 
 set(APP_ALT_SS_TWR_LIGHT_TDMA_ENABLE "1" CACHE STRING "Use broadcast-dedicated lightweight TDMA scheduler")
 set(APP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE "0" CACHE STRING "Use immediate TX for broadcast Alt SS-TWR poll frames")
 set(APP_ALT_SS_TWR_BCAST_PREWRITE_TX_ENABLE "0" CACHE STRING "Prewrite broadcast Alt SS-TWR poll TX buffer before the TDMA slot")
+set(APP_TAG_ALT_BCAST_RANK_OFFSET_OVERRIDE "255" CACHE STRING "Broadcast responder rank offset override, 0-7. 255 keeps the normal automatic policy")
 set(APP_TAG_ALT_POLL_DIAG_PERIOD_MS "5000" CACHE STRING "Alt SS-TWR poll timing diagnostic period in milliseconds")
 set(APP_TAG_ALT_RXG_BLE_DIAG_ENABLE "0" CACHE STRING "Forward broadcast RX gap timing diagnostics over BLE")
 if(NOT DEFINED APP_TAG_BLE_TOKEN_ID OR APP_TAG_BLE_TOKEN_ID STREQUAL "")
@@ -183,6 +190,12 @@ target_compile_definitions(app PRIVATE
     APP_TAG_CIR_FULL_CHUNK_BYTES=${APP_TAG_CIR_FULL_CHUNK_BYTES}
     APP_TAG_CIR_FULL_PRIORITY_MASK=${APP_TAG_CIR_FULL_PRIORITY_MASK}
     APP_TAG_CIR_COMPACT_SAMPLE_PERIOD=${APP_TAG_CIR_COMPACT_SAMPLE_PERIOD}
+    APP_TAG_RF_DIAG_OUTPUT_ENABLE=${APP_TAG_RF_DIAG_OUTPUT_ENABLE}
+    APP_TAG_RF_DIAG_OUTPUT_BLE_ENABLE=${APP_TAG_RF_DIAG_OUTPUT_BLE_ENABLE}
+    APP_TAG_RF_DIAG_OUTPUT_PERIOD=${APP_TAG_RF_DIAG_OUTPUT_PERIOD}
+    APP_TAG_RF_DIAG_LEGACY_RFD_ENABLE=${APP_TAG_RF_DIAG_LEGACY_RFD_ENABLE}
+    APP_TAG_TR_RF_DIAG_COMPACT_ENABLE=${APP_TAG_TR_RF_DIAG_COMPACT_ENABLE}
+    APP_TAG_RF_DIAG_TAG_RX_ENABLE=${APP_TAG_RF_DIAG_TAG_RX_ENABLE}
     APP_TAG_CONSOLE_SUMMARY_ENABLE=${APP_TAG_CONSOLE_SUMMARY_ENABLE}
     APP_TAG_VERBOSE_RANGING=${APP_TAG_VERBOSE_RANGING}
     APP_TAG_VERBOSE_MEASUREMENTS=${APP_TAG_VERBOSE_MEASUREMENTS}
@@ -263,6 +276,7 @@ target_compile_definitions(app PRIVATE
     APP_ALT_SS_TWR_LIGHT_TDMA_ENABLE=${APP_ALT_SS_TWR_LIGHT_TDMA_ENABLE}
     APP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE=${APP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE}
     APP_ALT_SS_TWR_BCAST_PREWRITE_TX_ENABLE=${APP_ALT_SS_TWR_BCAST_PREWRITE_TX_ENABLE}
+    APP_TAG_ALT_BCAST_RANK_OFFSET_OVERRIDE=${APP_TAG_ALT_BCAST_RANK_OFFSET_OVERRIDE}
     APP_TAG_ALT_POLL_DIAG_PERIOD_MS=${APP_TAG_ALT_POLL_DIAG_PERIOD_MS}
     APP_TAG_ALT_RXG_BLE_DIAG_ENABLE=${APP_TAG_ALT_RXG_BLE_DIAG_ENABLE}
     APP_TAG_BLE_TOKEN_ID=${APP_TAG_BLE_TOKEN_ID}

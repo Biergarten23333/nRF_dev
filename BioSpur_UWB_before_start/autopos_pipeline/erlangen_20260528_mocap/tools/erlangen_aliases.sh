@@ -356,6 +356,7 @@ _bio_parse_common_capture_args() {
   BIO_ID=""
   BIO_DURATION="120"
   BIO_CIR="off"
+  BIO_FULL_CIR_DURATION="30"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       -id|--id)
@@ -368,6 +369,10 @@ _bio_parse_common_capture_args() {
         ;;
       -cir|--cir|--tag-cir)
         BIO_CIR="${2:-}"
+        shift 2
+        ;;
+      -cir-s|--cir-seconds|--full-cir-duration-s)
+        BIO_FULL_CIR_DURATION="${2:-}"
         shift 2
         ;;
       -h|--help)
@@ -398,6 +403,7 @@ _bio_run_capture() {
   local duration="$3"
   local targets="$4"
   local tag_cir="${5:-off}"
+  local full_cir_duration="${6:-30}"
   local base="${kind}_${id}_${targets//,/_}_${duration}s"
   local out="${BIOSPUR_SESSION_ROOT}/${base}"
   local tdma_profile="motion"
@@ -415,7 +421,7 @@ _bio_run_capture() {
   fi
   _bio_need_setup || return $?
   mkdir -p "${out}"
-  echo "[capture] kind=${kind} id=${id} duration=${duration}s targets=${targets} cir=${tag_cir}"
+  echo "[capture] kind=${kind} id=${id} duration=${duration}s targets=${targets} cir=${tag_cir} full_cir_duration=${full_cir_duration}s"
   echo "[capture] tdma_profile=${tdma_profile} (capture scene does not change firmware PMODE)"
   echo "[capture] base_out=${out}"
 
@@ -449,6 +455,7 @@ _bio_run_capture() {
       --tr-hz 10 \
       --tdma-profile "${tdma_profile}" \
       --tag-cir "${tag_cir}" \
+      --full-cir-duration-s "${full_cir_duration}" \
       --out-dir "${out}"
   )
   local rc=$?
@@ -465,7 +472,7 @@ _bio_run_capture() {
     printf ','
     _bio_csv_escape "${final_path}"
     printf ','
-    _bio_csv_escape "duration_s=${duration}; targets=${targets}; cir=${tag_cir}; rc=${rc}"
+    _bio_csv_escape "duration_s=${duration}; targets=${targets}; cir=${tag_cir}; full_cir_duration_s=${full_cir_duration}; rc=${rc}"
     printf '\n'
   } >> "${BIOSPUR_SESSION_ROOT}/session_notes.csv"
 
@@ -476,26 +483,26 @@ _bio_run_capture() {
 
 static() {
   _bio_parse_common_capture_args "$@" || {
-    [[ $? -eq 9 ]] && echo "Usage: static -id ID01 [-s 120] [-cir off|compact|full]"
+    [[ $? -eq 9 ]] && echo "Usage: static -id ID01 [-s 120] [-cir off|compact|full] [-cir-s 30]"
     return 2
   }
-  _bio_run_capture "static" "${BIO_ID}" "${BIO_DURATION}" "BSF66F" "${BIO_CIR}"
+  _bio_run_capture "static" "${BIO_ID}" "${BIO_DURATION}" "BSF66F" "${BIO_CIR}" "${BIO_FULL_CIR_DURATION}"
 }
 
 roto() {
   _bio_parse_common_capture_args "$@" || {
-    [[ $? -eq 9 ]] && echo "Usage: roto -id R01 [-s 120] [-cir off|compact|full]"
+    [[ $? -eq 9 ]] && echo "Usage: roto -id R01 [-s 120] [-cir off|compact|full] [-cir-s 30]"
     return 2
   }
-  _bio_run_capture "roto" "${BIO_ID}" "${BIO_DURATION}" "BS2DCE,BSDC91" "${BIO_CIR}"
+  _bio_run_capture "roto" "${BIO_ID}" "${BIO_DURATION}" "BS2DCE,BSDC91" "${BIO_CIR}" "${BIO_FULL_CIR_DURATION}"
 }
 
 wand() {
   _bio_parse_common_capture_args "$@" || {
-    [[ $? -eq 9 ]] && echo "Usage: wand -id W01 [-s 120] [-cir off|compact|full]"
+    [[ $? -eq 9 ]] && echo "Usage: wand -id W01 [-s 120] [-cir off|compact|full] [-cir-s 30]"
     return 2
   }
-  _bio_run_capture "wand3" "${BIO_ID}" "${BIO_DURATION}" "BS9336,BS955A,BSCCF4" "${BIO_CIR}"
+  _bio_run_capture "wand3" "${BIO_ID}" "${BIO_DURATION}" "BS9336,BS955A,BSCCF4" "${BIO_CIR}" "${BIO_FULL_CIR_DURATION}"
 }
 
 free() {
@@ -503,6 +510,7 @@ free() {
   local duration="120"
   local targets=""
   local tag_cir="off"
+  local full_cir_duration="30"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       -id|--id)
@@ -521,8 +529,12 @@ free() {
         tag_cir="${2:-}"
         shift 2
         ;;
+      -cir-s|--cir-seconds|--full-cir-duration-s)
+        full_cir_duration="${2:-}"
+        shift 2
+        ;;
       -h|--help)
-        echo "Usage: free -id F01 -targets BSF66F,BS2DCE [-s 120] [-cir off|compact|full]"
+        echo "Usage: free -id F01 -targets BSF66F,BS2DCE [-s 120] [-cir off|compact|full] [-cir-s 30]"
         return 2
         ;;
       *)
@@ -546,7 +558,7 @@ free() {
       return 2
       ;;
   esac
-  _bio_run_capture "free" "${id}" "${duration}" "${targets}" "${tag_cir}"
+  _bio_run_capture "free" "${id}" "${duration}" "${targets}" "${tag_cir}" "${full_cir_duration}"
 }
 
 sweep() {

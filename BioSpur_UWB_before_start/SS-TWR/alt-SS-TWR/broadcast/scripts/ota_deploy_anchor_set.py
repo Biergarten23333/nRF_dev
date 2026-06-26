@@ -231,6 +231,31 @@ def parse_args() -> argparse.Namespace:
         help="Abort one OTA attempt if stage/progress does not advance longer than this.",
     )
     p.add_argument("--order", default="ABCDEFGH", help="Anchor deployment order, e.g. ABCDEFGH")
+    p.add_argument("--max-attempts", type=int, default=2, help="Real upload attempts per Anchor after any pre-reset gate.")
+    p.add_argument(
+        "--pre-reset-first",
+        action="store_true",
+        help=(
+            "For each Anchor, first connect to its DFU SMP service, issue ota_reset, "
+            "stop, wait, and then run the normal upload attempt. This is useful when "
+            "DFU-ready image-state probes time out until the target has been reset "
+            "once through the OTA path."
+        ),
+    )
+    p.add_argument(
+        "--post-pre-reset-wait-s",
+        type=float,
+        default=20.0,
+        help="Seconds to wait after a successful pre-reset gate before the real upload attempt.",
+    )
+    p.add_argument(
+        "--master-reset-snr-after-pre-reset",
+        default="",
+        help=(
+            "Optional Master B120 J-Link SNR to reset after the pre-reset gate. "
+            "Use this when the Master CDC port stays writable-timeout after ota_reset."
+        ),
+    )
     p.add_argument(
         "--force-kill-port-owner",
         action="store_true",
@@ -470,7 +495,7 @@ def run_anchor_version_verify(args: argparse.Namespace, out_root: Path, expected
             transcript.append(">>> device kind anchor\n")
             transcript.append(send_serial_command(ser, "device kind anchor", 4.0))
             transcript.append(">>> anchor version all\n")
-            transcript.append(send_serial_command(ser, "anchor version all", 32.0))
+            transcript.append(send_serial_command(ser, "anchor version all", 60.0))
         finally:
             ser.close()
     except Exception as exc:
@@ -659,7 +684,93 @@ def main() -> int:
         round_dir = out_root / f"anchor_{label}"
         round_dir.mkdir(parents=True, exist_ok=True)
         entry: dict[str, object] = {"uuid": uuid, "attempts": []}
-        max_attempts = 2
+        if args.pre_reset_first:
+            pre_reset_dir = round_dir / "pre_reset"
+            pre_reset_cmd = [
+                "python3",
+                str(SCRIPT_DIR / "ota_single_shot_stable.py"),
+                "--timeout-s",
+                str(args.timeout_s),
+                "--port",
+                args.port,
+                "--target-uuid",
+                uuid,
+                "--out-dir",
+                str(pre_reset_dir),
+                "--pre-reset",
+            ]
+            if args.force_kill_port_owner:
+                pre_reset_cmd.append("--force-kill-port-owner")
+            print(f"=== OTA {label} {uuid} pre-reset gate ===", flush=True)
+            pre_cp = run_with_progress(
+                pre_reset_cmd,
+                pre_reset_dir / "single_shot.log",
+                label=f"{label}-pre",
+                attempt=0,
+                max_attempts=args.max_attempts,
+                starting_timeout_s=args.starting_timeout_s,
+                stalled_timeout_s=args.stalled_timeout_s,
+            )
+            pre_entry: dict[str, object] = {
+                "returncode": pre_cp.returncode,
+                "summary_json": str(pre_reset_dir / "summary.json"),
+            }
+            pre_summary = None
+            try:
+                with open(pre_reset_dir / "summary.json", "r", encoding="utf-8") as f:
+                    pre_summary = json.load(f)
+                    pre_entry["summary"] = pre_summary
+            except Exception as exc:
+                pre_entry["summary_read_error"] = repr(exc)
+            pre_reason = str(pre_summary.get("reason") if isinstance(pre_summary, dict) else "")
+            pre_ok = pre_reason in {
+                "ota_manual_pre_reset_requested",
+                "ota_manual_pre_reset_issued",
+                "ota_manual_pre_reset_sent",
+                "ota_manual_pre_reset_wait_failed",
+            }
+            pre_entry["pre_reset_gate_ok"] = pre_ok
+            entry["pre_reset"] = pre_entry
+            deploy_summary["rounds"][label] = entry
+            with open(out_root / "deploy_summary.json", "w", encoding="utf-8") as f:
+                json.dump(deploy_summary, f, indent=2)
+            if not pre_ok:
+                entry["returncode"] = pre_cp.returncode if pre_cp.returncode != 0 else 21
+                entry["reason"] = "pre_reset_gate_failed"
+                with open(out_root / "deploy_summary.json", "w", encoding="utf-8") as f:
+                    json.dump(deploy_summary, f, indent=2)
+                return int(entry["returncode"])
+            if args.master_reset_snr_after_pre_reset:
+                reset_cmd = [
+                    "bash",
+                    str(SCRIPT_DIR / "jlink_reset_by_snr.sh"),
+                    args.master_reset_snr_after_pre_reset,
+                    "NRF5340_XXAA_APP",
+                    "4000",
+                ]
+                print(
+                    f"--- resetting Master B120 SNR {args.master_reset_snr_after_pre_reset} after {label} pre-reset gate ---",
+                    flush=True,
+                )
+                reset_cp = subprocess.run(reset_cmd, text=True, capture_output=True)
+                pre_entry["master_reset_after_pre_reset"] = {
+                    "cmd": reset_cmd,
+                    "returncode": reset_cp.returncode,
+                    "stdout": reset_cp.stdout,
+                    "stderr": reset_cp.stderr,
+                }
+                with open(out_root / "deploy_summary.json", "w", encoding="utf-8") as f:
+                    json.dump(deploy_summary, f, indent=2)
+                if reset_cp.returncode != 0:
+                    entry["returncode"] = reset_cp.returncode
+                    entry["reason"] = "master_reset_after_pre_reset_failed"
+                    with open(out_root / "deploy_summary.json", "w", encoding="utf-8") as f:
+                        json.dump(deploy_summary, f, indent=2)
+                    return int(entry["returncode"])
+            print(f"--- waiting {args.post_pre_reset_wait_s:.1f}s after {label} pre-reset gate before upload ---", flush=True)
+            time.sleep(max(0.0, args.post_pre_reset_wait_s))
+
+        max_attempts = max(1, args.max_attempts)
         for attempt in range(1, max_attempts + 1):
             stage_dir = round_dir / f"stage{attempt}"
             cmd = [
@@ -744,7 +855,8 @@ def main() -> int:
         if final_rc != 0:
             return final_rc
 
-    if not args.skip_post_verify:
+    handoff_summary: dict[str, object] | None = None
+    if (not args.skip_post_verify) or expected_fw_marker:
         handoff_summary = prepare_control_plane_after_ota(args, out_root)
         deploy_summary["post_verify_mode_handoff"] = handoff_summary
         with open(out_root / "deploy_summary.json", "w", encoding="utf-8") as f:
@@ -759,12 +871,21 @@ def main() -> int:
                 json.dump(deploy_summary, f, indent=2)
             return 2
 
+    if not args.skip_post_verify:
         verify_rc, verify_summary = run_post_verify(args, out_root)
         deploy_summary["post_verify"] = verify_summary
         with open(out_root / "deploy_summary.json", "w", encoding="utf-8") as f:
             json.dump(deploy_summary, f, indent=2)
         if verify_rc != 0 or not bool(verify_summary.get("strict_ok")):
             return 2
+    else:
+        deploy_summary["post_verify"] = {
+            "skipped": True,
+            "reason": "skip_post_verify_requested",
+            "handoff": handoff_summary,
+        }
+        with open(out_root / "deploy_summary.json", "w", encoding="utf-8") as f:
+            json.dump(deploy_summary, f, indent=2)
 
     if expected_fw_marker:
         version_ok, version_summary = run_anchor_version_verify(args, out_root, expected_fw_marker)

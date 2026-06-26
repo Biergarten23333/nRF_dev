@@ -9,6 +9,14 @@ fi
 slot_index="${1:-0}"
 slot_count="${2:-10}"
 build_dir="${3:-build-tag-ble-motion-unified}"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+NCS_ROOT="${NCS_ROOT:-/home/zekaixiao/ncs/v2.8.0}"
+WEST_BIN="${WEST_BIN:-west}"
+ZEPHYR_BASE="${ZEPHYR_BASE:-${NCS_ROOT}/zephyr}"
+case "$build_dir" in
+  /*) build_dir_abs="$build_dir" ;;
+  *) build_dir_abs="$repo_root/$build_dir" ;;
+esac
 slot_period_ms="${APP_TAG_TDMA_SLOT_PERIOD_MS:-10}"
 slot_active_ms="${APP_TAG_TDMA_SLOT_ACTIVE_MS:-9}"
 slot_active_us="${APP_TAG_TDMA_SLOT_ACTIVE_US:-0}"
@@ -27,6 +35,7 @@ alt_ss_twr_bcast_force_full_sweep="${APP_ALT_SS_TWR_BCAST_FORCE_FULL_SWEEP:-1}"
 alt_ss_twr_light_tdma_enable="${APP_ALT_SS_TWR_LIGHT_TDMA_ENABLE:-1}"
 alt_ss_twr_bcast_immediate_tx_enable="${APP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE:-0}"
 alt_ss_twr_bcast_prewrite_tx_enable="${APP_ALT_SS_TWR_BCAST_PREWRITE_TX_ENABLE:-0}"
+tag_alt_bcast_rank_offset_override="${APP_TAG_ALT_BCAST_RANK_OFFSET_OVERRIDE:-255}"
 multitag_plan_mode="${APP_TAG_MULTITAG_PLAN_MODE:-0}"
 maintenance_full_interval="${APP_TAG_MAINTENANCE_FULL_INTERVAL:-100}"
 range_filter_outlier_mm="${APP_TAG_RANGE_FILTER_OUTLIER_MM:-120000}"
@@ -61,6 +70,12 @@ tag_cir_full_chunk_bytes="${APP_TAG_CIR_FULL_CHUNK_BYTES:-48}"
 tag_cir_full_priority_mask="${APP_TAG_CIR_FULL_PRIORITY_MASK:-0}"
 tag_cir_full_priority_only_sweep="${APP_TAG_CIR_FULL_PRIORITY_ONLY_SWEEP:-0}"
 tag_cir_compact_sample_period="${APP_TAG_CIR_COMPACT_SAMPLE_PERIOD:-8}"
+tag_rf_diag_output_enable="${APP_TAG_RF_DIAG_OUTPUT_ENABLE:-0}"
+tag_rf_diag_output_ble_enable="${APP_TAG_RF_DIAG_OUTPUT_BLE_ENABLE:-1}"
+tag_rf_diag_output_period="${APP_TAG_RF_DIAG_OUTPUT_PERIOD:-1}"
+tag_rf_diag_legacy_rfd_enable="${APP_TAG_RF_DIAG_LEGACY_RFD_ENABLE:-0}"
+tag_tr_rf_diag_compact_enable="${APP_TAG_TR_RF_DIAG_COMPACT_ENABLE:-1}"
+tag_rf_diag_tag_rx_enable="${APP_TAG_RF_DIAG_TAG_RX_ENABLE:-0}"
 tag_ekf_enable="${APP_TAG_EKF_ENABLE:-0}"
 tag_loc_min_quality_percent="${APP_TAG_LOC_MIN_QUALITY_PERCENT:-20}"
 tag_motion_speed_threshold_mm_s="${APP_TAG_MOTION_SPEED_THRESHOLD_MM_S:-100}"
@@ -80,9 +95,8 @@ standby_anchor_0_id="${APP_TAG_STANDBY_ANCHOR_0_ID:-2}"
 standby_anchor_1_id="${APP_TAG_STANDBY_ANCHOR_1_ID:-6}"
 reserve_anchor_0_id="${APP_TAG_RESERVE_ANCHOR_0_ID:-3}"
 reserve_anchor_1_id="${APP_TAG_RESERVE_ANCHOR_1_ID:-7}"
-if [ -z "${ZEPHYR_NRF_MODULE_DIR:-}" ]; then
-  export ZEPHYR_NRF_MODULE_DIR="$(dirname "${ZEPHYR_BASE}")/nrf"
-fi
+export ZEPHYR_BASE
+export ZEPHYR_NRF_MODULE_DIR="${ZEPHYR_NRF_MODULE_DIR:-$(dirname "${ZEPHYR_BASE}")/nrf}"
 app_tag_preload_file="$(mktemp /tmp/app_tag_preload_motion.XXXXXX.cmake)"
 cleanup() {
   rm -f "${app_tag_preload_file}"
@@ -133,6 +147,12 @@ fi
   printf 'set(APP_TAG_CIR_FULL_PRIORITY_MASK %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_cir_full_priority_mask}"
   printf 'set(APP_TAG_CIR_FULL_PRIORITY_ONLY_SWEEP %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_cir_full_priority_only_sweep}"
   printf 'set(APP_TAG_CIR_COMPACT_SAMPLE_PERIOD %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_cir_compact_sample_period}"
+  printf 'set(APP_TAG_RF_DIAG_OUTPUT_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_rf_diag_output_enable}"
+  printf 'set(APP_TAG_RF_DIAG_OUTPUT_BLE_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_rf_diag_output_ble_enable}"
+  printf 'set(APP_TAG_RF_DIAG_OUTPUT_PERIOD %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_rf_diag_output_period}"
+  printf 'set(APP_TAG_RF_DIAG_LEGACY_RFD_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_rf_diag_legacy_rfd_enable}"
+  printf 'set(APP_TAG_TR_RF_DIAG_COMPACT_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_tr_rf_diag_compact_enable}"
+  printf 'set(APP_TAG_RF_DIAG_TAG_RX_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_rf_diag_tag_rx_enable}"
   printf 'set(APP_TAG_EKF_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_ekf_enable}"
   printf 'set(APP_TAG_LOC_MIN_QUALITY_PERCENT %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_loc_min_quality_percent}"
   printf 'set(APP_TAG_MOTION_SPEED_THRESHOLD_MM_S %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_motion_speed_threshold_mm_s}"
@@ -166,18 +186,20 @@ fi
   printf 'set(APP_ALT_SS_TWR_LIGHT_TDMA_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_light_tdma_enable}"
   printf 'set(APP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_bcast_immediate_tx_enable}"
   printf 'set(APP_ALT_SS_TWR_BCAST_PREWRITE_TX_ENABLE %s CACHE STRING "Motion tag preload" FORCE)\n' "${alt_ss_twr_bcast_prewrite_tx_enable}"
+  printf 'set(APP_TAG_ALT_BCAST_RANK_OFFSET_OVERRIDE %s CACHE STRING "Motion tag preload" FORCE)\n' "${tag_alt_bcast_rank_offset_override}"
 } > "${app_tag_preload_file}"
 
 export APP_TAG_PRELOAD_FILE="${app_tag_preload_file}"
 export KCONFIG_ALLOW_WARNINGS=1
 export PYTHONPATH="/usr/lib/python3/dist-packages${PYTHONPATH:+:${PYTHONPATH}}"
 
-west build \
+(cd "$NCS_ROOT" && "$WEST_BIN" build \
   -b decawave_dwm1001_dev/nrf52832 \
-  -s apps/tag \
-  -d "${build_dir}" \
+  -s "$repo_root/apps/tag" \
+  -d "${build_dir_abs}" \
   --pristine=always \
   -- \
+  -DPython3_EXECUTABLE=/usr/bin/python3 \
   -DSB_CONFIG_PARTITION_MANAGER=y \
   -DSB_CONFIG_COMPILER_WARNINGS_AS_ERRORS=n \
   -DAPP_UWB_CHANNEL="${uwb_channel}" \
@@ -193,6 +215,7 @@ west build \
   -DAPP_ALT_SS_TWR_LIGHT_TDMA_ENABLE="${alt_ss_twr_light_tdma_enable}" \
   -DAPP_ALT_SS_TWR_BCAST_IMMEDIATE_TX_ENABLE="${alt_ss_twr_bcast_immediate_tx_enable}" \
   -DAPP_ALT_SS_TWR_BCAST_PREWRITE_TX_ENABLE="${alt_ss_twr_bcast_prewrite_tx_enable}" \
+  -DAPP_TAG_ALT_BCAST_RANK_OFFSET_OVERRIDE="${tag_alt_bcast_rank_offset_override}" \
   -DAPP_TAG_USB_DIAG_TRACE="${tag_usb_diag_trace}" \
   -DAPP_TAG_BLE_ENABLE=1 \
   -DCONFIG_BT_DEVICE_NAME=\"${device_name}\" \
@@ -239,6 +262,12 @@ west build \
   -DAPP_TAG_CIR_FULL_PRIORITY_MASK="${tag_cir_full_priority_mask}" \
   -DAPP_TAG_CIR_FULL_PRIORITY_ONLY_SWEEP="${tag_cir_full_priority_only_sweep}" \
   -DAPP_TAG_CIR_COMPACT_SAMPLE_PERIOD="${tag_cir_compact_sample_period}" \
+  -DAPP_TAG_RF_DIAG_OUTPUT_ENABLE="${tag_rf_diag_output_enable}" \
+  -DAPP_TAG_RF_DIAG_OUTPUT_BLE_ENABLE="${tag_rf_diag_output_ble_enable}" \
+  -DAPP_TAG_RF_DIAG_OUTPUT_PERIOD="${tag_rf_diag_output_period}" \
+  -DAPP_TAG_RF_DIAG_LEGACY_RFD_ENABLE="${tag_rf_diag_legacy_rfd_enable}" \
+  -DAPP_TAG_TR_RF_DIAG_COMPACT_ENABLE="${tag_tr_rf_diag_compact_enable}" \
+  -DAPP_TAG_RF_DIAG_TAG_RX_ENABLE="${tag_rf_diag_tag_rx_enable}" \
   -DAPP_TAG_VERBOSE_RANGING=0 \
   -DAPP_TAG_VERBOSE_MEASUREMENTS=0 \
   -DAPP_TAG_EKF_ENABLE="${tag_ekf_enable}" \
@@ -273,15 +302,15 @@ west build \
   -DAPP_TAG_MOTION_EKF_OUTLIER_GATE_MM="${tag_motion_ekf_outlier_gate_mm}" \
   -DAPP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG="${tag_motion_imu_delta_threshold_mg}" \
   -DAPP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG="${tag_motion_imu_gravity_err_threshold_mg}" \
-  ${TAG_CMAKE_ARGS:-}
+  ${TAG_CMAKE_ARGS:-})
 
-python3 scripts/write_build_source.py \
-  --build-dir "${build_dir}" \
+python3 "$repo_root/scripts/write_build_source.py" \
+  --build-dir "${build_dir_abs}" \
   --source "scripts/build_tag_ble_motion.sh" \
   --command "$0 $*"
 
 echo
-echo "Built: ${build_dir}"
-echo "Hex:   ${build_dir}/merged.hex"
+echo "Built: ${build_dir_abs}"
+echo "Hex:   ${build_dir_abs}/merged.hex"
 echo "Name:  ${device_name}"
 echo "Tag preload file: ${app_tag_preload_file}"

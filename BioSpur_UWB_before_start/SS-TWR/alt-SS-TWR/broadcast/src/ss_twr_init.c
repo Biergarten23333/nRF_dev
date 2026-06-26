@@ -32,6 +32,7 @@ enum uwb_tag_ble_cal_status {
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/atomic.h>
+#include <zephyr/sys/base64.h>
 
 #define SS_TWR_INIT_TX_ANT_DLY 16436U
 #define SS_TWR_INIT_RX_ANT_DLY 16436U
@@ -211,6 +212,42 @@ enum uwb_tag_ble_cal_status {
 #define APP_TAG_CIR_COMPACT_SAMPLE_PERIOD 8U
 #endif
 
+#ifndef APP_TAG_RF_DIAG_OUTPUT_ENABLE
+#define APP_TAG_RF_DIAG_OUTPUT_ENABLE 0U
+#endif
+
+#ifndef APP_TAG_RF_DIAG_OUTPUT_BLE_ENABLE
+#define APP_TAG_RF_DIAG_OUTPUT_BLE_ENABLE 1U
+#endif
+
+#ifndef APP_TAG_RF_DIAG_OUTPUT_PERIOD
+#define APP_TAG_RF_DIAG_OUTPUT_PERIOD 1U
+#endif
+
+#ifndef APP_TAG_RF_DIAG_LEGACY_RFD_ENABLE
+#define APP_TAG_RF_DIAG_LEGACY_RFD_ENABLE 0U
+#endif
+
+#ifndef APP_TAG_TR_RF_DIAG_COMPACT_ENABLE
+#define APP_TAG_TR_RF_DIAG_COMPACT_ENABLE APP_TAG_RF_DIAG_OUTPUT_ENABLE
+#endif
+
+#ifndef APP_TAG_RF_DIAG_TAG_RX_ENABLE
+#define APP_TAG_RF_DIAG_TAG_RX_ENABLE 0U
+#endif
+
+#ifndef APP_TAG_ALT_BCAST_RANK_OFFSET_OVERRIDE
+#define APP_TAG_ALT_BCAST_RANK_OFFSET_OVERRIDE 255U
+#endif
+
+#define SS_TWR_INIT_TR_STATUS_MAX_LEN 256U
+#define SS_TWR_INIT_RF_DIAG_COMPACT_VERSION 1U
+#define SS_TWR_INIT_RF_DIAG_COMPACT_RECORD_LEN 8U
+#define SS_TWR_INIT_RF_DIAG_COMPACT_MAX_RAW \
+    (UWB_MAX_ANCHORS * SS_TWR_INIT_RF_DIAG_COMPACT_RECORD_LEN)
+#define SS_TWR_INIT_RF_DIAG_COMPACT_MAX_B64 \
+    (((SS_TWR_INIT_RF_DIAG_COMPACT_MAX_RAW + 2U) / 3U) * 4U + 1U)
+
 #define SS_TWR_INIT_IMU_SUMMARY_MAX_WINDOW 16U
 
 #if APP_TAG_TR_IMU_SUMMARY_ENABLE != 0U || APP_TAG_TR_IMU_RAW_ENABLE != 0U
@@ -378,9 +415,9 @@ static void ss_twr_diag_write(const char *msg)
 #define SS_TWR_INIT_RX_BUF_LEN 127U
 #define SS_TWR_INIT_ALL_MSG_COMMON_LEN 10U
 #define SS_TWR_INIT_MSG_SN_IDX 2U
-#define SS_TWR_INIT_RESP_MSG_POLL_RX_TS_IDX 10U
-#define SS_TWR_INIT_RESP_MSG_RESP_TX_TS_IDX 14U
-#define SS_TWR_INIT_RESP_MSG_TS_LEN 4U
+#define SS_TWR_INIT_RESP_MSG_POLL_RX_TS_IDX UWB_MSG_RESP_POLL_RX_TS_IDX
+#define SS_TWR_INIT_RESP_MSG_RESP_TX_TS_IDX UWB_MSG_RESP_RESP_TX_TS_IDX
+#define SS_TWR_INIT_RESP_MSG_TS_LEN UWB_MSG_RESP_TS_LEN
 #define SS_TWR_INIT_LEGACY_POLL_FRAME_LEN 13U
 #define SS_TWR_INIT_UUS_TO_DWT_TIME 65536ULL
 #define SS_TWR_INIT_ALT_BCAST_POLL_SCHED_UUS 1000U
@@ -452,6 +489,19 @@ static uint8_t ss_twr_init_last_solution_anchor_ids[UWB_MAX_ANCHORS];
 static uint8_t ss_twr_init_last_solution_anchor_count;
 static bool ss_twr_init_have_last_location;
 static uint32_t ss_twr_init_location_output_count;
+
+#if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U
+struct ss_twr_init_rf_diag_sample {
+    uint16_t fp_index;
+    uint16_t fp_ampl1;
+    uint16_t fp_ampl2;
+    uint16_t fp_ampl3;
+    uint16_t cir_pwr;
+    uint16_t rxpacc;
+    uint16_t std_noise;
+    uint8_t flags;
+};
+#endif
 #if APP_TAG_STATUS_PERIOD_MS > 0U
 static bool ss_twr_init_have_last_raw_location;
 static struct uwb_tag_location_result ss_twr_init_last_raw_location;
@@ -533,11 +583,21 @@ static uint32_t ss_twr_init_sweep_anchor_pred_mm[UWB_MAX_ANCHORS];
 static uint32_t ss_twr_init_sweep_anchor_resid_mm[UWB_MAX_ANCHORS];
 static uint8_t ss_twr_init_sweep_anchor_solve_quality[UWB_MAX_ANCHORS];
 static bool ss_twr_init_sweep_anchor_diag_published[UWB_MAX_ANCHORS];
+#if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U
+static struct ss_twr_init_rf_diag_sample
+    ss_twr_init_sweep_anchor_poll_diag[UWB_MAX_ANCHORS];
+static struct ss_twr_init_rf_diag_sample
+    ss_twr_init_sweep_tag_resp_diag[UWB_MAX_ANCHORS];
+static uint8_t ss_twr_init_sweep_rf_diag_mask;
+#endif
 
 static void ss_twr_init_prepare_sweep_plan(void);
 static bool ss_twr_init_runtime_any_calibration_mode(void);
 static const char *ss_twr_init_plan_label(void);
 static char ss_twr_init_plan_code(const char *plan_label);
+#if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U
+static bool ss_twr_init_rf_diag_output_due(void);
+#endif
 static const char *ss_twr_init_solve_reason_label(void);
 static bool ss_twr_init_anchor_id_in_list(const uint8_t *anchor_ids, size_t count,
                                           uint8_t anchor_id);
@@ -907,6 +967,13 @@ static void ss_twr_init_reset_sweep_anchor_state(void)
         ss_twr_init_sweep_anchor_solve_quality[i] = 0U;
         ss_twr_init_sweep_anchor_diag_published[i] = false;
     }
+#if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U
+    memset(ss_twr_init_sweep_anchor_poll_diag, 0,
+           sizeof(ss_twr_init_sweep_anchor_poll_diag));
+    memset(ss_twr_init_sweep_tag_resp_diag, 0,
+           sizeof(ss_twr_init_sweep_tag_resp_diag));
+    ss_twr_init_sweep_rf_diag_mask = 0U;
+#endif
 }
 
 static void ss_twr_init_record_sweep_anchor_state(
@@ -985,6 +1052,108 @@ static size_t ss_twr_init_append_csv_u32(char *buf, size_t len, size_t pos,
                     (unsigned long)value);
     return pos;
 }
+
+#if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
+    APP_TAG_TR_RF_DIAG_COMPACT_ENABLE != 0U
+static uint16_t ss_twr_init_rf_diag_fp_sum16(
+    const struct ss_twr_init_rf_diag_sample *sample)
+{
+    uint32_t sum;
+
+    if (sample == NULL) {
+        return 0U;
+    }
+
+    sum = (uint32_t)sample->fp_ampl1 + (uint32_t)sample->fp_ampl2 +
+          (uint32_t)sample->fp_ampl3;
+    return (sum > UINT16_MAX) ? UINT16_MAX : (uint16_t)sum;
+}
+
+static uint8_t ss_twr_init_rf_diag_q8(uint16_t value)
+{
+    uint16_t q = (uint16_t)((value + 128U) >> 8);
+
+    return (q > UINT8_MAX) ? UINT8_MAX : (uint8_t)q;
+}
+
+static bool ss_twr_init_append_compact_rf_diag(char *line, size_t line_len,
+                                               uint32_t active_mask)
+{
+    uint8_t raw[SS_TWR_INIT_RF_DIAG_COMPACT_MAX_RAW];
+    char b64[SS_TWR_INIT_RF_DIAG_COMPACT_MAX_B64];
+    size_t raw_len = 0U;
+    size_t b64_len = 0U;
+    size_t used;
+    int rc;
+
+    if (line == NULL || line_len == 0U || active_mask == 0U ||
+        !ss_twr_init_rf_diag_output_due()) {
+        return false;
+    }
+
+    for (uint8_t anchor_id = 0U; anchor_id < UWB_MAX_ANCHORS; ++anchor_id) {
+        const struct ss_twr_init_rf_diag_sample *anchor_diag;
+        const struct ss_twr_init_rf_diag_sample *tag_diag;
+        uint8_t *record;
+        uint8_t valid_mask = BIT(anchor_id);
+
+        if ((active_mask & valid_mask) == 0U) {
+            continue;
+        }
+        if (raw_len + SS_TWR_INIT_RF_DIAG_COMPACT_RECORD_LEN > sizeof(raw)) {
+            return false;
+        }
+
+        anchor_diag = &ss_twr_init_sweep_anchor_poll_diag[anchor_id];
+        tag_diag = &ss_twr_init_sweep_tag_resp_diag[anchor_id];
+        record = &raw[raw_len];
+
+        record[0] = ((ss_twr_init_sweep_rf_diag_mask & valid_mask) != 0U) ?
+                    anchor_diag->flags : 0U;
+        record[1] = ((ss_twr_init_sweep_rf_diag_mask & valid_mask) != 0U) ?
+                    tag_diag->flags : 0U;
+        record[2] = ss_twr_init_rf_diag_q8(
+            ss_twr_init_rf_diag_fp_sum16(anchor_diag));
+        record[3] = ss_twr_init_rf_diag_q8(anchor_diag->cir_pwr);
+        record[4] = (anchor_diag->rxpacc > UINT8_MAX) ?
+                    UINT8_MAX : (uint8_t)anchor_diag->rxpacc;
+        record[5] = ss_twr_init_rf_diag_q8(
+            ss_twr_init_rf_diag_fp_sum16(tag_diag));
+        record[6] = ss_twr_init_rf_diag_q8(tag_diag->cir_pwr);
+        record[7] = (tag_diag->rxpacc > UINT8_MAX) ?
+                    UINT8_MAX : (uint8_t)tag_diag->rxpacc;
+        raw_len += SS_TWR_INIT_RF_DIAG_COMPACT_RECORD_LEN;
+    }
+
+    if (raw_len == 0U) {
+        return false;
+    }
+
+    rc = base64_encode((uint8_t *)b64, sizeof(b64), &b64_len, raw, raw_len);
+    if (rc != 0 || b64_len >= sizeof(b64)) {
+        return false;
+    }
+    b64[b64_len] = '\0';
+
+    used = strlen(line);
+    if (used >= line_len || used >= SS_TWR_INIT_TR_STATUS_MAX_LEN) {
+        return false;
+    }
+
+    /*
+     * BLE status packets are capped at 256 bytes. RF diagnostics are optional:
+     * keep the range summary intact and drop this trailer if it would not fit.
+     */
+    if (used + 4U + b64_len >= SS_TWR_INIT_TR_STATUS_MAX_LEN ||
+        used + 4U + b64_len >= line_len) {
+        return false;
+    }
+
+    (void)snprintk(&line[used], line_len - used, ";D%u,%s",
+                   (unsigned int)SS_TWR_INIT_RF_DIAG_COMPACT_VERSION, b64);
+    return true;
+}
+#endif
 
 static void ss_twr_init_publish_tag_range_summary(
     const struct uwb_tag_measurement *measurements, size_t measurement_count,
@@ -1070,7 +1239,15 @@ static void ss_twr_init_publish_tag_range_summary(
 #if APP_TAG_TR_BCAST_V2_ENABLE
     line_len = snprintk(
         line, sizeof(line),
-        "TR;2;%lu;%c;%u;%02lx;%02lx;%s;%s;%s;%s",
+        "TR;%u;%lu;%c;%u;%02lx;%02lx;%s;%s;%s;%s",
+        (unsigned int)(
+#if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
+    APP_TAG_TR_RF_DIAG_COMPACT_ENABLE != 0U
+            3U
+#else
+            2U
+#endif
+        ),
         (unsigned long)ss_twr_init_sweep_count,
         ss_twr_init_plan_code(ss_twr_init_plan_label()),
         (unsigned int)ss_twr_init_runtime_params.positioning_mode,
@@ -1095,6 +1272,14 @@ static void ss_twr_init_publish_tag_range_summary(
         (unsigned long)first_to_last_us,
         (unsigned long)frame_us,
         (unsigned int)ss_twr_init_sweep_poll_count);
+#endif
+#if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
+    APP_TAG_TR_RF_DIAG_COMPACT_ENABLE != 0U
+    if (line_len > 0) {
+        (void)ss_twr_init_append_compact_rf_diag(line, sizeof(line),
+                                                active_mask);
+        line_len = (int)strlen(line);
+    }
 #endif
 #if APP_TAG_TR_IMU_SUMMARY_ENABLE != 0U
     if (line_len > 0 && ss_twr_init_imu_summary.valid) {
@@ -2840,6 +3025,126 @@ static void ss_twr_init_read_ts(const uint8_t *ts_field, uint32 *ts)
     }
 }
 
+#if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U
+static uint16_t ss_twr_init_read_le16(const uint8_t *field)
+{
+    return (uint16_t)field[0] | ((uint16_t)field[1] << 8);
+}
+
+static bool ss_twr_init_rf_diag_output_due(void)
+{
+#if APP_TAG_RF_DIAG_OUTPUT_PERIOD > 1U
+    return (ss_twr_init_sweep_count % APP_TAG_RF_DIAG_OUTPUT_PERIOD) == 0U;
+#else
+    return true;
+#endif
+}
+
+#if APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U
+static void ss_twr_init_rf_diag_from_rxdiag(
+    struct ss_twr_init_rf_diag_sample *out, const dwt_rxdiag_t *diag)
+{
+    if (out == NULL || diag == NULL) {
+        return;
+    }
+
+    out->flags = UWB_MSG_RESP_DIAG_FLAGS_VALID;
+    out->fp_index = diag->firstPath;
+    out->fp_ampl1 = diag->firstPathAmp1;
+    out->fp_ampl2 = diag->firstPathAmp2;
+    out->fp_ampl3 = diag->firstPathAmp3;
+    out->cir_pwr = diag->maxGrowthCIR;
+    out->rxpacc = diag->rxPreamCount;
+    out->std_noise = diag->stdNoise;
+}
+#endif
+
+static bool ss_twr_init_parse_resp_diag_v2(
+    const uint8_t *frame, uint32_t frame_len,
+    struct ss_twr_init_rf_diag_sample *out)
+{
+    if (frame == NULL || out == NULL || frame_len < UWB_MSG_RESP_V2_FRAME_LEN) {
+        return false;
+    }
+    if (frame[UWB_MSG_RESP_DIAG_VERSION_IDX] != UWB_MSG_RESP_DIAG_VERSION ||
+        (frame[UWB_MSG_RESP_DIAG_FLAGS_IDX] &
+         UWB_MSG_RESP_DIAG_FLAGS_VALID) == 0U) {
+        return false;
+    }
+
+    out->flags = frame[UWB_MSG_RESP_DIAG_FLAGS_IDX];
+    out->fp_index =
+        ss_twr_init_read_le16(&frame[UWB_MSG_RESP_DIAG_FP_INDEX_IDX]);
+    out->fp_ampl1 =
+        ss_twr_init_read_le16(&frame[UWB_MSG_RESP_DIAG_FP_AMPL1_IDX]);
+    out->fp_ampl2 =
+        ss_twr_init_read_le16(&frame[UWB_MSG_RESP_DIAG_FP_AMPL2_IDX]);
+    out->fp_ampl3 =
+        ss_twr_init_read_le16(&frame[UWB_MSG_RESP_DIAG_FP_AMPL3_IDX]);
+    out->cir_pwr =
+        ss_twr_init_read_le16(&frame[UWB_MSG_RESP_DIAG_CIR_PWR_IDX]);
+    out->rxpacc =
+        ss_twr_init_read_le16(&frame[UWB_MSG_RESP_DIAG_RXPACC_IDX]);
+    out->std_noise =
+        ss_twr_init_read_le16(&frame[UWB_MSG_RESP_DIAG_STD_NOISE_IDX]);
+    return true;
+}
+
+#if APP_TAG_RF_DIAG_LEGACY_RFD_ENABLE != 0U
+static void ss_twr_init_publish_rf_diag(
+    uint8_t poll_seq,
+    uint8_t anchor_id,
+    long raw_distance_mm,
+    uint32_t resp_rx_ts,
+    int32_t carrier_integrator,
+    const struct ss_twr_init_rf_diag_sample *anchor_poll_diag,
+    const struct ss_twr_init_rf_diag_sample *tag_resp_diag)
+{
+    char line[224];
+    const struct ss_twr_init_rf_diag_sample empty = {0};
+    const struct ss_twr_init_rf_diag_sample *ap =
+        anchor_poll_diag != NULL ? anchor_poll_diag : &empty;
+    const struct ss_twr_init_rf_diag_sample *tr =
+        tag_resp_diag != NULL ? tag_resp_diag : &empty;
+
+    if (!ss_twr_init_rf_diag_output_due()) {
+        return;
+    }
+
+    snprintk(line, sizeof(line),
+             "RFD;1;%lu;%u;%u;%ld;%lu;%ld;"
+             "%u;%u;%u;%u;%u;%u;%u;%u;"
+             "%u;%u;%u;%u;%u;%u;%u;%u",
+             (unsigned long)ss_twr_init_sweep_count,
+             (unsigned int)poll_seq,
+             (unsigned int)anchor_id,
+             raw_distance_mm,
+             (unsigned long)resp_rx_ts,
+             (long)carrier_integrator,
+             (unsigned int)ap->flags,
+             (unsigned int)ap->fp_index,
+             (unsigned int)ap->fp_ampl1,
+             (unsigned int)ap->fp_ampl2,
+             (unsigned int)ap->fp_ampl3,
+             (unsigned int)ap->cir_pwr,
+             (unsigned int)ap->rxpacc,
+             (unsigned int)ap->std_noise,
+             (unsigned int)tr->flags,
+             (unsigned int)tr->fp_index,
+             (unsigned int)tr->fp_ampl1,
+             (unsigned int)tr->fp_ampl2,
+             (unsigned int)tr->fp_ampl3,
+             (unsigned int)tr->cir_pwr,
+             (unsigned int)tr->rxpacc,
+             (unsigned int)tr->std_noise);
+    printk("%s\n", line);
+#if APP_TAG_BLE_ENABLE && APP_TAG_RF_DIAG_OUTPUT_BLE_ENABLE != 0U
+    (void)uwb_tag_ble_publish_status(line);
+#endif
+}
+#endif
+#endif
+
 static void ss_twr_init_write_ts(uint8_t *ts_field, uint32 ts)
 {
     for (int i = 0; i < SS_TWR_INIT_RESP_MSG_TS_LEN; ++i) {
@@ -3819,7 +4124,7 @@ static void ss_twr_init_alt_publish_rx_gap_diag(uint32_t tx_done_cycles,
              (unsigned int)APP_TAG_TDMA_SLOT_PERIOD_MS,
              (unsigned int)APP_TAG_TDMA_SLOT_COUNT);
     printk("%s\n", line);
-#if APP_TAG_BLE_ENABLE
+#if APP_TAG_BLE_ENABLE && APP_TAG_ALT_RXG_BLE_DIAG_ENABLE != 0U
     (void)uwb_tag_ble_publish_status(line);
 #endif
 }
@@ -3876,7 +4181,7 @@ static void ss_twr_init_alt_publish_rx_diag(uint32_t status_reg,
              (unsigned int)last_dst_addr,
              (unsigned int)last_code);
     printk("%s\n", line);
-#if APP_TAG_BLE_ENABLE
+#if APP_TAG_BLE_ENABLE && APP_TAG_ALT_RXG_BLE_DIAG_ENABLE != 0U
     (void)uwb_tag_ble_publish_status(line);
 #endif
 }
@@ -4019,7 +4324,7 @@ static void ss_twr_init_alt_print_unicast_timing_diag(
              (long)lateness_us[2],
              (long)lateness_us[3]);
     printk("%s\n", line);
-#if APP_TAG_BLE_ENABLE
+#if APP_TAG_BLE_ENABLE && APP_TAG_ALT_RXG_BLE_DIAG_ENABLE != 0U
     (void)uwb_tag_ble_publish_status(line);
 #endif
 }
@@ -4210,6 +4515,10 @@ static uint8_t ss_twr_init_alt_bcast_rank_offset(uint8_t poll_count)
 {
     uint8_t target_anchor_id;
 
+#if APP_TAG_ALT_BCAST_RANK_OFFSET_OVERRIDE < UWB_MAX_ANCHORS
+    ARG_UNUSED(poll_count);
+    return (uint8_t)APP_TAG_ALT_BCAST_RANK_OFFSET_OVERRIDE;
+#else
     if (!ss_twr_init_compact_cir_sample_due()) {
         return 0U;
     }
@@ -4220,6 +4529,7 @@ static uint8_t ss_twr_init_alt_bcast_rank_offset(uint8_t poll_count)
     }
 
     return (uint8_t)((target_anchor_id + 1U) % UWB_MAX_ANCHORS);
+#endif
 }
 
 static bool ss_twr_init_alt_bcast_prewrite_tx(void)
@@ -4305,6 +4615,13 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
     bool cir_diag_pending = false;
     uint8_t cir_diag_anchor_id = UWB_MAX_ANCHORS;
     dwt_rxdiag_t cir_rx_diag;
+#if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U
+#if APP_TAG_RF_DIAG_LEGACY_RFD_ENABLE != 0U
+    uint8_t rf_diag_poll_seq = ss_twr_init_frame_seq_nb;
+#endif
+    struct ss_twr_init_rf_diag_sample anchor_poll_diag_by_anchor[UWB_MAX_ANCHORS] = {0};
+    struct ss_twr_init_rf_diag_sample tag_resp_diag_by_anchor[UWB_MAX_ANCHORS] = {0};
+#endif
 
     if (poll_count == 0U || poll_count > UWB_MAX_ANCHORS) {
         return false;
@@ -4567,6 +4884,10 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             uint32 poll_rx_ts;
             uint32 resp_tx_ts;
             int32_t carrier_integrator;
+#if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
+    APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U
+            dwt_rxdiag_t tag_resp_diag;
+#endif
 
             frame_len = last_rx_finfo & RX_FINFO_RXFLEN_MASK;
             last_frame_len = frame_len;
@@ -4583,6 +4904,10 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             dwt_readrxdata(ss_twr_init_rx_buffer, (uint16)frame_len, 0);
             resp_rx_ts = dwt_readrxtimestamplo32();
             carrier_integrator = dwt_readcarrierintegrator();
+#if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
+    APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U
+            dwt_readdiagnostics(&tag_resp_diag);
+#endif
 
             resp_src_addr = uwb_frame_get_src_addr(ss_twr_init_rx_buffer);
             last_src_addr = resp_src_addr;
@@ -4624,6 +4949,20 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             poll_rx_ts_by_anchor[anchor_id] = poll_rx_ts;
             resp_tx_ts_by_anchor[anchor_id] = resp_tx_ts;
             carrier_integrator_by_anchor[anchor_id] = carrier_integrator;
+#if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U
+#if APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U
+            ss_twr_init_rf_diag_from_rxdiag(
+                &tag_resp_diag_by_anchor[anchor_id], &tag_resp_diag);
+#endif
+            (void)ss_twr_init_parse_resp_diag_v2(
+                ss_twr_init_rx_buffer, frame_len,
+                &anchor_poll_diag_by_anchor[anchor_id]);
+            ss_twr_init_sweep_tag_resp_diag[anchor_id] =
+                tag_resp_diag_by_anchor[anchor_id];
+            ss_twr_init_sweep_anchor_poll_diag[anchor_id] =
+                anchor_poll_diag_by_anchor[anchor_id];
+            ss_twr_init_sweep_rf_diag_mask |= BIT(anchor_id);
+#endif
             if ((cir_mode == UWB_TAG_CIR_MODE_COMPACT &&
                  ss_twr_init_compact_cir_sample_due()) ||
                 cir_mode == UWB_TAG_CIR_MODE_FULL) {
@@ -4689,6 +5028,10 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             uint32 poll_rx_ts;
             uint32 resp_tx_ts;
             int32_t carrier_integrator;
+#if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
+    APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U
+            dwt_rxdiag_t tag_resp_diag;
+#endif
 
             frame_len = last_rx_finfo & RX_FINFO_RXFLEN_MASK;
             last_frame_len = frame_len;
@@ -4738,6 +5081,10 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
 
             resp_rx_ts = dwt_readrxtimestamplo32();
             carrier_integrator = dwt_readcarrierintegrator();
+#if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
+    APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U
+            dwt_readdiagnostics(&tag_resp_diag);
+#endif
             ss_twr_init_read_ts(
                 &ss_twr_init_rx_buffer[SS_TWR_INIT_RESP_MSG_POLL_RX_TS_IDX],
                 &poll_rx_ts);
@@ -4749,6 +5096,20 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             poll_rx_ts_by_anchor[anchor_id] = poll_rx_ts;
             resp_tx_ts_by_anchor[anchor_id] = resp_tx_ts;
             carrier_integrator_by_anchor[anchor_id] = carrier_integrator;
+#if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U
+#if APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U
+            ss_twr_init_rf_diag_from_rxdiag(
+                &tag_resp_diag_by_anchor[anchor_id], &tag_resp_diag);
+#endif
+            (void)ss_twr_init_parse_resp_diag_v2(
+                ss_twr_init_rx_buffer, frame_len,
+                &anchor_poll_diag_by_anchor[anchor_id]);
+            ss_twr_init_sweep_tag_resp_diag[anchor_id] =
+                tag_resp_diag_by_anchor[anchor_id];
+            ss_twr_init_sweep_anchor_poll_diag[anchor_id] =
+                anchor_poll_diag_by_anchor[anchor_id];
+            ss_twr_init_sweep_rf_diag_mask |= BIT(anchor_id);
+#endif
             if ((cir_mode == UWB_TAG_CIR_MODE_COMPACT &&
                  ss_twr_init_compact_cir_sample_due()) ||
                 cir_mode == UWB_TAG_CIR_MODE_FULL) {
@@ -4826,6 +5187,16 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
                     carrier_integrator_by_anchor[anchor_id],
                     &cir_rx_diag);
             }
+#if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
+    APP_TAG_RF_DIAG_LEGACY_RFD_ENABLE != 0U
+            ss_twr_init_publish_rf_diag(
+                rf_diag_poll_seq,
+                anchor_id, raw_distance_mm[anchor_id],
+                resp_rx_ts_by_anchor[anchor_id],
+                carrier_integrator_by_anchor[anchor_id],
+                &anchor_poll_diag_by_anchor[anchor_id],
+                &tag_resp_diag_by_anchor[anchor_id]);
+#endif
             ss_twr_init_alt_record_range(anchor_id, raw_distance_mm[anchor_id]);
         } else {
             ss_twr_init_alt_record_timeout(anchor_id,

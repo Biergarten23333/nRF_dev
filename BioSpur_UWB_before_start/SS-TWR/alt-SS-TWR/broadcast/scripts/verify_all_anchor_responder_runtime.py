@@ -18,6 +18,7 @@ from run_autopos_sweep_loop import (
     emit,
     ensure_autopos_maps,
     open_port,
+    scan_anchor_role_counts,
     send_cmd_collect_text,
 )
 

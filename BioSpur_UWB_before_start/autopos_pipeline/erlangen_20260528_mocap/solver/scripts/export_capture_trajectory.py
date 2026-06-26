@@ -89,7 +89,36 @@ def find_range_source(capture: Path) -> tuple[Path, str]:
         return find_raw_log(capture), "raw_log"
 
 
-def load_layout(path: Path) -> tuple[dict[int, np.ndarray], dict[int, float], float]:
+def canonicalize_layout_z(
+    layout: dict[int, np.ndarray],
+) -> tuple[dict[int, np.ndarray], dict[str, Any]]:
+    lower_ids = [0, 1, 2, 3]
+    upper_ids = [4, 5, 6, 7]
+    if not all(aid in layout for aid in lower_ids + upper_ids):
+        return layout, {"coordinate_frame": "layout_raw", "z_transform": "identity"}
+    lower = float(np.mean([layout[aid][2] for aid in lower_ids]))
+    upper = float(np.mean([layout[aid][2] for aid in upper_ids]))
+    if lower < upper:
+        return layout, {
+            "coordinate_frame": "canonical_z",
+            "z_transform": "identity",
+            "lower_mean_z_mm": lower,
+            "upper_mean_z_mm": upper,
+        }
+    transformed = {
+        aid: np.asarray([xyz[0], xyz[1], -xyz[2] + lower], dtype=float)
+        for aid, xyz in layout.items()
+    }
+    return transformed, {
+        "coordinate_frame": "canonical_z",
+        "z_transform": "z_display=-z_raw+lower_mean_z",
+        "z_transform_origin_mm": lower,
+        "lower_mean_z_raw_mm": lower,
+        "upper_mean_z_raw_mm": upper,
+    }
+
+
+def load_layout(path: Path) -> tuple[dict[int, np.ndarray], dict[int, float], float, dict[str, Any]]:
     data = json.loads(path.read_text())
     layout: dict[int, np.ndarray] = {}
     delays: dict[int, float] = {}
@@ -102,7 +131,8 @@ def load_layout(path: Path) -> tuple[dict[int, np.ndarray], dict[int, float], fl
         delays[aid] = float(item.get("d_anchor_mm") or 0.0)
     if len(layout) < 4:
         raise SystemExit(f"[error] layout has only {len(layout)} anchors: {path}")
-    return layout, delays, float(data.get("tag_delay_mm") or 0.0)
+    layout, frame_meta = canonicalize_layout_z(layout)
+    return layout, delays, float(data.get("tag_delay_mm") or 0.0), frame_meta
 
 
 def load_capture_targets(capture: Path) -> list[str]:
@@ -327,7 +357,7 @@ def main() -> int:
     eprint(f"[export] layout={args.layout}")
     eprint(f"[export] capture={args.capture}")
     eprint(f"[export] {source_kind}={range_source}")
-    layout, delays, tag_delay = load_layout(args.layout)
+    layout, delays, tag_delay, frame_meta = load_layout(args.layout)
     if source_kind == "tr_all":
         frames = read_frames(range_source, tag_filter, args.tail_rows)
     else:
@@ -369,6 +399,7 @@ def main() -> int:
         "raw_log": str(range_source) if source_kind == "raw_log" else "",
         "range_source": source_kind,
         "layout": str(args.layout),
+        **frame_meta,
         "tag_filter": ",".join(sorted(tag_filter)),
         "expected_tags": expected_tags,
         "candidate_frames": len(frames),

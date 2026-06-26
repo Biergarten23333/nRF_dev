@@ -83,9 +83,15 @@ if [ "${BIOSPUR_FLASH_POLICY_BLOCK_ROLE_MISMATCH:-1}" = "1" ]; then
   fi
 fi
 
-if [ "$SNR" = "960148546" ] && [ -e "$PROTECT_FILE" ]; then
+if [ "$SNR" = "960148546" ] && [ -e "$PROTECT_FILE" ] && \
+   [ "${BIOSPUR_ALLOW_PROTECTED_MASTER_ANCHOR_FLASH:-0}" != "1" ]; then
   echo "[error] protected B120 SNR 960148546; refusing to flash because $PROTECT_FILE exists" >&2
+  echo "[hint] for an approved Master_Anchor flash, set BIOSPUR_ALLOW_PROTECTED_MASTER_ANCHOR_FLASH=1" >&2
   exit 5
+fi
+
+if [ "$SNR" = "960148546" ] && [ -e "$PROTECT_FILE" ]; then
+  echo "[flash-guard] OVERRIDE: BIOSPUR_ALLOW_PROTECTED_MASTER_ANCHOR_FLASH=1 permits approved Master_Anchor dual-core flash"
 fi
 
 "$ASSERT_SCRIPT" "$BUILD_DIR"
