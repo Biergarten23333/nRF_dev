@@ -1387,6 +1387,385 @@ State restored after OTA:
   `alt-bcast-a26-delayed-prof-g1200`.
 - `verify_ota_payload_kind.py --expected anchor` passed.
 
+## Latest Gate - 2026-06-26 Evening
+
+Current live check:
+
+- Master_Tag is visible as
+  `/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00`.
+- Master_Anchor is visible as
+  `/dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02-if00`.
+- A 60 s broad `BS*` connect/listen window saw only five Tags:
+  `BS2DCE`, `BSCCF4`, `BSF66F`, `BS9336`, `BS955A`.
+- `BSDC91` was not seen in scan/connect/CFG/TR/TD output.
+
+Best no-RFD candidate remains:
+
+```text
+SS-TWR/alt-SS-TWR/broadcast/logs/rfdiag_v2_overnight_20260625/capture_six_targets_bleint12_nopreflight_nordiag_120s_20260626_132626_20260626_132626/
+```
+
+It reached all six Tags with `rfd_all=0`, `tr_diag_all=0`,
+`ge7=0.939401`, and `ge8=0.421001`.
+
+Next action after `BSDC91` is physically/BLE recovered:
+
+```bash
+bash SS-TWR/alt-SS-TWR/broadcast/scripts/run_6tag_nordiag_baseline_candidate.sh
+```
+
+Do not re-enable RFD/RF diagnostics before this no-RFD six-Tag gate passes.
+
+### Gate Execution Result
+
+Command:
+
+```bash
+VISIBILITY_S=45 bash scripts/run_6tag_nordiag_baseline_candidate.sh
+```
+
+Result:
+
+```text
+[6TAG-GATE] seen=BS2DCE,BS9336,BS955A,BSCCF4,BSF66F
+[6TAG-GATE] missing=BSDC91
+[6TAG-GATE] aborting before capture; recover missing Tag BLE visibility first
+```
+
+Interpretation:
+
+- The script correctly refused to run a 120 s baseline capture with only five
+  visible Tags.
+- The current remaining blocker for the baseline gate is `BSDC91` BLE
+  visibility, not RFD output and not a five-connection BLE ceiling.
+
+## Goal Continuation Check - 2026-06-26 Evening
+
+Current objective remains unchanged:
+
+- Restore the 6 Tag / 60 Hz no-RFD ranging baseline to the 2026-05-12 level.
+- Only after that, test how much RF diagnostic information can be reintroduced
+  without materially degrading normal TR output.
+
+Best verified no-RFD 6 Tag candidate so far:
+
+```text
+SS-TWR/alt-SS-TWR/broadcast/logs/rfdiag_v2_overnight_20260625/capture_six_targets_bleint12_nopreflight_nordiag_120s_20260626_132626_20260626_132626/
+```
+
+Evidence:
+
+- `success=true`
+- six targets all reached TDMA CFG
+- `rfd_all=0`, `tr_diag_all=0`
+- `tr_all=32608`, `tr_valid_all=29063`
+- `ratio_ge7=0.939401`, `ratio_ge8=0.421001`
+
+Per-Tag ge7 in that run:
+
+| Tag | ge7 | ge8 |
+|---|---:|---:|
+| `BSF66F` | `0.947309` | `0.500000` |
+| `BS2DCE` | `0.916388` | `0.638796` |
+| `BSDC91` | `0.963314` | `0.300592` |
+| `BSCCF4` | `0.903571` | `0.567857` |
+| `BS9336` | `0.910470` | `0.500759` |
+| `BS955A` | `0.947321` | `0.305177` |
+
+Important properties of the candidate:
+
+- It used the canonical `10/9` TDMA profile.
+- It did not use RFD or compact RF diagnostics.
+- It used the historical six-Tag slot layout:
+  `BS2DCE slot0`, `BS9336 slot2`, `BS955A slot3`,
+  `BSCCF4 slot5`, `BSDC91 slot7`, `BSF66F slot8`.
+- It is close to, but still below, the 2026-05-12 reference
+  `ge7=0.953277`, `ge8=0.626541`.
+
+Current live state check:
+
+- Master_Tag USB is correctly distinguishable as:
+  `/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00`
+- Master_Anchor USB is correctly distinguishable as:
+  `/dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02-if00`
+- A 60 s broad `BS*` connection/listen window saw only five Tags:
+  `BS2DCE`, `BSCCF4`, `BSF66F`, `BS9336`, and `BS955A`.
+- `BSDC91` had no scan hit, connection event, CFG, TR, or TD output in that
+  window.
+- The 2026-06-26 13:26 good candidate raw log did contain `BSDC91` scan and
+  connection evidence (`D5:53:48:EF:8F:59`), so the current absence is a live
+  BLE visibility/power/advertising state difference, not a parser limitation.
+
+Current gate:
+
+- Do not enable RFD or RF diagnostics yet.
+- Recover `BSDC91` BLE visibility first.
+- Then run:
+
+```bash
+bash SS-TWR/alt-SS-TWR/broadcast/scripts/run_6tag_nordiag_baseline_candidate.sh
+```
+
+This script does not flash devices. It is a capture-only reproduction of the
+best no-RFD 6 Tag baseline candidate and should fail the TDMA CFG gate if any
+of the six Tags is absent.
+
+## BLE Capacity / 5-Visible-Tag Reference-Roster Check - 2026-06-26 Afternoon
+
+Question: whether the current BLE/TDMA path is fundamentally limited to
+`5 x 10 Hz`, or whether the poor 60 Hz result is caused by firmware/runtime
+state and TDMA layout details.
+
+Established reference:
+
+```text
+SS-TWR/alt-SS-TWR/broadcast/logs/six_tag_stable10x9_tr12_altanchor_capture120_20260512_161135_20260512_161135/
+```
+
+Reference facts:
+
+- Six Tags were active at `10 Hz` each: `BSF66F, BS2DCE, BSDC91, BSCCF4,
+  BS9336, BS955A`.
+- Overall `ratio_ge7=0.953277`, `ratio_ge8=0.626541`.
+- Therefore the system is not inherently limited to five 10 Hz Tag links.
+- Current Master firmware configuration also supports more than five links:
+  `CONFIG_BT_MAX_CONN=10`, `CONFIG_BT_MAX_PAIRED=10`,
+  `MASTER_MAX_CONNECTIONS=10`, and BLE 2M PHY is enabled/requested
+  (`BT_CONN_LE_PHY_PARAM_2M`, `CONFIG_BT_CTLR_PHY_2M=y`).
+
+Current obstacle:
+
+- `BSDC91` was not BLE-visible in repeated broad and targeted scans.
+- A clean discovery found exactly five Tags:
+  `BS2DCE, BSCCF4, BSF66F, BS9336, BS955A`.
+- This is not evidence of a 5-link Master limit; it is evidence that this one
+  Tag was absent from BLE discovery at the time.
+
+Capture with the five visible Tags, no RFD, and an attempted six-Tag reference
+roster:
+
+```text
+SS-TWR/alt-SS-TWR/broadcast/logs/restore_5visible_ref6roster_noRFD_strict_120s_20260626_163955_20260626_163955/
+```
+
+Configuration:
+
+- Capture targets: `BSF66F,BS2DCE,BSCCF4,BS9336,BS955A`.
+- TDMA roster targets requested:
+  `BSF66F,BS2DCE,BSDC91,BSCCF4,BS9336,BS955A`.
+- `tr-hz=10`, `tag-cir=off`, `rfd_all=0`, `tr_diag_all=0`.
+- Anchor responder preflight succeeded: `8/8`.
+- TDMA CFG check matched all five visible targets.
+
+Overall result:
+
+- `tr_all=26784`
+- `tr_valid_all=16047`
+- `ratio_ge7=0.633513`
+- `ratio_ge8=0.304062`
+
+Per-Tag result:
+
+| Tag | Valid rows | ge7 | ge8 | Status summary |
+|---|---:|---:|---:|---|
+| `BSF66F` | `5737/6344 = 0.904` | `0.964691` | `0.443884` | `O=5737, R=3, T=604` |
+| `BS2DCE` | `1477/1712 = 0.863` | `0.897196` | `0.621495` | `O=1477, T=235` |
+| `BSCCF4` | `2286/2600 = 0.879` | `0.923077` | `0.535385` | `O=2286, T=314` |
+| `BS9336` | `717/9608 = 0.075` | `0.065779` | `0.054954` | `O=717, R=61, T=8830` |
+| `BS955A` | `5830/6520 = 0.894` | `0.963190` | `0.359509` | `O=5830, R=3, T=687` |
+
+Important interpretation:
+
+- BLE capacity is not the limiting explanation. Four of the five visible Tags
+  were healthy or near-healthy in this run.
+- The run is dominated by `BS9336`, which failed across all anchors
+  (`A-H` valid ratios only about `0.060-0.091`). This points to a current
+  `BS9336` Tag/runtime/slot-state problem, not a global BLE throughput ceiling.
+- The attempted offline `BSDC91` roster placeholder did not preserve the exact
+  2026-05-12 slot layout. Current live slots remained compressed for the
+  visible Tags (`BS955A` at slot 4, `BSCCF4` at slot 6), so a disconnected
+  roster entry is not sufficient to reserve a physical TDMA slot in the current
+  Master logic.
+- RFD remains gated off. The immediate task is still restoring a no-RFD
+  high-ge7 baseline before adding any diagnostic output path.
+
+## 6-Tag Baseline Recovery Check - 2026-06-26 Afternoon
+
+Goal: avoid misreading the current 5 Tag runtime state as a BLE capacity limit.
+
+Current Master_Tag port:
+
+```text
+/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00
+```
+
+Passive 30 s TR listen after charger recovery saw five active Tags:
+
+```text
+BS2DCE: 61
+BS9336: 303
+BS955A: 302
+BSCCF4: 241
+BSF66F: 233
+```
+
+`BSDC91` was absent from TR output in that window.
+
+Targeted recovery attempt:
+
+- Sent `ota_target token -1`
+- Sent `ota_target name BSDC91`
+- Sent `ota_target prefix -`
+- Sent `ota_target uuid -`
+- Sent `conn`
+- Listened for 45 s
+
+Result:
+
+- Master reported `conn_count=5`.
+- No `BSDC91` scan hit, connection event, rejection event, `CFG_OK`, or TR line
+  appeared during the targeted 45 s window.
+- Runtime filter was restored afterward to broad `prefix=BS`.
+
+Follow-up broad `BS*` recovery window:
+
+- Reasserted `ota_target name -`, `ota_target prefix BS`, then `conn`.
+- Listened for 90 s.
+- TR counts:
+
+```text
+BS2DCE: 180
+BS9336: 901
+BS955A: 901
+BSCCF4: 803
+BSF66F: 543
+```
+
+- `BSDC91_HITS=0`.
+- No scan/connection/rejection events involving `BSDC91` appeared.
+
+Interpretation:
+
+- This does **not** prove BLE can only support `5 x 10 Hz`.
+- The 2026-05-12 reference already proved `6 x 10 Hz` with
+  `ge7=0.953277`.
+- The current blocker is that `BSDC91` is not BLE-visible to Master_Tag in the
+  present runtime state.
+- The next valid gate is to recover `BSDC91` visibility, then run a strict
+  no-RFD 6 Tag / 10 Hz capture that requires all six Tags to reach CFG_OK.
+
+## 5-Visible-Tag No-RFD Strict Capture - 2026-06-26 Afternoon
+
+Purpose: characterize the currently visible Tags without redefining the final
+goal away from 6 Tags.
+
+Capture:
+
+```text
+SS-TWR/alt-SS-TWR/broadcast/logs/restore_5visible_noRFD_strict_120s_20260626_162112_20260626_162113/
+```
+
+Configuration:
+
+- Targets: `BSF66F,BS2DCE,BSCCF4,BS9336,BS955A`
+- `tr-hz=10`
+- `tag-cir=off`
+- `rfd_all=0`
+- `tr_diag_all=0`
+- Anchor responder preflight: `8/8`
+- TDMA CFG verify: `5/5`, strict match
+
+Overall result:
+
+- `success=true`
+- `tr_all=29528`
+- `tr_valid_all=17865`
+- `ratio_ge7=0.537253`
+- `ratio_ge8=0.311298`
+
+Per Tag:
+
+| Tag | Rows | Valid rows | ge7 | ge8 | Status summary |
+|---|---:|---:|---:|---:|---|
+| `BSF66F` | `9400` | `2802` | `0.264681` | `0.199149` | `O=2802, R=25, T=6573` |
+| `BS2DCE` | `1784` | `1539` | `0.901345` | `0.591928` | `O=1539, T=245` |
+| `BSCCF4` | `4152` | `3369` | `0.701349` | `0.271676` | `O=3369, R=27, T=756` |
+| `BS9336` | `6920` | `4175` | `0.582659` | `0.460116` | `O=4175, R=15, T=2730` |
+| `BS955A` | `7272` | `5980` | `0.663366` | `0.268427` | `O=5980, R=42, T=1250` |
+
+Per-anchor valid ratios:
+
+```text
+BS2DCE  A 0.897  B 0.897  C 0.897  D 0.897  E 0.901  F 0.901  G 0.901  H 0.610
+BS9336  A 0.761  B 0.632  C 0.593  D 0.591  E 0.588  F 0.590  G 0.587  H 0.484
+BS955A  A 0.813  B 0.725  C 0.693  D 0.925  E 0.921  F 0.941  G 0.943  H 0.618
+BSCCF4  A 0.900  B 0.738  C 0.697  D 0.873  E 0.871  F 0.925  G 0.915  H 0.572
+BSF66F  A 0.508  B 0.300  C 0.270  D 0.273  E 0.275  F 0.269  G 0.269  H 0.221
+```
+
+Interpretation:
+
+- Current no-RFD baseline is still far below the 2026-05-12 reference.
+- The degradation is not caused by RFD or compact RF diagnostics output in this
+  run, because both are zero.
+- `BS2DCE` has fewer rows, but the sweeps it does produce are mostly good.
+- `BSF66F` is the strongest per-link quality failure in this run despite many
+  rows.
+- `BSDC91` must still be recovered before a valid 6 Tag baseline claim can be
+  made.
+
+## BSDC91 Recovery Attempts - 2026-06-26 Late Afternoon
+
+Master-side capacity check:
+
+- Current source config supports more than five BLE peers:
+  `CONFIG_BT_MAX_CONN=10`, `CONFIG_BT_MAX_PAIRED=10`, and
+  `MASTER_MAX_CONNECTIONS=10`.
+- The 2026-05-12 reference raw log contains `conn_count=6` and `BSDC91 CFG_OK`,
+  so `5 x 10 Hz` is not a proven BLE capacity ceiling.
+
+Master_Tag reset:
+
+- Reset Master_Tag B120 SNR `1050070698` using SN-pinned J-Link reset only:
+  `NRF5340_XXAA_NET`, then `NRF5340_XXAA_APP`.
+- No Tag or Anchor body was flashed.
+- After reset, broad `BS*` scan for 90 s still produced:
+
+```text
+BS2DCE: 171
+BS9336: 884
+BS955A: 599
+BSCCF4: 249
+BSF66F: 900
+BSDC91_HITS: 0
+```
+
+Clean discovery:
+
+- Set broad OTA target filter: `token=-1`, `name=-`, `prefix=BS`, `uuid=-`.
+- Sent `device kind tag`, which disconnected the five existing peers.
+- Reissued `conn`.
+- Master immediately rediscovered and reconnected exactly five Tags:
+  `BS2DCE`, `BSCCF4`, `BSF66F`, `BS9336`, and `BS955A`.
+- Scan hits were observed for those five Tags only.
+- No scan hit, connection event, rejection event, `CFG_OK`, or TR line for
+  `BSDC91` appeared during the 120 s window.
+
+Current safety state after the clean discovery test:
+
+- Sent `cmd_all MODE AOTA`.
+- Observed `MODE_OK MODE=AOTA LIVE=1` from all five connected Tags.
+- Sent `tdma hold 1`, acknowledged with `tdma hold rc=0 hold=1`.
+
+Conclusion:
+
+- `BSDC91` is not currently BLE-visible to Master_Tag.
+- The failure is not explained by a five-connection Master limit or by stale
+  resident links occupying all available slots.
+- The valid next action is physical recovery of `BSDC91` power/advertising, or
+  explicit authorization for a named direct Tag recovery path if the correct
+  probe/SNR is identified.
+
 ## 6-Tag Baseline Recovery Status - 2026-06-26 12:16
 
 Goal: restore the 6 Tag / 60 Hz no-RFD baseline before adding any RF diagnostic
@@ -1673,3 +2052,55 @@ State restored after OTA:
 - Active generated OTA payload was restored to Anchor A26:
   `alt-bcast-a26-delayed-prof-g1200`.
 - `verify_ota_payload_kind.py --expected anchor` passed.
+
+## Latest Gate - 2026-06-26 Evening
+
+Current live check:
+
+- Master_Tag is visible as
+  `/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00`.
+- Master_Anchor is visible as
+  `/dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02-if00`.
+- A 60 s broad `BS*` connect/listen window saw only five Tags:
+  `BS2DCE`, `BSCCF4`, `BSF66F`, `BS9336`, `BS955A`.
+- `BSDC91` was not seen in scan/connect/CFG/TR/TD output.
+
+Best no-RFD candidate remains:
+
+```text
+SS-TWR/alt-SS-TWR/broadcast/logs/rfdiag_v2_overnight_20260625/capture_six_targets_bleint12_nopreflight_nordiag_120s_20260626_132626_20260626_132626/
+```
+
+It reached all six Tags with `rfd_all=0`, `tr_diag_all=0`,
+`ge7=0.939401`, and `ge8=0.421001`.
+
+Next action after `BSDC91` is physically/BLE recovered:
+
+```bash
+bash SS-TWR/alt-SS-TWR/broadcast/scripts/run_6tag_nordiag_baseline_candidate.sh
+```
+
+Do not re-enable RFD/RF diagnostics before this no-RFD six-Tag gate passes.
+
+### Gate Execution Result
+
+Command:
+
+```bash
+VISIBILITY_S=45 bash scripts/run_6tag_nordiag_baseline_candidate.sh
+```
+
+Result:
+
+```text
+[6TAG-GATE] seen=BS2DCE,BS9336,BS955A,BSCCF4,BSF66F
+[6TAG-GATE] missing=BSDC91
+[6TAG-GATE] aborting before capture; recover missing Tag BLE visibility first
+```
+
+Interpretation:
+
+- The script correctly refused to run a 120 s baseline capture with only five
+  visible Tags.
+- The current remaining blocker for the baseline gate is `BSDC91` BLE
+  visibility, not RFD output and not a five-connection BLE ceiling.

@@ -37,6 +37,7 @@
 #define MASTER_CONNECT_PENDING_TIMEOUT_MS 6000U
 #define MASTER_SCAN_HIT_CONNECT_SETTLE_MS 300U
 #define MASTER_ANCHOR_CONNECT_UNREADY_LIMIT 1U
+#define MASTER_BLE_STATS_PERIOD_MS 5000U
 #define MASTER_TDMA_SLOT_COUNT_MAX 12U
 #ifndef APP_MASTER_TDMA_SLOT_PERIOD_MS
 #define APP_MASTER_TDMA_SLOT_PERIOD_MS 10U
@@ -61,6 +62,15 @@
 #define MASTER_TDMA_MOTION_DEFAULT_HZ APP_MASTER_TDMA_MOTION_DEFAULT_HZ
 #ifndef APP_MASTER_TAG_NAME_PREFIX
 #define APP_MASTER_TAG_NAME_PREFIX "BS"
+#endif
+#ifndef APP_MASTER_BLE_CONN_INTERVAL_UNITS
+#define APP_MASTER_BLE_CONN_INTERVAL_UNITS 6U
+#endif
+#ifndef APP_MASTER_BLE_CONN_LATENCY
+#define APP_MASTER_BLE_CONN_LATENCY 0U
+#endif
+#ifndef APP_MASTER_BLE_CONN_TIMEOUT_UNITS
+#define APP_MASTER_BLE_CONN_TIMEOUT_UNITS 400U
 #endif
 
 #ifndef APP_MASTER_BOOT_TAG_ALLOWLIST
@@ -100,10 +110,10 @@ enum master_peer_link_type {
 
 static const struct bt_conn_le_phy_param *const fast_phy_params = BT_CONN_LE_PHY_PARAM_2M;
 static const struct bt_le_conn_param fast_conn_params = {
-	.interval_min = 6,
-	.interval_max = 6,
-	.latency = 0,
-	.timeout = 400,
+	.interval_min = APP_MASTER_BLE_CONN_INTERVAL_UNITS,
+	.interval_max = APP_MASTER_BLE_CONN_INTERVAL_UNITS,
+	.latency = APP_MASTER_BLE_CONN_LATENCY,
+	.timeout = APP_MASTER_BLE_CONN_TIMEOUT_UNITS,
 };
 
 enum master_led_id {
@@ -156,6 +166,9 @@ struct master_peer {
 	uint8_t tdma_slot;
 	bool tdma_slot_valid;
 	uint8_t tdma_generation;
+	uint32_t notify_rx_packets;
+	uint32_t notify_rx_bytes;
+	uint16_t notify_last_len;
 };
 
 static bool peer_matches_runtime_target(const struct master_peer *peer);
@@ -237,6 +250,7 @@ static int anchor_read_status = -EAGAIN;
 static bool anchor_read_inflight;
 static struct k_work connect_pending_work;
 static struct k_work notify_print_work;
+static struct k_work_delayable ble_stats_work;
 K_MSGQ_DEFINE(notify_print_msgq,
 	      sizeof(struct master_notify_print_msg),
 	      MASTER_NOTIFY_PRINT_QUEUE_DEPTH,
@@ -2072,6 +2086,41 @@ static void notify_print_enqueue(const char *bs_name, const char *payload)
 	k_work_submit(&notify_print_work);
 }
 
+static void ble_stats_work_fn(struct k_work *work)
+{
+	atomic_val_t print_drops;
+
+	ARG_UNUSED(work);
+
+	print_drops = atomic_get(&notify_print_drops);
+	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
+		const struct master_peer *peer = &peers[i];
+		char bs_name[8];
+
+		if (!peer->connected && peer->notify_rx_packets == 0U) {
+			continue;
+		}
+		if (peer->bs_code_valid) {
+			snprintk(bs_name, sizeof(bs_name), "BS%04X", peer->bs_code);
+		} else {
+			strncpy(bs_name, "BS????", sizeof(bs_name) - 1U);
+			bs_name[sizeof(bs_name) - 1U] = '\0';
+		}
+		printk("MSTAT peer=%zu name=%s conn=%u ready=%u pkts=%u bytes=%u last_len=%u print_drops=%ld\n",
+		       i,
+		       bs_name,
+		       peer->connected ? 1U : 0U,
+		       peer->ready ? 1U : 0U,
+		       (unsigned int)peer->notify_rx_packets,
+		       (unsigned int)peer->notify_rx_bytes,
+		       (unsigned int)peer->notify_last_len,
+		       (long)print_drops);
+	}
+
+	(void)k_work_reschedule(&ble_stats_work,
+				 K_MSEC(MASTER_BLE_STATS_PERIOD_MS));
+}
+
 static void exchange_func(struct bt_conn *conn, uint8_t err,
 			  struct bt_gatt_exchange_params *params)
 {
@@ -2092,6 +2141,11 @@ static uint8_t ble_data_received(struct bt_nus_client *nus,
 	bool consumed_cal = false;
 
 	master_led_flow_pulse();
+	if (idx >= 0) {
+		peers[idx].notify_rx_packets++;
+		peers[idx].notify_rx_bytes += len;
+		peers[idx].notify_last_len = len;
+	}
 
 	payload[0] = '\0';
 	decoded_sample = ble_decode_sample_packet(data, len, payload, sizeof(payload));
@@ -2733,9 +2787,25 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	}
 
 	if (runtime_target_kind == MASTER_TARGET_TAG &&
+	    tdma_rebalance_hold &&
+	    !tdma_auto_roster_enabled &&
+	    !master_tdma_profile_has_bs_code(bs_code)) {
+		char addr[BT_ADDR_LE_STR_LEN];
+		char bs_name[8];
+
+		bt_addr_le_to_str(info->addr, addr, sizeof(addr));
+		snprintk(bs_name, sizeof(bs_name), "BS%04X", (unsigned int)bs_code);
+		printk("RECV candidate rejected: %s bs=%s blocked by TDMA roster hold\n",
+		       addr, bs_name);
+		return;
+	}
+
+	if (runtime_target_kind == MASTER_TARGET_TAG &&
 	    runtime_target_name[0] == '\0' &&
 	    runtime_target_uuid[0] == '\0' &&
-	    !master_boot_tag_allowlist_has(bs_code)) {
+	    !master_boot_tag_allowlist_has(bs_code) &&
+	    !(master_tdma_any_profile_defined() &&
+	      master_tdma_profile_has_bs_code(bs_code))) {
 		return;
 	}
 
@@ -2756,8 +2826,6 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 	}
 
 	if (runtime_target_kind == MASTER_TARGET_TAG &&
-	    runtime_target_name[0] == '\0' &&
-	    runtime_target_uuid[0] == '\0' &&
 	    master_tdma_any_profile_defined() &&
 	    !master_tdma_profile_has_bs_code(bs_code)) {
 		char addr[BT_ADDR_LE_STR_LEN];
@@ -3026,6 +3094,7 @@ int master_app_run(void)
 	k_sem_init(&anchor_read_sem, 0, 1);
 	k_work_init(&connect_pending_work, connect_pending_work_fn);
 	k_work_init(&notify_print_work, notify_print_work_fn);
+	k_work_init_delayable(&ble_stats_work, ble_stats_work_fn);
 	k_work_init_delayable(&discovery_pump_work, discovery_pump_work_fn);
 
 	for (size_t i = 0U; i < ARRAY_SIZE(peers); ++i) {
@@ -3039,6 +3108,8 @@ int master_app_run(void)
 	}
 
 	start_scan();
+	(void)k_work_reschedule(&ble_stats_work,
+				 K_MSEC(MASTER_BLE_STATS_PERIOD_MS));
 	master_try_connect_pending();
 
 	while (1) {

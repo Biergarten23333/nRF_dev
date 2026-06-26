@@ -95,6 +95,10 @@
 
 #define UWB_TAG_BLE_TX_THREAD_STACK 1536
 #define UWB_TAG_BLE_TX_THREAD_PRIO 7
+#ifndef APP_TAG_BLE_STATS_ENABLE
+#define APP_TAG_BLE_STATS_ENABLE 0U
+#endif
+#define UWB_TAG_BLE_STATS_PERIOD_MS 5000U
 #ifndef APP_TAG_BLE_TX_ITEM_COUNT
 #define APP_TAG_BLE_TX_ITEM_COUNT 10U
 #endif
@@ -211,11 +215,19 @@ static struct k_thread ble_tx_thread;
 static struct k_work_delayable reboot_work;
 static struct k_work_delayable bundle_flush_work;
 static struct k_work_delayable adv_retry_work;
+#if APP_TAG_BLE_STATS_ENABLE != 0U
+static struct k_work_delayable ble_stats_work;
+#endif
 static bool ble_ready;
 static uint8_t ble_conn_count;
 static bool ota_ready;
 static bool ota_active;
 static uint32_t ble_tx_drop_count;
+static uint32_t ble_tx_enqueue_count;
+static uint32_t ble_tx_send_ok_count;
+static uint32_t ble_tx_send_fail_count;
+static uint32_t ble_tx_send_bytes;
+static int ble_tx_last_err;
 static volatile bool ble_tx_paused;
 static char last_status[UWB_TAG_BLE_MAX_STATUS_LEN];
 static char pending_bundle[UWB_TAG_BLE_MAX_STATUS_LEN];
@@ -537,6 +549,33 @@ static uint8_t uwb_tag_ble_normalize_positioning_mode(uint8_t positioning_mode)
 		return UWB_TAG_MODE_RUN;
 	}
 }
+
+#if APP_TAG_BLE_STATS_ENABLE != 0U
+static void ble_stats_work_handler(struct k_work *work)
+{
+	char line[128];
+	uint8_t active_conns;
+
+	ARG_UNUSED(work);
+
+	k_mutex_lock(&ble_mutex, K_FOREVER);
+	active_conns = ble_conn_count;
+	k_mutex_unlock(&ble_mutex);
+
+	snprintk(line, sizeof(line),
+		 "BSTAT conn=%u enq=%u ok=%u fail=%u drop=%u bytes=%u last_err=%d",
+		 (unsigned int)active_conns,
+		 (unsigned int)ble_tx_enqueue_count,
+		 (unsigned int)ble_tx_send_ok_count,
+		 (unsigned int)ble_tx_send_fail_count,
+		 (unsigned int)ble_tx_drop_count,
+		 (unsigned int)ble_tx_send_bytes,
+		 ble_tx_last_err);
+	uwb_tag_ble_send_text(line);
+	(void)k_work_reschedule(&ble_stats_work,
+				 K_MSEC(UWB_TAG_BLE_STATS_PERIOD_MS));
+}
+#endif
 
 const char *uwb_tag_ble_device_name(void)
 {
@@ -1360,6 +1399,7 @@ static void uwb_tag_ble_send_payload(const uint8_t *payload, size_t len)
 
 	memcpy(item->payload, payload, len);
 	item->len = len;
+	ble_tx_enqueue_count++;
 	k_fifo_put(&ble_tx_fifo, item);
 }
 
@@ -1419,12 +1459,18 @@ static void uwb_tag_ble_tx_thread_entry(void *arg1, void *arg2, void *arg3)
 				break;
 			}
 			if (err && err != -ENOTCONN) {
+				ble_tx_send_fail_count++;
+				ble_tx_last_err = err;
 				ble_tx_drop_count++;
 				if ((ble_tx_drop_count % 50U) == 1U) {
 					printk("Tag BLE notify failed err=%d drops=%u\n",
 					       err,
 					       (unsigned int)ble_tx_drop_count);
 				}
+			} else if (err == 0) {
+				ble_tx_send_ok_count++;
+				ble_tx_send_bytes += item->len;
+				ble_tx_last_err = 0;
 			}
 		}
 
@@ -2005,6 +2051,11 @@ int uwb_tag_ble_init(void)
 	k_work_init_delayable(&reboot_work, ble_reboot_work_handler);
 	k_work_init_delayable(&bundle_flush_work, uwb_tag_ble_flush_work_handler);
 	k_work_init_delayable(&adv_retry_work, ble_adv_retry_work_handler);
+#if APP_TAG_BLE_STATS_ENABLE != 0U
+	k_work_init_delayable(&ble_stats_work, ble_stats_work_handler);
+	(void)k_work_reschedule(&ble_stats_work,
+				 K_MSEC(UWB_TAG_BLE_STATS_PERIOD_MS));
+#endif
 
 	printk("Tag BLE init scheduled\n");
 	ble_init_sequence();

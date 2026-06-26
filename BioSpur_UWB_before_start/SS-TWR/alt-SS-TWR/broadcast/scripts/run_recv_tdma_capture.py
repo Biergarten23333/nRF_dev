@@ -763,6 +763,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Comma-separated BS names to collect",
     )
     parser.add_argument(
+        "--tdma-roster-targets",
+        default="",
+        help=(
+            "Optional comma-separated BS names used only for the Master TDMA roster. "
+            "Defaults to --targets. Use this to keep legacy slot layout with offline "
+            "placeholder Tags while collecting a smaller visible target set."
+        ),
+    )
+    parser.add_argument(
         "--tr-hz",
         "--hz",
         dest="tr_hz",
@@ -1301,11 +1310,11 @@ def ensure_target_links_ready(
             # during multi-tag captures.  The Master disconnects connected
             # peers that no longer match the active filter, so exact-enrolling
             # BSDC91 can drop an already-ready BS2DCE and collapse 2/2 -> 1/2
-            # -> 0/2.  Keep the broad capture prefix and let conn/scan recover
-            # missing peers without evicting ready ones.
+            # -> 0/2.  Keep the runtime filter empty and let the Master-side
+            # TDMA explicit roster act as the discovery allow-list.
             ser = send_cmd(ser, logf, "ota_target token -1", 0.5)
             ser = send_cmd(ser, logf, "ota_target name -", 0.5)
-            ser = send_cmd(ser, logf, f"ota_target prefix {discovery_prefix}", 0.5)
+            ser = send_cmd(ser, logf, "ota_target prefix -", 0.5)
             ser = send_cmd(ser, logf, "ota_target uuid -", 0.5)
             ensure_tag_kind(f"multi-target-recover{pass_idx}")
             ser = send_cmd(ser, logf, "conn", 0.5)
@@ -1671,7 +1680,10 @@ def configure_recv_capture_session(
     logf,
     args,
     targets: list[str],
+    roster_targets: list[str] | None = None,
 ) -> serial.Serial:
+    if roster_targets is None:
+        roster_targets = targets
     single_target = targets[0] if len(targets) == 1 else ""
     discovery_prefix = target_discovery_prefix(targets)
     clear_text = ""
@@ -1757,7 +1769,14 @@ def configure_recv_capture_session(
     else:
         print("[CAPTURE] configure: enter clean RECV/tag mode", flush=True)
         if already_recv_tag:
-            ser = send_cmd(ser, logf, "device kind tag", 2.0)
+            if args.legacy_no_touch_tags:
+                logf.write(
+                    f"[HOST_INFO {time.monotonic():.3f}] "
+                    "legacy_no_touch_tags keep_existing_recv_tag_links=1\n"
+                )
+                logf.flush()
+            else:
+                ser = send_cmd(ser, logf, "device kind tag", 2.0)
         else:
             ser = send_cmd(ser, logf, "mode recv", 8.0)
         ser, status_text = send_cmd_collect(ser, logf, "status", 0.8)
@@ -1775,7 +1794,7 @@ def configure_recv_capture_session(
             ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
         tr_hz = effective_tr_hz(args)
         ser = send_cmd(ser, logf, f"tdma freq {tdma_roster_profile(args)} {tr_hz}", 0.5)
-        for target in targets:
+        for target in roster_targets:
             ser = send_cmd(ser, logf, f"tdma roster {target_bs_name(target)} {tdma_roster_profile(args)}", 0.5)
         if single_target:
             print(
@@ -1801,7 +1820,10 @@ def configure_recv_capture_session(
         "[CAPTURE] configure: skip setup MODE IDLE; TDMA roster/hold controls admission",
         flush=True,
     )
-    print("[CAPTURE] configure: reassert TDMA target roster", flush=True)
+    roster_desc = ",".join(target_bs_name(target) for target in roster_targets)
+    print(f"[CAPTURE] configure: reassert TDMA target roster={roster_desc}", flush=True)
+    logf.write(f"[HOST_INFO {time.monotonic():.3f}] tdma_roster_targets={roster_desc}\n")
+    logf.flush()
     tr_hz = effective_tr_hz(args)
     # Always clear before reasserting the capture roster.  Reusing resident
     # Tag links is useful for speed, but stale TDMA identities from a previous
@@ -1815,7 +1837,7 @@ def configure_recv_capture_session(
     else:
         ser, clear_text = send_cmd_collect(ser, logf, "tdma clear", 1.2)
     ser = send_cmd(ser, logf, f"tdma freq {tdma_roster_profile(args)} {tr_hz}", 0.5)
-    for target in targets:
+    for target in roster_targets:
         ser = send_cmd(ser, logf, f"tdma roster {target_bs_name(target)} {tdma_roster_profile(args)}", 0.5)
     # Keep discovery broad, but make Master_Tag's profile allow-list equal to
     # this run's requested roster before link setup.  Otherwise new Tags that
@@ -1904,7 +1926,14 @@ def configure_recv_capture_session(
 
         print("[CAPTURE] configure: refresh links and reassert roster before retry", flush=True)
         ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
-        ser = send_cmd(ser, logf, "tdma clear", 1.2)
+        if args.legacy_keep_tdma_state:
+            logf.write(
+                f"[HOST_INFO {time.monotonic():.3f}] "
+                "legacy_keep_tdma_state skip_retry_tdma_clear=1\n"
+            )
+            logf.flush()
+        else:
+            ser = send_cmd(ser, logf, "tdma clear", 1.2)
         restore_capture_filter()
         ser = send_cmd(ser, logf, "conn", 0.5)
         ser = ensure_target_links_ready(
@@ -1917,7 +1946,7 @@ def configure_recv_capture_session(
             initial_text="",
             discovery_prefix_override="",
         )
-        for target in targets:
+        for target in roster_targets:
             ser = send_cmd(ser, logf, f"tdma roster {target_bs_name(target)} {tdma_roster_profile(args)}", 0.5)
         ser = send_cmd(ser, logf, f"tdma freq {tdma_roster_profile(args)} {tr_hz}", 0.5)
         ser = send_cmd(ser, logf, "tdma hold 0", 1.0)
@@ -2406,6 +2435,11 @@ def main() -> int:
     assert_not_jlink_when_biospur_available(args.port)
 
     targets = [normalize_target(x) for x in args.targets.split(",") if x.strip()]
+    roster_targets = (
+        [normalize_target(x) for x in args.tdma_roster_targets.split(",") if x.strip()]
+        if args.tdma_roster_targets.strip()
+        else list(targets)
+    )
     tr_hz = effective_tr_hz(args)
     target_set = {alias for target in targets for alias in target_aliases(target)}
     expected_pmode_by_target, expected_freq_by_target = expected_tdma_maps(args, targets)
@@ -2427,6 +2461,7 @@ def main() -> int:
         "mode": "recv",
         "device_kind": "tag",
         "targets": targets,
+        "tdma_roster_targets": roster_targets,
         "expected_pmode": expected_pmode_by_target,
         "expected_freq_hz": expected_freq_by_target,
         "freq_hz": {"tr": tr_hz},
@@ -2447,6 +2482,12 @@ def main() -> int:
     print(
         "[CAPTURE] plan: targets="
         + ",".join(targets)
+        + (
+            " roster="
+            + ",".join(roster_targets)
+            if roster_targets != targets
+            else ""
+        )
         + f" tr={tr_hz}Hz duration={args.duration:.0f}s",
         flush=True,
     )
@@ -2465,6 +2506,7 @@ def main() -> int:
                 "elapsed_s": time.time() - start_wall,
                 "session_dir": str(session_dir),
                 "targets": targets,
+                "tdma_roster_targets": roster_targets,
                 "freq_hz": {"tr": tr_hz},
                 "tr_all": 0,
                 "tr_valid_all": 0,
@@ -2513,7 +2555,13 @@ def main() -> int:
                 if pmode is not None
             }
             try:
-                ser = configure_recv_capture_session(ser, logf, args, targets)
+                ser = configure_recv_capture_session(
+                    ser,
+                    logf,
+                    args,
+                    targets,
+                    roster_targets=roster_targets,
+                )
             except (SerialException, OSError, RuntimeError) as exc:
                 startup_failed = True
                 message = str(exc)
@@ -2593,7 +2641,11 @@ def main() -> int:
                         logf.flush()
                         try:
                             ser = configure_recv_capture_session(
-                                ser, logf, args, targets
+                                ser,
+                                logf,
+                                args,
+                                targets,
+                                roster_targets=roster_targets,
                             )
                         except (SerialException, OSError, RuntimeError) as cfg_exc:
                             controller_lost = True
@@ -3011,6 +3063,7 @@ def main() -> int:
         "elapsed_s": time.time() - start_wall,
         "session_dir": str(session_dir),
         "targets": targets,
+        "tdma_roster_targets": roster_targets,
         "expected_pmode": expected_pmode_by_target,
         "expected_freq_hz": expected_freq_by_target,
         "skipped_before_target_pmode": skipped_before_target_pmode,

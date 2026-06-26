@@ -48,6 +48,12 @@ set(APP_MASTER_TDMA_EPOCH_LEAD_MS "5000" CACHE STRING
     "Master TDMA relative epoch lead time in milliseconds")
 set(APP_MASTER_TDMA_MOTION_DEFAULT_HZ "10" CACHE STRING
     "Default TDMA target Hz for motion profile")
+set(APP_MASTER_BLE_CONN_INTERVAL_UNITS "6" CACHE STRING
+    "BLE connection interval in 1.25 ms units for NUS/tag links")
+set(APP_MASTER_BLE_CONN_LATENCY "0" CACHE STRING
+    "BLE connection slave latency for NUS/tag links")
+set(APP_MASTER_BLE_CONN_TIMEOUT_UNITS "400" CACHE STRING
+    "BLE supervision timeout in 10 ms units for NUS/tag links")
 
 target_include_directories(app PRIVATE
     ${APP_ROOT}/include
@@ -72,6 +78,9 @@ target_compile_definitions(app PRIVATE
     APP_MASTER_TDMA_SLOT_ACTIVE_US=${APP_MASTER_TDMA_SLOT_ACTIVE_US}
     APP_MASTER_TDMA_EPOCH_LEAD_MS=${APP_MASTER_TDMA_EPOCH_LEAD_MS}
     APP_MASTER_TDMA_MOTION_DEFAULT_HZ=${APP_MASTER_TDMA_MOTION_DEFAULT_HZ}
+    APP_MASTER_BLE_CONN_INTERVAL_UNITS=${APP_MASTER_BLE_CONN_INTERVAL_UNITS}
+    APP_MASTER_BLE_CONN_LATENCY=${APP_MASTER_BLE_CONN_LATENCY}
+    APP_MASTER_BLE_CONN_TIMEOUT_UNITS=${APP_MASTER_BLE_CONN_TIMEOUT_UNITS}
 )
 
 set_source_files_properties(${APP_ROOT}/apps/master_ota/src/main.c PROPERTIES

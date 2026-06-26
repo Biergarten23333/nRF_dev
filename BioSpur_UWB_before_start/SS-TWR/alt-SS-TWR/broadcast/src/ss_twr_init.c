@@ -133,7 +133,7 @@ enum uwb_tag_ble_cal_status {
 #endif
 
 #ifndef APP_TAG_ALT_RXG_BLE_DIAG_ENABLE
-#define APP_TAG_ALT_RXG_BLE_DIAG_ENABLE 1U
+#define APP_TAG_ALT_RXG_BLE_DIAG_ENABLE 0U
 #endif
 
 #ifndef APP_TAG_FAST_TRACKING
