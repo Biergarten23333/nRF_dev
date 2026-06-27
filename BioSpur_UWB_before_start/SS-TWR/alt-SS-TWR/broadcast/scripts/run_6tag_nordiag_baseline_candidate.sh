@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Reproduce the best current no-RFD 6-tag baseline candidate.
+# Reproduce the current safest no-RFD 6-tag baseline candidate.
 #
 # Reference evidence:
-#   logs/rfdiag_v2_overnight_20260625/
-#     capture_six_targets_bleint12_nopreflight_nordiag_120s_20260626_132626_20260626_132626
-#   ge7=0.939401, ge8=0.421001, rfd_all=0, tr_diag_all=0.
+# After the 2026-06-27 fixed-slot restore tests, the safest no-RFD baseline is
+# the fixed-slot Master_Tag image plus the legacy/no-touch capture discipline:
+# do not send broad MODE IDLE, do not clear stale TDMA state, do not send target
+# CIR commands, and do not run cleanup. If one Tag has fallen into a bad UWB
+# runtime state, recover that Tag with targeted cmd REBOOT first, then verify
+# with a passive/no-command monitor.
 #
 # This script intentionally does not flash anything. It assumes Master_Tag is
 # already running the 6-tag no-RFD/10x9 candidate image. Before starting the
@@ -16,7 +19,29 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-MASTER_TAG_PORT="${MASTER_TAG_PORT:-/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00}"
+resolve_master_tag_port() {
+  if [ -n "${MASTER_TAG_PORT:-}" ]; then
+    printf '%s\n' "${MASTER_TAG_PORT}"
+    return 0
+  fi
+
+  local candidate
+  for candidate in \
+    /dev/serial/by-id/usb-Master_Tag_Master_Tag_Control_6918E0384172A49F-if00 \
+    /dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00 \
+    /dev/serial/by-id/usb-BioSpur_1_BioSpur_BLE_Control_6918E0384172A49F-if00
+  do
+    if [ -e "${candidate}" ]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  done
+
+  echo "ERROR: Master_Tag control port not found" >&2
+  return 1
+}
+
+MASTER_TAG_PORT="$(resolve_master_tag_port)"
 VISIBILITY_S="${VISIBILITY_S:-45}"
 STAMP="$(date +%Y%m%d_%H%M%S)"
 
@@ -83,12 +108,17 @@ python3 scripts/run_recv_tdma_capture.py \
   --skip-anchor-preflight \
   --duration "${DURATION_S:-120}" \
   --targets BSF66F,BS2DCE,BSDC91,BSCCF4,BS9336,BS955A \
+  --tdma-roster-targets BSF66F,BS2DCE,BSDC91,BSCCF4,BS9336,BS955A \
   --tr-hz 10 \
   --tag-cir off \
   --skip-target-cir-command \
   --tag-link-stable-s 5 \
   --tdma-config-retries 3 \
-  --skip-initial-mode-idle \
-  --skip-final-mode-idle \
+  --known-bs-tags BSF66F,BS2DCE,BSDC91,BSCCF4,BS9336,BS955A \
+  --legacy-no-touch-tags \
+  --legacy-keep-tdma-state \
+  --legacy-skip-link-ready-wait \
+  --allow-legacy-tdma-show-only \
+  --no-cleanup \
   --out-dir "logs/restore_6tag_nordiag_baseline_candidate_${STAMP}" \
   --no-tr-timeout-s 20

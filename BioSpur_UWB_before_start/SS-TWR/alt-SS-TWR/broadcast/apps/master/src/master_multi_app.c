@@ -183,6 +183,21 @@ struct master_tdma_profile_entry {
 	enum master_tdma_profile_kind kind;
 };
 
+struct master_tdma_fixed_slot {
+	uint16_t bs_code;
+	uint8_t logical_tag_id;
+	uint8_t slot_index;
+};
+
+static const struct master_tdma_fixed_slot master_tdma_reference_slots[] = {
+	{ 0x2DCE, 1U, 0U },
+	{ 0x9336, 2U, 2U },
+	{ 0x955A, 3U, 3U },
+	{ 0xCCF4, 4U, 5U },
+	{ 0xDC91, 5U, 7U },
+	{ 0xF66F, 6U, 8U },
+};
+
 struct master_notify_print_msg {
 	char bs_name[8];
 	char payload[MASTER_NOTIFY_PRINT_PAYLOAD_LEN];
@@ -1186,6 +1201,27 @@ static bool master_tdma_profile_has_bs_code(uint16_t bs_code)
 	return false;
 }
 
+static bool master_tdma_reference_slot_for_bs(uint16_t bs_code,
+					      uint8_t *logical_tag_id,
+					      uint8_t *slot_index)
+{
+	for (size_t i = 0U; i < ARRAY_SIZE(master_tdma_reference_slots); ++i) {
+		if (master_tdma_reference_slots[i].bs_code == bs_code) {
+			if (logical_tag_id != NULL) {
+				*logical_tag_id =
+					master_tdma_reference_slots[i].logical_tag_id;
+			}
+			if (slot_index != NULL) {
+				*slot_index =
+					master_tdma_reference_slots[i].slot_index;
+			}
+			return true;
+		}
+	}
+
+	return false;
+}
+
 static bool scan_tag_matches_runtime_filter(const char *adv_name,
 					    uint16_t bs_code,
 					    bool bs_code_valid,
@@ -1413,6 +1449,7 @@ static void master_rebalance_tdma_slots(void)
 	uint8_t best_slot_count = 0U;
 	uint8_t target_slots[MASTER_MAX_CONNECTIONS] = { 0U };
 	uint16_t slot_masks[MASTER_MAX_CONNECTIONS] = { 0U };
+	uint8_t logical_tag_ids[MASTER_MAX_CONNECTIONS] = { 0U };
 	enum master_tdma_profile_kind kinds[MASTER_MAX_CONNECTIONS];
 	uint32_t epoch_deadline_ms;
 	uint32_t best_error = UINT32_MAX;
@@ -1420,6 +1457,7 @@ static void master_rebalance_tdma_slots(void)
 	uint8_t occupied_slots[MASTER_TDMA_SLOT_COUNT_MAX] = { 0U };
 	uint8_t assigned_slots[MASTER_MAX_CONNECTIONS] = { 0U };
 	int32_t credits[MASTER_MAX_CONNECTIONS] = { 0 };
+	bool use_reference_slots = master_tdma_any_profile_defined();
 
 	if (tdma_rebalance_hold) {
 		tdma_rebalance_deferred = true;
@@ -1434,6 +1472,46 @@ static void master_rebalance_tdma_slots(void)
 
 	for (size_t i = 0U; i < ready_count; ++i) {
 		kinds[i] = master_tdma_profile_for_peer(ordered[i]);
+		logical_tag_ids[i] = (uint8_t)(i + 1U);
+	}
+
+	for (size_t i = 0U; i < ready_count; ++i) {
+		uint8_t fixed_tag_id = 0U;
+		uint8_t fixed_slot = 0U;
+
+		if (!ordered[i]->bs_code_valid ||
+		    master_tdma_profile_target_hz(kinds[i]) != 10U ||
+		    !master_tdma_reference_slot_for_bs(ordered[i]->bs_code,
+						      &fixed_tag_id,
+						      &fixed_slot) ||
+		    fixed_slot >= 10U ||
+		    fixed_slot >= MASTER_TDMA_SLOT_COUNT_MAX) {
+			use_reference_slots = false;
+			break;
+		}
+	}
+
+	if (use_reference_slots) {
+		best_slot_count = 10U;
+		for (size_t i = 0U; i < ready_count; ++i) {
+			uint8_t fixed_tag_id = 0U;
+			uint8_t fixed_slot = 0U;
+
+			(void)master_tdma_reference_slot_for_bs(ordered[i]->bs_code,
+							       &fixed_tag_id,
+							       &fixed_slot);
+			logical_tag_ids[i] = fixed_tag_id;
+			target_slots[i] = 1U;
+			slot_masks[i] = (uint16_t)(1U << fixed_slot);
+			printk("TDMA reference slot[%zu]: bs=BS%04X tag=%u slot=%u/%u mask=0x%04X\n",
+			       i,
+			       (unsigned int)ordered[i]->bs_code,
+			       (unsigned int)logical_tag_ids[i],
+			       (unsigned int)fixed_slot,
+			       (unsigned int)best_slot_count,
+			       (unsigned int)slot_masks[i]);
+		}
+		goto assign_slots;
 	}
 
 	for (uint8_t candidate_count = (uint8_t)ready_count;
@@ -1519,6 +1597,7 @@ static void master_rebalance_tdma_slots(void)
 		assigned_slots[owner]++;
 	}
 
+assign_slots:
 	tdma_generation++;
 	epoch_deadline_ms = k_uptime_get_32() + MASTER_TDMA_EPOCH_LEAD_MS;
 	for (size_t i = 0U; i < ready_count; ++i) {
@@ -1538,7 +1617,7 @@ static void master_rebalance_tdma_slots(void)
 			((int32_t)(epoch_deadline_ms - now_ms) > 0) ?
 				(epoch_deadline_ms - now_ms) : 0U;
 		(void)master_send_runtime_config(ordered[i],
-						 (uint8_t)(i + 1U),
+						 logical_tag_ids[i],
 						 first_slot,
 						 best_slot_count,
 						 slot_masks[i],

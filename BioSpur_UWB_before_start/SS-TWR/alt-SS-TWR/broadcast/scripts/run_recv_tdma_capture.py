@@ -1754,6 +1754,15 @@ def configure_recv_capture_session(
         "mode=RECV" in status_text
         and "kind=tag" in device_text.lower()
     )
+
+    if not args.reuse_tag_links:
+        # Apply the capture target before any command that can restart discovery.
+        # `device kind tag` preserves the current ota_target filter; leaving a
+        # stale broad `prefix BS` filter here can reconnect every visible Tag
+        # before the later single-target filter is installed.
+        print("[CAPTURE] configure: pre-arm capture discovery filter", flush=True)
+        restore_capture_filter()
+
     if args.legacy_no_touch_tags or args.skip_initial_mode_idle:
         print("[CAPTURE] configure: skip initial cmd_all MODE IDLE", flush=True)
         logf.write(f"[HOST_INFO {time.monotonic():.3f}] skip_initial_mode_idle=1\n")
@@ -1768,19 +1777,24 @@ def configure_recv_capture_session(
         ensure_config_tag_kind("reuse-tag-links")
     else:
         print("[CAPTURE] configure: enter clean RECV/tag mode", flush=True)
-        if already_recv_tag:
-            if args.legacy_no_touch_tags:
-                logf.write(
-                    f"[HOST_INFO {time.monotonic():.3f}] "
-                    "legacy_no_touch_tags keep_existing_recv_tag_links=1\n"
-                )
-                logf.flush()
-            else:
-                ser = send_cmd(ser, logf, "device kind tag", 2.0)
+        if already_recv_tag and args.legacy_no_touch_tags:
+            logf.write(
+                f"[HOST_INFO {time.monotonic():.3f}] "
+                "legacy_no_touch_tags keep_existing_recv_tag_links=1\n"
+            )
+            logf.flush()
         else:
+            # Even when already in RECV/tag mode, `mode recv` runs the master's
+            # clean-slate path. `device kind tag` can preserve stale scan
+            # candidates and connect non-target Tags before a single-target
+            # filter takes effect.
             ser = send_cmd(ser, logf, "mode recv", 8.0)
         ser, status_text = send_cmd_collect(ser, logf, "status", 0.8)
         ser, device_text = send_cmd_collect(ser, logf, "device show", 0.8)
+        if "kind=tag" not in device_text.lower():
+            restore_capture_filter()
+            ser = send_cmd(ser, logf, "device kind tag", 2.0)
+            ser, device_text = send_cmd_collect(ser, logf, "device show", 0.8)
 
     if not args.reuse_tag_links:
         print("[CAPTURE] configure: preseed TDMA allow-list before tag discovery", flush=True)

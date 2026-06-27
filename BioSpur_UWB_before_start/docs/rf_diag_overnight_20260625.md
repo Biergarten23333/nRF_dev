@@ -416,6 +416,318 @@ Execution status:
 - Continue only after explicit authorization to flash the protected
   `Master_Anchor` carrier for this A18 baseline test.
 
+## Fixed-Slot No-RFD Baseline - 2026-06-27
+
+The 60 Hz recovery work found one Master-side scheduling bug that can destroy a
+partial-roster capture even when the UWB links themselves are acceptable.
+`--tdma-roster-targets` restricted the allow-list, but the Master still assigned
+`logical_tag_id = ready_index + 1` and packed only currently ready peers. If one
+reference Tag was absent, later Tags shifted tag IDs and TDMA slots.
+
+The Master now has a fixed reference mapping for the 6 x 10 Hz roster:
+
+| Tag | Logical id | Slot | Mask |
+|---|---:|---:|---:|
+| `BS2DCE` | 1 | 0 | `0x0001` |
+| `BS9336` | 2 | 2 | `0x0004` |
+| `BS955A` | 3 | 3 | `0x0008` |
+| `BSCCF4` | 4 | 5 | `0x0020` |
+| `BSDC91` | 5 | 7 | `0x0080` |
+| `BSF66F` | 6 | 8 | `0x0100` |
+
+This fixed mapping is used only when an explicit TDMA profile is active, all
+ready peers are in the reference table, the target rate is 10 Hz, and the fixed
+slot fits. Other cases fall back to the original weighted scheduler.
+
+Build and flash:
+
+```text
+Master_Tag SNR: 1050070698
+Build:
+SS-TWR/alt-SS-TWR/broadcast/build-master-control-b120-m1-master-tag-lfrc-stable-slots-norfd-20260627/
+Image:
+SS-TWR/alt-SS-TWR/broadcast/build-master-control-b120-m1-master-tag-lfrc-stable-slots-norfd-20260627/zephyr/merged_domains.hex
+LFRC check: pass
+Flash: pass
+USB CDC:
+/dev/serial/by-id/usb-Master_Tag_Master_Tag_Control_6918E0384172A49F-if00
+```
+
+The distinct `Master_Tag_Control` USB product name is restored for this build.
+
+### Capture Results
+
+`BS955A` was not available, so the validation used the five visible Tags while
+reserving the full six-Tag reference roster. The successful high-ge7 baseline
+requires the legacy/no-touch capture discipline:
+
+```text
+--tag-cir off
+--legacy-no-touch-tags
+--legacy-keep-tdma-state
+--legacy-skip-link-ready-wait
+--allow-legacy-tdma-show-only
+--no-cleanup
+```
+
+Successful no-RFD baseline:
+
+```text
+SS-TWR/alt-SS-TWR/broadcast/logs/stable_slots_mastertag_visible5_ref6roster_norfd_legacy_notouch_120s_20260627_005734_20260627_005734/
+```
+
+Result:
+
+```text
+success=true
+tag_cir=off
+tr_all=19056
+tr_valid_all=16985
+rfd_all=0
+rfd_joined_all=0
+tr_diag_all=0
+sweeps_total=2382
+ratio_ge7=0.941646
+ratio_ge8=0.496222
+```
+
+Per-Tag `ratio_ge7`:
+
+| Tag | ge7 |
+|---|---:|
+| `BSF66F` | `0.961022` |
+| `BS2DCE` | `0.923304` |
+| `BSDC91` | `0.924282` |
+| `BSCCF4` | `0.913183` |
+| `BS9336` | `0.953719` |
+
+Control run without the legacy/no-touch discipline:
+
+```text
+SS-TWR/alt-SS-TWR/broadcast/logs/stable_slots_mastertag_visible5_ref6roster_norfd_120s_20260627_005410_20260627_005410/
+ratio_ge7=0.593054
+ratio_ge8=0.341823
+```
+
+This means the current stable baseline is not just a firmware image. It is:
+
+```text
+fixed-slot Master_Tag + 10/9 TDMA profile + no-RFD + legacy/no-touch capture discipline
+```
+
+### RFD / Compact Test Outcome
+
+Compact Tag-side diagnostics were tested after the fixed-slot Master_Tag build:
+
+```text
+SS-TWR/alt-SS-TWR/broadcast/logs/stable_slots_mastertag_visible5_ref6roster_compact_rfd_60s_20260627_010034_20260627_010035/
+```
+
+Result:
+
+```text
+success=false
+tag_cir=compact
+tr_all=8480
+tr_valid_all=7315
+rfd_all=0
+rfd_joined_all=0
+tr_diag_all=0
+sweeps_total=1060
+ratio_ge7=0.865094
+ratio_ge8=0.398113
+BS9336 tr_rows=0
+```
+
+This fails the hard operating priority. Tag-side compact/RFD diagnostics are not
+accepted for the 60 Hz positioning path. The maximum safe Tag-side diagnostic
+load for the current high-rate baseline is therefore:
+
+```text
+none
+```
+
+Diagnostics must move to non-interfering paths: passive listener logs, offline
+CIR captures, or a separately proven Anchor-side payload path. No solver or
+positioning-quality capture should enable Tag-side RFD until a future build
+passes the same 60 Hz ge7 gate.
+
+### Post-Reset Caveat
+
+After a manual scan/reconnect attempt, `Master_Tag` was reset with:
+
+```text
+bash scripts/jlink_reset_by_snr.sh 1050070698 NRF5340_XXAA_APP 4000
+```
+
+The reset was successful and `BS9336` recovered normal TDMA output. A follow-up
+no-RFD 120 s capture verified that the fixed TDMA config was applied correctly,
+but the current physical/runtime Tag state no longer matched the earlier
+high-ge7 baseline:
+
+```text
+SS-TWR/alt-SS-TWR/broadcast/logs/stable_slots_mastertag_visible5_ref6roster_norfd_legacy_notouch_postreset_120s_20260627_011215_20260627_011215/
+```
+
+Result:
+
+```text
+success=true
+tdma_config_failed=false
+tag_cir=off
+tr_all=31104
+tr_valid_all=20146
+rfd_all=0
+rfd_joined_all=0
+tr_diag_all=0
+sweeps_total=3888
+ratio_ge7=0.593621
+ratio_ge8=0.332562
+```
+
+Per-Tag `ratio_ge7`:
+
+| Tag | ge7 |
+|---|---:|
+| `BSF66F` | `0.954058` |
+| `BS9336` | `0.953819` |
+| `BS2DCE` | `0.181818` |
+| `BSDC91` | `0.586096` |
+| `BSCCF4` | `0.579832` |
+
+Interpretation: the low post-reset ge7 is not caused by RFD output
+(`rfd_all=0`) and not caused by a TDMA config mismatch
+(`tdma_config_failed=false`). The immediate blocker for another high-ge7 proof
+is current Tag/link condition, especially `BS2DCE`, plus `BS955A` remaining
+unavailable for a true six-Tag run.
+
+### Targeted Reboot Recovery - 2026-06-27 01:35
+
+Follow-up testing separated three effects:
+
+1. Tag-side RFD/compact output is still rejected for the high-rate baseline.
+2. The fixed-slot Master_Tag image and TDMA config can be correct while an
+   individual Tag's UWB runtime state is bad.
+3. Targeted `REBOOT` can recover a bad Tag without resetting the controller,
+   but the first capture immediately after a reboot can be polluted by transient
+   TDMA generation and reconnect churn.
+
+The clearest no-RFD recovery proof is the final passive monitor. It opened the
+Master_Tag serial port and read notifications for 60 s without sending any
+commands, so it did not change TDMA, OTA target filters, CIR/RFD state, or BLE
+connections:
+
+```text
+SS-TWR/alt-SS-TWR/broadcast/logs/passive_monitor_after_bsf_reboot_no_commands_60s_20260627_013332/
+```
+
+Result:
+
+```text
+tr_all=9232
+rfd_all=0 by construction
+tag commands sent during monitor=0
+```
+
+Per-Tag passive `ratio_ge7`:
+
+| Tag | ge7 | ge8 |
+|---|---:|---:|
+| `BS2DCE` | `0.911565` | `0.517007` |
+| `BS9336` | `0.949153` | `0.677966` |
+| `BSCCF4` | `0.923529` | `0.470588` |
+| `BSDC91` | `0.930851` | `0.462766` |
+| `BSF66F` | `0.951977` | `0.451977` |
+
+Targeted recovery observations:
+
+- `BS2DCE` recovered from a severe bad state after targeted `cmd REBOOT`.
+- `BSDC91` recovered from `ge7=0.030664` to a usable state after targeted
+  `cmd REBOOT`.
+- `BS9336` recovered from `ge7=0.037479` after targeted `cmd REBOOT`.
+- `BSF66F` recovered from passive `ge7=0.043261` after targeted `cmd REBOOT`.
+
+Operational rule from this gate:
+
+```text
+Priority 1: preserve 10 Hz/tag 7/8 or 8/8 ranging output.
+Priority 2: diagnostics may only use paths proven not to perturb Priority 1.
+```
+
+For the current firmware set, that means:
+
+- Keep Tag-side RFD and compact diagnostics disabled for positioning captures.
+- Use the fixed-slot Master_Tag build with `10/9` TDMA.
+- If one Tag collapses while TDMA CFG remains correct and `rfd_all=0`, use
+  targeted `cmd REBOOT` for that Tag only, then restore `ota_target name -`,
+  `ota_target prefix BS`, and `ota_target uuid -`.
+- After a targeted reboot, prefer a passive/no-command monitor before declaring
+  the baseline restored.
+- Do not use a capture result immediately after reconnect churn as the final
+  baseline proof unless a following passive/no-command monitor agrees.
+
+### Six-Tag Gate Status - 2026-06-27
+
+The six-Tag baseline is not yet proven because `BS955A` is not BLE-visible.
+The gate script was updated to resolve the current distinct Master_Tag USB CDC
+name first:
+
+```text
+/dev/serial/by-id/usb-Master_Tag_Master_Tag_Control_6918E0384172A49F-if00
+```
+
+It falls back to the older generic names only when the new product name is not
+present. The same script now uses the current no-RFD baseline discipline for
+the actual capture:
+
+```text
+--tag-cir off
+--skip-target-cir-command
+--tdma-roster-targets BSF66F,BS2DCE,BSDC91,BSCCF4,BS9336,BS955A
+--known-bs-tags BSF66F,BS2DCE,BSDC91,BSCCF4,BS9336,BS955A
+--legacy-no-touch-tags
+--legacy-keep-tdma-state
+--legacy-skip-link-ready-wait
+--allow-legacy-tdma-show-only
+--no-cleanup
+```
+
+Gate command:
+
+```bash
+cd SS-TWR/alt-SS-TWR/broadcast
+VISIBILITY_S=45 bash scripts/run_6tag_nordiag_baseline_candidate.sh
+```
+
+Gate result:
+
+```text
+[6TAG-GATE] open Master_Tag: /dev/serial/by-id/usb-Master_Tag_Master_Tag_Control_6918E0384172A49F-if00
+[6TAG-GATE] seen=BS2DCE,BS9336,BSCCF4,BSDC91,BSF66F
+[6TAG-GATE] missing=BS955A
+[6TAG-GATE] aborting before capture; recover missing Tag BLE visibility first
+```
+
+A longer 180 s visibility gate produced the same result:
+
+```bash
+VISIBILITY_S=180 bash scripts/run_6tag_nordiag_baseline_candidate.sh
+```
+
+```text
+[6TAG-GATE] seen=BS2DCE,BS9336,BSCCF4,BSDC91,BSF66F
+[6TAG-GATE] missing=BS955A
+[6TAG-GATE] aborting before capture; recover missing Tag BLE visibility first
+```
+
+Current state:
+
+- Five visible Tags can recover to high no-RFD ge7 after targeted reboot cleanup.
+- The full six-Tag goal is still open until `BS955A` is visible and the six-Tag
+  no-RFD gate completes.
+- No RFD/RF diagnostic path should be tested against the positioning stream
+  before that six-Tag no-RFD gate passes.
+
 ## Execution Status - 2026-06-25 04:10
 
 Hardware flashed:
@@ -1438,6 +1750,366 @@ Interpretation:
   visible Tags.
 - The current remaining blocker for the baseline gate is `BSDC91` BLE
   visibility, not RFD output and not a five-connection BLE ceiling.
+
+## Goal Resume - 2026-06-27 01:47 CEST
+
+The active goal was resumed after the user reauthorized flashing/OTA operations
+for this goal. No flashing was performed in this check.
+
+Current USB evidence:
+
+```text
+Master_Tag:
+  /dev/serial/by-id/usb-Master_Tag_Master_Tag_Control_6918E0384172A49F-if00
+Master_Anchor:
+  /dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02-if00
+Listener E J-Link:
+  /dev/serial/by-id/usb-SEGGER_J-Link_000760184767-if00
+Old listener J-Link:
+  /dev/serial/by-id/usb-SEGGER_J-Link_000760185886-if00
+```
+
+Six-tag no-RFD gate command:
+
+```bash
+VISIBILITY_S=180 bash scripts/run_6tag_nordiag_baseline_candidate.sh
+```
+
+Result:
+
+```text
+[6TAG-GATE] open Master_Tag: /dev/serial/by-id/usb-Master_Tag_Master_Tag_Control_6918E0384172A49F-if00
+[6TAG-GATE] seen=BS2DCE,BS9336,BSCCF4,BSDC91,BSF66F
+[6TAG-GATE] missing=BS955A
+[6TAG-GATE] aborting before capture; recover missing Tag BLE visibility first
+```
+
+Interpretation:
+
+- The corrected Master_Tag product string is in use; the gate is no longer
+  selecting the generic BLE-control device by mistake.
+- `BSDC91` has recovered compared with the previous evening note.
+- The current six-tag baseline blocker is `BS955A` live BLE visibility. The
+  script correctly avoided starting a five-tag capture and did not enable RFD.
+- Do not count `BS955A` occurrences in static TDMA profiles or historical logs
+  as live visibility; the live gate did not see it in a 180 s window.
+
+### Repeated Gate Loop
+
+Command:
+
+```bash
+for attempt in 1 2 3 4 5 6; do
+  VISIBILITY_S=180 bash scripts/run_6tag_nordiag_baseline_candidate.sh
+  # sleep 120 s between failed gates
+done
+```
+
+First three attempts:
+
+| Attempt | Time | Seen | Missing | Capture started |
+|---:|---|---|---|---|
+| 1 | `2026-06-27 01:47:47-01:50:51 CEST` | `BS2DCE,BS9336,BSCCF4,BSDC91,BSF66F` | `BS955A` | no |
+| 2 | `2026-06-27 01:52:51-01:55:55 CEST` | `BS2DCE,BS9336,BSCCF4,BSDC91,BSF66F` | `BS955A` | no |
+| 3 | `2026-06-27 01:57:55-02:00:59 CEST` | `BS2DCE,BS9336,BSCCF4,BSDC91,BSF66F` | `BS955A` | no |
+
+Interpretation:
+
+- `BS955A` absence is repeated across three full 180 s BLE visibility windows.
+- `BSDC91` is consistently visible now, so the current blocker has moved from
+  `BSDC91` to `BS955A`.
+- No RFD or diagnostic payload was enabled during these gates.
+
+Completed loop result:
+
+| Attempt | Time | Seen | Missing | Capture started |
+|---:|---|---|---|---|
+| 4 | `2026-06-27 02:02:59-02:06:03 CEST` | `BS2DCE,BS9336,BSCCF4,BSDC91,BSF66F` | `BS955A` | no |
+| 5 | `2026-06-27 02:08:03-02:11:07 CEST` | `BS2DCE,BS9336,BSCCF4,BSDC91,BSF66F` | `BS955A` | no |
+| 6 | `2026-06-27 02:13:07-02:16:11 CEST` | `BS2DCE,BS9336,BSCCF4,BSDC91,BSF66F` | `BS955A` | no |
+
+Final loop interpretation:
+
+- Six consecutive 180 s visibility gates saw the same five Tags and did not see
+  `BS955A`.
+- The script never started a five-tag capture, so there is no misleading
+  "six-tag" result from this loop.
+- The six-tag no-RFD baseline remains unproven only because `BS955A` is absent
+  from live BLE visibility. The current firmware/capture discipline is still
+  the fixed-slot no-RFD candidate.
+
+### Continuation Check - 2026-06-27 02:16 CEST
+
+Relevant live control/listener ports:
+
+```text
+Master_Tag:
+  /dev/serial/by-id/usb-Master_Tag_Master_Tag_Control_6918E0384172A49F-if00
+Master_Anchor:
+  /dev/serial/by-id/usb-Master_Anchor_BioSpur_BLE_Control_87EA2F4A526C5A02-if00
+Listener E J-Link:
+  /dev/serial/by-id/usb-SEGGER_J-Link_000760184767-if00
+Old listener J-Link:
+  /dev/serial/by-id/usb-SEGGER_J-Link_000760185886-if00
+```
+
+Command:
+
+```bash
+VISIBILITY_S=180 bash scripts/run_6tag_nordiag_baseline_candidate.sh
+```
+
+Result:
+
+```text
+[6TAG-GATE] seen=BS2DCE,BS9336,BSCCF4,BSDC91,BSF66F
+[6TAG-GATE] missing=BS955A
+[6TAG-GATE] aborting before capture; recover missing Tag BLE visibility first
+```
+
+Interpretation:
+
+- `BS955A` remains absent after another full 180 s visibility gate.
+- No RFD was enabled and no capture was started.
+- The next valid action is still to restore `BS955A` live BLE visibility, then
+  rerun the same six-tag no-RFD baseline script.
+- Tag bodies are deployed and recovered by BLE OTA/NUS in this workflow. J-Link
+  presence for `BS955A` is not required for OTA and must not be used as the
+  baseline gate.
+
+### Continuation Check - 2026-06-27 02:21 CEST
+
+Current Master_Tag control is still the explicit `Master_Tag_Control` USB CDC
+port. The six-tag gate below tests BLE visibility through the OTA/NUS path; it
+does not require a Tag-side J-Link connection.
+
+Command:
+
+```bash
+VISIBILITY_S=180 bash scripts/run_6tag_nordiag_baseline_candidate.sh
+```
+
+Result:
+
+```text
+[6TAG-GATE] seen=BS2DCE,BS9336,BSCCF4,BSDC91,BSF66F
+[6TAG-GATE] missing=BS955A
+[6TAG-GATE] aborting before capture; recover missing Tag BLE visibility first
+```
+
+Interpretation:
+
+- The same blocker has repeated after the previous loop and continuation
+  checks: Master_Tag does not see `BS955A` in the BLE visibility gate.
+- No RFD was enabled, no firmware was flashed, and no capture was started.
+- Further software-side work cannot prove the six-tag baseline until `BS955A`
+  is BLE-visible to Master_Tag. J-Link is not part of this requirement.
+
+### Wand Visibility Check - 2026-06-27 02:25 CEST
+
+The three Wand Tags were checked through the Master_Tag BLE/OTA path only:
+`BSCCF4`, `BS9336`, and `BS955A`.
+
+Result over a 90 s listen window:
+
+```text
+[WAND-CHECK] conn_or_cfg_seen=BS9336,BSCCF4
+[WAND-CHECK] notify_seen=BS9336,BSCCF4
+[WAND-CHECK] any_seen=BS9336,BSCCF4
+[WAND-CHECK] missing_any=BS955A
+```
+
+Evidence:
+
+- `BSCCF4` produced repeated `TR`, `CD`, `RXG`, and `SD` notifications.
+- `BS9336` produced repeated `TR`, `CD`, `RXG`, and `SD` notifications.
+- `BS955A` produced no scan/connect/notify evidence in this window.
+
+Interpretation:
+
+- The "shared Wand power rail means all three would be down together" hypothesis
+  is not supported by this check: `BS9336` and `BSCCF4` are live and ranging.
+- The remaining issue is specific to `BS955A` BLE visibility/runtime state, not
+  a common loss of Wand power.
+
+### Independent BLE Listener Dongle Check - 2026-06-27 02:29 CEST
+
+USB device:
+
+```text
+/dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Listener_760AE3DFC3CD8F38-if00
+VID:PID = 2fe3:10f3
+Product = BioSpur_BLE_Listener
+Firmware output = BADV/BSTAT active-scan-only lines
+```
+
+Command path:
+
+- Opened the listener CDC serial port directly.
+- Read `BADV`/`BSTAT` output for 90 s.
+- Filtered for Wand tags: `BSCCF4`, `BS9336`, `BS955A`.
+
+Result:
+
+```text
+[DONGLE-CHECK] summary:
+  BS9336: 0 BADV/evidence lines
+  BS955A: 0 BADV/evidence lines
+  BSCCF4: 0 BADV/evidence lines
+[DONGLE-CHECK] latest BSTAT:
+  tags=0;anchors=0;dfu=0;unknown=0;total=0;stale=32;scan=1
+```
+
+Interpretation:
+
+- This dongle is an advertising listener, not a BLE connection sniffer.
+  Therefore it is expected that already-connected Tags may not appear in
+  `BADV` even while they are alive over NUS.
+- `BS9336` and `BSCCF4` were already proven live by Master_Tag notify output,
+  so their absence from `BADV` is not evidence that they are down.
+- `BS955A` was not seen by either Master_Tag BLE visibility gates or the
+  independent advertising listener. This strengthens the conclusion that
+  `BS955A` is not currently advertising/visible on the BLE path.
+
+## Goal Continuation - 2026-06-26 Late
+
+After restoring `Master_Tag` and the visible Tags to the exact 2026-05-12
+stable10x9 images, a fresh no-RFD 120 s capture was run with the five currently
+visible Tags:
+
+```text
+SS-TWR/alt-SS-TWR/broadcast/logs/exact_may12_visible5_norfd_baseline_after_filterfix_20260626_233341_20260626_233342/
+```
+
+Result:
+
+```text
+rfd_all=0
+tr_diag_all=0
+ratio_ge7=0.583817
+ratio_ge8=0.358197
+```
+
+The TDMA CFG matched all five requested Tags at `10/9`, so this failure is not
+caused by RFD output or by the A27 Tag image. Compared with the 2026-05-12
+reference (`ratio_ge7=0.953277`), the current run shows broad anchor-side
+degradation. Anchor H/7 remains weak as before, but anchors 4/5/6 are also
+substantially lower than the reference.
+
+Current conclusion:
+
+- Do not continue RFD experiments until the no-RFD baseline recovers.
+- Keep the restored exact May12 Tag/Master_Tag state.
+- Next required action is Anchor-side rollback to the 2026-05-12 A18 responder
+  baseline.
+
+A18 rollback payload was prepared and verified:
+
+```text
+active_payload kind=anchor
+active_payload marker=altbcast-responder-a18-g1200-r1000-20260512_154806
+verify_ota_payload_kind.py --expected anchor: pass
+assert_active_ota_payload.py --expected anchor --marker altbcast-responder-a18-g1200-r1000-20260512_154806: pass
+```
+
+Verified artifact hashes:
+
+```text
+b1288ef0f8f8e60dd248fb65e6cc666fdac18cb7ef2d2f2a4d1006042f746fc8  dfu_application.zip
+3769f850dc065a3eccd2896ff824ecbc8cdf554dc4a1564a9befd84086c2e062  anchor/zephyr/zephyr.signed.bin
+6a458cde917fad96094d24aa75a68d2d8b45d1d4cc6be31273bff299280462ad  Master_Anchor merged_domains.hex
+```
+
+The A18 `Master_Anchor` carrier passed the B120 LFRC check. Flashing was not
+performed because `.protec/noflash960148546` is present and the protected
+`Master_Anchor` SNR `960148546` still needs explicit authorization before
+flashing.
+
+## Six-Tag Baseline Restore - 2026-06-26 Night
+
+Goal:
+
+- Restore six Tags at 10 Hz/tag with no RFD/RF diagnostics before attempting
+  any diagnostic output again.
+- Hard priority: keep high ge7 first; diagnostics must not reduce ranging
+  stability.
+
+Reference:
+
+```text
+SS-TWR/alt-SS-TWR/broadcast/logs/six_tag_stable10x9_tr12_altanchor_capture120_20260512_161135_20260512_161135/
+```
+
+Reference result:
+
+- `tr_all=48400`
+- `tr_valid_all=40124`
+- `ratio_ge7=0.953277`
+- `ratio_ge8=0.626541`
+
+Actions performed:
+
+- Forced OTA redeployed the stable Tag image to all six Tags:
+  `stable10x9-tr12-bdbs-20260512`.
+- Post-OTA `VERSION` matched on all six:
+  `BSF66F`, `BS2DCE`, `BSDC91`, `BSCCF4`, `BS9336`, `BS955A`.
+- Restored Master_Tag to the archived 2026-05-12 LFRC carrier:
+  `build-master-control-b120-m1-master-tag-lfrc-stable10x9-tr12-bdbs-embedded-20260512`.
+- Verified the archived Master_Tag build with
+  `scripts/assert_b120_internal_osc_build.sh` before flashing.
+
+Important negative results:
+
+- A no-RFD run with stale runtime preserved stayed poor even with
+  `rfd_all=0` and `tr_diag_all=0`.
+- A no-RFD run after Tag OTA and archived Master_Tag, but still skipping
+  pre-release `MODE IDLE`, reached only `ratio_ge7=0.722988`.
+- A legacy keep-state test was interrupted because it was clearly worse:
+  partial `ratio_ge7=0.554783`, with `BS955A` stuck at only `320` rows.
+
+Current best restored no-RFD baseline:
+
+```text
+SS-TWR/alt-SS-TWR/broadcast/logs/restore_6tag_nordiag_cleanstart_20260626_220127_20260626_220127/
+```
+
+Result:
+
+- `success=true`
+- `tdma_config_failed=false`
+- `rfd_all=0`
+- `tr_diag_all=0`
+- `tr_all=27464`
+- `tr_valid_all=23746`
+- `ratio_ge7=0.909409`
+- `ratio_ge8=0.459365`
+
+Per-Tag ge7:
+
+| Tag | ge7 | ge8 | Status summary |
+|---|---:|---:|---|
+| `BSF66F` | `0.960100` | `0.435162` | `O=5793, R=2, T=621` |
+| `BS2DCE` | `0.914676` | `0.470990` | `O=2026, T=318` |
+| `BSDC91` | `0.763425` | `0.320755` | `O=4035, R=8, T=1469` |
+| `BSCCF4` | `0.916667` | `0.483333` | `O=2511, R=2, T=367` |
+| `BS9336` | `0.947808` | `0.657620` | `O=3505, R=1, T=326` |
+| `BS955A` | `0.955556` | `0.469136` | `O=5876, R=9, T=595` |
+
+Interpretation:
+
+- The clean-start sequence restored ge7 above 0.90 without RFD, so stale
+  runtime/TDMA state was a real failure mode.
+- Total row throughput is still below the 2026-05-12 reference
+  (`27464` vs `48400` rows in 120 s). This means the six-Tag 10 Hz output
+  capacity is not fully restored yet.
+- Do not re-enable RFD/RF diagnostics until the no-RFD baseline is closer to
+  the reference throughput and ge7 target.
+
+Script update:
+
+- `scripts/run_6tag_nordiag_baseline_candidate.sh` now uses clean-start by
+  default and no longer passes `--skip-initial-mode-idle` or
+  `--skip-final-mode-idle`.
 
 ## Goal Continuation Check - 2026-06-26 Evening
 
