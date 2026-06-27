@@ -1,0 +1,66 @@
+# Delay <-> geometry coupling: Fisher / DOP analysis on real Erlangen geometry
+# Generated 2026-06-27T14:21:01Z. Scripts: delay_geometry_fim.py (anchor self-cal FIM, preliminary),
+#   delay_vertical_dop.py (tag-localization GPS DOP, clean). Both depend on scratch harness data loaders.
+# Vertical axis = Y (confirmed from data).
+
+===== STORY 2 (tag-side, clean): tag-localization GPS DOP =====
+=== anchor layout: per-axis spread (find the two-layer/vertical axis) ===
+  axis X: min= -1320.4 max=  1082.8 span= 2403.2  vals=[-1075. -1320.   852.  1083. -1171. -1272.   962.  1028.]
+  axis Y: min=   222.4 max=  1660.1 span= 1437.7  vals=[ 248.  270.  222.  241. 1648. 1660. 1625. 1630.]
+  axis Z: min= -1624.3 max=  1194.3 span= 2818.5  vals=[-1624.  1029.  1194. -1432. -1582.  1099.  1187. -1552.]
+  (lower group ABCD vs upper EFGH per axis:)
+    X: ABCD mean=  -115.1  EFGH mean=  -113.0  separation=     2.1
+    Y: ABCD mean=   245.5  EFGH mean=  1640.7  separation=  1395.3
+    Z: ABCD mean=  -208.3  EFGH mean=  -211.9  separation=    -3.6
+
+=== tag-localization GPS analysis over 142 real static tag frames (medians) ===
+  alias vector w = (A^T A)^-1 A^T 1   (mm position shift per 1 mm common delay)
+    |w_vertical|   = 1.576
+    |w_horizontal| = 0.229
+    ratio vert/horiz = 6.89x   (>1 => a common delay lands mostly in VERTICAL)
+  so a tag antenna delay of, e.g., 35 mm  ->  vertical bias ~ 55 mm, horizontal bias ~ 8 mm
+
+  clock<->vertical correlation rho       median = -0.449
+  vertical variance inflation 1/(1-rho^2)~ median = 3.66x (cost of co-estimating the delay)
+  VDOP median = 1.34   HDOP median = 0.85   VDOP/HDOP = 1.57x
+
+===== STORY 1 (anchor-side, PRELIMINARY - has residual rank-deficiency, see kappa): anchor self-cal FIM =====
+inter-anchor pairs=28  static tag frames (>=4 anchors)=142
+design: measurements=1157  params=458  (structural=32, tags=426)
+
+=== gauge-free FIM spectrum (26 modes) ===
+lambda_min = 1.0262e-04   lambda_max = 5.0530e-02   condition kappa = 4.924e+02
+5 smallest eigenvalues: [0. 0. 0. 0. 0.]
+
+=== softest mode v_min overlap (|cos|) with interpretable directions ===
+  common-delay      : 0.003
+  vertical-stretch  : 0.004
+  horizontal-stretch: 0.005
+  isotropic-scale   : 0.004
+
+=== delay <-> geometry coupling (marginal 2x2) ===
+  [delay<->vertical  ] rho=-0.814  var_inflation 1/(1-rho^2)=  2.97x  alias_gain d(geo)/d(b)=-0.629
+  [delay<->horizontal] rho=-0.974  var_inflation 1/(1-rho^2)= 19.29x  alias_gain d(geo)/d(b)=-1.090
+  [delay<->iso-scale ] rho=-0.977  var_inflation 1/(1-rho^2)= 22.07x  alias_gain d(geo)/d(b)=-1.246
+
+=== anisotropy (DOP analog) ===
+  var(vertical-stretch)/var(horizontal-stretch) = 0.48x   (sqrt = 0.69x worse vertical)
+
+===== EXP 1 (real Vicon truth, 3 delay treatments) + EXP 2 (synthetic injection slope) =====
+# NOTE: EXP1 absolute levels use RAW trilateration vs truth anchors (no production anchor-delay/scale cal),
+#       so they are larger than and NOT comparable to production 61.9->39.3; only the vert-vs-horiz CONTRAST is evidence.
+truth tag positions loaded: 24 static IDs
+usable static IDs (truth + >=4 anchors): 24
+per-tag estimated delay: median=127.8 mm  (range 59..175)
+
+==================== EXP 1: delay treatment vs REAL Vicon truth ====================
+treatment                     vertical(Y) med   horizontal(XZ) med
+(a) no delay (b=0)                   329.9 mm              62.6 mm   (vert vs (a): +0.0)
+(b) global fixed delay               122.3 mm              39.6 mm   (vert vs (a): -207.6)
+(c) per-tag estimated                 99.3 mm              45.8 mm   (vert vs (a): -230.6)
+
+==================== EXP 2: synthetic Delta_b injection (b unmodelled) ====================
+vertical shift slope  dZ/d(db)  = +1.608   (theory |w_vert|  = 1.576)
+horizontal |shift| slope /|db|  = +0.225   (theory |w_horiz| = 0.229)
+
+plot saved: /home/zekaixiao/Documents/nRF_dev/BioSpur_UWB_before_start/autopos_pipeline/28052026_Erlangen_Official/Analysis/reports/EN/literature_search/delay_injection_sweep.png

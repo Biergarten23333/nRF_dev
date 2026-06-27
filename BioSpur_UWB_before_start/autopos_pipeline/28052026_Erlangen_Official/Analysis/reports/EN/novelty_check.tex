@@ -75,18 +75,23 @@ degenerate. A formal Fisher-information / profile-likelihood analysis of this
 direction is the planned next step and is required before any near-degeneracy is
 claimed; the cost-clamp ratio is reported here only as a practical indicator, not as
 an identifiability proof. The two analyses operate on different parameter spaces and
-answer different questions. As an independent empirical check that this
-vertical/scale weakness is a delay effect rather than something a richer
-calibration dataset could remove, we ran an active vertical-information injection:
-a tilted two-tag rotating arm swept the rotation plane from horizontal to vertical
-during self-calibration. The eight-anchor two-layer array already has
-well-conditioned vertical geometry, so no observability deficit is expected;
-consistent with this, injecting strong vertical excitation did not reduce the
-recovered anchor vertical error and showed no dose--response with rotation tilt
-under either a free-point or a rigid-body arm model, indicating the weak direction
-is dominated by per-device delay coupling rather than by anything additional
-vertical calibration data could supply (see the supplementary experimental
-report).
+answer different questions. We separately examined whether the \emph{vertical}
+component of the static error is an observability deficit or a delay effect; this
+is a tag-side question, distinct from the anchor-side delay--scale direction
+discussed above. The eight-anchor two-layer array already has well-conditioned
+vertical geometry, so no observability deficit is expected. Instead, because every
+tag observes the anchors with limited elevation diversity, a common-mode tag range
+bias aliases predominantly into the vertical coordinate: a geometric
+dilution-of-precision analysis of the deployment gives a vertical-to-horizontal
+alias ratio of about seven and $\mathrm{VDOP}/\mathrm{HDOP}\approx1.6$, the UWB
+analogue of the GPS receiver-clock/altitude coupling. As an independent empirical
+check, an active vertical-information injection -- a tilted two-tag rotating arm
+sweeping the rotation plane from horizontal to vertical during self-calibration --
+did not reduce the recovered vertical error and showed no dose--response with
+rotation tilt under either a free-point or a rigid-body arm model, confirming the
+vertical error is dominated by this per-tag delay--altitude alias rather than by
+anything additional vertical calibration data could supply (see the supplementary
+experimental report).
 
 This literature supports our Fisher/profile-likelihood language, but it does not remove the novelty. The Erlangen result is not just that a ranging network can be weakly identifiable. It is that a concrete range-only UWB self-calibration has a delay--layout direction whose in-environment winner changes when the tag-anchor positive range tail is reduced.
 
