@@ -147,6 +147,47 @@ P(new wins), e\_i=0 & 0.659 & probability \\
 
 The practical rule from this experiment is simple: keep p50/median for inter-anchor self-calibration in this dataset, and treat lower-quantile aggregation as a tag-anchor static batch estimator. The e\_i result is separate. p50 with e\_i=0 reaches 43.2 mm LOO, compared with 44.5 mm for the current p50/e\_reg20 control, but the paired bootstrap gives $P(\mathrm{new\ wins})=0.659$ and a confidence interval crossing zero. This is a candidate setting for the next capture, not a locked replacement.
 
+\section{Active Vertical-Geometry Injection Control (RotArm)}
+
+The vertical component of the anchor calibration error invites a geometric reading, but it does not survive inspection. The eight anchors form a non-coplanar two-layer, approximately cuboid array with well-conditioned vertical geometry, so vertical observability for this standard layout is not in question and no vertical Fisher-information deficit is expected from it. The residual vertical error therefore cannot be an observability problem and must be systematic. The open question is whether this systematic vertical error is reducible by supplying additional, vertically-diverse calibration measurements, or whether it is a fixed per-device bias. This section settles that question with a direct intervention that floods the self-calibration with strong vertical excitation.
+
+The intervention uses a rigid arm carrying two UWB tags at fixed radii of 426 and 554 mm on opposite sides of the rotation centre. Seventeen captures were recorded with the rotation plane tilted from horizontal (about $1^\circ$) to vertical (about $90^\circ$) in roughly five levels, so that a tilted rotation contributes vertical excursion $2r\sin\alpha$, and therefore anisotropic vertical information, to the joint anchor solve. If the systematic vertical error were reducible by added vertical calibration excitation, vertical accuracy should improve monotonically as the rotation plane, and hence the injected vertical excursion, approaches vertical.
+
+Arm rigidity and reference quality were verified from the motion-capture markers before use. The inter-tag distance is rigid to about 0.3--0.7 mm along the arm, while the out-of-plane wobble is small and grows with tilt, from about 1 mm near horizontal to about 2.8 mm near vertical; this is far below the ranging noise and is modelled as a soft out-of-plane compliance. The optical wand markers are mislabelled in roughly half of all frames, where the inter-tag distance collapses from about 990 mm to near zero, so all rigidity and tilt quantities use only the clean cluster, and the rotation tilt used as the independent variable is taken from motion capture rather than from the solver.
+
+Each capture was solved against the inter-anchor sweep and the 24 static positions, with and without the rotation injection, using two independent estimators: a free-point solver that treats every tag frame as an unconstrained 3D point, and a full rigid-arm solver that collapses each frame to a single rotation-angle unknown and so forces range residuals onto the anchor geometry. The solved layouts were aligned to the motion-capture anchor reference, and the vertical component of the anchor error was recorded.
+
+The result is a clear negative, summarised in Table~\ref{tab:rotarm}. Across all sixteen analysable captures the rigid-arm vertical anchor error shows no negative dependence on rotation tilt; the fitted slope is $+0.03$ mm/deg with correlation $r=0.08$, that is, essentially flat with the wrong sign. Every single-injection condition is worse than the no-injection baseline of 68.8 mm, and the near-vertical condition, where the injected vertical information is largest, is the worst. Combining all seventeen rotations improves the vertical error only marginally and tilt-independently, to 63.4 mm, consistent with a generic increase in tag-to-anchor constraints rather than vertical-information injection, and it does not reach the no-injection production layout at 59.8 mm. The free-point estimator gives the same conclusion, so the result is not an artefact of one model.
+
+\begin{table}[H]
+\centering
+\caption{RotArm vertical-injection dose--response, binned by motion-capture rotation tilt. Values reproduced from \texttt{literature\_search/rotarm\_zinjection\_rigid\_results.csv}.}
+\label{tab:rotarm}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Condition & $n$ & Rigid vertical error (mm) & vs baseline (mm) \\
+\midrule
+Baseline, no injection & -- & 68.8 & -- \\
+Tilt $\approx 1^\circ$ & 1 & 83.7 & $+14.9$ \\
+Tilt $\approx 22^\circ$ & 4 & 76.8 & $+8.0$ \\
+Tilt $\approx 48^\circ$ & 4 & 81.1 & $+12.3$ \\
+Tilt $\approx 72^\circ$ & 4 & 72.4 & $+3.6$ \\
+Tilt $\approx 90^\circ$ (vertical) & 3 & 86.9 & $+18.1$ \\
+All rotations combined & 17 & 63.4 & $-5.4$ \\
+Production layout, no injection & -- & 59.8 & $-9.0$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{literature_search/rotarm_zinjection_rigid_dose_response.png}
+\caption{Rigid-arm vertical-injection dose--response against motion-capture rotation tilt. The mechanism predicts a downward slope toward $90^\circ$; the observed dependence is flat and slightly positive, every tilt bin is worse than the no-injection baseline, and the near-vertical bin is the worst. Source: \texttt{literature\_search/rotarm\_zinjection\_rigid\_dose\_response.png}.}
+\label{fig:rotarm}
+\end{figure}
+
+The result confirms that the systematic vertical error is not reducible by richer vertical calibration data. Actively injecting strong vertical excitation does not reduce the vertical error and, if anything, slightly increases it, whereas tag-delay correction reduces the vertical static error from 61.9 mm to 39.3 mm. This is exactly what is expected when the layout's vertical observability is already good: there is no information deficit for the injection to fill, so the residual vertical bias is the vertical projection of the per-device range-bias and antenna-delay coupling. The value of this result is as a confirmation that closes a data-coverage alternative, not as the discovery of a new mechanism. The absolute error levels here come from a re-analysis pipeline whose baseline, 68.8 mm, is slightly worse than the production layout at 59.8 mm, so only the internal with-and-without and tilt-dose comparisons are used as evidence.
+
 \section{Solver Audit Summary}
 
 The solver audit found five core anchor-layout solver generations and four C-level tag solver versions, plus one Python tag-solver policy variant. The audit matters because several campaign results are preprocessing or parameterization effects rather than new numerical solvers. In particular, no production T5 tag solver was found; the lower-trim and Huber30 improvements are changes to range aggregation and loss configuration around the existing tag-solver family.
@@ -244,6 +285,7 @@ ID & Level & Recommended wording \\
 27 & A & Inter-anchor raw ranges are nearly symmetric; lower-tail aggregation is inappropriate for anchor self-calibration here. \\
 28 & B & The e\_i=0 or low-e\_i V5 variant is slightly better for the raw-frame static estimator, but the bootstrap evidence is not decisive. \\
 29 & A & When tag-anchor positive bias is reduced, V4's cancellation advantage disappears and V5 becomes the better geometry. \\
+30 & A & Active vertical-geometry injection by tilted arm rotation does not reduce the vertical anchor error (dose--response slope $+0.03$ mm/deg, both solver models); since the cuboid layout's vertical observability is already good, this confirms the residual vertical bias is a systematic per-device delay effect, not a quantity reducible by richer vertical calibration data. \\
 \bottomrule
 \end{tabular}
 \end{table}
