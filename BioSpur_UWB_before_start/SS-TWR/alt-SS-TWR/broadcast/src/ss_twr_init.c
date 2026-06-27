@@ -422,7 +422,17 @@ static void ss_twr_diag_write(const char *msg)
 #define SS_TWR_INIT_UUS_TO_DWT_TIME 65536ULL
 #define SS_TWR_INIT_ALT_BCAST_POLL_SCHED_UUS 1000U
 #define SS_TWR_INIT_ALT_BCAST_TX_DONE_TIMEOUT_US 5000U
-#define SS_TWR_INIT_ALT_BCAST_TAIL_MARGIN_US 300U
+/*
+ * Tail margin must cover the last responder's full frame airtime plus RX
+ * (re)enable latency and clock jitter.  With 8 anchors at 1000 us spacing the
+ * rank-7 responder transmits at ANCHOR_RESP_DELAY(1200) + 7*1000 us after poll
+ * TX-done and its frame completes near ~8.45 ms.  300 us closed the collector
+ * window ~235 us early, so anchor 7 (always the last responder) was dropped
+ * systematically, capping every sweep at ge7 and making ge8 near-impossible.
+ * 800 us keeps the window open through rank 7 with margin while staying inside
+ * the 9 ms active slot.
+ */
+#define SS_TWR_INIT_ALT_BCAST_TAIL_MARGIN_US 800U
 #define SS_TWR_INIT_ALT_BCAST_POLL_AIRTIME_US 335U
 #define SS_TWR_INIT_ALT_BCAST_SLOT_RX_EARLY_US 150U
 #define SS_TWR_INIT_ALT_BCAST_SLOT_RX_TIMEOUT_US 850U
