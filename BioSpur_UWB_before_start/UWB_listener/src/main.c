@@ -172,11 +172,22 @@ static void buzzer_set(bool on)
 	nrf_gpio_pin_write(BUZZER_PIN, on ? 1U : 0U);
 }
 
-static bool selected_anchor_is_fresh(uint32_t now_ms,
-				     const struct anchor_rx_state **state_out)
-{
-	const struct anchor_rx_state *state = &anchor_state[selected_anchor_id];
+/* Follow mode: AUTO (default) tracks the strongest anchor currently on air so the
+ * LED bar + buzzer react to UWB signal strength with no button press; pressing the
+ * button locks onto a specific anchor A..H, and pressing past H returns to AUTO. */
+#define LISTENER_ANCHOR_NONE 0xFFU
+static bool follow_auto = true;
 
+static bool anchor_is_fresh(uint8_t anchor_id, uint32_t now_ms,
+			    const struct anchor_rx_state **state_out)
+{
+	const struct anchor_rx_state *state;
+
+	if (anchor_id >= UWB_MAX_ANCHORS) {
+		return false;
+	}
+
+	state = &anchor_state[anchor_id];
 	if (!state->valid || (now_ms - state->last_seen_ms) > LISTENER_STALE_MS) {
 		return false;
 	}
@@ -185,6 +196,39 @@ static bool selected_anchor_is_fresh(uint32_t now_ms,
 		*state_out = state;
 	}
 	return true;
+}
+
+/* Strongest fresh anchor by level; ties broken by most-recently-seen. */
+static uint8_t strongest_fresh_anchor(uint32_t now_ms)
+{
+	uint8_t best = LISTENER_ANCHOR_NONE;
+	uint8_t best_level = 0U;
+	uint32_t best_seen = 0U;
+
+	for (uint8_t id = 0U; id < UWB_MAX_ANCHORS; ++id) {
+		const struct anchor_rx_state *st;
+
+		if (!anchor_is_fresh(id, now_ms, &st)) {
+			continue;
+		}
+		if (best == LISTENER_ANCHOR_NONE || st->level > best_level ||
+		    (st->level == best_level && st->last_seen_ms > best_seen)) {
+			best = id;
+			best_level = st->level;
+			best_seen = st->last_seen_ms;
+		}
+	}
+
+	return best;
+}
+
+/* Which anchor the LED bar + buzzer should reflect right now. */
+static uint8_t effective_anchor_id(uint32_t now_ms)
+{
+	if (follow_auto) {
+		return strongest_fresh_anchor(now_ms);
+	}
+	return selected_anchor_id;
 }
 
 static int listener_gpio_init(void)
@@ -351,10 +395,11 @@ static void update_buzzer(uint32_t now_ms)
 		160U, 90U, 55U, 32U,
 	};
 	const struct anchor_rx_state *state;
+	uint8_t anchor_id = effective_anchor_id(now_ms);
 	uint32_t interval_ms;
 
 	if (now_ms < selected_show_until_ms ||
-	    !selected_anchor_is_fresh(now_ms, &state)) {
+	    !anchor_is_fresh(anchor_id, now_ms, &state)) {
 		buzzer_set(false);
 		buzzer_next_click_ms = now_ms;
 		buzzer_off_ms = 0U;
@@ -379,13 +424,17 @@ static void update_buzzer(uint32_t now_ms)
 static void display_selected_anchor(uint32_t now_ms)
 {
 	const struct anchor_rx_state *state;
+	uint8_t anchor_id;
 
 	if (now_ms < selected_show_until_ms) {
-		shift595_write(led_anchor_mask(selected_anchor_id));
+		/* brief confirm: AUTO -> all LEDs, locked -> that anchor's bit */
+		shift595_write(follow_auto ? 0xffU :
+					     led_anchor_mask(selected_anchor_id));
 		return;
 	}
 
-	if (!selected_anchor_is_fresh(now_ms, &state)) {
+	anchor_id = effective_anchor_id(now_ms);
+	if (!anchor_is_fresh(anchor_id, now_ms, &state)) {
 		shift595_write(0U);
 		return;
 	}
@@ -426,11 +475,24 @@ static void handle_button(uint32_t now_ms)
 		return;
 	}
 
-	selected_anchor_id = (uint8_t)((selected_anchor_id + 1U) % UWB_MAX_ANCHORS);
+	/* cycle: AUTO -> A -> B -> ... -> H -> AUTO */
+	if (follow_auto) {
+		follow_auto = false;
+		selected_anchor_id = 0U;
+	} else if ((selected_anchor_id + 1U) >= UWB_MAX_ANCHORS) {
+		follow_auto = true;
+	} else {
+		selected_anchor_id = (uint8_t)(selected_anchor_id + 1U);
+	}
+
 	selected_show_until_ms = now_ms + LISTENER_SELECT_SHOW_MS;
-	printk("listener selected anchor %c addr=0x%04x\n",
-	       (char)('A' + selected_anchor_id),
-	       (unsigned int)uwb_anchor_short_addr(selected_anchor_id));
+	if (follow_auto) {
+		printk("listener follow=AUTO (strongest anchor on air)\n");
+	} else {
+		printk("listener selected anchor %c addr=0x%04x\n",
+		       (char)('A' + selected_anchor_id),
+		       (unsigned int)uwb_anchor_short_addr(selected_anchor_id));
+	}
 }
 
 static void listener_radio_configure(void)
@@ -767,8 +829,7 @@ int main(void)
 	listener_radio_configure();
 	listener_restart_rx();
 	selected_show_until_ms = k_uptime_get_32() + LISTENER_SELECT_SHOW_MS;
-	printk("listener RX-only mode ready; selected anchor A addr=0x%04x\n",
-	       (unsigned int)uwb_anchor_short_addr(0U));
+	printk("listener RX-only mode ready; follow=AUTO (strongest anchor); press button to lock A..H, again past H returns to AUTO\n");
 
 	while (true) {
 		uint32_t now_ms = k_uptime_get_32();

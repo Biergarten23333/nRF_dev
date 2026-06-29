@@ -29,6 +29,13 @@
 #define APP_LISTENER_POLL_DIAG_ENABLE 1U
 #endif
 
+/* Also emit per-anchor-response diagnostics (LRD) so the listener is a full
+ * passive TWR observer: poll-path (LPD) + response coverage/timing (LRD),
+ * both RX-timestamped. RX-only; never transmits. */
+#ifndef APP_LISTENER_RESP_DIAG_ENABLE
+#define APP_LISTENER_RESP_DIAG_ENABLE 1U
+#endif
+
 #ifndef APP_LISTENER_CIR_CAPTURE_ENABLE
 #define APP_LISTENER_CIR_CAPTURE_ENABLE 0U
 #endif
@@ -52,6 +59,7 @@
 struct listener_counters {
     uint32_t good_frames;
     uint32_t accepted_polls;
+    uint32_t accepted_resps;
     uint32_t ignored_nonpoll;
     uint32_t ignored_poll_mask;
     uint32_t bad_header;
@@ -59,6 +67,7 @@ struct listener_counters {
     uint32_t rx_errors;
     uint32_t rx_enable_failures;
     uint32_t full_cir_captures;
+    uint32_t ring_drops;
     uint32_t last_rx_enable_error;
     uint32_t last_status;
     uint16_t last_src;
@@ -71,6 +80,35 @@ struct listener_counters {
 static uint8_t rx_buffer[LISTENER_RX_BUF_LEN];
 static struct listener_counters counters;
 static uint32_t last_status_print_ms;
+
+/* Compact per-frame record. The RX path (capture_to_ring) stores one of these and
+ * re-arms RX immediately (no UART), so the listener never goes deaf during the
+ * 1-poll + N-response burst. The main loop drains records to UART when idle. */
+struct lrec {
+    uint32_t now_ms;
+    uint32_t seq_count;   /* accepted_polls or accepted_resps at capture time */
+    uint32_t rx_ts;       /* DW1000 RX timestamp (lo32) */
+    int32_t carrier;      /* carrier integrator (CFO) */
+    uint16_t src;
+    uint16_t dst;
+    uint16_t fp_index;
+    uint16_t fp1;
+    uint16_t fp2;
+    uint16_t fp3;
+    uint16_t cir;
+    uint16_t rxpacc;
+    uint16_t stdnoise;
+    uint8_t frame_len;
+    uint8_t code;         /* UWB_MSG_POLL_CODE (0xe0) or UWB_MSG_RESP_CODE (0xe1) */
+    uint8_t peer_id;      /* tag_id (poll) or anchor_id (response) */
+    uint8_t seq;          /* frame sequence number */
+    uint8_t mask;         /* poll anchor mask (poll only) */
+};
+
+#define LREC_RING 128U
+static struct lrec lrec_ring[LREC_RING];
+static uint32_t lrec_head;
+static uint32_t lrec_tail;
 
 static dwt_config_t listener_config = {
     APP_UWB_CHANNEL,
@@ -176,7 +214,29 @@ static bool listener_accepts_poll(const uint8_t *frame, uint32_t len)
     return true;
 }
 
-static bool listener_cir_capture_due(void)
+static bool listener_is_anchor_response(const uint8_t *frame, uint32_t len,
+                                        uint8_t *anchor_id_out)
+{
+    uint16_t src;
+
+    if (!frame_has_biospur_header(frame, len)) {
+        return false;
+    }
+    if (len <= UWB_MSG_CODE_IDX ||
+        frame[UWB_MSG_CODE_IDX] != UWB_MSG_RESP_CODE) {
+        return false;
+    }
+    src = uwb_frame_get_src_addr(frame);
+    if (!uwb_short_addr_is_anchor(src)) {
+        return false;
+    }
+    if (anchor_id_out != NULL) {
+        *anchor_id_out = uwb_anchor_id_from_addr(src);
+    }
+    return true;
+}
+
+static __maybe_unused bool listener_cir_capture_due(void)
 {
 #if APP_LISTENER_CIR_CAPTURE_ENABLE == 0U
     return false;
@@ -187,48 +247,66 @@ static bool listener_cir_capture_due(void)
 #endif
 }
 
-static void print_lpd(uint32_t now_ms, uint32_t frame_len,
-                      uint32_t resp_rx_ts, int32_t carrier_integrator,
-                      const dwt_rxdiag_t *diag)
+static void print_lpd(const struct lrec *r)
 {
 #if APP_LISTENER_POLL_DIAG_ENABLE != 0U
-    uint16_t src = counters.last_src;
-    uint16_t dst = counters.last_dst;
-    uint8_t seq = rx_buffer[UWB_MSG_SN_IDX];
-    uint8_t tag_id = uwb_ss_twr_poll_tag_id(rx_buffer);
-    uint8_t mask = uwb_ss_twr_poll_anchor_mask(rx_buffer);
-
-    printk("LPD;1;%u;%u;%lu;%lu;%u;%u;0x%04x;0x%04x;%lu;%ld;%u;%u;%u;%u;%u;%u;%u;%lu;0x%02x\n",
+    printk("LPD;1;%u;%u;%lu;%lu;%u;%u;0x%04x;0x%04x;%lu;%ld;%u;%u;%u;%u;%u;%u;%u;%u;0x%02x\n",
            (unsigned int)APP_LISTENER_ID,
            (unsigned int)APP_LISTENER_NEAR_ANCHOR_ID,
-           (unsigned long)now_ms,
-           (unsigned long)counters.accepted_polls,
-           (unsigned int)seq,
-           (unsigned int)tag_id,
-           (unsigned int)src,
-           (unsigned int)dst,
-           (unsigned long)resp_rx_ts,
-           (long)carrier_integrator,
-           (unsigned int)diag->firstPath,
-           (unsigned int)diag->firstPathAmp1,
-           (unsigned int)diag->firstPathAmp2,
-           (unsigned int)diag->firstPathAmp3,
-           (unsigned int)diag->maxGrowthCIR,
-           (unsigned int)diag->rxPreamCount,
-           (unsigned int)diag->stdNoise,
-           (unsigned long)frame_len,
-           (unsigned int)mask);
+           (unsigned long)r->now_ms,
+           (unsigned long)r->seq_count,
+           (unsigned int)r->seq,
+           (unsigned int)r->peer_id,
+           (unsigned int)r->src,
+           (unsigned int)r->dst,
+           (unsigned long)r->rx_ts,
+           (long)r->carrier,
+           (unsigned int)r->fp_index,
+           (unsigned int)r->fp1,
+           (unsigned int)r->fp2,
+           (unsigned int)r->fp3,
+           (unsigned int)r->cir,
+           (unsigned int)r->rxpacc,
+           (unsigned int)r->stdnoise,
+           (unsigned int)r->frame_len,
+           (unsigned int)r->mask);
 #else
-    ARG_UNUSED(now_ms);
-    ARG_UNUSED(frame_len);
-    ARG_UNUSED(resp_rx_ts);
-    ARG_UNUSED(carrier_integrator);
-    ARG_UNUSED(diag);
+    ARG_UNUSED(r);
 #endif
 }
 
-static void print_full_cir(uint32_t resp_rx_ts, int32_t carrier_integrator,
-                           const dwt_rxdiag_t *diag)
+static void print_lrd(const struct lrec *r)
+{
+#if APP_LISTENER_RESP_DIAG_ENABLE != 0U
+    /* fields mirror LPD (minus poll_mask): anchor response heard at the listener.
+     * dst = the tag this response is addressed to (the sweep it belongs to). */
+    printk("LRD;1;%u;%u;%lu;%lu;%u;%u;0x%04x;0x%04x;%lu;%ld;%u;%u;%u;%u;%u;%u;%u;%u\n",
+           (unsigned int)APP_LISTENER_ID,
+           (unsigned int)APP_LISTENER_NEAR_ANCHOR_ID,
+           (unsigned long)r->now_ms,
+           (unsigned long)r->seq_count,
+           (unsigned int)r->seq,
+           (unsigned int)r->peer_id,
+           (unsigned int)r->src,
+           (unsigned int)r->dst,
+           (unsigned long)r->rx_ts,
+           (long)r->carrier,
+           (unsigned int)r->fp_index,
+           (unsigned int)r->fp1,
+           (unsigned int)r->fp2,
+           (unsigned int)r->fp3,
+           (unsigned int)r->cir,
+           (unsigned int)r->rxpacc,
+           (unsigned int)r->stdnoise,
+           (unsigned int)r->frame_len);
+#else
+    ARG_UNUSED(r);
+#endif
+}
+
+static __maybe_unused void print_full_cir(uint32_t resp_rx_ts,
+                                          int32_t carrier_integrator,
+                                          const dwt_rxdiag_t *diag)
 {
 #if APP_LISTENER_CIR_CAPTURE_ENABLE != 0U
     static const char hex[] = "0123456789ABCDEF";
@@ -297,14 +375,21 @@ static void print_full_cir(uint32_t resp_rx_ts, int32_t carrier_integrator,
 #endif
 }
 
-static void handle_good_frame(uint32_t now_ms)
+/* RX fast path: read frame + diagnostics + timestamps, classify poll/response,
+ * push a compact record onto the ring, and RE-ARM RX immediately. No UART here,
+ * so the receiver stays live through the whole 1-poll + N-response burst. The
+ * main loop drains the ring to UART during the idle between superframes. */
+static void capture_to_ring(uint32_t now_ms)
 {
     uint32_t frame_len;
-    uint32_t resp_rx_ts;
+    uint32_t rx_ts;
     int32_t carrier_integrator;
     dwt_rxdiag_t diag;
-    bool accepted_poll;
-    bool capture_full;
+    bool is_poll;
+    bool is_resp = false;
+    uint8_t peer_id = LISTENER_UNKNOWN_ID;
+    uint8_t mask = 0U;
+    struct lrec *r;
 
     memset(&diag, 0, sizeof(diag));
     dwt_readdiagnostics(&diag);
@@ -321,7 +406,7 @@ static void handle_good_frame(uint32_t now_ms)
 
     memset(rx_buffer, 0, sizeof(rx_buffer));
     dwt_readrxdata(rx_buffer, (uint16)frame_len, 0U);
-    resp_rx_ts = dwt_readrxtimestamplo32();
+    rx_ts = dwt_readrxtimestamplo32();
     carrier_integrator = dwt_readcarrierintegrator();
 
     counters.last_pan = read_le16_if_present(rx_buffer, frame_len,
@@ -333,29 +418,65 @@ static void handle_good_frame(uint32_t now_ms)
     counters.last_code = frame_len > UWB_MSG_CODE_IDX ?
                          rx_buffer[UWB_MSG_CODE_IDX] : 0U;
 
-    accepted_poll = listener_accepts_poll(rx_buffer, frame_len);
+    is_poll = listener_accepts_poll(rx_buffer, frame_len);
+    if (is_poll) {
+        peer_id = uwb_ss_twr_poll_tag_id(rx_buffer);
+        mask = uwb_ss_twr_poll_anchor_mask(rx_buffer);
+        counters.accepted_polls++;
+    } else if (listener_is_anchor_response(rx_buffer, frame_len, &peer_id)) {
+        is_resp = true;
+        counters.accepted_resps++;
+    }
+
+    /* clear good-frame status and re-arm RX immediately (no UART in this path) */
     dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
-    if (!accepted_poll) {
-        listener_restart_rx();
-        return;
-    }
-
-    counters.accepted_polls++;
-    capture_full = listener_cir_capture_due();
-    if (capture_full) {
-        dwt_forcetrxoff();
-    }
-    print_lpd(now_ms, frame_len, resp_rx_ts, carrier_integrator, &diag);
-    if (capture_full) {
-        print_full_cir(resp_rx_ts, carrier_integrator, &diag);
-#if APP_LISTENER_POST_CIR_IDLE_MS > 0U
-        k_msleep(APP_LISTENER_POST_CIR_IDLE_MS);
-#endif
-        listener_restart_rx();
-        return;
-    }
-
     listener_restart_rx();
+
+    if (!is_poll && !is_resp) {
+        return;
+    }
+
+    if ((lrec_head - lrec_tail) >= LREC_RING) {
+        lrec_tail++;                 /* ring full: drop oldest */
+        counters.ring_drops++;
+    }
+    r = &lrec_ring[lrec_head % LREC_RING];
+    r->now_ms = now_ms;
+    r->seq_count = is_poll ? counters.accepted_polls : counters.accepted_resps;
+    r->rx_ts = rx_ts;
+    r->carrier = carrier_integrator;
+    r->src = counters.last_src;
+    r->dst = counters.last_dst;
+    r->fp_index = diag.firstPath;
+    r->fp1 = diag.firstPathAmp1;
+    r->fp2 = diag.firstPathAmp2;
+    r->fp3 = diag.firstPathAmp3;
+    r->cir = diag.maxGrowthCIR;
+    r->rxpacc = diag.rxPreamCount;
+    r->stdnoise = diag.stdNoise;
+    r->frame_len = (uint8_t)MIN(frame_len, 255U);
+    r->code = is_poll ? UWB_MSG_POLL_CODE : UWB_MSG_RESP_CODE;
+    r->peer_id = peer_id;
+    r->seq = rx_buffer[UWB_MSG_SN_IDX];
+    r->mask = mask;
+    lrec_head++;
+}
+
+/* Drain one buffered record to UART (called from the main loop when RX is idle). */
+static void drain_ring_one(void)
+{
+    const struct lrec *r;
+
+    if (lrec_head == lrec_tail) {
+        return;
+    }
+    r = &lrec_ring[lrec_tail % LREC_RING];
+    if (r->code == UWB_MSG_POLL_CODE) {
+        print_lpd(r);
+    } else {
+        print_lrd(r);
+    }
+    lrec_tail++;
 }
 
 static void print_status(uint32_t now_ms)
@@ -413,7 +534,7 @@ int main(void)
         counters.last_status = status_reg;
 
         if ((status_reg & SYS_STATUS_RXFCG) != 0U) {
-            handle_good_frame(now_ms);
+            capture_to_ring(now_ms);          /* priority: never miss a frame */
         } else if ((status_reg & (SYS_STATUS_ALL_RX_ERR |
                                   SYS_STATUS_ALL_RX_TO)) != 0U) {
             counters.rx_errors++;
@@ -421,6 +542,8 @@ int main(void)
                               SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_RX_TO);
             dwt_rxreset();
             listener_restart_rx();
+        } else {
+            drain_ring_one();                 /* idle: flush buffered records */
         }
 
         print_status(now_ms);

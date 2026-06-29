@@ -15,8 +15,23 @@
 #include <zephyr/usb/usb_device.h>
 #endif
 
+#include <zephyr/drivers/uart.h>
+#include <zephyr/sys/reboot.h>
+#include <hal/nrf_power.h>
+
 #define FW_NAME "biospur-ble-listener"
-#define FW_VERSION "20260625.2"
+#define FW_VERSION "20260629.dfu1"
+
+/* Software DFU entry (no button): when the host opens the CDC port at 1200 baud
+ * ("1200 baud touch"), reboot into the Nordic Open Bootloader. Trigger from host:
+ *   stty -F /dev/serial/by-id/usb-BioSpur_BioSpur_BLE_Listener_*-if00 1200
+ * GPREGRET = 0xB1 is the bootloader's BOOTLOADER_DFU_START magic; it survives the
+ * soft reset, so the bootloader stays in DFU instead of launching the app. */
+#define DFU_TOUCH_BAUD 1200U
+#define BOOTLOADER_DFU_START 0xB1U
+
+static const struct device *const cdc_console =
+	DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
 
 #define SEEN_MAX 32U
 #define NAME_MAX_LEN 31U
@@ -554,6 +569,14 @@ static void led_work_handler(struct k_work *work)
 	(void)k_work_reschedule(&led_work, K_MSEC(delay_ms));
 }
 
+static void enter_dfu_bootloader(void)
+{
+	printk("BL;1;DFU;1200-baud touch -> rebooting into Open DFU bootloader\n");
+	k_msleep(80);   /* let the CDC line flush before the reset */
+	nrf_power_gpregret_set(NRF_POWER, 0U, BOOTLOADER_DFU_START);  /* GPREGRET (reg 0) */
+	sys_reboot(SYS_REBOOT_COLD);
+}
+
 int main(void)
 {
 	int err;
@@ -593,13 +616,22 @@ int main(void)
 	}
 
 	scan_running = true;
-	printk("BL;1;READY;mode=active_scan_only;connect=0;commands=0;line=BADV/BSTAT\n");
+	printk("BL;1;READY;mode=active_scan_only;connect=0;commands=dfu_touch1200;line=BADV/BSTAT\n");
 
 	k_work_init_delayable(&stat_work, stat_work_handler);
 	(void)k_work_schedule(&stat_work, K_MSEC(500));
 
 	for (;;) {
-		k_sleep(K_SECONDS(60));
+		uint32_t baud = 0U;
+
+		/* Software DFU entry: host "1200 baud touch" -> reboot to bootloader. */
+		if (device_is_ready(cdc_console) &&
+		    uart_line_ctrl_get(cdc_console, UART_LINE_CTRL_BAUD_RATE, &baud) == 0 &&
+		    baud == DFU_TOUCH_BAUD) {
+			enter_dfu_bootloader();
+		}
+
+		k_sleep(K_MSEC(100));
 	}
 
 	return 0;

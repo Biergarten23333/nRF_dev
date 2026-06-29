@@ -3372,6 +3372,286 @@ static int ss_twr_init_load_runtime_config(
     return 0;
 }
 
+/*
+ * Tier 2 phase telemetry: detect BLE-connection-event preemption of the UWB RX
+ * collector busy-wait directly, as a multi-cycle time gap between spin
+ * iterations.  This yields both the per-sweep in-slot RX-preempt count and the
+ * in-slot offset where the BLE event landed (BLE-event <-> UWB-slot offset),
+ * with zero changes to the BLE stack.  Clock = RTC @ 32768 Hz (~30.5 us/cycle);
+ * a BLE conn event (>= ~150 us, typ. 0.5-2 ms) is far above the spin-jitter
+ * floor.  See docs/tier2_phase_telemetry_design_20260627.md.
+ */
+#ifndef SS_TWR_INIT_PHASE_TELEMETRY_ENABLE
+#define SS_TWR_INIT_PHASE_TELEMETRY_ENABLE 1U
+#endif
+
+#if SS_TWR_INIT_PHASE_TELEMETRY_ENABLE != 0U
+/* ~122 us at 32768 Hz; BLE conn events are larger, normal spins are < 1 cycle. */
+#ifndef SS_TWR_INIT_PHASE_PREEMPT_GAP_CYC
+#define SS_TWR_INIT_PHASE_PREEMPT_GAP_CYC 4U
+#endif
+/* Emit a heartbeat TP line every N sweeps even when no preemption is seen. */
+#ifndef SS_TWR_INIT_PHASE_HEARTBEAT_SWEEPS
+#define SS_TWR_INIT_PHASE_HEARTBEAT_SWEEPS 50U
+#endif
+
+static uint32_t ss_twr_init_phase_window_start_cyc;
+static uint32_t ss_twr_init_phase_window_cyc;
+static uint32_t ss_twr_init_phase_last_spin_cyc;
+static uint16_t ss_twr_init_phase_preempt_count;
+static uint32_t ss_twr_init_phase_max_gap_cyc;
+static uint32_t ss_twr_init_phase_total_gap_cyc;
+static uint32_t ss_twr_init_phase_first_off_cyc;
+static uint32_t ss_twr_init_phase_worst_off_cyc;
+static bool ss_twr_init_phase_skip_next;
+
+static inline void ss_twr_init_phase_loop_begin(uint32_t window_start_cyc,
+                                                uint32_t window_cyc)
+{
+    ss_twr_init_phase_window_start_cyc = window_start_cyc;
+    ss_twr_init_phase_window_cyc = window_cyc;
+    ss_twr_init_phase_last_spin_cyc = window_start_cyc;
+    ss_twr_init_phase_preempt_count = 0U;
+    ss_twr_init_phase_max_gap_cyc = 0U;
+    ss_twr_init_phase_total_gap_cyc = 0U;
+    ss_twr_init_phase_first_off_cyc = 0U;
+    ss_twr_init_phase_worst_off_cyc = 0U;
+    ss_twr_init_phase_skip_next = false;
+}
+
+/*
+ * Call at the top of each collector spin iteration with a fresh cycle sample.
+ * Charges the gap since the previous spin sample; a frame-processing iteration
+ * sets skip_next so its SPI readout time is not mistaken for a preemption.
+ */
+static inline void ss_twr_init_phase_loop_tick(uint32_t now_cyc)
+{
+    if (ss_twr_init_phase_skip_next) {
+        ss_twr_init_phase_skip_next = false;
+        ss_twr_init_phase_last_spin_cyc = now_cyc;
+        return;
+    }
+
+    uint32_t gap = now_cyc - ss_twr_init_phase_last_spin_cyc;
+
+    if (gap >= SS_TWR_INIT_PHASE_PREEMPT_GAP_CYC) {
+        uint32_t off =
+            ss_twr_init_phase_last_spin_cyc - ss_twr_init_phase_window_start_cyc;
+
+        ss_twr_init_phase_preempt_count++;
+        ss_twr_init_phase_total_gap_cyc += gap;
+        if (ss_twr_init_phase_preempt_count == 1U) {
+            ss_twr_init_phase_first_off_cyc = off;
+        }
+        if (gap > ss_twr_init_phase_max_gap_cyc) {
+            ss_twr_init_phase_max_gap_cyc = gap;
+            ss_twr_init_phase_worst_off_cyc = off;
+        }
+    }
+
+    ss_twr_init_phase_last_spin_cyc = now_cyc;
+}
+
+/* Mark that the current iteration processed a frame/timeout (not pure spin). */
+static inline void ss_twr_init_phase_loop_event(void)
+{
+    ss_twr_init_phase_skip_next = true;
+}
+
+/*
+ * Emit one per-sweep telemetry line, but only when a preemption was seen (the
+ * victim announces itself) or on the periodic heartbeat (proves the path is
+ * alive).  Clean tags stay near-silent so the extra BLE traffic is negligible.
+ */
+static void ss_twr_init_phase_publish(uint32_t sweep, uint8_t slot, uint8_t valid)
+{
+#if APP_TAG_BLE_ENABLE
+    char line[96];
+
+    if (ss_twr_init_phase_preempt_count == 0U &&
+        (SS_TWR_INIT_PHASE_HEARTBEAT_SWEEPS == 0U ||
+         (sweep % SS_TWR_INIT_PHASE_HEARTBEAT_SWEEPS) != 0U)) {
+        return;
+    }
+
+    snprintk(line, sizeof(line),
+             "TP;1;%lu;%u;%u;%u;%lu;%lu;%lu;%lu;%lu",
+             (unsigned long)sweep, (unsigned int)slot, (unsigned int)valid,
+             (unsigned int)ss_twr_init_phase_preempt_count,
+             (unsigned long)k_cyc_to_us_floor32(ss_twr_init_phase_max_gap_cyc),
+             (unsigned long)k_cyc_to_us_floor32(ss_twr_init_phase_first_off_cyc),
+             (unsigned long)k_cyc_to_us_floor32(ss_twr_init_phase_worst_off_cyc),
+             (unsigned long)k_cyc_to_us_floor32(ss_twr_init_phase_total_gap_cyc),
+             (unsigned long)k_cyc_to_us_floor32(ss_twr_init_phase_window_cyc));
+    (void)uwb_tag_ble_publish_status(line);
+#else
+    ARG_UNUSED(sweep);
+    ARG_UNUSED(slot);
+    ARG_UNUSED(valid);
+#endif
+}
+
+/*
+ * Tail-RX death-mode diagnostic.  When a late responder (rank 6/7) is missing we
+ * need to know WHY: (i) the DW1000 never received it (air/collision/RX not armed),
+ * (ii) it was received but the single-buffer readout raced and overran
+ * (SYS_STATUS_RXOVRR), or (iii) the collector window closed before it.  We OR all
+ * SYS_STATUS bits seen during the window (RXOVRR / ALL_RX_ERR / ALL_RX_TO are
+ * decisive) and record which anchors dropped, the highest rank serviced, the loop
+ * exit reason and the elapsed time at close.  Host decodes statusOr to pick the
+ * fix: RXOVRR => enable double-buffer RX/RXAUTR; errors => air; clean timeout with
+ * full window => never on-air.  See docs/tier2_phase_telemetry_design_20260627.md.
+ */
+static uint32_t ss_twr_init_tailq_status_or;
+static uint16_t ss_twr_init_tailq_errto_cnt;
+static uint8_t ss_twr_init_tailq_active_mask;
+static uint8_t ss_twr_init_tailq_dropmask;
+static uint8_t ss_twr_init_tailq_maxrank;
+static uint8_t ss_twr_init_tailq_valid;
+static uint8_t ss_twr_init_tailq_exit;       /* 0 = all received, 1 = deadline */
+static uint32_t ss_twr_init_tailq_close_us;
+static uint32_t ss_twr_init_tailq_win_us;
+
+static inline void ss_twr_init_tailq_begin(uint8_t active_mask, uint32_t win_us)
+{
+    ss_twr_init_tailq_status_or = 0U;
+    ss_twr_init_tailq_errto_cnt = 0U;
+    ss_twr_init_tailq_active_mask = active_mask;
+    ss_twr_init_tailq_dropmask = 0U;
+    ss_twr_init_tailq_maxrank = 0U;
+    ss_twr_init_tailq_valid = 0U;
+    ss_twr_init_tailq_exit = 1U;
+    ss_twr_init_tailq_close_us = 0U;
+    ss_twr_init_tailq_win_us = win_us;
+}
+
+static inline void ss_twr_init_tailq_observe(uint32_t status_reg)
+{
+    ss_twr_init_tailq_status_or |= status_reg;
+}
+
+static inline void ss_twr_init_tailq_note_errto(void)
+{
+    ss_twr_init_tailq_errto_cnt++;
+}
+
+static void ss_twr_init_tailq_finish(const bool *received, uint8_t active_mask,
+                                     uint8_t poll_count, uint8_t responses,
+                                     uint32_t close_elapsed_cyc)
+{
+    uint8_t dropmask = 0U;
+    uint8_t maxrank = 0U;
+    uint8_t valid = 0U;
+
+    for (uint8_t a = 0U; a < UWB_MAX_ANCHORS; ++a) {
+        if ((active_mask & (uint8_t)(1U << a)) == 0U) {
+            continue;
+        }
+        uint8_t rank = 0U;
+        for (uint8_t i = 0U; i < a; ++i) {
+            if ((active_mask & (uint8_t)(1U << i)) != 0U) {
+                rank++;
+            }
+        }
+        if (received[a]) {
+            valid++;
+            if (rank > maxrank) {
+                maxrank = rank;
+            }
+        } else {
+            dropmask |= (uint8_t)(1U << a);
+        }
+    }
+    ss_twr_init_tailq_dropmask = dropmask;
+    ss_twr_init_tailq_maxrank = maxrank;
+    ss_twr_init_tailq_valid = valid;
+    ss_twr_init_tailq_exit = (responses >= poll_count) ? 0U : 1U;
+    ss_twr_init_tailq_close_us = k_cyc_to_us_floor32(close_elapsed_cyc);
+}
+
+/* Emit when any anchor dropped (focus on tail) or on the periodic heartbeat. */
+static void ss_twr_init_tailq_publish(uint32_t sweep, uint8_t slot)
+{
+#if APP_TAG_BLE_ENABLE
+    char line[112];
+
+    if (ss_twr_init_tailq_dropmask == 0U &&
+        (SS_TWR_INIT_PHASE_HEARTBEAT_SWEEPS == 0U ||
+         (sweep % SS_TWR_INIT_PHASE_HEARTBEAT_SWEEPS) != 0U)) {
+        return;
+    }
+
+    snprintk(line, sizeof(line),
+             "TQ;1;%lu;%u;%u;%02x;%02x;%u;%06lx;%u;%u;%lu;%lu",
+             (unsigned long)sweep, (unsigned int)slot,
+             (unsigned int)ss_twr_init_tailq_valid,
+             (unsigned int)ss_twr_init_tailq_active_mask,
+             (unsigned int)ss_twr_init_tailq_dropmask,
+             (unsigned int)ss_twr_init_tailq_maxrank,
+             (unsigned long)(ss_twr_init_tailq_status_or & 0x00FFFFFFUL),
+             (unsigned int)(ss_twr_init_tailq_errto_cnt > 255U ?
+                            255U : ss_twr_init_tailq_errto_cnt),
+             (unsigned int)ss_twr_init_tailq_exit,
+             (unsigned long)ss_twr_init_tailq_close_us,
+             (unsigned long)ss_twr_init_tailq_win_us);
+    (void)uwb_tag_ble_publish_status(line);
+#else
+    ARG_UNUSED(sweep);
+    ARG_UNUSED(slot);
+#endif
+}
+#else /* telemetry disabled: compile to nothing */
+static inline void ss_twr_init_phase_loop_begin(uint32_t window_start_cyc,
+                                                uint32_t window_cyc)
+{
+    ARG_UNUSED(window_start_cyc);
+    ARG_UNUSED(window_cyc);
+}
+static inline void ss_twr_init_phase_loop_tick(uint32_t now_cyc)
+{
+    ARG_UNUSED(now_cyc);
+}
+static inline void ss_twr_init_phase_loop_event(void)
+{
+}
+static inline void ss_twr_init_phase_publish(uint32_t sweep, uint8_t slot,
+                                             uint8_t valid)
+{
+    ARG_UNUSED(sweep);
+    ARG_UNUSED(slot);
+    ARG_UNUSED(valid);
+}
+static inline void ss_twr_init_tailq_begin(uint8_t active_mask, uint32_t win_us)
+{
+    ARG_UNUSED(active_mask);
+    ARG_UNUSED(win_us);
+}
+static inline void ss_twr_init_tailq_observe(uint32_t status_reg)
+{
+    ARG_UNUSED(status_reg);
+}
+static inline void ss_twr_init_tailq_note_errto(void)
+{
+}
+static inline void ss_twr_init_tailq_finish(const bool *received,
+                                            uint8_t active_mask,
+                                            uint8_t poll_count,
+                                            uint8_t responses,
+                                            uint32_t close_elapsed_cyc)
+{
+    ARG_UNUSED(received);
+    ARG_UNUSED(active_mask);
+    ARG_UNUSED(poll_count);
+    ARG_UNUSED(responses);
+    ARG_UNUSED(close_elapsed_cyc);
+}
+static inline void ss_twr_init_tailq_publish(uint32_t sweep, uint8_t slot)
+{
+    ARG_UNUSED(sweep);
+    ARG_UNUSED(slot);
+}
+#endif /* SS_TWR_INIT_PHASE_TELEMETRY_ENABLE */
+
 static void ss_twr_init_print_location_if_ready(void)
 {
 #if APP_TAG_NORMAL_OUTPUT_ENABLE == 0U
@@ -3454,6 +3734,13 @@ static void ss_twr_init_print_location_if_ready(void)
         ss_twr_init_publish_tag_range_summary(measurements,
                                               ss_twr_init_anchor_count,
                                               solution_quality_percent);
+        ss_twr_init_phase_publish(
+            (uint32_t)ss_twr_init_sweep_count,
+            (uint8_t)ss_twr_init_tdma_schedule.slot_index,
+            (uint8_t)valid_anchor_count);
+        ss_twr_init_tailq_publish(
+            (uint32_t)ss_twr_init_sweep_count,
+            (uint8_t)ss_twr_init_tdma_schedule.slot_index);
 #if APP_TAG_SWEEP_DIAG_ENABLE != 0U
         ss_twr_init_diag_solve_start_cycles = k_cycle_get_32();
         ss_twr_init_diag_solve_done_cycles = ss_twr_init_diag_solve_start_cycles;
@@ -4466,6 +4753,40 @@ static void ss_twr_init_alt_rx_restart(uint32_t response_window_us)
     dwt_rxenable(DWT_START_RX_IMMEDIATE);
 }
 
+/*
+ * RXAUTR fix (2026-06-27): in BROADCAST mode let the DW1000 hardware auto
+ * re-enable RX after each good frame (SYS_CFG_RXAUTR) instead of relying on the
+ * host to manually re-arm between responders. TQ telemetry showed the multi-tag
+ * "random victim" loses ALL responders after the first 1-3 with a clean
+ * non-detection (no RX error, no overrun, no timeout, window not closed early):
+ * the manual re-arm is skipped when a BLE connection event preempts the host in
+ * the gap right after a frame, leaving the receiver disarmed for the rest of the
+ * slot. Hardware auto re-enable keeps the receiver listening across that
+ * preemption. With RXAUTR on the good-frame manual dwt_rxenable() calls are
+ * redundant (they would re-issue an RX enable on an already-armed receiver), so
+ * they compile out; the error/timeout path still re-arms manually because RXAUTR
+ * does NOT auto re-enable after RX errors or timeouts. If RXOVRR shows up in the
+ * TQ status_or after this (single-buffer readout racing the auto re-arm), the
+ * companion step is dwt_setdblrxbuffmode() double-buffer RX.
+ *
+ * RESULT 2026-06-27 (FALSIFIED, kept OFF): enabling RXAUTR with SINGLE buffer was
+ * a catastrophic regression. A/B 6-tag@10Hz/120s vs the manual-re-arm baseline:
+ * the baseline gives 4/6 tags a full anchor set (ge7 60-97%) with only 2 BLE-phase
+ * victims; RXAUTR collapsed ALL 6 tags to rank-0 (ge7 0%, mValid 0.1-1.0). In this
+ * single-buffer manual-poll collector the hardware auto re-enable does NOT deliver
+ * the 2nd..Nth responder, so removing the good-frame manual dwt_rxenable() kills
+ * the receiver after the first frame. The manual re-arm path is NOT the bottleneck
+ * (RXOVRR=0% in baseline, 4/6 tags perfect) -- the victim loss is a narrow per-tag
+ * BLE-event/UWB-slot phase collision, not re-arm/readout fragility. Leave RXAUTR
+ * OFF. The only principled RXAUTR variant left is RXAUTR + dwt_setdblrxbuffmode()
+ * double-buffer with the swap-based readout protocol, but baseline RXOVRR=0% says
+ * readout races aren't the bottleneck, so it is unlikely to rescue the victims.
+ * See [[tdma-capacity-ble-phase-beat]].
+ */
+#ifndef SS_TWR_INIT_BCAST_RXAUTR_ENABLE
+#define SS_TWR_INIT_BCAST_RXAUTR_ENABLE 0U
+#endif
+
 static void ss_twr_init_alt_set_rx_auto_reenable(bool enable)
 {
     uint32_t sys_cfg = dwt_read32bitreg(SYS_CFG_ID);
@@ -4476,6 +4797,85 @@ static void ss_twr_init_alt_set_rx_auto_reenable(bool enable)
         sys_cfg &= ~SYS_CFG_RXAUTR;
     }
     dwt_write32bitreg(SYS_CFG_ID, sys_cfg);
+}
+
+/*
+ * RXAUTR + DOUBLE-BUFFER test (2026-06-28): single-buffer RXAUTR was falsified
+ * (see comment above). The remaining principled variant is hardware auto re-enable
+ * (RXAUTR) PLUS double receive buffer (clear SYS_CFG_DIS_DRXB): the IC keeps
+ * receiving into the alternate buffer and auto re-arms across a host stall (a BLE
+ * connection event preempting the collector), and the host reads the previous
+ * buffer + toggles the Host Receive Buffer Pointer. This is exactly the DW1000
+ * design intent for "host can fall behind by up to one frame", which is the victim's
+ * BLE-preemption failure mode. When RXDBLBUF is on, RXAUTR is forced on too (double
+ * buffer needs hw re-enable to survive the stall).
+ *
+ * RESULT 2026-06-28 (NOT A WIN, kept OFF): 6-tag@10Hz/120s vs the manual-re-arm
+ * baseline. It DID rescue one victim (BSCCF4 ge7 10%->54%) -- the preemption-survival
+ * mechanism is real -- but DEGRADED the healthy tags (BSDC91 98%->34%, BS955A 87->71,
+ * BS2DCE 60->47), left the other victim dead (BS9336), and aggregate ge7 dropped
+ * 60->50%. TQ status_or shows RXOVRR on 26-85% of sweeps (worst on the previously
+ * perfect tags) vs baseline 0%: with the receiver always on (RXAUTR), it grabs every
+ * frame on air incl. dense cross-slot traffic and the host cannot drain two buffers
+ * fast enough -> pervasive overrun -> the recover path dumps frame bursts. Baseline's
+ * single-buffer manual re-arm PACES the receiver to the tag's own responder train
+ * (RXOVRR=0%), which is why it is the best-behaved config. A frame-VOLUME problem is
+ * not fixable by adding a second buffer. Keep OFF. See [[tdma-capacity-ble-phase-beat]].
+ */
+#ifndef SS_TWR_INIT_BCAST_RXDBLBUF_ENABLE
+#define SS_TWR_INIT_BCAST_RXDBLBUF_ENABLE 0U
+#endif
+
+/* Effective hardware RX auto re-enable: explicit RXAUTR, or implied by double buffer. */
+#define SS_TWR_INIT_BCAST_RX_HW_REENABLE \
+    (SS_TWR_INIT_BCAST_RXAUTR_ENABLE != 0U || \
+     SS_TWR_INIT_BCAST_RXDBLBUF_ENABLE != 0U)
+
+/*
+ * Release a responder frame we just finished reading out of the host RX buffer and
+ * make the receiver ready for the next responder. Mode-specific:
+ *   - double buffer + RXAUTR: clear the host-buffer good-frame flags, then toggle the
+ *     Host Receive Buffer Pointer (HRBPT) to release this buffer and advance the masked
+ *     status to the other buffer (mirrors the driver dwt_isr()); the IC keeps RX armed.
+ *   - single-buffer RXAUTR (falsified): clear status; the IC re-arms.
+ *   - baseline single buffer: clear status + manual dwt_rxenable() (load-bearing).
+ */
+static inline void ss_twr_init_alt_rx_release_frame(void)
+{
+#if SS_TWR_INIT_BCAST_RXDBLBUF_ENABLE != 0U
+    dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD);
+    dwt_write8bitoffsetreg(SYS_CTRL_ID, SYS_CTRL_HRBT_OFFSET, 1);
+#elif SS_TWR_INIT_BCAST_RXAUTR_ENABLE != 0U
+    dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD |
+                                         SYS_STATUS_ALL_RX_ERR |
+                                         SYS_STATUS_ALL_RX_TO);
+#else
+    dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD |
+                                         SYS_STATUS_ALL_RX_ERR |
+                                         SYS_STATUS_ALL_RX_TO);
+    (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
+#endif
+}
+
+/*
+ * Recover the receiver after an RX error/timeout/overrun or a corrupt-length frame.
+ * RXAUTR does NOT auto re-enable after errors, so always reset + re-enable; in double
+ * buffer also force the transceiver off and resync the host/IC buffer pointers.
+ */
+static inline void ss_twr_init_alt_rx_recover(void)
+{
+    dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD |
+                                         SYS_STATUS_ALL_RX_ERR |
+                                         SYS_STATUS_ALL_RX_TO);
+#if SS_TWR_INIT_BCAST_RXDBLBUF_ENABLE != 0U
+    dwt_forcetrxoff();
+    dwt_rxreset();
+    dwt_syncrxbufptrs();
+    (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
+#else
+    dwt_rxreset();
+    (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
+#endif
 }
 
 static uint8_t ss_twr_init_alt_active_anchor_mask(uint8_t poll_count)
@@ -4588,6 +4988,13 @@ static bool ss_twr_init_alt_bcast_prewrite_tx(void)
 static bool ss_twr_init_alt_burst_sweep_once(void)
 {
     ss_twr_init_alt_last_sweep_entry_cycles = k_cycle_get_32();
+    /*
+     * Clear phase counters at entry so a sweep that aborts before the RX
+     * collector (e.g. poll TX failure) reports zero preemption rather than the
+     * previous sweep's stale values.  Re-initialised with the real window once
+     * the collector starts.
+     */
+    ss_twr_init_phase_loop_begin(ss_twr_init_alt_last_sweep_entry_cycles, 0U);
     ss_twr_init_alt_last_tx_sched_cycles = 0U;
     ss_twr_init_alt_last_tx_write_done_cycles = 0U;
     ss_twr_init_alt_last_tx_cmd_cycles = 0U;
@@ -4645,7 +5052,16 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
     response_window_us = ss_twr_init_alt_bcast_response_window_us(poll_count);
     response_window_cycles = k_us_to_cyc_floor32(response_window_us);
 #if APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST
-    ss_twr_init_alt_set_rx_auto_reenable(false);
+    /* Order matters: setdblrxbuffmode() writes the driver's CACHED sysCFGreg (which
+     * has no RXAUTR), so it must run BEFORE set_rx_auto_reenable()'s direct read-
+     * modify-write that adds RXAUTR; setrxtimeout(0) only rewrites SYS_CFG byte 3 read
+     * fresh from HW, so it preserves both DIS_DRXB (byte 1) and RXAUTR (byte 3). */
+#if SS_TWR_INIT_BCAST_RXDBLBUF_ENABLE != 0U
+    dwt_setdblrxbuffmode(1);
+#else
+    dwt_setdblrxbuffmode(0);
+#endif
+    ss_twr_init_alt_set_rx_auto_reenable(SS_TWR_INIT_BCAST_RX_HW_REENABLE);
     dwt_setrxtimeout(0U);
 #endif
 
@@ -4865,6 +5281,9 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
     ss_twr_init_diag_rx_start_cycles = rx_enable_done_cycles;
 #endif
     response_window_start_cycles = rx_enable_done_cycles;
+    ss_twr_init_phase_loop_begin(response_window_start_cycles,
+                                 response_window_cycles);
+    ss_twr_init_tailq_begin(anchor_mask, response_window_us);
 
     {
         uint32_t actual_poll_tx_ts = dwt_readtxtimestamplo32();
@@ -4877,13 +5296,26 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
 
     while ((uint32_t)(k_cycle_get_32() - response_window_start_cycles) <
            response_window_cycles) {
+        ss_twr_init_phase_loop_tick(k_cycle_get_32());
         uint32_t status_reg = dwt_read32bitreg(SYS_STATUS_ID);
         last_status_reg = status_reg;
+        ss_twr_init_tailq_observe(status_reg);
+
+#if SS_TWR_INIT_BCAST_RXDBLBUF_ENABLE != 0U
+        /* Both RX buffers filled before the host drained them (host stalled > 1 frame):
+         * the buffers/pointers are now suspect. Reset + resync (discards the backlog). */
+        if ((status_reg & SYS_STATUS_RXOVRR) != 0U) {
+            ss_twr_init_tailq_note_errto();
+            ss_twr_init_alt_rx_recover();
+            continue;
+        }
+#endif
 
         if ((status_reg & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO |
                            SYS_STATUS_ALL_RX_ERR)) == 0U) {
             continue;
         }
+        ss_twr_init_phase_loop_event();
         last_rx_finfo = dwt_read32bitreg(RX_FINFO_ID);
 
         if ((status_reg & SYS_STATUS_RXFCG) != 0U) {
@@ -4902,12 +5334,7 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             frame_len = last_rx_finfo & RX_FINFO_RXFLEN_MASK;
             last_frame_len = frame_len;
             if (frame_len > sizeof(ss_twr_init_rx_buffer)) {
-                dwt_write32bitreg(SYS_STATUS_ID,
-                                  SYS_STATUS_ALL_RX_GOOD |
-                                      SYS_STATUS_ALL_RX_ERR |
-                                      SYS_STATUS_ALL_RX_TO);
-                dwt_rxreset();
-                (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
+                ss_twr_init_alt_rx_recover();
                 continue;
             }
 
@@ -4929,11 +5356,7 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
                                          ss_twr_init_local_addr,
                                          resp_src_addr)) {
                 unexpected_count++;
-                dwt_write32bitreg(SYS_STATUS_ID,
-                                  SYS_STATUS_ALL_RX_GOOD |
-                                      SYS_STATUS_ALL_RX_ERR |
-                                      SYS_STATUS_ALL_RX_TO);
-                (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
+                ss_twr_init_alt_rx_release_frame();
                 continue;
             }
 
@@ -4941,11 +5364,7 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             if (anchor_id >= UWB_MAX_ANCHORS || received[anchor_id] ||
                 poll_tx_ts[anchor_id] == 0U) {
                 unexpected_count++;
-                dwt_write32bitreg(SYS_STATUS_ID,
-                                  SYS_STATUS_ALL_RX_GOOD |
-                                      SYS_STATUS_ALL_RX_ERR |
-                                      SYS_STATUS_ALL_RX_TO);
-                (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
+                ss_twr_init_alt_rx_release_frame();
                 continue;
             }
             ss_twr_init_read_ts(
@@ -4981,21 +5400,18 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             }
             received[anchor_id] = true;
             responses++;
-            dwt_write32bitreg(SYS_STATUS_ID,
-                              SYS_STATUS_ALL_RX_GOOD | SYS_STATUS_ALL_RX_ERR |
-                                  SYS_STATUS_ALL_RX_TO);
+            ss_twr_init_alt_rx_release_frame();
             if (responses >= poll_count) {
                 break;
             }
-            (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
             continue;
         }
 
-        dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_TO |
-                                             SYS_STATUS_ALL_RX_ERR);
-        dwt_rxreset();
-            (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
+        ss_twr_init_tailq_note_errto();
+        ss_twr_init_alt_rx_recover();
     }
+    ss_twr_init_tailq_finish(received, anchor_mask, poll_count, responses,
+                             k_cycle_get_32() - response_window_start_cycles);
 #if APP_TAG_SWEEP_DIAG_ENABLE != 0U
     ss_twr_init_diag_rx_done_cycles = k_cycle_get_32();
 #endif
@@ -5220,6 +5636,9 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
     dwt_forcetrxoff();
 #if APP_ALT_SS_TWR_MODE == APP_ALT_SS_TWR_MODE_BROADCAST
     ss_twr_init_alt_set_rx_auto_reenable(false);
+#if SS_TWR_INIT_BCAST_RXDBLBUF_ENABLE != 0U
+    dwt_setdblrxbuffmode(0);
+#endif
 #endif
     ss_twr_init_active_anchor_index = 0U;
     ss_twr_init_current_anchor_retry_count = 0U;

@@ -2576,6 +2576,35 @@ static void control_handle_uart_command(const char *line)
 		return;
 	}
 
+	if (strcmp(cmd, "reroll") == 0 && parsed >= 2) {
+		/* Targeted phase reroll (① 2026-06-28): disconnect ONE tag by BS code so the
+		 * master reconnects it with a fresh (re-randomized) BLE<->UWB-slot phase,
+		 * leaving the other tags' good phase untouched. The host probes per-tag ge7,
+		 * rerolls only the victims, re-probes, and repeats until all good -- the
+		 * deterministic alternative to whole-roster blind reroll. The conn-interval
+		 * sweep proved the victim is phase-determined + reshuffleable, so this is the
+		 * real lever. See [[tdma-capacity-ble-phase-beat]]. Match is by bs_code (tags
+		 * advertise name=-, so peer_matches_runtime_target formats BS%04X from bs_code
+		 * and strcasecmp's it to the target name). Same set-target -> disconnect ->
+		 * reconnect pattern proven safe for anchors in autopos_reconnect_anchor_ready. */
+		if (control_mode != CONTROL_MODE_RECV) {
+			printk("REROLL ignored: control mode must be RECV\n");
+			return;
+		}
+		master_set_runtime_target_kind(MASTER_TARGET_TAG);
+		master_set_runtime_target_name(arg);
+		master_set_runtime_target_prefix("");
+		master_set_runtime_target_uuid("");
+		master_disconnect_runtime_target_peers();
+		k_sleep(K_MSEC(250));
+		/* Restore the RECV-mode roster target so the scanner reconnects this tag
+		 * (and keeps maintaining the rest). */
+		master_set_runtime_target_name("");
+		master_set_runtime_target_prefix("BS");
+		printk("REROLL bs=%s rc=0\n", arg);
+		return;
+	}
+
 	if (strcmp(cmd, "scan") == 0) {
 		if (control_mode != CONTROL_MODE_RECV && control_mode != CONTROL_MODE_AUTOPOS) {
 			printk("SCAN ignored: control mode must be RECV/AUTOPOS\n");

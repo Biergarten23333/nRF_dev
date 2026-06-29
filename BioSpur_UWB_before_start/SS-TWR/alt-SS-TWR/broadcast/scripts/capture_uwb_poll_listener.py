@@ -36,6 +36,28 @@ LPD_RE = re.compile(
     r"(?P<poll_mask>0x[0-9A-Fa-f]+)"
 )
 
+LRD_RE = re.compile(
+    r"\bLRD;(?P<ver>\d+);"
+    r"(?P<listener_id>\d+);"
+    r"(?P<near_anchor_id>\d+);"
+    r"(?P<listener_t_ms>\d+);"
+    r"(?P<accepted_resps>\d+);"
+    r"(?P<resp_seq>\d+);"
+    r"(?P<anchor_id>\d+);"
+    r"(?P<src>0x[0-9A-Fa-f]+);"
+    r"(?P<dst>0x[0-9A-Fa-f]+);"
+    r"(?P<rx_ts_lo32>\d+);"
+    r"(?P<carrier_integrator>-?\d+);"
+    r"(?P<fp_index>\d+);"
+    r"(?P<fp1>\d+);"
+    r"(?P<fp2>\d+);"
+    r"(?P<fp3>\d+);"
+    r"(?P<cir_pwr>\d+);"
+    r"(?P<rxpacc>\d+);"
+    r"(?P<std_noise>\d+);"
+    r"(?P<frame_len>\d+)"
+)
+
 LCIRM_RE = re.compile(
     r"\bLCIRM;(?P<ver>\d+);"
     r"(?P<listener_id>\d+);"
@@ -133,6 +155,7 @@ def main() -> int:
 
     raw_path = out_dir / "raw.log"
     lpd_path = out_dir / "lpd.csv"
+    lrd_path = out_dir / "lrd.csv"
     lcirm_path = out_dir / "lcirm.csv"
     lcird_path = out_dir / "lcird.csv"
     lcire_path = out_dir / "lcire.csv"
@@ -162,6 +185,29 @@ def main() -> int:
         "std_noise",
         "frame_len",
         "poll_mask",
+    ]
+    lrd_fields = [
+        "host_elapsed_s",
+        "host_epoch_s",
+        "ver",
+        "listener_id",
+        "near_anchor_id",
+        "listener_t_ms",
+        "accepted_resps",
+        "resp_seq",
+        "anchor_id",
+        "src",
+        "dst",
+        "rx_ts_lo32",
+        "carrier_integrator",
+        "fp_index",
+        "fp1",
+        "fp2",
+        "fp3",
+        "cir_pwr",
+        "rxpacc",
+        "std_noise",
+        "frame_len",
     ]
     lcirm_fields = [
         "host_elapsed_s",
@@ -224,6 +270,7 @@ def main() -> int:
 
     rows: dict[str, list[dict]] = {
         "lpd": [],
+        "lrd": [],
         "lcirm": [],
         "lcird": [],
         "lcire": [],
@@ -252,12 +299,14 @@ def main() -> int:
 
     with ser, raw_path.open("w", encoding="utf-8") as raw, \
             lpd_path.open("w", newline="", encoding="utf-8") as lpd_file, \
+            lrd_path.open("w", newline="", encoding="utf-8") as lrd_file, \
             lcirm_path.open("w", newline="", encoding="utf-8") as lcirm_file, \
             lcird_path.open("w", newline="", encoding="utf-8") as lcird_file, \
             lcire_path.open("w", newline="", encoding="utf-8") as lcire_file, \
             lstat_path.open("w", newline="", encoding="utf-8") as lstat_file:
         writers = {
             "lpd": csv.DictWriter(lpd_file, fieldnames=lpd_fields),
+            "lrd": csv.DictWriter(lrd_file, fieldnames=lrd_fields),
             "lcirm": csv.DictWriter(lcirm_file, fieldnames=lcirm_fields),
             "lcird": csv.DictWriter(lcird_file, fieldnames=lcird_fields),
             "lcire": csv.DictWriter(lcire_file, fieldnames=lcire_fields),
@@ -265,6 +314,7 @@ def main() -> int:
         }
         files = {
             "lpd": lpd_file,
+            "lrd": lrd_file,
             "lcirm": lcirm_file,
             "lcird": lcird_file,
             "lcire": lcire_file,
@@ -298,6 +348,7 @@ def main() -> int:
                 host_elapsed_s = now - start
                 checks = [
                     ("lpd", LPD_RE),
+                    ("lrd", LRD_RE),
                     ("lcirm", LCIRM_RE),
                     ("lcird", LCIRD_RE),
                     ("lcire", LCIRE_RE),
@@ -323,6 +374,7 @@ def main() -> int:
         "duration_s": args.duration,
         "elapsed_s": time.time() - start,
         "lpd_rows": len(rows["lpd"]),
+        "lrd_rows": len(rows["lrd"]),
         "lcirm_rows": len(rows["lcirm"]),
         "lcird_rows": len(rows["lcird"]),
         "lcire_rows": len(rows["lcire"]),
@@ -332,6 +384,7 @@ def main() -> int:
         "out_dir": str(out_dir),
         "raw_log": str(raw_path),
         "lpd_csv": str(lpd_path),
+        "lrd_csv": str(lrd_path),
         "lcirm_csv": str(lcirm_path),
         "lcird_csv": str(lcird_path),
         "lcire_csv": str(lcire_path),

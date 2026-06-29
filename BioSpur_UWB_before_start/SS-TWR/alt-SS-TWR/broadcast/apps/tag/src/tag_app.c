@@ -291,6 +291,7 @@ static void tag_print_otp_diag(void)
     uint16 otp_anchor_delay = 0U;
     uint16 otp_tag_delay = 0U;
 
+    (void)uwb_port_set_spi_slow();
     (void)uwb_port_read_dev_id(&dev_id_port);
     dwt_otpread(0x01C, &otp_01c, 1);
     dwt_otpread(0x01D, &otp_01d, 1);
@@ -307,6 +308,36 @@ static void tag_print_otp_diag(void)
            (unsigned int)otp_01e,
            (unsigned int)otp_anchor_delay,
            (unsigned int)otp_tag_delay);
+
+    {
+        uint32 otp_words[0x20];
+        int a;
+
+        for (a = 0; a < 0x20; a++) {
+            otp_words[a] = 0U;
+            dwt_otpread((uint16)a, &otp_words[a], 1);
+        }
+        for (a = 0; a < 0x20; a += 4) {
+            printk("OTP_DUMP[0x%02X] %08X %08X %08X %08X\n",
+                   (unsigned int)a,
+                   (unsigned int)otp_words[a], (unsigned int)otp_words[a + 1],
+                   (unsigned int)otp_words[a + 2], (unsigned int)otp_words[a + 3]);
+        }
+        /* Vbat=V@3.3V(0x08.b0); Vtemp23=T@23C SAR(0x09.b0); tmeas_antcal=Tmeas@AntCal(0x09.b1);
+         * xtrim=XTAL trim(0x1E low5); ant delay 0x1C: tag=high16 anchor=low16 */
+        printk("OTP_DECODE ldotune=0x%08X partid=0x%08X lotid=0x%08X vbat=0x%02X vtemp23=0x%02X tmeas_antcal=0x%02X xtrim=0x%02X otprev=0x%02X ant_tag=%u ant_anchor=%u\n",
+               (unsigned int)otp_words[0x04],
+               (unsigned int)otp_words[0x06],
+               (unsigned int)otp_words[0x07],
+               (unsigned int)(otp_words[0x08] & 0xFFU),
+               (unsigned int)(otp_words[0x09] & 0xFFU),
+               (unsigned int)((otp_words[0x09] >> 8) & 0xFFU),
+               (unsigned int)(otp_words[0x1E] & 0x1FU),
+               (unsigned int)dwt_otprevision(),
+               (unsigned int)((otp_words[0x1C] >> 16) & 0xFFFFU),
+               (unsigned int)(otp_words[0x1C] & 0xFFFFU));
+    }
+    (void)uwb_port_set_spi_fast();
 #endif
 }
 

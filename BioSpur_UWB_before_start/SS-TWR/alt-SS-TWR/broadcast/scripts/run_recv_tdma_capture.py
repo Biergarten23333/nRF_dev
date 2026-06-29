@@ -982,6 +982,32 @@ def build_parser() -> argparse.ArgumentParser:
         default=15.0,
         help="Abort capture early if no TR row is seen this many seconds after TDMA release. Use 0 to disable.",
     )
+    parser.add_argument(
+        "--reroll-settle-rounds",
+        type=int,
+        default=0,
+        help="Targeted phase-reroll settling rounds before the main capture (0=off). Each "
+             "round probes per-tag ge7 and sends `reroll <BS>` to the master for ONLY the "
+             "victims (re-randomizes that tag's BLE<->slot phase, leaving good tags untouched).",
+    )
+    parser.add_argument(
+        "--reroll-probe-s",
+        type=float,
+        default=12.0,
+        help="Per-round probe window (s) to measure per-tag ge7 for reroll settling.",
+    )
+    parser.add_argument(
+        "--reroll-reconnect-s",
+        type=float,
+        default=10.0,
+        help="Wait (s) after rerolling victims for reconnect + TDMA re-CFG before re-probing.",
+    )
+    parser.add_argument(
+        "--reroll-ge7-threshold",
+        type=float,
+        default=0.7,
+        help="A tag with ge7 below this in the probe window is treated as a reroll victim.",
+    )
     return parser
 
 
@@ -2435,6 +2461,72 @@ def print_capture_status(capture_start_wall: float,
     print("[CAPTURE] " + " ".join(parts), flush=True)
 
 
+def reroll_settle_phase(ser, logf, args, targets):
+    """Targeted phase-reroll settling (① 2026-06-28).
+
+    The 6-tag victim is a BLE-event<->UWB-slot phase collision; the conn-interval
+    sweep proved it is phase-determined and reshuffleable. So: probe per-tag ge7 over
+    a short window, send `reroll <BS>` to the master for ONLY the victims (which
+    disconnects+reconnects that one tag, re-randomizing its phase while leaving the
+    good tags' phase untouched), wait for reconnect + TDMA re-CFG, and repeat until
+    every target clears the ge7 threshold or rounds are exhausted. The deterministic
+    alternative to whole-roster blind reroll. Returns the (possibly reopened) serial.
+    See memory tdma-capacity-ble-phase-beat.
+    """
+    rounds = int(getattr(args, "reroll_settle_rounds", 0))
+    probe_s = float(getattr(args, "reroll_probe_s", 12.0))
+    reconnect_s = float(getattr(args, "reroll_reconnect_s", 10.0))
+    thresh = float(getattr(args, "reroll_ge7_threshold", 0.7))
+    target_set = set(targets)
+
+    def probe_ge7():
+        text = drain_serial_until_capture(ser, logf, probe_s)
+        valid_anchors: dict[tuple[str, int], set[int]] = defaultdict(set)
+        seen_sweeps: dict[str, set[int]] = defaultdict(set)
+        for line in text.splitlines():
+            peer = extract_bs_name(line)
+            if not peer or peer not in target_set:
+                continue
+            for rec in iter_tr_records(line):
+                sweep = rec["sweep"]
+                seen_sweeps[peer].add(sweep)
+                if rec["valid"]:
+                    valid_anchors[(peer, sweep)].add(rec["anchor_id"])
+        ge7 = {}
+        for peer in targets:
+            sweeps = seen_sweeps.get(peer, set())
+            n = len(sweeps)
+            if n == 0:
+                ge7[peer] = 0.0
+                continue
+            good = sum(1 for s in sweeps if len(valid_anchors.get((peer, s), ())) >= 7)
+            ge7[peer] = good / n
+        return ge7
+
+    for rnd in range(1, rounds + 1):
+        ge7 = probe_ge7()
+        summary = "  ".join(f"{t}={ge7.get(t, 0.0):.0%}" for t in targets)
+        victims = [t for t in targets if ge7.get(t, 0.0) < thresh]
+        print(f"[REROLL] round {rnd}/{rounds} ge7: {summary}  victims={victims or 'none'}",
+              flush=True)
+        logf.write(f"[REROLL round {rnd}] ge7 {summary} victims={victims}\n")
+        logf.flush()
+        if not victims:
+            print(f"[REROLL] converged at round {rnd}: all {len(targets)} tags >= "
+                  f"{thresh:.0%} ge7", flush=True)
+            return ser
+        for v in victims:
+            ser = send_cmd(ser, logf, f"reroll {v}", 0.4)
+        drain_serial_until_capture(ser, logf, reconnect_s)
+
+    ge7 = probe_ge7()
+    summary = "  ".join(f"{t}={ge7.get(t, 0.0):.0%}" for t in targets)
+    victims = [t for t in targets if ge7.get(t, 0.0) < thresh]
+    print(f"[REROLL] rounds exhausted; final ge7: {summary}  victims={victims or 'none'}",
+          flush=True)
+    return ser
+
+
 def main() -> int:
     args = build_parser().parse_args()
     if (
@@ -2596,6 +2688,8 @@ def main() -> int:
                 print(f"[CAPTURE] abort: startup configure failed: {message}", flush=True)
             else:
                 print("[CAPTURE] TDMA verified; start TR capture", flush=True)
+                if int(getattr(args, "reroll_settle_rounds", 0)) > 0:
+                    ser = reroll_settle_phase(ser, logf, args, targets)
                 capture_start_wall = time.time()
                 end_time = capture_start_wall + args.duration
                 no_tr_deadline = (

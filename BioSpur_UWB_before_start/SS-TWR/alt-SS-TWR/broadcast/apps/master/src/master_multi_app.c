@@ -64,6 +64,12 @@
 #define APP_MASTER_TAG_NAME_PREFIX "BS"
 #endif
 #ifndef APP_MASTER_BLE_CONN_INTERVAL_UNITS
+/* 6u = 7.5ms (baseline). CONN-INTERVAL SWEEP 2026-06-28 (FALSIFIED as a victim fix):
+ * 7.5ms -> 15ms just RESHUFFLES which ~2 of 6 tags are victims (aggregate dead-
+ * identical, mValid 5.33->5.33); 30ms is WORSE (2 tags fail TDMA link/epoch setup +
+ * a phase victim remains, mValid->4.03). Conn interval is NOT a lever; the ~2-victim
+ * count at 6 tags is structural to the BLE/UWB phase collision. See
+ * [[tdma-capacity-ble-phase-beat]]. */
 #define APP_MASTER_BLE_CONN_INTERVAL_UNITS 6U
 #endif
 #ifndef APP_MASTER_BLE_CONN_LATENCY

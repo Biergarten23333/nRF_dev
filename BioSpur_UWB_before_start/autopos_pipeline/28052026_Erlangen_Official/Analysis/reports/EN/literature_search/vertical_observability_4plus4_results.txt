@@ -1,0 +1,23 @@
+Vertical observability vs upper-layer anchor count (Paper A, claim 2)
+footprint 5.0x5.0 m, y_low=0.15, y_up=1.65, inter-anchor sigma=30 mm
+
+(A) Anchor self-cal vertical CRLB (inter-anchor ranging only):
+  k #anch vCRLB_mean_mm vCRLB_worst_mm  #sing
+  0     4           inf            inf      1
+  1     5       161.245        226.053      0
+  2     6        81.179        134.204      0
+  3     7        65.876        121.608      0
+  4     8        62.741         92.859      0
+
+(B) Downstream tag VDOP (range-only, sigma=1):
+  k    VDOP    HDOP    V/H
+  0   2.644   1.051  2.515
+  1   2.061   0.976  2.112
+  2   1.697   0.899  1.887
+  3   1.578   0.808  1.954
+  4   1.436   0.737  1.948
+
+Balance vs count at fixed k=2:
+  diagonal(balanced)  : self-cal vCRLB_mean = 81.179 mm, tag VDOP = 1.697
+  adjacent(clustered) : self-cal vCRLB_mean = 100.673 mm, tag VDOP = 1.814
+  clustering the same count inflates self-cal vertical CRLB 1.240x

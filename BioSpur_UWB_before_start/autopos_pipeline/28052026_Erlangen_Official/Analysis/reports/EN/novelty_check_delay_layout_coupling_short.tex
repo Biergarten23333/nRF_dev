@@ -1,0 +1,142 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=20mm]{geometry}
+\usepackage{array,booktabs,tabularx}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage[round,authoryear]{natbib}
+\usepackage[colorlinks=true,linkcolor=blue!60!black,citecolor=green!45!black,urlcolor=blue!65!black]{hyperref}
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.22em}
+\setlength{\tabcolsep}{3.2pt}
+\renewcommand{\arraystretch}{1.08}
+\makeatletter
+\renewcommand\section{\@startsection{section}{1}{0pt}{0.65ex plus .2ex}{0.35ex}{\normalfont\normalsize\bfseries}}
+\makeatother
+
+\begin{document}
+\small
+
+\begin{center}
+{\large\bfseries Condensed Novelty Check: Delay--Layout Coupling in UWB Self-Calibration}\\[-0.1em]
+{\small Grounded in the Vicon-validated Erlangen campaign.}
+\end{center}
+
+
+\section{Thesis}
+
+UWB anchor self-calibration couples antenna-delay/range-bias parameters with layout scale, so same-environment tag accuracy is not a reliable proxy for physical calibration quality. In the Erlangen campaign the production \texttt{v4-io} self-calibrated layout is scale-biased (metric-incorrect): an under-absorbed common-mode range bias expands it to an AutoPos-to-Vicon Sim(3) scale of 0.958 (a range-bias signature, not a true geometric distortion), while a common-mode delay re-parameterization recovers metric scale (1.010) and nearly halves the rigid anchor RMSE (105.4 to 63.0~mm). Yet the metric-correct common-mode layout gives a \emph{worse} same-environment static median (109.5~mm) than the scale-biased \texttt{v4-io} layout (72.7~mm) when the tag delay is left uncorrected, because the layout's scale bias compensates an uncorrected positive tag-device delay. Per-frame joint tag-delay estimation restores the common-mode layout to 72.9~mm median but destabilizes the tail (P95 317.5~mm). A scale-biased, metric-incorrect layout can therefore win in-environment \emph{when the tag delay is left uncorrected}---once it is corrected with a single global constant the metric-correct layout \emph{wins} (68.5~mm held-out median vs 72.7~mm), so this is a conditional failure mode, not a claim that a metric-incorrect layout is inherently a better positioner. It is direct evidence that metric correctness and positioning accuracy must be validated separately.
+
+\section{Literature Gap}
+
+\begin{center}
+\scriptsize
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+\toprule
+What is known & What is NOT known (our gap) \\
+\midrule
+UWB self-calibration estimates anchors from radio ranges, robot motion, multihop links, or auxiliary sensing \citep{hamer_2018_self_calibrating_ultra_wideband_network,corbalan_2023_self_localization_uwb_anchors,herbruggen_2023_multihop_self_calibration_algori,almansa_2020_autocalibration_mobile_uwb_localization,ledergerber_2015_robot_self_localization_one_way_uwb,ridolfi_2021_self_calibration_and_collaborati,shi_2019_anchor_self_localization_algorit,piavanini_2022_a_calibration_method_for,queralta_2020_uwb_based_system_for_uav}. & These papers do not isolate whether the layout with the best tag accuracy is metrically correct, nor whether tag accuracy can rank a scale-biased layout above a validated metric one. \\
+Antenna-delay and range-bias calibration are established UWB problems \citep{ledergerber_2018_calibrating_away_inaccuracies_uwb,de_preter_2019_range_bias_modeling_autocalibration,shalaby_2023_calibration_and_uncertainty_char,liu_2024_data_driven_antenna_delay_calibr,shah_2021_antenna_delay_calibration_of,shah_2022_node_calibration_in_uwb_based}. & In UWB ranging, delay/range-bias is usually a nuisance correction (in acoustic/TOA self-calibration it is a first-class jointly-solved unknown); its ability to absorb global layout-scale error in-environment is not characterized. \\
+NLOS mitigation uses channel statistics, learned models, robust weighting, or biased-range models \citep{wymeersch_2012_a_machine_learning_approach,difranco_2017_calibration_free_network_localization_nlos_uwb,maran_2010_nlos_identification_and_mitigati,guven_2007_nlos_identification_and_weight,venkatesh_2007_non_line_of_sight_identification,meghani_2019_empirical_based_ranging_error,jeong_2023_hybrid_quantum_convolutional_neu,kong_2023_nlos_identification_for_uwb,sung_2023_accurate_indoor_positioning_for,yang_2024_uwb_nlos_identification_and}. & Structured positive range bias is not connected to which self-calibration geometry is physically valid. \\
+Fisher/CRLB, rigidity, and observability analyses describe weak directions and rank deficiencies in localization and calibration networks \citep{shen_2010_fundamental_limits_cooperative,aspnes_2006_theory_network_localization,patwari_2005_locating_the_nodes,wymeersch_2009_cooperative_localization_wireless_networks,prorok_2013_models_algorithms_uwb_localization_thesis,joudarwin_2008_position_error_bound_uwb,hesch_2014_camera_imu_observability,goudar_2021_online_spatiotemporal_calibration_uwb_imu}. & Prior work does not connect a coupled delay--scale direction to a measured scale-bias cancellation result (a scale-biased layout winning in-environment) in UWB self-calibration. \\
+Scale--propagation-parameter ambiguity is known in acoustic self-calibration and related ranging systems \citep{burgess_2015_toa_self_calibration}. & The interaction with structured UWB range bias, and the resulting in-environment advantage of the scale-biased layout, is not reported. \\
+AniTrack reported self-localized anchors outperforming surveyed anchors in tag accuracy (13.96 vs 16.57~cm, $n=7$) \citep{luder_2025_anitrack}. & A consistent external observation (within one SD, competing explanations not excluded), not a diagnosis: no Sim(3) scale, delay--layout coupling, or causal intervention. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Our Contribution}
+
+The first contribution is scientific: we quantitatively characterize delay--layout coupling in UWB anchor self-calibration. A four-way ablation (self-calibrated vs Vicon-measured anchor coordinates $\times$ residual-correction treatments) shows the fitted residual corrections are frame-conditioned: Vicon-measured anchor coordinates degrade tag localization (311~mm RMSE with no correction, 252~mm with transplanted corrections) unless the corrections are re-estimated in the Vicon frame (78~mm). A common-mode delay re-parameterization ($d_i = c + e_i$, $c = 112$~mm) recovers metric scale from inter-anchor ranges alone (Sim(3) 0.958 $\to$ 1.010; rigid RMSE 105.4 $\to$ 63.0~mm); clamping the common mode to zero raises the solver cost by about 70\%, and five perturbed initializations converge to the same scale. A gauge-free Fisher analysis on the real geometry confirms this is a strong-but-not-strict near-degeneracy: the common-mode delay correlates with the isotropic layout-scale mode at $\rho=-0.977$ (variance inflation $22\times$; profiling the layout out of the delay flattens its likelihood $22\times$; $1$~mm common delay $\leftrightarrow -1.22$~mm scale at the array edge). The decisive observation is that the metric-correct layout is the worse in-environment positioner \emph{only} until the tag delay is corrected. The fair-comparison control settles it: because the deployed firmware applies one generic antenna-delay default (16436) to every node with no per-device calibration, the physically honest correction is a single global tag-delay constant. With a leave-one-out, no-peek constant ($\approx$50~mm) the metric-correct layout \emph{wins}---68.5~mm held-out median (P95 156~mm) vs the scale-biased 72.7~mm---and with a far more stable tail than per-frame joint estimation (which only ties the median at 72.9~mm by overfitting, P95 317.5~mm). The scale-biased layout's apparent advantage was thus a correctable constant its scale error absorbed, not better physical calibration. An orthogonal hardware check confirms the per-device delays are not even available from the vendor: reading the factory OTP of all nine modules (the lone outlier verified by five repeated reads) shows the stored antenna delay is near-uniform (eight units 16472, one 16451) and does \emph{not} track the fitted per-device delays---seven modules share one OTP value yet their fitted delays span $\approx 49$--$148$~mm---while the per-device antenna-calibration temperature is unprogrammed throughout, even though the same OTP \emph{does} carry per-device crystal-trim and temperature-sensor cal. Applying the OTP value is a global common-mode shift that cannot supply the per-device differences driving the coupling, so the coupling is intrinsic to commodity hardware, not a skipped calibration step.
+
+The second contribution is methodological: a Vicon-grounded falsification protocol that separates metric correctness from same-environment positioning accuracy. It uses Sim(3) anchor-scale validation, a layout/delay transfer ablation, per-anchor range-bias decomposition with error-budget closure, phase-center sensitivity, and nested spatial CV, so that a single accuracy number cannot hide the mechanism.
+
+As a discussion-level conjecture (not a contribution), a similar failure mode could occur wherever per-device bias and geometric scale share a weakly observable direction (GNSS clock--geometry, acoustic sound-speed--geometry); the analogy is imperfect because delay is additive while scale is multiplicative, so cancellation is only approximate over the working-distance range.
+
+A raw-frame intervention that reduces the positive tag-anchor range tail reverses the ranking in favour of the metric-correct layout; this causal intervention is the decisive cancellation evidence.
+
+\textbf{Priority and disclosure.} We claim not the bare existence of the coupling (acoustic/GNSS/AniTrack precedents preclude that) but: (i)~the first gauge-free Fisher quantification of the delay$\leftrightarrow$scale near-degeneracy on real UWB hardware ($\rho=-0.977$, $22\times$ variance inflation, $1$~mm delay $\leftrightarrow -1.22$~mm edge-scale); (ii)~the conditional wrong-geometry-wins regime and the control that closes it (a single global tag-delay constant makes the metric-correct layout win, 68.5 vs 72.7~mm); and (iii)~the Vicon-grounded falsification protocol. For defensive-publication value the enabling three-condition combination is disclosed once (range-only self-calibration $+$ independent metric ground truth for the geometry $+$ multi-parameterization comparison), and the Fisher analysis ships as a runnable artifact so the numbers are independently reproducible. Citable: \emph{``the common-mode antenna delay is weakly observable against isotropic layout scale ($\rho=-0.977$ on the deployed array), so same-environment accuracy can rank a scale-biased layout above a metric-correct one until a single global delay constant is applied---after which the metric-correct layout wins.''}
+
+\section{Nearest Prior Art}
+
+\begin{center}
+\scriptsize
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{28mm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+\toprule
+Paper & What they did & How we differ \\
+\midrule
+\citet{hamer_2018_self_calibrating_ultra_wideband_network} & Built a self-calibrating one-way UWB network with clock synchronization and anchor computation for multi-robot localization. & We test whether the empirically best radio-only layout is physically correct, and show that a scale-biased layout can win in-environment (under an uncorrected tag delay) by cancelling structured range bias. \\
+\citet{lutz_2019_visual_inertial_slam_uwb_error_model} & Used visual-inertial SLAM and fiducial markers to estimate UWB anchor poses and sensor error-model parameters. & Their calibration is aided by external visual structure; ours diagnoses a range-only self-calibration degeneracy using Vicon only as independent validation. \\
+\citet{ledergerber_2018_calibrating_away_inaccuracies_uwb} & Estimated module-dependent range inaccuracies by maximum likelihood without external ground truth. & We show that fitting delay/range inaccuracies can reward a metric-incorrect (scale-biased) solution unless anchor metric scale is checked separately. \\
+\citet{luder_2025_anitrack} (AniTrack) & Reported that self-localized DWM3000 anchors gave better tag accuracy than laser-surveyed anchors (13.96 vs 16.57~cm average error). & They report an unexplained, small-sample paradox; we propose and Vicon-test a candidate mechanism via Sim(3) scale, a four-way layout/delay ablation, and common-mode scale recovery. \\
+\citet{pan_2015_realtime_ppp_clock_orbit} (GNSS) & Showed satellite-clock estimation can absorb orbit error and improve PPP positioning accuracy. & Their coupled-error absorption is a GNSS clock/orbit effect; our result is a UWB self-calibrated-layout scale bias that makes the metric-incorrect layout beat the correct one when the tag bias is uncorrected. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Risk and Status}
+
+\begin{center}
+\scriptsize
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{34mm}>{\raggedright\arraybackslash}p{19mm}>{\raggedright\arraybackslash}X@{}}
+\toprule
+Risk & Severity & One-line mitigation \\
+\midrule
+One room and 24 static positions & High & State that transfer remains unproven and freeze the pipeline for second- and $N$-room validation. \\
+Cross-domain scale--delay ambiguity is prior art & Medium & Claim quantitative UWB characterization plus the in-environment cancellation result, not the bare ambiguity. \\
+Common-mode scale recovery is a diagnostic & Medium & Present it as a mechanism re-parameterization, not as the deployed headline pipeline. \\
+High-error tail remains & Medium & Separate median mechanism evidence from P95/dynamic performance claims. \\
+Phase-center uncertainty & Low & Use sensitivity analysis and avoid treating the Vicon-oracle rank as the sole proof. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+No prior work we found explicitly characterizes the in-environment delay--layout cancellation, though De Preter (2019), Piavanini (2022), Batstone (2017), Hamer \& D'Andrea (2018) and the acoustic/GNSS work are close and are engaged directly. Target: \emph{Measurement} (IF $\sim$5.6). Working title: ``Metric Correctness versus Positioning Accuracy in UWB Anchor Self-Calibration: A Vicon-Grounded Falsification Study.''
+
+\begingroup
+\scriptsize
+\begin{thebibliography}{99}
+\bibitem[Almansa et~al.(2020)]{almansa_2020_autocalibration_mobile_uwb_localization} Almansa, C.M., Shule, W., Queralta, J.P. and Westerlund, T., 2020. Autocalibration of a mobile UWB localization system for ad-hoc multi-robot deployments in GNSS-denied environments. \emph{arXiv preprint arXiv:2004.06762}.
+\bibitem[Aspnes et~al.(2006)]{aspnes_2006_theory_network_localization} Aspnes, J., Eren, T., Goldenberg, D.K., Morse, A.S., Whiteley, W., Yang, Y.R., Anderson, B.D.O. and Belhumeur, P.N., 2006. A theory of network localization. \emph{IEEE Transactions on Mobile Computing}, 5(12), pp.1663--1678.
+\bibitem[Burgess et~al.(2015)]{burgess_2015_toa_self_calibration} Burgess, S., Kuang, Y. and \AA{}str\"om, K., 2015. TOA sensor network self-calibration for receiver and transmitter spaces with difference in dimension. \emph{Signal Processing}, 107, pp.33--42.
+\bibitem[Corbalan et~al.(2023)]{corbalan_2023_self_localization_uwb_anchors} Corbalan, P., Picco, G.P., Coors, M. and Jain, V., 2023. Self-localization of ultra-wideband anchors: From theory to practice. \emph{IEEE Access}, 11, pp.29711--29725.
+\bibitem[De Preter et~al.(2019)]{de_preter_2019_range_bias_modeling_autocalibration} De Preter, A., Goysens, G., Anthonis, J., Swevers, J. and Pipeleers, G., 2019. Range bias modeling and autocalibration of a UWB positioning system. In: \emph{International Conference on Indoor Positioning and Indoor Navigation (IPIN)}, pp.1--8.
+\bibitem[Di Franco et~al.(2017)]{difranco_2017_calibration_free_network_localization_nlos_uwb} Di Franco, C., Prorok, A., Atanasov, N., Kempke, B., Dutta, P., Kumar, V. and Pappas, G.J., 2017. Calibration-free network localization using non-line-of-sight UWB measurements. In: \emph{ACM/IEEE International Conference on Information Processing in Sensor Networks (IPSN)}.
+\bibitem[Goudar et~al.(2021)]{goudar_2021_online_spatiotemporal_calibration_uwb_imu} Goudar, A., Zhao, W. and Schoellig, A.P., 2021. Online spatio-temporal calibration of tightly-coupled ultrawideband-aided inertial localization. In: \emph{IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)}.
+\bibitem[Guvenc et~al.(2007)]{guven_2007_nlos_identification_and_weight} Guvenc, I., Chong, C.-C., Watanabe, F. and Inamura, H., 2007. NLOS identification and weighted least-squares localization for UWB systems using multipath channel statistics. \emph{EURASIP Journal on Advances in Signal Processing}, 2007.
+\bibitem[Hamer \& D'Andrea(2018)]{hamer_2018_self_calibrating_ultra_wideband_network} Hamer, M. and D'Andrea, R., 2018. Self-calibrating ultra-wideband network supporting multi-robot localization. \emph{IEEE Access}, 6, pp.22292--22304.
+\bibitem[Van Herbruggen et~al.(2023)]{herbruggen_2023_multihop_self_calibration_algori} Van Herbruggen, B., Luchie, S., Fontaine, J. and De Poorter, E., 2023. Multihop self-calibration algorithm for ultra-wideband anchor node positioning. \emph{IEEE Journal of Indoor and Seamless Positioning and Navigation}.
+\bibitem[Hesch et~al.(2014)]{hesch_2014_camera_imu_observability} Hesch, J.A., Kottas, D.G., Bowman, S.L. and Roumeliotis, S.I., 2014. Camera-IMU-based localization: Observability analysis and consistency improvement. \emph{The International Journal of Robotics Research}, 33(1), pp.182--201.
+\bibitem[Jeong et~al.(2023)]{jeong_2023_hybrid_quantum_convolutional_neu} Jeong, S.-G., Do, Q.-V., Hwang, H.-J., Hasegawa, M., Sekiya, H. and Hwang, W.-J., 2023. Hybrid quantum convolutional neural networks for UWB signal classification. \emph{IEEE Access}.
+\bibitem[Jourdan et~al.(2008)]{joudarwin_2008_position_error_bound_uwb} Jourdan, D.B., Dardari, D. and Win, M.Z., 2008. Position error bound for UWB localization in dense cluttered environments. \emph{IEEE Transactions on Aerospace and Electronic Systems}, 44(2), pp.613--628.
+\bibitem[Kong(2023)]{kong_2023_nlos_identification_for_uwb} Kong, Q., 2023. NLOS identification for UWB positioning based on IDBO and convolutional neural networks. \emph{IEEE Access}.
+\bibitem[Ledergerber et~al.(2015)]{ledergerber_2015_robot_self_localization_one_way_uwb} Ledergerber, A., Hamer, M. and D'Andrea, R., 2015. A robot self-localization system using one-way ultra-wideband communication. In: \emph{IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)}, pp.3131--3137.
+\bibitem[Ledergerber \& D'Andrea(2018)]{ledergerber_2018_calibrating_away_inaccuracies_uwb} Ledergerber, A. and D'Andrea, R., 2018. Calibrating away inaccuracies in ultra wideband range measurements: A maximum likelihood approach. \emph{IEEE Access}, 6, pp.78719--78730.
+\bibitem[Liu et~al.(2024)]{liu_2024_data_driven_antenna_delay_calibr} Liu, Z., Hakala, T., Hyyppa, J., Kukko, A., Kaartinen, H. and Chen, R., 2024. Data-driven antenna delay calibration for UWB devices for network positioning. \emph{IEEE Transactions on Instrumentation and Measurement}.
+\bibitem[Lutz et~al.(2019)]{lutz_2019_visual_inertial_slam_uwb_error_model} Lutz, P., Schuster, M.J. and Steidle, F., 2019. Visual-inertial SLAM aided estimation of anchor poses and sensor error model parameters of UWB radio modules. In: \emph{International Conference on Advanced Robotics (ICAR)}, pp.739--746.
+\bibitem[Luder et~al.(2025)]{luder_2025_anitrack} Luder, V., Schulthess, L., Cortesi, S., Rivero Davis, L. and Magno, M., 2025. AniTrack: A power-efficient, time-slotted and robust UWB localization system for animal tracking in a controlled setting. \emph{arXiv preprint arXiv:2506.00216}.
+\bibitem[Marano et~al.(2010)]{maran_2010_nlos_identification_and_mitigati} Marano, S., Gifford, W.M., Wymeersch, H. and Win, M.Z., 2010. NLOS identification and mitigation for localization based on UWB experimental data. \emph{IEEE Journal on Selected Areas in Communications}.
+\bibitem[Meghani et~al.(2019)]{meghani_2019_empirical_based_ranging_error} Meghani, S.K., Asif, M., Awin, F. and Tepe, K., 2019. Empirical based ranging error mitigation in IR-UWB: A fuzzy approach. \emph{IEEE Access}.
+\bibitem[Pan et~al.(2015)]{pan_2015_realtime_ppp_clock_orbit} Pan, S., Chen, W., Jin, X., Shi, X. and He, F., 2015. Real-time PPP based on the coupling estimation of clock bias and orbit error with broadcast ephemeris. \emph{Sensors}, 15(7), pp.17808--17826.
+\bibitem[Patwari et~al.(2005)]{patwari_2005_locating_the_nodes} Patwari, N., Ash, J.N., Kyperountas, S., Hero, A.O., Moses, R.L. and Correal, N.S., 2005. Locating the nodes: Cooperative localization in wireless sensor networks. \emph{IEEE Signal Processing Magazine}, 22(4), pp.54--69.
+\bibitem[Piavanini et~al.(2022)]{piavanini_2022_a_calibration_method_for} Piavanini, M., Barbieri, L., Brambilla, M., Cerutti, M., Ercoli, S., Agili, A. and Nicoli, M., 2022. A calibration method for antenna delay estimation and anchor self-localization in UWB systems. In: \emph{IEEE International Workshop on Metrology for Industry 4.0 \& IoT (MetroInd4.0\&IoT)}.
+\bibitem[Prorok(2013)]{prorok_2013_models_algorithms_uwb_localization_thesis} Prorok, A., 2013. \emph{Models and Algorithms for Ultra-Wideband Localization in Single- and Multi-Robot Systems}. PhD thesis. EPFL.
+\bibitem[Queralta et~al.(2020)]{queralta_2020_uwb_based_system_for_uav} Queralta, J.P., Almansa, C.M., Schiano, F., Floreano, D. and Westerlund, T., 2020. UWB-based system for UAV localization in GNSS-denied environments. In: \emph{IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)}.
+\bibitem[Ridolfi et~al.(2021)]{ridolfi_2021_self_calibration_and_collaborati} Ridolfi, M., Kaya, A., Berkvens, R., Weyn, M., Joseph, W. and De Poorter, E., 2021. Self-calibration and collaborative localization for UWB positioning systems. \emph{ACM Computing Surveys}.
+\bibitem[Shah et~al.(2021)]{shah_2021_antenna_delay_calibration_of} Shah, S., Chaiwong, K., Kovavisaruch, L., Kaemarungsi, K. and Demeechai, T., 2021. Antenna delay calibration of UWB nodes. \emph{IEEE Access}.
+\bibitem[Shah et~al.(2022)]{shah_2022_node_calibration_in_uwb_based} Shah, S., Kovavisaruch, L., Kaemarungsi, K. and Demeechai, T., 2022. Node calibration in UWB-based RTLSs using multiple simultaneous ranging. \emph{Sensors}.
+\bibitem[Shalaby et~al.(2023)]{shalaby_2023_calibration_and_uncertainty_char} Shalaby, M., Cossette, C.C., Forbes, J.R. and Le Ny, J., 2023. Calibration and uncertainty characterization for ultra-wideband two-way-ranging measurements. In: \emph{IEEE International Conference on Robotics and Automation (ICRA)}.
+\bibitem[Shen et~al.(2010)]{shen_2010_fundamental_limits_cooperative} Shen, Y., Wymeersch, H. and Win, M.Z., 2010. Fundamental limits of wideband localization---Part II: Cooperative networks. \emph{IEEE Transactions on Information Theory}, 56(10), pp.4981--5000.
+\bibitem[Shi et~al.(2019)]{shi_2019_anchor_self_localization_algorit} Shi, Q., Zhao, S., Cui, X., Lu, M. and Jia, M., 2019. Anchor self-localization algorithm based on UWB ranging and inertial measurements. \emph{Tsinghua Science and Technology}.
+\bibitem[Sung et~al.(2023)]{sung_2023_accurate_indoor_positioning_for} Sung, S., Kim, H. and Jung, J.-i., 2023. Accurate indoor positioning for UWB-based personal devices using deep learning. \emph{IEEE Access}.
+\bibitem[Venkatesh \& Buehrer(2007)]{venkatesh_2007_non_line_of_sight_identification} Venkatesh, S. and Buehrer, R.M., 2007. Non-line-of-sight identification in ultra-wideband systems based on received signal statistics. \emph{IET Microwaves, Antennas \& Propagation}.
+\bibitem[Wymeersch et~al.(2009)]{wymeersch_2009_cooperative_localization_wireless_networks} Wymeersch, H., Lien, J. and Win, M.Z., 2009. Cooperative localization in wireless networks. \emph{Proceedings of the IEEE}.
+\bibitem[Wymeersch et~al.(2012)]{wymeersch_2012_a_machine_learning_approach} Wymeersch, H., Marano, S., Gifford, W.M. and Win, M.Z., 2012. A machine learning approach to ranging error mitigation for UWB localization. \emph{IEEE Transactions on Communications}.
+\bibitem[Yang et~al.(2024)]{yang_2024_uwb_nlos_identification_and} Yang, H., Wang, Y., Seow, C., Sun, M. and Plets, D., 2024. UWB NLOS identification and mitigation based on bidirectional encoder representations from transformer (BERT) deep learning. In: \emph{International Conference on Indoor Positioning and Indoor Navigation (IPIN)}.
+\end{thebibliography}
+\endgroup
+
+\end{document}

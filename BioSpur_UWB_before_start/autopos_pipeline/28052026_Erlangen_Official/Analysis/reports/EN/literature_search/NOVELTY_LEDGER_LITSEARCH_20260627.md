@@ -198,6 +198,21 @@ Dose-response slope (vertical error vs OptiTrack tilt, 16 captures): **rigid +0.
 
 **Constructive consequence (unchanged, now stronger):** this is a clean **negative control that supports Paper A**. If the vertical anchor error were a geometric-observability gap, actively injecting tilted-rotation Z would reduce it — it does not, even with the rigid model. So the vertical bias is **delay coupling, not missing geometry** (matches the audit: vertical static error 61.9→39.3 mm under tag-delay correction). Recommendation stands: **do not build Paper B on tilt-based Z-injection; fold this two-model falsification into Paper A as a negative control.** Honest residual caveat: the arm flex (~3 mm) and OptiTrack wand-marker mislabeling (~50% of frames) are small/handled and do not change the verdict; the rigid baseline (68.8) underperforms production (59.8) due to the simplified harness, but the internal with/without and dose-response comparisons are the valid part.
 
+## Appendix F — Fisher / profile-likelihood observability (run 2026-06-27)
+
+Two analytic deliverables turning the two-story claims into numbers. Artifacts in this folder (runnable; `harness.py`+`eval_lib.py` copied alongside): `delay_scale_observability.py` → `delay_scale_valley.png`, `delay_scale_observability_results.txt`; `vertical_observability_4plus4.py` → `vertical_observability_4plus4.png`, `..._results.txt`.
+
+**F.1 Paper B — common-mode antenna-delay ↔ layout-scale near-degeneracy** (real Erlangen 8-anchor geometry; gauge-free 26-mode FIM over {anchors, delays}, tag frames Schur-marginalized):
+- **The headline is the delay DIRECTION's marginal coupling**, not the globally-softest mode. Common-mode delay ↔ **iso-scale ρ = −0.977, variance inflation 1/(1−ρ²) = 22.1×**; ↔ horizontal ρ = −0.974 (19.3×); ↔ vertical ρ = −0.814 (3.0×).
+- **Profile-likelihood:** profiling the entire layout out of the common-delay parameter flattens its likelihood **22×** (conditional curvature / profiled curvature = 1/(1−ρ²)).
+- **Physical alias** (both axes mm at array edge, radius 1891 mm): **1 mm common delay → −1.22 mm edge-scale (−645 ppm)**; 2D profile-likelihood valley elongation **8.9:1**. Sign matches production: positive common bias shrinks the layout → AutoPos-to-Vicon Sim(3) scale 0.958 < 1.
+- **Honest caveat (resolves the earlier "FIM didn't confirm" worry):** the globally-softest FIM modes (~1×10⁻⁴) are *thin-two-layer wiggle* artifacts (≈0 overlap with every interpretable probe) — they are NOT the delay–scale coupling. The coupling is correctly read from the delay direction's marginal 2×2, which the script does.
+
+**F.2 Paper A — 4+4 vertical observability** (self-contained synthetic 5×5 m two-layer array, y_low=0.15/y_up=1.65; supports concept claim "8 anchors provide Z-axis observability"):
+- **Anchor self-cal vertical CRLB** (inter-anchor ranging only, σ=30 mm) vs upper-layer count *k*: **k=0 coplanar = EXACTLY singular** (∂r/∂y = 0); k=1 → 161 mm; k=2 → 81 mm; k=3 → 66 mm; **k=4 (balanced 4+4) → 63 mm**.
+- That **63 mm self-cal vertical floor ≈ the ~60 mm production vertical error** → the geometry is at its observability floor, so the residual vertical error is *not* geometry-limited — it is the delay coupling of F.1. **This is the clean hand-off from Paper A to Paper B.**
+- **Balance matters at fixed count:** k=2 diagonal (balanced) 81 mm vs adjacent (clustered) 101 mm = **1.24×**. Downstream tag VDOP corroborates: 2.64 (k=0) → 1.44 (k=4).
+
 ## Sources (this pass)
 
 - AniTrack (Luder 2025): https://arxiv.org/pdf/2506.00216
