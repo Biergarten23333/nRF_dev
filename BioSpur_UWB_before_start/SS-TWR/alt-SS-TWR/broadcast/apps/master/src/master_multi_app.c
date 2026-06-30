@@ -29,6 +29,21 @@
 #include "master_multi_app.h"
 #include "uwb_tdma.h"
 
+/* G0.2 clock instrument. The LFRC recalibration counters live in the private
+ * clock_control driver (nrf_clock_calibration.c); declare the internal symbols
+ * here. They return -1 unless CONFIG_CLOCK_CONTROL_NRF_CALIBRATION_DEBUG=y.
+ * recal-rate(t) is the master oscillator-co-located thermal/drift proxy --
+ * the nRF5340 TEMP peripheral is network-core-only, so the app core (this
+ * image) has no die-temp; recal cadence (triggers on >=0.5 C steps) is the
+ * cleaner warm-up / drift signal anyway. */
+#if defined(CONFIG_CLOCK_CONTROL_NRF_DRIVER_CALIBRATION)
+extern int z_nrf_clock_calibration_count(void);
+extern int z_nrf_clock_calibration_skips_count(void);
+#define MASTER_CLOCK_CAL_AVAILABLE 1
+#else
+#define MASTER_CLOCK_CAL_AVAILABLE 0
+#endif
+
 #define MASTER_MAX_CONNECTIONS 10U
 #define MASTER_DISCOVERY_RETRY_DELAY_MS 1500U
 #define MASTER_DISCOVERY_RETRY_LIMIT 5U
@@ -2201,6 +2216,16 @@ static void ble_stats_work_fn(struct k_work *work)
 		       (unsigned int)peer->notify_last_len,
 		       (long)print_drops);
 	}
+
+#if MASTER_CLOCK_CAL_AVAILABLE
+	/* G0.2: master LFRC recal counters sampled @5s. cal rises stepwise on
+	 * >=0.5 C temperature changes -> recal-rate(t) is the warm-up / drift
+	 * proxy that distinguishes G1's beat-vs-warmup cells. */
+	printk("MCLK cal=%d skips=%d up_ms=%lld\n",
+	       z_nrf_clock_calibration_count(),
+	       z_nrf_clock_calibration_skips_count(),
+	       (long long)k_uptime_get());
+#endif
 
 	(void)k_work_reschedule(&ble_stats_work,
 				 K_MSEC(MASTER_BLE_STATS_PERIOD_MS));

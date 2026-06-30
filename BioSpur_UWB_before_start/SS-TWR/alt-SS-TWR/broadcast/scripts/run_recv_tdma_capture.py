@@ -133,6 +133,71 @@ TR_TEMP_TRAILER_RE = re.compile(
     r";T,(?P<tag_temp_raw>\d+),(?P<tag_vbat_raw>\d+)"
 )
 
+# G0.1 concat-artifact accounting. The DW1000 SAR temp/vbat fields are raw 8-bit
+# codes (0-255). A value outside that range means the ';T,' trailer was spliced
+# by a BLE-notify concatenation, not a real sample. Counting the out-of-bound
+# rate among TR temp trailers gives a direct signal for whether an observed
+# TR-report-rate decay (e.g. 550->312) is real attrition or parser splicing.
+PARSE_STATS = {
+    "tr_temp_ok": 0,
+    "tr_temp_oob": 0,
+    "anchor_temp_ok": 0,
+    "anchor_temp_oob": 0,
+    # G0.1 PRIMARY concat signal (structural): TR lines lost to notify splicing.
+    "tr_frag_with_tr": 0,     # notify fragments carrying >=1 'TR;'
+    "tr_tokens_total": 0,     # total 'TR;' tokens seen on the wire
+    "tr_lost_to_splice": 0,   # surplus 'TR;' tokens dropped (rate-decay mechanism)
+}
+
+
+def bucket_concat_timeline(timeline, bin_s=60.0):
+    """Bucket (host_elapsed_s, tr_tokens, lost) into time bins and return the
+    per-bin splice-loss rate. A monotone rise here, matched against an observed
+    TR-rate decay (e.g. 550->312), distinguishes real attrition (flat rate)
+    from parser splicing (rising rate)."""
+    buckets = {}
+    for t, tr, lost in timeline:
+        agg = buckets.setdefault(int(t // bin_s), [0, 0])
+        agg[0] += tr
+        agg[1] += lost
+    out = []
+    for b in sorted(buckets):
+        tr, lost = buckets[b]
+        out.append({
+            "t_bin_s": b * bin_s,
+            "tr_tokens": tr,
+            "tr_lost": lost,
+            "splice_loss_rate": round(lost / max(1, tr), 4),
+        })
+    return out
+
+
+def _temp_byte_raw(value):
+    """Return int if a plausible 0-255 SAR byte, else None (concat artifact)."""
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        return None
+    return v if 0 <= v <= 255 else None
+
+
+def _anchor_temp_byte(value):
+    """Anchor temp/vbat byte: absent -> 0 (V2 frame); present-but-OOB -> 0 + oob."""
+    if value is None:
+        return 0
+    v = _temp_byte_raw(value)
+    if v is None:
+        PARSE_STATS["anchor_temp_oob"] += 1
+        return 0
+    PARSE_STATS["anchor_temp_ok"] += 1
+    return v
+
+
+# G0.2 master LFRC recal telemetry (printed by master @5s, '[RECV] ' prefixed)
+MCLK_RE = re.compile(
+    r"MCLK cal=(?P<cal>-?\d+) skips=(?P<skips>-?\d+) up_ms=(?P<up_ms>\d+)"
+)
+
 CONNECTED_RE = re.compile(
     r"Connected\[(?P<conn>\d+)\]:.*?(?:name=(?P<name>[^\s]+))?.*?(?:bs=(?P<bs>BS[0-9A-F]{4}))?.*?tag_id=(?P<tag_id>-?\d+)"
 )
@@ -241,7 +306,7 @@ def iter_tr_matches(text: str):
             yield match
 
 
-def iter_tr_records(text: str):
+def iter_tr_records(text: str, frag_stats=None):
     prefix = None
     if "notify:" in text:
         prefix = text.split("notify:", 1)[0] + "notify: "
@@ -257,8 +322,29 @@ def iter_tr_records(text: str):
         fragment = imu_fields.pop("_fragment", fragment)
         temp_match = TR_TEMP_TRAILER_RE.search(fragment)
         if temp_match:
-            imu_fields["tag_temp_raw"] = int(temp_match.group("tag_temp_raw"))
-            imu_fields["tag_vbat_raw"] = int(temp_match.group("tag_vbat_raw"))
+            t = _temp_byte_raw(temp_match.group("tag_temp_raw"))
+            v = _temp_byte_raw(temp_match.group("tag_vbat_raw"))
+            if t is None or v is None:
+                PARSE_STATS["tr_temp_oob"] += 1  # concat artifact -> drop trailer
+            else:
+                PARSE_STATS["tr_temp_ok"] += 1
+                imu_fields["tag_temp_raw"] = t
+                imu_fields["tag_vbat_raw"] = v
+
+        # G0.1 splice accounting (PRIMARY 550->312 signal). The loop splits on
+        # '|', so two TR lines concatenated into one fragment (no '|') lose all
+        # but the first to TR_*_RE.search -> dropped surplus = apparent TR-rate
+        # decay. Count it directly; frag_stats feeds time-bucketed concat(t).
+        tr_tokens = fragment.count("TR;")
+        if tr_tokens:
+            PARSE_STATS["tr_frag_with_tr"] += 1
+            PARSE_STATS["tr_tokens_total"] += tr_tokens
+            lost = tr_tokens - 1 if tr_tokens > 1 else 0
+            if lost:
+                PARSE_STATS["tr_lost_to_splice"] += lost
+            if frag_stats is not None:
+                frag_stats["tr"] = frag_stats.get("tr", 0) + tr_tokens
+                frag_stats["lost"] = frag_stats.get("lost", 0) + lost
 
         match = TR_SINGLE_RE.search(fragment)
         if match:
@@ -444,8 +530,8 @@ def iter_rfd_records(text: str):
             "tag_rxpacc": tag_rxpacc,
             "tag_rxpacc_q8": q8_saturate(tag_rxpacc),
             "tag_std_noise": int(match.group("tag_std_noise")),
-            "anchor_temp_raw": int(match.group("anchor_temp_raw") or 0),
-            "anchor_vbat_raw": int(match.group("anchor_vbat_raw") or 0),
+            "anchor_temp_raw": _anchor_temp_byte(match.group("anchor_temp_raw")),
+            "anchor_vbat_raw": _anchor_temp_byte(match.group("anchor_vbat_raw")),
         }
 
 
@@ -2713,6 +2799,8 @@ def main() -> int:
     conn_meta: dict[str, dict] = {}
     tr_rows: list[dict] = []
     rfd_rows: list[dict] = []
+    concat_timeline: list[tuple] = []  # G0.1 (host_elapsed_s, tr_in_line, lost_in_line)
+    mclk_rows: list[dict] = []  # G0.2 master recal telemetry rows
     interrupted = False
     startup_failed = False
     startup_fail_targets: list[str] = []
@@ -2916,7 +3004,18 @@ def main() -> int:
                             meta["pmode"] = int(match.group("pmode"))
                             pmode_by_peer[match.group("bs")] = int(match.group("pmode"))
 
-                        for tr in iter_tr_records(line):
+                        match = MCLK_RE.search(line)
+                        if match:
+                            mclk_rows.append({
+                                "host_elapsed_s": host_elapsed_s,
+                                "host_epoch_s": host_epoch_s,
+                                "cal": int(match.group("cal")),
+                                "skips": int(match.group("skips")),
+                                "up_ms": int(match.group("up_ms")),
+                            })
+
+                        frag_stats: dict = {}
+                        for tr in iter_tr_records(line, frag_stats):
                             match = re.search(TAG_NOTIFY_PREFIX_RE, line)
                             conn_id = match.groupdict().get("conn") if match else ""
                             meta = conn_meta.get(conn_id, {}) if conn_id else {}
@@ -2986,6 +3085,13 @@ def main() -> int:
                                         int(tr["sweep"]),
                                         int(tr["anchor_id"]) if int(tr["valid"]) else None,
                                     ))
+
+                        if frag_stats.get("tr"):
+                            concat_timeline.append(
+                                (host_elapsed_s,
+                                 frag_stats.get("tr", 0),
+                                 frag_stats.get("lost", 0))
+                            )
 
                         for rfd in iter_rfd_records(line):
                             match = re.search(TAG_NOTIFY_PREFIX_RE, line)
@@ -3203,6 +3309,9 @@ def main() -> int:
 
     write_rows(session_dir / "tr_all.csv", tr_fields, tr_rows)
     write_rows(session_dir / "tag_rf_diag.csv", rfd_fields, rfd_rows)
+    write_rows(session_dir / "master_clock.csv",
+               ["host_elapsed_s", "host_epoch_s", "cal", "skips", "up_ms"],
+               mclk_rows)
     range_diag_joined_rows = build_range_diag_joined_rows(
         tr_rows, rfd_rows, tr_fields, rfd_join_fields
     )
@@ -3293,6 +3402,21 @@ def main() -> int:
         "tr_all": len(tr_rows),
         "tr_valid_all": sum(1 for row in tr_rows if row["valid"]),
         "tr_diag_all": sum(1 for row in tr_rows if row.get("diag_source")),
+        "parse_stats": dict(PARSE_STATS),
+        "mclk_rows": len(mclk_rows),  # G0.2 master recal samples captured
+        # G0.1 PRIMARY 550->312 discriminator: on-wire TR lines dropped to notify
+        # splicing. Low + flat timeline => real attrition; rising => artifact.
+        "tr_splice_loss_rate": round(
+            PARSE_STATS["tr_lost_to_splice"]
+            / max(1, PARSE_STATS["tr_tokens_total"]), 4
+        ),
+        "tr_concat_rate_timeline": bucket_concat_timeline(concat_timeline),
+        # SUPPLEMENTARY: out-of-range temp byte rate (value-corruption subset only;
+        # does NOT catch in-range splices -> not the primary attrition signal).
+        "tr_temp_trailer_oob_rate_supplementary": round(
+            PARSE_STATS["tr_temp_oob"]
+            / max(1, PARSE_STATS["tr_temp_ok"] + PARSE_STATS["tr_temp_oob"]), 4
+        ),
         "rfd_all": len(rfd_rows),
         "rfd_joined_all": sum(1 for row in range_diag_joined_rows if row["rfd_joined"]),
         "sweep_validity_all": summarize_sweep_validity(tr_rows),
