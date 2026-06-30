@@ -31,7 +31,7 @@ reports the working system, its ground-truth-validated accuracy, and the vertica
 not cross; the companion mechanism paper (Paper~B) analyzes the delay--layout coupling behind that
 limit. The delay-estimation result appears in Paper~A only as an empirical system effect
 (``modelling per-device delay helps''); Paper~B characterizes the coupling itself --- its
-\emph{headline} result is an anchor-side common-delay$\leftrightarrow$layout-scale degeneracy, and a
+\emph{headline} results are an anchor-side common-delay$\leftrightarrow$layout-scale degeneracy and a Vicon-grounded falsification protocol, while a
 \emph{tag-side} strand of the same analysis explains why \emph{this} system's residual vertical error
 is a per-tag delay aliasing rather than a geometry deficit that more geometry could remove.}
 
@@ -56,7 +56,7 @@ $10$--$80$~cm, and several exceed $1$~m --- all well short of the $\sim$1~cm tha
 from matching optical motion capture, the accuracy ``gold standard'' it considers clinically relevant. Only \emph{5 of the 37 systems attempt 3D positioning at all}; the other 32
 operate purely in 2D, avoiding the vertical axis. The review singles out systematic UWB ranging error
 as the dominant bottleneck, and its largest component is per-device antenna delay --- a constant
-ranging bias of $\sim$150~mm per node \citep{shah_2021,shah_2019}, an order of magnitude above the
+ranging bias of $\sim$150~mm per node \citep{shah_2021,sang_2019}, an order of magnitude above the
 transceiver's random noise. The follow-up \citep{yogesh_2024} finds that none of the reviewed
 systems even apply the manufacturer's recommended delay-calibration procedure --- let alone model
 the delay inside their estimation pipeline --- and reports that even \emph{after} that procedure a
@@ -75,7 +75,7 @@ inter-anchor ranging alone on validated commodity hardware (Section~3).
 \textbf{Why this system, and why $4{+}4$: the vertical axis has no shortcut.} The target application
 is body-worn motion capture, which sharpens the requirement in a way that drone or robot UWB does
 not. A hovering platform can resolve its height with an onboard downward range sensor (ultrasound,
-time-of-flight) or fuse a barometer; a body-worn tag cannot --- an IMU gives only drifting relative
+time-of-flight) or fuse a barometer \citep{xiang_2025_uav}; a body-worn tag cannot --- an IMU gives only drifting relative
 vertical displacement, and a barometer only coarse, drifting absolute height, neither adequate for
 centimetre-level limb tracking. The \emph{only} drift-free, centimetre-level absolute vertical
 reference available to a body-worn tag is the UWB geometry itself. The vertical must therefore be
@@ -131,6 +131,7 @@ Pereira 2021 \citep{pereira_2021}          & yes & yes & no & yes & sim.\ only \
 Batstone 2017 \citep{batstone_2017}        & yes & \textbf{no} (mobile tag) & no & yes & real-hw \\
 Nguyen 2025 \citep{nguyen_2025}            & yes & \textbf{no} (SLAM) & yes & yes & SLAM-dep. \\
 Yuan 2024 \citep{yuan_2024}                & yes & \textbf{no} (LiDAR) & implicit & yes & LiDAR-dep. \\
+Liu \& Cao 2025 \citep{liu_2025}           & yes & \textbf{no} (LiDAR) & implicit & yes & LiDAR-dep. \\
 Delama 2025 \citep{delama_2025}            & yes & \textbf{no} (VIO) & implicit & yes & VIO-dep. \\
 \textbf{AutoPos (this work)}               & \textbf{yes} & \textbf{yes} & \textbf{yes} & \textbf{yes} & \textbf{Vicon} \\
 \bottomrule
@@ -145,10 +146,10 @@ separated.}
 
 \section{What We Contribute}
 
-\textbf{(1) The capability --- and the number later work must beat.} The headline result is a
-pure-UWB, self-calibrated vertical of ${\approx}59$~mm absolute (vs Vicon), at the ${\approx}63$~mm
-inter-anchor Cram\'{e}r--Rao floor, from inter-anchor ranging alone --- the benchmark any later
-reference-free pure-UWB vertical self-calibration must be measured against. It is produced by a
+\textbf{(1) The capability --- and a reference point for later work.} The headline result is a
+pure-UWB, self-calibrated vertical of ${\approx}62$~mm median absolute error (vs Vicon), near the ${\approx}63$~mm
+inter-anchor Cram\'{e}r--Rao floor, from inter-anchor ranging alone --- a reference point that later
+reference-free pure-UWB vertical self-calibration in this deployment regime can be measured against. It is produced by a
 complete, real-hardware pipeline (8$\times$ DWM1001C, two elevation levels) that takes bidirectional
 SS-TWR inter-anchor ranging to a 3D anchor layout with per-device antenna delays, using only commodity
 single-antenna TWR modules --- two orders of magnitude cheaper
@@ -169,14 +170,14 @@ systems that raise a few anchors do not hit this wall --- but only because they 
 raised positions rather than self-calibrate them, sidestepping the conditioning by importing the very
 measurement AutoPos removes. We quantify this with a self-calibration Fisher analysis (Figure~\ref{fig:vobs}): for a single
 coplanar layer the inter-anchor vertical Cram\'{e}r--Rao bound is \emph{exactly singular}
-($\partial r/\partial y=0$). A single raised anchor formally unlocks the vertical but leaves it
+($\partial r/\partial z=0$). A single raised anchor formally unlocks the vertical but leaves it
 badly conditioned (mean vertical CRLB $\sim$161~mm, worst-anchor $\sim$226~mm at $4{+}1$); adding
 upper anchors improves it monotonically. Crucially the \emph{mean} bound saturates early
 ($\sim$81~mm at $4{+}2$, $\sim$63~mm at $4{+}4$), so an average alone would suggest stopping at two
 --- but the \emph{worst-conditioned} anchor keeps falling ($226\!\to\!134\!\to\!122\!\to\!93$~mm
 across $4{+}1,\,4{+}2,\,4{+}3,\,4{+}4$). The balanced $4{+}4$ is therefore the smallest array that
 brings \emph{every} anchor's vertical to the production floor on average ($\sim$63~mm, essentially
-the deployed vertical error) and to no worse than $\sim$93~mm: the choice over an asymmetric
+the deployed median vertical error of ${\approx}62$~mm) and to no worse than $\sim$93~mm: the choice over an asymmetric
 $4{+}k$ raise is a worst-case-uniformity argument, not an observability one. At fixed anchor count a
 \emph{balanced} (diagonal) pair beats a \emph{clustered} (adjacent) pair by $1.24\times$, confirming
 that it is the balance, not merely the count, that conditions the vertical.
@@ -262,8 +263,10 @@ claim using optical motion capture, and report both the accuracy and the limit (
       vertical \emph{geometric} observability, but a systematic vertical bias remains after it ---
       because that residual is not a geometry deficit but a \emph{tag-side} delay aliasing into the vertical. The Fisher
       analysis makes this concrete: the inter-anchor vertical CRLB saturates near $63$~mm for $4{+}4$,
-      matching the $\sim$60~mm production vertical error, so the geometry is already at its floor and
-      the residual is delay, not geometry. This is the single most important honest caveat, and it is
+      at the level of the ${\approx}62$~mm deployed median vertical error --- a bound on the \emph{anchor}
+      geometry's vertical contribution, not on the tag positioning error, but their closeness indicates
+      the geometry is near its floor, so the residual vertical bias is consistent with a tag-side delay
+      alias rather than a geometry deficit. This is the single most important honest caveat, and it is
       the tag-side face of the delay--layout coupling the companion paper analyzes, distinct from that
       paper's \emph{headline} anchor-side delay$\leftrightarrow$scale result.
 \item \textbf{We do not claim general superiority of self-calibration over surveying} for
@@ -278,11 +281,11 @@ of repeated static fixes, the headline $\sim$5~cm figure) and \emph{absolute acc
 Vicon, which is what the literature reports). The comparison to the landscape uses the absolute
 numbers.
 
-\textbf{Horizontal (X--Z plane).} Repeatability $\sim$27~mm; absolute $\sim$35~mm. This sits in the
+\textbf{Horizontal (X--Y plane).} Repeatability $\sim$27~mm; absolute $\sim$37~mm (median vs Vicon). This sits in the
 same band as the horizontal accuracy of the best fusion systems ($\sim$30--40~mm per axis). The
 horizontal is the easy axis for everyone; we neither lead nor lag here.
 
-\textbf{Vertical --- the standout.} Repeatability $\sim$41~mm; absolute $\sim$59~mm, from \emph{pure
+\textbf{Vertical --- the standout.} Repeatability $\sim$41~mm; absolute $\sim$62~mm (median vs Vicon), from \emph{pure
 UWB} with self-calibrated anchors, no IMU fusion, no AoA hardware, no surveyed anchors, and no
 external height sensor. This is the axis the field cannot get cheaply: 32 of the 37 reviewed systems
 avoid it (2D); the systems that do resolve it import a crutch a body-worn tag cannot use --- AoA base
@@ -293,10 +296,13 @@ number'' but ``a usable vertical recovered from UWB alone, under the body-worn c
 out every external height aid''} --- which is precisely why the balanced $4{+}4$ array exists.
 
 \textbf{3D total.} Repeatability $\sim$50~mm ($\sim$28~mm when all eight anchors are visible online);
-absolute $\sim$68~mm. This is top-tier --- better than the large majority of the reviewed systems
-($10$--$80$~cm) and within reach of the best ($\sim$48~mm 3D RMSE) --- but we do \emph{not} claim it
+absolute $\sim$73~mm median (P95 ${\approx}172$~mm, RMSE ${\approx}110$~mm). This sits in the upper range of the reviewed systems
+($10$--$80$~cm) and within reach of the best ($\sim$48~mm 3D RMSE), though we do \emph{not} claim it
 is the single smallest absolute number: the best reviewed result ($\sim$48~mm, a 24~s walk with
-surveyed anchors and IMU fusion) still edges it.
+surveyed anchors and IMU fusion) still edges it. The ${\approx}73$~mm median further benefits, in part,
+from the self-calibrated production layout's expanded scale compensating an uncorrected tag-side
+delay: with the tag-side delay left at zero, the clean metric-corrected layout gives a larger
+${\approx}110$~mm median (the mechanism and its in-environment control are analyzed in the companion paper).
 
 \textbf{Honest caveat on the comparison.} The reviewed systems are UWB$+$IMU \emph{fusion} tracking a
 \emph{moving} tag; AutoPos is UWB-only positioning of a \emph{static} tag. Fusion and IMU help them;
@@ -309,7 +315,7 @@ figures above are obtained at the system's designed operating point: an eight-an
 constitutive, not a favourable selection. A reproduction that drives the same layout with a naive
 minimal-anchor SS-TWR scheme, or that collapses the array to a single coplanar layer, will
 \emph{not} recover these numbers --- the vertical in particular returns to the ill-conditioned
-$\partial r/\partial y \to 0$ regime the Fisher analysis proves exactly singular for a coplanar
+$\partial r/\partial z \to 0$ regime the Fisher analysis proves exactly singular for a coplanar
 layer. The graceful, layer-asymmetric degradation under partial anchor dropout (losing an
 \emph{upper} versus a \emph{lower} anchor is not equivalent) is characterised by the stratified
 keep-$k$ analysis in the full system evaluation.
@@ -319,7 +325,7 @@ keep-$k$ analysis in the full system evaluation.
 The companion mechanism paper (Paper~B) is the natural home for the finding that this system
 surfaces: that the residual vertical error is the per-tag projection of a common-mode range bias ---
 the UWB analogue of the GPS receiver-clock/altitude coupling --- which no amount of added geometric
-diversity removes (demonstrated there by an active vertical-injection control). Keeping the two
+diversity removes, only an explicit tag-delay correction (demonstrated there by an active vertical-injection control that produced no dose-response). Keeping the two
 separate avoids cannibalizing the higher-tier mechanism paper with the systems paper, and lets the
 mechanism paper cite this validated system as the substrate for its analysis. Paper~A establishes
 priority on the deployment capability and the balanced $4{+}4$ geometry; Paper~B establishes
@@ -398,7 +404,7 @@ delays from inter-anchor two-way ranging alone --- no external sensor, no mobile
 surveyed reference positions --- on commodity (DWM1001C) hardware, validated against optical (Vicon)
 ground truth. The enabling element is a balanced two-layer ($4{+}4$) anchor array: via a
 Fisher/Cram\'{e}r--Rao analysis we show a single coplanar layer leaves the vertical exactly
-unobservable ($\partial r/\partial y = 0$), that raising anchors unlocks it, and that the balanced
+unobservable ($\partial r/\partial z = 0$), that raising anchors unlocks it, and that the balanced
 $4{+}4$ array reaches a vertical CRLB floor of ${\approx}63$~mm, with \emph{balance} --- not merely
 anchor count --- conditioning the vertical; the eight-anchor count itself follows from a real-time
 broadcast protocol dimensioned for 10~Hz on up to 10 simultaneous tags. Reporting by axis and
@@ -408,7 +414,7 @@ vertical where most comparable systems avoid the axis or reach it only with angl
 biomechanical, or surveyed-anchor aids. The $4{+}4$ geometry is necessary but not sufficient: a residual systematic vertical
 bias remains, attributed to a tag-side delay aliasing into the vertical (companion paper). To our knowledge this is
 the first demonstration that the \emph{vertical} axis of a UWB anchor array can be self-calibrated to
-the centimetre level --- ${\approx}59$~mm absolute against optical ground truth, near a ${\approx}63$~mm
+the centimetre level --- ${\approx}62$~mm median absolute against optical ground truth, near a ${\approx}63$~mm
 inter-anchor Cram\'{e}r--Rao floor --- from inter-anchor ranging alone on commodity single-antenna
 modules, with the delay coupling that bounds it identified and quantified.
 \end{quote}
@@ -419,8 +425,8 @@ anchor array; vertical observability; 3D positioning; antenna-delay calibration;
 motion capture; Cram\'{e}r--Rao bound; dilution of precision.
 
 \textbf{Citable priority sentence} (to appear verbatim in the body): \emph{``A balanced two-layer
-($4{+}4$) anchor array renders the vertical observable for reference-free, inter-anchor-only 3D UWB
-self-calibration --- a single coplanar layer is exactly singular ($\partial r/\partial y = 0$), while
+($4{+}4$) anchor array renders the vertical \emph{well-conditioned} for reference-free, inter-anchor-only 3D UWB
+self-calibration --- a single coplanar layer is exactly singular ($\partial r/\partial z = 0$) and a single raised anchor only weakly unlocks it, while
 the balanced $4{+}4$ reaches a ${\approx}63$~mm vertical Cram\'{e}r--Rao floor --- enabling a pure-UWB
 vertical without any external height aid.''}
 
@@ -453,6 +459,9 @@ using ultrawideband and inertial measurements. \emph{IEEE Transactions on Vehicu
 Coordinate-consistent localization via continuous-time calibration and fusion of UWB and SLAM
 observations. \emph{arXiv preprint} arXiv:2510.05992.
 
+\bibitem[Liu and Cao(2025)]{liu_2025} Liu, X. and Cao, M., 2025. Robust simultaneous UWB-anchor
+calibration and robot localization for emergency situations. \emph{arXiv preprint} arXiv:2503.22272.
+
 \bibitem[Pereira(2021)]{pereira_2021} Pereira, J., 2021. \emph{Anchor self-calibrating schemes for
 UWB based indoor localization}. M.Sc.\ thesis, Rochester Institute of Technology.
 
@@ -465,16 +474,20 @@ W., Hoebeke, J. and De Poorter, E., 2021. UWB anchor nodes self-calibration in N
 machine learning and adaptive PHY error correction approach. \emph{Wireless Networks}, 27,
 pp.3007--3023.
 
-\bibitem[Shah et~al.(2019)]{shah_2019} Shah, C.L., Shin, S.-Y. and Jeon, J., 2019. Numerical and
+\bibitem[Sang et~al.(2019)]{sang_2019} Sang, C.L., Adams, M., H\"ormann, T., Hesse, M., Porrmann, M. and R\"uckert, U., 2019. Numerical and
 experimental evaluation of error estimation for two-way ranging methods. \emph{Sensors}, 19(3), 616.
 
-\bibitem[Shah et~al.(2021)]{shah_2021} Shah, S., Kaemarungsi, K., Demeechai, T. and
-Charaspreedalarp, C., 2021. Antenna delay calibration of UWB nodes. \emph{IEEE Access}, 9,
-pp.52030--52044.
+\bibitem[Shah et~al.(2021)]{shah_2021} Shah, S., Chaiwong, K., Kovavisaruch, L., Kaemarungsi, K. and
+Demeechai, T., 2021. Antenna delay calibration of UWB nodes. \emph{IEEE Access}, 9,
+pp.63294--63305.
 
-\bibitem[Shah et~al.(2022)]{shah_2022} Shah, S., Chaiwong, K., Kovavisaruch, L., Kaemarungsi, K. and
+\bibitem[Shah et~al.(2022)]{shah_2022} Shah, S., Kovavisaruch, L., Kaemarungsi, K. and
 Demeechai, T., 2022. Node calibration in UWB-based RTLSs using multiple simultaneous ranging.
 \emph{Sensors}, 22(3), 864.
+
+\bibitem[Xiang et~al.(2025)]{xiang_2025_uav} Xiang, Z., Chen, L., Wu, Q., Yang, J., Dai, X. and Xie, X.,
+2025. An improved UWB indoor positioning approach for UAVs based on the dual-anchor model.
+\emph{Sensors}, 25(4), 1052.
 
 \bibitem[Yogesh et~al.(2023)]{yogesh_2023} Yogesh, V., Buurke, J.H., Veltink, P.H. and Baten,
 C.T.M., 2023. Integrated UWB/MIMU sensor system for position estimation towards an accurate analysis
@@ -485,7 +498,7 @@ Veltink, P.H. and Baten, C.T.M., 2024. Novel calibration method for improved UWB
 measurement in the context of application for 3D analysis of human movement. \emph{Engineering
 Science and Technology, an International Journal}, 58, 101844.
 
-\bibitem[Yuan et~al.(2024)]{yuan_2024} Yuan, S., Nguyen, T.-M., Cao, M., Xu, X., Li, J. and Xie, L.,
+\bibitem[Yuan et~al.(2024)]{yuan_2024} Yuan, S., Lou, B., Nguyen, T.-M., Yin, P., Cao, M., Xu, X., Li, J., Xu, J., Chen, S. and Xie, L.,
 2024. Large-scale UWB anchor calibration and one-shot localization using Gaussian process.
 \emph{arXiv preprint} arXiv:2412.16880.
 

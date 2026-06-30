@@ -46,6 +46,14 @@
 #define UWB_MSG_RESP_DIAG_RXPACC_IDX 30U
 #define UWB_MSG_RESP_DIAG_STD_NOISE_IDX 32U
 #define UWB_MSG_RESP_V2_FRAME_LEN 34U
+/* V3 appends the responder's own DW1000 chip temperature + Vbat as raw 8-bit
+ * SAR codes (1 byte each) after the V2 diag block. Length-gated on the tag
+ * side so a V2 (34-byte) and a V3 (36-byte) responder interoperate without
+ * breaking ranging. Raw codes only; host converts to degC/volts offline.
+ */
+#define UWB_MSG_RESP_DIAG_TEMP_IDX 34U
+#define UWB_MSG_RESP_DIAG_VBAT_IDX 35U
+#define UWB_MSG_RESP_V3_FRAME_LEN 36U
 
 /* Legacy/unicast Alt poll fields. */
 #define UWB_MSG_POLL_INDEX_IDX 10U

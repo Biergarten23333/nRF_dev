@@ -248,7 +248,7 @@ static dwt_config_t ss_twr_resp_config = {
 
 static uint8_t ss_twr_resp_frame_seq_nb;
 static uint8_t ss_twr_resp_rx_buffer[SS_TWR_RESP_RX_BUF_LEN];
-static uint8_t ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_V2_FRAME_LEN];
+static uint8_t ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_V3_FRAME_LEN];
 static uint16_t ss_twr_resp_local_addr;
 static uint8_t ss_twr_resp_anchor_id;
 static int ss_twr_resp_allow_tag_polls;
@@ -942,6 +942,12 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
     uint32_t prof_last_ms = k_uptime_get_32();
     struct ss_twr_resp_profile_stats prof_stats = {0};
     struct ss_twr_resp_match_diag match_diag = {0};
+#if APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_ENABLE != 0U
+    uint8_t resp_chip_temp_raw = 0U;
+    uint8_t resp_chip_vbat_raw = 0U;
+    uint32_t resp_temp_read_last_ms = 0U;
+    bool resp_temp_read_valid = false;
+#endif
 
     if (anchor_id >= UWB_MAX_ANCHORS) {
         RESP_PRINTK("Invalid SS-TWR responder anchor_id=%u\n", anchor_id);
@@ -992,6 +998,28 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             k_msleep(2);
             continue;
         }
+
+#if APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_ENABLE != 0U
+        /* Periodic (~30s) DW1000 chip temperature + Vbat sample, taken here at
+         * the idle loop top (before RX is armed) so it never perturbs the tight
+         * poll-RX -> resp-TX turnaround. Cached raw codes are embedded in the V3
+         * response payload. fastSPI=1 keeps the receiver clocks up (no XTI
+         * switch); worst case it delays one RX-arm by ~1ms once per 30s.
+         */
+        {
+            uint32_t temp_now_ms = k_uptime_get_32();
+
+            if (!resp_temp_read_valid ||
+                (uint32_t)(temp_now_ms - resp_temp_read_last_ms) >= 30000U) {
+                uint16_t tv_raw = dwt_readtempvbat(1);
+
+                resp_chip_temp_raw = (uint8_t)(tv_raw >> 8);
+                resp_chip_vbat_raw = (uint8_t)(tv_raw & 0xffU);
+                resp_temp_read_last_ms = temp_now_ms;
+                resp_temp_read_valid = true;
+            }
+        }
+#endif
 
         dwt_rxenable(DWT_START_RX_IMMEDIATE);
 
@@ -1171,7 +1199,7 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         }
 #endif
         if (diag_v2_frame) {
-            resp_frame_len = UWB_MSG_RESP_V2_FRAME_LEN;
+            resp_frame_len = UWB_MSG_RESP_V3_FRAME_LEN;
         }
         if (diag_v2_allowed) {
             dwt_readdiagnostics(&poll_rx_diag);
@@ -1224,6 +1252,15 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         } else if (diag_v2_frame) {
             ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_DIAG_VERSION_IDX] = 0U;
             ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_DIAG_FLAGS_IDX] = 0U;
+        }
+        /* Chip temp + Vbat ride in every V3 (tag-facing) response, independent
+         * of poll-RX diag validity (it's the responder's own chip state).
+         */
+        if (diag_v2_frame) {
+            ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_DIAG_TEMP_IDX] =
+                resp_chip_temp_raw;
+            ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_DIAG_VBAT_IDX] =
+                resp_chip_vbat_raw;
         }
 #else
         memset(&ss_twr_resp_tx_resp_msg[UWB_MSG_RESP_DIAG_VERSION_IDX], 0,

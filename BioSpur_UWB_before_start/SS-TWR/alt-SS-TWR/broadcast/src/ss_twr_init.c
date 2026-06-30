@@ -510,6 +510,8 @@ struct ss_twr_init_rf_diag_sample {
     uint16_t rxpacc;
     uint16_t std_noise;
     uint8_t flags;
+    uint8_t temp_raw;  /* responder DW1000 chip temp, raw SAR (V3 frame); 0=n/a */
+    uint8_t vbat_raw;  /* responder DW1000 Vbat, raw SAR (V3 frame); 0=n/a */
 };
 #endif
 #if APP_TAG_STATUS_PERIOD_MS > 0U
@@ -1186,9 +1188,32 @@ static void ss_twr_init_publish_tag_range_summary(
     uint32_t cycle_us = 0U;
     bool first = true;
     int line_len;
+    static uint32_t tag_temp_last_ms;
+    static bool tag_temp_valid;
+    static uint8_t tag_temp_raw;
+    static uint8_t tag_vbat_raw;
 
     if (ss_twr_init_runtime_any_calibration_mode()) {
         return;
+    }
+
+    /* Periodic (~30s) tag DW1000 chip temperature + Vbat sample. Taken at
+     * sweep completion (radio idle between sweeps); worst case it nudges one
+     * poll by ~1ms once per 30s. Emitted as a raw-code ;T trailer on the TR
+     * line so it rides the existing tag->master-tag->host text passthrough.
+     */
+    {
+        uint32_t temp_now_ms = k_uptime_get_32();
+
+        if (!tag_temp_valid ||
+            (uint32_t)(temp_now_ms - tag_temp_last_ms) >= 30000U) {
+            uint16_t tv_raw = dwt_readtempvbat(1);
+
+            tag_temp_raw = (uint8_t)(tv_raw >> 8);
+            tag_vbat_raw = (uint8_t)(tv_raw & 0xffU);
+            tag_temp_last_ms = temp_now_ms;
+            tag_temp_valid = true;
+        }
     }
 
     for (size_t i = 0U; i < measurement_count; ++i) {
@@ -1347,6 +1372,15 @@ static void ss_twr_init_publish_tag_range_summary(
             (unsigned long)read_duration_us);
     }
 #endif
+    if (line_len > 0 && tag_temp_valid) {
+        size_t used = strlen(line);
+
+        if (used < sizeof(line)) {
+            (void)snprintk(&line[used], sizeof(line) - used, ";T,%u,%u",
+                           (unsigned int)tag_temp_raw,
+                           (unsigned int)tag_vbat_raw);
+        }
+    }
     (void)uwb_tag_ble_publish_status(line);
 }
 #else
@@ -3066,6 +3100,8 @@ static void ss_twr_init_rf_diag_from_rxdiag(
     out->cir_pwr = diag->maxGrowthCIR;
     out->rxpacc = diag->rxPreamCount;
     out->std_noise = diag->stdNoise;
+    out->temp_raw = 0U;  /* tag-side resp diag carries no responder temp */
+    out->vbat_raw = 0U;
 }
 #endif
 
@@ -3097,6 +3133,13 @@ static bool ss_twr_init_parse_resp_diag_v2(
         ss_twr_init_read_le16(&frame[UWB_MSG_RESP_DIAG_RXPACC_IDX]);
     out->std_noise =
         ss_twr_init_read_le16(&frame[UWB_MSG_RESP_DIAG_STD_NOISE_IDX]);
+    if (frame_len >= UWB_MSG_RESP_V3_FRAME_LEN) {
+        out->temp_raw = frame[UWB_MSG_RESP_DIAG_TEMP_IDX];
+        out->vbat_raw = frame[UWB_MSG_RESP_DIAG_VBAT_IDX];
+    } else {
+        out->temp_raw = 0U;
+        out->vbat_raw = 0U;
+    }
     return true;
 }
 
@@ -3124,7 +3167,8 @@ static void ss_twr_init_publish_rf_diag(
     snprintk(line, sizeof(line),
              "RFD;1;%lu;%u;%u;%ld;%lu;%ld;"
              "%u;%u;%u;%u;%u;%u;%u;%u;"
-             "%u;%u;%u;%u;%u;%u;%u;%u",
+             "%u;%u;%u;%u;%u;%u;%u;%u;"
+             "%u;%u",
              (unsigned long)ss_twr_init_sweep_count,
              (unsigned int)poll_seq,
              (unsigned int)anchor_id,
@@ -3146,7 +3190,9 @@ static void ss_twr_init_publish_rf_diag(
              (unsigned int)tr->fp_ampl3,
              (unsigned int)tr->cir_pwr,
              (unsigned int)tr->rxpacc,
-             (unsigned int)tr->std_noise);
+             (unsigned int)tr->std_noise,
+             (unsigned int)ap->temp_raw,
+             (unsigned int)ap->vbat_raw);
     printk("%s\n", line);
 #if APP_TAG_BLE_ENABLE && APP_TAG_RF_DIAG_OUTPUT_BLE_ENABLE != 0U
     (void)uwb_tag_ble_publish_status(line);

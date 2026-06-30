@@ -12,7 +12,7 @@ import subprocess
 import sys
 import threading
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from datetime import datetime
 from pathlib import Path
 
@@ -107,6 +107,7 @@ RFD_RE = re.compile(
     r"(?P<tag_cir_pwr>\d+);"
     r"(?P<tag_rxpacc>\d+);"
     r"(?P<tag_std_noise>\d+)"
+    r"(?:;(?P<anchor_temp_raw>\d+);(?P<anchor_vbat_raw>\d+))?"
 )
 
 RANGE_ACTIVITY_RE = re.compile(r"\b(?:TR|RFD|CM|CR|CF|CS);")
@@ -124,6 +125,12 @@ TR_IMU_TRAILER_RE = re.compile(
     r"(?P<acc_norm_min_mg>-?\d+)[,;]"
     r"(?P<acc_norm_max_mg>-?\d+)"
     r"(?:[,;](?P<imu_skip_count>\d+))?$"
+)
+
+# Tag DW1000 chip temperature trailer (raw 8-bit SAR codes); comma-separated to
+# stay unambiguous vs the ';<STATUS>' field whose alphabet includes 'T'.
+TR_TEMP_TRAILER_RE = re.compile(
+    r";T,(?P<tag_temp_raw>\d+),(?P<tag_vbat_raw>\d+)"
 )
 
 CONNECTED_RE = re.compile(
@@ -248,6 +255,10 @@ def iter_tr_records(text: str):
 
         imu_fields = extract_imu_trailer(fragment)
         fragment = imu_fields.pop("_fragment", fragment)
+        temp_match = TR_TEMP_TRAILER_RE.search(fragment)
+        if temp_match:
+            imu_fields["tag_temp_raw"] = int(temp_match.group("tag_temp_raw"))
+            imu_fields["tag_vbat_raw"] = int(temp_match.group("tag_vbat_raw"))
 
         match = TR_SINGLE_RE.search(fragment)
         if match:
@@ -433,6 +444,8 @@ def iter_rfd_records(text: str):
             "tag_rxpacc": tag_rxpacc,
             "tag_rxpacc_q8": q8_saturate(tag_rxpacc),
             "tag_std_noise": int(match.group("tag_std_noise")),
+            "anchor_temp_raw": int(match.group("anchor_temp_raw") or 0),
+            "anchor_vbat_raw": int(match.group("anchor_vbat_raw") or 0),
         }
 
 
@@ -1008,6 +1021,26 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.7,
         help="A tag with ge7 below this in the probe window is treated as a reroll victim.",
     )
+    parser.add_argument(
+        "--runtime-heal",
+        action="store_true",
+        help="RUNTIME self-healing: during capture, watch each tag's live windowed ge7 and, "
+             "if a tag collapses (UWB-poll suppressed by a bad BLE<->slot phase, or a bad "
+             "phase after a mid-run BLE reconnect), send `reroll <BS>` to pull just that tag "
+             "back to a clean phase. Lets a tag that drops (UWB or BLE) recover on its own.",
+    )
+    parser.add_argument("--heal-window-s", type=float, default=8.0,
+                        help="Sliding window (s) for the runtime-heal per-tag ge7.")
+    parser.add_argument("--heal-ge7-threshold", type=float, default=0.5,
+                        help="A tag whose windowed ge7 falls below this is healed (rerolled).")
+    parser.add_argument("--heal-grace-s", type=float, default=12.0,
+                        help="Grace (s) after capture start / after a heal before judging a tag.")
+    parser.add_argument("--heal-min-sweeps", type=int, default=30,
+                        help="Min sweeps in the window before a tag's ge7 is trusted enough to heal.")
+    parser.add_argument("--heal-reconnect-s", type=float, default=10.0,
+                        help="Settle wait (s) folded into a tag's cooldown after a heal reroll.")
+    parser.add_argument("--heal-max-rerolls", type=int, default=8,
+                        help="Max heal rerolls per tag per capture (avoids thrashing on a dead link).")
     return parser
 
 
@@ -2527,6 +2560,59 @@ def reroll_settle_phase(ser, logf, args, targets):
     return ser
 
 
+def runtime_heal_check(ser, logf, args, targets, heal_q, capture_start_wall,
+                       cooldown, reroll_count, events):
+    """Runtime self-healing (during capture). Prune the rolling TR window; if a
+    connected+reporting tag's windowed ge7 has collapsed (UWB poll suppressed by a bad
+    BLE<->slot phase, incl. after a mid-run reconnect), send `reroll <BS>` for just that
+    tag to pull it back to a clean phase. One heal per call. Returns the serial."""
+    now = time.time()
+    window_s = float(getattr(args, "heal_window_s", 8.0))
+    cutoff = now - window_s
+    while heal_q and heal_q[0][0] < cutoff:
+        heal_q.popleft()
+    if now - capture_start_wall < float(getattr(args, "heal_grace_s", 12.0)):
+        return ser
+    thresh = float(getattr(args, "heal_ge7_threshold", 0.5))
+    min_sweeps = int(getattr(args, "heal_min_sweeps", 30))
+    max_rr = int(getattr(args, "heal_max_rerolls", 8))
+    sw: dict[str, dict[int, set]] = defaultdict(lambda: defaultdict(set))
+    for (_t, peer, sweep, aid) in heal_q:
+        s = sw[peer][sweep]
+        if aid is not None:
+            s.add(aid)
+    for peer in targets:
+        if now < cooldown.get(peer, 0.0):
+            continue
+        if reroll_count.get(peer, 0) >= max_rr:
+            continue
+        sweeps = sw.get(peer, {})
+        n = len(sweeps)
+        if n < min_sweeps:
+            continue
+        ge7 = sum(1 for a in sweeps.values() if len(a) >= 7) / n
+        if ge7 < thresh:
+            reroll_count[peer] = reroll_count.get(peer, 0) + 1
+            print(f"[HEAL] {peer} ge7={ge7:.0%} over {n} sweeps (< {thresh:.0%}) -> "
+                  f"reroll #{reroll_count[peer]}", flush=True)
+            logf.write(f"[HEAL {time.monotonic():.3f}] {peer} ge7={ge7:.3f} n={n} "
+                       f"reroll#{reroll_count[peer]}\n")
+            logf.flush()
+            events.append({"peer": peer, "host_epoch_s": round(now, 6),
+                           "ge7": round(ge7, 4), "window_sweeps": n,
+                           "reroll_n": reroll_count[peer]})
+            ser = send_cmd(ser, logf, f"reroll {peer}", 0.4)
+            # The reroll disconnects the tag; mid-capture the scanner is idle, so nudge
+            # discovery (connect-and-start) to actively reconnect the dropped tag while
+            # keeping the others. Without this the tag stays gone for the rest of capture.
+            ser = send_cmd(ser, logf, "conn", 0.4)
+            # cooldown spans reconnect + a fresh window, so pre-reroll rows age out
+            # before we judge this tag again.
+            cooldown[peer] = now + float(getattr(args, "heal_reconnect_s", 10.0)) + window_s
+            return ser   # one heal per call
+    return ser
+
+
 def main() -> int:
     args = build_parser().parse_args()
     if (
@@ -2636,6 +2722,13 @@ def main() -> int:
     controller_recovery_successes = 0
     cleanup_result: dict = {"attempted": False, "reason": "not_reached"}
     cir_full_phase: dict = {"attempted": False, "reason": "not_reached"}
+
+    heal_enabled = bool(getattr(args, "runtime_heal", False))
+    heal_q: deque = deque()
+    heal_cooldown: dict[str, float] = {}
+    heal_reroll_count: dict[str, int] = defaultdict(int)
+    heal_events: list[dict] = []
+    heal_last_check = 0.0
 
     with raw_log_path.open("w", encoding="utf-8") as logf:
         print(f"[CAPTURE] open serial: {args.port}", flush=True)
@@ -2868,6 +2961,8 @@ def main() -> int:
                                     "acc_norm_min_mg": tr.get("acc_norm_min_mg", ""),
                                     "acc_norm_max_mg": tr.get("acc_norm_max_mg", ""),
                                     "imu_skip_count": int(tr.get("imu_skip_count") or 0),
+                                    "tag_temp_raw": tr.get("tag_temp_raw", ""),
+                                    "tag_vbat_raw": tr.get("tag_vbat_raw", ""),
                                     "diag_source": tr.get("diag_source", ""),
                                     "tr_diag_version": tr.get("tr_diag_version", ""),
                                     "anchor_diag_valid": tr.get("anchor_diag_valid", ""),
@@ -2884,6 +2979,13 @@ def main() -> int:
                             )
                             if peer_name:
                                 tr_seen[peer_name] += 1
+                                if heal_enabled:
+                                    heal_q.append((
+                                        host_epoch_s,
+                                        peer_name,
+                                        int(tr["sweep"]),
+                                        int(tr["anchor_id"]) if int(tr["valid"]) else None,
+                                    ))
 
                         for rfd in iter_rfd_records(line):
                             match = re.search(TAG_NOTIFY_PREFIX_RE, line)
@@ -2913,6 +3015,12 @@ def main() -> int:
                             expected_freq_by_target,
                         )
                         last_status_at = time.time()
+                    if heal_enabled and time.time() - heal_last_check >= 2.0:
+                        heal_last_check = time.time()
+                        ser = runtime_heal_check(
+                            ser, logf, args, targets, heal_q, capture_start_wall,
+                            heal_cooldown, heal_reroll_count, heal_events,
+                        )
                     if (
                         no_tr_deadline is not None
                         and not tr_rows
@@ -3004,6 +3112,8 @@ def main() -> int:
         "acc_norm_min_mg",
         "acc_norm_max_mg",
         "imu_skip_count",
+        "tag_temp_raw",
+        "tag_vbat_raw",
     ]
 
     rfd_fields = [
@@ -3047,6 +3157,8 @@ def main() -> int:
         "tag_rxpacc",
         "tag_rxpacc_q8",
         "tag_std_noise",
+        "anchor_temp_raw",
+        "anchor_vbat_raw",
     ]
 
     rfd_join_fields = [
@@ -3085,6 +3197,8 @@ def main() -> int:
         ("tag_rxpacc", "tag_rxpacc"),
         ("tag_rxpacc_q8", "tag_rxpacc_q8"),
         ("tag_std_noise", "tag_std_noise"),
+        ("anchor_temp_raw", "anchor_temp_raw"),
+        ("anchor_vbat_raw", "anchor_vbat_raw"),
     ]
 
     write_rows(session_dir / "tr_all.csv", tr_fields, tr_rows)

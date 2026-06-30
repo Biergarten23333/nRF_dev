@@ -50,8 +50,9 @@ assumptions the review notes fail for the individual, non-cyclic movement of pat
 \citep{yogesh_2023}; a barometer stays coarse and drifts indoors. Recovering $Z$ from the UWB geometry
 supplies the missing absolute reference and keeps the vertical in the \emph{same} drift-free error
 regime that already fixes the horizontal, with no second sensor to register or de-drift. The catch is purely
-geometric: with a single coplanar layer the vertical is badly ill-conditioned --- the height still
-falls out, just far too inaccurate to use. The minimal remedy is the intuitive one --- four anchors is
+geometric: with a single coplanar layer the vertical is \emph{unobservable} in the ideal range-only
+model --- its inter-anchor Cram\'{e}r--Rao bound is exactly singular, so any apparent height comes from
+nonidealities or priors, not calibrated geometry, and is far too inaccurate to use. The minimal remedy is the intuitive one --- four anchors is
 the well-known minimum for a 3D fix, so we take that single, horizontally-complete layer and copy it to
 a second height offset by a $\Delta z$, giving a balanced $4{+}4$: the smallest vertical baseline that
 makes the vertical usable, not an arbitrary denser array nor a coplanar anchor layer plus a $Z$ sensor on the tag. Forcing
@@ -86,15 +87,15 @@ inter-anchor-only cell on cheap single-antenna modules; (ii) a \emph{balanced} t
 array that, \emph{within reference-free self-calibration}, restores the well-conditioned vertical geometry that
 a single coplanar layer lacks --- deployed few-anchor raises avoid that wall only
 by surveying the raised positions, not self-calibrating them (a self-calibration Fisher analysis gives
-a vertical CRLB exactly singular for a coplanar layer and $\sim$63~mm for $4{+}4$, at the $\sim$60~mm
-production floor); and (iii) two
+a vertical CRLB exactly singular for a coplanar layer and $\sim$63~mm for $4{+}4$, at the ${\approx}62$~mm
+deployed median vertical error); and (iii) two
 ground-truth-free deployment diagnostics --- that ranging residual is a misleading quality signal
 under minimal anchor counts, and that dispersion across dynamic anchor selection exposes calibration
 bias that a fixed anchor set would hide.
 
 \textbf{Result, by axis (Std vs absolute kept separate).} Repeatability $\sim$5~cm 3D / $\sim$4~cm
 vertical; absolute (vs Vicon) $\sim$7~cm 3D / $\sim$6~cm vertical --- UWB-only and self-calibrated.
-The \emph{vertical} is the point: $\sim$4--6~cm from pure UWB, on an axis 32 of 37 reviewed systems
+The \emph{vertical} is the point: ${\approx}6$~cm median absolute from pure UWB, on an axis 32 of 37 reviewed systems
 avoid entirely and that the remaining few reach only by importing an external height reference. The defensible claim is a usable vertical recovered from UWB alone under the
 body-worn constraint that rules out external height aids --- not the smallest absolute number (the
 best fusion-plus-surveyed system still edges the 3D total).
@@ -107,13 +108,16 @@ geometry deficit --- which the companion mechanism paper (Paper~B) analyzes as t
 its delay--layout coupling result. These figures also presuppose the
 eight-anchor, two-layer \textbf{broadcast SS-TWR} acquisition the array is built for: a naive
 minimal-anchor SS-TWR shortcut, or a single coplanar layer, returns the vertical to its singular
-regime by construction and will not reproduce them.
+regime by construction and will not reproduce them. All figures are from a single room with 24 static
+tag positions; multi-room transfer is unproven. The headline median also benefits, in part, from the
+production layout's expanded scale compensating an uncorrected tag-side delay --- the companion paper's
+mechanism; with that delay left at zero the metric-correct layout gives a larger median.
 
 \textbf{Priority and disclosure.} To our knowledge this is the first demonstration that the
 \emph{vertical} axis of a UWB anchor array can be self-calibrated to the centimetre level
-($\sim$59~mm absolute vs Vicon, near a $\sim$63~mm inter-anchor Cram\'{e}r--Rao floor) from
-inter-anchor ranging alone on commodity single-antenna modules --- the number later reference-free
-pure-UWB vertical self-calibration must beat. For defensive-publication value the manuscript discloses
+(${\approx}62$~mm median absolute vs Vicon, near a $\sim$63~mm inter-anchor Cram\'{e}r--Rao floor) from
+inter-anchor ranging alone on commodity single-antenna modules --- a reference point that later reference-free
+pure-UWB vertical self-calibration in this regime can be measured against. For defensive-publication value the manuscript discloses
 the full enabling combination once (3D self-calibration; inter-anchor ranging only; joint per-device
 antenna-delay estimation; commodity DWM1001C modules; balanced $4{+}4$ array; optical-ground-truth
 validation --- no survey, no external $Z$ sensor, no mobile platform), and ships the CRLB script and
