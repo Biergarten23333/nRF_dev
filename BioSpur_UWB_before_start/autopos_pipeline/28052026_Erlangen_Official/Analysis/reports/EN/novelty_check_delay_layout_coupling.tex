@@ -129,7 +129,7 @@ This literature supports our Fisher/profile-likelihood language, but it does not
 
 \subsection{Evaluation Methodology}
 
-Several prior systems use ground truth, motion capture, or external trajectory sources for evaluation \citep{lutz_2019_visual_inertial_slam_uwb_error_model,ledergerber_2018_calibrating_away_inaccuracies_uwb,queralta_2020_uwb_based_system_for_uav}. What is less common is an explicit separation between anchor-side metric correctness and tag-side same-environment positioning accuracy. The Erlangen analysis uses Sim(3) scale, transfer matrices, winner's-curse correction, nested spatial validation, phase-center sensitivity, and raw-frame ranking reversal as separate checks. This is a measurement-validity protocol rather than a new real-time localization algorithm. All figures here derive from the same \textbf{eight-anchor broadcast SS-TWR acquisition} the AutoPos system is dimensioned for---every fix draws on the full anchor set at one transmission instant---so the results are conditional on it: a minimal-anchor or sequential SS-TWR scheme yields different inter-anchor geometry and conditioning and is not expected to reproduce these numbers.
+Several prior systems use ground truth, motion capture, or external trajectory sources for evaluation \citep{lutz_2019_visual_inertial_slam_uwb_error_model,ledergerber_2018_calibrating_away_inaccuracies_uwb,queralta_2020_uwb_based_system_for_uav}. What is less common is an explicit separation between anchor-side metric correctness and tag-side same-environment positioning accuracy. The Erlangen analysis uses Sim(3) scale, transfer matrices, winner's-curse correction, nested spatial validation, phase-center sensitivity, and raw-frame ranking reversal as separate checks. This is a measurement-validity protocol rather than a new real-time localization algorithm. All figures here derive from fixes (and an inter-anchor self-calibration) in which \textbf{all eight anchors of the 4+4 array participate}; the result is a property of that full-array participation, not of the ranging protocol---for a static fix the eight ranges are equivalent whether gathered sequentially or by broadcast. A reproduction that admits fixes from fewer anchors (e.g.\ a four-anchor subset) faces a much larger vertical CRLB or, for coplanar subsets, the singular regime, and is not expected to reproduce these numbers.
 
 \subsection{Independent Observation of the Wrong-Calibration-Wins Paradox}
 
@@ -346,10 +346,10 @@ antenna-calibration-temperature field is unprogrammed on every unit, indicating 
 antenna-delay calibration was performed --- although the same memory does carry per-device crystal-trim
 and temperature-sensor references that vary unit to unit. Applying the OTP value is therefore a
 near-uniform common-mode shift that only rescales the layout and cannot supply the per-device delay
-differences that drive the coupling. The per-device delays are thus unavailable from factory data and
-recoverable only by per-unit bench calibration (not done in deployment) or self-calibration, which
-entangles them with geometry --- the effect studied here. The coupling is intrinsic to commodity
-single-antenna hardware, not an artifact of a skipped calibration step.
+differences that drive the coupling. The per-device delays are thus not recoverable from factory data --- only from
+per-unit bench calibration (not done in deployment) or self-calibration, which
+entangles them with geometry --- the effect studied here. The coupling is intrinsic to these commodity single-antenna modules (DWM1001C/DW1000), not an
+artifact of a skipped calibration step.
 
 The evidence chain is falsification-aware. The common-mode parameterization
 absorbs bulk anchor delay and fixes scale, and the per-anchor range-bias decomposition

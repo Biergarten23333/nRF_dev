@@ -934,8 +934,8 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
     uint32 tag_tx_miss_count[SS_TWR_RESP_DIAG_TAG_SLOTS] = {0U};
 #if APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_ENABLE != 0U && \
     APP_ANCHOR_RESP_POST_TX_DIAG_PAYLOAD_DELAY_ENABLE != 0U
-    dwt_rxdiag_t delayed_rank0_diag;
-    bool delayed_rank0_diag_valid = false;
+    dwt_rxdiag_t delayed_poll_diag;
+    bool delayed_poll_diag_valid = false;
 #endif
     uint32 wait_cycles = 0U;
     uint32 diag_last_ms = k_uptime_get_32();
@@ -1186,7 +1186,16 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         }
 #endif
 #if APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_ENABLE != 0U
+#if APP_ANCHOR_RESP_POST_TX_DIAG_PAYLOAD_DELAY_ENABLE != 0U
+        /* fixed-a19 (ALL ranks): in deferred-diag mode NEVER read diagnostics
+         * before starttx. The pre-TX dwt_readdiagnostics (~55-90us @ 8MHz SPI)
+         * was busting the delayed-TX deadline for tag polls (~50% coin-flip).
+         * The read is moved AFTER starttx (below) and pipelined into the NEXT
+         * response from this anchor, marked DELAYED. */
+        bool diag_v2_allowed = false;
+#else
         bool diag_v2_allowed = poll_src_is_tag;
+#endif
         bool diag_v2_frame = poll_src_is_tag;
 #if APP_ANCHOR_RESP_RANK0_FAST_TX_ENABLE != 0U
         if (resp_rank == 0U) {
@@ -1204,19 +1213,22 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
         if (diag_v2_allowed) {
             dwt_readdiagnostics(&poll_rx_diag);
             poll_rx_diag_valid = true;
-        } else if (diag_v2_frame &&
-                   resp_rank == 0U
+        } else if (diag_v2_frame
 #if APP_ANCHOR_RESP_POST_TX_DIAG_PAYLOAD_DELAY_ENABLE != 0U
-                   && delayed_rank0_diag_valid
+                   /* fixed-a19: ALL ranks consume the pipelined (previous-poll)
+                    * diag, not just rank0. First poll / post-drop: cache is
+                    * invalid -> falls through to the invalid-diag path so the
+                    * host DROPS that frame (never fills stale/misaligned data). */
+                   && delayed_poll_diag_valid
 #else
                    && false
 #endif
                    ) {
 #if APP_ANCHOR_RESP_POST_TX_DIAG_PAYLOAD_DELAY_ENABLE != 0U
-            poll_rx_diag = delayed_rank0_diag;
+            poll_rx_diag = delayed_poll_diag;
             poll_rx_diag_valid = true;
             poll_rx_diag_delayed = true;
-            delayed_rank0_diag_valid = false;
+            delayed_poll_diag_valid = false;
 #endif
         }
 #endif
@@ -1322,12 +1334,17 @@ int ss_twr_resp_start(unsigned int anchor_id, int allow_tag_polls)
             tx_status_after_start, tx_check_hi16, starttx_ok);
 #if APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_ENABLE != 0U && \
     APP_ANCHOR_RESP_POST_TX_DIAG_READ_ENABLE != 0U
-        if (starttx_ok && poll_src_is_tag && resp_rank == 0U) {
+        if (starttx_ok && poll_src_is_tag) {
+            /* fixed-a19: read poll-RX diagnostics AFTER the delayed TX is safely
+             * started (deadline already met), for EVERY rank, and cache it for
+             * the next response from THIS anchor (one-poll pipeline). Single
+             * per-anchor var: each anchor MCU runs its own ss_twr_resp_start, so
+             * this is NOT rank-indexed (rank rotates per poll, must not index). */
             dwt_rxdiag_t post_tx_diag;
             dwt_readdiagnostics(&post_tx_diag);
 #if APP_ANCHOR_RESP_POST_TX_DIAG_PAYLOAD_DELAY_ENABLE != 0U
-            delayed_rank0_diag = post_tx_diag;
-            delayed_rank0_diag_valid = true;
+            delayed_poll_diag = post_tx_diag;
+            delayed_poll_diag_valid = true;
 #endif
 #if APP_ANCHOR_RESP_POST_TX_DIAG_SIDECHANNEL_ENABLE != 0U
             ss_twr_resp_print_post_tx_diag(poll_tag_id,

@@ -84,14 +84,15 @@ established, and joint anchor$+$delay estimation is itself prior art
 antenna-delay default to every node with no per-device calibration, so the solver's delays are the
 residuals that default leaves --- the realistic out-of-the-box condition.) What is new is (i) closing the empty 3D
 inter-anchor-only cell on cheap single-antenna modules; (ii) a \emph{balanced} two-layer $4{+}4$
-array that, \emph{within reference-free self-calibration, and only under the eight-anchor broadcast SS-TWR acquisition it is dimensioned for}, restores the well-conditioned vertical geometry that
+array that, \emph{within reference-free self-calibration, and with all eight anchors participating in each fix}, restores the well-conditioned vertical geometry that
 a single coplanar layer (or a thinned anchor set) lacks --- deployed few-anchor raises avoid that wall only
 by surveying the raised positions, not self-calibrating them (a self-calibration Fisher analysis gives
-a vertical CRLB exactly singular for a coplanar layer and $\sim$63~mm for $4{+}4$, at the ${\approx}62$~mm
-deployed median vertical error); and (iii) two
-ground-truth-free deployment diagnostics --- that ranging residual is a misleading quality signal
-under minimal anchor counts, and that dispersion across dynamic anchor selection exposes calibration
-bias that a fixed anchor set would hide.
+a vertical CRLB exactly singular for a coplanar layer and $\sim$63~mm for $4{+}4$ --- an RMS lower bound, the same order as the ${\approx}62$~mm
+deployed median vertical error). Two ground-truth-free deployment diagnostics also fall out of the
+program (not headline results): the ranging residual is a misleading quality signal under minimal
+anchor counts---the self-consistent-but-not-metric effect quantified in Paper~B---and estimate
+dispersion across the dynamic anchor-selection set is a candidate bias indicator a fixed anchor set
+would hide.
 
 \textbf{Result, by axis (Std vs absolute kept separate).} Repeatability $\sim$5~cm 3D / $\sim$4~cm
 vertical; absolute (vs Vicon) $\sim$7~cm 3D / $\sim$6~cm vertical --- UWB-only and self-calibrated.
@@ -100,26 +101,33 @@ avoid entirely and that the remaining few reach only by importing an external he
 body-worn constraint that rules out external height aids --- not the smallest absolute number (the
 best fusion-plus-surveyed system still edges the 3D total).
 
-\textbf{Honest limits.} The preliminary $\sim$5~cm figures are \emph{repeatability}, not accuracy ---
+\textbf{Anchor visibility.} At every position $92.2\%$ of frames ranged to all eight anchors and
+$99.9\%$ to at least seven (per-position median $8/8$; link-level success $99.0\%$). A seven-of-eight fix is still non-coplanar and over-determined, so the vertical stays
+well-conditioned in $99.9\%$ of frames and the reported medians are effectively whole-array fixes.
+
+\textbf{Honest limits.} The preliminary $\sim$5~cm numbers are \emph{repeatability}, not accuracy ---
 only the optical-ground-truth numbers are reported as accuracy. The $4{+}4$ geometry is
 \emph{necessary but not sufficient} for the vertical: it completes the geometric observability, but
 a systematic vertical bias remains --- a \emph{tag-side delay} aliasing into the vertical, not a
 geometry deficit --- which the companion mechanism paper (Paper~B) analyzes as the tag-side face of
-its delay--layout coupling result. These figures also presuppose the
-eight-anchor, two-layer \textbf{broadcast SS-TWR} acquisition the array is built for: a naive
-minimal-anchor SS-TWR shortcut, or a single coplanar layer, returns the vertical to its singular
-regime by construction and will not reproduce them. All figures are from a single room with 24 static
-tag positions; multi-room transfer is unproven. The headline median also benefits, in part, from the
+its delay--layout coupling result. These numbers also presuppose that every fix draws on all eight anchors of the two-layer
+array --- it is the anchor participation, not the ranging protocol (sequential and broadcast are
+identical for a static fix), that conditions the vertical: a fix from fewer anchors (e.g.\ a four-anchor
+subset) hits a much larger vertical CRLB, and a coplanar configuration returns the vertical to the singular regime by construction; neither reproduces these numbers. All numbers are from a single room with 24 static
+tag positions; multi-room transfer is unproven. The headline 3D median (${\approx}73$~mm) also benefits, in part, from the
 production layout's expanded scale compensating an uncorrected tag-side delay --- the companion paper's
-mechanism; with that delay left at zero the metric-correct layout gives a larger median.
+mechanism; with that delay left at zero the metric-correct layout gives a larger median. The absolute vertical is
+also referenced to the optical marker, so a fixed marker-to-antenna-phase-centre offset would shift the
+absolute value (Paper~B's phase-center sensitivity check finds the layout ranking robust to marker
+offsets beyond 10~mm).
 
 \textbf{Priority and disclosure.} To our knowledge this is the first demonstration that the
 \emph{vertical} axis of a UWB anchor array can be self-calibrated to the centimetre level
-(${\approx}62$~mm median absolute vs Vicon, near a $\sim$63~mm inter-anchor Cram\'{e}r--Rao floor) from
+(${\approx}62$~mm median absolute vs Vicon, against a Fisher-predicted $\sim$63~mm inter-anchor vertical CRLB for $4{+}4$) from
 inter-anchor ranging alone on commodity single-antenna modules --- a reference point that later reference-free
 pure-UWB vertical self-calibration in this regime can be measured against. For defensive-publication value the manuscript discloses
 the full enabling combination once (3D self-calibration; inter-anchor ranging only; joint per-device
-antenna-delay estimation; commodity DWM1001C modules; balanced $4{+}4$ array; optical-ground-truth
+antenna-delay estimation; commodity DWM1001C modules; balanced $4{+}4$ array with all eight anchors participating in each fix; optical-ground-truth
 validation --- no survey, no external $Z$ sensor, no mobile platform), and ships the CRLB script and
 ranging data so the floor is independently reproducible. Publish this system paper first and early
 (dated, indexed) so it becomes the citable prior work the companion paper builds on.

@@ -4,7 +4,12 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
+import sys
 from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from delayed_diag_shift import shift_delayed_anchor_diag  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -35,6 +40,14 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=None,
         help="Require listener/range host timestamps to be within this many seconds when both are present.",
+    )
+    parser.add_argument(
+        "--delayed-shift",
+        choices=("auto", "on", "off"),
+        default="auto",
+        help="Back-shift fixed-a19 DELAYED anchor poll-diag by one poll (per anchor) before "
+        "joining, so anchor ΔP aligns with the listener CIR of its own poll. "
+        "auto = apply only when the DELAYED flag is present (a18/pre-fix data untouched).",
     )
     return parser.parse_args()
 
@@ -108,6 +121,10 @@ def main() -> int:
 
     range_rows = read_csv(range_path)
     listener_rows = read_csv(listener_path)
+
+    # fixed-a19: realign DELAYED anchor poll-diag onto its own poll BEFORE joining,
+    # otherwise anchor ΔP is one poll ahead of the listener CIR it is paired with.
+    delayed_shift_stats = shift_delayed_anchor_diag(range_rows, mode=args.delayed_shift)
 
     listener_by_key: dict[tuple[int, int, int], list[dict]] = {}
     duplicate_listener_keys = 0
@@ -190,6 +207,7 @@ def main() -> int:
         "listener_anchor_id": args.listener_anchor_id,
         "default_tag_id": args.default_tag_id,
         "max_time_delta_s": args.max_time_delta_s,
+        "delayed_shift": delayed_shift_stats,
     }
     summary_path = out_path.with_suffix(out_path.suffix + ".summary.json")
     summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")

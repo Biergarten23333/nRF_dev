@@ -1,0 +1,37 @@
+[21:55:12] BASE=SS-TWR/alt-SS-TWR/broadcast/logs/tagside_stencil_955AtoF_20260701_215512 (stencil 955A<->F near 955A; L955A=proxy, LF/LE=controls)
+[21:58:39] recv rc=0
+[21:58:39] L955 rc=0
+[21:58:39] LF rc=0
+[21:58:39] LE rc=0
+  M1 anchor coverage : ge7=96.4%  ge8=88.0%  (of 3257 sweeps; bench ~99/92)  longest_ge7_below_floor=0.0s  min_bin_ge7=0.9502
+[21:58:39] RECV=SS-TWR/alt-SS-TWR/broadcast/logs/tagside_stencil_955AtoF_20260701_215512/recv_20260701_215515
+### LAYER 1: BS955A uplink to ALL anchors (selective-occlusion vs uniform-atten check) ###
+anchor  up_dP  cir_pwr_med  rxpacc    n  flag
+  A       2.8         1974     120  107  
+  B       2.4         2016     121  106  
+  C       2.4         1740     120  107  
+  D      11.7         1853     121  107  NLOS
+  E       5.1         1762     120  107  
+  F       3.7         2102     121  106  
+  G       5.2         1808     120  107  
+  H      14.1         1895     121  107  NLOS
+
+LAYER1 verdict: 955A->F dP=3.7430985148974365  others_max=14.06894853979935
+  -> mixed (multiple anchors NLOS?) - stencil may block several dirs; report + judge.
+
+### LAYER 2: BS955A->F uplink (Anchor F read) vs Listener-955A ->F (downlink, lrd) ###
+  BS955A->F  Anchor-F dP = 3.7 (n=106)
+  Listener-955A sees F dP = 3.0 (n=1888)
+  |Δ| = 0.7   both_NLOS=False
+  Listener-955A anchors heard (lrd, n>=5): {A:2, B:1889, C:2, F:1888, G:3}
+
+### LAYER 3: far-end F pair + E pair on clean tags (should stay LOS) ###
+  Anchor F / Listener F:
+    BS9336   Anc=   3.3(n103) Lis=     -(n0) |Δ|=-
+    BSCCF4   Anc=   6.4(n106) Lis=     -(n0) |Δ|=-
+    BS955A   Anc=   3.7(n106) Lis=     -(n0) |Δ|=-
+  Anchor E / Listener E:
+    BS9336   Anc=   4.4(n106) Lis=     -(n0) |Δ|=-
+    BSCCF4   Anc=   4.1(n107) Lis=     -(n0) |Δ|=-
+    BS955A   Anc=   5.1(n107) Lis=     -(n0) |Δ|=-
+[21:58:39] STENCIL_DONE SS-TWR/alt-SS-TWR/broadcast/logs/tagside_stencil_955AtoF_20260701_215512

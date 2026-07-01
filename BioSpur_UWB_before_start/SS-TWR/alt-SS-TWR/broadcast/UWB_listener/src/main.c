@@ -5,6 +5,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
+#include <zephyr/drivers/gpio.h>
 
 #include <deca_device_api.h>
 #include <deca_regs.h>
@@ -56,6 +57,19 @@
 #define APP_LISTENER_STATUS_PRINT_ENABLE 1U
 #endif
 
+/* Event-driven blue LED (board alias led3 = P0.31, active-low): a bare "am I
+ * hearing polls" indicator for the operator. Toggled once per LED_ACTIVITY_DIV
+ * accepted (near-anchor) polls -> a ~sweep-rate blink while frames arrive, and
+ * forced OFF by the main loop after LED_ACTIVITY_TIMEOUT_MS of poll silence, so a
+ * DARK LED unambiguously means "powered but not receiving" (a plain toggle would
+ * freeze half-on when idle). RX-path cost = one GPIO toggle (~us); this path is
+ * the polled main loop, not an ISR, and the listener has no TX deadline. */
+#ifndef APP_LISTENER_LED_ENABLE
+#define APP_LISTENER_LED_ENABLE 1U
+#endif
+#define LISTENER_LED_ACTIVITY_DIV 6U
+#define LISTENER_LED_ACTIVITY_TIMEOUT_MS 300U
+
 struct listener_counters {
     uint32_t good_frames;
     uint32_t accepted_polls;
@@ -80,6 +94,14 @@ struct listener_counters {
 static uint8_t rx_buffer[LISTENER_RX_BUF_LEN];
 static struct listener_counters counters;
 static uint32_t last_status_print_ms;
+
+#if APP_LISTENER_LED_ENABLE != 0U
+static const struct gpio_dt_spec listener_led =
+    GPIO_DT_SPEC_GET(DT_ALIAS(led3), gpios);
+static uint32_t led_last_poll_ms;
+static uint8_t led_poll_div;
+static bool led_ready;
+#endif
 
 /* Compact per-frame record. The RX path (capture_to_ring) stores one of these and
  * re-arms RX immediately (no UART), so the listener never goes deaf during the
@@ -375,6 +397,41 @@ static __maybe_unused void print_full_cir(uint32_t resp_rx_ts,
 #endif
 }
 
+#if APP_LISTENER_LED_ENABLE != 0U
+static void listener_led_init(void)
+{
+    if (!gpio_is_ready_dt(&listener_led)) {
+        led_ready = false;
+        return;
+    }
+    (void)gpio_pin_configure_dt(&listener_led, GPIO_OUTPUT_INACTIVE);
+    led_ready = true;
+}
+
+/* Called on every accepted (near-anchor) poll: mark activity + blink. */
+static void listener_led_on_poll(uint32_t now_ms)
+{
+    led_last_poll_ms = now_ms;
+    if (led_ready && ++led_poll_div >= LISTENER_LED_ACTIVITY_DIV) {
+        led_poll_div = 0U;
+        (void)gpio_pin_toggle_dt(&listener_led);
+    }
+}
+
+/* Called every main-loop pass: force the LED dark once polls stop arriving. */
+static void listener_led_idle(uint32_t now_ms)
+{
+    if (led_ready &&
+        (now_ms - led_last_poll_ms) > LISTENER_LED_ACTIVITY_TIMEOUT_MS) {
+        (void)gpio_pin_set_dt(&listener_led, 0);   /* logical 0 => LED off */
+    }
+}
+#else
+static inline void listener_led_init(void) { }
+static inline void listener_led_on_poll(uint32_t now_ms) { ARG_UNUSED(now_ms); }
+static inline void listener_led_idle(uint32_t now_ms) { ARG_UNUSED(now_ms); }
+#endif
+
 /* RX fast path: read frame + diagnostics + timestamps, classify poll/response,
  * push a compact record onto the ring, and RE-ARM RX immediately. No UART here,
  * so the receiver stays live through the whole 1-poll + N-response burst. The
@@ -423,6 +480,7 @@ static void capture_to_ring(uint32_t now_ms)
         peer_id = uwb_ss_twr_poll_tag_id(rx_buffer);
         mask = uwb_ss_twr_poll_anchor_mask(rx_buffer);
         counters.accepted_polls++;
+        listener_led_on_poll(now_ms);   /* blink: heard a near-anchor poll */
     } else if (listener_is_anchor_response(rx_buffer, frame_len, &peer_id)) {
         is_resp = true;
         counters.accepted_resps++;
@@ -525,6 +583,7 @@ int main(void)
     }
 
     listener_radio_configure();
+    listener_led_init();
     listener_restart_rx();
     printk("listener RX-only poll diagnostics ready\n");
 
@@ -547,6 +606,7 @@ int main(void)
         }
 
         print_status(now_ms);
+        listener_led_idle(now_ms);
         k_yield();
     }
 }

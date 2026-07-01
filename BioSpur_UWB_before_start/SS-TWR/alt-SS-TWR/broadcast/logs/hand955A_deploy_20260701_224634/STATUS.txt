@@ -1,0 +1,40 @@
+[22:46:34] BASE=SS-TWR/alt-SS-TWR/broadcast/logs/hand955A_deploy_20260701_224634 (HAND near BS955A antenna, F side; L955A=proxy, LF/LE=controls)
+[22:46:34] listeners up; PREROLL 10s (hold hand steady, few cm off BS955A antenna, F-facing side)
+[22:46:44] RECORDING 45s
+[22:48:52] recv rc=0
+[22:48:52] L955 rc=0
+[22:48:52] LF rc=0
+[22:48:52] LE rc=0
+  M1 anchor coverage : ge7=96.6%  ge8=91.1%  (of 1193 sweeps; bench ~99/92)  longest_ge7_below_floor=0.0s  min_bin_ge7=0.9625
+[22:48:52] RECV=SS-TWR/alt-SS-TWR/broadcast/logs/hand955A_deploy_20260701_224634/recv_20260701_224644
+### LAYER 1: BS955A uplink to ALL anchors  (directional hand-occlusion check) ###
+anchor 955A_dP baseline   rise    n  flag
+  A        3.0      3.9   -0.9   39  
+  B        3.3      4.2   -0.9   39  
+  C        2.4      2.8   -0.3   39  
+  D        9.3      3.8   +5.5   40  
+  E        6.0      3.7   +2.3   38  
+  F        3.3      3.4   -0.0   39  
+  G        3.0      4.7   -1.8   39  
+  H        3.9      9.4   -5.5   40  
+
+LAYER1 directional verdict: rise(F)=-0.0  other-dir rise median=-0.9 max=+5.5
+  -> UNIFORM: all bearings rise together -> near-field DETUNING dominates; ΔP does NOT resolve direction. Honest null: ΔP insensitive to close body-worn occlusion. (report as-is)
+
+### LAYER 2: BS955A->F uplink (Anchor-F read) vs Listener-955A->F (downlink, 20cm away) ###
+  BS955A->F  Anchor-F dP = 3.3 (n=39)  clean-baseline=3.4  tag_rise=-0.0
+  Listener-955A sees F dP = - (n=0)  LOS_ref=3.0  lis_rise=-
+  Listener-955A anchors heard (lrd n>=5): {B:1}
+
+### LAYER 3: E/F control on clean tags (body must NOT pollute these) ###
+  Anchor F / Listener F:
+    BS9336   Anc=   2.9(n37) Lis=     -(n0) |Δ|=-
+    BSCCF4   Anc=   3.8(n40) Lis=     -(n0) |Δ|=-
+    BS955A   Anc=   3.3(n39) Lis=     -(n0) |Δ|=-
+  Anchor E / Listener E:
+    BS9336   Anc=  11.2(n38) Lis=     -(n0) |Δ|=-
+    BSCCF4   Anc=   3.1(n40) Lis=     -(n0) |Δ|=-
+    BS955A   Anc=   6.0(n38) Lis=     -(n0) |Δ|=-
+
+NOTE: hand occlusion = MIXED (directional block + near-field detuning + body absorption). Readings reported as-is; not force-labeled NLOS. Directionality (Layer1) and proxy scope (Layer2) are the two deploy questions this answers.
+[22:48:52] HAND_DONE SS-TWR/alt-SS-TWR/broadcast/logs/hand955A_deploy_20260701_224634

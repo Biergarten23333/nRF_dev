@@ -1,0 +1,43 @@
+BASE=SS-TWR/alt-SS-TWR/broadcast/logs/idcheck_tagZ_clean_20260701_195104
+[19:51:04] STAGE1 sweep 100 sets ABCDEFGH
+[19:54:39] STAGE1 sweep rc=0
+[19:54:39] STAGE2 extract pairs + v4-io solve
+[19:54:39] STAGE2 extract rc=0 pairs_rows=5601
+[19:54:40] STAGE2 v4io solve rc=0
+[19:54:40] STAGE3 verify responders
+[19:57:00] STAGE3 responder verify rc=0 (continue)
+[19:57:00] STAGE4 3-tag capture 120s
+[20:00:24] STAGE4 recv rc=0
+[20:00:24] STAGE4 ge7/ge8:
+  M1 anchor coverage : ge7=96.0%  ge8=89.3%  (of 3231 sweeps; bench ~99/92)  longest_ge7_below_floor=0.0s  min_bin_ge7=0.9483
+[20:00:24] STAGE5 per-tag Z solve + layout quality
+[20:00:24] STAGE5 tr_all=SS-TWR/alt-SS-TWR/broadcast/logs/idcheck_tagZ_clean_20260701_195104/recv_20260701_195700/tr_all.csv
+==== LAYOUT QUALITY (apos_init_soft_l1) ====
+  median_abs=42mm  rms=331mm  max_abs=1227mm
+  inter-anchor pairs with std>800mm (NLOS-ish): 5  -> ['A-G', 'D-F', 'A-B', 'A-F', 'A-C']
+  LAYOUT_CLEAN = False
+  anchor Z (should be A-D~0 floor, E-H~1.4-1.7m):
+   A=0 B=0 C=0 D=0 E=1705 F=1516 G=1684 H=1622
+
+==== PER-TAG SOLVED Z ====
+firmware  tag_id   fullZ    robZ       kept    rms
+BS9336    2         1405    1350    ABCEFGH    106
+BS955A    3         1362    1415     ABDEGH    105
+BSCCF4    4         1716    1755    ABDEFGH     47
+
+==== Z RANKING (robust, low->high) ====
+  BS9336    robustZ=  1350 mm  (nA=7, rms=106)
+  BS955A    robustZ=  1415 mm  (nA=6, rms=105)
+  BSCCF4    robustZ=  1755 mm  (nA=7, rms=47)
+
+lowest=BS9336 Z=1350  ; low->mid gap=65mm (tier-real if >~300) ; BS955A Z=1415
+VERDICT: FAIL: LOWEST is BS9336 not BS955A  ; TIER_SEPARATION=NO/marginal
+NOTE trust this only if LAYOUT_CLEAN=True and rms small (<150mm)
+[20:00:25] STAGE4 CFG identity:
+          "tag_id": 2,
+          "tag_id": 2,
+          "tag_id": 3,
+          "tag_id": 3,
+          "tag_id": 4,
+          "tag_id": 4,
+[20:00:25] PHASE1_CLEAN_DONE SS-TWR/alt-SS-TWR/broadcast/logs/idcheck_tagZ_clean_20260701_195104

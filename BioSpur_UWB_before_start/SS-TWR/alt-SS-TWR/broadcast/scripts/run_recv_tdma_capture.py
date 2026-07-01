@@ -1127,6 +1127,27 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Settle wait (s) folded into a tag's cooldown after a heal reroll.")
     parser.add_argument("--heal-max-rerolls", type=int, default=8,
                         help="Max heal rerolls per tag per capture (avoids thrashing on a dead link).")
+    # PREWARM blind-reroll (default ON): at session start, probe per-tag ge7 and, if
+    # any tag is a cold-start phase victim, do a WHOLE-ROSTER blind reroll (clean
+    # `mode recv` reconnect = re-randomize global BLE<->UWB phase) and re-probe, until
+    # all tags clear the threshold or attempts are exhausted, then lock the session.
+    # Fully automatic (no manual trigger). Distinct from + does not touch the targeted
+    # reroll_settle_phase path (which is FALSIFIED/divergent and stays default-off).
+    parser.add_argument("--prewarm-reroll", dest="prewarm_reroll", action="store_true",
+                        default=True,
+                        help="Auto blind-reroll prewarm at start until all tags pass the "
+                             "ge7 threshold, then lock the session (default ON).")
+    parser.add_argument("--no-prewarm-reroll", dest="prewarm_reroll", action="store_false",
+                        help="Disable the automatic blind-reroll prewarm.")
+    parser.add_argument("--prewarm-ge7-threshold", type=float, default=0.85,
+                        help="A tag with ge7 below this at prewarm is a cold-start victim "
+                             "(victim~0.1, healthy~0.97; 0.85 separates with margin for an "
+                             "edge-healthy tag).")
+    parser.add_argument("--prewarm-probe-s", type=float, default=12.0,
+                        help="Per-attempt probe window (s) to measure per-tag ge7 at prewarm.")
+    parser.add_argument("--prewarm-max-attempts", type=int, default=5,
+                        help="Max blind-reroll attempts before proceeding anyway with a loud "
+                             "non-convergence warning (abnormal cold start).")
     return parser
 
 
@@ -1271,6 +1292,209 @@ def summarize_sweep_validity(rows: list[dict]) -> dict:
         "ratio_ge7": round(ge7 / total_sweeps, 6) if total_sweeps else 0.0,
         "ratio_ge8": round(ge8 / total_sweeps, 6) if total_sweeps else 0.0,
         "valid_count_distribution": distribution,
+    }
+
+
+def decompose_tr_validity(rows: list[dict]) -> dict:
+    """Metric 2: TR-row range-solve rate AND the cause of every invalid row.
+
+    A TR row is one (tag, sweep, anchor) slot the master actually polled.
+    `valid==1` means a legal range was solved. The blended "valid %" hides two
+    very different failures, so we split the invalid rows by the tag's on-air RX
+    mask (rx_seen):
+      - no_anchor_rx          rx_seen==0  -> the anchor response was never heard
+                              on air ("收不齐 anchor" / couldn't collect it)
+      - rx_but_range_rejected rx_seen==1  -> response heard but the range was
+                              out-of-bounds / non-convergent ("收齐了但 range 超界")
+      - rx_unknown            short TR record carries no rx_mask -> cause cannot
+                              be attributed; status char is the only hint
+    invalid_by_status keeps the raw per-anchor status histogram for the audit.
+    """
+    total = len(rows)
+    valid = sum(1 for r in rows if int(r.get("valid") or 0))
+    invalid = total - valid
+    no_rx = rx_rejected = rx_unknown = 0
+    invalid_by_status: dict[str, int] = defaultdict(int)
+    rx_unknown_by_ver: dict[str, int] = defaultdict(int)
+    for r in rows:
+        if int(r.get("valid") or 0):
+            continue
+        st = str(r.get("status") or "")
+        invalid_by_status[st] += 1
+        rx_seen = r.get("rx_seen", "")
+        if rx_seen in (1, "1"):
+            rx_rejected += 1
+        elif rx_seen in (0, "0"):
+            no_rx += 1
+        elif st == "O":
+            # no rx_mask, but status OK means a range WAS computed then rejected
+            # (out-of-bounds / non-convergent) -> "收齐了但 range 超界"
+            rx_rejected += 1
+        elif st:
+            # no rx_mask and a non-OK status (T=timeout, etc.) -> the anchor
+            # response was never usable -> "收不齐 anchor" (e.g. the 8th-anchor
+            # tail timeout). status is authoritative here even without rx_mask.
+            no_rx += 1
+        else:
+            # genuinely unattributable: no rx_mask AND no status (the only true
+            # parser/splice-noise bucket)
+            rx_unknown += 1
+            rx_unknown_by_ver[str(r.get("tr_version") or "")] += 1
+    # net rate with the unattributable (rx_unknown) rows removed from the
+    # denominator entirely — if rx_unknown turns out to be parser/splice noise,
+    # THIS is the clean ranging-attempt valid rate to quote.
+    net_total = total - rx_unknown
+    return {
+        "tr_rows": total,
+        "tr_valid_rows": valid,
+        "tr_valid_rate": round(valid / total, 6) if total else 0.0,
+        "tr_invalid_rows": invalid,
+        "invalid_breakdown": {
+            "no_anchor_rx": no_rx,
+            "rx_but_range_rejected": rx_rejected,
+            "rx_unknown": rx_unknown,
+        },
+        "rx_unknown_frac_of_invalid": round(rx_unknown / invalid, 4) if invalid else 0.0,
+        "rx_unknown_by_tr_version": dict(sorted(rx_unknown_by_ver.items())),
+        "net_valid_rate_excl_rx_unknown": round(valid / net_total, 6) if net_total > 0 else 0.0,
+        "invalid_by_status": dict(sorted(invalid_by_status.items())),
+    }
+
+
+def per_tag_continuity_stats(rows: list[dict], duration_s: float,
+                             bin_s: float = 10.0,
+                             gap_threshold_s: float = 2.0) -> dict:
+    """Metric 3 (per tag): is the tag's output continuous, or does it die in
+    segments? Two complementary views:
+      - inter-row gaps (fine): dropout_count = #gaps > gap_threshold_s, plus the
+        longest one. This separates "died once for 5 s" from "died 10x for 1 s
+        each" — the repeated-death pattern a single longest-gap number hides.
+      - wall-time bins (coarse): span_coverage_ratio / empty_bins for a quick
+        silhouette and the criterion (C) check (did BS9336 come back after reset).
+    Gaps before the first row / after the last are start/stop latency, not
+    dropouts, so the inter-row view excludes them by construction."""
+    times: list[float] = []
+    for r in rows:
+        try:
+            times.append(float(r.get("host_elapsed_s")))
+        except (TypeError, ValueError):
+            continue
+    times.sort()
+    # --- inter-row gap view (fine; catches repeated short drops) ---
+    deltas = [times[i] - times[i - 1] for i in range(1, len(times))]
+    dropouts = [d for d in deltas if d > gap_threshold_s]
+    dropout_count = len(dropouts)
+    longest_dropout_gap_s = round(max(dropouts), 3) if dropouts else 0.0
+    total_dropout_s = round(sum(dropouts), 3) if dropouts else 0.0
+    # --- wall-time bin view (coarse silhouette) ---
+    if duration_s <= 0:
+        duration_s = max(times) if times else 0.0
+    total_bins = 0
+    if duration_s > 0:
+        total_bins = int(duration_s // bin_s)
+        if duration_s % bin_s:
+            total_bins += 1
+    total_bins = max(total_bins, 1) if (times or duration_s > 0) else 0
+    counts = [0] * total_bins
+    for t in times:
+        idx = min(max(int(t // bin_s), 0), total_bins - 1) if total_bins else 0
+        if total_bins:
+            counts[idx] += 1
+    active = sum(1 for c in counts if c > 0)
+    empty = total_bins - active
+    active_counts = sorted(c for c in counts if c > 0)
+    if active_counts:
+        m = len(active_counts)
+        median = float(active_counts[m // 2] if m % 2 else
+                       (active_counts[m // 2 - 1] + active_counts[m // 2]) / 2.0)
+        bin_min = active_counts[0]
+    else:
+        median = 0.0
+        bin_min = 0
+    return {
+        "tr_rows": len(rows),
+        "first_s": round(min(times), 3) if times else None,
+        "last_s": round(max(times), 3) if times else None,
+        "gap_threshold_s": gap_threshold_s,
+        "dropout_count": dropout_count,
+        "longest_dropout_gap_s": longest_dropout_gap_s,
+        "total_dropout_s": total_dropout_s,
+        "bin_s": bin_s,
+        "total_bins": total_bins,
+        "active_bins": active,
+        "empty_bins": empty,
+        "rows_per_active_bin_median": median,
+        "rows_per_active_bin_min": bin_min,
+        "span_coverage_ratio": round(active / total_bins, 4) if total_bins else 0.0,
+    }
+
+
+def ge7_coverage_timeline(rows: list[dict], duration_s: float,
+                          bin_s: float = 10.0, ge7_floor: float = 0.7) -> dict:
+    """Metric 1 time dimension: per-wall-time-bin ge7/ge8 coverage, so a
+    SEGMENTED collapse (an episode: ge7 craters to ~0 for a stretch) is
+    distinguishable from a uniformly-slightly-low baseline — the aggregate
+    scalar cannot tell those apart, and only the former carries the collision
+    signal G1 needs.  longest_sub_threshold_segment_s = the longest contiguous
+    span where a bin's ge7 ratio stays below ge7_floor (the episode signature)."""
+    by_sweep_valid: dict[tuple, set] = defaultdict(set)
+    by_sweep_time: dict[tuple, float] = {}
+    for r in rows:
+        try:
+            peer = str(r.get("peer_name") or r.get("bs") or r.get("tag_id") or "")
+            sweep = int(r["sweep"])
+            t = float(r.get("host_elapsed_s"))
+        except (KeyError, TypeError, ValueError):
+            continue
+        key = (peer, sweep)
+        if int(r.get("valid") or 0):
+            by_sweep_valid[key].add(int(r["anchor_id"]))
+        if key not in by_sweep_time or t < by_sweep_time[key]:
+            by_sweep_time[key] = t
+    if not by_sweep_time:
+        return {"bin_s": bin_s, "ge7_floor": ge7_floor, "bins": [],
+                "longest_sub_threshold_segment_s": 0.0, "sub_threshold_bins": 0,
+                "min_bin_ratio_ge7": None}
+    if duration_s <= 0:
+        duration_s = max(by_sweep_time.values())
+    total_bins = int(duration_s // bin_s) + (1 if duration_s % bin_s else 0)
+    total_bins = max(total_bins, 1)
+    bin_total = [0] * total_bins
+    bin_ge7 = [0] * total_bins
+    bin_ge8 = [0] * total_bins
+    for key, t in by_sweep_time.items():
+        idx = min(max(int(t // bin_s), 0), total_bins - 1)
+        bin_total[idx] += 1
+        c = len(by_sweep_valid.get(key, ()))
+        if c >= 7:
+            bin_ge7[idx] += 1
+        if c >= 8:
+            bin_ge8[idx] += 1
+    bins = []
+    ratios: list[float | None] = []
+    for i in range(total_bins):
+        n = bin_total[i]
+        r7 = round(bin_ge7[i] / n, 4) if n else None
+        r8 = round(bin_ge8[i] / n, 4) if n else None
+        bins.append({"t0_s": round(i * bin_s, 1), "n_sweeps": n,
+                     "ratio_ge7": r7, "ratio_ge8": r8})
+        ratios.append(r7)
+    longest = cur = sub_count = 0
+    for r7 in ratios:
+        if r7 is not None and r7 < ge7_floor:
+            cur += 1
+            sub_count += 1
+            longest = max(longest, cur)
+        else:
+            cur = 0
+    present = [r for r in ratios if r is not None]
+    return {
+        "bin_s": bin_s,
+        "ge7_floor": ge7_floor,
+        "bins": bins,
+        "longest_sub_threshold_segment_s": round(longest * bin_s, 1),
+        "sub_threshold_bins": sub_count,
+        "min_bin_ratio_ge7": min(present) if present else None,
     }
 
 
@@ -2580,6 +2804,151 @@ def print_capture_status(capture_start_wall: float,
     print("[CAPTURE] " + " ".join(parts), flush=True)
 
 
+def prewarm_probe_ge7(ser, logf, targets, probe_s):
+    """Probe per-tag ge7 over a short window (shared by the prewarm blind-reroll).
+
+    Stands alone (mirrors reroll_settle_phase's inner probe) so the targeted-reroll
+    path is left untouched. Returns {tag: ge7_ratio}."""
+    text = drain_serial_until_capture(ser, logf, probe_s)
+    target_set = set(targets)
+    valid_anchors: dict[tuple[str, int], set[int]] = defaultdict(set)
+    seen_sweeps: dict[str, set[int]] = defaultdict(set)
+    for line in text.splitlines():
+        peer = extract_bs_name(line)
+        if not peer or peer not in target_set:
+            continue
+        for rec in iter_tr_records(line):
+            sweep = rec["sweep"]
+            seen_sweeps[peer].add(sweep)
+            if rec["valid"]:
+                valid_anchors[(peer, sweep)].add(rec["anchor_id"])
+    ge7 = {}
+    for peer in targets:
+        sweeps = seen_sweeps.get(peer, set())
+        n = len(sweeps)
+        if n == 0:
+            ge7[peer] = 0.0
+            continue
+        good = sum(1 for s in sweeps if len(valid_anchors.get((peer, s), ())) >= 7)
+        ge7[peer] = good / n
+    return ge7
+
+
+def prewarm_blind_reroll(ser, logf, args, targets, roster_targets):
+    """Automatic BLIND-reroll prewarm at session start (auto + observable).
+
+    Cold-start BLE<->UWB phase is randomized per connect; ~1/8 of 3-tag starts lands a
+    victim (one tag's BLE events sit on its UWB RX window -> its ge7 collapses to ~0.1
+    while the others stay ~0.97 -> "3 tags became 2"). The validated stopgap is a
+    WHOLE-ROSTER blind reroll: a clean `mode recv` reconnect re-randomizes ALL links'
+    global phase. Targeted single-tag reroll is FALSIFIED (the BLE central reschedules
+    every connection on any reconnect, so it cannot isolate one tag and it diverges;
+    see memory tdma-capacity-ble-phase-beat) -> blind ALL is the only correct option.
+
+    Loops probe -> (if any victim) blind-reroll until all targets clear the ge7
+    threshold or attempts are exhausted, then locks the session. Fully automatic.
+    Under --reuse-tag-links it probes ONCE and warns (does NOT reconnect, to respect
+    the resident good session). Returns (ser, result-dict). Does not touch the targeted
+    reroll_settle_phase path."""
+    threshold = float(getattr(args, "prewarm_ge7_threshold", 0.85))
+    probe_s = float(getattr(args, "prewarm_probe_s", 12.0))
+    max_attempts = max(1, int(getattr(args, "prewarm_max_attempts", 5)))
+    reuse = bool(getattr(args, "reuse_tag_links", False))
+
+    result: dict = {
+        "enabled": True,
+        "ran": True,
+        "threshold": threshold,
+        "probe_s": probe_s,
+        "max_attempts": max_attempts,
+        "reuse_links_probe_only": reuse,
+        "attempts": [],
+        "converged": False,
+        "attempts_used": 0,
+        "final_ge7": {},
+        "reason": "",
+    }
+
+    def fmt(g):
+        return "  ".join(f"{t}={g.get(t, 0.0):.0%}" for t in targets)
+
+    for attempt in range(1, max_attempts + 1):
+        ge7 = prewarm_probe_ge7(ser, logf, targets, probe_s)
+        victims = [t for t in targets if ge7.get(t, 0.0) < threshold]
+        oks = [t for t in targets if t not in victims]
+        result["attempts"].append({
+            "attempt": attempt,
+            "ge7": {t: round(ge7.get(t, 0.0), 4) for t in targets},
+            "victims": list(victims),
+        })
+        result["final_ge7"] = {t: round(ge7.get(t, 0.0), 4) for t in targets}
+        result["attempts_used"] = attempt
+        print(f"[PREWARM] attempt {attempt}/{max_attempts} ge7: {fmt(ge7)}   "
+              f"(threshold {threshold:.0%})", flush=True)
+        logf.write(f"[PREWARM attempt {attempt}/{max_attempts}] ge7 {fmt(ge7)} "
+                   f"threshold={threshold:.2f} victims={victims}\n")
+        logf.flush()
+
+        if not victims:
+            result["converged"] = True
+            result["reason"] = "converged"
+            print(f"[PREWARM] converged in {attempt} attempt(s): {fmt(ge7)} — "
+                  f"all ge7>{threshold:.0%}, session locked", flush=True)
+            logf.write(f"[PREWARM converged] attempts={attempt} {fmt(ge7)}\n")
+            logf.flush()
+            return ser, result
+
+        victim_str = "  ".join(f"{t}={ge7.get(t, 0.0):.0%}" for t in victims)
+        ok_str = "  ".join(f"{t}={ge7.get(t, 0.0):.0%}" for t in oks) or "none"
+        print(f"[PREWARM]   victim: {victim_str} < {threshold:.0%}   ok: {ok_str}",
+              flush=True)
+
+        # --reuse-tag-links: respect the resident good session; probe-and-warn only.
+        if reuse:
+            result["reason"] = "reuse_links_victim_no_reconnect"
+            print(f"[PREWARM][WARN] --reuse-tag-links session HAS a victim ({victim_str}); "
+                  "it is NO LONGER the clean session it was at lock (a mid-session BLE "
+                  "reconnect re-rolled the phase). NOT rerolling (reuse intent). Drop "
+                  "--reuse-tag-links to re-prewarm a fresh session.", flush=True)
+            logf.write(f"[PREWARM WARN] reuse_links victim {victim_str}; no reconnect\n")
+            logf.flush()
+            return ser, result
+
+        if attempt >= max_attempts:
+            break
+
+        print(f"[PREWARM]   blind reroll: reconnecting ALL {len(targets)} tags "
+              "(mode recv → re-randomize global BLE/UWB phase)", flush=True)
+        logf.write(f"[PREWARM blind-reroll] attempt {attempt} reconnect-all "
+                   f"victims={victims}\n")
+        logf.flush()
+        try:
+            ser = configure_recv_capture_session(
+                ser, logf, args, targets, roster_targets=roster_targets,
+            )
+        except (SerialException, OSError, RuntimeError) as exc:
+            result["reason"] = f"reconnect_failed: {exc}"
+            print(f"[PREWARM][WARN] blind reroll reconnect failed: {exc}; "
+                  "proceeding with current links", flush=True)
+            logf.write(f"[PREWARM WARN] reconnect failed: {exc}\n")
+            logf.flush()
+            return ser, result
+
+    # attempts exhausted without convergence
+    result["reason"] = "max_attempts_exhausted"
+    still = "  ".join(
+        f"{t}={result['final_ge7'].get(t, 0.0):.0%}"
+        for t in targets
+        if result["final_ge7"].get(t, 0.0) < threshold
+    )
+    print(f"[PREWARM][WARN] NOT converged after {max_attempts} attempts; still victim: "
+          f"{still} — abnormal cold start (check RF env / tag health); proceeding with "
+          "capture", flush=True)
+    logf.write(f"[PREWARM WARN] not converged after {max_attempts}; victims {still}\n")
+    logf.flush()
+    return ser, result
+
+
 def reroll_settle_phase(ser, logf, args, targets):
     """Targeted phase-reroll settling (① 2026-06-28).
 
@@ -2818,6 +3187,11 @@ def main() -> int:
     heal_events: list[dict] = []
     heal_last_check = 0.0
 
+    prewarm_result: dict = {
+        "enabled": bool(getattr(args, "prewarm_reroll", True)),
+        "ran": False,
+    }
+
     with raw_log_path.open("w", encoding="utf-8") as logf:
         print(f"[CAPTURE] open serial: {args.port}", flush=True)
         with open_serial_with_retry(args.port, args.baud) as ser:
@@ -2869,6 +3243,10 @@ def main() -> int:
                 print(f"[CAPTURE] abort: startup configure failed: {message}", flush=True)
             else:
                 print("[CAPTURE] TDMA verified; start TR capture", flush=True)
+                if bool(getattr(args, "prewarm_reroll", True)):
+                    ser, prewarm_result = prewarm_blind_reroll(
+                        ser, logf, args, targets, roster_targets,
+                    )
                 if int(getattr(args, "reroll_settle_rounds", 0)) > 0:
                     ser = reroll_settle_phase(ser, logf, args, targets)
                 capture_start_wall = time.time()
@@ -3356,7 +3734,10 @@ def main() -> int:
             "tr_diag_rows": sum(1 for row in tr_target_rows if row.get("diag_source")),
             "rfd_rows": len(rfd_target_rows),
             "rfd_joined_rows": sum(1 for row in joined_target_rows if row["rfd_joined"]),
-            "sweep_validity": summarize_sweep_validity(tr_target_rows),
+            "sweep_validity": summarize_sweep_validity(tr_target_rows),  # metric 1
+            "tr_validity": decompose_tr_validity(tr_target_rows),        # metric 2
+            "continuity": per_tag_continuity_stats(                      # metric 3
+                tr_target_rows, float(args.duration)),
             "latest_tr": tr_target_rows[-1] if tr_target_rows else None,
             "anchors_seen": sorted(
                 {row["anchor_id"] for row in tr_target_rows if row["valid"]}
@@ -3366,6 +3747,80 @@ def main() -> int:
                 for status in sorted({row["status"] for row in tr_target_rows})
             },
         }
+
+    # --- three SEPARATE capture-quality metrics (no blended single number) ---
+    tag_row_counts = {t: per_tag_summary[t]["tr_rows"] for t in targets}
+    _rc = sorted(tag_row_counts.values())
+    if _rc:
+        _m = len(_rc)
+        _median_rows = float(_rc[_m // 2] if _m % 2
+                             else (_rc[_m // 2 - 1] + _rc[_m // 2]) / 2.0)
+    else:
+        _median_rows = 0.0
+    per_tag_row_balance = {
+        "rows": tag_row_counts,
+        "min_tag": min(tag_row_counts, key=tag_row_counts.get) if tag_row_counts else None,
+        "max_tag": max(tag_row_counts, key=tag_row_counts.get) if tag_row_counts else None,
+        "median_rows": _median_rows,
+        # near 1.0 => all tags the same order of magnitude (BS9336 came back);
+        # small => one tag is lagging the pack
+        "min_to_median_ratio": round(min(_rc) / _median_rows, 4) if _median_rows else 0.0,
+    }
+    # G0.1 parser-attrition rates, hoisted so M2 can sit them next to rx_unknown
+    splice_loss_rate = round(
+        PARSE_STATS["tr_lost_to_splice"] / max(1, PARSE_STATS["tr_tokens_total"]), 4)
+    temp_oob_rate = round(
+        PARSE_STATS["tr_temp_oob"]
+        / max(1, PARSE_STATS["tr_temp_ok"] + PARSE_STATS["tr_temp_oob"]), 4)
+    tr_validity_all = decompose_tr_validity(tr_rows)
+    sweep_validity_all = summarize_sweep_validity(tr_rows)
+    # M1 time dimension: same wall-time bin as M3; per-tag keeps a single-tag
+    # episode undiluted (an aggregate would dilute a 1-of-3-tag collapse to ~1/3).
+    ge7_timeline_all = ge7_coverage_timeline(tr_rows, float(args.duration))
+    ge7_timeline_by_tag = {
+        t: ge7_coverage_timeline(rows_for_target(tr_by_target, t), float(args.duration))
+        for t in targets
+    }
+    capture_quality = {
+        # METRIC 1 — anchor-collection coverage (the historical ge7/ge8 line)
+        "metric1_ge7_ge8_coverage": {
+            "sweeps_total": sweep_validity_all.get("sweeps_total"),
+            "sweeps_ge7": sweep_validity_all.get("sweeps_ge7"),
+            "sweeps_ge8": sweep_validity_all.get("sweeps_ge8"),
+            "ratio_ge7": sweep_validity_all.get("ratio_ge7"),
+            "ratio_ge8": sweep_validity_all.get("ratio_ge8"),
+            # time dimension (reinforcement 1): episode vs uniform-baseline
+            "longest_sub_threshold_segment_s_all":
+                ge7_timeline_all["longest_sub_threshold_segment_s"],
+            "min_bin_ratio_ge7_all": ge7_timeline_all["min_bin_ratio_ge7"],
+            "timeline_all": ge7_timeline_all,
+            "timeline_by_tag": ge7_timeline_by_tag,
+            "note": "scalars = whole-run aggregate (bench ~0.99 / ~0.92); timeline_* "
+                    "split ge7/ge8 over wall-time bins so a SEGMENTED episode "
+                    "(ge7 -> ~0 for a stretch) is distinct from a uniformly-low "
+                    "baseline — only the former carries the collision signal G1 needs.",
+        },
+        # METRIC 2 — TR-row range-solve rate + WHY invalids failed + concat x-check
+        "metric2_tr_valid_rate": {
+            **tr_validity_all,
+            "concat_crosscheck": {
+                "tr_splice_loss_rate": splice_loss_rate,
+                "tr_temp_trailer_oob_rate": temp_oob_rate,
+                "rx_unknown_frac_of_invalid":
+                    tr_validity_all["rx_unknown_frac_of_invalid"],
+                "note": "rx_unknown = short/legacy TR rows with no rx_mask, the same "
+                        "family as splice/concat failures. If rx_unknown_frac is "
+                        "non-trivial AND tracks tr_splice_loss_rate, treat rx_unknown "
+                        "as parser noise (quote net_valid_rate_excl_rx_unknown), NOT a "
+                        "ranging failure. If trivial, ignore.",
+            },
+        },
+        # METRIC 3 — per-tag output continuity (segment dropouts, not just totals)
+        "metric3_per_tag_continuity": {
+            t: per_tag_summary[t]["continuity"] for t in targets
+        },
+        "per_tag_row_balance": per_tag_row_balance,
+    }
 
     summary = {
         "success": (
@@ -3406,20 +3861,20 @@ def main() -> int:
         "mclk_rows": len(mclk_rows),  # G0.2 master recal samples captured
         # G0.1 PRIMARY 550->312 discriminator: on-wire TR lines dropped to notify
         # splicing. Low + flat timeline => real attrition; rising => artifact.
-        "tr_splice_loss_rate": round(
-            PARSE_STATS["tr_lost_to_splice"]
-            / max(1, PARSE_STATS["tr_tokens_total"]), 4
-        ),
+        "tr_splice_loss_rate": splice_loss_rate,
         "tr_concat_rate_timeline": bucket_concat_timeline(concat_timeline),
         # SUPPLEMENTARY: out-of-range temp byte rate (value-corruption subset only;
         # does NOT catch in-range splices -> not the primary attrition signal).
-        "tr_temp_trailer_oob_rate_supplementary": round(
-            PARSE_STATS["tr_temp_oob"]
-            / max(1, PARSE_STATS["tr_temp_ok"] + PARSE_STATS["tr_temp_oob"]), 4
-        ),
+        "tr_temp_trailer_oob_rate_supplementary": temp_oob_rate,
         "rfd_all": len(rfd_rows),
         "rfd_joined_all": sum(1 for row in range_diag_joined_rows if row["rfd_joined"]),
-        "sweep_validity_all": summarize_sweep_validity(tr_rows),
+        "sweep_validity_all": sweep_validity_all,
+        # three separated headline metrics (ge7/ge8 coverage | tr_valid + invalid
+        # cause split | per-tag continuity) so no single blended % is reported
+        "capture_quality": capture_quality,
+        # PREWARM blind-reroll observability: did the auto prewarm converge, in how
+        # many attempts, per-attempt per-tag ge7, and the locked-session ge7.
+        "prewarm": prewarm_result,
         "connections": conn_meta,
         "per_tag": per_tag_summary,
         "raw_log": str(raw_log_path),
@@ -3429,6 +3884,35 @@ def main() -> int:
     }
     summary_json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2))
+
+    # three separated headline metrics — never a single blended %
+    m1 = capture_quality["metric1_ge7_ge8_coverage"]
+    m2 = capture_quality["metric2_tr_valid_rate"]
+    inv = m2["invalid_breakdown"]
+    bal = per_tag_row_balance
+    xc = m2["concat_crosscheck"]
+    print("[CAPTURE QUALITY] (three separate metrics)")
+    print(f"  M1 anchor coverage : ge7={(m1['ratio_ge7'] or 0)*100:.1f}%  "
+          f"ge8={(m1['ratio_ge8'] or 0)*100:.1f}%  (of {m1['sweeps_total']} sweeps; bench ~99/92)  "
+          f"longest_ge7_below_floor={m1['longest_sub_threshold_segment_s_all']}s  "
+          f"min_bin_ge7={m1['min_bin_ratio_ge7_all']}")
+    print(f"  M2 tr_valid rate   : {m2['tr_valid_rate']*100:.1f}%  "
+          f"({m2['tr_valid_rows']}/{m2['tr_rows']})  "
+          f"net_excl_unknown={m2['net_valid_rate_excl_rx_unknown']*100:.1f}%")
+    print(f"     invalid: no_anchor_rx={inv['no_anchor_rx']} "
+          f"rx_but_range_rejected={inv['rx_but_range_rejected']} "
+          f"rx_unknown={inv['rx_unknown']} "
+          f"(unknown={m2['rx_unknown_frac_of_invalid']*100:.0f}% of invalid; "
+          f"splice_loss={xc['tr_splice_loss_rate']})")
+    print("  M3 per-tag continuity (rows | dropout_count | longest_gap | span_cov):")
+    for t in targets:
+        c = per_tag_summary[t]["continuity"]
+        print(f"     {t}: rows={c['tr_rows']:>6}  "
+              f"dropouts={c['dropout_count']:>3} (>{c['gap_threshold_s']}s)  "
+              f"longest_gap={c['longest_dropout_gap_s']:>6}s  "
+              f"span_cov={c['span_coverage_ratio']*100:.0f}%")
+    print(f"     balance: min/median rows ratio={bal['min_to_median_ratio']:.2f} "
+          f"(min={bal['min_tag']}, median={bal['median_rows']:.0f})")
     return 0
 
 

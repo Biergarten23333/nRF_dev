@@ -20,6 +20,7 @@ post_cir_idle_ms="${APP_LISTENER_POST_CIR_IDLE_MS:-12}"
   -s "$repo_root/UWB_listener" \
   -d "$repo_root/$build_dir" \
   --pristine=always \
+  --no-sysbuild \
   -- \
   -DPython3_EXECUTABLE=/usr/bin/python3 \
   -DAPP_LISTENER_ID="$listener_id" \
@@ -33,4 +34,4 @@ python3 "$repo_root/scripts/write_build_source.py" \
   --source "scripts/build_uwb_listener_poll_diag.sh" \
   --command "$0 $*"
 
-echo "Built generic co-located listener: $build_dir/merged.hex"
+echo "Built generic co-located listener: $build_dir/zephyr/zephyr.hex"

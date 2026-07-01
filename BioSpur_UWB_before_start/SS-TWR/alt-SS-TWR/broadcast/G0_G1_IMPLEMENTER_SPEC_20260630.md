@@ -22,9 +22,12 @@ goals G2–G-frozen are summarized only as routing targets.
   LFRC" premise is FALSIFIED.
 - **duty = W / CI**, beat_period = CI/ε, episode_duration = W/ε. Duty is
   drift-independent; CI raises the denominator only; clock is NOT the fix lever.
-- **Tag die-temp is FLAT** across a 4 h hold (~122–125 **raw SAR byte, 0–255,
-  NOT °C**). Flatness is scale-invariant → thermal drift of the *tag* is ruled
-  out. The *master* temp was never measured (see G0).
+- **Temperature's only role here is as a covariate of ε.** The direct ε
+  covariate is the **master LFRC recal-count** (G0.2) — no die-temp anywhere
+  (the master nRF5340 carries no DW1000; the DW1000 and its clock are tag-side
+  on the 52832, so master heat cannot touch UWB). The tag side already showed
+  flat drift, so the suspected ε contributor is the master's calibrated RC,
+  which recal-count measures directly.
 - ε(t) under a calibrated RC is **piecewise-constant with steps at each
   recalibration**, not smooth.
 
@@ -54,23 +57,19 @@ goals G2–G-frozen are summarized only as routing targets.
   mechanism evidence **only if this stat says "real decay"**. If artifact,
   that evidence line is removed (no circular use).
 
-### G0.2 Master telemetry (firmware edit to master_control, flash 1050070698)
-- Add **nRF5340 die-temp** read (app-core TEMP peripheral), logged on the
-  controller's own line periodically.
-- Add **LFCLK recalibration-event instrument**: timestamp + running count of
-  calibration completions.
-  - Preferred API: nrfx CLOCK `CAL_DONE` event, or Zephyr calibration debug
-    counter (`CONFIG_CLOCK_CONTROL_NRF_CALIBRATION*`). **If the driver does not
-    expose it, this is acceptable to drop** (see priority below); do NOT block
-    G0 on a driver patch.
-  - **Priority: A2 (recal-event log) = nice-to-have. A1 (ε texture, §3 M2) =
-    must-have fallback** — the step-vs-smooth texture of ε(t) discriminates
-    calibrated-RC-driven vs independent-oscillator beat WITHOUT the recal log.
-- **Caveat to write in code/comment:** the single on-die TEMP is in the
-  app-core power domain; the BLE radio (heat source) is on the network core
-  with no exposed sensor → die-temp **underestimates radio-local ΔT**. Use the
-  recal-event rate (A2) or ε texture (A1) as the oscillator-co-located thermal
-  proxy, not die-temp alone.
+### G0.2 Master clock telemetry (firmware edit to master_control, flash 1050070698)
+- **The ε covariate is the master LFRC recal-count** — the only role temperature
+  plays in this diagnosis is as a covariate of ε, and recal-count IS that
+  covariate (the master's calibrated RC recalibrates against HFXO; its cadence
+  tracks the master clock's drift directly, no temperature read needed and no
+  DW1000 involvement — the DW1000 is tag-side only).
+- Instrument: running count of LFRC calibration completions
+  (`z_nrf_clock_calibration_count` / `_skips_count`), emitted on the controller
+  console periodically.
+  - **A1 (ε texture, §3 M2) = must-have fallback** — the step-vs-smooth texture
+    of ε(t) discriminates calibrated-RC-driven vs independent-oscillator beat
+    even without the recal counters.
+- DONE & verified — see Appendix A.1.
 
 ### G0.3 Tag MPSL radio-notification hook (firmware edit to tag, OTA)
 - NCS v2.8.0 `mpsl_radio_notification_cfg_set` (NOT nRF5-SDK
@@ -98,7 +97,7 @@ goals G2–G-frozen are summarized only as routing targets.
 
 **G0 DONE-WHEN:** a 3-tag instrumented capture emits, per sweep:
 {on-air poll (E), BLE-event↔poll offset (hook), 0-anchor / partial-loss class,
-tag temp, master temp, master recal-event marks}; parser concat-rate stat
+tag temp, master recal-count (the ε covariate)}; parser concat-rate stat
 present; hook phase-set primitive verified to place poll at commanded φ.
 
 ---
@@ -144,8 +143,8 @@ contaminate each other.
   delayed/prewrite TX after G3 lights that path, for apples-to-apples W.
 
 ### M2 — Continuous ε(t) + mechanism evidence (passive; duration calibrated by M1)
-- Cold-start long hold (record master temp + recal marks from t=0).
-- Per sweep: natural phase, master die-temp, recal-event marks, report rate
+- Cold-start long hold (record master recal-count from t=0).
+- Per sweep: natural phase, master recal-count (cal + skips), report rate
   (latter only if G0.1 says "real decay").
 - ε(t): cumulative-slope fit, **segmented at recal boundaries** (A1).
 - **Duration calibration:** use M1's measured W to compute "time to naturally
@@ -159,18 +158,22 @@ contaminate each other.
   FALSIFIED.** Stop; re-examine root cause from scratch. (Most-watched exit.)
 - **W_poll > 0** → proceed to Level 2.
 
-**Level 2 (W_poll>0): ε-texture × ε–temp correlation (lagged)**
+**Level 2 (W_poll>0): ε-texture × ε–recal-count correlation (lagged)**
 
-| ε texture | ε vs master-temp (lagged) | Mechanism | Route |
+The recal-count IS the ε covariate. Its correlation with ε also settles, empirically,
+whether the master clock even drives ε (no need to pre-litigate tag-UWB-schedule
+free-run vs BLE-anchored): correlation → master clock drives ε; none → it doesn't.
+
+| ε texture | ε vs master recal-count (lagged) | Mechanism | Route |
 |---|---|---|---|
-| stepped | strong corr, temp monotone↑ | master warm-up transient | **G-warmup** |
-| stepped | strong corr, temp random-walk | temperature-driven walk | **G3 closed-loop phasing / environmental temp control** (CI ineffective: walk wanders back) |
-| smooth, ~linear | uncorrelated | true 2-oscillator beat | **G2** (CI/W levers effective) |
+| stepped | corr, recal-rate ramps (skips→0 then accrue) | master warm-up transient | **G-warmup** |
+| stepped | corr, recal-rate wanders | drift-driven walk | **G3 closed-loop phasing** (CI ineffective: walk wanders back) |
+| smooth, ~linear | uncorrelated, recal-rate steady | true 2-oscillator beat | **G2** (CI/W levers effective) |
 | flat, ε≈0, M2 ≥ beat-period lower bound | uncorrelated | **static reconnect-lottery phase, no drift to self-heal → session stuck** | **G-now (detect + reroll) as primary** (consistent with SEG2 data) |
 | flat, ε≈0, **M2 < beat lower bound** | — | **UNDERSAMPLED, not a result** | extend M2 or declare inconclusive |
 
-- ε–temp correlation must allow **lag** (calibrated RC recalibrates with CTIV
-  cadence + thermal mass) and expect **stepped** ε, not smooth.
+- ε–recal correlation must allow **lag** (calibrated RC recalibrates with CTIV
+  cadence) and expect **stepped** ε, not smooth.
 - **TX-death vs RX-loss:** from Listener-E on-air poll (poll present + no anchor
   = RX-loss; no poll = TX-death), labeled `@immediate-TX`. **PRIOR EVIDENCE
   (2026-06-29, Listener-E live):** verdict was **UWB-TX suppression, not BLE
@@ -207,9 +210,10 @@ to exactly one Level-1/Level-2 cell; TX-death/RX-loss split quantified
 ---
 
 ## 5. Deferred to G0 landing
-- ~~A2 recal-event API existence~~ → RESOLVED, see Appendix A.
-- Tag raw→°C scale via per-chip OTP[0x009] (flatness conclusion already safe
-  without it; absolute °C only needed if a thermal-limit question arises).
+- ~~A2 recal-event API existence~~ → RESOLVED (recal-count = ε covariate, see Appendix A.1).
+- ~~die-temp~~ → REMOVED entirely. Temperature's only role in this diagnosis is
+  as a covariate of ε; recal-count is that covariate, directly. No die-temp on
+  any node enters the plan.
 
 ---
 
@@ -226,12 +230,7 @@ to exactly one Level-1/Level-2 cell; TX-death/RX-loss split quantified
   (does not catch in-range splices) — explicitly demoted from "primary."
 - Verified: `py_compile` clean + unit test (splice count, bucketing, rates).
 
-### A.1 G0.2 — DONE & HARDWARE-VERIFIED (recal-count works; die-temp dropped)
-- **die-temp DROPPED — hardware constraint, not a choice.** The nRF5340 TEMP
-  peripheral is **network-core-only** (`temp@41010000` in `nrf5340_cpunet.dtsi`;
-  nothing in cpuapp, no `NRF_TEMP` in the app-core MDK header). The master app
-  core (this image) has no die-temp. Per the agreed A1>A2>die-temp priority,
-  recal-rate is the (superior, oscillator-co-located) thermal proxy anyway.
+### A.1 G0.2 — DONE & HARDWARE-VERIFIED (master recal-count = the ε covariate)
 - **recal-count instrument: built + flashed (1050070698) + VERIFIED.** On the
   live master: `[RECV] MCLK cal=17 skips=0 up_ms=65083` … `cal=23` — i.e.
   `z_nrf_clock_calibration_count()` **increments ~every 4 s** (matches MPSL/CTIV
@@ -241,9 +240,9 @@ to exactly one Level-1/Level-2 cell; TX-death/RX-loss split quantified
   (NOT `..._NRF_CALIBRATION`, which does not exist here). Counters return `-1`
   unless **`CONFIG_CLOCK_CONTROL_NRF_CALIBRATION_DEBUG=y`** (added to
   `b120_master_tag_lfrc.conf`). Externs guarded by `#if defined(..._DRIVER_CALIBRATION)`.
-- **Thermal signal = skips/cal ratio over time:** `skips=0` while temperature
-  changes (warm-up) → calibrates every period; `skips` accrues once thermally
-  stable (TEMP_DIFF=2 ≈0.5 °C, MAX_SKIP=1). The just-rebooted master showing
+- **ε-covariate behaviour = skips/cal ratio over time:** `skips=0` while the
+  master clock is drifting → calibrates every period; `skips` accrues once the
+  clock settles (TEMP_DIFF=2, MAX_SKIP=1). The just-rebooted master showing
   `skips=0` is a live preview of the G1 warm-up signature.
 - **Parser wired:** `MCLK_RE` (handles the `[RECV] ` prefix) → `master_clock.csv`
   (host_elapsed_s, host_epoch_s, cal, skips, up_ms) + `mclk_rows` in summary.

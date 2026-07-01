@@ -137,8 +137,8 @@ separated.}
 \section{What We Contribute}
 
 \textbf{(1) The capability --- and a reference point for later work.} The headline result is a
-pure-UWB, self-calibrated vertical of ${\approx}62$~mm median absolute error (vs Vicon), near the ${\approx}63$~mm
-inter-anchor Cram\'{e}r--Rao floor, from inter-anchor ranging alone --- a reference point that later
+pure-UWB, self-calibrated vertical of ${\approx}62$~mm median absolute error (vs Vicon), against a Fisher-predicted ${\approx}63$~mm
+inter-anchor vertical CRLB for $4{+}4$, from inter-anchor ranging alone --- a reference point that later
 reference-free pure-UWB vertical self-calibration in this deployment regime can be measured against. It is produced by a
 complete, real-hardware pipeline (8$\times$ DWM1001C, two elevation levels) that takes bidirectional
 SS-TWR inter-anchor ranging to a 3D anchor layout with per-device antenna delays, using only commodity
@@ -153,7 +153,7 @@ realistic out-of-the-box deployment condition, and the physical reason a delay t
 
 \textbf{(2) The geometry that makes the cell enterable.} A balanced two-layer $4{+}4$ non-coplanar
 array. Non-coplanarity for 3D is itself known; our claim is narrower and is a statement about the
-\emph{self-calibration} regime specifically: under reference-free inter-anchor self-calibration --- and under the eight-anchor broadcast SS-TWR acquisition the array is dimensioned for --- a
+\emph{self-calibration} regime specifically: under reference-free inter-anchor self-calibration --- and with all eight anchors participating in the ranging --- a
 \emph{balanced} upper layer is what restores well-conditioned vertical \emph{geometry}, whereas an
 asymmetric raise (e.g.\ one or two anchors lifted) leaves the vertical ill-conditioned. Deployed
 systems that raise a few anchors do not hit this wall --- but only because they \emph{survey} the
@@ -166,7 +166,7 @@ upper anchors improves it monotonically. Crucially the \emph{mean} bound saturat
 ($\sim$81~mm at $4{+}2$, $\sim$63~mm at $4{+}4$), so an average alone would suggest stopping at two
 --- but the \emph{worst-conditioned} anchor keeps falling ($226\!\to\!134\!\to\!122\!\to\!93$~mm
 across $4{+}1,\,4{+}2,\,4{+}3,\,4{+}4$). The balanced $4{+}4$ is therefore the smallest array that
-brings \emph{every} anchor's vertical to the production floor on average ($\sim$63~mm, essentially
+brings \emph{every} anchor's vertical to the production floor on average ($\sim$63~mm RMS bound, the same order as
 the deployed median vertical error of ${\approx}62$~mm) and to no worse than $\sim$93~mm: the choice over an asymmetric
 $4{+}k$ raise is a worst-case-uniformity argument, not an observability one. At fixed anchor count a
 \emph{balanced} (diagonal) pair beats a \emph{clustered} (adjacent) pair by $1.24\times$, confirming
@@ -205,7 +205,7 @@ what is unavailable at deployment, so we identify two checks that flag a bad cal
 the UWB data itself.
 
 \begin{itemize}
-\item \emph{Ranging residual is a misleading quality signal.} With only four anchors --- three
+\item \emph{Ranging residual is a misleading quality signal.} With only four anchors in a fix --- three
       position unknowns and one redundant measurement --- the solver can fit the four distances
       almost perfectly even when the recovered position is wrong, so the configuration with the
       \emph{lowest} residual can have the \emph{worst} position. In our data the lowest-residual
@@ -248,7 +248,7 @@ claim using optical motion capture, and report both the accuracy and the limit (
 \item \textbf{Consistency is not accuracy.} The preliminary headline numbers (positioning standard
       deviation of order $5$~cm 3D / $4$~cm vertical) measure repeatability of repeated fixes, not
       absolute error. Against optical ground truth the absolute error is larger, and only the
-      ground-truth-validated figures are reported as accuracy.
+      ground-truth-validated numbers are reported as accuracy.
 \item \textbf{The $4{+}4$ geometry is necessary, not sufficient, for the vertical.} It completes the
       vertical \emph{geometric} observability, but a systematic vertical bias remains after it ---
       because that residual is not a geometry deficit but a \emph{tag-side} delay aliasing into the vertical. The Fisher
@@ -267,7 +267,7 @@ claim using optical motion capture, and report both the accuracy and the limit (
 \section{Accuracy by Axis, and the Pure-UWB Vertical}
 
 We report two distinct quantities and never conflate them: \emph{repeatability} (standard deviation
-of repeated static fixes, the headline $\sim$5~cm figure) and \emph{absolute accuracy} (error against
+of repeated static fixes, the headline $\sim$5~cm number) and \emph{absolute accuracy} (error against
 Vicon, which is what the literature reports). The comparison to the landscape uses the absolute
 numbers.
 
@@ -297,16 +297,27 @@ ${\approx}110$~mm median (the mechanism and its in-environment control are analy
 \textbf{Honest caveat on the comparison.} The reviewed systems are UWB$+$IMU \emph{fusion} tracking a
 \emph{moving} tag; AutoPos is UWB-only positioning of a \emph{static} tag. Fusion and IMU help them;
 the static setting helps us. So the correct statement is that AutoPos reaches the same accuracy band
-\emph{UWB-only and self-calibrated, with a resolved vertical}, not that it beats fusion systems.
+\emph{UWB-only and self-calibrated, with a resolved vertical}, not that it beats fusion systems. The
+absolute vertical is referenced to the optical marker, so a fixed marker-to-antenna-phase-centre offset
+would shift this absolute value (the companion paper's phase-center sensitivity check finds the layout
+ranking robust to marker offsets beyond 10~mm).
 
-\textbf{Reproducibility scope --- the acquisition scheme is part of the method.} The positioning
-figures above are obtained at the system's designed operating point: an eight-anchor, two-layer
-\textbf{broadcast SS-TWR} acquisition in which every fix draws on the full anchor set. This is
-constitutive, not a favourable selection. A reproduction that drives the same layout with a naive
-minimal-anchor SS-TWR scheme, or that collapses the array to a single coplanar layer, will
-\emph{not} recover these numbers --- the vertical in particular returns to the ill-conditioned
-$\partial r/\partial z \to 0$ regime the Fisher analysis proves exactly singular for a coplanar
-layer. The graceful, layer-asymmetric degradation under partial anchor dropout (losing an
+\textbf{Anchor visibility.} Visibility was high across the 24-position static campaign: at every position
+$92.2\%$ of frames ranged to all eight anchors and $99.9\%$ to at least seven (per-position median
+$8/8$; link-level success $99.0\%$). The residual single-anchor dropout was dominated by
+one anchor (${\sim}4.4\%$ of its frames; the others below $2\%$). Because a seven-of-eight fix remains
+non-coplanar and over-determined, the vertical conditioning is preserved in $99.9\%$ of frames, so the
+reported medians are effectively whole-array fixes rather than a full-visibility subset.
+
+\textbf{Reproducibility scope --- full-array participation is part of the method.} The positioning
+numbers above are obtained at the system's designed operating point, where \emph{every fix draws on
+all eight anchors} of the two-layer array. This is constitutive, not a favourable selection --- and it
+is the eight-anchor participation, not the ranging protocol, that conditions the vertical: for a static
+fix a sequential and a broadcast acquisition give the same ranges. A reproduction that admits fixes
+from \emph{fewer} anchors (e.g.\ a four-anchor subset) raises the vertical CRLB sharply, while collapsing
+the array to a single coplanar layer returns the vertical to the ill-conditioned
+$\partial r/\partial z \to 0$ regime the Fisher analysis proves exactly singular; neither recovers these
+numbers. The graceful, layer-asymmetric degradation under partial anchor dropout (losing an
 \emph{upper} versus a \emph{lower} anchor is not equivalent) is characterised by the stratified
 keep-$k$ analysis in the full system evaluation.
 
@@ -346,8 +357,8 @@ vertical where most comparable systems avoid the axis or reach it only with angl
 biomechanical, or surveyed-anchor aids. The $4{+}4$ geometry is necessary but not sufficient: a residual systematic vertical
 bias remains, attributed to a tag-side delay aliasing into the vertical (companion paper). To our knowledge this is
 the first demonstration that the \emph{vertical} axis of a UWB anchor array can be self-calibrated to
-the centimetre level --- ${\approx}62$~mm median absolute against optical ground truth, near a ${\approx}63$~mm
-inter-anchor Cram\'{e}r--Rao floor --- from inter-anchor ranging alone on commodity single-antenna
+the centimetre level --- ${\approx}62$~mm median absolute against optical ground truth, with a Fisher-predicted ${\approx}63$~mm
+inter-anchor vertical CRLB for $4{+}4$ --- from inter-anchor ranging alone on commodity single-antenna
 modules, with the delay coupling that bounds it identified and quantified.
 \end{quote}
 

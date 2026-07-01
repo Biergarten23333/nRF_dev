@@ -1,0 +1,33 @@
+{
+  "listener_cmd": [
+    "/usr/bin/python3",
+    "scripts/capture_uwb_poll_listener.py",
+    "--port",
+    "/dev/serial/by-id/usb-SEGGER_J-Link_000760184767-if00",
+    "--duration",
+    "480.0",
+    "--out-dir",
+    "logs/verify_resp2_120s/listener"
+  ],
+  "capture_cmd": [
+    "/usr/bin/python3",
+    "scripts/run_recv_tdma_capture.py",
+    "--port",
+    "/dev/serial/by-id/usb-Master_Tag_BioSpur_BLE_Control_6918E0384172A49F-if00",
+    "--targets",
+    "BS9336,BS955A,BSCCF4",
+    "--duration",
+    "120",
+    "--tr-hz",
+    "10",
+    "--controller-reset-snr",
+    "1050070698",
+    "--skip-anchor-preflight",
+    "--legacy-skip-link-ready-wait",
+    "--no-silence-non-target-tags",
+    "--out-dir",
+    "logs/verify_resp2_120s/recv"
+  ],
+  "duration_s": 120.0,
+  "listener_port": "/dev/serial/by-id/usb-SEGGER_J-Link_000760184767-if00"
+}

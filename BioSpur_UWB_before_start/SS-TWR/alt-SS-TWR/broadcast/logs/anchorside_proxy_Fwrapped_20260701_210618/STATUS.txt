@@ -1,0 +1,24 @@
+[21:06:18] BASE=SS-TWR/alt-SS-TWR/broadcast/logs/anchorside_proxy_Fwrapped_20260701_210618  (Anchor F + Listener F wrapped; Listener E = LOS control)
+[21:09:46] recv rc=0
+[21:09:46] LF rc=0
+[21:09:46] LE rc=0
+  M1 anchor coverage : ge7=96.7%  ge8=89.7%  (of 3236 sweeps; bench ~99/92)  longest_ge7_below_floor=0.0s  min_bin_ge7=0.9591
+[21:09:46] analyze RECV=SS-TWR/alt-SS-TWR/broadcast/logs/anchorside_proxy_Fwrapped_20260701_210618/recv_20260701_210621
+
+==== Anchor F (WRAPPED) vs Listener F (wrapped, 20cm) ====
+tag       Anchor_dP    nA  Listener_dP    nL    |Δ|  flags
+BS9336          3.2   103          4.3   625    1.2   
+BS955A          5.8   106          2.4   633    3.4   
+BSCCF4          2.6   104          2.8   624    0.2   
+
+==== Anchor E (LOS control) vs Listener E (LOS) ====
+tag       Anchor_dP    nA  Listener_dP    nL    |Δ|  flags
+BS9336          4.0   106          2.9   625    1.1   
+BS955A          4.1   107         11.7   633    7.5   L-NLOS
+BSCCF4          3.0   104          3.1   624    0.1   
+
+GATE occlusion: Anchor F NLOS(>=10) for tags: []  (0/3)
+  -> ANCHOR F NOT occluded (LOS) -> STOP, adjust towel to cover the anchor antenna
+  Listener F NLOS(>=10) for tags: []
+  Anchor F samples/tag: {'BS9336':103,'BS955A':106,'BSCCF4':104}  Listener F lpd/tag: {'2': 625, '3': 633, '4': 624}
+[21:09:46] ANCHORSIDE_DONE SS-TWR/alt-SS-TWR/broadcast/logs/anchorside_proxy_Fwrapped_20260701_210618

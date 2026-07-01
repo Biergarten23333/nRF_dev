@@ -1,0 +1,29 @@
+[23:45:48] BASE=SS-TWR/alt-SS-TWR/broadcast/logs/porkself_20260701_234548 (anchor-self-read pork check, 40s, no listeners)
+[23:47:52] recv rc=0
+  M1 anchor coverage : ge7=96.6%  ge8=91.9%  (of 1049 sweeps; bench ~99/92)  longest_ge7_below_floor=0.0s  min_bin_ge7=0.9588
+[23:47:52] RECV=SS-TWR/alt-SS-TWR/broadcast/logs/porkself_20260701_234548/recv_20260701_234549
+### BS955A uplink to ALL anchors (pork placement check; targets F,B) ###
+anchor   955A   base   rise    n flag
+  A       3.4    5.8   -2.5   35 LOS 
+  B       3.3    3.2    0.1   35 LOS <-TARGET
+  C       2.6    3.9   -1.3   35 LOS 
+  D       7.6    6.5    1.0   35 LOS 
+  E       3.7    3.2    0.5   34 LOS 
+  F       3.1    3.5   -0.4   34 LOS <-TARGET
+  G       3.0    3.6   -0.7   35 LOS 
+  H       3.4    6.2   -2.8   35 LOS 
+
+PLACEMENT VERDICT:
+  955A->F dP=3.1 rise=-0.4 
+  955A->B dP=3.3 rise=0.1 
+  worst OTHER-direction rise=1.0
+  -> NOT occluding F/B yet. Move pork toward B/F bearing (nearest anchors, az~-15deg, opposite D/E). adjust.
+
+### D/E cleanliness (you stepped away -> should be ~0 now; last round D+5.5/E+2.3 = your body) ###
+  955A->D: dP=7.6 rise=1.0  (was your body - now cleared)
+  955A->E: dP=3.7 rise=0.5  (was your body - now cleared)
+
+### control: clean tags all-direction LOS? ###
+  BS9336 worst: D=6.2 (all LOS)
+  BSCCF4 worst: H=8.5 (all LOS)
+[23:47:52] PORKSELF_DONE SS-TWR/alt-SS-TWR/broadcast/logs/porkself_20260701_234548

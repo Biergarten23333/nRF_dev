@@ -1,0 +1,28 @@
+[21:18:45] BASE=SS-TWR/alt-SS-TWR/broadcast/logs/anchorside_proxy_Ebarrier_20260701_211845  (barrier front of Anchor E; E+ListE=NLOS grp; F+ListF & BS9336+List9336=LOS)
+[21:22:13] recv rc=0
+[21:22:13] LE rc=0
+[21:22:13] LF rc=0
+[21:22:13] L93 rc=0
+  M1 anchor coverage : ge7=96.3%  ge8=90.0%  (of 3221 sweeps; bench ~99/92)  longest_ge7_below_floor=0.0s  min_bin_ge7=0.9511
+[21:22:13] RECV=SS-TWR/alt-SS-TWR/broadcast/logs/anchorside_proxy_Ebarrier_20260701_211845/recv_20260701_211848
+### CORE (NLOS group): barrier in front of Anchor E ###
+
+==== Anchor E (behind barrier) vs Listener E (behind barrier) ====
+tag       Anc_dP   nA  Lis_dP    nL   |d|  flags
+BS9336       2.3  107     3.2   611   0.9  
+BS955A       3.6  109    14.7   634  11.2  L-NLOS
+BSCCF4       2.4  103     3.6   605   1.1  
+GATE: Anchor E NLOS(>=10) tags: []  -> NO tag->E NLOS -> STOP, adjust barrier into a tag->E path
+
+### LOS CONTROL 1 ###
+
+==== Anchor F (LOS) vs Listener F (LOS) ====
+tag       Anc_dP   nA  Lis_dP    nL   |d|  flags
+BS9336       3.1  106     4.9   611   1.8  
+BS955A       5.3  107     2.4   632   2.9  
+BSCCF4       2.9  103     2.3   605   0.7  
+
+### LOS BASELINE 2: BS9336 uplink to ALL anchors + Listener-9336 (downlink) ###
+BS9336(tag2) uplink dP per anchor: {'A': 3.6, 'B': 3.5, 'C': 7.0, 'D': 2.5, 'E': 2.3, 'F': 3.1, 'G': 11.9, 'H': 7.0}
+Listener-9336 downlink dP per anchor: {'A': 4.9, 'B': 4.7, 'C': 3.2, 'E': 3.3, 'F': 10.1, 'G': 2.6}
+[21:22:13] ANCHORE_DONE SS-TWR/alt-SS-TWR/broadcast/logs/anchorside_proxy_Ebarrier_20260701_211845

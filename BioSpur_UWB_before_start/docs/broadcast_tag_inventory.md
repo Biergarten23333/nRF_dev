@@ -60,6 +60,7 @@ builds.
 | Listener | Near anchor | J-Link SNR | USB by-id path | Current note |
 |---|---|---:|---|---|
 | E | E | `760184767` | `/dev/serial/by-id/usb-SEGGER_J-Link_000760184767-if00` | Co-located listener beside Anchor E; observed online on 2026-06-24 |
+| F | F | `760184964` | `/dev/serial/by-id/usb-SEGGER_J-Link_000760184964-if00` | Co-located listener beside Anchor F; added 2026-07-01 |
 
 ## Legacy Passive Listener
 
