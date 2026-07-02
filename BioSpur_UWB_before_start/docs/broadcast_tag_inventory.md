@@ -60,7 +60,10 @@ builds.
 | Listener | Near anchor | J-Link SNR | USB by-id path | Current note |
 |---|---|---:|---|---|
 | E | E | `760184767` | `/dev/serial/by-id/usb-SEGGER_J-Link_000760184767-if00` | Co-located listener beside Anchor E; observed online on 2026-06-24 |
-| F | F | `760184964` | `/dev/serial/by-id/usb-SEGGER_J-Link_000760184964-if00` | Co-located listener beside Anchor F; added 2026-07-01 |
+| F | F | `760184964` | `/dev/serial/by-id/usb-SEGGER_J-Link_000760184964-if00` | Co-located listener beside Anchor F; added 2026-07-01 (ex-tag BS7724 EVK, repurposed) |
+| B | B | `760184545` | `/dev/serial/by-id/usb-SEGGER_J-Link_000760184545-if00` | Co-located listener beside Anchor B; added 2026-07-02 (ex-tag **BS1396** EVK — tag identity retired on this board, now L-B) |
+| 955A | Tag BS955A (Wand-C) | `760186081` | `/dev/serial/by-id/usb-SEGGER_J-Link_000760186081-if00` | Tag-co-located listener beside **Tag** BS955A (not an anchor); added 2026-07-02 |
+| 9336 | Tag BS9336 (Wand-B) | `760186071` | `/dev/serial/by-id/usb-SEGGER_J-Link_000760186071-if00` | Tag-co-located listener beside **Tag** BS9336 (not an anchor); added 2026-07-02 |
 
 ## Legacy Passive Listener
 

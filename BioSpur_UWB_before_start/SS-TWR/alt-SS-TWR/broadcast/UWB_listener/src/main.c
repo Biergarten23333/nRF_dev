@@ -70,6 +70,13 @@
 #define LISTENER_LED_ACTIVITY_DIV 6U
 #define LISTENER_LED_ACTIVITY_TIMEOUT_MS 300U
 
+/* Fix 1 (idle-wedge): if no good frame arrives for this long, force a full radio
+ * recover (HW reset + re-init) so a silent RX stall self-heals without a reboot. */
+#define LISTENER_RX_STALL_WATCHDOG_MS 15000U
+/* Fix 2 (flood): flush at most this many buffered records to UART per main-loop
+ * pass, regardless of RX busy/idle, so LPD/LRD keep streaming under heavy traffic. */
+#define LISTENER_DRAIN_BUDGET 4U
+
 struct listener_counters {
     uint32_t good_frames;
     uint32_t accepted_polls;
@@ -82,6 +89,7 @@ struct listener_counters {
     uint32_t rx_enable_failures;
     uint32_t full_cir_captures;
     uint32_t ring_drops;
+    uint32_t self_recover;   /* RX-stall watchdog full-recover count (Fix 1) */
     uint32_t last_rx_enable_error;
     uint32_t last_status;
     uint16_t last_src;
@@ -180,6 +188,18 @@ static void listener_restart_rx(void)
         counters.rx_enable_failures++;
         counters.last_rx_enable_error = (uint32_t)ret;
     }
+}
+
+/* Fix 1: strongest in-firmware recovery for a silent RX stall. Replicates the boot
+ * bringup (uwb_port_hw_reset = DW1000 RSTn + dwt_initialise), which the anchor app
+ * already re-runs safely, then reconfigures and re-arms RX. No MCU reboot needed. */
+static void listener_radio_full_recover(void)
+{
+    dwt_forcetrxoff();
+    (void)uwb_hw_bringup_and_init();
+    listener_radio_configure();
+    listener_restart_rx();
+    counters.self_recover++;
 }
 
 static bool frame_has_biospur_header(const uint8_t *frame, uint32_t len)
@@ -540,11 +560,17 @@ static void drain_ring_one(void)
 static void print_status(uint32_t now_ms)
 {
 #if APP_LISTENER_STATUS_PRINT_ENABLE != 0U
+    static uint32_t last_good_snapshot;
+    uint32_t fps;
     if ((now_ms - last_status_print_ms) < LISTENER_STATUS_PERIOD_MS) {
         return;
     }
+    /* good frames/sec over the status period (Fix 2: flood/anomaly visibility) */
+    fps = (counters.good_frames - last_good_snapshot) * 1000U /
+          LISTENER_STATUS_PERIOD_MS;
+    last_good_snapshot = counters.good_frames;
     last_status_print_ms = now_ms;
-    printk("LSTAT;1;%u;%u;%lu;%lu;%lu;%lu;%lu;%lu;%lu;%lu;0x%08lx;0x%04x;0x%04x;0x%02x\n",
+    printk("LSTAT;1;%u;%u;%lu;%lu;%lu;%lu;%lu;%lu;%lu;%lu;0x%08lx;0x%04x;0x%04x;0x%02x;%lu;%lu;%lu;%lu\n",
            (unsigned int)APP_LISTENER_ID,
            (unsigned int)APP_LISTENER_NEAR_ANCHOR_ID,
            (unsigned long)counters.good_frames,
@@ -558,7 +584,11 @@ static void print_status(uint32_t now_ms)
            (unsigned long)counters.last_status,
            (unsigned int)counters.last_src,
            (unsigned int)counters.last_dst,
-           (unsigned int)counters.last_code);
+           (unsigned int)counters.last_code,
+           (unsigned long)counters.ring_drops,
+           (unsigned long)counters.self_recover,
+           (unsigned long)counters.rx_enable_failures,
+           (unsigned long)fps);
 #else
     ARG_UNUSED(now_ms);
 #endif
@@ -587,9 +617,13 @@ int main(void)
     listener_restart_rx();
     printk("listener RX-only poll diagnostics ready\n");
 
+    uint32_t wd_last_good = 0U;
+    uint32_t wd_last_activity_ms = k_uptime_get_32();
+
     while (true) {
         uint32_t now_ms = k_uptime_get_32();
         uint32_t status_reg = dwt_read32bitreg(SYS_STATUS_ID);
+        uint32_t drain_budget = LISTENER_DRAIN_BUDGET;
         counters.last_status = status_reg;
 
         if ((status_reg & SYS_STATUS_RXFCG) != 0U) {
@@ -601,8 +635,22 @@ int main(void)
                               SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_RX_TO);
             dwt_rxreset();
             listener_restart_rx();
-        } else {
-            drain_ring_one();                 /* idle: flush buffered records */
+        }
+
+        /* Fix 2: always flush a bounded budget to UART, even while RX is busy, so
+         * LPD/LRD keep streaming under flood (drain no longer gated on RX idle). */
+        while (drain_budget-- != 0U && lrec_head != lrec_tail) {
+            drain_ring_one();
+        }
+
+        /* Fix 1: RX-stall watchdog. A new good frame resets the timer; if none for
+         * WATCHDOG_MS, self-heal with a full radio recover (clears silent wedges). */
+        if (counters.good_frames != wd_last_good) {
+            wd_last_good = counters.good_frames;
+            wd_last_activity_ms = now_ms;
+        } else if ((now_ms - wd_last_activity_ms) >= LISTENER_RX_STALL_WATCHDOG_MS) {
+            listener_radio_full_recover();
+            wd_last_activity_ms = now_ms;
         }
 
         print_status(now_ms);

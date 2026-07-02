@@ -107,6 +107,10 @@ LSTAT_RE = re.compile(
     r"(?P<last_src>0x[0-9A-Fa-f]+);"
     r"(?P<last_dst>0x[0-9A-Fa-f]+);"
     r"(?P<last_code>0x[0-9A-Fa-f]+)"
+    # new listener fw appends ring_drops;self_recover;rx_enable_failures;fps
+    # (optional so this parser still reads old-firmware LSTAT lines)
+    r"(?:;(?P<ring_drops>\d+);(?P<self_recover>\d+);"
+    r"(?P<rx_enable_failures>\d+);(?P<fps>\d+))?"
 )
 
 
@@ -263,6 +267,10 @@ def main() -> int:
         "last_src",
         "last_dst",
         "last_code",
+        "ring_drops",
+        "self_recover",
+        "rx_enable_failures",
+        "fps",
     ]
 
     print(f"[POLL_LISTENER] port={args.port}", flush=True)
