@@ -1,0 +1,57 @@
+[20:17:14] BASE=SS-TWR/alt-SS-TWR/broadcast/logs/anchorB_pork_20260702_201714  (pork hood on Anchor B; anchor-side proxy core)
+[20:17:14] PREFLIGHT: 5 listeners must be alive (LSTAT heartbeat) ...
+[preflight-lstat] capturing 5 listeners 20s (no ranging; heartbeat liveness) ...
+  L955A  ALIVE  lstat_rows=4 good_frames=119903 self_recover=2261 fps_max=78
+  L9336  ALIVE  lstat_rows=4 good_frames=119601 self_recover=2261 fps_max=79
+  LB     ALIVE  lstat_rows=4 good_frames=119592 self_recover=2261 fps_max=78
+  LE     ALIVE  lstat_rows=4 good_frames=119831 self_recover=2261 fps_max=79
+  LF     ALIVE  lstat_rows=4 good_frames=119442 self_recover=2261 fps_max=79
+PREFLIGHT_PASS all 5 listeners alive (LSTAT heartbeat)
+[20:17:34] 5 listeners LIVE; countdown then RECORD 45s (pork static; you are clear of the ray zone)
+[20:17:44] RECORDING 45s
+[20:19:56] recv rc=0
+[20:20:24] L955A rc=0
+[20:20:24] L9336 rc=0
+[20:20:24] LB rc=0
+[20:20:24] LE rc=0
+[20:20:24] LF rc=0
+  M1 anchor coverage : ge7=96.6%  ge8=89.1%  (of 1216 sweeps; bench ~99/92)  longest_ge7_below_floor=0.0s  min_bin_ge7=0.9565
+[20:20:24] RECV=SS-TWR/alt-SS-TWR/broadcast/logs/anchorB_pork_20260702_201714/recv_20260702_201747
+### LAYER 1 — OCCLUSION VERIFY: every tag->B must be NLOS (>=10) ###
+  BS9336  -> B : dP=2.7 n=38  LOS 
+  BS955A  -> B : dP=3.7 n=41  LOS 
+  BSCCF4  -> B : dP=2.9 n=38  LOS 
+  => occlusion NOT ACHIEVED — adjust pork
+
+### LAYER 2 — CORE anchor-side proxy at B (Anchor-B self-read vs L-B lpd; both behind pork) ###
+  BS9336 : B-selfread=2.7(LOS  n38)  L-B-lpd=2.8(LOS  n557)  |Δ|=0.1
+  BS955A : B-selfread=3.7(LOS  n41)  L-B-lpd=8.4(LOS  n568)  |Δ|=4.7
+  BSCCF4 : B-selfread=2.9(LOS  n38)  L-B-lpd=2.6(LOS  n635)  |Δ|=0.3
+  PASS if both NLOS AND |Δ| small (proxy faithful in NLOS).
+
+### LAYER 3 — LOS controls (expect LOS both sides, |Δ| small) ###
+ anchor-side E (Anchor-E self-read vs L-E lpd):
+   BS9336 : E-selfread=4.3(LOS  n39)  L-E-lpd=2.4(LOS  n557)  |Δ|=2.0
+   BS955A : E-selfread=4.2(LOS  n41)  L-E-lpd=3.3(LOS  n568)  |Δ|=0.8
+   BSCCF4 : E-selfread=3.1(LOS  n40)  L-E-lpd=7.0(LOS  n635)  |Δ|=3.9
+ anchor-side F (Anchor-F self-read vs L-F lpd):
+   BS9336 : F-selfread=2.7(LOS  n39)  L-F-lpd=4.9(LOS  n557)  |Δ|=2.3
+   BS955A : F-selfread=11.7(NLOS n41)  L-F-lpd=3.6(LOS  n568)  |Δ|=8.1
+   BSCCF4 : F-selfread=3.7(LOS  n40)  L-F-lpd=3.9(LOS  n635)  |Δ|=0.2
+ tag-side BS9336 (Anchor self-read of BS9336 vs L-9336 lrd; exclude G=intrinsic NLOS):
+   A : anc-selfread(BS9336)=2.9(LOS  n39)  L9336-lrd=2.8(LOS  n21)  |Δ|=0.1
+   B : anc-selfread(BS9336)=2.7(LOS  n38)  L9336-lrd=6.2(LOS  n1838)  |Δ|=3.5
+   C : anc-selfread(BS9336)=2.5(LOS  n39)  L9336-lrd=3.7(LOS  n69)  |Δ|=1.2
+   D : anc-selfread(BS9336)=3.5(LOS  n39)  L9336-lrd=5.1(LOS  n5)  |Δ|=1.6
+   E : anc-selfread(BS9336)=4.3(LOS  n39)  L9336-lrd=2.3(LOS  n1)  |Δ|=2.0
+   F : anc-selfread(BS9336)=2.7(LOS  n39)  L9336-lrd=5.6(LOS  n1835)  |Δ|=2.9
+   H : anc-selfread(BS9336)=5.3(LOS  n39)  L9336-lrd=2.8(LOS  n5)  |Δ|=2.6
+
+### LAYER 4 — ENVIRONMENT BASELINE ###
+  BS9336->G (known intrinsic NLOS ~10.8): dP=4.8 n=39  -> EXCLUDE from LOS reads
+  BS955A->D (you absent => clean): dP=3.4 n=41  LOS 
+  BS955A->E (you absent => clean): dP=4.2 n=41  LOS 
+
+VERDICT KEYS: Layer1 gate (>=1 tag->B NLOS) THEN Layer2 core |Δ| small w/ both NLOS,
+Layer3 LOS pairs |Δ| small (scale comparable, no stray), Layer4 confirms clean surroundings.
+[20:20:25] ANCHORB_PORK_DONE SS-TWR/alt-SS-TWR/broadcast/logs/anchorB_pork_20260702_201714

@@ -1,0 +1,30 @@
+[00:59:14] BASE=SS-TWR/alt-SS-TWR/broadcast/logs/idlesoak_20260702_005914  idle soak (PRE 30s / SOAK 5400s / REST 60s); ranging ONLY in Phase C
+[00:59:14] Phase A: 30s silence pre-check (no ranging) ...
+  L955A: good_frames +0 over precheck  fps_max=0  QUIET
+  L9336: good_frames +0 over precheck  fps_max=0  QUIET
+  LB: good_frames +0 over precheck  fps_max=0  QUIET
+  LE: good_frames +0 over precheck  fps_max=0  QUIET
+  LF: good_frames +0 over precheck  fps_max=0  QUIET
+PRECHECK bad=0 (0 => air silent, ok to soak)
+[00:59:44] Phase B: 5400s SILENT soak; watchdog should fire (~360 self_recover/node), nodes stay alive
+  L955A: lstat_rows=1085 (alive if still growing)  good_frames_last=48550  self_recover=385 (want >0: watchdog fired)
+  L9336: lstat_rows=1086 (alive if still growing)  good_frames_last=48493  self_recover=386 (want >0: watchdog fired)
+  LB: lstat_rows=1085 (alive if still growing)  good_frames_last=48559  self_recover=385 (want >0: watchdog fired)
+  LE: lstat_rows=1086 (alive if still growing)  good_frames_last=48559  self_recover=385 (want >0: watchdog fired)
+  LF: lstat_rows=1086 (alive if still growing)  good_frames_last=48549  self_recover=384 (want >0: watchdog fired)
+[02:29:44] Phase C: restore ranging 60s; all 5 must resume receiving within seconds
+[02:32:09] restore recv rc=0
+[02:32:09] L955A cap rc=0
+[02:32:09] L9336 cap rc=0
+[02:32:09] LB cap rc=0
+[02:32:09] LE cap rc=0
+[02:32:09] LF cap rc=0
+[02:32:09] ==== IDLE SOAK VERDICT ====
+  L955A: self_recover=390 (watchdog fired=True)  lstat_rows=1103  restore-LPD=743  resumed=True  -> PASS
+  L9336: self_recover=390 (watchdog fired=True)  lstat_rows=1104  restore-LPD=740  resumed=True  -> PASS
+  LB: self_recover=389 (watchdog fired=True)  lstat_rows=1103  restore-LPD=743  resumed=True  -> PASS
+  LE: self_recover=389 (watchdog fired=True)  lstat_rows=1104  restore-LPD=743  resumed=True  -> PASS
+  LF: self_recover=389 (watchdog fired=True)  lstat_rows=1104  restore-LPD=744  resumed=True  -> PASS
+
+Fix1 PASS: all 5 fired watchdog during silence AND resumed on traffic restore.
+[02:32:09] IDLE_SOAK_DONE SS-TWR/alt-SS-TWR/broadcast/logs/idlesoak_20260702_005914

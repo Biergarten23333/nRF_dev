@@ -1,0 +1,24 @@
+[00:45:19] BASE=SS-TWR/alt-SS-TWR/broadcast/logs/floodtest_20260702_004519  FLOOD 600s (3 wand tags @10Hz, non-target tags NOT silenced => max air)
+[00:45:22] listeners capturing; starting ranging flood 600s ...
+[00:56:52] recv rc=0
+[00:56:52] L955A cap rc=0
+[00:56:52] L9336 cap rc=0
+[00:56:52] LB cap rc=0
+[00:56:52] LE cap rc=0
+[00:56:52] LF cap rc=0
+  M1 anchor coverage : ge7=96.2%  ge8=90.0%  (of 16064 sweeps; bench ~99/92)  longest_ge7_below_floor=0.0s  min_bin_ge7=0.9478
+[00:56:52] ==== FLOOD ANALYSIS ====
+  L955A: good_frames 0->42921  fps med=78 max=84  ring_drops=0  self_recover=14  rx_errors=55
+       LPD rows=14406 span=63.418803..614.99036s  minute-buckets-with-LPD=10/10  LRD rows=28827
+  L9336: good_frames 0->42964  fps med=78 max=84  ring_drops=0  self_recover=14  rx_errors=264
+       LPD rows=14311 span=63.416254..614.987865s  minute-buckets-with-LPD=10/10  LRD rows=28861
+  LB: good_frames 0->43138  fps med=78 max=84  ring_drops=0  self_recover=13  rx_errors=55
+       LPD rows=14421 span=63.416261..614.987882s  minute-buckets-with-LPD=10/10  LRD rows=28818
+  LE: good_frames 0->43230  fps med=78 max=84  ring_drops=0  self_recover=13  rx_errors=40
+       LPD rows=14420 span=63.417226..614.989025s  minute-buckets-with-LPD=10/10  LRD rows=28819
+  LF: good_frames 0->42930  fps med=78 max=84  ring_drops=0  self_recover=13  rx_errors=47
+       LPD rows=14420 span=63.418896..614.990651s  minute-buckets-with-LPD=10/10  LRD rows=28813
+
+Fix2 PASS if L955A LPD rows>0 AND minute-buckets≈10/10 (continuous under flood),
+self_recover=0 (traffic present), ring_drops finite. Old bug = L955A LPD=0.
+[00:56:53] FLOOD_DONE SS-TWR/alt-SS-TWR/broadcast/logs/floodtest_20260702_004519

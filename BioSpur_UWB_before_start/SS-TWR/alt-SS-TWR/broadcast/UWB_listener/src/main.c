@@ -506,6 +506,19 @@ static void capture_to_ring(uint32_t now_ms)
         counters.accepted_resps++;
     }
 
+#if APP_LISTENER_CIR_CAPTURE_ENABLE != 0U
+    /* CIR probe path (opt-in, e.g. L-B): on a sampled accepted poll, dump the DW1000
+     * accumulator NOW, while RX is still stopped after RXFCG, because re-arming
+     * overwrites ACC_MEM. This blocks the loop for one dump (~ACC_MEM over UART) and
+     * misses frames arriving during it (inherent CIR tradeoff). Fix-compat: good_frames
+     * was already incremented above, so the RX-stall watchdog cannot misfire across a
+     * dump; and print_full_cir writes direct to printk (not the ring), so the Fix 2
+     * drain budget is untouched. print_full_cir self-gates on the sample period. */
+    if (is_poll) {
+        print_full_cir(rx_ts, carrier_integrator, &diag);
+    }
+#endif
+
     /* clear good-frame status and re-arm RX immediately (no UART in this path) */
     dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
     listener_restart_rx();

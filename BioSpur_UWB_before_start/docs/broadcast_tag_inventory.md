@@ -61,9 +61,29 @@ builds.
 |---|---|---:|---|---|
 | E | E | `760184767` | `/dev/serial/by-id/usb-SEGGER_J-Link_000760184767-if00` | Co-located listener beside Anchor E; observed online on 2026-06-24 |
 | F | F | `760184964` | `/dev/serial/by-id/usb-SEGGER_J-Link_000760184964-if00` | Co-located listener beside Anchor F; added 2026-07-01 (ex-tag BS7724 EVK, repurposed) |
-| B | B | `760184545` | `/dev/serial/by-id/usb-SEGGER_J-Link_000760184545-if00` | Co-located listener beside Anchor B; added 2026-07-02 (ex-tag **BS1396** EVK — tag identity retired on this board, now L-B) |
+| B | B | `760184545` | `/dev/serial/by-id/usb-SEGGER_J-Link_000760184545-if00` | Co-located listener beside Anchor B; added 2026-07-02 (ex-tag **BS1396** EVK — tag identity retired on this board, now L-B). **CIR-PROBE BUILD (see fleet split below): emits LCIRM/LCIRD full-CIR waveform + still LPD.** |
 | 955A | Tag BS955A (Wand-C) | `760186081` | `/dev/serial/by-id/usb-SEGGER_J-Link_000760186081-if00` | Tag-co-located listener beside **Tag** BS955A (not an anchor); added 2026-07-02 |
 | 9336 | Tag BS9336 (Wand-B) | `760186071` | `/dev/serial/by-id/usb-SEGGER_J-Link_000760186071-if00` | Tag-co-located listener beside **Tag** BS9336 (not an anchor); added 2026-07-02 |
+
+### Fleet firmware split (2026-07-02) — DELIBERATE, not drift
+
+The 5 co-located listeners are intentionally NOT all on the same build right now:
+
+- **L-B (`760184545`) = CIR-probe build** `build-uwb-listener-poll-diag-cirprobe_lb_20260702`
+  (selfheal2fix source + `print_full_cir` wired into `capture_to_ring` +
+  `-DAPP_LISTENER_CIR_CAPTURE_ENABLE=1`, period 10 ≈ ~1 Hz, near_anchor=1). Emits the
+  full DW1000 accumulator (`LCIRM`/`LCIRD`/`LCIRE`) for up-link poll frames **and still LPD**
+  (CIR and LPD are NOT mutually exclusive in fw; CIR just steals ~230 ms/dump). Both
+  self-heal fixes verified compatible under CIR (`self_recover=0`, `ring_drops=0`, fps normal).
+- **L-E / L-F / L-955A / L-9336 = frozen selfheal-LPD build** (commit 53fb4d006, hex
+  `bb7deb18…`). These carry the live scalar-ΔP chain (4-layer criteria, |Δ| proxy, LPD
+  preflight) and must NOT be migrated to CIR while that chain is in use for LOS controls.
+
+Rationale: this round needs one real-time up-link waveform probe at the B location to guide
+occluder placement; the other four keep the ΔP scalar comparison intact. Whole-fleet CIR
+migration (for paper full-CIR collection) is a separate later decision, made after L-B has
+proven the CIR chain and occluder placement is fixed. Liveness of L-B is by LSTAT heartbeat
+(traffic-independent; still emitted in CIR mode) — the LSTAT-based preflight already covers it.
 
 ## Legacy Passive Listener
 
