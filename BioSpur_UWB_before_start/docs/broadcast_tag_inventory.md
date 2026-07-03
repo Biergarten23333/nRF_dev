@@ -64,6 +64,7 @@ builds.
 | B | B | `760184545` | `/dev/serial/by-id/usb-SEGGER_J-Link_000760184545-if00` | Co-located listener beside Anchor B; added 2026-07-02 (ex-tag **BS1396** EVK — tag identity retired on this board, now L-B). **CIR-PROBE BUILD (see fleet split below): emits LCIRM/LCIRD full-CIR waveform + still LPD.** |
 | 955A | Tag BS955A (Wand-C) | `760186081` | `/dev/serial/by-id/usb-SEGGER_J-Link_000760186081-if00` | Tag-co-located listener beside **Tag** BS955A (not an anchor); added 2026-07-02 |
 | 9336 | Tag BS9336 (Wand-B) | `760186071` | `/dev/serial/by-id/usb-SEGGER_J-Link_000760186071-if00` | Tag-co-located listener beside **Tag** BS9336 (not an anchor); added 2026-07-02 |
+| CCF4 | Tag BSCCF4 (Wand-A) | `760184784` | `/dev/serial/by-id/usb-SEGGER_J-Link_000760184784-if00` | Tag-co-located listener beside **Tag** BSCCF4 (not an anchor); added 2026-07-03, flashed 2026-07-04 (see fleet update below) |
 
 ### Fleet firmware split (2026-07-02) — DELIBERATE, not drift
 
@@ -84,6 +85,18 @@ occluder placement; the other four keep the ΔP scalar comparison intact. Whole-
 migration (for paper full-CIR collection) is a separate later decision, made after L-B has
 proven the CIR chain and occluder placement is fixed. Liveness of L-B is by LSTAT heartbeat
 (traffic-independent; still emitted in CIR mode) — the LSTAT-based preflight already covers it.
+
+### Fleet update (2026-07-04, volume-sensing pivot) — 6 listeners, 4 CIR channels
+
+- **L-CCF4 / L-E / L-F = generic CIR-probe build** `build-uwb-listener-poll-diag-cirprobe_gen_20260704`
+  (hex sha256 `37e26c7f281f78a4…`; same cirprobe params as L-B but `near_anchor=255` — host maps
+  identity by USB port, per the generic-build policy above). Flashed 2026-07-04 ~01:00, all three
+  verified streaming LCIRD on live wand traffic.
+- **L-B** unchanged (`cirprobe_lb_20260702`, near_anchor=1). **L-9336 / L-955A** stay frozen
+  selfheal-LPD (scalar controls). 盖格 `760185886` untouched.
+- Delay-resolved CIR channels now: L-B (anchor-B side), L-CCF4 (quasi-monostatic beside Wand-A),
+  L-E, L-F (anchor side). Rollback: frozen selfheal2fix hex per "Flash / restore" in
+  `FREEZE_LISTENER_SELFHEAL_20260702.md`.
 
 ## Legacy Passive Listener
 
