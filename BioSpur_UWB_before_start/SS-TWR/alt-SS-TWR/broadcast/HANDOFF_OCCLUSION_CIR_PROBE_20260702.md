@@ -78,3 +78,49 @@ baseline (NOT joint — confirmed necessary: per-tag baselines differ, e.g. FP/t
 - **Tomorrow's live notch**: `cir_notch_detector.py live --baseline <lb_los_baseline.json> --port <L-B>` —
   replaces the raw sparkline viewer; auto-prints `>>> OCCLUDED (link BSxxxx->B)` per link.
 - Soak is orphaned/detached (survives session end). Stop early if needed: `touch <soak base>/STOP`.
+
+## Overnight MORNING VERDICT (2026-07-03, soak complete 8/8 chunks, ~6.4 h)
+Hardware all clean: 3 wands survived (0 dropouts, 100% span every chunk — batteries held), L-B CIR
+probe healthy (~31k captures, self_recover +6/chunk, ring_drops=0), other 4 listeners ring_drops=0.
+Anchor coverage bimodal (ge7 96% chunks 2/3/8 vs ~74% chunks 4/5) = the BLE/UWB phase-beat reroll,
+expected. LOS baseline built: `lb_los_baseline.json` (per-tag→B rxpow ~42.5±0.3 dB, FP/tail 8/13/17).
+
+**Both census "events" were RE-INVESTIGATED via L-B CIR + anchor-ΔP decomposition + 5-min time-resolve
+and BOTH are INTERNAL (TDMA/BLE-UWB phase-beat), NOT physical / NOT bystander:**
+- The anchor-side ΔP moves are a **first-path register artifact**: fp1 amplitude drops ~15–30%
+  (fpterm −2.3 dB) while **total cir_pwr and rxpow stay flat** → ΔP rises purely through the
+  fp/total ratio. Reflection (would raise total/tail) and absorption (would drop rxpow) are BOTH
+  falsified at both instruments. Co-located **L-B CIR is flat** for all three tags in chunks 7/8
+  (FPamp −0.2%, tail −1.2%, rxpow +0.05 dB) — the up-link *waveform* never changed.
+- Time-resolved: BS955A→B and BSCCF4→B **toggle two-state** (ΔP≈2.4↔6.5) all night and are
+  **mutually exclusive** (one sacrificed tag at a time); **BS9336→B is dead flat** (fp1 7250±60, 6 h).
+  "03:39 BS955A→B step" = BS955A sacrificed in the last windows (also toggled 00:10–00:55 & 01:20–01:40
+  **while user asleep** → not the user). "02:05–02:52 room-wide transient" = **BSCCF4 sacrificed in
+  chunk 6** → all BSCCF4 links dropped fp1 together → census misread one-tag-many-anchors as room-wide.
+- **Conclusions:** (a) environment was STATIC all night (BS9336→B flat = proof); no roommate testimony
+  needed. (b) **Anchor-side ΔP is contaminated by the phase-beat (±2 dB via fp1); the co-located CIR
+  probe is the clean arbiter.** (c) The **live notch detector is immune** (3-signal waveform criterion
+  rejected all of it) — but the **45 s anchor-side proxy MUST gate on L-B CIR, never anchor ΔP alone.**
+- Census-detector caveat to harden later: attribute "one tag / many anchors move together" to the
+  **sacrificed-tag (TDMA)** mechanism, not "environment" (currently mislabels it multi-link/room-wide).
+  Scripts promoted to `scripts/`: `cir_mech_discriminators.py` (L-B CIR FP/tail/rxpow),
+  `anchor_dp_decompose.py` (ΔP → rxpow/cir/fp split), `anchor_dp_timeresolve.py` (per-tag→anchor bins).
+
+### ARCHIVAL CORRECTIONS (2026-07-03, accepted — calibrated, do not overstate)
+1. **Structural fact:** anchor scalar ΔP carries a **sub-threshold (~±2 dB) protocol (phase-beat)
+   artifact** — a property of the diagnostic *system*, not of one night. All historical anchor-side
+   ~2 dB-level attributions (incl. prior "E +2.2 dB environmental background"-type reads) are flagged
+   **"may contain a phase-beat component, not CIR-arbitrated"** until re-checked against a co-located CIR
+   probe. This does NOT retract those reads — it scopes their uncertainty.
+2. **NLOS determination UNAFFECTED (state separately):** the 10 dB NLOS threshold keeps its margin —
+   both events were ≤6.5 dB, far below 10; no NLOS verdict was ever wrong. The artifact is a
+   fine-attribution (sub-threshold) concern only, never a LOS/NLOS mislabel.
+3. **Methodology phrasing (calibrated):** write *"anchor scalar carries a sub-threshold (±2 dB)
+   protocol artifact; fine-grained attribution requires CIR arbitration"* — NOT "anchor ΔP throws false
+   positives." The listener-necessity argument uses the accurate **±2 dB** magnitude (no reviewer opening).
+4. **Event-2 testimony still to collect (zero cost, pending):** ask roommate whether he entered the
+   living room ~02:00–03:00. YES → the census protocol-vs-room signature taxonomy needs review (a real
+   room event to separate from the BSCCF4-sacrifice); NO → one more independent corroboration of the
+   internal mechanism. Append verdict here when it lands.
+5. **Operational discipline:** anchor-side proxy verdict is **gated on L-B CIR, never anchor ΔP alone**;
+   operator **leaves the room during the 45 s formal capture**.
