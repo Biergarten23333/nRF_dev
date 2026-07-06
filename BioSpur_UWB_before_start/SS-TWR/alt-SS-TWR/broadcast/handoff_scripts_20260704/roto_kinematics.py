@@ -55,7 +55,7 @@ for nm in traj: traj[nm].sort()
 print("="*74+"\n(a) JOINT RIGID CIRCLE FIT\n"+"="*74)
 # joint plane: fit to union of both tags' points
 allP=np.vstack([np.array([x for _,x in traj[nm]]) for nm in ROTO if traj[nm]])
-cJ=allP.mean(0); U,S,Vt=np.linalg.svd(allP-cJ); e1,e2,nJ=Vt[0],Vt[1],Vt[2]
+cJ=allP.mean(0); U,S,Vt=np.linalg.svd(allP-cJ, full_matrices=False); e1,e2,nJ=Vt[0],Vt[1],Vt[2]
 print(f"  shared center={cJ.round().astype(int).tolist()}  shared normal={nJ.round(3).tolist()}")
 ang={}; rad={}
 for nm in ROTO:

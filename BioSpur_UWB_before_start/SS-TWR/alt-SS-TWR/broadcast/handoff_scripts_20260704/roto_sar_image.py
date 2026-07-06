@@ -53,7 +53,7 @@ print("listener positions:",{k:(v.round().astype(int).tolist() if v is not None 
 
 def circle_fit(pts):
     P=np.array([x for _,x in pts]); c=P.mean(0)
-    U,S,Vt=np.linalg.svd(P-c); n=Vt[2]
+    U,S,Vt=np.linalg.svd(P-c, full_matrices=False); n=Vt[2]
     return c,n,float(np.median(np.linalg.norm(P-c,axis=1))),np.ptp(P,axis=0)
 for nm in ROTO:
     if nm in traj and len(traj[nm])>10:

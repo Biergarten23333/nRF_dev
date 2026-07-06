@@ -11,6 +11,8 @@ Usage: python3 roto_ridge.py [n_chunks]"""
 import csv, glob, os, sys, json, collections, re, numpy as np
 import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt
 from scipy.optimize import least_squares
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'scripts'))
+from tag_roster import load_roster            # single source of truth for tag_id<->name
 
 BASE='logs/roto_sar_overnight_20260705_012548'
 OUT='handoff_scripts_20260704/figs_20260704'; os.makedirs(OUT,exist_ok=True)
@@ -20,7 +22,6 @@ lay=json.load(open('logs/autopos_v3box_noref_20260704_030908/solve_v3_box/anchor
 A={a['label']:np.array([a['x_mm'],a['y_mm'],a['z_mm']],float) for a in lay['anchors']}
 ORD=['A','B','C','D','E','F','G','H']
 LIS={'LB':A['B'],'LE':A['E'],'LF':A['F'],'LCCF4':None,'L9336':None,'L955A':None}
-SNname={'0xf4':'BSCCF4','0x36':'BS9336','0x5a':'BS955A','0xce':'BS2DCE','0x91':'BSDC91'}
 ROTO=['BS2DCE','BSDC91']; Z0=900
 NBIN=72; DEG=5; TAP_LO=2; TAP_HI=35     # excess-delay taps to examine (2..35 ns)
 
@@ -68,7 +69,7 @@ FIT={}
 for nm in ROTO:
     if len(traj.get(nm,[]))<20: continue
     P=np.array([x for _,x in traj[nm]]); c=P.mean(0)
-    U,S,Vt=np.linalg.svd(P-c); e1,e2,n=Vt[0],Vt[1],Vt[2]
+    U,S,Vt=np.linalg.svd(P-c, full_matrices=False); e1,e2,n=Vt[0],Vt[1],Vt[2]
     FIT[nm]=(c,e1,e2,n)
     print(f"{nm}: center={c.round().astype(int).tolist()} normal={n.round(2).tolist()}")
 def interp(nm,t):
@@ -85,29 +86,8 @@ def angle_at(nm,t):
     c,e1,e2,_=FIT[nm]; d=p-c
     return np.degrees(np.arctan2(d@e2,d@e1))%360, p
 
-# ---------- tag maps ----------
-def chunk_cfg_map(cd):
-    num2name={}
-    for rl in sorted(glob.glob(f'{cd}/recv/**/raw.log',recursive=True))+glob.glob(f'{cd}/recv/raw.log'):
-        try:
-            for line in open(rl,errors='ignore'):
-                m=re.search(r'CFG assigned\[\d+\]: bs=(BS[0-9A-Fa-f]+) tag=(\d+)',line)
-                if m: num2name[m.group(2)]=m.group(1)
-        except FileNotFoundError: pass
-        if num2name: break
-    return num2name
-def probe_tagmap(pdir,num2name):
-    m={}; lpd=glob.glob(f'{pdir}/listener_*/lpd.csv')
-    if not lpd: return m
-    for r in csv.DictReader(open(lpd[0])):
-        try:
-            src=r['src'].lower(); last='0x'+src[-2:]
-            if last in SNname: m[r['tag_id']]=SNname[last]
-            elif src.startswith('0xb10'):
-                nn=str(int(src,16)-0xb100)
-                if nn in num2name: m[r['tag_id']]=num2name[nn]
-        except: pass
-    return m
+# ---------- tag map: SINGLE SOURCE OF TRUTH (scripts/tag_roster.py), no hardcoded maps ----------
+TAGMAP=load_roster(BASE)['by_id']              # {tag_id_str: BS name} from the runtime CFG
 
 # ---------- reassemble aligned magnitude frames ----------
 def frames(pdir,tmap):
@@ -149,11 +129,9 @@ def frames(pdir,tmap):
 # ---------- build M[bin,tap] per link ----------
 links={}   # (L,tag) -> list-per-bin of aligned mag windows
 for cd in sorted(glob.glob(f'{BASE}/chunk*'))[:NCH]:
-    num2name=chunk_cfg_map(cd)
     for L,rx in LIS.items():
         if rx is None: continue
-        tmap=probe_tagmap(f'{cd}/{L}',num2name)
-        for ep,nm,mag in frames(f'{cd}/{L}',tmap):
+        for ep,nm,mag in frames(f'{cd}/{L}',TAGMAP):
             res=angle_at(nm,ep)
             if res is None: continue
             th,Tx=res; b=int(th//DEG)%NBIN

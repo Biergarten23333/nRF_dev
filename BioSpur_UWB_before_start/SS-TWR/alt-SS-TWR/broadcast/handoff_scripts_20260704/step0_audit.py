@@ -134,7 +134,7 @@ for tag in ['BS2DCE','BSDC91']:
 for tag,pts in traj.items():
     if len(pts)<50: print(f"  {tag}: too few pts"); continue
     P=np.array([x for _,x in pts]); T=np.array([t for t,_ in pts]); c=P.mean(0)
-    U,S,Vt=np.linalg.svd(P-c); n=Vt[2]; e1,e2=Vt[0],Vt[1]
+    U,S,Vt=np.linalg.svd(P-c, full_matrices=False); n=Vt[2]; e1,e2=Vt[0],Vt[1]
     u=(P-c)@e1; v=(P-c)@e2; rad=np.sqrt(u**2+v**2)
     resid_inplane=np.std(rad)               # circle radial residual
     outplane=np.std((P-c)@n)                # thickness off-plane
