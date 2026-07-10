@@ -133,6 +133,10 @@ struct lrec {
     uint8_t peer_id;      /* tag_id (poll) or anchor_id (response) */
     uint8_t seq;          /* frame sequence number */
     uint8_t mask;         /* poll anchor mask (poll only) */
+    uint8_t rcph;         /* RX_TTCKO RCPHASE: receive carrier phase adj, 7-bit */
+    int32_t rxtofs;       /* RX_TTCKO RXTOFS: RX time tracking offset, 19-bit signed */
+    uint32_t ttcki;       /* RX_TTCKI: receiver time tracking interval, 32-bit */
+    uint16_t agc_edg1;    /* AGC_STAT1 EDG1: input noise power gain, 5-bit */
 };
 
 #define LREC_RING 128U
@@ -175,6 +179,10 @@ static void listener_radio_configure(void)
     dwt_write32bitreg(SYS_STATUS_ID,
                       SYS_STATUS_ALL_TX | SYS_STATUS_ALL_RX_TO |
                           SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_RX_GOOD);
+    /* Clears+enables the DW1000's 12-bit HW diagnostic counters (EVC_*) for the
+     * whole session; read back in print_status(). Counters wrap at 4095, so
+     * consumers must diff successive 5s LSTAT snapshots for an overnight run. */
+    dwt_configeventcounters(1);
 }
 
 static void listener_restart_rx(void)
@@ -292,7 +300,8 @@ static __maybe_unused bool listener_cir_capture_due(void)
 static void print_lpd(const struct lrec *r)
 {
 #if APP_LISTENER_POLL_DIAG_ENABLE != 0U
-    printk("LPD;1;%u;%u;%lu;%lu;%u;%u;0x%04x;0x%04x;%lu;%ld;%u;%u;%u;%u;%u;%u;%u;%u;0x%02x\n",
+    printk("LPD;1;%u;%u;%lu;%lu;%u;%u;0x%04x;0x%04x;%lu;%ld;%u;%u;%u;%u;%u;%u;%u;%u;0x%02x"
+           ";rcph=%u;rxtofs=%d;ttcki=%lu;agc=%u\n",
            (unsigned int)APP_LISTENER_ID,
            (unsigned int)APP_LISTENER_NEAR_ANCHOR_ID,
            (unsigned long)r->now_ms,
@@ -311,7 +320,11 @@ static void print_lpd(const struct lrec *r)
            (unsigned int)r->rxpacc,
            (unsigned int)r->stdnoise,
            (unsigned int)r->frame_len,
-           (unsigned int)r->mask);
+           (unsigned int)r->mask,
+           (unsigned int)r->rcph,
+           (int)r->rxtofs,
+           (unsigned long)r->ttcki,
+           (unsigned int)r->agc_edg1);
 #else
     ARG_UNUSED(r);
 #endif
@@ -322,7 +335,8 @@ static void print_lrd(const struct lrec *r)
 #if APP_LISTENER_RESP_DIAG_ENABLE != 0U
     /* fields mirror LPD (minus poll_mask): anchor response heard at the listener.
      * dst = the tag this response is addressed to (the sweep it belongs to). */
-    printk("LRD;1;%u;%u;%lu;%lu;%u;%u;0x%04x;0x%04x;%lu;%ld;%u;%u;%u;%u;%u;%u;%u;%u\n",
+    printk("LRD;1;%u;%u;%lu;%lu;%u;%u;0x%04x;0x%04x;%lu;%ld;%u;%u;%u;%u;%u;%u;%u;%u"
+           ";rcph=%u;rxtofs=%d;ttcki=%lu;agc=%u\n",
            (unsigned int)APP_LISTENER_ID,
            (unsigned int)APP_LISTENER_NEAR_ANCHOR_ID,
            (unsigned long)r->now_ms,
@@ -340,7 +354,11 @@ static void print_lrd(const struct lrec *r)
            (unsigned int)r->cir,
            (unsigned int)r->rxpacc,
            (unsigned int)r->stdnoise,
-           (unsigned int)r->frame_len);
+           (unsigned int)r->frame_len,
+           (unsigned int)r->rcph,
+           (int)r->rxtofs,
+           (unsigned long)r->ttcki,
+           (unsigned int)r->agc_edg1);
 #else
     ARG_UNUSED(r);
 #endif
@@ -486,6 +504,23 @@ static void capture_to_ring(uint32_t now_ms)
     rx_ts = dwt_readrxtimestamplo32();
     carrier_integrator = dwt_readcarrierintegrator();
 
+    /* Read while still valid for THIS frame -- re-arming RX below overwrites
+     * these clock-tracking/AGC registers, so they must be captured here, not
+     * lazily at print time in the main loop. */
+    uint8_t ttcko_raw[6] = {0};
+    dwt_readfromdevice(RX_TTCKO_ID, 0U, sizeof(ttcko_raw), ttcko_raw);
+    uint32_t ttcko_lo = (uint32_t)ttcko_raw[0] | ((uint32_t)ttcko_raw[1] << 8) |
+                        ((uint32_t)ttcko_raw[2] << 16) | ((uint32_t)ttcko_raw[3] << 24);
+    int32_t rxtofs = (int32_t)(ttcko_lo & RX_TTCKO_RXTOFS_MASK);
+    if ((rxtofs & 0x40000) != 0) {
+        rxtofs |= (int32_t)0xFFF80000UL;   /* sign-extend 19->32 bits */
+    }
+    uint8_t rcph = ttcko_raw[5] & 0x7FU;   /* RCPHASE lives in byte 5 (bits 40-46) */
+    uint32_t ttcki = dwt_read32bitreg(RX_TTCKI_ID);
+    uint32_t agc_stat1 = dwt_read32bitoffsetreg(AGC_CTRL_ID, AGC_STAT1_OFFSET) &
+                         AGC_STAT1_MASK;
+    uint16_t agc_edg1 = (uint16_t)((agc_stat1 & AGC_STAT1_EDG1_MASK) >> 6);
+
     counters.last_pan = read_le16_if_present(rx_buffer, frame_len,
                                              UWB_MSG_PAN_IDX);
     counters.last_dst = read_le16_if_present(rx_buffer, frame_len,
@@ -550,6 +585,10 @@ static void capture_to_ring(uint32_t now_ms)
     r->peer_id = peer_id;
     r->seq = rx_buffer[UWB_MSG_SN_IDX];
     r->mask = mask;
+    r->rcph = rcph;
+    r->rxtofs = rxtofs;
+    r->ttcki = ttcki;
+    r->agc_edg1 = agc_edg1;
     lrec_head++;
 }
 
@@ -575,6 +614,7 @@ static void print_status(uint32_t now_ms)
 #if APP_LISTENER_STATUS_PRINT_ENABLE != 0U
     static uint32_t last_good_snapshot;
     uint32_t fps;
+    dwt_deviceentcnts_t evc;
     if ((now_ms - last_status_print_ms) < LISTENER_STATUS_PERIOD_MS) {
         return;
     }
@@ -583,7 +623,11 @@ static void print_status(uint32_t now_ms)
           LISTENER_STATUS_PERIOD_MS;
     last_good_snapshot = counters.good_frames;
     last_status_print_ms = now_ms;
-    printk("LSTAT;1;%u;%u;%lu;%lu;%lu;%lu;%lu;%lu;%lu;%lu;0x%08lx;0x%04x;0x%04x;0x%02x;%lu;%lu;%lu;%lu\n",
+    /* HW event counters (12-bit, free-running since dwt_configeventcounters(1) at
+     * init): consumers must diff successive LSTAT snapshots to handle wraparound. */
+    dwt_readeventcounters(&evc);
+    printk("LSTAT;1;%u;%u;%lu;%lu;%lu;%lu;%lu;%lu;%lu;%lu;0x%08lx;0x%04x;0x%04x;0x%02x;%lu;%lu;%lu;%lu"
+           ";evc_fcg=%u;evc_fce=%u;evc_ovr=%u;evc_sto=%u\n",
            (unsigned int)APP_LISTENER_ID,
            (unsigned int)APP_LISTENER_NEAR_ANCHOR_ID,
            (unsigned long)counters.good_frames,
@@ -601,7 +645,11 @@ static void print_status(uint32_t now_ms)
            (unsigned long)counters.ring_drops,
            (unsigned long)counters.self_recover,
            (unsigned long)counters.rx_enable_failures,
-           (unsigned long)fps);
+           (unsigned long)fps,
+           (unsigned int)evc.CRCG,
+           (unsigned int)evc.CRCB,
+           (unsigned int)evc.OVER,
+           (unsigned int)evc.SFDTO);
 #else
     ARG_UNUSED(now_ms);
 #endif

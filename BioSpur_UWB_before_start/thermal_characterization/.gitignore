@@ -1,0 +1,9 @@
+# Cold-start run outputs: commit the analysis (report, summary.json, figures,
+# metadata) but NOT the raw serial logs -- a 90-min capture produces ~200 MB+
+# per listener, over GitHub's 100 MB/file limit. Raw logs stay on the SSD.
+run_*/raw/
+# Python bytecode
+__pycache__/
+*.pyc
+# transient pointer to the most recent run dir (absolute path, host-specific)
+.last_run_dir
