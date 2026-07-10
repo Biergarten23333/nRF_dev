@@ -1,0 +1,190 @@
+{
+  "audit": "Track 2 \u2014 CIR Pipeline Deep Verification",
+  "auditor": "Claude Science",
+  "timestamp": "2026-07-10T21:20:00Z",
+  "repo_path": "/mnt/nrf_ssd/nRF_dev/BioSpur_UWB_before_start",
+  "findings": [
+    {
+      "id": "2a",
+      "title": "FP_INDEX parsing preserves 16-bit precision",
+      "verdict": "\u2705 VERIFIED",
+      "files": [
+        "overnight_radar_20260710/analysis/step0_parse.py:118",
+        "overnight_radar_20260710/analysis/step2_stability_v2.py:align_norm"
+      ],
+      "detail": "step0_parse.py parses FP_INDEX via int(p[12]) preserving the full 16-bit 10.6 fixed-point value. Downstream step2_stability_v2.py align_norm correctly decomposes: fp_integer = fp_int >> 6, fp_frac = (fp_int & 0x3F) / 64.0. Verified on all 5 clean listeners: fractional part spans [0,63], all 64 unique values present in every listener. Integer part ranges from ~327-863 (expected for DW1000 ch5). No truncation detected.",
+      "evidence": {
+        "listeners_checked": [
+          "LB",
+          "LE",
+          "LF",
+          "L9336",
+          "L955A"
+        ],
+        "all_frac_unique_64": true,
+        "integer_range": {
+          "min": 327,
+          "max": 863
+        },
+        "fractional_range": {
+          "min": 0,
+          "max": 63
+        },
+        "cir_index_consistent": true
+      }
+    },
+    {
+      "id": "2b",
+      "title": "v2 template SNR improvement over v1",
+      "verdict": "\u2705 VERIFIED",
+      "files": [
+        "overnight_radar_20260710/analysis/step1_template.py:118",
+        "overnight_radar_20260710/analysis/step1_template_v2.py:290",
+        "overnight_radar_20260710/analysis/templates_v1/step1_report.csv",
+        "overnight_radar_20260710/analysis/templates_v2/step1_v2_report.csv"
+      ],
+      "detail": "dp_snr = |A[REF_TAP]| / median(sigma) \u2014 amplitude-domain SNR, not power-domain. Independently reproduced from saved template arrays (A.npy, sigma.npy) for all 15 channels. Every value matches the pipeline reports to one decimal place. Median dp_snr: v1=23.4, v2=82.1. v2/v1 amplitude ratio ~3.5\u00d7 per channel. The '~23\u00d7 vs ~82\u00d7' claim refers to the absolute dp_snr values, not to a ratio.",
+      "evidence": {
+        "v1_median_dpsnr": 23.4,
+        "v2_median_dpsnr": 82.1,
+        "v2_v1_ratio_median": 3.5,
+        "all_15_channels_reproduced": true,
+        "snr_definition": "|A[REF_TAP]| / median(sigma) (amplitude domain)"
+      }
+    },
+    {
+      "id": "2c",
+      "title": "Holdout uses time-based split, not frame-count",
+      "verdict": "\u2705 VERIFIED",
+      "files": [
+        "overnight_radar_20260710/analysis/step2_stability_v2.py:process()"
+      ],
+      "detail": "step2_stability_v2.py freezes the template on the first 30 minutes by device uptime: rel = now - t0; frozen_mask = rel < FREEZE_MS (FREEZE_MS = 30*60*1000). 'now' is joined from LPD now_ms (device uptime in milliseconds). Holdout windows are wbin >= 1 (i.e., >= 30 min). Frame rate is non-uniform (dt std=3029ms, max gap=81401ms), confirming that frame-count would be wrong. v1 BUG confirmed: A_total = median(ALL frames) with no holdout separation.",
+      "evidence": {
+        "split_variable": "now_ms (device uptime)",
+        "freeze_threshold_ms": 1800000,
+        "frozen_frames_LB_0xb136": 1078,
+        "holdout_frames_LB_0xb136": 15354,
+        "frame_dt_std_ms": 3029,
+        "frame_dt_max_ms": 81401,
+        "v1_bug_confirmed": "A_total = median(ALL frames), no holdout"
+      }
+    },
+    {
+      "id": "2d",
+      "title": "PSF volume and -6dB dimensions",
+      "verdict": "\u26a0\ufe0f QUALIFIED",
+      "files": [
+        "overnight_radar_20260710/analysis/step4_backprojection_v2.py",
+        "overnight_radar_20260710/analysis/step4_v2/step4_v2_stats.json"
+      ],
+      "detail": "PSF peak = 10.257 (non-zero; v1 bug had 0/15 channels contributing). All 15/15 channels contribute. edge_clipped=False. Reported -6dB extent [3300, 5300, 5400] mm matches claimed 3.3\u00d75.3\u00d75.4 m. All per-channel excess taps [823.2, 835.7] clear all mainlobe ends [806, 814]. PSF blob well within local grid (27-45% of grid span). QUALIFICATION: stats['psf_measured_on'] says '\u00b12400mm @75mm' but code uses \u00b16000mm @100mm \u2014 stale docstring. Non-functional (does not affect computed values).",
+      "evidence": {
+        "psf_peak": 10.257,
+        "channels_used": "15/15",
+        "edge_clipped": false,
+        "reported_6dB_mm": [
+          3300,
+          5300,
+          5400
+        ],
+        "claimed_6dB_m": [
+          3.3,
+          5.3,
+          5.4
+        ],
+        "match": true,
+        "excess_tap_range": [
+          823.2,
+          835.7
+        ],
+        "mainlobe_end_range": [
+          806,
+          814
+        ],
+        "all_taps_clear": true
+      },
+      "bugs": [
+        {
+          "severity": "\ud83d\udc80 BUG (cosmetic)",
+          "description": "stats psf_measured_on string says '\u00b12400mm @75mm' but code line ~148 uses \u00b16000mm @100mm",
+          "impact": "Documentation only \u2014 computed PSF values are correct"
+        }
+      ]
+    },
+    {
+      "id": "2e",
+      "title": "Raw CIR sanity check \u2014 decode one hex frame",
+      "verdict": "\u2705 VERIFIED",
+      "files": [
+        "overnight_radar_20260710/raw/LB.log:line4",
+        "overnight_radar_20260710/analysis/step0_parse.py"
+      ],
+      "detail": "Decoded one complete CIR frame from LB.log (accepted_polls=118530, tag 0x4). 85 LCIRD chunks reassembled to 4064 bytes \u2192 2032 int16 \u2192 1016 complex64 taps. Waveform is textbook UWB: flat noise floor (mean=84, std=44) for taps 0-700, sharp first-path onset at FP_INDEX integer tap 750 (|CIR|=3111), actual peak at tap 752 (|CIR|=5931 \u2014 2 taps of multipath constructive interference), multipath decay through taps 760-850, return to noise floor. Peak/noise ratio = 37\u00d7.",
+      "evidence": {
+        "source": "LB.log line 4 (LCIRM)",
+        "accepted_polls": 118530,
+        "tag_id": "0x4",
+        "fp_index_raw": 48002,
+        "fp_index_integer": 750,
+        "fp_index_fractional": 2,
+        "rxpacc": 119,
+        "chunks_assembled": 85,
+        "total_bytes": 4064,
+        "taps": 1016,
+        "noise_floor_mean": 84.1,
+        "fp_tap_magnitude": 3110.7,
+        "peak_magnitude": 5930.9,
+        "peak_tap": 752,
+        "peak_noise_ratio": 37
+      }
+    },
+    {
+      "id": "2f",
+      "title": "1.0016 ns/tap convention across all scripts",
+      "verdict": "\u2705 VERIFIED",
+      "files": [
+        "step1_template.py:41",
+        "step3_cleanest_channel_plot.py:14",
+        "step3_multipath.py:15",
+        "step3_multipath_v2.py:16",
+        "step4_backprojection.py:33",
+        "step4_backprojection_v2.py:36",
+        "step5_coherent_beamform.py:54",
+        "step5_coherent_beamform_v2.py:54",
+        "step6_noise.py:22"
+      ],
+      "detail": "All 15 .py files in analysis/ audited. Two equivalent forms: 1.0/0.9984 = 1.001602564... ns (7 files) and 1.0016 (2 files). Difference = 2.56e-6 ns = 0.055 mm over 72 taps \u2014 negligible. NO wrong values found: 2.0032 ns/tap NOT present; 1/499.2e6 NOT used as tap period; 499.2 appears ONLY in comments explaining 998.4 = 2\u00d7499.2 MHz. Speed of light: mostly 299.792458 mm/ns; step4/step4_v2 use 299.792 (1.5 ppm, 0.033 mm at max range \u2014 negligible).",
+      "evidence": {
+        "definitions_found": {
+          "1.0/0.9984": [
+            "step1_template.py:41",
+            "step3_cleanest_channel_plot.py:14",
+            "step3_multipath.py:15",
+            "step3_multipath_v2.py:16",
+            "step5_coherent_beamform.py:54",
+            "step5_coherent_beamform_v2.py:54",
+            "step6_noise.py:22"
+          ],
+          "1.0016": [
+            "step4_backprojection.py:33",
+            "step4_backprojection_v2.py:36"
+          ]
+        },
+        "wrong_values_found": [],
+        "form_difference_ns": 2.56e-06,
+        "max_error_72taps_mm": 0.055,
+        "c_truncation_ppm": 1.5
+      }
+    }
+  ],
+  "summary": {
+    "verified": 5,
+    "qualified": 1,
+    "refuted": 0,
+    "bugs_found": 1,
+    "bug_list": [
+      "2d: step4_v2_stats.json psf_measured_on string is stale (says \u00b12400mm@75mm, code uses \u00b16000mm@100mm)"
+    ]
+  }
+}

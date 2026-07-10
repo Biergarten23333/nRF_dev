@@ -1,0 +1,310 @@
+{
+  "track": "6 \u2014 CLAIMS VS EVIDENCE AUDIT",
+  "generated": "2026-07-10",
+  "sections": {
+    "6a_spot_check": {
+      "description": "10 most important quantitative claims verified against source files",
+      "claims": [
+        {
+          "claim_id": 1,
+          "claim": "Static median 72.7mm",
+          "source_file": "official_extra_analysis/FULL/audit_phase1c/tables/audit_phase1c_summary.json",
+          "source_field": "item2_common_mode.current_static_t4_mean_median_mm",
+          "source_value": 72.69137167036669,
+          "reported_value": 72.7,
+          "rounding": "72.69\u219272.7 (standard 1dp rounding)",
+          "verdict": "\u2705 VERIFIED",
+          "notes": "Also appears 10+ times in main_EN.tex, always consistent. Originates from T4 mean-position static estimator with v4-io production layout."
+        },
+        {
+          "claim_id": 2,
+          "claim": "Static P95 171.5mm",
+          "source_file": "official_extra_analysis/FULL/audit_phase1c/tables/audit_phase1c_summary.json",
+          "source_field": "item2_common_mode.current_static_t4_mean_p95_mm",
+          "source_value": 171.49267582290037,
+          "reported_value": 171.5,
+          "rounding": "171.49\u2192171.5 (standard 1dp rounding)",
+          "verdict": "\u2705 VERIFIED"
+        },
+        {
+          "claim_id": 3,
+          "claim": "Static RMSE 109.8mm",
+          "source_file": "official_extra_analysis/FULL/audit_phase1c/tables/audit_phase1c_summary.json",
+          "source_field": "item2_common_mode.current_static_t4_mean_rmse_mm",
+          "source_value": 109.84289856781552,
+          "reported_value": 109.8,
+          "rounding": "109.84\u2192109.8 (standard 1dp rounding)",
+          "verdict": "\u2705 VERIFIED"
+        },
+        {
+          "claim_id": 4,
+          "claim": "Sim(3) scale 0.9583",
+          "source_file": "official_extra_analysis/FULL/audit_phase1c/tables/audit_phase1c_summary.json",
+          "source_field": "item2_common_mode.current_sim3_scale_autopos_to_vicon",
+          "source_value": 0.9582672713308588,
+          "reported_value": 0.9583,
+          "rounding": "0.958267\u21920.9583 (4sf rounding)",
+          "verdict": "\u2705 VERIFIED",
+          "notes": "Same exact value (0.9582672713308588) in audit_phase1_revised_summary.json, item3_relaxed_delay_bound_summary.csv. Not stored in layout.json directly \u2014 computed by Sim(3) alignment of v4-io anchors to Vicon truth. Production layout.json does NOT carry a sim3_scale field; value lives only in analysis output JSONs."
+        },
+        {
+          "claim_id": 5,
+          "claim": "Common-mode c\u2248112mm, rigid 105.4\u219263.0mm",
+          "source_file": "official_extra_analysis/FULL/audit_phase1c/tables/audit_phase1c_summary.json",
+          "source_fields": {
+            "c_mm": 111.98479117186592,
+            "current_rigid_anchor_rmse_mm": 105.41990950811795,
+            "rigid_anchor_rmse_mm": 62.99190234655526
+          },
+          "reported_values": {
+            "c": "~112mm",
+            "rigid_before": "105.4mm",
+            "rigid_after": "63.0mm"
+          },
+          "verdict": "\u2705 VERIFIED",
+          "notes": "c=111.98\u2192112, rigid RMSE from=105.42\u2192105.4, to=62.99\u219263.0. All consistent roundings."
+        },
+        {
+          "claim_id": 6,
+          "claim": "Delay-coupling 311.3/252.2/77.7/108.9mm RMSE",
+          "source_file": "official_extra_analysis/FULL/delay_coupling_table_20260615T101353/tables/delay_coupling_table.csv",
+          "source_values": {
+            "D1_rmse": 311.31901004962606,
+            "D2_rmse": 252.16537173335934,
+            "C_rmse": 77.67175013600712,
+            "A_rmse": 108.93074979421445
+          },
+          "reported_values": [
+            311.3,
+            252.2,
+            77.7,
+            108.9
+          ],
+          "verdict": "\u2705 VERIFIED",
+          "notes": "DELAY_COUPLING_TABLE.md self-validates against frozen report with deltas \u22640.18mm. main_EN.tex tab:delay_coupling at lines 494-497 matches."
+        },
+        {
+          "claim_id": 7,
+          "claim": "Dynamic median 101.5mm",
+          "source_file": "official_extra_analysis/FULL_V5_roto_deepdive/tables/r2_alignment_summary.csv",
+          "source_field": "Row E (E_current_anchor_bridge_existing_beta) overall_median",
+          "source_value": 101.48477739653228,
+          "reported_value": 101.5,
+          "verdict": "\u2705 VERIFIED",
+          "notes": "Same value (101.485) confirmed in locked_headline_v2.csv row L, headline_diff.csv row L, FULL_V4_vs_V5_final, FULL_V5_final_audit, FULL_V5_convention_unification. BEST-FIT-ALIGNED (anchor-bridge) alignment method."
+        },
+        {
+          "claim_id": 8,
+          "claim": "Dynamic P95 214.4mm, RMSE 126.2mm",
+          "source_file": "official_extra_analysis/FULL_V5_roto_deepdive/tables/r2_alignment_summary.csv",
+          "source_values": {
+            "p95": 214.36931339438956,
+            "rmse": 126.22614768446928
+          },
+          "reported_values": {
+            "p95": 214.4,
+            "rmse": 126.2
+          },
+          "verdict": "\u2705 VERIFIED"
+        },
+        {
+          "claim_id": 9,
+          "claim": "v2 DP-SNR 82\u00d7 vs v1 23\u00d7",
+          "source_files": {
+            "v2": "overnight_radar_20260710/analysis/templates_v2/step1_v2_report.csv",
+            "v1": "overnight_radar_20260710/analysis/templates_v1/step1_report.csv"
+          },
+          "source_values": {
+            "v2_dp_snr_median": 82.1,
+            "v1_dp_snr_median": 23.4,
+            "v2_dp_snr_mean": 80.9,
+            "v1_dp_snr_mean": 24.4,
+            "n_channels": 15
+          },
+          "reported_values": {
+            "v2": "82.1",
+            "v1": "23.4"
+          },
+          "verdict": "\u2705 VERIFIED",
+          "notes": "82.1 and 23.4 are median dp_snr across 15 listener-tag channels. The '\u00d7' notation is the absolute SNR value, not a multiplicative improvement ratio. Actual v2/v1 improvement ratio is 3.5\u00d7 (median) or 3.3\u00d7 (mean). v1 column is 'dp_snr' (direct-path SNR), v2 column is also 'dp_snr'. All 15 channels show v2_tighter_than_v1=True."
+        },
+        {
+          "claim_id": 10,
+          "claim": "PSF 3.3\u00d75.3\u00d75.4m",
+          "source_file": "overnight_radar_20260710/analysis/step4_v2/step4_v2_stats.json",
+          "source_field": "psf_6dB_extent_mm",
+          "source_value": [
+            3300.0,
+            5300.0,
+            5400.0
+          ],
+          "reported_value": "3.3\u00d75.3\u00d75.4m",
+          "verdict": "\u2705 VERIFIED",
+          "notes": "Geometric PSF of backprojection operator (ideal delta target). 15 channels used. Target at [-1000, 3900, -1500]mm. Per-channel gate is dynamic (not hardcoded 812). Image dynamic range 6.89dB."
+        }
+      ],
+      "summary": "All 10 claims verified. Every reported number traces to a specific machine-readable source (CSV/JSON) with consistent rounding. No contradictions found."
+    },
+    "6b_44_49mm_trace": {
+      "description": "Tracing the 44.49mm median lower-tail V5 result",
+      "source_file": "official_extra_analysis/FULL_V5_rawframe_bruteforce_v3/tables/s3_honest_ranking.csv",
+      "exact_value": 44.485154905540824,
+      "reported_value": "44.49 (or 44.5)",
+      "winning_config": {
+        "estimator": "lower_trim_20",
+        "loss": "huber30",
+        "geometry": "V5",
+        "config_ids": [
+          97,
+          90,
+          83,
+          67
+        ],
+        "note": "Multiple config_ids share same LOO median because they differ only in d_tag sweep values"
+      },
+      "parameter_sweep_scope": {
+        "grid_file": "s2_full_grid.csv",
+        "total_grid_rows": 107448,
+        "unique_estimator_loss_geometry_combos": 888,
+        "estimators": [
+          "kde_bw5",
+          "kde_bw10",
+          "kde_bw15",
+          "kde_bw20",
+          "kde_bw30",
+          "lower_core_15",
+          "lower_core_20",
+          "lower_core_25",
+          "lower_core_30",
+          "lower_core_40",
+          "lower_trim_03",
+          "lower_trim_05",
+          "lower_trim_07",
+          "lower_trim_10",
+          "lower_trim_15",
+          "lower_trim_20",
+          "model_M0",
+          "model_M1",
+          "model_M2",
+          "model_M3",
+          "model_M4",
+          "model_M5",
+          "model_M6",
+          "model_M7",
+          "p01",
+          "p02",
+          "p03",
+          "p05",
+          "p07",
+          "p10",
+          "p15",
+          "p20",
+          "p25",
+          "p30",
+          "p35",
+          "p40",
+          "p50"
+        ],
+        "losses": [
+          "huber100",
+          "huber30",
+          "huber50",
+          "l2",
+          "student10",
+          "student2",
+          "student3",
+          "student5"
+        ],
+        "geometries": [
+          "V4",
+          "V5",
+          "Vicon"
+        ],
+        "d_tag_values_per_combo": 121,
+        "d_tag_range": "0\u2013120mm in 1mm steps"
+      },
+      "loo_stage": {
+        "configs_tested_in_loo": 100,
+        "unique_combos_in_loo": 26,
+        "loo_file": "s3_loo_results.csv"
+      },
+      "pre_registration_status": "\u274c POST-HOC PARAMETER SEARCH",
+      "evidence": [
+        "Three bruteforce iterations exist (v1, v2, v3 directories)",
+        "s2_full_grid.csv has 107,448 rows across 888 unique (estimator,loss,geometry) combos",
+        "Top 100 configs (by all-data median) are then LOO-tested",
+        "The 44.49mm is the LOO winner of this massive grid search",
+        "Labeled 'HONEST' and 'LOO-CV' in the master ladder, NOT 'pre-registered'"
+      ],
+      "safeguards_present": {
+        "loo_cv": true,
+        "optimism_gap_reported": "0.54mm (all_data=43.94mm, LOO=44.49mm)",
+        "bootstrap_ci": "[33.4, 82.8]mm",
+        "anchor_lower_trim_control_reproduces": true,
+        "control_value": 44.48515490444803,
+        "falsification_batch_ran": true
+      },
+      "verdict": "\u26a0\ufe0f QUALIFIED \u2014 The 44.49mm is the LOO-CV winner of a 107K-row post-hoc parameter sweep (888 combos \u00d7 121 d_tag). It is NOT pre-registered. LOO validation and bootstrap CIs are provided as safeguards, and the optimism gap is small (0.54mm), but the 888-combo sweep itself is a massive multiple-testing environment. The bootstrap CI [33.4, 82.8] is extremely wide, spanning the production 72.7mm baseline. This result should be cited only as 'exploratory post-hoc best under LOO' and never as a pre-registered or confirmatory finding."
+    },
+    "6c_scale_consistency": {
+      "description": "Verifying the Erlangen 4.36% scale consistency",
+      "underlying_scale": 0.9582672713308588,
+      "formula": "(1/scale - 1) * 100 = (1/0.9582672713308588 - 1) * 100 = 4.3550%",
+      "formula_interpretation": "AutoPos inter-anchor distances are LONGER than Vicon by factor 1/0.9583 = 1.0436, so the Sim(3) fit must SHRINK AutoPos by 4.36% to match Vicon",
+      "alternative_formulas_considered": {
+        "(1 - scale) * 100": "4.1733% \u2014 NOT the formula used",
+        "note": "The paper consistently uses the reciprocal form"
+      },
+      "derived_quantities": {
+        "pure_scale_slope_mm_per_m": {
+          "value": 43.55,
+          "formula": "(1/0.958267 - 1) * 1000",
+          "source": "AUDIT_FINDINGS.md Item 1 and audit_phase1c_summary.json item4_verdict.pure_scale_slope_mm_per_m"
+        }
+      },
+      "sources_checked": [
+        {
+          "file": "audit_phase1c_summary.json",
+          "field": "item2_common_mode.current_sim3_scale_autopos_to_vicon",
+          "value": 0.9582672713308588,
+          "match": true
+        },
+        {
+          "file": "audit_phase1_revised_summary.json",
+          "field": "item3.relaxed_rows[*].current_sim3_scale_autopos_to_vicon",
+          "value": 0.9582672713308588,
+          "match": true
+        },
+        {
+          "file": "item3_relaxed_delay_bound_summary.csv",
+          "field": "current_sim3_scale_autopos_to_vicon",
+          "value": 0.9582672713308588,
+          "match": true
+        },
+        {
+          "file": "main_EN.tex line 452",
+          "value": "0.9583 (rounded)",
+          "match": true
+        },
+        {
+          "file": "main_EN.tex lines 462, 1642, 1670, 1741",
+          "value": "+4.36%",
+          "match": true
+        },
+        {
+          "file": "exclusive_EN.tex line 61",
+          "value": "+4.36%",
+          "match": true
+        },
+        {
+          "file": "AUDIT_FINDINGS.md",
+          "value": "+4.36% and pure_scale_slope=43.55 mm/m",
+          "match": true
+        }
+      ],
+      "multiple_versions_found": false,
+      "verdict": "\u2705 VERIFIED \u2014 The 4.36% scale is computed consistently everywhere from one underlying value: Sim(3) scale = 0.9582672713308588 (v4-io production layout aligned to Vicon anchors). Formula is (1/scale - 1)*100 = 4.355% \u2192 rounded to 4.36%. No competing slightly-different versions exist. The related 43.55 mm/m pure-scale slope also derives consistently from the same value.",
+      "note_on_different_layouts": "V5 / common-mode / anchor_lower_trim layouts have DIFFERENT Sim(3) scales (~1.01\u20131.02) because they absorb common-mode delay. This is expected behavior, not an inconsistency \u2014 those layouts are not the production v4-io layout."
+    }
+  }
+}

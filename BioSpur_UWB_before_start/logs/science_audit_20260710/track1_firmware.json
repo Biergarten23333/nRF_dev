@@ -1,0 +1,248 @@
+{
+  "register_writes": [
+    {
+      "register": "TX_POWER (0x1E)",
+      "file": "drivers/dw1000/src/deca_device.c",
+      "line": 620,
+      "snippet": "dwt_write32bitreg(TX_POWER_ID, config->power);",
+      "context": "Inside dwt_configuretxrf(). This is the ONLY write to TX_POWER in the entire codebase. It is called via a dwt_txconfig_t struct. The application NEVER calls dwt_configuretxrf() \u2014 only the driver exposes it."
+    },
+    {
+      "register": "TC_PGDELAY (0x2B:0x0B)",
+      "file": "drivers/dw1000/src/deca_device.c",
+      "line": 617,
+      "snippet": "dwt_write8bitoffsetreg(TX_CAL_ID, TC_PGDELAY_OFFSET, config->PGdly);",
+      "context": "Inside dwt_configuretxrf(). Only path to write TC_PGDELAY from application code. Application never calls this."
+    },
+    {
+      "register": "TC_PGDELAY (0x2B:0x0B)",
+      "file": "drivers/dw1000/src/deca_device.c",
+      "line": 3687,
+      "snippet": "dwt_write8bitoffsetreg(TX_CAL_ID, TC_PGDELAY_OFFSET, curr_bw);",
+      "context": "Inside internal driver function for TX bandwidth calibration \u2014 not called from BioSpur application code."
+    },
+    {
+      "register": "TC_PGDELAY (0x2B:0x0B)",
+      "file": "drivers/dw1000/src/deca_device.c",
+      "line": 3895,
+      "snippet": "dwt_write8bitoffsetreg(TX_CAL_ID, TC_PGDELAY_OFFSET, pgdly);",
+      "context": "Inside internal driver temperature compensation function \u2014 not called from BioSpur application code."
+    },
+    {
+      "register": "SYS_CFG DIS_STXP (0x04, bit 18)",
+      "file": "drivers/dw1000/src/deca_device.c",
+      "line": 2236,
+      "snippet": "pdw1000local->sysCFGreg &= ~(SYS_CFG_DIS_STXP);  // enable=1 path",
+      "context": "Inside dwt_setsmarttxpower(). Application NEVER calls this function. SYS_CFG_DIS_STXP = 0x00040000UL defined at deca_regs.h:88."
+    },
+    {
+      "register": "SYS_CFG DIS_STXP (0x04, bit 18)",
+      "file": "drivers/dw1000/src/deca_device.c",
+      "line": 2240,
+      "snippet": "pdw1000local->sysCFGreg |= SYS_CFG_DIS_STXP;  // enable=0 (disable) path",
+      "context": "Inside dwt_setsmarttxpower(). disable path. Application never calls this."
+    },
+    {
+      "register": "TX_ANTD (0x18:0x00)",
+      "file": "drivers/dw1000/src/deca_device.c",
+      "line": 831,
+      "snippet": "dwt_write16bitoffsetreg(TX_ANTD_ID, TX_ANTD_OFFSET, txDelay);",
+      "context": "Inside dwt_settxantennadelay(). Called from application code."
+    },
+    {
+      "register": "TX_ANTD (0x18:0x00)",
+      "file": "SS-TWR/alt-SS-TWR/broadcast/src/ss_twr_init.c",
+      "line": 3222,
+      "snippet": "dwt_settxantennadelay(SS_TWR_INIT_TX_ANT_DLY);  // SS_TWR_INIT_TX_ANT_DLY = 16436U",
+      "context": "Tag initiator configure_radio(). Sets TX antenna delay to 16436 (~0x4034)."
+    },
+    {
+      "register": "TX_ANTD (0x18:0x00)",
+      "file": "SS-TWR/alt-SS-TWR/broadcast/src/ss_twr_resp.c",
+      "line": 914,
+      "snippet": "dwt_settxantennadelay(SS_TWR_RESP_TX_ANT_DLY);  // SS_TWR_RESP_TX_ANT_DLY = 16436U",
+      "context": "Anchor responder configure_radio(). Sets TX antenna delay to 16436."
+    },
+    {
+      "register": "TX_ANTD (0x18:0x00)",
+      "file": "SS-TWR/alt-SS-TWR/broadcast/src/ss_twr_anchor_init.c",
+      "line": 136,
+      "snippet": "dwt_settxantennadelay(SS_TWR_ANCHOR_INIT_TX_ANT_DLY);  // 16436U",
+      "context": "Anchor-to-anchor initiator configure_radio()."
+    },
+    {
+      "register": "LDE_RXANTD (0x2E:0x1804)",
+      "file": "drivers/dw1000/src/deca_device.c",
+      "line": 812,
+      "snippet": "dwt_write16bitoffsetreg(LDE_IF_ID, LDE_RXANTD_OFFSET, rxDelay);",
+      "context": "Inside dwt_setrxantennadelay(). Called from application code."
+    },
+    {
+      "register": "LDE_RXANTD (0x2E:0x1804)",
+      "file": "SS-TWR/alt-SS-TWR/broadcast/src/ss_twr_init.c",
+      "line": 3221,
+      "snippet": "dwt_setrxantennadelay(SS_TWR_INIT_RX_ANT_DLY);  // SS_TWR_INIT_RX_ANT_DLY = 16436U",
+      "context": "Tag initiator configure_radio(). Sets RX antenna delay to 16436."
+    },
+    {
+      "register": "LDE_RXANTD (0x2E:0x1804)",
+      "file": "SS-TWR/alt-SS-TWR/broadcast/src/ss_twr_resp.c",
+      "line": 913,
+      "snippet": "dwt_setrxantennadelay(SS_TWR_RESP_RX_ANT_DLY);  // SS_TWR_RESP_RX_ANT_DLY = 16436U",
+      "context": "Anchor responder configure_radio()."
+    },
+    {
+      "register": "LDE_RXANTD (0x2E:0x1804)",
+      "file": "SS-TWR/alt-SS-TWR/broadcast/src/ss_twr_anchor_init.c",
+      "line": 135,
+      "snippet": "dwt_setrxantennadelay(SS_TWR_ANCHOR_INIT_RX_ANT_DLY);  // 16436U",
+      "context": "Anchor-to-anchor initiator configure_radio()."
+    },
+    {
+      "register": "TX_ANTD (0x18:0x00)",
+      "file": "SS-TWR/alt-SS-TWR/unicast/src/ss_twr_init.c",
+      "line": 2031,
+      "snippet": "dwt_settxantennadelay(SS_TWR_INIT_TX_ANT_DLY);  // 16436U",
+      "context": "Unicast tag initiator \u2014 same value 16436U as broadcast."
+    },
+    {
+      "register": "TX_ANTD (0x18:0x00)",
+      "file": "SS-TWR/alt-SS-TWR/unicast/src/ss_twr_resp.c",
+      "line": 723,
+      "snippet": "dwt_settxantennadelay(SS_TWR_RESP_TX_ANT_DLY);  // 16436U",
+      "context": "Unicast anchor responder \u2014 same value 16436U."
+    },
+    {
+      "register": "LDE_RXANTD (0x2E:0x1804)",
+      "file": "SS-TWR/alt-SS-TWR/unicast/src/ss_twr_init.c",
+      "line": 2030,
+      "snippet": "dwt_setrxantennadelay(SS_TWR_INIT_RX_ANT_DLY);  // 16436U",
+      "context": "Unicast tag initiator \u2014 same value."
+    },
+    {
+      "register": "LDE_RXANTD (0x2E:0x1804)",
+      "file": "SS-TWR/alt-SS-TWR/unicast/src/ss_twr_resp.c",
+      "line": 722,
+      "snippet": "dwt_setrxantennadelay(SS_TWR_RESP_RX_ANT_DLY);  // 16436U",
+      "context": "Unicast anchor responder \u2014 same value."
+    }
+  ],
+  "init_sequence": "1. uwb_hw_bringup_and_init() [uwb_bringup.c:37]:    uwb_port_init() \u2192 uwb_port_hw_reset() \u2192 uwb_port_read_dev_id() \u2192    uwb_port_set_spi_slow() \u2192 dwt_initialise(DWT_LOADUCODE) \u2192 uwb_port_set_spi_fast(). 2. dwt_initialise(DWT_LOADUCODE) [deca_device.c:183]:    soft reset \u2192 OTP LDO tune kick \u2192 XTAL trim from OTP \u2192 load LDE microcode from ROM.    Reads SYS_CFG into local copy (preserving POR default).    Does NOT read OTP antenna delays. Does NOT write TX_POWER, TC_PGDELAY, or DIS_STXP.    DWT_LOADUCODE = 0x01 \u2014 no OTP PID/LID/BAT/TMP read flags are set. 3. ss_twr_*_configure_radio() [per-role source files]:    dwt_configure(&config) \u2192 sets channel, PRF, preamble, data rate, SFD, AGC, LDE, PLL, RF_TXCTRL.    Does NOT call dwt_configuretxrf() \u2014 TX_POWER and TC_PGDELAY remain at POR defaults.    Does NOT call dwt_setsmarttxpower() \u2014 DIS_STXP remains at POR default (0 = smart power ENABLED).    DOES call dwt_setrxantennadelay() and dwt_settxantennadelay() with 16436U. 4. tag_print_otp_diag() [tag_app.c:265] is DIAGNOSTIC ONLY (gated by APP_TAG_OTP_DIAG).    Reads OTP addresses 0x01C/0x01D/0x01E and prints values but does NOT use them for configuration.",
+  "smart_tx_power": {
+    "dis_stxp_state": "POR default = 0 \u2192 Smart TX Power ENABLED. Application never calls dwt_setsmarttxpower(). No code writes the DIS_STXP bit.",
+    "tag_poll_size_bytes": 17,
+    "tag_poll_psdu_note": "UWB_MSG_ALT_BCAST_POLL_FRAME_LEN = 17 bytes (includes 2-byte FCS). uwb_ss_twr_shared.h:74",
+    "anchor_resp_v3_size_bytes": 36,
+    "anchor_resp_v3_psdu_note": "UWB_MSG_RESP_V3_FRAME_LEN = 36 bytes (includes 2-byte FCS). uwb_ss_twr_shared.h:56",
+    "anchor_resp_v1_size_bytes": 20,
+    "anchor_init_poll_size_bytes": 13,
+    "frame_durations_us": {
+      "tag_bcast_poll_17B": 174.6,
+      "anchor_resp_v1_20B": 178.1,
+      "anchor_resp_v3_36B": 197.0,
+      "anchor_init_poll_13B": 169.9,
+      "calculation_note": "At 6.8 Mbps, preamble 128 symbols, non-standard SFD (8 symbols): preamble=127.18us + SFD=7.95us + PHR=19.49us + data=(PSDU*8/6.8)us"
+    },
+    "smart_tx_power_bucket": "ALL frames < 0.25 ms \u2192 ALL use BOOSTP250 power level",
+    "power_diff_db": 0.0,
+    "analysis": "With Smart TX Power enabled (DIS_STXP=0, POR default), the DW1000 selects TX power based on frame duration thresholds. At 6.8 Mbps with 128-symbol preamble, ALL BioSpur frames (17B poll, 36B V3 response, 20B V1 response, 13B anchor-init poll) have total durations between 170-197 \u00b5s, which ALL fall in the BOOSTP250 bucket (< 0.25 ms). Therefore Smart TX Power introduces ZERO power differential between poll and response frames. The power asymmetry concern is MOOT for this configuration. NOTE: The POR default TX_POWER value 0x0E082848 (Ch5 PRF64) has BOOSTP250=0x08 for all these frames. If TX power were configured manually via dwt_configuretxrf(), the DW1000 User Manual Table 18 recommends 0x0E082848 for Ch5 PRF64 smart mode, or 0x1F1F1F1F for manual mode. Neither is called."
+  },
+  "antenna_delay": {
+    "tx_antd_source": "Hardcoded #define per role: SS_TWR_INIT_TX_ANT_DLY=16436U, SS_TWR_RESP_TX_ANT_DLY=16436U, SS_TWR_ANCHOR_INIT_TX_ANT_DLY=16436U",
+    "rx_antd_source": "Hardcoded #define per role: SS_TWR_INIT_RX_ANT_DLY=16436U, SS_TWR_RESP_RX_ANT_DLY=16436U, SS_TWR_ANCHOR_INIT_RX_ANT_DLY=16436U",
+    "values": {
+      "tx_antd": "16436U (0x4034) \u2014 all roles identical",
+      "rx_antd": "16436U (0x4034) \u2014 all roles identical",
+      "decimal_value": 16436,
+      "hex_value": "0x4034",
+      "physical_ns": "16436 * 15.65e-12 * 1e9 = 257.2 ns (one-way delay)",
+      "physical_m": "257.2 ns * c / 2 is NOT correct \u2014 this is one-way, so 257.2 ns * 0.2998 m/ns = 77.1 m equivalent path. As antenna delay, the round-trip contribution = 2 * 16436 * ~15.65 ps = 514.4 ns."
+    },
+    "independent": false,
+    "independence_note": "TX_ANTD and LDE_RXANTD are FORCED EQUAL to 16436U in every role. dwt_setrxantennadelay() and dwt_settxantennadelay() are separate API calls writing to independent registers (LDE_IF 0x2E:0x1804 vs TX_ANTD 0x18:0x00), but the application hardcodes the same value for both. Per-device calibration is NOT implemented.",
+    "otp_usage": "dwt_initialise(DWT_LOADUCODE) does NOT include OTP antenna delay read flags. tag_print_otp_diag() (tag_app.c:265) reads OTP addresses 0x01C/0x01D/0x01E for diagnostic printing only (gated by APP_TAG_OTP_DIAG) \u2014 values are NOT used for configuration. OTP antenna delay factory values are completely ignored.",
+    "unicast_comparison": "Unicast firmware uses identical values: SS_TWR_INIT_TX_ANT_DLY=16436U, SS_TWR_INIT_RX_ANT_DLY=16436U, SS_TWR_RESP_TX_ANT_DLY=16436U, SS_TWR_RESP_RX_ANT_DLY=16436U (unicast/src/ss_twr_init.c:25-26, unicast/src/ss_twr_resp.c:30-31)."
+  },
+  "aps011_calls": [
+    {
+      "function": "dwt_getrangebias",
+      "defined_in": "drivers/dw1000/src/deca_range_tables.c:636",
+      "called_from_application": false,
+      "note": "The function exists in the driver (deca_range_tables.c, full APS011 range-bias correction tables for all channels/PRFs). However, ZERO application code calls dwt_getrangebias(). No range-bias correction is applied anywhere in the ranging path. The driver API header (deca_device_api.h:307) even notes that range bias values are 'platform dependent and should therefore be managed at user' level."
+    }
+  ],
+  "findings": [
+    {
+      "id": "1a-1",
+      "verdict": "\u2705 VERIFIED",
+      "description": "TX_POWER register (0x1E) is NEVER written by application code. The only write path is dwt_configuretxrf() (deca_device.c:620), which the application never calls. TX_POWER retains POR default (0x0E082848 for Ch5 PRF64).",
+      "file_line": "drivers/dw1000/src/deca_device.c:620 (driver only), no app call site exists"
+    },
+    {
+      "id": "1a-2",
+      "verdict": "\u2705 VERIFIED",
+      "description": "TC_PGDELAY register (0x2B:0x0B) is NEVER written by application code. Three write sites exist in the driver (deca_device.c:617, 3687, 3895) but all are inside driver-internal functions. The application never calls dwt_configuretxrf(). TC_PGDELAY retains POR default 0xC0 for Ch5.",
+      "file_line": "drivers/dw1000/src/deca_device.c:617 (driver only)"
+    },
+    {
+      "id": "1a-3",
+      "verdict": "\u2705 VERIFIED",
+      "description": "SYS_CFG DIS_STXP bit (bit 18 of 0x04) is NEVER explicitly set or cleared by application code. dwt_setsmarttxpower() exists in the driver (deca_device.c:2228) but is never called. dwt_configure() writes SYS_CFG but only modifies RXM110K and PHR_MODE bits \u2014 DIS_STXP is not touched. POR default DIS_STXP=0 means Smart TX Power remains ENABLED.",
+      "file_line": "drivers/dw1000/src/deca_device.c:2228 (driver only, never called)"
+    },
+    {
+      "id": "1a-4",
+      "verdict": "\u2705 VERIFIED",
+      "description": "TX_ANTD and LDE_RXANTD are explicitly written by all three application roles (init, resp, anchor_init) in their configure_radio() functions. All use the same hardcoded value 16436U (0x4034). TX and RX delays are forced equal \u2014 no per-device or per-role differentiation.",
+      "file_line": "ss_twr_init.c:3221-3222, ss_twr_resp.c:913-914, ss_twr_anchor_init.c:135-136"
+    },
+    {
+      "id": "1b-1",
+      "verdict": "\u26a0\ufe0f QUALIFIED",
+      "description": "TX_POWER POR default 0x0E082848 is the DW1000 User Manual recommended value for Ch5 PRF64 in smart power mode. This is acceptable for the application. However, the power level was never explicitly verified or tuned for DWM1001C module \u2014 the 0x0E082848 value may not be optimal for the specific module's PA characteristics.",
+      "file_line": "drivers/dw1000/include/deca_regs.h:534 (TX_POWER_MAN_DEFAULT = 0x0E080222 is the MANUAL default, NOT the smart default)"
+    },
+    {
+      "id": "1b-2",
+      "verdict": "\u2705 VERIFIED",
+      "description": "TC_PGDELAY POR default for Ch5 is 0xC0, which matches the DW1000 User Manual recommendation (deca_regs.h:997 TC_PGDELAY_CH5 = 0xC0). Acceptable for this application.",
+      "file_line": "drivers/dw1000/include/deca_regs.h:997"
+    },
+    {
+      "id": "1b-3",
+      "verdict": "\u2705 VERIFIED",
+      "description": "Smart TX Power (DIS_STXP=0) is appropriate. All frames are in the same duration bucket (<0.25ms at 6.8 Mbps with 128 preamble), so smart power introduces zero differential between poll and response. No ranging asymmetry from this source.",
+      "file_line": "uwb_ss_twr_shared.h:74 (17B poll), uwb_ss_twr_shared.h:56 (36B resp)"
+    },
+    {
+      "id": "1c-1",
+      "verdict": "\u2705 VERIFIED",
+      "description": "Init sequence: uwb_bringup.c \u2192 dwt_initialise(DWT_LOADUCODE) \u2192 per-role configure_radio() \u2192 dwt_configure(). Driver owns: LDO tune, XTAL trim, LDE microcode, channel/PLL/RF config, AGC, baseband tuning. Application owns: antenna delays (hardcoded 16436U), frame filtering, LED enable. NOBODY owns: TX_POWER, TC_PGDELAY, DIS_STXP \u2014 all left at POR defaults.",
+      "file_line": "uwb_bringup.c:98, ss_twr_init.c:3211-3226"
+    },
+    {
+      "id": "1d-1",
+      "verdict": "\u2705 VERIFIED",
+      "description": "Smart TX Power causes ZERO power differential between tag poll (17B, 174.6\u00b5s) and anchor response V3 (36B, 197.0\u00b5s). Both fall into BOOSTP250 bucket (< 0.25ms). All four frame types in the system are in this same bucket. Power asymmetry from Smart TX Power is not a ranging error source.",
+      "file_line": "uwb_ss_twr_shared.h:74,56 (frame lengths), DW1000 User Manual Table 18 (power thresholds)"
+    },
+    {
+      "id": "1e-1",
+      "verdict": "\ud83d\udc80 BUG",
+      "description": "Antenna delays are hardcoded to 16436U for ALL devices \u2014 tags and anchors, TX and RX. No per-device calibration. OTP factory-programmed antenna delays (address 0x01C) are read for diagnostic printing only (tag_app.c:271-273, gated by APP_TAG_OTP_DIAG) but NEVER used for configuration. The dwt_initialise() call uses DWT_LOADUCODE (0x01) with no OTP antenna delay flags. This means every DWM1001C module uses the same delay regardless of its individual RF path characteristics. Expected per-device variation: \u00b11-3 ns (\u00b115-45 cm range error).",
+      "file_line": "ss_twr_init.c:37-38, ss_twr_resp.c:47-48, ss_twr_anchor_init.c:18-19, tag_app.c:271-273"
+    },
+    {
+      "id": "1e-2",
+      "verdict": "\u26a0\ufe0f QUALIFIED",
+      "description": "TX and RX antenna delays are forced equal (both 16436U). In principle, TX and RX paths through the DWM1001C module antenna have different electrical lengths. For SS-TWR the relevant quantity is (TX_delay_A + RX_delay_B) for the initiator leg and (RX_delay_B + TX_delay_B) for the responder leg. Forcing TX=RX means the sum is always 2*16436 per device regardless of the actual TX/RX asymmetry. This is standard practice (Decawave examples do the same) and is acceptable when the total round-trip delay is calibrated as a single combined value, which 16436U represents.",
+      "file_line": "ss_twr_init.c:37-38 (TX=RX=16436U)"
+    },
+    {
+      "id": "1f-1",
+      "verdict": "\ud83d\udc80 BUG",
+      "description": "dwt_getrangebias() (APS011 range-bias correction) exists in the driver (deca_range_tables.c:636) with full correction tables for all channels and PRFs, but is NEVER called by any application code. Range-bias correction compensates for the received-signal-level-dependent ranging error in the DW1000 LDE. At short ranges (<5m) this bias can be 10-20cm. Not applying it means all ranges have an uncorrected RSL-dependent bias.",
+      "file_line": "drivers/dw1000/src/deca_range_tables.c:636 (defined), zero call sites in SS-TWR/ or apps/"
+    }
+  ]
+}

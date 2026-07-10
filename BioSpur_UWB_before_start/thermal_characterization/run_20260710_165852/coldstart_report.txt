@@ -1,0 +1,43 @@
+========================================================================
+COLD-START THERMAL CHARACTERIZATION — CFO REPORT
+========================================================================
+run dir     : /mnt/nrf_ssd/nRF_dev/BioSpur_UWB_before_start/thermal_characterization/run_20260710_165852
+t0          : 2026-07-10T16:59:03
+duration    : 90.0 min
+proxy       : cfo_ppm = rxtofs / ttcki * 1e6  (per-listener dominant TX source)
+
+listener src        frames    t_stable    excursion      final
+------------------------------------------------------------------------
+LB       0xb15a      28788  NOT REACHED       +0.18p     -2.78p
+LE       0xb15a      28833  NOT REACHED       -1.26p     -3.51p
+LF       0xb15a      28626  NOT REACHED       -0.89p     -2.52p
+LCCF4    0xb15a      28849  NOT REACHED       -0.60p     -3.79p
+L9336    0xb15a      28843  NOT REACHED       -1.38p     -1.65p
+L955A    0xb15a      28857  NOT REACHED       -0.77p     -1.50p
+------------------------------------------------------------------------
+
+>> RECOMMENDED PRE-WARM: UNDETERMINED (no listener reached sustained stability)
+   WARNING: never-stable within capture: LB, LE, LF, LCCF4, L9336, L955A (extend duration or inspect)
+
+Cross-listener consistency (Spearman rho of CFO curves):
+   median rho = +0.171   min rho = +0.085   pairs = 15
+     LB-LE            0.121
+     LB-LF            0.201
+     LB-LCCF4         0.344
+     LB-L9336         0.311
+     LB-L955A         0.085
+     LE-LF            0.094
+     LE-LCCF4         0.144
+     LE-L9336         0.288
+     LE-L955A         0.132
+     LF-LCCF4         0.256
+     LF-L9336         0.181
+     LF-L955A         0.163
+     LCCF4-L9336      0.320
+     LCCF4-L955A      0.171
+     L9336-L955A      0.154
+
+Figures:
+   /mnt/nrf_ssd/nRF_dev/BioSpur_UWB_before_start/thermal_characterization/run_20260710_165852/figures/cfo_vs_time.png
+   /mnt/nrf_ssd/nRF_dev/BioSpur_UWB_before_start/thermal_characterization/run_20260710_165852/figures/cfo_drift_rate.png
+========================================================================

@@ -1,0 +1,250 @@
+{
+  "track": "4",
+  "title": "Cold-Start Thermal Results Verification",
+  "run_analyzed": "thermal_characterization/run_20260710_165852",
+  "auditor": "claude-science",
+  "findings": {
+    "4a_initial_conditions": {
+      "verdict": "\u26a0\ufe0f QUALIFIED",
+      "summary": "Experiment protocol is sound but first ~3.5 min of cold-start transient is missing from all listeners",
+      "details": {
+        "protocol": {
+          "description": "run_coldstart.sh prompts operator to power on all nodes, marks t=0, then capture_coldstart.py opens serial ports. Nodes cold-boot, enumerate USB, and begin transmitting. Listeners log LPD/LRD frames with device uptime (now_ms) as the time axis.",
+          "evidence": "capture_coldstart.py:271-287, run_coldstart.sh:27-52",
+          "duration_min": 90.0,
+          "t0_iso": "2026-07-10T16:59:03",
+          "t_end_epoch": 1783700944.58,
+          "baud": 460800
+        },
+        "gap_between_poweron_and_first_data": {
+          "description": "All 6 listeners show a 3.0-3.6 min gap between power-on (now_ms=0) and first usable LPD/LRD frame. This gap includes nRF52 boot, DW1000 init, PLL lock, and USB serial enumeration. The initial (fastest) portion of the crystal warm-up transient is NOT captured.",
+          "per_listener_first_frame_s": {
+            "LB": 210.3,
+            "LE": 178.8,
+            "LF": 205.5,
+            "LCCF4": 212.5,
+            "L9336": 183.0,
+            "L955A": 214.3
+          },
+          "gap_range_s": "178.8 to 214.3",
+          "gap_range_min": "2.98 to 3.57",
+          "significance": "The fastest thermal transient is the initial 0-3 min after power-on (crystal self-heating from ambient). This is exactly the window that is missing. The reported cfo_start values already reflect 3+ min of warm-up, so the true cold-start excursion is LARGER than what the analysis reports."
+        },
+        "boards_cold_at_t0": {
+          "description": "run_coldstart.sh prerequisite line 21 states 'ALL UWB nodes have been powered off for 2+ hours'. No independent verification exists (no temperature measurement at t=0). However, the consistent 3+ min boot gap across all 6 listeners and the monotonic CFO drift from first sample are consistent with a genuine cold start.",
+          "confidence": "Plausible but unverified \u2014 no temperature data at t=0"
+        },
+        "source_locking": {
+          "description": "Both capture (live) and analysis (offline) lock onto a single dominant TX source (0xb15a in all listeners) to avoid mixing per-transmitter clock offsets. This is correct methodology.",
+          "evidence": "capture_coldstart.py:119-121, analyze_coldstart.py:102-106",
+          "dominant_source_all_listeners": "0xb15a",
+          "sources_per_listener": 3
+        }
+      }
+    },
+    "4b_cfo_excursion_and_stability": {
+      "verdict": "\u274c REFUTED",
+      "summary": "NO listener reaches CFO stability within 90 min. The analyze_coldstart.py report correctly states 'NOT REACHED' for all 6, but this refutes any prior '30-min pre-warm' claim. Even a 4x-relaxed drift threshold (0.20 ppm/min) is never sustained.",
+      "details": {
+        "stability_criteria": {
+          "original_threshold": "drift rate < 0.05 ppm/min sustained 5 min",
+          "source": "analyze_coldstart.py:57-58 (STABLE_THRESH_PPM_PER_MIN, STABLE_SUSTAIN_S)",
+          "note": "Threshold derived from overnight steady-state drift rate"
+        },
+        "per_listener": {
+          "LB": {
+            "cfo_start_ppm": -2.463,
+            "cfo_final_ppm": -2.778,
+            "total_excursion_ppm": -0.315,
+            "t_stable_drift_method": null,
+            "t_stable_abs_01ppm": null,
+            "drift_at_90min_ppm_per_min": 0.178,
+            "still_drifting": true
+          },
+          "LE": {
+            "cfo_start_ppm": -2.193,
+            "cfo_final_ppm": -3.507,
+            "total_excursion_ppm": -1.314,
+            "t_stable_drift_method": null,
+            "t_stable_abs_01ppm": null,
+            "drift_at_90min_ppm_per_min": 0.17,
+            "still_drifting": true
+          },
+          "LF": {
+            "cfo_start_ppm": -1.607,
+            "cfo_final_ppm": -2.523,
+            "total_excursion_ppm": -0.916,
+            "t_stable_drift_method": null,
+            "t_stable_abs_01ppm": null,
+            "drift_at_90min_ppm_per_min": 0.167,
+            "still_drifting": true
+          },
+          "LCCF4": {
+            "cfo_start_ppm": -3.334,
+            "cfo_final_ppm": -3.785,
+            "total_excursion_ppm": -0.451,
+            "t_stable_drift_method": null,
+            "t_stable_abs_01ppm": null,
+            "drift_at_90min_ppm_per_min": 0.129,
+            "still_drifting": true
+          },
+          "L9336": {
+            "cfo_start_ppm": -0.15,
+            "cfo_final_ppm": -1.652,
+            "total_excursion_ppm": -1.502,
+            "t_stable_drift_method": null,
+            "t_stable_abs_01ppm": null,
+            "drift_at_90min_ppm_per_min": 0.113,
+            "still_drifting": true
+          },
+          "L955A": {
+            "cfo_start_ppm": -0.616,
+            "cfo_final_ppm": -1.502,
+            "total_excursion_ppm": -0.886,
+            "t_stable_drift_method": null,
+            "t_stable_abs_01ppm": null,
+            "drift_at_90min_ppm_per_min": 0.15,
+            "still_drifting": true
+          }
+        },
+        "drift_rate_at_time_marks_ppm_per_min": {
+          "description": "Median drift rate in \u00b12.5 min window around each mark",
+          "at_10min": {
+            "LB": 0.228,
+            "LE": 0.281,
+            "LF": 0.164,
+            "LCCF4": 0.259,
+            "L9336": 0.203,
+            "L955A": 0.218
+          },
+          "at_30min": {
+            "LB": 0.128,
+            "LE": 0.092,
+            "LF": 0.176,
+            "LCCF4": 0.083,
+            "L9336": 0.149,
+            "L955A": 0.142
+          },
+          "at_60min": {
+            "LB": 0.101,
+            "LE": 0.152,
+            "LF": 0.203,
+            "LCCF4": 0.093,
+            "L9336": 0.094,
+            "L955A": 0.15
+          },
+          "at_90min": {
+            "LB": 0.139,
+            "LE": 0.15,
+            "LF": 0.146,
+            "LCCF4": 0.134,
+            "L9336": 0.103,
+            "L955A": 0.122
+          }
+        },
+        "relaxed_threshold_analysis": {
+          "at_0_05_ppm_per_min": "0 of 6 listeners stable",
+          "at_0_10_ppm_per_min": "0 of 6 listeners stable",
+          "at_0_20_ppm_per_min": "0 of 6 listeners stable",
+          "at_0_50_ppm_per_min": "6 of 6 stable (3.9-28.0 min)"
+        },
+        "30_min_prewarm_claim": {
+          "verdict": "REFUTED",
+          "explanation": "At 30 min, drift rates range 0.08-0.18 ppm/min across listeners \u2014 2-4x above the 0.05 ppm/min stability threshold. At 90 min, drift rates are STILL 0.10-0.18 ppm/min. The drift does NOT converge to zero within the 90-min capture; it appears to plateau at ~0.1-0.2 ppm/min, suggesting either (a) the crystal never reaches thermal equilibrium on a 90-min timescale, or (b) the residual drift is not thermal but noise/jitter in the CFO estimate itself."
+        },
+        "ranging_error_implication": {
+          "formula": "range_bias \u2248 cfo_ppm \u00d7 1e-6 \u00d7 t_reply \u00d7 c / 2",
+          "assumed_reply_time_ms": 1.0,
+          "scale_factor": "~0.15 m per ppm of CFO",
+          "worst_case_excursion": "L9336: 1.50 ppm \u2192 0.225 m range bias change over 90 min",
+          "residual_drift_at_90min": "0.10-0.18 ppm/min \u2192 0.015-0.027 m/min ongoing range drift",
+          "note": "This is the differential CFO (listener vs transmitter 0xb15a). In Alt-SS-TWR the relevant quantity is the tag-anchor pair CFO, which may be larger or smaller depending on both devices' warm-up states."
+        }
+      }
+    },
+    "4c_cfo_to_temperature_relationship": {
+      "verdict": "\u26a0\ufe0f QUALIFIED",
+      "summary": "No independent temperature measurement exists. CFO is used as a temperature proxy but the proxy is unvalidated: no TC_SARL reads, no nRF52 TEMP reads, no IR camera images saved, and cross-listener correlation is negligible (median Spearman rho = +0.17), proving per-board dynamics dominate over shared ambient temperature.",
+      "details": {
+        "independent_temperature_measurement": {
+          "DW1000_TC_SARL": {
+            "available_in_driver": true,
+            "call_sites": {
+              "ss_twr_resp_c_1014": {
+                "location": "ss_twr_resp.c:1014 (anchor responder, every 30s)",
+                "compile_time_enabled": false,
+                "guard": "#if APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_ENABLE != 0U (defaults to 0U at ss_twr_resp.c:99)"
+              },
+              "ss_twr_init_c_1210": {
+                "location": "ss_twr_init.c:1210 (tag initiator, every 30s)",
+                "compile_time_enabled": true,
+                "guard": "None \u2014 unconditionally compiled. Raw temp/vbat codes are emitted as a ;T trailer on the TR line per the comment at ss_twr_init.c:1202-1204."
+              }
+            },
+            "tag_temp_reaches_listener_logs": false,
+            "evidence": "The tag-side call (ss_twr_init.c:1210) is unconditionally compiled and reads DW1000 temp every 30s. However, the ;T trailer rides the tag->master-tag->host text passthrough \u2014 it is NOT part of the over-the-air UWB frame that listeners receive. Listeners see only LPD/LRD fields (rcph, rxtofs, ttcki, agc) from the blink/response packets. The anchor-side call (ss_twr_resp.c:1014) embeds temp in the V3 response payload but is compiled out by default. Therefore NO temperature data appears in the listener raw logs used by this cold-start experiment.",
+            "reason_not_used_in_experiment": "capture_coldstart.py:14 states 'the on-chip TC_SARL sensor is NOT read \u2014 doing so wedges the SPI clock domain'. The tag firmware does read it (unconditionally), but the value does not propagate to the listener serial output that the cold-start capture records."
+          },
+          "nRF52_TEMP_peripheral": {
+            "available_in_hardware": true,
+            "DTS_enabled": true,
+            "called_in_firmware": false,
+            "evidence": "apps/tag/build-tag-fast/zephyr/.config:1057 CONFIG_HAS_HW_NRF_TEMP=y, but no sd_temp_get() or NRF_TEMP access in application code"
+          },
+          "IR_camera": {
+            "mentioned_in_protocol": true,
+            "model": "FR02E",
+            "images_saved": false,
+            "evidence": "run_coldstart.sh:27 mentions IR camera as prerequisite; run_coldstart.sh:10 'Spatial thermal imaging is done separately with the IR camera (manual)'; NO .jpg/.tiff/.csv files in run directory"
+          },
+          "external_sensor": false,
+          "conclusion": "ZERO independent temperature data points exist in this dataset"
+        },
+        "crystal_type": {
+          "type": "XTAL (bare crystal, NOT TCXO)",
+          "evidence": "deca_device.c:242-257 reads OTP XTAL trim and applies via dwt_setxtaltrim(); FS_XTALT register defined in deca_regs.h:1037",
+          "frequency_MHz": 38.4,
+          "frequency_temperature_curve": "parabolic: f(T) = f0 \u00d7 [1 - K \u00d7 (T - T_turnover)\u00b2]",
+          "implication": "CFO-to-temperature mapping is nonlinear and position-dependent on the parabola; without knowing each board's turnover temperature and operating point, CFO cannot be converted to \u00b0C"
+        },
+        "cross_listener_consistency": {
+          "test": "Spearman rank correlation of binned CFO curves (5s bins) across all 15 listener pairs",
+          "median_rho": 0.171,
+          "max_rho": 0.344,
+          "min_rho": 0.085,
+          "n_pairs": 15,
+          "interpretation": "If CFO drift were driven by shared ambient temperature, all same-room listeners would show rho > 0.8. Median rho = 0.17 proves each board's CFO is dominated by board-specific thermal dynamics (crystal self-heating, PCB thermal mass, mounting, individual XTAL characteristics), NOT shared environmental temperature.",
+          "implication": "CFO stability of one board does NOT predict CFO stability of another, even in the same environment. A pre-warm time derived from one board is not transferable."
+        },
+        "proxy_validity_assessment": {
+          "verdict": "CFO is a QUALITATIVE indicator of thermal activity, NOT a calibrated temperature measurement",
+          "reasons": [
+            "No independent temperature ground truth to validate against",
+            "XTAL frequency-temperature curve is parabolic, not linear \u2014 same \u0394T gives different \u0394CFO depending on operating point",
+            "Near the crystal turnover temperature, CFO is insensitive to temperature changes (flat top of parabola)",
+            "Cross-listener rho = 0.17 means per-board factors dominate \u2014 'temperature proxy' overstates what CFO actually measures",
+            "The experiment title says 'thermal characterization' but what it actually characterizes is CFO warm-up dynamics, which is a coupled function of crystal temperature, PCB temperature, ambient temperature, and possibly voltage regulation warm-up"
+          ]
+        }
+      }
+    }
+  },
+  "overall_verdict": {
+    "classification": "\u26a0\ufe0f QUALIFIED \u2014 experiment correctly executed within its design, but conclusions are weaker than stated",
+    "key_issues": [
+      "1. First ~3.5 min of cold-start transient missing (boot gap) \u2014 true excursion is larger than reported",
+      "2. NO listener reaches stability in 90 min by ANY reasonable threshold \u2014 '30-min pre-warm' claim is REFUTED",
+      "3. No independent temperature data \u2014 experiment measures CFO warm-up, not temperature warm-up",
+      "4. Cross-listener rho = 0.17 proves per-board dynamics dominate \u2014 pre-warm time is not transferable across boards",
+      "5. Residual drift at 90 min (0.10-0.18 ppm/min) may include measurement noise floor, not only thermal drift \u2014 the experiment cannot distinguish the two"
+    ],
+    "what_the_experiment_DOES_establish": [
+      "CFO excursion from first-sample to 90 min: 0.3-1.5 ppm across 6 listeners (lower bound; true cold-start value is larger)",
+      "CFO drift is still ongoing at 90 min at 0.10-0.18 ppm/min",
+      "At 0.50 ppm/min threshold (10x nominal), all listeners stable by 28 min \u2014 so the FAST transient is over by ~30 min, even if the SLOW tail is not",
+      "The analysis pipeline (capture + parse + bin + drift-rate + Spearman) is methodologically sound",
+      "The report correctly says 'NOT REACHED' and 'UNDETERMINED' \u2014 it does not overclaim"
+    ],
+    "recommendation": "The analysis code is honest (correctly reports non-convergence). The gap is in the experiment design: add DW1000 TC_SARL reads (or at minimum nRF52 TEMP peripheral reads) to the firmware so CFO can be cross-validated against an independent temperature measurement. Save IR camera images with timestamps. Extend capture to 3-4 hours to find true convergence time, or determine that the residual drift is measurement noise."
+  }
+}

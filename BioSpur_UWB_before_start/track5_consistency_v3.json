@@ -1,0 +1,165 @@
+{
+  "track": "5_numerical_consistency",
+  "generated_at": "2026-07-10T21:56:25.342965",
+  "5a_layout_audit": {
+    "verdict": "\u26a0\ufe0f QUALIFIED",
+    "layouts_loaded": 6,
+    "physical_deployments": {
+      "group_A": {
+        "layouts": [
+          "erlangen_v4io_field_check"
+        ],
+        "description": "Small room geometry (A-B \u2248 1787 mm)",
+        "n_delay_saturated": "1/8 (anchor G)"
+      },
+      "group_B": {
+        "layouts": [
+          "official_v4io",
+          "production"
+        ],
+        "description": "Medium room geometry (A-B \u2248 2862 mm) \u2014 AUTHORITATIVE production",
+        "identity": "IDENTICAL (xyz AND delays)",
+        "n_delay_saturated": "2/8 (anchors C, D)"
+      },
+      "group_C": {
+        "layouts": [
+          "erlangen_v4io_check",
+          "diagnostic_full8",
+          "overnight_clean6"
+        ],
+        "description": "Large room geometry (A-B \u2248 4467-4549 mm)",
+        "inter_anchor_rms_diff_check_vs_diag": "374 mm",
+        "note": "Inter-anchor distance RMS diff = 374mm (agent classifier: DIFFERENT ROOM/DATA at >50mm threshold). Possibly same physical room with anchors repositioned, or different rooms entirely. Cannot confirm same-room identity from ranging data alone."
+      }
+    },
+    "bugs": [
+      {
+        "severity": "\ud83d\udc80 BUG",
+        "description": "overnight_clean6 delays are BIT-IDENTICAL copies from erlangen_v4io_check but coordinates are independently solved. Delay+geometry are inconsistent \u2014 stale delays from a different solver run.",
+        "evidence": "All 6 shared anchors (0,2,3,4,5,6) have d_anchor_mm matching to all decimal places"
+      },
+      {
+        "severity": "\u26a0\ufe0f WARNING",
+        "description": "diagnostic_full8 has 4/8 anchors saturated at 60mm delay bound \u2014 solver is heavily constrained, true delays unknown.",
+        "saturated_anchors": [
+          2,
+          3,
+          6,
+          7
+        ]
+      },
+      {
+        "severity": "\u26a0\ufe0f WARNING",
+        "description": "3 completely different physical geometries all labeled 'v4-io' \u2014 pipeline lacks room/session tracking metadata."
+      }
+    ]
+  },
+  "5b_delay_crosscheck": {
+    "verdict": "\ud83d\udc80 BUG + \u26a0\ufe0f QUALIFIED",
+    "firmware_delay": {
+      "value_ticks": 16436,
+      "hex": "0x4034",
+      "ns_total": 257.22,
+      "confirmed_uniform": true,
+      "tx_eq_rx": true,
+      "files": [
+        "ss_twr_init.c:37-38",
+        "ss_twr_resp.c:47-48",
+        "ss_twr_anchor_init.c:18-19",
+        "UWB_listener/main.c:173-174"
+      ]
+    },
+    "solver_delay_range_mm": [
+      -26.87,
+      60.0
+    ],
+    "delay_bound_saturation": {
+      "erlangen_v4io_field_check": "1/8",
+      "erlangen_v4io_check": "0/8 (cleanest)",
+      "official_v4io": "2/8",
+      "diagnostic_full8": "4/8 (worst)",
+      "overnight_clean6": "0/6 (inherited from erlangen_v4io_check)"
+    },
+    "same_room_delay_stability": {
+      "comparison": "erlangen_v4io_check vs diagnostic_full8",
+      "gauge_offset_mm": 8.03,
+      "rms_residual_after_gauge_mm": 12.11,
+      "note": "12mm RMS delay instability across sessions with inter-anchor distance RMS=374mm. Room identity not confirmed (own classifier: DIFFERENT ROOM/DATA). If different rooms, delay variation includes true device-to-device + geometry coupling."
+    },
+    "aps011_range_bias": "exists in driver code, NEVER called in firmware (Phase 1 confirmed)"
+  },
+  "5c_63mm_coincidence": {
+    "verdict": "\u2705 VERIFIED \u2014 different quantities, numerical coincidence",
+    "context_1": {
+      "quantity": "Common-mode rigid anchor RMSE vs Vicon",
+      "value_mm": 62.99,
+      "source": "audit_phase1c_summary.json \u2192 item2_common_mode \u2192 rigid_anchor_rmse_mm",
+      "type": "empirical 3D RMSE after Sim(3) alignment"
+    },
+    "context_2": {
+      "quantity": "Vertical CRLB floor for 4+4 anchor self-calibration",
+      "value_mm": 62.74,
+      "source": "vertical_observability_4plus4_results.txt \u2192 k=4",
+      "type": "theoretical vertical-only CRLB (\u03c3_inter=30mm, 5\u00d75m footprint)"
+    },
+    "interpretation": "System operates near information-theoretic floor. Vertical error dominates 3D budget (consistent with VDOP/HDOP \u2248 1.6-2.5x). No cross-contamination in code."
+  },
+  "5d_scale_consistency": {
+    "verdict": "\u2705 VERIFIED \u2014 no cross-contamination",
+    "v4io_scale": {
+      "value": 0.9582672713308588,
+      "meaning": "Vicon = 0.9583 \u00d7 AutoPos \u2192 AutoPos v4-io is ~4.4% LARGER than Vicon truth (ranges are stretched by uncorrected common-mode delay)",
+      "variable_name": "current_sim3_scale_autopos_to_vicon"
+    },
+    "common_mode_scale": {
+      "value": 1.0097822800764376,
+      "meaning": "Vicon = 1.0098 \u00d7 AutoPos \u2192 After common-mode correction, AutoPos is ~1.0% SMALLER than Vicon truth",
+      "variable_name": "sim3_scale_autopos_to_vicon"
+    },
+    "hardcoded_in_scripts": "Only in run_final_data_audit.py (audit tracing script by design)",
+    "all_other_scripts": "Compute scale fresh via Sim3/Procrustes alignment at runtime",
+    "physical_consistency": "Common-mode delay correction (c=112mm) CONTRACTS AutoPos geometry: scale moves from 0.9583 (AutoPos too large) toward 1.0 and slightly past to 1.0098 (AutoPos slightly too small). Reciprocal: 1/0.9583-1 = +4.35%; 1/1.0098-1 = -0.97%."
+  },
+  "5e_rho_0977_fim": {
+    "verdict": "\u26a0\ufe0f QUALIFIED \u2014 computation correct, one caveat",
+    "script": "delay_geometry_fim.py",
+    "computation_audit": {
+      "range_model": "\u2705 r = ||a_i - x|| + b_i + \u03b5 (correct for TWR)",
+      "jacobian_signs": "\u2705 \u2202r/\u2202b = +1 per endpoint (both initiator and responder)",
+      "schur_complement": "\u2705 Tags marginalized correctly (block-diagonal F_tt)",
+      "gauge_freedom": "\u2705 SE(3) removed (6 DOF), scale intentionally kept in parameter space",
+      "probe_directions": "\u2705 Gauge-orthogonal projections of interpretable modes",
+      "coupling_formula": "\u2705 Standard marginal 2\u00d72 correlation"
+    },
+    "input_data": {
+      "geometry": "Vicon truth (H.TRUTH), not AutoPos solver output",
+      "measurements": "28 inter-anchor pairs + 142 static tag frames",
+      "sigma_inter_mm": 30.0,
+      "sigma_tag_mm": 80.0
+    },
+    "results": {
+      "delay_iso_scale": {
+        "rho": -0.977,
+        "variance_inflation": 22.07,
+        "alias_gain": -1.246
+      },
+      "delay_horizontal": {
+        "rho": -0.974,
+        "variance_inflation": 19.29,
+        "alias_gain": -1.09
+      },
+      "delay_vertical": {
+        "rho": -0.814,
+        "variance_inflation": 2.97,
+        "alias_gain": -0.629
+      }
+    },
+    "condition_number": 492.4,
+    "gauge_free_modes": 26,
+    "caveats": [
+      "Linearization at Vicon truth geometry, not solver estimate \u2014 correct for CRLB but solver's coupling structure may differ slightly at its operating point",
+      "Softest eigenvector has very low overlap (|cos|<0.01) with all interpretable directions \u2014 the near-degeneracy is a complex multi-parameter mode, not purely 'delay vs scale'",
+      "Display artifact: '5 softest eigenvalues: [0. 0. 0. 0. 0.]' is numpy formatting (suppress=True + precision=3); real values are O(10\u207b\u2074)"
+    ]
+  }
+}
