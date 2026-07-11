@@ -3,3 +3,9 @@ build*/
 .tooling/
 SS-TWR/alt-SS-TWR/broadcast/handoff_scripts_20260704/cir_cache/
 SS-TWR/alt-SS-TWR/broadcast/handoff_scripts_20260704/*_cache.npz
+
+# overnight_radar_20260711: kept in working tree, but raw logs (~640MB) and
+# parsed CIR arrays (~360MB) exceed GitHub's 100MB/file limit — exclude from git.
+# Small companions (cir_index.npz, lstat.json, scalar.npz) are still committed.
+logs/overnight_radar_20260711/raw/*.log
+logs/overnight_radar_20260711/analysis/parsed/*_cir.npy

@@ -6,6 +6,8 @@
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/uart.h>
+#include <zephyr/device.h>
 
 #include <deca_device_api.h>
 #include <deca_regs.h>
@@ -77,6 +79,43 @@
  * pass, regardless of RX busy/idle, so LPD/LRD keep streaming under heavy traffic. */
 #define LISTENER_DRAIN_BUDGET 4U
 
+/* ---- USB-CDC command interface + tag-capture (position calibration) mode ----
+ *
+ * The listener can be temporarily switched (over the existing UART/USB CDC, at
+ * 460800 baud -- never over BLE) into a minimal broadcast Alt-SS-TWR *tag* so the
+ * host can multilaterate its 3D position from per-anchor ranges, then switched
+ * back to passive CIR listening. See README / calibrate_listener_positions.py.
+ *
+ * CRITICAL (anchor firmware is off-limits): the anchor responder only replies to
+ * polls whose 16-bit source address is a tag (0xB100..0xB1FF) -- see ss_twr_resp.c
+ * uwb_short_addr_is_ranging_initiator() + poll_src_is_tag gating. So the ON-AIR
+ * source address MUST live in the tag range. APP_LISTENER_TAG_ADDR is that on-air
+ * address; APP_LISTENER_TAG_LABEL (0xc0xx) is only a host-facing logical id echoed
+ * in "MODE=TAG src=" and "LTAG;src=" so the operator/host can key results by
+ * listener without colliding with the wand tags' on-air ids. */
+#ifndef APP_LISTENER_TAG_ADDR
+#define APP_LISTENER_TAG_ADDR 0xB1C0U   /* on-air src; MUST be in 0xB100..0xB1FF */
+#endif
+#ifndef APP_LISTENER_TAG_LABEL
+#define APP_LISTENER_TAG_LABEL 0xC000U  /* host-facing logical id (0xc0xx) */
+#endif
+
+/* Tag-capture poll cadence + response collection window. 100 ms matches the wand
+ * tags' 10 Hz. The window must cover the last responder: anchor reply delay is
+ * GUARD(500us) + rank*SPACING(800us); rank-7 completes < ~7 ms after poll TX. */
+#define LISTENER_TAG_POLL_INTERVAL_MS 100U
+#define LISTENER_TAG_RESP_WINDOW_MS 12U
+#define LISTENER_TAG_ANCHOR_MASK 0xFFU   /* poll all 8 anchors every cycle */
+#define LISTENER_TAG_TXDONE_TIMEOUT_MS 5U
+#define LISTENER_CMD_BUF_MAX 32U         /* line buffer; flush (drop) on overflow */
+#define LISTENER_SPEED_OF_LIGHT 299702547.0  /* m/s, matches ss_twr_init.c */
+
+enum listener_mode {
+    LISTENER_MODE_LISTEN = 0,  /* boot default: passive RX-only CIR capture */
+    LISTENER_MODE_IDLE,        /* radio forced off (AutoPos-safe: no RF) */
+    LISTENER_MODE_TAG,         /* active broadcast Alt-SS-TWR tag (ranging) */
+};
+
 struct listener_counters {
     uint32_t good_frames;
     uint32_t accepted_polls;
@@ -90,6 +129,9 @@ struct listener_counters {
     uint32_t full_cir_captures;
     uint32_t ring_drops;
     uint32_t self_recover;   /* RX-stall watchdog full-recover count (Fix 1) */
+    uint32_t tag_polls;      /* polls sent while in MODE_TAG */
+    uint32_t tag_tx_errors;  /* poll TX write/start/done failures in MODE_TAG */
+    uint32_t tag_resp_total; /* anchor responses collected across all tag polls */
     uint32_t last_rx_enable_error;
     uint32_t last_status;
     uint16_t last_src;
@@ -102,6 +144,36 @@ struct listener_counters {
 static uint8_t rx_buffer[LISTENER_RX_BUF_LEN];
 static struct listener_counters counters;
 static uint32_t last_status_print_ms;
+
+/* Command interface + mode state. All control is polled from the console UART
+ * (USB CDC / J-Link VCOM) in the main loop -- never an ISR, never BLE. */
+static const struct device *const cmd_uart =
+    DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
+static enum listener_mode listener_mode = LISTENER_MODE_LISTEN;
+static char cmd_buf[LISTENER_CMD_BUF_MAX];
+static uint8_t cmd_len;
+static bool cmd_overflow;
+
+/* RX byte ring filled by the UART ISR (producer) and drained by the main loop
+ * (consumer). Interrupt-driven RX is required: the legacy nRF UART has a 1-byte
+ * RX register with no FIFO, so polling it from the main loop drops command bytes
+ * whenever the loop is busy in a printk flood (CIR) or asleep (IDLE). SPSC ring:
+ * ISR advances head, main loop advances tail; volatile 16-bit indices are atomic
+ * on this single core, so no lock is needed. */
+#define LISTENER_CMD_RX_RING 128U
+static uint8_t cmd_rx_ring[LISTENER_CMD_RX_RING];
+static volatile uint16_t cmd_rx_head;
+static volatile uint16_t cmd_rx_tail;
+
+/* Tag-capture (MODE_TAG) working state. */
+static uint8_t tag_poll_msg[UWB_MSG_ALT_BCAST_POLL_FRAME_LEN];
+static uint8_t tag_frame_seq_nb;
+static uint32_t tag_last_poll_ms;
+
+/* RX-stall watchdog + status timers (file scope so a mode switch back to LISTEN
+ * can reset them and not trip an immediate false self-recover). */
+static uint32_t wd_last_good;
+static uint32_t wd_last_activity_ms;
 
 #if APP_LISTENER_LED_ENABLE != 0U
 static const struct gpio_dt_spec listener_led =
@@ -655,15 +727,314 @@ static void print_status(uint32_t now_ms)
 #endif
 }
 
+/* ---------------------------------------------------------------------------
+ * Tag-capture mode (MODE_TAG): minimal broadcast Alt-SS-TWR initiator.
+ *
+ * A stripped copy of the wand-tag exchange in ss_twr_init.c (broadcast path):
+ * build a 17B broadcast poll, TX it, then open a single-buffer RX window and
+ * collect anchor responses, computing each per-anchor range from the standard
+ * SS-TWR timestamp arithmetic. NO anchor layout / solver here -- the host
+ * multilaterates from the emitted LTAG ranges. Runs only during position
+ * calibration; MODE_LISTEN is byte-for-byte the original passive behaviour.
+ * ------------------------------------------------------------------------- */
+
+/* Read a little-endian 4-byte DW1000 timestamp field from a response frame. */
+static void listener_read_ts(const uint8_t *field, uint32_t *ts)
+{
+    *ts = 0U;
+    for (uint8_t i = 0U; i < UWB_MSG_RESP_TS_LEN; ++i) {
+        *ts |= ((uint32_t)field[i]) << (i * 8U);
+    }
+}
+
+/* Single-sided TWR range in mm from the four timestamps + carrier integrator.
+ * Identical math to ss_twr_init_calc_raw_distance_mm() (channel-5 constants). */
+static long listener_tag_calc_range_mm(uint32_t poll_tx_ts, uint32_t resp_rx_ts,
+                                       uint32_t poll_rx_ts, uint32_t resp_tx_ts,
+                                       int32_t carrier_integrator)
+{
+    int32_t rtd_init = (int32_t)(resp_rx_ts - poll_tx_ts);
+    int32_t rtd_resp = (int32_t)(resp_tx_ts - poll_rx_ts);
+    double clock_offset_ratio =
+        (double)carrier_integrator *
+        (FREQ_OFFSET_MULTIPLIER * HERTZ_TO_PPM_MULTIPLIER_CHAN_5 / 1.0e6);
+    double tof =
+        ((rtd_init - rtd_resp * (1.0 - clock_offset_ratio)) / 2.0) *
+        DWT_TIME_UNITS;
+    long raw_mm = (long)(tof * LISTENER_SPEED_OF_LIGHT * 1000.0);
+
+    return raw_mm < 0L ? 0L : raw_mm;
+}
+
+/* One LTAG line per poll cycle. Anchors with no response this cycle print -1. */
+static void print_ltag(const long *ranges_mm)
+{
+    char line[160];
+    size_t pos = 0U;
+
+    pos += (size_t)snprintk(line + pos, sizeof(line) - pos, "LTAG;src=0x%04x",
+                            (unsigned int)APP_LISTENER_TAG_LABEL);
+    for (uint8_t a = 0U; a < UWB_MAX_ANCHORS && pos < sizeof(line); ++a) {
+        pos += (size_t)snprintk(line + pos, sizeof(line) - pos, ";a%u=%ld",
+                                (unsigned int)a, ranges_mm[a]);
+    }
+    printk("%s\n", line);
+}
+
+/* Re-point the radio for tag mode: same PHY, just move the 16-bit short address
+ * to our on-air tag id. HW frame filter stays disabled (DWT_FF_NOTYPE_EN from
+ * listener_radio_configure), so every anchor response is delivered and validated
+ * in SW via uwb_ss_twr_resp_matches(). Antenna delays (16436) are already set. */
+static void listener_tag_configure(void)
+{
+    dwt_forcetrxoff();
+    dwt_rxreset();
+    dwt_setaddress16(APP_LISTENER_TAG_ADDR);
+    dwt_setrxtimeout(0U);
+    dwt_write32bitreg(SYS_STATUS_ID,
+                      SYS_STATUS_ALL_TX | SYS_STATUS_ALL_RX_TO |
+                          SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_RX_GOOD);
+}
+
+/* Send one broadcast poll and collect anchor responses for one window. */
+static void listener_tag_poll_once(void)
+{
+    long ranges_mm[UWB_MAX_ANCHORS];
+    bool got[UWB_MAX_ANCHORS];
+    uint32_t poll_tx_ts;
+    uint32_t win_start;
+    uint32_t t0;
+    uint8_t responses = 0U;
+
+    for (uint8_t i = 0U; i < UWB_MAX_ANCHORS; ++i) {
+        ranges_mm[i] = -1L;
+        got[i] = false;
+    }
+
+    uwb_ss_twr_build_alt_broadcast_poll_frame(
+        tag_poll_msg, tag_frame_seq_nb, APP_LISTENER_TAG_ADDR,
+        LISTENER_TAG_ANCHOR_MASK,
+        (uint8_t)(APP_LISTENER_TAG_ADDR & UWB_MSG_BCAST_POLL_TAG_ID_MASK), 0U,
+        0U);
+
+    dwt_forcetrxoff();
+    dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_TX);
+    if (dwt_writetxdata(UWB_MSG_ALT_BCAST_POLL_FRAME_LEN, tag_poll_msg, 0) !=
+        DWT_SUCCESS) {
+        counters.tag_tx_errors++;
+        return;
+    }
+    dwt_writetxfctrl(UWB_MSG_ALT_BCAST_POLL_FRAME_LEN, 0, 1);
+    if (dwt_starttx(DWT_START_TX_IMMEDIATE) != DWT_SUCCESS) {
+        counters.tag_tx_errors++;
+        dwt_forcetrxoff();
+        return;
+    }
+
+    /* wait (bounded) for TX complete before reading the poll TX timestamp */
+    t0 = k_uptime_get_32();
+    while ((dwt_read32bitreg(SYS_STATUS_ID) & SYS_STATUS_TXFRS) == 0U) {
+        if ((k_uptime_get_32() - t0) > LISTENER_TAG_TXDONE_TIMEOUT_MS) {
+            counters.tag_tx_errors++;
+            dwt_forcetrxoff();
+            dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_TX);
+            return;
+        }
+    }
+    dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_TX);
+    poll_tx_ts = dwt_readtxtimestamplo32();
+    tag_frame_seq_nb++;
+
+    (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
+    win_start = k_uptime_get_32();
+    while ((k_uptime_get_32() - win_start) < LISTENER_TAG_RESP_WINDOW_MS) {
+        uint32_t status_reg = dwt_read32bitreg(SYS_STATUS_ID);
+
+        if ((status_reg & SYS_STATUS_RXFCG) != 0U) {
+            uint32_t frame_len =
+                dwt_read32bitreg(RX_FINFO_ID) & RX_FINFO_RXFL_MASK_1023;
+            uint32_t resp_rx_ts;
+            int32_t carrier;
+            uint16_t src;
+
+            if (frame_len > sizeof(rx_buffer)) {
+                dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD |
+                                                     SYS_STATUS_ALL_RX_ERR |
+                                                     SYS_STATUS_ALL_RX_TO);
+                dwt_rxreset();
+                (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
+                continue;
+            }
+            memset(rx_buffer, 0, sizeof(rx_buffer));
+            dwt_readrxdata(rx_buffer, (uint16)frame_len, 0U);
+            resp_rx_ts = dwt_readrxtimestamplo32();
+            carrier = dwt_readcarrierintegrator();
+            src = uwb_frame_get_src_addr(rx_buffer);
+
+            if (uwb_short_addr_is_anchor(src) &&
+                uwb_ss_twr_resp_matches(rx_buffer, APP_LISTENER_TAG_ADDR, src)) {
+                uint8_t aid = uwb_anchor_id_from_addr(src);
+
+                if (aid < UWB_MAX_ANCHORS && !got[aid]) {
+                    uint32_t poll_rx_ts;
+                    uint32_t resp_tx_ts;
+
+                    listener_read_ts(&rx_buffer[UWB_MSG_RESP_POLL_RX_TS_IDX],
+                                     &poll_rx_ts);
+                    listener_read_ts(&rx_buffer[UWB_MSG_RESP_RESP_TX_TS_IDX],
+                                     &resp_tx_ts);
+                    ranges_mm[aid] = listener_tag_calc_range_mm(
+                        poll_tx_ts, resp_rx_ts, poll_rx_ts, resp_tx_ts, carrier);
+                    got[aid] = true;
+                    responses++;
+                    counters.tag_resp_total++;
+                }
+            }
+            /* release this frame + re-arm for the next ranked responder
+             * (baseline single buffer, RXAUTR off: manual re-enable is
+             * load-bearing -- mirrors ss_twr_init_alt_rx_release_frame). */
+            dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD |
+                                                 SYS_STATUS_ALL_RX_ERR |
+                                                 SYS_STATUS_ALL_RX_TO);
+            (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
+            if (responses >= UWB_MAX_ANCHORS) {
+                break;
+            }
+        } else if ((status_reg &
+                    (SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_RX_TO)) != 0U) {
+            dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD |
+                                                 SYS_STATUS_ALL_RX_ERR |
+                                                 SYS_STATUS_ALL_RX_TO);
+            dwt_rxreset();
+            (void)dwt_rxenable(DWT_START_RX_IMMEDIATE);
+        }
+    }
+    dwt_forcetrxoff();
+
+    print_ltag(ranges_mm);
+    counters.tag_polls++;
+}
+
+/* ---- mode transitions (each prints a confirmation the host keys on) ---- */
+
+static void listener_enter_idle(void)
+{
+    dwt_forcetrxoff();   /* no TX, no RX: safe during anchor AutoPos ranging */
+    listener_mode = LISTENER_MODE_IDLE;
+#if APP_LISTENER_LED_ENABLE != 0U
+    if (led_ready) {
+        (void)gpio_pin_set_dt(&listener_led, 0);   /* LED off */
+    }
+#endif
+    printk("MODE=IDLE src=0x%04x\n", (unsigned int)APP_LISTENER_TAG_LABEL);
+}
+
+/* Restore passive listening -- reconfigures the radio to the exact boot state
+ * (address 0xB1FE, frame filter off, event counters, RX-only) so CIR capture is
+ * byte-identical to a fresh boot. Also resets the RX-stall watchdog so a switch
+ * back does not immediately trip a false self-recover. */
+static void listener_enter_listen(void)
+{
+    dwt_forcetrxoff();
+    listener_radio_configure();
+    lrec_head = 0U;
+    lrec_tail = 0U;
+    listener_restart_rx();
+    wd_last_good = counters.good_frames;
+    wd_last_activity_ms = k_uptime_get_32();
+    listener_mode = LISTENER_MODE_LISTEN;
+    printk("MODE=LISTEN src=0x%04x\n", (unsigned int)APP_LISTENER_TAG_LABEL);
+}
+
+static void listener_enter_tag(void)
+{
+    listener_tag_configure();
+    /* poll on the next loop pass */
+    tag_last_poll_ms = k_uptime_get_32() - LISTENER_TAG_POLL_INTERVAL_MS;
+    listener_mode = LISTENER_MODE_TAG;
+    printk("MODE=TAG src=0x%04x\n", (unsigned int)APP_LISTENER_TAG_LABEL);
+}
+
+/* Match one complete newline-terminated command line (exact, case-sensitive).
+ * Unknown/partial/binary lines are silently ignored -- no mode change. */
+static void listener_apply_command(const char *cmd)
+{
+    if (strcmp(cmd, "MODE_TAG") == 0) {
+        listener_enter_tag();
+    } else if (strcmp(cmd, "MODE_LISTEN") == 0) {
+        listener_enter_listen();
+    } else if (strcmp(cmd, "MODE_IDLE") == 0) {
+        listener_enter_idle();
+    } else if (strcmp(cmd, "MODE_QUERY") == 0) {
+        const char *m = (listener_mode == LISTENER_MODE_TAG)  ? "TAG" :
+                        (listener_mode == LISTENER_MODE_IDLE) ? "IDLE" :
+                                                                "LISTEN";
+        printk("MODE=%s src=0x%04x\n", m, (unsigned int)APP_LISTENER_TAG_LABEL);
+    }
+    /* else: ignore (partial command, CIR hex echo, or binary garbage) */
+}
+
+/* UART RX ISR: latch every incoming byte into the ring immediately. Minimal work
+ * (no parsing); the main loop consumes the ring in listener_poll_commands(). */
+static void listener_cmd_uart_isr(const struct device *dev, void *user_data)
+{
+    uint8_t byte;
+
+    ARG_UNUSED(user_data);
+    if (!uart_irq_update(dev)) {
+        return;
+    }
+    while (uart_irq_rx_ready(dev)) {
+        while (uart_fifo_read(dev, &byte, 1) == 1) {
+            uint16_t next = (uint16_t)((cmd_rx_head + 1U) % LISTENER_CMD_RX_RING);
+
+            if (next != cmd_rx_tail) {
+                cmd_rx_ring[cmd_rx_head] = byte;
+                cmd_rx_head = next;
+            }
+            /* else ring full: drop byte; host resends the command line */
+        }
+    }
+}
+
+/* Drain the RX ring into the line buffer and dispatch on newline. Called from the
+ * main loop (parsing is NOT in the ISR); never blocks; flushes an over-length line
+ * so a stray binary blob (e.g. host-echoed CIR hex) cannot wedge the parser. */
+static void listener_poll_commands(void)
+{
+    while (cmd_rx_tail != cmd_rx_head) {
+        unsigned char ch = cmd_rx_ring[cmd_rx_tail];
+
+        cmd_rx_tail = (uint16_t)((cmd_rx_tail + 1U) % LISTENER_CMD_RX_RING);
+
+        if (ch == '\n' || ch == '\r') {
+            if (cmd_overflow) {
+                cmd_overflow = false;
+            } else if (cmd_len > 0U) {
+                cmd_buf[cmd_len] = '\0';
+                listener_apply_command(cmd_buf);
+            }
+            cmd_len = 0U;
+        } else if (cmd_len >= (LISTENER_CMD_BUF_MAX - 1U)) {
+            cmd_overflow = true;   /* too long: drop the whole line at newline */
+            cmd_len = 0U;
+        } else {
+            cmd_buf[cmd_len++] = (char)ch;
+        }
+    }
+}
+
 int main(void)
 {
     int ret;
 
-    printk("BioSpur co-located UWB listener start id=%u near_anchor=%u cir=%u period=%u\n",
+    printk("BioSpur co-located UWB listener start id=%u near_anchor=%u cir=%u period=%u tag_addr=0x%04x label=0x%04x\n",
            (unsigned int)APP_LISTENER_ID,
            (unsigned int)APP_LISTENER_NEAR_ANCHOR_ID,
            (unsigned int)APP_LISTENER_CIR_CAPTURE_ENABLE,
-           (unsigned int)APP_LISTENER_CIR_SAMPLE_PERIOD);
+           (unsigned int)APP_LISTENER_CIR_SAMPLE_PERIOD,
+           (unsigned int)APP_LISTENER_TAG_ADDR,
+           (unsigned int)APP_LISTENER_TAG_LABEL);
 
     ret = uwb_hw_bringup_and_init();
     if (ret != 0) {
@@ -676,46 +1047,83 @@ int main(void)
     listener_radio_configure();
     listener_led_init();
     listener_restart_rx();
-    printk("listener RX-only poll diagnostics ready\n");
 
-    uint32_t wd_last_good = 0U;
-    uint32_t wd_last_activity_ms = k_uptime_get_32();
+    /* Interrupt-driven RX for the command interface (see prj.conf note). */
+    if (device_is_ready(cmd_uart)) {
+        uart_irq_rx_disable(cmd_uart);
+        uart_irq_tx_disable(cmd_uart);
+        uart_irq_callback_user_data_set(cmd_uart, listener_cmd_uart_isr, NULL);
+        uart_irq_rx_enable(cmd_uart);
+    } else {
+        printk("listener WARN: command UART not ready; MODE_* control disabled\n");
+    }
+
+    printk("listener RX-only poll diagnostics ready (MODE=LISTEN; USB-CDC cmd iface: MODE_TAG/MODE_LISTEN/MODE_IDLE/MODE_QUERY)\n");
+
+    listener_mode = LISTENER_MODE_LISTEN;
+    wd_last_good = 0U;
+    wd_last_activity_ms = k_uptime_get_32();
 
     while (true) {
         uint32_t now_ms = k_uptime_get_32();
-        uint32_t status_reg = dwt_read32bitreg(SYS_STATUS_ID);
-        uint32_t drain_budget = LISTENER_DRAIN_BUDGET;
-        counters.last_status = status_reg;
 
-        if ((status_reg & SYS_STATUS_RXFCG) != 0U) {
-            capture_to_ring(now_ms);          /* priority: never miss a frame */
-        } else if ((status_reg & (SYS_STATUS_ALL_RX_ERR |
-                                  SYS_STATUS_ALL_RX_TO)) != 0U) {
-            counters.rx_errors++;
-            dwt_write32bitreg(SYS_STATUS_ID,
-                              SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_RX_TO);
-            dwt_rxreset();
-            listener_restart_rx();
+        /* Poll the USB-CDC command interface every pass, in every mode. May
+         * switch listener_mode (which reconfigures the radio synchronously). */
+        listener_poll_commands();
+
+        if (listener_mode == LISTENER_MODE_TAG) {
+            if ((uint32_t)(now_ms - tag_last_poll_ms) >=
+                LISTENER_TAG_POLL_INTERVAL_MS) {
+                tag_last_poll_ms = now_ms;
+                listener_tag_poll_once();
+            }
+            k_msleep(1);
+            continue;
         }
 
-        /* Fix 2: always flush a bounded budget to UART, even while RX is busy, so
-         * LPD/LRD keep streaming under flood (drain no longer gated on RX idle). */
-        while (drain_budget-- != 0U && lrec_head != lrec_tail) {
-            drain_ring_one();
+        if (listener_mode == LISTENER_MODE_IDLE) {
+            /* Radio forced off (AutoPos-safe). Only the UART cmd path is live. */
+            k_msleep(5);
+            continue;
         }
 
-        /* Fix 1: RX-stall watchdog. A new good frame resets the timer; if none for
-         * WATCHDOG_MS, self-heal with a full radio recover (clears silent wedges). */
-        if (counters.good_frames != wd_last_good) {
-            wd_last_good = counters.good_frames;
-            wd_last_activity_ms = now_ms;
-        } else if ((now_ms - wd_last_activity_ms) >= LISTENER_RX_STALL_WATCHDOG_MS) {
-            listener_radio_full_recover();
-            wd_last_activity_ms = now_ms;
-        }
+        /* ---- LISTENER_MODE_LISTEN: original passive capture loop (unchanged) ---- */
+        {
+            uint32_t status_reg = dwt_read32bitreg(SYS_STATUS_ID);
+            uint32_t drain_budget = LISTENER_DRAIN_BUDGET;
+            counters.last_status = status_reg;
 
-        print_status(now_ms);
-        listener_led_idle(now_ms);
+            if ((status_reg & SYS_STATUS_RXFCG) != 0U) {
+                capture_to_ring(now_ms);          /* priority: never miss a frame */
+            } else if ((status_reg & (SYS_STATUS_ALL_RX_ERR |
+                                      SYS_STATUS_ALL_RX_TO)) != 0U) {
+                counters.rx_errors++;
+                dwt_write32bitreg(SYS_STATUS_ID,
+                                  SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_RX_TO);
+                dwt_rxreset();
+                listener_restart_rx();
+            }
+
+            /* Fix 2: always flush a bounded budget to UART, even while RX is busy,
+             * so LPD/LRD keep streaming under flood (drain not gated on RX idle). */
+            while (drain_budget-- != 0U && lrec_head != lrec_tail) {
+                drain_ring_one();
+            }
+
+            /* Fix 1: RX-stall watchdog. A new good frame resets the timer; if none
+             * for WATCHDOG_MS, self-heal with a full radio recover. */
+            if (counters.good_frames != wd_last_good) {
+                wd_last_good = counters.good_frames;
+                wd_last_activity_ms = now_ms;
+            } else if ((now_ms - wd_last_activity_ms) >=
+                       LISTENER_RX_STALL_WATCHDOG_MS) {
+                listener_radio_full_recover();
+                wd_last_activity_ms = now_ms;
+            }
+
+            print_status(now_ms);
+            listener_led_idle(now_ms);
+        }
         k_yield();
     }
 }

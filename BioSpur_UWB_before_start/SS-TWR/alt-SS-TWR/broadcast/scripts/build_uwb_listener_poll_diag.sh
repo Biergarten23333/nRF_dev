@@ -14,6 +14,10 @@ near_anchor_id="${APP_LISTENER_NEAR_ANCHOR_ID:-255}"
 cir_capture="${APP_LISTENER_CIR_CAPTURE_ENABLE:-0}"
 cir_period="${APP_LISTENER_CIR_SAMPLE_PERIOD:-10}"
 post_cir_idle_ms="${APP_LISTENER_POST_CIR_IDLE_MS:-12}"
+# MODE_TAG position-calibration identity (see UWB_listener/CMakeLists.txt):
+#   tag_addr = ON-AIR src, MUST be 0xB100..0xB1FF; tag_label = host-facing 0xc0xx id
+tag_addr="${APP_LISTENER_TAG_ADDR:-0xB1C0}"
+tag_label="${APP_LISTENER_TAG_LABEL:-0xC000}"
 
 (cd "$NCS_ROOT" && "$WEST_BIN" build \
   -b decawave_dwm1001_dev/nrf52832 \
@@ -27,7 +31,9 @@ post_cir_idle_ms="${APP_LISTENER_POST_CIR_IDLE_MS:-12}"
   -DAPP_LISTENER_NEAR_ANCHOR_ID="$near_anchor_id" \
   -DAPP_LISTENER_CIR_CAPTURE_ENABLE="$cir_capture" \
   -DAPP_LISTENER_CIR_SAMPLE_PERIOD="$cir_period" \
-  -DAPP_LISTENER_POST_CIR_IDLE_MS="$post_cir_idle_ms")
+  -DAPP_LISTENER_POST_CIR_IDLE_MS="$post_cir_idle_ms" \
+  -DAPP_LISTENER_TAG_ADDR="$tag_addr" \
+  -DAPP_LISTENER_TAG_LABEL="$tag_label")
 
 python3 "$repo_root/scripts/write_build_source.py" \
   --build-dir "$repo_root/$build_dir" \

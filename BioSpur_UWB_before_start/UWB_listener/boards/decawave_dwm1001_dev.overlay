@@ -13,3 +13,14 @@
 &spi1 {
 	status = "disabled";
 };
+
+/*
+ * Console UART at 460800 to match the co-located CIR listener fleet and the host
+ * capture convention. MODE_SCAN streams a full 4064-byte CIR (8128 hex chars) per
+ * captured cycle; 460800 is the reliable ceiling over the J-Link OB VCOM (1 Mbaud
+ * drops bytes). MODE_GEIGER only emits low-rate text, so the higher baud is
+ * transparent to it. Host must open the port at the same baud.
+ */
+&uart0 {
+	current-speed = <460800>;
+};
