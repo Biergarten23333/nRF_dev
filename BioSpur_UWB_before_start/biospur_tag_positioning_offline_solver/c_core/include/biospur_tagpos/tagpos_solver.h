@@ -40,6 +40,8 @@ typedef struct BiospurTagposConfig {
     int robust_loss;
     double tukey_c;
     double huber_delta_mm;
+    double rf_snr_ref;         /* FP-SNR at/above which the RF sigma multiplier = 1.0 (default 10) */
+    double rf_sigma_mult_cap;  /* max RF sigma inflation for a fully-NLOS link (default 10) */
 } BiospurTagposConfig;
 
 typedef struct BiospurTagposResult {
@@ -65,6 +67,7 @@ int biospur_tagpos_solve_frame(
     const double *quality_percent,
     const double *quality_ema_percent,
     const double *residual_ema_abs_mm,
+    const double *rf_quality,         /* optional RF first-path SNR (fp_ampl1/std_noise); NULL=off */
     int n,
     const double *x0_mm,
     double tag_delay_mm,

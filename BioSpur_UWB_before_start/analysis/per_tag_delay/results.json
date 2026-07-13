@@ -1,0 +1,210 @@
+{
+  "meta": {
+    "data": "/mnt/nrf_ssd/nRF_dev/BioSpur_UWB_before_start/logs/system_calibration_20260710_233443",
+    "tr_rows": 24914,
+    "cpu_cores": 12,
+    "wall_s": 9.2,
+    "solver": "pg_lib.solve_pos (LM, plain -- no Huber/temporal prior)",
+    "layout": "V4-io + per-anchor delays",
+    "x0": [
+      2475.5,
+      1437.5,
+      -818.4
+    ],
+    "d_tag_prior_sigma_mm": 300.0
+  },
+  "baseline_3unk": {
+    "BSCCF4": {
+      "pos": [
+        2776.4,
+        1050.1,
+        -813.2
+      ],
+      "n_frames": 1056,
+      "rms_med": 124.4,
+      "scatter_med": 49.5
+    },
+    "BS9336": {
+      "pos": [
+        2801.2,
+        365.6,
+        -871.4
+      ],
+      "n_frames": 1034,
+      "rms_med": 105.7,
+      "scatter_med": 44.8
+    },
+    "BS955A": {
+      "pos": [
+        2797.9,
+        938.9,
+        -582.4
+      ],
+      "n_frames": 1061,
+      "rms_med": 116.3,
+      "scatter_med": 48.4
+    }
+  },
+  "A_perframe_4unk": {
+    "BSCCF4": {
+      "pos": [
+        2775.8,
+        1054.8,
+        -813.7
+      ],
+      "n_frames": 1056,
+      "rms_med": 123.3,
+      "scatter_med": 48.0,
+      "d_tag_med": 12.1,
+      "d_tag_std": 17.0,
+      "d_tag_iqr": 19.1
+    },
+    "BS9336": {
+      "pos": [
+        2802.0,
+        354.8,
+        -871.6
+      ],
+      "n_frames": 1034,
+      "rms_med": 104.9,
+      "scatter_med": 47.3,
+      "d_tag_med": -11.4,
+      "d_tag_std": 18.7,
+      "d_tag_iqr": 21.0
+    },
+    "BS955A": {
+      "pos": [
+        2796.4,
+        952.5,
+        -612.0
+      ],
+      "n_frames": 1061,
+      "rms_med": 112.1,
+      "scatter_med": 45.7,
+      "d_tag_med": 31.6,
+      "d_tag_std": 16.6,
+      "d_tag_iqr": 17.2
+    }
+  },
+  "B_batch_dtag": {
+    "BSCCF4": {
+      "pos": [
+        2775.4,
+        1054.5,
+        -814.3
+      ],
+      "n_frames": 1056,
+      "rms_med": 124.1,
+      "scatter_med": 47.8
+    },
+    "BS9336": {
+      "pos": [
+        2802.1,
+        354.5,
+        -873.3
+      ],
+      "n_frames": 1034,
+      "rms_med": 105.5,
+      "scatter_med": 45.9
+    },
+    "BS955A": {
+      "pos": [
+        2796.0,
+        952.9,
+        -610.3
+      ],
+      "n_frames": 1061,
+      "rms_med": 112.8,
+      "scatter_med": 44.8
+    }
+  },
+  "batch_d_tag_mm": {
+    "BSCCF4": 12.1,
+    "BS9336": -11.4,
+    "BS955A": 31.6
+  },
+  "caliper": {
+    "baseline_3unk": {
+      "CCF4_9336": {
+        "measured": 687.4,
+        "truth": 670.0,
+        "delta": 17.4,
+        "pass": true
+      },
+      "CCF4_955A": {
+        "measured": 257.1,
+        "truth": 660.0,
+        "delta": -402.9,
+        "pass": false
+      },
+      "9336_955A": {
+        "measured": 642.0,
+        "truth": 709.0,
+        "delta": -67.0,
+        "pass": false
+      }
+    },
+    "A_perframe_4unk": {
+      "CCF4_9336": {
+        "measured": 702.9,
+        "truth": 670.0,
+        "delta": 32.9,
+        "pass": true
+      },
+      "CCF4_955A": {
+        "measured": 227.1,
+        "truth": 660.0,
+        "delta": -432.9,
+        "pass": false
+      },
+      "9336_955A": {
+        "measured": 651.7,
+        "truth": 709.0,
+        "delta": -57.3,
+        "pass": false
+      }
+    },
+    "B_batch_dtag": {
+      "CCF4_9336": {
+        "measured": 703.0,
+        "truth": 670.0,
+        "delta": 33.0,
+        "pass": true
+      },
+      "CCF4_955A": {
+        "measured": 228.8,
+        "truth": 660.0,
+        "delta": -431.2,
+        "pass": false
+      },
+      "9336_955A": {
+        "measured": 653.7,
+        "truth": 709.0,
+        "delta": -55.3,
+        "pass": false
+      }
+    }
+  },
+  "t4c_reference": {
+    "caliper": {
+      "CCF4_9336": 708.1,
+      "CCF4_955A": 336.3,
+      "9336_955A": 795.0
+    },
+    "rms": {
+      "BSCCF4": 132.7,
+      "BS9336": 118.1,
+      "BS955A": 123.1
+    },
+    "scatter": {
+      "BSCCF4": 65.3,
+      "BS9336": 59.0,
+      "BS955A": 55.5
+    }
+  },
+  "caliper_pass": {
+    "baseline_3unk": 1,
+    "A_perframe_4unk": 1,
+    "B_batch_dtag": 1
+  }
+}

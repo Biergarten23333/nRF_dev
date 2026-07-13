@@ -70,6 +70,8 @@ void biospur_tagpos_default_config(BiospurTagposConfig *cfg, int method) {
     cfg->residual_ema_start_mm = 120.0;
     cfg->residual_penalty_scale = 0.50;
     cfg->residual_penalty_cap = 2.5;
+    /* reject_* stay defined for ABI/back-compat but are INERT: this solver never
+     * drops an anchor (MC5000: 8->7 anchors loses precision under tight z-DOP). */
     cfg->reject_abs_threshold_mm = 120.0;
     cfg->reject_min_improvement_mm = 20.0;
     cfg->reject_improvement_ratio = 0.75;
@@ -77,6 +79,13 @@ void biospur_tagpos_default_config(BiospurTagposConfig *cfg, int method) {
     cfg->robust_loss = BIOSPUR_TAGPOS_LOSS_HUBER;
     cfg->tukey_c = 4.685;
     cfg->huber_delta_mm = 30.0;
+    /* RF-informed dynamic sigma. rf_quality (first-path SNR = fp_ampl1/std_noise)
+     * INFLATES sigma for low-SNR (NLOS/multipath) links: multiplier =
+     * clamp(rf_snr_ref / max(snr, 1), 1.0, rf_sigma_mult_cap). >= 1.0 ALWAYS --
+     * RF can only relax trust, never tighten below the hardware noise floor.
+     * snr>=10 -> 1.0 ; snr=5 -> 2.0 ; snr=2 -> 5.0 ; snr<1 -> cap(10). */
+    cfg->rf_snr_ref = 10.0;
+    cfg->rf_sigma_mult_cap = 10.0;
 }
 
 const char *biospur_tagpos_method_name(int method) {
@@ -132,6 +141,22 @@ static double residual_penalty(
     return clamp_double(penalty, 1.0, cfg->residual_penalty_cap);
 }
 
+/* RF-informed sigma multiplier (>= 1.0 ALWAYS). rf_quality = first-path SNR
+ * proxy (fp_ampl1/std_noise from RESP_DIAG). A low-SNR (NLOS/multipath) link
+ * INFLATES sigma so the robust loss expects and tolerates its larger residuals;
+ * a clean link keeps sigma at the hardware baseline so anomalous residuals get
+ * policed. RF can only relax trust, never tighten below the hardware noise floor
+ * -> the multiplier is clamped to [1.0, cap]. NULL/non-finite => 1.0 (no-op). */
+static double rf_sigma_multiplier(const BiospurTagposConfig *cfg, const double *rf_quality, int idx) {
+    double cap = (cfg->rf_sigma_mult_cap > 1.0) ? cfg->rf_sigma_mult_cap : 10.0;
+    double ref = (cfg->rf_snr_ref > 0.0) ? cfg->rf_snr_ref : 10.0;
+    if (!rf_quality || !is_good(rf_quality[idx])) return 1.0;
+    double q = rf_quality[idx];
+    if (q <= 0.0) return cap;                 /* failed/no first path -> most tolerant */
+    double denom = (q < 1.0) ? 1.0 : q;       /* snr<1 pinned to snr=1 -> cap */
+    return clamp_double(ref / denom, 1.0, cap);
+}
+
 static double effective_sigma(
     int method,
     const BiospurTagposConfig *cfg,
@@ -139,6 +164,7 @@ static double effective_sigma(
     const double *quality,
     const double *quality_ema,
     const double *residual_ema,
+    const double *rf_quality,
     int idx
 ) {
     double sigma = 50.0;
@@ -148,6 +174,7 @@ static double effective_sigma(
     if (sigma < cfg->min_sigma_mm) sigma = cfg->min_sigma_mm;
     sigma *= quality_penalty(method, cfg, quality, quality_ema, idx);
     sigma *= residual_penalty(method, cfg, residual_ema, idx);
+    sigma *= rf_sigma_multiplier(cfg, rf_quality, idx);   /* RF-informed, >= 1.0 */
     return sigma;
 }
 
@@ -213,6 +240,7 @@ static int solve_once(
     const double *quality,
     const double *quality_ema,
     const double *residual_ema,
+    const double *rf_quality,
     int n,
     const double *x0,
     double tag_delay,
@@ -260,7 +288,7 @@ static int solve_once(
             double delay = (anchor_delay && is_good(anchor_delay[i])) ? anchor_delay[i] : 0.0;
             double pred = dist + delay + tag_delay;
             double residual = pred - ranges[i];
-            double sigma = effective_sigma(cfg->method, cfg, anchor_sigma, quality, quality_ema, residual_ema, i);
+            double sigma = effective_sigma(cfg->method, cfg, anchor_sigma, quality, quality_ema, residual_ema, rf_quality, i);
             double rn = residual / sigma;
             double weight = robust_weight(cfg, residual, sigma);
             if (weight <= 0.0) continue;
@@ -364,6 +392,7 @@ int biospur_tagpos_solve_frame(
     const double *quality_percent,
     const double *quality_ema_percent,
     const double *residual_ema_abs_mm,
+    const double *rf_quality,
     int n,
     const double *x0_mm,
     double tag_delay_mm,
@@ -413,7 +442,7 @@ int biospur_tagpos_solve_frame(
     BiospurTagposResult base_result;
     int rc = solve_once(
         anchor_xyz_mm, ranges_mm, anchor_delay_mm, anchor_sigma_mm, quality_percent,
-        quality_ema_percent, residual_ema_abs_mm, n, x0_mm, tag_delay_mm, &cfg_local,
+        quality_ema_percent, residual_ema_abs_mm, rf_quality, n, x0_mm, tag_delay_mm, &cfg_local,
         -1, base_xyz, out_residuals_mm, out_used_mask, &base_result
     );
     if (rc != BIOSPUR_TAGPOS_OK) {
@@ -427,6 +456,12 @@ int biospur_tagpos_solve_frame(
         return rc;
     }
 
+    /* DELIBERATELY NO leave-one-out anchor rejection. MC5000 experiments showed
+     * 8 -> 7 anchors causes immediate precision loss (z-DOP is tight), so dropping
+     * even a biased anchor hurts more than keeping its range at reduced weight.
+     * All 8 anchors are ALWAYS kept; their influence is controlled purely through
+     * per-anchor sigma (RF-informed, see effective_sigma) + the Huber soft loss.
+     * The reject_* config knobs stay inert by design; exclude_index stays -1. */
     out_xyz_mm[0] = base_xyz[0];
     out_xyz_mm[1] = base_xyz[1];
     out_xyz_mm[2] = base_xyz[2];

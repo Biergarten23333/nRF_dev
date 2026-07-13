@@ -1,0 +1,47 @@
+{
+  "freeze_date": "2026-07-12",
+  "created_at_local": "2026-07-13T11:25 (dir stamp)",
+  "git_hash": "631911c3e72cd4e9e6f8f0f1528e774d180de459",
+  "git_branch": "feature/wand-internal-sweep",
+  "git_stash": "N/A - deliberately NOT stashed. Working tree has uncommitted changes (V5/U5 solver work + broadcast OTA generated manifests). Flashing hardware does NOT modify tracked repo files, so no stash is needed to preserve repo state. The only repo files that change during OTA are apps/master_ota/generated/* (already dirty); a snapshot of those is saved under generated_current/.",
+  "solver": "V4-IO (deployed); V5 designed but not deployed",
+  "layout": "logs/system_calibration_20260710_233443/anchor_layout.json",
+  "state_label": "post-APS011-rollback (rollback-20260711), pre-V5-deploy",
+
+  "geiger_image": {
+    "role": "Geiger handheld probe / UWB_listener (MODE_SCAN)",
+    "flash": "J-Link SNR 760185886, full hex",
+    "source_path": "build-uwb-listener-rollback/UWB_listener/zephyr/zephyr.hex",
+    "freeze_path": "firmware_freeze_20260712/geiger_current.hex",
+    "sha256": "d8e658a1d24705de34dd5ebbc4e5fd41525e0aaffd09facac15e06469ba551f0"
+  },
+  "tag_image": {
+    "role": "Wand/roto/static Tag application (OTA payload)",
+    "flash": "OTA via Master_Tag (dfu zip) OR J-Link merged.hex direct",
+    "source_dir": "SS-TWR/alt-SS-TWR/broadcast/build-tag-rollback-20260711",
+    "signed_bin": {"freeze_path": "firmware_freeze_20260712/tag_current.signed.bin", "sha256": "c4d21b9a896781f446978c4080f610f03d7ecb7c40dcfec4f8d87bca5776ed43"},
+    "dfu_zip": {"freeze_path": "firmware_freeze_20260712/tag_current_dfu.zip", "sha256": "012ed4af4900e580305947d2a6967291554a03da858c3fd378fa6528cb6dee64"},
+    "merged_hex": {"freeze_path": "firmware_freeze_20260712/tag_current_merged.hex", "sha256": "d59a16745357959a1e2a662002f4f9cd5b1ae5e5a1bd8175a1809291d85ca040"}
+  },
+  "master_image": {
+    "role": "Master_Tag controller (b120 m1)",
+    "flash": "J-Link SNR 1050070698, merged_domains.hex (app + net core)",
+    "source_dir": "SS-TWR/alt-SS-TWR/broadcast/build-master-control-rollback-20260711",
+    "merged_domains_hex": {"freeze_path": "firmware_freeze_20260712/master_current_merged_domains.hex", "sha256": "9e34af913eabb56210b9e65bec5a5fb2f9b76c43fe62ec91323a323532d70731"},
+    "app_hex": {"freeze_path": "firmware_freeze_20260712/master_current.hex", "sha256": "b6a963da50a9d8756c8183a08dc560f2b609b7d6ee105f7114cb9a10ffa4b5d9"}
+  },
+  "anchor_image": {
+    "role": "Anchors A-H",
+    "status": "NOT captured / NOT part of the APS011 rollback. Anchor firmware was untouched by the 20260711 rollback. Current on-hardware anchor firmware is UNCONFIRMED from files alone: last anchor build in repo is build-anchor-unified-ota-fixeda19-g1200-r1000-20260701 (2026-07-01); the 2026-06-25 freeze holds the r800 anchor image. Needs user confirmation of what is actually on the anchors before any anchor flash/restore.",
+    "candidate_20260701": "SS-TWR/alt-SS-TWR/broadcast/build-anchor-unified-ota-fixeda19-g1200-r1000-20260701/anchor/zephyr/zephyr.signed.bin",
+    "candidate_r800_0625": "firmware_freeze/autopos_full_system_20260625_0245/builds/build-anchor-unified-ota-cir-us-r800-20260624/"
+  },
+  "generated_ota_snapshot": "firmware_freeze_20260712/generated_current/ (tag_ota_manifest.json/.h, active_ota_payload.json, ota_image.inc as of freeze time)",
+  "restore_notes": [
+    "Geiger: nrfjprog/JLink program geiger_current.hex --sectorerase --verify --reset (SNR 760185886).",
+    "Master_Tag: program master_current_merged_domains.hex (SNR 1050070698); master-reset after.",
+    "Wand tags BS9336/BS955A/BSCCF4: OTA tag_current_dfu.zip via Master_Tag, or J-Link tag_current_merged.hex per device.",
+    "After OTA re-embed, git-restore apps/master_ota/generated/* to the generated_current/ snapshot if a clean tree is desired (they are already dirty).",
+    "Anchors: do NOT flash unless confirmed they differ from Erlangen baseline."
+  ]
+}

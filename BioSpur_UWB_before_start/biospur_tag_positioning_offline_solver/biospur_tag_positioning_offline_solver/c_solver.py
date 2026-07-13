@@ -47,6 +47,8 @@ class CConfig(ctypes.Structure):
         ("robust_loss", ctypes.c_int),
         ("tukey_c", ctypes.c_double),
         ("huber_delta_mm", ctypes.c_double),
+        ("rf_snr_ref", ctypes.c_double),
+        ("rf_sigma_mult_cap", ctypes.c_double),
     ]
 
 
@@ -105,13 +107,14 @@ def load_c_lib() -> ctypes.CDLL:
         ptr_d = ctypes.POINTER(ctypes.c_double)
         ptr_i = ctypes.POINTER(ctypes.c_int)
         lib.biospur_tagpos_solve_frame.argtypes = [
-            ptr_d,
-            ptr_d,
-            ptr_d,
-            ptr_d,
-            ptr_d,
-            ptr_d,
-            ptr_d,
+            ptr_d,   # anchor_xyz_mm
+            ptr_d,   # ranges_mm
+            ptr_d,   # anchor_delay_mm
+            ptr_d,   # anchor_sigma_mm
+            ptr_d,   # quality_percent
+            ptr_d,   # quality_ema_percent
+            ptr_d,   # residual_ema_abs_mm
+            ptr_d,   # rf_quality (optional RF first-path SNR; NULL=off)
             ctypes.c_int,
             ptr_d,
             ctypes.c_double,
@@ -237,6 +240,15 @@ class TagPositionSolver:
             r_ema.append(self._get_residual_ema(frame.tag, item.anchor_id))
         tag_delay = self.tag_delay_by_tag.get(frame.tag.upper(), self.layout.tag_delay_mm)
 
+        # Optional per-anchor RF first-path SNR (fp_ampl1/std_noise from RESP_DIAG).
+        # Present only if the Observation carries rf_quality (see
+        # analysis/qf_rf_metric_design.md). Low SNR inflates sigma (>=1.0 always);
+        # a missing/non-finite value => multiplier 1.0 (no inflation). Absent for
+        # every anchor -> pass NULL -> identical behavior to before RF support.
+        _rf = [getattr(o, "rf_quality", getattr(o, "rf_weight", None)) for o in obs]
+        have_rf = any(w is not None and math.isfinite(w) for w in _rf)
+        rf_quality = [float(w) if (w is not None and math.isfinite(w)) else float("inf") for w in _rf]
+
         def run_c(c_config: CConfig, x0: tuple[float, float, float] | None):
             x0_arr = _c_array(list(x0)) if x0 is not None else None
             out_xyz = _c_array([0.0, 0.0, 0.0])
@@ -251,6 +263,7 @@ class TagPositionSolver:
                 _c_array(qualities),
                 _c_array(q_ema),
                 _c_array(r_ema),
+                _c_array(rf_quality) if have_rf else None,
                 ctypes.c_int(n),
                 x0_arr,
                 ctypes.c_double(tag_delay),

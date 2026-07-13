@@ -1,0 +1,20 @@
+{
+  "type": "geiger_static_overnight",
+  "start_time": "2026-07-12T00:34:02+0200",
+  "note_on_naming": "dir named ...20260711 (the 07-11 overnight session); actual reader start is just past midnight, 2026-07-12 00:34 local",
+  "geiger_jlink_snr": "760185886",
+  "geiger_serial_port": "/dev/ttyACM2",
+  "geiger_on_air_src": "0xb1c0",
+  "geiger_position": "fixed, near room center (exact coords unknown, will trilaterate from data)",
+  "geiger_mode": "MODE_SCAN (verified: LSCAN streaming ~4.5 Hz, all 8 anchors a0-a7)",
+  "firmware": "rollback (pre-APS011, no getrangebias, no +100mm offset)",
+  "calibration": "system_calibration_20260710_233443",
+  "purpose": "per-anchor bias temporal stability, temperature drift characterization",
+  "anchors": "A-H, all 8 active",
+  "listeners": "7 active (LB/LE/LF/LA/LCCF4/L9336/L955A), not touched (no host serial reader opened)",
+  "wand_tags": "3 active (BS9336/BS955A/BSCCF4), rollback firmware",
+  "capture_method": "capture_reconnect.sh: stty raw -hupcl (no reset-on-reopen) + auto-reconnect on EOF/re-enumeration, setsid-detached",
+  "capture_pid_file": "capture.pid (supervisor); child cat holds the port",
+  "lscan_rate_hz": 4.53,
+  "line_size_note": "each LSCAN carries full ~8KB CIR hex; ~1 GB expected over ~8 h"
+}

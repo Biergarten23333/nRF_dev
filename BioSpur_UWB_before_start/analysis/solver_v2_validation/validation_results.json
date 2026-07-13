@@ -1,0 +1,157 @@
+{
+  "cpu_count": 12,
+  "layout": {
+    "rows": [
+      {
+        "solver": "V4-IO (deployed)",
+        "pair_rms_mm": 105.76,
+        "common_mode_mm": 0.0,
+        "C_delay": 59.99999999999831,
+        "H_delay": 59.99999999965039,
+        "n_at_bound": "C,H at +60",
+        "maxdev_v4io_mm": 0.0,
+        "scale_identifiable": true
+      },
+      {
+        "solver": "V5 (spec: c+/-150 e+/-200)",
+        "pair_rms_mm": 94.65,
+        "common_mode_mm": 150.0,
+        "C_delay": 3.2,
+        "H_delay": -19.4,
+        "n_at_bound": "c@bound=True, e@bound=0",
+        "maxdev_v4io_mm": 534.2,
+        "scale_identifiable": false
+      },
+      {
+        "solver": "V5 (scale-lock: c=0 e+/-60)",
+        "pair_rms_mm": 100.9,
+        "common_mode_mm": 0.0,
+        "C_delay": 60.0,
+        "H_delay": 60.0,
+        "n_at_bound": "e@bound=4",
+        "maxdev_v4io_mm": 60.4,
+        "scale_identifiable": true
+      }
+    ],
+    "stability_calib": {
+      "A": "STABLE",
+      "B": "STABLE",
+      "C": "STABLE",
+      "D": "STABLE",
+      "E": "STABLE",
+      "F": "STABLE",
+      "G": "STABLE",
+      "H": "STABLE"
+    }
+  },
+  "overnight_rf": {
+    "n_frames": 3816,
+    "stride": 41,
+    "parse_s": 3.3,
+    "cir_frames_per_anchor": {
+      "A": 484,
+      "B": 479,
+      "C": 484,
+      "D": 482,
+      "E": 483,
+      "F": 483,
+      "G": 483,
+      "H": 476
+    },
+    "median_fp_snr": {
+      "A": 60.25,
+      "B": 75.81,
+      "C": 54.21,
+      "D": 72.71,
+      "E": 54.14,
+      "F": 69.57,
+      "G": 66.41,
+      "H": 76.55
+    },
+    "snr_rank_low_to_high": "ECAGFDBH",
+    "rf_sigma_multiplier": {
+      "A": 1.0,
+      "B": 1.0,
+      "C": 1.0,
+      "D": 1.0,
+      "E": 1.0,
+      "F": 1.0,
+      "G": 1.0,
+      "H": 1.0
+    },
+    "pos_std_flat_mm": [
+      35.0,
+      36.7,
+      117.6
+    ],
+    "pos_std_rf_mm": [
+      35.0,
+      36.7,
+      117.6
+    ],
+    "pos_p2p95_flat_mm": [
+      148.3,
+      144.0,
+      477.3
+    ],
+    "pos_p2p95_rf_mm": [
+      148.3,
+      144.0,
+      477.3
+    ],
+    "note": "no LOO: all 8 anchors kept every frame; RF only scales sigma (>=1x)."
+  },
+  "pglib_delays": {
+    "baseline_walk": {
+      "n_frames": 517,
+      "loo_median_abs_no_delay_mm": {
+        "A": 224.2,
+        "B": 124.9,
+        "C": 196.3,
+        "D": 138.7,
+        "E": 170.7,
+        "F": 153.9,
+        "G": 153.2,
+        "H": 134.9
+      },
+      "loo_median_abs_with_delay_mm": {
+        "A": 216.0,
+        "B": 127.0,
+        "C": 158.8,
+        "D": 136.5,
+        "E": 142.3,
+        "F": 159.0,
+        "G": 156.2,
+        "H": 132.4
+      }
+    },
+    "person_effect": {
+      "n_person": 1025,
+      "n_clean": 758,
+      "loo_median_person_mm": {
+        "A": 246.3,
+        "B": 261.2,
+        "C": 217.6,
+        "D": 158.2,
+        "E": 330.5,
+        "F": 178.1,
+        "G": 191.7,
+        "H": 196.5
+      },
+      "loo_median_clean_mm": {
+        "A": 249.2,
+        "B": 254.8,
+        "C": 278.5,
+        "D": 153.3,
+        "E": 323.9,
+        "F": 184.1,
+        "G": 176.7,
+        "H": 207.0
+      },
+      "near_BCFG_delta_mm": -11.4,
+      "far_ADEH_delta_mm": -0.4,
+      "near_minus_far_mm": -10.9
+    }
+  },
+  "wallclock_s": 26.9
+}
