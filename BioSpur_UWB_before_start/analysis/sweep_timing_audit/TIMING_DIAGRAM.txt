@@ -1,0 +1,55 @@
+Broadcast Alt-SS-TWR — ONE sweep cycle, µs resolution
+=====================================================
+Model: 1 delayed poll -> 1 collector window -> N responders staggered by rank.
+Responder delay(rank) = GUARD(1200) + rank*SPACING(1000)  [us]
+Collector window(N)   = GUARD + (N-1)*SPACING + TAIL(800) - poll_airtime(335)  [us]
+t = 0 at poll TX-done (TXFRS).
+
+============================ 8 ANCHORS (motion, 10 ms slot / 9 ms active / 10 Hz) ===========================
+
+  t (us)   event                                          block?   source
+ -1026     delayed-TX armed (1000 UUS ahead)                       ss_twr_init.c:5260-5279
+  -335     poll on air (airtime 335 us)                   yes      POLL_AIRTIME_US :436
+     0  |  POLL TX-done; RX collector enabled             yes      :5322-5324
+     0  |  +-- collector loop runs 8665 us ------------+  yes      :5343
+  1200  |  rank 0 RX  (= GUARD)                         |
+  2200  |  rank 1 RX                                    |
+  3200  |  rank 2 RX                                    |
+  4200  |  rank 3 RX                                    |
+  5200  |  rank 4 RX                                    |
+  6200  |  rank 5 RX  (tail region >= rank 5)           |
+  7200  |  rank 6 RX                                    |
+  8200  |  rank 7 TX  <-- ALWAYS-LAST responder         |          resp delay 1200+7*1000
+  8450  |  rank 7 frame complete (~250 us)              |          comment :429
+  8665  +--collector CLOSES----------------------------+          window() :2420-2444
+ ~8700     range compute x8 (ToF->mm)                    yes      :913  (<100 us)
+ ~8750     filter / quality / EKF                        yes      (<150 us)
+ ~8800     format TR line (snprintk line[384])           yes      :1274-1310
+ ~8820     enqueue TR to BLE FIFO                         NO       async, uwb_tag_ble.c:208
+ ~8850     un-pause BLE + k_msleep(slot remainder)       yield    :2602
+ 10000     slot end -> next superframe
+
+  BLE conn event: every 7.5 ms, latency 0, NOT phase-locked (beat period 30 ms).
+  idle margin in slot ~1.35 ms  -> a conn event can land here harmlessly.
+  victim case: conn event drops onto rank-7 window (7.70-8.45 ms) -> tail dropped (ge7 cap).
+
+============================ 9 ANCHORS (same 10 ms motion slot) =============================================
+
+  ... identical through rank 7 at 8200 ...
+  9200  |  rank 8 TX  <-- NEW always-last responder     |          resp delay 1200+8*1000
+  9450  |  rank 8 frame complete                        |
+  9665  +--collector CLOSES (= 1200+8*1000+800-335)-----+
+        idle margin in slot ~0.34 ms  -> conn event has NOWHERE to hide.
+        collector 9.665 ms > 9 ms active  -> firmware slot-guard CUTS SHORT (aborts sweep).
+        collector 9.665 ms > 7.5 ms BLE interval -> every sweep contains a conn event;
+        new 8.70-9.45 ms tail is fresh collision surface -> 9th anchor = guaranteed ge8-style victim.
+
+  VERDICT (10 Hz motion): NO-GO  (timing overflow AND BLE phase-collision).
+
+============================ 9 ANCHORS (static profile, 40 ms slot / 24 ms active) =========================
+
+  collector 9.665 ms  <<  24 ms active     -> fits with ~14 ms idle tail.
+  BLE conn event can be parked in the idle tail, away from responders.
+  VERDICT (static/low-rate): timing GO  (still requires uint16 mask widening + host/listener fixes).
+
+Delta 8->9 anchors: +1000 us sweep (one extra rank slot). Everything else is the 8-bit mask + host fixes.

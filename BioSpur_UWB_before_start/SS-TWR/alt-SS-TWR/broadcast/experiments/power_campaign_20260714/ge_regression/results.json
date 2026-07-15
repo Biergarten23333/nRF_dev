@@ -1,0 +1,21 @@
+{
+  "date": "2026-07-14",
+  "verdict": "FIXED: ge7 0.0 -> 0.978 (DIAG OFF, production). Two build-config regressors (tag TAG_RX_ENABLE=1 dominant; anchor fixeda19 flags dropped).",
+  "last_known_good": {"capture": "logs/ge7_test_20260704_032041_20260704_032041", "ratio_ge7": 0.959, "ratio_ge8": 0.910,
+                       "anchor_fw": "alt-bcast-fixeda19-g1200-r1000", "tag_fw": "tag-tempTR-rfd-a7win-20260630"},
+  "regressors": {
+    "tag_dominant": {"flag": "APP_TAG_RF_DIAG_TAG_RX_ENABLE", "good": 0, "broken": 1,
+                     "effect": "per-response dwt_readdiagnostics (~55-90us) in single-buffer RX loop -> misses every other anchor -> even/odd, exactly 4 valid"},
+    "anchor_secondary": {"flags": ["APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_ENABLE","APP_ANCHOR_RESP_POST_TX_DIAG_READ_ENABLE","APP_ANCHOR_RESP_POST_TX_DIAG_PAYLOAD_DELAY_ENABLE"],
+                         "good": 1, "broken": 0, "effect": "reverts fixed-a19 deferred post-TX diag -> pre-TX diag squeezes delayed-TX deadline -> ~50% coin-flip"}
+  },
+  "fix": {"tag": "unified-diaggate-p0txpwr-20260714 (runtime DIAG flag, default OFF)",
+          "anchor": "altbcast-fixeda19-p0txpwr-g1200-r1000 (fixeda19 flags=1 + P0)"},
+  "ab_verify": {
+    "diag_off": {"ratio_ge7": 0.978, "ratio_ge8": 0.932, "dist": {"7": 76, "8": 1544},
+                 "per_anchor_valid_pct": {"0":98,"1":98,"2":97,"3":97,"4":96,"5":97,"6":97,"7":98}},
+    "diag_on":  {"ratio_ge7": 0.0, "ratio_ge8": 0.0, "dist": {"4": 1409},
+                 "per_anchor_valid_pct": {"0":98,"1":0,"2":98,"3":0,"4":98,"5":0,"6":97,"7":0}}
+  },
+  "fleet_state_after": "tags DIAG OFF (production), anchors responder 8/8, ge7 0.978"
+}

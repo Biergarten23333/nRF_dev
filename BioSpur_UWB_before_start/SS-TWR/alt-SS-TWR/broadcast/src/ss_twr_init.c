@@ -509,6 +509,8 @@ struct ss_twr_init_rf_diag_sample {
     uint16_t cir_pwr;
     uint16_t rxpacc;
     uint16_t std_noise;
+    uint16_t lde_thresh; /* LDE_THRESH (0x2E:0000); tag-local only, 0 over-air */
+    uint32_t agc_stat1;  /* AGC_STAT1 (0x23:1E) bits 20:0; tag-local only, 0 over-air */
     uint8_t flags;
     uint8_t temp_raw;  /* responder DW1000 chip temp, raw SAR (V3 frame); 0=n/a */
     uint8_t vbat_raw;  /* responder DW1000 Vbat, raw SAR (V3 frame); 0=n/a */
@@ -677,6 +679,43 @@ int ss_twr_init_cir_mode_parse(const char *text, enum uwb_tag_cir_mode *mode)
         return 0;
     }
     return -EINVAL;
+}
+
+/* Runtime gate for per-response RF diagnostics on the tag RX hot path
+ * (dwt_readdiagnostics + LDE_THRESH/AGC_STAT1 reads + the RFD publish). Default
+ * OFF so the ranging hot path matches the stable "nodiag" timing that holds
+ * ge7/ge8 at ~0.96; `DIAG ON` enables the reads for experiments (accepting a
+ * possible ge7/ge8 hit). Toggled via the BLE `DIAG ON|OFF` command; boot
+ * default = OFF (production ranging). This does NOT affect range computation —
+ * only whether the diagnostic columns are read/emitted. */
+static volatile bool ss_twr_init_rf_diag_runtime_on;
+
+void ss_twr_init_set_rf_diag_runtime(bool enable)
+{
+    ss_twr_init_rf_diag_runtime_on = enable;
+    printk("DIAG runtime %s\n", enable ? "ON" : "OFF");
+}
+
+bool ss_twr_init_rf_diag_runtime_enabled(void)
+{
+    return ss_twr_init_rf_diag_runtime_on;
+}
+
+int ss_twr_init_tx_power_apply(const char *preset, uint32_t *applied)
+{
+    uint32_t value = 0U;
+    int rc = uwb_tx_power_preset_lookup(preset, &value);
+
+    if (rc != 0) {
+        return rc;
+    }
+    /* Only TX_POWER (0x1E). DIS_STXP (smart TX) and TC_PGDELAY stay untouched. */
+    dwt_write32bitreg(TX_POWER_ID, value);
+    printk("TXPWR set 0x%08X\n", (unsigned int)value);
+    if (applied != NULL) {
+        *applied = value;
+    }
+    return 0;
 }
 
 static bool ss_twr_init_cir_compact_enabled(void)
@@ -3100,6 +3139,12 @@ static void ss_twr_init_rf_diag_from_rxdiag(
     out->cir_pwr = diag->maxGrowthCIR;
     out->rxpacc = diag->rxPreamCount;
     out->std_noise = diag->stdNoise;
+    /* LDE_THRESH + AGC_STAT1 are not in dwt_rxdiag_t; read directly. This runs
+     * in the tag RX hot path (right after dwt_readdiagnostics), so the
+     * registers still hold the just-received response frame's values. */
+    out->lde_thresh = dwt_read16bitoffsetreg(LDE_IF_ID, LDE_THRESH_OFFSET);
+    out->agc_stat1 =
+        dwt_read32bitoffsetreg(AGC_CTRL_ID, AGC_STAT1_OFFSET) & AGC_STAT1_MASK;
     out->temp_raw = 0U;  /* tag-side resp diag carries no responder temp */
     out->vbat_raw = 0U;
 }
@@ -3133,6 +3178,8 @@ static bool ss_twr_init_parse_resp_diag_v2(
         ss_twr_init_read_le16(&frame[UWB_MSG_RESP_DIAG_RXPACC_IDX]);
     out->std_noise =
         ss_twr_init_read_le16(&frame[UWB_MSG_RESP_DIAG_STD_NOISE_IDX]);
+    out->lde_thresh = 0U; /* anchor-side LDE_THRESH not carried over-air */
+    out->agc_stat1 = 0U;  /* anchor-side AGC_STAT1 not carried over-air */
     if (frame_len >= UWB_MSG_RESP_V3_FRAME_LEN) {
         out->temp_raw = frame[UWB_MSG_RESP_DIAG_TEMP_IDX];
         out->vbat_raw = frame[UWB_MSG_RESP_DIAG_VBAT_IDX];
@@ -3153,7 +3200,7 @@ static void ss_twr_init_publish_rf_diag(
     const struct ss_twr_init_rf_diag_sample *anchor_poll_diag,
     const struct ss_twr_init_rf_diag_sample *tag_resp_diag)
 {
-    char line[224];
+    char line[256];
     const struct ss_twr_init_rf_diag_sample empty = {0};
     const struct ss_twr_init_rf_diag_sample *ap =
         anchor_poll_diag != NULL ? anchor_poll_diag : &empty;
@@ -3165,10 +3212,12 @@ static void ss_twr_init_publish_rf_diag(
     }
 
     snprintk(line, sizeof(line),
+             /* ...;ap_temp;ap_vbat;ap_lde_thresh;ap_agc_stat1;
+              *              tr_lde_thresh;tr_agc_stat1 (4 trailing columns) */
              "RFD;1;%lu;%u;%u;%ld;%lu;%ld;"
              "%u;%u;%u;%u;%u;%u;%u;%u;"
              "%u;%u;%u;%u;%u;%u;%u;%u;"
-             "%u;%u",
+             "%u;%u;%u;%lu;%u;%lu",
              (unsigned long)ss_twr_init_sweep_count,
              (unsigned int)poll_seq,
              (unsigned int)anchor_id,
@@ -3192,7 +3241,11 @@ static void ss_twr_init_publish_rf_diag(
              (unsigned int)tr->rxpacc,
              (unsigned int)tr->std_noise,
              (unsigned int)ap->temp_raw,
-             (unsigned int)ap->vbat_raw);
+             (unsigned int)ap->vbat_raw,
+             (unsigned int)ap->lde_thresh,
+             (unsigned long)ap->agc_stat1,
+             (unsigned int)tr->lde_thresh,
+             (unsigned long)tr->agc_stat1);
     printk("%s\n", line);
 #if APP_TAG_BLE_ENABLE && APP_TAG_RF_DIAG_OUTPUT_BLE_ENABLE != 0U
     (void)uwb_tag_ble_publish_status(line);
@@ -3208,9 +3261,100 @@ static void ss_twr_init_write_ts(uint8_t *ts_field, uint32 ts)
     }
 }
 
+/* Read DW1000 on-chip temperature via SAR ADC. Returns whole degrees C.
+ * (The periodic ;T trailer on the TR line carries the raw SAR code; this
+ * wrapper is for the one-time boot readback and the capture control loop.) */
+static int8_t read_dw1000_temperature(void)
+{
+    uint16_t raw = dwt_readtempvbat(1); /* fastSPI=1; hi byte = raw temp */
+
+    return (int8_t)lroundf(dwt_convertrawtemperature((uint8_t)(raw >> 8)));
+}
+
+/* Read DW1000 event counters (DIG_DIAG 0x2F). Requires EVC_EN set once at
+ * init (done in ss_twr_init_apply_txrf_and_diag()). Call at cell start and
+ * end; diff gives per-cell link stats. */
+typedef struct {
+    uint16_t evc_sto;   /* SFD timeout count */
+    uint16_t evc_pto;   /* Preamble timeout count */
+    uint16_t evc_fce;   /* FCS error count */
+    uint16_t evc_fcg;   /* FCS good count */
+    uint16_t evc_txfs;  /* TX frame sent count */
+} dw_event_counters_t;
+
+static void read_dw1000_event_counters(dw_event_counters_t *out)
+{
+    if (out == NULL) {
+        return;
+    }
+    out->evc_sto  = dwt_read16bitoffsetreg(DIG_DIAG_ID, EVC_STO_OFFSET)  & 0x0FFFU;
+    out->evc_pto  = dwt_read16bitoffsetreg(DIG_DIAG_ID, EVC_PTO_OFFSET)  & 0x0FFFU;
+    out->evc_fce  = dwt_read16bitoffsetreg(DIG_DIAG_ID, EVC_FCE_OFFSET)  & 0x0FFFU;
+    out->evc_fcg  = dwt_read16bitoffsetreg(DIG_DIAG_ID, EVC_FCG_OFFSET)  & 0x0FFFU;
+    out->evc_txfs = dwt_read16bitoffsetreg(DIG_DIAG_ID, EVC_TXFS_OFFSET) & 0x0FFFU;
+}
+
+/* CH5/PRF64 TX power + PG delay + event-counter enable.
+ * dwt_configuretxrf() was never called in any firmware variant, so TX_POWER
+ * (0x1E) and TC_PGDELAY (0x2A:0x0B) ran at DW1000 power-on-reset defaults.
+ * Program the tuned CH5/PRF64 Smart-TX reference values (DW1000 User Manual
+ * Table 20). The first invocation reads the registers BEFORE writing so the
+ * boot log reports the true silicon POR values, then confirms the write. */
+static void ss_twr_init_apply_txrf_and_diag(void)
+{
+    static dwt_txconfig_t txconfig_ch5 = {
+        .PGdly = TC_PGDELAY_CH5, /* 0xC0 */
+        .power = 0x25456585UL,   /* CH5/PRF64 Smart-TX */
+    };
+    static bool logged;
+    uint32_t tx_power_por = 0U;
+    uint8_t pg_delay_por = 0U;
+    uint16_t agc_ctrl1_por = 0U;
+
+    if (!logged) {
+        tx_power_por = dwt_read32bitreg(TX_POWER_ID);
+        pg_delay_por = dwt_read8bitoffsetreg(TX_CAL_ID, TC_PGDELAY_OFFSET);
+        agc_ctrl1_por = dwt_read16bitoffsetreg(AGC_CTRL_ID, AGC_CTRL1_OFFSET);
+    }
+
+    dwt_configuretxrf(&txconfig_ch5);
+    dwt_write8bitoffsetreg(DIG_DIAG_ID, EVC_CTRL_OFFSET, (uint8_t)EVC_EN);
+
+    /* Clear DIS_AM in AGC_CTRL1 (0x23:0x02) so the AGC noise-power measurement
+     * runs each RX. Otherwise AGC_STAT1 (EDG1/EDG2) stays 0 at its POR default
+     * (DIS_AM=1): dwt_configure() writes AGC_TUNE1/2 but never AGC_CTRL1, so the
+     * measurement is left disabled and the tag-local agc_stat1 diag reads 0. */
+    {
+        uint16_t agc_ctrl1 = dwt_read16bitoffsetreg(AGC_CTRL_ID, AGC_CTRL1_OFFSET);
+
+        dwt_write16bitoffsetreg(AGC_CTRL_ID, AGC_CTRL1_OFFSET,
+                                (uint16_t)(agc_ctrl1 & (uint16_t)~AGC_CTRL1_DIS_AM));
+    }
+
+    if (!logged) {
+        uint32_t tx_power_rb = dwt_read32bitreg(TX_POWER_ID);
+        uint8_t pg_delay_rb = dwt_read8bitoffsetreg(TX_CAL_ID, TC_PGDELAY_OFFSET);
+        uint16_t agc_ctrl1_rb = dwt_read16bitoffsetreg(AGC_CTRL_ID, AGC_CTRL1_OFFSET);
+        dw_event_counters_t evc;
+
+        read_dw1000_event_counters(&evc);
+        printk("TXRF cfg tag: TX_POWER 0x%08lX->0x%08lX TC_PGDELAY 0x%02X->0x%02X "
+               "AGC_CTRL1 0x%04X->0x%04X temp=%dC EVC sto/pto/fce/fcg/txfs=%u/%u/%u/%u/%u\n",
+               (unsigned long)tx_power_por, (unsigned long)tx_power_rb,
+               (unsigned int)pg_delay_por, (unsigned int)pg_delay_rb,
+               (unsigned int)agc_ctrl1_por, (unsigned int)agc_ctrl1_rb,
+               (int)read_dw1000_temperature(),
+               (unsigned int)evc.evc_sto, (unsigned int)evc.evc_pto,
+               (unsigned int)evc.evc_fce, (unsigned int)evc.evc_fcg,
+               (unsigned int)evc.evc_txfs);
+        logged = true;
+    }
+}
+
 static void ss_twr_init_configure_radio(void)
 {
     dwt_configure(&ss_twr_init_config);
+    ss_twr_init_apply_txrf_and_diag();
     dwt_setpanid(APP_UWB_PAN_ID);
     dwt_setaddress16(ss_twr_init_local_addr);
 #if APP_UWB_HW_FRAME_FILTER_ENABLE
@@ -5374,7 +5518,7 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             int32_t carrier_integrator;
 #if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
     APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U
-            dwt_rxdiag_t tag_resp_diag;
+            dwt_rxdiag_t tag_resp_diag = {0};
 #endif
 
             frame_len = last_rx_finfo & RX_FINFO_RXFLEN_MASK;
@@ -5389,7 +5533,9 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             carrier_integrator = dwt_readcarrierintegrator();
 #if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
     APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U
-            dwt_readdiagnostics(&tag_resp_diag);
+            if (ss_twr_init_rf_diag_runtime_on) {
+                dwt_readdiagnostics(&tag_resp_diag);
+            }
 #endif
 
             resp_src_addr = uwb_frame_get_src_addr(ss_twr_init_rx_buffer);
@@ -5425,18 +5571,20 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             resp_tx_ts_by_anchor[anchor_id] = resp_tx_ts;
             carrier_integrator_by_anchor[anchor_id] = carrier_integrator;
 #if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U
+            if (ss_twr_init_rf_diag_runtime_on) {
 #if APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U
-            ss_twr_init_rf_diag_from_rxdiag(
-                &tag_resp_diag_by_anchor[anchor_id], &tag_resp_diag);
+                ss_twr_init_rf_diag_from_rxdiag(
+                    &tag_resp_diag_by_anchor[anchor_id], &tag_resp_diag);
 #endif
-            (void)ss_twr_init_parse_resp_diag_v2(
-                ss_twr_init_rx_buffer, frame_len,
-                &anchor_poll_diag_by_anchor[anchor_id]);
-            ss_twr_init_sweep_tag_resp_diag[anchor_id] =
-                tag_resp_diag_by_anchor[anchor_id];
-            ss_twr_init_sweep_anchor_poll_diag[anchor_id] =
-                anchor_poll_diag_by_anchor[anchor_id];
-            ss_twr_init_sweep_rf_diag_mask |= BIT(anchor_id);
+                (void)ss_twr_init_parse_resp_diag_v2(
+                    ss_twr_init_rx_buffer, frame_len,
+                    &anchor_poll_diag_by_anchor[anchor_id]);
+                ss_twr_init_sweep_tag_resp_diag[anchor_id] =
+                    tag_resp_diag_by_anchor[anchor_id];
+                ss_twr_init_sweep_anchor_poll_diag[anchor_id] =
+                    anchor_poll_diag_by_anchor[anchor_id];
+                ss_twr_init_sweep_rf_diag_mask |= BIT(anchor_id);
+            }
 #endif
             if ((cir_mode == UWB_TAG_CIR_MODE_COMPACT &&
                  ss_twr_init_compact_cir_sample_due()) ||
@@ -5502,7 +5650,7 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             int32_t carrier_integrator;
 #if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
     APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U
-            dwt_rxdiag_t tag_resp_diag;
+            dwt_rxdiag_t tag_resp_diag = {0};
 #endif
 
             frame_len = last_rx_finfo & RX_FINFO_RXFLEN_MASK;
@@ -5555,7 +5703,9 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             carrier_integrator = dwt_readcarrierintegrator();
 #if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
     APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U
-            dwt_readdiagnostics(&tag_resp_diag);
+            if (ss_twr_init_rf_diag_runtime_on) {
+                dwt_readdiagnostics(&tag_resp_diag);
+            }
 #endif
             ss_twr_init_read_ts(
                 &ss_twr_init_rx_buffer[SS_TWR_INIT_RESP_MSG_POLL_RX_TS_IDX],
@@ -5569,18 +5719,20 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             resp_tx_ts_by_anchor[anchor_id] = resp_tx_ts;
             carrier_integrator_by_anchor[anchor_id] = carrier_integrator;
 #if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U
+            if (ss_twr_init_rf_diag_runtime_on) {
 #if APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U
-            ss_twr_init_rf_diag_from_rxdiag(
-                &tag_resp_diag_by_anchor[anchor_id], &tag_resp_diag);
+                ss_twr_init_rf_diag_from_rxdiag(
+                    &tag_resp_diag_by_anchor[anchor_id], &tag_resp_diag);
 #endif
-            (void)ss_twr_init_parse_resp_diag_v2(
-                ss_twr_init_rx_buffer, frame_len,
-                &anchor_poll_diag_by_anchor[anchor_id]);
-            ss_twr_init_sweep_tag_resp_diag[anchor_id] =
-                tag_resp_diag_by_anchor[anchor_id];
-            ss_twr_init_sweep_anchor_poll_diag[anchor_id] =
-                anchor_poll_diag_by_anchor[anchor_id];
-            ss_twr_init_sweep_rf_diag_mask |= BIT(anchor_id);
+                (void)ss_twr_init_parse_resp_diag_v2(
+                    ss_twr_init_rx_buffer, frame_len,
+                    &anchor_poll_diag_by_anchor[anchor_id]);
+                ss_twr_init_sweep_tag_resp_diag[anchor_id] =
+                    tag_resp_diag_by_anchor[anchor_id];
+                ss_twr_init_sweep_anchor_poll_diag[anchor_id] =
+                    anchor_poll_diag_by_anchor[anchor_id];
+                ss_twr_init_sweep_rf_diag_mask |= BIT(anchor_id);
+            }
 #endif
             if ((cir_mode == UWB_TAG_CIR_MODE_COMPACT &&
                  ss_twr_init_compact_cir_sample_due()) ||
@@ -5661,13 +5813,15 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             }
 #if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
     APP_TAG_RF_DIAG_LEGACY_RFD_ENABLE != 0U
-            ss_twr_init_publish_rf_diag(
-                rf_diag_poll_seq,
-                anchor_id, raw_distance_mm[anchor_id],
-                resp_rx_ts_by_anchor[anchor_id],
-                carrier_integrator_by_anchor[anchor_id],
-                &anchor_poll_diag_by_anchor[anchor_id],
-                &tag_resp_diag_by_anchor[anchor_id]);
+            if (ss_twr_init_rf_diag_runtime_on) {
+                ss_twr_init_publish_rf_diag(
+                    rf_diag_poll_seq,
+                    anchor_id, raw_distance_mm[anchor_id],
+                    resp_rx_ts_by_anchor[anchor_id],
+                    carrier_integrator_by_anchor[anchor_id],
+                    &anchor_poll_diag_by_anchor[anchor_id],
+                    &tag_resp_diag_by_anchor[anchor_id]);
+            }
 #endif
             ss_twr_init_alt_record_range(anchor_id, raw_distance_mm[anchor_id]);
         } else {

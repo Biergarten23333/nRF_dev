@@ -122,9 +122,61 @@ static void ss_twr_anchor_init_read_ts(const uint8_t *ts_field, uint32_t *ts)
     }
 }
 
+/* CH5/PRF64 TX power + PG delay + event-counter enable.
+ * dwt_configuretxrf() was never called in any firmware variant, so TX_POWER
+ * (0x1E) and TC_PGDELAY (0x2A:0x0B) ran at DW1000 power-on-reset defaults.
+ * Must program the SAME value as the tag/responder (common-mode symmetry for
+ * SS-TWR). First invocation reads BEFORE writing so the boot log reports the
+ * true silicon POR values, then confirms the write. Idempotent. */
+static void ss_twr_anchor_init_apply_txrf_and_diag(void)
+{
+    static dwt_txconfig_t txconfig_ch5 = {
+        .PGdly = TC_PGDELAY_CH5, /* 0xC0 */
+        .power = 0x25456585UL,   /* CH5/PRF64 Smart-TX (same value as tag) */
+    };
+    static bool logged;
+    uint32_t tx_power_por = 0U;
+    uint8_t pg_delay_por = 0U;
+
+    if (!logged) {
+        tx_power_por = dwt_read32bitreg(TX_POWER_ID);
+        pg_delay_por = dwt_read8bitoffsetreg(TX_CAL_ID, TC_PGDELAY_OFFSET);
+    }
+
+    dwt_configuretxrf(&txconfig_ch5);
+    dwt_write8bitoffsetreg(DIG_DIAG_ID, EVC_CTRL_OFFSET, (uint8_t)EVC_EN);
+
+    if (!logged) {
+        printk("TXRF cfg anchor-init: TX_POWER 0x%08lX->0x%08lX TC_PGDELAY 0x%02X->0x%02X\n",
+               (unsigned long)tx_power_por,
+               (unsigned long)dwt_read32bitreg(TX_POWER_ID),
+               (unsigned int)pg_delay_por,
+               (unsigned int)dwt_read8bitoffsetreg(TX_CAL_ID, TC_PGDELAY_OFFSET));
+        logged = true;
+    }
+}
+
+int ss_twr_anchor_init_tx_power_apply(const char *preset, uint32_t *applied)
+{
+    uint32_t value = 0U;
+    int rc = uwb_tx_power_preset_lookup(preset, &value);
+
+    if (rc != 0) {
+        return rc;
+    }
+    /* Only TX_POWER (0x1E). DIS_STXP (smart TX) and TC_PGDELAY stay untouched. */
+    dwt_write32bitreg(TX_POWER_ID, value);
+    printk("TXPWR set 0x%08X\n", (unsigned int)value);
+    if (applied != NULL) {
+        *applied = value;
+    }
+    return 0;
+}
+
 static void ss_twr_anchor_init_configure_radio(void)
 {
     dwt_configure(&ss_twr_anchor_init_config);
+    ss_twr_anchor_init_apply_txrf_and_diag();
     dwt_setpanid(APP_UWB_PAN_ID);
     dwt_setaddress16(ss_twr_anchor_init_local_addr);
 #if APP_UWB_HW_FRAME_FILTER_ENABLE

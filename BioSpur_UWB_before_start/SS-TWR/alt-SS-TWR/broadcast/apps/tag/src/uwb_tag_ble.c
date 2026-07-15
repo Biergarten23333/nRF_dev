@@ -1601,6 +1601,47 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		return;
 	}
 
+	if (strncmp(cmd, "TXPWR ", 6) == 0) {
+		const char *arg = cmd + 6;
+		uint32_t applied = 0U;
+		char resp[48];
+
+		while (*arg == ' ' || *arg == '\t') {
+			arg++;
+		}
+		if (ss_twr_init_tx_power_apply(arg, &applied) != 0) {
+			uwb_tag_ble_send_text("TXPWR_BAD PRESET=MAX|M3|M6|M12|POR");
+			return;
+		}
+		snprintk(resp, sizeof(resp), "TXPWR_OK VAL=0x%08X", (unsigned int)applied);
+		uwb_tag_ble_send_text(resp);
+		return;
+	}
+
+	if (strcmp(cmd, "DIAG?") == 0) {
+		uwb_tag_ble_send_text(ss_twr_init_rf_diag_runtime_enabled() ?
+					      "DIAG_OK STATE=ON" : "DIAG_OK STATE=OFF");
+		return;
+	}
+
+	if (strncmp(cmd, "DIAG ", 5) == 0) {
+		const char *arg = cmd + 5;
+
+		while (*arg == ' ' || *arg == '\t') {
+			arg++;
+		}
+		if (strcmp(arg, "ON") == 0) {
+			ss_twr_init_set_rf_diag_runtime(true);
+			uwb_tag_ble_send_text("DIAG_OK STATE=ON");
+		} else if (strcmp(arg, "OFF") == 0) {
+			ss_twr_init_set_rf_diag_runtime(false);
+			uwb_tag_ble_send_text("DIAG_OK STATE=OFF");
+		} else {
+			uwb_tag_ble_send_text("DIAG_BAD STATE=ON|OFF");
+		}
+		return;
+	}
+
 	if (strcmp(cmd, "CIR?") == 0 || strcmp(cmd, "CIR_STATUS") == 0) {
 		uwb_tag_ble_send_cir_status();
 		return;
@@ -1943,9 +1984,9 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 
 	if (strcmp(cmd, "HELP") == 0) {
 #if APP_TAG_BLE_OTA_ENABLE
-		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|TXPWR <MAX|M3|M6|M12|POR>|DIAG <ON|OFF>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
 #else
-		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|TXPWR <MAX|M3|M6|M12|POR>|DIAG <ON|OFF>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|REBOOT|HELP");
 #endif
 		return;
 	}

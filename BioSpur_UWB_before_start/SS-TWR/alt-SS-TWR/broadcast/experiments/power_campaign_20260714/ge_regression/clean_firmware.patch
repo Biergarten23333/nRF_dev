@@ -1,0 +1,623 @@
+diff --git a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/apps/tag/src/uwb_tag_ble.c b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/apps/tag/src/uwb_tag_ble.c
+index a4364993f..4f44a4413 100755
+--- a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/apps/tag/src/uwb_tag_ble.c
++++ b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/apps/tag/src/uwb_tag_ble.c
+@@ -1601,6 +1601,47 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
+ 		return;
+ 	}
+ 
++	if (strncmp(cmd, "TXPWR ", 6) == 0) {
++		const char *arg = cmd + 6;
++		uint32_t applied = 0U;
++		char resp[48];
++
++		while (*arg == ' ' || *arg == '\t') {
++			arg++;
++		}
++		if (ss_twr_init_tx_power_apply(arg, &applied) != 0) {
++			uwb_tag_ble_send_text("TXPWR_BAD PRESET=MAX|M3|M6|M12|POR");
++			return;
++		}
++		snprintk(resp, sizeof(resp), "TXPWR_OK VAL=0x%08X", (unsigned int)applied);
++		uwb_tag_ble_send_text(resp);
++		return;
++	}
++
++	if (strcmp(cmd, "DIAG?") == 0) {
++		uwb_tag_ble_send_text(ss_twr_init_rf_diag_runtime_enabled() ?
++					      "DIAG_OK STATE=ON" : "DIAG_OK STATE=OFF");
++		return;
++	}
++
++	if (strncmp(cmd, "DIAG ", 5) == 0) {
++		const char *arg = cmd + 5;
++
++		while (*arg == ' ' || *arg == '\t') {
++			arg++;
++		}
++		if (strcmp(arg, "ON") == 0) {
++			ss_twr_init_set_rf_diag_runtime(true);
++			uwb_tag_ble_send_text("DIAG_OK STATE=ON");
++		} else if (strcmp(arg, "OFF") == 0) {
++			ss_twr_init_set_rf_diag_runtime(false);
++			uwb_tag_ble_send_text("DIAG_OK STATE=OFF");
++		} else {
++			uwb_tag_ble_send_text("DIAG_BAD STATE=ON|OFF");
++		}
++		return;
++	}
++
+ 	if (strcmp(cmd, "CIR?") == 0 || strcmp(cmd, "CIR_STATUS") == 0) {
+ 		uwb_tag_ble_send_cir_status();
+ 		return;
+@@ -1943,9 +1984,9 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
+ 
+ 	if (strcmp(cmd, "HELP") == 0) {
+ #if APP_TAG_BLE_OTA_ENABLE
+-		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
++		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|TXPWR <MAX|M3|M6|M12|POR>|DIAG <ON|OFF>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
+ #else
+-		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|REBOOT|HELP");
++		uwb_tag_ble_send_text("PING|STATUS|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|TXPWR <MAX|M3|M6|M12|POR>|DIAG <ON|OFF>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|REBOOT|HELP");
+ #endif
+ 		return;
+ 	}
+diff --git a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/include/ss_twr_anchor_init.h b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/include/ss_twr_anchor_init.h
+index b62e9d694..991c7d1eb 100755
+--- a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/include/ss_twr_anchor_init.h
++++ b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/include/ss_twr_anchor_init.h
+@@ -7,4 +7,10 @@
+ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
+                              size_t peer_count, uint32_t max_sweeps);
+ 
++/* Apply a runtime TX_POWER preset (MAX|M3|M6|M12|POR) on the anchor. Writes
++ * TX_POWER_ID via dwt_write32bitreg and logs "TXPWR set 0x%08X". Does NOT touch
++ * DIS_STXP or TC_PGDELAY. Returns 0 (and sets *applied) on success, -EINVAL on
++ * bad preset. Same presets/behaviour as the tag (ss_twr_init_tx_power_apply). */
++int ss_twr_anchor_init_tx_power_apply(const char *preset, uint32_t *applied);
++
+ #endif /* SS_TWR_ANCHOR_INIT_H */
+diff --git a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/include/ss_twr_init.h b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/include/ss_twr_init.h
+index c61f24c36..c260533bd 100755
+--- a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/include/ss_twr_init.h
++++ b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/include/ss_twr_init.h
+@@ -18,4 +18,15 @@ enum uwb_tag_cir_mode ss_twr_init_cir_mode_get(void);
+ const char *ss_twr_init_cir_mode_label(enum uwb_tag_cir_mode mode);
+ int ss_twr_init_cir_mode_parse(const char *text, enum uwb_tag_cir_mode *mode);
+ 
++/* Apply a runtime TX_POWER preset (MAX|M3|M6|M12|POR). Writes TX_POWER_ID via
++ * dwt_write32bitreg and logs "TXPWR set 0x%08X". Does NOT touch DIS_STXP or
++ * TC_PGDELAY. Returns 0 (and sets *applied) on success, -EINVAL on bad preset. */
++int ss_twr_init_tx_power_apply(const char *preset, uint32_t *applied);
++
++/* Runtime gate for per-response RF diagnostics on the tag RX hot path. Default
++ * OFF (boot) so ranging timing matches the stable nodiag build; `DIAG ON`
++ * enables the diag reads/publish for experiments. Does not affect ranging. */
++void ss_twr_init_set_rf_diag_runtime(bool enable);
++bool ss_twr_init_rf_diag_runtime_enabled(void);
++
+ #endif /* SS_TWR_INIT_H */
+diff --git a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/include/uwb_ss_twr_shared.h b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/include/uwb_ss_twr_shared.h
+index 14ccb951e..c71cca83e 100755
+--- a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/include/uwb_ss_twr_shared.h
++++ b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/include/uwb_ss_twr_shared.h
+@@ -116,4 +116,27 @@ bool uwb_ss_twr_poll_matches(const uint8_t *frame, uint16_t local_addr);
+ bool uwb_ss_twr_resp_matches(const uint8_t *frame, uint16_t local_addr,
+                              uint16_t expected_peer_addr);
+ 
++/* Runtime TX_POWER (reg 0x1E) presets — CH5/PRF64 smart-TX. DIS_STXP and
++ * TC_PGDELAY are NOT touched by these. Octet layout [P125,P250,P500,NORM],
++ * each = coarse DA(bits7:5, ~3dB/step) + mixer(bits4:0, ~0.5dB/step). Reduction
++ * is subtracted in half-dB from every octet (DA then mixer), floored at 0x00 so
++ * the smart-TX ladder stays coherent. Operative ranging bin = BOOSTP250 (0x45).
++ *   MAX = ref (P250 8.5 dB above floor)
++ *   M3  = -3.0 dB (P250 0x25)
++ *   M6  = -6.0 dB (P250 0x05)
++ *   M12 = target -12 dB but P250 clamps to 0x00 => actual -8.5 dB (register
++ *         floor: 0x45 is only 8.5 dB above 0x00; true -12 dB is unreachable
++ *         with smart-TX enabled)
++ *   POR = DW1000 power-on-reset default (P250 0x08 = -4.5 dB vs MAX) */
++#define UWB_TX_POWER_PRESET_MAX 0x25456585UL
++#define UWB_TX_POWER_PRESET_M3  0x05254565UL
++#define UWB_TX_POWER_PRESET_M6  0x00052545UL
++#define UWB_TX_POWER_PRESET_M12 0x00000005UL
++#define UWB_TX_POWER_PRESET_POR 0x0E080222UL
++
++/* Map a preset name (MAX|M3|M6|M12|POR, case-insensitive) to its TX_POWER
++ * register value. Returns 0 and sets *value on success, -EINVAL otherwise.
++ * Pure lookup: does NOT touch the radio (callers do the dwt_write). */
++int uwb_tx_power_preset_lookup(const char *preset, uint32_t *value);
++
+ #endif /* UWB_SS_TWR_SHARED_H */
+diff --git a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/anchors/unified/anchor_ble_ctrl.c b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/anchors/unified/anchor_ble_ctrl.c
+index fe5be3241..5c5782812 100755
+--- a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/anchors/unified/anchor_ble_ctrl.c
++++ b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/anchors/unified/anchor_ble_ctrl.c
+@@ -2,6 +2,7 @@
+ #include "anchor_cir_output.h"
+ #include "anchor_runtime_control.h"
+ #include "anchor_ultrasound.h"
++#include "ss_twr_anchor_init.h"
+ 
+ #include <ctype.h>
+ #include <errno.h>
+@@ -463,7 +464,7 @@ static void process_control_cmd_locked(char *line)
+     }
+ 
+     if (strcmp(tok, "HELP") == 0) {
+-        set_result_locked("OK CMDS=VERSION|PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|RESET AUTOPOS|RESET RESPONDER|STOP|DFU|SYNC|US?|USON [SEC]|USOFF|RUNTIME <MASTER|MATRIX|RESPONDER> [FORCE|SWEEP N] [CIR=0|COMPACT|FULL]");
++        set_result_locked("OK CMDS=VERSION|PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|TXPWR <MAX|M3|M6|M12|POR>|RESET AUTOPOS|RESET RESPONDER|STOP|DFU|SYNC|US?|USON [SEC]|USOFF|RUNTIME <MASTER|MATRIX|RESPONDER> [FORCE|SWEEP N] [CIR=0|COMPACT|FULL]");
+         return;
+     }
+ 
+@@ -532,6 +533,22 @@ static void process_control_cmd_locked(char *line)
+         return;
+     }
+ 
++    if (strcmp(tok, "TXPWR") == 0) {
++        uint32_t applied = 0U;
++        char result[48];
++
++        tok = strtok_r(NULL, " ", &savep);
++        if (tok == NULL ||
++            ss_twr_anchor_init_tx_power_apply(tok, &applied) != 0) {
++            set_result_locked("ERR:BAD_TXPWR PRESET=MAX|M3|M6|M12|POR");
++            return;
++        }
++        snprintk(result, sizeof(result), "OK TXPWR VAL=0x%08X",
++                 (unsigned int)applied);
++        set_result_locked(result);
++        return;
++    }
++
+     if (strcmp(tok, "RUNTIME") == 0) {
+         uint32_t master_sweeps = 0U;
+         bool force_restart = false;
+diff --git a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/ss_twr_anchor_init.c b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/ss_twr_anchor_init.c
+index 19fb6eb0c..785576b1e 100755
+--- a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/ss_twr_anchor_init.c
++++ b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/ss_twr_anchor_init.c
+@@ -122,9 +122,61 @@ static void ss_twr_anchor_init_read_ts(const uint8_t *ts_field, uint32_t *ts)
+     }
+ }
+ 
++/* CH5/PRF64 TX power + PG delay + event-counter enable.
++ * dwt_configuretxrf() was never called in any firmware variant, so TX_POWER
++ * (0x1E) and TC_PGDELAY (0x2A:0x0B) ran at DW1000 power-on-reset defaults.
++ * Must program the SAME value as the tag/responder (common-mode symmetry for
++ * SS-TWR). First invocation reads BEFORE writing so the boot log reports the
++ * true silicon POR values, then confirms the write. Idempotent. */
++static void ss_twr_anchor_init_apply_txrf_and_diag(void)
++{
++    static dwt_txconfig_t txconfig_ch5 = {
++        .PGdly = TC_PGDELAY_CH5, /* 0xC0 */
++        .power = 0x25456585UL,   /* CH5/PRF64 Smart-TX (same value as tag) */
++    };
++    static bool logged;
++    uint32_t tx_power_por = 0U;
++    uint8_t pg_delay_por = 0U;
++
++    if (!logged) {
++        tx_power_por = dwt_read32bitreg(TX_POWER_ID);
++        pg_delay_por = dwt_read8bitoffsetreg(TX_CAL_ID, TC_PGDELAY_OFFSET);
++    }
++
++    dwt_configuretxrf(&txconfig_ch5);
++    dwt_write8bitoffsetreg(DIG_DIAG_ID, EVC_CTRL_OFFSET, (uint8_t)EVC_EN);
++
++    if (!logged) {
++        printk("TXRF cfg anchor-init: TX_POWER 0x%08lX->0x%08lX TC_PGDELAY 0x%02X->0x%02X\n",
++               (unsigned long)tx_power_por,
++               (unsigned long)dwt_read32bitreg(TX_POWER_ID),
++               (unsigned int)pg_delay_por,
++               (unsigned int)dwt_read8bitoffsetreg(TX_CAL_ID, TC_PGDELAY_OFFSET));
++        logged = true;
++    }
++}
++
++int ss_twr_anchor_init_tx_power_apply(const char *preset, uint32_t *applied)
++{
++    uint32_t value = 0U;
++    int rc = uwb_tx_power_preset_lookup(preset, &value);
++
++    if (rc != 0) {
++        return rc;
++    }
++    /* Only TX_POWER (0x1E). DIS_STXP (smart TX) and TC_PGDELAY stay untouched. */
++    dwt_write32bitreg(TX_POWER_ID, value);
++    printk("TXPWR set 0x%08X\n", (unsigned int)value);
++    if (applied != NULL) {
++        *applied = value;
++    }
++    return 0;
++}
++
+ static void ss_twr_anchor_init_configure_radio(void)
+ {
+     dwt_configure(&ss_twr_anchor_init_config);
++    ss_twr_anchor_init_apply_txrf_and_diag();
+     dwt_setpanid(APP_UWB_PAN_ID);
+     dwt_setaddress16(ss_twr_anchor_init_local_addr);
+ #if APP_UWB_HW_FRAME_FILTER_ENABLE
+diff --git a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/ss_twr_init.c b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/ss_twr_init.c
+index c5890b6f9..714521815 100755
+--- a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/ss_twr_init.c
++++ b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/ss_twr_init.c
+@@ -509,6 +509,8 @@ struct ss_twr_init_rf_diag_sample {
+     uint16_t cir_pwr;
+     uint16_t rxpacc;
+     uint16_t std_noise;
++    uint16_t lde_thresh; /* LDE_THRESH (0x2E:0000); tag-local only, 0 over-air */
++    uint32_t agc_stat1;  /* AGC_STAT1 (0x23:1E) bits 20:0; tag-local only, 0 over-air */
+     uint8_t flags;
+     uint8_t temp_raw;  /* responder DW1000 chip temp, raw SAR (V3 frame); 0=n/a */
+     uint8_t vbat_raw;  /* responder DW1000 Vbat, raw SAR (V3 frame); 0=n/a */
+@@ -679,6 +681,43 @@ int ss_twr_init_cir_mode_parse(const char *text, enum uwb_tag_cir_mode *mode)
+     return -EINVAL;
+ }
+ 
++/* Runtime gate for per-response RF diagnostics on the tag RX hot path
++ * (dwt_readdiagnostics + LDE_THRESH/AGC_STAT1 reads + the RFD publish). Default
++ * OFF so the ranging hot path matches the stable "nodiag" timing that holds
++ * ge7/ge8 at ~0.96; `DIAG ON` enables the reads for experiments (accepting a
++ * possible ge7/ge8 hit). Toggled via the BLE `DIAG ON|OFF` command; boot
++ * default = OFF (production ranging). This does NOT affect range computation —
++ * only whether the diagnostic columns are read/emitted. */
++static volatile bool ss_twr_init_rf_diag_runtime_on;
++
++void ss_twr_init_set_rf_diag_runtime(bool enable)
++{
++    ss_twr_init_rf_diag_runtime_on = enable;
++    printk("DIAG runtime %s\n", enable ? "ON" : "OFF");
++}
++
++bool ss_twr_init_rf_diag_runtime_enabled(void)
++{
++    return ss_twr_init_rf_diag_runtime_on;
++}
++
++int ss_twr_init_tx_power_apply(const char *preset, uint32_t *applied)
++{
++    uint32_t value = 0U;
++    int rc = uwb_tx_power_preset_lookup(preset, &value);
++
++    if (rc != 0) {
++        return rc;
++    }
++    /* Only TX_POWER (0x1E). DIS_STXP (smart TX) and TC_PGDELAY stay untouched. */
++    dwt_write32bitreg(TX_POWER_ID, value);
++    printk("TXPWR set 0x%08X\n", (unsigned int)value);
++    if (applied != NULL) {
++        *applied = value;
++    }
++    return 0;
++}
++
+ static bool ss_twr_init_cir_compact_enabled(void)
+ {
+     return ss_twr_init_cir_mode_get() == UWB_TAG_CIR_MODE_COMPACT;
+@@ -3100,6 +3139,12 @@ static void ss_twr_init_rf_diag_from_rxdiag(
+     out->cir_pwr = diag->maxGrowthCIR;
+     out->rxpacc = diag->rxPreamCount;
+     out->std_noise = diag->stdNoise;
++    /* LDE_THRESH + AGC_STAT1 are not in dwt_rxdiag_t; read directly. This runs
++     * in the tag RX hot path (right after dwt_readdiagnostics), so the
++     * registers still hold the just-received response frame's values. */
++    out->lde_thresh = dwt_read16bitoffsetreg(LDE_IF_ID, LDE_THRESH_OFFSET);
++    out->agc_stat1 =
++        dwt_read32bitoffsetreg(AGC_CTRL_ID, AGC_STAT1_OFFSET) & AGC_STAT1_MASK;
+     out->temp_raw = 0U;  /* tag-side resp diag carries no responder temp */
+     out->vbat_raw = 0U;
+ }
+@@ -3133,6 +3178,8 @@ static bool ss_twr_init_parse_resp_diag_v2(
+         ss_twr_init_read_le16(&frame[UWB_MSG_RESP_DIAG_RXPACC_IDX]);
+     out->std_noise =
+         ss_twr_init_read_le16(&frame[UWB_MSG_RESP_DIAG_STD_NOISE_IDX]);
++    out->lde_thresh = 0U; /* anchor-side LDE_THRESH not carried over-air */
++    out->agc_stat1 = 0U;  /* anchor-side AGC_STAT1 not carried over-air */
+     if (frame_len >= UWB_MSG_RESP_V3_FRAME_LEN) {
+         out->temp_raw = frame[UWB_MSG_RESP_DIAG_TEMP_IDX];
+         out->vbat_raw = frame[UWB_MSG_RESP_DIAG_VBAT_IDX];
+@@ -3153,7 +3200,7 @@ static void ss_twr_init_publish_rf_diag(
+     const struct ss_twr_init_rf_diag_sample *anchor_poll_diag,
+     const struct ss_twr_init_rf_diag_sample *tag_resp_diag)
+ {
+-    char line[224];
++    char line[256];
+     const struct ss_twr_init_rf_diag_sample empty = {0};
+     const struct ss_twr_init_rf_diag_sample *ap =
+         anchor_poll_diag != NULL ? anchor_poll_diag : &empty;
+@@ -3165,10 +3212,12 @@ static void ss_twr_init_publish_rf_diag(
+     }
+ 
+     snprintk(line, sizeof(line),
++             /* ...;ap_temp;ap_vbat;ap_lde_thresh;ap_agc_stat1;
++              *              tr_lde_thresh;tr_agc_stat1 (4 trailing columns) */
+              "RFD;1;%lu;%u;%u;%ld;%lu;%ld;"
+              "%u;%u;%u;%u;%u;%u;%u;%u;"
+              "%u;%u;%u;%u;%u;%u;%u;%u;"
+-             "%u;%u",
++             "%u;%u;%u;%lu;%u;%lu",
+              (unsigned long)ss_twr_init_sweep_count,
+              (unsigned int)poll_seq,
+              (unsigned int)anchor_id,
+@@ -3192,7 +3241,11 @@ static void ss_twr_init_publish_rf_diag(
+              (unsigned int)tr->rxpacc,
+              (unsigned int)tr->std_noise,
+              (unsigned int)ap->temp_raw,
+-             (unsigned int)ap->vbat_raw);
++             (unsigned int)ap->vbat_raw,
++             (unsigned int)ap->lde_thresh,
++             (unsigned long)ap->agc_stat1,
++             (unsigned int)tr->lde_thresh,
++             (unsigned long)tr->agc_stat1);
+     printk("%s\n", line);
+ #if APP_TAG_BLE_ENABLE && APP_TAG_RF_DIAG_OUTPUT_BLE_ENABLE != 0U
+     (void)uwb_tag_ble_publish_status(line);
+@@ -3208,9 +3261,100 @@ static void ss_twr_init_write_ts(uint8_t *ts_field, uint32 ts)
+     }
+ }
+ 
++/* Read DW1000 on-chip temperature via SAR ADC. Returns whole degrees C.
++ * (The periodic ;T trailer on the TR line carries the raw SAR code; this
++ * wrapper is for the one-time boot readback and the capture control loop.) */
++static int8_t read_dw1000_temperature(void)
++{
++    uint16_t raw = dwt_readtempvbat(1); /* fastSPI=1; hi byte = raw temp */
++
++    return (int8_t)lroundf(dwt_convertrawtemperature((uint8_t)(raw >> 8)));
++}
++
++/* Read DW1000 event counters (DIG_DIAG 0x2F). Requires EVC_EN set once at
++ * init (done in ss_twr_init_apply_txrf_and_diag()). Call at cell start and
++ * end; diff gives per-cell link stats. */
++typedef struct {
++    uint16_t evc_sto;   /* SFD timeout count */
++    uint16_t evc_pto;   /* Preamble timeout count */
++    uint16_t evc_fce;   /* FCS error count */
++    uint16_t evc_fcg;   /* FCS good count */
++    uint16_t evc_txfs;  /* TX frame sent count */
++} dw_event_counters_t;
++
++static void read_dw1000_event_counters(dw_event_counters_t *out)
++{
++    if (out == NULL) {
++        return;
++    }
++    out->evc_sto  = dwt_read16bitoffsetreg(DIG_DIAG_ID, EVC_STO_OFFSET)  & 0x0FFFU;
++    out->evc_pto  = dwt_read16bitoffsetreg(DIG_DIAG_ID, EVC_PTO_OFFSET)  & 0x0FFFU;
++    out->evc_fce  = dwt_read16bitoffsetreg(DIG_DIAG_ID, EVC_FCE_OFFSET)  & 0x0FFFU;
++    out->evc_fcg  = dwt_read16bitoffsetreg(DIG_DIAG_ID, EVC_FCG_OFFSET)  & 0x0FFFU;
++    out->evc_txfs = dwt_read16bitoffsetreg(DIG_DIAG_ID, EVC_TXFS_OFFSET) & 0x0FFFU;
++}
++
++/* CH5/PRF64 TX power + PG delay + event-counter enable.
++ * dwt_configuretxrf() was never called in any firmware variant, so TX_POWER
++ * (0x1E) and TC_PGDELAY (0x2A:0x0B) ran at DW1000 power-on-reset defaults.
++ * Program the tuned CH5/PRF64 Smart-TX reference values (DW1000 User Manual
++ * Table 20). The first invocation reads the registers BEFORE writing so the
++ * boot log reports the true silicon POR values, then confirms the write. */
++static void ss_twr_init_apply_txrf_and_diag(void)
++{
++    static dwt_txconfig_t txconfig_ch5 = {
++        .PGdly = TC_PGDELAY_CH5, /* 0xC0 */
++        .power = 0x25456585UL,   /* CH5/PRF64 Smart-TX */
++    };
++    static bool logged;
++    uint32_t tx_power_por = 0U;
++    uint8_t pg_delay_por = 0U;
++    uint16_t agc_ctrl1_por = 0U;
++
++    if (!logged) {
++        tx_power_por = dwt_read32bitreg(TX_POWER_ID);
++        pg_delay_por = dwt_read8bitoffsetreg(TX_CAL_ID, TC_PGDELAY_OFFSET);
++        agc_ctrl1_por = dwt_read16bitoffsetreg(AGC_CTRL_ID, AGC_CTRL1_OFFSET);
++    }
++
++    dwt_configuretxrf(&txconfig_ch5);
++    dwt_write8bitoffsetreg(DIG_DIAG_ID, EVC_CTRL_OFFSET, (uint8_t)EVC_EN);
++
++    /* Clear DIS_AM in AGC_CTRL1 (0x23:0x02) so the AGC noise-power measurement
++     * runs each RX. Otherwise AGC_STAT1 (EDG1/EDG2) stays 0 at its POR default
++     * (DIS_AM=1): dwt_configure() writes AGC_TUNE1/2 but never AGC_CTRL1, so the
++     * measurement is left disabled and the tag-local agc_stat1 diag reads 0. */
++    {
++        uint16_t agc_ctrl1 = dwt_read16bitoffsetreg(AGC_CTRL_ID, AGC_CTRL1_OFFSET);
++
++        dwt_write16bitoffsetreg(AGC_CTRL_ID, AGC_CTRL1_OFFSET,
++                                (uint16_t)(agc_ctrl1 & (uint16_t)~AGC_CTRL1_DIS_AM));
++    }
++
++    if (!logged) {
++        uint32_t tx_power_rb = dwt_read32bitreg(TX_POWER_ID);
++        uint8_t pg_delay_rb = dwt_read8bitoffsetreg(TX_CAL_ID, TC_PGDELAY_OFFSET);
++        uint16_t agc_ctrl1_rb = dwt_read16bitoffsetreg(AGC_CTRL_ID, AGC_CTRL1_OFFSET);
++        dw_event_counters_t evc;
++
++        read_dw1000_event_counters(&evc);
++        printk("TXRF cfg tag: TX_POWER 0x%08lX->0x%08lX TC_PGDELAY 0x%02X->0x%02X "
++               "AGC_CTRL1 0x%04X->0x%04X temp=%dC EVC sto/pto/fce/fcg/txfs=%u/%u/%u/%u/%u\n",
++               (unsigned long)tx_power_por, (unsigned long)tx_power_rb,
++               (unsigned int)pg_delay_por, (unsigned int)pg_delay_rb,
++               (unsigned int)agc_ctrl1_por, (unsigned int)agc_ctrl1_rb,
++               (int)read_dw1000_temperature(),
++               (unsigned int)evc.evc_sto, (unsigned int)evc.evc_pto,
++               (unsigned int)evc.evc_fce, (unsigned int)evc.evc_fcg,
++               (unsigned int)evc.evc_txfs);
++        logged = true;
++    }
++}
++
+ static void ss_twr_init_configure_radio(void)
+ {
+     dwt_configure(&ss_twr_init_config);
++    ss_twr_init_apply_txrf_and_diag();
+     dwt_setpanid(APP_UWB_PAN_ID);
+     dwt_setaddress16(ss_twr_init_local_addr);
+ #if APP_UWB_HW_FRAME_FILTER_ENABLE
+@@ -5374,7 +5518,7 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
+             int32_t carrier_integrator;
+ #if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
+     APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U
+-            dwt_rxdiag_t tag_resp_diag;
++            dwt_rxdiag_t tag_resp_diag = {0};
+ #endif
+ 
+             frame_len = last_rx_finfo & RX_FINFO_RXFLEN_MASK;
+@@ -5389,7 +5533,9 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
+             carrier_integrator = dwt_readcarrierintegrator();
+ #if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
+     APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U
+-            dwt_readdiagnostics(&tag_resp_diag);
++            if (ss_twr_init_rf_diag_runtime_on) {
++                dwt_readdiagnostics(&tag_resp_diag);
++            }
+ #endif
+ 
+             resp_src_addr = uwb_frame_get_src_addr(ss_twr_init_rx_buffer);
+@@ -5425,18 +5571,20 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
+             resp_tx_ts_by_anchor[anchor_id] = resp_tx_ts;
+             carrier_integrator_by_anchor[anchor_id] = carrier_integrator;
+ #if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U
++            if (ss_twr_init_rf_diag_runtime_on) {
+ #if APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U
+-            ss_twr_init_rf_diag_from_rxdiag(
+-                &tag_resp_diag_by_anchor[anchor_id], &tag_resp_diag);
+-#endif
+-            (void)ss_twr_init_parse_resp_diag_v2(
+-                ss_twr_init_rx_buffer, frame_len,
+-                &anchor_poll_diag_by_anchor[anchor_id]);
+-            ss_twr_init_sweep_tag_resp_diag[anchor_id] =
+-                tag_resp_diag_by_anchor[anchor_id];
+-            ss_twr_init_sweep_anchor_poll_diag[anchor_id] =
+-                anchor_poll_diag_by_anchor[anchor_id];
+-            ss_twr_init_sweep_rf_diag_mask |= BIT(anchor_id);
++                ss_twr_init_rf_diag_from_rxdiag(
++                    &tag_resp_diag_by_anchor[anchor_id], &tag_resp_diag);
++#endif
++                (void)ss_twr_init_parse_resp_diag_v2(
++                    ss_twr_init_rx_buffer, frame_len,
++                    &anchor_poll_diag_by_anchor[anchor_id]);
++                ss_twr_init_sweep_tag_resp_diag[anchor_id] =
++                    tag_resp_diag_by_anchor[anchor_id];
++                ss_twr_init_sweep_anchor_poll_diag[anchor_id] =
++                    anchor_poll_diag_by_anchor[anchor_id];
++                ss_twr_init_sweep_rf_diag_mask |= BIT(anchor_id);
++            }
+ #endif
+             if ((cir_mode == UWB_TAG_CIR_MODE_COMPACT &&
+                  ss_twr_init_compact_cir_sample_due()) ||
+@@ -5502,7 +5650,7 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
+             int32_t carrier_integrator;
+ #if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
+     APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U
+-            dwt_rxdiag_t tag_resp_diag;
++            dwt_rxdiag_t tag_resp_diag = {0};
+ #endif
+ 
+             frame_len = last_rx_finfo & RX_FINFO_RXFLEN_MASK;
+@@ -5555,7 +5703,9 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
+             carrier_integrator = dwt_readcarrierintegrator();
+ #if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
+     APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U
+-            dwt_readdiagnostics(&tag_resp_diag);
++            if (ss_twr_init_rf_diag_runtime_on) {
++                dwt_readdiagnostics(&tag_resp_diag);
++            }
+ #endif
+             ss_twr_init_read_ts(
+                 &ss_twr_init_rx_buffer[SS_TWR_INIT_RESP_MSG_POLL_RX_TS_IDX],
+@@ -5569,18 +5719,20 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
+             resp_tx_ts_by_anchor[anchor_id] = resp_tx_ts;
+             carrier_integrator_by_anchor[anchor_id] = carrier_integrator;
+ #if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U
++            if (ss_twr_init_rf_diag_runtime_on) {
+ #if APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U
+-            ss_twr_init_rf_diag_from_rxdiag(
+-                &tag_resp_diag_by_anchor[anchor_id], &tag_resp_diag);
+-#endif
+-            (void)ss_twr_init_parse_resp_diag_v2(
+-                ss_twr_init_rx_buffer, frame_len,
+-                &anchor_poll_diag_by_anchor[anchor_id]);
+-            ss_twr_init_sweep_tag_resp_diag[anchor_id] =
+-                tag_resp_diag_by_anchor[anchor_id];
+-            ss_twr_init_sweep_anchor_poll_diag[anchor_id] =
+-                anchor_poll_diag_by_anchor[anchor_id];
+-            ss_twr_init_sweep_rf_diag_mask |= BIT(anchor_id);
++                ss_twr_init_rf_diag_from_rxdiag(
++                    &tag_resp_diag_by_anchor[anchor_id], &tag_resp_diag);
++#endif
++                (void)ss_twr_init_parse_resp_diag_v2(
++                    ss_twr_init_rx_buffer, frame_len,
++                    &anchor_poll_diag_by_anchor[anchor_id]);
++                ss_twr_init_sweep_tag_resp_diag[anchor_id] =
++                    tag_resp_diag_by_anchor[anchor_id];
++                ss_twr_init_sweep_anchor_poll_diag[anchor_id] =
++                    anchor_poll_diag_by_anchor[anchor_id];
++                ss_twr_init_sweep_rf_diag_mask |= BIT(anchor_id);
++            }
+ #endif
+             if ((cir_mode == UWB_TAG_CIR_MODE_COMPACT &&
+                  ss_twr_init_compact_cir_sample_due()) ||
+@@ -5661,13 +5813,15 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
+             }
+ #if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
+     APP_TAG_RF_DIAG_LEGACY_RFD_ENABLE != 0U
+-            ss_twr_init_publish_rf_diag(
+-                rf_diag_poll_seq,
+-                anchor_id, raw_distance_mm[anchor_id],
+-                resp_rx_ts_by_anchor[anchor_id],
+-                carrier_integrator_by_anchor[anchor_id],
+-                &anchor_poll_diag_by_anchor[anchor_id],
+-                &tag_resp_diag_by_anchor[anchor_id]);
++            if (ss_twr_init_rf_diag_runtime_on) {
++                ss_twr_init_publish_rf_diag(
++                    rf_diag_poll_seq,
++                    anchor_id, raw_distance_mm[anchor_id],
++                    resp_rx_ts_by_anchor[anchor_id],
++                    carrier_integrator_by_anchor[anchor_id],
++                    &anchor_poll_diag_by_anchor[anchor_id],
++                    &tag_resp_diag_by_anchor[anchor_id]);
++            }
+ #endif
+             ss_twr_init_alt_record_range(anchor_id, raw_distance_mm[anchor_id]);
+         } else {
+diff --git a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/uwb_ss_twr_shared.c b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/uwb_ss_twr_shared.c
+index a0bfff7a6..621d9f1eb 100755
+--- a/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/uwb_ss_twr_shared.c
++++ b/BioSpur_UWB_before_start/SS-TWR/alt-SS-TWR/broadcast/src/uwb_ss_twr_shared.c
+@@ -1,5 +1,34 @@
+ #include "uwb_ss_twr_shared.h"
+ 
++#include <errno.h>
++#include <stddef.h>
++#include <strings.h>
++
++int uwb_tx_power_preset_lookup(const char *preset, uint32_t *value)
++{
++    static const struct {
++        const char *name;
++        uint32_t value;
++    } presets[] = {
++        { "MAX", UWB_TX_POWER_PRESET_MAX },
++        { "M3", UWB_TX_POWER_PRESET_M3 },
++        { "M6", UWB_TX_POWER_PRESET_M6 },
++        { "M12", UWB_TX_POWER_PRESET_M12 },
++        { "POR", UWB_TX_POWER_PRESET_POR },
++    };
++
++    if (preset == NULL || value == NULL) {
++        return -EINVAL;
++    }
++    for (size_t i = 0U; i < (sizeof(presets) / sizeof(presets[0])); ++i) {
++        if (strcasecmp(preset, presets[i].name) == 0) {
++            *value = presets[i].value;
++            return 0;
++        }
++    }
++    return -EINVAL;
++}
++
+ static void uwb_frame_write_u16(uint8_t *frame, uint8_t offset, uint16_t value)
+ {
+     frame[offset] = (uint8_t)(value & 0xFFU);

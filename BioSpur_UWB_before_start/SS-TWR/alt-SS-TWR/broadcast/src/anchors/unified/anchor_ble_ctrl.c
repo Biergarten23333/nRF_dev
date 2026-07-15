@@ -2,6 +2,7 @@
 #include "anchor_cir_output.h"
 #include "anchor_runtime_control.h"
 #include "anchor_ultrasound.h"
+#include "ss_twr_anchor_init.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -463,7 +464,7 @@ static void process_control_cmd_locked(char *line)
     }
 
     if (strcmp(tok, "HELP") == 0) {
-        set_result_locked("OK CMDS=VERSION|PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|RESET AUTOPOS|RESET RESPONDER|STOP|DFU|SYNC|US?|USON [SEC]|USOFF|RUNTIME <MASTER|MATRIX|RESPONDER> [FORCE|SWEEP N] [CIR=0|COMPACT|FULL]");
+        set_result_locked("OK CMDS=VERSION|PENDING LABEL|PENDING ROLE|PENDING GEN|VALIDATE|COMMIT|REBOOT|TXPWR <MAX|M3|M6|M12|POR>|RESET AUTOPOS|RESET RESPONDER|STOP|DFU|SYNC|US?|USON [SEC]|USOFF|RUNTIME <MASTER|MATRIX|RESPONDER> [FORCE|SWEEP N] [CIR=0|COMPACT|FULL]");
         return;
     }
 
@@ -529,6 +530,22 @@ static void process_control_cmd_locked(char *line)
 
     if (strcmp(tok, "REBOOT") == 0) {
         handle_reboot_locked();
+        return;
+    }
+
+    if (strcmp(tok, "TXPWR") == 0) {
+        uint32_t applied = 0U;
+        char result[48];
+
+        tok = strtok_r(NULL, " ", &savep);
+        if (tok == NULL ||
+            ss_twr_anchor_init_tx_power_apply(tok, &applied) != 0) {
+            set_result_locked("ERR:BAD_TXPWR PRESET=MAX|M3|M6|M12|POR");
+            return;
+        }
+        snprintk(result, sizeof(result), "OK TXPWR VAL=0x%08X",
+                 (unsigned int)applied);
+        set_result_locked(result);
         return;
     }
 

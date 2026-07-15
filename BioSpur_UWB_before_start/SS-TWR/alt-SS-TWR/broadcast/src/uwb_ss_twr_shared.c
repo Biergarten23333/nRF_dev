@@ -1,5 +1,34 @@
 #include "uwb_ss_twr_shared.h"
 
+#include <errno.h>
+#include <stddef.h>
+#include <strings.h>
+
+int uwb_tx_power_preset_lookup(const char *preset, uint32_t *value)
+{
+    static const struct {
+        const char *name;
+        uint32_t value;
+    } presets[] = {
+        { "MAX", UWB_TX_POWER_PRESET_MAX },
+        { "M3", UWB_TX_POWER_PRESET_M3 },
+        { "M6", UWB_TX_POWER_PRESET_M6 },
+        { "M12", UWB_TX_POWER_PRESET_M12 },
+        { "POR", UWB_TX_POWER_PRESET_POR },
+    };
+
+    if (preset == NULL || value == NULL) {
+        return -EINVAL;
+    }
+    for (size_t i = 0U; i < (sizeof(presets) / sizeof(presets[0])); ++i) {
+        if (strcasecmp(preset, presets[i].name) == 0) {
+            *value = presets[i].value;
+            return 0;
+        }
+    }
+    return -EINVAL;
+}
+
 static void uwb_frame_write_u16(uint8_t *frame, uint8_t offset, uint16_t value)
 {
     frame[offset] = (uint8_t)(value & 0xFFU);

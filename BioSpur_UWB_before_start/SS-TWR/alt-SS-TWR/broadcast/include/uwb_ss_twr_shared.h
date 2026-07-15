@@ -116,4 +116,27 @@ bool uwb_ss_twr_poll_matches(const uint8_t *frame, uint16_t local_addr);
 bool uwb_ss_twr_resp_matches(const uint8_t *frame, uint16_t local_addr,
                              uint16_t expected_peer_addr);
 
+/* Runtime TX_POWER (reg 0x1E) presets — CH5/PRF64 smart-TX. DIS_STXP and
+ * TC_PGDELAY are NOT touched by these. Octet layout [P125,P250,P500,NORM],
+ * each = coarse DA(bits7:5, ~3dB/step) + mixer(bits4:0, ~0.5dB/step). Reduction
+ * is subtracted in half-dB from every octet (DA then mixer), floored at 0x00 so
+ * the smart-TX ladder stays coherent. Operative ranging bin = BOOSTP250 (0x45).
+ *   MAX = ref (P250 8.5 dB above floor)
+ *   M3  = -3.0 dB (P250 0x25)
+ *   M6  = -6.0 dB (P250 0x05)
+ *   M12 = target -12 dB but P250 clamps to 0x00 => actual -8.5 dB (register
+ *         floor: 0x45 is only 8.5 dB above 0x00; true -12 dB is unreachable
+ *         with smart-TX enabled)
+ *   POR = DW1000 power-on-reset default (P250 0x08 = -4.5 dB vs MAX) */
+#define UWB_TX_POWER_PRESET_MAX 0x25456585UL
+#define UWB_TX_POWER_PRESET_M3  0x05254565UL
+#define UWB_TX_POWER_PRESET_M6  0x00052545UL
+#define UWB_TX_POWER_PRESET_M12 0x00000005UL
+#define UWB_TX_POWER_PRESET_POR 0x0E080222UL
+
+/* Map a preset name (MAX|M3|M6|M12|POR, case-insensitive) to its TX_POWER
+ * register value. Returns 0 and sets *value on success, -EINVAL otherwise.
+ * Pure lookup: does NOT touch the radio (callers do the dwt_write). */
+int uwb_tx_power_preset_lookup(const char *preset, uint32_t *value);
+
 #endif /* UWB_SS_TWR_SHARED_H */
