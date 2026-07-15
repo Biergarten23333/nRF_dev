@@ -115,6 +115,16 @@ static bool ss_twr_resp_matrix_poll_matches(const uint8_t *frame,
 #define APP_ANCHOR_RESP_POST_TX_DIAG_PAYLOAD_DELAY_ENABLE 0U
 #endif
 
+/* freeze-clean batch6 (iii) compile-time guard — fixed-a19, 2026-07-14 incident.
+ * DIAG_V2 payload with the pre-TX diagnostics read (POST_TX_DELAY off) busts the
+ * delayed-TX deadline for tag polls and collapses ranging (ge7 -> 0). Whenever
+ * DIAG_V2 is ON, the post-TX deferred-diag path MUST be ON. This is the fatal
+ * combo (tag DIAG on + anchor deferred-diag off) that collapsed ranging. */
+#if APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_ENABLE != 0U && \
+    APP_ANCHOR_RESP_POST_TX_DIAG_PAYLOAD_DELAY_ENABLE == 0U
+#error "fixed-a19: APP_ANCHOR_RESP_PAYLOAD_DIAG_V2_ENABLE=1 requires APP_ANCHOR_RESP_POST_TX_DIAG_PAYLOAD_DELAY_ENABLE=1 (deferred diag); the pre-TX diag read collapsed ranging (ge7->0) on 2026-07-14."
+#endif
+
 #ifndef APP_ANCHOR_RESP_POST_TX_DIAG_SIDECHANNEL_ENABLE
 #define APP_ANCHOR_RESP_POST_TX_DIAG_SIDECHANNEL_ENABLE 0U
 #endif

@@ -236,6 +236,25 @@ enum uwb_tag_ble_cal_status {
 #define APP_TAG_RF_DIAG_TAG_RX_ENABLE 0U
 #endif
 
+/* Compile-time default for the runtime DIAG toggle (ss_twr_init_rf_diag_runtime_on).
+ * 0 = boot with DIAG OFF (production ranging). This is precisely what makes it
+ * SAFE to compile the Tag-side hot-path RX diag read IN
+ * (APP_TAG_RF_DIAG_TAG_RX_ENABLE=1, as the freeze ships). */
+#ifndef APP_TAG_RF_DIAG_RUNTIME_DEFAULT_ON
+#define APP_TAG_RF_DIAG_RUNTIME_DEFAULT_ON 0U
+#endif
+
+/* freeze-clean batch6 (ii) compile-time guard — ge7=0 regression, 2026-07-14.
+ * The regression was the Tag-side RX diagnostics READ running on the ranging
+ * critical path. Compiling the read IN (APP_TAG_RF_DIAG_TAG_RX_ENABLE=1, as the
+ * freeze ships) is SAFE as long as the runtime DIAG toggle boots OFF so the read
+ * is gated off in production. The FATAL COMBO is the read compiled in AND DIAG
+ * defaulting ON -- that runs it in production and collapses ge7. This guard
+ * fires ONLY on that combo; the freeze (=1, runtime-default OFF) compiles. */
+#if APP_TAG_RF_DIAG_TAG_RX_ENABLE != 0U && APP_TAG_RF_DIAG_RUNTIME_DEFAULT_ON != 0U
+#error "fatal combo (ge7=0, 2026-07-14): APP_TAG_RF_DIAG_TAG_RX_ENABLE=1 (Tag RX diag on the ranging hot path) with APP_TAG_RF_DIAG_RUNTIME_DEFAULT_ON=1 runs the hot-path read in production and collapses ge7. Keep the runtime DIAG default OFF when the hot-path read is compiled in."
+#endif
+
 #ifndef APP_TAG_ALT_BCAST_RANK_OFFSET_OVERRIDE
 #define APP_TAG_ALT_BCAST_RANK_OFFSET_OVERRIDE 255U
 #endif
@@ -688,7 +707,8 @@ int ss_twr_init_cir_mode_parse(const char *text, enum uwb_tag_cir_mode *mode)
  * possible ge7/ge8 hit). Toggled via the BLE `DIAG ON|OFF` command; boot
  * default = OFF (production ranging). This does NOT affect range computation —
  * only whether the diagnostic columns are read/emitted. */
-static volatile bool ss_twr_init_rf_diag_runtime_on;
+static volatile bool ss_twr_init_rf_diag_runtime_on =
+    (APP_TAG_RF_DIAG_RUNTIME_DEFAULT_ON != 0U);
 
 void ss_twr_init_set_rf_diag_runtime(bool enable)
 {

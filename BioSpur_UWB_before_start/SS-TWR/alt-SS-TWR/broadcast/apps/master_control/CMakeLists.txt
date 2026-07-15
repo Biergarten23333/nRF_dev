@@ -36,6 +36,16 @@ set(APP_MASTER_OTA_TARGET_TOKEN_ID "-1" CACHE STRING
     "BioSpur manufacturer token tag ID to OTA; -1 accepts any token")
 set(APP_MASTER_BOOT_PROFILE "neutral" CACHE STRING
     "Boot profile: neutral, anchor, or tag")
+
+# freeze-clean batch6 (i) compile-time guard — 2026-07-15 tag-grab incident.
+# A Master carrier MUST declare its role explicitly. A neutral profile leaves
+# the runtime target UNKNOWN and lets the carrier auto-connect and HOLD wand
+# tags (the incident that cost hours). neutral is a build error — not a doc rule.
+if(NOT APP_MASTER_BOOT_PROFILE STREQUAL "anchor" AND NOT APP_MASTER_BOOT_PROFILE STREQUAL "tag")
+  message(FATAL_ERROR
+    "Master carrier must set -DAPP_MASTER_BOOT_PROFILE=anchor|tag "
+    "(got '${APP_MASTER_BOOT_PROFILE}'). neutral is a build error.")
+endif()
 set(APP_MASTER_BOOT_TAG_ALLOWLIST "" CACHE STRING
     "Comma-separated BS names accepted by the tag boot profile; empty accepts all BS*")
 set(APP_MASTER_TDMA_SLOT_PERIOD_MS "10" CACHE STRING
