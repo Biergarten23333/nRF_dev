@@ -59,3 +59,81 @@ Notes:
   every unit is PANS-cleared regardless (full `recover` before program).
 - The live "hears polls/responses" spot-check across the fleet is pending the
   tag/anchor system ranging (see LISTENER_FREEZE.md).
+
+---
+
+## 3. Corrected firmware laws (freeze-clean batch6f)
+
+Code-anchored. These correct/supersede the laws in `FREEZE_4PIECE_20260715.md`
+using `experiments/ota_blocker_audit/OTA_BLOCKER_REPORT.md`.
+
+1. **A Master carrier MUST declare its role** with an explicit
+   `-DAPP_MASTER_BOOT_PROFILE=anchor|tag`. **`neutral` is a build error** — now
+   *compile-enforced* (batch6b, `apps/master_control/CMakeLists.txt`), not a doc
+   rule. `anchor` rejects wand tags; `tag` = RECV + BS prefix.
+
+2. **`control_mode` is NOT in flash — do NOT "full-erase to clear a zombie mode".**
+   Master boot mode = a `__noinit` **RAM** warm-reboot cookie (`main.c:79-80`,
+   restored at `:3215` iff cookie==MAGIC) **plus** the compile-time boot profile
+   (`:3337`). There is **no `settings_save()` of the mode** anywhere in the master
+   sources. A "zombie AUTOPOS that survived a reflash" was the boot profile doing
+   what it was compiled to do, not flash-persisted state. **Fix: correct
+   `APP_MASTER_BOOT_PROFILE` + a POWER CYCLE** (clears the warm cookie). A full
+   erase is neither necessary nor sufficient for mode.
+   **Distinct, separately-true fact (do not conflate):** flashing a **B120
+   nRF5340** MUST use JLink **`recover`** (CTRL-AP mass-erase + APPROTECT clear).
+   A plain `erase` leaves debug `loadfile` writes **non-persistent across a power
+   cycle** (blank 0x0 → HardFault); only a fresh-session physical 0x0 read proves
+   persistence. This is an nRF5340 flash-tooling fact, unrelated to `control_mode`.
+
+3. **OTA never needs `MODE IDLE`.** `OTA_PREPARE` (`uwb_tag_ble.c:2006`) alone
+   quiesces the tag (purges TX, blocks all telemetry via `ota_active`). A pre-OTA
+   `MODE IDLE` only persists a stopped state and is harmful, not required.
+
+4. **Tags always advertise, regardless of mode** (`uwb_tag_ble.c:1017`, resumed on
+   every disconnect `:1368`). The ONLY thing that stops a tag advertising is being
+   **held connected** by a master → the only hard OTA-lock is a master holding
+   the tags. Exactly one master may own the tag target-kind at a time.
+
+5. **Leave tags in RUN; stop via LIVE `CFG_STOP`, never persistent `MODE IDLE`.**
+   Persistent `MODE IDLE` writes NVS `tag_ble/runtime_cfg` and silently stops
+   ranging. Every capture script must restore RUN + advertising on **every** exit
+   path (normal / Ctrl-C / crash) using live-only commands. See §4.
+
+## 4. Persistent vs. live command decision table (batch6c doctrine)
+
+**Rule: transient/debug state uses LIVE commands (not persisted); persistent
+`MODE <..>` is ONLY for deliberately changing the production default.**
+
+| command | effect | NVS? | use when |
+|---|---|---|---|
+| `CFG_RUN` | enable TDMA transmit live → RUNNING | **live only** | start/resume ranging in a capture; reverts on reboot |
+| `CFG_STOP` | disable TDMA transmit live → ARMED (halts TX) | **live only** | **stop ranging at capture exit** — the correct stop |
+| `CFG TAG=… SLOT=… …` | master TDMA assignment (PMODE defaults RUN) | writes NVS | master (re)configuring a tag on connect |
+| `MODE RUN` / `MODE <run-ish>` | set persisted positioning mode = RUN | **writes NVS** | deliberately set the production default to RUN |
+| `MODE IDLE` / `STOP` / `HALT` | set persisted mode = IDLE (stops ranging) | **writes NVS** | ONLY to deliberately ship a stopped tag (rare) — never as a capture stop |
+| `MODE AOTA` | **no-op** (AOTA removed from tag) | — | never (removed; do not send) |
+| `STREAM OFF/0` / `STREAMON 0` | **no-op** (no tag handler → UNKNOWN_CMD) | — | never (removed; do not send) |
+| `DIAG ON/OFF`, `TXPWR …`, `CIR …` | live radio/diag toggles | **live only** (no NVS) | diagnostics; reset to default on reboot |
+
+**Capture exit contract (every capture script, every exit path):**
+`CFG_STOP` (live halt) → ensure tags left in persisted RUN + advertising →
+`oneshot clear` → NEVER leave persistent `MODE IDLE`. A crashed capture must not
+strand tags in a persistent stopped state (that is the OTA-blocker chain).
+
+## 5. OTA preflight checklist (batch6e — enforced by `ota_deploy` preflight)
+
+1. Inventory BOTH masters' connection state first (never hunt external
+   "competing centrals" — a battery-charged dongle was a 2026-07-15 red herring).
+2. If a master holds the target tags → release via the escape hatch (§6).
+3. Confirm no active capture (no TR streaming) on the target tags.
+4. Confirm all target tags are advertising (`scan` on the OTA master sees them).
+5. Deploy. On any unmet condition, report the reason + next step; do not hang.
+6. OTA does NOT need `MODE IDLE` (law 3). Post-OTA: tags boot advertising + RUN.
+
+## 6. Escape hatch — `scripts/release_all_tags.py` (batch6d)
+
+Atomic "unstick": on the holding master, stop auto-connect (`scan`) → disconnect
+all peers → verify tags re-advertise → hold the master from re-grabbing. This is
+the universal unlock for any future OTA lock (a master holding tags). Uses only
+existing verbs (`scan`, `status`, `device kind`).
