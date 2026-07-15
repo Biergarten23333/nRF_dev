@@ -1,6 +1,6 @@
 # BioSpur Usable Firmware Versions
 
-Last updated: 2026-05-26
+Last updated: 2026-07-15
 
 This file is the quick root-level index for firmware builds that are currently
 usable or useful as restore points. It does not replace the detailed freeze
@@ -17,6 +17,25 @@ Never swap the two B120 masters:
 
 B120 master-control images must use LFRC/internal RC. Before flashing a B120
 image, verify the build according to `AGENTS.md`.
+
+## Production Freeze — `freeze-4piece-20260715` (V1, current)
+
+Verified-pass 4-piece production freeze (git tag `freeze-4piece-20260715`).
+Full record: `SS-TWR/alt-SS-TWR/broadcast/FREEZE_4PIECE_20260715.md`.
+Verified 2026-07-15: ge7 0.978 / ge8 0.934 / valid% 97.3, 3 tags, both masters
+boot-verified. TR format = `TR;3`/blank-D1 when DIAG OFF (accepted V1; clean
+`TR;2` deferred to freeze-clean batch).
+
+| Piece | marker / carrier | signed.bin or merged sha256 (prefix) |
+|---|---|---|
+| TAG fw (BS9336/BS955A/BSCCF4) | `tag-freeze-20260715` (`build-tag-freeze-20260715`) | `12681984d516c4b5…` |
+| ANCHOR fw (A–H) | `anchor-freeze-20260715` (`build-anchor-freeze-20260715`) | `32769f9a6a8e700b…` |
+| MASTER_TAG carrier (SNR 1050070698, `boot=tag`) | `build-master-control-b120-m1-master-tag-freeze-20260715-boottag` | `1863676228466ef7…` |
+| MASTER_ANCHOR carrier (SNR 960148546, `boot=anchor`, PROTECTED) | `build-master-control-b120-m1-master-anchor-freeze-20260715-bootanchor` | `9054bf34434d0f3a…` |
+
+Flash masters with `scripts/flash_b120_master_freeze.sh` (recover + loadfile).
+Master carriers MUST carry an explicit `-DAPP_MASTER_BOOT_PROFILE`; `neutral` is a
+build error. See the freeze doc's "Frozen-firmware laws".
 
 ## Current Tag Raw-IMU Poll-Timestamp Line
 

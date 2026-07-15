@@ -329,7 +329,7 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
             int32_t carrier_integrator;
             long raw_distance_mm;
             uint32_t filtered_mm;
-            dwt_rxdiag_t rx_diag;
+            dwt_rxdiag_t rx_diag = {0};
 
             dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
 
@@ -366,7 +366,12 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
             poll_tx_ts = dwt_readtxtimestamplo32();
             resp_rx_ts = dwt_readrxtimestamplo32();
             carrier_integrator = dwt_readcarrierintegrator();
-            dwt_readdiagnostics(&rx_diag);
+            /* A13 freeze gate: the diagnostics read is CIR-only. Skip it unless
+             * anchor CIR capture is active (matrix/AutoPos path; the ranging
+             * carrier-integrator read above is kept unconditional). */
+            if (anchor_cir_output_get_mode() != ANCHOR_CIR_OUTPUT_OFF) {
+                dwt_readdiagnostics(&rx_diag);
+            }
             clock_offset_ratio =
                 (double)carrier_integrator *
                 (FREQ_OFFSET_MULTIPLIER * HERTZ_TO_PPM_MULTIPLIER_CHAN_5 /

@@ -3655,6 +3655,10 @@ static inline void ss_twr_init_phase_loop_event(void)
  */
 static void ss_twr_init_phase_publish(uint32_t sweep, uint8_t slot, uint8_t valid)
 {
+    /* T17 freeze gate: DIAG-only telemetry; no TP output when DIAG runtime OFF. */
+    if (!ss_twr_init_rf_diag_runtime_on) {
+        return;
+    }
 #if APP_TAG_BLE_ENABLE
     char line[96];
 
@@ -3762,6 +3766,10 @@ static void ss_twr_init_tailq_finish(const bool *received, uint8_t active_mask,
 /* Emit when any anchor dropped (focus on tail) or on the periodic heartbeat. */
 static void ss_twr_init_tailq_publish(uint32_t sweep, uint8_t slot)
 {
+    /* T17 freeze gate: DIAG-only telemetry; no TQ output when DIAG runtime OFF. */
+    if (!ss_twr_init_rf_diag_runtime_on) {
+        return;
+    }
 #if APP_TAG_BLE_ENABLE
     char line[112];
 
@@ -5179,12 +5187,21 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
 {
     ss_twr_init_alt_last_sweep_entry_cycles = k_cycle_get_32();
     /*
+     * T17 freeze gate: the phase/tail-RX telemetry is a DIAG-only diagnostic.
+     * When the runtime DIAG flag is OFF (production) NO telemetry work runs in the
+     * RX collector hot path -- not even a k_cycle_get_32() read. The flag is
+     * sampled once per sweep so behaviour is consistent within a sweep.
+     */
+    const bool phase_tel_on = ss_twr_init_rf_diag_runtime_on;
+    /*
      * Clear phase counters at entry so a sweep that aborts before the RX
      * collector (e.g. poll TX failure) reports zero preemption rather than the
      * previous sweep's stale values.  Re-initialised with the real window once
      * the collector starts.
      */
-    ss_twr_init_phase_loop_begin(ss_twr_init_alt_last_sweep_entry_cycles, 0U);
+    if (phase_tel_on) {
+        ss_twr_init_phase_loop_begin(ss_twr_init_alt_last_sweep_entry_cycles, 0U);
+    }
     ss_twr_init_alt_last_tx_sched_cycles = 0U;
     ss_twr_init_alt_last_tx_write_done_cycles = 0U;
     ss_twr_init_alt_last_tx_cmd_cycles = 0U;
@@ -5471,9 +5488,11 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
     ss_twr_init_diag_rx_start_cycles = rx_enable_done_cycles;
 #endif
     response_window_start_cycles = rx_enable_done_cycles;
-    ss_twr_init_phase_loop_begin(response_window_start_cycles,
-                                 response_window_cycles);
-    ss_twr_init_tailq_begin(anchor_mask, response_window_us);
+    if (phase_tel_on) {
+        ss_twr_init_phase_loop_begin(response_window_start_cycles,
+                                     response_window_cycles);
+        ss_twr_init_tailq_begin(anchor_mask, response_window_us);
+    }
 
     {
         uint32_t actual_poll_tx_ts = dwt_readtxtimestamplo32();
@@ -5486,16 +5505,22 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
 
     while ((uint32_t)(k_cycle_get_32() - response_window_start_cycles) <
            response_window_cycles) {
-        ss_twr_init_phase_loop_tick(k_cycle_get_32());
+        if (phase_tel_on) {
+            ss_twr_init_phase_loop_tick(k_cycle_get_32());
+        }
         uint32_t status_reg = dwt_read32bitreg(SYS_STATUS_ID);
         last_status_reg = status_reg;
-        ss_twr_init_tailq_observe(status_reg);
+        if (phase_tel_on) {
+            ss_twr_init_tailq_observe(status_reg);
+        }
 
 #if SS_TWR_INIT_BCAST_RXDBLBUF_ENABLE != 0U
         /* Both RX buffers filled before the host drained them (host stalled > 1 frame):
          * the buffers/pointers are now suspect. Reset + resync (discards the backlog). */
         if ((status_reg & SYS_STATUS_RXOVRR) != 0U) {
-            ss_twr_init_tailq_note_errto();
+            if (phase_tel_on) {
+                ss_twr_init_tailq_note_errto();
+            }
             ss_twr_init_alt_rx_recover();
             continue;
         }
@@ -5505,7 +5530,9 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
                            SYS_STATUS_ALL_RX_ERR)) == 0U) {
             continue;
         }
-        ss_twr_init_phase_loop_event();
+        if (phase_tel_on) {
+            ss_twr_init_phase_loop_event();
+        }
         last_rx_finfo = dwt_read32bitreg(RX_FINFO_ID);
 
         if ((status_reg & SYS_STATUS_RXFCG) != 0U) {
@@ -5601,11 +5628,15 @@ static bool ss_twr_init_alt_burst_sweep_once(void)
             continue;
         }
 
-        ss_twr_init_tailq_note_errto();
+        if (phase_tel_on) {
+            ss_twr_init_tailq_note_errto();
+        }
         ss_twr_init_alt_rx_recover();
     }
-    ss_twr_init_tailq_finish(received, anchor_mask, poll_count, responses,
-                             k_cycle_get_32() - response_window_start_cycles);
+    if (phase_tel_on) {
+        ss_twr_init_tailq_finish(received, anchor_mask, poll_count, responses,
+                                 k_cycle_get_32() - response_window_start_cycles);
+    }
 #if APP_TAG_SWEEP_DIAG_ENABLE != 0U
     ss_twr_init_diag_rx_done_cycles = k_cycle_get_32();
 #endif

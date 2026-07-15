@@ -1,0 +1,91 @@
+{
+  "audit": "deployment-declutter",
+  "date": "2026-07-15",
+  "tree_root": "SS-TWR/alt-SS-TWR/broadcast",
+  "baseline_tag": "freeze-4piece",
+  "target_tag": "freeze-clean",
+  "read_only": true,
+  "buckets": ["KEEP", "KEEP-DEBUG", "DELETE"],
+  "rules": {
+    "R1_delete_requires_proof": "zero host parsers AND no firmware counterpart AND not in any CMakeLists AND git-superseded (not merely unwired); incomplete -> KEEP-DEBUG",
+    "R2_tombstone": "dead code carrying a falsified-experiment lesson -> KEEP-DEBUG tombstone",
+    "R3_output": "emitted output with no host parser -> DELETE candidate unless reserved-for-fusion"
+  },
+  "command_surface": [
+    {"name": "TAG core (CFG/MODE/APOS*/OTA_*/REBOOT/VERSION/PING/STATUS/CFG_*)", "bucket": "KEEP", "site": "apps/tag/src/uwb_tag_ble.c:1540-2061", "parser_or_sender": "master + capture scripts", "if_delete_breaks": "ranging/config/OTA"},
+    {"name": "ANCHOR core (R/L/G/VALIDATE/COMMIT/RESET/RUNTIME/REBOOT/STOP/DFU + UART role)", "bucket": "KEEP", "site": "src/anchors/unified/anchor_ble_ctrl.c:466-731; uart_role_switch.c:320-394", "if_delete_breaks": "provisioning/role/OTA"},
+    {"name": "MASTER console (mode/device/conn/scan/tdma/autopos/anchor/ota_target/cmd*/oneshot)", "bucket": "KEEP", "site": "apps/master_control/src/main.c:2337-3133", "if_delete_breaks": "capture/OTA/AutoPos orchestration"},
+    {"name": "LISTENER MODE_TAG/LISTEN/IDLE/QUERY", "bucket": "KEEP", "site": "UWB_listener/src/main.c:960", "if_delete_breaks": "listener calibration"},
+    {"name": "TAG TXPWR/DIAG/CIR/TAG CIR", "bucket": "KEEP-DEBUG", "site": "apps/tag/src/uwb_tag_ble.c:1604/1627/1650", "default": "OFF"},
+    {"name": "ANCHOR TXPWR/RUNTIME CIR=/US*", "bucket": "KEEP-DEBUG", "site": "src/anchors/unified/anchor_ble_ctrl.c:536/582/471", "default": "OFF"},
+    {"name": "MASTER tag cir/autopos cir/MSTAT", "bucket": "KEEP-DEBUG", "site": "apps/master_control/src/main.c:2411/2866; master_multi_app.c:2209"},
+    {"name": "b120 probe commands", "bucket": "KEEP-DEBUG", "site": "apps/b120_cdc_probe/src/main.c:42-49"},
+    {"name": "STREAM OFF / STREAM 0 / STREAMON 0", "bucket": "DELETE", "batch": 2, "kind": "orphan-sender", "site_sender": "scripts/run_autopos_sweep_loop.py:2405-2407", "proof": "no tag handler (uwb_tag_ble.c:2060 UNKNOWN_CMD); only build-flag APP_TAG_STREAM_FORCE_OFF_AT_BOOT", "if_delete_breaks": "nothing; already no-op, MODE IDLE fallback"},
+    {"name": "cmd_all MODE AOTA", "bucket": "DELETE", "batch": 2, "kind": "orphan-sender", "site_sender": "scripts/run_recv_tdma_capture.py:2415,2454", "proof": "AOTA removed from tag mode model (AUDIT T7; parser 771-801); no handler -> MODE_BAD", "if_delete_breaks": "nothing; paired MODE IDLE/tdma clear does the stop"},
+    {"name": "TDMA_STATUS", "bucket": "DELETE-candidate", "batch": 3, "kind": "orphan-handler", "site_handler": "apps/tag/src/uwb_tag_ble.c:1585", "proof": "zero senders (git 1 commit, never wired); redundant with MODE?/CFG_STATUS", "r1_tension": "added-then-forgotten not named-supersession", "recommend": "operator rules KEEP-DEBUG vs DELETE"},
+    {"name": "MMOT", "bucket": "DELETE-candidate", "batch": 3, "kind": "orphan-handler", "site_handler": "apps/tag/src/uwb_tag_ble.c:1842,1851", "proof": "zero senders; exact dup of MODE RUN; mis-parses MMOT<suffix> (footgun)", "recommend": "DELETE"},
+    {"name": "apps/master/src/master_app.c", "bucket": "DELETE", "batch": 1, "kind": "dead-file", "proof": "not in any CMakeLists (apps/master/CMakeLists.txt:50-51 compiles main.c+master_multi_app.c); superseded single-conn demo", "if_delete_breaks": "nothing; never linked"},
+    {"name": "src/uwb_control_proto.c", "bucket": "KEEP-DEBUG", "ambiguous": true, "batch": 1, "kind": "reserved-skeleton", "proof": "not in any CMakeLists, zero callers, but NEVER WIRED (not superseded) -> R1(d) fails", "readings": ["KEEP: reserved UWB command channel for planned BLE-removal", "DELETE: abandoned residue"], "recommend": "KEEP unless operator confirms BLE-removal abandoned"},
+    {"name": "TDMA_SET vs CFG SLOT=", "bucket": "KEEP-DEBUG", "note": "not a duplicate to delete; TDMA_SET is documented manual single-slot override (uwb_tag_ble.c:1896)"}
+  ],
+  "output_surface": [
+    {"line": "TR;2", "bucket": "KEEP", "grammar": "TR;2;sweep;plan;pmode;active_mask;valid_mask;raw_csv;range_csv;quality_csv;status_codes", "trigger": "TR_BCAST_V2_ENABLE=1 & RF_DIAG_OUTPUT=0", "emit": "src/ss_twr_init.c:1316", "parser": "scripts/run_recv_tdma_capture.py:41,62", "note": "PRODUCTION range line"},
+    {"line": ";T,<die>,<vbat>", "bucket": "KEEP", "trigger": "unconditional", "emit": "src/ss_twr_init.c:1418", "parser": "scripts/run_recv_tdma_capture.py:132"},
+    {"line": "TR;3 (prod) / ;D1,<b64>", "bucket": "KEEP-DEBUG", "grammar": "TR;2 + ;D<ver>,<base64> per-anchor 8B RF-diag", "trigger": "RF_DIAG_OUTPUT & TR_RF_DIAG_COMPACT", "emit": "src/ss_twr_init.c:1203,1320", "parser": "scripts/run_recv_tdma_capture.py:247-281", "note": "the D1 token = RF-diag, NOT CIR"},
+    {"line": "TR;3/4 (legacy 14-field)", "bucket": "KEEP-DEBUG", "trigger": "TR_BCAST_V2_ENABLE=0", "emit": "src/ss_twr_init.c:1338,254,256", "parser": "scripts/run_recv_tdma_capture.py:41", "hazard": "version-collides with prod TR;3"},
+    {"line": ";I,.. / ;R,..", "bucket": "KEEP-DEBUG", "trigger": "TR_IMU_SUMMARY / TR_IMU_RAW (=0)", "emit": "src/ss_twr_init.c:1367,1402", "parser": "scripts/run_recv_tdma_capture.py:120"},
+    {"line": "TP;1", "bucket": "KEEP-DEBUG", "action": "GATE OFF", "trigger": "SS_TWR_INIT_PHASE_TELEMETRY_ENABLE=1 (ON in prod)", "emit": "src/ss_twr_init.c:3672", "parser": "UNPARSED", "note": "emitted in production but zero host parsers -> top output cleanup target; gate default off, keep code"},
+    {"line": "RFD;1", "bucket": "KEEP-DEBUG", "trigger": "RF_DIAG_OUTPUT (=0)", "emit": "src/ss_twr_init.c:3217", "parser": "scripts/run_recv_tdma_capture.py:85"},
+    {"line": "CRX;1", "bucket": "KEEP", "reserved": "fusion pair-weights", "trigger": "CIR_FEATURE_OUTPUT (=0)", "emit": "src/ss_twr_init.c:761", "parser": "scripts/cir_features_to_pair_weights.py:16"},
+    {"line": "CIRM/CIRD/CIRE;1", "bucket": "KEEP", "reserved": "imaging / R-matrix", "trigger": "CIR_FULL_OUTPUT (=0)", "emit": "src/ss_twr_init.c:888,906,920", "parser": "flutter_ui_autopos/scripts/cir_full_usb_capture.py (out-of-tree)"},
+    {"line": "TS;1 / TagSummary", "bucket": "KEEP-DEBUG", "trigger": "POSITION_OUTPUT & BLE_COMPACT_STATUS", "emit": "src/ss_twr_init.c:4430", "parser": "scripts/capture_master_ble_session.py:53; scripts/uwb_live_viewer.py:45"},
+    {"line": "BSTAT", "bucket": "KEEP-DEBUG", "ambiguous": true, "trigger": "BLE_STATS_ENABLE (=0)", "emit": "apps/tag/src/uwb_tag_ble.c:566", "parser": "UNPARSED", "readings": ["KEEP-DEBUG inert toggle", "DELETE unparsed"]},
+    {"line": "replies MODE=/OTA_STATE=/CFG_OK/STATE=/VERSION", "bucket": "KEEP", "note": "request-reply contract", "parser": "loop_test_ota_targeting.py:26; run_recv_tdma_capture.py:218; ota_deploy_tag_set.py:14"},
+    {"line": "PONG", "bucket": "KEEP-DEBUG", "kind": "orphan-reply", "note": "reply to PING whose only live sender is dead master_app.c", "parser": "UNPARSED"},
+    {"line": "BP", "bucket": "DELETE", "note": "not emitted in broadcast tree; stale COMMAND_REFERENCE note; nothing to remove", "parser": "UNPARSED"},
+    {"line": "BS; (bundle-candidate prefix)", "bucket": "DELETE", "batch": 4, "emit": "never (vestigial strstr entry uwb_tag_ble.c:1052)", "parser": "UNPARSED", "note": "superseded by TS;/TagSummary"},
+    {"line": "SW-<label>", "bucket": "KEEP", "trigger": "AutoPos/matrix role", "emit": "src/ss_twr_anchor_init.c:85", "parser": "scripts/run_autopos_sweep_loop.py:251; apps/master_control/src/main.c:1073"},
+    {"line": "ANCHOR_FW/OK/ERR:/GATT STATE", "bucket": "KEEP", "parser": "scripts/ble_anchor_control.py:114-118; scripts/ota_deploy_anchor_set.py:28-32"},
+    {"line": "ACRX;1", "bucket": "KEEP", "reserved": "fusion pair-weights", "trigger": "CIR_FEATURE (=0)", "emit": "src/anchors/unified/anchor_cir_output.c:133", "parser": "scripts/cir_features_to_pair_weights.py:15"},
+    {"line": "ACIRM/ACIRD/ACIRE;1", "bucket": "KEEP", "reserved": "imaging", "trigger": "CIR_FULL (=0)", "emit": "src/anchors/unified/anchor_cir_output.c:201,226,243", "parser": "flutter_ui_autopos/scripts/cir_full_usb_capture.py (out-of-tree)"},
+    {"line": "LPD;1 / LRD;1 / LSTAT;1", "bucket": "KEEP", "emit": "UWB_listener/src/main.c:375,410,701", "parser": "scripts/capture_uwb_poll_listener.py:16,39,94"},
+    {"line": "LCIRM/LCIRD/LCIRE;1", "bucket": "KEEP", "emit": "UWB_listener/src/main.c:460,486,500", "parser": "scripts/capture_uwb_poll_listener.py:61,80,88; scripts/cir_live_view.py:65"},
+    {"line": "LTAG;", "bucket": "KEEP-DEBUG", "trigger": "MODE_TAG", "emit": "UWB_listener/src/main.c:775", "parser": "UNPARSED in-tree (listener self-location, out-of-tree)"},
+    {"line": "UL;/UF; (legacy listener)", "bucket": "KEEP-DEBUG", "parser": "scripts/capture_uwb_listener.py:16-30"},
+    {"line": "BADV;/BSTAT; (ble_listener)", "bucket": "KEEP-DEBUG", "parser": "UNPARSED in-tree"},
+    {"line": "MSTAT", "bucket": "KEEP-DEBUG", "emit": "apps/master/src/master_multi_app.c:2209", "parser": "experiments/overnight_power_preflight.py:22"},
+    {"line": "MCLK", "bucket": "KEEP-DEBUG", "emit": "apps/master/src/master_multi_app.c:2224", "parser": "scripts/run_recv_tdma_capture.py:197"},
+    {"line": "CFG assigned", "bucket": "KEEP", "emit": "apps/master/src/master_multi_app.c:1379", "parser": "scripts/run_recv_tdma_capture.py:205; scripts/tag_roster.py:15"},
+    {"line": "Control mode loaded", "bucket": "KEEP", "emit": "apps/master_control/src/main.c:3225", "parser": "scripts/ota_single_tag_stable.py:24"},
+    {"line": "TDMA weighted", "bucket": "KEEP-DEBUG", "emit": "apps/master/src/master_multi_app.c:1650", "parser": "scripts/run_recv_tdma_capture.py:225"},
+    {"line": "TDMA_SLOT (tag->master notify)", "bucket": "KEEP", "note": "firmware-internal telemetry consumed by master, not a host-output delete candidate", "parser": "master firmware"}
+  ],
+  "production_output_contract_v0": {
+    "tag_line": "TR;2;<sweep>;<plan>;<pmode>;<active_mask>;<valid_mask>;<raw_csv>;<range_csv>;<quality_csv>;<status_codes>;T,<tag_temp_raw>,<tag_vbat_raw>",
+    "version_frozen": 2,
+    "delivery": "bundled up to 8 records / >=100ms over BLE NUS",
+    "parser": "scripts/run_recv_tdma_capture.py TR_RANGE_RE:41 + TR_TEMP_TRAILER_RE:132",
+    "master_telemetry": ["MCLK 5s", "MSTAT 5s", "CFG assigned", "Control mode loaded"],
+    "anchor_production": "silent responder (SW- only in AutoPos)",
+    "caveat": "TP;1 currently ships (PHASE_TELEMETRY_ENABLE=1); contract assumes Batch 4 gates it OFF",
+    "version_bump_policy": "TR;2 frozen; next production field change -> TR;5 (avoid overloaded 3/4); retire/renumber legacy #else path so version carries layout"
+  },
+  "cleanup_batches": [
+    {"batch": 1, "title": "never-compiled dead code", "risk": "lowest", "delete": ["apps/master/src/master_app.c"], "keep_operator_decision": ["src/uwb_control_proto.c (reserved skeleton, R1(d))"], "verify": "build byte-identical; grep no refs"},
+    {"batch": 2, "title": "host orphan senders", "risk": "low", "remove": ["run_recv_tdma_capture.py:2415,2454 cmd_all MODE AOTA", "run_autopos_sweep_loop.py:2405-2407 cmd STREAM OFF/0/STREAMON 0"], "verify": "firmware no-op today; MODE IDLE/tdma clear still stops; ge7 + TR;2 unchanged"},
+    {"batch": 3, "title": "orphan firmware handlers (operator confirm)", "risk": "medium", "delete_recommend": ["uwb_tag_ble.c:1842,1851 MMOT (footgun)"], "operator_rules": ["uwb_tag_ble.c:1585 TDMA_STATUS (harmless dup)"], "verify": "unreachable handlers; build+ge7+TR;2 unchanged"},
+    {"batch": 4, "title": "unparsed/hazard outputs", "risk": "medium", "actions": ["gate SS_TWR_INIT_PHASE_TELEMETRY_ENABLE 1->0 (ss_twr_init.c:3575) — keep code, stop emitting TP;1", "retire/renumber legacy #else TR path (ss_twr_init.c:1338) to fix TR;3 collision", "remove vestigial BS; from bundle-candidate set (uwb_tag_ble.c:1052)", "BSTAT keep-debug or delete (operator)"], "verify": "TR;2+;T still emit; no parser referenced TP;/BS;; hot path unaffected"}
+  ],
+  "tombstones_keep": [
+    "RXAUTR/RXDBLBUF falsified experiments (AUDIT T25)",
+    "CONN-INTERVAL sweep comment (AUDIT M5)",
+    "src/uwb_control_proto.c reserved skeleton",
+    "legacy TR;3/4 path (unless renumbered)"
+  ],
+  "ambiguous_for_operator": [
+    "uwb_control_proto.c: reserved(KEEP) vs abandoned(DELETE)",
+    "TDMA_STATUS: KEEP-DEBUG vs DELETE",
+    "BSTAT: KEEP-DEBUG vs DELETE",
+    "legacy TR;3/4 path: retire vs renumber vs tombstone"
+  ]
+}
