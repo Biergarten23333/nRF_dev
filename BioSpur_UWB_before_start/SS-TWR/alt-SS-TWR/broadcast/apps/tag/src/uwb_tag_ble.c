@@ -1045,11 +1045,13 @@ static bool uwb_tag_ble_bundle_enabled(void)
 
 static bool uwb_tag_ble_line_is_bundle_candidate(const char *line)
 {
+	/* freeze-clean batch4e: "BS;" was a vestigial bundle token that no tag
+	 * path emits (verified: no snprintk/printk produces a "BS;" line); drop it
+	 * from the bundle-candidate match. */
 	return (line != NULL) && (strstr(line, "TagSummary") != NULL ||
 				  strstr(line, "TS ") != NULL ||
 				  strstr(line, "TS;") != NULL ||
-				  strstr(line, "TR;") != NULL ||
-				  strstr(line, "BS;") != NULL);
+				  strstr(line, "TR;") != NULL);
 }
 
 static void uwb_tag_ble_schedule_bundle_flush_locked(void)

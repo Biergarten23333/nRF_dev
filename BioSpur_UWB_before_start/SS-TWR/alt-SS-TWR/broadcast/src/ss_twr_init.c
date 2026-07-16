@@ -269,10 +269,15 @@ enum uwb_tag_ble_cal_status {
 
 #define SS_TWR_INIT_IMU_SUMMARY_MAX_WINDOW 16U
 
+/* freeze-clean batch4b: de-overload the "TR;3" token. The production broadcast
+ * path (APP_TAG_TR_BCAST_V2_ENABLE) emits "TR;2"/"TR;3" via the runtime DIAG
+ * gate; this legacy non-BCAST_V2 path historically used 3U/4U for the SAME
+ * leading token. Renumber to 13U/14U so "TR;3" unambiguously means the
+ * production compact-diag format. (This path is not compiled in the freeze.) */
 #if APP_TAG_TR_IMU_SUMMARY_ENABLE != 0U || APP_TAG_TR_IMU_RAW_ENABLE != 0U
-#define SS_TWR_INIT_TR_RANGE_VERSION 4U
+#define SS_TWR_INIT_TR_RANGE_VERSION 14U
 #else
-#define SS_TWR_INIT_TR_RANGE_VERSION 3U
+#define SS_TWR_INIT_TR_RANGE_VERSION 13U
 #endif
 
 #ifndef APP_TAG_CONSOLE_SUMMARY_ENABLE
@@ -1337,7 +1342,10 @@ static void ss_twr_init_publish_tag_range_summary(
         (unsigned int)(
 #if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
     APP_TAG_TR_RF_DIAG_COMPACT_ENABLE != 0U
-            3U
+            /* freeze-clean batch4d: runtime-gate the TR range-format version on
+             * the DIAG toggle. DIAG off (production) -> "TR;2" with no ;D1
+             * trailer; DIAG on -> "TR;3" + ;D1 compact-diag trailer below. */
+            (ss_twr_init_rf_diag_runtime_enabled() ? 3U : 2U)
 #else
             2U
 #endif
@@ -1369,7 +1377,9 @@ static void ss_twr_init_publish_tag_range_summary(
 #endif
 #if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U && \
     APP_TAG_TR_RF_DIAG_COMPACT_ENABLE != 0U
-    if (line_len > 0) {
+    /* freeze-clean batch4d: only append the ;D1 compact-diag trailer when the
+     * DIAG toggle is on, keeping production output at literal "TR;2". */
+    if (line_len > 0 && ss_twr_init_rf_diag_runtime_enabled()) {
         (void)ss_twr_init_append_compact_rf_diag(line, sizeof(line),
                                                 active_mask);
         line_len = (int)strlen(line);
@@ -3592,7 +3602,10 @@ static int ss_twr_init_load_runtime_config(
  * floor.  See docs/tier2_phase_telemetry_design_20260627.md.
  */
 #ifndef SS_TWR_INIT_PHASE_TELEMETRY_ENABLE
-#define SS_TWR_INIT_PHASE_TELEMETRY_ENABLE 1U
+/* freeze-clean batch4a: default the Tier-2 phase-telemetry (;TP trailer) OFF.
+ * It was a bring-up diagnostic; production TR must not carry ;TP. Still
+ * overridable via -DSS_TWR_INIT_PHASE_TELEMETRY_ENABLE=1 for diagnostics. */
+#define SS_TWR_INIT_PHASE_TELEMETRY_ENABLE 0U
 #endif
 
 #if SS_TWR_INIT_PHASE_TELEMETRY_ENABLE != 0U
