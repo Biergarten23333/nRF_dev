@@ -1,6 +1,6 @@
 # BioSpur Usable Firmware Versions
 
-Last updated: 2026-07-15
+Last updated: 2026-07-16
 
 This file is the quick root-level index for firmware builds that are currently
 usable or useful as restore points. It does not replace the detailed freeze
@@ -18,7 +18,35 @@ Never swap the two B120 masters:
 B120 master-control images must use LFRC/internal RC. Before flashing a B120
 image, verify the build according to `AGENTS.md`.
 
-## Production Freeze — `freeze-4piece-20260715` (V1, current)
+## Production Freeze — `freeze-clean-20260716` (V2, CURRENT)
+
+Verified-pass **freeze-clean** — the four-piece cleanup on top of
+`freeze-4piece-20260715` (git tag `freeze-clean-20260716`, parent
+`freeze-4piece-20260715`). Records: `docs/DEPLOYMENT.md` (deployment contract,
+batches 1/2/3/4/6a-f) + `SS-TWR/alt-SS-TWR/broadcast/experiments/anchor_ota_diagnosis/ANCHOR_OTA_ROOTCAUSE.md`.
+Verified 2026-07-16 (3/3): **ge7 0.979 / ge8 0.968 / valid% 97.8** (BSCCF4 0.978),
+literal **`TR;2`** DIAG-off, no `;D1`, no `;TP`. Boot banner verified on BOTH masters
+(Master_Anchor `wand tags: rejected`, Master_Tag `WILL HOLD BS*`). Neutral master
+build fails to compile; tag DIAG-default-on fatal combo `#error`s.
+
+| Piece | marker / carrier | note |
+|---|---|---|
+| TAG fw (BS9336/BS955A/BSCCF4) | `tag-freeze-clean-20260716` (`build-tag-freeze-clean-20260716`) | clean TR;2 (batch3+4); DIAG default off |
+| ANCHOR fw (A–H) | `anchor-freeze-clean-20260716` (`build-anchor-freeze-clean-20260716`) | **byte-identical binary to freeze-4piece** (batch6b = compile-time guard only, no emitted code) |
+| MASTER_TAG carrier (SNR 1050070698) | `build-master-tag-freeze-clean-20260716-boottag` | boot=tag + 6a banner + tag payload |
+| MASTER_ANCHOR carrier (SNR 960148546) | `build-master-anchor-freeze-clean-20260716-bootanchor` | boot=anchor + 6a banner + anchor payload |
+
+**Anchor marker note (option 1):** anchor binary is byte-identical to freeze-4piece
+(marker string only). Anchors **A, B, C** carry `anchor-freeze-clean-20260716`
+(re-OTA'd during the anchor-OTA fix verification); **D–H** carry
+`anchor-freeze-20260715`. All 8 run the **same binary** — the split is cosmetic (the
+reset-per-anchor no-op OTA for D–H was skipped by decision).
+
+**Anchor OTA fixed 2026-07-16:** batch OTA works via `ota_deploy_anchor_set.py`'s
+per-anchor cold-reset + wait-8/8 + recover-on-exit. A firmware warm-reboot-reconnect
+fix is an OPEN ITEM before the reverse-SS-TWR phase (ANCHOR_OTA_ROOTCAUSE.md §2.3).
+
+## Production Freeze — `freeze-4piece-20260715` (V1 baseline / rollback anchor)
 
 Verified-pass 4-piece production freeze (git tag `freeze-4piece-20260715`).
 Full record: `SS-TWR/alt-SS-TWR/broadcast/FREEZE_4PIECE_20260715.md`.
