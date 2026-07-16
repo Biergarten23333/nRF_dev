@@ -1839,7 +1839,7 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		return;
 	}
 
-	if (strncmp(cmd, "MODE ", 5) == 0 || strncmp(cmd, "MMOT", 4) == 0) {
+	if (strncmp(cmd, "MODE ", 5) == 0) {
 		struct uwb_tag_runtime_params params;
 		uint8_t requested_mode = UWB_TAG_MODE_RUN;
 		const char *arg = cmd + 5;
@@ -1848,16 +1848,15 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		int policy_err;
 		char resp[96];
 
-		if (strcmp(cmd, "MMOT") == 0) {
-			requested_mode = UWB_TAG_MODE_RUN;
-		} else {
-			while (*arg == ' ' || *arg == '\t') {
-				arg++;
-			}
-			if (*arg == '\0' || !uwb_tag_ble_parse_mode_value(arg, &requested_mode)) {
-				uwb_tag_ble_send_text("MODE_BAD");
-				return;
-			}
+		/* freeze-clean batch3: MMOT removed (footgun — strncmp("MMOT",4)
+		 * prefix-matched "MMOT<suffix>" into a misparse; exact duplicate of
+		 * "MODE RUN"; zero senders anywhere). */
+		while (*arg == ' ' || *arg == '\t') {
+			arg++;
+		}
+		if (*arg == '\0' || !uwb_tag_ble_parse_mode_value(arg, &requested_mode)) {
+			uwb_tag_ble_send_text("MODE_BAD");
+			return;
 		}
 
 		if (uwb_tag_ble_ota_active()) {
