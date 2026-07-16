@@ -16,6 +16,22 @@ Full laws + tables: `../docs/DEPLOYMENT.md` (§3 laws, §4 command table, §5 pr
 
 ---
 
+# Firmware source (`firmware/src/`) — to MODIFY firmware
+
+The archive carries the complete four-piece + listener firmware **source** at
+`freeze-clean-20260716`, not just binaries. **To change firmware (e.g. reverse SS-TWR — add a
+tag FINAL frame, gateway FINAL parsing, or fix the TDMA slot-execution path), edit under
+`firmware/src/` and rebuild per `firmware/src/BUILD.md`.** It is a **drop-in buildable tree**
+(the build scripts compute repo_root relative to themselves; **listener test-built clean from
+the snapshot**). The **`-D`-flag → piece mapping** (esp. `-DAPP_MASTER_BOOT_PROFILE=tag|anchor`,
+the boot-profile distinction) and the batch6b guard self-tests are in `BUILD.md`; provenance +
+directory mapping in `firmware/src/MANIFEST.md`. The nRF Connect SDK v2.8.0 stays on the machine
+(referenced by path). Reverse-SS-TWR edit points: `src/ss_twr_init.c` + `src/uwb_tdma.c` +
+`src/broadcast_tdma.c` (the epoch-synced slot path — the blocker in `FREEZE_STATE.md`) and
+`UWB_listener/src/main.c` (gateway).
+
+---
+
 # Operational scripts (`scripts/ops/`)
 
 ## 1. Flash firmware (JLink)
