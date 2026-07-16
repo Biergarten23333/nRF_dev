@@ -995,7 +995,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--legacy-no-touch-tags",
         action="store_true",
         help=(
-            "Do not send pre-capture/final cmd_all MODE IDLE or cmd_all CIR OFF/COMPACT/FULL. "
+            "Do not send pre-capture/final cmd_all CFG_STOP or cmd_all CIR OFF/COMPACT/FULL. "
             "Use only for reproducing legacy high-throughput captures where the Tag runtime "
             "state must be left untouched before TDMA release."
         ),
@@ -1021,12 +1021,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--skip-initial-mode-idle",
         action="store_true",
-        help="Skip the initial pre-setup cmd_all MODE IDLE while still allowing other setup commands.",
+        help="Skip the initial pre-setup cmd_all CFG_STOP while still allowing other setup commands.",
     )
     parser.add_argument(
         "--skip-final-mode-idle",
         action="store_true",
-        help="Skip the final pre-release cmd_all MODE IDLE while still allowing other setup commands.",
+        help="Skip the final pre-release cmd_all CFG_STOP while still allowing other setup commands.",
     )
     parser.add_argument(
         "--skip-target-cir-command",
@@ -2111,7 +2111,7 @@ def configure_recv_capture_session(
             ser = send_cmd(ser, logf, f"ota_target name {tag}", 0.25)
             ser = send_cmd(ser, logf, "ota_target prefix -", 0.25)
             ser = send_cmd(ser, logf, "ota_target uuid -", 0.25)
-            ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 0.8)
+            ser = send_cmd(ser, logf, "cmd_all CFG_STOP", 0.8)
         settle_s = max(0.0, float(getattr(args, "non_target_silence_settle_s", 1.0)))
         if settle_s > 0:
             drain_serial_until(ser, logf, settle_s)
@@ -2133,12 +2133,12 @@ def configure_recv_capture_session(
         restore_capture_filter()
 
     if args.legacy_no_touch_tags or args.skip_initial_mode_idle:
-        print("[CAPTURE] configure: skip initial cmd_all MODE IDLE", flush=True)
+        print("[CAPTURE] configure: skip initial cmd_all CFG_STOP", flush=True)
         logf.write(f"[HOST_INFO {time.monotonic():.3f}] skip_initial_mode_idle=1\n")
         logf.flush()
     else:
         print("[CAPTURE] configure: stop resident/stale Tag ranging before TDMA setup", flush=True)
-        ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 1.0)
+        ser = send_cmd(ser, logf, "cmd_all CFG_STOP", 1.0)
         drain_serial_until(ser, logf, 0.4)
 
     if args.reuse_tag_links:
@@ -2248,12 +2248,12 @@ def configure_recv_capture_session(
             discovery_prefix_override="",
         )
     if args.legacy_no_touch_tags or args.skip_final_mode_idle:
-        print("[CAPTURE] configure: skip final cmd_all MODE IDLE", flush=True)
+        print("[CAPTURE] configure: skip final cmd_all CFG_STOP", flush=True)
         logf.write(f"[HOST_INFO {time.monotonic():.3f}] skip_final_mode_idle=1\n")
         logf.flush()
     else:
         print("[CAPTURE] configure: stop target Tag ranging before final TDMA release", flush=True)
-        ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 1.0)
+        ser = send_cmd(ser, logf, "cmd_all CFG_STOP", 1.0)
         drain_serial_until(ser, logf, 0.4)
     ser = apply_target_cir_mode(ser, logf, args, targets)
     print("[CAPTURE] configure: release TDMA hold and verify TDMA CFG", flush=True)
@@ -2391,7 +2391,7 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
     result = {
         "attempted": True,
         "success": False,
-        "command": "cmd_all MODE AOTA",
+        "command": "cmd_all CFG_STOP",
         "error": "",
         "stop_notify_rows": None,
         "stop_verify_s": 3.0,
@@ -2409,10 +2409,14 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
         return rows
 
     try:
-        print("[CAPTURE] cleanup: stopping all tag ranging with cmd_all MODE AOTA", flush=True)
-        logf.write(f"[HOST_CLEANUP {time.monotonic():.3f}] stop all tag ranging via cmd_all MODE AOTA\n")
+        # freeze-clean batch2+6c: capture exit stops tags with the LIVE cmd_all
+        # CFG_STOP (tags go quiet but stay RUN + advertising, no NVS write) plus the
+        # master-side tdma hold/clear below. NEVER persistent MODE IDLE — that writes
+        # NVS and leaves the tag booting IDLE, the OTA-blocker root cause.
+        print("[CAPTURE] cleanup: stopping all tag ranging with cmd_all CFG_STOP (live; tags stay RUN+advertising)", flush=True)
+        logf.write(f"[HOST_CLEANUP {time.monotonic():.3f}] stop all tag ranging via cmd_all CFG_STOP (live-only, no persistent MODE IDLE)\n")
         logf.flush()
-        ser = send_cmd(ser, logf, "cmd_all MODE AOTA", 1.0)
+        ser = send_cmd(ser, logf, "cmd_all CFG_STOP", 1.0)
         ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
         ser = send_cmd(ser, logf, "tdma clear", 1.0)
         ser = send_cmd(ser, logf, "tdma freq motion 10", 0.5)
@@ -2428,11 +2432,14 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
             logf.flush()
         rows = verify_quiet()
         if rows > 0:
-            result["fallback_command"] = "cmd_all MODE IDLE"
-            print("[CAPTURE] cleanup: MODE AOTA not quiet; fallback cmd_all MODE IDLE", flush=True)
-            logf.write(f"[HOST_CLEANUP {time.monotonic():.3f}] fallback stop via cmd_all MODE IDLE\n")
+            # Still ranging after the live stop: re-send CFG_STOP (still live). We do
+            # NOT escalate to persistent MODE IDLE — tags stay RUN+advertising and
+            # OTA-ready even if a few range rows linger.
+            result["fallback_command"] = "cmd_all CFG_STOP"
+            print("[CAPTURE] cleanup: still ranging; re-send live cmd_all CFG_STOP (no persistent IDLE)", flush=True)
+            logf.write(f"[HOST_CLEANUP {time.monotonic():.3f}] fallback re-stop via cmd_all CFG_STOP (live, no NVS)\n")
             logf.flush()
-            ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 1.0)
+            ser = send_cmd(ser, logf, "cmd_all CFG_STOP", 1.0)
             rows = verify_quiet()
         result["stop_notify_rows"] = rows
         result["success"] = rows == 0
@@ -2451,7 +2458,7 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
             ser = open_serial_with_retry(args.port, args.baud, retries=30)
             time.sleep(0.8)
             drain_serial_until(ser, logf, 0.8)
-            ser = send_cmd(ser, logf, "cmd_all MODE AOTA", 1.0)
+            ser = send_cmd(ser, logf, "cmd_all CFG_STOP", 1.0)
             ser = send_cmd(ser, logf, "tdma hold 1", 0.5)
             ser = send_cmd(ser, logf, "tdma clear", 1.0)
             ser = send_cmd(ser, logf, "tdma freq motion 10", 0.5)
@@ -2467,8 +2474,8 @@ def cleanup_capture_session(ser: serial.Serial, logf, args) -> tuple[serial.Seri
                 logf.flush()
             rows = verify_quiet()
             if rows > 0:
-                result["fallback_command"] = "cmd_all MODE IDLE"
-                ser = send_cmd(ser, logf, "cmd_all MODE IDLE", 1.0)
+                result["fallback_command"] = "cmd_all CFG_STOP"
+                ser = send_cmd(ser, logf, "cmd_all CFG_STOP", 1.0)
                 rows = verify_quiet()
             result["stop_notify_rows"] = rows
             result["success"] = rows == 0

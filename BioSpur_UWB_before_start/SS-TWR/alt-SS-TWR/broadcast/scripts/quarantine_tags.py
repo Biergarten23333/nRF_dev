@@ -7,8 +7,8 @@ Implementation uses the existing master-control protocol:
 - switches to RECV if needed
 - device kind tag
 - ota_target name <BSxxxx>
-- cmd MODE IDLE
-- cmd STREAM OFF (best-effort; older firmware may not support it)
+- cmd CFG_STOP (freeze-clean batch2+6c: LIVE stop; tag stops ranging but stays
+  RUN + advertising, no NVS write; never persistent MODE IDLE = the OTA-blocker)
 
 This script is intentionally non-interactive and prints progress to stdout.
 """
@@ -19,7 +19,7 @@ import time
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Quarantine multiple Tag BLE targets (MODE IDLE + STREAM OFF best-effort).")
+    ap = argparse.ArgumentParser(description="Quarantine multiple Tag BLE targets (live CFG_STOP; tag stays RUN + advertising, no NVS write).")
     ap.add_argument("--port", required=True, help="52840 CDC serial port (/dev/serial/by-id/...)")
     ap.add_argument(
         "--tags",

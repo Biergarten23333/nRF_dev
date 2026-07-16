@@ -2396,106 +2396,40 @@ def quarantine_tag_for_sweep(
             emit(logf, f"PRECHECK {level}: tag {target_name} not connected/ready in RECV\n", live_output, verbose)
             return ser, False
 
-    def try_stream_off_aliases(cur_ser: serial.Serial) -> tuple[serial.Serial, bool, str, bool]:
-        """
-        Try multiple STREAM OFF command spellings for firmware compatibility.
-        Returns: (ser, ok, merged_text, unsupported)
-        """
-        cmds = [
-            "cmd STREAM OFF",
-            "cmd STREAMON 0",
-            "cmd STREAM 0",
-        ]
-        merged_text = ""
-        unsupported_hits = 0
-        for c in cmds:
-            cur_ser, txt = send_cmd_collect_text(
-                cur_ser,
-                logf,
-                port,
-                c,
-                0.8,
-                live_output,
-                verbose,
-            )
-            merged_text += txt
-            ok = ("STREAM_OK OFF" in txt) or ("STREAM=OFF" in txt)
-            if not ok:
-                cur_ser, ok, more_stream_text = wait_for_patterns(
-                    cur_ser,
-                    logf,
-                    port,
-                    ["STREAM_OK OFF", "STREAM=OFF"],
-                    3.0,
-                    live_output,
-                    verbose,
-                )
-                merged_text += more_stream_text
-            if ok:
-                return cur_ser, True, merged_text, False
-            if "UNKNOWN_CMD" in txt or "cmd rc=-128" in txt:
-                unsupported_hits += 1
-        return cur_ser, False, merged_text, unsupported_hits == len(cmds)
-
-    # Fast path: STREAM OFF directly, then fallback to MODE IDLE.
+    # freeze-clean batch2+6c: quarantine a tag via the LIVE `cmd CFG_STOP` — the tag
+    # stops ranging but stays RUN + advertising with NO NVS write. Removed the STREAM
+    # OFF orphan senders (no tag handler -> UNKNOWN_CMD) and the persistent
+    # `cmd MODE IDLE` fallback, which wrote NVS and left the tag booting IDLE (the
+    # OTA-blocker root cause). CFG_RUN (or the next roster config) restores ranging live.
     quarantine_mode = "unknown"
-    ser, stream_ok, stream_text, stream_unsupported = try_stream_off_aliases(ser)
-    if stream_ok:
-        quarantine_mode = "STREAM_OFF_ONLY"
-    else:
-        emit(
-            logf,
-            f"PRECHECK INFO: STREAM OFF direct path not ready for {target_name}; fallback MODE IDLE\n",
-            live_output,
-            verbose,
-        )
-
-        ser, mode_text = send_cmd_collect_text(
+    ser, cfg_text = send_cmd_collect_text(
+        ser,
+        logf,
+        port,
+        "cmd CFG_STOP",
+        1.0,
+        live_output,
+        verbose,
+    )
+    cfg_ok = "CFG_STOP_OK" in cfg_text
+    if not cfg_ok:
+        ser, cfg_ok, more_cfg_text = wait_for_patterns(
             ser,
             logf,
             port,
-            "cmd MODE IDLE",
-            1.0,
+            ["CFG_STOP_OK"],
+            8.0,
             live_output,
             verbose,
         )
-        mode_ok = "MODE_OK MODE=IDLE" in mode_text
-        if not mode_ok:
-            ser, mode_ok, more_mode_text = wait_for_patterns(
-                ser,
-                logf,
-                port,
-                ["MODE_OK MODE="],
-                8.0,
-                live_output,
-                verbose,
-            )
-            mode_text += more_mode_text
-            mode_ok = "MODE_OK MODE=IDLE" in mode_text
-        if not mode_ok:
-            level = "FAIL" if strict else "WARN"
-            emit(logf, f"PRECHECK {level}: tag {target_name} did not enter IDLE\n", live_output, verbose)
-            if "MODE_BAD" in mode_text or "cmd rc=-128" in mode_text:
-                emit(logf, "PRECHECK DETAIL: Tag command path rejected MODE IDLE\n", live_output, verbose)
-            return ser, False
-
-        # Retry STREAM OFF after MODE IDLE.
-        ser, stream_ok, stream_text, stream_unsupported = try_stream_off_aliases(ser)
-        if not stream_ok:
-            if stream_unsupported or "UNKNOWN_CMD" in stream_text or "cmd rc=-128" in stream_text:
-                emit(
-                    logf,
-                    f"PRECHECK WARN: tag {target_name} did not support STREAM OFF; keeping MODE IDLE quarantine\n",
-                    live_output,
-                    verbose,
-                )
-                quarantine_mode = "MODE_IDLE_ONLY"
-            else:
-                level = "FAIL" if strict else "WARN"
-                emit(logf, f"PRECHECK {level}: tag {target_name} did not ack STREAM OFF\n", live_output, verbose)
-                return ser, False
-        else:
-            quarantine_mode = "MODE_IDLE_PLUS_STREAM_OFF"
+        cfg_text += more_cfg_text
+    if not cfg_ok:
+        level = "FAIL" if strict else "WARN"
+        emit(logf, f"PRECHECK {level}: tag {target_name} did not ack CFG_STOP\n", live_output, verbose)
+        if "CFG_BAD" in cfg_text or "cmd rc=-128" in cfg_text:
+            emit(logf, "PRECHECK DETAIL: Tag command path rejected CFG_STOP\n", live_output, verbose)
+        return ser, False
+    quarantine_mode = "CFG_STOP_LIVE"
 
     emit(
         logf,
@@ -3284,7 +3218,7 @@ def main() -> int:
     parser.add_argument(
         "--quiet-tag-name",
         default="-",
-        help="Tag idle control. Use - (default) to disable heavy quarantine. 'auto' or a list like 'BSF66F,BS2DCE' uses MODE IDLE + STREAM OFF.",
+        help="Tag idle control. Use - (default) to disable heavy quarantine. 'auto' or a list like 'BSF66F,BS2DCE' quarantines via live CFG_STOP (RUN+advertising, no NVS).",
     )
     parser.add_argument(
         "--quiet-tag-retries",
