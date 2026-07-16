@@ -100,6 +100,26 @@ using `experiments/ota_blocker_audit/OTA_BLOCKER_REPORT.md`.
    ranging. Every capture script must restore RUN + advertising on **every** exit
    path (normal / Ctrl-C / crash) using live-only commands. See §4.
 
+## 3a. Master boot banner (freeze-clean batch6a)
+
+Every master prints ONE unconditional line at boot, right after the boot profile is
+applied (`apps/master_control/src/main.c`, after `control_apply_boot_profile()`):
+
+```
+=== MASTER BOOT: profile=<anchor|tag> mode=<AUTOPOS|RECV|OTA> target=<TAG|ANCHOR|NONE> wand tags: <WILL HOLD BS* | rejected> ===
+```
+
+Read it on every reflash / power cycle. It turns "a master silently holding the
+wand tags" into a one-line announcement — the visibility fix for the 2026-07-15
+Master_Anchor tag-grab incident:
+- **`profile=anchor … wand tags: rejected`** — the anchor master will NOT connect
+  wand tags (correct for Master_Anchor).
+- **`profile=tag … wand tags: WILL HOLD BS*`** — the tag master owns the wand tags
+  (expected ONLY on Master_Tag). If you ever see `WILL HOLD BS*` on the anchor
+  carrier, the wrong image was flashed — reflash the anchor carrier.
+
+A `neutral` profile can never appear here — it is a compile error (§3 law 1, batch6b).
+
 ## 4. Persistent vs. live command decision table (batch6c doctrine)
 
 **Rule: transient/debug state uses LIVE commands (not persisted); persistent
@@ -137,3 +157,36 @@ Atomic "unstick": on the holding master, stop auto-connect (`scan`) → disconne
 all peers → verify tags re-advertise → hold the master from re-grabbing. This is
 the universal unlock for any future OTA lock (a master holding tags). Uses only
 existing verbs (`scan`, `status`, `device kind`).
+
+## 7. Anchor OTA — the REAL mechanism (was "unstable, use per-anchor recipe")
+
+Diagnosed 2026-07-16, evidence in `experiments/anchor_ota_diagnosis/ANCHOR_OTA_ROOTCAUSE.md`.
+Replaces the old vague warning.
+
+**Anchor OTA is a MODE the master reboots into.** `mode ota` deliberately
+disconnects **all** anchor peers and `sys_reboot(WARM)` into a single-connection
+OTA mode (`apps/master_control/src/main.c:2254-2273`). So "the master dropped all
+8" during a batch OTA is **by design**, not a fault. There is **no** firmware
+error path that disconnects-all/reboots on an SMP error.
+
+**Two real problems, both must be handled:**
+
+1. **Script (fixable):** `scripts/ota_deploy_anchor_set.py` by default does NOT
+   reset the master or wait for all-8 `conn=1 ready=1` between anchors, and on a
+   per-anchor failure it aborts (`:854-856`) **before** the OTA→AUTOPOS recovery
+   (`:858-872`) — so the master is left **stranded in OTA mode** (all 8 dropped)
+   and needs a manual reset. Correct batch OTA MUST: (a) between every anchor,
+   JLink-reset Master_Anchor + wait for 8/8; (b) on ANY failure/exit, recover the
+   control plane (never leave the master in OTA mode).
+
+2. **Firmware limitation (why a RESET is required, not a software settle):** after
+   OTA mode, the master's software return (`mode recv` → warm reboot → AUTOPOS)
+   does **NOT** reconnect the anchors — empirically **0/8 for 3+ min**. Only a
+   **cold boot (JLink reset / power cycle)** reconnects them (8/8 in ~40 s). So the
+   per-anchor JLink reset is **load-bearing**. A firmware fix (clean anchor re-scan
+   on the warm-reboot AUTOPOS path) is proposed but NOT applied — needed before the
+   reverse-SS-TWR anchor-OTA workload; see ROOTCAUSE.md §2.3.
+
+**Proven manual recipe (until the script fix lands):** per anchor —
+`ota_single_shot_stable.py --target-uuid <A..H>`, each preceded by a JLink reset of
+Master_Anchor (SNR 960148546) + wait for 8/8; then `anchor role all responder`.

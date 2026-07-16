@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
 import re
 import subprocess
@@ -283,6 +284,18 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Expected anchor fw marker. If omitted, auto-detect from generated/build manifest.",
     )
+    # freeze-clean anchor-OTA fix (ANCHOR_OTA_ROOTCAUSE.md): the master cannot software-recover
+    # anchor links after an OTA cycle, so cold-reset + wait-for-8/8 between EVERY anchor by default.
+    p.add_argument("--master-reset-snr", default="960148546",
+                   help="B120 Master_Anchor J-Link SNR used for the per-anchor cold reset and the "
+                        "on-exit control-plane recovery. Pass '-' to disable (NOT recommended).")
+    p.add_argument("--per-anchor-reset", dest="per_anchor_reset", action="store_true", default=True,
+                   help="Cold-reset the master + wait for all-8 anchors before EACH anchor OTA "
+                        "(default ON; software recovery cannot reconnect anchors — see ROOTCAUSE).")
+    p.add_argument("--no-per-anchor-reset", dest="per_anchor_reset", action="store_false",
+                   help="Disable the per-anchor cold reset + 8/8 wait (reverts to the old unstable behavior).")
+    p.add_argument("--ready-wait-timeout-s", type=float, default=120.0,
+                   help="Timeout (s) waiting for all-8 anchors conn=1 ready=1 after a master cold reset.")
     return p.parse_args()
 
 
@@ -625,10 +638,82 @@ def run_post_verify(args: argparse.Namespace, out_root: Path) -> tuple[int, dict
     return cp.returncode, summary
 
 
+def count_ready_anchors(port: str, wait_s: float = 5.0) -> int:
+    """Open the master CDC, query status, count anchors conn=1 ready=1 (deduped by peer)."""
+    try:
+        ser = serial.Serial(port, 115200, timeout=0.3, write_timeout=2.0)
+    except Exception:
+        return -1
+    try:
+        ser.reset_input_buffer()
+        ser.write(b"status\r\n")
+        ser.flush()
+        buf = b""
+        t0 = time.time()
+        while time.time() - t0 < wait_s:
+            buf += ser.read(4096)
+    except Exception:
+        return -1
+    finally:
+        try:
+            ser.close()
+        except Exception:
+            pass
+    peers: dict[int, bool] = {}
+    for line in buf.decode("utf-8", "replace").splitlines():
+        m = re.search(r"MSTAT peer=(\d+).*conn=(\d).*ready=(\d)", line)
+        if m:
+            peers[int(m.group(1))] = (m.group(2) == "1" and m.group(3) == "1")
+    return sum(1 for v in peers.values() if v)
+
+
+def reset_master_and_wait_ready(snr: str, port: str, expected: int, timeout_s: float, tag: str) -> tuple[bool, int]:
+    """freeze-clean anchor-OTA fix (ANCHOR_OTA_ROOTCAUSE.md): cold-boot the B120 master via
+    JLink and wait for all `expected` anchors conn=1 ready=1. The master's SOFTWARE recovery
+    (`mode recv` warm reboot) does NOT reconnect anchors after an OTA cycle — only a cold boot
+    does. Returns (all_ready, ready_count)."""
+    print(f"--- [{tag}] cold-reset Master_Anchor SNR {snr} + wait for {expected}/{expected} anchors ---", flush=True)
+    reset_cp = subprocess.run(
+        ["bash", str(SCRIPT_DIR / "jlink_reset_by_snr.sh"), snr, "NRF5340_XXAA_APP", "4000"],
+        text=True, capture_output=True,
+    )
+    if reset_cp.returncode != 0:
+        print(f"--- [{tag}] JLink reset rc={reset_cp.returncode}: {(reset_cp.stderr or '')[:200]} ---", flush=True)
+    try:
+        wait_for_serial_port(port, timeout_s=45.0)
+    except Exception:
+        pass
+    deadline = time.time() + timeout_s
+    n = -1
+    while time.time() < deadline:
+        n = count_ready_anchors(port)
+        if n >= expected:
+            print(f"--- [{tag}] {n}/{expected} anchors ready ---", flush=True)
+            return True, n
+        time.sleep(5.0)
+    print(f"--- [{tag}] TIMEOUT: only {n}/{expected} anchors ready after {timeout_s:.0f}s ---", flush=True)
+    return False, n
+
+
 def main() -> int:
     args = parse_args()
     out_root = Path(args.out_dir)
     out_root.mkdir(parents=True, exist_ok=True)
+    # freeze-clean anchor-OTA fix: NEVER leave the master stranded in OTA mode. Register a
+    # control-plane recovery that runs on ANY exit (clean return, per-anchor abort, exception):
+    # if the master is not already at all-8 AUTOPOS, cold-reset it and wait for 8/8.
+    if getattr(args, "per_anchor_reset", True) and getattr(args, "master_reset_snr", "-") not in ("", "-", None):
+        def _final_control_plane_recovery() -> None:
+            try:
+                n = count_ready_anchors(args.port)
+                if n >= len(UUIDS):
+                    print(f"[exit-recovery] master already {n}/{len(UUIDS)} anchors — no recovery needed", flush=True)
+                    return
+                print(f"[exit-recovery] master at {n}/{len(UUIDS)} anchors — recovering control plane", flush=True)
+                reset_master_and_wait_ready(args.master_reset_snr, args.port, len(UUIDS), args.ready_wait_timeout_s, "exit-recovery")
+            except Exception as exc:
+                print(f"[exit-recovery] failed: {exc!r}", flush=True)
+        atexit.register(_final_control_plane_recovery)
     repo_root = Path(__file__).resolve().parent.parent
     guard = subprocess.run(
         [
@@ -684,6 +769,15 @@ def main() -> int:
         round_dir = out_root / f"anchor_{label}"
         round_dir.mkdir(parents=True, exist_ok=True)
         entry: dict[str, object] = {"uuid": uuid, "attempts": []}
+        # freeze-clean anchor-OTA fix: cold-reset the master + wait for all-8 BEFORE this anchor.
+        # This is the load-bearing step the old batch driver omitted; a cold boot is the only way
+        # to re-establish the anchor links after the previous anchor's OTA-mode cycle.
+        if args.per_anchor_reset and args.master_reset_snr not in ("", "-", None):
+            ok8, nready = reset_master_and_wait_ready(
+                args.master_reset_snr, args.port, len(UUIDS), args.ready_wait_timeout_s, f"pre-{label}")
+            entry["pre_anchor_master_reset"] = {"ready_count": nready, "all_ready": ok8}
+            if not ok8:
+                print(f"=== WARN {label}: only {nready}/{len(UUIDS)} anchors ready after pre-reset; proceeding ===", flush=True)
         if args.pre_reset_first:
             pre_reset_dir = round_dir / "pre_reset"
             pre_reset_cmd = [
