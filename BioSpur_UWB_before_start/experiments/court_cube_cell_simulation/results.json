@@ -1,0 +1,2905 @@
+{
+  "meta": {
+    "backend": "torch (cupy not installed -> fallback)",
+    "device": "cuda:0",
+    "gpu_name": "NVIDIA GeForce GTX 1080 Ti",
+    "gpu_total_mem_MB": 11708,
+    "gpu_torch_peak_alloc_MB": 61.8,
+    "gpu_util_pct_peak": 69.0,
+    "gpu_util_pct_mean": 37.8,
+    "gpu_used_mem_MB_peak": 424.0,
+    "cpu_count": 12,
+    "worker_processes": 1,
+    "torch_num_threads": 2,
+    "cpu_box_pct_start": 27.5,
+    "cpu_box_pct_peak": 31.3,
+    "cpu_box_pct_mean": 27.9,
+    "cpu_thisproc_pct_peak": 9.8,
+    "cpu_thisproc_pct_mean": 8.1,
+    "cpu_note": "cpu_box_* is whole-machine (incl. user's J-Link); cpu_thisproc_* is my share (% of the 12-core box) \u2014 that is the number that must stay <=30%",
+    "runtime_s": 1.4,
+    "seed": 20260715
+  },
+  "assumptions": {
+    "inset_sensitivity_tennis_zh6": {
+      "0.5": {
+        "pure_median_VDOP": 1.4838355779647827,
+        "cov_ge4_feasible_dc15": 0.8210920095443726
+      },
+      "1.0": {
+        "pure_median_VDOP": 1.425982117652893,
+        "cov_ge4_feasible_dc15": 0.8603542447090149
+      }
+    },
+    "court_bounds": "ASSUMED (no authoritative court dims/truss in repo)",
+    "basketball_m": [
+      28.0,
+      15.0
+    ],
+    "tennis_m": [
+      36.6,
+      18.3
+    ],
+    "z_low_m": 0.3,
+    "z_high_sweep_m": [
+      3.0,
+      4.0,
+      6.0,
+      8.0,
+      10.0
+    ],
+    "inset_m": 0.5,
+    "d_close_sweep_m": [
+      8.0,
+      10.0,
+      12.0,
+      15.0,
+      18.0,
+      20.0
+    ],
+    "d_close_note": "UNMEASURED \u2014 must come from a real HBS capture",
+    "z_tag_sweep_m": [
+      0.2,
+      0.4,
+      0.6,
+      0.8,
+      1.0,
+      1.2,
+      1.4,
+      1.6,
+      1.8,
+      2.0
+    ],
+    "grid_m": 0.25,
+    "safe_deg": 25.0,
+    "danger_deg": 37.0,
+    "range_sigma_mm": 25.0,
+    "dop_model": "4-unknown (x,y,z,clock); rows=LOS unit vec + 1 col; sqrt(diag((G^T G)^-1)) \u2014 reused from cell_split geo.py"
+  },
+  "courts": {
+    "basketball": {
+      "dims_m": [
+        28.0,
+        15.0
+      ],
+      "cell_footprint_m": [
+        14.0,
+        15.0
+      ],
+      "configs": [
+        {
+          "court": "basketball",
+          "z_high": 3.0,
+          "z_span": 2.7,
+          "n_points": 34770,
+          "n_xy": 3477,
+          "n_h": 10,
+          "footprint_m": [
+            14.0,
+            15.0
+          ],
+          "diag_m": 20.52,
+          "aspect_zspan_over_diag": 0.132,
+          "pure_median_VDOP": 2.249559164047241,
+          "pure_median_HDOP": 0.8045544028282166,
+          "pure_median_GDOP": 2.443105459213257,
+          "pure_frac_fix": 1.0,
+          "dclose": [
+            {
+              "d_close": 8.0,
+              "cov_ge4_feasible": 0.09306873381137848,
+              "cov_ge4_feas_gentle": 0.09306873381137848,
+              "median_VDOP_gated": 40.20270538330078,
+              "p95_VDOP_gated": 151.87928771972656,
+              "median_HDOP_gated": 5431.626953125,
+              "frac_solvable": 0.06281276792287827,
+              "per_height_ge4": [
+                0.0529,
+                0.0696,
+                0.0788,
+                0.0834,
+                0.088,
+                0.1053,
+                0.1116,
+                0.1168,
+                0.1168,
+                0.1076
+              ],
+              "per_height_ge4gentle": [
+                0.0529,
+                0.0696,
+                0.0788,
+                0.0834,
+                0.088,
+                0.1053,
+                0.1116,
+                0.1168,
+                0.1168,
+                0.1076
+              ],
+              "worst_height_ge4": 0.0529191829264164,
+              "worst_height_ge4gentle": 0.0529191829264164
+            },
+            {
+              "d_close": 10.0,
+              "cov_ge4_feasible": 0.5691112875938416,
+              "cov_ge4_feas_gentle": 0.5174000263214111,
+              "median_VDOP_gated": 18.672882080078125,
+              "p95_VDOP_gated": 97.5022964477539,
+              "median_HDOP_gated": 1216.0826416015625,
+              "frac_solvable": 0.47805577516555786,
+              "per_height_ge4": [
+                0.5249,
+                0.5387,
+                0.5433,
+                0.5623,
+                0.5732,
+                0.5824,
+                0.5916,
+                0.5962,
+                0.5916,
+                0.587
+              ],
+              "per_height_ge4gentle": [
+                0.3259,
+                0.3926,
+                0.4547,
+                0.5134,
+                0.5456,
+                0.5755,
+                0.5916,
+                0.5962,
+                0.5916,
+                0.587
+              ],
+              "worst_height_ge4": 0.5248777866363525,
+              "worst_height_ge4gentle": 0.3258556127548218
+            },
+            {
+              "d_close": 12.0,
+              "cov_ge4_feasible": 0.8906528353691101,
+              "cov_ge4_feas_gentle": 0.6732815504074097,
+              "median_VDOP_gated": 8.592883110046387,
+              "p95_VDOP_gated": 45.11930465698242,
+              "median_HDOP_gated": 286.1802978515625,
+              "frac_solvable": 0.8114178776741028,
+              "per_height_ge4": [
+                0.8758,
+                0.8769,
+                0.8832,
+                0.8919,
+                0.8942,
+                0.8965,
+                0.8976,
+                0.8976,
+                0.8976,
+                0.8953
+              ],
+              "per_height_ge4gentle": [
+                0.4766,
+                0.526,
+                0.5824,
+                0.633,
+                0.6744,
+                0.7227,
+                0.7676,
+                0.8148,
+                0.7918,
+                0.7435
+              ],
+              "worst_height_ge4": 0.8757549524307251,
+              "worst_height_ge4gentle": 0.4765602648258209
+            },
+            {
+              "d_close": 15.0,
+              "cov_ge4_feasible": 1.0,
+              "cov_ge4_feas_gentle": 0.9951106905937195,
+              "median_VDOP_gated": 2.290879011154175,
+              "p95_VDOP_gated": 2.604721784591675,
+              "median_HDOP_gated": 0.8636976480484009,
+              "frac_solvable": 0.9879205822944641,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                0.9804,
+                0.9856,
+                0.9919,
+                0.9965,
+                0.9977,
+                0.9988,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 0.9804428815841675
+            },
+            {
+              "d_close": 18.0,
+              "cov_ge4_feasible": 1.0,
+              "cov_ge4_feas_gentle": 1.0,
+              "median_VDOP_gated": 2.2507376670837402,
+              "p95_VDOP_gated": 2.5562744140625,
+              "median_HDOP_gated": 0.8045544028282166,
+              "frac_solvable": 1.0,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 1.0
+            },
+            {
+              "d_close": 20.0,
+              "cov_ge4_feasible": 1.0,
+              "cov_ge4_feas_gentle": 1.0,
+              "median_VDOP_gated": 2.250180244445801,
+              "p95_VDOP_gated": 2.5550119876861572,
+              "median_HDOP_gated": 0.8045544028282166,
+              "frac_solvable": 1.0,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 1.0
+            }
+          ],
+          "viable_dclose_ge4feasible": 15.0,
+          "viable_dclose_ge4gentle": 15.0,
+          "d3_nearpole": {
+            "high_anchor_dz_max": 2.8,
+            "r25_high": 4.29,
+            "r37_high": 2.65,
+            "low_anchor_dz_max": 1.7,
+            "r25_low": 3.65,
+            "r37_low": 2.26,
+            "frac_strict_safe_allgentle": 0.6381938457489014,
+            "frac_any_steep37": 0.1587575525045395,
+            "mean_gentle_count": 7.560885906219482
+          }
+        },
+        {
+          "court": "basketball",
+          "z_high": 4.0,
+          "z_span": 3.7,
+          "n_points": 34770,
+          "n_xy": 3477,
+          "n_h": 10,
+          "footprint_m": [
+            14.0,
+            15.0
+          ],
+          "diag_m": 20.52,
+          "aspect_zspan_over_diag": 0.18,
+          "pure_median_VDOP": 1.705612301826477,
+          "pure_median_HDOP": 0.8158601522445679,
+          "pure_median_GDOP": 1.9550368785858154,
+          "pure_frac_fix": 1.0,
+          "dclose": [
+            {
+              "d_close": 8.0,
+              "cov_ge4_feasible": 0.05205636844038963,
+              "cov_ge4_feas_gentle": 0.04204774275422096,
+              "median_VDOP_gated": 55.360252380371094,
+              "p95_VDOP_gated": 282.59625244140625,
+              "median_HDOP_gated": 4910.39794921875,
+              "frac_solvable": 0.036870867013931274,
+              "per_height_ge4": [
+                0.0138,
+                0.0201,
+                0.0242,
+                0.0414,
+                0.0483,
+                0.0529,
+                0.0696,
+                0.0788,
+                0.0834,
+                0.088
+              ],
+              "per_height_ge4gentle": [
+                0.0,
+                0.0,
+                0.0,
+                0.0098,
+                0.038,
+                0.0529,
+                0.0696,
+                0.0788,
+                0.0834,
+                0.088
+              ],
+              "worst_height_ge4": 0.013805003836750984,
+              "worst_height_ge4gentle": 0.0
+            },
+            {
+              "d_close": 10.0,
+              "cov_ge4_feasible": 0.5075640082359314,
+              "cov_ge4_feas_gentle": 0.28363531827926636,
+              "median_VDOP_gated": 16.735313415527344,
+              "p95_VDOP_gated": 95.04374694824219,
+              "median_HDOP_gated": 683.5768432617188,
+              "frac_solvable": 0.45343685150146484,
+              "per_height_ge4": [
+                0.4202,
+                0.4513,
+                0.4708,
+                0.4858,
+                0.5122,
+                0.5237,
+                0.5375,
+                0.541,
+                0.5611,
+                0.572
+              ],
+              "per_height_ge4gentle": [
+                0.0342,
+                0.0624,
+                0.1027,
+                0.1654,
+                0.2465,
+                0.3247,
+                0.3914,
+                0.4524,
+                0.5122,
+                0.5444
+              ],
+              "worst_height_ge4": 0.42018982768058777,
+              "worst_height_ge4gentle": 0.03422490507364273
+            },
+            {
+              "d_close": 12.0,
+              "cov_ge4_feasible": 0.8724187612533569,
+              "cov_ge4_feas_gentle": 0.4557952284812927,
+              "median_VDOP_gated": 6.7665839195251465,
+              "p95_VDOP_gated": 43.818302154541016,
+              "median_HDOP_gated": 159.5016632080078,
+              "frac_solvable": 0.8127695918083191,
+              "per_height_ge4": [
+                0.8504,
+                0.8539,
+                0.8602,
+                0.8689,
+                0.8735,
+                0.8758,
+                0.8758,
+                0.8821,
+                0.8907,
+                0.893
+              ],
+              "per_height_ge4gentle": [
+                0.3005,
+                0.3051,
+                0.3178,
+                0.3563,
+                0.411,
+                0.4743,
+                0.5214,
+                0.5766,
+                0.6273,
+                0.6675
+              ],
+              "worst_height_ge4": 0.8504458069801331,
+              "worst_height_ge4gentle": 0.30054643750190735
+            },
+            {
+              "d_close": 15.0,
+              "cov_ge4_feasible": 1.0,
+              "cov_ge4_feas_gentle": 0.9714121222496033,
+              "median_VDOP_gated": 1.7401578426361084,
+              "p95_VDOP_gated": 1.9834520816802979,
+              "median_HDOP_gated": 0.8848885893821716,
+              "frac_solvable": 0.9891285300254822,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                0.9385,
+                0.95,
+                0.9534,
+                0.9592,
+                0.9701,
+                0.9793,
+                0.9845,
+                0.9896,
+                0.9942,
+                0.9954
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 0.9384526610374451
+            },
+            {
+              "d_close": 18.0,
+              "cov_ge4_feasible": 1.0,
+              "cov_ge4_feas_gentle": 1.0,
+              "median_VDOP_gated": 1.7059080600738525,
+              "p95_VDOP_gated": 1.9153656959533691,
+              "median_HDOP_gated": 0.8158601522445679,
+              "frac_solvable": 1.0,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 1.0
+            },
+            {
+              "d_close": 20.0,
+              "cov_ge4_feasible": 1.0,
+              "cov_ge4_feas_gentle": 1.0,
+              "median_VDOP_gated": 1.7056832313537598,
+              "p95_VDOP_gated": 1.9149855375289917,
+              "median_HDOP_gated": 0.8158601522445679,
+              "frac_solvable": 1.0,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 1.0
+            }
+          ],
+          "viable_dclose_ge4feasible": 15.0,
+          "viable_dclose_ge4gentle": 15.0,
+          "d3_nearpole": {
+            "high_anchor_dz_max": 3.8,
+            "r25_high": 6.43,
+            "r37_high": 3.98,
+            "low_anchor_dz_max": 1.7,
+            "r25_low": 3.65,
+            "r37_low": 2.26,
+            "frac_strict_safe_allgentle": 0.32999712228775024,
+            "frac_any_steep37": 0.2962898910045624,
+            "mean_gentle_count": 7.201610565185547
+          }
+        },
+        {
+          "court": "basketball",
+          "z_high": 6.0,
+          "z_span": 5.7,
+          "n_points": 34770,
+          "n_xy": 3477,
+          "n_h": 10,
+          "footprint_m": [
+            14.0,
+            15.0
+          ],
+          "diag_m": 20.52,
+          "aspect_zspan_over_diag": 0.278,
+          "pure_median_VDOP": 1.227011799812317,
+          "pure_median_HDOP": 0.8423160910606384,
+          "pure_median_GDOP": 1.5606805086135864,
+          "pure_frac_fix": 1.0,
+          "dclose": [
+            {
+              "d_close": 8.0,
+              "cov_ge4_feasible": 0.0008628127397969365,
+              "cov_ge4_feas_gentle": 0.0,
+              "median_VDOP_gated": 341.4304504394531,
+              "p95_VDOP_gated": 704.1669921875,
+              "median_HDOP_gated": 10000.0,
+              "frac_solvable": 0.00023008340212982148,
+              "per_height_ge4": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0035,
+                0.0052
+              ],
+              "per_height_ge4gentle": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "worst_height_ge4": 0.0,
+              "worst_height_ge4gentle": 0.0
+            },
+            {
+              "d_close": 10.0,
+              "cov_ge4_feasible": 0.2867414355278015,
+              "cov_ge4_feas_gentle": 0.0023008340504020452,
+              "median_VDOP_gated": 17.110286712646484,
+              "p95_VDOP_gated": 77.17239379882812,
+              "median_HDOP_gated": 397.60723876953125,
+              "frac_solvable": 0.2535519003868103,
+              "per_height_ge4": [
+                0.1677,
+                0.1987,
+                0.2229,
+                0.2511,
+                0.2741,
+                0.304,
+                0.3322,
+                0.3477,
+                0.3765,
+                0.3926
+              ],
+              "per_height_ge4gentle": [
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0026,
+                0.0089
+              ],
+              "worst_height_ge4": 0.1676732748746872,
+              "worst_height_ge4gentle": 0.0014380213106051087
+            },
+            {
+              "d_close": 12.0,
+              "cov_ge4_feasible": 0.8048317432403564,
+              "cov_ge4_feas_gentle": 0.16054069995880127,
+              "median_VDOP_gated": 5.246799468994141,
+              "p95_VDOP_gated": 46.305274963378906,
+              "median_HDOP_gated": 74.64222717285156,
+              "frac_solvable": 0.7563416361808777,
+              "per_height_ge4": [
+                0.7636,
+                0.7768,
+                0.7814,
+                0.7975,
+                0.8044,
+                0.8067,
+                0.8217,
+                0.8263,
+                0.8274,
+                0.8424
+              ],
+              "per_height_ge4gentle": [
+                0.0877,
+                0.0877,
+                0.0877,
+                0.0877,
+                0.1176,
+                0.1775,
+                0.2085,
+                0.2292,
+                0.2534,
+                0.2683
+              ],
+              "worst_height_ge4": 0.7635893225669861,
+              "worst_height_ge4gentle": 0.08771929889917374
+            },
+            {
+              "d_close": 15.0,
+              "cov_ge4_feasible": 1.0,
+              "cov_ge4_feas_gentle": 0.8376761674880981,
+              "median_VDOP_gated": 1.2613502740859985,
+              "p95_VDOP_gated": 1.5248866081237793,
+              "median_HDOP_gated": 0.9244102835655212,
+              "frac_solvable": 0.9897037744522095,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                0.7089,
+                0.7734,
+                0.8073,
+                0.8338,
+                0.8481,
+                0.8539,
+                0.8723,
+                0.885,
+                0.8936,
+                0.9005
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 0.7089444994926453
+            },
+            {
+              "d_close": 18.0,
+              "cov_ge4_feasible": 1.0,
+              "cov_ge4_feas_gentle": 1.0,
+              "median_VDOP_gated": 1.2288464307785034,
+              "p95_VDOP_gated": 1.3674709796905518,
+              "median_HDOP_gated": 0.8423160910606384,
+              "frac_solvable": 1.0,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 1.0
+            },
+            {
+              "d_close": 20.0,
+              "cov_ge4_feasible": 1.0,
+              "cov_ge4_feas_gentle": 1.0,
+              "median_VDOP_gated": 1.2270756959915161,
+              "p95_VDOP_gated": 1.3673025369644165,
+              "median_HDOP_gated": 0.8423160910606384,
+              "frac_solvable": 1.0,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 1.0
+            }
+          ],
+          "viable_dclose_ge4feasible": 15.0,
+          "viable_dclose_ge4gentle": 18.0,
+          "d3_nearpole": {
+            "high_anchor_dz_max": 5.8,
+            "r25_high": 10.72,
+            "r37_high": 6.64,
+            "low_anchor_dz_max": 1.7,
+            "r25_low": 3.65,
+            "r37_low": 2.26,
+            "frac_strict_safe_allgentle": 0.003825136460363865,
+            "frac_any_steep37": 0.7283865213394165,
+            "mean_gentle_count": 6.08513069152832
+          }
+        },
+        {
+          "court": "basketball",
+          "z_high": 8.0,
+          "z_span": 7.7,
+          "n_points": 34770,
+          "n_xy": 3477,
+          "n_h": 10,
+          "footprint_m": [
+            14.0,
+            15.0
+          ],
+          "diag_m": 20.52,
+          "aspect_zspan_over_diag": 0.375,
+          "pure_median_VDOP": 1.0211116075515747,
+          "pure_median_HDOP": 0.8702887892723083,
+          "pure_median_GDOP": 1.4334113597869873,
+          "pure_frac_fix": 1.0,
+          "dclose": [
+            {
+              "d_close": 8.0,
+              "cov_ge4_feasible": 0.0,
+              "cov_ge4_feas_gentle": 0.0,
+              "median_VDOP_gated": null,
+              "p95_VDOP_gated": null,
+              "median_HDOP_gated": null,
+              "frac_solvable": 0.0,
+              "per_height_ge4": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "per_height_ge4gentle": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "worst_height_ge4": 0.0,
+              "worst_height_ge4gentle": 0.0
+            },
+            {
+              "d_close": 10.0,
+              "cov_ge4_feasible": 0.04659188911318779,
+              "cov_ge4_feas_gentle": 0.0012079378357157111,
+              "median_VDOP_gated": 39.528995513916016,
+              "p95_VDOP_gated": 593.3322143554688,
+              "median_HDOP_gated": 735.1134643554688,
+              "frac_solvable": 0.03500143811106682,
+              "per_height_ge4": [
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0066,
+                0.0216,
+                0.0429,
+                0.0607,
+                0.0848,
+                0.1119,
+                0.1332
+              ],
+              "per_height_ge4gentle": [
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0003,
+                0.0003
+              ],
+              "worst_height_ge4": 0.0014380213106051087,
+              "worst_height_ge4gentle": 0.00028760425630025566
+            },
+            {
+              "d_close": 12.0,
+              "cov_ge4_feasible": 0.6828300356864929,
+              "cov_ge4_feas_gentle": 0.08633879572153091,
+              "median_VDOP_gated": 4.785667896270752,
+              "p95_VDOP_gated": 45.066463470458984,
+              "median_HDOP_gated": 50.999507904052734,
+              "frac_solvable": 0.6427091956138611,
+              "per_height_ge4": [
+                0.6077,
+                0.6307,
+                0.6434,
+                0.6664,
+                0.6744,
+                0.6974,
+                0.7101,
+                0.7193,
+                0.7354,
+                0.7435
+              ],
+              "per_height_ge4gentle": [
+                0.0877,
+                0.0877,
+                0.0877,
+                0.0877,
+                0.0877,
+                0.0877,
+                0.0854,
+                0.0854,
+                0.0831,
+                0.0831
+              ],
+              "worst_height_ge4": 0.6077077984809875,
+              "worst_height_ge4gentle": 0.08311762660741806
+            },
+            {
+              "d_close": 15.0,
+              "cov_ge4_feasible": 1.0,
+              "cov_ge4_feas_gentle": 0.46724188327789307,
+              "median_VDOP_gated": 1.0748041868209839,
+              "p95_VDOP_gated": 1.329880714416504,
+              "median_HDOP_gated": 0.9769138097763062,
+              "frac_solvable": 0.9888697266578674,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                0.461,
+                0.461,
+                0.461,
+                0.461,
+                0.4593,
+                0.457,
+                0.457,
+                0.4547,
+                0.4858,
+                0.5145
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 0.45470231771469116
+            },
+            {
+              "d_close": 18.0,
+              "cov_ge4_feasible": 1.0,
+              "cov_ge4_feas_gentle": 0.8951969742774963,
+              "median_VDOP_gated": 1.0244940519332886,
+              "p95_VDOP_gated": 1.1438932418823242,
+              "median_HDOP_gated": 0.8707588315010071,
+              "frac_solvable": 1.0,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                0.9074,
+                0.9074,
+                0.9074,
+                0.9074,
+                0.9074,
+                0.8993,
+                0.8712,
+                0.8556,
+                0.8735,
+                0.9154
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 0.8556226491928101
+            },
+            {
+              "d_close": 20.0,
+              "cov_ge4_feasible": 1.0,
+              "cov_ge4_feas_gentle": 0.9846419095993042,
+              "median_VDOP_gated": 1.0213292837142944,
+              "p95_VDOP_gated": 1.139125108718872,
+              "median_HDOP_gated": 0.8702887892723083,
+              "frac_solvable": 1.0,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                0.9983,
+                0.9983,
+                0.9799,
+                0.9649,
+                0.9597,
+                0.9661,
+                0.9804,
+                0.9988,
+                1.0,
+                1.0
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 0.9597353935241699
+            }
+          ],
+          "viable_dclose_ge4feasible": 15.0,
+          "viable_dclose_ge4gentle": 20.0,
+          "d3_nearpole": {
+            "high_anchor_dz_max": 7.8,
+            "r25_high": 15.01,
+            "r37_high": 9.29,
+            "low_anchor_dz_max": 1.7,
+            "r25_low": 3.65,
+            "r37_low": 2.26,
+            "frac_strict_safe_allgentle": 0.0,
+            "frac_any_steep37": 0.9832326769828796,
+            "mean_gentle_count": 4.610698699951172
+          }
+        },
+        {
+          "court": "basketball",
+          "z_high": 10.0,
+          "z_span": 9.7,
+          "n_points": 34770,
+          "n_xy": 3477,
+          "n_h": 10,
+          "footprint_m": [
+            14.0,
+            15.0
+          ],
+          "diag_m": 20.52,
+          "aspect_zspan_over_diag": 0.473,
+          "pure_median_VDOP": 0.9121196866035461,
+          "pure_median_HDOP": 0.8980494737625122,
+          "pure_median_GDOP": 1.3803684711456299,
+          "pure_frac_fix": 1.0,
+          "dclose": [
+            {
+              "d_close": 8.0,
+              "cov_ge4_feasible": 0.0,
+              "cov_ge4_feas_gentle": 0.0,
+              "median_VDOP_gated": null,
+              "p95_VDOP_gated": null,
+              "median_HDOP_gated": null,
+              "frac_solvable": 0.0,
+              "per_height_ge4": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "per_height_ge4gentle": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "worst_height_ge4": 0.0,
+              "worst_height_ge4gentle": 0.0
+            },
+            {
+              "d_close": 10.0,
+              "cov_ge4_feasible": 0.0012079378357157111,
+              "cov_ge4_feas_gentle": 0.0012079378357157111,
+              "median_VDOP_gated": 10000.0,
+              "p95_VDOP_gated": 10000.0,
+              "median_HDOP_gated": 34.90830993652344,
+              "frac_solvable": 0.00023008340212982148,
+              "per_height_ge4": [
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0003,
+                0.0003
+              ],
+              "per_height_ge4gentle": [
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0014,
+                0.0003,
+                0.0003
+              ],
+              "worst_height_ge4": 0.00028760425630025566,
+              "worst_height_ge4gentle": 0.00028760425630025566
+            },
+            {
+              "d_close": 12.0,
+              "cov_ge4_feasible": 0.4334196150302887,
+              "cov_ge4_feas_gentle": 0.08633879572153091,
+              "median_VDOP_gated": 1.4455152750015259,
+              "p95_VDOP_gated": 6777.8544921875,
+              "median_HDOP_gated": 1.2191166877746582,
+              "frac_solvable": 0.4071038067340851,
+              "per_height_ge4": [
+                0.2655,
+                0.3,
+                0.3517,
+                0.3932,
+                0.4288,
+                0.4662,
+                0.4927,
+                0.5249,
+                0.545,
+                0.5663
+              ],
+              "per_height_ge4gentle": [
+                0.0877,
+                0.0877,
+                0.0877,
+                0.0877,
+                0.0877,
+                0.0877,
+                0.0854,
+                0.0854,
+                0.0831,
+                0.0831
+              ],
+              "worst_height_ge4": 0.26545873284339905,
+              "worst_height_ge4gentle": 0.08311762660741806
+            },
+            {
+              "d_close": 15.0,
+              "cov_ge4_feasible": 1.0,
+              "cov_ge4_feas_gentle": 0.4574633240699768,
+              "median_VDOP_gated": 1.013841986656189,
+              "p95_VDOP_gated": 1.2577975988388062,
+              "median_HDOP_gated": 1.0909610986709595,
+              "frac_solvable": 0.9891573190689087,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                0.461,
+                0.461,
+                0.461,
+                0.461,
+                0.4593,
+                0.457,
+                0.457,
+                0.4547,
+                0.4547,
+                0.4478
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 0.44779983162879944
+            },
+            {
+              "d_close": 18.0,
+              "cov_ge4_feasible": 1.0,
+              "cov_ge4_feas_gentle": 0.8654587268829346,
+              "median_VDOP_gated": 0.9201087951660156,
+              "p95_VDOP_gated": 1.0585312843322754,
+              "median_HDOP_gated": 0.9106412529945374,
+              "frac_solvable": 1.0,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                0.9074,
+                0.9074,
+                0.9074,
+                0.9074,
+                0.9074,
+                0.8947,
+                0.866,
+                0.832,
+                0.7895,
+                0.7354
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 0.7354040741920471
+            },
+            {
+              "d_close": 20.0,
+              "cov_ge4_feasible": 1.0,
+              "cov_ge4_feas_gentle": 0.9182628393173218,
+              "median_VDOP_gated": 0.9126999974250793,
+              "p95_VDOP_gated": 1.0229476690292358,
+              "median_HDOP_gated": 0.8980494737625122,
+              "frac_solvable": 1.0,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                0.9983,
+                0.9983,
+                0.9799,
+                0.9592,
+                0.9367,
+                0.908,
+                0.87,
+                0.8453,
+                0.8453,
+                0.8418
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 0.8418176770210266
+            }
+          ],
+          "viable_dclose_ge4feasible": 15.0,
+          "viable_dclose_ge4gentle": 20.0,
+          "d3_nearpole": {
+            "high_anchor_dz_max": 9.8,
+            "r25_high": 19.3,
+            "r37_high": 11.94,
+            "low_anchor_dz_max": 1.7,
+            "r25_low": 3.65,
+            "r37_low": 2.26,
+            "frac_strict_safe_allgentle": 0.0,
+            "frac_any_steep37": 1.0,
+            "mean_gentle_count": 3.9512221813201904
+          }
+        }
+      ],
+      "overlap": [
+        {
+          "court": "basketball",
+          "z_high": 3.0,
+          "tag_h": 1.0,
+          "by_dclose": {
+            "12.0": {
+              "overlap_frac_court": 0.29870882630348206,
+              "overlap_band_width_m_midline": 19.0,
+              "joint12_median_VDOP_on_overlap": 2.622699499130249,
+              "joint12_median_GDOP_on_overlap": 2.8018105030059814
+            },
+            "15.0": {
+              "overlap_frac_court": 0.6790947318077087,
+              "overlap_band_width_m_midline": 26.0,
+              "joint12_median_VDOP_on_overlap": 2.350574493408203,
+              "joint12_median_GDOP_on_overlap": 2.518531084060669
+            },
+            "20.0": {
+              "overlap_frac_court": 0.9982590675354004,
+              "overlap_band_width_m_midline": 28.0,
+              "joint12_median_VDOP_on_overlap": 2.1715288162231445,
+              "joint12_median_GDOP_on_overlap": 2.318916082382202
+            }
+          },
+          "walker_needs_m": 0.6
+        },
+        {
+          "court": "basketball",
+          "z_high": 4.0,
+          "tag_h": 1.0,
+          "by_dclose": {
+            "12.0": {
+              "overlap_frac_court": 0.27723777294158936,
+              "overlap_band_width_m_midline": 18.5,
+              "joint12_median_VDOP_on_overlap": 2.0050034523010254,
+              "joint12_median_GDOP_on_overlap": 2.2264034748077393
+            },
+            "15.0": {
+              "overlap_frac_court": 0.6561729311943054,
+              "overlap_band_width_m_midline": 25.5,
+              "joint12_median_VDOP_on_overlap": 1.7809720039367676,
+              "joint12_median_GDOP_on_overlap": 2.003845453262329
+            },
+            "20.0": {
+              "overlap_frac_court": 0.9965181946754456,
+              "overlap_band_width_m_midline": 28.0,
+              "joint12_median_VDOP_on_overlap": 1.6413037776947021,
+              "joint12_median_GDOP_on_overlap": 1.850445032119751
+            }
+          },
+          "walker_needs_m": 0.6
+        },
+        {
+          "court": "basketball",
+          "z_high": 6.0,
+          "tag_h": 1.0,
+          "by_dclose": {
+            "12.0": {
+              "overlap_frac_court": 0.21079355478286743,
+              "overlap_band_width_m_midline": 16.5,
+              "joint12_median_VDOP_on_overlap": 1.5596258640289307,
+              "joint12_median_GDOP_on_overlap": 1.9454258680343628
+            },
+            "15.0": {
+              "overlap_frac_court": 0.5836355686187744,
+              "overlap_band_width_m_midline": 24.5,
+              "joint12_median_VDOP_on_overlap": 1.2808034420013428,
+              "joint12_median_GDOP_on_overlap": 1.5795165300369263
+            },
+            "20.0": {
+              "overlap_frac_court": 0.9912954568862915,
+              "overlap_band_width_m_midline": 28.0,
+              "joint12_median_VDOP_on_overlap": 1.1861779689788818,
+              "joint12_median_GDOP_on_overlap": 1.507022500038147
+            }
+          },
+          "walker_needs_m": 0.6
+        },
+        {
+          "court": "basketball",
+          "z_high": 8.0,
+          "tag_h": 1.0,
+          "by_dclose": {
+            "12.0": {
+              "overlap_frac_court": 0.11823588609695435,
+              "overlap_band_width_m_midline": 13.5,
+              "joint12_median_VDOP_on_overlap": 6.309749126434326,
+              "joint12_median_GDOP_on_overlap": 75.82483673095703
+            },
+            "15.0": {
+              "overlap_frac_court": 0.4803423583507538,
+              "overlap_band_width_m_midline": 22.5,
+              "joint12_median_VDOP_on_overlap": 1.064289927482605,
+              "joint12_median_GDOP_on_overlap": 1.4263375997543335
+            },
+            "20.0": {
+              "overlap_frac_court": 0.9738864898681641,
+              "overlap_band_width_m_midline": 28.0,
+              "joint12_median_VDOP_on_overlap": 1.00359308719635,
+              "joint12_median_GDOP_on_overlap": 1.3971909284591675
+            }
+          },
+          "walker_needs_m": 0.6
+        },
+        {
+          "court": "basketball",
+          "z_high": 10.0,
+          "tag_h": 1.0,
+          "by_dclose": {
+            "12.0": {
+              "overlap_frac_court": 0.021325981244444847,
+              "overlap_band_width_m_midline": 7.0,
+              "joint12_median_VDOP_on_overlap": 25.28905487060547,
+              "joint12_median_GDOP_on_overlap": 434.5425720214844
+            },
+            "15.0": {
+              "overlap_frac_court": 0.34948498010635376,
+              "overlap_band_width_m_midline": 19.0,
+              "joint12_median_VDOP_on_overlap": 0.970896303653717,
+              "joint12_median_GDOP_on_overlap": 1.4076881408691406
+            },
+            "20.0": {
+              "overlap_frac_court": 0.9396488666534424,
+              "overlap_band_width_m_midline": 28.0,
+              "joint12_median_VDOP_on_overlap": 0.902763843536377,
+              "joint12_median_GDOP_on_overlap": 1.3308470249176025
+            }
+          },
+          "walker_needs_m": 0.6
+        }
+      ],
+      "body": {
+        "court": "basketball",
+        "body_extent_m": 2.0,
+        "centerline_x_m": 14.0,
+        "per_tag_split_band_m": 2.0,
+        "walker_dwell_needed_m": 0.6,
+        "centroid_assignment_split_band_m": 0.0,
+        "note": "per-tag zone assignment splits one body's tags across two anchor sets + two bias calibrations within a 2.0 m band at the centerline (injected relative pose error); centroid (whole-body->one-cell) assignment removes the split. Residual cost = one handoff epoch, absorbed if the D4 overlap band >= per-epoch travel (0.6 m)."
+      }
+    },
+    "tennis": {
+      "dims_m": [
+        36.6,
+        18.3
+      ],
+      "cell_footprint_m": [
+        18.3,
+        18.3
+      ],
+      "configs": [
+        {
+          "court": "tennis",
+          "z_high": 3.0,
+          "z_span": 2.7,
+          "n_points": 54760,
+          "n_xy": 5476,
+          "n_h": 10,
+          "footprint_m": [
+            18.3,
+            18.3
+          ],
+          "diag_m": 25.88,
+          "aspect_zspan_over_diag": 0.104,
+          "pure_median_VDOP": 2.8421103954315186,
+          "pure_median_HDOP": 0.7958288788795471,
+          "pure_median_GDOP": 2.995750665664673,
+          "pure_frac_fix": 0.9999999403953552,
+          "dclose": [
+            {
+              "d_close": 8.0,
+              "cov_ge4_feasible": 0.0,
+              "cov_ge4_feas_gentle": 0.0,
+              "median_VDOP_gated": null,
+              "p95_VDOP_gated": null,
+              "median_HDOP_gated": null,
+              "frac_solvable": 0.0,
+              "per_height_ge4": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "per_height_ge4gentle": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "worst_height_ge4": 0.0,
+              "worst_height_ge4gentle": 0.0
+            },
+            {
+              "d_close": 10.0,
+              "cov_ge4_feasible": 0.0808984637260437,
+              "cov_ge4_feas_gentle": 0.0808984637260437,
+              "median_VDOP_gated": 49.588783264160156,
+              "p95_VDOP_gated": 206.6688232421875,
+              "median_HDOP_gated": 8301.9267578125,
+              "frac_solvable": 0.054035790264606476,
+              "per_height_ge4": [
+                0.0614,
+                0.0657,
+                0.0694,
+                0.0751,
+                0.0804,
+                0.0884,
+                0.0913,
+                0.0944,
+                0.0933,
+                0.0897
+              ],
+              "per_height_ge4gentle": [
+                0.0614,
+                0.0657,
+                0.0694,
+                0.0751,
+                0.0804,
+                0.0884,
+                0.0913,
+                0.0944,
+                0.0933,
+                0.0897
+              ],
+              "worst_height_ge4": 0.061358656734228134,
+              "worst_height_ge4gentle": 0.061358656734228134
+            },
+            {
+              "d_close": 12.0,
+              "cov_ge4_feasible": 0.4210737645626068,
+              "cov_ge4_feas_gentle": 0.42045286297798157,
+              "median_VDOP_gated": 25.219879150390625,
+              "p95_VDOP_gated": 120.41722106933594,
+              "median_HDOP_gated": 2277.6044921875,
+              "frac_solvable": 0.3382943570613861,
+              "per_height_ge4": [
+                0.3879,
+                0.3957,
+                0.405,
+                0.4149,
+                0.4251,
+                0.4308,
+                0.4366,
+                0.441,
+                0.4396,
+                0.4341
+              ],
+              "per_height_ge4gentle": [
+                0.3817,
+                0.3957,
+                0.405,
+                0.4149,
+                0.4251,
+                0.4308,
+                0.4366,
+                0.441,
+                0.4396,
+                0.4341
+              ],
+              "worst_height_ge4": 0.3878743648529053,
+              "worst_height_ge4gentle": 0.3816654682159424
+            },
+            {
+              "d_close": 15.0,
+              "cov_ge4_feasible": 0.8773191571235657,
+              "cov_ge4_feas_gentle": 0.7757121920585632,
+              "median_VDOP_gated": 11.127669334411621,
+              "p95_VDOP_gated": 54.979736328125,
+              "median_HDOP_gated": 538.5175170898438,
+              "frac_solvable": 0.8075602054595947,
+              "per_height_ge4": [
+                0.8649,
+                0.87,
+                0.8731,
+                0.8776,
+                0.8793,
+                0.8806,
+                0.8817,
+                0.8828,
+                0.882,
+                0.8813
+              ],
+              "per_height_ge4gentle": [
+                0.6284,
+                0.6665,
+                0.7067,
+                0.7463,
+                0.7823,
+                0.8159,
+                0.8466,
+                0.8718,
+                0.8605,
+                0.832
+              ],
+              "worst_height_ge4": 0.8648648858070374,
+              "worst_height_ge4gentle": 0.6283783912658691
+            },
+            {
+              "d_close": 18.0,
+              "cov_ge4_feasible": 0.9999634623527527,
+              "cov_ge4_feas_gentle": 0.9720233082771301,
+              "median_VDOP_gated": 3.0057179927825928,
+              "p95_VDOP_gated": 19.461414337158203,
+              "median_HDOP_gated": 0.8794960379600525,
+              "frac_solvable": 0.9716763496398926,
+              "per_height_ge4": [
+                0.9996,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                0.9447,
+                0.952,
+                0.962,
+                0.9701,
+                0.9755,
+                0.9799,
+                0.9828,
+                0.9869,
+                0.9847,
+                0.9817
+              ],
+              "worst_height_ge4": 0.9996348023414612,
+              "worst_height_ge4gentle": 0.9446676969528198
+            },
+            {
+              "d_close": 20.0,
+              "cov_ge4_feasible": 0.9999999403953552,
+              "cov_ge4_feas_gentle": 0.9999999403953552,
+              "median_VDOP_gated": 2.86362361907959,
+              "p95_VDOP_gated": 3.237902879714966,
+              "median_HDOP_gated": 0.816265881061554,
+              "frac_solvable": 0.9997260570526123,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 1.0
+            }
+          ],
+          "viable_dclose_ge4feasible": 18.0,
+          "viable_dclose_ge4gentle": 18.0,
+          "d3_nearpole": {
+            "high_anchor_dz_max": 2.8,
+            "r25_high": 4.29,
+            "r37_high": 2.65,
+            "low_anchor_dz_max": 1.7,
+            "r25_low": 3.65,
+            "r37_low": 2.26,
+            "frac_strict_safe_allgentle": 0.7727355360984802,
+            "frac_any_steep37": 0.09967128932476044,
+            "mean_gentle_count": 7.724579811096191
+          }
+        },
+        {
+          "court": "tennis",
+          "z_high": 4.0,
+          "z_span": 3.7,
+          "n_points": 54760,
+          "n_xy": 5476,
+          "n_h": 10,
+          "footprint_m": [
+            18.3,
+            18.3
+          ],
+          "diag_m": 25.88,
+          "aspect_zspan_over_diag": 0.143,
+          "pure_median_VDOP": 2.125889539718628,
+          "pure_median_HDOP": 0.8041927814483643,
+          "pure_median_GDOP": 2.3290746212005615,
+          "pure_frac_fix": 0.9999999403953552,
+          "dclose": [
+            {
+              "d_close": 8.0,
+              "cov_ge4_feasible": 0.0,
+              "cov_ge4_feas_gentle": 0.0,
+              "median_VDOP_gated": null,
+              "p95_VDOP_gated": null,
+              "median_HDOP_gated": null,
+              "frac_solvable": 0.0,
+              "per_height_ge4": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "per_height_ge4gentle": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "worst_height_ge4": 0.0,
+              "worst_height_ge4gentle": 0.0
+            },
+            {
+              "d_close": 10.0,
+              "cov_ge4_feasible": 0.05498538911342621,
+              "cov_ge4_feas_gentle": 0.05498538911342621,
+              "median_VDOP_gated": 58.04947280883789,
+              "p95_VDOP_gated": 226.50433349609375,
+              "median_HDOP_gated": 6850.81005859375,
+              "frac_solvable": 0.04327976331114769,
+              "per_height_ge4": [
+                0.0241,
+                0.0347,
+                0.0409,
+                0.0455,
+                0.0528,
+                0.0614,
+                0.0657,
+                0.0694,
+                0.0751,
+                0.0804
+              ],
+              "per_height_ge4gentle": [
+                0.0241,
+                0.0347,
+                0.0409,
+                0.0455,
+                0.0528,
+                0.0614,
+                0.0657,
+                0.0694,
+                0.0751,
+                0.0804
+              ],
+              "worst_height_ge4": 0.024105187505483627,
+              "worst_height_ge4gentle": 0.024105187505483627
+            },
+            {
+              "d_close": 12.0,
+              "cov_ge4_feasible": 0.3803871273994446,
+              "cov_ge4_feas_gentle": 0.3381665349006653,
+              "median_VDOP_gated": 22.73786735534668,
+              "p95_VDOP_gated": 141.69369506835938,
+              "median_HDOP_gated": 1333.660888671875,
+              "frac_solvable": 0.3409057557582855,
+              "per_height_ge4": [
+                0.3314,
+                0.3426,
+                0.3534,
+                0.3687,
+                0.3791,
+                0.3879,
+                0.3957,
+                0.405,
+                0.4149,
+                0.4251
+              ],
+              "per_height_ge4gentle": [
+                0.176,
+                0.231,
+                0.2776,
+                0.3194,
+                0.3552,
+                0.3817,
+                0.3957,
+                0.405,
+                0.4149,
+                0.4251
+              ],
+              "worst_height_ge4": 0.3314463198184967,
+              "worst_height_ge4gentle": 0.176040917634964
+            },
+            {
+              "d_close": 15.0,
+              "cov_ge4_feasible": 0.8651935458183289,
+              "cov_ge4_feas_gentle": 0.5993242859840393,
+              "median_VDOP_gated": 8.7879638671875,
+              "p95_VDOP_gated": 58.380531311035156,
+              "median_HDOP_gated": 288.3109130859375,
+              "frac_solvable": 0.8297114372253418,
+              "per_height_ge4": [
+                0.8484,
+                0.855,
+                0.859,
+                0.8612,
+                0.8634,
+                0.8649,
+                0.87,
+                0.8731,
+                0.8776,
+                0.8793
+              ],
+              "per_height_ge4gentle": [
+                0.3979,
+                0.4498,
+                0.4958,
+                0.5409,
+                0.584,
+                0.6269,
+                0.6649,
+                0.7053,
+                0.7456,
+                0.7821
+              ],
+              "worst_height_ge4": 0.8484295606613159,
+              "worst_height_ge4gentle": 0.3979181945323944
+            },
+            {
+              "d_close": 18.0,
+              "cov_ge4_feasible": 0.9995982050895691,
+              "cov_ge4_feas_gentle": 0.925383448600769,
+              "median_VDOP_gated": 2.2457571029663086,
+              "p95_VDOP_gated": 18.21481704711914,
+              "median_HDOP_gated": 0.8929457664489746,
+              "frac_solvable": 0.9799488186836243,
+              "per_height_ge4": [
+                0.9993,
+                0.9993,
+                0.9993,
+                0.9993,
+                0.9993,
+                0.9996,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                0.8676,
+                0.889,
+                0.9018,
+                0.9105,
+                0.9229,
+                0.9357,
+                0.9425,
+                0.9525,
+                0.9627,
+                0.9686
+              ],
+              "worst_height_ge4": 0.9992696046829224,
+              "worst_height_ge4gentle": 0.86760413646698
+            },
+            {
+              "d_close": 20.0,
+              "cov_ge4_feasible": 0.9999999403953552,
+              "cov_ge4_feas_gentle": 0.9999999403953552,
+              "median_VDOP_gated": 2.144320249557495,
+              "p95_VDOP_gated": 2.3990533351898193,
+              "median_HDOP_gated": 0.8258410692214966,
+              "frac_solvable": 0.9998903870582581,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 1.0
+            }
+          ],
+          "viable_dclose_ge4feasible": 18.0,
+          "viable_dclose_ge4gentle": 18.0,
+          "d3_nearpole": {
+            "high_anchor_dz_max": 3.8,
+            "r25_high": 6.43,
+            "r37_high": 3.98,
+            "low_anchor_dz_max": 1.7,
+            "r25_low": 3.65,
+            "r37_low": 2.26,
+            "frac_strict_safe_allgentle": 0.5600438117980957,
+            "frac_any_steep37": 0.18570123612880707,
+            "mean_gentle_count": 7.4982829093933105
+          }
+        },
+        {
+          "court": "tennis",
+          "z_high": 6.0,
+          "z_span": 5.7,
+          "n_points": 54760,
+          "n_xy": 5476,
+          "n_h": 10,
+          "footprint_m": [
+            18.3,
+            18.3
+          ],
+          "diag_m": 25.88,
+          "aspect_zspan_over_diag": 0.22,
+          "pure_median_VDOP": 1.4838355779647827,
+          "pure_median_HDOP": 0.8234023451805115,
+          "pure_median_GDOP": 1.765596866607666,
+          "pure_frac_fix": 0.9999999403953552,
+          "dclose": [
+            {
+              "d_close": 8.0,
+              "cov_ge4_feasible": 0.0,
+              "cov_ge4_feas_gentle": 0.0,
+              "median_VDOP_gated": null,
+              "p95_VDOP_gated": null,
+              "median_HDOP_gated": null,
+              "frac_solvable": 0.0,
+              "per_height_ge4": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "per_height_ge4gentle": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "worst_height_ge4": 0.0,
+              "worst_height_ge4gentle": 0.0
+            },
+            {
+              "d_close": 10.0,
+              "cov_ge4_feasible": 0.004912344738841057,
+              "cov_ge4_feas_gentle": 0.0011322132777422667,
+              "median_VDOP_gated": 103.3642349243164,
+              "p95_VDOP_gated": 172.9496612548828,
+              "median_HDOP_gated": 9643.759765625,
+              "frac_solvable": 0.00441928394138813,
+              "per_height_ge4": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0015,
+                0.0049,
+                0.0066,
+                0.0157,
+                0.0205
+              ],
+              "per_height_ge4gentle": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0113
+              ],
+              "worst_height_ge4": 0.0,
+              "worst_height_ge4gentle": 0.0
+            },
+            {
+              "d_close": 12.0,
+              "cov_ge4_feasible": 0.24989041686058044,
+              "cov_ge4_feas_gentle": 0.025383491069078445,
+              "median_VDOP_gated": 22.60582733154297,
+              "p95_VDOP_gated": 178.13790893554688,
+              "median_HDOP_gated": 678.5509033203125,
+              "frac_solvable": 0.24125273525714874,
+              "per_height_ge4": [
+                0.1766,
+                0.1963,
+                0.2096,
+                0.2292,
+                0.2438,
+                0.2564,
+                0.2757,
+                0.2904,
+                0.302,
+                0.3188
+              ],
+              "per_height_ge4gentle": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0002,
+                0.0058,
+                0.0188,
+                0.04,
+                0.0707,
+                0.1183
+              ],
+              "worst_height_ge4": 0.1765887588262558,
+              "worst_height_ge4gentle": 0.0
+            },
+            {
+              "d_close": 15.0,
+              "cov_ge4_feasible": 0.8210920095443726,
+              "cov_ge4_feas_gentle": 0.25319576263427734,
+              "median_VDOP_gated": 6.576518535614014,
+              "p95_VDOP_gated": 55.92545700073242,
+              "median_HDOP_gated": 120.5611572265625,
+              "frac_solvable": 0.8042183518409729,
+              "per_height_ge4": [
+                0.7957,
+                0.8011,
+                0.8046,
+                0.8148,
+                0.8209,
+                0.823,
+                0.8294,
+                0.8378,
+                0.8409,
+                0.8426
+              ],
+              "per_height_ge4gentle": [
+                0.1802,
+                0.2016,
+                0.2217,
+                0.2409,
+                0.2551,
+                0.2606,
+                0.2639,
+                0.275,
+                0.2966,
+                0.3364
+              ],
+              "worst_height_ge4": 0.7956538200378418,
+              "worst_height_ge4gentle": 0.18024106323719025
+            },
+            {
+              "d_close": 18.0,
+              "cov_ge4_feasible": 0.9982286095619202,
+              "cov_ge4_feas_gentle": 0.7842767834663391,
+              "median_VDOP_gated": 1.561944603919983,
+              "p95_VDOP_gated": 15.790228843688965,
+              "median_HDOP_gated": 0.9213032126426697,
+              "frac_solvable": 0.9831080436706543,
+              "per_height_ge4": [
+                0.9974,
+                0.9978,
+                0.9978,
+                0.9978,
+                0.9982,
+                0.9985,
+                0.9985,
+                0.9985,
+                0.9987,
+                0.9989
+              ],
+              "per_height_ge4gentle": [
+                0.7529,
+                0.7705,
+                0.7774,
+                0.7803,
+                0.7871,
+                0.7931,
+                0.7936,
+                0.7946,
+                0.7922,
+                0.8011
+              ],
+              "worst_height_ge4": 0.997443437576294,
+              "worst_height_ge4gentle": 0.7529218792915344
+            },
+            {
+              "d_close": 20.0,
+              "cov_ge4_feasible": 0.9999999403953552,
+              "cov_ge4_feas_gentle": 0.9913074970245361,
+              "median_VDOP_gated": 1.5002325773239136,
+              "p95_VDOP_gated": 1.6571332216262817,
+              "median_HDOP_gated": 0.8538329005241394,
+              "frac_solvable": 0.9999999403953552,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                0.9834,
+                0.9854,
+                0.9867,
+                0.9887,
+                0.9903,
+                0.9921,
+                0.9934,
+                0.9963,
+                0.9982,
+                0.9985
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 0.9833820462226868
+            }
+          ],
+          "viable_dclose_ge4feasible": 18.0,
+          "viable_dclose_ge4gentle": 20.0,
+          "d3_nearpole": {
+            "high_anchor_dz_max": 5.8,
+            "r25_high": 10.72,
+            "r37_high": 6.64,
+            "low_anchor_dz_max": 1.7,
+            "r25_low": 3.65,
+            "r37_low": 2.26,
+            "frac_strict_safe_allgentle": 0.07123813033103943,
+            "frac_any_steep37": 0.4688093364238739,
+            "mean_gentle_count": 6.791654109954834
+          }
+        },
+        {
+          "court": "tennis",
+          "z_high": 8.0,
+          "z_span": 7.7,
+          "n_points": 54760,
+          "n_xy": 5476,
+          "n_h": 10,
+          "footprint_m": [
+            18.3,
+            18.3
+          ],
+          "diag_m": 25.88,
+          "aspect_zspan_over_diag": 0.298,
+          "pure_median_VDOP": 1.2007641792297363,
+          "pure_median_HDOP": 0.8440757989883423,
+          "pure_median_GDOP": 1.544811725616455,
+          "pure_frac_fix": 0.9999999403953552,
+          "dclose": [
+            {
+              "d_close": 8.0,
+              "cov_ge4_feasible": 0.0,
+              "cov_ge4_feas_gentle": 0.0,
+              "median_VDOP_gated": null,
+              "p95_VDOP_gated": null,
+              "median_HDOP_gated": null,
+              "frac_solvable": 0.0,
+              "per_height_ge4": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "per_height_ge4gentle": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "worst_height_ge4": 0.0,
+              "worst_height_ge4gentle": 0.0
+            },
+            {
+              "d_close": 10.0,
+              "cov_ge4_feasible": 0.0,
+              "cov_ge4_feas_gentle": 0.0,
+              "median_VDOP_gated": null,
+              "p95_VDOP_gated": null,
+              "median_HDOP_gated": null,
+              "frac_solvable": 0.0,
+              "per_height_ge4": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "per_height_ge4gentle": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "worst_height_ge4": 0.0,
+              "worst_height_ge4gentle": 0.0
+            },
+            {
+              "d_close": 12.0,
+              "cov_ge4_feasible": 0.08582907170057297,
+              "cov_ge4_feas_gentle": 0.0,
+              "median_VDOP_gated": 37.59727478027344,
+              "p95_VDOP_gated": 163.62728881835938,
+              "median_HDOP_gated": 1143.37646484375,
+              "frac_solvable": 0.08285244554281235,
+              "per_height_ge4": [
+                0.0186,
+                0.0296,
+                0.0435,
+                0.0614,
+                0.0725,
+                0.0933,
+                0.1087,
+                0.1271,
+                0.1424,
+                0.1612
+              ],
+              "per_height_ge4gentle": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "worst_height_ge4": 0.018626736477017403,
+              "worst_height_ge4gentle": 0.0
+            },
+            {
+              "d_close": 15.0,
+              "cov_ge4_feasible": 0.7464937567710876,
+              "cov_ge4_feas_gentle": 0.08431336283683777,
+              "median_VDOP_gated": 5.918627738952637,
+              "p95_VDOP_gated": 52.58466339111328,
+              "median_HDOP_gated": 79.62787628173828,
+              "frac_solvable": 0.7332358956336975,
+              "per_height_ge4": [
+                0.7054,
+                0.7144,
+                0.7239,
+                0.7358,
+                0.7431,
+                0.7542,
+                0.7593,
+                0.7706,
+                0.7778,
+                0.7805
+              ],
+              "per_height_ge4gentle": [
+                0.0741,
+                0.0741,
+                0.0741,
+                0.0738,
+                0.073,
+                0.073,
+                0.073,
+                0.0716,
+                0.1081,
+                0.1481
+              ],
+              "worst_height_ge4": 0.705441951751709,
+              "worst_height_ge4gentle": 0.07158510386943817
+            },
+            {
+              "d_close": 18.0,
+              "cov_ge4_feasible": 0.9962015748023987,
+              "cov_ge4_feas_gentle": 0.5315923690795898,
+              "median_VDOP_gated": 1.2707878351211548,
+              "p95_VDOP_gated": 13.834158897399902,
+              "median_HDOP_gated": 0.9553313851356506,
+              "frac_solvable": 0.9812636375427246,
+              "per_height_ge4": [
+                0.9949,
+                0.9956,
+                0.9956,
+                0.9956,
+                0.9963,
+                0.9963,
+                0.9963,
+                0.9971,
+                0.9971,
+                0.9971
+              ],
+              "per_height_ge4gentle": [
+                0.3342,
+                0.3397,
+                0.4248,
+                0.4998,
+                0.5575,
+                0.5915,
+                0.6187,
+                0.641,
+                0.6512,
+                0.6576
+              ],
+              "worst_height_ge4": 0.9948868155479431,
+              "worst_height_ge4gentle": 0.33418554067611694
+            },
+            {
+              "d_close": 20.0,
+              "cov_ge4_feasible": 0.9999999403953552,
+              "cov_ge4_feas_gentle": 0.9371621012687683,
+              "median_VDOP_gated": 1.2213486433029175,
+              "p95_VDOP_gated": 1.3632383346557617,
+              "median_HDOP_gated": 0.8937229514122009,
+              "frac_solvable": 0.9999999403953552,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                0.8232,
+                0.8711,
+                0.9098,
+                0.939,
+                0.9587,
+                0.968,
+                0.9717,
+                0.9743,
+                0.977,
+                0.9788
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 0.823228657245636
+            }
+          ],
+          "viable_dclose_ge4feasible": 18.0,
+          "viable_dclose_ge4gentle": 20.0,
+          "d3_nearpole": {
+            "high_anchor_dz_max": 7.8,
+            "r25_high": 15.01,
+            "r37_high": 9.29,
+            "low_anchor_dz_max": 1.7,
+            "r25_low": 3.65,
+            "r37_low": 2.26,
+            "frac_strict_safe_allgentle": 0.0,
+            "frac_any_steep37": 0.8330898284912109,
+            "mean_gentle_count": 5.74766206741333
+          }
+        },
+        {
+          "court": "tennis",
+          "z_high": 10.0,
+          "z_span": 9.7,
+          "n_points": 54760,
+          "n_xy": 5476,
+          "n_h": 10,
+          "footprint_m": [
+            18.3,
+            18.3
+          ],
+          "diag_m": 25.88,
+          "aspect_zspan_over_diag": 0.375,
+          "pure_median_VDOP": 1.0475128889083862,
+          "pure_median_HDOP": 0.86567622423172,
+          "pure_median_GDOP": 1.448817253112793,
+          "pure_frac_fix": 0.9999999403953552,
+          "dclose": [
+            {
+              "d_close": 8.0,
+              "cov_ge4_feasible": 0.0,
+              "cov_ge4_feas_gentle": 0.0,
+              "median_VDOP_gated": null,
+              "p95_VDOP_gated": null,
+              "median_HDOP_gated": null,
+              "frac_solvable": 0.0,
+              "per_height_ge4": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "per_height_ge4gentle": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "worst_height_ge4": 0.0,
+              "worst_height_ge4gentle": 0.0
+            },
+            {
+              "d_close": 10.0,
+              "cov_ge4_feasible": 0.0,
+              "cov_ge4_feas_gentle": 0.0,
+              "median_VDOP_gated": null,
+              "p95_VDOP_gated": null,
+              "median_HDOP_gated": null,
+              "frac_solvable": 0.0,
+              "per_height_ge4": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "per_height_ge4gentle": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "worst_height_ge4": 0.0,
+              "worst_height_ge4gentle": 0.0
+            },
+            {
+              "d_close": 12.0,
+              "cov_ge4_feasible": 0.0007121986709535122,
+              "cov_ge4_feas_gentle": 0.0,
+              "median_VDOP_gated": 115.29513549804688,
+              "p95_VDOP_gated": 136.724609375,
+              "median_HDOP_gated": 4950.23681640625,
+              "frac_solvable": 0.0006574141443707049,
+              "per_height_ge4": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0009,
+                0.0062
+              ],
+              "per_height_ge4gentle": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "worst_height_ge4": 0.0,
+              "worst_height_ge4gentle": 0.0
+            },
+            {
+              "d_close": 15.0,
+              "cov_ge4_feasible": 0.6250912547111511,
+              "cov_ge4_feas_gentle": 0.07271730899810791,
+              "median_VDOP_gated": 6.129293441772461,
+              "p95_VDOP_gated": 96.32486724853516,
+              "median_HDOP_gated": 65.97315979003906,
+              "frac_solvable": 0.6146274209022522,
+              "per_height_ge4": [
+                0.5546,
+                0.571,
+                0.5889,
+                0.6087,
+                0.6189,
+                0.6375,
+                0.6485,
+                0.6622,
+                0.6755,
+                0.6852
+              ],
+              "per_height_ge4gentle": [
+                0.0741,
+                0.0741,
+                0.0741,
+                0.0738,
+                0.073,
+                0.073,
+                0.073,
+                0.0716,
+                0.0709,
+                0.0694
+              ],
+              "worst_height_ge4": 0.5546019077301025,
+              "worst_height_ge4gentle": 0.06939372420310974
+            },
+            {
+              "d_close": 18.0,
+              "cov_ge4_feasible": 0.9933893084526062,
+              "cov_ge4_feas_gentle": 0.3310445547103882,
+              "median_VDOP_gated": 1.1471574306488037,
+              "p95_VDOP_gated": 13.194770812988281,
+              "median_HDOP_gated": 1.1215858459472656,
+              "frac_solvable": 0.9784513711929321,
+              "per_height_ge4": [
+                0.992,
+                0.992,
+                0.9927,
+                0.9927,
+                0.9934,
+                0.9934,
+                0.9942,
+                0.9942,
+                0.9945,
+                0.9949
+              ],
+              "per_height_ge4gentle": [
+                0.3342,
+                0.3342,
+                0.3338,
+                0.3331,
+                0.332,
+                0.332,
+                0.3305,
+                0.3287,
+                0.3276,
+                0.3243
+              ],
+              "worst_height_ge4": 0.9919649958610535,
+              "worst_height_ge4gentle": 0.3243243396282196
+            },
+            {
+              "d_close": 20.0,
+              "cov_ge4_feasible": 0.9999999403953552,
+              "cov_ge4_feas_gentle": 0.6165083646774292,
+              "median_VDOP_gated": 1.078830361366272,
+              "p95_VDOP_gated": 1.2825959920883179,
+              "median_HDOP_gated": 0.9353492856025696,
+              "frac_solvable": 0.9999999403953552,
+              "per_height_ge4": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "per_height_ge4gentle": [
+                0.6041,
+                0.6041,
+                0.6037,
+                0.6034,
+                0.603,
+                0.6008,
+                0.5993,
+                0.6116,
+                0.6512,
+                0.6839
+              ],
+              "worst_height_ge4": 1.0,
+              "worst_height_ge4gentle": 0.5993425846099854
+            }
+          ],
+          "viable_dclose_ge4feasible": 18.0,
+          "viable_dclose_ge4gentle": null,
+          "d3_nearpole": {
+            "high_anchor_dz_max": 9.8,
+            "r25_high": 19.3,
+            "r37_high": 11.94,
+            "low_anchor_dz_max": 1.7,
+            "r25_low": 3.65,
+            "r37_low": 2.26,
+            "frac_strict_safe_allgentle": 0.0,
+            "frac_any_steep37": 0.989024817943573,
+            "mean_gentle_count": 4.547004699707031
+          }
+        }
+      ],
+      "overlap": [
+        {
+          "court": "tennis",
+          "z_high": 3.0,
+          "tag_h": 1.0,
+          "by_dclose": {
+            "12.0": {
+              "overlap_frac_court": 0.10424710065126419,
+              "overlap_band_width_m_midline": 15.75,
+              "joint12_median_VDOP_on_overlap": 27.702917098999023,
+              "joint12_median_GDOP_on_overlap": 1703.5665283203125
+            },
+            "15.0": {
+              "overlap_frac_court": 0.3100753724575043,
+              "overlap_band_width_m_midline": 23.75,
+              "joint12_median_VDOP_on_overlap": 3.453747272491455,
+              "joint12_median_GDOP_on_overlap": 3.5971271991729736
+            },
+            "20.0": {
+              "overlap_frac_court": 0.7814855575561523,
+              "overlap_band_width_m_midline": 35.5,
+              "joint12_median_VDOP_on_overlap": 2.9445700645446777,
+              "joint12_median_GDOP_on_overlap": 3.0831069946289062
+            }
+          },
+          "walker_needs_m": 0.6
+        },
+        {
+          "court": "tennis",
+          "z_high": 4.0,
+          "tag_h": 1.0,
+          "by_dclose": {
+            "12.0": {
+              "overlap_frac_court": 0.09321565926074982,
+              "overlap_band_width_m_midline": 15.0,
+              "joint12_median_VDOP_on_overlap": 23.346040725708008,
+              "joint12_median_GDOP_on_overlap": 835.1376953125
+            },
+            "15.0": {
+              "overlap_frac_court": 0.296010285615921,
+              "overlap_band_width_m_midline": 23.5,
+              "joint12_median_VDOP_on_overlap": 2.585270881652832,
+              "joint12_median_GDOP_on_overlap": 2.7860107421875
+            },
+            "20.0": {
+              "overlap_frac_court": 0.7712814807891846,
+              "overlap_band_width_m_midline": 35.25,
+              "joint12_median_VDOP_on_overlap": 2.201045036315918,
+              "joint12_median_GDOP_on_overlap": 2.3886358737945557
+            }
+          },
+          "walker_needs_m": 0.6
+        },
+        {
+          "court": "tennis",
+          "z_high": 6.0,
+          "tag_h": 1.0,
+          "by_dclose": {
+            "12.0": {
+              "overlap_frac_court": 0.06030520051717758,
+              "overlap_band_width_m_midline": 12.75,
+              "joint12_median_VDOP_on_overlap": 22.303184509277344,
+              "joint12_median_GDOP_on_overlap": 502.0087890625
+            },
+            "15.0": {
+              "overlap_frac_court": 0.25234416127204895,
+              "overlap_band_width_m_midline": 22.0,
+              "joint12_median_VDOP_on_overlap": 5.5285797119140625,
+              "joint12_median_GDOP_on_overlap": 53.15428161621094
+            },
+            "20.0": {
+              "overlap_frac_court": 0.7383710145950317,
+              "overlap_band_width_m_midline": 34.25,
+              "joint12_median_VDOP_on_overlap": 1.5336309671401978,
+              "joint12_median_GDOP_on_overlap": 1.7982897758483887
+            }
+          },
+          "walker_needs_m": 0.6
+        },
+        {
+          "court": "tennis",
+          "z_high": 8.0,
+          "tag_h": 1.0,
+          "by_dclose": {
+            "12.0": {
+              "overlap_frac_court": 0.018937304615974426,
+              "overlap_band_width_m_midline": 8.25,
+              "joint12_median_VDOP_on_overlap": 40.49641036987305,
+              "joint12_median_GDOP_on_overlap": 994.9607543945312
+            },
+            "15.0": {
+              "overlap_frac_court": 0.18928112089633942,
+              "overlap_band_width_m_midline": 19.75,
+              "joint12_median_VDOP_on_overlap": 5.625514984130859,
+              "joint12_median_GDOP_on_overlap": 61.840579986572266
+            },
+            "20.0": {
+              "overlap_frac_court": 0.685144305229187,
+              "overlap_band_width_m_midline": 33.0,
+              "joint12_median_VDOP_on_overlap": 1.2389676570892334,
+              "joint12_median_GDOP_on_overlap": 1.5536919832229614
+            }
+          },
+          "walker_needs_m": 0.6
+        },
+        {
+          "court": "tennis",
+          "z_high": 10.0,
+          "tag_h": 1.0,
+          "by_dclose": {
+            "12.0": {
+              "overlap_frac_court": 0.0,
+              "overlap_band_width_m_midline": 0.0,
+              "joint12_median_VDOP_on_overlap": null,
+              "joint12_median_GDOP_on_overlap": null
+            },
+            "15.0": {
+              "overlap_frac_court": 0.1120610386133194,
+              "overlap_band_width_m_midline": 16.25,
+              "joint12_median_VDOP_on_overlap": 8.412921905517578,
+              "joint12_median_GDOP_on_overlap": 103.31683349609375
+            },
+            "20.0": {
+              "overlap_frac_court": 0.6028681397438049,
+              "overlap_band_width_m_midline": 31.0,
+              "joint12_median_VDOP_on_overlap": 1.079798936843872,
+              "joint12_median_GDOP_on_overlap": 1.4328004121780396
+            }
+          },
+          "walker_needs_m": 0.6
+        }
+      ],
+      "body": {
+        "court": "tennis",
+        "body_extent_m": 2.0,
+        "centerline_x_m": 18.3,
+        "per_tag_split_band_m": 2.0,
+        "walker_dwell_needed_m": 0.6,
+        "centroid_assignment_split_band_m": 0.0,
+        "note": "per-tag zone assignment splits one body's tags across two anchor sets + two bias calibrations within a 2.0 m band at the centerline (injected relative pose error); centroid (whole-body->one-cell) assignment removes the split. Residual cost = one handoff epoch, absorbed if the D4 overlap band >= per-epoch travel (0.6 m)."
+      }
+    }
+  },
+  "d6_killcheck": {
+    "home_room": {
+      "source": "experiments/cell_split_simulation/results.json",
+      "footprint_m": [
+        4.74,
+        3.43
+      ],
+      "z_span_m": 1.78,
+      "diag_m": 5.85,
+      "aspect_zspan_over_diag": 0.304,
+      "median_VDOP": 1.181,
+      "median_GDOP": 1.61,
+      "note_erlangen_accuracy_floor_mm": "72-100 (bias/multipath, NOT geometry)"
+    },
+    "court_cube": [
+      {
+        "court": "basketball",
+        "z_high": 3.0,
+        "aspect": 0.132,
+        "pure_median_VDOP": 2.25,
+        "better_conditioned_than_home": false
+      },
+      {
+        "court": "basketball",
+        "z_high": 4.0,
+        "aspect": 0.18,
+        "pure_median_VDOP": 1.706,
+        "better_conditioned_than_home": false
+      },
+      {
+        "court": "basketball",
+        "z_high": 6.0,
+        "aspect": 0.278,
+        "pure_median_VDOP": 1.227,
+        "better_conditioned_than_home": false
+      },
+      {
+        "court": "basketball",
+        "z_high": 8.0,
+        "aspect": 0.375,
+        "pure_median_VDOP": 1.021,
+        "better_conditioned_than_home": true
+      },
+      {
+        "court": "basketball",
+        "z_high": 10.0,
+        "aspect": 0.473,
+        "pure_median_VDOP": 0.912,
+        "better_conditioned_than_home": true
+      },
+      {
+        "court": "tennis",
+        "z_high": 3.0,
+        "aspect": 0.104,
+        "pure_median_VDOP": 2.842,
+        "better_conditioned_than_home": false
+      },
+      {
+        "court": "tennis",
+        "z_high": 4.0,
+        "aspect": 0.143,
+        "pure_median_VDOP": 2.126,
+        "better_conditioned_than_home": false
+      },
+      {
+        "court": "tennis",
+        "z_high": 6.0,
+        "aspect": 0.22,
+        "pure_median_VDOP": 1.484,
+        "better_conditioned_than_home": false
+      },
+      {
+        "court": "tennis",
+        "z_high": 8.0,
+        "aspect": 0.298,
+        "pure_median_VDOP": 1.201,
+        "better_conditioned_than_home": false
+      },
+      {
+        "court": "tennis",
+        "z_high": 10.0,
+        "aspect": 0.375,
+        "pure_median_VDOP": 1.048,
+        "better_conditioned_than_home": true
+      }
+    ],
+    "accuracy_note": "VDOP is geometric conditioning only. Achievable position accuracy is bias/multipath-floored at ~72-100 mm (Erlangen); the court does NOT lower that floor, it only tiles the same ~72-100 mm cell across a bigger space. 'court -> mm' would be wrong. accuracy_1sigma_mm ~= VDOP * range_sigma(25mm) is a conditioning-limited LOWER bound, not the real floor."
+  }
+}

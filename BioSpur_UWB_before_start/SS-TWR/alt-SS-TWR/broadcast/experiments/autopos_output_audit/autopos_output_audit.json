@@ -1,0 +1,88 @@
+{
+  "audit": "autopos-data-plane-output",
+  "date": "2026-07-15",
+  "tree_root": "SS-TWR/alt-SS-TWR/broadcast",
+  "read_only": true,
+  "path_summary": "anchor(matrix role) 2-way-ranges peers -> SW- on BLE GATT RESULT -> Master_Anchor echoes AUTOPOS result: -> host captures + SOLVES OFFLINE (V3-box) -> pushes APOS to tag NVS. Master never solves; no tag in the ranging.",
+  "buckets": ["KEEP", "KEEP-DEBUG", "DELETE"],
+  "part_A_anchor_matrix_outputs": [
+    {"line": "SW-<M>,<peer>,<raw_mm>,<q>,...", "bucket": "KEEP", "grammar": "master label + per-peer triplet (invalid->,X,0,0); 1 line = 1 sweep set, no seq field", "transport": "BLE GATT RESULT + console mirror", "emit": "src/ss_twr_anchor_init.c:85-103,111,474", "parser": "run_autopos_sweep_loop.py:268; master main.c:1073"},
+    {"line": "SWEEP_DONE master=<M> sets=<N> role=matrix", "bucket": "KEEP", "emit": "src/ss_twr_anchor_init.c:481-488", "parser": "run_autopos_sweep_loop.py:2837", "trigger": "RUNTIME MASTER SWEEP <n>"},
+    {"line": "Anchor master ready anchor=<M>(id) addr=.. peer_count=..", "bucket": "KEEP", "kind": "role-entry-banner", "emit": "src/ss_twr_anchor_init.c:239"},
+    {"line": "Matrix <M>-<peer> addr=.. raw=.. last=.. ok=.. fail=.. q=..%", "bucket": "KEEP-DEBUG", "emit": "src/ss_twr_anchor_init.c:427", "gate": "!full_cir_quiet"},
+    {"line": "Anchor master reject/timeout/TX-failed/unexpected-frame/stop", "bucket": "KEEP-DEBUG", "emit": "src/ss_twr_anchor_init.c:405,449,282,293,354,266,307"},
+    {"line": "Anchor sweep <n> complete + matrix row/edges dump", "bucket": "KEEP-DEBUG", "emit": "src/ss_twr_anchor_init.c:467-472"},
+    {"line": "ACRX;1", "bucket": "KEEP", "reserved": "fusion pair-weights", "trigger": "CIR_FEATURE_OUTPUT=0", "emit": "src/ss_twr_anchor_init.c:436 -> anchor_cir_output.c:133", "parser": "cir_features_to_pair_weights.py:15"},
+    {"line": "ACIRM/ACIRD/ACIRE;1", "bucket": "KEEP", "reserved": "imaging", "trigger": "CIR_FULL_OUTPUT=0", "emit": "src/ss_twr_anchor_init.c:440 -> anchor_cir_output.c:201,226,243"},
+    {"note": "dwt_readdiagnostics is A13-gated: only read when CIR mode != OFF (src/ss_twr_anchor_init.c:372-374); keeps diag read off production path", "bucket": "KEEP"}
+  ],
+  "part_B_master_console_outputs": [
+    {"line": "AUTOPOS result: <SW-|OK RUNTIME|SWEEP_DONE>", "bucket": "KEEP", "emit": "apps/master_control/src/main.c:990,1023,1154", "note": "SW- conduit to host"},
+    {"line": "AUTOPOS: mode=..state=..staged=..last_success=..sets=..cir=..error=..", "bucket": "KEEP", "emit": "apps/master_control/src/main.c:499", "parser": "run_autopos_sweep_loop.py:805,1019"},
+    {"line": "AUTOPOS map <L>=<uuid> / map refresh", "bucket": "KEEP", "emit": "apps/master_control/src/main.c:578,548"},
+    {"line": "AUTOPOS round staged / apply success / finite handoff", "bucket": "KEEP", "emit": "apps/master_control/src/main.c ~2955"},
+    {"line": "Launching AUTOPOS mode (internal receive active)", "bucket": "KEEP", "emit": "apps/master_control/src/main.c:3357"},
+    {"line": "Boot profile <..> / Control mode loaded: AUTOPOS", "bucket": "KEEP", "emit": "apps/master_control/src/main.c:446,3225"},
+    {"line": "AUTOPOS state: <state>", "bucket": "KEEP-DEBUG", "emit": "apps/master_control/src/main.c:925,1038,1226"},
+    {"line": "AUTOPOS sweep converge: master=.. stable=../.. peers=.. min_q=..", "bucket": "KEEP-DEBUG", "emit": "apps/master_control/src/main.c:1161"},
+    {"line": "AUTOPOS runtime accept via sweep stream/role state", "bucket": "KEEP-DEBUG", "emit": "apps/master_control/src/main.c:1029,1042"},
+    {"line": "AUTOPOS wait anchor ready/cleared/timeout", "bucket": "KEEP-DEBUG", "emit": "apps/master_control/src/main.c:825-908"},
+    {"line": "AUTOPOS result history[i/n] / empty", "bucket": "KEEP-DEBUG", "emit": "apps/master_control/src/main.c:242,229", "parser": "run_autopos_sweep_loop.py:2899"},
+    {"line": "AUTOPOS cmds: (help)", "bucket": "KEEP", "emit": "apps/master_control/src/main.c:349"}
+  ],
+  "part_C_frame": {
+    "finding": "anchor<->anchor frame is the SAME shared broadcast SS-TWR frame as tag ranging",
+    "bucket": "KEEP",
+    "evidence": "src/ss_twr_anchor_init.c:272 uwb_ss_twr_build_poll_frame, :349 uwb_ss_twr_resp_matches; response carries poll_rx_ts/resp_tx_ts (:380-387); same TOF math (:389-393)",
+    "differences": "addressing (src=anchor,dst=peer) + role (anchor initiator)",
+    "vestigial_fields": "none AutoPos-specific; rank_offset=0 in prod (shared, declutter T8/A4)"
+  },
+  "part_D_writeback_and_solve": {
+    "master_solves": false,
+    "evidence_no_fw_solver": "no solver in src/ or apps/; only tag-side uwb_tag_loc.c:539 consumes pushed layout",
+    "canonical_chain": ["run_autopos_sweep_loop.py (capture SW-)", "autopos_extract_pairs_from_sweep_summary.py -> pairs_all.csv", "fuse_bidirectional_matrix_v3.py -> inter_anchor_matrix_v3fused.json", "solve_anchor_layout_v3_full.py --geometry-mode box (via prepare_autopos_v3_box.py) -> anchor_layout_v3_box.json", "push_apos_layout_verified.py -> tag NVS", "e2e wrapper: run_autopos_sweep_and_solve_v3_box.py"],
+    "apos_writeback_steps": ["solved anchor_layout_v3_box.json", "push_apos_layout_verified.py reads layout (:61)", "APOS_TO <tag> APOS <id> <x> <y> <z> -> APOS_OK (fw uwb_tag_ble.c:1721)", "APOS_TO <tag> APOS_COMMIT -> APOS_COMMIT_OK N=8 (fw :1735 -> settings_save_one anchor_layout/runtime uwb_anchor_layout.c:145-154)", "APOS_TO <tag> APOS_STATUS -> APOS <id> x y z rows + APOS_STATUS_DONE SRC=SETTINGS (fw :1774)"],
+    "buckets": {
+      "KEEP": ["run_autopos_sweep_loop.py", "autopos_extract_pairs_from_sweep_summary.py", "fuse_bidirectional_matrix_v3.py", "solve_anchor_layout_v3_full.py", "prepare_autopos_v3_box.py", "run_autopos_sweep_and_solve_v3_box.py", "push_apos_layout_verified.py", "sdp_init_v3.py"],
+      "KEEP-DEBUG": ["run_autopos_round.py (raw-log)", "fuse_bidirectional_matrix_v1.py", "fuse_bidirectional_matrix_v2.py", "solve_anchor_layout_iterative.py", "solve_anchor_layout.py (least-squares, no marker, unproven dead)", "prepare_autopos_v2.py", "prepare_autopos_v3_lite.py", "prepare_autopos_v3_free.py", "prepare_autopos_v3_full.py", "generate_inter_anchor_matrix.py", "autopos_build_inter_anchor_matrix_from_pairs_csv.py", "autopos_dump_anchor_layouts.py", "run_autopos_capture_once_and_solve_v1_v2_v3.py", "run_autopos_vx_capture_and_solve.py", "run_autopos_solve_v1_v2_v3_v3full_from_existing.py", "run_autopos_v1_v2_v3_overnight.sh", "run_anchor_responder_then_tag_cm.py (deprecated stub but referenced by 2 live drivers)"],
+      "DELETE": ["recalibrate_anchor_layout_with_ref115.py (hard raise SystemExit :2-5)", "run_autopos_sweep_then_tag_cm_loop.py (deprecation stub :2)"]
+    }
+  },
+  "part_E_incident": {
+    "control_mode_mechanism": "__noinit RAM cookie (main.c:79-80, control_load_mode:3215) + compile-time boot profile (:435,:3337); NOT GPREGRET, NOT flash",
+    "prompt_correction": "prompt called it GPREGRET warm-cookie; it is __noinit RAM (survives warm reboot, cleared by power cycle)",
+    "fix_confirmed": "zombie AUTOPOS boot = boot profile/warm cookie, not flash; full erase does NOT fix mode; correct APP_MASTER_BOOT_PROFILE + power cycle does",
+    "existing_boot_lines": ["Boot profile <anchor|tag|neutral>: .. (main.c:446/460/464)", "Control mode loaded: <mode> (:3225)", "Launching AUTOPOS mode (:3357)"],
+    "gap": "info split across lines; does not spell out tag-grab consequence; a RECV/neutral master does not announce it will HOLD BS* tags",
+    "recommendation_KEEP_add": "single loud boot banner: profile + mode + target-kind + 'wand tags: WILL HOLD BS* (they will NOT advertise) | rejected'; print unconditionally after control_load_mode(); pairs with OTA-blocker preflight"
+  },
+  "production_output_contract_v0": {
+    "anchor_gatt_result": ["SW-<M>,<peer>,<raw_mm>,<q>,...  (1 line = 1 sweep set; invalid pair -> <peer>,0,0)", "SWEEP_DONE master=<M> sets=<N> role=matrix  (finite sweep only)"],
+    "sw_line_fields": {"1": "SW-<M> master label A-H", "repeating": "<peer_label>,<last_raw_mm u32>,<quality_percent u8>"},
+    "master_console": ["AUTOPOS result: <SW-|SWEEP_DONE>", "AUTOPOS: mode=AUTOPOS state=.. (status)", "AUTOPOS sweep converge: .. (progress)"],
+    "anchor_console_human": "Matrix <M>-<peer> .. raw=.. q=..% (KEEP-DEBUG)",
+    "no_version_field": "SW- has no version field (unlike TR;); parsers key on SW-<label>, prefix + triplet structure; add SW-2; if grammar changes",
+    "when_debug": "autopos cir compact -> ACRX;1; autopos cir full -> ACIRM/D/E + A13 diag read",
+    "writeback": "host-solved V3-box layout -> APOS/APOS_COMMIT -> tag NVS anchor_layout/runtime; acks APOS_OK/APOS_COMMIT_OK N=8/APOS_STATUS_DONE SRC=SETTINGS"
+  },
+  "cleanup_batches": [
+    {"batch": 1, "title": "dead code (ADD to declutter Batch 1)", "delete": ["scripts/recalibrate_anchor_layout_with_ref115.py", "scripts/run_autopos_sweep_then_tag_cm_loop.py"], "keep_referenced": ["scripts/run_anchor_responder_then_tag_cm.py"], "verify": "grep no live import/subprocess"},
+    {"batch": 5, "title": "AutoPos host consolidation (NEW, optional, offline-only)", "action": "superseded v1/v2/iterative/least-squares solvers stay KEEP-DEBUG (compare harnesses depend on them); optional reorg under scripts/autopos_legacy/", "risk": "low (offline, no deletion)"},
+    {"batch": 6, "title": "KEEP add (NEW, not cleanup)", "action": "add loud master boot role banner (Part E)", "verify": "boot log shows banner; TR;2/AutoPos flows unchanged"}
+  ],
+  "ambiguous_for_operator": [
+    "autopos detach: firmware verb with no host sender -> KEEP (manual) vs prune handler; recommend KEEP",
+    "solve_anchor_layout.py: no deprecation marker, not called -> KEEP-DEBUG vs DELETE; recommend KEEP-DEBUG (unproven dead)",
+    "run_anchor_responder_then_tag_cm.py: deprecated stub referenced by 2 live drivers -> KEEP-DEBUG vs fix-callers-then-DELETE"
+  ],
+  "trio_status": {
+    "complete": true,
+    "surfaces": {
+      "commands": "docs/COMMAND_REFERENCE.md",
+      "tag_ranging_output": "experiments/declutter_audit/DECLUTTER_AUDIT.md",
+      "autopos_output": "experiments/autopos_output_audit/AUTOPOS_OUTPUT_AUDIT.md"
+    },
+    "adjacent_covered": {"ota_dfu": "experiments/ota_blocker_audit/ + COMMAND_REFERENCE.md §3b", "listener": "DECLUTTER_AUDIT.md §2 LISTENER"},
+    "fourth_surface_found": false
+  }
+}

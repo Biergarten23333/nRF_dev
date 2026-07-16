@@ -1,0 +1,623 @@
+{
+  "meta": {
+    "device": "cuda:0",
+    "gpu_name": "NVIDIA GeForce GTX 1080 Ti",
+    "gpu_max_mem_MB": 43.3,
+    "torch_num_threads": 2,
+    "cpu_percent_during": 25.5,
+    "cpu_count": 12,
+    "runtime_s": 10.51,
+    "layout_used": "anchor_layout.json (V4-io, deployed geometry)",
+    "layout_reason": "V4-io is the physically deployed layout that would actually be shrunk; V5 scale-locked (35mm rms from V4-io) used only as a baseline cross-check; V5 (non-locked) rejected (scale unidentifiable).",
+    "conventions": {
+      "up": "-z",
+      "floor_datum": "low-ring z=0 plane (ASSUMED)",
+      "z_low_mm": -57.778263092041016,
+      "z_high_mm": -1579.0743408203125,
+      "room_margin_mm": 500.0,
+      "wall_margin_mm": 300.0,
+      "dop_model": "4-unknown pseudorange (x,y,z,clock); 3x3 TOA secondary"
+    },
+    "anchor_bbox_mm": {
+      "x": [
+        0.0,
+        4740.3837890625
+      ],
+      "y": [
+        -230.93333435058594,
+        3199.53759765625
+      ],
+      "z": [
+        -1779.025390625,
+        0.0
+      ]
+    },
+    "centroid_mm": [
+      2475.4794921875,
+      1437.498779296875
+    ],
+    "seed": 1234
+  },
+  "task1": {
+    "n_points": 18252,
+    "rect_mm": [
+      -200.0,
+      4940.4,
+      -430.9,
+      3399.5
+    ],
+    "bands": {
+      "safe": 0.031119877472519875,
+      "risk": 0.2502191662788391,
+      "danger": 0.7186610102653503,
+      "n": 18252
+    },
+    "median_VDOP": 1.180753469467163,
+    "p95_VDOP": 1.6121495962142944,
+    "median_HDOP": 0.936855673789978,
+    "p95_HDOP": 1.9198260307312012,
+    "median_GDOP": 1.6095941066741943,
+    "p95_GDOP": 2.7860429286956787,
+    "median_max_elev": 45.66367721557617,
+    "p95_max_elev": 77.65076446533203,
+    "mean_n_steep": 0.9219263792037964,
+    "frac_with_fix": 1.0,
+    "frac_ge4_gentle": 1.0,
+    "median_VDOP_gentle_only": 2.3076388835906982,
+    "p95_VDOP_gentle_only": 3.887996196746826,
+    "median_VDOP_toa3x3": 0.9787259697914124,
+    "p95_VDOP_toa3x3": 1.2100502252578735,
+    "v5scalelock_crosscheck": {
+      "bands": {
+        "safe": 0.03161297366023064,
+        "risk": 0.24863028526306152,
+        "danger": 0.7197567820549011,
+        "n": 18252
+      },
+      "median_VDOP": 1.1893471479415894,
+      "median_max_elev": 45.77124786376953
+    },
+    "sweetspot_central_midheight": {
+      "region": "inner-50% footprint x 0.8-1.2 m",
+      "frac_safe": 0.21858975291252136,
+      "frac_ge4_gentle": 1.0,
+      "median_max_elev": 29.046594619750977
+    },
+    "datum_sensitivity": {
+      "floor_at_low_ring_Hlow0": {
+        "frac_safe": 0.031119877472519875,
+        "median_max_elev": 45.66367721557617
+      },
+      "array_high_Hlow900": {
+        "frac_safe": 0.026955951005220413,
+        "median_max_elev": 52.687957763671875
+      },
+      "note": "both datums fail the 95%-safe rule badly; trend datum-robust"
+    }
+  },
+  "task2": {
+    "baseline_median_VDOP": 1.180753469467163,
+    "sweep": [
+      {
+        "n_points": 18252,
+        "rect_mm": [
+          -200.0,
+          4940.4,
+          -430.9,
+          3399.5
+        ],
+        "bands": {
+          "safe": 0.031119877472519875,
+          "risk": 0.2502191662788391,
+          "danger": 0.7186610102653503,
+          "n": 18252
+        },
+        "median_VDOP": 1.180753469467163,
+        "p95_VDOP": 1.61215078830719,
+        "median_HDOP": 0.9368557333946228,
+        "p95_HDOP": 1.9198259115219116,
+        "median_GDOP": 1.6095943450927734,
+        "p95_GDOP": 2.786043405532837,
+        "median_max_elev": 45.66367721557617,
+        "p95_max_elev": 77.65076446533203,
+        "mean_n_steep": 0.9219263792037964,
+        "frac_with_fix": 1.0,
+        "frac_ge4_gentle": 1.0,
+        "median_VDOP_gentle_only": 2.3076388835906982,
+        "p95_VDOP_gentle_only": 3.887996196746826,
+        "s": 1.0,
+        "PASS": false,
+        "pass_safe95": false,
+        "pass_vdop_improve": true
+      },
+      {
+        "n_points": 13068,
+        "rect_mm": [
+          201.3,
+          4570.6,
+          -150.7,
+          3105.2
+        ],
+        "bands": {
+          "safe": 0.004438322503119707,
+          "risk": 0.16636057198047638,
+          "danger": 0.8292011022567749,
+          "n": 13068
+        },
+        "median_VDOP": 1.0482556819915771,
+        "p95_VDOP": 1.5133519172668457,
+        "median_HDOP": 0.9500830173492432,
+        "p95_HDOP": 1.818717122077942,
+        "median_GDOP": 1.5220268964767456,
+        "p95_GDOP": 2.6299986839294434,
+        "median_max_elev": 50.185264587402344,
+        "p95_max_elev": 79.41407012939453,
+        "mean_n_steep": 1.1815121173858643,
+        "frac_with_fix": 1.0,
+        "frac_ge4_gentle": 0.9997704029083252,
+        "median_VDOP_gentle_only": 2.351881980895996,
+        "p95_VDOP_gentle_only": 20.735454559326172,
+        "s": 0.85,
+        "PASS": false,
+        "pass_safe95": false,
+        "pass_vdop_improve": true
+      },
+      {
+        "n_points": 8748,
+        "rect_mm": [
+          602.6,
+          4200.9,
+          129.6,
+          2810.9
+        ],
+        "bands": {
+          "safe": 0.0,
+          "risk": 0.07190214842557907,
+          "danger": 0.9280978441238403,
+          "n": 8748
+        },
+        "median_VDOP": 0.9123143553733826,
+        "p95_VDOP": 1.4261270761489868,
+        "median_HDOP": 0.9707199335098267,
+        "p95_HDOP": 1.7287777662277222,
+        "median_GDOP": 1.4538568258285522,
+        "p95_GDOP": 2.478919744491577,
+        "median_max_elev": 55.43134307861328,
+        "p95_max_elev": 81.2149658203125,
+        "mean_n_steep": 1.6089391708374023,
+        "frac_with_fix": 1.0,
+        "frac_ge4_gentle": 0.9654778242111206,
+        "median_VDOP_gentle_only": 2.376953125,
+        "p95_VDOP_gentle_only": 22.329708099365234,
+        "s": 0.7,
+        "PASS": false,
+        "pass_safe95": false,
+        "pass_vdop_improve": true
+      },
+      {
+        "n_points": 6417,
+        "rect_mm": [
+          870.2,
+          3954.4,
+          316.4,
+          2614.7
+        ],
+        "bands": {
+          "safe": 0.0,
+          "risk": 0.023375410586595535,
+          "danger": 0.976624608039856,
+          "n": 6417
+        },
+        "median_VDOP": 0.8230496644973755,
+        "p95_VDOP": 1.3740880489349365,
+        "median_HDOP": 0.9927650690078735,
+        "p95_HDOP": 1.7014528512954712,
+        "median_GDOP": 1.422236442565918,
+        "p95_GDOP": 2.4081168174743652,
+        "median_max_elev": 59.3960075378418,
+        "p95_max_elev": 82.41903686523438,
+        "mean_n_steep": 2.050802707672119,
+        "frac_with_fix": 1.0,
+        "frac_ge4_gentle": 0.8494623899459839,
+        "median_VDOP_gentle_only": 2.8038508892059326,
+        "p95_VDOP_gentle_only": 24.190269470214844,
+        "s": 0.6,
+        "PASS": false,
+        "pass_safe95": false,
+        "pass_vdop_improve": true
+      },
+      {
+        "n_points": 4680,
+        "rect_mm": [
+          1137.7,
+          3707.9,
+          503.3,
+          2418.5
+        ],
+        "bands": {
+          "safe": 0.0,
+          "risk": 0.0012820513220503926,
+          "danger": 0.9987179636955261,
+          "n": 4680
+        },
+        "median_VDOP": 0.7402105927467346,
+        "p95_VDOP": 1.3541573286056519,
+        "median_HDOP": 1.0387147665023804,
+        "p95_HDOP": 1.7790186405181885,
+        "median_GDOP": 1.421607494354248,
+        "p95_GDOP": 2.5127015113830566,
+        "median_max_elev": 63.934574127197266,
+        "p95_max_elev": 83.72462463378906,
+        "mean_n_steep": 2.6596155166625977,
+        "frac_with_fix": 1.0,
+        "frac_ge4_gentle": 0.6192307472229004,
+        "median_VDOP_gentle_only": 11.082995414733887,
+        "p95_VDOP_gentle_only": 21.907438278198242,
+        "s": 0.5,
+        "PASS": false,
+        "pass_safe95": false,
+        "pass_vdop_improve": true
+      },
+      {
+        "n_points": 3024,
+        "rect_mm": [
+          1405.3,
+          3461.4,
+          690.1,
+          2222.3
+        ],
+        "bands": {
+          "safe": 0.0,
+          "risk": 0.0,
+          "danger": 0.9999999403953552,
+          "n": 3024
+        },
+        "median_VDOP": 0.6556822061538696,
+        "p95_VDOP": 1.3471788167953491,
+        "median_HDOP": 1.0965216159820557,
+        "p95_HDOP": 1.7741587162017822,
+        "median_GDOP": 1.4243123531341553,
+        "p95_GDOP": 2.5297276973724365,
+        "median_max_elev": 68.88912200927734,
+        "p95_max_elev": 84.90959930419922,
+        "mean_n_steep": 3.5016534328460693,
+        "frac_with_fix": 0.9999999403953552,
+        "frac_ge4_gentle": 0.3554894030094147,
+        "median_VDOP_gentle_only": 9.953315734863281,
+        "p95_VDOP_gentle_only": 19.0504093170166,
+        "s": 0.4,
+        "PASS": false,
+        "pass_safe95": false,
+        "pass_vdop_improve": true
+      }
+    ],
+    "any_pass": false,
+    "zcompress_rescue_at_s050": [
+      {
+        "z_compress": 1.0,
+        "z_span_mm": 1779.0,
+        "frac_safe": 0.0,
+        "frac_ge4_gentle": 0.6192307472229004,
+        "median_VDOP": 0.7402105927467346,
+        "p95_VDOP": 1.3541573286056519,
+        "median_max_elev": 63.934574127197266
+      },
+      {
+        "z_compress": 0.7,
+        "z_span_mm": 1245.0,
+        "frac_safe": 0.0,
+        "frac_ge4_gentle": 0.8461538553237915,
+        "median_VDOP": 1.0148625373840332,
+        "p95_VDOP": 2.2712349891662598,
+        "median_max_elev": 58.92129135131836
+      },
+      {
+        "z_compress": 0.5,
+        "z_span_mm": 890.0,
+        "frac_safe": 0.016025641933083534,
+        "frac_ge4_gentle": 0.8170940279960632,
+        "median_VDOP": 1.410191535949707,
+        "p95_VDOP": 3.212306022644043,
+        "median_max_elev": 54.38252639770508
+      },
+      {
+        "z_compress": 0.3,
+        "z_span_mm": 534.0,
+        "frac_safe": 0.09508547186851501,
+        "frac_ge4_gentle": 0.8290598392486572,
+        "median_VDOP": 2.338653802871704,
+        "p95_VDOP": 5.377283573150635,
+        "median_max_elev": 48.648712158203125
+      },
+      {
+        "z_compress": 0.15,
+        "z_span_mm": 267.0,
+        "frac_safe": 0.19358974695205688,
+        "frac_ge4_gentle": 0.8378205299377441,
+        "median_VDOP": 4.250894546508789,
+        "p95_VDOP": 9.87714958190918,
+        "median_max_elev": 43.24293518066406
+      }
+    ],
+    "best_s_used": 0.5
+  },
+  "task3": {
+    "variants": {
+      "V-A": {
+        "n_anchors": 4,
+        "n_low": 2,
+        "n_high": 2,
+        "anchors_mm": [
+          [
+            4522.8,
+            3699.5,
+            -57.8
+          ],
+          [
+            5240.4,
+            3699.5,
+            -57.8
+          ],
+          [
+            3805.3,
+            3699.5,
+            -1579.1
+          ],
+          [
+            2370.2,
+            3699.5,
+            -1579.1
+          ]
+        ],
+        "bands": {
+          "safe": 0.4342871308326721,
+          "risk": 0.28006935119628906,
+          "danger": 0.28564348816871643,
+          "n": 8073
+        },
+        "median_VDOP": 5.094551086425781,
+        "p95_VDOP": 9.279609680175781,
+        "median_HDOP": 18.485780715942383,
+        "median_GDOP": 25.816804885864258,
+        "frac_with_fix": 0.4342871308326721,
+        "all_links_dop": {
+          "median_VDOP": 4.528386116027832,
+          "p95_VDOP": 8.826102256774902,
+          "median_GDOP": 16.928421020507812
+        },
+        "single_loss": {
+          "worst_median_VDOP": null,
+          "min_frac_fix": 0.0,
+          "model_survivable": false
+        }
+      },
+      "V-B": {
+        "n_anchors": 6,
+        "n_low": 3,
+        "n_high": 3,
+        "anchors_mm": [
+          [
+            4881.6,
+            3699.5,
+            -57.8
+          ],
+          [
+            3087.7,
+            3699.5,
+            -57.8
+          ],
+          [
+            2729.0,
+            3699.5,
+            -57.8
+          ],
+          [
+            5240.4,
+            3699.5,
+            -1579.1
+          ],
+          [
+            4164.1,
+            3699.5,
+            -1579.1
+          ],
+          [
+            2370.2,
+            3699.5,
+            -1579.1
+          ]
+        ],
+        "bands": {
+          "safe": 0.4097609221935272,
+          "risk": 0.26334694027900696,
+          "danger": 0.32689210772514343,
+          "n": 8073
+        },
+        "median_VDOP": 2.706658124923706,
+        "p95_VDOP": 7.720794677734375,
+        "median_HDOP": 17.426889419555664,
+        "median_GDOP": 24.03715705871582,
+        "frac_with_fix": 0.5670754313468933,
+        "all_links_dop": {
+          "median_VDOP": 2.0996510982513428,
+          "p95_VDOP": 4.132019519805908,
+          "median_GDOP": 13.556440353393555
+        },
+        "single_loss": {
+          "worst_median_VDOP": 5.859287261962891,
+          "min_frac_fix": 0.47082868218421936,
+          "model_survivable": true
+        }
+      },
+      "V-C": {
+        "n_anchors": 8,
+        "n_low": 4,
+        "n_high": 4,
+        "anchors_mm": [
+          [
+            5240.4,
+            -730.9,
+            -57.8
+          ],
+          [
+            4164.1,
+            -730.9,
+            -57.8
+          ],
+          [
+            2729.0,
+            -730.9,
+            -57.8
+          ],
+          [
+            4881.6,
+            -730.9,
+            -57.8
+          ],
+          [
+            2370.2,
+            -177.1,
+            -1579.1
+          ],
+          [
+            4522.8,
+            -730.9,
+            -1579.1
+          ],
+          [
+            5240.4,
+            3699.5,
+            -1579.1
+          ],
+          [
+            5240.4,
+            930.5,
+            -1579.1
+          ]
+        ],
+        "bands": {
+          "safe": 0.22036416828632355,
+          "risk": 0.3057103753089905,
+          "danger": 0.4739254117012024,
+          "n": 8073
+        },
+        "median_VDOP": 2.8690054416656494,
+        "p95_VDOP": 376.28851318359375,
+        "median_HDOP": 2.0769810676574707,
+        "median_GDOP": 12.970396995544434,
+        "frac_with_fix": 0.9279078245162964,
+        "all_links_dop": {
+          "median_VDOP": 1.3986656665802002,
+          "p95_VDOP": 2.1473453044891357,
+          "median_GDOP": 2.016446113586426
+        },
+        "single_loss": {
+          "worst_median_VDOP": 3.3182365894317627,
+          "min_frac_fix": 0.6172426342964172,
+          "model_survivable": true
+        }
+      }
+    },
+    "vac_track_mm": [
+      2670.2,
+      4940.4,
+      -430.9,
+      3399.5
+    ],
+    "z_low_mm": -57.778263092041016,
+    "z_high_mm": -1579.0743408203125,
+    "hardware": {
+      "listeners_total": 7,
+      "gateways_reserved": 2,
+      "free_units": 5,
+      "note": "Cell-2 anchor demand vs free spare radios; existing 8 A-H stay in Cell-1."
+    },
+    "best_cell2_variant": "V-C"
+  },
+  "task4": {
+    "overlap_frac_of_room": 0.8614729642868042,
+    "overlap_points": 20236,
+    "joint_median_VDOP": 1.484042763710022,
+    "cell1_median_VDOP_on_overlap": 2.46925687789917,
+    "cell2_median_VDOP_on_overlap": 2.631084680557251,
+    "joint_median_GDOP": 2.2382912635803223,
+    "overlap_width_mm_midline": 5700.0,
+    "min_width_needed_mm": 600.0000000000001,
+    "handover_feasible": true,
+    "note": "overlap band = grid points with >=4 links <=25deg from BOTH cells",
+    "_map_shape": [
+      58,
+      45,
+      9
+    ]
+  },
+  "task5": {
+    "constants": {
+      "GUARD_us": 1200,
+      "SPACING_us": 1000,
+      "TAIL_us": 800,
+      "POLL_airtime_us": 335,
+      "FINAL_us": 200,
+      "interblock_guard_us": 1200,
+      "slot_period_us": 10000,
+      "slot_active_us": 9000,
+      "superframe_us": 100000
+    },
+    "sweep_us": {
+      "N4": 4665,
+      "N6": 6665,
+      "N8": 8665,
+      "N9": 9665
+    },
+    "two_block": {
+      "V-A": {
+        "cell2_anchors": 4,
+        "cell1_sweep_us": 8665,
+        "cell2_sweep_us": 4665,
+        "combined_epoch_us": 16130,
+        "epoch_exceeds_one_slot": true,
+        "each_block_fits_one_slot": true,
+        "rate_hz_per_cell_policyA": 5.0,
+        "rate_hz_per_cell_policyB": 10.0,
+        "slots_used_policyB": 2,
+        "airtime_util_of_100ms": 0.1613
+      },
+      "V-B": {
+        "cell2_anchors": 6,
+        "cell1_sweep_us": 8665,
+        "cell2_sweep_us": 6665,
+        "combined_epoch_us": 18130,
+        "epoch_exceeds_one_slot": true,
+        "each_block_fits_one_slot": true,
+        "rate_hz_per_cell_policyA": 5.0,
+        "rate_hz_per_cell_policyB": 10.0,
+        "slots_used_policyB": 2,
+        "airtime_util_of_100ms": 0.1813
+      },
+      "V-C": {
+        "cell2_anchors": 8,
+        "cell1_sweep_us": 8665,
+        "cell2_sweep_us": 8665,
+        "combined_epoch_us": 20130,
+        "epoch_exceeds_one_slot": true,
+        "each_block_fits_one_slot": true,
+        "rate_hz_per_cell_policyA": 5.0,
+        "rate_hz_per_cell_policyB": 10.0,
+        "slots_used_policyB": 2,
+        "airtime_util_of_100ms": 0.2013
+      }
+    },
+    "three_block": {
+      "blocks": 3,
+      "per_block_anchors": 8,
+      "per_block_sweep_us": 8665,
+      "combined_epoch_us": 30195,
+      "rate_hz_per_cell_policyA": 3.3333333333333335,
+      "rate_hz_per_cell_policyB": 10.0,
+      "slots_used_policyB": 3,
+      "airtime_util_of_100ms": 0.30195
+    },
+    "system_sweep_hz": 10.0,
+    "note": "per-cell rate = 10 Hz / n_cells under the rate-preserving policy (Policy A); slot-doubling (Policy B) holds 10 Hz/cell at the cost of slot occupancy. RF airtime per epoch is ~13-30 ms of the 100 ms budget, so 10 Hz is a superframe-structure choice, not an airtime limit."
+  }
+}
