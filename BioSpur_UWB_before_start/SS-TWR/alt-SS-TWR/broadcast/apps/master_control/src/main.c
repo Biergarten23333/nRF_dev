@@ -3335,6 +3335,17 @@ int main(void)
 		master_set_runtime_target_kind(MASTER_TARGET_UNKNOWN);
 	}
 	control_apply_boot_profile();
+	/* freeze-clean batch6a: LOUD unconditional boot banner (AutoPos audit E).
+	 * Turns "a master silently holding the wand tags" into a one-line boot
+	 * announcement -- the visibility fix for the 2026-07-15 Master_Anchor
+	 * tag-grab incident. (A neutral profile cannot reach here: the batch6b
+	 * CMake guard makes a neutral master a build error.) */
+	printk("=== MASTER BOOT: profile=%s mode=%s target=%s wand tags: %s ===\n",
+	       APP_MASTER_BOOT_PROFILE,
+	       control_mode_name(control_mode),
+	       boot_profile_is("tag") ? "TAG"
+	       : (boot_profile_is("anchor") ? "ANCHOR" : "NONE"),
+	       boot_profile_is("tag") ? "WILL HOLD BS*" : "rejected");
 	master_ota_target_print();
 	if (autopos_state[0] == '\0') {
 		(void)snprintf(autopos_state, sizeof(autopos_state), "idle");
