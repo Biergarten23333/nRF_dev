@@ -8,12 +8,14 @@ Firmware binaries + hashes: `firmware/README.md`, `firmware/SHA256SUMS.txt`.
 
 ---
 
-# ⚠️ #1 OPEN QUESTION — Reverse SS-TWR multi-tag: distinct-per-tag-slot UNVERIFIED (NOT a blocker)
+# #1 RESOLVED — Reverse SS-TWR multi-tag distinct-slot TDMA WORKS (was a false blocker)
 
-**CORRECTION 2026-07-17.** An earlier version of this file called slotted TDMA a hard
-"#1 BLOCKER — transmits zero." **That was a measurement error, retracted below.** Slotted
-TDMA *works*. The real status is an open question, not a death sentence. Written in three
-layers on purpose — do not overcorrect "slotting transmits zero" into "slotting is all fine."
+**History (do not repeat the mistakes): (a)** an early version called slotted TDMA a hard
+"#1 BLOCKER — transmits zero" — that was a **measurement error** (address migration, retracted
+in layer 1 below). **(b)** the corrected version left it an **open question** (distinct-slot
+untested). **(c) 2026-07-17: the test was run — distinct-slot WORKS** (layer 3, verified: 10/10
+cold starts 98/98/98 + 15 min persistence). Layers 1–2 are kept as the evidence chain / caveat;
+layers 3–4 now record the resolution.
 
 ## (1) RETRACTED: "epoch-synced slotting transmits zero" was a measurement error
 
@@ -45,23 +47,23 @@ in a **genuine stuck-0 state** (unfiltered 0/s) that a **cold `REBOOT` cleared**
 `PERIOD=100` config then transmitted 52/s. This is a real robustness issue for any live
 multi-tag reconfiguration: reconfigure deliberately; if a tag goes dark, cold-reboot it.
 
-## (3) The REAL open question: distinct per-tag slots on a common epoch is UNTESTED
+## (3) RESOLVED 2026-07-17: distinct per-tag slots on a common epoch WORKS
 
-Every test used `cmd_all` → all 3 tags got the **same** `TAG`/`SLOT` → same address, colliding
-on one slot. Whether N tags in **distinct** slots on a **shared epoch** actually run coordinated
-(the reverse-SS-TWR requirement) has **never been tested**. So reverse multi-tag scheduling is
-**neither proven blocked nor proven working**. **Needed:** a dedicated test — assign each tag a
-different `TAG`/`SLOT` with a common `EPOCH`, measure per-tag on-air at its *own* address
-(`0xB100+tag_id`) + ge7. This is the true next experiment, not a firmware rewrite on faith.
+The dedicated test was run (`SS-TWR/alt-SS-TWR/broadcast/experiments/three_tag_demo_readiness/`).
+The master already has a built-in distinct-slot assigner — `tdma auto 1` (reference-slot table
+`master_multi_app.c:213`) puts each tag in its **own** slot + address on a **shared epoch**
+(BS9336→slot2/`0xB102`, BS955A→slot3/`0xB103`, BSCCF4→slot5/`0xB104`, epoch~5000). Result:
+**10/10 cold starts all three tags at ge7 98%** (vs 1/10 for free-run), and **15.2 min
+persistence, 14/14 bins, 0 dips.** Distinct-per-tag-slot on a common epoch is **verified working**
+— reverse multi-tag scheduling is **NOT blocked**; the mechanism exists and is deterministic.
 
-## (4) Direction reversal — working slotted may be the CURE, not the obstacle
+## (4) CONFIRMED: slotted TDMA is the CURE, not the obstacle
 
-Measured free-run 3-tag **ge7 is bad and wildly variable** (1%→98% per tag/run; sweeps capture
-only 5–6 of 8 anchors — the zeros in the raw-range vectors) due to the BLE↔UWB phase-beat
-collision. Coordinated slotted TDMA with **non-overlapping per-tag slots is exactly what would
-eliminate that collision.** So slotting is a candidate **solution** to the phase-beat that tanks
-multi-tag ge7 — reverse should test slotting *as the fix*, not treat it as a blocker. This
-reverses the earlier framing and is worth its own note.
+Free-run 3-tag ge7 is a ~10% phase-collision lottery (1%→98% per tag/run, 5–6/8 anchors per
+sweep). Distinct-slot TDMA (`tdma auto`) **eliminates it by construction** — measured 10/10
+good, 98/98/98, deterministic (above). So slotting is the **solution** to the multi-tag
+phase-beat, confirmed on hardware. Demo procedure + one-command startup/recovery:
+`experiments/three_tag_demo_readiness/DEMO_READINESS.md` + `demo_start.py`.
 
 ---
 
@@ -85,11 +87,13 @@ cmd_all REBOOT                                                    # -> restores 
 
 ## Residual / open issues
 
-1. **[OPEN QUESTION — not a blocker] Reverse-SS-TWR multi-tag distinct-slot scheduling UNVERIFIED**
-   — see the ⚠️ #1 section. Slotted TDMA *works* (rate-controllable, unfiltered-verified 52/19/0);
-   the earlier "transmits zero" blocker was a measurement error (address migration → filtered dead
-   addresses), retracted. **Untested:** distinct per-tag slots on a common epoch. **Caveat:** live
-   re-config can stick a tag at 0 TX (cold reboot clears). Next: the distinct-slot + shared-epoch test.
+1. **[RESOLVED 2026-07-17] Reverse-SS-TWR multi-tag distinct-slot scheduling WORKS** — see the
+   ⚠️ #1 section. `tdma auto 1` (distinct slot+address per tag, shared epoch) gives 10/10
+   cold starts at ge7 98% + 15 min persistence (vs 10% free-run lottery). Slotted TDMA is
+   deterministic and is the CURE for the phase-beat, not a blocker. **Caveat (kept):** live
+   re-config can stick a tag at 0 TX — cold reboot clears it (the distinct-slot startup does a
+   cold reboot, so it's safe). Evidence + demo procedure:
+   `experiments/three_tag_demo_readiness/{DEMO_READINESS.md,results.json,demo_start.py}`.
 2. **Master warm-reboot AUTOPOS reconnect** (prior open item) — software `mode recv` warm reboot
    cannot reconnect anchors (0/8 for 3+ min); only a cold JLink reset does (8/8 in ~40 s). Firmware
    limitation; matters for reverse SS-TWR anchor plane. See `experiments/anchor_ota_diagnosis/ANCHOR_OTA_ROOTCAUSE.md`.
