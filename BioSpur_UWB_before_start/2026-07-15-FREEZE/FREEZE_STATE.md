@@ -8,111 +8,93 @@ Firmware binaries + hashes: `firmware/README.md`, `firmware/SHA256SUMS.txt`.
 
 ---
 
-# ⚠️ #1 BLOCKER — Reverse SS-TWR multi-tag scheduling does NOT work as-is
+# ⚠️ #1 OPEN QUESTION — Reverse SS-TWR multi-tag: distinct-per-tag-slot UNVERIFIED (NOT a blocker)
 
-**This is a hard blocker, not a note. Read before scoping any reverse-SS-TWR / 8–10 tag work.**
-Established by direct hardware experiment on 2026-07-16 (Geiger on-air capture +
-Master_Tag CFG readback), not inference. The user explicitly required this be
-measured before assuming multi-tag feasibility.
+**CORRECTION 2026-07-17.** An earlier version of this file called slotted TDMA a hard
+"#1 BLOCKER — transmits zero." **That was a measurement error, retracted below.** Slotted
+TDMA *works*. The real status is an open question, not a death sentence. Written in three
+layers on purpose — do not overcorrect "slotting transmits zero" into "slotting is all fine."
 
-## The finding: only free-run transmits; every epoch-synced slotted config is silent
+## (1) RETRACTED: "epoch-synced slotting transmits zero" was a measurement error
 
-Pushed TDMA configs at runtime via `cmd_all CFG …` on the frozen tag firmware and
-measured each tag's on-air poll rate (Geiger listener, ttyACM6) against the
-Master_Tag `CFG_STATUS` readback:
+The on-air **source address = `UWB_TAG_BASE_ADDR (0xB100)` + `logical_tag_id`** — code:
+`include/uwb_ss_twr_shared.h:82` (`#define UWB_TAG_BASE_ADDR 0xB100U`),
+`src/uwb_ss_twr_shared.c:78-81` (`uwb_tag_short_addr(id)=BASE+id`), recomputed on **every
+CFG apply** at `src/ss_twr_init.c:2757-2760` (`ss_twr_init_apply_runtime_params`, which even
+branches on `local_addr != previous_local_addr`). So `CFG TAG=1` moved all tags to `0xB101`,
+`TAG=7 → 0xB107`; the build ids 54/90/244 map to `0xB136/0xB15A/0xB1F4`. The old verify
+scripts kept filtering the **pre-migration** addresses → saw 0 = **fake silence** (never real-0;
+no unfiltered total was ever captured during an applied slotted config).
 
-| Config pushed at runtime (`cmd_all CFG …`)                 | Accepted?            | Readback (`CFG_STATUS`) | On-air (Geiger)   |
-|------------------------------------------------------------|----------------------|-------------------------|-------------------|
-| `PERIOD=500 COUNT=10`  (epoch-synced slot)                 | `CFG_OK LIVE=1 RUN=1`| `src=MASTER period=500` | **0.0 Hz — silent** |
-| `PERIOD=10 COUNT=10`   (epoch-synced slot)                 | `CFG_OK LIVE=1 RUN=1`| `src=MASTER period=10`  | **0.0 Hz — silent** |
-| `PERIOD=200 COUNT=2`   (200 ms slot window, 50 % duty)     | `CFG_OK LIVE=1 RUN=1`| `src=MASTER period=200` | **0.0 Hz — silent** |
-| build free-run (`epoch_valid=false`)                       | —                    | `src=BUILD`             | **8–9 Hz ✓ transmits** |
+**Slotted TDMA transmits — unfiltered on-air (2026-07-17):**
 
-The split is clean and repeatable across every variation tried (fast/slow period,
-1-of-10 duty, generous 200 ms slot at 50 % duty): **the moment `epoch_valid=true`,
-the tag transmits nothing.** Free-run (`epoch_valid=false`, the build default) is the
-**only** mode that puts polls on air.
+| slotted `CFG` (post-clean-reboot) | on-air UNFILTERED |
+|---|---|
+| `PERIOD=100 COUNT=1` | **52/s** at `0xb107` |
+| `PERIOD=200 COUNT=2` | **19/s** at `0xb101` |
+| `PERIOD=9000 COUNT=9` (81 s cycle) | ~0/s (by design) |
 
-## Mechanism (code-confirmed)
+Rate ≈ **`1000/(COUNT×PERIOD)` Hz**. `rawrange` is real (e.g. `[3320,2055,2568,3195,3031,2096,2601,3290]`,
+8 anchors). Evidence: address-migration code (above) + the on/off unfiltered table. The old
+"0.0 Hz — silent" 4-row table was filtered against dead addresses — **delete that conclusion.**
 
-- **Config *delivery* IS runtime-controllable** — every CFG was accepted live
-  (`CFG_OK`, `LIVE=1`), stored (`src=MASTER`), **no reboot needed**. The runtime
-  config path is healthy. Handler: `apps/tag/src/uwb_tag_ble.c:1938-1973`.
-- **`epoch_valid=false` → free-run**: `uwb_tdma_schedule_now_ms` returns the tag's
-  own local clock → poll-ASAP, ungated. `src/uwb_tdma.c:91-92`; forced at
-  `src/ss_twr_init.c:3451-3454`. (This is also why `CFG_STOP` / `MODE IDLE` cannot
-  silence a running tag — see silence note below.)
-- **`epoch_valid=true` → slotted, gated on `sync_local_ms`**: set by
-  `uwb_tdma_sync_schedule_epoch` (`src/uwb_tdma.c:63-81`), which the runtime CFG path
-  DOES invoke (`src/ss_twr_init.c:6544-6548`). The firmware even has the multi-tag
-  convergence primitive **designed in** — comment `src/uwb_tdma.c:71-76`: *"EPOCH as a
-  relative delay… each tag converts that delay to its own local epoch start so
-  sequential BLE delivery still converges on one common TDMA phase."* **Yet driven
-  from the exposed runtime interface it yields zero transmissions.** Slot gating:
-  `ss_twr_init_tdma_period_remaining_ms` (`src/ss_twr_init.c:2533-2578`),
-  `ss_twr_init_tdma_exchange_can_start` (`src/ss_twr_init.c:2581-2601`).
+## (2) REAL caveat (keep): live re-config can stick a tag at 0 TX until a cold reboot
 
-## Corroboration
+Rapid back-to-back live `CFG` changes (especially after a rejected `LIVE=0` config) left tags
+in a **genuine stuck-0 state** (unfiltered 0/s) that a **cold `REBOOT` cleared** — the identical
+`PERIOD=100` config then transmitted 52/s. This is a real robustness issue for any live
+multi-tag reconfiguration: reconfigure deliberately; if a tag goes dark, cold-reboot it.
 
-Production has **never** used slotted TDMA. The wand runs **free-run** and manages
-tag collisions with the master's BLE-phase **`reroll`** workaround
-(`apps/master_control/src/main.c:2579-2605`; the "tdma-capacity-ble-phase-beat"
-issue). Consistent with the slot-execution path being present-but-non-functional.
+## (3) The REAL open question: distinct per-tag slots on a common epoch is UNTESTED
 
-## Implication for reverse SS-TWR (8–10 tags)
+Every test used `cmd_all` → all 3 tags got the **same** `TAG`/`SLOT` → same address, colliding
+on one slot. Whether N tags in **distinct** slots on a **shared epoch** actually run coordinated
+(the reverse-SS-TWR requirement) has **never been tested**. So reverse multi-tag scheduling is
+**neither proven blocked nor proven working**. **Needed:** a dedicated test — assign each tag a
+different `TAG`/`SLOT` with a common `EPOCH`, measure per-tag on-air at its *own* address
+(`0xB100+tag_id`) + ge7. This is the true next experiment, not a firmware rewrite on faith.
 
-- You CAN push per-tag configs at runtime (live, no reboot). You **CANNOT** get tags
-  to run coordinated slots — enabling epoch-synced slotting makes them go dark.
-- Coordinated multi-tag TDMA is therefore a **firmware development task**, not a
-  config-and-go: the epoch-synced slot-execution path must be made to actually
-  transmit (likely requires master-side UWB epoch/sync coordination that the
-  BLE-`CFG`-only path does not supply) and then validated on hardware.
-- The one working mode — **free-run + BLE-phase reroll — is a statistical workaround
-  already marginal at 3 tags** (2-of-3 collapse to ~1 Hz via phase-beat). It will not
-  scale cleanly to 8–10 tags.
-- **Scope caveat:** tested via the exposed runtime interface (BLE `CFG`). If a deeper
-  master-coordinated sync path exists, it is undocumented and is not what production
-  uses — so "push slot configs → tags run slots" is **false today** regardless.
+## (4) Direction reversal — working slotted may be the CURE, not the obstacle
 
-**Bottom line: reverse-SS-TWR multi-tag scheduling cannot be assumed. It needs the
-epoch-synced slot path fixed + validated first.**
+Measured free-run 3-tag **ge7 is bad and wildly variable** (1%→98% per tag/run; sweeps capture
+only 5–6 of 8 anchors — the zeros in the raw-range vectors) due to the BLE↔UWB phase-beat
+collision. Coordinated slotted TDMA with **non-overlapping per-tag slots is exactly what would
+eliminate that collision.** So slotting is a candidate **solution** to the phase-beat that tanks
+multi-tag ge7 — reverse should test slotting *as the fix*, not treat it as a blocker. This
+reverses the earlier framing and is worth its own note.
 
 ---
 
-## Note — the REAL way to silence the wand tags (corrects earlier wrong methods)
+## Note — silencing the wand tags (corrected 2026-07-17)
 
-Because the tag poll broadcast free-runs whenever powered, **`CFG_STOP`, `MODE IDLE`,
-and even `MODE IDLE`+`REBOOT` do NOT stop on-air transmission** — they only gate
-host-side TR reporting / throttle. (Earlier conclusions claiming these silence the
-tag were WRONG; verified on air.) The tags also have **no JLink debugger** (OTA-only),
-so they can't be held in reset.
-
-**Clean software silence** (0 Hz, tag stays **connected + `MODE=RUN`**, no persisted
-`IDLE`, reboot restores ranging) — push an epoch-synced slotted config, which the
-scheduler correctly gates to silence:
-
+**There is no software command that fully stops the tag transmitter** — it always transmits when
+powered. `CFG_STOP` / `MODE IDLE` / `MODE IDLE`+`REBOOT` only gate host-side reporting / throttle.
+A slotted `CFG` does **not** silence — it relabels the tag's address (`0xB100+tag_id`) and sets
+the poll rate; a large `PERIOD` makes it **near**-silent (`PERIOD=9000` → 81 s cycle → ~0/s,
+verified **unfiltered**) but still fires a brief burst ~once a minute. (Earlier "CFG silence =
+0 Hz" claims were the address-filter error above.) **Only cutting the shared tag power is
+continuous zero.** Best near-silence, tags stay connected + `RUN`, no persisted `IDLE`:
 ```
-cmd_all CFG TAG=1 SLOT=0 COUNT=2 PERIOD=200 ACTIVE=90 EPOCH=10   # -> all tags 0 Hz, RUN, connected
+cmd_all CFG TAG=1 SLOT=0 COUNT=9 PERIOD=9000 ACTIVE=90 EPOCH=1   # -> ~0/s (81 s cycle), RUN, connected
 cmd_all REBOOT                                                    # -> restores build free-run ranging
 ```
-(Sent over Master_Tag control CDC `/dev/ttyACM0`, pyserial `dtr=False rts=False`.
-Host CDC line buffer is **63 chars max** — `apps/master_control/src/main.c:3181-3187` —
-so keep `CFG` commands short; `RUN`/`MASK`/`GEN` may be omitted, they default.)
-The only *total* silence remains cutting the tag power supply (all 3 share one).
+(Master_Tag CDC `/dev/ttyACM0`, pyserial `dtr=False rts=False`. Host CDC line buffer **63 chars max**,
+`apps/master_control/src/main.c:3181-3187` — keep `CFG` short; `RUN`/`MASK`/`GEN` default.)
 
 ---
 
 ## Residual / open issues
 
-1. **[BLOCKER] Reverse-SS-TWR multi-tag TDMA scheduling non-functional** — see the ⚠️
-   section above. Epoch-synced slotting transmits zero; only free-run works; slot
-   path exists in code but is non-operational from the drivable interface. Firmware
-   development + hardware validation required before any 8–10 tag reverse work.
-2. **Master warm-reboot AUTOPOS reconnect** (prior open item) — software `mode recv`
-   warm reboot cannot reconnect anchors (0/8 for 3+ min); only a cold JLink reset does
-   (8/8 in ~40 s). Firmware limitation; matters for reverse SS-TWR anchor plane. See
-   `experiments/anchor_ota_diagnosis/ANCHOR_OTA_ROOTCAUSE.md`.
+1. **[OPEN QUESTION — not a blocker] Reverse-SS-TWR multi-tag distinct-slot scheduling UNVERIFIED**
+   — see the ⚠️ #1 section. Slotted TDMA *works* (rate-controllable, unfiltered-verified 52/19/0);
+   the earlier "transmits zero" blocker was a measurement error (address migration → filtered dead
+   addresses), retracted. **Untested:** distinct per-tag slots on a common epoch. **Caveat:** live
+   re-config can stick a tag at 0 TX (cold reboot clears). Next: the distinct-slot + shared-epoch test.
+2. **Master warm-reboot AUTOPOS reconnect** (prior open item) — software `mode recv` warm reboot
+   cannot reconnect anchors (0/8 for 3+ min); only a cold JLink reset does (8/8 in ~40 s). Firmware
+   limitation; matters for reverse SS-TWR anchor plane. See `experiments/anchor_ota_diagnosis/ANCHOR_OTA_ROOTCAUSE.md`.
 3. **On-rig anchor markers are MIXED (cosmetic)** — A/B/C run `anchor-freeze-clean-20260716`,
    D–H run `anchor-freeze-20260715`; binaries byte-identical apart from marker string.
-4. **Tag TDMA free-run collisions (phase-beat)** — at 3 tags, 2 routinely collapse to
-   ~1 Hz; managed by master `reroll`. Underlying cause of #1's scaling limit.
+4. **Tag TDMA free-run collisions (phase-beat)** — at 3 tags, ge7 is badly degraded (measured
+   1–98% per tag/run, only 5–6/8 anchors per sweep); managed by master `reroll`. Per #1(4),
+   working distinct-slot TDMA is a candidate *fix* for this, not just a symptom to work around.
