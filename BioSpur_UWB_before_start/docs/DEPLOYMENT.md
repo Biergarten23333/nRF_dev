@@ -190,3 +190,63 @@ error path that disconnects-all/reboots on an SMP error.
 **Proven manual recipe (until the script fix lands):** per anchor —
 `ota_single_shot_stable.py --target-uuid <A..H>`, each preceded by a JLink reset of
 Master_Anchor (SNR 960148546) + wait for 8/8; then `anchor role all responder`.
+
+## 8. Master BLE recovery, port resolution, capture = demo-ready (2026-07-19)
+
+### 8.1 nRF5340 dual-core reset — a JLink reset does NOT recover a stuck master BLE
+**Symptom:** a Master B120 sees the tags' advertising names (`MSTAT name=BSxxxx`) but
+**cannot complete BLE connections** (`conn=0/3`, or `scan_running=0` with no discovery) —
+while the tags are **fine** (still ranging, listeners hear them on-air).
+**Cause:** the nRF5340 **NET core (the BLE controller) is stuck.** A **J-Link reset only
+resets the APP core** (`jlink_reset_by_snr.sh … NRF5340_XXAA_APP` → `AIRCR.SYSRESETREQ`);
+the NET core keeps its stuck state, so it can scan/see adv names but never connects.
+**Fix: a FULL POWER CYCLE of the B120 (unplug + replug the USB).** Verified 2026-07-19:
+two app-core JLink resets did NOT recover it; the USB power cycle did, immediately.
+**Anchors (nRF52832, single core) are NOT affected — this is master-only.**
+
+### 8.2 Two CDCs per master; console = the App CDC; always pass the App-CDC by-id
+**Each B120 master enumerates TWO USB CDCs** (verified 2026-07-19, `ls -l /dev/serial/by-id`):
+| | **App CDC = the console** (nRF5340's own USB, serial = FICR DEVICEID) | **J-Link OB VCOM** (SEGGER debug probe, serial = J-Link SNR) — **DO NOT OPEN** |
+|---|---|---|
+| Master_Tag | `usb-Master_Tag_Master_Tag_Control_6918E0384172A49F-if00` | `usb-SEGGER_J-Link_001050070698-if00/if02` |
+| Master_Anchor | `usb-Master_Anchor_Master_Anchor_Control_87EA2F4A526C5A02-if00` | `usb-SEGGER_J-Link_000960148546-if00/if02/if04` |
+
+- **The console is on the App CDC** (`*Master_Tag_Control*` / `*Master_Anchor_Control*`) — proven:
+  `status` there → `Control status: mode=RECV`. **Never send console commands to the J-Link VCOM
+  (`SEGGER_J-Link_*`) — it won't respond, and opening it can DTR-reset the master** (→ drops the
+  tags, → §8.1 recovery).
+- A power cycle **renumbers** ttyACM (2026-07-19: the App CDC was `ttyACM0`, became `ttyACM2`; the
+  J-Link VCOM took `ttyACM0`). So a hardcoded `ttyACM0` will land on the **J-Link VCOM after a power
+  cycle** — opens fine, no response. **Always use the App-CDC by-id path, never a literal `ttyACM<n>`.**
+
+**Which scripts resolve the master port correctly (empirically checked 2026-07-19):**
+- ✅ `ota_preflight.py`, `release_all_tags.py` — carry the **correct** `*Master_Tag_Control*` /
+  `*Master_Anchor_Control*` by-id globs → auto-resolve, **no `--port` needed.**
+- ⚠️ `run_recv_tdma_capture.py`, `run_autopos_sweep_loop.py` — **MUST be given `--port` with the full
+  App-CDC by-id.** Their auto-resolver (`master_control_port.preferred_master_control_port()`) is
+  **stale** — its globs expect `*BioSpur_BLE_Control*` and match **0 devices** (returns `None`), so
+  they fall back to `--port`. The capture's *default* `--port` is doubly wrong: stale name **and** it
+  points at the **anchor's** SNR (`…87EA2F4A…`). Example that works:
+  `--port /dev/serial/by-id/usb-Master_Tag_Master_Tag_Control_6918E0384172A49F-if00`.
+- ⚠️ `demo_start.py` **and the `experiments/three_tag_demo_readiness/*.py` scripts hardcode
+  `/dev/ttyACM0`** — after a power cycle that is the **J-Link VCOM**, not the console, so they open
+  the wrong device and get no response. Before running them, confirm `/dev/ttyACM0` is the App CDC
+  (`ls -l /dev/serial/by-id | grep Master_Tag_Control`) or edit the port to the App-CDC by-id — OR
+  just use `run_recv_tdma_capture.py` with an explicit `--port` (it's the confirmed demo-ready path).
+- (`master_control_port.py`'s stale globs + the capture default are a documented robustness note,
+  not fixed — code untouched by choice.)
+
+### 8.3 The capture script alone is demo-ready — `demo_start.py` is NOT a prerequisite
+Empirically confirmed 2026-07-19 (closes the previously code-only gap): `run_recv_tdma_capture.py`
+run normally from a **clean free-run state**, WITHOUT `demo_start.py`, sets distinct-slot TDMA
+itself (`tdma clear → roster motion → rebalance` → on-air `0xb102/03/04`, slots 2/3/5) and
+delivers **ge7 97.8% / ge8 96.4%** over 2178 sweeps / 80 s, longest-below-floor 0.0 s, worst
+1-s bin 97.7%, valid 97.6%, all 3 tags 0 dropouts / 100% span / balance 0.98, prewarm converged
+in 1 attempt. `demo_start.py` is a convenience / recovery tool, not a prerequisite. Details:
+`SS-TWR/alt-SS-TWR/broadcast/experiments/three_tag_demo_readiness/DEMO_READINESS.md`.
+
+### 8.4 Do NOT run a capture on an artificial slow-slot/quiet state
+If the rig was put into a slow-slot/quiet state (e.g. `CFG …PERIOD=9000` for silence),
+**`cmd_all REBOOT` to free-run BEFORE running a capture.** Running the capture on top of the
+artificial state — its clean-RECV step drops the tag links and from the near-silent state they
+may not re-link (verified failure mode 2026-07-17: `link ready 0/3`, 0 rows captured).

@@ -62,8 +62,19 @@ Non-overlapping slots ⇒ the phases **cannot** beat. Results:
 ## Phase D — THE DEMO PROCEDURE
 
 ### Config: distinct-slot TDMA (the winner)
+
+> **⚠️ PORT — READ FIRST (2026-07-19).** `demo_start.py` and every script in this dir **hardcode
+> `/dev/ttyACM0`.** Each B120 master has **two** CDCs — the console is the **App CDC**
+> (`usb-Master_Tag_Master_Tag_Control_*-if00`), NOT the J-Link VCOM (`SEGGER_J-Link_*`). **A power
+> cycle renumbers ttyACM**, and today the J-Link VCOM took `ttyACM0` while the console moved to
+> `ttyACM2` — so `demo_start.py` as-shipped would open the **wrong device** (opens fine, no response,
+> NO-GO). **Before running it:** `ls -l /dev/serial/by-id | grep Master_Tag_Control` → confirm it's
+> `ttyACM0`, else point the script (or the capture's `--port`) at the App-CDC by-id. **Robust demo
+> path:** `run_recv_tdma_capture.py … --port /dev/serial/by-id/usb-Master_Tag_Master_Tag_Control_*-if00`
+> (takes an explicit `--port`, so no hardcode). See `../../../../docs/DEPLOYMENT.md` §8.2.
+
 ### Startup sequence (cold → demo-ready in ~30 s; safe, avoids stuck-0)
-On the **Master_Tag** control CDC (`/dev/ttyACM0`, pyserial `dtr=False rts=False`, 115200):
+On the **Master_Tag App CDC** (resolve by-id — see the PORT box above; `dtr=False rts=False`, 115200):
 ```
 cmd_all REBOOT                 # 1. cold boot all tags (clears any stuck-0 / bad phase)
 # wait ~16 s for the 3 tags to reconnect
@@ -90,6 +101,31 @@ bad phase; distinct-slot re-locks deterministically. (`demo_start.py` does it.)
   If a tag looks stuck/dark, **cold reboot** (the recovery above), don't keep reconfiguring.
 - Don't hand-assign per-tag slots — use `tdma auto`; the master's reference table is correct
   (`0xB102/03/04`, matching the deployed wand map / calibration).
+
+### ✅ Capture script alone is demo-ready — END-TO-END CONFIRMED (2026-07-19)
+Earlier this study verified distinct-slot via `tdma auto` and read the capture's setup path in
+code, but had not run the full capture end-to-end. **Now confirmed empirically:**
+`run_recv_tdma_capture.py --targets BS9336,BS955A,BSCCF4 --skip-anchor-preflight` run from a
+**clean free-run state**, WITHOUT `demo_start.py`:
+- it sets distinct-slot itself (its `tdma clear → roster motion → rebalance`) → on-air
+  `0xb102/03/04`, slots 2/3/5; prewarm converged in **1 attempt** (no collision to re-roll);
+- **sustained M1 ge7 = 97.8% / ge8 = 96.4%** over 2178 sweeps / 80 s, longest-below-floor 0.0 s,
+  worst 1-s bin 97.7%, M2 valid 97.6%;
+- **all 3 tags: 0 dropouts, 100% span coverage, balance 0.98** (5824/5896/5704 rows).
+
+**So: just launch the capture — it comes up demo-ready on its own. `demo_start.py` is a
+standalone convenience / recovery tool, NOT a prerequisite.**
+
+### ⚠️ Do NOT run a capture on an artificial slow-slot/quiet state
+If the rig was put into slow-slot/quiet (e.g. `CFG …PERIOD=9000` for silence), **`cmd_all REBOOT`
+to free-run first.** Running the capture on top of the quiet state failed on 2026-07-17
+(`link ready 0/3`, 0 rows) — the capture's clean-RECV step drops the links and they don't re-link
+from the near-silent state. Reboot to free-run → then capture.
+
+### ⚠️ If the master won't reconnect the tags (nRF5340 dual-core)
+Master sees adv names but `conn=0/3` while tags are fine on-air → NET-core BLE stuck; a J-Link
+reset (APP core) does NOT fix it — **full USB power cycle of the B120** (renumbers ttyACM →
+resolve by-id). See `../../../../docs/DEPLOYMENT.md` §8.1 / `../../../../2026-07-15-FREEZE/HARDWARE_STATE.md`.
 
 ### Minor untested edge (not a blocker)
 A single tag dropping+reconnecting mid-demo: auto-roster stays enabled (`roster=auto-all-ready`)

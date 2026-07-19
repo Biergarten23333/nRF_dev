@@ -45,11 +45,25 @@ anchor pair (an upper device is "between E–H", never "between A–D").
 
 ## Masters — 2× B120 (nRF5340)
 
-| Role | SNR | Control CDC | JLink VCOM | Boot profile | Flash |
-|---|---|---|---|---|---|
-| **Master_Tag** | `1050070698` | `/dev/ttyACM0` (`usb-Master_Tag_..._Control`) | ttyACM1/2 | `tag` → RECV, holds `BS*` | JLink (`flash_b120_master_freeze.sh`) |
-| **Master_Anchor** | `960148546` **PROTECTED** | `/dev/ttyACM7` (`usb-Master_Anchor_..._Control`) | ttyACM3/4/5 | `anchor` → AUTOPOS, rejects tags | JLink + `BIOSPUR_ALLOW_PROTECTED_MASTER_ANCHOR_FLASH=1` |
+| Role | SNR | Control CDC (**resolve by-id — port # is NOT stable**) | Boot profile | Flash |
+|---|---|---|---|---|
+| **Master_Tag** | `1050070698` | `by-id/usb-Master_Tag_Master_Tag_Control_6918E0384172A49F-if00` | `tag` → RECV, holds `BS*` | JLink (`flash_b120_master_freeze.sh`) |
+| **Master_Anchor** | `960148546` **PROTECTED** | `by-id/usb-Master_Anchor_Master_Anchor_Control_87EA2F4A526C5A02-if00` | `anchor` → AUTOPOS, rejects tags | JLink + `BIOSPUR_ALLOW_PROTECTED_MASTER_ANCHOR_FLASH=1` |
 
+- **⚠️ Two CDCs per master — the console is the App CDC, NOT the J-Link VCOM.** Each B120 shows up
+  twice in by-id: the **App CDC** = console (`*Master_Tag_Control*` / `*Master_Anchor_Control*`,
+  serial = FICR DEVICEID) and the **J-Link OB VCOM** (`SEGGER_J-Link_<SNR>`). **Send console commands
+  only to the App CDC; never open the J-Link VCOM — DTR can reset the master (→ drops tags).**
+- **⚠️ ALWAYS resolve masters via `/dev/serial/by-id/…`, never a hardcoded `/dev/ttyACM<n>`.**
+  A power cycle **renumbers** the CDC (2026-07-19: the App CDC was `ttyACM0` → became `ttyACM2`, and
+  the J-Link VCOM took `ttyACM0` — so a hardcoded `ttyACM0` now hits the J-Link VCOM, opens but no
+  response). Any `ttyACM<n>` written elsewhere in this doc is a point-in-time snapshot. Script port
+  handling + which need explicit `--port`: `../docs/DEPLOYMENT.md` §8.2.
+- **⚠️ Stuck master BLE recovery (nRF5340 dual-core):** if a master sees the tags' adv names but
+  `conn=0/3` (or `scan_running=0`, no discovery) while the tags are fine (ranging, listeners hear
+  them), the nRF5340 **NET core (BLE controller) is stuck. A J-Link reset only resets the APP core
+  and does NOT recover it — do a FULL USB power cycle of the B120.** (Verified 2026-07-19.) Anchors
+  are nRF52832 single-core and unaffected. Full detail: `../docs/DEPLOYMENT.md` §8.1.
 - Both carry the **6a boot banner** (`=== MASTER BOOT: profile=… mode=… target=… wand tags: … ===`).
   Master_Anchor prints `wand tags: rejected`; Master_Tag `wand tags: WILL HOLD BS*`.
 - B120 flash: JLink **`recover`** required (CTRL-AP mass-erase + APPROTECT), not plain `erase`.
