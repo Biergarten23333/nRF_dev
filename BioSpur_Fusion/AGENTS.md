@@ -69,10 +69,13 @@ not populated.
 
 | Device | Chip | Role |
 |---|---|---|
-| nRF52840 dongle | nRF52840 | **Fusion Master** — BLE central, USB CDC to PC |
-| nRF52840 DK | nRF52840 | B306 development twin (same silicon) |
+| nRF52840 DK, J-Link `683234364` | nRF52840 | **Fusion Master** — BLE central, native USB CDC to PC; J-Link is RTT/debug only |
+| nRF52840 dongle | nRF52840 | Spare/stub candidate. Not the current Fusion Master. |
 | nRF54L15 | nRF54L15 | Candidate Fusion Master for multi-node. Not in use yet. |
 | 2× B120 | nRF5340 | UWB Tag Master / Anchor Master. **Belongs to the UWB side, not here.** |
+
+B306 development now runs on the real Fusion PCB, not on the DK as a
+development twin. SWD access to either Fusion-PCB MCU remains a human handover.
 
 ### Not in this project, ever
 
@@ -118,18 +121,26 @@ axis.** If a change breaks that, it is wrong regardless of what else it improves
 
 ### Error budget (why the above matters)
 
-At a body speed of ~1.5 m/s, a sync error of Δt costs ≈ `v·Δt`:
+There are two distinct dynamic error classes:
 
-| Source | Δt | Cost |
+- a time-axis error Δt costs approximately `v·Δt`; and
+- SS-TWR motion during the exchange biases a range by approximately
+  `v_r·t_round/2`, where `v_r` is radial velocity toward that anchor.
+
+| Source | Timing term | Cost |
 |---|---|---|
 | Hardware-captured ready edge | <100 µs | <0.2 mm |
 | UART arrival-time fallback | ~5 ms | ~7.5 mm |
 | Intra-sweep spread (8 anchors, design estimate) | 7.18 ms | ~10.8 mm |
 | JY61P internal clock vs B306 timer | 1 sample = 5 ms | ~7.5 mm |
+| SS-TWR motion bias | rank-dependent `t_round/2` | **~20–40 mm at limb-tip radial speeds** |
 
-Against a 102.6 mm dynamic baseline these are 0.2 %–10 %. **None is fatal;
-all are cheap to remove.** Do not trade architecture cleanliness for them, but
-do not leave them on the table either.
+Against a 102.6 mm dynamic baseline, the synchronization terms cost roughly
+0.2 %–10 %, while uncorrected SS-TWR motion bias can cost roughly 20 %–40 % and
+can dominate the timing budget. The measured `t_round_us[]` exists so the host
+can apply the per-anchor correction `Δr_motion = v_r·t_round/2` using
+compatible units; never replace the measured interval with nominal guard/rank
+spacing.
 
 The 7.18 ms intra-sweep figure is not an extracted frozen-firmware constant.
 Frozen source uses 1,200 µs response delay and 1,000 µs ranked response spacing
@@ -178,7 +189,7 @@ See `UWB_Part/FREEZE_INTERFACE.md` for source citations.
 **Decided.** Do not re-open without new measurements.
 
 ```text
-DWM1001C(52832) --UART--> B306(52840) --BLE--> dongle(52840) --USB CDC--> PC
+DWM1001C(52832) --UART--> B306(52840) --BLE--> DK(52840) --USB CDC--> PC
    Alt-SS-TWR   --ready->  fuse/stamp        Fusion Master
                               ^
                      JY61P --I2C
@@ -198,15 +209,16 @@ DWM1001C(52832) --UART--> B306(52840) --BLE--> dongle(52840) --USB CDC--> PC
 
 Batch a 100 ms logical window:
 
-- IMU sample: 4 B timestamp + 6×int16 = **16 B**
-- UWB epoch: 4 B timestamp + 8×4 B ranges = **36 B**
-- Logical batch: 20×16 + 36 + header ≈ **~360 B at 10 Hz**
-- Logical rate: **~3.6 kB/s ≈ 29 kbit/s per node**
+- IMU sample: 6×int16 = **12 B**. Samples carry no individual timestamps;
+  batch start plus the fixed 5 ms cadence reconstructs them.
+- UWB epoch: one v2 `bsl_uwb_t` = **90 B**.
+- Logical batch: 20×12 + 90 + batch metadata ≈ **~337 B at 10 Hz**.
+- Logical rate: **~3.4 kB/s ≈ 27 kbit/s per node**.
 
-A ~360 B logical batch does **not** fit one BLE DLE payload: the Link Layer data
+A ~337 B logical batch does **not** fit one BLE DLE payload: the Link Layer data
 payload maximum is 251 B before ATT overhead. The logical batch must be
 fragmented or encoded more compactly. Freeze the exact fragmentation only after
-measurement; do not describe 360 B as one DLE packet.
+measurement; do not describe the logical batch as one DLE packet.
 
 Enable **2M PHY** and **DLE**. Connection interval 15–30 ms is the starting
 point; the fusion buffer absorbs latency, and P3 must measure the result.
@@ -289,9 +301,9 @@ has passed.
 
 | Phase | Deliverable | Exit criterion |
 |---|---|---|
-| **P1** | IMU chain on DK: hardware-timer-triggered 200 Hz I2C | 30 min, zero dropped samples; JY61P↔B306 drift quantified in **ppm** |
+| **P1** | IMU chain on Fusion-PCB B306: hardware-timer-triggered 200 Hz I2C | 30 min, zero dropped samples; JY61P↔B306 drift quantified in **ppm** |
 | **P2** | UWB ingest: UART range parse + ready-edge hardware capture | 10 min, zero epoch mispairing; single-peak inter-edge histogram |
-| **P3** | BLE egress: batched/fragmented notify + dongle central + USB CDC | 1 h zero logical-batch loss; end-to-end latency <150 ms |
+| **P3** | BLE egress: batched/fragmented notify + DK central + USB CDC | 1 h zero logical-batch loss; end-to-end latency <150 ms |
 | **P4** | Host-side alignment | Shake test: IMU accel peak vs UWB range inflection offset <10 ms **and constant** |
 | **P5** | Fusion (ES-EKF) on host | Beats 102.6 mm dynamic baseline |
 | **P6** | Vicon validation | Improvement is real **and attributable** (gap-filling vs outlier rejection reported separately) |
@@ -324,9 +336,9 @@ a P5 prerequisite.
 |---|---|
 | Make the 52832 a dumb SPI/UART passthrough | **No.** Discards the frozen ranging engine and DW1000 register-level timing for zero gain. |
 | Separate IMU master, UWB and IMU on independent BLE links | **No.** Doubles connection count and reconstructs sync across radios instead of one node clock. |
-| "BLE can't carry 200 Hz + 10 Hz" | **False.** ~29 kbit/s is modest; scheduling and packetization are the constraints. |
+| "BLE can't carry 200 Hz + 10 Hz" | **False.** ~27 kbit/s is modest; scheduling and packetization are the constraints. |
 | "Last year we maxed out at 5 partners, so BLE is the ceiling" | **Misattributed.** Measure the current architecture in P7. |
-| Fusion Master must be an nRF5340 like the other masters | **No.** The Fusion Master moves bytes from BLE to USB; a 52840 dongle is suitable. |
+| Fusion Master must be an nRF5340 like the other masters | **No.** The Fusion Master moves bytes from BLE to USB; the current nRF52840 DK is suitable. |
 | Buy more dongles to raise node count | **Premature.** Multiple centrals create USB time bases to re-align. Measure P7 first. |
 
 ### Multi-node endgame (context, not current work)
@@ -384,7 +396,8 @@ implementing and measuring against the versioned Task A interface.
 - Flash/debug commands use explicit probe identity. Never use `nrfjprog`; use
   west/J-Link workflows appropriate to the target.
 - Tags and anchors are OTA-first. Direct J-Link flashing of deployed UWB devices
-  requires explicit authorization; the B306/DK remains a separate target.
+  requires explicit authorization; Fusion-PCB B306 and the Fusion Master DK
+  are separate targets with separate images and flash authority.
 - Never hard-code `/dev/ttyACM<n>` or `cat` nRF CDC devices. Resolve stable
   identity and open serial with DTR/RTS disabled.
 - Before destructive OTA/flash, verify device identity and image target.
