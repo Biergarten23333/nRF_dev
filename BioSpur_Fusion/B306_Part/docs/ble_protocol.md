@@ -1,12 +1,16 @@
-# BLE protocol scaffold
+# BLE protocol
 
-This document records constraints for the future B306-to-Fusion-Master service.
-It is not an implemented wire protocol.
+This document records constraints for the production B306-to-Fusion-Master
+service. The current UART bring-up firmware implements a diagnostic
+UWB/telemetry service; its packed definitions and UUIDs are in
+`../include/biospur_fusion_ble.h`. That service is not yet the production
+batched transport.
 
 ## Roles
 
 - B306: BLE peripheral and producer.
-- nRF52840 dongle: BLE central and native USB-CDC bridge.
+- nRF52840 DK, probe `683234364`: Fusion Master BLE central; native USB CDC is
+  still a later acceptance item.
 - PC: loss detection, persistence, alignment, and fusion.
 
 The DWM1001C BLE link is OTA-only and silent during capture.
@@ -19,9 +23,13 @@ The logical target batch covers 100 ms:
 - The concurrent UWB epoch or an explicit no-epoch marker.
 - One common B306 timer domain and sequence metadata.
 
-The guide's size estimate is about 360 bytes. A BLE Link Layer data payload with
+Twenty 12-byte IMU samples plus one 90-byte `bsl_uwb_t` and batch metadata are
+about 337 bytes. Individual IMU samples do not carry timestamps; the batch
+start and fixed 5 ms cadence reconstruct their trigger times. A BLE Link Layer
+data payload with
 data length extension is at most 251 bytes, and ATT notification payload is
-smaller after protocol headers. Therefore 360 bytes cannot be "one DLE packet."
+smaller after protocol headers. Therefore the logical batch cannot be "one DLE
+packet."
 Before implementation, choose and test one of:
 
 - fragment one logical batch into multiple sequenced notifications;
@@ -36,8 +44,9 @@ and retransmission policy are `UNKNOWN`.
 Each logical batch must identify:
 
 - protocol version, node identity, boot/session identity, and batch sequence;
-- first and last B306 timer ticks;
-- IMU sample count and per-sample trigger timestamp plus six signed axes;
+- batch-start B306 timer tick, fixed sample cadence, and batch-end consistency
+  information;
+- IMU sample count plus six signed axes per sample;
 - UWB sweep sequence, sweep-start timestamp, eight range/status entries, and
   the UWB interface version;
 - overflow, dropped-sample, missing-edge, and parser-error counters.

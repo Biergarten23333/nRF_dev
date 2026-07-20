@@ -4,9 +4,12 @@
 node clock, timestamps the JY61P IMU and DWM1001C UWB epochs, batches the aligned
 records, and sends them to a Fusion Master over BLE.
 
-The current checkpoint is the accepted BLE-only Stage 1 update. The image has
-BLE SMP, identity advertising, RTT, and an LED heartbeat, but no IMU driver,
-UWB UART parser, GPIO capture path, data service, or fusion algorithm.
+The current checkpoint adds a receive-only DWM1001C UART parser and a diagnostic
+BLE data/telemetry service on top of the accepted Stage 1 OTA base. The
+installed B306 image is `b306-uart-rx-p1.01-v7`, version `0.1.6+0`. It has no
+IMU driver, ready-edge capture path, production batching, or fusion algorithm.
+See `UART_BRINGUP_REPORT.md` for the real-board A/B result and current DWM-side
+blocker.
 
 ## Layout
 
@@ -14,6 +17,8 @@ UWB UART parser, GPIO capture path, data service, or fusion algorithm.
 - `firmware/`: minimal Zephyr application and future B306 firmware.
 - `host/dk_ota/`: Fusion Master build wrapper around the single frozen fast OTA
   core; exact B306 target/image/SHA are mandatory build inputs.
+- `host/fusion_master/`: DK diagnostic central for the UART-to-BLE bridge.
+- `host/dwm_scanner/`: read-only DK scanner used to identify DWM firmware state.
 - `host/dongle_central/`: retired placeholder; the DK is the Fusion Master.
 - `host/pc/`: future capture, validation, parsing, and provenance tooling.
 - `docs/`: timing, BLE, and DFU contracts.
