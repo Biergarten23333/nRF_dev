@@ -1,8 +1,10 @@
 # B306 first-flash checkpoint
 
-Status: board definition, signed minimal image, frozen partition ABI, and both
-human handovers are complete. No probe was contacted for flashing, recovery,
-or target inspection.
+Status: board definition, signed minimal image, frozen partition ABI, both
+human handovers, and B306 first-image BLE/SMP bring-up are complete. The human
+reported that the B306 flash completed. Codex did not access either Fusion-PCB
+probe; it flashed and observed only the authorized nRF52840 DK probe
+`683234364`.
 
 ## Board facts encoded
 
@@ -70,9 +72,35 @@ remaining stack headroom is `UNKNOWN` until the image runs on hardware; global
 free RAM is not presented as stack headroom. Runtime stack measurement was not
 added because the first image is intentionally minimal.
 
+## DK-observed BLE/SMP bring-up
+
+On 2026-07-20, the authorized DK probe `683234364` was flashed with the
+one-shot tester marker `dk-b306-bringup-v1`. Its `merged.hex` SHA-256 was:
+
+```text
+c99fb6bb1c8daed12fe5a116703e324f8525712e850f0d6eacd3a0715e712afb
+```
+
+The tester found the human-flashed Fusion PCB as `BSF3C79` with RSSI
+`-57 dBm`, connected, negotiated an ATT MTU of 247 bytes and 251-byte DLE in
+both directions, and switched both TX and RX to 2M PHY. It discovered the SMP
+primary service at handles 16--19 and verified that its characteristic supports
+write-without-response and notify. CCC subscription succeeded, producing:
+
+```text
+B306_BRINGUP_PASS name=BSF3C79 rssi=-57 smp_service=1 smp_write_cmd=1 smp_notify=1 mtu=247
+```
+
+The raw RTT record is under
+`logs/b306_ble_bringup_20260720_151733/raw_rtt.log`. This confirms that the
+application boots, the LFRC configuration supports BLE operation on the board,
+the required identity advertisement is present, and the BLE SMP endpoint is
+discoverable and subscribable. It is not an OTA upload/revert/confirm test.
+
 ## Still unknown
 
-- The human-observed MCUboot, RTT, LED, LFRC/BLE, UART, and strobe results.
+- The human-observed B306 MCUboot banner, application RTT marker, and LED
+  heartbeat. LFRC/BLE operation is independently confirmed by the DK test.
 - A complete BLE-only upload/test/revert/confirm cycle and the workstation host
   command sequence for it.
 - Runtime stack high-water marks.
@@ -81,4 +109,6 @@ added because the first image is intentionally minimal.
 - Timer implementation and wrap behavior, UART/strobe pairing, clock-filter
   residual, and all later capture measurements.
 
-Dependent work is stopped pending the human report from both handovers.
+The first image intentionally has UART, I2C, and ready capture disabled, so
+online anchors cannot be exercised by this image. Those paths require later
+versioned firmware and measurement work.
