@@ -1,10 +1,10 @@
 # B306 first-flash checkpoint
 
 Status: board definition, signed minimal image, frozen partition ABI, both
-human handovers, and B306 first-image BLE/SMP bring-up are complete. The human
-reported that the B306 flash completed. Codex did not access either Fusion-PCB
-probe; it flashed and observed only the authorized nRF52840 DK probe
-`683234364`.
+human handovers, B306 first-image BLE/SMP bring-up, and the complete BLE-only
+upload/revert/confirm cycle are complete. The human reported that the B306
+first flash completed. Codex did not access either Fusion-PCB probe; it flashed
+and observed only the authorized nRF52840 DK probe `683234364`.
 
 ## Board facts encoded
 
@@ -97,12 +97,45 @@ application boots, the LFRC configuration supports BLE operation on the board,
 the required identity advertisement is present, and the BLE SMP endpoint is
 discoverable and subscribable. It is not an OTA upload/revert/confirm test.
 
+## BLE-only DFU acceptance
+
+On 2026-07-20, the DK ran a one-shot Stage 1 acceptance harness. It pushed this
+signed application to B306 over BLE SMP:
+
+```text
+marker                 b306-stage1-ota-v2
+version                0.1.1+0
+signed-bin SHA-256     7f821fbf26144026c0ff8912118a3d3f098ec29ce9567633b5673df12425db02
+MCUboot image digest   8c695e2d49c97aab5692c69ac8447189ecf0e4d73b8d1129917ff3cd8f36c1dc
+DK merged.hex SHA-256  3def096e9fbb9b56c0c1fd31f1c29ded1e2d7fa827d6603fbe06cd2be3d5b2bf
+```
+
+The first trial showed `0.1.1` active and unconfirmed, then intentionally reset
+without confirmation. MCUboot restored `0.1.0` active and confirmed. The second
+trial uploaded the same pinned image, marked it for test, confirmed it through
+SMP, rebooted, and showed `0.1.1` still active and confirmed. The final device
+identity remained `BSF3C79`; ATT MTU was 247 and the v2 advertising marker was
+present.
+
+```text
+B306_STAGE1_OTA_PASS name=BSF3C79 marker=b306-stage1-ota-v2 version=0.1.1+0 file_sha=7f821fbf26144026c0ff8912118a3d3f098ec29ce9567633b5673df12425db02 image_digest=8c695e2d49c97aab5692c69ac8447189ecf0e4d73b8d1129917ff3cd8f36c1dc
+```
+
+The acceptance record is
+`logs/b306_stage1_ota_20260720_155326/rtt_acceptance.log`. No capture process
+was active, and no Fusion-PCB SWD interface was touched. Stage 1 is accepted;
+the installed B306 image is now `0.1.1+0`, active and confirmed.
+
+The acceptance-only harness was then removed. The maintained updater is
+`host/dk_ota/`, which build-time imports the SHA-pinned fast OTA core from the
+read-only UWB FREEZE instead of carrying a second SMP implementation. Its
+first uninstalled B306 payload is `b306-fast-ota-v3`, version `0.1.2+0`;
+artifact hashes are recorded in `docs/dfu.md`.
+
 ## Still unknown
 
 - The human-observed B306 MCUboot banner, application RTT marker, and LED
   heartbeat. LFRC/BLE operation is independently confirmed by the DK test.
-- A complete BLE-only upload/test/revert/confirm cycle and the workstation host
-  command sequence for it.
 - Runtime stack high-water marks.
 - Whether the fitted JY61P acknowledges at `0x50`, accepts the 200 Hz rate, and
   has the expected axis signs.

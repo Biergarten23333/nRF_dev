@@ -1,13 +1,8 @@
-# Fusion Master dongle
+# Retired dongle placeholder
 
-This directory is reserved for the nRF52840 dongle firmware that will act as a
-BLE central for Fusion nodes and expose captured batches to the PC over native
-USB CDC.
+The nRF52840 dongle is not the current Fusion Master. The authoritative target
+is nRF52840 DK probe `683234364`; its maintained B306 updater is in
+`../dk_ota/`.
 
-The central will eventually negotiate 2M PHY and data length extension, retain
-per-node connection metadata, preserve packet boundaries, and forward provenance
-with the data stream. It is not scaffolded as an application yet because the
-Fusion BLE packet format is not frozen and the nominal 360-byte logical batch
-does not fit one 251-byte BLE data-length payload.
-
-This target must never be confused with either B120 UWB master.
+This directory contains no application and must not be used as an alternative
+OTA path. Retain it only as a record of the superseded target decision.

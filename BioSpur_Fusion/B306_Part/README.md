@@ -4,15 +4,16 @@
 node clock, timestamps the JY61P IMU and DWM1001C UWB epochs, batches the aligned
 records, and sends them to a Fusion Master over BLE.
 
-The current checkpoint is the minimal signed first B306 image and two
-Fusion-PCB human flash handovers. The image has BLE SMP, identity advertising,
-RTT, and an LED heartbeat, but no IMU driver, UWB UART parser, GPIO capture
-path, data service, or fusion algorithm.
+The current checkpoint is the accepted BLE-only Stage 1 update. The image has
+BLE SMP, identity advertising, RTT, and an LED heartbeat, but no IMU driver,
+UWB UART parser, GPIO capture path, data service, or fusion algorithm.
 
 ## Layout
 
 - `firmware/`: minimal Zephyr application and future B306 firmware.
-- `host/dongle_central/`: future nRF52840 dongle BLE-central/USB-CDC firmware.
+- `host/dk_ota/`: Fusion Master build wrapper around the single frozen fast OTA
+  core; exact B306 target/image/SHA are mandatory build inputs.
+- `host/dongle_central/`: retired placeholder; the DK is the Fusion Master.
 - `host/pc/`: future capture, validation, parsing, and provenance tooling.
 - `docs/`: timing, BLE, and DFU contracts.
 - `handover/`: self-contained human-only Fusion-PCB flash packages.

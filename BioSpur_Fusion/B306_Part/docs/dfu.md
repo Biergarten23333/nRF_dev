@@ -78,21 +78,89 @@ secure-boot trust boundary.
 The first SMP service has unauthenticated read/write permission and is a
 bench-bring-up image, not a production authorization policy.
 
-## BLE-only acceptance, still pending
+## BLE-only acceptance — passed 2026-07-20
 
-After the human reports a successful first flash, Stage 1 must:
+Stage 1 used the authorized nRF52840 DK probe `683234364` as a one-shot BLE SMP
+client. The Fusion PCB was never accessed through SWD. No capture process was
+running when the update began.
 
-1. discover the node by its `BSF%04X` name and SMP service UUID;
-2. upload a signed image with a visibly different marker over BLE;
-3. list the image and verify its hash;
-4. mark it for test, reset, and verify the new marker;
-5. demonstrate MCUboot revert when the test image is not confirmed;
-6. upload again, confirm the image, reboot, and verify it remains active.
+The image pushed to B306 was:
 
-Record the exact host commands and image SHA used during that test. SWD must
-remain untouched throughout the BLE-only cycle. The workstation's specific
-mcumgr BLE transport tool has not yet been selected, so commands are not
-invented here.
+```text
+marker:               b306-stage1-ota-v2
+MCUboot version:      0.1.1+0
+signed binary:        B306_Part/build-b306-stage1-ota-v2/firmware/zephyr/zephyr.signed.bin
+file SHA-256:         7f821fbf26144026c0ff8912118a3d3f098ec29ce9567633b5673df12425db02
+MCUboot image digest: 8c695e2d49c97aab5692c69ac8447189ecf0e4d73b8d1129917ff3cd8f36c1dc
+signing key hash:     0e525dedaa7f50fb38d3c8f1792cacaa20f70204aa46ef6b50d720479c6ef5a2
+```
+
+The one-shot acceptance harness embedded that exact signed binary and refused
+to configure if its file SHA differed. Its accepted `merged.hex` SHA-256 was:
+
+```text
+3def096e9fbb9b56c0c1fd31f1c29ded1e2d7fa827d6603fbe06cd2be3d5b2bf
+```
+
+The client verified the initial `0.1.0` image, uploaded `0.1.1`, test-booted it
+as active and unconfirmed, and observed its advertising marker. It then reset
+without confirmation and verified MCUboot restored `0.1.0` as active and
+confirmed. A second upload was test-booted, explicitly confirmed, rebooted, and
+listed as `0.1.1`, active and confirmed. The terminal record was:
+
+```text
+B306_STAGE1_OTA_PASS name=BSF3C79 marker=b306-stage1-ota-v2 version=0.1.1+0 file_sha=7f821fbf26144026c0ff8912118a3d3f098ec29ce9567633b5673df12425db02 image_digest=8c695e2d49c97aab5692c69ac8447189ecf0e4d73b8d1129917ff3cd8f36c1dc
+```
+
+The RTT acceptance record is under
+`logs/b306_stage1_ota_20260720_155326/rtt_acceptance.log`. B306 now advertises
+as `BSF3C79` with the Stage 1 marker and runs confirmed image `0.1.1+0`.
+
+The acceptance-only implementation was removed after this proof so it cannot
+become a parallel OTA stack.
+
+## Permanent fast OTA path — migrated 2026-07-20
+
+`host/dk_ota/` is now the only maintained B306 OTA client. It imports the exact
+fast OTA source from the read-only UWB FREEZE at configure time and refuses to
+build if either frozen source SHA changes:
+
+```text
+main.c       9613d746a102afa9e0ea5943e1ea0074bd24b3445051be0fc2c2a51a1a880906
+master_ota.h b30d1e3635b4ab1e00c2c3cad145564c5742f24c7cc6dbd194dfb488af611012
+```
+
+The shared implementation supplies its 448-byte maximum chunk, MTU-aware
+downshift, 2M PHY request, 7.5 ms connection parameters, retry handling,
+secondary-slot erase, upload, test scheduling, and OS reset. The small B306
+adapter only selects the exact `BSF%04X` name, skips the UWB-only NUS step, and
+auto-starts the one-shot update. Target name, payload marker, signed image
+path, and signed-image SHA are all mandatory build inputs. A deliberately
+wrong SHA was verified to stop CMake before an updater image was produced.
+
+The first candidate built through this unified path is not installed:
+
+```text
+target:                 BSF3C79
+marker:                 b306-fast-ota-v3
+MCUboot version:        0.1.2+0
+signed binary:          B306_Part/build-b306-fast-ota-v3/firmware/zephyr/zephyr.signed.bin
+file SHA-256:           11882aa3b8cde5d1c88418002bd019832ad501a2af175cdc1b5f0f023661113b
+MCUboot image digest:   fd81ec022bd547098393eaa7425d2bcac96cf7e9b565ba34e04dba5b6b17212b
+B306 merged.hex SHA:    0d79fdbc62731c67adadc693817de3e97ce48ca3686cc8bc5a713b0d8ae72cec
+Fusion Master DK SHA:   995c34c5e388bfd94ba8bebd2075d293cdc802456af861bb04b78f513b6b0546
+```
+
+The B306 candidate uses L2CAP MTU 498 and 502-byte ACL buffers. It self-confirms
+only after its LF clock, BLE stack, FICR-derived identity, SMP service, and
+connectable advertising have started. The currently installed v2 target
+negotiates ATT MTU 247, so the first unified update will use the same core's
+automatic chunk downshift; subsequent updates can negotiate the full fast
+path.
+
+No DK or B306 was flashed during this migration, and no OTA transfer was
+started. The exact reproducible build and safety contract are in
+`host/dk_ota/README.md`.
 
 ## Runtime state contract for later capture images
 

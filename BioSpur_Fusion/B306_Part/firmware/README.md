@@ -1,7 +1,7 @@
-# B306 first-flash firmware
+# B306 bootable firmware
 
 This NCS v2.8.0 sysbuild targets the custom
-`biospur_fusion_nrf52840/nrf52840` board for NINA-B306-01B. The first image
+`biospur_fusion_nrf52840/nrf52840` board for NINA-B306-01B. The Stage 1 image
 contains:
 
 - signed ECDSA-P256 MCUboot with equal internal-flash slots;
@@ -10,8 +10,16 @@ contains:
 - non-blocking RTT logs and an active-low P0.13 LED heartbeat.
 
 It deliberately contains no IMU driver, UWB UART parser, ready-edge capture, or
-fusion logic. Those are held until the first flash and a BLE-only DFU cycle
-have both passed.
+fusion logic. The first-flash image was `b306-first-dfu-v1`, version `0.1.0+0`.
+The installed image is the accepted BLE-only update `b306-stage1-ota-v2`,
+version `0.1.1+0`; Stage 1 upload, real MCUboot revert, confirmation, and
+persistence across reboot passed on the Fusion PCB on 2026-07-20.
+
+The current source is the uninstalled `b306-fast-ota-v3` candidate, version
+`0.1.2+0`. It raises the L2CAP MTU and ACL buffers for the shared 448-byte fast
+OTA path and confirms a test image only after BLE/SMP advertising starts
+successfully. A failure before that health point remains unconfirmed so
+MCUboot can revert it.
 
 The board definition records UWB RX P1.01, unused UWB TX P1.02, ready P1.03,
 I2C SDA P0.26, I2C SCL P0.27, button P0.11, and the calibrated 500 ppm LFRC.
@@ -37,7 +45,7 @@ ZEPHYR_SDK_INSTALL_DIR=/home/zekaixiao/ncs/toolchains/b81a7cd864/opt/zephyr-sdk 
   build --sysbuild --pristine=always \
   -b biospur_fusion_nrf52840/nrf52840 \
   -s B306_Part/firmware \
-  -d B306_Part/build-b306-first-dfu \
+  -d B306_Part/build-b306-fast-ota-v3 \
   -- -DBOARD_ROOT=/mnt/nrf_ssd/nRF_dev/BioSpur_Fusion/B306_Part/firmware
 ```
 
@@ -48,16 +56,21 @@ Python site. The build consumes the private key path from `sysbuild.conf`; see
 Primary outputs:
 
 ```text
-B306_Part/build-b306-first-dfu/merged.hex
-B306_Part/build-b306-first-dfu/firmware/zephyr/zephyr.signed.bin
-B306_Part/build-b306-first-dfu/dfu_application.zip
+B306_Part/build-b306-fast-ota-v3/merged.hex
+B306_Part/build-b306-fast-ota-v3/firmware/zephyr/zephyr.signed.bin
+B306_Part/build-b306-fast-ota-v3/dfu_application.zip
 ```
 
-`merged.hex` is the first SWD image. The signed binary is copied into the
-handover as `app_update.bin` for later BLE-only acceptance.
+`merged.hex` is only for a human-run SWD handover. B306 updates use the signed
+binary over BLE SMP. The built-but-not-installed v3 signed binary has SHA-256
+`11882aa3b8cde5d1c88418002bd019832ad501a2af175cdc1b5f0f023661113b`;
+see `../docs/dfu.md` for the exact Stage 1 evidence and the unified fast-OTA
+artifacts.
 
 ## Flash boundary
 
-Do not flash from this README. Fusion-PCB SWD is human-only, and the executable
-command, probe identity, hashes, pre-flight checks, post-flash observations,
-and rollback are all frozen in `B306_Part/handover/b306-first-dfu-v1/`.
+Do not flash a Fusion-PCB SWD target from this README. Fusion-PCB SWD is
+human-only, and the first-flash command, probe identity, hashes, pre-flight
+checks, post-flash observations, and rollback remain frozen in
+`B306_Part/handover/b306-first-dfu-v1/`. Later B306 OTA is allowed only outside
+a capture and only after stating the exact marker and image SHA.

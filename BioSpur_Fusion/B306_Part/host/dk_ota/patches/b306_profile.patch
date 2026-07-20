@@ -1,0 +1,50 @@
+--- master_ota.c
++++ master_ota.c
+@@ -92 +92,17 @@
+-#ifndef APP_MASTER_OTA_DIAG_FIRST_GATE_WRITE_REQ
++#ifndef APP_MASTER_OTA_BSF_PROFILE
++#define APP_MASTER_OTA_BSF_PROFILE 0
++#endif
++
++#ifndef APP_MASTER_OTA_AUTO_START
++#define APP_MASTER_OTA_AUTO_START 0
++#endif
++
++#ifndef APP_MASTER_OTA_EXPECT_NUS
++#define APP_MASTER_OTA_EXPECT_NUS 1
++#endif
++
++#ifndef APP_MASTER_OTA_PAYLOAD_MARKER
++#define APP_MASTER_OTA_PAYLOAD_MARKER "unspecified"
++#endif
++
++#ifndef APP_MASTER_OTA_DIAG_FIRST_GATE_WRITE_REQ
+@@ -2437 +2453,5 @@
+-	if (bs_code_valid) {
++	if (APP_MASTER_OTA_BSF_PROFILE) {
++		bs_code_valid = false;
++		bs_name[0] = '\0';
++		identity_name = name;
++	} else if (bs_code_valid) {
+@@ -2763,2 +2783,2 @@
+-	printk("BioSpur BLE OTA master ready on nRF52840 DK\n");
+-	printk("Scanning for OTA-capable tag DFU SMP service\n");
++	printk("BioSpur fast BLE OTA master ready on nRF52840 DK\n");
++	printk("Scanning for an exact OTA target with DFU SMP service\n");
+@@ -2787 +2807,15 @@
+-	while (1) {
++	master_ota_set_expect_nus(APP_MASTER_OTA_EXPECT_NUS != 0);
++	master_ota_target_print();
++	printk("OTA payload marker=%s max_chunk=%u\n",
++	       APP_MASTER_OTA_PAYLOAD_MARKER,
++	       (unsigned int)OTA_CHUNK_SIZE);
++
++	if (APP_MASTER_OTA_AUTO_START) {
++		err = master_ota_initiate();
++		if (err) {
++			printk("OTA auto-start failed: %d\n", err);
++			return err;
++		}
++	}
++
++	while (1) {

@@ -5,6 +5,7 @@
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/hci.h>
 #include <zephyr/device.h>
+#include <zephyr/dfu/mcuboot.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -14,7 +15,15 @@
 LOG_MODULE_REGISTER(biospur_fusion, LOG_LEVEL_INF);
 
 #define LED0_NODE DT_ALIAS(led0)
-#define FW_MARKER "b306-first-dfu-v1"
+#define FW_MARKER "b306-fast-ota-v3"
+
+/*
+ * The leading 0xffff is the reserved company ID used for internal testing;
+ * the remaining bytes identify the fast-OTA-capable B306 image.
+ */
+static const uint8_t firmware_advertising_marker[] = {
+	0xff, 0xff, 'B', '3', '0', '6', 'F', '1',
+};
 
 #if !DT_NODE_HAS_STATUS(LED0_NODE, okay)
 #error "The first B306 image requires the board's led0 alias"
@@ -37,6 +46,8 @@ static int start_advertising(void)
 	const struct bt_data scan_response[] = {
 		BT_DATA(BT_DATA_NAME_COMPLETE, device_name,
 			sizeof(device_name) - 1),
+		BT_DATA(BT_DATA_MANUFACTURER_DATA, firmware_advertising_marker,
+			sizeof(firmware_advertising_marker)),
 	};
 
 	return bt_le_adv_start(BT_LE_ADV_CONN,
@@ -85,6 +96,22 @@ int main(void)
 	}
 
 	LOG_INF("BLE SMP advertising started as %s", device_name);
+
+	/*
+	 * Match the established UWB OTA contract: a test image confirms itself.
+	 * B306 delays confirmation until its LF clock, BLE stack, identity, SMP
+	 * service, and connectable advertising have all started successfully.
+	 * A failure before this point leaves the image unconfirmed so MCUboot can
+	 * revert it on the next reset.
+	 */
+	if (!boot_is_img_confirmed()) {
+		ret = boot_write_img_confirmed();
+		if (ret != 0) {
+			LOG_ERR("MCUboot image confirmation failed: %d", ret);
+		} else {
+			LOG_INF("MCUboot image confirmed after BLE health check");
+		}
+	}
 
 	while (true) {
 		ret = gpio_pin_toggle_dt(&status_led);
