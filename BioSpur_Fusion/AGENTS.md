@@ -336,7 +336,9 @@ testing a versioned branch from the freeze.
 
 ### Conventions inherited from the old workspace
 
-- Names are role/component oriented; build directories use `build-<target>-<purpose>`.
+- Names are role/component oriented; build directories use
+  `<component>/build-<target>-<purpose>`. B306 build output stays under
+  `B306_Part/`, never at the `BioSpur_Fusion/` root.
 - Experiment output uses timestamped purpose directories under `logs/`.
 - Build from NCS with west and an explicit board; use pristine builds for
   reproducibility and record the source command/SHA.

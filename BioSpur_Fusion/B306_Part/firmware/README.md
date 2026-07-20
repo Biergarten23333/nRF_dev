@@ -28,7 +28,7 @@ ZEPHYR_SDK_INSTALL_DIR=/home/zekaixiao/ncs/toolchains/b81a7cd864/opt/zephyr-sdk 
   build --pristine=always \
   -b nrf52840dk/nrf52840 \
   -s B306_Part/firmware \
-  -d build-b306-smoke
+  -d B306_Part/build-b306-smoke
 ```
 
 The older board spelling `nrf52840dk_nrf52840` is deprecated in NCS v2.8.0;
@@ -43,7 +43,7 @@ completed successfully on this workstation.
 Use west with an explicit probe ID when more than one J-Link is connected:
 
 ```bash
-west flash -d build-b306-smoke --dev-id <DK_JLINK_SNR>
+west flash -d B306_Part/build-b306-smoke --dev-id <DK_JLINK_SNR>
 ```
 
 Read the startup log through RTT. Do not flash any DWM1001C from this build:
