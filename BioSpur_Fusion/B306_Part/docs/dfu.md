@@ -138,7 +138,8 @@ auto-starts the one-shot update. Target name, payload marker, signed image
 path, and signed-image SHA are all mandatory build inputs. A deliberately
 wrong SHA was verified to stop CMake before an updater image was produced.
 
-The first candidate built through this unified path is not installed:
+The first candidate built through this unified path was installed and
+self-confirmed over BLE on 2026-07-20:
 
 ```text
 target:                 BSF3C79
@@ -148,19 +149,45 @@ signed binary:          B306_Part/builds/b306-fast-ota-v3/firmware/zephyr/zephyr
 file SHA-256:           28461e49c5495fa2e5ff93d56e9a9ec7e2fc774f5fa362edf4ea965bf76ebd67
 MCUboot image digest:   f8d6e338e4682aa4a7b8229bc6218bad524f59b62e0ec2c0de8d0fced919da78
 B306 merged.hex SHA:    ea52481eaef7ea5b2cfef970eaa4a68f1eb578a8cdc00ad13924d025103f3589
-Fusion Master DK SHA:   93280a8ac3b998de4d58e19d0569df8138b0dac9795e6be5aff95b05559e401a
+Fusion Master DK SHA:   d1e9777bf778d0db5f09691be086dfe77e3a6686f69986438296b089e74455fa
 ```
 
-The B306 candidate uses L2CAP MTU 498 and 502-byte ACL buffers. It self-confirms
+The B306 image uses L2CAP MTU 498 and 502-byte ACL buffers. It self-confirms
 only after its LF clock, BLE stack, FICR-derived identity, SMP service, and
-connectable advertising have started. The currently installed v2 target
-negotiates ATT MTU 247, so the first unified update will use the same core's
-automatic chunk downshift; subsequent updates can negotiate the full fast
-path.
+connectable advertising have started. The v2-to-v3 update negotiated ATT MTU
+247 and used automatic chunk downshift. After v3 became active and confirmed,
+a same-image re-upload negotiated ATT MTU 498 and transferred 170,420 bytes in
+about 9.4 seconds with the 448-byte fast path. MCUboot rejected scheduling the
+already-active identical digest with `rc=1`, so that re-upload intentionally
+caused no second swap.
 
-No DK or B306 was flashed during this migration, and no OTA transfer was
-started. The exact reproducible build and safety contract are in
-`host/dk_ota/README.md`.
+The subsequent genuine v3-to-v4 re-OTA also completed on 2026-07-20:
+
+```text
+target:                 BSF3C79
+marker:                 b306-fast-ota-v4
+MCUboot version:        0.1.3+0
+signed binary:          B306_Part/builds/b306-fast-ota-v4/firmware/zephyr/zephyr.signed.bin
+file SHA-256:           f23b0a12f7652f64e0154fb97238a72bcd57604913c1f5cc59b75e1d0e7bcae9
+MCUboot image digest:   c86174336e8e1e1f0094e494dd398d647aaa91d2d8c9d9462caac494475721b2
+B306 merged.hex SHA:    bfdc96cf3dc6c767410fb671137cfd3d84c5cddb51e465c809716e919ad9bdb9
+DFU zip SHA:            bc2cb25bf1b85c3549cfafa3a4b1c9883c99a538231990c62ecde0868612834d
+Fusion Master DK SHA:   c3eddb626faf4436f5b86cfe6121f9eabf470115b90a00d8588e8bb5f322b96e
+```
+
+The updater transferred all 170,419 bytes in about 9.2 seconds, read slot 0 as
+confirmed v3 and slot 1 as bootable v4, then received status 0 for both the
+pending/test request and remote reset. After the physical reset check, a
+verify-only build issued only an image-state read. B306 reported v4 in slot 0
+with `active=true` and `confirmed=true`, and v3 inactive in slot 1. This closes
+the real re-OTA cycle without relying on advertising alone.
+
+The raw records are
+`logs/b306_fast_ota_v4_20260720_165305/dk-rtt.log` and
+`logs/b306_fast_ota_v4_verify_20260720_170000/after-explicit-dk-reset.log`.
+Only Fusion Master DK probe `683234364` was directly flashed, always with
+explicit probe selection. No Fusion-PCB SWD interface was touched. The exact
+reproducible builds and safety contract are in `host/dk_ota/README.md`.
 
 ## Runtime state contract for later capture images
 

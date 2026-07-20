@@ -43,6 +43,17 @@ endif()
 if(DEFINED ENV{B306_OTA_TARGET_NAME})
   set(B306_OTA_TARGET_NAME "$ENV{B306_OTA_TARGET_NAME}" CACHE STRING "" FORCE)
 endif()
+if(DEFINED ENV{B306_OTA_VERIFY_ONLY})
+  set(B306_OTA_VERIFY_ONLY "$ENV{B306_OTA_VERIFY_ONLY}" CACHE BOOL "" FORCE)
+endif()
+
+if(B306_OTA_VERIFY_ONLY)
+  set(b306_ota_upload_enable 0)
+  set(b306_ota_verify_only 1)
+else()
+  set(b306_ota_upload_enable 1)
+  set(b306_ota_verify_only 0)
+endif()
 
 foreach(required_var
         B306_OTA_IMAGE
@@ -116,7 +127,8 @@ target_compile_definitions(app PRIVATE
   APP_MASTER_OTA_TARGET_NAME="${B306_OTA_TARGET_NAME}"
   APP_MASTER_OTA_TARGET_NAME_PREFIX="BSF"
   APP_MASTER_OTA_TARGET_TOKEN_ID=-1
-  APP_MASTER_OTA_UPLOAD_ENABLE=1
+  APP_MASTER_OTA_UPLOAD_ENABLE=${b306_ota_upload_enable}
+  APP_MASTER_OTA_VERIFY_ONLY=${b306_ota_verify_only}
   APP_MASTER_OTA_CHUNK_SIZE=448
   APP_MASTER_OTA_BSF_PROFILE=1
   APP_MASTER_OTA_AUTO_START=1

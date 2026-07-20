@@ -124,13 +124,16 @@ B306_STAGE1_OTA_PASS name=BSF3C79 marker=b306-stage1-ota-v2 version=0.1.1+0 file
 The acceptance record is
 `logs/b306_stage1_ota_20260720_155326/rtt_acceptance.log`. No capture process
 was active, and no Fusion-PCB SWD interface was touched. Stage 1 is accepted;
-the installed B306 image is now `0.1.1+0`, active and confirmed.
+at the end of that acceptance run the installed B306 image was `0.1.1+0`,
+active and confirmed.
 
 The acceptance-only harness was then removed. The maintained updater is
 `host/dk_ota/`, which build-time imports the SHA-pinned fast OTA core from the
-read-only UWB FREEZE instead of carrying a second SMP implementation. Its
-first uninstalled B306 payload is `b306-fast-ota-v3`, version `0.1.2+0`;
-artifact hashes are recorded in `docs/dfu.md`.
+read-only UWB FREEZE instead of carrying a second SMP implementation. It
+installed and self-confirmed `b306-fast-ota-v3`, version `0.1.2+0`, on
+2026-07-20. A subsequent real re-OTA installed and self-confirmed
+`b306-fast-ota-v4`, version `0.1.3+0`; artifact hashes and both OTA records are
+in `docs/dfu.md`.
 
 ## Still unknown
 

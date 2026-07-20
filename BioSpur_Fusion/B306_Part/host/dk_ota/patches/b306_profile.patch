@@ -1,9 +1,13 @@
 --- master_ota.c
 +++ master_ota.c
-@@ -92 +92,17 @@
+@@ -92 +92,21 @@
 -#ifndef APP_MASTER_OTA_DIAG_FIRST_GATE_WRITE_REQ
 +#ifndef APP_MASTER_OTA_BSF_PROFILE
 +#define APP_MASTER_OTA_BSF_PROFILE 0
++#endif
++
++#ifndef APP_MASTER_OTA_VERIFY_ONLY
++#define APP_MASTER_OTA_VERIFY_ONLY 0
 +#endif
 +
 +#ifndef APP_MASTER_OTA_AUTO_START
@@ -19,19 +23,75 @@
 +#endif
 +
 +#ifndef APP_MASTER_OTA_DIAG_FIRST_GATE_WRITE_REQ
-@@ -2437 +2453,5 @@
+@@ -318 +338,3 @@
+-		err = bt_scan_start(BT_SCAN_TYPE_SCAN_PASSIVE);
++		err = bt_scan_start(APP_MASTER_OTA_BSF_PROFILE ?
++				    BT_SCAN_TYPE_SCAN_ACTIVE :
++				    BT_SCAN_TYPE_SCAN_PASSIVE);
+@@ -1925 +1945 @@
+-	if (!APP_MASTER_OTA_UPLOAD_ENABLE) {
++	if (!APP_MASTER_OTA_UPLOAD_ENABLE && !APP_MASTER_OTA_VERIFY_ONLY) {
+@@ -1963 +1983 @@
+-		if (!APP_MASTER_OTA_UPLOAD_ENABLE) {
++		if (!APP_MASTER_OTA_UPLOAD_ENABLE && !APP_MASTER_OTA_VERIFY_ONLY) {
+@@ -2004 +2024,11 @@
+-		ota_set_state(OTA_OP_UPLOADING, "start");
++		if (APP_MASTER_OTA_UPLOAD_ENABLE) {
++			ota_set_state(OTA_OP_UPLOADING, "start");
++		}
++		if (APP_MASTER_OTA_VERIFY_ONLY) {
++			printk("OTA verify-only image-state read complete\n");
++			ota_done = true;
++			ota_set_state(OTA_OP_VERIFY_PASSED, "image_state_read");
++			master_leds_set(false, true, false, false);
++			ota_session_set(false, "verify_only_done");
++			continue;
++		}
+@@ -2118,2 +2146,6 @@
+-	}
+-}
++	}
++	if (APP_MASTER_OTA_BSF_PROFILE && !runtime_expect_nus) {
++		discovery_phase = DISCOVERY_PHASE_DFU;
++		gatt_discover_dfu(conn);
++	}
++}
+@@ -2324 +2357 @@
+-	} else {
++	} else if (!APP_MASTER_OTA_BSF_PROFILE) {
+@@ -2437 +2470,5 @@
 -	if (bs_code_valid) {
 +	if (APP_MASTER_OTA_BSF_PROFILE) {
 +		bs_code_valid = false;
 +		bs_name[0] = '\0';
 +		identity_name = name;
 +	} else if (bs_code_valid) {
-@@ -2763,2 +2783,2 @@
+@@ -2473 +2510,3 @@
+-	accept = accept && connectable && (default_conn == NULL);
++	accept = accept &&
++		 (connectable || (APP_MASTER_OTA_BSF_PROFILE && eval.strict_identity_ok)) &&
++		 (default_conn == NULL);
+@@ -2503 +2540,3 @@
+-		(void)bt_scan_start(BT_SCAN_TYPE_SCAN_PASSIVE);
++		(void)bt_scan_start(APP_MASTER_OTA_BSF_PROFILE ?
++				    BT_SCAN_TYPE_SCAN_ACTIVE :
++				    BT_SCAN_TYPE_SCAN_PASSIVE);
+@@ -2623 +2662,3 @@
+-	err = bt_scan_start(BT_SCAN_TYPE_SCAN_PASSIVE);
++	err = bt_scan_start(APP_MASTER_OTA_BSF_PROFILE ?
++			    BT_SCAN_TYPE_SCAN_ACTIVE :
++			    BT_SCAN_TYPE_SCAN_PASSIVE);
+@@ -2763,2 +2802,2 @@
 -	printk("BioSpur BLE OTA master ready on nRF52840 DK\n");
 -	printk("Scanning for OTA-capable tag DFU SMP service\n");
 +	printk("BioSpur fast BLE OTA master ready on nRF52840 DK\n");
 +	printk("Scanning for an exact OTA target with DFU SMP service\n");
-@@ -2787 +2807,15 @@
+@@ -2766 +2805,3 @@
+-	err = bt_scan_start(BT_SCAN_TYPE_SCAN_PASSIVE);
++	err = bt_scan_start(APP_MASTER_OTA_BSF_PROFILE ?
++			    BT_SCAN_TYPE_SCAN_ACTIVE :
++			    BT_SCAN_TYPE_SCAN_PASSIVE);
+@@ -2787 +2828,15 @@
 -	while (1) {
 +	master_ota_set_expect_nus(APP_MASTER_OTA_EXPECT_NUS != 0);
 +	master_ota_target_print();

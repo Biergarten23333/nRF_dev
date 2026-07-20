@@ -15,7 +15,7 @@
 LOG_MODULE_REGISTER(biospur_fusion, LOG_LEVEL_INF);
 
 #define LED0_NODE DT_ALIAS(led0)
-#define FW_MARKER "b306-fast-ota-v3"
+#define FW_MARKER "b306-fast-ota-v4"
 
 /*
  * The leading 0xffff is the reserved company ID used for internal testing;

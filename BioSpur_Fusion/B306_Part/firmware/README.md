@@ -11,14 +11,14 @@ contains:
 
 It deliberately contains no IMU driver, UWB UART parser, ready-edge capture, or
 fusion logic. The first-flash image was `b306-first-dfu-v1`, version `0.1.0+0`.
-The installed image is the accepted BLE-only update `b306-stage1-ota-v2`,
-version `0.1.1+0`; Stage 1 upload, real MCUboot revert, confirmation, and
-persistence across reboot passed on the Fusion PCB on 2026-07-20.
+The first accepted BLE-only update was `b306-stage1-ota-v2`, version
+`0.1.1+0`; Stage 1 upload, real MCUboot revert, confirmation, and persistence
+across reboot passed on the Fusion PCB on 2026-07-20.
 
-The current source is the uninstalled `b306-fast-ota-v3` candidate, version
-`0.1.2+0`. It raises the L2CAP MTU and ACL buffers for the shared 448-byte fast
-OTA path and confirms a test image only after BLE/SMP advertising starts
-successfully. A failure before that health point remains unconfirmed so
+The current source and installed image are `b306-fast-ota-v4`, version
+`0.1.3+0`. The image raises the L2CAP MTU and ACL buffers for the shared
+448-byte fast OTA path and confirms a test image only after BLE/SMP advertising
+starts successfully. A failure before that health point remains unconfirmed so
 MCUboot can revert it.
 
 The board definition records UWB RX P1.01, unused UWB TX P1.02, ready P1.03,
@@ -45,7 +45,7 @@ ZEPHYR_SDK_INSTALL_DIR=/home/zekaixiao/ncs/toolchains/b81a7cd864/opt/zephyr-sdk 
   build --sysbuild --pristine=always \
   -b biospur_fusion_nrf52840/nrf52840 \
   -s B306_Part/firmware \
-  -d B306_Part/builds/b306-fast-ota-v3 \
+  -d B306_Part/builds/b306-fast-ota-v4 \
   -- -DBOARD_ROOT=/mnt/nrf_ssd/nRF_dev/BioSpur_Fusion/B306_Part/firmware
 ```
 
@@ -56,16 +56,15 @@ Python site. The build consumes the private key path from `sysbuild.conf`; see
 Primary outputs:
 
 ```text
-B306_Part/builds/b306-fast-ota-v3/merged.hex
-B306_Part/builds/b306-fast-ota-v3/firmware/zephyr/zephyr.signed.bin
-B306_Part/builds/b306-fast-ota-v3/dfu_application.zip
+B306_Part/builds/b306-fast-ota-v4/merged.hex
+B306_Part/builds/b306-fast-ota-v4/firmware/zephyr/zephyr.signed.bin
+B306_Part/builds/b306-fast-ota-v4/dfu_application.zip
 ```
 
 `merged.hex` is only for a human-run SWD handover. B306 updates use the signed
-binary over BLE SMP. The built-but-not-installed v3 signed binary has SHA-256
-`28461e49c5495fa2e5ff93d56e9a9ec7e2fc774f5fa362edf4ea965bf76ebd67`;
-see `../docs/dfu.md` for the exact Stage 1 evidence and the unified fast-OTA
-artifacts.
+binary over BLE SMP. The installed and confirmed v4 signed binary has SHA-256
+`f23b0a12f7652f64e0154fb97238a72bcd57604913c1f5cc59b75e1d0e7bcae9`;
+see `../docs/dfu.md` for the exact OTA and read-only post-reset evidence.
 
 ## Flash boundary
 

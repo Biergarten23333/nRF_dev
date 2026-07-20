@@ -12,8 +12,14 @@ secondary-slot erase, test scheduling, and OS reset. The B306 adapter only:
 
 - uses the real `BSF%04X` advertising name instead of the UWB manufacturer-data
   identity format;
+- uses active scanning because B306 publishes its exact name and marker in the
+  scan response, and permits that response to initiate a connection only after
+  the exact identity gate passes;
+- waits for the B306 MTU exchange callback before starting DFU discovery;
 - skips the UWB NUS preparation stage;
-- requires an exact `BSF%04X` target and auto-starts the one-shot update.
+- requires an exact `BSF%04X` target and auto-starts the one-shot update;
+- supports `B306_OTA_VERIFY_ONLY=1`, which reads image state without erase,
+  upload, pending/test, or reset commands.
 
 The frozen source remains read-only. Its pinned SHA-256 is:
 
@@ -29,9 +35,9 @@ example, this only compiles an updater; it does not flash or transmit:
 cd /mnt/nrf_ssd/nRF_dev/BioSpur_Fusion
 
 B306_OTA_TARGET_NAME=BSF3C79 \
-B306_OTA_MARKER=b306-fast-ota-v3 \
-B306_OTA_IMAGE="$PWD/B306_Part/builds/b306-fast-ota-v3/firmware/zephyr/zephyr.signed.bin" \
-B306_OTA_IMAGE_SHA256=28461e49c5495fa2e5ff93d56e9a9ec7e2fc774f5fa362edf4ea965bf76ebd67 \
+B306_OTA_MARKER=b306-fast-ota-v4 \
+B306_OTA_IMAGE="$PWD/B306_Part/builds/b306-fast-ota-v4/firmware/zephyr/zephyr.signed.bin" \
+B306_OTA_IMAGE_SHA256=f23b0a12f7652f64e0154fb97238a72bcd57604913c1f5cc59b75e1d0e7bcae9 \
 PYTHONNOUSERSITE=1 \
 PYTHONPATH=/home/zekaixiao/ncs/toolchains/b81a7cd864/usr/local/lib/python3.12/site-packages \
 ZEPHYR_BASE=/home/zekaixiao/ncs/v2.8.0/zephyr \
@@ -41,21 +47,29 @@ ZEPHYR_SDK_INSTALL_DIR=/home/zekaixiao/ncs/toolchains/b81a7cd864/opt/zephyr-sdk 
   --pristine=always \
   -b nrf52840dk/nrf52840 \
   -s B306_Part/host/dk_ota \
-  -d B306_Part/builds/dk-ota-v3
+  -d B306_Part/builds/dk-ota-v4
 ```
 
 That exact pristine build passed on 2026-07-20. Its build-only DK
 `merged.hex` SHA-256 is:
 
 ```text
-93280a8ac3b998de4d58e19d0569df8138b0dac9795e6be5aff95b05559e401a
+c3eddb626faf4436f5b86cfe6121f9eabf470115b90a00d8588e8bb5f322b96e
 ```
 
-The currently installed B306 v2 image advertises an ATT MTU of 247, so the
-shared core will automatically reduce the first v3 transfer from its 448-byte
-maximum wherever the encoded SMP request does not fit. The v3 target raises
-its L2CAP MTU and ACL buffers to 498/502 bytes; later updates can use the full
-fast path after negotiation.
+The v2-to-v3 update on 2026-07-20 negotiated ATT MTU 247, so the shared core
+automatically reduced the transfer chunks. After v3 was installed and
+confirmed, it negotiated ATT MTU 498 and used the 448-byte fast path. A
+subsequent same-image re-upload completed in about 9.4 seconds; MCUboot
+correctly refused to schedule the already-active identical digest for another
+test swap.
+
+The genuine v3-to-v4 re-OTA then transferred 170,419 bytes in about 9.2 seconds,
+scheduled v4 for test, and remotely reset B306. After the physical reset
+check, verify-only mode read v4 in slot 0 with `active=true` and
+`confirmed=true`; v3 remained inactive in slot 1. The current verify-only DK
+build is `B306_Part/builds/dk-ota-v4-verify/merged.hex`, SHA-256
+`1ec475dab146efcdcc4a81e42ff5434bd97253723a455be7a0a8b3631a5fe061`.
 
 Before an actual update, verify no capture is active and state the same marker
 and SHA to the operator. Flash only the Fusion Master DK, always with explicit
