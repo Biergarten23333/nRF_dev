@@ -44,6 +44,7 @@ Run exactly:
 
 ```bash
 cd /mnt/nrf_ssd/nRF_dev/BioSpur_Fusion
+LD_PRELOAD=/home/zekaixiao/ncs/toolchains/b81a7cd864/usr/lib/x86_64-linux-gnu/libffi.so.7 \
 PYTHONNOUSERSITE=1 \
 PYTHONPATH=/home/zekaixiao/ncs/toolchains/b81a7cd864/usr/local/lib/python3.12/site-packages \
 ZEPHYR_BASE=/home/zekaixiao/ncs/v2.8.0/zephyr \
@@ -87,6 +88,7 @@ Rollback mass-erases the target and reinstalls the frozen complete image:
 
 ```bash
 cd /mnt/nrf_ssd/nRF_dev/BioSpur_Fusion
+LD_PRELOAD=/home/zekaixiao/ncs/toolchains/b81a7cd864/usr/lib/x86_64-linux-gnu/libffi.so.7 \
 PYTHONNOUSERSITE=1 \
 PYTHONPATH=/home/zekaixiao/ncs/toolchains/b81a7cd864/usr/local/lib/python3.12/site-packages \
 ZEPHYR_BASE=/home/zekaixiao/ncs/v2.8.0/zephyr \
