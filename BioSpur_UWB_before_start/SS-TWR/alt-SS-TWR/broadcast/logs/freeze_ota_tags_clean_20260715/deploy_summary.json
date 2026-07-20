@@ -1,0 +1,47 @@
+{
+  "port": "/dev/serial/by-id/usb-Master_Tag_Master_Tag_Control_6918E0384172A49F-if00",
+  "timeout_s": 420,
+  "targets": [
+    "BS9336",
+    "BS955A",
+    "BSCCF4"
+  ],
+  "prefix": "BS",
+  "started_at": "2026-07-15 14:26:25",
+  "rounds": {
+    "BS9336": {
+      "target_name": "BS9336",
+      "attempts": [],
+      "returncode": 20,
+      "skipped": true,
+      "reason": "target_missing_pre_version_query",
+      "detail": "Preflight VERSION query did not see this target. Skipping OTA to avoid a full scan timeout against an invisible target. Pass --allow-missing-pre-version for explicit recovery attempts."
+    }
+  },
+  "expected_fw_marker": "tag-freeze-20260715",
+  "expected_fw_marker_meta": {
+    "source": "arg",
+    "path": null
+  },
+  "pre_version_query": {
+    "raw_log": "logs/freeze_ota_tags_clean_20260715/tag_version_query.log",
+    "targets": [
+      "BS9336",
+      "BS955A",
+      "BSCCF4"
+    ],
+    "versions": {},
+    "serial_reconnects": 0,
+    "missing_targets": [
+      "BS9336",
+      "BS955A",
+      "BSCCF4"
+    ]
+  },
+  "post_version_query": {},
+  "pre_version_missing_targets": [
+    "BS9336",
+    "BS955A",
+    "BSCCF4"
+  ]
+}

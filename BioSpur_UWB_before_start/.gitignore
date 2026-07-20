@@ -19,3 +19,16 @@ logs/geiger_overnight_static_20260711/scan.log
 # companions (lrd.csv ~64MB, summaries, results.json) are still committed.
 SS-TWR/alt-SS-TWR/broadcast/logs/overnight_power_20260714/listener/listener_20260715_012009/raw.log
 SS-TWR/alt-SS-TWR/broadcast/logs/overnight_power_20260714/listener/listener_20260715_012009/lcird.csv
+
+# ─── Old raw-data archive dirs — raw serial-capture csv/log kept LOCAL-ONLY (never
+# committed), matching the LFS policy. These were flooding `git status` with ~3800
+# untracked lines. LEADING SLASH anchors each to exactly this top-level dir so they
+# do NOT match `SS-TWR/alt-SS-TWR/broadcast/logs/` (where json/png deliverables live).
+# Added 2026-07-20. Already-tracked files are unaffected (gitignore never untracks).
+/logs/
+/autopos_pipeline/
+/AutoPos_archive/
+/anchor-frozen/
+/firmware_freeze/
+/SS-TWR/alt-SS-TWR/unicast/logs/
+/SS-TWR/alt-SS-TWR/broadcast/autopos_pipeline/
