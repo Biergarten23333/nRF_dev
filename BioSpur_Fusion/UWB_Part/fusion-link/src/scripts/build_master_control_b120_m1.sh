@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-build_dir="${1:-build-master-control-b120-m1}"
+build_dir_request="${1:-master-control-b120-m1}"
 MASTER_CMAKE_ARGS="${MASTER_CMAKE_ARGS:-}"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=resolve_build_dir.sh
+source "$repo_root/scripts/resolve_build_dir.sh"
+build_dir_abs="$(biospur_uwb_build_dir "$build_dir_request")"
 default_internal_conf="$repo_root/configs/b120_internal_osc_default_usb.conf"
 master_tag_conf="$repo_root/configs/b120_master_tag_lfrc.conf"
 master_anchor_conf="$repo_root/configs/b120_master_anchor_lfrc.conf"
@@ -14,11 +17,6 @@ WEST_BIN="${WEST_BIN:-west}"
 # packages such as PyYAML.
 HOST_SITE_PACKAGES="$(python3 -c 'import site; print(":".join(p for p in site.getsitepackages() if not p.startswith("/usr/local/lib/python")) )')"
 export PYTHONPATH="${HOST_SITE_PACKAGES}${PYTHONPATH:+:${PYTHONPATH}}"
-
-case "$build_dir" in
-  /*) build_dir_abs="$build_dir" ;;
-  *) build_dir_abs="$repo_root/$build_dir" ;;
-esac
 
 if [[ "$MASTER_CMAKE_ARGS" != *"EXTRA_CONF_FILE"* ]]; then
   build_dir_lower="$(basename "$build_dir_abs" | tr '[:upper:]' '[:lower:]')"
@@ -53,7 +51,7 @@ fi
   -- \
   "${extra_args[@]}")
 
-python3 scripts/write_build_source.py \
+python3 "$repo_root/scripts/write_build_source.py" \
   --build-dir "$build_dir_abs" \
   --source "scripts/build_master_control_b120_m1.sh" \
   --command "$0 $*"

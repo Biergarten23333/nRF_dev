@@ -2,21 +2,20 @@
 set -euo pipefail
 
 if [ "$#" -gt 3 ]; then
-  echo "Usage: $0 [tdma_slot_index=0] [tdma_slot_count=10] [build_dir]" >&2
+  echo "Usage: $0 [tdma_slot_index=0] [tdma_slot_count=10] [build_name]" >&2
   exit 1
 fi
 
 slot_index="${1:-0}"
 slot_count="${2:-10}"
-build_dir="${3:-build-tag-ble-motion-unified}"
+build_dir_request="${3:-tag-ble-motion-unified}"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=resolve_build_dir.sh
+source "$repo_root/scripts/resolve_build_dir.sh"
+build_dir_abs="$(biospur_uwb_build_dir "$build_dir_request")"
 NCS_ROOT="${NCS_ROOT:-/home/zekaixiao/ncs/v2.8.0}"
 WEST_BIN="${WEST_BIN:-west}"
 ZEPHYR_BASE="${ZEPHYR_BASE:-${NCS_ROOT}/zephyr}"
-case "$build_dir" in
-  /*) build_dir_abs="$build_dir" ;;
-  *) build_dir_abs="$repo_root/$build_dir" ;;
-esac
 slot_period_ms="${APP_TAG_TDMA_SLOT_PERIOD_MS:-10}"
 slot_active_ms="${APP_TAG_TDMA_SLOT_ACTIVE_MS:-9}"
 slot_active_us="${APP_TAG_TDMA_SLOT_ACTIVE_US:-0}"

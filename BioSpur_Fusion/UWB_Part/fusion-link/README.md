@@ -11,8 +11,11 @@ The current Task A status, build footprint, artifact hashes, and remaining
 bench gates are in `TASK_A_REPORT.md`. Rebuild the tag from `src/` with:
 
 ```bash
-./scripts/build_tag_ble_unified.sh 0 10 build-tag-fusion-link
+./scripts/build_tag_ble_unified.sh 0 10 tag-fusion-link
 ```
+
+The wrapper always writes the generated tree to
+`UWB_Part/builds/tag-fusion-link/`.
 
 The built Task A artifacts are
 `tag/tag-fusion-link-v2.{signed.bin,dfu_application.zip,merged.hex}` and report

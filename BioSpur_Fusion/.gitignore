@@ -1,13 +1,9 @@
-# Zephyr / west build output. Keep this component-scoped so an accidental
-# build directory at the BioSpur_Fusion root is visible in git status.
-B306_Part/build/
-B306_Part/build-*/
-B306_Part/**/build/
-B306_Part/**/build-*/
-UWB_Part/build/
-UWB_Part/build-*/
-UWB_Part/**/build/
-UWB_Part/**/build-*/
+# Zephyr / west build output. These are the only permitted build roots, so a
+# misplaced build directory anywhere else remains visible in git status.
+B306_Part/builds/*
+!B306_Part/builds/README.md
+UWB_Part/builds/*
+!UWB_Part/builds/README.md
 zephyr/
 .west/
 *.source

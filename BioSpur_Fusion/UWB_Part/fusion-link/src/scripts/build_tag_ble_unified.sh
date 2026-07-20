@@ -2,13 +2,17 @@
 set -euo pipefail
 
 if [ "$#" -gt 3 ]; then
-  echo "Usage: $0 [tdma_slot_index=0] [tdma_slot_count=10] [build_dir]" >&2
+  echo "Usage: $0 [tdma_slot_index=0] [tdma_slot_count=10] [build_name]" >&2
   exit 1
 fi
 
 slot_index="${1:-0}"
 slot_count="${2:-10}"
-build_dir="${3:-build-tag-ble-unified-mode-switch}"
+build_dir_request="${3:-tag-ble-unified-mode-switch}"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=resolve_build_dir.sh
+source "$repo_root/scripts/resolve_build_dir.sh"
+build_dir_abs="$(biospur_uwb_build_dir "$build_dir_request")"
 
 # Unified BLE tag build:
 # - One OTA-capable image keeps raw range output enabled.
@@ -28,14 +32,15 @@ APP_TAG_CIR_FULL_CHUNK_BYTES="${APP_TAG_CIR_FULL_CHUNK_BYTES:-48}" \
 APP_TAG_CIR_FULL_PRIORITY_MASK="${APP_TAG_CIR_FULL_PRIORITY_MASK:-0}" \
 APP_TAG_CIR_FULL_PRIORITY_ONLY_SWEEP="${APP_TAG_CIR_FULL_PRIORITY_ONLY_SWEEP:-0}" \
 APP_TAG_CIR_COMPACT_SAMPLE_PERIOD="${APP_TAG_CIR_COMPACT_SAMPLE_PERIOD:-8}" \
-./scripts/build_tag_ble_motion.sh "${slot_index}" "${slot_count}" "${build_dir}"
+"$repo_root/scripts/build_tag_ble_motion.sh" \
+  "${slot_index}" "${slot_count}" "${build_dir_abs}"
 
-python3 scripts/write_build_source.py \
-  --build-dir "${build_dir}" \
+python3 "$repo_root/scripts/write_build_source.py" \
+  --build-dir "${build_dir_abs}" \
   --source "scripts/build_tag_ble_unified.sh" \
   --command "$0 $*"
 
 echo
-echo "Built unified BLE tag image: ${build_dir}"
-echo "Hex: ${build_dir}/merged.hex"
+echo "Built unified BLE tag image: ${build_dir_abs}"
+echo "Hex: ${build_dir_abs}/merged.hex"
 echo "Runtime commands: MODE? | MODE RUN | MODE IDLE | CIR? | CIR OFF | CIR COMPACT | CIR FULL"

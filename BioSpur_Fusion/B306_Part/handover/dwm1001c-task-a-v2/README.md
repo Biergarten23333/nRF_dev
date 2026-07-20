@@ -52,7 +52,7 @@ ZEPHYR_TOOLCHAIN_VARIANT=zephyr \
 ZEPHYR_SDK_INSTALL_DIR=/home/zekaixiao/ncs/toolchains/b81a7cd864/opt/zephyr-sdk \
 /home/zekaixiao/ncs/toolchains/b81a7cd864/usr/local/bin/python3 -m west \
   flash --skip-rebuild \
-  -d UWB_Part/fusion-link/src/build-tag-fusion-link/tag \
+  -d UWB_Part/builds/tag-fusion-link/tag \
   -r jlink \
   --dev-id 1050070698 \
   --erase \
@@ -96,7 +96,7 @@ ZEPHYR_TOOLCHAIN_VARIANT=zephyr \
 ZEPHYR_SDK_INSTALL_DIR=/home/zekaixiao/ncs/toolchains/b81a7cd864/opt/zephyr-sdk \
 /home/zekaixiao/ncs/toolchains/b81a7cd864/usr/local/bin/python3 -m west \
   flash --skip-rebuild \
-  -d UWB_Part/fusion-link/src/build-tag-fusion-link/tag \
+  -d UWB_Part/builds/tag-fusion-link/tag \
   -r jlink \
   --dev-id 1050070698 \
   --erase \

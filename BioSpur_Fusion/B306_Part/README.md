@@ -10,6 +10,7 @@ UWB UART parser, GPIO capture path, data service, or fusion algorithm.
 
 ## Layout
 
+- `builds/`: the only location for generated B306 and Fusion Master DK builds.
 - `firmware/`: minimal Zephyr application and future B306 firmware.
 - `host/dk_ota/`: Fusion Master build wrapper around the single frozen fast OTA
   core; exact B306 target/image/SHA are mandatory build inputs.

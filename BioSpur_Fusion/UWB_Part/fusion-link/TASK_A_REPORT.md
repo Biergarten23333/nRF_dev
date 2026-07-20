@@ -78,7 +78,7 @@ keyed by explicit frame slot. Dual-path validation must remap the UART slots by
 The pristine NCS v2.8.0 build used:
 
 ```text
-./scripts/build_tag_ble_unified.sh 0 10 build-tag-fusion-link
+./scripts/build_tag_ble_unified.sh 0 10 tag-fusion-link
 ```
 
 The image advertises the unique firmware marker `tag-fusion-link-v2`.

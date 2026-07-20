@@ -30,7 +30,7 @@ cd /mnt/nrf_ssd/nRF_dev/BioSpur_Fusion
 
 B306_OTA_TARGET_NAME=BSF3C79 \
 B306_OTA_MARKER=b306-fast-ota-v3 \
-B306_OTA_IMAGE="$PWD/B306_Part/build-b306-fast-ota-v3/firmware/zephyr/zephyr.signed.bin" \
+B306_OTA_IMAGE="$PWD/B306_Part/builds/b306-fast-ota-v3/firmware/zephyr/zephyr.signed.bin" \
 B306_OTA_IMAGE_SHA256=11882aa3b8cde5d1c88418002bd019832ad501a2af175cdc1b5f0f023661113b \
 PYTHONNOUSERSITE=1 \
 PYTHONPATH=/home/zekaixiao/ncs/toolchains/b81a7cd864/usr/local/lib/python3.12/site-packages \
@@ -41,7 +41,7 @@ ZEPHYR_SDK_INSTALL_DIR=/home/zekaixiao/ncs/toolchains/b81a7cd864/opt/zephyr-sdk 
   --pristine=always \
   -b nrf52840dk/nrf52840 \
   -s B306_Part/host/dk_ota \
-  -d B306_Part/build-dk-ota-v3
+  -d B306_Part/builds/dk-ota-v3
 ```
 
 That exact pristine build passed on 2026-07-20. Its build-only DK

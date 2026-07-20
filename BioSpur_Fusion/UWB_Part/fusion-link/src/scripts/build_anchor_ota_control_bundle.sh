@@ -5,28 +5,24 @@ set -euo pipefail
 # that embeds this anchor image as OTA payload.
 #
 # Usage:
-#   scripts/build_anchor_ota_control_bundle.sh [anchor_build_dir] [control_build_dir] [fw_marker]
+#   scripts/build_anchor_ota_control_bundle.sh [anchor_build_name] [control_build_name] [fw_marker]
 #
 # Example:
 #   scripts/build_anchor_ota_control_bundle.sh \
-#     build-anchor-unified-ota-v1 \
-#     build-master-control-anchor-ota-v1 \
+#     anchor-unified-ota-v1 \
+#     master-control-anchor-ota-v1 \
 #     anchor-ota-v1
 
-ANCHOR_BUILD_DIR="${1:-build-anchor-unified-ota}"
-CONTROL_BUILD_DIR="${2:-build-master-control-anchor-ota}"
+ANCHOR_BUILD_DIR="${1:-anchor-unified-ota}"
+CONTROL_BUILD_DIR="${2:-master-control-anchor-ota}"
 FW_MARKER_INPUT="${3:-}"
 NCS_ROOT="${NCS_ROOT:-/home/zekaixiao/ncs/v2.8.0}"
 ANCHOR_EXTRA_CMAKE_ARGS="${ANCHOR_EXTRA_CMAKE_ARGS:-}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ANCHOR_BUILD_PATH="${ANCHOR_BUILD_DIR}"
-CONTROL_BUILD_PATH="${CONTROL_BUILD_DIR}"
-if [[ "${ANCHOR_BUILD_PATH}" != /* ]]; then
-  ANCHOR_BUILD_PATH="${REPO_ROOT}/${ANCHOR_BUILD_PATH}"
-fi
-if [[ "${CONTROL_BUILD_PATH}" != /* ]]; then
-  CONTROL_BUILD_PATH="${REPO_ROOT}/${CONTROL_BUILD_PATH}"
-fi
+# shellcheck source=resolve_build_dir.sh
+source "$REPO_ROOT/scripts/resolve_build_dir.sh"
+ANCHOR_BUILD_PATH="$(biospur_uwb_build_dir "$ANCHOR_BUILD_DIR")"
+CONTROL_BUILD_PATH="$(biospur_uwb_build_dir "$CONTROL_BUILD_DIR")"
 
 # Sysbuild does not automatically forward arbitrary top-level -DAPP_ANCHOR_*
 # cache entries into the child "anchor" image. The anchor app CMake reads these
@@ -65,7 +61,7 @@ export PYTHONPATH="${HOST_SITE_PACKAGES}${PYTHONPATH:+:${PYTHONPATH}}"
 (cd "$WEST_TOPDIR" && "$WEST_BIN" build \
   -b decawave_dwm1001_dev/nrf52832 \
   -s "${REPO_ROOT}/apps/anchor" \
-  -d "${REPO_ROOT}/${ANCHOR_BUILD_DIR}" \
+  -d "${ANCHOR_BUILD_PATH}" \
   --sysbuild \
   --cmake-only \
   --pristine=always \
@@ -84,7 +80,7 @@ export PYTHONPATH="${HOST_SITE_PACKAGES}${PYTHONPATH:+:${PYTHONPATH}}"
   WEST_TOPDIR="${WEST_TOPDIR}" \
   ZEPHYR_BASE="${NCS_ROOT}/zephyr" \
   PYTHONPATH="${PYTHONPATH}" \
-  "${CMAKE_BIN}" --build "${ANCHOR_BUILD_DIR}")
+  "${CMAKE_BIN}" --build "${ANCHOR_BUILD_PATH}")
 
 SIGNED_BIN="${ANCHOR_BUILD_PATH}/anchor/zephyr/zephyr.signed.bin"
 if [[ ! -f "${SIGNED_BIN}" ]]; then
@@ -112,7 +108,7 @@ python3 "${REPO_ROOT}/scripts/verify_ota_payload_kind.py" --expected anchor
 (cd "$WEST_TOPDIR" && "$WEST_BIN" build \
   -b nrf52840dk/nrf52840 \
   -s "${REPO_ROOT}/apps/master_control" \
-  -d "${REPO_ROOT}/${CONTROL_BUILD_DIR}" \
+  -d "${CONTROL_BUILD_PATH}" \
   --cmake-only \
   --pristine=always \
   -- \
@@ -127,7 +123,7 @@ python3 "${REPO_ROOT}/scripts/verify_ota_payload_kind.py" --expected anchor
   WEST_TOPDIR="${WEST_TOPDIR}" \
   ZEPHYR_BASE="${NCS_ROOT}/zephyr" \
   PYTHONPATH="${PYTHONPATH}" \
-  "${CMAKE_BIN}" --build "${CONTROL_BUILD_DIR}")
+  "${CMAKE_BIN}" --build "${CONTROL_BUILD_PATH}")
 
 python3 "${REPO_ROOT}/scripts/write_build_source.py" \
   --build-dir "${ANCHOR_BUILD_PATH}" \
@@ -140,8 +136,8 @@ python3 "${REPO_ROOT}/scripts/write_build_source.py" \
   --command "$0 $* (52840 control center)"
 
 echo
-echo "Built anchor OTA image: ${ANCHOR_BUILD_DIR}"
-echo "  ${ANCHOR_BUILD_DIR}/merged.hex"
+echo "Built anchor OTA image: ${ANCHOR_BUILD_PATH}"
+echo "  ${ANCHOR_BUILD_PATH}/merged.hex"
 echo "  ${SIGNED_BIN}"
-echo "Built 52840 control image: ${CONTROL_BUILD_DIR}"
-echo "  ${CONTROL_BUILD_DIR}/zephyr/zephyr.hex"
+echo "Built 52840 control image: ${CONTROL_BUILD_PATH}"
+echo "  ${CONTROL_BUILD_PATH}/zephyr/zephyr.hex"

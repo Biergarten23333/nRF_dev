@@ -2,7 +2,7 @@
 set -euo pipefail
 
 stamp="${1:-$(date +%Y%m%d_%H%M%S)}"
-build_dir="build-master-control-b120-m1-master-tag-lfrc-${stamp}"
+build_dir="master-control-b120-m1-master-tag-lfrc-${stamp}"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 conf="$repo_root/configs/b120_master_tag_lfrc.conf"
 expected_marker="${APP_EXPECTED_TAG_FW_MARKER:-${APP_TAG_FW_MARKER:-}}"

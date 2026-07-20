@@ -89,7 +89,7 @@ The image pushed to B306 was:
 ```text
 marker:               b306-stage1-ota-v2
 MCUboot version:      0.1.1+0
-signed binary:        B306_Part/build-b306-stage1-ota-v2/firmware/zephyr/zephyr.signed.bin
+signed binary:        B306_Part/builds/b306-stage1-ota-v2/firmware/zephyr/zephyr.signed.bin
 file SHA-256:         7f821fbf26144026c0ff8912118a3d3f098ec29ce9567633b5673df12425db02
 MCUboot image digest: 8c695e2d49c97aab5692c69ac8447189ecf0e4d73b8d1129917ff3cd8f36c1dc
 signing key hash:     0e525dedaa7f50fb38d3c8f1792cacaa20f70204aa46ef6b50d720479c6ef5a2
@@ -144,7 +144,7 @@ The first candidate built through this unified path is not installed:
 target:                 BSF3C79
 marker:                 b306-fast-ota-v3
 MCUboot version:        0.1.2+0
-signed binary:          B306_Part/build-b306-fast-ota-v3/firmware/zephyr/zephyr.signed.bin
+signed binary:          B306_Part/builds/b306-fast-ota-v3/firmware/zephyr/zephyr.signed.bin
 file SHA-256:           11882aa3b8cde5d1c88418002bd019832ad501a2af175cdc1b5f0f023661113b
 MCUboot image digest:   fd81ec022bd547098393eaa7425d2bcac96cf7e9b565ba34e04dba5b6b17212b
 B306 merged.hex SHA:    0d79fdbc62731c67adadc693817de3e97ce48ca3686cc8bc5a713b0d8ae72cec

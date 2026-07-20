@@ -2,8 +2,11 @@
 set -euo pipefail
 
 stamp="${1:-$(date +%Y%m%d_%H%M%S)}"
-build_dir="build-uwb-listener-poll-diag-${stamp}"
+build_dir_request="uwb-listener-poll-diag-${stamp}"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=resolve_build_dir.sh
+source "$repo_root/scripts/resolve_build_dir.sh"
+build_dir_abs="$(biospur_uwb_build_dir "$build_dir_request")"
 NCS_ROOT="${NCS_ROOT:-/home/zekaixiao/ncs/v2.8.0}"
 WEST_BIN="${WEST_BIN:-west}"
 HOST_SITE_PACKAGES="$(python3 -c 'import site; print(":".join(p for p in site.getsitepackages() if not p.startswith("/usr/local/lib/python")) )')"
@@ -22,7 +25,7 @@ tag_label="${APP_LISTENER_TAG_LABEL:-0xC000}"
 (cd "$NCS_ROOT" && "$WEST_BIN" build \
   -b decawave_dwm1001_dev/nrf52832 \
   -s "$repo_root/UWB_listener" \
-  -d "$repo_root/$build_dir" \
+  -d "$build_dir_abs" \
   --pristine=always \
   --no-sysbuild \
   -- \
@@ -36,8 +39,8 @@ tag_label="${APP_LISTENER_TAG_LABEL:-0xC000}"
   -DAPP_LISTENER_TAG_LABEL="$tag_label")
 
 python3 "$repo_root/scripts/write_build_source.py" \
-  --build-dir "$repo_root/$build_dir" \
+  --build-dir "$build_dir_abs" \
   --source "scripts/build_uwb_listener_poll_diag.sh" \
   --command "$0 $*"
 
-echo "Built generic co-located listener: $build_dir/zephyr/zephyr.hex"
+echo "Built generic co-located listener: $build_dir_abs/zephyr/zephyr.hex"

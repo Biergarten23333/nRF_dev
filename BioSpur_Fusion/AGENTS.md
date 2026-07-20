@@ -91,15 +91,22 @@ development twin. SWD access to either Fusion-PCB MCU remains a human handover.
 BioSpur_Fusion/
 ├── AGENTS.md                  ← this file
 ├── UWB_Part/
+│   ├── builds/                ← all generated UWB build trees
 │   └── 2026-07-15-FREEZE/
 │       └── firmware/          ← READ-ONLY. Stable rollback baseline.
-└── B306_Part/                 ← the actual work
+└── B306_Part/
+    ├── builds/                ← all generated B306/DK build trees
+    └── ...                    ← the actual work
 ```
 
 ### Rules
 
 - **Everything stays inside `BioSpur_Fusion/`.** Never create directories
   directly under `/mnt/nrf_ssd/`.
+- **All generated build trees are centralized.** B306/DK builds go only under
+  `B306_Part/builds/`; UWB builds go only under `UWB_Part/builds/`. Use
+  `builds/<target>-<purpose>`, without another `build-` prefix. A `build/` or
+  `build-*` beside source is a layout error and must not be ignored.
 - **`UWB_Part/2026-07-15-FREEZE/` is read-only.** It is a rollback baseline,
   not a museum: branch from it freely, but never edit in place.
 - If UWB firmware information is missing or incomplete here, look in
@@ -387,9 +394,10 @@ implementing and measuring against the versioned Task A interface.
 
 ### Conventions inherited from the old workspace
 
-- Names are role/component oriented; build directories use
-  `<component>/build-<target>-<purpose>`. B306 build output stays under
-  `B306_Part/`, never at the `BioSpur_Fusion/` root.
+- Names are role/component oriented. Generated trees use
+  `B306_Part/builds/<target>-<purpose>` or
+  `UWB_Part/builds/<target>-<purpose>`; never place `build/` or `build-*`
+  beside source and never create build output at the `BioSpur_Fusion/` root.
 - Experiment output uses timestamped purpose directories under `logs/`.
 - Build from NCS with west and an explicit board; use pristine builds for
   reproducibility and record the source command/SHA.

@@ -3,8 +3,12 @@
 This is now the writable `fusion-link` derivative. Build the Task A tag with:
 
 ```bash
-./scripts/build_tag_ble_unified.sh 0 10 build-tag-fusion-link
+./scripts/build_tag_ble_unified.sh 0 10 tag-fusion-link
 ```
+
+All writable wrappers resolve their output to
+`UWB_Part/builds/<target>-<purpose>/`; they reject paths outside that build
+root.
 
 The wrapper's working-copy default firmware marker is
 `tag-fusion-link-v2`. The remaining recipes below document how the imported
@@ -13,7 +17,7 @@ firmware.
 
 Imported from the four-piece firmware + listener at tag
 **`freeze-clean-20260716`** (commit `8b68ee0a`). This directory still mirrors
-the original build layout, and the scripts compute
+the original source layout, and the scripts compute
 `repo_root="$(dirname "$0")/.."`, so they resolve `apps/*`, `UWB_listener`,
 `configs/`, `src/`, `drivers/`, and `apps/master_ota/generated/` locally.
 
@@ -37,24 +41,25 @@ the original build layout, and the scripts compute
 cd <this firmware/src dir>
 
 # 1) TAG  (initiator; apps/tag; sysbuild+MCUboot)
-./scripts/build_tag_ble_unified.sh 0 10 build-tag-freeze-clean-20260716
+./scripts/build_tag_ble_unified.sh 0 10 tag-freeze-clean-20260716
 
 # 2) ANCHOR  (responder; apps/anchor; sysbuild+MCUboot; prj.conf;prj_ota.conf)
 ./scripts/build_anchor_ota_control_bundle.sh \
-     build-anchor-freeze-clean-20260716 build-anchor-control-freeze-clean-20260716 \
+     anchor-freeze-clean-20260716 anchor-control-freeze-clean-20260716 \
      anchor-freeze-clean-20260716
 
 # 3) MASTER_TAG  (apps/master_control; boot profile = TAG)
-./scripts/build_master_tag.sh    build-master-tag-freeze-clean-20260716-boottag
+./scripts/build_master_tag.sh    master-tag-freeze-clean-20260716-boottag
 
 # 4) MASTER_ANCHOR  (apps/master_control; boot profile = ANCHOR)
-./scripts/build_master_anchor.sh build-master-anchor-freeze-clean-20260716-bootanchor
+./scripts/build_master_anchor.sh master-anchor-freeze-clean-20260716-bootanchor
 
 # 5) LISTENER  (RX-only; UWB_listener; --no-sysbuild)
 ./scripts/build_uwb_listener_poll_diag.sh listener-freeze-20260715
 ```
-Output `.hex` lands in `<build_dir>/…/zephyr/merged.hex` (sysbuild pieces) or
-`<build_dir>/zephyr/zephyr.hex` (listener). `write_build_source.py` drops a `.source` sidecar.
+Output `.hex` lands in `UWB_Part/builds/<build_name>/…/zephyr/merged.hex`
+(sysbuild pieces) or `UWB_Part/builds/<build_name>/zephyr/zephyr.hex`
+(listener). `write_build_source.py` drops a `.source` sidecar beside the build.
 
 ## What actually distinguishes the five (the `-D` → piece map)
 All five compile from ONE shared `src/` + `drivers/dw1000/`; they differ by app dir, board,

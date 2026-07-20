@@ -45,7 +45,7 @@ ZEPHYR_SDK_INSTALL_DIR=/home/zekaixiao/ncs/toolchains/b81a7cd864/opt/zephyr-sdk 
   build --sysbuild --pristine=always \
   -b biospur_fusion_nrf52840/nrf52840 \
   -s B306_Part/firmware \
-  -d B306_Part/build-b306-fast-ota-v3 \
+  -d B306_Part/builds/b306-fast-ota-v3 \
   -- -DBOARD_ROOT=/mnt/nrf_ssd/nRF_dev/BioSpur_Fusion/B306_Part/firmware
 ```
 
@@ -56,9 +56,9 @@ Python site. The build consumes the private key path from `sysbuild.conf`; see
 Primary outputs:
 
 ```text
-B306_Part/build-b306-fast-ota-v3/merged.hex
-B306_Part/build-b306-fast-ota-v3/firmware/zephyr/zephyr.signed.bin
-B306_Part/build-b306-fast-ota-v3/dfu_application.zip
+B306_Part/builds/b306-fast-ota-v3/merged.hex
+B306_Part/builds/b306-fast-ota-v3/firmware/zephyr/zephyr.signed.bin
+B306_Part/builds/b306-fast-ota-v3/dfu_application.zip
 ```
 
 `merged.hex` is only for a human-run SWD handover. B306 updates use the signed
