@@ -1,0 +1,166 @@
+{
+  "version": "v5",
+  "label": "V5 common-mode",
+  "solver": "v5",
+  "anchor_ids": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "anchors": [
+    {
+      "id": 0,
+      "label": "A",
+      "x_mm": 0.0,
+      "y_mm": 0.0,
+      "z_mm": 0.0,
+      "d_anchor_mm": 149.9999999999989,
+      "differential_delay_mm": 0.0,
+      "stability_class": "STABLE",
+      "stability_median_sigma_mm": 28.9107,
+      "stability_max_step_mm": 54.5
+    },
+    {
+      "id": 1,
+      "label": "B",
+      "x_mm": 4443.782938846831,
+      "y_mm": 0.0,
+      "z_mm": 0.0,
+      "d_anchor_mm": 127.58825121825694,
+      "differential_delay_mm": -22.41174878174194,
+      "stability_class": "STABLE",
+      "stability_median_sigma_mm": 34.8411,
+      "stability_max_step_mm": 52.5
+    },
+    {
+      "id": 2,
+      "label": "C",
+      "x_mm": 4264.227288359962,
+      "y_mm": 2850.179401665468,
+      "z_mm": 0.0,
+      "d_anchor_mm": 153.24313322826143,
+      "differential_delay_mm": 3.243133228262543,
+      "stability_class": "STABLE",
+      "stability_median_sigma_mm": 22.60965,
+      "stability_max_step_mm": 38.0
+    },
+    {
+      "id": 3,
+      "label": "D",
+      "x_mm": 356.1382970107421,
+      "y_mm": 2506.3889446633393,
+      "z_mm": -109.14179661116914,
+      "d_anchor_mm": 217.47570955462925,
+      "differential_delay_mm": 67.47570955463036,
+      "stability_class": "STABLE",
+      "stability_median_sigma_mm": 31.875899999999998,
+      "stability_max_step_mm": 29.0
+    },
+    {
+      "id": 4,
+      "label": "E",
+      "x_mm": 452.3405774533037,
+      "y_mm": -120.82838234332415,
+      "z_mm": -1358.722673491112,
+      "d_anchor_mm": 128.23015119344188,
+      "differential_delay_mm": -21.76984880655702,
+      "stability_class": "STABLE",
+      "stability_median_sigma_mm": 25.9455,
+      "stability_max_step_mm": 52.5
+    },
+    {
+      "id": 5,
+      "label": "F",
+      "x_mm": 4359.689715935299,
+      "y_mm": 43.74834225853898,
+      "z_mm": -1205.2087971886835,
+      "d_anchor_mm": 177.00107618786012,
+      "differential_delay_mm": 27.001076187861237,
+      "stability_class": "STABLE",
+      "stability_median_sigma_mm": 20.385749999999998,
+      "stability_max_step_mm": 54.5
+    },
+    {
+      "id": 6,
+      "label": "G",
+      "x_mm": 4188.072381616174,
+      "y_mm": 2805.348627946083,
+      "z_mm": -1279.8262030786943,
+      "d_anchor_mm": 208.8225407556876,
+      "differential_delay_mm": 58.822540755688706,
+      "stability_class": "STABLE",
+      "stability_median_sigma_mm": 24.83355,
+      "stability_max_step_mm": 21.5
+    },
+    {
+      "id": 7,
+      "label": "H",
+      "x_mm": 442.37429618465393,
+      "y_mm": 2512.4555619734465,
+      "z_mm": -1468.076976094061,
+      "d_anchor_mm": 130.62323507912168,
+      "differential_delay_mm": -19.376764920877207,
+      "stability_class": "STABLE",
+      "stability_median_sigma_mm": 30.02265,
+      "stability_max_step_mm": 29.0
+    }
+  ],
+  "tag_delay_mm": 0.0,
+  "common_mode_delay_mm": 149.9999999999989,
+  "differential_delay_mm": [
+    0.0,
+    -22.41174878174194,
+    3.243133228262543,
+    67.47570955463036,
+    -21.76984880655702,
+    27.001076187861237,
+    58.822540755688706,
+    -19.376764920877207
+  ],
+  "stability_class": [
+    "STABLE",
+    "STABLE",
+    "STABLE",
+    "STABLE",
+    "STABLE",
+    "STABLE",
+    "STABLE",
+    "STABLE"
+  ],
+  "scale_identifiable": false,
+  "warnings": [
+    "common_mode c saturated its +/-150 mm box (c=+150.0 mm): the inter-anchor data wants a large shared bias that is degenerate with layout scale -> absolute geometry is UNIDENTIFIABLE from inter-anchor ranges alone.",
+    "layout diverges 534 mm (max) / 350 mm (rms) from the deployed V4-IO geometry: V4-IO was pinned by its +/-60 mm delay box, not by the data. Do NOT deploy this absolute geometry without a metric-scale constraint (corner reflector / measured baseline / fixed-XYZ reference tag)."
+  ],
+  "stats": {
+    "inter_anchor_pair_rms_mm": 94.65,
+    "n_pairs": 28,
+    "anchors_present": "ABCDEFGH",
+    "solver": "v5 (common-mode reparameterization; standalone solve_v5.py)",
+    "source_pairs_csv": "/mnt/nrf_ssd/nRF_dev/BioSpur_UWB_before_start/logs/system_calibration_20260710_233443/autopos/pairs_all.csv",
+    "success": true,
+    "scale_locked": false,
+    "common_mode_delay_mm": 149.9999999999989,
+    "c_bound_mm": 150.0,
+    "e_bound_mm": 200.0,
+    "sigma_e_mm": 30.0,
+    "sigma_c_mm": 25.0,
+    "n_differential_at_bound": 0,
+    "common_mode_at_bound": true,
+    "layout_maxdev_from_v4io_mm": 534.1933116231421,
+    "layout_rmsdev_from_v4io_mm": 349.8741248353039
+  },
+  "extra": {
+    "physical_priors": "soft_two_layer_v1",
+    "lower_d_z_offset_mm": -109.14179661116914,
+    "lower_z_span_mm": 109.14179661116914,
+    "upper_z_span_mm": 262.86817890537736,
+    "layer_gap_median_mm": -1319.2744382849032,
+    "layer_order_ok": false
+  }
+}

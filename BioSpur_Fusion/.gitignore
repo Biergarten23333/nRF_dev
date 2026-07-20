@@ -1,0 +1,33 @@
+# Zephyr / west build output
+build/
+build-*/
+**/build/
+**/build-*/
+zephyr/
+.west/
+*.source
+
+# Runtime logs and captures
+B306_Part/logs/
+*.log
+*.jsonl
+*.parquet
+*.pcap
+*.pcapng
+*.raw
+
+# Host-language caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# Editor and OS noise
+.DS_Store
+*~
+*.swp
+
+# The rollback baseline is an immutable archive and must be tracked in full,
+# even if a future archive contains a normally ignored capture/build suffix.
+!UWB_Part/2026-07-15-FREEZE/
+!UWB_Part/2026-07-15-FREEZE/**

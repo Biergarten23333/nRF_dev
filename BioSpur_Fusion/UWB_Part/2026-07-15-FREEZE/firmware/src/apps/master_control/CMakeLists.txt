@@ -1,0 +1,108 @@
+cmake_minimum_required(VERSION 3.20.0)
+
+if(NOT ZEPHYR_MODULES)
+  execute_process(
+    COMMAND west list --format={abspath}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+    OUTPUT_VARIABLE WEST_MODULES_RAW
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE WEST_LIST_RESULT
+  )
+  if(WEST_LIST_RESULT EQUAL 0 AND WEST_MODULES_RAW)
+    string(REPLACE "\n" ";" ZEPHYR_MODULES "${WEST_MODULES_RAW}")
+  endif()
+endif()
+
+find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
+
+project(BioSpur_UWB_master_control)
+
+set(APP_ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
+get_filename_component(NCS_BASE ${ZEPHYR_BASE} DIRECTORY)
+
+set(APP_MASTER_TAG_NAME_PREFIX "BS" CACHE STRING
+    "BLE device-name prefix for receiver mode")
+set(APP_MASTER_ONE_SHOT_CMD "" CACHE STRING
+    "Optional single NUS command sent once after link ready in receiver mode")
+if(DEFINED ENV{APP_MASTER_ONE_SHOT_CMD})
+  set(APP_MASTER_ONE_SHOT_CMD "$ENV{APP_MASTER_ONE_SHOT_CMD}" CACHE STRING
+      "Optional single NUS command sent once after link ready in receiver mode" FORCE)
+endif()
+set(APP_MASTER_OTA_TARGET_NAME "" CACHE STRING
+    "Exact BLE device name to OTA; empty accepts any DFU SMP advertiser")
+set(APP_MASTER_OTA_TARGET_NAME_PREFIX "BS" CACHE STRING
+    "BLE device-name prefix to OTA when no exact name is provided")
+set(APP_MASTER_OTA_TARGET_TOKEN_ID "-1" CACHE STRING
+    "BioSpur manufacturer token tag ID to OTA; -1 accepts any token")
+set(APP_MASTER_BOOT_PROFILE "neutral" CACHE STRING
+    "Boot profile: neutral, anchor, or tag")
+
+# freeze-clean batch6 (i) compile-time guard — 2026-07-15 tag-grab incident.
+# A Master carrier MUST declare its role explicitly. A neutral profile leaves
+# the runtime target UNKNOWN and lets the carrier auto-connect and HOLD wand
+# tags (the incident that cost hours). neutral is a build error — not a doc rule.
+if(NOT APP_MASTER_BOOT_PROFILE STREQUAL "anchor" AND NOT APP_MASTER_BOOT_PROFILE STREQUAL "tag")
+  message(FATAL_ERROR
+    "Master carrier must set -DAPP_MASTER_BOOT_PROFILE=anchor|tag "
+    "(got '${APP_MASTER_BOOT_PROFILE}'). neutral is a build error.")
+endif()
+set(APP_MASTER_BOOT_TAG_ALLOWLIST "" CACHE STRING
+    "Comma-separated BS names accepted by the tag boot profile; empty accepts all BS*")
+set(APP_MASTER_TDMA_SLOT_PERIOD_MS "10" CACHE STRING
+    "Master TDMA slot period in milliseconds")
+set(APP_MASTER_TDMA_SLOT_ACTIVE_MS "9" CACHE STRING
+    "Master TDMA slot active window in milliseconds")
+set(APP_MASTER_TDMA_SLOT_ACTIVE_US "0" CACHE STRING
+    "Optional Master TDMA active window in microseconds; 0 sends ACTIVE_MS only")
+set(APP_MASTER_TDMA_EPOCH_LEAD_MS "5000" CACHE STRING
+    "Master TDMA relative epoch lead time in milliseconds")
+set(APP_MASTER_TDMA_MOTION_DEFAULT_HZ "10" CACHE STRING
+    "Default TDMA target Hz for motion profile")
+set(APP_MASTER_BLE_CONN_INTERVAL_UNITS "6" CACHE STRING
+    "BLE connection interval in 1.25 ms units for NUS/tag links")
+set(APP_MASTER_BLE_CONN_LATENCY "0" CACHE STRING
+    "BLE connection slave latency for NUS/tag links")
+set(APP_MASTER_BLE_CONN_TIMEOUT_UNITS "400" CACHE STRING
+    "BLE supervision timeout in 10 ms units for NUS/tag links")
+
+target_include_directories(app PRIVATE
+    ${APP_ROOT}/include
+    ${APP_ROOT}/apps/master/src
+    ${APP_ROOT}/apps/master_ota/src
+    ${APP_ROOT}/apps/master_ota/generated
+    ${NCS_BASE}/modules/lib/zcbor/include
+    ${ZEPHYR_BASE}/subsys/mgmt/mcumgr/util/include
+)
+
+target_compile_definitions(app PRIVATE
+    ZCBOR_CANONICAL
+    APP_MASTER_TAG_NAME_PREFIX="${APP_MASTER_TAG_NAME_PREFIX}"
+    APP_MASTER_ONE_SHOT_CMD="${APP_MASTER_ONE_SHOT_CMD}"
+    APP_MASTER_OTA_TARGET_NAME="${APP_MASTER_OTA_TARGET_NAME}"
+    APP_MASTER_OTA_TARGET_NAME_PREFIX="${APP_MASTER_OTA_TARGET_NAME_PREFIX}"
+    APP_MASTER_OTA_TARGET_TOKEN_ID=${APP_MASTER_OTA_TARGET_TOKEN_ID}
+    APP_MASTER_BOOT_PROFILE="${APP_MASTER_BOOT_PROFILE}"
+    APP_MASTER_BOOT_TAG_ALLOWLIST="${APP_MASTER_BOOT_TAG_ALLOWLIST}"
+    APP_MASTER_TDMA_SLOT_PERIOD_MS=${APP_MASTER_TDMA_SLOT_PERIOD_MS}
+    APP_MASTER_TDMA_SLOT_ACTIVE_MS=${APP_MASTER_TDMA_SLOT_ACTIVE_MS}
+    APP_MASTER_TDMA_SLOT_ACTIVE_US=${APP_MASTER_TDMA_SLOT_ACTIVE_US}
+    APP_MASTER_TDMA_EPOCH_LEAD_MS=${APP_MASTER_TDMA_EPOCH_LEAD_MS}
+    APP_MASTER_TDMA_MOTION_DEFAULT_HZ=${APP_MASTER_TDMA_MOTION_DEFAULT_HZ}
+    APP_MASTER_BLE_CONN_INTERVAL_UNITS=${APP_MASTER_BLE_CONN_INTERVAL_UNITS}
+    APP_MASTER_BLE_CONN_LATENCY=${APP_MASTER_BLE_CONN_LATENCY}
+    APP_MASTER_BLE_CONN_TIMEOUT_UNITS=${APP_MASTER_BLE_CONN_TIMEOUT_UNITS}
+)
+
+set_source_files_properties(${APP_ROOT}/apps/master_ota/src/main.c PROPERTIES
+    COMPILE_OPTIONS "-Dmain=master_ota_run"
+)
+
+target_sources(app PRIVATE
+    src/main.c
+    ${APP_ROOT}/apps/master/src/master_multi_app.c
+    ${APP_ROOT}/apps/master_ota/src/main.c
+    ${NCS_BASE}/modules/lib/zcbor/src/zcbor_common.c
+    ${NCS_BASE}/modules/lib/zcbor/src/zcbor_encode.c
+    ${NCS_BASE}/modules/lib/zcbor/src/zcbor_decode.c
+    ${ZEPHYR_BASE}/subsys/mgmt/mcumgr/util/src/zcbor_bulk.c
+)

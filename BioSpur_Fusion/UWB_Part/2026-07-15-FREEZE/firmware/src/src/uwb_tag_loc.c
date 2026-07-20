@@ -1,0 +1,790 @@
+#include "uwb_tag_loc.h"
+
+#include "uwb_anchor_layout.h"
+#include "uwb_ss_twr_shared.h"
+
+#include <math.h>
+#include <string.h>
+
+#define UWB_TAG_LOC_MIN_ANCHORS 4U
+#ifndef APP_TAG_LOC_MIN_QUALITY_PERCENT
+#define APP_TAG_LOC_MIN_QUALITY_PERCENT 50U
+#endif
+#define UWB_TAG_LOC_MAX_ITERATIONS 8U
+#define UWB_TAG_LOC_MAX_CANDIDATES UWB_MAX_ANCHORS
+#define UWB_TAG_LOC_MAX_SOLVER_CANDIDATES UWB_MAX_ANCHORS
+#define UWB_TAG_LOC_SIZE_PENALTY_MM 40.0
+#define UWB_TAG_LOC_MAX_RES_WEIGHT 0.35
+#define UWB_TAG_LOC_XY_MARGIN_M 0.75
+#define UWB_TAG_LOC_Z_MARGIN_M 0.30
+#define UWB_TAG_LOC_VOLUME_PENALTY_WEIGHT 3.0
+#define UWB_TAG_LOC_MIN_TETRA_VOLUME_M3 0.005
+
+struct uwb_tag_loc_vector {
+    double x;
+    double y;
+    double z;
+};
+
+struct uwb_tag_loc_candidate {
+    uint8_t anchor_id;
+    uint8_t quality_percent;
+    bool lower_plane;
+    bool upper_plane;
+    struct uwb_tag_loc_vector pos_m;
+    double range_m;
+};
+
+struct uwb_tag_loc_bounds {
+    double min_x;
+    double max_x;
+    double min_y;
+    double max_y;
+    double min_z;
+    double max_z;
+};
+
+static bool uwb_tag_loc_build_candidates(
+    const struct uwb_tag_measurement *measurements,
+    size_t measurement_count,
+    struct uwb_tag_loc_candidate *candidates,
+    size_t *candidate_count)
+{
+    size_t out = 0U;
+
+    for (size_t i = 0; i < measurement_count && out < UWB_MAX_ANCHORS; ++i) {
+        const struct uwb_anchor_pose_mm *pose;
+
+        if (!measurements[i].valid ||
+            measurements[i].quality_percent < APP_TAG_LOC_MIN_QUALITY_PERCENT) {
+            continue;
+        }
+
+        pose = uwb_anchor_layout_get(measurements[i].anchor_id);
+        if (pose == NULL) {
+            continue;
+        }
+
+        candidates[out].anchor_id = measurements[i].anchor_id;
+        candidates[out].quality_percent = measurements[i].quality_percent;
+        candidates[out].lower_plane =
+            uwb_anchor_layout_is_lower_plane(measurements[i].anchor_id);
+        candidates[out].upper_plane =
+            uwb_anchor_layout_is_upper_plane(measurements[i].anchor_id);
+        candidates[out].pos_m.x = (double)pose->x_mm / 1000.0;
+        candidates[out].pos_m.y = (double)pose->y_mm / 1000.0;
+        candidates[out].pos_m.z = (double)pose->z_mm / 1000.0;
+        candidates[out].range_m = (double)measurements[i].range_mm / 1000.0;
+        out++;
+    }
+
+    *candidate_count = out;
+    return out >= UWB_TAG_LOC_MIN_ANCHORS;
+}
+
+static bool uwb_tag_loc_anchor_in_subset(const uint8_t *anchor_ids,
+                                         size_t anchor_id_count,
+                                         uint8_t anchor_id)
+{
+    for (size_t i = 0; i < anchor_id_count; ++i) {
+        if (anchor_ids[i] == anchor_id) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static double uwb_tag_loc_tetra_volume_m3(const struct uwb_tag_loc_vector *a,
+                                          const struct uwb_tag_loc_vector *b,
+                                          const struct uwb_tag_loc_vector *c,
+                                          const struct uwb_tag_loc_vector *d)
+{
+    double abx = b->x - a->x;
+    double aby = b->y - a->y;
+    double abz = b->z - a->z;
+    double acx = c->x - a->x;
+    double acy = c->y - a->y;
+    double acz = c->z - a->z;
+    double adx = d->x - a->x;
+    double ady = d->y - a->y;
+    double adz = d->z - a->z;
+    double cx = acy * adz - acz * ady;
+    double cy = acz * adx - acx * adz;
+    double cz = acx * ady - acy * adx;
+    double det = abx * cx + aby * cy + abz * cz;
+
+    return fabs(det) / 6.0;
+}
+
+static double uwb_tag_loc_subset_max_tetra_volume_m3(
+    const struct uwb_tag_loc_candidate *candidates,
+    size_t candidate_count,
+    uint32_t subset_mask)
+{
+    double best_volume = 0.0;
+
+    for (size_t i = 0; i < candidate_count; ++i) {
+        if ((subset_mask & (1UL << i)) == 0U) {
+            continue;
+        }
+        for (size_t j = i + 1; j < candidate_count; ++j) {
+            if ((subset_mask & (1UL << j)) == 0U) {
+                continue;
+            }
+            for (size_t k = j + 1; k < candidate_count; ++k) {
+                if ((subset_mask & (1UL << k)) == 0U) {
+                    continue;
+                }
+                for (size_t l = k + 1; l < candidate_count; ++l) {
+                    double volume;
+
+                    if ((subset_mask & (1UL << l)) == 0U) {
+                        continue;
+                    }
+
+                    volume = uwb_tag_loc_tetra_volume_m3(
+                        &candidates[i].pos_m, &candidates[j].pos_m,
+                        &candidates[k].pos_m, &candidates[l].pos_m);
+                    if (volume > best_volume) {
+                        best_volume = volume;
+                    }
+                }
+            }
+        }
+    }
+
+    return best_volume;
+}
+
+static void uwb_tag_loc_prune_candidates(
+    struct uwb_tag_loc_candidate *candidates,
+    size_t *candidate_count)
+{
+    struct uwb_tag_loc_candidate selected[UWB_TAG_LOC_MAX_SOLVER_CANDIDATES];
+    bool picked[UWB_TAG_LOC_MAX_CANDIDATES] = {false};
+    size_t lower_target = UWB_TAG_LOC_MAX_SOLVER_CANDIDATES / 2U;
+    size_t upper_target = UWB_TAG_LOC_MAX_SOLVER_CANDIDATES / 2U;
+    size_t selected_count = 0U;
+
+    if (*candidate_count <= UWB_TAG_LOC_MAX_SOLVER_CANDIDATES) {
+        return;
+    }
+
+    while (selected_count < lower_target) {
+        size_t best_idx = SIZE_MAX;
+
+        for (size_t i = 0; i < *candidate_count; ++i) {
+            if (picked[i] || !candidates[i].lower_plane) {
+                continue;
+            }
+            if (best_idx == SIZE_MAX ||
+                candidates[i].quality_percent >
+                    candidates[best_idx].quality_percent) {
+                best_idx = i;
+            }
+        }
+
+        if (best_idx == SIZE_MAX) {
+            break;
+        }
+
+        selected[selected_count++] = candidates[best_idx];
+        picked[best_idx] = true;
+    }
+
+    while (selected_count < (lower_target + upper_target)) {
+        size_t best_idx = SIZE_MAX;
+
+        for (size_t i = 0; i < *candidate_count; ++i) {
+            if (picked[i] || !candidates[i].upper_plane) {
+                continue;
+            }
+            if (best_idx == SIZE_MAX ||
+                candidates[i].quality_percent >
+                    candidates[best_idx].quality_percent) {
+                best_idx = i;
+            }
+        }
+
+        if (best_idx == SIZE_MAX) {
+            break;
+        }
+
+        selected[selected_count++] = candidates[best_idx];
+        picked[best_idx] = true;
+    }
+
+    while (selected_count < UWB_TAG_LOC_MAX_SOLVER_CANDIDATES) {
+        size_t best_idx = SIZE_MAX;
+
+        for (size_t i = 0; i < *candidate_count; ++i) {
+            if (picked[i]) {
+                continue;
+            }
+            if (best_idx == SIZE_MAX ||
+                candidates[i].quality_percent >
+                    candidates[best_idx].quality_percent) {
+                best_idx = i;
+            }
+        }
+
+        if (best_idx == SIZE_MAX) {
+            break;
+        }
+
+        selected[selected_count++] = candidates[best_idx];
+        picked[best_idx] = true;
+    }
+
+    memcpy(candidates, selected, selected_count * sizeof(selected[0]));
+    *candidate_count = selected_count;
+}
+
+static bool uwb_tag_loc_solve_3x3(double a[3][3], double b[3], double out[3])
+{
+    int i;
+
+    for (i = 0; i < 3; ++i) {
+        int pivot = i;
+        double max_abs = fabs(a[i][i]);
+
+        for (int row = i + 1; row < 3; ++row) {
+            double candidate = fabs(a[row][i]);
+            if (candidate > max_abs) {
+                max_abs = candidate;
+                pivot = row;
+            }
+        }
+
+        if (max_abs < 1e-9) {
+            return false;
+        }
+
+        if (pivot != i) {
+            for (int col = i; col < 3; ++col) {
+                double tmp = a[i][col];
+                a[i][col] = a[pivot][col];
+                a[pivot][col] = tmp;
+            }
+            {
+                double tmp = b[i];
+                b[i] = b[pivot];
+                b[pivot] = tmp;
+            }
+        }
+
+        for (int row = i + 1; row < 3; ++row) {
+            double factor = a[row][i] / a[i][i];
+            for (int col = i; col < 3; ++col) {
+                a[row][col] -= factor * a[i][col];
+            }
+            b[row] -= factor * b[i];
+        }
+    }
+
+    for (i = 2; i >= 0; --i) {
+        double sum = b[i];
+        for (int col = i + 1; col < 3; ++col) {
+            sum -= a[i][col] * out[col];
+        }
+        out[i] = sum / a[i][i];
+    }
+
+    return true;
+}
+
+static uint8_t uwb_tag_loc_popcount_u32(uint32_t mask)
+{
+    uint8_t count = 0U;
+
+    while (mask != 0U) {
+        count += (uint8_t)(mask & 1U);
+        mask >>= 1;
+    }
+
+    return count;
+}
+
+static bool uwb_tag_loc_linear_seed(
+    const struct uwb_tag_loc_candidate *candidates,
+    size_t candidate_count,
+    uint32_t subset_mask,
+    struct uwb_tag_loc_vector *seed)
+{
+    size_t ref_index = SIZE_MAX;
+    double ref_norm_sq = 0.0;
+    double ref_range_sq = 0.0;
+    double ata[3][3] = {{0.0}};
+    double atb[3] = {0.0, 0.0, 0.0};
+    double solution[3] = {0.0, 0.0, 0.0};
+
+    for (size_t i = 0; i < candidate_count; ++i) {
+        if ((subset_mask & (1UL << i)) != 0U) {
+            ref_index = i;
+            break;
+        }
+    }
+
+    if (ref_index == SIZE_MAX) {
+        return false;
+    }
+
+    ref_norm_sq = candidates[ref_index].pos_m.x * candidates[ref_index].pos_m.x +
+                  candidates[ref_index].pos_m.y * candidates[ref_index].pos_m.y +
+                  candidates[ref_index].pos_m.z * candidates[ref_index].pos_m.z;
+    ref_range_sq = candidates[ref_index].range_m * candidates[ref_index].range_m;
+
+    for (size_t i = 0; i < candidate_count; ++i) {
+        double row[3];
+        double norm_sq;
+        double rhs;
+
+        if (i == ref_index || (subset_mask & (1UL << i)) == 0U) {
+            continue;
+        }
+
+        row[0] = 2.0 * (candidates[i].pos_m.x - candidates[ref_index].pos_m.x);
+        row[1] = 2.0 * (candidates[i].pos_m.y - candidates[ref_index].pos_m.y);
+        row[2] = 2.0 * (candidates[i].pos_m.z - candidates[ref_index].pos_m.z);
+
+        norm_sq = candidates[i].pos_m.x * candidates[i].pos_m.x +
+                  candidates[i].pos_m.y * candidates[i].pos_m.y +
+                  candidates[i].pos_m.z * candidates[i].pos_m.z;
+
+        rhs = ref_range_sq - candidates[i].range_m * candidates[i].range_m -
+              ref_norm_sq + norm_sq;
+
+        for (int r = 0; r < 3; ++r) {
+            atb[r] += row[r] * rhs;
+            for (int c = 0; c < 3; ++c) {
+                ata[r][c] += row[r] * row[c];
+            }
+        }
+    }
+
+    if (!uwb_tag_loc_solve_3x3(ata, atb, solution)) {
+        return false;
+    }
+
+    seed->x = solution[0];
+    seed->y = solution[1];
+    seed->z = solution[2];
+    return true;
+}
+
+static bool uwb_tag_loc_refine_gauss_newton(
+    const struct uwb_tag_loc_candidate *candidates,
+    size_t candidate_count,
+    uint32_t subset_mask,
+    struct uwb_tag_loc_vector *estimate)
+{
+    for (uint8_t iter = 0U; iter < UWB_TAG_LOC_MAX_ITERATIONS; ++iter) {
+        double h[3][3] = {{0.0}};
+        double g[3] = {0.0, 0.0, 0.0};
+        double delta[3] = {0.0, 0.0, 0.0};
+
+        for (size_t i = 0; i < candidate_count; ++i) {
+            double dx;
+            double dy;
+            double dz;
+            double predicted;
+            double residual;
+            double jacobian[3];
+            double weight;
+
+            if ((subset_mask & (1UL << i)) == 0U) {
+                continue;
+            }
+
+            dx = estimate->x - candidates[i].pos_m.x;
+            dy = estimate->y - candidates[i].pos_m.y;
+            dz = estimate->z - candidates[i].pos_m.z;
+            predicted = sqrt(dx * dx + dy * dy + dz * dz);
+            if (predicted < 1e-6) {
+                predicted = 1e-6;
+            }
+
+            residual = predicted - candidates[i].range_m;
+            jacobian[0] = dx / predicted;
+            jacobian[1] = dy / predicted;
+            jacobian[2] = dz / predicted;
+            weight = 0.25 + ((double)candidates[i].quality_percent / 100.0);
+
+            for (int r = 0; r < 3; ++r) {
+                g[r] += weight * jacobian[r] * residual;
+                for (int c = 0; c < 3; ++c) {
+                    h[r][c] += weight * jacobian[r] * jacobian[c];
+                }
+            }
+        }
+
+        if (!uwb_tag_loc_solve_3x3(h, g, delta)) {
+            return false;
+        }
+
+        estimate->x -= delta[0];
+        estimate->y -= delta[1];
+        estimate->z -= delta[2];
+
+        if (fabs(delta[0]) < 1e-4 && fabs(delta[1]) < 1e-4 &&
+            fabs(delta[2]) < 1e-4) {
+            break;
+        }
+    }
+
+    return true;
+}
+
+static void uwb_tag_loc_compute_residuals(
+    const struct uwb_tag_loc_candidate *candidates,
+    size_t candidate_count,
+    uint32_t subset_mask,
+    const struct uwb_tag_loc_vector *estimate,
+    double *rms_m,
+    double *max_abs_m,
+    uint8_t *lower_count,
+    uint8_t *upper_count)
+{
+    double residual_sum_sq = 0.0;
+    double max_residual = 0.0;
+    uint8_t used = 0U;
+    uint8_t lower = 0U;
+    uint8_t upper = 0U;
+
+    for (size_t i = 0; i < candidate_count; ++i) {
+        double dx;
+        double dy;
+        double dz;
+        double predicted;
+        double residual;
+
+        if ((subset_mask & (1UL << i)) == 0U) {
+            continue;
+        }
+
+        dx = estimate->x - candidates[i].pos_m.x;
+        dy = estimate->y - candidates[i].pos_m.y;
+        dz = estimate->z - candidates[i].pos_m.z;
+        predicted = sqrt(dx * dx + dy * dy + dz * dz);
+        residual = predicted - candidates[i].range_m;
+        residual_sum_sq += residual * residual;
+        if (fabs(residual) > max_residual) {
+            max_residual = fabs(residual);
+        }
+
+        if (candidates[i].lower_plane) {
+            lower++;
+        } else if (candidates[i].upper_plane) {
+            upper++;
+        }
+
+        used++;
+    }
+
+    *rms_m = (used == 0U) ? 0.0 : sqrt(residual_sum_sq / (double)used);
+    *max_abs_m = max_residual;
+    *lower_count = lower;
+    *upper_count = upper;
+}
+
+static void uwb_tag_loc_compute_bounds(
+    const struct uwb_tag_loc_candidate *candidates,
+    size_t candidate_count,
+    struct uwb_tag_loc_bounds *bounds)
+{
+    bounds->min_x = candidates[0].pos_m.x;
+    bounds->max_x = candidates[0].pos_m.x;
+    bounds->min_y = candidates[0].pos_m.y;
+    bounds->max_y = candidates[0].pos_m.y;
+    bounds->min_z = candidates[0].pos_m.z;
+    bounds->max_z = candidates[0].pos_m.z;
+
+    for (size_t i = 1; i < candidate_count; ++i) {
+        if (candidates[i].pos_m.x < bounds->min_x) {
+            bounds->min_x = candidates[i].pos_m.x;
+        }
+        if (candidates[i].pos_m.x > bounds->max_x) {
+            bounds->max_x = candidates[i].pos_m.x;
+        }
+        if (candidates[i].pos_m.y < bounds->min_y) {
+            bounds->min_y = candidates[i].pos_m.y;
+        }
+        if (candidates[i].pos_m.y > bounds->max_y) {
+            bounds->max_y = candidates[i].pos_m.y;
+        }
+        if (candidates[i].pos_m.z < bounds->min_z) {
+            bounds->min_z = candidates[i].pos_m.z;
+        }
+        if (candidates[i].pos_m.z > bounds->max_z) {
+            bounds->max_z = candidates[i].pos_m.z;
+        }
+    }
+}
+
+static double uwb_tag_loc_axis_overshoot(double value, double min_bound,
+                                         double max_bound, double margin)
+{
+    if (value < (min_bound - margin)) {
+        return (min_bound - margin) - value;
+    }
+
+    if (value > (max_bound + margin)) {
+        return value - (max_bound + margin);
+    }
+
+    return 0.0;
+}
+
+int uwb_tag_loc_solve(const struct uwb_tag_measurement *measurements,
+                      size_t measurement_count,
+                      enum uwb_tag_loc_subset_policy subset_policy,
+                      struct uwb_tag_location_result *result)
+{
+    struct uwb_tag_loc_candidate candidates[UWB_TAG_LOC_MAX_CANDIDATES];
+    struct uwb_tag_loc_bounds bounds;
+    size_t candidate_count = 0U;
+    double best_score = 0.0;
+    bool best_valid = false;
+    uint32_t best_mask = 0U;
+    struct uwb_tag_loc_vector best_estimate = {0.0, 0.0, 0.0};
+    double best_rms_m = 0.0;
+    double best_max_residual_m = 0.0;
+    uint8_t best_lower_count = 0U;
+    uint8_t best_upper_count = 0U;
+
+    memset(result, 0, sizeof(*result));
+
+    if (!uwb_tag_loc_build_candidates(measurements, measurement_count, candidates,
+                                      &candidate_count)) {
+        return -1;
+    }
+
+    uwb_tag_loc_prune_candidates(candidates, &candidate_count);
+    uwb_tag_loc_compute_bounds(candidates, candidate_count, &bounds);
+
+    if (subset_policy == UWB_TAG_LOC_SUBSET_POLICY_ALL_VALID) {
+        uint32_t mask;
+        struct uwb_tag_loc_vector estimate;
+        double rms_m;
+        double max_residual_m;
+        uint8_t lower_count;
+        uint8_t upper_count;
+
+        if (candidate_count < UWB_TAG_LOC_MIN_ANCHORS ||
+            candidate_count >= (sizeof(mask) * 8U)) {
+            return -1;
+        }
+
+        mask = (1UL << candidate_count) - 1UL;
+        if (!uwb_tag_loc_linear_seed(candidates, candidate_count, mask,
+                                     &estimate)) {
+            return -1;
+        }
+        if (!uwb_tag_loc_refine_gauss_newton(candidates, candidate_count, mask,
+                                             &estimate)) {
+            return -1;
+        }
+        uwb_tag_loc_compute_residuals(candidates, candidate_count, mask,
+                                      &estimate, &rms_m, &max_residual_m,
+                                      &lower_count, &upper_count);
+        if (uwb_tag_loc_subset_max_tetra_volume_m3(candidates, candidate_count,
+                                                   mask) <
+            UWB_TAG_LOC_MIN_TETRA_VOLUME_M3) {
+            return -1;
+        }
+
+        result->valid = true;
+        result->used_anchor_count = (uint8_t)candidate_count;
+        result->lower_anchor_count = lower_count;
+        result->upper_anchor_count = upper_count;
+        result->x_mm = (int32_t)lround(estimate.x * 1000.0);
+        result->y_mm = (int32_t)lround(estimate.y * 1000.0);
+        result->z_mm = (int32_t)lround(estimate.z * 1000.0);
+        result->residual_rms_mm = (uint32_t)lround(rms_m * 1000.0);
+        result->residual_max_mm = (uint32_t)lround(max_residual_m * 1000.0);
+        for (size_t i = 0U; i < candidate_count; ++i) {
+            result->anchor_ids[i] = candidates[i].anchor_id;
+        }
+        return 0;
+    }
+
+    /*
+     * Prefer 3D-observable subsets (>=2 lower and >=2 upper anchors).
+     * If the environment temporarily drops upper-plane visibility, degrade
+     * gracefully so localization keeps running instead of stalling forever.
+     */
+    const uint8_t plane_reqs[][2] = {
+        {2U, 2U},
+        {1U, 1U},
+        {0U, 0U},
+    };
+
+    for (size_t req_idx = 0U; req_idx < (sizeof(plane_reqs) / sizeof(plane_reqs[0])); ++req_idx) {
+        uint8_t req_lower = plane_reqs[req_idx][0];
+        uint8_t req_upper = plane_reqs[req_idx][1];
+
+        best_valid = false;
+        best_score = 0.0;
+
+        for (uint32_t mask = 0U; mask < (1UL << candidate_count); ++mask) {
+            struct uwb_tag_loc_vector estimate;
+            double rms_m;
+            double max_residual_m;
+            double score;
+            double volume_penalty_m;
+            uint8_t subset_size;
+            uint8_t lower_count;
+            uint8_t upper_count;
+
+            subset_size = uwb_tag_loc_popcount_u32(mask);
+            if (subset_policy == UWB_TAG_LOC_SUBSET_POLICY_EXACT4 &&
+                subset_size != UWB_TAG_LOC_MIN_ANCHORS) {
+                continue;
+            }
+
+            if (subset_size < UWB_TAG_LOC_MIN_ANCHORS) {
+                continue;
+            }
+
+            if (!uwb_tag_loc_linear_seed(candidates, candidate_count, mask,
+                                         &estimate)) {
+                continue;
+            }
+
+            if (!uwb_tag_loc_refine_gauss_newton(candidates, candidate_count, mask,
+                                                 &estimate)) {
+                continue;
+            }
+
+            uwb_tag_loc_compute_residuals(candidates, candidate_count, mask,
+                                          &estimate, &rms_m, &max_residual_m,
+                                          &lower_count, &upper_count);
+
+            if (lower_count < req_lower || upper_count < req_upper) {
+                continue;
+            }
+
+            if (uwb_tag_loc_subset_max_tetra_volume_m3(candidates, candidate_count,
+                                                       mask) <
+                UWB_TAG_LOC_MIN_TETRA_VOLUME_M3) {
+                continue;
+            }
+
+            score = rms_m * 1000.0 + max_residual_m * 1000.0 *
+                                         UWB_TAG_LOC_MAX_RES_WEIGHT +
+                    (double)(candidate_count - subset_size) *
+                        UWB_TAG_LOC_SIZE_PENALTY_MM;
+
+            volume_penalty_m =
+                uwb_tag_loc_axis_overshoot(estimate.x, bounds.min_x, bounds.max_x,
+                                           UWB_TAG_LOC_XY_MARGIN_M) +
+                uwb_tag_loc_axis_overshoot(estimate.y, bounds.min_y, bounds.max_y,
+                                           UWB_TAG_LOC_XY_MARGIN_M) +
+                uwb_tag_loc_axis_overshoot(estimate.z, bounds.min_z, bounds.max_z,
+                                           UWB_TAG_LOC_Z_MARGIN_M);
+            score += volume_penalty_m * 1000.0 * UWB_TAG_LOC_VOLUME_PENALTY_WEIGHT;
+
+            if (!best_valid || score < best_score) {
+                best_valid = true;
+                best_score = score;
+                best_mask = mask;
+                best_estimate = estimate;
+                best_rms_m = rms_m;
+                best_max_residual_m = max_residual_m;
+                best_lower_count = lower_count;
+                best_upper_count = upper_count;
+            }
+        }
+
+        if (best_valid) {
+            break;
+        }
+    }
+
+    if (!best_valid) {
+        return -1;
+    }
+
+    result->valid = true;
+    result->used_anchor_count = uwb_tag_loc_popcount_u32(best_mask);
+    result->lower_anchor_count = best_lower_count;
+    result->upper_anchor_count = best_upper_count;
+    result->x_mm = (int32_t)lround(best_estimate.x * 1000.0);
+    result->y_mm = (int32_t)lround(best_estimate.y * 1000.0);
+    result->z_mm = (int32_t)lround(best_estimate.z * 1000.0);
+    result->residual_rms_mm = (uint32_t)lround(best_rms_m * 1000.0);
+    result->residual_max_mm =
+        (uint32_t)lround(best_max_residual_m * 1000.0);
+
+    for (size_t i = 0U, out = 0U; i < candidate_count; ++i) {
+        if ((best_mask & (1UL << i)) == 0U) {
+            continue;
+        }
+        result->anchor_ids[out++] = candidates[i].anchor_id;
+    }
+
+    return 0;
+}
+
+int uwb_tag_loc_evaluate_solution(const struct uwb_tag_measurement *measurements,
+                                  size_t measurement_count,
+                                  const uint8_t *anchor_ids,
+                                  size_t anchor_id_count,
+                                  int32_t x_mm,
+                                  int32_t y_mm,
+                                  int32_t z_mm,
+                                  uint32_t *residual_rms_mm,
+                                  uint32_t *residual_max_mm,
+                                  uint8_t *lower_count,
+                                  uint8_t *upper_count)
+{
+    struct uwb_tag_loc_candidate candidates[UWB_TAG_LOC_MAX_CANDIDATES];
+    struct uwb_tag_loc_vector estimate = {
+        .x = (double)x_mm / 1000.0,
+        .y = (double)y_mm / 1000.0,
+        .z = (double)z_mm / 1000.0,
+    };
+    uint32_t subset_mask = 0U;
+    size_t candidate_count = 0U;
+    double rms_m = 0.0;
+    double max_abs_m = 0.0;
+    uint8_t lower = 0U;
+    uint8_t upper = 0U;
+
+    if (!uwb_tag_loc_build_candidates(measurements, measurement_count, candidates,
+                                      &candidate_count)) {
+        return -1;
+    }
+
+    for (size_t i = 0; i < candidate_count; ++i) {
+        if (!uwb_tag_loc_anchor_in_subset(anchor_ids, anchor_id_count,
+                                          candidates[i].anchor_id)) {
+            continue;
+        }
+        subset_mask |= (1UL << i);
+    }
+
+    if (uwb_tag_loc_popcount_u32(subset_mask) < UWB_TAG_LOC_MIN_ANCHORS) {
+        return -1;
+    }
+
+    uwb_tag_loc_compute_residuals(candidates, candidate_count, subset_mask,
+                                  &estimate, &rms_m, &max_abs_m,
+                                  &lower, &upper);
+
+    if (residual_rms_mm != NULL) {
+        *residual_rms_mm = (uint32_t)lround(rms_m * 1000.0);
+    }
+    if (residual_max_mm != NULL) {
+        *residual_max_mm = (uint32_t)lround(max_abs_m * 1000.0);
+    }
+    if (lower_count != NULL) {
+        *lower_count = lower;
+    }
+    if (upper_count != NULL) {
+        *upper_count = upper;
+    }
+
+    return 0;
+}
