@@ -1,86 +1,108 @@
-# B306 DFU plan
+# B306 DFU contract
 
-## Scope
+## First-flash image
 
-The planned B306 update path is MCUboot with mcumgr SMP over BLE and two internal
-flash image slots. This is documentation only: the minimal P1 build does not
-enable MCUboot or change its partition map.
+The B306 first image is deliberately limited to signed MCUboot, mcumgr SMP over
+BLE (image and OS groups), FICR-derived `BSF%04X` advertising, non-blocking RTT
+logging, and an LED heartbeat. It contains no UWB UART, ready-edge capture, or
+IMU behavior.
 
-## NCS v2.8.0 configuration
+The first human SWD handover establishes two durable interfaces:
 
-The future sysbuild enables MCUboot with:
+1. the MCUboot public key compiled into the bootloader; and
+2. the flash partition layout frozen in `firmware/pm_static.yml`.
 
-```ini
-# sysbuild.conf
-SB_CONFIG_BOOTLOADER_MCUBOOT=y
+Changing either later requires another SWD handover. The BLE-only update cycle
+must pass before feature work is installed on the Fusion PCB.
+
+## Signing key
+
+The private ECDSA P-256 key is stored outside the repository:
+
+```text
+/home/zekaixiao/.config/biospur/keys/b306_mcuboot_ec_p256.pem
 ```
 
-The application configuration needs at least:
+Its tracked public half is:
 
-```ini
-CONFIG_BOOTLOADER_MCUBOOT=y
-CONFIG_FLASH=y
-CONFIG_FLASH_MAP=y
-CONFIG_STREAM_FLASH=y
-CONFIG_IMG_MANAGER=y
-CONFIG_NET_BUF=y
-CONFIG_ZCBOR=y
-CONFIG_CRC=y
-CONFIG_MCUMGR=y
-CONFIG_MCUMGR_GRP_IMG=y
-CONFIG_MCUMGR_GRP_OS=y
-CONFIG_MCUMGR_TRANSPORT_BT=y
-CONFIG_MCUMGR_TRANSPORT_BT_PERM_RW=y
-CONFIG_MCUMGR_TRANSPORT_BT_CONN_PARAM_CONTROL=y
-CONFIG_MCUMGR_TRANSPORT_BT_REASSEMBLY=y
-CONFIG_BT=y
-CONFIG_BT_PERIPHERAL=y
+```text
+B306_Part/firmware/keys/b306_mcuboot_ec_p256.pub.pem
 ```
 
-Production must replace unauthenticated write permission with an authenticated
-policy before deployment. Buffer/stack sizes and image-signing keys are selected
-and validated when DFU is enabled; private signing keys never enter this repo.
+The durable key fingerprint is SHA-256 over the DER-encoded
+SubjectPublicKeyInfo:
 
-## Planned internal-flash layout
+```text
+0e525dedaa7f50fb38d3c8f1792cacaa20f70204aa46ef6b50d720479c6ef5a2
+```
 
-NINA-B306's nRF52840 has 1 MiB internal flash. The proposed fixed layout uses
-equal slots, no scratch partition, and reserves 32 KiB for settings:
+Before the first B306 flash, confirm the private key has a protected backup and
+recompute this fingerprint:
 
-| Region | Address | Size |
-|---|---:|---:|
-| MCUboot | `0x00000000` | `0x0000C000` = 48 KiB |
-| Primary image slot | `0x0000C000` | `0x00076000` = 472 KiB |
-| Secondary image slot | `0x00082000` | `0x00076000` = 472 KiB |
-| Settings/storage | `0x000F8000` | `0x00008000` = 32 KiB |
+```bash
+openssl pkey \
+  -in /home/zekaixiao/.config/biospur/keys/b306_mcuboot_ec_p256.pem \
+  -pubout -outform DER |
+sha256sum
+```
 
-The MCUboot header/pad and trailer live inside their image-slot budgets. This
-layout totals exactly `0x100000`. It is a plan, not the current build map; when
-DFU is enabled, the generated Partition Manager report must match these
-addresses before hardware flashing.
+Do not regenerate or replace this key after first flash. The repository never
+contains the private key.
 
-## State machine
+## Generated and frozen partition layout
+
+Partition Manager generated this map from the first dynamic NCS v2.8.0
+sysbuild. The exact generated YAML was then frozen as `firmware/pm_static.yml`,
+and a pristine rebuild reproduced it.
+
+| Region | Start | End | Size |
+|---|---:|---:|---:|
+| MCUboot | `0x000000` | `0x00C000` | `0x00C000` = 48 KiB |
+| MCUboot pad | `0x00C000` | `0x00C200` | `0x000200` = 512 B |
+| Application payload | `0x00C200` | `0x086000` | `0x079E00` = 487.5 KiB |
+| Primary image slot, including pad | `0x00C000` | `0x086000` | `0x07A000` = 488 KiB |
+| Secondary image slot | `0x086000` | `0x100000` | `0x07A000` = 488 KiB |
+| SRAM | `0x20000000` | `0x20040000` | `0x040000` = 256 KiB |
+
+There is no scratch or settings partition in this minimal first layout.
+MCUboot uses equal 488 KiB primary and secondary slots.
+
+## Configuration
+
+`sysbuild.conf` enables MCUboot with ECDSA P-256 signing. The application
+enables the flash map, image manager, BLE SMP transport, image group, and OS
+group. MCUboot and the application both use the calibrated 500 ppm LFRC and
+RTT in no-block-skip mode. Flash-patch support is disabled to preserve the
+secure-boot trust boundary.
+
+The first SMP service has unauthenticated read/write permission and is a
+bench-bring-up image, not a production authorization policy.
+
+## BLE-only acceptance, still pending
+
+After the human reports a successful first flash, Stage 1 must:
+
+1. discover the node by its `BSF%04X` name and SMP service UUID;
+2. upload a signed image with a visibly different marker over BLE;
+3. list the image and verify its hash;
+4. mark it for test, reset, and verify the new marker;
+5. demonstrate MCUboot revert when the test image is not confirmed;
+6. upload again, confirm the image, reboot, and verify it remains active.
+
+Record the exact host commands and image SHA used during that test. SWD must
+remain untouched throughout the BLE-only cycle. The workstation's specific
+mcumgr BLE transport tool has not yet been selected, so commands are not
+invented here.
+
+## Runtime state contract for later capture images
 
 `RUN -> DFU_PREPARE -> DFU -> REBOOT -> RUN`
 
-Entering `DFU_PREPARE` stops new 200 Hz triggers, waits for any active I2C read,
-forces the DWM UART receiver idle, disables GPIO-ready capture, flushes or marks
-the final capture batch, and rejects new capture commands. Only then may SMP
-image traffic start.
+Entering `DFU_PREPARE` stops new IMU triggers and UWB ingest, completes or
+aborts in-flight DMA safely, and closes the current capture batch. Capture and
+DFU are mutually exclusive. A successful confirmed update and an MCUboot
+rollback must both leave the node in RUN with a new boot/session identity.
 
-Cancellation before image activation reinitializes peripherals and enters RUN
-with a new session marker. A successful upload marks the signed image pending
-and requests a reboot. The new image performs self-test, confirms itself, starts
-a new boot/session identity, and enters RUN. Failure to confirm invokes MCUboot
-rollback; the rolled-back image also enters RUN with a new identity. Capture and
-DFU are never concurrent.
-
-## Two independent targets
-
-| MCU | Update image/tool | Must not be used for |
-|---|---|---|
-| DWM1001C nRF52832 | Existing UWB BLE-OTA flow via the B120 Tag Master; frozen source/build recipes under `UWB_Part` | B306 images or B306 SMP service |
-| B306 nRF52840 | Future Fusion Master/PC mcumgr BLE upload of the B306 signed image; SWD/J-Link only for bench recovery | DWM1001C images |
-
-Target identity, image board/SoC metadata, and image signature must be verified
-before erase/upload. A successful operation on one MCU says nothing about the
-firmware state of the other.
+The DWM1001C has a separate BLE-DFU route through the Tag Master. B306 SMP
+images must never be sent to that MCU, and DWM1001C images must never be sent
+to B306.

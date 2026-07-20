@@ -39,14 +39,31 @@ Do not infer hardware from code comments. This table is ground truth.
 ```text
 JY61P  --I2C-------------> B306
 DWM1001C --UART----------> B306        (raw ranges out)
-DWM1001C --GPIO19 Ready--> B306        (sweep timestamp strobe)
+DWM1001C --READY----------> B306        (sweep timestamp strobe)
 DWM1001C SWD               standalone  (NOT routed to B306; flash via J-Link OB)
 ```
 
 `GPIO19` is the schematic name for **DWM1001 module pin 19**, signal `READY`,
 which maps to nRF52832 **P0.26**. A whole-tree audit of the frozen firmware
 found P0.26 unused. nRF52832 **P0.19** is the internal DW1000 IRQ input and must
-not be repurposed. The B306 capture-input mapping is still unconfirmed. See §5.
+not be repurposed. See §5.
+
+NINA-B3 `GPIO_n` names are module pads, not arithmetic nRF pin numbers:
+
+| PCB net | NINA-B306 pad | B306 nRF52840 pin | Direction/use |
+|---|---:|---|---|
+| `UWB_RX1` | GPIO_35 | P1.01 | B306 RX from DWM1001C pin 20 `UART_TX` |
+| `UWB_TX1` | GPIO_36 | P1.02 | B306 TX to DWM1001C pin 18 `UART_RX`; wired, currently unused |
+| `UWB_RDY` | GPIO_37 | P1.03 | B306 strobe input from DWM1001C nRF52832 P0.26 |
+| `SDA` | GPIO_42 | P0.26 | JY61P I2C data |
+| `SCL` | GPIO_44 | P0.27 | JY61P I2C clock |
+| `BUTTON_1` | GPIO_32 | P0.11 | Active-low button |
+
+Always qualify P0.26 by MCU: it is the DWM1001C nRF52832 strobe output and the
+B306 nRF52840 I2C SDA pin. The fitted NINA-B306-01B has no 32.768 kHz crystal;
+use the calibrated 500 ppm LFRC. The fitted JY61P is the 6-axis part at I2C
+address `0x50`; MAX30102, its second I2C path, and the 1.8 V support domain are
+not populated.
 
 ### Off-board
 
@@ -141,11 +158,16 @@ Frozen `uwb_port.c` configures it as `GPIO_INPUT`; never drive or repurpose it.
 
 Before completing P2:
 
-1. Confirm the B306 capture input from the PCB schematic/netlist.
-2. Bench-validate the P0.26 implementation in `UWB_Part/fusion-link/`; it
+1. Bench-validate the P0.26 implementation in `UWB_Part/fusion-link/`; it
    configures a defined inactive level and pulses in the broadcast-poll
    TX-done path but has not yet been deployed.
+2. Capture that pulse on B306 nRF52840 P1.03 through the `UWB_RDY` net.
 3. On B306, discard edges until a plausible cadence is established.
+
+The PCB's 0 Ω series resistors on `UWB_RDY`, `UWB_TX1`, and `UWB_RX1` are logic
+analyser test points. During bring-up, use those signals as ground truth. Field
+telemetry still counts CRC errors, dropped/duplicated sweeps, unpaired strobes
+and frames, and clock-filter residuals.
 
 See `UWB_Part/FREEZE_INTERFACE.md` for source citations.
 
@@ -224,13 +246,16 @@ complete package set.
 
 ---
 
-## 8. DFU / OTA — to be built
+## 8. DFU / OTA
 
-B306 currently has **no DFU path**. This is a required deliverable, not a nice
-to have: the module goes on a body, and SWD access during a capture session is
-not realistic.
+B306's first-flash image includes signed MCUboot, equal internal-flash slots,
+and mcumgr SMP over BLE. The generated partition layout is frozen in
+`B306_Part/firmware/pm_static.yml`; key ownership and the exact layout are
+recorded in `B306_Part/docs/dfu.md`.
 
-Plan: **MCUboot + mcumgr over BLE (SMP)**, dual-slot.
+The private signing key is outside the repository. Never replace it or change
+the partition layout after the first B306 flash without treating the change as
+an SWD recovery event.
 
 Requirements:
 
@@ -239,8 +264,10 @@ Requirements:
 - The 52832's own OTA path is separate and unchanged. Two independent DFU
   targets on one board — document which tool flashes which.
 
-The planned configuration and 1 MiB internal-flash partition map are documented
-in `B306_Part/docs/dfu.md`. Do not enable MCUboot in the minimal P1 scaffold.
+The first image deliberately contains only MCUboot/SMP, FICR-derived
+`BSF%04X` advertising, non-blocking RTT logs, and an LED heartbeat. UART, IMU,
+strobe capture, and capture streaming arrive only after a BLE-only DFU cycle
+has passed.
 
 ---
 
@@ -270,16 +297,18 @@ in `B306_Part/docs/dfu.md`. Do not enable MCUboot in the minimal P1 scaffold.
 | **P6** | Vicon validation | Improvement is real **and attributable** (gap-filling vs outlier rejection reported separately) |
 | **P7** | Multi-node decision | Measure how many nodes one central holds. ≥8 → ship. <8 → reverse-broadcast. |
 
-**P1 is the current phase.** It is fully decoupled from the ready-strobe issue;
-DWM1001C does not need power. Resolve the pin map and add the strobe during P2,
-alongside the UART output change.
+**The current checkpoint is the two first-flash human handovers.** Do not begin
+dependent feature work until the human reports the observed result from both
+MCUs. Stage 1 then proves a complete BLE-only B306 DFU cycle before P1/P2
+feature images are accepted.
 
 ### Hard sequencing rules
 
 - **Fusion does not move into the MCU until P6 passes.** Porting an ES-EKF
   before the measurement model and R matrix are frozen is wasted work.
 - **Nothing is bought and no multi-node code is written before P7.**
-- **The custom PCB is not on the critical path.** P1–P6 run on the 52840 DK.
+- SWD on either Fusion-PCB MCU is a human handover. Do not infer success or
+  continue dependent work while a handover is outstanding.
 
 ### External dependency
 
@@ -324,18 +353,25 @@ degrades to a pure configuration channel. Not P1–P6 work.
   runtime-configurable.
 - Task A wire contract: `biospur_link.h` v2, fixed 96-byte frame,
   CRC-16/CCITT-FALSE, with measured per-anchor `t_round_us`.
+- B306 pins: UWB RX P1.01, unused UWB TX P1.02, UWB ready P1.03, I2C SDA
+  P0.26, I2C SCL P0.27, button P0.11.
+- JY61P/WT61P-compatible 6-axis subset: address `0x50`, accelerometer and
+  gyroscope registers `0x34`–`0x39`, and `RRATE` register `0x03 = 0x000B` for
+  nominal 200 Hz. Magnetometer and Euler-angle registers are out of scope.
+- NINA-B306-01B has no LFXO. Use LFRC, 500 ppm, with periodic calibration.
+- `UWB_RDY`, `UWB_TX1`, and `UWB_RX1` can be observed at their 0 Ω series
+  resistors during bring-up.
 
 ### UNKNOWN — do not guess
 
-- JY61P I2C address, register map, and 200 Hz configuration.
-- B306 PCB pins for I2C SCL/SDA, DWM UART TX/RX, and ready capture.
-- B306 capture-input mapping for the DWM1001 module-pin-19/P0.26 READY signal.
+- Whether this individual JY61P acknowledges at `0x50`, applies the 200 Hz
+  `RRATE` write, and has the documented axis signs. Verify by ACK, a
+  flat/still test, a signed 90° rotation, and duplicate-sample counting.
 - Measured per-anchor epoch offsets within a sweep.
 - Final BLE logical-batch encoding/fragmentation and UUIDs.
 
-Resolve JY61P facts from the exact module datasheet/bench probe; resolve pins
-from the PCB schematic/netlist; resolve protocol fields by implementing and
-testing a versioned branch from the freeze.
+Resolve the remaining sensor facts by bench probe and the protocol details by
+implementing and measuring against the versioned Task A interface.
 
 ### Conventions inherited from the old workspace
 

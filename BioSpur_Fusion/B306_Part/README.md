@@ -4,9 +4,10 @@
 node clock, timestamps the JY61P IMU and DWM1001C UWB epochs, batches the aligned
 records, and sends them to a Fusion Master over BLE.
 
-The current phase is scaffolding and P1 bring-up on an nRF52840 DK. There is no
-IMU driver, UWB UART parser, GPIO capture path, fusion algorithm, or production
-BLE service here yet.
+The current checkpoint is the minimal signed first B306 image and two
+Fusion-PCB human flash handovers. The image has BLE SMP, identity advertising,
+RTT, and an LED heartbeat, but no IMU driver, UWB UART parser, GPIO capture
+path, data service, or fusion algorithm.
 
 ## Layout
 
@@ -14,6 +15,7 @@ BLE service here yet.
 - `host/dongle_central/`: future nRF52840 dongle BLE-central/USB-CDC firmware.
 - `host/pc/`: future capture, validation, parsing, and provenance tooling.
 - `docs/`: timing, BLE, and DFU contracts.
+- `handover/`: self-contained human-only Fusion-PCB flash packages.
 - `tools/`: workspace-local build and bench helpers.
 - `logs/`: ignored runtime output. Create timestamped run directories here.
 
@@ -23,6 +25,8 @@ BLE service here yet.
 - IMU timestamps belong to hardware-timer trigger instants.
 - UWB epoch timestamps belong to hardware-captured ready edges.
 - Host-side fusion remains on the PC until the P6 measurement model is frozen.
+- The first B306 image must demonstrate a BLE-only DFU cycle before feature
+  images are accepted.
 - `../UWB_Part/2026-07-15-FREEZE/` is read-only.
 
 Read the workspace `AGENTS.md`, `../UWB_Part/FREEZE_INTERFACE.md`, and the

@@ -1,0 +1,48 @@
+/*
+ * BioSpur Fusion NINA-B306 pin control
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&pinctrl {
+	uwb_uart_default: uwb_uart_default {
+		tx_group {
+			/* NINA GPIO_36: B306 TX toward DWM1001C UART_RX. */
+			psels = <NRF_PSEL(UART_TX, 1, 2)>;
+		};
+
+		rx_group {
+			/* NINA GPIO_35: B306 RX from DWM1001C UART_TX. */
+			psels = <NRF_PSEL(UART_RX, 1, 1)>;
+			bias-pull-up;
+		};
+	};
+
+	uwb_uart_sleep: uwb_uart_sleep {
+		group1 {
+			psels = <NRF_PSEL(UART_TX, 1, 2)>,
+				<NRF_PSEL(UART_RX, 1, 1)>;
+			low-power-enable;
+		};
+	};
+
+	imu_i2c_default: imu_i2c_default {
+		group1 {
+			/*
+			 * B306 nRF52840 P0.26 is JY61P SDA.
+			 * Do not confuse it with DWM1001C nRF52832 P0.26,
+			 * which is the sweep-strobe output on the other MCU.
+			 */
+			psels = <NRF_PSEL(TWIM_SDA, 0, 26)>,
+				<NRF_PSEL(TWIM_SCL, 0, 27)>;
+		};
+	};
+
+	imu_i2c_sleep: imu_i2c_sleep {
+		group1 {
+			psels = <NRF_PSEL(TWIM_SDA, 0, 26)>,
+				<NRF_PSEL(TWIM_SCL, 0, 27)>;
+			low-power-enable;
+		};
+	};
+};
