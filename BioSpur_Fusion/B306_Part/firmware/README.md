@@ -63,7 +63,7 @@ B306_Part/builds/b306-fast-ota-v3/dfu_application.zip
 
 `merged.hex` is only for a human-run SWD handover. B306 updates use the signed
 binary over BLE SMP. The built-but-not-installed v3 signed binary has SHA-256
-`11882aa3b8cde5d1c88418002bd019832ad501a2af175cdc1b5f0f023661113b`;
+`28461e49c5495fa2e5ff93d56e9a9ec7e2fc774f5fa362edf4ea965bf76ebd67`;
 see `../docs/dfu.md` for the exact Stage 1 evidence and the unified fast-OTA
 artifacts.
 

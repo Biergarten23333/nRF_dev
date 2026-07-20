@@ -145,10 +145,10 @@ target:                 BSF3C79
 marker:                 b306-fast-ota-v3
 MCUboot version:        0.1.2+0
 signed binary:          B306_Part/builds/b306-fast-ota-v3/firmware/zephyr/zephyr.signed.bin
-file SHA-256:           11882aa3b8cde5d1c88418002bd019832ad501a2af175cdc1b5f0f023661113b
-MCUboot image digest:   fd81ec022bd547098393eaa7425d2bcac96cf7e9b565ba34e04dba5b6b17212b
-B306 merged.hex SHA:    0d79fdbc62731c67adadc693817de3e97ce48ca3686cc8bc5a713b0d8ae72cec
-Fusion Master DK SHA:   995c34c5e388bfd94ba8bebd2075d293cdc802456af861bb04b78f513b6b0546
+file SHA-256:           28461e49c5495fa2e5ff93d56e9a9ec7e2fc774f5fa362edf4ea965bf76ebd67
+MCUboot image digest:   f8d6e338e4682aa4a7b8229bc6218bad524f59b62e0ec2c0de8d0fced919da78
+B306 merged.hex SHA:    ea52481eaef7ea5b2cfef970eaa4a68f1eb578a8cdc00ad13924d025103f3589
+Fusion Master DK SHA:   93280a8ac3b998de4d58e19d0569df8138b0dac9795e6be5aff95b05559e401a
 ```
 
 The B306 candidate uses L2CAP MTU 498 and 502-byte ACL buffers. It self-confirms

@@ -31,7 +31,7 @@ cd /mnt/nrf_ssd/nRF_dev/BioSpur_Fusion
 B306_OTA_TARGET_NAME=BSF3C79 \
 B306_OTA_MARKER=b306-fast-ota-v3 \
 B306_OTA_IMAGE="$PWD/B306_Part/builds/b306-fast-ota-v3/firmware/zephyr/zephyr.signed.bin" \
-B306_OTA_IMAGE_SHA256=11882aa3b8cde5d1c88418002bd019832ad501a2af175cdc1b5f0f023661113b \
+B306_OTA_IMAGE_SHA256=28461e49c5495fa2e5ff93d56e9a9ec7e2fc774f5fa362edf4ea965bf76ebd67 \
 PYTHONNOUSERSITE=1 \
 PYTHONPATH=/home/zekaixiao/ncs/toolchains/b81a7cd864/usr/local/lib/python3.12/site-packages \
 ZEPHYR_BASE=/home/zekaixiao/ncs/v2.8.0/zephyr \
@@ -48,7 +48,7 @@ That exact pristine build passed on 2026-07-20. Its build-only DK
 `merged.hex` SHA-256 is:
 
 ```text
-995c34c5e388bfd94ba8bebd2075d293cdc802456af861bb04b78f513b6b0546
+93280a8ac3b998de4d58e19d0569df8138b0dac9795e6be5aff95b05559e401a
 ```
 
 The currently installed B306 v2 image advertises an ATT MTU of 247, so the
