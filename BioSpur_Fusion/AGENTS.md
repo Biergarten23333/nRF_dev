@@ -43,10 +43,10 @@ DWM1001C --GPIO19 Ready--> B306        (sweep timestamp strobe)
 DWM1001C SWD               standalone  (NOT routed to B306; flash via J-Link OB)
 ```
 
-`GPIO19` is intended as the ready-strobe net, but its MCU/connector mapping is
-not confirmed. The frozen source assigns nRF52832 **P0.19** to the DW1000 IRQ
-input and configures it as input. Do not drive P0.19 or implement the ready
-strobe until the schematic pin name is reconciled with that source fact. See §5.
+`GPIO19` is the schematic name for **DWM1001 module pin 19**, signal `READY`,
+which maps to nRF52832 **P0.26**. A whole-tree audit of the frozen firmware
+found P0.26 unused. nRF52832 **P0.19** is the internal DW1000 IRQ input and must
+not be repurposed. The B306 capture-input mapping is still unconfirmed. See §5.
 
 ### Off-board
 
@@ -119,31 +119,33 @@ Frozen source uses 1,200 µs response delay and 1,000 µs ranked response spacin
 and estimates the last frame completes near 8.45 ms after poll TX completion.
 Measure the actual first-to-last range epochs in P2 before freezing a host model.
 
-**Intra-sweep modelling:** the ready strobe must fire at **sweep start**
-(before the broadcast poll TX), not at sweep end. That lets the host model
-anchor-specific offsets from the measured response schedule. A sweep-end strobe
-cannot express that structure, and neither can UART arrival time.
+**Intra-sweep modelling:** the ready strobe must represent the common broadcast
+poll epoch, not sweep completion. Task A places it in the broadcast-poll
+TX-done path and carries the exact raw poll-TX timestamp in the paired UART
+frame. Their constant offset is absorbed by the B306 clock filter; measured
+`t_round_us[]` expresses each anchor-specific response offset. A sweep-end
+strobe or UART arrival time cannot express that structure.
 
 ---
 
-## 5. Known state of GPIO19
+## 5. Known state of GPIO19 / READY
 
-**Blocked by a naming/pin-map conflict.** The requested PCB net is called
-`GPIO19 Ready`, but frozen firmware source proves that nRF52832 P0.19 is the
-DW1000 `int-gpios` signal:
+**DWM1001-side mapping resolved.** The PCB net called `GPIO19 Ready` refers to
+DWM1001 module pin 19, datasheet signal `READY`, which maps to nRF52832 P0.26.
+A 2026-07-20 whole-tree audit of the frozen firmware found no P0.26 assignment,
+reservation, read, configuration, or drive, so it is free for the sweep
+strobe.
 
-- NCS board DTS: `decawave_dwm1001_dev.dts` assigns `int-gpios = <&gpio0 19 ...>`.
-- Frozen `uwb_port.c` obtains that DT GPIO and configures it as `GPIO_INPUT`.
-- No frozen code strobes a sweep-ready output.
+nRF52832 P0.19 is a different signal: the internal DW1000 `int-gpios` input.
+Frozen `uwb_port.c` configures it as `GPIO_INPUT`; never drive or repurpose it.
 
-Therefore the earlier proposal to call `nrf_gpio_cfg_output()` on nRF P0.19 is
-unsafe and must not be implemented. Before P2:
+Before completing P2:
 
-1. Confirm whether “GPIO19” names a PCB/connector pin rather than nRF P0.19.
-2. Assign an actually free nRF52832 output and a B306 capture input.
-3. Add a defined inactive level and one sweep-start strobe on a branch from the
-   freeze, never in the freeze directory.
-4. On B306, discard edges until a plausible cadence is established.
+1. Confirm the B306 capture input from the PCB schematic/netlist.
+2. Bench-validate the P0.26 implementation in `UWB_Part/fusion-link/`; it
+   configures a defined inactive level and pulses in the broadcast-poll
+   TX-done path but has not yet been deployed.
+3. On B306, discard edges until a plausible cadence is established.
 
 See `UWB_Part/FREEZE_INTERFACE.md` for source citations.
 
@@ -316,17 +318,18 @@ degrades to a pure configuration channel. Not P1–P6 work.
   `8b68ee0aafe75b849fca8f36606775e99a9ef3cd`.
 - Frozen range record: `TR;2` is a BLE/NUS status record, not a production UART
   record. Exact fields and citations: `UWB_Part/FREEZE_INTERFACE.md`.
-- Frozen GPIO state: nRF52832 P0.19 is the DW1000 IRQ input, not a free output.
+- Frozen GPIO state: DWM1001 module pin 19 (`READY`) maps to free nRF52832
+  P0.26; nRF52832 P0.19 is the DW1000 IRQ input and is not a free output.
 - Frozen nominal range cadence: 10 Hz per tag from a 10×10 ms TDMA schedule,
   runtime-configurable.
+- Task A wire contract: `biospur_link.h` v2, fixed 96-byte frame,
+  CRC-16/CCITT-FALSE, with measured per-anchor `t_round_us`.
 
 ### UNKNOWN — do not guess
 
 - JY61P I2C address, register map, and 200 Hz configuration.
 - B306 PCB pins for I2C SCL/SDA, DWM UART TX/RX, and ready capture.
-- The physical meaning of schematic/net label `GPIO19` and the free nRF52832
-  output that will replace the conflicted P0.19 interpretation.
-- Future DWM1001C-to-B306 UART framing, termination, version, and field set.
+- B306 capture-input mapping for the DWM1001 module-pin-19/P0.26 READY signal.
 - Measured per-anchor epoch offsets within a sweep.
 - Final BLE logical-batch encoding/fragmentation and UUIDs.
 

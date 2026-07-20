@@ -1,0 +1,70 @@
+Task A firmware build and static-contract verification
+Date: 2026-07-20
+Workspace: /mnt/nrf_ssd/nRF_dev/BioSpur_Fusion
+Source: UWB_Part/fusion-link/src
+Baseline: UWB_Part/2026-07-15-FREEZE/firmware/src
+
+Build command:
+  ./scripts/build_tag_ble_unified.sh 0 10 build-tag-fusion-link
+Firmware marker:
+  tag-fusion-link-v2
+
+Toolchain:
+  NCS v2.8.0
+  Zephyr v3.7.99-ncs1
+  isolated NCS toolchain b81a7cd864
+
+Shared header:
+  attachment SHA-256:
+    d832fe9fbaf92ff1d8b82eb1a833566a84c540b863309b18803863ae4de8fd1b
+  B306_Part/include/biospur_link.h: identical
+  UWB_Part/fusion-link/src/include/biospur_link.h: identical
+
+Host ABI smoke test:
+  sizeof(bsl_hdr_t)   = 4
+  sizeof(bsl_uwb_t)   = 90
+  sizeof(bsl_frame_t) = 96
+  offsetof(crc)       = 94
+  fixed UART time     = 2083 us at 460800 8N1
+  CRC check vector "123456789" = 0x29B1
+
+Baseline:
+  zephyr.bin          = 201644 bytes
+  zephyr.signed.bin   = 202492 bytes
+  ELF text/data/bss   = 198640 / 2985 / 61180 bytes
+  linker FLASH usage = 201644 / 228864 = 88.1056 %
+
+Task A:
+  zephyr.bin          = 208756 bytes
+  zephyr.signed.bin   = 209604 bytes
+  dfu_application.zip = 210345 bytes
+  ELF text/data/bss   = 205688 / 3041 / 62818 bytes
+  linker FLASH usage = 208756 / 228864 = 91.2140 %
+  free linker FLASH  = 20108 bytes
+  zephyr.bin delta   = +7112 bytes
+  gate                = PASS (<95 %)
+
+Task A artifact SHA-256:
+  zephyr.signed.bin:
+    82fe5f6a7a3e779b85af0e5069443e2ed40af73b67fffa1bd2757a49e9508ce6
+  dfu_application.zip:
+    4dae721bc09c872c06940b13e126f4876e5473aaa38ac5826d6adb84eb77529c
+  merged.hex:
+    53986bc713a5e75dcbe5b1e28d286b692250adff1faee9863041a780e4234758
+
+Resolved build configuration:
+  CONFIG_UART_ASYNC_API=y
+  uart0 compatible = nordic,nrf-uarte
+  uart0 speed = 460800
+  UART pins = P0.5 TX / P0.11 RX
+  CONFIG_UART_CONSOLE is not set
+  CONFIG_RTT_CONSOLE=y
+  CONFIG_SEGGER_RTT_MODE_NO_BLOCK_SKIP=y
+  CONFIG_LOG_BACKEND_RTT_MODE_DROP=y
+  CONFIG_LOG_BACKEND_RTT_MODE_BLOCK is not set
+
+Hardware:
+  No image flashed.
+  Read-only OTA preflight found BS9336, BS955A, and BSCCF4 held by Master_Tag
+  with active TR streaming. Master_Anchor held none. The live capture was not
+  interrupted.

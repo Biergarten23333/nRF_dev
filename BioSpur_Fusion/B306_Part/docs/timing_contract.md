@@ -22,18 +22,29 @@ currently `UNKNOWN`.
 
 ## UWB epochs
 
-The intended UWB timestamp is a GPIOTE-to-PPI-to-TIMER capture of a DWM1001C
-ready edge at sweep start. Software ISR time and UART arrival time are not valid
+The intended UWB timestamp is a GPIOTE-to-PPI-to-TIMER capture of the DWM1001C
+ready edge in the broadcast-poll TX-done path. The paired UART frame carries
+the exact raw DW1000 poll-TX timestamp, so the constant edge-to-TX offset is a
+clock-filter offset term. Software ISR time and UART arrival time are not valid
 primary timestamps.
 
-This intended contract is blocked by two frozen-baseline findings:
+Current hardware/firmware state:
 
 1. The frozen DWM1001C firmware has no sweep-ready output.
-2. nRF52832 P0.19 is the DW1000 IRQ input and is configured as an input. The
-   proposed "GPIO19 ready" assignment therefore conflicts with the running UWB
-   design and must be corrected in the schematic/pin map before P2.
+2. The schematic label `GPIO19 Ready` means DWM1001 module pin 19 (`READY`),
+   which maps to nRF52832 P0.26. A whole-tree audit of the frozen firmware found
+   P0.26 unused.
+3. nRF52832 P0.19 remains the internal DW1000 IRQ input and must not be
+   repurposed.
+4. The derived `UWB_Part/fusion-link/` Task A image configures P0.26 low at
+   initialization and emits one nominal 10 us pulse in the broadcast-poll
+   TX-done path. It has compiled but has not been deployed or measured.
+5. The B306 capture input is not yet confirmed from the PCB schematic/netlist.
 
-No B306 capture pin is assigned until that conflict is resolved.
+The accompanying UART v2 frame carries the same sweep counter, raw 40-bit
+DW1000 poll-TX timestamp, and measured response-RX-minus-poll-TX
+`t_round_us[]`. UART arrival remains diagnostic; the captured P0.26 edge is
+the B306 time-domain observation.
 
 ## Frozen sweep facts
 

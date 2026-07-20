@@ -93,22 +93,127 @@ Exact per-anchor measurement epochs within the broadcast response window:
 **UNKNOWN** until measured. The 7.18 ms value in the Fusion guide is inconsistent
 with the frozen source's approximately 8.45 ms last-frame completion.
 
-## GPIO19 audit
+The 1,200 us guard and 1,000 us response spacing are not live BLE-configurable
+fields in this freeze. They are CMake/build inputs:
 
-The claim that nRF52832 GPIO19 is "wired but not configured" is false for P0.19
-in the frozen build.
+- Tag defaults and compile definitions:
+  `firmware/src/apps/tag/CMakeLists.txt:139-140,273-274`
+- Frozen build-script inputs:
+  `firmware/src/scripts/build_tag_ble_motion.sh:32-33,183-184,212-213`
+- Initiator window calculation:
+  `firmware/src/src/ss_twr_init.c:2497-2499`
+- Responder transmit-delay calculation:
+  `firmware/src/src/ss_twr_resp.c:611-619`
 
-The NCS v2.8.0 `decawave_dwm1001_dev` board DTS assigns P0.19 to the DW1000
-`int-gpios`. Frozen code requires that property, obtains it as `uwb_irq`, and
-configures it as an input:
+Neither `struct uwb_tdma_schedule` nor `struct uwb_tag_runtime_params` contains
+guard/spacing fields (`firmware/src/include/uwb_tdma.h:45-68`), and the BLE
+command parser has no guard/spacing command. A future UART frame can truthfully
+carry the effective build values used by both initiator and responders, but
+calling them "live runtime values" or claiming that BLE currently changes them
+would be inaccurate.
+
+## DWM1001 READY / P0.26 audit
+
+The schematic label `GPIO19 Ready` names **DWM1001 module pin 19**, whose
+datasheet signal name is `READY`. Module pin 19 maps to nRF52832 **P0.26**. It
+does not mean nRF52832 P0.19.
+
+P0.26 is free in the frozen source. A whole-source-tree search on 2026-07-20
+found no `P0.26`, `NRF_GPIO_PIN_MAP(0, 26)`, `gpio0 26`, GPIO pin-26
+assignment, reservation, read, configuration, or drive. The only standalone
+decimal `26` matches are DW1000 range-table values/constants and comments:
+
+- `firmware/src/drivers/dw1000/src/deca_range_tables.c:20,144,239,321,413,478,593`
+- `firmware/src/drivers/dw1000/src/deca_device.c:2970`
+- `firmware/src/drivers/dw1000/include/deca_device_api.h:947`
+- `firmware/src/drivers/dw1000/include/deca_regs.h:558,910`
+- `firmware/src/src/ss_twr_init.c:5048`
+
+P0.19 remains the DW1000 IRQ and must not be repurposed. The NCS v2.8.0
+`decawave_dwm1001_dev` board DTS assigns P0.19 to the DW1000 `int-gpios`.
+Frozen code requires that property, obtains it as `uwb_irq`, and configures it
+as an input:
 
 - `firmware/src/src/uwb_port.c:23-45`
 - `firmware/src/src/uwb_port.c:151-174`
 
-No frozen code configures P0.19 as a sweep-ready output or strobes it. Reusing
-P0.19 as an output would disconnect/conflict with the DW1000 IRQ assignment.
-The schematic phrase "GPIO19 Ready" may refer to a connector pin rather than
-nRF P0.19, but that mapping is **UNKNOWN** and must be resolved before P2.
+The DWM1001-side strobe pin is therefore resolved as P0.26. The B306 capture
+input remains **UNKNOWN** until the Fusion PCB schematic/netlist is checked.
+
+## TDMA alignment audit
+
+The Tag Master is configuration-only for TDMA alignment; it does not emit a
+periodic timing beacon that tags track.
+
+- The master computes one future deadline, converts it to a per-message
+  relative `EPOCH` delay, and sends it in a BLE `CFG` command during a TDMA
+  rebalance: `firmware/src/apps/master/src/master_multi_app.c:1621-1649`.
+- The tag parses that `EPOCH` from the BLE command:
+  `firmware/src/apps/tag/src/uwb_tag_ble.c:929-990`.
+- When the configuration is applied, the tag converts the relative delay once
+  to `k_uptime_get_32() + epoch_ms`:
+  `firmware/src/src/ss_twr_init.c:6518-6548` and
+  `firmware/src/src/uwb_tdma.c:63-80`.
+- Thereafter slot phase is derived only from the tag's local uptime and stored
+  local epoch: `firmware/src/src/uwb_tdma.c:83-100,125-175,230-285`.
+
+Thus a BLE connection is not part of the tag's ongoing TDMA timebase. However,
+dropping one tag's link causes the current master to rebalance the remaining
+connected tags (`firmware/src/apps/master/src/master_multi_app.c:3100-3125`);
+the disconnected tag would keep its old local schedule. A deliberate
+disconnect capture mode is unsafe without a coordinated master change. Retain
+the control connection and use a long connection interval for capture.
+
+## Task A UART preflight
+
+The nRF52832 exposes only `uart0`
+(`/home/zekaixiao/ncs/v2.8.0/zephyr/dts/arm/nordic/nrf52832.dtsi:114-121`).
+The DWM1001 board selects that instance for the console and configures it as a
+non-EasyDMA `nordic,nrf-uart` at 115200 baud:
+
+- `/home/zekaixiao/ncs/v2.8.0/zephyr/boards/qorvo/decawave_dwm1001_dev/decawave_dwm1001_dev.dts:16-25,103-110`
+- `/home/zekaixiao/ncs/v2.8.0/zephyr/boards/qorvo/decawave_dwm1001_dev/decawave_dwm1001_dev-pinctrl.dtsi:6-19`
+- `firmware/src/apps/tag/prj.conf:3-11`
+
+Meeting Task A's 460800-baud EasyDMA requirement therefore requires changing
+`uart0` to `nordic,nrf-uarte` and giving up the UART console/log backend (or
+moving diagnostics to RTT). There is no second UART instance.
+
+Task A's v2 shared contract was supplied separately on 2026-07-20 and installed
+verbatim at `B306_Part/include/biospur_link.h` and
+`UWB_Part/fusion-link/src/include/biospur_link.h`. The attachment and both
+installed copies have SHA-256
+`d832fe9fbaf92ff1d8b82eb1a833566a84c540b863309b18803863ae4de8fd1b`.
+
+The v2 frame is fixed at 96 bytes: 4-byte header, 90-byte body, and 2-byte
+CRC-16/CCITT-FALSE. Separate static assertions guard all three sizes. At
+460800 8N1, its constant wire time is 2,083 us by the contract's integer
+helper.
+
+The working `fusion-link` implementation reports the effective 16-bit
+`identity_code` and independently assigned 8-bit `logical_tag_id`. It sets
+`BSL_FLAG_IDENTITY_NVS` when the identity was loaded from the settings record.
+`BSFFFF` is legal; new code must use the flag and never treat `0xFFFF` as an
+identity sentinel.
+
+Identity collisions remain a system-level hazard. At session start the host
+must reject duplicate `identity_code` values before capture or TDMA assignment.
+The existing nonzero NVS `identity_code` override is the remedy.
+
+The v2 frame carries measured `t_round_us[]`, computed as the masked 40-bit
+DW1000 response-RX timestamp minus the broadcast poll-TX timestamp and rounded
+to the nearest microsecond. Missing responses and values outside the
+representable range use `BSL_TROUND_INVALID`. The nominal `guard_us`,
+`spacing_us`, and `rank[]` fields are diagnostic only.
+
+Tag and anchor guard/spacing values still come from separate CMake definitions.
+Unifying them would require one shared build configuration or generated header
+consumed by both tag and anchor application builds, build-time assertions that
+both roles used it, and deployment of a matched tag/anchor release. That work
+touches responder firmware and is deliberately outside Task A.
+
+The post-change tag build occupies 208,756 of 228,864 linker FLASH bytes
+(91.21%), below Task A's 95% gate. The signed image is 209,604 bytes.
 
 ## Frozen OTA behavior
 
@@ -133,10 +238,9 @@ subject to any separately persisted runtime TDMA/mode settings.
 
 ## Fusion blockers carried forward
 
-- UART range framing/termination and a versioned DWM-to-B306 output path:
-  **UNKNOWN / not implemented**.
-- Correct physical ready-strobe signal and both MCU pin assignments:
+- B306 input pin for the DWM1001 module-pin-19/P0.26 READY strobe:
   **UNKNOWN**.
-- Measured sweep-start-to-anchor response offsets: **UNKNOWN**.
-- Whether the future UART record carries raw only, filtered only, or both:
-  **UNKNOWN**.
+- Task A bench acceptance results, including the measured per-rank
+  `t_round_us` distributions: **PENDING**; no image has been deployed.
+- The v2 UART record carries the same filtered CFO-corrected range and quality
+  used by `TR;2`; raw pre-filter ranges are not in the contract.
