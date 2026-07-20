@@ -22,6 +22,7 @@ NINA-B306-01B has no LFXO. MCUboot and the application resolve to LFRC,
 ## Image
 
 Marker: `b306-first-dfu-v1`, version `0.1.0+0`.
+The handover build embeds source commit `b306bba05f8e`.
 
 The final pristine NCS v2.8.0 sysbuild completed without Kconfig or CMake
 warnings. It uses ECDSA P-256 MCUboot, BLE SMP image/OS groups, non-blocking
@@ -32,6 +33,13 @@ The signed application validates with the private signing key. Its MCUboot TLV
 key hash is
 `0e525dedaa7f50fb38d3c8f1792cacaa20f70204aa46ef6b50d720479c6ef5a2`,
 matching the recorded public-key fingerprint.
+
+Final handover artifact hashes:
+
+```text
+merged.hex     d4392a2eec99d91b2fbcd97e321b76cb552d49419b3ea0914705742648c60f82
+app_update.bin 578e62a705218c1e1591406ae3931fdce2a45e432a3bf006a82bdfb4e73dadf6
+```
 
 ## Frozen layout
 
