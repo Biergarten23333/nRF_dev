@@ -15,6 +15,17 @@ import importlib.util
 import sys
 from pathlib import Path
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ⚠️  RELOCATION WARNING (added 2026-07-20) — the REPO path below is a HARDCODED
+#     ABSOLUTE path back into the ORIGINAL repo. This script reads its input data
+#     and/or imports its solver modules from OUTSIDE this 2026-07-15-FREEZE folder
+#     (they live in the parent repo, not in the freeze snapshot). If you COPY this
+#     freeze folder to another machine/path and the original repo is NOT at
+#     /mnt/nrf_ssd/nRF_dev/BioSpur_UWB_before_start, this WILL fail
+#     (FileNotFoundError / ModuleNotFoundError). Repoint REPO to the real repo
+#     location before running from a new location. (Firmware in ../firmware/ is
+#     self-contained and unaffected — this caveat is solver-only.)
+# ═══════════════════════════════════════════════════════════════════════════════
 REPO = Path("/mnt/nrf_ssd/nRF_dev/BioSpur_UWB_before_start")
 FC_PATH = REPO / "autopos_pipeline" / "outdoor_20260513" / "run_clean_full_compare.py"
 

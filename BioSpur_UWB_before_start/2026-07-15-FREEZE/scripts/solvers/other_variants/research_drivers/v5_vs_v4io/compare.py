@@ -18,6 +18,17 @@ from pathlib import Path
 import numpy as np
 from scipy.optimize import least_squares
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ⚠️  RELOCATION WARNING (added 2026-07-20) — the REPO path below is a HARDCODED
+#     ABSOLUTE path back into the ORIGINAL repo. This script reads its input data
+#     and/or imports its solver modules from OUTSIDE this 2026-07-15-FREEZE folder
+#     (they live in the parent repo, not in the freeze snapshot). If you COPY this
+#     freeze folder to another machine/path and the original repo is NOT at
+#     /mnt/nrf_ssd/nRF_dev/BioSpur_UWB_before_start, this WILL fail
+#     (FileNotFoundError / ModuleNotFoundError). Repoint REPO to the real repo
+#     location before running from a new location. (Firmware in ../firmware/ is
+#     self-contained and unaffected — this caveat is solver-only.)
+# ═══════════════════════════════════════════════════════════════════════════════
 REPO = Path("/mnt/nrf_ssd/nRF_dev/BioSpur_UWB_before_start")
 CAL = REPO / "logs/system_calibration_20260710_233443"
 OUT = REPO / "analysis/v5_vs_v4io"
