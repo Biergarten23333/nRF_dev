@@ -403,6 +403,13 @@ implementing and measuring against the versioned Task A interface.
   reproducibility and record the source command/SHA.
 - Flash/debug commands use explicit probe identity. Never use `nrfjprog`; use
   west/J-Link workflows appropriate to the target.
+- **Never permit an interactive `J-Link Probe Selection` dialog.** Every J-Link
+  operation must select the authorized probe in the command itself, using
+  `--dev-id` / `--serial-number` for west-compatible runners or
+  the tool's explicit serial-number option (`-SelectEmuBySN`, or `-USB` for
+  `JLinkRTTLogger`) for SEGGER tools. If a probe-selection dialog appears,
+  cancel it and stop; do not choose a probe manually and do not rely on “the
+  only probe connected.”
 - Tags and anchors are OTA-first. Direct J-Link flashing of deployed UWB devices
   requires explicit authorization; Fusion-PCB B306 and the Fusion Master DK
   are separate targets with separate images and flash authority.
