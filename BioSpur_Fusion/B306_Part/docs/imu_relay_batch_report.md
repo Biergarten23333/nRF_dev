@@ -1,7 +1,10 @@
 # IMU + relay batch report
 
 Status: B306 v11 OTA and DK v6 BLE/control discovery are deployed and verified.
-IMU command/stream validation remains blocked on the DK native-USB connection.
+The `tag-fusion-link-v2-relay1` image and its Master_Tag Path-M carrier are
+built. Tag OTA is waiting on the human-only Master_Tag carrier flash and cold
+power cycle. IMU command/stream validation remains blocked on the DK native-USB
+connection.
 
 ## A0 preflight evidence
 
@@ -124,3 +127,30 @@ B306→DK BLE data path are live before IMU is enabled. The DK's native USB
 device (`2FE3:10F4`, `BioSpur Fusion Master`) did not enumerate; only its
 J-Link CDC was connected. USB-dependent S1–S7 validation is therefore still
 NOT RUN, not failed.
+
+## Phase-B offline and handover evidence
+
+The Fusion-tag image is `tag-fusion-link-v2-relay1`. Its signed binary is
+SHA-256 `3175f6b5b72258fe6da73ac89b72cfd839bba7443f2028f2b1418cf77429e97b`;
+the DFU ZIP is
+`63b8127638c972a5551d8c007e0386de270cba72ea02446fcd07ca357361a8ce`.
+Its production gates pass at 90.45% FLASH, 84.13% RAM, and explicit zero-byte
+malloc arena. The 96-byte range-frame static assertions remain present; the
+APOS symbols are absent and the UART RX/ring/relay symbols are present.
+
+The Master_Tag carrier embeds that exact signed payload. Its CPUAPP image
+SHA-256 is
+`f5f504360bfea2e5b5fb13c76b40a5830f1bf3e83f01d4feec0865c47b1ce37a`;
+its CPUNET image is
+`9c17013e933dcccfdc611085b1154a6b3cc775e59b00da542f5fcf8a0ba94199`.
+CPUAPP passes at 37.88% FLASH / 34.45% RAM and CPUNET at 59.50% FLASH /
+66.55% RAM; both malloc arenas are explicit zero and both cores use calibrated
+LFRC.
+
+The carrier was deliberately not flashed by Codex: probe `1050070698` is
+outside the standing autonomous-flash authority and was previously used while
+the Fusion PCB DWM1001C was connected. The operator must confirm it is attached
+to the Master_Tag B120, execute the dual-core handover, and cold-power-cycle
+the B120. The standalone procedure and frozen rollback are in
+`UWB_Part/handover/master-tag-relay1-carrier/README.md`. Tag OTA duration and
+all V-B results remain **NOT RUN** until that handover is reported successful.
