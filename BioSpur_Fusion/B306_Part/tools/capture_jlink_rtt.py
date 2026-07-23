@@ -19,6 +19,11 @@ def main() -> int:
     parser.add_argument("--channel", type=int, default=0)
     parser.add_argument("--duration-s", type=float, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--reset-target",
+        action="store_true",
+        help="Reset and run the explicitly selected target before RTT discovery.",
+    )
     args = parser.parse_args()
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -29,6 +34,8 @@ def main() -> int:
         probe.open(serial_no=args.serial_number)
         probe.set_tif(pylink.enums.JLinkInterfaces.SWD)
         probe.connect(args.device, speed=args.speed_khz, verbose=False)
+        if args.reset_target:
+            probe.reset(halt=False)
         probe.rtt_start(block_address=args.address)
         buffer_count = 0
         discovery_deadline = time.monotonic() + 5.0
