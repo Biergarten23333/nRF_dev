@@ -11,19 +11,20 @@ The current Task A status, build footprint, artifact hashes, and remaining
 bench gates are in `TASK_A_REPORT.md`. Rebuild the tag from `src/` with:
 
 ```bash
-./scripts/build_tag_ble_unified.sh 0 10 tag-fusion-link-clean1
+./scripts/build_tag_ble_unified.sh 0 10 tag-fusion-link-relay1
 ```
 
 The wrapper always writes the generated tree to
-`UWB_Part/builds/tag-fusion-link-clean1/` and rejects the build unless FLASH
+`UWB_Part/builds/tag-fusion-link-relay1/` and rejects the build unless FLASH
 is at most 95%, RAM is at most 85%, and the C malloc arena is explicit.
 
-The current build-only Task A artifacts are under
-`UWB_Part/builds/tag-fusion-link-clean1/` and report firmware marker
-`tag-fusion-link-v2-clean1`. Lineage is:
+The current build target is
+`UWB_Part/builds/tag-fusion-link-relay1/` and reports firmware marker
+`tag-fusion-link-v2-relay1`. Lineage is:
 `absdeadline3` (installed, instrumented, 270k-slot validated) ->
 `absdeadline-final` (instrumentation stripped, never deployed) -> `v2-clean1`
-(honest range naming and legacy filter/solver purge, not deployed).
+(honest range naming and legacy filter/solver purge, not deployed) ->
+`v2-relay1` (APOS removed; UART command/ack transport added).
 
 Do not add `-final` to an evolving firmware line. Use incrementing numeric
 suffixes; `absdeadline-final` was superseded before deployment and demonstrates

@@ -21,6 +21,66 @@ The RAM-fix marker was `tag-fusion-link-v2-ramfix1`. The hardware validation
 ran `tag-fusion-link-v2-absdeadline3`; the stripped production marker is
 `tag-fusion-link-v2-absdeadline-final`.
 
+## Fusion relay derivative: v2-relay1
+
+The Fusion-only lineage is now:
+
+```text
+tag-fusion-link-v2-absdeadline3 (installed validation image)
+  -> tag-fusion-link-v2-absdeadline-final (stripped, never deployed)
+  -> tag-fusion-link-v2-clean1 (honest raw-range naming/filter purge)
+  -> tag-fusion-link-v2-relay1 (APOS removal + UART command/ACK transport)
+```
+
+`v2-relay1` removes the host-owned APOS parser and storage implementation under
+the accepted v2-clean1 zero-reader audit. The retained source comment points
+back to the frozen fork, which still owns APOS. Its second isolated change adds
+EasyDMA UART RX, an ISR-to-ring handoff, CRC/frame parsing in one worker thread,
+and source-aware reply routing. BLE/NUS commands still enter the same parser and
+reply through the unchanged BLE payload path; UART commands return a type-2
+relay ACK with the original correlation. No tag command word was added.
+
+The first build correctly failed the production RAM gate at 87.76% because two
+new persistent relay thread stacks had been provisioned. RX parsing and ACK
+transmission were then combined in one worker without moving work into the UART
+ISR or ranging window. The second pristine build passed:
+
+```text
+FLASH 207004 / 228864 B = 90.45% (95% gate: PASS)
+RAM    55136 /  65536 B = 84.13% (85% gate: PASS)
+malloc arena = 0 B (explicit finite gate: PASS)
+```
+
+Build-only artifacts (not yet deployed):
+
+```text
+UWB_Part/builds/tag-fusion-link-relay1/merged.hex
+  6b3b0d62ecf23b681b4a6d91aafa84a02e37c07564c315fc4e4c9a52dffb57b6
+UWB_Part/builds/tag-fusion-link-relay1/dfu_application.zip
+  63b8127638c972a5551d8c007e0386de270cba72ea02446fcd07ca357361a8ce
+UWB_Part/builds/tag-fusion-link-relay1/tag/zephyr/zephyr.signed.bin
+  3175f6b5b72258fe6da73ac89b72cfd839bba7443f2028f2b1418cf77429e97b
+```
+
+Both `biospur_link.h` copies are byte-identical at SHA-256
+`792db4819ec320b586ac47b0a0a22e799c119b81bfb74ede3d8e0b40f06230f5`.
+The unchanged static assertions still require a 90-byte `bsl_uwb_t` and
+96-byte `bsl_frame_t`. The linked ELF contains the UART RX, ring-buffer, relay
+worker, and ACK symbols and contains no APOS/layout symbol; the sole remaining
+source occurrence is the required frozen-reference comment.
+
+Before deployment, the Phase-B hardware predictions are:
+
+1. Path M PING/STATUS/CFG/TR behavior and its 437.5 ms CI remain unchanged.
+2. Path R PING/STATUS/VERSION returns a source=TAG reply with the matching
+   correlation before B306's 2 s timeout.
+3. `CFG_OK ... LIVE=1` is followed by independently rising strobe and valid
+   96-byte frame counters at approximately 10 Hz; the ACK alone is not proof.
+4. M-configure -> R-override -> M-reconfigure keeps replies on their originating
+   paths and adds zero data TX drop/fail/abort delta.
+5. Direct Path-M OTA duration will be measured end to end; the old 50–60 s
+   number remains an estimate until that run completes.
+
 ## Slot-loss diagnosis and exact acceptance gate
 
 The cause was **integer-millisecond truncation in the scheduling arithmetic**,

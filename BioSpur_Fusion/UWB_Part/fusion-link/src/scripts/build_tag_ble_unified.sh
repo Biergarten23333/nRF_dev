@@ -8,7 +8,7 @@ fi
 
 slot_index="${1:-0}"
 slot_count="${2:-10}"
-build_dir_request="${3:-tag-fusion-link-clean1}"
+build_dir_request="${3:-tag-fusion-link-relay1}"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=resolve_build_dir.sh
 source "$repo_root/scripts/resolve_build_dir.sh"
@@ -18,7 +18,7 @@ build_dir_abs="$(biospur_uwb_build_dir "$build_dir_request")"
 # - One OTA-capable image keeps raw range output enabled.
 # - Capture workflow/profile remains runtime config; CIR is orthogonal runtime state.
 # - CIR defaults to OFF at boot and is enabled only through CIR OFF/COMPACT/FULL.
-APP_TAG_FW_MARKER="${APP_TAG_FW_MARKER:-tag-fusion-link-v2-clean1}" \
+APP_TAG_FW_MARKER="${APP_TAG_FW_MARKER:-tag-fusion-link-v2-relay1}" \
 APP_TAG_NORMAL_OUTPUT_ENABLE="${APP_TAG_NORMAL_OUTPUT_ENABLE:-1}" \
 APP_TAG_TR_BCAST_V2_ENABLE="${APP_TAG_TR_BCAST_V2_ENABLE:-1}" \
 APP_ALT_SS_TWR_BCAST_FORCE_FULL_SWEEP="${APP_ALT_SS_TWR_BCAST_FORCE_FULL_SWEEP:-1}" \

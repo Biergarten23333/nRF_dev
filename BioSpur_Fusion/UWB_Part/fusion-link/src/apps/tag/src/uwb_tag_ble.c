@@ -249,6 +249,19 @@ static struct uwb_tag_ble_cal_range pending_cal_ranges[UWB_TAG_BLE_MAX_CAL_RECOR
 static uint8_t pending_cal_count;
 static struct bt_nus_cb nus_cb;
 
+enum uwb_tag_command_source {
+	UWB_TAG_COMMAND_SOURCE_BLE = 0,
+	UWB_TAG_COMMAND_SOURCE_UART = 1,
+};
+
+typedef int (*uwb_tag_reply_sink_t)(void *context, const char *text);
+
+static K_MUTEX_DEFINE(command_dispatch_mutex);
+static k_tid_t active_reply_thread;
+static uwb_tag_reply_sink_t active_reply_sink;
+static void *active_reply_context;
+static enum uwb_tag_command_source active_command_source;
+
 static int uwb_tag_ble_start_advertising(void);
 static void uwb_tag_ble_init_identity(void);
 static void uwb_tag_ble_runtime_params_reset_locked(void);
@@ -277,6 +290,7 @@ static void uwb_tag_ble_cancel_bundle_flush(void);
 static void uwb_tag_ble_flush_work_handler(struct k_work *work);
 static void uwb_tag_ble_send_payload(const uint8_t *payload, size_t len);
 static void uwb_tag_ble_send_text(const char *text);
+static void uwb_tag_ble_process_command(const char *cmd);
 static void uwb_tag_ble_tx_thread_entry(void *arg1, void *arg2, void *arg3);
 static void ble_adv_retry_work_handler(struct k_work *work);
 static size_t uwb_tag_ble_encode_binary_packet(uint8_t *out, size_t out_len,
@@ -1661,6 +1675,11 @@ static void uwb_tag_ble_send_text(const char *text)
 		return;
 	}
 
+	if (k_current_get() == active_reply_thread &&
+	    active_reply_sink != NULL) {
+		(void)active_reply_sink(active_reply_context, text);
+		return;
+	}
 	uwb_tag_ble_send_payload((const uint8_t *)text, strlen(text));
 }
 
@@ -1789,30 +1808,8 @@ static void ble_notif_enabled(enum bt_nus_send_status status)
 	}
 }
 
-static void ble_received(struct bt_conn *conn, const uint8_t *const data,
-			 uint16_t len)
+static void uwb_tag_ble_process_command(const char *cmd)
 {
-	char cmd[UWB_TAG_BLE_MAX_CMD_LEN];
-
-	ARG_UNUSED(conn);
-
-	if (len == 0U) {
-		return;
-	}
-
-	if (len >= sizeof(cmd)) {
-		len = sizeof(cmd) - 1U;
-	}
-
-	memcpy(cmd, data, len);
-	cmd[len] = '\0';
-
-	while (len > 0U && (cmd[len - 1U] == '\r' || cmd[len - 1U] == '\n' ||
-			    cmd[len - 1U] == ' ' || cmd[len - 1U] == '\t')) {
-		cmd[len - 1U] = '\0';
-		len--;
-	}
-
 	if (strcmp(cmd, "PING") == 0) {
 		uwb_tag_ble_send_text("PONG");
 		return;
@@ -2405,11 +2402,93 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 
 	if (strcmp(cmd, "REBOOT") == 0) {
 		uwb_tag_ble_send_text("REBOOTING");
-		(void)k_work_reschedule(&reboot_work, K_MSEC(150));
+		/*
+		 * Path M keeps its established 150 ms behavior. Path R allows
+		 * the bounded UART ACK scheduler to finish before reboot.
+		 */
+		(void)k_work_reschedule(
+			&reboot_work,
+			K_MSEC(active_command_source ==
+				       UWB_TAG_COMMAND_SOURCE_UART ? 1200 : 150));
 		return;
 	}
 
 	uwb_tag_ble_send_text("UNKNOWN_CMD");
+}
+
+static int uwb_tag_ble_reply_to_ble(void *context, const char *text)
+{
+	ARG_UNUSED(context);
+	uwb_tag_ble_send_payload((const uint8_t *)text, strlen(text));
+	return 0;
+}
+
+static int uwb_tag_ble_reply_to_uart(void *context, const char *text)
+{
+	uint16_t correlation = *(const uint16_t *)context;
+
+	return biospur_uart_link_send_ack(correlation, text);
+}
+
+static void uwb_tag_ble_parse(const char *line,
+			      enum uwb_tag_command_source source,
+			      uwb_tag_reply_sink_t reply_sink,
+			      void *reply_context)
+{
+	k_mutex_lock(&command_dispatch_mutex, K_FOREVER);
+	active_reply_thread = k_current_get();
+	active_reply_sink = reply_sink;
+	active_reply_context = reply_context;
+	active_command_source = source;
+	uwb_tag_ble_process_command(line);
+	active_reply_thread = NULL;
+	active_reply_sink = NULL;
+	active_reply_context = NULL;
+	active_command_source = UWB_TAG_COMMAND_SOURCE_BLE;
+	k_mutex_unlock(&command_dispatch_mutex);
+}
+
+static void uwb_tag_ble_dispatch_bytes(const uint8_t *data, size_t len,
+				       enum uwb_tag_command_source source,
+				       uint16_t correlation)
+{
+	char cmd[UWB_TAG_BLE_MAX_CMD_LEN];
+
+	if (data == NULL || len == 0U) {
+		return;
+	}
+	if (len >= sizeof(cmd)) {
+		len = sizeof(cmd) - 1U;
+	}
+	memcpy(cmd, data, len);
+	cmd[len] = '\0';
+	while (len > 0U && (cmd[len - 1U] == '\r' || cmd[len - 1U] == '\n' ||
+			    cmd[len - 1U] == ' ' || cmd[len - 1U] == '\t')) {
+		cmd[--len] = '\0';
+	}
+	if (len == 0U) {
+		return;
+	}
+
+	if (source == UWB_TAG_COMMAND_SOURCE_UART) {
+		uwb_tag_ble_parse(cmd, source, uwb_tag_ble_reply_to_uart,
+				  &correlation);
+	} else {
+		uwb_tag_ble_parse(cmd, source, uwb_tag_ble_reply_to_ble, NULL);
+	}
+}
+
+static void uwb_tag_ble_uart_received(const char *line, uint16_t correlation)
+{
+	uwb_tag_ble_dispatch_bytes((const uint8_t *)line, strlen(line),
+				   UWB_TAG_COMMAND_SOURCE_UART, correlation);
+}
+
+static void ble_received(struct bt_conn *conn, const uint8_t *const data,
+			 uint16_t len)
+{
+	ARG_UNUSED(conn);
+	uwb_tag_ble_dispatch_bytes(data, len, UWB_TAG_COMMAND_SOURCE_BLE, 0U);
 }
 
 static struct bt_nus_cb nus_cb = {
@@ -2452,6 +2531,7 @@ int uwb_tag_ble_init(void)
 
 	printk("Tag BLE init scheduled\n");
 	ble_init_sequence();
+	biospur_uart_link_set_command_handler(uwb_tag_ble_uart_received);
 	return 0;
 }
 

@@ -17,8 +17,14 @@ struct biospur_uart_link_stats {
 	int32_t last_tx_error;
 };
 
+typedef void (*biospur_uart_command_handler_t)(const char *line,
+					       uint16_t correlation);
+
 int biospur_uart_link_init(void);
 int biospur_uart_link_submit(const bsl_uwb_t *body);
+void biospur_uart_link_set_command_handler(
+	biospur_uart_command_handler_t handler);
+int biospur_uart_link_send_ack(uint16_t correlation, const char *text);
 bool biospur_uart_link_strobe_pulse(void);
 int biospur_uart_link_suspend(void);
 void biospur_uart_link_resume(void);

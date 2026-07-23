@@ -3,7 +3,7 @@
 This is now the writable `fusion-link` derivative. Build the Task A tag with:
 
 ```bash
-./scripts/build_tag_ble_unified.sh 0 10 tag-fusion-link-clean1
+./scripts/build_tag_ble_unified.sh 0 10 tag-fusion-link-relay1
 ```
 
 All writable wrappers resolve their output to
@@ -11,14 +11,14 @@ All writable wrappers resolve their output to
 root.
 
 The wrapper's working-copy default firmware marker is
-`tag-fusion-link-v2-clean1`. After linking it runs the common production gate:
+`tag-fusion-link-v2-relay1`. After linking it runs the common production gate:
 FLASH <=95%, RAM <=85%, and no remaining-RAM C malloc arena. The remaining
 recipes below document how the imported baseline roles were built; Task A does
 not modify or rebuild anchor/master firmware.
 
 Firmware names on an evolving line use incrementing numeric suffixes. Do not
 use `-final`: the never-deployed `absdeadline-final` was immediately
-superseded by `v2-clean1`.
+superseded by `v2-clean1`; the next numeric capability marker is `v2-relay1`.
 
 Imported from the four-piece firmware + listener at tag
 **`freeze-clean-20260716`** (commit `8b68ee0a`). This directory still mirrors
