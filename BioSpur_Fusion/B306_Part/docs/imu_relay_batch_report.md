@@ -40,7 +40,7 @@ These predictions were written before any IMU hardware validation run.
 | V-A1 slow rotation | A sustained 0.5–1 °/s input remains visibly above stationary noise through the final 20 s; it does not decay to zero. | Raw gyro time series, first/last-window comparison, provisioning transcript. | NOT RUN |
 | V-A2 65 s static | Noise and bias remain continuous across 65.5 s; no discrete clamp/step to exact zero. | At least 70 s raw gyro plot and change-point check. | NOT RUN as a valid gate; R5 diagnostic crossed the boundary with gyro already clamped to exact zero throughout |
 | V-A3 ±2 g boundary | Raw acceleration is continuous across the boundary; no approximately 8× scale jump or persistent transient. | Raw axes and converted-g plot during repeated crossings. | NOT RUN |
-| V-A4 static 5 min | About 60,000 pull attempts at 200 Hz; IMU sequence gaps 0, `imu_i2c_err=0`, `drop_err=0`; duplicate rate is measured rather than assumed; acceleration norm is near 1 g and gyro is noisy near zero, not clamped. | RTT raw log, derived JSON, start/end counters and negotiated CI. | FAILED: unprovisioned sensor, 77.25% duplicate pulls, every gyro triplet exactly zero; device sequence was continuous after salvaging one interleaved RTT line |
+| V-A4 static 5 min | About 60,000 pull attempts at 200 Hz; IMU sequence gaps 0, `imu_i2c_err=0`, `drop_err=0`; duplicate rate is measured rather than assumed; acceleration norm is near 1 g and gyro is noisy near zero, not clamped. | RTT raw log, derived JSON, start/end counters and negotiated CI. | INVALID INSTRUMENTATION: firmware used equality of AX..GZ as its freshness test, which discards legitimate equal-valued static samples; chip-time evidence instead shows an approximately 5 ms refresh |
 | V-A5 chip-time latch | Register 0x33 advances on the sensor's approximately 5 ms refresh boundary, not on every faster host read. | Repeated `IMU SELFTEST` 0x30–0x40 triplets and step histogram. | PASS: 30 triplets show approximately 5 ms steps and 1000 ms wrap; it does not step on every read |
 | V-A6 BLE stress | With N=2 plus UWB for 30 min, `drop_err` delta is 0, CI is 15–30 ms, UWB rate remains steady, and any `drop_unsub` is confined to pre-subscription or intentional disconnect. | RTT log and counter deltas. | FAILED end-to-end: BLE/device counters were clean and UWB was 10.0006 Hz, but actual CI was 50 ms and RTT output corrupted/lost records |
 
@@ -173,12 +173,24 @@ did not advance on every host read.
 
 R4 completed 300 seconds after a formal remote reboot. Device deltas for
 `imu_i2c_err`, BLE `drop_err`, UART/frame errors, orphan counters, and logger
-drops were all zero. It made 59,808 pulls with 46,201 duplicates (77.25%),
-consistent with the still-unprovisioned low sensor refresh. Acceleration norm
-was `1.00928 g`; all 13,651 gyro triplets were exactly zero. The IMU sequence
-is continuous after salvaging one complete record that thread-analyzer output
-prefixed on the same RTT line. This is a failed V-A4 sensor result and a
-non-lossless RTT formatting finding, not a production pass.
+drops were all zero. It made 59,808 pulls. The firmware classified 46,201
+(77.25%) as duplicates because `imu.c` compared only the 12 AX..GZ bytes and
+discarded a pull when they were byte-identical. That is not a valid freshness
+test for a stationary quantized sensor, especially with persisted bandwidth
+`0x0004` (the WIT SDK names this approximately 21 Hz). The surviving
+motion-change events had a 19.991 ms median interval and rates of 45.50,
+46.09, and 45.67 events/s across R4, R5, and R6 respectively; these are
+AX..GZ-change rates, not sensor output rates.
+
+R3 provides the stronger clock evidence: register `0x33` advanced in
+approximately 5 ms steps even when read at shorter intervals. The current
+working interpretation is therefore an approximately 200 Hz internal refresh
+whose equal-valued static frames were wrongly removed. R4 is
+**INVALID INSTRUMENTATION**, not evidence that the sensor outputs only
+45–50 Hz. Acceleration norm was `1.00928 g`, while every retained gyro triplet
+was exactly zero; the gyro finding remains evidence that auto-zero suppression
+was not configured. The retained IMU sequence is continuous after salvaging
+one complete record that thread-analyzer output prefixed on the same RTT line.
 
 R5 completed 70 seconds after a separate reboot. The 65.5 s boundary has
 zero mean, zero standard deviation, and zero fraction 1.0 on every gyro axis
@@ -190,8 +202,9 @@ were zero; UWB rate was `10.0121 Hz`.
 ### R6 — 30-minute concurrent stress
 
 The full device interval completed and `IMU STOP` was acknowledged. B306
-reported 359,870 pulls, 277,689 duplicates (77.16%), zero I2C errors, zero
-BLE `drop_err`, and zero deltas for every registered firmware anomaly counter.
+reported 359,870 pulls and 277,689 AX..GZ-equality rejections (77.16%); the
+latter must not be interpreted as a sensor duplicate rate. I2C errors, BLE
+`drop_err`, and every registered firmware anomaly-counter delta were zero.
 UWB frame rate was `10.0006 Hz`.
 
 The RTT interim exit is **FAILED** for end-to-end losslessness. Four otherwise
