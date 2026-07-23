@@ -1,27 +1,9 @@
-/*
- * Receive-only DWM1001C link. The Fusion PCB routes DWM TX (P0.05) to
- * B306 UWB_RX1 (P1.01). Keeping TX unassigned also guarantees that the
- * B306 cannot drive either UART net during capture.
- */
-
-&pinctrl {
-	uwb_uart_rx_default: uwb_uart_rx_default {
-		rx_group {
-			psels = <NRF_PSEL(UART_RX, 1, 1)>;
-			bias-pull-up;
-		};
-	};
-
-	uwb_uart_rx_sleep: uwb_uart_rx_sleep {
-		rx_group {
-			psels = <NRF_PSEL(UART_RX, 1, 1)>;
-			low-power-enable;
-		};
-	};
+&uwb_uart {
+	/* Existing PCB wiring: RX=P1.01, TX=P1.02. */
+	status = "okay";
 };
 
-&uwb_uart {
-	pinctrl-0 = <&uwb_uart_rx_default>;
-	pinctrl-1 = <&uwb_uart_rx_sleep>;
+&imu_i2c {
+	/* Existing PCB wiring: SDA=P0.26, SCL=P0.27, 400 kHz. */
 	status = "okay";
 };

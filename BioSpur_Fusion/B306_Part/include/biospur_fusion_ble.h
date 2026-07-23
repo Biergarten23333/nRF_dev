@@ -20,6 +20,14 @@ extern "C" {
 
 #define BSF_BLE_KIND_UWB        1u
 #define BSF_BLE_KIND_TELEMETRY  2u
+#define BSF_BLE_KIND_IMU        3u
+#define BSF_BLE_KIND_CONTROL_REPLY 4u
+
+#define BSF_IMU_BATCH_MIN       1u
+#define BSF_IMU_BATCH_MAX       5u
+#define BSF_IMU_BATCH_DEFAULT   2u
+#define BSF_CONTROL_LINE_MAX    200u
+#define BSF_CONTROL_REPLY_TEXT_MAX 200u
 
 #define BSF_CAPTURE_TS_ABSENT       UINT64_MAX
 #define BSF_CAPTURE_DELTA_ABSENT    UINT32_MAX
@@ -72,12 +80,14 @@ typedef struct __attribute__((packed)) {
  * 7b120001-4e77-4a71-a045-7b4d3f2a9000 service
  * 7b120002-4e77-4a71-a045-7b4d3f2a9000 UWB data
  * 7b120003-4e77-4a71-a045-7b4d3f2a9000 telemetry
+ * 7b120004-4e77-4a71-a045-7b4d3f2a9000 ASCII control write
  *
  * Expand with BT_UUID_128_ENCODE() after including Zephyr's uuid.h.
  */
 #define BSF_BLE_UUID_SERVICE_W32   0x7b120001u
 #define BSF_BLE_UUID_DATA_W32      0x7b120002u
 #define BSF_BLE_UUID_TELEMETRY_W32 0x7b120003u
+#define BSF_BLE_UUID_CONTROL_W32   0x7b120004u
 #define BSF_BLE_UUID_W16_1         0x4e77u
 #define BSF_BLE_UUID_W16_2         0x4a71u
 #define BSF_BLE_UUID_W16_3         0xa045u
@@ -107,7 +117,9 @@ typedef struct __attribute__((packed)) {
 	uint32_t duplicate_sweeps;
 	uint32_t out_of_order_sweeps;
 	uint32_t notify_ok;
-	uint32_t notify_dropped;
+	uint32_t drop_unsub;
+	uint32_t drop_err;
+	int32_t last_notify_error;
 	uint32_t uart_restarts;
 	int32_t last_uart_error;
 	uint32_t last_sweep;
@@ -127,15 +139,77 @@ typedef struct __attribute__((packed)) {
 	uint32_t timer_wrap_count;
 	uint32_t watchdog_feed_count;
 	uint32_t reset_reason;
-	uint8_t reserved[2];
+	uint32_t imu_pulls;
+	uint32_t imu_dup;
+	uint32_t imu_i2c_err;
+	uint32_t imu_records;
+	uint32_t ctrl_rx;
+	uint32_t ctrl_bad_bsf;
+	uint32_t relay_tx;
+	uint32_t relay_ack;
+	uint32_t relay_timeout;
+	uint16_t imu_rate_hz;
+	uint8_t imu_batch;
+	uint8_t imu_active;
 } bsf_ble_telemetry_t;
+
+/*
+ * kind=3 is variable length:
+ *
+ *   bsf_ble_imu_prefix_t
+ *   N * bsf_ble_imu_sample_t
+ *   int16_t temperature_raw
+ *
+ * N is derived exactly from len and must be 1..5. seq identifies the first
+ * accepted (non-duplicate) sample in the record. base_timer2_ts_us is the low
+ * 32 bits of the shared TIMER2 time at that sample's TWIM pull initiation;
+ * subsequent samples carry unsigned microsecond deltas from the base.
+ */
+typedef struct __attribute__((packed)) {
+	uint8_t version;
+	uint8_t kind;
+	uint16_t len;
+	uint16_t seq;
+	uint32_t base_timer2_ts_us;
+} bsf_ble_imu_prefix_t;
+
+typedef struct __attribute__((packed)) {
+	uint16_t delta_us;
+	int16_t acc[3];
+	int16_t gyro[3];
+} bsf_ble_imu_sample_t;
+
+typedef struct __attribute__((packed)) {
+	uint8_t version;
+	uint8_t kind;
+	uint16_t len;
+	uint8_t source; /* 0=B306, 1=tag */
+	uint16_t correlation;
+} bsf_ble_control_reply_prefix_t;
+
+#define BSF_CONTROL_SOURCE_B306 0u
+#define BSF_CONTROL_SOURCE_TAG  1u
+#define BSF_IMU_RECORD_LEN(n) \
+	(sizeof(bsf_ble_imu_prefix_t) + \
+	 (size_t)(n) * sizeof(bsf_ble_imu_sample_t) + sizeof(int16_t))
 
 _Static_assert(sizeof(bsf_capture_record_t) == 82u,
 	       "Fusion capture record size drifted");
 _Static_assert(sizeof(bsf_ble_uwb_packet_t) == 184u,
 	       "Fusion BLE UWB packet size drifted");
-_Static_assert(sizeof(bsf_ble_telemetry_t) == 112u,
+_Static_assert(sizeof(bsf_ble_telemetry_t) == 158u,
 	       "Fusion BLE telemetry packet size drifted");
+_Static_assert(sizeof(bsf_ble_imu_prefix_t) == 10u,
+	       "Fusion IMU prefix size drifted");
+_Static_assert(sizeof(bsf_ble_imu_sample_t) == 14u,
+	       "Fusion IMU sample size drifted");
+_Static_assert(BSF_IMU_RECORD_LEN(BSF_IMU_BATCH_MAX) == 82u,
+	       "Fusion maximum IMU record size drifted");
+_Static_assert(sizeof(bsf_ble_control_reply_prefix_t) == 7u,
+	       "Fusion control reply prefix size drifted");
+_Static_assert(sizeof(bsf_ble_control_reply_prefix_t) +
+		       BSF_CONTROL_REPLY_TEXT_MAX <= 247u,
+	       "Fusion control reply exceeds ATT payload budget");
 
 #ifdef __cplusplus
 }

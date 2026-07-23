@@ -169,6 +169,11 @@ static uint64_t timer_now_us(void)
 	return (epoch << 32) | low;
 }
 
+uint64_t bsf_time_now_us(void)
+{
+	return timer_now_us();
+}
+
 static uint64_t expand_hardware_capture(uint32_t captured_low)
 {
 	uint32_t current_low =
@@ -472,6 +477,26 @@ void bsf_strobe_capture_telemetry(bsf_ble_telemetry_t *telemetry)
 	telemetry->capture_flags = capture_flags;
 	telemetry->timer_instance = STROBE_TIMER_INSTANCE;
 	telemetry->pairing_window_us = BSF_CAPTURE_PAIR_WINDOW_US;
+}
+
+void bsf_strobe_capture_counters_clear(void)
+{
+	k_spinlock_key_t key = k_spin_lock(&capture_lock);
+
+	edge_head = 0u;
+	edge_tail = 0u;
+	edge_count = 0u;
+	last_orphan_strobe_ts_us = BSF_CAPTURE_TS_ABSENT;
+	k_spin_unlock(&capture_lock, key);
+
+	atomic_set(&rising_edge_count, 0);
+	atomic_set(&falling_edge_count, 0);
+	atomic_set(&boot_discarded_edge_count, 0);
+	atomic_set(&edge_queue_drop_count, 0);
+	atomic_set(&orphan_strobe_count, 0);
+	atomic_set(&orphan_edge_count, 0);
+	atomic_set(&orphan_frame_count, 0);
+	atomic_set(&near_window_edge_count, 0);
 }
 
 int bsf_strobe_capture_init(void)

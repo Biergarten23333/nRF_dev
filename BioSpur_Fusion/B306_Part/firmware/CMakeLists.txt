@@ -5,6 +5,7 @@ project(biospur_fusion_b306)
 
 target_sources(app PRIVATE
   src/main.c
+  src/imu.c
   src/strobe_capture.c
 )
 target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)

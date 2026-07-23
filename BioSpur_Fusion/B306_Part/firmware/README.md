@@ -8,21 +8,28 @@ contains:
 - mcumgr SMP over BLE with image and OS groups;
 - FICR-derived `BSF%04X` advertising;
 - non-blocking RTT logs and an active-low P0.13 LED heartbeat;
-- receive-only 460800 8N1 UARTE ingest on P1.01;
+- 460800 8N1 UARTE ingest on P1.01 and framed command TX on P1.02;
 - fixed-length v2 frame resynchronization, CRC checking, and sweep accounting;
 - 1 MHz TIMER2 extended to 64 bits, with natural-wrap accounting;
 - dual-edge P1.03 GPIOTE -> dynamically allocated PPI -> TIMER capture;
 - 20 ms strobe/frame pairing with explicit four-case verdicts; and
-- diagnostic UWB and telemetry BLE notifications using protocol v2.
+- JY61P 400 kHz TWIM on P0.26/P0.27, boot verification, explicit
+  provisioning, and TIMER2-timestamped 50/100/200 Hz pulls;
+- protocol-v2 UWB, telemetry, variable kind-3 IMU, and kind-4 control replies;
+  and
+- a BSF-addressed writable control characteristic.
 
-It deliberately contains no IMU driver, production batching, clock filter, or
-fusion logic. The first-flash image was `b306-first-dfu-v1`, version `0.1.0+0`.
+It deliberately contains no estimator or fusion logic. IMU values remain raw;
+conversion, alignment analysis, and fusion stay on the host. The first-flash
+image was `b306-first-dfu-v1`, version `0.1.0+0`.
 The first accepted BLE-only update was `b306-stage1-ota-v2`, version
 `0.1.1+0`; Stage 1 upload, real MCUboot revert, confirmation, and persistence
 across reboot passed on the Fusion PCB on 2026-07-20.
 
-The current source and installed image marker are `b306-strobe-capture-v8`,
-version `0.1.7+0`. The exact installed signed binary is archived as
+The current source marker is `b306-imu-relay-v11`, version
+`0.1.10-imu-relay+0`; it is not an installed-image claim until OTA and
+post-reboot verification complete. The previously installed
+`b306-strobe-capture-v8` signed binary is archived as
 `b306-installed-v8.signed.bin` in the accepted Stage 2/4b run directory; its
 SHA-256 is
 `57da2011b25bab04ccfc80ab1aa0ee7cf450984ccd4ac1277d86ee7a209a425f`.
@@ -48,10 +55,9 @@ the subsequent Stage 2/4b run exercised the confirmed v8 application for more
 than five minutes. Until a later clean OTA replaces it, do not treat the
 partially written secondary slot as a valid rollback image.
 
-The board definition records UWB RX P1.01, unused UWB TX P1.02, ready P1.03,
+The board definition records UWB RX P1.01, UWB TX P1.02, ready P1.03,
 I2C SDA P0.26, I2C SCL P0.27, button P0.11, and the calibrated 500 ppm LFRC.
-The application overlay enables UART1 as receive-only on P1.01. I2C0 remains
-disabled.
+The application overlay enables full-duplex UART1 and 400 kHz I2C0.
 
 ## Installed toolchain
 

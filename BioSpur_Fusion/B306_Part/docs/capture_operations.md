@@ -2,17 +2,16 @@
 
 ## Mandatory pre-session reset
 
-**Power-cycle the B306 before every capture session.** Unplug and reconnect its
-power immediately before preflight. Do not substitute a button reset. Confirm
-the first B306 `strobe_us` / `node_ms` values are near zero before accepting
-the start of a run.
+For unattended operation, issue `BSF#### REBOOT` through Fusion Master USB CDC
+before every capture session. Wait for BLE reconnection and confirm fresh
+`node_ms` plus `reset_reason`; a disconnect/reconnect alone is not proof.
+Physical power cycling remains a bench fallback, not a remote prerequisite.
 
-The deployed capture firmware stops producing UWB records and telemetry when
-its 1 MHz 32-bit TIMER2 reaches `2^32 us` (71.58 minutes of B306 uptime). The
-power-cycle rule keeps that boundary outside a capture session of at most 60
-minutes; it is an operational mitigation, not the firmware fix. Continuous
-operation and sessions longer than 60 minutes are unsupported until the wrap
-debt in `dfu.md` is closed.
+The v10-and-later timer extends the free-running 1 MHz TIMER2 across its natural
+`2^32 us` wrap and reports `timer_wraps`; it no longer stops at 71.58 minutes.
+The remote reboot rule remains because a fresh, attributable baseline is
+required for every formal session, not as a workaround for the retired wrap
+defect.
 
 ## Physical capture preflight
 
@@ -20,7 +19,7 @@ Before starting a formal capture:
 
 1. Secure the RDY logic-analyser probe and both recorder connections with tape
    or an equivalent strain relief. Record a note or photo of the secured state.
-2. Power-cycle B306, then record the fresh-uptime evidence.
+2. Reboot B306 remotely, then record the fresh-uptime evidence.
 3. Verify Tag firmware marker, TDMA generation, connection parameters, CAP
    mode, Anchor Master responder state, and all baseline counters.
 4. Start the continuous B306 recorder before the formal window. When DSView's
