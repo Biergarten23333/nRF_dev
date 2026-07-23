@@ -1,0 +1,11 @@
+/ {
+	zephyr,user {
+		/* Keep RTT as Zephyr console; CDC is owned directly by the app. */
+	};
+};
+
+&zephyr_udc0 {
+	cdc_acm_uart0: cdc_acm_uart0 {
+		compatible = "zephyr,cdc-acm-uart";
+	};
+};

@@ -1,30 +1,60 @@
-# Fusion Master Stage 2/4b instrument
+# Fusion Master DK
 
-This nRF52840 DK application records the
-`DWM1001C -> B306 UART/READY -> BLE -> Fusion Master` attribution path. It
-scans for the `BSF` name prefix plus the Task B Fusion service UUID, subscribes
-to the UWB and telemetry characteristics, and prints the complete protocol-v2
-record over RTT: sweep, raw 40-bit `poll_tx`, `valid_mask`, `STROBE_SENT`,
-64-bit B306 frame/rising/falling timestamps, pairing verdict, and cumulative
-orphan/drop counters.
+This application runs on nRF52840 DK/J-Link `683234364`. Marker
+`dk-fusion-imu-relay-v5` makes native USB CDC the primary PC transport while
+mirroring application records to RTT as a debug fallback.
 
-BLE callbacks only copy packets into a fixed message queue. A dedicated logger
-thread formats RTT output, so console latency cannot block the Bluetooth RX
-context. Queue overflow, malformed packets, and protocol drift are explicit
-counters.
+It scans for `BSFxxxx` plus the Fusion service UUID, requests 2M PHY/DLE and a
+15–30 ms connection interval, exchanges ATT MTU, discovers the data,
+telemetry, and control characteristics explicitly, and subscribes to both
+notify paths.
 
-The current build understands the extended remote-readiness telemetry
-(`timer_wraps`, `watchdog_feeds`, and `reset_reason`). Its merged image is:
+CDC USB identity:
 
 ```text
-B306_Part/builds/dk-fusion-remote-ready-v10/merged.hex
-SHA-256 c1eba5b73f59baa3970e1e98955f13b6d1b58f06526420edbe5332c55d1fc65e
+VID:PID 2FE3:10F4
+Product BioSpur Fusion Master
 ```
 
-The 2026-07-21 300 s acceptance recorded 2,907 complete records with
-`malformed=0` and `logger_drop=0`. This remains an RTT measurement instrument,
-not the final native-USB-CDC capture transport; IMU batching and the Stage 4c
-clock filter remain separate gates.
+Resolve it by USB identity rather than `/dev/ttyACM<n>`. The CDC command
+surface is:
+
+```text
+LIST
+BSF#### <B306 or TAG command>
+```
+
+`LIST` reports the connected BSF name, last scan RSSI, subscription state, and
+control handle. A BSF-prefixed line is written to that board's control
+characteristic. Outputs are stable text records:
+
+- `FUSION_UWB`
+- `FUSION_TELEMETRY`
+- `FUSION_IMU`
+- `FUSION_REPLY`
+
+The exact binary layouts and text grammar are documented in
+`../../docs/ble_protocol.md`. BLE callbacks only validate/copy records into a
+fixed queue; formatting occurs in the logger thread. CDC ring overflow,
+malformed records, and logger queue overflow remain observable.
+
+Build only below the centralized directory:
+
+```bash
+cd /mnt/nrf_ssd/nRF_dev/BioSpur_Fusion
+PYTHONNOUSERSITE=1 \
+PYTHONPATH=/home/zekaixiao/ncs/toolchains/b81a7cd864/usr/local/lib/python3.12/site-packages \
+ZEPHYR_BASE=/home/zekaixiao/ncs/v2.8.0/zephyr \
+ZEPHYR_TOOLCHAIN_VARIANT=zephyr \
+ZEPHYR_SDK_INSTALL_DIR=/home/zekaixiao/ncs/toolchains/b81a7cd864/opt/zephyr-sdk \
+/home/zekaixiao/ncs/toolchains/b81a7cd864/usr/local/bin/python3 -m west \
+  build --pristine=always -b nrf52840dk/nrf52840 \
+  -s B306_Part/host/fusion_master \
+  -d B306_Part/builds/dk-fusion-imu-relay-v5
+python3 tools/zephyr_memory_gate.py \
+  --zephyr-dir B306_Part/builds/dk-fusion-imu-relay-v5/fusion_master/zephyr \
+  --flash-limit-percent 95 --ram-limit-percent 85
+```
 
 Flash only DK probe `683234364`, always with explicit probe selection. Never
 allow an interactive J-Link probe-selection dialog.

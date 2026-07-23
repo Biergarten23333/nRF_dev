@@ -6,6 +6,7 @@
 
 #include <errno.h>
 #include <stdbool.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -14,15 +15,29 @@
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/bluetooth/hci.h>
 #include <zephyr/bluetooth/uuid.h>
+#include <zephyr/device.h>
+#include <zephyr/drivers/uart.h>
 #include <zephyr/kernel.h>
 #include <zephyr/net_buf.h>
+#include <zephyr/sys/ring_buffer.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
+#include <zephyr/usb/usb_device.h>
 
 #include "biospur_fusion_ble.h"
 
 #define TARGET_NAME_PREFIX "BSF"
 #define TARGET_NAME_LEN 7
+#define CDC_LINE_MAX 1024
+#define CDC_COMMAND_MAX BSF_CONTROL_LINE_MAX
+
+#define CDC_ACM_NODE DT_NODELABEL(cdc_acm_uart0)
+
+static const struct device *const cdc_acm = DEVICE_DT_GET(CDC_ACM_NODE);
+RING_BUF_DECLARE(cdc_tx_ring, 16384);
+RING_BUF_DECLARE(cdc_rx_ring, 1024);
+K_SEM_DEFINE(cdc_rx_sem, 0, 1);
+static bool cdc_ready;
 
 static struct bt_uuid_128 fusion_service_uuid =
 	BT_UUID_INIT_128(BT_UUID_128_ENCODE(
@@ -35,6 +50,10 @@ static struct bt_uuid_128 fusion_data_uuid =
 static struct bt_uuid_128 fusion_telemetry_uuid =
 	BT_UUID_INIT_128(BT_UUID_128_ENCODE(
 		BSF_BLE_UUID_TELEMETRY_W32, BSF_BLE_UUID_W16_1,
+		BSF_BLE_UUID_W16_2, BSF_BLE_UUID_W16_3, BSF_BLE_UUID_W48));
+static struct bt_uuid_128 fusion_control_uuid =
+	BT_UUID_INIT_128(BT_UUID_128_ENCODE(
+		BSF_BLE_UUID_CONTROL_W32, BSF_BLE_UUID_W16_1,
 		BSF_BLE_UUID_W16_2, BSF_BLE_UUID_W16_3, BSF_BLE_UUID_W48));
 
 static struct bt_conn *target_conn;
@@ -54,16 +73,20 @@ static char candidate_name[TARGET_NAME_LEN + 1];
 static uint16_t service_end_handle;
 static uint16_t data_value_handle;
 static uint16_t telemetry_value_handle;
+static uint16_t control_value_handle;
 static uint32_t received_packets;
 static uint32_t malformed_packets;
 static uint32_t reconnections;
 static uint32_t logger_dropped;
+static uint32_t cdc_dropped_bytes;
 
 enum discovery_stage {
 	DISCOVERY_SERVICE,
 	DISCOVERY_DATA_CHARACTERISTIC,
 	DISCOVERY_DATA_CCC,
 	DISCOVERY_TELEMETRY_CHARACTERISTIC,
+	DISCOVERY_TELEMETRY_CCC,
+	DISCOVERY_CONTROL_CHARACTERISTIC,
 };
 
 static enum discovery_stage discovery_stage;
@@ -77,6 +100,20 @@ struct advertising_fields {
 enum fusion_log_kind {
 	FUSION_LOG_UWB = 1,
 	FUSION_LOG_TELEMETRY = 2,
+	FUSION_LOG_IMU = 3,
+	FUSION_LOG_REPLY = 4,
+};
+
+struct fusion_imu_log {
+	bsf_ble_imu_prefix_t prefix;
+	bsf_ble_imu_sample_t samples[BSF_IMU_BATCH_MAX];
+	int16_t temperature;
+	uint8_t sample_count;
+};
+
+struct fusion_reply_log {
+	bsf_ble_control_reply_prefix_t prefix;
+	char text[BSF_CONTROL_REPLY_TEXT_MAX + 1u];
 };
 
 struct fusion_log_record {
@@ -85,6 +122,8 @@ struct fusion_log_record {
 	union {
 		bsf_ble_uwb_packet_t uwb;
 		bsf_ble_telemetry_t telemetry;
+		struct fusion_imu_log imu;
+		struct fusion_reply_log reply;
 	} payload;
 };
 
@@ -92,6 +131,97 @@ K_MSGQ_DEFINE(fusion_log_queue, sizeof(struct fusion_log_record), 32, 4);
 
 static void start_scan(void);
 static void start_fusion_discovery(struct bt_conn *conn);
+
+static void cdc_uart_callback(const struct device *dev, void *user_data)
+{
+	uint8_t buffer[64];
+
+	ARG_UNUSED(user_data);
+	if (uart_irq_update(dev) == 0) {
+		return;
+	}
+
+	if (uart_irq_rx_ready(dev) != 0) {
+		int count = uart_fifo_read(dev, buffer, sizeof(buffer));
+
+		if (count > 0) {
+			unsigned int key = irq_lock();
+
+			(void)ring_buf_put(&cdc_rx_ring, buffer, (uint32_t)count);
+			irq_unlock(key);
+			k_sem_give(&cdc_rx_sem);
+		}
+	}
+
+	if (uart_irq_tx_ready(dev) != 0) {
+		uint8_t *data;
+		unsigned int key = irq_lock();
+		uint32_t claimed =
+			ring_buf_get_claim(&cdc_tx_ring, &data, sizeof(buffer));
+		int sent = claimed == 0u ? 0 :
+			uart_fifo_fill(dev, data, claimed);
+
+		(void)ring_buf_get_finish(&cdc_tx_ring,
+					  sent > 0 ? (uint32_t)sent : 0u);
+		if (ring_buf_is_empty(&cdc_tx_ring)) {
+			uart_irq_tx_disable(dev);
+		}
+		irq_unlock(key);
+	}
+}
+
+static int cdc_start(void)
+{
+	int err;
+
+	if (!device_is_ready(cdc_acm)) {
+		return -ENODEV;
+	}
+	err = usb_enable(NULL);
+	if (err != 0 && err != -EALREADY) {
+		return err;
+	}
+	err = uart_irq_callback_user_data_set(cdc_acm,
+					      cdc_uart_callback, NULL);
+	if (err != 0) {
+		return err;
+	}
+	uart_irq_rx_enable(cdc_acm);
+	cdc_ready = true;
+	return 0;
+}
+
+static void fusion_printf(const char *format, ...)
+{
+	char line[CDC_LINE_MAX];
+	va_list args;
+	int written;
+
+	va_start(args, format);
+	written = vsnprintf(line, sizeof(line), format, args);
+	va_end(args);
+	if (written < 0) {
+		return;
+	}
+	line[sizeof(line) - 1u] = '\0';
+	printk("%s", line);
+
+	if (cdc_ready) {
+		size_t length = strnlen(line, sizeof(line));
+		unsigned int key = irq_lock();
+		uint32_t accepted;
+
+		accepted = ring_buf_put(&cdc_tx_ring,
+				       (const uint8_t *)line,
+				       (uint32_t)length);
+		cdc_dropped_bytes += (uint32_t)length - accepted;
+		uart_irq_tx_enable(cdc_acm);
+		irq_unlock(key);
+	}
+}
+
+/* Every existing instrument line now goes to native USB CDC and RTT. */
+#define printk(...) fusion_printf(__VA_ARGS__)
 
 static const char *capture_verdict_name(uint8_t verdict)
 {
@@ -227,7 +357,7 @@ static void log_telemetry_record(const struct fusion_log_record *record)
 {
 	const bsf_ble_telemetry_t *telemetry = &record->payload.telemetry;
 
-	printk("FUSION_TELEMETRY proto=%u node_ms=%u bytes=%u frames=%u crc=%u header=%u ring_drop=%u sweep_drop=%u duplicate=%u reorder=%u notify_ok=%u notify_drop=%u uart_restarts=%u uart_err=%d last_sweep=%u have=%u subscribed=%u rise_n=%u fall_n=%u boot_discard=%u edge_qdrop=%u orphan_strobe=%u orphan_edge=%u orphan_frame=%u near_window=%u capture_flags=0x%02x timer=%u window_us=%u timer_wraps=%u watchdog_feeds=%u reset_reason=0x%08x master_rx=%u malformed=%u logger_drop=%u\n",
+	printk("FUSION_TELEMETRY proto=%u node_ms=%u bytes=%u frames=%u crc=%u header=%u ring_drop=%u sweep_drop=%u duplicate=%u reorder=%u notify_ok=%u drop_unsub=%u drop_err=%u notify_errno=%d uart_restarts=%u uart_err=%d last_sweep=%u have=%u subscribed=%u rise_n=%u fall_n=%u boot_discard=%u edge_qdrop=%u orphan_strobe=%u orphan_edge=%u orphan_frame=%u near_window=%u capture_flags=0x%02x timer=%u window_us=%u timer_wraps=%u watchdog_feeds=%u reset_reason=0x%08x imu_pulls=%u imu_dup=%u imu_i2c_err=%u imu_records=%u imu_rate=%u imu_batch=%u imu_active=%u ctrl_rx=%u ctrl_bad_bsf=%u relay_tx=%u relay_ack=%u relay_timeout=%u master_rx=%u malformed=%u logger_drop=%u\n",
 	       telemetry->version,
 	       telemetry->node_uptime_ms,
 	       telemetry->uart_bytes,
@@ -239,7 +369,9 @@ static void log_telemetry_record(const struct fusion_log_record *record)
 	       telemetry->duplicate_sweeps,
 	       telemetry->out_of_order_sweeps,
 	       telemetry->notify_ok,
-	       telemetry->notify_dropped,
+	       telemetry->drop_unsub,
+	       telemetry->drop_err,
+	       telemetry->last_notify_error,
 	       telemetry->uart_restarts,
 	       telemetry->last_uart_error,
 	       telemetry->last_sweep,
@@ -259,9 +391,65 @@ static void log_telemetry_record(const struct fusion_log_record *record)
 	       telemetry->timer_wrap_count,
 	       telemetry->watchdog_feed_count,
 	       telemetry->reset_reason,
+	       telemetry->imu_pulls,
+	       telemetry->imu_dup,
+	       telemetry->imu_i2c_err,
+	       telemetry->imu_records,
+	       telemetry->imu_rate_hz,
+	       telemetry->imu_batch,
+	       telemetry->imu_active,
+	       telemetry->ctrl_rx,
+	       telemetry->ctrl_bad_bsf,
+	       telemetry->relay_tx,
+	       telemetry->relay_ack,
+	       telemetry->relay_timeout,
 	       received_packets,
 	       malformed_packets,
 	       logger_dropped);
+}
+
+static void log_imu_record(const struct fusion_log_record *record)
+{
+	const struct fusion_imu_log *imu = &record->payload.imu;
+	char samples[480];
+	size_t used = 0u;
+
+	samples[0] = '\0';
+	for (uint8_t i = 0; i < imu->sample_count; ++i) {
+		const bsf_ble_imu_sample_t *sample = &imu->samples[i];
+		int written = snprintf(
+			&samples[used], sizeof(samples) - used,
+			"%s%u,%d,%d,%d,%d,%d,%d",
+			i == 0u ? "" : ";",
+			sample->delta_us,
+			sample->acc[0], sample->acc[1], sample->acc[2],
+			sample->gyro[0], sample->gyro[1], sample->gyro[2]);
+
+		if (written < 0 || (size_t)written >= sizeof(samples) - used) {
+			break;
+		}
+		used += (size_t)written;
+	}
+	printk("FUSION_IMU proto=%u master_ms=%llu seq=%u base_us=%u n=%u temp_raw=%d samples=%s\n",
+	       imu->prefix.version,
+	       (unsigned long long)record->master_arrival_ms,
+	       imu->prefix.seq,
+	       imu->prefix.base_timer2_ts_us,
+	       imu->sample_count,
+	       imu->temperature,
+	       samples);
+}
+
+static void log_reply_record(const struct fusion_log_record *record)
+{
+	const struct fusion_reply_log *reply = &record->payload.reply;
+
+	printk("FUSION_REPLY proto=%u master_ms=%llu source=%s correlation=%u text=%s\n",
+	       reply->prefix.version,
+	       (unsigned long long)record->master_arrival_ms,
+	       reply->prefix.source == BSF_CONTROL_SOURCE_TAG ? "TAG" : "B306",
+	       reply->prefix.correlation,
+	       reply->text);
 }
 
 static void fusion_log_thread(void *first, void *second, void *third)
@@ -277,6 +465,10 @@ static void fusion_log_thread(void *first, void *second, void *third)
 			log_uwb_record(&record);
 		} else if (record.kind == FUSION_LOG_TELEMETRY) {
 			log_telemetry_record(&record);
+		} else if (record.kind == FUSION_LOG_IMU) {
+			log_imu_record(&record);
+		} else if (record.kind == FUSION_LOG_REPLY) {
+			log_reply_record(&record);
 		}
 	}
 }
@@ -431,9 +623,10 @@ static uint8_t data_notification(
 {
 	struct fusion_log_record record = {
 		.master_arrival_ms = (uint64_t)k_uptime_get(),
-		.kind = FUSION_LOG_UWB,
 	};
-	bsf_ble_uwb_packet_t *packet = &record.payload.uwb;
+	const uint8_t *bytes = data;
+	uint16_t declared_length;
+	uint8_t kind;
 
 	ARG_UNUSED(conn);
 
@@ -443,21 +636,85 @@ static uint8_t data_notification(
 		return BT_GATT_ITER_STOP;
 	}
 
-	if (length != sizeof(*packet)) {
+	if (length < 4u) {
 		++malformed_packets;
-		printk("FUSION_MALFORMED kind=data len=%u expected=%u total=%u\n",
-		       length, (unsigned int)sizeof(*packet), malformed_packets);
+		printk("FUSION_MALFORMED kind=data_short len=%u total=%u\n",
+		       length, malformed_packets);
+		return BT_GATT_ITER_CONTINUE;
+	}
+	memcpy(&declared_length, &bytes[2], sizeof(declared_length));
+	kind = bytes[1];
+	if (bytes[0] != BSF_BLE_PROTOCOL_VERSION ||
+	    declared_length != length) {
+		++malformed_packets;
+		printk("FUSION_MALFORMED kind=data_header version=%u type=%u declared=%u actual=%u total=%u\n",
+		       bytes[0], kind, declared_length, length,
+		       malformed_packets);
 		return BT_GATT_ITER_CONTINUE;
 	}
 
-	memcpy(packet, data, sizeof(*packet));
-	if (packet->version != BSF_BLE_PROTOCOL_VERSION ||
-	    packet->kind != BSF_BLE_KIND_UWB ||
-	    packet->len != sizeof(*packet)) {
+	if (kind == BSF_BLE_KIND_UWB) {
+		bsf_ble_uwb_packet_t *packet = &record.payload.uwb;
+
+		if (length != sizeof(*packet)) {
+			goto malformed_kind_length;
+		}
+		record.kind = FUSION_LOG_UWB;
+		memcpy(packet, data, sizeof(*packet));
+	} else if (kind == BSF_BLE_KIND_IMU) {
+		struct fusion_imu_log *imu = &record.payload.imu;
+		size_t sample_bytes;
+		size_t sample_count;
+		size_t temperature_offset;
+
+		if (length < BSF_IMU_RECORD_LEN(BSF_IMU_BATCH_MIN)) {
+			goto malformed_kind_length;
+		}
+		sample_bytes = length - sizeof(bsf_ble_imu_prefix_t) -
+			sizeof(int16_t);
+		if (sample_bytes % sizeof(bsf_ble_imu_sample_t) != 0u) {
+			goto malformed_kind_length;
+		}
+		sample_count = sample_bytes / sizeof(bsf_ble_imu_sample_t);
+		if (sample_count < BSF_IMU_BATCH_MIN ||
+		    sample_count > BSF_IMU_BATCH_MAX) {
+			goto malformed_kind_length;
+		}
+		record.kind = FUSION_LOG_IMU;
+		memcpy(&imu->prefix, data, sizeof(imu->prefix));
+		memcpy(imu->samples, &bytes[sizeof(imu->prefix)],
+		       sample_bytes);
+		temperature_offset = sizeof(imu->prefix) + sample_bytes;
+		memcpy(&imu->temperature, &bytes[temperature_offset],
+		       sizeof(imu->temperature));
+		imu->sample_count = (uint8_t)sample_count;
+	} else if (kind == BSF_BLE_KIND_CONTROL_REPLY) {
+		struct fusion_reply_log *reply = &record.payload.reply;
+		size_t text_length;
+
+		if (length < sizeof(reply->prefix) ||
+		    length > sizeof(reply->prefix) +
+			     BSF_CONTROL_REPLY_TEXT_MAX) {
+			goto malformed_kind_length;
+		}
+		memcpy(&reply->prefix, data, sizeof(reply->prefix));
+		if (reply->prefix.source != BSF_CONTROL_SOURCE_B306 &&
+		    reply->prefix.source != BSF_CONTROL_SOURCE_TAG) {
+			goto malformed_kind_length;
+		}
+		text_length = length - sizeof(reply->prefix);
+		if (memchr(&bytes[sizeof(reply->prefix)], '\0',
+			   text_length) != NULL) {
+			goto malformed_kind_length;
+		}
+		record.kind = FUSION_LOG_REPLY;
+		memcpy(reply->text, &bytes[sizeof(reply->prefix)],
+		       text_length);
+		reply->text[text_length] = '\0';
+	} else {
 		++malformed_packets;
-		printk("FUSION_MALFORMED kind=data_header version=%u type=%u declared=%u total=%u\n",
-		       packet->version, packet->kind, packet->len,
-		       malformed_packets);
+		printk("FUSION_MALFORMED kind=unknown type=%u len=%u total=%u\n",
+		       kind, length, malformed_packets);
 		return BT_GATT_ITER_CONTINUE;
 	}
 
@@ -466,6 +723,12 @@ static uint8_t data_notification(
 		++logger_dropped;
 	}
 
+	return BT_GATT_ITER_CONTINUE;
+
+malformed_kind_length:
+	++malformed_packets;
+	printk("FUSION_MALFORMED kind=%u len=%u total=%u\n",
+	       kind, length, malformed_packets);
 	return BT_GATT_ITER_CONTINUE;
 }
 
@@ -598,7 +861,6 @@ static uint8_t discover_fusion(struct bt_conn *conn,
 
 	case DISCOVERY_TELEMETRY_CHARACTERISTIC: {
 		const struct bt_gatt_chrc *characteristic = attr->user_data;
-		uint16_t telemetry_ccc_handle;
 
 		telemetry_value_handle = characteristic->value_handle;
 		printk("FUSION_TELEMETRY_CHARACTERISTIC value=%u props=0x%02x\n",
@@ -608,29 +870,63 @@ static uint8_t discover_fusion(struct bt_conn *conn,
 			break;
 		}
 
-		telemetry_ccc_handle = telemetry_value_handle + 1u;
-		if (telemetry_ccc_handle != service_end_handle) {
-			printk("FUSION_FAIL step=telemetry_ccc_layout value=%u expected=%u service_end=%u\n",
-			       telemetry_value_handle, telemetry_ccc_handle,
-			       service_end_handle);
-			break;
+		discovery_stage = DISCOVERY_TELEMETRY_CCC;
+		discover_params.uuid = BT_UUID_GATT_CCC;
+		discover_params.start_handle = telemetry_value_handle + 1u;
+		discover_params.end_handle = service_end_handle;
+		discover_params.type = BT_GATT_DISCOVER_DESCRIPTOR;
+		err = bt_gatt_discover(conn, &discover_params);
+		if (err != 0) {
+			printk("FUSION_FAIL step=discover_telemetry_ccc_start err=%d\n",
+			       err);
 		}
+		break;
+	}
 
+	case DISCOVERY_TELEMETRY_CCC:
 		telemetry_subscribe_params.notify = telemetry_notification;
 		telemetry_subscribe_params.value = BT_GATT_CCC_NOTIFY;
 		telemetry_subscribe_params.value_handle = telemetry_value_handle;
-		telemetry_subscribe_params.ccc_handle = telemetry_ccc_handle;
+		telemetry_subscribe_params.ccc_handle = attr->handle;
 		err = bt_gatt_subscribe(conn, &telemetry_subscribe_params);
 		if (err != 0 && err != -EALREADY) {
 			printk("FUSION_FAIL step=subscribe_telemetry err=%d\n",
 			       err);
 			break;
 		}
+		printk("FUSION_TELEMETRY_SUBSCRIBED value=%u ccc=%u\n",
+		       telemetry_value_handle, attr->handle);
+
+		discovery_stage = DISCOVERY_CONTROL_CHARACTERISTIC;
+		discover_params.uuid = &fusion_control_uuid.uuid;
+		discover_params.start_handle = attr->handle + 1u;
+		discover_params.end_handle = service_end_handle;
+		discover_params.type = BT_GATT_DISCOVER_CHARACTERISTIC;
+		err = bt_gatt_discover(conn, &discover_params);
+		if (err != 0) {
+			printk("FUSION_FAIL step=discover_control_start err=%d\n",
+			       err);
+		}
+		break;
+
+	case DISCOVERY_CONTROL_CHARACTERISTIC: {
+		const struct bt_gatt_chrc *characteristic = attr->user_data;
+
+		control_value_handle = characteristic->value_handle;
+		printk("FUSION_CONTROL_CHARACTERISTIC value=%u props=0x%02x\n",
+		       control_value_handle, characteristic->properties);
+		if ((characteristic->properties &
+		     (BT_GATT_CHRC_WRITE | BT_GATT_CHRC_WRITE_WITHOUT_RESP)) ==
+		    0u) {
+			printk("FUSION_FAIL step=control_not_writable\n");
+			break;
+		}
 
 		bridge_ready = true;
-		printk("FUSION_BRIDGE_READY name=%s mtu=%u data=%u telemetry=%u\n",
-		       candidate_name, bt_gatt_get_mtu(conn),
-		       data_value_handle, telemetry_value_handle);
+		printk("FUSION_BRIDGE_READY name=%s rssi=%d mtu=%u data=%u telemetry=%u control=%u\n",
+		       candidate_name, candidate_rssi, bt_gatt_get_mtu(conn),
+		       data_value_handle, telemetry_value_handle,
+		       control_value_handle);
 		memset(params, 0, sizeof(*params));
 		break;
 	}
@@ -726,6 +1022,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	target_conn = NULL;
 	connecting = false;
 	bridge_ready = false;
+	control_value_handle = 0u;
 	memset(&data_subscribe_params, 0, sizeof(data_subscribe_params));
 	memset(&telemetry_subscribe_params, 0,
 	       sizeof(telemetry_subscribe_params));
@@ -749,18 +1046,116 @@ static void le_data_len_updated(struct bt_conn *conn,
 	       info->rx_max_len, info->rx_max_time);
 }
 
+static void le_param_updated(struct bt_conn *conn, uint16_t interval,
+			     uint16_t latency, uint16_t timeout)
+{
+	ARG_UNUSED(conn);
+	printk("FUSION_CI_UPDATED interval_units=%u interval_us=%u latency=%u timeout_units=%u\n",
+	       interval, (uint32_t)interval * 1250u, latency, timeout);
+}
+
 BT_CONN_CB_DEFINE(connection_callbacks) = {
 	.connected = connected,
 	.disconnected = disconnected,
 	.le_phy_updated = le_phy_updated,
 	.le_data_len_updated = le_data_len_updated,
+	.le_param_updated = le_param_updated,
 };
+
+static void handle_cdc_command(char *line)
+{
+	size_t length = strlen(line);
+	int err;
+
+	if (strcmp(line, "LIST") == 0) {
+		if (target_conn == NULL) {
+			printk("FUSION_LIST count=0 scanning=%u\n", !connecting);
+		} else {
+			printk("FUSION_LIST count=1 name=%s rssi=%d connected=1 subscribed=%u control=%u\n",
+			       candidate_name, candidate_rssi, bridge_ready,
+			       control_value_handle);
+		}
+		return;
+	}
+	if (length < 9u ||
+	    strncmp(line, TARGET_NAME_PREFIX,
+		    strlen(TARGET_NAME_PREFIX)) != 0) {
+		printk("FUSION_COMMAND_REJECT reason=syntax expected=LIST_or_BSFxxxx\n");
+		return;
+	}
+	if (!bridge_ready || target_conn == NULL || control_value_handle == 0u) {
+		printk("FUSION_COMMAND_REJECT reason=bridge_not_ready line=%s\n",
+		       line);
+		return;
+	}
+	if (strncmp(line, candidate_name, TARGET_NAME_LEN) != 0 ||
+	    line[TARGET_NAME_LEN] != ' ') {
+		printk("FUSION_COMMAND_REJECT reason=not_connected target=%.7s connected=%s\n",
+		       line, candidate_name);
+		return;
+	}
+
+	err = bt_gatt_write_without_response(target_conn,
+					     control_value_handle,
+					     line, (uint16_t)length,
+					     false);
+	printk("FUSION_COMMAND_TX target=%s len=%u err=%d line=%s\n",
+	       candidate_name, (unsigned int)length, err, line);
+}
+
+static void cdc_command_thread(void *first, void *second, void *third)
+{
+	char line[CDC_COMMAND_MAX + 1u];
+	size_t used = 0u;
+
+	ARG_UNUSED(first);
+	ARG_UNUSED(second);
+	ARG_UNUSED(third);
+
+	while (true) {
+		uint8_t chunk[64];
+		uint32_t count;
+		unsigned int key;
+
+		k_sem_take(&cdc_rx_sem, K_FOREVER);
+		do {
+			key = irq_lock();
+			count = ring_buf_get(&cdc_rx_ring, chunk, sizeof(chunk));
+			irq_unlock(key);
+			for (uint32_t i = 0; i < count; ++i) {
+				char ch = (char)chunk[i];
+
+				if (ch == '\r' || ch == '\n') {
+					if (used != 0u) {
+						line[used] = '\0';
+						handle_cdc_command(line);
+						used = 0u;
+					}
+				} else if (used < CDC_COMMAND_MAX) {
+					line[used++] = ch;
+				} else {
+					used = 0u;
+					printk("FUSION_COMMAND_REJECT reason=line_too_long max=%u\n",
+					       CDC_COMMAND_MAX);
+				}
+			}
+		} while (count != 0u);
+	}
+}
+
+K_THREAD_DEFINE(cdc_command_thread_id, 2048, cdc_command_thread,
+		NULL, NULL, NULL, 7, 0, 0);
 
 int main(void)
 {
 	int err;
 
-	printk("FUSION_MASTER marker=dk-fusion-strobe-capture-v4 probe=683234364\n");
+	err = cdc_start();
+	if (err != 0) {
+		printk("FUSION_FAIL step=cdc_start err=%d\n", err);
+		return 0;
+	}
+	printk("FUSION_MASTER marker=dk-fusion-imu-relay-v5 probe=683234364 pc=USB_CDC rtt=fallback\n");
 	err = bt_enable(NULL);
 	if (err != 0) {
 		printk("FUSION_FAIL step=bt_enable err=%d\n", err);
@@ -775,9 +1170,9 @@ int main(void)
 		if (!target_conn && !connecting) {
 			printk("FUSION_SCAN_WAITING\n");
 		} else if (bridge_ready) {
-			printk("FUSION_HEALTH packets=%u malformed=%u logger_drop=%u connections=%u\n",
+			printk("FUSION_HEALTH packets=%u malformed=%u logger_drop=%u cdc_drop_bytes=%u connections=%u\n",
 			       received_packets, malformed_packets, logger_dropped,
-			       reconnections);
+			       cdc_dropped_bytes, reconnections);
 		}
 	}
 
