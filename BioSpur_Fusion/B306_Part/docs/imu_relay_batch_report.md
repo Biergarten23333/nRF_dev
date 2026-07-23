@@ -139,6 +139,43 @@ All evidence is under
 `B306_Part/logs/imu_remote_20260723_1600/`. No command opened or reset probe
 `1050070698`; no Master_Tag flash, tag OTA, or physical action was attempted.
 
+### R1–R7 closure summary
+
+- DK v7 RTT bidirectional control was deployed and verified. Native CDC was
+  not merely unopened: the connector was physically broken. BLE negotiated
+  MTU 247, DLE 251, and 2M PHY; CI initially reached 30 ms and later settled
+  at 50 ms.
+- R1 **FAILED** at register `0x63`: the write returned success but immediate
+  readback was not `FFFF`, so provisioning stopped before SAVE. After reboot,
+  persisted state remained `63=03E8 03=0006 1F=0004`.
+- R2 measured acceleration norm `1.00837 g` and temperature `28.48 °C`.
+  Every gyro sample was exactly zero, proving auto-zero suppression had not
+  succeeded.
+- R3 **PASS**: chip time advanced in approximately 5 ms steps and wrapped at
+  1000 ms.
+- The original R4/V-A4 closure labelled the run failed because 77.25% of
+  pulls were discarded as duplicates and every retained gyro value was zero.
+  The gyro failure remains real. Later v12 analysis reclassified the
+  duplicate-rate portion as **INVALID INSTRUMENTATION**, because equality of
+  stationary quantized AX..GZ values is not a valid freshness predicate.
+- R5 crossed 65.5 s without an additional discrete step, but the gyro was
+  already clamped throughout; formal V-A2 therefore remained **NOT RUN**.
+- R6 had zero B306/BLE internal errors and UWB `10.0006 Hz`, but concurrent
+  RTT output interleaved/split records: one IMU record/two samples and two UWB
+  text records became unavailable. The end-to-end result was **FAILED**.
+- R7 stopped correctly at S2 on `verify=WARN`. Master_Tag CDC was not opened,
+  TDMA was not changed, and S3–S7 plus V-C1 remained **NOT RUN**.
+- Probe `1050070698` was not touched. The original closure left B306 remotely
+  rebooted, `IMU active=0`, and UWB as found.
+
+The closure delivery comprised seven local tests: five in
+`test_fusion_session.py` and two in `test_imu_remote_validation.py`. Relevant
+commits were:
+
+- `8794c848f` — `fusion-master: add RTT control transport`
+- `d517a857c` — `fusion-master: report current connection interval`
+- `661822f41` — `fusion: record remote IMU validation`
+
 ### R1 — provisioning
 
 R1 is **FAILED**. Before provisioning, `IMU STATUS` reported:
