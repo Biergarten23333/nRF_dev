@@ -1,10 +1,11 @@
 # IMU + relay batch report
 
-Status: B306 v11 OTA and DK v6 BLE/control discovery are deployed and verified.
-The `tag-fusion-link-v2-relay1` image and its Master_Tag Path-M carrier are
-built. Tag OTA is waiting on the human-only Master_Tag carrier flash and cold
-power cycle. IMU command/stream validation remains blocked on the DK native-USB
-connection.
+Status: B306 v11 and DK `dk-fusion-imu-relay-v7` are deployed. DK v7 provides
+bidirectional J-Link RTT control on explicitly selected probe `683234364` while
+retaining the native-USB CDC implementation. Remote validation found two
+independent blockers: JY61P provisioning fails at register `0x63`, and the RTT
+interim output is not lossless under the current logging load. Phase-B tag OTA
+and every physical validation remain deferred while the operator is away.
 
 ## A0 preflight evidence
 
@@ -37,11 +38,11 @@ These predictions were written before any IMU hardware validation run.
 | Test | Prediction fixed before run | Pass evidence to collect | Outcome |
 |---|---|---|---|
 | V-A1 slow rotation | A sustained 0.5–1 °/s input remains visibly above stationary noise through the final 20 s; it does not decay to zero. | Raw gyro time series, first/last-window comparison, provisioning transcript. | NOT RUN |
-| V-A2 65 s static | Noise and bias remain continuous across 65.5 s; no discrete clamp/step to exact zero. | At least 70 s raw gyro plot and change-point check. | NOT RUN |
+| V-A2 65 s static | Noise and bias remain continuous across 65.5 s; no discrete clamp/step to exact zero. | At least 70 s raw gyro plot and change-point check. | NOT RUN as a valid gate; R5 diagnostic crossed the boundary with gyro already clamped to exact zero throughout |
 | V-A3 ±2 g boundary | Raw acceleration is continuous across the boundary; no approximately 8× scale jump or persistent transient. | Raw axes and converted-g plot during repeated crossings. | NOT RUN |
-| V-A4 static 5 min | About 60,000 pull attempts at 200 Hz; IMU sequence gaps 0, `imu_i2c_err=0`, `drop_err=0`; duplicate rate is measured rather than assumed; acceleration norm is near 1 g and gyro is noisy near zero, not clamped. | CDC raw log, derived JSON/PNG, start/end counters and negotiated CI. | NOT RUN |
-| V-A5 chip-time latch | Register 0x33 advances on the sensor's approximately 5 ms refresh boundary, not on every faster host read. | Repeated `IMU SELFTEST` 0x30–0x40 triplets and step histogram. | NOT RUN |
-| V-A6 BLE stress | With N=2 plus UWB for 30 min, `drop_err` delta is 0, CI is 15–30 ms, UWB rate remains steady, and any `drop_unsub` is confined to pre-subscription or intentional disconnect. | CDC log and counter deltas. | NOT RUN |
+| V-A4 static 5 min | About 60,000 pull attempts at 200 Hz; IMU sequence gaps 0, `imu_i2c_err=0`, `drop_err=0`; duplicate rate is measured rather than assumed; acceleration norm is near 1 g and gyro is noisy near zero, not clamped. | RTT raw log, derived JSON, start/end counters and negotiated CI. | FAILED: unprovisioned sensor, 77.25% duplicate pulls, every gyro triplet exactly zero; device sequence was continuous after salvaging one interleaved RTT line |
+| V-A5 chip-time latch | Register 0x33 advances on the sensor's approximately 5 ms refresh boundary, not on every faster host read. | Repeated `IMU SELFTEST` 0x30–0x40 triplets and step histogram. | PASS: 30 triplets show approximately 5 ms steps and 1000 ms wrap; it does not step on every read |
+| V-A6 BLE stress | With N=2 plus UWB for 30 min, `drop_err` delta is 0, CI is 15–30 ms, UWB rate remains steady, and any `drop_unsub` is confined to pre-subscription or intentional disconnect. | RTT log and counter deltas. | FAILED end-to-end: BLE/device counters were clean and UWB was 10.0006 Hz, but actual CI was 50 ms and RTT output corrupted/lost records |
 
 N=1 is not a production setting until a separate 30-minute run satisfies the
 same loss criteria.
@@ -53,9 +54,9 @@ These predictions were written before deployment or any integration run.
 | Test | Prediction fixed before run | Outcome |
 |---|---|---|
 | S4 UWB proof | Both UART-frame and RDY-rise counters increase at 8–12 Hz, with at most one boundary-count difference; `LIVE=1` alone cannot pass. | NOT RUN |
-| S7 10 s sentinel | UWB remains at 8–12 Hz, every observed UWB record is healthy, all CRC/header/ring/sweep/drop/orphan/logger/relay-timeout deltas are zero, IMU output reaches at least 80% of its configured record rate, and IMU sequence gaps are zero. | NOT RUN |
+| S7 10 s sentinel | UWB remains at 8–12 Hz, every observed UWB record is healthy, all CRC/header/ring/sweep/drop/orphan/logger/relay-timeout deltas are zero, IMU output reaches at least 80% of its configured record rate, and IMU sequence gaps are zero. | NOT RUN; R7 stopped at S2 because `verify=WARN` |
 | S7 rollback | Any S7 exception or failed predicate issues and acknowledges `IMU STOP`; UWB is not stopped. | NOT RUN |
-| V-C1 30 min | UWB/tag production anomalies and B306 transport/orphan/drop-error deltas remain zero, frame rate stays steady, IMU sequence gaps remain zero, and every 60 s relay command is correlated and acknowledged. | NOT RUN |
+| V-C1 30 min | UWB/tag production anomalies and B306 transport/orphan/drop-error deltas remain zero, frame rate stays steady, IMU sequence gaps remain zero, and every 60 s relay command is correlated and acknowledged. | NOT RUN; S2 prerequisite failed and RTT interim had already shown nonzero loss |
 | V-C2 dynamic handshake | UWB displacement and IMU acceleration share one TIMER2 axis; their apparent offset is constant and approximately the I2C pull latency rather than motion-dependent drift. | NOT RUN |
 
 `B306_Part/tools/fusion_session.py` implements the mandatory S1–S7/T1–T3
@@ -75,13 +76,14 @@ was not guessed into axis components.
 
 ## Phase-A build evidence
 
-Both builds were pristine NCS v2.8.0 builds under the mandated centralized
-directories. Hardware deployment and validation have not yet occurred.
+All builds were pristine NCS v2.8.0 builds under the mandated centralized
+directories. Deployment and remote-validation outcomes are recorded below.
 
 | Target | Marker | FLASH | RAM | malloc arena | Gate |
 |---|---|---:|---:|---:|---|
 | Fusion-PCB B306 | `b306-imu-relay-v11` | 195,732 / 499,200 B (39.21%) | 76,876 / 262,144 B (29.33%) | 0 B explicit | PASS |
 | Fusion Master DK | `dk-fusion-imu-relay-v6` | 163,824 / 1,048,576 B (15.62%) | 87,836 / 262,144 B (33.51%) | 0 B explicit | PASS |
+| Fusion Master DK | `dk-fusion-imu-relay-v7` | 164,572 / 1,048,576 B (15.69%) | 90,396 / 262,144 B (34.48%) | 0 B explicit | PASS |
 
 | Artifact | SHA-256 |
 |---|---|
@@ -90,6 +92,8 @@ directories. Hardware deployment and validation have not yet occurred.
 | `B306_Part/builds/b306-imu-relay-v11/dfu_application.zip` | `5a882bac2540c79726c59d82bdf90e75cce15d3bf82684488751dc649e0352a3` |
 | `B306_Part/builds/dk-fusion-imu-relay-v6/merged.hex` | `c3b49e433e74a0dfd3f60b0ef9cda36108d347479b0801e888a65861d0690783` |
 | `B306_Part/builds/dk-fusion-imu-relay-v6/fusion_master/zephyr/zephyr.hex` | `74a7a2f7e05d4c3bad8bafb1302413d04b8babd7de348c3c54e651c45b6a46ea` |
+| `B306_Part/builds/dk-fusion-imu-relay-v7/merged.hex` | `3d9fb24cc8f2f8d3c6eb75e2fcca4446a3e0d4619b450044bc5d854c476b52f0` |
+| `B306_Part/builds/dk-fusion-imu-relay-v7/fusion_master/zephyr/zephyr.hex` | `085888e3f8ce360cdd97e5c723783930d0397e0eaf8c7cf9347bd68e9f0730c4` |
 
 The two `biospur_link.h` copies are byte-identical at SHA-256
 `792db4819ec320b586ac47b0a0a22e799c119b81bfb74ede3d8e0b40f06230f5`.
@@ -123,10 +127,107 @@ FUSION_BRIDGE_READY name=BSF3C79 rssi=-45 mtu=247 data=18 telemetry=21 control=2
 The same run negotiated ATT MTU 247, DLE 251 bytes, and 2M PHY, then received
 continuous protocol-v2 `FUSION_UWB` records with `valid=0xff` and
 `verdict=healthy`. This proves the DWM1001C→B306 UART/strobe path and
-B306→DK BLE data path are live before IMU is enabled. The DK's native USB
-device (`2FE3:10F4`, `BioSpur Fusion Master`) did not enumerate; only its
-J-Link CDC was connected. USB-dependent S1–S7 validation is therefore still
-NOT RUN, not failed.
+B306→DK BLE data path are live before IMU is enabled. The DK native connector
+is physically broken for this trip, so DK v7 added RTT down-channel input to
+the same parser used by CDC. `LIST` over RTT verified BSF3C79 connected and
+subscribed, with MTU 247, DLE 251, 2M PHY, an initial 30 ms CI, and a subsequent
+50 ms CI update. The CDC code remains compiled and unchanged in role.
+
+## Remote-continuation evidence — 2026-07-23
+
+All evidence is under
+`B306_Part/logs/imu_remote_20260723_1600/`. No command opened or reset probe
+`1050070698`; no Master_Tag flash, tag OTA, or physical action was attempted.
+
+### R1 — provisioning
+
+R1 is **FAILED**. Before provisioning, `IMU STATUS` reported:
+
+```text
+verify=WARN 61=0000 63=03E8 03=0006 1F=0004
+```
+
+`IMU PROVISION` returned `FAIL step=63 err=-5`. The register-0x63 write call
+returned success but its immediate readback did not equal `FFFF`; firmware
+therefore aborted before writing RRATE/BW and before SAVE or sensor restart.
+The persistence half of R1 is **NOT RUN**, not failed. A B306 remote reboot
+discarded the partial volatile sequence and reproduced the same four persisted
+values. Evidence:
+`r1_r3/raw.log`, `r1_r3/summary.json`, and
+`r2_r3_after_r1_failure/summary.json`.
+
+### R2/R3 — read-only characterization after R1 failure
+
+R2 ran only after that reboot. Thirty of thirty SELFTEST commands completed.
+The first sample was acceleration
+`[0.00928, -0.00781, -1.00830] g` (norm `1.00837 g`), temperature
+`28.48 °C`, and gyro `[0, 0, 0] dps`. Exact zero on all gyro axes is evidence
+that auto-zero suppression is not active; it is not a low-noise pass.
+
+R3 is **PASS** for the chip-time question. The 30 triplets show approximately
+5 ms refresh steps and a 1000 ms wrap. Of the first nominal 2 ms gaps, 22/30
+crossed a refresh boundary; all 30 following nominal 4 ms gaps did. The value
+did not advance on every host read.
+
+### R4/R5 — static diagnostics under persisted defaults
+
+R4 completed 300 seconds after a formal remote reboot. Device deltas for
+`imu_i2c_err`, BLE `drop_err`, UART/frame errors, orphan counters, and logger
+drops were all zero. It made 59,808 pulls with 46,201 duplicates (77.25%),
+consistent with the still-unprovisioned low sensor refresh. Acceleration norm
+was `1.00928 g`; all 13,651 gyro triplets were exactly zero. The IMU sequence
+is continuous after salvaging one complete record that thread-analyzer output
+prefixed on the same RTT line. This is a failed V-A4 sensor result and a
+non-lossless RTT formatting finding, not a production pass.
+
+R5 completed 70 seconds after a separate reboot. The 65.5 s boundary has
+zero mean, zero standard deviation, and zero fraction 1.0 on every gyro axis
+both before and after. There was no additional step, but because the signal
+was already clamped for the whole run, V-A2's prerequisite was absent and its
+formal outcome remains **NOT RUN**. Sequence gaps and firmware anomaly deltas
+were zero; UWB rate was `10.0121 Hz`.
+
+### R6 — 30-minute concurrent stress
+
+The full device interval completed and `IMU STOP` was acknowledged. B306
+reported 359,870 pulls, 277,689 duplicates (77.16%), zero I2C errors, zero
+BLE `drop_err`, and zero deltas for every registered firmware anomaly counter.
+UWB frame rate was `10.0006 Hz`.
+
+The RTT interim exit is **FAILED** for end-to-end losslessness. Four otherwise
+complete IMU lines were prefixed/interleaved into the periodic thread-analyzer
+dump and were recoverable offline. One IMU record was split by a concurrent
+`FUSION_HEALTH` print, leaving one sequence gap and two unavailable samples.
+Five output lines contained embedded `FUSION_HEALTH`; two of those corrupted
+UWB text records. Thus `logger_drop=0` proves only that the DK's internal
+message queue did not drop—it does not prove the `NO_BLOCK_SKIP` RTT stream is
+lossless. The current periodic analyzer dump also creates a burst large enough
+to collide with the data stream. Evidence:
+`r6_unprovisioned_ble_stress_30min/raw.log`, `summary.json`, and
+`analysis.json`.
+
+### R7 and V-C1
+
+The R7 dry-run wrote its predictions before opening RTT, remotely rebooted
+B306, re-established the bridge, and passed S1 PING. B306 returned three valid
+S2 STATUS replies, all containing `verify=WARN`; the session predicate
+correctly rejected them. The displayed `no matching reply` error means no
+reply satisfied the PASS predicate, not that B306 was silent. S3 never began,
+so the Master_Tag CDC was not opened and TDMA was not changed. S4–S7 and the
+reduced 30-minute V-C1 are **NOT RUN** because their S2 prerequisite failed and
+the RTT exit had already failed zero-loss validation.
+
+### Deferred and rig end state
+
+V-A1 slow rotation, V-A3 ±2 g, V-C2 dynamic handshake, lever-arm extraction,
+the Master_Tag carrier flash/cold cycle, tag v2-relay1 OTA, and V-B1–V-B5 are
+all **NOT RUN / DEFERRED-PHYSICAL**. No claim is made for auto-zero suppression.
+
+The final remote action observed IMU inactive, rebooted BSF3C79, re-established
+the bridge, and re-read
+`IMU active=0 ... verify=WARN 61=0000 63=03E8 03=0006 1F=0004`.
+It sent no UWB command, so UWB was left as found. Evidence:
+`final_rig_state/summary.json`.
 
 ## Phase-B offline and handover evidence
 
