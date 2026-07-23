@@ -1,6 +1,6 @@
 # IMU + relay batch report
 
-Status: B306 v13 and DK `dk-fusion-imu-relay-v7` are deployed. DK v7 provides
+Status: B306 v15 and DK `dk-fusion-imu-relay-v7` are deployed. DK v7 provides
 bidirectional J-Link RTT control on explicitly selected probe `683234364` while
 retaining the native-USB CDC implementation. Remote validation found two
 independent blockers: JY61P provisioning fails at register `0x63`, and the RTT
@@ -201,13 +201,14 @@ seconds of TIMER2 time, or 200.7869 records/s. On-device counters were
 `p=26690 rpt=16028 new=6044 eq=4678 bad=4618 miss=0 ie=0 rec=3022`.
 `new / N=2 = records` exactly, but this proves only transport accounting.
 
-The decisive A/B/C audit found 3,308 / 6,032 centered triplets with
-`A=B=C`. Of 1,364 identical-vector runs, 1,177 were exactly four frames long,
-101 were eight, 10 were twelve, and two were sixteen. This four-frame lattice
-shows that AX..GZ is held for approximately 20 ms while chip-ms advances four
-times. The effective I2C motion-window refresh is therefore approximately
-50 Hz, not 200 Hz; the observed approximately 45–46 Hz change rate is lower
-because successive 50 Hz updates can still quantize to the same value.
+The A/B/C audit found 3,308 / 6,032 centered triplets with `A=B=C`. Of 1,364
+identical-vector runs, 1,177 were exactly four frames long, 101 were eight, 10
+were twelve, and two were sixteen. This is a real four-frame equality lattice,
+but it is not by itself a freshness clock: the device was stationary and
+quantized, the gyro was clamped to zero, and register `BANDWIDTH=0x0004`.
+The official WIT protocol defines `0x0004` as 20 Hz bandwidth. The experiment
+therefore cannot distinguish an approximately 50 Hz register latch from
+200 Hz computation whose filtered, quantized motion values remain equal.
 Evidence is under
 `B306_Part/logs/imu_v12_ratecheck_20260723_173932/`.
 
@@ -222,12 +223,41 @@ After a 30-second run it still read `0x000B`, proving that the volatile write
 was accepted. The resulting distribution was materially unchanged:
 1,169 four-frame runs, 102 eight-frame runs, eight twelve-frame runs, and six
 sixteen-frame runs; 3,305 / 6,028 centered triplets had `A=B=C`.
-Therefore RRATE `0x000B` does not raise this device's I2C AX..GZ window from
-approximately 50 Hz to 200 Hz. It may control an active/UART output path
-instead. One DK RTT line was corrupted by an embedded `FUSION_HEALTH`, making
-two host text samples unavailable; device-side I2C and BLE error counters
-remained zero. Evidence is under
+Therefore RRATE `0x000B` did not change the static equality lattice. The WIT
+protocol calls RRATE the output rate but does not state that it controls I2C
+register refresh, so this run cannot decide between that interpretation and a
+20 Hz bandwidth/quantization effect. One DK RTT line was corrupted by an
+embedded `FUSION_HEALTH`, making two host text samples unavailable;
+device-side I2C and BLE error counters remained zero. Evidence is under
 `B306_Part/logs/imu_v13_rrate_runtime_20260723_181500/`.
+
+### v14/v15 official-window and write-settle correction
+
+`b306-imu-relay-v14` removed the `0x33`-leading burst and guard read and used
+the official six-axis register window starting at `0x34`. Version v15 then
+matched the older ADS/Gesture runtime write timing: 2 ms after
+`0x69←0xB588`, 5 ms after `0x03←0x000B`, readback, and no SAVE or restart.
+Both changes left the static equality lattice materially unchanged.
+
+The v15 run delivered 6,010 samples at exactly 5,000 us B306 timestamp
+spacing, with zero sequence gaps, I2C errors, BLE drops, or UWB anomalies.
+There were 1,110 four-frame and 90 eight-frame equal-motion runs; 3,320 /
+6,008 centered triplets had `A=B=C`. This rejects the hypotheses that either
+the `0x33` transaction shape or missing 2 ms/5 ms write delays created the
+lattice. It still does not turn equality into a sensor freshness test.
+After the run, a B306 remote reboot returned the same
+`b306-imu-relay-v15` marker with IMU stopped, proving the OTA image survived a
+second boot; RRATE remained volatile `0x000B` because a B306-only reset does
+not remove power from the JY61P. Bandwidth remained untouched at `0x0004`.
+
+Protocol facts from `WIT Standard Communication Protocol.pdf` are:
+`RRATE 0x09=100 Hz`, `0x0B=200 Hz`; `BANDWIDTH 0x04=20 Hz`,
+`0x02=98 Hz`, `0x00=256 Hz`; and six-axis data starts at `0x34`.
+The next discriminating register experiment is a volatile bandwidth change
+with no SAVE, followed by a dynamic test when physical access is available.
+Evidence is under
+`B306_Part/logs/imu_v14_official_window_20260723/` and
+`B306_Part/logs/imu_v15_rrate_delay_20260723/`.
 
 R5 completed 70 seconds after a separate reboot. The 65.5 s boundary has
 zero mean, zero standard deviation, and zero fraction 1.0 on every gyro axis

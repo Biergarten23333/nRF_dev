@@ -34,7 +34,7 @@ LOG_MODULE_REGISTER(biospur_fusion, LOG_LEVEL_INF);
 #define LED0_NODE DT_ALIAS(led0)
 #define UWB_UART_NODE DT_ALIAS(uwb_uart)
 
-#define FW_MARKER "b306-imu-relay-v13"
+#define FW_MARKER "b306-imu-relay-v15"
 
 #define UART_DMA_BUFFER_SIZE 256u
 #define UART_RING_SIZE 2048u
