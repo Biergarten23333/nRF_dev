@@ -21,8 +21,14 @@ LOG_MODULE_DECLARE(biospur_fusion);
 
 #define IMU_I2C_NODE DT_ALIAS(imu_i2c)
 #define JY61P_I2C_ADDRESS 0x50u
-#define JY61P_BURST_REGISTER 0x34u
-#define JY61P_BURST_LENGTH 26u
+#define JY61P_FRAME_REGISTER 0x33u
+#define JY61P_FRAME_LENGTH 28u
+#define JY61P_CHIP_MS_MODULUS 1000u
+#define JY61P_CHIP_MS_PERIOD 5u
+#define JY61P_CHIP_MS_OFFSET 0u
+#define JY61P_ACC_OFFSET 2u
+#define JY61P_GYRO_OFFSET 8u
+#define JY61P_TEMP_OFFSET 26u
 
 #define JY61P_REG_SAVE       0x00u
 #define JY61P_REG_CALSW      0x01u
@@ -46,6 +52,8 @@ BUILD_ASSERT(DT_NODE_HAS_STATUS(IMU_I2C_NODE, okay),
 	     "B306 IMU I2C must be enabled by the application overlay");
 BUILD_ASSERT(DT_PROP(IMU_I2C_NODE, clock_frequency) == I2C_BITRATE_FAST,
 	     "JY61P bus must run at 400 kHz");
+BUILD_ASSERT(JY61P_CHIP_MS_MODULUS % JY61P_CHIP_MS_PERIOD == 0u,
+	     "JY61P chip-ms wrap must contain whole sample periods");
 
 static const struct device *const imu_i2c = DEVICE_DT_GET(IMU_I2C_NODE);
 static bsf_imu_publish_fn publish_record;
@@ -58,7 +66,11 @@ static atomic_t imu_active;
 static atomic_t imu_rate_hz = ATOMIC_INIT(200);
 static atomic_t imu_batch_size = ATOMIC_INIT(BSF_IMU_BATCH_DEFAULT);
 static atomic_t imu_pulls;
-static atomic_t imu_duplicate_samples;
+static atomic_t imu_repeated_chip_polls;
+static atomic_t imu_fresh_frames;
+static atomic_t imu_equal_motion_frames;
+static atomic_t imu_incoherent_reads;
+static atomic_t imu_missed_chip_frames;
 static atomic_t imu_i2c_errors;
 static atomic_t imu_records;
 
@@ -70,6 +82,10 @@ static bool verify_pass;
 
 static uint8_t last_motion_sample[12];
 static bool have_last_motion_sample;
+static uint16_t last_chip_ms;
+static bool have_last_chip_ms;
+static uint16_t last_published_chip_ms;
+static bool have_last_published_chip_ms;
 static uint16_t next_sample_sequence;
 
 static bsf_ble_imu_sample_t batch_samples[BSF_IMU_BATCH_MAX];
@@ -174,21 +190,63 @@ static void flush_batch(void)
 	batch_count = 0u;
 }
 
-static void accept_sample(const uint8_t raw[JY61P_BURST_LENGTH],
+static uint16_t chip_ms_delta(uint16_t newer, uint16_t older)
+{
+	return newer >= older ?
+		newer - older : JY61P_CHIP_MS_MODULUS - older + newer;
+}
+
+static void accept_sample(const uint8_t raw[JY61P_FRAME_LENGTH],
 			  uint32_t timestamp_us)
 {
+	const uint8_t *motion = &raw[JY61P_ACC_OFFSET];
+	uint16_t chip_ms = get_le16(&raw[JY61P_CHIP_MS_OFFSET]);
+	uint16_t chip_delta;
+	uint16_t publish_period_ms;
 	uint16_t sequence;
 	uint32_t delta;
 	uint8_t target_batch = (uint8_t)atomic_get(&imu_batch_size);
 	bsf_ble_imu_sample_t *sample;
 
-	if (have_last_motion_sample &&
-	    memcmp(last_motion_sample, raw, sizeof(last_motion_sample)) == 0) {
-		atomic_inc(&imu_duplicate_samples);
+	if (chip_ms >= JY61P_CHIP_MS_MODULUS) {
+		atomic_inc(&imu_incoherent_reads);
 		return;
 	}
-	memcpy(last_motion_sample, raw, sizeof(last_motion_sample));
+	if (have_last_chip_ms && chip_ms == last_chip_ms) {
+		atomic_inc(&imu_repeated_chip_polls);
+		return;
+	}
+
+	if (have_last_chip_ms) {
+		chip_delta = chip_ms_delta(chip_ms, last_chip_ms);
+		if (chip_delta > JY61P_CHIP_MS_PERIOD &&
+		    chip_delta % JY61P_CHIP_MS_PERIOD == 0u) {
+			atomic_add(&imu_missed_chip_frames,
+				   chip_delta / JY61P_CHIP_MS_PERIOD - 1u);
+		} else if (chip_delta != JY61P_CHIP_MS_PERIOD) {
+			atomic_inc(&imu_incoherent_reads);
+		}
+	}
+	last_chip_ms = chip_ms;
+	have_last_chip_ms = true;
+	atomic_inc(&imu_fresh_frames);
+
+	if (have_last_motion_sample &&
+	    memcmp(last_motion_sample, motion, sizeof(last_motion_sample)) == 0) {
+		atomic_inc(&imu_equal_motion_frames);
+	}
+	memcpy(last_motion_sample, motion, sizeof(last_motion_sample));
 	have_last_motion_sample = true;
+
+	publish_period_ms =
+		1000u / (uint16_t)atomic_get(&imu_rate_hz);
+	if (have_last_published_chip_ms &&
+	    chip_ms_delta(chip_ms, last_published_chip_ms) <
+		    publish_period_ms) {
+		return;
+	}
+	last_published_chip_ms = chip_ms;
+	have_last_published_chip_ms = true;
 
 	sequence = next_sample_sequence++;
 	if (batch_count != 0u) {
@@ -208,27 +266,39 @@ static void accept_sample(const uint8_t raw[JY61P_BURST_LENGTH],
 	sample = &batch_samples[batch_count++];
 	sample->delta_us = (uint16_t)delta;
 	for (size_t i = 0; i < 3u; ++i) {
-		sample->acc[i] = (int16_t)get_le16(&raw[i * 2u]);
-		sample->gyro[i] = (int16_t)get_le16(&raw[6u + i * 2u]);
+		sample->acc[i] =
+			(int16_t)get_le16(&raw[JY61P_ACC_OFFSET + i * 2u]);
+		sample->gyro[i] =
+			(int16_t)get_le16(&raw[JY61P_GYRO_OFFSET + i * 2u]);
 	}
-	batch_temperature = (int16_t)get_le16(&raw[24]);
+	batch_temperature = (int16_t)get_le16(&raw[JY61P_TEMP_OFFSET]);
 
 	if (batch_count >= target_batch) {
 		flush_batch();
 	}
 }
 
-static void pull_once(uint32_t timestamp_us)
+static void pull_once(void)
 {
-	uint8_t raw[JY61P_BURST_LENGTH];
+	uint8_t raw[JY61P_FRAME_LENGTH];
+	uint16_t guard_chip_ms;
+	uint32_t timestamp_us;
 	int ret;
 
 	atomic_inc(&imu_pulls);
 	k_mutex_lock(&i2c_lock, K_FOREVER);
-	ret = jy61p_read(JY61P_BURST_REGISTER, raw, sizeof(raw));
+	timestamp_us = (uint32_t)bsf_time_now_us();
+	ret = jy61p_read(JY61P_FRAME_REGISTER, raw, sizeof(raw));
+	if (ret == 0) {
+		ret = jy61p_read16(JY61P_FRAME_REGISTER, &guard_chip_ms);
+	}
 	k_mutex_unlock(&i2c_lock);
 	if (ret != 0) {
 		atomic_inc(&imu_i2c_errors);
+		return;
+	}
+	if (guard_chip_ms != get_le16(&raw[JY61P_CHIP_MS_OFFSET])) {
+		atomic_inc(&imu_incoherent_reads);
 		return;
 	}
 	accept_sample(raw, timestamp_us);
@@ -241,30 +311,16 @@ static void imu_thread(void *unused1, void *unused2, void *unused3)
 	ARG_UNUSED(unused3);
 
 	while (true) {
-		uint64_t next_deadline;
-
 		k_sem_take(&start_sem, K_FOREVER);
-		next_deadline = bsf_time_now_us();
 
 		while (atomic_get(&imu_active) != 0) {
-			uint64_t now = bsf_time_now_us();
-			uint32_t period_us =
-				1000000u / (uint32_t)atomic_get(&imu_rate_hz);
-
-			if (now < next_deadline) {
-				uint64_t remaining = next_deadline - now;
-
-				k_usleep((int32_t)MIN(remaining, (uint64_t)INT32_MAX));
-				continue;
-			}
-
-			pull_once((uint32_t)bsf_time_now_us());
-			next_deadline += period_us;
-			now = bsf_time_now_us();
-			if (now > next_deadline &&
-			    now - next_deadline > period_us) {
-				next_deadline = now + period_us;
-			}
+			/*
+			 * The sensor has no data-ready pin. Poll continuously so a
+			 * 200 Hz producer cannot remain phase-locked just ahead of a
+			 * 200 Hz host schedule. Each TWIM transfer blocks this thread;
+			 * no artificial delay is inserted between transactions.
+			 */
+			pull_once();
 		}
 
 		flush_batch();
@@ -313,6 +369,8 @@ int bsf_imu_start(void)
 		return -EALREADY;
 	}
 	have_last_motion_sample = false;
+	have_last_chip_ms = false;
+	have_last_published_chip_ms = false;
 	batch_count = 0u;
 	k_sem_reset(&stopped_sem);
 	k_sem_give(&start_sem);
@@ -489,7 +547,7 @@ int bsf_imu_selftest(char *reply, size_t reply_size)
 void bsf_imu_format_status(char *reply, size_t reply_size)
 {
 	snprintf(reply, reply_size,
-		 "IMU active=%u rate=%u batch=%u verify=%s 61=%04X 63=%04X 03=%04X 1F=%04X pulls=%u dup=%u i2c_err=%u records=%u",
+		 "IMU active=%u rate=%u batch=%u verify=%s 61=%04X 63=%04X 03=%04X 1F=%04X p=%u rpt=%u new=%u eq=%u bad=%u miss=%u ie=%u rec=%u cms=%u",
 		 atomic_get(&imu_active) != 0,
 		 (uint16_t)atomic_get(&imu_rate_hz),
 		 (uint8_t)atomic_get(&imu_batch_size),
@@ -497,22 +555,36 @@ void bsf_imu_format_status(char *reply, size_t reply_size)
 		 verified_gyrocalithr, verified_gyrocalitime,
 		 verified_rrate, verified_bandwidth,
 		 (uint32_t)atomic_get(&imu_pulls),
-		 (uint32_t)atomic_get(&imu_duplicate_samples),
+		 (uint32_t)atomic_get(&imu_repeated_chip_polls),
+		 (uint32_t)atomic_get(&imu_fresh_frames),
+		 (uint32_t)atomic_get(&imu_equal_motion_frames),
+		 (uint32_t)atomic_get(&imu_incoherent_reads),
+		 (uint32_t)atomic_get(&imu_missed_chip_frames),
 		 (uint32_t)atomic_get(&imu_i2c_errors),
-		 (uint32_t)atomic_get(&imu_records));
+		 (uint32_t)atomic_get(&imu_records),
+		 last_chip_ms);
 }
 
 void bsf_imu_get_stats(struct bsf_imu_stats *stats)
 {
 	*stats = (struct bsf_imu_stats) {
 		.pulls = (uint32_t)atomic_get(&imu_pulls),
-		.duplicate_samples =
-			(uint32_t)atomic_get(&imu_duplicate_samples),
+		.repeated_chip_polls =
+			(uint32_t)atomic_get(&imu_repeated_chip_polls),
+		.fresh_frames = (uint32_t)atomic_get(&imu_fresh_frames),
+		.equal_motion_frames =
+			(uint32_t)atomic_get(&imu_equal_motion_frames),
+		.incoherent_reads =
+			(uint32_t)atomic_get(&imu_incoherent_reads),
+		.missed_chip_frames =
+			(uint32_t)atomic_get(&imu_missed_chip_frames),
 		.i2c_errors = (uint32_t)atomic_get(&imu_i2c_errors),
 		.records = (uint32_t)atomic_get(&imu_records),
 		.rate_hz = (uint16_t)atomic_get(&imu_rate_hz),
+		.last_chip_ms = last_chip_ms,
 		.batch_size = (uint8_t)atomic_get(&imu_batch_size),
 		.active = (uint8_t)(atomic_get(&imu_active) != 0),
+		.have_chip_ms = (uint8_t)have_last_chip_ms,
 		.verify_pass = (uint8_t)verify_pass,
 		.gyrocalithr = verified_gyrocalithr,
 		.gyrocalitime = verified_gyrocalitime,
@@ -524,7 +596,11 @@ void bsf_imu_get_stats(struct bsf_imu_stats *stats)
 void bsf_imu_clear_counters(void)
 {
 	atomic_set(&imu_pulls, 0);
-	atomic_set(&imu_duplicate_samples, 0);
+	atomic_set(&imu_repeated_chip_polls, 0);
+	atomic_set(&imu_fresh_frames, 0);
+	atomic_set(&imu_equal_motion_frames, 0);
+	atomic_set(&imu_incoherent_reads, 0);
+	atomic_set(&imu_missed_chip_frames, 0);
 	atomic_set(&imu_i2c_errors, 0);
 	atomic_set(&imu_records, 0);
 }

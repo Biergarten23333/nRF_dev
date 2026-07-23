@@ -11,12 +11,19 @@ typedef int (*bsf_imu_publish_fn)(const void *record, size_t len);
 
 struct bsf_imu_stats {
 	uint32_t pulls;
-	uint32_t duplicate_samples;
+	/* Repeated host polls with an unchanged JY61P chip-ms value. */
+	uint32_t repeated_chip_polls;
+	uint32_t fresh_frames;
+	uint32_t equal_motion_frames;
+	uint32_t incoherent_reads;
+	uint32_t missed_chip_frames;
 	uint32_t i2c_errors;
 	uint32_t records;
 	uint16_t rate_hz;
+	uint16_t last_chip_ms;
 	uint8_t batch_size;
 	uint8_t active;
+	uint8_t have_chip_ms;
 	uint8_t verify_pass;
 	uint16_t gyrocalithr;
 	uint16_t gyrocalitime;

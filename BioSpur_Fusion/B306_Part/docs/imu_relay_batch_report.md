@@ -1,6 +1,6 @@
 # IMU + relay batch report
 
-Status: B306 v11 and DK `dk-fusion-imu-relay-v7` are deployed. DK v7 provides
+Status: B306 v12 and DK `dk-fusion-imu-relay-v7` are deployed. DK v7 provides
 bidirectional J-Link RTT control on explicitly selected probe `683234364` while
 retaining the native-USB CDC implementation. Remote validation found two
 independent blockers: JY61P provisioning fails at register `0x63`, and the RTT
@@ -191,6 +191,23 @@ whose equal-valued static frames were wrongly removed. R4 is
 was exactly zero; the gyro finding remains evidence that auto-zero suppression
 was not configured. The retained IMU sequence is continuous after salvaging
 one complete record that thread-analyzer output prefixed on the same RTT line.
+
+### v12 freshness correction and direct rate check
+
+`b306-imu-relay-v12` replaces AX..GZ equality as the freshness test with
+register `0x33` chip milliseconds. It continuously reads `0x33` through
+`0x40`, guards each burst with an immediate second `0x33` read, and retains
+new chip-time frames even when all six motion channels are byte-identical.
+
+A 30-second run produced 6,034 host samples over 30.046780 seconds of TIMER2
+time, or **200.7869 Hz**, with zero sequence gaps, zero inferred missed chip
+frames, zero I2C errors, and zero BLE notification errors. On-device counters
+were `p=26690 rpt=16028 new=6044 eq=4678 bad=4618 miss=0 ie=0 rec=3022`.
+Thus `new / N=2 = records` exactly, while 77.40% of fresh frames still had
+motion bytes equal to their predecessor. This closes the output-rate question:
+the earlier approximately 45–50 Hz value was only the stationary
+motion-change-event rate. Full evidence is under
+`B306_Part/logs/imu_v12_ratecheck_20260723_173932/`.
 
 R5 completed 70 seconds after a separate reboot. The 65.5 s boundary has
 zero mean, zero standard deviation, and zero fraction 1.0 on every gyro axis

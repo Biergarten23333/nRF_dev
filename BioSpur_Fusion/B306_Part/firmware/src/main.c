@@ -34,7 +34,7 @@ LOG_MODULE_REGISTER(biospur_fusion, LOG_LEVEL_INF);
 #define LED0_NODE DT_ALIAS(led0)
 #define UWB_UART_NODE DT_ALIAS(uwb_uart)
 
-#define FW_MARKER "b306-imu-relay-v11"
+#define FW_MARKER "b306-imu-relay-v12"
 
 #define UART_DMA_BUFFER_SIZE 256u
 #define UART_RING_SIZE 2048u
@@ -928,7 +928,7 @@ static void process_control(const char *command, uint16_t correlation)
 			 (uint32_t)atomic_get(&drop_unsub),
 			 (uint32_t)atomic_get(&drop_err),
 			 (int32_t)atomic_get(&last_notify_error),
-			 imu_stats.pulls, imu_stats.duplicate_samples,
+			 imu_stats.pulls, imu_stats.repeated_chip_polls,
 			 imu_stats.i2c_errors, imu_stats.records,
 			 (uint32_t)atomic_get(&ctrl_rx),
 			 (uint32_t)atomic_get(&ctrl_bad_bsf),
@@ -1101,7 +1101,8 @@ static void telemetry_work_handler(struct k_work *work)
 			(uint32_t)atomic_get(&watchdog_feed_count),
 		.reset_reason = boot_reset_reason,
 		.imu_pulls = imu_stats.pulls,
-		.imu_dup = imu_stats.duplicate_samples,
+		/* Legacy wire name: now counts repeated chip-ms polls. */
+		.imu_dup = imu_stats.repeated_chip_polls,
 		.imu_i2c_err = imu_stats.i2c_errors,
 		.imu_records = imu_stats.records,
 		.ctrl_rx = (uint32_t)atomic_get(&ctrl_rx),

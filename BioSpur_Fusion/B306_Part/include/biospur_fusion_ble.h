@@ -161,9 +161,11 @@ typedef struct __attribute__((packed)) {
  *   int16_t temperature_raw
  *
  * N is derived exactly from len and must be 1..5. seq identifies the first
- * accepted (non-duplicate) sample in the record. base_timer2_ts_us is the low
- * 32 bits of the shared TIMER2 time at that sample's TWIM pull initiation;
- * subsequent samples carry unsigned microsecond deltas from the base.
+ * accepted sensor frame in the record. Freshness is determined by the JY61P
+ * chip-ms register, not by equality of the quantized motion bytes. The
+ * base_timer2_ts_us is the low 32 bits of the shared TIMER2 time at that
+ * frame's TWIM pull initiation; subsequent samples carry unsigned microsecond
+ * deltas from the base.
  */
 typedef struct __attribute__((packed)) {
 	uint8_t version;

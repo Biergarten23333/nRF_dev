@@ -14,7 +14,8 @@ contains:
 - dual-edge P1.03 GPIOTE -> dynamically allocated PPI -> TIMER capture;
 - 20 ms strobe/frame pairing with explicit four-case verdicts; and
 - JY61P 400 kHz TWIM on P0.26/P0.27, boot verification, explicit
-  provisioning, and TIMER2-timestamped 50/100/200 Hz pulls;
+  provisioning, continuous chip-time-aware polling, coherency checking, and
+  TIMER2-timestamped 50/100/200 Hz output;
 - protocol-v2 UWB, telemetry, variable kind-3 IMU, and kind-4 control replies;
   and
 - a BSF-addressed writable control characteristic.
@@ -26,8 +27,8 @@ The first accepted BLE-only update was `b306-stage1-ota-v2`, version
 `0.1.1+0`; Stage 1 upload, real MCUboot revert, confirmation, and persistence
 across reboot passed on the Fusion PCB on 2026-07-20.
 
-The current source marker is `b306-imu-relay-v11`, version
-`0.1.10-imu-relay+0`; it is not an installed-image claim until OTA and
+The current source marker is `b306-imu-relay-v12`, version
+`0.1.11-imu-relay+0`; it is not an installed-image claim until OTA and
 post-reboot verification complete. The previously installed
 `b306-strobe-capture-v8` signed binary is archived as
 `b306-installed-v8.signed.bin` in the accepted Stage 2/4b run directory; its
