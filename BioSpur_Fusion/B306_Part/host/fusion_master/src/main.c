@@ -871,7 +871,13 @@ static uint8_t discover_fusion(struct bt_conn *conn,
 		}
 
 		discovery_stage = DISCOVERY_TELEMETRY_CCC;
-		discover_params.uuid = BT_UUID_GATT_CCC;
+		/*
+		 * Enumerate the descriptor at the telemetry value boundary and
+		 * validate its UUID in the callback.  A filtered CCC discovery can
+		 * return not-found here on the deployed Zephyr peer even though the
+		 * descriptor is present at the next handle.
+		 */
+		discover_params.uuid = NULL;
 		discover_params.start_handle = telemetry_value_handle + 1u;
 		discover_params.end_handle = service_end_handle;
 		discover_params.type = BT_GATT_DISCOVER_DESCRIPTOR;
@@ -884,6 +890,12 @@ static uint8_t discover_fusion(struct bt_conn *conn,
 	}
 
 	case DISCOVERY_TELEMETRY_CCC:
+		if (bt_uuid_cmp(attr->uuid, BT_UUID_GATT_CCC) != 0) {
+			printk("FUSION_FAIL step=telemetry_descriptor_not_ccc handle=%u\n",
+			       attr->handle);
+			memset(params, 0, sizeof(*params));
+			break;
+		}
 		telemetry_subscribe_params.notify = telemetry_notification;
 		telemetry_subscribe_params.value = BT_GATT_CCC_NOTIFY;
 		telemetry_subscribe_params.value_handle = telemetry_value_handle;
@@ -1155,7 +1167,7 @@ int main(void)
 		printk("FUSION_FAIL step=cdc_start err=%d\n", err);
 		return 0;
 	}
-	printk("FUSION_MASTER marker=dk-fusion-imu-relay-v5 probe=683234364 pc=USB_CDC rtt=fallback\n");
+	printk("FUSION_MASTER marker=dk-fusion-imu-relay-v6 probe=683234364 pc=USB_CDC rtt=fallback\n");
 	err = bt_enable(NULL);
 	if (err != 0) {
 		printk("FUSION_FAIL step=bt_enable err=%d\n", err);

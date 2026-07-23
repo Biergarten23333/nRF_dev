@@ -1,7 +1,7 @@
 # IMU + relay batch report
 
-Status: implementation/build phase. Hardware outcomes are intentionally blank
-until measured.
+Status: B306 v11 OTA and DK v6 BLE/control discovery are deployed and verified.
+IMU command/stream validation remains blocked on the DK native-USB connection.
 
 ## A0 preflight evidence
 
@@ -78,17 +78,49 @@ directories. Hardware deployment and validation have not yet occurred.
 | Target | Marker | FLASH | RAM | malloc arena | Gate |
 |---|---|---:|---:|---:|---|
 | Fusion-PCB B306 | `b306-imu-relay-v11` | 195,732 / 499,200 B (39.21%) | 76,876 / 262,144 B (29.33%) | 0 B explicit | PASS |
-| Fusion Master DK | `dk-fusion-imu-relay-v5` | 163,748 / 1,048,576 B (15.62%) | 87,836 / 262,144 B (33.51%) | 0 B explicit | PASS |
+| Fusion Master DK | `dk-fusion-imu-relay-v6` | 163,824 / 1,048,576 B (15.62%) | 87,836 / 262,144 B (33.51%) | 0 B explicit | PASS |
 
 | Artifact | SHA-256 |
 |---|---|
 | `B306_Part/builds/b306-imu-relay-v11/merged.hex` | `5340d5284c79d0babed129f8ba06bf14767e4857063f0275eabb44ebe679965a` |
 | `B306_Part/builds/b306-imu-relay-v11/firmware/zephyr/zephyr.signed.bin` | `e34e6f44bf061b50a0335dc7363d238e95b2726b8d14d092b014dcfc57ea9053` |
 | `B306_Part/builds/b306-imu-relay-v11/dfu_application.zip` | `5a882bac2540c79726c59d82bdf90e75cce15d3bf82684488751dc649e0352a3` |
-| `B306_Part/builds/dk-fusion-imu-relay-v5/merged.hex` | `ab2f83ca3401f84161d9262550fe3e97f6cbd4a652636ba507712e37e14c450a` |
-| `B306_Part/builds/dk-fusion-imu-relay-v5/fusion_master/zephyr/zephyr.hex` | `e3c0699f0c84f33624cc8bc0c06c442d5409504dd9d5e6e5eedc19e511b31469` |
+| `B306_Part/builds/dk-fusion-imu-relay-v6/merged.hex` | `c3b49e433e74a0dfd3f60b0ef9cda36108d347479b0801e888a65861d0690783` |
+| `B306_Part/builds/dk-fusion-imu-relay-v6/fusion_master/zephyr/zephyr.hex` | `74a7a2f7e05d4c3bad8bafb1302413d04b8babd7de348c3c54e651c45b6a46ea` |
 
 The two `biospur_link.h` copies are byte-identical at SHA-256
 `792db4819ec320b586ac47b0a0a22e799c119b81bfb74ede3d8e0b40f06230f5`.
 Both compiled consumers retain the original 90-byte `bsl_uwb_t` and 96-byte
 `bsl_frame_t` static assertions.
+
+## Deployment evidence
+
+The B306 updater targeted exact identity `BSF3C79` and payload
+`b306-imu-relay-v11`, signed-file SHA-256
+`e34e6f44bf061b50a0335dc7363d238e95b2726b8d14d092b014dcfc57ea9053`.
+The independent verify-only run reported:
+
+```text
+OTA image-state verdict: marker=b306-imu-relay-v11 hash=match active=1 confirmed=1
+OTA_STATE:post_verify_passed detail=hash_active_confirmed
+```
+
+The initial DK v5 deployment exposed a client-side discovery defect:
+data notifications were subscribed at value/CCC 18/19, but UUID-filtered
+discovery returned `discover_4 not_found` after telemetry value 21. DK v6
+enumerates the descriptor and verifies its UUID before subscribing. Its
+hardware RTT acceptance reported:
+
+```text
+FUSION_TELEMETRY_SUBSCRIBED value=21 ccc=22
+FUSION_CONTROL_CHARACTERISTIC value=24 props=0x0c
+FUSION_BRIDGE_READY name=BSF3C79 rssi=-45 mtu=247 data=18 telemetry=21 control=24
+```
+
+The same run negotiated ATT MTU 247, DLE 251 bytes, and 2M PHY, then received
+continuous protocol-v2 `FUSION_UWB` records with `valid=0xff` and
+`verdict=healthy`. This proves the DWM1001C→B306 UART/strobe path and
+B306→DK BLE data path are live before IMU is enabled. The DK's native USB
+device (`2FE3:10F4`, `BioSpur Fusion Master`) did not enumerate; only its
+J-Link CDC was connected. USB-dependent S1–S7 validation is therefore still
+NOT RUN, not failed.
