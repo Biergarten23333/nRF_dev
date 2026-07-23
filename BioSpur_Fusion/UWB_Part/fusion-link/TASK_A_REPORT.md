@@ -466,25 +466,18 @@ frame body=4 and CRC=94. Both MCU copies of `biospur_link.h` are byte-identical.
 
 ### APOS disposition and reader audit
 
-APOS is intentionally still functional in clean1. Scheduled-removal markers
-cover the BLE command block and the NVS/layout storage module. After removing
-the tag-side solver and plane-selection path, no ranging code reads layout
-coordinates. Remaining readers are:
+The v2-clean1 audit licensed removal: layout coordinates had zero
+measurement-path readers. The IMU/relay batch executed that removal in its
+first isolated tag commit: the APOS BLE parser/help entries, startup load, NVS
+handler, runtime/default coordinate arrays, public header, and source module
+are gone from the fusion fork.
 
-- `APOS_STATUS`, which calls `uwb_anchor_layout_get()` to report the stored
-  coordinates;
-- the APOS storage module itself: NVS load/export/commit/reset and the public
-  APOS accessors;
-- startup `uwb_anchor_layout_init()`, which loads the persistent APOS state.
-
-`uwb_anchor_layout_is_lower_plane()` and
-`uwb_anchor_layout_is_upper_plane()` have no external callers. Thus
-`layout_runtime`/`layout_defaults` have zero measurement-path readers.
-
-Fork divergence: the fusion fork schedules APOS removal because layout is
-host-side. This is protocol divergence from the freeze fork, merge debt +1;
-removal lands with or after the IMU batch. The freeze fork keeps APOS as the
-receiver for `push_apos_layout_verified.py`.
+Fork divergence: layout is host-side in the fusion fork, so APOS is no longer
+part of its tag command surface. This is intentional protocol divergence and
+merge debt +1. The freeze fork keeps APOS as the production receiver for
+`push_apos_layout_verified.py`; a source pointer to
+`uwb_tag_ble.c / uwb_anchor_layout.c @ freeze-clean-20260716` remains beside
+the removed parser location.
 
 `tag-fusion-link-v2-clean1` was built and verified only. No OTA, flash or
 configuration push was performed; installed firmware remains

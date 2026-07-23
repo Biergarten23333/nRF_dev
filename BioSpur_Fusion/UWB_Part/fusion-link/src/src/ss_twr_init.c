@@ -3,7 +3,6 @@
 #include "biospur_uart_link.h"
 #include "broadcast_tdma.h"
 #include "uwb_tdma.h"
-#include "uwb_anchor_layout.h"
 #if APP_TAG_BLE_ENABLE
 #include "uwb_tag_ble.h"
 #else

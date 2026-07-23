@@ -211,7 +211,6 @@ target_sources(app PRIVATE
     src/tag_app.c
     ${APP_ROOT}/src/uwb_bringup.c
     ${APP_ROOT}/src/uwb_port.c
-    ${APP_ROOT}/src/uwb_anchor_layout.c
     ${APP_ROOT}/src/uwb_ss_twr_shared.c
     ${APP_ROOT}/src/biospur_uart_link.c
     ${APP_ROOT}/src/uwb_tdma.c

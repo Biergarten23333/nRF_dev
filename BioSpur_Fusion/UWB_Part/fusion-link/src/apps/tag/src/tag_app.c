@@ -9,7 +9,6 @@
 
 #include "biospur_uart_link.h"
 #include "ss_twr_init.h"
-#include "uwb_anchor_layout.h"
 #include "uwb_bringup.h"
 #include "uwb_port.h"
 #include <deca_device_api.h>
@@ -342,8 +341,6 @@ int tag_app_run(void)
 #endif
 
     tag_blue_led_init();
-
-    uwb_anchor_layout_init();
 
     ret = biospur_uart_link_init();
     if (ret) {

@@ -22,7 +22,6 @@
 
 #include "biospur_uart_link.h"
 #include "ss_twr_init.h"
-#include "uwb_anchor_layout.h"
 
 #include <hal/nrf_ficr.h>
 
@@ -2061,104 +2060,12 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 	}
 
 	/*
-	 * SCHEDULED FOR REMOVAL (fusion fork): layout lives host-side; kept this
-	 * round for diff reviewability. The freeze fork KEEPS APOS -- it is the
-	 * receiving end of the AutoPos production chain
-	 * (push_apos_layout_verified.py). For any future tag-side solving on
-	 * high-compute hardware, use the freeze-line implementation as reference:
-	 * uwb_tag_ble.c / uwb_anchor_layout.c @ freeze-clean-20260716.
-	 *
-	 * This marker covers APOS, APOS_COMMIT, APOS_RESET and APOS_STATUS.
+	 * Fusion-fork APOS was removed after the v2-clean1 zero-reader audit:
+	 * layout is host-side here. The freeze fork intentionally keeps the
+	 * production receiver for push_apos_layout_verified.py. If a future
+	 * high-compute tag needs it, use uwb_tag_ble.c / uwb_anchor_layout.c at
+	 * freeze-clean-20260716 as the reference implementation.
 	 */
-	if (strncmp(cmd, "APOS ", 5) == 0) {
-		const char *arg = cmd + 5;
-		char *end = NULL;
-		int32_t id;
-		int32_t x;
-		int32_t y;
-		int32_t z;
-		int err;
-		char resp[96];
-
-		if (!uwb_tag_ble_parse_i32_token(arg, &end, &id) ||
-		    !uwb_tag_ble_parse_i32_token(end, &end, &x) ||
-		    !uwb_tag_ble_parse_i32_token(end, &end, &y) ||
-		    !uwb_tag_ble_parse_i32_token(end, &end, &z)) {
-			uwb_tag_ble_send_text("APOS_BAD");
-			return;
-		}
-		while (end != NULL && (*end == ' ' || *end == '\t')) {
-			end++;
-		}
-		if (end == NULL || *end != '\0' || id < 0 || id > UINT8_MAX) {
-			uwb_tag_ble_send_text("APOS_BAD");
-			return;
-		}
-
-		err = uwb_anchor_layout_set((uint8_t)id, x, y, z);
-		if (err) {
-			snprintk(resp, sizeof(resp), "APOS_FAIL ID=%ld RC=%d",
-				 (long)id, err);
-			uwb_tag_ble_send_text(resp);
-			return;
-		}
-
-		snprintk(resp, sizeof(resp), "APOS_OK ID=%ld X=%ld Y=%ld Z=%ld",
-			 (long)id, (long)x, (long)y, (long)z);
-		uwb_tag_ble_send_text(resp);
-		return;
-	}
-
-	if (strcmp(cmd, "APOS_COMMIT") == 0) {
-		int err = uwb_anchor_layout_commit();
-		char resp[64];
-
-		if (err) {
-			snprintk(resp, sizeof(resp), "APOS_COMMIT_FAIL RC=%d", err);
-		} else {
-			snprintk(resp, sizeof(resp), "APOS_COMMIT_OK N=%u",
-				 (unsigned int)uwb_anchor_layout_count());
-		}
-		uwb_tag_ble_send_text(resp);
-		return;
-	}
-
-	if (strcmp(cmd, "APOS_RESET") == 0) {
-		int err = uwb_anchor_layout_reset();
-		char resp[64];
-
-		if (err) {
-			snprintk(resp, sizeof(resp), "APOS_RESET_FAIL RC=%d", err);
-		} else {
-			snprintk(resp, sizeof(resp), "APOS_RESET_OK N=%u",
-				 (unsigned int)uwb_anchor_layout_count());
-		}
-		uwb_tag_ble_send_text(resp);
-		return;
-	}
-
-	if (strcmp(cmd, "APOS_STATUS") == 0) {
-		char resp[96];
-		const char *source =
-			uwb_anchor_layout_loaded_from_settings() ? "SETTINGS" : "DEFAULT";
-
-		for (uint8_t i = 0U; i < uwb_anchor_layout_count(); ++i) {
-			const struct uwb_anchor_pose_mm *pose = uwb_anchor_layout_get(i);
-
-			if (pose == NULL) {
-				continue;
-			}
-			snprintk(resp, sizeof(resp), "APOS %u %ld %ld %ld",
-				 (unsigned int)pose->anchor_id,
-				 (long)pose->x_mm,
-				 (long)pose->y_mm,
-				 (long)pose->z_mm);
-			uwb_tag_ble_send_text(resp);
-		}
-		snprintk(resp, sizeof(resp), "APOS_STATUS_DONE SRC=%s", source);
-		uwb_tag_ble_send_text(resp);
-		return;
-	}
 
 	if (strcmp(cmd, "VERSION") == 0) {
 		char resp[176];
@@ -2368,9 +2275,9 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 
 	if (strcmp(cmd, "HELP") == 0) {
 #if APP_TAG_BLE_OTA_ENABLE
-		uwb_tag_ble_send_text("PING|STATUS|BSL_STATUS|TR?|TR <ON|OFF>|CAPTURE?|CAPTURE PARAM <ci_units> <sup_units>|CAPTURE <ON|OFF>|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|TXPWR <MAX|M3|M6|M12|POR>|DIAG <ON|OFF>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|BSL_STATUS|TR?|TR <ON|OFF>|CAPTURE?|CAPTURE PARAM <ci_units> <sup_units>|CAPTURE <ON|OFF>|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|TXPWR <MAX|M3|M6|M12|POR>|DIAG <ON|OFF>|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
 #else
-		uwb_tag_ble_send_text("PING|STATUS|BSL_STATUS|TR?|TR <ON|OFF>|CAPTURE?|CAPTURE PARAM <ci_units> <sup_units>|CAPTURE <ON|OFF>|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|TXPWR <MAX|M3|M6|M12|POR>|DIAG <ON|OFF>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|BSL_STATUS|TR?|TR <ON|OFF>|CAPTURE?|CAPTURE PARAM <ci_units> <sup_units>|CAPTURE <ON|OFF>|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|TXPWR <MAX|M3|M6|M12|POR>|DIAG <ON|OFF>|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|REBOOT|HELP");
 #endif
 		return;
 	}
