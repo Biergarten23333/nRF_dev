@@ -13,6 +13,21 @@ The remote reboot rule remains because a fresh, attributable baseline is
 required for every formal session, not as a workaround for the retired wrap
 defect.
 
+The ordered remote implementation is:
+
+```bash
+python3 B306_Part/tools/fusion_session.py start \
+  --bsf BSF1234 --path relay --tag-id 1 --slot 0 --count 10
+python3 B306_Part/tools/fusion_session.py stop --clear-tdma
+```
+
+Replace `BSF1234` with the connected board reported by `LIST`. The start command
+performs the software reboot preflight, then enforces S1–S7 from the architecture
+record. `--path master` substitutes the existing Master_Tag TDMA configuration
+path for S3. The script resolves native USB CDC by identity, never a hard-coded
+`ttyACM` number, and opens it with DTR/RTS disabled. A failed S7 always attempts
+`IMU STOP` and leaves UWB running.
+
 ## Physical capture preflight
 
 Before starting a formal capture:

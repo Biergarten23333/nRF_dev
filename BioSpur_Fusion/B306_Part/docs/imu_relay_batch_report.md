@@ -43,6 +43,33 @@ These predictions were written before any IMU hardware validation run.
 N=1 is not a production setting until a separate 30-minute run satisfies the
 same loss criteria.
 
+## Pre-registered Phase-C predictions
+
+These predictions were written before deployment or any integration run.
+
+| Test | Prediction fixed before run | Outcome |
+|---|---|---|
+| S4 UWB proof | Both UART-frame and RDY-rise counters increase at 8–12 Hz, with at most one boundary-count difference; `LIVE=1` alone cannot pass. | NOT RUN |
+| S7 10 s sentinel | UWB remains at 8–12 Hz, every observed UWB record is healthy, all CRC/header/ring/sweep/drop/orphan/logger/relay-timeout deltas are zero, IMU output reaches at least 80% of its configured record rate, and IMU sequence gaps are zero. | NOT RUN |
+| S7 rollback | Any S7 exception or failed predicate issues and acknowledges `IMU STOP`; UWB is not stopped. | NOT RUN |
+| V-C1 30 min | UWB/tag production anomalies and B306 transport/orphan/drop-error deltas remain zero, frame rate stays steady, IMU sequence gaps remain zero, and every 60 s relay command is correlated and acknowledged. | NOT RUN |
+| V-C2 dynamic handshake | UWB displacement and IMU acceleration share one TIMER2 axis; their apparent offset is constant and approximately the I2C pull latency rather than motion-dependent drift. | NOT RUN |
+
+`B306_Part/tools/fusion_session.py` implements the mandatory S1–S7/T1–T3
+ordering with bounded waits, a single-owner lock, stable USB identity
+resolution, DTR/RTS disabled, per-run raw/JSON logs, and a prediction file
+written before either serial port is opened. Offline parser/gate tests cover
+correlated replies, 16-bit IMU sequence wrap, a clean sentinel, and rejection
+of orphan plus sequence-gap evidence.
+
+The Phase-C lever-arm source remains **NOT FOUND**: no `.kicad_pcb`,
+`.kicad_sch`, legacy `.brd`, or legacy `.sch` file exists under either
+`BioSpur_Fusion` or `BioSpur_UWB_before_start`. Therefore
+`B306_Part/host/pc/fusion_config.json` contains null XYZ values, the required
+IMU-center-to-UWB-antenna/body-frame sign convention, and an explicit
+`allow_fusion_with_missing_lever_arm=false` gate. The approximate 400 mil scale
+was not guessed into axis components.
+
 ## Phase-A build evidence
 
 Both builds were pristine NCS v2.8.0 builds under the mandated centralized
