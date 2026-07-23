@@ -1,6 +1,6 @@
 # IMU + relay batch report
 
-Status: B306 v12 and DK `dk-fusion-imu-relay-v7` are deployed. DK v7 provides
+Status: B306 v13 and DK `dk-fusion-imu-relay-v7` are deployed. DK v7 provides
 bidirectional J-Link RTT control on explicitly selected probe `683234364` while
 retaining the native-USB CDC implementation. Remote validation found two
 independent blockers: JY61P provisioning fails at register `0x63`, and the RTT
@@ -182,15 +182,12 @@ motion-change events had a 19.991 ms median interval and rates of 45.50,
 46.09, and 45.67 events/s across R4, R5, and R6 respectively; these are
 AX..GZ-change rates, not sensor output rates.
 
-R3 provides the stronger clock evidence: register `0x33` advanced in
-approximately 5 ms steps even when read at shorter intervals. The current
-working interpretation is therefore an approximately 200 Hz internal refresh
-whose equal-valued static frames were wrongly removed. R4 is
-**INVALID INSTRUMENTATION**, not evidence that the sensor outputs only
-45–50 Hz. Acceleration norm was `1.00928 g`, while every retained gyro triplet
-was exactly zero; the gyro finding remains evidence that auto-zero suppression
-was not configured. The retained IMU sequence is continuous after salvaging
-one complete record that thread-analyzer output prefixed on the same RTT line.
+R3 proves only that register `0x33` advances in approximately 5 ms steps even
+when read at shorter intervals. The initial interpretation—that this also
+proved a 200 Hz AX..GZ refresh—was later falsified by v12's run-length
+measurement. Acceleration norm was `1.00928 g`, while every retained gyro
+triplet was exactly zero; the gyro finding remains evidence that auto-zero
+suppression was not configured.
 
 ### v12 freshness correction and direct rate check
 
@@ -199,15 +196,38 @@ register `0x33` chip milliseconds. It continuously reads `0x33` through
 `0x40`, guards each burst with an immediate second `0x33` read, and retains
 new chip-time frames even when all six motion channels are byte-identical.
 
-A 30-second run produced 6,034 host samples over 30.046780 seconds of TIMER2
-time, or **200.7869 Hz**, with zero sequence gaps, zero inferred missed chip
-frames, zero I2C errors, and zero BLE notification errors. On-device counters
-were `p=26690 rpt=16028 new=6044 eq=4678 bad=4618 miss=0 ie=0 rec=3022`.
-Thus `new / N=2 = records` exactly, while 77.40% of fresh frames still had
-motion bytes equal to their predecessor. This closes the output-rate question:
-the earlier approximately 45–50 Hz value was only the stationary
-motion-change-event rate. Full evidence is under
+A 30-second run produced 6,034 different-chip-time records over 30.046780
+seconds of TIMER2 time, or 200.7869 records/s. On-device counters were
+`p=26690 rpt=16028 new=6044 eq=4678 bad=4618 miss=0 ie=0 rec=3022`.
+`new / N=2 = records` exactly, but this proves only transport accounting.
+
+The decisive A/B/C audit found 3,308 / 6,032 centered triplets with
+`A=B=C`. Of 1,364 identical-vector runs, 1,177 were exactly four frames long,
+101 were eight, 10 were twelve, and two were sixteen. This four-frame lattice
+shows that AX..GZ is held for approximately 20 ms while chip-ms advances four
+times. The effective I2C motion-window refresh is therefore approximately
+50 Hz, not 200 Hz; the observed approximately 45–46 Hz change rate is lower
+because successive 50 Hz updates can still quantize to the same value.
+Evidence is under
 `B306_Part/logs/imu_v12_ratecheck_20260723_173932/`.
+
+### v13 volatile RRATE=0x000B experiment
+
+`b306-imu-relay-v13` adds the two-write runtime path recovered from
+`Zentral_Sensorhub`: `0x69←0xB588`, then `0x03←requested`, with immediate
+readback. It deliberately issues neither SAVE nor sensor restart.
+
+The command changed RRATE from `0x0006` to `0x000B` and read back `0x000B`.
+After a 30-second run it still read `0x000B`, proving that the volatile write
+was accepted. The resulting distribution was materially unchanged:
+1,169 four-frame runs, 102 eight-frame runs, eight twelve-frame runs, and six
+sixteen-frame runs; 3,305 / 6,028 centered triplets had `A=B=C`.
+Therefore RRATE `0x000B` does not raise this device's I2C AX..GZ window from
+approximately 50 Hz to 200 Hz. It may control an active/UART output path
+instead. One DK RTT line was corrupted by an embedded `FUSION_HEALTH`, making
+two host text samples unavailable; device-side I2C and BLE error counters
+remained zero. Evidence is under
+`B306_Part/logs/imu_v13_rrate_runtime_20260723_181500/`.
 
 R5 completed 70 seconds after a separate reboot. The 65.5 s boundary has
 zero mean, zero standard deviation, and zero fraction 1.0 on every gyro axis

@@ -245,31 +245,50 @@ def run_r2_r3(args) -> int:
     return 0
 
 
+def decode_imu_record(
+    fields: dict[str, str],
+) -> tuple[int, int, int, list[list[int]]] | None:
+    required = {"base_us", "seq", "n", "samples", "temp_raw"}
+    if not required <= fields.keys():
+        return None
+    try:
+        base = int(fields["base_us"], 0)
+        sequence = int(fields["seq"], 0)
+        count = int(fields["n"], 0)
+        temperature = int(fields["temp_raw"], 0)
+        encoded_samples = fields["samples"].split(";")
+        values = [
+            [int(value, 0) for value in encoded.split(",")]
+            for encoded in encoded_samples
+        ]
+    except ValueError:
+        return None
+    if len(values) != count or any(len(sample) != 7 for sample in values):
+        return None
+    return base, sequence, temperature, values
+
+
 def parse_imu_samples(lines: list[str]) -> list[dict[str, int]]:
     samples: list[dict[str, int]] = []
     for line in lines:
         if not line.startswith("FUSION_IMU "):
             continue
-        fields = parse_fields(line)
-        if not {"base_us", "seq", "samples", "temp_raw"} <= fields.keys():
+        decoded = decode_imu_record(parse_fields(line))
+        if decoded is None:
             continue
-        base = int(fields["base_us"], 0)
-        sequence = int(fields["seq"], 0)
-        for index, encoded in enumerate(fields["samples"].split(";")):
-            values = [int(value, 0) for value in encoded.split(",")]
-            if len(values) != 7:
-                continue
+        base, sequence, temperature, values = decoded
+        for index, sample in enumerate(values):
             samples.append(
                 {
                     "seq": (sequence + index) & 0xFFFF,
-                    "timer_us": (base + values[0]) & 0xFFFFFFFF,
-                    "ax": values[1],
-                    "ay": values[2],
-                    "az": values[3],
-                    "gx": values[4],
-                    "gy": values[5],
-                    "gz": values[6],
-                    "temp": int(fields["temp_raw"], 0),
+                    "timer_us": (base + sample[0]) & 0xFFFFFFFF,
+                    "ax": sample[1],
+                    "ay": sample[2],
+                    "az": sample[3],
+                    "gx": sample[4],
+                    "gy": sample[5],
+                    "gz": sample[6],
+                    "temp": temperature,
                 }
             )
     return samples
@@ -286,11 +305,12 @@ def imu_sequence_audit(lines: list[str]) -> dict:
         if not line.startswith("FUSION_IMU "):
             continue
         fields = parse_fields(line)
-        if "seq" not in fields or "n" not in fields:
+        decoded = decode_imu_record(fields)
+        if decoded is None:
             malformed_lines += 1
             continue
-        seq = int(fields["seq"], 0)
-        count = int(fields["n"], 0)
+        _, seq, _, values = decoded
+        count = len(values)
         if previous_seq is not None:
             expected = (previous_seq + previous_n) & 0xFFFF
             if seq != expected:

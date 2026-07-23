@@ -36,6 +36,8 @@ int bsf_imu_start(void);
 int bsf_imu_stop(void);
 int bsf_imu_set_rate(uint16_t rate_hz);
 int bsf_imu_set_batch(uint8_t batch_size);
+int bsf_imu_set_rrate_runtime(uint16_t rrate, char *reply,
+			      size_t reply_size);
 int bsf_imu_provision(char *reply, size_t reply_size);
 int bsf_imu_cal_acc(char *reply, size_t reply_size);
 int bsf_imu_selftest(char *reply, size_t reply_size);

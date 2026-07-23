@@ -405,6 +405,56 @@ int bsf_imu_set_batch(uint8_t batch_size)
 	return 0;
 }
 
+int bsf_imu_set_rrate_runtime(uint16_t rrate, char *reply,
+			      size_t reply_size)
+{
+	uint16_t readback = 0u;
+	const char *step = "unlock";
+	int ret;
+
+	if (rrate < 0x0006u || rrate > JY61P_RRATE_200HZ) {
+		snprintf(reply, reply_size,
+			 "IMU RRATE FAIL request=%04X volatile=1 saved=0 err=%d reason=range",
+			 rrate, -EINVAL);
+		return -EINVAL;
+	}
+	if (atomic_get(&imu_active) != 0) {
+		snprintf(reply, reply_size,
+			 "IMU RRATE FAIL request=%04X volatile=1 saved=0 err=%d reason=active",
+			 rrate, -EBUSY);
+		return -EBUSY;
+	}
+
+	/*
+	 * Match the known Zentral_Sensorhub runtime path exactly: unlock, write
+	 * RRATE, and do not issue SAVE or sensor restart. The readback is an
+	 * added acceptance check; a B306 reboot does not make this persistent.
+	 */
+	k_mutex_lock(&i2c_lock, K_FOREVER);
+	ret = jy61p_write16(JY61P_REG_UNLOCK, JY61P_UNLOCK_VALUE);
+	if (ret == 0) {
+		step = "write";
+		ret = jy61p_write16(JY61P_REG_RRATE, rrate);
+	}
+	if (ret == 0) {
+		step = "readback";
+		ret = jy61p_read16(JY61P_REG_RRATE, &readback);
+	}
+	k_mutex_unlock(&i2c_lock);
+
+	if (ret == 0 && readback != rrate) {
+		ret = -EIO;
+		step = "compare";
+	}
+	if (ret == 0) {
+		verified_rrate = readback;
+	}
+	snprintf(reply, reply_size,
+		 "IMU RRATE %s request=%04X readback=%04X volatile=1 saved=0 step=%s err=%d",
+		 ret == 0 ? "OK" : "FAIL", rrate, readback, step, ret);
+	return ret;
+}
+
 int bsf_imu_provision(char *reply, size_t reply_size)
 {
 	static const struct {

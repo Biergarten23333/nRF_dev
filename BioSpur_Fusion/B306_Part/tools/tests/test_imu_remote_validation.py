@@ -60,6 +60,28 @@ class RawCaptureTests(unittest.TestCase):
             },
         )
 
+    def test_embedded_health_suffix_invalidates_whole_record(self):
+        lines = [
+            "FUSION_IMU seq=10 base_us=20 n=2 temp_raw=30 "
+            "samples=0,1,2,3,4,5,6;5,1,2,3,4,5,6",
+            "FUSION_IMU seq=12 base_us=30 n=2 temp_raw=30 "
+            "samples=0,1,2,3,4,5,6;43FUSION_HEALTH",
+            "FUSION_IMU seq=14 base_us=40 n=2 temp_raw=30 "
+            "samples=0,1,2,3,4,5,6;5,1,2,3,4,5,6",
+        ]
+        samples = validation.parse_imu_samples(lines)
+
+        self.assertEqual([sample["seq"] for sample in samples], [10, 11, 14, 15])
+        self.assertEqual(
+            validation.imu_sequence_audit(lines),
+            {
+                "valid_records": 2,
+                "malformed_imu_lines": 1,
+                "gap_events": 1,
+                "missing_samples": 2,
+            },
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

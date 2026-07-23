@@ -34,7 +34,7 @@ LOG_MODULE_REGISTER(biospur_fusion, LOG_LEVEL_INF);
 #define LED0_NODE DT_ALIAS(led0)
 #define UWB_UART_NODE DT_ALIAS(uwb_uart)
 
-#define FW_MARKER "b306-imu-relay-v12"
+#define FW_MARKER "b306-imu-relay-v13"
 
 #define UART_DMA_BUFFER_SIZE 256u
 #define UART_RING_SIZE 2048u
@@ -953,6 +953,15 @@ static void process_control(const char *command, uint16_t correlation)
 			bsf_imu_set_batch((uint8_t)value) : -EINVAL;
 		snprintf(reply, sizeof(reply), "IMU BATCH %s n=%u err=%d",
 			 ret == 0 ? "OK" : "FAIL", value, ret);
+	} else if (parse_exact_u32_command(command, "IMU RRATE=", &value) == 0) {
+		if (value <= UINT16_MAX) {
+			ret = bsf_imu_set_rrate_runtime((uint16_t)value, reply,
+						       sizeof(reply));
+		} else {
+			snprintf(reply, sizeof(reply),
+				 "IMU RRATE FAIL request=%u volatile=1 saved=0 err=%d reason=range",
+				 value, -EINVAL);
+		}
 	} else if (strcmp(command, "IMU STATUS") == 0) {
 		bsf_imu_format_status(reply, sizeof(reply));
 	} else if (strcmp(command, "IMU PROVISION") == 0) {
