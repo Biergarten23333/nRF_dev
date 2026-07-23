@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include <hal/nrf_ficr.h>
+#include <helpers/nrfx_reset_reason.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/gatt.h>
@@ -13,6 +14,7 @@
 #include <zephyr/dfu/mcuboot.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/uart.h>
+#include <zephyr/drivers/watchdog.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/atomic.h>
@@ -21,19 +23,21 @@
 
 #include "biospur_fusion_ble.h"
 #include "biospur_link.h"
+#include "strobe_capture.h"
 
 LOG_MODULE_REGISTER(biospur_fusion, LOG_LEVEL_INF);
 
 #define LED0_NODE DT_ALIAS(led0)
 #define UWB_UART_NODE DT_ALIAS(uwb_uart)
 
-#define FW_MARKER "b306-uart-rx-p1.01-v7"
+#define FW_MARKER "b306-remote-ready-v10"
 
 #define UART_DMA_BUFFER_SIZE 256u
 #define UART_RING_SIZE 2048u
 #define UART_RX_TIMEOUT_US 2000
 #define PARSER_STACK_SIZE 2048
 #define PARSER_PRIORITY 5
+#define WATCHDOG_TIMEOUT_MS 30000u
 
 BUILD_ASSERT(DT_NODE_HAS_STATUS(UWB_UART_NODE, okay),
 	     "B306 UWB UART must be enabled by the application overlay");
@@ -47,6 +51,58 @@ BUILD_ASSERT(DT_PROP(UWB_UART_NODE, current_speed) == BSL_BAUDRATE,
 static const struct gpio_dt_spec status_led =
 	GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 static const struct device *const uwb_uart = DEVICE_DT_GET(UWB_UART_NODE);
+static const struct device *const watchdog = DEVICE_DT_GET(DT_NODELABEL(wdt0));
+static int watchdog_channel = -1;
+static atomic_t watchdog_feed_count;
+static uint32_t boot_reset_reason;
+
+static int watchdog_start(void)
+{
+	const struct wdt_timeout_cfg config = {
+		.window = {
+			.min = 0u,
+			.max = WATCHDOG_TIMEOUT_MS,
+		},
+		.callback = NULL,
+		.flags = WDT_FLAG_RESET_SOC,
+	};
+	int ret;
+
+	if (!device_is_ready(watchdog)) {
+		return -ENODEV;
+	}
+
+	watchdog_channel = wdt_install_timeout(watchdog, &config);
+	if (watchdog_channel < 0) {
+		return watchdog_channel;
+	}
+
+	ret = wdt_setup(watchdog, WDT_OPT_PAUSE_HALTED_BY_DBG);
+	if (ret != 0) {
+		watchdog_channel = -1;
+		return ret;
+	}
+
+	ret = wdt_feed(watchdog, watchdog_channel);
+	if (ret == 0) {
+		atomic_inc(&watchdog_feed_count);
+	}
+	return ret;
+}
+
+static int watchdog_feed_once(void)
+{
+	int ret;
+
+	if (watchdog_channel < 0) {
+		return -ENODEV;
+	}
+	ret = wdt_feed(watchdog, watchdog_channel);
+	if (ret == 0) {
+		atomic_inc(&watchdog_feed_count);
+	}
+	return ret;
+}
 
 static struct bt_uuid_128 fusion_service_uuid =
 	BT_UUID_INIT_128(BT_UUID_128_ENCODE(
@@ -122,7 +178,7 @@ static char device_name[8];
 static uint8_t parser_frame[BSL_FRAME_LEN_EXPECTED];
 static size_t parser_position;
 static const uint8_t firmware_advertising_marker[] = {
-	0xff, 0xff, 'B', '3', '0', '6', 'D', '1',
+	0xff, 0xff, 'B', '3', '0', '6', 'D', '2',
 };
 static const struct bt_data advertising_data[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS,
@@ -210,6 +266,8 @@ static void publish_uwb(const bsl_frame_t *frame)
 		.uwb = frame->body,
 	};
 	int err;
+
+	bsf_strobe_capture_pair(frame->body.flags, &packet.capture);
 
 	if (atomic_get(&data_subscribed) == 0) {
 		atomic_inc(&notify_dropped);
@@ -387,6 +445,7 @@ K_WORK_DELAYABLE_DEFINE(telemetry_work, telemetry_work_handler);
 
 static void telemetry_work_handler(struct k_work *work)
 {
+	int watchdog_ret = watchdog_feed_once();
 	bsf_ble_telemetry_t telemetry = {
 		.version = BSF_BLE_PROTOCOL_VERSION,
 		.kind = BSF_BLE_KIND_TELEMETRY,
@@ -410,9 +469,16 @@ static void telemetry_work_handler(struct k_work *work)
 		.last_sweep = (uint32_t)atomic_get(&last_sweep),
 		.have_last_sweep = (uint8_t)(atomic_get(&have_last_sweep) != 0),
 		.data_subscribed = (uint8_t)(atomic_get(&data_subscribed) != 0),
+		.watchdog_feed_count =
+			(uint32_t)atomic_get(&watchdog_feed_count),
+		.reset_reason = boot_reset_reason,
 	};
 
 	ARG_UNUSED(work);
+	if (watchdog_ret != 0) {
+		LOG_ERR("watchdog feed failed: %d", watchdog_ret);
+	}
+	bsf_strobe_capture_telemetry(&telemetry);
 
 	if (atomic_get(&telemetry_subscribed) != 0) {
 		(void)bt_gatt_notify(NULL, FUSION_TELEMETRY_ATTR,
@@ -457,6 +523,15 @@ int main(void)
 	uint16_t identity = bsl_identity_from_ficr(deviceid0, deviceid1);
 	int ret;
 
+	boot_reset_reason = nrfx_reset_reason_get();
+	nrfx_reset_reason_clear(boot_reset_reason);
+
+	ret = watchdog_start();
+	if (ret != 0) {
+		LOG_ERR("watchdog initialization failed: %d", ret);
+		return 0;
+	}
+
 	if (!gpio_is_ready_dt(&status_led)) {
 		LOG_ERR("status LED GPIO is not ready");
 		return 0;
@@ -475,8 +550,15 @@ int main(void)
 		return 0;
 	}
 
-	LOG_INF("firmware=%s identity=0x%04X name=%s",
-		FW_MARKER, identity, device_name);
+	LOG_INF("firmware=%s identity=0x%04X name=%s reset_reason=0x%08x watchdog_ms=%u",
+		FW_MARKER, identity, device_name, boot_reset_reason,
+		WATCHDOG_TIMEOUT_MS);
+
+	ret = bsf_strobe_capture_init();
+	if (ret != 0) {
+		LOG_ERR("UWB strobe capture initialization failed: %d", ret);
+		return 0;
+	}
 
 	ret = bt_enable(NULL);
 	if (ret != 0) {
@@ -497,7 +579,7 @@ int main(void)
 	}
 
 	k_work_schedule(&telemetry_work, K_SECONDS(1));
-	LOG_INF("UART bridge ready: rx=P1.01 baud=%u frame=%u",
+	LOG_INF("UART/strobe bridge ready: rx=P1.01 ready=P1.03 baud=%u frame=%u",
 		BSL_BAUDRATE, BSL_FRAME_LEN_EXPECTED);
 
 	if (!boot_is_img_confirmed()) {

@@ -57,13 +57,13 @@ static uint16_t telemetry_value_handle;
 static uint32_t received_packets;
 static uint32_t malformed_packets;
 static uint32_t reconnections;
+static uint32_t logger_dropped;
 
 enum discovery_stage {
 	DISCOVERY_SERVICE,
 	DISCOVERY_DATA_CHARACTERISTIC,
 	DISCOVERY_DATA_CCC,
 	DISCOVERY_TELEMETRY_CHARACTERISTIC,
-	DISCOVERY_TELEMETRY_CCC,
 };
 
 static enum discovery_stage discovery_stage;
@@ -74,8 +74,215 @@ struct advertising_fields {
 	char name[TARGET_NAME_LEN + 1];
 };
 
+enum fusion_log_kind {
+	FUSION_LOG_UWB = 1,
+	FUSION_LOG_TELEMETRY = 2,
+};
+
+struct fusion_log_record {
+	uint64_t master_arrival_ms;
+	uint8_t kind;
+	union {
+		bsf_ble_uwb_packet_t uwb;
+		bsf_ble_telemetry_t telemetry;
+	} payload;
+};
+
+K_MSGQ_DEFINE(fusion_log_queue, sizeof(struct fusion_log_record), 32, 4);
+
 static void start_scan(void);
 static void start_fusion_discovery(struct bt_conn *conn);
+
+static const char *capture_verdict_name(uint8_t verdict)
+{
+	switch (verdict) {
+	case BSF_CAPTURE_HEALTHY:
+		return "healthy";
+	case BSF_CAPTURE_B306_MISSED_EDGE:
+		return "b306_missed_edge";
+	case BSF_CAPTURE_TAG_NO_POLL_TX:
+		return "tag_no_poll";
+	case BSF_CAPTURE_CONTRADICTION:
+		return "contradiction";
+	default:
+		return "invalid";
+	}
+}
+
+static const char *capture_edge_name(uint8_t shape)
+{
+	switch (shape) {
+	case BSF_CAPTURE_EDGE_NONE:
+		return "none";
+	case BSF_CAPTURE_EDGE_ACTIVE_HIGH:
+		return "active_high";
+	case BSF_CAPTURE_EDGE_ACTIVE_LOW:
+		return "active_low";
+	case BSF_CAPTURE_EDGE_RISING_ONLY:
+		return "rising_only";
+	case BSF_CAPTURE_EDGE_FALLING_ONLY:
+		return "falling_only";
+	default:
+		return "invalid";
+	}
+}
+
+static void format_capture_timestamp(char *buffer, size_t size,
+				     uint64_t timestamp)
+{
+	if (timestamp == BSF_CAPTURE_TS_ABSENT) {
+		(void)snprintf(buffer, size, "-");
+	} else {
+		(void)snprintf(buffer, size, "%llu",
+			       (unsigned long long)timestamp);
+	}
+}
+
+static void format_capture_delta(char *buffer, size_t size, uint32_t delta)
+{
+	if (delta == BSF_CAPTURE_DELTA_ABSENT) {
+		(void)snprintf(buffer, size, "-");
+	} else {
+		(void)snprintf(buffer, size, "%u", delta);
+	}
+}
+
+static void log_uwb_record(const struct fusion_log_record *record)
+{
+	const bsf_ble_uwb_packet_t *packet = &record->payload.uwb;
+	char ranges[160];
+	char strobe_timestamp[24];
+	char rising_timestamp[24];
+	char falling_timestamp[24];
+	char orphan_timestamp[24];
+	char pair_delta[16];
+	size_t used = 0u;
+	uint64_t poll_tx_timestamp;
+
+	ranges[0] = '\0';
+	for (unsigned int i = 0; i < BSL_MAX_ANCHORS; ++i) {
+		int written;
+
+		if (packet->uwb.anchor_id[i] == BSL_ANCHOR_NONE) {
+			continue;
+		}
+		written = snprintf(&ranges[used], sizeof(ranges) - used,
+				   "%s%u:%u",
+				   used == 0u ? "" : ",",
+				   packet->uwb.anchor_id[i],
+				   packet->uwb.range_mm[i]);
+		if (written < 0 || (size_t)written >= sizeof(ranges) - used) {
+			break;
+		}
+		used += (size_t)written;
+	}
+
+	poll_tx_timestamp = bsl_ts40_get(packet->uwb.poll_tx_ts);
+	format_capture_timestamp(strobe_timestamp, sizeof(strobe_timestamp),
+				 packet->capture.strobe_ts_us);
+	format_capture_timestamp(rising_timestamp, sizeof(rising_timestamp),
+				 packet->capture.rising_ts_us);
+	format_capture_timestamp(falling_timestamp, sizeof(falling_timestamp),
+				 packet->capture.falling_ts_us);
+	format_capture_timestamp(orphan_timestamp, sizeof(orphan_timestamp),
+				 packet->capture.last_orphan_strobe_ts_us);
+	format_capture_delta(pair_delta, sizeof(pair_delta),
+			     packet->capture.frame_to_strobe_us);
+
+	printk("FUSION_UWB proto=%u master_ms=%llu node_ms=%u pkt=%u sweep=%u identity=%04X logical=%u poll_tx=%010llX frame_us=%llu strobe_us=%s rise_us=%s fall_us=%s pair_dt_us=%s verdict=%s edge=%s candidates=%u window_us=%u valid=0x%02x flags=0x%02x strobe_sent=%u rise_n=%u fall_n=%u boot_discard=%u edge_qdrop=%u orphan_strobe=%u orphan_edge=%u orphan_frame=%u near_window=%u last_orphan_us=%s capture_flags=0x%02x ranges=%s\n",
+	       packet->version,
+	       (unsigned long long)record->master_arrival_ms,
+	       packet->node_uptime_ms,
+	       packet->node_sequence,
+	       packet->uwb.sweep,
+	       packet->uwb.identity_code,
+	       packet->uwb.logical_tag_id,
+	       (unsigned long long)poll_tx_timestamp,
+	       (unsigned long long)packet->capture.frame_rx_ts_us,
+	       strobe_timestamp,
+	       rising_timestamp,
+	       falling_timestamp,
+	       pair_delta,
+	       capture_verdict_name(packet->capture.verdict),
+	       capture_edge_name(packet->capture.edge_shape),
+	       packet->capture.pair_candidates,
+	       packet->capture.pairing_window_us,
+	       packet->uwb.valid_mask,
+	       packet->uwb.flags,
+	       (packet->uwb.flags & BSL_FLAG_STROBE_SENT) != 0u,
+	       packet->capture.rising_edge_count,
+	       packet->capture.falling_edge_count,
+	       packet->capture.boot_discarded_edge_count,
+	       packet->capture.edge_queue_drop_count,
+	       packet->capture.orphan_strobe_count,
+	       packet->capture.orphan_edge_count,
+	       packet->capture.orphan_frame_count,
+	       packet->capture.near_window_edge_count,
+	       orphan_timestamp,
+	       packet->capture.capture_flags,
+	       ranges[0] != '\0' ? ranges : "-");
+}
+
+static void log_telemetry_record(const struct fusion_log_record *record)
+{
+	const bsf_ble_telemetry_t *telemetry = &record->payload.telemetry;
+
+	printk("FUSION_TELEMETRY proto=%u node_ms=%u bytes=%u frames=%u crc=%u header=%u ring_drop=%u sweep_drop=%u duplicate=%u reorder=%u notify_ok=%u notify_drop=%u uart_restarts=%u uart_err=%d last_sweep=%u have=%u subscribed=%u rise_n=%u fall_n=%u boot_discard=%u edge_qdrop=%u orphan_strobe=%u orphan_edge=%u orphan_frame=%u near_window=%u capture_flags=0x%02x timer=%u window_us=%u timer_wraps=%u watchdog_feeds=%u reset_reason=0x%08x master_rx=%u malformed=%u logger_drop=%u\n",
+	       telemetry->version,
+	       telemetry->node_uptime_ms,
+	       telemetry->uart_bytes,
+	       telemetry->valid_frames,
+	       telemetry->crc_errors,
+	       telemetry->header_errors,
+	       telemetry->ring_dropped_bytes,
+	       telemetry->dropped_sweeps,
+	       telemetry->duplicate_sweeps,
+	       telemetry->out_of_order_sweeps,
+	       telemetry->notify_ok,
+	       telemetry->notify_dropped,
+	       telemetry->uart_restarts,
+	       telemetry->last_uart_error,
+	       telemetry->last_sweep,
+	       telemetry->have_last_sweep,
+	       telemetry->data_subscribed,
+	       telemetry->rising_edge_count,
+	       telemetry->falling_edge_count,
+	       telemetry->boot_discarded_edge_count,
+	       telemetry->edge_queue_drop_count,
+	       telemetry->orphan_strobe_count,
+	       telemetry->orphan_edge_count,
+	       telemetry->orphan_frame_count,
+	       telemetry->near_window_edge_count,
+	       telemetry->capture_flags,
+	       telemetry->timer_instance,
+	       telemetry->pairing_window_us,
+	       telemetry->timer_wrap_count,
+	       telemetry->watchdog_feed_count,
+	       telemetry->reset_reason,
+	       received_packets,
+	       malformed_packets,
+	       logger_dropped);
+}
+
+static void fusion_log_thread(void *first, void *second, void *third)
+{
+	struct fusion_log_record record;
+
+	ARG_UNUSED(first);
+	ARG_UNUSED(second);
+	ARG_UNUSED(third);
+	while (true) {
+		(void)k_msgq_get(&fusion_log_queue, &record, K_FOREVER);
+		if (record.kind == FUSION_LOG_UWB) {
+			log_uwb_record(&record);
+		} else if (record.kind == FUSION_LOG_TELEMETRY) {
+			log_telemetry_record(&record);
+		}
+	}
+}
+
+K_THREAD_DEFINE(fusion_logger, 4096, fusion_log_thread,
+		NULL, NULL, NULL, 8, 0, 0);
 
 static bool advertising_field(struct bt_data *data, void *user_data)
 {
@@ -222,10 +429,11 @@ static uint8_t data_notification(
 	struct bt_gatt_subscribe_params *params,
 	const void *data, uint16_t length)
 {
-	bsf_ble_uwb_packet_t packet;
-	char ranges[160];
-	size_t used = 0u;
-	uint64_t master_arrival_ms = (uint64_t)k_uptime_get();
+	struct fusion_log_record record = {
+		.master_arrival_ms = (uint64_t)k_uptime_get(),
+		.kind = FUSION_LOG_UWB,
+	};
+	bsf_ble_uwb_packet_t *packet = &record.payload.uwb;
 
 	ARG_UNUSED(conn);
 
@@ -235,52 +443,28 @@ static uint8_t data_notification(
 		return BT_GATT_ITER_STOP;
 	}
 
-	if (length != sizeof(packet)) {
+	if (length != sizeof(*packet)) {
 		++malformed_packets;
 		printk("FUSION_MALFORMED kind=data len=%u expected=%u total=%u\n",
-		       length, (unsigned int)sizeof(packet), malformed_packets);
+		       length, (unsigned int)sizeof(*packet), malformed_packets);
 		return BT_GATT_ITER_CONTINUE;
 	}
 
-	memcpy(&packet, data, sizeof(packet));
-	if (packet.version != BSF_BLE_PROTOCOL_VERSION ||
-	    packet.kind != BSF_BLE_KIND_UWB ||
-	    packet.len != sizeof(packet)) {
+	memcpy(packet, data, sizeof(*packet));
+	if (packet->version != BSF_BLE_PROTOCOL_VERSION ||
+	    packet->kind != BSF_BLE_KIND_UWB ||
+	    packet->len != sizeof(*packet)) {
 		++malformed_packets;
 		printk("FUSION_MALFORMED kind=data_header version=%u type=%u declared=%u total=%u\n",
-		       packet.version, packet.kind, packet.len, malformed_packets);
+		       packet->version, packet->kind, packet->len,
+		       malformed_packets);
 		return BT_GATT_ITER_CONTINUE;
-	}
-
-	ranges[0] = '\0';
-	for (unsigned int i = 0; i < BSL_MAX_ANCHORS; ++i) {
-		int written;
-
-		if (packet.uwb.anchor_id[i] == BSL_ANCHOR_NONE) {
-			continue;
-		}
-		written = snprintf(&ranges[used], sizeof(ranges) - used,
-				   "%s%u:%u",
-				   used == 0u ? "" : ",",
-				   packet.uwb.anchor_id[i],
-				   packet.uwb.range_mm[i]);
-		if (written < 0 || (size_t)written >= sizeof(ranges) - used) {
-			break;
-		}
-		used += (size_t)written;
 	}
 
 	++received_packets;
-	printk("FUSION_UWB master_ms=%llu node_ms=%u pkt=%u sweep=%u identity=%04X logical=%u valid=0x%02x flags=0x%02x ranges=%s\n",
-	       master_arrival_ms,
-	       packet.node_uptime_ms,
-	       packet.node_sequence,
-	       packet.uwb.sweep,
-	       packet.uwb.identity_code,
-	       packet.uwb.logical_tag_id,
-	       packet.uwb.valid_mask,
-	       packet.uwb.flags,
-	       ranges[0] != '\0' ? ranges : "-");
+	if (k_msgq_put(&fusion_log_queue, &record, K_NO_WAIT) != 0) {
+		++logger_dropped;
+	}
 
 	return BT_GATT_ITER_CONTINUE;
 }
@@ -290,7 +474,11 @@ static uint8_t telemetry_notification(
 	struct bt_gatt_subscribe_params *params,
 	const void *data, uint16_t length)
 {
-	bsf_ble_telemetry_t telemetry;
+	struct fusion_log_record record = {
+		.master_arrival_ms = (uint64_t)k_uptime_get(),
+		.kind = FUSION_LOG_TELEMETRY,
+	};
+	bsf_ble_telemetry_t *telemetry = &record.payload.telemetry;
 
 	ARG_UNUSED(conn);
 
@@ -300,43 +488,27 @@ static uint8_t telemetry_notification(
 		return BT_GATT_ITER_STOP;
 	}
 
-	if (length != sizeof(telemetry)) {
+	if (length != sizeof(*telemetry)) {
 		++malformed_packets;
 		printk("FUSION_MALFORMED kind=telemetry len=%u expected=%u total=%u\n",
-		       length, (unsigned int)sizeof(telemetry), malformed_packets);
+		       length, (unsigned int)sizeof(*telemetry), malformed_packets);
 		return BT_GATT_ITER_CONTINUE;
 	}
 
-	memcpy(&telemetry, data, sizeof(telemetry));
-	if (telemetry.version != BSF_BLE_PROTOCOL_VERSION ||
-	    telemetry.kind != BSF_BLE_KIND_TELEMETRY ||
-	    telemetry.len != sizeof(telemetry)) {
+	memcpy(telemetry, data, sizeof(*telemetry));
+	if (telemetry->version != BSF_BLE_PROTOCOL_VERSION ||
+	    telemetry->kind != BSF_BLE_KIND_TELEMETRY ||
+	    telemetry->len != sizeof(*telemetry)) {
 		++malformed_packets;
 		printk("FUSION_MALFORMED kind=telemetry_header version=%u type=%u declared=%u total=%u\n",
-		       telemetry.version, telemetry.kind, telemetry.len,
+		       telemetry->version, telemetry->kind, telemetry->len,
 		       malformed_packets);
 		return BT_GATT_ITER_CONTINUE;
 	}
 
-	printk("FUSION_TELEMETRY node_ms=%u bytes=%u frames=%u crc=%u header=%u ring_drop=%u sweep_drop=%u duplicate=%u reorder=%u notify_ok=%u notify_drop=%u uart_restarts=%u uart_err=%d last_sweep=%u have=%u subscribed=%u master_rx=%u malformed=%u\n",
-	       telemetry.node_uptime_ms,
-	       telemetry.uart_bytes,
-	       telemetry.valid_frames,
-	       telemetry.crc_errors,
-	       telemetry.header_errors,
-	       telemetry.ring_dropped_bytes,
-	       telemetry.dropped_sweeps,
-	       telemetry.duplicate_sweeps,
-	       telemetry.out_of_order_sweeps,
-	       telemetry.notify_ok,
-	       telemetry.notify_dropped,
-	       telemetry.uart_restarts,
-	       telemetry.last_uart_error,
-	       telemetry.last_sweep,
-	       telemetry.have_last_sweep,
-	       telemetry.data_subscribed,
-	       received_packets,
-	       malformed_packets);
+	if (k_msgq_put(&fusion_log_queue, &record, K_NO_WAIT) != 0) {
+		++logger_dropped;
+	}
 
 	return BT_GATT_ITER_CONTINUE;
 }
@@ -426,6 +598,7 @@ static uint8_t discover_fusion(struct bt_conn *conn,
 
 	case DISCOVERY_TELEMETRY_CHARACTERISTIC: {
 		const struct bt_gatt_chrc *characteristic = attr->user_data;
+		uint16_t telemetry_ccc_handle;
 
 		telemetry_value_handle = characteristic->value_handle;
 		printk("FUSION_TELEMETRY_CHARACTERISTIC value=%u props=0x%02x\n",
@@ -435,24 +608,18 @@ static uint8_t discover_fusion(struct bt_conn *conn,
 			break;
 		}
 
-		discovery_stage = DISCOVERY_TELEMETRY_CCC;
-		discover_params.uuid = BT_UUID_GATT_CCC;
-		discover_params.start_handle = telemetry_value_handle + 1;
-		discover_params.end_handle = service_end_handle;
-		discover_params.type = BT_GATT_DISCOVER_DESCRIPTOR;
-		err = bt_gatt_discover(conn, &discover_params);
-		if (err != 0) {
-			printk("FUSION_FAIL step=discover_telemetry_ccc_start err=%d\n",
-			       err);
+		telemetry_ccc_handle = telemetry_value_handle + 1u;
+		if (telemetry_ccc_handle != service_end_handle) {
+			printk("FUSION_FAIL step=telemetry_ccc_layout value=%u expected=%u service_end=%u\n",
+			       telemetry_value_handle, telemetry_ccc_handle,
+			       service_end_handle);
+			break;
 		}
-		break;
-	}
 
-	case DISCOVERY_TELEMETRY_CCC:
 		telemetry_subscribe_params.notify = telemetry_notification;
 		telemetry_subscribe_params.value = BT_GATT_CCC_NOTIFY;
 		telemetry_subscribe_params.value_handle = telemetry_value_handle;
-		telemetry_subscribe_params.ccc_handle = attr->handle;
+		telemetry_subscribe_params.ccc_handle = telemetry_ccc_handle;
 		err = bt_gatt_subscribe(conn, &telemetry_subscribe_params);
 		if (err != 0 && err != -EALREADY) {
 			printk("FUSION_FAIL step=subscribe_telemetry err=%d\n",
@@ -466,6 +633,7 @@ static uint8_t discover_fusion(struct bt_conn *conn,
 		       data_value_handle, telemetry_value_handle);
 		memset(params, 0, sizeof(*params));
 		break;
+	}
 	}
 
 	return BT_GATT_ITER_STOP;
@@ -592,7 +760,7 @@ int main(void)
 {
 	int err;
 
-	printk("FUSION_MASTER marker=dk-fusion-uart-bridge-v1 probe=683234364\n");
+	printk("FUSION_MASTER marker=dk-fusion-strobe-capture-v4 probe=683234364\n");
 	err = bt_enable(NULL);
 	if (err != 0) {
 		printk("FUSION_FAIL step=bt_enable err=%d\n", err);
@@ -607,8 +775,9 @@ int main(void)
 		if (!target_conn && !connecting) {
 			printk("FUSION_SCAN_WAITING\n");
 		} else if (bridge_ready) {
-			printk("FUSION_HEALTH packets=%u malformed=%u connections=%u\n",
-			       received_packets, malformed_packets, reconnections);
+			printk("FUSION_HEALTH packets=%u malformed=%u logger_drop=%u connections=%u\n",
+			       received_packets, malformed_packets, logger_dropped,
+			       reconnections);
 		}
 	}
 

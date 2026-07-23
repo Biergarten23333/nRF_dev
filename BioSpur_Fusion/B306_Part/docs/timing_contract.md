@@ -2,14 +2,26 @@
 
 ## Clock ownership
 
-The B306 hardware timer is the only node time base. A timestamp is a wrapping
-unsigned timer tick plus a boot/session identity; host software must use modular
-subtraction and must not compare ticks across boots.
+The B306 hardware timer is the only node time base. The Stage 2 implementation
+uses TIMER2 at a nominal 1 MHz in 32-bit mode and extends it to a 64-bit
+microsecond count in software. A compare event at zero accounts for each
+natural `2^32`-tick wrap; it deliberately does not clear the timer at
+`UINT32_MAX`, which would shorten every epoch by one microsecond. TIMER0 belongs
+to MPSL. Both GPIOTE channels and both PPI channels are allocated dynamically.
 
-Stage 2 will use a 1 MHz, 32-bit TIMER2-or-higher counter extended to 64 bits
-in software. TIMER0 belongs to MPSL, and PPI channels are allocated
-dynamically. The concrete instance and the multiple-wrap implementation remain
-`UNKNOWN` until Stage 2 is implemented and measured.
+The 64-bit count is local to one boot/session. Host software must not compare
+timestamps across boots. More importantly, the intended software extension is
+not currently functional at the first 32-bit wrap: the 2026-07-21 extended run
+stopped producing both UWB records and one-Hz telemetry at `2^32 us` of B306
+uptime (71.58 minutes). The exact evidence is in
+`UWB_Part/logs/absdeadline_1h_20260721_205638/analysis/1h-summary.md`.
+
+Until the firmware debt is fixed and validated across multiple wraps, the
+operating rule is: **power-cycle the B306 before every capture session.** A
+current capture session must be no longer than 60 minutes. A button reset is
+not the prescribed mitigation; remove and restore B306 power so TIMER2 uptime
+is known to begin near zero. Confirm the first `strobe_us` / `node_ms` values
+are near zero in preflight. See `capture_operations.md`.
 
 NINA-B306-01B has no 32.768 kHz crystal. MCUboot and the application therefore
 use the 500 ppm LFRC with periodic calibration against the high-frequency
@@ -61,10 +73,14 @@ Current hardware/firmware state:
    P0.26 unused.
 3. nRF52832 P0.19 remains the internal DW1000 IRQ input and must not be
    repurposed.
-4. The derived `UWB_Part/fusion-link/` Task A image configures P0.26 low at
-   initialization and emits one nominal 10 us pulse in the broadcast-poll
-   TX-done path. It has compiled but has not been deployed or measured.
+4. The deployed `tag-fusion-link-v2-polltxmargin3ms1` Task A image configures
+   P0.26 low at initialization and emits one nominal 10 us pulse in the
+   broadcast-poll TX-done path.
 5. The confirmed B306 capture input is nRF52840 P1.03 (`UWB_RDY`, NINA GPIO_37).
+6. B306 configures P1.03 as a no-pull input. Separate dynamically allocated
+   GPIOTE channels capture rising and falling edges through PPI into TIMER2 CC1
+   and CC2. Software sees the captured CC values; it does not read the timer in
+   place of the hardware timestamp.
 
 The accompanying UART v2 frame carries the same sweep counter, raw 40-bit
 DW1000 poll-TX timestamp, and measured response-RX-minus-poll-TX
@@ -75,11 +91,30 @@ path.
 
 The 0 Ω series resistors on `UWB_RDY`, `UWB_TX1`, and `UWB_RX1` are available
 as logic-analyser test points. They are bring-up ground truth. Field telemetry
-retains CRC, dropped/duplicate sweep, unpaired edge/frame, and clock-filter
-residual counters; a separate strobe-to-poll standard-deviation gate is not
-required because its jitter appears directly in the clock-filter residual.
+retains CRC, dropped/duplicate sweep, and unpaired edge/frame counters.
 Per-rank `t_round_us` distributions are normal-capture analysis output, not a
 bring-up acceptance gate.
+
+## READY polarity and Stage 2 measurement
+
+The 2026-07-21 parallel B306/DSView run settles the polarity conflict:
+
+- inactive level: **low**;
+- pulse: **active high**;
+- B306 boot sample: low, with no input pull (`capture_flags=0x0e`);
+- DSView width over the formal 300 s window: 10.6 us minimum, 10.8 us median,
+  10.8 us p99 and maximum;
+- B306 captured 2,907 rising and 2,907 falling edges in the same window.
+
+The low idle level therefore comes from the DWM1001C firmware's output-low
+initialization, not a B306 pull resistor. B306 retains both-edge capture so a
+future polarity regression is visible rather than silently absorbed.
+
+Pairing uses the closest preceding pulse to the expected 10,583 us frame delay,
+within a hard 20,000 us window. The formal run observed exactly one candidate
+for every frame. Frame-minus-strobe delay was 14,412 us minimum, 14,669 us
+median, 17,078 us p99 and 17,284 us maximum; zero pairs were within 1 ms of
+either window edge. This attribution path does not use a clock filter.
 
 ## Frozen sweep facts
 
@@ -95,10 +130,21 @@ each anchor response offsets and then freeze the model.
 
 ## Pairing and loss rules
 
-- A UWB payload is paired to a ready-edge capture by monotonic sweep sequence.
-- Edges are ignored until their cadence is plausible and stable.
+- A UWB payload is paired to the closest preceding ready pulse within 20 ms;
+  the sweep counter is retained for continuity checks and reporting.
+- Edges during the first 50 ms after capture initialization are discarded;
+  later edges must form a valid dual-edge pulse and satisfy the frame-pairing
+  window. Cadence plausibility is reported by the host analysis, not silently
+  filtered in B306 firmware.
 - Duplicate, missing, or out-of-order sequences are reported; they are never
   silently interpolated.
 - UART arrival time may be retained as diagnostics only.
 - A logical BLE batch carries one B306 time domain and explicit first/last
   sequence values so the host can detect loss.
+
+The 300 s Stage 2/4b run paired all 2,907 records as healthy, with zero
+one-sided orphans, zero edge-queue drops, zero sweep-counter gaps, and zero
+DSView/B306 cadence disagreements. DSView nevertheless found 93 absent nominal
+10 Hz slots (3.10%) while tag `pollfail=0` and `polllast=0`. That is an upstream
+scheduler-generation finding, not a B306 capture or UART loss. Do not relabel
+those absent slots as `pollfail` without a new tag-side missed-deadline counter.
