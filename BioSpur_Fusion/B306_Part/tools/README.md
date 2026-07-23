@@ -32,3 +32,8 @@ read either an aligned CSV or raw Fusion Master RTT output.
 independent same-duration DSView window, then joins those loss counts with the
 capture-mode `BSLSTAT` pre/post counter deltas. It discards short stale RTT
 prefixes by selecting the longest contiguous strobe segment.
+
+`jlink_rtt_transport.py` is the shared bidirectional RTT implementation.
+`capture_jlink_rtt.py` can send repeatable `--command` lines while logging the
+up-channel. `fusion_session.py --transport=rtt` uses the same explicit-probe
+transport without changing its ordered S1–S7/T1–T3 logic.

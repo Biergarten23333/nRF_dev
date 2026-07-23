@@ -24,6 +24,8 @@
 #include <zephyr/sys/util.h>
 #include <zephyr/usb/usb_device.h>
 
+#include <SEGGER_RTT.h>
+
 #include "biospur_fusion_ble.h"
 
 #define TARGET_NAME_PREFIX "BSF"
@@ -37,6 +39,7 @@ static const struct device *const cdc_acm = DEVICE_DT_GET(CDC_ACM_NODE);
 RING_BUF_DECLARE(cdc_tx_ring, 16384);
 RING_BUF_DECLARE(cdc_rx_ring, 1024);
 K_SEM_DEFINE(cdc_rx_sem, 0, 1);
+K_MUTEX_DEFINE(command_dispatch_lock);
 static bool cdc_ready;
 
 static struct bt_uuid_128 fusion_service_uuid =
@@ -1074,7 +1077,7 @@ BT_CONN_CB_DEFINE(connection_callbacks) = {
 	.le_param_updated = le_param_updated,
 };
 
-static void handle_cdc_command(char *line)
+static void handle_console_command(char *line)
 {
 	size_t length = strlen(line);
 	int err;
@@ -1115,10 +1118,38 @@ static void handle_cdc_command(char *line)
 	       candidate_name, (unsigned int)length, err, line);
 }
 
+struct command_line_state {
+	char line[CDC_COMMAND_MAX + 1u];
+	size_t used;
+};
+
+static void consume_console_bytes(struct command_line_state *state,
+				  const uint8_t *bytes, uint32_t count)
+{
+	for (uint32_t i = 0; i < count; ++i) {
+		char ch = (char)bytes[i];
+
+		if (ch == '\r' || ch == '\n') {
+			if (state->used != 0u) {
+				state->line[state->used] = '\0';
+				k_mutex_lock(&command_dispatch_lock, K_FOREVER);
+				handle_console_command(state->line);
+				k_mutex_unlock(&command_dispatch_lock);
+				state->used = 0u;
+			}
+		} else if (state->used < CDC_COMMAND_MAX) {
+			state->line[state->used++] = ch;
+		} else {
+			state->used = 0u;
+			printk("FUSION_COMMAND_REJECT reason=line_too_long max=%u\n",
+			       CDC_COMMAND_MAX);
+		}
+	}
+}
+
 static void cdc_command_thread(void *first, void *second, void *third)
 {
-	char line[CDC_COMMAND_MAX + 1u];
-	size_t used = 0u;
+	struct command_line_state state = {0};
 
 	ARG_UNUSED(first);
 	ARG_UNUSED(second);
@@ -1134,28 +1165,35 @@ static void cdc_command_thread(void *first, void *second, void *third)
 			key = irq_lock();
 			count = ring_buf_get(&cdc_rx_ring, chunk, sizeof(chunk));
 			irq_unlock(key);
-			for (uint32_t i = 0; i < count; ++i) {
-				char ch = (char)chunk[i];
-
-				if (ch == '\r' || ch == '\n') {
-					if (used != 0u) {
-						line[used] = '\0';
-						handle_cdc_command(line);
-						used = 0u;
-					}
-				} else if (used < CDC_COMMAND_MAX) {
-					line[used++] = ch;
-				} else {
-					used = 0u;
-					printk("FUSION_COMMAND_REJECT reason=line_too_long max=%u\n",
-					       CDC_COMMAND_MAX);
-				}
-			}
+			consume_console_bytes(&state, chunk, count);
 		} while (count != 0u);
 	}
 }
 
 K_THREAD_DEFINE(cdc_command_thread_id, 2048, cdc_command_thread,
+		NULL, NULL, NULL, 7, 0, 0);
+
+static void rtt_command_thread(void *first, void *second, void *third)
+{
+	struct command_line_state state = {0};
+
+	ARG_UNUSED(first);
+	ARG_UNUSED(second);
+	ARG_UNUSED(third);
+
+	while (true) {
+		uint8_t chunk[64];
+		unsigned int count = SEGGER_RTT_Read(0, chunk, sizeof(chunk));
+
+		if (count != 0u) {
+			consume_console_bytes(&state, chunk, count);
+		} else {
+			k_sleep(K_MSEC(5));
+		}
+	}
+}
+
+K_THREAD_DEFINE(rtt_command_thread_id, 2048, rtt_command_thread,
 		NULL, NULL, NULL, 7, 0, 0);
 
 int main(void)
@@ -1167,7 +1205,7 @@ int main(void)
 		printk("FUSION_FAIL step=cdc_start err=%d\n", err);
 		return 0;
 	}
-	printk("FUSION_MASTER marker=dk-fusion-imu-relay-v6 probe=683234364 pc=USB_CDC rtt=fallback\n");
+	printk("FUSION_MASTER marker=dk-fusion-imu-relay-v7 probe=683234364 pc=USB_CDC rtt=control+log\n");
 	err = bt_enable(NULL);
 	if (err != 0) {
 		printk("FUSION_FAIL step=bt_enable err=%d\n", err);

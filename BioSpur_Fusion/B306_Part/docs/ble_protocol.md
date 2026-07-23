@@ -163,10 +163,13 @@ bytes, and CRC-16/CCITT-FALSE. It is unambiguously distinct from the fixed
 96-byte UWB data frame. The header is maintained byte-identically in the B306
 and fusion-tag trees.
 
-## USB CDC
+## DK host transports
 
 The DK USB identity is VID:PID `2FE3:10F4`, product
-`BioSpur Fusion Master`. CDC is the primary command/output channel; RTT mirrors
-the same application records as a debug fallback. Resolve the port by USB
-identity, never by `/dev/ttyACM<n>`. `LIST` reports the connected BSF name,
-last scan RSSI, subscription state, and control handle.
+`BioSpur Fusion Master`. CDC remains the primary command/output channel.
+`dk-fusion-imu-relay-v7` also accepts the byte-identical `LIST` /
+`BSF#### <command>` grammar on SEGGER RTT down-channel 0 and mirrors records on
+up-channel 0. Resolve CDC by USB identity, never `/dev/ttyACM<n>`; RTT must
+select J-Link `683234364` explicitly and uses control-block address
+`0x20002100` for v7. `LIST` reports the connected BSF name, last scan RSSI,
+subscription state, and control handle.

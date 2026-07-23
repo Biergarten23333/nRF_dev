@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ordered BioSpur Fusion session orchestration over the Fusion Master CDC."""
+"""Ordered BioSpur Fusion session orchestration over Fusion Master CDC or RTT."""
 
 from __future__ import annotations
 
@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterable
 
+from jlink_rtt_transport import JLinkRttError, JLinkRttTransport
+
 try:
     import serial
     from serial.tools import list_ports
@@ -29,6 +31,9 @@ DEFAULT_STATE = DEFAULT_LOG_ROOT / "fusion_session_active.json"
 FUSION_USB_VID = 0x2FE3
 FUSION_USB_PID = 0x10F4
 FUSION_USB_PRODUCT = "BioSpur Fusion Master"
+FUSION_RTT_SERIAL = 683234364
+FUSION_RTT_DEVICE = "nRF52840_xxAA"
+FUSION_RTT_ADDRESS = 0x20002100
 
 REPLY_RE = re.compile(
     r"^FUSION_REPLY\b.*\bsource=(B306|TAG)\s+correlation=(\d+)\s+text=(.*)$"
@@ -246,6 +251,81 @@ class LineChannel:
         return lines
 
 
+class RttLineChannel:
+    def __init__(
+        self,
+        *,
+        serial_number: int,
+        device: str,
+        address: int,
+        speed_khz: int,
+        up_channel: int,
+        down_channel: int,
+        log_file,
+        label: str,
+    ):
+        self.port = f"rtt://{serial_number}/0x{address:08x}"
+        self.log_file = log_file
+        self.label = label
+        self.pending = bytearray()
+        self.transport = JLinkRttTransport(
+            serial_number=serial_number,
+            device=device,
+            address=address,
+            speed_khz=speed_khz,
+            up_channel=up_channel,
+            down_channel=down_channel,
+        )
+        try:
+            self.transport.open()
+        except JLinkRttError as exc:
+            raise SessionError(str(exc)) from exc
+
+    def close(self) -> None:
+        self.transport.close()
+
+    def _record(self, direction: str, line: str) -> None:
+        self.log_file.write(
+            f"{time.time():.6f} {time.monotonic():.6f} "
+            f"{self.label}_{direction} {line}\n"
+        )
+        self.log_file.flush()
+
+    def send(self, line: str) -> None:
+        self._record("TX", line)
+        try:
+            self.transport.write_line(line)
+        except JLinkRttError as exc:
+            raise SessionError(str(exc)) from exc
+
+    def read(self, deadline: float) -> str | None:
+        while time.monotonic() < deadline:
+            newline = self.pending.find(b"\n")
+            if newline >= 0:
+                raw = bytes(self.pending[:newline])
+                del self.pending[: newline + 1]
+                line = raw.decode("utf-8", errors="replace").strip("\r")
+                if line:
+                    self._record("RX", line)
+                    return line
+                continue
+            data = self.transport.read(4096)
+            if data:
+                self.pending.extend(data)
+            else:
+                time.sleep(0.005)
+        return None
+
+    def collect(self, duration_s: float) -> list[str]:
+        deadline = time.monotonic() + duration_s
+        lines: list[str] = []
+        while time.monotonic() < deadline:
+            line = self.read(deadline)
+            if line is not None:
+                lines.append(line)
+        return lines
+
+
 def resolve_fusion_port(explicit: str | None) -> str:
     if explicit:
         if "SEGGER_J-Link_" in explicit:
@@ -268,6 +348,46 @@ def resolve_fusion_port(explicit: str | None) -> str:
             f"{FUSION_USB_PID:04X}, found {matches}"
         )
     return matches[0]
+
+
+def add_fusion_transport_args(
+    parser: argparse.ArgumentParser, *, default: str | None
+) -> None:
+    parser.add_argument(
+        "--transport", choices=("cdc", "rtt"), default=default
+    )
+    parser.add_argument("--port", help="explicit Fusion CDC port")
+    parser.add_argument(
+        "--rtt-serial-number", type=int, default=FUSION_RTT_SERIAL
+    )
+    parser.add_argument("--rtt-device", default=FUSION_RTT_DEVICE)
+    parser.add_argument(
+        "--rtt-address",
+        type=lambda value: int(value, 0),
+        default=FUSION_RTT_ADDRESS,
+    )
+    parser.add_argument("--rtt-speed-khz", type=int, default=4000)
+    parser.add_argument("--rtt-up-channel", type=int, default=0)
+    parser.add_argument("--rtt-down-channel", type=int, default=0)
+
+
+def open_fusion_channel(args, log_file):
+    if args.transport == "cdc":
+        fusion_port = resolve_fusion_port(args.port)
+        return fusion_port, LineChannel(fusion_port, log_file, "FUSION")
+    if args.port:
+        raise SessionError("--port is only valid with --transport=cdc")
+    channel = RttLineChannel(
+        serial_number=args.rtt_serial_number,
+        device=args.rtt_device,
+        address=args.rtt_address,
+        speed_khz=args.rtt_speed_khz,
+        up_channel=args.rtt_up_channel,
+        down_channel=args.rtt_down_channel,
+        log_file=log_file,
+        label="FUSION_RTT",
+    )
+    return channel.port, channel
 
 
 def resolve_master_tag_port(explicit: str | None) -> str:
@@ -583,7 +703,7 @@ def build_parser() -> argparse.ArgumentParser:
     start = subparsers.add_parser("start", help="run S1..S7")
     start.add_argument("--bsf", required=True, type=validate_bsf)
     start.add_argument("--path", required=True, choices=("master", "relay"))
-    start.add_argument("--port")
+    add_fusion_transport_args(start, default="cdc")
     start.add_argument("--master-port")
     start.add_argument("--tag-name", default="BS065F")
     start.add_argument("--tag-id", type=int, default=1)
@@ -608,7 +728,7 @@ def build_parser() -> argparse.ArgumentParser:
     start.set_defaults(preflight_reboot=True)
 
     stop = subparsers.add_parser("stop", help="run T1..T3")
-    stop.add_argument("--port")
+    add_fusion_transport_args(stop, default=None)
     stop.add_argument("--master-port")
     stop.add_argument("--bsf", type=validate_bsf)
     stop.add_argument("--path", choices=("master", "relay"))
@@ -655,9 +775,9 @@ def run_start(args) -> int:
     imu_started = False
     try:
         with (run_dir / "raw.log").open("a", buffering=1) as raw_log:
-            fusion_port = resolve_fusion_port(args.port)
+            fusion_port, fusion_channel = open_fusion_channel(args, raw_log)
             summary["fusion_port"] = fusion_port
-            fusion_channel = LineChannel(fusion_port, raw_log, "FUSION")
+            summary["fusion_transport"] = args.transport
             controller = FusionController(
                 fusion_channel, args.bsf, args.timeout, args.max_attempts
             )
@@ -834,6 +954,25 @@ def run_start(args) -> int:
                 "started_utc": summary["completed_utc"],
                 "run_dir": str(run_dir),
                 "fusion_port": fusion_port,
+                "fusion_transport": args.transport,
+                "rtt_serial_number": (
+                    args.rtt_serial_number if args.transport == "rtt" else None
+                ),
+                "rtt_device": (
+                    args.rtt_device if args.transport == "rtt" else None
+                ),
+                "rtt_address": (
+                    args.rtt_address if args.transport == "rtt" else None
+                ),
+                "rtt_speed_khz": (
+                    args.rtt_speed_khz if args.transport == "rtt" else None
+                ),
+                "rtt_up_channel": (
+                    args.rtt_up_channel if args.transport == "rtt" else None
+                ),
+                "rtt_down_channel": (
+                    args.rtt_down_channel if args.transport == "rtt" else None
+                ),
                 "master_port": summary.get("master_port"),
             }
             args.state_file.parent.mkdir(parents=True, exist_ok=True)
@@ -876,10 +1015,19 @@ def run_stop(args) -> int:
     master_channel = None
     try:
         with (run_dir / "raw.log").open("a", buffering=1) as raw_log:
-            # Re-resolve by USB identity on every invocation; ttyACM numbering
-            # may change across the pre-session reboot or an unrelated USB event.
-            fusion_port = resolve_fusion_port(args.port)
-            fusion_channel = LineChannel(fusion_port, raw_log, "FUSION")
+            if args.transport is None:
+                args.transport = state.get("fusion_transport", "cdc")
+                if args.transport == "rtt":
+                    args.rtt_serial_number = state["rtt_serial_number"]
+                    args.rtt_device = state["rtt_device"]
+                    args.rtt_address = state["rtt_address"]
+                    args.rtt_speed_khz = state["rtt_speed_khz"]
+                    args.rtt_up_channel = state["rtt_up_channel"]
+                    args.rtt_down_channel = state["rtt_down_channel"]
+            # Re-resolve CDC by identity; RTT always uses the explicit probe.
+            fusion_port, fusion_channel = open_fusion_channel(args, raw_log)
+            summary["fusion_port"] = fusion_port
+            summary["fusion_transport"] = args.transport
             controller = FusionController(
                 fusion_channel, bsf, args.timeout, args.max_attempts
             )

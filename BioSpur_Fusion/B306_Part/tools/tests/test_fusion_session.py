@@ -5,6 +5,7 @@ from pathlib import Path
 
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "fusion_session.py"
+sys.path.insert(0, str(MODULE_PATH.parent))
 SPEC = importlib.util.spec_from_file_location("fusion_session", MODULE_PATH)
 fusion_session = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
@@ -13,6 +14,22 @@ SPEC.loader.exec_module(fusion_session)
 
 
 class FusionSessionParserTest(unittest.TestCase):
+    def test_rtt_transport_cli_uses_explicit_dk_probe(self):
+        args = fusion_session.build_parser().parse_args(
+            [
+                "start",
+                "--bsf",
+                "BSF3C79",
+                "--path",
+                "master",
+                "--transport",
+                "rtt",
+            ]
+        )
+        self.assertEqual(args.transport, "rtt")
+        self.assertEqual(args.rtt_serial_number, 683234364)
+        self.assertEqual(args.rtt_address, 0x20002100)
+
     def test_reply_parser_preserves_text(self):
         reply = fusion_session.parse_reply(
             "FUSION_REPLY proto=2 master_ms=10 source=TAG "
