@@ -942,6 +942,18 @@ static uint8_t discover_fusion(struct bt_conn *conn,
 		       candidate_name, candidate_rssi, bt_gatt_get_mtu(conn),
 		       data_value_handle, telemetry_value_handle,
 		       control_value_handle);
+		struct bt_conn_info info;
+		int info_err = bt_conn_get_info(conn, &info);
+
+		if (info_err == 0 && info.type == BT_CONN_TYPE_LE) {
+			printk("FUSION_CI_CURRENT interval_units=%u interval_us=%u latency=%u timeout_units=%u\n",
+			       info.le.interval,
+			       BT_CONN_INTERVAL_TO_US(info.le.interval),
+			       info.le.latency, info.le.timeout);
+		} else {
+			printk("FUSION_FAIL step=conn_info err=%d type=%d\n",
+			       info_err, info_err == 0 ? (int)info.type : -1);
+		}
 		memset(params, 0, sizeof(*params));
 		break;
 	}
