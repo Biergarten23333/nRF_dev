@@ -11,17 +11,26 @@ The current Task A status, build footprint, artifact hashes, and remaining
 bench gates are in `TASK_A_REPORT.md`. Rebuild the tag from `src/` with:
 
 ```bash
-./scripts/build_tag_ble_unified.sh 0 10 tag-fusion-link
+./scripts/build_tag_ble_unified.sh 0 10 tag-fusion-link-clean1
 ```
 
 The wrapper always writes the generated tree to
-`UWB_Part/builds/tag-fusion-link/`.
+`UWB_Part/builds/tag-fusion-link-clean1/` and rejects the build unless FLASH
+is at most 95%, RAM is at most 85%, and the C malloc arena is explicit.
 
-The built Task A artifacts are
-`tag/tag-fusion-link-v2.{signed.bin,dfu_application.zip,merged.hex}` and report
-firmware marker `tag-fusion-link-v2`. No Task A image has been flashed. The
+The current build-only Task A artifacts are under
+`UWB_Part/builds/tag-fusion-link-clean1/` and report firmware marker
+`tag-fusion-link-v2-clean1`. Lineage is:
+`absdeadline3` (installed, instrumented, 270k-slot validated) ->
+`absdeadline-final` (instrumentation stripped, never deployed) -> `v2-clean1`
+(honest range naming and legacy filter/solver purge, not deployed).
+
+Do not add `-final` to an evolving firmware line. Use incrementing numeric
+suffixes; `absdeadline-final` was superseded before deployment and demonstrates
+why the suffix is misleading. The earlier `tag-fusion-link-v2` faulted before
+application startup because its linked RAM usage was 100% and is invalid. The
 legacy binaries listed below were copied with the baseline for provenance and
-are not Task A outputs.
+are not current Task A outputs.
 
 ## Copied baseline artifacts
 

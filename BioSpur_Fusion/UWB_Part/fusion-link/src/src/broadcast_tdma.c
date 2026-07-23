@@ -1,8 +1,10 @@
 #include "broadcast_tdma.h"
+#include "broadcast_tdma_math.h"
 
 #include <limits.h>
 
 #include <zephyr/kernel.h>
+#include <zephyr/sys/util.h>
 
 #ifndef APP_TAG_TDMA_SLOT_PERIOD_MS
 #define APP_TAG_TDMA_SLOT_PERIOD_MS 10U
@@ -12,31 +14,34 @@
 #define APP_TAG_TDMA_SLOT_COUNT 10U
 #endif
 
-#ifndef APP_TAG_TDMA_SLOT_START_LATE_TOLERANCE_MS
-#define APP_TAG_TDMA_SLOT_START_LATE_TOLERANCE_MS 2U
+#ifndef APP_TAG_TDMA_SLOT_START_LATE_TOLERANCE_US
+#define APP_TAG_TDMA_SLOT_START_LATE_TOLERANCE_US 2000U
 #endif
 
-#ifndef APP_TAG_TDMA_SLOT_MIN_REMAIN_MS
-#define APP_TAG_TDMA_SLOT_MIN_REMAIN_MS 12U
+#ifndef APP_TAG_TDMA_BROADCAST_SWEEP_BUDGET_US
+/* Eight-anchor broadcast completion is approximately 8.45 ms. */
+#define APP_TAG_TDMA_BROADCAST_SWEEP_BUDGET_US 8500U
 #endif
 
 #ifndef APP_TAG_TDMA_SLOT_SPIN_THRESHOLD_MS
 #define APP_TAG_TDMA_SLOT_SPIN_THRESHOLD_MS 3U
 #endif
 
-static uint32_t broadcast_tdma_now_ms(const struct uwb_tdma_schedule *schedule)
+static int64_t broadcast_tdma_epoch_us(
+	const struct uwb_tdma_schedule *schedule,
+	int64_t now_ticks)
 {
-	uint32_t now = k_uptime_get_32();
+	int64_t now_ms;
+	int64_t epoch_ms;
 
 	if (schedule == NULL || !schedule->epoch_valid) {
-		return now;
+		return 0;
 	}
 
-	if ((int32_t)(now - schedule->sync_local_ms) < 0) {
-		return 0U;
-	}
-
-	return now - schedule->sync_local_ms;
+	now_ms = k_ticks_to_ms_floor64(now_ticks);
+	epoch_ms = broadcast_tdma_lift_u32_ms(schedule->sync_local_ms,
+						 now_ms);
+	return epoch_ms * 1000;
 }
 
 static uint32_t broadcast_tdma_slot_period_ms(
@@ -82,70 +87,39 @@ static uint16_t broadcast_tdma_slot_mask(
 	return 0U;
 }
 
-static uint32_t broadcast_tdma_slot_active_ms(
-	const struct uwb_tdma_schedule *schedule,
-	uint32_t slot_period_ms)
+static int64_t broadcast_tdma_busy_wait_until(int64_t target_ticks)
 {
-	uint32_t active_ms = 0U;
+	int64_t now_ticks;
 
-	if (schedule != NULL) {
-		if (schedule->slot_active_us != 0U) {
-			active_ms = ((uint32_t)schedule->slot_active_us + 999U) / 1000U;
-		} else {
-			active_ms = schedule->slot_active_ms;
+	while ((now_ticks = k_uptime_ticks()) < target_ticks) {
+		int64_t remaining_ticks = target_ticks - now_ticks;
+		uint64_t remaining_us =
+			k_ticks_to_us_floor64(remaining_ticks);
+
+		if (remaining_us == 0U) {
+			continue;
 		}
+		k_busy_wait((uint32_t)MIN(remaining_us, (uint64_t)UINT32_MAX));
 	}
 
-	if (active_ms == 0U || active_ms > slot_period_ms) {
-		active_ms = slot_period_ms;
-	}
-
-	return active_ms;
-}
-
-static uint32_t broadcast_tdma_late_tolerance_ms(
-	const struct uwb_tdma_schedule *schedule,
-	uint32_t slot_period_ms)
-{
-	uint32_t active_ms = broadcast_tdma_slot_active_ms(schedule, slot_period_ms);
-	uint32_t max_late_ms;
-
-	if (active_ms <= APP_TAG_TDMA_SLOT_MIN_REMAIN_MS) {
-		return 0U;
-	}
-
-	max_late_ms = active_ms - APP_TAG_TDMA_SLOT_MIN_REMAIN_MS;
-	return (APP_TAG_TDMA_SLOT_START_LATE_TOLERANCE_MS < max_late_ms) ?
-		       APP_TAG_TDMA_SLOT_START_LATE_TOLERANCE_MS :
-		       max_late_ms;
-}
-
-static void broadcast_tdma_wait_near_slot(uint32_t wait_ms)
-{
-	if (wait_ms > APP_TAG_TDMA_SLOT_SPIN_THRESHOLD_MS) {
-		k_msleep(wait_ms - APP_TAG_TDMA_SLOT_SPIN_THRESHOLD_MS);
-		return;
-	}
-
-	if (wait_ms > 0U) {
-		k_busy_wait(wait_ms * 1000U);
-		return;
-	}
-
-	k_yield();
+	return now_ticks;
 }
 
 uint32_t broadcast_tdma_wait_next_slot_start(
-	const struct uwb_tdma_schedule *schedule)
+	const struct uwb_tdma_schedule *schedule,
+	struct broadcast_tdma_wait_stats *stats)
 {
-	uint32_t cycle_ms;
-	uint32_t phase_ms;
-	uint32_t target_ms = 0U;
-	uint32_t wait_ms = UINT_MAX;
+	uint64_t cycle_us;
+	uint64_t slot_period_us;
 	uint32_t slot_period_ms;
 	uint32_t slot_count;
-	uint32_t late_tolerance_ms;
+	int64_t late_tolerance_ticks;
 	uint16_t slot_mask;
+
+	if (stats != NULL) {
+		stats->sleep_late_skips = 0U;
+		stats->spin_late_skips = 0U;
+	}
 
 	if (schedule == NULL || !schedule->enabled) {
 		return k_cycle_get_32();
@@ -160,29 +134,24 @@ uint32_t broadcast_tdma_wait_next_slot_start(
 	if (slot_mask == 0U) {
 		return k_cycle_get_32();
 	}
-	late_tolerance_ms = broadcast_tdma_late_tolerance_ms(schedule,
-							     slot_period_ms);
-
-	while (schedule->epoch_valid &&
-	       (int32_t)(k_uptime_get_32() - schedule->sync_local_ms) < 0) {
-		uint32_t until_epoch_ms =
-			schedule->sync_local_ms - k_uptime_get_32();
-
-		if (until_epoch_ms > 1U) {
-			k_msleep(until_epoch_ms - 1U);
-		} else {
-			k_yield();
-		}
-	}
-
-	cycle_ms = slot_count * slot_period_ms;
-	if (cycle_ms == 0U) {
+	slot_period_us = (uint64_t)slot_period_ms * 1000U;
+	late_tolerance_ticks = k_us_to_ticks_floor64(
+		broadcast_tdma_late_tolerance_us(
+			slot_period_us,
+			APP_TAG_TDMA_BROADCAST_SWEEP_BUDGET_US,
+			APP_TAG_TDMA_SLOT_START_LATE_TOLERANCE_US));
+	cycle_us = (uint64_t)slot_count * slot_period_us;
+	if (cycle_us == 0U) {
 		return k_cycle_get_32();
 	}
 
 	while (1) {
-		wait_ms = UINT_MAX;
-		phase_ms = broadcast_tdma_now_ms(schedule) % cycle_ms;
+		int64_t now_ticks = k_uptime_ticks();
+		int64_t now_us = k_ticks_to_us_floor64(now_ticks);
+		int64_t epoch_us = broadcast_tdma_epoch_us(schedule, now_ticks);
+		int64_t cycle_base_us = broadcast_tdma_cycle_base_us(
+			now_us, epoch_us, cycle_us);
+		int64_t target_ticks = INT64_MAX;
 
 		/*
 		 * This function must start a broadcast burst at an owned slot
@@ -192,42 +161,65 @@ uint32_t broadcast_tdma_wait_next_slot_start(
 		 * budget remains for the broadcast response window.
 		 */
 		for (uint32_t slot = 0U; slot < slot_count && slot < 16U; ++slot) {
-			uint32_t candidate_target_ms;
-			uint32_t candidate_wait_ms;
+			int64_t candidate_us;
+			int64_t candidate_ticks;
+			int64_t lateness_ticks;
 
 			if ((slot_mask & (uint16_t)(1U << slot)) == 0U) {
 				continue;
 			}
 
-			candidate_target_ms = slot * slot_period_ms;
-			if (phase_ms >= candidate_target_ms &&
-			    phase_ms <= candidate_target_ms + late_tolerance_ms) {
+			candidate_us = cycle_base_us +
+				       (int64_t)((uint64_t)slot * slot_period_us);
+			candidate_ticks = k_us_to_ticks_ceil64(candidate_us);
+			lateness_ticks = now_ticks - candidate_ticks;
+			if (lateness_ticks >= 0 &&
+			    lateness_ticks <= late_tolerance_ticks) {
 				return k_cycle_get_32();
 			}
 
-			candidate_wait_ms = (phase_ms < candidate_target_ms) ?
-					    (candidate_target_ms - phase_ms) :
-					    (cycle_ms - phase_ms + candidate_target_ms);
-			if (candidate_wait_ms < wait_ms) {
-				wait_ms = candidate_wait_ms;
-				target_ms = candidate_target_ms;
+			if (candidate_ticks < now_ticks - late_tolerance_ticks) {
+				candidate_us += (int64_t)cycle_us;
+				candidate_ticks = k_us_to_ticks_ceil64(candidate_us);
+			}
+			if (candidate_ticks < target_ticks) {
+				target_ticks = candidate_ticks;
 			}
 		}
 
-		if (wait_ms == UINT_MAX) {
+		if (target_ticks == INT64_MAX) {
 			return k_cycle_get_32();
 		}
-		broadcast_tdma_wait_near_slot(wait_ms);
-		if (wait_ms > APP_TAG_TDMA_SLOT_SPIN_THRESHOLD_MS) {
+
+		while ((now_ticks = k_uptime_ticks()) < target_ticks) {
+			int64_t remaining_ticks = target_ticks - now_ticks;
+			uint64_t wait_ms = k_ticks_to_ms_floor64(remaining_ticks);
+
+			if (wait_ms <= APP_TAG_TDMA_SLOT_SPIN_THRESHOLD_MS) {
+				break;
+			}
+			k_msleep((uint32_t)wait_ms -
+				  APP_TAG_TDMA_SLOT_SPIN_THRESHOLD_MS);
+			now_ticks = k_uptime_ticks();
+			if (now_ticks - target_ticks > late_tolerance_ticks &&
+			    stats != NULL) {
+				stats->sleep_late_skips++;
+				break;
+			}
+		}
+
+		if (now_ticks - target_ticks > late_tolerance_ticks) {
 			continue;
 		}
 
-		phase_ms = broadcast_tdma_now_ms(schedule) % cycle_ms;
-		if (phase_ms >= target_ms &&
-		    phase_ms <= target_ms + late_tolerance_ms) {
+		now_ticks = broadcast_tdma_busy_wait_until(target_ticks);
+
+		if (now_ticks - target_ticks <= late_tolerance_ticks) {
 			return k_cycle_get_32();
 		}
-		k_yield();
+		if (stats != NULL) {
+			stats->spin_late_skips++;
+		}
 	}
 }
 

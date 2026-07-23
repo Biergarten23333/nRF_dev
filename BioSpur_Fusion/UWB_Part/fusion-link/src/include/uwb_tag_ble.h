@@ -36,7 +36,7 @@ enum uwb_tag_ble_cal_status {
 struct uwb_tag_ble_cal_range {
 	uint32_t sweep;
 	int32_t raw_mm;
-	uint32_t filt_mm;
+	uint32_t range_mm;
 	uint32_t ok_count;
 	uint32_t fail_count;
 	uint8_t anchor_id;

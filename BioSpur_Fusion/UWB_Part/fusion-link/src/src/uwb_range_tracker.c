@@ -26,21 +26,15 @@ uint32_t uwb_range_tracker_record_success(struct uwb_range_tracker *tracker,
                                           uint32_t raw_mm)
 {
     tracker->last_raw_mm = raw_mm;
-    tracker->raw_window[tracker->raw_head] = raw_mm;
-    tracker->raw_head =
-        (uint8_t)((tracker->raw_head + 1U) % UWB_RANGE_TRACKER_WINDOW_SIZE);
-    if (tracker->raw_count < UWB_RANGE_TRACKER_WINDOW_SIZE) {
-        tracker->raw_count++;
-    }
 
-    /* Raw mode: keep the latest measurement directly. */
-    tracker->filtered_mm = raw_mm;
-    tracker->filtered_valid = true;
+    /* Per-sweep instantaneous range: no smoothing or history is applied. */
+    tracker->range_mm = raw_mm;
+    tracker->range_valid = true;
 
     uwb_range_tracker_decay_recent_counts(tracker);
     tracker->success_count++;
     tracker->recent_success_count++;
-    return tracker->filtered_mm;
+    return tracker->range_mm;
 }
 
 void uwb_range_tracker_record_failure(struct uwb_range_tracker *tracker)

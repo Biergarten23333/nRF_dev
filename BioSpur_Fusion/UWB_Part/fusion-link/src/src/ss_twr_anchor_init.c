@@ -195,11 +195,12 @@ static void ss_twr_anchor_init_configure_radio(void)
                           SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_RX_TO);
 }
 
-static bool ss_twr_anchor_init_raw_range_plausible(
-    const struct uwb_range_tracker *tracker, uint32_t raw_mm)
+static bool ss_twr_anchor_init_range_measurement_valid(
+    const struct uwb_range_tracker *tracker, uint32_t range_mm)
 {
     ARG_UNUSED(tracker);
-    return raw_mm != 0U;
+    /* Validity marking of failed measurements -- NOT range filtering. */
+    return range_mm != 0U;
 }
 
 int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
@@ -328,7 +329,7 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
             double clock_offset_ratio;
             int32_t carrier_integrator;
             long raw_distance_mm;
-            uint32_t filtered_mm;
+            uint32_t range_mm;
             dwt_rxdiag_t rx_diag = {0};
 
             dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
@@ -396,9 +397,9 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
                 raw_distance_mm = 0L;
             }
 
-            if (!ss_twr_anchor_init_raw_range_plausible(
+            if (!ss_twr_anchor_init_range_measurement_valid(
                     tracker, (uint32_t)raw_distance_mm)) {
-                if (tracker->filtered_valid) {
+                if (tracker->range_valid) {
                     uwb_range_tracker_record_failure(tracker);
                 }
                 if (!ss_twr_anchor_init_full_cir_quiet()) {
@@ -415,7 +416,7 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
                 continue;
             }
 
-            filtered_mm = uwb_range_tracker_record_success(
+            range_mm = uwb_range_tracker_record_success(
                 tracker, (uint32_t)raw_distance_mm);
             resp_src_addr = uwb_frame_get_src_addr(ss_twr_anchor_init_rx_buffer);
 
@@ -428,7 +429,7 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
                        uwb_anchor_label(ss_twr_anchor_init_local_id),
                        uwb_anchor_label(uwb_anchor_id_from_addr(resp_src_addr)),
                        (unsigned int)resp_src_addr, raw_distance_mm,
-                       (unsigned long)filtered_mm,
+                       (unsigned long)range_mm,
                        (unsigned long)tracker->success_count,
                        (unsigned long)tracker->failure_count,
                        (unsigned int)uwb_range_tracker_quality_percent(tracker));
@@ -442,7 +443,7 @@ int ss_twr_anchor_init_start(unsigned int anchor_id, const uint8_t *peer_ids,
                 ss_twr_anchor_init_local_id, resp_src_addr, raw_distance_mm,
                 resp_rx_ts, carrier_integrator, &rx_diag);
         } else {
-            if (tracker->filtered_valid) {
+            if (tracker->range_valid) {
                 uwb_range_tracker_record_failure(tracker);
             }
             if (!ss_twr_anchor_init_full_cir_quiet()) {

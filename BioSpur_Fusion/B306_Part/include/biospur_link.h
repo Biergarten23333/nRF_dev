@@ -108,6 +108,7 @@
 #ifndef BIOSPUR_LINK_H
 #define BIOSPUR_LINK_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -154,7 +155,11 @@ typedef struct __attribute__((packed)) {
 	/* --- per anchor slot, all fixed length ------------------------------- */
 	uint8_t  anchor_id  [BSL_MAX_ANCHORS]; /* BSL_ANCHOR_NONE if unused      */
 	uint8_t  rank       [BSL_MAX_ANCHORS]; /* TDMA slot index, diagnostic    */
-	uint16_t range_mm   [BSL_MAX_ANCHORS]; /* BSL_RANGE_INVALID if unusable  */
+	uint16_t range_mm   [BSL_MAX_ANCHORS]; /* Per-sweep instantaneous range,
+					       * CFO clock-offset corrected;
+					       * NO smoothing/filtering applied.
+					       * Smoothing belongs on the fusion
+					       * host to preserve its noise model. */
 	uint16_t t_round_us [BSL_MAX_ANCHORS]; /* MEASURED resp_rx - poll_tx     */
 	uint8_t  quality    [BSL_MAX_ANCHORS]; /* 0..100                         */
 	int16_t  cfo_ppm_q8 [BSL_MAX_ANCHORS]; /* CFO in ppm, Q8 fixed point     */
@@ -189,6 +194,22 @@ _Static_assert(sizeof(bsl_uwb_t) == BSL_BODY_LEN_EXPECTED,
 	       "biospur_link: body size drifted - both sides must be rebuilt");
 _Static_assert(sizeof(bsl_frame_t) == BSL_FRAME_LEN_EXPECTED,
 	       "biospur_link: frame size drifted - both sides must be rebuilt");
+_Static_assert(offsetof(bsl_uwb_t, poll_tx_ts) == 4u,
+	       "biospur_link: poll_tx_ts offset drifted");
+_Static_assert(offsetof(bsl_uwb_t, identity_code) == 9u,
+	       "biospur_link: identity_code offset drifted");
+_Static_assert(offsetof(bsl_uwb_t, anchor_id) == 16u,
+	       "biospur_link: anchor_id offset drifted");
+_Static_assert(offsetof(bsl_uwb_t, range_mm) == 32u,
+	       "biospur_link: range_mm offset drifted");
+_Static_assert(offsetof(bsl_uwb_t, t_round_us) == 48u,
+	       "biospur_link: t_round_us offset drifted");
+_Static_assert(offsetof(bsl_uwb_t, valid_mask) == 88u,
+	       "biospur_link: valid_mask offset drifted");
+_Static_assert(offsetof(bsl_frame_t, body) == 4u,
+	       "biospur_link: frame body offset drifted");
+_Static_assert(offsetof(bsl_frame_t, crc) == 94u,
+	       "biospur_link: frame CRC offset drifted");
 
 /* ------------------------------------------------------------------------ */
 /* Helpers                                                                   */

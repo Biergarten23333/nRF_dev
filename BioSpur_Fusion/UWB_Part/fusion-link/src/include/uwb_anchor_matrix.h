@@ -9,7 +9,7 @@
 
 struct uwb_anchor_matrix_cell {
     bool valid;
-    uint32_t filtered_mm;
+    uint32_t range_mm;
     uint32_t last_raw_mm;
     uint32_t success_count;
     uint32_t failure_count;

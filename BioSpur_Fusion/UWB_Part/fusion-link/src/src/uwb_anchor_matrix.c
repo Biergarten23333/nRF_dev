@@ -26,8 +26,8 @@ void uwb_anchor_matrix_update(struct uwb_anchor_matrix *matrix,
     cell_ab = &matrix->cells[anchor_a_id][anchor_b_id];
     cell_ba = &matrix->cells[anchor_b_id][anchor_a_id];
 
-    cell_ab->valid = tracker->filtered_valid;
-    cell_ab->filtered_mm = tracker->filtered_mm;
+    cell_ab->valid = tracker->range_valid;
+    cell_ab->range_mm = tracker->range_mm;
     cell_ab->last_raw_mm = tracker->last_raw_mm;
     cell_ab->success_count = tracker->success_count;
     cell_ab->failure_count = tracker->failure_count;
@@ -56,7 +56,7 @@ void uwb_anchor_matrix_print_row(const struct uwb_anchor_matrix *matrix,
 
         if (cell->valid) {
             printk(" %c=%lu", uwb_anchor_label(peer_id),
-                   (unsigned long)cell->filtered_mm);
+                   (unsigned long)cell->range_mm);
         } else {
             printk(" %c=--", uwb_anchor_label(peer_id));
         }
@@ -82,7 +82,7 @@ void uwb_anchor_matrix_print_valid_edges(const struct uwb_anchor_matrix *matrix)
             }
 
             printk(" %c-%c=%lu", uwb_anchor_label(row), uwb_anchor_label(col),
-                   (unsigned long)cell->filtered_mm);
+                   (unsigned long)cell->range_mm);
         }
     }
 

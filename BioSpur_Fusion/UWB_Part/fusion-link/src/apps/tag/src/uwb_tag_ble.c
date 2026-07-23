@@ -179,8 +179,14 @@ static uint8_t adv_mfg_token[UWB_TAG_BLE_ADV_MFG_LEN] = {
 
 static const struct bt_conn_le_phy_param *const fast_phy_params = BT_CONN_LE_PHY_PARAM_2M;
 static const struct bt_le_conn_param *const fast_conn_params = BT_LE_CONN_PARAM(6, 6, 0, 400);
+static struct bt_le_conn_param capture_conn_params_value = {
+	.interval_min = 350,
+	.interval_max = 350,
+	.latency = 0,
+	.timeout = 400,
+};
 static const struct bt_le_conn_param *const capture_conn_params =
-	BT_LE_CONN_PARAM(350, 350, 0, 400);
+	&capture_conn_params_value;
 static char ble_device_name[UWB_TAG_BLE_DEVICE_NAME_LEN];
 static uint16_t ble_identity_code;
 static bool ble_identity_from_nvs;
@@ -591,6 +597,54 @@ static void ble_stats_work_handler(struct k_work *work)
 }
 #endif
 
+struct uwb_tag_ble_conn_params_status {
+	bool connected;
+	bool valid;
+	bool capture_target;
+	uint16_t interval;
+	uint16_t latency;
+	uint16_t timeout;
+	uint16_t requested_interval;
+	uint16_t requested_timeout;
+};
+
+static void uwb_tag_ble_conn_params_snapshot(
+	struct uwb_tag_ble_conn_params_status *status)
+{
+	struct bt_conn *conn = NULL;
+	struct bt_conn_info info;
+
+	memset(status, 0, sizeof(*status));
+
+	k_mutex_lock(&ble_mutex, K_FOREVER);
+	status->capture_target = !runtime_stream_enabled && !ota_active;
+	status->requested_interval =
+		status->capture_target ? capture_conn_params->interval_min :
+					 fast_conn_params->interval_min;
+	status->requested_timeout =
+		status->capture_target ? capture_conn_params->timeout :
+					 fast_conn_params->timeout;
+	if (active_conn != NULL) {
+		conn = bt_conn_ref(active_conn);
+		status->connected = true;
+	}
+	k_mutex_unlock(&ble_mutex);
+
+	if (conn == NULL) {
+		return;
+	}
+
+	if (bt_conn_get_info(conn, &info) == 0 &&
+	    info.type == BT_CONN_TYPE_LE) {
+		status->valid = true;
+		status->interval = info.le.interval;
+		status->latency = info.le.latency;
+		status->timeout = info.le.timeout;
+	}
+
+	bt_conn_unref(conn);
+}
+
 const char *uwb_tag_ble_device_name(void)
 {
 	return ble_device_name;
@@ -609,20 +663,63 @@ bool uwb_tag_ble_tr_enabled(void)
 void uwb_tag_ble_publish_link_status(void)
 {
 	struct biospur_uart_link_stats stats;
-	char line[224];
+	struct ss_twr_init_poll_tx_stats poll_tx_stats;
+	struct uwb_tag_ble_conn_params_status conn_status;
+	char line[256];
 
 	biospur_uart_link_get_stats(&stats);
-	snprintk(line, sizeof(line),
-		 "BSLSTAT;1;gen=%lu;start=%lu;done=%lu;drop=%lu;fail=%lu;"
-		 "abort=%lu;strobe=%lu;last=%ld;rxcrc=NA",
-		 (unsigned long)stats.frames_generated,
-		 (unsigned long)stats.tx_started,
-		 (unsigned long)stats.tx_completed,
-		 (unsigned long)stats.tx_dropped,
-		 (unsigned long)stats.tx_failed,
-		 (unsigned long)stats.tx_aborted,
-		 (unsigned long)stats.strobe_count,
-		 (long)stats.last_tx_error);
+	ss_twr_init_poll_tx_stats_snapshot(&poll_tx_stats);
+	uwb_tag_ble_conn_params_snapshot(&conn_status);
+	if (conn_status.valid) {
+		snprintk(line, sizeof(line),
+			 "BSLSTAT;1;gen=%lu;start=%lu;done=%lu;drop=%lu;fail=%lu;"
+			 "abort=%lu;strobe=%lu;last=%ld;pollfail=%lu;polllast=%ld;"
+			 "slplate=%lu;spinlate=%lu;"
+			 "rxcrc=NA;"
+			 "ci=%u;lat=%u;sup=%u;reqci=%u;reqsup=%u;ciok=%u;supok=%u;cpmode=%s",
+			 (unsigned long)stats.frames_generated,
+			 (unsigned long)stats.tx_started,
+			 (unsigned long)stats.tx_completed,
+			 (unsigned long)stats.tx_dropped,
+			 (unsigned long)stats.tx_failed,
+			 (unsigned long)stats.tx_aborted,
+			 (unsigned long)stats.strobe_count,
+			 (long)stats.last_tx_error,
+			 (unsigned long)poll_tx_stats.failures,
+			 (long)poll_tx_stats.last_error,
+			 (unsigned long)poll_tx_stats.slot_sleep_late_skips,
+			 (unsigned long)poll_tx_stats.slot_spin_late_skips,
+			 (unsigned int)conn_status.interval,
+			 (unsigned int)conn_status.latency,
+			 (unsigned int)conn_status.timeout,
+			 (unsigned int)conn_status.requested_interval,
+			 (unsigned int)conn_status.requested_timeout,
+			 conn_status.interval == conn_status.requested_interval,
+			 conn_status.timeout == conn_status.requested_timeout,
+			 conn_status.capture_target ? "CAP" : "FAST");
+	} else {
+		snprintk(line, sizeof(line),
+			 "BSLSTAT;1;gen=%lu;start=%lu;done=%lu;drop=%lu;fail=%lu;"
+			 "abort=%lu;strobe=%lu;last=%ld;pollfail=%lu;polllast=%ld;"
+			 "slplate=%lu;spinlate=%lu;"
+			 "rxcrc=NA;"
+			 "ci=NA;lat=NA;sup=NA;reqci=%u;reqsup=%u;ciok=NA;supok=NA;cpmode=%s",
+			 (unsigned long)stats.frames_generated,
+			 (unsigned long)stats.tx_started,
+			 (unsigned long)stats.tx_completed,
+			 (unsigned long)stats.tx_dropped,
+			 (unsigned long)stats.tx_failed,
+			 (unsigned long)stats.tx_aborted,
+			 (unsigned long)stats.strobe_count,
+			 (long)stats.last_tx_error,
+			 (unsigned long)poll_tx_stats.failures,
+			 (long)poll_tx_stats.last_error,
+			 (unsigned long)poll_tx_stats.slot_sleep_late_skips,
+			 (unsigned long)poll_tx_stats.slot_spin_late_skips,
+			 (unsigned int)conn_status.requested_interval,
+			 (unsigned int)conn_status.requested_timeout,
+			 conn_status.capture_target ? "CAP" : "FAST");
+	}
 	uwb_tag_ble_send_text(line);
 }
 
@@ -1276,7 +1373,7 @@ static size_t uwb_tag_ble_encode_cal_packet(
 		out[offset++] = 0U;
 		sys_put_le32((uint32_t)sample->raw_mm, &out[offset]);
 		offset += 4U;
-		sys_put_le32(sample->filt_mm, &out[offset]);
+		sys_put_le32(sample->range_mm, &out[offset]);
 		offset += 4U;
 		sys_put_le32(sample->ok_count, &out[offset]);
 		offset += 4U;
@@ -1365,9 +1462,11 @@ static void uwb_tag_ble_flush_work_handler(struct k_work *work)
 static int uwb_tag_ble_request_conn_params(bool capture_interval)
 {
 	struct bt_conn *conn = NULL;
+	struct bt_le_conn_param params;
 	int err;
 
 	k_mutex_lock(&ble_mutex, K_FOREVER);
+	params = capture_interval ? *capture_conn_params : *fast_conn_params;
 	if (active_conn != NULL) {
 		conn = bt_conn_ref(active_conn);
 	}
@@ -1377,10 +1476,32 @@ static int uwb_tag_ble_request_conn_params(bool capture_interval)
 		return -ENOTCONN;
 	}
 
-	err = bt_conn_le_param_update(
-		conn, capture_interval ? capture_conn_params : fast_conn_params);
+	err = bt_conn_le_param_update(conn, &params);
 	bt_conn_unref(conn);
 	return err;
+}
+
+static int uwb_tag_ble_set_capture_conn_params(uint16_t interval,
+					       uint16_t timeout)
+{
+	/* BLE units are 1.25 ms for interval and 10 ms for supervision timeout. */
+	if (interval < 6U || interval > 3200U || timeout < 10U ||
+	    timeout > 3200U || interval >= (uint32_t)timeout * 4U) {
+		return -EINVAL;
+	}
+
+	k_mutex_lock(&ble_mutex, K_FOREVER);
+	if (!runtime_stream_enabled || ota_active) {
+		k_mutex_unlock(&ble_mutex);
+		return -EBUSY;
+	}
+	capture_conn_params_value.interval_min = interval;
+	capture_conn_params_value.interval_max = interval;
+	capture_conn_params_value.latency = 0U;
+	capture_conn_params_value.timeout = timeout;
+	k_mutex_unlock(&ble_mutex);
+
+	return 0;
 }
 
 static int uwb_tag_ble_set_capture_mode(bool enabled)
@@ -1410,6 +1531,7 @@ static void ble_connected(struct bt_conn *conn, uint8_t conn_err)
 	char addr[BT_ADDR_LE_STR_LEN];
 	int err;
 	uint8_t active_conns;
+	struct bt_le_conn_param requested_params;
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
@@ -1425,14 +1547,15 @@ static void ble_connected(struct bt_conn *conn, uint8_t conn_err)
 	}
 	active_conns = ble_conn_count;
 	bool capture_interval = !runtime_stream_enabled;
+	requested_params = capture_interval ? *capture_conn_params :
+					     *fast_conn_params;
 	k_mutex_unlock(&ble_mutex);
 
 	printk("Tag BLE connected: %s active=%u\n", addr,
 	       (unsigned int)active_conns);
 	err = bt_conn_le_phy_update(conn, fast_phy_params);
 	printk("Tag BLE PHY update request rc=%d\n", err);
-	err = bt_conn_le_param_update(
-		conn, capture_interval ? capture_conn_params : fast_conn_params);
+	err = bt_conn_le_param_update(conn, &requested_params);
 	printk("Tag BLE conn param update request rc=%d\n", err);
 }
 
@@ -1471,9 +1594,40 @@ static void ble_disconnected(struct bt_conn *conn, uint8_t reason)
 	}
 }
 
+static void ble_le_param_updated(struct bt_conn *conn, uint16_t interval,
+				 uint16_t latency, uint16_t timeout)
+{
+	bool capture_target;
+	uint16_t requested_interval;
+	uint16_t requested_timeout;
+
+	ARG_UNUSED(conn);
+
+	k_mutex_lock(&ble_mutex, K_FOREVER);
+	capture_target = !runtime_stream_enabled && !ota_active;
+	requested_interval =
+		capture_target ? capture_conn_params->interval_min :
+				 fast_conn_params->interval_min;
+	requested_timeout =
+		capture_target ? capture_conn_params->timeout :
+				 fast_conn_params->timeout;
+	k_mutex_unlock(&ble_mutex);
+
+	printk("Tag BLE conn params achieved int=%u lat=%u timeout=%u "
+	       "requested_int=%u requested_timeout=%u verified=%u mode=%s\n",
+	       (unsigned int)interval,
+	       (unsigned int)latency,
+	       (unsigned int)timeout,
+	       (unsigned int)requested_interval,
+	       (unsigned int)requested_timeout,
+	       interval == requested_interval && timeout == requested_timeout,
+	       capture_target ? "CAP" : "FAST");
+}
+
 BT_CONN_CB_DEFINE(uwb_tag_ble_conn_cb) = {
 	.connected = ble_connected,
 	.disconnected = ble_disconnected,
+	.le_param_updated = ble_le_param_updated,
 };
 
 static void uwb_tag_ble_send_payload(const uint8_t *payload, size_t len)
@@ -1688,13 +1842,62 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 
 	if (strcmp(cmd, "TR?") == 0 || strcmp(cmd, "CAPTURE?") == 0) {
 		bool tr_enabled = uwb_tag_ble_tr_enabled();
-		char resp[80];
+		struct uwb_tag_ble_conn_params_status conn_status;
+		char resp[112];
+
+		uwb_tag_ble_conn_params_snapshot(&conn_status);
 
 		snprintk(resp, sizeof(resp),
-			 "CAPTURE_STATE=%s TR=%s INTERVAL_US=%u",
+			 "CAPTURE_STATE=%s TR=%s REQCI=%u INTERVAL_US=%lu REQSUP=%u TIMEOUT_MS=%lu",
 			 tr_enabled ? "OFF" : "ON",
 			 tr_enabled ? "ON" : "OFF",
-			 tr_enabled ? 7500U : 437500U);
+			 (unsigned int)conn_status.requested_interval,
+			 (unsigned long)conn_status.requested_interval * 1250UL,
+			 (unsigned int)conn_status.requested_timeout,
+			 (unsigned long)conn_status.requested_timeout * 10UL);
+		uwb_tag_ble_send_text(resp);
+		return;
+	}
+
+	if (strncmp(cmd, "CAPTURE PARAM ", 14) == 0) {
+		const char *arg = cmd + 14;
+		char *end = NULL;
+		unsigned long interval;
+		unsigned long timeout;
+		int err;
+		char resp[128];
+
+		interval = strtoul(arg, &end, 10);
+		if (end == arg) {
+			uwb_tag_ble_send_text("CAPTURE_PARAM_BAD FORMAT=<interval_units> <timeout_units>");
+			return;
+		}
+		while (*end == ' ' || *end == '\t') {
+			end++;
+		}
+		arg = end;
+		timeout = strtoul(arg, &end, 10);
+		while (*end == ' ' || *end == '\t') {
+			end++;
+		}
+		if (end == arg || *end != '\0' || interval > UINT16_MAX ||
+		    timeout > UINT16_MAX) {
+			uwb_tag_ble_send_text("CAPTURE_PARAM_BAD FORMAT=<interval_units> <timeout_units>");
+			return;
+		}
+
+		err = uwb_tag_ble_set_capture_conn_params((uint16_t)interval,
+						      (uint16_t)timeout);
+		if (err != 0) {
+			snprintk(resp, sizeof(resp),
+				 "CAPTURE_PARAM_BAD CI=%lu SUP=%lu RC=%d REQUIRE=CAPTURE_OFF,CI=6..3200,SUP=10..3200",
+				 interval, timeout, err);
+		} else {
+			snprintk(resp, sizeof(resp),
+				 "CAPTURE_PARAM_OK CI=%lu INTERVAL_US=%lu SUP=%lu TIMEOUT_MS=%lu",
+				 interval, interval * 1250UL, timeout,
+				 timeout * 10UL);
+		}
 		uwb_tag_ble_send_text(resp);
 		return;
 	}
@@ -1704,8 +1907,10 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		const char *arg =
 			(cmd[0] == 'T') ? cmd + 3 : cmd + 8;
 		bool capture_enabled;
+		uint16_t requested_interval;
+		uint16_t requested_timeout;
 		int err;
-		char resp[96];
+		char resp[128];
 
 		if (uwb_tag_ble_ota_active()) {
 			uwb_tag_ble_send_text("ERR:BUSY_OTA");
@@ -1733,11 +1938,20 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		}
 
 		err = uwb_tag_ble_set_capture_mode(capture_enabled);
+		k_mutex_lock(&ble_mutex, K_FOREVER);
+		requested_interval = capture_enabled ?
+			capture_conn_params->interval_min : fast_conn_params->interval_min;
+		requested_timeout = capture_enabled ?
+			capture_conn_params->timeout : fast_conn_params->timeout;
+		k_mutex_unlock(&ble_mutex);
 		snprintk(resp, sizeof(resp),
-			 "CAPTURE_OK STATE=%s TR=%s INTERVAL_US=%u RC=%d",
+			 "CAPTURE_OK STATE=%s TR=%s REQCI=%u INTERVAL_US=%lu REQSUP=%u TIMEOUT_MS=%lu RC=%d",
 			 capture_enabled ? "ON" : "OFF",
 			 capture_enabled ? "OFF" : "ON",
-			 capture_enabled ? 437500U : 7500U,
+			 (unsigned int)requested_interval,
+			 (unsigned long)requested_interval * 1250UL,
+			 (unsigned int)requested_timeout,
+			 (unsigned long)requested_timeout * 10UL,
 			 err);
 		uwb_tag_ble_send_text(resp);
 		return;
@@ -1846,6 +2060,16 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 		return;
 	}
 
+	/*
+	 * SCHEDULED FOR REMOVAL (fusion fork): layout lives host-side; kept this
+	 * round for diff reviewability. The freeze fork KEEPS APOS -- it is the
+	 * receiving end of the AutoPos production chain
+	 * (push_apos_layout_verified.py). For any future tag-side solving on
+	 * high-compute hardware, use the freeze-line implementation as reference:
+	 * uwb_tag_ble.c / uwb_anchor_layout.c @ freeze-clean-20260716.
+	 *
+	 * This marker covers APOS, APOS_COMMIT, APOS_RESET and APOS_STATUS.
+	 */
 	if (strncmp(cmd, "APOS ", 5) == 0) {
 		const char *arg = cmd + 5;
 		char *end = NULL;
@@ -2144,9 +2368,9 @@ static void ble_received(struct bt_conn *conn, const uint8_t *const data,
 
 	if (strcmp(cmd, "HELP") == 0) {
 #if APP_TAG_BLE_OTA_ENABLE
-		uwb_tag_ble_send_text("PING|STATUS|BSL_STATUS|TR?|TR <ON|OFF>|CAPTURE?|CAPTURE <ON|OFF>|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|TXPWR <MAX|M3|M6|M12|POR>|DIAG <ON|OFF>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|BSL_STATUS|TR?|TR <ON|OFF>|CAPTURE?|CAPTURE PARAM <ci_units> <sup_units>|CAPTURE <ON|OFF>|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|TXPWR <MAX|M3|M6|M12|POR>|DIAG <ON|OFF>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
 #else
-		uwb_tag_ble_send_text("PING|STATUS|BSL_STATUS|TR?|TR <ON|OFF>|CAPTURE?|CAPTURE <ON|OFF>|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|TXPWR <MAX|M3|M6|M12|POR>|DIAG <ON|OFF>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|BSL_STATUS|TR?|TR <ON|OFF>|CAPTURE?|CAPTURE PARAM <ci_units> <sup_units>|CAPTURE <ON|OFF>|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|TXPWR <MAX|M3|M6|M12|POR>|DIAG <ON|OFF>|APOS <id> <x> <y> <z>|APOS_COMMIT|APOS_STATUS|APOS_RESET|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|REBOOT|HELP");
 #endif
 		return;
 	}

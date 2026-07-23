@@ -7,6 +7,13 @@
 
 #include "uwb_tdma.h"
 
+struct ss_twr_init_poll_tx_stats {
+	uint32_t failures;
+	int32_t last_error;
+	uint32_t slot_sleep_late_skips;
+	uint32_t slot_spin_late_skips;
+};
+
 int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config);
 int ss_twr_init_start(unsigned int tag_id, const uint8_t *anchor_ids,
                       size_t anchor_count);
@@ -17,7 +24,8 @@ int ss_twr_init_cir_mode_set(enum uwb_tag_cir_mode mode);
 enum uwb_tag_cir_mode ss_twr_init_cir_mode_get(void);
 const char *ss_twr_init_cir_mode_label(enum uwb_tag_cir_mode mode);
 int ss_twr_init_cir_mode_parse(const char *text, enum uwb_tag_cir_mode *mode);
-
+void ss_twr_init_poll_tx_stats_snapshot(
+	struct ss_twr_init_poll_tx_stats *stats);
 /* Apply a runtime TX_POWER preset (MAX|M3|M6|M12|POR). Writes TX_POWER_ID via
  * dwt_write32bitreg and logs "TXPWR set 0x%08X". Does NOT touch DIS_STXP or
  * TC_PGDELAY. Returns 0 (and sets *applied) on success, -EINVAL on bad preset. */

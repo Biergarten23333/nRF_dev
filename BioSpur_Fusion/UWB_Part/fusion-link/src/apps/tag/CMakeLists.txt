@@ -39,16 +39,7 @@ set(APP_TAG_RNG_DELAY_MS "0" CACHE STRING "Delay between anchor polls in millise
 set(APP_TAG_CAL_RNG_SETTLE_US "0" CACHE STRING "Optional settle time between anchor polls in microseconds")
 set(APP_TAG_TX_TO_RX_DLY_UUS "140" CACHE STRING "Initiator RX enable delay after poll TX in UWB usec")
 set(APP_TAG_RESP_RX_TIMEOUT_UUS "1800" CACHE STRING "Initiator response RX timeout in UWB usec")
-set(APP_TAG_FAST_TRACKING "1" CACHE STRING "Use reduced anchor subset between periodic full sweeps")
-set(APP_TAG_FULL_SWEEP_INTERVAL "4" CACHE STRING "Run one full 8-anchor sweep every N sweeps")
-set(APP_TAG_TRACK_ANCHOR_COUNT "6" CACHE STRING "Anchor count used in fast tracking sweeps")
-set(APP_TAG_SUMMARY_PERIOD "1" CACHE STRING "Print one motion summary every N completed sweeps")
-set(APP_TAG_PENDING_PRINT_PERIOD "0" CACHE STRING "Print one solve-pending line every N failed sweeps")
-set(APP_TAG_IMU_SAMPLE_PERIOD "8" CACHE STRING "Read the IMU once every N completed sweeps")
-set(APP_TAG_TR_IMU_SUMMARY_ENABLE "0" CACHE STRING "Append rolling IMU |a| summary to TR range lines")
-set(APP_TAG_TR_IMU_RAW_ENABLE "0" CACHE STRING "Append raw IMU XYZ and poll-relative read timing to TR range lines")
-set(APP_TAG_TR_IMU_SUMMARY_WINDOW "5" CACHE STRING "Rolling IMU summary window in UWB frames")
-set(APP_TAG_NORMAL_OUTPUT_ENABLE "1" CACHE STRING "Emit normal Tag range/position status output such as TR/TS/TagSummary/CM")
+set(APP_TAG_NORMAL_OUTPUT_ENABLE "1" CACHE STRING "Emit normal Tag range output such as TR/CM")
 set(APP_TAG_CIR_FEATURE_OUTPUT_ENABLE "0" CACHE STRING "Emit lightweight DW1000 CIR/first-path features for received response frames")
 set(APP_TAG_CIR_FEATURE_OUTPUT_BLE_ENABLE "1" CACHE STRING "Forward lightweight CIR feature lines over BLE/NUS when enabled")
 set(APP_TAG_CIR_FULL_OUTPUT_ENABLE "0" CACHE STRING "Emit full DW1000 accumulator bytes for received response frames")
@@ -62,13 +53,9 @@ set(APP_TAG_RF_DIAG_OUTPUT_PERIOD "1" CACHE STRING "Emit one RF diagnostic row e
 set(APP_TAG_RF_DIAG_LEGACY_RFD_ENABLE "0" CACHE STRING "Emit legacy per-anchor RFD text rows; keep disabled for normal ranging captures")
 set(APP_TAG_TR_RF_DIAG_COMPACT_ENABLE "1" CACHE STRING "Append compact RF diagnostics to the normal TR range summary when RF diag is enabled")
 set(APP_TAG_RF_DIAG_TAG_RX_ENABLE "0" CACHE STRING "Read Tag-side RX diagnostics in the response hot path; disabled by default to protect ranging success")
-set(APP_TAG_CONSOLE_SUMMARY_ENABLE "0" CACHE STRING "Print motion summaries to the console")
 set(APP_TAG_VERBOSE_RANGING "0" CACHE STRING "Print per-anchor ranging logs")
 set(APP_TAG_VERBOSE_MEASUREMENTS "0" CACHE STRING "Print per-anchor measurement logs")
-set(APP_TAG_VERBOSE_PERF "0" CACHE STRING "Print per-window performance summaries")
-set(APP_TAG_RANGE_CONTINUITY_ENABLE "1" CACHE STRING "Enable per-anchor range continuity gating")
 set(APP_TAG_USB_MIRROR_BLE_STATUS "0" CACHE STRING "Mirror BLE status summaries to USB serial for debug")
-set(APP_TAG_LOC_MIN_QUALITY_PERCENT "50" CACHE STRING "Minimum per-anchor quality percentage accepted by the solver")
 set(APP_TAG_MULTITAG_PLAN_MODE "0" CACHE STRING "Enable active/standby/reserve multi-tag anchor plan")
 set(APP_TAG_ACTIVE_ANCHOR_0_ID "0" CACHE STRING "Multi-tag active anchor slot 0 ID")
 set(APP_TAG_ACTIVE_ANCHOR_1_ID "1" CACHE STRING "Multi-tag active anchor slot 1 ID")
@@ -88,37 +75,11 @@ set(APP_TAG_TDMA_SLOT_PERIOD_MS "10" CACHE STRING "TDMA slot period in milliseco
 set(APP_TAG_TDMA_SLOT_ACTIVE_MS "9" CACHE STRING "Usable active time within each slot in milliseconds")
 set(APP_TAG_TDMA_SLOT_ACTIVE_US "0" CACHE STRING "Optional usable active time within each slot in microseconds; 0 uses ACTIVE_MS")
 set(APP_TAG_LEGACY_STATIC_SLOT_DIVIDER "1" CACHE STRING "Legacy grouped-static slot divider; normal captures keep this at 1")
-set(APP_TAG_EKF_ENABLE "0" CACHE STRING "Enable the post-solve linear position filter (legacy EKF name)")
-set(APP_TAG_EKF_MEAS_STD_MM "25" CACHE STRING "Base measurement standard deviation for the post-solve position filter")
-set(APP_TAG_EKF_RESIDUAL_GAIN_PCT "0" CACHE STRING "Additional measurement std as a percent of residual hint")
-set(APP_TAG_EKF_PROC_ACCEL_MM_S2 "250" CACHE STRING "Process acceleration standard deviation for the post-solve position filter")
-set(APP_TAG_EKF_INIT_POS_STD_MM "200" CACHE STRING "Initial position standard deviation for the post-solve position filter")
-set(APP_TAG_EKF_INIT_VEL_STD_MM_S "1000" CACHE STRING "Initial velocity standard deviation for the post-solve position filter")
-set(APP_TAG_EKF_OUTLIER_GATE_MM "0" CACHE STRING "Reject position updates larger than this gate in millimeters (0 disables)")
-set(APP_TAG_RANGE_SOFT_RESIDUAL_MM "180" CACHE STRING "Soft residual gate for per-anchor range continuity weighting")
-set(APP_TAG_RANGE_HARD_RESIDUAL_MM "350" CACHE STRING "Hard residual gate for per-anchor range continuity rejection")
-set(APP_TAG_RANGE_FILTER_OUTLIER_MM "450" CACHE STRING "Raw range delta outlier gate in millimeters, or 0 to disable")
-set(APP_TAG_OUTPUT_MAX_RMS_MM "0" CACHE STRING "Reject solved positions above this RMS residual in millimeters (0 disables)")
-set(APP_TAG_OUTPUT_MAX_MAX_MM "0" CACHE STRING "Reject solved positions above this max residual in millimeters (0 disables)")
-set(APP_TAG_OUTPUT_MAX_STEP_MM "0" CACHE STRING "Reject solved positions that jump more than this distance from the last accepted position in millimeters (0 disables)")
-set(APP_TAG_OUTPUT_FILTER_RMS_MM "0" CACHE STRING "Emit TF and suppress TS for solved positions above this RMS residual in millimeters (0 disables)")
-set(APP_TAG_OUTPUT_FILTER_SPEED_MM_S "0" CACHE STRING "Emit TF and suppress TS for solved positions faster than this from the last accepted position in mm/s (0 disables)")
-set(APP_TAG_POSITION_OUTPUT_ENABLE "0" CACHE STRING "Emit Tag-side solved position status lines (TS/TF). Enable only when Tag-side solved positions are needed.")
 set(APP_TAG_TR_BCAST_V2_ENABLE "1" CACHE STRING "Emit broadcast-rich TR;2 range summaries with rx/timing fields")
 set(APP_TAG_BCAST_SUMMARY_ENABLE "0" CACHE STRING "Emit 1Hz broadcast SSTWR summary lines")
 set(APP_TAG_BCAST_SUMMARY_PERIOD_MS "1000" CACHE STRING "Broadcast SSTWR summary period in milliseconds")
-set(APP_TAG_LOC_FAST_ALL_VALID_ENABLE "0" CACHE STRING "Use the all-valid-anchor fast location solve path")
 set(APP_TAG_SWEEP_DIAG_ENABLE "0" CACHE STRING "Emit per-sweep timing diagnostic lines")
 set(APP_TAG_SWEEP_DIAG_PERIOD "10" CACHE STRING "Emit one sweep timing diagnostic every N sweeps")
-set(APP_TAG_MOTION_FULL_SWEEP_INTERVAL "0" CACHE STRING "Use a shorter full-sweep interval while in dynamic context (0 disables)")
-set(APP_TAG_MOTION_SPEED_THRESHOLD_MM_S "250" CACHE STRING "Recent speed threshold used to classify dynamic context")
-set(APP_TAG_MOTION_RANGE_SOFT_BONUS_MM "0" CACHE STRING "Additional continuity soft gate while in dynamic context")
-set(APP_TAG_MOTION_RANGE_HARD_BONUS_MM "0" CACHE STRING "Additional continuity hard gate while in dynamic context")
-set(APP_TAG_MOTION_EKF_MEAS_STD_MM "0" CACHE STRING "Override measurement std while in dynamic context (0 keeps base)")
-set(APP_TAG_MOTION_EKF_PROC_ACCEL_MM_S2 "0" CACHE STRING "Override process acceleration std while in dynamic context (0 keeps base)")
-set(APP_TAG_MOTION_EKF_OUTLIER_GATE_MM "0" CACHE STRING "Override outlier gate while in dynamic context (0 keeps base)")
-set(APP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG "750" CACHE STRING "IMU delta threshold used to classify dynamic context")
-set(APP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG "400" CACHE STRING "IMU gravity-error threshold used to classify dynamic context")
 set(APP_TAG_BLE_ENABLE "1" CACHE STRING "Enable BLE/NUS and OTA transport on the tag")
 set(APP_TAG_BLE_OTA_ENABLE "1" CACHE STRING "Enable OTA command and bootloader-advertising BLE payloads on the tag")
 set(APP_TAG_BLE_SETTINGS_ENABLE "1" CACHE STRING "Enable Bluetooth settings persistence on the tag")
@@ -148,11 +109,9 @@ set(APP_TAG_ALT_RXG_BLE_DIAG_ENABLE "0" CACHE STRING "Forward broadcast RX gap t
 if(NOT DEFINED APP_TAG_BLE_TOKEN_ID OR APP_TAG_BLE_TOKEN_ID STREQUAL "")
 set(APP_TAG_BLE_TOKEN_ID "${APP_TAG_ID}" CACHE STRING "BLE identity token advertised in manufacturer data")
 endif()
-if(DEFINED ENV{APP_TAG_TRACK_ANCHOR_COUNT} AND NOT "$ENV{APP_TAG_TRACK_ANCHOR_COUNT}" STREQUAL "")
-set(APP_TAG_TRACK_ANCHOR_COUNT "$ENV{APP_TAG_TRACK_ANCHOR_COUNT}" CACHE STRING "Anchor count used in fast tracking sweeps" FORCE)
-endif()
 set(APP_UWB_CHANNEL "5" CACHE STRING "DW1000 UWB channel number")
 set(APP_UWB_PAN_ID "0xDECA" CACHE STRING "DW1000 PAN ID")
+# MAC/PAN/address frame acceptance only; this does not filter range values.
 set(APP_UWB_HW_FRAME_FILTER_ENABLE "1" CACHE STRING "Enable DW1000 hardware frame filtering")
 
 target_include_directories(app PRIVATE ${APP_ROOT}/include)
@@ -173,15 +132,6 @@ target_compile_definitions(app PRIVATE
     APP_TAG_CAL_RNG_SETTLE_US=${APP_TAG_CAL_RNG_SETTLE_US}
     APP_TAG_TX_TO_RX_DLY_UUS=${APP_TAG_TX_TO_RX_DLY_UUS}
     APP_TAG_RESP_RX_TIMEOUT_UUS=${APP_TAG_RESP_RX_TIMEOUT_UUS}
-    APP_TAG_FAST_TRACKING=${APP_TAG_FAST_TRACKING}
-    APP_TAG_FULL_SWEEP_INTERVAL=${APP_TAG_FULL_SWEEP_INTERVAL}
-    APP_TAG_TRACK_ANCHOR_COUNT=${APP_TAG_TRACK_ANCHOR_COUNT}
-    APP_TAG_SUMMARY_PERIOD=${APP_TAG_SUMMARY_PERIOD}
-    APP_TAG_PENDING_PRINT_PERIOD=${APP_TAG_PENDING_PRINT_PERIOD}
-    APP_TAG_IMU_SAMPLE_PERIOD=${APP_TAG_IMU_SAMPLE_PERIOD}
-    APP_TAG_TR_IMU_SUMMARY_ENABLE=${APP_TAG_TR_IMU_SUMMARY_ENABLE}
-    APP_TAG_TR_IMU_RAW_ENABLE=${APP_TAG_TR_IMU_RAW_ENABLE}
-    APP_TAG_TR_IMU_SUMMARY_WINDOW=${APP_TAG_TR_IMU_SUMMARY_WINDOW}
     APP_TAG_NORMAL_OUTPUT_ENABLE=${APP_TAG_NORMAL_OUTPUT_ENABLE}
     APP_TAG_CIR_FEATURE_OUTPUT_ENABLE=${APP_TAG_CIR_FEATURE_OUTPUT_ENABLE}
     APP_TAG_CIR_FEATURE_OUTPUT_BLE_ENABLE=${APP_TAG_CIR_FEATURE_OUTPUT_BLE_ENABLE}
@@ -196,13 +146,9 @@ target_compile_definitions(app PRIVATE
     APP_TAG_RF_DIAG_LEGACY_RFD_ENABLE=${APP_TAG_RF_DIAG_LEGACY_RFD_ENABLE}
     APP_TAG_TR_RF_DIAG_COMPACT_ENABLE=${APP_TAG_TR_RF_DIAG_COMPACT_ENABLE}
     APP_TAG_RF_DIAG_TAG_RX_ENABLE=${APP_TAG_RF_DIAG_TAG_RX_ENABLE}
-    APP_TAG_CONSOLE_SUMMARY_ENABLE=${APP_TAG_CONSOLE_SUMMARY_ENABLE}
     APP_TAG_VERBOSE_RANGING=${APP_TAG_VERBOSE_RANGING}
     APP_TAG_VERBOSE_MEASUREMENTS=${APP_TAG_VERBOSE_MEASUREMENTS}
-    APP_TAG_VERBOSE_PERF=${APP_TAG_VERBOSE_PERF}
-    APP_TAG_RANGE_CONTINUITY_ENABLE=${APP_TAG_RANGE_CONTINUITY_ENABLE}
     APP_TAG_USB_MIRROR_BLE_STATUS=${APP_TAG_USB_MIRROR_BLE_STATUS}
-    APP_TAG_LOC_MIN_QUALITY_PERCENT=${APP_TAG_LOC_MIN_QUALITY_PERCENT}
     APP_TAG_MULTITAG_PLAN_MODE=${APP_TAG_MULTITAG_PLAN_MODE}
     APP_TAG_ACTIVE_ANCHOR_0_ID=${APP_TAG_ACTIVE_ANCHOR_0_ID}
     APP_TAG_ACTIVE_ANCHOR_1_ID=${APP_TAG_ACTIVE_ANCHOR_1_ID}
@@ -222,37 +168,11 @@ target_compile_definitions(app PRIVATE
     APP_TAG_TDMA_SLOT_ACTIVE_MS=${APP_TAG_TDMA_SLOT_ACTIVE_MS}
     APP_TAG_TDMA_SLOT_ACTIVE_US=${APP_TAG_TDMA_SLOT_ACTIVE_US}
     APP_TAG_LEGACY_STATIC_SLOT_DIVIDER=${APP_TAG_LEGACY_STATIC_SLOT_DIVIDER}
-    APP_TAG_EKF_ENABLE=${APP_TAG_EKF_ENABLE}
-    APP_TAG_EKF_MEAS_STD_MM=${APP_TAG_EKF_MEAS_STD_MM}
-    APP_TAG_EKF_RESIDUAL_GAIN_PCT=${APP_TAG_EKF_RESIDUAL_GAIN_PCT}
-    APP_TAG_EKF_PROC_ACCEL_MM_S2=${APP_TAG_EKF_PROC_ACCEL_MM_S2}
-    APP_TAG_EKF_INIT_POS_STD_MM=${APP_TAG_EKF_INIT_POS_STD_MM}
-    APP_TAG_EKF_INIT_VEL_STD_MM_S=${APP_TAG_EKF_INIT_VEL_STD_MM_S}
-    APP_TAG_EKF_OUTLIER_GATE_MM=${APP_TAG_EKF_OUTLIER_GATE_MM}
-    APP_TAG_RANGE_SOFT_RESIDUAL_MM=${APP_TAG_RANGE_SOFT_RESIDUAL_MM}
-    APP_TAG_RANGE_HARD_RESIDUAL_MM=${APP_TAG_RANGE_HARD_RESIDUAL_MM}
-    APP_TAG_RANGE_FILTER_OUTLIER_MM=${APP_TAG_RANGE_FILTER_OUTLIER_MM}
-    APP_TAG_OUTPUT_MAX_RMS_MM=${APP_TAG_OUTPUT_MAX_RMS_MM}
-    APP_TAG_OUTPUT_MAX_MAX_MM=${APP_TAG_OUTPUT_MAX_MAX_MM}
-    APP_TAG_OUTPUT_MAX_STEP_MM=${APP_TAG_OUTPUT_MAX_STEP_MM}
-    APP_TAG_OUTPUT_FILTER_RMS_MM=${APP_TAG_OUTPUT_FILTER_RMS_MM}
-    APP_TAG_OUTPUT_FILTER_SPEED_MM_S=${APP_TAG_OUTPUT_FILTER_SPEED_MM_S}
-    APP_TAG_POSITION_OUTPUT_ENABLE=${APP_TAG_POSITION_OUTPUT_ENABLE}
     APP_TAG_TR_BCAST_V2_ENABLE=${APP_TAG_TR_BCAST_V2_ENABLE}
     APP_TAG_BCAST_SUMMARY_ENABLE=${APP_TAG_BCAST_SUMMARY_ENABLE}
     APP_TAG_BCAST_SUMMARY_PERIOD_MS=${APP_TAG_BCAST_SUMMARY_PERIOD_MS}
-    APP_TAG_LOC_FAST_ALL_VALID_ENABLE=${APP_TAG_LOC_FAST_ALL_VALID_ENABLE}
     APP_TAG_SWEEP_DIAG_ENABLE=${APP_TAG_SWEEP_DIAG_ENABLE}
     APP_TAG_SWEEP_DIAG_PERIOD=${APP_TAG_SWEEP_DIAG_PERIOD}
-    APP_TAG_MOTION_FULL_SWEEP_INTERVAL=${APP_TAG_MOTION_FULL_SWEEP_INTERVAL}
-    APP_TAG_MOTION_SPEED_THRESHOLD_MM_S=${APP_TAG_MOTION_SPEED_THRESHOLD_MM_S}
-    APP_TAG_MOTION_RANGE_SOFT_BONUS_MM=${APP_TAG_MOTION_RANGE_SOFT_BONUS_MM}
-    APP_TAG_MOTION_RANGE_HARD_BONUS_MM=${APP_TAG_MOTION_RANGE_HARD_BONUS_MM}
-    APP_TAG_MOTION_EKF_MEAS_STD_MM=${APP_TAG_MOTION_EKF_MEAS_STD_MM}
-    APP_TAG_MOTION_EKF_PROC_ACCEL_MM_S2=${APP_TAG_MOTION_EKF_PROC_ACCEL_MM_S2}
-    APP_TAG_MOTION_EKF_OUTLIER_GATE_MM=${APP_TAG_MOTION_EKF_OUTLIER_GATE_MM}
-    APP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG=${APP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG}
-    APP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG=${APP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG}
     APP_TAG_BLE_ENABLE=${APP_TAG_BLE_ENABLE}
     APP_TAG_BLE_OTA_ENABLE=${APP_TAG_BLE_OTA_ENABLE}
     APP_TAG_USB_DIAG_TRACE=${APP_TAG_USB_DIAG_TRACE}
@@ -292,15 +212,11 @@ target_sources(app PRIVATE
     ${APP_ROOT}/src/uwb_bringup.c
     ${APP_ROOT}/src/uwb_port.c
     ${APP_ROOT}/src/uwb_anchor_layout.c
-    ${APP_ROOT}/src/uwb_imu.c
-    ${APP_ROOT}/src/uwb_ekf.c
-    ${APP_ROOT}/src/uwb_motion.c
     ${APP_ROOT}/src/uwb_ss_twr_shared.c
     ${APP_ROOT}/src/biospur_uart_link.c
     ${APP_ROOT}/src/uwb_tdma.c
     ${APP_ROOT}/src/broadcast_tdma.c
     ${APP_ROOT}/src/uwb_range_tracker.c
-    ${APP_ROOT}/src/uwb_tag_loc.c
     ${APP_ROOT}/src/ss_twr_init.c
     ${APP_ROOT}/drivers/dw1000/src/deca_device.c
     ${APP_ROOT}/drivers/dw1000/src/deca_params_init.c

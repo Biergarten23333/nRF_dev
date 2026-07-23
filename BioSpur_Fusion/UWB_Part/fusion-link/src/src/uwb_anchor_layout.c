@@ -8,6 +8,16 @@
 
 #include "uwb_ss_twr_shared.h"
 
+/*
+ * SCHEDULED FOR REMOVAL (fusion fork): layout lives host-side; kept this
+ * round for diff reviewability. The freeze fork KEEPS APOS -- it is the
+ * receiving end of the AutoPos production chain
+ * (push_apos_layout_verified.py). For any future tag-side solving on
+ * high-compute hardware, use the freeze-line implementation as reference:
+ * uwb_tag_ble.c / uwb_anchor_layout.c @ freeze-clean-20260716.
+ *
+ * This marker covers the NVS handler and layout storage below.
+ */
 #define UWB_ANCHOR_LAYOUT_SETTINGS_SUBTREE "anchor_layout"
 #define UWB_ANCHOR_LAYOUT_SETTINGS_KEY "runtime"
 #define UWB_ANCHOR_LAYOUT_SETTINGS_PATH \

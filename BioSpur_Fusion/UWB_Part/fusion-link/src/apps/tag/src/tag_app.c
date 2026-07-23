@@ -152,78 +152,6 @@ static void tag_diag_write(const char *msg)
 #define APP_TAG_TDMA_SLOT_ACTIVE_US 0U
 #endif
 
-#ifndef APP_TAG_EKF_ENABLE
-#define APP_TAG_EKF_ENABLE 0U
-#endif
-
-#ifndef APP_TAG_EKF_MEAS_STD_MM
-#define APP_TAG_EKF_MEAS_STD_MM 25U
-#endif
-
-#ifndef APP_TAG_EKF_RESIDUAL_GAIN_PCT
-#define APP_TAG_EKF_RESIDUAL_GAIN_PCT 0U
-#endif
-
-#ifndef APP_TAG_EKF_PROC_ACCEL_MM_S2
-#define APP_TAG_EKF_PROC_ACCEL_MM_S2 250U
-#endif
-
-#ifndef APP_TAG_EKF_INIT_POS_STD_MM
-#define APP_TAG_EKF_INIT_POS_STD_MM 200U
-#endif
-
-#ifndef APP_TAG_EKF_INIT_VEL_STD_MM_S
-#define APP_TAG_EKF_INIT_VEL_STD_MM_S 1000U
-#endif
-
-#ifndef APP_TAG_EKF_OUTLIER_GATE_MM
-#define APP_TAG_EKF_OUTLIER_GATE_MM 0U
-#endif
-
-#ifndef APP_TAG_RANGE_SOFT_RESIDUAL_MM
-#define APP_TAG_RANGE_SOFT_RESIDUAL_MM 180U
-#endif
-
-#ifndef APP_TAG_RANGE_HARD_RESIDUAL_MM
-#define APP_TAG_RANGE_HARD_RESIDUAL_MM 350U
-#endif
-
-#ifndef APP_TAG_MOTION_FULL_SWEEP_INTERVAL
-#define APP_TAG_MOTION_FULL_SWEEP_INTERVAL 0U
-#endif
-
-#ifndef APP_TAG_MOTION_SPEED_THRESHOLD_MM_S
-#define APP_TAG_MOTION_SPEED_THRESHOLD_MM_S 250U
-#endif
-
-#ifndef APP_TAG_MOTION_RANGE_SOFT_BONUS_MM
-#define APP_TAG_MOTION_RANGE_SOFT_BONUS_MM 0U
-#endif
-
-#ifndef APP_TAG_MOTION_RANGE_HARD_BONUS_MM
-#define APP_TAG_MOTION_RANGE_HARD_BONUS_MM 0U
-#endif
-
-#ifndef APP_TAG_MOTION_EKF_MEAS_STD_MM
-#define APP_TAG_MOTION_EKF_MEAS_STD_MM 0U
-#endif
-
-#ifndef APP_TAG_MOTION_EKF_PROC_ACCEL_MM_S2
-#define APP_TAG_MOTION_EKF_PROC_ACCEL_MM_S2 0U
-#endif
-
-#ifndef APP_TAG_MOTION_EKF_OUTLIER_GATE_MM
-#define APP_TAG_MOTION_EKF_OUTLIER_GATE_MM 0U
-#endif
-
-#ifndef APP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG
-#define APP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG 750U
-#endif
-
-#ifndef APP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG
-#define APP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG 400U
-#endif
-
 #ifndef APP_TAG_FW_MARKER
 #define APP_TAG_FW_MARKER "unified-default"
 #endif
@@ -490,7 +418,7 @@ int tag_app_run(void)
     tag_diag_write("TAG_APP: handoff enter\n");
 #endif
     printk("Tag firmware marker: %s\n", APP_TAG_FW_MARKER);
-    printk("Tag app ready bs=BS%04X logical_tag=%u anchor_count=%u tdma=%u slot=%u/%u period=%u active=%u slot_src=%u mode=%s pmode=%u anchor_plan=dynamic filter=%s meas_std=%u residual_gain=%u proc_accel=%u init_pos=%u init_vel=%u gate=%u motion_meas=%u motion_proc=%u motion_gate=%u speed_thr=%u imu_delta=%u imu_gerr=%u range_soft=%u range_hard=%u motion_soft=%u motion_hard=%u\n",
+    printk("Tag app ready bs=BS%04X logical_tag=%u anchor_count=%u tdma=%u slot=%u/%u period=%u active=%u slot_src=%u mode=%s pmode=%u anchor_plan=dynamic range=instantaneous_unsmoothed\n",
            (unsigned int)runtime_config.identity_code,
            runtime_config.tag_id, APP_TAG_ANCHOR_COUNT,
            (unsigned int)runtime_config.tdma.enabled,
@@ -500,21 +428,8 @@ int tag_app_run(void)
            (unsigned int)runtime_config.tdma.slot_active_ms,
            (unsigned int)runtime_config.slot_source,
            (runtime_config.positioning_mode == UWB_TAG_MODE_IDLE) ? "IDLE" : "RUN",
-           (unsigned int)runtime_config.positioning_mode,
-           (APP_TAG_EKF_ENABLE != 0U) ? "post_kf" : "raw",
-           APP_TAG_EKF_MEAS_STD_MM, APP_TAG_EKF_RESIDUAL_GAIN_PCT,
-           APP_TAG_EKF_PROC_ACCEL_MM_S2, APP_TAG_EKF_INIT_POS_STD_MM,
-           APP_TAG_EKF_INIT_VEL_STD_MM_S, APP_TAG_EKF_OUTLIER_GATE_MM,
-           APP_TAG_MOTION_EKF_MEAS_STD_MM,
-           APP_TAG_MOTION_EKF_PROC_ACCEL_MM_S2,
-           APP_TAG_MOTION_EKF_OUTLIER_GATE_MM,
-           APP_TAG_MOTION_SPEED_THRESHOLD_MM_S,
-           APP_TAG_MOTION_IMU_DELTA_THRESHOLD_MG,
-           APP_TAG_MOTION_IMU_GRAVITY_ERR_THRESHOLD_MG,
-           APP_TAG_RANGE_SOFT_RESIDUAL_MM, APP_TAG_RANGE_HARD_RESIDUAL_MM,
-           APP_TAG_MOTION_RANGE_SOFT_BONUS_MM,
-           APP_TAG_MOTION_RANGE_HARD_BONUS_MM);
-    printk("Tag app anchors=[%u,%u,%u,%u,%u,%u,%u,%u] active=[%u,%u,%u,%u] standby=[%u,%u] reserve=[%u,%u] refresh=%u/%u full=%u motion_full=%u\n",
+           (unsigned int)runtime_config.positioning_mode);
+    printk("Tag app anchors=[%u,%u,%u,%u,%u,%u,%u,%u] active=[%u,%u,%u,%u] standby=[%u,%u] reserve=[%u,%u] refresh=%u/%u full=%u\n",
            APP_TAG_ANCHOR_0_ID,
            APP_TAG_ANCHOR_1_ID, APP_TAG_ANCHOR_2_ID, APP_TAG_ANCHOR_3_ID,
            APP_TAG_ANCHOR_4_ID, APP_TAG_ANCHOR_5_ID, APP_TAG_ANCHOR_6_ID,
@@ -524,8 +439,7 @@ int tag_app_run(void)
            APP_TAG_ACTIVE_ANCHOR_3_ID, APP_TAG_STANDBY_ANCHOR_0_ID,
            APP_TAG_STANDBY_ANCHOR_1_ID, APP_TAG_RESERVE_ANCHOR_0_ID,
            APP_TAG_RESERVE_ANCHOR_1_ID, APP_TAG_REFRESH_ANCHOR_BUDGET,
-           APP_TAG_REFRESH_INTERVAL, APP_TAG_MAINTENANCE_FULL_INTERVAL,
-           APP_TAG_MOTION_FULL_SWEEP_INTERVAL);
+           APP_TAG_REFRESH_INTERVAL, APP_TAG_MAINTENANCE_FULL_INTERVAL);
     if (APP_TAG_UWB_ENABLE) {
         printk("Tag app handoff: entering SS-TWR\n");
         tag_blue_led_set(true);

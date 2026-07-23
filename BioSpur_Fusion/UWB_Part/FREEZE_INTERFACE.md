@@ -41,7 +41,9 @@ Field meanings:
 6. `active_mask`: hexadecimal anchor-ID bitmap.
 7. `valid_mask`: hexadecimal valid-range bitmap.
 8. `raws`: signed comma-separated raw ranges in millimetres.
-9. `ranges`: unsigned comma-separated filtered ranges in millimetres.
+9. `ranges`: unsigned comma-separated per-sweep instantaneous ranges in
+   millimetres. CFO clock-offset correction is part of the SS-TWR formula;
+   no smoothing/filtering is applied.
 10. `qualities`: comma-separated tracker quality percentages.
 11. `statuses`: one character per active anchor: `O` ok, `R` rejected, `T`
     timeout, `E` error, or `P` pending. The mapping is defined at
@@ -137,8 +139,9 @@ as an input:
 - `firmware/src/src/uwb_port.c:23-45`
 - `firmware/src/src/uwb_port.c:151-174`
 
-The DWM1001-side strobe pin is therefore resolved as P0.26. The B306 capture
-input remains **UNKNOWN** until the Fusion PCB schematic/netlist is checked.
+The DWM1001-side strobe pin is therefore resolved as P0.26. The Fusion PCB
+mapping subsequently resolved the B306 capture input as nRF52840 P1.03 on
+`UWB_RDY`.
 
 ## TDMA alignment audit
 
@@ -212,8 +215,39 @@ consumed by both tag and anchor application builds, build-time assertions that
 both roles used it, and deployment of a matched tag/anchor release. That work
 touches responder firmware and is deliberately outside Task A.
 
-The post-change tag build occupies 208,756 of 228,864 linker FLASH bytes
-(91.21%), below Task A's 95% gate. The signed image is 209,604 bytes.
+The original Task A v2 build occupied 208,756 of 228,864 linker FLASH bytes
+(91.21%) but 65,536 of 65,536 RAM bytes (100%). Its resolved
+`CONFIG_COMMON_LIBC_MALLOC_ARENA_SIZE=-1` expanded the C arena to all remaining
+RAM; `_end` resolved to `0x20010000`. On hardware it faulted in
+`sys_heap_init()` before the application marker and reset continuously. That
+image is invalid and its UART/strobe tests are void.
+
+The forward RAM fix explicitly sets both unused heaps to zero, reduces only
+OTA queue counts/pools, retains the 498-byte L2CAP MTU and 502-byte ACL sizes,
+and enables runtime thread analysis. The replacement build occupies 52,640 of
+65,536 RAM bytes (80.32%) and 210,944 of 228,864 FLASH bytes (92.17%), passing
+the fixed RAM <=85% and FLASH <=95% gates. Exact artifact hashes are in
+`fusion-link/TASK_A_REPORT.md`.
+
+`BSLSTAT;1` now reports achieved BLE connection parameters:
+`ci` and `reqci` in 1.25 ms units, `lat`, `sup` in 10 ms units, `cpmode`
+(`CAP` or `FAST`), and `ciok`. Capture requires `reqci=350` (437.5 ms);
+`ciok=1` proves the controller accepted that exact interval rather than merely
+receiving a request.
+
+## Inherited DWM1001C MCUboot signing key
+
+The freeze and Task A images inherit the NCS v2.8.0 sample RSA-2048 key:
+
+```text
+bootloader/mcuboot/root-rsa-2048.pem
+PEM SHA-256: 1fc912d30251b821f251e127d4daf7ba9338dd5c04e5af100abfb5b7c7d4c022
+public SPKI DER SHA-256: a14bcb1bf9bb821146ba32838217e476f5412621320534ffe490a1890c994660
+```
+
+This is a known inherited weakness, not authorization to change the key in a
+routine build. Replacing it makes existing OTA payloads/bootloaders
+incompatible and must be planned as a fleet-wide DWM SWD event.
 
 ## Frozen OTA behavior
 
@@ -238,9 +272,11 @@ subject to any separately persisted runtime TDMA/mode settings.
 
 ## Fusion blockers carried forward
 
-- B306 input pin for the DWM1001 module-pin-19/P0.26 READY strobe:
-  **UNKNOWN**.
 - Task A bench acceptance results, including the measured per-rank
-  `t_round_us` distributions: **PENDING**; no image has been deployed.
-- The v2 UART record carries the same filtered CFO-corrected range and quality
-  used by `TR;2`; raw pre-filter ranges are not in the contract.
+  `t_round_us` distributions: **PENDING**. The original v2 image was deployed
+  but never reached application startup; the RAM-fixed replacement still
+  awaits the human reflash handover.
+- The v2 UART record carries the same per-sweep instantaneous range and quality
+  used by `TR;2`. The range is CFO clock-offset corrected as part of the SS-TWR
+  formula, with no smoothing/filtering applied. Smoothing is deliberately left
+  to the fusion host because upstream smoothing would corrupt its noise model.
