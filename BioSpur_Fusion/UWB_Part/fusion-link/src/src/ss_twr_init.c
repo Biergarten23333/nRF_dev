@@ -2,6 +2,8 @@
 #include "biospur_link.h"
 #include "biospur_uart_link.h"
 #include "broadcast_tdma.h"
+#include "broadcast_tdma_math.h"
+#include "tag_run_state.h"
 #include "uwb_tdma.h"
 #if APP_TAG_BLE_ENABLE
 #include "uwb_tag_ble.h"
@@ -375,6 +377,16 @@ static size_t ss_twr_init_active_anchor_count;
 static size_t ss_twr_init_active_anchor_index;
 static uint8_t ss_twr_init_current_anchor_retry_count;
 static uint32_t ss_twr_init_sweep_count;
+
+static uint32_t ss_twr_init_public_sweep(void)
+{
+    const struct uwb_tdma_schedule *schedule = &ss_twr_init_tdma_schedule;
+
+    return broadcast_tdma_public_sweep(
+        schedule->superframe_valid, schedule->epoch_valid,
+        schedule->superframe_base, schedule->sync_local_ms,
+        k_uptime_get_32(), 100U, ss_twr_init_sweep_count);
+}
 
 #if APP_TAG_RF_DIAG_OUTPUT_ENABLE != 0U
 struct ss_twr_init_rf_diag_sample {
@@ -3375,7 +3387,7 @@ static void ss_twr_init_publish_bsl_frame(
     uint8_t slot_count =
         (uint8_t)MIN(ss_twr_init_active_anchor_count, BSL_MAX_ANCHORS);
 
-    body.sweep = (uint32_t)ss_twr_init_sweep_count;
+    body.sweep = ss_twr_init_public_sweep();
     memcpy(body.poll_tx_ts, ss_twr_init_bsl_poll_tx_ts,
            sizeof(body.poll_tx_ts));
     body.identity_code = ss_twr_init_runtime_params.identity_code;
@@ -4511,6 +4523,14 @@ int ss_twr_init_start_with_config(const struct uwb_tag_runtime_config *config)
 
 	if (ss_twr_init_runtime_idle_mode()) {
 	    ss_twr_init_publish_tdma_diag("idle", 0U, 0U);
+	    ss_twr_init_set_ble_tx_paused(false);
+	    dwt_forcetrxoff();
+	    k_msleep(20);
+	    continue;
+	}
+
+	if (tag_run_state_holds_radio(&ss_twr_init_runtime_params)) {
+	    ss_twr_init_publish_tdma_diag("cfg_stopped", 0U, 0U);
 	    ss_twr_init_set_ble_tx_paused(false);
 	    dwt_forcetrxoff();
 	    k_msleep(20);

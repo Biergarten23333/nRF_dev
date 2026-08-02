@@ -10,8 +10,11 @@
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/uuid.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/dfu/mcuboot.h>
 #include <zephyr/kernel.h>
 #include <zephyr/settings/settings.h>
+#include <zephyr/sys/atomic.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/reboot.h>
 #include <zephyr/sys/printk.h>
@@ -22,6 +25,8 @@
 
 #include "biospur_uart_link.h"
 #include "ss_twr_init.h"
+#include "tag_led_policy.h"
+#include "tag_run_state.h"
 
 #include <hal/nrf_ficr.h>
 
@@ -43,6 +48,14 @@
 
 #ifndef APP_TAG_FW_MARKER
 #define APP_TAG_FW_MARKER "unified-default"
+#endif
+
+#ifndef APP_TAG_SELF_CONFIRM_MODE
+#define APP_TAG_SELF_CONFIRM_MODE 0U
+#endif
+
+#ifndef APP_TAG_SELF_CONFIRM_TIMEOUT_MS
+#define APP_TAG_SELF_CONFIRM_TIMEOUT_MS 10000U
 #endif
 
 #ifndef APP_TAG_BLE_PACKET_BUNDLE_RECORDS
@@ -99,12 +112,18 @@
 #define APP_TAG_BLE_STATS_ENABLE 0U
 #endif
 #define UWB_TAG_BLE_STATS_PERIOD_MS 5000U
+#define UWB_TAG_SELF_CONFIRM_NORMAL 0U
+#define UWB_TAG_SELF_CONFIRM_PROOF_NOCONFIRM 1U
+#define UWB_TAG_SELF_CONFIRM_PROOF_TIMEOUT 2U
+BUILD_ASSERT(APP_TAG_SELF_CONFIRM_MODE <= UWB_TAG_SELF_CONFIRM_PROOF_TIMEOUT,
+	     "APP_TAG_SELF_CONFIRM_MODE must be 0, 1, or 2");
 #ifndef APP_TAG_BLE_TX_ITEM_COUNT
 #define APP_TAG_BLE_TX_ITEM_COUNT 10U
 #endif
 #define UWB_TAG_BLE_TX_ITEM_COUNT APP_TAG_BLE_TX_ITEM_COUNT
 #define UWB_TAG_BLE_TX_RETRY_MAX 4U
 #define UWB_TAG_BLE_TX_RETRY_DELAY_MS 2U
+#define UWB_TAG_LED_RENDER_PERIOD_MS 50U
 #define UWB_TAG_BLE_BINARY_MAGIC0 0x42U
 #define UWB_TAG_BLE_BINARY_MAGIC1 0x50U
 #define UWB_TAG_BLE_BINARY_VERSION 1U
@@ -224,6 +243,7 @@ static struct k_thread ble_tx_thread;
 static struct k_work_delayable reboot_work;
 static struct k_work_delayable bundle_flush_work;
 static struct k_work_delayable adv_retry_work;
+static struct k_work_delayable self_confirm_guard_work;
 #if APP_TAG_BLE_STATS_ENABLE != 0U
 static struct k_work_delayable ble_stats_work;
 #endif
@@ -239,6 +259,33 @@ static uint32_t ble_tx_send_fail_count;
 static uint32_t ble_tx_send_bytes;
 static int ble_tx_last_err;
 static volatile bool ble_tx_paused;
+static bool self_confirm_control_plane_ready;
+
+#define TAG_HEALTH_LED_NODE DT_ALIAS(led1)
+#define TAG_TDMA_LED_NODE DT_ALIAS(led3)
+#define TAG_BLE_LED_NODE DT_ALIAS(led2)
+
+BUILD_ASSERT(DT_NODE_HAS_STATUS(TAG_HEALTH_LED_NODE, okay),
+	     "DWM1001C D9 health LED alias is required");
+BUILD_ASSERT(DT_NODE_HAS_STATUS(TAG_TDMA_LED_NODE, okay),
+	     "DWM1001C D10 TDMA LED alias is required");
+BUILD_ASSERT(DT_NODE_HAS_STATUS(TAG_BLE_LED_NODE, okay),
+	     "DWM1001C D11 BLE LED alias is required");
+
+static const struct gpio_dt_spec tag_health_led =
+	GPIO_DT_SPEC_GET(TAG_HEALTH_LED_NODE, gpios);
+static const struct gpio_dt_spec tag_tdma_led =
+	GPIO_DT_SPEC_GET(TAG_TDMA_LED_NODE, gpios);
+static const struct gpio_dt_spec tag_ble_led =
+	GPIO_DT_SPEC_GET(TAG_BLE_LED_NODE, gpios);
+static atomic_t tag_led_uwb_ready;
+static atomic_t tag_led_ble_state;
+static bool tag_led_ready;
+static int8_t tag_health_led_level = -1;
+static int8_t tag_tdma_led_level = -1;
+static int8_t tag_ble_led_level = -1;
+static uint32_t tag_led_last_render_ms;
+
 static char last_status[UWB_TAG_BLE_MAX_STATUS_LEN];
 static char pending_bundle[UWB_TAG_BLE_MAX_STATUS_LEN];
 static size_t pending_bundle_len;
@@ -293,6 +340,7 @@ static void uwb_tag_ble_send_text(const char *text);
 static void uwb_tag_ble_process_command(const char *cmd);
 static void uwb_tag_ble_tx_thread_entry(void *arg1, void *arg2, void *arg3);
 static void ble_adv_retry_work_handler(struct k_work *work);
+static void uwb_tag_ble_control_plane_ready(void);
 static size_t uwb_tag_ble_encode_binary_packet(uint8_t *out, size_t out_len,
 					       const struct uwb_tag_ble_sample *samples,
 					       size_t sample_count);
@@ -346,6 +394,46 @@ static void ble_reboot_work_handler(struct k_work *work)
 
 	printk("Tag BLE rebooting on remote command\n");
 	sys_reboot(SYS_REBOOT_COLD);
+}
+
+static void self_confirm_guard_work_handler(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	if (!self_confirm_control_plane_ready || !boot_is_img_confirmed()) {
+		printk("MCUboot self-confirm timeout ready=%u confirmed=%u; rebooting for rollback\n",
+		       self_confirm_control_plane_ready ? 1U : 0U,
+		       boot_is_img_confirmed() ? 1U : 0U);
+		sys_reboot(SYS_REBOOT_COLD);
+	}
+}
+
+static void uwb_tag_ble_control_plane_ready(void)
+{
+	int err;
+
+	ble_ready = true;
+#if APP_TAG_SELF_CONFIRM_MODE == UWB_TAG_SELF_CONFIRM_PROOF_TIMEOUT
+	printk("MCUboot proof-timeout: BLE is ready; readiness flag and confirmation intentionally withheld\n");
+	return;
+#else
+	self_confirm_control_plane_ready = true;
+#endif
+
+#if APP_TAG_SELF_CONFIRM_MODE == UWB_TAG_SELF_CONFIRM_PROOF_NOCONFIRM
+	printk("MCUboot proof-noconfirm: BLE is ready; confirmation intentionally withheld\n");
+	return;
+#endif
+
+	if (boot_is_img_confirmed()) {
+		return;
+	}
+
+	err = boot_write_img_confirmed();
+	printk("MCUboot confirm after BLE control-plane ready rc=%d\n", err);
+	if (err == 0) {
+		(void)k_work_cancel_delayable(&self_confirm_guard_work);
+	}
 }
 
 static int uwb_tag_ble_runtime_settings_set(const char *key, size_t len,
@@ -452,6 +540,7 @@ static void ble_adv_retry_work_handler(struct k_work *work)
 	err = uwb_tag_ble_start_advertising();
 	printk("Tag BLE adv retry rc=%d\n", err);
 	if (err == 0 || err == -EALREADY) {
+		uwb_tag_ble_control_plane_ready();
 		return;
 	}
 
@@ -506,9 +595,10 @@ static void ble_init_sequence(void)
 	if (err) {
 		printk("Tag BLE advertising deferred: %d\n", err);
 		(void)k_work_reschedule(&adv_retry_work, K_MSEC(250));
+		return;
 	}
 
-	ble_ready = true;
+	uwb_tag_ble_control_plane_ready();
 	printk("Tag BLE advertising as %s\n", ble_device_name);
 }
 
@@ -758,6 +848,8 @@ static void uwb_tag_ble_runtime_params_reset_locked(void)
 	active_runtime_params.tdma.sync_local_ms = 0U;
 	active_runtime_params.tdma.epoch_valid = false;
 	active_runtime_params.tdma.generation = 0U;
+	active_runtime_params.tdma.superframe_base = 0U;
+	active_runtime_params.tdma.superframe_valid = false;
 }
 
 static void uwb_tag_ble_runtime_params_apply_settings_locked(void)
@@ -970,8 +1062,10 @@ static void uwb_tag_ble_apply_mode_defaults(struct uwb_tag_runtime_params *param
 		params->tdma.slot_active_ms = 25U;
 		params->tdma.slot_active_us = 0U;
 		params->tdma.epoch_valid = false;
-		params->tdma.epoch_ms = 0U;
-		params->tdma.generation = 0U;
+			params->tdma.epoch_ms = 0U;
+			params->tdma.generation = 0U;
+			params->tdma.superframe_base = 0U;
+			params->tdma.superframe_valid = false;
 		return;
 	}
 
@@ -985,8 +1079,10 @@ static void uwb_tag_ble_apply_mode_defaults(struct uwb_tag_runtime_params *param
 		params->tdma.slot_active_ms = APP_TAG_TDMA_SLOT_ACTIVE_MS;
 		params->tdma.slot_active_us = APP_TAG_TDMA_SLOT_ACTIVE_US;
 		params->tdma.epoch_valid = false;
-		params->tdma.epoch_ms = 0U;
-		params->tdma.generation = 0U;
+			params->tdma.epoch_ms = 0U;
+			params->tdma.generation = 0U;
+			params->tdma.superframe_base = 0U;
+			params->tdma.superframe_valid = false;
 	}
 }
 
@@ -1093,6 +1189,8 @@ static int uwb_tag_ble_parse_cfg_command(
 	uint32_t slot_mask = 0U;
 	uint32_t epoch = 0U;
 	uint32_t generation = 0U;
+	uint32_t superframe_base = 0U;
+	bool superframe_valid;
 	uint32_t run_enabled = 1U;
 	uint32_t positioning_mode = UWB_TAG_MODE_RUN;
 
@@ -1110,6 +1208,8 @@ static int uwb_tag_ble_parse_cfg_command(
 	}
 
 	(void)uwb_tag_ble_parse_u32_field(cmd, "GEN=", &generation);
+	superframe_valid = uwb_tag_ble_parse_u32_field(
+		cmd, "SUPERFRAME_BASE=", &superframe_base);
 	(void)uwb_tag_ble_parse_u32_field(cmd, "MASK=", &slot_mask);
 	(void)uwb_tag_ble_parse_u32_field(cmd, "ACTIVE_US=", &active_us);
 	(void)uwb_tag_ble_parse_u32_field(cmd, "RUN=", &run_enabled);
@@ -1142,6 +1242,8 @@ static int uwb_tag_ble_parse_cfg_command(
 	params->tdma.epoch_ms = epoch;
 	params->tdma.epoch_valid = true;
 	params->tdma.generation = (uint8_t)generation;
+	params->tdma.superframe_base = superframe_base;
+	params->tdma.superframe_valid = superframe_valid;
 	if (uwb_tag_ble_apply_mode_policy(params) != 0) {
 		return -EINVAL;
 	}
@@ -1152,19 +1254,37 @@ static int uwb_tag_ble_parse_cfg_command(
 static void uwb_tag_ble_set_cfg_run_state(bool run)
 {
 	struct uwb_tag_runtime_params params;
-	char resp[96];
+	struct uwb_tag_runtime_params reported;
+	char resp[160];
 	int live_err;
 
 	(void)uwb_tag_ble_runtime_config_get(&params);
-	params.tdma.enabled = run;
+	if (!run && !tag_run_state_can_cfg_stop(&params)) {
+		snprintk(resp, sizeof(resp),
+			 "CFG_STOP_ERR reason=epoch_invalid action=MODE_IDLE RUN=%u STATE=%s LIVE=0",
+			 params.tdma.enabled ? 1U : 0U,
+			 params.tdma.enabled ? "RUNNING" : "ARMED");
+		uwb_tag_ble_send_text(resp);
+		return;
+	}
+	tag_run_state_set(&params, run);
 	live_err = ss_twr_init_runtime_configure(&params);
+	if (live_err == 0) {
+		k_mutex_lock(&ble_mutex, K_FOREVER);
+		active_runtime_params = params;
+		k_mutex_unlock(&ble_mutex);
+	}
+	(void)uwb_tag_ble_runtime_config_get(&reported);
 	snprintk(resp, sizeof(resp),
-		 "CFG_%s_OK RUN=%u STATE=%s LIVE=%u GEN=%u",
+		 "CFG_%s_OK RUN=%u STATE=%s LIVE=%u EPOCH=%lu GEN=%u SUPERFRAME_BASE=%lu SF_VALID=%u",
 		 run ? "RUN" : "STOP",
-		 run ? 1U : 0U,
-		 run ? "RUNNING" : "ARMED",
+		 reported.tdma.enabled ? 1U : 0U,
+		 reported.tdma.enabled ? "RUNNING" : "ARMED",
 		 (unsigned int)((live_err == 0) ? 1U : 0U),
-		 (unsigned int)params.tdma.generation);
+		 (unsigned long)reported.tdma.epoch_ms,
+		 (unsigned int)reported.tdma.generation,
+		 (unsigned long)reported.tdma.superframe_base,
+		 reported.tdma.superframe_valid ? 1U : 0U);
 	uwb_tag_ble_send_text(resp);
 }
 
@@ -1173,15 +1293,21 @@ static int uwb_tag_ble_start_advertising(void)
 	int err;
 	const struct bt_le_adv_param *params = BT_LE_ADV_CONN;
 
+	atomic_set(&tag_led_ble_state, TAG_LED_BLE_OFF);
 	for (int attempt = 0; attempt < 10; ++attempt) {
 		(void)bt_le_adv_stop();
 		k_msleep(50);
 		err = bt_le_adv_start(params, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
 		if (err == -EALREADY) {
+			atomic_set(&tag_led_ble_state, TAG_LED_BLE_ADVERTISING);
 			return 0;
 		}
 
 		if (err != -EAGAIN) {
+			if (err == 0) {
+				atomic_set(&tag_led_ble_state,
+					   TAG_LED_BLE_ADVERTISING);
+			}
 			return err;
 		}
 
@@ -1563,6 +1689,7 @@ static void ble_connected(struct bt_conn *conn, uint8_t conn_err)
 	requested_params = capture_interval ? *capture_conn_params :
 					     *fast_conn_params;
 	k_mutex_unlock(&ble_mutex);
+	atomic_set(&tag_led_ble_state, TAG_LED_BLE_CONNECTED);
 
 	printk("Tag BLE connected: %s active=%u\n", addr,
 	       (unsigned int)active_conns);
@@ -1596,6 +1723,7 @@ static void ble_disconnected(struct bt_conn *conn, uint8_t reason)
 
 	printk("Tag BLE disconnected: %s reason=0x%02x active=%u\n", addr, reason,
 	       (unsigned int)active_conns);
+	atomic_set(&tag_led_ble_state, TAG_LED_BLE_OFF);
 	ota_active = false;
 	ota_ready = false;
 	biospur_uart_link_resume();
@@ -1683,6 +1811,110 @@ static void uwb_tag_ble_send_text(const char *text)
 	uwb_tag_ble_send_payload((const uint8_t *)text, strlen(text));
 }
 
+static void tag_led_set_if_changed(const struct gpio_dt_spec *led, bool on,
+				   int8_t *rendered)
+{
+	int8_t requested = on ? 1 : 0;
+
+	if (*rendered == requested) {
+		return;
+	}
+	if (gpio_pin_set_dt(led, requested) == 0) {
+		*rendered = requested;
+	}
+}
+
+static int tag_led_init(void)
+{
+	const struct gpio_dt_spec *leds[] = {
+		&tag_health_led,
+		&tag_tdma_led,
+		&tag_ble_led,
+	};
+
+	for (size_t i = 0U; i < ARRAY_SIZE(leds); ++i) {
+		if (!gpio_is_ready_dt(leds[i])) {
+			return -ENODEV;
+		}
+		int err = gpio_pin_configure_dt(leds[i], GPIO_OUTPUT_INACTIVE);
+
+		if (err != 0) {
+			return err;
+		}
+	}
+
+	tag_health_led_level = 0;
+	tag_tdma_led_level = 0;
+	tag_ble_led_level = 0;
+	tag_led_ready = true;
+	return 0;
+}
+
+static void tag_led_render(void)
+{
+	struct biospur_uart_link_stats uart_stats;
+	struct ss_twr_init_poll_tx_stats poll_stats;
+	struct uwb_tag_runtime_params params;
+	uint32_t now_ms = (uint32_t)k_uptime_get();
+	bool fast_on;
+	bool slow_on;
+	bool health_fault;
+	bool tdma_configured;
+	bool tdma_running;
+	atomic_val_t ble_state;
+	struct tag_led_policy_input policy_input;
+	struct tag_led_policy_output policy_output;
+
+	if (!tag_led_ready ||
+	    (uint32_t)(now_ms - tag_led_last_render_ms) <
+		    UWB_TAG_LED_RENDER_PERIOD_MS) {
+		return;
+	}
+	tag_led_last_render_ms = now_ms;
+	fast_on = ((now_ms / 100U) & 1U) == 0U;
+	slow_on = ((now_ms / 500U) & 1U) == 0U;
+
+	biospur_uart_link_get_stats(&uart_stats);
+	ss_twr_init_poll_tx_stats_snapshot(&poll_stats);
+	health_fault = uart_stats.tx_dropped != 0U ||
+		       uart_stats.tx_failed != 0U ||
+		       uart_stats.tx_aborted != 0U ||
+		       poll_stats.failures != 0U ||
+		       poll_stats.slot_sleep_late_skips != 0U ||
+		       poll_stats.slot_spin_late_skips != 0U;
+	k_mutex_lock(&ble_mutex, K_FOREVER);
+	params = active_runtime_params;
+	k_mutex_unlock(&ble_mutex);
+	tdma_configured = params.tdma.epoch_valid;
+	tdma_running = tdma_configured && params.tdma.enabled &&
+		       params.positioning_mode != UWB_TAG_MODE_IDLE &&
+		       (params.tdma.slot_active_us != 0U ||
+			params.tdma.slot_active_ms != 0U);
+	ble_state = atomic_get(&tag_led_ble_state);
+	policy_input = (struct tag_led_policy_input) {
+		.uwb_ready = atomic_get(&tag_led_uwb_ready) != 0,
+		.health_fault = health_fault,
+		.tdma_configured = tdma_configured,
+		.tdma_running = tdma_running,
+		.ble_state = (uint8_t)ble_state,
+		.slow_phase_on = slow_on,
+		.fast_phase_on = fast_on,
+	};
+	policy_output = tag_led_policy_evaluate(&policy_input);
+
+	tag_led_set_if_changed(&tag_health_led, policy_output.health_on,
+			       &tag_health_led_level);
+	tag_led_set_if_changed(&tag_tdma_led, policy_output.tdma_on,
+			       &tag_tdma_led_level);
+	tag_led_set_if_changed(&tag_ble_led, policy_output.ble_on,
+			       &tag_ble_led_level);
+}
+
+void uwb_tag_ble_led_set_uwb_ready(bool ready)
+{
+	atomic_set(&tag_led_uwb_ready, ready ? 1 : 0);
+}
+
 static void uwb_tag_ble_purge_tx_queue(void)
 {
 	struct uwb_tag_ble_tx_item *item;
@@ -1700,11 +1932,13 @@ static void uwb_tag_ble_tx_thread_entry(void *arg1, void *arg2, void *arg3)
 
 	while (true) {
 		struct uwb_tag_ble_tx_item *item =
-			k_fifo_get(&ble_tx_fifo, K_FOREVER);
+			k_fifo_get(&ble_tx_fifo,
+				   K_MSEC(UWB_TAG_LED_RENDER_PERIOD_MS));
 		uint8_t active_conns;
 		int err;
 
 		if (item == NULL) {
+			tag_led_render();
 			continue;
 		}
 
@@ -1746,6 +1980,7 @@ static void uwb_tag_ble_tx_thread_entry(void *arg1, void *arg2, void *arg3)
 		}
 
 		k_mem_slab_free(&ble_tx_slab, (void *)item);
+		tag_led_render();
 		k_yield();
 	}
 }
@@ -2086,12 +2321,12 @@ static void uwb_tag_ble_process_command(const char *cmd)
 	}
 
 	if (strcmp(cmd, "CFG_STATUS") == 0) {
-		char resp[192];
+		char resp[256];
 		struct uwb_tag_runtime_params params;
 
 		(void)uwb_tag_ble_runtime_config_get(&params);
 		snprintk(resp, sizeof(resp),
-			 "CFG tag=%u bs=BS%04X slot=%u/%u mask=0x%04X src=%s period=%u active=%u active_us=%u epoch=%lu gen=%u mode=%s pmode=%u anchor_plan=dynamic cir=%s",
+			 "CFG tag=%u bs=BS%04X slot=%u/%u mask=0x%04X src=%s period=%u active=%u active_us=%u epoch=%lu gen=%u superframe_base=%lu sf_valid=%u run=%u state=%s mode=%s pmode=%u anchor_plan=dynamic cir=%s",
 			 (unsigned int)params.logical_tag_id,
 			 (unsigned int)params.identity_code,
 			 (unsigned int)params.tdma.slot_index,
@@ -2103,6 +2338,10 @@ static void uwb_tag_ble_process_command(const char *cmd)
 			 (unsigned int)params.tdma.slot_active_us,
 			 (unsigned long)params.tdma.epoch_ms,
 			 (unsigned int)params.tdma.generation,
+			 (unsigned long)params.tdma.superframe_base,
+			 params.tdma.superframe_valid ? 1U : 0U,
+			 params.tdma.enabled ? 1U : 0U,
+			 params.tdma.enabled ? "RUNNING" : "ARMED",
 			 uwb_tag_ble_mode_label(params.positioning_mode),
 			 (unsigned int)params.positioning_mode,
 			 ss_twr_init_cir_mode_label(ss_twr_init_cir_mode_get()));
@@ -2272,9 +2511,9 @@ static void uwb_tag_ble_process_command(const char *cmd)
 
 	if (strcmp(cmd, "HELP") == 0) {
 #if APP_TAG_BLE_OTA_ENABLE
-		uwb_tag_ble_send_text("PING|STATUS|BSL_STATUS|TR?|TR <ON|OFF>|CAPTURE?|CAPTURE PARAM <ci_units> <sup_units>|CAPTURE <ON|OFF>|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|TXPWR <MAX|M3|M6|M12|POR>|DIAG <ON|OFF>|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|BSL_STATUS|TR?|TR <ON|OFF>|CAPTURE?|CAPTURE PARAM <ci_units> <sup_units>|CAPTURE <ON|OFF>|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|TXPWR <MAX|M3|M6|M12|POR>|DIAG <ON|OFF>|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> SUPERFRAME_BASE=<n> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|OTA_STATUS|OTA_PREPARE|OTA_BEGIN|OTA_CANCEL|REBOOT|HELP");
 #else
-		uwb_tag_ble_send_text("PING|STATUS|BSL_STATUS|TR?|TR <ON|OFF>|CAPTURE?|CAPTURE PARAM <ci_units> <sup_units>|CAPTURE <ON|OFF>|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|TXPWR <MAX|M3|M6|M12|POR>|DIAG <ON|OFF>|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|REBOOT|HELP");
+		uwb_tag_ble_send_text("PING|STATUS|BSL_STATUS|TR?|TR <ON|OFF>|CAPTURE?|CAPTURE PARAM <ci_units> <sup_units>|CAPTURE <ON|OFF>|VERSION|TDMA_STATUS|CFG_STATUS|CIR?|CIR <OFF|COMPACT|FULL>|TXPWR <MAX|M3|M6|M12|POR>|DIAG <ON|OFF>|MODE?|MODE <RUN|IDLE>|TDMA_SET <slot>|CFG TAG=<id> SLOT=<slot> COUNT=<count> MASK=<hex> PERIOD=<ms> ACTIVE=<ms> EPOCH=<ms> SUPERFRAME_BASE=<n> GEN=<n> RUN=<0|1> PMODE=<0|3>|CFG_RUN|CFG_STOP|REBOOT|HELP");
 #endif
 		return;
 	}
@@ -2507,10 +2746,16 @@ bool uwb_tag_ble_ota_active(void)
 
 int uwb_tag_ble_init(void)
 {
+	int err;
+
 	k_mutex_init(&ble_mutex);
 	k_mutex_lock(&ble_mutex, K_FOREVER);
 	uwb_tag_ble_runtime_params_reset_locked();
 	k_mutex_unlock(&ble_mutex);
+	err = tag_led_init();
+	if (err != 0) {
+		printk("Tag status LED init failed: %d\n", err);
+	}
 	k_thread_create(&ble_tx_thread,
 		       ble_tx_thread_stack,
 		       K_THREAD_STACK_SIZEOF(ble_tx_thread_stack),
@@ -2523,15 +2768,25 @@ int uwb_tag_ble_init(void)
 	k_work_init_delayable(&reboot_work, ble_reboot_work_handler);
 	k_work_init_delayable(&bundle_flush_work, uwb_tag_ble_flush_work_handler);
 	k_work_init_delayable(&adv_retry_work, ble_adv_retry_work_handler);
+	k_work_init_delayable(&self_confirm_guard_work,
+			      self_confirm_guard_work_handler);
 #if APP_TAG_BLE_STATS_ENABLE != 0U
 	k_work_init_delayable(&ble_stats_work, ble_stats_work_handler);
 	(void)k_work_reschedule(&ble_stats_work,
 				 K_MSEC(UWB_TAG_BLE_STATS_PERIOD_MS));
 #endif
 
+	biospur_uart_link_set_command_handler(uwb_tag_ble_uart_received);
+#if APP_TAG_SELF_CONFIRM_MODE != UWB_TAG_SELF_CONFIRM_PROOF_NOCONFIRM
+	if (!boot_is_img_confirmed()) {
+		(void)k_work_reschedule(&self_confirm_guard_work,
+				       K_MSEC(APP_TAG_SELF_CONFIRM_TIMEOUT_MS));
+	}
+#else
+	printk("MCUboot proof-noconfirm: rollback guard intentionally disabled for manual OS_RESET\n");
+#endif
 	printk("Tag BLE init scheduled\n");
 	ble_init_sequence();
-	biospur_uart_link_set_command_handler(uwb_tag_ble_uart_received);
 	return 0;
 }
 

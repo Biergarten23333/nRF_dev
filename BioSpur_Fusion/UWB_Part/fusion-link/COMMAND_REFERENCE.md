@@ -28,6 +28,17 @@ CFG TAG=<id> SLOT=<slot> COUNT=<count> [MASK=<hex>]
     [GEN=<n>] [RUN=<0|1>] [PMODE=<0|3>]
 CFG_RUN
 CFG_STOP
+
+> **Version gate:** send `CFG_STOP` only after the live `VERSION` reply reports
+> exactly `tag-fusion-link-v2-relay4`. Relay4 stops transmission without
+> changing slot, mask, period, epoch, generation, or `SUPERFRAME_BASE`, and
+> `CFG_RUN` resumes that same schedule when a valid Master epoch exists. With
+> `epoch_valid=false`, relay4 refuses with
+> `CFG_STOP_ERR reason=epoch_invalid action=MODE_IDLE`; it never claims a
+> false stop. Relay3 can still free-run in that case. On relay2 or earlier it replies
+> `RUN=0 STATE=ARMED` but disables TDMA and enters approximately 64 Hz
+> free-run. For an unknown/older image use `MODE IDLE`, verify `MODE=IDLE`,
+> and perform a complete Master TDMA reconfiguration before the next run.
 TR?
 TR ON|OFF
 CAPTURE?

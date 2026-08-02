@@ -54,6 +54,8 @@ struct uwb_tdma_schedule {
 	uint32_t sync_local_ms;
 	bool epoch_valid;
 	uint8_t generation;
+	uint32_t superframe_base;
+	bool superframe_valid;
 };
 
 struct uwb_tag_runtime_params {

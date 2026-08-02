@@ -84,6 +84,8 @@ set(APP_TAG_BLE_ENABLE "1" CACHE STRING "Enable BLE/NUS and OTA transport on the
 set(APP_TAG_BLE_OTA_ENABLE "1" CACHE STRING "Enable OTA command and bootloader-advertising BLE payloads on the tag")
 set(APP_TAG_BLE_SETTINGS_ENABLE "1" CACHE STRING "Enable Bluetooth settings persistence on the tag")
 set(APP_TAG_MCUBOOT_ENABLE "1" CACHE STRING "Enable MCUboot confirm/OTA plumbing on the tag")
+set(APP_TAG_SELF_CONFIRM_MODE "0" CACHE STRING "MCUboot self-confirm mode: 0=normal, 1=proof no-confirm, 2=proof timeout")
+set(APP_TAG_SELF_CONFIRM_TIMEOUT_MS "10000" CACHE STRING "Maximum unconfirmed BLE bring-up time before rollback reset")
 set(APP_TAG_UWB_ENABLE "1" CACHE STRING "Enable UWB ranging runtime on the tag (0 keeps BLE/OTA online only)")
 set(APP_TAG_BLE_COMPACT_STATUS "1" CACHE STRING "Enable compact BLE TagSummary payloads on the tag")
 set(APP_TAG_BLE_PACKET_BUNDLE_RECORDS "8" CACHE STRING "Bundle this many TagSummary records into one BLE NUS payload")
@@ -201,6 +203,8 @@ target_compile_definitions(app PRIVATE
     APP_TAG_ALT_RXG_BLE_DIAG_ENABLE=${APP_TAG_ALT_RXG_BLE_DIAG_ENABLE}
     APP_TAG_BLE_TOKEN_ID=${APP_TAG_BLE_TOKEN_ID}
     APP_TAG_MCUBOOT_ENABLE=${APP_TAG_MCUBOOT_ENABLE}
+    APP_TAG_SELF_CONFIRM_MODE=${APP_TAG_SELF_CONFIRM_MODE}
+    APP_TAG_SELF_CONFIRM_TIMEOUT_MS=${APP_TAG_SELF_CONFIRM_TIMEOUT_MS}
     APP_UWB_CHANNEL=${APP_UWB_CHANNEL}
     APP_UWB_PAN_ID=${APP_UWB_PAN_ID}
     APP_UWB_HW_FRAME_FILTER_ENABLE=${APP_UWB_HW_FRAME_FILTER_ENABLE}

@@ -1,0 +1,15 @@
+/*
+ * RX-only co-located listener overlay.
+ *
+ * The DW1000 wiring is provided by the DWM1001 board definition and shared
+ * uwb_port implementation.
+ *
+ * Console UART at 460800: enough headroom (with the RAM ring absorbing each
+ * 1-poll + N-response burst) to drain every frame the listener hears, while
+ * staying reliable over the J-Link OB VCOM (1 Mbaud dropped bytes). Host capture
+ * must open the port at the same baud.
+ */
+
+&uart0 {
+	current-speed = <460800>;
+};
