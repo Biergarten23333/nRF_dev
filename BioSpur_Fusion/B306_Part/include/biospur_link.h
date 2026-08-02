@@ -215,6 +215,9 @@ typedef struct __attribute__((packed)) {
 #define BSL_FLAG_SWEEP_PARTIAL  (1u << 1) /* fewer responses than requested  */
 #define BSL_FLAG_IDENTITY_NVS   (1u << 2) /* identity_code came from NVS
                                            * override, not the FICR fold     */
+#define BSL_FLAG_SUPERFRAME_SHIFT 3u
+#define BSL_FLAG_SUPERFRAME_MASK  (0x0fu << BSL_FLAG_SUPERFRAME_SHIFT)
+#define BSL_FLAG_SUPERFRAME_VALID (1u << 7)
 
 typedef struct __attribute__((packed)) {
 	bsl_hdr_t hdr;

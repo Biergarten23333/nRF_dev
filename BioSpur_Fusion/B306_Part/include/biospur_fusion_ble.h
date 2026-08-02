@@ -16,22 +16,23 @@
 extern "C" {
 #endif
 
-#define BSF_BLE_PROTOCOL_VERSION 2u
+#define BSF_BLE_PROTOCOL_VERSION 7u
 
 #define BSF_BLE_KIND_UWB        1u
 #define BSF_BLE_KIND_TELEMETRY  2u
 #define BSF_BLE_KIND_IMU        3u
 #define BSF_BLE_KIND_CONTROL_REPLY 4u
+#define BSF_BLE_KIND_QUEUE_COUNTERS 5u
 
 #define BSF_IMU_BATCH_MIN       1u
-#define BSF_IMU_BATCH_MAX       5u
-#define BSF_IMU_BATCH_DEFAULT   2u
+#define BSF_IMU_BATCH_MAX       10u
+#define BSF_IMU_BATCH_DEFAULT   5u
 #define BSF_CONTROL_LINE_MAX    200u
 #define BSF_CONTROL_REPLY_TEXT_MAX 200u
 
 #define BSF_CAPTURE_TS_ABSENT       UINT64_MAX
 #define BSF_CAPTURE_DELTA_ABSENT    UINT32_MAX
-#define BSF_CAPTURE_PAIR_WINDOW_US  20000u
+#define BSF_CAPTURE_PAIR_WINDOW_US  50000u
 
 enum bsf_capture_verdict {
 	BSF_CAPTURE_HEALTHY = 0,
@@ -46,6 +47,19 @@ enum bsf_capture_edge_shape {
 	BSF_CAPTURE_EDGE_ACTIVE_LOW = 2,
 	BSF_CAPTURE_EDGE_RISING_ONLY = 3,
 	BSF_CAPTURE_EDGE_FALLING_ONLY = 4,
+};
+
+enum bsf_imu_health_class {
+	BSF_IMU_HEALTH_NONE = 0,
+	BSF_IMU_HEALTH_BOOT_RESET = 1,
+	BSF_IMU_HEALTH_CHIP_BACKWARD = 2,
+	BSF_IMU_HEALTH_CHIP_FROZEN = 3,
+	BSF_IMU_HEALTH_CHIP_RATE = 4,
+	BSF_IMU_HEALTH_CANARY = 5,
+	BSF_IMU_HEALTH_ACC_PLAUSIBILITY = 6,
+	BSF_IMU_HEALTH_DEAD_BLOCK = 7,
+	BSF_IMU_HEALTH_IDENTICAL_WEDGE = 8,
+	BSF_IMU_HEALTH_I2C_CONSECUTIVE_FAILURES = 9,
 };
 
 #define BSF_CAPTURE_FLAG_INITIAL_HIGH  (1u << 0)
@@ -135,6 +149,7 @@ typedef struct __attribute__((packed)) {
 	uint8_t data_subscribed;
 	uint8_t capture_flags;
 	uint8_t timer_instance;
+	uint8_t timer_counter_bits;
 	uint16_t pairing_window_us;
 	uint32_t timer_wrap_count;
 	uint32_t watchdog_feed_count;
@@ -151,6 +166,31 @@ typedef struct __attribute__((packed)) {
 	uint16_t imu_rate_hz;
 	uint8_t imu_batch;
 	uint8_t imu_active;
+	uint8_t imu_health_class;
+	uint8_t imu_health_active;
+	uint8_t imu_health_latched;
+	uint8_t imu_extended_burst;
+	uint32_t imu_health_reset;
+	uint32_t imu_health_frozen;
+	uint32_t imu_health_rate;
+	uint32_t imu_health_canary;
+	uint32_t imu_health_plausibility;
+	uint32_t imu_health_dead;
+	uint32_t imu_health_identical;
+	/* Legacy wire field: counts consecutive-I2C-failure escalations. */
+	uint32_t imu_health_i2c_burst;
+	uint32_t imu_health_recover_ok;
+	uint32_t imu_health_recover_fail;
+	uint32_t imu_legacy_pull_mean_us;
+	uint32_t imu_extended_pull_mean_us;
+	uint64_t imu_last_good_ts_us;
+	uint64_t imu_fault_ts_us;
+	uint64_t imu_recovered_ts_us;
+	/* v5: absolute-deadline periods skipped before an accepted IMU sample. */
+	uint32_t imu_missed_deadlines;
+	/* v5 tail extension: exact values and timestamps remain query-only. */
+	uint16_t imu_pull_lateness_max_us;
+	uint16_t imu_pull_duration_max_us;
 } bsf_ble_telemetry_t;
 
 /*
@@ -160,12 +200,15 @@ typedef struct __attribute__((packed)) {
  *   N * bsf_ble_imu_sample_t
  *   int16_t temperature_raw
  *
- * N is derived exactly from len and must be 1..5. seq identifies the first
+ * N is derived exactly from len and must be 1..10. seq identifies the first
  * accepted sensor frame in the record. Freshness is determined by the JY61P
  * chip-ms register, not by equality of the quantized motion bytes. The
- * base_timer2_ts_us is the low 32 bits of the shared TIMER2 time at that
- * frame's TWIM pull initiation; subsequent samples carry unsigned microsecond
- * deltas from the base.
+ * The kind-3 wire layout is frozen. base_timer2_ts_us carries the low 32 bits
+ * of the shared TIMER2 time at that frame's TWIM pull initiation; subsequent
+ * samples carry unsigned microsecond deltas from the base. A receiver must
+ * extend the low word against its most recent full-width UWB timestamp,
+ * telemetry wrap count, or preceding extended IMU base before exposing it to
+ * downstream consumers.
  */
 typedef struct __attribute__((packed)) {
 	uint8_t version;
@@ -189,6 +232,27 @@ typedef struct __attribute__((packed)) {
 	uint16_t correlation;
 } bsf_ble_control_reply_prefix_t;
 
+typedef struct __attribute__((packed)) {
+	uint8_t version;
+	uint8_t kind;
+	uint16_t len;
+	uint32_t node_uptime_ms;
+	uint32_t q_drop_imu;
+	uint32_t q_drop_uwb;
+	uint32_t q_drop_ctl;
+	uint16_t q_hwm_imu;
+	uint16_t q_hwm_uwb;
+	uint16_t q_hwm_ctl;
+	uint32_t publisher_count;
+	uint32_t publisher_max_us;
+	uint32_t enq_imu;
+	uint32_t enq_uwb;
+	uint32_t enq_ctl;
+	uint32_t abort_imu;
+	uint32_t abort_uwb;
+	uint32_t abort_ctl;
+} bsf_ble_queue_counters_t;
+
 #define BSF_CONTROL_SOURCE_B306 0u
 #define BSF_CONTROL_SOURCE_TAG  1u
 #define BSF_IMU_RECORD_LEN(n) \
@@ -199,16 +263,22 @@ _Static_assert(sizeof(bsf_capture_record_t) == 82u,
 	       "Fusion capture record size drifted");
 _Static_assert(sizeof(bsf_ble_uwb_packet_t) == 184u,
 	       "Fusion BLE UWB packet size drifted");
-_Static_assert(sizeof(bsf_ble_telemetry_t) == 158u,
+_Static_assert(sizeof(bsf_ble_telemetry_t) == 243u,
 	       "Fusion BLE telemetry packet size drifted");
+_Static_assert(sizeof(bsf_ble_telemetry_t) <= 244u,
+	       "Fusion telemetry exceeds negotiated ATT payload");
 _Static_assert(sizeof(bsf_ble_imu_prefix_t) == 10u,
 	       "Fusion IMU prefix size drifted");
 _Static_assert(sizeof(bsf_ble_imu_sample_t) == 14u,
 	       "Fusion IMU sample size drifted");
-_Static_assert(BSF_IMU_RECORD_LEN(BSF_IMU_BATCH_MAX) == 82u,
-	       "Fusion maximum IMU record size drifted");
+_Static_assert(BSF_IMU_RECORD_LEN(BSF_IMU_BATCH_MAX) == 152u,
+		       "Fusion maximum IMU record size drifted");
+_Static_assert(BSF_IMU_RECORD_LEN(BSF_IMU_BATCH_MAX) <= 244u,
+		       "Fusion maximum IMU record exceeds ATT payload budget");
 _Static_assert(sizeof(bsf_ble_control_reply_prefix_t) == 7u,
 	       "Fusion control reply prefix size drifted");
+_Static_assert(sizeof(bsf_ble_queue_counters_t) == 58u,
+		       "Fusion queue-counter record size drifted");
 _Static_assert(sizeof(bsf_ble_control_reply_prefix_t) +
 		       BSF_CONTROL_REPLY_TEXT_MAX <= 247u,
 	       "Fusion control reply exceeds ATT payload budget");

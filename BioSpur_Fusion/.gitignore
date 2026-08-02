@@ -8,8 +8,13 @@ zephyr/
 .west/
 *.source
 
+# Explicitly frozen Task A handover artifact; other generated hex remains
+# ignored unless separately reviewed and whitelisted.
+!UWB_Part/fusion-link/tag/tag-fusion-link-v2-ramfix1.merged.hex
+
 # Runtime logs and captures
 B306_Part/logs/
+UWB_Part/logs/
 *.log
 *.jsonl
 *.parquet

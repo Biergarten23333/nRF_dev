@@ -8,16 +8,13 @@ connection interval, ATT MTU/data length, IMU rate, UWB interface version, and
 GPIO-ready convention. Raw input and derived output belong in timestamped
 directories under `../../logs/`, not beside the scripts.
 
-The first host milestone is lossless capture and alignment diagnostics. ES-EKF
-fusion remains host-side and starts only after the measurement model and R
-matrix are frozen.
+The host scope is lossless raw capture and timing-integrity diagnostics.
+Recording does not require a lever arm, board-to-IMU axis mapping, estimator,
+reference-point selection, or any other fusion-pipeline input.
 
-`fusion_config.json` deliberately contains a REQUIRED-VALUE lever-arm
-placeholder. No KiCad schematic or PCB file was present in either repository
-searched on 2026-07-23, so the approximately 400 mil scale was not converted
-into guessed axis components. The required convention is IMU package center to
-UWB antenna geometric center, expressed in the IMU body frame. Host fusion must
-refuse to run while any component is null.
+`fusion_config.json` records that operational scope explicitly. Capture and
+session tooling must remain independent of that file; it is not an acceptance
+gate.
 
 `../../tools/fusion_session.py` is the ordered box-orchestration prototype:
 

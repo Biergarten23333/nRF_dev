@@ -21,6 +21,7 @@
 	 */
 	aliases {
 		led0 = &status_led;
+		led1 = &paired_led;
 		sw0 = &button_1;
 		uwb-uart = &uwb_uart;
 		imu-i2c = &imu_i2c;
@@ -33,6 +34,12 @@
 			/* NINA GPIO_1; LED and 220 ohm resistor return to +3V3. */
 			gpios = <&gpio0 13 GPIO_ACTIVE_LOW>;
 			label = "BioSpur status LED";
+		};
+
+		paired_led: paired_led {
+			/* NINA GPIO_2 -> nRF52840 P0.14; same active-low PCB LED. */
+			gpios = <&gpio0 14 GPIO_ACTIVE_LOW>;
+			label = "BioSpur paired LED";
 		};
 	};
 

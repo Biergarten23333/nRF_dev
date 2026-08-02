@@ -7,17 +7,22 @@ import argparse
 import json
 import math
 import re
+import select
 import statistics
+import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fusion_session import (
     ANOMALY_COUNTERS,
     FusionController,
+    LineChannel,
     RttLineChannel,
     SessionError,
     counter_deltas,
     parse_fields,
+    resolve_fusion_port,
 )
 
 
@@ -34,16 +39,22 @@ def write_json(path: Path, value) -> None:
 
 
 def open_controller(args, raw_log):
-    channel = RttLineChannel(
-        serial_number=args.serial_number,
-        device=args.device,
-        address=args.address,
-        speed_khz=args.speed_khz,
-        up_channel=0,
-        down_channel=0,
-        log_file=raw_log,
-        label="FUSION_RTT",
-    )
+    if args.transport == "cdc":
+        port = resolve_fusion_port(args.port)
+        channel = LineChannel(port, raw_log, "FUSION")
+    else:
+        if args.port:
+            raise SessionError("--port is only valid with --transport=cdc")
+        channel = RttLineChannel(
+            serial_number=args.serial_number,
+            device=args.device,
+            address=args.address,
+            speed_khz=args.speed_khz,
+            up_channel=0,
+            down_channel=0,
+            log_file=raw_log,
+            label="FUSION_RTT",
+        )
     controller = FusionController(
         channel, args.bsf, args.timeout, args.max_attempts
     )
@@ -55,6 +66,29 @@ def command(controller, text: str, prefix: str):
         text,
         lambda reply: reply.startswith(prefix),
         allow_resend_after_tx=False,
+    )
+
+
+def delta_pages(controller) -> dict[str, dict]:
+    return {
+        str(page): command(
+            controller,
+            f"IMU DELTA={page}",
+            f"IMU DELTA p={page} ",
+        ).__dict__
+        for page in range(3)
+    }
+
+
+def timer_boundary_host_elapsed(
+    anchor_received_s: float,
+    anchor_timer_us: int,
+    boundary_timer_s: float,
+) -> float:
+    return (
+        anchor_received_s
+        + boundary_timer_s
+        - anchor_timer_us / 1_000_000.0
     )
 
 
@@ -327,17 +361,29 @@ def imu_sequence_audit(lines: list[str]) -> dict:
     }
 
 
-def capture_lines_from_raw(path: Path, bsf: str) -> list[str]:
+def capture_lines_from_raw(
+    path: Path, bsf: str, *, operator_gate: bool = False
+) -> list[str]:
     """Recover the exact START-to-STOP stream, including lines read around commands."""
     active = False
     lines: list[str] = []
     stop_marker = f"line={bsf} IMU STOP"
     for raw in path.read_text(errors="replace").splitlines():
-        marker = " FUSION_RTT_RX "
-        if marker not in raw:
+        if operator_gate and " FUSION_EVENT E1_GATE_OPEN " in raw:
+            active = True
+            continue
+        marker = next(
+            (
+                candidate
+                for candidate in (" FUSION_RTT_RX ", " FUSION_RX ")
+                if candidate in raw
+            ),
+            None,
+        )
+        if marker is None:
             continue
         payload = raw.split(marker, 1)[1]
-        if "text=IMU START OK " in f"{payload} ":
+        if not operator_gate and "text=IMU START OK " in f"{payload} ":
             active = True
             continue
         if active and stop_marker in payload:
@@ -499,6 +545,11 @@ def run_capture(args) -> int:
             "label": args.label,
             "duration_s": args.duration_s,
             "prediction": args.prediction,
+            "environment": (
+                "operator-quiet, gated on E1 START token"
+                if args.operator_gate
+                else "not operator-gated"
+            ),
         },
     )
     summary: dict = {
@@ -529,12 +580,141 @@ def run_capture(args) -> int:
             ).__dict__
             baseline = controller.wait_telemetry()
             summary["baseline"] = baseline
-            summary["start"] = command(
-                controller, "IMU START", "IMU START OK "
+            summary["start"] = controller.command(
+                "IMU START",
+                lambda text: (
+                    text.startswith("IMU START OK ")
+                    and "61=0001:P" in text
+                    and "03=000B:P" in text
+                    and "1F=0002:P" in text
+                    and "volatile=1" in text
+                    and "saved=0" in text
+                ),
+                allow_resend_after_tx=False,
             ).__dict__
             imu_started = True
 
-            lines = controller.collect(args.duration_s)
+            if args.operator_gate:
+                summary["environment"] = (
+                    "operator-quiet, gated on E1 START token"
+                )
+                # Keep draining the live CDC stream while waiting for the
+                # operator token so arming itself cannot back-pressure BLE.
+                controller.wait_telemetry()
+                print(
+                    "\n"
+                    "============================================================\n"
+                    "                 E1 ARMED — TYPE: E1 START\n"
+                    "============================================================",
+                    flush=True,
+                )
+                while True:
+                    ready, _, _ = select.select([sys.stdin], [], [], 0.10)
+                    if ready:
+                        token = sys.stdin.readline()
+                        if token == "":
+                            raise SessionError(
+                                "operator-gate input closed before E1 START"
+                            )
+                        if token.strip() == "E1 START":
+                            break
+                        print(
+                            "E1 gate remains closed; exact token required: "
+                            "E1 START",
+                            flush=True,
+                        )
+                    else:
+                        controller.collect(0.10)
+                gate_mono = time.monotonic()
+                gate_wall = time.time()
+                raw_log.write(
+                    f"{gate_wall:.6f} {gate_mono:.6f} "
+                    "FUSION_EVENT E1_GATE_OPEN token=E1_START\n"
+                )
+                raw_log.flush()
+                summary["gate"] = {
+                    "token": "E1 START",
+                    "received_utc": datetime.now(timezone.utc).isoformat(),
+                    "host_monotonic": gate_mono,
+                }
+                baseline = controller.latest_telemetry
+                if baseline is None:
+                    raise SessionError("E1 gate lacked current telemetry")
+                summary["baseline"] = baseline
+
+            capture_started = time.monotonic()
+            if args.phase_g_residual_snapshots:
+                anchor_telemetry = controller.wait_telemetry()
+                anchor_received_s = time.monotonic() - capture_started
+                try:
+                    anchor_timer_us = int(
+                        anchor_telemetry["imu_hwin"].split("/", 1)[0], 16
+                    )
+                except (KeyError, ValueError) as exc:
+                    raise SessionError(
+                        "Phase-G residual snapshot anchor lacks TIMER2 time"
+                    ) from exc
+                if anchor_timer_us == 0:
+                    raise SessionError(
+                        "Phase-G residual snapshot TIMER2 anchor is zero"
+                    )
+                boundary_elapsed_s = timer_boundary_host_elapsed(
+                    anchor_received_s,
+                    anchor_timer_us,
+                    args.boundary_s,
+                )
+                summary["delta_snapshot_anchor"] = {
+                    "host_elapsed_s": anchor_received_s,
+                    "timer2_us": anchor_timer_us,
+                    "boundary_timer2_s": args.boundary_s,
+                    "boundary_host_elapsed_s": boundary_elapsed_s,
+                    "source": "telemetry imu_hwin last-good TIMER2 timestamp",
+                }
+                snapshot_targets = (
+                    ("before_start", boundary_elapsed_s - 305.0),
+                    ("before_end", boundary_elapsed_s - 5.0),
+                    ("after_start", boundary_elapsed_s + 5.0),
+                    ("after_end", boundary_elapsed_s + 305.0),
+                )
+                if snapshot_targets[0][1] <= 0.0:
+                    raise SessionError(
+                        "Phase-G residual snapshot boundary is too early"
+                    )
+                if snapshot_targets[-1][1] >= args.duration_s:
+                    raise SessionError(
+                        "Phase-G residual snapshots do not fit capture"
+                    )
+                summary["delta_snapshots"] = {}
+                for label, target_s in snapshot_targets:
+                    remaining_s = (
+                        target_s - (time.monotonic() - capture_started)
+                    )
+                    if remaining_s <= 0.0:
+                        raise SessionError(
+                            f"missed Phase-G residual snapshot {label}"
+                        )
+                    lines.extend(controller.collect(remaining_s))
+                    actual_s = time.monotonic() - capture_started
+                    summary["delta_snapshots"][label] = {
+                        "target_elapsed_s": target_s,
+                        "actual_elapsed_s": actual_s,
+                        "pages": delta_pages(controller),
+                    }
+                remaining_s = (
+                    args.duration_s - (time.monotonic() - capture_started)
+                )
+                if remaining_s <= 0.0:
+                    raise SessionError(
+                        "Phase-G residual snapshots consumed capture window"
+                    )
+                lines.extend(controller.collect(remaining_s))
+            else:
+                lines = controller.collect(args.duration_s)
+            if args.operator_gate:
+                print(
+                    "E1 COMPLETE — you may use the desk again",
+                    flush=True,
+                )
             final = controller.latest_telemetry
             if final is None:
                 raise SessionError("capture lacked final telemetry")
@@ -543,11 +723,14 @@ def run_capture(args) -> int:
                 controller, "IMU STOP", "IMU STOP OK "
             ).__dict__
             imu_started = False
+            summary["delta"] = delta_pages(controller)
             summary["counters"] = controller.counters()
 
             raw_log.flush()
             capture_lines = capture_lines_from_raw(
-                args.out_dir / "raw.log", args.bsf
+                args.out_dir / "raw.log",
+                args.bsf,
+                operator_gate=args.operator_gate,
             )
             summary["analysis"] = build_capture_analysis(
                 capture_lines, baseline, final, args.boundary_s
@@ -630,6 +813,8 @@ def run_finalize(args) -> int:
 
 def common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--bsf", default="BSF3C79")
+    parser.add_argument("--transport", choices=("cdc", "rtt"), default="rtt")
+    parser.add_argument("--port")
     parser.add_argument("--serial-number", type=int, default=683234364)
     parser.add_argument("--device", default="nRF52840_xxAA")
     parser.add_argument("--address", type=lambda value: int(value, 0), default=0x20002100)
@@ -657,8 +842,21 @@ def build_parser() -> argparse.ArgumentParser:
     capture.add_argument("--prediction", required=True)
     capture.add_argument("--reboot", action="store_true")
     capture.add_argument("--imu-rate", type=int, choices=(50, 100, 200), default=200)
-    capture.add_argument("--imu-batch", type=int, choices=range(1, 6), default=2)
+    capture.add_argument("--imu-batch", type=int, choices=range(1, 11), default=5)
     capture.add_argument("--boundary-s", type=float, default=65.5)
+    capture.add_argument(
+        "--operator-gate",
+        action="store_true",
+        help="arm first, then require the exact E1 START token on stdin",
+    )
+    capture.add_argument(
+        "--phase-g-residual-snapshots",
+        action="store_true",
+        help=(
+            "read cumulative IMU DELTA pages at boundary-305/-5/+5/+305 s "
+            "so equal five-minute residual windows can be differenced"
+        ),
+    )
 
     reanalyze = sub.add_parser("reanalyze")
     common(reanalyze)

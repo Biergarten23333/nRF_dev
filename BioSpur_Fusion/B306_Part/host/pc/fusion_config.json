@@ -1,18 +1,11 @@
 {
   "schema_version": 1,
-  "board_revision": "REQUIRED_VALUE",
-  "lever_arm": {
-    "status": "REQUIRED_VALUE",
-    "convention": "Vector from IMU MEMS package center to UWB antenna geometric center, expressed in the IMU body frame.",
-    "xyz_m": [
-      null,
-      null,
-      null
-    ],
-    "source": "NOT_FOUND: no KiCad schematic or PCB file was present under BioSpur_Fusion or BioSpur_UWB_before_start on 2026-07-23."
-  },
-  "safety": {
-    "allow_fusion_with_missing_lever_arm": false,
-    "required_check": "Refuse host fusion until board revision and all three xyz_m values are populated from the authoritative KiCad PCB."
+  "scope": "raw_recording_only",
+  "board_revision": "BioSpur V0.10",
+  "raw_recording": {
+    "enabled": true,
+    "requires_lever_arm": false,
+    "requires_axis_mapping": false,
+    "requires_reference_point": false
   }
 }

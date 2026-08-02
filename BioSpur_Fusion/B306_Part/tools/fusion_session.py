@@ -15,6 +15,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterable
 
+try:
+    from fusion_host_binary import FrameError, FrameStreamDecoder, frame_to_line
+except ModuleNotFoundError:  # package-mode unit tests
+    from .fusion_host_binary import FrameError, FrameStreamDecoder, frame_to_line
 from jlink_rtt_transport import JLinkRttError, JLinkRttTransport
 
 try:
@@ -55,6 +59,16 @@ ANOMALY_COUNTERS = (
     "orphan_edge",
     "orphan_frame",
     "imu_i2c_err",
+    "imu_missed_deadlines",
+    "imu_hreset",
+    "imu_hfrozen",
+    "imu_hrate",
+    "imu_hcanary",
+    "imu_hplaus",
+    "imu_hdead",
+    "imu_hident",
+    "imu_hi2c",
+    "imu_hrecover_fail",
     "relay_timeout",
     "malformed",
     "logger_drop",
@@ -204,8 +218,16 @@ class LineChannel:
         self.port = port
         self.log_file = log_file
         self.label = label
+        self.device = None
+        self.binary_decoder = FrameStreamDecoder()
+        self.decoded_lines: list[str] = []
+        self.text_pending = bytearray()
+        self.transport_mode: str | None = None
+        self._open()
+
+    def _open(self) -> None:
         self.device = serial.Serial()
-        self.device.port = port
+        self.device.port = self.port
         self.device.baudrate = 115200
         self.device.timeout = 0.10
         self.device.write_timeout = 1.0
@@ -216,7 +238,32 @@ class LineChannel:
         self.device.rts = False
 
     def close(self) -> None:
-        self.device.close()
+        if self.device is not None:
+            self.device.close()
+
+    def reopen(self, timeout_s: float = 20.0) -> None:
+        """Re-open a stable by-id CDC path after an intentional target reboot."""
+        try:
+            self.close()
+        except (OSError, serial.SerialException):
+            pass
+        deadline = time.monotonic() + timeout_s
+        last_error: Exception | None = None
+        while time.monotonic() < deadline:
+            try:
+                self._open()
+                self.binary_decoder = FrameStreamDecoder()
+                self.decoded_lines.clear()
+                self.text_pending.clear()
+                self.transport_mode = None
+                self._record("REOPEN", f"port={self.port}")
+                return
+            except (OSError, serial.SerialException) as exc:
+                last_error = exc
+                time.sleep(0.20)
+        raise SessionError(
+            f"timed out reopening {self.label} CDC {self.port}: {last_error}"
+        )
 
     def _record(self, direction: str, line: str) -> None:
         self.log_file.write(
@@ -227,18 +274,59 @@ class LineChannel:
 
     def send(self, line: str) -> None:
         self._record("TX", line)
+        if line == "OUTPUT TEXT":
+            self.transport_mode = "text"
+            self.text_pending.clear()
+            self.decoded_lines.clear()
+        elif line == "OUTPUT BINARY":
+            self.transport_mode = "binary"
+            self.text_pending.clear()
+            self.decoded_lines.clear()
+            self.binary_decoder = FrameStreamDecoder()
         self.device.write((line + "\n").encode("utf-8"))
         self.device.flush()
 
+    def _consume(self, raw: bytes) -> None:
+        if self.transport_mode is None:
+            self.text_pending.extend(raw)
+            if 0 in self.text_pending:
+                self.transport_mode = "binary"
+                raw = bytes(self.text_pending)
+                self.text_pending.clear()
+            elif b"\n" in self.text_pending:
+                self.transport_mode = "text"
+                raw = b""
+            else:
+                return
+        if self.transport_mode == "binary":
+            frames = self.binary_decoder.feed(raw)
+            for frame in frames:
+                try:
+                    line = frame_to_line(frame)
+                except FrameError as exc:
+                    self._record("DECODE_ERROR", str(exc))
+                    continue
+                if line:
+                    self.decoded_lines.append(line)
+            return
+        self.text_pending.extend(raw)
+        while b"\n" in self.text_pending:
+            record, _, remainder = self.text_pending.partition(b"\n")
+            self.text_pending = bytearray(remainder)
+            line = record.decode("utf-8", errors="replace").strip("\r")
+            if line:
+                self.decoded_lines.append(line)
+
     def read(self, deadline: float) -> str | None:
         while time.monotonic() < deadline:
-            raw = self.device.readline()
-            if not raw:
-                continue
-            line = raw.decode("utf-8", errors="replace").strip("\r\n")
-            if line:
+            if self.decoded_lines:
+                line = self.decoded_lines.pop(0)
                 self._record("RX", line)
                 return line
+            waiting = self.device.in_waiting
+            raw = self.device.read(max(1, min(4096, waiting)))
+            if raw:
+                self._consume(raw)
         return None
 
     def collect(self, duration_s: float) -> list[str]:
@@ -249,6 +337,22 @@ class LineChannel:
             if line is not None:
                 lines.append(line)
         return lines
+
+
+class FusionCdcChannel(LineChannel):
+    """Semantic alias for the Fusion Master's auto-detected CDC transport."""
+
+    def read(self, deadline: float) -> str | None:
+        while time.monotonic() < deadline:
+            if self.decoded_lines:
+                line = self.decoded_lines.pop(0)
+                self._record("RX", line)
+                return line
+            waiting = self.device.in_waiting
+            raw = self.device.read(max(1, min(4096, waiting)))
+            if raw:
+                self._consume(raw)
+        return None
 
 
 class RttLineChannel:
@@ -374,7 +478,7 @@ def add_fusion_transport_args(
 def open_fusion_channel(args, log_file):
     if args.transport == "cdc":
         fusion_port = resolve_fusion_port(args.port)
-        return fusion_port, LineChannel(fusion_port, log_file, "FUSION")
+        return fusion_port, FusionCdcChannel(fusion_port, log_file, "FUSION")
     if args.port:
         raise SessionError("--port is only valid with --transport=cdc")
     channel = RttLineChannel(
@@ -421,10 +525,77 @@ class FusionController:
         self.timeout_s = timeout_s
         self.max_attempts = max_attempts
         self.latest_telemetry: dict[str, str] | None = None
+        self._telemetry_parts: dict[
+            str, tuple[int, set[int], dict[str, str]]
+        ] = {}
+        self._telemetry_generation = 0
+
+    def _belongs_to_target(self, line: str) -> bool:
+        """Reject another peer's multiplexed record from this node session."""
+        if line.startswith(
+            (
+                "FUSION_UWB ",
+                "FUSION_TELEMETRY ",
+                "FUSION_IMU ",
+                "FUSION_REPLY ",
+                "FUSION_PEER ",
+            )
+        ):
+            name = parse_fields(line).get("name")
+            # v13 and earlier records did not carry a name.
+            return name is None or name == self.bsf
+        if line.startswith("FUSION_COMMAND_TX "):
+            target = parse_fields(line).get("target")
+            return target is None or target == self.bsf
+        return True
 
     def _observe(self, line: str) -> None:
-        if line.startswith("FUSION_TELEMETRY "):
-            self.latest_telemetry = parse_fields(line)
+        if (
+            line.startswith("FUSION_TELEMETRY ")
+            and self._belongs_to_target(line)
+        ):
+            fields = parse_fields(line)
+            part = fields.get("part")
+            if part is None:
+                self.latest_telemetry = fields
+                self._telemetry_generation += 1
+                return
+
+            try:
+                part_index_text, part_count_text = part.split("/", 1)
+                part_index = int(part_index_text, 10)
+                part_count = int(part_count_text, 10)
+            except (TypeError, ValueError):
+                return
+            record = fields.get("record")
+            if (
+                record is None
+                or part_count < 1
+                or part_index < 1
+                or part_index > part_count
+            ):
+                return
+
+            previous = self._telemetry_parts.get(record)
+            if previous is None or previous[0] != part_count:
+                seen: set[int] = set()
+                merged: dict[str, str] = {}
+            else:
+                _, seen, merged = previous
+            seen.add(part_index)
+            merged.update(fields)
+            merged.pop("part", None)
+            merged["parts"] = str(part_count)
+            self._telemetry_parts[record] = (part_count, seen, merged)
+
+            if len(seen) == part_count:
+                self.latest_telemetry = dict(merged)
+                self._telemetry_generation += 1
+                del self._telemetry_parts[record]
+
+            # A lost fragment must not create an unbounded host-side cache.
+            while len(self._telemetry_parts) > 8:
+                del self._telemetry_parts[next(iter(self._telemetry_parts))]
 
     def read_until(
         self, predicate: Callable[[str], bool], timeout_s: float, what: str
@@ -434,6 +605,8 @@ class FusionController:
             line = self.channel.read(deadline)
             if line is None:
                 break
+            if not self._belongs_to_target(line):
+                continue
             self._observe(line)
             if predicate(line):
                 return line
@@ -445,6 +618,8 @@ class FusionController:
         while time.monotonic() < deadline:
             line = self.channel.read(deadline)
             if line is not None:
+                if not self._belongs_to_target(line):
+                    continue
                 self._observe(line)
                 lines.append(line)
         return lines
@@ -452,25 +627,38 @@ class FusionController:
     def ensure_bridge(self) -> dict[str, str]:
         for attempt in range(1, self.max_attempts + 1):
             self.channel.send("LIST")
-            try:
-                line = self.read_until(
-                    lambda item: item.startswith("FUSION_LIST "),
-                    self.timeout_s,
-                    f"LIST reply attempt {attempt}/{self.max_attempts}",
-                )
-            except SessionError:
-                if attempt == self.max_attempts:
-                    raise
-                continue
-            fields = parse_fields(line)
-            if (
-                fields.get("count") == "1"
-                and fields.get("name") == self.bsf
-                and fields.get("subscribed") == "1"
-            ):
-                return fields
+            deadline = time.monotonic() + self.timeout_s
+            last_list = ""
+            while time.monotonic() < deadline:
+                line = self.channel.read(deadline)
+                if line is None:
+                    break
+                if not self._belongs_to_target(line):
+                    continue
+                self._observe(line)
+                if line.startswith("FUSION_LIST "):
+                    last_list = line
+                    fields = parse_fields(line)
+                    # v13 and earlier single-peer grammar.
+                    if (
+                        fields.get("count") == "1"
+                        and fields.get("name") == self.bsf
+                        and fields.get("subscribed") == "1"
+                    ):
+                        return fields
+                elif line.startswith("FUSION_PEER "):
+                    fields = parse_fields(line)
+                    if (
+                        fields.get("name") == self.bsf
+                        and fields.get("connected") == "1"
+                        and fields.get("subscribed") == "1"
+                    ):
+                        return fields
             if attempt == self.max_attempts:
-                raise SessionError(f"Fusion bridge not ready for {self.bsf}: {line}")
+                raise SessionError(
+                    f"Fusion bridge not ready for {self.bsf}: "
+                    f"{last_list or 'no LIST response'}"
+                )
             time.sleep(0.5)
         raise AssertionError("unreachable")
 
@@ -490,6 +678,8 @@ class FusionController:
                 line = self.channel.read(deadline)
                 if line is None:
                     break
+                if not self._belongs_to_target(line):
+                    continue
                 self._observe(line)
                 if (
                     line.startswith("FUSION_COMMAND_TX ")
@@ -521,16 +711,29 @@ class FusionController:
         raise AssertionError("unreachable")
 
     def wait_telemetry(self, newer_than_ms: int | None = None) -> dict[str, str]:
-        def suitable(line: str) -> bool:
-            if not line.startswith("FUSION_TELEMETRY "):
-                return False
-            fields = parse_fields(line)
-            if newer_than_ms is None:
-                return True
-            return int(fields.get("node_ms", "0"), 0) > newer_than_ms
-
-        line = self.read_until(suitable, self.timeout_s + 2.0, "fresh telemetry")
-        return parse_fields(line)
+        deadline = time.monotonic() + self.timeout_s + 2.0
+        generation = self._telemetry_generation
+        while time.monotonic() < deadline:
+            line = self.channel.read(deadline)
+            if line is None:
+                break
+            if not self._belongs_to_target(line):
+                continue
+            self._observe(line)
+            if (
+                self._telemetry_generation != generation
+                and self.latest_telemetry is not None
+                and (
+                    newer_than_ms is None
+                    or int(self.latest_telemetry.get("node_ms", "0"), 0)
+                    > newer_than_ms
+                )
+            ):
+                return dict(self.latest_telemetry)
+        raise SessionError(
+            f"timeout waiting for complete fresh telemetry after "
+            f"{self.timeout_s + 2.0:.1f}s"
+        )
 
     def relay_cfg(self, cfg: str) -> Reply:
         queued = self.command(
@@ -572,6 +775,23 @@ class FusionController:
 
     def counters(self) -> dict[str, str]:
         first = self.command("COUNTERS", lambda text: text.startswith("CTR1 "))
+        next_line = self.read_until(
+            lambda line: (
+                (reply := parse_reply(line)) is not None
+                and reply.source == "B306"
+                and reply.correlation == first.correlation
+                and (
+                    reply.text.startswith("CTRQ ")
+                    or reply.text.startswith("CTR2 ")
+                )
+            ),
+            self.timeout_s,
+            f"CTRQ/CTR2 correlation={first.correlation}",
+        )
+        next_reply = parse_reply(next_line)
+        assert next_reply is not None
+        if next_reply.text.startswith("CTR2 "):
+            return {"ctr1": first.text, "ctr2": next_reply.text}
         second_line = self.read_until(
             lambda line: (
                 (reply := parse_reply(line)) is not None
@@ -584,17 +804,48 @@ class FusionController:
         )
         second = parse_reply(second_line)
         assert second is not None
-        return {"ctr1": first.text, "ctr2": second.text}
+        return {
+            "ctr1": first.text,
+            "ctrq": next_reply.text,
+            "ctr2": second.text,
+        }
 
 
 class MasterTagController:
-    def __init__(self, channel: LineChannel, max_attempts: int):
+    def __init__(
+        self,
+        channel: LineChannel,
+        max_attempts: int,
+        tag_marker: str | None = None,
+    ):
         self.channel = channel
         self.max_attempts = max_attempts
+        self.tag_marker = tag_marker
 
     def _send_collect(self, command: str, wait_s: float) -> list[str]:
+        sends_cfg_stop = re.search(
+            r"(?:^|\s)CFG_STOP(?:\s|$)", command, re.IGNORECASE
+        )
+        if sends_cfg_stop:
+            raise SessionError(
+                "CFG_STOP is forbidden by the standing Fusion runbook. "
+                "Use MODE IDLE, then perform a complete Master TDMA "
+                "reconfiguration before the next run."
+            )
         self.channel.send(command)
         return self.channel.collect(wait_s)
+
+    def _enter_recv_mode(self) -> list[str]:
+        """Handle the deliberate Master_Tag reboot/re-enumeration in mode recv."""
+        lines: list[str] = []
+        self.channel.send("mode recv")
+        try:
+            lines.extend(self.channel.collect(8.0))
+        except (OSError, serial.SerialException) as exc:
+            self.channel._record("EVENT", f"expected_mode_recv_disconnect={exc}")
+        self.channel.reopen(timeout_s=20.0)
+        lines.extend(self.channel.collect(3.0))
+        return lines
 
     def configure(self, tag_name: str, hz: int) -> dict:
         last_lines: list[str] = []
@@ -605,10 +856,16 @@ class MasterTagController:
                 (f"ota_target name {tag_name}", 0.5),
                 ("ota_target prefix -", 0.5),
                 ("ota_target uuid -", 0.5),
-                ("mode recv", 8.0),
+            ):
+                lines.extend(self._send_collect(command, wait_s))
+            lines.extend(self._enter_recv_mode())
+            for command, wait_s in (
                 ("device kind tag", 2.0),
                 ("conn", 12.0),
-                ("cmd_all CFG_STOP", 1.0),
+                # relay2 safety rule: CFG_STOP disables TDMA and free-runs
+                # at ~64 Hz. MODE IDLE is the only real stop; the complete
+                # TDMA ceremony below restores the discarded schedule.
+                ("cmd_all MODE IDLE", 1.0),
                 ("tdma hold 1", 0.5),
                 ("tdma clear", 1.2),
                 (f"tdma freq motion {hz}", 0.5),
@@ -631,7 +888,7 @@ class MasterTagController:
                         "mode recv",
                         "device kind tag",
                         "conn",
-                        "cmd_all CFG_STOP",
+                        "cmd_all MODE IDLE",
                         "tdma hold 1",
                         "tdma clear",
                         f"tdma freq motion {hz}",
@@ -648,7 +905,9 @@ class MasterTagController:
         )
 
     def clear(self) -> list[str]:
-        lines = self._send_collect("cmd_all CFG_STOP", 1.0)
+        # relay2 safety rule: never use CFG_STOP. MODE IDLE persists and
+        # discards TDMA state, which is intentional on session teardown.
+        lines = self._send_collect("cmd_all MODE IDLE", 1.0)
         lines.extend(self._send_collect("tdma clear", 1.2))
         return lines
 
@@ -714,7 +973,7 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--epoch", type=int, default=5000)
     start.add_argument("--hz", type=int, default=10)
     start.add_argument("--imu-rate", type=int, choices=(50, 100, 200), default=200)
-    start.add_argument("--imu-batch", type=int, choices=range(1, 6), default=2)
+    start.add_argument("--imu-batch", type=int, choices=range(1, 11), default=5)
     start.add_argument("--timeout", type=float, default=5.0)
     start.add_argument("--max-attempts", type=int, default=3)
     start.add_argument("--proof-seconds", type=float, default=4.0)
@@ -796,11 +1055,13 @@ def run_start(args) -> int:
             )
             summary["steps"]["S1"] = ping.__dict__
 
-            # S2
+            # S2 is a boot-state/readability check. JY61P configuration is
+            # intentionally volatile, so verify=WARN after sensor power loss
+            # is valid here. S6's IMU START reply is the strict write/readback
+            # gate for 61=0001, 03=000B, and 1F=0002.
             status = controller.command(
                 "STATUS",
                 lambda text: text.startswith("STATUS ")
-                and "verify=PASS" in text
                 and "imu=0/" in text,
                 allow_resend_after_tx=True,
             )
@@ -872,7 +1133,14 @@ def run_start(args) -> int:
             try:
                 start_reply = controller.command(
                     "IMU START",
-                    lambda text: text.startswith("IMU START OK "),
+                    lambda text: (
+                        text.startswith("IMU START OK ")
+                        and "61=0001:P" in text
+                        and "03=000B:P" in text
+                        and "1F=0002:P" in text
+                        and "volatile=1" in text
+                        and "saved=0" in text
+                    ),
                     allow_resend_after_tx=False,
                 )
             except Exception as start_exc:

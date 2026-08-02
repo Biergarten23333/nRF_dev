@@ -18,8 +18,31 @@ secondary-slot erase, test scheduling, and OS reset. The B306 adapter only:
 - waits for the B306 MTU exchange callback before starting DFU discovery;
 - skips the UWB NUS preparation stage;
 - requires an exact `BSF%04X` target and auto-starts the one-shot update;
-- supports `B306_OTA_VERIFY_ONLY=1`, which reads image state without erase,
-  upload, pending/test, or reset commands.
+- after every upload, keeps the OTA session open across the target reset,
+  reconnects, and proves the expected digest is active; an active/unconfirmed
+  v32 image is handed to the application control-plane confirmation tool;
+- starts with a state read and takes an idempotent branch: pass an already
+  active/confirmed payload, hand off an active/unconfirmed payload without
+  confirming it, reset a pending secondary payload, or perform the full
+  erase/upload/test/reset flow only when the old image is active and no usable
+  pending payload exists;
+- gives both the initial target scan and every post-reset reacquisition 180 s,
+  logging the first matching advertisement latency;
+- treats an erase timeout as unknown state, then polls/reissues with bounded
+  retries and proceeds only after image-state proves the secondary slot empty;
+- supports `B306_OTA_VERIFY_ONLY=1`, which applies that same strict digest and
+  state check without erase, upload, pending/test, or reset commands;
+- supports `B306_OTA_RESET_ONLY=1`, which verifies the current image, sends an
+  OS reset, reconnects, and repeats the strict image-state proof.
+
+The updater never sends an SMP `confirm=true` request. It selects MCUboot test
+mode with `confirm=false`, verifies the active digest after reset, then stops at
+`OTA_ACTION:handoff_app_roundtrip_confirm` while the image is still
+unconfirmed. Restore Fusion Master v28 and run
+`B306_Part/tools/confirm_b306_v32.py`; its PREPARE response and token-bearing
+COMMIT prove the host observed the new application's control plane before the
+application confirms itself after its guard delay. The no-confirm proof image
+rejects that handoff and reboots for automatic MCUboot rollback at its timeout.
 
 The frozen source remains read-only. Its pinned SHA-256 is:
 
@@ -75,3 +98,12 @@ Before an actual update, verify no capture is active and state the same marker
 and SHA to the operator. Flash only the Fusion Master DK, always with explicit
 `--dev-id 683234364`. Never use this client for DWM1001C payloads or a
 Fusion-PCB SWD target.
+
+The `b306-remote-ready-v10` updater is
+`B306_Part/builds/dk-ota-remote-ready-v10/merged.hex`, SHA-256
+`d16dac405a51a320d673554fb64e31f2cf1d26e27c89eb266876059fede1fe36`.
+Its payload is the signed B306 image SHA-256
+`f374b14535feff76de40dcf49e4419845d0c9b51a7f8d588698e52b4088dd76c`.
+The reset-only build is
+`B306_Part/builds/dk-reset-preflight-remote-ready-v10/merged.hex`, SHA-256
+`71921e5105815c5279686e8b3dc4c4c057796f377d97f3698936e2e4eb19f417`.

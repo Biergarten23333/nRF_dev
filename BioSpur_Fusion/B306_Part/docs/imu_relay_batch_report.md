@@ -66,13 +66,14 @@ written before either serial port is opened. Offline parser/gate tests cover
 correlated replies, 16-bit IMU sequence wrap, a clean sentinel, and rejection
 of orphan plus sequence-gap evidence.
 
-The Phase-C lever-arm source remains **NOT FOUND**: no `.kicad_pcb`,
-`.kicad_sch`, legacy `.brd`, or legacy `.sch` file exists under either
-`BioSpur_Fusion` or `BioSpur_UWB_before_start`. Therefore
-`B306_Part/host/pc/fusion_config.json` contains null XYZ values, the required
-IMU-center-to-UWB-antenna/body-frame sign convention, and an explicit
-`allow_fusion_with_missing_lever_arm=false` gate. The approximate 400 mil scale
-was not guessed into axis components.
+The original Phase-C search looked for the wrong CAD family. The board design
+authority is **EasyEDA**, and the recovered project identifies BioSpur V0.10
+and the fitted JY61P. Existing P1/P2 data resolve the maneuver-frame mapping,
+but the capture metadata does not bind that hinge to the PCB long/short axis;
+the persisted operator estimate contains only the approximate 400 mil
+magnitude, not signed board-frame XYZ. The host-side `fusion_config.json`
+therefore keeps the three components null and retains
+`allow_fusion_with_missing_lever_arm=false` instead of inventing signs.
 
 ## Phase-A build evidence
 
@@ -372,3 +373,51 @@ to the Master_Tag B120, execute the dual-core handover, and cold-power-cycle
 the B120. The standalone procedure and frozen rollback are in
 `UWB_Part/handover/master-tag-relay1-carrier/README.md`. Tag OTA duration and
 all V-B results remain **NOT RUN** until that handover is reported successful.
+
+## Homecoming continuation — H1.2 and V-B
+
+The deferred carrier ceremony was completed and cold-cycled under the H1
+recovery record. Probe `1050070698` remained on Master_Tag and was not touched
+during the following OTA or validation.
+
+The tag payload `tag-fusion-link-v2-relay1`, SHA-256
+`3175f6b5b72258fe6da73ac89b72cfd839bba7443f2028f2b1418cf77429e97b`,
+was delivered over Path M. The established OTA driver completed upload,
+pending/test, and reset in 41.59 seconds and restored Master_Tag RECV at
+43.50 seconds. The independent nRF54 observer saw the post-reset advertising
+burst; Master_Tag reconnected and confirmed the new marker. The later marker
+check was not part of one continuous host timeline, so no exact
+command-to-marker duration is claimed.
+
+V-B1 through V-B5 passed:
+
+- Path M produced a one-tag `MASK=0x0001` schedule and 10.000 Hz `TR;2`.
+- Path R PING/STATUS/VERSION preserved B306 queue acknowledgement, tag source,
+  and correlation.
+- Direct Path-R CFG returned `LIVE=1 RUN=1` and produced 10.021391 Hz in the
+  steady window with zero monitored anomaly deltas. Its acknowledgement
+  reported `MASK=0x0000`, retained as an observed direct-CFG representation.
+- M→R→M completed without a stuck/zero-TX state; the final Path-M stage
+  measured 9.9751 Hz.
+- V-B5 is the H1.2 timing result: 41.59 seconds through upload/test/reset and
+  43.50 seconds to restored Master_Tag RECV. Exact command-to-marker time is
+  not claimed because the marker check used a later host session.
+
+The pre-registered immediate V-B3 12-second rate prediction missed because the
+window included the explicit 5,000 ms epoch delay and averaged 6.582 Hz. This
+was an activation-timing prediction error, not missing transmissions after the
+epoch.
+
+The two prior empty 60-second Master_Tag scans remain unexplained. The live
+post-OTA advertising/reconnect path passed, so a tag-side no-resume defect is
+not confirmed. Full candidate-stream logging remains mandatory for future
+scans.
+
+The Fusion Master decision is now corrected: DK `683234364` with
+`dk-fusion-imu-relay-v7` remains installed, native USB CDC is primary, and RTT
+is diagnostic backup. The previously reported "physically broken connector"
+was wrong; cable/data-path replacement restored CDC. The custom-B306 receiver
+swap is cancelled as a necessity.
+
+Evidence:
+`B306_Part/logs/homecoming_20260724/h1_2_ota_20260724_183622/REPORT.md`.

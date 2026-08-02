@@ -174,13 +174,24 @@ strobe.
 nRF52832 P0.19 is a different signal: the internal DW1000 `int-gpios` input.
 Frozen `uwb_port.c` configures it as `GPIO_INPUT`; never drive or repurpose it.
 
-Before completing P2:
+The 2026-07-21 Stage 2/4b run deployed the P0.26 implementation and captured it
+on B306 P1.03 and DSView in parallel. The resolved electrical contract is idle
+low with a 10.6–10.8 us active-high pulse. B306 uses a no-pull input and
+dual-edge GPIOTE -> PPI -> TIMER2 capture. See
+`B306_Part/docs/timing_contract.md` and the timestamped Stage 2 report under
+`B306_Part/logs/`.
 
-1. Bench-validate the P0.26 implementation in `UWB_Part/fusion-link/`; it
-   configures a defined inactive level and pulses in the broadcast-poll
-   TX-done path but has not yet been deployed.
-2. Capture that pulse on B306 nRF52840 P1.03 through the `UWB_RDY` net.
-3. On B306, discard edges until a plausible cadence is established.
+`b306-remote-ready-v10` first replaced the failed compare-at-zero extension.
+Phase G then audited every TIMER2 consumer and closed the hardware-wrap debt in
+`b306-imu-relay-v26`: TIMER2 runs freely, announces each epoch at `UINT32_MAX`
+without clearing the counter, and capture expansion handles both ISR orderings.
+The v26-t16 hardware test passed 2,747 wraps in 180 s; the production v26 image
+then passed an 85-minute run across the natural 32-bit boundary with one exact
+wrap, strictly monotonic UWB/IMU timestamps, and no boundary-attributable
+transport or pairing error. See
+`B306_Part/logs/phase_g_rollover_20260725/REPORT.md`. Before a capture, use the
+documented remote-reset preflight and confirm fresh `node_ms`, not a physical
+button.
 
 The PCB's 0 Ω series resistors on `UWB_RDY`, `UWB_TX1`, and `UWB_RX1` are logic
 analyser test points. During bring-up, use those signals as ground truth. Field
@@ -263,6 +274,19 @@ the user-environment west fail board discovery. The verified build command in
 `B306_Part/firmware/README.md` isolates Python and uses the NCS toolchain's
 complete package set.
 
+### Production memory gate
+
+Every DWM1001C and B306 production build must run
+`tools/zephyr_memory_gate.py` after linking. FLASH must remain at or below 95%
+and RAM at or below **85%** of the linker region. A successful link is not an
+acceptance result without both capacity rows and a passing gate.
+
+Never use `CONFIG_COMMON_LIBC_MALLOC_ARENA_SIZE=-1` or any other heap sized
+from remaining RAM. Allocator and kernel heaps must be explicit finite values,
+including zero when there are no callers. Keep runtime
+`CONFIG_THREAD_ANALYZER` reports enabled on both MCUs until measured
+high-water marks justify stack reductions.
+
 ---
 
 ## 8. DFU / OTA
@@ -276,10 +300,25 @@ The private signing key is outside the repository. Never replace it or change
 the partition layout after the first B306 flash without treating the change as
 an SWD recovery event.
 
+The DWM1001C freeze and Task A line separately inherit the NCS v2.8.0 sample
+RSA-2048 key `bootloader/mcuboot/root-rsa-2048.pem`; its public-key
+fingerprint is recorded in `UWB_Part/FREEZE_INTERFACE.md`. Do not silently
+replace it. A future key change invalidates OTA compatibility across that
+entire DWM fleet and is a fleet-wide SWD event.
+
 Requirements:
 
 - OTA and capture are **mutually exclusive**. Entering DFU cleanly stops IMU
   sampling and UWB ingest; the exit contract leaves the node in RUN.
+- **`CFG_STOP` is version-gated.** Send it only after a live `VERSION` reply
+  confirms exactly `tag-fusion-link-v2-relay3`. Relay3 preserves schedule,
+  epoch, generation, and `SUPERFRAME_BASE`; `CFG_RUN` resumes the same
+  schedule. Relay2 or earlier replies `RUN=0 STATE=ARMED` but actually
+  disables TDMA pacing and free-runs at approximately 64 Hz. For an unknown
+  or older image, `MODE IDLE` is the only real stop; it persists and discards
+  the schedule, so perform a complete Master TDMA reconfiguration and require
+  `CFG_OK LIVE=1` before the next run. Relay3 is a hard prerequisite before
+  operating more than one tag simultaneously.
 - The 52832's own OTA path is separate and unchanged. Two independent DFU
   targets on one board — document which tool flashes which.
 
@@ -293,6 +332,15 @@ has passed.
 ## 9. Data & logging conventions
 
 - Logs under `logs/`, never at a component root.
+- BioSpur may write to `/mnt/DatenBankHDD` **only** below
+  `/mnt/DatenBankHDD/BioSpur_Archive/`. Every other pre-existing HDD path,
+  including `nRF_dev_cold_storage`, is hands-off.
+- Raw evidence is never deleted. After an accepted batch verdict, archive its
+  raw payload with `B306_Part/tools/archive_batch.sh`: check free space, copy
+  without overwriting a pre-existing destination, verify SHA-256 at the HDD
+  destination, and only after PASS replace the SSD payload with a symlink.
+  Re-running an archived batch verifies the existing destination and must not
+  create a duplicate.
 - Run directories use `<purpose>_YYYYMMDD_HHMMSS`.
 - Host capture files carry: firmware git SHA (both MCUs), connection parameters
   (PHY, interval, MTU/data length), IMU rate, UART interface version, and the
@@ -316,10 +364,15 @@ has passed.
 | **P6** | Vicon validation | Improvement is real **and attributable** (gap-filling vs outlier rejection reported separately) |
 | **P7** | Multi-node decision | Measure how many nodes one central holds. ≥8 → ship. <8 → reverse-broadcast. |
 
-**The current checkpoint is the two first-flash human handovers.** Do not begin
-dependent feature work until the human reports the observed result from both
-MCUs. Stage 1 then proves a complete BLE-only B306 DFU cycle before P1/P2
-feature images are accepted.
+**P2 timing acceptance and the TIMER2 rollover debt are closed.** The
+first-flash handovers, B306 BLE-only DFU cycle, UART ingest, dual-edge
+attribution, accelerated 2,747-wrap hardware test, and production 85-minute
+natural-boundary run have passed. The accepted images are
+`b306-imu-relay-v26` and `dk-fusion-imu-relay-v13`; the boundary run observed
+strictly monotonic UWB/IMU timestamps and zero boundary-attributable transport,
+pairing, or unexplained sequence loss. Do not infer sensor-health perfection:
+the same run measured nine recovered JY61P class-2 events and four attributable
+one-sample gaps, all outside the rollover exclusion window.
 
 ### Hard sequencing rules
 
@@ -398,6 +451,10 @@ implementing and measuring against the versioned Task A interface.
   `B306_Part/builds/<target>-<purpose>` or
   `UWB_Part/builds/<target>-<purpose>`; never place `build/` or `build-*`
   beside source and never create build output at the `BioSpur_Fusion/` root.
+- **Operator-facing Fusion PCB identity is always the B306 `BSFxxxx` code.**
+  Do not report the DWM1001C `BSxxxx` identity or its `0xB1xx` on-air address
+  to the operator unless the operator explicitly asks for that low-level
+  diagnostic. Internal logs may retain both identities for traceability.
 - Experiment output uses timestamped purpose directories under `logs/`.
 - Build from NCS with west and an explicit board; use pristine builds for
   reproducibility and record the source command/SHA.
@@ -415,6 +472,14 @@ implementing and measuring against the versioned Task A interface.
   are separate targets with separate images and flash authority.
 - Never hard-code `/dev/ttyACM<n>` or `cat` nRF CDC devices. Resolve stable
   identity and open serial with DTR/RTS disabled.
+- **Every device-port transmit uses a decode-before-send guard.** Before
+  writing any byte, resolve the stable by-id/SNR identity, assert the port
+  role plus baud/framing against the authoritative device registry, open with
+  DTR/RTS disabled, and decode at least one role-appropriate known-format
+  inbound record with the production parser. A parameter mismatch or failure
+  to decode means zero TX and an immediate stop. Archive the registry
+  assertion, decoded guard record, and the complete TX/RX transition. Never
+  infer one device class's serial parameters from another device class.
 - Before destructive OTA/flash, verify device identity and image target.
 - Commit subjects are concise, imperative/descriptive, and usually
   `<scope>: <change>`; freeze milestones may use a leading `FREEZE`.

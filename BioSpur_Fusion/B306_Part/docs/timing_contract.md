@@ -41,10 +41,33 @@ trigger, or UWB capture to an RTC: at 500 ppm an LF-derived clock accumulates
 
 ## IMU samples
 
-The target IMU cadence is 200 Hz, one trigger every 5 ms. The timestamp attached
-to a sample is the hardware-timer trigger instant, not I2C completion and not a
-JY61P internal timestamp. The I2C transaction may complete later, but its result
-is paired with the already-captured trigger tick.
+The target IMU cadence is 200 Hz. Because this board has no JY61P data-ready
+wire, the current continuous-pull implementation stamps the TIMER2 value
+immediately before arming the blocking TWIM read, not at I2C completion and not
+from the JY61P clock. The accepted `0x34`/26-byte transaction at 400 kHz takes
+788 us on this board.
+
+The 2026-07-25 C-R two-speed regression measured
+`latency = 203 + 22.5*N` us at 400 kHz and
+`latency = 464 + 90*N` us at 100 kHz, both with R² = 1 and zero residual at all
+six tested lengths. A joint wire-time model gives 585 us returned-data time,
+approximately 87 us addressing/control time, and approximately 116 us fixed
+software time for the production transaction. The old approximately 650 us
+figure was an unmeasured incomplete estimate and is superseded. A byte-identical
+future image must reproduce 788 us within both 100 us and 15%; the effective
+gate is therefore ±100 us.
+
+Software cannot split the 116 us fixed term into pre-SCL TWIM/DMA setup and
+post-SCL completion/return. The true correction relative to the first SCL edge
+therefore remains bounded within `[0, 116] us`; an electrical trace would be
+required to place it more precisely. This is 2.32% of the sensor's dominant
+0–5 ms asynchronous refresh phase.
+
+Within the burst, same-axis gyro data begins six returned bytes after the
+corresponding accelerometer data, a measured 135 us wire offset at 400 kHz.
+That is 0.0486 degrees even at 360 degrees/s. Whether this JY61P shadows the
+whole register block at burst start is unknown; the available WT61P-family
+documentation is not authority for this fitted part.
 
 The fitted JY61P uses the WT61P-compatible 6-axis subset: I2C address `0x50`,
 accelerometer and gyroscope registers `0x34`–`0x39`, and `RRATE` register
@@ -130,15 +153,19 @@ each anchor response offsets and then freeze the model.
 
 ## Pairing and loss rules
 
-- A UWB payload is paired to the closest preceding ready pulse within 20 ms;
-  the sweep counter is retained for continuity checks and reporting.
+- A UWB payload is paired to the closest preceding ready pulse within 50 ms.
+  The frame-side timestamp is captured in the UART `RX_RDY` callback and
+  carried with the DMA bytes, so parser-thread scheduling cannot change it.
+  The sweep counter is retained for continuity checks and reporting.
 - Edges during the first 50 ms after capture initialization are discarded;
   later edges must form a valid dual-edge pulse and satisfy the frame-pairing
   window. Cadence plausibility is reported by the host analysis, not silently
   filtered in B306 firmware.
 - Duplicate, missing, or out-of-order sequences are reported; they are never
   silently interpolated.
-- UART arrival time may be retained as diagnostics only.
+- UART arrival time participates only in strobe/frame association and
+  transport-delay diagnostics. It is not the UWB measurement epoch; the
+  hardware-captured ready edge remains that authority.
 - A logical BLE batch carries one B306 time domain and explicit first/last
   sequence values so the host can detect loss.
 

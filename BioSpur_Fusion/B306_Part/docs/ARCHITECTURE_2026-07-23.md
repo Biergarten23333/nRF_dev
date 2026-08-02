@@ -36,7 +36,7 @@
 - tag 的 P0.26 strobe 输出是 nRF52832 侧引脚号,与 B306 的
   P0.26 只是编号巧合,文档中一律标明芯片归属。
 - 杆臂:IMU MEMS 封装中心 ↔ UWB 天线几何中心 ≈ 400 mil
-  (10.16mm),三维向量从 KiCad 读,落主机融合配置;相位中心
+  (10.16mm),三维向量从 EasyEDA 设计与实测轴映射闭合后落主机融合配置;相位中心
   绝对位置被天线延迟标定吸收,方向摆动已由 Layer1(46mm)记账。
 
 ## 2. 控制拓扑:双路径并行(铁律)
@@ -84,7 +84,10 @@ IMU(200Hz,B306 主动拉,默认静默):
   JY61P ──I2C 26B 连读(0x34-0x40)──► B306
   · TWIM 中断/DMA 模式,绝不 polling
   · 采样时标 = B306 TIMER2(与 strobe 同源)——δt 塌缩为
-    I2C 拉取延迟常数(~0.65ms)
+    实测 I2C 拉取延迟常数 788µs(400kHz,0x34/26B)。C-R 双速
+    回归分解为数据线时 585µs + 寻址/控制线时约 87µs +
+    软件固定项约 116µs;后续逐字节相同的镜像以 788µs 为基线,
+    同时满足 ±100µs 和 ±15% 才通过。
   · IMU START 前零拉取零发送(和 tag 等 TDMA 同纪律)
 
 上行汇聚(B306 ──BLE notify──► DK ──USB CDC──► PC 日志):
@@ -191,9 +194,13 @@ STOP(反序,IMU 最先停):
 
 - 统一时基:B306 TIMER2(µs)。UWB 观测时刻 = strobe 硬件捕获
   (GPIOTE+PPI,CPU 无关);IMU 时刻 = 拉取发起的 TIMER2 戳。
-- δt(UWB↔IMU):同 MCU 同时钟,残余 = I2C 拉取常延迟,一次
-  标定;双时标(到达+帧内)留在记录里供在线估计。
-- 杆臂 r:KiCad 三维向量 → 主机融合配置(符号约定:IMU→天线,
+- δt(UWB↔IMU):同 MCU 同时钟,残余 = I2C 拉取常延迟。2026-07-25
+  C-R 软件标定在 400kHz 得到 788µs;其中软件固定项的 pre-TWIM
+  setup 与 post-TWIM completion/return 分割无法靠软件测出,所以
+  时标修正仍有 [0,116]µs 的位置不确定区间。它约占 0–5ms
+  异步刷新锯齿满幅的 2.32%,必须记录但不是主导项。双时标
+  (到达+帧内)留在记录里供在线估计。
+- 杆臂 r:EasyEDA/实测闭合的三维向量 → 主机融合配置(符号约定:IMU→天线,
   IMU 体系;集成后原地纯旋转自检验符号)。
 - yaw(世界系坐标对齐):6 轴无磁,IMU 自身永远不知道朝向;
   唯一的世界方向参考是 UWB 位移。机制:载体真实移动一段
@@ -211,6 +218,47 @@ STOP(反序,IMU 最先停):
   当前拐杖 = 每次采集前 REBOOT(现可远程);真修 = P6 独立
   专项,产品化前必做。
 
+## 6a. 多 Fusion 节点时间对齐(本代决议)
+
+本代选择 **UWB TDMA 全局 superframe index + 各节点 TIMER2 线性拟合**。
+节点可以任意时刻上电;上电偏移只进入拟合截距。主机连续拟合
+`t_TIMER2 = a + b*N_global`,把 UWB 和 IMU 都离线映射到公共轴。不要
+增加同步线,也不要新增"同步命令"。
+
+2026-07-25 源码审计发现一个实现缺口:现有 96B 帧的 `sweep` 是 tag
+本地 `uint32_t` 计数器,启动归零;CFG 的 `EPOCH` 是到共同未来 deadline
+的相对毫秒延迟,不是 Master 分配的 epoch 编号。因此目标架构已定,
+但 `N_global` 尚不存在。最小修复是在 CFG 增加同轮一致的
+`SUPERFRAME_BASE`,保留 tag 本地计数供内部维护,只把公开 `sweep`
+改为 `base + schedule_cycle`;复用原 `uint32_t sweep`,96B schema 不增大。
+Master 重启若要求同一 capture 连续,还需持久化 next base 或明确切分
+time-domain segment。
+
+现有单机 5 分钟/3,001 sweep 拟合得到 `b=99.993584 ms`,
+`-64.155 ppm`,残差 σ=97.189µs、|p95|=130.004µs、
+|max|=288.681µs,满足当前 P4 `<10ms and constant` 的量级要求。
+`σ/√N` 给出的 5min/30min 理想截距误差是 1.774/0.724µs,但残差
+lag-1=-0.381,不满足 IID 假设;负相关使均值比 IID 更快收敛,并呈现
+absolute-deadline 调度的“本次晚、下次早”纠偏特征。保守工作边界仍
+采用实测最大 0.289ms。与
+TIMER2-vs-DW 晶振 `-12.376±0.512ppm` 不一致,因为 superframe 斜率
+还包含 tag 的 RTC/LF 调度时钟。归档长跑在 wrap 前只有 30.991min
+连续权威;26 个滑动 5min 拟合仅移动 0.943ppm peak-to-peak,未显示
+足以威胁 10ms/30min 门限的漂移,但不能冒充完整一小时温漂验证。
+
+明确拒绝:
+
+- host BLE sync:CI=437.5ms 下到达时刻先被 connection event 量化,
+  再叠 USB/host 调度抖动,远差于当前 <0.3ms 的拟合残差;
+- UTC sync:UTC 每 session 只记一次,仅作文件名/外部粗关联的 label,
+  永远不称为同步;
+- 用时钟直接对 Vicon/video:跨系统靠一次清晰的 start/stop 动作
+  event marker。
+
+下一代改用 DW3000 空口 beacon 的 radio timestamp 获取 sub-µs 节点
+间对齐。本代 superframe fit 是过渡方案,不是永久架构。完整证据:
+`B306_Part/logs/homecoming_20260725/multiunit_alignment_20260725/`。
+
 ## 7. 已知债清单(并列记录,不在本批)
 
 1. B306 TIMER2 回绕真修 + P6 迁移验证(80min 专项)
@@ -221,6 +269,8 @@ STOP(反序,IMU 最先停):
    可归因)
 5. 两个 tag fork(freeze / fusion)合并债;APOS 移除 = 分歧点
    之一(本批兑现,已记账)
+6. tag 公共 `sweep` 仍是本地计数;实现 Master 分配的
+   `SUPERFRAME_BASE`,再做两节点同 index 残差直接相减
 
 ## 8. 终态对照(box 产品形态)
 

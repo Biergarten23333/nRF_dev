@@ -5,13 +5,15 @@ Date: 2026-07-20
 ## Result
 
 The B306-to-Fusion-Master half is operational. The DWM1001C-to-B306 half is
-silent, and reversing the candidate B306 UART input does not change that
-result.
+not yet tested with a running Task A transmitter.
 
-This is not a framing, CRC, BLE, or RX/TX-direction finding: the B306 UARTE
-received exactly zero electrical bytes on both candidate nets.
+The human-flashed `tag-fusion-link-v2` image reset-looped in
+`sys_heap_init()` before application startup because linked RAM usage was
+100%. It never ran the UART/strobe code. Therefore the earlier P1.01/P1.02
+comparison was guaranteed to receive zero bytes and is **void as a
+RX/TX-direction test**.
 
-## Real-board A/B evidence
+## Real-board observations (direction conclusion void)
 
 Both B306 images advertised as `BSF3C79`. The DK Fusion Master connected,
 negotiated ATT MTU 247, DLE 251, and 2M PHY, discovered the diagnostic service,
@@ -19,9 +21,9 @@ and subscribed to both data and telemetry characteristics.
 
 | B306 image | RX pin | Observation |
 |---|---|---|
-| `b306-uart-bridge-v5`, 0.1.4+0 | P1.01 (`UWB_RX1`) | More than 120 s: `bytes=0`, `frames=0`, all parser/error counters zero |
-| `b306-uart-rx-p1.02-v6`, 0.1.5+0 | P1.02 (`UWB_TX1`, reversal test) | More than 45 s: `bytes=0`, `frames=0`, all parser/error counters zero |
-| `b306-uart-rx-p1.01-v7`, 0.1.6+0 | P1.01 (`UWB_RX1`, restored) | BLE bridge healthy; repeated telemetry still `bytes=0`, `frames=0` |
+| `b306-uart-bridge-v5`, 0.1.4+0 | P1.01 (`UWB_RX1`) | B306 path healthy; zero bytes while DWM application was not running |
+| `b306-uart-rx-p1.02-v6`, 0.1.5+0 | P1.02 (`UWB_TX1`, reversal test) | B306 path healthy; zero bytes while DWM application was not running |
+| `b306-uart-rx-p1.01-v7`, 0.1.6+0 | P1.01 (`UWB_RX1`, restored) | BLE bridge healthy; zero bytes while DWM application was not running |
 
 The authoritative PCB mapping remains DWM nRF52832 P0.05 TX → B306 nRF52840
 P1.01 RX. P1.02 is B306 TX → DWM P0.11 RX and is deliberately left unassigned
@@ -53,7 +55,7 @@ merged.hex SHA-256:
 Only the explicitly selected DK probe was directly flashed. B306 v7 was
 installed through the shared fast BLE OTA core.
 
-## DWM-side evidence
+## DWM-side root cause
 
 The read-only Master_Tag `tdma show` response listed only BS9336, BS955A, and
 BSCCF4. A DK scan-only application then scanned all named advertisements for
@@ -61,7 +63,7 @@ BSCCF4. A DK scan-only application then scanned all named advertisements for
 nearby devices, but no Fusion DWM `BSxxxx`, Nordic UART Service, default
 `Zephyr`, or DWM-named advertisement.
 
-The flashed Task A artifact on disk is intact:
+The human-flashed Task A v2 artifact on disk was intact:
 
 ```text
 UWB_Part/fusion-link/tag/tag-fusion-link-v2.merged.hex
@@ -69,40 +71,56 @@ SHA-256:
 53986bc713a5e75dcbe5b1e28d286b692250adff1faee9863041a780e4234758
 ```
 
-Static inspection confirms that artifact contains marker
-`tag-fusion-link-v2`, BLE advertising code, `BSL_STATUS`, the 460800 UARTE
-driver, and the UART-link implementation. It does not prove which instruction
-the physical DWM reaches at runtime.
+RTT then showed a deterministic imprecise bus fault at about 2 ms followed by
+reset. The resolved build had:
 
-## Next gate: human DWM RTT observation
+```text
+CONFIG_COMMON_LIBC_MALLOC_ARENA_SIZE=-1
+20010000 N _end
+RAM: 65536 / 65536 B = 100.00%
+```
 
-Do not produce or flash another DWM image from this finding. First connect
-J-Link OB probe `1050070698` to the Fusion PCB DWM1001C SWD pads, with the board
-powered and common ground. Do not connect it to B306. Then collect boot RTT
-without erasing or programming:
+Address resolution maps the fault path to `sys_heap_init()`. The image never
+printed `Tag firmware marker: tag-fusion-link-v2`, so its UART and READY paths
+were never reached.
+
+## Next gate: human DWM forward-fix reflash
+
+The fresh human-only handover is:
+
+```text
+B306_Part/handover/dwm1001c-task-a-v2-ramfix1/README.md
+```
+
+It installs marker `tag-fusion-link-v2-ramfix1`, whose pristine build passes
+FLASH 92.17% and RAM 80.32%. Codex has not flashed it.
+
+After the human reports a stable marker, collect RTT with the explicitly
+selected probe:
 
 ```bash
 cd /mnt/nrf_ssd/nRF_dev/BioSpur_Fusion
-mkdir -p UWB_Part/logs/dwm_task_a_boot_20260720
-timeout 20s JLinkRTTLogger \
+mkdir -p UWB_Part/logs/dwm_task_a_ramfix1_boot_20260720
+timeout 75s JLinkRTTLogger \
   -Device NRF52832_XXAA \
   -If SWD \
   -Speed 4000 \
   -USB 1050070698 \
   -RTTAddress 0x20000410 \
   -RTTChannel 0 \
-  UWB_Part/logs/dwm_task_a_boot_20260720/rtt.log
+  UWB_Part/logs/dwm_task_a_ramfix1_boot_20260720/rtt.log
 ```
 
 Report the complete log. In particular:
 
-- `Tag firmware marker: tag-fusion-link-v2` proves the intended application
+- `Tag firmware marker: tag-fusion-link-v2-ramfix1` proves the intended application
   booted.
 - `BioSpur UART link init failed: <rc>` isolates the pre-BLE early return.
 - `Tag UWB bringup failed: <rc>` explains absence of sweep/UART generation
   after BLE startup.
-- A healthy marker plus increasing `BSLSTAT` counters moves the finding to the
-  physical TX/routing path and makes the logic-analyser capture the next gate.
+- A healthy marker plus increasing `BSLSTAT` counters makes P1.01 the first
+  real direction test. Reverse to P1.02 only if that live-transmitter test
+  still yields zero electrical bytes.
 
 If the marker is absent, treat that as the handover finding. Do not immediately
 flash a revised image.

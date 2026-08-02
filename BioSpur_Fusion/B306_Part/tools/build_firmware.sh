@@ -40,4 +40,9 @@ python3 "$workspace_root/tools/zephyr_memory_gate.py" \
   --flash-limit-percent 95 \
   --ram-limit-percent 85
 
+python3 "$workspace_root/B306_Part/tools/check_deployed_marker.py" \
+  --elf "$build_dir/firmware/zephyr/zephyr.elf" \
+  --artifact "$build_dir/firmware/zephyr/zephyr.signed.bin" \
+  --manifest "$workspace_root/B306_Part/firmware/deployed_markers.json"
+
 echo "Built B306 firmware: $build_dir"

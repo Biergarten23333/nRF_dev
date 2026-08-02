@@ -49,6 +49,21 @@ sha256sum
 Do not regenerate or replace this key after first flash. The repository never
 contains the private key.
 
+## Productization debts fixed by the first-flash boundary
+
+Two unrelated issues must remain visible together because either can require a
+physical service operation after deployment:
+
+| Debt | Current mitigation | Closure criterion |
+|---|---|---|
+| Signing/DFU authorization | Preserve the existing private-key backup and use the bench-only unauthenticated SMP service only on the controlled rig. The public key embedded by the first flash cannot be replaced over OTA. | Define production key custody and authenticated update authorization before field deployment; any bootloader-key change is an SWD handover. |
+| B306 TIMER2 32-bit microsecond wrap | **Power-cycle B306 before every capture session** and limit current sessions to 60 minutes. Confirm fresh `strobe_us` / `node_ms` values in preflight. | Repair and validate the 64-bit extension across multiple natural wraps without losing UWB records or telemetry. Do not change firmware merely to complete the current one-hour REDO. |
+
+The TIMER2 debt was exposed by the 2026-07-21 one-hour attempt: the last edge
+was `4,294,873,329 us`, 93,967 us before the boundary, and the next nominal
+100 ms edge crossed it; telemetry ended at the same boundary. Evidence:
+`UWB_Part/logs/absdeadline_1h_20260721_205638/analysis/1h-summary.md`.
+
 ## Generated and frozen partition layout
 
 Partition Manager generated this map from the first dynamic NCS v2.8.0
@@ -188,6 +203,40 @@ The raw records are
 Only Fusion Master DK probe `683234364` was directly flashed, always with
 explicit probe selection. No Fusion-PCB SWD interface was touched. The exact
 reproducible builds and safety contract are in `host/dk_ota/README.md`.
+
+## Stage 2 v8 OTA result — active image valid, secondary slot incomplete
+
+The Stage 2/4b capture image was sent through the same permanent fast OTA path:
+
+```text
+target:              BSF3C79
+marker:              b306-strobe-capture-v8
+MCUboot version:     0.1.7+0
+installed archive:   B306_Part/logs/strobe_attribution_5min_20260721_101455/b306-installed-v8.signed.bin
+signed SHA-256:      57da2011b25bab04ccfc80ab1aa0ee7cf450984ccd4ac1277d86ee7a209a425f
+updater merged.hex:  B306_Part/builds/dk-ota-strobe-capture-v8/merged.hex
+updater SHA-256:     802705369862fea8093fc2d0494b2fe4efe7f492e315345d63bf6cf3f3c14ee2
+```
+
+The first update completed, but its terminal RTT output was not captured. A
+second same-image updater reset was then started solely to recapture the log.
+Before writing, that client read slot 0 as version `0.1.7`, bootable, active,
+and confirmed; this is direct proof that the first update succeeded. The second
+run disconnected during erase/upload and was stopped after partially
+overwriting slot 1. The confirmed slot-0 v8 image remained intact and later
+passed the 300 s strobe-attribution run.
+
+The active image is accepted. The secondary slot is not a rollback artifact and
+must not be represented as one until a later complete OTA replaces it. This was
+an operator-side duplicate-run error, not evidence that the installed v8 image
+or the shared OTA implementation failed.
+
+The exact installed signed payload is retained in the accepted run directory,
+not inferred from a later rebuild. A post-run isolated rebuild produced the
+same MCUboot payload hash
+`94cbf3b858211209f0c5b3851dcafa0cb329d0e73b013bd103164201ad658b21`
+with a different valid ECDSA signature; its signed-binary SHA is
+`da22a7d55bb8a24c44125249d3f5df06cc85478d271c19b599c426ebe5a18be5`.
 
 ## Runtime state contract for later capture images
 

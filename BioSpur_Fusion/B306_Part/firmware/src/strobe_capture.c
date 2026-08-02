@@ -12,6 +12,7 @@
 #include <nrfx_gpiote.h>
 #include <nrfx_ppi.h>
 #include <nrfx_timer.h>
+#include <zephyr/irq.h>
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/clock_control/nrf_clock_control.h>
 #include <zephyr/logging/log.h>
@@ -29,6 +30,23 @@ LOG_MODULE_DECLARE(biospur_fusion);
 #define STROBE_TIMER_INSTANCE 2
 #define STROBE_TIMER_HZ 1000000u
 #define STROBE_TIMER_IRQ_PRIORITY 1u
+
+#ifndef BSF_TIMER_COUNTER_BITS
+#define BSF_TIMER_COUNTER_BITS 32
+#endif
+
+#if BSF_TIMER_COUNTER_BITS == 16
+#define STROBE_TIMER_BIT_WIDTH NRF_TIMER_BIT_WIDTH_16
+#define STROBE_TIMER_MAX UINT16_MAX
+#elif BSF_TIMER_COUNTER_BITS == 24
+#define STROBE_TIMER_BIT_WIDTH NRF_TIMER_BIT_WIDTH_24
+#define STROBE_TIMER_MAX 0x00ffffffu
+#elif BSF_TIMER_COUNTER_BITS == 32
+#define STROBE_TIMER_BIT_WIDTH NRF_TIMER_BIT_WIDTH_32
+#define STROBE_TIMER_MAX UINT32_MAX
+#else
+#error "BSF_TIMER_COUNTER_BITS must be 16, 24, or 32"
+#endif
 
 #define TIMER_WRAP_CC NRF_TIMER_CC_CHANNEL0
 #define RISING_CAPTURE_CC NRF_TIMER_CC_CHANNEL1
@@ -158,7 +176,7 @@ static uint64_t timer_current_epoch(uint32_t current_low)
 	} while (wraps_before != wraps_after);
 
 	return bsf_timer_epoch_resolve((uint32_t)wraps_after, wrap_pending,
-				       current_low);
+				       current_low, BSF_TIMER_COUNTER_BITS);
 }
 
 static uint64_t timer_now_us(void)
@@ -166,7 +184,8 @@ static uint64_t timer_now_us(void)
 	uint32_t low = nrfx_timer_capture(&strobe_timer, SOFTWARE_CAPTURE_CC);
 	uint64_t epoch = timer_current_epoch(low);
 
-	return (epoch << 32) | low;
+	return (epoch << BSF_TIMER_COUNTER_BITS) |
+		(low & STROBE_TIMER_MAX);
 }
 
 uint64_t bsf_time_now_us(void)
@@ -190,7 +209,8 @@ static uint64_t expand_hardware_capture(uint32_t captured_low)
 	} while (wraps_before != wraps_after);
 
 	return bsf_timer_expand_capture((uint32_t)wraps_after, wrap_pending,
-					current_low, captured_low);
+					current_low, captured_low,
+					BSF_TIMER_COUNTER_BITS);
 }
 
 static void timer_event_handler(nrf_timer_event_t event_type, void *context)
@@ -357,10 +377,9 @@ static uint32_t abs_delta_u32(uint32_t a, uint32_t b)
 	return a >= b ? a - b : b - a;
 }
 
-void bsf_strobe_capture_pair(uint8_t uwb_flags,
+void bsf_strobe_capture_pair(uint8_t uwb_flags, uint64_t frame_timestamp_us,
 			     bsf_capture_record_t *record)
 {
-	uint64_t frame_timestamp_us = timer_now_us();
 	size_t edge_total = drain_and_sort_edges();
 	size_t pulse_total = decode_pulses(edge_total);
 	int best = -1;
@@ -476,6 +495,7 @@ void bsf_strobe_capture_telemetry(bsf_ble_telemetry_t *telemetry)
 		(uint32_t)atomic_get(&near_window_edge_count);
 	telemetry->capture_flags = capture_flags;
 	telemetry->timer_instance = STROBE_TIMER_INSTANCE;
+	telemetry->timer_counter_bits = BSF_TIMER_COUNTER_BITS;
 	telemetry->pairing_window_us = BSF_CAPTURE_PAIR_WINDOW_US;
 }
 
@@ -529,19 +549,32 @@ int bsf_strobe_capture_init(void)
 		return ret;
 	}
 
-	timer_config.bit_width = NRF_TIMER_BIT_WIDTH_32;
+	timer_config.bit_width = STROBE_TIMER_BIT_WIDTH;
 	timer_config.interrupt_priority = STROBE_TIMER_IRQ_PRIORITY;
+	/*
+	 * Enabling an nrfx instance only compiles its handler; Zephyr does not
+	 * connect that handler to the NVIC on an application's behalf. Without
+	 * this explicit connection the first compare event reaches the default
+	 * unhandled-IRQ path (IRQn 10 for TIMER2 on nRF52840).
+	 */
+	IRQ_CONNECT(NRFX_IRQ_NUMBER_GET(
+			    NRF_TIMER_INST_GET(STROBE_TIMER_INSTANCE)),
+		    STROBE_TIMER_IRQ_PRIORITY,
+		    NRFX_TIMER_INST_HANDLER_GET(STROBE_TIMER_INSTANCE),
+		    0, 0);
 	err = nrfx_timer_init(&strobe_timer, &timer_config, timer_event_handler);
 	if (err != NRFX_SUCCESS) {
 		hfxo_release();
 		return -EIO;
 	}
-	/* Announce the next epoch at UINT32_MAX, but do not CLEAR the timer.  The
-	 * counter still wraps naturally after exactly 2^32 ticks.  Avoiding a
+	irq_enable(NRFX_IRQ_NUMBER_GET(
+			   NRF_TIMER_INST_GET(STROBE_TIMER_INSTANCE)));
+	/* Announce the next epoch at the counter maximum, but do not CLEAR the
+	 * timer. The counter wraps naturally at the configured width. Avoiding a
 	 * compare at zero removes the boundary associated with the deployed
 	 * first-wrap interrupt/telemetry outage. */
 	atomic_set(&timer_wrap_count, 0);
-	nrfx_timer_extended_compare(&strobe_timer, TIMER_WRAP_CC, UINT32_MAX,
+	nrfx_timer_extended_compare(&strobe_timer, TIMER_WRAP_CC, STROBE_TIMER_MAX,
 				    0u, true);
 	nrfx_timer_clear(&strobe_timer);
 	nrfx_timer_enable(&strobe_timer);
@@ -645,7 +678,8 @@ int bsf_strobe_capture_init(void)
 	nrfx_gpiote_trigger_enable(&strobe_gpiote, STROBE_PIN, true);
 	capture_active = true;
 
-	LOG_INF("strobe capture ready: pin=P1.03 timer=TIMER2@1MHz hfclk=HFXO-held rise_ch=%u fall_ch=%u ppi=%u/%u initial=%s pull=none window_us=%u",
+	LOG_INF("strobe capture ready: pin=P1.03 timer=TIMER2@1MHz/%ubit hfclk=HFXO-held rise_ch=%u fall_ch=%u ppi=%u/%u initial=%s pull=none window_us=%u",
+		BSF_TIMER_COUNTER_BITS,
 		rising_gpiote_channel, falling_gpiote_channel,
 		(unsigned int)rising_ppi_channel,
 		(unsigned int)falling_ppi_channel,

@@ -46,13 +46,22 @@ endif()
 if(DEFINED ENV{B306_OTA_VERIFY_ONLY})
   set(B306_OTA_VERIFY_ONLY "$ENV{B306_OTA_VERIFY_ONLY}" CACHE BOOL "" FORCE)
 endif()
+if(DEFINED ENV{B306_OTA_RESET_ONLY})
+  set(B306_OTA_RESET_ONLY "$ENV{B306_OTA_RESET_ONLY}" CACHE BOOL "" FORCE)
+endif()
 
-if(B306_OTA_VERIFY_ONLY)
+if(B306_OTA_RESET_ONLY)
+  set(b306_ota_upload_enable 0)
+  set(b306_ota_verify_only 0)
+  set(b306_ota_reset_only 1)
+elseif(B306_OTA_VERIFY_ONLY)
   set(b306_ota_upload_enable 0)
   set(b306_ota_verify_only 1)
+  set(b306_ota_reset_only 0)
 else()
   set(b306_ota_upload_enable 1)
   set(b306_ota_verify_only 0)
+  set(b306_ota_reset_only 0)
 endif()
 
 foreach(required_var
@@ -102,6 +111,48 @@ endif()
 execute_process(
   COMMAND
     "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/scripts/apply_post_reset_verify.py"
+    "${generated_source_dir}/master_ota.c"
+  RESULT_VARIABLE verify_patch_result
+  OUTPUT_VARIABLE verify_patch_stdout
+  ERROR_VARIABLE verify_patch_stderr
+)
+if(NOT verify_patch_result EQUAL 0)
+  message(FATAL_ERROR
+          "Failed to apply post-reset verification to the pinned fast OTA source:\n${verify_patch_stdout}\n${verify_patch_stderr}")
+endif()
+
+execute_process(
+  COMMAND
+    "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/scripts/apply_idempotent_state_machine.py"
+    "${generated_source_dir}/master_ota.c"
+  RESULT_VARIABLE state_machine_patch_result
+  OUTPUT_VARIABLE state_machine_patch_stdout
+  ERROR_VARIABLE state_machine_patch_stderr
+)
+if(NOT state_machine_patch_result EQUAL 0)
+  message(FATAL_ERROR
+          "Failed to apply idempotent state machine to the pinned fast OTA source:\n${state_machine_patch_stdout}\n${state_machine_patch_stderr}")
+endif()
+
+execute_process(
+  COMMAND
+    "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/scripts/apply_graduated_read_retry.py"
+    "${generated_source_dir}/master_ota.c"
+  RESULT_VARIABLE read_retry_patch_result
+  OUTPUT_VARIABLE read_retry_patch_stdout
+  ERROR_VARIABLE read_retry_patch_stderr
+)
+if(NOT read_retry_patch_result EQUAL 0)
+  message(FATAL_ERROR
+          "Failed to apply graduated read retry to the pinned fast OTA source:\n${read_retry_patch_stdout}\n${read_retry_patch_stderr}")
+endif()
+
+execute_process(
+  COMMAND
+    "${Python3_EXECUTABLE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_ota_image_inc.py"
     "${B306_OTA_IMAGE}"
     "${generated_source_dir}/ota_image.inc"
@@ -118,6 +169,7 @@ endif()
 get_filename_component(NCS_BASE "${ZEPHYR_BASE}" DIRECTORY)
 target_include_directories(app PRIVATE
   "${generated_source_dir}"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
   "${freeze_ota_root}/src"
   "${NCS_BASE}/modules/lib/zcbor/include"
   "${ZEPHYR_BASE}/subsys/mgmt/mcumgr/util/include"
@@ -129,11 +181,13 @@ target_compile_definitions(app PRIVATE
   APP_MASTER_OTA_TARGET_TOKEN_ID=-1
   APP_MASTER_OTA_UPLOAD_ENABLE=${b306_ota_upload_enable}
   APP_MASTER_OTA_VERIFY_ONLY=${b306_ota_verify_only}
+  APP_MASTER_OTA_RESET_ONLY=${b306_ota_reset_only}
   APP_MASTER_OTA_CHUNK_SIZE=448
   APP_MASTER_OTA_BSF_PROFILE=1
   APP_MASTER_OTA_AUTO_START=1
   APP_MASTER_OTA_EXPECT_NUS=0
   APP_MASTER_OTA_PAYLOAD_MARKER="${B306_OTA_MARKER}"
+  APP_MASTER_OTA_DIAG_FIRST_GATE_WRITE_REQ=0
 )
 target_sources(app PRIVATE
   "${generated_source_dir}/master_ota.c"

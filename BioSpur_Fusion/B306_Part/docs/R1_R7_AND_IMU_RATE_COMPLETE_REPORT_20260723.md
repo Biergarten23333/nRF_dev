@@ -260,7 +260,7 @@ The following remained **NOT RUN / DEFERRED-PHYSICAL**:
 - V-A1 slow rotation, the gold-standard gyro auto-zero test;
 - V-A3 repeated ±2 g boundary crossings;
 - V-C2 dynamic UWB/IMU timing handshake;
-- lever-arm extraction from the KiCad machine;
+- lever-arm extraction from the EasyEDA design plus measured board-to-IMU axis mapping;
 - Master_Tag carrier flash and cold cycle;
 - tag `v2-relay1` OTA;
 - V-B1 through V-B5.

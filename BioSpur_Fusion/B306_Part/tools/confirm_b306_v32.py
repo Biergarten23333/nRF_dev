@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+"""Earn B306-v32 MCUboot confirmation through a two-command BLE round trip."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+from capacity_ramp import b306_command
+from coldstart_fusion_control import decode_guard
+from fusion_session import LineChannel, SessionError, resolve_fusion_port
+
+
+MASTER_MARKER = "dk-fusion-imu-relay-v28"
+B306_MARKER = "b306-imu-relay-v32"
+TOKEN_RE = re.compile(r"\btoken=([0-9A-F]{8})\b")
+
+
+def now() -> str:
+    return datetime.now(timezone.utc).astimezone().isoformat(timespec="milliseconds")
+
+
+def extract_token(text: str) -> str:
+    match = TOKEN_RE.search(text)
+    if match is None:
+        raise SessionError(f"confirmation token absent from reply: {text}")
+    return match.group(1)
+
+
+def wait_master_status(channel: LineChannel, timeout_s: float = 5.0) -> str:
+    channel.send("MASTER STATUS")
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        line = channel.read(deadline)
+        if line is not None and line.startswith("FUSION_MASTER_STATUS "):
+            return line
+    raise SessionError("MASTER STATUS timed out")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--node", required=True, choices=(
+        "BSF3C79", "BSFC2CC", "BSF44AD", "BSF6C53", "BSF8BC4",
+        "BSF1120", "BSF31CC", "BSFAA61", "BSFB165", "BSFEC35",
+    ))
+    parser.add_argument("--out-dir", required=True, type=Path)
+    parser.add_argument("--fusion-port")
+    args = parser.parse_args()
+    args.out_dir.mkdir(parents=True, exist_ok=False)
+
+    result: dict[str, object] = {
+        "status": "IN_PROGRESS",
+        "started": now(),
+        "node": args.node,
+        "master_marker": MASTER_MARKER,
+        "b306_marker": B306_MARKER,
+    }
+    channel: LineChannel | None = None
+    with (args.out_dir / "fusion_cdc.log").open(
+        "x", encoding="utf-8", buffering=1
+    ) as log:
+        try:
+            channel = LineChannel(
+                resolve_fusion_port(args.fusion_port), log, "FUSION"
+            )
+            result["port"] = channel.port
+            result["decode_before_send"] = decode_guard(channel, 15.0)
+
+            master = wait_master_status(channel)
+            if f"marker={MASTER_MARKER}" not in master:
+                raise SessionError(f"Fusion Master marker mismatch: {master}")
+            result["master_status"] = master
+
+            ping = b306_command(channel, args.node, "PING", "PONG ")
+            if f"fw={B306_MARKER}" not in str(ping["text"]):
+                raise SessionError(f"B306 marker mismatch: {ping['text']}")
+            result["ping"] = ping
+
+            before = b306_command(
+                channel, args.node, "BOOT CONFIRM STATUS", "BOOT CONFIRM STATUS "
+            )
+            result["before"] = before
+            if "confirmed=1" in str(before["text"]):
+                result["status"] = "ALREADY_CONFIRMED"
+                return 0
+            if "required=1" not in str(before["text"]):
+                raise SessionError(f"image is not confirmable: {before['text']}")
+
+            prepared = b306_command(
+                channel, args.node, "BOOT CONFIRM PREPARE", "BOOT CONFIRM PREPARED "
+            )
+            token = extract_token(str(prepared["text"]))
+            result["prepared"] = prepared
+            result["token"] = token
+
+            committed = b306_command(
+                channel,
+                args.node,
+                f"BOOT CONFIRM COMMIT={token}",
+                "BOOT CONFIRM COMMIT OK ",
+            )
+            result["committed"] = committed
+
+            deadline = time.monotonic() + 15.0
+            after = None
+            while time.monotonic() < deadline:
+                time.sleep(1.0)
+                candidate = b306_command(
+                    channel,
+                    args.node,
+                    "BOOT CONFIRM STATUS",
+                    "BOOT CONFIRM STATUS ",
+                )
+                if "confirmed=1" in str(candidate["text"]):
+                    after = candidate
+                    break
+            if after is None:
+                raise SessionError("v32 did not confirm inside the 15 s host bound")
+            result["after"] = after
+            result["status"] = "PASS"
+            return 0
+        except Exception as exc:
+            result["status"] = "FAIL"
+            result["error"] = f"{type(exc).__name__}: {exc}"
+            raise
+        finally:
+            if channel is not None:
+                channel.close()
+            result["ended"] = now()
+            (args.out_dir / "result.json").write_text(
+                json.dumps(result, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (OSError, SessionError, RuntimeError, ValueError) as exc:
+        print(f"ERROR: {exc}", flush=True)
+        raise SystemExit(2)
