@@ -3,7 +3,6 @@
 set -euo pipefail
 
 ARCHIVE_ROOT="/mnt/DatenBankHDD/BioSpur_Archive"
-LOG_ROOT="/mnt/nrf_ssd/nRF_dev/BioSpur_Fusion/UWB_Part/logs"
 INDEX="${ARCHIVE_ROOT}/ARCHIVE_INDEX.md"
 
 die() {
@@ -12,13 +11,20 @@ die() {
 }
 
 usage() {
-    echo "usage: $0 <batch-name> [payload-relative-path=raw]" >&2
+    echo "usage: $0 [UWB_Part|B306_Part] <batch-name> [payload-relative-path=raw]" >&2
     exit 2
 }
+
+COMPONENT="UWB_Part"
+if [[ $# -ge 1 && ( "$1" == "UWB_Part" || "$1" == "B306_Part" ) ]]; then
+    COMPONENT="$1"
+    shift
+fi
 
 [[ $# -ge 1 && $# -le 2 ]] || usage
 BATCH="$1"
 PAYLOAD="${2:-raw}"
+LOG_ROOT="/mnt/nrf_ssd/nRF_dev/BioSpur_Fusion/${COMPONENT}/logs"
 
 [[ -n "$BATCH" && "$BATCH" != /* && "$BATCH" != *".."* ]] ||
     die "invalid batch name"
@@ -31,16 +37,16 @@ mountpoint -q /mnt/DatenBankHDD || die "HDD is not mounted"
 
 if [[ "$PAYLOAD" == "." ]]; then
     SOURCE="${LOG_ROOT}/${BATCH}"
-    DEST="${ARCHIVE_ROOT}/UWB_Part/logs/${BATCH}"
-    INDEX_KEY="${BATCH}"
+    DEST="${ARCHIVE_ROOT}/${COMPONENT}/logs/${BATCH}"
+    INDEX_KEY="${COMPONENT}/${BATCH}"
 else
     SOURCE="${LOG_ROOT}/${BATCH}/${PAYLOAD}"
-    DEST="${ARCHIVE_ROOT}/UWB_Part/logs/${BATCH}/${PAYLOAD}"
-    INDEX_KEY="${BATCH}/${PAYLOAD}"
+    DEST="${ARCHIVE_ROOT}/${COMPONENT}/logs/${BATCH}/${PAYLOAD}"
+    INDEX_KEY="${COMPONENT}/${BATCH}/${PAYLOAD}"
 fi
 
 case "$DEST" in
-    "${ARCHIVE_ROOT}/UWB_Part/logs/"*) ;;
+    "${ARCHIVE_ROOT}/${COMPONENT}/logs/"*) ;;
     *) die "destination escapes ${ARCHIVE_ROOT}" ;;
 esac
 case "$SOURCE" in
@@ -173,7 +179,11 @@ fi
 # payload so the only fallible operation remaining is an atomic local rename.
 LINK_TMP="${SOURCE}.archive-link.$$"
 ln -s "$DEST" "$LINK_TMP"
-rm -rf --one-file-system "$SOURCE"
+# Historical build archives may intentionally be read-only (0444/0555). The
+# destination has already preserved and verified their original metadata, so
+# make only the soon-to-be-removed SSD copy owner-writable before cleanup.
+chmod -R u+w "$SOURCE"
+find "$SOURCE" -xdev -depth -delete
 mv "$LINK_TMP" "$SOURCE"
 [[ "$(realpath "$SOURCE")" == "$(realpath "$DEST")" ]] ||
     die "post-archive SSD symlink verification failed"

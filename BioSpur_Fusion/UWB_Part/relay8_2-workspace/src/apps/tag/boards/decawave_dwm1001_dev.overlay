@@ -1,0 +1,10 @@
+/*
+ * DWM1001 module pins 20/18 are nRF52832 P0.5/P0.11 and are physically routed
+ * to the B306. uart0 is the nRF52832's only UART instance, so the Fusion build
+ * owns it as a 460800-baud EasyDMA data link; diagnostics use non-blocking RTT.
+ */
+&uart0 {
+	compatible = "nordic,nrf-uarte";
+	current-speed = <460800>;
+	status = "okay";
+};
