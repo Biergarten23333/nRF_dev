@@ -77,15 +77,35 @@ enum bsf_bt_stage {
 };
 
 /*
- * Quiescent stages: the thread is legitimately parked with nothing in flight,
- * so dwelling here for hours is normal and must never trigger the monitor.
- * Everything else represents an operation that completes in microseconds to
- * low milliseconds on a healthy board (measured in Stage 2).
+ * TERMINAL stages: the last mark of a completed operation. The thread is
+ * legitimately parked with nothing in flight, so dwelling here indefinitely is
+ * normal and must never trigger the monitor. Everything else is mid-operation
+ * and completes in microseconds to low milliseconds on a healthy board
+ * (measured in Stage 2, from bsf_bt_stage_max[]).
+ *
+ * The list must contain EVERY stage that can be the last one marked, or the
+ * monitor false-positives on an idle board. Stage 2 caught exactly that:
+ * DEFERRED_RESCHEDULE_AFTER is the final mark of the disconnect path, so after
+ * any ordinary disconnect the stage sits there until the next connection's
+ * first ACL packet. The DK restore leaves boards disconnected for far longer
+ * than the 5 s threshold, so the monitor fired on a perfectly healthy board,
+ * rebooted an image that had not yet earned its MCUboot confirmation, and
+ * MCUboot correctly reverted it. Two OTA attempts were spent on that before it
+ * was diagnosed.
+ *
+ *   IDLE                      - nothing has happened yet since boot
+ *   CONN_RECV_EXIT            - an ACL packet was fully processed
+ *   TX_NOTIFY_EXIT            - a tx-notify completed outside bt_conn_recv()
+ *   DEFERRED_RESCHEDULE_AFTER - the disconnect path ran to completion
+ *
+ * Every other stage is bracketed by a following mark on the healthy path, so it
+ * cannot be terminal unless the thread is genuinely stuck in it.
  */
 #define BSF_BT_STAGE_IS_QUIESCENT(s)                                          \
 	((s) == BSF_BT_STAGE_IDLE ||                                          \
 	 (s) == BSF_BT_STAGE_CONN_RECV_EXIT ||                                \
-	 (s) == BSF_BT_STAGE_TX_NOTIFY_EXIT)
+	 (s) == BSF_BT_STAGE_TX_NOTIFY_EXIT ||                                \
+	 (s) == BSF_BT_STAGE_DEFERRED_RESCHEDULE_AFTER)
 
 /* Event codes, carried alongside the stage in the flight recorder. */
 #define BSF_BT_EVENT_STAGE       0u   /* ordinary stage transition          */

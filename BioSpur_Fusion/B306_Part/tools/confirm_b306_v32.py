@@ -124,8 +124,18 @@ def main() -> int:
                     # two correctly uploaded images before it was diagnosed.
                     # PING is an idempotent read query, so re-asking is not an
                     # OTA write retry, exactly as for bridge_not_ready above.
+                    # V43: `reason=not_connected` on the SAME terms, and for the
+                    # same reason. The updater resets the target into its new
+                    # image; until that image advertises and the Master
+                    # reconnects, the Master has no peer to route to and rejects
+                    # with not_connected. That is the reconnect window, not a
+                    # failed deployment -- the v43 canary hit it with the upload
+                    # already reported MARKERS_COMPLETE, and treating it as fatal
+                    # would quarantine a board whose image is correctly written.
+                    # Still an idempotent read query, so still not a write retry.
                     retryable = ("bridge_not_ready" in str(exc)
-                                 or "reason=syntax" in str(exc))
+                                 or "reason=syntax" in str(exc)
+                                 or "reason=not_connected" in str(exc))
                     if not retryable:
                         raise
                     if time.monotonic() >= bridge_deadline:
