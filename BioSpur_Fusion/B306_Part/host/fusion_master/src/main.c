@@ -56,11 +56,33 @@
 #define LED_EXPECTED_DEFAULT 5u
 #define LED_EXPECTED_MIN 1u
 #define LED_EXPECTED_MAX 10u
+/*
+ * Zephyr enforces the Core-spec ATT transaction timeout, BT_ATT_TIMEOUT =
+ * K_SECONDS(30) (att_internal.h), and on expiry att_timeout() calls
+ * bt_att_disconnected() -- after which the spec forbids any further request,
+ * command, indication or notification on that bearer until reconnection.
+ *
+ * The application timeout is therefore set below 30 s so our own bookkeeping
+ * always resolves first and reports a clean terminal reason instead of being
+ * overtaken by the stack.
+ *
+ * It does NOT prevent the bearer teardown. bt_gatt_cancel() -> bt_att_req_cancel()
+ * -> bt_att_chan_req_cancel() only sets chan->req = &cancel and frees the
+ * request; it never touches chan->timeout_work, which is cancelled solely in
+ * att_handle_rsp() when a real response arrives. A stalled peer never responds,
+ * so the 30 s timer still fires and still kills the bearer. The only action
+ * that pre-empts it is disconnecting the peer first -- see RECONNECT below.
+ */
+#define STALL_READ_TIMEOUT_MS 25000u
+#define ATT_TRANSACTION_TIMEOUT_MS 30000u
+
+/* Bounded wait for a forced-reconnect probe to complete, disconnect to bridge. */
+#define RECONNECT_PROBE_TIMEOUT_MS 120000u
 
 #if defined(CONFIG_BSF_CCC_FILTERED_REPRO)
 #define FUSION_MASTER_MARKER "dk-fusion-ccc-repro-v1"
 #else
-#define FUSION_MASTER_MARKER "dk-fusion-imu-relay-v29"
+#define FUSION_MASTER_MARKER "dk-fusion-imu-relay-v34"
 #endif
 
 #define CDC_ACM_NODE DT_NODELABEL(cdc_acm_uart0)
@@ -99,6 +121,10 @@ static struct bt_uuid_128 fusion_telemetry_uuid =
 static struct bt_uuid_128 fusion_control_uuid =
 	BT_UUID_INIT_128(BT_UUID_128_ENCODE(
 		BSF_BLE_UUID_CONTROL_W32, BSF_BLE_UUID_W16_1,
+		BSF_BLE_UUID_W16_2, BSF_BLE_UUID_W16_3, BSF_BLE_UUID_W48));
+static struct bt_uuid_128 fusion_stall_uuid =
+	BT_UUID_INIT_128(BT_UUID_128_ENCODE(
+		BSF_BLE_UUID_STALL_W32, BSF_BLE_UUID_W16_1,
 		BSF_BLE_UUID_W16_2, BSF_BLE_UUID_W16_3, BSF_BLE_UUID_W48));
 
 static bt_addr_le_t candidate_addr;
@@ -161,6 +187,7 @@ enum discovery_stage {
 	DISCOVERY_DATA_CCC,
 	DISCOVERY_TELEMETRY_CHARACTERISTIC,
 	DISCOVERY_TELEMETRY_CCC,
+	DISCOVERY_STALL_CHARACTERISTIC,
 	DISCOVERY_CONTROL_CHARACTERISTIC,
 };
 
@@ -176,9 +203,15 @@ struct fusion_peer {
 	struct bt_gatt_discover_params discover_params;
 	struct bt_gatt_subscribe_params data_subscribe_params;
 	struct bt_gatt_subscribe_params telemetry_subscribe_params;
+	struct bt_gatt_read_params stall_read_params;
+	struct k_work_delayable stall_read_timeout_work;
+	uint32_t stall_read_generation;
+	uint32_t stall_read_started_ms;
+	bool stall_read_active;
 	uint16_t service_end_handle;
 	uint16_t data_value_handle;
 	uint16_t telemetry_value_handle;
+	uint16_t stall_value_handle;
 	uint16_t control_value_handle;
 	uint16_t interval;
 	uint16_t latency;
@@ -549,8 +582,16 @@ static void reset_node_time_extension(struct fusion_peer *peer)
 	peer->imu_wait_epoch_reported = false;
 }
 
+static void stall_read_abort(struct fusion_peer *peer, const char *reason);
+static void stall_read_timeout_handler(struct k_work *work);
+static void reconnect_probe_note_disconnect(const char *name);
+static void reconnect_probe_note_connected(const char *name);
+static void reconnect_probe_note_bridge_ready(struct fusion_peer *peer);
+static void reconnect_probe_timeout_handler(struct k_work *work);
+
 static void release_peer(struct fusion_peer *peer)
 {
+	stall_read_abort(peer, "disconnect");
 	k_spinlock_key_t key = k_spin_lock(&qos_lock);
 
 	memset(&peer->qos, 0, sizeof(peer->qos));
@@ -576,6 +617,8 @@ static struct fusion_peer *allocate_peer(const bt_addr_le_t *addr,
 			memcpy(peer->name, name, TARGET_NAME_LEN);
 			peer->name[TARGET_NAME_LEN] = '\0';
 			peer->rssi = rssi;
+			k_work_init_delayable(&peer->stall_read_timeout_work,
+					      stall_read_timeout_handler);
 			return peer;
 		}
 	}
@@ -632,6 +675,7 @@ enum fusion_log_kind {
 	FUSION_LOG_IMU = 3,
 	FUSION_LOG_REPLY = 4,
 	FUSION_LOG_QUEUE_COUNTERS = 5,
+	FUSION_LOG_POOL_USAGE = 6,
 };
 
 struct fusion_imu_log {
@@ -682,6 +726,7 @@ struct fusion_log_record {
 		struct fusion_imu_log imu;
 		struct fusion_reply_log reply;
 		bsf_ble_queue_counters_t queue_counters;
+		bsf_ble_pool_usage_t pool_usage;
 	} payload;
 };
 
@@ -1077,6 +1122,44 @@ static bool qos_vendor_event(struct net_buf_simple *buf)
 static void qos_work_handler(struct k_work *work);
 K_WORK_DELAYABLE_DEFINE(qos_work, qos_work_handler);
 
+static uint16_t master_pool_low_water[BSF_NET_BUF_POOL_MAX];
+static bool master_pool_low_water_ready;
+
+static uint32_t pool_name_hash(const char *name)
+{
+	uint32_t hash = 2166136261u;
+
+	for (; name != NULL && *name != '\0'; ++name) {
+		hash = (hash ^ (uint8_t)*name) * 16777619u;
+	}
+	return hash;
+}
+
+static void report_master_pool_usage(uint32_t now_ms)
+{
+	uint8_t index = 0u;
+
+	printk("FUSION_MASTER_POOL master_ms=%u", now_ms);
+	STRUCT_SECTION_FOREACH(net_buf_pool, pool) {
+		uint16_t available;
+
+		if (index >= ARRAY_SIZE(master_pool_low_water)) {
+			break;
+		}
+		available = (uint16_t)atomic_get(&pool->avail_count);
+		if (!master_pool_low_water_ready ||
+		    available < master_pool_low_water[index]) {
+			master_pool_low_water[index] = available;
+		}
+		printk(" pool%u=%08x:%u/%u", index,
+		       pool_name_hash(pool->name), available,
+		       master_pool_low_water[index]);
+		++index;
+	}
+	master_pool_low_water_ready = true;
+	printk(" count=%u\n", index);
+}
+
 static void qos_work_handler(struct k_work *work)
 {
 	uint32_t now_ms = (uint32_t)k_uptime_get();
@@ -1143,6 +1226,7 @@ static void qos_work_handler(struct k_work *work)
 			       record.delivered_ctl);
 		}
 	}
+	report_master_pool_usage(now_ms);
 	k_work_reschedule(&qos_work, K_MSEC(QOS_WINDOW_MS));
 }
 
@@ -1373,6 +1457,22 @@ static void log_queue_counters_record(const struct fusion_log_record *record)
 	       record->peer_imu_epoch_defer_drop);
 }
 
+static void log_pool_usage_record(const struct fusion_log_record *record)
+{
+	const bsf_ble_pool_usage_t *p = &record->payload.pool_usage;
+
+	printk("FUSION_POOL proto=%u name=%s master_ms=%llu node_ms=%u count=%u",
+	       p->version, record->node_name,
+	       (unsigned long long)record->master_arrival_ms,
+	       p->node_uptime_ms, p->pool_count);
+	for (uint8_t i = 0u; i < p->pool_count &&
+	     i < ARRAY_SIZE(p->pools); ++i) {
+		printk(" pool%u=%08x:%u/%u", i, p->pools[i].name_hash,
+		       p->pools[i].available, p->pools[i].low_water);
+	}
+	printk("\n");
+}
+
 static void log_binary_record(const struct fusion_log_record *record)
 {
 	if (record->kind == FUSION_LOG_UWB) {
@@ -1453,6 +1553,12 @@ static void log_binary_record(const struct fusion_log_record *record)
 				 record->node_name,
 				 record->master_arrival_ms,
 				 payload, sizeof(payload));
+	} else if (record->kind == FUSION_LOG_POOL_USAGE) {
+		host_binary_emit(BSF_HOST_RECORD_POOL_USAGE,
+				 record->node_name,
+				 record->master_arrival_ms,
+				 &record->payload.pool_usage,
+				 sizeof(record->payload.pool_usage));
 	}
 }
 
@@ -1477,6 +1583,8 @@ static void fusion_log_thread(void *first, void *second, void *third)
 			log_reply_record(&record);
 		} else if (record.kind == FUSION_LOG_QUEUE_COUNTERS) {
 			log_queue_counters_record(&record);
+		} else if (record.kind == FUSION_LOG_POOL_USAGE) {
+			log_pool_usage_record(&record);
 		}
 	}
 }
@@ -1876,6 +1984,14 @@ static uint8_t data_notification(
 		record.kind = FUSION_LOG_QUEUE_COUNTERS;
 		memcpy(queue, data, sizeof(*queue));
 		led_check_queue(peer, queue);
+	} else if (kind == BSF_BLE_KIND_POOL_USAGE) {
+		bsf_ble_pool_usage_t *pools = &record.payload.pool_usage;
+
+		if (length != sizeof(*pools)) {
+			goto malformed_kind_length;
+		}
+		record.kind = FUSION_LOG_POOL_USAGE;
+		memcpy(pools, data, sizeof(*pools));
 	} else {
 		mark_malformed(peer);
 		printk("FUSION_MALFORMED name=%s kind=unknown type=%u len=%u node_total=%u total=%u\n",
@@ -1999,6 +2115,28 @@ static uint8_t discover_fusion(struct bt_conn *conn,
 		return BT_GATT_ITER_STOP;
 	}
 	if (attr == NULL) {
+		if (peer->discovery_stage == DISCOVERY_STALL_CHARACTERISTIC) {
+			/*
+			 * v35 and earlier have no status characteristic.  Keep the
+			 * control path usable so that such nodes can be upgraded OTA;
+			 * v36 discovery records the read handle normally.
+			 */
+			printk("FUSION_STALL_CHARACTERISTIC name=%s value=0 compatibility=pre_v36\n",
+			       peer->name);
+			peer->discovery_stage = DISCOVERY_CONTROL_CHARACTERISTIC;
+			peer->discover_params.uuid = &fusion_control_uuid.uuid;
+			peer->discover_params.start_handle =
+				peer->telemetry_value_handle + 2u;
+			peer->discover_params.end_handle = peer->service_end_handle;
+			peer->discover_params.type =
+				BT_GATT_DISCOVER_CHARACTERISTIC;
+			err = bt_gatt_discover(conn, &peer->discover_params);
+			if (err != 0) {
+				printk("FUSION_FAIL name=%s step=discover_control_compat_start err=%d\n",
+				       peer->name, err);
+			}
+			return BT_GATT_ITER_STOP;
+		}
 		printk("FUSION_FAIL name=%s step=discover_%u err=not_found start=%u end=%u mode=%s\n",
 		       peer->name, peer->discovery_stage,
 		       params->start_handle, params->end_handle,
@@ -2178,9 +2316,34 @@ static uint8_t discover_fusion(struct bt_conn *conn,
 		       peer->name, peer->telemetry_value_handle,
 		       attr->handle);
 
+		peer->discovery_stage = DISCOVERY_STALL_CHARACTERISTIC;
+		peer->discover_params.uuid = &fusion_stall_uuid.uuid;
+		peer->discover_params.start_handle = attr->handle + 1u;
+		peer->discover_params.end_handle = peer->service_end_handle;
+		peer->discover_params.type = BT_GATT_DISCOVER_CHARACTERISTIC;
+		err = bt_gatt_discover(conn, &peer->discover_params);
+		if (err != 0) {
+			printk("FUSION_FAIL name=%s step=discover_stall_start err=%d\n",
+			       peer->name, err);
+		}
+		break;
+
+	case DISCOVERY_STALL_CHARACTERISTIC: {
+		const struct bt_gatt_chrc *characteristic = attr->user_data;
+
+		peer->stall_value_handle = characteristic->value_handle;
+		printk("FUSION_STALL_CHARACTERISTIC name=%s value=%u props=0x%02x\n",
+		       peer->name, peer->stall_value_handle,
+		       characteristic->properties);
+		if ((characteristic->properties & BT_GATT_CHRC_READ) == 0u) {
+			printk("FUSION_FAIL name=%s step=stall_not_readable\n",
+			       peer->name);
+			break;
+		}
 		peer->discovery_stage = DISCOVERY_CONTROL_CHARACTERISTIC;
 		peer->discover_params.uuid = &fusion_control_uuid.uuid;
-		peer->discover_params.start_handle = attr->handle + 1u;
+		peer->discover_params.start_handle =
+			peer->stall_value_handle + 1u;
 		peer->discover_params.end_handle = peer->service_end_handle;
 		peer->discover_params.type = BT_GATT_DISCOVER_CHARACTERISTIC;
 		err = bt_gatt_discover(conn, &peer->discover_params);
@@ -2189,6 +2352,7 @@ static uint8_t discover_fusion(struct bt_conn *conn,
 			       peer->name, err);
 		}
 		break;
+	}
 
 	case DISCOVERY_CONTROL_CHARACTERISTIC: {
 		const struct bt_gatt_chrc *characteristic = attr->user_data;
@@ -2221,11 +2385,14 @@ static uint8_t discover_fusion(struct bt_conn *conn,
 		peer->latency = latency;
 		peer->timeout = timeout;
 		peer->bridge_ready = true;
-		printk("FUSION_BRIDGE_READY name=%s rssi=%d mtu=%u data=%u telemetry=%u control=%u interval_units=%u interval_us=%u latency=%u timeout_units=%u\n",
+		printk("FUSION_BRIDGE_READY name=%s rssi=%d mtu=%u data=%u telemetry=%u stall=%u control=%u interval_units=%u interval_us=%u latency=%u timeout_units=%u\n",
 		       peer->name, peer->rssi, bt_gatt_get_mtu(conn),
 		       peer->data_value_handle, peer->telemetry_value_handle,
+		       peer->stall_value_handle,
 		       peer->control_value_handle, interval,
 		       BT_CONN_INTERVAL_TO_US(interval), latency, timeout);
+
+		reconnect_probe_note_bridge_ready(peer);
 
 		if (info_err == 0 && info.type == BT_CONN_TYPE_LE) {
 			printk("FUSION_CI_CURRENT name=%s interval_units=%u interval_us=%u latency=%u timeout_units=%u\n",
@@ -2348,6 +2515,7 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 	printk("FUSION_CONNECTED name=%s addr=%s node_connection=%u connections_total=%u active=%u\n",
 	       peer->name, addr, peer->reconnections, reconnections,
 	       (unsigned int)peer_count_allocated());
+	reconnect_probe_note_connected(peer->name);
 
 	if (spacing_transition) {
 		err = bt_conn_disconnect(conn,
@@ -2389,6 +2557,8 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	       peer->name, addr, reason, peer->received_packets,
 	       peer->malformed_packets);
 	led_note_fault(FUSION_LED_FAULT_DISCONNECT, 1u);
+	/* Timestamp before release_peer() clears the slot we read the name from. */
+	reconnect_probe_note_disconnect(peer->name);
 	if (connecting_peer == peer) {
 		connecting = false;
 		connecting_peer = NULL;
@@ -2521,6 +2691,285 @@ static void led_status_print(void)
 	       faults.count[FUSION_LED_FAULT_DISCONNECT],
 	       (uint32_t)atomic_get(&led_uwb_records),
 	       (uint32_t)atomic_get(&led_imu_records));
+}
+
+static uint8_t stall_read_cb(struct bt_conn *conn, uint8_t att_err,
+			     struct bt_gatt_read_params *params,
+			     const void *data, uint16_t length)
+{
+	struct fusion_peer *peer = CONTAINER_OF(
+		params, struct fusion_peer, stall_read_params);
+	uint32_t generation = peer->stall_read_generation;
+	uint32_t elapsed_ms = (uint32_t)k_uptime_get() -
+		peer->stall_read_started_ms;
+
+	ARG_UNUSED(conn);
+	if (!peer->stall_read_active) {
+		printk("FUSION_STALL_READ_LATE name=%s generation=%u ignored=1\n",
+		       peer->name, generation);
+		return BT_GATT_ITER_STOP;
+	}
+	if (att_err != 0u) {
+		printk("FUSION_STALL_READ name=%s att_err=%u len=0\n",
+		       peer->name, att_err);
+	} else if (data == NULL || length != sizeof(bsf_stall_status_t)) {
+		printk("FUSION_STALL_READ name=%s att_err=0 len=%u expected=%u parse=fail\n",
+		       peer->name, length,
+		       (unsigned int)sizeof(bsf_stall_status_t));
+	} else if (((const uint8_t *)data)[0] == BSF_STALL_RING_VERSION) {
+		/*
+		 * A v41 onset-ring page. It is deliberately the SAME 232 bytes as
+		 * the status struct, so the length check above cannot separate
+		 * them -- byte 0 does. Without this branch the page is decoded as
+		 * a status struct and 64 of its bytes are never printed at all,
+		 * because the pools loop is bounded by a pool_count that is
+		 * really ring payload.
+		 *
+		 * The master deliberately does NOT parse the ring. It emits the
+		 * raw bytes and lets tools/stall_ring_decode.py own the layout,
+		 * so a later ring format needs no DK reflash. Chunked to 32 bytes
+		 * per line because fusion_printf() emits one whole line per call.
+		 */
+		const uint8_t *raw = data;
+
+		printk("FUSION_STALL_RING name=%s len=%u v=%u page=%u pages=%u entries=%u\n",
+		       peer->name, length, raw[0], raw[1], raw[2], raw[3]);
+		for (uint16_t off = 0u; off < length; off += 32u) {
+			char hex[65];
+			uint16_t n = MIN((uint16_t)32u, (uint16_t)(length - off));
+
+			for (uint16_t i = 0u; i < n; ++i) {
+				(void)snprintf(&hex[i * 2u], 3u, "%02x",
+					       raw[off + i]);
+			}
+			hex[n * 2u] = '\0';
+			printk("FUSION_STALL_RING_HEX name=%s off=%u n=%u %s\n",
+			       peer->name, off, n, hex);
+		}
+	} else {
+		const bsf_stall_status_t *s = data;
+
+		printk("FUSION_STALL_READ name=%s att_err=0 len=%u v=%u reason=%u armed=%u sample_ms=%u e=%u x=%u entry_ms=%u exit_ms=%u age=%u stream=%u rc=%d rcc=%u/%u/%u/%u/%u q=%u/%u/%u qd=%u/%u/%u td=%u/%u/%u hb=%u alarm=%u@%u recovery=%u\n",
+		       peer->name, length, s->version, s->reason, s->armed,
+		       s->sample_uptime_ms, s->entry_count, s->exit_count,
+		       s->entry_ms, s->exit_ms, s->in_call_age_ms,
+		       s->in_call_stream, s->last_return_code,
+		       s->return_ok, s->return_nomem, s->return_notconn,
+		       s->return_again, s->return_other,
+		       s->queue_depth_ctl, s->queue_depth_uwb,
+		       s->queue_depth_imu, s->q_drop_ctl, s->q_drop_uwb,
+		       s->q_drop_imu, s->timeout_drop_ctl,
+		       s->timeout_drop_uwb, s->timeout_drop_imu,
+		       s->producer_heartbeat, s->alarm_count,
+		       s->alarm_timestamp_ms, s->recovery_count);
+		printk("FUSION_STALL_POOLS name=%s count=%u usage=%u sent_cb=%u",
+		       peer->name, s->pool_count, s->pool_usage_enabled,
+		       s->att_sent_cb_after_tx);
+		for (uint8_t i = 0u; i < s->pool_count &&
+		     i < ARRAY_SIZE(s->pools); ++i) {
+			printk(" pool%u=%08x:%u/%u", i,
+			       s->pools[i].name_hash, s->pools[i].available,
+			       s->pools[i].low_water);
+		}
+		printk("\n");
+	}
+	peer->stall_read_active = false;
+	(void)k_work_cancel_delayable(&peer->stall_read_timeout_work);
+	memset(params, 0, sizeof(*params));
+	printk("FUSION_STALL_READ_DONE name=%s generation=%u elapsed_ms=%u terminal=callback\n",
+	       peer->name, generation, elapsed_ms);
+	return BT_GATT_ITER_STOP;
+}
+
+static void stall_read_abort(struct fusion_peer *peer, const char *reason)
+{
+	uint32_t generation;
+
+	if (!peer->stall_read_active) {
+		return;
+	}
+	generation = peer->stall_read_generation;
+	peer->stall_read_active = false;
+	(void)k_work_cancel_delayable(&peer->stall_read_timeout_work);
+	if (peer->conn != NULL && peer->stall_read_params.func != NULL) {
+		(void)bt_gatt_cancel(peer->conn, &peer->stall_read_params);
+	}
+	memset(&peer->stall_read_params, 0,
+	       sizeof(peer->stall_read_params));
+	printk("FUSION_STALL_READ_DONE name=%s generation=%u elapsed_ms=%u terminal=%s\n",
+	       peer->name, generation,
+	       (uint32_t)k_uptime_get() - peer->stall_read_started_ms,
+	       reason);
+}
+
+/*
+ * Forced disconnect/reconnect probe.
+ *
+ * State lives outside struct fusion_peer because release_peer() clears the peer
+ * slot on disconnect, which is precisely the interval being measured. Exactly
+ * one probe may be in flight, which is also what guarantees the operation can
+ * never become fleet-wide: a second request while one is active is rejected
+ * rather than queued.
+ *
+ * Every terminal path -- disconnect seen, bridge re-established, timeout,
+ * rejection -- funnels through reconnect_probe_finish(), the single idempotent
+ * cleanup, matching the STALL READ lifecycle discipline.
+ */
+struct reconnect_probe {
+	char name[TARGET_NAME_LEN + 1];
+	bool active;
+	bool saw_disconnect;
+	uint32_t generation;
+	uint32_t requested_ms;
+	uint32_t disconnected_ms;
+	uint32_t connected_ms;
+	uint32_t bridge_ready_ms;
+	struct k_work_delayable timeout_work;
+};
+
+static struct reconnect_probe reconnect_probe;
+
+static void reconnect_probe_finish(const char *outcome)
+{
+	uint32_t now;
+
+	if (!reconnect_probe.active) {
+		return;
+	}
+	now = (uint32_t)k_uptime_get();
+	reconnect_probe.active = false;
+	(void)k_work_cancel_delayable(&reconnect_probe.timeout_work);
+
+	printk("FUSION_RECONNECT_DONE name=%s generation=%u outcome=%s "
+	       "disconnect_ms=%u connect_ms=%u bridge_ms=%u "
+	       "down_interval_ms=%d bridge_interval_ms=%d total_ms=%u\n",
+	       reconnect_probe.name, reconnect_probe.generation, outcome,
+	       reconnect_probe.disconnected_ms, reconnect_probe.connected_ms,
+	       reconnect_probe.bridge_ready_ms,
+	       reconnect_probe.saw_disconnect && reconnect_probe.connected_ms != 0u
+		       ? (int)(reconnect_probe.connected_ms -
+			       reconnect_probe.disconnected_ms)
+		       : -1,
+	       reconnect_probe.saw_disconnect &&
+			       reconnect_probe.bridge_ready_ms != 0u
+		       ? (int)(reconnect_probe.bridge_ready_ms -
+			       reconnect_probe.disconnected_ms)
+		       : -1,
+	       now - reconnect_probe.requested_ms);
+	memset(reconnect_probe.name, 0, sizeof(reconnect_probe.name));
+}
+
+static void reconnect_probe_timeout_handler(struct k_work *work)
+{
+	ARG_UNUSED(work);
+	reconnect_probe_finish("timeout");
+}
+
+static void reconnect_probe_note_disconnect(const char *name)
+{
+	if (!reconnect_probe.active || reconnect_probe.saw_disconnect) {
+		return;
+	}
+	if (strcmp(reconnect_probe.name, name) != 0) {
+		return;
+	}
+	reconnect_probe.saw_disconnect = true;
+	reconnect_probe.disconnected_ms = (uint32_t)k_uptime_get();
+	printk("FUSION_RECONNECT_DISCONNECTED name=%s generation=%u at_ms=%u\n",
+	       name, reconnect_probe.generation,
+	       reconnect_probe.disconnected_ms);
+}
+
+static void reconnect_probe_note_connected(const char *name)
+{
+	if (!reconnect_probe.active || !reconnect_probe.saw_disconnect) {
+		return;
+	}
+	if (strcmp(reconnect_probe.name, name) != 0 ||
+	    reconnect_probe.connected_ms != 0u) {
+		return;
+	}
+	reconnect_probe.connected_ms = (uint32_t)k_uptime_get();
+	printk("FUSION_RECONNECT_CONNECTED name=%s generation=%u at_ms=%u "
+	       "down_interval_ms=%u\n",
+	       name, reconnect_probe.generation, reconnect_probe.connected_ms,
+	       reconnect_probe.connected_ms - reconnect_probe.disconnected_ms);
+}
+
+static int start_stall_read(struct fusion_peer *peer);
+
+static void reconnect_probe_note_bridge_ready(struct fusion_peer *peer)
+{
+	int err;
+
+	if (!reconnect_probe.active || !reconnect_probe.saw_disconnect) {
+		return;
+	}
+	if (strcmp(reconnect_probe.name, peer->name) != 0) {
+		return;
+	}
+	reconnect_probe.bridge_ready_ms = (uint32_t)k_uptime_get();
+	/*
+	 * Read the status characteristic on the fresh bearer. This is the
+	 * measurement the probe exists for: whether a reconnect alone restores
+	 * the export path, without the reboot the firmware's own recovery uses.
+	 */
+	err = start_stall_read(peer);
+	printk("FUSION_RECONNECT_VERIFY name=%s generation=%u bridge_ms=%u "
+	       "bridge_interval_ms=%u stall_read_err=%d\n",
+	       peer->name, reconnect_probe.generation,
+	       reconnect_probe.bridge_ready_ms,
+	       reconnect_probe.bridge_ready_ms - reconnect_probe.disconnected_ms,
+	       err);
+	reconnect_probe_finish(err == 0 ? "reconnected" : "reconnected_read_error");
+}
+
+static void stall_read_timeout_handler(struct k_work *work)
+{
+	struct k_work_delayable *delayable = k_work_delayable_from_work(work);
+	struct fusion_peer *peer = CONTAINER_OF(
+		delayable, struct fusion_peer, stall_read_timeout_work);
+
+	/*
+	 * Fires at 25 s, i.e. 5 s before the stack's ATT transaction timeout.
+	 * The abort resolves our own state cleanly, but the bearer is still on
+	 * course to be torn down at 30 s -- say so explicitly rather than let a
+	 * clean-looking terminal reason imply the peer is unharmed.
+	 */
+	stall_read_abort(peer, "timeout");
+	printk("FUSION_STALL_READ_BEARER_WARNING name=%s att_timeout_in_ms=%u "
+	       "note=cancel_does_not_stop_att_timer\n",
+	       peer->name, ATT_TRANSACTION_TIMEOUT_MS - STALL_READ_TIMEOUT_MS);
+}
+
+static int start_stall_read(struct fusion_peer *peer)
+{
+	int err;
+
+	if (peer->conn == NULL || peer->stall_value_handle == 0u) {
+		return -ENOTCONN;
+	}
+	if (peer->stall_read_active) {
+		return -EBUSY;
+	}
+	++peer->stall_read_generation;
+	peer->stall_read_started_ms = (uint32_t)k_uptime_get();
+	peer->stall_read_active = true;
+	peer->stall_read_params.func = stall_read_cb;
+	peer->stall_read_params.handle_count = 1u;
+	peer->stall_read_params.single.handle = peer->stall_value_handle;
+	peer->stall_read_params.single.offset = 0u;
+	err = bt_gatt_read(peer->conn, &peer->stall_read_params);
+	if (err != 0) {
+		stall_read_abort(peer, "submit_error");
+		return err;
+	}
+	k_work_reschedule(&peer->stall_read_timeout_work,
+			  K_MSEC(STALL_READ_TIMEOUT_MS));
+	printk("FUSION_STALL_READ_START name=%s generation=%u timeout_ms=%u\n",
+	       peer->name, peer->stall_read_generation,
+	       STALL_READ_TIMEOUT_MS);
+	return 0;
 }
 
 static void handle_console_command(char *line)
@@ -2661,7 +3110,50 @@ static void handle_console_command(char *line)
 		       line);
 		return;
 	}
-
+	if (strcmp(&line[TARGET_NAME_LEN + 1u], "STALL READ") == 0) {
+		err = start_stall_read(peer);
+		printk("FUSION_STALL_READ_START name=%s handle=%u err=%d\n",
+		       peer->name, peer->stall_value_handle, err);
+		return;
+	}
+	if (strcmp(&line[TARGET_NAME_LEN + 1u], "STALL CANCEL") == 0) {
+		stall_read_abort(peer, "cancel");
+		return;
+	}
+	if (strcmp(&line[TARGET_NAME_LEN + 1u], "RECONNECT") == 0) {
+		if (reconnect_probe.active) {
+			printk("FUSION_RECONNECT_REJECT reason=probe_active "
+			       "active_target=%s requested=%s\n",
+			       reconnect_probe.name, peer->name);
+			return;
+		}
+		memset(&reconnect_probe, 0, sizeof(reconnect_probe));
+		k_work_init_delayable(&reconnect_probe.timeout_work,
+				      reconnect_probe_timeout_handler);
+		strncpy(reconnect_probe.name, peer->name,
+			sizeof(reconnect_probe.name) - 1u);
+		reconnect_probe.active = true;
+		++reconnect_probe.generation;
+		reconnect_probe.requested_ms = (uint32_t)k_uptime_get();
+		/*
+		 * Only this peer's connection is touched. Every other link, and
+		 * the scan/spacing machinery, is left exactly as it was.
+		 */
+		err = bt_conn_disconnect(peer->conn,
+					 BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+		printk("FUSION_RECONNECT_START name=%s generation=%u at_ms=%u "
+		       "timeout_ms=%u err=%d\n",
+		       peer->name, reconnect_probe.generation,
+		       reconnect_probe.requested_ms,
+		       RECONNECT_PROBE_TIMEOUT_MS, err);
+		if (err != 0) {
+			reconnect_probe_finish("disconnect_error");
+			return;
+		}
+		k_work_reschedule(&reconnect_probe.timeout_work,
+				  K_MSEC(RECONNECT_PROBE_TIMEOUT_MS));
+		return;
+	}
 	err = bt_gatt_write_without_response(peer->conn,
 					     peer->control_value_handle,
 					     line, (uint16_t)length,

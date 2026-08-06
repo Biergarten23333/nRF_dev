@@ -1157,6 +1157,11 @@ K_THREAD_DEFINE(imu_thread_id, IMU_THREAD_STACK_SIZE,
 		imu_thread, NULL, NULL, NULL,
 		IMU_THREAD_PRIORITY, 0, 0);
 
+int bsf_imu_stack_unused(size_t *unused)
+{
+	return k_thread_stack_space_get(imu_thread_id, unused);
+}
+
 int bsf_imu_init(bsf_imu_publish_fn publish)
 {
 	struct jy61p_chip_time chip = { 0 };

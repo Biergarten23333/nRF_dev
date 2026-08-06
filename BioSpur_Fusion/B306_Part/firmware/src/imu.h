@@ -76,5 +76,6 @@ int bsf_imu_format_pull_hist_page(bool duration, uint8_t page, char *reply,
 void bsf_imu_format_stop(char *reply, size_t reply_size, int stop_result);
 void bsf_imu_get_stats(struct bsf_imu_stats *stats);
 void bsf_imu_clear_counters(void);
+int bsf_imu_stack_unused(size_t *unused);
 
 #endif /* BIOSPUR_IMU_H */

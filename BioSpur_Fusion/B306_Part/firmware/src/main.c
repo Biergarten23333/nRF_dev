@@ -18,6 +18,7 @@
 #include <zephyr/drivers/uart.h>
 #include <zephyr/drivers/watchdog.h>
 #include <zephyr/kernel.h>
+#include <zephyr/net_buf.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/reboot.h>
 #include <zephyr/sys/atomic.h>
@@ -28,9 +29,12 @@
 #include "biospur_link.h"
 #include "boot_confirm_policy.h"
 #include "imu.h"
+#include "imu_autostart_policy.h"
 #include "imu_pull_diag_math.h"
 #include "led_fault_window.h"
 #include "publisher_priority.h"
+#include "stall_detector_policy.h"
+#include "stall_ring_policy.h"
 #include "strobe_capture.h"
 
 LOG_MODULE_REGISTER(biospur_fusion, LOG_LEVEL_INF);
@@ -40,7 +44,7 @@ LOG_MODULE_REGISTER(biospur_fusion, LOG_LEVEL_INF);
 #define UWB_UART_NODE DT_ALIAS(uwb_uart)
 
 #ifndef BSF_FW_MARKER
-#define BSF_FW_MARKER "b306-imu-relay-v32"
+#define BSF_FW_MARKER "b306-imu-relay-v37"
 #endif
 #ifndef BSF_BOOT_CONFIRM_ENABLED
 #define BSF_BOOT_CONFIRM_ENABLED 1
@@ -66,6 +70,15 @@ LOG_MODULE_REGISTER(biospur_fusion, LOG_LEVEL_INF);
 #define CONTROL_QUEUE_DEPTH 4
 #define PUBLISHER_STACK_SIZE 2048
 #define PUBLISHER_PRIORITY 10
+#define NOTIFY_WORKER_STACK_SIZE 2048
+#define NOTIFY_WORKER_PRIORITY 9
+/* 1.120 s was the largest isolated healthy call; retain 80 ms margin. */
+#define NOTIFY_ACCEPT_TIMEOUT_MS 1200u
+#define BLE_SUPERVISION_TIMEOUT_MS 4000u
+#define STALL_DETECT_MS 5000u
+#define STALL_RECOVERY_RETRACT_MS 1500u
+#define STALL_ARM_NOTIFY_OK 64u
+#define STALL_MAX_RECOVERIES_PER_POWER 1u
 #define PUBLISH_CTL_DEPTH 4
 #define PUBLISH_UWB_DEPTH 16
 #define PUBLISH_IMU_DEPTH 64
@@ -267,19 +280,32 @@ static struct bt_uuid_128 fusion_control_uuid =
 	BT_UUID_INIT_128(BT_UUID_128_ENCODE(
 		BSF_BLE_UUID_CONTROL_W32, BSF_BLE_UUID_W16_1,
 		BSF_BLE_UUID_W16_2, BSF_BLE_UUID_W16_3, BSF_BLE_UUID_W48));
+static struct bt_uuid_128 fusion_stall_uuid =
+	BT_UUID_INIT_128(BT_UUID_128_ENCODE(
+		BSF_BLE_UUID_STALL_W32, BSF_BLE_UUID_W16_1,
+		BSF_BLE_UUID_W16_2, BSF_BLE_UUID_W16_3, BSF_BLE_UUID_W48));
 
 static atomic_t data_subscribed;
 static atomic_t telemetry_subscribed;
+static atomic_t subscribed_notify_ok;
+static bsf_stall_status_t stall_status;
+static struct k_spinlock stall_status_lock;
 
 static ssize_t control_write(struct bt_conn *conn,
 			     const struct bt_gatt_attr *attr,
 			     const void *buf, uint16_t len,
 			     uint16_t offset, uint8_t flags);
+static ssize_t stall_status_read(struct bt_conn *conn,
+				 const struct bt_gatt_attr *attr,
+				 void *buf, uint16_t len, uint16_t offset);
 
 static void data_ccc_changed(const struct bt_gatt_attr *attr, uint16_t value)
 {
 	ARG_UNUSED(attr);
 	atomic_set(&data_subscribed, value == BT_GATT_CCC_NOTIFY);
+	if (value != BT_GATT_CCC_NOTIFY) {
+		atomic_set(&subscribed_notify_ok, 0);
+	}
 }
 
 static void telemetry_ccc_changed(const struct bt_gatt_attr *attr,
@@ -304,6 +330,10 @@ BT_GATT_SERVICE_DEFINE(
 			       NULL, NULL, NULL),
 	BT_GATT_CCC(telemetry_ccc_changed,
 		    BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
+	BT_GATT_CHARACTERISTIC(&fusion_stall_uuid.uuid,
+			       BT_GATT_CHRC_READ,
+			       BT_GATT_PERM_READ,
+			       stall_status_read, NULL, NULL),
 	BT_GATT_CHARACTERISTIC(&fusion_control_uuid.uuid,
 			       BT_GATT_CHRC_WRITE |
 			       BT_GATT_CHRC_WRITE_WITHOUT_RESP,
@@ -334,6 +364,34 @@ struct publish_imu_item {
 	uint8_t payload[BSF_IMU_RECORD_LEN(BSF_IMU_BATCH_MAX)];
 };
 
+enum notify_stream { NOTIFY_CTL, NOTIFY_UWB, NOTIFY_IMU, NOTIFY_STREAMS };
+
+struct notify_job {
+	const struct bt_gatt_attr *attr;
+	uint16_t len;
+	uint8_t stream;
+	uint8_t payload[sizeof(bsf_ble_telemetry_t)];
+};
+
+struct retained_stall_diag {
+	uint32_t magic;
+	uint32_t test_value;
+	uint32_t alarm_count;
+	uint32_t alarm_reason;
+	uint32_t entry_count;
+	uint32_t exit_count;
+	uint32_t entry_ms;
+	uint32_t exit_ms;
+	uint32_t in_call_stream;
+	uint32_t last_return_code;
+	uint32_t alarm_timestamp_ms;
+	uint32_t recovery_count;
+	bsf_stall_status_t first_snapshot;
+};
+
+#define RETAINED_STALL_MAGIC 0x56333852u
+__attribute__((section(".noinit"))) static struct retained_stall_diag retained_stall;
+
 BUILD_ASSERT(sizeof(bsf_ble_control_reply_prefix_t) +
 		     BSF_CONTROL_REPLY_TEXT_MAX <=
 	     sizeof(((struct publish_ctl_item *)0)->payload),
@@ -349,6 +407,9 @@ K_MSGQ_DEFINE(q_uwb, sizeof(struct publish_uwb_item),
 K_MSGQ_DEFINE(q_imu, sizeof(struct publish_imu_item),
 	      PUBLISH_IMU_DEPTH, 4);
 K_SEM_DEFINE(publisher_sem, 0, 1);
+K_SEM_DEFINE(notify_idle_sem, 1, 1);
+K_SEM_DEFINE(notify_job_sem, 0, 1);
+static struct notify_job notify_job;
 
 RING_BUF_ITEM_DECLARE(uart_ring, UART_RING_SIZE / sizeof(uint32_t));
 K_SEM_DEFINE(uart_data_sem, 0, 1);
@@ -371,9 +432,25 @@ static atomic_t drop_unsub;
 static atomic_t drop_err;
 static atomic_t last_notify_error;
 static atomic_t uart_restarts;
+static atomic_t uart_restart_framing;
+static atomic_t uart_restart_overrun;
+static atomic_t uart_restart_break_idle;
+static atomic_t uart_restart_parser;
+static atomic_t uart_restart_explicit;
+static atomic_t uart_restart_other;
+static atomic_t uart_restart_discarded_frames;
+static atomic_t uart_last_stop_reason;
 static atomic_t last_uart_error;
 static atomic_t last_sweep;
 static atomic_t have_last_sweep;
+static atomic_t tag_reset_detected;
+static atomic_t tag_reset_recovery_attempted;
+/*
+ * Volatile one-shot initial-condition latch. Any DK IMU command outranks the
+ * beacon for the remainder of this power cycle. Beacon loss never clears it
+ * and never stops an already-running IMU.
+ */
+static atomic_t imu_touched;
 static atomic_t node_sequence;
 static atomic_t ctrl_rx;
 static atomic_t ctrl_bad_bsf;
@@ -402,12 +479,338 @@ static atomic_t enqueue_imu_hist[ENQUEUE_HIST_BINS];
 static atomic_t publisher_count;
 static atomic_t publisher_max_us;
 static atomic_t publisher_hist[BSF_IMU_PULL_HIST_BINS];
+static atomic_t notify_in_call;
+static atomic_t notify_fast_drop;
+static atomic_t notify_timeout_drop[NOTIFY_STREAMS];
+static atomic_t notify_rc_nomem;
+static atomic_t notify_rc_notconn;
+static atomic_t notify_rc_again;
+static atomic_t notify_rc_other;
+static atomic_t producer_heartbeat;
+static atomic_t stall_alarm_count;
+static atomic_t stall_alarm_reason;
+static atomic_t stall_recovery_pending;
+static atomic_t pool_low_water[BSF_NET_BUF_POOL_MAX];
+static struct bsf_stall_detector stall_detector;
+
+static uint32_t pool_name_hash(const char *name)
+{
+	uint32_t hash = 2166136261u;
+
+	for (; *name != '\0'; ++name) {
+		hash = (hash ^ (uint8_t)*name) * 16777619u;
+	}
+	return hash;
+}
+
+static uint8_t sample_pool_usage(bsf_net_buf_pool_usage_t *out)
+{
+	uint8_t count = 0u;
+	struct net_buf_pool *pool;
+
+	STRUCT_SECTION_FOREACH(net_buf_pool, pool) {
+		if (count >= BSF_NET_BUF_POOL_MAX) {
+			break;
+		}
+		uint16_t available = (uint16_t)atomic_get(&pool->avail_count);
+		atomic_val_t low = atomic_get(&pool_low_water[count]);
+		uint16_t window_low;
+
+		/* Fold this reading into the open window. */
+		while (available < (uint16_t)low &&
+		       !atomic_cas(&pool_low_water[count], low, available)) {
+			low = atomic_get(&pool_low_water[count]);
+		}
+		/*
+		 * Take the window minimum and re-arm at the present level, in one
+		 * atomic exchange, so `low_water` means "minimum available since
+		 * the previous record" rather than "minimum since boot".
+		 *
+		 * The since-boot form was unusable in practice: every board drives
+		 * its ATT pool to zero during its own DFU, so the field latched at
+		 * 0 for the entire deployment and looked like a live signal while
+		 * carrying nothing. Only instantaneous `available` was meaningful.
+		 * The wire layout is unchanged -- same field, same 140-byte
+		 * kind-8 payload -- only the semantics are repaired.
+		 */
+		window_low = (uint16_t)atomic_set(&pool_low_water[count],
+						  (atomic_val_t)available);
+		out[count] = (bsf_net_buf_pool_usage_t) {
+			.name_hash = pool_name_hash(pool->name),
+			.available = available,
+			.low_water = window_low,
+		};
+		count++;
+	}
+	return count;
+}
 
 static char device_name[8];
 static uint16_t node_identity;
 static uint8_t parser_frame[BSL_RELAY_FRAME_MAX];
 static size_t parser_position;
 static size_t parser_expected;
+static char cached_tag_cfg[BSL_RELAY_PAYLOAD_MAX + 1u];
+K_MUTEX_DEFINE(cached_tag_cfg_lock);
+
+/*
+ * The trajectory ring. Retained across the soft reset the recovery path
+ * performs -- nRF52840 RAM keeps its contents through watchdog, SYSRESETREQ,
+ * pin and lockup resets; only a power-on or brownout reset loses them. The
+ * same mechanism already carries retained_stall.first_snapshot.
+ */
+__attribute__((section(".noinit"))) static struct bsf_stall_ring stall_ring;
+static struct bsf_stall_ring_view stall_ring_view;
+static struct k_spinlock stall_ring_lock;
+static uint8_t stall_ring_boot_result;
+
+/*
+ * Instantaneous free counts only. Deliberately NOT sample_pool_usage(): that
+ * one takes and re-arms the kind-8 low-water window, and a 20 Hz sampler would
+ * shred the 1 Hz record's meaning.
+ */
+static uint8_t sample_pool_available(uint8_t *out)
+{
+	uint8_t count = 0u;
+
+	/*
+	 * No outer declaration: STRUCT_SECTION_FOREACH declares its own
+	 * iterator, and sample_pool_usage()'s spare one is the source of the
+	 * only -Wunused-variable warning left in this file.
+	 */
+	STRUCT_SECTION_FOREACH(net_buf_pool, pool) {
+		uint32_t available = (uint32_t)atomic_get(&pool->avail_count);
+
+		if (count < BSF_STALL_RING_POOL_SLOTS) {
+			out[count] = (uint8_t)MIN(available, (uint32_t)UINT8_MAX);
+		}
+		/* Keep counting past the slots so the wire carries the REAL pool
+		 * count and a decoder can see that it was truncated. */
+		if (count < UINT8_MAX) {
+			count++;
+		}
+	}
+	return count;
+}
+
+/*
+ * Sampled from the k_timer expiry, i.e. the system-clock ISR.
+ *
+ * The context matters more than the contents. D1's watchdog argument proves
+ * the system workqueue kept running through every stall, but a workqueue is
+ * still a thread: it can be blocked by any work item ahead of it, and a
+ * context that can block is a context that can stop sampling. The timer
+ * expiry cannot block -- blocking is illegal there by construction -- so it
+ * keeps sampling through a deadlock of the publisher, the notify worker, the
+ * BT RX/TX threads, or the system workqueue itself.
+ *
+ * It does not feed the watchdog, and must not: the watchdog's diagnostic value
+ * comes entirely from being fed only by a context that has to run a full body
+ * to completion.
+ *
+ * Everything read here is a single word or an atomic, and the only write is a
+ * 40-byte structure copy under a spinlock held for that copy alone.
+ */
+static void stall_ring_sample(struct k_timer *timer)
+{
+	ARG_UNUSED(timer);
+	uint32_t now_ms = k_uptime_get_32();
+	uint32_t entry_ms = retained_stall.entry_ms;
+	uint32_t stream = retained_stall.in_call_stream;
+	bool connected = atomic_get(&ble_connected) != 0;
+	bool data_sub = atomic_get(&data_subscribed) != 0;
+	bool telemetry_sub = atomic_get(&telemetry_subscribed) != 0;
+	uint32_t age = stream != 0u ? (now_ms - entry_ms) : 0u;
+	bsf_stall_ring_entry_t entry = {
+		.uptime_ms = now_ms,
+		.producer_heartbeat = (uint32_t)atomic_get(&producer_heartbeat),
+		.entry_count = retained_stall.entry_count,
+		.exit_count = retained_stall.exit_count,
+		.in_call_age_ms = (uint16_t)MIN(age, (uint32_t)UINT16_MAX),
+		.in_call_stream = (uint8_t)stream,
+		.queue_depth_ctl =
+			(uint8_t)MIN(k_msgq_num_used_get(&q_ctl), 255u),
+		.queue_depth_uwb =
+			(uint8_t)MIN(k_msgq_num_used_get(&q_uwb), 255u),
+		.queue_depth_imu =
+			(uint8_t)MIN(k_msgq_num_used_get(&q_imu), 255u),
+	};
+
+	entry.flags = (uint8_t)((connected ? BSF_RING_FLAG_CONNECTED : 0u) |
+				(data_sub ? BSF_RING_FLAG_DATA_SUB : 0u) |
+				(telemetry_sub ? BSF_RING_FLAG_TELEMETRY_SUB : 0u) |
+				(atomic_get(&notify_in_call) != 0 ?
+					 BSF_RING_FLAG_NOTIFY_IN_CALL : 0u) |
+				(atomic_get(&notify_fast_drop) != 0 ?
+					 BSF_RING_FLAG_FAST_DROP : 0u) |
+				(atomic_get(&stall_recovery_pending) != 0 ?
+					 BSF_RING_FLAG_RECOVERY_ARMED : 0u));
+	entry.pool_count = sample_pool_available(entry.pool_avail);
+	/*
+	 * The detector's inputs, so a retrieved ring can answer why it did or did
+	 * not act. `armed` needs subscribed_notify_ok >= STALL_ARM_NOTIFY_OK, the
+	 * dwell lives in the detector's own frozen_ms, and the alarm block is gated
+	 * on retained_stall.alarm_reason. N6 had none of these.
+	 */
+	entry.subscribed_notify_ok =
+		(uint32_t)atomic_get(&subscribed_notify_ok);
+	entry.detector_frozen_ms =
+		(uint16_t)MIN(stall_detector.frozen_ms, (uint32_t)UINT16_MAX);
+	entry.alarm_reason = (uint8_t)retained_stall.alarm_reason;
+	entry.alarm_count = (uint8_t)MIN(retained_stall.alarm_count, 255u);
+
+	k_spinlock_key_t key = k_spin_lock(&stall_ring_lock);
+	bool reset_now;
+
+	(void)bsf_stall_ring_push(&stall_ring, &entry,
+				  connected && data_sub && telemetry_sub);
+	/*
+	 * Claimed inside the same critical section that may have raised it, so the
+	 * freeze and the claim cannot interleave with another sample. The reset
+	 * itself is issued outside the lock.
+	 */
+	reset_now = bsf_stall_ring_take_reset(&stall_ring);
+	k_spin_unlock(&stall_ring_lock, key);
+
+	if (reset_now) {
+		/*
+		 * H1. The ring is frozen at this point -- take_reset() refuses
+		 * otherwise -- so the evidence is already safe. sys_reboot() goes
+		 * through NVIC_SystemReset(), which RETAINS .noinit, which is the
+		 * whole reason this is worth doing: it is the one reset the board
+		 * can give itself that does not destroy the trajectory. A brownout
+		 * cannot, the detector did not, and RECONNECT only removed the
+		 * board from the fleet.
+		 *
+		 * Legal from an ISR: sys_reboot() does not schedule or block.
+		 */
+		sys_reboot(SYS_REBOOT_COLD);
+	}
+}
+
+K_TIMER_DEFINE(stall_ring_timer, stall_ring_sample, NULL);
+
+static bool stall_ring_latch(uint8_t reason, uint32_t now_ms)
+{
+	k_spinlock_key_t key = k_spin_lock(&stall_ring_lock);
+	bool fired = bsf_stall_ring_freeze(&stall_ring, reason, now_ms);
+
+	k_spin_unlock(&stall_ring_lock, key);
+	return fired;
+}
+
+/*
+ * One read, two wire forms, one length. Which form is returned was decided by
+ * an earlier control write; the read itself never blocks, never allocates and
+ * never advances any state, so re-reading a page is free and an abandoned
+ * retrieval reverts on its own once the selection ages out.
+ */
+static ssize_t stall_status_read(struct bt_conn *conn,
+				 const struct bt_gatt_attr *attr,
+				 void *buf, uint16_t len, uint16_t offset)
+{
+	uint32_t now_ms = k_uptime_get_32();
+	uint8_t page = 0u;
+
+	if (bsf_stall_ring_view_page(&stall_ring_view, now_ms,
+				     BSF_STALL_RING_VIEW_TTL_MS, &page)) {
+		bsf_stall_ring_page_t rendered;
+		k_spinlock_key_t ring_key = k_spin_lock(&stall_ring_lock);
+		int err = bsf_stall_ring_render_page(&stall_ring, page,
+						     &rendered);
+
+		k_spin_unlock(&stall_ring_lock, ring_key);
+		if (err == 0) {
+			return bt_gatt_attr_read(conn, attr, buf, len, offset,
+						 &rendered, sizeof(rendered));
+		}
+		/* Past the end: fall through to the status snapshot. */
+	}
+
+	bsf_stall_status_t copy;
+	k_spinlock_key_t key = k_spin_lock(&stall_status_lock);
+
+	copy = stall_status;
+	k_spin_unlock(&stall_status_lock, key);
+	return bt_gatt_attr_read(conn, attr, buf, len, offset,
+				 &copy, sizeof(copy));
+}
+
+static bsf_stall_status_t make_stall_status(uint32_t now_ms, bool armed,
+					    uint8_t reason)
+{
+	uint32_t entry_ms = retained_stall.entry_ms;
+	bsf_stall_status_t value = {
+		.version = BSF_STALL_STATUS_VERSION,
+		.reason = reason,
+		.in_call_stream = (uint8_t)retained_stall.in_call_stream,
+		.armed = armed ? 1u : 0u,
+		.sample_uptime_ms = now_ms,
+		.entry_count = retained_stall.entry_count,
+		.exit_count = retained_stall.exit_count,
+		.entry_ms = entry_ms,
+		.exit_ms = retained_stall.exit_ms,
+		.in_call_age_ms = retained_stall.in_call_stream != 0u ?
+			(now_ms - entry_ms) : 0u,
+		.last_return_code = (int32_t)retained_stall.last_return_code,
+		.return_ok = (uint32_t)atomic_get(&notify_ok),
+		.return_nomem = (uint32_t)atomic_get(&notify_rc_nomem),
+		.return_notconn = (uint32_t)atomic_get(&notify_rc_notconn),
+		.return_again = (uint32_t)atomic_get(&notify_rc_again),
+		.return_other = (uint32_t)atomic_get(&notify_rc_other),
+		.queue_depth_ctl = (uint16_t)k_msgq_num_used_get(&q_ctl),
+		.queue_depth_uwb = (uint16_t)k_msgq_num_used_get(&q_uwb),
+		.queue_depth_imu = (uint16_t)k_msgq_num_used_get(&q_imu),
+		.q_drop_ctl = (uint32_t)atomic_get(&q_drop_ctl),
+		.q_drop_uwb = (uint32_t)atomic_get(&q_drop_uwb),
+		.q_drop_imu = (uint32_t)atomic_get(&q_drop_imu),
+		.timeout_drop_ctl =
+			(uint32_t)atomic_get(&notify_timeout_drop[NOTIFY_CTL]),
+		.timeout_drop_uwb =
+			(uint32_t)atomic_get(&notify_timeout_drop[NOTIFY_UWB]),
+		.timeout_drop_imu =
+			(uint32_t)atomic_get(&notify_timeout_drop[NOTIFY_IMU]),
+		.producer_heartbeat =
+			(uint32_t)atomic_get(&producer_heartbeat),
+		.alarm_count = retained_stall.alarm_count,
+		.alarm_timestamp_ms = retained_stall.alarm_timestamp_ms,
+		.recovery_count = retained_stall.recovery_count,
+		.pool_usage_enabled = 1u,
+#if defined(CONFIG_BT_ATT_SENT_CB_AFTER_TX)
+		.att_sent_cb_after_tx = 1u,
+#endif
+	};
+	value.pool_count = sample_pool_usage(value.pools);
+
+	return value;
+}
+
+static void publish_stall_status(const bsf_stall_status_t *value)
+{
+	k_spinlock_key_t key = k_spin_lock(&stall_status_lock);
+
+	stall_status = *value;
+	k_spin_unlock(&stall_status_lock, key);
+}
+
+static void stall_recovery_work_handler(struct k_work *work)
+{
+	ARG_UNUSED(work);
+	atomic_clear(&stall_recovery_pending);
+	LOG_ERR("STALL RECOVERY reboot=%u/%u reason=%u",
+		retained_stall.recovery_count,
+		STALL_MAX_RECOVERIES_PER_POWER,
+		retained_stall.alarm_reason);
+	sys_reboot(SYS_REBOOT_COLD);
+}
+
+K_WORK_DELAYABLE_DEFINE(stall_recovery_work, stall_recovery_work_handler);
+
+static int uart_send_relay(uint16_t correlation, const char *line);
+static int relay_pending_reserve(uint16_t correlation);
+static bool relay_pending_remove(uint16_t correlation);
+static void tag_reset_recovery_work_handler(struct k_work *work);
+K_WORK_DEFINE(tag_reset_recovery_work, tag_reset_recovery_work_handler);
 static uint8_t parser_type;
 static const uint8_t firmware_advertising_marker[] = {
 	0xff, 0xff, 'B', '3', '0', '6', 'D', '3',
@@ -557,12 +960,33 @@ static int publish_data_record(const void *record, size_t len)
 		return -EINVAL;
 	}
 	if (bytes[1] == BSF_BLE_KIND_UWB) {
+		atomic_inc(&producer_heartbeat);
 		return enqueue_uwb_record(record, len);
 	}
 	if (bytes[1] == BSF_BLE_KIND_IMU) {
+		atomic_inc(&producer_heartbeat);
 		return enqueue_imu_record(record, len);
 	}
 	return enqueue_ctl_record(PUBLISH_ATTRIBUTE_DATA, record, len);
+}
+
+static enum notify_stream record_stream(const void *record, size_t len)
+{
+	const uint8_t *bytes = record;
+
+	if (len >= 2u && bytes[1] == BSF_BLE_KIND_UWB) {
+		return NOTIFY_UWB;
+	}
+	if (len >= 2u && bytes[1] == BSF_BLE_KIND_IMU) {
+		return NOTIFY_IMU;
+	}
+	return NOTIFY_CTL;
+}
+
+static void record_notify_timeout(enum notify_stream stream)
+{
+	atomic_inc(&notify_timeout_drop[stream]);
+	atomic_set(&notify_fast_drop, 1);
 }
 
 static void publisher_notify(enum publish_attribute attribute,
@@ -570,10 +994,9 @@ static void publisher_notify(enum publish_attribute attribute,
 {
 	const struct bt_gatt_attr *attr;
 	atomic_t *subscribed;
-	uint64_t start_us;
-	uint64_t end_us;
-	uint32_t duration_us;
-	int err;
+	enum notify_stream stream = record_stream(record, len);
+	k_timeout_t wait = atomic_get(&notify_fast_drop) != 0 ?
+		K_NO_WAIT : K_MSEC(NOTIFY_ACCEPT_TIMEOUT_MS);
 
 	if (attribute == PUBLISH_ATTRIBUTE_TELEMETRY) {
 		attr = FUSION_TELEMETRY_ATTR;
@@ -586,22 +1009,67 @@ static void publisher_notify(enum publish_attribute attribute,
 		atomic_inc(&drop_unsub);
 		return;
 	}
+	if (len > sizeof(notify_job.payload) ||
+	    k_sem_take(&notify_idle_sem, wait) != 0) {
+		record_notify_timeout(stream);
+		return;
+	}
+	notify_job.attr = attr;
+	notify_job.len = (uint16_t)len;
+	notify_job.stream = (uint8_t)stream;
+	memcpy(notify_job.payload, record, len);
+	atomic_set(&notify_in_call, 1);
+	retained_stall.entry_count++;
+	retained_stall.entry_ms = (uint32_t)k_uptime_get();
+	retained_stall.in_call_stream = (uint32_t)stream + 1u;
+	k_sem_give(&notify_job_sem);
+}
 
-	start_us = bsf_time_now_us();
-	err = bt_gatt_notify(NULL, attr, record, len);
-	end_us = bsf_time_now_us();
-	duration_us = end_us >= start_us ?
-		(uint32_t)MIN(end_us - start_us, (uint64_t)UINT32_MAX) : 0u;
-	atomic_inc(&publisher_count);
-	atomic_update_max(&publisher_max_us, duration_us);
-	atomic_inc(&publisher_hist[bsf_imu_pull_hist_bin(duration_us)]);
-	if (err == 0) {
-		atomic_inc(&notify_ok);
-	} else {
-		atomic_inc(&drop_err);
-		atomic_set(&last_notify_error, err);
+static void notify_worker_thread(void *a, void *b, void *c)
+{
+	ARG_UNUSED(a); ARG_UNUSED(b); ARG_UNUSED(c);
+	while (true) {
+		uint64_t start_us, end_us;
+		uint32_t duration_us;
+		int err;
+
+		k_sem_take(&notify_job_sem, K_FOREVER);
+		start_us = bsf_time_now_us();
+		err = bt_gatt_notify(NULL, notify_job.attr,
+				     notify_job.payload, notify_job.len);
+		end_us = bsf_time_now_us();
+		duration_us = end_us >= start_us ?
+			(uint32_t)MIN(end_us - start_us, (uint64_t)UINT32_MAX) : 0u;
+		atomic_inc(&publisher_count);
+		atomic_update_max(&publisher_max_us, duration_us);
+		atomic_inc(&publisher_hist[bsf_imu_pull_hist_bin(duration_us)]);
+		retained_stall.exit_count++;
+		retained_stall.exit_ms = (uint32_t)k_uptime_get();
+		retained_stall.last_return_code = (uint32_t)err;
+		retained_stall.in_call_stream = 0u;
+		atomic_set(&notify_in_call, 0);
+		atomic_set(&notify_fast_drop, 0);
+		if (err == 0) {
+			atomic_inc(&notify_ok);
+			if (atomic_get(&data_subscribed) != 0 &&
+			    atomic_get(&telemetry_subscribed) != 0) {
+				atomic_inc(&subscribed_notify_ok);
+			}
+		} else {
+			atomic_inc(&drop_err);
+			atomic_set(&last_notify_error, err);
+			if (err == -ENOMEM) atomic_inc(&notify_rc_nomem);
+			else if (err == -ENOTCONN) atomic_inc(&notify_rc_notconn);
+			else if (err == -EAGAIN) atomic_inc(&notify_rc_again);
+			else atomic_inc(&notify_rc_other);
+		}
+		k_sem_give(&notify_idle_sem);
 	}
 }
+
+K_THREAD_DEFINE(notify_worker_thread_id, NOTIFY_WORKER_STACK_SIZE,
+		notify_worker_thread, NULL, NULL, NULL,
+		NOTIFY_WORKER_PRIORITY, 0, 0);
 
 static void publisher_thread(void *unused1, void *unused2, void *unused3)
 {
@@ -788,7 +1256,20 @@ static void account_sweep(uint32_t sweep)
 		return;
 	}
 
-	atomic_inc(&out_of_order_sweeps);
+	/* A half-range backward move is the direct tag-reset discriminator. */
+	atomic_inc(&tag_reset_detected);
+	atomic_set(&last_sweep, (atomic_val_t)sweep);
+	char alarm[128];
+	snprintf(alarm, sizeof(alarm),
+		 "TAG_RESET_DETECTED name=%s before=%u after=%u window_fail=1",
+		 device_name, previous, sweep);
+	(void)publish_control_reply(BSF_CONTROL_SOURCE_B306, 0u, alarm);
+	if (atomic_cas(&tag_reset_recovery_attempted, 0, 1)) {
+		k_work_submit(&tag_reset_recovery_work);
+	} else {
+		(void)publish_control_reply(BSF_CONTROL_SOURCE_B306, 0u,
+			"TAG_RESET_RECOVERY_STOP attempts=1");
+	}
 }
 
 static void publish_uwb(const bsl_frame_t *frame, uint64_t frame_timestamp_us)
@@ -809,6 +1290,20 @@ static void publish_uwb(const bsl_frame_t *frame, uint64_t frame_timestamp_us)
 		led_note_uwb_fault();
 	}
 	(void)publish_data_record(&packet, sizeof(packet));
+}
+
+static void imu_autostart_on_beacon_locked(uint8_t flags)
+{
+	char reply[BSF_CONTROL_REPLY_TEXT_MAX + 1u];
+	int ret;
+
+	if (!bsf_imu_autostart_eligible(atomic_get(&imu_touched) != 0, flags,
+					(uint32_t)k_uptime_get()) ||
+	    !atomic_cas(&imu_touched, 0, 1)) {
+		return;
+	}
+	ret = bsf_imu_start(reply, sizeof(reply));
+	LOG_INF("beacon-gated IMU auto-start ret=%d reply=%s", ret, reply);
 }
 
 static void parser_accept_uwb_frame(uint64_t frame_timestamp_us)
@@ -837,6 +1332,7 @@ static void parser_accept_uwb_frame(uint64_t frame_timestamp_us)
 
 	atomic_inc(&valid_frames);
 	account_sweep(frame->body.sweep);
+	imu_autostart_on_beacon_locked(frame->body.flags);
 	publish_uwb(frame, frame_timestamp_us);
 	parser_reset();
 }
@@ -1054,12 +1550,27 @@ static void uart_callback(const struct device *dev,
 
 	case UART_RX_STOPPED:
 		atomic_set(&last_uart_error, event->data.rx_stop.reason);
+		atomic_set(&uart_last_stop_reason,
+			   (atomic_val_t)event->data.rx_stop.reason);
 		break;
 
 	case UART_RX_DISABLED: {
 		int err;
 
 		atomic_inc(&uart_restarts);
+		uint32_t reason = (uint32_t)atomic_set(&uart_last_stop_reason, 0);
+		if ((reason & UART_ERROR_FRAMING) != 0u) {
+			atomic_inc(&uart_restart_framing);
+		} else if ((reason & UART_ERROR_OVERRUN) != 0u) {
+			atomic_inc(&uart_restart_overrun);
+		} else if ((reason & UART_BREAK) != 0u || reason == 0u) {
+			atomic_inc(&uart_restart_break_idle);
+		} else {
+			atomic_inc(&uart_restart_other);
+		}
+		if (parser_position != 0u) {
+			atomic_inc(&uart_restart_discarded_frames);
+		}
 		err = uart_enable_rx(dev);
 		if (err != 0) {
 			atomic_set(&last_uart_error, err);
@@ -1250,6 +1761,36 @@ static void relay_timeout_work_handler(struct k_work *work)
 	}
 }
 
+static void tag_reset_recovery_work_handler(struct k_work *work)
+{
+	char cfg[sizeof(cached_tag_cfg)];
+	char status[128];
+	uint16_t correlation;
+	int ret;
+
+	ARG_UNUSED(work);
+	k_mutex_lock(&cached_tag_cfg_lock, K_FOREVER);
+	snprintf(cfg, sizeof(cfg), "%s", cached_tag_cfg);
+	k_mutex_unlock(&cached_tag_cfg_lock);
+	if (cfg[0] == '\0' || strstr(cfg, "BEACON_SYNC=") == NULL) {
+		(void)publish_control_reply(BSF_CONTROL_SOURCE_B306, 0u,
+			"TAG_RESET_RECOVERY_STOP reason=no_explicit_sync_cfg attempts=1");
+		return;
+	}
+	correlation = (uint16_t)((uint32_t)atomic_inc(&next_correlation) + 1u);
+	ret = relay_pending_reserve(correlation);
+	if (ret == 0) {
+		ret = uart_send_relay(correlation, cfg);
+	}
+	if (ret != 0) {
+		(void)relay_pending_remove(correlation);
+	}
+	snprintf(status, sizeof(status),
+		 "TAG_RESET_RECOVERY name=%s attempt=1 result=%s verify=CFG_ACK_AND_STREAM_REQUIRED",
+		 device_name, ret == 0 ? "QUEUED" : "FAIL");
+	(void)publish_control_reply(BSF_CONTROL_SOURCE_B306, 0u, status);
+}
+
 static void reboot_work_handler(struct k_work *work)
 {
 	ARG_UNUSED(work);
@@ -1318,9 +1859,17 @@ static void clear_session_counters(void)
 	atomic_set(&drop_err, 0);
 	atomic_set(&last_notify_error, 0);
 	atomic_set(&uart_restarts, 0);
+	atomic_set(&uart_restart_framing, 0);
+	atomic_set(&uart_restart_overrun, 0);
+	atomic_set(&uart_restart_break_idle, 0);
+	atomic_set(&uart_restart_parser, 0);
+	atomic_set(&uart_restart_explicit, 0);
+	atomic_set(&uart_restart_other, 0);
+	atomic_set(&uart_restart_discarded_frames, 0);
 	atomic_set(&last_uart_error, 0);
 	atomic_set(&last_sweep, 0);
 	atomic_set(&have_last_sweep, 0);
+	atomic_set(&tag_reset_detected, 0);
 	atomic_set(&ctrl_rx, 0);
 	atomic_set(&ctrl_bad_bsf, 0);
 	atomic_set(&relay_tx, 0);
@@ -1343,6 +1892,15 @@ static void clear_session_counters(void)
 	atomic_set(&enqueue_imu_max_us, 0);
 	atomic_set(&publisher_count, 0);
 	atomic_set(&publisher_max_us, 0);
+	for (uint32_t i = 0u; i < NOTIFY_STREAMS; ++i) {
+		atomic_set(&notify_timeout_drop[i], 0);
+	}
+	atomic_set(&notify_rc_nomem, 0);
+	atomic_set(&notify_rc_notconn, 0);
+	atomic_set(&notify_rc_again, 0);
+	atomic_set(&notify_rc_other, 0);
+	atomic_set(&stall_alarm_count, 0);
+	atomic_set(&stall_alarm_reason, 0);
 	for (uint32_t i = 0u; i < ENQUEUE_HIST_BINS; ++i) {
 		atomic_set(&enqueue_ctl_hist[i], 0);
 		atomic_set(&enqueue_uwb_hist[i], 0);
@@ -1687,6 +2245,20 @@ static void process_control(const char *command, uint16_t correlation)
 		(void)publish_control_reply(BSF_CONTROL_SOURCE_B306,
 					    correlation, reply);
 		snprintf(reply, sizeof(reply),
+			 "CTRU restart=%u frame=%u overrun=%u break_idle=%u parser=%u explicit=%u other=%u discarded=%u tag_reset=%u recovery=%u",
+			 (uint32_t)atomic_get(&uart_restarts),
+			 (uint32_t)atomic_get(&uart_restart_framing),
+			 (uint32_t)atomic_get(&uart_restart_overrun),
+			 (uint32_t)atomic_get(&uart_restart_break_idle),
+			 (uint32_t)atomic_get(&uart_restart_parser),
+			 (uint32_t)atomic_get(&uart_restart_explicit),
+			 (uint32_t)atomic_get(&uart_restart_other),
+			 (uint32_t)atomic_get(&uart_restart_discarded_frames),
+			 (uint32_t)atomic_get(&tag_reset_detected),
+			 (uint32_t)atomic_get(&tag_reset_recovery_attempted));
+		(void)publish_control_reply(BSF_CONTROL_SOURCE_B306,
+					    correlation, reply);
+		snprintf(reply, sizeof(reply),
 			 "CTRQ di=%u du=%u dc=%u hi=%u hu=%u hc=%u pn=%u pm=%u",
 			 (uint32_t)atomic_get(&q_drop_imu),
 			 (uint32_t)atomic_get(&q_drop_uwb),
@@ -1711,18 +2283,128 @@ static void process_control(const char *command, uint16_t correlation)
 			 (uint32_t)atomic_get(&relay_tx),
 			 (uint32_t)atomic_get(&relay_ack),
 			 (uint32_t)atomic_get(&relay_timeout));
+	} else if (strcmp(command, "STALL STATUS") == 0) {
+		uint32_t now_ms = (uint32_t)k_uptime_get();
+		uint32_t age_ms = atomic_get(&notify_in_call) != 0 ?
+			(uint32_t)(now_ms - retained_stall.entry_ms) : 0u;
+		snprintf(reply, sizeof(reply),
+			 "STALL e=%u x=%u age=%u s=%u td=%u/%u/%u q=%u/%u/%u hb=%u rc=%d rcc=%u/%u/%u/%u alarm=%u/%u test=%08X",
+			 retained_stall.entry_count, retained_stall.exit_count,
+			 age_ms, retained_stall.in_call_stream,
+			 (uint32_t)atomic_get(&notify_timeout_drop[NOTIFY_IMU]),
+			 (uint32_t)atomic_get(&notify_timeout_drop[NOTIFY_UWB]),
+			 (uint32_t)atomic_get(&notify_timeout_drop[NOTIFY_CTL]),
+			 k_msgq_num_used_get(&q_imu), k_msgq_num_used_get(&q_uwb),
+			 k_msgq_num_used_get(&q_ctl),
+			 (uint32_t)atomic_get(&producer_heartbeat),
+			 (int32_t)retained_stall.last_return_code,
+			 (uint32_t)atomic_get(&notify_rc_nomem),
+			 (uint32_t)atomic_get(&notify_rc_notconn),
+			 (uint32_t)atomic_get(&notify_rc_again),
+			 (uint32_t)atomic_get(&notify_rc_other),
+			 (uint32_t)atomic_get(&stall_alarm_count),
+			 (uint32_t)atomic_get(&stall_alarm_reason),
+			 retained_stall.test_value);
+	} else if (strcmp(command, "RING STATUS") == 0) {
+		uint32_t now_ms = (uint32_t)k_uptime_get();
+		uint8_t view_page = 0u;
+		bool viewing = bsf_stall_ring_view_page(
+			&stall_ring_view, now_ms, BSF_STALL_RING_VIEW_TTL_MS,
+			&view_page);
+		snprintf(reply, sizeof(reply),
+			 "RING boot=%u init=%s count=%u/%u pages=%u frozen=%u reason=%u fidx=%u fms=%u writes=%u period=%u span=%u view=%u/%u ttl=%u",
+			 stall_ring.boot_id,
+			 bsf_stall_ring_boot_name(stall_ring_boot_result),
+			 (uint32_t)stall_ring.count,
+			 (uint32_t)BSF_STALL_RING_CAPACITY,
+			 (uint32_t)bsf_stall_ring_pages(&stall_ring),
+			 (uint32_t)stall_ring.frozen,
+			 (uint32_t)stall_ring.freeze_reason,
+			 (uint32_t)stall_ring.freeze_index,
+			 stall_ring.freeze_uptime_ms, stall_ring.writes_total,
+			 (uint32_t)BSF_STALL_RING_PERIOD_MS,
+			 (uint32_t)BSF_STALL_RING_SPAN_MS,
+			 viewing ? 1u : 0u, (uint32_t)view_page,
+			 (uint32_t)BSF_STALL_RING_VIEW_TTL_MS);
+	} else if (strcmp(command, "RING PAGE OFF") == 0) {
+		bsf_stall_ring_view_clear(&stall_ring_view);
+		snprintf(reply, sizeof(reply), "RING PAGE OFF ok");
+	} else if (parse_exact_u32_command(command, "RING PAGE=", &value) == 0) {
+		/*
+		 * Selection only. The page is served by the next ordinary read
+		 * of the stall characteristic, at the same 232 bytes as the
+		 * status snapshot, and the selection ages out on its own.
+		 */
+		uint8_t pages = bsf_stall_ring_pages(&stall_ring);
+
+		if (value >= pages) {
+			snprintf(reply, sizeof(reply),
+				 "RING PAGE ERR page=%u pages=%u", value,
+				 (uint32_t)pages);
+		} else {
+			bsf_stall_ring_view_select(&stall_ring_view,
+						   (uint16_t)value,
+						   (uint32_t)k_uptime_get());
+			snprintf(reply, sizeof(reply),
+				 "RING PAGE ok page=%u pages=%u entries=%u ttl_ms=%u",
+				 value, (uint32_t)pages,
+				 (uint32_t)BSF_STALL_RING_PAGE_ENTRIES,
+				 (uint32_t)BSF_STALL_RING_VIEW_TTL_MS);
+		}
+	} else if (strcmp(command, "RING FREEZE") == 0) {
+		uint32_t now_ms = (uint32_t)k_uptime_get();
+		bool fired = stall_ring_latch(BSF_RING_FREEZE_MANUAL, now_ms);
+
+		snprintf(reply, sizeof(reply),
+			 "RING FREEZE %s reason=%u count=%u fidx=%u",
+			 fired ? "ok" : "already",
+			 (uint32_t)stall_ring.freeze_reason,
+			 (uint32_t)stall_ring.count,
+			 (uint32_t)stall_ring.freeze_index);
+	} else if (strcmp(command, "RING CLEAR") == 0) {
+		k_spinlock_key_t ring_key = k_spin_lock(&stall_ring_lock);
+
+		bsf_stall_ring_clear(&stall_ring);
+		k_spin_unlock(&stall_ring_lock, ring_key);
+		bsf_stall_ring_view_clear(&stall_ring_view);
+		snprintf(reply, sizeof(reply),
+			 "RING CLEAR ok boot=%u capacity=%u",
+			 stall_ring.boot_id,
+			 (uint32_t)BSF_STALL_RING_CAPACITY);
+	} else if (parse_hex_u32_command(command, "STALL LATCH TEST=", &value) == 0) {
+		retained_stall.test_value = value;
+		snprintf(reply, sizeof(reply), "STALL LATCH TEST OK value=%08X", value);
+	} else if (strcmp(command, "STACKS") == 0) {
+		size_t pub = 0u, parser = 0u, imu = 0u, notify = 0u, sys = 0u;
+		int ep = k_thread_stack_space_get(publisher_thread_id, &pub);
+		int er = k_thread_stack_space_get(uart_parser_thread_id, &parser);
+		int ei = bsf_imu_stack_unused(&imu);
+		int en = k_thread_stack_space_get(notify_worker_thread_id, &notify);
+		int es = k_thread_stack_space_get(&k_sys_work_q.thread, &sys);
+		snprintf(reply, sizeof(reply),
+			 "STACKS pub=%u/%u parser=%u/%u imu=%u/%u notify=%u/%u sys=%u/%u err=%d/%d/%d/%d/%d",
+			 PUBLISHER_STACK_SIZE-(uint32_t)pub, PUBLISHER_STACK_SIZE,
+			 PARSER_STACK_SIZE-(uint32_t)parser, PARSER_STACK_SIZE,
+			 2048u-(uint32_t)imu, 2048u,
+			 NOTIFY_WORKER_STACK_SIZE-(uint32_t)notify, NOTIFY_WORKER_STACK_SIZE,
+			 CONFIG_SYSTEM_WORKQUEUE_STACK_SIZE-(uint32_t)sys,
+			 CONFIG_SYSTEM_WORKQUEUE_STACK_SIZE, ep, er, ei, en, es);
 	} else if (strcmp(command, "IMU START") == 0) {
+		atomic_set(&imu_touched, 1);
 		ret = bsf_imu_start(reply, sizeof(reply));
 		ARG_UNUSED(ret);
 	} else if (strcmp(command, "IMU STOP") == 0) {
+		atomic_set(&imu_touched, 1);
 		ret = bsf_imu_stop();
 		bsf_imu_format_stop(reply, sizeof(reply), ret);
 	} else if (parse_exact_u32_command(command, "IMU RATE=", &value) == 0) {
+		atomic_set(&imu_touched, 1);
 		ret = value <= UINT16_MAX ?
 			bsf_imu_set_rate((uint16_t)value) : -EINVAL;
 		snprintf(reply, sizeof(reply), "IMU RATE %s hz=%u err=%d",
 				 ret == 0 ? "OK" : "FAIL", value, ret);
 	} else if (parse_exact_u32_command(command, "IMU BATCH=", &value) == 0) {
+		atomic_set(&imu_touched, 1);
 		ret = value <= UINT8_MAX ?
 			bsf_imu_set_batch((uint8_t)value) : -EINVAL;
 		snprintf(reply, sizeof(reply), "IMU BATCH %s n=%u err=%d",
@@ -1832,6 +2514,14 @@ static void process_control(const char *command, uint16_t correlation)
 				snprintf(reply, sizeof(reply),
 					 "RELAY REJECT err=%d", ret);
 			} else {
+				if (strncmp(tag_line, "CFG ", 4u) == 0 &&
+				    strstr(tag_line, "BEACON_SYNC=") != NULL) {
+					k_mutex_lock(&cached_tag_cfg_lock, K_FOREVER);
+					snprintf(cached_tag_cfg, sizeof(cached_tag_cfg),
+						 "%s", tag_line);
+					k_mutex_unlock(&cached_tag_cfg_lock);
+					atomic_set(&tag_reset_recovery_attempted, 0);
+				}
 				ret = relay_pending_reserve(correlation);
 				if (ret != 0) {
 					snprintf(reply, sizeof(reply),
@@ -2006,6 +2696,72 @@ static void telemetry_work_handler(struct k_work *work)
 		};
 
 	ARG_UNUSED(work);
+	{
+		uint32_t producer = (uint32_t)atomic_get(&producer_heartbeat);
+		uint32_t exits = retained_stall.exit_count;
+		uint32_t now_ms = (uint32_t)k_uptime_get();
+		bool armed = atomic_get(&ble_connected) != 0 &&
+			atomic_get(&data_subscribed) != 0 &&
+			atomic_get(&telemetry_subscribed) != 0 &&
+			(uint32_t)atomic_get(&subscribed_notify_ok) >=
+				STALL_ARM_NOTIFY_OK;
+		struct bsf_stall_decision decision = bsf_stall_detector_step(
+			&stall_detector, atomic_get(&ble_connected) != 0,
+			atomic_get(&data_subscribed) != 0 &&
+				atomic_get(&telemetry_subscribed) != 0,
+			(uint32_t)atomic_get(&subscribed_notify_ok),
+			STALL_ARM_NOTIFY_OK, producer, exits,
+			(uint8_t)retained_stall.in_call_stream, 1000u,
+			STALL_DETECT_MS, STALL_MAX_RECOVERIES_PER_POWER);
+		uint8_t reason = decision.reason;
+		bsf_stall_status_t sampled =
+			make_stall_status(now_ms, armed, reason);
+		if (retained_stall.first_snapshot.version ==
+		    BSF_STALL_STATUS_VERSION) {
+			publish_stall_status(&retained_stall.first_snapshot);
+		} else {
+			publish_stall_status(&sampled);
+		}
+		if (decision.fire &&
+		    retained_stall.alarm_reason == BSF_STALL_REASON_NONE) {
+			atomic_set(&stall_alarm_reason, reason);
+			atomic_inc(&stall_alarm_count);
+			retained_stall.alarm_reason = reason;
+			retained_stall.alarm_count++;
+			retained_stall.alarm_timestamp_ms = now_ms;
+			sampled.reason = reason;
+			sampled.alarm_count = retained_stall.alarm_count;
+			sampled.alarm_timestamp_ms = now_ms;
+			if (decision.take_snapshot &&
+			    retained_stall.first_snapshot.version == 0u) {
+				retained_stall.first_snapshot = sampled;
+			}
+			publish_stall_status(&sampled);
+			/*
+			 * Latch the trajectory before recovery is armed, so the
+			 * 1.5 s retraction window and the reboot itself cannot
+			 * overwrite the run-in that triggered them.
+			 */
+			(void)stall_ring_latch(BSF_RING_FREEZE_ALARM, now_ms);
+			LOG_ERR("STALL ALARM reason=%u e=%u x=%u age=%u ring=%u/%u@%u",
+				reason,
+				retained_stall.entry_count, retained_stall.exit_count,
+				sampled.in_call_age_ms,
+				(uint32_t)stall_ring.count,
+				(uint32_t)BSF_STALL_RING_CAPACITY,
+				(uint32_t)stall_ring.freeze_index);
+			/* Snapshot is complete before recovery is armed. */
+			if (decision.recover) {
+				retained_stall.recovery_count =
+					stall_detector.recovery_count;
+				retained_stall.first_snapshot.recovery_count =
+					retained_stall.recovery_count;
+				atomic_set(&stall_recovery_pending, 1);
+				k_work_reschedule(&stall_recovery_work,
+						  K_MSEC(STALL_RECOVERY_RETRACT_MS));
+			}
+		}
+	}
 	if (watchdog_ret != 0) {
 		LOG_ERR("watchdog feed failed: %d", watchdog_ret);
 	}
@@ -2034,6 +2790,21 @@ static void telemetry_work_handler(struct k_work *work)
 		};
 	(void)enqueue_ctl_record(PUBLISH_ATTRIBUTE_DATA,
 				 &queue_counters, sizeof(queue_counters));
+	{
+		bsf_ble_pool_usage_t pools = {
+			.version = BSF_BLE_PROTOCOL_VERSION,
+			.kind = BSF_BLE_KIND_POOL_USAGE,
+			.len = sizeof(pools),
+			.node_uptime_ms = (uint32_t)k_uptime_get(),
+			.pool_usage_enabled = 1u,
+#if defined(CONFIG_BT_ATT_SENT_CB_AFTER_TX)
+			.att_sent_cb_after_tx = 1u,
+#endif
+		};
+		pools.pool_count = sample_pool_usage(pools.pools);
+		(void)enqueue_ctl_record(PUBLISH_ATTRIBUTE_DATA, &pools,
+					 sizeof(pools));
+	}
 
 	k_work_reschedule(&telemetry_work, K_SECONDS(1));
 }
@@ -2057,9 +2828,54 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
 	ARG_UNUSED(conn);
 	LOG_INF("BLE disconnected reason=0x%02x", reason);
+	uint32_t now_ms = (uint32_t)k_uptime_get();
+	uint32_t alarm_age_ms = now_ms - retained_stall.alarm_timestamp_ms;
+	bool alarm_retracted = bsf_stall_detector_retract_disconnect(
+		&stall_detector, alarm_age_ms, STALL_RECOVERY_RETRACT_MS,
+		atomic_get(&stall_recovery_pending) != 0);
+
+	if (alarm_retracted) {
+		(void)k_work_cancel_delayable(&stall_recovery_work);
+		atomic_clear(&stall_recovery_pending);
+		retained_stall.alarm_count = stall_detector.alarm_count;
+		retained_stall.recovery_count = stall_detector.recovery_count;
+		retained_stall.alarm_reason = BSF_STALL_REASON_NONE;
+		retained_stall.alarm_timestamp_ms = 0u;
+		memset(&retained_stall.first_snapshot, 0,
+		       sizeof(retained_stall.first_snapshot));
+		atomic_set(&stall_alarm_count, retained_stall.alarm_count);
+		atomic_set(&stall_alarm_reason, BSF_STALL_REASON_NONE);
+		bsf_stall_status_t retracted = make_stall_status(
+			now_ms, false, BSF_STALL_REASON_NONE);
+		publish_stall_status(&retracted);
+		LOG_INF("STALL RECOVERY RETRACT disconnect age_ms=%u window_ms=%u",
+			alarm_age_ms, STALL_RECOVERY_RETRACT_MS);
+	}
+	/*
+	 * A freeze that a disconnect explains is not evidence. Retract it on
+	 * the same 1500 ms terms as the recovery, or one benign disconnect
+	 * would leave the ring latched -- and blind -- for the rest of the
+	 * deployment. Runs on every disconnect, not only a retracted alarm,
+	 * because the no_exit backstop has no alarm to be retracted with.
+	 */
+	{
+		k_spinlock_key_t ring_key = k_spin_lock(&stall_ring_lock);
+		uint8_t was = stall_ring.freeze_reason;
+		bool ring_retracted = bsf_stall_ring_retract_disconnect(
+			&stall_ring, now_ms, STALL_RECOVERY_RETRACT_MS,
+			alarm_retracted);
+
+		k_spin_unlock(&stall_ring_lock, ring_key);
+		if (ring_retracted) {
+			LOG_INF("STALL RING RETRACT disconnect was_reason=%u window_ms=%u",
+				(uint32_t)was,
+				(uint32_t)STALL_RECOVERY_RETRACT_MS);
+		}
+	}
 	atomic_clear(&ble_connected);
 	atomic_clear(&data_subscribed);
 	atomic_clear(&telemetry_subscribed);
+	atomic_clear(&subscribed_notify_ok);
 	k_mutex_lock(&boot_confirm_lock, K_FOREVER);
 	boot_confirm_policy.prepared = false;
 	boot_confirm_policy.committed = false;
@@ -2099,6 +2915,26 @@ int main(void)
 	uint32_t deviceid0 = NRF_FICR->DEVICEID[0];
 	uint32_t deviceid1 = NRF_FICR->DEVICEID[1];
 	int ret;
+	for (size_t i = 0; i < BSF_NET_BUF_POOL_MAX; ++i) {
+		atomic_set(&pool_low_water[i], UINT16_MAX);
+	}
+
+	if (retained_stall.magic != RETAINED_STALL_MAGIC) {
+		memset(&retained_stall, 0, sizeof(retained_stall));
+		retained_stall.magic = RETAINED_STALL_MAGIC;
+	} else {
+		retained_stall.in_call_stream = 0u;
+	}
+	stall_ring_boot_result = (uint8_t)bsf_stall_ring_boot(&stall_ring);
+	if (retained_stall.first_snapshot.version ==
+	    BSF_STALL_STATUS_VERSION) {
+		publish_stall_status(&retained_stall.first_snapshot);
+	} else {
+		bsf_stall_status_t initial = make_stall_status(
+			(uint32_t)k_uptime_get(), false,
+			BSF_STALL_REASON_NONE);
+		publish_stall_status(&initial);
+	}
 
 	node_identity = bsl_identity_from_ficr(deviceid0, deviceid1);
 
@@ -2141,6 +2977,15 @@ int main(void)
 	LOG_INF("firmware=%s identity=0x%04X name=%s reset_reason=0x%08x watchdog_ms=%u",
 		FW_MARKER, node_identity, device_name, boot_reset_reason,
 		WATCHDOG_TIMEOUT_MS);
+	LOG_INF("STALL RING boot_id=%u boot=%s count=%u frozen=%u reason=%u freeze_index=%u period_ms=%u capacity=%u span_ms=%u",
+		stall_ring.boot_id,
+		bsf_stall_ring_boot_name(stall_ring_boot_result),
+		(uint32_t)stall_ring.count, (uint32_t)stall_ring.frozen,
+		(uint32_t)stall_ring.freeze_reason,
+		(uint32_t)stall_ring.freeze_index,
+		(uint32_t)BSF_STALL_RING_PERIOD_MS,
+		(uint32_t)BSF_STALL_RING_CAPACITY,
+		(uint32_t)BSF_STALL_RING_SPAN_MS);
 
 	ret = bsf_strobe_capture_init();
 	if (ret != 0) {
@@ -2173,6 +3018,8 @@ int main(void)
 	}
 
 	k_work_schedule(&telemetry_work, K_SECONDS(1));
+	k_timer_start(&stall_ring_timer, K_MSEC(BSF_STALL_RING_PERIOD_MS),
+		      K_MSEC(BSF_STALL_RING_PERIOD_MS));
 	LOG_INF("UART/strobe/IMU bridge ready: rx=P1.01 tx=P1.02 ready=P1.03 i2c=P0.26/P0.27@400k baud=%u frame=%u",
 		BSL_BAUDRATE, BSL_FRAME_LEN_EXPECTED);
 

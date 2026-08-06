@@ -26,8 +26,8 @@ def tag_domain_rate_hz(
     Host timestamps are deliberately absent from this API, so USB/CDC backlog
     bunching cannot inflate or deflate the result.
     """
-    if period_us not in (100_000, 110_000):
-        raise ValueError("period_us must be 100000 or 110000")
+    if period_us not in (100_000, 110_000, 120_000):
+        raise ValueError("period_us must be 100000, 110000, or 120000")
     superframes = u32_delta(first_superframe, last_superframe)
     if superframes == 0:
         raise ValueError("tag-domain window has zero superframe span")
@@ -43,7 +43,7 @@ def composed_idle_cfg(
 ) -> str:
     if not 1 <= tag <= 10:
         raise ValueError("tag must be in 1..10")
-    if not 0 <= slot < count <= 11:
+    if not 0 <= slot < count <= 12:
         raise ValueError("slot/count out of range")
     if period_ms != 10:
         raise ValueError("only the established 10 ms slot period is allowed")
@@ -62,7 +62,7 @@ def active_cfg(
 ) -> str:
     if not 1 <= tag <= 10:
         raise ValueError("tag must be in 1..10")
-    if not 0 <= slot < count <= 11:
+    if not 0 <= slot < count <= 12:
         raise ValueError("slot/count out of range")
     if beacon_win_n not in (1, 3):
         raise ValueError("overnight run permits BEACON_WIN_N 1 or 3 only")

@@ -29,6 +29,7 @@ ALLOWED_COMMANDS = {
     "BEACON_STATUS",
     "BEACON_PERIOD 100",
     "BEACON_PERIOD 110",
+    "BEACON_PERIOD 120",
 }
 
 
@@ -152,6 +153,7 @@ def main() -> int:
                 "BEACON_STATUS": "LBSTAT;",
                 "BEACON_PERIOD 100": "LBSTAT;",
                 "BEACON_PERIOD 110": "LBSTAT;",
+                "BEACON_PERIOD 120": "LBSTAT;",
             }[args.command]
             result["reply_seen"] = any(
                 expected_reply in line for line in post_lines

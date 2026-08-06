@@ -18,6 +18,7 @@ enum bsf_host_record_kind {
 	BSF_HOST_RECORD_TEXT = 5,
 	BSF_HOST_RECORD_QUEUE_COUNTERS = 6,
 	BSF_HOST_RECORD_QOS = 7,
+	BSF_HOST_RECORD_POOL_USAGE = 8,
 };
 
 typedef struct __attribute__((packed)) {

@@ -20,7 +20,7 @@ from pre_ramp_hardening import request_list
 
 
 MASTER_MARKER = "dk-fusion-imu-relay-v29"
-B306_MARKER = "b306-imu-relay-v32"
+B306_MARKER = "b306-imu-relay-v33"
 RELAY8_MARKER = "tag-fusion-link-relay8"
 RELAY8_IMGSTAT = (
     "69f8b6a1e4718d84156c8dbceb630fa578bf6d3d78ccec82da9cac5b6859bb26"

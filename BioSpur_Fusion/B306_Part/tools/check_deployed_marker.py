@@ -1,5 +1,28 @@
 #!/usr/bin/env python3
-"""Reject accidental reuse of a deployed B306 firmware marker."""
+"""Reject accidental reuse of a deployed B306 firmware marker.
+
+STANDING RULE — read before "fixing" a mismatch here.
+
+The artifact this guard hashes is `zephyr.signed.bin`, and under
+`SB_CONFIG_BOOT_SIGNATURE_TYPE_ECDSA_P256` that file is NOT reproducible:
+imgtool draws a fresh random nonce for every signature, so two builds of
+byte-identical firmware differ in their signature trailer (measured on v40:
+identical for 219,648 bytes, differing in the last 66).
+
+Therefore:
+
+  * A hash mismatch reported here does NOT mean the image is corrupt. On a
+    marker that has already been deployed it means somebody rebuilt it, and the
+    correct response is to cut a NEW MARKER -- never to update the registry to
+    match the rebuild, and never to conclude the flashed bytes were bad.
+  * The registered hash is an ARTIFACT identity. The deployment gate must
+    compare against the frozen file that was actually signed and flashed.
+    "Verify by rebuilding" is not a valid check and must not be added.
+  * Build reproducibility is judged elsewhere, on the unsigned application and
+    on MCUboot, which are byte-stable.
+
+See B306_Part/firmware/README.md, "Standing rule: what a signed hash is".
+"""
 
 from __future__ import annotations
 
@@ -40,7 +63,10 @@ def check(elf: Path, artifact: Path, manifest_path: Path) -> tuple[str, str]:
     if digest not in entry.get("signed_sha256", []):
         raise SystemExit(
             f"MARKER_GUARD_FAIL marker={marker} deployed=1 "
-            f"sha256={digest} expected={entry.get('signed_sha256', [])}"
+            f"sha256={digest} expected={entry.get('signed_sha256', [])} "
+            f"note=ECDSA-P256_resigns_with_a_fresh_nonce_so_a_rebuild_of_"
+            f"identical_source_ALWAYS_produces_a_new_signed_hash;_this_is_not_"
+            f"image_corruption;_cut_a_new_marker_instead_of_editing_the_registry"
         )
     return marker, digest
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One no-retry v31->v32 B306 OTA transaction through DK SNR 683234364."""
+"""One no-retry B306 OTA transaction through DK SNR 683234364."""
 
 from __future__ import annotations
 
@@ -17,6 +17,10 @@ ROOT = Path(__file__).resolve().parents[2]
 TOOLS = ROOT / "B306_Part" / "tools"
 SNR = "683234364"
 DEVICE = "NRF52840_XXAA"
+FLEET_NODES = {
+    "BSF3C79", "BSFC2CC", "BSF44AD", "BSF6C53", "BSF8BC4",
+    "BSF1120", "BSF31CC", "BSFAA61", "BSFB165", "BSFEC35",
+}
 SOURCE_MARKER = "b306-imu-relay-v31"
 UPDATER_SHA = {
     "BSFC2CC": "57d21879fdd7767a8a6265b202b5c195236f564d4e852b4f46a67714ab5e4330",
@@ -30,6 +34,11 @@ UPDATER_SHA = {
 }
 V28_MERGED_SHA = "abb24e44ec010fb25e7945ba31fa90dbaab90b24379b2e3c74fbc3256ac8dd3b"
 V28_BIN_SHA = "110dcbe5c8580d060f9b89e4d63d06d4e0ed28cced73a83397c23155dc07a97f"
+# V34C campaign: max measured successful upload was 21.437 s.  The updater
+# may spend 15 s before starting, and its initial-scan and post-reset
+# reacquisition operations each have a 180 s inner deadline.  One additional
+# measured-max upload interval is the evidence-tail margin.
+V34C_CAPTURE_BOUND_S = 15.0 + 180.0 + 21.437 + 180.0 + 21.437
 
 
 def sha256(path: Path) -> str:
@@ -73,17 +82,21 @@ def flash(script: Path, log: Path) -> None:
     ], log)
 
 
-def classify_capture_result(returncode: int, console: str) -> str:
+def classify_capture_result(returncode: int, console: str, timeout_s: float) -> str:
     if returncode == 0:
         return "MARKERS_COMPLETE_EARLY_EXIT"
     if "RTT required marker(s) missing before timeout" in console:
-        return "EVIDENCE_GAP_MARKERS_MISSING_60S_CONTINUE_TO_CONFIRM"
+        return f"EVIDENCE_GAP_MARKERS_MISSING_{timeout_s:.3f}S_CONTINUE_TO_CONFIRM"
     raise RuntimeError(f"updater RTT explicit failure rc={returncode}")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--node", required=True, choices=tuple(UPDATER_SHA))
+    parser.add_argument(
+        "--node", required=True,
+        choices=("BSF3C79", "BSFC2CC", "BSF44AD", "BSF6C53", "BSF8BC4",
+                 "BSF1120", "BSF31CC", "BSFAA61", "BSFB165", "BSFEC35"),
+    )
     parser.add_argument("--out-dir", required=True, type=Path)
     parser.add_argument(
         "--deployment-only",
@@ -92,6 +105,38 @@ def main() -> int:
             "stop after v32 PONG plus PREPARE/COMMIT confirmed=1; "
             "do not run F4, SPACING, redraw, sanity, or IMU commands"
         ),
+    )
+    parser.add_argument("--source-marker", default=SOURCE_MARKER)
+    parser.add_argument("--target-marker", default="b306-imu-relay-v32")
+    parser.add_argument("--build-prefix", default="dk-ota-b306-v32-retry1-")
+    parser.add_argument("--updater-sha")
+    parser.add_argument("--confirm-tool", default="confirm_b306_v32.py")
+    parser.add_argument("--master-marker", default="dk-fusion-imu-relay-v28")
+    parser.add_argument("--restore-build", default="dk-fusion-imu-relay-v28")
+    parser.add_argument("--restore-merged-sha", default=V28_MERGED_SHA)
+    parser.add_argument("--restore-bin-sha", default=V28_BIN_SHA)
+    parser.add_argument(
+        "--skip-preflight", action="store_true",
+        help="use a separately archived fleet inventory instead of the legacy idle gate",
+    )
+    parser.add_argument(
+        "--fleet-preflight-result", type=Path,
+        help="PASS result.json proving end-to-end PING for every intended fleet target",
+    )
+    parser.add_argument(
+        "--preflight-require", choices=("fleet", "target-only"), default="fleet",
+        help=(
+            "'fleet' (default, unchanged) demands an end-to-end PING from every "
+            "fleet node before this one target may proceed. 'target-only' demands "
+            "an end-to-end PING from THIS target and records the rest as "
+            "inventory. Trap 6.3: a per-target operation must never wait on a "
+            "fleet-wide condition — one quarantined board must not be able to "
+            "block, or roll back, every other board's image."
+        ),
+    )
+    parser.add_argument(
+        "--capture-timeout-s", type=float, default=V34C_CAPTURE_BOUND_S,
+        help="outer RTT evidence bound; must exceed all wrapped updater deadlines",
     )
     args = parser.parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=False)
@@ -106,12 +151,12 @@ def main() -> int:
     env = dict(os.environ)
     env["PYTHONPATH"] = str(TOOLS)
 
-    build = ROOT / "B306_Part" / "builds" / f"dk-ota-b306-v32-retry1-{args.node}"
+    build = ROOT / "B306_Part" / "builds" / f"{args.build_prefix}{args.node}"
     updater_merged = build / "merged.hex"
     updater_bin = build / "dk_ota" / "zephyr" / "zephyr.bin"
-    v28 = ROOT / "B306_Part" / "builds" / "dk-fusion-imu-relay-v28"
-    v28_merged = v28 / "merged.hex"
-    v28_bin = v28 / "fusion_master" / "zephyr" / "zephyr.bin"
+    restore_build = ROOT / "B306_Part" / "builds" / args.restore_build
+    v28_merged = restore_build / "merged.hex"
+    v28_bin = restore_build / "fusion_master" / "zephyr" / "zephyr.bin"
     try:
         hashes = {
             "updater_merged": sha256(updater_merged),
@@ -119,18 +164,63 @@ def main() -> int:
             "v28_bin": sha256(v28_bin),
         }
         state["hashes"] = hashes
+        expected_updater_sha = args.updater_sha or UPDATER_SHA[args.node]
         if hashes != {
-            "updater_merged": UPDATER_SHA[args.node],
-            "v28_merged": V28_MERGED_SHA,
-            "v28_bin": V28_BIN_SHA,
+            "updater_merged": expected_updater_sha,
+            "v28_merged": args.restore_merged_sha,
+            "v28_bin": args.restore_bin_sha,
         }:
             raise RuntimeError(f"artifact hash gate failed: {hashes}")
 
-        run_logged([
-            sys.executable, str(TOOLS / "v32_ota_target_preflight.py"),
-            "--node", args.node, "--expected-marker", SOURCE_MARKER,
-            "--out-dir", str(args.out_dir / "preflight"),
-        ], args.out_dir / "preflight_console.log", env=env)
+        if args.skip_preflight:
+            if args.fleet_preflight_result is None:
+                raise RuntimeError(
+                    "--skip-preflight requires --fleet-preflight-result"
+                )
+            preflight = json.loads(args.fleet_preflight_result.read_text(
+                encoding="utf-8"
+            ))
+            nodes = preflight.get("nodes", {})
+            responders = {
+                node for node, row in nodes.items()
+                if isinstance(row, dict)
+                and str(row.get("ping", {}).get("text", "")).startswith(
+                    f"PONG name={node} "
+                )
+            }
+            if args.preflight_require == "target-only":
+                # This target's own end-to-end PING is the gate. Other nodes are
+                # inventory, never a precondition (trap 6.3).
+                if args.node not in responders:
+                    raise RuntimeError(
+                        "preflight lacks an end-to-end PING from this target: "
+                        f"node={args.node} responders={sorted(responders)}"
+                    )
+                state["preflight"] = {
+                    "mode": "TARGET_ONLY_END_TO_END_PING",
+                    "result": str(args.fleet_preflight_result),
+                    "target_responded": True,
+                    "fleet_inventory": sorted(responders),
+                    "fleet_missing": sorted(FLEET_NODES - responders),
+                }
+            else:
+                if preflight.get("status") != "PASS" or responders != FLEET_NODES:
+                    raise RuntimeError(
+                        "fleet preflight lacks end-to-end PING from every target: "
+                        f"status={preflight.get('status')} responders={sorted(responders)}"
+                    )
+                state["preflight"] = {
+                    "mode": "SEPARATE_END_TO_END_FLEET_PING",
+                    "result": str(args.fleet_preflight_result),
+                    "responders": sorted(responders),
+                }
+        else:
+            run_logged([
+                sys.executable, str(TOOLS / "v32_ota_target_preflight.py"),
+                "--node", args.node, "--expected-marker", args.source_marker,
+                "--expected-master-marker", args.master_marker,
+                "--out-dir", str(args.out_dir / "preflight"),
+            ], args.out_dir / "preflight_console.log", env=env)
 
         updater_script = args.out_dir / f"flash_updater_{SNR}.jlink"
         restore_script = args.out_dir / f"restore_v28_{SNR}.jlink"
@@ -141,7 +231,9 @@ def main() -> int:
 
         # This is evidence collection, never a prerequisite that may consume
         # the application's 180-second confirmation deadline.  Exit as soon
-        # as both markers arrive; otherwise cap the evidence window at 60 s.
+        # as both markers arrive; otherwise use a bound longer than every
+        # nested updater operation.  Never shorten this below the updater's
+        # own scan/reacquisition deadlines.
         # A missing-marker timeout is recorded and execution still restores
         # v28 and performs application confirmation. Explicit failure markers
         # remain fatal.
@@ -149,7 +241,7 @@ def main() -> int:
         capture_rc = run_logged([
             sys.executable, str(TOOLS / "capture_jlink_rtt.py"),
             "--serial-number", SNR, "--device", DEVICE,
-            "--address", "0x20002010", "--duration-s", "60",
+            "--address", "0x20002010", "--duration-s", str(args.capture_timeout_s),
             "--until-text", "OTA_ACTION:handoff_app_roundtrip_confirm",
             "--until-text", "OTA_STATE:post_verify_passed",
             "--fail-text", "OTA_STATE:post_verify_failed",
@@ -159,7 +251,9 @@ def main() -> int:
         ], capture_console, env=env, check=False)
         console = capture_console.read_text(encoding="utf-8", errors="replace")
         try:
-            state["updater_capture"] = classify_capture_result(capture_rc, console)
+            state["updater_capture"] = classify_capture_result(
+                capture_rc, console, args.capture_timeout_s
+            )
         except RuntimeError as exc:
             raise RuntimeError(f"{exc}; log={capture_console}") from exc
 
@@ -169,8 +263,9 @@ def main() -> int:
         # observe the old central disappearing before v28 is asked to connect.
         time.sleep(25.0)
         run_logged([
-            sys.executable, str(TOOLS / "confirm_b306_v32.py"),
+            sys.executable, str(TOOLS / args.confirm_tool),
             "--node", args.node, "--out-dir", str(args.out_dir / "app_confirm"),
+            "--target-only",
         ], args.out_dir / "app_confirm_console.log", env=env)
         if args.deployment_only:
             confirm_result = json.loads(
@@ -183,7 +278,7 @@ def main() -> int:
             if (
                 confirm_result.get("status") != "PASS"
                 or f"name={args.node}" not in ping_text
-                or "fw=b306-imu-relay-v32" not in ping_text
+                or f"fw={args.target_marker}" not in ping_text
                 or "confirmed=1" not in after_text
             ):
                 raise RuntimeError(

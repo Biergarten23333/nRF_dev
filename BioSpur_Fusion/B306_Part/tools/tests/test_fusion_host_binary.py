@@ -54,16 +54,16 @@ class FusionHostBinaryTest(unittest.TestCase):
         self.assertIn("n=5", line)
         self.assertEqual(line.count(";"), 4)
 
-    def test_imu_batches_8_and_10(self):
-        for count in (8, 10):
+    def test_imu_batches_8_10_and_16(self):
+        for count in (8, 10, 16):
             with self.subTest(count=count):
                 line = self.roundtrip(KIND_IMU, self.imu_payload(count, 100))
                 self.assertIn(f"n={count}", line)
                 self.assertEqual(line.count(";"), count - 1)
 
-    def test_imu_batch_11_rejected(self):
+    def test_imu_batch_17_rejected(self):
         with self.assertRaisesRegex(Exception, "invalid IMU record length"):
-            self.roundtrip(KIND_IMU, self.imu_payload(11, 100))
+            self.roundtrip(KIND_IMU, self.imu_payload(17, 100))
 
     def test_imu_sequence_gap_reconstruction_for_mixed_batches(self):
         lines = [

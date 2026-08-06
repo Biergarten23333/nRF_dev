@@ -332,11 +332,13 @@ def plot_products(
             position_stats[node] = {"attempted": attempted, "solved": 0, "rms_mm": None}
             continue
         mean = values.mean(axis=0)
+        axis_rms = np.sqrt(np.mean((values - mean) ** 2, axis=0))
         rms = float(np.sqrt(np.mean(np.sum((values - mean) ** 2, axis=1))))
         position_stats[node] = {
             "attempted": attempted,
             "solved": len(values),
             "mean_mm": mean.tolist(),
+            "axis_rms_mm": axis_rms.tolist(),
             "rms_mm": rms,
         }
         display = values[:: max(1, len(values) // 1500)]

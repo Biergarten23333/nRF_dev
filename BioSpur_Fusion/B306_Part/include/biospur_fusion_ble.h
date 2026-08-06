@@ -23,10 +23,12 @@ extern "C" {
 #define BSF_BLE_KIND_IMU        3u
 #define BSF_BLE_KIND_CONTROL_REPLY 4u
 #define BSF_BLE_KIND_QUEUE_COUNTERS 5u
+#define BSF_BLE_KIND_POOL_USAGE 6u
+#define BSF_NET_BUF_POOL_MAX 16u
 
 #define BSF_IMU_BATCH_MIN       1u
-#define BSF_IMU_BATCH_MAX       10u
-#define BSF_IMU_BATCH_DEFAULT   5u
+#define BSF_IMU_BATCH_MAX       16u
+#define BSF_IMU_BATCH_DEFAULT   10u
 #define BSF_CONTROL_LINE_MAX    200u
 #define BSF_CONTROL_REPLY_TEXT_MAX 200u
 
@@ -95,6 +97,7 @@ typedef struct __attribute__((packed)) {
  * 7b120002-4e77-4a71-a045-7b4d3f2a9000 UWB data
  * 7b120003-4e77-4a71-a045-7b4d3f2a9000 telemetry
  * 7b120004-4e77-4a71-a045-7b4d3f2a9000 ASCII control write
+ * 7b120005-4e77-4a71-a045-7b4d3f2a9000 stall status read
  *
  * Expand with BT_UUID_128_ENCODE() after including Zephyr's uuid.h.
  */
@@ -102,10 +105,202 @@ typedef struct __attribute__((packed)) {
 #define BSF_BLE_UUID_DATA_W32      0x7b120002u
 #define BSF_BLE_UUID_TELEMETRY_W32 0x7b120003u
 #define BSF_BLE_UUID_CONTROL_W32   0x7b120004u
+#define BSF_BLE_UUID_STALL_W32     0x7b120005u
 #define BSF_BLE_UUID_W16_1         0x4e77u
 #define BSF_BLE_UUID_W16_2         0x4a71u
 #define BSF_BLE_UUID_W16_3         0xa045u
 #define BSF_BLE_UUID_W48           0x7b4d3f2a9000ULL
+
+#define BSF_STALL_STATUS_VERSION 2u
+
+/*
+ * The stall characteristic serves two wire forms of the SAME length. Byte 0
+ * (`version`) selects which one a given read returned:
+ *
+ *   BSF_STALL_STATUS_VERSION (2) -- bsf_stall_status_t, the instantaneous
+ *                                   snapshot. Unchanged from v38/v39.
+ *   BSF_STALL_RING_VERSION   (4) -- bsf_stall_ring_page_t, one page of the
+ *                                   50 ms trajectory ring. (3 = the v41
+ *                                   layout, still decodable by the host.)
+ *
+ * Both are exactly 232 bytes, so a reader that only checks the length keeps
+ * working and never has to negotiate. Which form is served is selected by a
+ * control write (`RING PAGE=<n>` / `RING PAGE OFF`), never by the read itself.
+ */
+#define BSF_STALL_RING_VERSION 4u
+/* v3 pages (b306-imu-relay-v41) remain decodable: a v41 board's ring may still
+ * be retrieved if it ever reboots and rejoins. The host decoder must handle
+ * both, so the version byte is the discriminator, not an assumption. */
+#define BSF_STALL_RING_VERSION_V41 3u
+
+/*
+ * `available` is the pool's free count at sample time.
+ *
+ * `low_water` is the minimum `available` observed SINCE THE PREVIOUS RECORD,
+ * not since boot. The since-boot form was removed because every board drives
+ * its ATT pool to zero during its own DFU, which latched the field at 0 for the
+ * rest of the deployment: it read like a live signal and carried nothing.
+ * Layout is unchanged, so the kind-8 payload stays at 140 bytes.
+ */
+typedef struct __attribute__((packed)) {
+	uint32_t name_hash;
+	uint16_t available;
+	uint16_t low_water;
+} bsf_net_buf_pool_usage_t;
+
+enum bsf_stall_reason {
+	BSF_STALL_REASON_NONE = 0,
+	BSF_STALL_REASON_PUBLISHER_FROZEN = 1,
+	BSF_STALL_REASON_NOTIFY_BLOCKED = 2,
+	BSF_STALL_REASON_PRODUCER_FROZEN = 3,
+};
+
+/*
+ * Read-only diagnostic escape path.  This value is copied by the detector
+ * (system workqueue) and read directly by ATT; it never enters q_ctl or the
+ * publisher/notify-worker path.
+ */
+typedef struct __attribute__((packed)) {
+	uint8_t version;
+	uint8_t reason;
+	uint8_t in_call_stream;
+	uint8_t armed;
+	uint32_t sample_uptime_ms;
+	uint32_t entry_count;
+	uint32_t exit_count;
+	uint32_t entry_ms;
+	uint32_t exit_ms;
+	uint32_t in_call_age_ms;
+	int32_t last_return_code;
+	uint32_t return_ok;
+	uint32_t return_nomem;
+	uint32_t return_notconn;
+	uint32_t return_again;
+	uint32_t return_other;
+	uint16_t queue_depth_ctl;
+	uint16_t queue_depth_uwb;
+	uint16_t queue_depth_imu;
+	uint16_t reserved0;
+	uint32_t q_drop_ctl;
+	uint32_t q_drop_uwb;
+	uint32_t q_drop_imu;
+	uint32_t timeout_drop_ctl;
+	uint32_t timeout_drop_uwb;
+	uint32_t timeout_drop_imu;
+	uint32_t producer_heartbeat;
+	uint32_t alarm_count;
+	uint32_t alarm_timestamp_ms;
+	uint32_t recovery_count;
+	uint8_t pool_count;
+	uint8_t pool_usage_enabled;
+	uint8_t att_sent_cb_after_tx;
+	uint8_t reserved1;
+	bsf_net_buf_pool_usage_t pools[BSF_NET_BUF_POOL_MAX];
+} bsf_stall_status_t;
+
+/*
+ * One 50 ms trajectory sample. Written from the system-timer ISR into the
+ * retained `.noinit` ring, so it must stay small, fixed and pointer-free.
+ *
+ * `pool_avail` is instantaneous free count only -- it deliberately does NOT
+ * touch the kind-8 low-water window, which belongs to the 1 Hz sampler.
+ */
+/*
+ * v4 (H1) adds the detector's own inputs, and pays for them by narrowing
+ * pool_avail from 16 slots to 8.
+ *
+ * N6 caught a stall on BSF44AD in which the firmware's bounded recovery never
+ * fired, and the ring as it stood could not have said why: `armed` depends on
+ * `subscribed_notify_ok >= STALL_ARM_NOTIFY_OK`, the dwell accumulates in the
+ * detector's own `frozen_ms`, and the alarm block is gated on
+ * `retained_stall.alarm_reason`. None of those three was sampled, so a
+ * retrieved ring would have shown the freeze and not the reason for the
+ * silence — which would have wasted the retrieval.
+ *
+ * Narrowing pool_avail is safe and honest rather than lossy: every pool on this
+ * board is identified by symbol and sized by Kconfig — acl_tx 8, att 8,
+ * discardable 3, fragments 1, hci_cmd 2, hci_rx 10, pkt_pool 4, sync_evt 1 —
+ * and there are exactly eight. `pool_count` is still the real count, so a
+ * decoder can detect truncation if a ninth pool ever appears.
+ *
+ * Net effect: the entry stays 40 bytes, the page stays 232, the capacity stays
+ * 200 and the span stays 10.0 s. Nothing is traded away for the new fields.
+ */
+#define BSF_STALL_RING_POOL_SLOTS 8u
+
+typedef struct __attribute__((packed)) {
+	uint32_t uptime_ms;
+	uint32_t producer_heartbeat;
+	uint32_t entry_count;
+	uint32_t exit_count;
+	/* Detector inputs — why the detector did or did not act at this sample. */
+	uint32_t subscribed_notify_ok; /* vs STALL_ARM_NOTIFY_OK: is it armed? */
+	uint16_t detector_frozen_ms;   /* the dwell accumulator, saturating */
+	uint16_t in_call_age_ms;
+	uint8_t in_call_stream;
+	uint8_t flags;
+	uint8_t queue_depth_ctl;
+	uint8_t queue_depth_uwb;
+	uint8_t queue_depth_imu;
+	uint8_t pool_count; /* real count; > POOL_SLOTS means pool_avail is cut */
+	uint8_t alarm_reason; /* retained: non-zero makes the alarm block inert */
+	uint8_t alarm_count;
+	uint8_t pool_avail[BSF_STALL_RING_POOL_SLOTS];
+} bsf_stall_ring_entry_t;
+
+#define BSF_RING_FLAG_CONNECTED      0x01u
+#define BSF_RING_FLAG_DATA_SUB       0x02u
+#define BSF_RING_FLAG_TELEMETRY_SUB  0x04u
+#define BSF_RING_FLAG_NOTIFY_IN_CALL 0x08u
+#define BSF_RING_FLAG_FAST_DROP      0x10u
+#define BSF_RING_FLAG_RECOVERY_ARMED 0x20u
+
+#define BSF_STALL_RING_PAGE_ENTRIES 5u
+
+/* Freeze causes, in the order they are checked. */
+#define BSF_RING_FREEZE_NONE    0u
+#define BSF_RING_FREEZE_ALARM   1u /* the detector fired */
+#define BSF_RING_FREEZE_NO_EXIT 2u /* ISR latch: producers advancing, no exits */
+#define BSF_RING_FREEZE_MANUAL  3u /* operator asked, on a live board */
+
+typedef struct __attribute__((packed)) {
+	uint8_t version; /* BSF_STALL_RING_VERSION */
+	uint8_t page;
+	uint8_t pages;
+	uint8_t entries; /* valid entries in this page */
+	uint16_t capacity;
+	uint16_t count; /* entries held, oldest-first ordering */
+	uint32_t boot_id;
+	uint32_t oldest_uptime_ms;
+	uint32_t newest_uptime_ms;
+	/*
+	 * The freeze instant is entries_data[freeze_index - 1].uptime_ms once
+	 * the page holding it is fetched, and `RING STATUS` carries it too, so
+	 * it is not repeated in every page -- the 232-byte budget is tight.
+	 */
+	uint16_t freeze_index; /* logical index of the freeze point, or count */
+	uint16_t page_crc; /* CRC-16-CCITT/FALSE over this page's entry bytes */
+	uint8_t frozen;
+	uint8_t freeze_reason;
+	uint8_t sample_period_ms;
+	uint8_t pool_count;
+	uint8_t entry_size;
+	uint8_t reserved0;
+	uint16_t reserved1;
+	bsf_stall_ring_entry_t entries_data[BSF_STALL_RING_PAGE_ENTRIES];
+} bsf_stall_ring_page_t;
+
+typedef struct __attribute__((packed)) {
+	uint8_t version;
+	uint8_t kind;
+	uint16_t len;
+	uint32_t node_uptime_ms;
+	uint8_t pool_count;
+	uint8_t pool_usage_enabled;
+	uint8_t att_sent_cb_after_tx;
+	uint8_t reserved;
+	bsf_net_buf_pool_usage_t pools[BSF_NET_BUF_POOL_MAX];
+} bsf_ble_pool_usage_t;
 
 typedef struct __attribute__((packed)) {
 	uint8_t version;
@@ -271,7 +466,7 @@ _Static_assert(sizeof(bsf_ble_imu_prefix_t) == 10u,
 	       "Fusion IMU prefix size drifted");
 _Static_assert(sizeof(bsf_ble_imu_sample_t) == 14u,
 	       "Fusion IMU sample size drifted");
-_Static_assert(BSF_IMU_RECORD_LEN(BSF_IMU_BATCH_MAX) == 152u,
+_Static_assert(BSF_IMU_RECORD_LEN(BSF_IMU_BATCH_MAX) == 236u,
 		       "Fusion maximum IMU record size drifted");
 _Static_assert(BSF_IMU_RECORD_LEN(BSF_IMU_BATCH_MAX) <= 244u,
 		       "Fusion maximum IMU record exceeds ATT payload budget");
@@ -279,6 +474,16 @@ _Static_assert(sizeof(bsf_ble_control_reply_prefix_t) == 7u,
 	       "Fusion control reply prefix size drifted");
 _Static_assert(sizeof(bsf_ble_queue_counters_t) == 58u,
 		       "Fusion queue-counter record size drifted");
+_Static_assert(sizeof(bsf_ble_pool_usage_t) == 140u,
+	       "Fusion pool-usage record size drifted");
+_Static_assert(sizeof(bsf_stall_status_t) <= 244u,
+	       "Fusion stall status exceeds negotiated ATT payload");
+_Static_assert(sizeof(bsf_stall_ring_entry_t) == 40u,
+	       "Fusion stall ring entry size drifted");
+_Static_assert(sizeof(bsf_stall_ring_page_t) == 232u,
+	       "Fusion stall ring page size drifted");
+_Static_assert(sizeof(bsf_stall_ring_page_t) == sizeof(bsf_stall_status_t),
+	       "Both stall wire forms must read back at the same length");
 _Static_assert(sizeof(bsf_ble_control_reply_prefix_t) +
 		       BSF_CONTROL_REPLY_TEXT_MAX <= 247u,
 	       "Fusion control reply exceeds ATT payload budget");

@@ -17,7 +17,7 @@ from fusion_session import SessionError, parse_fields, resolve_fusion_port
 
 MASTER_MARKER = "dk-fusion-imu-relay-v28"
 NODES = (
-    "BSF3C79", "BSFC2CC", "BSF44AD", "BSF6C53", "BSF1120",
+    "BSF3C79", "BSFC2CC", "BSF44AD", "BSF6C53", "BSF8BC4", "BSF1120",
     "BSF31CC", "BSFAA61", "BSFEC35", "BSFB165",
 )
 
@@ -26,6 +26,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--node", required=True, choices=NODES)
     parser.add_argument("--expected-marker", required=True)
+    parser.add_argument("--expected-master-marker", default=MASTER_MARKER)
     parser.add_argument("--out-dir", required=True, type=Path)
     parser.add_argument("--fusion-port")
     parser.add_argument("--observe-s", type=float, default=5.0)
@@ -46,7 +47,7 @@ def main() -> int:
             result["decode_before_send"] = decode_guard(channel, 15.0)
             master = wait_master_status(channel)
             result["master_status"] = master
-            if f"marker={MASTER_MARKER}" not in master:
+            if f"marker={args.expected_master_marker}" not in master:
                 raise SessionError(f"master marker mismatch: {master}")
 
             ping = b306_command(channel, args.node, "PING", "PONG ")

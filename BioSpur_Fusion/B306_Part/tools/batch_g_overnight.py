@@ -324,7 +324,7 @@ class Runner:
         return timing.as_dict()
 
     def set_main_period(self, period_ms: int, label: str) -> dict[str, object]:
-        if period_ms not in (100, 110):
+        if period_ms not in (100, 110, 120):
             raise SessionError("refusing non-authorized beacon period")
         output = self.root / f"{label}_main_period_{period_ms}.json"
         tool = Path(__file__).with_name("listener_vcom_command.py")
@@ -347,11 +347,21 @@ class Runner:
             text=True,
             capture_output=True,
         )
+        decoded = None
+        if output.exists():
+            try:
+                decoded = json.loads(output.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                decoded = None
         result = {
             "returncode": completed.returncode,
             "stdout": completed.stdout,
             "stderr": completed.stderr,
             "evidence": str(output),
+            "decoded": decoded,
+            f"period_{period_ms}_seen": bool(
+                decoded and decoded.get(f"period_{period_ms}_seen")
+            ),
         }
         if completed.returncode != 0:
             raise SessionError(f"main period command failed: {result}")

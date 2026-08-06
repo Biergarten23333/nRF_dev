@@ -52,6 +52,17 @@ mode (`confirm=false`) and never confirms an image. The separate
 `b306-v32-noconfirm-proof` marker disables the application confirmation path
 while retaining the timeout, specifically to prove automatic rollback.
 
+v34 changes the compile-time IMU initial condition to 200 Hz, batch 10. On
+each B306 power cycle, the first CRC-valid UWB frame carrying `sf_valid=1`
+claims a volatile one-shot latch and starts the IMU. There is deliberately no
+timeout: without beacon lock there is no cross-node time-axis bridge, so
+starting the IMU would create data that cannot be placed on the shared axis.
+Any DK `IMU START`, `IMU STOP`, `IMU RATE=`, or `IMU BATCH=` command claims
+the same latch first and therefore outranks the beacon for that power cycle.
+Losing beacon lock after startup neither clears the latch nor stops IMU
+sampling; the within-board timer axis remains continuous until the shared
+bridge returns.
+
 v20 replaced LED A's cumulative fault latch with a
 five-second recent-event window. The first ten parsed outcomes form an
 automatic startup baseline; `COUNTERS CLEAR` explicitly establishes the
@@ -121,6 +132,60 @@ acceptable final wire contract. v26 restores v23's exact 10-byte prefix and
 extends it against the preceding IMU base, a full-width UWB timestamp, or
 telemetry wrap count before host output. The transition reader accepts v25's
 14-byte record only until v26 is installed.
+
+## Standing rule: what a signed hash is, and what it is not
+
+`SB_CONFIG_BOOT_SIGNATURE_TYPE_ECDSA_P256` means `imgtool` draws a **fresh random
+nonce for every signature**. Two builds of byte-identical firmware therefore
+produce different `zephyr.signed.bin` files — different trailing bytes, and
+sometimes a different file size, because the DER encoding of the signature
+varies in length. Measured on `b306-imu-relay-v40`: the two pristine builds
+agreed for **219,648 bytes** and differed only in the final **66**. This is not
+a defect and it cannot be configured away; it is how ECDSA works.
+
+Two consequences, both load-bearing:
+
+1. **Reproducibility is judged on the unsigned application and on MCUboot
+   only** — `firmware/zephyr/zephyr.bin` and `mcuboot/zephyr/zephyr.bin`. Those
+   are byte-stable and are the *build* identity. `merged.hex` contains the
+   signature and is therefore not reproducible either. This has always been
+   what the build scripts actually compare; only the wording was loose.
+2. **A canonical signed hash is an *artifact* identity.** It names one specific
+   file that was produced once and must be kept. The deployment gate compares
+   against **the frozen file**, and **nobody may "verify by rebuilding"**: a
+   rebuild from identical source yields a different signed payload, which will
+   read as a hash mismatch and can easily be mis-diagnosed as a corrupted or
+   wrong image. If a signed artifact is lost, it cannot be regenerated — a new
+   marker must be cut.
+
+This is why the ten node-addressed updater carriers embed the **signed** payload
+and why N5's rollout gated on that artifact hash. That was correct. Do not
+"fix" it into a rebuild-and-compare.
+
+### Corollary: never let a deploy step rebuild what it is gating on
+
+**Always pass `--skip-rebuild` to `west flash`.** `west flash -d <build>` runs
+the build first by default, so a flash command silently regenerates the very
+artifacts whose hashes were just verified.
+
+Observed in N6 (`deploy_20260806`): the first dk-v33 flash attempt regenerated
+the canonical build tree before the runner had even started. That instance was
+harmless — the DK application is byte-reproducible, so the artifact came back
+identical and the Stage A gate still held. **On a signed image it would not
+be.** ECDSA re-signs with a fresh nonce, so an implicit rebuild produces a
+different `zephyr.signed.bin`, the deployment gate then reports a hash mismatch
+against the frozen file, and the natural reading of that mismatch is *corrupted
+or wrong image* — the exact mis-diagnosis the rule above exists to prevent, now
+reachable without anyone consciously deciding to rebuild anything.
+
+Two rules, then: gate against the frozen file, and make sure nothing in the
+deploy path can quietly replace it.
+
+`tools/check_deployed_marker.py` enforces the same discipline from the other
+side: it refuses a freshly built signed image whose hash is not the one already
+recorded for a deployed marker. Under ECDSA that guard fires on *every* rebuild
+of a deployed marker, which is the intended behaviour — the correct response is
+to cut a new marker, never to update the registry to match the rebuild.
 
 `b306-imu-relay-v19` is permanently retired: two different deployed byte
 sequences used that marker. Any historical `fw=b306-imu-relay-v19` line is

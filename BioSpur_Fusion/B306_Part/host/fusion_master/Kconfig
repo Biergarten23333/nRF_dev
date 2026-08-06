@@ -1,0 +1,10 @@
+mainmenu "BioSpur Fusion Master"
+
+config BSF_CCC_FILTERED_REPRO
+	bool "Reproduce the v15 UUID-filtered data-CCC discovery"
+	default n
+	help
+	  Restore the v15 data CCC discovery request for one diagnostic image.
+	  Production images enumerate descriptors and validate UUID 0x2902.
+
+source "Kconfig.zephyr"

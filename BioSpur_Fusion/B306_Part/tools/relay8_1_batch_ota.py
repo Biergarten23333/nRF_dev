@@ -270,7 +270,7 @@ def bounded_readback(
     discontinuity_epoch: float | None,
     poll_window_s: float = 360.0,
 ) -> dict[str, object]:
-    """Read-only VERSION polling followed by exactly one IMGSTAT query."""
+    """Poll every read-only query at 30 s cadence within one time bound."""
     out_dir.mkdir()
     result: dict[str, object] = {
         "status": "IN_PROGRESS",
@@ -280,7 +280,9 @@ def bounded_readback(
         "poll_interval_s": 30.0,
         "poll_window_s": poll_window_s,
         "discontinuity_epoch": discontinuity_epoch,
+        "ping_attempts": [],
         "version_attempts": [],
+        "imgstat_attempts": [],
     }
     channel: ThreadedLineChannel | None = None
     with (out_dir / "fusion_cdc.log").open(
@@ -301,16 +303,58 @@ def bounded_readback(
             result["port"] = channel.port
             result["decode_before_send"] = decode_guard(channel, 15.0)
             result["master_status"] = wait_master_status(channel)
-            ping = b306_command(channel, node, "PING", "PONG ")
+            # Post-OTA bounds are measured from the observed new-app sweep
+            # discontinuity.  Pre-OTA inventory has no such event and uses a
+            # bound measured from entry to this function.
+            absolute_deadline_epoch = (
+                discontinuity_epoch + poll_window_s
+                if discontinuity_epoch is not None
+                else time.time() + poll_window_s
+            )
+            result["absolute_deadline_epoch"] = absolute_deadline_epoch
+
+            ping_start = time.monotonic()
+            ping: dict[str, object] | None = None
+            ping_attempt = 0
+            while time.time() < absolute_deadline_epoch:
+                ping_attempt += 1
+                scheduled = ping_start + (ping_attempt - 1) * 30.0
+                if time.monotonic() < scheduled:
+                    time.sleep(scheduled - time.monotonic())
+                tx_epoch = time.time()
+                ping_row: dict[str, object] = {
+                    "attempt": ping_attempt,
+                    "tx_epoch": tx_epoch,
+                    "delay_from_discontinuity_s": (
+                        tx_epoch - discontinuity_epoch
+                        if discontinuity_epoch is not None
+                        else None
+                    ),
+                }
+                try:
+                    ping = b306_command(channel, node, "PING", "PONG ")
+                    ping_row["reply_epoch"] = time.time()
+                    ping_row["reply_delay_s"] = (
+                        ping_row["reply_epoch"] - tx_epoch
+                    )
+                    ping_row["status"] = "ANSWERED"
+                    result["ping_attempts"].append(ping_row)
+                    break
+                except Exception as exc:
+                    ping_row["status"] = "NO_ANSWER"
+                    ping_row["error"] = f"{type(exc).__name__}: {exc}"
+                    result["ping_attempts"].append(ping_row)
+            if ping is None:
+                result["status"] = "NO_PING_WITHIN_BOUND"
+                return result
             if f"name={node}" not in ping["text"]:
                 raise RuntimeError(f"{node} PONG identity mismatch")
             result["ping"] = ping
 
             poll_start = time.monotonic()
-            poll_deadline = poll_start + poll_window_s
             attempt = 0
             version: dict[str, object] | None = None
-            while time.monotonic() < poll_deadline:
+            while time.time() < absolute_deadline_epoch:
                 attempt += 1
                 scheduled = poll_start + (attempt - 1) * 30.0
                 if time.monotonic() < scheduled:
@@ -333,7 +377,8 @@ def bounded_readback(
                         "VERSION ",
                         attempts=1,
                         reply_timeout_s=min(
-                            25.0, max(1.0, poll_deadline - time.monotonic())
+                            25.0,
+                            max(1.0, absolute_deadline_epoch - time.time()),
                         ),
                     )
                     row["reply_epoch"] = time.time()
@@ -349,24 +394,69 @@ def bounded_readback(
                 result["status"] = "NO_VERSION_WITHIN_BOUND"
                 return result
 
-            # The contract permits polling VERSION only.  After its first
-            # successful reply, issue exactly one IMGSTAT.
+            # IMGSTAT is read-only and follows the same bounded polling
+            # policy as VERSION.  State-changing writes remain zero-retry.
             result["query"] = {"version": version}
-            imgstat = relay_command_patient(
-                channel,
-                node,
-                "IMGSTAT",
-                "IMGSTAT ",
-                attempts=1,
-                reply_timeout_s=30.0,
-            )
+            imgstat_start = time.monotonic()
+            imgstat: dict[str, object] | None = None
+            imgstat_attempt = 0
+            while time.time() < absolute_deadline_epoch:
+                imgstat_attempt += 1
+                scheduled = imgstat_start + (imgstat_attempt - 1) * 30.0
+                if time.monotonic() < scheduled:
+                    time.sleep(scheduled - time.monotonic())
+                tx_epoch = time.time()
+                row = {
+                    "attempt": imgstat_attempt,
+                    "tx_epoch": tx_epoch,
+                    "delay_from_discontinuity_s": (
+                        tx_epoch - discontinuity_epoch
+                        if discontinuity_epoch is not None
+                        else None
+                    ),
+                }
+                try:
+                    imgstat = relay_command_patient(
+                        channel,
+                        node,
+                        "IMGSTAT",
+                        "IMGSTAT ",
+                        attempts=1,
+                        reply_timeout_s=min(
+                            25.0,
+                            max(1.0, absolute_deadline_epoch - time.time()),
+                        ),
+                    )
+                    row["reply_epoch"] = time.time()
+                    row["reply_delay_s"] = row["reply_epoch"] - tx_epoch
+                    row["status"] = "ANSWERED"
+                    result["imgstat_attempts"].append(row)
+                    break
+                except Exception as exc:
+                    row["status"] = "NO_ANSWER"
+                    row["error"] = f"{type(exc).__name__}: {exc}"
+                    result["imgstat_attempts"].append(row)
+            if imgstat is None:
+                result["status"] = "NO_IMGSTAT_WITHIN_BOUND"
+                return result
             result["query"]["imgstat"] = imgstat
-            result["first_success_delay_from_discontinuity_s"] = (
+            result["first_version_success_delay_from_discontinuity_s"] = (
                 result["version_attempts"][-1]["reply_epoch"]
                 - discontinuity_epoch
                 if discontinuity_epoch is not None
                 else None
             )
+            result["first_imgstat_success_delay_from_discontinuity_s"] = (
+                result["imgstat_attempts"][-1]["reply_epoch"]
+                - discontinuity_epoch
+                if discontinuity_epoch is not None
+                else None
+            )
+            # Backward-compatible field: command-path warm-up remains defined
+            # as the first successful VERSION reply.
+            result["first_success_delay_from_discontinuity_s"] = result[
+                "first_version_success_delay_from_discontinuity_s"
+            ]
             result["status"] = "PASS_READBACK"
             result["host_drain"] = channel.health_snapshot()
             if result["host_drain"]["red_markers"]:
@@ -564,6 +654,14 @@ def main() -> int:
                     "first_success_delay_from_discontinuity_s": after.get(
                         "first_success_delay_from_discontinuity_s"
                     ),
+                    "read_query_attempts": {
+                        "preota_ping": len(before.get("ping_attempts", [])),
+                        "preota_version": len(before.get("version_attempts", [])),
+                        "preota_imgstat": len(before.get("imgstat_attempts", [])),
+                        "postota_ping": len(after.get("ping_attempts", [])),
+                        "postota_version": len(after.get("version_attempts", [])),
+                        "postota_imgstat": len(after.get("imgstat_attempts", [])),
+                    },
                     "safe_state": "composed_idle",
                     "idle_proof": idle_proof,
                 }

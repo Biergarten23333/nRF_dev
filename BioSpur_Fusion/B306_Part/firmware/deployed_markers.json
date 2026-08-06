@@ -118,6 +118,26 @@
       "signed_sha256": ["1cd32339a5a2ab97b5ca21d779eccd766544b14da06bd3f03bdc3a9a723fcc01"],
       "note": "Production v32 candidate: IMU batch ceiling 10, SDC TX packet count 6, and host-round-trip-gated MCUboot confirmation."
     },
+    "b306-imu-relay-v34": {
+      "signed_sha256": ["edafe2bc6ecedb9c924952b6c6858d55716d61cb6d6faefc8492141e727774b2"],
+      "note": "Beacon-gated one-shot IMU auto-start at volatile 200 Hz/batch 10; every DK IMU command latches out auto-start until the next power cycle."
+    },
+    "b306-imu-relay-v34b": {
+      "signed_sha256": ["09b04f25db9ffb38f5f7d7cb38acffd7ac9816d820ba1a22a22218be7ce78de1"],
+      "note": "V34 settle-gated candidate: beacon-gated one-shot IMU auto-start is additionally held until 2000 ms after B306 power-on."
+    },
+    "b306-imu-relay-v34c": {
+      "signed_sha256": ["165a3e07b7e4223302efefd4151d52fb7fd32fe95941f84631042954de3a5c4d"],
+      "note": "V34b settle gate plus a batch ceiling of 16; compile-time batch default remains 10."
+    },
+    "b306-imu-relay-v35": {
+      "signed_sha256": ["6f92cd1ae03a60669e6627a1aa491364fc6ffd1529d32fa8dc0522b48b0fef04"],
+      "note": "Canonical build A: bounded publisher acceptance, isolated notify worker, retained stall diagnostics, and host-pollable liveness instrumentation."
+    },
+    "b306-imu-relay-v37": {
+      "signed_sha256": ["db3360b3646c9def59337e6d3307becce6487f136311c74eb32ba4779da36dd7"],
+      "note": "Canonical build A: 5 s healthy-link stall dwell plus a 1.5 s disconnect retraction window; v36 GATT escape tuple retained."
+    },
     "b306-v32-noconfirm-proof": {
       "signed_sha256": ["b5661572b73957ae936ea8a54a0c8499e17d0672d1c78f410c32436e436f1176"],
       "note": "Rollback proof only: v32 bytes with application confirmation disabled; must auto-revert from MCUboot test mode."

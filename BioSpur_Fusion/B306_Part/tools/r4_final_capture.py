@@ -678,7 +678,8 @@ def circular_distance_us(a: float, b: float, period_us: float) -> float:
     return min(direct, period_us - direct)
 
 
-def behavioral_slot_proof(listener_dir: Path) -> dict[str, object]:
+def behavioral_slot_proof(listener_dir: Path, period_us: float = 110_000.0,
+                          minimum_pairs: int = 20) -> dict[str, object]:
     """Prove all ten configured slots from passive listener timestamps."""
     merged = listener_dir / "merged_index.jsonl"
     rows_by_listener: dict[str, list[dict[str, object]]] = {}
@@ -696,8 +697,8 @@ def behavioral_slot_proof(listener_dir: Path) -> dict[str, object]:
     for node in NODES:
         source = 0xB100 + TAG_NUMBER[node]
         slot = SLOT_MAP[node]
-        expected_main = ((slot + 1) * 10_000.0) % 110_000.0
-        expected_sub = (expected_main - 6_000.0) % 110_000.0
+        expected_main = ((slot + 1) * 10_000.0) % period_us
+        expected_sub = (expected_main - 6_000.0) % period_us
         per_listener: dict[str, object] = {}
         passing = 0
         for snr, rows in rows_by_listener.items():
@@ -712,20 +713,20 @@ def behavioral_slot_proof(listener_dir: Path) -> dict[str, object]:
                 if row.get("src") != source or last_beacon is None:
                     continue
                 delta_us = (timestamp - last_beacon) / ticks_per_us
-                if 0.0 <= delta_us <= 110_000.0:
+                if 0.0 <= delta_us <= period_us:
                     phases.append(delta_us)
             phases.sort()
             median = phases[len(phases) // 2] if phases else None
             distance = (
                 min(
-                    circular_distance_us(median, expected_main, 110_000.0),
-                    circular_distance_us(median, expected_sub, 110_000.0),
+                    circular_distance_us(median, expected_main, period_us),
+                    circular_distance_us(median, expected_sub, period_us),
                 )
                 if median is not None
                 else None
             )
             phase_matches = distance is not None and distance <= 2_500.0
-            passed = len(phases) >= 20 and phase_matches
+            passed = len(phases) >= minimum_pairs and phase_matches
             if passed:
                 passing += 1
             per_listener[snr] = {

@@ -67,15 +67,18 @@ int main(void)
 	check_batch(5u);
 	check_batch(8u);
 	check_batch(10u);
+	check_batch(16u);
 	assert(BSF_IMU_RECORD_LEN(5u) == 82u);
 	assert(BSF_IMU_RECORD_LEN(8u) == 124u);
 	assert(BSF_IMU_RECORD_LEN(10u) == 152u);
+	assert(BSF_IMU_RECORD_LEN(16u) == 236u);
+	assert(BSF_IMU_BATCH_MAX == 16u);
 	assert(sizeof(bsf_host_imu_prefix_t) +
 	       5u * sizeof(bsf_ble_imu_sample_t) == 84u);
 	assert(sizeof(bsf_host_imu_prefix_t) +
 	       8u * sizeof(bsf_ble_imu_sample_t) == 126u);
 	assert(sizeof(bsf_host_imu_prefix_t) +
 	       10u * sizeof(bsf_ble_imu_sample_t) == 154u);
-	puts("IMU batch 5/8/10 round-trip tests passed");
+	puts("IMU batch 5/8/10/16 round-trip tests passed");
 	return 0;
 }

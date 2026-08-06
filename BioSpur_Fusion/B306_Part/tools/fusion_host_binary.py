@@ -18,8 +18,9 @@ KIND_REPLY = 4
 KIND_TEXT = 5
 KIND_QUEUE_COUNTERS = 6
 KIND_QOS = 7
+KIND_POOL_USAGE = 8
 IMU_BATCH_MIN = 1
-IMU_BATCH_MAX = 10
+IMU_BATCH_MAX = 16
 BSL_FLAG_SUPERFRAME_SHIFT = 3
 BSL_FLAG_SUPERFRAME_MASK = 0x0F << BSL_FLAG_SUPERFRAME_SHIFT
 BSL_FLAG_SUPERFRAME_VALID = 1 << 7
@@ -446,4 +447,23 @@ def frame_to_line(frame: HostFrame) -> str:
         return _decode_queue_counters(frame)
     if frame.kind == KIND_QOS:
         return _decode_qos(frame)
+    if frame.kind == KIND_POOL_USAGE:
+        if len(frame.payload) != 140:
+            raise FrameError(f"pool usage payload length {len(frame.payload)} != 140")
+        version, ble_kind, declared, node_ms, count, enabled, sent_cb, _ = struct.unpack_from(
+            "<BBHIBBBB", frame.payload
+        )
+        if declared != len(frame.payload) or count > 16:
+            raise FrameError("invalid pool usage header")
+        pools = []
+        for index in range(count):
+            name_hash, available, low_water = struct.unpack_from(
+                "<IHH", frame.payload, 12 + index * 8
+            )
+            pools.append(f"{name_hash:08x}:{available}/{low_water}")
+        return (
+            f"FUSION_POOL proto={version} name={frame.node_name} "
+            f"master_ms={frame.master_arrival_ms} node_ms={node_ms} count={count} "
+            f"usage={enabled} sent_cb={sent_cb} pools={';'.join(pools)}"
+        )
     raise FrameError(f"unknown host record kind {frame.kind}")

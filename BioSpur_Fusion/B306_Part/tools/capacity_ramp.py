@@ -483,6 +483,25 @@ def analyze_run(
         imu_samples = sum(
             int(parse_fields(line).get("n", "0"), 0) for _, line in imu
         )
+        imu_first_us = None
+        imu_last_us = None
+        for _, line in imu:
+            fields = parse_fields(line)
+            if "base_us" not in fields:
+                continue
+            base_us = int(fields["base_us"], 0)
+            offsets = [
+                int(encoded.split(",", 1)[0], 0)
+                for encoded in fields.get("samples", "").split(";") if encoded
+            ]
+            imu_first_us = base_us if imu_first_us is None else min(imu_first_us, base_us)
+            end_us = base_us + max(offsets or [0])
+            imu_last_us = end_us if imu_last_us is None else max(imu_last_us, end_us)
+        imu_span_s = (
+            (imu_last_us - imu_first_us) / 1e6
+            if imu_first_us is not None and imu_last_us is not None and imu_last_us > imu_first_us
+            else None
+        )
         pair = [
             int(parse_fields(line)["pair_dt_us"], 0)
             for _, line in uwb
@@ -544,7 +563,10 @@ def analyze_run(
             "uwb_healthy_ratio": healthy / len(uwb) if uwb else None,
             "imu_records": imu_records,
             "imu_samples": imu_samples,
-            "imu_effective_rate_hz": imu_samples / duration_s,
+            "imu_record_span_s": imu_span_s,
+            "imu_effective_rate_hz": (
+                (imu_samples - 1) / imu_span_s if imu_span_s and imu_samples > 1 else None
+            ),
             "imu_sequence_gaps": gaps,
             "imu_missing_samples": missing_samples,
             "imu_missing_records_batch5": (
@@ -716,7 +738,14 @@ def analyze_run(
             "queue_counter_records": queue_counter_records,
             "delivered_notifications": delivered,
             "expected_notifications": expected,
-            "delivered_notifications_s": delivered / duration_s,
+            "delivered_record_span_s": (
+                rows[-1][0] - rows[0][0] if len(rows) > 1 else None
+            ),
+            "delivered_notifications_s": (
+                (delivered - 1) / (rows[-1][0] - rows[0][0])
+                if delivered > 1 and len(rows) > 1 and rows[-1][0] > rows[0][0]
+                else None
+            ),
             "expected_notifications_s": expected / duration_s,
             "delivered_fraction": rate_fraction,
             "latency": latency,
