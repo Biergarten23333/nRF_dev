@@ -213,12 +213,25 @@ assert "#define STALL_ARM_NOTIFY_OK 64u" in fw
 assert "RETAINED_STALL_MAGIC 0x56333852u" in fw
 assert "retained_stall.first_snapshot" in fw
 
-# --- markers advanced together
-assert 'set(BSF_FW_MARKER "b306-imu-relay-v42")' in cmake
-assert "VERSION_PATCHLEVEL = 42" in version, \
-    "v39 shipped with patchlevel 38; the image header and the marker are realigned here"
-port = (root / "tools/confirm_b306_v42.py").read_text()
-assert 'B306_MARKER = "b306-imu-relay-v42"' in port
-assert 'MASTER_MARKER = "dk-fusion-imu-relay-v33"' in port
+# --- markers advanced together, and the marker/patchlevel stay aligned.
+# Pinned at-or-past rather than exactly, on the same grounds as the C1 contract:
+# a later round must be able to supersede the image without this contract going
+# stale. V43 shipped b306-imu-relay-v43 with dk-fusion-imu-relay-v35, and every
+# E1 behaviour asserted above is still carried by it. The confirm tool is
+# resolved from the marker instead of being named, because v42's was removed --
+# two byte sequences under one marker is what retired v19, and leaving a confirm
+# tool for a superseded, never-deployed image is exactly that trap.
+import re
+_m = re.search(r'set\(BSF_FW_MARKER "b306-imu-relay-v(\d+)"\)', cmake)
+assert _m is not None and int(_m.group(1)) >= 42, \
+    "the E1 ring changes must still be carried by the current image"
+_v = re.search(r"VERSION_PATCHLEVEL = (\d+)", version)
+assert _v is not None and int(_v.group(1)) == int(_m.group(1)), \
+    "the image header patchlevel and the marker must stay aligned"
+port = (root / f"tools/confirm_b306_v{_m.group(1)}.py").read_text()
+assert f'B306_MARKER = "b306-imu-relay-v{_m.group(1)}"' in port
+_dk = re.search(r'MASTER_MARKER = "dk-fusion-imu-relay-v(\d+)"', port)
+assert _dk is not None and int(_dk.group(1)) >= 33, \
+    "the confirm tool must pin a DK at or past the one E1 was validated against"
 
 print("E1 stall-ring contract: PASS")
