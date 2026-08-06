@@ -82,7 +82,7 @@
 #if defined(CONFIG_BSF_CCC_FILTERED_REPRO)
 #define FUSION_MASTER_MARKER "dk-fusion-ccc-repro-v1"
 #else
-#define FUSION_MASTER_MARKER "dk-fusion-imu-relay-v34"
+#define FUSION_MASTER_MARKER "dk-fusion-imu-relay-v35"
 #endif
 
 #define CDC_ACM_NODE DT_NODELABEL(cdc_acm_uart0)
@@ -2716,7 +2716,7 @@ static uint8_t stall_read_cb(struct bt_conn *conn, uint8_t att_err,
 		printk("FUSION_STALL_READ name=%s att_err=0 len=%u expected=%u parse=fail\n",
 		       peer->name, length,
 		       (unsigned int)sizeof(bsf_stall_status_t));
-	} else if (((const uint8_t *)data)[0] == BSF_STALL_RING_VERSION) {
+	} else if (((const uint8_t *)data)[0] >= BSF_STALL_RING_VERSION_V41) {
 		/*
 		 * A v41 onset-ring page. It is deliberately the SAME 232 bytes as
 		 * the status struct, so the length check above cannot separate
@@ -2729,6 +2729,15 @@ static uint8_t stall_read_cb(struct bt_conn *conn, uint8_t att_err,
 		 * raw bytes and lets tools/stall_ring_decode.py own the layout,
 		 * so a later ring format needs no DK reflash. Chunked to 32 bytes
 		 * per line because fusion_printf() emits one whole line per call.
+		 *
+		 * v35: the test is `>= BSF_STALL_RING_VERSION_V41`, not `==
+		 * BSF_STALL_RING_VERSION`. The equality form defeated the very
+		 * intent stated above -- it baked the CURRENT version number into
+		 * the DK image, so H1's bump to v4 silently made dk-v34 route v42
+		 * ring pages into the status branch, where 64 bytes are dropped
+		 * and the pool loop runs off ring payload. Any page format at or
+		 * past the v41 tag now reaches the hex dump, including the v43
+		 * corpse pages, and no future format needs a DK reflash again.
 		 */
 		const uint8_t *raw = data;
 

@@ -35,6 +35,8 @@
 #include "publisher_priority.h"
 #include "stall_detector_policy.h"
 #include "stall_ring_policy.h"
+#include <zephyr/sys/crc.h>
+#include "bsf_bt_stage.h"
 #include "strobe_capture.h"
 
 LOG_MODULE_REGISTER(biospur_fusion, LOG_LEVEL_INF);
@@ -611,6 +613,10 @@ static uint8_t sample_pool_available(uint8_t *out)
  * Everything read here is a single word or an atomic, and the only write is a
  * 40-byte structure copy under a spinlock held for that copy alone.
  */
+/* v43: shared reboot budget, defined with the corpse machinery below. */
+#define BSF_REBOOT_OWNER_RING_FWD 1u
+static bool bsf_reboot_budget_take(uint32_t owner);
+
 static void stall_ring_sample(struct k_timer *timer)
 {
 	ARG_UNUSED(timer);
@@ -672,6 +678,19 @@ static void stall_ring_sample(struct k_timer *timer)
 	reset_now = bsf_stall_ring_take_reset(&stall_ring);
 	k_spin_unlock(&stall_ring_lock, key);
 
+	/*
+	 * v43: ONE reboot budget, shared with the BT RX monitor (brief section
+	 * 3). take_reset() above still consumes the ring's own one-shot claim --
+	 * that is what keeps the freeze bookkeeping honest -- but the actual
+	 * reboot is granted by the shared budget, and the monitor may already
+	 * have spent it. Precedence is stated at bsf_reboot_budget_take(): the
+	 * monitor wins, because its corpse embeds this ring's tail, so yielding
+	 * here loses nothing that the corpse does not already carry.
+	 */
+	if (reset_now && !bsf_reboot_budget_take(BSF_REBOOT_OWNER_RING_FWD)) {
+		reset_now = false;
+	}
+
 	if (reset_now) {
 		/*
 		 * H1. The ring is frozen at this point -- take_reset() refuses
@@ -700,6 +719,451 @@ static bool stall_ring_latch(uint8_t reason, uint32_t now_ms)
 }
 
 /*
+ * ===========================================================================
+ * v43 BT RX wedge self-capture (batch v43_selfcapture_20260807)
+ * ===========================================================================
+ *
+ * Storage for the stage instrumentation declared in bsf_bt_stage.h. The writer
+ * is the patched Bluetooth host running on the BT RX workqueue; everything here
+ * is a reader except these definitions.
+ */
+struct bsf_bt_trace_entry bsf_bt_trace[BSF_BT_TRACE_ENTRIES];
+volatile uint32_t bsf_bt_trace_head;
+volatile uint32_t bsf_bt_stage_seq;
+volatile uint32_t bsf_bt_stage_cycles;
+volatile uint32_t bsf_bt_stage_arg;
+volatile uint16_t bsf_bt_stage_id;
+volatile uint32_t bsf_bt_rx_thread;
+volatile uint32_t bsf_bt_stage_max[BSF_BT_STAGE__COUNT];
+
+#define BSF_CORPSE_MAGIC        0x34335043u   /* 'CP43' */
+#define BSF_CORPSE_SCHEMA       1u
+#define BSF_CORPSE_TRACE_KEEP   32u
+#define BSF_CORPSE_RING_KEEP    6u
+#define BSF_CORPSE_PAGE_FORM    0xC3u         /* != any ring entries count (<=5) */
+#define BSF_CORPSE_PAGE_DATA    220u
+#define BSF_CORPSE_VIEW_TTL_MS  30000u
+
+#define BSF_CORPSE_TRIGGER_MONITOR    1u
+#define BSF_CORPSE_TRIGGER_ARTIFICIAL 2u
+
+/* Reboot-budget owners -- see bsf_reboot_budget_take(). */
+#define BSF_REBOOT_OWNER_NONE   0u
+#define BSF_REBOOT_OWNER_RING   1u
+#define BSF_REBOOT_OWNER_BTRX   2u
+
+/*
+ * The corpse. Laid out for the decoder, so field order and sizes are wire
+ * contract: tools/bt_corpse_decode.py mirrors this exactly.
+ *
+ * `valid` is deliberately the LAST member and is written last, after the CRC,
+ * so a reset that lands mid-capture leaves a record that fails validation
+ * rather than one that passes with half its fields uninitialised.
+ */
+typedef struct __packed {
+	uint32_t magic;
+	uint16_t schema;
+	uint16_t length;          /* bytes from `crc_start` to end of ring[]    */
+	uint32_t crc32;           /* over [crc_start .. end of ring[]]          */
+
+	/* --- crc_start --- */
+	uint32_t fw_marker_hash;
+	uint32_t node_identity;
+	uint32_t uptime_ms;
+	uint32_t boot_reset_reason;
+	uint32_t corpse_seq;
+	uint16_t wedge_count;
+	uint16_t trigger;
+
+	uint16_t stage;
+	uint16_t stage_pad;
+	uint32_t stage_seq;
+	uint32_t stage_age_ms;
+	uint32_t stage_arg;
+
+	uint32_t rx_thread_addr;
+	uint32_t rx_thread_sp;
+	uint32_t rx_stack_size;
+	uint32_t rx_stack_unused;
+	uint8_t  rx_thread_state;
+	uint8_t  rx_thread_prio;
+	uint8_t  rx_capture_ok;
+	uint8_t  pad0;
+
+	struct bsf_bt_corpse_conn conn;
+
+	uint32_t wdt_feed_count;      /* system-workqueue heartbeat */
+	uint32_t notify_ok;
+	uint32_t producer_seq;
+	uint32_t ring_writes;
+	uint32_t stage_max[BSF_BT_STAGE__COUNT];
+
+	uint16_t trace_entries;
+	uint16_t ring_entries;
+	struct bsf_bt_trace_entry trace[BSF_CORPSE_TRACE_KEEP];
+	bsf_stall_ring_entry_t ring[BSF_CORPSE_RING_KEEP];
+	/* --- crc_end --- */
+
+	uint32_t valid;           /* BSF_CORPSE_MAGIC when complete; written last */
+} bsf_corpse_t;
+
+typedef struct __packed {
+	uint8_t  wire_tag;        /* 3: dk >= v35 hex-dumps anything >= v41 tag */
+	uint8_t  page;
+	uint8_t  pages;
+	uint8_t  form;            /* BSF_CORPSE_PAGE_FORM */
+	uint16_t total_len;
+	uint16_t offset;
+	uint16_t crc16;
+	uint16_t seq;
+	uint8_t  data[BSF_CORPSE_PAGE_DATA];
+} bsf_corpse_page_t;
+
+_Static_assert(sizeof(bsf_corpse_page_t) == sizeof(bsf_stall_status_t),
+	       "a corpse page must be the same length as every other form of "
+	       "this characteristic, or the DK's length check rejects it");
+
+/*
+ * Retained across the software reset, exactly like the ring. `.noinit` survives
+ * sys_reboot()/NVIC_SystemReset(), the watchdog, and pin and lockup resets. It
+ * does NOT survive power-on or brownout, which is precisely why nothing here is
+ * trusted without magic + CRC.
+ */
+__attribute__((section(".noinit"))) static bsf_corpse_t retained_corpse;
+
+/* Shared reboot budget, also retained. See bsf_reboot_budget_take(). */
+__attribute__((section(".noinit"))) static struct {
+	uint32_t magic;
+	uint32_t taken;
+	uint32_t owner;
+	uint32_t corpse_seq;
+} retained_reboot;
+
+static struct bsf_stall_ring_view corpse_view;
+static bool corpse_present;        /* a validated corpse is awaiting export */
+static uint8_t corpse_pages_total;
+
+/*
+ * ONE reboot budget, shared between the two authorities (brief section 3).
+ *
+ * v42's ring ISR already resets the board once per power cycle after freezing
+ * the ring. v43 adds the BT RX monitor, which also wants a reset. Two
+ * independent one-shot budgets would be two resets per power cycle, and the
+ * second would land on top of the first one's evidence.
+ *
+ * PRECEDENCE: the BT RX monitor wins. It is the authority this round exists
+ * for, and its corpse EMBEDS the ring tail -- so when the monitor takes the
+ * budget nothing the ring would have reported is lost, whereas the reverse is
+ * not true. The ring ISR therefore yields whenever the monitor has already
+ * taken it, and the monitor is allowed to take it even after the ring has
+ * frozen (freezing costs no budget; only rebooting does).
+ */
+static bool bsf_reboot_budget_take(uint32_t owner)
+{
+	unsigned int key = irq_lock();
+	bool granted = false;
+
+	if (retained_reboot.magic != BSF_CORPSE_MAGIC) {
+		retained_reboot.magic = BSF_CORPSE_MAGIC;
+		retained_reboot.taken = 0u;
+		retained_reboot.owner = BSF_REBOOT_OWNER_NONE;
+		retained_reboot.corpse_seq = 0u;
+	}
+	if (retained_reboot.taken == 0u) {
+		retained_reboot.taken = 1u;
+		retained_reboot.owner = owner;
+		granted = true;
+	}
+	irq_unlock(key);
+	return granted;
+}
+
+static uint32_t bsf_fnv1a(const char *s)
+{
+	uint32_t h = 2166136261u;
+
+	while (*s != '\0') {
+		h ^= (uint8_t)(*s++);
+		h *= 16777619u;
+	}
+	return h;
+}
+
+/*
+ * Locate the BT RX workqueue thread by name. `bt_workq` is static inside
+ * hci_core.c with no accessor, so the application cannot name it directly --
+ * which is exactly why no round has ever measured its stack. CONFIG_THREAD_NAME
+ * and CONFIG_THREAD_MONITOR are both already enabled, so a name walk works and
+ * needs no second SDK patch.
+ */
+static void bsf_bt_rx_thread_find_cb(const struct k_thread *thread, void *user)
+{
+	const char *name = k_thread_name_get((k_tid_t)thread);
+
+	ARG_UNUSED(user);
+	if (name != NULL && strcmp(name, "BT RX WQ") == 0) {
+		bsf_bt_rx_thread = (uint32_t)(uintptr_t)thread;
+	}
+}
+
+static void bsf_capture_corpse(uint16_t trigger, uint32_t now_ms)
+{
+	bsf_corpse_t *c = &retained_corpse;
+	k_tid_t rx = (k_tid_t)(uintptr_t)bsf_bt_rx_thread;
+	size_t unused = 0u;
+	uint32_t seq = retained_reboot.corpse_seq + 1u;
+
+	memset(c, 0, sizeof(*c));
+	c->magic = BSF_CORPSE_MAGIC;
+	c->schema = BSF_CORPSE_SCHEMA;
+
+	c->fw_marker_hash = bsf_fnv1a(BSF_FW_MARKER);
+	c->node_identity = node_identity;
+	c->uptime_ms = now_ms;
+	c->boot_reset_reason = boot_reset_reason;
+	c->corpse_seq = seq;
+	c->wedge_count = (uint16_t)seq;
+	c->trigger = trigger;
+
+	c->stage = bsf_bt_stage_id;
+	c->stage_seq = bsf_bt_stage_seq;
+	c->stage_arg = bsf_bt_stage_arg;
+	c->stage_age_ms = k_cyc_to_ms_near32(k_cycle_get_32() - bsf_bt_stage_cycles);
+	for (size_t i = 0; i < BSF_BT_STAGE__COUNT; ++i) {
+		c->stage_max[i] = bsf_bt_stage_max[i];
+	}
+
+	if (rx != NULL) {
+		c->rx_thread_addr = (uint32_t)(uintptr_t)rx;
+		c->rx_thread_state = rx->base.thread_state;
+		c->rx_thread_prio = (uint8_t)(int8_t)rx->base.prio;
+		c->rx_thread_sp = (uint32_t)rx->callee_saved.psp;
+		c->rx_stack_size = (uint32_t)rx->stack_info.size;
+		if (k_thread_stack_space_get(rx, &unused) == 0) {
+			c->rx_stack_unused = (uint32_t)unused;
+		}
+		c->rx_capture_ok = 1u;
+	}
+
+	/* Private host state, read inside the patched conn.c. Captured into an
+	 * aligned local first: &c->conn is a packed member, and handing an
+	 * under-aligned pointer to another translation unit is undefined.
+	 */
+	{
+		struct bsf_bt_corpse_conn cc;
+
+		bsf_bt_capture_conn(&cc);
+		memcpy(&c->conn, &cc, sizeof(cc));
+	}
+
+	c->wdt_feed_count = (uint32_t)atomic_get(&watchdog_feed_count);
+	c->notify_ok = (uint32_t)atomic_get(&notify_ok);
+	c->producer_seq = (uint32_t)atomic_get(&valid_frames);
+
+	/* Flight-recorder tail, oldest-first. */
+	{
+		uint32_t head = bsf_bt_trace_head;
+		uint32_t n = MIN(head, (uint32_t)BSF_CORPSE_TRACE_KEEP);
+
+		for (uint32_t i = 0; i < n; ++i) {
+			uint32_t idx = head - n + i;
+
+			c->trace[i] = bsf_bt_trace[idx & (BSF_BT_TRACE_ENTRIES - 1u)];
+		}
+		c->trace_entries = (uint16_t)n;
+	}
+
+	/*
+	 * v42 ring tail. Freeze first so the trajectory stops advancing while
+	 * it is copied -- a corpse carrying the ring tail is strictly better
+	 * than either record alone, which is why both authorities are kept.
+	 */
+	{
+		k_spinlock_key_t key = k_spin_lock(&stall_ring_lock);
+		uint32_t count = stall_ring.count;
+		uint32_t n = MIN(count, (uint32_t)BSF_CORPSE_RING_KEEP);
+
+		(void)bsf_stall_ring_freeze(&stall_ring, BSF_RING_FREEZE_NO_EXIT,
+					    now_ms);
+		c->ring_writes = stall_ring.writes_total;
+		for (uint32_t i = 0; i < n; ++i) {
+			uint32_t idx = stall_ring.head + BSF_STALL_RING_CAPACITY -
+				       n + i;
+
+			c->ring[i] = stall_ring.entries[idx % BSF_STALL_RING_CAPACITY];
+		}
+		c->ring_entries = (uint16_t)n;
+		k_spin_unlock(&stall_ring_lock, key);
+	}
+
+	c->length = (uint16_t)(offsetof(bsf_corpse_t, valid) -
+			       offsetof(bsf_corpse_t, fw_marker_hash));
+	c->crc32 = crc32_ieee((const uint8_t *)&c->fw_marker_hash, c->length);
+	retained_reboot.corpse_seq = seq;
+
+	/* LAST. Everything above must be settled before this becomes true. */
+	__DMB();
+	c->valid = BSF_CORPSE_MAGIC;
+	__DMB();
+}
+
+static bool bsf_corpse_validate(void)
+{
+	bsf_corpse_t *c = &retained_corpse;
+	uint16_t want;
+
+	if (c->magic != BSF_CORPSE_MAGIC || c->valid != BSF_CORPSE_MAGIC) {
+		return false;
+	}
+	if (c->schema != BSF_CORPSE_SCHEMA) {
+		return false;
+	}
+	want = (uint16_t)(offsetof(bsf_corpse_t, valid) -
+			  offsetof(bsf_corpse_t, fw_marker_hash));
+	if (c->length != want) {
+		return false;
+	}
+	return c->crc32 == crc32_ieee((const uint8_t *)&c->fw_marker_hash,
+				      c->length);
+}
+
+static void bsf_corpse_invalidate(void)
+{
+	retained_corpse.valid = 0u;
+	retained_corpse.magic = 0u;
+	corpse_present = false;
+	bsf_stall_ring_view_clear(&corpse_view);
+}
+
+static uint8_t bsf_corpse_page_count(void)
+{
+	uint32_t total = (uint32_t)sizeof(bsf_corpse_t);
+
+	return (uint8_t)((total + BSF_CORPSE_PAGE_DATA - 1u) /
+			 BSF_CORPSE_PAGE_DATA);
+}
+
+static int bsf_corpse_render_page(uint8_t page, bsf_corpse_page_t *out)
+{
+	const uint8_t *src = (const uint8_t *)&retained_corpse;
+	uint32_t total = (uint32_t)sizeof(bsf_corpse_t);
+	uint32_t off = (uint32_t)page * BSF_CORPSE_PAGE_DATA;
+	uint32_t n;
+
+	if (!corpse_present || page >= bsf_corpse_page_count()) {
+		return -EINVAL;
+	}
+	memset(out, 0, sizeof(*out));
+	n = MIN((uint32_t)BSF_CORPSE_PAGE_DATA, total - off);
+
+	out->wire_tag = BSF_STALL_RING_VERSION_V41;
+	out->page = page;
+	out->pages = bsf_corpse_page_count();
+	out->form = BSF_CORPSE_PAGE_FORM;
+	out->total_len = (uint16_t)total;
+	out->offset = (uint16_t)off;
+	out->seq = (uint16_t)retained_corpse.corpse_seq;
+	memcpy(out->data, &src[off], n);
+	out->crc16 = bsf_stall_ring_crc16(out->data, BSF_CORPSE_PAGE_DATA);
+	return 0;
+}
+
+/*
+ * The monitor. A dedicated thread -- deliberately not the BT RX workqueue and
+ * not the system workqueue, and it depends on nothing that BLE depends on, so
+ * it stays alive through exactly the failure it exists to record.
+ *
+ * TRIGGER: a non-quiescent BT RX stage whose sequence counter has not advanced
+ * for BSF_BT_WEDGE_MS. It deliberately does NOT trigger on "notifications
+ * stopped" -- that readmits the producer, RF, connection scheduling, the
+ * central and the application, every one of which has already been excluded and
+ * every one of which is a false-positive source this criterion does not have.
+ */
+#define BSF_BT_MONITOR_TICK_MS 1000u
+#define BSF_BT_WEDGE_MS        5000u
+#define BSF_BT_MONITOR_STACK   1024
+#define BSF_BT_MONITOR_PRIO    6
+
+static atomic_t corpse_force_trigger;
+
+static void bsf_bt_monitor(void *a, void *b, void *c)
+{
+	uint32_t last_seq = 0u;
+	uint32_t unchanged_ms = 0u;
+	bool armed = false;
+
+	ARG_UNUSED(a); ARG_UNUSED(b); ARG_UNUSED(c);
+
+	k_thread_foreach_unlocked(bsf_bt_rx_thread_find_cb, NULL);
+	LOG_INF("BT RX monitor started thread=%08x tick_ms=%u wedge_ms=%u",
+		(unsigned int)bsf_bt_rx_thread, BSF_BT_MONITOR_TICK_MS,
+		BSF_BT_WEDGE_MS);
+
+	while (true) {
+		uint32_t seq;
+		uint16_t stage;
+		uint32_t now_ms;
+		bool forced;
+
+		k_sleep(K_MSEC(BSF_BT_MONITOR_TICK_MS));
+
+		if (bsf_bt_rx_thread == 0u) {
+			k_thread_foreach_unlocked(bsf_bt_rx_thread_find_cb, NULL);
+		}
+
+		seq = bsf_bt_stage_seq;
+		stage = bsf_bt_stage_id;
+		now_ms = (uint32_t)k_uptime_get();
+		forced = atomic_cas(&corpse_force_trigger, 1, 0);
+
+		if (seq != last_seq) {
+			last_seq = seq;
+			unchanged_ms = 0u;
+			armed = true;
+		} else if (armed && !BSF_BT_STAGE_IS_QUIESCENT(stage)) {
+			unchanged_ms += BSF_BT_MONITOR_TICK_MS;
+		} else {
+			unchanged_ms = 0u;
+		}
+
+		if (!forced && unchanged_ms < BSF_BT_WEDGE_MS) {
+			continue;
+		}
+
+		/*
+		 * Capture BEFORE recovery, always. If the budget is gone the
+		 * corpse is still written and still exported after the next
+		 * reset from any source -- losing the reset must not also lose
+		 * the evidence.
+		 */
+		bsf_capture_corpse(forced ? BSF_CORPSE_TRIGGER_ARTIFICIAL
+					  : BSF_CORPSE_TRIGGER_MONITOR,
+				   now_ms);
+		LOG_ERR("BT RX WEDGE stage=%u seq=%u age_ms=%u forced=%u -- corpse captured",
+			stage, seq, unchanged_ms, forced ? 1u : 0u);
+
+		if (bsf_reboot_budget_take(BSF_REBOOT_OWNER_BTRX)) {
+			/*
+			 * Software reset: NVIC_SystemReset() retains .noinit,
+			 * which is the whole point. Not the watchdog -- it is
+			 * fed from telemetry_work_handler on the system
+			 * workqueue, which stays alive through this failure and
+			 * is therefore structurally blind to it.
+			 */
+			sys_reboot(SYS_REBOOT_COLD);
+		}
+		LOG_ERR("BT RX WEDGE reboot budget already spent owner=%u; corpse retained",
+			retained_reboot.owner);
+		unchanged_ms = 0u;
+		armed = false;
+	}
+}
+
+K_THREAD_DEFINE(bt_monitor_thread_id, BSF_BT_MONITOR_STACK,
+		bsf_bt_monitor, NULL, NULL, NULL,
+		BSF_BT_MONITOR_PRIO, 0, 0);
+
+/*
  * One read, two wire forms, one length. Which form is returned was decided by
  * an earlier control write; the read itself never blocks, never allocates and
  * never advances any state, so re-reading a page is free and an abandoned
@@ -711,6 +1175,22 @@ static ssize_t stall_status_read(struct bt_conn *conn,
 {
 	uint32_t now_ms = k_uptime_get_32();
 	uint8_t page = 0u;
+
+	/*
+	 * Third form: a v43 corpse page. Checked first because a corpse is
+	 * strictly more valuable than a live ring page and its selection is
+	 * only ever set deliberately by `CORPSE PAGE=`.
+	 */
+	if (bsf_stall_ring_view_page(&corpse_view, now_ms,
+				     BSF_CORPSE_VIEW_TTL_MS, &page)) {
+		bsf_corpse_page_t rendered;
+
+		if (bsf_corpse_render_page(page, &rendered) == 0) {
+			return bt_gatt_attr_read(conn, attr, buf, len, offset,
+						 &rendered, sizeof(rendered));
+		}
+		/* Past the end, or no corpse: fall through. */
+	}
 
 	if (bsf_stall_ring_view_page(&stall_ring_view, now_ms,
 				     BSF_STALL_RING_VIEW_TTL_MS, &page)) {
@@ -2203,6 +2683,66 @@ static void process_control(const char *command, uint16_t correlation)
 			 imu_stats.active, imu_stats.rate_hz,
 			 imu_stats.batch_size,
 			 imu_stats.verify_pass ? "PASS" : "WARN");
+	} else if (strcmp(command, "CORPSE STATUS") == 0) {
+		/*
+		 * The host polls this. A corpse is RETAINED until positively
+		 * acknowledged, so a poll is idempotent and a missed ACK simply
+		 * means the next poll -- or the next boot -- offers it again.
+		 */
+		snprintf(reply, sizeof(reply),
+			 "CORPSE present=%u seq=%u pages=%u len=%u stage=%u stage_seq=%u age_ms=%u trigger=%u rr=%08X reboot_owner=%u",
+			 corpse_present ? 1u : 0u,
+			 corpse_present ? retained_corpse.corpse_seq : 0u,
+			 corpse_present ? corpse_pages_total : 0u,
+			 (unsigned int)sizeof(bsf_corpse_t),
+			 corpse_present ? retained_corpse.stage : 0u,
+			 corpse_present ? retained_corpse.stage_seq : 0u,
+			 corpse_present ? retained_corpse.stage_age_ms : 0u,
+			 corpse_present ? retained_corpse.trigger : 0u,
+			 corpse_present ? retained_corpse.boot_reset_reason : 0u,
+			 retained_reboot.owner);
+	} else if (strcmp(command, "CORPSE PAGE OFF") == 0) {
+		bsf_stall_ring_view_clear(&corpse_view);
+		snprintf(reply, sizeof(reply), "CORPSE PAGE OFF ok");
+	} else if (parse_exact_u32_command(command, "CORPSE PAGE=", &value) == 0) {
+		if (!corpse_present || value >= corpse_pages_total) {
+			snprintf(reply, sizeof(reply),
+				 "CORPSE PAGE ERR present=%u page=%u pages=%u",
+				 corpse_present ? 1u : 0u, value,
+				 corpse_pages_total);
+		} else {
+			bsf_stall_ring_view_select(&corpse_view, (uint16_t)value,
+						   k_uptime_get_32());
+			snprintf(reply, sizeof(reply),
+				 "CORPSE PAGE ok page=%u pages=%u ttl_ms=%u",
+				 value, corpse_pages_total,
+				 BSF_CORPSE_VIEW_TTL_MS);
+		}
+	} else if (parse_exact_u32_command(command, "CORPSE ACK=", &value) == 0) {
+		/*
+		 * ONLY a positive ACK carrying the right sequence may clear the
+		 * valid marker. Anything else and the corpse is offered again.
+		 */
+		if (corpse_present && value == retained_corpse.corpse_seq) {
+			bsf_corpse_invalidate();
+			snprintf(reply, sizeof(reply),
+				 "CORPSE ACK ok seq=%u cleared=1", value);
+		} else {
+			snprintf(reply, sizeof(reply),
+				 "CORPSE ACK REJECT seq=%u present=%u have=%u",
+				 value, corpse_present ? 1u : 0u,
+				 corpse_present ? retained_corpse.corpse_seq : 0u);
+		}
+	} else if (strcmp(command, "CORPSE FORCE") == 0) {
+		/*
+		 * Stage 2 pipeline validation ONLY (brief section 11): it proves
+		 * capture -> CRC -> retained -> reset -> reconnect -> export ->
+		 * ACK. It does NOT reproduce the BLE failure and must never be
+		 * reported as one.
+		 */
+		atomic_set(&corpse_force_trigger, 1);
+		snprintf(reply, sizeof(reply),
+			 "CORPSE FORCE armed note=pipeline_validation_only");
 	} else if (strcmp(command, "REBOOT") == 0) {
 		snprintf(reply, sizeof(reply), "REBOOT QUEUED delay_ms=150");
 		(void)publish_control_reply(BSF_CONTROL_SOURCE_B306,
@@ -2926,6 +3466,34 @@ int main(void)
 		retained_stall.in_call_stream = 0u;
 	}
 	stall_ring_boot_result = (uint8_t)bsf_stall_ring_boot(&stall_ring);
+
+	/*
+	 * v43 corpse recovery. `.noinit` survives the software reset we take
+	 * after a wedge, but NOT power-on or brownout -- so whatever is sitting
+	 * in that RAM on a cold boot is uninitialised garbage that may look
+	 * entirely plausible. Nothing is trusted without magic AND schema AND
+	 * length AND CRC32, and the record only counts as complete if the
+	 * `valid` word (written last, after the CRC) is also set.
+	 */
+	corpse_present = bsf_corpse_validate();
+	corpse_pages_total = bsf_corpse_page_count();
+	if (corpse_present) {
+		LOG_ERR("CORPSE RECOVERED seq=%u stage=%u stage_seq=%u age_ms=%u trigger=%u pages=%u rr=%08X",
+			retained_corpse.corpse_seq, retained_corpse.stage,
+			retained_corpse.stage_seq, retained_corpse.stage_age_ms,
+			retained_corpse.trigger, corpse_pages_total,
+			retained_corpse.boot_reset_reason);
+	} else if (retained_corpse.magic != 0u || retained_corpse.valid != 0u) {
+		/* Something was there and did not validate. Say so, then erase. */
+		LOG_WRN("CORPSE REJECTED magic=%08X valid=%08X schema=%u len=%u -- treating as cold-boot garbage",
+			retained_corpse.magic, retained_corpse.valid,
+			retained_corpse.schema, retained_corpse.length);
+		memset(&retained_corpse, 0, sizeof(retained_corpse));
+	}
+	if (retained_reboot.magic != BSF_CORPSE_MAGIC) {
+		memset(&retained_reboot, 0, sizeof(retained_reboot));
+		retained_reboot.magic = BSF_CORPSE_MAGIC;
+	}
 	if (retained_stall.first_snapshot.version ==
 	    BSF_STALL_STATUS_VERSION) {
 		publish_stall_status(&retained_stall.first_snapshot);

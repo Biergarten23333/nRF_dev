@@ -1,0 +1,189 @@
+--- a/subsys/bluetooth/host/conn.c
++++ b/subsys/bluetooth/host/conn.c
+@@ -48,6 +48,34 @@
+ 
+ #define LOG_LEVEL CONFIG_BT_CONN_LOG_LEVEL
+ #include <zephyr/logging/log.h>
++/*
++ * v43 BT RX stage instrumentation (batch v43_selfcapture_20260807).
++ *
++ * ~/ncs/v2.8.0 is a SHARED SDK install. This file is compiled by every project
++ * that builds against it, not just the B306 application -- the Fusion Master DK
++ * image compiles it too. So the instrumentation is conditional on the header
++ * actually being reachable: the B306 application puts its src/ directory on the
++ * global Zephyr include path, every other project does not, and for those the
++ * macros below collapse to nothing and the object code is unchanged.
++ *
++ * Without this guard, patching the shared SDK breaks every other project built
++ * against it -- which is the exact hazard that made the patch a repository
++ * artifact in the first place.
++ */
++#if defined(__has_include)
++#  if __has_include(<bsf_bt_stage.h>)
++#    define BSF_BT_STAGE_TRACE_PRESENT 1
++#  endif
++#endif
++
++#ifdef BSF_BT_STAGE_TRACE_PRESENT
++#include <bsf_bt_stage.h>
++#else
++#define BSF_BT_STAGE(s)        ((void)0)
++#define BSF_BT_STAGE_A(s, a)   ((void)0)
++#define BSF_BT_EVENT(s, e, a)  ((void)0)
++#endif
++
+ LOG_MODULE_REGISTER(bt_conn);
+ 
+ K_FIFO_DEFINE(free_tx);
+@@ -319,20 +347,27 @@
+ void bt_conn_tx_notify(struct bt_conn *conn, bool wait_for_completion)
+ {
+ #if defined(CONFIG_BT_CONN_TX)
++	BSF_BT_STAGE_A(BSF_BT_STAGE_TX_NOTIFY_ENTER, wait_for_completion);
+ 	/* Ensure that function is called only from a single context. */
+ 	if (k_current_get() == k_work_queue_thread_get(tx_notify_workqueue_get())) {
++		BSF_BT_STAGE(BSF_BT_STAGE_TX_NOTIFY_DIRECT);
+ 		tx_notify_process(conn);
+ 	} else {
+ 		struct k_work_sync sync;
+ 		int err;
+ 
++		BSF_BT_STAGE(BSF_BT_STAGE_TX_NOTIFY_BEFORE_SUBMIT);
+ 		err = k_work_submit_to_queue(tx_notify_workqueue_get(), &conn->tx_complete_work);
++		BSF_BT_STAGE_A(BSF_BT_STAGE_TX_NOTIFY_AFTER_SUBMIT, err);
+ 		__ASSERT(err >= 0, "couldn't submit (err %d)", err);
+ 
+ 		if (wait_for_completion) {
++			BSF_BT_STAGE(BSF_BT_STAGE_TX_NOTIFY_BEFORE_FLUSH);
+ 			(void)k_work_flush(&conn->tx_complete_work, &sync);
++			BSF_BT_STAGE(BSF_BT_STAGE_TX_NOTIFY_AFTER_FLUSH);
+ 		}
+ 	}
++	BSF_BT_STAGE(BSF_BT_STAGE_TX_NOTIFY_EXIT);
+ #else
+ 	ARG_UNUSED(conn);
+ 	ARG_UNUSED(wait_for_completion);
+@@ -484,18 +519,21 @@
+ 	 * Always do so from the same context for sanity. In this case that will
+ 	 * be either a dedicated Bluetooth connection TX workqueue or system workqueue.
+ 	 */
++	BSF_BT_STAGE_A(BSF_BT_STAGE_CONN_RECV_ENTER, conn->handle);
+ 	bt_conn_tx_notify(conn, true);
+ 
+ 	LOG_DBG("handle %u len %u flags %02x", conn->handle, buf->len, flags);
+ 
+ 	if (IS_ENABLED(CONFIG_BT_ISO_RX) && conn->type == BT_CONN_TYPE_ISO) {
+ 		bt_iso_recv(conn, buf, flags);
++		BSF_BT_STAGE(BSF_BT_STAGE_CONN_RECV_EXIT);
+ 		return;
+ 	} else if (IS_ENABLED(CONFIG_BT_CONN)) {
+ 		bt_acl_recv(conn, buf, flags);
+ 	} else {
+ 		__ASSERT(false, "Invalid connection type %u", conn->type);
+ 	}
++	BSF_BT_STAGE(BSF_BT_STAGE_CONN_RECV_EXIT);
+ }
+ 
+ static bool dont_have_tx_context(struct bt_conn *conn)
+@@ -1264,12 +1302,18 @@
+ 		 */
+ 		switch (old_state) {
+ 		case BT_CONN_DISCONNECT_COMPLETE:
++			BSF_BT_EVENT(BSF_BT_STAGE_TX_NOTIFY_ENTER,
++				     BSF_BT_EVENT_DISCONNECT, conn->err);
+ 			bt_conn_tx_notify(conn, true);
+ 
++			BSF_BT_STAGE(BSF_BT_STAGE_RESET_RX_BEFORE);
+ 			bt_conn_reset_rx_state(conn);
++			BSF_BT_STAGE(BSF_BT_STAGE_RESET_RX_AFTER);
+ 
+ 			LOG_DBG("trigger disconnect work");
++			BSF_BT_STAGE(BSF_BT_STAGE_DEFERRED_RESCHEDULE_BEFORE);
+ 			k_work_reschedule(&conn->deferred_work, K_NO_WAIT);
++			BSF_BT_STAGE(BSF_BT_STAGE_DEFERRED_RESCHEDULE_AFTER);
+ 
+ 			/* The last ref will be dropped during cleanup */
+ 			break;
+@@ -4237,3 +4281,82 @@
+ 
+ SYS_INIT(bt_conn_tx_workq_init, POST_KERNEL, CONFIG_BT_CONN_TX_NOTIFY_WQ_INIT_PRIORITY);
+ #endif /* CONFIG_BT_CONN_TX_NOTIFY_WQ */
++
++#ifdef BSF_BT_STAGE_TRACE_PRESENT
++/*
++ * ---------------------------------------------------------------------------
++ * v43 corpse capture (batch v43_selfcapture_20260807).
++ *
++ * Lives here, and not in the application, because every field below is inside
++ * `struct bt_conn`, which is private to the host (conn_internal.h). Field names
++ * and semantics are read against THIS tree -- NCS v2.8.0 / Zephyr v3.7.99-ncs1
++ * -- not against current Zephyr main.
++ *
++ * Called from the monitor thread after it has decided the BT RX workqueue is
++ * wedged. It is a pure reader: it takes no lock, allocates nothing, and calls
++ * nothing that can block, because the thread it is inspecting is stuck and may
++ * be holding host state. A slightly inconsistent snapshot is acceptable and
++ * expected; a monitor that deadlocks against the wedge it is recording is not.
++ */
++static uint16_t bsf_slist_len(sys_slist_t *list)
++{
++	sys_snode_t *node;
++	uint16_t n = 0u;
++
++	/* Bounded: a corrupt list must not hang the monitor. */
++	SYS_SLIST_FOR_EACH_NODE(list, node) {
++		if (++n >= 1024u) {
++			break;
++		}
++	}
++	return n;
++}
++
++void bsf_bt_capture_conn(struct bsf_bt_corpse_conn *out)
++{
++	struct bt_conn *conn = NULL;
++
++	if (out == NULL) {
++		return;
++	}
++	memset(out, 0, sizeof(*out));
++
++	/*
++	 * Pick the connection object directly out of acl_conns[] rather than
++	 * through bt_conn_lookup_*(), which takes a reference and can alter
++	 * host state. With CONFIG_BT_MAX_CONN=1 this is a single slot.
++	 */
++	for (size_t i = 0; i < ARRAY_SIZE(acl_conns); i++) {
++		if (acl_conns[i].state != BT_CONN_DISCONNECTED) {
++			conn = &acl_conns[i];
++			break;
++		}
++	}
++	if (conn == NULL && ARRAY_SIZE(acl_conns) > 0) {
++		/* Record slot 0 anyway: "disconnected" is itself evidence. */
++		conn = &acl_conns[0];
++	}
++	if (conn == NULL) {
++		return;
++	}
++
++	out->conn_addr = (uint32_t)(uintptr_t)conn;
++	out->handle = conn->handle;
++	out->type = (uint8_t)conn->type;
++	out->role = conn->role;
++	out->err = conn->err;
++	out->state = (uint8_t)conn->state;
++	out->rx_ptr = (uint32_t)(uintptr_t)conn->rx;
++	out->rx_len = conn->rx_len;
++	out->tx_pending = bsf_slist_len(&conn->tx_pending);
++	out->tx_complete = bsf_slist_len(&conn->tx_complete);
++#if defined(CONFIG_BT_CONN_TX)
++	out->tx_complete_busy = k_work_busy_get(&conn->tx_complete_work);
++#else
++	out->tx_complete_busy = -1;
++#endif
++	out->deferred_busy = k_work_delayable_busy_get(&conn->deferred_work);
++	out->pkts_avail = k_sem_count_get(bt_conn_get_pkts(conn));
++	out->valid = 1u;
++}
++#endif /* BSF_BT_STAGE_TRACE_PRESENT */
