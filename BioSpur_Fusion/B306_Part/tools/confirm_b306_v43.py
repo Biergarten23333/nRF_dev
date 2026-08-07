@@ -14,7 +14,12 @@ import sys
 import confirm_b306_v32
 
 confirm_b306_v32.B306_MARKER = "b306-imu-relay-v43"
-confirm_b306_v32.MASTER_MARKER = "dk-fusion-imu-relay-v35"
+# S1 (spacing_default_20260807) advanced the DK to v36, which boots with the
+# derived connection spacing already applied instead of the 7,500 us baseline.
+# The B306 image is untouched -- only the marker the confirm tool expects to see
+# on the Master moves, and it must move with the deployed DK or every
+# confirmation fails on a marker mismatch.
+confirm_b306_v32.MASTER_MARKER = "dk-fusion-imu-relay-v36"
 
 if __name__ == "__main__":
     if "--ready-count" not in sys.argv and "--target-only" not in sys.argv:

@@ -46,8 +46,51 @@
 #define CDC_TX_RING_CAPACITY 16384u
 #define BSF_BLE_PROTOCOL_PREVIOUS 6u
 #define BSF_BLE_TELEMETRY_V4_SIZE 235u
+/*
+ * Connection spacing -- DERIVED, never written as a literal.
+ *
+ * Ten connections at one interval each must tile a single connection interval
+ * with no overlap and no hole:
+ *
+ *     spacing_us = connection_interval_us / connection_count
+ *                = 50,000 / 10
+ *                = 5,000
+ *
+ * The literal 5,000 is only correct for TEN nodes at a FIFTY-millisecond
+ * interval. Change either and the literal becomes wrong in the silent way this
+ * whole batch exists to close: no error, no failed connection, just a degraded
+ * schedule for the entire window. The 20-node expansion on the roadmap would
+ * have walked straight into that. So it is computed from the two inputs that
+ * actually determine it, and the build fails if they stop being consistent.
+ */
+#define FUSION_CONN_INTERVAL_UNITS 40u                       /* 1.25 ms units */
+#define FUSION_CONN_INTERVAL_US (FUSION_CONN_INTERVAL_UNITS * 1250u)
+#define SPACING_ON_US (FUSION_CONN_INTERVAL_US / MAX_FUSION_PEERS)
+
+/*
+ * The 7,500 us comparison baseline. Retained because `SPACING OFF` is a
+ * documented read/compare mode an operator may still select deliberately -- but
+ * it is NOT the boot state any more, and nothing in the tooling sends it.
+ */
 #define SPACING_OFF_US 7500u
-#define SPACING_ON_US 5000u
+
+BUILD_ASSERT(FUSION_CONN_INTERVAL_US % MAX_FUSION_PEERS == 0u,
+	     "connection interval does not divide evenly by the connection "
+	     "count: the connections cannot tile one interval, so there is no "
+	     "correct spacing value. Change the interval or the count.");
+
+/*
+ * The controller's own Kconfig default must agree with the derivation.
+ *
+ * It already did -- prj.conf carries 5000 -- which is why this trap was so hard
+ * to see: the DK boots with the CORRECT controller default and the application
+ * then overwrites it with SPACING_OFF_US. Pinning the two together means a
+ * future node-count change cannot fix one and forget the other.
+ */
+BUILD_ASSERT(CONFIG_BT_CTLR_SDC_CENTRAL_ACL_EVENT_SPACING_DEFAULT == SPACING_ON_US,
+	     "CONFIG_BT_CTLR_SDC_CENTRAL_ACL_EVENT_SPACING_DEFAULT must equal "
+	     "the derived spacing (interval / MAX_FUSION_PEERS), or the "
+	     "controller boots at one value and the application applies another.");
 #define QOS_WINDOW_MS 1000u
 #define LED_RENDER_PERIOD_MS 500u
 #define LED_HEARTBEAT_TIMEOUT_MS 1500u
@@ -82,7 +125,7 @@
 #if defined(CONFIG_BSF_CCC_FILTERED_REPRO)
 #define FUSION_MASTER_MARKER "dk-fusion-ccc-repro-v1"
 #else
-#define FUSION_MASTER_MARKER "dk-fusion-imu-relay-v35"
+#define FUSION_MASTER_MARKER "dk-fusion-imu-relay-v36"
 #endif
 
 #define CDC_ACM_NODE DT_NODELABEL(cdc_acm_uart0)
@@ -1637,8 +1680,10 @@ static bool advertising_field(struct bt_data *data, void *user_data)
 static void connect_candidate(void)
 {
 	static const struct bt_le_conn_param conn_params = {
-		.interval_min = 40, /* 50 ms */
-		.interval_max = 40, /* 50 ms */
+		/* The same constant the spacing derivation uses. If this moves,
+		 * SPACING_ON_US moves with it and the BUILD_ASSERTs re-check. */
+		.interval_min = FUSION_CONN_INTERVAL_UNITS,
+		.interval_max = FUSION_CONN_INTERVAL_UNITS,
 		.latency = 0,
 		.timeout = 400, /* 4 s */
 	};
@@ -2406,14 +2451,15 @@ static uint8_t discover_fusion(struct bt_conn *conn,
 			       info_err == 0 ? (int)info.type : -1);
 		}
 		static const struct bt_le_conn_param bench_params = {
-			.interval_min = 40, /* 50 ms */
-			.interval_max = 40, /* 50 ms */
+			.interval_min = FUSION_CONN_INTERVAL_UNITS,
+			.interval_max = FUSION_CONN_INTERVAL_UNITS,
 			.latency = 0,
 			.timeout = 400, /* 4 s */
 		};
 		err = bt_conn_le_param_update(conn, &bench_params);
-		printk("FUSION_CI_REQUEST name=%s interval_units=40 interval_us=50000 latency=0 timeout_units=400 err=%d source=master_post_gatt\n",
-		       peer->name, err);
+		printk("FUSION_CI_REQUEST name=%s interval_units=%u interval_us=%u latency=0 timeout_units=400 err=%d source=master_post_gatt\n",
+		       peer->name, FUSION_CONN_INTERVAL_UNITS,
+		       FUSION_CONN_INTERVAL_US, err);
 		memset(params, 0, sizeof(*params));
 		/*
 		 * Serialize connect + MTU/GATT discovery.  Starting the next
@@ -3291,13 +3337,34 @@ int main(void)
 		printk("FUSION_FAIL step=qos_enable err=%d\n", err);
 		return 0;
 	}
-	err = spacing_apply(SPACING_MODE_OFF);
+	/*
+	 * LAYER 1 of 3: the DK comes up already correct, with no command.
+	 *
+	 * This used to be spacing_apply(SPACING_MODE_OFF), which is how the
+	 * trap worked: the controller's Kconfig default is ALREADY the derived
+	 * 5,000 us, and the application then overwrote it with 7,500. So
+	 * spacing was not "lost" on a reflash -- it was actively set wrong on
+	 * every single boot, and every DK flash and every OTA restore replayed
+	 * that. It never failed loudly: boards still connect and still deliver,
+	 * and the only symptom is a wrong schedule for the whole window.
+	 *
+	 * Applying the derived value here (rather than just deleting the call)
+	 * is deliberate: it keeps the REPORTED state and the controller state
+	 * in agreement. Dropping the call would leave the controller correct at
+	 * 5,000 while FUSION_SPACING still reported OFF, which is a worse
+	 * failure than the one being fixed -- an instrument that lies.
+	 */
+	err = spacing_apply(SPACING_MODE_ON);
 	if (err != 0) {
 		spacing_failed = true;
-		printk("FUSION_FAIL step=spacing_boot_off err=%d action=scan_blocked\n",
+		printk("FUSION_FAIL step=spacing_boot_default err=%d action=scan_blocked\n",
 		       err);
 		return 0;
 	}
+	printk("FUSION_SPACING_DERIVED interval_units=%u interval_us=%u peers=%u spacing_us=%u kconfig_default_us=%u source=boot_default\n",
+	       FUSION_CONN_INTERVAL_UNITS, FUSION_CONN_INTERVAL_US,
+	       MAX_FUSION_PEERS, SPACING_ON_US,
+	       CONFIG_BT_CTLR_SDC_CENTRAL_ACL_EVENT_SPACING_DEFAULT);
 	printk("FUSION_MASTER_BLUETOOTH_READY qos=enabled\n");
 	spacing_status_print("APPLIED");
 	k_work_reschedule(&qos_work, K_MSEC(QOS_WINDOW_MS));

@@ -90,6 +90,39 @@ def classify_capture_result(returncode: int, console: str, timeout_s: float) -> 
     raise RuntimeError(f"updater RTT explicit failure rc={returncode}")
 
 
+
+def restore_master(restore_script, flash_log, out_dir, state, tag):
+    """Flash the DK back to canonical AND leave spacing correct.
+
+    The rebuild is INSIDE the restore, not a separate call the caller has to
+    remember, because a restore that leaves spacing wrong must not be
+    expressible. Every DK flash replays the boot path, and every single-board
+    OTA flashes the DK twice -- to the updater and back -- so both halves of the
+    sequence used to reset the connection schedule silently.
+
+    A spacing failure never fails the transaction. The image is already written
+    and confirmed by this point; refusing the deployment over a schedule that
+    can be corrected with one command would trade a real success for a
+    cosmetic failure. It is recorded loudly instead.
+    """
+    flash(restore_script, flash_log)
+    try:
+        from fusion_spacing import ensure_spacing
+        r = ensure_spacing(out_dir / f"spacing_{tag}", timeout_s=120.0)
+        state[f"spacing_{tag}"] = {
+            "status": r.get("status"), "action": r.get("action"),
+            "expected_us": r.get("expected_us"),
+            "after": (r.get("after") or {}).get("raw"),
+            "error": r.get("error"),
+        }
+        if r.get("status") != "PASS":
+            print(f"WARNING: spacing not rebuilt after {tag} restore: "
+                  f"{r.get('error')}", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        state[f"spacing_{tag}"] = {"status": "ERROR", "error": f"{type(exc).__name__}: {exc}"}
+        print(f"WARNING: spacing rebuild raised after {tag} restore: {exc}", flush=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -257,7 +290,9 @@ def main() -> int:
         except RuntimeError as exc:
             raise RuntimeError(f"{exc}; log={capture_console}") from exc
 
-        flash(restore_script, args.out_dir / "restore_v28_jlink.log")
+        restore_master(restore_script,
+                       args.out_dir / "restore_v28_jlink.log",
+                       args.out_dir, state, "restore")
         restored = True
         # The updater negotiated a 20-second supervision timeout. Let the B306
         # observe the old central disappearing before v28 is asked to connect.
@@ -329,7 +364,9 @@ def main() -> int:
                 restore_script = args.out_dir / f"restore_v28_{SNR}.jlink"
                 if not restore_script.exists():
                     jlink_script(restore_script, v28_merged, v28_bin)
-                flash(restore_script, args.out_dir / "emergency_restore_v28_jlink.log")
+                restore_master(restore_script,
+                               args.out_dir / "emergency_restore_v28_jlink.log",
+                               args.out_dir, state, "emergency_restore")
                 state["emergency_master_restore"] = "PASS"
             except Exception as restore_exc:
                 state["emergency_master_restore"] = f"FAIL: {restore_exc}"

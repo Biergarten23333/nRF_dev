@@ -281,5 +281,9 @@ from the matching ELF. `LIST` reports the connected BSF name, last scan RSSI,
 subscription state, control handle, active spacing state/generation, HCI
 handle, QoS window counts, and DK epoch-defer count. `MASTER STATUS` reports
 the DK marker and aggregate loss state. `SPACING OFF` is the explicit 7500 us
-baseline; `SPACING ON` disconnects all peers, applies 10000 us before the next
-connection creation, and reconnects the fleet. `SPACING STATUS` is read-only.
+baseline; `SPACING ON` disconnects all peers, applies the DERIVED spacing before the
+next connection creation, and reconnects the fleet. The value is
+`connection_interval / connection_count` = 50,000 / 10 = **5,000 us**, not the
+10,000 us this line claimed for several generations. From dk-v36 the derived
+value is also the BOOT state, so `SPACING ON` is normally answered `UNCHANGED`;
+earlier images booted to `OFF` and had to be told. `SPACING STATUS` is read-only.
