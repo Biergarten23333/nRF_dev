@@ -1,0 +1,429 @@
+{
+  "node": "BSFAA61",
+  "status": "PASS",
+  "steps": [
+    {
+      "step": "baseline STATUS",
+      "ok": true,
+      "raw": "FUSION_REPLY proto=7 name=BSFAA61 master_ms=59241 source=B306 correlation=8 text=STATUS fw=b306-imu-relay-v43 id=AA61 up_ms=70863 frames=576 strobe_rise=591 imu=1/200Hz/N10 verify=PASS"
+    },
+    {
+      "step": "corpse absent before force",
+      "ok": true,
+      "raw": "FUSION_REPLY proto=7 name=BSFAA61 master_ms=60242 source=B306 correlation=9 text=CORPSE present=0 seq=0 pages=0 len=812 stage=0 stage_seq=0 age_ms=0 trigger=0 rr=00000000 reboot_owner=0"
+    },
+    {
+      "step": "CORPSE FORCE accepted",
+      "ok": true,
+      "raw": "FUSION_REPLY proto=7 name=BSFAA61 master_ms=61242 source=B306 correlation=10 text=CORPSE FORCE armed note=pipeline_validation_only"
+    },
+    {
+      "step": "board self-reset and reconnected",
+      "ok": true,
+      "elapsed_s": 20.7,
+      "raw": "FUSION_REPLY proto=7 name=BSFAA61 master_ms=81942 source=B306 correlation=1 text=PONG name=BSFAA61 fw=b306-imu-relay-v43 proto=7"
+    },
+    {
+      "step": "corpse retained across reset",
+      "ok": true,
+      "raw": "FUSION_REPLY proto=7 name=BSFAA61 master_ms=82543 source=B306 correlation=2 text=CORPSE present=1 seq=1 pages=4 len=812 stage=7 stage_seq=3251 age_ms=69 trigger=2 rr=00000004 reboot_owner=2"
+    },
+    {
+      "step": "page 0",
+      "ok": true,
+      "crc_ok": true,
+      "off": 0
+    },
+    {
+      "step": "page 1",
+      "ok": true,
+      "crc_ok": true,
+      "off": 220
+    },
+    {
+      "step": "page 2",
+      "ok": true,
+      "crc_ok": true,
+      "off": 440
+    },
+    {
+      "step": "page 3",
+      "ok": true,
+      "crc_ok": true,
+      "off": 660
+    },
+    {
+      "step": "all pages fetched",
+      "ok": true,
+      "got": 4,
+      "want": 4
+    },
+    {
+      "step": "corpse CRC32",
+      "ok": true,
+      "crc32_ok": true
+    },
+    {
+      "step": "classified as pipeline test",
+      "ok": true,
+      "classification": "DIAGNOSTIC_FALSE_POSITIVE",
+      "trigger": "artificial"
+    },
+    {
+      "step": "BT RX thread was located",
+      "ok": true,
+      "addr": "20003720",
+      "state": "PENDING"
+    },
+    {
+      "step": "BT RX stack measured",
+      "ok": true,
+      "size": 1024,
+      "unused": 360,
+      "used": 664
+    },
+    {
+      "step": "conn fields captured",
+      "ok": true,
+      "state": 7,
+      "tx_busy": "none",
+      "deferred": "none",
+      "pkts": 0
+    },
+    {
+      "step": "healthy dwell measured",
+      "ok": true,
+      "worst_ms": 10.4425,
+      "margin_x": 478.8
+    },
+    {
+      "step": "wrong ACK is refused",
+      "ok": true,
+      "raw": "FUSION_REPLY proto=7 name=BSFAA61 master_ms=90440 source=B306 correlation=7 text=CORPSE ACK REJECT seq=1000 present=1 have=1"
+    },
+    {
+      "step": "correct ACK accepted",
+      "ok": true,
+      "raw": "FUSION_REPLY proto=7 name=BSFAA61 master_ms=91240 source=B306 correlation=8 text=CORPSE ACK ok seq=1 cleared=1"
+    },
+    {
+      "step": "valid marker cleared",
+      "ok": true,
+      "raw": "FUSION_REPLY proto=7 name=BSFAA61 master_ms=92241 source=B306 correlation=9 text=CORPSE present=0 seq=0 pages=0 len=812 stage=0 stage_seq=0 age_ms=0 trigger=0 rr=00000000 reboot_owner=2"
+    }
+  ],
+  "guard": "FUSION_IMU proto=7 name=BSF8BC4 master_ms=42161 seq=5941 base_us=3308744304 n=10 temp_raw=3200 samples=0,-52,20,-2062,-3,-4,-7;5000,-53,20,-2062,-3,-4,-7;10000,-53,19,-2062,-4,-4,-6;15000,-52,18,-2061,-2,-4,-6;20000,-51,17,-2064,-2,-4,-7;25000,-54,20,-2060,-3,-5,-6;30000,-53,19,-2063,-2,-3,-6;35000,-52,20,-2064,-3,-2,-6;40000,-52,19,-2063,-3,-4,-7;45000,-56,19,-2061,-2,-5,-6",
+  "baseline_status": "FUSION_REPLY proto=7 name=BSFAA61 master_ms=59241 source=B306 correlation=8 text=STATUS fw=b306-imu-relay-v43 id=AA61 up_ms=70863 frames=576 strobe_rise=591 imu=1/200Hz/N10 verify=PASS",
+  "corpse_before": "FUSION_REPLY proto=7 name=BSFAA61 master_ms=60242 source=B306 correlation=9 text=CORPSE present=0 seq=0 pages=0 len=812 stage=0 stage_seq=0 age_ms=0 trigger=0 rr=00000000 reboot_owner=0",
+  "reconnect_s": 20.7,
+  "corpse_after": "FUSION_REPLY proto=7 name=BSFAA61 master_ms=82543 source=B306 correlation=2 text=CORPSE present=1 seq=1 pages=4 len=812 stage=7 stage_seq=3251 age_ms=69 trigger=2 rr=00000004 reboot_owner=2",
+  "corpse_seq": 1,
+  "corpse_pages": 4,
+  "corpse_len": 812,
+  "pages_fetched": 4,
+  "corpse": {
+    "magic": 875778115,
+    "schema": 1,
+    "length": 796,
+    "crc32": 3092188096,
+    "crc32_ok": true,
+    "fw_marker_hash": "833c981e",
+    "node_identity": "AA61",
+    "uptime_ms": 74032,
+    "boot_reset_reason": "00000004",
+    "corpse_seq": 1,
+    "wedge_count": 1,
+    "trigger": "artificial",
+    "stage": 7,
+    "stage_name": "TX_NOTIFY_EXIT",
+    "stage_seq": 3251,
+    "stage_age_ms": 69,
+    "stage_arg": 0,
+    "rx_thread_addr": "20003720",
+    "rx_thread_sp": "2000f080",
+    "rx_stack_size": 1024,
+    "rx_stack_unused": 360,
+    "rx_thread_state": 2,
+    "rx_thread_state_bits": "PENDING",
+    "rx_thread_prio": -8,
+    "rx_capture_ok": 1,
+    "conn": {
+      "addr": "20003808",
+      "rx_ptr": "00000000",
+      "rx_len": 0,
+      "handle": 1,
+      "state": 7,
+      "err": 0,
+      "type": 1,
+      "role": 1,
+      "tx_complete_busy": 0,
+      "tx_complete_busy_bits": "none",
+      "deferred_busy": 0,
+      "deferred_busy_bits": "none",
+      "tx_pending": 6,
+      "tx_complete": 0,
+      "pkts_avail": 0,
+      "valid": 1
+    },
+    "wdt_feed_count": 73,
+    "notify_ok": 741,
+    "producer_seq": 603,
+    "ring_writes": 1445,
+    "stage_max_cycles": {
+      "IDLE": 61447,
+      "CONN_RECV_ENTER": 1,
+      "TX_NOTIFY_ENTER": 1,
+      "TX_NOTIFY_BEFORE_SUBMIT": 5,
+      "TX_NOTIFY_AFTER_SUBMIT": 1,
+      "TX_NOTIFY_BEFORE_FLUSH": 6,
+      "TX_NOTIFY_AFTER_FLUSH": 1,
+      "TX_NOTIFY_EXIT": 668319,
+      "DEFERRED_RESCHEDULE_AFTER": 140293,
+      "CONN_RECV_EXIT": 9825
+    },
+    "trace_entries": 32,
+    "ring_entries": 6,
+    "trace": [
+      {
+        "cycles": 2413745,
+        "stage": 2,
+        "stage_name": "TX_NOTIFY_ENTER",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2413745,
+        "stage": 3,
+        "stage_name": "TX_NOTIFY_BEFORE_SUBMIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2413745,
+        "stage": 4,
+        "stage_name": "TX_NOTIFY_AFTER_SUBMIT",
+        "event": "stage",
+        "arg": 1
+      },
+      {
+        "cycles": 2413745,
+        "stage": 7,
+        "stage_name": "TX_NOTIFY_EXIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2413777,
+        "stage": 2,
+        "stage_name": "TX_NOTIFY_ENTER",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2413777,
+        "stage": 3,
+        "stage_name": "TX_NOTIFY_BEFORE_SUBMIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2413778,
+        "stage": 4,
+        "stage_name": "TX_NOTIFY_AFTER_SUBMIT",
+        "event": "stage",
+        "arg": 1
+      },
+      {
+        "cycles": 2413778,
+        "stage": 7,
+        "stage_name": "TX_NOTIFY_EXIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2417021,
+        "stage": 2,
+        "stage_name": "TX_NOTIFY_ENTER",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2417021,
+        "stage": 3,
+        "stage_name": "TX_NOTIFY_BEFORE_SUBMIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2417021,
+        "stage": 4,
+        "stage_name": "TX_NOTIFY_AFTER_SUBMIT",
+        "event": "stage",
+        "arg": 1
+      },
+      {
+        "cycles": 2417021,
+        "stage": 7,
+        "stage_name": "TX_NOTIFY_EXIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2420319,
+        "stage": 2,
+        "stage_name": "TX_NOTIFY_ENTER",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2420319,
+        "stage": 3,
+        "stage_name": "TX_NOTIFY_BEFORE_SUBMIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2420319,
+        "stage": 4,
+        "stage_name": "TX_NOTIFY_AFTER_SUBMIT",
+        "event": "stage",
+        "arg": 1
+      },
+      {
+        "cycles": 2420319,
+        "stage": 7,
+        "stage_name": "TX_NOTIFY_EXIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2420351,
+        "stage": 2,
+        "stage_name": "TX_NOTIFY_ENTER",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2420351,
+        "stage": 3,
+        "stage_name": "TX_NOTIFY_BEFORE_SUBMIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2420351,
+        "stage": 4,
+        "stage_name": "TX_NOTIFY_AFTER_SUBMIT",
+        "event": "stage",
+        "arg": 1
+      },
+      {
+        "cycles": 2420351,
+        "stage": 7,
+        "stage_name": "TX_NOTIFY_EXIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2423574,
+        "stage": 2,
+        "stage_name": "TX_NOTIFY_ENTER",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2423574,
+        "stage": 3,
+        "stage_name": "TX_NOTIFY_BEFORE_SUBMIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2423575,
+        "stage": 4,
+        "stage_name": "TX_NOTIFY_AFTER_SUBMIT",
+        "event": "stage",
+        "arg": 1
+      },
+      {
+        "cycles": 2423575,
+        "stage": 7,
+        "stage_name": "TX_NOTIFY_EXIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2423611,
+        "stage": 2,
+        "stage_name": "TX_NOTIFY_ENTER",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2423611,
+        "stage": 3,
+        "stage_name": "TX_NOTIFY_BEFORE_SUBMIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2423612,
+        "stage": 4,
+        "stage_name": "TX_NOTIFY_AFTER_SUBMIT",
+        "event": "stage",
+        "arg": 1
+      },
+      {
+        "cycles": 2423612,
+        "stage": 7,
+        "stage_name": "TX_NOTIFY_EXIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2423632,
+        "stage": 2,
+        "stage_name": "TX_NOTIFY_ENTER",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2423632,
+        "stage": 3,
+        "stage_name": "TX_NOTIFY_BEFORE_SUBMIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2423633,
+        "stage": 4,
+        "stage_name": "TX_NOTIFY_AFTER_SUBMIT",
+        "event": "stage",
+        "arg": 1
+      },
+      {
+        "cycles": 2423633,
+        "stage": 7,
+        "stage_name": "TX_NOTIFY_EXIT",
+        "event": "stage",
+        "arg": 0
+      }
+    ],
+    "_ring_offset": 568,
+    "classification": "DIAGNOSTIC_FALSE_POSITIVE"
+  },
+  "stage_max_ms": {
+    "IDLE": 0.9601,
+    "CONN_RECV_ENTER": 0.0,
+    "TX_NOTIFY_ENTER": 0.0,
+    "TX_NOTIFY_BEFORE_SUBMIT": 0.0001,
+    "TX_NOTIFY_AFTER_SUBMIT": 0.0,
+    "TX_NOTIFY_BEFORE_FLUSH": 0.0001,
+    "TX_NOTIFY_AFTER_FLUSH": 0.0,
+    "TX_NOTIFY_EXIT": 10.4425,
+    "DEFERRED_RESCHEDULE_AFTER": 2.1921,
+    "CONN_RECV_EXIT": 0.1535
+  },
+  "stage_max_worst_ms": 10.4425,
+  "threshold_margin_x": 478.8
+}

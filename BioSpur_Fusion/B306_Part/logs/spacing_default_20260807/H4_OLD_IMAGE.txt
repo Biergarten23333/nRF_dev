@@ -1,0 +1,25 @@
+RUN /usr/bin/JLinkExe step_log=/mnt/nrf_ssd/nRF_dev/BioSpur_Fusion/B306_Part/logs/spacing_default_20260807/H4_OLD/flash_v35.log
+=== dk-v35 flashed (boots OFF) -- state BEFORE any rebuild ===
+  before: FUSION_SPACING state=APPLIED mode=OFF applied_us=7500 generation=1 transition=0 failed=0 expected_anchors_us=0,7500,15000,22500,30000,37500,45000,52500,60000,67500 qos=enabled
+=== now the restore path on the SAME old image ===
+RUN /usr/bin/JLinkExe step_log=/mnt/nrf_ssd/nRF_dev/BioSpur_Fusion/B306_Part/logs/spacing_default_20260807/H4_OLD/restore_v35.log
+{
+  "spacing_old_image": {
+    "action": "rebuilt",
+    "after": "FUSION_SPACING state=APPLIED mode=ON applied_us=5000 generation=2 transition=0 failed=0 expected_anchors_us=0,5000,10000,15000,20000,25000,30000,35000,40000,45000 qos=enabled",
+    "error": null,
+    "expected_us": 5000,
+    "status": "PASS"
+  }
+}
+=== restoring dk-v36 as the canonical image ===
+RUN /usr/bin/JLinkExe step_log=/mnt/nrf_ssd/nRF_dev/BioSpur_Fusion/B306_Part/logs/spacing_default_20260807/H4_OLD/flash_v36.log
+{
+  "spacing_back_to_v36": {
+    "action": "none_already_correct",
+    "after": "FUSION_SPACING state=APPLIED mode=ON applied_us=5000 generation=1 transition=0 failed=0 expected_anchors_us=0,5000,10000,15000,20000,25000,30000,35000,40000,45000 qos=enabled",
+    "error": null,
+    "expected_us": 5000,
+    "status": "PASS"
+  }
+}

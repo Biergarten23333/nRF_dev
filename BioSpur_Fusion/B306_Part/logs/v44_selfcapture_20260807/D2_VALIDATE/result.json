@@ -1,0 +1,466 @@
+{
+  "node": "BSF8BC4",
+  "status": "PASS",
+  "steps": [
+    {
+      "step": "baseline STATUS",
+      "ok": true,
+      "raw": "FUSION_REPLY proto=7 name=BSF8BC4 master_ms=857793 source=B306 correlation=4 text=STATUS fw=b306-imu-relay-v44 id=8BC4 up_ms=79106 frames=645 strobe_rise=653 imu=1/200Hz/N10 verify=PASS"
+    },
+    {
+      "step": "corpse absent before force",
+      "ok": true,
+      "raw": "FUSION_REPLY proto=7 name=BSF8BC4 master_ms=857892 source=B306 correlation=5 text=CORPSE present=0 seq=0 pages=0 len=840 stage=0 stage_seq=0 age_ms=0 trigger=0 rr=00000000 reboot_owner=0"
+    },
+    {
+      "step": "CORPSE FORCE accepted",
+      "ok": true,
+      "raw": "FUSION_REPLY proto=7 name=BSF8BC4 master_ms=857992 source=B306 correlation=6 text=CORPSE FORCE armed note=pipeline_validation_only"
+    },
+    {
+      "step": "board self-reset and reconnected",
+      "ok": true,
+      "elapsed_s": 8.7,
+      "raw": "FUSION_REPLY proto=7 name=BSF8BC4 master_ms=866692 source=B306 correlation=1 text=PONG name=BSF8BC4 fw=b306-imu-relay-v44 proto=7"
+    },
+    {
+      "step": "corpse retained across reset",
+      "ok": true,
+      "raw": "FUSION_REPLY proto=7 name=BSF8BC4 master_ms=866792 source=B306 correlation=2 text=CORPSE present=1 seq=1 pages=4 len=840 stage=20 stage_seq=14462 age_ms=4 trigger=2 rr=00000001 reboot_owner=2"
+    },
+    {
+      "step": "page 0",
+      "ok": true,
+      "crc_ok": true,
+      "off": 0
+    },
+    {
+      "step": "page 1",
+      "ok": true,
+      "crc_ok": true,
+      "off": 220
+    },
+    {
+      "step": "page 2",
+      "ok": true,
+      "crc_ok": true,
+      "off": 440
+    },
+    {
+      "step": "page 3",
+      "ok": true,
+      "crc_ok": true,
+      "off": 660
+    },
+    {
+      "step": "all pages fetched",
+      "ok": true,
+      "got": 4,
+      "want": 4
+    },
+    {
+      "step": "corpse CRC32",
+      "ok": true,
+      "crc32_ok": true
+    },
+    {
+      "step": "classified as pipeline test",
+      "ok": true,
+      "classification": "DIAGNOSTIC_FALSE_POSITIVE",
+      "trigger": "artificial"
+    },
+    {
+      "step": "BT RX thread was located",
+      "ok": true,
+      "addr": "20003720",
+      "state": "PENDING"
+    },
+    {
+      "step": "BT RX stack measured",
+      "ok": true,
+      "size": 1024,
+      "unused": 360,
+      "used": 664
+    },
+    {
+      "step": "conn fields captured",
+      "ok": true,
+      "state": 7,
+      "tx_busy": "none",
+      "deferred": "none",
+      "pkts": 3
+    },
+    {
+      "step": "healthy dwell measured (in-flight only)",
+      "ok": true,
+      "worst_stage": "ATT_ALLOC_DONE",
+      "worst_ms": 0.0259,
+      "rx_work_enter_ms": 0.0001,
+      "margin_x": 772200.8
+    },
+    {
+      "step": "worst in-flight dwell leaves margin on the 20 s threshold",
+      "ok": true,
+      "note_": "if this approaches 10 s the threshold must rise again"
+    },
+    {
+      "step": "wrong ACK is refused",
+      "ok": true,
+      "raw": "FUSION_REPLY proto=7 name=BSF8BC4 master_ms=867692 source=B306 correlation=7 text=CORPSE ACK REJECT seq=1000 present=1 have=1"
+    },
+    {
+      "step": "correct ACK accepted",
+      "ok": true,
+      "raw": "FUSION_REPLY proto=7 name=BSF8BC4 master_ms=867792 source=B306 correlation=8 text=CORPSE ACK ok seq=1 cleared=1"
+    },
+    {
+      "step": "valid marker cleared",
+      "ok": true,
+      "raw": "FUSION_REPLY proto=7 name=BSF8BC4 master_ms=867893 source=B306 correlation=9 text=CORPSE present=0 seq=0 pages=0 len=840 stage=0 stage_seq=0 age_ms=0 trigger=0 rr=00000000 reboot_owner=2"
+    }
+  ],
+  "guard": "FUSION_IMU proto=7 name=BSF1120 master_ms=840959 seq=35065 base_us=3782074192 n=10 temp_raw=3266 samples=0,-107,-51,-2056,4,-8,0;5000,-105,-51,-2056,3,-8,0;10000,-104,-54,-2058,3,-8,0;15000,-105,-54,-2057,3,-6,0;20000,-106,-52,-2057,3,-7,0;25000,-106,-52,-2056,3,-7,0;30000,-106,-52,-2056,3,-7,0;35000,-106,-53,-2056,3,-7,0;40000,-107,-52,-2058,3,-6,0;45000,-106,-52,-2056,3,-7,0",
+  "baseline_status": "FUSION_REPLY proto=7 name=BSF8BC4 master_ms=857793 source=B306 correlation=4 text=STATUS fw=b306-imu-relay-v44 id=8BC4 up_ms=79106 frames=645 strobe_rise=653 imu=1/200Hz/N10 verify=PASS",
+  "corpse_before": "FUSION_REPLY proto=7 name=BSF8BC4 master_ms=857892 source=B306 correlation=5 text=CORPSE present=0 seq=0 pages=0 len=840 stage=0 stage_seq=0 age_ms=0 trigger=0 rr=00000000 reboot_owner=0",
+  "reconnect_s": 8.7,
+  "corpse_after": "FUSION_REPLY proto=7 name=BSF8BC4 master_ms=866792 source=B306 correlation=2 text=CORPSE present=1 seq=1 pages=4 len=840 stage=20 stage_seq=14462 age_ms=4 trigger=2 rr=00000001 reboot_owner=2",
+  "corpse_seq": 1,
+  "corpse_pages": 4,
+  "corpse_len": 840,
+  "pages_fetched": 4,
+  "corpse": {
+    "magic": 875778115,
+    "schema": 2,
+    "length": 824,
+    "crc32": 3337252611,
+    "crc32_ok": true,
+    "fw_marker_hash": "863c9cd7",
+    "node_identity": "8BC4",
+    "uptime_ms": 80035,
+    "boot_reset_reason": "00000001",
+    "corpse_seq": 1,
+    "wedge_count": 1,
+    "trigger": "artificial",
+    "stage": 20,
+    "stage_name": "ATT_ALLOC_DONE",
+    "stage_seq": 14462,
+    "stage_age_ms": 4,
+    "stage_arg": 1,
+    "rx_thread_addr": "20003720",
+    "rx_thread_sp": "2000f0c0",
+    "rx_stack_size": 1024,
+    "rx_stack_unused": 360,
+    "rx_thread_state": 2,
+    "rx_thread_state_bits": "PENDING",
+    "rx_thread_prio": -8,
+    "rx_capture_ok": 1,
+    "conn": {
+      "addr": "20003808",
+      "rx_ptr": "00000000",
+      "rx_len": 0,
+      "handle": 0,
+      "state": 7,
+      "err": 0,
+      "type": 1,
+      "role": 1,
+      "tx_complete_busy": 0,
+      "tx_complete_busy_bits": "none",
+      "deferred_busy": 0,
+      "deferred_busy_bits": "none",
+      "tx_pending": 3,
+      "tx_complete": 0,
+      "pkts_avail": 3,
+      "valid": 1
+    },
+    "wdt_feed_count": 79,
+    "notify_ok": 2355,
+    "producer_seq": 653,
+    "ring_writes": 1564,
+    "stage_max_cycles": {
+      "IDLE": 154275,
+      "CONN_RECV_ENTER": 1,
+      "TX_NOTIFY_ENTER": 1,
+      "TX_NOTIFY_BEFORE_SUBMIT": 1,
+      "TX_NOTIFY_AFTER_SUBMIT": 1,
+      "TX_NOTIFY_BEFORE_FLUSH": 3,
+      "TX_NOTIFY_AFTER_FLUSH": 1,
+      "TX_NOTIFY_EXIT": 1539,
+      "CONN_RECV_EXIT": 1,
+      "RX_WORK_ENTER": 8,
+      "RX_WORK_EXIT": 4902,
+      "ACL_RECV_ENTER": 7,
+      "ACL_RECV_EXIT": 1,
+      "ATT_ALLOC_RESPONSE": 1,
+      "ATT_ALLOC_FOREVER": 5,
+      "ATT_ALLOC_DONE": 1655
+    },
+    "trace_entries": 32,
+    "ring_entries": 6,
+    "trace": [
+      {
+        "cycles": 2620042,
+        "stage": 4,
+        "stage_name": "TX_NOTIFY_AFTER_SUBMIT",
+        "event": "stage",
+        "arg": 1
+      },
+      {
+        "cycles": 2620042,
+        "stage": 7,
+        "stage_name": "TX_NOTIFY_EXIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2620062,
+        "stage": 2,
+        "stage_name": "TX_NOTIFY_ENTER",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2620062,
+        "stage": 3,
+        "stage_name": "TX_NOTIFY_BEFORE_SUBMIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2620063,
+        "stage": 4,
+        "stage_name": "TX_NOTIFY_AFTER_SUBMIT",
+        "event": "stage",
+        "arg": 1
+      },
+      {
+        "cycles": 2620063,
+        "stage": 7,
+        "stage_name": "TX_NOTIFY_EXIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2621496,
+        "stage": 19,
+        "stage_name": "ATT_ALLOC_FOREVER",
+        "event": "stage",
+        "arg": 27
+      },
+      {
+        "cycles": 2621496,
+        "stage": 20,
+        "stage_name": "ATT_ALLOC_DONE",
+        "event": "stage",
+        "arg": 1
+      },
+      {
+        "cycles": 2621650,
+        "stage": 2,
+        "stage_name": "TX_NOTIFY_ENTER",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2621650,
+        "stage": 3,
+        "stage_name": "TX_NOTIFY_BEFORE_SUBMIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2621650,
+        "stage": 4,
+        "stage_name": "TX_NOTIFY_AFTER_SUBMIT",
+        "event": "stage",
+        "arg": 1
+      },
+      {
+        "cycles": 2621650,
+        "stage": 7,
+        "stage_name": "TX_NOTIFY_EXIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2621655,
+        "stage": 14,
+        "stage_name": "RX_WORK_ENTER",
+        "event": "stage",
+        "arg": 3
+      },
+      {
+        "cycles": 2621655,
+        "stage": 1,
+        "stage_name": "CONN_RECV_ENTER",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2621655,
+        "stage": 2,
+        "stage_name": "TX_NOTIFY_ENTER",
+        "event": "stage",
+        "arg": 1
+      },
+      {
+        "cycles": 2621655,
+        "stage": 3,
+        "stage_name": "TX_NOTIFY_BEFORE_SUBMIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2621655,
+        "stage": 4,
+        "stage_name": "TX_NOTIFY_AFTER_SUBMIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2621655,
+        "stage": 5,
+        "stage_name": "TX_NOTIFY_BEFORE_FLUSH",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2621658,
+        "stage": 6,
+        "stage_name": "TX_NOTIFY_AFTER_FLUSH",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2621658,
+        "stage": 7,
+        "stage_name": "TX_NOTIFY_EXIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2621658,
+        "stage": 16,
+        "stage_name": "ACL_RECV_ENTER",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2621660,
+        "stage": 17,
+        "stage_name": "ACL_RECV_EXIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2621660,
+        "stage": 12,
+        "stage_name": "CONN_RECV_EXIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2621660,
+        "stage": 15,
+        "stage_name": "RX_WORK_EXIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2621676,
+        "stage": 19,
+        "stage_name": "ATT_ALLOC_FOREVER",
+        "event": "stage",
+        "arg": 27
+      },
+      {
+        "cycles": 2621676,
+        "stage": 20,
+        "stage_name": "ATT_ALLOC_DONE",
+        "event": "stage",
+        "arg": 1
+      },
+      {
+        "cycles": 2621685,
+        "stage": 2,
+        "stage_name": "TX_NOTIFY_ENTER",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2621685,
+        "stage": 3,
+        "stage_name": "TX_NOTIFY_BEFORE_SUBMIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2621685,
+        "stage": 4,
+        "stage_name": "TX_NOTIFY_AFTER_SUBMIT",
+        "event": "stage",
+        "arg": 1
+      },
+      {
+        "cycles": 2621685,
+        "stage": 7,
+        "stage_name": "TX_NOTIFY_EXIT",
+        "event": "stage",
+        "arg": 0
+      },
+      {
+        "cycles": 2622477,
+        "stage": 19,
+        "stage_name": "ATT_ALLOC_FOREVER",
+        "event": "stage",
+        "arg": 27
+      },
+      {
+        "cycles": 2622477,
+        "stage": 20,
+        "stage_name": "ATT_ALLOC_DONE",
+        "event": "stage",
+        "arg": 1
+      }
+    ],
+    "_ring_offset": 596,
+    "classification": "DIAGNOSTIC_FALSE_POSITIVE"
+  },
+  "stage_max_ms": {
+    "IDLE": 2.4105,
+    "CONN_RECV_ENTER": 0.0,
+    "TX_NOTIFY_ENTER": 0.0,
+    "TX_NOTIFY_BEFORE_SUBMIT": 0.0,
+    "TX_NOTIFY_AFTER_SUBMIT": 0.0,
+    "TX_NOTIFY_BEFORE_FLUSH": 0.0,
+    "TX_NOTIFY_AFTER_FLUSH": 0.0,
+    "TX_NOTIFY_EXIT": 0.024,
+    "CONN_RECV_EXIT": 0.0,
+    "RX_WORK_ENTER": 0.0001,
+    "RX_WORK_EXIT": 0.0766,
+    "ACL_RECV_ENTER": 0.0001,
+    "ACL_RECV_EXIT": 0.0,
+    "ATT_ALLOC_RESPONSE": 0.0,
+    "ATT_ALLOC_FOREVER": 0.0001,
+    "ATT_ALLOC_DONE": 0.0259
+  },
+  "stage_max_inflight_ms": {
+    "CONN_RECV_ENTER": 0.0,
+    "TX_NOTIFY_ENTER": 0.0,
+    "TX_NOTIFY_BEFORE_SUBMIT": 0.0,
+    "TX_NOTIFY_AFTER_SUBMIT": 0.0,
+    "TX_NOTIFY_BEFORE_FLUSH": 0.0,
+    "TX_NOTIFY_AFTER_FLUSH": 0.0,
+    "TX_NOTIFY_EXIT": 0.024,
+    "CONN_RECV_EXIT": 0.0,
+    "RX_WORK_ENTER": 0.0001,
+    "ACL_RECV_ENTER": 0.0001,
+    "ACL_RECV_EXIT": 0.0,
+    "ATT_ALLOC_RESPONSE": 0.0,
+    "ATT_ALLOC_FOREVER": 0.0001,
+    "ATT_ALLOC_DONE": 0.0259
+  },
+  "rx_work_enter_ms": 0.0001,
+  "worst_inflight_stage": "ATT_ALLOC_DONE",
+  "stage_max_worst_ms": 0.0259,
+  "threshold_margin_x": 772200.8
+}

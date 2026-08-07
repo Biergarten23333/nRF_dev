@@ -1,0 +1,37 @@
+{
+  "node": "BSF8BC4",
+  "status": "FAIL",
+  "steps": [
+    {
+      "step": "baseline STATUS",
+      "ok": true,
+      "raw": "FUSION_REPLY proto=7 name=BSF8BC4 master_ms=47192 source=B306 correlation=10 text=STATUS fw=b306-imu-relay-v44 id=8BC4 up_ms=60065 frames=488 strobe_rise=501 imu=1/200Hz/N10 verify=PASS"
+    },
+    {
+      "step": "corpse absent before force",
+      "ok": true,
+      "raw": "FUSION_REPLY proto=7 name=BSF8BC4 master_ms=47292 source=B306 correlation=11 text=CORPSE present=0 seq=0 pages=0 len=840 stage=0 stage_seq=0 age_ms=0 trigger=0 rr=00000000 reboot_owner=2"
+    },
+    {
+      "step": "CORPSE FORCE accepted",
+      "ok": true,
+      "raw": "FUSION_REPLY proto=7 name=BSF8BC4 master_ms=47392 source=B306 correlation=12 text=CORPSE FORCE armed note=pipeline_validation_only"
+    },
+    {
+      "step": "board self-reset and reconnected",
+      "ok": true,
+      "elapsed_s": 0.1,
+      "raw": "FUSION_REPLY proto=7 name=BSF8BC4 master_ms=47492 source=B306 correlation=13 text=PONG name=BSF8BC4 fw=b306-imu-relay-v44 proto=7"
+    },
+    {
+      "step": "corpse retained across reset",
+      "ok": false,
+      "raw": "FUSION_REPLY proto=7 name=BSF8BC4 master_ms=47592 source=B306 correlation=14 text=CORPSE present=0 seq=0 pages=0 len=840 stage=0 stage_seq=0 age_ms=0 trigger=0 rr=00000000 reboot_owner=2"
+    }
+  ],
+  "guard": "FUSION_UWB proto=7 name=BSF3C79 master_ms=32583 node_ms=2991346 pkt=24914 sweep=24922 identity=065F logical=1 poll_tx=CD5F951434 frame_us=2991402624 strobe_us=2991385647 rise_us=2991385647 fall_us=2991385657 pair_dt_us=16977 verdict=healthy edge=active_high candidates=1 window_us=50000 valid=0xff flags=0xbd sf_valid=1 sf_mod16=7 strobe_sent=1 rise_n=24922 fall_n=24922 boot_discard=0 edge_qdrop=0 orphan_strobe=8 orphan_edge=16 orphan_frame=0 near_window=0 last_orphan_us=1658530 capture_flags=0x1e ranges=0:4067,1:1766,2:1991,3:3768,4:3746,5:1892,6:2064,7:3557",
+  "baseline_status": "FUSION_REPLY proto=7 name=BSF8BC4 master_ms=47192 source=B306 correlation=10 text=STATUS fw=b306-imu-relay-v44 id=8BC4 up_ms=60065 frames=488 strobe_rise=501 imu=1/200Hz/N10 verify=PASS",
+  "corpse_before": "FUSION_REPLY proto=7 name=BSF8BC4 master_ms=47292 source=B306 correlation=11 text=CORPSE present=0 seq=0 pages=0 len=840 stage=0 stage_seq=0 age_ms=0 trigger=0 rr=00000000 reboot_owner=2",
+  "reconnect_s": 0.1,
+  "corpse_after": "FUSION_REPLY proto=7 name=BSF8BC4 master_ms=47592 source=B306 correlation=14 text=CORPSE present=0 seq=0 pages=0 len=840 stage=0 stage_seq=0 age_ms=0 trigger=0 rr=00000000 reboot_owner=2"
+}
