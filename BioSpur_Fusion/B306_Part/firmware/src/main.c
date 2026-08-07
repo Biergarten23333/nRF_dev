@@ -1107,6 +1107,27 @@ static int bsf_corpse_render_page(uint8_t page, bsf_corpse_page_t *out)
  * Stage 2 measures actual dwell at the RX_WORK_ENTER->EXIT level across BOTH
  * arms -- ACL and event -- and the threshold moves again if anything observed
  * approaches it.
+ *
+ * ACCEPTED COST, RECORDED SO IT IS NOT A SILENT LOSS.
+ * The v42 ring holds BSF_STALL_RING_CAPACITY(200) x BSF_STALL_RING_PERIOD_MS(50)
+ * = 10 s. It is frozen when the corpse is captured, i.e. at onset + threshold.
+ * At 5 s the frozen ring spanned [onset-5s, onset+5s] and COVERED THE ONSET.
+ * At 20 s it spans [onset+10s, onset+20s] and DOES NOT.
+ *
+ * That is accepted rather than fixed, because v44's primary evidence is the
+ * STAGE, not the ring: bsf_bt_stage_id says where the thread is parked,
+ * k_work_busy_get() gives tx_complete_work's real state, and the bt_conn
+ * fields give the connection's. The ring was always a secondary trajectory.
+ *
+ * The alternatives were weighed and rejected FOR NOW, not overlooked:
+ *   - 800 entries would give a 40 s span for +32 KB of the ~146 KB free. Real
+ *     but bulky, and it buys a trajectory we are not currently reading.
+ *   - Freezing the ring on a lower threshold than the reset would freeze it on
+ *     every legitimate slow disconnect -- the exact false-positive class the
+ *     20 s threshold exists to avoid.
+ *   - Coarsening the period to 200 ms would give 40 s at zero RAM cost, but
+ *     changes the geometry stamp and invalidates every retained ring.
+ * If the ring tail ever becomes load-bearing, the 800-entry option is the one.
  */
 #define BSF_BT_WEDGE_MS        20000u
 #define BSF_BT_MONITOR_STACK   1024

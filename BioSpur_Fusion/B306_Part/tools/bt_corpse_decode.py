@@ -27,7 +27,7 @@ CORPSE_PAGE_FORM = 0xC3
 CORPSE_MAGIC = 0x34335043                 # 'CP43'
 TRACE_KEEP = 32
 RING_KEEP = 6
-STAGE_COUNT = 14
+STAGE_COUNT = 21   # v44 appended 7; stage_max[] sizing depends on it
 
 STAGES = {
     0: "IDLE", 1: "CONN_RECV_ENTER", 2: "TX_NOTIFY_ENTER",
@@ -36,6 +36,10 @@ STAGES = {
     7: "TX_NOTIFY_EXIT", 8: "RESET_RX_BEFORE", 9: "RESET_RX_AFTER",
     10: "DEFERRED_RESCHEDULE_BEFORE", 11: "DEFERRED_RESCHEDULE_AFTER",
     12: "CONN_RECV_EXIT", 13: "TX_NOTIFY_DIRECT",
+    # v44 -- appended, never renumbered
+    14: "RX_WORK_ENTER", 15: "RX_WORK_EXIT",
+    16: "ACL_RECV_ENTER", 17: "ACL_RECV_EXIT",
+    18: "ATT_ALLOC_RESPONSE", 19: "ATT_ALLOC_FOREVER", 20: "ATT_ALLOC_DONE",
 }
 EVENTS = {0: "stage", 1: "disconnect", 2: "monitor"}
 TRIGGERS = {1: "monitor", 2: "artificial"}
@@ -198,6 +202,14 @@ def classify(c):
             return "TX_NOTIFY_FLUSH_WEDGE_CONFIRMED"
         return "TX_NOTIFY_FLUSH_STALL"
     return {
+        # v44: the ATT allocation is now named, and the two branches are
+        # different verdicts -- bounded 30 s response vs unbounded K_FOREVER.
+        "ATT_ALLOC_RESPONSE": "ATT_ALLOC_RESPONSE_STALL",
+        "ATT_ALLOC_FOREVER": "ATT_ALLOC_FOREVER_STALL",
+        "ATT_ALLOC_DONE": "ACL_RECV_STALL",
+        "ACL_RECV_ENTER": "ACL_RECV_STALL",
+        "ACL_RECV_EXIT": "ACL_RECV_STALL",
+        "RX_WORK_ENTER": "BT_RX_OTHER",
         "TX_NOTIFY_BEFORE_SUBMIT": "TX_NOTIFY_BEFORE_SUBMIT_STALL",
         "TX_NOTIFY_AFTER_SUBMIT": "TX_NOTIFY_SUBMIT_STALL",
         "TX_NOTIFY_ENTER": "TX_NOTIFY_OTHER",
@@ -294,6 +306,20 @@ def main():
     print(f"  liveness       : wdt_feeds={c['wdt_feed_count']} notify_ok={c['notify_ok']} "
           f"producer={c['producer_seq']} ring_writes={c['ring_writes']}")
     print(f"  healthy max dwell (cycles): {c['stage_max_cycles']}")
+    # The ring is a 10 s window frozen at capture, i.e. at onset + threshold.
+    # Whether it reaches back to the onset depends on how long the wedge ran
+    # before the monitor fired, so every corpse states it rather than leaving
+    # the reader to work it out (or not notice).
+    ring_span_ms = 200 * 50
+    age = c.get("stage_age_ms", 0)
+    if c["ring_entries"]:
+        if age > ring_span_ms:
+            print(f"  ring tail       : {c['ring_entries']} entries -- DOES NOT COVER ONSET "
+                  f"(stuck {age} ms, ring window only {ring_span_ms} ms). "
+                  f"Primary evidence is the stage + work/conn state above.")
+        else:
+            print(f"  ring tail       : {c['ring_entries']} entries -- covers onset "
+                  f"(stuck {age} ms <= {ring_span_ms} ms window)")
     print(f"  trace ({c['trace_entries']} entries, oldest first):")
     for t in c["trace"]:
         print(f"    {t['cycles']:>10} {t['stage_name']:<28} {t['event']:<11} arg={t['arg']}")
