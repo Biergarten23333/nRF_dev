@@ -1080,7 +1080,35 @@ static int bsf_corpse_render_page(uint8_t page, bsf_corpse_page_t *out)
  * every one of which is a false-positive source this criterion does not have.
  */
 #define BSF_BT_MONITOR_TICK_MS 1000u
-#define BSF_BT_WEDGE_MS        5000u
+
+/*
+ * 20 s, NOT 5 s. Raised for v44, and the reason is a direct consequence of
+ * bracketing rx_work_handler().
+ *
+ * v43 watched only conn.c, where every marked region completes in single-digit
+ * CPU cycles, so 5 s had six orders of magnitude of margin. v44's bracket also
+ * covers the HCI EVENT arm -- and event handlers issue SYNCHRONOUS HCI
+ * commands. `hci_disconn_complete()` is one: it calls bt_hci_cmd_send_sync(),
+ * which waits on sync_sem for HCI_CMD_TIMEOUT = K_SECONDS(10) (hci_core.c:100).
+ *
+ * So after v44 the BT RX WQ can LEGITIMATELY sit inside the bracket for ten
+ * seconds on any slow disconnect. A 5 s threshold would not be a marginal
+ * risk -- it would fire on healthy boards, fleet-wide, and each false positive
+ * spends the one-per-power-cycle reboot budget on nothing. Two earlier rounds
+ * were already lost to false triggers; this would have been the third and the
+ * largest.
+ *
+ * 20 s is chosen against both bounds:
+ *   - 2x the 10 s HCI command timeout, so a legitimate slow command is clear;
+ *   - 10 s BELOW the 30 s ATT response timeout (att.c BT_ATT_TIMEOUT), so a
+ *     wedge in the ATT allocation is still captured WHILE STUCK, before the
+ *     timeout unwinds it and destroys the evidence.
+ *
+ * Stage 2 measures actual dwell at the RX_WORK_ENTER->EXIT level across BOTH
+ * arms -- ACL and event -- and the threshold moves again if anything observed
+ * approaches it.
+ */
+#define BSF_BT_WEDGE_MS        20000u
 #define BSF_BT_MONITOR_STACK   1024
 #define BSF_BT_MONITOR_PRIO    6
 
