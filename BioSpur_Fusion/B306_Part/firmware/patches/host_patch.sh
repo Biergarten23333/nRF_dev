@@ -29,14 +29,29 @@ TARGET="${SDK_ZEPHYR}/subsys/bluetooth/host/conn.c"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PATCH="${HERE}/ncs-v2.8.0-bt-conn-stage-trace.patch"
 
-PRISTINE_SHA=b315e62fd5c63ef5dffc7d54d6d5313dfbd727dba0daa5344294bba962451bb5
-PATCHED_SHA=2166af0c32756d475ded8997239a05a9ab23bad7c8e68c5cafc98d7253dfdbbe
-PATCH_SHA=d5ae1c27076d9d94c6f5349ac1aee6452b9ae2a70d7d19d38c7afe057ff56eb9
+# Captured up front: the file loops below use `set -- $spec` to split fields,
+# which overwrites the positional parameters and would otherwise eat the
+# subcommand. That cost one confusing "usage:" failure.
+CMD="${1:-status}"
+
+# v44 patches THREE host files, not one. Each is gated independently: the
+# target set is only "pristine" or "patched" if EVERY file matches, so a
+# half-applied tree -- which is what an interrupted patch leaves -- is neither,
+# and the script refuses rather than guessing.
+FILES=(
+  "subsys/bluetooth/host/conn.c     b315e62fd5c63ef5dffc7d54d6d5313dfbd727dba0daa5344294bba962451bb5 fb39fbd26e31eb91b64d39a22f5647785e4e5c41ad69bf2965358037ac3b7794"
+  "subsys/bluetooth/host/hci_core.c 329107858d42b535477fb7bd9bc12aef2f66348baa125773813e73385a80c193 00d03a1d44d5febab0836d6ceb4dde6029a65dc685930d2216c15737eab0d9b4"
+  "subsys/bluetooth/host/att.c      2f6b969a4fd6ece75d4482e61b7260a495d812fa48353cfed7b1cd5b941fdb64 d2bead08f070ff559ea4d202f560d746f3819d2ea2bee965b37dda2b5899bccc"
+)
+PATCH_SHA=5d709d5d72e34e30aa2be0509d3b8632777a144916c43349656126c083f13b7c
 
 die() { echo "HOST_PATCH_FAIL $*" >&2; exit 1; }
 sha() { sha256sum "$1" | cut -d' ' -f1; }
 
-[ -f "$TARGET" ] || die "target_missing path=$TARGET"
+for spec in "${FILES[@]}"; do
+  set -- $spec
+  [ -f "$SDK_ZEPHYR/$1" ] || die "target_missing path=$SDK_ZEPHYR/$1"
+done
 [ -f "$PATCH" ]  || die "patch_missing path=$PATCH"
 
 got_patch="$(sha "$PATCH")"
@@ -44,30 +59,34 @@ got_patch="$(sha "$PATCH")"
   die "patch_hash_mismatch expected=$PATCH_SHA got=$got_patch"
 
 state() {
-  local s; s="$(sha "$TARGET")"
-  case "$s" in
-    "$PRISTINE_SHA") echo pristine ;;
-    "$PATCHED_SHA")  echo patched ;;
-    *)               echo "unknown:$s" ;;
-  esac
+  local n_pristine=0 n_patched=0 n=0 s
+  for spec in "${FILES[@]}"; do
+    set -- $spec
+    n=$((n+1))
+    s="$(sha "$SDK_ZEPHYR/$1")"
+    [ "$s" = "$2" ] && n_pristine=$((n_pristine+1))
+    [ "$s" = "$3" ] && n_patched=$((n_patched+1))
+  done
+  if   [ "$n_pristine" = "$n" ]; then echo pristine
+  elif [ "$n_patched"  = "$n" ]; then echo patched
+  else echo "unknown:pristine=$n_pristine/$n,patched=$n_patched/$n"
+  fi
 }
 
-case "${1:-status}" in
+case "$CMD" in
   status)
-    echo "HOST_PATCH_STATUS state=$(state) target=$TARGET"
+    echo "HOST_PATCH_STATUS state=$(state) files=${#FILES[@]}"
     ;;
 
   apply)
     case "$(state)" in
       patched)
-        echo "HOST_PATCH_APPLY state=already_applied sha=$PATCHED_SHA"
+        echo "HOST_PATCH_APPLY state=already_applied files=${#FILES[@]}"
         ;;
       pristine)
         patch -s -p1 -d "$SDK_ZEPHYR" < "$PATCH" || die "patch_apply_failed"
-        got="$(sha "$TARGET")"
-        [ "$got" = "$PATCHED_SHA" ] || \
-          die "post_apply_hash_mismatch expected=$PATCHED_SHA got=$got"
-        echo "HOST_PATCH_APPLY state=applied sha=$PATCHED_SHA"
+        [ "$(state)" = "patched" ] || die "post_apply_state=$(state)"
+        echo "HOST_PATCH_APPLY state=applied files=${#FILES[@]}"
         ;;
       *)
         die "refuse_apply state=$(state) reason=target_is_neither_pristine_nor_patched"
@@ -78,7 +97,7 @@ case "${1:-status}" in
   verify)
     s="$(state)"
     [ "$s" = "patched" ] || die "verify state=$s expected=patched"
-    echo "HOST_PATCH_VERIFY ok sha=$PATCHED_SHA"
+    echo "HOST_PATCH_VERIFY ok files=${#FILES[@]}"
     ;;
 
   revert)
@@ -86,10 +105,8 @@ case "${1:-status}" in
       pristine) echo "HOST_PATCH_REVERT state=already_pristine" ;;
       patched)
         patch -s -R -p1 -d "$SDK_ZEPHYR" < "$PATCH" || die "revert_failed"
-        got="$(sha "$TARGET")"
-        [ "$got" = "$PRISTINE_SHA" ] || \
-          die "post_revert_hash_mismatch expected=$PRISTINE_SHA got=$got"
-        echo "HOST_PATCH_REVERT state=reverted sha=$PRISTINE_SHA"
+        [ "$(state)" = "pristine" ] || die "post_revert_state=$(state)"
+        echo "HOST_PATCH_REVERT state=reverted files=${#FILES[@]}"
         ;;
       *) die "refuse_revert state=$(state)" ;;
     esac

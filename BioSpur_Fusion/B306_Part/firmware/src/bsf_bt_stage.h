@@ -73,39 +73,51 @@ enum bsf_bt_stage {
 	BSF_BT_STAGE_DEFERRED_RESCHEDULE_AFTER  = 11,
 	BSF_BT_STAGE_CONN_RECV_EXIT             = 12,
 	BSF_BT_STAGE_TX_NOTIFY_DIRECT           = 13,
+	/*
+	 * v44. APPENDED, never renumbered: decoded corpses carry the numeric
+	 * value, so renumbering silently reinterprets every corpse ever taken.
+	 */
+	BSF_BT_STAGE_RX_WORK_ENTER              = 14,
+	BSF_BT_STAGE_RX_WORK_EXIT               = 15,
+	BSF_BT_STAGE_ACL_RECV_ENTER             = 16,
+	BSF_BT_STAGE_ACL_RECV_EXIT              = 17,
+	BSF_BT_STAGE_ATT_ALLOC_RESPONSE         = 18,
+	BSF_BT_STAGE_ATT_ALLOC_FOREVER          = 19,
+	BSF_BT_STAGE_ATT_ALLOC_DONE             = 20,
 	BSF_BT_STAGE__COUNT
 };
 
 /*
- * TERMINAL stages: the last mark of a completed operation. The thread is
- * legitimately parked with nothing in flight, so dwelling here indefinitely is
- * normal and must never trigger the monitor. Everything else is mid-operation
- * and completes in microseconds to low milliseconds on a healthy board
- * (measured in Stage 2, from bsf_bt_stage_max[]).
+ * TERMINAL stages -- v44 makes this PROVABLE instead of enumerated.
  *
- * The list must contain EVERY stage that can be the last one marked, or the
- * monitor false-positives on an idle board. Stage 2 caught exactly that:
- * DEFERRED_RESCHEDULE_AFTER is the final mark of the disconnect path, so after
- * any ordinary disconnect the stage sits there until the next connection's
- * first ACL packet. The DK restore leaves boards disconnected for far longer
- * than the 5 s threshold, so the monitor fired on a perfectly healthy board,
- * rebooted an image that had not yet earned its MCUboot confirmation, and
- * MCUboot correctly reverted it. Two OTA attempts were spent on that before it
- * was diagnosed.
+ * `rx_work_handler()` in hci_core.c is the SINGLE entry point for everything
+ * the BT RX workqueue thread ever does: ACL, HCI events and ISO all dispatch
+ * from its one switch. v44 brackets that switch, so:
  *
- *   IDLE                      - nothing has happened yet since boot
- *   CONN_RECV_EXIT            - an ACL packet was fully processed
- *   TX_NOTIFY_EXIT            - a tx-notify completed outside bt_conn_recv()
- *   DEFERRED_RESCHEDULE_AFTER - the disconnect path ran to completion
+ *     the BT RX WQ is quiescent  <=>  it is not inside rx_work_handler()
  *
- * Every other stage is bracketed by a following mark on the healthy path, so it
- * cannot be terminal unless the thread is genuinely stuck in it.
+ * That is a complete statement, not a list someone has to keep correct. Every
+ * blocking primitive reachable from this thread -- the ATT allocations at
+ * att.c:729/1191/1399/3059, the L2CAP signalling alloc at l2cap.c:464, and the
+ * HCI command paths at hci_core.c:311/429/4721 -- is inside the bracket.
+ *
+ * WHY THE PREVIOUS LIST FAILED, in one line: TX_NOTIFY_EXIT was terminal, and
+ * `bt_conn_recv()` calls tx_notify at its HEAD and then descends into
+ * bt_acl_recv() with no further mark. The monitor read "quiescent" while the
+ * thread sat in ATT, and a real wedge on BSF6C53 went uncaptured.
+ *
+ * The root error was classifying a stage BY NAME rather than by which call
+ * sites can leave it as the last mark. Note the trap that catches: v44's own
+ * audit found a THIRD caller of bt_conn_tx_notify() --
+ * hci_num_completed_packets() at hci_core.c:608, on this same thread -- where
+ * TX_NOTIFY_EXIT genuinely IS the last mark. Simply reclassifying it, as the
+ * obvious fix suggested, would have false-positive-rebooted the whole fleet
+ * within 5 s of any pause in traffic. It is safe now ONLY because
+ * RX_WORK_EXIT always follows it.
  */
 #define BSF_BT_STAGE_IS_QUIESCENT(s)                                          \
 	((s) == BSF_BT_STAGE_IDLE ||                                          \
-	 (s) == BSF_BT_STAGE_CONN_RECV_EXIT ||                                \
-	 (s) == BSF_BT_STAGE_TX_NOTIFY_EXIT ||                                \
-	 (s) == BSF_BT_STAGE_DEFERRED_RESCHEDULE_AFTER)
+	 (s) == BSF_BT_STAGE_RX_WORK_EXIT)
 
 /* Event codes, carried alongside the stage in the flight recorder. */
 #define BSF_BT_EVENT_STAGE       0u   /* ordinary stage transition          */

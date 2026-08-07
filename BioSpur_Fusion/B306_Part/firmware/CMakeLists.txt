@@ -12,7 +12,7 @@ if(NOT BSF_TIMER_COUNTER_BITS MATCHES "^(16|24|32)$")
           "BSF_TIMER_COUNTER_BITS must be exactly 16, 24, or 32")
 endif()
 
-set(BSF_FW_MARKER "b306-imu-relay-v43")
+set(BSF_FW_MARKER "b306-imu-relay-v44")
 if(DEFINED ENV{BSF_FW_MARKER})
   set(BSF_FW_MARKER "$ENV{BSF_FW_MARKER}")
 endif()

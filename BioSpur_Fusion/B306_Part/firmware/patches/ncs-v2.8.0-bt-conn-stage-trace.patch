@@ -1,22 +1,17 @@
 --- a/subsys/bluetooth/host/conn.c
 +++ b/subsys/bluetooth/host/conn.c
-@@ -48,6 +48,34 @@
+@@ -48,6 +48,29 @@
  
  #define LOG_LEVEL CONFIG_BT_CONN_LOG_LEVEL
  #include <zephyr/logging/log.h>
 +/*
-+ * v43 BT RX stage instrumentation (batch v43_selfcapture_20260807).
++ * v44 BT RX stage instrumentation (batch v44_selfcapture_20260807).
 + *
-+ * ~/ncs/v2.8.0 is a SHARED SDK install. This file is compiled by every project
-+ * that builds against it, not just the B306 application -- the Fusion Master DK
-+ * image compiles it too. So the instrumentation is conditional on the header
-+ * actually being reachable: the B306 application puts its src/ directory on the
-+ * global Zephyr include path, every other project does not, and for those the
-+ * macros below collapse to nothing and the object code is unchanged.
-+ *
-+ * Without this guard, patching the shared SDK breaks every other project built
-+ * against it -- which is the exact hazard that made the patch a repository
-+ * artifact in the first place.
++ * ~/ncs/v2.8.0 is a SHARED SDK install compiled by every project that builds
++ * against it -- the Fusion Master DK image included. So the instrumentation is
++ * conditional on the header actually being reachable: the B306 application puts
++ * its src/ on the global Zephyr include path, nothing else does, and for those
++ * the macros collapse to nothing and the object code is unchanged.
 + */
 +#if defined(__has_include)
 +#  if __has_include(<bsf_bt_stage.h>)
@@ -35,7 +30,7 @@
  LOG_MODULE_REGISTER(bt_conn);
  
  K_FIFO_DEFINE(free_tx);
-@@ -319,20 +347,27 @@
+@@ -319,20 +342,27 @@
  void bt_conn_tx_notify(struct bt_conn *conn, bool wait_for_completion)
  {
  #if defined(CONFIG_BT_CONN_TX)
@@ -63,7 +58,7 @@
  #else
  	ARG_UNUSED(conn);
  	ARG_UNUSED(wait_for_completion);
-@@ -484,18 +519,21 @@
+@@ -484,18 +514,30 @@
  	 * Always do so from the same context for sanity. In this case that will
  	 * be either a dedicated Bluetooth connection TX workqueue or system workqueue.
  	 */
@@ -77,7 +72,16 @@
 +		BSF_BT_STAGE(BSF_BT_STAGE_CONN_RECV_EXIT);
  		return;
  	} else if (IS_ENABLED(CONFIG_BT_CONN)) {
++		/*
++		 * v44. THIS is the region that hid the BSF6C53 wedge: L2CAP,
++		 * ATT and every GATT handler live below here, and before v44 it
++		 * carried no mark at all, so the last mark stayed TX_NOTIFY_EXIT
++		 * -- which was classified terminal. The monitor read "idle"
++		 * while the thread sat in an ATT allocation for ten minutes.
++		 */
++		BSF_BT_STAGE_A(BSF_BT_STAGE_ACL_RECV_ENTER, conn->handle);
  		bt_acl_recv(conn, buf, flags);
++		BSF_BT_STAGE(BSF_BT_STAGE_ACL_RECV_EXIT);
  	} else {
  		__ASSERT(false, "Invalid connection type %u", conn->type);
  	}
@@ -85,7 +89,7 @@
  }
  
  static bool dont_have_tx_context(struct bt_conn *conn)
-@@ -1264,12 +1302,18 @@
+@@ -1264,12 +1306,18 @@
  		 */
  		switch (old_state) {
  		case BT_CONN_DISCONNECT_COMPLETE:
@@ -104,33 +108,23 @@
  
  			/* The last ref will be dropped during cleanup */
  			break;
-@@ -4237,3 +4281,82 @@
+@@ -4237,3 +4285,66 @@
  
  SYS_INIT(bt_conn_tx_workq_init, POST_KERNEL, CONFIG_BT_CONN_TX_NOTIFY_WQ_INIT_PRIORITY);
  #endif /* CONFIG_BT_CONN_TX_NOTIFY_WQ */
 +
 +#ifdef BSF_BT_STAGE_TRACE_PRESENT
 +/*
-+ * ---------------------------------------------------------------------------
-+ * v43 corpse capture (batch v43_selfcapture_20260807).
-+ *
-+ * Lives here, and not in the application, because every field below is inside
-+ * `struct bt_conn`, which is private to the host (conn_internal.h). Field names
-+ * and semantics are read against THIS tree -- NCS v2.8.0 / Zephyr v3.7.99-ncs1
-+ * -- not against current Zephyr main.
-+ *
-+ * Called from the monitor thread after it has decided the BT RX workqueue is
-+ * wedged. It is a pure reader: it takes no lock, allocates nothing, and calls
-+ * nothing that can block, because the thread it is inspecting is stuck and may
-+ * be holding host state. A slightly inconsistent snapshot is acceptable and
-+ * expected; a monitor that deadlocks against the wedge it is recording is not.
++ * v44 corpse capture. Lives here because every field is inside `struct bt_conn`,
++ * which is private to the host. Read against NCS v2.8.0, not Zephyr main.
++ * Pure reader: no lock, no allocation, nothing that can block -- the thread it
++ * inspects is stuck and may hold host state.
 + */
 +static uint16_t bsf_slist_len(sys_slist_t *list)
 +{
 +	sys_snode_t *node;
 +	uint16_t n = 0u;
 +
-+	/* Bounded: a corrupt list must not hang the monitor. */
 +	SYS_SLIST_FOR_EACH_NODE(list, node) {
 +		if (++n >= 1024u) {
 +			break;
@@ -148,11 +142,6 @@
 +	}
 +	memset(out, 0, sizeof(*out));
 +
-+	/*
-+	 * Pick the connection object directly out of acl_conns[] rather than
-+	 * through bt_conn_lookup_*(), which takes a reference and can alter
-+	 * host state. With CONFIG_BT_MAX_CONN=1 this is a single slot.
-+	 */
 +	for (size_t i = 0; i < ARRAY_SIZE(acl_conns); i++) {
 +		if (acl_conns[i].state != BT_CONN_DISCONNECTED) {
 +			conn = &acl_conns[i];
@@ -160,7 +149,6 @@
 +		}
 +	}
 +	if (conn == NULL && ARRAY_SIZE(acl_conns) > 0) {
-+		/* Record slot 0 anyway: "disconnected" is itself evidence. */
 +		conn = &acl_conns[0];
 +	}
 +	if (conn == NULL) {
@@ -187,3 +175,122 @@
 +	out->valid = 1u;
 +}
 +#endif /* BSF_BT_STAGE_TRACE_PRESENT */
+--- a/subsys/bluetooth/host/hci_core.c
++++ b/subsys/bluetooth/host/hci_core.c
+@@ -66,6 +66,29 @@
+ 
+ #define LOG_LEVEL CONFIG_BT_HCI_CORE_LOG_LEVEL
+ #include <zephyr/logging/log.h>
++/*
++ * v44 BT RX stage instrumentation (batch v44_selfcapture_20260807).
++ *
++ * ~/ncs/v2.8.0 is a SHARED SDK install compiled by every project that builds
++ * against it -- the Fusion Master DK image included. So the instrumentation is
++ * conditional on the header actually being reachable: the B306 application puts
++ * its src/ on the global Zephyr include path, nothing else does, and for those
++ * the macros collapse to nothing and the object code is unchanged.
++ */
++#if defined(__has_include)
++#  if __has_include(<bsf_bt_stage.h>)
++#    define BSF_BT_STAGE_TRACE_PRESENT 1
++#  endif
++#endif
++
++#ifdef BSF_BT_STAGE_TRACE_PRESENT
++#include <bsf_bt_stage.h>
++#else
++#define BSF_BT_STAGE(s)        ((void)0)
++#define BSF_BT_STAGE_A(s, a)   ((void)0)
++#define BSF_BT_EVENT(s, e, a)  ((void)0)
++#endif
++
+ LOG_MODULE_REGISTER(bt_hci_core);
+ 
+ #define BT_HCI_DEV  DT_CHOSEN(zephyr_bt_hci)
+@@ -4240,6 +4263,21 @@
+ 
+ 	LOG_DBG("buf %p type %u len %u", buf, bt_buf_get_type(buf), buf->len);
+ 
++	/*
++	 * v44. rx_work_handler() is the SINGLE entry point for everything the
++	 * BT RX workqueue thread ever does -- ACL, HCI events and ISO all
++	 * dispatch from the switch below. Bracketing it makes the monitor's
++	 * quiescence test PROVABLE rather than a maintained list:
++	 *
++	 *     quiescent  <=>  not inside rx_work_handler()
++	 *
++	 * Every blocking primitive on this thread is now inside the bracket,
++	 * including the HCI command paths (net_buf_alloc K_FOREVER on the cmd
++	 * pool, k_sem_take on sync_sem and ncmd_sem) which the v43 marks did
++	 * not cover at all -- a second blind region found by v44's audit.
++	 */
++	BSF_BT_STAGE_A(BSF_BT_STAGE_RX_WORK_ENTER, bt_buf_get_type(buf));
++
+ 	switch (bt_buf_get_type(buf)) {
+ #if defined(CONFIG_BT_CONN)
+ 	case BT_BUF_ACL_IN:
+@@ -4260,6 +4298,9 @@
+ 		break;
+ 	}
+ 
++	/* The only terminal stage on this thread besides IDLE. */
++	BSF_BT_STAGE(BSF_BT_STAGE_RX_WORK_EXIT);
++
+ 	/* Schedule the work handler to be executed again if there are
+ 	 * additional items in the queue. This allows for other users of the
+ 	 * work queue to get a chance at running, which wouldn't be possible if
+--- a/subsys/bluetooth/host/att.c
++++ b/subsys/bluetooth/host/att.c
+@@ -32,6 +32,29 @@
+ 
+ #define LOG_LEVEL CONFIG_BT_ATT_LOG_LEVEL
+ #include <zephyr/logging/log.h>
++/*
++ * v44 BT RX stage instrumentation (batch v44_selfcapture_20260807).
++ *
++ * ~/ncs/v2.8.0 is a SHARED SDK install compiled by every project that builds
++ * against it -- the Fusion Master DK image included. So the instrumentation is
++ * conditional on the header actually being reachable: the B306 application puts
++ * its src/ on the global Zephyr include path, nothing else does, and for those
++ * the macros collapse to nothing and the object code is unchanged.
++ */
++#if defined(__has_include)
++#  if __has_include(<bsf_bt_stage.h>)
++#    define BSF_BT_STAGE_TRACE_PRESENT 1
++#  endif
++#endif
++
++#ifdef BSF_BT_STAGE_TRACE_PRESENT
++#include <bsf_bt_stage.h>
++#else
++#define BSF_BT_STAGE(s)        ((void)0)
++#define BSF_BT_STAGE_A(s, a)   ((void)0)
++#define BSF_BT_EVENT(s, e, a)  ((void)0)
++#endif
++
+ LOG_MODULE_REGISTER(bt_att);
+ 
+ #define ATT_CHAN(_ch) CONTAINER_OF(_ch, struct bt_att_chan, chan.chan)
+@@ -725,8 +748,22 @@
+ 		timeout = K_FOREVER;
+ 	}
+ 
++	/*
++	 * v44 section 3.4. The evidence points here: on BSF6C53 the read was
++	 * accepted at onset+0 and never returned, with the host's 25 s bound
++	 * and the stack's 30 s ATT timeout both firing on schedule -- the
++	 * signature of a thread parked in this allocation. Marking the two
++	 * branches separately turns a visible wedge into a NAMED one:
++	 * ATT_ALLOC_RESPONSE is the bounded 30 s response/confirmation path,
++	 * ATT_ALLOC_FOREVER is the unbounded everything-else path, and they
++	 * are different verdicts.
++	 */
++	BSF_BT_STAGE_A(K_TIMEOUT_EQ(timeout, K_FOREVER) ?
++			       BSF_BT_STAGE_ATT_ALLOC_FOREVER :
++			       BSF_BT_STAGE_ATT_ALLOC_RESPONSE, op);
+ 	/* This will reserve headspace for lower layers */
+ 	buf = bt_l2cap_create_pdu_timeout(&att_pool, 0, timeout);
++	BSF_BT_STAGE_A(BSF_BT_STAGE_ATT_ALLOC_DONE, buf != NULL);
+ 	if (!buf) {
+ 		LOG_ERR("Unable to allocate buffer for op 0x%02x", op);
+ 		return NULL;

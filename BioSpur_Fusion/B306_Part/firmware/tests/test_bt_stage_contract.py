@@ -36,7 +36,7 @@ def check(cond, msg):
 
 # --- 1. the terminal-stage list ------------------------------------------
 stages = dict(re.findall(r"BSF_BT_STAGE_([A-Z_]+)\s*=\s*(\d+)", hdr))
-check(len(stages) >= 14, f"expected >=14 stages, found {len(stages)}")
+check(len(stages) >= 21, f"expected >=21 stages (v44 appended 7), found {len(stages)}")
 
 quiescent = set(re.findall(r"\(s\) == BSF_BT_STAGE_([A-Z_]+)",
                            hdr[hdr.index("#define BSF_BT_STAGE_IS_QUIESCENT"):
@@ -45,11 +45,28 @@ quiescent = set(re.findall(r"\(s\) == BSF_BT_STAGE_([A-Z_]+)",
 # every stage that is mid-operation must not be. EXIT/AFTER names that are
 # immediately followed by another mark on the healthy path are the exceptions,
 # and they are listed explicitly so adding one is a deliberate act.
-must_be_quiescent = {"IDLE", "CONN_RECV_EXIT", "TX_NOTIFY_EXIT",
-                     "DEFERRED_RESCHEDULE_AFTER"}
+# v44. The terminal set is now PROVABLE rather than enumerated:
+# rx_work_handler() is the single entry point for everything the BT RX WQ does,
+# and v44 brackets it, so quiescent <=> not inside rx_work_handler().
+#
+# WHAT FAILED IN v43 WAS NOT THIS TEST'S STRUCTURE. The "every stage must be
+# classified" rule below worked and did force a decision. What failed was THE
+# DECISION, made by NAME instead of by which call sites can leave the stage as
+# the last mark. TX_NOTIFY_EXIT *sounds* terminal, and it genuinely is for
+# bt_conn_set_state() and for hci_num_completed_packets() -- but NOT for
+# bt_conn_recv(), which calls tx_notify at its head and then descends into an
+# unmarked ATT stack. A real wedge on BSF6C53 sat there for ten minutes and was
+# never captured.
+#
+# Classify by call site. Never by name.
+must_be_quiescent = {"IDLE", "RX_WORK_EXIT"}
 must_not_be = {"CONN_RECV_ENTER", "TX_NOTIFY_ENTER", "TX_NOTIFY_BEFORE_SUBMIT",
                "TX_NOTIFY_BEFORE_FLUSH", "RESET_RX_BEFORE",
-               "DEFERRED_RESCHEDULE_BEFORE"}
+               "DEFERRED_RESCHEDULE_BEFORE",
+               # v44: every one of these is now followed by RX_WORK_EXIT
+               "TX_NOTIFY_EXIT", "CONN_RECV_EXIT", "DEFERRED_RESCHEDULE_AFTER",
+               "RX_WORK_ENTER", "ACL_RECV_ENTER", "ACL_RECV_EXIT",
+               "ATT_ALLOC_RESPONSE", "ATT_ALLOC_FOREVER", "ATT_ALLOC_DONE"}
 check(must_be_quiescent <= quiescent,
       f"terminal stages missing from the quiescent list: "
       f"{sorted(must_be_quiescent - quiescent)} -- the monitor will fire on an "
@@ -143,9 +160,9 @@ check("host_patch.sh verify" in cmake and "FATAL_ERROR" in cmake,
 check("zephyr_include_directories" in cmake,
       "conn.c is compiled into a Zephyr library and resolves the header "
       "through zephyr_interface, not the app's private include path")
-check("__has_include(<bsf_bt_stage.h>)" in patch,
-      "the patch must self-neutralise for other projects built against this "
-      "SHARED SDK -- the Fusion Master DK compiles this same file")
+check(patch.count("__has_include(<bsf_bt_stage.h>)") >= 3,
+      "every patched file must self-neutralise for other projects built "
+      "against this SHARED SDK -- v44 touches conn.c, hci_core.c and att.c")
 sha = hashlib.sha256((root / "firmware/patches/"
                       "ncs-v2.8.0-bt-conn-stage-trace.patch").read_bytes()).hexdigest()
 check(f"PATCH_SHA={sha}" in script,
