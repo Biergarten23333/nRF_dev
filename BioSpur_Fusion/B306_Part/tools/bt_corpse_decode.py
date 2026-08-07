@@ -25,6 +25,11 @@ PAGE_DATA = 220
 PAGE_SIZE = PAGE_HDR + PAGE_DATA          # 232
 CORPSE_PAGE_FORM = 0xC3
 CORPSE_MAGIC = 0x34335043                 # 'CP43'
+# Layouts this decoder can read. A corpse announcing anything else is REFUSED,
+# not decoded on a guess: schema 1 (v43, 812 B) and schema 2 (v44, 840 B) differ
+# by the width of stage_max[], so reading one with the other's offsets yields
+# plausible-looking nonsense rather than an obvious failure.
+KNOWN_SCHEMAS = {2: 840}
 TRACE_KEEP = 32
 RING_KEEP = 6
 STAGE_COUNT = 21   # v44 appended 7; stage_max[] sizing depends on it
@@ -119,6 +124,17 @@ def decode(blob):
     magic, schema, length, crc32 = struct.unpack_from("<IHHI", blob, 0)
     if magic != CORPSE_MAGIC:
         raise ValueError(f"bad magic 0x{magic:08x}")
+    if schema not in KNOWN_SCHEMAS:
+        raise ValueError(
+            f"REFUSED: corpse schema {schema} is not one this decoder can read "
+            f"({sorted(KNOWN_SCHEMAS)}). Decoding it with the wrong layout "
+            f"would produce plausible-looking nonsense. Use the decoder that "
+            f"shipped with that image.")
+    if len(blob) != KNOWN_SCHEMAS[schema]:
+        raise ValueError(
+            f"REFUSED: schema {schema} must be {KNOWN_SCHEMAS[schema]} B, "
+            f"got {len(blob)} B -- truncated export or a layout change that "
+            f"did not bump the schema.")
     body = blob[12:12 + length]
     calc = binascii.crc32(body) & 0xFFFFFFFF
     out = {"magic": magic, "schema": schema, "length": length,

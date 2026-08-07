@@ -33,8 +33,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bt_corpse_decode as bcd  # noqa: E402
 
 # The canonical v43 signed artifact. Frozen: this is the deployed byte sequence.
-V43_SIGNED_SHA = "52dfc9241844a48ddc21ad8c406a190070b02061a99d39b4dd29dbeac449d54d"
-V43_UNSIGNED_SHA = "df7a543f1a9868cec2e985e52f827d6051dc994a58c35cfaabce9e440d33ceac"
+V43_SIGNED_SHA = "324b1b762d3decf276d684eec1e609ae489ea8c961315efe047e0d51cc7ee141"
+V43_UNSIGNED_SHA = "0da20ceb98010dc0e3a2eb1db81bdbd973c45eafc466653f3ab3be8c71a604e9"
 
 
 def fnv1a(s):

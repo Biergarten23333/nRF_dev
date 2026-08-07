@@ -737,7 +737,15 @@ volatile uint32_t bsf_bt_rx_thread;
 volatile uint32_t bsf_bt_stage_max[BSF_BT_STAGE__COUNT];
 
 #define BSF_CORPSE_MAGIC        0x34335043u   /* 'CP43' */
-#define BSF_CORPSE_SCHEMA       1u
+/*
+ * SCHEMA MOVES WITH THE LAYOUT. v44 appended 7 stages, and stage_max[] is sized
+ * BSF_BT_STAGE__COUNT, so sizeof(bsf_corpse_t) went 812 -> 840 and every field
+ * after stage_max shifted. Two different layouts must never claim the same
+ * schema -- that is the same discipline the ring follows (v3 kept decodable,
+ * v4 announced), and skipping it here would have let a v44 corpse be decoded
+ * with v43 offsets into plausible-looking nonsense.
+ */
+#define BSF_CORPSE_SCHEMA       2u
 #define BSF_CORPSE_TRACE_KEEP   32u
 #define BSF_CORPSE_RING_KEEP    6u
 #define BSF_CORPSE_PAGE_FORM    0xC3u         /* != any ring entries count (<=5) */
@@ -818,6 +826,20 @@ typedef struct __packed {
 	uint16_t seq;
 	uint8_t  data[BSF_CORPSE_PAGE_DATA];
 } bsf_corpse_page_t;
+
+/*
+ * The corpse must still fit the export walk. Page count is computed, so this is
+ * not a truncation today -- it is a tripwire: the next field added without
+ * thinking pushes the corpse past four pages, lengthening every retrieval and
+ * every 90 s sweep silently. Growth past this is a deliberate act, not a
+ * side effect. Same shape as the schema rule above: close the class, not the
+ * instance.
+ */
+#define BSF_CORPSE_EXPORT_PAGES 4u
+_Static_assert(sizeof(bsf_corpse_t) <= BSF_CORPSE_EXPORT_PAGES * BSF_CORPSE_PAGE_DATA,
+	       "bsf_corpse_t no longer fits the 4-page export budget: either "
+	       "shrink it, or raise BSF_CORPSE_EXPORT_PAGES deliberately and "
+	       "re-check the retrieval walk and the 90 s sweep cost");
 
 _Static_assert(sizeof(bsf_corpse_page_t) == sizeof(bsf_stall_status_t),
 	       "a corpse page must be the same length as every other form of "
