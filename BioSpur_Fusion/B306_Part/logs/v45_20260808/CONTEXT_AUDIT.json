@@ -1,0 +1,246 @@
+{
+  "schema": "bsf.v45.context_audit/1",
+  "generated_for": "V45 offline implementation, brief of 2026-08-08",
+  "repo": {
+    "head": "d19538c94ab4bf193177e3f2ce23ce6104187258",
+    "branch": "feature/b306-bringup",
+    "firmware_dir": "BioSpur_Fusion/B306_Part/firmware",
+    "starting_marker": "b306-imu-relay-v44",
+    "starting_version": "0.1.44-imu-relay"
+  },
+  "sdk": {
+    "root": "/home/zekaixiao/ncs/v2.8.0",
+    "nrf_version": "2.8.0",
+    "zephyr_version": "3.7.99",
+    "zephyr_extraversion": "",
+    "note": "tree carries this project's BSF_BT_STAGE_* patches; it is the tree the boards were built from",
+    "reference_config": "B306_Part/builds/b306-imu-relay-v44-b/firmware/zephyr/.config"
+  },
+  "items": [
+    {
+      "id": 1,
+      "title": "controller->host receive worker identity",
+      "verdict": "PASS",
+      "thread_name": "MPSL Work",
+      "workqueue": "mpsl_work_q",
+      "priority": "cooperative, CONFIG_MPSL_THREAD_COOP_PRIO=6",
+      "stack_bytes": 1024,
+      "evidence": [
+        "nrf/subsys/bluetooth/controller/hci_driver.c:326-329 receive_signal_raise() = mpsl_work_submit(&receive_work)",
+        "nrf/subsys/bluetooth/controller/hci_driver.c:635-640 receive_work_handler() -> hci_driver_receive_process()",
+        "nrf/subsys/bluetooth/controller/hci_driver.c:1239 k_work_init(&receive_work, receive_work_handler)",
+        "nrf/subsys/bluetooth/controller/hci_driver.c:1291 sdc_enable(receive_signal_raise, sdc_mempool)",
+        "nrf/subsys/bluetooth/controller/hci_driver.c:623-632 processes ONE message then re-raises",
+        "nrf/include/mpsl/mpsl_work.h:45 mpsl_work_submit -> mpsl_work_q",
+        "nrf/subsys/mpsl/init/mpsl_init.c:464,467 k_work_queue_start + k_thread_name_set(\"MPSL Work\")"
+      ]
+    },
+    {
+      "id": 2,
+      "title": "K_FOREVER allocations on the receive path",
+      "verdict": "PASS",
+      "sites": [
+        {"line": "nrf/subsys/bluetooth/controller/hci_driver.c:434", "call": "bt_buf_get_rx(BT_BUF_ACL_IN, K_FOREVER)", "reachable": true},
+        {"line": "nrf/subsys/bluetooth/controller/hci_driver.c:471", "call": "bt_buf_get_rx(BT_BUF_ISO_IN, K_FOREVER)", "reachable": false, "why": "no ISO configured"},
+        {"line": "nrf/subsys/bluetooth/controller/hci_driver.c:572-573", "call": "bt_buf_get_evt(evt, discardable, discardable ? K_NO_WAIT : K_FOREVER)", "reachable": true}
+      ]
+    },
+    {
+      "id": 3,
+      "title": "sync_evt_pool and the pool-name hash table",
+      "verdict": "PASS",
+      "sync_evt_pool": {
+        "definition": "zephyr/subsys/bluetooth/host/buf.c:36",
+        "buffer_count": 1,
+        "selected_by": ["BT_HCI_EVT_NUM_COMPLETED_PACKETS (buf.c:92)", "BT_HCI_EVT_CMD_STATUS (buf.c:94)", "BT_HCI_EVT_CMD_COMPLETE (buf.c:95)"],
+        "alloc_site": "zephyr/subsys/bluetooth/host/buf.c:96",
+        "fnv1a32": "0x27b70977",
+        "hash_confirmed": true,
+        "upstream_comment": "buf.c:28-35 says count may be increased as an optimization; NOT touched, section 13 freezes it"
+      },
+      "hash_function": {
+        "impl": "B306_Part/firmware/src/main.c:498-506",
+        "algorithm": "FNV-1a/32, no trailing NUL",
+        "names_scanned": 88,
+        "distinct_hashes": 88,
+        "collisions": 0,
+        "scan_roots": ["zephyr/", "nrf/", "modules/", "bootloader/"]
+      },
+      "table": [
+        {"hash": "0x27b70977", "name": "sync_evt_pool", "count": 1, "at": "zephyr/subsys/bluetooth/host/buf.c:36"},
+        {"hash": "0x20588eb5", "name": "hci_rx_pool", "count": 10, "at": "zephyr/subsys/bluetooth/host/buf.c:51"},
+        {"hash": "0xa14875f8", "name": "discardable_pool", "count": 3, "at": "zephyr/subsys/bluetooth/host/buf.c:38"},
+        {"hash": "0x858969d7", "name": "att_pool", "count": 8, "at": "zephyr/subsys/bluetooth/host/att.c:299"},
+        {"hash": "0x11597b73", "name": "acl_tx_pool", "count": 8, "at": "zephyr/subsys/bluetooth/host/conn.c:121"},
+        {"hash": "0x2de570ea", "name": "fragments", "count": 1, "at": "zephyr/subsys/bluetooth/host/conn.c:147"},
+        {"hash": "0x39b3fc03", "name": "hci_cmd_pool", "count": 2, "at": "zephyr/subsys/bluetooth/host/hci_core.c:187"},
+        {"hash": "0xef427c73", "name": "pkt_pool", "count": 4, "at": "zephyr/subsys/mgmt/mcumgr/transport/src/smp.c:42", "note": "MCUmgr SMP transport, i.e. the OTA path"}
+      ],
+      "open_item_closed": "0xef427c73 resolved; forensics section 1.5 no longer INSUFFICIENT"
+    },
+    {
+      "id": 4,
+      "title": "priority HCI events inline; NCP chain and context",
+      "verdict": "PASS",
+      "inline_dispatch": "zephyr/subsys/bluetooth/host/hci_core.c:4133-4134 hci_event_prio() before rx_queue_put()",
+      "prio_table_entry": "zephyr/subsys/bluetooth/host/hci_core.c:4069-4071 EVENT_HANDLER(BT_HCI_EVT_NUM_COMPLETED_PACKETS, hci_num_completed_packets, ...)",
+      "scheduler_locked": "zephyr/subsys/bluetooth/host/hci_core.c:4164-4168 bt_hci_recv() wraps bt_recv_unsafe() in k_sched_lock()/k_sched_unlock()",
+      "ncp_handler": "zephyr/subsys/bluetooth/host/hci_core.c:578",
+      "ncp_per_packet_loop": "zephyr/subsys/bluetooth/host/hci_core.c:609-635",
+      "watermark_site": "zephyr/subsys/bluetooth/host/hci_core.c:609 while(count--) body -> ncp_packet_total",
+      "context": "MPSL Work"
+    },
+    {
+      "id": 5,
+      "title": "where TX-completion callbacks run under CONFIG_BT_CONN_TX_NOTIFY_WQ=n",
+      "verdict": "PASS",
+      "workqueue": "k_sys_work_q",
+      "resolver": "zephyr/subsys/bluetooth/host/conn.c:285-292 tx_notify_workqueue_get()",
+      "submit_site": "zephyr/subsys/bluetooth/host/conn.c:355",
+      "flush_site": "zephyr/subsys/bluetooth/host/conn.c:361",
+      "inline_branch": "zephyr/subsys/bluetooth/host/conn.c:347-349 (caller already IS the tx-notify wq thread)",
+      "work_handler": "zephyr/subsys/bluetooth/host/conn.c:1704-1708 tx_complete_work -> tx_notify_process",
+      "processor": "zephyr/subsys/bluetooth/host/conn.c:294-338",
+      "buffer_free_site": "zephyr/subsys/bluetooth/host/conn.c:332 cb(conn, user_data, 0)",
+      "list_mutations": [
+        {"list": "tx_pending", "op": "append", "at": "zephyr/subsys/bluetooth/host/conn.c:792", "context": "system WQ (tx_processor)", "lock": "none"},
+        {"list": "tx_pending", "op": "remove-on-error", "at": "zephyr/subsys/bluetooth/host/conn.c:809", "context": "system WQ", "lock": "none"},
+        {"list": "tx_pending->tx_complete", "op": "move", "at": "zephyr/subsys/bluetooth/host/conn.c:617,627", "context": "MPSL Work", "lock": "none (k_sched_lock held by bt_hci_recv)"},
+        {"list": "tx_pending", "op": "drain", "at": "zephyr/subsys/bluetooth/host/conn.c:1179", "context": "BT RX WQ", "lock": "none"},
+        {"list": "tx_complete", "op": "pop", "at": "zephyr/subsys/bluetooth/host/conn.c:305-312", "context": "system WQ", "lock": "irq_lock"}
+      ],
+      "consequence": "three unlocked mutation contexts for tx_pending; corpse-time list walking is forbidden, shadow atomics are mandatory"
+    },
+    {
+      "id": 6,
+      "title": "Disconnect Complete halves and advertising restart",
+      "verdict": "PASS",
+      "prio_half": {"handler": "hci_disconn_complete_prio", "registered": "zephyr/subsys/bluetooth/host/hci_core.c:4065", "context": "MPSL Work"},
+      "normal_half": {"handler": "hci_disconn_complete", "registered": "zephyr/subsys/bluetooth/host/hci_core.c:2942", "defined": "zephyr/subsys/bluetooth/host/hci_core.c:994", "context": "BT RX WQ"},
+      "app_callback": "B306_Part/firmware/src/main.c disconnected(), last statement is (void)start_advertising()",
+      "advertise_fn": "B306_Part/firmware/src/main.c:3423 start_advertising()",
+      "blocking_reached": "bt_le_adv_start -> bt_hci_cmd_send_sync -> bt_hci_cmd_create -> net_buf_alloc(&hci_cmd_pool, K_FOREVER) at zephyr/subsys/bluetooth/host/hci_core.c:334, pool size 2"
+    },
+    {
+      "id": 7,
+      "title": "does bt_gatt_notify() block, and on what",
+      "verdict": "CORRECTED",
+      "unbounded_waits_reachable": 1,
+      "the_wait": {
+        "selection": "zephyr/subsys/bluetooth/host/att.c:743-749, default branch -> K_FOREVER (includes ATT_NOTIFICATION)",
+        "alloc": "zephyr/subsys/bluetooth/host/att.c:765 bt_l2cap_create_pdu_timeout(&att_pool, 0, timeout)",
+        "kernel_object": "zephyr/lib/net_buf/buf.c:304,307 k_lifo_get(&pool->free, timeout)",
+        "pended_on_address": "&att_pool.free._queue.wait_q"
+      },
+      "correction": {
+        "target": "bt_wedge_forensics_20260808/FINAL_BT_WEDGE_FORENSICS.md section 4 rank 1",
+        "claim_corrected": "the bt_conn_tx allocation from the 8-deep free_tx FIFO is NOT an unbounded wait in NCS v2.8.0",
+        "proof": [
+          "zephyr/subsys/bluetooth/host/conn.c:548-554 conn_tx_alloc() = k_fifo_get(&free_tx, K_NO_WAIT)",
+          "zephyr/subsys/bluetooth/host/conn.c:543-546 dont_have_tx_context() drives tx_processor self-suspension instead",
+          "zephyr/subsys/bluetooth/host/conn.c:726-731 sole caller treats NULL as -ENOMEM on a pre-acquired path"
+        ],
+        "impact": "rank-1 mechanism unchanged (one unbounded wait suffices); the section 4 wait-object table must not advertise a free_tx wait"
+      },
+      "grep_evidence": {
+        "gatt.c": "no K_FOREVER",
+        "l2cap.c": "no K_FOREVER",
+        "att.c": "748 (timeout selection), 761 (stage marker test)",
+        "conn.c": "1649 (comment only)"
+      }
+    },
+    {
+      "id": 8,
+      "title": "existing BSF stage write sites and multi-writer violations",
+      "verdict": "PASS",
+      "channel": "single global bsf_bt_stage_{id,seq,cycles,arg} + bsf_bt_trace[]",
+      "declaration": "B306_Part/firmware/src/bsf_bt_stage.h:137-154",
+      "storage": "B306_Part/firmware/src/main.c:730-737",
+      "sites": [
+        {"at": "zephyr/subsys/bluetooth/host/hci_core.c:4279,4302", "fn": "rx_work_handler", "threads": ["BT RX WQ"]},
+        {"at": "zephyr/subsys/bluetooth/host/conn.c:345,365", "fn": "bt_conn_tx_notify enter/exit", "threads": ["BT RX WQ", "MPSL Work", "system WQ"]},
+        {"at": "zephyr/subsys/bluetooth/host/conn.c:348", "fn": "TX_NOTIFY_DIRECT", "threads": ["system WQ"]},
+        {"at": "zephyr/subsys/bluetooth/host/conn.c:354,356", "fn": "before/after submit", "threads": ["BT RX WQ", "MPSL Work"]},
+        {"at": "zephyr/subsys/bluetooth/host/conn.c:360,362", "fn": "before/after flush", "threads": ["BT RX WQ"]},
+        {"at": "zephyr/subsys/bluetooth/host/conn.c:517,524,534,536,540", "fn": "bt_conn_recv", "threads": ["BT RX WQ"]},
+        {"at": "zephyr/subsys/bluetooth/host/conn.c:1309-1320", "fn": "bt_conn_set_state(DISCONNECTED)", "threads": ["BT RX WQ"]},
+        {"at": "zephyr/subsys/bluetooth/host/att.c:761,766", "fn": "bt_att_chan_create_pdu", "threads": ["notify worker", "BT RX WQ"]}
+      ],
+      "violations_confirmed": 3,
+      "violation_note": "at least three distinct threads write the one v44 channel; the two that matter most for v45 (NCP on MPSL Work, ATT alloc on the notify worker) are contaminated. v44 global stage retired as an authority; enums, storage and decoder support kept, never renumbered."
+    },
+    {
+      "id": 9,
+      "title": "50 ms trajectory ring sampler context",
+      "verdict": "CORRECTED",
+      "actual_context": "system-clock ISR (k_timer expiry function)",
+      "evidence": ["B306_Part/firmware/src/main.c:710 K_TIMER_DEFINE(stall_ring_timer, stall_ring_sample, NULL)", "B306_Part/firmware/src/main.c:598-614 existing rationale", "B306_Part/firmware/src/main.c:706 sys_reboot() from ISR, legal"],
+      "requirement": "syswq-alive class",
+      "assessment": "ISR is strictly stronger: it cannot be blocked by any thread, including the system workqueue. Kept as is; v45 only raises capacity 200 -> 512."
+    },
+    {
+      "id": 10,
+      "title": "flash driver / MPSL timeslot interaction",
+      "verdict": "CORRECTED",
+      "brief_premise": "flash writes before bt_enable() do not require MPSL sync",
+      "premise_is": "FALSE",
+      "why": [
+        "nrf/drivers/mpsl/flash_sync/flash_sync_mpsl.c:164-167 nrf_flash_sync_is_required() = mpsl_is_initialized() && !is_in_fault_isr()",
+        "nrf/subsys/mpsl/init/mpsl_init.c:537 SYS_INIT(mpsl_lib_init_sys, PRE_KERNEL_1, ...) so MPSL is initialised before main()"
+      ],
+      "config": {
+        "CONFIG_SOC_FLASH_NRF_RADIO_SYNC_MPSL": "y",
+        "CONFIG_SOC_FLASH_NRF_RADIO_SYNC_MPSL_TIMESLOT_SESSION_COUNT": 1,
+        "CONFIG_MPSL_TIMESLOT_SESSION_COUNT": 0,
+        "CONFIG_SOC_FLASH_NRF_TIMEOUT_MULTIPLIER": 10
+      },
+      "replacement_argument": [
+        "capture never writes flash: the wedged thread may BE mpsl_work_q.thread, so a capture-time timeslot could never complete",
+        "the persist runs after sys_reboot(SYS_REBOOT_COLD), on the main thread, where blocking is legal",
+        "bt_enable() has not run, so no BLE role competes; EARLIEST timeslot at MPSL_TIMESLOT_PRIORITY_NORMAL is granted immediately (flash_sync_mpsl.c:186-190)",
+        "bounded and fail-safe: k_sem_take(timeout_sem, K_MSEC(FLASH_TIMEOUT_MS)) at flash_sync_mpsl.c:205, session closed on timeout at :213, error returned; a failed persist degrades to 'corpse stayed in .noinit' and can never hang boot",
+        "FLASH_TIMEOUT_MS defined at zephyr/drivers/flash/soc_flash_nrf.h:35-37"
+      ],
+      "outcome": "the safety property the brief wanted is established, on a corrected argument"
+    },
+    {
+      "id": 11,
+      "title": "free flash for an 8-16 KB corpse partition",
+      "verdict": "PASS_AS_AUDIT_NEGATIVE_AS_RESULT",
+      "flash_size_bytes": 1048576,
+      "erase_block_bytes": 4096,
+      "governed_by": "Partition Manager via B306_Part/firmware/pm_static.yml (no partitions node in board DTS)",
+      "current_map": [
+        {"name": "mcuboot", "start": "0x00000", "end": "0x0c000", "size": "0x0c000"},
+        {"name": "mcuboot_pad", "start": "0x0c000", "end": "0x0c200", "size": "0x00200"},
+        {"name": "app", "start": "0x0c200", "end": "0x86000", "size": "0x79e00"},
+        {"name": "mcuboot_primary", "start": "0x0c000", "end": "0x86000", "size": "0x7a000"},
+        {"name": "mcuboot_secondary", "start": "0x86000", "end": "0x100000", "size": "0x7a000"}
+      ],
+      "free_bytes": 0,
+      "rejected_candidates": [
+        {"candidate": "tail of mcuboot_secondary", "why": "MCUboot swap trailer lives there; corpse writes can corrupt a staged OTA image -> fleet brick risk"},
+        {"candidate": "tail of app inside mcuboot_primary", "why": "erased by the next OTA and inside the swapped slot"},
+        {"candidate": "shrink mcuboot", "why": "moves the bootloader's own placement"},
+        {"candidate": "UICR", "why": "one-shot writes, erasable only by full chip erase"}
+      ],
+      "proposed_carve": {
+        "file": "B306_Part/firmware/pm_static_v45_corpse.yml",
+        "default": false,
+        "map": [
+          {"name": "mcuboot", "start": "0x00000", "end": "0x0c000"},
+          {"name": "mcuboot_primary", "start": "0x0c000", "end": "0x84000", "size": "0x78000"},
+          {"name": "mcuboot_secondary", "start": "0x84000", "end": "0xfc000", "size": "0x78000"},
+          {"name": "bsf_corpse", "start": "0xfc000", "end": "0x100000", "size": "0x4000", "slots": 2, "slot_size": "0x2000", "sectors": 4}
+        ],
+        "slot_compatibility": "num_sectors_pri == num_sectors_sec (120 == 120); bootloader/mcuboot/boot/bootutil/src/swap_move.c:284-291 accepts it; mode CONFIG_MCUBOOT_BOOTLOADER_MODE_SWAP_WITHOUT_SCRATCH=y",
+        "headroom": {"v44_signed_image_bytes": 223920, "shrunken_app_slot_bytes": 491008, "used_pct": 45.6}
+      },
+      "deployment_blocker": "MCUboot compiles its own flash map in, so this carve requires rebuilding AND SWD-reflashing MCUboot on every board. It cannot ship over OTA, and Stage C as specified is OTA-only. v45 therefore ships BSF_CORPSE_FLASH_ENABLED=0 by default with the carve as a non-default overlay plus an overlap checker."
+    }
+  ],
+  "recorded_uncertainties": [
+    "zephyr/VERSION has an empty EXTRAVERSION where the manifest pins v3.7.99-ncs1; the tree is treated as authoritative and the tag name is not proven from the VERSION file alone",
+    "hci_rx_pool per-buffer holder attribution had no existing hook; v45 adds a capture-time-only one, which costs nothing at runtime"
+  ]
+}

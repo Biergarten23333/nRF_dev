@@ -1,0 +1,63 @@
+# EVIDENCE_SHA256 -- v45 offline implementation, 2026-08-08
+# starting HEAD d19538c94ab4bf193177e3f2ce23ce6104187258 on feature/b306-bringup
+# Paths are relative to BioSpur_Fusion/.
+#
+# --- deliverables (this directory) ---
+b3d7c4479c0e5c872243fff1a1003823757222f1c110419ccb7aca2a11c6b49f  B306_Part/logs/v45_20260808/CONTEXT_AUDIT.md
+a30f11a4f5fb68e7adace20ea8cdfa6f4c3b642bfc878da2b50e864111ed1f0f  B306_Part/logs/v45_20260808/DECISIONS.md
+3438c3b8db89ae3249a6b6614c532bb8c0fb67d7deaa48f0fedb88ce2fd313ab  B306_Part/logs/v45_20260808/HARDWARE_STAGE_PLAN.md
+a029e304218663d1fe4de7325c39b2dc5bc810eb666f6fb7b7a363be23a1f864  B306_Part/logs/v45_20260808/STATUS.md
+6421b2b1493c459dae9abfde207225705b3cfc20a552deda478776dfede7d9e9  B306_Part/logs/v45_20260808/V45_DESIGN.md
+c71bf8b8d31d2c3cf7a520ba774294827254cea0e854987acc25fb66983193a9  B306_Part/logs/v45_20260808/V45_OFFLINE_REPORT.md
+f96a9f18780a496f1206f8c911a8e2b24ac4fb82ca96df03b1cdbd44fa515292  B306_Part/logs/v45_20260808/CONTEXT_AUDIT.json
+#
+# --- firmware source produced or modified ---
+ccb5cb74905f25d847e016e24e1cb1672d827ced841ead7410e96897a7f1e7b5  B306_Part/firmware/src/bsf_v45_trace.h
+eeee06c16717045c4cb1868374e9cfa93acaa864aeee952567959b2a46e94ca1  B306_Part/firmware/src/bsf_v45_detector.h
+6288189a1f3b54f1b5391a05bf74e6fedc86099678263b91b38ff89282aec241  B306_Part/firmware/src/bsf_v45_corpse.h
+c011d838ee5ea8ab2e302bdd2404addce4b920f0908329c27753a51a1cbaa441  B306_Part/firmware/src/bsf_v45.h
+e0ec54e5fc0f06fcff6bbc3994def3c428aba12df295ba9c95d14656faebc98f  B306_Part/firmware/src/bsf_v45.c
+69db8e91e676a4964867cda5e945c049763285367238972a169820807cf7150a  B306_Part/firmware/src/bsf_v45_pools.c
+86115f5b83b0626d1a57452f21c8d3f0123874d7abd386d0e645238e03572344  B306_Part/firmware/src/main.c
+e5844abfec404bbcfa63394897dbc19ae7bab68668c63e52b6de4f366e675be6  B306_Part/firmware/src/stall_ring_policy.h
+64890c4c25c9a36f697ab1d4271033ed0ea026e78f0dd763e1500b88c207b503  B306_Part/firmware/Kconfig
+4cf8bbb81f7c0adca9a22d8c64dbb22f3ca16d8482006e371461bd64c0976a60  B306_Part/firmware/CMakeLists.txt
+6f6cb8692c73839b86c7445d663be48746cfd7934b1129e3273b69251da8c611  B306_Part/firmware/prj.conf
+32317bff0cf98145905bc07a7140f49eab1d90a4cd9b9c65f18954b265a23df4  B306_Part/firmware/VERSION
+8a0bd54788224848390cf628c38a804e6cf172b7e4ddae7633153d33e213ed09  B306_Part/firmware/pm_static.yml
+2a957ce39b79af6f2085d799e357ebaa528ac779e7a1b3cb4241db67574aff5c  B306_Part/firmware/pm_static_v45_corpse.yml
+#
+# --- SDK patch set (five files, two roots) ---
+b1b22c5926a05d81b65958a411b668d37b8398b13d4bd162cc3c00aa78c375b2  B306_Part/firmware/patches/sdk_patch.sh
+9ff12d11e18638f450243ce573a7f36ada4eea0080bdbd3af80d35a363f33806  B306_Part/firmware/patches/ncs-v2.8.0-bsf-v45-instrumentation.patch
+e53f6539a088e679f719b9ab3e733bc51f3f22fb5154eb64a2f59992a3028c02  B306_Part/firmware/patches/host_patch.sh
+5d709d5d72e34e30aa2be0509d3b8632777a144916c43349656126c083f13b7c  B306_Part/firmware/patches/ncs-v2.8.0-bt-conn-stage-trace.patch
+#
+# --- tests ---
+cd85d3d1b32b6021d09d40b469fb3d29569b5b1f511caf93ac1141eba3f09338  B306_Part/firmware/tests/test_bsf_v45_detector.c
+a237ad7f8ee1dc9accd05013f875a12a3881e2c77067a8db2c025da6063029bd  B306_Part/firmware/tests/run_bsf_v45_detector_test.sh
+2c450bfd873e38915746d43b7d8574fe3af1428a0a280db9377128b7d36acfe4  B306_Part/firmware/tests/test_v45_source_contract.py
+92a9e3875e344d77839bd1eaa031cfc9d42d9aaffb245d9a02dcbf9cdddc4485  B306_Part/firmware/tests/test_bsf_v45_decoder.py
+a30f43ced4d8b9361a2c08bdc306b07fdc26a89a2878cd7951bc2bf5120045a3  B306_Part/firmware/tests/test_v45_partition_overlap.py
+5dcdde4d6280e837bfba3c771c857b838f1f3a318c7ed1420ec9dd4bfc622dcb  B306_Part/firmware/tests/test_stall_ring_policy.c
+111aa39e1adab6aa9c6c42fdf53325dbc820cd843885ef57e1f13c8202910f8d  B306_Part/firmware/tests/test_bt_stage_contract.py
+#
+# --- host tools ---
+f63d6bcffcac3aff547cab1fbdd6cc01423b5911e7b556d0f2f6988af6616dcb  B306_Part/tools/bsf_v45_corpse_decode.py
+1d64aae260c1133de5e27a25e4ba55ac64a90f41c7e9084217d63017c786765a  B306_Part/tools/v45_corpse_collect.py
+#
+# --- build artifacts (NOT committed; recorded for provenance) ---
+5f80fd8976e4dcd0f7c8dced0ab3b05f1e1bfc734b4bc718b4d71ec1e893e986  B306_Part/builds/b306-imu-relay-v45-a/firmware/zephyr/zephyr.bin
+5f80fd8976e4dcd0f7c8dced0ab3b05f1e1bfc734b4bc718b4d71ec1e893e986  B306_Part/builds/b306-imu-relay-v45-b/firmware/zephyr/zephyr.bin
+ff2ce82cf3fded67a4f41a8ed78a81cef66ba6905c12786d7f66f161960535f1  B306_Part/builds/b306-imu-relay-v45-a/firmware/zephyr/zephyr.signed.bin
+3ce8194b94b3f89fea5a62156d8361a6780bf4d6d73c8e009ff921e89316e0ce  B306_Part/builds/b306-imu-relay-v45-a/mcuboot/zephyr/zephyr.hex
+3ce8194b94b3f89fea5a62156d8361a6780bf4d6d73c8e009ff921e89316e0ce  B306_Part/builds/b306-imu-relay-v45-b/mcuboot/zephyr/zephyr.hex
+668f971b84ca2af293a8d8d8bedc3af2a2b66135adcc141687b22b1767d09ce9  B306_Part/builds/b306-imu-relay-v45-flash/firmware/zephyr/zephyr.bin
+fc1c55d603ac3b0440799a7f98529954f7712b040ca2a9dfedbb62cf593dd9dc  B306_Part/builds/b306-imu-relay-v45-flash/partitions.yml
+#
+# --- SDK files as left on disk (patched state) ---
+4edc61db274670c7619d17f4521d6f64bbe9cb41b38765f86cd202e741cb1419  /home/zekaixiao/ncs/v2.8.0/zephyr/subsys/bluetooth/host/conn.c
+76468edd61d6a26c9a57f23aafce261c473093ff643b0585a656da48b2d8abac  /home/zekaixiao/ncs/v2.8.0/zephyr/subsys/bluetooth/host/hci_core.c
+d2bead08f070ff559ea4d202f560d746f3819d2ea2bee965b37dda2b5899bccc  /home/zekaixiao/ncs/v2.8.0/zephyr/subsys/bluetooth/host/att.c
+94759ac1b2551eba4555f5fb8a9104748d0b53dc67d4ca544ee8b9b82dd7653d  /home/zekaixiao/ncs/v2.8.0/zephyr/lib/net_buf/buf.c
+3e4769636e2f4196e3f4e668b594721688dc7e5d75c588850ad2f5e5c73812bd  /home/zekaixiao/ncs/v2.8.0/nrf/subsys/bluetooth/controller/hci_driver.c

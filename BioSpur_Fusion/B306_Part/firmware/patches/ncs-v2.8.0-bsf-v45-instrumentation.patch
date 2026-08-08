@@ -1,0 +1,1105 @@
+--- a/zephyr/subsys/bluetooth/host/conn.c	2026-08-08 14:43:12.384626435 +0200
++++ b/zephyr/subsys/bluetooth/host/conn.c	2026-08-08 15:19:44.584325616 +0200
+@@ -48,6 +48,69 @@
+ 
+ #define LOG_LEVEL CONFIG_BT_CONN_LOG_LEVEL
+ #include <zephyr/logging/log.h>
++/*
++ * v44 BT RX stage instrumentation (batch v44_selfcapture_20260807).
++ *
++ * ~/ncs/v2.8.0 is a SHARED SDK install compiled by every project that builds
++ * against it -- the Fusion Master DK image included. So the instrumentation is
++ * conditional on the header actually being reachable: the B306 application puts
++ * its src/ on the global Zephyr include path, nothing else does, and for those
++ * the macros collapse to nothing and the object code is unchanged.
++ */
++#if defined(__has_include)
++#  if __has_include(<bsf_bt_stage.h>)
++#    define BSF_BT_STAGE_TRACE_PRESENT 1
++#  endif
++#endif
++
++#ifdef BSF_BT_STAGE_TRACE_PRESENT
++#include <bsf_bt_stage.h>
++#else
++#define BSF_BT_STAGE(s)        ((void)0)
++#define BSF_BT_STAGE_A(s, a)   ((void)0)
++#define BSF_BT_EVENT(s, e, a)  ((void)0)
++#endif
++
++/*
++ * v45. This file owns BSF_V45_CH_TX_WORK -- the completion CONSUMER, on the
++ * system workqueue (CONTEXT_AUDIT item 5: CONFIG_BT_CONN_TX_NOTIFY_WQ=n makes
++ * tx_notify_workqueue_get() return &k_sys_work_q).
++ *
++ * It deliberately does NOT mark bt_conn_tx_notify(). That function is called
++ * from three threads -- BT RX WQ, MPSL Work (inline NCP) and the system
++ * workqueue -- and section 3 forbids marking a generic helper reachable from
++ * multiple contexts. The two ends that ARE single-writer are marked instead:
++ * tx_complete_work/tx_notify_process (always the syswq, asserted at :297), and
++ * the k_work_flush wait, which only bt_conn_recv and bt_conn_set_state reach
++ * and both of those run on the BT RX WQ.
++ */
++#if defined(__has_include)
++#  if __has_include(<bsf_v45_trace.h>)
++#    define BSF_V45_TRACE_PRESENT 1
++#  endif
++#endif
++#ifdef BSF_V45_TRACE_PRESENT
++#include <bsf_v45_trace.h>
++#else
++#define BSF_V45_MARK(ch, st)           ((void)0)
++#define BSF_V45_MARK_A(ch, st, a)      ((void)0)
++#define BSF_V45_MARK_A2(ch, st, a, b)  ((void)0)
++#define BSF_V45_ENTER(ch, st, a)       ((void)0)
++#define BSF_V45_ENTER2(ch, st, a, b)   ((void)0)
++#define BSF_V45_EXIT(ch, st, a)        ((void)0)
++#define BSF_V45_INC(f)                 ((void)0)
++#define BSF_V45_CH_BT_RX               0
++#define BSF_V45_CH_TX_WORK             0
++#define BSF_V45_TX_WORK_ENTER          0
++#define BSF_V45_TX_WORK_EXIT           0
++#define BSF_V45_TX_NOTIFY_PROC_ENTER   0
++#define BSF_V45_TX_NOTIFY_PROC_EXIT    0
++#define BSF_V45_TX_CB_BEFORE           0
++#define BSF_V45_TX_CB_AFTER            0
++#define BSF_V45_TX_NOTIFY_WAIT_ENTER   0
++#define BSF_V45_TX_NOTIFY_WAIT_EXIT    0
++#endif
++
+ LOG_MODULE_REGISTER(bt_conn);
+ 
+ K_FIFO_DEFINE(free_tx);
+@@ -270,11 +333,26 @@
+ 
+ static void tx_notify_process(struct bt_conn *conn)
+ {
++	unsigned int bsf_drained = 0u;
++
+ 	/* TX notify processing is done only from a single thread. */
+ 	__ASSERT_NO_MSG(k_current_get() == k_work_queue_thread_get(tx_notify_workqueue_get()));
+ 
+ 	LOG_DBG("conn %p", (void *)conn);
+ 
++	/*
++	 * BSF v45. The consumer end of the completion pipeline. DATAFLOW_MAP
++	 * section 3: att_pool buffers are freed ONLY by the callback below, and
++	 * that callback is driven ONLY by Number Of Completed Packets arriving
++	 * on MPSL Work. If ncp_packet_total advances and tx_notify_runs does
++	 * not, the fault is the workqueue hand-off; if neither advances, it is
++	 * the controller. Those are different verdicts and nothing before v45
++	 * could tell them apart.
++	 */
++	BSF_V45_ENTER(BSF_V45_CH_TX_WORK, BSF_V45_TX_NOTIFY_PROC_ENTER,
++		      (uint32_t)(uintptr_t)conn);
++	BSF_V45_INC(tx_notify_runs);
++
+ 	while (1) {
+ 		struct bt_conn_tx *tx = NULL;
+ 		unsigned int key;
+@@ -290,6 +368,8 @@
+ 		irq_unlock(key);
+ 
+ 		if (!tx) {
++			BSF_V45_EXIT(BSF_V45_CH_TX_WORK,
++				     BSF_V45_TX_NOTIFY_PROC_EXIT, bsf_drained);
+ 			return;
+ 		}
+ 
+@@ -301,13 +381,29 @@
+ 
+ 		/* Free up TX notify since there may be user waiting */
+ 		tx_free(tx);
++		BSF_V45_INC(tx_complete_drained);
++		BSF_V45_INC(tx_entries_drained);
++		bsf_drained++;
+ 
+ 		/* Run the callback, at this point it should be safe to
+ 		 * allocate new buffers since the TX should have been
+ 		 * unblocked by tx_free.
+ 		 */
+ 		if (cb) {
++			/*
++			 * BSF v45. THIS is where the att_pool buffer is
++			 * actually returned (chan_sent_cb -> net_buf_unref).
++			 * If tx_cb_calls advances and att_pool still empties,
++			 * the leak is somewhere else entirely -- which is a
++			 * conclusion, not a guess.
++			 */
++			BSF_V45_MARK_A2(BSF_V45_CH_TX_WORK, BSF_V45_TX_CB_BEFORE,
++					(uint32_t)(uintptr_t)cb,
++					(uint32_t)(uintptr_t)user_data);
++			BSF_V45_INC(tx_cb_calls);
+ 			cb(conn, user_data, 0);
++			BSF_V45_MARK_A(BSF_V45_CH_TX_WORK, BSF_V45_TX_CB_AFTER,
++				       (uint32_t)(uintptr_t)cb);
+ 		}
+ 
+ 		LOG_DBG("raise TX IRQ");
+@@ -319,20 +415,49 @@
+ void bt_conn_tx_notify(struct bt_conn *conn, bool wait_for_completion)
+ {
+ #if defined(CONFIG_BT_CONN_TX)
++	BSF_BT_STAGE_A(BSF_BT_STAGE_TX_NOTIFY_ENTER, wait_for_completion);
+ 	/* Ensure that function is called only from a single context. */
+ 	if (k_current_get() == k_work_queue_thread_get(tx_notify_workqueue_get())) {
++		BSF_BT_STAGE(BSF_BT_STAGE_TX_NOTIFY_DIRECT);
+ 		tx_notify_process(conn);
+ 	} else {
+ 		struct k_work_sync sync;
+ 		int err;
+ 
++		BSF_BT_STAGE(BSF_BT_STAGE_TX_NOTIFY_BEFORE_SUBMIT);
++		BSF_V45_INC(tx_work_submit);
+ 		err = k_work_submit_to_queue(tx_notify_workqueue_get(), &conn->tx_complete_work);
++		BSF_BT_STAGE_A(BSF_BT_STAGE_TX_NOTIFY_AFTER_SUBMIT, err);
+ 		__ASSERT(err >= 0, "couldn't submit (err %d)", err);
+ 
+ 		if (wait_for_completion) {
++			BSF_BT_STAGE(BSF_BT_STAGE_TX_NOTIFY_BEFORE_FLUSH);
++			/*
++			 * BSF v45, section 3: record the ADDRESS of the sync
++			 * object before waiting on it. Only bt_conn_recv() and
++			 * bt_conn_set_state() pass wait_for_completion, and both
++			 * run on the BT RX workqueue, so this branch is
++			 * single-writer -- and the runtime writer-TID check
++			 * enforces that rather than trusting it.
++			 *
++			 * The payoff is at decode time: if that thread's
++			 * pended_on equals this address, the verdict is
++			 * "blocked inside k_work_flush of tx_complete_work",
++			 * which re-tests the exact hypothesis v43 was built for
++			 * and could not confirm.
++			 */
++			BSF_V45_ENTER2(BSF_V45_CH_BT_RX,
++				       BSF_V45_TX_NOTIFY_WAIT_ENTER,
++				       (uint32_t)(uintptr_t)&sync,
++				       (uint32_t)(uintptr_t)&conn->tx_complete_work);
+ 			(void)k_work_flush(&conn->tx_complete_work, &sync);
++			BSF_V45_EXIT(BSF_V45_CH_BT_RX,
++				     BSF_V45_TX_NOTIFY_WAIT_EXIT,
++				     (uint32_t)(uintptr_t)&sync);
++			BSF_BT_STAGE(BSF_BT_STAGE_TX_NOTIFY_AFTER_FLUSH);
+ 		}
+ 	}
++	BSF_BT_STAGE(BSF_BT_STAGE_TX_NOTIFY_EXIT);
+ #else
+ 	ARG_UNUSED(conn);
+ 	ARG_UNUSED(wait_for_completion);
+@@ -484,18 +609,30 @@
+ 	 * Always do so from the same context for sanity. In this case that will
+ 	 * be either a dedicated Bluetooth connection TX workqueue or system workqueue.
+ 	 */
++	BSF_BT_STAGE_A(BSF_BT_STAGE_CONN_RECV_ENTER, conn->handle);
+ 	bt_conn_tx_notify(conn, true);
+ 
+ 	LOG_DBG("handle %u len %u flags %02x", conn->handle, buf->len, flags);
+ 
+ 	if (IS_ENABLED(CONFIG_BT_ISO_RX) && conn->type == BT_CONN_TYPE_ISO) {
+ 		bt_iso_recv(conn, buf, flags);
++		BSF_BT_STAGE(BSF_BT_STAGE_CONN_RECV_EXIT);
+ 		return;
+ 	} else if (IS_ENABLED(CONFIG_BT_CONN)) {
++		/*
++		 * v44. THIS is the region that hid the BSF6C53 wedge: L2CAP,
++		 * ATT and every GATT handler live below here, and before v44 it
++		 * carried no mark at all, so the last mark stayed TX_NOTIFY_EXIT
++		 * -- which was classified terminal. The monitor read "idle"
++		 * while the thread sat in an ATT allocation for ten minutes.
++		 */
++		BSF_BT_STAGE_A(BSF_BT_STAGE_ACL_RECV_ENTER, conn->handle);
+ 		bt_acl_recv(conn, buf, flags);
++		BSF_BT_STAGE(BSF_BT_STAGE_ACL_RECV_EXIT);
+ 	} else {
+ 		__ASSERT(false, "Invalid connection type %u", conn->type);
+ 	}
++	BSF_BT_STAGE(BSF_BT_STAGE_CONN_RECV_EXIT);
+ }
+ 
+ static bool dont_have_tx_context(struct bt_conn *conn)
+@@ -747,6 +884,8 @@
+ 	 * callback node in the `tx_pending` list.
+ 	 */
+ 	atomic_inc(&conn->in_ll);
++	/* BSF v45 law 5: shadow the append, never walk the list from a corpse. */
++	BSF_V45_INC(tx_pending_added);
+ 	sys_slist_append(&conn->tx_pending, &tx->node);
+ 
+ 	if (is_iso_tx_conn(conn)) {
+@@ -764,6 +903,7 @@
+ 
+ 	/* Remove buf from pending list */
+ 	atomic_dec(&conn->in_ll);
++	BSF_V45_INC(tx_pending_removed);
+ 	(void)sys_slist_find_and_remove(&conn->tx_pending, &tx->node);
+ 
+ 	LOG_ERR("Unable to send to driver (err %d)", err);
+@@ -1143,6 +1283,8 @@
+ 
+ 		tx = CONTAINER_OF(node, struct bt_conn_tx, node);
+ 
++		/* BSF v45: the third, disconnect-time drain of tx_pending. */
++		BSF_V45_INC(tx_pending_removed);
+ 		conn_tx_destroy(conn, tx);
+ 		k_sem_give(bt_conn_get_pkts(conn));
+ 	}
+@@ -1264,12 +1406,18 @@
+ 		 */
+ 		switch (old_state) {
+ 		case BT_CONN_DISCONNECT_COMPLETE:
++			BSF_BT_EVENT(BSF_BT_STAGE_TX_NOTIFY_ENTER,
++				     BSF_BT_EVENT_DISCONNECT, conn->err);
+ 			bt_conn_tx_notify(conn, true);
+ 
++			BSF_BT_STAGE(BSF_BT_STAGE_RESET_RX_BEFORE);
+ 			bt_conn_reset_rx_state(conn);
++			BSF_BT_STAGE(BSF_BT_STAGE_RESET_RX_AFTER);
+ 
+ 			LOG_DBG("trigger disconnect work");
++			BSF_BT_STAGE(BSF_BT_STAGE_DEFERRED_RESCHEDULE_BEFORE);
+ 			k_work_reschedule(&conn->deferred_work, K_NO_WAIT);
++			BSF_BT_STAGE(BSF_BT_STAGE_DEFERRED_RESCHEDULE_AFTER);
+ 
+ 			/* The last ref will be dropped during cleanup */
+ 			break;
+@@ -1657,7 +1805,18 @@
+ {
+ 	struct bt_conn *conn = CONTAINER_OF(work, struct bt_conn, tx_complete_work);
+ 
++	/*
++	 * BSF v45. The system-workqueue work item itself. Its enter/exit totals
++	 * are the corpse's proof of syswq liveness for the completion path
++	 * specifically -- the watchdog proves the QUEUE ran, this proves THIS
++	 * ITEM ran, and those are not the same claim.
++	 */
++	BSF_V45_ENTER(BSF_V45_CH_TX_WORK, BSF_V45_TX_WORK_ENTER,
++		      (uint32_t)(uintptr_t)conn);
++	BSF_V45_INC(tx_work_enter);
+ 	tx_notify_process(conn);
++	BSF_V45_EXIT(BSF_V45_CH_TX_WORK, BSF_V45_TX_WORK_EXIT, 0u);
++	BSF_V45_INC(tx_work_exit);
+ }
+ #endif /* CONFIG_BT_CONN_TX */
+ 
+@@ -4237,3 +4396,142 @@
+ 
+ SYS_INIT(bt_conn_tx_workq_init, POST_KERNEL, CONFIG_BT_CONN_TX_NOTIFY_WQ_INIT_PRIORITY);
+ #endif /* CONFIG_BT_CONN_TX_NOTIFY_WQ */
++
++#ifdef BSF_BT_STAGE_TRACE_PRESENT
++/*
++ * v44 corpse capture. Lives here because every field is inside `struct bt_conn`,
++ * which is private to the host. Read against NCS v2.8.0, not Zephyr main.
++ * Pure reader: no lock, no allocation, nothing that can block -- the thread it
++ * inspects is stuck and may hold host state.
++ */
++static uint16_t bsf_slist_len(sys_slist_t *list)
++{
++	sys_snode_t *node;
++	uint16_t n = 0u;
++
++	SYS_SLIST_FOR_EACH_NODE(list, node) {
++		if (++n >= 1024u) {
++			break;
++		}
++	}
++	return n;
++}
++
++void bsf_bt_capture_conn(struct bsf_bt_corpse_conn *out)
++{
++	struct bt_conn *conn = NULL;
++
++	if (out == NULL) {
++		return;
++	}
++	memset(out, 0, sizeof(*out));
++
++	for (size_t i = 0; i < ARRAY_SIZE(acl_conns); i++) {
++		if (acl_conns[i].state != BT_CONN_DISCONNECTED) {
++			conn = &acl_conns[i];
++			break;
++		}
++	}
++	if (conn == NULL && ARRAY_SIZE(acl_conns) > 0) {
++		conn = &acl_conns[0];
++	}
++	if (conn == NULL) {
++		return;
++	}
++
++	out->conn_addr = (uint32_t)(uintptr_t)conn;
++	out->handle = conn->handle;
++	out->type = (uint8_t)conn->type;
++	out->role = conn->role;
++	out->err = conn->err;
++	out->state = (uint8_t)conn->state;
++	out->rx_ptr = (uint32_t)(uintptr_t)conn->rx;
++	out->rx_len = conn->rx_len;
++	out->tx_pending = bsf_slist_len(&conn->tx_pending);
++	out->tx_complete = bsf_slist_len(&conn->tx_complete);
++#if defined(CONFIG_BT_CONN_TX)
++	out->tx_complete_busy = k_work_busy_get(&conn->tx_complete_work);
++#else
++	out->tx_complete_busy = -1;
++#endif
++	out->deferred_busy = k_work_delayable_busy_get(&conn->deferred_work);
++	out->pkts_avail = k_sem_count_get(bt_conn_get_pkts(conn));
++	out->valid = 1u;
++}
++#endif /* BSF_BT_STAGE_TRACE_PRESENT */
++
++#ifdef BSF_V45_TRACE_PRESENT
++/*
++ * v45 connection snapshot.
++ *
++ * Differs from the v44 one above in exactly the way law 5 demands: it does NOT
++ * walk conn->tx_pending or conn->tx_complete. CONTEXT_AUDIT item 5 found three
++ * UNLOCKED mutation contexts for tx_pending (system WQ append, MPSL Work move,
++ * BT RX WQ drain), so a corpse routine traversing it is a data race by
++ * construction -- on a wedged board, with a list some other thread may be
++ * halfway through mutating. The depths come from shadow atomics maintained at
++ * those three sites instead, which cost one atomic_inc each and cannot race.
++ *
++ * Pure reader otherwise: no lock, no allocation, nothing that can block.
++ */
++void bsf_v45_capture_conn(struct bsf_v45_conn_snapshot *out)
++{
++	struct bt_conn *conn = NULL;
++
++	if (out == NULL) {
++		return;
++	}
++	memset(out, 0, sizeof(*out));
++
++	for (size_t i = 0; i < ARRAY_SIZE(acl_conns); i++) {
++		if (acl_conns[i].state != BT_CONN_DISCONNECTED) {
++			conn = &acl_conns[i];
++			break;
++		}
++	}
++	if (conn == NULL && ARRAY_SIZE(acl_conns) > 0) {
++		conn = &acl_conns[0];
++	}
++	if (conn == NULL) {
++		return;
++	}
++
++	out->conn_addr = (uint32_t)(uintptr_t)conn;
++	out->handle = conn->handle;
++	out->role = conn->role;
++	out->err = conn->err;
++	out->state = (uint8_t)conn->state;
++	out->rx_ptr = (uint32_t)(uintptr_t)conn->rx;
++	out->rx_len = conn->rx_len;
++#if defined(CONFIG_BT_CONN_TX)
++	out->tx_complete_busy = k_work_busy_get(&conn->tx_complete_work);
++	out->tx_complete_work_addr = (uint32_t)(uintptr_t)&conn->tx_complete_work;
++#else
++	out->tx_complete_busy = -1;
++#endif
++	out->deferred_busy = k_work_delayable_busy_get(&conn->deferred_work);
++	out->pkts_avail = k_sem_count_get(bt_conn_get_pkts(conn));
++	out->in_ll = (uint32_t)atomic_get(&conn->in_ll);
++	out->valid = 1u;
++}
++
++/*
++ * The one wait object the application cannot reach on its own.
++ *
++ * Every net_buf pool is in the `net_buf_pool` iterable section and carries its
++ * name, so the app resolves those six generically -- no patch needed. `free_tx`
++ * is a plain file-static k_fifo, so it has to come from here.
++ *
++ * And it is included precisely BECAUSE of a correction: CONTEXT_AUDIT item 7
++ * proves conn_tx_alloc() uses K_NO_WAIT (conn.c:550) and that exhaustion is
++ * handled as tx_processor back-pressure via dont_have_tx_context(), so NO
++ * THREAD CAN EVER BE FOUND PENDED HERE. FINAL_BT_WEDGE_FORENSICS.md section 4
++ * names this FIFO as a second unbounded wait reachable from bt_gatt_notify();
++ * in NCS v2.8.0 it is not one. Exporting the address and never matching it
++ * turns that into a checked claim instead of an unexamined one.
++ */
++uint32_t bsf_v45_free_tx_waitq(void)
++{
++	return (uint32_t)(uintptr_t)&free_tx._queue.wait_q;
++}
++#endif /* BSF_V45_TRACE_PRESENT */
+--- a/zephyr/subsys/bluetooth/host/hci_core.c	2026-08-08 14:43:12.388928409 +0200
++++ b/zephyr/subsys/bluetooth/host/hci_core.c	2026-08-08 15:19:44.585256983 +0200
+@@ -66,6 +66,91 @@
+ 
+ #define LOG_LEVEL CONFIG_BT_HCI_CORE_LOG_LEVEL
+ #include <zephyr/logging/log.h>
++/*
++ * v44 BT RX stage instrumentation (batch v44_selfcapture_20260807).
++ *
++ * ~/ncs/v2.8.0 is a SHARED SDK install compiled by every project that builds
++ * against it -- the Fusion Master DK image included. So the instrumentation is
++ * conditional on the header actually being reachable: the B306 application puts
++ * its src/ on the global Zephyr include path, nothing else does, and for those
++ * the macros collapse to nothing and the object code is unchanged.
++ */
++#if defined(__has_include)
++#  if __has_include(<bsf_bt_stage.h>)
++#    define BSF_BT_STAGE_TRACE_PRESENT 1
++#  endif
++#endif
++
++#ifdef BSF_BT_STAGE_TRACE_PRESENT
++#include <bsf_bt_stage.h>
++#else
++#define BSF_BT_STAGE(s)        ((void)0)
++#define BSF_BT_STAGE_A(s, a)   ((void)0)
++#define BSF_BT_EVENT(s, e, a)  ((void)0)
++#endif
++
++/*
++ * v45. The v44 marks above are KEPT, unrenumbered and still fed -- the v44
++ * monitor and every corpse ever taken depend on them, and the prohibition list
++ * is explicit about it. What changes is their standing: the audit proved the
++ * single global channel has at least three concurrent writers, so it is retired
++ * as an AUTHORITY and superseded by the four single-writer channels below.
++ *
++ * This file writes exactly two of them, and never the same one from two
++ * threads:
++ *   BSF_V45_CH_MPSL_RX  -- the inline priority arm (hci_event_prio and the NCP
++ *                          handler), which CONTEXT_AUDIT item 4 proves runs on
++ *                          MPSL Work with the scheduler locked;
++ *   BSF_V45_CH_BT_RX    -- rx_work_handler() and everything the normal event
++ *                          and ACL arms reach, on the BT RX workqueue.
++ */
++#if defined(__has_include)
++#  if __has_include(<bsf_v45_trace.h>)
++#    define BSF_V45_TRACE_PRESENT 1
++#  endif
++#endif
++#ifdef BSF_V45_TRACE_PRESENT
++#include <bsf_v45_trace.h>
++#else
++#define BSF_V45_MARK(ch, st)           ((void)0)
++#define BSF_V45_MARK_A(ch, st, a)      ((void)0)
++#define BSF_V45_MARK_A2(ch, st, a, b)  ((void)0)
++#define BSF_V45_ENTER(ch, st, a)       ((void)0)
++#define BSF_V45_EXIT(ch, st, a)        ((void)0)
++#define BSF_V45_INC(f)                 ((void)0)
++#define BSF_V45_ADD(f, n)              ((void)0)
++#define BSF_V45_CH_MPSL_RX             0
++#define BSF_V45_CH_BT_RX               0
++#define BSF_V45_PRIO_EVENT_ENTER       0
++#define BSF_V45_PRIO_EVENT_EXIT        0
++#define BSF_V45_NCP_ENTER              0
++#define BSF_V45_NCP_EXIT               0
++#define BSF_V45_DISCONN_PRIO_ENTER     0
++#define BSF_V45_DISCONN_PRIO_EXIT      0
++#define BSF_V45_CMD_COMPLETE_ENTER     0
++#define BSF_V45_CMD_COMPLETE_EXIT      0
++#define BSF_V45_CMD_STATUS_ENTER       0
++#define BSF_V45_CMD_STATUS_EXIT        0
++#define BSF_V45_RX_WORK_ENTER          0
++#define BSF_V45_RX_WORK_EXIT           0
++#define BSF_V45_RX_ACL_ENTER           0
++#define BSF_V45_RX_ACL_EXIT            0
++#define BSF_V45_RX_NORMAL_EVENT_ENTER  0
++#define BSF_V45_RX_NORMAL_EVENT_EXIT   0
++#define BSF_V45_DISCONN_NORMAL_ENTER   0
++#define BSF_V45_DISCONN_NORMAL_EXIT    0
++#define BSF_V45_OWNER_PRIO_NCP         0
++#define BSF_V45_OWNER_PRIO_CMD_COMPLETE 0
++#define BSF_V45_OWNER_PRIO_CMD_STATUS  0
++#define BSF_V45_OWNER_PRIO_DISCONNECT  0
++#define BSF_V45_OWNER_RX_QUEUE         0
++#define BSF_V45_OWNER_BT_RX_ACTIVE     0
++static inline void bsf_v45_sync_evt_set_owner(uint8_t o, uint8_t e)
++{ ARG_UNUSED(o); ARG_UNUSED(e); }
++static inline void bsf_v45_hci_rx_set_owner(const void *b, uint8_t o, uint16_t c)
++{ ARG_UNUSED(b); ARG_UNUSED(o); ARG_UNUSED(c); }
++#endif
++
+ LOG_MODULE_REGISTER(bt_hci_core);
+ 
+ #define BT_HCI_DEV  DT_CHOSEN(zephyr_bt_hci)
+@@ -567,6 +652,25 @@
+ 
+ 	LOG_DBG("num_handles %u", evt->num_handles);
+ 
++	/*
++	 * BSF v45. THE COMPLETION SOURCE.
++	 *
++	 * COUNTER_SEMANTICS.md, in bold: "There is no COMPLETION-stage counter
++	 * anywhere in this system." Every "delivered" number the fleet has ever
++	 * produced is a node-side call return or a master-side receive count.
++	 * The rank-1 mechanism is that TX-completion processing stops
++	 * permanently -- and 107 board-hours of capture could not observe it,
++	 * because nothing counted this.
++	 *
++	 * ncp_event_count is per EVENT, ncp_packet_total is per PACKET. The
++	 * second is the watermark the detector arms on; the first separates
++	 * "no events at all" from "events that credited nothing".
++	 */
++	BSF_V45_ENTER(BSF_V45_CH_MPSL_RX, BSF_V45_NCP_ENTER, evt->num_handles);
++	BSF_V45_INC(ncp_event_count);
++	bsf_v45_sync_evt_set_owner(BSF_V45_OWNER_PRIO_NCP,
++				   BT_HCI_EVT_NUM_COMPLETED_PACKETS);
++
+ 	for (i = 0; i < evt->num_handles; i++) {
+ 		uint16_t handle, count;
+ 		struct bt_conn *conn;
+@@ -604,12 +708,23 @@
+ 			__ASSERT_NO_MSG(atomic_get(&conn->in_ll));
+ 			atomic_dec(&conn->in_ll);
+ 
++			/*
++			 * BSF v45 completion watermark, and the shadow of the
++			 * list move above. Law 5: conn->tx_pending has three
++			 * unlocked mutation contexts, so the corpse must never
++			 * walk it -- these counters carry the depth instead.
++			 */
++			BSF_V45_INC(ncp_packet_total);
++			BSF_V45_INC(tx_pending_removed);
++			BSF_V45_INC(tx_complete_added);
++
+ 			/* TX context free + callback happens in there */
+ 			bt_conn_tx_notify(conn, false);
+ 		}
+ 
+ 		bt_conn_unref(conn);
+ 	}
++	BSF_V45_EXIT(BSF_V45_CH_MPSL_RX, BSF_V45_NCP_EXIT, evt->num_handles);
+ }
+ #endif /* CONFIG_BT_CONN_TX */
+ 
+@@ -977,13 +1092,31 @@
+ 	LOG_DBG("status 0x%02x %s handle %u reason 0x%02x",
+ 		evt->status, bt_hci_err_to_str(evt->status), handle, evt->reason);
+ 
++	/*
++	 * BSF v45. THE normal half, on the BT RX workqueue. Everything that
++	 * makes a wedged node fail to come back is downstream of here:
++	 * bt_conn_set_state(DISCONNECTED) -> process_unack_tx() -> the
++	 * application's disconnected() -> start_advertising() ->
++	 * bt_hci_cmd_create() -> net_buf_alloc(&hci_cmd_pool, K_FOREVER).
++	 *
++	 * "Controller-executed disconnect produced no advertising recovery" is
++	 * invariant 4 of the target fault, and until now it localised no further
++	 * than "somewhere on this thread". An ENTER with no EXIT, plus this
++	 * thread's pended_on, names the exact object.
++	 */
++	BSF_V45_ENTER(BSF_V45_CH_BT_RX, BSF_V45_DISCONN_NORMAL_ENTER,
++		      ((uint32_t)handle << 8) | evt->reason);
++	BSF_V45_INC(disconnect_normal);
++
+ 	if (evt->status) {
++		BSF_V45_EXIT(BSF_V45_CH_BT_RX, BSF_V45_DISCONN_NORMAL_EXIT, 1u);
+ 		return;
+ 	}
+ 
+ 	conn = bt_conn_lookup_handle(handle, BT_CONN_TYPE_ALL);
+ 	if (!conn) {
+ 		LOG_ERR("Unable to look up conn with handle %u", handle);
++		BSF_V45_EXIT(BSF_V45_CH_BT_RX, BSF_V45_DISCONN_NORMAL_EXIT, 2u);
+ 		return;
+ 	}
+ 
+@@ -1005,6 +1138,7 @@
+ 		}
+ #endif
+ 		bt_conn_unref(conn);
++		BSF_V45_EXIT(BSF_V45_CH_BT_RX, BSF_V45_DISCONN_NORMAL_EXIT, 3u);
+ 		return;
+ 	}
+ 
+@@ -1021,6 +1155,7 @@
+ #endif /* defined(CONFIG_BT_CENTRAL) && !defined(CONFIG_BT_FILTER_ACCEPT_LIST) */
+ 
+ 	bt_conn_unref(conn);
++	BSF_V45_EXIT(BSF_V45_CH_BT_RX, BSF_V45_DISCONN_NORMAL_EXIT, 0u);
+ }
+ 
+ int bt_hci_le_read_remote_features(struct bt_conn *conn)
+@@ -4067,8 +4202,63 @@
+ 	evt_flags = bt_hci_evt_get_flags(hdr->evt);
+ 	BT_ASSERT(evt_flags & BT_HCI_EVT_FLAG_RECV_PRIO);
+ 
++	/*
++	 * BSF v45. The inline priority arm, on MPSL Work with the scheduler
++	 * locked (bt_hci_recv wraps bt_recv_unsafe in k_sched_lock). Command
++	 * Complete, Command Status, Disconnect-prio and NCP all execute here and
++	 * all hold the SINGLETON sync_evt buffer while they do, so "who was the
++	 * last owner" is recorded per class -- that is the field that tells a
++	 * corpse whether the singleton is held by NCP itself or by something
++	 * else entirely.
++	 */
++	BSF_V45_ENTER(BSF_V45_CH_MPSL_RX, BSF_V45_PRIO_EVENT_ENTER, hdr->evt);
++	switch (hdr->evt) {
++	case BT_HCI_EVT_CMD_COMPLETE:
++		BSF_V45_MARK_A(BSF_V45_CH_MPSL_RX, BSF_V45_CMD_COMPLETE_ENTER,
++			       hdr->evt);
++		bsf_v45_sync_evt_set_owner(BSF_V45_OWNER_PRIO_CMD_COMPLETE,
++					   hdr->evt);
++		break;
++	case BT_HCI_EVT_CMD_STATUS:
++		BSF_V45_MARK_A(BSF_V45_CH_MPSL_RX, BSF_V45_CMD_STATUS_ENTER,
++			       hdr->evt);
++		bsf_v45_sync_evt_set_owner(BSF_V45_OWNER_PRIO_CMD_STATUS,
++					   hdr->evt);
++		break;
++#if defined(CONFIG_BT_CONN)
++	case BT_HCI_EVT_DISCONN_COMPLETE:
++		BSF_V45_MARK_A(BSF_V45_CH_MPSL_RX, BSF_V45_DISCONN_PRIO_ENTER,
++			       hdr->evt);
++		bsf_v45_sync_evt_set_owner(BSF_V45_OWNER_PRIO_DISCONNECT,
++					   hdr->evt);
++		break;
++#endif
++	default:
++		break;
++	}
++
+ 	handle_event(hdr->evt, buf, prio_events, ARRAY_SIZE(prio_events));
+ 
++	switch (hdr->evt) {
++	case BT_HCI_EVT_CMD_COMPLETE:
++		BSF_V45_MARK_A(BSF_V45_CH_MPSL_RX, BSF_V45_CMD_COMPLETE_EXIT,
++			       hdr->evt);
++		break;
++	case BT_HCI_EVT_CMD_STATUS:
++		BSF_V45_MARK_A(BSF_V45_CH_MPSL_RX, BSF_V45_CMD_STATUS_EXIT,
++			       hdr->evt);
++		break;
++#if defined(CONFIG_BT_CONN)
++	case BT_HCI_EVT_DISCONN_COMPLETE:
++		BSF_V45_MARK_A(BSF_V45_CH_MPSL_RX, BSF_V45_DISCONN_PRIO_EXIT,
++			       hdr->evt);
++		break;
++#endif
++	default:
++		break;
++	}
++	BSF_V45_EXIT(BSF_V45_CH_MPSL_RX, BSF_V45_PRIO_EVENT_EXIT, hdr->evt);
++
+ 	if (evt_flags & BT_HCI_EVT_FLAG_RECV) {
+ 		net_buf_simple_restore(&buf->b, &state);
+ 	} else {
+@@ -4078,6 +4268,16 @@
+ 
+ static void rx_queue_put(struct net_buf *buf)
+ {
++	/*
++	 * BSF v45. Counted on the MPSL side deliberately (law 6: counters are
++	 * global atomics writable from any context; only stage machines are
++	 * single-writer). Paired with rx_work_enter it answers a question no
++	 * capture has ever been able to: were buffers being handed to the BT RX
++	 * workqueue that it never picked up?
++	 */
++	BSF_V45_INC(rx_queue_put);
++	bsf_v45_hci_rx_set_owner(buf, BSF_V45_OWNER_RX_QUEUE,
++				 bt_buf_get_type(buf));
+ 	net_buf_slist_put(&bt_dev.rx_queue, buf);
+ 
+ #if defined(CONFIG_BT_RECV_WORKQ_SYS)
+@@ -4240,10 +4440,38 @@
+ 
+ 	LOG_DBG("buf %p type %u len %u", buf, bt_buf_get_type(buf), buf->len);
+ 
++	/*
++	 * v44. rx_work_handler() is the SINGLE entry point for everything the
++	 * BT RX workqueue thread ever does -- ACL, HCI events and ISO all
++	 * dispatch from the switch below. Bracketing it makes the monitor's
++	 * quiescence test PROVABLE rather than a maintained list:
++	 *
++	 *     quiescent  <=>  not inside rx_work_handler()
++	 *
++	 * Every blocking primitive on this thread is now inside the bracket,
++	 * including the HCI command paths (net_buf_alloc K_FOREVER on the cmd
++	 * pool, k_sem_take on sync_sem and ncmd_sem) which the v43 marks did
++	 * not cover at all -- a second blind region found by v44's audit.
++	 */
++	BSF_BT_STAGE_A(BSF_BT_STAGE_RX_WORK_ENTER, bt_buf_get_type(buf));
++	/*
++	 * BSF v45. Same bracket, its own single-writer channel. The v44 mark
++	 * above shares a channel with three other threads and therefore cannot
++	 * say "the BT RX WQ is inside here"; this one can.
++	 */
++	BSF_V45_ENTER(BSF_V45_CH_BT_RX, BSF_V45_RX_WORK_ENTER,
++		      bt_buf_get_type(buf));
++	BSF_V45_INC(rx_work_enter);
++	bsf_v45_hci_rx_set_owner(buf, BSF_V45_OWNER_BT_RX_ACTIVE,
++				 bt_buf_get_type(buf));
++
+ 	switch (bt_buf_get_type(buf)) {
+ #if defined(CONFIG_BT_CONN)
+ 	case BT_BUF_ACL_IN:
++		BSF_V45_MARK_A(BSF_V45_CH_BT_RX, BSF_V45_RX_ACL_ENTER, buf->len);
++		BSF_V45_INC(rx_acl);
+ 		hci_acl(buf);
++		BSF_V45_MARK(BSF_V45_CH_BT_RX, BSF_V45_RX_ACL_EXIT);
+ 		break;
+ #endif /* CONFIG_BT_CONN */
+ #if defined(CONFIG_BT_ISO)
+@@ -4252,7 +4480,11 @@
+ 		break;
+ #endif /* CONFIG_BT_ISO */
+ 	case BT_BUF_EVT:
++		BSF_V45_MARK_A(BSF_V45_CH_BT_RX, BSF_V45_RX_NORMAL_EVENT_ENTER,
++			       buf->len != 0u ? buf->data[0] : 0u);
++		BSF_V45_INC(rx_event);
+ 		hci_event(buf);
++		BSF_V45_MARK(BSF_V45_CH_BT_RX, BSF_V45_RX_NORMAL_EVENT_EXIT);
+ 		break;
+ 	default:
+ 		LOG_ERR("Unknown buf type %u", bt_buf_get_type(buf));
+@@ -4260,6 +4492,11 @@
+ 		break;
+ 	}
+ 
++	/* The only terminal stage on this thread besides IDLE. */
++	BSF_BT_STAGE(BSF_BT_STAGE_RX_WORK_EXIT);
++	BSF_V45_EXIT(BSF_V45_CH_BT_RX, BSF_V45_RX_WORK_EXIT, 0u);
++	BSF_V45_INC(rx_work_exit);
++
+ 	/* Schedule the work handler to be executed again if there are
+ 	 * additional items in the queue. This allows for other users of the
+ 	 * work queue to get a chance at running, which wouldn't be possible if
+--- a/zephyr/subsys/bluetooth/host/att.c	2026-08-08 14:43:12.391933533 +0200
++++ b/zephyr/subsys/bluetooth/host/att.c	2026-08-08 15:19:44.586208886 +0200
+@@ -32,6 +32,29 @@
+ 
+ #define LOG_LEVEL CONFIG_BT_ATT_LOG_LEVEL
+ #include <zephyr/logging/log.h>
++/*
++ * v44 BT RX stage instrumentation (batch v44_selfcapture_20260807).
++ *
++ * ~/ncs/v2.8.0 is a SHARED SDK install compiled by every project that builds
++ * against it -- the Fusion Master DK image included. So the instrumentation is
++ * conditional on the header actually being reachable: the B306 application puts
++ * its src/ on the global Zephyr include path, nothing else does, and for those
++ * the macros collapse to nothing and the object code is unchanged.
++ */
++#if defined(__has_include)
++#  if __has_include(<bsf_bt_stage.h>)
++#    define BSF_BT_STAGE_TRACE_PRESENT 1
++#  endif
++#endif
++
++#ifdef BSF_BT_STAGE_TRACE_PRESENT
++#include <bsf_bt_stage.h>
++#else
++#define BSF_BT_STAGE(s)        ((void)0)
++#define BSF_BT_STAGE_A(s, a)   ((void)0)
++#define BSF_BT_EVENT(s, e, a)  ((void)0)
++#endif
++
+ LOG_MODULE_REGISTER(bt_att);
+ 
+ #define ATT_CHAN(_ch) CONTAINER_OF(_ch, struct bt_att_chan, chan.chan)
+@@ -725,8 +748,22 @@
+ 		timeout = K_FOREVER;
+ 	}
+ 
++	/*
++	 * v44 section 3.4. The evidence points here: on BSF6C53 the read was
++	 * accepted at onset+0 and never returned, with the host's 25 s bound
++	 * and the stack's 30 s ATT timeout both firing on schedule -- the
++	 * signature of a thread parked in this allocation. Marking the two
++	 * branches separately turns a visible wedge into a NAMED one:
++	 * ATT_ALLOC_RESPONSE is the bounded 30 s response/confirmation path,
++	 * ATT_ALLOC_FOREVER is the unbounded everything-else path, and they
++	 * are different verdicts.
++	 */
++	BSF_BT_STAGE_A(K_TIMEOUT_EQ(timeout, K_FOREVER) ?
++			       BSF_BT_STAGE_ATT_ALLOC_FOREVER :
++			       BSF_BT_STAGE_ATT_ALLOC_RESPONSE, op);
+ 	/* This will reserve headspace for lower layers */
+ 	buf = bt_l2cap_create_pdu_timeout(&att_pool, 0, timeout);
++	BSF_BT_STAGE_A(BSF_BT_STAGE_ATT_ALLOC_DONE, buf != NULL);
+ 	if (!buf) {
+ 		LOG_ERR("Unable to allocate buffer for op 0x%02x", op);
+ 		return NULL;
+--- a/zephyr/lib/net_buf/buf.c	2026-08-08 14:43:12.397744224 +0200
++++ b/zephyr/lib/net_buf/buf.c	2026-08-08 15:19:44.587084160 +0200
+@@ -20,6 +20,23 @@
+ 
+ #include <zephyr/net_buf.h>
+ 
++/*
++ * BSF v45 allocation hook. Empty and __weak, so a project that does not
++ * override it links unchanged and the compiler folds the call away to a single
++ * bl to an empty function -- and with LTO or a strong override, to nothing at
++ * all. The B306 application provides the strong definition; nothing else does.
++ *
++ * It exists because design law 4 requires the pool low-water mark to be a REAL
++ * minimum, folded in at every successful allocation, rather than a value read
++ * by an observer that can be -- and demonstrably was -- biased by its own
++ * position in the schedule.
++ */
++__weak void bsf_v45_net_buf_alloc_hook(struct net_buf_pool *pool, uint16_t avail)
++{
++	ARG_UNUSED(pool);
++	ARG_UNUSED(avail);
++}
++
+ #if defined(CONFIG_NET_BUF_LOG)
+ #define NET_BUF_DBG(fmt, ...) LOG_DBG("(%p) " fmt, k_current_get(), \
+ 				      ##__VA_ARGS__)
+@@ -344,6 +361,22 @@
+ #if defined(CONFIG_NET_BUF_POOL_USAGE)
+ 	atomic_dec(&pool->avail_count);
+ 	__ASSERT_NO_MSG(atomic_get(&pool->avail_count) >= 0);
++	/*
++	 * BSF v45, design law 4: fold the low-water reading in at EVERY
++	 * SUCCESSFUL ALLOCATION, never in a sampler.
++	 *
++	 * POOL_DRAIN_CONSTRAINTS.md measured what a sampler is worth here: the
++	 * 1 Hz strobe ran on the same system workqueue that frees the buffers,
++	 * immediately after it freed them, and reported `att_pool 8/8` in
++	 * 194 255 of 194 255 N5 records -- while an unbiased strobe on the same
++	 * boards in the same run found it EMPTY 12.3 % of the time. A biased
++	 * instrument that reads "full" is worse than no instrument, because it
++	 * was read as evidence.
++	 *
++	 * This hook is __weak and empty by default, so every other consumer of
++	 * this shared SDK links and behaves exactly as before.
++	 */
++	bsf_v45_net_buf_alloc_hook(pool, (uint16_t)atomic_get(&pool->avail_count));
+ #endif
+ 	return buf;
+ }
+--- a/nrf/subsys/bluetooth/controller/hci_driver.c	2026-08-08 14:43:12.399463449 +0200
++++ b/nrf/subsys/bluetooth/controller/hci_driver.c	2026-08-08 15:19:44.587980333 +0200
+@@ -38,6 +38,83 @@
+ #include "zephyr/logging/log.h"
+ LOG_MODULE_REGISTER(bt_sdc_hci_driver);
+ 
++/*
++ * BSF v45: BSF_V45_CH_MPSL_RX instrumentation.
++ *
++ * This file is the controller->host INLET, and CONTEXT_AUDIT item 1 proves it
++ * runs on mpsl_work_q.thread ("MPSL Work", cooperative). There is no separate
++ * controller receive thread, whatever earlier reports assumed, and the source
++ * contract fails the build if that name reappears anywhere. Item 2 proves the
++ * two allocations here are
++ * unbounded (K_FOREVER at bt_buf_get_rx for ACL and bt_buf_get_evt for
++ * non-discardable events). A stall in either stops every inbound HCI message,
++ * INCLUDING Number Of Completed Packets, while the Link Layer stays perfectly
++ * alive -- which is the entire observed phenotype.
++ *
++ * Nothing below this line is observable from the application, from the host
++ * stack, or from the master. That is why patching it is in scope by design.
++ *
++ * Neutralised (every macro -> ((void)0)) unless the B306 application both
++ * selects CONFIG_BSF_V45_TRACE and puts bsf_v45_trace.h on the include path.
++ */
++#if defined(__has_include)
++#  if __has_include(<bsf_v45_trace.h>)
++#    define BSF_V45_TRACE_PRESENT 1
++#  endif
++#endif
++#ifdef BSF_V45_TRACE_PRESENT
++#include <bsf_v45_trace.h>
++#else
++#define BSF_V45_MARK(ch, st)           ((void)0)
++#define BSF_V45_MARK_A(ch, st, a)      ((void)0)
++#define BSF_V45_MARK_A2(ch, st, a, b)  ((void)0)
++#define BSF_V45_ENTER(ch, st, a)       ((void)0)
++#define BSF_V45_EXIT(ch, st, a)        ((void)0)
++#define BSF_V45_INC(f)                 ((void)0)
++#define BSF_V45_SET(f, v)              ((void)0)
++#define BSF_V45_CH_MPSL_RX             0
++#define BSF_V45_MPSL_WORK_ENTER        0
++#define BSF_V45_MPSL_WORK_EXIT         0
++#define BSF_V45_MSG_GET_BEFORE         0
++#define BSF_V45_MSG_GET_AFTER          0
++#define BSF_V45_EVT_ALLOC_BEFORE       0
++#define BSF_V45_EVT_ALLOC_AFTER        0
++#define BSF_V45_ACL_ALLOC_BEFORE       0
++#define BSF_V45_ACL_ALLOC_AFTER        0
++#define BSF_V45_RECV_FUNC_BEFORE       0
++#define BSF_V45_RECV_FUNC_AFTER        0
++#define BSF_V45_POOL_CLASS_SYNC_EVT    0
++#define BSF_V45_POOL_CLASS_DISCARDABLE 0
++#define BSF_V45_POOL_CLASS_HCI_RX      0
++#define BSF_V45_OWNER_DRIVER_EVT_ALLOC 0
++#define BSF_V45_OWNER_DRIVER           0
++static inline void bsf_v45_sync_evt_set_owner(uint8_t o, uint8_t e)
++{ ARG_UNUSED(o); ARG_UNUSED(e); }
++static inline void bsf_v45_hci_rx_set_owner(const void *b, uint8_t o, uint16_t c)
++{ ARG_UNUSED(b); ARG_UNUSED(o); ARG_UNUSED(c); }
++#endif
++
++/*
++ * Which pool bt_buf_get_evt() will pick, computed exactly the way buf.c picks
++ * it. Carried in the marker's arg0 so the decoder never has to hash a pool name
++ * to know whether an allocation was against the SINGLETON sync_evt_pool -- the
++ * prime suspect of this whole round.
++ */
++static inline uint8_t bsf_v45_evt_pool_class(uint8_t evt, bool discardable)
++{
++	switch (evt) {
++#if defined(CONFIG_BT_CONN) || defined(CONFIG_BT_ISO)
++	case BT_HCI_EVT_NUM_COMPLETED_PACKETS:
++#endif
++	case BT_HCI_EVT_CMD_STATUS:
++	case BT_HCI_EVT_CMD_COMPLETE:
++		return BSF_V45_POOL_CLASS_SYNC_EVT;
++	default:
++		return discardable ? BSF_V45_POOL_CLASS_DISCARDABLE :
++				     BSF_V45_POOL_CLASS_HCI_RX;
++	}
++}
++
+ 
+ #if defined(CONFIG_BT_BUF_EVT_DISCARDABLE_COUNT)
+ #define HCI_RX_BUF_SIZE MAX(BT_BUF_RX_SIZE, \
+@@ -431,18 +508,37 @@
+ 
+ static void data_packet_process(const struct device *dev, uint8_t *hci_buf)
+ {
+-	struct net_buf *data_buf = bt_buf_get_rx(BT_BUF_ACL_IN, K_FOREVER);
+ 	struct bt_hci_acl_hdr *hdr = (void *)hci_buf;
++	struct net_buf *data_buf;
+ 	uint16_t hf, handle, len;
+ 	uint8_t flags, pb, bc;
+ 
++	/*
++	 * BSF v45. The allocation was the initialiser of `data_buf`; it is
++	 * hoisted out so the BEFORE marker can be placed on the near side of it.
++	 * A BEFORE with no AFTER is the signature of the inlet parked in the
++	 * unbounded hci_rx_pool wait -- and that distinction is the entire
++	 * reason this marker exists.
++	 */
++	hf = sys_le16_to_cpu(hdr->handle);
++	BSF_V45_MARK_A2(BSF_V45_CH_MPSL_RX, BSF_V45_ACL_ALLOC_BEFORE,
++			((uint32_t)bt_acl_handle(hf) << 16) |
++				(uint32_t)sys_le16_to_cpu(hdr->len),
++			0u);
++	BSF_V45_INC(acl_alloc_enter);
++	data_buf = bt_buf_get_rx(BT_BUF_ACL_IN, K_FOREVER);
++	BSF_V45_MARK_A2(BSF_V45_CH_MPSL_RX, BSF_V45_ACL_ALLOC_AFTER,
++			(uint32_t)bt_acl_handle(hf), (uint32_t)(uintptr_t)data_buf);
++	BSF_V45_INC(acl_alloc_exit);
++	bsf_v45_hci_rx_set_owner(data_buf, BSF_V45_OWNER_DRIVER,
++				 bt_acl_handle(hf));
++
+ 	if (!data_buf) {
+ 		LOG_ERR("No data buffer available");
+ 		return;
+ 	}
+ 
+ 	len = sys_le16_to_cpu(hdr->len);
+-	hf = sys_le16_to_cpu(hdr->handle);
+ 	handle = bt_acl_handle(hf);
+ 	flags = bt_acl_flags(hf);
+ 	pb = bt_acl_flags_pb(flags);
+@@ -463,7 +559,13 @@
+ 
+ 	struct hci_driver_data *driver_data = dev->data;
+ 
++	BSF_V45_MARK_A2(BSF_V45_CH_MPSL_RX, BSF_V45_RECV_FUNC_BEFORE,
++			0x10000u | handle, (uint32_t)(uintptr_t)data_buf);
++	BSF_V45_INC(recv_func_enter);
+ 	driver_data->recv_func(dev, data_buf);
++	BSF_V45_MARK_A2(BSF_V45_CH_MPSL_RX, BSF_V45_RECV_FUNC_AFTER,
++			0x10000u | handle, 0u);
++	BSF_V45_INC(recv_func_exit);
+ }
+ 
+ static void iso_data_packet_process(const struct device *dev, uint8_t *hci_buf)
+@@ -569,8 +671,37 @@
+ 		LOG_DBG("Event (0x%02x) len %u", hdr->evt, hdr->len);
+ 	}
+ 
++	/*
++	 * BSF v45. The single most consequential allocation in the system after
++	 * att.c's: for NUM_COMPLETED_PACKETS, CMD_STATUS and CMD_COMPLETE this
++	 * takes the SINGLETON sync_evt_pool buffer with K_FOREVER. arg0 carries
++	 * the event code and the pool class so a decoder can say WHICH pool the
++	 * inlet is parked on without hashing anything.
++	 */
++	BSF_V45_MARK_A2(BSF_V45_CH_MPSL_RX, BSF_V45_EVT_ALLOC_BEFORE,
++			((uint32_t)hdr->evt << 8) |
++				bsf_v45_evt_pool_class(hdr->evt, discardable),
++			0u);
++	BSF_V45_INC(evt_alloc_enter);
++	BSF_V45_SET(last_evt_code, hdr->evt);
+ 	evt_buf = bt_buf_get_evt(hdr->evt, discardable,
+ 				 discardable ? K_NO_WAIT : K_FOREVER);
++	BSF_V45_MARK_A2(BSF_V45_CH_MPSL_RX, BSF_V45_EVT_ALLOC_AFTER,
++			((uint32_t)hdr->evt << 8) |
++				bsf_v45_evt_pool_class(hdr->evt, discardable),
++			(uint32_t)(uintptr_t)evt_buf);
++	BSF_V45_INC(evt_alloc_exit);
++	BSF_V45_SET(last_buf_ptr, (uint32_t)(uintptr_t)evt_buf);
++	if (evt_buf != NULL) {
++		if (bsf_v45_evt_pool_class(hdr->evt, discardable) ==
++		    BSF_V45_POOL_CLASS_SYNC_EVT) {
++			bsf_v45_sync_evt_set_owner(BSF_V45_OWNER_DRIVER_EVT_ALLOC,
++						   hdr->evt);
++		} else {
++			bsf_v45_hci_rx_set_owner(evt_buf, BSF_V45_OWNER_DRIVER,
++						 hdr->evt);
++		}
++	}
+ 
+ 	if (!evt_buf) {
+ 		if (discardable) {
+@@ -586,23 +717,40 @@
+ 
+ 	struct hci_driver_data *driver_data = dev->data;
+ 
++	BSF_V45_MARK_A2(BSF_V45_CH_MPSL_RX, BSF_V45_RECV_FUNC_BEFORE,
++			hdr->evt, (uint32_t)(uintptr_t)evt_buf);
++	BSF_V45_INC(recv_func_enter);
+ 	driver_data->recv_func(dev, evt_buf);
++	BSF_V45_MARK_A2(BSF_V45_CH_MPSL_RX, BSF_V45_RECV_FUNC_AFTER, hdr->evt, 0u);
++	BSF_V45_INC(recv_func_exit);
+ }
+ 
+ static bool fetch_and_process_hci_msg(const struct device *dev, uint8_t *p_hci_buffer)
+ {
+ 	int errcode;
+-	sdc_hci_msg_type_t msg_type;
++	sdc_hci_msg_type_t msg_type = (sdc_hci_msg_type_t)0;
+ 
++	/*
++	 * BSF v45. "MPSL healthy and idle, no message available" and "MPSL
++	 * stopped fetching" look identical from every counter that existed
++	 * before this one, and they are opposite verdicts: the first puts the
++	 * fault below the patchable layer (SDC), the second puts it here. The
++	 * BEFORE/AFTER pair plus msg_get_ok separates them.
++	 */
++	BSF_V45_MARK(BSF_V45_CH_MPSL_RX, BSF_V45_MSG_GET_BEFORE);
+ 	errcode = MULTITHREADING_LOCK_ACQUIRE();
+ 	if (!errcode) {
+ 		errcode = hci_internal_msg_get(p_hci_buffer, &msg_type);
+ 		MULTITHREADING_LOCK_RELEASE();
+ 	}
++	BSF_V45_MARK_A2(BSF_V45_CH_MPSL_RX, BSF_V45_MSG_GET_AFTER,
++			((uint32_t)errcode << 16) | (uint32_t)msg_type, 0u);
+ 
+ 	if (errcode) {
+ 		return false;
+ 	}
++	BSF_V45_INC(msg_get_ok);
++	BSF_V45_SET(last_msg_type, (uint32_t)msg_type);
+ 
+ 	if (msg_type == SDC_HCI_MSG_TYPE_EVT) {
+ 		event_packet_process(dev, p_hci_buffer);
+@@ -636,7 +784,18 @@
+ {
+ 	ARG_UNUSED(work);
+ 
++	/*
++	 * BSF v45. The inlet's own heartbeat, and the ONLY place the corpse can
++	 * distinguish "the receive worker is not running" from "it is running
++	 * and finding nothing". CONTEXT_AUDIT item 1: this handler processes one
++	 * message and re-submits itself, so an ENTER with no matching EXIT is
++	 * unambiguous -- the worker is inside, and the trace tail says where.
++	 */
++	BSF_V45_ENTER(BSF_V45_CH_MPSL_RX, BSF_V45_MPSL_WORK_ENTER, 0u);
++	BSF_V45_INC(mpsl_work_enter);
+ 	hci_driver_receive_process();
++	BSF_V45_EXIT(BSF_V45_CH_MPSL_RX, BSF_V45_MPSL_WORK_EXIT, 0u);
++	BSF_V45_INC(mpsl_work_exit);
+ }
+ 
+ static const struct device *entropy_source = DEVICE_DT_GET(DT_CHOSEN(zephyr_entropy));

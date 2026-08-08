@@ -105,12 +105,18 @@ static int test_geometry(void)
 	      "kind-5 queue-counter record is unchanged");
 	CHECK(BSF_STALL_RING_CAPACITY % BSF_STALL_RING_PAGE_ENTRIES == 0u,
 	      "capacity divides evenly into pages -- no partial last page");
-	CHECK(BSF_STALL_RING_PAGES == 40u, "40 pages");
-	CHECK(BSF_STALL_RING_SPAN_MS == 10000u, "span is 10.0 s");
-	CHECK(BSF_STALL_RING_SPAN_MS >= 2u * 5000u,
-	      "span covers the 5000 ms detector dwell on both sides of onset");
-	CHECK(sizeof(struct bsf_stall_ring) < 8300u,
-	      "retained footprint stays near 8 KiB");
+	/* v45 geometry: 510 x 50 ms. See the rationale in stall_ring_policy.h. */
+	CHECK(BSF_STALL_RING_PAGES == 102u, "102 pages");
+	CHECK(BSF_STALL_RING_SPAN_MS == 25500u, "span is 25.5 s");
+	/*
+	 * The v45 detector freezes at onset + BSF_V45_FREEZE_MS (20 s). The span
+	 * must exceed that, or the frozen ring starts AFTER the onset -- which is
+	 * precisely the coverage v44 lost and recorded as an accepted cost.
+	 */
+	CHECK(BSF_STALL_RING_SPAN_MS > 20000u,
+	      "span still contains the onset when frozen at onset + 20 s");
+	CHECK(sizeof(struct bsf_stall_ring) < 20500u,
+	      "retained footprint stays near 20 KiB");
 	return 0;
 }
 
@@ -125,7 +131,8 @@ static int test_samples_while_outbound_dead(void)
 	memset(&ring, 0, sizeof(ring));
 	(void)bsf_stall_ring_boot(&ring);
 
-	run(&ring, &b, 300u); /* 15 s healthy: wraps the ring twice over */
+	/* v45: capacity is 510, so filling it takes more than the old 300. */
+	run(&ring, &b, 2u * BSF_STALL_RING_CAPACITY); /* wraps the ring twice over */
 	CHECK(ring.count == BSF_STALL_RING_CAPACITY, "ring filled");
 	CHECK(ring.frozen == 0u, "healthy traffic never latches");
 	CHECK(ring.no_exit_samples == 0u, "no-exit counter stays clear");
@@ -213,6 +220,7 @@ static int test_survives_soft_reset(void)
 	bsf_stall_ring_page_t before[BSF_STALL_RING_PAGES];
 	bsf_stall_ring_page_t after;
 	uint32_t boot_id_before;
+	uint8_t pages;
 
 	printf("survives a simulated soft reset with contents intact\n");
 	memset(&retained_ring, 0xa5, sizeof(retained_ring)); /* cold RAM junk */
@@ -225,7 +233,14 @@ static int test_survives_soft_reset(void)
 	run(&retained_ring, &b, 100u);
 	(void)bsf_stall_ring_freeze(&retained_ring, BSF_RING_FREEZE_ALARM,
 				    b.uptime_ms);
-	for (uint8_t p = 0; p < BSF_STALL_RING_PAGES; ++p) {
+	/*
+	 * v45: the ring holds 510 but this scenario writes 360, so iterate the
+	 * ring's ACTUAL page count. Walking to the capacity-derived maximum
+	 * would ask for pages past the end -- which render_page correctly
+	 * refuses, and which was never the property under test.
+	 */
+	pages = bsf_stall_ring_pages(&retained_ring);
+	for (uint8_t p = 0; p < pages; ++p) {
 		CHECK(bsf_stall_ring_render_page(&retained_ring, p,
 						 &before[p]) == 0,
 		      "pre-reset page renders");
@@ -241,7 +256,7 @@ static int test_survives_soft_reset(void)
 	CHECK(retained_ring.freeze_reason == BSF_RING_FREEZE_ALARM,
 	      "freeze cause survives");
 
-	for (uint8_t p = 0; p < BSF_STALL_RING_PAGES; ++p) {
+	for (uint8_t p = 0; p < pages; ++p) {
 		CHECK(bsf_stall_ring_render_page(&retained_ring, p, &after) == 0,
 		      "post-reset page renders");
 		CHECK(after.page_crc == before[p].page_crc,
@@ -489,12 +504,14 @@ static int test_partial_vs_wrapped(void)
 	CHECK(newest == page.newest_uptime_ms,
 	      "newest is the last entry of the last page, and the header agrees");
 
-	run(&ring, &b, 400u);
+	/* v45: capacity 510, so wrapping needs more than the old 400. */
+	run(&ring, &b, BSF_STALL_RING_CAPACITY + 40u);
 	CHECK(ring.count == ring.capacity, "wrapped and full");
 	CHECK(ring.head != ring.count, "a wrapped ring's head is the oldest slot");
 	CHECK(bsf_stall_ring_slot(&ring, 0u) == ring.head,
 	      "oldest of a wrapped ring is at head");
-	CHECK(bsf_stall_ring_render_page(&ring, 39u, &page) == 0, "last page renders");
+	CHECK(bsf_stall_ring_render_page(&ring, BSF_STALL_RING_PAGES - 1u,
+					 &page) == 0, "last page renders");
 	newest = page.entries_data[page.entries - 1u].uptime_ms;
 	CHECK(newest == page.newest_uptime_ms, "newest still unambiguous");
 	CHECK(page.count == BSF_STALL_RING_CAPACITY,

@@ -37,7 +37,15 @@
 #include "stall_ring_policy.h"
 #include <zephyr/sys/crc.h>
 #include "bsf_bt_stage.h"
+#include "bsf_v45.h"
+#include "bsf_v45_corpse.h"
+#include "bsf_v45_detector.h"
+#include "bsf_v45_trace.h"
 #include "strobe_capture.h"
+#include <zephyr/mgmt/mcumgr/mgmt/callbacks.h>
+#if defined(CONFIG_MCUMGR_GRP_IMG_STATUS_HOOKS)
+#include <zephyr/mgmt/mcumgr/grp/img_mgmt/img_mgmt_callbacks.h>
+#endif
 
 LOG_MODULE_REGISTER(biospur_fusion, LOG_LEVEL_INF);
 
@@ -301,12 +309,21 @@ static ssize_t stall_status_read(struct bt_conn *conn,
 				 const struct bt_gatt_attr *attr,
 				 void *buf, uint16_t len, uint16_t offset);
 
+/* Defined with the v45 environment bridge, below. */
+static void v45_new_epoch(bool connected_now);
+
 static void data_ccc_changed(const struct bt_gatt_attr *attr, uint16_t value)
 {
 	ARG_UNUSED(attr);
 	atomic_set(&data_subscribed, value == BT_GATT_CCC_NOTIFY);
 	if (value != BT_GATT_CCC_NOTIFY) {
 		atomic_set(&subscribed_notify_ok, 0);
+		/*
+		 * v45: unsubscribe retires the incarnation. Section 5 lists
+		 * "unsubscribed -> no trigger" as a required no-trigger path;
+		 * this is where it is made true.
+		 */
+		v45_new_epoch(false);
 	}
 }
 
@@ -494,6 +511,19 @@ static atomic_t stall_alarm_reason;
 static atomic_t stall_recovery_pending;
 static atomic_t pool_low_water[BSF_NET_BUF_POOL_MAX];
 static struct bsf_stall_detector stall_detector;
+
+/*
+ * v45 connection incarnation.
+ *
+ * The detector's arming conditions and every dwell it accumulates are scoped to
+ * ONE connection. Bumping this on connect and on disconnect is what makes
+ * "normal disconnect within the supervision timeout" a no-trigger path by
+ * construction rather than by a special case in the trigger test -- a new epoch
+ * simply replaces all dwell state.
+ */
+static atomic_t v45_epoch;
+static atomic_t v45_connected_at_ms;
+static atomic_t v45_exit_base;   /* notify_exit_total at the epoch boundary */
 
 static uint32_t pool_name_hash(const char *name)
 {
@@ -866,6 +896,16 @@ static bool corpse_present;        /* a validated corpse is awaiting export */
 static uint8_t corpse_pages_total;
 
 /*
+ * v45 uses its own page view, alongside -- not instead of -- the v43/v44 one.
+ * Two independent selections cannot collide because the read path checks them
+ * in a fixed order and each has its own TTL, and keeping them separate is what
+ * lets a v44 corpse and a v45 corpse coexist on the same board after a
+ * mid-campaign OTA.
+ */
+static struct bsf_stall_ring_view v45_view;
+#define BSF_V45_PAGE_FORM 0xC5u    /* != BSF_CORPSE_PAGE_FORM (0xC3) */
+
+/*
  * ONE reboot budget, shared between the two authorities (brief section 3).
  *
  * v42's ring ISR already resets the board once per power cycle after freezing
@@ -909,6 +949,111 @@ static uint32_t bsf_fnv1a(const char *s)
 		h *= 16777619u;
 	}
 	return h;
+}
+
+/*
+ * The v45 runtime's window onto application state.
+ *
+ * bsf_v45.c deliberately owns no application state: it is the detector and the
+ * capture routine, and both must be readable in isolation on the host. Every
+ * value it needs comes through here, from the one file that legitimately owns
+ * them. `extern`-declared in bsf_v45.c, defined here -- the dependency points
+ * the way round that lets the policy be unit-tested without a kernel.
+ */
+void bsf_v45_env_get(struct bsf_v45_env *out)
+{
+	uint32_t exits = (uint32_t)atomic_get(&bsf_v45_cnt.notify_exit_total);
+	uint32_t base = (uint32_t)atomic_get(&v45_exit_base);
+
+	*out = (struct bsf_v45_env){
+		.node_identity = node_identity,
+		.fw_marker_hash = bsf_fnv1a(BSF_FW_MARKER),
+		.boot_reset_reason = boot_reset_reason,
+		.epoch = (uint32_t)atomic_get(&v45_epoch),
+		.connected_at_ms = (uint32_t)atomic_get(&v45_connected_at_ms),
+		/*
+		 * producer_seq is SUBMISSION-stage and is used ONLY as an
+		 * is-the-board-alive gate, never as a trigger. COUNTER_SEMANTICS
+		 * is explicit that submission counters gate nothing, and the two
+		 * watermarks that do trigger are both exit/completion stage.
+		 */
+		.producer_seq = (uint32_t)atomic_get(&valid_frames),
+		.publisher_count = (uint32_t)atomic_get(&publisher_count),
+		.wdt_feed_count = (uint32_t)atomic_get(&watchdog_feed_count),
+		.notify_timeout_drop_total =
+			(uint32_t)atomic_get(&notify_timeout_drop[0]) +
+			(uint32_t)atomic_get(&notify_timeout_drop[1]) +
+			(uint32_t)atomic_get(&notify_timeout_drop[2]),
+		.notify_exits_this_epoch = exits - base,
+		.connected = atomic_get(&ble_connected) != 0,
+		.data_subscribed = atomic_get(&data_subscribed) != 0,
+		.telemetry_subscribed = atomic_get(&telemetry_subscribed) != 0,
+	};
+}
+
+#if defined(CONFIG_MCUMGR_GRP_IMG_STATUS_HOOKS)
+/*
+ * OTA in progress, from the horse's mouth.
+ *
+ * The detector must not fire during a DFU, and this is not a theoretical
+ * concern: a 4.1 s bt_gatt_notify() was measured during one, and an image
+ * upload monopolises the same ATT bearer the notifications use. Guessing at it
+ * from pool occupancy would be an indirect, racy proxy; MCUmgr will simply tell
+ * us.
+ *
+ * DFU_CHUNK refreshes a keepalive rather than latching, so an OTA that is
+ * abandoned mid-transfer -- host crash, link loss -- cannot leave the detector
+ * disarmed for the rest of the run. That failure mode is more likely than a
+ * clean STOPPED.
+ */
+static enum mgmt_cb_return v45_dfu_cb(uint32_t event,
+				      enum mgmt_cb_return prev_status,
+				      int32_t *rc, uint16_t *group,
+				      bool *abort_more, void *data,
+				      size_t data_size)
+{
+	ARG_UNUSED(prev_status); ARG_UNUSED(rc); ARG_UNUSED(group);
+	ARG_UNUSED(abort_more); ARG_UNUSED(data); ARG_UNUSED(data_size);
+
+	switch (event) {
+	case MGMT_EVT_OP_IMG_MGMT_DFU_STARTED:
+	case MGMT_EVT_OP_IMG_MGMT_DFU_CHUNK:
+	case MGMT_EVT_OP_IMG_MGMT_DFU_PENDING:
+		bsf_v45_ota_mark(true);
+		break;
+	case MGMT_EVT_OP_IMG_MGMT_DFU_STOPPED:
+	case MGMT_EVT_OP_IMG_MGMT_DFU_CONFIRMED:
+		bsf_v45_ota_mark(false);
+		break;
+	default:
+		break;
+	}
+	return MGMT_CB_OK;
+}
+
+static struct mgmt_callback v45_dfu_callback = {
+	.callback = v45_dfu_cb,
+	.event_id = MGMT_EVT_OP_IMG_MGMT_ALL,
+};
+#endif /* CONFIG_MCUMGR_GRP_IMG_STATUS_HOOKS */
+
+/*
+ * Bump the incarnation. Called from connect, disconnect and unsubscribe.
+ * bsf_v45_connection_epoch_changed() clears the detector's dwell; re-basing
+ * v45_exit_base here is what makes "64 completed notifications" mean 64 IN THIS
+ * INCARNATION rather than 64 since boot.
+ */
+static void v45_new_epoch(bool connected_now)
+{
+	uint32_t now_ms = k_uptime_get_32();
+	uint32_t epoch = (uint32_t)atomic_inc(&v45_epoch) + 1u;
+
+	atomic_set(&v45_exit_base,
+		   atomic_get(&bsf_v45_cnt.notify_exit_total));
+	if (connected_now) {
+		atomic_set(&v45_connected_at_ms, (atomic_val_t)now_ms);
+	}
+	bsf_v45_connection_epoch_changed(epoch, now_ms);
 }
 
 /*
@@ -1246,11 +1391,49 @@ static ssize_t stall_status_read(struct bt_conn *conn,
 {
 	uint32_t now_ms = k_uptime_get_32();
 	uint8_t page = 0u;
+	uint8_t v45_page = 0u;
 
 	/*
-	 * Third form: a v43 corpse page. Checked first because a corpse is
-	 * strictly more valuable than a live ring page and its selection is
-	 * only ever set deliberately by `CORPSE PAGE=`.
+	 * Fourth form, checked FIRST: a v45 corpse page. Same 232-byte envelope
+	 * as every other form of this characteristic -- the DK's length check
+	 * is satisfied and the master needs no change -- distinguished only by
+	 * `form`. The payload is a slice of a flat image the host reassembles
+	 * and CRC-checks; re-reading a slice is byte-identical, so retrieval is
+	 * idempotent and restartable exactly like the ring's.
+	 */
+	if (bsf_stall_ring_view_page(&v45_view, now_ms, BSF_CORPSE_VIEW_TTL_MS,
+				     &v45_page)) {
+		uint32_t total = bsf_v45_image_len();
+		uint32_t off = (uint32_t)v45_page * BSF_CORPSE_PAGE_DATA;
+
+		if (bsf_v45_present() && off < total) {
+			bsf_corpse_page_t rendered;
+
+			memset(&rendered, 0, sizeof(rendered));
+			rendered.wire_tag = BSF_STALL_RING_VERSION_V41;
+			rendered.page = v45_page;
+			rendered.pages = (uint8_t)MIN(
+				(total + BSF_CORPSE_PAGE_DATA - 1u) /
+					BSF_CORPSE_PAGE_DATA,
+				255u);
+			rendered.form = BSF_V45_PAGE_FORM;
+			rendered.total_len = (uint16_t)total;
+			rendered.offset = (uint16_t)off;
+			rendered.seq = (uint16_t)bsf_v45_seq();
+			(void)bsf_v45_image_read(off, rendered.data,
+						 BSF_CORPSE_PAGE_DATA);
+			rendered.crc16 = bsf_stall_ring_crc16(
+				rendered.data, BSF_CORPSE_PAGE_DATA);
+			return bt_gatt_attr_read(conn, attr, buf, len, offset,
+						 &rendered, sizeof(rendered));
+		}
+		/* Past the end, or no corpse: fall through. */
+	}
+
+	/*
+	 * Third form: a v43 corpse page. Checked before the ring because a
+	 * corpse is strictly more valuable than a live ring page and its
+	 * selection is only ever set deliberately by `CORPSE PAGE=`.
 	 */
 	if (bsf_stall_ring_view_page(&corpse_view, now_ms,
 				     BSF_CORPSE_VIEW_TTL_MS, &page)) {
@@ -1586,11 +1769,34 @@ static void notify_worker_thread(void *a, void *b, void *c)
 
 		k_sem_take(&notify_job_sem, K_FOREVER);
 		start_us = bsf_time_now_us();
+		/*
+		 * v45 BSF_V45_CH_APP_NOTIFY. This thread is the SOLE caller of
+		 * bt_gatt_notify() (DATAFLOW_MAP section 0), so the channel has
+		 * exactly one writer by construction -- and the runtime TID
+		 * check enforces it rather than trusting the comment.
+		 *
+		 * CONTEXT_AUDIT item 7: there is exactly ONE unbounded wait
+		 * reachable from here, att.c's K_FOREVER on the 8-buffer
+		 * att_pool, released only by tx_notify_process() on the system
+		 * workqueue, driven only by Number Of Completed Packets on MPSL
+		 * Work. An ENTER with no EXIT is that wait, and nothing else.
+		 *
+		 * notify_exit_total is one of the detector's two watermarks. It
+		 * is deliberately NOT notify_ok (SUBMISSION) and NOT
+		 * publisher_count -- it counts RETURNS, which is the only thing
+		 * a permanently blocked call cannot fake.
+		 */
+		BSF_V45_ENTER(BSF_V45_CH_APP_NOTIFY, BSF_V45_NOTIFY_ENTER,
+			      ((uint32_t)notify_job.stream << 16) | notify_job.len);
+		BSF_V45_INC(notify_enter_total);
 		err = bt_gatt_notify(NULL, notify_job.attr,
 				     notify_job.payload, notify_job.len);
 		end_us = bsf_time_now_us();
 		duration_us = end_us >= start_us ?
 			(uint32_t)MIN(end_us - start_us, (uint64_t)UINT32_MAX) : 0u;
+		BSF_V45_EXIT2(BSF_V45_CH_APP_NOTIFY, BSF_V45_NOTIFY_EXIT,
+			      (uint32_t)err, duration_us);
+		BSF_V45_INC(notify_exit_total);
 		atomic_inc(&publisher_count);
 		atomic_update_max(&publisher_max_us, duration_us);
 		atomic_inc(&publisher_hist[bsf_imu_pull_hist_bin(duration_us)]);
@@ -2814,6 +3020,85 @@ static void process_control(const char *command, uint16_t correlation)
 		atomic_set(&corpse_force_trigger, 1);
 		snprintf(reply, sizeof(reply),
 			 "CORPSE FORCE armed note=pipeline_validation_only");
+	/*
+	 * ------------------------------------------------------------------
+	 * v45 corpse collection.
+	 *
+	 * Rides the EXISTING vendor command/read channel -- the same machinery
+	 * that already serves STALL_READ, RING PAGE= and CORPSE PAGE=. That is
+	 * deliberate and it is what keeps the Fusion Master firmware FROZEN at
+	 * dk-v36: the master transports an opaque command string and an opaque
+	 * fixed-length read, and it does not care what is in either. Adding
+	 * opcodes here is append-only on the node side and invisible to it.
+	 * ------------------------------------------------------------------
+	 */
+	} else if (strcmp(command, "V45 STATUS") == 0) {
+		uint32_t len = bsf_v45_image_len();
+
+		snprintf(reply, sizeof(reply),
+			 "V45 present=%u seq=%u cause=%u len=%u pages=%u core=%u ch=%u ring=%u flash=%u",
+			 bsf_v45_present() ? 1u : 0u, bsf_v45_seq(),
+			 bsf_v45_cause(), len,
+			 (unsigned int)((len + BSF_CORPSE_PAGE_DATA - 1u) /
+					BSF_CORPSE_PAGE_DATA),
+			 bsf_v45_core_len(), (unsigned int)BSF_V45_CH__COUNT,
+			 (unsigned int)BSF_STALL_RING_CAPACITY,
+			 BSF_CORPSE_FLASH_ENABLED);
+	} else if (strcmp(command, "V45 PAGE OFF") == 0) {
+		bsf_stall_ring_view_clear(&v45_view);
+		snprintf(reply, sizeof(reply), "V45 PAGE OFF ok");
+	} else if (parse_exact_u32_command(command, "V45 PAGE=", &value) == 0) {
+		uint32_t len = bsf_v45_image_len();
+		uint32_t pages = (len + BSF_CORPSE_PAGE_DATA - 1u) /
+				 BSF_CORPSE_PAGE_DATA;
+
+		if (!bsf_v45_present() || value >= pages) {
+			snprintf(reply, sizeof(reply),
+				 "V45 PAGE ERR present=%u page=%u pages=%u",
+				 bsf_v45_present() ? 1u : 0u, value, pages);
+		} else {
+			bsf_stall_ring_view_select(&v45_view, (uint16_t)value,
+						   k_uptime_get_32());
+			snprintf(reply, sizeof(reply),
+				 "V45 PAGE ok page=%u pages=%u ttl_ms=%u",
+				 value, pages, BSF_CORPSE_VIEW_TTL_MS);
+		}
+	} else if (parse_exact_u32_command(command, "V45 ACK=", &value) == 0) {
+		/*
+		 * ACK-clear, and ONLY after the host has verified every CRC and
+		 * written its evidence files. An unverified clear is how a
+		 * corpse gets lost twice.
+		 */
+		if (bsf_v45_ack(value)) {
+			bsf_stall_ring_view_clear(&v45_view);
+			snprintf(reply, sizeof(reply),
+				 "V45 ACK ok seq=%u cleared=1", value);
+		} else {
+			snprintf(reply, sizeof(reply),
+				 "V45 ACK REJECT seq=%u present=%u have=%u",
+				 value, bsf_v45_present() ? 1u : 0u,
+				 bsf_v45_seq());
+		}
+	} else if (strcmp(command, "V45 FORCE") == 0) {
+		bsf_v45_force();
+		snprintf(reply, sizeof(reply),
+			 "V45 FORCE armed note=pipeline_validation_only");
+	} else if (strcmp(command, "V45 LEAK") == 0) {
+		/*
+		 * Fault injection 3. Takes the SINGLETON sync_evt buffer and
+		 * never returns it.
+		 *
+		 * SCOPE, STATED WHERE IT IS USED: if candidate 1 is right this
+		 * reproduces the full 8-invariant phenotype, which proves the
+		 * starvation -> phenotype consequence chain. It does NOT prove
+		 * that real wedges begin this way. Compiled out unless
+		 * BSF_V45_FAULT_INJECT=1.
+		 */
+		snprintf(reply, sizeof(reply), "V45 LEAK rc=%d",
+			 bsf_v45_sync_evt_leak());
+	} else if (strcmp(command, "V45 LEAK OFF") == 0) {
+		snprintf(reply, sizeof(reply), "V45 LEAK OFF rc=%d",
+			 bsf_v45_sync_evt_release());
 	} else if (strcmp(command, "REBOOT") == 0) {
 		snprintf(reply, sizeof(reply), "REBOOT QUEUED delay_ms=150");
 		(void)publish_control_reply(BSF_CONTROL_SOURCE_B306,
@@ -3487,6 +3772,13 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	atomic_clear(&data_subscribed);
 	atomic_clear(&telemetry_subscribed);
 	atomic_clear(&subscribed_notify_ok);
+	/*
+	 * v45: retire the incarnation here too, not only on connect. A normal
+	 * disconnect inside the supervision timeout must be a no-trigger path,
+	 * and the cheapest way to guarantee that is to make the dwell state
+	 * unreachable rather than to add a case to the trigger test.
+	 */
+	v45_new_epoch(false);
 	k_mutex_lock(&boot_confirm_lock, K_FOREVER);
 	boot_confirm_policy.prepared = false;
 	boot_confirm_policy.committed = false;
@@ -3504,6 +3796,8 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	}
 	bt_addr_le_to_str(bt_conn_get_dst(conn), address, sizeof(address));
 	atomic_set(&ble_connected, 1);
+	/* v45: a new incarnation. Every dwell the detector held is void. */
+	v45_new_epoch(true);
 	LOG_INF("BLE connected peer=%s", address);
 }
 
@@ -3638,6 +3932,30 @@ int main(void)
 		return 0;
 	}
 
+	/*
+	 * v45 section 9, step 3: persist a retained corpse to flash BEFORE
+	 * bt_enable().
+	 *
+	 * Not because "the radio is off so no MPSL sync is needed" -- CONTEXT_AUDIT
+	 * item 10 proves that premise is FALSE: MPSL is initialised at
+	 * PRE_KERNEL_1, so nrf_flash_sync_is_required() is true at every point
+	 * this code can run. The real argument is different and stronger:
+	 *
+	 *   - a flash write at CAPTURE time could wait on a timeslot serviced
+	 *     from the very thread that is wedged, so capture never touches
+	 *     flash and writes `.noinit` only;
+	 *   - by here the cold reboot has happened, that thread does not exist,
+	 *     no BLE role is scheduled, and the EARLIEST timeslot is granted
+	 *     immediately;
+	 *   - we are on the `main` thread, where blocking is legal, and the call
+	 *     is bounded by FLASH_TIMEOUT_MS and returns an error on timeout.
+	 *
+	 * So the worst case is "the corpse stayed in .noinit", never a hung boot.
+	 * With BSF_CORPSE_FLASH_ENABLED=0 (the default, because the deployed
+	 * partition map has zero free bytes) this is a no-op.
+	 */
+	bsf_v45_flash_persist_pending();
+
 	ret = bt_enable(NULL);
 	if (ret != 0) {
 		LOG_ERR("Bluetooth initialization failed: %d", ret);
@@ -3659,6 +3977,21 @@ int main(void)
 	k_work_schedule(&telemetry_work, K_SECONDS(1));
 	k_timer_start(&stall_ring_timer, K_MSEC(BSF_STALL_RING_PERIOD_MS),
 		      K_MSEC(BSF_STALL_RING_PERIOD_MS));
+
+	/*
+	 * v45 last, deliberately: bt_enable() has run, so "MPSL Work" and
+	 * "BT RX WQ" now exist and the name walk in bsf_v45_init() finds them on
+	 * the first pass instead of retrying for a second.
+	 *
+	 * The reboot budget is SHARED with the v42 ring ISR and the v43/v44 BT
+	 * RX monitor. Three authorities, one reset per power cycle -- otherwise
+	 * the second reset lands on top of the first one's evidence.
+	 */
+	bsf_v45_bind_app_threads(notify_worker_thread_id, publisher_thread_id);
+	bsf_v45_init(&stall_ring, &stall_ring_lock, bsf_reboot_budget_take);
+#if defined(CONFIG_MCUMGR_GRP_IMG_STATUS_HOOKS)
+	mgmt_callback_register(&v45_dfu_callback);
+#endif
 	LOG_INF("UART/strobe/IMU bridge ready: rx=P1.01 tx=P1.02 ready=P1.03 i2c=P0.26/P0.27@400k baud=%u frame=%u",
 		BSL_BAUDRATE, BSL_FRAME_LEN_EXPECTED);
 

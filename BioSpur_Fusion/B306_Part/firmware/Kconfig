@@ -1,0 +1,50 @@
+# B306 application Kconfig.
+#
+# WHY AN APPLICATION Kconfig EXISTS AT ALL
+# ----------------------------------------
+# ~/ncs/v2.8.0 is a SHARED SDK install, compiled by every project that builds
+# against it -- the Fusion Master DK image included. v45 patches five SDK files,
+# and section 14 requires that "unrelated SDK consumers must still compile with
+# instrumentation neutralized (guard everything behind a dedicated Kconfig,
+# default n, selected only by the B306 app)".
+#
+# An application Kconfig is exactly that mechanism: symbols defined here land in
+# autoconf.h, which every compiled file in the build sees -- including the
+# patched SDK ones. A project that does not define BSF_V45_TRACE gets the
+# neutralised macros and byte-identical object code.
+#
+# The patched files additionally test __has_include(<bsf_v45_trace.h>), which
+# only this application puts on the global include path. Belt and braces: either
+# condition failing disables the instrumentation completely.
+
+menu "BioSpur Fusion B306"
+
+config BSF_V45_TRACE
+	bool "v45 four-channel BT trace instrumentation"
+	default n
+	help
+	  Enables the BSF_V45_* markers in the patched NCS Bluetooth host and
+	  SoftDevice Controller HCI driver, the four single-writer trace
+	  channels, the dual-watermark wedge detector and the v45 corpse.
+
+	  Leave this off for every project other than the B306 application.
+	  With it off, every marker collapses to ((void)0) and the patched SDK
+	  files produce the same object code as the pristine ones.
+
+config BSF_V45_FAULT_INJECT
+	bool "v45 fault-injection hooks (VALIDATION BUILDS ONLY)"
+	default n
+	depends on BSF_V45_TRACE
+	help
+	  Compiles in the V45 LEAK / V45 LEAK OFF vendor commands, which take
+	  and release the singleton sync_evt_pool buffer.
+
+	  This deliberately induces the suspected failure. It must never be
+	  enabled in a fleet image. Stage B uses it on a single canary board to
+	  prove the starvation -> phenotype consequence chain; that is a
+	  different claim from "real wedges begin this way", and the run brief
+	  must not conflate them.
+
+endmenu
+
+source "Kconfig.zephyr"

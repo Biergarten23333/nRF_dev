@@ -32,8 +32,34 @@
  * leaves onset - 5.0 s .. onset + 5.0 s in the buffer. 200 x 40 B = 8000 B of
  * .noinit, against 262,144 B of SoC RAM.
  */
+/*
+ * v45 GEOMETRY CHANGE: 200 -> 510 entries.
+ *
+ * v44 accepted, and recorded, that raising the wedge threshold to 20 s pushed
+ * the frozen 10 s window to [onset+10 s, onset+20 s] -- past the onset it was
+ * meant to cover. 510 x 50 ms = 25.5 s puts the onset back inside it: a capture
+ * at onset+20 s still holds 5.5 s of run-in. That is what lets the detector keep
+ * a single, generous 20 s threshold without paying for it in trajectory.
+ *
+ * WHY 510 AND NOT THE 512 THE BRIEF ASKS FOR. 512 is not divisible by
+ * BSF_STALL_RING_PAGE_ENTRIES (5), and this file has enforced "capacity divides
+ * evenly into pages -- no partial last page" since the ring shipped. Rendering
+ * handles a short last page correctly, so 512 would work; but the invariant is
+ * cheap, it keeps every retrieval page full, and 510 vs 512 costs 0.1 s of span
+ * out of 25.5. Taking the two-entry haircut is the smaller change.
+ *
+ * Cost: 510 x 40 B = 20 400 B of `.noinit`, +12 400 B over v44, against
+ * 262 144 B of SoC RAM. The v44 comment weighed exactly this trade at 800
+ * entries and deferred it "if the ring tail ever becomes load-bearing". Under
+ * v45 it is: the corpse's suspect_ring_index points INTO this ring.
+ *
+ * The geometry stamp below does the rest. A v44 board's retained ring has
+ * capacity 200 and is rejected as BSF_RING_BOOT_GEOMETRY rather than
+ * reinterpreted -- which is exactly why Stage C mandates one full-fleet power
+ * cycle after the OTA batch.
+ */
 #define BSF_STALL_RING_MAGIC 0x52334236u /* 'R','3','B','6' */
-#define BSF_STALL_RING_CAPACITY 200u
+#define BSF_STALL_RING_CAPACITY 510u
 #define BSF_STALL_RING_PERIOD_MS 50u
 #define BSF_STALL_RING_PAGES \
 	(BSF_STALL_RING_CAPACITY / BSF_STALL_RING_PAGE_ENTRIES) /* 40 */

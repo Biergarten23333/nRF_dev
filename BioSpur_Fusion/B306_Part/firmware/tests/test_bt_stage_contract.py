@@ -155,8 +155,12 @@ check("CONFIG_BT_MAX_CONN=1" in prj, "BT_MAX_CONN must stay 1")
 check("CONFIG_BT_CONN_FRAG_COUNT" not in prj, "BT_CONN_FRAG_COUNT stays at its default of 1")
 
 # --- 9. the host patch is a repository artifact and the build gates on it -
-check("host_patch.sh verify" in cmake and "FATAL_ERROR" in cmake,
-      "the build must refuse to configure unless the host patch verifies")
+# v45 renamed the manager to sdk_patch.sh (five files, two SDK roots). The
+# property under test is unchanged and is the one that matters: the build must
+# refuse to configure against an SDK that is not exactly ours.
+check(("sdk_patch.sh verify" in cmake or "host_patch.sh verify" in cmake)
+      and "FATAL_ERROR" in cmake,
+      "the build must refuse to configure unless the SDK patch verifies")
 check("zephyr_include_directories" in cmake,
       "conn.c is compiled into a Zephyr library and resolves the header "
       "through zephyr_interface, not the app's private include path")
