@@ -141,8 +141,16 @@ if "mcuboot_primary" in load(opt_path) and "mcuboot_secondary" in opt:
 # --------------------------------------------------------------------------
 # 3. If a flash-enabled build exists, check the map PM actually generated
 # --------------------------------------------------------------------------
-for gen in sorted((fw.parents[0] / "builds").glob(
-        "b306-imu-relay-v45-flash*/partitions.yml")):
+# Any v45 build whose generated map carries the corpse partition -- the glob
+# was once "-flash*" only, which silently stopped covering the Stage B
+# validation build the moment it was named "-val-corpse".
+_gens = [g for g in sorted((fw.parents[0] / "builds").glob(
+    "b306-imu-relay-v45-*/partitions.yml"))
+    if "bsf_corpse_partition" in g.read_text()]
+check(bool(_gens),
+      "no generated map with a corpse partition was found; the overlay has "
+      "then only been checked as text, never as something PM actually emitted")
+for gen in _gens:
     got = leaves(load(gen))
     bad, _ = overlaps(got)
     check(not bad, f"{gen}: generated map overlaps: {bad}")

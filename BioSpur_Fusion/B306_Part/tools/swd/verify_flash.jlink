@@ -1,0 +1,14 @@
+// G4 INDEPENDENT READBACK, in a session of its own.
+//
+// Reads the programmed region straight back out. The wrapper converts
+// merged.hex to a flat image and compares, so "it verified" means bytes off the
+// part matched bytes from the build, not that a download cache agreed with
+// itself.
+//
+// No halt, no reset, no write.
+si 1
+speed 4000
+device NRF52840_XXAA
+connect
+savebin READBACK_PATH, 0x00000000, READBACK_LEN
+exit

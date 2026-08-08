@@ -1,0 +1,14 @@
+// G3 FULL FLASH BACKUP -- taken BEFORE anything is written.
+//
+// This is the restore path for the board's current image. 1 MiB at 4 MHz is
+// slower than the RAM dump and is a one-off; it is not part of the hand-held
+// wedged-board sequence.
+//
+// No halt: flash reads over the AHB-AP do not require one, and not halting
+// keeps the board delivering while the backup runs.
+si 1
+speed 4000
+device NRF52840_XXAA
+connect
+savebin FLASHDUMP_PATH, 0x00000000, 0x100000
+exit

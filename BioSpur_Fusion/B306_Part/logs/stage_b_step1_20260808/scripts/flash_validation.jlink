@@ -1,0 +1,29 @@
+// G4 PROGRAM THE VALIDATION IMAGE -- MCUboot + signed app, over SWD.
+//
+// THIS SCRIPT RESETS AND ERASES. It is the only one here that does, and it must
+// never be pointed at a board carrying an uncollected corpse.
+//
+// SWD rather than OTA is not a preference. This image uses
+// pm_static_v45_corpse.yml, which moves mcuboot_secondary's end address, and
+// MCUboot compiles its own flash map in. Bootloader and application must be
+// programmed together or they disagree about where the secondary slot ends and
+// OTA silently stops working. merged.hex carries both.
+//
+// `erase` is a full chip erase of the code region. It does NOT touch UICR, so
+// APPROTECT state is unchanged -- which is what we want, since the image does
+// not lock it (CONFIG_NRF_APPROTECT_LOCK is not set) and locking it would end
+// SWD access to this board permanently.
+//
+// Download verification is on (VerifyDownload = 1 in jlink_settings.ini), and
+// the wrapper additionally reads the flash back in a SEPARATE J-Link session
+// and compares it byte for byte. Same-session verification can be satisfied
+// from a cache; a fresh session cannot.
+si 1
+speed 4000
+device NRF52840_XXAA
+connect
+erase
+loadfile MERGED_HEX_PATH
+r
+go
+exit

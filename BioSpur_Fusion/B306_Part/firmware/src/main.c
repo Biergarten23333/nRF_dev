@@ -3092,7 +3092,7 @@ static void process_control(const char *command, uint16_t correlation)
 		 * reproduces the full 8-invariant phenotype, which proves the
 		 * starvation -> phenotype consequence chain. It does NOT prove
 		 * that real wedges begin this way. Compiled out unless
-		 * BSF_V45_FAULT_INJECT=1.
+		 * CONFIG_BSF_V45_FAULT_INJECT=y.
 		 */
 		snprintf(reply, sizeof(reply), "V45 LEAK rc=%d",
 			 bsf_v45_sync_evt_leak());

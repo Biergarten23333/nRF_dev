@@ -1,0 +1,21 @@
+// G2 NO-RESET PROOF.
+//
+// Connect, halt, read the board identity while halted, resume. Nothing else.
+// No reset command appears here and none may be added: this is the exact
+// sequence that will later be pointed at a board whose .noinit IS the evidence.
+//
+// The halt is safe with respect to the watchdog: wdt_setup() passes
+// WDT_OPT_PAUSE_HALTED_BY_DBG (B306_Part/firmware/src/main.c), so the WDT is
+// paused while the debugger holds the core. Re-verify that line before every
+// campaign -- if it ever changes, a halt longer than WATCHDOG_TIMEOUT_MS
+// (30 s) becomes a reset, and a reset is the one thing this step exists to
+// prevent.
+si 1
+speed 4000
+device NRF52840_XXAA
+connect
+halt
+mem32 0x10000060, 2
+regs
+go
+exit

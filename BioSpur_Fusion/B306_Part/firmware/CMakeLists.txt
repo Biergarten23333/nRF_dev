@@ -34,17 +34,23 @@ if(NOT BSF_CORPSE_FLASH_ENABLED MATCHES "^[01]$")
   message(FATAL_ERROR "BSF_CORPSE_FLASH_ENABLED must be exactly 0 or 1")
 endif()
 
-set(BSF_V45_FAULT_INJECT "0")
-if(DEFINED ENV{BSF_V45_FAULT_INJECT})
-  set(BSF_V45_FAULT_INJECT "$ENV{BSF_V45_FAULT_INJECT}")
-endif()
-if(NOT BSF_V45_FAULT_INJECT MATCHES "^[01]$")
-  message(FATAL_ERROR "BSF_V45_FAULT_INJECT must be exactly 0 or 1")
-endif()
-if(BSF_V45_FAULT_INJECT STREQUAL "1")
+# Fault injection has exactly ONE switch, and it is the Kconfig symbol
+# CONFIG_BSF_V45_FAULT_INJECT (see Kconfig), set by overlay-validation.conf.
+#
+# It used to have two: a Kconfig symbol AND a CMake variable of the same name
+# exported as a compile definition, with the C code guarding on the latter.
+# Setting CONFIG_BSF_V45_FAULT_INJECT=y in a conf file therefore did NOTHING,
+# silently, while looking exactly like it had worked. Two switches for one
+# behaviour with only one of them wired is precisely the "looks configured,
+# isn't" trap this project keeps paying for, so the CMake half is gone.
+#
+# The upside of keeping the Kconfig half rather than the CMake half: the
+# setting lands in the build's own .config, so "production and validation
+# differ only by the injection code" is a diffable fact rather than a claim.
+if(CONFIG_BSF_V45_FAULT_INJECT)
   message(WARNING
-    "BSF_V45_FAULT_INJECT=1: this image can DELIBERATELY INDUCE the wedge. "
-    "Single-canary Stage B only -- never a fleet image.")
+    "CONFIG_BSF_V45_FAULT_INJECT=y: this image can DELIBERATELY INDUCE the "
+    "wedge. Single-canary Stage B only -- never a fleet image.")
 endif()
 
 set(BSF_BOOT_CONFIRM_ENABLED "1")
@@ -97,5 +103,4 @@ target_compile_definitions(app PRIVATE
 	BSF_FW_MARKER="${BSF_FW_MARKER}"
 	BSF_BOOT_CONFIRM_ENABLED=${BSF_BOOT_CONFIRM_ENABLED}
 	BSF_CORPSE_FLASH_ENABLED=${BSF_CORPSE_FLASH_ENABLED}
-	BSF_V45_FAULT_INJECT=${BSF_V45_FAULT_INJECT}
 )

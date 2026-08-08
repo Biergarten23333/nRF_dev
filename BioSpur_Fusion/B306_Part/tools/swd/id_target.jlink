@@ -1,0 +1,23 @@
+// G1 TARGET IDENTIFICATION -- READ ONLY.
+//
+// No reset. No halt. No write. Memory is read while the CPU keeps running,
+// which is legal over the AHB-AP and is what makes this safe to point at a
+// wedged board if it ever came to that.
+//
+// Connects as a generic CORTEX-M4 on purpose: BSF6C53 has two SWD contact
+// sets, and naming NRF52840_XXAA on the DWM1001C's pads yields a device
+// mismatch instead of the answer to the question being asked.
+//
+// FICR map (identical offsets on nRF52832 and nRF52840):
+//   0x10000060 DEVICEID[0]     0x10000064 DEVICEID[1]
+//   0x10000100 INFO.PART       -> 0x52840 = B306 (CORRECT PADS)
+//                               -> 0x52832 = DWM1001C (WRONG PADS)
+//   0x10000104 INFO.VARIANT    0x10000108 INFO.PACKAGE
+//   0x1000010C INFO.RAM (KiB)  0x10000110 INFO.FLASH (KiB)
+si 1
+speed 4000
+device CORTEX-M4
+connect
+mem32 0x10000060, 2
+mem32 0x10000100, 5
+exit

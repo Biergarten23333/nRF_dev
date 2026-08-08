@@ -300,7 +300,7 @@ void bsf_v45_capture_waitobjs(struct bsf_v45_waitobj_table *out)
 /* Fault injection -- section 12.3. Validation builds only.            */
 /* ------------------------------------------------------------------ */
 
-#if defined(BSF_V45_FAULT_INJECT) && (BSF_V45_FAULT_INJECT == 1)
+#if defined(CONFIG_BSF_V45_FAULT_INJECT)
 
 static struct net_buf *v45_leaked_sync_evt;
 
@@ -351,4 +351,4 @@ int bsf_v45_sync_evt_release(void)
 int bsf_v45_sync_evt_leak(void) { return -ENOTSUP; }
 int bsf_v45_sync_evt_release(void) { return -ENOTSUP; }
 
-#endif /* BSF_V45_FAULT_INJECT */
+#endif /* CONFIG_BSF_V45_FAULT_INJECT */
