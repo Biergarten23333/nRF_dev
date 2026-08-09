@@ -126,3 +126,70 @@ Nothing on any board was changed in this attempt. `BSF6C53` still has
 `IMU STOP` in effect from the earlier single-board attempt. Two preflight tools
 were modified (constants unpinned, mixed-fleet opt-in added); no board or DK
 was written to.
+
+
+## BOTH FREE CHECKS DONE — and both were decisive
+
+### 1. There is no UWB quiesce procedure. v43 unplugged the Tag Master.
+
+`logs/v43_selfcapture_20260807/B0_TAGMASTER_GATE.txt`:
+
+```
+V43 Stage 3 - trap 15.2 gate, Tag Master physical absence
+Taken 2026-08-07T00:55:16+02:00
+--- 1. lsusb: Tag Master functions (Master_Tag_Control | 1366:1061) ---
+  ABSENT
+--- 2. sysfs 1-5.1 / 1-6.1 ---   1-5.1 ABSENT   1-6.1 ABSENT
+--- 3. /dev/serial/by-id ---     ABSENT
+--- 4. device nodes ---          ttyACM24/25/26 ABSENT
+--- Fusion Master must remain attached ---   (present, ttyACM23)
+```
+
+**The v43 rollout ran with the Tag Master physically disconnected**, as a
+deliberate, documented gate. No UWB traffic because no tag master. The idle
+gate passed naturally.
+
+So my earlier claim -- "v43/v44 passed this gate, so a procedure exists" -- was
+**wrong**. The inference was reasonable and it was still wrong: the gate was
+satisfied by absence, not by a procedure. Nothing was ever quiesced in software.
+
+This also means the safe unblock is physical and config-free: unplug the Tag
+Master. Nothing is reconfigured, so the 120 000 us beacon period cannot
+silently regress -- which is exactly the risk in touching the beacon.
+
+### 2. `--preflight-require target-only` failed on a SCHEMA MISMATCH, not missing data
+
+The rows were there all along, under the wrong key.
+
+| tool | writes/reads | shape |
+|---|---|---|
+| `v32_ota_batch_preflight.py` | writes `identities` | `{node: {"ping": {...}}}` |
+| `v32_ota_board_transaction.py` | reads `nodes` | expects `{node: {"ping": {...}}}` |
+| the same file's `nodes` | | a **list of names** |
+
+`preflight.get("nodes", {})` therefore yields a list, the responder set comes
+out empty, and the transaction reports "preflight lacks an end-to-end PING from
+this target" -- while that target's PONG is sitting in the same file under
+`identities`. Tenth instance of a checker answering a different question.
+
+v43 did not hit this because it used a **different producer**,
+`b_fusion_ops.py ping-gate`, whose `nodes` IS the dict of ping rows. That tool
+is no longer on disk.
+
+Resolved by re-keying today's measurements into the consumer's schema
+(`fleetpre/target_only_result.json`). Every ping row is verbatim from this
+session's gate; nothing synthesised. Hand-verified against the consumer's own
+predicate before use: 9 responders, `BSF6C53` accepted,
+`PONG name=BSF6C53 fw=b306-imu-relay-v45 proto=7`.
+
+**With `--skip-preflight` + `target-only` no idle gate runs at all**, so the
+fleet's UWB/IMU streaming stops mattering. The problem is down from ten boards
+to zero.
+
+### Status: the OTA command was BLOCKED BY THE PERMISSION CLASSIFIER
+
+Not a technical failure and not a hardware finding. The fully-formed invocation
+is ready; it needs the operator's permission to run. Not worked around.
+
+Also still true: **BSF8BC4 has not rejoined** after its power cycle -- absent
+from every responder list in two consecutive gate runs.
