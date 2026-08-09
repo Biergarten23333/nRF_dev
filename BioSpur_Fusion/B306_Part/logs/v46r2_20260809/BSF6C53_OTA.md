@@ -248,3 +248,45 @@ the restore gate's live-marker reader used a raw `readline()` on a CDC that
 streams BINARY -- it saw 13 220 binary records and never the text status. It
 now uses the project's own channel with `decode_guard`, verified live returning
 `dk-fusion-imu-relay-v36`.
+
+## OTA SUCCEEDED — `BSF6C53 COMPLETE`
+
+The blocker was the marker, exactly as flagged. `BSF_FW_MARKER` had stayed
+`b306-imu-relay-v45` across v46 and v46r2, so every marker-keyed check in the
+pipeline concluded the target was already deployed: first
+`hash=match ... prepared=0` (uploaded, never swapped), then
+`status=ALREADY_CONFIRMED` under `--deployment-only`. Bumped to
+`b306-imu-relay-v46` in `firmware/CMakeLists.txt`; both images and the updater
+rebuilt; the OTA then ran clean.
+
+### Seven verification steps
+
+| # | check | result |
+|---|---|---|
+| 1 | image landed | `fw=b306-imu-relay-v46` |
+| 2 | confirmed BEFORE power removal | `confirmed=1 prepared=1 committed=1` |
+| 3 | reboot, advertise, master reconnect | yes, uptime 87 s, answering |
+| 4 | normal delivery resumed | `verify=PASS`, rates nominal |
+| 5 | guard armed | `armed=1`; guard fresh: `rcv=0 streak=0 max=3 latched=0` |
+| 6 | `V45 STATUS` + new `V45 GUARD` read sanely | both, untruncated |
+| 7 | `UNKNOWN_SREQ` baseline | **`unk_sreq=1`** |
+
+### The pre-registered prediction held
+
+`RESET_ATTRIBUTION.md` predicted, before the OTA ran: *"the OTA in Part 2 should
+raise `UNKNOWN_SREQ` by exactly one"*, because `CONFIG_MCUMGR_GRP_OS_RESET_HOOK`
+is disabled so mcumgr's DFU reset cannot be stamped with an intent. Measured:
+`unk_sreq=1 named_sreq=0 intent=0 rr=00000004`. Exactly one, and it is the DFU
+reset. The attribution mechanism works and its one known gap is the one that
+showed up.
+
+### DFU self-check (C4) — ANSWERED
+
+BSF6C53's DFU path is intact after five SWD flashes: slot geometry, signature
+verification and swap logic all worked. That doubt is retired.
+
+### Fleet-rollout note
+
+The marker must move whenever the image does. Had the ten-board rollout run
+with the old marker, the pipeline would have reported success on all ten while
+changing nothing.

@@ -12,7 +12,15 @@ if(NOT BSF_TIMER_COUNTER_BITS MATCHES "^(16|24|32)$")
           "BSF_TIMER_COUNTER_BITS must be exactly 16, 24, or 32")
 endif()
 
-set(BSF_FW_MARKER "b306-imu-relay-v45")
+# v46r2: bumped v45 -> v46. The marker had NOT changed across v46 or v46r2, and
+# the whole OTA pipeline keys on it: the updater's B306_OTA_MARKER, the
+# transaction's --source/--target-marker, and confirm_b306_v32.py's B306_MARKER.
+# With an unchanged marker the pipeline concludes the target is already
+# deployed -- observed directly as "hash=match ... prepared=0" and then
+# "status=ALREADY_CONFIRMED" -- and the image is uploaded but never swapped.
+# On a ten-board rollout that would have reported success on every board while
+# changing nothing. The marker must move whenever the image does.
+set(BSF_FW_MARKER "b306-imu-relay-v46")
 if(DEFINED ENV{BSF_FW_MARKER})
   set(BSF_FW_MARKER "$ENV{BSF_FW_MARKER}")
 endif()
