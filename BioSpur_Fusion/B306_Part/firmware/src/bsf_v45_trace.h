@@ -220,6 +220,10 @@ struct bsf_v45_counters {
 	atomic_t mpsl_work_enter;
 	atomic_t mpsl_work_exit;
 	atomic_t msg_get_ok;
+	/* v46. Times the HCI RX path hit -ENOBUFS and RETAINED the fetched
+	 * message instead of blocking on K_FOREVER. A non-zero value is the
+	 * fix doing its job; the old code could only have deadlocked here. */
+	atomic_t rx_retained;
 	atomic_t evt_alloc_enter;
 	atomic_t evt_alloc_exit;
 	atomic_t acl_alloc_enter;

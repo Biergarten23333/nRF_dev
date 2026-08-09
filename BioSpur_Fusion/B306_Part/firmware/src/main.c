@@ -37,6 +37,7 @@
 #include "stall_ring_policy.h"
 #include <zephyr/sys/crc.h>
 #include "bsf_bt_stage.h"
+#include "bsf_recovery.h"
 #include "bsf_v45.h"
 #include "bsf_v45_corpse.h"
 #include "bsf_v45_detector.h"
@@ -3145,6 +3146,8 @@ static void process_control(const char *command, uint16_t correlation)
 		uint32_t blind_ms, blind_ticks, blind_discards;
 		uint32_t dog_resets, dog_age_ms, dog_tick_ms;
 		uint8_t dog_dwell;
+		uint32_t rcv_resets, rcv_frozen_ms;
+		uint8_t rcv_cause, rcv_streak, rcv_latched;
 		uint8_t armed;
 
 		/*
@@ -3164,8 +3167,10 @@ static void process_control(const char *command, uint16_t correlation)
 		 */
 		bsf_v45_dog_report(&dog_resets, &dog_dwell, &dog_age_ms,
 				   &dog_tick_ms);
+		bsf_recovery_report(&rcv_resets, &rcv_cause, &rcv_frozen_ms,
+				    &rcv_streak, &rcv_latched);
 		snprintf(reply, sizeof(reply),
-			 "V45 present=%u seq=%u cause=%u len=%u pages=%u core=%u ch=%u ring=%u flash=%u armed=%u blind_ms=%u blind_ticks=%u blind_discards=%u dog=%u dog_dwell=%u dog_age_ms=%u dog_tick_ms=%u",
+			 "V45 present=%u seq=%u cause=%u len=%u pages=%u core=%u ch=%u ring=%u flash=%u armed=%u blind_ms=%u blind_ticks=%u blind_discards=%u dog=%u dog_dwell=%u dog_age_ms=%u dog_tick_ms=%u rcv=%u rcv_cause=%u rcv_frozen_ms=%u rcv_streak=%u rcv_latched=%u",
 			 bsf_v45_present() ? 1u : 0u, bsf_v45_seq(),
 			 bsf_v45_cause(), len,
 			 (unsigned int)((len + BSF_CORPSE_PAGE_DATA - 1u) /
@@ -3174,7 +3179,9 @@ static void process_control(const char *command, uint16_t correlation)
 			 (unsigned int)BSF_STALL_RING_CAPACITY,
 			 BSF_CORPSE_FLASH_ENABLED,
 			 armed, blind_ms, blind_ticks, blind_discards,
-			 dog_resets, dog_dwell, dog_age_ms, dog_tick_ms);
+			 dog_resets, dog_dwell, dog_age_ms, dog_tick_ms,
+			 rcv_resets, rcv_cause, rcv_frozen_ms, rcv_streak,
+			 rcv_latched);
 	} else if (strcmp(command, "V45 PAGE OFF") == 0) {
 		bsf_stall_ring_view_clear(&v45_view);
 		snprintf(reply, sizeof(reply), "V45 PAGE OFF ok");
@@ -4145,6 +4152,7 @@ int main(void)
 	 */
 	bsf_v45_bind_app_threads(notify_worker_thread_id, publisher_thread_id);
 	bsf_v45_init(&stall_ring, &stall_ring_lock, bsf_reboot_budget_take);
+	bsf_recovery_start();   /* v46: off-syswq wedge recovery guard */
 #if defined(CONFIG_MCUMGR_GRP_IMG_STATUS_HOOKS)
 	mgmt_callback_register(&v45_dfu_callback);
 #endif

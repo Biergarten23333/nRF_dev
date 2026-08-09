@@ -80,15 +80,13 @@ for code in ("BT_HCI_EVT_NUM_COMPLETED_PACKETS",
           f"{code} must still select sync_evt_pool")
 
 # =====================================================================
-# 2. The receive path is still unbounded, and still on MPSL Work
+# 2. The receive path is still on MPSL Work
 # =====================================================================
+# It is no longer "unbounded": v46 made the allocations non-blocking. The two
+# assertions that pinned K_FOREVER in place are gone -- see the note at the end
+# of this file -- but WHERE the worker runs is still load-bearing for the v45
+# corpse, which finds the thread by name.
 drv = (sdk_root / "nrf/subsys/bluetooth/controller/hci_driver.c").read_text()
-check("bt_buf_get_rx(BT_BUF_ACL_IN, K_FOREVER)" in drv,
-      "the inbound ACL allocation must remain K_FOREVER -- the design assumes "
-      "a stall there is possible and permanent")
-check(re.search(r"bt_buf_get_evt\(hdr->evt, discardable,\s*discardable \? K_NO_WAIT : K_FOREVER\)",
-                drv) is not None,
-      "the non-discardable event allocation must remain K_FOREVER")
 check("mpsl_work_submit(&receive_work)" in drv,
       "the receive worker must still be submitted to the MPSL workqueue")
 
@@ -402,3 +400,13 @@ if fails:
             print(f"  - {f}")
     raise SystemExit(1)
 print("v45 source contract: PASS")
+
+#
+# v46: the two "must remain K_FOREVER" assertions were REMOVED here, not
+# relaxed. They existed to pin the deadlock in place while it was being
+# studied -- v45 was a diagnostic build and the bug was the subject. v46 fixes
+# it, so the property is now the opposite one, and it is asserted by
+# test_v46_nonblocking_hci_contract.py against four fixtures including a
+# pristine one. Leaving a weakened version here would mean two tests
+# disagreeing about the same line of code.
+#

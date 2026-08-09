@@ -61,8 +61,8 @@
 #include <zephyr/bluetooth/conn.h>
 #ifndef BSF_V45_SDK_PATCH_VERSION
 #error "SDK v45 instrumentation MISSING. Run firmware/patches/sdk_patch.sh apply."
-#elif BSF_V45_SDK_PATCH_VERSION != 5u
-#error "SDK v45 instrumentation VERSION MISMATCH: expected 5. Re-apply the patch."
+#elif BSF_V45_SDK_PATCH_VERSION != 6u
+#error "SDK instrumentation VERSION MISMATCH: expected 6 (v46). Re-apply the patch."
 #endif
 #include "stall_ring_policy.h"
 
