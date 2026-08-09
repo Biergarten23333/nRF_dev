@@ -66,3 +66,51 @@ on a Q0 no-trigger and report.
 
 Stopped per the rule. `UNKNOWN_SREQ` is nevertheless 0 across everything since
 the cold boot, with one reset correctly named.
+
+## Q0 RETRY — THE GUARD FIRED. Arm-1 fix verified on hardware.
+
+Run on BSF6C53's current boot, where the stall-recovery credit was already
+spent by the first Q0.
+
+```
+V45 GUARD rcv=1 cause=1 frozen_ms=12019 streak=1 max=3 latched=0
+          intent=1 unk_sreq=0 named_sreq=2 rr=00000004
+```
+
+| field | reading |
+|---|---|
+| `rcv=1` | the guard triggered |
+| `cause=1` | `NOTIFY_FROZEN` — the classic fleet terminal state |
+| `frozen_ms=12019` | exactly the 12 s dwell |
+| `intent=1` | `BSF_RESET_INTENT_RECOVERY_GUARD` — the reset attributed to the guard itself |
+| `named_sreq=2 unk_sreq=0` | both resets on this boot named; none unexplained |
+| `streak=1 max=3 latched=0` | one strike used, budget remaining, not locked |
+| after | `fw=b306-imu-relay-v46`, delivery nominal, `verify=PASS` |
+
+**The arm-1 disjunction works.** The change that could have blinded the guard to
+the parked-worker state does not: it fired on exactly that state, at exactly the
+dwell.
+
+**And the preemption hypothesis is confirmed, not assumed.** First Q0: fresh
+cold boot, stall-recovery credit available, `intent=5` took it. Second Q0: same
+injection, same boot, credit spent, `intent=1` — the guard. Two runs differing
+only in which authority had budget.
+
+### §A — the two reset authorities, read from source
+
+| fact | location |
+|---|---|
+| `intent=5` belongs to the v41 stall recovery | `main.c:1595` |
+| its budget | `STALL_MAX_RECOVERIES_PER_POWER = 1u`, `main.c:94` |
+| where the counter lives | `retained_stall.recovery_count`, `.noinit`, `main.c:429` (field `main.c:424`) |
+| what clears it | a power cycle only. `.noinit` is wiped by POR; there is no software refund |
+
+**Fleet consequence, and it changes how the morning ledger reads:** every board
+gets exactly ONE stall-recovery reset per power cycle. The first wedge after a
+cold boot is taken by that path (`intent=5`), not the guard. The guard is the
+second line, with three strikes. A board reporting `rcv=0` has NOT necessarily
+been trouble-free -- it may have been recovered by the older path. `intent=5`
+must be its own ledger column.
+
+Corpse from the retry collected and ACKed: seq=1 cause=BOTH_FROZEN, 29 752 B,
+crc32 `49e743d8`. Detector re-armed.
