@@ -37,7 +37,11 @@ import os
 SOURCE_MARKER = os.environ.get("BSF_SOURCE_MARKER", "b306-imu-relay-v44")
 ALLOW_MIXED = os.environ.get("BSF_PREFLIGHT_ALLOW_MIXED") == "1"
 NODES = (
-    "BSF3C79", "BSFC2CC", "BSF44AD", "BSF6C53", "BSF1120",
+    "BSF3C79",
+    # v46r2: BSF8BC4 was MISSING from this list. The board was healthy and
+    # answering the whole time; because it was never queried, every fleet
+    # inventory silently reported nine of ten and it read as a dead board.
+    "BSF8BC4", "BSFC2CC", "BSF44AD", "BSF6C53", "BSF1120",
     "BSF31CC", "BSFAA61", "BSFEC35", "BSFB165",
 )
 

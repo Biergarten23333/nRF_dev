@@ -193,3 +193,58 @@ is ready; it needs the operator's permission to run. Not worked around.
 
 Also still true: **BSF8BC4 has not rejoined** after its power cycle -- absent
 from every responder list in two consecutive gate runs.
+
+
+## OTA RUN — payload uploaded and verified, but NEVER SWAPPED
+
+Board is still on `b306-v46-val`. Measured, not inferred:
+
+| check | result |
+|---|---|
+| `V45 GUARD` (exists only in v46r2) | `ERR UNKNOWN_COMMAND` |
+| `V45 GUARD` string in v46r2-val bin `a7ad66bd` | **present** |
+| `V45 GUARD` string in v46-val bin `3b087677` | absent |
+| `BOOT CONFIRM STATUS` | `confirmed=1 required=0 prepared=0 committed=0` |
+
+So the discriminator is valid and the board is running the OLD image.
+
+Updater verdict, from its own RTT:
+`OTA image-state verdict: marker=b306-imu-relay-v45 hash=match active=1
+confirmed=0 updater_confirm=0`, after 112 upload records and an
+`IMG_UPLOAD tx prep`. The upload happened and its hash verified. `prepared=0`
+on the board says the slot was never marked pending, so MCUboot had nothing to
+swap to on reboot.
+
+**The missing step is mark-pending + reboot-to-test.** The v43 batch passed
+`--deployment-only`, which this run did not. That is the next thing to try, and
+it is a flow question rather than a defect.
+
+### THE MARKER CANNOT DISCRIMINATE THESE BUILDS
+
+`b306-imu-relay-v45` is the app marker for v46-val, v46r2-val and v46r2-prod
+alike -- it did not change across any of this work. Every marker-based check in
+this pipeline is therefore blind to the change being deployed: the updater's
+`B306_OTA_MARKER`, the transaction's `--source-marker`/`--target-marker`, and
+the confirm tool's `B306_MARKER` all pass identically before and after. Only a
+content check (the `V45 GUARD` string, or the image hash) can tell them apart.
+This should be fixed before the fleet rollout, or a silently-failed OTA will
+report success on all ten.
+
+## Four v31/v32-era constants found and fixed, in the order they blocked
+
+| tool | constant | was | consequence if unfixed |
+|---|---|---|---|
+| `v32_ota_board_transaction.py` | `--restore-build` default | `dk-fusion-imu-relay-v28` | would flash the LIVE Fusion Master back two generations and report success |
+| `v32_ota_batch_preflight.py` | `MASTER_MARKER` | `dk-fusion-imu-relay-v28` | preflight refuses on a healthy rig |
+| `v32_ota_batch_preflight.py` | `SOURCE_MARKER` | `b306-imu-relay-v31` | aborts the whole fleet gate on any node mismatch |
+| `confirm_b306_v32.py` | `B306_MARKER` | `b306-imu-relay-v32` | **aborts confirmation, so a delivered image is reverted by MCUboot** |
+
+The last one is the most dangerous: it makes a successful delivery look like a
+failed one, and the evidence is a stale string comparison rather than anything
+about the board.
+
+Also fixed: `NODES` in the batch preflight was missing `BSF8BC4` entirely, and
+the restore gate's live-marker reader used a raw `readline()` on a CDC that
+streams BINARY -- it saw 13 220 binary records and never the text status. It
+now uses the project's own channel with `decode_guard`, verified live returning
+`dk-fusion-imu-relay-v36`.

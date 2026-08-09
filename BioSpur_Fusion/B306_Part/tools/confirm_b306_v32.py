@@ -16,7 +16,14 @@ from fusion_session import LineChannel, SessionError, resolve_fusion_port
 
 
 MASTER_MARKER = "dk-fusion-imu-relay-v28"
-B306_MARKER = "b306-imu-relay-v32"
+# v46r2: was hardcoded to "b306-imu-relay-v32", four generations behind the
+# image being confirmed. This is the most consequential of the four v31/v32-era
+# constants in this tool family, because a mismatch here ABORTS CONFIRMATION --
+# so a correctly delivered image is never confirmed and MCUboot reverts it on
+# the next boot. The OTA looks like it failed to land when in fact it landed,
+# ran, and was thrown away by a stale string comparison.
+import os
+B306_MARKER = os.environ.get("BSF_B306_MARKER", "b306-imu-relay-v45")
 TOKEN_RE = re.compile(r"\btoken=([0-9A-F]{8})\b")
 
 

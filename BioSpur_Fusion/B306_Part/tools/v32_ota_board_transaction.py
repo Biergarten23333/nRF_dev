@@ -64,30 +64,49 @@ def run_logged(
     return completed.returncode
 
 
-def read_dk_marker(timeout_s: float = 12.0):
+def read_dk_marker(timeout_s: float = 20.0):
     """The marker the DK is running RIGHT NOW, from its own CDC.
 
-    Deliberately read live rather than inferred from a build directory: the
-    whole failure this guards against is a command line that has drifted from
-    the rig. Inferring it from the same argument we are checking would be a
-    checker answering its own question.
+    Read live rather than inferred from a build directory: the failure this
+    guards against is a command line that has drifted from the rig, and
+    inferring it from the argument under test would be a checker answering its
+    own question.
+
+    USES THE PROJECT'S CHANNEL, NOT A RAW readline(). The Fusion Master CDC
+    streams the BINARY data plane by default -- a naive line read returns
+    thousands of binary records and never sees FUSION_MASTER_STATUS, which is
+    exactly how the first version of this failed. decode_guard() puts the
+    channel into the mode where the text status is emitted.
     """
-    import glob, re, time
-    ports = glob.glob("/dev/serial/by-id/*BioSpur_Fusion_Master*")
-    if not ports:
-        return None
     try:
-        import serial
-        with serial.Serial(ports[0], 460800, timeout=1) as sp:
-            deadline = time.time() + timeout_s
-            while time.time() < deadline:
-                line = sp.readline().decode(errors="replace")
-                m = re.search(r"FUSION_MASTER_STATUS marker=(\S+)", line)
-                if m:
-                    return m.group(1)
-    except Exception:
+        from async_line_channel import ThreadedLineChannel
+        from coldstart_fusion_control import decode_guard
+        from confirm_b306_v32 import wait_master_status
+        from fusion_session import resolve_fusion_port
+        import re
+
+        import tempfile
+        port = resolve_fusion_port(None)
+        channel = None
+        with tempfile.NamedTemporaryFile("w", suffix=".log", delete=False) as log:
+            try:
+                channel = ThreadedLineChannel(
+                    port, log, "RESTORE_GATE",
+                    decoded_queue_records=65536, backlog_red_records=8192,
+                    raw_backlog_red_bytes=8192, stall_red_s=1.0,
+                )
+                channel.transport_mode = "binary"
+                channel.text_pending.clear()
+                decode_guard(channel, 15.0)
+                status = wait_master_status(channel)
+                m = re.search(r"marker=(\S+)", str(status))
+                return m.group(1) if m else None
+            finally:
+                if channel is not None:
+                    channel.close()
+    except Exception as exc:
+        print(f"read_dk_marker failed: {exc}", flush=True)
         return None
-    return None
 
 
 def jlink_script(path: Path, merged: Path, verify_bin: Path) -> None:
@@ -230,6 +249,12 @@ def main() -> int:
     updater_flushed = False
     env = dict(os.environ)
     env["PYTHONPATH"] = str(TOOLS)
+    # v46r2: the confirm tool had its own hardcoded B306 marker, four
+    # generations stale, and a mismatch there aborts confirmation -- which
+    # makes MCUboot revert a correctly delivered image. Pass down the marker
+    # this transaction was actually told to expect, so the two can never
+    # disagree again.
+    env["BSF_B306_MARKER"] = args.target_marker
 
     build = ROOT / "B306_Part" / "builds" / f"{args.build_prefix}{args.node}"
     updater_merged = build / "merged.hex"
