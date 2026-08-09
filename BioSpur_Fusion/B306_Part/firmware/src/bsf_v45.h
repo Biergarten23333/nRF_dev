@@ -30,6 +30,7 @@ struct bsf_v45_env {
 	uint32_t notify_exits_this_epoch;
 	uint32_t notify_ok_total;      /* R4/A4 watermark C: DELIVERY          */
 	uint32_t notconn_streak;       /* R4/A3 consecutive -ENOTCONN          */
+	uint32_t notify_attempt_total; /* v46r2: attempted sends, node-local   */
 	bool     connected;
 	bool     data_subscribed;
 	bool     telemetry_subscribed;

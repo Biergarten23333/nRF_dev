@@ -8,6 +8,7 @@
 #include <zephyr/sys/reboot.h>
 
 #include "bsf_recovery.h"
+#include "bsf_reset_intent.h"
 #include "bsf_v45.h"
 #include "bsf_v45_detector.h"
 
@@ -126,13 +127,14 @@ static void recover(uint8_t cause, const struct bsf_v45_env *env,
 	 * agreement. A warm reboot has also been observed (anchor OTA work) to
 	 * leave peers unable to reconnect.
 	 */
-	sys_reboot(SYS_REBOOT_COLD);
+	bsf_reset_now(BSF_RESET_INTENT_RECOVERY_GUARD);
 }
 
 static void guard_thread(void *a, void *b, void *c)
 {
 	struct bsf_v45_env env;
 	uint32_t last_notify_ok = 0u;
+	uint32_t last_attempt = 0u;
 	uint32_t notify_ok_moved_ms = 0u;
 	uint32_t healthy_since_ms = 0u;
 	uint32_t last_epoch = 0u;
@@ -173,6 +175,7 @@ static void guard_thread(void *a, void *b, void *c)
 
 		if (!seeded) {
 			last_notify_ok = env.notify_ok_total;
+			last_attempt = env.notify_attempt_total;
 			notify_ok_moved_ms = now_ms;
 			seeded = true;
 			continue;
@@ -199,15 +202,26 @@ static void guard_thread(void *a, void *b, void *c)
 				witness_seal();
 			}
 		} else {
+			/* Unsigned subtraction: correct across the 49.7-day
+			 * k_uptime_get_32() wrap without a special case. */
 			uint32_t frozen_ms = now_ms - notify_ok_moved_ms;
+			bool attempting = env.notify_attempt_total != last_attempt;
 
 			healthy_since_ms = 0u;
-			if (frozen_ms >= BSF_RECOVERY_FREEZE_MS) {
+			/*
+			 * v46r2/1.1. Completions frozen is necessary but NOT
+			 * sufficient. Without attempts advancing this is an idle
+			 * board with nothing to send, and resetting it would be
+			 * a false trigger -- the failure mode that costs a
+			 * reboot and contaminates the rate statistics.
+			 */
+			if (attempting && frozen_ms >= BSF_RECOVERY_FREEZE_MS) {
 				recover(BSF_RECOVERY_CAUSE_NOTIFY_FROZEN, &env,
 					now_ms, frozen_ms);
 				seeded = false;
 			}
 		}
+		last_attempt = env.notify_attempt_total;
 
 		/*
 		 * Second arm, and a faster one. The node contradicting itself:

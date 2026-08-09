@@ -11,6 +11,7 @@
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/bluetooth/hci.h>
+#include <zephyr/bluetooth/buf.h>
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/device.h>
 #include <zephyr/dfu/mcuboot.h>
@@ -38,6 +39,7 @@
 #include <zephyr/sys/crc.h>
 #include "bsf_bt_stage.h"
 #include "bsf_recovery.h"
+#include "bsf_reset_intent.h"
 #include "bsf_v45.h"
 #include "bsf_v45_corpse.h"
 #include "bsf_v45_detector.h"
@@ -526,6 +528,26 @@ static atomic_t notify_rc_other;
  * is the sole caller of bt_gatt_notify() -- single writer by construction.
  */
 static atomic_t notify_notconn_streak;
+/*
+ * v46r2/1.1. Node-local attempt counter, incremented once per attempted
+ * bt_gatt_notify() regardless of outcome.
+ *
+ * WHY. Arm A's old form -- "notify_ok frozen >= 12 s" -- rested on an unstated
+ * premise: that telemetry is always 1 Hz and always rides the notify path, so
+ * a healthy board advances notify_ok at >= 1/s. A refactor could break that
+ * silently and the guard would stop working with nothing reporting it. That is
+ * the exact shape of the eight false verdicts this project has logged: a
+ * criterion depending on an assumption nobody asserted.
+ *
+ * With this counter the guard asserts the premise instead of assuming it:
+ * attempts advancing while completions do not is a broken notify path;
+ * attempts not advancing is simply nothing to send, which is not a fault.
+ *
+ * DELIBERATELY NODE-LOCAL. No remote-visible producer term: in all four fleet
+ * wedges `frames` and `imu_records` are telemetry-borne, so the moment the
+ * criterion matters is the moment those inputs stop being observable.
+ */
+static atomic_t notify_attempt_total;
 static atomic_t producer_heartbeat;
 static atomic_t stall_alarm_count;
 static atomic_t stall_alarm_reason;
@@ -754,7 +776,7 @@ static void stall_ring_sample(struct k_timer *timer)
 		 *
 		 * Legal from an ISR: sys_reboot() does not schedule or block.
 		 */
-		sys_reboot(SYS_REBOOT_COLD);
+		bsf_reset_now(BSF_RESET_INTENT_RING_FWD);
 	}
 }
 
@@ -1008,6 +1030,7 @@ void bsf_v45_env_get(struct bsf_v45_env *out)
 		.notify_exits_this_epoch = exits - base,
 		.notify_ok_total = (uint32_t)atomic_get(&notify_ok),
 		.notconn_streak = (uint32_t)atomic_get(&notify_notconn_streak),
+		.notify_attempt_total = (uint32_t)atomic_get(&notify_attempt_total),
 		.connected = atomic_get(&ble_connected) != 0,
 		.data_subscribed = atomic_get(&data_subscribed) != 0,
 		.telemetry_subscribed = atomic_get(&telemetry_subscribed) != 0,
@@ -1076,6 +1099,9 @@ static void v45_new_epoch(bool connected_now)
 	if (connected_now) {
 		atomic_set(&v45_connected_at_ms, (atomic_val_t)now_ms);
 	}
+	/* v46r2/1.2. Same rule at the epoch funnel: a new incarnation starts
+	 * with a clean streak regardless of how the previous one ended. */
+	atomic_clear(&notify_notconn_streak);
 	bsf_v45_connection_epoch_changed(epoch, now_ms);
 }
 
@@ -1389,7 +1415,7 @@ static void bsf_bt_monitor(void *a, void *b, void *c)
 			 * workqueue, which stays alive through this failure and
 			 * is therefore structurally blind to it.
 			 */
-			sys_reboot(SYS_REBOOT_COLD);
+			bsf_reset_now(BSF_RESET_INTENT_BT_MONITOR);
 		}
 		LOG_ERR("BT RX WEDGE reboot budget already spent owner=%u; corpse retained",
 			retained_reboot.owner);
@@ -1558,7 +1584,7 @@ static void stall_recovery_work_handler(struct k_work *work)
 		retained_stall.recovery_count,
 		STALL_MAX_RECOVERIES_PER_POWER,
 		retained_stall.alarm_reason);
-	sys_reboot(SYS_REBOOT_COLD);
+	bsf_reset_now(BSF_RESET_INTENT_STALL_RECOVERY);
 }
 
 K_WORK_DELAYABLE_DEFINE(stall_recovery_work, stall_recovery_work_handler);
@@ -1784,6 +1810,65 @@ static void publisher_notify(enum publish_attribute attribute,
 
 #if defined(CONFIG_BSF_V45_FAULT_INJECT)
 /*
+ * Fault injection 4 -- HCI RX POOL EXHAUSTION. Validation builds only.
+ * v46r2/1.5, and this is the FIRST injection that actually tests B1.
+ *
+ * WHY THE EXISTING INJECTIONS DO NOT TEST B1. `V45 LEAK` holds the SINGLETON
+ * sync_evt_pool buffer. That is a different pool and a different starvation.
+ * The defect B1 backports a fix for is `bt_buf_get_rx(..., K_FOREVER)` on the
+ * Controller->Host path: when hci_rx_pool is empty, MPSL Work parks INSIDE the
+ * allocation and stops processing, including the work that would free buffers.
+ * Only exhausting hci_rx_pool exercises that path. Phase A's before/after
+ * measured the wrong pool and its result cannot speak for B1.
+ *
+ * RELEASE IS AUTOMATIC AND TIME-BASED, NEVER COMMANDED. The whole point is
+ * that BLE ingress may be stuck behind a retained HCI message, so a command to
+ * release it could never arrive. A delayed work owns the release.
+ *
+ * WHAT IT PROVES. On the unfixed build MPSL Work pends on the pool and never
+ * returns. On v46 it must get -ENOBUFS, retain the message, EXIT, and resume
+ * when the buffers come back. `rx_retained` (non-zero) and the v45
+ * MPSL_WORK_ENTER/EXIT pairing distinguish the two directly.
+ */
+static struct net_buf *rxpool_held[BT_BUF_RX_COUNT];
+static uint8_t rxpool_held_n;
+
+static void rxpool_release_handler(struct k_work *work)
+{
+	ARG_UNUSED(work);
+	for (uint8_t i = 0; i < rxpool_held_n; i++) {
+		if (rxpool_held[i] != NULL) {
+			net_buf_unref(rxpool_held[i]);
+			rxpool_held[i] = NULL;
+		}
+	}
+	LOG_ERR("V45 RXPOOL released %u buffer(s)", rxpool_held_n);
+	rxpool_held_n = 0u;
+}
+static K_WORK_DELAYABLE_DEFINE(rxpool_release_work, rxpool_release_handler);
+
+static int rxpool_exhaust(uint32_t hold_ms)
+{
+	if (rxpool_held_n != 0u) {
+		return -EALREADY;
+	}
+	while (rxpool_held_n < ARRAY_SIZE(rxpool_held)) {
+		struct net_buf *b = bt_buf_get_rx(BT_BUF_EVT, K_NO_WAIT);
+
+		if (b == NULL) {
+			break;      /* pool is dry -- that is the goal */
+		}
+		rxpool_held[rxpool_held_n++] = b;
+	}
+	/* Scheduled BEFORE returning, so the release is armed even if this
+	 * reply never reaches the master. */
+	k_work_schedule(&rxpool_release_work, K_MSEC(hold_ms));
+	LOG_ERR("V45 RXPOOL held %u/%u buffer(s), auto-release in %u ms",
+		rxpool_held_n, (unsigned)ARRAY_SIZE(rxpool_held), hold_ms);
+	return rxpool_held_n;
+}
+
+/*
  * Fault injection 2 -- NOTIFY-WORKER HANG. Validation builds only.
  *
  * Blocks the notify worker on a private semaphore with the v45 ENTER already
@@ -1919,6 +2004,8 @@ static void notify_worker_thread(void *a, void *b, void *c)
 		 * including a success, resets it -- so a transient error cannot
 		 * accumulate toward the trigger across minutes of healthy work.
 		 */
+		atomic_inc(&notify_attempt_total);
+
 		if (err == -ENOTCONN && atomic_get(&ble_connected) != 0) {
 			atomic_val_t s = atomic_inc(&notify_notconn_streak) + 1;
 
@@ -2660,7 +2747,7 @@ static void tag_reset_recovery_work_handler(struct k_work *work)
 static void reboot_work_handler(struct k_work *work)
 {
 	ARG_UNUSED(work);
-	sys_reboot(SYS_REBOOT_COLD);
+	bsf_reset_now(BSF_RESET_INTENT_CMD_REBOOT);
 }
 
 static void boot_confirm_timeout_work_handler(struct k_work *work)
@@ -2674,7 +2761,7 @@ static void boot_confirm_timeout_work_handler(struct k_work *work)
 	if (required) {
 		LOG_ERR("MCUboot confirmation timeout after %u ms; rebooting for test-image rollback",
 			BOOT_CONFIRM_TIMEOUT_MS);
-		sys_reboot(SYS_REBOOT_COLD);
+		bsf_reset_now(BSF_RESET_INTENT_BOOT_CONFIRM);
 	}
 }
 
@@ -3148,6 +3235,8 @@ static void process_control(const char *command, uint16_t correlation)
 		uint8_t dog_dwell;
 		uint32_t rcv_resets, rcv_frozen_ms;
 		uint8_t rcv_cause, rcv_streak, rcv_latched;
+		uint32_t unk_sreq, raw_rr, named_rr;
+		uint8_t last_intent;
 		uint8_t armed;
 
 		/*
@@ -3169,8 +3258,10 @@ static void process_control(const char *command, uint16_t correlation)
 				   &dog_tick_ms);
 		bsf_recovery_report(&rcv_resets, &rcv_cause, &rcv_frozen_ms,
 				    &rcv_streak, &rcv_latched);
+		bsf_reset_intent_report(&last_intent, &unk_sreq, &raw_rr,
+					&named_rr);
 		snprintf(reply, sizeof(reply),
-			 "V45 present=%u seq=%u cause=%u len=%u pages=%u core=%u ch=%u ring=%u flash=%u armed=%u blind_ms=%u blind_ticks=%u blind_discards=%u dog=%u dog_dwell=%u dog_age_ms=%u dog_tick_ms=%u rcv=%u rcv_cause=%u rcv_frozen_ms=%u rcv_streak=%u rcv_latched=%u",
+			 "V45 present=%u seq=%u cause=%u len=%u pages=%u core=%u ch=%u ring=%u flash=%u armed=%u blind_ms=%u blind_ticks=%u blind_discards=%u dog=%u dog_dwell=%u dog_age_ms=%u dog_tick_ms=%u rcv=%u rcv_cause=%u rcv_frozen_ms=%u rcv_streak=%u rcv_latched=%u intent=%u unk_sreq=%u named_sreq=%u rr_raw=%08x",
 			 bsf_v45_present() ? 1u : 0u, bsf_v45_seq(),
 			 bsf_v45_cause(), len,
 			 (unsigned int)((len + BSF_CORPSE_PAGE_DATA - 1u) /
@@ -3181,7 +3272,7 @@ static void process_control(const char *command, uint16_t correlation)
 			 armed, blind_ms, blind_ticks, blind_discards,
 			 dog_resets, dog_dwell, dog_age_ms, dog_tick_ms,
 			 rcv_resets, rcv_cause, rcv_frozen_ms, rcv_streak,
-			 rcv_latched);
+			 rcv_latched, last_intent, unk_sreq, named_rr, raw_rr);
 	} else if (strcmp(command, "V45 PAGE OFF") == 0) {
 		bsf_stall_ring_view_clear(&v45_view);
 		snprintf(reply, sizeof(reply), "V45 PAGE OFF ok");
@@ -3221,6 +3312,20 @@ static void process_control(const char *command, uint16_t correlation)
 		bsf_v45_force();
 		snprintf(reply, sizeof(reply),
 			 "V45 FORCE armed note=pipeline_validation_only");
+	} else if (strncmp(command, "V45 RXPOOL", 10) == 0) {
+#if defined(CONFIG_BSF_V45_FAULT_INJECT)
+		uint32_t hold_ms = 30000u;
+		int n;
+
+		(void)parse_exact_u32_command(command, "V45 RXPOOL=", &hold_ms);
+		n = rxpool_exhaust(hold_ms);
+		snprintf(reply, sizeof(reply),
+			 "V45 RXPOOL held=%d cap=%u hold_ms=%u rx_retained=%u",
+			 n, (unsigned)BT_BUF_RX_COUNT, hold_ms,
+			 (unsigned)atomic_get(&bsf_v45_cnt.rx_retained));
+#else
+		snprintf(reply, sizeof(reply), "ERR UNKNOWN_COMMAND");
+#endif
 	} else if (strcmp(command, "V45 LEAK") == 0) {
 		/*
 		 * Fault injection 3. Takes the SINGLETON sync_evt buffer and
@@ -3880,6 +3985,14 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
 	ARG_UNUSED(conn);
 	LOG_INF("BLE disconnected reason=0x%02x", reason);
+	/*
+	 * v46r2/1.2. Errors from the tail of one connection must never carry
+	 * into the next. A normal disconnect leaves a burst of -ENOTCONN behind
+	 * it; without this, that burst is still on the counter when the master
+	 * reconnects, and arm B could fire on a healthy fresh link using
+	 * evidence from a link that no longer exists.
+	 */
+	atomic_clear(&notify_notconn_streak);
 	uint32_t now_ms = (uint32_t)k_uptime_get();
 	uint32_t alarm_age_ms = now_ms - retained_stall.alarm_timestamp_ms;
 	bool alarm_retracted = bsf_stall_detector_retract_disconnect(

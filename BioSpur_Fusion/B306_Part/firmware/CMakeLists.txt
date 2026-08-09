@@ -92,6 +92,7 @@ target_sources(app PRIVATE
   src/strobe_capture.c
   src/bsf_v45.c
   src/bsf_recovery.c
+  src/bsf_reset_intent.c
   src/bsf_v45_pools.c
 )
 target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)

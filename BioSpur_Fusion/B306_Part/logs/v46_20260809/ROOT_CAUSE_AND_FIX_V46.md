@@ -86,3 +86,11 @@ an abrupt latch, link alive throughout, no error counters moving. **Matching
 phenotypes are consistent with a shared cause, not proof of one.** The fleet
 wedges' terminal states remain unobservable past onset because telemetry rides
 the path that fails.
+
+## Standing statement on B1's scope (v46r2, verbatim)
+
+> B1 is a correct backport of the fix for a known NCS 2.8.0 MPSL/HCI-RX
+> permanent-blocking defect. It may explain some or most of the fleet wedges. It
+> is not proven that all four historical events were caused by it, and it does
+> not explain the observed host/controller split-brain terminal state (wedge
+> #2). The two lines run in parallel; neither is evidence for the other.

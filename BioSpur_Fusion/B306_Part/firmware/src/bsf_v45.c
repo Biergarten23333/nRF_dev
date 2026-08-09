@@ -38,6 +38,7 @@
 #include <zephyr/sys/reboot.h>
 #include <zephyr/init.h>
 
+#include "bsf_reset_intent.h"
 #include "bsf_v45.h"
 #include "bsf_v45_corpse.h"
 #include "bsf_v45_detector.h"
@@ -799,7 +800,7 @@ static void v45_reboot_work_handler(struct k_work *work)
 	ARG_UNUSED(work);
 	LOG_ERR("V45 WEDGE self-reset (cold) -- corpse seq=%u retained",
 		bsf_v45_core.corpse_seq);
-	sys_reboot(SYS_REBOOT_COLD);
+	bsf_reset_now(BSF_RESET_INTENT_V45_DETECTOR);
 }
 
 /*

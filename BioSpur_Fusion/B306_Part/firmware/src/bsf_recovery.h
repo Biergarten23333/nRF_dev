@@ -64,8 +64,24 @@
 
 /* cause codes -- appended only, never renumbered */
 #define BSF_RECOVERY_CAUSE_NONE          0u
+/*
+ * v46r2. What each cause MEANS when it fires in the field:
+ *
+ *  NOTIFY_FROZEN  attempts advancing, completions frozen >= 12 s on a
+ *                 connected+subscribed link. The notify path is broken. This
+ *                 is the fleet-wedge signature.
+ *  NOTCONN        the node contradicting itself -- the application believes it
+ *                 is connected while >= 320 consecutive sends return -ENOTCONN.
+ *                 Wedge #2's signature (it reached 19412). No dwell: this is
+ *                 an inconsistency, not a slow symptom.
+ *
+ * IDLE is NOT a cause and never triggers: attempts not advancing means there
+ * was nothing to send, which is not a fault. It is enumerated only so the
+ * distinction is explicit in the code rather than implied by an absence.
+ */
 #define BSF_RECOVERY_CAUSE_NOTIFY_FROZEN 1u
 #define BSF_RECOVERY_CAUSE_NOTCONN       2u
+#define BSF_RECOVERY_CAUSE_IDLE_NOT_A_FAULT 3u
 
 void bsf_recovery_start(void);
 
