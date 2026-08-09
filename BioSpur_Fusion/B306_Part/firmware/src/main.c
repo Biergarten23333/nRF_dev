@@ -1031,6 +1031,14 @@ void bsf_v45_env_get(struct bsf_v45_env *out)
 		.notify_ok_total = (uint32_t)atomic_get(&notify_ok),
 		.notconn_streak = (uint32_t)atomic_get(&notify_notconn_streak),
 		.notify_attempt_total = (uint32_t)atomic_get(&notify_attempt_total),
+		/* v46r2/1.2. Non-zero only while a bt_gatt_notify() is in
+		 * flight; the age is how long it has been. This is the ONE
+		 * signal that survives the worker parking inside the
+		 * allocation, because it is set before the call. */
+		.notify_in_call = atomic_get(&notify_in_call) != 0,
+		.notify_in_call_age_ms = (atomic_get(&notify_in_call) != 0)
+			? (k_uptime_get_32() - retained_stall.entry_ms)
+			: 0u,
 		.connected = atomic_get(&ble_connected) != 0,
 		.data_subscribed = atomic_get(&data_subscribed) != 0,
 		.telemetry_subscribed = atomic_get(&telemetry_subscribed) != 0,
@@ -1967,6 +1975,18 @@ static void notify_worker_thread(void *a, void *b, void *c)
 			(void)k_sem_take(&v45_inject_hang_sem, K_FOREVER);
 		}
 #endif
+		/*
+		 * v46r2/1.2. Counted BEFORE the call, not after.
+		 *
+		 * It was counted after, and that silently blinded arm 1: when
+		 * the worker parks inside att.c's K_FOREVER on the 8-buffer
+		 * att_pool -- the classic fleet terminal state, reached in
+		 * ~0.26 s at 31 notifies/s -- the increment is never reached,
+		 * so "attempts advancing" could never hold for the 12 s the
+		 * conjunction demanded. The arm would have been dead in exactly
+		 * the state it exists to catch.
+		 */
+		atomic_inc(&notify_attempt_total);
 		err = bt_gatt_notify(NULL, notify_job.attr,
 				     notify_job.payload, notify_job.len);
 		end_us = bsf_time_now_us();
@@ -2004,8 +2024,6 @@ static void notify_worker_thread(void *a, void *b, void *c)
 		 * including a success, resets it -- so a transient error cannot
 		 * accumulate toward the trigger across minutes of healthy work.
 		 */
-		atomic_inc(&notify_attempt_total);
-
 		if (err == -ENOTCONN && atomic_get(&ble_connected) != 0) {
 			atomic_val_t s = atomic_inc(&notify_notconn_streak) + 1;
 
@@ -3261,7 +3279,7 @@ static void process_control(const char *command, uint16_t correlation)
 		bsf_reset_intent_report(&last_intent, &unk_sreq, &raw_rr,
 					&named_rr);
 		snprintf(reply, sizeof(reply),
-			 "V45 present=%u seq=%u cause=%u len=%u pages=%u core=%u ch=%u ring=%u flash=%u armed=%u blind_ms=%u blind_ticks=%u blind_discards=%u dog=%u dog_dwell=%u dog_age_ms=%u dog_tick_ms=%u rcv=%u rcv_cause=%u rcv_frozen_ms=%u rcv_streak=%u rcv_latched=%u intent=%u unk_sreq=%u named_sreq=%u rr_raw=%08x",
+			 "V45 present=%u seq=%u cause=%u len=%u pages=%u core=%u ch=%u ring=%u flash=%u armed=%u blind_ms=%u blind_ticks=%u blind_discards=%u dog=%u dog_dwell=%u dog_age_ms=%u dog_tick_ms=%u rcv=%u",
 			 bsf_v45_present() ? 1u : 0u, bsf_v45_seq(),
 			 bsf_v45_cause(), len,
 			 (unsigned int)((len + BSF_CORPSE_PAGE_DATA - 1u) /
@@ -3271,8 +3289,7 @@ static void process_control(const char *command, uint16_t correlation)
 			 BSF_CORPSE_FLASH_ENABLED,
 			 armed, blind_ms, blind_ticks, blind_discards,
 			 dog_resets, dog_dwell, dog_age_ms, dog_tick_ms,
-			 rcv_resets, rcv_cause, rcv_frozen_ms, rcv_streak,
-			 rcv_latched, last_intent, unk_sreq, named_rr, raw_rr);
+			 rcv_resets);
 	} else if (strcmp(command, "V45 PAGE OFF") == 0) {
 		bsf_stall_ring_view_clear(&v45_view);
 		snprintf(reply, sizeof(reply), "V45 PAGE OFF ok");
@@ -3312,6 +3329,28 @@ static void process_control(const char *command, uint16_t correlation)
 		bsf_v45_force();
 		snprintf(reply, sizeof(reply),
 			 "V45 FORCE armed note=pipeline_validation_only");
+	} else if (strcmp(command, "V45 GUARD") == 0) {
+		/*
+		 * v46r2. Split out of V45 STATUS because that reply OVERFLOWS.
+		 * Measured on hardware: the v46 line is truncated at 200 chars,
+		 * mid-token, at `rcv_cause=` -- so every guard field after it
+		 * was unreadable, and v46r2 adds four more. A status line that
+		 * silently loses its tail is a reporting instrument that lies
+		 * by omission, which is the failure mode this campaign has paid
+		 * for eight times.
+		 */
+		uint32_t g_resets, g_frozen, g_unk, g_raw, g_named;
+		uint8_t g_cause, g_streak, g_latched, g_intent;
+
+		bsf_recovery_report(&g_resets, &g_cause, &g_frozen, &g_streak,
+				    &g_latched);
+		bsf_reset_intent_report(&g_intent, &g_unk, &g_raw, &g_named);
+		snprintf(reply, sizeof(reply),
+			 "V45 GUARD rcv=%u cause=%u frozen_ms=%u streak=%u max=%u "
+			 "latched=%u intent=%u unk_sreq=%u named_sreq=%u rr=%08x",
+			 g_resets, g_cause, g_frozen, g_streak,
+			 (unsigned)BSF_RECOVERY_MAX_STREAK, g_latched, g_intent,
+			 g_unk, g_named, g_raw);
 	} else if (strncmp(command, "V45 RXPOOL", 10) == 0) {
 #if defined(CONFIG_BSF_V45_FAULT_INJECT)
 		uint32_t hold_ms = 30000u;

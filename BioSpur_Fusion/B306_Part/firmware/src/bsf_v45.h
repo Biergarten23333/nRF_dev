@@ -31,6 +31,8 @@ struct bsf_v45_env {
 	uint32_t notify_ok_total;      /* R4/A4 watermark C: DELIVERY          */
 	uint32_t notconn_streak;       /* R4/A3 consecutive -ENOTCONN          */
 	uint32_t notify_attempt_total; /* v46r2: attempted sends, node-local   */
+	bool     notify_in_call;       /* v46r2: a notify is in flight        */
+	uint32_t notify_in_call_age_ms;/* v46r2: how long it has been         */
 	bool     connected;
 	bool     data_subscribed;
 	bool     telemetry_subscribed;

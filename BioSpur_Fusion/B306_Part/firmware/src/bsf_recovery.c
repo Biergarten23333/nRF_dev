@@ -135,6 +135,7 @@ static void guard_thread(void *a, void *b, void *c)
 	struct bsf_v45_env env;
 	uint32_t last_notify_ok = 0u;
 	uint32_t last_attempt = 0u;
+	uint32_t last_timeout_drops = 0u;
 	uint32_t notify_ok_moved_ms = 0u;
 	uint32_t healthy_since_ms = 0u;
 	uint32_t last_epoch = 0u;
@@ -162,6 +163,14 @@ static void guard_thread(void *a, void *b, void *c)
 			seeded = false;
 		}
 
+		/*
+		 * `env.connected` is the APPLICATION flag (atomic ble_connected),
+		 * deliberately NOT conn->state. During wedge #2 the host had
+		 * released its conn object entirely, so conn->state read
+		 * DISCONNECTED and would have disarmed the guard for a second,
+		 * independent reason -- in the very state it must fire. Do not
+		 * "fix" this to read the stack.
+		 */
 		/* OTA suppression: bsf_v45_ota_mark() already gates the v45
 		 * detector; the guard reads the same state through the env's
 		 * subscription flags, which DFU clears. */
@@ -176,6 +185,7 @@ static void guard_thread(void *a, void *b, void *c)
 		if (!seeded) {
 			last_notify_ok = env.notify_ok_total;
 			last_attempt = env.notify_attempt_total;
+			last_timeout_drops = env.notify_timeout_drop_total;
 			notify_ok_moved_ms = now_ms;
 			seeded = true;
 			continue;
@@ -206,6 +216,11 @@ static void guard_thread(void *a, void *b, void *c)
 			 * k_uptime_get_32() wrap without a special case. */
 			uint32_t frozen_ms = now_ms - notify_ok_moved_ms;
 			bool attempting = env.notify_attempt_total != last_attempt;
+			bool stuck_in_call = env.notify_in_call &&
+				env.notify_in_call_age_ms >= BSF_RECOVERY_FREEZE_MS;
+			bool dropping = env.notify_timeout_drop_total !=
+					last_timeout_drops;
+			bool had_work = attempting || stuck_in_call || dropping;
 
 			healthy_since_ms = 0u;
 			/*
@@ -215,13 +230,25 @@ static void guard_thread(void *a, void *b, void *c)
 			 * a false trigger -- the failure mode that costs a
 			 * reboot and contaminates the rate statistics.
 			 */
-			if (attempting && frozen_ms >= BSF_RECOVERY_FREEZE_MS) {
+			/*
+			 * v46r2/1.2. The second half MUST be a DISJUNCTION.
+			 * In the classic fleet terminal state the worker parks
+			 * INSIDE bt_gatt_notify() on att.c's K_FOREVER, so no
+			 * further attempt is ever counted -- a bare "attempts
+			 * advancing" conjunction could never be satisfied and
+			 * the arm would be dead exactly where it is needed.
+			 *   attempting    -- submissions still being made
+			 *   stuck_in_call -- one in flight >= 12 s == parked
+			 *   dropping      -- the queue is shedding on timeout
+			 */
+			if (had_work && frozen_ms >= BSF_RECOVERY_FREEZE_MS) {
 				recover(BSF_RECOVERY_CAUSE_NOTIFY_FROZEN, &env,
 					now_ms, frozen_ms);
 				seeded = false;
 			}
 		}
 		last_attempt = env.notify_attempt_total;
+		last_timeout_drops = env.notify_timeout_drop_total;
 
 		/*
 		 * Second arm, and a faster one. The node contradicting itself:
