@@ -16,7 +16,12 @@ from fusion_session import SessionError, parse_fields, resolve_fusion_port
 from pre_ramp_hardening import request_list
 
 
-MASTER_MARKER = "dk-fusion-imu-relay-v28"
+# v46r2: was hardcoded to "dk-fusion-imu-relay-v28", two generations behind the
+# live rig (v36). Same class of defect as --restore-build's default: a v32-era
+# constant that silently answers a question about a rig that no longer exists.
+# Overridable, and the default now tracks the rig rather than history.
+import os
+MASTER_MARKER = os.environ.get("BSF_MASTER_MARKER", "dk-fusion-imu-relay-v36")
 SOURCE_MARKER = "b306-imu-relay-v31"
 NODES = (
     "BSF3C79", "BSFC2CC", "BSF44AD", "BSF6C53", "BSF1120",

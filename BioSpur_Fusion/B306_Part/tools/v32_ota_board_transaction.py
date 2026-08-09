@@ -64,6 +64,32 @@ def run_logged(
     return completed.returncode
 
 
+def read_dk_marker(timeout_s: float = 12.0):
+    """The marker the DK is running RIGHT NOW, from its own CDC.
+
+    Deliberately read live rather than inferred from a build directory: the
+    whole failure this guards against is a command line that has drifted from
+    the rig. Inferring it from the same argument we are checking would be a
+    checker answering its own question.
+    """
+    import glob, re, time
+    ports = glob.glob("/dev/serial/by-id/*BioSpur_Fusion_Master*")
+    if not ports:
+        return None
+    try:
+        import serial
+        with serial.Serial(ports[0], 460800, timeout=1) as sp:
+            deadline = time.time() + timeout_s
+            while time.time() < deadline:
+                line = sp.readline().decode(errors="replace")
+                m = re.search(r"FUSION_MASTER_STATUS marker=(\S+)", line)
+                if m:
+                    return m.group(1)
+    except Exception:
+        return None
+    return None
+
+
 def jlink_script(path: Path, merged: Path, verify_bin: Path) -> None:
     path.write_text(
         "r\nh\nerase\n"
@@ -145,9 +171,30 @@ def main() -> int:
     parser.add_argument("--updater-sha")
     parser.add_argument("--confirm-tool", default="confirm_b306_v32.py")
     parser.add_argument("--master-marker", default="dk-fusion-imu-relay-v28")
-    parser.add_argument("--restore-build", default="dk-fusion-imu-relay-v28")
-    parser.add_argument("--restore-merged-sha", default=V28_MERGED_SHA)
-    parser.add_argument("--restore-bin-sha", default=V28_BIN_SHA)
+    #
+    # NO DEFAULT. This is the ninth "checker answering a different question"
+    # in this project.
+    #
+    # The default was `dk-fusion-imu-relay-v28`, two generations behind the
+    # rig's live image. SNR 683234364 is not a spare -- it IS the Fusion
+    # Master, currently running v36. The preflight checks the MASTER MARKER on
+    # the CDC and passes; it never checks what the restore is about to write.
+    # So the transaction would pass preflight, OTA the B306 correctly, then
+    # quietly flash the live master back two generations and report success.
+    # The verification it performs (`--restore-merged-sha`) would also pass,
+    # because it verifies against the very v28 hashes it was told to expect.
+    #
+    # Required and explicit, or the run is refused.
+    parser.add_argument("--restore-build", required=True,
+                        help="canonical DK image to restore. REQUIRED -- there "
+                             "is deliberately no default; see the note in the "
+                             "source. Must match the marker the DK is running.")
+    parser.add_argument("--restore-merged-sha", required=True)
+    parser.add_argument("--restore-bin-sha", required=True)
+    parser.add_argument("--restore-marker", required=True,
+                        help="marker string expected inside the restore image "
+                             "AND currently reported by the DK. Both are "
+                             "checked before the updater is flashed.")
     parser.add_argument(
         "--skip-preflight", action="store_true",
         help="use a separately archived fleet inventory instead of the legacy idle gate",
@@ -255,8 +302,44 @@ def main() -> int:
                 "--out-dir", str(args.out_dir / "preflight"),
             ], args.out_dir / "preflight_console.log", env=env)
 
+        # ------------------------------------------------------------------
+        # RESTORE GATE. Runs BEFORE the updater is flashed, because after that
+        # the DK no longer carries the image we are checking.
+        #
+        # Two independent checks, because either alone is a way to be wrong:
+        #   1. the restore IMAGE contains the marker we were told to expect
+        #      -- catches "--restore-build points somewhere stale";
+        #   2. the DK is CURRENTLY REPORTING that same marker -- catches
+        #      "the rig moved on and nobody updated the command line".
+        # ------------------------------------------------------------------
+        # Checked against the RAW BIN, not merged.hex: the latter is Intel HEX
+        # text, so an ASCII marker can never appear in it and this gate would
+        # reject every correct image. (Caught on first use, by the runbook rule
+        # that a new checker is hand-verified against real data once.)
+        want = args.restore_marker.encode()
+        if want not in Path(v28_bin).read_bytes():
+            raise RuntimeError(
+                f"restore image {v28_bin} does not contain marker "
+                f"{args.restore_marker!r}; refusing to flash an image whose "
+                "identity cannot be confirmed")
+
+        live = read_dk_marker()
+        if live is None:
+            raise RuntimeError(
+                "could not read the DK's current marker; refusing to restore "
+                "an image that cannot be compared against the live one")
+        if live != args.restore_marker:
+            raise RuntimeError(
+                f"DK is running {live!r} but the restore image is "
+                f"{args.restore_marker!r}. Restoring would change the DK's "
+                "generation as a side effect of a B306 OTA. Refusing.")
+        state["restore_gate"] = {"dk_marker": live,
+                                 "restore_marker": args.restore_marker,
+                                 "image": str(v28_merged)}
+        print(f"RESTORE GATE ok: image and DK both {live}", flush=True)
+
         updater_script = args.out_dir / f"flash_updater_{SNR}.jlink"
-        restore_script = args.out_dir / f"restore_v28_{SNR}.jlink"
+        restore_script = args.out_dir / f"restore_{SNR}.jlink"
         jlink_script(updater_script, updater_merged, updater_bin)
         jlink_script(restore_script, v28_merged, v28_bin)
         flash(updater_script, args.out_dir / "flash_updater_jlink.log")
@@ -361,7 +444,7 @@ def main() -> int:
         if updater_flushed and not restored:
             # Master rollback only. This never retries a B306 write operation.
             try:
-                restore_script = args.out_dir / f"restore_v28_{SNR}.jlink"
+                restore_script = args.out_dir / f"restore_{SNR}.jlink"
                 if not restore_script.exists():
                     jlink_script(restore_script, v28_merged, v28_bin)
                 restore_master(restore_script,
