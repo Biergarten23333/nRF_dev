@@ -70,3 +70,59 @@ specific to BSF6C53, which has now been SWD-flashed five times.
 `IMU STOP` is still in effect on BSF6C53 from the quiesce attempt. Issue
 `IMU START` to return it to nominal if the OTA is deferred. The board is
 otherwise healthy, connected, detector re-armed after the corpse ACK.
+
+
+## UPDATE — nine boards powered up, 2026-08-09
+
+Progress, and the blocker is now isolated to one thing.
+
+With the fleet online the preflight advanced through two gates that previously
+stopped it, each of which turned out to be another v31/v32-era constant pinned
+to a rig that no longer exists:
+
+| gate | was | now |
+|---|---|---|
+| remaining-nine | needed nine peers | **passed** — 9 responders |
+| source identity | `SOURCE_MARKER = "b306-imu-relay-v31"`, three generations stale, and it aborted on ANY node mismatch | unpinned to v44 + `BSF_PREFLIGHT_ALLOW_MIXED=1`. **passed** |
+
+`ALLOW_MIXED` is opt-in and recorded in the result, not a silent relaxation:
+fleet uniformity is a genuine precondition for a batch rollout, and the tool's
+own philosophy already says other nodes are inventory rather than preconditions
+for a single-board run (trap 6.3). Strict remains the default.
+
+### The remaining blocker: the preflight requires a FLEET-WIDE idle
+
+```
+ERROR: capture is not proven idle:
+ uwb={'BSF3C79':0,'BSFC2CC':105,'BSF44AD':125,'BSF6C53':125,'BSF1120':0,
+      'BSF31CC':125,'BSFAA61':125,'BSFEC35':104,'BSFB165':125}
+ imu={... 299-300 on six boards ...}
+ imu_active={'BSFAA61':'1','BSFB165':'1','BSF31CC':'1','BSF44AD':'1',
+             'BSFC2CC':'1','BSFEC35':'1', 'BSF6C53':'0', ...}
+```
+
+Two halves, and only one is mine to fix:
+
+- **IMU** — six boards are actively streaming. `IMU STOP` over BLE would clear
+  this, and it is reversible with `IMU START`. I have not done it: it changes
+  the state of nine boards that this package explicitly says are not touched,
+  and it would be pointless on its own because of the second half.
+- **UWB** — 104-125 records per node. These are relayed from the UWB plane over
+  UART. **No B306-side command stops them.** Quiescing them means acting on the
+  tag/anchor masters, a separate subsystem whose procedure I have not read this
+  session.
+
+So the OTA is blocked on one question, and it is a question for the operator:
+**what is the sanctioned way to quiesce the UWB plane before an OTA?** The
+v43 and v44 rollouts passed this same gate, so a procedure exists; it is simply
+not in anything I have read.
+
+Note also: **only 9 of 10 boards responded.** `BSF8BC4` is absent from every
+responder list. Worth checking before the fleet rollout, independently of this.
+
+### State left behind
+
+Nothing on any board was changed in this attempt. `BSF6C53` still has
+`IMU STOP` in effect from the earlier single-board attempt. Two preflight tools
+were modified (constants unpinned, mixed-fleet opt-in added); no board or DK
+was written to.

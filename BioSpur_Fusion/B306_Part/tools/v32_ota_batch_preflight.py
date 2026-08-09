@@ -22,7 +22,20 @@ from pre_ramp_hardening import request_list
 # Overridable, and the default now tracks the rig rather than history.
 import os
 MASTER_MARKER = os.environ.get("BSF_MASTER_MARKER", "dk-fusion-imu-relay-v36")
-SOURCE_MARKER = "b306-imu-relay-v31"
+# v46r2: was pinned to "b306-imu-relay-v31", three generations behind the fleet
+# (nine boards on v44, BSF6C53 on v45). Same class as --restore-build's default
+# and MASTER_MARKER: a v32-era constant quietly answering a question about a rig
+# that no longer exists.
+#
+# ALLOW_MIXED exists because uniformity is a BATCH precondition, not a
+# single-board one. The transaction's own --preflight-require target-only mode
+# already says so: "Other nodes are inventory, never a precondition (trap 6.3)".
+# Strict remains the default so a real fleet rollout still refuses a mixed
+# fleet; the single-board case has to ask for the relaxation explicitly and it
+# is recorded in the result.
+import os
+SOURCE_MARKER = os.environ.get("BSF_SOURCE_MARKER", "b306-imu-relay-v44")
+ALLOW_MIXED = os.environ.get("BSF_PREFLIGHT_ALLOW_MIXED") == "1"
 NODES = (
     "BSF3C79", "BSFC2CC", "BSF44AD", "BSF6C53", "BSF1120",
     "BSF31CC", "BSFAA61", "BSFEC35", "BSFB165",
@@ -77,8 +90,15 @@ def main() -> int:
                     "ping": ping, "source_confirm_query": "NOT_APPLICABLE_V31",
                     "imu_idle_evidence": "DATA_PLANE_AND_PERIODIC_TELEMETRY_BELOW",
                 }
-                if f"name={node}" not in str(ping["text"]) or f"fw={SOURCE_MARKER}" not in str(ping["text"]):
-                    raise SessionError(f"source identity mismatch for {node}: {ping['text']}")
+                name_ok = f"name={node}" in str(ping["text"])
+                fw_ok = f"fw={SOURCE_MARKER}" in str(ping["text"])
+                if not name_ok:
+                    # A node answering to the wrong name is never tolerable.
+                    raise SessionError(f"identity mismatch for {node}: {ping['text']}")
+                if not fw_ok:
+                    if not ALLOW_MIXED:
+                        raise SessionError(f"source identity mismatch for {node}: {ping['text']}")
+                    identities[node]["mixed_fleet"] = str(ping["text"])
             result["identities"] = identities
 
             boundary = channel.discard_pending("ota_batch_idle_observation_start")
