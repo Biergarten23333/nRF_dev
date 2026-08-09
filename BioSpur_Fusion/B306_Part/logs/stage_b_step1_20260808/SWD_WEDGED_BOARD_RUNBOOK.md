@@ -235,3 +235,17 @@ goes with it.
 `tools/swd/decode_target_id.py` on them and confirm it says `BSF6C53`. That
 turns "an nRF52840" into "**this** nRF52840", which matters when ten of them are
 on the bench.
+
+### Contact statistics, continued — 2026-08-09 v46
+
+| press | contact on attempt | InitTarget | outcome |
+|---|---|---|---|
+| v46-val #1 | gate blocked after 5 | 1.69 / **102** / 1.79 / **102** / fail | interlock: no restore image. Nothing written |
+
+**The band discriminated correctly this time.** Two of the five measurements
+read **102 ms** against the good band's 1.6–1.9 ms — the marginal-contact
+signature the table above documents at ~104 ms — and the gate refused both.
+That is the opposite of the 2026-08-09 r7-val press, where the failing session
+measured 1.99 ms and the band could not separate it. Band checks catch a
+genuinely bad seat; they do not catch a marginal one. Both facts now have a
+measurement behind them.
