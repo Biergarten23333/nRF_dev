@@ -81,7 +81,15 @@ class Collector:
     # -- primitives --------------------------------------------------------
     def command(self, cmd: str, timeout: float = 6.0) -> str:
         self._send(f"{self.node} {cmd}")
-        line = self._expect(rf"FUSION_CONTROL_REPLY .*name={self.node}\b.*", timeout)
+        # The master emits FUSION_REPLY, not FUSION_CONTROL_REPLY -- the latter
+        # string exists nowhere in this repo or in the master firmware, so this
+        # matched nothing and every command timed out with "no reply". Confirmed
+        # against a live reply on 2026-08-08:
+        #   FUSION_REPLY proto=7 name=BSF6C53 master_ms=... source=B306
+        #   correlation=1 text=V45 present=0 seq=0 cause=0 len=944 pages=5 ...
+        # source=B306 keeps a TAG reply from being mistaken for the node's.
+        line = self._expect(
+            rf"FUSION_REPLY\b.*\bname={self.node}\b.*\bsource=B306\b.*", timeout)
         if line is None:
             raise CollectError(f"{self.node}: no reply to {cmd!r}")
         return line
@@ -94,16 +102,57 @@ class Collector:
                          "ch", "ring", "flash") and v.isdigit()}
 
     def read_page(self, n: int, retries: int = 3) -> bytes:
-        """One 220-byte slice. Idempotent on the node, so retrying is free."""
+        """One 220-byte slice. Idempotent on the node, so retrying is free.
+
+        THREE THINGS THIS GOT WRONG, all found the first time it was ever run
+        against hardware (Stage B Step 2, 2026-08-08):
+
+        1. `V45 PAGE=n` only SELECTS the page. It answers "V45 PAGE ok" and
+           nothing else happens. The bytes live on the stall characteristic and
+           the master only performs that GATT read when told `STALL READ`.
+           Without it this waited 6 s for a line that was never coming.
+        2. The master does not emit `FUSION_STALL_READ ... hex=...`. A page
+           whose byte 0 is >= BSF_STALL_RING_VERSION_V41 takes the raw
+           passthrough branch (host/fusion_master/src/main.c:2765) and comes
+           back as a `FUSION_STALL_RING` header plus `FUSION_STALL_RING_HEX`
+           chunks. The v45 form 0xC5 is far past that tag, so no DK reflash is
+           needed -- the master's own comment promises exactly this.
+        3. The hex is a bare trailing token on each chunk line, 32 bytes at a
+           time, not one `hex=` field.
+        """
+        chunk_re = re.compile(
+            rf"FUSION_STALL_RING_HEX name={re.escape(self.node)}\s+"
+            r"off=(\d+)\s+n=(\d+)\s+([0-9a-fA-F]+)")
         for attempt in range(retries):
             self.command(f"V45 PAGE={n}")
-            line = self._expect(rf"FUSION_STALL_READ .*name={self.node}\b.*", 6.0)
-            if line is None:
+            self._send(f"{self.node} STALL READ")
+            hdr = self._expect(
+                rf"FUSION_STALL_RING name={re.escape(self.node)}\s+len=", 10.0)
+            if hdr is None:
+                self.log(f"  page {n}: no stall-ring header (attempt {attempt + 1})")
                 continue
-            m = re.search(r"hex=([0-9a-fA-F]+)", line)
-            if not m:
+            m = re.search(r"\blen=(\d+)", hdr)
+            total_len = int(m.group(1)) if m else PAGE_SIZE
+            buf = bytearray(total_len)
+            seen = 0
+            deadline = time.monotonic() + 10.0
+            while seen < total_len and time.monotonic() < deadline:
+                line = self._expect(chunk_re.pattern,
+                                    max(0.1, deadline - time.monotonic()))
+                if line is None:
+                    break
+                cm = chunk_re.search(line)
+                off, cnt, hexs = int(cm.group(1)), int(cm.group(2)), cm.group(3)
+                blob = binascii.unhexlify(hexs)
+                if len(blob) != cnt or off + cnt > total_len:
+                    continue
+                buf[off:off + cnt] = blob
+                seen += cnt
+            if seen < total_len:
+                self.log(f"  page {n}: got {seen}/{total_len} B (attempt "
+                         f"{attempt + 1})")
                 continue
-            raw = binascii.unhexlify(m.group(1))
+            raw = bytes(buf)
             if len(raw) != PAGE_SIZE:
                 self.log(f"  page {n}: unexpected length {len(raw)}, retrying")
                 continue

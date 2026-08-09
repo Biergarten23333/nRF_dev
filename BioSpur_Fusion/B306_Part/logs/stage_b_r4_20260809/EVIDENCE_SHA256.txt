@@ -1,0 +1,34 @@
+# EVIDENCE_SHA256 -- R4, 2026-08-09
+
+## deliverables
+8ccd2329cdd419fc1fef8f2b80043ee6cfb52611e93e0a7b57e100ee37dc1b0b  R4_INSTRUMENTATION.md
+f617c8f46c4a84d3faa716e590597bb53c2ca20f6ea8eb4b8d31e87fae8f1c01  DECISIONS.md
+1b735eb9076a687908a40d1b24196f990bef7bfacd0dd857154d6383db9edaf7  STATUS.md
+3ab94a9dfc7c96493f01d9fb8f9d5c1fc72fc0993d6b77d7e119dd5595990156  BUILD_HASHES.txt
+
+## patch manager
+2ed33df617717a2b1929a3fa8f1349bc855152cd0374db1a6da353e1f911fe9f  firmware/patches/sdk_patch.sh
+2ca942c729b8266c748fea0a08bbb4a64d9a2dc5ead21f1ae21d4e90c999eb24  firmware/patches/ncs-v2.8.0-bsf-v45-r4-instrumentation.patch
+
+## firmware changed in R4
+cacf2928157f6a4920de779f032203210628dbba460e91225caface968ce55f0  firmware/src/bsf_v45.c
+e7b4698a8263bbb409bc0371ea6c4c79c0dc2bc0c9af09371d14909a2c7b553f  firmware/src/bsf_v45.h
+83d4e6d4c5f2fd7e4084d171087a2aba1f6d441899a6311a5794891a00563825  firmware/src/bsf_v45_trace.h
+4f2a30318c1c75d2b7b631ca2d1b7f896af554588fa831751ba1b01caeb4ee70  firmware/src/bsf_v45_corpse.h
+4b298eb16e0a53079e363042499e066dac135f3f911d2b634f69894ed9da8fe2  firmware/src/bsf_v45_detector.h
+194ec21efa93676dbb44bfa06a3bf3ee372bde053e8153039d23d9ad00e6f67b  firmware/src/bsf_v45_conn_sites.h
+5a473ba3eb0e7e6be556ea8ebb26daa4b41c2f953e1b834c3da36d79426bd5f6  firmware/src/main.c
+
+## tests
+64f1f6a122b79ce32bc7b5b20ea55537226451ac5117d944586d0dba537a4072  firmware/tests/test_v45_crc_contract.py
+b9c04ca946ad5239cac02b3899c22f2ce14c019370b3338cfc781fd522f9f0cd  firmware/tests/test_v45_lifetime_contract.py
+e62229d5ce469edccd1b17162059735b91a12a53a3832af21305956ea3232ff6  firmware/tests/test_bsf_v45_decoder.py
+
+## host tools
+6abd47f96973e75756c94dd97ff9630e288eb8d9872b9fc7d013fa2ff20b7347  tools/bsf_v45_corpse_decode.py
+4a100c5f3f9e442257c9bcaa0535822ec11ab87a5f761006da108129b748620b  tools/v45_corpse_collect.py
+
+=== segment 2 evidence (2026-08-09) ===
+9f6ff3d795e4e5c362584afd2c8ec6ecc530881ed9e51486e4e01d5fcd34401d  logs/stage_b_r4_20260809/SEG2_valcorpse/BSF6C53_f3b_ram.bin
+ae7ce25653d0a3fc601a0a806b35790b77b558a93116ed33b35789eff62330f1  logs/stage_b_r4_20260809/SEG2_valcorpse/rtt_raw.bin
+ae7ce25653d0a3fc601a0a806b35790b77b558a93116ed33b35789eff62330f1  logs/stage_b_r4_20260809/SEG2_valcorpse/rtt_capture.txt

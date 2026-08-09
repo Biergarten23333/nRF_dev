@@ -6,7 +6,8 @@
 | probe | nRF5340 DK onboard J-Link OB, SNR **1050070698**, debug-OUT → TC2030 |
 | J-Link | Commander **V9.24a**, DLL V9.24a |
 | branch | `feature/b306-bringup`, v45 offline gate PASSED at `9d0869077` |
-| **status** | **G0 COMPLETE. G1–G4 NOT RUN — no probe attached, target never touched.** |
+| session | `logs/stage_b_step1_20260808/session_20260808T194513/` |
+| **status** | **G0–G4 ALL PASS**, plus a clean 15-minute post-G4 soak. Board is programmed with the validation+corpse image and back on the fleet. |
 
 ---
 
@@ -185,12 +186,202 @@ that turns that from an expectation into a fact.**
 
 ---
 
-## G1 — TARGET IDENTIFICATION ⬜ NOT RUN
-## G2 — NO-RESET PROOF ⬜ NOT RUN
-## G3 — DUMP REHEARSAL AND TIMING ⬜ NOT RUN
-## G4 — FLASH THE VALIDATION BUILD ⬜ NOT RUN
+## How G2's two operator-watched legs became measurements
 
-*Requires a probe and an operator. Nothing below G0 has been attempted.*
+G2's proof is three-way, and `g2_noreset.sh` wrote two legs as things a person
+watches: the master shows no disconnect, and the operator sees no re-connect LED
+blink. In a headless session nobody is watching, and a gate whose evidence is
+"somebody was looking" is not evidence.
+
+BSF6C53 turned out to be **live and connected to the Fusion Master**, reporting
+once a second:
+
+```
+FUSION_TELEMETRY proto=7 name=BSF6C53 node_ms=4071252 ... reset_reason=1 ...
+```
+
+`node_ms` is the node's own uptime; `reset_reason` is latched at boot. **A reset
+is the only thing that can restart the one or change the other, and a disconnect
+does neither** — which is what lets the two be judged separately. So both legs
+became `tools/swd/link_witness.py`, a passive reader that holds dtr/rts low
+exactly as `fusion_session.py` does and only reads.
+
+One trap on the way: the first open replayed the master's boot banner, which
+looks exactly like having rebooted it. It had not — the very first record
+carried `master_ms=6914962`, 115 minutes, from a boot long before the port was
+opened. It was a buffered CDC flush. `--settle` discards it; without that, two
+hour-old `FUSION_DISCONNECTED` lines from the replay would have failed G2 for
+events that predated the session.
+
+---
+
+## G1 — TARGET IDENTIFICATION ✅ PASS
+
+```
+FICR.INFO.PART    0x52840   nRF52840 — B306 / NINA-B306, CORRECT PAD SET
+INFO.VARIANT      0x41414430  AAD0      INFO.RAM 256 KiB   INFO.FLASH 1024 KiB
+FICR.DEVICEID     0xe17c1c19 0x310f1ec9
+derived identity  0x6C53  ->  BSF6C53   BOARD MATCH
+```
+
+**138 ms**, read-only, no halt, no reset. The DEVICEID fold turned "an nRF52840"
+into "this one" exactly as intended.
+
+## G2 — NO-RESET PROOF ✅ PASS
+
+`attach_noreset.jlink` — connect, halt, read DEVICEID while halted, `go`.
+
+| leg | measurement |
+|---|---|
+| J-Link session | **155 ms**, `InitTarget` 1.58 ms, **no** connect-under-reset fallback |
+| node uptime | `node_ms` 4 949 791 → 4 967 802 = **+18 011 ms across 18 049 ms of wall clock** |
+| `reset_reason` | **1 → 1, unchanged** |
+| `watchdog_feeds` | 4 946 → 4 964, monotonic |
+| master link | **0 disconnects, 0 reconnects** — the link never even dropped |
+
+**This is the measurement the whole of G0 was a precondition for.** The probe
+configuration does not reset a running Cortex-M on attach, and that is now a
+fact about this bench rather than an expectation.
+
+## G3 — DUMP REHEARSAL AND TIMING ✅ PASS
+
+**Flash backup** 1 MiB in 7.156 s → `0fd13b36ba340d1d…` (the restore path G4
+refuses to run without).
+
+**The board was running v44, not v45.** Identified from the backup, which is why
+`g3_dump.sh` no longer takes the ELF on trust:
+
+```
+MCUboot primary slot 0x00c000, image v0.1.44+0, code ends 0x042a18
+99.973%  255423 B  b306-imu-relay-v44-b   [68 B differ, all in the signature TLV]
+99.973%  255423 B  b306-imu-relay-v44-a   [68 B differ, all in the signature TLV]
+  the tied builds agree on all 3907 symbol addresses
+IMAGE_ID PASS -- code-identical (signature TLV differs)
+```
+
+The 68 differing bytes start at `0x42a6b`, past the `0x42a18` image end — every
+one is signature, none is code. The secondary slot still held a stale **v43**
+OTA image, which is where the second `FW_MARKER` string in the dump came from.
+
+**RAM dump: `RAM_DUMP_SECONDS=1.9`** for all 256 KiB at 4 MHz. The brief
+estimated 10–15 s. **The hand-held part of a wedged-board session is about two
+seconds**, 0.14 s of it the contact check.
+
+Parse against the v44 ELF: **15 threads walked, G3 healthy-board check PASS.**
+`pended_on` resolved to named objects (`uart_data_sem`, `publisher_sem`,
+`notify_job_sem`), and the `.noinit` landmarks read back with correct magics —
+`stall_ring` `0x52334236` OK, `retained_stall` `0x56333852`. `bsf_v45_*` are
+absent, correctly: they do not exist in a v44 image.
+
+Witness across the dump: `node_ms` +12 008 ms over 11 932 ms wall,
+`reset_reason` unchanged, **one** disconnect (`reason=0x08`, supervision
+timeout) and no reset. The halt drops the link and the node survives it —
+exactly the distinction the witness exists to make. Uptime tracked wall clock
+straight through the halt, confirming it is RTC-driven.
+
+## G4 — FLASH THE VALIDATION BUILD ✅ PASS
+
+`merged.hex` `b403c458dfc89bea…` — MCUboot and app together, which is the whole
+reason this is SWD and not OTA.
+
+| | |
+|---|---|
+| erase + program | 266 240 B in **8.958 s**, 90 KB/s |
+| J-Link download verify | O.K. |
+| **independent readback, separate session** | 282 624 B (`0x45000`) read back off the part, **0 mismatches** |
+| reboot → reconnect | `FUSION_CONNECTED` **0.23 s** after the session ended, `FUSION_BRIDGE_READY` at 1.5 s |
+| new-image confirmation | `node_ms` restarts at 3 725 and tracks 1001 ms/s; `reset_reason` **1 → 4** (SREQ, i.e. J-Link's `r`) |
+
+## POST-G4 — 15-MINUTE QUIET SOAK ✅ PASS
+
+*(Not a gate in the brief, which defines G0–G4. Run because a validation image
+carrying fault-injection hooks has to be shown not to fire on its own.)*
+
+The board was not touched. `link_witness.py` watched the master link for the
+whole window.
+
+| | |
+|---|---|
+| telemetry | **900 records over 899.5 s** — exactly 1 Hz, no gaps |
+| `node_ms` | 53 753 → 953 261 = **+899 508 ms across 899 497 ms of wall clock** (11 ms of skew in 15 minutes) |
+| `reset_reason` | **4 → 4, unchanged** — no reboot, so no trigger took the reboot budget |
+| `watchdog_feeds` | 53 → 952, monotonic, one per second |
+| link | **0 disconnects, 0 reconnects** |
+| `ring_drop`, `sweep_drop`, `crc`, `header`, `drop_err`, `notify_errno`, `malformed`, `duplicate`, `reorder`, `imu_missed_deadlines`, `logger_drop` | **identically 0 across all 900 samples** |
+
+No `FUSION_DISCONNECTED`, no `FUSION_FAIL`, no stall or corpse announcement —
+only the normal periodic line set.
+
+A trigger that reboots is visible in the above. A trigger that *captures without
+rebooting* is not, so one read-only status query was made after the window
+closed:
+
+```
+FUSION_REPLY name=BSF6C53 source=B306 correlation=1
+  text=V45 present=0 seq=0 cause=0 len=944 pages=5 core=944 ch=4 ring=510 flash=1
+```
+
+**`present=0`. No corpse, no false trigger, in either form.** The validation
+image's fault injection is reached only through the `V45 LEAK` vendor command
+(`main.c:3086`) and was never issued.
+
+### That query also found a bug outside this step's scope
+
+The first attempt returned `no reply to 'V45 STATUS'`. The board was not at
+fault — `tools/v45_corpse_collect.py` greps for **`FUSION_CONTROL_REPLY`, a
+string that exists nowhere in this repo or in the master firmware.** The decoder
+emits `FUSION_REPLY` and every other tool consumes it.
+
+The collector therefore timed out on every command from every node, and **would
+have reported a real corpse as "no reply" and collected nothing.** It was
+committed with the v45 work and had never been run against hardware; there is no
+ledger file anywhere under `logs/`. Fixed to match `FUSION_REPLY` with
+`source=B306`, verified offline against the captured reply and re-run live.
+
+This is the tool that collects the deliverable the flashed image exists to
+produce, so it is called out here rather than left as a footnote.
+
+---
+
+## What G1–G4 found that G0 could not
+
+Six defects, five of them in code G0 had reported as tested.
+
+| # | defect | how it would have failed at a wedged board |
+|---|---|---|
+| 1 | **The reset gate refused `attach_noreset.jlink`** — bare `r` in the regex matched the `r` of **`regs`**, which is in both that script and `dump_ram.jlink` | exit 5 on the two scripts the gate exists to permit. G0 tested that the gate *fires*; it never tested that it *lets through*. |
+| 2 | `g4_flash.sh` computed the readback length in **decimal** | J-Link parses bare numerals as hex: `282624` → `0x282624`, 2.6 MB off a 1 MiB part |
+| 3 | `jlink_settings.ini` had `ScriptFile =` empty | a parse error printed on every command of every session |
+| 4 | `g3_dump.sh` took the ELF on trust, and the runbook's example is the **validation** ELF | the rehearsal board ran v44; the wrong ELF walks `_kernel.threads` from the wrong address and prints confident nonsense instead of failing |
+| 5 | The reset alarm fired on `flash_validation` | "the corpse ARE GONE" in the log of the one step whose reset is correct |
+| 6 | **Contact, not configuration, is the real hazard** | see below |
+
+### The finding that should change how a wedged board is approached
+
+Six attaches were made. **Two failed** — one before the probe was pressed, one
+mid-session with it already held. A failed attach is exactly what triggers the
+undisableable connect-under-reset fallback.
+
+**`VTref` does not tell you contact is good: it read `3.300V` in both failures.**
+The discriminator is `InitTarget` duration — **1.58–1.88 ms** on all four
+successes, **104 ms** on the failure before it gave up.
+
+G3 now runs the cheap read-only `id_target` first and refuses the dump if it
+fails (exit 8). That does not remove the hazard, since the fallback cannot be
+disabled; it makes the *first* attach the cheap one, so bad contact is found
+before the dump is spent rather than by losing it. **For a real wedged board the
+TC2030 should be clamped, not hand-held** — a 2-in-6 failure rate is fine for a
+rehearsal and unacceptable for a one-shot corpse.
+
+### The exit-7 that was not a reset
+
+G3's first RAM dump exited **7**. Standing instruction is to stop there, and it
+did: G4 did not run. The witness then settled what had actually happened —
+`node_ms` +25 015 ms over 24 976 ms wall, `reset_reason` unchanged, zero
+disconnects. **The attach never reached the target.** Exit 7 means *J-Link
+attempted the fallback*, which is not the same claim as *the target reset*, and
+on a wedged board that distinction is the difference between "the evidence is
+gone" and "re-seat the probe".
 
 ---
 
@@ -198,8 +389,8 @@ that turns that from an expectation into a fact.**
 
 | question | answer |
 |---|---|
-| Is the probe configuration safe for a wedged board? | **NOT YET ESTABLISHED — G2 pending.** G0 found that J-Link can reset on its own and made that failure detectable rather than silent. That is a precondition for G2, not a substitute for it. |
-| How many seconds of contact does a dump need? | **NOT YET MEASURED — G3 pending.** Estimate 10–15 s at 4 MHz for 256 KiB. |
-| Does the offline thread-state parsing work? | **The struct model is proven correct for this build** (self-test PASS against the real ELF). Whether it survives real data is G3. |
+| Is the probe configuration safe for a wedged board? | **YES, measured.** Attach + halt cost 155 ms, uptime advanced 18 011 ms across 18 049 ms of wall clock, `reset_reason` unchanged, and the link did not even drop. The remaining risk is **contact, not configuration** — clamp the probe. |
+| How many seconds of contact does a dump need? | **1.9 s** for 256 KiB at 4 MHz, plus 0.14 s for the contact check. The brief's 10–15 s estimate was 5–8× high. |
+| Does the offline thread-state parsing work? | **YES, on real data.** 15 threads walked from a real dump, `pended_on` resolved to named wait objects, `.noinit` magics correct, healthy-board check PASS. |
 
-**STAGE B STEP 1 — G0 COMPLETE, G1–G4 PENDING PROBE**
+**STAGE B STEP 1 — G0–G4 COMPLETE, ALL PASS. 15-minute soak clean, no false trigger.**

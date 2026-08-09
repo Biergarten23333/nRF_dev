@@ -294,10 +294,24 @@ check("CONFIG_BSF_V45_TRACE" in trace_h,
 # =====================================================================
 # 12. The patch manager is a repository artifact and the build gates on it
 # =====================================================================
-sha = hashlib.sha256(
-    (fw / "patches/ncs-v2.8.0-bsf-v45-instrumentation.patch").read_bytes()).hexdigest()
+#
+# The patch FILENAME is read out of sdk_patch.sh, never written here.
+#
+# It was hardcoded to ncs-v2.8.0-bsf-v45-instrumentation.patch, which R4
+# superseded with ...-r4-instrumentation.patch. The test went on hashing the
+# dead file and reported "PATCH_SHA is stale" against a PATCH_SHA that was
+# perfectly correct -- and taking that advice would have written the wrong
+# hash into sdk_patch.sh, breaking the integrity check the constant exists to
+# serve. Same defect as the stale glob in test_v45_partition_overlap.py: the
+# checker naming its own target and drifting off it.
+#
+m = re.search(r'^PATCH="\$\{HERE\}/([^"]+)"', script, re.M)
+check(m is not None, "sdk_patch.sh must name its patch as PATCH=${HERE}/<file>")
+patch_file = fw / "patches" / m.group(1)
+check(patch_file.is_file(), f"sdk_patch.sh names a missing patch: {m.group(1)}")
+sha = hashlib.sha256(patch_file.read_bytes()).hexdigest()
 check(f"PATCH_SHA={sha}" in script,
-      f"sdk_patch.sh PATCH_SHA is stale: patch now hashes {sha}")
+      f"sdk_patch.sh PATCH_SHA is stale for {m.group(1)}: it now hashes {sha}")
 check("sdk_patch.sh verify" in cmake and "FATAL_ERROR" in cmake,
       "the build must refuse to configure unless the SDK patch verifies")
 check("selftest)" in script,
@@ -312,8 +326,9 @@ for f in ("zephyr/subsys/bluetooth/host/conn.c",
 # =====================================================================
 # 13. Corpse schema, geometry and append-only enums
 # =====================================================================
-check("#define BSF_V45_SCHEMA         3u" in corpse_h,
-      "v45 is schema 3 (v43=1, v44=2), and two layouts must never share one")
+check("#define BSF_V45_SCHEMA         5u" in corpse_h,
+      "v45 is schema 5 (v43=1, v44=2, v45 3->4->5), and two layouts must "
+      "never share one")
 stage_h = (fw / "src/bsf_bt_stage.h").read_text()
 v44_enums = dict((n, int(v)) for n, v in
                  re.findall(r"(BSF_BT_STAGE_[A-Z0-9_]+)\s*=\s*(\d+)", stage_h))

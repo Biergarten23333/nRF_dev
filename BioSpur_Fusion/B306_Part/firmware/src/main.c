@@ -274,6 +274,20 @@ static int watchdog_feed_once(void)
 	return ret;
 }
 
+/*
+ * The v45 capture routine's one feed. See bsf_v45.h for why this exists and
+ * why it is not the same thing as extending WATCHDOG_TIMEOUT_MS.
+ *
+ * The return value is dropped deliberately: the capture must proceed whether
+ * or not the feed took. A failed feed costs the corpse its extra 30 s, which
+ * is exactly the situation that existed before this function -- it is never a
+ * reason to abandon a capture that is already underway.
+ */
+void bsf_v45_wdt_kick(void)
+{
+	(void)watchdog_feed_once();
+}
+
 static struct bt_uuid_128 fusion_service_uuid =
 	BT_UUID_INIT_128(BT_UUID_128_ENCODE(
 		BSF_BLE_UUID_SERVICE_W32, BSF_BLE_UUID_W16_1,
@@ -505,6 +519,12 @@ static atomic_t notify_rc_nomem;
 static atomic_t notify_rc_notconn;
 static atomic_t notify_rc_again;
 static atomic_t notify_rc_other;
+/*
+ * R4/A3. Consecutive -ENOTCONN from bt_gatt_notify() while the application
+ * still believes it is connected. Written only by notify_worker_thread, which
+ * is the sole caller of bt_gatt_notify() -- single writer by construction.
+ */
+static atomic_t notify_notconn_streak;
 static atomic_t producer_heartbeat;
 static atomic_t stall_alarm_count;
 static atomic_t stall_alarm_reason;
@@ -985,6 +1005,8 @@ void bsf_v45_env_get(struct bsf_v45_env *out)
 			(uint32_t)atomic_get(&notify_timeout_drop[1]) +
 			(uint32_t)atomic_get(&notify_timeout_drop[2]),
 		.notify_exits_this_epoch = exits - base,
+		.notify_ok_total = (uint32_t)atomic_get(&notify_ok),
+		.notconn_streak = (uint32_t)atomic_get(&notify_notconn_streak),
 		.connected = atomic_get(&ble_connected) != 0,
 		.data_subscribed = atomic_get(&data_subscribed) != 0,
 		.telemetry_subscribed = atomic_get(&telemetry_subscribed) != 0,
@@ -1759,6 +1781,65 @@ static void publisher_notify(enum publish_attribute attribute,
 	k_sem_give(&notify_job_sem);
 }
 
+#if defined(CONFIG_BSF_V45_FAULT_INJECT)
+/*
+ * Fault injection 2 -- NOTIFY-WORKER HANG. Validation builds only.
+ *
+ * Blocks the notify worker on a private semaphore with the v45 ENTER already
+ * recorded and no EXIT, which is the exact shape of the real phenotype
+ * (STALL STATUS e > x) and freezes watermark A, notify_exit_total.
+ *
+ * WHY IT IS NOT REDUNDANT WITH `V45 LEAK`. The leak starves the singleton
+ * sync_evt buffer and takes the whole BLE stack down with it: an ATT read is
+ * then accepted on air and never answered. This one leaves the stack healthy
+ * and stops only the application's notify path, so the two exercise the
+ * detector against genuinely different mechanisms.
+ *
+ * HOW TO GET ARM A IN ISOLATION -- read this before using it. bt_gatt_notify()
+ * has exactly ONE call site (below), so data, telemetry AND control replies all
+ * flow through this thread. Hang it and nothing is transmitted, so
+ * ncp_packet_total stops moving too and the trigger reports CAUSE_BOTH.
+ * A GATT READ, however, is answered by the ATT/RX path and not by this thread.
+ * So the host must poll a read -- `STALL READ` at ~1 Hz is what the bench uses
+ * -- for the duration of the hang. That keeps watermark B advancing while A
+ * freezes, and the cause comes back CAUSE_NOTIFY_EXIT. Without the polling the
+ * result is still a valid trigger, just not an isolated arm.
+ *
+ * The arming is DELAYED by one second because the reply to `V45 HANG` is itself
+ * a notification: arming synchronously would swallow the acknowledgement of the
+ * command that armed it.
+ */
+K_SEM_DEFINE(v45_inject_hang_sem, 0, 1);
+static atomic_t v45_inject_hang;
+
+static void v45_inject_hang_arm_fn(struct k_work *work)
+{
+	ARG_UNUSED(work);
+	atomic_set(&v45_inject_hang, 1);
+	LOG_WRN("V45 INJECT notify-worker hang ARMED");
+}
+static K_WORK_DELAYABLE_DEFINE(v45_inject_hang_arm, v45_inject_hang_arm_fn);
+
+static int bsf_v45_notify_hang(bool on)
+{
+	if (on) {
+		if (atomic_get(&v45_inject_hang) != 0) {
+			return -EALREADY;
+		}
+		k_work_reschedule(&v45_inject_hang_arm, K_MSEC(1000));
+		return 0;
+	}
+	if (atomic_set(&v45_inject_hang, 0) == 0) {
+		(void)k_work_cancel_delayable(&v45_inject_hang_arm);
+		return -EALREADY;
+	}
+	(void)k_work_cancel_delayable(&v45_inject_hang_arm);
+	k_sem_give(&v45_inject_hang_sem);   /* release a worker already parked */
+	LOG_WRN("V45 INJECT notify-worker hang RELEASED");
+	return 0;
+}
+#endif /* CONFIG_BSF_V45_FAULT_INJECT */
+
 static void notify_worker_thread(void *a, void *b, void *c)
 {
 	ARG_UNUSED(a); ARG_UNUSED(b); ARG_UNUSED(c);
@@ -1789,6 +1870,17 @@ static void notify_worker_thread(void *a, void *b, void *c)
 		BSF_V45_ENTER(BSF_V45_CH_APP_NOTIFY, BSF_V45_NOTIFY_ENTER,
 			      ((uint32_t)notify_job.stream << 16) | notify_job.len);
 		BSF_V45_INC(notify_enter_total);
+#if defined(CONFIG_BSF_V45_FAULT_INJECT)
+		/*
+		 * Deliberately AFTER the ENTER and BEFORE the call: an ENTER with
+		 * no EXIT is precisely what a real wedge looks like here, and
+		 * parking before bt_gatt_notify() leaves the BLE pools untouched
+		 * so this is a notify-path hang and not a starvation.
+		 */
+		if (atomic_get(&v45_inject_hang) != 0) {
+			(void)k_sem_take(&v45_inject_hang_sem, K_FOREVER);
+		}
+#endif
 		err = bt_gatt_notify(NULL, notify_job.attr,
 				     notify_job.payload, notify_job.len);
 		end_us = bsf_time_now_us();
@@ -1819,6 +1911,22 @@ static void notify_worker_thread(void *a, void *b, void *c)
 			else if (err == -ENOTCONN) atomic_inc(&notify_rc_notconn);
 			else if (err == -EAGAIN) atomic_inc(&notify_rc_again);
 			else atomic_inc(&notify_rc_other);
+		}
+		/*
+		 * R4/A3. The streak counts CONSECUTIVE -ENOTCONN while the
+		 * application still believes it is connected. Any other outcome,
+		 * including a success, resets it -- so a transient error cannot
+		 * accumulate toward the trigger across minutes of healthy work.
+		 */
+		if (err == -ENOTCONN && atomic_get(&ble_connected) != 0) {
+			atomic_val_t s = atomic_inc(&notify_notconn_streak) + 1;
+
+			if ((uint32_t)s >
+			    (uint32_t)atomic_get(&bsf_v45_cnt.notify_notconn_max)) {
+				atomic_set(&bsf_v45_cnt.notify_notconn_max, s);
+			}
+		} else {
+			atomic_clear(&notify_notconn_streak);
 		}
 		k_sem_give(&notify_idle_sem);
 	}
@@ -3034,16 +3142,39 @@ static void process_control(const char *command, uint16_t correlation)
 	 */
 	} else if (strcmp(command, "V45 STATUS") == 0) {
 		uint32_t len = bsf_v45_image_len();
+		uint32_t blind_ms, blind_ticks, blind_discards;
+		uint32_t dog_resets, dog_age_ms, dog_tick_ms;
+		uint8_t dog_dwell;
+		uint8_t armed;
 
+		/*
+		 * armed/blind_ms/blind_discards are not decoration. An
+		 * uncollected corpse disarms the detector, and on BSF6C53 that
+		 * hid a real wedge for 29 minutes with nothing to see. A
+		 * disabled instrument has to be able to say it is disabled.
+		 */
+		bsf_v45_blind_report(&blind_ms, &blind_ticks, &blind_discards,
+				     &armed);
+		/*
+		 * The dog fields are on the SAME line as present=/armed=, not a
+		 * separate command. `present=0 armed=1` was indistinguishable
+		 * from a clean node right up until 2026-08-09, when it turned
+		 * out to mean "a watchdog ate the corpse"; anything a reader has
+		 * to ask for separately is something they will not ask for.
+		 */
+		bsf_v45_dog_report(&dog_resets, &dog_dwell, &dog_age_ms,
+				   &dog_tick_ms);
 		snprintf(reply, sizeof(reply),
-			 "V45 present=%u seq=%u cause=%u len=%u pages=%u core=%u ch=%u ring=%u flash=%u",
+			 "V45 present=%u seq=%u cause=%u len=%u pages=%u core=%u ch=%u ring=%u flash=%u armed=%u blind_ms=%u blind_ticks=%u blind_discards=%u dog=%u dog_dwell=%u dog_age_ms=%u dog_tick_ms=%u",
 			 bsf_v45_present() ? 1u : 0u, bsf_v45_seq(),
 			 bsf_v45_cause(), len,
 			 (unsigned int)((len + BSF_CORPSE_PAGE_DATA - 1u) /
 					BSF_CORPSE_PAGE_DATA),
 			 bsf_v45_core_len(), (unsigned int)BSF_V45_CH__COUNT,
 			 (unsigned int)BSF_STALL_RING_CAPACITY,
-			 BSF_CORPSE_FLASH_ENABLED);
+			 BSF_CORPSE_FLASH_ENABLED,
+			 armed, blind_ms, blind_ticks, blind_discards,
+			 dog_resets, dog_dwell, dog_age_ms, dog_tick_ms);
 	} else if (strcmp(command, "V45 PAGE OFF") == 0) {
 		bsf_stall_ring_view_clear(&v45_view);
 		snprintf(reply, sizeof(reply), "V45 PAGE OFF ok");
@@ -3099,6 +3230,24 @@ static void process_control(const char *command, uint16_t correlation)
 	} else if (strcmp(command, "V45 LEAK OFF") == 0) {
 		snprintf(reply, sizeof(reply), "V45 LEAK OFF rc=%d",
 			 bsf_v45_sync_evt_release());
+#if defined(CONFIG_BSF_V45_FAULT_INJECT)
+	} else if (strcmp(command, "V45 HANG") == 0) {
+		/*
+		 * Fault injection 2. Parks the notify worker with the ENTER
+		 * recorded and no EXIT, freezing watermark A while leaving the
+		 * BLE stack healthy. Arms 1 s later so this reply survives.
+		 *
+		 * SCOPE: this proves the detector fires on a notify-path hang.
+		 * It does NOT prove real wedges begin that way. To get arm A in
+		 * ISOLATION the host must poll `STALL READ` for the duration --
+		 * see the note at bsf_v45_notify_hang().
+		 */
+		snprintf(reply, sizeof(reply), "V45 HANG rc=%d arm_delay_ms=1000",
+			 bsf_v45_notify_hang(true));
+	} else if (strcmp(command, "V45 HANG OFF") == 0) {
+		snprintf(reply, sizeof(reply), "V45 HANG OFF rc=%d",
+			 bsf_v45_notify_hang(false));
+#endif
 	} else if (strcmp(command, "REBOOT") == 0) {
 		snprintf(reply, sizeof(reply), "REBOOT QUEUED delay_ms=150");
 		(void)publish_control_reply(BSF_CONTROL_SOURCE_B306,
@@ -3873,6 +4022,13 @@ int main(void)
 
 	boot_reset_reason = nrfx_reset_reason_get();
 	nrfx_reset_reason_clear(boot_reset_reason);
+	/*
+	 * Must run before the reason is used for anything else and before the
+	 * first detector tick, so the witness promotes the PREVIOUS run's dwell
+	 * state and not this one's. RESETREAS has already been cleared above,
+	 * which is why the decision is made here from the saved copy.
+	 */
+	bsf_v45_dog_boot((boot_reset_reason & NRFX_RESET_REASON_DOG_MASK) != 0u);
 	bsf_boot_confirm_policy_init(&boot_confirm_policy,
 				     boot_is_img_confirmed());
 

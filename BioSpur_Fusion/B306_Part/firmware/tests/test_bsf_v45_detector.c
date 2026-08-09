@@ -36,6 +36,19 @@ struct sim {
 	struct bsf_v45_detector d;
 	struct bsf_v45_inputs in;
 	uint32_t exits_at_epoch_start;
+	/*
+	 * R4 added watermark C (notify_ok_total, DELIVERY stage). This harness
+	 * modelled only A and B, so notify_ok_total never moved and arm C
+	 * fired FREEZE_MS into every single test -- including the healthy one.
+	 * Ten checks failed, at the old 20 s dwell and the new 12 s alike: the
+	 * detector's own policy test had been red since arm C landed, so arm C
+	 * and CAUSE_CONN_RELEASED shipped with no passing host coverage.
+	 *
+	 * A delivered notify is also an exited notify, so C follows A here --
+	 * except where a test is specifically about delivery freezing while the
+	 * call keeps returning, which is exactly what arm C is for.
+	 */
+	bool freeze_notify_ok;
 };
 
 static void sim_init(struct sim *s)
@@ -59,6 +72,9 @@ static struct bsf_v45_decision sim_tick(struct sim *s, bool producer,
 	}
 	if (notify_exit) {
 		s->in.notify_exit_total += 25;
+		if (!s->freeze_notify_ok) {
+			s->in.notify_ok_total += 25;
+		}
 	}
 	if (ncp) {
 		s->in.ncp_packet_total += 25;
@@ -163,7 +179,7 @@ static int test_notify_exit_arm(void)
 	struct bsf_v45_decision d = {0};
 	unsigned t;
 
-	printf("notify_exit frozen 20 s with producer advancing -> trigger\n");
+	printf("notify_exit frozen for the dwell with producer advancing -> trigger\n");
 	sim_init(&s);
 	sim_warm(&s, 30);
 	for (t = 1; t <= 25; ++t) {
@@ -177,10 +193,12 @@ static int test_notify_exit_arm(void)
 		}
 	}
 	CHECK(d.capture, "captured");
-	CHECK(t == 20, "at exactly 20 s, not 19 and not 21");
+	CHECK(t == (BSF_V45_FREEZE_MS / 1000u),
+	      "at exactly the dwell, not one tick early or late");
 	CHECK(d.cause == BSF_V45_CAUSE_NOTIFY_EXIT, "attributed to notify_exit");
 	CHECK(d.reboot, "first trigger this power cycle reboots");
-	CHECK(d.notify_exit_age_ms == 20000, "reported age is the real age");
+	CHECK(d.notify_exit_age_ms == BSF_V45_FREEZE_MS,
+	      "reported age is the real age");
 	return 0;
 }
 
@@ -190,7 +208,7 @@ static int test_ncp_arm(void)
 	struct bsf_v45_decision d = {0};
 	unsigned t;
 
-	printf("ncp_packet_total frozen 20 s with notify exits advancing -> trigger\n");
+	printf("ncp_packet_total frozen for the dwell with notify exits advancing -> trigger\n");
 	sim_init(&s);
 	sim_warm(&s, 30);
 	for (t = 1; t <= 25; ++t) {
@@ -203,7 +221,7 @@ static int test_ncp_arm(void)
 		}
 	}
 	CHECK(d.capture, "captured");
-	CHECK(t == 20, "at exactly 20 s");
+	CHECK(t == (BSF_V45_FREEZE_MS / 1000u), "at exactly the dwell");
 	CHECK(d.cause == BSF_V45_CAUSE_NCP_PACKET, "attributed to ncp_packet");
 	return 0;
 }
@@ -290,7 +308,7 @@ static int test_uptime_wrap(void)
 	sim_init(&s);
 	sim_warm(&s, 30);
 	/*
-	 * Park now_ms just under 2^32 so the 20 s dwell straddles the wrap.
+	 * Park now_ms just under 2^32 so the dwell straddles the wrap.
 	 *
 	 * connected_at_ms must move with it. Leaving it at 0 would model a link
 	 * that has been up for 49.7 days, and the arm test -- correctly -- reads
@@ -305,6 +323,11 @@ static int test_uptime_wrap(void)
 	s.d.notify_exit_moved_ms = s.in.now_ms;
 	s.d.ncp_packet_moved_ms = s.in.now_ms;
 	s.d.producer_moved_ms = s.in.now_ms;
+	/* R4's arm C has its own clock, and it must be parked with the rest.
+	 * Left behind, it reads as 49 days stale the moment now_ms jumps and
+	 * arm C fires on tick 1 -- which is a bug in the scenario, not in the
+	 * detector. Every "last moved" field the detector owns belongs here. */
+	s.d.notify_ok_moved_ms = s.in.now_ms;
 	for (t = 1; t <= 30; ++t) {
 		d = sim_tick(&s, true, false, true);
 		if (d.capture) {
@@ -312,7 +335,7 @@ static int test_uptime_wrap(void)
 		}
 	}
 	CHECK(d.capture, "the wedge is still detected across a uptime wrap");
-	CHECK(t == 20, "and still at 20 s, not 49 days later");
+	CHECK(t == (BSF_V45_FREEZE_MS / 1000u), "and still at the dwell, not 49 days later");
 	return 0;
 }
 
@@ -324,9 +347,9 @@ static int test_epoch_replacement(void)
 	printf("epoch replacement clears all dwell\n");
 	sim_init(&s);
 	sim_warm(&s, 30);
-	for (unsigned i = 0; i < 15; ++i) {
+	for (unsigned i = 0; i < (BSF_V45_FREEZE_MS / 1000u) - 1u; ++i) {
 		d = sim_tick(&s, true, false, false);
-		CHECK(!d.capture, "15 s of freeze is not yet a trigger");
+		CHECK(!d.capture, "one tick short of the dwell is not a trigger");
 	}
 	/* A reconnect. Everything the detector had accumulated is void. */
 	s.in.epoch = 2;
@@ -365,7 +388,7 @@ static int test_suspicion_mark(void)
 	struct sim s;
 	struct bsf_v45_decision d;
 
-	printf("suspicion mark lands at the first frozen pass, not at 20 s\n");
+	printf("suspicion mark lands at the first frozen pass, not at the dwell\n");
 	sim_init(&s);
 	sim_warm(&s, 30);
 	d = sim_tick(&s, true, false, false);
@@ -435,6 +458,59 @@ static int test_jitter(void)
 	return 0;
 }
 
+/*
+ * R4's watermark C, which until now had no test at all -- the harness that
+ * would have exercised it was the same one whose omission of notify_ok_total
+ * kept this whole file red.
+ *
+ * The scenario is the 2026-08-09 wedge exactly: bt_gatt_notify() keeps
+ * RETURNING (arm A never fires, notify_exit_total advanced ~32/s through the
+ * whole event) and the controller keeps confirming, but nothing is DELIVERED.
+ * Only a delivery-stage watermark can see it.
+ */
+static int test_notify_ok_arm(void)
+{
+	struct sim s;
+	struct bsf_v45_decision d = {0};
+	unsigned t;
+
+	printf("delivery frozen while the call still returns -> arm C\n");
+	sim_init(&s);
+	sim_warm(&s, 30);
+	s.freeze_notify_ok = true;
+	for (t = 1; t <= 60; ++t) {
+		d = sim_tick(&s, true, true, true);
+		if (d.capture) {
+			break;
+		}
+	}
+	CHECK(d.capture, "a fast-failing sink is caught even though A and B move");
+	CHECK(t == (BSF_V45_FREEZE_MS / 1000u), "at the dwell");
+	CHECK(d.cause == BSF_V45_CAUSE_NOTIFY_OK,
+	      "and it is named NOTIFY_OK, not BOTH -- A and B never froze");
+	return 0;
+}
+
+/*
+ * The dwell is policy, and policy changes on purpose or not at all.
+ *
+ * Every timing check above is written against BSF_V45_FREEZE_MS so the suite
+ * survives a deliberate change. That is the right structure and it has one
+ * hole: a suite that derives everything from the constant can no longer notice
+ * the constant moving. This pins it, so a change is an edit to this line with
+ * the reasoning next to it, never a silent drift.
+ */
+static int test_dwell_is_pinned(void)
+{
+	printf("the dwell is what we think it is\n");
+	CHECK(BSF_V45_FREEZE_MS == 12000u,
+	      "dwell is 12 s: 2.9x the 4.1 s worst healthy notify, and inside "
+	      "the 30 s watchdog that ate the 2026-08-09 corpse at 20 s");
+	CHECK(BSF_V45_FREEZE_MS < 25600u,
+	      "and under the 25.6 s ring span, so onset context still survives");
+	return 0;
+}
+
 int main(void)
 {
 	int rc = 0;
@@ -445,6 +521,7 @@ int main(void)
 	rc |= test_producer_stopped_is_not_a_wedge();
 	rc |= test_notify_exit_arm();
 	rc |= test_ncp_arm();
+	rc |= test_notify_ok_arm();
 	rc |= test_both_frozen_single_capture();
 	rc |= test_no_boot_loop();
 	rc |= test_counter_wrap();
@@ -454,6 +531,7 @@ int main(void)
 	rc |= test_suspicion_mark();
 	rc |= test_forced();
 	rc |= test_jitter();
+	rc |= test_dwell_is_pinned();
 	printf("v45 detector policy: %s\n", (rc || failures) ? "FAIL" : "PASS");
 	return (rc || failures) ? 1 : 0;
 }

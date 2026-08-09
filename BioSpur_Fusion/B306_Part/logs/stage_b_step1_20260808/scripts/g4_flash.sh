@@ -19,20 +19,25 @@ echo "[info] programming:  $HEX ($(sha256sum "$HEX" | cut -c1-16)...)"
 
 echo
 echo "### independent readback, in a SEPARATE session"
+# 0x-prefixed, NOT decimal. J-Link Commander parses bare numerals as HEX, so a
+# decimal 282624 here is read as 0x282624 -- 2.6 MB, well past the end of a
+# 1 MiB part. Every other script in this directory already writes 0x for the
+# same reason; this one computed its length in Python and did not.
 len=$(python3 - "$HEX" <<'PY'
 import sys
 seg=0; hi=0
 for line in open(sys.argv[1]):
     if line[7:9]=='04': seg=int(line[9:13],16)<<16
     elif line[7:9]=='00': hi=max(hi, (seg|int(line[3:7],16))+int(line[1:3],16))
-print((hi + 0xFFF) & ~0xFFF)
+print(f"0x{(hi + 0xFFF) & ~0xFFF:X}")
 PY
 )
+echo "[info] readback length: $len"
 "$HERE/run_jlink.sh" verify_flash.jlink "$LOG" \
 	"READBACK_PATH=$LOG/readback.bin" "READBACK_LEN=$len"
 python3 - "$HEX" "$LOG/readback.bin" "$len" <<'PY'
 import sys
-hexf, binf, ln = sys.argv[1], sys.argv[2], int(sys.argv[3])
+hexf, binf, ln = sys.argv[1], sys.argv[2], int(sys.argv[3], 0)
 want = bytearray(b'\xff' * ln); seg = 0
 for line in open(hexf):
     if line[7:9] == '04': seg = int(line[9:13], 16) << 16
@@ -40,6 +45,9 @@ for line in open(hexf):
         a = seg | int(line[3:7], 16); n = int(line[1:3], 16)
         want[a:a+n] = bytes.fromhex(line[9:9+2*n])
 got = open(binf, 'rb').read()[:ln]
+if len(got) < ln:
+    print(f"READBACK FAIL: read only {len(got)} of {ln} bytes off the part")
+    raise SystemExit(1)
 bad = [i for i in range(ln) if want[i] != 0xFF and want[i] != got[i]]
 print(f"READBACK {'PASS' if not bad else 'FAIL'}: {ln} bytes, {len(bad)} mismatches")
 raise SystemExit(1 if bad else 0)

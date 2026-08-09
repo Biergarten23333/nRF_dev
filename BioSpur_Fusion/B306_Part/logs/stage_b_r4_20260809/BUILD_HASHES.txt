@@ -1,0 +1,50 @@
+# BUILD_HASHES -- R4 / v45r5, 2026-08-09
+#
+# SUPERSEDES the b306-v45r3-* and b306-v45r5(pre-SDK) sets, and everything
+# earlier. Those images lack the SDK-side A1/A2 instrumentation and carry
+# schema 4; a corpse from them cannot name the line that released a
+# connection. BSF_V45_SCHEMA=5.
+#
+# REQUIRES the SDK patch to be applied:
+#   firmware/patches/ncs-v2.8.0-bsf-v45-r4-instrumentation.patch (7 files)
+# The build FAILS three different ways if it is not -- see R4_INSTRUMENTATION.md.
+
+## b306-v45r5-prod
+3864685d23039135b85ce44d63fbb08081f68c01511302ee25506cbac1935ab3  firmware/zephyr/zephyr.bin
+e50dde4251f03634bdf8d4c95873e98093c59d3cf8c2effad52bb703050dd47a  firmware/zephyr/zephyr.signed.bin
+864b11bd54152ad0db44c1f57697c34e2d4648b5b5bd47c8de49767eba04f6cf  firmware/zephyr/zephyr.elf
+3ce8194b94b3f89fea5a62156d8361a6780bf4d6d73c8e009ff921e89316e0ce  mcuboot/zephyr/zephyr.hex
+3f02889d3e7bd79fa161aad690013e1f04676190a1a4f0c349d5b83057ad4e22  merged.hex
+
+## b306-v45r5-val
+ed9e1b0765c44eccfb329bfd66e86cc6a72796fdb9cc46f5bb3115ce148caf73  firmware/zephyr/zephyr.bin
+c1c368123e695a9f45e980b52d8ef9fb84e83bf2f5d9337ac704801510801863  firmware/zephyr/zephyr.signed.bin
+90311543f762dbb87fd6aa937e1dca0cc21ed3e401fe4f71cea8e729b6775735  firmware/zephyr/zephyr.elf
+3ce8194b94b3f89fea5a62156d8361a6780bf4d6d73c8e009ff921e89316e0ce  mcuboot/zephyr/zephyr.hex
+c2308ef7bb7cff3f512ac4921789084843c3cf16bf249d6929fb6961dce52e59  merged.hex
+
+## b306-v45r5-val-corpse
+a8b4c85f034bee37b3f080bb8704a8a0804565182976cce17742b87ec046dbe0  firmware/zephyr/zephyr.bin
+31e5101a768ee20e3e43418c4f9ae9d7dbe5a2c0d5f7b202ab39e2964b73e1c1  firmware/zephyr/zephyr.signed.bin
+65f0ea9862ade3d6ffc09ed8d56e7ad1d5cb4fbb94188ed986a775747def4b98  firmware/zephyr/zephyr.elf
+e73de639d43d9287a611defecf9eb40ba78fb6744c4e5adcdbb385ccbdb321a7  mcuboot/zephyr/zephyr.hex
+caf976f95ac1e34a998feed88957f0e8518d8b49a5e09eb3242bdcbee6aacde3  merged.hex
+
+## SDK patch
+2ca942c729b8266c748fea0a08bbb4a64d9a2dc5ead21f1ae21d4e90c999eb24  firmware/patches/ncs-v2.8.0-bsf-v45-r4-instrumentation.patch
+
+## gates
+reproducibility   prod / val-corpse : unsigned app + MCUboot IDENTICAL across two clean builds
+kconfig           prod vs val       : 1 line (CONFIG_BSF_V45_FAULT_INJECT=y)
+kconfig           val vs val-corpse : 0 lines
+capacity          prod 46.70% FLASH / 52.96% RAM ; val-corpse 46.81% / 52.98%
+crc contract      prod/val/val-corpse : PASS
+lifetime contract prod/val/val-corpse : PASS
+decoder xcheck    val-corpse          : PASS
+schema-3 corpse   still decodes, 5 banks : PASS
+sdk_patch selftest apply/verify/revert/reapply : PASS (7 files)
+
+=== r7 (2026-08-09, watchdog-side fixes) ===
+e9c9887b2cf69a3aad46db2ae4e83ab6a572fb59d3d5da3f7b4430c5e3af0aab  builds/b306-v45r7-prod/merged.hex
+c5e501cd576162e618b0612b8cd4116c3605bb01d802c7db06936ed93b487226  builds/b306-v45r7-prod/firmware/zephyr/zephyr.elf
+e7f579174c9adac74a2a88e1796080006c4b058e9205081c4cfa7391fd33ac27  builds/b306-v45r7-prod/firmware/zephyr/zephyr.signed.bin

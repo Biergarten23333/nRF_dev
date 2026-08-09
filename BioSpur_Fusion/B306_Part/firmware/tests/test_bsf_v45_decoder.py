@@ -85,10 +85,34 @@ def elf_layout(elf: Path):
     return out
 
 
-builds = sorted((root / "builds").glob("b306-imu-relay-v45-*/firmware/zephyr/zephyr.elf"))
+# ELF SELECTION. This used to glob "b306-imu-relay-v45-*" and SKIP when it
+# matched nothing -- so renaming the build directory silently turned the layout
+# check off, and worse, once schema 4 landed the stale glob still matched the
+# schema-3 builds and reported the NEW decoder as wrong against the OLD
+# firmware. Exactly the defect Step 1 found in test_v45_partition_overlap.py.
+#
+# So: take the ELF explicitly when given, otherwise the most recently built v45
+# image, and NEVER skip silently.
+_argv = [a for a in sys.argv[1:]]
+if "--elf" in _argv:
+    builds = [Path(_argv[_argv.index("--elf") + 1])]
+else:
+    builds = sorted((root / "builds").glob("*v45*/firmware/zephyr/zephyr.elf"),
+                    key=lambda q: q.stat().st_mtime, reverse=True)[:1]
+    # also pull in a flash-enabled build, if one exists, so
+    # bsf_v45_flash_header_t gets a DWARF entry (see the merge note below)
+    builds += [q for q in sorted(
+        (root / "builds").glob("*v45*/firmware/zephyr/zephyr.elf"),
+        key=lambda q: q.stat().st_mtime, reverse=True)[1:4]]
+for b in builds:
+    if not b.is_file():
+        print(f"v45 decoder: FAIL (no such ELF: {b})")
+        raise SystemExit(1)
 if not builds:
-    print("v45 decoder: SKIP (no v45 build to check the layout against)")
-    raise SystemExit(0)
+    print("v45 decoder: FAIL (no v45 build to check the layout against; "
+          "build one or pass --elf)")
+    raise SystemExit(1)
+print(f"layout checked against: {[str(b.parent.parent.parent.name) for b in builds]}")
 
 # Merge across every v45 build. A struct only gets a DWARF entry if something
 # references it, and bsf_v45_flash_header_t is only referenced when
@@ -105,7 +129,7 @@ if not layout:
                  "the point of this test and cannot be silently skipped")
 else:
     expect = {
-        "bsf_v45_core_t": dec.SZ["core"],
+        "bsf_v45_core_t": dec._core_size(dec.V45_SCHEMA),
         "bsf_v45_channel_summary": dec.SZ["channel"],
         "bsf_v45_thread_snapshot": dec.SZ["thread"],
         "bsf_v45_waitobj_table": dec.SZ["waitobj"],
@@ -135,13 +159,17 @@ else:
         }
         base = struct.calcsize(dec.CORE_HEAD) + struct.calcsize(dec.CORE_BODY_A)
         model["connected"] = base
-        model["channel"] = base + struct.calcsize(dec.CORE_FLAGS)
+        model["channel"] = base + struct.calcsize(dec.CORE_FLAGS_V4)
         model["thread"] = model["channel"] + 4 * dec.SZ["channel"]
         model["waitobj"] = model["thread"] + 5 * dec.SZ["thread"]
         model["conn"] = model["waitobj"] + dec.SZ["waitobj"]
         model["pools"] = model["conn"] + dec.SZ["conn"]
         model["counters"] = model["pools"] + dec.SZ["pool_snapshot"]
-        model["valid"] = dec.SZ["core"] - 4
+        model["valid"] = (dec._core_size(dec.V45_SCHEMA) - 4
+                          - struct.calcsize(dec.CORE_TRAILER))
+        model["reboot_taken"] = model["valid"] + 4
+        model["reboot_owner"] = model["valid"] + 5
+        model["flash_slot"] = model["valid"] + 6
         for f, off in model.items():
             if f in members:
                 check(members[f] == off,
@@ -161,7 +189,9 @@ def build_core(*, seq=7, cause=1, schema=dec.V45_SCHEMA,
                         0xDEADBEEF, node, 123456, 0x04, seq, 3,
                         cause, 1,
                         20000, 20000, 1500, 42, 1000)
-    body += struct.pack(dec.CORE_FLAGS, 1, 1, 1, 0, 1, 3, 0xFF, 0)
+    # schema 4: flags only. reboot_taken/reboot_owner/flash_slot are
+    # appended after `valid`, outside the CRC, and must stay there.
+    body += struct.pack(dec.CORE_FLAGS_V4, 1, 1, 1, 0, 0)
     for i in range(4):
         enter, exit_ = (5, 4) if i == 0 else (5, 5)
         body += struct.pack(dec.F_CHANNEL,
@@ -194,14 +224,20 @@ def build_core(*, seq=7, cause=1, schema=dec.V45_SCHEMA,
     counters = [0] * 32
     counters[10] = 50000        # ncp_event_count
     counters[2] = 12345         # msg_get_ok
-    body += struct.pack(dec.CORE_TAIL, *counters, 1, 0, 5400, 900000,
+    # schema 5: 40 counters, then conn_release + per-site counts, then the
+    # depths/liveness remainder.
+    body += struct.pack(dec.CORE_TAIL_V5, *(counters + [0] * 8))
+    body += struct.pack(dec.CORE_CONN_RELEASE, 123456, 7, 11, 3, 0)
+    body += bytes(dec.CONN_SITE_MAX)
+    body += struct.pack(dec.CORE_TAIL_V5_REST, 1, 0, 5400, 900000,
                         800000, 3, 0)
 
     length = len(body)
     crc = dec._crc32(bytes(body)) ^ (0xFFFFFFFF if break_crc else 0)
     head = struct.pack(dec.CORE_HEAD, dec.V45_CORPSE_MAGIC, schema, length, crc)
     valid = struct.pack("<I", 0 if unset_valid else dec.V45_CORPSE_MAGIC)
-    return head + bytes(body) + valid
+    return (head + bytes(body) + valid
+            + struct.pack(dec.CORE_TRAILER, 1, 3, 0xFF))
 
 
 def build_bank(bank, seq, entries=4):
@@ -219,7 +255,7 @@ def build_bank(bank, seq, entries=4):
 
 
 core = build_core()
-check(len(core) == dec.SZ["core"],
+check(len(core) == dec._core_size(dec.V45_SCHEMA),
       f"synthetic core is {len(core)} bytes, model says {dec.SZ['core']}")
 
 image = core + b"".join(build_bank(b, 7) for b in range(5))
@@ -343,16 +379,18 @@ check("STALE" in txt4,
 idle = bytearray(build_core())
 # zero msg_get_ok (counters[2]) so the SDC-stopped row can match
 off = (struct.calcsize(dec.CORE_HEAD) + struct.calcsize(dec.CORE_BODY_A)
-       + struct.calcsize(dec.CORE_FLAGS) + 4 * dec.SZ["channel"]
+       + struct.calcsize(dec.CORE_FLAGS_V4) + 4 * dec.SZ["channel"]
        + 5 * dec.SZ["thread"] + dec.SZ["waitobj"] + dec.SZ["conn"]
        + dec.SZ["pool_snapshot"])
 struct.pack_into("<I", idle, off + 2 * 4, 0)      # counters[2] = msg_get_ok
 struct.pack_into("<I", idle, off + 10 * 4, 0)     # counters[10] = ncp_event_count
 for i in range(4):
     coff = (struct.calcsize(dec.CORE_HEAD) + struct.calcsize(dec.CORE_BODY_A)
-            + struct.calcsize(dec.CORE_FLAGS) + i * dec.SZ["channel"])
+            + struct.calcsize(dec.CORE_FLAGS_V4) + i * dec.SZ["channel"])
     struct.pack_into("<2I", idle, coff + 4 * 4, 5, 5)   # enter == exit
-blen = dec.SZ["core"] - 4 - struct.calcsize(dec.CORE_HEAD)
+# schema 4: the CRC stops at `valid`, and 3 bookkeeping bytes follow it.
+blen = (dec._core_size(dec.V45_SCHEMA) - 4 - struct.calcsize(dec.CORE_TRAILER)
+        - struct.calcsize(dec.CORE_HEAD))
 struct.pack_into("<I", idle, 8,
                  dec._crc32(bytes(idle[struct.calcsize(dec.CORE_HEAD):
                                        struct.calcsize(dec.CORE_HEAD) + blen])))

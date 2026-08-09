@@ -6,12 +6,23 @@
  *
  * SCHEMA DISCIPLINE
  * -----------------
- * BSF_V45_SCHEMA = 3. v43 shipped schema 1, v44 schema 2 (bsf_bt_stage.h /
- * main.c BSF_CORPSE_SCHEMA). Those enums, that struct and their decoder support
- * are UNTOUCHED and still decodable -- section "absolute prohibitions" requires
- * it, and the reason is the same one v44 recorded: two different layouts must
- * never claim the same schema, or an old corpse gets read with new offsets into
- * plausible-looking nonsense.
+ * BSF_V45_SCHEMA = 5. v43 shipped schema 1, v44 schema 2 (bsf_bt_stage.h /
+ * main.c BSF_CORPSE_SCHEMA), and v45 shipped schemas 3 and 4. Those enums, those
+ * structs and their decoder support are UNTOUCHED and still decodable --
+ * section "absolute prohibitions" requires it, and the reason is the same one
+ * v44 recorded: two different layouts must never claim the same schema, or an
+ * old corpse gets read with new offsets into plausible-looking nonsense.
+ *
+ * 4 -> 5 grew counters[32] to counters[40] -- the 32 were exactly full -- and
+ * added the conn-release evidence (which bt_conn_set_state() call site released
+ * the connection, and the per-site counts). Both are layout changes.
+ *
+ * 3 -> 4 moved reboot_taken, reboot_owner and flash_slot from +64..+66 to
+ * after `valid`, i.e. out of the CRC range. That is a LAYOUT change, so it
+ * takes a schema number even though no field was added or removed. Exactly one
+ * schema-3 corpse exists -- BSF6C53 seq=1, collected 2026-08-08 and stored
+ * under logs/stage_b_step2_20260808/T1_force/corpse/ -- and the decoder still
+ * reads it.
  *
  * WHY BANKS INSTEAD OF ONE BLOB
  * -----------------------------
@@ -28,6 +39,8 @@
 
 #include <stdint.h>
 
+#include "bsf_v45_conn_sites.h"
+
 #include "bsf_v45_trace.h"
 
 #ifdef __cplusplus
@@ -36,7 +49,7 @@ extern "C" {
 
 #define BSF_V45_CORPSE_MAGIC   0x35345043u   /* 'CP45' little-endian        */
 #define BSF_V45_BANK_MAGIC     0x354b4e42u   /* 'BNK5' little-endian        */
-#define BSF_V45_SCHEMA         3u
+#define BSF_V45_SCHEMA         5u
 
 /* Bank identifiers. APPEND ONLY. */
 #define BSF_V45_BANK_MPSL_RX    0u
@@ -120,10 +133,12 @@ typedef struct __packed {
 	uint8_t  telemetry_subscribed;
 	uint8_t  ota_active;
 
-	/* budget / persistence bookkeeping */
-	uint8_t  reboot_taken;
-	uint8_t  reboot_owner;
-	uint8_t  flash_slot;          /* 0xff = not persisted                 */
+	/*
+	 * flash_enabled is a BUILD property, settled inside v45_capture() and
+	 * never touched again, so it is evidence and stays under the CRC.
+	 * reboot_taken / reboot_owner / flash_slot used to live here and do not
+	 * any more -- see the block after `valid`.
+	 */
 	uint8_t  flash_enabled;
 
 	struct bsf_v45_channel_summary  channel[BSF_V45_CH__COUNT];
@@ -132,8 +147,16 @@ typedef struct __packed {
 	struct bsf_v45_conn_snapshot    conn;
 	struct bsf_v45_pool_snapshot    pools;
 
-	/* every global atomic of section 3, in declaration order */
-	uint32_t counters[32];
+	/* every global atomic of section 3, in declaration order.
+	 * 40, not 32: schema 4 had exactly 32 and they were exactly full, so a
+	 * new counter could not reach the corpse at all -- v45_snapshot_counters()
+	 * clamps to ARRAY_SIZE and would have silently dropped it. */
+	uint32_t counters[40];
+
+	/* R4/A2: which line released the connection, and how often each did.
+	 * The 2026-08-09 wedge could not answer this; see bsf_v45_conn_sites.h. */
+	struct bsf_v45_conn_release conn_release;
+	uint8_t  conn_site_count[BSF_V45_CONN_SITE__MAX];
 
 	/* shadow depths, precomputed so the decoder never subtracts wrong */
 	int32_t  tx_pending_depth;
@@ -148,6 +171,34 @@ typedef struct __packed {
 	/* --- crc_end --- */
 
 	uint32_t valid;               /* BSF_V45_CORPSE_MAGIC, written LAST   */
+
+	/*
+	 * POST-CAPTURE BOOKKEEPING -- deliberately OUTSIDE the CRC range.
+	 *
+	 * These three are written AFTER v45_capture() has computed crc32 and set
+	 * `valid`, and schema 3 had them at +64..+66, inside the covered range.
+	 * The consequences, both measured on BSF6C53 on 2026-08-08 and written
+	 * up in logs/stage_b_step2_20260808/T1_CORPSE_FORCE.md:
+	 *
+	 *   - the reboot path set reboot_taken/reboot_owner just before
+	 *     rebooting, so every corpse that triggered a reboot failed its own
+	 *     CRC on the next boot and bsf_v45_init() memset it;
+	 *   - bsf_v45_flash_persist_pending() set flash_slot at early boot,
+	 *     BEFORE bsf_v45_init() validates, so it destroyed the corpse it had
+	 *     just written to flash.
+	 *
+	 * Either one alone loses every corpse the fleet would ever capture, and
+	 * the board comes back reporting present=0 -- indistinguishable from a
+	 * detector that never fired.
+	 *
+	 * They are bookkeeping ABOUT the corpse, not evidence IN it, so moving
+	 * them out is the structural fix: a writer here can no longer invalidate
+	 * anything, and nobody has to remember to refresh the CRC. Anything added
+	 * below this line must be bookkeeping too. Evidence goes above `valid`.
+	 */
+	uint8_t  reboot_taken;
+	uint8_t  reboot_owner;
+	uint8_t  flash_slot;          /* 0xff = not persisted                 */
 } bsf_v45_core_t;
 
 /*
@@ -194,7 +245,7 @@ _Static_assert(sizeof(struct bsf_v45_buf_entry) == 12u, "wire size moved");
 _Static_assert(sizeof(struct bsf_v45_pool_snapshot) == 280u, "wire size moved");
 _Static_assert(sizeof(struct bsf_v45_trace_entry) == 16u, "wire size moved");
 _Static_assert(sizeof(bsf_v45_bank_header_t) == 28u, "wire size moved");
-_Static_assert(sizeof(bsf_v45_core_t) == 944u,
+_Static_assert(sizeof(bsf_v45_core_t) == 1020u,
 	       "the CORE wire layout moved: update the decoder model in "
 	       "tools/bsf_v45_corpse_decode.py and re-run its test");
 

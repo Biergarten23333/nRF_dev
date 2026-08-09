@@ -27,16 +27,19 @@
  *
  * Neither watermark is a submission counter, and neither gates on the master.
  *
- * WHY 20 s UNIFORM, WITH NO 5 s FAST ARM
+ * WHY 12 s UNIFORM, WITH NO 5 s FAST ARM
  * --------------------------------------
  * Healthy notify calls of 100-400 ms happen routinely and 4.1 s was observed
  * during DFU. A false capture costs a reboot, drops the node for ~21 s and
  * contaminates the rate statistics that CROSS_RUN_NECESSITY.md needs. The
  * observed wedges last 615 s to 19 669 s and the entire near-miss population at
- * a 2 s floor is 22 events, all inside battery-depletion cascades -- so 20 s
- * sits in an empty region with three orders of magnitude of margin on the short
+ * a 2 s floor is 22 events, all inside battery-depletion cascades -- so 12 s
+ * sits in an empty region with two orders of magnitude of margin on the short
  * side. Onset context is not lost by waiting: the 512-entry ring spans 25.6 s,
- * so a capture at onset+20 s still contains the onset.
+ * so a capture at onset+12 s still contains the onset.
+ *
+ * The value was 20 s until 2026-08-09. It came down because the watchdog, not
+ * the wedge, was eating the corpse -- see BSF_V45_FREEZE_MS below.
  */
 #ifndef BSF_V45_DETECTOR_H
 #define BSF_V45_DETECTOR_H
@@ -47,7 +50,41 @@
 #define BSF_V45_ARM_NOTIFY_EXITS     64u     /* completed notifications      */
 #define BSF_V45_ARM_CONNECT_MS       10000u  /* since connect                */
 #define BSF_V45_PRODUCER_WINDOW_MS   5000u   /* "producer advancing" horizon */
-#define BSF_V45_FREEZE_MS            20000u  /* the one threshold            */
+/*
+ * The one threshold. 20000 -> 12000 on 2026-08-09, and the reason is the
+ * watchdog, not the detector.
+ *
+ * WHAT FORCED IT. A `V45 HANG` re-run reset BSF6C53 with
+ * `reset_reason=0x00000002` -- RESETREAS.DOG. The watchdog is fed from the
+ * system workqueue (`watchdog_feed_count`, "system-workqueue heartbeat"), so
+ * any wedge that stalls that queue stops the feed, and WATCHDOG_TIMEOUT_MS =
+ * 30000 then resets the board. The detector tick is `k_work_reschedule()` on
+ * the same queue. At a 20 s dwell the capture had 10 s of headroom against a
+ * timer that had already been running since the last feed -- and lost. The
+ * board came back with `V45 present=0`, which reads exactly like "the detector
+ * never fired".
+ *
+ * WHY 12000 IS SAFE. The longest healthy notify call measured is 4.1 s, during
+ * DFU. 12 s is a ~2.9x margin over that, and the 512-entry ring spans 25.6 s,
+ * so a capture at onset+12 s still carries the whole pre-onset trajectory --
+ * the property the 20 s value was chosen to protect is untouched.
+ *
+ * This buys capture time against the watchdog. It does NOT make the detector
+ * cover a syswq death; nothing here can, because the detector rides that queue.
+ * See BSF_V45_DOG_* in bsf_v45.h for what covers it instead.
+ */
+#define BSF_V45_FREEZE_MS            12000u  /* the one threshold            */
+/*
+ * Consecutive -ENOTCONN from bt_gatt_notify() with the application still
+ * believing it is connected, before CAUSE_CONN_RELEASED fires.
+ *
+ * CHOOSING N. A legitimate disconnect clears the flag from the `disconnected`
+ * callback within milliseconds, so an honest race is a handful of calls. The
+ * measured notify rate on a loaded node is ~32/s, so 320 is ~10 s -- two orders
+ * of magnitude past any race, and still faster than the 12 s dwell arms.
+ * The 2026-08-09 wedge produced 19412 consecutive failures: a 60x margin.
+ */
+#define BSF_V45_NOTCONN_STREAK       320u
 #define BSF_V45_REBOOT_JITTER_MS     4000u   /* deterministic, node-derived  */
 
 /* decision.cause */
@@ -56,6 +93,21 @@
 #define BSF_V45_CAUSE_NCP_PACKET     2u
 #define BSF_V45_CAUSE_BOTH           3u
 #define BSF_V45_CAUSE_FORCED         4u      /* CORPSE FORCE, validation only */
+/*
+ * R4. Both added because the 2026-08-09 wedge would have been missed entirely by
+ * cause 1 and caught only by cause 2, twenty seconds late.
+ *
+ * NOTIFY_OK -- publisher advancing while notify_ok is frozen. Watches DELIVERY
+ * instead of return-from-call, so it catches the whole fast-failing-sink class
+ * whatever the errno. notify_exit_total kept advancing at ~32/s through that
+ * wedge, so arm A could never have fired at any dwell.
+ *
+ * CONN_RELEASED -- the node contradicting itself: the application believes it is
+ * connected while the host stack has no connection. No dwell, because this is
+ * not a slow symptom, it is an inconsistency.
+ */
+#define BSF_V45_CAUSE_NOTIFY_OK      5u
+#define BSF_V45_CAUSE_CONN_RELEASED  6u
 
 struct bsf_v45_inputs {
 	bool     connected;
@@ -68,6 +120,8 @@ struct bsf_v45_inputs {
 	uint32_t producer_seq;        /* SUBMISSION-stage, only used for "alive" */
 	uint32_t notify_exit_total;   /* watermark A -- exit stage             */
 	uint32_t ncp_packet_total;    /* watermark B -- completion stage       */
+	uint32_t notify_ok_total;     /* watermark C -- DELIVERY stage (R4)    */
+	uint32_t notconn_streak;      /* consecutive -ENOTCONN, app connected  */
 	uint32_t notify_exits_this_epoch;
 
 	bool     forced;              /* CORPSE FORCE latch                    */
@@ -82,6 +136,8 @@ struct bsf_v45_detector {
 	uint32_t notify_exit_moved_ms;
 	uint32_t last_ncp_packet;
 	uint32_t ncp_packet_moved_ms;
+	uint32_t last_notify_ok;
+	uint32_t notify_ok_moved_ms;
 
 	/* suspicion mark -- set at the FIRST pass that sees either frozen */
 	uint32_t suspect_start_ms;
@@ -119,6 +175,7 @@ static inline void bsf_v45_detector_reset(struct bsf_v45_detector *d,
 	d->producer_moved_ms = now_ms;
 	d->notify_exit_moved_ms = now_ms;
 	d->ncp_packet_moved_ms = now_ms;
+	d->notify_ok_moved_ms = now_ms;
 	/* The reboot budget is per POWER CYCLE, not per connection. */
 	d->trigger_count = triggers;
 }
@@ -153,9 +210,11 @@ bsf_v45_detector_step(struct bsf_v45_detector *d,
 		d->last_producer_seq = in->producer_seq;
 		d->last_notify_exit = in->notify_exit_total;
 		d->last_ncp_packet = in->ncp_packet_total;
+		d->last_notify_ok = in->notify_ok_total;
 		d->producer_moved_ms = in->now_ms;
 		d->notify_exit_moved_ms = in->now_ms;
 		d->ncp_packet_moved_ms = in->now_ms;
+		d->notify_ok_moved_ms = in->now_ms;
 		d->seeded = true;
 	}
 	if (in->producer_seq != d->last_producer_seq) {
@@ -169,6 +228,10 @@ bsf_v45_detector_step(struct bsf_v45_detector *d,
 	if (in->ncp_packet_total != d->last_ncp_packet) {
 		d->last_ncp_packet = in->ncp_packet_total;
 		d->ncp_packet_moved_ms = in->now_ms;
+	}
+	if (in->notify_ok_total != d->last_notify_ok) {
+		d->last_notify_ok = in->notify_ok_total;
+		d->notify_ok_moved_ms = in->now_ms;
 	}
 
 	out.notify_exit_age_ms = bsf_v45_delta(in->now_ms, d->notify_exit_moved_ms);
@@ -221,16 +284,42 @@ bsf_v45_detector_step(struct bsf_v45_detector *d,
 		out.mark_suspect = true;
 	}
 
+	/*
+	 * --- R4/A3: the self-contradiction, no dwell ----------------------
+	 *
+	 * The application says connected; the host stack returns -ENOTCONN for
+	 * every notify. That is not a symptom that needs time to become
+	 * convincing, it is two parts of the same node disagreeing, so it fires
+	 * on the streak alone and names the fault directly instead of waiting
+	 * 12 s for a watermark to age out. It does not replace arm B; both stay.
+	 */
+	if (in->notconn_streak >= BSF_V45_NOTCONN_STREAK) {
+		out.cause = BSF_V45_CAUSE_CONN_RELEASED;
+		out.capture = true;
+		out.reboot = (d->trigger_count == 0u);
+		d->trigger_count++;
+		return out;
+	}
+
 	/* --- the one primary trigger ------------------------------------- */
 	{
 		bool a = out.notify_exit_age_ms >= BSF_V45_FREEZE_MS;
 		bool b = out.ncp_packet_age_ms >= BSF_V45_FREEZE_MS;
+		/*
+		 * R4/A4, watermark C. Delivery frozen while the producer is
+		 * still advancing -- the arm that would have caught 2026-08-09
+		 * on its own merits rather than by luck of the ncp arm.
+		 */
+		bool c = bsf_v45_delta(in->now_ms, d->notify_ok_moved_ms) >=
+			 BSF_V45_FREEZE_MS;
 
-		if (!a && !b) {
+		if (!a && !b && !c) {
 			return out;
 		}
 		out.cause = a && b ? BSF_V45_CAUSE_BOTH :
-			    a ? BSF_V45_CAUSE_NOTIFY_EXIT : BSF_V45_CAUSE_NCP_PACKET;
+			    a ? BSF_V45_CAUSE_NOTIFY_EXIT :
+			    b ? BSF_V45_CAUSE_NCP_PACKET :
+				BSF_V45_CAUSE_NOTIFY_OK;
 		out.capture = true;
 		/*
 		 * ONE reset per physical power cycle. A second trigger captures

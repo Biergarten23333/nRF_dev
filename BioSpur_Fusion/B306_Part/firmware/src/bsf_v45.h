@@ -28,6 +28,8 @@ struct bsf_v45_env {
 	uint32_t wdt_feed_count;
 	uint32_t notify_timeout_drop_total;
 	uint32_t notify_exits_this_epoch;
+	uint32_t notify_ok_total;      /* R4/A4 watermark C: DELIVERY          */
+	uint32_t notconn_streak;       /* R4/A3 consecutive -ENOTCONN          */
 	bool     connected;
 	bool     data_subscribed;
 	bool     telemetry_subscribed;
@@ -48,6 +50,44 @@ void bsf_v45_bind_app_threads(k_tid_t notify_worker, k_tid_t publisher);
 void bsf_v45_connection_epoch_changed(uint32_t epoch, uint32_t now_ms);
 void bsf_v45_ota_mark(bool active);
 void bsf_v45_force(void);
+/* Detector blindness, for V45 STATUS: an instrument that is off must say so. */
+void bsf_v45_blind_report(uint32_t *blind_ms, uint32_t *ticks,
+			  uint32_t *discards, uint8_t *armed);
+
+/*
+ * Feed the watchdog exactly once, from inside the capture routine.
+ *
+ * Defined in main.c, which owns the watchdog handle. Declared with no weak
+ * default on purpose: if main.c ever stops providing it this must be a link
+ * error, not a silent no-op that quietly reinstates the race below.
+ *
+ * WHY THIS IS NOT "EXTENDING THE WATCHDOG". WATCHDOG_TIMEOUT_MS stays at 30 s
+ * and the periodic feed stays exactly where it is, on the system workqueue --
+ * that feed is the diagnostic, and lengthening the timeout would blind it to
+ * the real syswq deaths it exists to catch. This is one feed, a few
+ * milliseconds, on a path that only ever runs after the detector has ALREADY
+ * decided to capture. On a healthy node it never executes.
+ *
+ * ORDERING THAT MATTERS. The caller samples `env` -- including
+ * `env->wdt_feed_count` -- before v45_capture() is entered, so the count
+ * written into the corpse is the pre-kick one. The corpse still shows the
+ * stalled feed; the kick only buys wall-clock to finish writing it.
+ */
+void bsf_v45_wdt_kick(void);
+
+/*
+ * The watchdog witness. bsf_v45_dog_boot() is called once at boot with whether
+ * RESETREAS named the dog; the report rides V45 STATUS.
+ *
+ * This does NOT make the detector cover a system-workqueue death -- it cannot,
+ * the detector rides that queue. It makes the resulting reset READABLE, so a
+ * node that ate a watchdog stops being indistinguishable from a node where
+ * nothing ever happened. The distinction is the difference between "the
+ * detector has a hole" and "there was nothing to detect".
+ */
+void bsf_v45_dog_boot(bool was_dog);
+void bsf_v45_dog_report(uint32_t *resets, uint8_t *dwell_active,
+			uint32_t *dwell_age_ms, uint32_t *tick_ms);
 
 /* Corpse state and export. */
 bool     bsf_v45_present(void);

@@ -14,6 +14,14 @@
 # we know exactly.
 #
 # WHAT IS NEW IN v45
+#   * R4 (2026-08-09): SEVEN files. adv.c joins for the bt_conn_set_state site
+#     ids, and zephyr/include/zephyr/bluetooth/conn.h carries
+#     BSF_V45_SDK_PATCH_VERSION so an unpatched SDK is a COMPILE FAILURE in the
+#     application rather than a silent fallback to no-op marks. The old
+#     __has_include no-op fallbacks are gone: the SDK units now #error.
+#     This patch supersedes ncs-v2.8.0-bsf-v45-instrumentation.patch, which is
+#     kept for provenance and no longer applied.
+#
 #   * FIVE files, not three.
 #   * TWO roots: $ZEPHYR_BASE and its sibling nrf/. The controller's HCI driver
 #     -- the MPSL Work inlet, and the one place a stalled receive path is
@@ -41,7 +49,7 @@ set -euo pipefail
 SDK_ZEPHYR="${ZEPHYR_BASE:-/home/zekaixiao/ncs/v2.8.0/zephyr}"
 SDK_ROOT="$(cd "${SDK_ZEPHYR}/.." && pwd)"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PATCH="${HERE}/ncs-v2.8.0-bsf-v45-instrumentation.patch"
+PATCH="${HERE}/ncs-v2.8.0-bsf-v45-r4-instrumentation.patch"
 
 # Captured up front: the loops below use `set -- $spec`, which overwrites the
 # positional parameters and would otherwise eat the subcommand. That cost one
@@ -50,13 +58,15 @@ CMD="${1:-status}"
 
 # path-relative-to-SDK_ROOT   pristine_sha   patched_sha
 FILES=(
-  "zephyr/subsys/bluetooth/host/conn.c            b315e62fd5c63ef5dffc7d54d6d5313dfbd727dba0daa5344294bba962451bb5 4edc61db274670c7619d17f4521d6f64bbe9cb41b38765f86cd202e741cb1419"
+  "zephyr/subsys/bluetooth/host/conn.c            b315e62fd5c63ef5dffc7d54d6d5313dfbd727dba0daa5344294bba962451bb5 3c053a47d489f9ddd53dd2c4178811c5ad35d48978690c1352d9dc2631afa6e4"
   "zephyr/subsys/bluetooth/host/hci_core.c        329107858d42b535477fb7bd9bc12aef2f66348baa125773813e73385a80c193 76468edd61d6a26c9a57f23aafce261c473093ff643b0585a656da48b2d8abac"
   "zephyr/subsys/bluetooth/host/att.c             2f6b969a4fd6ece75d4482e61b7260a495d812fa48353cfed7b1cd5b941fdb64 d2bead08f070ff559ea4d202f560d746f3819d2ea2bee965b37dda2b5899bccc"
   "zephyr/lib/net_buf/buf.c                       b4d233169d6453e482974f810728dcfe1634e000cc32836062a9d6aecea56fe0 94759ac1b2551eba4555f5fb8a9104748d0b53dc67d4ca544ee8b9b82dd7653d"
   "nrf/subsys/bluetooth/controller/hci_driver.c   8d4ca5840769cd3ce39d5fbc8a55bb819db379ced323944a25fae6fce8453c60 3e4769636e2f4196e3f4e668b594721688dc7e5d75c588850ad2f5e5c73812bd"
+  "zephyr/subsys/bluetooth/host/adv.c             1e3ad57ec125a2281c5fdab12bcb8cf7c9f6eb830ebc8e2c74938919c25541f8 2e8ca52676dc0cd9685da2b420304cbca1c920ee82ef27d59c5fd2c33ca03657"
+  "zephyr/include/zephyr/bluetooth/conn.h         dd4babab1b8b92eabee130da4e59837719d5f2b6c5f599483c47e525cabece4e af356086fe60ec801b3be8c736f002a81f1ed4ee6ded3cb299fc857c5ad6ff4a"
 )
-PATCH_SHA=9ff12d11e18638f450243ce573a7f36ada4eea0080bdbd3af80d35a363f33806
+PATCH_SHA=2ca942c729b8266c748fea0a08bbb4a64d9a2dc5ead21f1ae21d4e90c999eb24
 
 die() { echo "SDK_PATCH_FAIL $*" >&2; exit 1; }
 sha() { sha256sum "$1" | cut -d' ' -f1; }

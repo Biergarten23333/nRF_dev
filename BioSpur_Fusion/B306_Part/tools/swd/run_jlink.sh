@@ -64,7 +64,12 @@ fi
 # THE GATE. Strip comments first so the word "reset" in prose cannot trip it and,
 # more importantly, so a real reset command cannot hide behind one.
 stripped="$(sed -e 's://.*$::' -e 's:^[[:space:]]*::' "$rendered")"
-if printf '%s\n' "$stripped" | grep -qiE '^(r|rx[[:space:]]+[0-9]+|reset|resettarget|rsettype([[:space:]]|$))'; then
+# The alternatives MUST be followed by whitespace-or-end. Without that the
+# bare `r` matched the first letter of `regs`, so this gate refused
+# attach_noreset.jlink and dump_ram.jlink -- the two scripts it exists to let
+# through -- while still passing anything whose reset command was spelled
+# differently. It was only ever tested against scripts that had no `regs` line.
+if printf '%s\n' "$stripped" | grep -qiE '^(r|rx|reset|resettarget|rsettype)([[:space:]]|$)'; then
 	if [ "$ALLOW_RESET" -ne 1 ]; then
 		echo "[error] $label contains a RESET command and --allow-reset was not given." >&2
 		echo "[error] A reset destroys .noinit, the trajectory ring and the wedge state." >&2
@@ -116,12 +121,18 @@ echo "[info] elapsed_ms=$elapsed_ms rc=$rc" | tee -a "$output"
 # board that is wedged-but-running the first attach succeeds. G2 measures that;
 # this is the backstop for when it does not.
 if grep -qiE 'connect under reset|Reset: Halt core|Resetting target' "$output"; then
-	echo "[error] ############################################################" >&2
-	echo "[error] J-Link FELL BACK TO CONNECT-UNDER-RESET in session '$label'." >&2
-	echo "[error] If this was a wedged board, .noinit / the ring / the corpse" >&2
-	echo "[error] ARE GONE. Do not report this run as 'no corpse present'." >&2
-	echo "[error] ############################################################" >&2
-	if [ "$ALLOW_RESET" -ne 1 ]; then
+	if [ "$ALLOW_RESET" -eq 1 ]; then
+		# flash_validation resets deliberately, so this pattern ALWAYS matches
+		# there. Printing the alarm anyway put "the corpse ARE GONE" into the
+		# log of the one step whose reset is correct -- which is how a reader
+		# later mistakes a good G4 for a disaster.
+		echo "[info] reset observed in '$label', as intended (--allow-reset)"
+	else
+		echo "[error] ############################################################" >&2
+		echo "[error] J-Link FELL BACK TO CONNECT-UNDER-RESET in session '$label'." >&2
+		echo "[error] If this was a wedged board, .noinit / the ring / the corpse" >&2
+		echo "[error] ARE GONE. Do not report this run as 'no corpse present'." >&2
+		echo "[error] ############################################################" >&2
 		exit 7
 	fi
 fi

@@ -127,6 +127,21 @@ enum bsf_v45_stage {
 	BSF_V45_NOTIFY_ENTER                = 37,  /* arg0=stream<<16|len      */
 	BSF_V45_NOTIFY_EXIT                 = 38,  /* arg0=rc, arg1=duration_us*/
 
+	/* --- R4: the fatal-disconnect path, BSF_V45_CH_TX_WORK ------------
+	 *
+	 * conn.c's tx_processor() runs on the system workqueue
+	 * (DATAFLOW_MAP.md section 2), which is the context CH_TX_WORK owns, so
+	 * these two are single-writer by construction like everything else in
+	 * that channel.
+	 *
+	 * SEND_FAIL is the ORIGIN and FATAL_DISCONNECT is the CONSEQUENCE, and
+	 * they are separate stages on purpose: "the link was torn down because a
+	 * send failed" and "the send failed because X" are different facts, and
+	 * only the second one is actionable.
+	 */
+	BSF_V45_TX_SEND_FAIL                = 39,  /* arg0=err, arg1=site id   */
+	BSF_V45_TX_FATAL_DISCONNECT         = 40,  /* arg0=err, arg1=uptime_ms */
+
 	BSF_V45_STAGE__COUNT
 };
 
@@ -240,6 +255,13 @@ struct bsf_v45_counters {
 	atomic_t tx_notify_runs;
 	atomic_t tx_cb_calls;
 
+	/* --- R4 ---------------------------------------------------------- */
+	atomic_t conn_fatal_disconnects;  /* conn.c tx_processor tore the link */
+	atomic_t send_fail_emsgsize;      /* send_buf: buf->len == 0           */
+	atomic_t send_fail_eio;           /* send_buf: bt_buf_has_view         */
+	atomic_t send_fail_enomem;        /* send_buf: no controller buf / tx  */
+	atomic_t notify_notconn_max;      /* longest -ENOTCONN streak seen     */
+
 	/*
 	 * Shadow counters for conn->tx_pending / tx_complete (law 5). The audit
 	 * found three UNLOCKED mutation contexts for tx_pending, so walking it
@@ -257,6 +279,52 @@ struct bsf_v45_counters {
 };
 
 extern struct bsf_v45_counters bsf_v45_cnt;
+
+/*
+ * R4/A2 -- WHICH LINE RELEASED THE CONNECTION.
+ *
+ * bt_conn_set_state() is reached from several threads, so marking inside it
+ * would break the single-writer rule the channels depend on. The call SITES are
+ * marked instead, and they record into plain atomics/stores rather than a trace
+ * channel, which is context-safe from any thread.
+ *
+ * Site ids are assigned in bsf_v45_conn_sites.h and must be append-only: a
+ * corpse decoded with renumbered sites names the wrong line, which is worse
+ * than naming none.
+ */
+/* 32, not the 23 currently used: headroom so an SDK upgrade that adds a
+ * call site does not force a schema bump. */
+#define BSF_V45_CONN_SITE__MAX 32u
+
+struct bsf_v45_conn_release {
+	uint32_t uptime_ms;   /* when the LAST transition happened            */
+	uint16_t total;       /* transitions recorded, saturating             */
+	uint8_t  site;        /* BSF_V45_CONN_SITE_*                          */
+	uint8_t  old_state;
+	uint8_t  new_state;
+	uint8_t  pad[3];
+};
+
+extern struct bsf_v45_conn_release bsf_v45_conn_rel;
+extern uint8_t bsf_v45_conn_site_count[BSF_V45_CONN_SITE__MAX];
+
+/* One word stored plus one saturating counter. No logging, any context. */
+static inline void bsf_v45_conn_state_note(uint8_t site, uint8_t old_state,
+					   uint8_t new_state)
+{
+	if (site < BSF_V45_CONN_SITE__MAX) {
+		if (bsf_v45_conn_site_count[site] != 0xffu) {
+			bsf_v45_conn_site_count[site]++;
+		}
+	}
+	bsf_v45_conn_rel.site = site;
+	bsf_v45_conn_rel.old_state = old_state;
+	bsf_v45_conn_rel.new_state = new_state;
+	bsf_v45_conn_rel.uptime_ms = k_uptime_get_32();
+	if (bsf_v45_conn_rel.total != 0xffffu) {
+		bsf_v45_conn_rel.total++;
+	}
+}
 
 /* ------------------------------------------------------------------ */
 /* The marker                                                          */

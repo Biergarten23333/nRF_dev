@@ -1,0 +1,25 @@
+// CONTACT QUALITY PROBE -- READ ONLY, NO RESET, NO HALT, NO WRITE.
+//
+// WHY THIS EXISTS
+// ---------------
+// InitTarget duration is the only signal that separates good contact from
+// marginal contact on a hand-held TC2030. VTref does not: it read 3.300V in
+// every failure so far, including the two on 2026-08-09 that went on to
+// produce "Failed to preserve target RAM" and a confused core.
+//
+// id_target.jlink cannot supply it. It connects as a generic CORTEX-M4 -- on
+// purpose, because BSF6C53 has two SWD contact sets and naming the part on the
+// DWM1001C's pads yields a device mismatch instead of an answer -- and
+// InitTarget is an nRF52-specific device-script step that a generic CORTEX-M4
+// connect never runs. So the contact check and the contact MEASUREMENT are two
+// different sessions, and this is the second one.
+//
+// It names NRF52840_XXAA to get the device script, and does nothing else. Two
+// FICR reads over the AHB-AP with the CPU still running, then out. Safe to
+// point at a wedged board for the same reason id_target.jlink is.
+si 1
+speed 4000
+device NRF52840_XXAA
+connect
+mem32 0x10000100, 1
+exit

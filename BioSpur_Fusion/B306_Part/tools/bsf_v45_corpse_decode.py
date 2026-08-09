@@ -34,7 +34,18 @@ from pathlib import Path
 V45_CORPSE_MAGIC = 0x35345043      # 'CP45'
 V45_BANK_MAGIC = 0x354B4E42        # 'BNK5'
 V45_FLASH_MAGIC = 0x35465043       # 'CPF5'
-V45_SCHEMA = 3
+V45_SCHEMA = 5
+# Schema 3 moved to 4 when reboot_taken/reboot_owner/flash_slot were taken
+# out of the CRC range and placed after `valid`. Same fields, same total
+# size, different order -- which is exactly the kind of change that must
+# take a schema number, because reading one with the other's offsets
+# produces plausible nonsense rather than an error. Schema 3 stays
+# decodable: one schema-3 corpse exists (BSF6C53 seq=1, 2026-08-08).
+# 4 -> 5 grew counters[32] to [40] and added the conn-release evidence.
+V45_SCHEMAS = (3, 4, 5)
+CONN_SITE_MAX = 32
+CONN_SITE_USED = 24   # ids actually compiled; see bsf_v45_conn_sites.h
+CORE_CONN_RELEASE = "<IHBBB3x"   # uptime_ms, total, site, old, new
 V44_CORPSE_MAGIC = 0x34335043      # 'CP43', shared by schema 1 and 2
 V45_TRACE_ENTRIES = 128
 RING_CAPACITY = 510
@@ -45,7 +56,9 @@ CHANNEL_NAMES = {0: "MPSL_RX", 1: "BT_RX", 2: "TX_WORK", 3: "APP_NOTIFY"}
 THREAD_NAMES = ["MPSL Work", "BT RX WQ", "sysworkq", "notify worker", "publisher"]
 
 CAUSE = {0: "NONE", 1: "NOTIFY_EXIT_FROZEN", 2: "NCP_PACKET_FROZEN",
-         3: "BOTH_FROZEN", 4: "FORCED (pipeline validation only)"}
+         3: "BOTH_FROZEN", 4: "FORCED (pipeline validation only)",
+         5: "NOTIFY_OK_FROZEN (delivery stopped, calls still returning)",
+         6: "CONN_RELEASED (app connected, host stack has no connection)"}
 
 STAGE = {
     0: "IDLE",
@@ -123,14 +136,28 @@ SZ["pool_snapshot"] = 6 * SZ["pool_summary"] + SZ["buf_entry"] + 4 + \
 
 CORE_HEAD = "<I2HI"                       # magic, schema, length, crc32
 CORE_BODY_A = "<6I2H5I"                   # through suspect_ring_index+connected_at_ms
-CORE_FLAGS = "<8B"
-CORE_TAIL = "<32I2i4Ii"                   # counters + depths + liveness
+CORE_FLAGS = "<8B"      # schema 3: flags + the 3 bookkeeping bytes
+CORE_FLAGS_V4 = "<5B"   # schema 4: flags only; the 3 moved after `valid`
+CORE_TRAILER = "<3B"    # schema 4: reboot_taken, reboot_owner, flash_slot
+CORE_TAIL = "<32I2i4Ii"                   # schema 3/4: counters + depths + liveness
+CORE_TAIL_V5 = "<40I"                     # schema 5: counters only; then
+                                          # conn_release + sites + "<2i4Ii"
+CORE_TAIL_V5_REST = "<2i4Ii"
 
-SZ["core"] = (struct.calcsize(CORE_HEAD) + struct.calcsize(CORE_BODY_A)
-              + struct.calcsize(CORE_FLAGS)
-              + 4 * SZ["channel"] + 5 * SZ["thread"] + SZ["waitobj"]
-              + SZ["conn"] + SZ["pool_snapshot"]
-              + struct.calcsize(CORE_TAIL) + 4)   # + valid
+SZ["core_v5_extra"] = (8 * 4 + struct.calcsize(CORE_CONN_RELEASE)
+                       + CONN_SITE_MAX)
+def _core_size(schema: int) -> int:
+    base = (struct.calcsize(CORE_HEAD) + struct.calcsize(CORE_BODY_A)
+            + struct.calcsize(CORE_FLAGS)
+            + 4 * SZ["channel"] + 5 * SZ["thread"] + SZ["waitobj"]
+            + SZ["conn"] + SZ["pool_snapshot"]
+            + struct.calcsize(CORE_TAIL) + 4)     # + valid
+    if schema >= 5:
+        base += SZ["core_v5_extra"]
+    return base
+
+
+SZ["core"] = _core_size(4)
 
 
 class Reject(Exception):
@@ -161,22 +188,86 @@ def _named_waitobj(core: dict, addr: int) -> str:
     for ch in core["channel"]:
         if ch["stage"] == 29 and ch["arg0"] == addr:      # TX_NOTIFY_WAIT_ENTER
             return "k_work_sync of tx_complete_work (from the channel's own arg0)"
+
+    # A work-queue thread parked on ITS OWN queue is the idle, healthy case, and
+    # it is the one this column has to be able to tell apart from a pool wait.
+    # struct k_work_q embeds its k_queue a fixed short distance after the
+    # k_thread it owns, so `pended_on - tid` is small and positive for exactly
+    # that case. Derived from the corpse's own thread table -- no ELF needed,
+    # which matters because the collected corpse is often all there is.
+    #
+    # Measured on the Step 1 healthy baseline: MPSL Work tid=0x200048f8 pends on
+    # 0x200049c8 (+0xd0), BT RX WQ tid=0x20003788 pends on 0x20003858 (+0xd0).
+    for t in core.get("thread", []):
+        tid = t.get("tid", 0)
+        if tid and 0 < addr - tid <= 0x200:
+            return (f"{t['name']}'s own work queue, idle "
+                    f"(tid+0x{addr - tid:x})")
+
+    # Optional: names resolved from an ELF symbol table, the same way
+    # tools/swd/parse_ram_dump.py names them for an SWD dump.
+    name = _SYMBOL_WAITOBJS.get(addr)
+    if name:
+        return f"{name} (from the ELF)"
     return f"0x{addr:08x} (unnamed)"
 
 
+# addr -> name, optionally populated from an ELF so the corpse decoder can name
+# the same wait objects tools/swd/parse_ram_dump.py names for a RAM dump.
+_SYMBOL_WAITOBJS: dict[int, str] = {}
+
+
+def load_symbol_waitobjs(elf) -> int:
+    """Populate the ELF-derived wait-object names. Returns how many were found.
+
+    Mirrors parse_ram_dump.py: a net_buf pool's wait object is
+    &pool.free._queue.wait_q, and a semaphore's is &sem.wait_q, both offsets
+    read out of DWARF rather than assumed.
+    """
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent / "swd"))
+    from parse_ram_dump import elf_info                     # noqa: E402
+
+    syms, off, _ = elf_info(_Path(elf))
+    nbp, kq, ksem = (off.get("net_buf_pool", {}), off.get("k_queue", {}),
+                     off.get("k_sem", {}))
+    pool_waitq = nbp.get("free", 0) + kq.get("wait_q", 8)
+    sem_waitq = ksem.get("wait_q", 0)
+    _SYMBOL_WAITOBJS.clear()
+    for pool in ("att_pool", "acl_tx_pool", "fragments", "hci_cmd_pool",
+                 "hci_rx_pool", "sync_evt_pool", "discardable_pool"):
+        if pool in syms:
+            _SYMBOL_WAITOBJS[syms[pool] + pool_waitq] = f"{pool}.free.wait_q"
+    for sem in ("notify_job_sem", "notify_idle_sem", "publisher_sem",
+                "uart_data_sem", "uart_tx_done", "v45_inject_hang_sem"):
+        if sem in syms:
+            _SYMBOL_WAITOBJS[syms[sem] + sem_waitq] = sem
+    return len(_SYMBOL_WAITOBJS)
+
+
 def decode_core(blob: bytes) -> dict:
-    if len(blob) < SZ["core"]:
-        raise Reject(f"truncated: {len(blob)} bytes, core needs {SZ['core']}")
+    if len(blob) < struct.calcsize(CORE_HEAD):
+        raise Reject(f"truncated: {len(blob)} bytes")
     magic, schema, length, crc = struct.unpack_from(CORE_HEAD, blob, 0)
     if magic == V44_CORPSE_MAGIC:
         raise Reject("this is a v43/v44 corpse (magic CP43); use --legacy")
     if magic != V45_CORPSE_MAGIC:
         raise Reject(f"bad magic 0x{magic:08x}, expected 0x{V45_CORPSE_MAGIC:08x}")
-    if schema != V45_SCHEMA:
-        raise Reject(f"unknown schema {schema}, this decoder speaks {V45_SCHEMA}")
+    if schema not in V45_SCHEMAS:
+        raise Reject(f"unknown schema {schema}, this decoder speaks "
+                     f"{V45_SCHEMAS}")
 
     crc_start = struct.calcsize(CORE_HEAD)
-    valid_off = SZ["core"] - 4
+    # Schema 4 keeps 3 bookkeeping bytes AFTER `valid`, so `valid` is no
+    # longer the last thing in the struct. Total size is unchanged: the
+    # three bytes moved out of the flag block, they were not added.
+    core_size = _core_size(schema)
+    if len(blob) < core_size:
+        raise Reject(f"truncated: {len(blob)} bytes, schema {schema} core "
+                     f"needs {core_size}")
+    trailer = struct.calcsize(CORE_TRAILER) if schema >= 4 else 0
+    valid_off = core_size - 4 - trailer
     want_len = valid_off - crc_start
     if length != want_len:
         raise Reject(f"length {length} != {want_len} for schema {schema}: this "
@@ -192,9 +283,16 @@ def decode_core(blob: bytes) -> dict:
     (fw_hash, node, uptime, rr, seq, epoch, cause, tcount,
      nage, cage, sus_ms, sus_idx, conn_at) = struct.unpack_from(CORE_BODY_A, blob, o)
     o += struct.calcsize(CORE_BODY_A)
-    (connected, data_sub, tele_sub, ota, reboot_taken, reboot_owner,
-     flash_slot, flash_en) = struct.unpack_from(CORE_FLAGS, blob, o)
-    o += struct.calcsize(CORE_FLAGS)
+    if schema >= 4:
+        (connected, data_sub, tele_sub, ota, flash_en) = \
+            struct.unpack_from(CORE_FLAGS_V4, blob, o)
+        o += struct.calcsize(CORE_FLAGS_V4)
+        reboot_taken, reboot_owner, flash_slot = \
+            struct.unpack_from(CORE_TRAILER, blob, valid_off + 4)
+    else:
+        (connected, data_sub, tele_sub, ota, reboot_taken, reboot_owner,
+         flash_slot, flash_en) = struct.unpack_from(CORE_FLAGS, blob, o)
+        o += struct.calcsize(CORE_FLAGS)
 
     channels = []
     for i in range(4):
@@ -247,8 +345,35 @@ def decode_core(blob: bytes) -> dict:
             rx_bufs.append({"ptr": v[0], "len": v[1], "ref": v[2],
                             "owner": v[3], "code": v[4]})
 
-    tail = struct.unpack_from(CORE_TAIL, blob, o)
-    counters = list(tail[:32])
+    if schema >= 5:
+        counters = list(struct.unpack_from(CORE_TAIL_V5, blob, o))
+        o += struct.calcsize(CORE_TAIL_V5)
+        cr_uptime, cr_total, cr_site, cr_old, cr_new = \
+            struct.unpack_from(CORE_CONN_RELEASE, blob, o)
+        o += struct.calcsize(CORE_CONN_RELEASE)
+        site_counts = list(struct.unpack_from(f"<{CONN_SITE_MAX}B", blob, o))
+        o += CONN_SITE_MAX
+        tail = struct.unpack_from(CORE_TAIL_V5_REST, blob, o)
+        conn_release = {"uptime_ms": cr_uptime, "total": cr_total,
+                        "site": cr_site, "old_state": cr_old,
+                        "new_state": cr_new}
+        # Defensive: a site id past the compiled set, or a count at such an
+        # index, means this .noinit was never initialised by the firmware --
+        # it is uninitialised RAM wearing the shape of evidence. Say so
+        # instead of naming a line that did nothing.
+        impossible = [i for i, v in enumerate(site_counts)
+                      if v and i >= CONN_SITE_USED]
+        if impossible or cr_site >= CONN_SITE_USED:
+            conn_release["SUSPECT"] = (
+                f"site id(s) beyond the compiled set of {CONN_SITE_USED}: "
+                f"{impossible or cr_site} -- treat this conn evidence as "
+                "UNINITIALISED, not as a finding")
+    else:
+        tail = struct.unpack_from(CORE_TAIL, blob, o)
+        counters = list(tail[:32])
+        tail = tail[32:]
+        conn_release = None
+        site_counts = []
 
     core = {
         "schema": schema, "fw_marker_hash": fw_hash, "node_identity": node,
@@ -267,10 +392,13 @@ def decode_core(blob: bytes) -> dict:
         "conn": conn, "pools": pools, "sync_evt_buf": sync_buf,
         "sync_evt_last_owner": sync_owner, "sync_evt_last_evt_code": sync_evt_code,
         "hci_rx_buf": rx_bufs, "counters": counters,
-        "tx_pending_depth": tail[32], "tx_complete_depth": tail[33],
-        "wdt_feed_count": tail[34], "producer_seq": tail[35],
-        "publisher_count": tail[36], "notify_timeout_drop_total": tail[37],
-        "tx_complete_busy": tail[38],
+        "conn_release": conn_release, "conn_site_count": site_counts,
+        # `tail` is the 7-element remainder after the counters in BOTH
+        # schema branches, so these are 0-based, not 32-based.
+        "tx_pending_depth": tail[0], "tx_complete_depth": tail[1],
+        "wdt_feed_count": tail[2], "producer_seq": tail[3],
+        "publisher_count": tail[4], "notify_timeout_drop_total": tail[5],
+        "tx_complete_busy": tail[6],
     }
     return core
 
@@ -280,7 +408,7 @@ def decode_bank(blob: bytes, off: int, corpse_seq: int):
     magic, schema, bank, entry_size, length, crc, seq, entries, head, valid = v
     if magic != V45_BANK_MAGIC:
         raise Reject(f"bank at {off}: bad magic 0x{magic:08x}")
-    if schema != V45_SCHEMA:
+    if schema not in V45_SCHEMAS:
         raise Reject(f"bank {bank}: unknown schema {schema}")
     if valid != V45_BANK_MAGIC:
         raise Reject(f"bank {bank}: valid flag not set")
@@ -328,7 +456,10 @@ def decode_bank(blob: bytes, off: int, corpse_seq: int):
 def decode_image(blob: bytes) -> Decoded:
     core = decode_core(blob)
     d = Decoded(core=core)
-    off = SZ["core"]
+    # Schema-aware: the core grew at schema 5, so a fixed SZ["core"] would look
+    # for the first bank 76 bytes short and find none -- which presents as "this
+    # corpse has no banks" rather than as a decoder bug.
+    off = _core_size(core["schema"])
     while off + SZ["bank_hdr"] <= len(blob):
         (magic,) = struct.unpack_from("<I", blob, off)
         if magic != V45_BANK_MAGIC:
@@ -345,7 +476,7 @@ def decode_flash_slot(blob: bytes) -> Decoded:
     magic, schema, slot, length, crc, seq, uptime, tkeep, rkeep, collected, valid = v
     if magic != V45_FLASH_MAGIC:
         raise Reject(f"flash slot: bad magic 0x{magic:08x} (erased or never written)")
-    if schema != V45_SCHEMA:
+    if schema not in V45_SCHEMAS:
         raise Reject(f"flash slot: unknown schema {schema}")
     if valid != V45_FLASH_MAGIC:
         raise Reject("flash slot: valid flag not set -- a brownout during the "
