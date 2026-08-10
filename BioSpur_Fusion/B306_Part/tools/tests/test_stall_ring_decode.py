@@ -28,25 +28,25 @@ def page(n):
     return srd.decode_page(out)
 
 
-pages = [page(n) for n in range(40)]
+pages = [page(n) for n in range(72)]
 
 # --- header agreement
 p0 = pages[0]
 assert p0["version"] == 4, p0["version"]
-assert p0["capacity"] == 200 and p0["count"] == 200, p0
-assert p0["pages"] == 40 and p0["entries"] == 5
+assert p0["capacity"] == 510 and p0["count"] == 360, p0
+assert p0["pages"] == 72 and p0["entries"] == 5
 assert p0["entry_size"] == 40 and p0["sample_period_ms"] == 50
 assert p0["frozen"] is True and p0["freeze_reason"] == "alarm", p0
 assert all(p["crc_ok"] for p in pages), "every page CRC must verify"
-print(f"  ok   40 pages decode, all CRCs verify, {p0['count']} entries held")
+print(f"  ok   72 pages decode, all CRCs verify, {p0['count']} entries held")
 
 # --- the series is contiguous, ordered, and 50 ms apart
 series, bad, missing = srd.merge(pages)
 assert not bad and not missing, (bad, missing)
-assert len(series) == 200, len(series)
+assert len(series) == 360, len(series)
 steps = {b["uptime_ms"] - a["uptime_ms"] for a, b in zip(series, series[1:])}
 assert steps == {50}, f"expected a uniform 50 ms grid, got {sorted(steps)}"
-print("  ok   merged series is 200 entries on a uniform 50 ms grid")
+print("  ok   merged series is 360 entries on a uniform 50 ms grid")
 
 # --- restartable: shuffled, duplicated, partial input all merge correctly
 shuffled = pages[7:] + pages[:7] + pages[3:5]
@@ -64,14 +64,14 @@ corrupt[40] ^= 0xFF  # first byte of the first entry
 decoded = srd.decode_page(bytes(corrupt))
 assert decoded["crc_ok"] is False, "a flipped payload byte must fail the CRC"
 kept, bad, _ = srd.merge([decoded] + pages[1:])
-assert bad == [0] and len(kept) == 195, (bad, len(kept))
+assert bad == [0] and len(kept) == 355, (bad, len(kept))
 print("  ok   a corrupted page is reported and dropped, not merged")
 
 # --- the transition is actually visible in the data, which is the whole point
 frozen_at = p0["freeze_index"]
-assert frozen_at == 200, frozen_at
+assert frozen_at == 360, frozen_at
 tail = series[-100:]          # the 5.0 s after the modelled onset
-head = series[:100]           # healthy run-in
+head = series[:260]           # healthy run-in
 assert all(e["exit_count"] == tail[0]["exit_count"] for e in tail), \
     "publisher exits must be flat across the stall"
 assert tail[-1]["producer_heartbeat"] > tail[0]["producer_heartbeat"], \

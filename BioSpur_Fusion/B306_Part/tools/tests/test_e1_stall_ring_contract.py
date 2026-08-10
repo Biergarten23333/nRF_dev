@@ -38,14 +38,19 @@ assert "k_spin_lock(&stall_ring_lock)" in sampler and \
        "k_spin_unlock(&stall_ring_lock" in sampler, \
     "the ring write must be spinlock-brief"
 
-# the watchdog must still have exactly one feed site, and it must not be ours
-assert fw.count("watchdog_feed_once") == 2, \
-    "watchdog_feed_once must be defined once and called from exactly one site"
+# One periodic feed remains at telemetry head. The capture-only wrapper may
+# call the same primitive once after a stall is already frozen; it cannot
+# become a second periodic authority.
+assert fw.count("watchdog_feed_once") == 3, \
+    "watchdog_feed_once must have one definition, one periodic call, and one capture kick"
 # Two wdt_feed sites: the one-shot feed inside watchdog_start(), and the
-# wrapper. Only the wrapper is periodic, which is what D1's argument rests on.
+# primitive. Only telemetry calls the primitive periodically.
 assert fw.count("wdt_feed(") == 2, "no new periodic watchdog feed may appear"
 assert "int watchdog_ret = watchdog_feed_once();" in fw, \
-    "the single feed site is still the head of telemetry_work_handler"
+    "the periodic feed site is still the head of telemetry_work_handler"
+assert "void bsf_v45_wdt_kick(void)" in fw and \
+       "(void)watchdog_feed_once();" in fw, \
+    "the bounded capture-only watchdog kick must remain explicit"
 
 # --- pool sampling must not steal the kind-8 low-water window
 assert "static uint8_t sample_pool_available(uint8_t *out)" in fw
@@ -201,7 +206,7 @@ assert "_Static_assert(sizeof(bsf_ble_telemetry_t) == 243u," in hdr
 assert "_Static_assert(sizeof(bsf_ble_queue_counters_t) == 58u," in hdr
 
 # --- geometry is derived from the detector dwell, not picked at random
-assert "#define BSF_STALL_RING_CAPACITY 200u" in ring
+assert "#define BSF_STALL_RING_CAPACITY 510u" in ring
 assert "#define BSF_STALL_RING_PERIOD_MS 50u" in ring
 assert "#define STALL_DETECT_MS 5000u" in fw, \
     "the ring span was sized against this dwell; changing it must fail here"
@@ -228,10 +233,10 @@ assert _m is not None and int(_m.group(1)) >= 42, \
 _v = re.search(r"VERSION_PATCHLEVEL = (\d+)", version)
 assert _v is not None and int(_v.group(1)) == int(_m.group(1)), \
     "the image header patchlevel and the marker must stay aligned"
-port = (root / f"tools/confirm_b306_v{_m.group(1)}.py").read_text()
-assert f'B306_MARKER = "b306-imu-relay-v{_m.group(1)}"' in port
-_dk = re.search(r'MASTER_MARKER = "dk-fusion-imu-relay-v(\d+)"', port)
-assert _dk is not None and int(_dk.group(1)) >= 33, \
-    "the confirm tool must pin a DK at or past the one E1 was validated against"
+port = (root / "tools/confirm_b306_v32.py").read_text()
+assert '"--identity-manifest", required=True' in port
+assert '"--expected-master-marker", required=True' in port
+assert 'identity["firmware_marker"]' in port, \
+    "the generic confirmer must bind the live marker from the finalized manifest"
 
 print("E1 stall-ring contract: PASS")
