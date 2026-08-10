@@ -218,3 +218,41 @@ valid samples across the preserved evidence (BSF6C53 v46, BSF8BC4 v44 and
 BSF1120 v44), zero salvaged samples, and seven missing nodes. Mixed firmware
 cohorts are not silently aggregated. Fleet qualification remains BLOCKED and
 no OTA or slot write occurred.
+
+### Seven-board continuation and mixed-firmware rule
+
+After an operator hard power cycle and a fresh exact ten-peer read-only PASS,
+the guarded continuation at
+`logs/seven_board_timing_qualification_20260810_120753/` rebooted only the seven
+missing nodes, once each. All seven returned `REBOOT QUEUED` and disconnected.
+Only BSFB165 completed the current online witness sequence: v44, 17.050621 s,
+disconnect/reconnect, uptime 414189/16140 ms, and `confirmed=1`. The other six
+later returned a requested-name PONG, but the run did not obtain their
+post-reboot STATUS and BOOT CONFIRM STATUS records. The versioned offline
+evaluator therefore reported `INVALID_MISSING_UPTIME_CONFIRMATION` for
+BSF3C79, BSFC2CC, BSF44AD, BSF31CC, BSFAA61 and BSFEC35; none was promoted.
+Result SHA-256 is
+`42f6643791974bf7344c034b6c0a999424b11654518b4a29ddb5611efc64c477`;
+raw CDC SHA-256 is
+`5af41c661af33148102c4617c30e105737dadb7614a7da55842835f179c2425a`.
+No repeat reboot was used to repair missing evidence. The post-run read-only
+inventory passed ten consecutive exact samples.
+
+The deployed mixed-firmware qualification rule is now explicit. v44 and v46
+remain separate reported cohorts and firmware identity remains part of every
+sample key. A fleet result may conservatively combine them only when all ten
+unique deployed boards have an independently valid current-schema sample and
+Master identity, tool schema, timing configuration and archived component
+inputs match. The fleet upper bound uses the worse maximum of each component
+across both cohorts; it does not average cohort maxima or discard the slower
+cohort. This is an explicit conservative bound for the observed deployed mix,
+not a claim that v44 and v46 are one firmware cohort. Requiring ten samples of
+one B306 version would conflict with the no-OTA constraint and is not the
+qualification criterion for this mixed deployed fleet.
+
+Current observed-only cohorts (not qualification PASS inputs) are v44: n=3,
+maximum 17.050621 s, interpolated P95 16.590874 s; and v46: n=1, maximum/P95
+11.450379 s. Using the observed component maxima would yield v44 upper
+31.193246 s and upper-plus-margin 61.193246 s; v46 upper 25.529386 s and
+upper-plus-margin 55.529386 s. These figures cannot qualify the fleet because
+six unique boards still lack valid samples. Exact gate: **BLOCKED, 4/10 valid**.

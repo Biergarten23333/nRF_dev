@@ -112,3 +112,10 @@ nodes. Registry code keys samples by node, Master firmware, B306 firmware,
 tool schema, configuration and evidence SHA, and rejects mixed identities.
 The v44 and v46 cohorts cannot be silently combined. The fleet gate remains
 BLOCKED; max/P95 and the strict margin predicate are unavailable.
+
+The later seven-board continuation added one valid v44 sample, BSFB165 at
+17.050621 s. Six other reboot attempts retained REBOOT/disconnect/PONG evidence
+but lack post-reboot uptime and confirmation witnesses and remain invalid.
+BSF1120 was not rebooted again. Fleet coverage is therefore 4/10 valid and
+remains BLOCKED; see `OTA_CONFIRMATION_PIPELINE_AUDIT.md` for the explicit
+mixed-firmware conservative-bound rule.

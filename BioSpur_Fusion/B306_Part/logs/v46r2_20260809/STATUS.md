@@ -111,3 +111,20 @@ observed running, and exact target image durably confirmed.
    durable success is fresh node + FWID + active image SHA + `confirmed=1`,
    never transaction `rc`.
 3. Then B1's first hardware test.
+
+## Seven-board continuation, 2026-08-10
+
+The guarded run rebooted each of the seven missing boards exactly once. Only
+BSFB165 produced the full current-schema witness set and added a valid v44
+17.050621 s sample. The other six produced REBOOT/disconnect/later-PONG
+evidence but no post-reboot STATUS/confirmation pair, so both the live result
+and offline evaluator fail closed. The final read-only inventory passed all ten
+consecutive exact samples; all boards are currently reachable.
+
+Coverage is **BLOCKED at 4/10 valid**. Observed v44 is n=3, max 17.050621 s,
+P95 16.590874 s; observed v46 is n=1, max/P95 11.450379 s. A mixed deployed
+fleet may use a component-wise worse maximum across separately reported
+cohorts only after every one of the ten boards has a valid sample and all
+non-firmware configuration identities match. This resolves the no-OTA/version
+conflict without treating the two firmware versions as one cohort. No OTA,
+upload, pending mark, PREPARE/COMMIT or slot write occurred.
