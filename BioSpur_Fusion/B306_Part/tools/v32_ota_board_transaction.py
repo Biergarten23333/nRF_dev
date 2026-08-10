@@ -21,7 +21,6 @@ FLEET_NODES = {
     "BSF3C79", "BSFC2CC", "BSF44AD", "BSF6C53", "BSF8BC4",
     "BSF1120", "BSF31CC", "BSFAA61", "BSFB165", "BSFEC35",
 }
-SOURCE_MARKER = "b306-imu-relay-v31"
 UPDATER_SHA = {
     "BSFC2CC": "57d21879fdd7767a8a6265b202b5c195236f564d4e852b4f46a67714ab5e4330",
     "BSF44AD": "fd4b9006832bdd219e7c23a40281fbee3f8259c77bbdd23a796e40882e094f70",
@@ -38,7 +37,6 @@ V28_BIN_SHA = "110dcbe5c8580d060f9b89e4d63d06d4e0ed28cced73a83397c23155dc07a97f"
 # may spend 15 s before starting, and its initial-scan and post-reset
 # reacquisition operations each have a 180 s inner deadline.  One additional
 # measured-max upload interval is the evidence-tail margin.
-V34C_CAPTURE_BOUND_S = 15.0 + 180.0 + 21.437 + 180.0 + 21.437
 
 
 def sha256(path: Path) -> str:
@@ -184,12 +182,14 @@ def main() -> int:
             "do not run F4, SPACING, redraw, sanity, or IMU commands"
         ),
     )
-    parser.add_argument("--source-marker", default=SOURCE_MARKER)
-    parser.add_argument("--target-marker", default="b306-imu-relay-v32")
-    parser.add_argument("--build-prefix", default="dk-ota-b306-v32-retry1-")
-    parser.add_argument("--updater-sha")
+    parser.add_argument("--source-marker", required=True)
+    parser.add_argument("--target-marker", required=True)
+    parser.add_argument("--identity-manifest", required=True, type=Path)
+    parser.add_argument("--confirmation-deadline-s", required=True, type=float)
+    parser.add_argument("--build-prefix", required=True)
+    parser.add_argument("--updater-sha", required=True)
     parser.add_argument("--confirm-tool", default="confirm_b306_v32.py")
-    parser.add_argument("--master-marker", default="dk-fusion-imu-relay-v28")
+    parser.add_argument("--master-marker", required=True)
     #
     # NO DEFAULT. This is the ninth "checker answering a different question"
     # in this project.
@@ -233,10 +233,6 @@ def main() -> int:
             "block, or roll back, every other board's image."
         ),
     )
-    parser.add_argument(
-        "--capture-timeout-s", type=float, default=V34C_CAPTURE_BOUND_S,
-        help="outer RTT evidence bound; must exceed all wrapped updater deadlines",
-    )
     args = parser.parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=False)
     state: dict[str, object] = {
@@ -249,12 +245,6 @@ def main() -> int:
     updater_flushed = False
     env = dict(os.environ)
     env["PYTHONPATH"] = str(TOOLS)
-    # v46r2: the confirm tool had its own hardcoded B306 marker, four
-    # generations stale, and a mismatch there aborts confirmation -- which
-    # makes MCUboot revert a correctly delivered image. Pass down the marker
-    # this transaction was actually told to expect, so the two can never
-    # disagree again.
-    env["BSF_B306_MARKER"] = args.target_marker
 
     build = ROOT / "B306_Part" / "builds" / f"{args.build_prefix}{args.node}"
     updater_merged = build / "merged.hex"
@@ -269,7 +259,7 @@ def main() -> int:
             "v28_bin": sha256(v28_bin),
         }
         state["hashes"] = hashes
-        expected_updater_sha = args.updater_sha or UPDATER_SHA[args.node]
+        expected_updater_sha = args.updater_sha
         if hashes != {
             "updater_merged": expected_updater_sha,
             "v28_merged": args.restore_merged_sha,
@@ -370,45 +360,22 @@ def main() -> int:
         flash(updater_script, args.out_dir / "flash_updater_jlink.log")
         updater_flushed = True
 
-        # This is evidence collection, never a prerequisite that may consume
-        # the application's 180-second confirmation deadline.  Exit as soon
-        # as both markers arrive; otherwise use a bound longer than every
-        # nested updater operation.  Never shorten this below the updater's
-        # own scan/reacquisition deadlines.
-        # A missing-marker timeout is recorded and execution still restores
-        # v28 and performs application confirmation. Explicit failure markers
-        # remain fatal.
-        capture_console = args.out_dir / "updater_rtt_console.log"
-        capture_rc = run_logged([
-            sys.executable, str(TOOLS / "capture_jlink_rtt.py"),
-            "--serial-number", SNR, "--device", DEVICE,
-            "--address", "0x20002010", "--duration-s", str(args.capture_timeout_s),
-            "--until-text", "OTA_ACTION:handoff_app_roundtrip_confirm",
-            "--until-text", "OTA_STATE:post_verify_passed",
-            "--fail-text", "OTA_STATE:post_verify_failed",
-            "--fail-text", "OTA upload failed",
-            "--post-match-s", "0.25",
-            "--output", str(args.out_dir / "updater_rtt.log"),
-        ], capture_console, env=env, check=False)
-        console = capture_console.read_text(encoding="utf-8", errors="replace")
-        try:
-            state["updater_capture"] = classify_capture_result(
-                capture_rc, console, args.capture_timeout_s
-            )
-        except RuntimeError as exc:
-            raise RuntimeError(f"{exc}; log={capture_console}") from exc
+        # Optional RTT evidence is intentionally absent from this critical
+        # path. The old 417.874 s bound exceeded the application's 180 s
+        # rollback window. The updater's upload/verify result remains in its
+        # own logs; extended RTT capture may run only after durable confirm.
+        state["updater_capture"] = "DEFERRED_UNTIL_AFTER_DURABLE_CONFIRM"
 
         restore_master(restore_script,
                        args.out_dir / "restore_v28_jlink.log",
                        args.out_dir, state, "restore")
         restored = True
-        # The updater negotiated a 20-second supervision timeout. Let the B306
-        # observe the old central disappearing before v28 is asked to connect.
-        time.sleep(25.0)
         run_logged([
             sys.executable, str(TOOLS / args.confirm_tool),
             "--node", args.node, "--out-dir", str(args.out_dir / "app_confirm"),
-            "--target-only",
+            "--identity-manifest", str(args.identity_manifest),
+            "--expected-master-marker", args.master_marker,
+            "--deadline-s", str(args.confirmation_deadline_s),
         ], args.out_dir / "app_confirm_console.log", env=env)
         if args.deployment_only:
             confirm_result = json.loads(
@@ -416,22 +383,20 @@ def main() -> int:
                     encoding="utf-8"
                 )
             )
-            ping_text = str(confirm_result.get("ping", {}).get("text", ""))
-            after_text = str(confirm_result.get("after", {}).get("text", ""))
+            samples = confirm_result.get("samples", [])
             if (
                 confirm_result.get("status") != "PASS"
-                or f"name={args.node}" not in ping_text
-                or f"fw={args.target_marker}" not in ping_text
-                or "confirmed=1" not in after_text
+                or confirm_result.get("board_state") != "TARGET_CONFIRMED"
+                or not samples
             ):
                 raise RuntimeError(
                     "deployment-only readback contract failed: "
                     f"status={confirm_result.get('status')} "
-                    f"ping={ping_text!r} after={after_text!r}"
+                    f"state={confirm_result.get('board_state')!r}"
                 )
             state["deployment_readback"] = {
-                "pong": ping_text,
-                "confirm": after_text,
+                "samples": samples,
+                "payload_sha256": confirm_result.get("expected_payload_sha256"),
                 "verdict": "PASS",
             }
             state["deferred_by_operator"] = [

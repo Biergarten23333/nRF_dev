@@ -278,3 +278,14 @@ human-only, and the first-flash command, probe identity, hashes, pre-flight
 checks, post-flash observations, and rollback remain frozen in
 `B306_Part/handover/b306-first-dfu-v1/`. Later B306 OTA is allowed only outside
 a capture and only after stating the exact marker and image SHA.
+# Durable OTA build identity
+
+Production OTA builds must first create a canonical build-input JSON containing
+`source_commit`, `dirty_state_digest`, `effective_configs`,
+`sdk_patch_identity`, and `toolchain`. Generate and collision-check the
+manifest with `tools/ota_build_identity.py`, then export its `fwid` as
+`BSF_FWID` for the firmware build. CMake fails closed when this value is absent
+or malformed. The FWID identifies complete build inputs; it is not described
+as the signed binary's own hash. The manifest separately records the exact
+signed-payload SHA-256, and the registry refuses one FWID associated with two
+payload hashes.

@@ -59,6 +59,9 @@ LOG_MODULE_REGISTER(biospur_fusion, LOG_LEVEL_INF);
 #ifndef BSF_FW_MARKER
 #define BSF_FW_MARKER "b306-imu-relay-v37"
 #endif
+#ifndef BSF_FWID
+#define BSF_FWID "UNIDENTIFIED"
+#endif
 #ifndef BSF_BOOT_CONFIRM_ENABLED
 #define BSF_BOOT_CONFIRM_ENABLED 1
 #endif
@@ -3159,8 +3162,8 @@ static void process_control(const char *command, uint16_t correlation)
 		snprintf(reply, sizeof(reply),
 			 "BOOT CONFIRM COMMIT FAIL reason=syntax");
 	} else if (strcmp(command, "PING") == 0) {
-		snprintf(reply, sizeof(reply), "PONG name=%s fw=%s proto=%u",
-			 device_name, FW_MARKER, BSF_BLE_PROTOCOL_VERSION);
+		snprintf(reply, sizeof(reply), "PONG name=%s fw=%s fwid=%s proto=%u",
+			 device_name, FW_MARKER, BSF_FWID, BSF_BLE_PROTOCOL_VERSION);
 	} else if (strcmp(command, "STATUS") == 0) {
 		bsf_ble_telemetry_t capture_status = { 0 };
 

@@ -20,9 +20,15 @@
 | `intent=5` v41 stall recovery | `main.c:1595`, budget `STALL_MAX_RECOVERIES_PER_POWER = 1u` (`main.c:94`), counter `retained_stall.recovery_count` in `.noinit` (`main.c:429`), cleared only by power cycle |
 | `intent=1` v46 guard | three strikes, cleared by 30 min healthy |
 
-**The first wedge after any power cycle is taken by stall recovery, not the
-guard.** A board reporting `rcv=0` has not necessarily been trouble-free.
-`intent=5` needs its own ledger column.
+`STALL_MAX_RECOVERIES_PER_POWER=1` means at most one v41 recovery per power
+cycle. This experiment shows v41 preempted the guard for this injection and
+state while its detector was eligible and budget was available. It does not
+show that every possible first wedge after every power cycle must be handled by
+v41. A board reporting `rcv=0` has not necessarily been trouble-free, and
+`intent=5` remains a separate fleet-ledger column.
+
+Deployment evidence must distinguish payload transferred, target image
+observed running, and exact target image durably confirmed.
 
 ## NOT done
 

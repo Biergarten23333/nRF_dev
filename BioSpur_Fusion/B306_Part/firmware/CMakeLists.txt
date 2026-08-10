@@ -25,6 +25,16 @@ if(DEFINED ENV{BSF_FW_MARKER})
   set(BSF_FW_MARKER "$ENV{BSF_FW_MARKER}")
 endif()
 
+# Generated from the complete build-input manifest. There is deliberately no
+# default: a production image without an immutable identity must not build.
+if(NOT DEFINED ENV{BSF_FWID})
+  message(FATAL_ERROR "BSF_FWID is required; generate the OTA build manifest first")
+endif()
+set(BSF_FWID "$ENV{BSF_FWID}")
+if(NOT BSF_FWID MATCHES "^[0-9a-f]{64}$")
+  message(FATAL_ERROR "BSF_FWID must be exactly 64 lowercase hexadecimal characters")
+endif()
+
 # ---------------------------------------------------------------------------
 # v45 flash persistence (section 9).
 #
@@ -111,6 +121,7 @@ zephyr_include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../include)
 target_compile_definitions(app PRIVATE
 	BSF_TIMER_COUNTER_BITS=${BSF_TIMER_COUNTER_BITS}
 	BSF_FW_MARKER="${BSF_FW_MARKER}"
+	BSF_FWID="${BSF_FWID}"
 	BSF_BOOT_CONFIRM_ENABLED=${BSF_BOOT_CONFIRM_ENABLED}
 	BSF_CORPSE_FLASH_ENABLED=${BSF_CORPSE_FLASH_ENABLED}
 )

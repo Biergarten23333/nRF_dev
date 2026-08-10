@@ -1,29 +1,20 @@
 #!/usr/bin/env python3
-"""Earn B306-v32 MCUboot confirmation through a two-command BLE round trip."""
+"""Durably verify and, when necessary, confirm one exact B306 OTA payload."""
 
 from __future__ import annotations
 
 import argparse
 import json
 import re
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 from capacity_ramp import b306_command
 from coldstart_fusion_control import decode_guard
 from fusion_session import LineChannel, SessionError, resolve_fusion_port
+from ota_build_identity import SCHEMA
+from ota_confirmation import ConfirmationTimeout, ExpectedIdentity, confirm_until_durable
 
-
-MASTER_MARKER = "dk-fusion-imu-relay-v28"
-# v46r2: was hardcoded to "b306-imu-relay-v32", four generations behind the
-# image being confirmed. This is the most consequential of the four v31/v32-era
-# constants in this tool family, because a mismatch here ABORTS CONFIRMATION --
-# so a correctly delivered image is never confirmed and MCUboot reverts it on
-# the next boot. The OTA looks like it failed to land when in fact it landed,
-# ran, and was thrown away by a stale string comparison.
-import os
-B306_MARKER = os.environ.get("BSF_B306_MARKER", "b306-imu-relay-v45")
 TOKEN_RE = re.compile(r"\btoken=([0-9A-F]{8})\b")
 
 
@@ -32,6 +23,7 @@ def now() -> str:
 
 
 def extract_token(text: str) -> str:
+    """Compatibility helper retained for existing source-contract tests."""
     match = TOKEN_RE.search(text)
     if match is None:
         raise SessionError(f"confirmation token absent from reply: {text}")
@@ -39,6 +31,7 @@ def extract_token(text: str) -> str:
 
 
 def wait_master_status(channel: LineChannel, timeout_s: float = 5.0) -> str:
+    import time
     channel.send("MASTER STATUS")
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
@@ -48,171 +41,89 @@ def wait_master_status(channel: LineChannel, timeout_s: float = 5.0) -> str:
     raise SessionError("MASTER STATUS timed out")
 
 
+def load_identity(path: Path) -> dict[str, object]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if value.get("schema") != SCHEMA:
+        raise ValueError(f"unsupported identity manifest: {value.get('schema')!r}")
+    for key in ("fwid", "signed_payload_sha256"):
+        if not re.fullmatch(r"[0-9a-f]{64}", str(value.get(key, ""))):
+            raise ValueError(f"manifest has invalid {key}")
+    return value
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--node", required=True, choices=(
-        "BSF3C79", "BSFC2CC", "BSF44AD", "BSF6C53", "BSF8BC4",
-        "BSF1120", "BSF31CC", "BSFAA61", "BSFB165", "BSFEC35",
-    ))
+    parser.add_argument("--node", required=True)
     parser.add_argument("--out-dir", required=True, type=Path)
+    parser.add_argument("--identity-manifest", required=True, type=Path)
+    parser.add_argument("--expected-master-marker", required=True)
+    parser.add_argument("--deadline-s", required=True, type=float,
+                        help="measured, documented pre-confirm deadline (< firmware bound)")
     parser.add_argument("--fusion-port")
-    parser.add_argument("--ready-count", type=int, default=0)
-    parser.add_argument("--ready-timeout-s", type=float, default=60.0)
-    parser.add_argument(
-        "--bridge-ready-timeout-s", type=float, default=180.0,
-        help=(
-            "bounded wait for this target's bridge after the updater reset; "
-            "re-asks PING only while the Master answers bridge_not_ready"
-        ),
-    )
-    parser.add_argument(
-        "--target-only", action="store_true",
-        help="confirm the named target without any fleet-wide readiness dependency",
-    )
+    parser.add_argument("--target-only", action="store_true",
+                        help="compatibility no-op: confirmation is always target-scoped")
     args = parser.parse_args()
+    if not 0 < args.deadline_s < 180.0:
+        parser.error("--deadline-s must be positive and below firmware's 180 s bound")
+    identity = load_identity(args.identity_manifest)
     args.out_dir.mkdir(parents=True, exist_ok=False)
-
     result: dict[str, object] = {
-        "status": "IN_PROGRESS",
-        "started": now(),
-        "node": args.node,
-        "master_marker": MASTER_MARKER,
-        "b306_marker": B306_MARKER,
+        "schema": "biospur-ota-confirm-result-v1", "status": "IN_PROGRESS",
+        "started": now(), "node": args.node, "identity_manifest": str(args.identity_manifest),
+        "expected_fwid": identity["fwid"],
+        "expected_payload_sha256": identity["signed_payload_sha256"],
+        "deadline_s": args.deadline_s,
     }
     channel: LineChannel | None = None
-    with (args.out_dir / "fusion_cdc.log").open(
-        "x", encoding="utf-8", buffering=1
-    ) as log:
+    with (args.out_dir / "fusion_cdc.log").open("x", encoding="utf-8", buffering=1) as log:
         try:
-            channel = LineChannel(
-                resolve_fusion_port(args.fusion_port), log, "FUSION"
-            )
+            channel = LineChannel(resolve_fusion_port(args.fusion_port), log, "FUSION")
             result["port"] = channel.port
             result["decode_before_send"] = decode_guard(channel, 15.0)
-
-            if args.target_only and args.ready_count:
-                raise SessionError("--target-only and --ready-count are mutually exclusive")
-            master = None if args.target_only else wait_master_status(channel)
-            if args.ready_count and master is not None:
-                ready_deadline = time.monotonic() + args.ready_timeout_s
-                while f"ready={args.ready_count}" not in master:
-                    if time.monotonic() >= ready_deadline:
-                        raise SessionError(
-                            f"master did not reach ready={args.ready_count}: {master}"
-                        )
-                    time.sleep(1.0)
-                    master = wait_master_status(channel)
-            if master is not None and f"marker={MASTER_MARKER}" not in master:
-                raise SessionError(f"Fusion Master marker mismatch: {master}")
+            master = wait_master_status(channel)
             result["master_status"] = master
-            result["confirmation_scope"] = (
-                "TARGET_ONLY" if args.target_only else "FLEET_GATED"
+            if f"marker={args.expected_master_marker}" not in master:
+                raise SessionError(f"Fusion Master marker mismatch: {master}")
+
+            def ping() -> str:
+                return str(b306_command(channel, args.node, "PING", "PONG ")["text"])
+
+            def status() -> str:
+                return str(b306_command(channel, args.node, "BOOT CONFIRM STATUS",
+                                         "BOOT CONFIRM STATUS ")["text"])
+
+            def prepare_commit() -> None:
+                prepared = b306_command(channel, args.node, "BOOT CONFIRM PREPARE",
+                                         "BOOT CONFIRM PREPARED ")
+                token = extract_token(str(prepared["text"]))
+                committed = b306_command(channel, args.node,
+                                         f"BOOT CONFIRM COMMIT={token}",
+                                         "BOOT CONFIRM COMMIT OK ")
+                result["prepare"] = prepared
+                result["commit"] = committed
+
+            state, samples = confirm_until_durable(
+                ExpectedIdentity(args.node, str(identity["fwid"]),
+                                 str(identity["signed_payload_sha256"])),
+                ping, status, prepare_commit, deadline_s=args.deadline_s,
             )
-
-            # Section 4.3 makes bridge readiness part of the per-target
-            # confirmation contract, so wait for it instead of failing the whole
-            # transaction on the first `bridge_not_ready` rejection. After the
-            # updater's reset the peer needs a variable time to reconnect and
-            # bring its bridge up; a fixed post-restore sleep races that. PING is
-            # an idempotent read query, so re-asking is not an OTA write retry.
-            ping = None
-            bridge_deadline = time.monotonic() + args.bridge_ready_timeout_s
-            bridge_waits = []
-            while True:
-                try:
-                    ping = b306_command(channel, args.node, "PING", "PONG ")
-                    break
-                except SessionError as exc:
-                    # N6: `reason=syntax` is retried on the same terms.
-                    # The DK rejects at its `length < 9u` gate, i.e. it received
-                    # a TRUNCATED line -- `BSF6C53 PING` is 12 characters. That
-                    # is a CDC race in the seconds after the restore reflash
-                    # re-enumerates, not a malformed command, and it stranded
-                    # two correctly uploaded images before it was diagnosed.
-                    # PING is an idempotent read query, so re-asking is not an
-                    # OTA write retry, exactly as for bridge_not_ready above.
-                    # V43: `reason=not_connected` on the SAME terms, and for the
-                    # same reason. The updater resets the target into its new
-                    # image; until that image advertises and the Master
-                    # reconnects, the Master has no peer to route to and rejects
-                    # with not_connected. That is the reconnect window, not a
-                    # failed deployment -- the v43 canary hit it with the upload
-                    # already reported MARKERS_COMPLETE, and treating it as fatal
-                    # would quarantine a board whose image is correctly written.
-                    # Still an idempotent read query, so still not a write retry.
-                    retryable = ("bridge_not_ready" in str(exc)
-                                 or "reason=syntax" in str(exc)
-                                 or "reason=not_connected" in str(exc))
-                    if not retryable:
-                        raise
-                    if time.monotonic() >= bridge_deadline:
-                        raise SessionError(
-                            f"bridge not ready within "
-                            f"{args.bridge_ready_timeout_s}s: {exc}"
-                        ) from exc
-                    bridge_waits.append(round(time.monotonic(), 3))
-                    time.sleep(2.0)
-            if bridge_waits:
-                result["bridge_ready_retries"] = len(bridge_waits)
-            if f"fw={B306_MARKER}" not in str(ping["text"]):
-                raise SessionError(f"B306 marker mismatch: {ping['text']}")
-            result["ping"] = ping
-
-            before = b306_command(
-                channel, args.node, "BOOT CONFIRM STATUS", "BOOT CONFIRM STATUS "
-            )
-            result["before"] = before
-            if "confirmed=1" in str(before["text"]):
-                result["status"] = "ALREADY_CONFIRMED"
-                return 0
-            if "required=1" not in str(before["text"]):
-                raise SessionError(f"image is not confirmable: {before['text']}")
-
-            prepared = b306_command(
-                channel, args.node, "BOOT CONFIRM PREPARE", "BOOT CONFIRM PREPARED "
-            )
-            token = extract_token(str(prepared["text"]))
-            result["prepared"] = prepared
-            result["token"] = token
-
-            committed = b306_command(
-                channel,
-                args.node,
-                f"BOOT CONFIRM COMMIT={token}",
-                "BOOT CONFIRM COMMIT OK ",
-            )
-            result["committed"] = committed
-
-            deadline = time.monotonic() + 15.0
-            after = None
-            while time.monotonic() < deadline:
-                time.sleep(1.0)
-                candidate = b306_command(
-                    channel,
-                    args.node,
-                    "BOOT CONFIRM STATUS",
-                    "BOOT CONFIRM STATUS ",
-                )
-                if "confirmed=1" in str(candidate["text"]):
-                    after = candidate
-                    break
-            if after is None:
-                raise SessionError("v32 did not confirm inside the 15 s host bound")
-            result["after"] = after
-            result["status"] = "PASS"
-            return 0
+            result["board_state"] = state.value
+            result["samples"] = samples
+            result["status"] = "PASS" if state.value == "TARGET_CONFIRMED" else "FAIL"
+            return 0 if result["status"] == "PASS" else 2
         except Exception as exc:
             result["status"] = "FAIL"
             result["error"] = f"{type(exc).__name__}: {exc}"
+            if isinstance(exc, ConfirmationTimeout):
+                result["board_state"] = exc.state.value
+                result["samples"] = exc.samples
             raise
         finally:
             if channel is not None:
                 channel.close()
             result["ended"] = now()
             (args.out_dir / "result.json").write_text(
-                json.dumps(result, indent=2, sort_keys=True) + "\n",
-                encoding="utf-8",
-            )
+                json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

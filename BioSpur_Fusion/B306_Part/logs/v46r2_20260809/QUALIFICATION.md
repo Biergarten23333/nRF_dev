@@ -48,11 +48,11 @@ stall recovery's per-power-cycle budget was FRESH and available. In the earlier
 v46 run the board had been up for a long time with that budget likely already
 spent, leaving the guard as the only responder.
 
-If that is right, the fleet consequence is significant and is not about the
-guard at all: **after a power cycle, the first wedge on any board is handled by
-v41 stall recovery, not by the v46 guard.** The guard is the second line. That
-changes what an overnight run's counters will mean -- a board that recovers may
-show `rcv=0` and still have recovered correctly.
+The observed run establishes a narrower result: for this injection and state,
+v41 preempted the guard while its detector was eligible and its budget was
+available. It does not prove that every possible first wedge after every power
+cycle must be handled by v41. An overnight ledger must still keep `intent=5`
+as a separate column because `rcv=0` does not prove an uneventful run.
 
 ### What would settle it, cheaply, next session
 
@@ -105,12 +105,16 @@ only in which authority had budget.
 | where the counter lives | `retained_stall.recovery_count`, `.noinit`, `main.c:429` (field `main.c:424`) |
 | what clears it | a power cycle only. `.noinit` is wiped by POR; there is no software refund |
 
-**Fleet consequence, and it changes how the morning ledger reads:** every board
-gets exactly ONE stall-recovery reset per power cycle. The first wedge after a
-cold boot is taken by that path (`intent=5`), not the guard. The guard is the
-second line, with three strikes. A board reporting `rcv=0` has NOT necessarily
-been trouble-free -- it may have been recovered by the older path. `intent=5`
-must be its own ledger column.
+**Fleet consequence, and it changes how the morning ledger reads:**
+`STALL_MAX_RECOVERIES_PER_POWER=1` permits at most one v41 recovery per power
+cycle. This experiment proves v41 preempted the guard for this injection and
+state when its detector was eligible and budget was available; it does not
+prove every possible first wedge after every power cycle is handled by v41.
+A board reporting `rcv=0` has not necessarily been trouble-free, so `intent=5`
+must remain its own ledger column.
+
+For deployment accounting, keep three distinct facts: payload transferred,
+target image observed running, and exact target image durably confirmed.
 
 Corpse from the retry collected and ACKed: seq=1 cause=BOTH_FROZEN, 29 752 B,
 crc32 `49e743d8`. Detector re-armed.

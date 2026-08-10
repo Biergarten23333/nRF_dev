@@ -1,161 +1,177 @@
 #!/usr/bin/env python3
-"""OTA the nine remaining boards to v46r2-prod. One continuous batch.
+"""Resumable fleet OTA driver; board truth comes only from durable verification."""
 
-WHY THE VERIFICATION IS A CONTENT CHECK, NOT A MARKER CHECK
------------------------------------------------------------
-`b306-imu-relay-v45` was byte-identical across v46-val, v46r2-val and
-v46r2-prod. Every marker-keyed check in this pipeline -- the updater's
-B306_OTA_MARKER, the transaction's --source/--target-marker, and
-confirm_b306_v32.py's B306_MARKER -- therefore read the same value before and
-after a deployment. Demonstrated on BSF6C53 tonight: the payload uploaded, its
-hash verified, `prepared=0`, and the pipeline reported the target already
-deployed. On nine boards that reports success while changing nothing.
-
-So a board counts as updated only if it answers `V45 GUARD`, a command that
-exists ONLY in v46r2. That is a property of the running image, not of a string
-the pipeline was told to expect.
-
-NO PER-BOARD GATES. The one-first-then-nine pattern is barred: it cost a full
-round in relay8.3 and gave false confidence twice because the single board was
-the anomalous one. A board that fails is recorded and the batch continues.
-"""
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 import sys
-import time
+import tempfile
+from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
-ROOT = Path("/mnt/nrf_ssd/nRF_dev/BioSpur_Fusion")
+from ota_build_identity import atomic_write
+
+ROOT = Path(__file__).resolve().parents[2]
 B306 = ROOT / "B306_Part"
 TOOLS = B306 / "tools"
-TC = "/home/zekaixiao/ncs/toolchains/b81a7cd864"
-
-NINE = ["BSF1120", "BSF31CC", "BSF3C79", "BSF44AD", "BSF8BC4",
-        "BSFAA61", "BSFB165", "BSFC2CC", "BSFEC35"]
-
-PAYLOAD = B306 / "builds/b306-v46r2-prod/firmware/zephyr/zephyr.signed.bin"
-TARGET_MARKER = "b306-imu-relay-v46"
-SOURCE_MARKER = "b306-imu-relay-v44"
-PREFIX = "dk-ota-b306-v46r2p-"
-OUT = B306 / "logs/v46r2_20260809/FLEET_OTA"
-PREFLIGHT = B306 / "logs/v46r2_20260809/fleetpre/target_only_result.json"
-
-RESTORE = dict(
-    build="dk-fusion-imu-relay-v36-a",
-    marker="dk-fusion-imu-relay-v36",
-    merged="7a7d02cdae13b4450ffea0cb2a46607d481f3760a95e6c38d4c9dd03a2290b56",
-    binsha="59bd57b80d762f5c3d9af9b0d0d303d288584f6f06f5baf5349a3cf3c5628b47",
-)
 
 
-def sh(cmd, log, env=None, timeout=1800):
-    with open(log, "wb") as fh:
-        return subprocess.run(cmd, cwd=str(ROOT), stdout=fh,
-                              stderr=subprocess.STDOUT, env=env,
-                              timeout=timeout).returncode
+def run_id() -> str:
+    return datetime.now(timezone.utc).astimezone().strftime("fleet_ota_%Y%m%d_%H%M%S")
 
 
-def patch(action):
+def patch_command(action: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run([str(B306 / "firmware/patches/sdk_patch.sh"), action],
-                          capture_output=True, text=True).stdout.strip()
+                          capture_output=True, text=True, check=False)
 
 
-def build_updater(node, sha, log):
-    import os
-    env = dict(os.environ)
-    env.update({
-        "B306_OTA_TARGET_NAME": node,
-        "B306_OTA_MARKER": TARGET_MARKER,
-        "B306_OTA_IMAGE": str(PAYLOAD),
-        "B306_OTA_IMAGE_SHA256": sha,
-        "PYTHONNOUSERSITE": "1",
-        "PYTHONPATH": f"{TC}/usr/local/lib/python3.12/site-packages",
-        "ZEPHYR_BASE": "/home/zekaixiao/ncs/v2.8.0/zephyr",
-        "ZEPHYR_TOOLCHAIN_VARIANT": "zephyr",
-        "ZEPHYR_SDK_INSTALL_DIR": f"{TC}/opt/zephyr-sdk",
-    })
-    d = B306 / "builds" / f"{PREFIX}{node}"
-    return sh([f"{TC}/usr/local/bin/python3", "-m", "west", "build",
-               "--pristine=always", "-b", "nrf52840dk/nrf52840",
-               "-s", str(B306 / "host/dk_ota"), "-d", str(d)], log, env), d
+def require_patch(action: str, expected: str | None = None) -> str:
+    result = patch_command(action)
+    output = (result.stdout + result.stderr).strip()
+    if result.returncode != 0 or (expected is not None and expected not in output):
+        raise RuntimeError(f"SDK patch {action} failed rc={result.returncode}: {output}")
+    return output
 
 
-def content_check(node, outdir):
-    """A board is updated only if it answers V45 GUARD -- v46r2-only."""
-    log = outdir / f"content_{node}.log"
-    rc = sh([sys.executable, str(TOOLS / "v45_bench.py"),
-             "--outdir", str(outdir / f"content_{node}"), "--node", node,
-             "--label", f"c_{node}", "cmd", "V45 GUARD", "STATUS",
-             "--observe-before", "10", "--observe-after", "3"], log, timeout=300)
-    txt = log.read_text(errors="replace")
-    has_guard = "V45 GUARD rcv=" in txt
-    on_v46 = f"fw={TARGET_MARKER}" in txt
-    return {"rc": rc, "v45_guard_answers": has_guard,
-            "marker_v46": on_v46, "updated": has_guard}
+@contextmanager
+def pristine_sdk(ledger: dict, write_ledger):
+    try:
+        ledger["sdk"]["revert"] = require_patch("revert")
+        write_ledger()
+        yield
+    finally:
+        try:
+            ledger["sdk"]["apply"] = require_patch("apply")
+            ledger["sdk"]["verify"] = require_patch("verify")
+            ledger["sdk"]["restored"] = True
+        except BaseException as exc:
+            ledger["sdk"]["restored"] = False
+            ledger["sdk"]["restore_error"] = f"{type(exc).__name__}: {exc}"
+            write_ledger()
+            raise
+        write_ledger()
+
+
+def durable_result(path: Path, node: str, expected_fwid: str) -> bool:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    samples = value.get("samples") or []
+    last = samples[-1] if samples else {}
+    return (
+        value.get("status") == "PASS"
+        and value.get("board_state") == "TARGET_CONFIRMED"
+        and value.get("node") == node
+        and value.get("expected_fwid") == expected_fwid
+        and last.get("node") == node
+        and last.get("fwid") == expected_fwid
+        and "confirmed=1" in str(last.get("boot_confirm"))
+    )
+
+
+def verifier_state(path: Path) -> str:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return "UNREACHABLE" if not path.exists() else "UNKNOWN"
+    state = str(value.get("board_state", "UNKNOWN"))
+    allowed = {"OLD_CONFIRMED", "TARGET_RUNNING_UNCONFIRMED", "TARGET_CONFIRMED",
+               "TARGET_IDENTITY_MISMATCH", "ROLLBACK_OBSERVED", "UNREACHABLE", "UNKNOWN"}
+    return state if state in allowed else "UNKNOWN"
+
+
+def classify(txn_rc: int | None, durable: bool, observed: str = "UNKNOWN") -> str:
+    if durable and txn_rc not in (None, 0):
+        return "DURABLE_PASS_WITH_TXN_ERROR"
+    if durable:
+        return "TARGET_CONFIRMED"
+    return observed
 
 
 def main() -> int:
-    OUT.mkdir(parents=True, exist_ok=True)
-    import hashlib
-    sha = hashlib.sha256(PAYLOAD.read_bytes()).hexdigest()
-    ledger = {"payload": str(PAYLOAD), "payload_sha256": sha,
-              "target_marker": TARGET_MARKER, "boards": {}}
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--campaign", required=True, type=Path,
+                        help="explicit JSON containing nodes, identity manifest, and commands")
+    parser.add_argument("--out-root", type=Path, default=B306 / "logs")
+    args = parser.parse_args()
+    campaign = json.loads(args.campaign.read_text(encoding="utf-8"))
+    identity_path = Path(campaign["identity_manifest"])
+    identity = json.loads(identity_path.read_text(encoding="utf-8"))
+    expected_fwid = str(identity["fwid"])
+    nodes = list(campaign["nodes"])
+    out = args.out_root / run_id()
+    out.mkdir(parents=True, exist_ok=False)
+    ledger_path = out / "ledger.json"
+    ledger = {
+        "schema": "biospur-fleet-ota-ledger-v1", "run_id": out.name,
+        "campaign": str(args.campaign), "expected_fwid": expected_fwid,
+        "expected_payload_sha256": identity["signed_payload_sha256"],
+        "boards": {node: {"state": "UNKNOWN", "transitions": []} for node in nodes},
+        "sdk": {},
+    }
 
-    print(f"payload {PAYLOAD.name} sha={sha[:16]} marker={TARGET_MARKER}", flush=True)
+    def save() -> None:
+        atomic_write(ledger_path, ledger)
 
-    # Updaters build against a PRISTINE SDK: the v45/v46 #error guards make the
-    # shared install unbuildable for any project without bsf_v45_trace.h on its
-    # include path, and dk_ota is exactly that. Revert once for all nine.
-    print("revert:", patch("revert"), flush=True)
-    updaters = {}
-    for node in NINE:
-        rc, d = build_updater(node, sha, OUT / f"updater_{node}.log")
-        m = d / "merged.hex"
-        updaters[node] = hashlib.sha256(m.read_bytes()).hexdigest() if (rc == 0 and m.exists()) else None
-        print(f"  updater {node}: {'ok' if updaters[node] else 'FAILED'}", flush=True)
-    print("apply:", patch("apply"), flush=True)
-    print("verify:", patch("verify"), flush=True)
+    save()
+    # Building updater images is the only operation requiring a pristine SDK.
+    # Commands are explicit arrays in the campaign; no stale embedded paths or
+    # restore hashes can silently enter this driver.
+    try:
+        with pristine_sdk(ledger, save):
+            for command in campaign.get("build_commands", []):
+                completed = subprocess.run(command, cwd=ROOT, check=False,
+                                           capture_output=True, text=True,
+                                           timeout=float(campaign["build_timeout_s"]))
+                if completed.returncode != 0:
+                    raise RuntimeError(f"updater build failed rc={completed.returncode}")
+    except BaseException as exc:
+        ledger["driver_error"] = f"{type(exc).__name__}: {exc}"
+        save()
+        return 2
 
-    for node in NINE:
-        row = {"updater_sha": updaters[node]}
-        if not updaters[node]:
-            row["status"] = "UPDATER_BUILD_FAILED"
-            ledger["boards"][node] = row
-            continue
-        d = OUT / node
-        if d.exists():
-            import shutil; shutil.rmtree(d)
-        t0 = time.monotonic()
-        rc = sh([sys.executable, str(TOOLS / "v32_ota_board_transaction.py"),
-                 "--node", node, "--out-dir", str(d), "--deployment-only",
-                 "--source-marker", SOURCE_MARKER, "--target-marker", TARGET_MARKER,
-                 "--build-prefix", PREFIX, "--updater-sha", updaters[node],
-                 "--master-marker", RESTORE["marker"],
-                 "--restore-build", RESTORE["build"],
-                 "--restore-marker", RESTORE["marker"],
-                 "--restore-merged-sha", RESTORE["merged"],
-                 "--restore-bin-sha", RESTORE["binsha"],
-                 "--skip-preflight", "--fleet-preflight-result", str(PREFLIGHT),
-                 "--preflight-require", "target-only"],
-                OUT / f"txn_{node}.log", timeout=1800)
-        row["txn_rc"] = rc
-        row["elapsed_s"] = round(time.monotonic() - t0, 1)
-        row["content"] = content_check(node, OUT)
-        row["status"] = "OK" if (rc == 0 and row["content"]["updated"]) else "FAILED"
-        ledger["boards"][node] = row
-        print(f"{node}: rc={rc} updated={row['content']['updated']} "
-              f"{row['elapsed_s']}s -> {row['status']}", flush=True)
-        (OUT / "ledger.json").write_text(json.dumps(ledger, indent=2))
+    for node in nodes:
+        row = ledger["boards"][node]
+        board_dir = out / node
+        board_dir.mkdir(exist_ok=False)
+        try:
+            command = [part.format(node=node, out_dir=str(board_dir),
+                                   identity_manifest=str(identity_path))
+                       for part in campaign["transaction_command"]]
+            log_path = board_dir / "transaction_console.log"
+            with log_path.open("xb") as log:
+                completed = subprocess.run(command, cwd=ROOT, stdout=log,
+                                           stderr=subprocess.STDOUT, check=False,
+                                           timeout=float(campaign["transaction_timeout_s"]))
+            row["txn_rc"] = completed.returncode
+            row["transaction_log"] = str(log_path)
+        except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
+            row["txn_rc"] = None
+            row["transaction_error"] = f"{type(exc).__name__}: {exc}"
+        row["transitions"].append({"state": "VERIFYING", "txn_rc": row["txn_rc"]})
+        save()
+        confirm_path = board_dir / "app_confirm" / "result.json"
+        durable = durable_result(confirm_path, node, expected_fwid)
+        row["verifier_result"] = str(confirm_path)
+        row["state"] = classify(row["txn_rc"], durable, verifier_state(confirm_path))
+        row["transitions"].append({"state": row["state"]})
+        save()
 
-    (OUT / "ledger.json").write_text(json.dumps(ledger, indent=2))
-    ok = [n for n, r in ledger["boards"].items() if r.get("status") == "OK"]
-    print(f"\nFLEET OTA DONE: {len(ok)}/{len(NINE)} updated -> {sorted(ok)}", flush=True)
-    bad = [n for n in NINE if n not in ok]
-    if bad:
-        print(f"FAILED: {sorted(bad)}", flush=True)
-    return 0
+    # Independent final pass rereads durable result files after every board
+    # transaction has finished; transaction rc never participates.
+    ledger["final_verification"] = {}
+    for node in nodes:
+        result_path = out / node / "app_confirm" / "result.json"
+        passed = durable_result(result_path, node, expected_fwid)
+        ledger["final_verification"][node] = {
+            "durable": passed, "result": str(result_path)}
+    save()
+    return 0 if ledger["sdk"].get("restored") and all(
+        row["durable"] for row in ledger["final_verification"].values()) else 2
 
 
 if __name__ == "__main__":
