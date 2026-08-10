@@ -10,6 +10,8 @@ from fleet_ota_v46r2 import (classify, durable_result, pristine_sdk,
 from ota_build_identity import (finalize_identity, prepare_identity, register)
 from ota_confirmation import (BoardState, ConfirmationTimeout, ExpectedIdentity,
                               confirm_until_durable)
+from qualify_ota_confirmation_timing import (EXPECTED as TIMING_EXPECTED,
+    evaluate_inventory, qualification_summary, stable_gate_passes)
 
 FWID = "a" * 64; IMAGE_SHA = "b" * 64; SOURCE_FWID = "c" * 64
 EXPECTED = ExpectedIdentity("BSF1120", FWID, IMAGE_SHA, SOURCE_FWID, "d" * 64)
@@ -147,5 +149,63 @@ class FleetTests(unittest.TestCase):
         self.assertIn('"--identity-manifest", required=True',source)
         self.assertIn('"--absolute-deadline", required=True',source)
         self.assertNotIn("BSF_B306_MARKER",source)
+
+class TimingReadinessTests(unittest.TestCase):
+    def lines(self, *, master_count="10", master_ready="10", names=None,
+              unsubscribed=None, marker="dk-fusion-imu-relay-v36"):
+        names = list(names or sorted(TIMING_EXPECTED))
+        unsubscribed = set(unsubscribed or [])
+        master = (f"FUSION_MASTER_STATUS marker={marker} count={master_count} "
+                  f"ready={master_ready}")
+        aggregate = f"FUSION_LIST count={master_count} ready={master_ready}"
+        peers = [f"FUSION_PEER name={name} connected=1 "
+                 f"subscribed={'0' if name in unsubscribed else '1'}" for name in names]
+        pings = {name: {"text": f"PONG name={name}"} for name in TIMING_EXPECTED}
+        return master, aggregate, peers, pings
+
+    def evaluate(self, **changes):
+        return evaluate_inventory(*self.lines(**changes))
+
+    def test_ready_ten_count_not_ten_rejected(self):
+        self.assertFalse(self.evaluate(master_count="9")["ok"])
+
+    def test_ready_substring_rejected(self):
+        self.assertFalse(self.evaluate(master_ready="100")["ok"])
+
+    def test_wrong_ten_peer_set_rejected(self):
+        names = sorted(TIMING_EXPECTED - {"BSF3C79"}) + ["BSF9999"]
+        value = self.evaluate(names=names)
+        self.assertFalse(value["ok"])
+        self.assertEqual(value["unexpected_peers"], ["BSF9999"])
+
+    def test_missing_or_unsubscribed_peer_rejected(self):
+        self.assertFalse(self.evaluate(names=sorted(TIMING_EXPECTED)[:-1])["ok"])
+        self.assertFalse(self.evaluate(unsubscribed={"BSF3C79"})["ok"])
+
+    def test_unstable_readiness_rejected(self):
+        values = [self.evaluate() for _ in range(9)] + [self.evaluate(master_ready="9")]
+        self.assertFalse(stable_gate_passes(values))
+
+    def test_exact_stable_ten_peer_set_accepted(self):
+        self.assertTrue(stable_gate_passes([self.evaluate() for _ in range(10)]))
+
+    def test_no_reboot_before_stability_gate(self):
+        source = (TOOLS / "qualify_ota_confirmation_timing.py").read_text()
+        gate = source.index("if not wait_stable(channel, args.ready_timeout_s")
+        reboot_loop = source.index("for node in NODES:", gate)
+        self.assertLess(gate, reboot_loop)
+        self.assertFalse(stable_gate_passes([self.evaluate() for _ in range(9)]))
+
+    def test_retry_failure_then_pong_is_reconnect_evidence(self):
+        source = (TOOLS / "qualify_ota_confirmation_timing.py").read_text()
+        self.assertIn('get("name") == node and disconnect', source)
+        self.assertIn("reconnect = True", source)
+
+    def test_partial_timing_samples_never_pass(self):
+        samples = [{"node": node, "valid": True, "components_s": {
+            "reboot_to_status": 1.0, "route_to_pong": .5, "status": .1}}
+            for node in sorted(TIMING_EXPECTED)[:9]]
+        self.assertEqual(qualification_summary(samples, 8.302, 5.777007)["gate"],
+                         "BLOCKED")
 
 if __name__=="__main__": unittest.main()

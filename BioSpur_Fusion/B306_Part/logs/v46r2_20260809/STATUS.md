@@ -16,6 +16,27 @@ unavailable and the strict `<180 s` predicate is unproven.** Evidence is in
 `../ota_timing_qualification_20260810_103454/` and
 `../ota_timing_qualification_20260810_103518/`. Fleet OTA remains prohibited.
 
+### Hardened qualification rerun
+
+The exact read-only fleet gate initially passed 10/10 consecutive samples in
+`../ota_timing_inventory_20260810_104526/`. The guarded reboot run
+`../ota_timing_qualification_20260810_104547/` produced two valid samples
+(BSF6C53 11.450379 s, BSF8BC4 12.453154 s), four invalid reboot samples, and
+stopped before rebooting BSF31CC or the final three boards when the exact fleet
+gate did not recover. Invalid and valid evidence was preserved.
+
+After correcting the disconnect/reconnect evidence join, the required
+read-only preflight was repeated. Across 21 inventory samples, BSF1120 remained
+present, connected and subscribed but never answered PING; the other nine
+passed and no unexpected peer was present. Evidence:
+`../ota_timing_inventory_20260810_105516/`. The reboot phase was therefore not
+entered again.
+
+Exact gate result remains **BLOCKED: 2/10 valid common-clock samples**. Maximum,
+P95, complete component maxima and the conservative upper bound are unavailable,
+so `upper_bound + max(30 s, 25%) < 180 s` is not proven. No OTA or slot write
+occurred.
+
 ## Achieved
 
 - **BSF6C53 on `b306-imu-relay-v46` (v46r2), confirmed, healthy, guard armed,

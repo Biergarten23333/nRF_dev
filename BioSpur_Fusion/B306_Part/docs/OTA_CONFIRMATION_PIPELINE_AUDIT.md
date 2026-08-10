@@ -161,3 +161,47 @@ maxima unavailable; no conservative upper bound can be calculated; therefore
 the required `upper_bound + max(30 s, 25%) < 180 s` predicate is not proven).**
 Fleet OTA remains prohibited until all ten boards are powered/reachable and a
 fresh reboot-only qualification produces ten raw samples and a strict PASS.
+
+### Hardened rerun, 2026-08-10
+
+`qualify_ota_confirmation_timing.py` now parses numeric Master fields exactly
+and requires ten consecutive complete inventory samples before any reboot. A
+sample requires the v36 marker, aggregate and Master `count=10 ready=10`, the
+exact ten unique LIST peers, connected/subscribed state, and a requested-name
+PING from every board. Failure evidence retains a per-node presence/link/PING
+table, first/last seen timestamps, errors, and unexpected peers. Reboot samples
+retain pre/post PONG and STATUS, retry errors, confirmation status and Master
+state. Freshness requires disconnect evidence, a subsequent requested-node
+PONG, and decreasing `STATUS up_ms`.
+
+The initial read-only inventory at
+`logs/ota_timing_inventory_20260810_104526/result.json` passed ten consecutive
+samples with the exact fleet and no unexpected peer. The guarded reboot run at
+`logs/ota_timing_qualification_20260810_104547/result.json` then recorded:
+
+| Node | Reboot sent | Valid | Reboot-to-status | Result |
+|---|---:|---:|---:|---|
+| BSF3C79 | yes | no | — | post-reboot disconnect/reconnect join not accepted by the first tool revision |
+| BSFC2CC | yes | no | — | same |
+| BSF44AD | yes | no | — | same |
+| BSF6C53 | yes | yes | 11.450379 s | disconnect/reconnect, uptime reset, confirmed=1 |
+| BSF8BC4 | yes | yes | 12.453154 s | disconnect/reconnect, uptime reset, confirmed=1 |
+| BSF1120 | yes | no | — | no post-reboot control reply within bound |
+| BSF31CC | **no** | no | — | exact fleet gate did not recover |
+| BSFAA61 | **no** | — | — | run stopped before node |
+| BSFB165 | **no** | — | — | run stopped before node |
+| BSFEC35 | **no** | — | — | run stopped before node |
+
+The evidence-join defect was corrected so a retryable route/reply failure plus
+a later requested-node PONG constitutes disconnect/reconnect evidence; the
+uptime-reset witness remains mandatory. Before any rerun, the final read-only
+inventory `logs/ota_timing_inventory_20260810_105516/result.json` ran for 21
+samples and failed closed: `BSF1120` was always present, connected and
+subscribed but answered no PING, while all other nine passed and there were no
+unexpected peers. Per the hardware-preparation stop rule, no second reboot run
+was attempted.
+
+Exact current gate: **BLOCKED — 2/10 valid common-clock samples.** A ten-board
+maximum, P95, complete component maxima and conservative upper bound are
+unavailable, so the margin predicate remains unproven. No OTA, upload, pending
+mark, PREPARE/COMMIT, or B306 slot write occurred.
