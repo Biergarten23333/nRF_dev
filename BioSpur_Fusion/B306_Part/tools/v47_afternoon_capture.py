@@ -79,6 +79,7 @@ def deduplicated_listener_rates(listener_dir:Path,node_map:dict,start_ns:int,end
 
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--out-dir',required=True,type=Path);ap.add_argument('--hours',type=float,default=8.0)
+    ap.add_argument('--diagnostic-ten-minute',action='store_true',help='collect all ten minutes; rate/reset findings do not stop early')
     ap.add_argument('--precheck',required=True,type=Path);a=ap.parse_args();root=a.out_dir;root.mkdir(parents=True,exist_ok=True)
     if (root/'PROCESS_LEDGER.json').exists():raise SystemExit('refusing existing capture state')
     stop=False
@@ -89,7 +90,7 @@ def main():
     if precheck.get('status')!='INVENTORY_PASS':raise SystemExit('precheck did not pass')
     state={'schema':'biospur-v47-afternoon-capture-v1','status':'STARTING','supervisor_pid':os.getpid(),'started_wall':wall(),
            'stop_reason':None,'events':[],'smoke_verdict':None,'precheck':str(a.precheck)};atomic(root/'PROCESS_LEDGER.json',state)
-    if not 8.0 <= a.hours <= 12.0:raise SystemExit('overnight duration must be 8..12 hours')
+    if not a.diagnostic_ten_minute and not 8.0 <= a.hours <= 12.0:raise SystemExit('overnight duration must be 8..12 hours')
     powers={'battery_nodes':BATTERY,'adapter_nodes':['BSF6C53'],'verbatim_note':POWER_NOTE};atomic(root/'POWER_COHORTS.json',powers)
     free=shutil.disk_usage(root).free
     required=40*1024**3
@@ -116,7 +117,7 @@ def main():
                 logical=int(f['logical'],0);mapping[n]={'logical_tag_id':logical,'tag_short_address':f'0x{0xB100+logical:04X}'}
         if set(mapping)!=set(NODES):raise RuntimeError(f'node/tag mapping incomplete: {sorted(mapping)}')
         atomic(root/'node_tag_map.json',mapping)
-        t0=time.monotonic();t0_ns=time.monotonic_ns();t0_wall=wall();hard=t0+a.hours*3600
+        t0=time.monotonic();t0_ns=time.monotonic_ns();t0_wall=wall();hard=t0+(600 if a.diagnostic_ten_minute else a.hours*3600)
         manifest={'schema':'biospur-v47-afternoon-manifest-v1','t0_wall':t0_wall,'t0_monotonic':t0,'t0_monotonic_ns':t0_ns,
           'planned_hours':a.hours,'master':'dk-fusion-imu-relay-v36','nodes':NODES,'power_note':POWER_NOTE,
           'canonical_marker':'b306-imu-relay-v47','fwid':'f7436728c36efdd28f848e7ef59c7c422437afb8c6ee07dd8924e31967046eed',
@@ -185,15 +186,20 @@ def main():
                 if any(x.get('type')=='UPTIME_RESET' or 'RECOVERY' in x.get('line','') for x in state['events']):fail.append('reset_or_recovery')
                 row={'minute':idx,'window_end_monotonic':now,'fusion':rates,'listener':air,'failures':sorted(set(fail)),'pass':not fail}
                 smoke_minutes.append(row);atomic(root/'SMOKE_MINUTE_STATUS.json',{'minutes':smoke_minutes})
-                if fail:
+                if fail and not a.diagnostic_ten_minute:
                     state['smoke_verdict']='BLOCKED_SMOKE';state['stop_reason']='BLOCKED_SMOKE'
                     atomic(root/'SMOKE_RESULT.json',{'verdict':'BLOCKED_SMOKE','minutes':smoke_minutes});break
                 next_minute=t0+(idx+1)*60
             if state['smoke_verdict'] is None and now>=t0+600:
                 smoke_counts={n:dict(counts[n]) for n in NODES};infra_ok=lp.poll() is None and ch._reader.is_alive() and all(v['sufficient'] for v in coverage.values())
-                state['smoke_verdict']='SMOKE_PASS' if infra_ok and len(smoke_minutes)==10 and all(x['pass'] for x in smoke_minutes) else 'BLOCKED_SMOKE'
+                if a.diagnostic_ten_minute:
+                    state['smoke_verdict']='DIAGNOSTIC_COMPLETE' if infra_ok and len(smoke_minutes)==10 else 'DIAGNOSTIC_INFRASTRUCTURE_FAILURE'
+                else:
+                    state['smoke_verdict']='SMOKE_PASS' if infra_ok and len(smoke_minutes)==10 and all(x['pass'] for x in smoke_minutes) else 'BLOCKED_SMOKE'
                 atomic(root/'SMOKE_RESULT.json',{'verdict':state['smoke_verdict'],'evaluated_wall':wall(),'counts':smoke_counts,'minutes':smoke_minutes,'events':state['events'],'collectors_alive':infra_ok})
                 print(state['smoke_verdict'],flush=True)
+                if a.diagnostic_ten_minute:
+                    state['stop_reason']='DIAGNOSTIC_TEN_MINUTES_COMPLETE' if state['smoke_verdict']=='DIAGNOSTIC_COMPLETE' else 'IRRECOVERABLE_EVIDENCE_FAILURE';break
                 if state['smoke_verdict']!='SMOKE_PASS':state['stop_reason']='BLOCKED_SMOKE';break
                 state['status']='CAPTURE_RUNNING_OVERNIGHT'
             if now>=next_checkpoint:

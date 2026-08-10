@@ -29,4 +29,10 @@ class OvernightCaptureTests(unittest.TestCase):
             out,_=M.deduplicated_listener_rates(root,mapping,0,1_000_000_000)
             self.assertEqual(out['BSF3C79']['source_count'],0)
 
+    def test_diagnostic_mode_is_explicit_in_source(self):
+        source=P.read_text()
+        self.assertIn("--diagnostic-ten-minute",source)
+        self.assertIn("if fail and not a.diagnostic_ten_minute",source)
+        self.assertIn("DIAGNOSTIC_TEN_MINUTES_COMPLETE",source)
+
 if __name__=='__main__':unittest.main()
