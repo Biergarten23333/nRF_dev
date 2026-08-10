@@ -194,7 +194,7 @@ class TimingReadinessTests(unittest.TestCase):
     def test_no_reboot_before_stability_gate(self):
         source = (TOOLS / "qualify_ota_confirmation_timing.py").read_text()
         gate = source.index("if not wait_stable(channel, args.ready_timeout_s")
-        reboot_loop = source.index("for node in NODES:", gate)
+        reboot_loop = source.index("for node in args.nodes:", gate)
         self.assertLess(gate, reboot_loop)
         self.assertFalse(stable_gate_passes([self.evaluate() for _ in range(9)]))
 

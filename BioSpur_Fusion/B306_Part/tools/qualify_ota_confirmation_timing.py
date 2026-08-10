@@ -245,6 +245,8 @@ def main() -> int:
     parser.add_argument("--out-dir", required=True, type=Path)
     parser.add_argument("--fusion-port")
     parser.add_argument("--inventory-only", action="store_true")
+    parser.add_argument("--nodes", nargs="+", choices=NODES, default=list(NODES),
+                        help="subset needing new samples; readiness still requires all ten")
     parser.add_argument("--per-node-timeout-s", type=float, default=60)
     parser.add_argument("--ready-timeout-s", type=float, default=180)
     parser.add_argument("--restore-max-s", type=float, required=True)
@@ -280,7 +282,7 @@ def main() -> int:
             if args.inventory_only:
                 result["status"] = "INVENTORY_PASS"
                 return 0
-            for node in NODES:
+            for node in args.nodes:
                 # A prior invalid reboot cannot authorize the next one. Wait for
                 # the exact stable fleet again before any subsequent REBOOT.
                 node_gate: list[dict] = []

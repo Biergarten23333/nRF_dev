@@ -206,7 +206,15 @@ maximum, P95, complete component maxima and conservative upper bound are
 unavailable, so the margin predicate remains unproven. No OTA, upload, pending
 mark, PREPARE/COMMIT, or B306 slot write occurred.
 
-BSF1120 localization and the bounded A/B recovery ladder are recorded in
+BSF1120 localization and the bounded recovery ladder are recorded in
 `BSF1120_CONTROL_FAILURE_AUDIT.md`. Neither Master-side peer redraw nor an
-unchanged-firmware Master restart recovered the board; physical Recovery C is
-pending. Offline salvage promoted none of the first three samples.
+unchanged-firmware Master restart recovered the board. The operator's physical
+power cycle restored its control and streaming paths. The subsequent exact
+ten-peer inventory passed, and a BSF1120-only guarded run transmitted exactly
+one REBOOT and produced a valid 10.314229 s sample with disconnect/reconnect,
+uptime reset and `confirmed=1`. The partial run correctly reported BLOCKED
+rather than PASS because it contained only one sample. There are now three
+valid samples across the preserved evidence (BSF6C53 v46, BSF8BC4 v44 and
+BSF1120 v44), zero salvaged samples, and seven missing nodes. Mixed firmware
+cohorts are not silently aggregated. Fleet qualification remains BLOCKED and
+no OTA or slot write occurred.

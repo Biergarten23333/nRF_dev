@@ -73,16 +73,42 @@ were rebuilt and all answered PING; after 180 s BSF1120 was still absent while
 the Master reported `count=9 ready=9 scanning=1`. CDC log SHA-256:
 `24e5de830a973ffbc507471e4d2cc5af1b9156cd34e9c281c119b34ef6b9b0f2`.
 
-Recovery C is pending a physical BSF1120 reset/power cycle. Because Recovery A
-removed its route and Recovery B did not rediscover it, no remote B306 reset is
-available. Fusion-PCB SWD is a human handover and was not attempted.
+Recovery C was completed by the operator with a physical BSF1120 power cycle.
+The immediate read-only capture is
+`logs/bsf1120_powercycle_readback_20260810_114520/`; its raw log SHA-256 is
+`3adc03efae09338e48deaded334c079f2d57aff5a930d9673afa83043e8375d7`.
+PING, STATUS and all application streams recovered. STATUS reported v44 and
+`up_ms=31142`; subsequent telemetry showed `ctrl_rx=8`, no bad-BSF command,
+no notify error and advancing publication counts. `STALL` reported 940 entries
+and 940 exits with no alarm or recovery, while `RING` reported a cold boot and
+`CORPSE present=0`. The v44 image does not implement the v45 STATUS/GUARD
+commands, so no stronger retained guard witness exists.
+
+Only the B306 power cycle restored the path: targeted Master peer redraw and an
+unchanged-firmware Master restart had both failed. This places the fault in the
+BSF1120 runtime/application path rather than persistent Master peer state. It
+does not distinguish the B306 control worker from its shared publisher/notify
+path because the pre-reset capture had no `ctrl_rx` telemetry. Fusion-PCB SWD
+was not attempted.
 
 ## Timing disposition
 
-Valid original samples remain BSF6C53 (11.450379 s, v46) and BSF8BC4
-(12.453154 s, v44). Valid salvaged samples: none. Missing valid samples:
-BSF3C79, BSFC2CC, BSF44AD, BSF1120, BSF31CC, BSFAA61, BSFB165 and BSFEC35.
-BSF1120 is not healthy enough for another qualification attempt. Registry code
-keys samples by node, Master firmware, B306 firmware, tool schema,
-configuration and evidence SHA, and rejects mixed identities. The fleet gate
-remains BLOCKED; max/P95 and the strict margin predicate are unavailable.
+After Recovery C, the exact read-only gate passed ten consecutive samples in
+`logs/bsf1120_post_powercycle_inventory_20260810_114610/`. A guarded BSF1120-
+only run then transmitted exactly one REBOOT and produced a valid sample:
+10.314229 s reboot-to-status, pre/post uptime 160043/9441 ms, observed
+disconnect/reconnect, requested-node PONG and `confirmed=1`. Evidence:
+`logs/bsf1120_timing_qualification_20260810_114712/result.json`, SHA-256
+`c7906dc87fda165575b50a724c2d1337d9c25fd48d99e409eb61361e20904f5f`;
+raw CDC SHA-256
+`cb5cf8f8a4a8b9180559dbcb663f99679ddc299e60156237ba033b101e646d61`.
+
+Valid original/current samples are BSF6C53 (11.450379 s, v46), BSF8BC4
+(12.453154 s, v44), and BSF1120 (10.314229 s, v44). Valid salvaged samples:
+none. Missing valid samples: BSF3C79, BSFC2CC, BSF44AD, BSF31CC, BSFAA61,
+BSFB165 and BSFEC35. BSF1120 is healthy enough for a qualification attempt and
+has now completed one, so it must not be rebooted again merely to fill later
+nodes. Registry code keys samples by node, Master firmware, B306 firmware,
+tool schema, configuration and evidence SHA, and rejects mixed identities.
+The v44 and v46 cohorts cannot be silently combined. The fleet gate remains
+BLOCKED; max/P95 and the strict margin predicate are unavailable.

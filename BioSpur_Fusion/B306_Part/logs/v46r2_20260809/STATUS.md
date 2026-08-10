@@ -50,9 +50,17 @@ BSF1120-local path after successful Master write submission.
 
 Targeted peer redraw disconnected BSF1120 but it did not advertise/reconnect.
 Restarting the unchanged v36 production Master rebuilt nine healthy peers and
-scanned for 180 s at `count=9 ready=9`; BSF1120 remained absent. Recovery C now
-requires a physical BSF1120 reset/power cycle and immediate retained-state
-inspection. No B306 reset, OTA or slot write has yet occurred. Full report:
+scanned for 180 s at `count=9 ready=9`; BSF1120 remained absent. The operator
+then physically power-cycled BSF1120. Control, STATUS and all application
+streams recovered; v44 reported a cold boot, no corpse and no stall
+alarm/recovery witness. This localizes recovery to the B306 runtime path,
+although the missing pre-reset `ctrl_rx` telemetry prevents a narrower claim.
+The exact ten-peer inventory then passed and one guarded BSF1120-only reboot
+produced a valid 10.314229 s sample with observed disconnect/reconnect, uptime
+reset and `confirmed=1`. The partial run could not PASS the ten-node gate.
+Three valid samples are preserved across v44/v46 cohorts, seven nodes remain
+missing, and mixed firmware identities are not silently combined. No OTA or
+slot write occurred. Full report:
 `../../docs/BSF1120_CONTROL_FAILURE_AUDIT.md`.
 
 ## Achieved
@@ -95,8 +103,9 @@ observed running, and exact target image durably confirmed.
 
 ## Blocking next session
 
-1. Power/connect all ten B306 boards and rerun the reboot-only timing
-   qualification. Require ten raw T0--T4 samples and
+1. Continue reboot-only timing collection for the seven still-missing boards;
+   do not reboot BSF1120 or other already-valid nodes merely to repeat them.
+   Require ten compatible raw T0--T4 samples and
    `upper_bound + max(30 s, 25%) < 180 s`.
 2. Only after that strict PASS may a separately authorized fleet OTA begin;
    durable success is fresh node + FWID + active image SHA + `confirmed=1`,
