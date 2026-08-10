@@ -139,6 +139,17 @@ def classify_capture_result(returncode: int, console: str, timeout_s: float) -> 
 def restore_master(restore_script, flash_log, out_dir, state, tag):
     """Flash the DK back to canonical; do no schedule work here."""
     flash(restore_script, flash_log)
+    deadline = time.monotonic() + 30.0
+    observations = []
+    while time.monotonic() < deadline:
+        marker = read_dk_marker(timeout_s=5.0)
+        observations.append({"monotonic": time.monotonic(), "marker": marker})
+        if marker == "dk-fusion-imu-relay-v36":
+            state[f"master_ready_{tag}"] = observations
+            return
+        time.sleep(0.25)
+    state[f"master_ready_{tag}"] = observations
+    raise RuntimeError("restored v36 image but production Master did not enumerate")
 
 
 def rebuild_spacing_after_confirm(out_dir, state, tag):

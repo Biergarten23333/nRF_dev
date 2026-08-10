@@ -102,6 +102,12 @@ class TransactionSourceContracts(unittest.TestCase):
                         final.index("exception_confirm_rescue"))
         self.assertNotIn("flash(updater_script", final)
 
+    def test_restore_waits_for_live_v36_before_verifier(self):
+        source = (TOOLS / "v32_ota_board_transaction.py").read_text()
+        restore = source[source.index("def restore_master"):source.index("def rebuild_spacing")]
+        self.assertIn("read_dk_marker", restore)
+        self.assertIn('marker == "dk-fusion-imu-relay-v36"', restore)
+
     def test_cutoff_preserves_exact_budget(self):
         deadline = 1000.0
         self.assertEqual(deadline - 61.193245916, 938.806754084)

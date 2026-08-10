@@ -1,0 +1,56 @@
+{
+  "schema": "biospur-v47-nine-board-campaign-v1",
+  "identity_manifest": "B306_Part/releases/v47/finalized_manifest.json",
+  "nodes": [
+    "BSF3C79",
+    "BSFC2CC",
+    "BSF44AD",
+    "BSF8BC4",
+    "BSF1120",
+    "BSF31CC",
+    "BSFAA61",
+    "BSFB165",
+    "BSFEC35"
+  ],
+  "updater_sha256": {
+    "BSF3C79": "f64810d18a5405ca0c23334dd7778d931e18c140da2b0690f199f53219776b2f",
+    "BSFC2CC": "a925d108dfadbcdfc95777b5d26de8aa5e4b93672b9317ad2e843ee847b83ffd",
+    "BSF44AD": "1def2f856b6a7fad40e9d9ca2d0e8989d176882d266131a3cebe840590709c4b",
+    "BSF8BC4": "38f05b23c7bc2d980a363bfdbc136bfe36e29d770f21f78b0042bdb4184f0225",
+    "BSF1120": "e4b2bd4c00f27052368521db63ca85f8cdd28597bc897421c3eda7fd37a03b80",
+    "BSF31CC": "0d128f22e4eb5bb8baf1a5990931f53a99c7bf50f0b9c548b231d389723ce6cd",
+    "BSFAA61": "3a31ea9886bd456dea122a2d764980e2ef6ae5b063a6869f556a1cff8f51578f",
+    "BSFB165": "dcece0b683fc7d12f61573d669466931aa6a4335bb8da2a1662b5366af079ff9",
+    "BSFEC35": "609ea562740d2171dabfb95a411bb022d791559403eb7dd62a592792396919a9"
+  },
+  "critical_deadline_s": 180.0,
+  "transaction_timeout_s": 230.0,
+  "verifier_timeout_s": 190.0,
+  "final_verify_deadline_s": 60.0,
+  "build_timeout_s": 1.0,
+  "build_commands": [],
+  "transaction_command": [
+    "python3", "B306_Part/tools/v32_ota_board_transaction.py",
+    "--node", "{node}", "--out-dir", "{transaction_out_dir}", "--deployment-only",
+    "--source-marker", "b306-imu-relay-v44",
+    "--target-marker", "b306-imu-relay-v47",
+    "--identity-manifest", "{identity_manifest}",
+    "--confirmation-deadline-s", "180", "--run-id", "{run_id}",
+    "--reserved-post-updater-s", "61.377072824",
+    "--build-prefix", "dk-ota-v47-", "--updater-sha", "{updater_sha}",
+    "--master-marker", "dk-fusion-imu-relay-v36",
+    "--restore-build", "dk-fusion-imu-relay-v36-a",
+    "--restore-merged-sha", "7a7d02cdae13b4450ffea0cb2a46607d481f3760a95e6c38d4c9dd03a2290b56",
+    "--restore-bin-sha", "59bd57b80d762f5c3d9af9b0d0d303d288584f6f06f5baf5349a3cf3c5628b47",
+    "--restore-marker", "dk-fusion-imu-relay-v36",
+    "--skip-preflight", "--preflight-require", "target-only",
+    "--fleet-preflight-result", "B306_Part/logs/v47_fleet_20260810/pre_ten_peer_inventory/result.json"
+  ],
+  "verifier_command": [
+    "python3", "B306_Part/tools/confirm_b306_v32.py",
+    "--node", "{node}", "--out-dir", "{out_dir}",
+    "--identity-manifest", "{identity_manifest}",
+    "--expected-master-marker", "dk-fusion-imu-relay-v36",
+    "--absolute-deadline", "{absolute_deadline}", "--run-id", "{run_id}"
+  ]
+}

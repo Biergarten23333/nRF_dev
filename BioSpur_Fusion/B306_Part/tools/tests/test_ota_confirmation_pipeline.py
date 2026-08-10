@@ -189,7 +189,7 @@ class FleetTests(unittest.TestCase):
             run.return_value.returncode=0; out=Path(td)/"fresh"
             rc,path,error=run_live_verifier(["verify","{node}","{absolute_deadline}"],
                 node="BSF1120",out_dir=out,identity_path=Path("manifest"),
-                absolute_deadline=123.0,timeout_s=5)
+                absolute_deadline=123.0,run_id="test-run",timeout_s=5)
             self.assertEqual(rc,0); self.assertIsNone(error); self.assertTrue(run.called)
             self.assertIn("123.0",run.call_args.args[0])
     def test_spacing_after_confirm_and_rescue_after_transaction(self):
@@ -206,6 +206,9 @@ class FleetTests(unittest.TestCase):
         self.assertIn('"--identity-manifest", required=True',source)
         self.assertIn('"--absolute-deadline", required=True',source)
         self.assertNotIn("BSF_B306_MARKER",source)
+        fleet=(TOOLS/"fleet_ota_v46r2.py").read_text()
+        self.assertIn("--resume-nodes",fleet)
+        self.assertIn("issubset(campaign_nodes)",fleet)
 
 class TimingReadinessTests(unittest.TestCase):
     def lines(self, *, master_count="10", master_ready="10", names=None,

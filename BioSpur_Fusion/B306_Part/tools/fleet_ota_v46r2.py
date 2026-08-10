@@ -97,17 +97,18 @@ def classify(txn_rc: int | None, durable: bool, observed: str = "UNKNOWN") -> st
 
 
 def run_live_verifier(command_template, *, node: str, out_dir: Path,
-                      identity_path: Path, absolute_deadline: float,
+                      identity_path: Path, absolute_deadline: float, run_id: str,
                       timeout_s: float) -> tuple[int | None, Path, str | None]:
     """Invoke a fresh live verifier; never reuse transaction result JSON."""
-    out_dir.mkdir(parents=True, exist_ok=False)
+    out_dir.parent.mkdir(parents=True, exist_ok=True)
     result_path = out_dir / "result.json"
     command = [part.format(node=node, out_dir=str(out_dir),
                            identity_manifest=str(identity_path),
-                           absolute_deadline=absolute_deadline)
+                           absolute_deadline=absolute_deadline, run_id=run_id)
                for part in command_template]
     try:
-        with (out_dir / "console.log").open("xb") as log:
+        console_path = out_dir.parent / f"{out_dir.name}_console.log"
+        with console_path.open("xb") as log:
             completed = subprocess.run(command, cwd=ROOT, stdout=log,
                                        stderr=subprocess.STDOUT, check=False,
                                        timeout=timeout_s)
@@ -121,19 +122,25 @@ def main() -> int:
     parser.add_argument("--campaign", required=True, type=Path,
                         help="explicit JSON containing nodes, identity manifest, and commands")
     parser.add_argument("--out-root", type=Path, default=B306 / "logs")
+    parser.add_argument("--resume-nodes", nargs="+",
+                        help="explicit no-retry continuation subset after audited prior outcomes")
     args = parser.parse_args()
     campaign = json.loads(args.campaign.read_text(encoding="utf-8"))
     identity_path = Path(campaign["identity_manifest"])
     identity = json.loads(identity_path.read_text(encoding="utf-8"))
     expected_fwid = str(identity["fwid"])
     expected_image_sha = str(identity["mcuboot_image_sha256"])
-    nodes = list(campaign["nodes"])
+    campaign_nodes = list(campaign["nodes"])
+    nodes = list(args.resume_nodes) if args.resume_nodes else campaign_nodes
+    if len(nodes) != len(set(nodes)) or not set(nodes).issubset(campaign_nodes):
+        parser.error("--resume-nodes must be a unique subset of campaign nodes")
     out = args.out_root / run_id()
     out.mkdir(parents=True, exist_ok=False)
     ledger_path = out / "ledger.json"
     ledger = {
         "schema": "biospur-fleet-ota-ledger-v1", "run_id": out.name,
         "campaign": str(args.campaign), "expected_fwid": expected_fwid,
+        "campaign_nodes": campaign_nodes, "executed_nodes": nodes,
         "expected_payload_sha256": identity["signed_payload_sha256"],
         "expected_image_sha256": expected_image_sha,
         "boards": {node: {"state": "UNKNOWN", "transitions": []} for node in nodes},
@@ -165,12 +172,15 @@ def main() -> int:
         board_dir = out / node
         board_dir.mkdir(exist_ok=False)
         transaction_started = time.monotonic()
-        absolute_deadline = transaction_started + float(campaign["critical_deadline_s"])
+        board_run_id = f"v47-fleet-{node}-{int(transaction_started * 1000000)}"
         row["transaction_started_monotonic"] = transaction_started
-        row["absolute_confirm_deadline"] = absolute_deadline
+        row["run_id"] = board_run_id
         try:
             command = [part.format(node=node, out_dir=str(board_dir),
-                                   identity_manifest=str(identity_path))
+                                   transaction_out_dir=str(board_dir / "transaction"),
+                                   identity_manifest=str(identity_path),
+                                   run_id=board_run_id,
+                                   updater_sha=campaign["updater_sha256"][node])
                        for part in campaign["transaction_command"]]
             log_path = board_dir / "transaction_console.log"
             with log_path.open("xb") as log:
@@ -183,6 +193,18 @@ def main() -> int:
             row["txn_rc"] = None
             row["transaction_error"] = f"{type(exc).__name__}: {exc}"
         row["transitions"].append({"state": "VERIFYING", "txn_rc": row["txn_rc"]})
+        try:
+            txn = json.loads((board_dir / "transaction" / "transaction.json").read_text(encoding="utf-8"))
+            absolute_deadline = float(txn["absolute_confirm_deadline"])
+            if txn.get("run_id") != board_run_id:
+                raise ValueError("transaction run_id mismatch")
+            row["absolute_confirm_deadline"] = absolute_deadline
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            # No mutation can be assumed absent merely because the ledger is
+            # damaged. Use the conservative fleet T0 deadline and still rescue.
+            absolute_deadline = transaction_started + float(campaign["critical_deadline_s"])
+            row["deadline_fallback_error"] = f"{type(exc).__name__}: {exc}"
+            row["absolute_confirm_deadline"] = absolute_deadline
         save()
         # Always attempt a separate live rescue. If the production master was
         # not restored its explicit marker gate fails without touching B306.
@@ -190,6 +212,7 @@ def main() -> int:
             campaign["verifier_command"], node=node,
             out_dir=board_dir / "confirm_rescue", identity_path=identity_path,
             absolute_deadline=absolute_deadline,
+            run_id=board_run_id,
             timeout_s=float(campaign["verifier_timeout_s"]))
         row["rescue_rc"] = rescue_rc
         row["rescue_error"] = rescue_error
@@ -207,10 +230,12 @@ def main() -> int:
                                     "boards": {}}
     for node in nodes:
         deadline = time.monotonic() + float(campaign["final_verify_deadline_s"])
+        final_run_id = f"v47-final-{node}-{int(time.monotonic() * 1000000)}"
         rc, result_path, error = run_live_verifier(
             campaign["verifier_command"], node=node,
             out_dir=final_root / node, identity_path=identity_path,
             absolute_deadline=deadline,
+            run_id=final_run_id,
             timeout_s=float(campaign["verifier_timeout_s"]))
         passed = durable_result(result_path, node, expected_fwid, expected_image_sha)
         ledger["final_verification"]["boards"][node] = {
