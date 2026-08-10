@@ -205,3 +205,8 @@ Exact current gate: **BLOCKED — 2/10 valid common-clock samples.** A ten-board
 maximum, P95, complete component maxima and conservative upper bound are
 unavailable, so the margin predicate remains unproven. No OTA, upload, pending
 mark, PREPARE/COMMIT, or B306 slot write occurred.
+
+BSF1120 localization and the bounded A/B recovery ladder are recorded in
+`BSF1120_CONTROL_FAILURE_AUDIT.md`. Neither Master-side peer redraw nor an
+unchanged-firmware Master restart recovered the board; physical Recovery C is
+pending. Offline salvage promoted none of the first three samples.

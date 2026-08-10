@@ -10,6 +10,8 @@ from fleet_ota_v46r2 import (classify, durable_result, pristine_sdk,
 from ota_build_identity import (finalize_identity, prepare_identity, register)
 from ota_confirmation import (BoardState, ConfirmationTimeout, ExpectedIdentity,
                               confirm_until_durable)
+from ota_timing_evidence import (classify_control, evaluate_reboot, registry_add,
+                                 targeted_recovery_pass)
 from qualify_ota_confirmation_timing import (EXPECTED as TIMING_EXPECTED,
     evaluate_inventory, qualification_summary, stable_gate_passes)
 
@@ -207,5 +209,59 @@ class TimingReadinessTests(unittest.TestCase):
             for node in sorted(TIMING_EXPECTED)[:9]]
         self.assertEqual(qualification_summary(samples, 8.302, 5.777007)["gate"],
                          "BLOCKED")
+
+class OfflineEvidenceTests(unittest.TestCase):
+    def log(self, path, *, uptime=True, disconnect=True, confirmation=True):
+        rows = [
+            "1.000000 1.000000 FUSION_RX FUSION_REPLY proto=7 name=BSF1120 text=STATUS up_ms=90000",
+            "2.000000 2.000000 FUSION_TX BSF1120 REBOOT",
+            "2.100000 2.100000 FUSION_RX FUSION_REPLY proto=7 name=BSF1120 text=REBOOT QUEUED delay_ms=150",
+        ]
+        if disconnect: rows.append("3.000000 3.000000 FUSION_RX FUSION_DISCONNECTED name=BSF1120 reason=0x08")
+        rows.append("4.000000 4.000000 FUSION_RX FUSION_REPLY proto=7 name=BSF1120 correlation=1 text=PONG name=BSF1120 fw=v44")
+        if uptime: rows.append("5.000000 5.000000 FUSION_RX FUSION_REPLY proto=7 name=BSF1120 text=STATUS up_ms=1000")
+        if confirmation: rows.append("6.000000 6.000000 FUSION_RX FUSION_REPLY proto=7 name=BSF1120 text=BOOT CONFIRM STATUS confirmed=1")
+        path.write_text("\n".join(rows)+"\n"); return path
+
+    def test_offline_salvage_complete_witnesses(self):
+        with tempfile.TemporaryDirectory() as td:
+            self.assertEqual(evaluate_reboot(self.log(Path(td)/"x.log"),"BSF1120")["verdict"],
+                             "VALID_SALVAGED")
+
+    def test_refuse_missing_uptime_disconnect_confirmation(self):
+        with tempfile.TemporaryDirectory() as td:
+            verdict=evaluate_reboot(self.log(Path(td)/"x.log",uptime=False,
+                disconnect=False,confirmation=False),"BSF1120")["verdict"]
+            self.assertIn("DISCONNECT",verdict);self.assertIn("UPTIME",verdict);self.assertIn("CONFIRMATION",verdict)
+
+    def test_raw_reply_wrong_correlation(self):
+        self.assertEqual(classify_control(command_tx=True,tx_err=0,rejected=False,
+            ctrl_before=1,ctrl_after=2,raw_reply=True,correlation_matches=False),
+            "MASTER_CORRELATION_OR_HOST_FILTER_FAILURE")
+
+    def test_tx_success_flat_ctrl_rx(self):
+        self.assertEqual(classify_control(command_tx=True,tx_err=0,rejected=False,
+            ctrl_before=7,ctrl_after=7,raw_reply=False,correlation_matches=False),
+            "DOWNLINK_DID_NOT_REACH_B306")
+
+    def test_tx_success_ctrl_rx_increases_without_reply(self):
+        self.assertEqual(classify_control(command_tx=True,tx_err=0,rejected=False,
+            ctrl_before=7,ctrl_after=8,raw_reply=False,correlation_matches=False),
+            "B306_CONTROL_WORKER_OR_RESPONSE_FAILURE")
+
+    def test_targeted_recovery_evidence(self):
+        peers={node:{"connected":"1","subscribed":"1"} for node in TIMING_EXPECTED}
+        self.assertTrue(targeted_recovery_pass({"peers":peers,"target_ping_successes":3,
+            "target_status":True,"target_streaming":True,"other_peer_failures":0},set(TIMING_EXPECTED)))
+        self.assertFalse(targeted_recovery_pass({"peers":peers,"target_ping_successes":2,
+            "target_status":True,"target_streaming":True,"other_peer_failures":0},set(TIMING_EXPECTED)))
+
+    def test_registry_rejects_mixed_configuration(self):
+        base={"node":"BSF1120","master_firmware":"v36","b306_firmware":"v44",
+              "tool_schema":"v2","configuration":{"spacing":"on"},"evidence_sha256":"a"*64}
+        registry=registry_add({},base)
+        mixed=dict(base,node="BSF31CC",b306_firmware="v46",evidence_sha256="b"*64)
+        with self.assertRaisesRegex(ValueError,"mixed"):
+            registry_add(registry,mixed)
 
 if __name__=="__main__": unittest.main()

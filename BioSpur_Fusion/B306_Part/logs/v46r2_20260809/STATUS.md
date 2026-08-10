@@ -37,6 +37,24 @@ P95, complete component maxima and the conservative upper bound are unavailable,
 so `upper_bound + max(30 s, 25%) < 180 s` is not proven. No OTA or slot write
 occurred.
 
+### BSF1120 localization
+
+Offline re-evaluation refused to salvage BSF3C79, BSFC2CC or BSF44AD because
+their raw records lack post-reboot uptime and confirmation witnesses. A
+64.269009 s preserved-state capture then showed three BSF1120 Master writes
+with `err=0`, zero rejects and zero replies. Both control peers passed all
+rounds. BSF1120 also emitted zero UWB, IMU or telemetry records; only
+Master-side QoS continued with frozen delivered counters, so `ctrl_rx` was not
+observable. Classification remains `INCOMPLETE_EVIDENCE`, narrowed to a
+BSF1120-local path after successful Master write submission.
+
+Targeted peer redraw disconnected BSF1120 but it did not advertise/reconnect.
+Restarting the unchanged v36 production Master rebuilt nine healthy peers and
+scanned for 180 s at `count=9 ready=9`; BSF1120 remained absent. Recovery C now
+requires a physical BSF1120 reset/power cycle and immediate retained-state
+inspection. No B306 reset, OTA or slot write has yet occurred. Full report:
+`../../docs/BSF1120_CONTROL_FAILURE_AUDIT.md`.
+
 ## Achieved
 
 - **BSF6C53 on `b306-imu-relay-v46` (v46r2), confirmed, healthy, guard armed,
