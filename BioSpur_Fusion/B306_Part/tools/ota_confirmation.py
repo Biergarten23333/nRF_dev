@@ -22,6 +22,7 @@ class BoardState(str, enum.Enum):
 @dataclass
 class ExpectedIdentity:
     node: str
+    firmware_marker: str
     fwid: str
     image_sha256: str
     source_fwid: str | None = None
@@ -34,12 +35,14 @@ class Sample:
     reply: str | None = None
     error: str | None = None
     node: str | None = None
+    firmware_marker: str | None = None
     fwid: str | None = None
     image_sha256: str | None = None
     boot_confirm: str | None = None
 
 
 FIELDS = re.compile(r"(?:^|\s)([A-Za-z_][A-Za-z0-9_]*)=([^\s]+)")
+HEX64 = re.compile(r"[0-9a-f]{64}")
 RETRYABLE = ("bridge_not_ready", "not_connected", "reason=syntax", "truncated")
 
 
@@ -100,12 +103,20 @@ def confirm_until_durable(
             sample.reply = reply
             parsed = fields(reply)
             sample.node = parsed.get("name")
+            sample.firmware_marker = parsed.get("fw")
             sample.fwid = parsed.get("fwid")
             sample.image_sha256 = parsed.get("image_sha")
             if sample.node != expected.node:
                 samples.append(sample)
                 return BoardState.TARGET_IDENTITY_MISMATCH, [asdict(s) for s in samples]
-            target_identity = (sample.fwid == expected.fwid and
+            target_shape = (
+                sample.firmware_marker == expected.firmware_marker
+                and HEX64.fullmatch(sample.fwid or "") is not None
+                and sample.fwid != "0" * 64
+                and HEX64.fullmatch(sample.image_sha256 or "") is not None
+                and sample.image_sha256 != "0" * 64
+            )
+            target_identity = (target_shape and sample.fwid == expected.fwid and
                                sample.image_sha256 == expected.image_sha256)
             source_identity = (
                 expected.source_fwid is not None
@@ -123,6 +134,9 @@ def confirm_until_durable(
                     if fields(status).get("confirmed") == "1":
                         return BoardState.OLD_CONFIRMED, [asdict(s) for s in samples]
                     return BoardState.UNKNOWN, [asdict(s) for s in samples]
+                if sample.firmware_marker == expected.firmware_marker:
+                    samples.append(sample)
+                    return BoardState.TARGET_IDENTITY_MISMATCH, [asdict(s) for s in samples]
                 samples.append(sample)
                 sleep(poll_s)
                 continue

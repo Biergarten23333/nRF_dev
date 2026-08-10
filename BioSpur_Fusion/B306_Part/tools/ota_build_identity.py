@@ -9,11 +9,15 @@ import os
 import struct
 import tempfile
 from pathlib import Path
+from typing import Any
 
 PREPARED_SCHEMA = "biospur-ota-prepared-identity-v1"
 SCHEMA = "biospur-ota-build-identity-v2"
 REQUIRED_INPUTS = {"source_commit", "dirty_state_digest", "effective_configs",
-                   "sdk_patch_identity", "toolchain"}
+                   "sdk_patch_identity", "toolchain", "canonical_version",
+                   "firmware_marker", "mcuboot_version"}
+VERSION_RE = __import__("re").compile(r"v([1-9][0-9]*)")
+SHA_RE = __import__("re").compile(r"[0-9a-f]{64}")
 
 
 def canonical_digest(inputs: dict[str, object]) -> str:
@@ -39,6 +43,14 @@ def validate_inputs(inputs: dict[str, object]) -> None:
     missing = sorted(REQUIRED_INPUTS - inputs.keys())
     if missing:
         raise ValueError(f"build inputs missing required keys: {missing}")
+    match = VERSION_RE.fullmatch(str(inputs["canonical_version"]))
+    if match is None:
+        raise ValueError("canonical_version must be v<decimal integer> with no suffix")
+    number = int(match.group(1))
+    if str(inputs["firmware_marker"]) != f"b306-imu-relay-v{number}":
+        raise ValueError("firmware_marker does not match canonical_version")
+    if str(inputs["mcuboot_version"]) != f"0.1.{number}":
+        raise ValueError("mcuboot_version does not match canonical_version")
 
 
 def prepare_identity(inputs: dict[str, object]) -> dict[str, object]:
@@ -60,6 +72,16 @@ def mcuboot_image_hash(payload: bytes) -> str:
     return hashlib.sha256(payload[:hashed_length]).hexdigest()
 
 
+def mcuboot_header_version(payload: bytes) -> str:
+    if len(payload) < 32:
+        raise ValueError("signed payload is too small for an MCUboot header")
+    magic, _, _, _, _, _, raw_version, _ = struct.unpack_from("<IIHHII8sI", payload, 0)
+    if magic != 0x96F3B83D:
+        raise ValueError(f"invalid MCUboot image magic 0x{magic:08x}")
+    major, minor, revision, build = struct.unpack("<BBHI", raw_version)
+    return f"{major}.{minor}.{revision}" + (f"+{build}" if build else "")
+
+
 def finalize_identity(prepared: dict[str, object], signed_payload: Path) -> dict[str, object]:
     if prepared.get("schema") != PREPARED_SCHEMA:
         raise ValueError("unsupported prepared identity schema")
@@ -73,10 +95,18 @@ def finalize_identity(prepared: dict[str, object], signed_payload: Path) -> dict
     embedded = expected_fwid.encode("ascii")
     if embedded not in payload:
         raise ValueError("final payload does not embed the prepared FWID")
+    header_version = mcuboot_header_version(payload)
+    if header_version != inputs["mcuboot_version"]:
+        raise ValueError(
+            f"MCUboot header version mismatch expected={inputs['mcuboot_version']} "
+            f"got={header_version}")
     return {
         "schema": SCHEMA, "fwid": expected_fwid,
         "signed_payload_sha256": hashlib.sha256(payload).hexdigest(),
         "mcuboot_image_sha256": mcuboot_image_hash(payload),
+        "canonical_version": inputs["canonical_version"],
+        "firmware_marker": inputs["firmware_marker"],
+        "mcuboot_version": header_version,
         "payload_path": str(signed_payload.resolve()), "build_inputs": inputs,
         "source_commit": inputs["source_commit"],
         "dirty_state_digest": inputs["dirty_state_digest"],
@@ -85,17 +115,39 @@ def finalize_identity(prepared: dict[str, object], signed_payload: Path) -> dict
     }
 
 
+def _binding(manifest: dict[str, object]) -> dict[str, object]:
+    return {"fwid": manifest["fwid"],
+            "canonical_version": manifest["canonical_version"],
+            "mcuboot_version": manifest["mcuboot_version"],
+            "signed_payload_sha256": manifest["signed_payload_sha256"],
+            "mcuboot_image_sha256": manifest["mcuboot_image_sha256"]}
+
+
 def register(manifest: dict[str, object], registry_path: Path) -> None:
     if manifest.get("schema") != SCHEMA:
         raise ValueError("unsupported finalized identity schema")
-    registry = json.loads(registry_path.read_text()) if registry_path.exists() else {}
-    fwid = str(manifest["fwid"])
-    binding = {"signed_payload_sha256": manifest["signed_payload_sha256"],
-               "mcuboot_image_sha256": manifest["mcuboot_image_sha256"]}
-    previous = registry.get(fwid)
-    if previous is not None and previous != binding:
-        raise ValueError(f"FWID collision: {fwid} has a different payload binding")
-    registry[fwid] = binding
+    for key in ("fwid", "canonical_version", "mcuboot_version",
+                "signed_payload_sha256", "mcuboot_image_sha256"):
+        if key not in manifest:
+            raise ValueError(f"manifest lacks registry key {key}")
+    binding = _binding(manifest)
+    registry: dict[str, Any] = (json.loads(registry_path.read_text())
+                                if registry_path.exists() else {
+                                    "schema": "biospur-ota-identity-registry-v2",
+                                    "by_fwid": {}, "by_version": {},
+                                    "by_mcuboot_version": {}})
+    if registry.get("schema") != "biospur-ota-identity-registry-v2":
+        raise ValueError("unsupported identity registry schema")
+    indexes = (("by_fwid", str(manifest["fwid"]), "FWID"),
+               ("by_version", str(manifest["canonical_version"]), "version"),
+               ("by_mcuboot_version", str(manifest["mcuboot_version"]),
+                "MCUboot version"))
+    for index, key, label in indexes:
+        previous = registry[index].get(key)
+        if previous is not None and previous != binding:
+            raise ValueError(f"{label} collision: {key} has a different image binding")
+    for index, key, _ in indexes:
+        registry[index][key] = binding
     atomic_write(registry_path, registry)
 
 

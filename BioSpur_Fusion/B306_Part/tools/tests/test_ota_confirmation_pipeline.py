@@ -7,7 +7,8 @@ import sys
 TOOLS = Path(__file__).resolve().parents[1]; sys.path.insert(0, str(TOOLS))
 from fleet_ota_v46r2 import (classify, durable_result, pristine_sdk,
                             run_live_verifier)
-from ota_build_identity import (finalize_identity, prepare_identity, register)
+from ota_build_identity import (finalize_identity, mcuboot_header_version,
+                                prepare_identity, register)
 from ota_confirmation import (BoardState, ConfirmationTimeout, ExpectedIdentity,
                               confirm_until_durable)
 from ota_timing_evidence import (classify_control, evaluate_reboot, registry_add,
@@ -16,15 +17,17 @@ from qualify_ota_confirmation_timing import (EXPECTED as TIMING_EXPECTED,
     evaluate_inventory, qualification_summary, stable_gate_passes)
 
 FWID = "a" * 64; IMAGE_SHA = "b" * 64; SOURCE_FWID = "c" * 64
-EXPECTED = ExpectedIdentity("BSF1120", FWID, IMAGE_SHA, SOURCE_FWID, "d" * 64)
+MARKER = "b306-imu-relay-v47"
+EXPECTED = ExpectedIdentity("BSF1120", MARKER, FWID, IMAGE_SHA,
+                            SOURCE_FWID, "d" * 64)
 
 class Clock:
     def __init__(self, value=0): self.value = float(value)
     def now(self): return self.value
     def sleep(self, amount): self.value += amount
 
-def pong(fwid=FWID, image=IMAGE_SHA, node="BSF1120"):
-    return f"PONG name={node} fwid={fwid} image_sha={image}"
+def pong(fwid=FWID, image=IMAGE_SHA, node="BSF1120", fw=MARKER):
+    return f"PONG name={node} fw={fw} fwid={fwid} image_sha={image}"
 
 def runner(pings, statuses, prepare=lambda: None, deadline=20, start=0):
     clock=Clock(start); pi=iter(pings); si=iter(statuses)
@@ -33,7 +36,9 @@ def runner(pings, statuses, prepare=lambda: None, deadline=20, start=0):
 
 class ConfirmationTests(unittest.TestCase):
     def test_bridge_old_unknown_target_confirmed(self):
-        values=[RuntimeError("bridge_not_ready"), pong("old", "old"), pong("old", "old"), pong()]
+        values=[RuntimeError("bridge_not_ready"),
+                pong("old", "old", fw="b306-imu-relay-v46"),
+                pong("old", "old", fw="b306-imu-relay-v46"), pong()]
         def query():
             value=values.pop(0)
             if isinstance(value, Exception): raise value
@@ -53,16 +58,15 @@ class ConfirmationTests(unittest.TestCase):
     def test_absolute_deadline_includes_preconfirmer_time(self):
         clock=Clock(19.5)
         with self.assertRaises(ConfirmationTimeout):
-            confirm_until_durable(EXPECTED, lambda:pong("old","old"), lambda:"",
+            confirm_until_durable(EXPECTED,
+                lambda:pong("old","old",fw="b306-imu-relay-v46"), lambda:"",
                 lambda:None, absolute_deadline=20, poll_s=1,
                 clock=clock.now, sleep=clock.sleep)
         self.assertGreaterEqual(clock.now(),20)
 
     def test_payload_hash_participates_in_identity(self):
-        clock=Clock()
-        with self.assertRaises(ConfirmationTimeout):
-            confirm_until_durable(EXPECTED, lambda:pong(FWID,"e"*64), lambda:"",
-                lambda:None, absolute_deadline=2, clock=clock.now, sleep=clock.sleep)
+        state,_=runner([pong(FWID,"e"*64)],[])
+        self.assertEqual(state,BoardState.TARGET_IDENTITY_MISMATCH)
 
     def test_prepare_commit_then_confirmed(self):
         called=[]; state,_=runner([pong(),pong()],
@@ -87,12 +91,35 @@ class ConfirmationTests(unittest.TestCase):
         state,_=runner([pong(node="BSF9999")],[])
         self.assertEqual(state,BoardState.TARGET_IDENTITY_MISMATCH)
 
+    def test_correct_marker_wrong_fwid_fails(self):
+        state,_=runner([pong("e"*64)],[])
+        self.assertEqual(state,BoardState.TARGET_IDENTITY_MISMATCH)
+
+    def test_correct_fwid_wrong_active_sha_fails(self):
+        state,_=runner([pong(image="e"*64)],[])
+        self.assertEqual(state,BoardState.TARGET_IDENTITY_MISMATCH)
+
+    def test_missing_or_invalid_identity_fails_closed(self):
+        replies = (
+            f"PONG name=BSF1120 fw={MARKER} image_sha={IMAGE_SHA}",
+            f"PONG name=BSF1120 fw={MARKER} fwid={FWID}",
+            f"PONG name=BSF1120 fw={MARKER} fwid={FWID} image_sha=bad",
+            f"PONG name=BSF1120 fw={MARKER} fwid={FWID} image_sha={'0'*64}",
+        )
+        for reply in replies:
+            with self.subTest(reply=reply):
+                state,_=runner([reply],[])
+                self.assertEqual(state,BoardState.TARGET_IDENTITY_MISMATCH)
+
 class IdentityTests(unittest.TestCase):
     def inputs(self): return {"source_commit":"1"*40,"dirty_state_digest":"2"*64,
-        "effective_configs":{"a":"b"},"sdk_patch_identity":"3"*64,"toolchain":"ncs2.8"}
+        "effective_configs":{"a":"b"},"sdk_patch_identity":"3"*64,
+        "toolchain":"ncs2.8","canonical_version":"v47",
+        "firmware_marker":"b306-imu-relay-v47","mcuboot_version":"0.1.47"}
     def payload(self,path,fwid,tail=b""):
         body=b"prefix"+fwid.encode()+tail
-        header=struct.pack("<IIHHII8sI",0x96F3B83D,0,32,0,len(body),0,b"\0"*8,0)
+        version=struct.pack("<BBHI",0,1,47,0)
+        header=struct.pack("<IIHHII8sI",0x96F3B83D,0,32,0,len(body),0,version,0)
         path.write_bytes(header+body); return path
     def test_prepare_build_finalize_binds_embedded_and_final_payload(self):
         with tempfile.TemporaryDirectory() as td:
@@ -102,6 +129,8 @@ class IdentityTests(unittest.TestCase):
             self.assertEqual(manifest["fwid"],prepared["fwid"])
             self.assertEqual(manifest["signed_payload_sha256"],hashlib.sha256(path.read_bytes()).hexdigest())
             self.assertEqual(manifest["payload_path"],str(path.resolve()))
+            self.assertEqual(manifest["mcuboot_version"],"0.1.47")
+            self.assertEqual(mcuboot_header_version(path.read_bytes()),"0.1.47")
 
     def test_provisional_or_wrong_fwid_payload_fails(self):
         with tempfile.TemporaryDirectory() as td:
@@ -119,8 +148,34 @@ class IdentityTests(unittest.TestCase):
                 register(finalize_identity(prep,two),reg)
             self.assertEqual(prep,prepare_identity(self.inputs()))
 
+    def test_version_and_mcuboot_version_collisions_fail(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); reg=root/"registry.json"
+            first=prepare_identity(self.inputs())
+            register(finalize_identity(first,self.payload(root/"one.bin",first["fwid"])),reg)
+            changed=self.inputs(); changed["effective_configs"]={"a":"changed"}
+            second=prepare_identity(changed)
+            with self.assertRaisesRegex(ValueError,"version collision"):
+                register(finalize_identity(second,self.payload(root/"two.bin",second["fwid"])),reg)
+
+    def test_suffix_version_and_wrong_header_rejected(self):
+        bad=self.inputs(); bad["canonical_version"]="v47-prod"
+        with self.assertRaisesRegex(ValueError,"no suffix"):
+            prepare_identity(bad)
+        with tempfile.TemporaryDirectory() as td:
+            prep=prepare_identity(self.inputs())
+            path=self.payload(Path(td)/"signed.bin",prep["fwid"])
+            data=bytearray(path.read_bytes())
+            data[20:28]=struct.pack("<BBHI",0,1,48,0)
+            path.write_bytes(data)
+            with self.assertRaisesRegex(ValueError,"header version mismatch"):
+                finalize_identity(prep,path)
+
 class FleetTests(unittest.TestCase):
     def test_txn_error_plus_durable(self): self.assertEqual(classify(2,True),"DURABLE_PASS_WITH_TXN_ERROR")
+    def test_txn_zero_without_live_identity_fails(self):
+        self.assertEqual(classify(0,False,"TARGET_IDENTITY_MISMATCH"),
+                         "TARGET_IDENTITY_MISMATCH")
     def test_unconfirmed_never_success(self):
         self.assertEqual(classify(0,False,"TARGET_RUNNING_UNCONFIRMED"),"TARGET_RUNNING_UNCONFIRMED")
     def test_sdk_finally(self):

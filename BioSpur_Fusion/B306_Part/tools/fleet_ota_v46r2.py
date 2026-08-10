@@ -69,6 +69,7 @@ def durable_result(path: Path, node: str, expected_fwid: str,
         and value.get("node") == node
         and value.get("expected_fwid") == expected_fwid
         and last.get("node") == node
+        and last.get("firmware_marker") == value.get("expected_firmware_marker")
         and last.get("fwid") == expected_fwid
         and (expected_image_sha256 is None
              or last.get("image_sha256") == expected_image_sha256)

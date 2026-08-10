@@ -47,8 +47,12 @@ def load_identity(path: Path) -> dict[str, object]:
     if value.get("schema") != SCHEMA:
         raise ValueError(f"unsupported identity manifest: {value.get('schema')!r}")
     for key in ("fwid", "signed_payload_sha256", "mcuboot_image_sha256"):
-        if not re.fullmatch(r"[0-9a-f]{64}", str(value.get(key, ""))):
+        if (not re.fullmatch(r"[0-9a-f]{64}", str(value.get(key, "")))
+                or str(value.get(key)) == "0" * 64):
             raise ValueError(f"manifest has invalid {key}")
+    if not re.fullmatch(r"b306-imu-relay-v[1-9][0-9]*",
+                        str(value.get("firmware_marker", ""))):
+        raise ValueError("manifest has invalid firmware_marker")
     return value
 
 
@@ -73,6 +77,7 @@ def main() -> int:
     result: dict[str, object] = {
         "schema": "biospur-ota-confirm-result-v1", "status": "IN_PROGRESS",
         "started": now(), "node": args.node, "identity_manifest": str(args.identity_manifest),
+        "expected_firmware_marker": identity["firmware_marker"],
         "expected_fwid": identity["fwid"],
         "expected_payload_sha256": identity["signed_payload_sha256"],
         "expected_image_sha256": identity["mcuboot_image_sha256"],
@@ -109,7 +114,7 @@ def main() -> int:
 
             state, samples = confirm_until_durable(
                 ExpectedIdentity(
-                    args.node, str(identity["fwid"]),
+                    args.node, str(identity["firmware_marker"]), str(identity["fwid"]),
                     str(identity["mcuboot_image_sha256"]),
                     str(source["fwid"]) if source else None,
                     str(source["mcuboot_image_sha256"]) if source else None),
