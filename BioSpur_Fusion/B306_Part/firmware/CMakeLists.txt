@@ -31,7 +31,8 @@ if(NOT DEFINED ENV{BSF_FWID})
   message(FATAL_ERROR "BSF_FWID is required; generate the OTA build manifest first")
 endif()
 set(BSF_FWID "$ENV{BSF_FWID}")
-if(NOT BSF_FWID MATCHES "^[0-9a-f]{64}$")
+string(LENGTH "${BSF_FWID}" BSF_FWID_LENGTH)
+if(NOT BSF_FWID MATCHES "^[0-9a-f]+$" OR NOT BSF_FWID_LENGTH EQUAL 64)
   message(FATAL_ERROR "BSF_FWID must be exactly 64 lowercase hexadecimal characters")
 endif()
 
@@ -113,7 +114,12 @@ target_sources(app PRIVATE
   src/bsf_reset_intent.c
   src/bsf_v45_pools.c
 )
-target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_include_directories(app PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../include
+  ${ZEPHYR_MCUBOOT_MODULE_DIR}/boot/bootutil/include
+  ${ZEPHYR_MCUBOOT_MODULE_DIR}/boot/bootutil/zephyr/include
+  ${ZEPHYR_MCUBOOT_MODULE_DIR}/boot/zephyr/include
+)
 # Global, not app-private: subsys/bluetooth/host/conn.c is built as part of
 # a Zephyr library and resolves <bsf_bt_stage.h> through zephyr_interface.
 zephyr_include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)

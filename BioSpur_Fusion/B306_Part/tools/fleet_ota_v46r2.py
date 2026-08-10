@@ -7,7 +7,7 @@ import argparse
 import json
 import subprocess
 import sys
-import tempfile
+import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -55,7 +55,8 @@ def pristine_sdk(ledger: dict, write_ledger):
         write_ledger()
 
 
-def durable_result(path: Path, node: str, expected_fwid: str) -> bool:
+def durable_result(path: Path, node: str, expected_fwid: str,
+                   expected_image_sha256: str | None = None) -> bool:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -69,6 +70,8 @@ def durable_result(path: Path, node: str, expected_fwid: str) -> bool:
         and value.get("expected_fwid") == expected_fwid
         and last.get("node") == node
         and last.get("fwid") == expected_fwid
+        and (expected_image_sha256 is None
+             or last.get("image_sha256") == expected_image_sha256)
         and "confirmed=1" in str(last.get("boot_confirm"))
     )
 
@@ -92,6 +95,26 @@ def classify(txn_rc: int | None, durable: bool, observed: str = "UNKNOWN") -> st
     return observed
 
 
+def run_live_verifier(command_template, *, node: str, out_dir: Path,
+                      identity_path: Path, absolute_deadline: float,
+                      timeout_s: float) -> tuple[int | None, Path, str | None]:
+    """Invoke a fresh live verifier; never reuse transaction result JSON."""
+    out_dir.mkdir(parents=True, exist_ok=False)
+    result_path = out_dir / "result.json"
+    command = [part.format(node=node, out_dir=str(out_dir),
+                           identity_manifest=str(identity_path),
+                           absolute_deadline=absolute_deadline)
+               for part in command_template]
+    try:
+        with (out_dir / "console.log").open("xb") as log:
+            completed = subprocess.run(command, cwd=ROOT, stdout=log,
+                                       stderr=subprocess.STDOUT, check=False,
+                                       timeout=timeout_s)
+        return completed.returncode, result_path, None
+    except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
+        return None, result_path, f"{type(exc).__name__}: {exc}"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--campaign", required=True, type=Path,
@@ -102,6 +125,7 @@ def main() -> int:
     identity_path = Path(campaign["identity_manifest"])
     identity = json.loads(identity_path.read_text(encoding="utf-8"))
     expected_fwid = str(identity["fwid"])
+    expected_image_sha = str(identity["mcuboot_image_sha256"])
     nodes = list(campaign["nodes"])
     out = args.out_root / run_id()
     out.mkdir(parents=True, exist_ok=False)
@@ -110,6 +134,7 @@ def main() -> int:
         "schema": "biospur-fleet-ota-ledger-v1", "run_id": out.name,
         "campaign": str(args.campaign), "expected_fwid": expected_fwid,
         "expected_payload_sha256": identity["signed_payload_sha256"],
+        "expected_image_sha256": expected_image_sha,
         "boards": {node: {"state": "UNKNOWN", "transitions": []} for node in nodes},
         "sdk": {},
     }
@@ -138,6 +163,10 @@ def main() -> int:
         row = ledger["boards"][node]
         board_dir = out / node
         board_dir.mkdir(exist_ok=False)
+        transaction_started = time.monotonic()
+        absolute_deadline = transaction_started + float(campaign["critical_deadline_s"])
+        row["transaction_started_monotonic"] = transaction_started
+        row["absolute_confirm_deadline"] = absolute_deadline
         try:
             command = [part.format(node=node, out_dir=str(board_dir),
                                    identity_manifest=str(identity_path))
@@ -154,24 +183,42 @@ def main() -> int:
             row["transaction_error"] = f"{type(exc).__name__}: {exc}"
         row["transitions"].append({"state": "VERIFYING", "txn_rc": row["txn_rc"]})
         save()
-        confirm_path = board_dir / "app_confirm" / "result.json"
-        durable = durable_result(confirm_path, node, expected_fwid)
-        row["verifier_result"] = str(confirm_path)
-        row["state"] = classify(row["txn_rc"], durable, verifier_state(confirm_path))
+        # Always attempt a separate live rescue. If the production master was
+        # not restored its explicit marker gate fails without touching B306.
+        rescue_rc, rescue_path, rescue_error = run_live_verifier(
+            campaign["verifier_command"], node=node,
+            out_dir=board_dir / "confirm_rescue", identity_path=identity_path,
+            absolute_deadline=absolute_deadline,
+            timeout_s=float(campaign["verifier_timeout_s"]))
+        row["rescue_rc"] = rescue_rc
+        row["rescue_error"] = rescue_error
+        row["rescue_result"] = str(rescue_path)
+        durable = durable_result(rescue_path, node, expected_fwid, expected_image_sha)
+        row["state"] = classify(row["txn_rc"], durable, verifier_state(rescue_path))
         row["transitions"].append({"state": row["state"]})
         save()
 
-    # Independent final pass rereads durable result files after every board
-    # transaction has finished; transaction rc never participates.
-    ledger["final_verification"] = {}
+    # Genuinely live independent final pass: each board gets a new connection,
+    # identity query, and BOOT CONFIRM STATUS in a separate evidence directory.
+    final_root = out / "final_live_verification"
+    final_root.mkdir(exist_ok=False)
+    ledger["final_verification"] = {"schema": "biospur-fleet-live-final-v1",
+                                    "boards": {}}
     for node in nodes:
-        result_path = out / node / "app_confirm" / "result.json"
-        passed = durable_result(result_path, node, expected_fwid)
-        ledger["final_verification"][node] = {
-            "durable": passed, "result": str(result_path)}
+        deadline = time.monotonic() + float(campaign["final_verify_deadline_s"])
+        rc, result_path, error = run_live_verifier(
+            campaign["verifier_command"], node=node,
+            out_dir=final_root / node, identity_path=identity_path,
+            absolute_deadline=deadline,
+            timeout_s=float(campaign["verifier_timeout_s"]))
+        passed = durable_result(result_path, node, expected_fwid, expected_image_sha)
+        ledger["final_verification"]["boards"][node] = {
+            "durable": passed, "rc": rc, "error": error,
+            "result": str(result_path)}
+        save()
     save()
     return 0 if ledger["sdk"].get("restored") and all(
-        row["durable"] for row in ledger["final_verification"].values()) else 2
+        row["durable"] for row in ledger["final_verification"]["boards"].values()) else 2
 
 
 if __name__ == "__main__":

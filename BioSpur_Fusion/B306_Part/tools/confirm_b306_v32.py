@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -45,7 +46,7 @@ def load_identity(path: Path) -> dict[str, object]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if value.get("schema") != SCHEMA:
         raise ValueError(f"unsupported identity manifest: {value.get('schema')!r}")
-    for key in ("fwid", "signed_payload_sha256"):
+    for key in ("fwid", "signed_payload_sha256", "mcuboot_image_sha256"):
         if not re.fullmatch(r"[0-9a-f]{64}", str(value.get(key, ""))):
             raise ValueError(f"manifest has invalid {key}")
     return value
@@ -57,22 +58,26 @@ def main() -> int:
     parser.add_argument("--out-dir", required=True, type=Path)
     parser.add_argument("--identity-manifest", required=True, type=Path)
     parser.add_argument("--expected-master-marker", required=True)
-    parser.add_argument("--deadline-s", required=True, type=float,
-                        help="measured, documented pre-confirm deadline (< firmware bound)")
+    parser.add_argument("--absolute-deadline", required=True, type=float,
+                        help="absolute host monotonic deadline created before confirmer startup")
+    parser.add_argument("--source-identity-manifest", type=Path)
     parser.add_argument("--fusion-port")
     parser.add_argument("--target-only", action="store_true",
                         help="compatibility no-op: confirmation is always target-scoped")
     args = parser.parse_args()
-    if not 0 < args.deadline_s < 180.0:
-        parser.error("--deadline-s must be positive and below firmware's 180 s bound")
+    if args.absolute_deadline <= 0:
+        parser.error("--absolute-deadline must be a positive host monotonic timestamp")
     identity = load_identity(args.identity_manifest)
+    source = load_identity(args.source_identity_manifest) if args.source_identity_manifest else None
     args.out_dir.mkdir(parents=True, exist_ok=False)
     result: dict[str, object] = {
         "schema": "biospur-ota-confirm-result-v1", "status": "IN_PROGRESS",
         "started": now(), "node": args.node, "identity_manifest": str(args.identity_manifest),
         "expected_fwid": identity["fwid"],
         "expected_payload_sha256": identity["signed_payload_sha256"],
-        "deadline_s": args.deadline_s,
+        "expected_image_sha256": identity["mcuboot_image_sha256"],
+        "absolute_deadline": args.absolute_deadline,
+        "confirmer_started_monotonic": time.monotonic(),
     }
     channel: LineChannel | None = None
     with (args.out_dir / "fusion_cdc.log").open("x", encoding="utf-8", buffering=1) as log:
@@ -103,9 +108,13 @@ def main() -> int:
                 result["commit"] = committed
 
             state, samples = confirm_until_durable(
-                ExpectedIdentity(args.node, str(identity["fwid"]),
-                                 str(identity["signed_payload_sha256"])),
-                ping, status, prepare_commit, deadline_s=args.deadline_s,
+                ExpectedIdentity(
+                    args.node, str(identity["fwid"]),
+                    str(identity["mcuboot_image_sha256"]),
+                    str(source["fwid"]) if source else None,
+                    str(source["mcuboot_image_sha256"]) if source else None),
+                ping, status, prepare_commit,
+                absolute_deadline=args.absolute_deadline,
             )
             result["board_state"] = state.value
             result["samples"] = samples

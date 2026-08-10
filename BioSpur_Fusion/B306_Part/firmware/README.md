@@ -280,12 +280,21 @@ checks, post-flash observations, and rollback remain frozen in
 a capture and only after stating the exact marker and image SHA.
 # Durable OTA build identity
 
-Production OTA builds must first create a canonical build-input JSON containing
-`source_commit`, `dirty_state_digest`, `effective_configs`,
-`sdk_patch_identity`, and `toolchain`. Generate and collision-check the
-manifest with `tools/ota_build_identity.py`, then export its `fwid` as
-`BSF_FWID` for the firmware build. CMake fails closed when this value is absent
-or malformed. The FWID identifies complete build inputs; it is not described
-as the signed binary's own hash. The manifest separately records the exact
-signed-payload SHA-256, and the registry refuses one FWID associated with two
-payload hashes.
+Production OTA identity has three mandatory stages:
+
+1. **PREPARE:** pass canonical `source_commit`, `dirty_state_digest`,
+   `effective_configs`, `sdk_patch_identity`, and `toolchain` inputs to
+   `tools/ota_build_identity.py prepare`. This produces the FWID.
+2. **BUILD:** export that value as `BSF_FWID`, then build and sign. CMake fails
+   closed if it is absent or not exactly 64 lowercase hexadecimal characters.
+3. **FINALIZE:** pass the prepared manifest and final signed binary to
+   `tools/ota_build_identity.py finalize`. Finalize proves the binary embeds
+   the prepared FWID, computes both the exact whole-file signed-payload SHA-256
+   and MCUboot image SHA-256, records the absolute payload path and complete
+   input identity, then collision-checks and updates the registry.
+
+The FWID identifies the canonical inputs; it is not the signed binary hash.
+The whole-file hash binds the exact transfer artifact. The MCUboot image hash
+is the digest exposed by the active-slot runtime readback and used alongside
+FWID for durable confirmation. The registry rejects reuse of one FWID with a
+different final payload or image digest.

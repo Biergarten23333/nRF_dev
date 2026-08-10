@@ -1,4 +1,20 @@
-# v46r2 status — session aborted 2026-08-10
+# v46r2 status — fleet OTA blocked 2026-08-10
+
+## P0 confirmation-pipeline closure
+
+The host-side P0 changes are implemented and tested: PREPARE/BUILD/FINALIZE
+identity, embedded FWID plus active MCUboot image-hash readback, the complete
+seven-state classifier, one inherited absolute deadline, post-confirm spacing,
+independent rescue confirmation, and a genuinely fresh final fleet verifier.
+No OTA or B306 MCUboot-slot write was performed.
+
+The required ten-board reboot-only timing gate did not run because the
+production Master repeatedly reported `count=0 ready=0`. Both attempts stopped
+before T0; no board received `REBOOT`. Exact gate result is **BLOCKED: 0/10
+common-clock samples, so max/P95/component maxima and a conservative bound are
+unavailable and the strict `<180 s` predicate is unproven.** Evidence is in
+`../ota_timing_qualification_20260810_103454/` and
+`../ota_timing_qualification_20260810_103518/`. Fleet OTA remains prohibited.
 
 ## Achieved
 
@@ -40,6 +56,10 @@ observed running, and exact target image durably confirmed.
 
 ## Blocking next session
 
-1. Fix the one-shot marker check in `confirm_b306_v32.py` (poll, don't sample).
-2. Re-run the fleet OTA; verify by content check only, never by `rc`.
+1. Power/connect all ten B306 boards and rerun the reboot-only timing
+   qualification. Require ten raw T0--T4 samples and
+   `upper_bound + max(30 s, 25%) < 180 s`.
+2. Only after that strict PASS may a separately authorized fleet OTA begin;
+   durable success is fresh node + FWID + active image SHA + `confirmed=1`,
+   never transaction `rc`.
 3. Then B1's first hardware test.

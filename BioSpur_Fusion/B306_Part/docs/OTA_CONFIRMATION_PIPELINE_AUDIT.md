@@ -1,7 +1,59 @@
 # B306 OTA confirmation pipeline audit
 
-Date: 2026-08-10. Baseline: `657f800201466b26ba10aeb15ce185d1eb7964f1`.
-Scope is host-side inspection and testing; no device operation was performed.
+Date: 2026-08-10. Implementation baseline:
+`d72d02683cb987c8346358653a61b7bd3fddedae`. No OTA or B306 slot write was
+performed. Two timing-rehearsal attempts stopped before T0 because the
+production Master reported `count=0 ready=0`; consequently no B306 received a
+reboot command.
+
+## P0 closure implemented
+
+Build identity is now an explicit three-stage lifecycle:
+
+1. `ota_build_identity.py prepare` canonicalizes the complete build inputs and
+   derives the FWID.
+2. The build exports that FWID as `BSF_FWID`; CMake rejects a missing or
+   malformed value and the application embeds it.
+3. `ota_build_identity.py finalize` verifies the embedded FWID in the final
+   signed binary, computes its whole-file SHA-256 and MCUboot image SHA-256,
+   writes the final manifest, and collision-checks the registry. One FWID may
+   not acquire a different signed payload or MCUboot image hash.
+
+The two hashes have different meanings. `signed_payload_sha256` covers the
+complete signed file used for transfer and registry provenance.
+`mcuboot_image_sha256` is MCUboot's image digest over the header, image and
+protected TLVs. The B306 reads the active slot's latter value through NCS
+v2.8.0's supported `img_mgmt_active_image()`, `img_mgmt_active_slot()` and
+`img_mgmt_read_info()` APIs and returns it with FWID in PONG. Durable identity
+therefore directly compares requested node, expected embedded FWID, expected
+active MCUboot image SHA-256, and `confirmed=1`; the whole signed-file hash
+remains bound through the finalized manifest and registry.
+
+The classifier implements all seven states: `OLD_CONFIRMED`,
+`TARGET_RUNNING_UNCONFIRMED`, `TARGET_CONFIRMED`,
+`TARGET_IDENTITY_MISMATCH`, `ROLLBACK_OBSERVED`, `UNREACHABLE`, and `UNKNOWN`.
+An approved, reachable source identity with `confirmed=1` is
+`OLD_CONFIRMED`. Seeing the target and subsequently the source is rollback,
+not an unreachable board.
+
+The transaction records T0 before releasing the updater flash operation and
+derives one absolute host-monotonic deadline. The confirmer receives that
+absolute value and cannot create a new budget. After target boot the critical
+path is limited to production-Master restoration, CDC framing, requested-node
+routing and exact identity confirmation. Spacing/schedule reconstruction runs
+only after `TARGET_CONFIRMED`. The fleet driver launches an independent live
+rescue verifier after every transaction outcome and supplies the original
+deadline. Its final fleet pass launches another fresh verifier per board and
+writes separate `final_live_verification` evidence; it never promotes a cached
+transaction result.
+
+The focused OTA pipeline suite has 17 passing tests, including finalized
+payload binding, embedded FWID, collision rejection, payload-hash comparison,
+`OLD_CONFIRMED`, inherited deadline expiry, spacing order, rescue after a
+crashed transaction, and fresh final verification. Existing host-binary,
+updater, rollout/source-contract and firmware-policy suites also pass. A
+no-flash B306 build passed the memory gate at 47.24% FLASH and 53.47% RAM with
+an explicit zero-byte C malloc arena.
 
 ## Authority and state model
 
@@ -13,7 +65,7 @@ Transaction return code, a firmware marker, updater RTT text, and `V45 GUARD`
 are diagnostics only. `V45 GUARD` witnesses a capability; it cannot identify
 the exact signed payload.
 
-## Abort-point inventory (24)
+## Historical abort-point inventory at the audit baseline (24)
 
 `secondary` means the new image may already be in the secondary slot; `test`
 means it may already be running unconfirmed. Deadlines are host monotonic unless
@@ -50,7 +102,7 @@ Aborts 11–23 can occur after upload. Therefore none may erase evidence, infer
 rollback merely from a nonzero transaction return code, or suppress a later
 durable verifier pass.
 
-## Hardcoded constant inventory (31)
+## Historical hardcoded constant inventory at the audit baseline (31)
 
 | Area | Constants | Effect |
 |---|---|---|
@@ -80,24 +132,32 @@ must be recorded in run evidence.
 All new result documents use a schema version and preserve samples. Consumers
 must reject absent identity fields instead of supplying marker defaults.
 
-## Timing audit and blocker
+## Timing qualification and gate
 
-The old pre-confirm upper bound is at least 417.874 s RTT capture + restore +
-25 s sleep + confirmation polling, while firmware rolls an unconfirmed image
-back after 180 s. This is structurally unsafe. Existing logs must be measured
-for earliest target boot through required updater handoff, restore, first exact
-identity observation, and `confirmed=1`. Until max, P95, sample count and a
-documented margin prove that entire path is below 180 s, fleet rollout is
-blocked. Optional RTT collection is not a prerequisite and must be moved out of
-the confirmation critical path.
+The qualification tool records T0 through T4 on one host monotonic clock and
+refuses to transmit until stable CDC identity, framing and production-Master
+marker are decoded. It uses a reboot-only rehearsal: no image upload, pending
+mark or confirmation mutation. Since the production Master and CDC are
+already live, its per-board T1 and T2 equal T0; the independently measured
+production-Master restore maximum is added to the conservative bound. The
+archived PREPARE-to-confirmed command maximum is likewise added separately.
 
-Measured completed RTT captures in the existing v46r2 evidence have `n=9`,
-maximum `102.542 s`, and linearly interpolated P95 `94.094 s` (values parsed
-from `updater_rtt_console.log`). These numbers end at the updater's handoff and
-post-verify markers; the evidence does not carry a common timestamp tying the
-earliest possible test-image boot to the later application `confirmed=1`
-sample. Consequently no defensible end-to-end maximum or P95 exists yet and no
-margin can be selected. The transaction now removes optional RTT capture and
-the fixed 25 s sleep from the critical path and requires an explicit deadline
-below 180 s, but **fleet rollout remains blocked** until a non-mutating dry-run
-or future canary capture provides a shared-clock boot-to-confirm distribution.
+Archived inputs are production-Master restore max `8.302 s` and
+PREPARE-to-confirmed max `5.777007 s` (`n=4`, samples `5.731211`, `5.741493`,
+`5.766303`, `5.777007` s). They are not sufficient without ten live T0--T4
+samples.
+
+Attempt evidence:
+
+- `logs/ota_timing_qualification_20260810_103454/`: decoded the correct port,
+  framing and `dk-fusion-imu-relay-v36`, then stopped at pre-PING because the
+  node was not connected.
+- `logs/ota_timing_qualification_20260810_103518/`: waited for fleet readiness;
+  repeated fresh Master status remained `count=0 ready=0`. The wait was
+  stopped before T0. No board reboot was transmitted in either attempt.
+
+Exact gate result: **BLOCKED (0/10 common-clock samples; max, P95 and component
+maxima unavailable; no conservative upper bound can be calculated; therefore
+the required `upper_bound + max(30 s, 25%) < 180 s` predicate is not proven).**
+Fleet OTA remains prohibited until all ten boards are powered/reachable and a
+fresh reboot-only qualification produces ten raw samples and a strict PASS.

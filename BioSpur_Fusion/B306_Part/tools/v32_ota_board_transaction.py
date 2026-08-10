@@ -135,20 +135,12 @@ def classify_capture_result(returncode: int, console: str, timeout_s: float) -> 
 
 
 def restore_master(restore_script, flash_log, out_dir, state, tag):
-    """Flash the DK back to canonical AND leave spacing correct.
-
-    The rebuild is INSIDE the restore, not a separate call the caller has to
-    remember, because a restore that leaves spacing wrong must not be
-    expressible. Every DK flash replays the boot path, and every single-board
-    OTA flashes the DK twice -- to the updater and back -- so both halves of the
-    sequence used to reset the connection schedule silently.
-
-    A spacing failure never fails the transaction. The image is already written
-    and confirmed by this point; refusing the deployment over a schedule that
-    can be corrected with one command would trade a real success for a
-    cosmetic failure. It is recorded loudly instead.
-    """
+    """Flash the DK back to canonical; do no schedule work here."""
     flash(restore_script, flash_log)
+
+
+def rebuild_spacing_after_confirm(out_dir, state, tag):
+    """Optional schedule work, permitted only after TARGET_CONFIRMED."""
     try:
         from fusion_spacing import ensure_spacing
         r = ensure_spacing(out_dir / f"spacing_{tag}", timeout_s=120.0)
@@ -185,6 +177,7 @@ def main() -> int:
     parser.add_argument("--source-marker", required=True)
     parser.add_argument("--target-marker", required=True)
     parser.add_argument("--identity-manifest", required=True, type=Path)
+    parser.add_argument("--source-identity-manifest", type=Path)
     parser.add_argument("--confirmation-deadline-s", required=True, type=float)
     parser.add_argument("--build-prefix", required=True)
     parser.add_argument("--updater-sha", required=True)
@@ -234,6 +227,8 @@ def main() -> int:
         ),
     )
     args = parser.parse_args()
+    if not 0 < args.confirmation_deadline_s < 180.0:
+        parser.error("--confirmation-deadline-s must be positive and below 180 s")
     args.out_dir.mkdir(parents=True, exist_ok=False)
     state: dict[str, object] = {
         "status": "IN_PROGRESS",
@@ -357,6 +352,13 @@ def main() -> int:
         restore_script = args.out_dir / f"restore_{SNR}.jlink"
         jlink_script(updater_script, updater_merged, updater_bin)
         jlink_script(restore_script, v28_merged, v28_bin)
+        # Conservative T0: timestamp before the updater is released so
+        # even a target reset during J-Link process teardown is inside budget.
+        # One absolute deadline covers restore, CDC,
+        # routing, identity, and confirmation; the confirmer cannot restart it.
+        state["critical_t0_monotonic"] = time.monotonic()
+        state["absolute_confirm_deadline"] = (
+            state["critical_t0_monotonic"] + args.confirmation_deadline_s)
         flash(updater_script, args.out_dir / "flash_updater_jlink.log")
         updater_flushed = True
 
@@ -370,30 +372,29 @@ def main() -> int:
                        args.out_dir / "restore_v28_jlink.log",
                        args.out_dir, state, "restore")
         restored = True
+        state["production_master_restored"] = True
         run_logged([
             sys.executable, str(TOOLS / args.confirm_tool),
             "--node", args.node, "--out-dir", str(args.out_dir / "app_confirm"),
             "--identity-manifest", str(args.identity_manifest),
             "--expected-master-marker", args.master_marker,
-            "--deadline-s", str(args.confirmation_deadline_s),
+            "--absolute-deadline", str(state["absolute_confirm_deadline"]),
+            *(["--source-identity-manifest", str(args.source_identity_manifest)]
+              if args.source_identity_manifest else []),
         ], args.out_dir / "app_confirm_console.log", env=env)
-        if args.deployment_only:
-            confirm_result = json.loads(
-                (args.out_dir / "app_confirm" / "result.json").read_text(
-                    encoding="utf-8"
-                )
-            )
-            samples = confirm_result.get("samples", [])
-            if (
-                confirm_result.get("status") != "PASS"
+        confirm_result = json.loads(
+            (args.out_dir / "app_confirm" / "result.json").read_text(
+                encoding="utf-8"))
+        samples = confirm_result.get("samples", [])
+        if (confirm_result.get("status") != "PASS"
                 or confirm_result.get("board_state") != "TARGET_CONFIRMED"
-                or not samples
-            ):
-                raise RuntimeError(
-                    "deployment-only readback contract failed: "
-                    f"status={confirm_result.get('status')} "
-                    f"state={confirm_result.get('board_state')!r}"
-                )
+                or not samples):
+            raise RuntimeError(
+                "durable readback contract failed: "
+                f"status={confirm_result.get('status')} "
+                f"state={confirm_result.get('board_state')!r}")
+        rebuild_spacing_after_confirm(args.out_dir, state, "post_confirm")
+        if args.deployment_only:
             state["deployment_readback"] = {
                 "samples": samples,
                 "payload_sha256": confirm_result.get("expected_payload_sha256"),
@@ -401,7 +402,6 @@ def main() -> int:
             }
             state["deferred_by_operator"] = [
                 "F4 service gate",
-                "SPACING rebuild",
                 "redraw",
                 "120-second sanity",
                 "IMU commands",
@@ -441,6 +441,7 @@ def main() -> int:
                                args.out_dir / "emergency_restore_v28_jlink.log",
                                args.out_dir, state, "emergency_restore")
                 state["emergency_master_restore"] = "PASS"
+                state["production_master_restored"] = True
             except Exception as restore_exc:
                 state["emergency_master_restore"] = f"FAIL: {restore_exc}"
         (args.out_dir / "transaction.json").write_text(

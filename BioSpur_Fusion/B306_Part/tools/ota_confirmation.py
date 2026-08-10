@@ -23,7 +23,9 @@ class BoardState(str, enum.Enum):
 class ExpectedIdentity:
     node: str
     fwid: str
-    payload_sha256: str
+    image_sha256: str
+    source_fwid: str | None = None
+    source_image_sha256: str | None = None
 
 
 @dataclass
@@ -33,6 +35,7 @@ class Sample:
     error: str | None = None
     node: str | None = None
     fwid: str | None = None
+    image_sha256: str | None = None
     boot_confirm: str | None = None
 
 
@@ -57,6 +60,7 @@ def timeout_message(elapsed: float, samples: list[Sample]) -> str:
         f"confirmation deadline expired elapsed_s={elapsed:.3f} "
         f"samples={len(samples)} last_reply={last.reply!r} "
         f"last_error={last.error!r} last_identity={last.fwid!r} "
+        f"last_image_sha256={last.image_sha256!r} "
         f"last_boot_confirm={last.boot_confirm!r}"
     )
 
@@ -67,7 +71,7 @@ def confirm_until_durable(
     query_status: Callable[[], str],
     prepare_commit: Callable[[], None],
     *,
-    deadline_s: float,
+    absolute_deadline: float,
     poll_s: float = 1.0,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
@@ -78,13 +82,14 @@ def confirm_until_durable(
     tests. Identity is exact only when the running application reports the
     manifest FWID; markers and command capabilities are deliberately ignored.
     """
-    start = clock()
+    started = clock()
     samples: list[Sample] = []
     target_seen = False
     commit_sent = False
     while True:
-        elapsed = clock() - start
-        if elapsed >= deadline_s:
+        now = clock()
+        elapsed = now - started
+        if now >= absolute_deadline:
             state = (BoardState.TARGET_RUNNING_UNCONFIRMED if target_seen
                      else BoardState.UNREACHABLE)
             raise ConfirmationTimeout(timeout_message(elapsed, samples), state,
@@ -96,13 +101,28 @@ def confirm_until_durable(
             parsed = fields(reply)
             sample.node = parsed.get("name")
             sample.fwid = parsed.get("fwid")
+            sample.image_sha256 = parsed.get("image_sha")
             if sample.node != expected.node:
                 samples.append(sample)
                 return BoardState.TARGET_IDENTITY_MISMATCH, [asdict(s) for s in samples]
-            if sample.fwid != expected.fwid:
+            target_identity = (sample.fwid == expected.fwid and
+                               sample.image_sha256 == expected.image_sha256)
+            source_identity = (
+                expected.source_fwid is not None
+                and sample.fwid == expected.source_fwid
+                and sample.image_sha256 == expected.source_image_sha256
+            )
+            if not target_identity:
                 if target_seen:
                     samples.append(sample)
                     return BoardState.ROLLBACK_OBSERVED, [asdict(s) for s in samples]
+                if source_identity:
+                    status = query_status()
+                    sample.boot_confirm = status
+                    samples.append(sample)
+                    if fields(status).get("confirmed") == "1":
+                        return BoardState.OLD_CONFIRMED, [asdict(s) for s in samples]
+                    return BoardState.UNKNOWN, [asdict(s) for s in samples]
                 samples.append(sample)
                 sleep(poll_s)
                 continue

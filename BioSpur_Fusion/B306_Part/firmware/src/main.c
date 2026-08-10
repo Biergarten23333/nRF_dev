@@ -46,11 +46,28 @@
 #include "bsf_v45_trace.h"
 #include "strobe_capture.h"
 #include <zephyr/mgmt/mcumgr/mgmt/callbacks.h>
+#include <zephyr/mgmt/mcumgr/grp/img_mgmt/img_mgmt.h>
 #if defined(CONFIG_MCUMGR_GRP_IMG_STATUS_HOOKS)
 #include <zephyr/mgmt/mcumgr/grp/img_mgmt/img_mgmt_callbacks.h>
 #endif
 
 LOG_MODULE_REGISTER(biospur_fusion, LOG_LEVEL_INF);
+
+static int active_image_sha256(char output[65])
+{
+	uint8_t hash[32];
+	int rc = img_mgmt_read_info(
+		img_mgmt_active_slot(img_mgmt_active_image()), NULL, hash, NULL);
+
+	if (rc != 0) {
+		return rc;
+	}
+	for (size_t i = 0; i < ARRAY_SIZE(hash); ++i) {
+		(void)snprintf(&output[i * 2u], 3u, "%02x", hash[i]);
+	}
+	output[64] = '\0';
+	return 0;
+}
 
 #define LED0_NODE DT_ALIAS(led0)
 #define LED1_NODE DT_ALIAS(led1)
@@ -3162,8 +3179,19 @@ static void process_control(const char *command, uint16_t correlation)
 		snprintf(reply, sizeof(reply),
 			 "BOOT CONFIRM COMMIT FAIL reason=syntax");
 	} else if (strcmp(command, "PING") == 0) {
-		snprintf(reply, sizeof(reply), "PONG name=%s fw=%s fwid=%s proto=%u",
-			 device_name, FW_MARKER, BSF_FWID, BSF_BLE_PROTOCOL_VERSION);
+		char image_sha[65];
+
+		if (active_image_sha256(image_sha) == 0) {
+			snprintf(reply, sizeof(reply),
+				 "PONG name=%s fw=%s fwid=%s image_sha=%s proto=%u",
+				 device_name, FW_MARKER, BSF_FWID, image_sha,
+				 BSF_BLE_PROTOCOL_VERSION);
+		} else {
+			snprintf(reply, sizeof(reply),
+				 "PONG name=%s fw=%s fwid=%s image_sha=UNAVAILABLE proto=%u",
+				 device_name, FW_MARKER, BSF_FWID,
+				 BSF_BLE_PROTOCOL_VERSION);
+		}
 	} else if (strcmp(command, "STATUS") == 0) {
 		bsf_ble_telemetry_t capture_status = { 0 };
 
