@@ -196,8 +196,15 @@ def run_one_reboot(channel, node: str, master_before: dict,
                 peer = {parse_fields(line).get("name"): parse_fields(line) for line in peers}.get(node)
                 if peer is None or peer.get("connected") != "1" or peer.get("subscribed") != "1":
                     disconnect = True
-                elif disconnect:
-                    reconnect = True
+                    time.sleep(.25)
+                    continue
+                if not disconnect:
+                    # The old route can remain visible briefly after REBOOT
+                    # QUEUED. A PING here can land in the reboot window and
+                    # the send guard then correctly forbids a duplicate.
+                    time.sleep(.25)
+                    continue
+                reconnect = True
                 candidate = b306_command(channel, node, "PING", "PONG ")
                 if parse_fields(str(candidate["text"])).get("name") == node and disconnect:
                     # A retryable route/response failure is disconnect evidence;

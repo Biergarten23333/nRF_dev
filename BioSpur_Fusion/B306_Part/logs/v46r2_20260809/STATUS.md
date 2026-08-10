@@ -1,5 +1,27 @@
 # v46r2 status — fleet OTA blocked 2026-08-10
 
+## Three-stage rollout continuation
+
+Stage 1 subsequently reached a strict **10/10 PASS**. The conservative mixed
+cohort component bound is 31.193245916 s; its 30 s margin gives
+61.193245916 s, below 180 s. The six new reboot-only samples and the exact
+calculation are recorded in
+`../fleet_rollout_20260810/REPORT.md`.
+
+Stage 2 stopped before the first OTA transaction. A fresh read-only check of
+all seven v44 targets proved that Slot 1 is bootable, `pending=false`, and has
+the exact v46r2-prod MCUboot image SHA
+`9149678b381d361128aab458a92aee03a962be0eea3007dca7cb255947f6a78a`.
+However, that archived payload predates the durable FWID/active-SHA PONG
+contract. The hardened confirmer therefore cannot produce the required
+requested-node + FWID + active-SHA + `confirmed=1` verdict for it. There is no
+tested activation-only path, and an ad-hoc pending implementation is
+prohibited. No OTA, upload, pending mark, PREPARE or COMMIT was attempted.
+
+Stage 2 is **BLOCKED**, Stage 3 was not entered, and no hard power cycle was
+requested. The final unchanged-production-Master inventory again passed the
+exact stable ten-peer gate.
+
 ## P0 confirmation-pipeline closure
 
 The host-side P0 changes are implemented and tested: PREPARE/BUILD/FINALIZE

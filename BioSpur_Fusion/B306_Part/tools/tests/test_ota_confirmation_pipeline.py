@@ -203,6 +203,13 @@ class TimingReadinessTests(unittest.TestCase):
         self.assertIn('get("name") == node and disconnect', source)
         self.assertIn("reconnect = True", source)
 
+    def test_post_reboot_ping_waits_for_real_disconnect(self):
+        source = (TOOLS / "qualify_ota_confirmation_timing.py").read_text()
+        guard = source.index("if not disconnect:")
+        ping = source.index('candidate = b306_command(channel, node, "PING"', guard)
+        self.assertLess(guard, ping)
+        self.assertIn("PING here can land in the reboot window", source[guard:ping])
+
     def test_partial_timing_samples_never_pass(self):
         samples = [{"node": node, "valid": True, "components_s": {
             "reboot_to_status": 1.0, "route_to_pong": .5, "status": .1}}
