@@ -64,6 +64,8 @@ def main() -> int:
     parser.add_argument("--expected-master-marker", required=True)
     parser.add_argument("--absolute-deadline", required=True, type=float,
                         help="absolute host monotonic deadline created before confirmer startup")
+    parser.add_argument("--run-id", default="legacy-unspecified",
+                        help="transaction run identity; v47 transaction supplies this explicitly")
     parser.add_argument("--source-identity-manifest", type=Path)
     parser.add_argument("--fusion-port")
     parser.add_argument("--target-only", action="store_true",
@@ -82,6 +84,7 @@ def main() -> int:
         "expected_payload_sha256": identity["signed_payload_sha256"],
         "expected_image_sha256": identity["mcuboot_image_sha256"],
         "absolute_deadline": args.absolute_deadline,
+        "run_id": args.run_id,
         "confirmer_started_monotonic": time.monotonic(),
     }
     channel: LineChannel | None = None

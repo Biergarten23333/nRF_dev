@@ -12,6 +12,8 @@ import sys
 import time
 from pathlib import Path
 
+from ota_updater_handoff import capture_updater_terminal
+
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOLS = ROOT / "B306_Part" / "tools"
@@ -179,6 +181,9 @@ def main() -> int:
     parser.add_argument("--identity-manifest", required=True, type=Path)
     parser.add_argument("--source-identity-manifest", type=Path)
     parser.add_argument("--confirmation-deadline-s", required=True, type=float)
+    parser.add_argument("--run-id", required=True)
+    parser.add_argument("--reserved-post-updater-s", type=float,
+                        default=61.193245916)
     parser.add_argument("--build-prefix", required=True)
     parser.add_argument("--updater-sha", required=True)
     parser.add_argument("--confirm-tool", default="confirm_b306_v32.py")
@@ -227,17 +232,21 @@ def main() -> int:
         ),
     )
     args = parser.parse_args()
-    if not 0 < args.confirmation_deadline_s < 180.0:
-        parser.error("--confirmation-deadline-s must be positive and below 180 s")
+    if not 0 < args.confirmation_deadline_s <= 180.0:
+        parser.error("--confirmation-deadline-s must be positive and at most 180 s")
+    if not 0 < args.reserved_post_updater_s < args.confirmation_deadline_s:
+        parser.error("invalid reserved post-updater budget")
     args.out_dir.mkdir(parents=True, exist_ok=False)
     state: dict[str, object] = {
         "status": "IN_PROGRESS",
         "node": args.node,
         "snr": SNR,
         "deployment_only": args.deployment_only,
+        "run_id": args.run_id,
     }
     restored = False
     updater_flushed = False
+    rescue_attempted = False
     env = dict(os.environ)
     env["PYTHONPATH"] = str(TOOLS)
 
@@ -271,6 +280,11 @@ def main() -> int:
                 encoding="utf-8"
             ))
             nodes = preflight.get("nodes", {})
+            if not nodes and preflight.get("status") == "INVENTORY_PASS":
+                samples = preflight.get("inventory_samples") or []
+                if not samples or not all(row.get("ok") is True for row in samples):
+                    raise RuntimeError("inventory preflight lacks a complete stable gate")
+                nodes = samples[-1].get("nodes", {})
             responders = {
                 node for node, row in nodes.items()
                 if isinstance(row, dict)
@@ -294,7 +308,7 @@ def main() -> int:
                     "fleet_missing": sorted(FLEET_NODES - responders),
                 }
             else:
-                if preflight.get("status") != "PASS" or responders != FLEET_NODES:
+                if preflight.get("status") not in {"PASS", "INVENTORY_PASS"} or responders != FLEET_NODES:
                     raise RuntimeError(
                         "fleet preflight lacks end-to-end PING from every target: "
                         f"status={preflight.get('status')} responders={sorted(responders)}"
@@ -359,26 +373,34 @@ def main() -> int:
         state["critical_t0_monotonic"] = time.monotonic()
         state["absolute_confirm_deadline"] = (
             state["critical_t0_monotonic"] + args.confirmation_deadline_s)
+        state["updater_cutoff"] = (state["absolute_confirm_deadline"]
+                                   - args.reserved_post_updater_s)
+        state["reserved_post_updater_s"] = args.reserved_post_updater_s
         flash(updater_script, args.out_dir / "flash_updater_jlink.log")
         updater_flushed = True
 
-        # Optional RTT evidence is intentionally absent from this critical
-        # path. The old 417.874 s bound exceeded the application's 180 s
-        # rollback window. The updater's upload/verify result remains in its
-        # own logs; extended RTT capture may run only after durable confirm.
-        state["updater_capture"] = "DEFERRED_UNTIL_AFTER_DURABLE_CONFIRM"
+        identity = json.loads(args.identity_manifest.read_text(encoding="utf-8"))
+        state["updater_capture"] = capture_updater_terminal(
+            run_id=args.run_id, node=args.node,
+            expected_image_sha=str(identity["mcuboot_image_sha256"]),
+            updater_cutoff=state["updater_cutoff"],
+            raw_path=args.out_dir / "updater_raw_rtt.bin",
+            parsed_path=args.out_dir / "updater_stages.json",
+        )
 
         restore_master(restore_script,
                        args.out_dir / "restore_v28_jlink.log",
                        args.out_dir, state, "restore")
         restored = True
         state["production_master_restored"] = True
+        rescue_attempted = True
         run_logged([
             sys.executable, str(TOOLS / args.confirm_tool),
             "--node", args.node, "--out-dir", str(args.out_dir / "app_confirm"),
             "--identity-manifest", str(args.identity_manifest),
             "--expected-master-marker", args.master_marker,
             "--absolute-deadline", str(state["absolute_confirm_deadline"]),
+            "--run-id", args.run_id,
             *(["--source-identity-manifest", str(args.source_identity_manifest)]
               if args.source_identity_manifest else []),
         ], args.out_dir / "app_confirm_console.log", env=env)
@@ -444,6 +466,23 @@ def main() -> int:
                 state["production_master_restored"] = True
             except Exception as restore_exc:
                 state["emergency_master_restore"] = f"FAIL: {restore_exc}"
+        if updater_flushed and state.get("production_master_restored") and not rescue_attempted:
+            # Even a capture/parser/host exception may occur after the target
+            # accepted pending or reboot. Always spend the remaining original
+            # deadline on a fresh production-Master verifier; never re-upload.
+            rescue_attempted = True
+            state["exception_rescue_rc"] = run_logged([
+                sys.executable, str(TOOLS / args.confirm_tool),
+                "--node", args.node,
+                "--out-dir", str(args.out_dir / "exception_confirm_rescue"),
+                "--identity-manifest", str(args.identity_manifest),
+                "--expected-master-marker", args.master_marker,
+                "--absolute-deadline", str(state["absolute_confirm_deadline"]),
+                "--run-id", args.run_id,
+                *(["--source-identity-manifest", str(args.source_identity_manifest)]
+                  if args.source_identity_manifest else []),
+            ], args.out_dir / "exception_confirm_rescue_console.log",
+               env=env, check=False)
         (args.out_dir / "transaction.json").write_text(
             json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )

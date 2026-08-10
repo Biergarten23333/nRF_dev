@@ -176,15 +176,22 @@ def status_read(channel, node: str) -> dict:
 
 
 def run_one_reboot(channel, node: str, master_before: dict,
-                   per_node_timeout_s: float) -> dict:
+                   per_node_timeout_s: float, expected_marker: str | None = None,
+                   expected_fwid: str | None = None,
+                   expected_image_sha: str | None = None) -> dict:
     sample: dict = {"node": node, "valid": False, "master_before": master_before,
                     "retry_errors": []}
     try:
         before = b306_command(channel, node, "PING", "PONG ")
         before_status = status_read(channel, node)
         before_up = int(parse_fields(str(before_status["text"])).get("up_ms", "-1"), 0)
-        if parse_fields(str(before["text"])).get("name") != node:
+        before_fields = parse_fields(str(before["text"]))
+        if before_fields.get("name") != node:
             raise SessionError(f"pre-reboot wrong node: {before}")
+        for key, expected in (("fw", expected_marker), ("fwid", expected_fwid),
+                              ("image_sha", expected_image_sha)):
+            if expected is not None and before_fields.get(key) != expected:
+                raise SessionError(f"pre-reboot {key} mismatch: {before}")
         sample.update({"pre_reboot_pong": before, "pre_reboot_status": before_status})
         t0 = time.monotonic(); t1 = t0; t2 = t0
         sample["reboot_reply"] = b306_command(channel, node, "REBOOT", "REBOOT QUEUED ")
@@ -241,6 +248,11 @@ def run_one_reboot(channel, node: str, master_before: dict,
             raise SessionError("freshness requires disconnect, reconnect, and reset uptime")
         if parse_fields(str(confirm["text"])).get("confirmed") != "1":
             raise SessionError(f"confirmed image lost confirmation: {confirm}")
+        after_fields = parse_fields(str(after["text"]))
+        for key, expected in (("fw", expected_marker), ("fwid", expected_fwid),
+                              ("image_sha", expected_image_sha)):
+            if expected is not None and after_fields.get(key) != expected:
+                raise SessionError(f"post-reboot {key} mismatch: {after}")
         sample["valid"] = True
     except Exception as exc:
         sample["error"] = f"{type(exc).__name__}: {exc}"
@@ -258,6 +270,9 @@ def main() -> int:
     parser.add_argument("--ready-timeout-s", type=float, default=180)
     parser.add_argument("--restore-max-s", type=float, required=True)
     parser.add_argument("--prepare-confirm-max-s", type=float, required=True)
+    parser.add_argument("--expected-marker")
+    parser.add_argument("--expected-fwid")
+    parser.add_argument("--expected-image-sha")
     args = parser.parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=False)
     result = {"schema": "biospur-ota-timing-rehearsal-v2", "status": "IN_PROGRESS",
@@ -299,7 +314,9 @@ def main() -> int:
                         "error": "fleet did not regain exact stable state; REBOOT not sent"})
                     break
                 result["inventory_samples"].extend(node_gate)
-                sample = run_one_reboot(channel, node, node_gate[-1], args.per_node_timeout_s)
+                sample = run_one_reboot(channel, node, node_gate[-1], args.per_node_timeout_s,
+                                        args.expected_marker, args.expected_fwid,
+                                        args.expected_image_sha)
                 result["timing_samples"].append(sample)
             result["summary"] = qualification_summary(result["timing_samples"],
                 args.restore_max_s, args.prepare_confirm_max_s)

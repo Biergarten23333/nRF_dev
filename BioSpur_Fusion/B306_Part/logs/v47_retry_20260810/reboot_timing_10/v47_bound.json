@@ -1,0 +1,25 @@
+{
+  "schema": "biospur-v47-reboot-bound-v1",
+  "valid_reboot_samples": 10,
+  "invalid_reboot_samples": 0,
+  "sample_board": "BSF6C53",
+  "maximum_v47_reboot_to_identity_confirm_s": 10.448696462,
+  "maximum_v47_route_to_pong_s": 10.249612323,
+  "maximum_v47_identity_and_confirmation_status_s": 0.448911536,
+  "archived_ten_board_route_reconnect_max_s": 16.849154288,
+  "archived_production_master_restore_max_s": 8.302,
+  "archived_prepare_to_confirmed_max_s": 5.777007,
+  "component_policy": "component-wise worse maximum between archived ten-board routing and fresh v47 BSF6C53 identity/confirmation timing",
+  "bound_components_s": {
+    "production_master_restore": 8.302,
+    "route_reconnect": 16.849154288,
+    "identity_and_confirmation_status": 0.448911536,
+    "prepare_to_confirmed": 5.777007
+  },
+  "conservative_upper_bound_s": 31.377072824,
+  "margin_policy": "max(30 seconds, 25 percent of upper bound)",
+  "margin_s": 30.0,
+  "upper_bound_plus_margin_s": 61.377072824,
+  "deadline_s": 180.0,
+  "gate": "PASS"
+}

@@ -253,6 +253,12 @@ class TimingReadinessTests(unittest.TestCase):
         self.assertLess(gate, reboot_loop)
         self.assertFalse(stable_gate_passes([self.evaluate() for _ in range(9)]))
 
+    def test_reboot_timing_supports_exact_runtime_identity_gate(self):
+        source = (TOOLS / "qualify_ota_confirmation_timing.py").read_text()
+        self.assertIn('("fwid", expected_fwid)', source)
+        self.assertIn('("image_sha", expected_image_sha)', source)
+        self.assertIn('("fw", expected_marker)', source)
+
     def test_retry_failure_then_pong_is_reconnect_evidence(self):
         source = (TOOLS / "qualify_ota_confirmation_timing.py").read_text()
         self.assertIn('get("name") == node and disconnect', source)
