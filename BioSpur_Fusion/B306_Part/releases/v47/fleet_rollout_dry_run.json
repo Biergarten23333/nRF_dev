@@ -1,0 +1,50 @@
+{
+  "schema": "biospur-v47-fleet-rollout-dry-run-v1",
+  "execution_authorized": false,
+  "blocked_by": "BSF6C53 did not install or run canonical v47 during hardware qualification",
+  "canonical_identity": {
+    "version": "v47",
+    "marker": "b306-imu-relay-v47",
+    "mcuboot_version": "0.1.47",
+    "fwid": "f7436728c36efdd28f848e7ef59c7c422437afb8c6ee07dd8924e31967046eed",
+    "signed_payload_sha256": "161630a68e783ea3fb44f8eab1e70410f4eb9a46903889159dc84e99b2264f35",
+    "mcuboot_image_sha256": "90ef063b227feb4c70499cc186df866c24da658fba98773eacc40da73a0abf98",
+    "identity_manifest": "B306_Part/releases/v47/finalized_manifest.json"
+  },
+  "excluded_hardware_qualification_board": "BSF6C53",
+  "future_nodes": [
+    "BSF3C79",
+    "BSFC2CC",
+    "BSF44AD",
+    "BSF8BC4",
+    "BSF1120",
+    "BSF31CC",
+    "BSFAA61",
+    "BSFB165",
+    "BSFEC35"
+  ],
+  "required_contract": {
+    "continuous_fault_tolerant_batch": true,
+    "continue_after_single_board_failure": true,
+    "per_board_independent_rescue_verifier": true,
+    "rescue_inherits_original_absolute_deadline": true,
+    "durable_pass": "exact requested node AND exact marker AND exact FWID AND exact active MCUboot image SHA AND confirmed=1",
+    "transaction_rc_is_diagnostic_only": true,
+    "fresh_fleet_wide_verification_after_batch": true,
+    "hard_power_only_after_all_ten_are_durable_v47": true
+  },
+  "future_command_after_explicit_authorization_and_gate_clearance": [
+    "python3",
+    "B306_Part/tools/fleet_ota_v46r2.py",
+    "--campaign",
+    "<audited-v47-executable-campaign.json>",
+    "--out-root",
+    "B306_Part/logs"
+  ],
+  "dry_run": {
+    "result": "BLOCKED_NO_COMMAND_SENT",
+    "boards_that_would_be_processed": 9,
+    "fusion_board_write_operations_performed": 0,
+    "reason": "The executable campaign must not be generated or run until BSF6C53 hardware qualification, reboot timing, and hard-power persistence gates pass and the operator explicitly authorizes fleet rollout."
+  }
+}
