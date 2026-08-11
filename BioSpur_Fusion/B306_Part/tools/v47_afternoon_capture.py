@@ -80,6 +80,9 @@ def deduplicated_listener_rates(listener_dir:Path,node_map:dict,start_ns:int,end
 
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--out-dir',required=True,type=Path);ap.add_argument('--hours',type=float,default=8.0)
+    ap.add_argument('--duration-seconds',type=float,default=None)
+    ap.add_argument('--smoke-seconds',type=float,default=600.0)
+    ap.add_argument('--disable-diagnostics',action='store_true')
     ap.add_argument('--diagnostic-ten-minute',action='store_true',help='collect all ten minutes; rate/reset findings do not stop early')
     ap.add_argument('--bsf6c53-uwb-exempt',action='store_true',help='record but do not gate BSF6C53 UWB cadence')
     ap.add_argument('--minimum-uninterruptible-hours',type=float,default=0.0,help='board/event findings cannot auto-stop before this elapsed time')
@@ -93,7 +96,9 @@ def main():
     if precheck.get('status')!='INVENTORY_PASS':raise SystemExit('precheck did not pass')
     state={'schema':'biospur-v47-afternoon-capture-v1','status':'STARTING','supervisor_pid':os.getpid(),'started_wall':wall(),
            'stop_reason':None,'events':[],'smoke_verdict':None,'precheck':str(a.precheck)};atomic(root/'PROCESS_LEDGER.json',state)
-    if not a.diagnostic_ten_minute and not 8.0 <= a.hours <= 12.0:raise SystemExit('overnight duration must be 8..12 hours')
+    target_seconds=a.duration_seconds if a.duration_seconds is not None else a.hours*3600
+    if a.duration_seconds is None and not a.diagnostic_ten_minute and not 8.0 <= a.hours <= 12.0:raise SystemExit('overnight duration must be 8..12 hours')
+    if target_seconds<=0 or not 0<a.smoke_seconds<=target_seconds:raise SystemExit('invalid duration/smoke duration')
     if not 0.0 <= a.minimum_uninterruptible_hours <= a.hours:raise SystemExit('invalid minimum-uninterruptible-hours')
     powers={'battery_nodes':BATTERY,'adapter_nodes':['BSF6C53'],'verbatim_note':POWER_NOTE};atomic(root/'POWER_COHORTS.json',powers)
     free=shutil.disk_usage(root).free
@@ -101,15 +106,15 @@ def main():
     atomic(root/'STORAGE_GATE.json',{'available_bytes':free,'required_bytes':required,'status':'PASS' if free>=required else 'BLOCKED'})
     if free<required:raise SystemExit('storage gate blocked')
     listener_dir=root/'listener_capture'; listener_log=(root/'listener_collector.stdout.log').open('x',buffering=1)
-    listener_duration=a.hours*3600+660
+    listener_duration=target_seconds+60
     lp=subprocess.Popen([sys.executable,str(COLLECTOR),'--out-dir',str(listener_dir),'--duration',str(listener_duration),
         '--baud','460800','--require-kind','LSTAT','--require-kind','LPD'],cwd=ROOT,stdout=listener_log,stderr=subprocess.STDOUT,text=True)
     state['listener_pid']=lp.pid;atomic(root/'PROCESS_LEDGER.json',state)
-    ch=None; fusion_log=(root/'fusion_cdc.log').open('x',buffering=1)
+    ch=None; fusion_log=(root/'fusion_cdc.log').open('x',buffering=1);fusion_raw=(root/'fusion_host_raw.cobs.bin').open('xb',buffering=0)
     try:
         state['listener_preflight']=wait_listener_preflight(listener_dir,lp,30)
         ch=ThreadedLineChannel(resolve_fusion_port(None),fusion_log,'FUSION',decoded_queue_records=2097152,
-            backlog_red_records=262144,raw_backlog_red_bytes=262144,stall_red_s=2)
+            backlog_red_records=262144,raw_backlog_red_bytes=262144,stall_red_s=2,raw_file=fusion_raw)
         ch.transport_mode='binary';ch.text_pending.clear();state['fusion_decode_guard']=decode_guard(ch,15)
         mapping={};counts={n:defaultdict(int) for n in NODES};last={n:{'uwb':None,'imu':None,'telemetry':None} for n in NODES}
         mapping_deadline=time.monotonic()+30
@@ -121,20 +126,29 @@ def main():
                 logical=int(f['logical'],0);mapping[n]={'logical_tag_id':logical,'tag_short_address':f'0x{0xB100+logical:04X}'}
         if set(mapping)!=set(NODES):raise RuntimeError(f'node/tag mapping incomplete: {sorted(mapping)}')
         atomic(root/'node_tag_map.json',mapping)
-        t0=time.monotonic();t0_ns=time.monotonic_ns();t0_wall=wall();hard=t0+(600 if a.diagnostic_ten_minute else a.hours*3600)
+        t0=time.monotonic();t0_ns=time.monotonic_ns();t0_wall=wall();hard=t0+target_seconds
+        git_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
+        relevant=[Path(__file__),ROOT/'B306_Part/tools/async_line_channel.py',ROOT/'B306_Part/tools/fusion_host_binary.py',COLLECTOR]
+        dirty_digest=hashlib.sha256(''.join(f'{p.relative_to(ROOT)}:{sha(p)}\n' for p in relevant).encode()).hexdigest()
         manifest={'schema':'biospur-v47-afternoon-manifest-v1','t0_wall':t0_wall,'t0_monotonic':t0,'t0_monotonic_ns':t0_ns,
-          'planned_hours':a.hours,'minimum_checkpoint_hours':8,'hard_cap_hours':12,'master':'dk-fusion-imu-relay-v36','nodes':NODES,'power_note':POWER_NOTE,
+          'planned_hours':target_seconds/3600,'target_duration_s':target_seconds,'smoke_duration_s':a.smoke_seconds,'minimum_checkpoint_hours':8,'hard_cap_hours':12,'master':'dk-fusion-imu-relay-v36','nodes':NODES,'power_note':POWER_NOTE,
           'bsf6c53_uwb_cadence_exempt':a.bsf6c53_uwb_exempt,
           'minimum_uninterruptible_hours':a.minimum_uninterruptible_hours,
           'canonical_marker':'b306-imu-relay-v47','fwid':'f7436728c36efdd28f848e7ef59c7c422437afb8c6ee07dd8924e31967046eed',
           'active_image_sha256':'90ef063b227feb4c70499cc186df866c24da658fba98773eacc40da73a0abf98',
+          'git_commit':git_commit,'host_relevant_paths_digest':dirty_digest,
+          'listener_roles':{'poll_receivers':['LAE','LBF','LDH','LLOW','LMID'],'LCG':'SLAVED beacon subscriber','LHIGH':'MAIN beacon transmitter'},
+          'power_groups':{'adapter':['BSF6C53'],'battery':list(BATTERY)},
+          'bsf6c53_exemption_scope':'Listener absolute reception rate only',
+          'schemas':{'binary':'biospur-host-frame-v1 COBS+CRC16/CCITT-FALSE','decoded_text':'full-uwb-eight-slot-v1','raw_tee':'exact serial bytes with COBS delimiters'},
+          'authorization':{'allowed':['read-only PING','STATUS','inventory','host collection'],'forbidden':['OTA','upload','pending','PREPARE/COMMIT','reboot','power cycle','charging','configuration','SWD','J-Link','RTT','firmware flash']},
           'reset_intents_verified_from_source':{'1':'BSF_RESET_INTENT_RECOVERY_GUARD','5':'BSF_RESET_INTENT_STALL_RECOVERY'},
           'commands_sent':[],'no_configuration_mutation':True,'script_sha256':sha(Path(__file__)),'listener_script_sha256':sha(COLLECTOR)}
         atomic(root/'RUN_MANIFEST.json',manifest);state.update({'status':'CAPTURE_RUNNING_SMOKE_ACTIVE','t0_wall':t0_wall,'t0_monotonic':t0});atomic(root/'PROCESS_LEDGER.json',state)
         guard=GuardSampler(NODES,root/'guard_evidence.jsonl')
-        guard.start('t0_baseline',t0)
+        if not a.disable_diagnostics:guard.start('t0_baseline',t0)
         manifest['guard_evidence']={'schema':GUARD_SCHEMA,'path':'guard_evidence.jsonl',
-          'periodic_polling':False,'policy':['t0_baseline','host_anomaly','best_effort_final'],
+          'periodic_polling':False,'disabled_for_run':a.disable_diagnostics,'policy':['t0_baseline','host_anomaly','best_effort_final'],
           'command_allowlist':['V45 GUARD'],'append_only':True}
         atomic(root/'RUN_MANIFEST.json',manifest)
         print(f'CAPTURE_RUNNING_SMOKE_ACTIVE T0_wall={t0_wall} T0_monotonic={t0:.6f}',flush=True)
@@ -150,6 +164,7 @@ def main():
         atomic(root/'LISTENER_INVENTORY.json',{'coverage':coverage,'parse_errors':errs,'inventory':json.loads((listener_dir/'inventory.json').read_text())})
         if not all(v['sufficient'] for v in coverage.values()):state['events'].append({'type':'LISTENER_COVERAGE_INSUFFICIENT','wall':wall(),'coverage':coverage})
         peer={n:{'connected':True,'subscribed':True} for n in NODES};last_node_ms={};minute_base={n:dict(counts[n]) for n in NODES}
+        integrity={n:{'uwb_full':0,'uwb_bad':0,'imu_ok':0,'imu_bad':0} for n in NODES}
         smoke_minutes=[];next_minute=t0+60
         next_health=time.monotonic()+2;next_checkpoint=time.monotonic()+30;candidates=[];smoke_counts=None;extension=0.0
         while not stop and time.monotonic()<hard+extension:
@@ -158,8 +173,14 @@ def main():
                 guard.on_line(line)
                 f=parse_fields(line);n=f.get('name')
                 if n in counts:
-                    if line.startswith('FUSION_UWB '):counts[n]['uwb']+=1;last[n]['uwb']=now
-                    elif line.startswith('FUSION_IMU '):counts[n]['imu']+=int(f.get('n','0'),0);last[n]['imu']=now
+                    if line.startswith('FUSION_UWB '):
+                        counts[n]['uwb']+=1;last[n]['uwb']=now
+                        full=all(len(f.get(k,'').split(','))==8 for k in ('anchor_id','rank','range_mm','t_round_us','quality','cfo_ppm_q8')) and all(k in f for k in ('sweep','poll_tx','identity','logical','guard_us','spacing_us','valid_mask','flags'))
+                        integrity[n]['uwb_full' if full else 'uwb_bad']+=1
+                    elif line.startswith('FUSION_IMU '):
+                        count=int(f.get('n','0'),0);counts[n]['imu']+=count;last[n]['imu']=now
+                        tuples=f.get('samples','').split(';');ok=len(tuples)==count and all(len(x.split(','))==7 for x in tuples)
+                        integrity[n]['imu_ok' if ok else 'imu_bad']+=1
                     elif line.startswith('FUSION_TELEMETRY '):counts[n]['telemetry']+=1;last[n]['telemetry']=now
                     elif line.startswith('FUSION_QOS '):counts[n]['qos']+=1
                     elif line.startswith('FUSION_CONNECTED '):peer[n]['connected']=True
@@ -177,7 +198,7 @@ def main():
                     u=last[n]['uwb'];i=last[n]['imu']
                     if u and i and now-max(u,i)>=2 and not any(x.get('node')==n and x.get('open') for x in candidates):
                         lower=max(u,i);x={'node':n,'open':True,'provisional_monotonic':now,'onset_lower':lower,'onset_upper':lower+.120,'wall':wall()};candidates.append(x);state['events'].append({'type':'JOINT_STALL_PROVISIONAL',**x})
-                        guard.start('host_anomaly',now)
+                        if not a.disable_diagnostics:guard.start('host_anomaly',now)
                     for x in candidates:
                         if x['node']==n and x.get('open') and u and i and max(u,i)>x['provisional_monotonic']:
                             x['open']=False;x['recovered_monotonic']=max(u,i);x['duration_s']=max(u,i)-x['onset_lower']
@@ -203,6 +224,10 @@ def main():
                         row['classification']='BSF6C53_METAL_PLATE_EXEMPT' if n=='BSF6C53' and a.bsf6c53_uwb_exempt else ('RF_OR_RECEIVER_VISIBILITY' if 8.0<=rates[n]['uwb_hz']<=8.6 else 'SOURCE_CADENCE_LOW')
                         if row['classification']=='SOURCE_CADENCE_LOW':fail.append(f'{n}:listener_rate')
                 if air_errors:fail.append('listener_parse_or_read_error')
+                hs=ch.health_snapshot()
+                if any(hs.get(k,0) for k in ('raw_queue_drops','decoded_queue_drops','log_queue_drops','frame_crc_decode_errors','payload_decode_errors','red_markers','reader_exceptions')):fail.append('host_loss_or_decode_error')
+                for n in NODES:
+                    if integrity[n]['uwb_full']==0 or integrity[n]['uwb_bad'] or integrity[n]['imu_ok']==0 or integrity[n]['imu_bad']:fail.append(f'{n}:field_integrity')
                 if any(x.get('open') or x.get('duration_s',0)>=2 for x in candidates):fail.append('joint_silence')
                 if any(x.get('type')=='UPTIME_RESET' or
                        ('RECOVERY' in x.get('line','') and 'TAG_RESET_' not in x.get('line',''))
@@ -213,7 +238,7 @@ def main():
                     state['smoke_verdict']='BLOCKED_SMOKE';state['stop_reason']='BLOCKED_SMOKE'
                     atomic(root/'SMOKE_RESULT.json',{'verdict':'BLOCKED_SMOKE','minutes':smoke_minutes});break
                 next_minute=t0+(idx+1)*60
-            if state['smoke_verdict'] is None and now>=t0+600:
+            if state['smoke_verdict'] is None and now>=t0+a.smoke_seconds:
                 smoke_counts={n:dict(counts[n]) for n in NODES};infra_ok=lp.poll() is None and ch._reader.is_alive() and all(v['sufficient'] for v in coverage.values())
                 if a.diagnostic_ten_minute:
                     state['smoke_verdict']='DIAGNOSTIC_COMPLETE' if infra_ok and len(smoke_minutes)==10 else 'DIAGNOSTIC_INFRASTRUCTURE_FAILURE'
@@ -231,7 +256,9 @@ def main():
                 state['status']='CAPTURE_RUNNING_OVERNIGHT'
             if now>=next_checkpoint:
                 state['last_health']={'wall':wall(),'monotonic':now,'free_bytes':shutil.disk_usage(root).free,'fusion':ch.health_snapshot(),'listener_alive':lp.poll() is None,'counts':{n:dict(counts[n]) for n in NODES}}
-                atomic(root/'JOINT_STALL_CANDIDATES.json',candidates);atomic(root/'PROCESS_LEDGER.json',state);next_checkpoint=now+30
+                atomic(root/'JOINT_STALL_CANDIDATES.json',candidates);atomic(root/'PROCESS_LEDGER.json',state)
+                hp=root/'HOST_HEALTH_MINUTE.json';history=json.loads(hp.read_text()) if hp.exists() else []
+                history.append(state['last_health']);atomic(hp,history);next_checkpoint=now+60
             if now>=hard and extension==0:
                 late=[x for x in candidates if x['onset_lower']>=hard-600]
                 extension=min(600,max((x['onset_lower']+600-hard for x in late),default=0));state['tail_extension_s']=extension
@@ -242,7 +269,7 @@ def main():
         state['status']='CAPTURE_COMPLETE';state['ended_wall']=wall();state['ended_monotonic']=time.monotonic();state['counts']={n:dict(counts[n]) for n in NODES};atomic(root/'JOINT_STALL_CANDIDATES.json',candidates)
         # Raw collectors remain alive while this bounded, best-effort final
         # snapshot runs. A timeout is evidence, never a capture failure.
-        if not guard.active:guard.start('best_effort_final')
+        if not a.disable_diagnostics and not guard.active:guard.start('best_effort_final')
         final_deadline=time.monotonic()+15
         while guard.active and time.monotonic()<final_deadline:
             now=time.monotonic();guard.tick(ch.send,now);line=ch.read(min(final_deadline,now+.1))
@@ -250,10 +277,11 @@ def main():
     except Exception as e:
         state['status']='BLOCKED_EVIDENCE_FAILURE';state['stop_reason']='IRRECOVERABLE_EVIDENCE_FAILURE';state['error']=f'{type(e).__name__}: {e}'
     finally:
-        if ch:state['fusion_health_final']=ch.health_snapshot();ch.close()
+        if ch:
+            ch.close();state['fusion_health_final']=ch.health_snapshot()
         if lp.poll() is None:lp.send_signal(signal.SIGINT)
         try:state['listener_rc']=lp.wait(timeout=30)
         except subprocess.TimeoutExpired:lp.terminate();state['listener_rc']=lp.wait(timeout=10)
-        fusion_log.close();listener_log.close();state['finalized_wall']=wall();atomic(root/'PROCESS_LEDGER.json',state)
+        fusion_raw.close();fusion_log.close();listener_log.close();state['finalized_wall']=wall();atomic(root/'PROCESS_LEDGER.json',state)
     return 0 if state['status']=='CAPTURE_COMPLETE' else 2
 if __name__=='__main__':raise SystemExit(main())

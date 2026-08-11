@@ -103,6 +103,23 @@ class FusionHostBinaryTest(unittest.TestCase):
         self.assertIn("verdict=healthy", line)
         self.assertIn("ranges=-", line)
 
+    def test_uwb_all_eight_slots_and_signed_cfo_extremes(self):
+        payload=bytearray(184);struct.pack_into("<BBHII",payload,0,7,1,184,3,10)
+        body=12;struct.pack_into("<I",payload,body,123);payload[body+4:body+9]=(0x123456789a).to_bytes(5,"little")
+        struct.pack_into("<HBHH",payload,body+9,0xBEEF,7,1200,1000)
+        payload[body+16:body+24]=bytes((1,2,3,4,5,6,7,0xff));payload[body+24:body+32]=bytes(range(8))
+        struct.pack_into("<8H",payload,body+32,*range(100,108));struct.pack_into("<8H",payload,body+48,*range(200,208))
+        payload[body+64:body+72]=bytes(range(90,98));struct.pack_into("<8h",payload,body+72,-32768,-1,0,1,2,3,4,32767)
+        payload[body+88]=0x7f;payload[body+89]=3
+        struct.pack_into("<5Q",payload,102,100,*([2**64-1]*4));struct.pack_into("<9I",payload,142,*([0]*9));struct.pack_into("<HBBBB",payload,178,50000,0,1,1,0)
+        line=self.roundtrip(KIND_UWB,bytes(payload))
+        for token in ("guard_us=1200","spacing_us=1000","anchor_id=1,2,3,4,5,6,7,255","rank=0,1,2,3,4,5,6,7","range_mm=100,101,102,103,104,105,106,107","t_round_us=200,201,202,203,204,205,206,207","quality=90,91,92,93,94,95,96,97","cfo_ppm_q8=-32768,-1,0,1,2,3,4,32767","valid_mask=0x7f"):
+            self.assertIn(token,line)
+
+    def test_imu_tuple_count_and_width_are_strict(self):
+        line=self.roundtrip(KIND_IMU,self.imu_payload(5,9));fields=dict(x.split("=",1) for x in line.split() if "=" in x)
+        tuples=fields["samples"].split(";");self.assertEqual(len(tuples),int(fields["n"]));self.assertTrue(all(len(x.split(","))==7 for x in tuples))
+
     def test_relay8_superframe_flags_and_legacy_semantics(self):
         payload = bytearray(184)
         struct.pack_into("<BBHII", payload, 0, 5, 1, 184, 3, 10)

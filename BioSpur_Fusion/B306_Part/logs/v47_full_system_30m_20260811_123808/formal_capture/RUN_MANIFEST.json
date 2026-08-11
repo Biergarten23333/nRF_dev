@@ -1,0 +1,110 @@
+{
+  "active_image_sha256": "90ef063b227feb4c70499cc186df866c24da658fba98773eacc40da73a0abf98",
+  "authorization": {
+    "allowed": [
+      "read-only PING",
+      "STATUS",
+      "inventory",
+      "host collection"
+    ],
+    "forbidden": [
+      "OTA",
+      "upload",
+      "pending",
+      "PREPARE/COMMIT",
+      "reboot",
+      "power cycle",
+      "charging",
+      "configuration",
+      "SWD",
+      "J-Link",
+      "RTT",
+      "firmware flash"
+    ]
+  },
+  "bsf6c53_exemption_scope": "Listener absolute reception rate only",
+  "bsf6c53_uwb_cadence_exempt": true,
+  "canonical_marker": "b306-imu-relay-v47",
+  "commands_sent": [],
+  "fwid": "f7436728c36efdd28f848e7ef59c7c422437afb8c6ee07dd8924e31967046eed",
+  "git_commit": "000907fb98d3ad770f673cca0daa8aecbdda8c01",
+  "guard_evidence": {
+    "append_only": true,
+    "command_allowlist": [
+      "V45 GUARD"
+    ],
+    "disabled_for_run": true,
+    "path": "guard_evidence.jsonl",
+    "periodic_polling": false,
+    "policy": [
+      "t0_baseline",
+      "host_anomaly",
+      "best_effort_final"
+    ],
+    "schema": "biospur-v47-guard-evidence-v1"
+  },
+  "hard_cap_hours": 12,
+  "host_relevant_paths_digest": "caea3f2ca7bca8e9be7c86aafc497a307dcce7cd996a907294b437d8cbb70efe",
+  "listener_roles": {
+    "LCG": "SLAVED beacon subscriber",
+    "LHIGH": "MAIN beacon transmitter",
+    "poll_receivers": [
+      "LAE",
+      "LBF",
+      "LDH",
+      "LLOW",
+      "LMID"
+    ]
+  },
+  "listener_script_sha256": "00f333fd03d3083c3445454a9c35bf968bdfdda1af6b96de26859bc7c53c3b73",
+  "master": "dk-fusion-imu-relay-v36",
+  "minimum_checkpoint_hours": 8,
+  "minimum_uninterruptible_hours": 0.033333333,
+  "no_configuration_mutation": true,
+  "nodes": [
+    "BSF3C79",
+    "BSFC2CC",
+    "BSF44AD",
+    "BSF6C53",
+    "BSF8BC4",
+    "BSF1120",
+    "BSF31CC",
+    "BSFAA61",
+    "BSFB165",
+    "BSFEC35"
+  ],
+  "planned_hours": 0.5,
+  "power_groups": {
+    "adapter": [
+      "BSF6C53"
+    ],
+    "battery": [
+      "BSF3C79",
+      "BSFC2CC",
+      "BSF44AD",
+      "BSF8BC4",
+      "BSF1120",
+      "BSF31CC",
+      "BSFAA61",
+      "BSFB165",
+      "BSFEC35"
+    ]
+  },
+  "power_note": "POWER_ON_CONFIRMED: nine battery boards fully charged and not connected to chargers; BSF6C53 continuously powered by the fixed adapter.",
+  "reset_intents_verified_from_source": {
+    "1": "BSF_RESET_INTENT_RECOVERY_GUARD",
+    "5": "BSF_RESET_INTENT_STALL_RECOVERY"
+  },
+  "schema": "biospur-v47-afternoon-manifest-v1",
+  "schemas": {
+    "binary": "biospur-host-frame-v1 COBS+CRC16/CCITT-FALSE",
+    "decoded_text": "full-uwb-eight-slot-v1",
+    "raw_tee": "exact serial bytes with COBS delimiters"
+  },
+  "script_sha256": "808e736b7ece5a454e550d2bbc14586884bbe2e0fbbbd10dc1930ef83bd8f133",
+  "smoke_duration_s": 120.0,
+  "t0_monotonic": 241247.199392704,
+  "t0_monotonic_ns": 241247199393348,
+  "t0_wall": "2026-08-11T12:40:13.214+02:00",
+  "target_duration_s": 1800.0
+}

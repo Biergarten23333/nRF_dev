@@ -62,6 +62,12 @@ class OvernightCaptureTests(unittest.TestCase):
         self.assertLess(source.index("listener_dir=root/'listener_capture'"),source.index("guard=GuardSampler"))
         self.assertLess(source.index("fusion_log=(root/'fusion_cdc.log')"),source.index("guard=GuardSampler"))
         self.assertIn("if stop:state['stop_reason']='OPERATOR_STOP'",source)
-        self.assertIn("if ch:state['fusion_health_final']=ch.health_snapshot();ch.close()",source)
+        self.assertIn("ch.close();state['fusion_health_final']=ch.health_snapshot()",source)
+
+    def test_exact_duration_raw_tee_and_diagnostics_disable(self):
+        source=P.read_text()
+        self.assertIn("--duration-seconds",source);self.assertIn("--smoke-seconds",source)
+        self.assertIn("fusion_host_raw.cobs.bin",source);self.assertIn("raw_file=fusion_raw",source)
+        self.assertIn("--disable-diagnostics",source);self.assertIn("if not a.disable_diagnostics:guard.start",source)
 
 if __name__=='__main__':unittest.main()

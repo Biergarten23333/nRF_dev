@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import queue
+import os
 import threading
 import time
 from dataclasses import dataclass
@@ -27,6 +28,43 @@ class DrainHealth:
     log_queue_drops: int = 0
     red_markers: int = 0
     reader_exceptions: int = 0
+    raw_queue_high_water: int = 0
+    raw_queue_drops: int = 0
+    raw_bytes_submitted: int = 0
+    raw_bytes_written: int = 0
+    payload_decode_errors: int = 0
+
+
+class _RawBinaryWriter:
+    """Non-blocking reader-side tee; preserves bytes and COBS delimiters."""
+    def __init__(self, raw_file, health: DrainHealth, queue_chunks: int = 65536):
+        self.raw_file=raw_file;self.health=health
+        self.items: queue.Queue[bytes]=queue.Queue(maxsize=queue_chunks)
+        self.stop_event=threading.Event();self.error: Exception|None=None
+        self.thread=threading.Thread(target=self._run,name="fusion-raw-writer",daemon=True);self.thread.start()
+    def submit(self, data: bytes) -> bool:
+        chunk=bytes(data);self.health.raw_bytes_submitted+=len(chunk)
+        try:self.items.put_nowait(chunk)
+        except queue.Full:
+            self.health.raw_queue_drops+=1;return False
+        self.health.raw_queue_high_water=max(self.health.raw_queue_high_water,self.items.qsize());return True
+    def _run(self):
+        try:
+            while not self.stop_event.is_set() or not self.items.empty():
+                try:first=self.items.get(timeout=.1)
+                except queue.Empty:continue
+                batch=[first];size=len(first)
+                while size<1<<20:
+                    try:b=self.items.get_nowait()
+                    except queue.Empty:break
+                    batch.append(b);size+=len(b)
+                self.raw_file.write(b"".join(batch));self.health.raw_bytes_written+=size
+        except Exception as exc:self.error=exc
+    def close(self):
+        self.stop_event.set();self.thread.join(timeout=15)
+        if self.thread.is_alive():raise SessionError("raw writer did not stop")
+        if self.error:raise SessionError(f"raw writer failed: {self.error}")
+        self.raw_file.flush();os.fsync(self.raw_file.fileno())
 
 
 class _BatchedLogWriter:
@@ -109,6 +147,8 @@ class ThreadedLineChannel(LineChannel):
         backlog_red_records: int = 8192,
         raw_backlog_red_bytes: int = 8192,
         stall_red_s: float = 1.0,
+        raw_file=None,
+        raw_queue_chunks: int = 65536,
     ) -> None:
         self.health = DrainHealth()
         self._decoded: queue.Queue[str] = queue.Queue(
@@ -124,6 +164,8 @@ class ThreadedLineChannel(LineChannel):
         self._reader_stall_latched = False
         self._backlog_latched = False
         self._raw_backlog_latched = False
+        self._raw_writer = (_RawBinaryWriter(raw_file,self.health,raw_queue_chunks)
+                            if raw_file is not None else None)
         self._log_writer = _BatchedLogWriter(log_file, self.health)
         super().__init__(port, log_file, label)
         self._start_reader()
@@ -203,6 +245,7 @@ class ThreadedLineChannel(LineChannel):
                 try:
                     line = frame_to_line(frame)
                 except FrameError as exc:
+                    self.health.payload_decode_errors += 1
                     self._record("DECODE_ERROR", str(exc))
                     continue
                 if line:
@@ -238,6 +281,8 @@ class ThreadedLineChannel(LineChannel):
                 raw = self.device.read(max(1, min(16384, waiting)))
                 self._reader_heartbeat = time.monotonic()
                 if raw:
+                    if self._raw_writer is not None and not self._raw_writer.submit(raw):
+                        self._note_red("raw_queue_full",f"limit={self._raw_writer.items.maxsize}")
                     self._consume(raw)
             except Exception as exc:
                 if self._reader_stop.is_set():
@@ -316,6 +361,13 @@ class ThreadedLineChannel(LineChannel):
             "log_queue_drops": self.health.log_queue_drops,
             "red_markers": self.health.red_markers,
             "reader_exceptions": self.health.reader_exceptions,
+            "raw_queue_depth": self._raw_writer.items.qsize() if self._raw_writer else 0,
+            "raw_queue_high_water": self.health.raw_queue_high_water,
+            "raw_queue_drops": self.health.raw_queue_drops,
+            "raw_bytes_submitted": self.health.raw_bytes_submitted,
+            "raw_bytes_written": self.health.raw_bytes_written,
+            "frame_crc_decode_errors": self.binary_decoder.errors,
+            "payload_decode_errors": self.health.payload_decode_errors,
             "reader_heartbeat_age_s": time.monotonic()
             - self._reader_heartbeat,
             "backlog_red_threshold_records": self._backlog_red_records,
@@ -362,3 +414,5 @@ class ThreadedLineChannel(LineChannel):
         if self.device is not None:
             self.device.close()
         self._log_writer.close()
+        if self._raw_writer is not None:
+            self._raw_writer.close()

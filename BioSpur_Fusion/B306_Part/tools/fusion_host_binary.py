@@ -395,7 +395,12 @@ def _decode_uwb(frame: HostFrame) -> str:
     identity = struct.unpack_from("<H", body, 9)[0]
     logical = body[11]
     anchor_ids = body[16:24]
+    ranks = body[24:32]
     ranges = struct.unpack_from("<8H", body, 32)
+    t_round = struct.unpack_from("<8H", body, 48)
+    quality = body[64:72]
+    cfo = struct.unpack_from("<8h", body, 72)
+    guard_us, spacing_us = struct.unpack_from("<HH", body, 12)
     valid, flags = body[88], body[89]
     sf_valid, sf_mod16 = decode_superframe_flags(flags)
     timestamps = struct.unpack_from("<5Q", capture, 0)
@@ -417,12 +422,19 @@ def _decode_uwb(frame: HostFrame) -> str:
         f"FUSION_UWB proto={version} name={frame.node_name} "
         f"master_ms={frame.master_arrival_ms} node_ms={node_ms} pkt={node_sequence} "
         f"sweep={sweep} identity={identity:04X} logical={logical} poll_tx={poll_tx:010X} "
+        f"guard_us={guard_us} spacing_us={spacing_us} "
+        f"anchor_id={','.join(str(x) for x in anchor_ids)} "
+        f"rank={','.join(str(x) for x in ranks)} "
+        f"range_mm={','.join(str(x) for x in ranges)} "
+        f"t_round_us={','.join(str(x) for x in t_round)} "
+        f"quality={','.join(str(x) for x in quality)} "
+        f"cfo_ppm_q8={','.join(str(x) for x in cfo)} "
         f"frame_us={timestamps[0]} strobe_us={ts(timestamps[1])} "
         f"rise_us={ts(timestamps[2])} fall_us={ts(timestamps[3])} "
         f"pair_dt_us={'-' if counts[0] == 0xFFFFFFFF else counts[0]} "
         f"verdict={verdict_names[verdict] if verdict < len(verdict_names) else 'invalid'} "
         f"edge={edge_names[edge] if edge < len(edge_names) else 'invalid'} "
-        f"candidates={candidates} window_us={window} valid=0x{valid:02x} flags=0x{flags:02x} "
+        f"candidates={candidates} window_us={window} valid_mask=0x{valid:02x} valid=0x{valid:02x} flags=0x{flags:02x} "
         f"sf_valid={int(sf_valid)} sf_mod16={'-' if sf_mod16 is None else sf_mod16} "
         f"strobe_sent={int(bool(flags & 1))} rise_n={counts[1]} fall_n={counts[2]} "
         f"boot_discard={counts[3]} edge_qdrop={counts[4]} orphan_strobe={counts[5]} "

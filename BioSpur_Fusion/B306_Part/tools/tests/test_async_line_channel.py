@@ -13,6 +13,7 @@ if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
 
 from async_line_channel import ThreadedLineChannel
+from fusion_host_binary import FrameStreamDecoder,HostFrame,KIND_TEXT,encode_frame
 
 
 class AsyncLineChannelTests(unittest.TestCase):
@@ -162,6 +163,26 @@ class AsyncLineChannelTests(unittest.TestCase):
             self.assertIn("SYNTH_RX ONE record", log_path.read_text())
         finally:
             temp.cleanup()
+
+    def test_raw_binary_tee_replays_order_crc_and_has_no_drops(self):
+        master,slave=pty.openpty()
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td);log=(root/'x.log').open('w',buffering=1);raw=(root/'raw.bin').open('wb',buffering=0)
+            ch=ThreadedLineChannel(os.ttyname(slave),log,'SYNTH',raw_file=raw,backlog_red_records=20000)
+            ch.transport_mode='binary';frames=[HostFrame(KIND_TEXT,0,i,i,f"row={i}\n".encode()) for i in range(10000)]
+            blob=b''.join(encode_frame(x) for x in frames)
+            def produce():
+                for i in range(0,len(blob),8192):os.write(master,blob[i:i+8192])
+            t=threading.Thread(target=produce);t.start();received=[];deadline=time.monotonic()+15
+            while len(received)<len(frames) and time.monotonic()<deadline:
+                x=ch.read(deadline)
+                if x is not None:received.append(x)
+            t.join();ch.close();raw.close();log.close();health=ch.health_snapshot()
+            replay=FrameStreamDecoder();decoded=replay.feed((root/'raw.bin').read_bytes())
+            self.assertEqual([x.sequence for x in decoded],list(range(10000)))
+            self.assertEqual(replay.errors,0);self.assertEqual(health['raw_queue_drops'],0)
+            self.assertEqual(health['raw_bytes_submitted'],health['raw_bytes_written']);self.assertEqual(len(received),10000)
+        os.close(master);os.close(slave)
 
 
 if __name__ == "__main__":
