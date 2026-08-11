@@ -1,0 +1,59 @@
+{
+  "circle_fit_label": "NO_EXTERNAL_TRUTH_SELF_CONSISTENCY_ONLY",
+  "frozen_before_movement": true,
+  "imu_motion": {
+    "bias_corrected_vector_rms_threshold_dps": 0.5,
+    "minimum_true_s": 0.2,
+    "secondary_integrated_abs_gyro_window_s": 1.0,
+    "secondary_threshold_deg": 0.5,
+    "threshold_rule": "max(3 * frozen_gyro_rms_threshold_dps, 0.5 dps)",
+    "window_s": 0.5
+  },
+  "imu_quiet": {
+    "minimum_s": 1.0,
+    "rule": "IMU motion predicate false continuously"
+  },
+  "mechanical_settle": {
+    "ambiguity": "SETTLE_TIME_AMBIGUOUS with bounds from the two predicate start times when no unique intersection is supported",
+    "rule": "first intersection of IMU quiet and UWB stable after OFF bracket"
+  },
+  "motor_off_is_settle": false,
+  "schema": "biospur-rotation-independent-label-v1",
+  "source_parameters": {
+    "frozen_gyro_rms_threshold_dps": 0.06892392529328092,
+    "gyro_bias_dps": [
+      0.06103515625,
+      -0.3662109375,
+      0.0
+    ],
+    "node": "BSFC2CC",
+    "range_sigma_m": [
+      0.03862304502754728,
+      0.03,
+      0.03,
+      0.03,
+      0.05649309137430271,
+      0.054689580406085105,
+      0.04537565572279582,
+      0.06064183469847632
+    ]
+  },
+  "sustained_motion": {
+    "minimum_true_s": 0.5,
+    "rule": "IMU predicate OR concordant UWB predicate"
+  },
+  "uses_s2_state": false,
+  "uwb_motion": {
+    "concordance": "multi-anchor predicate AND T4 predicate",
+    "minimum_shifted_anchors": 3,
+    "minimum_valid_anchors": 4,
+    "per_anchor_shift_threshold_rule": "max(4 * frozen_range_sigma_m[anchor], 0.12 m)",
+    "t4_displacement_threshold_m": 0.15,
+    "window_s": 1.0
+  },
+  "uwb_stable": {
+    "minimum_valid_anchors": 4,
+    "rule": "T4 displacement span <= 0.10 m AND at most one anchor exceeds max(3 sigma, 0.09 m) about trailing median",
+    "window_s": 1.5
+  }
+}
