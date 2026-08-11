@@ -69,5 +69,13 @@ class OvernightCaptureTests(unittest.TestCase):
         self.assertIn("--duration-seconds",source);self.assertIn("--smoke-seconds",source)
         self.assertIn("fusion_host_raw.cobs.bin",source);self.assertIn("raw_file=fusion_raw",source)
         self.assertIn("--disable-diagnostics",source);self.assertIn("if not a.disable_diagnostics:guard.start",source)
+        self.assertIn("--exact-duration",source);self.assertIn("if a.exact_duration:break",source)
+
+    def test_listener_coverage_and_health_baseline_precede_t0(self):
+        source=P.read_text()
+        self.assertLess(source.index("coverage_since_ns=time.monotonic_ns()"),source.index("t0=time.monotonic();t0_ns="))
+        self.assertLess(source.index("formal_health_baseline=ch.health_snapshot()"),source.index("t0=time.monotonic();t0_ns="))
+        self.assertIn("hs.get(k,0)-formal_health_baseline.get(k,0)",source)
+        self.assertIn("quiesce_reader_and_drain('normal_close_drain')",source)
 
 if __name__=='__main__':unittest.main()

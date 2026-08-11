@@ -1,0 +1,142 @@
+{
+  "active_image_sha256": "90ef063b227feb4c70499cc186df866c24da658fba98773eacc40da73a0abf98",
+  "authorization": {
+    "allowed": [
+      "read-only PING",
+      "STATUS",
+      "inventory",
+      "host collection"
+    ],
+    "forbidden": [
+      "OTA",
+      "upload",
+      "pending",
+      "PREPARE/COMMIT",
+      "reboot",
+      "power cycle",
+      "charging",
+      "configuration",
+      "SWD",
+      "J-Link",
+      "RTT",
+      "firmware flash"
+    ]
+  },
+  "bsf6c53_exemption_scope": "Listener absolute reception rate only",
+  "bsf6c53_uwb_cadence_exempt": true,
+  "canonical_marker": "b306-imu-relay-v47",
+  "commands_sent": [],
+  "exact_duration": true,
+  "formal_health_baseline": {
+    "backlog_red_threshold_records": 262144,
+    "decoded_queue_depth": 0,
+    "decoded_queue_drops": 0,
+    "decoded_queue_high_water": 85,
+    "decoded_queue_limit": 2097152,
+    "frame_crc_decode_errors": 1,
+    "log_queue_drops": 0,
+    "log_queue_high_water": 27,
+    "payload_decode_errors": 0,
+    "raw_backlog_high_water": 2623,
+    "raw_backlog_red_threshold_bytes": 262144,
+    "raw_bytes_submitted": 326474,
+    "raw_bytes_written": 326474,
+    "raw_queue_depth": 0,
+    "raw_queue_drops": 0,
+    "raw_queue_high_water": 7,
+    "reader_exceptions": 0,
+    "reader_heartbeat_age_s": 0.00017693699919618666,
+    "red_markers": 0,
+    "stall_red_threshold_s": 2
+  },
+  "fwid": "f7436728c36efdd28f848e7ef59c7c422437afb8c6ee07dd8924e31967046eed",
+  "git_commit": "e655a5029d95bffaefb4365d48e9956a54ebe659",
+  "guard_evidence": {
+    "append_only": true,
+    "command_allowlist": [
+      "V45 GUARD"
+    ],
+    "disabled_for_run": true,
+    "path": "guard_evidence.jsonl",
+    "periodic_polling": false,
+    "policy": [
+      "t0_baseline",
+      "host_anomaly",
+      "best_effort_final"
+    ],
+    "schema": "biospur-v47-guard-evidence-v1"
+  },
+  "hard_cap_hours": 12,
+  "host_relevant_paths_digest": "ca29ec170512034bef2a1e2a1b65f78f9206871da97cd6bd58e90aa1cd7f1278",
+  "listener_roles": {
+    "LCG": "SLAVED beacon subscriber",
+    "LHIGH": "MAIN beacon transmitter",
+    "poll_receivers": [
+      "LAE",
+      "LBF",
+      "LDH",
+      "LLOW",
+      "LMID"
+    ]
+  },
+  "listener_script_sha256": "00f333fd03d3083c3445454a9c35bf968bdfdda1af6b96de26859bc7c53c3b73",
+  "master": "dk-fusion-imu-relay-v36",
+  "minimum_checkpoint_hours": 8,
+  "minimum_uninterruptible_hours": 0.0333333333,
+  "no_configuration_mutation": true,
+  "nodes": [
+    "BSF3C79",
+    "BSFC2CC",
+    "BSF44AD",
+    "BSF6C53",
+    "BSF8BC4",
+    "BSF1120",
+    "BSF31CC",
+    "BSFAA61",
+    "BSFB165",
+    "BSFEC35"
+  ],
+  "planned_hours": 0.5,
+  "power_groups": {
+    "adapter": [
+      "BSF6C53"
+    ],
+    "battery": [
+      "BSF3C79",
+      "BSFC2CC",
+      "BSF44AD",
+      "BSF8BC4",
+      "BSF1120",
+      "BSF31CC",
+      "BSFAA61",
+      "BSFB165",
+      "BSFEC35"
+    ]
+  },
+  "power_note": "POWER_ON_CONFIRMED: nine battery boards fully charged and not connected to chargers; BSF6C53 continuously powered by the fixed adapter.",
+  "pre_t0_boundary": {
+    "discarded_records": 35,
+    "kinds": {
+      "FUSION_IMU": 26,
+      "FUSION_UWB": 9
+    },
+    "monotonic": 243033.004278246,
+    "reason": "formal_t0"
+  },
+  "reset_intents_verified_from_source": {
+    "1": "BSF_RESET_INTENT_RECOVERY_GUARD",
+    "5": "BSF_RESET_INTENT_STALL_RECOVERY"
+  },
+  "schema": "biospur-v47-afternoon-manifest-v1",
+  "schemas": {
+    "binary": "biospur-host-frame-v1 COBS+CRC16/CCITT-FALSE",
+    "decoded_text": "full-uwb-eight-slot-v1",
+    "raw_tee": "exact serial bytes with COBS delimiters"
+  },
+  "script_sha256": "9c344b5f3f860dedc13448f0a0e8269822ea2e16890d7ee4e76d8a4e5938ccb3",
+  "smoke_duration_s": 120.0,
+  "t0_monotonic": 243033.004297073,
+  "t0_monotonic_ns": 243033004297270,
+  "t0_wall": "2026-08-11T13:09:59.019+02:00",
+  "target_duration_s": 1800.0
+}

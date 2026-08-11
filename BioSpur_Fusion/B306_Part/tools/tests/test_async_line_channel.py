@@ -92,6 +92,20 @@ class AsyncLineChannelTests(unittest.TestCase):
         finally:
             temp.cleanup()
 
+    def test_quiesce_reader_then_drains_without_race(self):
+        master, slave, temp, log_path, log_file, channel = self.make_channel()
+        os.write(master, b"A one\nB two\n")
+        deadline = time.monotonic() + 2.0
+        while channel.health_snapshot()["decoded_queue_depth"] < 2:
+            if time.monotonic() >= deadline:
+                self.fail("background drain did not receive test records")
+            time.sleep(0.01)
+        boundary = channel.quiesce_reader_and_drain("close_test")
+        self.assertFalse(channel._reader.is_alive())
+        self.assertEqual(boundary["discarded_records"], 2)
+        self.assertEqual(channel.health_snapshot()["decoded_queue_depth"], 0)
+        channel.close();log_file.close();os.close(master);os.close(slave);temp.cleanup()
+
     def test_records_are_archived_while_consumer_is_paused(self):
         master, slave, temp, log_path, log_file, channel = self.make_channel()
         count = 1000

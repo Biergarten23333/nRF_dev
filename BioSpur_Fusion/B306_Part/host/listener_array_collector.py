@@ -622,6 +622,8 @@ def reader_worker(
     finally:
         parsed_file.flush()
         raw_file.flush()
+        os.fsync(parsed_file.fileno())
+        os.fsync(raw_file.fileno())
 
 
 def validate_roster() -> None:
@@ -742,6 +744,7 @@ def main() -> int:
                 merged.write(json.dumps(record, separators=(",", ":")) + "\n")
                 merged_count += 1
             merged.flush()
+            os.fsync(merged.fileno())
 
         for thread in threads:
             thread.join()

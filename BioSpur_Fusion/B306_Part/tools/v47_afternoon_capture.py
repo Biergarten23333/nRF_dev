@@ -86,6 +86,7 @@ def main():
     ap.add_argument('--diagnostic-ten-minute',action='store_true',help='collect all ten minutes; rate/reset findings do not stop early')
     ap.add_argument('--bsf6c53-uwb-exempt',action='store_true',help='record but do not gate BSF6C53 UWB cadence')
     ap.add_argument('--minimum-uninterruptible-hours',type=float,default=0.0,help='board/event findings cannot auto-stop before this elapsed time')
+    ap.add_argument('--exact-duration',action='store_true',help='do not extend capture for late stall candidates')
     ap.add_argument('--precheck',required=True,type=Path);a=ap.parse_args();root=a.out_dir;root.mkdir(parents=True,exist_ok=True)
     if (root/'PROCESS_LEDGER.json').exists():raise SystemExit('refusing existing capture state')
     stop=False
@@ -126,6 +127,18 @@ def main():
                 logical=int(f['logical'],0);mapping[n]={'logical_tag_id':logical,'tag_short_address':f'0x{0xB100+logical:04X}'}
         if set(mapping)!=set(NODES):raise RuntimeError(f'node/tag mapping incomplete: {sorted(mapping)}')
         atomic(root/'node_tag_map.json',mapping)
+        # Prove Listener coverage before the formal clock starts.  Keep draining
+        # decoded Fusion records so this readiness wait cannot create a backlog.
+        coverage_since_ns=time.monotonic_ns();coverage_deadline=time.monotonic()+60;coverage={};errs={};next_coverage=0.0
+        while time.monotonic()<coverage_deadline:
+            now=time.monotonic();ch.read(min(coverage_deadline,now+.05))
+            if now>=next_coverage:
+                coverage,errs=listener_coverage(listener_dir,mapping,coverage_since_ns);next_coverage=now+1
+                if all(v['sufficient'] for v in coverage.values()):break
+        atomic(root/'LISTENER_INVENTORY.json',{'coverage':coverage,'parse_errors':errs,'inventory':json.loads((listener_dir/'inventory.json').read_text())})
+        if not coverage or not all(v['sufficient'] for v in coverage.values()):raise RuntimeError(f'listener coverage insufficient before T0: {coverage}')
+        pre_t0_boundary=ch.discard_pending('formal_t0')
+        formal_health_baseline=ch.health_snapshot()
         t0=time.monotonic();t0_ns=time.monotonic_ns();t0_wall=wall();hard=t0+target_seconds
         git_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
         relevant=[Path(__file__),ROOT/'B306_Part/tools/async_line_channel.py',ROOT/'B306_Part/tools/fusion_host_binary.py',COLLECTOR]
@@ -134,6 +147,8 @@ def main():
           'planned_hours':target_seconds/3600,'target_duration_s':target_seconds,'smoke_duration_s':a.smoke_seconds,'minimum_checkpoint_hours':8,'hard_cap_hours':12,'master':'dk-fusion-imu-relay-v36','nodes':NODES,'power_note':POWER_NOTE,
           'bsf6c53_uwb_cadence_exempt':a.bsf6c53_uwb_exempt,
           'minimum_uninterruptible_hours':a.minimum_uninterruptible_hours,
+          'exact_duration':a.exact_duration,'pre_t0_boundary':pre_t0_boundary,
+          'formal_health_baseline':formal_health_baseline,
           'canonical_marker':'b306-imu-relay-v47','fwid':'f7436728c36efdd28f848e7ef59c7c422437afb8c6ee07dd8924e31967046eed',
           'active_image_sha256':'90ef063b227feb4c70499cc186df866c24da658fba98773eacc40da73a0abf98',
           'git_commit':git_commit,'host_relevant_paths_digest':dirty_digest,
@@ -152,17 +167,6 @@ def main():
           'command_allowlist':['V45 GUARD'],'append_only':True}
         atomic(root/'RUN_MANIFEST.json',manifest)
         print(f'CAPTURE_RUNNING_SMOKE_ACTIVE T0_wall={t0_wall} T0_monotonic={t0:.6f}',flush=True)
-        coverage_deadline=time.monotonic()+60
-        coverage={}
-        while time.monotonic()<coverage_deadline:
-            now=time.monotonic();guard.tick(ch.send,now)
-            line=ch.read(min(coverage_deadline,now+.05))
-            if line:guard.on_line(line)
-            coverage,errs=listener_coverage(listener_dir,mapping,t0_ns)
-            if all(v['sufficient'] for v in coverage.values()):break
-            time.sleep(2)
-        atomic(root/'LISTENER_INVENTORY.json',{'coverage':coverage,'parse_errors':errs,'inventory':json.loads((listener_dir/'inventory.json').read_text())})
-        if not all(v['sufficient'] for v in coverage.values()):state['events'].append({'type':'LISTENER_COVERAGE_INSUFFICIENT','wall':wall(),'coverage':coverage})
         peer={n:{'connected':True,'subscribed':True} for n in NODES};last_node_ms={};minute_base={n:dict(counts[n]) for n in NODES}
         integrity={n:{'uwb_full':0,'uwb_bad':0,'imu_ok':0,'imu_bad':0} for n in NODES}
         smoke_minutes=[];next_minute=t0+60
@@ -225,7 +229,8 @@ def main():
                         if row['classification']=='SOURCE_CADENCE_LOW':fail.append(f'{n}:listener_rate')
                 if air_errors:fail.append('listener_parse_or_read_error')
                 hs=ch.health_snapshot()
-                if any(hs.get(k,0) for k in ('raw_queue_drops','decoded_queue_drops','log_queue_drops','frame_crc_decode_errors','payload_decode_errors','red_markers','reader_exceptions')):fail.append('host_loss_or_decode_error')
+                cumulative=('raw_queue_drops','decoded_queue_drops','log_queue_drops','frame_crc_decode_errors','payload_decode_errors','red_markers','reader_exceptions')
+                if any(hs.get(k,0)-formal_health_baseline.get(k,0) for k in cumulative):fail.append('host_loss_or_decode_error')
                 for n in NODES:
                     if integrity[n]['uwb_full']==0 or integrity[n]['uwb_bad'] or integrity[n]['imu_ok']==0 or integrity[n]['imu_bad']:fail.append(f'{n}:field_integrity')
                 if any(x.get('open') or x.get('duration_s',0)>=2 for x in candidates):fail.append('joint_silence')
@@ -260,6 +265,7 @@ def main():
                 hp=root/'HOST_HEALTH_MINUTE.json';history=json.loads(hp.read_text()) if hp.exists() else []
                 history.append(state['last_health']);atomic(hp,history);next_checkpoint=now+60
             if now>=hard and extension==0:
+                if a.exact_duration:break
                 late=[x for x in candidates if x['onset_lower']>=hard-600]
                 extension=min(600,max((x['onset_lower']+600-hard for x in late),default=0));state['tail_extension_s']=extension
                 if extension:continue
@@ -278,6 +284,7 @@ def main():
         state['status']='BLOCKED_EVIDENCE_FAILURE';state['stop_reason']='IRRECOVERABLE_EVIDENCE_FAILURE';state['error']=f'{type(e).__name__}: {e}'
     finally:
         if ch:
+            state['decoded_close_drain']=ch.quiesce_reader_and_drain('normal_close_drain')
             ch.close();state['fusion_health_final']=ch.health_snapshot()
         if lp.poll() is None:lp.send_signal(signal.SIGINT)
         try:state['listener_rc']=lp.wait(timeout=30)

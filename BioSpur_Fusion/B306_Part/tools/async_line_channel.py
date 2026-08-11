@@ -132,6 +132,8 @@ class _BatchedLogWriter:
         self.thread.join(timeout=10.0)
         if self.thread.is_alive():
             raise SessionError("batched log writer did not stop")
+        self.log_file.flush()
+        os.fsync(self.log_file.fileno())
 
 
 class ThreadedLineChannel(LineChannel):
@@ -349,6 +351,13 @@ class ThreadedLineChannel(LineChannel):
             f"reason={reason} discarded_records={discarded} kinds={kinds}",
         )
         return result
+
+    def quiesce_reader_and_drain(self, reason: str) -> dict[str, object]:
+        """Stop serial ingestion, then account for and empty decoded backlog."""
+        self._reader_stop.set()
+        if hasattr(self, "_reader"):
+            self._reader.join(timeout=2.0)
+        return self.discard_pending(reason)
 
     def health_snapshot(self) -> dict[str, object]:
         return {
