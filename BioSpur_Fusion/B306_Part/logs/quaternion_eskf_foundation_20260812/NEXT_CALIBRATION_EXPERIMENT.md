@@ -1,0 +1,3 @@
+# Next calibration capture — do not execute in this phase
+
+Use one C2CC board with one continuous warm-up/CDC-drain lifecycle. Record six stationary faces; positive and negative rotations about each marked physical sensor axis; one fixed documented board orientation with measured V4 physical up/gravity; static–rotate–static transitions; and one known-direction translation. Freeze signed axis labels, accelerometer six-face bias/scale, gyro sign/scale sanity, `R_V4_N`, initial attitude/yaw gauge, and lever arm provenance before replay. Repeat once as held-out evidence. The non-rigid arm supplies transition excitation only, never radius/home/angle truth.

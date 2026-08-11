@@ -1,0 +1,25 @@
+{
+  "attitude_truth": "NO_EXTERNAL_ATTITUDE_TRUTH_INTERNAL_CONSISTENCY_ONLY",
+  "error_state": "dp,dv,dtheta_right,dba,dbg (15)",
+  "frozen": true,
+  "mode": "Q1_T4_ESKF",
+  "motion_veto_rule": "per-node max(0.5 dps,3x frozen gyro RMS), max(0.5 deg,5x frozen 1s angle), max(0.02 g,3x frozen accel deviation); continuous dwell reset",
+  "nominal_state": "p_N(3),v_N(3),q_NB_scalar_first(4),b_a_B(3),b_g_B(3)",
+  "parameter_optimization": "NONE",
+  "parameters": {
+    "accel_bias_rw_sigma_mps3_sqrt_hz": 0.002,
+    "accel_noise_sigma_mps2_sqrt_hz": 0.12,
+    "covariance_update_hz": 20,
+    "gravity_sigma_mps2": 0.04,
+    "gyro_bias_rw_sigma_dps2_sqrt_hz": 0.002,
+    "gyro_noise_sigma_dps_sqrt_hz": 0.12,
+    "t4_sigma_m": [
+      0.05,
+      0.05,
+      0.08
+    ],
+    "zupt_sigma_mps": 0.02
+  },
+  "real_spatial_coupling": "SPATIAL_ACCELERATION_COUPLING_BLOCKED_FRAME_BINDING",
+  "schema": "biospur-q1-parameter-manifest-v1"
+}

@@ -1,0 +1,61 @@
+{
+  "accelerometer": {
+    "full_scale": "+/-16 g",
+    "raw_limits": [
+      -32768,
+      32767
+    ],
+    "raw_type": "signed int16",
+    "scale": "raw/2048 g",
+    "si": "raw/2048*9.80665 m/s^2"
+  },
+  "axis_order": [
+    "x",
+    "y",
+    "z"
+  ],
+  "firmware_axis_remap": "NONE",
+  "gyroscope": {
+    "full_scale": "+/-2000 deg/s",
+    "raw_limits": [
+      -32768,
+      32767
+    ],
+    "raw_type": "signed int16",
+    "scale": "raw/16.384 deg/s",
+    "si": "raw/16.384*pi/180 rad/s"
+  },
+  "i2c": {
+    "address": "0x50",
+    "firmware_decode": "sys_get_le16 then int16_t",
+    "frame_start_register": "0x34",
+    "wire_endian": "little"
+  },
+  "internal_euler": {
+    "estimator_use": "PROHIBITED",
+    "host_wire": "ABSENT",
+    "note": "firmware decodes/exposes only signed accel/gyro triplets and temperature; intervening burst bytes are not an authoritative orientation"
+  },
+  "physical_board_axis_binding": "UNMEASURED",
+  "schema": "biospur-jy61p-q1-axis-unit-contract-v1",
+  "source_files": {
+    "B306_Part/docs/ble_protocol.md": "c2b1a01224726a6b521b1e4a2b8b6dcb3e072a39580d47fef14725327d83ad19",
+    "B306_Part/firmware/src/imu.c": "df3503b30c856f8f26ee7ddb2dcae8465e8d36267b2768371b5ccef9c4779c3a",
+    "B306_Part/host/fusion_master/src/main.c": "301b9db8037371ff25eea1cde19fe99767e3008236ed4612fe40217b04dc8fc5",
+    "B306_Part/include/biospur_fusion_ble.h": "1bfc6dd410d447ec62abbc93968a033e1fead94e393f4936f5171ed5c8a3fe1d",
+    "B306_Part/tools/v47_real_data_adapter.py": "e01bf8594bccdb7500e40c97df91e73c6845526757517ae9e402666d6ece77a8"
+  },
+  "temperature": {
+    "one_value_per_batch": true,
+    "raw_type": "signed int16",
+    "scale": "raw/100 degC"
+  },
+  "timestamp": {
+    "association": "TWIM pull initiation trigger",
+    "batch_order": "seq+i modulo 65536 in ascending delta_us",
+    "clock": "B306 extended TIMER2",
+    "fixed_dt_assumed": false,
+    "nominal_rate_hz": 200,
+    "sample": "base_us + unsigned delta_us"
+  }
+}
