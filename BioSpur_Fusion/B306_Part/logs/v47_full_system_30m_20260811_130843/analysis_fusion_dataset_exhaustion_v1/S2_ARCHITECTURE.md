@@ -1,0 +1,5 @@
+# S2 architecture
+
+S2 separates the internal Kalman state, immutable published lock, and causal background platform candidate. Its states are INIT, STATIONARY, MOTION_SUSPECTED, MOVING, SETTLING and PLATFORM_CONFLICT. Stationary UWB never moves the published lock. IMU fast activity, one-second cumulative absolute gyro angle, gravity-direction change, short variance, covariance-normalized T4 shift and per-link range-vector shift produce causal evidence. PLATFORM_CONFLICT preserves ambiguity when UWB shifts without adequate IMU confirmation.
+
+S2P applies asynchronous gated T4 position updates to [p,v] only in MOVING/SETTLING. S2R processes each sweep sequentially in ascending Anchor ID, subtracts the frozen V4 anchor residual delay exactly once, and performs scalar nonlinear range EKF updates with per-node/per-link calibration variance. Both apply ZUPT while stationary/settling and relock only after quietness, a covariance-normalized stable candidate, sufficient Anchor support and a bounded dwell. A relock is an explicit recovery where T4 may initialize the new platform, as allowed by the S2R contract.

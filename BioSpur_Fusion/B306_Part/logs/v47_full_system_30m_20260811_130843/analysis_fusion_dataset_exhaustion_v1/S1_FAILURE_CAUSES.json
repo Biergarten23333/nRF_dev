@@ -1,0 +1,99 @@
+{
+  "BSFAA61": {
+    "first_predicate_true": {
+      "candidate_shift": 726.0133480941802,
+      "imu_active": 489.86976464089753,
+      "motion_predicate": 727.0133209226876,
+      "platform_stable": 489.2197823023647,
+      "speed_ok": 489.0197877366543
+    },
+    "movement_window": [
+      494.0,
+      500.0
+    ],
+    "thresholds": {
+      "acc_std": 0.01714027633625589,
+      "accel_dev_rms": 0.017511206038166017,
+      "exit_dwell_s": 0.75,
+      "gyro_rms": 0.19145980397165677,
+      "gyro_std": 0.08192282637816159,
+      "scatter_m": 0.19299583565820816,
+      "shift_m": 0.31250113084043146,
+      "speed_mps": 0.25
+    },
+    "transitions_480_800": []
+  },
+  "BSFC2CC": {
+    "first_predicate_true": {
+      "candidate_shift": 496.8364463995695,
+      "imu_active": 487.03715723115204,
+      "motion_predicate": 496.8364463995695,
+      "platform_stable": 487.03715723115204,
+      "speed_ok": 487.03715723115204
+    },
+    "movement_window": [
+      492.0,
+      498.0
+    ],
+    "thresholds": {
+      "acc_std": 0.0016091609560392767,
+      "accel_dev_rms": 0.0023310028242037803,
+      "exit_dwell_s": 0.75,
+      "gyro_rms": 0.06892392529328092,
+      "gyro_std": 0.04394063496571661,
+      "scatter_m": 0.1,
+      "shift_m": 0.18,
+      "speed_mps": 0.25
+    },
+    "transitions_480_800": [
+      {
+        "from_state": "STATIONARY",
+        "reason": "IMU_ACTIVE_AND_PERSISTENT_T4_SHIFT",
+        "time_s": 497.98636298565566,
+        "to_state": "MOVING"
+      },
+      {
+        "from_state": "MOVING",
+        "reason": "IMU_QUIET_AND_T4_STABLE",
+        "time_s": 653.3750912275017,
+        "to_state": "SETTLING"
+      },
+      {
+        "from_state": "SETTLING",
+        "reason": "SETTLING_INTERRUPTED",
+        "time_s": 653.825058587268,
+        "to_state": "MOVING"
+      },
+      {
+        "from_state": "MOVING",
+        "reason": "IMU_QUIET_AND_T4_STABLE",
+        "time_s": 685.5227592646629,
+        "to_state": "SETTLING"
+      },
+      {
+        "from_state": "SETTLING",
+        "reason": "SETTLING_INTERRUPTED",
+        "time_s": 686.02272299774,
+        "to_state": "MOVING"
+      },
+      {
+        "from_state": "MOVING",
+        "reason": "IMU_QUIET_AND_T4_STABLE",
+        "time_s": 771.2165431148857,
+        "to_state": "SETTLING"
+      },
+      {
+        "from_state": "SETTLING",
+        "reason": "SETTLING_INTERRUPTED",
+        "time_s": 771.2665394881964,
+        "to_state": "MOVING"
+      }
+    ]
+  },
+  "causal_conclusions": {
+    "BSFAA61": "0.306714 m maximum candidate shift remained below node-specific 0.312501 m threshold; motion predicate never true despite strong IMU",
+    "BSFC2CC": "candidate shift crossed 0.18 m at 496.836446 s; 0.75 s persistent evidence plus cadence produced unlock at 497.986363 s",
+    "relock": "C2CC velocity reached 3.082959 m/s; quiet/stable overlap was intermittent and three settling entries were interrupted; AA61 never unlocked",
+    "silent_creep": "stationary consensus updated both x and lock_position whenever each incremental candidate shift remained below threshold"
+  }
+}

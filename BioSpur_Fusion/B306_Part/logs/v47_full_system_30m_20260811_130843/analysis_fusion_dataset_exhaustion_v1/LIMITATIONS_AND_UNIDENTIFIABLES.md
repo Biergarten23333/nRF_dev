@@ -1,0 +1,5 @@
+# Limitations and unidentifiables
+
+The two movements are development evidence because they were inspected before S2. T4 is an internal relative reference, not truth. The room frame is not surveyed gravity-up. No sensor-to-segment extrinsic, lever arm, external trajectory, absolute position error, yaw observability or human-body model can be inferred. Static improvements may be smoothing/locking rather than spatial inertial propagation. S2's bidirectionality is asymmetric: IMU controls state and process-noise mode; UWB corrects p/v during movement and supplies platform integrity. It is not full vector inertial Fusion.
+
+The complete run contains 34 `AMBIGUOUS` transitions into MOVING, 2 RF-platform conflict entries, 38 settling interruptions, and 2 new-platform relocks outside the two development windows, counted across S2P and S2R. They are not called false motion because this tabletop capture has no independent physical truth there. They do prevent interpreting the successful two-window replay as motion validation. BSFC2CC's repeated settling interruptions are a visible state-chattering limitation, not hidden by the headline result.
