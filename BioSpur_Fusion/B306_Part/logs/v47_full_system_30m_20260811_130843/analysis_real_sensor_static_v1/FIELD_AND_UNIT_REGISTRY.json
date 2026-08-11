@@ -1,0 +1,40 @@
+{
+  "acceleration": {
+    "conversion": "raw/32768*16 g",
+    "coordinate": "sensor axes; board-to-body extrinsic UNKNOWN_FROM_SOURCE",
+    "full_scale": "+/-16 g",
+    "raw": "int16 AX,AY,AZ"
+  },
+  "base_us": "Fusion Master-extended B306 TIMER2 time at first TWIM pull initiation",
+  "classification": "MOSTLY_STATIC_WITH_UNKNOWN_TABLE_DISTURBANCE_AND_POSSIBLE_NODE_REPOSITIONING",
+  "delta_us": "unsigned offset from batch base in B306 1 MHz TIMER2",
+  "endianness": "little",
+  "gyroscope": {
+    "conversion": "raw/32768*2000 dps",
+    "coordinate": "sensor axes; handedness/extrinsic UNKNOWN_FROM_SOURCE",
+    "full_scale": "+/-2000 dps",
+    "raw": "int16 GX,GY,GZ"
+  },
+  "host_timestamp": "host monotonic/wall receipt; boundary and infrastructure diagnostic",
+  "imu_sequence": {
+    "unit": "accepted sample",
+    "width_bits": 16,
+    "wrap": "modulo 65536"
+  },
+  "imu_signedness": "int16 signed",
+  "master_ms": "Fusion Master k_uptime_get() at BLE notification callback; receipt diagnostic",
+  "temperature": {
+    "conversion": "raw/100 degC",
+    "raw": "int16"
+  },
+  "uwb": {
+    "anchor_slots": 8,
+    "cfo_ppm_q8": "signed ppm in Q8 fixed point",
+    "poll_tx": "DWM1001 DW1000 little-endian 40-bit broadcast poll TX timestamp",
+    "quality": "0..100 producer diagnostic",
+    "rank": "TDMA response slot index diagnostic",
+    "sweep": "uint32 monotonic modulo wrap, pairs UART frame with strobe",
+    "t_round_us": "measured responder RX minus broadcast poll TX, microseconds",
+    "valid_mask": "bit i declares range_mm[i] usable"
+  }
+}

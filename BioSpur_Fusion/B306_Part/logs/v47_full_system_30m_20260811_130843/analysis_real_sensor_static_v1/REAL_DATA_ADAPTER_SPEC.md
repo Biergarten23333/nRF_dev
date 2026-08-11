@@ -1,0 +1,3 @@
+# Real-data adapter specification
+
+`v47_real_data_adapter.py` streams zero-delimited COBS records, validates CRC-16/CCITT-FALSE and payload contracts, isolates the manifest's formal byte boundary, and emits typed per-node arrays. Raw counts and physical conversions coexist. UWB output preserves all eight slots, invalid slots, ID, rank, quality, CFO, round time, masks, DWM poll time and B306 capture time. No default quality rejection, interpolation, smoothing, resampling, or platform merge occurs. Static/event selection is an explicit second mask. Any future NPZ/Parquet cache must carry raw SHA, adapter version, formal offset and complete filter configuration and must remain deterministically regenerable.

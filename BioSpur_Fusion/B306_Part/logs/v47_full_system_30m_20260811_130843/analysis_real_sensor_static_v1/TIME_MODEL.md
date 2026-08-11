@@ -1,0 +1,5 @@
+# Time model
+
+Each node's B306 1 MHz TIMER2 is the authoritative local IMU/UWB time axis. `base_us + delta_us` locates every IMU sample; UWB `frame_us`/hardware `strobe_us` share that B306 timer. DWM `poll_tx` is a separate wrapping 40-bit DW1000 clock and is not directly a host time. `master_ms` is BLE callback receipt time and host monotonic/wall time is collection receipt/boundary time.
+
+For each node this analysis fits B306 time to Master receipt only to place independent streams on a coarse common event timeline; residual BLE latency remains and the fit is not promoted to measurement truth. A Fusion loader must propagate at every actual IMU timestamp and insert an UWB update between the immediately bracketing IMU steps on the same B306 clock. It must use modular uint16 IMU sequence and uint32 UWB sweep arithmetic and retain 64-bit extended B306 time. It must not assume exactly 200 Hz or 8.33 Hz. Cross-node comparisons are suitable for common-mode event evidence, not multi-node phase-locked inertial fusion.
