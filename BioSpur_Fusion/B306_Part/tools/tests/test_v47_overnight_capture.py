@@ -35,4 +35,33 @@ class OvernightCaptureTests(unittest.TestCase):
         self.assertIn("if fail and not a.diagnostic_ten_minute",source)
         self.assertIn("DIAGNOSTIC_TEN_MINUTES_COMPLETE",source)
 
+    def test_bsf6c53_exemption_and_twelve_hour_semantics_are_explicit(self):
+        source=P.read_text()
+        self.assertIn("--bsf6c53-uwb-exempt",source)
+        self.assertIn("minimum_checkpoint_hours':8",source)
+        self.assertIn("hard_cap_hours':12",source)
+        self.assertIn("RF_OR_RECEIVER_VISIBILITY",source)
+        self.assertIn("'TAG_RESET_' not in x.get('line','')",source)
+
+    def test_minimum_uninterruptible_window_prevents_smoke_autostop(self):
+        source=P.read_text()
+        self.assertIn("--minimum-uninterruptible-hours",source)
+        self.assertIn("SMOKE_RECORDED_MINIMUM_CAPTURE_CONTINUES",source)
+        self.assertIn("now>=t0+a.minimum_uninterruptible_hours*3600",source)
+
+    def test_guard_capture_is_append_only_serial_and_non_periodic(self):
+        source=P.read_text()
+        self.assertIn("GuardSampler(NODES,root/'guard_evidence.jsonl')",source)
+        self.assertIn("guard.start('t0_baseline',t0)",source)
+        self.assertIn("'periodic_polling':False",source)
+        self.assertIn("guard.start('host_anomaly',now)",source)
+        self.assertIn("guard.start('best_effort_final')",source)
+
+    def test_raw_collectors_precede_guard_and_stop_preserves_evidence(self):
+        source=P.read_text()
+        self.assertLess(source.index("listener_dir=root/'listener_capture'"),source.index("guard=GuardSampler"))
+        self.assertLess(source.index("fusion_log=(root/'fusion_cdc.log')"),source.index("guard=GuardSampler"))
+        self.assertIn("if stop:state['stop_reason']='OPERATOR_STOP'",source)
+        self.assertIn("if ch:state['fusion_health_final']=ch.health_snapshot();ch.close()",source)
+
 if __name__=='__main__':unittest.main()

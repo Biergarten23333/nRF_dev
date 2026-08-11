@@ -2,6 +2,12 @@
 
 Final verdict: `V47_FLEET_PASS`
 
+Canonical production freeze and subsequent host-only observability work are
+indexed in `V47_CANONICAL_FREEZE.md`,
+`V47_OBSERVABILITY_COMPATIBILITY_AUDIT.md`, and
+`V47_HOST_EVIDENCE_STATUS.md`. This historical rollout report is unchanged in
+meaning; canonical v47 remains the deployed baseline.
+
 ## Canonical identity
 
 - marker: `b306-imu-relay-v47`

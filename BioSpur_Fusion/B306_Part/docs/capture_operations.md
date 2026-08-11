@@ -1,5 +1,11 @@
 # Fusion capture operations
 
+> Canonical v47 override (2026-08-11): use
+> `V47_CAPTURE_OPERATOR_GUIDE.md`. The older reset-oriented procedure below is
+> historical and is not authorization to reboot a frozen production fleet.
+> v47 diagnostics default to T0/event/final `V45 GUARD` snapshots with
+> periodic polling disabled.
+
 ## Mandatory pre-session reset
 
 For unattended operation, issue `BSF#### REBOOT` through Fusion Master USB CDC

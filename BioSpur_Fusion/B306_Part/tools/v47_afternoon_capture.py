@@ -11,6 +11,7 @@ from async_line_channel import ThreadedLineChannel
 from coldstart_fusion_control import decode_guard
 from fusion_session import parse_fields, resolve_fusion_port
 from listener_array_run import wait_listener_preflight
+from v47_guard_evidence import GuardSampler, SCHEMA as GUARD_SCHEMA
 
 ROOT=Path(__file__).resolve().parents[2]
 COLLECTOR=ROOT/'B306_Part/host/listener_array_collector.py'
@@ -80,6 +81,8 @@ def deduplicated_listener_rates(listener_dir:Path,node_map:dict,start_ns:int,end
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--out-dir',required=True,type=Path);ap.add_argument('--hours',type=float,default=8.0)
     ap.add_argument('--diagnostic-ten-minute',action='store_true',help='collect all ten minutes; rate/reset findings do not stop early')
+    ap.add_argument('--bsf6c53-uwb-exempt',action='store_true',help='record but do not gate BSF6C53 UWB cadence')
+    ap.add_argument('--minimum-uninterruptible-hours',type=float,default=0.0,help='board/event findings cannot auto-stop before this elapsed time')
     ap.add_argument('--precheck',required=True,type=Path);a=ap.parse_args();root=a.out_dir;root.mkdir(parents=True,exist_ok=True)
     if (root/'PROCESS_LEDGER.json').exists():raise SystemExit('refusing existing capture state')
     stop=False
@@ -91,6 +94,7 @@ def main():
     state={'schema':'biospur-v47-afternoon-capture-v1','status':'STARTING','supervisor_pid':os.getpid(),'started_wall':wall(),
            'stop_reason':None,'events':[],'smoke_verdict':None,'precheck':str(a.precheck)};atomic(root/'PROCESS_LEDGER.json',state)
     if not a.diagnostic_ten_minute and not 8.0 <= a.hours <= 12.0:raise SystemExit('overnight duration must be 8..12 hours')
+    if not 0.0 <= a.minimum_uninterruptible_hours <= a.hours:raise SystemExit('invalid minimum-uninterruptible-hours')
     powers={'battery_nodes':BATTERY,'adapter_nodes':['BSF6C53'],'verbatim_note':POWER_NOTE};atomic(root/'POWER_COHORTS.json',powers)
     free=shutil.disk_usage(root).free
     required=40*1024**3
@@ -119,16 +123,27 @@ def main():
         atomic(root/'node_tag_map.json',mapping)
         t0=time.monotonic();t0_ns=time.monotonic_ns();t0_wall=wall();hard=t0+(600 if a.diagnostic_ten_minute else a.hours*3600)
         manifest={'schema':'biospur-v47-afternoon-manifest-v1','t0_wall':t0_wall,'t0_monotonic':t0,'t0_monotonic_ns':t0_ns,
-          'planned_hours':a.hours,'master':'dk-fusion-imu-relay-v36','nodes':NODES,'power_note':POWER_NOTE,
+          'planned_hours':a.hours,'minimum_checkpoint_hours':8,'hard_cap_hours':12,'master':'dk-fusion-imu-relay-v36','nodes':NODES,'power_note':POWER_NOTE,
+          'bsf6c53_uwb_cadence_exempt':a.bsf6c53_uwb_exempt,
+          'minimum_uninterruptible_hours':a.minimum_uninterruptible_hours,
           'canonical_marker':'b306-imu-relay-v47','fwid':'f7436728c36efdd28f848e7ef59c7c422437afb8c6ee07dd8924e31967046eed',
           'active_image_sha256':'90ef063b227feb4c70499cc186df866c24da658fba98773eacc40da73a0abf98',
           'reset_intents_verified_from_source':{'1':'BSF_RESET_INTENT_RECOVERY_GUARD','5':'BSF_RESET_INTENT_STALL_RECOVERY'},
           'commands_sent':[],'no_configuration_mutation':True,'script_sha256':sha(Path(__file__)),'listener_script_sha256':sha(COLLECTOR)}
         atomic(root/'RUN_MANIFEST.json',manifest);state.update({'status':'CAPTURE_RUNNING_SMOKE_ACTIVE','t0_wall':t0_wall,'t0_monotonic':t0});atomic(root/'PROCESS_LEDGER.json',state)
+        guard=GuardSampler(NODES,root/'guard_evidence.jsonl')
+        guard.start('t0_baseline',t0)
+        manifest['guard_evidence']={'schema':GUARD_SCHEMA,'path':'guard_evidence.jsonl',
+          'periodic_polling':False,'policy':['t0_baseline','host_anomaly','best_effort_final'],
+          'command_allowlist':['V45 GUARD'],'append_only':True}
+        atomic(root/'RUN_MANIFEST.json',manifest)
         print(f'CAPTURE_RUNNING_SMOKE_ACTIVE T0_wall={t0_wall} T0_monotonic={t0:.6f}',flush=True)
         coverage_deadline=time.monotonic()+60
         coverage={}
         while time.monotonic()<coverage_deadline:
+            now=time.monotonic();guard.tick(ch.send,now)
+            line=ch.read(min(coverage_deadline,now+.05))
+            if line:guard.on_line(line)
             coverage,errs=listener_coverage(listener_dir,mapping,t0_ns)
             if all(v['sufficient'] for v in coverage.values()):break
             time.sleep(2)
@@ -140,6 +155,7 @@ def main():
         while not stop and time.monotonic()<hard+extension:
             now=time.monotonic();line=ch.read(min(now+.5,next_health,hard+extension));now=time.monotonic()
             if line:
+                guard.on_line(line)
                 f=parse_fields(line);n=f.get('name')
                 if n in counts:
                     if line.startswith('FUSION_UWB '):counts[n]['uwb']+=1;last[n]['uwb']=now
@@ -161,6 +177,7 @@ def main():
                     u=last[n]['uwb'];i=last[n]['imu']
                     if u and i and now-max(u,i)>=2 and not any(x.get('node')==n and x.get('open') for x in candidates):
                         lower=max(u,i);x={'node':n,'open':True,'provisional_monotonic':now,'onset_lower':lower,'onset_upper':lower+.120,'wall':wall()};candidates.append(x);state['events'].append({'type':'JOINT_STALL_PROVISIONAL',**x})
+                        guard.start('host_anomaly',now)
                     for x in candidates:
                         if x['node']==n and x.get('open') and u and i and max(u,i)>x['provisional_monotonic']:
                             x['open']=False;x['recovered_monotonic']=max(u,i);x['duration_s']=max(u,i)-x['onset_lower']
@@ -170,23 +187,29 @@ def main():
                     state['stop_reason']='IRRECOVERABLE_EVIDENCE_FAILURE';break
                 if shutil.disk_usage(root).free<8*1024**3:state['stop_reason']='IRRECOVERABLE_EVIDENCE_FAILURE';break
                 next_health=now+2
+            guard.tick(ch.send,now)
             if state['smoke_verdict'] is None and now>=next_minute:
                 idx=len(smoke_minutes)+1;rates={};fail=[]
                 for n in NODES:
                     du=counts[n]['uwb']-minute_base[n].get('uwb',0);di=counts[n]['imu']-minute_base[n].get('imu',0)
                     rates[n]={'uwb_hz':du/60,'imu_hz':di/60,'peer':dict(peer[n])}
-                    if not 8.0<=du/60<=8.6 or not 195<=di/60<=205:fail.append(f'{n}:fusion_rate')
+                    uwb_bad=not 8.0<=du/60<=8.6
+                    if (uwb_bad and not (n=='BSF6C53' and a.bsf6c53_uwb_exempt)) or not 195<=di/60<=205:fail.append(f'{n}:fusion_rate')
                     if not all(peer[n].values()):fail.append(f'{n}:peer_state')
                     minute_base[n]=dict(counts[n])
                 air,air_errors=deduplicated_listener_rates(listener_dir,mapping,t0_ns+(idx-1)*60_000_000_000,t0_ns+idx*60_000_000_000)
                 for n,row in air.items():
-                    if not 8.0<=row['source_hz']<=8.6:fail.append(f'{n}:listener_rate')
+                    if not 8.0<=row['source_hz']<=8.6:
+                        row['classification']='BSF6C53_METAL_PLATE_EXEMPT' if n=='BSF6C53' and a.bsf6c53_uwb_exempt else ('RF_OR_RECEIVER_VISIBILITY' if 8.0<=rates[n]['uwb_hz']<=8.6 else 'SOURCE_CADENCE_LOW')
+                        if row['classification']=='SOURCE_CADENCE_LOW':fail.append(f'{n}:listener_rate')
                 if air_errors:fail.append('listener_parse_or_read_error')
                 if any(x.get('open') or x.get('duration_s',0)>=2 for x in candidates):fail.append('joint_silence')
-                if any(x.get('type')=='UPTIME_RESET' or 'RECOVERY' in x.get('line','') for x in state['events']):fail.append('reset_or_recovery')
+                if any(x.get('type')=='UPTIME_RESET' or
+                       ('RECOVERY' in x.get('line','') and 'TAG_RESET_' not in x.get('line',''))
+                       for x in state['events']):fail.append('reset_or_recovery')
                 row={'minute':idx,'window_end_monotonic':now,'fusion':rates,'listener':air,'failures':sorted(set(fail)),'pass':not fail}
                 smoke_minutes.append(row);atomic(root/'SMOKE_MINUTE_STATUS.json',{'minutes':smoke_minutes})
-                if fail and not a.diagnostic_ten_minute:
+                if fail and not a.diagnostic_ten_minute and now>=t0+a.minimum_uninterruptible_hours*3600:
                     state['smoke_verdict']='BLOCKED_SMOKE';state['stop_reason']='BLOCKED_SMOKE'
                     atomic(root/'SMOKE_RESULT.json',{'verdict':'BLOCKED_SMOKE','minutes':smoke_minutes});break
                 next_minute=t0+(idx+1)*60
@@ -194,12 +217,16 @@ def main():
                 smoke_counts={n:dict(counts[n]) for n in NODES};infra_ok=lp.poll() is None and ch._reader.is_alive() and all(v['sufficient'] for v in coverage.values())
                 if a.diagnostic_ten_minute:
                     state['smoke_verdict']='DIAGNOSTIC_COMPLETE' if infra_ok and len(smoke_minutes)==10 else 'DIAGNOSTIC_INFRASTRUCTURE_FAILURE'
+                elif a.minimum_uninterruptible_hours>0 and infra_ok:
+                    state['smoke_verdict']='SMOKE_RECORDED_MINIMUM_CAPTURE_CONTINUES'
                 else:
                     state['smoke_verdict']='SMOKE_PASS' if infra_ok and len(smoke_minutes)==10 and all(x['pass'] for x in smoke_minutes) else 'BLOCKED_SMOKE'
                 atomic(root/'SMOKE_RESULT.json',{'verdict':state['smoke_verdict'],'evaluated_wall':wall(),'counts':smoke_counts,'minutes':smoke_minutes,'events':state['events'],'collectors_alive':infra_ok})
                 print(state['smoke_verdict'],flush=True)
                 if a.diagnostic_ten_minute:
                     state['stop_reason']='DIAGNOSTIC_TEN_MINUTES_COMPLETE' if state['smoke_verdict']=='DIAGNOSTIC_COMPLETE' else 'IRRECOVERABLE_EVIDENCE_FAILURE';break
+                if state['smoke_verdict']=='SMOKE_RECORDED_MINIMUM_CAPTURE_CONTINUES':
+                    state['status']='CAPTURE_RUNNING_MINIMUM_UNINTERRUPTIBLE';continue
                 if state['smoke_verdict']!='SMOKE_PASS':state['stop_reason']='BLOCKED_SMOKE';break
                 state['status']='CAPTURE_RUNNING_OVERNIGHT'
             if now>=next_checkpoint:
@@ -213,6 +240,13 @@ def main():
         if stop:state['stop_reason']='OPERATOR_STOP'
         elif state['stop_reason'] is None:state['stop_reason']='PLANNED_DURATION_COMPLETE'
         state['status']='CAPTURE_COMPLETE';state['ended_wall']=wall();state['ended_monotonic']=time.monotonic();state['counts']={n:dict(counts[n]) for n in NODES};atomic(root/'JOINT_STALL_CANDIDATES.json',candidates)
+        # Raw collectors remain alive while this bounded, best-effort final
+        # snapshot runs. A timeout is evidence, never a capture failure.
+        if not guard.active:guard.start('best_effort_final')
+        final_deadline=time.monotonic()+15
+        while guard.active and time.monotonic()<final_deadline:
+            now=time.monotonic();guard.tick(ch.send,now);line=ch.read(min(final_deadline,now+.1))
+            if line:guard.on_line(line)
     except Exception as e:
         state['status']='BLOCKED_EVIDENCE_FAILURE';state['stop_reason']='IRRECOVERABLE_EVIDENCE_FAILURE';state['error']=f'{type(e).__name__}: {e}'
     finally:

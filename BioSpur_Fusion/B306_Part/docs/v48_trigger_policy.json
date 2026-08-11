@@ -1,0 +1,17 @@
+{
+  "schema": "biospur-v48-trigger-policy-v1",
+  "canonical_baseline": "v47",
+  "next_identity_if_authorized": {"version":"v48","marker":"b306-imu-relay-v48","mcuboot_version":"0.1.48"},
+  "automatic_hardware_mutation": false,
+  "triggers": [
+    "nominal-power Fusion UWB and IMU joint silence >=20 s",
+    "BLE control/ATT unresponsive while Master reports connected and independent Listener source cadence remains normal",
+    "unexpected B306 reset, uptime regression, or connection-epoch reconstruction",
+    "repeated shorter joint stalls establishing reproducibility",
+    "another nominal-power failure materially corrupting Fusion or human-capture data"
+  ],
+  "non_triggers_alone": ["battery depletion","multi-receiver UWB degradation","sparse/intermittent polls","LEDs off","terminal off-air"],
+  "bsf6c53": {"power":"adapter","battery_depletion_classification_forbidden":true,"pogo_power_path_must_be_checked":true},
+  "required_before_opening_v48": ["preserve Fusion, Listener, Master and GUARD raw evidence","make no automatic hardware mutation","write event-specific causal report"],
+  "first_proposal_must_separate": ["observability additions","solver/recovery changes"]
+}
