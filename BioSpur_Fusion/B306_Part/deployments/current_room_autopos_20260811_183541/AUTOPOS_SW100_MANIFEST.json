@@ -1,0 +1,63 @@
+{
+  "anchor_count": 8,
+  "anchor_order": "ABCDEFGH",
+  "collector": "UWB_Part/2026-07-15-FREEZE/scripts/ops/run_autopos_sweep_loop.py",
+  "device_sets_per_master": 100,
+  "finished_at": "2026-08-11T18:43:15+02:00",
+  "formal_run_count": 1,
+  "git_baseline": "fa7e3f335960d4c50958a9c5429cb8550ad273e3",
+  "hardware_commands": {
+    "preflight": [
+      "status",
+      "device show",
+      "autopos status",
+      "autopos map show",
+      "anchor version all",
+      "autopos map show"
+    ],
+    "formal": [
+      "anchor role all matrix",
+      "autopos map show",
+      "autopos cir 0",
+      "autopos round A 100",
+      "autopos apply",
+      "autopos round B 100",
+      "autopos apply",
+      "autopos round C 100",
+      "autopos apply",
+      "autopos round D 100",
+      "autopos apply",
+      "autopos round E 100",
+      "autopos apply",
+      "autopos round F 100",
+      "autopos apply",
+      "autopos round G 100",
+      "autopos apply",
+      "autopos round H 100",
+      "autopos apply",
+      "anchor role all responder"
+    ]
+  },
+  "hardware_command_counts_from_all_preserved_transcripts": {
+    "anchor role all matrix": 1,
+    "anchor role all responder": 1,
+    "anchor version all": 3,
+    "autopos apply": 8,
+    "autopos cir 0": 8,
+    "autopos map show": 15,
+    "autopos round <A-H> 100": 8,
+    "autopos status": 11,
+    "device show": 5,
+    "status": 5
+  },
+  "jlink_used": false,
+  "prewarm_sets": 0,
+  "raw_rounds": "SW100/round_<A-H>/master.log",
+  "restore": "PRODUCTION_RESPONDER_STATE_RESTORED",
+  "run_id": "current_room_autopos_20260811_183541",
+  "schema": "biospur-current-room-autopos-sw100-v1",
+  "solver_input": "V4IO/pairs_all.csv",
+  "started_at": "2026-08-11T18:40:21+02:00",
+  "valid_directed_rows": 5599,
+  "verdict": "AUTOPOS_SW100_PASS"
+}
