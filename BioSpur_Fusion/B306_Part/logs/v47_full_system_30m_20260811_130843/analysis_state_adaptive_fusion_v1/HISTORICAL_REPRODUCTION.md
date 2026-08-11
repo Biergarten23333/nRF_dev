@@ -1,0 +1,5 @@
+# Historical reproduction audit
+
+All historical controls map to commit `1b80923d1afe483f3be5d1afc18d6ef8ea6c5802`. H2 is the literal T2Lite IMU-corrects-UWB output recursion: IMU spatial delta predicts the next solved position and alpha is 0.42 below a 180 mm innovation, otherwise 0.18. H5 is T5Lite: a six-state position/velocity covariance, external scalar yaw, no bias state, IMU propagation, and solved-UWB `H=[I,0]` correction with 3-D NIS below 25. H3 is exactly the output blend `0.68*T5Lite + 0.32*T2Lite`; it is not a third EKF.
+
+The common real-data adapter supplies actual timestamps and T4 observations, but each historical spatial path requires an IMU displacement/propagation vector expressed in V4. That transform is unavailable, so all three were run through the common binding gate and terminated as `BLOCKED_FRAME_BINDING` rather than silently inventing a rotation. T5's measurement direction is the closest architectural ancestor of S1; its literal implementation is not adopted. T2Lite and the fixed T3Lite blend should be retired. T6/T8 remain separate raw-range prototypes and T11/I0 is the IMU-only control.

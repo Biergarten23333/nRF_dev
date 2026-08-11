@@ -1,0 +1,45 @@
+{
+  "B0": {
+    "definition": "canonical unsmoothed UWB_TAG_T4 position stream",
+    "status": "RUN"
+  },
+  "H2": {
+    "direction": "IMU_CORRECTS_UWB",
+    "exact_update": "pred=out_prev+delta_imu; alpha=.42 below 180 mm innovation else .18",
+    "source": "run_phase0_phase1_vertical_slice.py:relative_motion_filter; run_real_6axis_vertical_slice.py:forward_imu_corrects_uwb",
+    "source_commit": "1b80923d1afe483f3be5d1afc18d6ef8ea6c5802",
+    "status": "BLOCKED_FRAME_BINDING",
+    "t_number": "T2/T2Lite"
+  },
+  "H3": {
+    "direction": "BIDIRECTIONAL_CORRECTION",
+    "exact_update": "0.68*T5Lite + 0.32*T2Lite at each UWB time",
+    "independent_ekf": false,
+    "source": "run_real_6axis_vertical_slice.py:forward_bidirectional_fusion",
+    "source_commit": "1b80923d1afe483f3be5d1afc18d6ef8ea6c5802",
+    "status": "BLOCKED_FRAME_BINDING",
+    "t_number": "T3/T3Lite"
+  },
+  "H5": {
+    "direction": "UWB_CORRECTS_IMU",
+    "exact_update": "IMU p/v propagation then solved-UWB H=[I,0], 3D NIS<25",
+    "source": "run_real_6axis_vertical_slice.py:fuse_uwb_imu_packet",
+    "source_commit": "1b80923d1afe483f3be5d1afc18d6ef8ea6c5802",
+    "state": "position(3), velocity(3), P(6x6), external yaw; no bias state",
+    "status": "BLOCKED_FRAME_BINDING",
+    "t_number": "T5/T5Lite"
+  },
+  "I0": {
+    "definition": "existing real-data pure inertial replay; actual B306 timestamps; no UWB",
+    "status": "RUN_LOCAL_FRAME_CONTROL"
+  },
+  "I1": {
+    "definition": "I0 plus explicit frozen-annotation ZUPT; table/motion windows excluded",
+    "status": "RUN_LOCAL_FRAME_CONTROL"
+  },
+  "S1": {
+    "definition": "four-state p/v CV KF, IMU motion evidence, adaptive Q, async T4 updates, real ZUPT and robust stationary consensus",
+    "status": "RUN"
+  },
+  "coordinate_contract": "RELATIVE_GEOMETRY_ONLY"
+}

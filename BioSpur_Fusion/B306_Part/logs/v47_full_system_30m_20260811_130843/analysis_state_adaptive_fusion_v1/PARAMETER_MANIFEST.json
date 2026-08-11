@@ -1,0 +1,484 @@
+{
+  "canonical_threshold_scale": 1.0,
+  "derivation": {
+    "imu_thresholds": "per-node 99.5 percentile causal 0.5 s features in calibration, excluding frozen table intervals",
+    "motion_windows_used_for_tuning": false,
+    "platform_thresholds": "calibration robust radial scatter only; no movement outcomes used",
+    "uwb_covariance": "per-axis max(0.020 m, 1.4826*MAD) of T4 calibration positions"
+  },
+  "frozen": true,
+  "global": {
+    "consensus_min_observations": 8,
+    "consensus_update_period_s": 1.0,
+    "consensus_window_s": 2.0,
+    "coordinate_contract": "RELATIVE_GEOMETRY_ONLY",
+    "exit_dwell_s": 0.75,
+    "full_vector_inertial_propagation": "BLOCKED_FRAME_BINDING",
+    "moving_accel_sigma_mps2": 1.0,
+    "moving_quiet_dwell_s": 0.75,
+    "nis_gate_chi2_dof3_p999": 16.266236,
+    "propagation": "constant_velocity_actual_hardware_timestamps",
+    "sensor_to_v4_transform_status": "BLOCKED_FRAME_BINDING",
+    "settling_accel_sigma_mps2": 0.25,
+    "settling_dwell_s": 2.0,
+    "state": "position_xyz_m_velocity_xyz_mps",
+    "stationary_accel_sigma_mps2": 0.03,
+    "stationary_speed_threshold_mps": 0.25,
+    "zaru": "UNAVAILABLE_NO_ANGULAR_RATE_STATE_IN_S1",
+    "zupt_sigma_mps": 0.02
+  },
+  "historical_source_commit": "1b80923d1afe483f3be5d1afc18d6ef8ea6c5802",
+  "input": {
+    "capture": "v47_full_system_30m_20260811_130843",
+    "geometry_manifest_path": "B306_Part/deployments/current_room_autopos_20260811_183541/CAPTURE_BOUND_GEOMETRY_MANIFEST.json",
+    "geometry_manifest_sha256": "f22b359000ce373766a1aae08f2dbfa5e8fd673f24563332c93c86252e941768",
+    "layout_path": "B306_Part/deployments/current_room_autopos_20260811_183541/V4IO_LAYOUT.json",
+    "layout_sha256": "20320e53d48b171c016a0e8d1d93b3cb10e979cf4c21c15c21647d5c0b9878b1",
+    "positions_path": "B306_Part/logs/v47_full_system_30m_20260811_130843/analysis_uwb_position_20260811_183541/PER_SWEEP_POSITIONS.csv",
+    "positions_sha256": "767f2cc09e36c61becc64141edd5db7de30624917e4589fde32fd7da4c715d51",
+    "prior_static_analysis_path": "B306_Part/logs/v47_full_system_30m_20260811_130843/analysis_real_sensor_static_v1",
+    "raw_sha256": "c5c7c923e2e29ad43d2d5e51217dda0ea1df8f95bdc04d30656f8055b038a9b8"
+  },
+  "per_node": {
+    "BSF1120": {
+      "accel_dev_rms_threshold_g": 0.002596649991528813,
+      "accel_std_threshold_g": 0.0020444912941978257,
+      "calibration_observations": 1992,
+      "calibration_t4_median_m": [
+        3.425724455510208,
+        0.29309150085415187,
+        0.8069394077306213
+      ],
+      "gyro_bias_dps": [
+        0.18310546875,
+        -0.42724609375,
+        0.0
+      ],
+      "gyro_rms_threshold_dps": 0.10626165006918771,
+      "gyro_std_threshold_dps": 0.06628038673612126,
+      "local_gravity_g": 1.0060899784961195,
+      "platform_shift_threshold_m": 0.18,
+      "platform_stability_threshold_m": 0.1,
+      "uwb_r_m2": [
+        [
+          0.0007013526528252405,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0006251101614299523,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0014471423400689576
+        ]
+      ],
+      "uwb_sigma_xyz_m": [
+        0.02648306350906633,
+        0.025002203131523276,
+        0.038041324110353436
+      ]
+    },
+    "BSF31CC": {
+      "accel_dev_rms_threshold_g": 0.01768933521144087,
+      "accel_std_threshold_g": 0.01743038785336989,
+      "calibration_observations": 1992,
+      "calibration_t4_median_m": [
+        3.2295830404171357,
+        1.1796306181196883,
+        1.045641001044475
+      ],
+      "gyro_bias_dps": [
+        0.1220703125,
+        -0.18310546875,
+        0.0
+      ],
+      "gyro_rms_threshold_dps": 0.1019871096722034,
+      "gyro_std_threshold_dps": 0.05781710554539729,
+      "local_gravity_g": 0.9995508377328911,
+      "platform_shift_threshold_m": 0.18,
+      "platform_stability_threshold_m": 0.1,
+      "uwb_r_m2": [
+        [
+          0.0010321223322875852,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0006954164024260234,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.00181912734028284
+        ]
+      ],
+      "uwb_sigma_xyz_m": [
+        0.032126660770885995,
+        0.026370748992511066,
+        0.04265122905946369
+      ]
+    },
+    "BSF3C79": {
+      "accel_dev_rms_threshold_g": 0.003584311623294801,
+      "accel_std_threshold_g": 0.0024843092727679693,
+      "calibration_observations": 1991,
+      "calibration_t4_median_m": [
+        2.8253407753996926,
+        1.3558233227033074,
+        1.1084762748091999
+      ],
+      "gyro_bias_dps": [
+        -0.18310546875,
+        -0.30517578125,
+        0.0
+      ],
+      "gyro_rms_threshold_dps": 0.07554796180769165,
+      "gyro_std_threshold_dps": 0.042750899532779246,
+      "local_gravity_g": 1.008492292269755,
+      "platform_shift_threshold_m": 0.18,
+      "platform_stability_threshold_m": 0.1,
+      "uwb_r_m2": [
+        [
+          0.000803201421312535,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.001118745652152883,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0028537924316204277
+        ]
+      ],
+      "uwb_sigma_xyz_m": [
+        0.028340808409650826,
+        0.03344765540591572,
+        0.05342089882827158
+      ]
+    },
+    "BSF44AD": {
+      "accel_dev_rms_threshold_g": 0.0015323605890869255,
+      "accel_std_threshold_g": 0.0010628805069242896,
+      "calibration_observations": 1992,
+      "calibration_t4_median_m": [
+        2.8739049313961154,
+        1.109556316962736,
+        1.1646299669311349
+      ],
+      "gyro_bias_dps": [
+        0.0,
+        -0.18310546875,
+        -0.3662109375
+      ],
+      "gyro_rms_threshold_dps": 1.5578224979393247,
+      "gyro_std_threshold_dps": 1.5451601920105045,
+      "local_gravity_g": 1.0044690643681282,
+      "platform_shift_threshold_m": 0.18,
+      "platform_stability_threshold_m": 0.1,
+      "uwb_r_m2": [
+        [
+          0.0004,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0009178917516836831,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0028195039116933425
+        ]
+      ],
+      "uwb_sigma_xyz_m": [
+        0.02,
+        0.030296728399015017,
+        0.05309900104232981
+      ]
+    },
+    "BSF6C53": {
+      "accel_dev_rms_threshold_g": 0.001,
+      "accel_std_threshold_g": 0.0006040879417526021,
+      "calibration_observations": 1992,
+      "calibration_t4_median_m": [
+        0.9265076797930785,
+        0.13462096282535624,
+        0.6806922939746711
+      ],
+      "gyro_bias_dps": [
+        -0.18310546875,
+        -0.6103515625,
+        0.0
+      ],
+      "gyro_rms_threshold_dps": 0.18645315188017325,
+      "gyro_std_threshold_dps": 0.0809277711089719,
+      "local_gravity_g": 0.9951007755562113,
+      "platform_shift_threshold_m": 0.35047006132480335,
+      "platform_stability_threshold_m": 0.21879690687716222,
+      "uwb_r_m2": [
+        [
+          0.006589781125643503,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0007944488234699847,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.02332308602213937
+        ]
+      ],
+      "uwb_sigma_xyz_m": [
+        0.08117746685899667,
+        0.028185968556535088,
+        0.15271897728225975
+      ]
+    },
+    "BSF8BC4": {
+      "accel_dev_rms_threshold_g": 0.002457812436607397,
+      "accel_std_threshold_g": 0.0018294548569294082,
+      "calibration_observations": 1992,
+      "calibration_t4_median_m": [
+        2.9439042244747666,
+        0.7623050655564291,
+        0.9403155705643352
+      ],
+      "gyro_bias_dps": [
+        -0.1220703125,
+        -0.244140625,
+        -0.42724609375
+      ],
+      "gyro_rms_threshold_dps": 0.09289707868466368,
+      "gyro_std_threshold_dps": 0.04388653851244468,
+      "local_gravity_g": 1.0090631812345274,
+      "platform_shift_threshold_m": 0.18,
+      "platform_stability_threshold_m": 0.1,
+      "uwb_r_m2": [
+        [
+          0.0004,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0006312709927895165,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.00147172321021691
+        ]
+      ],
+      "uwb_sigma_xyz_m": [
+        0.02,
+        0.02512510682145484,
+        0.038363044850701175
+      ]
+    },
+    "BSFAA61": {
+      "accel_dev_rms_threshold_g": 0.017511206038166017,
+      "accel_std_threshold_g": 0.01714027633625589,
+      "calibration_observations": 1992,
+      "calibration_t4_median_m": [
+        3.3751038200789685,
+        0.5043147001341081,
+        1.3138667589468627
+      ],
+      "gyro_bias_dps": [
+        0.1220703125,
+        -0.3662109375,
+        0.0
+      ],
+      "gyro_rms_threshold_dps": 0.19145980397165677,
+      "gyro_std_threshold_dps": 0.08192282637816159,
+      "local_gravity_g": 1.0030852645657256,
+      "platform_shift_threshold_m": 0.31250113084043146,
+      "platform_stability_threshold_m": 0.19299583565820816,
+      "uwb_r_m2": [
+        [
+          0.001405751384661496,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0010790766287501734,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.021929411180725444
+        ]
+      ],
+      "uwb_sigma_xyz_m": [
+        0.03749335120606714,
+        0.03284930180004095,
+        0.14808582369938536
+      ]
+    },
+    "BSFB165": {
+      "accel_dev_rms_threshold_g": 0.002658997820308203,
+      "accel_std_threshold_g": 0.0019077702183254973,
+      "calibration_observations": 1992,
+      "calibration_t4_median_m": [
+        3.052898082520032,
+        1.4912186351762573,
+        1.0851557038284323
+      ],
+      "gyro_bias_dps": [
+        0.244140625,
+        -0.06103515625,
+        0.0
+      ],
+      "gyro_rms_threshold_dps": 2.2060566412845732,
+      "gyro_std_threshold_dps": 2.177958352689672,
+      "local_gravity_g": 1.0070729462342165,
+      "platform_shift_threshold_m": 0.18,
+      "platform_stability_threshold_m": 0.1,
+      "uwb_r_m2": [
+        [
+          0.0013067192235127773,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.001318969252101182,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0015846629904600494
+        ]
+      ],
+      "uwb_sigma_xyz_m": [
+        0.03614857152797019,
+        0.0363176162777953,
+        0.039807825743941976
+      ]
+    },
+    "BSFC2CC": {
+      "accel_dev_rms_threshold_g": 0.0023310028242037803,
+      "accel_std_threshold_g": 0.0016091609560392767,
+      "calibration_observations": 1992,
+      "calibration_t4_median_m": [
+        3.3116034809577046,
+        0.9913778006743625,
+        1.2210146654615126
+      ],
+      "gyro_bias_dps": [
+        0.06103515625,
+        -0.3662109375,
+        0.0
+      ],
+      "gyro_rms_threshold_dps": 0.06892392529328092,
+      "gyro_std_threshold_dps": 0.04394063496571661,
+      "local_gravity_g": 1.0140214438569257,
+      "platform_shift_threshold_m": 0.18,
+      "platform_stability_threshold_m": 0.1,
+      "uwb_r_m2": [
+        [
+          0.0005952727790222332,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0006989447596723474,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0015593494202639313
+        ]
+      ],
+      "uwb_sigma_xyz_m": [
+        0.024398212619416063,
+        0.02643756342162317,
+        0.03948859861104128
+      ]
+    },
+    "BSFEC35": {
+      "accel_dev_rms_threshold_g": 0.012424679324449904,
+      "accel_std_threshold_g": 0.012279425629303014,
+      "calibration_observations": 1992,
+      "calibration_t4_median_m": [
+        2.9673714923879575,
+        0.39767329255306694,
+        0.9494035045775098
+      ],
+      "gyro_bias_dps": [
+        -0.06103515625,
+        -0.48828125,
+        0.0
+      ],
+      "gyro_rms_threshold_dps": 3.1137216416832603,
+      "gyro_std_threshold_dps": 3.038108023690962,
+      "local_gravity_g": 1.003927267722898,
+      "platform_shift_threshold_m": 0.18,
+      "platform_stability_threshold_m": 0.1,
+      "uwb_r_m2": [
+        [
+          0.0004,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0008768323843747011,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0012210647723511834
+        ]
+      ],
+      "uwb_sigma_xyz_m": [
+        0.02,
+        0.029611355665938383,
+        0.03494373724075866
+      ]
+    }
+  },
+  "schema": "biospur-v47-state-adaptive-parameter-manifest-v1",
+  "source_head_before_experiment": "87d9027cc368cd05e707dd3a564e4c28b9c505ee",
+  "windows_half_open_s": {
+    "calibration": [
+      1.0,
+      240.0
+    ],
+    "common_static": [
+      1.0,
+      484.0
+    ],
+    "held_out_static": [
+      240.0,
+      484.0
+    ],
+    "post_move": [
+      506.0,
+      535.0
+    ]
+  }
+}
