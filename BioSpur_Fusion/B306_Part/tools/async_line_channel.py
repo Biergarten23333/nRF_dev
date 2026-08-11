@@ -33,6 +33,10 @@ class DrainHealth:
     raw_bytes_submitted: int = 0
     raw_bytes_written: int = 0
     payload_decode_errors: int = 0
+    decoded_records: int = 0
+    raw_chunk_count: int = 0
+    first_raw_monotonic: float | None = None
+    last_raw_monotonic: float | None = None
 
 
 class _RawBinaryWriter:
@@ -207,6 +211,7 @@ class ThreadedLineChannel(LineChannel):
         # is queued to _BatchedLogWriter, so this remains non-blocking and a
         # slow consumer cannot create an unlogged interval.
         self._record("RX", line)
+        self.health.decoded_records += 1
         try:
             self._decoded.put_nowait(line)
         except queue.Full:
@@ -283,6 +288,11 @@ class ThreadedLineChannel(LineChannel):
                 raw = self.device.read(max(1, min(16384, waiting)))
                 self._reader_heartbeat = time.monotonic()
                 if raw:
+                    now = time.monotonic()
+                    if self.health.first_raw_monotonic is None:
+                        self.health.first_raw_monotonic = now
+                    self.health.last_raw_monotonic = now
+                    self.health.raw_chunk_count += 1
                     if self._raw_writer is not None and not self._raw_writer.submit(raw):
                         self._note_red("raw_queue_full",f"limit={self._raw_writer.items.maxsize}")
                     self._consume(raw)
@@ -360,6 +370,10 @@ class ThreadedLineChannel(LineChannel):
         return self.discard_pending(reason)
 
     def health_snapshot(self) -> dict[str, object]:
+        try:
+            serial_input_bytes = int(self.device.in_waiting) if self.device is not None else 0
+        except Exception:
+            serial_input_bytes = -1
         return {
             "decoded_queue_depth": self._decoded.qsize(),
             "decoded_queue_limit": self._decoded.maxsize,
@@ -377,6 +391,11 @@ class ThreadedLineChannel(LineChannel):
             "raw_bytes_written": self.health.raw_bytes_written,
             "frame_crc_decode_errors": self.binary_decoder.errors,
             "payload_decode_errors": self.health.payload_decode_errors,
+            "decoded_records": self.health.decoded_records,
+            "raw_chunk_count": self.health.raw_chunk_count,
+            "first_raw_monotonic": self.health.first_raw_monotonic,
+            "last_raw_monotonic": self.health.last_raw_monotonic,
+            "serial_input_bytes": serial_input_bytes,
             "reader_heartbeat_age_s": time.monotonic()
             - self._reader_heartbeat,
             "backlog_red_threshold_records": self._backlog_red_records,

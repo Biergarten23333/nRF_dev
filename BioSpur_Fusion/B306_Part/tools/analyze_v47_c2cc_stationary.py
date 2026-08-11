@@ -160,10 +160,20 @@ def load_single_node(run: Path):
     uwb = np.asarray(uwb_rows, dtype=UWB_DTYPE)
     if not len(imu) or not len(uwb):
         raise RuntimeError("formal raw contains no BSFC2CC IMU/UWB")
+    stale_imu=stale_uwb=post_imu=post_uwb=0
+    bounds=manifest.get("formal_source_bounds")
+    if bounds:
+        start,end=bounds["t0_exclusive"],bounds["t1_inclusive"]
+        imask,umask,start_imu,end_imu=formal_source_masks(imu,uwb,bounds)
+        stale_imu=int(np.sum(imu["b306_us"]<=start_imu));post_imu=int(np.sum(imu["b306_us"]>end_imu))
+        stale_uwb=int(np.sum(uwb["strobe_us"]<=int(start["uwb_strobe_us"])));post_uwb=int(np.sum(uwb["strobe_us"]>int(end["uwb_strobe_us"])))
+        imu=imu[imask];uwb=uwb[umask]
     audit = {"raw_sha256": sha(raw), "raw_size": size, "formal_offset": offset,
              "decode_errors": errors, "shutdown_tail_bytes": tail,
              "kind_counts": dict(sorted(kind_counts.items())),
-             "foreign_node_records": dict(sorted(foreign.items())), "duplicate_frames": duplicates}
+             "foreign_node_records": dict(sorted(foreign.items())), "duplicate_frames": duplicates,
+             "stale_imu_samples_crossing_t0":stale_imu,"stale_uwb_sweeps_crossing_t0":stale_uwb,
+             "post_t1_imu_samples_excluded":post_imu,"post_t1_uwb_sweeps_excluded":post_uwb}
     return imu, uwb, audit
 
 
@@ -262,6 +272,14 @@ def missing_sequence_count(values: np.ndarray, modulus: int) -> int:
     delta=(values[1:].astype(np.uint64)-values[:-1].astype(np.uint64))%modulus
     return int(np.sum(np.where((delta>1)&(delta<modulus//2),delta-1,0)))
 
+def formal_source_masks(imu,uwb,bounds):
+    start,end=bounds["t0_exclusive"],bounds["t1_inclusive"]
+    start_imu=int(start["imu_base_us"])+(int(start["imu_n"])-1)*5000
+    end_imu=int(end["imu_base_us"])+(int(end["imu_n"])-1)*5000
+    return ((imu["b306_us"]>start_imu)&(imu["b306_us"]<=end_imu),
+            (uwb["strobe_us"]>int(start["uwb_strobe_us"]))&(uwb["strobe_us"]<=int(end["uwb_strobe_us"])),
+            start_imu,end_imu)
+
 
 def capture_integrity(run, imu, uwb, raw_audit):
     ledger = json.loads((run / "formal_capture/PROCESS_LEDGER.json").read_text())
@@ -280,6 +298,7 @@ def capture_integrity(run, imu, uwb, raw_audit):
         "uwb_sequence_gap_zero": sequence_gap_count(uwb["sweep"], 1 << 32) == 0,
         "timestamp_monotonic": bool(np.all(imu_dt > 0) and np.all(uwb_dt > 0)),
         "duplicates_zero": raw_audit["duplicate_frames"] == 0,
+        "stale_records_crossing_t0_zero": raw_audit.get("stale_imu_samples_crossing_t0",0)==0 and raw_audit.get("stale_uwb_sweeps_crossing_t0",0)==0,
         "formal_decode_errors_zero": raw_audit["decode_errors"] == 0 and not any(deltas.values()),
         "queues_closed": int(final.get("raw_queue_depth", 0)) == 0 and int(final.get("decoded_queue_depth", 0)) == 0,
         "raw_accounting_closed": int(final.get("raw_bytes_submitted", -1)) == int(final.get("raw_bytes_written", -2)) == raw_audit["raw_size"],
