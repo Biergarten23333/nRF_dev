@@ -1,0 +1,35 @@
+{
+  "M0": "eight independent range states; no position when geometry blocked",
+  "M1": "actual-time IMU propagation, no ZUPT/UWB",
+  "M2": "M1 + 20 Hz Kalman zero-velocity measurement",
+  "M3": "M1 + audited UWB range-space path; position coupling blocked",
+  "M4": "M2 + audited UWB range-space path; position coupling blocked",
+  "ablations": [
+    "fixed 0.005 s vs actual over frozen T0+1..484 s baseline",
+    "no gyro-bias initialization over frozen T0+1..484 s baseline",
+    "M1/M2/M3/M4",
+    "uniform vs per-link R",
+    "gate disabled vs enabled",
+    "table vibration ZUPT included vs excluded"
+  ],
+  "common_inertial": {
+    "accel_noise_sigma_mps2": 0.12,
+    "covariance_update_hz": 20,
+    "gyro_bias_rw_sigma_dps2": 0.002,
+    "gyro_noise_sigma_dps": 0.12,
+    "initialization": "gyro mean and gravity direction over T0+1..60 s; yaw=0",
+    "state": "p(3), v(3), scalar-first q_body_to_local(4), gyro_bias(3); 12-state error covariance"
+  },
+  "uwb": {
+    "invalid_policy": "audit, no update",
+    "nis_gate": 10.827566,
+    "per_link_R": "(max(20 mm, 1.4826*MAD))^2 from T0+1..484 s only",
+    "quality_changes_measurement": false,
+    "uniform_R": "median per-link robust sigma, same floor"
+  },
+  "zupt": {
+    "direct_velocity_assignment": false,
+    "measurement_sigma_mps": 0.02,
+    "source": "frozen STATIC_SEGMENTS.csv minus all frozen table/move events"
+  }
+}

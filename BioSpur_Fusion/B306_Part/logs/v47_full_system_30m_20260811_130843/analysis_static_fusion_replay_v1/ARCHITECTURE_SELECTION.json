@@ -1,0 +1,36 @@
+{
+  "algorithm_origin_commit": "1b80923d1afe483f3be5d1afc18d6ef8ea6c5802",
+  "audited_branch": "feature/wand-internal-sweep",
+  "audited_branch_head": "94ef793faec8570fbf6779a187ad9765a15e9c22",
+  "control_only": {
+    "T11": "IMU-only free-drift control"
+  },
+  "eliminate_from_final_architecture": [
+    {
+      "algorithm": "T2LITE",
+      "reason": "fixed alpha heuristic has no covariance-consistent feedback; retain only as IMU-corrects-UWB control"
+    },
+    {
+      "algorithm": "T3LITE",
+      "reason": "fixed 0.68/0.32 blend double-counts correlated inputs and has no joint covariance; retain only as bidirectional historical control"
+    },
+    {
+      "algorithm": "phase2 generic T2/T3/T5 label sweep",
+      "reason": "all three labels call the same relative_motion_filter and differ mainly by sigma, so it cannot establish correction-direction superiority"
+    }
+  ],
+  "inherit": {
+    "direction": "T5 UWB_CORRECTS_IMU",
+    "implementation": "do not inherit T5LITE unchanged; replace truth/yaw-only/solved-position assumptions after geometry-bound replay",
+    "rationale": "one coherent inertial state receives probabilistic observations; compatible with future raw-range T6/T8 coupling",
+    "scope": "architecture direction only"
+  },
+  "performance_ranking_allowed": false,
+  "reason": "all spatial historical paths are equally blocked by current-room geometry/delay binding",
+  "schema": "historical-fusion-direction-selection-v1",
+  "separate_pending_candidates": {
+    "T6": "raw-range prototype, blocked geometry",
+    "T8": "robust raw-range prototype, blocked geometry"
+  },
+  "warning": "This is a structural inheritance decision, not a real-data performance win; M4 is not selected as the final architecture."
+}
