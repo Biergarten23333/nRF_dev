@@ -497,6 +497,40 @@ def exact_single_node_regressions(frozen):
     write_json(cache,rows);return rows
 
 
+def tabletop_covariance_regressions(frozen):
+    """Exact full-rate repaired covariance replay for every tabletop node."""
+    import analyze_v47_q1_foundation as foundation
+    cache=TRACE_ROOT/"tabletop_covariance_regression_cache.json"
+    if cache.exists():return json.loads(cache.read_text())
+    imu,uwb,audit=foundation.load_capture(foundation.TABLE)
+    if audit.raw_sha256 != foundation.EXPECTED_RAW["tabletop"]:
+        raise RuntimeError("tabletop raw hash mismatch")
+    prior=(ROOT/"B306_Part/logs/quaternion_eskf_foundation_20260812/REAL_DATA_ATTITUDE_RESULTS.csv").read_text()
+    rows=[]
+    for node in foundation.NODES:
+        x=imu[node];acc_g,gyro_dps,_=imu_physical(x);timestamp=x["b306_us"].astype(float)*1e-6
+        rel=timestamp-timestamp[0];init=(rel>=1)&(rel<min(60,float(rel[-1])))
+        q1=Q1T4ESKF(Q1Parameters(),FrameBinding())
+        q1.initialize_from_stationary(np.mean(acc_g[init],axis=0)*9.80665,np.radians(np.mean(gyro_dps[init],axis=0)))
+        for i in range(len(x)):
+            q1.propagate(timestamp[i],acc_g[i]*9.80665,np.radians(gyro_dps[i]))
+        s=spectrum(q1.P);movement="NOT_APPLICABLE"
+        if node in ("BSFC2CC","BSFAA61"):
+            movement=any(line.startswith(f"TEN_NODE_TABLETOP,{node},FULL") and ",FLEET_CONTEXT,True," in line for line in prior.splitlines())
+        finite=all(np.isfinite(z).all() for z in (q1.p,q1.v,q1.q,q1.b_a,q1.b_g,q1.P))
+        no_creep=bool(np.array_equal(q1.p,np.zeros(3)) and np.array_equal(q1.v,np.zeros(3)))
+        passed=finite and s["cholesky"] and s["lambda_min"]>=-s["roundoff_bound"] and no_creep and movement in (True,"NOT_APPLICABLE") and q1.reinitializations==0
+        rows.append({"dataset":"tabletop","node":node,"source_raw_sha256":audit.raw_sha256,
+            "replay_scope":"exact full-rate repaired covariance; frozen fleet-context motion labels",
+            "state_finite":finite,"covariance_valid":s["cholesky"] and s["lambda_min"]>=-s["roundoff_bound"],
+            "motion_behavior_retained":movement in (True,"NOT_APPLICABLE"),"known_C2CC_AA61_movement_detected":movement,
+            "no_false_stationary_relock":"NOT_REOPENED_FROZEN_GATE","no_reset":q1.reinitializations==0,
+            "no_silent_spatial_creep":no_creep,"lambda_min":s["lambda_min"],"lambda_max":s["lambda_max"],
+            "cholesky":s["cholesky"],"propagations":q1.propagations,"gravity_updates":0,"zupt_updates":0,
+            "t4_blocked":len(uwb[node]),"status":"PASS" if passed else "FAIL"})
+    write_json(cache,rows);return rows
+
+
 def plot_all(out, legacy, repaired_rows, block_rows_all, references):
     def save(name):
         plt.tight_layout();plt.savefig(out/name,format="svg",metadata={"Date":None});plt.close()
@@ -571,7 +605,7 @@ def derive(out: Path, keep_traces: bool) -> None:
                 part=real_reference_comparison(node,imu[node],times[node],frozen["per_node"][node],EXPECTED_OLD[node][0])
                 write_json(partial,part);references.extend(part)
         write_json(reference_cache,references)
-    synthetic=synthetic_cases();regressions=exact_single_node_regressions(frozen)+[r for r in regression_rows() if r["dataset"]=="tabletop"]
+    synthetic=synthetic_cases();regressions=exact_single_node_regressions(frozen)+tabletop_covariance_regressions(frozen)
     write_csv(out/"FIRST_FAILURE_TRACE.csv",compact)
     write_csv(out/"STATE_BLOCK_GROWTH.csv",blocks)
     write_csv(out/"SYNTHETIC_24H_RESULTS.csv",synthetic)
