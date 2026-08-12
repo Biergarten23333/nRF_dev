@@ -142,6 +142,16 @@ class Q1Parameters:
     t4_position_sigma_m: np.ndarray = field(default_factory=lambda: np.array([.05, .05, .08]))
     max_dt_s: float = 0.1
     covariance_period_samples: int = 10
+    gravity_nis_limit: float = 16.26623619623813  # chi-square(3), 99.9%
+    gravity_norm_residual_limit_g: float = 0.060
+
+
+@dataclass(frozen=True)
+class GravityUpdateDecision:
+    accepted: bool
+    reason: str
+    nis: float
+    norm_residual_g: float
 
 
 class Q1T4ESKF:
@@ -158,6 +168,8 @@ class Q1T4ESKF:
                                np.full(3, .1**2), np.full(3, math.radians(.2)**2)])
         self.last_timestamp_s = None
         self.propagations = self.gravity_updates = self.zupt_updates = self.t4_updates = 0
+        self.gravity_update_attempts = self.gravity_update_rejections = 0
+        self.gravity_motion_ineligible = 0
         self.blocked_t4_updates = self.reinitializations = 0
         self.max_quaternion_norm_error = self.max_quaternion_sign_jump = 0.0
         self.max_covariance_asymmetry = 0.0; self.min_covariance_eigenvalue = math.inf
@@ -267,6 +279,40 @@ class Q1T4ESKF:
         nis = self._correct(innovation, H, np.eye(3)*self.parameters.gravity_sigma_mps2**2)
         self.gravity_updates += 1
         return nis
+
+    def gravity_update_causal(self, accel_B_mps2: np.ndarray, *,
+                              motion_state: str = "STATIONARY") -> GravityUpdateDecision:
+        """Apply a causal gravity pseudo-measurement integrity gate.
+
+        Propagation is deliberately outside this method and is never undone.
+        A caller's already-causal motion state distinguishes legitimate motion
+        ineligibility from a stationary measurement-integrity rejection.  No
+        future samples, replacement, interpolation, or filter reset are used.
+        """
+        accel = np.asarray(accel_B_mps2, dtype=float)
+        gravity_up_N = -np.asarray(self.binding.gravity_N_mps2)
+        predicted = self.b_a + quaternion_to_matrix(self.q).T @ gravity_up_N
+        innovation = accel - predicted
+        H = np.zeros((3, ERROR_STATE_SIZE))
+        H[:, 6:9] = skew(predicted - self.b_a)
+        H[:, 9:12] = np.eye(3)
+        R = np.eye(3)*self.parameters.gravity_sigma_mps2**2
+        S = H @ self.P @ H.T + R
+        nis = float(innovation @ np.linalg.solve(S, innovation))
+        residual_g = abs(float(np.linalg.norm(accel))/G_MPS2 - 1.0)
+        self.gravity_update_attempts += 1
+        if motion_state != "STATIONARY":
+            self.gravity_motion_ineligible += 1
+            return GravityUpdateDecision(False, "MOTION_GRAVITY_INELIGIBLE", nis, residual_g)
+        if not math.isfinite(nis) or nis > self.parameters.gravity_nis_limit:
+            self.gravity_update_rejections += 1
+            return GravityUpdateDecision(False, "INNOVATION_NIS_REJECTED", nis, residual_g)
+        if residual_g > self.parameters.gravity_norm_residual_limit_g:
+            self.gravity_update_rejections += 1
+            return GravityUpdateDecision(False, "GRAVITY_NORM_REJECTED", nis, residual_g)
+        self._correct(innovation, H, R)
+        self.gravity_updates += 1
+        return GravityUpdateDecision(True, "ACCEPTED", nis, residual_g)
 
     def zupt_update(self) -> float:
         H = np.zeros((3, ERROR_STATE_SIZE)); H[:, 3:6] = np.eye(3)

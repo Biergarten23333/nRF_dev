@@ -1,0 +1,38 @@
+{
+  "accepted_formal_run": "v47_c2cc_calibration_revalidation_v2_20260812_220311",
+  "attempts_before_formal_run": [
+    {
+      "directory": "v47_c2cc_calibration_revalidation_v2_20260812_214846",
+      "entered_pose_collection": false,
+      "result": "FAIL_CLOSED_IDENTITY_SNAPSHOT_DURING_STALE_PREFIX",
+      "transmitted_commands": [
+        "MASTER STATUS",
+        "LIST",
+        "BSFC2CC PING",
+        "BSFC2CC BOOT CONFIRM STATUS"
+      ],
+      "write_or_mutating_commands": []
+    },
+    {
+      "directory": "v47_c2cc_calibration_revalidation_v2_20260812_215652",
+      "entered_pose_collection": false,
+      "result": "FAIL_CLOSED_NO_BSFC2CC_IMU_BEFORE_ANY_TX",
+      "transmitted_commands": []
+    },
+    {
+      "directory": "v47_c2cc_passive_visibility_20260812_220001",
+      "duration_s": 60,
+      "entered_pose_collection": false,
+      "observed_c2cc_records": 0,
+      "result": "PASSIVE_CONFIRMATION_NODE_NOT_VISIBLE_WHILE_OPERATOR_REPORTED_BOARD_WAS_CHARGING",
+      "transmitted_commands": []
+    }
+  ],
+  "formal_boundary": {
+    "operator_statement": "已充好并上线",
+    "interpretation": "charging completed before formal collector open; charger removed; board online",
+    "charging_during_formal_run": false,
+    "hardware_mutations_by_codex": []
+  },
+  "raw_timelines_are_not_appended_or_combined": true
+}

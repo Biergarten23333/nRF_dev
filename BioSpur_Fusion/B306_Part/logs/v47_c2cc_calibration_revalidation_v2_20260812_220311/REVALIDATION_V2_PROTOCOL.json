@@ -1,0 +1,83 @@
+{
+  "capture_gate": {
+    "accepted_window_minimum_s": 20.0,
+    "accepted_window_target_s": 32.0,
+    "closed_raw_byte_accounting": true,
+    "no_reboot_or_reconnect": true,
+    "pose_count": 6,
+    "serial_crc_decode_parse_queue_errors": 0,
+    "sequence_gaps": 0,
+    "timestamp_reversals": 0
+  },
+  "capture_lifecycle": [
+    "COLLECTOR_OPEN",
+    "WARMUP_AND_CDC_DRAIN",
+    "LIVE_CATCHUP",
+    "SIX_NEW_HELDOUT_POSES",
+    "FINAL_STILL",
+    "CLEAN_STOP"
+  ],
+  "frozen_calibration": {
+    "model": "DIAGONAL_SCALE",
+    "parameter_changes_allowed": 0,
+    "profile_sha256": "10895c252adbe23cb26ef1e0824abf460f3b8c03fd04d63508e06242fe63a73c",
+    "status_at_protocol_freeze": "FROZEN_CANDIDATE_PENDING_REVALIDATION"
+  },
+  "historical_truth": {
+    "primary_verdict": "C2CC_DEVICE_CALIBRATION_FAIL",
+    "raw_sha256": "d942a8cf711c66c3ee1ff6cff47edfa8005b9be6e1d4a351245ab1ea193f4a1c",
+    "retention": "IMMUTABLE"
+  },
+  "operator_tokens": [
+    "FIXED",
+    "STOP"
+  ],
+  "pose_order": [
+    "broad enclosure face A upward",
+    "broad enclosure face A downward",
+    "long edge 1 downward",
+    "opposite long edge downward",
+    "short edge 1 downward",
+    "opposite short edge downward"
+  ],
+  "protocol": "C2CC_DEVICE_CALIBRATION_REVALIDATION_V2",
+  "q1_runtime_gate": {
+    "causal_only": true,
+    "gravity_nis_chi_square_3dof_limit": 16.26623619623813,
+    "gravity_nis_probability": 0.999,
+    "gravity_norm_abs_residual_limit_g": 0.06,
+    "policy": "retain raw; always propagate gyro/quaternion; evaluate gravity eligibility; reject anomalous gravity update without reset; log decision",
+    "prohibited": [
+      "future samples",
+      "median replacement",
+      "interpolation",
+      "filter reset"
+    ]
+  },
+  "sensor_transient_gate": {
+    "burst_count_ge_2_max": 1,
+    "confidence_interval": "two-sided exact Clopper-Pearson 95%",
+    "definition": {
+      "corrected_abs_norm_residual_g_gt": 0.06,
+      "gyro_or_handling_classification_required": true,
+      "local_inconsistency": "vector deviation > max(0.030 g, 10 * 1.4826 * local vector MAD norm), causal window uses prior 20 samples"
+    },
+    "exposure_sufficiency": "upper endpoint of exact 95% interval must be < 1/10000; otherwise CONDITIONAL when every other gate passes",
+    "isolated_rate_lt": 0.0001,
+    "maximum_consecutive_lt": 3,
+    "no_clustering_within_s": 60.0,
+    "q1_requirement": "every candidate rejected; no quaternion jump, covariance failure, false motion transition"
+  },
+  "systematic_calibration_gate": {
+    "aggregate_corrected_abs_p95_g_lt": 0.01,
+    "aggregate_corrected_abs_p99_g_lt": 0.02,
+    "aggregate_corrected_rmse_g_lt": 0.005,
+    "equivalence_definition": "corrected per-pose RMSE <= uncalibrated per-pose RMSE + 0.0005 g",
+    "equivalence_tolerance_g": 0.0005,
+    "no_persistent_directional_median_abs_residual_g_ge": 0.02,
+    "parameter_changes_after_freeze": 0,
+    "per_pose_median_abs_residual_g_lt": 0.01
+  },
+  "validation_data_use": "HELD_OUT_ONLY_NO_REFIT",
+  "version": 2
+}

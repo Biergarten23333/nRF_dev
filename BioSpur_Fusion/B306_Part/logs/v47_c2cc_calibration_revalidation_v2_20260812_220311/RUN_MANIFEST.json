@@ -1,0 +1,367 @@
+{
+  "all_observed_nodes": [
+    "BSFC2CC"
+  ],
+  "close_drain": {
+    "discarded_records": 1,
+    "kinds": {
+      "FUSION_IMU": 1
+    },
+    "monotonic": 29237.524267314,
+    "reason": "arbitrary_pose_clean_stop"
+  },
+  "collector_open": {
+    "consumed_record_index": 0,
+    "decoded_record_index": 3,
+    "monotonic": 28700.626930166,
+    "name": "COLLECTOR_OPEN",
+    "raw_byte_offset": 193,
+    "wall": "2026-08-12T22:03:43.639+02:00"
+  },
+  "commands": [
+    {
+      "classification": "READ_ONLY_IDENTITY_OBSERVATION_AFTER_LIVE_CATCHUP",
+      "command": "MASTER STATUS",
+      "monotonic": 28820.002943216
+    },
+    {
+      "classification": "READ_ONLY_IDENTITY_OBSERVATION_AFTER_LIVE_CATCHUP",
+      "command": "LIST",
+      "monotonic": 28820.003011596
+    },
+    {
+      "classification": "READ_ONLY_IDENTITY_OBSERVATION_AFTER_LIVE_CATCHUP",
+      "command": "BSFC2CC PING",
+      "monotonic": 28820.003253575
+    },
+    {
+      "classification": "READ_ONLY_IDENTITY_OBSERVATION_AFTER_LIVE_CATCHUP",
+      "command": "BSFC2CC BOOT CONFIRM STATUS",
+      "monotonic": 28820.00352069
+    }
+  ],
+  "decode_before_send_guard": {
+    "baud": 115200,
+    "dtr": false,
+    "known_record": "FUSION_IMU proto=7 name=BSFC2CC master_ms=196281785 seq=9510 base_us=49681583 n=10 temp_raw=2960 samples=0,-2054,41,122,0,-5,0;5000,-2047,43,122,0,-5,0;10000,-2049,43,121,0,-5,0;15000,-2048,43,121,0,-5,0;20000,-2051,44,120,1,-5,0;25000,-205",
+    "passed": true,
+    "port": "/dev/ttyACM13",
+    "rts": false
+  },
+  "derivation": {
+    "frozen_profile_sha256_after": "10895c252adbe23cb26ef1e0824abf460f3b8c03fd04d63508e06242fe63a73c",
+    "historical_audit": "../v47_c2cc_calibration_revalidation_v2_20260812_214846/historical_transient_audit",
+    "parameter_changes": 0,
+    "primary_verdict": "C2CC_DEVICE_CALIBRATION_REVALIDATION_CONDITIONAL",
+    "protocol_sha256_after": "d87503c8bcf100c9b823fd1fd08ae6e6b72eb255d03d4f2605c9fdd849e557dd",
+    "raw_sha256_after": "de13dec76126fabfb085e8551b101ceed87878baf3d834dcb9d07c872053be70",
+    "raw_sha256_before": "de13dec76126fabfb085e8551b101ceed87878baf3d834dcb9d07c872053be70"
+  },
+  "end_wall": "2026-08-12T22:12:40.739+02:00",
+  "frozen_profile_sha256": "10895c252adbe23cb26ef1e0824abf460f3b8c03fd04d63508e06242fe63a73c",
+  "frozen_profile_sha256_after": "10895c252adbe23cb26ef1e0824abf460f3b8c03fd04d63508e06242fe63a73c",
+  "hardware_mutations": [],
+  "health_final": {
+    "backlog_red_threshold_records": 131072,
+    "decoded_queue_depth": 0,
+    "decoded_queue_drops": 0,
+    "decoded_queue_high_water": 27,
+    "decoded_queue_limit": 1048576,
+    "decoded_records": 22632,
+    "first_raw_monotonic": 28700.626170942,
+    "frame_crc_decode_errors": 1,
+    "last_raw_monotonic": 29237.524107087,
+    "log_queue_drops": 0,
+    "log_queue_high_water": 12,
+    "payload_decode_errors": 0,
+    "raw_backlog_high_water": 385,
+    "raw_backlog_red_threshold_bytes": 131072,
+    "raw_bytes_submitted": 3485274,
+    "raw_bytes_written": 3485274,
+    "raw_chunk_count": 116978,
+    "raw_queue_depth": 0,
+    "raw_queue_drops": 0,
+    "raw_queue_high_water": 16,
+    "reader_exceptions": 0,
+    "reader_heartbeat_age_s": 0.2025467670027865,
+    "red_markers": 0,
+    "serial_input_bytes": -1,
+    "stall_red_threshold_s": 2
+  },
+  "historical_verdict": "C2CC_DEVICE_CALIBRATION_FAIL",
+  "identity_observation": {
+    "checks": {
+      "confirmed": true,
+      "exact_single_peer": true,
+      "identity": true,
+      "master_marker": true,
+      "peer_ready": true
+    },
+    "confirm": {
+      "committed": "0",
+      "confirmed": "1",
+      "enabled": "1",
+      "guard_ms": "5000",
+      "prepared": "0",
+      "required": "0",
+      "timeout_ms": "180000"
+    },
+    "list": {
+      "capacity": "10",
+      "count": "1",
+      "qos": "enabled",
+      "qos_unknown": "0",
+      "ready": "1",
+      "scanning": "1",
+      "spacing": "ON",
+      "spacing_failed": "0",
+      "spacing_generation": "1",
+      "spacing_transition": "0",
+      "spacing_us": "5000"
+    },
+    "master": {
+      "cdc_drop_bytes": "829179277",
+      "cdc_drop_records": "5177617",
+      "count": "1",
+      "logger_drop": "0",
+      "malformed": "0",
+      "marker": "dk-fusion-imu-relay-v36",
+      "qos": "enabled",
+      "qos_unknown": "0",
+      "ready": "1",
+      "spacing": "ON",
+      "spacing_generation": "1",
+      "spacing_us": "5000"
+    },
+    "peers": [
+      {
+        "connected": "1",
+        "control": "26",
+        "dle_readback": "1",
+        "dle_rx_len": "251",
+        "dle_rx_time": "2120",
+        "dle_tx_len": "251",
+        "dle_tx_time": "2120",
+        "hci_handle": "3240",
+        "imu_epoch_defer_drop": "1",
+        "index": "0",
+        "interval_units": "40",
+        "interval_us": "50000",
+        "latency": "0",
+        "link_contract": "PASS",
+        "logger_drop": "0",
+        "malformed": "0",
+        "name": "BSFC2CC",
+        "packets": "5209",
+        "phy_readback": "1",
+        "phy_rx": "2",
+        "phy_tx": "2",
+        "qos_event_gaps_window": "0",
+        "qos_reports_window": "9",
+        "rssi": "-70",
+        "subscribed": "1",
+        "timeout_units": "400"
+      }
+    ],
+    "pong": {
+      "fw": "b306-imu-relay-v47",
+      "fwid": "f7436728c36efdd28f848e7ef59c7c422437afb8c6ee07dd8924e31967046eed",
+      "image_sha": "90ef063b227feb4c70499cc186df866c24da658fba98773eacc40da73a0abf98",
+      "name": "BSFC2CC",
+      "proto": "7"
+    }
+  },
+  "live_catchup": {
+    "consumed_record_index": 5302,
+    "decoded_record_index": 5302,
+    "disposition": "LIVE_CATCHUP_OBSERVED",
+    "monotonic": 28820.00046375,
+    "name": "LIVE_CATCHUP",
+    "raw_byte_offset": 787680,
+    "stable_seconds": 30,
+    "wall": "2026-08-12T22:05:43.013+02:00"
+  },
+  "node": "BSFC2CC",
+  "parameter_changes_after_freeze": 0,
+  "phases": [
+    {
+      "accepted": true,
+      "duration_s": 32.151108105001185,
+      "end": {
+        "consumed_record_index": 9557,
+        "decoded_record_index": 9558,
+        "monotonic": 28922.446313551,
+        "name": "HELDOUT_POSE_1_ACCEPT",
+        "raw_byte_offset": 1450450,
+        "wall": "2026-08-12T22:07:25.458+02:00"
+      },
+      "pose": 1,
+      "reason": "CONTINUOUS_STATIONARY_BLIND",
+      "samples": 6430,
+      "set": "HELDOUT_REVALIDATION_V2",
+      "start": {
+        "consumed_record_index": 8226,
+        "decoded_record_index": 8226,
+        "monotonic": 28890.438757782,
+        "name": "HELDOUT_POSE_1_FIXED",
+        "raw_byte_offset": 1243339,
+        "wall": "2026-08-12T22:06:53.451+02:00"
+      }
+    },
+    {
+      "accepted": true,
+      "duration_s": 32.20087815300212,
+      "end": {
+        "consumed_record_index": 11765,
+        "decoded_record_index": 11765,
+        "monotonic": 28975.597571855,
+        "name": "HELDOUT_POSE_2_ACCEPT",
+        "raw_byte_offset": 1793975,
+        "wall": "2026-08-12T22:08:18.610+02:00"
+      },
+      "pose": 2,
+      "reason": "CONTINUOUS_STATIONARY_BLIND",
+      "samples": 6430,
+      "set": "HELDOUT_REVALIDATION_V2",
+      "start": {
+        "consumed_record_index": 10434,
+        "decoded_record_index": 10434,
+        "monotonic": 28943.590146434,
+        "name": "HELDOUT_POSE_2_FIXED",
+        "raw_byte_offset": 1586831,
+        "wall": "2026-08-12T22:07:46.602+02:00"
+      }
+    },
+    {
+      "accepted": true,
+      "duration_s": 32.124868328002776,
+      "end": {
+        "consumed_record_index": 14117,
+        "decoded_record_index": 14117,
+        "monotonic": 29032.099879673,
+        "name": "HELDOUT_POSE_3_ACCEPT",
+        "raw_byte_offset": 2159352,
+        "wall": "2026-08-12T22:09:15.112+02:00"
+      },
+      "pose": 3,
+      "reason": "CONTINUOUS_STATIONARY_BLIND",
+      "samples": 6430,
+      "set": "HELDOUT_REVALIDATION_V2",
+      "start": {
+        "consumed_record_index": 12790,
+        "decoded_record_index": 12790,
+        "monotonic": 29000.192541486,
+        "name": "HELDOUT_POSE_3_FIXED",
+        "raw_byte_offset": 1953000,
+        "wall": "2026-08-12T22:08:43.205+02:00"
+      }
+    },
+    {
+      "accepted": true,
+      "duration_s": 32.00263226000243,
+      "end": {
+        "consumed_record_index": 16466,
+        "decoded_record_index": 16466,
+        "monotonic": 29088.90318936,
+        "name": "HELDOUT_POSE_4_ACCEPT",
+        "raw_byte_offset": 2525492,
+        "wall": "2026-08-12T22:10:11.915+02:00"
+      },
+      "pose": 4,
+      "reason": "CONTINUOUS_STATIONARY_BLIND",
+      "samples": 6390,
+      "set": "HELDOUT_REVALIDATION_V2",
+      "start": {
+        "consumed_record_index": 15145,
+        "decoded_record_index": 15145,
+        "monotonic": 29057.093982735,
+        "name": "HELDOUT_POSE_4_FIXED",
+        "raw_byte_offset": 2320320,
+        "wall": "2026-08-12T22:09:40.106+02:00"
+      }
+    },
+    {
+      "accepted": true,
+      "duration_s": 32.102094981000846,
+      "end": {
+        "consumed_record_index": 18790,
+        "decoded_record_index": 18790,
+        "monotonic": 29144.852360672,
+        "name": "HELDOUT_POSE_5_ACCEPT",
+        "raw_byte_offset": 2886972,
+        "wall": "2026-08-12T22:11:07.864+02:00"
+      },
+      "pose": 5,
+      "reason": "CONTINUOUS_STATIONARY_BLIND",
+      "samples": 6410,
+      "set": "HELDOUT_REVALIDATION_V2",
+      "start": {
+        "consumed_record_index": 17461,
+        "decoded_record_index": 17461,
+        "monotonic": 29112.895352485,
+        "name": "HELDOUT_POSE_5_FIXED",
+        "raw_byte_offset": 2680214,
+        "wall": "2026-08-12T22:10:35.907+02:00"
+      }
+    },
+    {
+      "accepted": true,
+      "duration_s": 32.20086885799901,
+      "end": {
+        "consumed_record_index": 21812,
+        "decoded_record_index": 21812,
+        "monotonic": 29217.507757961,
+        "name": "HELDOUT_POSE_6_ACCEPT",
+        "raw_byte_offset": 3356767,
+        "wall": "2026-08-12T22:12:20.520+02:00"
+      },
+      "pose": 6,
+      "reason": "CONTINUOUS_STATIONARY_BLIND",
+      "samples": 6440,
+      "set": "HELDOUT_REVALIDATION_V2",
+      "start": {
+        "consumed_record_index": 20481,
+        "decoded_record_index": 20481,
+        "monotonic": 29185.446953207,
+        "name": "HELDOUT_POSE_6_FIXED",
+        "raw_byte_offset": 3149643,
+        "wall": "2026-08-12T22:11:48.459+02:00"
+      }
+    },
+    {
+      "accepted": true,
+      "duration_s": 20.14897775300051,
+      "end": {
+        "consumed_record_index": 22631,
+        "decoded_record_index": 22632,
+        "monotonic": 29237.509620717,
+        "name": "FINAL_STILL_ACCEPT",
+        "raw_byte_offset": 3485273,
+        "wall": "2026-08-12T22:12:40.522+02:00"
+      },
+      "reason": "CONTINUOUS_STATIONARY_BLIND",
+      "samples": 4020,
+      "start": {
+        "consumed_record_index": 21812,
+        "decoded_record_index": 21812,
+        "monotonic": 29217.507806106,
+        "name": "FINAL_STILL_FIXED",
+        "raw_byte_offset": 3356767,
+        "wall": "2026-08-12T22:12:20.520+02:00"
+      }
+    }
+  ],
+  "port": "/dev/ttyACM13",
+  "pose_count": 6,
+  "protocol_frozen_before_capture": true,
+  "protocol_mtime_ns": 1786565017139450045,
+  "protocol_sha256": "d87503c8bcf100c9b823fd1fd08ae6e6b72eb255d03d4f2605c9fdd849e557dd",
+  "protocol_sha256_after": "d87503c8bcf100c9b823fd1fd08ae6e6b72eb255d03d4f2605c9fdd849e557dd",
+  "raw_sha256": "de13dec76126fabfb085e8551b101ceed87878baf3d834dcb9d07c872053be70",
+  "schema": "biospur-c2cc-revalidation-v2-capture-v1",
+  "sequence_time_faults": [],
+  "serial_open_count": 1,
+  "start_wall": "2026-08-12T22:03:43.623+02:00",
+  "stop_reason": "PLANNED_SEQUENCE_COMPLETE",
+  "unexpected_observations": []
+}
