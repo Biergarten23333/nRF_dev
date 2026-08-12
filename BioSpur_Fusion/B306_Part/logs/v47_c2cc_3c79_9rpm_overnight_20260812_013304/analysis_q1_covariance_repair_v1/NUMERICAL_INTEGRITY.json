@@ -1,0 +1,72 @@
+{
+  "covariance_clipping": false,
+  "diagonal_loading": false,
+  "evidence_unchanged": true,
+  "filter_restart": false,
+  "full_spatial_real_data_coupling": "BLOCKED_FRAME_BINDING",
+  "legacy_exact_reproduction": true,
+  "motion": {
+    "BSF3C79": {
+      "false_relocks": 0,
+      "final_state": "MOVING",
+      "nonfinite": false,
+      "transitions": [
+        {
+          "from_state": "STATIONARY",
+          "hard_motion_veto": true,
+          "time_s": 0.05,
+          "to_state": "MOTION_SUSPECTED"
+        },
+        {
+          "from_state": "MOTION_SUSPECTED",
+          "hard_motion_veto": true,
+          "time_s": 0.25,
+          "to_state": "MOVING"
+        }
+      ]
+    },
+    "BSFC2CC": {
+      "false_relocks": 0,
+      "final_state": "MOVING",
+      "nonfinite": false,
+      "transitions": [
+        {
+          "from_state": "STATIONARY",
+          "hard_motion_veto": true,
+          "time_s": 0.055,
+          "to_state": "MOTION_SUSPECTED"
+        },
+        {
+          "from_state": "MOTION_SUSPECTED",
+          "hard_motion_veto": true,
+          "time_s": 0.255,
+          "to_state": "MOVING"
+        }
+      ]
+    }
+  },
+  "new_overnight_required": false,
+  "overnight_pass": true,
+  "process_noise_retuned": false,
+  "q1_ready_for_black_box_frame_calibration": true,
+  "raw_hash_after": "e9cad96e432f27e61a3a88105cf68e725ee398ba5743490a413f24a4ca7802ec",
+  "raw_hash_before": "e9cad96e432f27e61a3a88105cf68e725ee398ba5743490a413f24a4ca7802ec",
+  "regression_pass": true,
+  "schema": "biospur-q1-covariance-repair-numerical-v1",
+  "synthetic_pass": true,
+  "trace_manifest": {
+    "BSF3C79": {
+      "committed": false,
+      "path": "B306_Part/logs/v47_c2cc_3c79_9rpm_overnight_20260812_013304/forensic_q1_covariance_repair_v1/BSF3C79_legacy_first_failure_trace.npz",
+      "sha256": "78ea6d9ec1fa05e5334f2c167bc9046cadfe0df3a1320bcbd0c07d395ab9186f",
+      "steps": 14000
+    },
+    "BSFC2CC": {
+      "committed": false,
+      "path": "B306_Part/logs/v47_c2cc_3c79_9rpm_overnight_20260812_013304/forensic_q1_covariance_repair_v1/BSFC2CC_legacy_first_failure_trace.npz",
+      "sha256": "d76bedf1118b1dcb9da25d026349bf34c9fc915451a067f7710d0f2e0121ac3a",
+      "steps": 14010
+    }
+  },
+  "verdict": "Q1_COVARIANCE_REPAIR_PASS"
+}

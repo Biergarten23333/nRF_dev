@@ -18,9 +18,11 @@ import math
 from dataclasses import dataclass, field
 
 import numpy as np
+from scipy.linalg import expm
 
 G_MPS2 = 9.80665
 ERROR_STATE_SIZE = 15
+_GAUSS5_NODES, _GAUSS5_WEIGHTS = np.polynomial.legendre.leggauss(5)
 
 
 def skew(vector: np.ndarray) -> np.ndarray:
@@ -96,6 +98,14 @@ class FrameBinding:
     v4_navigation_rotation_valid: bool = False
     signed_axes_valid: bool = False
     lever_arm_valid: bool = False
+    # None preserves API compatibility: a capture-bound V4/N transform opts
+    # into full p/v inertial dynamics, while an unbound real capture is
+    # attitude-only.  Callers may set this explicitly for auditability.
+    spatial_dynamics_enabled: bool | None = None
+
+    @property
+    def spatial_active(self) -> bool:
+        return self.v4_navigation_rotation_valid if self.spatial_dynamics_enabled is None else self.spatial_dynamics_enabled
 
     def validate(self) -> None:
         gravity = np.asarray(self.gravity_N_mps2, dtype=float)
@@ -111,6 +121,8 @@ class FrameBinding:
                 raise ValueError("R_V4_N is not a proper rotation")
             if self.provenance in ("", "UNBOUND"):
                 raise ValueError("bound frame lacks provenance")
+        if self.spatial_active and not self.v4_navigation_rotation_valid:
+            raise ValueError("spatial dynamics require a validated V4/N binding")
 
     def v4_position_to_navigation(self, position_V4_m: np.ndarray) -> np.ndarray:
         self.validate()
@@ -150,6 +162,9 @@ class Q1T4ESKF:
         self.max_quaternion_norm_error = self.max_quaternion_sign_jump = 0.0
         self.max_covariance_asymmetry = 0.0; self.min_covariance_eigenvalue = math.inf
         self.max_covariance_eigenvalue = 0.0
+        self.min_relative_covariance_eigenvalue = math.inf
+        self.max_covariance_condition = 0.0
+        self.cholesky_failures = 0
         self._covariance_elapsed_s = 0.0; self._covariance_samples = 0
         self._check()
 
@@ -179,23 +194,25 @@ class Q1T4ESKF:
         omega = np.asarray(gyro_B_rad_s, dtype=float) - self.b_g
         previous_q = self.q.copy()
         rotation = quaternion_to_matrix(self.q)
-        acceleration_N = rotation @ accel + np.asarray(self.binding.gravity_N_mps2)
-        self.p += self.v*dt + .5*acceleration_N*dt*dt
-        self.v += acceleration_N*dt
+        if self.binding.spatial_active:
+            acceleration_N = rotation @ accel + np.asarray(self.binding.gravity_N_mps2)
+            self.p += self.v*dt + .5*acceleration_N*dt*dt
+            self.v += acceleration_N*dt
         self.q = quaternion_normalize(quaternion_multiply(self.q, quaternion_exp(omega*dt)), previous_q)
 
         F = np.zeros((ERROR_STATE_SIZE, ERROR_STATE_SIZE))
-        F[0:3, 3:6] = np.eye(3)
-        F[3:6, 6:9] = -rotation @ skew(accel)
-        F[3:6, 9:12] = -rotation
+        if self.binding.spatial_active:
+            F[0:3, 3:6] = np.eye(3)
+            F[3:6, 6:9] = -rotation @ skew(accel)
+            F[3:6, 9:12] = -rotation
         F[6:9, 6:9] = -skew(omega)
         F[6:9, 12:15] = -np.eye(3)
         self._covariance_elapsed_s += dt; self._covariance_samples += 1
         if self._covariance_samples >= self.parameters.covariance_period_samples:
             dc = self._covariance_elapsed_s
-            Phi = np.eye(ERROR_STATE_SIZE) + F*dc
             G = np.zeros((ERROR_STATE_SIZE, 12))
-            G[3:6, 0:3] = -rotation
+            if self.binding.spatial_active:
+                G[3:6, 0:3] = -rotation
             G[6:9, 3:6] = -np.eye(3)
             G[9:12, 6:9] = np.eye(3)
             G[12:15, 9:12] = np.eye(3)
@@ -205,7 +222,12 @@ class Q1T4ESKF:
                 np.full(3, self.parameters.accel_bias_rw_sigma_mps3_sqrt_hz**2),
                 np.full(3, self.parameters.gyro_bias_rw_sigma_rad_s2_sqrt_hz**2),
             ])
-            self.P = Phi @ self.P @ Phi.T + G @ spectral @ G.T * dc
+            continuous = G @ spectral @ G.T
+            if self.binding.spatial_active:
+                Phi, Qd = discretize_van_loan(F, continuous, dc)
+            else:
+                Phi, Qd = discretize_attitude_only(F, continuous, dc)
+            self.P = Phi @ self.P @ Phi.T + Qd
             self.P = .5*(self.P + self.P.T)
             self._covariance_elapsed_s = 0.0; self._covariance_samples = 0
         self.propagations += 1
@@ -272,13 +294,89 @@ class Q1T4ESKF:
             raise FloatingPointError("non-finite Q1 state")
         asymmetry = float(np.max(np.abs(self.P-self.P.T)))
         eigenvalues = np.linalg.eigvalsh(.5*(self.P+self.P.T))
-        if eigenvalues[0] < -1e-9:
-            raise FloatingPointError("non-PSD Q1 covariance")
+        scale = max(float(eigenvalues[-1]), 1.0)
+        relative_min = float(eigenvalues[0]) / scale
+        # Backward-error bound, not a dataset-tuned absolute tolerance.
+        psd_roundoff = 64.0 * ERROR_STATE_SIZE * np.finfo(float).eps * scale
+        if eigenvalues[0] < -psd_roundoff:
+            raise FloatingPointError("materially non-PSD Q1 covariance")
+        try:
+            np.linalg.cholesky(.5*(self.P+self.P.T))
+        except np.linalg.LinAlgError:
+            self.cholesky_failures += 1
+            raise FloatingPointError("Q1 covariance not positive definite at float64 resolution")
         self.max_covariance_asymmetry = max(self.max_covariance_asymmetry, asymmetry)
         self.min_covariance_eigenvalue = min(self.min_covariance_eigenvalue, float(eigenvalues[0]))
         self.max_covariance_eigenvalue = max(self.max_covariance_eigenvalue, float(eigenvalues[-1]))
+        self.min_relative_covariance_eigenvalue = min(self.min_relative_covariance_eigenvalue, relative_min)
+        if eigenvalues[0] > 0.0:
+            self.max_covariance_condition = max(self.max_covariance_condition, float(eigenvalues[-1]/eigenvalues[0]))
         if abs(float(np.linalg.norm(self.q))-1.0) > 1e-10:
             raise FloatingPointError("Q1 quaternion lost normalization")
+
+
+def discretize_van_loan(F: np.ndarray, continuous_process_covariance: np.ndarray,
+                        dt_s: float) -> tuple[np.ndarray, np.ndarray]:
+    """Exact zero-order-hold covariance discretization in float64.
+
+    For ``Pdot = F P + P F.T + L``, the Van Loan exponential returns the
+    exact transition and integrated process covariance for F/L held constant
+    over the covariance interval.  No diagonal loading or PSD projection is
+    performed.
+    """
+    F = np.asarray(F, dtype=float)
+    L = np.asarray(continuous_process_covariance, dtype=float)
+    if F.shape != (ERROR_STATE_SIZE, ERROR_STATE_SIZE) or L.shape != F.shape:
+        raise ValueError("invalid covariance dynamics shape")
+    dt_s = float(dt_s)
+    if not math.isfinite(dt_s) or dt_s <= 0.0:
+        raise ValueError("invalid covariance interval")
+    block = np.zeros((2*ERROR_STATE_SIZE, 2*ERROR_STATE_SIZE), dtype=float)
+    block[:ERROR_STATE_SIZE, :ERROR_STATE_SIZE] = F
+    block[:ERROR_STATE_SIZE, ERROR_STATE_SIZE:] = L
+    block[ERROR_STATE_SIZE:, ERROR_STATE_SIZE:] = -F.T
+    exponential = expm(block*dt_s)
+    phi = exponential[:ERROR_STATE_SIZE, :ERROR_STATE_SIZE]
+    qd = exponential[:ERROR_STATE_SIZE, ERROR_STATE_SIZE:] @ phi.T
+    qd = .5*(qd+qd.T)
+    return phi, qd
+
+
+def _rotation_and_integral(omega_skew: np.ndarray, duration_s: float) -> tuple[np.ndarray, np.ndarray]:
+    """Return exp(-Omega*t) and integral_0^t exp(-Omega*s) ds."""
+    omega = math.sqrt(max(0.0, -.5*float(np.trace(omega_skew@omega_skew))))
+    t = float(duration_s); ident = np.eye(3); omega2 = omega_skew@omega_skew
+    if omega < 1e-9:
+        rotation = ident-omega_skew*t+.5*omega2*t*t
+        integral = ident*t-.5*omega_skew*t*t+(1/6)*omega2*t**3
+    else:
+        angle = omega*t
+        rotation = ident-(math.sin(angle)/omega)*omega_skew+((1-math.cos(angle))/omega**2)*omega2
+        integral = ident*t-((1-math.cos(angle))/omega**2)*omega_skew+((angle-math.sin(angle))/omega**3)*omega2
+    return rotation, integral
+
+
+def discretize_attitude_only(F: np.ndarray, continuous_process_covariance: np.ndarray,
+                             dt_s: float) -> tuple[np.ndarray, np.ndarray]:
+    """Exact Phi and positive quadrature Qd for the unbound real-data mode.
+
+    In this mode p/v and their unavailable frame couplings are dormant.
+    Attitude and gyro bias retain their exact constant-rate transition;
+    accelerometer and gyro bias random walks remain honestly represented.
+    Five-point Gauss-Legendre integrates Qd as sums of positive semidefinite
+    terms, without eigenvalue projection or diagonal loading.
+    """
+    F=np.asarray(F,float);L=np.asarray(continuous_process_covariance,float);dt_s=float(dt_s)
+    phi=np.eye(ERROR_STATE_SIZE);omega_skew=-F[6:9,6:9]
+    rotation,integral=_rotation_and_integral(omega_skew,dt_s)
+    phi[6:9,6:9]=rotation;phi[6:9,12:15]=-integral
+    qd=np.zeros_like(F)
+    for node,weight in zip(_GAUSS5_NODES,_GAUSS5_WEIGHTS):
+        s=.5*dt_s*(node+1);r,j=_rotation_and_integral(omega_skew,s)
+        transition=np.eye(ERROR_STATE_SIZE);transition[6:9,6:9]=r;transition[6:9,12:15]=-j
+        qd += (.5*dt_s*weight)*(transition@L@transition.T)
+    qd=.5*(qd+qd.T)
+    return phi,qd
 
 
 @dataclass(frozen=True)
