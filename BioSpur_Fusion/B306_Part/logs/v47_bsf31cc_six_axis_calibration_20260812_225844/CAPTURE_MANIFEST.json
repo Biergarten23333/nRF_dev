@@ -1,0 +1,236 @@
+{
+  "bmd101_evaluation": "NOT_PERFORMED",
+  "bmd101_scope": "EXCLUDED",
+  "clean_stop": {
+    "consumed_record_index": 16414,
+    "decoded_record_index": 16415,
+    "monotonic": 32394.58214297,
+    "name": "CLEAN_STOP_BEGIN",
+    "raw_byte_offset": 2555033,
+    "wall": "2026-08-12T23:05:17.594+02:00"
+  },
+  "close_drain": {
+    "discarded_records": 1,
+    "kinds": {
+      "FUSION_IMU": 1
+    },
+    "monotonic": 32394.627559426,
+    "reason": "bsf31cc_six_axis_clean_stop"
+  },
+  "collector_open": {
+    "consumed_record_index": 0,
+    "decoded_record_index": 0,
+    "monotonic": 32001.805915879,
+    "name": "COLLECTOR_OPEN",
+    "raw_byte_offset": 63,
+    "wall": "2026-08-12T22:58:44.818+02:00"
+  },
+  "commands": [
+    {
+      "classification": "READ_ONLY_IDENTITY_OBSERVATION",
+      "command": "MASTER STATUS",
+      "monotonic": 32001.874842109
+    },
+    {
+      "classification": "READ_ONLY_IDENTITY_OBSERVATION",
+      "command": "LIST",
+      "monotonic": 32001.875229161
+    },
+    {
+      "classification": "READ_ONLY_IDENTITY_OBSERVATION",
+      "command": "BSF31CC PING",
+      "monotonic": 32001.879053702
+    },
+    {
+      "classification": "READ_ONLY_IDENTITY_OBSERVATION",
+      "command": "BSF31CC BOOT CONFIRM STATUS",
+      "monotonic": 32001.879163541
+    }
+  ],
+  "decode_before_send_guard": {
+    "baud": 115200,
+    "dtr": false,
+    "known_record": "FUSION_IMU proto=7 name=BSF31CC master_ms=199582884 seq=2 base_us=329808297 n=10 temp_raw=3100 samples=0,10,-25,-2045,1,-4,0;5000,11,-25,-2052,2,-3,0;10000,8,-23,-2055,2,-3,0;15000,8,-23,-2045,2,-4,0;20000,11,-21,-2043,1,-5,0;25000,11,-21,-2044,2,-5,0;30000,11,-20,-2050,2,-3,0;35000,11,-20,-2047,1,-",
+    "passed": true,
+    "port": "/dev/ttyACM13",
+    "rts": false,
+    "selected_stream": "FUSION_IMU proto=7"
+  },
+  "decoded_kind_counts": {
+    "": 3152,
+    "FUSION_COMMAND_TX": 2,
+    "FUSION_HEALTH": 39,
+    "FUSION_IMU": 7907,
+    "FUSION_LIST": 1,
+    "FUSION_MASTER_POOL": 394,
+    "FUSION_MASTER_STATUS": 1,
+    "FUSION_PEER": 1,
+    "FUSION_POOL": 396,
+    "FUSION_QOS": 394,
+    "FUSION_QUEUE": 396,
+    "FUSION_REPLY": 2,
+    "FUSION_SCAN_STARTED": 39,
+    "FUSION_TELEMETRY": 396,
+    "FUSION_UWB": 3294
+  },
+  "end_wall": "2026-08-12T23:05:17.845+02:00",
+  "hardware_mutations": [],
+  "health_final": {
+    "backlog_red_threshold_records": 131072,
+    "decoded_queue_depth": 0,
+    "decoded_queue_drops": 0,
+    "decoded_queue_high_water": 12,
+    "decoded_queue_limit": 1048576,
+    "decoded_records": 16415,
+    "first_raw_monotonic": 32001.805799463,
+    "frame_crc_decode_errors": 1,
+    "last_raw_monotonic": 32394.62736297,
+    "log_queue_drops": 0,
+    "log_queue_high_water": 11,
+    "payload_decode_errors": 0,
+    "raw_backlog_high_water": 270,
+    "raw_backlog_red_threshold_bytes": 131072,
+    "raw_bytes_submitted": 2555034,
+    "raw_bytes_written": 2555034,
+    "raw_chunk_count": 85041,
+    "raw_queue_depth": 0,
+    "raw_queue_drops": 0,
+    "raw_queue_high_water": 16,
+    "reader_exceptions": 0,
+    "reader_heartbeat_age_s": 0.2054468349997478,
+    "red_markers": 0,
+    "serial_input_bytes": -1,
+    "stall_red_threshold_s": 2
+  },
+  "heldout_pose_count": 0,
+  "identity_observation": {
+    "checks": {
+      "confirmed": true,
+      "exact_identity": true,
+      "master_marker": true,
+      "required_six_axis_proto7_stream": true,
+      "target_connected_subscribed": true,
+      "target_present_in_list": true
+    },
+    "confirm": {
+      "committed": "0",
+      "confirmed": "1",
+      "enabled": "1",
+      "guard_ms": "5000",
+      "prepared": "0",
+      "required": "0",
+      "timeout_ms": "180000"
+    },
+    "list": {
+      "capacity": "10",
+      "count": "1",
+      "qos": "enabled",
+      "qos_unknown": "0",
+      "ready": "1",
+      "scanning": "1",
+      "spacing": "ON",
+      "spacing_failed": "0",
+      "spacing_generation": "1",
+      "spacing_transition": "0",
+      "spacing_us": "5000"
+    },
+    "master": {
+      "cdc_drop_bytes": "846638212",
+      "cdc_drop_records": "5290227",
+      "count": "1",
+      "logger_drop": "0",
+      "malformed": "0",
+      "marker": "dk-fusion-imu-relay-v36",
+      "qos": "enabled",
+      "qos_unknown": "0",
+      "ready": "1",
+      "spacing": "ON",
+      "spacing_generation": "1",
+      "spacing_us": "5000"
+    },
+    "pass": true,
+    "pong": {
+      "fw": "b306-imu-relay-v47",
+      "fwid": "f7436728c36efdd28f848e7ef59c7c422437afb8c6ee07dd8924e31967046eed",
+      "image_sha": "90ef063b227feb4c70499cc186df866c24da658fba98773eacc40da73a0abf98",
+      "name": "BSF31CC",
+      "proto": "7"
+    },
+    "target_peer": {
+      "connected": "1",
+      "control": "26",
+      "dle_readback": "1",
+      "dle_rx_len": "251",
+      "dle_rx_time": "2120",
+      "dle_tx_len": "251",
+      "dle_tx_time": "2120",
+      "hci_handle": "3250",
+      "imu_epoch_defer_drop": "1",
+      "index": "0",
+      "interval_units": "40",
+      "interval_us": "50000",
+      "latency": "0",
+      "link_contract": "PASS",
+      "logger_drop": "0",
+      "malformed": "0",
+      "name": "BSF31CC",
+      "packets": "10257",
+      "phy_readback": "1",
+      "phy_rx": "2",
+      "phy_tx": "2",
+      "qos_event_gaps_window": "0",
+      "qos_reports_window": "1",
+      "rssi": "-71",
+      "subscribed": "1",
+      "timeout_units": "400"
+    }
+  },
+  "live_catchup": {
+    "consumed_record_index": 3772,
+    "decoded_record_index": 3772,
+    "disposition": "LIVE_CATCHUP_OBSERVED",
+    "monotonic": 32090.000245423,
+    "name": "LIVE_CATCHUP",
+    "raw_byte_offset": 587757,
+    "stable_seconds": 30,
+    "wall": "2026-08-12T23:00:13.012+02:00"
+  },
+  "node": "BSF31CC",
+  "observed_node_record_counts": {
+    "BSF31CC": 12704,
+    "BSFC2CC": 82
+  },
+  "phases": [
+    {
+      "accepted": false,
+      "end": {
+        "consumed_record_index": 16414,
+        "decoded_record_index": 16415,
+        "monotonic": 32394.580668054,
+        "name": "TRAINING_POSE_01_STOP",
+        "raw_byte_offset": 2555033,
+        "wall": "2026-08-12T23:05:17.593+02:00"
+      },
+      "pose": 1,
+      "reason": "OPERATOR_STOP",
+      "requested_token": "POSE_01_READY",
+      "set": "TRAINING",
+      "start": {
+        "consumed_record_index": 10070,
+        "decoded_record_index": 10070,
+        "monotonic": 32241.575299813,
+        "name": "TRAINING_POSE_01_TOKEN_ACCEPTED",
+        "raw_byte_offset": 1567091,
+        "wall": "2026-08-12T23:02:44.587+02:00"
+      }
+    }
+  ],
+  "port": "/dev/ttyACM13",
+  "raw_sha256": "a29c259f42636f6afce0665428806ae9feefbd7e0b84edc421a9a92cc2a2a2b5",
+  "schema": "biospur-bsf31cc-six-axis-capture-v1",
+  "serial_open_count": 1,
+  "six_axis_faults": [],
+  "start_wall": "2026-08-12T22:58:44.804+02:00",
+  "stop_reason": "OPERATOR_STOP",
+  "training_pose_count": 0
+}

@@ -1,0 +1,53 @@
+{
+  "checks": {
+    "aggregate_p95": true,
+    "aggregate_p99": true,
+    "aggregate_rmse": true,
+    "all_improve_or_equivalent": true,
+    "no_persistent_systematic": true,
+    "per_pose_median": true
+  },
+  "corrected_abs_p95_g": 0.001432669593007141,
+  "corrected_abs_p99_g": 0.0020842687201505505,
+  "corrected_bias_g": -3.2724987938679074e-06,
+  "corrected_rmse_g": 0.0021472395854155017,
+  "coverage_and_numerical_checks": {
+    "design_condition": true,
+    "finite_parameters": true,
+    "minimum_direction_covariance_eigenvalue": true,
+    "minimum_inter_pose_angle": true,
+    "optimizer_success": true,
+    "positive_definite_correction": true,
+    "training_replay_parameter_equivalence": true,
+    "training_replay_same_selected_model": true,
+    "well_conditioned_correction": true
+  },
+  "equivalence_definition": "corrected pose RMSE <= uncalibrated pose RMSE + 0.0005 g (frozen engineering tolerance)",
+  "pass": true,
+  "samples": 16030,
+  "schema": "biospur-c2cc-systematic-gate-v2",
+  "training_coverage_frozen": {
+    "count": 18,
+    "design_condition": 1.894887182038935,
+    "direction_covariance_eigenvalues": [
+      0.27545581929926943,
+      0.29962375437631833,
+      0.42492042632441257
+    ],
+    "direction_covariance_min_eigenvalue": 0.27545581929926943,
+    "hemisphere_balance": [
+      0.0,
+      0.0,
+      -0.5555555555555556
+    ],
+    "minimum_pairwise_angle_deg": 21.161137943891674
+  },
+  "training_replay": {
+    "basis": "one hundredth of one source-proven accelerometer LSB",
+    "equivalence_limit": 4.8828125e-06,
+    "maximum_bias_delta_g": 1.2860708426595119e-08,
+    "maximum_matrix_element_delta": 6.645678785521716e-08,
+    "selected_model": "FULL_SPD"
+  },
+  "uncalibrated_rmse_g": 0.006536967700427808
+}

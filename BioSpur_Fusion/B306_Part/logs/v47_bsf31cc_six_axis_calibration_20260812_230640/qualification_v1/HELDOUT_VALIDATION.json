@@ -1,0 +1,106 @@
+{
+  "aggregate": {
+    "checks": {
+      "aggregate_p95": true,
+      "aggregate_p99": true,
+      "aggregate_rmse": true,
+      "all_improve_or_equivalent": true,
+      "no_persistent_systematic": true,
+      "per_pose_median": true
+    },
+    "corrected_abs_p95_g": 0.001432669593007141,
+    "corrected_abs_p99_g": 0.0020842687201505505,
+    "corrected_bias_g": -3.2724987938679074e-06,
+    "corrected_rmse_g": 0.0021472395854155017,
+    "coverage_and_numerical_checks": {
+      "design_condition": true,
+      "finite_parameters": true,
+      "minimum_direction_covariance_eigenvalue": true,
+      "minimum_inter_pose_angle": true,
+      "optimizer_success": true,
+      "positive_definite_correction": true,
+      "training_replay_parameter_equivalence": true,
+      "training_replay_same_selected_model": true,
+      "well_conditioned_correction": true
+    },
+    "equivalence_definition": "corrected pose RMSE <= uncalibrated pose RMSE + 0.0005 g (frozen engineering tolerance)",
+    "pass": true,
+    "samples": 16030,
+    "schema": "biospur-c2cc-systematic-gate-v2",
+    "training_coverage_frozen": {
+      "count": 18,
+      "design_condition": 1.894887182038935,
+      "direction_covariance_eigenvalues": [
+        0.27545581929926943,
+        0.29962375437631833,
+        0.42492042632441257
+      ],
+      "direction_covariance_min_eigenvalue": 0.27545581929926943,
+      "hemisphere_balance": [
+        0.0,
+        0.0,
+        -0.5555555555555556
+      ],
+      "minimum_pairwise_angle_deg": 21.161137943891674
+    },
+    "training_replay": {
+      "basis": "one hundredth of one source-proven accelerometer LSB",
+      "equivalence_limit": 4.8828125e-06,
+      "maximum_bias_delta_g": 1.2860708426595119e-08,
+      "maximum_matrix_element_delta": 6.645678785521716e-08,
+      "selected_model": "FULL_SPD"
+    },
+    "uncalibrated_rmse_g": 0.006536967700427808
+  },
+  "frozen_model": "FULL_SPD",
+  "frozen_profile_sha256": "77f1c9f7926efa75c7dd9611a0994b39709d617c615649a443b07e9d8fae3c07",
+  "heldout_samples": 16030,
+  "parameter_changes_after_freeze": 0,
+  "per_pose": [
+    {
+      "corrected_abs_p95_g": 0.001329626139062956,
+      "corrected_abs_p99_g": 0.0017260724082845957,
+      "corrected_median_residual_g": -2.5250417634681277e-05,
+      "corrected_rmse_g": 0.0006614033403269372,
+      "improved_or_equivalent": true,
+      "persistent_systematic_pass": true,
+      "pose": 1,
+      "raw_rmse_g": 0.008240971225472838,
+      "samples": 4010
+    },
+    {
+      "corrected_abs_p95_g": 0.0014919163595294084,
+      "corrected_abs_p99_g": 0.002941561078284637,
+      "corrected_median_residual_g": -4.0133390333263463e-05,
+      "corrected_rmse_g": 0.004094789254122909,
+      "improved_or_equivalent": true,
+      "persistent_systematic_pass": true,
+      "pose": 2,
+      "raw_rmse_g": 0.0058728860271987085,
+      "samples": 4010
+    },
+    {
+      "corrected_abs_p95_g": 0.001344020905681198,
+      "corrected_abs_p99_g": 0.0017677706962355329,
+      "corrected_median_residual_g": -3.092672731908053e-05,
+      "corrected_rmse_g": 0.000685728977193639,
+      "improved_or_equivalent": true,
+      "persistent_systematic_pass": true,
+      "pose": 3,
+      "raw_rmse_g": 0.00628410767191882,
+      "samples": 4000
+    },
+    {
+      "corrected_abs_p95_g": 0.0015400490729992056,
+      "corrected_abs_p99_g": 0.002597842219217883,
+      "corrected_median_residual_g": 1.6017342144625246e-05,
+      "corrected_rmse_g": 0.0008702002547098591,
+      "improved_or_equivalent": true,
+      "persistent_systematic_pass": true,
+      "pose": 4,
+      "raw_rmse_g": 0.0053875129673913065,
+      "samples": 4010
+    }
+  ],
+  "schema": "biospur-bsf31cc-heldout-validation-v1"
+}
