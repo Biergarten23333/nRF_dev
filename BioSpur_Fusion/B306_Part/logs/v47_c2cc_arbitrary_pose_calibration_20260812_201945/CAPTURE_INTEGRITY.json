@@ -1,0 +1,434 @@
+{
+  "accepted_calibration_poses": 18,
+  "accepted_heldout_poses": 4,
+  "boundary_fragments": {
+    "classification": "FIRST_BYTE_AND_CLEAN_STOP_BOUNDARY_FRAGMENTS_NOT_COMPLETE_RECORD_CORRUPTION",
+    "initial_cobs_crc_error_count": 1,
+    "shutdown_incomplete_tail_bytes": 1
+  },
+  "clean_stop_boundary": true,
+  "clean_stop_decoded_queue_discard": {
+    "kinds": {
+      "FUSION_IMU": 1
+    },
+    "raw_bytes_preserved": true,
+    "records": 1
+  },
+  "forbidden_commands": [],
+  "hardware_mutations": [],
+  "identity_observation": {
+    "checks": {
+      "confirmed": true,
+      "exact_single_peer": true,
+      "master_marker": true,
+      "node_identity": true,
+      "peer_connected_subscribed": true
+    },
+    "confirm": {
+      "committed": "0",
+      "confirmed": "1",
+      "enabled": "1",
+      "guard_ms": "5000",
+      "prepared": "0",
+      "required": "0",
+      "timeout_ms": "180000"
+    },
+    "list": {
+      "capacity": "10",
+      "count": "1",
+      "qos": "enabled",
+      "qos_unknown": "0",
+      "ready": "1",
+      "scanning": "1",
+      "spacing": "ON",
+      "spacing_failed": "0",
+      "spacing_generation": "1",
+      "spacing_transition": "0",
+      "spacing_us": "5000"
+    },
+    "master": {
+      "cdc_drop_bytes": "827472404",
+      "cdc_drop_records": "5147701",
+      "count": "1",
+      "logger_drop": "0",
+      "malformed": "0",
+      "marker": "dk-fusion-imu-relay-v36",
+      "qos": "enabled",
+      "qos_unknown": "0",
+      "ready": "1",
+      "spacing": "ON",
+      "spacing_generation": "1",
+      "spacing_us": "5000"
+    },
+    "pass": true,
+    "peer": {
+      "connected": "1",
+      "control": "26",
+      "dle_readback": "1",
+      "dle_rx_len": "251",
+      "dle_rx_time": "2120",
+      "dle_tx_len": "251",
+      "dle_tx_time": "2120",
+      "hci_handle": "3230",
+      "imu_epoch_defer_drop": "2",
+      "index": "0",
+      "interval_units": "40",
+      "interval_us": "50000",
+      "latency": "0",
+      "link_contract": "PASS",
+      "logger_drop": "0",
+      "malformed": "0",
+      "name": "BSFC2CC",
+      "packets": "27888",
+      "phy_readback": "1",
+      "phy_rx": "2",
+      "phy_tx": "2",
+      "qos_event_gaps_window": "0",
+      "qos_reports_window": "17",
+      "rssi": "-56",
+      "subscribed": "1",
+      "timeout_units": "400"
+    },
+    "pong": {
+      "fw": "b306-imu-relay-v47",
+      "fwid": "f7436728c36efdd28f848e7ef59c7c422437afb8c6ee07dd8924e31967046eed",
+      "image_sha": "90ef063b227feb4c70499cc186df866c24da658fba98773eacc40da73a0abf98",
+      "name": "BSFC2CC",
+      "proto": "7"
+    }
+  },
+  "index": {
+    "accepted_stationary_window_sequence_gaps": [],
+    "b306_connection_events": [],
+    "decoded_index_records": 124295,
+    "decoded_kind_counts": {
+      "": 24153,
+      "FUSION_COMMAND_TX": 2,
+      "FUSION_HEALTH": 304,
+      "FUSION_IMU": 60506,
+      "FUSION_LIST": 1,
+      "FUSION_MASTER_POOL": 3019,
+      "FUSION_MASTER_STATUS": 1,
+      "FUSION_PEER": 1,
+      "FUSION_POOL": 3023,
+      "FUSION_QOS": 3019,
+      "FUSION_QUEUE": 3024,
+      "FUSION_REPLY": 262,
+      "FUSION_SCAN_STARTED": 304,
+      "FUSION_TELEMETRY": 3023,
+      "FUSION_UWB": 23653
+    },
+    "observed_nodes": [
+      "BSFC2CC"
+    ],
+    "tag_side_reset_diagnostics": {
+      "count": 260,
+      "first": {
+        "line": "FUSION_REPLY proto=7 name=BSFC2CC master_ms=190051383 source=B306 correlation=0 text=TAG_RESET_DETECTED name=BSFC2CC before=81 after=1 window_fail=1",
+        "monotonic": 22470.070624481
+      },
+      "full_records": "continuous_raw/consumption_index.jsonl and fusion_cdc.log",
+      "last": {
+        "line": "FUSION_REPLY proto=7 name=BSFC2CC master_ms=191489334 source=B306 correlation=0 text=TAG_RESET_RECOVERY_STOP attempts=1",
+        "monotonic": 23908.060558338
+      },
+      "median_inter_event_s": 0.04934273699836922,
+      "type_counts": {
+        "DETECTED": 130,
+        "RECOVERY_STOP": 130
+      }
+    },
+    "whole_timeline_imu_sequence_gaps": [
+      {
+        "expected": 30741,
+        "monotonic": 22462.626225588,
+        "observed": 52341,
+        "record_index": 114
+      }
+    ],
+    "whole_timeline_imu_timestamp_reversals": []
+  },
+  "live_catchup_disposition": "STARTED_DEGRADED",
+  "one_raw_timeline": true,
+  "operator_created_all_physical_poses_manually": true,
+  "raw_replay": {
+    "cobs_crc_decode_errors": 1,
+    "complete_frames": 124296,
+    "frame_kind_counts": {
+      "": 24153,
+      "FUSION_COMMAND_TX": 2,
+      "FUSION_HEALTH": 304,
+      "FUSION_IMU": 60507,
+      "FUSION_LIST": 1,
+      "FUSION_MASTER_POOL": 3019,
+      "FUSION_MASTER_STATUS": 1,
+      "FUSION_PEER": 1,
+      "FUSION_POOL": 3023,
+      "FUSION_QOS": 3019,
+      "FUSION_QUEUE": 3024,
+      "FUSION_REPLY": 262,
+      "FUSION_SCAN_STARTED": 304,
+      "FUSION_TELEMETRY": 3023,
+      "FUSION_UWB": 23653
+    },
+    "incomplete_tail_bytes": 1
+  },
+  "raw_sha256_after_derivation": "d942a8cf711c66c3ee1ff6cff47edfa8005b9be6e1d4a351245ab1ea193f4a1c",
+  "raw_sha256_before_derivation": "d942a8cf711c66c3ee1ff6cff47edfa8005b9be6e1d4a351245ab1ea193f4a1c",
+  "raw_unchanged": true,
+  "read_only_commands_only": true,
+  "schema": "biospur-c2cc-capture-integrity-v1",
+  "serial_open_count": 1,
+  "stationary_sample_accounting": [
+    {
+      "actual_samples": 4040,
+      "duration_s": 20.200154471000133,
+      "end_consumed_record_index": 14833,
+      "end_monotonic": 22823.28753838,
+      "expected_samples": 4040,
+      "nearest_angle_deg": null,
+      "pose": 1,
+      "set": "CALIBRATION",
+      "start_monotonic": 22803.087383908998
+    },
+    {
+      "actual_samples": 4040,
+      "duration_s": 20.20040506299847,
+      "end_consumed_record_index": 19620,
+      "end_monotonic": 22940.843351369,
+      "expected_samples": 4040,
+      "nearest_angle_deg": 178.15460578227993,
+      "pose": 2,
+      "set": "CALIBRATION",
+      "start_monotonic": 22920.642946306
+    },
+    {
+      "actual_samples": 4030,
+      "duration_s": 20.100578271001723,
+      "end_consumed_record_index": 23127,
+      "end_monotonic": 23026.796109089,
+      "expected_samples": 4030,
+      "nearest_angle_deg": 90.15853351548051,
+      "pose": 3,
+      "set": "CALIBRATION",
+      "start_monotonic": 23006.695530817997
+    },
+    {
+      "actual_samples": 4040,
+      "duration_s": 20.202705101000902,
+      "end_consumed_record_index": 26811,
+      "end_monotonic": 23117.052687521,
+      "expected_samples": 4040,
+      "nearest_angle_deg": 88.13772899343462,
+      "pose": 4,
+      "set": "CALIBRATION",
+      "start_monotonic": 23096.84998242
+    },
+    {
+      "actual_samples": 4040,
+      "duration_s": 20.19713253199734,
+      "end_consumed_record_index": 30087,
+      "end_monotonic": 23197.304246293,
+      "expected_samples": 4040,
+      "nearest_angle_deg": 89.18121983470256,
+      "pose": 5,
+      "set": "CALIBRATION",
+      "start_monotonic": 23177.107113761
+    },
+    {
+      "actual_samples": 4010,
+      "duration_s": 20.09964177599977,
+      "end_consumed_record_index": 33349,
+      "end_monotonic": 23279.407644718,
+      "expected_samples": 4010,
+      "nearest_angle_deg": 89.15672462204495,
+      "pose": 6,
+      "set": "CALIBRATION",
+      "start_monotonic": 23259.308002942
+    },
+    {
+      "actual_samples": 4030,
+      "duration_s": 20.19891506500062,
+      "end_consumed_record_index": 37507,
+      "end_monotonic": 23383.211418395,
+      "expected_samples": 4030,
+      "nearest_angle_deg": 41.43791635011547,
+      "pose": 7,
+      "set": "CALIBRATION",
+      "start_monotonic": 23363.01250333
+    },
+    {
+      "actual_samples": 4010,
+      "duration_s": 20.100131896000676,
+      "end_consumed_record_index": 42916,
+      "end_monotonic": 23516.166669993,
+      "expected_samples": 4010,
+      "nearest_angle_deg": 38.65978166844641,
+      "pose": 8,
+      "set": "CALIBRATION",
+      "start_monotonic": 23496.066538097
+    },
+    {
+      "actual_samples": 4010,
+      "duration_s": 20.049998847000097,
+      "end_consumed_record_index": 45331,
+      "end_monotonic": 23575.318524933,
+      "expected_samples": 4010,
+      "nearest_angle_deg": 37.53222173296947,
+      "pose": 9,
+      "set": "CALIBRATION",
+      "start_monotonic": 23555.268526086
+    },
+    {
+      "actual_samples": 4000,
+      "duration_s": 20.002210958999058,
+      "end_consumed_record_index": 47650,
+      "end_monotonic": 23632.01871024,
+      "expected_samples": 4000,
+      "nearest_angle_deg": 37.94181745317295,
+      "pose": 10,
+      "set": "CALIBRATION",
+      "start_monotonic": 23612.016499281002
+    },
+    {
+      "actual_samples": 4010,
+      "duration_s": 20.05009047400017,
+      "end_consumed_record_index": 52391,
+      "end_monotonic": 23748.37474664,
+      "expected_samples": 4010,
+      "nearest_angle_deg": 28.653310490412096,
+      "pose": 11,
+      "set": "CALIBRATION",
+      "start_monotonic": 23728.324656165998
+    },
+    {
+      "actual_samples": 4040,
+      "duration_s": 20.200721009998233,
+      "end_consumed_record_index": 55879,
+      "end_monotonic": 23835.981600248,
+      "expected_samples": 4040,
+      "nearest_angle_deg": 18.975542763366303,
+      "pose": 12,
+      "set": "CALIBRATION",
+      "start_monotonic": 23815.780879238002
+    },
+    {
+      "actual_samples": 4050,
+      "duration_s": 20.249639427998773,
+      "end_consumed_record_index": 65238,
+      "end_monotonic": 24062.638187397,
+      "expected_samples": 4050,
+      "nearest_angle_deg": 48.66411021623691,
+      "pose": 13,
+      "set": "CALIBRATION",
+      "start_monotonic": 24042.388547969
+    },
+    {
+      "actual_samples": 4030,
+      "duration_s": 20.149682395000127,
+      "end_consumed_record_index": 67886,
+      "end_monotonic": 24126.588762726,
+      "expected_samples": 4030,
+      "nearest_angle_deg": 48.33960015165704,
+      "pose": 14,
+      "set": "CALIBRATION",
+      "start_monotonic": 24106.439080331
+    },
+    {
+      "actual_samples": 4040,
+      "duration_s": 20.20012761199905,
+      "end_consumed_record_index": 72344,
+      "end_monotonic": 24233.942863093,
+      "expected_samples": 4040,
+      "nearest_angle_deg": 46.45800882427423,
+      "pose": 15,
+      "set": "CALIBRATION",
+      "start_monotonic": 24213.742735481002
+    },
+    {
+      "actual_samples": 4050,
+      "duration_s": 20.2489698520003,
+      "end_consumed_record_index": 74854,
+      "end_monotonic": 24294.247257141,
+      "expected_samples": 4050,
+      "nearest_angle_deg": 44.984670532461344,
+      "pose": 16,
+      "set": "CALIBRATION",
+      "start_monotonic": 24273.998287289
+    },
+    {
+      "actual_samples": 4030,
+      "duration_s": 20.149872231999325,
+      "end_consumed_record_index": 93352,
+      "end_monotonic": 24740.117658378,
+      "expected_samples": 4030,
+      "nearest_angle_deg": 25.9015403009301,
+      "pose": 17,
+      "set": "CALIBRATION",
+      "start_monotonic": 24719.967786146
+    },
+    {
+      "actual_samples": 4020,
+      "duration_s": 20.1021058059996,
+      "end_consumed_record_index": 101365,
+      "end_monotonic": 24933.069663194,
+      "expected_samples": 4020,
+      "nearest_angle_deg": 24.429844183014712,
+      "pose": 18,
+      "set": "CALIBRATION",
+      "start_monotonic": 24912.967557388
+    },
+    {
+      "actual_samples": 4040,
+      "duration_s": 20.20244558400009,
+      "end_consumed_record_index": 109801,
+      "end_monotonic": 25136.180748972,
+      "expected_samples": 4040,
+      "nearest_angle_deg": 39.169960723631014,
+      "pose": 1,
+      "set": "HELDOUT",
+      "start_monotonic": 25115.978303388
+    },
+    {
+      "actual_samples": 4010,
+      "duration_s": 20.04996056299933,
+      "end_consumed_record_index": 112613,
+      "end_monotonic": 25204.132310359,
+      "expected_samples": 4010,
+      "nearest_angle_deg": 31.869348180335486,
+      "pose": 2,
+      "set": "HELDOUT",
+      "start_monotonic": 25184.082349796
+    },
+    {
+      "actual_samples": 4040,
+      "duration_s": 20.20153565900182,
+      "end_consumed_record_index": 115789,
+      "end_monotonic": 25280.483701679,
+      "expected_samples": 4040,
+      "nearest_angle_deg": 39.51102224198061,
+      "pose": 3,
+      "set": "HELDOUT",
+      "start_monotonic": 25260.28216602
+    },
+    {
+      "actual_samples": 4030,
+      "duration_s": 20.2011876630022,
+      "end_consumed_record_index": 121022,
+      "end_monotonic": 25406.690369496,
+      "expected_samples": 4030,
+      "nearest_angle_deg": 30.424412397756466,
+      "pose": 4,
+      "set": "HELDOUT",
+      "start_monotonic": 25386.489181832996
+    }
+  ],
+  "stationary_sample_accounting_complete": true,
+  "transmitted_commands": [
+    "MASTER STATUS",
+    "LIST",
+    "BSFC2CC PING",
+    "BSFC2CC BOOT CONFIRM STATUS"
+  ],
+  "warmup_minimum_s": 60
+}

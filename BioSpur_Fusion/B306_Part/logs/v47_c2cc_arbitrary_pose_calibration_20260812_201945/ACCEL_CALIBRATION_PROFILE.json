@@ -1,0 +1,177 @@
+{
+  "coverage": {
+    "count": 18,
+    "design_condition": 1.2834258810792456,
+    "direction_covariance_eigenvalues": [
+      0.2736477763812316,
+      0.3267007314382337,
+      0.39965149218053475
+    ],
+    "direction_covariance_min_eigenvalue": 0.2736477763812316,
+    "hemisphere_balance": [
+      0.0,
+      0.1111111111111111,
+      0.0
+    ],
+    "minimum_pairwise_angle_deg": 18.975542763366303
+  },
+  "freeze_marker": {
+    "consumed_record_index": 104660,
+    "decoded_record_index": 104660,
+    "monotonic": 25012.436645373,
+    "name": "FREEZE_CALIBRATION",
+    "raw_byte_offset": 16184224,
+    "wall": "2026-08-12T21:02:15.449+02:00"
+  },
+  "frozen_before_validation": true,
+  "gravity_target_g": 1.0,
+  "input_scale": "raw/2048 g",
+  "model_selection": {
+    "candidates": [
+      {
+        "bias_g": [
+          -0.0012921998114348951,
+          0.0030311449541101667,
+          -0.012672172193553728
+        ],
+        "correction_matrix": [
+          [
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "loo_max_abs_g": 0.034611861664940125,
+        "loo_median_abs_g": 0.003592966581799084,
+        "loo_rmse_g": 0.003901092177653609,
+        "matrix_condition": 1.0,
+        "max_abs_g": 0.0355183124409415,
+        "median_abs_g": 0.002887001516726162,
+        "model": "BIAS_ONLY",
+        "optimizer_cost": 0.3806946508813708,
+        "optimizer_success": true,
+        "rmse_g": 0.0032847846743717895
+      },
+      {
+        "bias_g": [
+          -0.001396717757931293,
+          0.002989418031102023,
+          -0.01226881795735924
+        ],
+        "correction_matrix": [
+          [
+            0.9970611806685504,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.9979365785311302,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.9965824790305827
+          ]
+        ],
+        "loo_max_abs_g": 0.03836837169896756,
+        "loo_median_abs_g": 0.001286580189467923,
+        "loo_rmse_g": 0.0018767050410400336,
+        "matrix_condition": 1.001358743033356,
+        "max_abs_g": 0.03874154850152656,
+        "median_abs_g": 0.0009445610935299165,
+        "model": "DIAGONAL_SCALE",
+        "optimizer_cost": 0.07964338053219717,
+        "optimizer_success": true,
+        "rmse_g": 0.0015500153111637923
+      },
+      {
+        "bias_g": [
+          -0.0014991154316713951,
+          0.0027397976359214778,
+          -0.01196145883932761
+        ],
+        "correction_matrix": [
+          [
+            0.99649610211887,
+            0.0024335864660378916,
+            -0.0008755100492360148
+          ],
+          [
+            0.002433586466037891,
+            0.9975757671457232,
+            -0.0007215738369409687
+          ],
+          [
+            -0.0008755100492360146,
+            -0.0007215738369409687,
+            0.9968865842143563
+          ]
+        ],
+        "loo_max_abs_g": 0.040203592539715616,
+        "loo_median_abs_g": 0.00054336775894126,
+        "loo_rmse_g": 0.0011335646635796837,
+        "matrix_condition": 1.0054465970253643,
+        "max_abs_g": 0.03990204486728399,
+        "median_abs_g": 0.0005293550189224838,
+        "model": "FULL_SPD",
+        "optimizer_cost": 0.03812760626895056,
+        "optimizer_success": true,
+        "rmse_g": 0.0011196849433062013
+      }
+    ],
+    "selected": {
+      "bias_g": [
+        -0.001396717757931293,
+        0.002989418031102023,
+        -0.01226881795735924
+      ],
+      "correction_matrix": [
+        [
+          0.9970611806685504,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.9979365785311302,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.9965824790305827
+        ]
+      ],
+      "loo_max_abs_g": 0.03836837169896756,
+      "loo_median_abs_g": 0.001286580189467923,
+      "loo_rmse_g": 0.0018767050410400336,
+      "matrix_condition": 1.001358743033356,
+      "max_abs_g": 0.03874154850152656,
+      "median_abs_g": 0.0009445610935299165,
+      "model": "DIAGONAL_SCALE",
+      "optimizer_cost": 0.07964338053219717,
+      "optimizer_success": true,
+      "rmse_g": 0.0015500153111637923
+    },
+    "selected_model": "DIAGONAL_SCALE",
+    "selection_rule": "least complex; promote only for preregistered absolute and relative held-in LOO improvement"
+  },
+  "raw_axis_labels": [
+    "a0",
+    "a1",
+    "a2"
+  ],
+  "schema": "biospur-c2cc-host-accel-calibration-v1"
+}
