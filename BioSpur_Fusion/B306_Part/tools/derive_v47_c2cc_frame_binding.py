@@ -18,7 +18,7 @@ from v47_q1_eskf import Q1T4ESKF,quaternion_to_matrix
 from v47_uwb_position_replay import load_solver,validate_anchor_slot_identity
 
 ROOT=Path(__file__).resolve().parents[2]
-LAYOUT=ROOT/"B306_Part/deployments/current_room_autopos_20260811_183541/V4IO/anchor_layout.json"
+LAYOUT=ROOT/"B306_Part/deployments/current_room_autopos_20260811_183541/V4IO_LAYOUT.json"
 NODE="BSFC2CC"
 CORE=("MOUNT_A_BINDING.json","MOUNT_B_BINDING.json","OBSERVABILITY.json","TIME_ALIGNMENT.json",
       "HELDOUT_RESULTS.csv","CROSS_MOUNT_COMPARISON.json","Q1_REPLAY_RESULTS.json",

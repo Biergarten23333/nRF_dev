@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import sys
 from pathlib import Path
 
@@ -19,6 +20,10 @@ from v47_uwb_position_replay import (  # noqa: E402
 )
 
 DEPLOYMENT = TOOLS.parent / "deployments/current_room_autopos_20260811_183541"
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def test_command_guard_accepts_only_formal_sw100_surface():
@@ -73,6 +78,19 @@ def test_v4io_integration_qualification_and_determinism():
     assert all(result["gates"].values())
     assert result["metrics"]["deterministic_max_absolute_delta"] == 0.0
     assert result["mirror_selection"]["selected"] == "reflected_init"
+
+
+def test_frame_binding_uses_capture_bound_canonical_geometry_not_intermediate_mirror():
+    import derive_v47_c2cc_frame_binding as derive
+    import v47_c2cc_frame_binding_capture as capture
+
+    binding = json.loads((DEPLOYMENT / "CAPTURE_BOUND_GEOMETRY_MANIFEST.json").read_text())
+    canonical = (DEPLOYMENT / binding["layout"]["path"]).resolve()
+    intermediate = (DEPLOYMENT / "V4IO/anchor_layout.json").resolve()
+    assert _sha256(canonical) == binding["layout"]["sha256"]
+    assert _sha256(intermediate) != binding["layout"]["sha256"]
+    assert derive.LAYOUT.resolve() == canonical
+    assert capture.LAYOUT.resolve() == canonical
 
 
 @pytest.mark.parametrize("label", ["UWB_TAG_T4", "UWB_TAG_U5"])

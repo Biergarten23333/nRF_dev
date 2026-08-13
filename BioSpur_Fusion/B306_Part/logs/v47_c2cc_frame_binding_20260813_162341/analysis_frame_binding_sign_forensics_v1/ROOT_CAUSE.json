@@ -1,0 +1,87 @@
+{
+  "classification": "MULTIPLE_CAUSES",
+  "imu_snr_evidence": {
+    "reason_counts": {
+      "ACCEPT": 59,
+      "REJECT_IMU_PREINTEGRATION_SNR": 4
+    },
+    "rejected_strokes": 4,
+    "total_strokes": 63
+  },
+  "not_root_causes": [
+    "CHRONOLOGY_OR_POLARITY_LOSS",
+    "TIME_OFFSET_SIGN_ERROR",
+    "QUATERNION_DIRECTION_ERROR",
+    "ACTIVE_PASSIVE_ROTATION_ERROR",
+    "GRAVITY_OR_SPECIFIC_FORCE_SIGN_ERROR",
+    "WAHBA_SOURCE_TARGET_ORDER_ERROR"
+  ],
+  "primary": "REFLECTION_HANDLING_ERROR",
+  "primary_evidence": {
+    "canonical_capture_bound_layout": "B306_Part/deployments/current_room_autopos_20260811_183541/V4IO_LAYOUT.json",
+    "canonical_replay": "both independent proper-rotation fits satisfy frozen per-mount residual checks",
+    "capture_and_derive_layout": "B306_Part/deployments/current_room_autopos_20260811_183541/V4IO/anchor_layout.json",
+    "intermediate_documentation": "V4IO/README.md calls it reflected, higher-cost intermediate evidence; COORDINATE_CONVENTION.md states mirror choice changes handedness",
+    "old_horizontal_signed_conflict": "140-170 degree errors on Mount A H1 and 123-138 degree errors on Mount B H2"
+  },
+  "schema": "biospur-c2cc-sign-forensic-root-cause-v1",
+  "secondary": "REAL_EXCITATION_GEOMETRICALLY_UNOBSERVABLE",
+  "secondary_evidence": {
+    "cross_mount_up_deg": 13.12527662773366,
+    "failed_t4_invariants": [
+      {
+        "action": "horizontal_1",
+        "check": "PAIRED_CLOSURE",
+        "limit": 0.35,
+        "mount": "A",
+        "result": "FAIL",
+        "stroke_pair": "3-4",
+        "units": "closure_over_mean_stroke",
+        "value": 0.35115218655054936
+      },
+      {
+        "action": "horizontal_1",
+        "check": "PAIRED_CLOSURE",
+        "limit": 0.35,
+        "mount": "A",
+        "result": "FAIL",
+        "stroke_pair": "5-6",
+        "units": "closure_over_mean_stroke",
+        "value": 0.709733892182624
+      },
+      {
+        "action": "vertical_retry",
+        "check": "PAIRED_CLOSURE",
+        "limit": 0.35,
+        "mount": "A",
+        "result": "FAIL",
+        "stroke_pair": "7-8",
+        "units": "closure_over_mean_stroke",
+        "value": 1.0108666694826758
+      },
+      {
+        "action": "horizontal_1",
+        "check": "PAIRED_CLOSURE",
+        "limit": 0.35,
+        "mount": "B",
+        "result": "FAIL",
+        "stroke_pair": "1-2",
+        "units": "closure_over_mean_stroke",
+        "value": 0.40951622848621894
+      },
+      {
+        "action": "horizontal_2",
+        "check": "PAIRED_CLOSURE",
+        "limit": 0.35,
+        "mount": "B",
+        "result": "FAIL",
+        "stroke_pair": "1-2",
+        "units": "closure_over_mean_stroke",
+        "value": 0.4269244211945376
+      }
+    ],
+    "frozen_limit_deg": 10.0,
+    "meaning": "The vertical stroke bundles do not establish one common physical-up direction within the frozen gate, and five forward/reverse pairs do not close within the frozen forensic allowance."
+  },
+  "validation_used": false
+}

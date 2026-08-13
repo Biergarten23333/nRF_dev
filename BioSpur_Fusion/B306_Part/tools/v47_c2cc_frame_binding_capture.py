@@ -27,7 +27,7 @@ from v47_uwb_position_replay import load_solver, validate_anchor_slot_identity
 
 ROOT=Path(__file__).resolve().parents[2]
 NODE="BSFC2CC"
-LAYOUT=ROOT/"B306_Part/deployments/current_room_autopos_20260811_183541/V4IO/anchor_layout.json"
+LAYOUT=ROOT/"B306_Part/deployments/current_room_autopos_20260811_183541/V4IO_LAYOUT.json"
 ABORTS={"ABORT_CAPTURE","停止"}
 
 
