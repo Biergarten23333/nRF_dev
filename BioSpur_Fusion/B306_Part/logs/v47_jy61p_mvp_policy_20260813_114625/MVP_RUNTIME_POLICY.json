@@ -1,0 +1,66 @@
+{
+  "bmd101_scope": "EXCLUDED",
+  "characterized_devices": [
+    "BSFC2CC",
+    "BSF31CC"
+  ],
+  "device_specific_oracles_not_copied": true,
+  "online_states": {
+    "accelerometer_bias": "only when observable under active motion/UWB model",
+    "gyro_bias": "Q1_TRACKED"
+  },
+  "per_session_initialization": {
+    "accelerometer_bias": "NOT_IDENTIFIED_FROM_SINGLE_POSE",
+    "gyro_bias": "mean of accepted stationary startup interval; reject startup if motion/health gate fails",
+    "initial_roll_pitch": "gravity direction",
+    "initial_yaw": "UNRESOLVED",
+    "minimum_stationary_duration_s": 1
+  },
+  "population_validation_claim": false,
+  "primary_verdict": "INSUFFICIENT_COHORT_EVIDENCE_USE_IDENTITY_MVP",
+  "schema": "biospur-jy61p-mvp-runtime-policy-v1",
+  "selection_basis": {
+    "full_spd_complexity_rejected": true,
+    "identity_is_adequate_for_next_frame_binding": true,
+    "shared_diagonal_engineering_transfer_observed": true,
+    "shared_matrix_not_population_validated": true,
+    "startup_1s_p95_residual_norm_dps": 0.00789990381512074
+  },
+  "shared_defaults": {
+    "accelerometer_bias_g": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "accelerometer_conversion": "raw / 2048 g",
+    "accelerometer_correction_matrix": [
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "covariance_policy": "float64 symmetric positive-definite; no silent projection",
+    "gyro_conversion": "raw / 16.384 dps",
+    "q1_gravity_update": "causal NIS plus norm gate",
+    "raw_channel_order": [
+      "a0",
+      "a1",
+      "a2",
+      "g0",
+      "g1",
+      "g2"
+    ]
+  },
+  "temperature_model": "DISABLED_NARROW_EXISTING_TEMPERATURE_SPAN"
+}
