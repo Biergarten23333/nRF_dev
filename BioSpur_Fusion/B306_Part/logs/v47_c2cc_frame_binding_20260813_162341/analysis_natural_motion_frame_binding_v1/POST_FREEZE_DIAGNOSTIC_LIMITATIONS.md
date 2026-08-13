@@ -1,0 +1,3 @@
+# Post-freeze diagnostic limitations
+
+The original one-time held-out evaluation retained T4, IMU-only and fused trajectories but did not persist the pre-update position-factor innovation/NIS series or a second oracle-calibrated held-out replay. The CSV and plot labelled `POSITION_FACTOR_RESIDUAL_PROXY` are explicitly post-update, interpolated residual diagnostics and are not relabelled as innovations. Re-decoding or re-evaluating held-out IMU to manufacture those missing products would violate the signed one-time boundary, so it was not done. This omission does not rescue the result: both held-out blocks already fail the frozen endpoint and full-path residual gates under the primary identity policy.

@@ -1,0 +1,288 @@
+{
+  "HELDOUT_MAY_NOW_OPEN": true,
+  "accepted_fitting_transforms": {
+    "A": [
+      [
+        0.9983599601518186,
+        -0.017427327239664843,
+        0.054531442589949256
+      ],
+      [
+        0.020328227184215293,
+        0.9983821351200577,
+        -0.05310249949542848
+      ],
+      [
+        -0.05351778344817941,
+        0.05412393683386942,
+        0.9970990153020899
+      ]
+    ],
+    "B": [
+      [
+        0.03646228800128226,
+        -0.9864807495701902,
+        0.1597693095721054
+      ],
+      [
+        0.9969630600095671,
+        0.04691660773987605,
+        0.062156969798590464
+      ],
+      [
+        -0.0688124881839905,
+        0.1570177144325388,
+        0.9851955535954828
+      ]
+    ]
+  },
+  "algorithm": "proper SO(3) robust equal-segment path-factor fit over chronological natural stop-to-stop paths",
+  "canonical_geometry": {
+    "path": "B306_Part/deployments/current_room_autopos_20260811_183541/V4IO_LAYOUT.json",
+    "schema": "V4IO_LAYOUT_LEGACY_JSON_V1",
+    "schema_contract": {
+      "anchor_count": 8,
+      "anchor_ids": "exactly 0..7",
+      "label": "V4-io",
+      "version": "v4-io"
+    },
+    "sha256": "20320e53d48b171c016a0e8d1d93b3cb10e979cf4c21c15c21647d5c0b9878b1"
+  },
+  "config": {
+    "accelerometer_bias_bound_mps2": 0.25,
+    "accelerometer_bias_prior_sigma_mps2": 0.1,
+    "bootstrap_p95_rotation_limit_deg": 15.0,
+    "bootstrap_replicates": 300,
+    "endpoint_median_error_limit_deg": 35.0,
+    "endpoint_p95_error_limit_deg": 75.0,
+    "heldout_room_scale_bound_m": 10.0,
+    "heldout_stop_speed_limit_mps": 0.5,
+    "leave_one_max_rotation_limit_deg": 15.0,
+    "leave_one_p95_rotation_limit_deg": 10.0,
+    "lever_arm_sensitivity_radius_m": 0.05,
+    "maximum_excitation_condition": 40.0,
+    "maximum_single_segment_weight_fraction": 0.25,
+    "minimum_excitation_singular_ratio": 0.025,
+    "minimum_imu_displacement_m": 0.1,
+    "minimum_segment_displacement_m": 0.25,
+    "minimum_segments": 8,
+    "normalized_path_median_residual_limit": 0.3,
+    "normalized_path_p95_residual_limit": 0.9,
+    "path_minimum_progress_fraction": 0.05,
+    "random_seed": 47,
+    "robust_f_scale_normalized": 0.15,
+    "robust_loss": "soft_l1",
+    "schema": "biospur-c2cc-natural-motion-config-v1",
+    "stop_boundary_search_fraction": 0.1,
+    "stop_minimum_separation_s": 0.5,
+    "stop_speed_candidate_limit_mps": 0.18,
+    "stop_speed_prominence_mps": 0.04,
+    "t4_lowpass_cutoff_hz": 1.0,
+    "t4_median_window_samples": 5,
+    "t4_position_sigma_m": 0.075,
+    "time_offset_bound_s": 0.08,
+    "time_offset_primary_s": 0.0,
+    "time_offset_step_s": 0.005
+  },
+  "exact_excluded_heldout_ranges": {
+    "A": {
+      "content_decoded": false,
+      "end_monotonic": 95128.142677857,
+      "end_raw_byte_offset": 2787950,
+      "start_monotonic": 95101.498853823,
+      "start_raw_byte_offset": 2615806
+    },
+    "B": {
+      "content_decoded": false,
+      "end_monotonic": 95551.481113029,
+      "end_raw_byte_offset": 5522099,
+      "start_monotonic": 95524.426850937,
+      "start_raw_byte_offset": 5347582
+    }
+  },
+  "excluded_heldout_record_ranges": {
+    "A": [
+      16805,
+      17913
+    ],
+    "B": [
+      34360,
+      35481
+    ]
+  },
+  "input_fitting_block_hashes": {
+    "A": "9d229b5d6ff4ddf1f39ee9d5d103f738f992509a21a59457a3696d205096d34a",
+    "B": "161b6db7d696ca9da7708f47b2f8183431d92f820688526aa876a77163bdd689"
+  },
+  "lever_arm_policy": "unknown <=50 mm sensitivity only",
+  "noise_model": {
+    "endpoint_zupt": true,
+    "imu_process_noise": "Q1Parameters defaults",
+    "t4_position_sigma_m": 0.075
+  },
+  "observability_metrics": {
+    "A": {
+      "accepted": true,
+      "bootstrap_p95_deg": 4.9325159051799465,
+      "checks": {
+        "bootstrap": true,
+        "endpoint_residual": true,
+        "excitation": true,
+        "leave_one_segment_out": true,
+        "no_dominant_segment": true,
+        "optimizer": true,
+        "path_residual": true,
+        "proper_rotation": true
+      },
+      "condition": 4.775911528183603,
+      "endpoint_median_deg": 8.024757053774447,
+      "endpoint_p95_deg": 26.30221660941603,
+      "leave_one_max_deg": 1.2150869569538116,
+      "leave_one_p95_deg": 1.000920958740521,
+      "optimizer": {
+        "cost": 0.9427417898693179,
+        "evaluations": 7,
+        "optimality": 7.428671000564435e-08,
+        "success": true
+      },
+      "path_median_normalized": 0.18452625396128525,
+      "path_p95_normalized": 0.7454520637634412,
+      "rotation": [
+        [
+          0.9983599601518186,
+          -0.017427327239664843,
+          0.054531442589949256
+        ],
+        [
+          0.020328227184215293,
+          0.9983821351200577,
+          -0.05310249949542848
+        ],
+        [
+          -0.05351778344817941,
+          0.05412393683386942,
+          0.9970990153020899
+        ]
+      ],
+      "segment_weight_fraction": [
+        0.033333333333333326,
+        0.03333333333333334,
+        0.033333333333333326,
+        0.03333333333333332,
+        0.03333333333333334,
+        0.03333333333333332,
+        0.03333333333333332,
+        0.03333333333333334,
+        0.033333333333333326,
+        0.03333333333333334,
+        0.033333333333333326,
+        0.03333333333333333,
+        0.03333333333333334,
+        0.03333333333333333,
+        0.03333333333333333,
+        0.033333333333333326,
+        0.033333333333333326,
+        0.03333333333333333,
+        0.033333333333333326,
+        0.03333333333333333,
+        0.03333333333333333,
+        0.03333333333333334,
+        0.03333333333333332,
+        0.03333333333333333,
+        0.033333333333333326,
+        0.03333333333333332,
+        0.03333333333333333,
+        0.03333333333333333,
+        0.033333333333333326,
+        0.03333333333333334
+      ],
+      "semantic_labels_read_by_estimator": false,
+      "singular_ratio": 0.2093841131894511,
+      "singular_values": [
+        18.801336101188276,
+        6.531059634971526,
+        3.9367010863241196
+      ]
+    },
+    "B": {
+      "accepted": true,
+      "bootstrap_p95_deg": 10.592308107424952,
+      "checks": {
+        "bootstrap": true,
+        "endpoint_residual": true,
+        "excitation": true,
+        "leave_one_segment_out": true,
+        "no_dominant_segment": true,
+        "optimizer": true,
+        "path_residual": true,
+        "proper_rotation": true
+      },
+      "condition": 19.38817583904889,
+      "endpoint_median_deg": 5.665439369734635,
+      "endpoint_p95_deg": 37.15501195483298,
+      "leave_one_max_deg": 3.472643116771175,
+      "leave_one_p95_deg": 3.0355963546023026,
+      "optimizer": {
+        "cost": 0.6937781186633493,
+        "evaluations": 12,
+        "optimality": 1.1599182629662419e-07,
+        "success": true
+      },
+      "path_median_normalized": 0.133109778568546,
+      "path_p95_normalized": 0.7492114135742661,
+      "rotation": [
+        [
+          0.03646228800128226,
+          -0.9864807495701902,
+          0.1597693095721054
+        ],
+        [
+          0.9969630600095671,
+          0.04691660773987605,
+          0.062156969798590464
+        ],
+        [
+          -0.0688124881839905,
+          0.1570177144325388,
+          0.9851955535954828
+        ]
+      ],
+      "segment_weight_fraction": [
+        0.05263157894736842,
+        0.05263157894736842,
+        0.05263157894736842,
+        0.052631578947368404,
+        0.05263157894736842,
+        0.05263157894736841,
+        0.05263157894736841,
+        0.052631578947368404,
+        0.052631578947368404,
+        0.05263157894736843,
+        0.05263157894736842,
+        0.05263157894736842,
+        0.05263157894736843,
+        0.052631578947368404,
+        0.05263157894736843,
+        0.05263157894736842,
+        0.05263157894736842,
+        0.05263157894736841,
+        0.05263157894736843
+      ],
+      "semantic_labels_read_by_estimator": false,
+      "singular_ratio": 0.05157782806910298,
+      "singular_values": [
+        15.592690081353838,
+        1.9039917105342985,
+        0.8042370881508756
+      ]
+    }
+  },
+  "schema": "biospur-c2cc-natural-motion-frame-binding-v1-freeze",
+  "semantic_labels_used_as_directions": false,
+  "source_hashes": {
+    "analyzer": "faa1aba39bdc6651584b4c1401c9e8203ce4a1906a3e12617e0611754a3e93c8",
+    "estimator": "b804b8db124e5778b512b721e065680648ab562f539c341e47986cdc105b0a1d"
+  },
+  "test_results_sha256": "16e1f9cefe6a46bf16f57c6a2c0949737cc2aa0838e08375acd0fb3756619864",
+  "time_offset_policy": "0 ms primary; fitting-only +/-80 ms sensitivity; no validation selection"
+}
