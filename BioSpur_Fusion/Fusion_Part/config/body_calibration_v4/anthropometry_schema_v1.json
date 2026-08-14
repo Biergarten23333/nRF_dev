@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "biospur-subject-anthropometry-v1",
+  "title": "BioSpur subject anthropometry input",
+  "type": "object",
+  "required": ["schema", "subject_session", "shoe_condition", "measurements", "sensor_to_landmark_offsets"],
+  "properties": {
+    "schema": {"const": "biospur-subject-anthropometry-v1"},
+    "subject_session": {"type": "string", "minLength": 1},
+    "shoe_condition": {
+      "type": "object",
+      "required": ["status", "description"],
+      "properties": {
+        "status": {"enum": ["BAREFOOT", "SHOES_MEASURED", "UNKNOWN"]},
+        "description": {"type": "string"}
+      }
+    },
+    "measurements": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/scalarMeasurement"}
+    },
+    "sensor_to_landmark_offsets": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/vectorMeasurement"}
+    }
+  },
+  "$defs": {
+    "common": {
+      "type": "object",
+      "required": ["value", "uncertainty", "units", "landmark_definition", "measurement_method", "status"],
+      "properties": {
+        "uncertainty": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "units": {"const": "m"},
+        "landmark_definition": {"type": "string"},
+        "measurement_method": {"type": "string"},
+        "status": {"enum": ["MEASURED", "MISSING"]}
+      }
+    },
+    "scalarMeasurement": {
+      "allOf": [
+        {"$ref": "#/$defs/common"},
+        {"type": "object", "properties": {"value": {"type": ["number", "null"]}}}
+      ]
+    },
+    "vectorMeasurement": {
+      "allOf": [
+        {"$ref": "#/$defs/common"},
+        {"type": "object", "properties": {"value": {"type": ["array", "null"], "minItems": 3, "maxItems": 3, "items": {"type": "number"}}}}
+      ]
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "schema": "biospur-centerline-invariance-gates-v1",
+  "declared_before_v4_calibration": true,
+  "source": "operator-authorized provisional physical gates",
+  "null_perturbation_norm": 0.001,
+  "maximum_segment_axis_angular_change_rad": 0.0001,
+  "maximum_joint_centre_displacement_m": 0.0001,
+  "maximum_antenna_displacement_m": 0.0001,
+  "repeatability": {
+    "maximum_segment_axis_angular_change_rad": 0.017453292519943295,
+    "maximum_joint_centre_displacement_m": 0.01,
+    "maximum_antenna_displacement_m": 0.01
+  },
+  "optimizer_stability": {
+    "maximum_relative_cost_difference": 0.000001
+  },
+  "model_mismatch": {
+    "maximum_normalized_residual_median": 3.0,
+    "maximum_normalized_residual_p95": 8.0
+  },
+  "observability_relative_singular_value_threshold": 0.000001,
+  "notes": [
+    "The centerline gates are physically scaled and replace V3's dimensionless 1e-7 classifier.",
+    "No threshold is inferred from held-out walk or final_still.",
+    "Axial segment twist is an explicit quotient gauge and is never promoted to an observed DOF."
+  ]
+}
