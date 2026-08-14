@@ -1,0 +1,1551 @@
+{
+  "ablations": {
+    "constant_imu": {
+      "materially_changed_or_failed": true,
+      "rms_output_change_m": 0.1391203082360777
+    },
+    "shuffle_imu": {
+      "materially_changed_or_failed": true,
+      "rms_output_change_m": 0.10078654454568456
+    },
+    "shuffle_uwb_identity": {
+      "materially_changed_or_failed": true,
+      "rms_output_change_m": 0.21331494195966294
+    },
+    "zero_uwb": {
+      "materially_changed_or_failed": true,
+      "rms_output_change_m": 0.4927400639429532
+    }
+  },
+  "alignment": {
+    "forearm_L": {
+      "alignment_samples": 161,
+      "axial_twist_dof": false,
+      "median_alignment_residual_rad": 0.17060210628038358,
+      "selected_board_axis": "x",
+      "selected_sign": -1,
+      "sensor_node": "BSFB165"
+    },
+    "forearm_R": {
+      "alignment_samples": 160,
+      "axial_twist_dof": false,
+      "median_alignment_residual_rad": 0.31107279717088765,
+      "selected_board_axis": "z",
+      "selected_sign": -1,
+      "sensor_node": "BSFEC35"
+    },
+    "pelvis_torso_proxy": {
+      "alignment_samples": 156,
+      "axial_twist_dof": false,
+      "median_alignment_residual_rad": 0.16387221266035473,
+      "selected_board_axis": "x",
+      "selected_sign": -1,
+      "sensor_node": "BSFC2CC"
+    },
+    "shank_L": {
+      "alignment_samples": 154,
+      "axial_twist_dof": false,
+      "median_alignment_residual_rad": 0.15602778323579325,
+      "selected_board_axis": "x",
+      "selected_sign": 1,
+      "sensor_node": "BSF6C53"
+    },
+    "shank_R": {
+      "alignment_samples": 139,
+      "axial_twist_dof": false,
+      "median_alignment_residual_rad": 0.2501870097619405,
+      "selected_board_axis": "y",
+      "selected_sign": -1,
+      "sensor_node": "BSF8BC4"
+    },
+    "thigh_L": {
+      "alignment_samples": 148,
+      "axial_twist_dof": false,
+      "median_alignment_residual_rad": 0.27938733644624325,
+      "selected_board_axis": "y",
+      "selected_sign": -1,
+      "sensor_node": "BSF44AD"
+    },
+    "thigh_R": {
+      "alignment_samples": 156,
+      "axial_twist_dof": false,
+      "median_alignment_residual_rad": 0.1540458321453568,
+      "selected_board_axis": "x",
+      "selected_sign": -1,
+      "sensor_node": "BSF3C79"
+    },
+    "torso": {
+      "alignment_samples": 156,
+      "axial_twist_dof": false,
+      "median_alignment_residual_rad": 0.16547148839407294,
+      "selected_board_axis": "x",
+      "selected_sign": 1,
+      "sensor_node": "BSF31CC"
+    },
+    "upper_arm_L": {
+      "alignment_samples": 161,
+      "axial_twist_dof": false,
+      "median_alignment_residual_rad": 0.12027008153932178,
+      "selected_board_axis": "z",
+      "selected_sign": 1,
+      "sensor_node": "BSFAA61"
+    },
+    "upper_arm_R": {
+      "alignment_samples": 162,
+      "axial_twist_dof": false,
+      "median_alignment_residual_rad": 0.2164310588539237,
+      "selected_board_axis": "z",
+      "selected_sign": 1,
+      "sensor_node": "BSF1120"
+    }
+  },
+  "analysis_verdict": "GENERIC_TEMPLATE_MOTION_DEMO_V1_1_FAIL",
+  "custom_action_metadata": {
+    "heldout_payload_opened": false,
+    "included_actions": [
+      "golf_swing",
+      "boxing"
+    ],
+    "sha256": "aa49bf149c34eb0669a176da3406a7746456666d9f545193dd2255c379be7d4c"
+  },
+  "display_frame": {
+    "R_display_from_V4": [
+      [
+        -0.12279986464261079,
+        -0.9378043713842312,
+        -0.3247201168027376
+      ],
+      [
+        0.9923723901729076,
+        -0.11960330460514947,
+        -0.02986785479471872
+      ],
+      [
+        -0.010827394251020847,
+        -0.325911046974715,
+        0.9453384351614919
+      ]
+    ],
+    "compass_heading_claimed": false,
+    "eigenvalues": [
+      9.16563931123348e-15,
+      131.8857012516297,
+      873.8320285025185
+    ],
+    "rule": "DOMINANT_HORIZONTAL_CALIBRATION_MOVEMENT_TO_POSITIVE_X",
+    "sign_metric": 1.6015742531117687,
+    "vertical_source": "ANKLE_MIDPOINT_TO_PELVIS_TO_CENTRAL_INITIAL_STILL_AND_T_POSE"
+  },
+  "failures": [
+    "MODEL_TO_DATA_MISMATCH"
+  ],
+  "final_pass_requires_preview": true,
+  "firewall": {
+    "final_still": "SEALED_NOT_OPENED",
+    "operator_measurements": "SEALED_NOT_READ",
+    "walk": "SEALED_NOT_OPENED"
+  },
+  "fixed_length_audit": {
+    "maximum_error_m": 2.7755575615628914e-16,
+    "per_edge": {
+      "forearm_L": {
+        "expected_m": 0.26,
+        "maximum_absolute_error_m": 1.1102230246251565e-16
+      },
+      "forearm_R": {
+        "expected_m": 0.26,
+        "maximum_absolute_error_m": 2.220446049250313e-16
+      },
+      "hip_width": {
+        "expected_m": 0.3,
+        "maximum_absolute_error_m": 2.7755575615628914e-16
+      },
+      "shank_L": {
+        "expected_m": 0.43,
+        "maximum_absolute_error_m": 1.6653345369377348e-16
+      },
+      "shank_R": {
+        "expected_m": 0.43,
+        "maximum_absolute_error_m": 1.6653345369377348e-16
+      },
+      "shoulder_width": {
+        "expected_m": 0.4,
+        "maximum_absolute_error_m": 2.7755575615628914e-16
+      },
+      "thigh_L": {
+        "expected_m": 0.43,
+        "maximum_absolute_error_m": 2.220446049250313e-16
+      },
+      "thigh_R": {
+        "expected_m": 0.43,
+        "maximum_absolute_error_m": 1.6653345369377348e-16
+      },
+      "torso": {
+        "expected_m": 0.5,
+        "maximum_absolute_error_m": 1.6653345369377348e-16
+      },
+      "upper_arm_L": {
+        "expected_m": 0.32,
+        "maximum_absolute_error_m": 1.6653345369377348e-16
+      },
+      "upper_arm_R": {
+        "expected_m": 0.32,
+        "maximum_absolute_error_m": 1.6653345369377348e-16
+      }
+    }
+  },
+  "frontends": {
+    "custom_action_accounting": {
+      "BSF1120": {
+        "q1_slerp_interpolated": 759,
+        "q1_source": "FROZEN_REPAIRED_Q1_FEATURE_TIMELINE",
+        "t4_matched": 754,
+        "timeline_rows": 759
+      },
+      "BSF31CC": {
+        "q1_slerp_interpolated": 759,
+        "q1_source": "FROZEN_REPAIRED_Q1_FEATURE_TIMELINE",
+        "t4_matched": 735,
+        "timeline_rows": 759
+      },
+      "BSF3C79": {
+        "q1_slerp_interpolated": 759,
+        "q1_source": "FROZEN_REPAIRED_Q1_FEATURE_TIMELINE",
+        "t4_matched": 754,
+        "timeline_rows": 759
+      },
+      "BSF44AD": {
+        "q1_slerp_interpolated": 759,
+        "q1_source": "FROZEN_REPAIRED_Q1_FEATURE_TIMELINE",
+        "t4_matched": 742,
+        "timeline_rows": 759
+      },
+      "BSF6C53": {
+        "q1_slerp_interpolated": 759,
+        "q1_source": "FROZEN_REPAIRED_Q1_FEATURE_TIMELINE",
+        "t4_matched": 748,
+        "timeline_rows": 759
+      },
+      "BSF8BC4": {
+        "q1_slerp_interpolated": 759,
+        "q1_source": "FROZEN_REPAIRED_Q1_FEATURE_TIMELINE",
+        "t4_matched": 753,
+        "timeline_rows": 759
+      },
+      "BSFAA61": {
+        "q1_slerp_interpolated": 759,
+        "q1_source": "FROZEN_REPAIRED_Q1_FEATURE_TIMELINE",
+        "t4_matched": 737,
+        "timeline_rows": 759
+      },
+      "BSFB165": {
+        "q1_slerp_interpolated": 759,
+        "q1_source": "FROZEN_REPAIRED_Q1_FEATURE_TIMELINE",
+        "t4_matched": 748,
+        "timeline_rows": 759
+      },
+      "BSFC2CC": {
+        "q1_slerp_interpolated": 759,
+        "q1_source": "FROZEN_REPAIRED_Q1_FEATURE_TIMELINE",
+        "t4_matched": 730,
+        "timeline_rows": 759
+      },
+      "BSFEC35": {
+        "q1_slerp_interpolated": 759,
+        "q1_source": "FROZEN_REPAIRED_Q1_FEATURE_TIMELINE",
+        "t4_matched": 757,
+        "timeline_rows": 759
+      }
+    },
+    "custom_q1_sha256": "6d01fa6ea42f3f04fac7288d5889b50372246950e1259740ed294a988474a479",
+    "custom_rows_selected_only": [
+      "golf_swing",
+      "boxing"
+    ],
+    "custom_t4_sha256": "6cb94dab2d54b57d754e0b905355ffeb9d234241d41e8a7ed833dab18a177366",
+    "q1_audits": {
+      "BSF1120": {
+        "cholesky_failures": 0,
+        "duplicate_timestamps_rejected": 0,
+        "finite": true,
+        "gravity_accepted": 0,
+        "gravity_attempts": 17372,
+        "gravity_motion_ineligible": 17372,
+        "gravity_rejected": 0,
+        "initialized_samples": 1600,
+        "max_quaternion_norm_error": 2.220446049250313e-16,
+        "min_covariance_eigenvalue": 2.6354106693706375e-07,
+        "node_id": "BSF1120",
+        "propagated_samples": 173711,
+        "source_order_reorders": 0,
+        "spatial_acceleration_enabled": false,
+        "unused_gap_boundaries": 0,
+        "yaw_gauge": "ARBITRARY_ZERO_WITH_PI_UNCERTAINTY",
+        "zupt_updates": 0
+      },
+      "BSF31CC": {
+        "cholesky_failures": 0,
+        "duplicate_timestamps_rejected": 0,
+        "finite": true,
+        "gravity_accepted": 0,
+        "gravity_attempts": 17371,
+        "gravity_motion_ineligible": 17371,
+        "gravity_rejected": 0,
+        "initialized_samples": 1600,
+        "max_quaternion_norm_error": 2.220446049250313e-16,
+        "min_covariance_eigenvalue": 2.1946953028977633e-07,
+        "node_id": "BSF31CC",
+        "propagated_samples": 173705,
+        "source_order_reorders": 0,
+        "spatial_acceleration_enabled": false,
+        "unused_gap_boundaries": 0,
+        "yaw_gauge": "ARBITRARY_ZERO_WITH_PI_UNCERTAINTY",
+        "zupt_updates": 0
+      },
+      "BSF3C79": {
+        "cholesky_failures": 0,
+        "duplicate_timestamps_rejected": 0,
+        "finite": true,
+        "gravity_accepted": 0,
+        "gravity_attempts": 17370,
+        "gravity_motion_ineligible": 17370,
+        "gravity_rejected": 0,
+        "initialized_samples": 1600,
+        "max_quaternion_norm_error": 2.220446049250313e-16,
+        "min_covariance_eigenvalue": 2.2051708888068437e-07,
+        "node_id": "BSF3C79",
+        "propagated_samples": 173691,
+        "source_order_reorders": 0,
+        "spatial_acceleration_enabled": false,
+        "unused_gap_boundaries": 0,
+        "yaw_gauge": "ARBITRARY_ZERO_WITH_PI_UNCERTAINTY",
+        "zupt_updates": 0
+      },
+      "BSF44AD": {
+        "cholesky_failures": 0,
+        "duplicate_timestamps_rejected": 0,
+        "finite": true,
+        "gravity_accepted": 0,
+        "gravity_attempts": 17371,
+        "gravity_motion_ineligible": 17371,
+        "gravity_rejected": 0,
+        "initialized_samples": 1600,
+        "max_quaternion_norm_error": 2.220446049250313e-16,
+        "min_covariance_eigenvalue": 2.2494315163332547e-07,
+        "node_id": "BSF44AD",
+        "propagated_samples": 173704,
+        "source_order_reorders": 0,
+        "spatial_acceleration_enabled": false,
+        "unused_gap_boundaries": 0,
+        "yaw_gauge": "ARBITRARY_ZERO_WITH_PI_UNCERTAINTY",
+        "zupt_updates": 0
+      },
+      "BSF6C53": {
+        "cholesky_failures": 0,
+        "duplicate_timestamps_rejected": 0,
+        "finite": true,
+        "gravity_accepted": 0,
+        "gravity_attempts": 17370,
+        "gravity_motion_ineligible": 17370,
+        "gravity_rejected": 0,
+        "initialized_samples": 1600,
+        "max_quaternion_norm_error": 2.220446049250313e-16,
+        "min_covariance_eigenvalue": 2.2356922350080614e-07,
+        "node_id": "BSF6C53",
+        "propagated_samples": 173691,
+        "source_order_reorders": 0,
+        "spatial_acceleration_enabled": false,
+        "unused_gap_boundaries": 0,
+        "yaw_gauge": "ARBITRARY_ZERO_WITH_PI_UNCERTAINTY",
+        "zupt_updates": 0
+      },
+      "BSF8BC4": {
+        "cholesky_failures": 0,
+        "duplicate_timestamps_rejected": 0,
+        "finite": true,
+        "gravity_accepted": 0,
+        "gravity_attempts": 17369,
+        "gravity_motion_ineligible": 17369,
+        "gravity_rejected": 0,
+        "initialized_samples": 1600,
+        "max_quaternion_norm_error": 2.220446049250313e-16,
+        "min_covariance_eigenvalue": 2.1781794358480563e-07,
+        "node_id": "BSF8BC4",
+        "propagated_samples": 173684,
+        "source_order_reorders": 0,
+        "spatial_acceleration_enabled": false,
+        "unused_gap_boundaries": 0,
+        "yaw_gauge": "ARBITRARY_ZERO_WITH_PI_UNCERTAINTY",
+        "zupt_updates": 0
+      },
+      "BSFAA61": {
+        "cholesky_failures": 0,
+        "duplicate_timestamps_rejected": 0,
+        "finite": true,
+        "gravity_accepted": 0,
+        "gravity_attempts": 17372,
+        "gravity_motion_ineligible": 17372,
+        "gravity_rejected": 0,
+        "initialized_samples": 1600,
+        "max_quaternion_norm_error": 2.220446049250313e-16,
+        "min_covariance_eigenvalue": 2.401590227285322e-07,
+        "node_id": "BSFAA61",
+        "propagated_samples": 173711,
+        "source_order_reorders": 0,
+        "spatial_acceleration_enabled": false,
+        "unused_gap_boundaries": 0,
+        "yaw_gauge": "ARBITRARY_ZERO_WITH_PI_UNCERTAINTY",
+        "zupt_updates": 0
+      },
+      "BSFB165": {
+        "cholesky_failures": 0,
+        "duplicate_timestamps_rejected": 0,
+        "finite": true,
+        "gravity_accepted": 0,
+        "gravity_attempts": 17372,
+        "gravity_motion_ineligible": 17372,
+        "gravity_rejected": 0,
+        "initialized_samples": 1600,
+        "max_quaternion_norm_error": 2.220446049250313e-16,
+        "min_covariance_eigenvalue": 2.403455794429383e-07,
+        "node_id": "BSFB165",
+        "propagated_samples": 173711,
+        "source_order_reorders": 0,
+        "spatial_acceleration_enabled": false,
+        "unused_gap_boundaries": 0,
+        "yaw_gauge": "ARBITRARY_ZERO_WITH_PI_UNCERTAINTY",
+        "zupt_updates": 0
+      },
+      "BSFC2CC": {
+        "cholesky_failures": 0,
+        "duplicate_timestamps_rejected": 0,
+        "finite": true,
+        "gravity_accepted": 0,
+        "gravity_attempts": 17371,
+        "gravity_motion_ineligible": 17371,
+        "gravity_rejected": 0,
+        "initialized_samples": 1600,
+        "max_quaternion_norm_error": 3.3306690738754696e-16,
+        "min_covariance_eigenvalue": 2.3557842538230885e-07,
+        "node_id": "BSFC2CC",
+        "propagated_samples": 173705,
+        "source_order_reorders": 0,
+        "spatial_acceleration_enabled": false,
+        "unused_gap_boundaries": 0,
+        "yaw_gauge": "ARBITRARY_ZERO_WITH_PI_UNCERTAINTY",
+        "zupt_updates": 0
+      },
+      "BSFEC35": {
+        "cholesky_failures": 0,
+        "duplicate_timestamps_rejected": 0,
+        "finite": true,
+        "gravity_accepted": 0,
+        "gravity_attempts": 17372,
+        "gravity_motion_ineligible": 17372,
+        "gravity_rejected": 0,
+        "initialized_samples": 1600,
+        "max_quaternion_norm_error": 2.220446049250313e-16,
+        "min_covariance_eigenvalue": 2.4396379594559637e-07,
+        "node_id": "BSFEC35",
+        "propagated_samples": 173711,
+        "source_order_reorders": 0,
+        "spatial_acceleration_enabled": false,
+        "unused_gap_boundaries": 0,
+        "yaw_gauge": "ARBITRARY_ZERO_WITH_PI_UNCERTAINTY",
+        "zupt_updates": 0
+      }
+    },
+    "t4_accounting": {
+      "BSF1120": {
+        "accepted_for_calibration": 7006,
+        "causal_rejected": 229,
+        "geometry_rejected": 0,
+        "input": 7238,
+        "solver_failed": 3,
+        "t4_solutions": 7235
+      },
+      "BSF31CC": {
+        "accepted_for_calibration": 6309,
+        "causal_rejected": 929,
+        "geometry_rejected": 0,
+        "input": 7238,
+        "solver_failed": 0,
+        "t4_solutions": 7238
+      },
+      "BSF3C79": {
+        "accepted_for_calibration": 6807,
+        "causal_rejected": 431,
+        "geometry_rejected": 0,
+        "input": 7238,
+        "solver_failed": 0,
+        "t4_solutions": 7238
+      },
+      "BSF44AD": {
+        "accepted_for_calibration": 6125,
+        "causal_rejected": 1113,
+        "geometry_rejected": 0,
+        "input": 7238,
+        "solver_failed": 0,
+        "t4_solutions": 7238
+      },
+      "BSF6C53": {
+        "accepted_for_calibration": 7144,
+        "causal_rejected": 91,
+        "geometry_rejected": 0,
+        "input": 7238,
+        "solver_failed": 3,
+        "t4_solutions": 7235
+      },
+      "BSF8BC4": {
+        "accepted_for_calibration": 7015,
+        "causal_rejected": 221,
+        "geometry_rejected": 0,
+        "input": 7238,
+        "solver_failed": 2,
+        "t4_solutions": 7236
+      },
+      "BSFAA61": {
+        "accepted_for_calibration": 6787,
+        "causal_rejected": 451,
+        "geometry_rejected": 0,
+        "input": 7238,
+        "solver_failed": 0,
+        "t4_solutions": 7238
+      },
+      "BSFB165": {
+        "accepted_for_calibration": 7015,
+        "causal_rejected": 214,
+        "geometry_rejected": 0,
+        "input": 7238,
+        "solver_failed": 9,
+        "t4_solutions": 7229
+      },
+      "BSFC2CC": {
+        "accepted_for_calibration": 6316,
+        "causal_rejected": 918,
+        "geometry_rejected": 0,
+        "input": 7238,
+        "solver_failed": 4,
+        "t4_solutions": 7234
+      },
+      "BSFEC35": {
+        "accepted_for_calibration": 6740,
+        "causal_rejected": 495,
+        "geometry_rejected": 0,
+        "input": 7237,
+        "solver_failed": 2,
+        "t4_solutions": 7235
+      }
+    },
+    "t4_rejections": 5115
+  },
+  "historical_v1_interpretation": {
+    "MOTION_FIDELITY_NOT_TESTED": true,
+    "PREVIEW_REJECTED_BY_OPERATOR": true,
+    "SOFTWARE_INTEGRITY_PASS": true
+  },
+  "model_to_data": {
+    "overall_median_m": 0.26321476666355165,
+    "overall_p95_m": 0.7484630303582809,
+    "pass": false,
+    "per_node": {
+      "BSF1120": {
+        "count": 4603,
+        "max_m": 1.4561715661600174,
+        "median_m": 0.1771703808084942,
+        "p95_m": 0.5447866722521442
+      },
+      "BSF31CC": {
+        "count": 4262,
+        "max_m": 1.7241737137166777,
+        "median_m": 0.26426973052752123,
+        "p95_m": 0.8393768779751386
+      },
+      "BSF3C79": {
+        "count": 4588,
+        "max_m": 0.9575630657340437,
+        "median_m": 0.20227945664597963,
+        "p95_m": 0.4154605336976536
+      },
+      "BSF44AD": {
+        "count": 4076,
+        "max_m": 1.2064091582068,
+        "median_m": 0.2839943587886816,
+        "p95_m": 0.6665559169706531
+      },
+      "BSF6C53": {
+        "count": 4680,
+        "max_m": 1.6384106966984844,
+        "median_m": 0.49018945484642834,
+        "p95_m": 1.0427007303233962
+      },
+      "BSF8BC4": {
+        "count": 4639,
+        "max_m": 1.4071759178071162,
+        "median_m": 0.2862650854142231,
+        "p95_m": 0.645362227559088
+      },
+      "BSFAA61": {
+        "count": 4458,
+        "max_m": 1.4406351483643176,
+        "median_m": 0.24131874940407108,
+        "p95_m": 0.6843927382363367
+      },
+      "BSFB165": {
+        "count": 4640,
+        "max_m": 1.5776577554805635,
+        "median_m": 0.2776050626929672,
+        "p95_m": 0.8333743130216594
+      },
+      "BSFC2CC": {
+        "count": 4311,
+        "max_m": 1.7463772475619226,
+        "median_m": 0.31299306705932206,
+        "p95_m": 0.7411732700930613
+      },
+      "BSFEC35": {
+        "count": 4557,
+        "max_m": 1.7376647178616198,
+        "median_m": 0.2525327404457449,
+        "p95_m": 0.781624264834281
+      }
+    }
+  },
+  "motion_responsiveness": {
+    "checks": [
+      {
+        "check": "arms_elbow_L",
+        "pass": true,
+        "threshold": 0.08,
+        "value": 1.8224305836152488
+      },
+      {
+        "check": "arms_wrist_L",
+        "pass": true,
+        "threshold": 0.12,
+        "value": 1.4996066301562392
+      },
+      {
+        "check": "arms_elbow_R",
+        "pass": true,
+        "threshold": 0.08,
+        "value": 1.2949230967648733
+      },
+      {
+        "check": "arms_wrist_R",
+        "pass": true,
+        "threshold": 0.12,
+        "value": 1.1526820370802278
+      },
+      {
+        "check": "left_elbow_relative_wrist",
+        "pass": true,
+        "threshold": 0.05,
+        "value": 0.23705057952168143
+      },
+      {
+        "check": "right_elbow_attempt2_relative_wrist",
+        "pass": true,
+        "threshold": 0.05,
+        "value": 0.2921955340582383
+      },
+      {
+        "check": "left_knee_Knee_L",
+        "pass": true,
+        "threshold": 0.05,
+        "value": 0.6580689345727775
+      },
+      {
+        "check": "right_knee_Knee_R",
+        "pass": true,
+        "threshold": 0.05,
+        "value": 0.7439656583531442
+      },
+      {
+        "check": "left_heel_Ankle_L",
+        "pass": true,
+        "threshold": 0.05,
+        "value": 0.7992903805684768
+      },
+      {
+        "check": "right_heel_Ankle_R",
+        "pass": true,
+        "threshold": 0.05,
+        "value": 0.4936941710859781
+      },
+      {
+        "check": "squats_configuration",
+        "pass": true,
+        "threshold": 0.06,
+        "value": 0.2520355823513698
+      },
+      {
+        "check": "all_relevant_minimum_correlation",
+        "pass": true,
+        "threshold": 0.2,
+        "value": 0.4665220337797348
+      },
+      {
+        "check": "all_relevant_minimum_gain",
+        "pass": true,
+        "threshold": 0.08,
+        "value": 0.7603296757812807
+      }
+    ],
+    "pass": true,
+    "per_action": {
+      "arms": {
+        "input_imu_relative_angular_range_rad": {
+          "BSF1120": 2.4734593543159065,
+          "BSF31CC": 1.5611248488062042,
+          "BSF3C79": 1.2856574169720156,
+          "BSF44AD": 0.5659593310151382,
+          "BSF6C53": 0.6928055035661873,
+          "BSF8BC4": 1.2834870055278351,
+          "BSFAA61": 2.1955881556238555,
+          "BSFB165": 2.697429367087929,
+          "BSFC2CC": 0.9022966083552241,
+          "BSFEC35": 3.0806043839550115
+        },
+        "input_uwb_displacement_range_m": {
+          "BSF1120": 1.3204237910519674,
+          "BSF31CC": 1.5015803610743237,
+          "BSF3C79": 1.2957263882790642,
+          "BSF44AD": 0.9363536442421363,
+          "BSF6C53": 0.6744825548297412,
+          "BSF8BC4": 1.1830584071833974,
+          "BSFAA61": 1.7334944073715242,
+          "BSFB165": 1.3364348236425312,
+          "BSFC2CC": 0.9070080027858997,
+          "BSFEC35": 1.5653216860558896
+        },
+        "lagged_motion_transfer": {
+          "BSF1120->Elbow_R": {
+            "correlation": 0.9881262374758879,
+            "lag_frames": 0,
+            "motion_gain": 0.9807476501647439
+          },
+          "BSFAA61->Elbow_L": {
+            "correlation": 0.9739365134288396,
+            "lag_frames": 0,
+            "motion_gain": 0.9914669841499646
+          },
+          "BSFB165->Wrist_L": {
+            "correlation": 0.9685240825507895,
+            "lag_frames": 0,
+            "motion_gain": 1.031018257840919
+          },
+          "BSFEC35->Wrist_R": {
+            "correlation": 0.9707609824341366,
+            "lag_frames": 0,
+            "motion_gain": 0.7760892670386015
+          }
+        },
+        "output_joint_displacement_range_m": {
+          "Ankle_L": 0.9150084144116908,
+          "Ankle_R": 1.1211310288193215,
+          "C7Proxy": 1.3656246538005772,
+          "Elbow_L": 1.8224305836152488,
+          "Elbow_R": 1.2949230967648733,
+          "Hip_L": 1.1072366890064873,
+          "Hip_R": 0.8959394467912911,
+          "Knee_L": 0.9562948002066931,
+          "Knee_R": 1.1442482196129946,
+          "Pelvis": 1.0028324708863137,
+          "Shoulder_L": 1.54516918546094,
+          "Shoulder_R": 1.1835332608817692,
+          "Wrist_L": 1.4996066301562392,
+          "Wrist_R": 1.1526820370802278
+        },
+        "output_segment_angular_range_rad": {
+          "forearm_L": 2.717911812154847,
+          "forearm_R": 1.1966037757386412,
+          "shank_L": 0.6006068315484586,
+          "shank_R": 0.6164552970615106,
+          "thigh_L": 0.7199149423718778,
+          "thigh_R": 2.108260882355539,
+          "torso": 1.6597384516804958,
+          "torso_lateral": 0.636560139947668,
+          "upper_arm_L": 0.9904785521807994,
+          "upper_arm_R": 1.1976102044735883
+        }
+      },
+      "boxing": {
+        "input_imu_relative_angular_range_rad": {
+          "BSF1120": 3.1208064824255093,
+          "BSF31CC": 3.1070197463696485,
+          "BSF3C79": 3.011319110016092,
+          "BSF44AD": 3.0621231725326647,
+          "BSF6C53": 3.1046605855653566,
+          "BSF8BC4": 2.8442907461997557,
+          "BSFAA61": 3.1319999055931658,
+          "BSFB165": 3.1092158407304504,
+          "BSFC2CC": 3.042749014680877,
+          "BSFEC35": 3.136681687544555
+        },
+        "input_uwb_displacement_range_m": {
+          "BSF1120": 0.9517731955864679,
+          "BSF31CC": 1.0754664902337652,
+          "BSF3C79": 0.6311809550518415,
+          "BSF44AD": 1.0214631356947717,
+          "BSF6C53": 0.9548700616082285,
+          "BSF8BC4": 0.6271462775601344,
+          "BSFAA61": 1.026364690126611,
+          "BSFB165": 0.7637819050535035,
+          "BSFC2CC": 0.9642607693418319,
+          "BSFEC35": 1.0715736303538002
+        },
+        "lagged_motion_transfer": {
+          "BSFB165->Wrist_L": {
+            "correlation": 0.9275676011116719,
+            "lag_frames": 0,
+            "motion_gain": 0.8643369439549694
+          },
+          "BSFEC35->Wrist_R": {
+            "correlation": 0.8713962712654577,
+            "lag_frames": 0,
+            "motion_gain": 0.9183020320741365
+          }
+        },
+        "output_joint_displacement_range_m": {
+          "Ankle_L": 0.8677862306620069,
+          "Ankle_R": 0.6824768535400498,
+          "C7Proxy": 0.7823674863783349,
+          "Elbow_L": 0.7850947696810828,
+          "Elbow_R": 0.7196277454187148,
+          "Hip_L": 0.7272494114976455,
+          "Hip_R": 0.7449906200816687,
+          "Knee_L": 0.7720268320600907,
+          "Knee_R": 0.5979881757516057,
+          "Pelvis": 0.719566678928754,
+          "Shoulder_L": 0.8094190085584017,
+          "Shoulder_R": 0.830925508820024,
+          "Wrist_L": 0.7191342980140092,
+          "Wrist_R": 0.8168178839340428
+        },
+        "output_segment_angular_range_rad": {
+          "forearm_L": 1.813875395640616,
+          "forearm_R": 1.8642273414162545,
+          "shank_L": 1.8961943695408185,
+          "shank_R": 0.9895912880076888,
+          "thigh_L": 1.441001669753183,
+          "thigh_R": 1.4400025702992443,
+          "torso": 2.2747539941418298,
+          "torso_lateral": 0.9870605374428556,
+          "upper_arm_L": 1.9507700510964725,
+          "upper_arm_R": 1.974605934561141
+        }
+      },
+      "golf_swing": {
+        "input_imu_relative_angular_range_rad": {
+          "BSF1120": 3.081250374043777,
+          "BSF31CC": 2.387758924371291,
+          "BSF3C79": 2.621434696503087,
+          "BSF44AD": 2.559102884974886,
+          "BSF6C53": 2.531459175797975,
+          "BSF8BC4": 2.6420199051389806,
+          "BSFAA61": 2.996598448561842,
+          "BSFB165": 3.1130445428680558,
+          "BSFC2CC": 2.5411329968427303,
+          "BSFEC35": 3.121262020809486
+        },
+        "input_uwb_displacement_range_m": {
+          "BSF1120": 1.2092353091287136,
+          "BSF31CC": 1.2229973252111135,
+          "BSF3C79": 1.1281958799690142,
+          "BSF44AD": 1.1016530462480778,
+          "BSF6C53": 0.8081703280702495,
+          "BSF8BC4": 1.0309686783013159,
+          "BSFAA61": 1.7039527411311535,
+          "BSFB165": 1.341947221657665,
+          "BSFC2CC": 1.055178520414838,
+          "BSFEC35": 1.4497006850215286
+        },
+        "lagged_motion_transfer": {
+          "BSF31CC->C7Proxy": {
+            "correlation": 0.9233874863233582,
+            "lag_frames": 0,
+            "motion_gain": 1.0165921822624533
+          },
+          "BSFB165->Wrist_L": {
+            "correlation": 0.9218692877336844,
+            "lag_frames": 0,
+            "motion_gain": 0.9612316449926596
+          },
+          "BSFEC35->Wrist_R": {
+            "correlation": 0.8985967368375335,
+            "lag_frames": 0,
+            "motion_gain": 0.9271340532458721
+          }
+        },
+        "output_joint_displacement_range_m": {
+          "Ankle_L": 1.0265321204026214,
+          "Ankle_R": 0.9729244321543502,
+          "C7Proxy": 1.1714321464410686,
+          "Elbow_L": 1.322026000345697,
+          "Elbow_R": 1.2044202183651918,
+          "Hip_L": 1.0622063817271912,
+          "Hip_R": 1.0147477923010402,
+          "Knee_L": 1.009436743731563,
+          "Knee_R": 0.9998962119277688,
+          "Pelvis": 1.006046770603446,
+          "Shoulder_L": 1.2589349304294437,
+          "Shoulder_R": 1.1148366461949266,
+          "Wrist_L": 1.300725846430241,
+          "Wrist_R": 1.253024452950125
+        },
+        "output_segment_angular_range_rad": {
+          "forearm_L": 1.7358843996017566,
+          "forearm_R": 1.7701271322416754,
+          "shank_L": 1.3624998764828993,
+          "shank_R": 1.0090225241374209,
+          "thigh_L": 1.3207536465236163,
+          "thigh_R": 1.5597302535984674,
+          "torso": 2.0061129319813884,
+          "torso_lateral": 1.4035924715293768,
+          "upper_arm_L": 2.16083784000822,
+          "upper_arm_R": 1.258023349772488
+        }
+      },
+      "initial_still_attempt2": {
+        "input_imu_relative_angular_range_rad": {
+          "BSF1120": 0.051980152740620914,
+          "BSF31CC": 0.04642004093462477,
+          "BSF3C79": 0.03607154340931885,
+          "BSF44AD": 0.04316966180192132,
+          "BSF6C53": 0.031247022735636114,
+          "BSF8BC4": 0.05843906377750407,
+          "BSFAA61": 0.04967931541864094,
+          "BSFB165": 0.05120514946878374,
+          "BSFC2CC": 0.0745759196090227,
+          "BSFEC35": 0.059406494216906545
+        },
+        "input_uwb_displacement_range_m": {
+          "BSF1120": 0.0863613135491193,
+          "BSF31CC": 0.12726725977440834,
+          "BSF3C79": 0.19560939582325854,
+          "BSF44AD": 0.2818561294953481,
+          "BSF6C53": 0.10387721928858801,
+          "BSF8BC4": 0.1096273475837724,
+          "BSFAA61": 0.06833076499931731,
+          "BSFB165": 0.09522790966612689,
+          "BSFC2CC": 0.22783622592791494,
+          "BSFEC35": 0.5531095064272811
+        },
+        "lagged_motion_transfer": {},
+        "output_joint_displacement_range_m": {
+          "Ankle_L": 0.14188166494399543,
+          "Ankle_R": 0.11277177289321519,
+          "C7Proxy": 0.10084615736102051,
+          "Elbow_L": 0.06682376457370304,
+          "Elbow_R": 0.08426616026152171,
+          "Hip_L": 0.09774397561159653,
+          "Hip_R": 0.12360226260769713,
+          "Knee_L": 0.15058658728758462,
+          "Knee_R": 0.08318646341208188,
+          "Pelvis": 0.11812091152134804,
+          "Shoulder_L": 0.09559131277266218,
+          "Shoulder_R": 0.11365501290588473,
+          "Wrist_L": 0.0805602515300295,
+          "Wrist_R": 0.163732330941516
+        },
+        "output_segment_angular_range_rad": {
+          "forearm_L": 0.3063345013964931,
+          "forearm_R": 0.7645495337360291,
+          "shank_L": 0.1621239210459539,
+          "shank_R": 0.37682918345646327,
+          "thigh_L": 0.5807275755937317,
+          "thigh_R": 0.3438600616891809,
+          "torso": 0.2837054508106405,
+          "torso_lateral": 0.19783883570085303,
+          "upper_arm_L": 0.21691454923550496,
+          "upper_arm_R": 0.39223379399756947
+        }
+      },
+      "left_elbow": {
+        "input_imu_relative_angular_range_rad": {
+          "BSF1120": 1.0198822760974842,
+          "BSF31CC": 1.4082349246053416,
+          "BSF3C79": 0.6932830797131805,
+          "BSF44AD": 0.6002132965413337,
+          "BSF6C53": 0.40557829143487334,
+          "BSF8BC4": 0.7014186148950552,
+          "BSFAA61": 1.913653716411303,
+          "BSFB165": 3.0305623052479085,
+          "BSFC2CC": 0.7184337022898077,
+          "BSFEC35": 2.546349932422262
+        },
+        "input_uwb_displacement_range_m": {
+          "BSF1120": 1.099496034970847,
+          "BSF31CC": 0.8008701467289524,
+          "BSF3C79": 0.718110180012141,
+          "BSF44AD": 0.9131949352012277,
+          "BSF6C53": 0.5236629137873859,
+          "BSF8BC4": 0.916857103360377,
+          "BSFAA61": 1.5660061830735597,
+          "BSFB165": 1.024837272312259,
+          "BSFC2CC": 1.0655314696375178,
+          "BSFEC35": 1.009589871527711
+        },
+        "lagged_motion_transfer": {
+          "BSFB165->Wrist_L": {
+            "correlation": 0.8694941570140939,
+            "lag_frames": 0,
+            "motion_gain": 0.7603296757812807
+          }
+        },
+        "output_joint_displacement_range_m": {
+          "Ankle_L": 0.7140060099026786,
+          "Ankle_R": 0.8401000195781618,
+          "C7Proxy": 0.6652069696300759,
+          "Elbow_L": 1.0480718600532346,
+          "Elbow_R": 0.8916212025854542,
+          "Hip_L": 0.7631202511799658,
+          "Hip_R": 0.7788200981065238,
+          "Knee_L": 0.7299973244239307,
+          "Knee_R": 0.6396907421492526,
+          "Pelvis": 0.7613261306512578,
+          "Shoulder_L": 0.7073294932503582,
+          "Shoulder_R": 0.6570868333231465,
+          "Wrist_L": 0.8392674018832177,
+          "Wrist_R": 0.7369714148372724
+        },
+        "output_segment_angular_range_rad": {
+          "forearm_L": 2.462377461301938,
+          "forearm_R": 1.443442086818632,
+          "shank_L": 0.7225107405132352,
+          "shank_R": 1.3447192502595762,
+          "thigh_L": 0.8398274968272001,
+          "thigh_R": 1.6845152095753988,
+          "torso": 1.1724929895822058,
+          "torso_lateral": 0.5566142274181092,
+          "upper_arm_L": 1.30943292065129,
+          "upper_arm_R": 1.4954826972900808
+        }
+      },
+      "left_heel": {
+        "input_imu_relative_angular_range_rad": {
+          "BSF1120": 0.9194870637510452,
+          "BSF31CC": 1.3653567826844641,
+          "BSF3C79": 0.4543639932869844,
+          "BSF44AD": 0.4733605715812932,
+          "BSF6C53": 1.8756073598332408,
+          "BSF8BC4": 0.4086833838325302,
+          "BSFAA61": 1.1498123455752882,
+          "BSFB165": 1.494466792023661,
+          "BSFC2CC": 0.8869144018902118,
+          "BSFEC35": 1.6892779028888296
+        },
+        "input_uwb_displacement_range_m": {
+          "BSF1120": 1.1483679436906056,
+          "BSF31CC": 0.8760999794300249,
+          "BSF3C79": 0.47198239571454254,
+          "BSF44AD": 1.0296358268260672,
+          "BSF6C53": 0.6164859026076793,
+          "BSF8BC4": 0.5694911098428945,
+          "BSFAA61": 1.3895282603205292,
+          "BSFB165": 1.3143830197562254,
+          "BSFC2CC": 0.7375100456075314,
+          "BSFEC35": 1.1713099958812907
+        },
+        "lagged_motion_transfer": {
+          "BSF6C53->Ankle_L": {
+            "correlation": 0.6978347456767249,
+            "lag_frames": 0,
+            "motion_gain": 1.1522919780494068
+          }
+        },
+        "output_joint_displacement_range_m": {
+          "Ankle_L": 0.7992903805684768,
+          "Ankle_R": 0.6082469504757673,
+          "C7Proxy": 0.7408821114395159,
+          "Elbow_L": 1.0665595069994838,
+          "Elbow_R": 1.0667200417963283,
+          "Hip_L": 0.5991721432335485,
+          "Hip_R": 0.6725884981106037,
+          "Knee_L": 0.5935472653509523,
+          "Knee_R": 0.456449836881169,
+          "Pelvis": 0.6185624825591113,
+          "Shoulder_L": 0.8118857178487935,
+          "Shoulder_R": 0.6960771870192796,
+          "Wrist_L": 1.049413701338699,
+          "Wrist_R": 1.0361419622726835
+        },
+        "output_segment_angular_range_rad": {
+          "forearm_L": 1.296134032060287,
+          "forearm_R": 1.7864439588138883,
+          "shank_L": 1.4730209881208252,
+          "shank_R": 0.7325336153399299,
+          "thigh_L": 2.1387015799271225,
+          "thigh_R": 0.8970108056472172,
+          "torso": 1.340722772595272,
+          "torso_lateral": 0.5734843593256609,
+          "upper_arm_L": 1.5479549258860361,
+          "upper_arm_R": 2.1213461855886164
+        }
+      },
+      "left_knee": {
+        "input_imu_relative_angular_range_rad": {
+          "BSF1120": 0.7235304377785674,
+          "BSF31CC": 1.5174287343411375,
+          "BSF3C79": 0.5286044836750129,
+          "BSF44AD": 1.923599655479669,
+          "BSF6C53": 0.7687419738733551,
+          "BSF8BC4": 0.26149430152530057,
+          "BSFAA61": 1.1381289052484251,
+          "BSFB165": 1.3845169128639874,
+          "BSFC2CC": 0.9426170488387875,
+          "BSFEC35": 1.5285779604908791
+        },
+        "input_uwb_displacement_range_m": {
+          "BSF1120": 1.1283143204608526,
+          "BSF31CC": 0.4920465458623464,
+          "BSF3C79": 0.6716667599064939,
+          "BSF44AD": 1.0277190122286608,
+          "BSF6C53": 0.4721913686972666,
+          "BSF8BC4": 0.7401012047581171,
+          "BSFAA61": 1.8631744838028643,
+          "BSFB165": 1.1978504451522451,
+          "BSFC2CC": 0.5813738221516342,
+          "BSFEC35": 0.5779957997496257
+        },
+        "lagged_motion_transfer": {
+          "BSF44AD->Knee_L": {
+            "correlation": 0.5755629964214699,
+            "lag_frames": 0,
+            "motion_gain": 0.7950570584857715
+          }
+        },
+        "output_joint_displacement_range_m": {
+          "Ankle_L": 0.5921766559917281,
+          "Ankle_R": 0.5295373855838282,
+          "C7Proxy": 0.7113564535840384,
+          "Elbow_L": 1.1655679572776172,
+          "Elbow_R": 0.8493653807407109,
+          "Hip_L": 0.5104910746989167,
+          "Hip_R": 0.4486347559440293,
+          "Knee_L": 0.6580689345727775,
+          "Knee_R": 0.5387645197521188,
+          "Pelvis": 0.4115278792592154,
+          "Shoulder_L": 0.7313168766160567,
+          "Shoulder_R": 0.6270040401923855,
+          "Wrist_L": 1.0233352846327841,
+          "Wrist_R": 0.696634771274424
+        },
+        "output_segment_angular_range_rad": {
+          "forearm_L": 1.271577498523071,
+          "forearm_R": 1.13290786927776,
+          "shank_L": 1.3848037074003894,
+          "shank_R": 1.1006715729052776,
+          "thigh_L": 1.5819751388850494,
+          "thigh_R": 1.21941426846139,
+          "torso": 1.1436102438913718,
+          "torso_lateral": 0.6301845287866206,
+          "upper_arm_L": 1.4493175985099038,
+          "upper_arm_R": 2.067047307803303
+        }
+      },
+      "right_elbow_attempt2": {
+        "input_imu_relative_angular_range_rad": {
+          "BSF1120": 1.2042687494976299,
+          "BSF31CC": 1.4051161962420295,
+          "BSF3C79": 0.7662919762066911,
+          "BSF44AD": 0.38805379415499375,
+          "BSF6C53": 0.6874669568542302,
+          "BSF8BC4": 0.7661464301044101,
+          "BSFAA61": 1.1964314487071523,
+          "BSFB165": 2.2181636627273327,
+          "BSFC2CC": 0.8090233811853998,
+          "BSFEC35": 2.817941103760967
+        },
+        "input_uwb_displacement_range_m": {
+          "BSF1120": 1.1143810384070314,
+          "BSF31CC": 0.9227052159434423,
+          "BSF3C79": 0.8052118040139774,
+          "BSF44AD": 0.6884888717093552,
+          "BSF6C53": 0.3069269775371137,
+          "BSF8BC4": 0.5838388962271073,
+          "BSFAA61": 1.7438768579533444,
+          "BSFB165": 1.7045938193916481,
+          "BSFC2CC": 0.9323291100245054,
+          "BSFEC35": 0.9181166413928966
+        },
+        "lagged_motion_transfer": {
+          "BSFEC35->Wrist_R": {
+            "correlation": 0.8803367988800591,
+            "lag_frames": 0,
+            "motion_gain": 0.8734466377661606
+          }
+        },
+        "output_joint_displacement_range_m": {
+          "Ankle_L": 0.6801631635749312,
+          "Ankle_R": 0.7507981728422896,
+          "C7Proxy": 0.7660473089361652,
+          "Elbow_L": 1.3144634447729746,
+          "Elbow_R": 0.9882483356732359,
+          "Hip_L": 0.7171562654277702,
+          "Hip_R": 0.7288282507659128,
+          "Knee_L": 0.7906599273111228,
+          "Knee_R": 0.7866197952849664,
+          "Pelvis": 0.7109958971992645,
+          "Shoulder_L": 0.7618813414792209,
+          "Shoulder_R": 0.7468822958963272,
+          "Wrist_L": 1.2341741439812772,
+          "Wrist_R": 0.9835479663775556
+        },
+        "output_segment_angular_range_rad": {
+          "forearm_L": 1.6912408220724116,
+          "forearm_R": 2.4409534224014706,
+          "shank_L": 0.7215363107840872,
+          "shank_R": 0.5327182266957686,
+          "thigh_L": 1.6097860940052429,
+          "thigh_R": 1.6776253877913736,
+          "torso": 2.2322558673603203,
+          "torso_lateral": 0.6516008379261571,
+          "upper_arm_L": 1.6920370635554312,
+          "upper_arm_R": 1.9962804499148297
+        }
+      },
+      "right_heel": {
+        "input_imu_relative_angular_range_rad": {
+          "BSF1120": 1.121448842836344,
+          "BSF31CC": 1.4439216900318799,
+          "BSF3C79": 0.5531016271193854,
+          "BSF44AD": 0.3190241628732486,
+          "BSF6C53": 0.6225839057018359,
+          "BSF8BC4": 1.7642141912703995,
+          "BSFAA61": 1.161726710666324,
+          "BSFB165": 1.4647158116691719,
+          "BSFC2CC": 0.8926676728222085,
+          "BSFEC35": 2.6347023441200634
+        },
+        "input_uwb_displacement_range_m": {
+          "BSF1120": 1.1997307273212139,
+          "BSF31CC": 0.560880019344068,
+          "BSF3C79": 0.5137829888947348,
+          "BSF44AD": 0.5338171317954346,
+          "BSF6C53": 0.3732680876513711,
+          "BSF8BC4": 0.5361865708284151,
+          "BSFAA61": 0.3381248335820308,
+          "BSFB165": 1.1632107979175552,
+          "BSFC2CC": 0.742021787502231,
+          "BSFEC35": 1.0236800661854457
+        },
+        "lagged_motion_transfer": {
+          "BSF8BC4->Ankle_R": {
+            "correlation": 0.815047327182458,
+            "lag_frames": 0,
+            "motion_gain": 1.076955058590513
+          }
+        },
+        "output_joint_displacement_range_m": {
+          "Ankle_L": 0.5471415118810891,
+          "Ankle_R": 0.4936941710859781,
+          "C7Proxy": 0.6918635686547598,
+          "Elbow_L": 0.9824644688679484,
+          "Elbow_R": 0.9757312285725188,
+          "Hip_L": 0.6469673930737428,
+          "Hip_R": 0.5183456756701247,
+          "Knee_L": 0.8350201848489179,
+          "Knee_R": 0.5639031172998696,
+          "Pelvis": 0.5899660929129562,
+          "Shoulder_L": 0.7653249091219505,
+          "Shoulder_R": 0.6241027769264299,
+          "Wrist_L": 0.8472645226335944,
+          "Wrist_R": 0.8421631481780768
+        },
+        "output_segment_angular_range_rad": {
+          "forearm_L": 1.253310402905873,
+          "forearm_R": 1.486446676313735,
+          "shank_L": 1.180080421858755,
+          "shank_R": 1.014276865943059,
+          "thigh_L": 2.0382424605413063,
+          "thigh_R": 0.9847634869941303,
+          "torso": 1.3897210996901053,
+          "torso_lateral": 0.4904512783292021,
+          "upper_arm_L": 0.9656315775046702,
+          "upper_arm_R": 2.082477058820328
+        }
+      },
+      "right_knee": {
+        "input_imu_relative_angular_range_rad": {
+          "BSF1120": 1.734153095436441,
+          "BSF31CC": 1.3858126330403475,
+          "BSF3C79": 1.932842094802155,
+          "BSF44AD": 1.406586657611797,
+          "BSF6C53": 1.1726899768723873,
+          "BSF8BC4": 1.8063237051220928,
+          "BSFAA61": 1.2223546154594693,
+          "BSFB165": 1.5274666203218594,
+          "BSFC2CC": 1.4467395568976202,
+          "BSFEC35": 2.8840261721159086
+        },
+        "input_uwb_displacement_range_m": {
+          "BSF1120": 1.3105930420835756,
+          "BSF31CC": 0.7942909722483791,
+          "BSF3C79": 0.6563880496544857,
+          "BSF44AD": 0.7166269249822522,
+          "BSF6C53": 0.35263187814109476,
+          "BSF8BC4": 0.7664939683586853,
+          "BSFAA61": 1.6954076046883737,
+          "BSFB165": 1.4861372047576753,
+          "BSFC2CC": 0.6430636291691084,
+          "BSFEC35": 1.3362463459288412
+        },
+        "lagged_motion_transfer": {
+          "BSF3C79->Knee_R": {
+            "correlation": 0.8483966006752762,
+            "lag_frames": 0,
+            "motion_gain": 1.106279845589912
+          }
+        },
+        "output_joint_displacement_range_m": {
+          "Ankle_L": 0.5993643050071186,
+          "Ankle_R": 0.8156600143974239,
+          "C7Proxy": 0.8083475080120572,
+          "Elbow_L": 1.1495492951464266,
+          "Elbow_R": 1.1459237781157428,
+          "Hip_L": 0.771134759670545,
+          "Hip_R": 0.8005182867849208,
+          "Knee_L": 0.8439509932625862,
+          "Knee_R": 0.7439656583531442,
+          "Pelvis": 0.7959703274399001,
+          "Shoulder_L": 0.8151926675589122,
+          "Shoulder_R": 0.8083685779777946,
+          "Wrist_L": 1.1266123645609325,
+          "Wrist_R": 1.0316227816745687
+        },
+        "output_segment_angular_range_rad": {
+          "forearm_L": 1.205618320816293,
+          "forearm_R": 1.5129910960775095,
+          "shank_L": 1.1451971235237508,
+          "shank_R": 1.414101400738782,
+          "thigh_L": 2.042292332804436,
+          "thigh_R": 1.6355408094022448,
+          "torso": 1.470000336175637,
+          "torso_lateral": 0.84548128686185,
+          "upper_arm_L": 2.1272520639586148,
+          "upper_arm_R": 2.3649424387888733
+        }
+      },
+      "squats": {
+        "input_imu_relative_angular_range_rad": {
+          "BSF1120": 0.8976636472245993,
+          "BSF31CC": 1.458372632131937,
+          "BSF3C79": 1.6499601027849244,
+          "BSF44AD": 1.7362743608420488,
+          "BSF6C53": 0.8840643857567096,
+          "BSF8BC4": 0.7833818195549818,
+          "BSFAA61": 2.4303637939619955,
+          "BSFB165": 3.1379518619653037,
+          "BSFC2CC": 1.1771347903147757,
+          "BSFEC35": 1.6069750176471018
+        },
+        "input_uwb_displacement_range_m": {
+          "BSF1120": 1.2631789749464803,
+          "BSF31CC": 0.95414868186204,
+          "BSF3C79": 0.4527429717003193,
+          "BSF44AD": 0.7680135552315119,
+          "BSF6C53": 0.37271084939549964,
+          "BSF8BC4": 0.6988601994418633,
+          "BSFAA61": 1.5399147284536936,
+          "BSFB165": 1.4966579026004259,
+          "BSFC2CC": 0.9694061514957445,
+          "BSFEC35": 0.9194844897627767
+        },
+        "lagged_motion_transfer": {
+          "BSF3C79->Knee_R": {
+            "correlation": 0.6555764536478306,
+            "lag_frames": 0,
+            "motion_gain": 1.0480966102366467
+          },
+          "BSF44AD->Knee_L": {
+            "correlation": 0.617859162490763,
+            "lag_frames": 0,
+            "motion_gain": 0.9118815407601231
+          },
+          "BSFC2CC->Pelvis": {
+            "correlation": 0.4665220337797348,
+            "lag_frames": 0,
+            "motion_gain": 1.3429824960429073
+          }
+        },
+        "output_joint_displacement_range_m": {
+          "Ankle_L": 0.6843416454058966,
+          "Ankle_R": 0.5668892048618402,
+          "C7Proxy": 0.7793857020315904,
+          "Elbow_L": 0.9649363112397795,
+          "Elbow_R": 1.124056138531491,
+          "Hip_L": 0.6948704614723851,
+          "Hip_R": 0.6744577720586764,
+          "Knee_L": 0.7850768453317395,
+          "Knee_R": 0.5336877228693583,
+          "Pelvis": 0.7112602565052207,
+          "Shoulder_L": 0.9068998284008887,
+          "Shoulder_R": 0.7140772962254645,
+          "Wrist_L": 1.0536765819724079,
+          "Wrist_R": 1.048638521788745
+        },
+        "output_segment_angular_range_rad": {
+          "forearm_L": 2.1612769867097312,
+          "forearm_R": 1.8553814881674557,
+          "shank_L": 1.5589839813546662,
+          "shank_R": 0.8189188981546831,
+          "thigh_L": 2.0167616129517483,
+          "thigh_R": 1.3437658635001235,
+          "torso": 1.3070997545404313,
+          "torso_lateral": 0.771067901904731,
+          "upper_arm_L": 1.4259724370558895,
+          "upper_arm_R": 2.201647141130519
+        }
+      },
+      "t_pose": {
+        "input_imu_relative_angular_range_rad": {
+          "BSF1120": 0.09557778317828401,
+          "BSF31CC": 0.054469325120544115,
+          "BSF3C79": 0.04903730614235413,
+          "BSF44AD": 0.02601945225980268,
+          "BSF6C53": 0.020327122883509453,
+          "BSF8BC4": 0.044185694907703084,
+          "BSFAA61": 0.0849814873561809,
+          "BSFB165": 0.0643296591379176,
+          "BSFC2CC": 0.036920142671074074,
+          "BSFEC35": 0.06762059714182929
+        },
+        "input_uwb_displacement_range_m": {
+          "BSF1120": 0.0811382028966757,
+          "BSF31CC": 0.06243387725881911,
+          "BSF3C79": 0.2831742276097385,
+          "BSF44AD": 0.2763289158359467,
+          "BSF6C53": 0.11825902856573561,
+          "BSF8BC4": 0.5890944225778074,
+          "BSFAA61": 0.0921855859198466,
+          "BSFB165": 0.08852173599534355,
+          "BSFC2CC": 0.09118744394530338,
+          "BSFEC35": 0.05220032929782753
+        },
+        "lagged_motion_transfer": {},
+        "output_joint_displacement_range_m": {
+          "Ankle_L": 0.09727416089867626,
+          "Ankle_R": 0.4348495462513683,
+          "C7Proxy": 0.061567481515420804,
+          "Elbow_L": 0.062293858129911804,
+          "Elbow_R": 0.06709492613002738,
+          "Hip_L": 0.06837433119851664,
+          "Hip_R": 0.07084662311633319,
+          "Knee_L": 0.08360792820302193,
+          "Knee_R": 0.0779677216731044,
+          "Pelvis": 0.06815353335374438,
+          "Shoulder_L": 0.06025883440744638,
+          "Shoulder_R": 0.06731886734768439,
+          "Wrist_L": 0.05498014153177632,
+          "Wrist_R": 0.05627582136399513
+        },
+        "output_segment_angular_range_rad": {
+          "forearm_L": 0.23985572688800028,
+          "forearm_R": 0.16706968389695162,
+          "shank_L": 0.2615808621063902,
+          "shank_R": 1.182928966703138,
+          "thigh_L": 0.22005284848327414,
+          "thigh_R": 0.20346215458398592,
+          "torso": 0.13492109847459743,
+          "torso_lateral": 0.1579686911787605,
+          "upper_arm_L": 0.15515416721706493,
+          "upper_arm_R": 0.3270802025262524
+        }
+      },
+      "trunk": {
+        "input_imu_relative_angular_range_rad": {
+          "BSF1120": 2.021616608193362,
+          "BSF31CC": 1.7062469608539224,
+          "BSF3C79": 0.8976764951910868,
+          "BSF44AD": 0.7821489186402836,
+          "BSF6C53": 0.718244896198999,
+          "BSF8BC4": 1.1090734772032347,
+          "BSFAA61": 2.0720589802320277,
+          "BSFB165": 2.079137393860195,
+          "BSFC2CC": 1.2753044285578499,
+          "BSFEC35": 2.729442077735004
+        },
+        "input_uwb_displacement_range_m": {
+          "BSF1120": 1.2000789145176172,
+          "BSF31CC": 0.8840852668404591,
+          "BSF3C79": 0.6812085325766148,
+          "BSF44AD": 0.8364419580182559,
+          "BSF6C53": 0.45920418949976105,
+          "BSF8BC4": 0.7006173330072338,
+          "BSFAA61": 1.471601954208172,
+          "BSFB165": 1.4769495259933725,
+          "BSFC2CC": 0.7235413216546406,
+          "BSFEC35": 1.239828044289345
+        },
+        "lagged_motion_transfer": {
+          "BSF31CC->C7Proxy": {
+            "correlation": 0.6968109125992671,
+            "lag_frames": 0,
+            "motion_gain": 1.0372196501099675
+          }
+        },
+        "output_joint_displacement_range_m": {
+          "Ankle_L": 0.852207197576216,
+          "Ankle_R": 0.5538286859402693,
+          "C7Proxy": 0.7577715217604125,
+          "Elbow_L": 1.031519164245406,
+          "Elbow_R": 1.0980111081837443,
+          "Hip_L": 0.7866072180971108,
+          "Hip_R": 0.793138072714574,
+          "Knee_L": 0.867903171783152,
+          "Knee_R": 0.5670868717766744,
+          "Pelvis": 0.7867798227593235,
+          "Shoulder_L": 0.716542688776054,
+          "Shoulder_R": 0.785313134344093,
+          "Wrist_L": 0.8970668088741177,
+          "Wrist_R": 0.9926229702536563
+        },
+        "output_segment_angular_range_rad": {
+          "forearm_L": 2.0305523641852936,
+          "forearm_R": 2.1557216797465277,
+          "shank_L": 0.9973921364091363,
+          "shank_R": 1.2378863024484814,
+          "thigh_L": 2.1766851170508223,
+          "thigh_R": 1.2352334423889815,
+          "torso": 1.6816513953325678,
+          "torso_lateral": 0.9138464413015898,
+          "upper_arm_L": 2.0187860425065294,
+          "upper_arm_R": 2.7202170123560863
+        }
+      }
+    }
+  },
+  "pre_estimation_uwb_rejection": {
+    "count": 171,
+    "zero_estimator_weight": true
+  },
+  "schema": "biospur-generic-template-motion-demo-analysis-v1-1",
+  "state": {
+    "entire_skeleton_forward_propagated_from_imu_only": false,
+    "finite": true,
+    "joint_trajectories_directly_constrained_by_uwb_displacements": true
+  },
+  "template": {
+    "dimensions": {
+      "C7Proxy_to_PelvisProxy_m": 0.5,
+      "graphical_hip_width_m": 0.3,
+      "graphical_shoulder_width_m": 0.4,
+      "rendering_forearm_length_L_m": 0.26,
+      "rendering_forearm_length_R_m": 0.26,
+      "rendering_shank_length_L_m": 0.43,
+      "rendering_shank_length_R_m": 0.43,
+      "rendering_thigh_length_L_m": 0.43,
+      "rendering_thigh_length_R_m": 0.43,
+      "rendering_upper_arm_length_L_m": 0.32,
+      "rendering_upper_arm_length_R_m": 0.32
+    },
+    "immutable": true,
+    "sha256": "892fa156db60f19120e45ea9bc537361e5ef4f73518d1753aa38fd73d389fce4"
+  },
+  "topology": {
+    "connected": true,
+    "left_right_identity_fixed": true
+  }
+}

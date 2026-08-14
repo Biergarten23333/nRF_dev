@@ -1,0 +1,24 @@
+{
+  "schema": "biospur-generic-template-motion-demo-v1-rejection-v1",
+  "rejected_commit": "c11c34bf6bd2731f21b39f96c7cf56e1d7ac7f53",
+  "operator_decision": "PREVIEW_REJECTED_BY_OPERATOR",
+  "historical_interpretation": {
+    "SOFTWARE_INTEGRITY": "PASS",
+    "MOTION_FIDELITY": "NOT_TESTED",
+    "PREVIEW": "REJECTED_BY_OPERATOR"
+  },
+  "root_cause": {
+    "root_translation": "V1 used pelvis UWB for root translation",
+    "limb_uwb_use": "V1 used limb UWB only through normalized segment-direction blending",
+    "maximum_nominal_limb_uwb_direction_weight": 0.20,
+    "joint_trajectory_constraint": "V1 limb UWB did not directly constrain graphical joint trajectories",
+    "invalid_pass_reason": "determinism, topology and fixed lengths were treated as sufficient despite motion fidelity not being tested"
+  },
+  "model_to_data_mismatch": {
+    "placement_bound_hits": 9,
+    "placement_bounds_m": [-0.05, 0.05],
+    "per_node_median_residual_range_m": [0.107, 1.138],
+    "required_interpretation": "MODEL_TO_DATA_MISMATCH"
+  },
+  "v1_artifacts_modified": false
+}
