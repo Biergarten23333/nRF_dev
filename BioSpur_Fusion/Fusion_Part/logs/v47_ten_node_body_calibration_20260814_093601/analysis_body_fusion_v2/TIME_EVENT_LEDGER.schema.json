@@ -1,0 +1,21 @@
+{
+  "core_fields": [
+    "boot_epoch",
+    "sequence",
+    "node_timer_us",
+    "global_time_ns",
+    "global_time_sigma_ns",
+    "master_arrival_ms",
+    "raw_record_index",
+    "raw_start_offset",
+    "raw_end_offset",
+    "status"
+  ],
+  "format": "NumPy NPZ; keys imu_<BSF> and uwb_<BSF>",
+  "payload": "typed IMU or UWB fields retained losslessly",
+  "status_codes": {
+    "0": "outside-window",
+    "1": "accepted",
+    "2": "outside-clock-segment"
+  }
+}

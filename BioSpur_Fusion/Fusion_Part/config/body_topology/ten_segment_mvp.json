@@ -1,0 +1,23 @@
+{
+  "schema": "biospur-ten-segment-body-topology-v1",
+  "segments": ["Torso", "Pelvis", "UpperArm_L", "UpperArm_R", "Forearm_L", "Forearm_R", "Thigh_L", "Thigh_R", "Shank_L", "Shank_R"],
+  "sensor_placement_to_segment": {
+    "Central": "Torso", "Pelvis": "Pelvis",
+    "Elbow_L": "UpperArm_L", "Elbow_R": "UpperArm_R",
+    "Wrist_L": "Forearm_L", "Wrist_R": "Forearm_R",
+    "Knee_L": "Thigh_L", "Knee_R": "Thigh_R",
+    "Ankle_L": "Shank_L", "Ankle_R": "Shank_R"
+  },
+  "joints": {
+    "torso_pelvis": {"parent": "Pelvis", "child": "Torso", "type": "soft_ball"},
+    "shoulder_L": {"parent": "Torso", "child": "UpperArm_L", "type": "conditional_ball", "virtual": true},
+    "shoulder_R": {"parent": "Torso", "child": "UpperArm_R", "type": "conditional_ball", "virtual": true},
+    "elbow_L": {"parent": "UpperArm_L", "child": "Forearm_L", "type": "soft_hinge"},
+    "elbow_R": {"parent": "UpperArm_R", "child": "Forearm_R", "type": "soft_hinge"},
+    "hip_L": {"parent": "Pelvis", "child": "Thigh_L", "type": "ball"},
+    "hip_R": {"parent": "Pelvis", "child": "Thigh_R", "type": "ball"},
+    "knee_L": {"parent": "Thigh_L", "child": "Shank_L", "type": "soft_hinge"},
+    "knee_R": {"parent": "Thigh_R", "child": "Shank_R", "type": "soft_hinge"}
+  },
+  "unavailable": ["direct shoulder centre measurement", "foot orientation", "clinical joint angles"]
+}
