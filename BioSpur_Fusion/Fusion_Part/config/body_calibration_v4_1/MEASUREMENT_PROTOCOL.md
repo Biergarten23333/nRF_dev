@@ -99,7 +99,7 @@ pelvis depth = 左右 ASIS 中点到左右 PSIS 中点的水平前后距离，
 - `AI`：肩胛骨下角；
 - `PC`：喙突尖端。
 
-每一次 pass 必须重新触诊五点；一个 pass 内五点共享同一个 digitizer frame。CSV 的 `repeat_1_mm`/`repeat_2_mm`/`repeat_3_mm` 对应 pass 1/2/3，不能把三个轴当成三次重复。Meskers 原始方法、五标志要求和坐标误差见 [Meskers et al., 1998](https://pubmed.ncbi.nlm.nih.gov/9596544/) 及 [ISB shoulder protocol](https://media.isbweb.org/images/documents/standards/frans_c.t._van_der_helm_shoulder_protocol.pdf)。
+每一次 pass 必须重新触诊五点；同一个 pass 内左右共十个点必须共享同一个 digitizer frame，而且左右的 pass 1/2/3 必须一一对应。CSV 的 `repeat_1_mm`/`repeat_2_mm`/`repeat_3_mm` 对应 pass 1/2/3，不能把三个轴当成三次重复。Meskers 原始方法、五标志要求和坐标误差见 [Meskers et al., 1998](https://pubmed.ncbi.nlm.nih.gov/9596544/) 及 [ISB shoulder protocol](https://media.isbweb.org/images/documents/standards/frans_c.t._van_der_helm_shoulder_protocol.pdf)。
 
 ## 5. 鞋具与足部（D 类，rendering only）
 

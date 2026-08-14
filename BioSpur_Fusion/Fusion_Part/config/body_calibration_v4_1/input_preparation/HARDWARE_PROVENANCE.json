@@ -1,0 +1,90 @@
+{
+  "assembly_tolerance_prior": {
+    "one_sigma_mm": null,
+    "requirement": "must be non-zero after shared enclosure registration/fit is measured",
+    "status": "BLOCKED_ENCLOSURE_REGISTRATION_MISSING",
+    "value_B_to_E_mm": null
+  },
+  "cad": {
+    "U4_footprint_envelope_mil": [
+      -376.58,
+      668.5,
+      -376.58,
+      668.5
+    ],
+    "U7_footprint_envelope_mil": [
+      -300.0,
+      300.0,
+      -300.0,
+      300.0
+    ],
+    "absolute_path": "/home/zekaixiao/Downloads/ProPrj_eFlake_Synapse_2026-08-13.epro",
+    "antenna_phase_centre": "NOT_MARKED_IN_CAD",
+    "enclosure_geometry": "NOT_PRESENT_IN_REPOSITORY_OR_CAD_ARCHIVE",
+    "git_tracking": "EXTERNAL_FILE_HASH_BOUND_BY_REPOSITORY_AUDIT",
+    "out_of_plane_registration": "UNKNOWN",
+    "pcb_documents": {
+      "PCB17": {
+        "U4_DWM1001C_reference_origin_mil": [0, 0],
+        "U4_rotation_deg": 0,
+        "U7_IMU_reference_origin_mil": [140.9465, -0.2058],
+        "U7_rotation_deg": 180,
+        "outline_rectangle_record": ["R", -570.1207, 677.471, 1217.9528, 1898.2473, 0, 20],
+        "units": "mil"
+      },
+      "PCB17_1": {
+        "U4_DWM1001C_reference_origin_mil": [0, 0],
+        "U4_rotation_deg": 0,
+        "U7_IMU_reference_origin_mil": [140.9465, -0.2058],
+        "U7_rotation_deg": 180,
+        "outline_rectangle_record": ["R", -570.1207, 677.471, 1217.9528, 1898.2473, 0, 20],
+        "units": "mil"
+      }
+    },
+    "sha256": "d70946843e9857b14c6b91a3ea4ab1f873be97aa61a1e5e77bf74f4b64ec8140"
+  },
+  "datasheet": {
+    "absolute_path": "/home/zekaixiao/Documents/Datasheets/DW1000 EVK/DWM1001_DWM1001-DEV_MDEK1001_Sources_and_Docs_v11/DWM1001/Product_and_Design_Documents/DWM1001C_Datasheet.pdf",
+    "package_dimensions_mm": [19.1, 26.2, 2.6],
+    "relevant_statements": [
+      "integrated printed UWB antenna",
+      "rectangular area above shield is antenna area",
+      "custom carrier geometry can change antenna performance"
+    ],
+    "revision": "DWM1001C Datasheet v1.7",
+    "official_product_url": "https://www.qorvo.com/products/p/DWM1001C",
+    "sha256": "3e8efcac15663ce84704de7735fea410b94ccbf86d32541a224e6759f13845ac",
+    "status": "VERIFIED"
+  },
+  "frames": {
+    "A_antenna": "origin at effective DWM1001C UWB RF phase centre; axes parallel B unless evidence proves otherwise",
+    "B_board": "origin at U4 CAD reference point on PCB top plane; +x/+y follow EasyEDA PCB axes; +z leaves PCB top",
+    "E_enclosure": "origin at enclosure geometric centre; +x toward antenna end along enclosure long axis; +z away from body-facing face"
+  },
+  "missing_shared_facts": [
+    "confirm all ten assemblies use the same PCB-to-enclosure registration and antenna-end orientation",
+    "shared enclosure outer and inner geometry or a versioned CAD/source drawing",
+    "PCB U4 reference-to-enclosure-frame registration and mechanical play in three axes",
+    "evidence-backed effective RF phase-centre convention within the DWM1001C antenna area",
+    "non-zero assembly-tolerance distribution from enclosure fit/attachment evidence"
+  ],
+  "pcb_phase_centre_to_enclosure": null,
+  "reuse_policy": "one transform may be reused only after questionnaire confirms mechanically identical assemblies",
+  "rf_phase_centre_prior": {
+    "interpretation": "non-zero uncertainty bound only; not a phase-centre estimate",
+    "one_sigma_uniform_whole_package_envelope_mm": [
+      5.513695070760927,
+      7.563288526384098,
+      0.7505553499465135
+    ],
+    "status": "CONSERVATIVE_NONZERO_BOUND_ONLY",
+    "value_B_mm": null
+  },
+  "schema": "biospur-shared-pcb-phase-centre-enclosure-preparation-v1",
+  "source_lineage": {
+    "note": "commit/path contain the prior fail-closed parser and authoritative external CAD hash; no CAD file is tracked in Git",
+    "repository_commit": "c45dee7c662878d1c0e61f4d0682b5aa89301ac5",
+    "repository_path": "BioSpur_Fusion/B306_Part/tools/analyze_v47_c2cc_rotation_aware.py"
+  },
+  "status": "BLOCKED_SHARED_TRANSFORM_INCOMPLETE"
+}
