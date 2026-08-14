@@ -1,0 +1,52 @@
+{
+  "schema": "biospur-visualization-centerline-input-binding-v1",
+  "session": "v47_ten_node_body_calibration_20260814_093601",
+  "strict_scientific_product": {
+    "name": "SCIENTIFIC_CENTERLINE",
+    "authority": "frozen V4.1",
+    "status": "BLOCKED_UNTIL_FROZEN_V4_1_REQUIREMENTS_PASS",
+    "may_be_changed_by_visualization_track": false
+  },
+  "visualization_product": {
+    "name": "VISUALIZATION_CENTERLINE",
+    "status": "BLOCKED_OPERATOR_MEASUREMENTS_MISSING",
+    "clinical_use": "FORBIDDEN"
+  },
+  "immutable_input_preparation_commits": [
+    "10c6243b04acf19bdbaa00bf21bcc902091b68a9",
+    "a470e5f2a1cabc0858ebcb969e167c61be7cef34"
+  ],
+  "immutable_sources": {
+    "measurement_protocol": {
+      "path": "Fusion_Part/config/body_calibration_v4_1/MEASUREMENT_PROTOCOL.md",
+      "sha256": "540f51c6192bf056157ed6879975da1c70d002886b8671f989e5d03b624f6a8a"
+    },
+    "subject_measurement_template": {
+      "path": "Fusion_Part/config/body_calibration_v4_1/v47_subject_measurement_form.csv",
+      "sha256": "0f73b1f7772d013220b55970dde0ca185eece42ae3be5efaeb000a6271eded36"
+    },
+    "shoe_measurement_template": {
+      "path": "Fusion_Part/config/body_calibration_v4_1/v47_shoe_measurement_form.csv",
+      "sha256": "32a4ff63ccb40fcf8011a09c773d293d380ec49499a6358bee51905d5a9789b8"
+    },
+    "capture_placement_questionnaire": {
+      "path": "Fusion_Part/config/body_calibration_v4_1/v47_capture_placement_questionnaire.md",
+      "sha256": "a169697e09c9ba49d6ff32c5e2d7c8d8d6558e741ae4fac13eb737d3e918c4f6"
+    },
+    "hardware_provenance": {
+      "path": "Fusion_Part/config/body_calibration_v4_1/input_preparation/HARDWARE_PROVENANCE.json",
+      "sha256": "a7ccf12cadf0d8c3fb569907132daac92ba09eaba3c34dafc18ed8f0510f82eb"
+    }
+  },
+  "operator_filled_inputs": {
+    "direct_measurements": "supply a filled copy of v47_visualization_subject_measurements.csv",
+    "direct_hardware_measurements": "supply a filled copy of v47_visualization_hardware_measurements.csv after following HARDWARE_MEASUREMENT_GUIDE.md",
+    "shoe_measurements": "optional for centerline; supply a filled copy for detailed foot rendering",
+    "shared_wearing_convention": "supply a filled copy of v47_shared_wearing_convention.csv; do not edit the template"
+  },
+  "payload_state": {
+    "calibration_ledger": "SEALED_UNTIL_INPUTS_READY",
+    "walk": "SEALED",
+    "final_still": "SEALED"
+  }
+}

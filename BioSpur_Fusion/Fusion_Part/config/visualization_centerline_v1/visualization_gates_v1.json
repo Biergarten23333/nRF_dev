@@ -1,0 +1,72 @@
+{
+  "schema": "biospur-visualization-centerline-gates-v1",
+  "declared_before_capture_payload_access": true,
+  "product": "VISUALIZATION_CENTERLINE_V1",
+  "non_clinical": true,
+  "disclaimer": "Non-clinical visualization centerline. Axial segment twist and clinical joint centres/angles are not validated.",
+  "geometry_gates": {
+    "maximum_bone_length_change_mm": 1e-09,
+    "require_fixed_left_right_identity": true,
+    "require_connected_centerline": true,
+    "minimum_positive_rendering_length_mm": 1.0,
+    "maximum_direct_repeat_range_mm": 10.0
+  },
+  "calibration_gates": {
+    "observability_relative_singular_value_threshold": 1e-06,
+    "quotient_removes_axial_twist": true,
+    "null_maximum_segment_axis_angular_change_rad": 0.0001,
+    "null_maximum_graphical_node_displacement_mm": 0.1,
+    "null_maximum_antenna_displacement_mm": 0.1,
+    "multistart_maximum_relative_cost_difference": 1e-06,
+    "repeatability_maximum_segment_axis_angular_change_rad": 0.02,
+    "multistart_maximum_graphical_node_displacement_mm": 10.0,
+    "multistart_maximum_antenna_displacement_mm": 10.0,
+    "interleaved_maximum_graphical_node_displacement_mm": 10.0,
+    "interleaved_maximum_placement_displacement_mm": 10.0,
+    "interleaved_maximum_antenna_displacement_mm": 10.0,
+    "mandatory_action_dependence_report_required": true,
+    "optional_action_removal_pass_required": true,
+    "optional_action_removal_maximum_segment_axis_angular_change_rad": 0.02,
+    "optional_action_removal_maximum_graphical_node_displacement_mm": 10.0,
+    "optional_action_removal_maximum_antenna_displacement_mm": 10.0,
+    "model_mismatch_maximum_normalized_residual_median": 3.0,
+    "model_mismatch_maximum_normalized_residual_p95": 8.0,
+    "placement_maximum_posterior_shift_sigma": 3.0,
+    "placement_minimum_bound_clearance_fraction": 0.01,
+    "placement_profile_maximum_graphical_node_displacement_mm": 10.0,
+    "placement_profile_maximum_segment_axis_angular_change_rad": 0.02,
+    "placement_profile_maximum_antenna_displacement_mm": 10.0,
+    "placement_at_bound_requires_disclosure": true
+  },
+  "historical_physical_gate_comparison": {
+    "V4_null_axis_invariance_rad": 0.0001,
+    "V4_null_graphical_or_joint_position_invariance_mm": 0.1,
+    "V4_null_antenna_invariance_mm": 0.1,
+    "note": "Retained for numerical comparison only; V4.1 scientific semantics and verdict are unchanged."
+  },
+  "rendering": {
+    "width_px": 1920,
+    "height_px": 1080,
+    "fps": 30,
+    "mp4_codec": "h264",
+    "pixel_format": "yuv420p",
+    "fixed_axes_required": true,
+    "visual_interpolation_analysis_use": "FORBIDDEN",
+    "watermark_every_frame": true
+  },
+  "firewall": {
+    "initial_allowed_payload": "CALIBRATION_LEDGER_ONLY",
+    "walk_before_preview_acceptance": "FORBIDDEN",
+    "walk_open_count": 1,
+    "walk_consumed_status": "CONSUMED_FOR_VISUALIZATION",
+    "final_still": "SEALED",
+    "post_walk_gate_or_parameter_changes": "FORBIDDEN"
+  },
+  "scientific_boundary": {
+    "SCIENTIFIC_CENTERLINE": "EVALUATED_ONLY_BY_FROZEN_V4_1",
+    "Meskers_visualization_requirement": "NOT_REQUIRED_UNLESS_ACTUAL_DIGITIZATION_SUPPLIED",
+    "surface_chords_as_internal_joint_centres": "FORBIDDEN",
+    "clinical_joint_angles": "NOT_VALIDATED",
+    "absolute_anatomical_accuracy": "NOT_CLAIMED"
+  }
+}
