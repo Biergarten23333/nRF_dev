@@ -1,0 +1,72 @@
+{
+  "schema": "biospur-generic-template-motion-demo-gates-v1",
+  "product": "GENERIC_TEMPLATE_MOTION_DEMO_V1",
+  "declared_before_payload_access": true,
+  "template_name": "GENERIC_ADULT_PROXY_V1",
+  "operator_measurements": "SEALED_AND_FORBIDDEN",
+  "allowed_payload": "CALIBRATION_TYPED_LEDGER_ONLY",
+  "heldout": {"walk": "SEALED", "final_still": "SEALED"},
+  "historical_verdicts": {
+    "CAPTURE_DERIVED_GEOMETRY": "UNOBSERVABLE_IMMUTABLE",
+    "V3_V4_V4_1": "UNCHANGED_NOT_REHABILITATED"
+  },
+  "frontends": {
+    "position": "UWB_TAG_T4",
+    "attitude": "Q1_ATTITUDE_ONLY",
+    "geometry_sha256": "20320e53d48b171c016a0e8d1d93b3cb10e979cf4c21c15c21647d5c0b9878b1"
+  },
+  "calibration_actions": [
+    "initial_still_attempt2", "t_pose", "arms", "left_elbow",
+    "right_elbow_attempt2", "left_knee", "right_knee", "left_heel",
+    "right_heel", "squats", "trunk"
+  ],
+  "alignment_actions": ["initial_still_attempt2", "t_pose"],
+  "preview_actions": [
+    "initial_still_attempt2", "t_pose", "arms", "squats", "left_knee",
+    "right_knee", "left_heel", "right_heel"
+  ],
+  "estimator": {
+    "timeline_hz": 10.0,
+    "maximum_uwb_match_gap_ns": 80000000,
+    "maximum_q1_match_gap_ns": 20000000,
+    "uwb_radial_sigma_floor_m": 0.020,
+    "uwb_huber_delta_sigma": 3.0,
+    "uwb_reject_threshold_sigma": 8.0,
+    "imu_axis_primary_weight": 0.80,
+    "axis_temporal_smoothing_alpha": 0.35,
+    "root_position_smoothing_alpha": 0.30,
+    "root_velocity_smoothing_alpha": 0.20,
+    "placement_component_bound_m": 0.050,
+    "placement_robust_loss": "soft_l1",
+    "placement_robust_f_scale_m": 0.050,
+    "placement_max_function_evaluations": 800,
+    "global_yaw_rule": "DOMINANT_HORIZONTAL_CALIBRATION_MOVEMENT_TO_POSITIVE_X",
+    "global_yaw_sign_rule": "POSITIVE_NET_PROJECTED_DISPLACEMENT_THEN_LEXICOGRAPHIC",
+    "render_interpolation_analysis_use": "FORBIDDEN"
+  },
+  "preview_gates": {
+    "maximum_generic_length_change_m": 1e-12,
+    "require_fixed_left_right_identity": true,
+    "require_connected_topology": true,
+    "require_finite_state": true,
+    "undisclosed_placement_bound_hits_allowed": false,
+    "unlogged_interpolation_allowed": false,
+    "deterministic_analysis_replay_byte_identical": true
+  },
+  "rendering": {
+    "width_px": 1280,
+    "height_px": 720,
+    "fps": 30,
+    "gif_fps": 10,
+    "display_time_scale": 3.0,
+    "mp4_codec": "libx264",
+    "pixel_format": "yuv420p",
+    "fixed_camera": {"elevation_deg": 18.0, "azimuth_deg": -58.0},
+    "fixed_world_axes": true,
+    "equal_axis_scaling": true,
+    "raw_uwb_alpha": 0.20,
+    "rejected_uwb_color": "red",
+    "disclaimer": "Generic non-clinical motion demo. Skeleton dimensions are not subject-specific. Axial twist and clinical joint angles are not validated."
+  },
+  "determinism": {"random_seed": 20260814, "replay_count": 2}
+}
