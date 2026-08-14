@@ -1,0 +1,42 @@
+{
+  "gates": {
+    "analysis_settings": {
+      "anthropometric_uncertainty_mode": "FIXED_INPUTS_NOT_PROPAGATED",
+      "finite_difference_relative_step": 2e-06,
+      "finite_null_perturbation_norm": 0.001,
+      "uncertainty_exclusion_statement": "Reported calibration covariance conditions on anthropometric scalars. It excludes anthropometric measurement and derivation uncertainty."
+    },
+    "declared_before_v4_1_calibration": true,
+    "execution_gates": {
+      "maximum_antenna_displacement_m": 0.0001,
+      "maximum_joint_centre_displacement_m": 0.0001,
+      "maximum_segment_axis_angular_change_rad": 0.0001,
+      "model_mismatch_maximum_normalized_residual_median": 3.0,
+      "model_mismatch_maximum_normalized_residual_p95": 8.0,
+      "observability_relative_singular_value_threshold": 1e-06,
+      "optimizer_maximum_relative_cost_difference": 1e-06,
+      "repeatability_maximum_antenna_displacement_m": 0.01,
+      "repeatability_maximum_joint_centre_displacement_m": 0.01,
+      "repeatability_maximum_segment_axis_angular_change_rad": 0.017453292519943295,
+      "sensor_offset_maximum_posterior_shift_sigma": 3.0,
+      "sensor_offset_minimum_bound_clearance_fraction": 0.01,
+      "sensor_offset_profile_maximum_antenna_displacement_m": 0.0001,
+      "sensor_offset_profile_maximum_joint_centre_displacement_m": 0.0001,
+      "sensor_offset_profile_maximum_segment_axis_angular_change_rad": 0.0001
+    },
+    "historical_v4_comparison": {
+      "maximum_antenna_displacement_m": 0.0001,
+      "maximum_joint_centre_displacement_m": 0.0001,
+      "maximum_segment_axis_angular_change_rad": 0.0001,
+      "status": "PRESERVED_UNCHANGED"
+    },
+    "notes": [
+      "No threshold is derived from held-out walk or final_still.",
+      "The V4 1e-4 rad and 0.1 mm physical invariance limits are retained verbatim for historical comparison.",
+      "Per-segment axial twist is removed from the quotient state and remains explicitly unavailable."
+    ],
+    "schema": "biospur-centerline-invariance-gates-v4.1"
+  },
+  "path": "/mnt/nrf_ssd/nRF_dev/BioSpur_Fusion/Fusion_Part/config/body_calibration_v4_1/invariance_gates_v4_1.json",
+  "sha256": "3bf53baa9919ff02cbe02ee311cfa9bb9499b2f11fc8198c92c41e6a06604b41"
+}

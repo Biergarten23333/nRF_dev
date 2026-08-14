@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "biospur-anthropometry-v4.1",
+  "title": "BioSpur V4.1 measurement-conditioned anthropometry",
+  "type": "object",
+  "required": [
+    "schema",
+    "subject_session",
+    "A_DIRECT_SURFACE_MEASUREMENT",
+    "B_DERIVED_JOINT_CENTER",
+    "C_SENSOR_PLACEMENT",
+    "D_RENDERING_ONLY"
+  ],
+  "properties": {
+    "schema": {"const": "biospur-anthropometry-v4.1"},
+    "subject_session": {"type": "string", "minLength": 1},
+    "A_DIRECT_SURFACE_MEASUREMENT": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/scalarMeasurement"}
+    },
+    "B_DERIVED_JOINT_CENTER": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/derivedValue"}
+    },
+    "C_SENSOR_PLACEMENT": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/sensorPlacement"}
+    },
+    "D_RENDERING_ONLY": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/scalarMeasurement"}
+    }
+  },
+  "$defs": {
+    "scalarMeasurement": {
+      "type": "object",
+      "required": ["status", "raw_value", "uncertainty", "units", "landmark_definition", "measurement_method"],
+      "properties": {
+        "status": {"enum": ["MEASURED", "MISSING"]},
+        "raw_value": {"type": ["number", "null"]},
+        "uncertainty": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "units": {"const": "m"},
+        "landmark_definition": {"type": "string"},
+        "measurement_method": {"type": "string"},
+        "shoe_condition": {"type": ["string", "null"]},
+        "source": {"type": ["string", "null"]}
+      }
+    },
+    "derivedValue": {
+      "type": "object",
+      "required": ["status", "value", "uncertainty", "units", "derivation_name", "derivation_version", "raw_measurement_refs"],
+      "properties": {
+        "status": {"enum": ["DERIVED", "MISSING"]},
+        "value": {"type": ["number", "null"]},
+        "uncertainty": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "units": {"const": "m"},
+        "derivation_name": {"type": ["string", "null"]},
+        "derivation_version": {"type": ["string", "null"]},
+        "raw_measurement_refs": {"type": "array", "items": {"type": "string"}},
+        "definition": {"type": "string"}
+      }
+    },
+    "vector3": {
+      "type": ["array", "null"],
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {"type": "number"}
+    },
+    "sensorTransform": {
+      "type": "object",
+      "required": ["status", "value", "uncertainty", "units", "frame", "source"],
+      "properties": {
+        "status": {"enum": ["MEASURED_CAPTURE_DAY", "PHOTO_DERIVED", "CALIBRATION_ESTIMATED", "MISSING"]},
+        "value": {"$ref": "#/$defs/vector3"},
+        "uncertainty": {"$ref": "#/$defs/vector3"},
+        "lower_bound": {"$ref": "#/$defs/vector3"},
+        "upper_bound": {"$ref": "#/$defs/vector3"},
+        "units": {"const": "m"},
+        "frame": {"type": "string"},
+        "source": {"type": ["string", "null"]},
+        "source_sha256": {"type": ["string", "null"]},
+        "estimate_as_nuisance": {"type": "boolean"}
+      }
+    },
+    "sensorPlacement": {
+      "type": "object",
+      "required": ["segment", "landmark", "pcb_phase_centre_to_enclosure", "capture_enclosure_to_landmark"],
+      "properties": {
+        "segment": {"type": "string"},
+        "landmark": {"type": "string"},
+        "pcb_phase_centre_to_enclosure": {"$ref": "#/$defs/sensorTransform"},
+        "capture_enclosure_to_landmark": {"$ref": "#/$defs/sensorTransform"}
+      }
+    }
+  }
+}

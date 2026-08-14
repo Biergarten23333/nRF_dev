@@ -1,0 +1,38 @@
+{
+  "schema": "biospur-centerline-invariance-gates-v4.1",
+  "declared_before_v4_1_calibration": true,
+  "historical_v4_comparison": {
+    "maximum_segment_axis_angular_change_rad": 0.0001,
+    "maximum_joint_centre_displacement_m": 0.0001,
+    "maximum_antenna_displacement_m": 0.0001,
+    "status": "PRESERVED_UNCHANGED"
+  },
+  "analysis_settings": {
+    "finite_null_perturbation_norm": 0.001,
+    "finite_difference_relative_step": 0.000002,
+    "anthropometric_uncertainty_mode": "FIXED_INPUTS_NOT_PROPAGATED",
+    "uncertainty_exclusion_statement": "Reported calibration covariance conditions on anthropometric scalars. It excludes anthropometric measurement and derivation uncertainty."
+  },
+  "execution_gates": {
+    "observability_relative_singular_value_threshold": 0.000001,
+    "maximum_segment_axis_angular_change_rad": 0.0001,
+    "maximum_joint_centre_displacement_m": 0.0001,
+    "maximum_antenna_displacement_m": 0.0001,
+    "repeatability_maximum_segment_axis_angular_change_rad": 0.017453292519943295,
+    "repeatability_maximum_joint_centre_displacement_m": 0.01,
+    "repeatability_maximum_antenna_displacement_m": 0.01,
+    "optimizer_maximum_relative_cost_difference": 0.000001,
+    "model_mismatch_maximum_normalized_residual_median": 3.0,
+    "model_mismatch_maximum_normalized_residual_p95": 8.0,
+    "sensor_offset_maximum_posterior_shift_sigma": 3.0,
+    "sensor_offset_minimum_bound_clearance_fraction": 0.01,
+    "sensor_offset_profile_maximum_segment_axis_angular_change_rad": 0.0001,
+    "sensor_offset_profile_maximum_joint_centre_displacement_m": 0.0001,
+    "sensor_offset_profile_maximum_antenna_displacement_m": 0.0001
+  },
+  "notes": [
+    "No threshold is derived from held-out walk or final_still.",
+    "The V4 1e-4 rad and 0.1 mm physical invariance limits are retained verbatim for historical comparison.",
+    "Per-segment axial twist is removed from the quotient state and remains explicitly unavailable."
+  ]
+}
