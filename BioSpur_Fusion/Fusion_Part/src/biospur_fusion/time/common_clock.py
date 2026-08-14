@@ -15,6 +15,15 @@ import numpy as np
 SUPERFRAME_US = 120_000.0
 SLOT_US = 10_000.0
 DW_TICKS_PER_US = 63_897.6
+CLOCK_OUTLIER_HARD_LIMIT_US = 5_000.0
+CLEAN_RESIDUAL_P95_GATE_US = 500.0
+CLEAN_RESIDUAL_MAX_GATE_US = 1_000.0
+RAW_RESIDUAL_P99_GATE_US = 2_000.0
+RAW_RESIDUAL_MAX_GATE_US = 5_000.0
+MIN_CLEAN_LISTENER_PAIRS = 50
+MIN_CAPTURE_SPAN_COVERAGE = 0.80
+MAX_CLEAN_ANCHOR_GAP_S = 60.0
+MAX_REJECTION_FRACTION = 0.20
 
 UWB_RE = re.compile(
     r"^(\d+\.\d+)\s+(\d+\.\d+).*?FUSION_UWB proto=7 name=(BSF[0-9A-F]+) "
@@ -60,6 +69,12 @@ class ClockModel:
     rejected_pairs: int
     clean_residual_p95_us: float
     clean_residual_max_us: float
+    raw_residual_p95_us: float
+    raw_residual_p99_us: float
+    raw_residual_max_us: float
+    capture_span_coverage: float
+    max_clean_anchor_gap_s: float
+    rejection_fraction: float
     drift_ppm: float
     mod16_agreement_fraction: float
     timestamp_reversals: int
@@ -69,7 +84,8 @@ class ClockModel:
 
 
 def _robust_line(x: np.ndarray, y: np.ndarray, iterations: int = 12,
-                 hard_limit: float = 999.0, floor: float = 300.0) -> tuple[float, float, np.ndarray]:
+                 hard_limit: float = CLOCK_OUTLIER_HARD_LIMIT_US,
+                 floor: float = 300.0) -> tuple[float, float, np.ndarray]:
     x = np.asarray(x, float); y = np.asarray(y, float)
     if x.size < 3 or x.size != y.size:
         raise ValueError("clock fit needs at least three pairs")
@@ -80,9 +96,9 @@ def _robust_line(x: np.ndarray, y: np.ndarray, iterations: int = 12,
         residual = y - (slope * x + intercept)
         centre = float(np.median(residual[keep]))
         mad = 1.4826 * float(np.median(np.abs(residual[keep] - centre)))
-        # Predeclared physical clean-anchor classifier.  A 300 us floor avoids
-        # classifying ordinary multi-listener propagation/quantisation spread
-        # as an outlier; the hard 1 ms ceiling is stricter than Gate 0.
+        # Predeclared physical clean-anchor classifier.  Its 5 ms hard ceiling
+        # is deliberately looser than the independent 1 ms clean-max gate, so
+        # the acceptance gate cannot be made tautological by classification.
         limit = min(float(hard_limit), max(float(floor), 6.0 * mad))
         new_keep = np.abs(residual - centre) <= limit
         if np.array_equal(new_keep, keep):
@@ -272,7 +288,15 @@ def align_capture(log_path: Path, listener_dir: Path, start_s: float, end_s: flo
         slope, intercept, clean = _robust_line(timer, target)
         residual = target - (slope * timer + intercept)
         centre = float(np.median(residual[clean])); centred = residual - centre
-        clean_values = np.abs(centred[clean])
+        raw_values = np.abs(centred)
+        clean_values = raw_values[clean]
+        paired_timer_span = float(timer[-1] - timer[0]) if len(timer) > 1 else 0.0
+        full_timer_span = float(node_anchors[-1].strobe_us - node_anchors[0].strobe_us)
+        coverage = paired_timer_span / full_timer_span if full_timer_span > 0 else 0.0
+        clean_timer = timer[clean]
+        max_clean_gap_s = (float(np.max(np.diff(clean_timer))) / 1e6
+                           if len(clean_timer) > 1 else float("inf"))
+        rejection_fraction = float((~clean).sum() / len(clean))
         mapped_all = slope * np.asarray([a.strobe_us for a in node_anchors]) + intercept
         reversals = int(np.sum(np.diff(mapped_all) <= 0))
         sigma_us = max(1.0, 1.4826 * float(np.median(clean_values)))
@@ -281,6 +305,8 @@ def align_capture(log_path: Path, listener_dir: Path, start_s: float, end_s: flo
             node_anchors[0].strobe_us, node_anchors[-1].strobe_us, integer, margin,
             len(pairs), int(clean.sum()), int((~clean).sum()),
             float(np.percentile(clean_values, 95)), float(np.max(clean_values)),
+            float(np.percentile(raw_values, 95)), float(np.percentile(raw_values, 99)),
+            float(np.max(raw_values)), coverage, max_clean_gap_s, rejection_fraction,
             (local_period / SUPERFRAME_US - 1.0) * 1e6,
             float(join["mod16_agreement_fraction"]), reversals,
         )
@@ -322,17 +348,48 @@ def align_capture(log_path: Path, listener_dir: Path, start_s: float, end_s: flo
         "nodes": len(models),
         "listener_poll_records": len(polls),
         "no_unresolved_integer_ambiguity": all(j["selected_seed_fraction"] > 0.5 and j["mod16_agreement_fraction"] == 1.0 for j in joins.values()),
-        "clean_residual_p95_lt_0_5_ms": all(m.clean_residual_p95_us < 500.0 for m in models.values()),
-        "clean_residual_max_lt_1_ms": all(m.clean_residual_max_us < 1000.0 for m in models.values()),
+        "minimum_clean_listener_pairs": all(m.clean_pairs >= MIN_CLEAN_LISTENER_PAIRS for m in models.values()),
+        "minimum_capture_span_coverage": all(m.capture_span_coverage >= MIN_CAPTURE_SPAN_COVERAGE for m in models.values()),
+        "maximum_clean_anchor_gap": all(m.max_clean_anchor_gap_s <= MAX_CLEAN_ANCHOR_GAP_S for m in models.values()),
+        "maximum_rejection_fraction": all(m.rejection_fraction <= MAX_REJECTION_FRACTION for m in models.values()),
+        "raw_residual_p99_bounded": all(m.raw_residual_p99_us < RAW_RESIDUAL_P99_GATE_US for m in models.values()),
+        "raw_residual_max_bounded": all(m.raw_residual_max_us < RAW_RESIDUAL_MAX_GATE_US for m in models.values()),
+        "clean_residual_p95_lt_0_5_ms": all(m.clean_residual_p95_us < CLEAN_RESIDUAL_P95_GATE_US for m in models.values()),
+        "clean_residual_max_lt_1_ms": all(m.clean_residual_max_us < CLEAN_RESIDUAL_MAX_GATE_US for m in models.values()),
+        "classifier_hard_limit_not_tautological": CLOCK_OUTLIER_HARD_LIMIT_US > CLEAN_RESIDUAL_MAX_GATE_US,
         "all_boot_segments_explicit": all(m.boot_epoch == 0 for m in models.values()),
         "no_timestamp_reversal": all(m.timestamp_reversals == 0 for m in models.values()),
         "listener_audit": listener_audit,
         "integer_join": joins,
         "action_annotation_bridge": action_bridge,
     }
+    gate["thresholds"] = {
+        "minimum_clean_listener_pairs": MIN_CLEAN_LISTENER_PAIRS,
+        "minimum_capture_span_coverage": MIN_CAPTURE_SPAN_COVERAGE,
+        "maximum_clean_anchor_gap_s": MAX_CLEAN_ANCHOR_GAP_S,
+        "maximum_rejection_fraction": MAX_REJECTION_FRACTION,
+        "raw_residual_p99_gate_us": RAW_RESIDUAL_P99_GATE_US,
+        "raw_residual_max_gate_us": RAW_RESIDUAL_MAX_GATE_US,
+        "clean_residual_p95_gate_us": CLEAN_RESIDUAL_P95_GATE_US,
+        "clean_residual_max_gate_us": CLEAN_RESIDUAL_MAX_GATE_US,
+        "outlier_classifier_hard_limit_us": CLOCK_OUTLIER_HARD_LIMIT_US,
+    }
+    gate["per_boot_segment_coverage"] = {
+        f"{node}:{model.boot_epoch}": {
+            "clean_pairs": model.clean_pairs,
+            "capture_span_coverage": model.capture_span_coverage,
+            "max_clean_anchor_gap_s": model.max_clean_anchor_gap_s,
+            "rejection_fraction": model.rejection_fraction,
+        }
+        for node, model in sorted(models.items())
+    }
     gate["pass"] = all(gate[k] for k in (
-        "no_unresolved_integer_ambiguity", "clean_residual_p95_lt_0_5_ms",
-        "clean_residual_max_lt_1_ms", "all_boot_segments_explicit", "no_timestamp_reversal"))
+        "no_unresolved_integer_ambiguity", "minimum_clean_listener_pairs",
+        "minimum_capture_span_coverage", "maximum_clean_anchor_gap",
+        "maximum_rejection_fraction", "raw_residual_p99_bounded",
+        "raw_residual_max_bounded", "clean_residual_p95_lt_0_5_ms",
+        "clean_residual_max_lt_1_ms", "classifier_hard_limit_not_tautological",
+        "all_boot_segments_explicit", "no_timestamp_reversal"))
     return models, residual_rows, gate
 
 
