@@ -1,0 +1,89 @@
+{
+  "schema": "biospur-capture-derived-rendering-geometry-audit-gates-v1",
+  "declared_before_fit": true,
+  "product": "CAPTURE_DERIVED_RENDERING_GEOMETRY_AUDIT",
+  "non_clinical": true,
+  "operator_measurements": "SEALED_AND_FORBIDDEN",
+  "allowed_payload": "CALIBRATION_TYPED_LEDGER_ONLY",
+  "heldout": {
+    "walk": "SEALED",
+    "final_still": "SEALED"
+  },
+  "canonical_frontends": {
+    "position": "UWB_TAG_T4",
+    "attitude": "Q1",
+    "geometry_sha256": "20320e53d48b171c016a0e8d1d93b3cb10e979cf4c21c15c21647d5c0b9878b1"
+  },
+  "calibration_actions": [
+    "initial_still_attempt2",
+    "t_pose",
+    "arms",
+    "left_elbow",
+    "right_elbow_attempt2",
+    "left_knee",
+    "right_knee",
+    "left_heel",
+    "right_heel",
+    "squats",
+    "trunk"
+  ],
+  "mandatory_actions": ["initial_still_attempt2", "t_pose"],
+  "acceptance_gates": {
+    "maximum_multistart_dimension_spread_mm": 10.0,
+    "maximum_interleaved_dimension_spread_mm": 10.0,
+    "maximum_optional_action_removal_spread_mm": 10.0,
+    "maximum_profile_interval_full_width_mm": 20.0,
+    "maximum_absolute_dimension_placement_correlation": 0.98,
+    "maximum_normalized_residual_median": 3.0,
+    "maximum_normalized_residual_p95": 8.0,
+    "observability_relative_singular_value_threshold": 1e-06,
+    "undisclosed_bound_hits_allowed": false,
+    "left_right_identity_swap_allowed": false,
+    "accepted_length_mutation_allowed": false
+  },
+  "measurement_model": {
+    "antenna_equation": "p_antenna(t) = p_graphical_landmark(t) - R_sensor(t) * r_sensor_to_antenna",
+    "placement_component_bound_m": 0.12,
+    "radial_sigma_floor_m": 0.02,
+    "maximum_pair_time_gap_ns": 80000000,
+    "maximum_q1_time_gap_ns": 20000000,
+    "maximum_fit_samples_per_action": 36,
+    "least_squares_loss": "soft_l1",
+    "least_squares_f_scale": 2.0,
+    "profile_delta_cost_95_one_parameter": 1.920729410347062,
+    "profile_initial_step_mm": 5.0,
+    "profile_bisection_iterations": 7,
+    "optimizer_max_function_evaluations": 500
+  },
+  "dimension_bounds_m": {
+    "rendering_forearm_length_L": [0.1, 0.7],
+    "rendering_forearm_length_R": [0.1, 0.7],
+    "rendering_shank_length_L": [0.1, 0.8],
+    "rendering_shank_length_R": [0.1, 0.8],
+    "C7Proxy_to_PelvisProxy_separation": [0.1, 1.0],
+    "rendering_upper_arm_length_L": [0.1, 0.7],
+    "rendering_upper_arm_length_R": [0.1, 0.7],
+    "graphical_shoulder_width": [0.1, 0.8]
+  },
+  "tier_2_layout_unsupported": {
+    "rendering_thigh_length_L": "no greater-trochanter/hip node",
+    "rendering_thigh_length_R": "no greater-trochanter/hip node",
+    "graphical_hip_width": "no ASIS/greater-trochanter node",
+    "graphical_hip_depth": "no ASIS/PSIS/greater-trochanter node"
+  },
+  "determinism": {
+    "random_seed": 20260814,
+    "multistart_count": 4,
+    "independent_problem_worker_count": 6,
+    "replay_count": 2,
+    "byte_identical_compact_outputs_required": true
+  },
+  "sealed_future_comparison_contract": {
+    "enabled_during_this_audit": false,
+    "matching_surface_chord_definitions_only": true,
+    "operator_measurements_are_not_anatomical_ground_truth": true,
+    "agreement_gate": "absolute_difference_mm <= max(20.0, 2 * combined_standard_uncertainty_mm)",
+    "estimation_failure_is_not_external_disagreement": true,
+    "retroactive_gate_changes": "FORBIDDEN"
+  }
+}
