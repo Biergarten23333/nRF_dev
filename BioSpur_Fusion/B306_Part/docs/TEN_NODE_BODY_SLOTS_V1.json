@@ -1,0 +1,29 @@
+{
+  "schema": "biospur-ten-node-body-slots-v1",
+  "authority": "operator-specified-in-chat-2026-08-14",
+  "notes": "No BSF-to-slot mapping is encoded. BSF31CC is the known central node constraint only.",
+  "slots": [
+    {"name": "Central", "central": true, "location": "front of the rib-cage triangle / central chest"},
+    {"name": "Wrist L", "side": "left"},
+    {"name": "Wrist R", "side": "right"},
+    {"name": "Elbow L", "side": "left"},
+    {"name": "Elbow R", "side": "right"},
+    {"name": "Pelvis", "location": "middle of waist"},
+    {"name": "Knee L", "side": "left"},
+    {"name": "Knee R", "side": "right"},
+    {"name": "Ankle L", "side": "left"},
+    {"name": "Ankle R", "side": "right"}
+  ],
+  "joints": [
+    {"a": "Central", "b": "Pelvis", "chain": "trunk"},
+    {"a": "Central", "b": "Elbow L", "chain": "left arm"},
+    {"a": "Elbow L", "b": "Wrist L", "chain": "left forearm"},
+    {"a": "Central", "b": "Elbow R", "chain": "right arm"},
+    {"a": "Elbow R", "b": "Wrist R", "chain": "right forearm"},
+    {"a": "Pelvis", "b": "Knee L", "chain": "left thigh"},
+    {"a": "Knee L", "b": "Ankle L", "chain": "left shank"},
+    {"a": "Pelvis", "b": "Knee R", "chain": "right thigh"},
+    {"a": "Knee R", "b": "Ankle R", "chain": "right shank"}
+  ],
+  "segment_length_constraints": "SESSION_ESTIMATED_NO_OPERATOR_GROUND_TRUTH"
+}
