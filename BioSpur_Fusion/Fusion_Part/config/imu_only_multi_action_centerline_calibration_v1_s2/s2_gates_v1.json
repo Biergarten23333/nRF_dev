@@ -1,0 +1,17 @@
+{
+  "schema":"biospur-human-motion-synthetic-s2-gates-v1",
+  "scope":"SYNTHETIC_MODEL_OBSERVABILITY_ONLY",
+  "native_rate_hz":200.0,
+  "refinement_rate_hz":50.0,
+  "segmentation":{"minimum_confidence":0.80,"minimum_phase_samples":125,"activity_mad_multiplier":5.0,"minimum_peak_prominence_fraction":0.18,"maximum_repetition_count_error":0},
+  "robust":{"loss":"huber","f_scale":1.5},
+  "noise_floors":{"gyro_rad_s":0.002,"accel_mps2":0.02,"orientation_rad":0.008726646259971648,"functional_off_axis_rad_s":0.12,"shared_point_accel_mps2":0.35},
+  "sampling":{"minimum_informative":125,"target_per_phase_factor":300,"maximum_per_phase_factor":1000},
+  "optimization":{"method":"trf","maximum_function_evaluations":8,"finite_difference_step":2e-6,"multistart_count":5,"cost_and_gradient_tolerance":1e-10},
+  "observability":{"relative_singular_value_threshold":1e-6,"bottom_spectrum_count":32,"profile_alpha_rad":[-0.1,-0.01,-0.001,-0.0001,-0.00001,-0.000001,0.000001,0.00001,0.0001,0.001,0.01,0.1],"minimum_profile_delta_chi2_at_alpha_0_1":9.0},
+  "recovery":{"axis_error_deg":2.0,"heading_composite_error_deg":3.0,"graphical_node_rms_mm":20.0,"torso_axis_error_deg":2.0,"five_multistarts_deg":[0.0,15.0,-15.0,30.0,-30.0]},
+  "human_motion":{"off_axis_fraction_min":0.02,"off_axis_fraction_max":0.25,"pelvis_compensation_deg_min":2.0,"strap_perturbation_deg":1.0},
+  "deterministic_seeds":[2201,2202,2203],
+  "fixed_generic_template":{"path":"Fusion_Part/config/generic_template_motion_demo_v1/GENERIC_ADULT_PROXY_V1.json","sha256":"892fa156db60f19120e45ea9bc537361e5ef4f73518d1753aa38fd73d389fce4"},
+  "forbidden_inputs":["real calibration payload","UWB","T4","Anchor geometry","operator anthropometry","walk","final_still","golf","boxing"]
+}

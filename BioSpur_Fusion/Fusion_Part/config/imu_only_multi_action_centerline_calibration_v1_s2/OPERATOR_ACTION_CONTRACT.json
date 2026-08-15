@@ -1,0 +1,86 @@
+{
+  "schema": "biospur-operator-action-contract-s2-v1",
+  "scope": "CALIBRATION_ACTION_SEMANTICS_NOT_KINEMATIC_TRUTH",
+  "actions": [
+    {
+      "raw_ledger_label": "initial_still_attempt2",
+      "actual_action": "natural standing still; arms naturally down; legs naturally straight",
+      "confirmed_repetitions": 1,
+      "forbidden_exact_inference": ["clinical elbow zero", "clinical knee zero", "absolute yaw", "perfect extension"]
+    },
+    {
+      "raw_ledger_label": "t_pose",
+      "actual_action": "one static bilateral arms-out T-pose hold",
+      "confirmed_repetitions": 1,
+      "forbidden_exact_inference": ["absolute room yaw", "perfect 90 degree shoulder angle", "independent repeated T-poses"]
+    },
+    {
+      "raw_ledger_label": "arms",
+      "ordered_phases": ["LEFT_ARM_RAISE_LOWER", "RIGHT_ARM_RAISE_LOWER", "BILATERAL_ARM_RAISE_LOWER"],
+      "confirmed_repetitions_per_phase": [5, 5, 5],
+      "motion_plane": "UNKNOWN_MUST_BE_ESTIMATED_FROM_IMU"
+    },
+    {
+      "raw_ledger_label": "left_elbow",
+      "ordered_phases": ["LEFT_ELBOW_CURL", "LEFT_FOREARM_PRONATION_SUPINATION"],
+      "confirmed_repetitions_per_phase": [5, 5],
+      "return_still_seconds": "NOT_OPERATOR_CONFIRMED"
+    },
+    {
+      "raw_ledger_label": "right_elbow_attempt2",
+      "ordered_phases": ["RIGHT_ELBOW_CURL", "RIGHT_FOREARM_PRONATION_SUPINATION", "RIGHT_RETURN_STILL"],
+      "confirmed_repetitions_per_phase": [5, 5, 1],
+      "return_still_seconds": 3.0
+    },
+    {
+      "raw_ledger_label": "left_knee",
+      "semantic_alias": "LEFT_FRONT_HIGH_KNEE_RAISE_RELAXED_SHANK",
+      "confirmed_repetitions": "UNKNOWN_DETECT_FROM_SIGNAL",
+      "primary_chain": "pelvis_to_left_thigh",
+      "shank_condition": "approximately relaxed/vertical with finite uncertainty"
+    },
+    {
+      "raw_ledger_label": "right_knee",
+      "semantic_alias": "RIGHT_FRONT_HIGH_KNEE_RAISE_RELAXED_SHANK",
+      "confirmed_repetitions": "UNKNOWN_DETECT_FROM_SIGNAL",
+      "primary_chain": "pelvis_to_right_thigh",
+      "shank_condition": "approximately relaxed/vertical with finite uncertainty"
+    },
+    {
+      "raw_ledger_label": "left_heel",
+      "semantic_alias": "LEFT_REAR_HEEL_TO_BUTTOCK_KNEE_FLEXION",
+      "confirmed_repetitions": "UNKNOWN_DETECT_FROM_SIGNAL",
+      "primary_chain": "left_thigh_to_left_shank",
+      "explicitly_not": ["calf raise", "plantarflexion", "foot calibration", "heel position observation"]
+    },
+    {
+      "raw_ledger_label": "right_heel",
+      "semantic_alias": "RIGHT_REAR_HEEL_TO_BUTTOCK_KNEE_FLEXION",
+      "confirmed_repetitions": "UNKNOWN_DETECT_FROM_SIGNAL",
+      "primary_chain": "right_thigh_to_right_shank",
+      "explicitly_not": ["calf raise", "plantarflexion", "foot calibration", "heel position observation"]
+    },
+    {
+      "raw_ledger_label": "squats",
+      "actual_action": "bilateral squats",
+      "confirmed_repetitions": "UNKNOWN_DETECT_FROM_SIGNAL",
+      "foot_contact_is_observed": false
+    },
+    {
+      "raw_ledger_label": "trunk",
+      "ordered_phases": ["TRUNK_LEFT_ROTATION", "TRUNK_RIGHT_ROTATION", "TRUNK_FORWARD_BEND_AND_RECOVER"],
+      "confirmed_repetitions_per_phase": [3, 3, 3],
+      "forward_bend_present": "CONFIRMED",
+      "backward_lean_present": "UNKNOWN",
+      "pelvis_exactly_stationary": false,
+      "trunk_exact_fixed_axis": false,
+      "trunk_exact_motion_plane": false
+    }
+  ],
+  "sealed_non_calibration": {
+    "walk": "HELD_OUT",
+    "final_still": "HELD_OUT",
+    "golf": "EXTRA_POST_FREEZE_VALIDATION",
+    "boxing": "EXTRA_POST_FREEZE_VALIDATION"
+  }
+}

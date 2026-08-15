@@ -1,0 +1,25 @@
+{
+  "schema": "biospur-action-semantics-manifest-s2-v1",
+  "label_is_excitation_intent_not_pose_trajectory": true,
+  "phases": [
+    {"raw_action":"initial_still_attempt2","semantic_phase":"NATURAL_STANDING_STILL","primary_parameter_blocks":["gyro_bias","gravity_tilt","natural_neutral"]},
+    {"raw_action":"t_pose","semantic_phase":"STATIC_BILATERAL_ARM_LINE","primary_parameter_blocks":["body_transverse_proxy","arm_long_axes","left_right_identity"]},
+    {"raw_action":"arms","semantic_phase":"LEFT_ARM_RAISE_LOWER","expected_repetitions":5,"primary_parameter_blocks":["left_upper_chain_mounting","left_shoulder_chain"]},
+    {"raw_action":"arms","semantic_phase":"RIGHT_ARM_RAISE_LOWER","expected_repetitions":5,"primary_parameter_blocks":["right_upper_chain_mounting","right_shoulder_chain"]},
+    {"raw_action":"arms","semantic_phase":"BILATERAL_ARM_RAISE_LOWER","expected_repetitions":5,"primary_parameter_blocks":["bilateral_upper_chain_consistency","left_right_identity"]},
+    {"raw_action":"left_elbow","semantic_phase":"LEFT_ELBOW_CURL","expected_repetitions":5,"primary_parameter_blocks":["elbow_L_functional_flexion_axis","elbow_L_sign"]},
+    {"raw_action":"left_elbow","semantic_phase":"LEFT_FOREARM_PRONATION_SUPINATION","expected_repetitions":5,"primary_parameter_blocks":["forearm_L_longitudinal_axis","left_twist_leakage"]},
+    {"raw_action":"right_elbow_attempt2","semantic_phase":"RIGHT_ELBOW_CURL","expected_repetitions":5,"primary_parameter_blocks":["elbow_R_functional_flexion_axis","elbow_R_sign"]},
+    {"raw_action":"right_elbow_attempt2","semantic_phase":"RIGHT_FOREARM_PRONATION_SUPINATION","expected_repetitions":5,"primary_parameter_blocks":["forearm_R_longitudinal_axis","right_twist_leakage"]},
+    {"raw_action":"right_elbow_attempt2","semantic_phase":"RIGHT_RETURN_STILL","expected_repetitions":1,"primary_parameter_blocks":["right_return_consistency"]},
+    {"raw_action":"left_knee","semantic_phase":"LEFT_FRONT_HIGH_KNEE_RAISE_RELAXED_SHANK","expected_repetitions":"DETECT","primary_parameter_blocks":["pelvis_left_thigh_relative_motion","left_hip_functional_plane","left_body_forward_proxy"]},
+    {"raw_action":"right_knee","semantic_phase":"RIGHT_FRONT_HIGH_KNEE_RAISE_RELAXED_SHANK","expected_repetitions":"DETECT","primary_parameter_blocks":["pelvis_right_thigh_relative_motion","right_hip_functional_plane","right_body_forward_proxy"]},
+    {"raw_action":"left_heel","semantic_phase":"LEFT_REAR_HEEL_TO_BUTTOCK_KNEE_FLEXION","expected_repetitions":"DETECT","primary_parameter_blocks":["left_thigh_shank_relative_motion","knee_L_functional_axis","knee_L_sign"]},
+    {"raw_action":"right_heel","semantic_phase":"RIGHT_REAR_HEEL_TO_BUTTOCK_KNEE_FLEXION","expected_repetitions":"DETECT","primary_parameter_blocks":["right_thigh_shank_relative_motion","knee_R_functional_axis","knee_R_sign"]},
+    {"raw_action":"squats","semantic_phase":"BILATERAL_SQUAT","expected_repetitions":"DETECT","primary_parameter_blocks":["bilateral_lower_chain_consistency","hip_knee_cross_action"]},
+    {"raw_action":"trunk","semantic_phase":"TRUNK_LEFT_ROTATION","expected_repetitions":3,"primary_parameter_blocks":["torso_pelvis_twist_dominant_motion","torso_functional_frame"]},
+    {"raw_action":"trunk","semantic_phase":"TRUNK_RIGHT_ROTATION","expected_repetitions":3,"primary_parameter_blocks":["torso_pelvis_twist_dominant_motion","torso_functional_frame"]},
+    {"raw_action":"trunk","semantic_phase":"TRUNK_FORWARD_BEND_AND_RECOVER","expected_repetitions":3,"primary_parameter_blocks":["torso_pelvis_flexion_dominant_motion","old_torso_null"]}
+  ],
+  "forbidden_label_effects":["expected_pose_trajectory","pelvis_lock","segment_lock","contact_switch","pose_reset","root_velocity_zero","ankle_reanchor","weight_change_during_replay"]
+}

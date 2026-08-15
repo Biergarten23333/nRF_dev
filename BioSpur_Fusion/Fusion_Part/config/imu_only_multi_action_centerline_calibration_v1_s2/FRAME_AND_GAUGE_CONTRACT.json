@@ -1,0 +1,10 @@
+{
+  "schema":"biospur-human-motion-frame-gauge-s2-v1",
+  "rotations":"active R_DST_from_SRC",
+  "frames":{"W":"arbitrary IMU-only world","P":"pelvis functional frame","T":"torso functional frame","S_i":"non-clinical segment frame","B_i":"sensor board frame","N_i":"Q2 gravity-aligned navigation frame"},
+  "world_axes":{"z":"up opposite gravity","x":"deterministic functional forward after independent bilateral high-knee/T-pose consistency","y":"right-handed left direction"},
+  "dynamic_state":["R_W_from_P(t)","R_P_from_T(t) full 3DOF","R_W_from_S_i(t)","p_root(t)","v_root(t)","bias and slow heading nuisance"],
+  "legal_gauges":["common global yaw beta","initial root translation","IMU-only long-term root translation drift","unpublished limb axial twist zero"],
+  "global_yaw_test":"left-multiply every world orientation and position by Rz(beta); relative motion/residuals invariant; centerline rigidly rotates",
+  "forbidden_gauge_removal":["absolute heading prior","T-pose room yaw","fixed pelvis","fixed human sagittal plane"]
+}

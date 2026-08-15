@@ -1,0 +1,10 @@
+{
+  "schema":"biospur-human-motion-synthetic-contract-s2-v1",
+  "truth_is_evaluation_only":true,
+  "estimator_may_read":["native timestamps","board gyroscope","board accelerometer/specific force","Q2 gravity-aligned orientation","raw action window label","operator-confirmed phase order/count where available"],
+  "estimator_may_not_read":["true segment orientation","true mounting rotation","true phase boundary","true lever arm","true bias","true body forward direction"],
+  "generated_observations":["native timestamps","per-node board gyroscope","per-node board specific force","Q2 orientation","true sensor and segment orientation for evaluation","angular velocity","angular acceleration","sensor lever arms","bias","white noise","correlated drift","root and graphical nodes"],
+  "required_human_imperfections":["imperfect asymmetric T-pose","variable arm-raise plane","contralateral leakage","curl upper-arm leakage","pronation wrist/elbow compensation","high-knee pelvis co-motion","nonvertical relaxed shank","heel-kick thigh motion","heel-kick hip compensation","squat torso/pelvis compensation","trunk cross-axis contamination","varying instantaneous axes","strap perturbation","left-right asymmetry"],
+  "synthetic_high_knee_and_heel_counts":"scenario-specific truth; never supplied to estimator",
+  "families":["reference_only_negative","axial_turn_only","forward_bend_only","combined_noncommuting_trunk","bilateral_high_knee","rear_heel_to_butt","compound_elbow_contamination","endpoint_identical_adversarial_trunk","low_excitation_negative"]
+}
