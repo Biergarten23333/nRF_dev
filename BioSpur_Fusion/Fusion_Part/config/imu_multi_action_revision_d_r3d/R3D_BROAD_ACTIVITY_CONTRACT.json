@@ -1,0 +1,91 @@
+{
+  "schema": "biospur-revision-d-r3d-broad-activity-contract-v1",
+  "revision": "D-1-R3D",
+  "baseline_commit": "bc4060909285a7d51fe9b464f0867aa004f4ef45",
+  "product": "GAUGE_INVARIANT_PRECALIBRATION_BROAD_ACTIVITY",
+  "frame_convention": {
+    "q2_matrix": "R_Ni_Bi",
+    "active_or_passive": "ACTIVE",
+    "vector_mapping": "v_Ni = R_Ni_Bi * v_Bi",
+    "per_node_navigation_heading_shared": false,
+    "per_node_unobservable_gauge": "LEFT_CONSTANT_ROTATION_ABOUT_NAVIGATION_Z",
+    "gauge_action": "R_Ni_Bi(t) -> G_i(alpha_i) * R_Ni_Bi(t)",
+    "gauge_matrix": "G_i(alpha_i) = Rz(alpha_i)"
+  },
+  "activity": {
+    "definition": "norm(Log(R_i(t-dt)^T * R_i(t))) / dt",
+    "constant_left_gauge_invariant": true,
+    "common_time_rate_hz": 50.0,
+    "smoothing_duration_s": 0.08,
+    "maximum_sample_gap_s": 0.03,
+    "baseline_candidate_duration_s": 0.4,
+    "baseline_candidate_stride_s": 0.1,
+    "minimum_baseline_valid_fraction": 0.8,
+    "baseline_location": "MEDIAN",
+    "baseline_scale": "max(1.4826*MAD, 0.035 rad/s)",
+    "production_floor_rad_s": 0.035,
+    "normalizer_role": "TRIGGER_ONLY_NOT_D0_ORIENTATION_COVARIANCE"
+  },
+  "broad_mask": {
+    "onset_z": 4.0,
+    "offset_z": 2.0,
+    "onset_minimum_duration_s": 0.12,
+    "offset_minimum_duration_s": 0.2,
+    "maximum_bridgeable_low_activity_gap_s": 0.3,
+    "minimum_bout_duration_s": 0.3,
+    "minimum_dynamic_action_active_rows": 15,
+    "minimum_action_valid_fraction": 0.8,
+    "dynamic_actions": [
+      "arms",
+      "left_elbow",
+      "right_elbow_attempt2",
+      "left_knee",
+      "right_knee",
+      "left_heel",
+      "right_heel",
+      "squats",
+      "trunk"
+    ],
+    "static_actions": ["initial_still_attempt2", "t_pose"],
+    "static_plateau_duration_s": 0.4,
+    "minimum_static_plateau_rows": 20
+  },
+  "gauge_qualification": {
+    "yaw_injections_rad": [0.0, 0.7853981633974483, -0.7853981633974483, 1.5707963267948966, -1.5707963267948966, 3.141592653589793],
+    "maximum_increment_activity_absolute_difference_rad_s": 1e-12,
+    "maximum_z_absolute_difference": 1e-12,
+    "membership_must_be_exact": true,
+    "old_pairwise_change_detection_tolerance": 1e-10
+  },
+  "strap_slip_diagnostic": {
+    "minimum_persistent_pose_step_rad": 0.20,
+    "maximum_transition_duration_s": 0.10,
+    "minimum_pre_post_support_s": 0.50,
+    "classification": "DIAGNOSTIC_FAILURE_NOT_ACTIVITY_PASS"
+  },
+  "cycle_phase_disposition": {
+    "EXACT_REPETITION_COUNT": "QC_ONLY",
+    "R3C_CYCLES": "NOT_CONSUMED_BY_D0",
+    "R3C_DIRECTION_GROUPS": "NOT_CONSUMED_BY_D0",
+    "R3C_SIGN_ELIGIBILITY": "NOT_CONSUMED_BY_D0",
+    "R3C_ZERO_ELIGIBILITY": "NOT_CONSUMED_BY_D0",
+    "closely_spaced_extrema_create_objective_weight": false
+  },
+  "forbidden_outputs": [
+    "functional_axis",
+    "joint_sign",
+    "joint_zero",
+    "physical_relative_heading",
+    "joint_relative_angular_velocity",
+    "clinical_joint_angle"
+  ],
+  "sealed_inputs": [
+    "final_still",
+    "walk",
+    "golf",
+    "boxing",
+    "UWB/T4",
+    "Anchor",
+    "operator_measurements"
+  ]
+}

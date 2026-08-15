@@ -1,0 +1,95 @@
+{
+  "schema": "biospur-revision-d-d0-state-and-gauge-contract-v1",
+  "revision": "D0-A",
+  "authorized_input": "PASS_R3D_GAUGE_INVARIANT_BROAD_ACTIVITY",
+  "r3d_result_sha256": "33ed8fd3aabcfc8c69e7f2144c06d54b3ebf86300ce3976ed263fc4abf96343b",
+  "source_accounting_audit": {
+    "inspected_source": "Fusion_Part/src/biospur_fusion/imu_multi_action_engineering_v1/model.py",
+    "inspected_source_sha256": "8718167b20a3527aaa4fdd671c2194601a334c166b318f12666a240ba5becf46",
+    "historical_full_coordinates": 96,
+    "historical_publishable_coordinates": 56,
+    "historical_per_wear_coordinates": 29,
+    "historical_functional_coordinates": 20,
+    "historical_joint_zero_coordinates": 7,
+    "historical_static_latent_nuisance_coordinates": 40,
+    "verified_correction": "Replace four-coordinate independent trunk_turn/trunk_flex S2 axes plus an orthogonality residual with one minimal three-coordinate right-handed trunk functional frame."
+  },
+  "full_state_dimension": 95,
+  "publishable_state_dimension": 55,
+  "profiled_or_jointly_optimized_nuisance_dimension": 40,
+  "blocks": [
+    {
+      "name": "sensor_to_segment_longitudinal_axis",
+      "class": "PER_WEAR_MOUNTING",
+      "coordinates": 20,
+      "parameterization": "10 segments x S2 two-coordinate tangent chart",
+      "publishable": true,
+      "axial_twist_dof_present": false
+    },
+    {
+      "name": "effective_relative_heading",
+      "class": "PER_WEAR_MOUNTING",
+      "coordinates": 9,
+      "parameterization": "one yaw coordinate for every segment except pelvis",
+      "publishable": true,
+      "gauge": "pelvis effective heading fixed to zero"
+    },
+    {
+      "name": "limb_functional_axes",
+      "class": "SUBJECT_FUNCTIONAL",
+      "coordinates": 16,
+      "parameterization": "8 shoulder/elbow/hip/knee axes x S2 two-coordinate chart",
+      "publishable": true
+    },
+    {
+      "name": "trunk_functional_frame",
+      "class": "SUBJECT_FUNCTIONAL",
+      "coordinates": 3,
+      "parameterization": "minimal SO3 rotation vector defining an orthonormal turn/flex/normal frame",
+      "publishable": true
+    },
+    {
+      "name": "joint_neutral_zero",
+      "class": "SUBJECT_FUNCTIONAL",
+      "coordinates": 7,
+      "parameterization": "elbow L/R, hip L/R, knee L/R, trunk",
+      "publishable": true,
+      "clinical_joint_zero": false
+    },
+    {
+      "name": "static_latent_pose_reference",
+      "class": "CALIBRATION_SESSION_NUISANCE",
+      "coordinates": 40,
+      "parameterization": "initial_still and T-pose x 10 segments x S2 two-coordinate chart",
+      "publishable": false,
+      "profiling_policy": "JOINTLY_OPTIMIZED_OR_MATHEMATICALLY_EQUIVALENT_SCHUR; NEVER_FIXED_OR_DELETED"
+    }
+  ],
+  "coordinate_totals": {
+    "PER_WEAR_MOUNTING": 29,
+    "SUBJECT_FUNCTIONAL_EXCLUDING_ZERO": 19,
+    "JOINT_ZERO": 7,
+    "CALIBRATION_SESSION_NUISANCE": 40,
+    "FULL": 95,
+    "PUBLISHABLE": 55
+  },
+  "runtime_states_not_part_of_static_D0_fit": [
+    "continuous segment orientation",
+    "angular velocity",
+    "root position/velocity",
+    "gyro bias state"
+  ],
+  "frame_conventions": {
+    "q2_input": "R_Ni_Bi, active board-to-per-node-navigation rotation",
+    "independent_q2_yaw": "absorbed only through jointly estimated effective_relative_heading",
+    "global_yaw_gauge": "PELVIS_EFFECTIVE_RELATIVE_HEADING_FIXED_ZERO",
+    "sensor_axis": "board-frame unit vector; no axial twist coordinate",
+    "functional_axis_frame": "calibrated common body display frame",
+    "trunk_frame_handedness": "RIGHT_HANDED"
+  },
+  "real_data_status": {
+    "REAL_D0_OBJECTIVE": "NOT_EVALUATED",
+    "REAL_D0_JACOBIAN": "NOT_EVALUATED",
+    "REAL_D0_SOLVER": "NOT_STARTED"
+  }
+}

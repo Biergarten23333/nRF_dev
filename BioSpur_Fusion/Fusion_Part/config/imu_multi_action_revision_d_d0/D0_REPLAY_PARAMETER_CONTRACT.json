@@ -1,0 +1,31 @@
+{
+  "schema": "biospur-revision-d-d0-replay-parameter-contract-v1",
+  "revision": "D0-A",
+  "replay_consumed_publishable_blocks": [
+    "sensor_to_segment_longitudinal_axis",
+    "effective_relative_heading",
+    "limb_functional_axes",
+    "trunk_functional_frame",
+    "joint_neutral_zero"
+  ],
+  "replay_forbidden_inputs": [
+    "action labels as reset triggers",
+    "R3C cycle boundaries",
+    "R3C direction groups",
+    "R3C sign eligibility",
+    "R3C zero eligibility",
+    "static latent nuisance parameters"
+  ],
+  "continuous_timeline_contract": {
+    "pose_reset": false,
+    "yaw_reset": false,
+    "extrinsic_reset": false,
+    "joint_zero_reset": false,
+    "root_reset": false,
+    "contact_reset": false,
+    "label_blind_forward_model": true
+  },
+  "trunk_output": "right-handed minimal functional frame; no clinical angle claim",
+  "axial_segment_twist": "UNAVAILABLE_BY_PRODUCT_DESIGN",
+  "real_replay_status": "NOT_STARTED"
+}

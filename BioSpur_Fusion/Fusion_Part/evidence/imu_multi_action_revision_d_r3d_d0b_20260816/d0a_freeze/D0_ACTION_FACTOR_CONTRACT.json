@@ -1,0 +1,96 @@
+{
+  "schema": "biospur-revision-d-d0-action-factor-contract-v1",
+  "revision": "D0-A",
+  "r3d_input_semantics": {
+    "BROAD_ACTIVE_ROWS": "candidate rows only",
+    "STATIC_PLATEAU_CANDIDATE": "low-dynamic reference support only",
+    "R3C_CYCLES": "NOT_CONSUMED",
+    "R3C_DIRECTION_GROUPS": "NOT_CONSUMED",
+    "R3C_SIGN_ELIGIBILITY": "NOT_CONSUMED",
+    "R3C_ZERO_ELIGIBILITY": "NOT_CONSUMED"
+  },
+  "action_balancing": {
+    "maximum_rows_per_action_factor": 80,
+    "selection": "DETERMINISTIC_UNIFORM_INDEX_SELECTION_WITHIN_R3D_BROAD_ROWS",
+    "factor_normalization": "divide each action/factor residual block by sqrt(selected row count)",
+    "extrema_weighting": false,
+    "cycle_count_weighting": false
+  },
+  "covariance_semantics": {
+    "activity_normalizer_reused_as_orientation_covariance": false,
+    "dynamic_gyro_sigma_rad_s": 0.35,
+    "static_model_mismatch_sigma_deg": 3.0,
+    "protocol_pose_prior_sigma_deg": 20.0,
+    "neutral_zero_sigma_rad": 0.25,
+    "data_and_protocol_prior_residuals_separate": true
+  },
+  "synthetic_qualification": {
+    "relative_singular_value_rank_threshold": 1e-7,
+    "maximum_directional_jv_relative_error": 1e-5,
+    "minimum_action_publishable_jacobian_frobenius_norm": 1e-6,
+    "finite_difference_step_rad": 1e-5,
+    "deterministic_double_replay_required": true,
+    "data_only_and_prior_added_rank_reported_separately": true,
+    "full_rank_may_not_be_claimed_from_priors_as_data": true
+  },
+  "actions": {
+    "initial_still_attempt2": {
+      "input": "STATIC_PLATEAU_CANDIDATE",
+      "data_factors": ["ten latent relaxed-pose S2 observations", "seven non-clinical neutral-zero observations"],
+      "parameter_blocks": ["per-wear mounting", "joint zero", "initial-still latent nuisance"]
+    },
+    "t_pose": {
+      "input": "STATIC_PLATEAU_CANDIDATE",
+      "data_factors": ["ten independent latent T-pose S2 observations"],
+      "parameter_blocks": ["per-wear mounting", "T-pose latent nuisance"]
+    },
+    "arms": {
+      "input": "BROAD_ACTIVE_ROWS",
+      "data_factors": ["left/right shoulder functional-axis factors", "left/right elbow broad-motion factors"],
+      "parameter_blocks": ["per-wear mounting", "shoulder axes", "elbow axes"]
+    },
+    "left_elbow": {
+      "input": "BROAD_ACTIVE_ROWS",
+      "data_factors": ["curl-plus-pronation two-axis subspace"],
+      "parameter_blocks": ["left upper-arm/forearm mounting", "left elbow axis"]
+    },
+    "right_elbow_attempt2": {
+      "input": "BROAD_ACTIVE_ROWS",
+      "data_factors": ["curl-plus-pronation two-axis subspace"],
+      "parameter_blocks": ["right upper-arm/forearm mounting", "right elbow axis"]
+    },
+    "left_knee": {
+      "input": "BROAD_ACTIVE_ROWS",
+      "data_factors": ["left hip functional-axis factor"],
+      "parameter_blocks": ["pelvis/left-thigh mounting", "left hip axis"]
+    },
+    "right_knee": {
+      "input": "BROAD_ACTIVE_ROWS",
+      "data_factors": ["right hip functional-axis factor"],
+      "parameter_blocks": ["pelvis/right-thigh mounting", "right hip axis"]
+    },
+    "left_heel": {
+      "input": "BROAD_ACTIVE_ROWS",
+      "data_factors": ["left knee functional-axis factor"],
+      "parameter_blocks": ["left thigh/shank mounting", "left knee axis"]
+    },
+    "right_heel": {
+      "input": "BROAD_ACTIVE_ROWS",
+      "data_factors": ["right knee functional-axis factor"],
+      "parameter_blocks": ["right thigh/shank mounting", "right knee axis"]
+    },
+    "squats": {
+      "input": "BROAD_ACTIVE_ROWS",
+      "data_factors": ["bilateral hip factors", "bilateral knee factors", "soft bilateral phase consistency"],
+      "parameter_blocks": ["pelvis/thigh/shank mounting", "hip axes", "knee axes"]
+    },
+    "trunk": {
+      "input": "BROAD_ACTIVE_ROWS",
+      "data_factors": ["relative gyro lies in minimal trunk turn/flex frame plane"],
+      "parameter_blocks": ["pelvis/torso mounting", "minimal three-DOF trunk functional frame"]
+    }
+  },
+  "all_actions_one_shared_objective": true,
+  "functional_parameters_must_enter_replay": true,
+  "real_objective_evaluation_authorized": false
+}
