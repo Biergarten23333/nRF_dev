@@ -1,0 +1,19 @@
+{
+  "schema": "biospur-revision-d-minus-1-r3b-gate-derivation-rules-v1",
+  "frozen_before_real_r3a_r3b_signal_statistics": true,
+  "rules": {
+    "common_time_gap": {"value_s": 0.03, "source": "ALREADY_QUALIFIED_Q2_COMMON_TIME_CONTRACT"},
+    "relative_orientation_uncertainty_floor": {"value_rad": 0.008, "source": "PRESERVED_PRE_DATA_R3_ORIENTATION_NOISE_FLOOR"},
+    "relative_activity_uncertainty_floor": {"value_rad_s": 0.035, "source": "PRESERVED_PRE_DATA_REVISION_D_Q2_ACTIVITY_NOISE_FLOOR"},
+    "invalid_bridge": {"value_s": 0.04, "source": "TWO_ROWS_AT_50_HZ_AND_NO_LONG_GAP_INTERPOLATION"},
+    "activity_onset": {"value_sigma": 4.0, "duration_s": 0.12, "source": "ROBUST_BASELINE_PLUS_Q2_PROPAGATED_UNCERTAINTY_AND_SYNTHETIC_SPIKE_REJECTION"},
+    "activity_offset": {"value_sigma": 2.0, "duration_s": 0.20, "source": "HYSTERESIS_BELOW_ONSET_WITH_HUMAN_DECELERATION_TOLERANCE"},
+    "cycle_prominence": {"absolute_rad": 0.06, "uncertainty_sigma": 4.0, "source": "3P44_DEGREE_MINIMUM_PLUS_Q2_UNCERTAINTY_DOMINANCE"},
+    "cycle_recovery": {"fraction": 0.50, "source": "AMPLITUDE_RELATIVE_BIDIRECTIONAL_TOPOLOGY_NOT_EXACT_NEUTRAL"},
+    "cycle_half_duration": {"value_s": 0.14, "source": "SEVEN_50_HZ_ROWS_REJECT_DERIVATIVE_CHATTER_AND_ALLOW_FAST_HUMAN_MOTION"},
+    "phase_axis_separation": {"value_deg": 25.0, "source": "SYNTHETIC_NONCOLLINEAR_PHASE_SEPARATION_WITH_Q2_NOISE"},
+    "legacy_retention_0p70": {"role": "REFERENCE_DIAGNOSTIC_ONLY", "source": "PRESERVED_FOR_HISTORICAL_COMPARISON", "may_fail_active_motion": false}
+  },
+  "prohibited_after_real_result": ["THRESHOLD_CHANGE", "WEIGHT_CHANGE", "WINDOW_PARTITION_CHANGE", "RETRY", "EXPECTED_COUNT_FORCING"],
+  "qualification_order": ["CONTRACT_SHA_FREEZE", "R3A_INSTRUMENTATION", "SYNTHETIC_DOUBLE_REPLAY", "ONE_REAL_R3B"]
+}

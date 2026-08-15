@@ -1,0 +1,117 @@
+{
+  "schema": "biospur-revision-d-minus-1-r3b-signal-derived-action-contract-v1",
+  "revision": "D-1-R3B",
+  "frozen_before_r3a_retained_fraction_inspection": true,
+  "label_usage": "BROAD_SEARCH_ENVELOPE_ONLY",
+  "forbidden_boundary_construction": [
+    "TOKEN_PLUS_FIXED_SECONDS",
+    "FIXED_WINDOW_HALF",
+    "FIXED_WINDOW_THIRDS",
+    "EXPECTED_REPETITION_COUNT_DERIVED_PEAKS",
+    "ACTION_NAME_ASSUMED_CYCLE_WITHOUT_SIGNAL"
+  ],
+  "independent_claims": [
+    "ACTIVE_MOTION_EVIDENCE",
+    "CYCLE_TOPOLOGY_EVIDENCE",
+    "REFERENCE_ZERO_RETURN_EVIDENCE"
+  ],
+  "common_time": {
+    "rate_hz": 50.0,
+    "maximum_interpolation_bracket_gap_s": 0.03,
+    "require_same_boot_epoch": true,
+    "required_nodes_must_be_simultaneously_valid": true,
+    "cross_node_array_index_reuse_forbidden": true
+  },
+  "coordinate": {
+    "relative_rotation": "R_parent_transpose_times_R_child",
+    "activity": "norm_Log_relative_increment_divided_by_dt",
+    "excursion": "norm_Log_reference_transpose_times_relative_rotation",
+    "fitted_sensor_to_segment_extrinsic_required": false,
+    "fitted_joint_axis_required": false,
+    "relative_orientation_uncertainty_floor_rad": 0.008,
+    "relative_activity_uncertainty_floor_rad_s": 0.035
+  },
+  "baseline": {
+    "selection": "LOWEST_ROBUST_ACTIVITY_CONTINUOUS_PLATEAU_ANYWHERE_IN_BROAD_ENVELOPE",
+    "candidate_duration_s": 0.40,
+    "candidate_stride_s": 0.10,
+    "minimum_valid_fraction": 0.80,
+    "activity_location": "MEDIAN",
+    "activity_scale": "MAX_1P4826_MAD_Q2_PROPAGATED_UNCERTAINTY_AND_FLOOR",
+    "orientation_estimator": "ITERATIVE_HUBER_SO3_LOCATION",
+    "huber_transition_sigma": 2.5,
+    "maximum_iterations": 20,
+    "convergence_rad": 1e-8,
+    "legacy_retained_fraction_threshold": 0.70,
+    "legacy_retained_fraction_role": "DIAGNOSTIC_AND_REFERENCE_CONFIDENCE_ONLY",
+    "legacy_retained_fraction_is_active_bout_gate": false
+  },
+  "active_bout": {
+    "onset_activity_z": 4.0,
+    "onset_minimum_duration_s": 0.12,
+    "offset_activity_z": 2.0,
+    "offset_minimum_duration_s": 0.20,
+    "maximum_bridgeable_low_activity_gap_s": 0.30,
+    "maximum_bridgeable_invalid_gap_s": 0.04,
+    "minimum_bout_duration_s": 0.30,
+    "onset_uncertainty_support_s": 0.12,
+    "offset_requires_pose_return": false,
+    "offset_requires_strict_stationarity": false
+  },
+  "cycle": {
+    "minimum_prominence_rad": 0.06,
+    "minimum_prominence_sigma": 4.0,
+    "minimum_half_cycle_duration_s": 0.14,
+    "minimum_peak_separation_s": 0.40,
+    "minimum_amplitude_relative_recovery_fraction": 0.50,
+    "minimum_rise_fall_directional_consistency": 0.55,
+    "maximum_extremum_hold_s": 2.0,
+    "exact_neutral_return_required": false,
+    "quiet_plateau_required": false,
+    "exact_repetition_count_is_gate": false,
+    "partial_cycle_policy": "DISCLOSE_NOT_FORCE"
+  },
+  "phase_association": {
+    "minimum_axis_cluster_separation_deg": 25.0,
+    "maximum_bilateral_peak_offset_s": 1.0,
+    "minimum_bilateral_cycle_overlap_fraction": 0.15,
+    "maximum_within_phase_cycle_gap_s": 2.5,
+    "known_protocol_order_role": "WEAK_SEQUENCE_PRIOR_AND_QC_ONLY",
+    "fixed_time_partition_forbidden": true
+  },
+  "factor_evidence": {
+    "minimum_active_rows": 15,
+    "minimum_complete_reversals_for_sign": 1,
+    "minimum_excursion_rad": 0.06,
+    "minimum_excursion_sigma": 4.0,
+    "low_reference_quality_disables_zero_not_functional_motion": true,
+    "missing_post_neutral_disables_return_only": true
+  },
+  "reference_quality": {
+    "HIGH": "legacy_retained_fraction >= 0.70 with valid baseline support",
+    "LOW": "valid baseline exists but legacy_retained_fraction < 0.70 or covariance is inflated",
+    "UNAVAILABLE": "valid baseline support is insufficient",
+    "LOW_disables_active_motion": false,
+    "LOW_disables_zero_factor": true
+  },
+  "mandatory_roles": [
+    "initial_still_relaxed_plateau",
+    "t_pose_independent_hold",
+    "arms_left_dominant",
+    "arms_right_dominant",
+    "arms_bilateral",
+    "left_elbow_curl",
+    "left_elbow_pronation_supination",
+    "right_elbow_curl",
+    "right_elbow_pronation_supination",
+    "left_high_knee",
+    "right_high_knee",
+    "left_heel_to_butt",
+    "right_heel_to_butt",
+    "squat_bilateral_chain",
+    "trunk_left_turn",
+    "trunk_right_turn",
+    "trunk_forward_flexion_recovery"
+  ],
+  "sealed_inputs": ["final_still", "walk", "golf", "boxing", "UWB/T4", "Anchor", "operator_measurements"]
+}

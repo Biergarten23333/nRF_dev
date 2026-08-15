@@ -1,0 +1,95 @@
+{
+  "schema": "biospur-revision-d-minus-1-r3-cycle-definition-v1",
+  "revision": "D-1-R3",
+  "frozen_before_real_r3_execution": true,
+  "claims_are_independent": [
+    "ACTIVE_BOUT_VALID",
+    "CYCLE_TOPOLOGY_VALID",
+    "POST_NEUTRAL_AVAILABLE"
+  ],
+  "signal": {
+    "rate_hz": 50.0,
+    "definition": "SO3_GEODESIC_DISTANCE_FROM_ROBUST_PRE_ACTION_RELATIVE_POSE",
+    "smoothing_s": 0.08,
+    "orientation_uncertainty_floor_rad": 0.008,
+    "derivative_smoothing_s": 0.10,
+    "maximum_invalid_gap_s": 0.04
+  },
+  "pre_reference": {
+    "minimum_duration_s": 0.40,
+    "maximum_relative_rate_snr": 1.5,
+    "search_before_first_sustained_onset": true,
+    "robust_trim_mad_multiplier": 3.5,
+    "minimum_retained_fraction": 0.70
+  },
+  "active_bout": {
+    "onset_relative_rate_snr": 3.0,
+    "minimum_onset_duration_s": 0.12,
+    "offset_relative_rate_snr": 1.5,
+    "maximum_within_bout_low_activity_gap_s": 1.00,
+    "minimum_duration_s": 0.30
+  },
+  "cycle_topology": {
+    "minimum_prominence_rad": 0.08,
+    "minimum_prominence_sigma": 4.0,
+    "minimum_half_cycle_duration_s": 0.18,
+    "minimum_peak_separation_s": 0.50,
+    "minimum_recovery_fraction": 0.60,
+    "minimum_rise_fall_trend_fraction": 0.55,
+    "derivative_deadband_sigma": 0.50,
+    "extremum_hold_maximum_s": 1.50,
+    "partial_final_repetition_policy": "DISCLOSE_NOT_FORCE",
+    "exact_repetition_count_is_gate": false,
+    "quiet_plateau_required": false,
+    "exact_pre_pose_return_required": false,
+    "post_neutral_required": false,
+    "fixed_absolute_joint_angle_crossing_required": false,
+    "fitted_functional_axis_required": false
+  },
+  "arms": {
+    "left_primary_chain": ["torso", "upper_arm_L"],
+    "right_primary_chain": ["torso", "upper_arm_R"],
+    "forearm_role": "CHAIN_CONSISTENCY_AND_ELBOW_COMPENSATION_DIAGNOSTIC_ONLY",
+    "maximum_bilateral_peak_offset_s": 0.80,
+    "maximum_block_internal_gap_s": 2.00,
+    "required_detected_classes": ["left_arm", "right_arm", "bilateral_arms"],
+    "protocol_order": ["left_arm", "right_arm", "bilateral_arms"],
+    "protocol_order_is_soft_qc": true,
+    "approximately_five_repetitions_is_soft_qc": true
+  },
+  "heel_to_butt": {
+    "left_primary_chain": ["thigh_L", "shank_L"],
+    "right_primary_chain": ["thigh_R", "shank_R"],
+    "thigh_compensation_role": "NUISANCE_AND_MODEL_MISMATCH_DIAGNOSTIC",
+    "minimum_complete_cycles_per_side": 1
+  },
+  "post_neutral": {
+    "role": "OPTIONAL_AUXILIARY_EVIDENCE_ONLY",
+    "minimum_quiet_duration_s": 0.40,
+    "maximum_relative_rate_snr": 1.5,
+    "return_factor_when_absent": "UNAVAILABLE"
+  },
+  "parameter_evidence": {
+    "functional_subspace_minimum_excursion_rad": 0.08,
+    "functional_subspace_minimum_excursion_sigma": 4.0,
+    "sign_requires_complete_reversal": true,
+    "joint_zero_sources": ["initial_still_attempt2", "t_pose"],
+    "action_return_is_not_joint_zero_ground_truth": true
+  },
+  "synthetic_rng_seed": 731903,
+  "threshold_justification": {
+    "minimum_prominence": "0.08 rad is a 4.58 degree joint-relative excursion and is also required to exceed four propagated standard uncertainties.",
+    "recovery_fraction": "A 0.60 amplitude-relative recovery preserves flexion/extension topology without requiring an exact neutral return.",
+    "half_cycle_duration": "0.18 s rejects isolated derivative chatter while remaining well below deliberate human raise/lower timing.",
+    "invalid_gap": "0.04 s matches the existing qualified two-row 50 Hz common-time limit; longer gaps are never crossed.",
+    "bilateral_association": "A 0.80 s peak offset allows human timing mismatch while requiring temporal overlap of independently detected cycles."
+  },
+  "sealed_inputs": [
+    "golf",
+    "boxing",
+    "walk",
+    "final_still",
+    "UWB/T4/Anchor",
+    "operator_measurements"
+  ]
+}

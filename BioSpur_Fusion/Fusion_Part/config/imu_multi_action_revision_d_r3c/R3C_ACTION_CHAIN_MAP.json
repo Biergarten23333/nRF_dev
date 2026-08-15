@@ -1,0 +1,22 @@
+{
+  "schema": "biospur-revision-d-minus-1-r3c-action-chain-map-v1",
+  "actions": {
+    "initial_still_attempt2": {"kind": "INDEPENDENT_RELAXED_STATIC_LATENT"},
+    "t_pose": {"kind": "INDEPENDENT_TPOSE_STATIC_LATENT"},
+    "arms": {
+      "primary_chains": {"left": ["torso", "upper_arm_L"], "right": ["torso", "upper_arm_R"]},
+      "diagnostic_chains": {"left_forearm": ["upper_arm_L", "forearm_L"], "right_forearm": ["upper_arm_R", "forearm_R"]},
+      "required_phases": ["left_dominant", "right_dominant", "bilateral"]
+    },
+    "left_elbow": {"primary_chains": {"elbow_L": ["upper_arm_L", "forearm_L"]}, "required_phases": ["curl", "pronation_supination"]},
+    "right_elbow_attempt2": {"primary_chains": {"elbow_R": ["upper_arm_R", "forearm_R"]}, "required_phases": ["curl", "pronation_supination"]},
+    "left_knee": {"primary_chains": {"hip_L": ["pelvis", "thigh_L"]}, "diagnostic_chains": {"knee_L": ["thigh_L", "shank_L"]}},
+    "right_knee": {"primary_chains": {"hip_R": ["pelvis", "thigh_R"]}, "diagnostic_chains": {"knee_R": ["thigh_R", "shank_R"]}},
+    "left_heel": {"primary_chains": {"knee_L": ["thigh_L", "shank_L"]}, "diagnostic_chains": {"hip_L": ["pelvis", "thigh_L"]}},
+    "right_heel": {"primary_chains": {"knee_R": ["thigh_R", "shank_R"]}, "diagnostic_chains": {"hip_R": ["pelvis", "thigh_R"]}},
+    "squats": {"primary_chains": {"hip_L": ["pelvis", "thigh_L"], "hip_R": ["pelvis", "thigh_R"], "knee_L": ["thigh_L", "shank_L"], "knee_R": ["thigh_R", "shank_R"]}},
+    "trunk": {"primary_chains": {"trunk": ["pelvis", "torso"]}, "required_phases": ["left_turn", "right_turn", "forward_flexion_recovery"]}
+  },
+  "left_right_identity_fixed": true,
+  "expected_count_is_qc_only": true
+}

@@ -1,0 +1,18 @@
+{
+  "schema": "biospur-revision-d-minus-1-r3b-action-chain-map-v1",
+  "actions": {
+    "initial_still_attempt2": {"role": "RELAXED_STANDING_PLATEAU", "chains": [], "phases": ["relaxed_standing_latent"]},
+    "t_pose": {"role": "INDEPENDENT_TPOSE_HOLD", "chains": [], "phases": ["t_pose_latent"]},
+    "arms": {"primary_chains": {"left": ["torso", "upper_arm_L"], "right": ["torso", "upper_arm_R"]}, "diagnostic_chains": {"left_forearm": ["upper_arm_L", "forearm_L"], "right_forearm": ["upper_arm_R", "forearm_R"]}, "phases": ["left_dominant", "right_dominant", "bilateral"], "phase_rule": "SIGNAL_ACTIVITY_COMBINATION_AND_CHANGE_POINTS"},
+    "left_elbow": {"primary_chains": {"elbow_L": ["upper_arm_L", "forearm_L"]}, "phases": ["curl_flexion", "pronation_supination", "optional_quiet_hold"], "phase_rule": "CHRONOLOGICAL_CYCLE_DIRECTION_CLUSTER_CHANGE_POINT_WITH_WEAK_ORDER_PRIOR"},
+    "right_elbow_attempt2": {"primary_chains": {"elbow_R": ["upper_arm_R", "forearm_R"]}, "phases": ["curl_flexion", "pronation_supination", "optional_quiet_hold"], "phase_rule": "CHRONOLOGICAL_CYCLE_DIRECTION_CLUSTER_CHANGE_POINT_WITH_WEAK_ORDER_PRIOR"},
+    "left_knee": {"primary_chains": {"hip_L": ["pelvis", "thigh_L"]}, "diagnostic_chains": {"knee_L": ["thigh_L", "shank_L"]}, "phases": ["high_knee_raise_recovery"]},
+    "right_knee": {"primary_chains": {"hip_R": ["pelvis", "thigh_R"]}, "diagnostic_chains": {"knee_R": ["thigh_R", "shank_R"]}, "phases": ["high_knee_raise_recovery"]},
+    "left_heel": {"primary_chains": {"knee_L": ["thigh_L", "shank_L"]}, "diagnostic_chains": {"hip_L": ["pelvis", "thigh_L"]}, "phases": ["heel_to_butt_flexion_recovery"]},
+    "right_heel": {"primary_chains": {"knee_R": ["thigh_R", "shank_R"]}, "diagnostic_chains": {"hip_R": ["pelvis", "thigh_R"]}, "phases": ["heel_to_butt_flexion_recovery"]},
+    "squats": {"primary_chains": {"hip_L": ["pelvis", "thigh_L"], "hip_R": ["pelvis", "thigh_R"], "knee_L": ["thigh_L", "shank_L"], "knee_R": ["thigh_R", "shank_R"]}, "phases": ["descent_ascent_cycles"], "symmetry_is_truth": false},
+    "trunk": {"primary_chains": {"trunk": ["pelvis", "torso"]}, "phases": ["left_turn", "right_turn", "forward_flexion_recovery"], "phase_rule": "CHRONOLOGICAL_NONCOLLINEAR_CYCLE_DIRECTION_CHANGE_POINTS_WITH_WEAK_ORDER_PRIOR"}
+  },
+  "fixed_left_right_identity": true,
+  "clinical_angles_claimed": false
+}

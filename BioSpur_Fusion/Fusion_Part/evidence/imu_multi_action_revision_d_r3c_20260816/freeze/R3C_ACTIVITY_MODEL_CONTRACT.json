@@ -1,0 +1,114 @@
+{
+  "schema": "biospur-revision-d-minus-1-r3c-activity-model-contract-v1",
+  "revision": "D-1-R3C",
+  "frozen_before_formal_r3c_result": true,
+  "primary_activity": "norm(Log(R_rel(t-dt)^T R_rel(t)))/dt",
+  "relative_orientation": "R_parent(t)^T R_child(t)",
+  "normalization": {
+    "baseline_selection": "LOWEST_MEDIAN_ACTIVITY_CONTINUOUS_0P40_SECOND_PLATEAU_IN_BROAD_ENVELOPE",
+    "baseline_candidate_duration_s": 0.4,
+    "baseline_candidate_stride_s": 0.1,
+    "minimum_baseline_valid_fraction": 0.8,
+    "baseline_location": "MEDIAN_PRIMARY_ACTIVITY",
+    "baseline_empirical_scale": "1P4826_TIMES_MAD_PRIMARY_ACTIVITY",
+    "gyro_process_noise_sigma_rad_s_sqrt_hz": 0.003,
+    "derived_two_sensor_process_floor_formula": "sqrt(2)*gyro_process_noise_sigma/sqrt(dt)",
+    "derived_process_floor_at_50_hz_rad_s": 0.03,
+    "preserved_predata_floor_rad_s": 0.035,
+    "production_floor_rad_s": 0.035,
+    "activity_z": "(primary_activity-baseline_median)/max(1.4826*MAD,production_floor)",
+    "absolute_q2_covariance_as_rate_denominator": false,
+    "absolute_q2_covariance_role": "SAMPLE_VALIDITY_CONFIDENCE_AND_AUDIT_ONLY",
+    "temporal_cross_covariance_available": false,
+    "unobserved_global_yaw_allowed_in_local_rate_denominator": false
+  },
+  "common_time": {
+    "rate_hz": 50.0,
+    "maximum_interpolation_bracket_gap_s": 0.03,
+    "same_boot_epoch_required": true,
+    "parent_and_child_simultaneously_valid_required": true
+  },
+  "active_bout": {
+    "onset_activity_z": 4.0,
+    "onset_minimum_duration_s": 0.12,
+    "offset_activity_z": 2.0,
+    "offset_minimum_duration_s": 0.2,
+    "maximum_bridgeable_low_activity_gap_s": 0.3,
+    "maximum_bridgeable_invalid_gap_s": 0.04,
+    "minimum_bout_duration_s": 0.3,
+    "onset_uncertainty_support_s": 0.12,
+    "offset_requires_pose_return": false,
+    "offset_requires_strict_stationarity": false
+  },
+  "local_excursion_uncertainty": {
+    "source": "ROBUST_REFERENCE_TANGENT_DISPERSION_PLUS_ORIENTATION_FLOOR_AND_LOCAL_PROCESS_INCREMENT",
+    "orientation_floor_rad": 0.008,
+    "absolute_q2_pose_covariance_used": false
+  },
+  "cycle": {
+    "minimum_prominence_rad": 0.06,
+    "minimum_prominence_sigma": 4.0,
+    "minimum_half_cycle_duration_s": 0.14,
+    "minimum_peak_separation_s": 0.4,
+    "minimum_amplitude_relative_recovery_fraction": 0.5,
+    "minimum_rise_fall_directional_consistency": 0.55,
+    "maximum_extremum_hold_s": 2.0,
+    "exact_neutral_return_required": false,
+    "quiet_plateau_required": false,
+    "exact_repetition_count_is_gate": false,
+    "partial_cycle_policy": "DISCLOSE_NOT_FORCE"
+  },
+  "phase_association": {
+    "minimum_axis_cluster_separation_deg": 25.0,
+    "maximum_bilateral_peak_offset_s": 1.0,
+    "minimum_bilateral_cycle_overlap_fraction": 0.15,
+    "known_protocol_order_role": "WEAK_SEQUENCE_QC_ONLY"
+  },
+  "factor_evidence": {
+    "minimum_active_rows": 15,
+    "minimum_complete_reversals_for_sign": 1,
+    "minimum_excursion_rad": 0.06,
+    "minimum_excursion_sigma": 4.0,
+    "post_neutral_optional": true,
+    "exact_repetition_count_qc_only": true
+  },
+  "observation_only_sanity": {
+    "all_scales_finite_positive": true,
+    "maximum_raw_onset_threshold_deg_s": 5000.0,
+    "maximum_quiet_false_positive_rate": 0.05,
+    "minimum_active_p95_separation_sigma": 1.0,
+    "minimum_pair_valid_fraction": 0.8,
+    "nan_or_validity_silent_pass_forbidden": true
+  },
+  "synthetic_qualification": {
+    "raw_gyro_accel_required": true,
+    "production_q2_frontend_required": true,
+    "production_common_time_required": true,
+    "minimum_clear_action_z": 4.0,
+    "maximum_no_motion_z": 4.0,
+    "absolute_yaw_sigma_variants_deg": [180.0, 360.0],
+    "negative_controls": [
+      "ABSOLUTE_POSE_COVARIANCE_WITH_ZERO_TEMPORAL_CROSS_COVARIANCE",
+      "PROCESS_RATE_DIVIDED_BY_DT_TWICE"
+    ],
+    "deterministic_double_replay_required": true
+  },
+  "sealed_inputs": [
+    "final_still",
+    "walk",
+    "golf",
+    "boxing",
+    "UWB/T4",
+    "Anchor",
+    "operator_measurements"
+  ],
+  "forbidden_stages": [
+    "D0",
+    "JACOBIAN",
+    "SOLVER",
+    "FREEZE",
+    "REPLAY",
+    "RENDER",
+    "COMMIT_PUSH"
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "schema": "biospur-revision-d-minus-1-r3b-reference-neutral-semantics-v1",
+  "pre_reference": {
+    "permitted_uses": ["LOCAL_EXCURSION_ORIGIN", "NONCLINICAL_ZERO_SIGN_CONVENTION", "REFERENCE_COVARIANCE", "ZERO_FACTOR_ELIGIBILITY"],
+    "forbidden_uses": ["ACTIVE_BOUT_EXISTENCE_GATE", "CYCLE_EXISTENCE_GATE", "OPERATOR_CORRECTNESS_GATE"],
+    "retained_fraction_below_0p70": "LOW_REFERENCE_QUALITY_DIAGNOSTIC_NOT_MOTION_FAILURE",
+    "natural_sway_enters_covariance": true
+  },
+  "post_neutral": {
+    "optional": true,
+    "may_differ_from_pre_reference": true,
+    "different_quiet_pose_class": "POST_BOUT_NON_NEUTRAL_HOLD",
+    "missing_effect": "RETURN_FACTOR_UNAVAILABLE_ONLY",
+    "cannot_invalidate_active_bout": true,
+    "cannot_invalidate_cycle": true
+  },
+  "static_references": {
+    "initial_still_attempt2": "INDEPENDENT_RELAXED_STANDING_LATENT_DISTRIBUTION",
+    "t_pose": "INDEPENDENT_HUMAN_TPOSE_LATENT_DISTRIBUTION",
+    "initial_still_is_clinical_joint_zero": false,
+    "t_pose_is_ideal_world_axis_truth": false
+  },
+  "required_inequalities": ["pre_action_pose != post_action_pose", "initial_still_pose != final_still_pose"],
+  "final_still": {
+    "status": "SEALED",
+    "role_in_r3a_r3b": "NONE",
+    "samples_must_not_be_accessed": true
+  }
+}
