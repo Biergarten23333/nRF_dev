@@ -1,0 +1,150 @@
+{
+  "schema": "biospur-imu-relative-orientation-preview-gates-v0",
+  "product": "IMU_RELATIVE_ORIENTATION_PREVIEW_V0",
+  "declared_before_real_payload_access": true,
+  "allowed_verdicts": [
+    "PASS_IMU_RELATIVE_ORIENTATION_PREVIEW_V0",
+    "FAIL_PREVIEW_CALIBRATION",
+    "BLOCKED_REAL_REPLAY_PIPELINE_MISSING"
+  ],
+  "claims_forbidden": [
+    "S2_SCIENTIFIC_CALIBRATION",
+    "CLINICAL_JOINT_ANGLES",
+    "ANATOMICAL_GROUND_TRUTH",
+    "ABSOLUTE_POSITION",
+    "COMPASS_HEADING"
+  ],
+  "allowed_npz_keys": [
+    "action_windows",
+    "imu_BSF1120", "imu_BSF31CC", "imu_BSF3C79", "imu_BSF44AD",
+    "imu_BSF6C53", "imu_BSF8BC4", "imu_BSFAA61", "imu_BSFB165",
+    "imu_BSFC2CC", "imu_BSFEC35"
+  ],
+  "forbidden_modalities": ["UWB", "UWB_TAG_T4", "ANCHOR", "OPERATOR_ANTHROPOMETRY"],
+  "sealed_until_calibration_preview_pass": ["golf_swing", "boxing"],
+  "always_sealed": ["walk", "final_still", "operator_measurements"],
+  "calibration_actions": [
+    "initial_still_attempt2", "t_pose", "arms", "left_elbow",
+    "right_elbow_attempt2", "left_knee", "right_knee", "left_heel",
+    "right_heel", "squats", "trunk"
+  ],
+  "node_to_segment": {
+    "BSF31CC": "torso", "BSFC2CC": "pelvis",
+    "BSFAA61": "upper_arm_L", "BSF1120": "upper_arm_R",
+    "BSFB165": "forearm_L", "BSFEC35": "forearm_R",
+    "BSF44AD": "thigh_L", "BSF3C79": "thigh_R",
+    "BSF6C53": "shank_L", "BSF8BC4": "shank_R"
+  },
+  "template": {
+    "path": "Fusion_Part/config/generic_template_motion_demo_v1/GENERIC_ADULT_PROXY_V1.json",
+    "sha256": "892fa156db60f19120e45ea9bc537361e5ef4f73518d1753aa38fd73d389fce4",
+    "dimensions_immutable": true
+  },
+  "q2": {
+    "gyro_lsb_per_dps": 16.384,
+    "accel_lsb_per_g": 2048.0,
+    "gravity_mps2": 9.80665,
+    "stationary_gyro_limit_dps": 5.0,
+    "stationary_accel_norm_deviation_g": 0.12,
+    "stationary_filtered_jerk_limit_mps3": 8.0,
+    "stationary_filter_time_constant_s": 0.10,
+    "multi_node_agreement_fraction": 0.70,
+    "agreement_bin_s": 0.05,
+    "minimum_stationary_duration_s": 0.40,
+    "minimum_initial_still_eligible_fraction": 0.60,
+    "maximum_propagated_gap_s": 0.05,
+    "gyro_noise_sigma_rad_s_sqrt_hz": 0.003,
+    "gyro_bias_rw_sigma_rad_s2_sqrt_hz": 0.00005,
+    "initial_tilt_sigma_deg": 2.0,
+    "yaw_sigma_deg": 180.0,
+    "stationary_gravity_correction_gain": 0.08,
+    "dynamic_gravity_correction_gain": 0.01,
+    "dynamic_gravity_gyro_limit_dps": 35.0,
+    "dynamic_gravity_accel_norm_deviation_g": 0.08,
+    "dynamic_gravity_jerk_limit_mps3": 5.0,
+    "stationary_bias_update_gain": 0.002
+  },
+  "common_time": {
+    "rate_hz": 50.0,
+    "maximum_bracket_gap_s": 0.030,
+    "require_same_boot_epoch": true,
+    "minimum_all_node_valid_fraction": 0.95
+  },
+  "calibration_solver": {
+    "solver_revision": "FAST_SOLVER_REVISION_C",
+    "axis_parameterization": "SPHERICAL_TWO_DOF",
+    "yaw_drift_knot_spacing_s": 60.0,
+    "first_yaw_drift_knot_fixed_rad": 0.0,
+    "static_direction_sigma_rad": 0.14,
+    "yaw_drift_prior_sigma_rad": 0.35,
+    "yaw_drift_second_difference_sigma_rad": 0.08,
+    "accel_bias_bound_mps2": 1.5,
+    "loss": "soft_l1",
+    "f_scale": 1.0,
+    "xtol": 1e-10,
+    "ftol": 1e-10,
+    "gtol": 1e-8,
+    "soft_cap_nfev": 400,
+    "hard_cap_nfev": 1600,
+    "qualification_restart_nfev": 50,
+    "maximum_optimality": 1e-4,
+    "maximum_qualification_restart_parameter_change_rad": 1e-5,
+    "maximum_qualification_restart_relative_cost_change": 1e-9,
+    "maximum_qualification_restart_axis_change_deg": 0.01,
+    "five_start_axis_perturbation_rad": 0.04,
+    "five_start_heading_perturbation_rad": 0.08,
+    "maximum_multistart_segment_axis_difference_deg": 5.0,
+    "maximum_multistart_node_difference_m": 0.05
+  },
+  "validity_contract": {
+    "policy_version": "FIXED_INPUT_DERIVED_MASKS_REVISION_C",
+    "minimum_per_node_valid_fraction": 0.90,
+    "minimum_segment_metric_samples": 10,
+    "minimum_static_factor_samples": 10,
+    "minimum_squat_factor_samples": 10,
+    "minimum_timestamp_ablation_overlap_samples": 50,
+    "timestamp_shift_lags_grid_rows": [7, 13, 23],
+    "mask_parameter_independent": true,
+    "unexpected_nonfinite_inside_mask_is_fatal": true
+  },
+  "solver_qualification": {
+    "direction_count": 20,
+    "finite_difference_steps": [1e-4, 1e-5, 1e-6],
+    "maximum_jv_relative_error": 5e-5,
+    "maximum_gradient_relative_error": 5e-5,
+    "maximum_gradient_absolute_error": 1e-8,
+    "objective_equivalence_absolute_tolerance": 1e-12,
+    "objective_equivalence_relative_tolerance": 1e-12
+  },
+  "preview_gates": {
+    "maximum_static_direction_residual_deg": 25.0,
+    "maximum_initial_still_axis_jitter_p95_deg": 5.0,
+    "maximum_boundary_segment_step_deg": 8.0,
+    "maximum_return_to_neutral_axis_error_deg": 30.0,
+    "minimum_relevant_segment_motion_deg": 8.0,
+    "maximum_fixed_bone_length_error_m": 1e-10,
+    "minimum_constant_node_ablation_dynamic_loss_fraction": 0.50,
+    "minimum_timestamp_shuffle_continuity_cost_ratio": 1.50,
+    "minimum_ablation_output_rms_deg": 2.0,
+    "left_right_swap_must_fail_identity_gate": true,
+    "maximum_pronation_centerline_displacement_m": 0.08
+  },
+  "rendering": {
+    "width_px": 1280,
+    "height_px": 720,
+    "fps": 30,
+    "gif_fps": 5,
+    "camera_elevation_deg": 14.0,
+    "camera_azimuth_deg": -68.0,
+    "fixed_axis_limit_m": 1.15,
+    "head_proxy_length_m": 0.22,
+    "mp4_codec": "libx264",
+    "pixel_format": "yuv420p",
+    "watermark": "Non-clinical IMU-driven relative-orientation preview. Generic body dimensions; no validated absolute position or clinical joint angles."
+  },
+  "determinism": {
+    "random_seed": 20260815,
+    "canonical_float_decimals": 12,
+    "isolated_reload_required": true
+  }
+}
