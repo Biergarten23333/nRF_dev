@@ -1,0 +1,29 @@
+{
+  "schema": "biospur-action-relative-excitation-contract-v1",
+  "classification": "HUMAN_PROBABILISTIC_LIKELIHOOD",
+  "declared_before_new_solver_execution": true,
+  "rotation_convention": "R_parent_child(t)=R_world_parent(t)^T*R_world_child(t)",
+  "decision": {
+    "minimum_valid_samples": 20,
+    "minimum_relative_excursion_to_uncertainty_ratio": 3.0,
+    "minimum_incremental_attitude_sigma_deg": 1.0,
+    "uncertainty_source": "action-start gauge-cancelled incremental parent-plus-child attitude covariance and robust off-axis model mismatch",
+    "constant_absolute_yaw_gauge_covariance_removed": true,
+    "absolute_segment_motion_minimum_forbidden": true,
+    "proximal_stability_effect": "IMPROVES_RELATIVE_EXCITATION_SIGNAL_TO_UNCERTAINTY; NEVER_CAUSES_FAILURE"
+  },
+  "chains": {
+    "elbow_L": ["upper_arm_L", "forearm_L"],
+    "elbow_R": ["upper_arm_R", "forearm_R"],
+    "high_knee_L": ["pelvis", "thigh_L"],
+    "high_knee_R": ["pelvis", "thigh_R"],
+    "heel_to_butt_L": ["thigh_L", "shank_L"],
+    "heel_to_butt_R": ["thigh_R", "shank_R"],
+    "trunk": ["pelvis", "torso"]
+  },
+  "required_counterexamples": {
+    "isolated_elbow_curl_with_stable_upper_arm": "PASS",
+    "trunk_rotation_with_stable_pelvis": "PASS",
+    "proximal_only_motion_with_no_relative_joint_excitation": "FAIL"
+  }
+}

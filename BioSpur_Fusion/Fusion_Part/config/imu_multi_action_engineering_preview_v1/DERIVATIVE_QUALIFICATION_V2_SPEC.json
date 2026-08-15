@@ -1,0 +1,77 @@
+{
+  "schema": "biospur-derivative-qualification-v2-spec",
+  "version": "DERIVATIVE_QUALIFICATION_V2_SPEC",
+  "frozen_before_real_endpoint_v2_computation": true,
+  "attempt7_historical_gate_immutable": true,
+  "attempt7_may_not_be_regraded": true,
+  "raw_residual_jacobian": {
+    "method": "explicit_structural_sparsity_3_point_central_absolute_step",
+    "absolute_parameter_steps_source": "gates_v1.json:production_jacobian",
+    "jv_relative_error_limit": 1e-5,
+    "undeclared_derivative_absolute_limit": 1e-8
+  },
+  "robust_cost": {
+    "loss": "soft_l1",
+    "f_scale": 1.0,
+    "cost": "sum(sqrt(1 + (r/f_scale)^2) - 1)",
+    "gradient": "J.T @ (r / (f_scale^2 * sqrt(1 + (r/f_scale)^2)))",
+    "scalar_directional_oracle": "extended_precision_5_point_central_difference",
+    "fixed_step_sweep_rad": [0.0003, 0.0001, 0.00003, 0.00001, 0.000003],
+    "primary_step_rad": 0.00001,
+    "relative_tolerance": 1e-5,
+    "mixed_criterion": "absolute_error <= resolved_absolute_tolerance + relative_tolerance * max(abs(analytic), abs(five_point_oracle))",
+    "denominator_floor": null,
+    "one_whitened_cost_unit_floor_forbidden": true
+  },
+  "absolute_tolerance_resolution": {
+    "must_complete_before_attempt7_x0_or_x_end_v2_checks": true,
+    "synthetic_seed": 72641,
+    "synthetic_dimensions": {
+      "parameter_count": 96,
+      "residual_count": 12861,
+      "direction_count": 16
+    },
+    "synthetic_residual_families": [
+      "well_conditioned_affine",
+      "smooth_sinusoidal",
+      "reference_centered_s2_atan2",
+      "mixed_small_and_robust_outlier_residuals"
+    ],
+    "synthetic_reference_derivative": "analytic_J.T_soft_l1_influence",
+    "roundoff_bound_formula": "8 * eps_float64 * sum(abs(soft_l1_row_cost) + 1) / primary_step_rad",
+    "synthetic_plateau_error": "maximum absolute analytic-vs-five-point error over fixed seed, all families and directions at primary_step_rad, provided adjacent step estimates differ by no more than that same error plus roundoff_bound",
+    "resolved_absolute_tolerance_formula": "max(8 * roundoff_bound, 8 * synthetic_plateau_error)",
+    "resolution_multiplier_predeclared": 8,
+    "failure_if_no_step_plateau": "DERIVATIVE_V2_SYNTHETIC_STEP_CONVERGENCE_FAIL"
+  },
+  "zero_iteration_preflight_points": [
+    "ATTEMPT7_DETERMINISTIC_X0",
+    "ATTEMPT7_X_END",
+    "DETERMINISTIC_OFF_ENDPOINT_0",
+    "DETERMINISTIC_OFF_ENDPOINT_1"
+  ],
+  "off_endpoint_generation": {
+    "seed": 81733,
+    "direction_norm_rad": 0.001,
+    "bounds_projection": "reject_and_regenerate"
+  },
+  "negative_controls": [
+    "perturb_one_declared_nonzero_jacobian_entry_by_1e-3",
+    "perturb_one_soft_l1_influence_weight_by_1_percent"
+  ],
+  "solver_audit_identity": {
+    "require_same_callable": true,
+    "require_same_structural_sparsity_sha256": true,
+    "require_same_absolute_step_vector_sha256": true,
+    "require_canonical_sparse_array_sha256_identity": true
+  },
+  "data_firewall": {
+    "solver_iterations": "FORBIDDEN_DURING_PREFLIGHT",
+    "golf": "SEALED",
+    "boxing": "SEALED",
+    "walk": "SEALED",
+    "final_still": "SEALED",
+    "uwb_t4_anchor": "SEALED",
+    "operator_measurements": "SEALED"
+  }
+}
