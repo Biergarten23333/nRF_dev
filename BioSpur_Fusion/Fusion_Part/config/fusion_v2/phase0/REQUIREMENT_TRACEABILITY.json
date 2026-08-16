@@ -1,0 +1,274 @@
+{
+  "architectures": {
+    "A-01": {
+      "mandatory_evidence": "timestamp schema, clock SHA, sample age, each range time, perturbation test",
+      "primary_invariants": [
+        "I-10"
+      ],
+      "resolution_phase": "P0, P1, P4",
+      "status": "P0_REPLAY_REQUIRED"
+    },
+    "A-02": {
+      "mandatory_evidence": "frame graph, transform direction, quaternion order, gauge register",
+      "primary_invariants": [
+        "I-02",
+        "I-03",
+        "I-05"
+      ],
+      "resolution_phase": "P0, P3, P4",
+      "status": "NOT_PROVEN"
+    },
+    "A-03": {
+      "mandatory_evidence": "top-K assignment, runner-up margin, bootstrap, ambiguity gate",
+      "primary_invariants": [
+        "I-05",
+        "I-07",
+        "I-13"
+      ],
+      "resolution_phase": "P2A",
+      "status": "NOT_PROVEN"
+    },
+    "A-04": {
+      "mandatory_evidence": "mapping top-K, extrinsic/geometry/joint conditional marginals and provenance",
+      "primary_invariants": [
+        "I-07",
+        "I-13"
+      ],
+      "resolution_phase": "P2A/B/C",
+      "status": "NOT_PROVEN"
+    },
+    "A-05": {
+      "mandatory_evidence": "raw IMU factors, bias states, activation manifest",
+      "primary_invariants": [
+        "I-01",
+        "I-04",
+        "I-06"
+      ],
+      "resolution_phase": "P1, P3",
+      "status": "NOT_PROVEN"
+    },
+    "A-06": {
+      "mandatory_evidence": "state dimensions, FK, factor counts, IMU-only pose",
+      "primary_invariants": [
+        "I-02",
+        "I-05",
+        "I-07"
+      ],
+      "resolution_phase": "P3",
+      "status": "NOT_PROVEN"
+    },
+    "A-07": {
+      "mandatory_evidence": "finite-sigma factors, sensitivity, no-perfect-robot tests",
+      "primary_invariants": [
+        "I-07",
+        "I-13"
+      ],
+      "resolution_phase": "P2C, P3",
+      "status": "NOT_PROVEN"
+    },
+    "A-08": {
+      "mandatory_evidence": "local-mode output, contact gate, uncertainty growth, nullspace",
+      "primary_invariants": [
+        "I-02",
+        "I-06"
+      ],
+      "resolution_phase": "P3",
+      "status": "NOT_PROVEN"
+    },
+    "A-09": {
+      "mandatory_evidence": "asynchronous raw-range factor, NIS gate, dropout/relock trace",
+      "primary_invariants": [
+        "I-03",
+        "I-08",
+        "I-09",
+        "I-10"
+      ],
+      "resolution_phase": "P4",
+      "status": "NOT_PROVEN"
+    },
+    "A-10": {
+      "mandatory_evidence": "covariance/marginals, rank, coverage where truth exists",
+      "primary_invariants": [
+        "I-02",
+        "I-04",
+        "I-07",
+        "I-09"
+      ],
+      "resolution_phase": "P1\u2013P5",
+      "status": "NOT_PROVEN"
+    },
+    "A-11": {
+      "mandatory_evidence": "output schema, mode/validity/quality/degraded reason",
+      "primary_invariants": [
+        "I-02",
+        "I-03",
+        "I-09"
+      ],
+      "resolution_phase": "P0, P3, P4",
+      "status": "NOT_PROVEN"
+    },
+    "A-12": {
+      "mandatory_evidence": "frozen A/B, split manifest, external-truth claim limits",
+      "primary_invariants": [
+        "I-01",
+        "I-02",
+        "I-11"
+      ],
+      "resolution_phase": "P0, P3\u2013P5",
+      "status": "NOT_PROVEN"
+    },
+    "A-13": {
+      "mandatory_evidence": "linked worktree, allowlist staging, dependency lock, tracked source",
+      "primary_invariants": [
+        "I-12"
+      ],
+      "resolution_phase": "P0, P6",
+      "status": "NOT_PROVEN"
+    }
+  },
+  "invariants": {
+    "I-01": {
+      "architecture_refs": [
+        "A-05",
+        "A-12"
+      ]
+    },
+    "I-02": {
+      "architecture_refs": [
+        "A-02",
+        "A-06",
+        "A-08",
+        "A-10",
+        "A-11",
+        "A-12"
+      ]
+    },
+    "I-03": {
+      "architecture_refs": [
+        "A-02",
+        "A-09",
+        "A-11"
+      ]
+    },
+    "I-04": {
+      "architecture_refs": [
+        "A-05",
+        "A-10"
+      ]
+    },
+    "I-05": {
+      "architecture_refs": [
+        "A-02",
+        "A-03",
+        "A-06"
+      ]
+    },
+    "I-06": {
+      "architecture_refs": [
+        "A-05",
+        "A-08"
+      ]
+    },
+    "I-07": {
+      "architecture_refs": [
+        "A-03",
+        "A-04",
+        "A-06",
+        "A-07",
+        "A-10"
+      ]
+    },
+    "I-08": {
+      "architecture_refs": [
+        "A-09"
+      ]
+    },
+    "I-09": {
+      "architecture_refs": [
+        "A-09",
+        "A-10",
+        "A-11"
+      ]
+    },
+    "I-10": {
+      "architecture_refs": [
+        "A-01",
+        "A-09"
+      ]
+    },
+    "I-11": {
+      "architecture_refs": [
+        "A-12"
+      ]
+    },
+    "I-12": {
+      "architecture_refs": [
+        "A-13"
+      ]
+    },
+    "I-13": {
+      "architecture_refs": [
+        "A-03",
+        "A-04",
+        "A-07"
+      ]
+    }
+  },
+  "schema": "biospur-phase0-r2-requirement-traceability-v1",
+  "standards": {
+    "STD-01": {
+      "status": "CONTRACT_ONLY_NOT_PROVEN"
+    },
+    "STD-02": {
+      "status": "CONTRACT_ONLY_NOT_PROVEN"
+    },
+    "STD-03": {
+      "status": "CONTRACT_ONLY_NOT_PROVEN"
+    },
+    "STD-04": {
+      "status": "CONTRACT_ONLY_NOT_PROVEN"
+    },
+    "STD-05": {
+      "status": "CONTRACT_ONLY_NOT_PROVEN"
+    },
+    "STD-06": {
+      "status": "CONTRACT_ONLY_NOT_PROVEN"
+    },
+    "STD-07": {
+      "status": "CONTRACT_ONLY_NOT_PROVEN"
+    },
+    "STD-08": {
+      "status": "CONTRACT_ONLY_NOT_PROVEN"
+    },
+    "STD-09": {
+      "status": "CONTRACT_ONLY_NOT_PROVEN"
+    },
+    "STD-10": {
+      "status": "CONTRACT_ONLY_NOT_PROVEN"
+    },
+    "STD-11": {
+      "status": "CONTRACT_ONLY_NOT_PROVEN"
+    },
+    "STD-12": {
+      "status": "CONTRACT_ONLY_NOT_PROVEN"
+    },
+    "STD-13": {
+      "status": "CONTRACT_ONLY_NOT_PROVEN"
+    },
+    "STD-14": {
+      "status": "CONTRACT_ONLY_NOT_PROVEN"
+    },
+    "STD-15": {
+      "status": "CONTRACT_ONLY_NOT_PROVEN"
+    },
+    "STD-16": {
+      "status": "CONTRACT_ONLY_NOT_PROVEN"
+    },
+    "STD-17": {
+      "status": "CONTRACT_ONLY_NOT_PROVEN"
+    },
+    "STD-18": {
+      "status": "CONTRACT_ONLY_NOT_PROVEN"
+    }
+  }
+}

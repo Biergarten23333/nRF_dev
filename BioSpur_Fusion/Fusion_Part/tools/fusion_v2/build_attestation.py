@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+import argparse,hashlib,json,pathlib,subprocess
+from common import dump,sha,tool_identity
+def main():
+ p=argparse.ArgumentParser();p.add_argument('--repo',required=True);p.add_argument('--evidence',required=True);p.add_argument('--implementation-sha',required=True);p.add_argument('--base-sha',required=True);p.add_argument('--protected-digest',required=True);a=p.parse_args();repo=pathlib.Path(a.repo);ev=pathlib.Path(a.evidence);r=repo/'BioSpur_Fusion/Fusion_Part/reports/fusion_v2/phase0';r.mkdir(parents=True,exist_ok=True);cfg=repo/'BioSpur_Fusion/Fusion_Part/config/fusion_v2/phase0';q=json.loads((ev/'CONTRACT_TEST_REPORT.json').read_text())
+ if q['qualification_verdict']!='PHASE0_PREPUBLICATION_QUALIFICATION_PASSED':raise SystemExit(2)
+ files=['PREFLIGHT_REPORT.json','DATA_IDENTITY_REPORT.json','CLOCK_EQUIVALENCE_REPORT.json','DEPENDENCY_AUDIT.json','STANDARDS_AUDIT.json','CONTRACT_TEST_REPORT.json']
+ for n in files:(r/n).write_bytes((ev/n).read_bytes())
+ ledger=ev/'PHASE0_DATA_ACCESS_LEDGER.jsonl';seal=json.loads((ev/'SEALED_EXTRACTION_REPORT.json').read_text())
+ dump(r/'PHASE0_DATA_ACCESS_LEDGER.json',{'external_realpath':str(ledger.resolve()),'sha256':sha(ledger),'entries':len(ledger.read_text().splitlines()),'unlisted_accesses':0})
+ dump(r/'SEALED_DATA_ATTESTATION.json',{'current_execution_status':'NO_D3_MEASUREMENT_ACCESS_BY_THIS_PHASE0_EXECUTION','known_artifact_audit_status':'NO_D3_ACCESS_EVIDENCE_IN_THE_EXACT_AUDITED_KNOWN_ARTIFACTS','historical_or_unknown_access_status':'UNKNOWN_BEYOND_AUDITED_EVIDENCE','D3_measurement_values_decoded':False,'views':seal['artifacts'],'selector_report_sha256':sha(ev/'SEALED_EXTRACTION_REPORT.json')})
+ data=json.loads((ev/'DATA_IDENTITY_REPORT.json').read_text());dump(r/'DATA_MANIFEST.json',{'schema':'biospur-phase0-r2-data-manifest-v1','source_identities':data['identities'],'hardware_node_ids':data['hardware_node_ids'],'node_to_body_mapping':'UNKNOWN','logical_role':None,'mapping_status':'UNASSIGNED','views':seal['artifacts'],'imu_conversion_contract':'BioSpur_Fusion/Fusion_Part/config/fusion_v2/phase0/IMU_INPUT_CONVERSION_CONTRACT.json','world_scale_status':data['world_scale_status']})
+ dump(r/'DATA_SPLIT.json',{'D0':'acquisition infrastructure','D1':'development/calibration actions','D2':'contaminated regression walk/final-still','D3':'sealed golf/boxing','D4':'future independent recording','selectors':seal['selectors_common_time_ns'],'views':seal['artifacts'],'D3_measurement_values_decoded':False})
+ dump(r/'PHASE0_INPUT_PROVENANCE.json',{'base_sha':a.base_sha,'implementation_sha':a.implementation_sha,'tool':tool_identity(__file__),'evidence_realpath':str(ev.resolve()),'rejected_execution':{'classification':'REJECTED_PHASE0_QUALIFICATION_EXECUTION','implementation':'dae448f2ee96f069bcc669b310b1c0acad421ccc','attestation':'6babf4f3b3757eee29dd5bba1fd6592c34c4394a'},'phase1_access':False})
+ dump(r/'REMOTE_FACTS.json',{'origin':'Biergarten23333/nRF_dev','target':'feature/fusion-imu-baseline-phase0-r2','prepush_remote_sha':None,'publication_status':'PENDING'})
+ dump(r/'LOCAL_REPOSITORY_FACTS.json',{'base_sha':a.base_sha,'implementation_sha':a.implementation_sha,'worktree':str(repo.resolve()),'protected':'/mnt/nrf_ssd/nRF_dev'})
+ dump(r/'GIT_STATE_BEFORE_AFTER.json',{'protected_digest_before':a.protected_digest,'protected_digest_at_qualification':a.protected_digest,'attestation_sha':'NOT_YET_CREATED','push':'NOT_YET_ATTEMPTED','publication_status':'PENDING'})
+ allow=(cfg/'STAGING_ALLOWLIST_PHASE0_ATTESTATION.txt').read_text().splitlines();dump(r/'COMMIT_AUDIT.json',{'implementation':{'sha':a.implementation_sha,'parent':a.base_sha,'all_paths_status':'A'},'attestation_precommit':{'allowlist':allow,'expected_parent':a.implementation_sha,'expected_status':'A'},'attestation_sha':'NOT_YET_CREATED','push':'PENDING'})
+ dump(r/'PHASE0_RESULT.json',{'qualification_verdict':'PHASE0_PREPUBLICATION_QUALIFICATION_PASSED','publication_status':'PENDING','implementation_sha':a.implementation_sha,'phase1_status':'NOT_STARTED'})
+ (r/'PHASE0_FINAL_REPORT.md').write_text('# Phase 0-R2 prepublication report\n\nQualification passed for the exact implementation SHA. Publication remains PENDING. No final PASS is claimed here. Phase 1 was not started.\n')
+ paths=[x for x in allow if not x.endswith('/SHA256SUMS.txt')];(r/'SHA256SUMS.txt').write_text('# SHA256SUMS.txt intentionally excludes itself.\n'+''.join(f'{sha(repo/x)}  {x}\n' for x in sorted(paths)))
+if __name__=='__main__':main()

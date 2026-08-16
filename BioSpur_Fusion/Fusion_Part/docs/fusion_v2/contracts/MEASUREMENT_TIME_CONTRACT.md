@@ -1,0 +1,3 @@
+# Measurement-time contract
+
+TIMER2 is native event evidence. IMU uses base+delta; UWB preserves hardware strobe and every anchor uses strobe + half measured t_round only under the versioned protocol proof. Affine mapping is keyed by hardware ID and boot epoch, applies only inside its timer domain, and uses float64 ties-to-even rint. Host arrival is diagnostic only. TIMER2 wrap, delta overflow, sequence wrap, duplicates, out-of-order, reset and boot epoch are fail-closed. JY61P internal sample age is an explicit per-node/per-epoch 0–5 ms uncertainty/nuisance. Future propagation uses variable dt.
