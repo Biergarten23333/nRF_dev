@@ -1,0 +1,3 @@
+# Phase 0 prepublication report
+
+Qualification: `PHASE0_PREPUBLICATION_QUALIFICATION_PASSED`. Publication is `PENDING`; this tracked report does not claim the final primary PASS. Ten hardware IDs are verified; `node_to_body_mapping=UNKNOWN`, `logical_role=null`, `mapping_status=UNASSIGNED`. Ledger and sidecar replay are exactly 0 ns without refit. D1/D2 views are separate and content-addressed; D3 value fields were not decoded. No estimator, pose, fusion, firmware, hardware, OTA, SWD, PR, or Phase 1 work was performed. Standards: `PASS_MINIMUM_STANDARD_SEMANTIC_KERNEL`, `STANDARD_ALIGNMENT_PROVISIONAL`, `NO_IEEE_COMPLIANCE_CLAIM`. Limitation: `WORLD_SCALE_EXTERNAL_METROLOGY_NOT_PROVEN`.
