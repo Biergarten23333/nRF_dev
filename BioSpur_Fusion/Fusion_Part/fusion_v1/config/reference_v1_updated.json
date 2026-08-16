@@ -1,0 +1,15 @@
+{
+  "schema": "fusion-v1-reference-config-v2",
+  "inputs": {
+    "canonical_sha256": "836ee43e3a86f818ff4bc954a7111e4f4111a3f7693047b84811571cb48332cd",
+    "common_clock": "common_clock_v1.json",
+    "anchor_geometry_sha256": "20320e53d48b171c016a0e8d1d93b3cb10e979cf4c21c15c21647d5c0b9878b1"
+  },
+  "imu": {"accel_lsb_per_g": 2048.0, "gyro_lsb_per_dps": 16.384, "gravity_mps2": 9.80665, "covariance": "per_node_from_development_low_motion"},
+  "uwb": {"covariance": "per_node_anchor", "robust_loss": "cauchy", "health": "rapid_fall_slow_recovery"},
+  "body": {"root": "Pelvis", "segment_lengths": "capture_constant", "joint_centres": "soft", "elbow_knee": "dominant_axis_with_dispersion", "shoulder_hip_trunk": "multi_dof"},
+  "optimizer": "scipy_sparse_batch_or_fixed_lag",
+  "held_out": ["golf_swing", "boxing"],
+  "status": "NO_FITTED_ESTIMATOR"
+}
+

@@ -1,0 +1,14 @@
+{
+  "schema": "fusion-v1-action-split-v1",
+  "capture": "v47_ten_node_body_calibration_20260814_093601",
+  "limitation": "Only one recording exists; this is action-level, not subject- or recording-level independence.",
+  "development": ["initial_still_attempt_2", "t_pose", "arms", "left_elbow", "right_elbow_attempt_2", "left_knee", "right_knee", "left_heel", "right_heel", "squats", "trunk"],
+  "validation": ["walk", "final_still"],
+  "held_out": ["golf_swing", "boxing"],
+  "held_out_policy": "Do not decode/filter rows by these time intervals for fitting, diagnostics, threshold selection, or visualization before the first estimator and metric configuration is frozen.",
+  "excluded": [
+    {"interval": "initial_still_attempt_1", "reason": "manual upper bound and superseded retry"},
+    {"interval": "right_elbow_attempt_1", "reason": "operator requested retry; missing final still"}
+  ]
+}
+

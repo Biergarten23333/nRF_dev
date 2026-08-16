@@ -1,0 +1,10 @@
+{
+  "schema": "fusion-v1-reference-config-v1",
+  "optimizer": {"framework": "scipy", "reason": "installed, maintained sparse least-squares support; no JAX or GTSAM installed"},
+  "units": {"position": "m", "time": "s", "angle": "rad"},
+  "uwb": {"loss": "cauchy", "base_sigma_source": "to_be_estimated_per_node_anchor_from_development_static_data", "health": {"fall": "rapid", "recovery": "hysteretic_slow"}},
+  "body": {"segment_lengths": "capture_constant_with_prior_uncertainty", "joint_centres": "soft", "elbow_knee": "dominant_axis_with_secondary_rotation", "shoulder_hip_trunk": "multi_dof"},
+  "contacts": {"enabled": false, "stage": "after_basic_articulated_imu_uwb"},
+  "status": "STAGE_A_ONLY_NO_FITTED_WEIGHTS"
+}
+

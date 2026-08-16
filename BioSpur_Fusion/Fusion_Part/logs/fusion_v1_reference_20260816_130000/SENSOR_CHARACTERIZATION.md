@@ -1,0 +1,3 @@
+# Sensor characterization
+
+Held-out golf and boxing were not opened. Initial-low-motion statistics use the operator bracket mapped through the validated annotation bridge. All ten IMUs use node-specific statistics; no shared covariance is assumed. Across 80 node-anchor pairs, static robust range spread spans 0.0178--0.6049 m. Pair-specific rows preserve availability, median, robust sigma, jumps and lag-1 correlation in `UWB_PAIR_STATISTICS.csv.gz`. These are descriptive initial statistics, not residual-to-ground-truth bias estimates. Sustained bias, orientation dependence, vertical weakness and recovery require the clean articulated prediction/T4 comparison and remain unresolved.

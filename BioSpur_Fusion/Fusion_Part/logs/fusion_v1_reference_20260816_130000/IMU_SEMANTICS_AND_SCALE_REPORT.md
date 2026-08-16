@@ -1,0 +1,3 @@
+# IMU semantics and scale
+
+The fitted JY61P six-axis register window is `0x34..0x39`, sampled on B306 TIMER2. Existing firmware/validated frontend semantics give acceleration 2048 LSB/g (±16 g) and gyro 16.384 LSB/(deg/s) (±2000 deg/s), converted with g=9.80665 m/s². The new characterization reused those hardware constants and checked all ten nodes against the real initial-low-motion interval. Per-node gravity norms, gyro bias/noise, cadence, correlation, and gaps are in `IMU_STATISTICS.json`. Board axes remain sensor-frame axes; no old sensor-to-segment rotation is accepted. Axis signs require the clean-slate functional-motion calibration and are not inferred from attractive rendering.
