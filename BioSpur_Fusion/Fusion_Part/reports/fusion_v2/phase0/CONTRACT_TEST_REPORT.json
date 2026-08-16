@@ -1,0 +1,532 @@
+{
+  "commands": [
+    {
+      "command": [
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-imu-baseline-phase0-r2/BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase0"
+      ],
+      "log": "/mnt/nrf_ssd/nRF_dev_worktrees/phase0_r2_evidence_20260816/pytest.log",
+      "log_sha256": "0be7428786bb2b1b4bbf8bc76b7fd4a048960e57c5df85a67f2660eade6729a7",
+      "name": "pytest",
+      "returncode": 0
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-imu-baseline-phase0-r2/BioSpur_Fusion/Fusion_Part/tools/fusion_v2/preflight.py",
+        "--repo",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-imu-baseline-phase0-r2",
+        "--protected",
+        "/mnt/nrf_ssd/nRF_dev",
+        "--expected-protected-digest",
+        "2b262fbd97d3f7f67d5d8db20c72834264fe182d14d931f8f2a3f4440f4846f8",
+        "--output",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/phase0_r2_evidence_20260816/PREFLIGHT_REPORT.json"
+      ],
+      "log": "/mnt/nrf_ssd/nRF_dev_worktrees/phase0_r2_evidence_20260816/preflight.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "preflight",
+      "returncode": 0
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-imu-baseline-phase0-r2/BioSpur_Fusion/Fusion_Part/tools/fusion_v2/data_audit.py",
+        "--allowlist",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-imu-baseline-phase0-r2/BioSpur_Fusion/Fusion_Part/config/fusion_v2/phase0/DATA_READ_ALLOWLIST.json",
+        "--ledger",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/phase0_r2_evidence_20260816/PHASE0_DATA_ACCESS_LEDGER.jsonl",
+        "--output",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/phase0_r2_evidence_20260816/DATA_IDENTITY_REPORT.json"
+      ],
+      "log": "/mnt/nrf_ssd/nRF_dev_worktrees/phase0_r2_evidence_20260816/data_audit.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "data_audit",
+      "returncode": 0
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-imu-baseline-phase0-r2/BioSpur_Fusion/Fusion_Part/tools/fusion_v2/sealed_extract.py",
+        "--allowlist",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-imu-baseline-phase0-r2/BioSpur_Fusion/Fusion_Part/config/fusion_v2/phase0/DATA_READ_ALLOWLIST.json",
+        "--ledger",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/phase0_r2_evidence_20260816/PHASE0_DATA_ACCESS_LEDGER.jsonl",
+        "--output-dir",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/phase0_r2_evidence_20260816/views",
+        "--report",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/phase0_r2_evidence_20260816/SEALED_EXTRACTION_REPORT.json"
+      ],
+      "log": "/mnt/nrf_ssd/nRF_dev_worktrees/phase0_r2_evidence_20260816/sealed_extract.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "sealed_extract",
+      "returncode": 0
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-imu-baseline-phase0-r2/BioSpur_Fusion/Fusion_Part/tools/fusion_v2/clock_replay.py",
+        "--allowlist",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-imu-baseline-phase0-r2/BioSpur_Fusion/Fusion_Part/config/fusion_v2/phase0/DATA_READ_ALLOWLIST.json",
+        "--ledger-log",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/phase0_r2_evidence_20260816/PHASE0_DATA_ACCESS_LEDGER.jsonl",
+        "--output",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/phase0_r2_evidence_20260816/CLOCK_EQUIVALENCE_REPORT.json"
+      ],
+      "log": "/mnt/nrf_ssd/nRF_dev_worktrees/phase0_r2_evidence_20260816/clock_replay.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "clock_replay",
+      "returncode": 0
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-imu-baseline-phase0-r2/BioSpur_Fusion/Fusion_Part/tools/fusion_v2/dependency_audit.py",
+        "--root",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-imu-baseline-phase0-r2/BioSpur_Fusion/Fusion_Part",
+        "--output",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/phase0_r2_evidence_20260816/DEPENDENCY_AUDIT.json"
+      ],
+      "log": "/mnt/nrf_ssd/nRF_dev_worktrees/phase0_r2_evidence_20260816/dependency.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "dependency",
+      "returncode": 0
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-imu-baseline-phase0-r2/BioSpur_Fusion/Fusion_Part/tools/fusion_v2/standards_audit.py",
+        "--registry",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-imu-baseline-phase0-r2/BioSpur_Fusion/Fusion_Part/standards/registry/standards_registry.yaml",
+        "--output",
+        "/mnt/nrf_ssd/nRF_dev_worktrees/phase0_r2_evidence_20260816/STANDARDS_AUDIT.json"
+      ],
+      "log": "/mnt/nrf_ssd/nRF_dev_worktrees/phase0_r2_evidence_20260816/standards.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "standards",
+      "returncode": 0
+    }
+  ],
+  "gates": [
+    {
+      "actual": "PASS",
+      "evidence": [
+        "pytest.log",
+        "PREFLIGHT_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "git_data",
+      "id": "protected_digest_equality"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "pytest.log",
+        "PREFLIGHT_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "git_data",
+      "id": "new_worktree_exact_clean_detached_sha"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "pytest.log",
+        "PREFLIGHT_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "git_data",
+      "id": "remote_local_fact_separation"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "pytest.log",
+        "PREFLIGHT_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "git_data",
+      "id": "origin_url_authorization"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "pytest.log",
+        "PREFLIGHT_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "git_data",
+      "id": "literal_staging_allowlists"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "pytest.log",
+        "PREFLIGHT_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "git_data",
+      "id": "all_commit_paths_A_and_absent_from_parent"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "pytest.log",
+        "PREFLIGHT_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "git_data",
+      "id": "raw_cache_media_oversize_rejection"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "pytest.log",
+        "PREFLIGHT_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "git_data",
+      "id": "all_reads_preledgered"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "DATA_IDENTITY_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "git_data",
+      "id": "hash_count_schema_match"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "SEALED_EXTRACTION_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "git_data",
+      "id": "D3_selector_rejection"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "DATA_IDENTITY_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "identity_time_frame",
+      "id": "exact_ten_ids"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "pytest.log",
+        "PREFLIGHT_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "identity_time_frame",
+      "id": "identity_permutation"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "pytest.log",
+        "PREFLIGHT_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "identity_time_frame",
+      "id": "roles_unknown"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "pytest.log",
+        "PREFLIGHT_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "identity_time_frame",
+      "id": "no_anatomy_in_production_identity"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "pytest.log",
+        "PREFLIGHT_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "identity_time_frame",
+      "id": "conversion_integer_signed_all_nodes"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "pytest.log",
+        "PREFLIGHT_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "identity_time_frame",
+      "id": "timer_wrap_overflow_sequence_reset_boot"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "pytest.log",
+        "PREFLIGHT_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "identity_time_frame",
+      "id": "host_time_rejected"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "pytest.log",
+        "PREFLIGHT_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "identity_time_frame",
+      "id": "sample_age_required"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "pytest.log",
+        "PREFLIGHT_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "identity_time_frame",
+      "id": "individual_range_time_preserved"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "CLOCK_EQUIVALENCE_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "identity_time_frame",
+      "id": "common_clock_no_refit_exact"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "pytest.log",
+        "PREFLIGHT_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "identity_time_frame",
+      "id": "transform_fixtures"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "pytest.log",
+        "PREFLIGHT_REPORT.json"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "identity_time_frame",
+      "id": "world_requires_frame_realization"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "DEPENDENCY_AUDIT.json",
+        "pytest.log"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "architecture_dependency",
+      "id": "rejected_artifacts_denied"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "DEPENDENCY_AUDIT.json",
+        "pytest.log"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "architecture_dependency",
+      "id": "legacy_adapter_rejected_only"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "DEPENDENCY_AUDIT.json",
+        "pytest.log"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "architecture_dependency",
+      "id": "fixed_anchor_rejects_node_to_node"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "DEPENDENCY_AUDIT.json",
+        "pytest.log"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "architecture_dependency",
+      "id": "dependency_direction"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "DEPENDENCY_AUDIT.json",
+        "pytest.log"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "architecture_dependency",
+      "id": "A_I_STD_traceability_exact"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "DEPENDENCY_AUDIT.json",
+        "pytest.log"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "architecture_dependency",
+      "id": "activation_requires_real_counts_rank_ablation"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "DEPENDENCY_AUDIT.json",
+        "pytest.log"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "architecture_dependency",
+      "id": "schema_cannot_claim_scientific_pass"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "STANDARDS_AUDIT.json",
+        "pytest.log"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "standards",
+      "id": "authority_lifecycle_separate"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "STANDARDS_AUDIT.json",
+        "pytest.log"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "standards",
+      "id": "PAR_AWI_not_normative"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "STANDARDS_AUDIT.json",
+        "pytest.log"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "standards",
+      "id": "unreviewed_not_EXACT"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "STANDARDS_AUDIT.json",
+        "pytest.log"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "standards",
+      "id": "forbidden_aggregate_IEEE_ids"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "STANDARDS_AUDIT.json",
+        "pytest.log"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "standards",
+      "id": "projection_state_machine"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "STANDARDS_AUDIT.json",
+        "pytest.log"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "standards",
+      "id": "mandatory_semantics_not_stripped"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "STANDARDS_AUDIT.json",
+        "pytest.log"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "standards",
+      "id": "golden_vector_hash"
+    },
+    {
+      "actual": "PASS",
+      "evidence": [
+        "STANDARDS_AUDIT.json",
+        "pytest.log"
+      ],
+      "executable": "run_phase0_qualification.py",
+      "expected": "PASS",
+      "group": "standards",
+      "id": "golden_vectors_no_real_sealed_rejected_data"
+    }
+  ],
+  "implementation_sha": "0f5a9d494960daff3b527a39e969d62e6227ef6b",
+  "qualification_verdict": "PHASE0_PREPUBLICATION_QUALIFICATION_PASSED",
+  "tool": {
+    "realpath": "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-imu-baseline-phase0-r2/BioSpur_Fusion/Fusion_Part/tools/fusion_v2/run_phase0_qualification.py",
+    "sha256": "9c01e6840a3faadf1cd334630db73532cb58ca5004562921899f2d60bafd562c"
+  },
+  "totals": {
+    "fail": 0,
+    "ignored": 0,
+    "pass": 37,
+    "skip": 0,
+    "waive": 0,
+    "xfail": 0
+  }
+}
