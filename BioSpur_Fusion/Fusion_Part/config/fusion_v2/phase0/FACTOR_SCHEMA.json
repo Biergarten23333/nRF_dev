@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "phase0_runtime_factor_count": 0,
+  "properties": {
+    "ablation_result": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "factor_count": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "jacobian_nonzero_count": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "rank": {
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "factor_count",
+    "jacobian_nonzero_count",
+    "rank",
+    "ablation_result"
+  ],
+  "title": "Factor activation future template"
+}

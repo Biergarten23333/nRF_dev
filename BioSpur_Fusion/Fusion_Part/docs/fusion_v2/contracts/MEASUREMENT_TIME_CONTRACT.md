@@ -1,0 +1,3 @@
+# Measurement time contract
+
+B306 TIMER2 is native event evidence. IMU time is `base_timer2_ts_us + delta_us`; UWB frame time is hardware strobe, and each range time is `strobe_us + 0.5*t_round_us` only under the v2 protocol proof. Common time is affine per `(hardware_node_id,boot_epoch)` with ties-to-even `rint`; outside `[first_timer_us,last_timer_us]` is `TIME_UNMAPPED`. Host arrival is diagnostic only. TIMER2 is 32-bit and wraps near 71.6 minutes; 16-bit sequence is local continuity evidence. Duplicate, overflow, wrap, reset and out-of-order behavior are fail-closed. TIMER2 marks register pull, not necessarily JY61P internal sampling; sample age is a per-node/per-epoch 0–5 ms uncertainty/nuisance. Future IMU propagation uses variable dt.

@@ -1,0 +1,3 @@
+# Pose usability contract
+
+Phase 0 proves no pose. Future directly instrumented carriers are pelvis, torso, bilateral upper arm/forearm/thigh/shank; head/hands/feet are `MODEL_INFERRED` with larger uncertainty or `UNAVAILABLE`. Estimate kinds: PREDICTED/FILTERED/FIXED_LAG/SMOOTHED. Modes: WORLD_FUSED/LOCAL_IMU_ONLY/DEGRADED_WORLD_GAUGE/INVALID. Every output carries cutoff time, active gauges, weak modes, degraded reasons, validity, availability, uncertainty and provenance. Initialization, rate, latency, outage, drift and validation thresholds are `TBD_D1_FREEZE`; they must be frozen before D2/D3/D4.

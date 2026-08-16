@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "phase0_status": "NOT_IMPLEMENTED_IN_PHASE_0",
+  "properties": {
+    "accelerometer_bias_states": {
+      "const": 10
+    },
+    "covariance_dimension": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "gauge_register": {
+      "type": "array"
+    },
+    "gyro_bias_states": {
+      "const": 10
+    },
+    "state_dimension": {
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "state_dimension",
+    "covariance_dimension",
+    "gauge_register"
+  ],
+  "title": "EstimatorState future template"
+}
