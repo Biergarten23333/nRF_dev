@@ -1,0 +1,7 @@
+{
+  "context_schema_version": "biospur-imu-time-context-v1",
+  "join_key": ["hardware_node_id", "raw_record_index", "node_timer_us", "sequence"],
+  "required_fields": ["context_schema_version", "split_class", "selector_name", "view_row_index", "hardware_node_id", "raw_record_index", "occurrence_index_within_record", "boot_epoch", "node_timer_us", "common_time_ns", "common_time_sigma_ns", "clock_mapping_ref", "clock_mapping_valid", "clock_uncertainty_model_ref", "sample_age_model_ref", "time_quality_status", "source_view_sha256", "source_time_sidecar_sha256", "source_time_ledger_sha256"],
+  "sample_age_contract": {"distribution": "UNKNOWN_BOUNDED", "fixed_delay_forbidden": true, "support_us": [0, 5000]},
+  "forbidden_measurement_fields": ["acc_raw", "gyro_raw", "range_mm", "anchor_id", "distance", "value_0", "value_1", "value_2", "value_3", "value_4", "value_5"]
+}
