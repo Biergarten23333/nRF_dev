@@ -1,0 +1,23 @@
+# Literal staging allowlists
+
+Implementation commit `d238d925a049c68cbce7ff745a8db6645be6a12d` staged exactly
+the 44 files shown by `git show --name-only --format= d238d925...`: six frozen
+configs, two architecture documents, 21 `imu_pose_v1` source files, 11 Phase3-R
+test/support files and four Phase3-R tools. The staged audit reported 2,786
+insertions. No glob, `git add .`, `git add -A`, raw, trajectory, GIF, dependency
+checkout or cache was staged.
+
+The attestation commit allowlist is exactly the files in this report directory:
+
+```text
+DATA_ACCESS_SUMMARY.json
+FACTOR_ACTIVATION.json
+FINAL_RESULT.md
+HANDOFF.md
+OPEN_SOURCE_COMPARISON.md
+QUALIFICATION_SUMMARY.json
+REPRESENTATIVE_B0_B1_P.png
+STAGING_ALLOWLISTS.md
+TEST_RESULTS.json
+```
+

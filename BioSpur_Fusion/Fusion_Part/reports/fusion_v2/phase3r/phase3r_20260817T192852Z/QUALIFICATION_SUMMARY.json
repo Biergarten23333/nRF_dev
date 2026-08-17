@@ -1,0 +1,35 @@
+{
+  "schema": "biospur-phase3r-qualification-summary-v1",
+  "verdict": "PASS_PHASE3R_IMU_ONLY_ARTICULATED_POSE_ENGINEERING_BASELINE",
+  "next_state": "STAGE_COMPLETE_NEEDS_NEW_INDEPENDENT_VALIDATION_CAPTURE",
+  "implementation_sha": "d238d925a049c68cbce7ff745a8db6645be6a12d",
+  "raw_qualification_sha256": "a107039a36efaba4b2d320ad4ec96ec99728cccbb87970addb8fd9fb29c0be2d",
+  "checks": {
+    "all_ablations_nonzero": true,
+    "coverage": true,
+    "fixed_bone": true,
+    "noiseless_orientation": true,
+    "noisy_relative_joint": true,
+    "static_tilt": true,
+    "real_19_plus_3": true,
+    "uwb_zero": true
+  },
+  "synthetic": {
+    "noiseless_orientation_max_deg": 6.826811637211246e-10,
+    "noisy_relative_joint_p95_deg": 1.729141432314464,
+    "static_tilt_rms_deg": 0.9197564962757588,
+    "gyro_bias_error_median_rad_s": 0.0004252616668266268,
+    "coverage_trial_mean": 0.9378655560150324,
+    "coverage_trial_standard_error": 0.027808330689353324
+  },
+  "observability": {
+    "data_only_rank": 29,
+    "data_only_nullity": 1,
+    "data_only_condition_number_nonzero": 33.005289289623235,
+    "prior_inclusive_rank": 30,
+    "prior_inclusive_nullity": 0,
+    "prior_inclusive_condition_number_nonzero": 2066.8816017562863
+  },
+  "claims": "synthetic correctness and engineering replay only; no external human accuracy"
+}
+
