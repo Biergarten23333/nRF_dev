@@ -1,0 +1,9 @@
+{
+  "schema": "biospur-phase3-state-factor-schema-v1",
+  "parameterization": "root_SE3_plus_relative_joint_manifolds_with_finite_compliance",
+  "topology": {"pelvis": ["torso", "thigh_left", "thigh_right"], "torso": ["upper_arm_left", "upper_arm_right"], "upper_arm_left": ["forearm_left"], "upper_arm_right": ["forearm_right"], "thigh_left": ["shank_left"], "thigh_right": ["shank_right"]},
+  "state_dimensions": {"ten_segment_orientation_tangent": 30, "root_local_position": 3, "root_local_velocity": 3, "ten_gyro_bias": 30, "ten_sensor_frame_accel_bias": 30, "nine_joint_compliance": 27, "total": 123},
+  "mandatory_factors": ["variable_dt_gyro_propagation", "gyro_bias_random_walk", "accel_bias_process_state", "low_dynamic_specific_force_mixture", "soft_joint_closure", "temporal_process"],
+  "configured_zero_real_factors": ["dynamic_specific_force", "contact", "hard_ZUPT", "UWB", "Phase1_orientation", "mounting_cluster"],
+  "gauges": ["global_translation_3", "global_yaw_1", "possible_common_velocity", "independent_heading_weak_modes", "calibration_twist_sign"]
+}

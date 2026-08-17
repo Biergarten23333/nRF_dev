@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "canonical-human-state-v0.1",
+  "type": "object",
+  "required": ["schema", "identity", "mapping_binding_id", "conditional_calibration_ref", "estimate_kind", "measurement_cutoff_time_s", "output_time_s", "frame_realization", "segments", "gauges", "contact", "active_modality", "external_accuracy_claim"],
+  "properties": {
+    "schema": {"const": "canonical-human-state-v0.1"},
+    "active_modality": {"const": "IMU_ONLY"},
+    "world_absolute_state": {"const": "UNAVAILABLE"},
+    "feet": {"const": "UNAVAILABLE"},
+    "contact": {"const": "CONTACT_UNOBSERVABLE"},
+    "external_accuracy_claim": {"const": false},
+    "segments": {"type": "object", "minProperties": 10, "maxProperties": 10}
+  }
+}

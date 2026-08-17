@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "biospur-frozen-mapping-binding-v1",
+  "type": "object",
+  "required": ["binding_id", "schema_version", "capture_id", "session_id", "donning_id", "node_to_role", "authority_source", "provenance_sha256", "validity", "operator_confirmed", "automatic_association_status"],
+  "properties": {
+    "binding_id": {"type": "string", "minLength": 1},
+    "schema_version": {"const": "biospur-frozen-mapping-binding-v1"},
+    "capture_id": {"type": "string", "minLength": 1},
+    "session_id": {"type": "string", "minLength": 1},
+    "donning_id": {"type": "string", "minLength": 1},
+    "node_to_role": {"type": "object", "minProperties": 10, "maxProperties": 10},
+    "authority_source": {"enum": ["OPERATOR_RECORDED", "AUTOMATIC_VALIDATED"]},
+    "operator_confirmed": {"type": "boolean"}
+  },
+  "additionalProperties": false
+}

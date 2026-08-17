@@ -1,0 +1,14 @@
+{
+  "schema": "biospur-phase3-holdout-initialization-metric-policy-v1",
+  "cold_start_each_holdout": true,
+  "allowed_initializer_bytes": "same holdout preparation/prefix IMU only",
+  "preparation_s": 5,
+  "formal_action_s": 30,
+  "recovery_s": 5,
+  "shared_static_inputs": ["operator mapping", "conditional calibration distribution", "frozen source/config", "initializer policy"],
+  "forbidden_carryover": ["dynamic state", "covariance realization", "bias realization", "online calibration refinement", "another holdout", "19-action development", "D2"],
+  "markers_are_estimator_inputs": false,
+  "classifications": {"H00_walk":"IN_SCOPE_GATE", "H01_boxing":"STRESS_PROBE_ONLY", "H02_golf":"STRESS_PROBE_ONLY"},
+  "metric_scope": ["continuity", "availability", "causal uncertainty", "factor health", "observability", "universal safety"],
+  "external_accuracy_metric": false
+}

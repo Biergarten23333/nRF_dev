@@ -1,0 +1,14 @@
+{
+  "schema": "biospur-phase3-threshold-freeze-v1",
+  "frozen_before_real_action_numeric_access": true,
+  "metrics": [
+    {"name":"output_rate", "value":100, "unit":"Hz", "equation":"scheduled grid spacing=1/value", "aggregation":"per boot", "scope":"all real", "rationale":"canonical runtime target", "denominator":"policy-valid eligible duration", "failure":"degraded/full PASS blocked"},
+    {"name":"initialization_target", "value":2, "unit":"s", "equation":"first output-input boot start", "aggregation":"per boot", "scope":"all", "rationale":"causal startup target", "denominator":"boot", "failure":"target miss"},
+    {"name":"initialization_hard_cap", "value":5, "unit":"s", "equation":"first scheduled grid deadline", "aggregation":"max", "scope":"all", "rationale":"product hard cap", "denominator":"boot", "failure":"full PASS blocked"},
+    {"name":"H00_usable_availability", "value":0.95, "unit":"fraction", "equation":"usable eligible outputs/eligible outputs", "aggregation":"whole formal window", "scope":"H00", "rationale":"normal-motion continuity", "denominator":"predeclared eligibility only", "failure":"holdout gate fail"},
+    {"name":"development_usable_availability", "value":0.99, "unit":"fraction", "equation":"usable eligible outputs/eligible outputs", "aggregation":"all 19 windows", "scope":"development", "rationale":"engineering usability", "denominator":"predeclared eligibility only", "failure":"full PASS blocked"},
+    {"name":"segment_orientation_cone95", "value":15, "unit":"deg", "equation":"sqrt(chi2_3(.95))*sqrt(lambda_max(P_tangent))", "aggregation":"per segment output", "scope":"qualified motion", "rationale":"conditional usability", "denominator":"gauge-conditioned tangent", "failure":"DOF degraded"},
+    {"name":"relative_joint_cone95", "value":20, "unit":"deg", "equation":"same quotient tangent cone", "aggregation":"per joint output", "scope":"qualified motion", "rationale":"conditional usability", "denominator":"gauge-conditioned tangent", "failure":"joint degraded"}
+  ],
+  "forbidden_pass_proxies": ["solver converged", "cost decreased", "animation smooth", "root jitter", "fixed bone variation zero", "training residual", "prior-inclusive full rank"]
+}
