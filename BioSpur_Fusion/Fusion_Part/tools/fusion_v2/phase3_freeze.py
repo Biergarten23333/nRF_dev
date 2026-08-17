@@ -19,7 +19,7 @@ def main():
         paths += sorted(directory.glob('*.py'))
     paths += [BASE/'src/biospur_fusion/io_v2/phase3_governance.py',BASE/'src/biospur_fusion/io_v2/phase3_selective.py',BASE/'src/biospur_fusion/semantics_v2/canonical_human_state.py']
     paths += sorted(tests.glob('*.py'))
-    paths += [tools/'phase3_prepare.py',tools/'phase3_develop.py',tools/'phase3_freeze.py']
+    paths += [tools/'phase3_prepare.py',tools/'phase3_develop.py',tools/'phase3_freeze.py',tools/'phase3_holdout.py']
     paths += sorted(x for x in cfg.glob('*') if x.name!='PHASE3_HOLDOUT_RELEASE_FREEZE.json')
     paths += [docs/'CANONICAL_PLAN_OPERATOR_MAPPING_ADDENDUM_v2.1.md',docs/'MAPPING_AUTHORITY_POLICY_v2.1.json',docs/'PLAN_DEVIATION_RECORD_PHASE3_OPERATOR_MAPPING.md',docs/'PHASE2R_TO_PHASE3_INTERFACE_ADDENDUM.json',docs/'PHASE3_OPERATOR_MAPPED_USABILITY_ADDENDUM.md',docs/'PHASE3_SEMANTIC_ADAPTER_SPEC.md']
     closure=[{"path":str(x.relative_to(REPO)),"sha256":sha(x),"bytes":x.stat().st_size} for x in sorted(set(paths))]
