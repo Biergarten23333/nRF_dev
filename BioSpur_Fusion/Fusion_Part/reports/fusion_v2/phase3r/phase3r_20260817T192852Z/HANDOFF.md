@@ -17,4 +17,3 @@ Before any accuracy/generalization claim, collect a new independent evaluation
 session with external pose truth. Keep H00/H01/H02 classified
 `CONTAMINATED_RETROSPECTIVE_DIAGNOSTIC`; do not promote them to holdout. Do not
 start UWB fusion or Phase 4 from these reports alone.
-

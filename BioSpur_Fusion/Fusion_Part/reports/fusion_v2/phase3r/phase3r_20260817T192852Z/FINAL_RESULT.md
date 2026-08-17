@@ -91,4 +91,3 @@ It is not needed to establish this engineering baseline.
 
 External evidence root:
 `/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r-evidence/phase3r_20260817T192852Z`.
-

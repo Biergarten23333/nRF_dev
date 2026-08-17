@@ -13,4 +13,3 @@ fabricated head data, zero fill, copied channels and checkpoint loading. The
 BioSpur topology has ten directly observed segments, no head IMU and independent
 six-axis heading drift, so transferring their pretrained output would not be a
 valid BioSpur pose result.
-
