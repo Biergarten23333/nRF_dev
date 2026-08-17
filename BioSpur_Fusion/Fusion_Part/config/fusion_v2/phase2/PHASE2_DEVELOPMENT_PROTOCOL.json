@@ -1,0 +1,21 @@
+{
+  "schema":"biospur-phase2-development-protocol-v1",
+  "seed":20260817,
+  "split_unit":"COMPLETE_ACTION_REPETITION_OR_WINDOW",
+  "candidate_generation":"JOINT_ONE_TO_ONE_DYNAMIC_PROGRAMMING_TOPK",
+  "score_families":["raw_imu_motion","operator_action_semantics","soft_topology","optional_calibration_only_fixed_anchor_uwb"],
+  "derived_feature_double_counting":false,
+  "bootstrap":{"unit":"complete_action_block","replicates":500,"seed":20260817},
+  "permutation_null":{"valid_permutations":1000,"quantile":0.99,"seed":20260818},
+  "topk":{"minimum":5,"maximum":10,"include_within_bootstrap_standard_errors":3},
+  "window_boundary_perturbation_s":[-1.0,0.0,1.0],
+  "continuous_calibration":{"initializations":3,"maximum_initializations_on_multimodality":10,"whitened_dimensionless_residuals":true,"variable_dt":true,"asynchronous_uwb":true},
+  "rank_tolerance":"max(matrix_size_times_machine_epsilon_times_sigma_max,10_times_measured_jacobian_noise_floor)",
+  "prior_sensitivity_multipliers":[0.5,2.0],
+  "repetition_consistency":"99_PERCENT_CHI_SQUARE_PLUS_BLOCK_BOOTSTRAP",
+  "predictive_gate":"MEDIAN_HELDOUT_SCORE_IMPROVES_GENERIC_BASELINE_WITH_BOOTSTRAP_CI",
+  "qualification_rule":"NO_ROW_BOOTSTRAP_AS_SUBSTITUTE_FOR_MISSING_REPETITIONS",
+  "D2_rule":"NO_PHASE2_FIT_THRESHOLD_SELECTION_OR_RESCUE",
+  "D3_rule":"ZERO_MEASUREMENT_NUMERIC_DECODE_ARRAYS_STATISTICS_FACTORS"
+}
+
