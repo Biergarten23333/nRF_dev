@@ -1,0 +1,43 @@
+{
+  "schema": "biospur-phase3r-dependency-lock-v1",
+  "retrieved_at_utc": "2026-08-17T19:31:00Z",
+  "repo_external_root": "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r-deps/phase3r_20260817T192852Z",
+  "dependencies": {
+    "VQF": {
+      "official_url": "https://github.com/dlaidig/vqf.git",
+      "commit": "86ba56bdd3158b9b05f9f9fe5596866ba326438c",
+      "version": "v2.1.2",
+      "license": "MIT",
+      "used": ["vqf.VQF.updateBatchFullState"],
+      "allowed_use": "executed 6D comparator and initialization only; never truth or duplicate factor",
+      "execution": "OFFICIAL_SOURCE_BUILT; DETERMINISTIC_SMOKE_AND_REAL_10_NODE_REPLAY_EXECUTED"
+    },
+    "qmt": {
+      "official_url": "https://github.com/dlaidig/qmt.git",
+      "commit": "0fa8d32eb461e14d78e9ddbd569664ea59bcea19",
+      "version": "v0.2.4",
+      "license": "MIT with per-file SPDX exceptions including LicenseRef-Unspecified hinge-axis port",
+      "used": ["qmt.resetAlignment", "qmt.jointAxisEstHingeOlsson", "qmt.headingCorrection"],
+      "allowed_use": "conditional calibration initializer, confidence-gated prior, diagnostic comparator",
+      "execution": "OFFICIAL_SOURCE_BUILT; RESET_SMOKE_AND_REAL_RESET_HINGE_AXIS_HEADING_PATHS_EXECUTED"
+    },
+    "PIP": {
+      "official_url": "https://github.com/Xinyu-Yi/PIP.git",
+      "commit": "4a281440618e90cbfd4209d83de376d21f9145de",
+      "version": "4a28144",
+      "license": "repository LICENSE",
+      "used": ["architecture and causal physics crosswalk only"],
+      "allowed_use": "no pretrained weights; incompatible six-sensor layout",
+      "execution": "SOURCE_AUDITED_NO_MODEL_EXECUTION_BY_DESIGN"
+    },
+    "TransPose": {
+      "official_url": "https://github.com/Xinyu-Yi/TransPose.git",
+      "commit": "2b31fd1bf1534c6f9c973fa091c0c8cbcccc7310",
+      "version": "2b31fd1",
+      "license": "repository LICENSE",
+      "used": ["hierarchical architecture crosswalk only"],
+      "allowed_use": "no pretrained weights; incompatible six-sensor layout",
+      "execution": "SOURCE_AUDITED_NO_MODEL_EXECUTION_BY_DESIGN"
+    }
+  }
+}
