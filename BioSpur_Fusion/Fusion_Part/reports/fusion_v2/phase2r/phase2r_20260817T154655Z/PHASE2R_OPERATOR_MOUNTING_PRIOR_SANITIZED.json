@@ -1,0 +1,62 @@
+{
+  "schema": "biospur-phase2r-operator-mounting-prior-sanitized-v1",
+  "provenance": [
+    "OPERATOR_DECLARED_DONNING_CONSISTENCY_NOT_METROLOGY",
+    "POST_SESSION_DECLARATION",
+    "NO_BODY_ROLE_CONTENT"
+  ],
+  "evidence_source_count": 1,
+  "groups": {
+    "H9_COMMON_LAYOUT": [
+      "BSF6C53",
+      "BSF8BC4",
+      "BSF1120",
+      "BSF3C79",
+      "BSF44AD",
+      "BSF31CC",
+      "BSFAA61",
+      "BSFB165",
+      "BSFEC35"
+    ],
+    "DISTINCT_LAYOUT": [
+      "BSFC2CC"
+    ]
+  },
+  "normalized_semantics": {
+    "directed_edge_definition": "e_edge^P is the in-plane unit vector from PCB centre toward the operator-indicated specific short edge",
+    "operator_intent": "For the nine modules sharing the common physical PCB/component layout, the operator intentionally placed the same directed short-edge side approximately toward the ground during relaxed arms-down standing.",
+    "distinct_layout_exclusion": "BSFC2CC has a different physical/component layout and is structurally excluded from H9 pooling.",
+    "specific_force_relation": "Must be derived from the frozen measurement convention; no gravity/specific-force sign is guessed.",
+    "directed_edge_identity": "DIRECTED_EDGE_ID_UNRESOLVED",
+    "edge_to_imu_axis": "PCB_EDGE_TO_IMU_AXIS_UNRESOLVED",
+    "sign_hypotheses": [
+      "+e_edge^P",
+      "-e_edge^P"
+    ]
+  },
+  "permitted_model": {
+    "family": "broad bias-and-window-uncertainty-aware spherical cluster",
+    "shared_latent": "mu in S2",
+    "residual": "Log_mu(u_iw) in tangent space",
+    "robust_likelihood": "Student-t nu=4 or bounded Huber with pre-frozen influence cap",
+    "nonzero_per_node_mounting_covariance_required": true,
+    "free_twist_required": true,
+    "initial_and_final_standing_estimated_independently": true
+  },
+  "explicitly_forbidden_claims": [
+    "identical raw accelerometer vectors",
+    "identical full SO(3) orientations",
+    "identical segment-to-IMU extrinsics",
+    "exact sensor +X or -X down",
+    "zero mounting error",
+    "left-right identity or perfect mirror symmetry",
+    "treating BSFC2CC as an H9 outlier",
+    "using the prior as body-role truth"
+  ],
+  "uncertainty": {
+    "directed_edge_sign": "BIMODAL_UNRESOLVED",
+    "twist_about_gravity_or_edge": "FREE",
+    "per_node_deviation": "NONZERO_AND_TO_BE_ESTIMATED",
+    "operator_evidence_correlation": "ONE_SHARED_DECLARATION_NOT_NINE_INDEPENDENT_OBSERVATIONS"
+  }
+}

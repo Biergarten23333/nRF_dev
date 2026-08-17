@@ -1,0 +1,56 @@
+{
+  "aggregation": [
+    "worst_segment",
+    "all_10_segments"
+  ],
+  "excluded_claims": [
+    "absolute world trajectory",
+    "bone length",
+    "joint centre",
+    "antenna lever arm",
+    "clinical angle",
+    "external accuracy"
+  ],
+  "frozen_before_real_phase2_numeric_access": true,
+  "gauge_alignment": "initial-standing common tilt only; global translation and yaw remain declared gauges",
+  "high_sensitivity_criterion": "orientation output RMS change >=2 deg OR propagated variance increase >=10 percent",
+  "high_sensitivity_unidentified_mode_blocks_authoritative_ready": true,
+  "horizon": "single promoted action interval; no contact-aided extrapolation",
+  "instrumented_segment_outputs": 10,
+  "perturbations": {
+    "accelerometer_bias_raw": [
+      10.0,
+      50.0,
+      100.0
+    ],
+    "covariance_scale": [
+      0.5,
+      1.0,
+      2.0
+    ],
+    "extrinsic_rotation_deg": [
+      1.0,
+      3.0,
+      5.0,
+      10.0
+    ],
+    "gyro_bias_raw": [
+      1.0,
+      5.0,
+      10.0
+    ],
+    "timing_ms": [
+      0.5,
+      1.0,
+      2.0,
+      5.0
+    ]
+  },
+  "phase1_pose_usability_contract": {
+    "path": "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase2r-exec/BioSpur_Fusion/Fusion_Part/config/fusion_v2/imu_frontend/POSE_USABILITY_CONTRACT.md",
+    "sha256": "0895252ca7f4d77aca0f739e65bcdaa2ce22188be81a709157956a1f38fad736"
+  },
+  "qualified_motion_classes": "UNQUALIFIED_PENDING_PHASE3_HOLDOUT",
+  "schema": "biospur-p3-provisional-output-scope-and-sensitivity-v1",
+  "scope": "body-relative carrier-segment orientation and joint-motion conditional output"
+}

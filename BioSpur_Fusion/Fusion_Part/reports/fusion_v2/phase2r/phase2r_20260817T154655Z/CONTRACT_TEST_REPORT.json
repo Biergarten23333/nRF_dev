@@ -1,0 +1,23 @@
+{
+  "checks": {
+    "authoritative_only_artifacts_absent": true,
+    "blind_failed": true,
+    "conditional_only": true,
+    "holdout_zero": true,
+    "no_post_truth_tuning": true,
+    "required_artifacts_present": true
+  },
+  "forbidden_present": [],
+  "mandatory_suite": {
+    "command": "PYTHONPATH=Fusion_Part/src pytest -q Fusion_Part/tests/fusion_v2/phase2r Fusion_Part/tests/fusion_v2/phase2 && python3 -m compileall -q Fusion_Part/src/biospur_fusion/calibration_v2/phase2r Fusion_Part/tools/fusion_v2/phase2r",
+    "ignored": 0,
+    "implementation_sha": "49f9b2249b77d5a201480b75de080c4543cbccf9",
+    "result": "105 passed in 12.39s; compileall PASS",
+    "skipped": 0,
+    "waived": 0,
+    "xfail": 0
+  },
+  "missing": [],
+  "pass": true,
+  "schema": "biospur-phase2r-contract-test-report-v1"
+}
