@@ -1,0 +1,30 @@
+{
+  "schema": "biospur-phase1-freeze-manifest-v1",
+  "parent_attestation_sha": "1cf2a27e07d08230ee941f842ff8fb7bf3dbc2e9",
+  "seed": 20260817,
+  "nodes": ["BSF31CC", "BSFC2CC", "BSFAA61", "BSF1120", "BSFB165", "BSFEC35", "BSF44AD", "BSF3C79", "BSF6C53", "BSF8BC4"],
+  "D1_development": {
+    "rows": 800196,
+    "result_sha256": "8c30ab974ba80bbbec7f91e68869bae63d990849f89377869afd0c4f1c2717db",
+    "output_stream_sha256": "f866fe2faa6f989bf90477c64f5439464644d3a3ca369cc769f4b1185cc4b428",
+    "repeated_replay_byte_identical": true
+  },
+  "D2_rule": "ONE_ACCEPTED_POST_FREEZE_SCIENTIFIC_EVALUATION_NO_TUNING",
+  "D3_rule": "ZERO_MEASUREMENT_NUMERIC_DECODE_ARRAYS_STATISTICS_ESTIMATOR_CONSUMPTION",
+  "contracts": {
+    "input": "PHASE1_INPUT_CONTRACT.json",
+    "development": "PHASE1_DEVELOPMENT_PROTOCOL.json",
+    "acceptance": "PHASE1_ACCEPTANCE_CONTRACT.json",
+    "conversion": "IMU_INPUT_CONVERSION_CONTRACT.json",
+    "state": "PER_NODE_FRONTEND_STATE_SCHEMA.json",
+    "phase2_ingress": "PHASE2_INGRESS_CONTRACT.json"
+  },
+  "implementation_roots": [
+    "BioSpur_Fusion/Fusion_Part/src/biospur_fusion/imu_frontend_v2",
+    "BioSpur_Fusion/Fusion_Part/src/biospur_fusion/phase2",
+    "BioSpur_Fusion/Fusion_Part/tools/fusion_v2/phase1",
+    "BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase1"
+  ],
+  "development_test_result": {"passed": 55, "failed": 0, "skipped": 0, "xfailed": 0, "waived": 0}
+}
+

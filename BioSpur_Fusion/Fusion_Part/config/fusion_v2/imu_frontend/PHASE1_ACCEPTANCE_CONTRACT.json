@@ -1,0 +1,13 @@
+{
+  "schema":"biospur-phase1-acceptance-contract-v1",
+  "frozen_before_D2":true,
+  "research_primary_verdict":"PASS_TEN_NODE_RAW_IMU_ORIENTATION_AND_BIAS_BASELINE",
+  "synthetic":{"mandatory_tests":28,"failed":0,"skipped":0,"xfail":0,"waived":0,"tolerances_source":"PHASE1_DEVELOPMENT_PROTOCOL.json"},
+  "D1":{"rows":800196,"node_count":10,"minimum_samples_per_node":50000,"finite_fraction_each_node":1.0,"maximum_quaternion_norm_error":1e-12,"minimum_covariance_eigenvalue":-1e-9,"minimum_gravity_accepted_each_node":100,"minimum_gap_events_each_node":1,"maximum_initial_still_gyro_bias_norm_radps":0.02,"deterministic_output_byte_identity":true,"output_stream_sha256":"f866fe2faa6f989bf90477c64f5439464644d3a3ca369cc769f4b1185cc4b428"},
+  "activation":{"state_dimension_each_node":9,"b_g_used_in_propagation":true,"b_a_used_in_accelerometer_residual":true,"gravity_ablation_must_change_orientation_and_covariance":true,"bias_perturbations_must_change_output":true,"sample_age_bound_must_change_sensitivity_envelope":true,"gap_must_inflate_covariance_without_hard_reset":true},
+  "D2":{"single_nominal_post_freeze_evaluation":true,"selectors":["walk","final_still"],"no_tuning":true,"required_rows":74142,"required_node_count":10,"finite_fraction_each_node":1.0,"maximum_quaternion_norm_error":1e-12,"minimum_covariance_eigenvalue":-1e-9,"minimum_propagation_updates_each_node":1000,"forbidden_for_ablation_or_sensitivity":true},
+  "forbidden_counts_required_zero":["Q1","T4","UWB","historical_pose","historical_mapping","anatomical_role"],
+  "D3_current_execution_required":{"imu_fields_decoded":0,"uwb_fields_decoded":0,"arrays_materialized":0,"values_analyzed":0,"estimator_consumption":0},
+  "aggregation":"ALL_TEN_NODES_AND_WORST_NODE",
+  "failure_action":"NO_PASS;D2_NEVER_RETUNES_OR_REDEFINES_THIS_CONTRACT"
+}

@@ -1,0 +1,13 @@
+{
+  "schema": "biospur-phase1-development-protocol-v1",
+  "seed": 20260817,
+  "synthetic_tolerances": {"zero_motion_angle_rad": 1e-10, "constant_rate_angle_rad": 2e-6, "quaternion_norm": 1e-12, "rotation_det": 1e-10, "covariance_symmetry": 1e-10, "covariance_min_eigenvalue": -1e-9, "deterministic_byte_identity": true, "yaw_variance_noncontraction_tolerance": 1e-10},
+  "D1_threshold_selection": {"only_partition": "D1", "method": "fixed physically bounded gates plus per-node initial-still gyro mean for prior only", "gravity_norm_full_weight_mps2": 0.35, "gravity_norm_zero_weight_mps2": 2.5, "gyro_full_weight_radps": 0.35, "gyro_zero_weight_radps": 2.0, "jerk_full_weight_mps3": 12.0, "jerk_zero_weight_mps3": 80.0, "minimum_samples_per_node": 50000},
+  "metric_direction": {"finite_fraction": "HIGHER", "quaternion_norm_error": "LOWER", "minimum_covariance_eigenvalue": "HIGHER", "node_coverage": "HIGHER"},
+  "aggregation": "ALL_NODES_AND_WORST_NODE",
+  "minimum_node_coverage": 10,
+  "minimum_boot_coverage": "ALL_REGISTERED_BOOT_EPOCHS",
+  "D2_rule": "ONE_ACCEPTED_POST_FREEZE_NOMINAL_REGRESSION_NO_TUNING",
+  "D3_rule": "ZERO_NUMERIC_DECODE_ARRAYS_STATISTICS_ESTIMATOR_CONSUMPTION",
+  "failure_action": "DIAGNOSE_REPAIR_WITH_SYNTHETIC_AND_D1;NEVER_TUNE_ON_D2"
+}
