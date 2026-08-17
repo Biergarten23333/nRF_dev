@@ -18,24 +18,29 @@ def generate(canonical,sidecar,clock_config,output,expected_canonical,expected_s
  c=json.load(open(clock_config)); bridge=c["gates"]["action_annotation_bridge"]
  conv=lambda s:int(round((bridge["listener_global_us_per_host_s"]*s+bridge["listener_global_us_intercept"])*1000))
  bounds={k:[(n,conv(lo),conv(hi)) for n,lo,hi in v] for k,v in WINDOWS.items()}
- z=np.load(sidecar,allow_pickle=False); starts={}
+ z=np.load(sidecar,allow_pickle=False); starts={};arrays={}
  for k in z.files:
   if not k.startswith("uwb_"):continue
-  x=z[k];u,i=np.unique(x["raw_record_index"],return_index=True);starts[k]={int(r):int(q) for r,q in zip(u,i)}
+  x=z[k];arrays[k]=x;u,i=np.unique(x["raw_record_index"],return_index=True);starts[k]={int(r):int(q) for r,q in zip(u,i)}
  occ={};counts={"canonical_rows":0,"D1_uwb":0,"D2_uwb_skipped":0,"D3_rejected_before_value_decode":0,"measurement_arrays":0};nodes=set();anchors=set()
  out=Path(output);tmp=out.with_suffix(out.suffix+".tmp")
- with gzip.open(canonical,"rt",newline="") as src,gzip.GzipFile(filename="",mode="wb",fileobj=open(tmp,"wb"),mtime=0) as gz:
-  reader=csv.DictReader(src); header="source_record,node,anchor,range_value,units,common_time_ns,selector_name,raw_record_occurrence\n";gz.write(header.encode())
-  for r in reader:
+ raw=open(tmp,"wb")
+ with gzip.open(canonical,"rb") as src,gzip.GzipFile(filename="",mode="wb",fileobj=raw,mtime=0) as gz:
+  src.readline();header="source_record,node,anchor,range_value,units,common_time_ns,selector_name,raw_record_occurrence\n";gz.write(header.encode())
+  for line in src:
    counts["canonical_rows"]+=1
-   if r["measurement"]!="uwb_range":continue
-   rec=int(r["source_record"]);node=r["node"];key="uwb_"+node;ok=(key,rec);n=occ.get(ok,0);occ[ok]=n+1
+   prefix=line.split(b",",9)
+   if len(prefix)<9 or prefix[7]!=b"uwb_range":continue
+   rec=int(prefix[1]);node=prefix[5].decode("ascii");key="uwb_"+node;ok=(key,rec);n=occ.get(ok,0);occ[ok]=n+1
    start=starts.get(key,{}).get(rec)
    if start is None:raise ValueError("unmapped UWB record")
-   side=z[key][start+n]; cls,name=classify(int(side["common_time_ns"]),bounds)
+   side=arrays[key][start+n]; cls,name=classify(int(side["common_time_ns"]),bounds)
    if cls=="D3":counts["D3_rejected_before_value_decode"]+=1;continue
    if cls=="D2":counts["D2_uwb_skipped"]+=1;continue
    if cls!="D1" or int(side["clock_status"])!=1:continue
-   value=float(r["value_0"]); gz.write(f'{rec},{node},{r["anchor"]},{value},{r["units"]},{int(side["common_time_ns"])},{name},{n}\n'.encode());counts["D1_uwb"]+=1;nodes.add(node);anchors.add(r["anchor"])
+   fields=line.rstrip(b"\r\n").split(b",")
+   value=float(fields[8]);anchor=fields[6].decode("ascii");units=fields[14].decode("ascii")
+   gz.write(f'{rec},{node},{anchor},{value},{units},{int(side["common_time_ns"])},{name},{n}\n'.encode());counts["D1_uwb"]+=1;nodes.add(node);anchors.add(anchor)
+ raw.close();z.close()
  os.replace(tmp,out)
  return {"schema":"biospur-D1-UWB-calibration-view-v1","realpath":str(out.resolve()),"sha256":sha(out),"rows":counts["D1_uwb"],"nodes":sorted(nodes),"anchors":sorted(anchors),"counts":counts,"D3_measurement_numeric_decode":0,"D3_measurement_arrays":0,"selector_frozen_before_decode":True}
