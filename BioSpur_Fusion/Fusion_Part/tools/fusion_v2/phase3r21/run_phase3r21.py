@@ -108,15 +108,25 @@ def _quaternion_mean(q: np.ndarray) -> np.ndarray:
 
 
 def _initial_fit_alignment(rows: list[CacheRow], mapping: dict[str,str]) -> dict[str,np.ndarray]:
-    """Freeze one session-neutral S->I initializer from real initial FIT only."""
+    """Freeze S->I from initial-down and arm T-pose FIT, with PROP-only transport."""
     from vqf import VQF
     output={}
     for node in sorted(mapping):
-        selected=[r for r in rows if r.action_id=="00_initial_still" and r.node_id==node]
+        selected=sorted([r for r in rows if r.node_id==node],key=lambda r:(r.common_time_ns,r.sequence,r.source_record_offset))
         gyro=np.stack([r.gyro_rad_s for r in selected]);accel=np.stack([r.accel_m_s2 for r in selected])
         state=VQF(gyrTs=.005,accTs=.005).updateBatchFullState(gyro,accel)
-        q_w_i=_quaternion_mean(np.asarray(state["quat6D"])[len(selected)//4:])
-        output[node]=so3.inv(q_w_i)
+        q=np.asarray(state["quat6D"])
+        initial=np.array([r.action_id=="00_initial_still" and r.split_class=="CALIBRATION_FIT" for r in selected])
+        q0=_quaternion_mean(q[initial])
+        segment=mapping[node]
+        if segment.startswith("upper_arm_"):
+            tpose=np.array([r.action_id=="02_t_pose" and r.split_class=="CALIBRATION_FIT" for r in selected])
+            qt=_quaternion_mean(q[tpose]);down=np.array([0.,0.,-1.]);horizontal=np.array([1.,0.,0.]) if segment.endswith("left") else np.array([-1.,0.,0.])
+            v0=so3.matrix(q0).T@down;vt=so3.matrix(qt).T@horizontal;axis_I=v0+vt
+            if np.linalg.norm(axis_I)<.25: raise RuntimeError(f"{node}: inconsistent initial/T-pose longitudinal evidence")
+            output[node]=so3.from_two_vectors(np.array([0.,0.,-1.]),axis_I/np.linalg.norm(axis_I))
+        else:
+            output[node]=so3.inv(q0)
     return output
 
 
@@ -174,7 +184,8 @@ def _functional_axes(rows: list[CacheRow], mapping: dict[str, str], bundle: Cali
 
 def cmd_calibrate(args) -> int:
     fit = load_cache_rows(args.cache_root/"fit"); mapping_payload = json_load(args.mapping); mapping = validate_mapping(mapping_payload)
-    preliminary=_initial_fit_alignment(fit,mapping)
+    propagation=load_cache_rows(args.cache_root/"propagation")
+    preliminary=_initial_fit_alignment(fit+propagation,mapping)
     observations, accounting = _fit_observations(fit, mapping, preliminary)
     bundle = fit_joint_calibration(observations, mapping, FIT_ACTIONS)
     payload = bundle_payload(bundle); payload.update({
@@ -182,7 +193,7 @@ def cmd_calibrate(args) -> int:
         "real_capture": True, "synthetic": False, "fit_measurement_numeric_decode": 6*len(fit),
         "data_derived_calibration_factor_count": len(observations), "factor_accounting": accounting,
         "functional_axes": _functional_axes(fit, mapping, bundle),
-        "initializer": {"method":"OFFICIAL_VQF_INITIAL_FIT_NEUTRAL_ALIGNMENT","per_node_q_IS":{n:q.tolist() for n,q in preliminary.items()},"action_name_pseudo_targets":0},
+        "initializer": {"method":"OFFICIAL_VQF_INITIAL_DOWN_PLUS_TPOSE_UPPER_ARM_LONGITUDINAL_WITH_PROPAGATION_TRANSPORT","per_node_q_IS":{n:q.tolist() for n,q in preliminary.items()},"action_name_pseudo_targets":0,"validation_rows":0,"arm_twist_status":"CONDITIONAL_UNRESOLVED_ABOUT_LONG_AXIS"},
         "bias_state_in_bundle": False, "accel_bias_full_identification_claim": False,
         "metric_lever_arm_factor_count": 0, "real_dynamic_specific_force_metric_factor_count": 0,
         "geometry_authority": "MODEL_INFERRED_SCALE_CONDITIONAL", "world_translation": "UNAVAILABLE",
@@ -234,6 +245,19 @@ def _direction_error(q: np.ndarray, target: np.ndarray) -> np.ndarray:
     local = np.array([0., 0., -1.])
     vectors = np.stack([so3.matrix(x)@local for x in q]); target = target/np.linalg.norm(target)
     return np.rad2deg(np.arccos(np.clip(vectors@target, -1., 1.)))
+
+
+def _horizontal_error(q: np.ndarray) -> np.ndarray:
+    """Unsigned elevation from the L0 horizontal plane; azimuth stays free."""
+    local = np.array([0., 0., -1.])
+    vectors = np.stack([so3.matrix(x)@local for x in q])
+    return np.rad2deg(np.arcsin(np.clip(np.abs(vectors[:, 2]), 0., 1.)))
+
+
+def _longitudinal_relative_error(parent: np.ndarray, child: np.ndarray) -> np.ndarray:
+    local=np.array([0.,0.,-1.])
+    a=np.stack([so3.matrix(x)@local for x in parent]);b=np.stack([so3.matrix(x)@local for x in child])
+    return np.rad2deg(np.arccos(np.clip(np.sum(a*b,axis=1),-1.,1.)))
 
 
 def _window_masks(rows: list[CacheRow], grid: np.ndarray) -> dict[str, dict[str, np.ndarray]]:
@@ -316,15 +340,28 @@ def cmd_replay(args) -> int:
 def _evaluate(out: Path, grid: np.ndarray, masks: dict, b0: dict, b1: dict, p: dict, rows: list[CacheRow], bundle, estimator, thresholds_path: Path) -> None:
     thresholds = {k:v["value"] for k,v in json_load(thresholds_path)["thresholds"].items()}
     methods={"B0":b0,"B1":b1,"P":p}; semantic={}; down=np.array([0.,0.,-1.])
+    arm_segments=("upper_arm_left","forearm_left","upper_arm_right","forearm_right")
+    leg_segments=("thigh_left","shank_left","thigh_right","shank_right")
     for action in ("00_initial_still","02_t_pose","17_final_still"):
         mask=masks.get(action,{}).get("FORMAL_ACTION",np.zeros(len(grid),bool)); semantic[action]={}
         for method,trajectory in methods.items():
             semantic[action][method]={}
-            for segment in ("upper_arm_left","forearm_left","upper_arm_right","forearm_right"):
-                target=down
-                if action=="02_t_pose": target=np.array([1.,0.,0.]) if segment.endswith("left") else np.array([-1.,0.,0.])
-                values=_direction_error(trajectory[segment][mask],target) if mask.any() else np.array([np.nan])
-                semantic[action][method][segment]={"median_deg":float(np.nanmedian(values)),"p95_deg":float(np.nanpercentile(values,95))}
+            evaluated_segments=arm_segments+leg_segments if action=="00_initial_still" else arm_segments
+            for segment in evaluated_segments:
+                target=down; target_semantics="SIGNED_GRAVITY_DOWN"
+                if action=="02_t_pose" and segment.startswith("upper_arm_"):
+                    target=np.array([1.,0.,0.]) if segment.endswith("left") else np.array([-1.,0.,0.])
+                    target_semantics="SIGNED_L0_LEFT_RIGHT_HORIZONTAL"
+                if action=="02_t_pose" and segment.startswith("forearm_"):
+                    values=_horizontal_error(trajectory[segment][mask]) if mask.any() else np.array([np.nan])
+                    target_semantics="L0_HORIZONTAL_PLANE_WITH_NATURAL_ELBOW_FLEXION"
+                else:
+                    values=_direction_error(trajectory[segment][mask],target) if mask.any() else np.array([np.nan])
+                semantic[action][method][segment]={"median_deg":float(np.nanmedian(values)),"p95_deg":float(np.nanpercentile(values,95)),"target_semantics":target_semantics}
+            if action=="00_initial_still":
+                for side in ("left","right"):
+                    values=_longitudinal_relative_error(trajectory[f"upper_arm_{side}"][mask],trajectory[f"forearm_{side}"][mask]) if mask.any() else np.array([np.nan])
+                    semantic[action][method][f"elbow_{side}_flexion"]={"median_deg":float(np.nanmedian(values)),"p95_deg":float(np.nanpercentile(values,95)),"target_semantics":"NATURAL_ELBOW_FLEXION_MAGNITUDE"}
     dynamic={}; gate_table=json_load(FUSION/"config/fusion_v2/phase3r21/PHASE3R21_ACTION_GATES.json")["actions"]
     for action,spec in gate_table.items():
         mask=masks.get(action,{}).get("FORMAL_ACTION",np.zeros(len(grid),bool)); dynamic[action]={}
@@ -338,13 +375,22 @@ def _evaluate(out: Path, grid: np.ndarray, masks: dict, b0: dict, b1: dict, p: d
         mask=phases.get("RECOVERY_OR_FINAL_REST",np.zeros(len(grid),bool)); raw=[r for r in rows if r.action_id==action and r.phase=="RECOVERY_OR_FINAL_REST"]
         if not raw: continue
         gyro=np.array([np.linalg.norm(r.gyro_rad_s) for r in raw]); accel=np.array([abs(np.linalg.norm(r.accel_m_s2)-9.80665) for r in raw])
-        raw_rest=float(np.percentile(gyro,95))<=thresholds["rest_gyro_p95_max"] and float(np.percentile(accel,95))<=thresholds["rest_accel_norm_error_p95_max"]
+        duration_s=(max(r.common_time_ns for r in raw)-min(r.common_time_ns for r in raw))*1e-9
+        duration_min=thresholds["required_rest_duration_min"] if action in {"00_initial_still","17_final_still"} else thresholds["recovery_rest_duration_min"]
+        raw_rest=(duration_s>=duration_min and float(np.percentile(gyro,95))<=thresholds["rest_gyro_p95_max"]
+                  and float(np.percentile(accel,95))<=thresholds["rest_accel_norm_error_p95_max"])
         for segment in SEGMENTS:
             b0speed=_angles(b0[segment][mask]) if mask.sum()>2 else np.array([np.nan]); pspeed=_angles(p[segment][mask]) if mask.sum()>2 else np.array([np.nan])
             floor=.002; ratio=float(np.nanpercentile(pspeed,95)+floor)/float(np.nanpercentile(b0speed,95)+floor)
-            rests.append({"action_id":action,"segment":segment,"raw_rest":raw_rest,"raw_gyro_p95_rad_s":float(np.percentile(gyro,95)),
-                          "b0_speed_p95_rad_s":float(np.nanpercentile(b0speed,95)),"p_speed_p95_rad_s":float(np.nanpercentile(pspeed,95)),
-                          "p_over_b0":ratio,"pass":bool(raw_rest and ratio<=thresholds["static_p_over_b0_max"])})
+            b0q=b0[segment][mask];pq=p[segment][mask]
+            b0drift=float(np.rad2deg(np.linalg.norm(so3.log(so3.between(b0q[0],b0q[-1]))))) if len(b0q)>1 else float("nan")
+            pdrift=float(np.rad2deg(np.linalg.norm(so3.log(so3.between(pq[0],pq[-1]))))) if len(pq)>1 else float("nan")
+            passed=bool(raw_rest and ratio<=thresholds["static_p_over_b0_max"])
+            rests.append({"action_id":action,"segment":segment,"raw_rest":raw_rest,"rest_duration_s":duration_s,"required_duration_s":duration_min,
+                          "raw_gyro_p95_rad_s":float(np.percentile(gyro,95)),"raw_accel_norm_error_p95_m_s2":float(np.percentile(accel,95)),
+                          "b0_speed_median_rad_s":float(np.nanmedian(b0speed)),"b0_speed_rms_rad_s":float(np.sqrt(np.nanmean(b0speed**2))),"b0_speed_p95_rad_s":float(np.nanpercentile(b0speed,95)),"b0_endpoint_drift_deg":b0drift,
+                          "p_speed_median_rad_s":float(np.nanmedian(pspeed)),"p_speed_rms_rad_s":float(np.sqrt(np.nanmean(pspeed**2))),"p_speed_p95_rad_s":float(np.nanpercentile(pspeed,95)),"p_endpoint_drift_deg":pdrift,
+                          "p_over_b0":ratio,"classification":"PASS_STATIC_STABILITY" if passed else ("INELIGIBLE_RAW_REST" if not raw_rest else "FAIL_P_INJECTED_MOTION"),"pass":passed})
     info={name:matrix for name,matrix in estimator.actual_information_components().items()}; spectra={}
     for name,matrix in info.items():
         singular=np.linalg.svd(matrix,compute_uv=False); spectra[name]={"sha256":hashlib.sha256(np.ascontiguousarray(matrix,dtype="<f8").tobytes()).hexdigest(),

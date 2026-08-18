@@ -61,5 +61,15 @@ def test_real_calibration_has_no_action_name_pseudo_target_and_routes_qmt_axes()
     source=inspect.getsource(run_phase3r21)
     assert "phase3r21-target" not in source
     assert "action_name_pseudo_targets\":0" in source
+    assert "OFFICIAL_VQF_INITIAL_DOWN_PLUS_TPOSE_UPPER_ARM_LONGITUDINAL_WITH_PROPAGATION_TRANSPORT" in source
+    assert 'segment.startswith("upper_arm_")' in source
+    assert "L0_HORIZONTAL_PLANE_WITH_NATURAL_ELBOW_FLEXION" in source
     assert "axis_child_segment" in source
     assert "functional_axes_child=axes" in source
+
+
+def test_tpose_forearm_gate_is_horizontal_not_fixed_azimuth():
+    q_identity=np.array([[1.,0.,0.,0.]])
+    q_down_to_forward=np.array([run_phase3r21.so3.from_two_vectors(np.array([0.,0.,-1.]),np.array([0.,1.,0.]))])
+    assert run_phase3r21._horizontal_error(q_down_to_forward)[0] == pytest.approx(0.,abs=1e-8)
+    assert run_phase3r21._horizontal_error(q_identity)[0] == pytest.approx(90.,abs=1e-8)

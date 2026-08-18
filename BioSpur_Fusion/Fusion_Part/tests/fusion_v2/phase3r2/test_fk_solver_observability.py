@@ -10,6 +10,7 @@ from biospur_fusion.imu_pose_v2.estimator import (
     ContinuousArticulatedEstimator, reject_posthoc_covariance_rewrite,
 )
 from biospur_fusion.imu_pose_v2.fk import articulated_fk, old_torso_mutation
+from biospur_fusion.imu_pose_v2.frontend import ContinuousNodeFrontend
 from biospur_fusion.imu_pose_v2.joints import JOINTS
 from biospur_fusion.imu_pose_v2.observability import TOLERANCES, observability_report
 from biospur_fusion.imu_pose_v2.scheduler import scheduled_replay
@@ -115,6 +116,20 @@ def test_held_uid_is_not_reinserted_as_raw_measurement(mapping, fit_actions):
 def test_posthoc_covariance_or_availability_rewrite_always_fails():
     with pytest.raises(RuntimeError):
         reject_posthoc_covariance_rewrite(np.eye(3), scale=.15)
+
+
+def test_rest_bias_cross_covariance_cannot_snap_attitude():
+    frontend=ContinuousNodeFrontend("BSFC2CC")
+    frontend.P=np.eye(9)
+    frontend.P[:3,3:6]=np.eye(3)*.9
+    frontend.P[3:6,:3]=np.eye(3)*.9
+    H=np.zeros((3,9));H[:,3:6]=np.eye(3)
+    frontend._correct(np.full(3,.05),H,np.eye(3)*1e-6,
+                      attitude_correction_max_rad=frontend.config.rest_bias_attitude_correction_max_rad,
+                      counter="rest_bias_robust_downweight")
+    step=np.linalg.norm(so3.log(frontend.q_WI))
+    assert step <= frontend.config.rest_bias_attitude_correction_max_rad*(1+1e-6)
+    assert frontend.factor_counts["rest_bias_robust_downweight"] == 1
 
 
 def test_h_action_label_permutation_or_deletion_cannot_change_solver_state(mapping, fit_actions):

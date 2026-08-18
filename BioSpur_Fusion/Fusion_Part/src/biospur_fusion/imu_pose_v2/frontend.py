@@ -21,6 +21,9 @@ class FrontendConfig:
     rest_accel_tolerance: float = 0.45
     gravity_update_tolerance: float = 1.25
     rest_bias_sigma: float = 0.008
+    innovation_chi2_gate: float = 16.27
+    gravity_attitude_correction_max_rad: float = np.deg2rad(0.5)
+    rest_bias_attitude_correction_max_rad: float = np.deg2rad(0.05)
     initialization_target_s: float = 2.0
     initialization_hard_cap_s: float = 5.0
     degraded_gap_s: float = 0.25
@@ -43,7 +46,8 @@ class ContinuousNodeFrontend:
         self.initialization_start_ns: int | None = None
         self.reset_epoch = 0
         self.action_boundary_reset_count = 0
-        self.factor_counts = {"gyro_propagation": 0, "gravity_likelihood": 0, "rest_gyro_bias": 0}
+        self.factor_counts = {"gyro_propagation": 0, "gravity_likelihood": 0, "rest_gyro_bias": 0,
+                              "gravity_robust_downweight": 0, "rest_bias_robust_downweight": 0}
 
     def notify_action_boundary(self, _: str) -> None:
         # Explicit no-op with a qualification counter that must remain zero.
@@ -83,15 +87,33 @@ class ContinuousNodeFrontend:
             remaining -= step
             self.factor_counts["gyro_propagation"] += 1
 
-    def _correct(self, innovation: np.ndarray, H: np.ndarray, noise: np.ndarray) -> None:
-        S = H@self.P@H.T+noise
-        gain = np.linalg.solve(S, H@self.P).T
-        delta = gain@innovation
+    def _correct(self, innovation: np.ndarray, H: np.ndarray, noise: np.ndarray, *,
+                 attitude_correction_max_rad: float = np.inf, counter: str | None = None,
+                 innovation_chi2_gate: float = np.inf) -> None:
+        # A rest transition can expose a large orientation/bias cross term.
+        # Robustly inflate this observation's covariance until both its NIS
+        # and direct attitude correction fit the pre-registered causal gate;
+        # never reset or snap the orientation at an action boundary.
+        effective_noise = np.asarray(noise, float).copy(); downweighted = False
+        for _ in range(8):
+            S = H@self.P@H.T+effective_noise
+            gain = np.linalg.solve(S, H@self.P).T
+            delta = gain@innovation
+            nis = float(innovation@np.linalg.solve(S, innovation))
+            attitude_step = float(np.linalg.norm(delta[:3]))
+            scale = max(1.0, nis/max(innovation_chi2_gate, 1e-12),
+                        attitude_step/max(attitude_correction_max_rad, 1e-12))
+            if scale <= 1.0 + 1e-12:
+                break
+            effective_noise *= min(scale*scale, 1e6); downweighted = True
+        if downweighted and counter is not None:
+            self.factor_counts[counter] += 1
         self.q_WI = so3.apply_right(self.q_WI, delta[:3])
         self.bg += delta[3:6]
         self.ba += delta[6:9]
         identity = np.eye(9)
-        joseph = (identity-gain@H)@self.P@(identity-gain@H).T+gain@noise@gain.T
+        joseph = ((identity-gain@H)@self.P@(identity-gain@H).T
+                  + gain@effective_noise@gain.T)
         # Right-error injection changes tangent coordinates.  Omitting this
         # reset Jacobian is a mandatory mutation failure.
         reset = np.eye(9)
@@ -130,12 +152,16 @@ class ContinuousNodeFrontend:
                 H[:, 6:9] = np.outer(direction, direction)
             dynamic = 1+(accel_mismatch/max(self.config.accel_sigma, 1e-9))**2
             if not rest: dynamic *= 20
-            self._correct(innovation, H, np.eye(3)*self.config.accel_sigma**2*dynamic)
+            self._correct(innovation, H, np.eye(3)*self.config.accel_sigma**2*dynamic,
+                          attitude_correction_max_rad=self.config.gravity_attitude_correction_max_rad,
+                          counter="gravity_robust_downweight",innovation_chi2_gate=self.config.innovation_chi2_gate)
             self.factor_counts["gravity_likelihood"] += 1
         if rest:
             H = np.zeros((3, 9)); H[:, 3:6] = np.eye(3)
             self._correct(np.asarray(observation.gyro_rad_s)-self.bg, H,
-                          np.eye(3)*self.config.rest_bias_sigma**2)
+                          np.eye(3)*self.config.rest_bias_sigma**2,
+                          attitude_correction_max_rad=self.config.rest_bias_attitude_correction_max_rad,
+                          counter="rest_bias_robust_downweight",innovation_chi2_gate=self.config.innovation_chi2_gate)
             self.factor_counts["rest_gyro_bias"] += 1
         # Bounded unknown sample age is a nuisance, not white Gaussian noise.
         age_half_width_s = (hi-lo)*0.5e-6

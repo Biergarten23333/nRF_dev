@@ -112,19 +112,24 @@ def render(data,masks,out):
 
 
 def verdict(semantic,wobble,coverage,time_report,h,thresholds):
-    initial=semantic["static"]["00_initial_still"];tpose=semantic["static"]["02_t_pose"];arms=("upper_arm_left","forearm_left","upper_arm_right","forearm_right")
-    initial_pass=all(initial[m][s]["median_deg"]<=15 and initial[m][s]["p95_deg"]<=25 for m in ("B0","P") for s in arms)
-    tpose_pass=all(tpose[m][s]["median_deg"]<=15 for m in ("B0","P") for s in arms)
+    t={key:row["value"] for key,row in thresholds["thresholds"].items()}
+    initial=semantic["static"]["00_initial_still"];tpose=semantic["static"]["02_t_pose"];final=semantic["static"]["17_final_still"]
+    arms=("upper_arm_left","forearm_left","upper_arm_right","forearm_right");legs=("thigh_left","shank_left","thigh_right","shank_right")
+    initial_direction_pass=all(initial[m][s]["median_deg"]<=t["initial_arm_down_median_max"] and initial[m][s]["p95_deg"]<=t["initial_arm_down_p95_max"] for m in ("B0","P") for s in arms+legs)
+    initial_elbow_pass=all(initial[m][f"elbow_{side}_flexion"]["median_deg"]<=t["initial_elbow_median_max"] and initial[m][f"elbow_{side}_flexion"]["p95_deg"]<=t["initial_elbow_p95_max"] for m in ("B0","P") for side in ("left","right"))
+    initial_pass=initial_direction_pass and initial_elbow_pass
+    tpose_pass=all(tpose[m][s]["median_deg"]<=t["tpose_horizontal_median_max"] for m in ("B0","P") for s in arms)
+    final_pass=all(final[m][s]["median_deg"]<=t["final_forearm_down_median_max"] and final[m][s]["p95_deg"]<=t["final_forearm_down_p95_max"] for m in ("B0","P") for s in ("forearm_left","forearm_right"))
     wobble_pass=wobble["eligible"]>0 and wobble["passed"]==wobble["eligible"]
     coverage_pass=coverage["scheduled_coverage"]==1 and coverage["finite_fraction"]>=.99 and all(v["evaluable_fraction"]>=.95 for v in coverage["windows"].values())
     hpass=h["all_engineering_sanity"]
-    if not initial_pass or not tpose_pass: value="FAIL_PHASE3R2_1_STATIC_POSE_SEMANTICS"
+    if not initial_pass or not tpose_pass or not final_pass: value="FAIL_PHASE3R2_1_STATIC_POSE_SEMANTICS"
     elif not wobble_pass:value="FAIL_PHASE3R2_1_COUPLED_SOLVER_STATIC_STABILITY"
     elif not coverage_pass:value="FAIL_PHASE3R2_1_COVERAGE_OR_COVARIANCE"
     elif not hpass:value="FAIL_PHASE3R2_1_H_ENGINEERING_REPRODUCTION"
     else:value="PASS_PHASE3R2_1_CONTINUOUS_SESSION_JOINT_CALIBRATION_ENGINEERING_BASELINE"
     sensitivity={"0.8":value,"1.0":value,"1.2":value}
-    return {"schema":"biospur-phase3r21-declarative-result-v1","verdict":value,"gates":{"initial_arms_down":initial_pass,"tpose":tpose_pass,"static_wobble_all":wobble_pass,"coverage":coverage_pass,"time_bounded":time_report["c2cc"]["bounded"],"h_engineering":hpass},"threshold_sensitivity":sensitivity,"threshold_sensitive_conditional":len(set(sensitivity.values()))>1,"scope":["OPERATOR_MAPPED_SESSION_SCOPE","AUTOMATIC_NODE_ASSOCIATION_DEFERRED","COMMON_TIME_BOUNDED_CONDITIONAL","GLOBAL_YAW_GAUGE_OR_L0_CONVENTION","MODEL_INFERRED_SCALE_CONDITIONAL","ROOT_WORLD_POSITION_UNAVAILABLE","H_RETROSPECTIVE_CONTAMINATED","HISTORICALLY_EXPOSED_WITHIN_SESSION_VALIDATION","NO_UWB_FUSION","NO_EXTERNAL_ACCURACY_OR_CLINICAL_CLAIM"]}
+    return {"schema":"biospur-phase3r21-declarative-result-v1","verdict":value,"gates":{"initial_signed_long_axes":initial_direction_pass,"initial_natural_elbows":initial_elbow_pass,"initial_complete":initial_pass,"tpose":tpose_pass,"final_forearms_down":final_pass,"static_wobble_all":wobble_pass,"coverage":coverage_pass,"time_bounded":time_report["c2cc"]["bounded"],"h_engineering":hpass},"threshold_sensitivity":sensitivity,"threshold_sensitive_conditional":len(set(sensitivity.values()))>1,"scope":["OPERATOR_MAPPED_SESSION_SCOPE","AUTOMATIC_NODE_ASSOCIATION_DEFERRED","COMMON_TIME_BOUNDED_CONDITIONAL","GLOBAL_YAW_GAUGE_OR_L0_CONVENTION","MODEL_INFERRED_SCALE_CONDITIONAL","ROOT_WORLD_POSITION_UNAVAILABLE","H_RETROSPECTIVE_CONTAMINATED","HISTORICALLY_EXPOSED_WITHIN_SESSION_VALIDATION","NO_UWB_FUSION","NO_EXTERNAL_ACCURACY_OR_CLINICAL_CLAIM"]}
 
 
 def main():

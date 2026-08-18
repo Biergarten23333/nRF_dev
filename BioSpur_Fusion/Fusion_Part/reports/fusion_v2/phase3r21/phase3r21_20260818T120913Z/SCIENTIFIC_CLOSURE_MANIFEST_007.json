@@ -1,0 +1,32 @@
+{
+  "schema": "biospur-phase3r21-scientific-closure-forward-delta-v7",
+  "run_id": "phase3r21_20260818T120913Z",
+  "base_candidate": "768f84313f6365bd23fe5f34f4b19355e9c94cb6",
+  "parent_closure": {
+    "path": "SCIENTIFIC_CLOSURE_MANIFEST_006.json",
+    "sha256": "fb8a56d6837684e33a45d2260e95d0026e7e79052a351065fae35d9bde7780b5"
+  },
+  "candidate_sha": "PENDING_COMMIT",
+  "validation_numeric_visibility_before_original_candidate": 0,
+  "h_numeric_visibility_before_original_candidate": 0,
+  "repair_class": "FORWARD_SCIENTIFIC_CODE_REPAIR_REQUIRING_COMPLETE_DETACHED_REPLAY",
+  "repairs": [
+    "Use FIT-only initial-down plus T-pose longitudinal evidence for upper-arm extrinsics while retaining natural-elbow forearm azimuth freedom",
+    "Evaluate T-pose forearms against the horizontal plane rather than a forbidden perfect straight-arm azimuth assumption",
+    "Robustly downweight large ESKF recovery corrections instead of injecting bias-cross-covariance attitude snaps",
+    "Report non-vacuous initial/final semantics and median/RMS/P95/endpoint-drift static stability"
+  ],
+  "bundle_external": {
+    "path": "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r21-evidence/phase3r21_20260818T120913Z/SESSION_CALIBRATION_BUNDLE.json",
+    "sha256": "dbe4b3e6252b00521d76492decbe663bd5962478c14aaa5dece14964e5e88693"
+  },
+  "fit_report_external_sha256": "59d2e835014a4f7e520c9d0eecb8d69bc5fb7b6f0a4bbc46a134e510561efa15",
+  "changed_scientific_files": [
+    {"path": "BioSpur_Fusion/Fusion_Part/src/biospur_fusion/imu_pose_v2/frontend.py", "sha256": "c72c4e899b03ccb44da3fc8e0f1aee08ffb892b63ed0c70aa9a3a5e3129e4ce9", "size": 11228},
+    {"path": "BioSpur_Fusion/Fusion_Part/tools/fusion_v2/phase3r21/run_phase3r21.py", "sha256": "7be216af7aa861524fbd00e3ebde23176f8a559963792413cad9fecb97d38135", "size": 32695},
+    {"path": "BioSpur_Fusion/Fusion_Part/tools/fusion_v2/phase3r21/postprocess_phase3r21.py", "sha256": "4aba179f6204ea47b12e86b7c55a6daab849e854c61ebfdeaeb261f5b8de82b0", "size": 12419},
+    {"path": "BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase3r2/test_fk_solver_observability.py", "sha256": "f09c75315d07b5eed86a9813d7bf4043ec2d31e57c51b4e67837baaef154a797", "size": 7439},
+    {"path": "BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase3r21/test_prefrozen_contract.py", "sha256": "6ac962768ca66f6d9c9d4c94f7c5a0fac904c3d7d9155f81aa045e75e15c2571", "size": 3762}
+  ],
+  "scientific_closure_sha256": "5a21921ccc943f9f8dc01e56e2d2ffa9963aee8edf2976f08e18cee2351b99f5"
+}
