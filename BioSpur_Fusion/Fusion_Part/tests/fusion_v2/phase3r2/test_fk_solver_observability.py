@@ -68,7 +68,11 @@ def test_observability_uses_actual_runtime_matrices_with_fixed_sweep(mapping, fi
     estimator.update(time_ns, frames)
     report = observability_report(estimator.actual_information_components())
     assert report["matrix_source"] == "ACTUAL_ACCEPTED_RUNTIME_FACTORS"
-    assert tuple(row["relative_tolerance"] for row in report["svd_relative_tolerance_sweep"]) == TOLERANCES
+    assert tuple(row["relative_tolerance"] for row in report["gauge_free_svd_relative_tolerance_sweep"]) == TOLERANCES
+    assert all(row["rank"] == 29 and row["nullity"] == 1
+               for row in report["gauge_free_svd_relative_tolerance_sweep"])
+    assert report["global_yaw_gauge_response_norm"] < 1e-10
+    assert report["information_categories"]["gauge_convention_prior_information"]["trace"] == 0.0
     assert "DATA_IDENTIFIED_GLOBAL_YAW=false" in report["gauge_statement"]
 
 
