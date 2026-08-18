@@ -82,10 +82,16 @@ def test_fixed_50hz_grid_emits_every_gap_tick_and_marks_unavailable(mapping, fit
     )
     assert len(output) == 110
     assert all(b.scheduled_time_ns-a.scheduled_time_ns == 20_000_000 for a, b in zip(output, output[1:]))
+    # Explicit 0.25/0.5/1/2 s gap checkpoints all remain represented.
+    assert [output[index].scheduled_time_ns - start for index in (13, 25, 50, 100)] == [
+        260_000_000, 500_000_000, 1_000_000_000, 2_000_000_000,
+    ]
     assert output[-1].status == "UNAVAILABLE"
     early = float(np.trace(output[0].segment_covariance_rad2))
     late = float(np.trace(output[-1].segment_covariance_rad2))
     assert late >= early
+    traces = [float(np.trace(output[index].segment_covariance_rad2)) for index in (0, 13, 25, 50, 100, 109)]
+    assert traces == sorted(traces)
     assert max(output[-1].input_age_ns.values()) > 2_000_000_000
 
 
