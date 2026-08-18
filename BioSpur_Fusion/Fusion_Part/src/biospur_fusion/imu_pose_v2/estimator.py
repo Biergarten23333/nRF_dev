@@ -109,14 +109,18 @@ class ContinuousArticulatedEstimator:
     ) -> list[_Factor]:
         factors: list[_Factor] = []
         for segment in SEGMENTS:
-            residual = so3.log(so3.between(measured[segment], orientations[segment]))
-            jacobian = np.zeros((3, 30)); jacobian[:, self._block(segment)] = np.eye(3)
-            cov = covariance[segment] + np.eye(3) * self.config.measurement_floor_sigma_rad ** 2
-            robust = min(1.0, self.config.measurement_huber_rad / max(float(np.linalg.norm(residual)), 1e-12))
-            factors.append(_Factor(
-                "raw_imu_orientation_likelihood", (uids[segment],), residual, jacobian,
-                np.sqrt(robust) * self._whitener(cov), (self.index[segment],),
-            ))
+            # A held frontend frame is a process prediction, not another raw
+            # measurement. Insert a raw likelihood exactly once when its UID
+            # first reaches this estimator graph.
+            if self.previous_uids is None or uids[segment] != self.previous_uids[segment]:
+                residual = so3.log(so3.between(measured[segment], orientations[segment]))
+                jacobian = np.zeros((3, 30)); jacobian[:, self._block(segment)] = np.eye(3)
+                cov = covariance[segment] + np.eye(3) * self.config.measurement_floor_sigma_rad ** 2
+                robust = min(1.0, self.config.measurement_huber_rad / max(float(np.linalg.norm(residual)), 1e-12))
+                factors.append(_Factor(
+                    "raw_imu_orientation_likelihood", (uids[segment],), residual, jacobian,
+                    np.sqrt(robust) * self._whitener(cov), (self.index[segment],),
+                ))
 
         for joint_index, spec in enumerate(JOINTS):
             relative = self._relative(orientations, spec.parent, spec.child)

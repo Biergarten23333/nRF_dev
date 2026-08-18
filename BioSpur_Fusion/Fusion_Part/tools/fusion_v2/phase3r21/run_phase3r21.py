@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import hashlib
 import json
 import os
@@ -260,7 +261,14 @@ def cmd_replay(args) -> int:
             statuses.append("UNAVAILABLE"); ages.append(2**63-1); p_cov.append(np.full(30, np.nan))
             for segment in SEGMENTS: p[segment].append(np.full(4, np.nan))
             continue
-        tick_result = estimator.update(int(tick), latest)
+        routed = {
+            node: (replace(frame, status="UNAVAILABLE")
+                   if tick-frame.sample_time_ns > 2_000_000_000 else
+                   replace(frame, status="PREDICTED_DEGRADED")
+                   if tick-frame.sample_time_ns > 250_000_000 else frame)
+            for node, frame in latest.items()
+        }
+        tick_result = estimator.update(int(tick), routed)
         statuses.append(tick_result.status); ages.append(max(tick_result.input_age_ns.values())); p_cov.append(np.diag(tick_result.segment_covariance_rad2))
         for segment in SEGMENTS: p[segment].append(tick_result.segment_quaternions_W_S[segment])
     p = {segment: np.asarray(value) for segment, value in p.items()}; p_cov=np.asarray(p_cov); statuses=np.asarray(statuses, dtype="U24"); ages=np.asarray(ages,dtype=np.int64)

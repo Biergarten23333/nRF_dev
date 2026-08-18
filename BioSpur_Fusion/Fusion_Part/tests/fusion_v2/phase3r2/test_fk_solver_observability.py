@@ -99,6 +99,19 @@ def test_fixed_50hz_grid_emits_every_gap_tick_and_marks_unavailable(mapping, fit
     assert max(output[-1].input_age_ns.values()) > 2_000_000_000
 
 
+def test_held_uid_is_not_reinserted_as_raw_measurement(mapping, fit_actions):
+    bundle = _bundle(mapping, fit_actions)
+    estimator = ContinuousArticulatedEstimator(bundle)
+    nodes = tuple(sorted(mapping)); time_ns = 25_000_000_000
+    frames = {node: frontend_frame(node, index, time_ns) for index, node in enumerate(nodes)}
+    estimator.update(time_ns, frames)
+    first_count = sum(row.factor == "raw_imu_orientation_likelihood" for row in estimator.factor_ledger)
+    estimator.update(time_ns + 20_000_000, frames)
+    second_count = sum(row.factor == "raw_imu_orientation_likelihood" for row in estimator.factor_ledger)
+    assert first_count == 10
+    assert second_count == first_count
+
+
 def test_posthoc_covariance_or_availability_rewrite_always_fails():
     with pytest.raises(RuntimeError):
         reject_posthoc_covariance_rewrite(np.eye(3), scale=.15)
