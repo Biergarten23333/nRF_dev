@@ -246,7 +246,7 @@ def cmd_replay(args) -> int:
     b0 = {}; b1 = {}
     for node, state in vqf.items():
         idx = _latest_index(state["time"], grid); segment = mapping[node]
-        b0[segment] = so3.continuous(so3.mul(state["q"][idx], bundle.by_node[node].q_I_S)); b1[segment] = b0[segment].copy()
+        b0[segment] = so3v1.continuous(so3.mul(state["q"][idx], bundle.by_node[node].q_I_S)); b1[segment] = b0[segment].copy()
     frontends = {node: ContinuousNodeFrontend(node) for node in sorted(mapping)}
     estimator = ContinuousArticulatedEstimator(bundle)
     latest = {}; cursor = 0; p = {segment: [] for segment in SEGMENTS}; p_cov=[]; statuses=[]; ages=[]
