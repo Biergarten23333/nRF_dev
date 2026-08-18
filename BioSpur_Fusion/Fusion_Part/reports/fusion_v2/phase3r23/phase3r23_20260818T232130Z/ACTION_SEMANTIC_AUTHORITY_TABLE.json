@@ -1,0 +1,333 @@
+{
+  "heading_bearing_rows": 14,
+  "protocol_frame": {
+    "name": "P",
+    "psi_GP_status": "PROFILED_NUISANCE_NOT_FIXED",
+    "relation_to_surveyed_world": "NOT_MEASURED",
+    "x": "operator-defined subject forward direction at session start",
+    "y": "subject left",
+    "z": "up"
+  },
+  "rows": [
+    {
+      "action_id": "00_initial_still",
+      "classification": "TILT_ONLY_NO_HEADING_INFORMATION",
+      "geometry": "directed gravity",
+      "heading_bearing": false,
+      "observed_quantity": "gravity/tilt only",
+      "residual_dimension": 2,
+      "segments": [
+        "all"
+      ],
+      "sign_symmetry": "none",
+      "target_frame": "P"
+    },
+    {
+      "action_id": "02_t_pose",
+      "classification": "TILT_ONLY_NO_HEADING_INFORMATION",
+      "geometry": "axis line",
+      "heading_bearing": false,
+      "observed_quantity": "held horizontal arm line with unknown sensor-local long-axis nuisance",
+      "residual_dimension": 2,
+      "segments": [
+        "upper_arm_left",
+        "forearm_left",
+        "upper_arm_right",
+        "forearm_right"
+      ],
+      "sign_symmetry": "pi and free local-long-axis exchange",
+      "target_frame": "P"
+    },
+    {
+      "action_id": "03_pelvis_hula_circle",
+      "classification": "NO_AUTHORIZED_HEADING_SEMANTIC",
+      "geometry": "none",
+      "heading_bearing": false,
+      "observed_quantity": "bidirectional circular pelvis motion",
+      "residual_dimension": 0,
+      "segments": [
+        "pelvis"
+      ],
+      "sign_symmetry": "clockwise/counterclockwise and circular symmetry",
+      "target_frame": "P"
+    },
+    {
+      "action_id": "04_shoulder_left",
+      "classification": "MOTION_PLANE_CONSTRAINT",
+      "geometry": "axis line",
+      "heading_bearing": true,
+      "observed_quantity": "angular-velocity axis of side raise",
+      "residual_dimension": 1,
+      "segments": [
+        "upper_arm_left"
+      ],
+      "sign_symmetry": "pi",
+      "target_axis_line_P": [
+        1,
+        0,
+        0
+      ],
+      "target_frame": "P"
+    },
+    {
+      "action_id": "05_shoulder_right",
+      "classification": "MOTION_PLANE_CONSTRAINT",
+      "geometry": "axis line",
+      "heading_bearing": true,
+      "observed_quantity": "angular-velocity axis of side raise",
+      "residual_dimension": 1,
+      "segments": [
+        "upper_arm_right"
+      ],
+      "sign_symmetry": "pi",
+      "target_axis_line_P": [
+        1,
+        0,
+        0
+      ],
+      "target_frame": "P"
+    },
+    {
+      "action_id": "06_elbow_left",
+      "classification": "HINGE_RELATION",
+      "geometry": "paired RP2 axis line",
+      "heading_bearing": true,
+      "observed_quantity": "first-half elbow flexion hinge axes; second-half pronation excluded",
+      "residual_dimension": 2,
+      "segments": [
+        "upper_arm_left",
+        "forearm_left"
+      ],
+      "sign_symmetry": "joint antipodal",
+      "target_frame": "shared G after heading transforms"
+    },
+    {
+      "action_id": "07_elbow_right",
+      "classification": "HINGE_RELATION",
+      "geometry": "paired RP2 axis line",
+      "heading_bearing": true,
+      "observed_quantity": "first-half elbow flexion hinge axes; second-half pronation excluded",
+      "residual_dimension": 2,
+      "segments": [
+        "upper_arm_right",
+        "forearm_right"
+      ],
+      "sign_symmetry": "joint antipodal",
+      "target_frame": "shared G after heading transforms"
+    },
+    {
+      "action_id": "08_hip_left",
+      "classification": "MOTION_PLANE_CONSTRAINT",
+      "geometry": "axis line",
+      "heading_bearing": true,
+      "observed_quantity": "hip-flexion angular-velocity axis",
+      "residual_dimension": 1,
+      "segments": [
+        "thigh_left"
+      ],
+      "sign_symmetry": "pi",
+      "target_axis_line_P": [
+        0,
+        1,
+        0
+      ],
+      "target_frame": "P"
+    },
+    {
+      "action_id": "09_hip_right",
+      "classification": "MOTION_PLANE_CONSTRAINT",
+      "geometry": "axis line",
+      "heading_bearing": true,
+      "observed_quantity": "hip-flexion angular-velocity axis",
+      "residual_dimension": 1,
+      "segments": [
+        "thigh_right"
+      ],
+      "sign_symmetry": "pi",
+      "target_axis_line_P": [
+        0,
+        1,
+        0
+      ],
+      "target_frame": "P"
+    },
+    {
+      "action_id": "10_knee_left_seated",
+      "classification": "HINGE_RELATION",
+      "geometry": "paired RP2 axis line",
+      "heading_bearing": true,
+      "observed_quantity": "paired official-qmt sensor-local hinge axes",
+      "residual_dimension": 2,
+      "segments": [
+        "thigh_left",
+        "shank_left"
+      ],
+      "sign_symmetry": "joint antipodal",
+      "target_frame": "shared G after heading transforms"
+    },
+    {
+      "action_id": "11_knee_right_seated",
+      "classification": "HINGE_RELATION",
+      "geometry": "paired RP2 axis line",
+      "heading_bearing": true,
+      "observed_quantity": "paired official-qmt sensor-local hinge axes",
+      "residual_dimension": 2,
+      "segments": [
+        "thigh_right",
+        "shank_right"
+      ],
+      "sign_symmetry": "joint antipodal",
+      "target_frame": "shared G after heading transforms"
+    },
+    {
+      "action_id": "12_heel_raise_left",
+      "classification": "MOTION_PLANE_CONSTRAINT",
+      "geometry": "axis line",
+      "heading_bearing": true,
+      "observed_quantity": "heel-raise angular-velocity axis",
+      "residual_dimension": 1,
+      "segments": [
+        "shank_left"
+      ],
+      "sign_symmetry": "pi",
+      "target_axis_line_P": [
+        0,
+        1,
+        0
+      ],
+      "target_frame": "P"
+    },
+    {
+      "action_id": "13_heel_raise_right",
+      "classification": "MOTION_PLANE_CONSTRAINT",
+      "geometry": "axis line",
+      "heading_bearing": true,
+      "observed_quantity": "heel-raise angular-velocity axis",
+      "residual_dimension": 1,
+      "segments": [
+        "shank_right"
+      ],
+      "sign_symmetry": "pi",
+      "target_axis_line_P": [
+        0,
+        1,
+        0
+      ],
+      "target_frame": "P"
+    },
+    {
+      "action_id": "14_trunk_flex_extend",
+      "classification": "MOTION_PLANE_CONSTRAINT",
+      "geometry": "axis line",
+      "heading_bearing": true,
+      "observed_quantity": "trunk flexion angular-velocity axis",
+      "residual_dimension": 1,
+      "segments": [
+        "torso"
+      ],
+      "sign_symmetry": "pi",
+      "target_axis_line_P": [
+        0,
+        1,
+        0
+      ],
+      "target_frame": "P"
+    },
+    {
+      "action_id": "15_trunk_axial_rotation",
+      "classification": "TILT_ONLY_NO_HEADING_INFORMATION",
+      "geometry": "Rz-invariant axis line",
+      "heading_bearing": false,
+      "observed_quantity": "vertical axial-rotation axis",
+      "residual_dimension": 1,
+      "segments": [
+        "torso"
+      ],
+      "sign_symmetry": "pi",
+      "target_axis_line_P": [
+        0,
+        0,
+        1
+      ],
+      "target_frame": "P"
+    },
+    {
+      "action_id": "16_squat",
+      "classification": "MOTION_PLANE_CONSTRAINT",
+      "geometry": "axis line",
+      "heading_bearing": true,
+      "observed_quantity": "sagittal flexion angular-velocity axes with natural coupling",
+      "residual_dimension": 1,
+      "segments": [
+        "thigh_left",
+        "shank_left",
+        "thigh_right",
+        "shank_right"
+      ],
+      "sign_symmetry": "pi",
+      "target_axis_line_P": [
+        0,
+        1,
+        0
+      ],
+      "target_frame": "P"
+    },
+    {
+      "action_id": "17_final_still",
+      "classification": "VALIDATION_ONLY",
+      "geometry": "Rz-invariant",
+      "heading_bearing": false,
+      "observed_quantity": "gravity/tilt only",
+      "residual_dimension": 0,
+      "segments": [
+        "all"
+      ],
+      "sign_symmetry": "none",
+      "target_frame": "P"
+    },
+    {
+      "action_id": "18_heel_to_butt_left",
+      "classification": "MOTION_PLANE_CONSTRAINT",
+      "geometry": "axis line",
+      "heading_bearing": true,
+      "observed_quantity": "knee-flexion angular-velocity axis",
+      "residual_dimension": 1,
+      "segments": [
+        "shank_left"
+      ],
+      "sign_symmetry": "pi",
+      "target_axis_line_P": [
+        0,
+        1,
+        0
+      ],
+      "target_frame": "P"
+    },
+    {
+      "action_id": "19_heel_to_butt_right",
+      "classification": "MOTION_PLANE_CONSTRAINT",
+      "geometry": "axis line",
+      "heading_bearing": true,
+      "observed_quantity": "knee-flexion angular-velocity axis",
+      "residual_dimension": 1,
+      "segments": [
+        "shank_right"
+      ],
+      "sign_symmetry": "pi",
+      "target_axis_line_P": [
+        0,
+        1,
+        0
+      ],
+      "target_frame": "P"
+    }
+  ],
+  "schema": "biospur-phase3r23-action-semantic-authority-v1",
+  "source_files": {
+    "authority_config_sha256": "1d9c77c41d3099dfa35d044b68ae6668820ee801d5b4a3c673687cc34df6a11c",
+    "capture_plan_sha256": "8442cd8ac9decaa41ae3f71462380c942c6fd8a652fc6756b8cd5e303dc9340b",
+    "execution_table_sha256": "2cebc4c65e933ba63f4b6bc3c166f865a561c995e0abbc6410f03c11dd5e60ac",
+    "facing_sha256": "3d087c07962da326a3b702e17795132ed411d3cf4f2775ed1a386bdec8fdc453"
+  },
+  "target_in_G_without_psi_count": 0
+}

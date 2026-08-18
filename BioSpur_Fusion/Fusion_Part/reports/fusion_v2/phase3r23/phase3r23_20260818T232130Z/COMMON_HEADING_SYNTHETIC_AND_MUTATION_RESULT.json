@@ -1,0 +1,81 @@
+{
+  "cases": {
+    "fixed_pelvis_relative_heading": {
+      "dimension": 9,
+      "nullity": 0,
+      "rank": 9
+    },
+    "missing_graph_edge": {
+      "dimension": 10,
+      "nullity": 2,
+      "rank": 8
+    },
+    "pi_sign_multimode": {
+      "expected_modes": 512,
+      "reported_as_multimode": true
+    },
+    "pure_commuting_yaw_motion": {
+      "dimension": 9,
+      "nullity": 9,
+      "rank": 0
+    },
+    "single_long_axis": {
+      "dimension": 9,
+      "nullity": 5,
+      "rank": 4
+    },
+    "ten_heading_global_gauge": {
+      "dimension": 10,
+      "nullity": 1,
+      "rank": 9
+    }
+  },
+  "gates": {
+    "all_mutations_rejected": true,
+    "noiseless_max_error_rad_le_1e_8": true,
+    "noisy_median_deg_le_2": true,
+    "noisy_p95_deg_le_5": true,
+    "rank_cases_correct": true
+  },
+  "known_left_yaw_injection_deg": [
+    -29.999999999999996,
+    -10.0,
+    -5.0,
+    5.0,
+    10.0,
+    29.999999999999996,
+    -17.0,
+    23.0,
+    8.0
+  ],
+  "mutation_rejections": {
+    "H9_C2CC_pooling": true,
+    "P_B1_OpenSense_target": true,
+    "R_vs_R_transpose": true,
+    "Rz_invariant_as_heading": true,
+    "child_local_axis_as_parent_local": true,
+    "final_still_heading_drift": true,
+    "hard_coded_verdict_rank_mode_overlap": true,
+    "hinge_cross_product_rank3": true,
+    "independent_marginals_without_joint_modes": true,
+    "left_right_multiplication_exchange": true,
+    "node_left_right_permutation": true,
+    "pi_modes_as_single_table": true,
+    "point_qmt_axis_in_pass_rank": true,
+    "protocol_target_in_G_with_fixed_psi": true,
+    "q_sign_inconsistent_handling": true,
+    "rank_class_substitution": true,
+    "session_static_named_t0": true,
+    "single_sample_claims_coverage": true,
+    "validation_uid_into_fit": true,
+    "wxyz_vs_xyzw": true
+  },
+  "noiseless_max_error_rad": 0.0,
+  "noisy_median_deg": 0.05283213015048486,
+  "noisy_p95_deg": 0.14858226338935832,
+  "noncommuting_left_vs_right_max_vector_separation": 0.23823483313086405,
+  "oracle": "standalone NumPy rotation matrices and closed-form horizontal Procrustes; no production residual/Jacobian/quaternion helper",
+  "real_evidence_substitution": false,
+  "schema": "biospur-phase3r23-independent-synthetic-mutation-v1",
+  "synthetic_engineering_pass": true
+}

@@ -1,0 +1,90 @@
+{
+  "schema": "biospur-phase3r23-contract-v1",
+  "master_seed": 20260819,
+  "operator_mapping": {
+    "BSFEC35": "forearm_left",
+    "BSFB165": "forearm_right",
+    "BSFAA61": "upper_arm_left",
+    "BSF1120": "upper_arm_right",
+    "BSF31CC": "torso",
+    "BSFC2CC": "pelvis",
+    "BSF44AD": "thigh_left",
+    "BSF3C79": "thigh_right",
+    "BSF6C53": "shank_left",
+    "BSF8BC4": "shank_right"
+  },
+  "pelvis_node": "BSFC2CC",
+  "relative_heading_order": [
+    "torso",
+    "upper_arm_left",
+    "forearm_left",
+    "upper_arm_right",
+    "forearm_right",
+    "thigh_left",
+    "shank_left",
+    "thigh_right",
+    "shank_right"
+  ],
+  "subtrees": {
+    "torso": ["torso"],
+    "left_arm": ["upper_arm_left", "forearm_left"],
+    "right_arm": ["upper_arm_right", "forearm_right"],
+    "left_leg": ["thigh_left", "shank_left"],
+    "right_leg": ["thigh_right", "shank_right"]
+  },
+  "hinges": {
+    "elbow_left": ["06_elbow_left", "upper_arm_left", "forearm_left"],
+    "elbow_right": ["07_elbow_right", "upper_arm_right", "forearm_right"],
+    "knee_left": ["10_knee_left_seated", "thigh_left", "shank_left"],
+    "knee_right": ["11_knee_right_seated", "thigh_right", "shank_right"]
+  },
+  "static_split": {
+    "fit_fraction": 0.45,
+    "guard_fraction": 0.10,
+    "validation_fraction": 0.45,
+    "sample_support_us": [-2500, 2500]
+  },
+  "dynamic_split": {
+    "modulus": 3,
+    "classes": ["AXIS_FIT", "HEADING_FIT", "VALIDATION"],
+    "complete_cycle_min_span_s": 2.5,
+    "required_nodes": 10
+  },
+  "qualification": {
+    "required_axis_blocks_per_family": 5,
+    "required_heading_blocks_per_family": 5,
+    "bootstrap_replicates": 500,
+    "mode_merge_rms_deg": 2.0,
+    "mode_merge_max_coordinate_deg": 5.0,
+    "mode_sensitivity_deg": [1.0, 2.0, 5.0],
+    "profile_svd_tolerances": [0.0001, 0.00001, 0.000001, 0.0000001, 0.00000001],
+    "heading_half_width_gate_deg": 15.0,
+    "heading_sensitivity_deg": [10.0, 15.0, 20.0],
+    "semantic_median_gate_deg": 15.0,
+    "semantic_p95_gate_deg": 25.0,
+    "mode_alternative_frequency": 0.05,
+    "minimum_mode_support_blocks": 5,
+    "validation_blocks_per_time_bin": 5,
+    "timing_perturbation_ms": [0.5, 1.0, 2.0],
+    "block_scale_floor_deg": 5.0,
+    "robust_loss": "equal-block circular Huber with frozen 25 degree transition"
+  },
+  "worker_policy": {
+    "benchmark_counts": [1, 4, 6],
+    "fallback": [6, 4, 1],
+    "blas_threads_per_worker": 1,
+    "canonical_result_independent_of_worker_count": true
+  },
+  "scope_qualifiers": [
+    "OPERATOR_MAPPED_SESSION_SCOPE",
+    "PROTOCOL_CONDITIONAL_WITHIN_SESSION_ONLY",
+    "HISTORICALLY_EXPOSED_WITHIN_SESSION_VALIDATION",
+    "GLOBAL_YAW_GAUGE_ACTIVE",
+    "AUTOMATIC_NODE_ASSOCIATION_DEFERRED",
+    "OPEN_SENSE_NOT_STARTED",
+    "PHASE4_NOT_STARTED",
+    "NO_EXTERNAL_ACCURACY_OR_CLINICAL_CLAIM"
+  ],
+  "forbidden_numeric_inputs": ["H00_walk", "H01_boxing", "H02_golf", "P", "B1", "OpenSense", "UWB measurement"],
+  "opensense_full_input_pipeline_ready": false
+}

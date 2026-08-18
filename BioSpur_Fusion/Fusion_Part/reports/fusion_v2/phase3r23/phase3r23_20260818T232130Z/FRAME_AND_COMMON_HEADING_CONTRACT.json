@@ -1,0 +1,52 @@
+{
+  "Q_i": {
+    "action": "active source-to-target",
+    "composition": "R_GI=Rz(hbar_i) R_EiI",
+    "quaternion_order": "wxyz",
+    "six_d_yaw_gauge": "independent per-node global-left yaw",
+    "source": "sensor/IMU frame I",
+    "symbol": "R_EiI",
+    "target": "per-node VQF earth/reference frame E_i"
+  },
+  "algebra": [
+    "u_i^G = Rz(hbar_i) R_EiI u_i^I",
+    "d^G = Rz(psi_GP) d^P",
+    "protocol axis-line residual = wrap_mod_pi(hbar_i + yaw(u_i^Ei) - psi_GP - yaw(d^P))",
+    "hinge residual compares Rz(hbar_parent) R_EpIp a_parent^Ip and Rz(hbar_child) R_EcIc a_child^Ic in G"
+  ],
+  "common_heading": {
+    "Hbar_i": "R_GEi=Rz(hbar_i), left multiplication",
+    "pelvis_hbar_rad": 0.0,
+    "psi_GP": "R_GP=Rz(psi_GP), profiled nuisance",
+    "session_static": "best fit over FIT, not t0"
+  },
+  "forbidden_conflations": [
+    "left heading is not a right sensor/segment extrinsic",
+    "pelvis-fixed does not fix psi_GP",
+    "axis line cross-product has two tangent dimensions, not three independent ranks"
+  ],
+  "opensense_started": false,
+  "phase4_started": false,
+  "qmt": {
+    "axis_physical_truth": "POSSIBLE_NOT_PROVEN",
+    "commercial_license_conclusion": "NOT_MADE",
+    "headingCorrection_calls": 0,
+    "jhat1": "sensor-1 local RP2 axis",
+    "jhat2": "sensor-2 local RP2 axis",
+    "joint_axis_source_sha256": "492a7f5afbda2787b2c8726e56245d4226883dcf939b0a1f76cadfcdd72e1bfa",
+    "license_file_sha256": "71dff3080b463d827070e84acd3aea5c07a944d3550b9f874e8d8e4c3effaa6c",
+    "runtime_path": "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r-deps/phase3r_20260817T192852Z/venv/lib/python3.12/site-packages/qmt/__init__.py",
+    "upstream_commit": "0fa8d32eb461e14d78e9ddbd569664ea59bcea19",
+    "version": "0.2.4"
+  },
+  "schema": "biospur-phase3r23-frame-common-heading-contract-v1",
+  "vqf": {
+    "api": "VQF.updateBatchFullState()['quat6D']",
+    "license_file_sha256": "0c22d71ab6599696c5dabbdc3cc11ad68016d00a01efa2980538e42c9ccf73f3",
+    "pyvqf_source_sha256": "ee83f51edb1cd69a8c88255be855a1cd28114648e3ed1864266eb29263e0cada",
+    "runtime_extension_sha256": "8dcb76307dc93edd3f96e8721e3c7857140b2f962705467bc954c3064db93d82",
+    "runtime_path": "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r-deps/phase3r_20260817T192852Z/venv/lib/python3.12/site-packages/vqf/__init__.py",
+    "upstream_commit": "86ba56bdd3158b9b05f9f9fe5596866ba326438c",
+    "version": "2.1.2"
+  }
+}

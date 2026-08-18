@@ -1,0 +1,22 @@
+{
+  "schema": "biospur-phase3r23-declarative-verdict-rules-v1",
+  "protocol_conditional_identifiability_all_of": [
+    "profiled_I2_rank_9_all_tolerances",
+    "single_joint_S1_9_mode",
+    "all_joint_bootstrap_half_width_le_15deg",
+    "axis_families_at_least_5_blocks",
+    "heading_families_at_least_5_blocks",
+    "timing_envelope_no_flip",
+    "uid_integrity"
+  ],
+  "session_static_prerequisite_additional_all_of": [
+    "five_subtrees_session_static_sufficient",
+    "worst_family_semantic_15_25_gate"
+  ],
+  "partial_when": "primary gates fail but profiled protocol-conditional I2 has nonzero rank",
+  "failure_when": "profiled protocol-conditional I2 rank is zero or no real heading-bearing factors exist",
+  "opensense_common_heading_prerequisite_ready_equals": "session_static_prerequisite_pass",
+  "opensense_full_input_pipeline_ready": false,
+  "producer_may_emit_final_verdict": false,
+  "validator_must_recompute_from_machine_metrics": true
+}
