@@ -1,0 +1,28 @@
+{
+  "schema": "biospur-phase3r21-result-v2",
+  "run_id": "phase3r21_20260818T120913Z",
+  "candidate_sha": "b4be9ae90255b7bab444698a6417760556389eba",
+  "bundle_sha256": "dbe4b3e6252b00521d76492decbe663bd5962478c14aaa5dece14964e5e88693",
+  "trajectory_sha256": "fed0bc05ebaa80ec5aa2af576434c4d4861331d699189d0305b3ce14edb5d483",
+  "final_metrics_sha256": "1a2edef8a465955d13d8fd4aea06241b2dbbb45bc2256f2021db59aa4670e82c",
+  "verdict": "FAIL_PHASE3R2_1_STATIC_POSE_SEMANTICS",
+  "gates": {
+    "coverage": true,
+    "final_forearms_down": true,
+    "h_engineering": true,
+    "initial_complete": true,
+    "initial_natural_elbows": true,
+    "initial_signed_long_axes": true,
+    "static_wobble_all": false,
+    "time_bounded": true,
+    "tpose": false
+  },
+  "failure_root": {
+    "code": "The ESKF recovery attitude-snap defect was repaired, but P still injects motion and shifts valid B0 T-pose upper-arm semantics under coupled functional-axis constraints.",
+    "calibration_observability": "Elbow qmt confidence is only 0.281/0.352 and axial twist remains conditional; the coupled constraint result is not qualified.",
+    "time": "The worst 2 ms differential bound is 2.4 degrees and cannot explain the 24.9-30.5 degree P T-pose error.",
+    "reality": "Existing real evidence is sufficient to demonstrate the failure; this result does not request recapture."
+  },
+  "operator_fault": false,
+  "recapture_requested": false
+}
