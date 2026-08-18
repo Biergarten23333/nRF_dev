@@ -48,9 +48,10 @@ def common_causal_grid(frontends: Mapping[str,list[FrontendOutput]], rate_hz:flo
 
 def run_coupled(frontends: Mapping[str,list[FrontendOutput]], mapping:FrozenOperatorMapping,
                 calibration:CalibrationBundle, config:EstimatorConfig|None=None,
-                hinge_axes:Mapping[str,np.ndarray]|None=None,heading_targets:Mapping[str,np.ndarray]|None=None,
+                hinge_axes:Mapping[str,np.ndarray]|None=None,hinge_confidence:Mapping[str,float]|None=None,
+                heading_targets:Mapping[str,np.ndarray]|None=None,
                 heading_confidence:Mapping[str,float]|None=None) -> tuple[list[PoseFrame],CoupledPoseEstimator]:
-    est=CoupledPoseEstimator(mapping,calibration,config,hinge_axes,heading_targets,heading_confidence)
+    est=CoupledPoseEstimator(mapping,calibration,config,hinge_axes,hinge_confidence,heading_targets,heading_confidence)
     frames=[est.update(t,row) for t,row in common_causal_grid(frontends)]
     return frames,est
 

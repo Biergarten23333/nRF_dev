@@ -110,7 +110,7 @@ class RealSessionRunner:
           'elbow_right':('07_elbow_right','upper_arm_right','forearm_right'),
           'knee_left':('10_knee_left_seated','thigh_left','shank_left'),
           'knee_right':('11_knee_right_seated','thigh_right','shank_right')}
-        segment_node={v:k for k,v in self.mapping.node_to_segment.items()};axes={};targets={};confidence={};qmt_report={}
+        segment_node={v:k for k,v in self.mapping.node_to_segment.items()};axes={};targets={};axis_confidence={};heading_confidence={};qmt_report={}
         for joint,(action,parent_seg,child_seg) in pairs.items():
             pn,cn=segment_node[parent_seg],segment_node[child_seg];t,gp,gc,ap,ac=common_raw(data[action][pn],data[action][cn])
             axis=run_qmt_hinge_axis(ap,ac,gp,gc);axes[joint]=so3.matrix(calibration.by_node[cn].q_I_S).T@axis.child_axis_sensor
@@ -122,7 +122,8 @@ class RealSessionRunner:
             # B1-corrected frame of each action below.
             offset=float(np.nanmedian(heading.filtered_offset_rad))
             targets[joint]=so3.exp(np.array([0.,0.,offset]))
-            confidence[joint]=float(min(axis.confidence,heading.confidence))
+            axis_confidence[joint]=float(axis.confidence)
+            heading_confidence[joint]=float(heading.confidence)
             qmt_report[joint]={"action_id":action,"axis_parent_sensor":axis.parent_axis_sensor.tolist(),"axis_child_sensor":axis.child_axis_sensor.tolist(),
                 "axis_child_segment":axes[joint].tolist(),"axis_confidence":axis.confidence,"heading_confidence":heading.confidence,
                 "heading_offset_median_rad":offset,"axis_runtime_s":axis.runtime_s,"heading_runtime_s":heading.runtime_s,
@@ -132,24 +133,76 @@ class RealSessionRunner:
                 "qmt_functional":qmt_report,"H9_pool":sorted(set(nodes)-{'BSFC2CC'}),"C2CC_pooled":False,
                 "external_accuracy_claim":False}
         write_json(self.evidence/'REAL_SENSOR_TO_SEGMENT_AND_QMT_CALIBRATION.json',report)
-        return calibration,axes,targets,confidence,report
+        self.qmt_source_action={joint:row[0] for joint,row in pairs.items()}
+        return calibration,axes,targets,axis_confidence,heading_confidence,report
 
-    def process(self,action_id,calibration,axes,targets,confidence,animate=False):
+    def _persist_vqf(self,out:Path,vqf:Mapping[str,object]) -> dict:
+        arrays={}
+        for node,result in vqf.items():
+            arrays.update({f'time_{node}':result.time_s,f'q6d_{node}':result.quaternion6D_W_I,
+                           f'bias_{node}':result.gyro_bias_rad_s,f'bias_sigma_{node}':result.bias_sigma_rad_s,
+                           f'rest_{node}':result.rest_detected})
+        state_path=out/'vqf_full_state.npz';np.savez_compressed(state_path,**arrays)
+        lineage_path=out/'vqf_lineage.jsonl'
+        with lineage_path.open('w',encoding='utf-8') as stream:
+            for node,result in sorted(vqf.items()):
+                for index,(stamp,uids) in enumerate(zip(result.time_s,result.lineage_sample_uids)):
+                    stream.write(json.dumps({'node_id':node,'uniform_index':index,'time_s':float(stamp),
+                                             'source_sample_uids':list(uids)},sort_keys=True,separators=(',',':'))+'\n')
+        manifest={'schema':'biospur-phase3r-vqf-state-v1','implementation':'official-vqf-updateBatchFullState',
+                  'nodes':{node:{'samples':len(result.time_s),'runtime_s':result.runtime_s,
+                                 'quaternion_shape':list(result.quaternion6D_W_I.shape),
+                                 'bias_shape':list(result.gyro_bias_rad_s.shape),
+                                 'bias_sigma_shape':list(result.bias_sigma_rad_s.shape),
+                                 'rest_shape':list(result.rest_detected.shape),
+                                 'lineage_records':len(result.lineage_sample_uids)} for node,result in sorted(vqf.items())},
+                  'state_sha256':sha(state_path),'lineage_sha256':sha(lineage_path)}
+        write_json(out/'VQF_MANIFEST.json',manifest);return manifest
+
+    @staticmethod
+    def _qmt_inputs_for_action(action_id,source_actions,axes,targets,axis_confidence,heading_confidence):
+        excluded=sorted(j for j,source in source_actions.items() if source==action_id)
+        keep=lambda values:{j:v for j,v in values.items() if j not in excluded}
+        return excluded,keep(axes),keep(targets),keep(axis_confidence),keep(heading_confidence)
+
+    def process(self,action_id,calibration,axes,targets,axis_confidence,heading_confidence,animate=False):
         started=time.perf_counter();grouped,audit=self.load(action_id);vqf=run_official_vqf_all(grouped);b0=build_b0(vqf,self.mapping,calibration)
+        source_actions=getattr(self,'qmt_source_action',{})
+        excluded,active_axes,active_targets,active_axis_confidence,active_heading_confidence=self._qmt_inputs_for_action(
+            action_id,source_actions,axes,targets,axis_confidence,heading_confidence)
+        baseline_confidence={j:min(axis_confidence.get(j,0),heading_confidence.get(j,0)) for j in targets}
         offsets={j:np.full(len(b0.time_s),float(so3.log(targets[j])[2])) for j in targets}
-        b1=build_b1(b0,offsets,confidence,axes)
-        initial={node:so3.mul(b1.segment_quaternions[self.mapping.segment_for(node)][0],so3.inv(calibration.by_node[node].q_I_S)) for node in grouped}
-        initial_heading_targets={j.name:so3.between(b1.segment_quaternions[j.parent][0],b1.segment_quaternions[j.child][0])
-                                 for j in JOINTS if j.name in targets and confidence.get(j.name,0)>=.25}
-        front,front_report=run_frontends(grouped,initial_q_WI=initial);frames,est=run_coupled(front,self.mapping,calibration,hinge_axes=axes,heading_targets=initial_heading_targets,heading_confidence=confidence)
+        b1=build_b1(b0,offsets,baseline_confidence,axes)
+        initializer=b0 if excluded else b1
+        initial={node:so3.mul(initializer.segment_quaternions[self.mapping.segment_for(node)][0],so3.inv(calibration.by_node[node].q_I_S)) for node in grouped}
+        initial_heading_targets={j.name:so3.between(initializer.segment_quaternions[j.parent][0],initializer.segment_quaternions[j.child][0])
+                                 for j in JOINTS if j.name in active_targets and active_heading_confidence.get(j.name,0)>=.25}
+        front,front_report=run_frontends(grouped,initial_q_WI=initial)
+        estimator_started=time.perf_counter()
+        frames,est=run_coupled(front,self.mapping,calibration,hinge_axes=active_axes,hinge_confidence=active_axis_confidence,
+                               heading_targets=initial_heading_targets,heading_confidence=active_heading_confidence)
+        estimator_runtime=time.perf_counter()-estimator_started
         factor_count=sum(x['count'] for x in est.activation_report().values())+sum(sum(v['factor_counts'].values()) for v in front_report.values())
         self.broker.record_consumption(Path(self.rows[action_id]['raw']),purpose=f'Phase3-R estimator factor accounting {action_id}',numeric_measurements=0,arrays=0,factors=factor_count)
         out=self.evidence/'actions'/action_id;out.mkdir(parents=True,exist_ok=True);write_jsonl(out/'production_pose.jsonl',frames)
+        vqf_manifest=self._persist_vqf(out,vqf)
         segs=sorted(b0.segment_quaternions);points=sorted(b0.normalized_positions[0]);
         np.savez_compressed(out/'pose_trajectories.npz',b0_time=b0.time_s,b1_time=b1.time_s,p_time=np.array([f.time_s for f in frames]),
             **{f'b0_q_{s}':b0.segment_quaternions[s] for s in segs},**{f'b1_q_{s}':b1.segment_quaternions[s] for s in segs},
+            **{f'b0_joint_q_{j}':b0.joint_quaternions[j] for j in b0.joint_quaternions},
+            **{f'b1_joint_q_{j}':b1.joint_quaternions[j] for j in b1.joint_quaternions},
+            **{f'b0_tilt_sigma_{s}':b0.segment_tilt_sigma_rad[s] for s in segs},
+            **{f'b1_tilt_sigma_{s}':b1.segment_tilt_sigma_rad[s] for s in segs},
+            **{f'b0_joint_sigma_{j}':b0.joint_relative_sigma_rad[j] for j in b0.joint_relative_sigma_rad},
+            **{f'b1_joint_sigma_{j}':b1.joint_relative_sigma_rad[j] for j in b1.joint_relative_sigma_rad},
             **{f'p_q_{s}':np.stack([f.segment_quaternions_W_S[s] for f in frames]) for s in segs},
+            **{f'p_joint_q_{j.name}':np.stack([f.joint_quaternions_parent_child[j.name] for f in frames]) for j in JOINTS},
+            **{f'p_tilt_sigma_{s}':np.array([f.segment_tilt_sigma_rad[s] for f in frames]) for s in segs},
+            **{f'p_joint_sigma_{j.name}':np.array([f.joint_relative_sigma_rad[j.name] for f in frames]) for j in JOINTS},
             **{f'p_pos_{p}':np.stack([f.normalized_joint_positions[p] for f in frames]) for p in points})
+        write_json(out/'BASELINE_MANIFEST.json',{'schema':'biospur-phase3r-baseline-manifest-v1','B0':{'name':b0.name,'quality':b0.quality,'metadata':b0.metadata},
+                   'B1':{'name':b1.name,'quality':b1.quality,'metadata':b1.metadata},'root_world_position':'UNAVAILABLE',
+                   'global_yaw':'GAUGE_ACTIVE','scale':'NORMALIZED_MODEL_SCALE','external_truth':False})
         ptime=np.array([f.time_s for f in frames]);i0=np.searchsorted(b0.time_s,ptime).clip(0,len(b0.time_s)-1);i1=np.searchsorted(b1.time_s,ptime).clip(0,len(b1.time_s)-1)
         def diff(a,b):return np.array([so3.geodesic(a[s][i],b[s][i]) for s in segs for i in range(min(len(a[s]),len(b[s])))])
         formal_start=min(x.time_s for rows in grouped.values() for x in rows)+self.rows[action_id]['preparation_s']
@@ -172,6 +225,11 @@ class RealSessionRunner:
                                       b0.segment_quaternions[s][i0][1:])))) for s in segs}
         aligned_b1_steps={s:float(np.rad2deg(np.max(so3.geodesic(b1.segment_quaternions[s][i1][:-1],
                                       b1.segment_quaternions[s][i1][1:])))) for s in segs}
+        ages=np.array([max(0.0,f.time_s-f.cutoff_time_s) for f in frames])
+        latency={'definition':'algorithmic measurement age; excludes sensor-to-host transport','p50_s':float(np.percentile(ages,50)),
+                 'p95_s':float(np.percentile(ages,95)),'max_s':float(np.max(ages)),
+                 'estimator_runtime_s':estimator_runtime,'runtime_per_frame_s':estimator_runtime/max(len(frames),1),
+                 'throughput_frames_per_s':len(frames)/max(estimator_runtime,1e-12)}
         summary={"schema":"biospur-phase3r-action-result-v1","action_id":action_id,"classification":self.rows[action_id].get('classification','DEVELOPMENT'),
           "imu_samples":audit.imu_samples,"uwb_numeric":0,"vqf_official_runtime_s":sum(x.runtime_s for x in vqf.values()),"vqf_nodes":len(vqf),
           "b0_frames":len(b0.time_s),"b1_frames":len(b1.time_s),"production_frames":len(frames),"scheduled_coverage":1.0 if frames else 0,
@@ -188,6 +246,8 @@ class RealSessionRunner:
           "b1_to_production_median_deg":float(np.rad2deg(np.median([so3.geodesic(b1.segment_quaternions[s][i1[k]],frames[k].segment_quaternions_W_S[s]) for s in segs for k in range(len(frames))]))),
           "bone_length_max_variation":float(np.max(np.ptp(np.vstack([bone_lengths(f.normalized_joint_positions) for f in frames]),axis=0))),
           "factor_activation":est.activation_report(),"frontend":front_report,"cross_state_covariance_norm":est.cross_state_norm(),
+          "weak_mode_27d":est.weak_mode_report(),"qmt_self_derived_priors_excluded":excluded,
+          "production_initializer":"B0" if excluded else "B1","latency":latency,"vqf_manifest":vqf_manifest,
           "runtime_s":time.perf_counter()-started,"external_truth":False,"accuracy_claim":False}
         write_json(out/'SUMMARY.json',summary)
         if animate and frames:

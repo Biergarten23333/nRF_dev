@@ -66,8 +66,9 @@ class ErrorStateImuFrontend:
         self.initialized = True
 
     def _reset_for_boot(self, sample: ImuSample) -> None:
+        next_epoch = self.reset_epoch+1
         self.__init__(self.node_id, self.config)
-        self.reset_epoch += 1
+        self.reset_epoch = next_epoch
         self._initialize(sample)
 
     def update(self, sample: ImuSample) -> FrontendOutput:

@@ -24,9 +24,9 @@ def construct_information(estimator: CoupledPoseEstimator) -> tuple[np.ndarray,n
     for spec in JOINTS:
         H=estimator._joint_H(spec.parent,spec.child)
         data+=H.T@H/(estimator.config.temporal_relative_sigma_rad**2)
-        if spec.kind=="hinge" and estimator.config.enable_hinge_axis:
-            axis=estimator.hinge_axes.get(spec.name,np.array([1.,0,0.]));P=np.eye(3)-np.outer(axis,axis)
-            data+=(P@H).T@(P@H)/(estimator.config.hinge_orthogonal_sigma_rad**2)
+        if spec.kind=="hinge" and estimator.config.enable_hinge_axis and spec.name in estimator.hinge_axes:
+            axis=estimator.hinge_axes[spec.name];P=np.eye(3)-np.outer(axis,axis);c=estimator.hinge_confidence.get(spec.name,0)
+            data+=c*(P@H).T@(P@H)/(estimator.config.hinge_orthogonal_sigma_rad**2)
         if spec.name in estimator.heading_targets and estimator.config.enable_relative_heading:
             c=estimator.heading_confidence.get(spec.name,0)
             data+=c*H[2:3].T@H[2:3]/estimator.config.heading_sigma_rad**2

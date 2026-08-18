@@ -12,7 +12,7 @@ ANIMATE={'00_initial_still','02_t_pose','04_shoulder_left','05_shoulder_right','
 
 def main():
  p=argparse.ArgumentParser();p.add_argument('--dataset',type=Path,required=True);p.add_argument('--state',type=Path,required=True);p.add_argument('--evidence',type=Path,required=True);p.add_argument('--resume',action='store_true');a=p.parse_args()
- runner=RealSessionRunner(REPO,a.dataset,a.state,a.evidence);cal,axes,targets,confidence,calrep=runner.calibrate();summaries=[]
+ runner=RealSessionRunner(REPO,a.dataset,a.state,a.evidence);cal,axes,targets,axis_confidence,heading_confidence,calrep=runner.calibrate();summaries=[]
  order=[x['action_id'] for x in runner.selection['development_windows']]+[x['action_id'] for x in runner.selection['retrospective_diagnostics']]
  completed=set()
  if a.resume and (a.state/'PHASE3R_EXECUTION_CHECKPOINT.json').exists():
@@ -21,7 +21,7 @@ def main():
  for number,action in enumerate(order,1):
   summary_path=a.evidence/'actions'/action/'SUMMARY.json'
   if action in completed and summary_path.exists():summary=json.loads(summary_path.read_text())
-  else:summary=runner.process(action,cal,axes,targets,confidence,action in ANIMATE)
+  else:summary=runner.process(action,cal,axes,targets,axis_confidence,heading_confidence,action in ANIMATE)
   summaries.append(summary);print(f'P3R_REAL_PROGRESS {number}/{len(order)} {action}',flush=True)
   checkpoint=json.loads((a.state/'PHASE3R_EXECUTION_CHECKPOINT.json').read_text());checkpoint.update(status=f'P3R-REAL-{number:02d}-OF-{len(order):02d}',checkpoint_sequence=2+number,last_completed_action=action,uwb_numeric_decode=0)
   write_json(a.state/'PHASE3R_EXECUTION_CHECKPOINT.json',checkpoint)

@@ -46,3 +46,18 @@ VQF is executed as B0 and as an initializer, never as truth or a second factor.
 qmt reset, hinge-axis and heading functions are executed where applicable;
 their products remain confidence-gated conditional calibration or comparator
 outputs. Neither package supplies external pose truth.
+
+For each elbow/knee functional source action, the prior derived from that same
+raw window is excluded from Production and the action initializes from B0. This
+prevents qmt-derived products from double-counting their own source samples.
+Axis confidence weights only the dominant-axis residual; heading confidence
+weights only relative heading, and the two are recorded separately.
+
+The temporal articulation model carries an explicit 27-dimensional compliance
+state (nine joints by three tangent components) and nine 3x3 covariance blocks.
+Both state and covariance are serialized in each action summary. B0 and B1
+serialize segment and joint quaternions, normalized FK, uncertainty proxies,
+quality metadata and gauge declarations. Every VQF run separately stores the
+full quaternion, bias, bias uncertainty and rest arrays plus exact resampling
+sample-UID lineage. Reported latency is algorithmic measurement age and
+compute throughput; it is not mislabeled sensor-to-host latency.

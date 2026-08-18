@@ -53,7 +53,8 @@ class SyntheticDataset:
 
 def generate(seed: int=1, duration_s: float=22.0, rate_hz: float=100.0,
              noise: bool=True, irregular: bool=True, gaps: bool=True,
-             biases: bool=True, transients: bool=True, outliers: bool=True) -> SyntheticDataset:
+             biases: bool=True, transients: bool=True, outliers: bool=True,
+             boot_resets: bool=False) -> SyntheticDataset:
     rng=np.random.default_rng(seed); n=int(duration_s*rate_hz)+1
     if irregular:
         t=np.cumsum(np.r_[0.,1/rate_hz+rng.uniform(-.0015,.0015,n-1)])
@@ -102,9 +103,14 @@ def generate(seed: int=1, duration_s: float=22.0, rate_hz: float=100.0,
         if gaps: keep[(t>14.0)&(t<14.18)]=False
         rows=[]
         for i in np.flatnonzero(keep):
-            age=float(rng.uniform(0,.005));rows.append(ImuSample(node,float(ts[i]),int(round(t[i]*1e6)),i,gyro[i],accel[i],age,0,bool(t[i]<1.8)))
+            age=float(rng.uniform(0,.005));boot=int(boot_resets and t[i]>=duration_s*.55)
+            sequence=i if not boot else i-int(n*.55)
+            timer_us=int(round(t[i]*1e6)) if not boot else int(round((t[i]-duration_s*.55)*1e6))
+            rows.append(ImuSample(node,float(ts[i]),timer_us,sequence,gyro[i],accel[i],age,boot,bool(t[i]<1.8)))
         if noise and outliers and len(rows)>800: rows.insert(800,rows[799])
         samples[node]=rows
-    return SyntheticDataset(samples,t,truth,q_I_S,bg,ba,mapping,
-                            ("neutral","T_pose","bilateral_shoulders_elbows_hips_knees","squat",
-                             "trunk_flexion_rotation","walking_like","linear_acceleration","gap_duplicate_spike"))
+    events=["neutral","T_pose","bilateral_shoulders_elbows_hips_knees","squat",
+            "trunk_flexion_rotation","walking_like","linear_acceleration","gap_duplicate_spike",
+            "independent_segment_heading_drift_from_per_node_gyro_bias"]
+    if boot_resets:events.append("different_boot_reset")
+    return SyntheticDataset(samples,t,truth,q_I_S,bg,ba,mapping,tuple(events))

@@ -22,6 +22,7 @@ class EstimatorConfig:
     multi_rom_sigma: float = 0.20
     heading_sigma_rad: float = np.deg2rad(30.0)
     heading_huber_rad: float = np.deg2rad(20.0)
+    compliance_process_sigma_rad: float = np.deg2rad(1.0)
     iterations: int = 2
     # This is a whole-frame budget divided across the configured iterations;
     # it is not a fresh allowance for every Gauss-Newton iteration.
@@ -58,6 +59,7 @@ class CoupledPoseEstimator:
     def __init__(self, mapping: FrozenOperatorMapping, calibration: CalibrationBundle,
                  config: EstimatorConfig | None = None,
                  hinge_axes_child: Mapping[str, np.ndarray] | None = None,
+                 hinge_confidence: Mapping[str, float] | None = None,
                  heading_targets: Mapping[str, np.ndarray] | None = None,
                  heading_confidence: Mapping[str, float] | None = None):
         self.mapping = mapping
@@ -67,8 +69,11 @@ class CoupledPoseEstimator:
         self.q: dict[str, np.ndarray] | None = None
         self.P = np.eye(30)*np.deg2rad(12.0)**2
         self.previous_relative: dict[str, np.ndarray] = {}
-        self.previous_relative_delta: dict[str, np.ndarray] = {}
+        # Explicit 27-D joint-compliance/weak-mode state with covariance.
+        self.joint_compliance = {j.name:np.zeros(3) for j in JOINTS}
+        self.joint_compliance_covariance = {j.name:np.eye(3)*self.config.temporal_relative_sigma_rad**2 for j in JOINTS}
         self.hinge_axes = {k: np.asarray(v, float)/np.linalg.norm(v) for k,v in (hinge_axes_child or {}).items()}
+        self.hinge_confidence = dict(hinge_confidence or {})
         self.heading_targets = {k: so3.normalize(v) for k,v in (heading_targets or {}).items()}
         self.heading_confidence = dict(heading_confidence or {})
         self.activations: dict[str, FactorActivation] = {
@@ -114,22 +119,23 @@ class CoupledPoseEstimator:
             rel = self._relative(q, spec.parent, spec.child)
             Hrel = self._joint_H(spec.parent, spec.child, q)
             previous = self.previous_relative.get(spec.name, rel)
-            previous_delta = self.previous_relative_delta.get(spec.name, np.zeros(3))
+            compliance = self.joint_compliance[spec.name]
             delta_rel = so3.log(so3.between(previous, rel))
             Hdelta = so3.right_jacobian_inverse(delta_rel)@Hrel
             if self.config.enable_joint_closure:
-                r = delta_rel-previous_delta
-                W = np.eye(3)/self.config.temporal_relative_sigma_rad**2
+                r = delta_rel-compliance
+                W = np.linalg.inv(self.joint_compliance_covariance[spec.name]+np.eye(3)*self.config.temporal_relative_sigma_rad**2)
                 factors.append(_LinearFactor("parent_child_articulation", r, Hdelta, W))
-            if spec.kind == "hinge" and self.config.enable_hinge_axis:
-                axis = self.hinge_axes.get(spec.name, np.array([1., 0., 0.]))
+            if spec.kind == "hinge" and self.config.enable_hinge_axis and spec.name in self.hinge_axes:
+                axis = self.hinge_axes[spec.name]
                 Pperp = np.eye(3)-np.outer(axis, axis)
                 r = Pperp@delta_rel
                 H = Pperp@Hdelta
-                confidence=float(np.clip(self.heading_confidence.get(spec.name,1.0),0,1))
+                confidence=float(np.clip(self.hinge_confidence.get(spec.name,0.0),0,1))
                 robust=min(1.0,self.config.hinge_huber_rad/max(float(np.linalg.norm(r)),1e-12))
-                factors.append(_LinearFactor("elbow_knee_dominant_axis", r, H,
-                                             np.eye(3)*(confidence*robust/self.config.hinge_orthogonal_sigma_rad**2)))
+                if confidence > 0:
+                    factors.append(_LinearFactor("elbow_knee_dominant_axis", r, H,
+                                                 np.eye(3)*(confidence*robust/self.config.hinge_orthogonal_sigma_rad**2)))
             if spec.kind == "multi" and self.config.enable_rom:
                 rv = so3.log(rel)
                 scaled = rv/np.maximum(spec.rom_rad, 1e-6)
@@ -226,7 +232,11 @@ class CoupledPoseEstimator:
             C = H@self.P@H.T
             joint_sigma[spec.name] = float(np.sqrt(max(np.linalg.eigvalsh(C).max(), 0)))
             previous = self.previous_relative.get(spec.name, rel)
-            self.previous_relative_delta[spec.name] = so3.log(so3.between(previous, rel))
+            observed=so3.log(so3.between(previous,rel));P0=self.joint_compliance_covariance[spec.name]
+            Q=np.eye(3)*self.config.compliance_process_sigma_rad**2;R=np.eye(3)*self.config.temporal_relative_sigma_rad**2
+            Pp=P0+Q;K=Pp@np.linalg.inv(Pp+R)
+            self.joint_compliance[spec.name]+=K@(observed-self.joint_compliance[spec.name])
+            self.joint_compliance_covariance[spec.name]=(np.eye(3)-K)@Pp
             self.previous_relative[spec.name] = rel.copy()
 
         tilt_sigma = {}
@@ -258,3 +268,10 @@ class CoupledPoseEstimator:
 
     def activation_report(self) -> dict:
         return {k: vars(v).copy() for k,v in self.activations.items()}
+
+    def weak_mode_report(self) -> dict:
+        return {"dimension":27,"joint_order":[j.name for j in JOINTS],
+                "joints":{name:{"state":self.joint_compliance[name].tolist(),
+                                 "covariance":self.joint_compliance_covariance[name].tolist(),
+                                 "covariance_trace":float(np.trace(self.joint_compliance_covariance[name]))}
+                          for name in self.joint_compliance}}

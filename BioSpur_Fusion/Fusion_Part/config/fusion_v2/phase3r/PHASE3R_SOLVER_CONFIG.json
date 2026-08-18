@@ -2,9 +2,10 @@
   "schema": "biospur-phase3r-solver-config-v1",
   "rotation_convention": "R_AB maps coordinates from B into A",
   "segment_formula": "R_WS = R_WI * R_IS; R_IS = transpose(R_SI)",
-  "state": {"segment_orientation_tangent": 30, "gyro_bias": 30, "accelerometer_bias": 30, "joint_weak_modes": 27},
+  "state": {"segment_orientation_tangent": 30, "gyro_bias": 30, "accelerometer_bias": 30, "joint_compliance_weak_mode": {"dimension": 27, "layout": "9 joints x 3 tangent components", "covariance": "9 explicit 3x3 blocks", "process_sigma_deg": 1.0}},
   "frontend": {"kind": "variable-dt 9-state ESKF per IMU", "accelerometer_likelihood_per_uid": 1, "gap_reset_s": 0.15},
-  "joint_solver": {"kind": "causal coupled 30-dimensional manifold normal equation", "rate_hz": 50, "iterations": 2, "measurement_huber_deg": 15, "hinge_sigma_deg": 15, "hinge_huber_deg": 15, "heading_sigma_deg": 30, "heading_huber_deg": 20, "whole_frame_correction_budget_deg": 12, "line_search_min_scale": 0.015625, "posterior_covariance_scale": 0.15, "covariance_scale_source": "independent synthetic trials 20-24; validate on disjoint trials", "maximum_input_age_s": 0.03},
+  "joint_solver": {"kind": "causal coupled 30-dimensional manifold normal equation plus explicit 27-dimensional joint-compliance state", "rate_hz": 50, "iterations": 2, "measurement_huber_deg": 15, "hinge_sigma_deg": 15, "hinge_huber_deg": 15, "heading_sigma_deg": 30, "heading_huber_deg": 20, "whole_frame_correction_budget_deg": 12, "line_search_min_scale": 0.015625, "posterior_covariance_scale": 0.15, "covariance_scale_source": "independent synthetic trials 20-24; validate on disjoint trials", "maximum_input_age_s": 0.03},
+  "qmt_reuse_policy": "A joint axis or heading product is excluded from Production for the same functional action that generated it; that action initializes from B0.",
   "factors": ["gyro propagation", "gyro bias rest update", "one robust accelerometer likelihood", "accelerometer bias update", "sensor-to-segment measurement", "parent-child articulation", "elbow/knee soft dominant axis", "multi-DOF soft ROM", "confidence-gated relative heading", "calibration covariance"],
   "forbidden": ["UWB", "contact", "hard ZUPT", "per-node free XYZ", "bone stretch", "articulated_v2 production import"]
 }

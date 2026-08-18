@@ -23,7 +23,7 @@ def mapping(d):return FrozenOperatorMapping.from_payload({'mapping':d.mapping,'b
 def run(d,cal=None,fc=None,cfg=None,priors=False):
  m=mapping(d);front,fr=run_frontends(d.samples_by_node,fc,initial_q_WI={n:so3.inv(q) for n,q in d.q_I_S.items()})
  names=('elbow_left','elbow_right','knee_left','knee_right');axes={k:np.array([1.,0,0]) for k in names} if priors else None;targets={k:np.array([1.,0,0,0]) for k in names} if priors else None;conf={k:.8 for k in names} if priors else None
- frames,e=run_coupled(front,m,cal or calibration_from_known(m,d.q_I_S),cfg,axes,targets,conf);return m,front,fr,frames,e
+ frames,e=run_coupled(front,m,cal or calibration_from_known(m,d.q_I_S),cfg,axes,conf,targets,conf);return m,front,fr,frames,e
 def metrics(frames,d):
  x=synthetic_errors(frames,d.truth_time_s,d.truth_q_W_S);return {'orientation_max_deg':float(np.rad2deg(x['orientation_rad'].max())),'relative_joint_p95_deg':float(np.rad2deg(np.percentile(x['relative_joint_rad'],95))),'static_tilt_rms_deg':float(np.rad2deg(np.sqrt(np.mean(x['static_tilt_rad']**2)))),'bone_length_max_variation':x['bone_length_max_variation']}
 
@@ -39,9 +39,9 @@ def main():
  data,prior=construct_information(e);data_svd=svd_scan(data);prior_svd=svd_scan(prior);validate_svd_report(data,data_svd);validate_svd_report(prior,prior_svd)
  base=frames[-1];ablations={}
  for toggle in ('enable_gyro_bias_estimation','enable_accel_bias_estimation','enable_gravity_update'):
-  f2,_=run_frontends(d.samples_by_node,dataclasses.replace(FrontendConfig(),**{toggle:False}),initial_q_WI={n:so3.inv(q) for n,q in d.q_I_S.items()});names=('elbow_left','elbow_right','knee_left','knee_right');x2,_=run_coupled(f2,m,calibration_from_known(m,d.q_I_S),hinge_axes={k:np.array([1.,0,0]) for k in names},heading_targets={k:np.array([1.,0,0,0]) for k in names},heading_confidence={k:.8 for k in names});ablations[toggle]=max(float(so3.geodesic(base.segment_quaternions_W_S[s],x2[-1].segment_quaternions_W_S[s])) for s in base.segment_quaternions_W_S)
+  f2,_=run_frontends(d.samples_by_node,dataclasses.replace(FrontendConfig(),**{toggle:False}),initial_q_WI={n:so3.inv(q) for n,q in d.q_I_S.items()});names=('elbow_left','elbow_right','knee_left','knee_right');x2,_=run_coupled(f2,m,calibration_from_known(m,d.q_I_S),hinge_axes={k:np.array([1.,0,0]) for k in names},hinge_confidence={k:.8 for k in names},heading_targets={k:np.array([1.,0,0,0]) for k in names},heading_confidence={k:.8 for k in names});ablations[toggle]=max(float(so3.geodesic(base.segment_quaternions_W_S[s],x2[-1].segment_quaternions_W_S[s])) for s in base.segment_quaternions_W_S)
  for toggle in ('enable_sensor_to_segment','enable_joint_closure','enable_hinge_axis','enable_rom','enable_relative_heading','enable_calibration_covariance'):
-  names=('elbow_left','elbow_right','knee_left','knee_right');x2,_=run_coupled(front,m,calibration_from_known(m,d.q_I_S),dataclasses.replace(EstimatorConfig(),**{toggle:False}),{k:np.array([1.,0,0]) for k in names},{k:np.array([1.,0,0,0]) for k in names},{k:.8 for k in names});ablations[toggle]=max(float(so3.geodesic(base.segment_quaternions_W_S[s],x2[-1].segment_quaternions_W_S[s])) for s in base.segment_quaternions_W_S)
+  names=('elbow_left','elbow_right','knee_left','knee_right');x2,_=run_coupled(front,m,calibration_from_known(m,d.q_I_S),dataclasses.replace(EstimatorConfig(),**{toggle:False}),{k:np.array([1.,0,0]) for k in names},{k:.8 for k in names},{k:np.array([1.,0,0,0]) for k in names},{k:.8 for k in names});ablations[toggle]=max(float(so3.geodesic(base.segment_quaternions_W_S[s],x2[-1].segment_quaternions_W_S[s])) for s in base.segment_quaternions_W_S)
  coverage=[]
  for seed in range(30,40):
   dt=generate(seed=seed,duration_s=5.5,noise=True,irregular=True,gaps=False,biases=True,transients=False,outliers=False);mt=mapping(dt);rng=np.random.default_rng(1000+seed)

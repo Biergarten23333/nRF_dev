@@ -17,7 +17,7 @@ def prepared(data):
 
 
 def test_joint_factors_create_cross_state_and_nonzero_updates(synthetic_short):
-    m,f,c,t,h,a=prepared(synthetic_short);frames,e=run_coupled(f,m,c,hinge_axes=a,heading_targets=t,heading_confidence=h)
+    m,f,c,t,h,a=prepared(synthetic_short);frames,e=run_coupled(f,m,c,hinge_axes=a,hinge_confidence=h,heading_targets=t,heading_confidence=h)
     assert frames and e.cross_state_norm()>1e-8
     for name in ('sensor_to_segment_measurement','parent_child_articulation','elbow_knee_dominant_axis','multi_dof_soft_rom','relative_heading_correction','calibration_covariance'):
         row=e.activation_report()[name];assert row['count']>0 and row['jacobian_nonzero_blocks']>0 and row['information_trace']>0
@@ -25,28 +25,28 @@ def test_joint_factors_create_cross_state_and_nonzero_updates(synthetic_short):
 
 
 def test_each_joint_ablation_changes_pose(synthetic_short):
-    m,f,c,t,h,a=prepared(synthetic_short);base,_=run_coupled(f,m,c,hinge_axes=a,heading_targets=t,heading_confidence=h)
+    m,f,c,t,h,a=prepared(synthetic_short);base,_=run_coupled(f,m,c,hinge_axes=a,hinge_confidence=h,heading_targets=t,heading_confidence=h)
     toggles=('enable_sensor_to_segment','enable_joint_closure','enable_hinge_axis','enable_rom','enable_relative_heading','enable_calibration_covariance')
     for toggle in toggles:
         cfg=dataclasses.replace(EstimatorConfig(),**{toggle:False})
-        changed,_=run_coupled(f,m,c,cfg,a,t,h)
+        changed,_=run_coupled(f,m,c,cfg,a,h,t,h)
         diff=max(so3.geodesic(base[-1].segment_quaternions_W_S[s],changed[-1].segment_quaternions_W_S[s]) for s in base[-1].segment_quaternions_W_S)
         assert diff>1e-8,toggle
 
 
 def test_information_is_computed_and_factor_removal_changes_spectrum(synthetic_short):
-    m,f,c,t,h,a=prepared(synthetic_short);_,full=run_coupled(f,m,c,hinge_axes=a,heading_targets=t,heading_confidence=h)
+    m,f,c,t,h,a=prepared(synthetic_short);_,full=run_coupled(f,m,c,hinge_axes=a,hinge_confidence=h,heading_targets=t,heading_confidence=h)
     data,prior=construct_information(full);report=svd_scan(data);preport=svd_scan(prior)
     assert report['dimension']==30 and report['whitened_symmetry_error']<1e-10
     assert report['tolerance_scan']['0.0001']['nullity']>=1
     assert preport['tolerance_scan']['0.0001']['rank']>=report['tolerance_scan']['0.0001']['rank']
-    _,ablated=run_coupled(f,m,c,dataclasses.replace(EstimatorConfig(),enable_hinge_axis=False),a,t,h)
+    _,ablated=run_coupled(f,m,c,dataclasses.replace(EstimatorConfig(),enable_hinge_axis=False),a,h,t,h)
     d2,_=construct_information(ablated)
     assert not np.allclose(np.linalg.svd(data,compute_uv=False),np.linalg.svd(d2,compute_uv=False))
 
 
 def test_global_yaw_does_not_invalidate_tilt(synthetic_short):
-    m,f,c,t,h,a=prepared(synthetic_short);frames,_=run_coupled(f,m,c,hinge_axes=a,heading_targets=t,heading_confidence=h)
+    m,f,c,t,h,a=prepared(synthetic_short);frames,_=run_coupled(f,m,c,hinge_axes=a,hinge_confidence=h,heading_targets=t,heading_confidence=h)
     assert 'GLOBAL_YAW_GAUGE_ACTIVE' in frames[-1].gauges
     assert any(v=='USABLE_BODY_RELATIVE_TILT' for v in frames[-1].segment_quality.values())
 
