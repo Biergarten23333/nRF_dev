@@ -1,0 +1,26 @@
+{
+  "schema": "biospur-phase3r21-action-semantic-gates-v1",
+  "frozen_before_real_numeric_decode": true,
+  "signed_axis": "proximal_to_distal",
+  "angle_formula": "acos(clamp(dot(axis_W,target_W),-1,1))",
+  "actions": {
+    "03_pelvis_hula_circle": {"targets": ["pelvis", "torso"], "kind": "multi_direction_relative"},
+    "04_shoulder_left": {"targets": ["upper_arm_left", "forearm_left"], "kind": "multi_dof_chain"},
+    "05_shoulder_right": {"targets": ["upper_arm_right", "forearm_right"], "kind": "multi_dof_chain"},
+    "06_elbow_left": {"targets": ["forearm_left"], "relative_joint": "elbow_left", "kind": "hinge"},
+    "07_elbow_right": {"targets": ["forearm_right"], "relative_joint": "elbow_right", "kind": "hinge"},
+    "08_hip_left": {"targets": ["thigh_left"], "relative_joint": "hip_left", "kind": "multi_dof"},
+    "09_hip_right": {"targets": ["thigh_right"], "relative_joint": "hip_right", "kind": "multi_dof"},
+    "10_knee_left_seated": {"targets": ["shank_left"], "relative_joint": "knee_left", "kind": "hinge"},
+    "11_knee_right_seated": {"targets": ["shank_right"], "relative_joint": "knee_right", "kind": "hinge"},
+    "12_heel_raise_left": {"targets": ["shank_left"], "kind": "foot_unobservable_shank_response"},
+    "13_heel_raise_right": {"targets": ["shank_right"], "kind": "foot_unobservable_shank_response"},
+    "14_trunk_flex_extend": {"targets": ["torso", "pelvis"], "relative_joint": "lumbar", "kind": "multi_dof"},
+    "15_trunk_axial_rotation": {"targets": ["torso", "pelvis"], "relative_joint": "lumbar", "kind": "multi_dof"},
+    "16_squat": {"targets": ["thigh_left", "shank_left", "thigh_right", "shank_right"], "kind": "bilateral_chain"},
+    "18_heel_to_butt_left": {"targets": ["shank_left"], "relative_joint": "knee_left", "kind": "hinge"},
+    "19_heel_to_butt_right": {"targets": ["shank_right"], "relative_joint": "knee_right", "kind": "hinge"}
+  },
+  "evaluation_only": true,
+  "estimator_label_inputs": 0
+}

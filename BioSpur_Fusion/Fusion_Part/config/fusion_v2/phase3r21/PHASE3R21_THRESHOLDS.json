@@ -1,0 +1,32 @@
+{
+  "schema": "biospur-phase3r21-declarative-threshold-contract-v1",
+  "frozen_before_real_numeric_decode": true,
+  "master_seed": "phase3r21-forward-repair-f002eb46",
+  "thresholds": {
+    "scheduled_coverage_min": {"value": 1.0, "unit": "fraction", "gate_class": "mandatory_lower_bound", "source": "operator Phase 3-R2.1 section 11", "rationale": "Every 50 Hz tick remains in the denominator"},
+    "finite_state_covariance_min": {"value": 0.99, "unit": "fraction", "gate_class": "mandatory_lower_bound", "source": "operator Phase 3-R2.1 section 11", "rationale": "Reject non-finite trajectories"},
+    "window_evaluable_min": {"value": 0.95, "unit": "fraction", "gate_class": "mandatory_lower_bound", "source": "operator Phase 3-R2.1 section 11", "rationale": "Ten-segment validation coverage"},
+    "unavailable_run_max": {"value": 0.5, "unit": "s", "gate_class": "mandatory_upper_bound", "source": "operator Phase 3-R2.1 section 11", "rationale": "Bound continuous unavailable output"},
+    "segment_tilt_cone_p95_max": {"value": 25.0, "unit": "deg", "gate_class": "mandatory_upper_bound", "source": "operator Phase 3-R2.1 section 11", "rationale": "Conditional segment tilt envelope"},
+    "joint_cone_p95_max": {"value": 30.0, "unit": "deg", "gate_class": "mandatory_upper_bound", "source": "operator Phase 3-R2.1 section 11", "rationale": "Conditional relative-joint envelope"},
+    "initial_arm_down_median_max": {"value": 15.0, "unit": "deg", "gate_class": "mandatory_upper_bound", "source": "operator Phase 3-R2.1 section 12", "rationale": "Signed proximal-to-distal arm direction"},
+    "initial_arm_down_p95_max": {"value": 25.0, "unit": "deg", "gate_class": "mandatory_upper_bound", "source": "operator Phase 3-R2.1 section 12", "rationale": "Signed proximal-to-distal arm direction tail"},
+    "initial_elbow_median_max": {"value": 20.0, "unit": "deg", "gate_class": "mandatory_upper_bound", "source": "operator Phase 3-R2.1 section 12", "rationale": "Natural elbow flexion"},
+    "initial_elbow_p95_max": {"value": 30.0, "unit": "deg", "gate_class": "mandatory_upper_bound", "source": "operator Phase 3-R2.1 section 12", "rationale": "Natural elbow flexion tail"},
+    "tpose_horizontal_median_max": {"value": 15.0, "unit": "deg", "gate_class": "mandatory_upper_bound", "source": "operator Phase 3-R2.1 section 12", "rationale": "T-pose horizontal signed direction"},
+    "final_forearm_down_median_max": {"value": 20.0, "unit": "deg", "gate_class": "mandatory_upper_bound", "source": "operator Phase 3-R2.1 section 12", "rationale": "Repeat-neutral forearm direction"},
+    "final_forearm_down_p95_max": {"value": 30.0, "unit": "deg", "gate_class": "mandatory_upper_bound", "source": "operator Phase 3-R2.1 section 12", "rationale": "Repeat-neutral forearm tail"},
+    "static_p_over_b0_max": {"value": 1.25, "unit": "ratio", "gate_class": "mandatory_upper_bound", "source": "operator Phase 3-R2.1 section 12", "rationale": "Prevent coupled-solver motion injection"},
+    "required_rest_duration_min": {"value": 2.0, "unit": "s", "gate_class": "mandatory_lower_bound", "source": "operator Phase 3-R2.1 section 12", "rationale": "Non-vacuous initial/final rest evidence"},
+    "recovery_rest_duration_min": {"value": 0.5, "unit": "s", "gate_class": "mandatory_lower_bound", "source": "engineering preregistration before decode", "rationale": "Protocol recovery is only five seconds; retain a finite non-vacuous interval"},
+    "rest_gyro_p95_max": {"value": 0.12, "unit": "rad/s", "gate_class": "mandatory_upper_bound", "source": "hardware 200 Hz IMU engineering preregistration", "rationale": "Raw rest detector gross-motion rejection"},
+    "rest_accel_norm_error_p95_max": {"value": 0.8, "unit": "m/s^2", "gate_class": "mandatory_upper_bound", "source": "hardware 16 g IMU engineering preregistration", "rationale": "Raw rest detector gravity-consistency rejection"},
+    "action_response_min": {"value": 0.08, "unit": "rad/s RMS", "gate_class": "mandatory_lower_bound", "source": "FIT-only engineering preregistration", "rationale": "Reject constant or wrong-target trajectories"},
+    "action_jump_max": {"value": 35.0, "unit": "deg_per_20ms", "gate_class": "mandatory_upper_bound", "source": "50 Hz output engineering preregistration", "rationale": "Reject frame swaps and grotesque discontinuities"}
+  },
+  "discretionary_sensitivity": {
+    "upper_bounds": [0.8, 1.0, 1.2],
+    "lower_bounds": [1.2, 1.0, 0.8],
+    "non_scalable": ["identity", "exact_zero", "count", "bijection", "permission", "safety"]
+  }
+}
