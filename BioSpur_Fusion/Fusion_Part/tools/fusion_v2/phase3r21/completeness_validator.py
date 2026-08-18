@@ -19,6 +19,7 @@ def load(path): return json.loads(Path(path).read_text())
 def evaluate(artifacts: Path, source: Path) -> dict:
     broker=load(artifacts/"BROKER_REPORT.json");fit=load(artifacts/"FIT_REPORT.json");bundle=load(artifacts/"SESSION_CALIBRATION_BUNDLE.json")
     replay=load(artifacts/"replay/CONTINUOUS_REPLAY_REPORT.json");semantic=load(artifacts/"replay/REAL_SEMANTIC_GATES.json");wobble=load(artifacts/"replay/REAL_STATIC_WOBBLE.json");h=load(artifacts/"H_CACHE_REPORT.json")
+    coverage=load(artifacts/"postprocess/COVERAGE_COVARIANCE.json");timing=load(artifacts/"postprocess/TIME_SENSITIVITY.json");animations=load(artifacts/"postprocess/ANIMATION_MANIFEST.json");result=load(artifacts/"postprocess/RESULT.json")
     tree=ast.parse(source.read_text());imports={n.module for n in ast.walk(tree) if isinstance(n,ast.ImportFrom)}
     checks={
       "production_imports_real_decoder":any(x and "imu_pose_r21.real_data" in x for x in imports),
@@ -33,6 +34,10 @@ def evaluate(artifacts: Path, source: Path) -> dict:
       "h_all_three":set(h["actions"])=={"H00_walk","H01_boxing","H02_golf"} and h["rows"]>0,
       "real_semantics_ran":bool(semantic["real_capture"]) and not semantic["synthetic"],
       "recovery_rest_ran":wobble["eligible"]>0,
+      "coverage_recomputed":coverage["scheduled"]>0 and coverage["emitted"]==coverage["scheduled"],
+      "time_sensitivity_all_scenarios":timing["scenarios"]["nominal"] and timing["scenarios"]["correlated_common_mode"] and timing["scenarios"]["full_clock_plus_independent_age_interval"],
+      "formal_and_full_visualizations":animations["formal_only"]>=22 and animations["full_context"]>=22,
+      "declarative_verdict_present":result["verdict"].startswith(("PASS_","FAIL_","PHASE3R2_1_")),
       "uwb_semantic_zero":all(broker["uwb"][k]==0 for k in broker["uwb"] if k!="co_located_transport_record_exposure"),
       "historical_colocated_exposure_preserved":broker["uwb"]["co_located_transport_record_exposure"]>0,
     }
