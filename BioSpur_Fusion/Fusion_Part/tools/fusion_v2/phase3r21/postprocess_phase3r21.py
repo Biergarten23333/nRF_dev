@@ -84,7 +84,9 @@ def _masks(grid, cache_root, h_cache):
         for a in set(action.tolist()):
             result.setdefault(a,{})
             for ph in set(phase[action==a].tolist()):
-                selected=time[(action==a)&(phase==ph)];result[a][ph]=(grid>=selected.min())&(grid<=selected.max())
+                selected=time[(action==a)&(phase==ph)]
+                interval=(grid>=selected.min())&(grid<=selected.max())
+                result[a][ph]=result[a].get(ph,np.zeros(len(grid),dtype=bool))|interval
     return result
 
 

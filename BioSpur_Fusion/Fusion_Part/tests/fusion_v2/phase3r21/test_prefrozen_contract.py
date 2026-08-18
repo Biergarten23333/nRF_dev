@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from biospur_fusion.imu_pose_r21.real_data import CacheRow, EXPECTED_NODES
+from BioSpur_Fusion.Fusion_Part.tools.fusion_v2.phase3r21.postprocess_phase3r21 import _masks
 
 
 ROOT = Path(__file__).resolve().parents[5]
@@ -41,3 +42,14 @@ def test_signed_axis_does_not_accept_antipodal_mutation():
     direction=np.array([0.,0.,-1.]); target=np.array([0.,0.,-1.])
     angle=lambda x:np.rad2deg(np.arccos(np.clip(np.dot(x,target),-1,1)))
     assert angle(direction)==0 and angle(-direction)==180
+
+
+def test_phase_masks_union_across_fit_validation_and_guard_caches(tmp_path):
+    cache=tmp_path/"cache";h=tmp_path/"h"
+    rows={"fit":("a","FORMAL_ACTION",2_500_000),"propagation":("a","PREPARATION",2_500_000),
+          "validation":("a","FORMAL_ACTION",22_500_000),"guard":("a","FORMAL_ACTION",42_500_000)}
+    for name,(action,phase,time_ns) in rows.items():
+        path=cache/name;path.mkdir(parents=True);np.save(path/"action.npy",np.array([action]));np.save(path/"phase.npy",np.array([phase]));np.save(path/"common_time_ns.npy",np.array([time_ns]))
+    h.mkdir();np.save(h/"action.npy",np.array(["H00_walk"]));np.save(h/"phase.npy",np.array(["FORMAL_ACTION"]));np.save(h/"common_time_ns.npy",np.array([2_500_000]))
+    result=_masks(np.array([0,20_000_000,40_000_000]),cache,h)
+    assert result["a"]["FORMAL_ACTION"].tolist()==[True,True,True]
