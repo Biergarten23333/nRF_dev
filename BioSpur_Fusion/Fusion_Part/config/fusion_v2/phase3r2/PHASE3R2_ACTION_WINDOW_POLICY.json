@@ -1,0 +1,13 @@
+{
+  "schema": "biospur-phase3r2-action-window-policy-v1",
+  "phase_authority": "promoted ACTION_EVENTS marker ledger plus manifest byte range",
+  "phases": ["PREPARATION", "FORMAL_ACTION", "RECOVERY_OR_FINAL_REST"],
+  "preparation_is_rest": false,
+  "semantic_label_runtime_input": false,
+  "future_boundary_runtime_input": false,
+  "formal_output_rate_hz": 50,
+  "expected_tick_rounding": "integer common-ns half-open [formal_start,formal_stop)",
+  "missing_tick_policy": ["FILTERED", "PREDICTED_DEGRADED", "REINITIALIZING", "UNAVAILABLE"],
+  "rest_semantics": "raw detector frozen from initial-still FIT; recovery is eligible but never assumed rest",
+  "artifacts": ["FORMAL_ONLY", "FULL_CONTEXT_WITH_PHASE_SHADING"]
+}

@@ -1,0 +1,37 @@
+{
+  "schema": "biospur-phase3r2-solver-config-v1",
+  "frame_algebra": "R_AB maps B coordinates into A; q_WS=q_WI*q_IS",
+  "quaternion": "scalar_first_active",
+  "error_state": "right_local",
+  "output_rate_hz": 50,
+  "node_frontend": {
+    "state_dimension": 9,
+    "gyro_noise_rad_s_sqrt_hz": 0.008,
+    "gyro_bias_walk": 0.0003,
+    "accel_bias_walk": 0.003,
+    "gravity_m_s2": 9.80665,
+    "integration_substep_max_s": 0.02,
+    "degraded_gap_s": 0.25,
+    "unavailable_gap_s": 2.0,
+    "sample_age_support_us": [0, 5000],
+    "sample_age_model": "BOUNDED_NUISANCE"
+  },
+  "articulated_solver": {
+    "orientation_state_dimension": 30,
+    "measurement_floor_deg": 0.7,
+    "measurement_huber_deg": 15.0,
+    "temporal_relative_sigma_deg": 5.0,
+    "neutral_reference_sigma_deg": 18.0,
+    "hinge_orthogonal_sigma_deg": 15.0,
+    "soft_rom_compliance": 0.2,
+    "iterations": 2,
+    "maximum_frame_step_deg": 12.0,
+    "linear_solver": "CHOLESKY_NO_EXPLICIT_DENSE_INVERSE",
+    "conditional_curvature_covariance_scale": 1.0,
+    "posthoc_rescale": "FORBIDDEN"
+  },
+  "gauge": ["L0_YAW_CONVENTION_FIXED", "ROOT_WORLD_POSITION_UNAVAILABLE"],
+  "scale": "MODEL_INFERRED_SCALE_CONDITIONAL",
+  "phase4": false,
+  "uwb_factor_count": 0
+}

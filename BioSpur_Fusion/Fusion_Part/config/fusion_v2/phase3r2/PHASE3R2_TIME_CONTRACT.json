@@ -1,0 +1,18 @@
+{
+  "schema": "biospur-phase3r2-time-contract-v1",
+  "native_time": "per-node per-boot widened TIMER2 microseconds",
+  "common_time_required_for_strict_pass": true,
+  "common_time_source_order": ["exact current-capture frozen affine sidecar", "current-capture non-host timing/sync/header-only evidence"],
+  "host_arrival_precision_clock_forbidden": true,
+  "master_arrival_precision_clock_forbidden": true,
+  "action_correlation_clock_forbidden": true,
+  "old_capture_clock_reuse_forbidden": true,
+  "sample_time": "t_sample = t_register_common - tau_age",
+  "sample_age_support_us": [0, 5000],
+  "sample_age_distribution": "UNKNOWN_BOUNDED_NUISANCE",
+  "sample_age_gaussian_white_noise_forbidden": true,
+  "host_arrival_mutation_ms": [-100, 100],
+  "sample_age_sensitivity_ms": [0.5, 1, 2, 5],
+  "strict_equivalence_gate_ns": 0,
+  "missing_current_session_common_clock_verdict": "STAGE_COMPLETE_NEEDS_CURRENT_SESSION_TIME_EVIDENCE"
+}

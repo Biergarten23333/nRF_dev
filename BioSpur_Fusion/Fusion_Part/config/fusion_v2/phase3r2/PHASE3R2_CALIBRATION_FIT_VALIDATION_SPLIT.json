@@ -1,0 +1,17 @@
+{
+  "schema": "biospur-phase3r2-fit-validation-split-policy-v1",
+  "frozen_before_numeric_fit": true,
+  "master_seed": "biospur-phase3r2-20260818-v1",
+  "fit_capable_actions": 18,
+  "static_actions": {
+    "00_initial_still": {"eligible_fraction": [0.55, 0.10, 0.35], "ordered_classes": ["FIT", "GUARD", "VALIDATION"]},
+    "02_t_pose": {"eligible_fraction": [0.55, 0.10, 0.35], "ordered_classes": ["FIT", "GUARD", "VALIDATION"]}
+  },
+  "dynamic_cycle_rule": "stable cycle id SHA256(master_seed|action_id|cycle_id) low bit: zero FIT, one VALIDATION; incomplete boundary cycles EXCLUDED; two-sample guard around extrema",
+  "final_still_policy": "17_final_still is VALIDATION_ONLY for static calibration; causal bias update separately shadowed",
+  "validation_classification": "HISTORICALLY_EXPOSED_WITHIN_SESSION_VALIDATION",
+  "validation_numeric_visibility_before_candidate": 0,
+  "h_numeric_visibility_before_candidate_and_pre_h_gates": 0,
+  "bootstrap_unit": "complete cycle or contiguous static block",
+  "random_frame_split_forbidden": true
+}

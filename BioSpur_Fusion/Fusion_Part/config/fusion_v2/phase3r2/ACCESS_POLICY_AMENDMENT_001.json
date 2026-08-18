@@ -1,0 +1,68 @@
+{
+  "schema": "biospur-phase3r2-access-policy-amendment-v1",
+  "amendment_id": "ACCESS_POLICY_AMENDMENT_001",
+  "run_id": "phase3r2_20260818T084835Z",
+  "authority": "OPERATOR_AUTHORIZATION",
+  "supersedes_conflicting_interpretation": "UWB direct read=0 means semantic numeric materialization, not physical byte transit or co-located lexical exposure",
+  "incident_reclassification": {
+    "from": "HARD_STOP_FORBIDDEN_UWB_NUMERIC_EXPOSURE",
+    "to": "RECOVERABLE_COLOCATED_TRANSPORT_TEXT_EXPOSURE_NO_SEMANTIC_CONSUMPTION",
+    "original_incident_must_remain_append_only": true,
+    "scientific_state_invalidated": false,
+    "time_audit_results_after_incident_invalidated": true
+  },
+  "access_levels": {
+    "level_0_transport_byte_transit": "ALLOWED",
+    "level_1_routing_header_lexical_selection": "ALLOWED",
+    "level_2_uwb_measurement_semantic_materialization": "FORBIDDEN_RECOVERABLE_IF_PROVEN_ISOLATED",
+    "level_3_scientific_algorithmic_consumption": "HARD_STOP_FORBIDDEN_UWB_SCIENTIFIC_CONSUMPTION"
+  },
+  "counters": {
+    "co_located_transport_record_exposure": 1,
+    "uwb_semantic_numeric_decode": 0,
+    "uwb_measurement_array_materialization": 0,
+    "uwb_statistics_or_plot": 0,
+    "uwb_factor_or_initializer_consumption": 0,
+    "uwb_influence_on_config_or_threshold": 0
+  },
+  "allowed_timing_fields": [
+    "record_kind",
+    "hardware_node_id",
+    "boot_epoch",
+    "TIMER2",
+    "slot",
+    "superframe",
+    "sweep_id",
+    "strobe",
+    "sync_or_routing_state",
+    "required_transport_flags",
+    "source_byte_offset",
+    "source_record_length"
+  ],
+  "forbidden_measurement_fields": [
+    "range_mm",
+    "ranges",
+    "t_round",
+    "distance",
+    "quality",
+    "CFO",
+    "RSSI-derived ranging values",
+    "anchor measurement payload",
+    "Phase-4 range fields"
+  ],
+  "precision_time_sources": [
+    "TIMER2",
+    "boot_or_reset_identity",
+    "independent sync_strobe_sweep_routing events",
+    "frozen per-node_per-boot common-clock evidence",
+    "bounded sample-age model"
+  ],
+  "forbidden_precision_time_sources": [
+    "median(host_arrival - TIMER2)",
+    "range correlation",
+    "motion correlation",
+    "pose correlation",
+    "UWB distance values",
+    "quality_or_CFO_clock_fitting"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schema": "biospur-phase3r2-pose-semantic-gates-v1",
+  "scope": "internal engineering semantics; not external accuracy",
+  "initial_limb_gravity_down_deg": {"median_max": 15, "p95_max": 25},
+  "initial_elbow_collinearity_deg": {"median_max": 20, "p95_max": 30},
+  "tpose_directional_error_deg": {"median_max": 15, "p95_max": 25},
+  "final_forearm_gravity_down_deg": {"median_max": 20, "p95_max": 30, "eligible_fraction_within_30_min": 0.95},
+  "static_solver_over_b0_p95_ratio_max": 1.25,
+  "initialization_target_s": 2,
+  "initialization_hard_cap_s": 5,
+  "threshold_sensitivity_multipliers": [0.5, 1, 2],
+  "usability_axes": ["OUTPUT_PRESENT", "INTERNAL_UNCERTAINTY_GATE", "TILT_CONDITIONALLY_USABLE", "TWIST_UNRESOLVED", "JOINT_SEMANTIC_GATE_PASS", "DEGRADED_OR_PREDICTED", "EXTERNAL_ACCURACY_UNVALIDATED"]
+}
