@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import inspect
 from pathlib import Path
 
 import numpy as np
@@ -8,6 +9,7 @@ import pytest
 
 from biospur_fusion.imu_pose_r21.real_data import CacheRow, EXPECTED_NODES
 from BioSpur_Fusion.Fusion_Part.tools.fusion_v2.phase3r21.postprocess_phase3r21 import _masks
+from BioSpur_Fusion.Fusion_Part.tools.fusion_v2.phase3r21 import run_phase3r21
 
 
 ROOT = Path(__file__).resolve().parents[5]
@@ -53,3 +55,11 @@ def test_phase_masks_union_across_fit_validation_and_guard_caches(tmp_path):
     h.mkdir();np.save(h/"action.npy",np.array(["H00_walk"]));np.save(h/"phase.npy",np.array(["FORMAL_ACTION"]));np.save(h/"common_time_ns.npy",np.array([2_500_000]))
     result=_masks(np.array([0,20_000_000,40_000_000]),cache,h)
     assert result["a"]["FORMAL_ACTION"].tolist()==[True,True,True]
+
+
+def test_real_calibration_has_no_action_name_pseudo_target_and_routes_qmt_axes():
+    source=inspect.getsource(run_phase3r21)
+    assert "phase3r21-target" not in source
+    assert "action_name_pseudo_targets\":0" in source
+    assert "axis_child_segment" in source
+    assert "functional_axes_child=axes" in source

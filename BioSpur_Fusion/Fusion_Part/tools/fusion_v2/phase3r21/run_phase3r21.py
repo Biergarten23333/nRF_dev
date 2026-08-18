@@ -102,18 +102,25 @@ def _principal(values: np.ndarray) -> np.ndarray:
     return axis/np.linalg.norm(axis)
 
 
-def _target(action: str, segment: str) -> np.ndarray:
-    if action == "00_initial_still": return np.array([0., 0., 1.])
-    if action == "02_t_pose":
-        if segment.endswith("_left") and (segment.startswith("upper_arm") or segment.startswith("forearm")): return np.array([1., 0., 0.])
-        if segment.endswith("_right") and (segment.startswith("upper_arm") or segment.startswith("forearm")): return np.array([-1., 0., 0.])
-        return np.array([0., 0., 1.])
-    digest = hashlib.sha256(f"{action}|{segment}|phase3r21-target".encode()).digest()
-    vector = np.array([int(digest[0])-127.5, int(digest[1])-127.5, int(digest[2])-127.5])
-    return vector/np.linalg.norm(vector)
+def _quaternion_mean(q: np.ndarray) -> np.ndarray:
+    q=np.asarray(q,float);moment=np.einsum("ni,nj->ij",q,q);_,vectors=np.linalg.eigh(moment);out=vectors[:,-1]
+    return so3.normalize(out if out[0]>=0 else -out)
 
 
-def _fit_observations(rows: list[CacheRow], mapping: dict[str, str]) -> tuple[list[CalibrationObservation], dict]:
+def _initial_fit_alignment(rows: list[CacheRow], mapping: dict[str,str]) -> dict[str,np.ndarray]:
+    """Freeze one session-neutral S->I initializer from real initial FIT only."""
+    from vqf import VQF
+    output={}
+    for node in sorted(mapping):
+        selected=[r for r in rows if r.action_id=="00_initial_still" and r.node_id==node]
+        gyro=np.stack([r.gyro_rad_s for r in selected]);accel=np.stack([r.accel_m_s2 for r in selected])
+        state=VQF(gyrTs=.005,accTs=.005).updateBatchFullState(gyro,accel)
+        q_w_i=_quaternion_mean(np.asarray(state["quat6D"])[len(selected)//4:])
+        output[node]=so3.inv(q_w_i)
+    return output
+
+
+def _fit_observations(rows: list[CacheRow], mapping: dict[str, str], preliminary: dict[str,np.ndarray]) -> tuple[list[CalibrationObservation], dict]:
     observations = []; accounting = {}
     for action in FIT_ACTIONS:
         accounting[action] = {"rows": 0, "factors": 0, "nodes": 0, "accepted_weight": 0.0, "information_trace": 0.0}
@@ -122,11 +129,13 @@ def _fit_observations(rows: list[CacheRow], mapping: dict[str, str]) -> tuple[li
             selected = [row for row in action_rows if row.node_id == node]
             if not selected: continue
             accel = np.stack([row.accel_m_s2 for row in selected]); gyro = np.stack([row.gyro_rad_s for row in selected])
-            if action in {"00_initial_still", "02_t_pose"}:
-                source = np.mean(accel, axis=0); source /= np.linalg.norm(source)
-            else:
-                source = _principal(gyro)
-            target = _target(action, mapping[node]); weight = float(np.clip(len(selected)/500.0, .25, 4.0))
+            observed_I = (-np.mean(accel, axis=0) if action in {"00_initial_still", "02_t_pose"} else _principal(gyro))
+            observed_I /= np.linalg.norm(observed_I)
+            # Each real action contributes its measured direction. The source
+            # direction is expressed in the preliminary segment frame; no
+            # action-name pseudo-target or validation value is introduced.
+            source = so3.matrix(preliminary[node]).T@observed_I
+            target = observed_I; weight = float(np.clip(len(selected)/500.0, .25, 4.0))
             uid_hash = hashlib.sha256("\n".join(row.uid for row in selected).encode()).hexdigest()
             cycle = sorted({row.cycle_id for row in selected})[0]
             observations.append(CalibrationObservation(action, cycle, "FIT", node, source, target, weight, uid_hash))
@@ -136,7 +145,7 @@ def _fit_observations(rows: list[CacheRow], mapping: dict[str, str]) -> tuple[li
     return observations, accounting
 
 
-def _functional_axes(rows: list[CacheRow], mapping: dict[str, str]) -> dict:
+def _functional_axes(rows: list[CacheRow], mapping: dict[str, str], bundle: CalibrationBundle) -> dict:
     reverse = {segment: node for node, segment in mapping.items()}
     definitions = {
         "elbow_left": ("06_elbow_left", "upper_arm_left", "forearm_left"),
@@ -152,9 +161,10 @@ def _functional_axes(rows: list[CacheRow], mapping: dict[str, str]) -> dict:
         try:
             result = run_qmt_hinge_axis(np.stack([pr[i].accel_m_s2 for i in take]), np.stack([cr[i].accel_m_s2 for i in take]),
                                         np.stack([pr[i].gyro_rad_s for i in take]), np.stack([cr[i].gyro_rad_s for i in take]))
+            axis_segment=so3.matrix(bundle.by_node[reverse[child]].q_I_S).T@result.child_axis_sensor
             output[joint] = {"action_id": action, "axis_child_sensor": result.child_axis_sensor.tolist(),
                              "axis_parent_sensor": result.parent_axis_sensor.tolist(), "confidence": result.confidence,
-                             "sample_count": result.sample_count, "official_qmt": True}
+                             "axis_child_segment":axis_segment.tolist(),"sample_count": result.sample_count, "official_qmt": True}
         except Exception as exc:
             output[joint] = {"action_id": action, "axis_child_sensor": _principal(np.stack([r.gyro_rad_s for r in cr])).tolist(),
                              "axis_parent_sensor": _principal(np.stack([r.gyro_rad_s for r in pr])).tolist(), "confidence": 0.0,
@@ -164,13 +174,15 @@ def _functional_axes(rows: list[CacheRow], mapping: dict[str, str]) -> dict:
 
 def cmd_calibrate(args) -> int:
     fit = load_cache_rows(args.cache_root/"fit"); mapping_payload = json_load(args.mapping); mapping = validate_mapping(mapping_payload)
-    observations, accounting = _fit_observations(fit, mapping)
+    preliminary=_initial_fit_alignment(fit,mapping)
+    observations, accounting = _fit_observations(fit, mapping, preliminary)
     bundle = fit_joint_calibration(observations, mapping, FIT_ACTIONS)
     payload = bundle_payload(bundle); payload.update({
         "schema": "biospur-phase3r21-session-calibration-bundle-v1", "run_id": args.run_id,
         "real_capture": True, "synthetic": False, "fit_measurement_numeric_decode": 6*len(fit),
         "data_derived_calibration_factor_count": len(observations), "factor_accounting": accounting,
-        "functional_axes": _functional_axes(fit, mapping),
+        "functional_axes": _functional_axes(fit, mapping, bundle),
+        "initializer": {"method":"OFFICIAL_VQF_INITIAL_FIT_NEUTRAL_ALIGNMENT","per_node_q_IS":{n:q.tolist() for n,q in preliminary.items()},"action_name_pseudo_targets":0},
         "bias_state_in_bundle": False, "accel_bias_full_identification_claim": False,
         "metric_lever_arm_factor_count": 0, "real_dynamic_specific_force_metric_factor_count": 0,
         "geometry_authority": "MODEL_INFERRED_SCALE_CONDITIONAL", "world_translation": "UNAVAILABLE",
@@ -235,7 +247,9 @@ def _window_masks(rows: list[CacheRow], grid: np.ndarray) -> dict[str, dict[str,
 
 
 def cmd_replay(args) -> int:
-    bundle = _load_bundle(args.bundle); mapping = dict(bundle.mapping)
+    bundle_payload_raw=json_load(args.bundle);bundle = _load_bundle(args.bundle); mapping = dict(bundle.mapping)
+    axes={joint:np.asarray(row["axis_child_segment"],float) for joint,row in bundle_payload_raw["functional_axes"].items() if row.get("official_qmt") and row.get("confidence",0)>0}
+    axis_confidence={joint:float(row["confidence"]) for joint,row in bundle_payload_raw["functional_axes"].items() if joint in axes}
     rows = []
     for name in ("fit", "propagation", "validation", "guard"):
         rows.extend(load_cache_rows(args.cache_root/name))
@@ -248,8 +262,15 @@ def cmd_replay(args) -> int:
     for node, state in vqf.items():
         idx = _latest_index(state["time"], grid); segment = mapping[node]
         b0[segment] = so3v1.continuous(so3.mul(state["q"][idx], bundle.by_node[node].q_I_S)); b1[segment] = b0[segment].copy()
+    for spec in JOINTS:
+        if spec.name not in axes: continue
+        axis=axes[spec.name]/np.linalg.norm(axes[spec.name]);strength=.2*float(np.clip(axis_confidence[spec.name],0,1))
+        previous=so3.between(b1[spec.parent][0],b1[spec.child][0])
+        for i in range(1,len(grid)):
+            relative=so3.between(b1[spec.parent][i],b1[spec.child][i]);increment=so3.log(so3.between(previous,relative));orthogonal=increment-axis*np.dot(axis,increment)
+            b1[spec.child][i]=so3.apply_right(b1[spec.child][i],-strength*orthogonal);previous=so3.between(b1[spec.parent][i],b1[spec.child][i])
     frontends = {node: ContinuousNodeFrontend(node) for node in sorted(mapping)}
-    estimator = ContinuousArticulatedEstimator(bundle)
+    estimator = ContinuousArticulatedEstimator(bundle,functional_axes_child=axes,functional_axis_confidence=axis_confidence)
     latest = {}; cursor = 0; p = {segment: [] for segment in SEGMENTS}; p_cov=[]; statuses=[]; ages=[]
     source_rows = rows
     for tick in grid:
